@@ -156,8 +156,8 @@ Rules:
   coordinate clicks and screenshots. Screenshots are result evidence, not a
   way to locate controls or calculate coordinates.
 - A documented UI action must use its accepted complete-scene coordinate and
-  current `sceneID`. It must stop when the logical size or window layout differs
-  from the procedure's stated precondition.
+  current `sceneID`. It must stop when the window layout differs from the
+  procedure's stated precondition.
 - Known CueSeeker shortcuts should use the Debug E2E in-app keyboard command
   with a current `sceneID`. Tests must not replace keyboard events with direct
   route changes, product actions, system-wide event injection, or Accessibility

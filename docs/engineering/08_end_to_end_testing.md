@@ -57,9 +57,9 @@ logical points. Coordinates use that complete scene's upper-left corner as
 `(0, 0)`, increase rightward and downward, and are independent of backing scale.
 `windows` records each window's scene-relative frame, type, title, number, and
 front-to-back order; order `0` is frontmost. All included windows must be fully
-contained by the same display. A test procedure must state the expected logical
-size, window layout, and pre-agreed coordinates. Stop when they differ; do not
-use a screenshot to rediscover the control.
+contained by the same display. A test procedure must state the expected window
+layout and pre-agreed coordinates. Stop when the layout differs; do not use a
+screenshot to rediscover the control.
 
 Supported commands are one JSON object per line:
 
@@ -1403,16 +1403,16 @@ History.
 - Use a Debug build at the requirement commit or its implementation descendant.
 - At least one current Library folder has one available Episode.
 - Start on the Workbench Shiori overview with its first list visible.
-- CueSeeker starts with one visible main window whose complete scene is exactly
-  `1433 × 821` logical points at `2×`, with the 240-point Sidebar expanded.
+- CueSeeker starts with one visible main window and the 240-point Sidebar
+  expanded.
 - Record the active Light or Dark appearance with the evidence; repeat the gate
   in the other appearance during final visual acceptance.
 - Recent and Shiori Sidebar groups are expanded. Under this layout, the accepted
   complete-scene coordinates are Library `(80, 217)`, Shiori's first list
   `(80, 289)`, the first Library folder card `(360, 210)`, the detail scroll
   region `(1300, 650)`, and Shiori restore `(80, 253)`.
-- Stop without clicking if `inspect` reports another size, scale, window count,
-  or layout. Screenshots must not be used to recalculate coordinates.
+- Stop without clicking if `inspect` reports another window count or layout.
+  Screenshots must not be used to recalculate coordinates.
 
 ### Build And Launch
 
@@ -1512,12 +1512,12 @@ Command Panel Recent Video targets.
 
 ### In-App E2E Preconditions
 
-- Use the Debug in-app controller at `1433 x 821` logical points and `2x`.
+- Use the Debug in-app controller.
 - Start on the Workbench Recent overview with Library at `(80, 217)`.
 - The first Library folder at `(360, 210)` has at least two available videos;
   its first Video Card is at `(380, 390)` after detail loading.
-- Stop if `inspect` reports a different complete scene or any documented card
-  is unavailable.
+- Stop if `inspect` reports another window count or layout, or if any documented
+  card is unavailable.
 
 ### In-App E2E Actions
 
@@ -1579,8 +1579,8 @@ exactly 20 points smaller than the previous 24-point page padding.
 
 ### In-App E2E Preconditions
 
-- Use the Debug in-app controller with one visible `1443 x 821` logical-point,
-  `2x` main window. Recent and Shiori are expanded and the Sidebar is visible.
+- Use the Debug in-app controller with one visible main window. Recent and
+  Shiori are expanded and the Sidebar is visible.
 - Set Settings > Appearance to Light before the first run and repeat the gate
   in Dark. Restore the starting appearance during cleanup.
 - The accepted expanded-Sidebar coordinates are Sidebar Toggle `(212, 23)`,
@@ -1593,9 +1593,9 @@ exactly 20 points smaller than the previous 24-point page padding.
   `(429, 109)`, and `(1000, 109)`.
 - With the Sidebar collapsed, Sidebar Toggle is `(114, 23)` and Back is
   `(158, 23)`.
-- Stop before clicking if `inspect` reports another size, scale, window count,
-  or layout, or if the documented Library folder and Shiori list are absent.
-  Screenshots must not be used to recalculate coordinates.
+- Stop before clicking if `inspect` reports another window count or layout, or
+  if the documented Library folder and Shiori list are absent. Screenshots must
+  not be used to recalculate coordinates.
 
 ### In-App E2E Actions
 
