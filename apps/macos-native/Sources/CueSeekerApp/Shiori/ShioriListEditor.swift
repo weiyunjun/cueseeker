@@ -134,7 +134,7 @@ struct ShioriListEditorDialog: View {
                         WorkbenchConfirmationAction(
                             id: "discard",
                             title: "Don’t Save",
-                            style: .destructive,
+                            style: .neutral,
                             action: onClose
                         ),
                         WorkbenchConfirmationAction(

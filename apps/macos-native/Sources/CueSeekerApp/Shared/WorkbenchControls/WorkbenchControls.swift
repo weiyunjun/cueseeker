@@ -745,7 +745,7 @@ struct WorkbenchDestructiveButton: View {
             )
             .overlay(
                 RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignCornerRadius, style: .continuous)
-                    .strokeBorder(isEnabled ? WorkbenchRedesignColors.dangerText : WorkbenchRedesignColors.borderDisabled, lineWidth: 1)
+                    .strokeBorder(borderColor, lineWidth: 1)
             )
             .overlay(
                 Group {
@@ -764,6 +764,18 @@ struct WorkbenchDestructiveButton: View {
         .focused($isFocused)
         .disableFocusEffect()
         .onHover { isHovered = $0 }
+    }
+
+    private var borderColor: Color {
+        guard isEnabled else {
+            return WorkbenchRedesignColors.borderDisabled
+        }
+        if isFocused {
+            return WorkbenchRedesignColors.borderFocus
+        }
+        return isHovered
+            ? WorkbenchRedesignColors.borderControlHover
+            : WorkbenchRedesignColors.borderControl
     }
 }
 
