@@ -777,7 +777,7 @@
   - Label Color：`--color-danger-text`
   - Icon Color：`--color-icon-default`
 - Hover
-  - Background：`--color-bg-hover`
+  - Background：`--color-danger-bg-hover`
   - Border Color：`--color-danger-text`
 - Focused
   - Border Color：`--color-danger-text`
