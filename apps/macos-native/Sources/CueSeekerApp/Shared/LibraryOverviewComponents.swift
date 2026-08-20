@@ -26,11 +26,12 @@ struct LibraryOverviewLayout<Content: View>: View {
     }
 
     var body: some View {
-        WorkbenchScrollView {
-            VStack(
-                alignment: .leading,
-                spacing: WorkbenchControlMetrics.redesignSpacing4
-            ) {
+        GeometryReader { geometry in
+            WorkbenchScrollView([.vertical, .horizontal]) {
+                VStack(
+                    alignment: .leading,
+                    spacing: WorkbenchControlMetrics.redesignSpacing4
+                ) {
                 WorkbenchPageTitle(title)
 
                 HStack(spacing: WorkbenchControlMetrics.redesignSpacing3) {
@@ -65,7 +66,14 @@ struct LibraryOverviewLayout<Content: View>: View {
                 .bottom,
                 WorkbenchControlMetrics.redesignWorkbenchPageBottomPadding
             )
-            .frame(maxWidth: .infinity, alignment: .topLeading)
+                .frame(
+                    width: max(
+                        geometry.size.width,
+                        AppShellLayout.pageContentMinimumWidth
+                    ),
+                    alignment: .topLeading
+                )
+            }
         }
         .background(WorkbenchRedesignColors.bgSurface)
     }

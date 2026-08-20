@@ -10,8 +10,9 @@ struct WorkbenchRecentView: View {
     @EnvironmentObject private var shiori: ShioriStore
 
     var body: some View {
-        WorkbenchScrollView {
-            VStack(alignment: .leading, spacing: WorkbenchTestLibraryMetrics.sectionSpacing) {
+        GeometryReader { geometry in
+            WorkbenchScrollView([.vertical, .horizontal]) {
+                VStack(alignment: .leading, spacing: WorkbenchTestLibraryMetrics.sectionSpacing) {
                 WorkbenchPageTitle(recentPageTitle)
 
                 switch routeState.selectedRecentSection {
@@ -26,10 +27,17 @@ struct WorkbenchRecentView: View {
                     overview
                 }
             }
-            .padding(.horizontal, WorkbenchTestLibraryMetrics.pageHorizontalPadding)
-            .padding(.top, WorkbenchTestLibraryMetrics.pageTopPadding)
-            .padding(.bottom, WorkbenchTestLibraryMetrics.pageBottomPadding)
-            .frame(maxWidth: .infinity, alignment: .topLeading)
+                .padding(.horizontal, WorkbenchTestLibraryMetrics.pageHorizontalPadding)
+                .padding(.top, WorkbenchTestLibraryMetrics.pageTopPadding)
+                .padding(.bottom, WorkbenchTestLibraryMetrics.pageBottomPadding)
+                .frame(
+                    width: max(
+                        geometry.size.width,
+                        AppShellLayout.pageContentMinimumWidth
+                    ),
+                    alignment: .topLeading
+                )
+            }
         }
         .background(WorkbenchRedesignColors.bgSurface)
         .task {
@@ -307,21 +315,29 @@ struct WorkbenchTestLibraryView: View {
     var body: some View {
         Group {
             if let selectedFolder {
-                WorkbenchScrollView {
-                    folderDetailContent(for: selectedFolder)
-                        .padding(
-                            .horizontal,
-                            WorkbenchControlMetrics.redesignSpacing8
-                        )
-                        .padding(
-                            .top,
-                            WorkbenchControlMetrics.redesignCoverSummaryDetailTopPadding
-                        )
-                        .padding(
-                            .bottom,
-                            WorkbenchTestLibraryMetrics.pageBottomPadding
-                        )
-                        .frame(maxWidth: .infinity, alignment: .topLeading)
+                GeometryReader { geometry in
+                    WorkbenchScrollView([.vertical, .horizontal]) {
+                        folderDetailContent(for: selectedFolder)
+                            .padding(
+                                .horizontal,
+                                WorkbenchControlMetrics.redesignSpacing8
+                            )
+                            .padding(
+                                .top,
+                                WorkbenchControlMetrics.redesignCoverSummaryDetailTopPadding
+                            )
+                            .padding(
+                                .bottom,
+                                WorkbenchTestLibraryMetrics.pageBottomPadding
+                            )
+                            .frame(
+                                width: max(
+                                    geometry.size.width,
+                                    AppShellLayout.pageContentMinimumWidth
+                                ),
+                                alignment: .topLeading
+                            )
+                    }
                 }
             } else {
                 LibraryOverviewLayout(

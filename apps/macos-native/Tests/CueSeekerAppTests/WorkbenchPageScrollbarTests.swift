@@ -141,6 +141,49 @@ func workbenchPageChromeStopsShrinkingWithTheTableColumns() async throws {
 }
 
 @Test
+func workbenchPageWithoutATableStopsAtTheContentMinimumWidth() async throws {
+    let available: CGFloat = 300
+    let host = NSHostingView(
+        rootView: LibraryOverviewLayout(
+            title: "Library",
+            summaryText: "0 Folders",
+            actionTitle: "Add Content",
+            actionSystemImage: "plus",
+            action: {}
+        ) {
+            Color.clear.frame(height: 40)
+        }
+        .frame(width: available, height: 400)
+    )
+    host.frame = CGRect(x: 0, y: 0, width: available, height: 400)
+    let window = NSWindow(
+        contentRect: host.frame,
+        styleMask: [.borderless],
+        backing: .buffered,
+        defer: false
+    )
+    window.contentView = host
+
+    await settleWorkbenchPage(host)
+
+    let overlay = try #require(
+        firstWorkbenchPageSubview(
+            of: WorkbenchScrollViewOverlayView.self,
+            in: host
+        )
+    )
+    let scrollView = try #require(overlay.targetScrollViewForTesting)
+    let documentView = try #require(scrollView.documentView)
+
+    // The page keeps the App-minimum right region width and overflows instead.
+    #expect(available < AppShellLayout.pageContentMinimumWidth)
+    #expect(
+        abs(documentView.frame.width - AppShellLayout.pageContentMinimumWidth) < 0.5
+    )
+    #expect(overlay.presentationProvider()?.horizontal != nil)
+}
+
+@Test
 func subtitleTablePageChromeFollowsTheHorizontalScrollOffset() async throws {
     let row = SubtitleTableRow(
         id: 1,

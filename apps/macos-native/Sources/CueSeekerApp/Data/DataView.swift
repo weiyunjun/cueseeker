@@ -80,7 +80,7 @@ private struct DataPageLayout<Content: View>: View {
 
     var body: some View {
         GeometryReader { geometry in
-            WorkbenchScrollView {
+            WorkbenchScrollView([.vertical, .horizontal]) {
                 VStack(
                     alignment: .leading,
                     spacing: WorkbenchControlMetrics.redesignSpacing4
@@ -102,7 +102,10 @@ private struct DataPageLayout<Content: View>: View {
                     WorkbenchControlMetrics.redesignWorkbenchPageBottomPadding
                 )
                 .frame(
-                    width: geometry.size.width,
+                    width: max(
+                        geometry.size.width,
+                        AppShellLayout.pageContentMinimumWidth
+                    ),
                     alignment: .topLeading
                 )
                 .frame(
