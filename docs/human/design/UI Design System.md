@@ -219,7 +219,7 @@
 - `--height-player-progress-time-capsule`: `22px`
 - `--height-library-progress-bar`: `4px`
 - `--height-library-list-cover`: `115px`
-- `--height-cover-summary`: `252px`
+- `--height-cover-summary-backdrop`: `225px`
 - `--height-cue-facet-filter-panel-pinned`: `244px`
 - `--height-keycap`: `22px`
 
@@ -242,6 +242,7 @@
 - `--size-row-action-button`: `36px`
 - `--scrollbar-size`: `8px`
 - `--scrollbar-min-thumb-length`: `24px`
+- `--width-page-scrollbar-channel`: `16px`
 - `--width-app-sidebar`: `240px`
 - `--size-app-sidebar-item-icon`: `18px`
 - `--size-player-circle-button`: `40px`
@@ -259,6 +260,9 @@
 - `--min-width-cover-summary-content`: `448px`
 - `--max-width-cover-summary-content`: `720px`
 - `--preferred-width-cover-summary-content`: `50%`
+- `--width-cover-summary-split-cover`: `320px`
+- `--min-width-cover-summary-split-content`: `320px`
+- `--width-cover-summary-form-switch`: `664px`
 - `--width-library-recent-card-min`: `180px`
 - `--width-library-recent-card-max`: `220px`
 - `--width-library-episode-row-min`: `380px`
@@ -290,6 +294,7 @@
 - `--gap-library-list-info-vertical`: `8px`
 - `--gap-library-folder-card-content`: `12px`
 - `--gap-cover-summary-to-toolbar`: `24px`
+- `--gap-cover-summary-split`: `24px`
 
 ### Padding
 
@@ -320,7 +325,8 @@
 - `--padding-library-time-badge`: `2px 6px`
 - `--padding-library-media-card-hover`: `12px`
 - `--padding-library-list-card`: `12px 16px`
-- `--padding-cover-summary-content`: `40px`
+- `--padding-cover-summary-backdrop-inline`: `40px`
+- `--padding-cover-summary-backdrop-block`: `22.5px`
 
 ## 1.5 形状与效果
 
@@ -1905,7 +1911,7 @@
 
 #### Structure
 
-1. Background Cover
+1. Cover
 2. Content
    1. Title
    2. Supporting Content
@@ -1914,40 +1920,55 @@
         1. Primary Metadata
         2. Secondary Metadata
    3. Resume or Play Action
-      - Component：Button / Cover Summary
+      - Split Form：Button / Primary
+      - Backdrop Form：Button / Cover Summary
 
 #### Sizes
 
 - Width：Parent Available Width
-- Height：`--height-cover-summary`
-- Content Width：`min(Padded Available Width, clamp(--min-width-cover-summary-content, --preferred-width-cover-summary-content, --max-width-cover-summary-content))`
-- Content Padding：`--padding-cover-summary-content`
+- Form Switch Width：`--width-cover-summary-form-switch`
+- Content Height：两种形态相同，等于 Split Form 的 Cover Height
 - Metadata Item Gap：`--spacing-2`
-- Radius：`--radius-cover-summary`
+- Split Form
+  - Cover Size：`--width-cover-summary-split-cover` with `--aspect-library-cover`
+  - Cover Radius：`--radius-library-cover`
+  - Cover to Content Gap：`--gap-cover-summary-split`
+  - Content Minimum Width：`--min-width-cover-summary-split-content`
+  - Height：Cover Height
+- Backdrop Form
+  - Height：`--height-cover-summary-backdrop`
+  - Radius：`--radius-cover-summary`
+  - Content Width：`min(Padded Available Width, clamp(--min-width-cover-summary-content, --preferred-width-cover-summary-content, --max-width-cover-summary-content))`
+  - Content Padding Inline：`--padding-cover-summary-backdrop-inline`
+  - Content Padding Block：`--padding-cover-summary-backdrop-block`
 
 #### Layout
 
-- Background Cover 填满组件边界，并由组件 Radius 裁切。
-- Background Cover 保持原始比例，使用 Aspect Fill 与 Center Crop。
-- 窗口宽度变化时，背景裁剪、Content 宽度和 Scrim 实时重新计算。
+- 可用宽度不小于 Form Switch Width 时使用 Split Form，否则使用 Backdrop Form。
+- Split Form：Cover 在左并锁定尺寸，Content 在右占满剩余宽度，无背景与 Scrim。
+- Backdrop Form：Cover 填满组件边界并由组件 Radius 裁切，Content 压在 Cover 上。
+- Cover 保持原始比例，使用 Aspect Fill 与 Center Crop。
+- Backdrop Form 高度固定，最窄宽度下不裁剪，宽度越大上下裁剪越多。
+- 两种形态的 Content 高度相同，Title 在上，Resume or Play Action 在左下角。
+- 形态切换时组件高度只变化一次，不随宽度连续变化。
 - 禁止拉伸、补边、扩图、镜像、重绘或修改封面文件。
 - Content 位于左侧并保持左对齐。
-- Scrim 覆盖左侧文字区域，并按照 Cover Summary Scrim 从左向右衰减至透明。
+- Backdrop Form 的 Scrim 覆盖左侧文字区域，并按照 Cover Summary Scrim 从左向右衰减至透明。
 - Scrim 默认在 `--cover-summary-scrim-transparent` 位置完全透明。
 - 当 Content 右边缘及其 Padding 超过默认透明位置时，Scrim 终点随 Content 延伸，最大不超过组件右边缘；中间渐变位置同比例延展。
 - Outer Background and Border：None
-- Light Mode 与 Dark Mode 使用同一套 Cover Summary 视觉规则。
+- Split Form 分别适配 Light Mode 与 Dark Mode；Backdrop Form 两种模式使用同一套视觉规则。
 
 #### Typography
 
 - Title
   - Font Size：`--font-size-cover-summary-title`
   - Font Weight：`--font-weight-cover-summary-title`
-  - Color：`--color-cover-summary-text`
+  - Color：Split Form `--color-text-primary`；Backdrop Form `--color-cover-summary-text`
   - Maximum Lines：`1`
 - Supporting Content
   - Font Size：`--font-size-body`
-  - Color：`--color-cover-summary-text` with `--opacity-cover-summary-description`
+  - Color：Split Form `--color-text-secondary`；Backdrop Form `--color-cover-summary-text` with `--opacity-cover-summary-description`
   - Text Hierarchy：Secondary
 - Description Variant
   - Maximum Lines：`2`
@@ -2521,6 +2542,7 @@
 
 - Expanded
 - Collapsed
+  - Auto Collapse：窗口宽度 ≤ `--min-width-workbench-page-content` + `--width-app-sidebar` 时自动收起，收起后不自动展开。
 - Child Region Scrolling
 
 ### App Topbar Layout
@@ -2581,6 +2603,7 @@
 #### Spacing
 
 - Page Padding Inline：`--spacing-8`
+- Page Scrollbar Channel：`--width-page-scrollbar-channel`，位于 Trailing Padding 之外并恒定预留
 - Page Padding Top：`--spacing-1`
 - Page Padding Bottom：`--spacing-6`
 
@@ -2867,7 +2890,7 @@
 
 - Content Page Padding Inline 与 Shiori List Detail 相同。
 - Cover Summary 与 Episode Grid 使用相同宽度和水平边界。
-- Cover Summary 宽度跟随页面可用宽度变化，并触发其背景裁剪、Content 和 Scrim 的响应式布局。
+- Cover Summary 宽度跟随页面可用宽度变化，并在 Split Form 与 Backdrop Form 之间切换。
 
 #### Spacing
 
@@ -2971,7 +2994,7 @@
 #### Layout
 
 - Cover Summary、Toolbar 与 Table Content Region 使用相同宽度和水平边界。
-- Cover Summary 宽度跟随页面可用宽度变化，并触发其背景裁剪、Content 和 Scrim 的响应式布局。
+- Cover Summary 宽度跟随页面可用宽度变化，并在 Split Form 与 Backdrop Form 之间切换。
 
 #### Spacing
 
