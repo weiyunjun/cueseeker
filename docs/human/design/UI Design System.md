@@ -265,6 +265,7 @@
 - `--width-library-list-cover`: `204px`
 - `--width-library-folder-cover`: `120px`
 - `--min-height-library-folder-card`: `96px`
+- `--min-width-workbench-page-content`: `480px`
 
 ## 1.4 间距
 
@@ -1210,7 +1211,6 @@
 - Header
 - Body Viewport
 - Rows
-- Vertical Scrollbar：Scrollbar / Vertical
 - Horizontal Scrollbar：Scrollbar / Horizontal
 
 ##### Sizes
@@ -1226,11 +1226,6 @@
 - Disabled
 
 #### Scrollbar Mapping
-
-##### Vertical
-
-- Position Domain：Body Content Offset
-- Extent Domain：Body Content Length
 
 ##### Horizontal
 
@@ -2576,12 +2571,26 @@
 #### Components
 
 - Workbench Page Title
+- Scrollbar / Vertical
+- Scrollbar / Horizontal
+
+#### Sizes
+
+- Page Content Minimum Width：`--min-width-workbench-page-content`
 
 #### Spacing
 
 - Page Padding Inline：`--spacing-8`
 - Page Padding Top：`--spacing-1`
 - Page Padding Bottom：`--spacing-6`
+
+#### Scrolling
+
+- Vertical Scrollbar：Page Viewport Trailing Edge
+- Horizontal Scrollbar
+  - Presence：Page Viewport Width < Page Content Minimum Width
+  - Position：Page Viewport Bottom Edge
+- 与 Table Horizontal Scrollbar 同时存在时，Page Horizontal Scrollbar 占据底部，Table Horizontal Scrollbar 上移一个 Scrollbar 高度。
 
 ## 3.2 Settings
 
@@ -3098,8 +3107,7 @@
 
 1. Fixed Header
 2. Scrollable Body
-3. Vertical Scrollbar
-4. Horizontal Scrollbar
+3. Horizontal Scrollbar
 
 #### Components
 
@@ -3110,8 +3118,12 @@
 - Table Cell / Text
 - Table Cell / Interactive Text
 - Checkbox / Table Selection Checkbox
-- Scrollbar / Vertical
 - Scrollbar / Horizontal
+
+#### Layout
+
+- Fixed Header 与 Scrollable Body 使用相同宽度和水平边界，横向滚动时同步移动。
+- Horizontal Scrollbar：Page Viewport Bottom Edge，长度与 Table 宽度一致。
 
 #### Sizes
 
