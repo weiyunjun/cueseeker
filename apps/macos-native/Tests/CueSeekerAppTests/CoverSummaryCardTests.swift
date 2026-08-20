@@ -82,15 +82,13 @@ func coverSummaryKeepsTheContentColumnHeightAcrossAFormChange() {
     #expect(split.contentFrame.height == backdrop.contentFrame.height)
     #expect(split.contentFrame.height == 180)
 
-    // The backdrop block padding is what makes the two heights match.
-    #expect(backdrop.contentFrame.minY == 35)
+    // The backdrop block padding is what makes the two heights match, and it is
+    // applied equally above and below the content column.
+    #expect(backdrop.contentFrame.minY == 22.5)
+    #expect(backdrop.cardHeight - backdrop.contentFrame.maxY == 22.5)
     #expect(
-        backdrop.cardHeight - backdrop.contentFrame.maxY == 10
-    )
-    #expect(
-        WorkbenchControlMetrics.redesignCoverSummaryBackdropTopPadding
-            + WorkbenchControlMetrics.redesignCoverSummarySplitCoverHeight
-            + WorkbenchControlMetrics.redesignCoverSummaryBackdropBottomPadding
+        WorkbenchControlMetrics.redesignCoverSummarySplitCoverHeight
+            + WorkbenchControlMetrics.redesignCoverSummaryBackdropBlockPadding * 2
             == WorkbenchControlMetrics.redesignCoverSummaryBackdropHeight
     )
 }

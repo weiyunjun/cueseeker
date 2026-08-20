@@ -73,6 +73,9 @@ form for wide widths and a 16:9 backdrop form for narrow widths.
      change, so the action stays at its bottom-leading corner in both forms.
    - Both forms now share one content-column height, which removed the optional
      content height and the form-conditional spacer from the card view.
+   - Collapsed the separate top and bottom backdrop padding into one block
+     padding applied equally on both sides, so only one value has to stay
+     correct and the content column is centred in the card.
 
 # Verification
 
@@ -94,7 +97,8 @@ form for wide widths and a 16:9 backdrop form for narrow widths.
 - Step 5: `swift build` succeeds; the same four suites pass (113 tests),
   including new assertions that the backdrop height is fixed at every width,
   that it equals the cover's own 16:9 height at the narrowest card, and that
-  both forms resolve the same content-column height.
+  both forms resolve the same content-column height with equal block padding
+  above and below it.
 
 # Outcome
 

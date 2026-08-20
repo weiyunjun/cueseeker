@@ -275,18 +275,16 @@ enum WorkbenchControlMetrics {
         redesignCoverSummarySplitCoverWidth
             + redesignCoverSummarySplitGap
             + redesignCoverSummarySplitContentMinWidth
-    /// Backdrop-form block padding above the content column.
-    static let redesignCoverSummaryBackdropTopPadding: CGFloat = 35
-    /// Backdrop-form block padding below the content column.
-    static let redesignCoverSummaryBackdropBottomPadding: CGFloat = 10
+    /// Backdrop-form block padding, applied equally above and below the content
+    /// column so there is only one value to keep correct.
+    static let redesignCoverSummaryBackdropBlockPadding: CGFloat = 22.5
     /// Fixed backdrop-form card height. Derived from the block padding around a
     /// content column as tall as the split form's, so the text and action area
     /// keeps the same height across a form change and the card height steps once
     /// instead of tracking the width.
     static let redesignCoverSummaryBackdropHeight =
-        redesignCoverSummaryBackdropTopPadding
-            + redesignCoverSummarySplitCoverHeight
-            + redesignCoverSummaryBackdropBottomPadding
+        redesignCoverSummarySplitCoverHeight
+            + redesignCoverSummaryBackdropBlockPadding * 2
     /// --font-size-cover-summary-title: 28px
     static let redesignFontSizeCoverSummaryTitle: CGFloat = 28
     /// --font-weight-cover-summary-title: 700

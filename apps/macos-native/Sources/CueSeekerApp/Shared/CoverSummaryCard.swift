@@ -83,7 +83,7 @@ struct CoverSummaryCardLayout: Equatable {
         // action area does not resize when the form changes.
         let contentFrame = CGRect(
             x: padding,
-            y: WorkbenchControlMetrics.redesignCoverSummaryBackdropTopPadding,
+            y: WorkbenchControlMetrics.redesignCoverSummaryBackdropBlockPadding,
             width: min(availableWidth, boundedWidth),
             height: WorkbenchControlMetrics.redesignCoverSummarySplitCoverHeight
         )
