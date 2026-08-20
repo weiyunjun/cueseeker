@@ -189,6 +189,51 @@ func workbenchTableScrollbarMovesUpForThePageScrollbar() async throws {
     )
 }
 
+@MainActor
+@Test
+func workbenchTableHeaderStaysWithinTheTableWidth() async throws {
+    let width = AppShellLayout.pageContentMinimumWidth + 40
+    let host = NSHostingView(
+        rootView: WorkbenchPageScrollbarFixture()
+            .frame(width: width, height: 320)
+    )
+    host.frame = CGRect(x: 0, y: 0, width: width, height: 320)
+    let window = NSWindow(
+        contentRect: host.frame,
+        styleMask: [.borderless],
+        backing: .buffered,
+        defer: false
+    )
+    window.contentView = host
+
+    await settleWorkbenchPage(host)
+
+    let headerView = try #require(
+        firstWorkbenchPageSubview(
+            of: SubtitleVirtualTableHeaderView.self,
+            in: host
+        )
+    )
+    let overlay = try #require(
+        workbenchPageSubviews(
+            of: SubtitleTableScrollbarOverlayView.self,
+            in: host
+        ).first { $0.visibleAxes == [.vertical] }
+    )
+    let scrollView = try #require(overlay.scrollView)
+    let documentView = try #require(scrollView.documentView)
+
+    // Header and table body cover the same horizontal range.
+    let headerFrame = headerView.convert(headerView.bounds, to: host)
+    let scrollFrame = scrollView.convert(scrollView.bounds, to: host)
+    #expect(abs(headerFrame.minX - scrollFrame.minX) < 0.5)
+    #expect(abs(headerFrame.width - scrollFrame.width) < 0.5)
+
+    // Columns shift with the horizontal offset, so the header must clip them.
+    #expect(documentView.frame.width > scrollView.contentView.bounds.width)
+    #expect(headerView.layer?.masksToBounds == true)
+}
+
 private struct WorkbenchPageScrollbarFixture: View {
     @State private var searchDraft = ""
 

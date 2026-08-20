@@ -1697,6 +1697,17 @@ final class SubtitleVirtualTableHeaderView: NSView {
 
     override var isFlipped: Bool { true }
 
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        // Columns shift left with the table's horizontal offset; without this
+        // they would draw over the page padding and the vertical Scrollbar.
+        wantsLayer = true
+        layer?.masksToBounds = true
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
     override func updateTrackingAreas() {
         super.updateTrackingAreas()
         if let hoverTracking {
