@@ -298,7 +298,10 @@ private struct WorkbenchShioriTableContent: View {
                     ? CueFacetFilterPanelMetrics.pinnedHeight
                         + WorkbenchControlMetrics.redesignSpacing3
                     : 0),
-            horizontalInset: SchemaWorkbenchStyle.pageHorizontalPadding,
+            leadingInset:
+                WorkbenchControlMetrics.redesignWorkbenchPageHorizontalPadding,
+            trailingInset:
+                WorkbenchControlMetrics.redesignWorkbenchPageTrailingPadding,
             bottomInset: SchemaWorkbenchStyle.pageBottomPadding
         )
     }

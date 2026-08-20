@@ -242,7 +242,7 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
                 VStack(spacing: 0) {
                     if isRedesign, let pageTitle {
                         WorkbenchPageTitle(pageTitle)
-                            .padding(.horizontal, SchemaWorkbenchStyle.pageHorizontalPadding)
+                            .workbenchPageInlinePadding()
                             .padding(
                                 .top,
                                 WorkbenchControlMetrics.redesignWorkbenchPageTopPadding
@@ -252,7 +252,7 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
 
                     if isRedesign {
                         searchToolbar
-                            .padding(.horizontal, SchemaWorkbenchStyle.pageHorizontalPadding)
+                            .workbenchPageInlinePadding()
                             .padding(
                                 .top,
                                 pageTitle == nil
@@ -266,7 +266,7 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
                             searchDraft: $searchDraft,
                             onSubmit: onSearchSubmit
                         )
-                        .padding(.horizontal, SchemaWorkbenchStyle.pageHorizontalPadding)
+                        .workbenchPageInlinePadding()
                         .padding(.top, SchemaWorkbenchStyle.pageTopPadding)
                         .padding(.bottom, 12)
 
@@ -274,14 +274,14 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
                             isFilterPanelOpen: isFilterPanelVisible,
                             onFilter: onToggleFilterPanel
                         )
-                        .padding(.horizontal, SchemaWorkbenchStyle.pageHorizontalPadding)
+                        .workbenchPageInlinePadding()
                         .padding(.bottom, 12)
                     }
 
                     if isRedesign,
                        isFilterPanelVisible {
                         filterPanel
-                            .padding(.horizontal, SchemaWorkbenchStyle.pageHorizontalPadding)
+                            .workbenchPageInlinePadding()
                             .padding(.bottom, WorkbenchControlMetrics.redesignSpacing3)
                     }
 
@@ -299,7 +299,7 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
                             .padding(.bottom, WorkbenchControlMetrics.redesignSpacing4)
                         }
                     }
-                    .padding(.horizontal, SchemaWorkbenchStyle.pageHorizontalPadding)
+                    .workbenchPageInlinePadding()
                     .padding(
                         .bottom,
                         pageTitle == nil

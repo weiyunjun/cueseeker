@@ -27,7 +27,7 @@ struct WorkbenchRecentView: View {
                     overview
                 }
             }
-                .padding(.horizontal, WorkbenchTestLibraryMetrics.pageHorizontalPadding)
+                .workbenchPageInlinePadding()
                 .padding(.top, WorkbenchTestLibraryMetrics.pageTopPadding)
                 .padding(.bottom, WorkbenchTestLibraryMetrics.pageBottomPadding)
                 .frame(
@@ -322,10 +322,7 @@ struct WorkbenchTestLibraryView: View {
                 GeometryReader { geometry in
                     WorkbenchScrollView([.vertical, .horizontal]) {
                         folderDetailContent(for: selectedFolder)
-                            .padding(
-                                .horizontal,
-                                WorkbenchControlMetrics.redesignSpacing8
-                            )
+                            .workbenchPageInlinePadding()
                             .padding(
                                 .top,
                                 WorkbenchControlMetrics.redesignCoverSummaryDetailTopPadding

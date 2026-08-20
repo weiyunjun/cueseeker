@@ -26,6 +26,18 @@ func workbenchPageTitleAndDetailSpacingMatchTheAcceptedHierarchy() {
     )
     #expect(WorkbenchControlMetrics.redesignWorkbenchPageHorizontalPadding == 32)
     #expect(
+        WorkbenchControlMetrics.redesignWorkbenchPageScrollbarChannel
+            == TableScrollbarPrimitiveMetrics.size
+                + TableScrollbarPrimitiveMetrics.inset * 2
+    )
+    #expect(WorkbenchControlMetrics.redesignWorkbenchPageScrollbarChannel == 16)
+    #expect(
+        WorkbenchControlMetrics.redesignWorkbenchPageTrailingPadding
+            == WorkbenchControlMetrics.redesignWorkbenchPageHorizontalPadding
+                + WorkbenchControlMetrics.redesignWorkbenchPageScrollbarChannel
+    )
+    #expect(WorkbenchControlMetrics.redesignWorkbenchPageTrailingPadding == 48)
+    #expect(
         WorkbenchControlMetrics.redesignWorkbenchPageTopPadding
             == WorkbenchControlMetrics.redesignSpacing1
     )

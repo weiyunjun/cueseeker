@@ -2293,7 +2293,8 @@ struct SubtitleTablePageChrome {
     let pinnedHeader: AnyView
     let scrollableHeaderHeight: CGFloat
     let pinnedHeaderHeight: CGFloat
-    let horizontalInset: CGFloat
+    let leadingInset: CGFloat
+    let trailingInset: CGFloat
     let bottomInset: CGFloat
 }
 
@@ -2524,11 +2525,11 @@ struct SubtitleTableView: NSViewRepresentable {
                 scrollView.topAnchor.constraint(equalTo: container.topAnchor),
                 scrollView.leadingAnchor.constraint(
                     equalTo: container.leadingAnchor,
-                    constant: pageChrome.horizontalInset
+                    constant: pageChrome.leadingInset
                 ),
                 scrollView.trailingAnchor.constraint(
                     equalTo: container.trailingAnchor,
-                    constant: -pageChrome.horizontalInset
+                    constant: -pageChrome.trailingInset
                 ),
                 scrollView.bottomAnchor.constraint(equalTo: container.bottomAnchor),
             ])
@@ -3104,8 +3105,11 @@ struct SubtitleTableView: NSViewRepresentable {
             }
 
             let scrollOffset = scrollView.contentView.bounds.minY
-            let inset = max(0, pageChrome.horizontalInset)
-            let contentWidth = max(0, container.bounds.width - 2 * inset)
+            let inset = max(0, pageChrome.leadingInset)
+            let contentWidth = max(
+                0,
+                container.bounds.width - inset - max(0, pageChrome.trailingInset)
+            )
             scrollablePageChromeHost.frame = CGRect(
                 x: inset,
                 y: geometry.scrollableHeaderOriginY(scrollOffset: scrollOffset),

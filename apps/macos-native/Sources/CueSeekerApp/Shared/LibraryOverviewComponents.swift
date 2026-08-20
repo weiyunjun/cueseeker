@@ -54,10 +54,7 @@ struct LibraryOverviewLayout<Content: View>: View {
 
                 content
             }
-            .padding(
-                .horizontal,
-                WorkbenchControlMetrics.redesignWorkbenchPageHorizontalPadding
-            )
+            .workbenchPageInlinePadding()
             .padding(
                 .top,
                 WorkbenchControlMetrics.redesignWorkbenchPageTopPadding

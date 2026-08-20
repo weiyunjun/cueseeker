@@ -273,10 +273,29 @@ enum WorkbenchControlMetrics {
     static let redesignCoverSummaryDetailTopPadding = redesignSpacing1
     /// Shared inline padding for Workbench pages with an explicit page title.
     static let redesignWorkbenchPageHorizontalPadding = redesignSpacing8
+    /// Channel reserved past the trailing page padding for the page's vertical
+    /// Scrollbar. Reserved at every width so showing or hiding the Scrollbar
+    /// never shifts page content sideways.
+    static let redesignWorkbenchPageScrollbarChannel =
+        TableScrollbarPrimitiveMetrics.size + TableScrollbarPrimitiveMetrics.inset * 2
+    /// Trailing inline padding for Workbench pages: the shared page padding plus
+    /// the Scrollbar channel, so both visual page margins stay equal.
+    static let redesignWorkbenchPageTrailingPadding =
+        redesignWorkbenchPageHorizontalPadding + redesignWorkbenchPageScrollbarChannel
     /// Shared top padding for Workbench pages with an explicit page title.
     static let redesignWorkbenchPageTopPadding = redesignSpacing1
     /// Shared bottom padding for Workbench pages with an explicit page title.
     static let redesignWorkbenchPageBottomPadding = redesignSpacing6
+}
+
+extension View {
+    /// Applies the shared Workbench page inline padding, keeping the visual
+    /// left and right margins equal by reserving the vertical Scrollbar channel
+    /// on the trailing side.
+    func workbenchPageInlinePadding() -> some View {
+        padding(.leading, WorkbenchControlMetrics.redesignWorkbenchPageHorizontalPadding)
+            .padding(.trailing, WorkbenchControlMetrics.redesignWorkbenchPageTrailingPadding)
+    }
 }
 
 struct WorkbenchPageTitle: View {

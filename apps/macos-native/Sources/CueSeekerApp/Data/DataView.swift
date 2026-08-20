@@ -89,10 +89,7 @@ private struct DataPageLayout<Content: View>: View {
                     content
                         .frame(maxWidth: .infinity, alignment: .topLeading)
                 }
-                .padding(
-                    .horizontal,
-                    WorkbenchControlMetrics.redesignWorkbenchPageHorizontalPadding
-                )
+                .workbenchPageInlinePadding()
                 .padding(
                     .top,
                     WorkbenchControlMetrics.redesignWorkbenchPageTopPadding
