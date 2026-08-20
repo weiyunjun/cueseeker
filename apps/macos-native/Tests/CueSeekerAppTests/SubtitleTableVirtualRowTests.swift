@@ -488,7 +488,7 @@ func subtitleTableViewSkipsDuplicateVisibleRowNotifications() {
     documentView.coordinator = coordinator
     scrollView.documentView = documentView
     let pageScrollbar = WorkbenchPageScrollbar()
-    pageScrollbar.attach(overlayView: overlay)
+    pageScrollbar.attach(overlayView: overlay, axis: .vertical)
     coordinator.attach(
         container: container,
         headerView: header,
@@ -554,7 +554,7 @@ func subtitleTablePageChromePinsAgainstTheFullViewportScrollbar() throws {
     container.addSubview(overlay)
     scrollView.documentView = documentView
     let pageScrollbar = WorkbenchPageScrollbar()
-    pageScrollbar.attach(overlayView: overlay)
+    pageScrollbar.attach(overlayView: overlay, axis: .vertical)
     coordinator.attach(
         container: container,
         headerView: header,
@@ -656,7 +656,7 @@ func subtitleTablePageChromeClipsPartialRowsBelowPinnedHeader() throws {
     documentView.isRedesign = true
     scrollView.documentView = documentView
     let pageScrollbar = WorkbenchPageScrollbar()
-    pageScrollbar.attach(overlayView: overlay)
+    pageScrollbar.attach(overlayView: overlay, axis: .vertical)
     coordinator.attach(
         container: container,
         headerView: header,
@@ -3161,7 +3161,7 @@ private func makeAttachedVirtualTableCoordinator(
     documentView.coordinator = coordinator
     scrollView.documentView = documentView
     let pageScrollbar = WorkbenchPageScrollbar()
-    pageScrollbar.attach(overlayView: overlay)
+    pageScrollbar.attach(overlayView: overlay, axis: .vertical)
     coordinator.attach(
         container: container,
         headerView: header,

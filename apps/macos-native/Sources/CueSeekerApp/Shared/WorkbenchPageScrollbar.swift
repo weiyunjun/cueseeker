@@ -1,20 +1,42 @@
 import AppKit
 import SwiftUI
 
-/// Page-level owner of a Workbench table Scrollbar.
+/// Owner of the Scrollbars drawn over a Workbench page.
 ///
-/// The table publishes its real scroll container here; the page hosts the
-/// overlay. The table never draws a Scrollbar of its own.
+/// The table publishes its real scroll container here. The page draws the
+/// vertical Scrollbar across the whole page, and the table's horizontal
+/// Scrollbar over the table's own width — both bound to the same container.
 @MainActor
 final class WorkbenchPageScrollbar: ObservableObject {
-    private(set) weak var overlayView: SubtitleTableScrollbarOverlayView?
+    private weak var verticalOverlay: SubtitleTableScrollbarOverlayView?
+    private weak var horizontalOverlay: SubtitleTableScrollbarOverlayView?
     private weak var scrollView: NSScrollView?
     private var isRedesign = false
 
     var onDragStateChanged: ((Bool) -> Void)?
 
-    func attach(overlayView: SubtitleTableScrollbarOverlayView) {
-        self.overlayView = overlayView
+    /// Height the table's horizontal Scrollbar keeps free at the bottom, so an
+    /// outer page-level horizontal Scrollbar can take that place.
+    var tableScrollbarBottomReserve: CGFloat = 0 {
+        didSet {
+            guard tableScrollbarBottomReserve != oldValue else { return }
+            horizontalOverlay?.bottomReserve = tableScrollbarBottomReserve
+        }
+    }
+
+    func overlayView(for axis: TableScrollbarAxis) -> SubtitleTableScrollbarOverlayView? {
+        axis == .vertical ? verticalOverlay : horizontalOverlay
+    }
+
+    func attach(overlayView: SubtitleTableScrollbarOverlayView, axis: TableScrollbarAxis) {
+        overlayView.visibleAxes = [axis]
+        switch axis {
+        case .vertical:
+            verticalOverlay = overlayView
+        case .horizontal:
+            horizontalOverlay = overlayView
+            overlayView.bottomReserve = tableScrollbarBottomReserve
+        }
         overlayView.onDragStateChanged = { [weak self] isDragging in
             self?.onDragStateChanged?(isDragging)
         }
@@ -22,11 +44,11 @@ final class WorkbenchPageScrollbar: ObservableObject {
     }
 
     func detach(overlayView: SubtitleTableScrollbarOverlayView) {
-        guard self.overlayView === overlayView else { return }
+        if verticalOverlay === overlayView { verticalOverlay = nil }
+        if horizontalOverlay === overlayView { horizontalOverlay = nil }
         overlayView.onDragStateChanged = nil
         overlayView.scrollView = nil
         overlayView.isRedesign = false
-        self.overlayView = nil
     }
 
     func attach(scrollView: NSScrollView?, isRedesign: Bool) {
@@ -42,41 +64,64 @@ final class WorkbenchPageScrollbar: ObservableObject {
     }
 
     func metricsDidChange() {
-        overlayView?.scrollMetricsDidChange()
+        refreshCrossAxisReserves()
+        verticalOverlay?.scrollMetricsDidChange()
+        horizontalOverlay?.scrollMetricsDidChange()
+    }
+
+    /// Each axis keeps the crossing Scrollbar's slot free, the way a single
+    /// two-axis Overlay used to.
+    private func refreshCrossAxisReserves() {
+        let presentation = verticalOverlay?.presentationProvider()
+            ?? horizontalOverlay?.presentationProvider()
+        let slot = TableScrollbarPrimitiveMetrics.size
+            + TableScrollbarPrimitiveMetrics.inset
+        verticalOverlay?.bottomReserve = presentation?.horizontal == nil
+            ? 0
+            : slot
+        horizontalOverlay?.trailingReserve = presentation?.vertical == nil
+            ? 0
+            : slot
     }
 
     func setNeedsDisplay() {
-        overlayView?.needsDisplay = true
+        verticalOverlay?.needsDisplay = true
+        horizontalOverlay?.needsDisplay = true
     }
 
     var drawsOverlayScrollbars: Bool {
-        overlayView?.isRedesign == true && overlayView?.scrollView === scrollView
+        verticalOverlay?.isRedesign == true
+            && verticalOverlay?.scrollView === scrollView
     }
 
     private func applyBinding() {
-        guard let overlayView else { return }
-        overlayView.scrollView = isRedesign ? scrollView : nil
-        overlayView.isRedesign = isRedesign && scrollView != nil
-        overlayView.needsDisplay = true
+        for overlayView in [verticalOverlay, horizontalOverlay].compactMap({ $0 }) {
+            overlayView.scrollView = isRedesign ? scrollView : nil
+            overlayView.isRedesign = isRedesign && scrollView != nil
+            overlayView.needsDisplay = true
+        }
+        refreshCrossAxisReserves()
     }
 }
 
-/// Renders the page-owned Scrollbar over the page viewport.
+/// Renders one axis of the page-owned Scrollbars.
 struct WorkbenchPageScrollbarOverlay: View {
     let scrollbar: WorkbenchPageScrollbar
+    let axis: TableScrollbarAxis
 
     var body: some View {
-        WorkbenchPageScrollbarRepresentable(scrollbar: scrollbar)
+        WorkbenchPageScrollbarRepresentable(scrollbar: scrollbar, axis: axis)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 
 private struct WorkbenchPageScrollbarRepresentable: NSViewRepresentable {
     let scrollbar: WorkbenchPageScrollbar
+    let axis: TableScrollbarAxis
 
     func makeNSView(context: Context) -> SubtitleTableScrollbarOverlayView {
         let view = SubtitleTableScrollbarOverlayView()
-        scrollbar.attach(overlayView: view)
+        scrollbar.attach(overlayView: view, axis: axis)
         return view
     }
 
@@ -84,7 +129,7 @@ private struct WorkbenchPageScrollbarRepresentable: NSViewRepresentable {
         _ nsView: SubtitleTableScrollbarOverlayView,
         context: Context
     ) {
-        scrollbar.attach(overlayView: nsView)
+        scrollbar.attach(overlayView: nsView, axis: axis)
         nsView.scrollMetricsDidChange()
     }
 

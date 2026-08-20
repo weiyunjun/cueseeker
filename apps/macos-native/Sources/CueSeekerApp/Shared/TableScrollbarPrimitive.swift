@@ -221,6 +221,35 @@ class TableScrollbarOverlayView: NSView {
             needsDisplay = true
         }
     }
+    /// Axes this Overlay is responsible for. One scroll container can be shared
+    /// by several Overlays, each drawing a different axis.
+    var visibleAxes: Set<TableScrollbarAxis> = Set(TableScrollbarAxis.allCases) {
+        didSet {
+            guard visibleAxes != oldValue else { return }
+            lastPresentation = nil
+            needsDisplay = true
+            window?.invalidateCursorRects(for: self)
+        }
+    }
+    /// Height kept free at the bottom so an outer Scrollbar can take that place.
+    var bottomReserve: CGFloat = 0 {
+        didSet {
+            guard bottomReserve != oldValue else { return }
+            lastPresentation = nil
+            needsDisplay = true
+            window?.invalidateCursorRects(for: self)
+        }
+    }
+    /// Width kept free at the trailing edge so a Scrollbar drawn by another
+    /// Overlay on the crossing axis does not collide with this one.
+    var trailingReserve: CGFloat = 0 {
+        didSet {
+            guard trailingReserve != oldValue else { return }
+            lastPresentation = nil
+            needsDisplay = true
+            window?.invalidateCursorRects(for: self)
+        }
+    }
     var showsInteractiveThumb = false {
         didSet {
             guard showsInteractiveThumb != oldValue else { return }
@@ -240,6 +269,27 @@ class TableScrollbarOverlayView: NSView {
             needsDisplay = true
             window?.invalidateCursorRects(for: self)
         }
+    }
+
+    /// Bounds the tracks are laid out in, after the bottom reserve.
+    var geometryBounds: CGRect {
+        CGRect(
+            x: bounds.minX,
+            y: bounds.minY,
+            width: max(0, bounds.width - trailingReserve),
+            height: max(0, bounds.height - bottomReserve)
+        )
+    }
+
+    func currentPresentation() -> TableScrollbarPresentation? {
+        guard let presentation = presentationProvider() else { return nil }
+        let vertical = visibleAxes.contains(.vertical) ? presentation.vertical : nil
+        let horizontal = visibleAxes.contains(.horizontal) ? presentation.horizontal : nil
+        guard vertical != nil || horizontal != nil else { return nil }
+        return TableScrollbarPresentation(
+            vertical: vertical,
+            horizontal: horizontal
+        )
     }
 
     private var trackingArea: NSTrackingArea?
@@ -313,7 +363,7 @@ class TableScrollbarOverlayView: NSView {
         super.resetCursorRects()
         guard let geometry = geometry() else { return }
         for axis in TableScrollbarAxis.allCases {
-            guard let rect = geometry.interactiveThumbRect(for: axis, in: bounds) else {
+            guard let rect = geometry.interactiveThumbRect(for: axis, in: geometryBounds) else {
                 continue
             }
             addCursorRect(rect, cursor: .arrow)
@@ -334,7 +384,7 @@ class TableScrollbarOverlayView: NSView {
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
         guard isPresented,
-              let presentation = presentationProvider()
+              let presentation = currentPresentation()
         else {
             lastPresentation = nil
             return
@@ -371,8 +421,8 @@ class TableScrollbarOverlayView: NSView {
         let point = convert(event.locationInWindow, from: nil)
         guard let axis = axis(at: point),
               let geometry = geometry(),
-              let track = geometry.trackRect(for: axis, in: bounds),
-              let thumb = geometry.thumbRect(for: axis, in: bounds),
+              let track = geometry.trackRect(for: axis, in: geometryBounds),
+              let thumb = geometry.thumbRect(for: axis, in: geometryBounds),
               let axisPresentation = geometry.presentation[axis],
               (axis == .vertical ? track.height - thumb.height : track.width - thumb.width) > 0
         else {
@@ -404,7 +454,7 @@ class TableScrollbarOverlayView: NSView {
             for: draggingAxis,
             dragStartThumbOrigin: dragStartThumbOrigin,
             dragDelta: dragDelta,
-            in: bounds
+            in: geometryBounds
         )
         onDrag(TableScrollbarDragEvent(
             axis: draggingAxis,
@@ -428,7 +478,7 @@ class TableScrollbarOverlayView: NSView {
                 for: draggingAxis,
                 dragStartThumbOrigin: dragStartThumbOrigin,
                 dragDelta: dragDelta,
-                in: bounds
+                in: geometryBounds
             )
         }
         onDrag(TableScrollbarDragEvent(
@@ -453,7 +503,7 @@ class TableScrollbarOverlayView: NSView {
         guard isPresented else {
             return
         }
-        let newPresentation = presentationProvider()
+        let newPresentation = currentPresentation()
         invalidateThumbs(
             oldPresentation: lastPresentation,
             newPresentation: newPresentation
@@ -476,7 +526,7 @@ class TableScrollbarOverlayView: NSView {
     }
 
     private func geometry() -> TableScrollbarGeometry? {
-        guard let presentation = presentationProvider() else {
+        guard let presentation = currentPresentation() else {
             return nil
         }
         return TableScrollbarGeometry(presentation: presentation)
@@ -486,11 +536,11 @@ class TableScrollbarOverlayView: NSView {
         guard let geometry = geometry() else {
             return nil
         }
-        if let verticalThumb = geometry.interactiveThumbRect(for: .vertical, in: bounds),
+        if let verticalThumb = geometry.interactiveThumbRect(for: .vertical, in: geometryBounds),
            verticalThumb.contains(point) {
             return .vertical
         }
-        if let horizontalThumb = geometry.interactiveThumbRect(for: .horizontal, in: bounds),
+        if let horizontalThumb = geometry.interactiveThumbRect(for: .horizontal, in: geometryBounds),
            horizontalThumb.contains(point) {
             return .horizontal
         }
@@ -515,8 +565,8 @@ class TableScrollbarOverlayView: NSView {
             return
         }
         invalidateThumbs(
-            oldPresentation: presentationProvider(),
-            newPresentation: presentationProvider(),
+            oldPresentation: currentPresentation(),
+            newPresentation: currentPresentation(),
             axes: axes
         )
     }
@@ -530,12 +580,12 @@ class TableScrollbarOverlayView: NSView {
         for axis in axes {
             if let oldPresentation,
                let oldRect = TableScrollbarGeometry(presentation: oldPresentation)
-                .thumbRect(for: axis, in: bounds) {
+                .thumbRect(for: axis, in: geometryBounds) {
                 dirtyRect = dirtyRect.union(oldRect)
             }
             if let newPresentation,
                let newRect = TableScrollbarGeometry(presentation: newPresentation)
-                .thumbRect(for: axis, in: bounds) {
+                .thumbRect(for: axis, in: geometryBounds) {
                 dirtyRect = dirtyRect.union(newRect)
             }
         }
@@ -549,7 +599,7 @@ class TableScrollbarOverlayView: NSView {
         axis: TableScrollbarAxis,
         geometry: TableScrollbarGeometry
     ) {
-        guard let rect = geometry.thumbRect(for: axis, in: bounds) else {
+        guard let rect = geometry.thumbRect(for: axis, in: geometryBounds) else {
             return
         }
         let isInteractive = showsInteractiveThumb

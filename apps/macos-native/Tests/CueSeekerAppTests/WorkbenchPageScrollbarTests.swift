@@ -5,12 +5,113 @@ import Testing
 
 @MainActor
 @Test
-func workbenchPageOwnsTheTableScrollbarAtItsOwnViewport() async throws {
+func workbenchPageAndTableOwnOneScrollbarAxisEach() async throws {
+    // Wider than the page minimum, so only the table's Scrollbar is present.
+    let width = AppShellLayout.pageContentMinimumWidth + 40
     let host = NSHostingView(
         rootView: WorkbenchPageScrollbarFixture()
-            .frame(width: 420, height: 320)
+            .frame(width: width, height: 320)
     )
-    host.frame = CGRect(x: 0, y: 0, width: 420, height: 320)
+    host.frame = CGRect(x: 0, y: 0, width: width, height: 320)
+    let window = NSWindow(
+        contentRect: host.frame,
+        styleMask: [.borderless],
+        backing: .buffered,
+        defer: false
+    )
+    window.contentView = host
+
+    await settleWorkbenchPage(host)
+
+    let overlays = workbenchPageSubviews(
+        of: SubtitleTableScrollbarOverlayView.self,
+        in: host
+    )
+    let vertical = try #require(
+        overlays.first { $0.visibleAxes == [.vertical] }
+    )
+    let horizontal = try #require(
+        overlays.first { $0.visibleAxes == [.horizontal] }
+    )
+    let container = try #require(
+        firstWorkbenchPageSubview(of: SubtitleTableContainerView.self, in: host)
+    )
+    let scrollView = try #require(vertical.scrollView)
+
+    // The table draws no Scrollbar of its own inside its view tree.
+    #expect(!isWorkbenchPageDescendant(vertical, of: container))
+    #expect(!isWorkbenchPageDescendant(horizontal, of: container))
+    #expect(
+        firstWorkbenchPageSubview(
+            of: TableScrollbarOverlayView.self,
+            in: container
+        ) == nil
+    )
+    #expect(!scrollView.hasVerticalScroller)
+    #expect(!scrollView.hasHorizontalScroller)
+
+    // Vertical spans the page; horizontal spans the table's own width.
+    expectSameWorkbenchPageRect(
+        vertical.convert(vertical.bounds, to: host),
+        host.bounds
+    )
+    #expect(
+        abs(
+            horizontal.bounds.width
+                - (width - 2 * SchemaWorkbenchStyle.pageHorizontalPadding)
+        ) < 0.5
+    )
+
+    // Each Overlay reports only its own axis.
+    let verticalPresentation = try #require(vertical.currentPresentation())
+    #expect(verticalPresentation.vertical != nil)
+    #expect(verticalPresentation.horizontal == nil)
+
+    let horizontalPresentation = try #require(horizontal.currentPresentation())
+    #expect(horizontalPresentation.horizontal != nil)
+    #expect(horizontalPresentation.vertical == nil)
+
+    // Each keeps the crossing Scrollbar's slot free.
+    let slot = TableScrollbarPrimitiveMetrics.size
+        + TableScrollbarPrimitiveMetrics.inset
+    #expect(vertical.bottomReserve == slot)
+    #expect(horizontal.trailingReserve == slot)
+
+    // The table's horizontal Scrollbar sits at the bottom of the page.
+    #expect(horizontal.bottomReserve == 0)
+    let track = try #require(
+        TableScrollbarGeometry(presentation: horizontalPresentation)
+            .trackRect(for: .horizontal, in: horizontal.geometryBounds)
+    )
+    #expect(
+        abs(track.maxY - horizontal.bounds.maxY)
+            <= TableScrollbarPrimitiveMetrics.inset
+    )
+    #expect(
+        abs(
+            horizontal.convert(horizontal.bounds, to: host).maxY
+                - host.bounds.maxY
+        ) < 0.5
+    )
+}
+
+@MainActor
+@Test
+func workbenchPageWithoutATableStopsAtTheContentMinimumWidth() async throws {
+    let available: CGFloat = 300
+    let host = NSHostingView(
+        rootView: LibraryOverviewLayout(
+            title: "Library",
+            summaryText: "0 Folders",
+            actionTitle: "Add Content",
+            actionSystemImage: "plus",
+            action: {}
+        ) {
+            Color.clear.frame(height: 40)
+        }
+        .frame(width: available, height: 400)
+    )
+    host.frame = CGRect(x: 0, y: 0, width: available, height: 400)
     let window = NSWindow(
         contentRect: host.frame,
         styleMask: [.borderless],
@@ -23,55 +124,68 @@ func workbenchPageOwnsTheTableScrollbarAtItsOwnViewport() async throws {
 
     let overlay = try #require(
         firstWorkbenchPageSubview(
-            of: SubtitleTableScrollbarOverlayView.self,
+            of: WorkbenchScrollViewOverlayView.self,
             in: host
         )
     )
-    let container = try #require(
-        firstWorkbenchPageSubview(of: SubtitleTableContainerView.self, in: host)
-    )
-    let scrollView = try #require(overlay.scrollView)
+    let scrollView = try #require(overlay.targetScrollViewForTesting)
+    let documentView = try #require(scrollView.documentView)
 
-    // The table no longer owns a Scrollbar.
-    #expect(!isWorkbenchPageDescendant(overlay, of: container))
-    #expect(!isWorkbenchPageDescendant(overlay, of: scrollView))
+    // The page keeps the App-minimum right region width and overflows instead.
+    #expect(available < AppShellLayout.pageContentMinimumWidth)
     #expect(
+        abs(documentView.frame.width - AppShellLayout.pageContentMinimumWidth) < 0.5
+    )
+    #expect(overlay.presentationProvider()?.horizontal != nil)
+}
+
+@MainActor
+@Test
+func workbenchTableScrollbarMovesUpForThePageScrollbar() async throws {
+    // Narrower than the page minimum, so the page scrolls sideways too.
+    let width = AppShellLayout.pageContentMinimumWidth - 60
+    let host = NSHostingView(
+        rootView: WorkbenchPageScrollbarFixture()
+            .frame(width: width, height: 320)
+    )
+    host.frame = CGRect(x: 0, y: 0, width: width, height: 320)
+    let window = NSWindow(
+        contentRect: host.frame,
+        styleMask: [.borderless],
+        backing: .buffered,
+        defer: false
+    )
+    window.contentView = host
+
+    await settleWorkbenchPage(host)
+
+    let overlays = workbenchPageSubviews(
+        of: SubtitleTableScrollbarOverlayView.self,
+        in: host
+    )
+    let tableHorizontal = try #require(
+        overlays.first { $0.visibleAxes == [.horizontal] }
+    )
+    let pageOverlay = try #require(
         firstWorkbenchPageSubview(
-            of: TableScrollbarOverlayView.self,
-            in: container
-        ) == nil
+            of: WorkbenchScrollViewOverlayView.self,
+            in: host
+        )
     )
+    let pageScrollView = try #require(pageOverlay.targetScrollViewForTesting)
+    let pageDocument = try #require(pageScrollView.documentView)
 
-    // The page viewport owns it, and is wider than the table scroll viewport.
-    expectSameWorkbenchPageRect(
-        overlay.convert(overlay.bounds, to: host),
-        host.bounds
-    )
-    #expect(overlay.bounds.width > scrollView.bounds.width)
-    #expect(overlay.bounds.height > scrollView.bounds.height)
-
-    #expect(overlay.isPresented)
-    #expect(!scrollView.hasVerticalScroller)
-    #expect(!scrollView.hasHorizontalScroller)
-    let presentation = try #require(overlay.presentationProvider())
-    #expect(presentation.vertical != nil)
-    #expect(presentation.horizontal != nil)
-
-    // Both thumbs are drawn against the page viewport edges.
-    let geometry = TableScrollbarGeometry(presentation: presentation)
-    let verticalTrack = try #require(
-        geometry.trackRect(for: .vertical, in: overlay.bounds)
-    )
-    let horizontalTrack = try #require(
-        geometry.trackRect(for: .horizontal, in: overlay.bounds)
-    )
+    // The page stops at its minimum width and scrolls sideways.
     #expect(
-        abs(verticalTrack.maxX - overlay.bounds.maxX)
-            <= TableScrollbarPrimitiveMetrics.inset
+        abs(pageDocument.frame.width - AppShellLayout.pageContentMinimumWidth) < 0.5
     )
+    #expect(pageOverlay.presentationProvider()?.horizontal != nil)
+
+    // The table's Scrollbar gives up the bottom row to the page's.
     #expect(
-        abs(horizontalTrack.maxY - overlay.bounds.maxY)
-            <= TableScrollbarPrimitiveMetrics.inset
+        tableHorizontal.bottomReserve
+            == TableScrollbarPrimitiveMetrics.size
+                + TableScrollbarPrimitiveMetrics.inset
     )
 }
 
@@ -115,6 +229,21 @@ private func settleWorkbenchPage(_ host: NSView) async {
         host.layoutSubtreeIfNeeded()
         await Task.yield()
     }
+}
+
+@MainActor
+private func workbenchPageSubviews<ViewType: NSView>(
+    of type: ViewType.Type,
+    in root: NSView
+) -> [ViewType] {
+    var matches: [ViewType] = []
+    for subview in root.subviews {
+        if let match = subview as? ViewType {
+            matches.append(match)
+        }
+        matches.append(contentsOf: workbenchPageSubviews(of: type, in: subview))
+    }
+    return matches
 }
 
 @MainActor
