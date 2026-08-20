@@ -104,6 +104,7 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
     let tableContent: ([WorkbenchTableColumn]) -> TableContent
 
     @StateObject private var externalTextSelectionSession = SubtitleTableExternalTextSelectionSession()
+    @StateObject private var pageScrollbar = WorkbenchPageScrollbar()
 
     init(
         searchDraft: Binding<String>,
@@ -244,8 +245,11 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
                     .frame(maxHeight: .infinity)
                 }
             }
+
+            WorkbenchPageScrollbarOverlay(scrollbar: pageScrollbar)
         }
         .environment(\.subtitleTableExternalTextSelectionSession, externalTextSelectionSession)
+        .environment(\.workbenchPageScrollbar, pageScrollbar)
         .onChange(of: externalTextSelectionIsBlocked) { isBlocked in
             if isBlocked {
                 externalTextSelectionSession.cancel()

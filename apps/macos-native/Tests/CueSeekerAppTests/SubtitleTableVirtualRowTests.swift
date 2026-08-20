@@ -487,12 +487,13 @@ func subtitleTableViewSkipsDuplicateVisibleRowNotifications() {
 
     documentView.coordinator = coordinator
     scrollView.documentView = documentView
-    overlay.scrollView = scrollView
+    let pageScrollbar = WorkbenchPageScrollbar()
+    pageScrollbar.attach(overlayView: overlay)
     coordinator.attach(
         container: container,
         headerView: header,
         scrollView: scrollView,
-        scrollbarOverlayView: overlay,
+        pageScrollbar: pageScrollbar,
         documentView: documentView
     )
     coordinator.resizeDocument()
@@ -552,12 +553,13 @@ func subtitleTablePageChromePinsAgainstTheFullViewportScrollbar() throws {
     viewport.addSubview(header)
     container.addSubview(overlay)
     scrollView.documentView = documentView
-    overlay.scrollView = scrollView
+    let pageScrollbar = WorkbenchPageScrollbar()
+    pageScrollbar.attach(overlayView: overlay)
     coordinator.attach(
         container: container,
         headerView: header,
         scrollView: scrollView,
-        scrollbarOverlayView: overlay,
+        pageScrollbar: pageScrollbar,
         documentView: documentView,
         pageChromeViewport: viewport
     )
@@ -574,7 +576,6 @@ func subtitleTablePageChromePinsAgainstTheFullViewportScrollbar() throws {
     #expect(frames?.scrollable.minY == 0)
     #expect(frames?.pinned.minY == 294)
     #expect(frames?.tableHeader.minY == 346)
-    #expect(frames?.scrollbarOverlay == container.bounds)
 
     scrollView.contentView.scroll(to: CGPoint(x: 0, y: 400))
     coordinator.scrollContentDidChange()
@@ -654,12 +655,13 @@ func subtitleTablePageChromeClipsPartialRowsBelowPinnedHeader() throws {
     documentView.coordinator = coordinator
     documentView.isRedesign = true
     scrollView.documentView = documentView
-    overlay.scrollView = scrollView
+    let pageScrollbar = WorkbenchPageScrollbar()
+    pageScrollbar.attach(overlayView: overlay)
     coordinator.attach(
         container: container,
         headerView: header,
         scrollView: scrollView,
-        scrollbarOverlayView: overlay,
+        pageScrollbar: pageScrollbar,
         documentView: documentView,
         pageChromeViewport: viewport
     )
@@ -3158,12 +3160,13 @@ private func makeAttachedVirtualTableCoordinator(
     container.addSubview(overlay)
     documentView.coordinator = coordinator
     scrollView.documentView = documentView
-    overlay.scrollView = scrollView
+    let pageScrollbar = WorkbenchPageScrollbar()
+    pageScrollbar.attach(overlayView: overlay)
     coordinator.attach(
         container: container,
         headerView: header,
         scrollView: scrollView,
-        scrollbarOverlayView: overlay,
+        pageScrollbar: pageScrollbar,
         documentView: documentView
     )
     coordinator.resizeDocument()
