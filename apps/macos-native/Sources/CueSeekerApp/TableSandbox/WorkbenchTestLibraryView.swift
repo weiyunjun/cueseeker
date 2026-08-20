@@ -37,6 +37,10 @@ struct WorkbenchRecentView: View {
                     ),
                     alignment: .topLeading
                 )
+                .frame(
+                    minHeight: geometry.size.height,
+                    alignment: .topLeading
+                )
             }
         }
         .background(WorkbenchRedesignColors.bgSurface)
@@ -335,6 +339,10 @@ struct WorkbenchTestLibraryView: View {
                                     geometry.size.width,
                                     AppShellLayout.pageContentMinimumWidth
                                 ),
+                                alignment: .topLeading
+                            )
+                            .frame(
+                                minHeight: geometry.size.height,
                                 alignment: .topLeading
                             )
                     }

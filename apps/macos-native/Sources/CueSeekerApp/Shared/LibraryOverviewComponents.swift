@@ -73,6 +73,10 @@ struct LibraryOverviewLayout<Content: View>: View {
                     ),
                     alignment: .topLeading
                 )
+                .frame(
+                    minHeight: geometry.size.height,
+                    alignment: .topLeading
+                )
             }
         }
         .background(WorkbenchRedesignColors.bgSurface)
