@@ -40,6 +40,29 @@ form for wide widths and a 16:9 backdrop form for narrow widths.
      sidebar collapses exactly when keeping it would force page-level horizontal
      scrolling.
 
+3. Cover Summary split and backdrop forms.
+   - Replaced the single fixed-height Cover Summary layout with two forms
+     resolved from the available width: a split form that locks the cover at its
+     token size with the content column beside it, and the existing backdrop
+     form whose card height now follows the shared 16:9 cover aspect ratio.
+   - Added `CoverSummaryCardLayout.height(forCardWidth:)` and made
+     `SubtitleTablePageChrome.scrollableHeaderHeight` a function of the chrome's
+     own content width, so the Shiori detail page scroll geometry follows the
+     width-dependent card height.
+   - Retired the fixed `redesignCoverSummaryHeight` token.
+   - The split form uses the primary text colours and `WorkbenchPrimaryButton`;
+     the backdrop form keeps the scrim, white text, and translucent action, and
+     now lays its content out at its natural height from the top instead of
+     stretching to the card height.
+4. Cover placeholder flash across a form change.
+   - The two forms were written as branches of one `switch`, so crossing the
+     switch width tore down the whole subtree, including the cover. The rebuilt
+     cover started with no decoded image and showed its placeholder for a few
+     frames while it re-read the cache.
+   - Restructured the card so a single cover instance serves both forms and only
+     its size, corner radius, and scrim change, which preserves the cover's view
+     identity across a width change.
+
 # Verification
 
 - Step 1: `swift build` succeeds; `swift test` over the Workbench control
@@ -48,10 +71,19 @@ form for wide widths and a 16:9 backdrop form for narrow widths.
 - Step 2: `swift build` succeeds; the Workbench layout-state suite passes
   (12 tests), including a new assertion that the threshold equals the page
   content minimum width plus the sidebar width.
+- Steps 3 and 4: `swift build` succeeds; the Cover Summary, Workbench control
+  metrics, Workbench layout-state, and table virtual-row suites pass
+  (112 tests), covering both forms, the switch width, the card height function,
+  and the narrowest presentable card width.
+- Pre-existing failures unrelated to this change: two `DebugE2EController`
+  scene tests and two `CueGroupRefreshScopeIntegration` tests fail on the
+  unchanged baseline as well, and the native playback timeline tests live in a
+  different target and need real decode and audio output.
 
 # Outcome
 
-Steps 1 and 2 match expectations. Remaining steps pending.
+Steps 1 through 4 match expectations in build and tests. The visual result is
+pending owner acceptance in the real Debug client.
 
 # Follow-ups
 

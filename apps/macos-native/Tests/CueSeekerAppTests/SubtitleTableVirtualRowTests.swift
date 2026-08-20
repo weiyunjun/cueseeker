@@ -566,7 +566,7 @@ func subtitleTablePageChromePinsAgainstTheFullViewportScrollbar() throws {
     coordinator.updatePageChrome(SubtitleTablePageChrome(
         scrollableHeader: AnyView(Color.clear),
         pinnedHeader: AnyView(Color.clear),
-        scrollableHeaderHeight: 294,
+        scrollableHeaderHeight: { _ in 294 },
         pinnedHeaderHeight: 52,
         leadingInset: 32,
         trailingInset: 48,
@@ -669,7 +669,7 @@ func subtitleTablePageChromeClipsPartialRowsBelowPinnedHeader() throws {
     coordinator.updatePageChrome(SubtitleTablePageChrome(
         scrollableHeader: AnyView(Color.clear),
         pinnedHeader: AnyView(Color.clear),
-        scrollableHeaderHeight: 294,
+        scrollableHeaderHeight: { _ in 294 },
         pinnedHeaderHeight: 52,
         leadingInset: 32,
         trailingInset: 48,

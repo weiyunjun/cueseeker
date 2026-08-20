@@ -19,14 +19,55 @@ enum CoverSummaryActionKind: Equatable {
     }
 }
 
+/// Which of the two accepted Cover Summary forms the available width resolves to.
+enum CoverSummaryCardForm: Equatable {
+    /// Cover on the leading side, content beside it, no backdrop or scrim.
+    case split
+    /// Cover fills the card at 16:9, content sits over the scrim.
+    case backdrop
+}
+
 struct CoverSummaryCardLayout: Equatable {
-    let backgroundFrame: CGRect
+    let form: CoverSummaryCardForm
+    let cardHeight: CGFloat
+    let coverFrame: CGRect
     let contentFrame: CGRect
     let scrimEndLocation: CGFloat
 
-    static func resolve(containerSize: CGSize) -> CoverSummaryCardLayout {
-        let width = max(0, containerSize.width)
-        let height = WorkbenchControlMetrics.redesignCoverSummaryHeight
+    /// Card height for a given available width. Callers that own the page scroll
+    /// geometry resolve the header height through this instead of a constant.
+    static func height(forCardWidth width: CGFloat) -> CGFloat {
+        resolve(containerWidth: width).cardHeight
+    }
+
+    static func resolve(containerWidth: CGFloat) -> CoverSummaryCardLayout {
+        let width = max(0, containerWidth)
+        return width >= WorkbenchControlMetrics.redesignCoverSummarySplitMinimumWidth
+            ? splitLayout(width: width)
+            : backdropLayout(width: width)
+    }
+
+    private static func splitLayout(width: CGFloat) -> CoverSummaryCardLayout {
+        let coverWidth = WorkbenchControlMetrics.redesignCoverSummarySplitCoverWidth
+        let coverHeight = WorkbenchControlMetrics.redesignCoverSummarySplitCoverHeight
+        let contentX = coverWidth + WorkbenchControlMetrics.redesignCoverSummarySplitGap
+
+        return CoverSummaryCardLayout(
+            form: .split,
+            cardHeight: coverHeight,
+            coverFrame: CGRect(x: 0, y: 0, width: coverWidth, height: coverHeight),
+            contentFrame: CGRect(
+                x: contentX,
+                y: 0,
+                width: max(0, width - contentX),
+                height: coverHeight
+            ),
+            scrimEndLocation: 1
+        )
+    }
+
+    private static func backdropLayout(width: CGFloat) -> CoverSummaryCardLayout {
+        let height = width / WorkbenchControlMetrics.redesignLibraryCoverAspectRatio
         let padding = WorkbenchControlMetrics.redesignCoverSummaryContentPadding
         let availableWidth = max(0, width - padding * 2)
         let preferredWidth = width
@@ -38,18 +79,19 @@ struct CoverSummaryCardLayout: Equatable {
                 preferredWidth
             )
         )
-        let contentWidth = min(availableWidth, boundedWidth)
         let contentFrame = CGRect(
             x: padding,
             y: padding,
-            width: contentWidth,
+            width: min(availableWidth, boundedWidth),
             height: max(0, height - padding * 2)
         )
         let protectedWidth = contentFrame.maxX + padding
         let contentFraction = width > 0 ? protectedWidth / width : 1
 
         return CoverSummaryCardLayout(
-            backgroundFrame: CGRect(x: 0, y: 0, width: width, height: height),
+            form: .backdrop,
+            cardHeight: height,
+            coverFrame: CGRect(x: 0, y: 0, width: width, height: height),
             contentFrame: contentFrame,
             scrimEndLocation: min(
                 1,
@@ -87,46 +129,72 @@ struct CoverSummaryCard<Cover: View>: View {
     }
 
     var body: some View {
-        GeometryReader { proxy in
-            let layout = CoverSummaryCardLayout.resolve(
-                containerSize: proxy.size
-            )
+        CoverSummaryCardSizingLayout {
+            GeometryReader { proxy in
+                let layout = CoverSummaryCardLayout.resolve(
+                    containerWidth: proxy.size.width
+                )
 
-            ZStack(alignment: .topLeading) {
-                cover()
+                ZStack(alignment: .topLeading) {
+                    // One cover instance serves both forms. Keeping it out of
+                    // any form branch preserves its view identity, so a width
+                    // change reuses the already decoded image instead of
+                    // rebuilding the cover and falling back to its placeholder
+                    // for a few frames.
+                    ZStack(alignment: .topLeading) {
+                        cover()
+
+                        if layout.form == .backdrop {
+                            coverScrim(endLocation: layout.scrimEndLocation)
+                        }
+                    }
                     .frame(
-                        width: layout.backgroundFrame.width,
-                        height: layout.backgroundFrame.height
+                        width: layout.coverFrame.width,
+                        height: layout.coverFrame.height
+                    )
+                    .clipShape(
+                        RoundedRectangle(
+                            cornerRadius: coverRadius(for: layout.form),
+                            style: .continuous
+                        )
                     )
                     .allowsHitTesting(false)
 
-                coverScrim(endLocation: layout.scrimEndLocation)
-                    .frame(
-                        width: layout.backgroundFrame.width,
-                        height: layout.backgroundFrame.height
-                    )
-                    .allowsHitTesting(false)
-
-                content
-                    .frame(
-                        width: layout.contentFrame.width,
-                        height: layout.contentFrame.height,
-                        alignment: .leading
-                    )
-                    .position(
-                        x: layout.contentFrame.midX,
-                        y: layout.contentFrame.midY
-                    )
+                    contentColumn(form: layout.form)
+                        .frame(
+                            width: layout.contentFrame.width,
+                            height: contentHeight(for: layout),
+                            alignment: .topLeading
+                        )
+                        .offset(
+                            x: layout.contentFrame.minX,
+                            y: layout.contentFrame.minY
+                        )
+                }
+                .frame(
+                    width: proxy.size.width,
+                    height: layout.cardHeight,
+                    alignment: .topLeading
+                )
             }
-            .clipShape(coverShape)
         }
-        .frame(
-            maxWidth: .infinity,
-            minHeight: WorkbenchControlMetrics.redesignCoverSummaryHeight,
-            maxHeight: WorkbenchControlMetrics.redesignCoverSummaryHeight,
-            alignment: .leading
-        )
-        .clipped()
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func coverRadius(for form: CoverSummaryCardForm) -> CGFloat {
+        switch form {
+        case .split:
+            WorkbenchControlMetrics.redesignLibraryCoverRadius
+        case .backdrop:
+            WorkbenchControlMetrics.redesignCoverSummaryRadius
+        }
+    }
+
+    /// The split form pins its action to the cover's bottom edge, so its content
+    /// column takes the card height. The backdrop form keeps its natural height
+    /// at the top of the card instead.
+    private func contentHeight(for layout: CoverSummaryCardLayout) -> CGFloat? {
+        layout.form == .split ? layout.contentFrame.height : nil
     }
 
     private func coverScrim(endLocation: CGFloat) -> LinearGradient {
@@ -178,27 +246,37 @@ struct CoverSummaryCard<Cover: View>: View {
         )
     }
 
-    private var coverShape: RoundedRectangle {
-        RoundedRectangle(
-            cornerRadius: WorkbenchControlMetrics.redesignCoverSummaryRadius,
-            style: .continuous
-        )
-    }
-
-    private var content: some View {
+    private func contentColumn(form: CoverSummaryCardForm) -> some View {
         VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing3) {
             Text(title)
                 .font(.system(
                     size: WorkbenchControlMetrics.redesignFontSizeCoverSummaryTitle,
                     weight: WorkbenchControlMetrics.redesignFontWeightCoverSummaryTitle
                 ))
-                .foregroundStyle(WorkbenchRedesignColors.coverSummaryText)
+                .foregroundStyle(titleColor(for: form))
                 .lineLimit(1)
 
-            supportingContentView
+            supportingContentView(color: supportingColor(for: form))
 
-            Spacer(minLength: WorkbenchControlMetrics.redesignSpacing3)
+            if form == .split {
+                Spacer(minLength: WorkbenchControlMetrics.redesignSpacing3)
+            }
 
+            actionButton(for: form)
+        }
+    }
+
+    @ViewBuilder
+    private func actionButton(for form: CoverSummaryCardForm) -> some View {
+        switch form {
+        case .split:
+            WorkbenchPrimaryButton(
+                title: actionKind.title,
+                systemImage: "play.fill",
+                action: action
+            )
+            .disabled(!isActionEnabled)
+        case .backdrop:
             CoverSummaryActionButton(
                 title: actionKind.title,
                 action: action
@@ -207,24 +285,45 @@ struct CoverSummaryCard<Cover: View>: View {
         }
     }
 
+    private func titleColor(for form: CoverSummaryCardForm) -> Color {
+        switch form {
+        case .split:
+            WorkbenchRedesignColors.textPrimary
+        case .backdrop:
+            WorkbenchRedesignColors.coverSummaryText
+        }
+    }
+
+    private func supportingColor(for form: CoverSummaryCardForm) -> Color {
+        switch form {
+        case .split:
+            WorkbenchRedesignColors.textSecondary
+        case .backdrop:
+            WorkbenchRedesignColors.coverSummaryText.opacity(
+                WorkbenchControlMetrics.redesignCoverSummaryDescriptionOpacity
+            )
+        }
+    }
+
     @ViewBuilder
-    private var supportingContentView: some View {
+    private func supportingContentView(color: Color) -> some View {
         switch supportingContent {
         case .description(let description):
-            supportingText(description, lineLimit: 2)
+            supportingText(description, color: color, lineLimit: 2)
         case .metadata(let primary, let secondary):
             VStack(
                 alignment: .leading,
                 spacing: WorkbenchControlMetrics.redesignSpacing2
             ) {
-                supportingText(primary, lineLimit: 1)
-                supportingText(secondary, lineLimit: 1)
+                supportingText(primary, color: color, lineLimit: 1)
+                supportingText(secondary, color: color, lineLimit: 1)
             }
         }
     }
 
     private func supportingText(
         _ text: String,
+        color: Color,
         lineLimit: Int
     ) -> some View {
         Text(text)
@@ -232,13 +331,39 @@ struct CoverSummaryCard<Cover: View>: View {
                 size: WorkbenchControlMetrics.redesignFontSizeBody,
                 weight: .regular
             ))
-            .foregroundStyle(
-                WorkbenchRedesignColors.coverSummaryText.opacity(
-                    WorkbenchControlMetrics.redesignCoverSummaryDescriptionOpacity
-                )
-            )
+            .foregroundStyle(color)
             .lineLimit(lineLimit)
             .truncationMode(.tail)
+    }
+}
+
+/// Gives the card a height derived from the width it is offered, so the two
+/// forms can differ in height without the page guessing which one applies.
+private struct CoverSummaryCardSizingLayout: Layout {
+    func sizeThatFits(
+        proposal: ProposedViewSize,
+        subviews: Subviews,
+        cache: inout ()
+    ) -> CGSize {
+        let width = proposal.width ?? 0
+        return CGSize(
+            width: width,
+            height: CoverSummaryCardLayout.height(forCardWidth: width)
+        )
+    }
+
+    func placeSubviews(
+        in bounds: CGRect,
+        proposal: ProposedViewSize,
+        subviews: Subviews,
+        cache: inout ()
+    ) {
+        for subview in subviews {
+            subview.place(
+                at: bounds.origin,
+                proposal: ProposedViewSize(bounds.size)
+            )
+        }
     }
 }
 

@@ -287,10 +287,11 @@ private struct WorkbenchShioriTableContent: View {
                     )
             ),
             pinnedHeader: pinnedContent,
-            scrollableHeaderHeight:
+            scrollableHeaderHeight: { contentWidth in
                 WorkbenchControlMetrics.redesignCoverSummaryDetailTopPadding
-                + WorkbenchControlMetrics.redesignCoverSummaryHeight
-                + WorkbenchControlMetrics.redesignCoverSummaryToolbarGap,
+                    + CoverSummaryCardLayout.height(forCardWidth: contentWidth)
+                    + WorkbenchControlMetrics.redesignCoverSummaryToolbarGap
+            },
             pinnedHeaderHeight:
                 WorkbenchControlMetrics.redesignHeight
                 + WorkbenchControlMetrics.redesignSpacing3

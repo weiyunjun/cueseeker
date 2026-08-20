@@ -225,8 +225,6 @@ enum WorkbenchControlMetrics {
 
     // Cover Summary tokens are provisional until visual acceptance is folded
     // into UI Design System.md.
-    /// --height-cover-summary: 252px
-    static let redesignCoverSummaryHeight: CGFloat = 252
     /// --min-width-cover-summary-content: 448px
     static let redesignCoverSummaryContentMinWidth: CGFloat = 448
     /// --max-width-cover-summary-content: 720px
@@ -261,6 +259,22 @@ enum WorkbenchControlMetrics {
     static let redesignCoverSummaryRadius: CGFloat = 16
     /// --padding-cover-summary-content: 40px
     static let redesignCoverSummaryContentPadding: CGFloat = 40
+    /// Split-form cover width; its height follows the shared cover aspect ratio.
+    static let redesignCoverSummarySplitCoverWidth: CGFloat = 320
+    /// Split-form cover height derived from the shared 16:9 cover aspect ratio.
+    static let redesignCoverSummarySplitCoverHeight =
+        redesignCoverSummarySplitCoverWidth / redesignLibraryCoverAspectRatio
+    /// Gap between the split-form cover and its content column.
+    static let redesignCoverSummarySplitGap = redesignSpacing6
+    /// Narrowest content column the split form keeps before it gives way to the
+    /// backdrop form.
+    static let redesignCoverSummarySplitContentMinWidth: CGFloat = 320
+    /// Available width at which the Cover Summary switches between its split and
+    /// backdrop forms.
+    static let redesignCoverSummarySplitMinimumWidth =
+        redesignCoverSummarySplitCoverWidth
+            + redesignCoverSummarySplitGap
+            + redesignCoverSummarySplitContentMinWidth
     /// --font-size-cover-summary-title: 28px
     static let redesignFontSizeCoverSummaryTitle: CGFloat = 28
     /// --font-weight-cover-summary-title: 700

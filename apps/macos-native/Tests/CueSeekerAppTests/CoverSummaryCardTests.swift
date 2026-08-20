@@ -2,6 +2,13 @@ import CoreGraphics
 import Testing
 @testable import CueSeekerApp
 
+/// Narrowest Cover Summary the Workbench can present: the page content minimum
+/// width less the page's own leading padding and trailing Scrollbar channel.
+private let coverSummaryMinimumCardWidth =
+    AppShellLayout.pageContentMinimumWidth
+        - WorkbenchControlMetrics.redesignWorkbenchPageHorizontalPadding
+        - WorkbenchControlMetrics.redesignWorkbenchPageTrailingPadding
+
 @Test
 func coverSummaryUsesSharedPlaybackActionTitles() {
     #expect(CoverSummaryActionKind.play.title == "Play")
@@ -9,84 +16,90 @@ func coverSummaryUsesSharedPlaybackActionTitles() {
 }
 
 @Test
-func coverSummaryLayoutUsesTheFullContainerAsItsBackground() {
-    let container = CGSize(width: 1_260, height: 252)
-    let layout = CoverSummaryCardLayout.resolve(containerSize: container)
+func coverSummarySwitchesFormsAtItsDerivedWidth() {
+    #expect(
+        WorkbenchControlMetrics.redesignCoverSummarySplitMinimumWidth
+            == WorkbenchControlMetrics.redesignCoverSummarySplitCoverWidth
+                + WorkbenchControlMetrics.redesignCoverSummarySplitGap
+                + WorkbenchControlMetrics.redesignCoverSummarySplitContentMinWidth
+    )
+    #expect(WorkbenchControlMetrics.redesignCoverSummarySplitMinimumWidth == 664)
 
-    #expect(layout.backgroundFrame == CGRect(x: 0, y: 0, width: 1_260, height: 252))
-    #expect(layout.backgroundFrame.width / layout.backgroundFrame.height == 5)
-    #expect(layout.backgroundFrame.height == WorkbenchControlMetrics.redesignCoverSummaryHeight)
+    #expect(CoverSummaryCardLayout.resolve(containerWidth: 664).form == .split)
+    #expect(CoverSummaryCardLayout.resolve(containerWidth: 663).form == .backdrop)
 }
 
 @Test
-func coverSummaryTextWidthTracksHalfTheContainerWithinItsBounds() {
-    let minimum = CoverSummaryCardLayout.resolve(
-        containerSize: CGSize(width: 896, height: 252)
-    )
-    let preferred = CoverSummaryCardLayout.resolve(
-        containerSize: CGSize(width: 1_200, height: 252)
-    )
-    let maximum = CoverSummaryCardLayout.resolve(
-        containerSize: CGSize(width: 1_500, height: 252)
-    )
+func coverSummarySplitFormLocksTheCoverAndLetsContentFillTheRest() {
+    let atThreshold = CoverSummaryCardLayout.resolve(containerWidth: 664)
+    let wide = CoverSummaryCardLayout.resolve(containerWidth: 1_400)
 
-    #expect(minimum.contentFrame.width == 448)
-    #expect(preferred.contentFrame.width == 600)
-    #expect(maximum.contentFrame.width == 720)
-    #expect(minimum.contentFrame.minX == 40)
-    #expect(preferred.contentFrame.minX == 40)
-    #expect(maximum.contentFrame.minX == 40)
+    #expect(atThreshold.coverFrame == CGRect(x: 0, y: 0, width: 320, height: 180))
+    #expect(wide.coverFrame == atThreshold.coverFrame)
+    #expect(atThreshold.cardHeight == 180)
+    #expect(wide.cardHeight == 180)
+
+    // Content starts past the cover and its gap, then takes every remaining
+    // point: the split form is never capped.
+    #expect(atThreshold.contentFrame.minX == 344)
+    #expect(atThreshold.contentFrame.width == 320)
+    #expect(wide.contentFrame.minX == 344)
+    #expect(wide.contentFrame.width == 1_056)
+    #expect(atThreshold.contentFrame.height == 180)
 }
 
 @Test
-func coverSummaryTextWidthReflowsContinuouslyWithTheContainer() {
-    let narrower = CoverSummaryCardLayout.resolve(
-        containerSize: CGSize(width: 1_000, height: 252)
+func coverSummaryBackdropFormKeepsTheCardAtTheCoverAspectRatio() {
+    let narrowest = CoverSummaryCardLayout.resolve(
+        containerWidth: coverSummaryMinimumCardWidth
     )
-    let wider = CoverSummaryCardLayout.resolve(
-        containerSize: CGSize(width: 1_100, height: 252)
-    )
+    let belowThreshold = CoverSummaryCardLayout.resolve(containerWidth: 663)
 
-    #expect(narrower.contentFrame.width == 500)
-    #expect(wider.contentFrame.width == 550)
-    #expect(narrower.backgroundFrame.width == 1_000)
-    #expect(wider.backgroundFrame.width == 1_100)
+    #expect(coverSummaryMinimumCardWidth == 400)
+    #expect(narrowest.form == .backdrop)
+    #expect(narrowest.cardHeight == 225)
+    #expect(narrowest.coverFrame == CGRect(x: 0, y: 0, width: 400, height: 225))
+    #expect(
+        abs(
+            belowThreshold.cardHeight
+                - 663 / WorkbenchControlMetrics.redesignLibraryCoverAspectRatio
+        ) < 0.001
+    )
 }
 
 @Test
-func coverSummaryTextWidthNeverExceedsItsInnerAvailableWidth() {
-    let compactCardWidth = AppShellLayout.minimumWindowWidth
-        - SchemaWorkbenchStyle.pageHorizontalPadding * 2
+func coverSummaryHeightFunctionMatchesTheResolvedLayout() {
+    let widths: [CGFloat] = [coverSummaryMinimumCardWidth, 500, 663, 664, 1_064, 1_400]
+    for width in widths {
+        #expect(
+            CoverSummaryCardLayout.height(forCardWidth: width)
+                == CoverSummaryCardLayout.resolve(containerWidth: width).cardHeight
+        )
+    }
+}
+
+@Test
+func coverSummaryBackdropTextWidthStaysWithinItsInnerAvailableWidth() {
     let layout = CoverSummaryCardLayout.resolve(
-        containerSize: CGSize(width: compactCardWidth, height: 252)
+        containerWidth: coverSummaryMinimumCardWidth
     )
 
-    #expect(compactCardWidth == 416)
-    #expect(layout.contentFrame == CGRect(x: 40, y: 40, width: 336, height: 172))
-    #expect(layout.contentFrame.maxX <= layout.backgroundFrame.maxX)
+    #expect(layout.contentFrame.minX == 40)
+    #expect(layout.contentFrame.maxX <= layout.coverFrame.maxX)
     #expect(layout.scrimEndLocation == 1)
 }
 
 @Test
-func coverSummaryUsesTheAcceptedLeftToRightScrim() {
-    let layout = CoverSummaryCardLayout.resolve(
-        containerSize: CGSize(width: 1_260, height: 252)
-    )
+func coverSummaryBackdropKeepsTheAcceptedLeftToRightScrim() {
+    let layout = CoverSummaryCardLayout.resolve(containerWidth: 600)
 
-    #expect(layout.scrimEndLocation == 0.70)
+    #expect(layout.form == .backdrop)
+    // The scrim end follows the protected content edge past its default stop.
+    #expect(layout.scrimEndLocation == 528.0 / 600.0)
     #expect(WorkbenchControlMetrics.redesignCoverSummaryScrimLeadingOpacity == 0.62)
     #expect(WorkbenchControlMetrics.redesignCoverSummaryScrimStrongOpacity == 0.54)
     #expect(WorkbenchControlMetrics.redesignCoverSummaryScrimMiddleOpacity == 0.34)
     #expect(WorkbenchControlMetrics.redesignCoverSummaryScrimTrailingOpacity == 0.12)
-}
-
-@Test
-func coverSummaryScrimExtendsPastTextAtCompactWidth() {
-    let layout = CoverSummaryCardLayout.resolve(
-        containerSize: CGSize(width: 600, height: 252)
-    )
-
-    #expect(layout.scrimEndLocation == 528.0 / 600.0)
 }
 
 @Test
