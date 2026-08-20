@@ -49,7 +49,7 @@ func coverSummarySplitFormLocksTheCoverAndLetsContentFillTheRest() {
 }
 
 @Test
-func coverSummaryBackdropFormKeepsTheCardAtTheCoverAspectRatio() {
+func coverSummaryBackdropFormKeepsAFixedHeightAtEveryWidth() {
     let narrowest = CoverSummaryCardLayout.resolve(
         containerWidth: coverSummaryMinimumCardWidth
     )
@@ -58,12 +58,40 @@ func coverSummaryBackdropFormKeepsTheCardAtTheCoverAspectRatio() {
     #expect(coverSummaryMinimumCardWidth == 400)
     #expect(narrowest.form == .backdrop)
     #expect(narrowest.cardHeight == 225)
+    #expect(belowThreshold.form == .backdrop)
+    #expect(belowThreshold.cardHeight == 225)
     #expect(narrowest.coverFrame == CGRect(x: 0, y: 0, width: 400, height: 225))
+    #expect(belowThreshold.coverFrame == CGRect(x: 0, y: 0, width: 663, height: 225))
+
+    // At the narrowest card the fixed height is exactly the cover's own 16:9
+    // height, so nothing is cropped there and wider cards crop from the centre.
     #expect(
         abs(
-            belowThreshold.cardHeight
-                - 663 / WorkbenchControlMetrics.redesignLibraryCoverAspectRatio
+            WorkbenchControlMetrics.redesignCoverSummaryBackdropHeight
+                - coverSummaryMinimumCardWidth
+                    / WorkbenchControlMetrics.redesignLibraryCoverAspectRatio
         ) < 0.001
+    )
+}
+
+@Test
+func coverSummaryKeepsTheContentColumnHeightAcrossAFormChange() {
+    let split = CoverSummaryCardLayout.resolve(containerWidth: 664)
+    let backdrop = CoverSummaryCardLayout.resolve(containerWidth: 663)
+
+    #expect(split.contentFrame.height == backdrop.contentFrame.height)
+    #expect(split.contentFrame.height == 180)
+
+    // The backdrop block padding is what makes the two heights match.
+    #expect(backdrop.contentFrame.minY == 35)
+    #expect(
+        backdrop.cardHeight - backdrop.contentFrame.maxY == 10
+    )
+    #expect(
+        WorkbenchControlMetrics.redesignCoverSummaryBackdropTopPadding
+            + WorkbenchControlMetrics.redesignCoverSummarySplitCoverHeight
+            + WorkbenchControlMetrics.redesignCoverSummaryBackdropBottomPadding
+            == WorkbenchControlMetrics.redesignCoverSummaryBackdropHeight
     )
 }
 
@@ -86,6 +114,7 @@ func coverSummaryBackdropTextWidthStaysWithinItsInnerAvailableWidth() {
 
     #expect(layout.contentFrame.minX == 40)
     #expect(layout.contentFrame.maxX <= layout.coverFrame.maxX)
+    #expect(layout.contentFrame.maxY <= layout.coverFrame.maxY)
     #expect(layout.scrimEndLocation == 1)
 }
 

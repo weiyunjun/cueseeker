@@ -67,7 +67,7 @@ struct CoverSummaryCardLayout: Equatable {
     }
 
     private static func backdropLayout(width: CGFloat) -> CoverSummaryCardLayout {
-        let height = width / WorkbenchControlMetrics.redesignLibraryCoverAspectRatio
+        let height = WorkbenchControlMetrics.redesignCoverSummaryBackdropHeight
         let padding = WorkbenchControlMetrics.redesignCoverSummaryContentPadding
         let availableWidth = max(0, width - padding * 2)
         let preferredWidth = width
@@ -79,11 +79,13 @@ struct CoverSummaryCardLayout: Equatable {
                 preferredWidth
             )
         )
+        // The content column matches the split form's height, so the text and
+        // action area does not resize when the form changes.
         let contentFrame = CGRect(
             x: padding,
-            y: padding,
+            y: WorkbenchControlMetrics.redesignCoverSummaryBackdropTopPadding,
             width: min(availableWidth, boundedWidth),
-            height: max(0, height - padding * 2)
+            height: WorkbenchControlMetrics.redesignCoverSummarySplitCoverHeight
         )
         let protectedWidth = contentFrame.maxX + padding
         let contentFraction = width > 0 ? protectedWidth / width : 1
@@ -163,7 +165,7 @@ struct CoverSummaryCard<Cover: View>: View {
                     contentColumn(form: layout.form)
                         .frame(
                             width: layout.contentFrame.width,
-                            height: contentHeight(for: layout),
+                            height: layout.contentFrame.height,
                             alignment: .topLeading
                         )
                         .offset(
@@ -188,13 +190,6 @@ struct CoverSummaryCard<Cover: View>: View {
         case .backdrop:
             WorkbenchControlMetrics.redesignCoverSummaryRadius
         }
-    }
-
-    /// The split form pins its action to the cover's bottom edge, so its content
-    /// column takes the card height. The backdrop form keeps its natural height
-    /// at the top of the card instead.
-    private func contentHeight(for layout: CoverSummaryCardLayout) -> CGFloat? {
-        layout.form == .split ? layout.contentFrame.height : nil
     }
 
     private func coverScrim(endLocation: CGFloat) -> LinearGradient {
@@ -258,9 +253,9 @@ struct CoverSummaryCard<Cover: View>: View {
 
             supportingContentView(color: supportingColor(for: form))
 
-            if form == .split {
-                Spacer(minLength: WorkbenchControlMetrics.redesignSpacing3)
-            }
+            // Both forms give the column the same height, so the action always
+            // sits at its bottom-leading corner.
+            Spacer(minLength: WorkbenchControlMetrics.redesignSpacing3)
 
             actionButton(for: form)
         }

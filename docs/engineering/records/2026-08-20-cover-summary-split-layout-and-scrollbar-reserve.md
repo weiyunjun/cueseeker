@@ -63,6 +63,17 @@ form for wide widths and a 16:9 backdrop form for narrow widths.
      its size, corner radius, and scrim change, which preserves the cover's view
      identity across a width change.
 
+5. Backdrop-form height and content padding.
+   - Owner review found the `180 -> 373` card-height step at the switch width
+     too abrupt. Replaced the width-tracking backdrop height with a fixed one
+     derived from new tokens: the backdrop block padding above and below a
+     content column as tall as the split form's cover.
+   - The card height now steps once between `180` and `225` instead of tracking
+     the width, and the text and action area keeps the same height across a form
+     change, so the action stays at its bottom-leading corner in both forms.
+   - Both forms now share one content-column height, which removed the optional
+     content height and the form-conditional spacer from the card view.
+
 # Verification
 
 - Step 1: `swift build` succeeds; `swift test` over the Workbench control
@@ -80,9 +91,14 @@ form for wide widths and a 16:9 backdrop form for narrow widths.
   unchanged baseline as well, and the native playback timeline tests live in a
   different target and need real decode and audio output.
 
+- Step 5: `swift build` succeeds; the same four suites pass (113 tests),
+  including new assertions that the backdrop height is fixed at every width,
+  that it equals the cover's own 16:9 height at the narrowest card, and that
+  both forms resolve the same content-column height.
+
 # Outcome
 
-Steps 1 through 4 match expectations in build and tests. The visual result is
+Steps 1 through 5 match expectations in build and tests. The visual result is
 pending owner acceptance in the real Debug client.
 
 # Follow-ups
