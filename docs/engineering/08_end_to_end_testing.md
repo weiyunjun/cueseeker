@@ -49,7 +49,7 @@ or Release launch does not read E2E commands.
 Read the prefixed ready record before acting:
 
 ```text
-CUESEEKER_E2E {"artifactDirectory":"...","height":821,"pixelHeight":1642,"pixelWidth":2866,"scale":2,"sceneID":"...-0","status":"ready","width":1433,"windows":[...]}
+CUESEEKER_E2E {"artifactDirectory":"...","sceneID":"...-0","status":"ready","windows":[...]}
 ```
 
 `width` and `height` describe the union of the visible CueSeeker windows in
@@ -58,8 +58,9 @@ logical points. Coordinates use that complete scene's upper-left corner as
 `windows` records each window's scene-relative frame, type, title, number, and
 front-to-back order; order `0` is frontmost. All included windows must be fully
 contained by the same display. A test procedure must state the expected window
-layout and pre-agreed coordinates. Stop when the layout differs; do not use a
-screenshot to rediscover the control.
+layout and either pre-agreed coordinates or coordinate formulas derived from
+the `inspect` window bounds and documented layout offsets. Stop when the layout
+differs; do not use a screenshot to rediscover the control.
 
 Supported commands are one JSON object per line:
 
@@ -1407,10 +1408,14 @@ History.
   expanded.
 - Record the active Light or Dark appearance with the evidence; repeat the gate
   in the other appearance during final visual acceptance.
-- Recent and Shiori Sidebar groups are expanded. Under this layout, the accepted
-  complete-scene coordinates are Library `(80, 217)`, Shiori's first list
-  `(80, 289)`, the first Library folder card `(360, 210)`, the detail scroll
-  region `(1300, 650)`, and Shiori restore `(80, 253)`.
+- Recent and Shiori Sidebar groups are expanded. Let the main-window frame from
+  `inspect` be `M`, with `M.minX`, `M.minY`, `M.maxX`, and `M.maxY`. Under this
+  layout, use Library `(M.minX + 80, M.minY + 217)`, Data
+  `(M.minX + 80, M.minY + 253)`, Shiori
+  `(M.minX + 80, M.minY + 289)`, Shiori's first list
+  `(M.minX + 80, M.minY + 325)`, the first Library folder card
+  `(M.minX + 360, M.minY + 210)`, and the safe detail scroll point
+  `(M.maxX - 64, M.maxY - 64)`.
 - Stop without clicking if `inspect` reports another window count or layout.
   Screenshots must not be used to recalculate coordinates.
 
@@ -1432,27 +1437,28 @@ action must return `status: ok`, and each following action must use the fresh
 
 1. Send `{"action":"inspect"}` and verify the complete-scene preconditions.
 2. Send a named `capture` for `library-cover-summary-before`.
-3. Click Shiori's first list at `(80, 289)` and capture
-   `shiori-cover-summary-reference`. Its accepted Cover Summary horizontal edges
-   are `x = 272` and `x = 1401` in the complete scene.
-4. Click Library at `(80, 217)`, wait for the existing bounded post-click delay,
-   and capture `library-cover-summary-overview`. The overview must be loaded;
-   stop if the first card is absent or still loading.
-5. Click the first folder card at `(360, 210)` and capture
+3. Click Shiori's first list at its documented coordinate and capture
+   `shiori-cover-summary-reference`. With the Sidebar expanded, its accepted
+   Cover Summary horizontal edges are `M.minX + 240 + 32` and `M.maxX - 32`.
+4. Click Library at its documented coordinate, wait for the existing bounded
+   post-click delay, and capture `library-cover-summary-overview`. The overview
+   must be loaded; stop if the first card is absent or still loading.
+5. Click the first folder card at its documented coordinate and capture
    `library-cover-summary-detail` after the response.
 6. Verify the detail capture shows, in order, one folder title, one
    `xx videos yy subtitles` line, the complete folder path, and one Resume or
    Play button. The displayed counts must equal the current Video Card Grid count,
    the background must fill the rounded summary without distortion or padding,
    and the summary and grid must have the same horizontal edges. The Library
-   Cover Summary edges must also equal the Shiori reference at `x = 272` and
-   `x = 1401`.
-7. At `(1300, 650)`, issue one `scroll` with `deltaY: -4`, then capture
-   `library-cover-summary-scrolled`. The Cover Summary and Video Card Grid must
-   move in the same page viewport; no nested vertical scrollbar may appear.
+   Cover Summary edges must also equal the Shiori reference and the documented
+   window-relative bounds.
+7. At the documented safe detail scroll point, issue one `scroll` with
+   `deltaY: -4`, then capture `library-cover-summary-scrolled`. The Cover
+   Summary and Video Card Grid must move in the same page viewport; no nested
+   vertical scrollbar may appear.
 8. Issue one `scroll` at the same coordinate with `deltaY: 4`. Restore the
-   original Shiori overview with the documented Sidebar click `(80, 253)`, then
-   capture `library-cover-summary-restored`.
+   original Shiori overview with the documented Shiori coordinate, then capture
+   `library-cover-summary-restored`.
 
 Each named image path and the complete controller records from `inspect`
 through the restored capture are the evidence handoff. A valid failure report
@@ -1466,8 +1472,8 @@ letterboxing or stretching, unequal horizontal edges, or a second scrollbar.
 - All controller actions return `status: ok` for the unchanged complete scene.
 - Library detail contains one shared full-width Cover Summary followed by the
   shared Recent-style Video Card Grid in the same viewport.
-- Shiori and Library Cover Summary horizontal edges are both `x = 272` and
-  `x = 1401` in the accepted complete scene.
+- Shiori and Library Cover Summary horizontal edges both equal
+  `M.minX + 240 + 32` and `M.maxX - 32` in the accepted complete scene.
 - Title, folder-local counts, complete path, and Resume or Play are separate,
   readable rows; the button is Disabled only when no playable content exists.
 - The cover remains aspect-fill and center-cropped, with the existing shared
@@ -1583,16 +1589,24 @@ exactly 20 points smaller than the previous 24-point page padding.
   Shiori are expanded and the Sidebar is visible.
 - Set Settings > Appearance to Light before the first run and repeat the gate
   in Dark. Restore the starting appearance during cleanup.
-- The accepted expanded-Sidebar coordinates are Sidebar Toggle `(212, 23)`,
-  Back `(280, 23)`, Search `(80, 73)`, Recent `(80, 109)`, Recent Videos
-  `(80, 145)`, Recent Shioris `(80, 181)`, Library `(80, 217)`, Shiori
-  `(80, 253)`, Shiori's first list `(80, 289)`, and the first Library folder
-  card `(360, 210)`.
+- Let the main-window frame from `inspect` be `M`. The accepted expanded-Sidebar
+  coordinates are Sidebar Toggle `(M.minX + 212, M.minY + 23)`, Back
+  `(M.minX + 280, M.minY + 23)`, Search `(M.minX + 80, M.minY + 73)`, Recent
+  `(M.minX + 80, M.minY + 109)`, Recent Videos
+  `(M.minX + 80, M.minY + 145)`, Recent Shioris
+  `(M.minX + 80, M.minY + 181)`, Library
+  `(M.minX + 80, M.minY + 217)`, Data
+  `(M.minX + 80, M.minY + 253)`, Shiori
+  `(M.minX + 80, M.minY + 289)`, Shiori's first list
+  `(M.minX + 80, M.minY + 325)`, and the first Library folder card
+  `(M.minX + 360, M.minY + 210)`.
 - On the expanded-Sidebar Recent overview, the Recent Videos header title,
-  count, arrow, and same-row blank checks are `(300, 109)`, `(407, 109)`,
-  `(429, 109)`, and `(1000, 109)`.
-- With the Sidebar collapsed, Sidebar Toggle is `(114, 23)` and Back is
-  `(158, 23)`.
+  count, arrow, and same-row blank checks are
+  `(M.minX + 300, M.minY + 109)`, `(M.minX + 407, M.minY + 109)`,
+  `(M.minX + 429, M.minY + 109)`, and `(M.maxX - 64, M.minY + 109)`.
+- With the Sidebar collapsed, Sidebar Toggle is
+  `(M.minX + 114, M.minY + 23)` and Back is
+  `(M.minX + 158, M.minY + 23)`.
 - Stop before clicking if `inspect` reports another window count or layout, or
   if the documented Library folder and Shiori list are absent. Screenshots must
   not be used to recalculate coordinates.
@@ -1615,17 +1629,19 @@ exactly 20 points smaller than the previous 24-point page padding.
    first folder and capture `workbench-library-detail-{appearance}`; require one
    Cover Summary title and no duplicate page title. Click Back and require the
    Library overview.
-5. Open Shiori and capture `workbench-shiori-primary-{appearance}`. Open its
+5. Open Data and capture `workbench-data-primary-{appearance}`. Click Back and
+   require Data to remain active because Back is Disabled.
+6. Open Shiori and capture `workbench-shiori-primary-{appearance}`. Open its
    first list and capture `workbench-shiori-detail-{appearance}`; require one
    Cover Summary title and no duplicate page title. Click Back and require the
    Shiori overview.
-6. Return to Recent, collapse the Sidebar at `(212, 23)`, and capture
-   `workbench-recent-primary-collapsed-{appearance}` with the compact navigation
-   groups intact. Expand the Sidebar at `(114, 23)`, reopen the first Shiori
-   list, collapse again, and capture
-   `workbench-shiori-detail-collapsed-{appearance}`. Click Back at `(158, 23)`
-   and capture `workbench-shiori-primary-collapsed-{appearance}`. Expand the
-   Sidebar before repeating the gate in the other appearance.
+7. Return to Recent, collapse the Sidebar at its documented coordinate, and
+   capture `workbench-recent-primary-collapsed-{appearance}` with the compact
+   navigation groups intact. Expand the Sidebar at its documented coordinate,
+   reopen the first Shiori list, collapse again, and capture
+   `workbench-shiori-detail-collapsed-{appearance}`. Click Back at its documented
+   coordinate and capture `workbench-shiori-primary-collapsed-{appearance}`.
+   Expand the Sidebar before repeating the gate in the other appearance.
 
 Every interaction must return `status: ok` and the next interaction must use
 its fresh `sceneID`.
@@ -1633,9 +1649,9 @@ its fresh `sceneID`.
 ### Acceptance Criteria
 
 - Outside the unchanged Sidebar segment, the app topbar contains only Back and
-  no title. Back is Disabled on all four primary pages and Enabled on all four
+  no title. Back is Disabled on all five primary pages and Enabled on all four
   secondary pages, where it returns to the owning primary page.
-- Search, Recent, Library, Shiori, Recent Videos, and Recent Shioris use the
+- Search, Recent, Library, Data, Shiori, Recent Videos, and Recent Shioris use the
   same 28-point Bold page-title style with the semantic Primary text color.
   Their title, Summary, action, and Grid or List content share 32-point
   horizontal bounds, 4-point top padding, and 24-point bottom padding.

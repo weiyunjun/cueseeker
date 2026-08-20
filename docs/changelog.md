@@ -13,9 +13,11 @@ This changelog does not replace Git history. Git records concrete file changes. 
   `Cancel` now immediately discards the current unsaved session and closes the
   editor; the separate Save Changes interface and `Don't Save` action are gone,
   while `Create` and `Save` retain their existing validation and persistence.
-- Removed fixed window-size and backing-scale prerequisites from Debug in-app
-  E2E procedures. Tests still require the current scene identifier, expected
-  window layout, and pre-agreed coordinates, and stop when the layout differs.
+- Removed fixed window-size and backing-scale dependencies from Debug in-app
+  E2E procedures. Tests now derive variable coordinates and content bounds from
+  the inspected main-window frame and documented layout offsets, include the
+  current Data position between Library and Shiori, and retain scene identity
+  and window-layout safeguards.
 - Aligned the shared Destructive Button with the Neutral Button's border
   treatment in every state. Enabled destructive actions retain a Danger-colored
   label and the pale Danger Hover background.
