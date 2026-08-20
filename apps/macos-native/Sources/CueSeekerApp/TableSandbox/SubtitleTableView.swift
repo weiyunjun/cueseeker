@@ -2282,6 +2282,7 @@ struct SubtitleTablePageChrome {
     let pinnedHeader: AnyView
     let scrollableHeaderHeight: CGFloat
     let pinnedHeaderHeight: CGFloat
+    let horizontalInset: CGFloat
     let bottomInset: CGFloat
 }
 
@@ -2388,9 +2389,6 @@ struct SubtitleTableView: NSViewRepresentable {
     var onDuplicateShiori: (SubtitleTableRow, Int64) -> Void = { _, _ in }
     var onRemoveShiori: (SubtitleTableRow) -> Void = { _ in }
     var isRedesign: Bool = false
-    /// Page padding the table carries inside its own scrolled content, so the
-    /// padding scrolls with the page instead of sitting outside the viewport.
-    var horizontalContentInset: CGFloat = 0
     var pageChrome: SubtitleTablePageChrome?
     @Environment(\.workbenchPageScrollbar) private var pageScrollbar
 
@@ -2444,7 +2442,6 @@ struct SubtitleTableView: NSViewRepresentable {
         context.coordinator.isEnabled = isEnabled
         context.coordinator.isExternalPopupLayerOpen = isWorkbenchPopupLayerOpen
         context.coordinator.suspendsMenuOutsideClickDismiss = suspendsMenuOutsideClickDismiss
-        context.coordinator.horizontalContentInset = horizontalContentInset
         let container = SubtitleTableContainerView()
 
         let header = SubtitleVirtualTableHeaderView()
@@ -2514,8 +2511,14 @@ struct SubtitleTableView: NSViewRepresentable {
                 pageChromeViewport.bottomAnchor.constraint(equalTo: container.bottomAnchor),
 
                 scrollView.topAnchor.constraint(equalTo: container.topAnchor),
-                scrollView.leadingAnchor.constraint(equalTo: container.leadingAnchor),
-                scrollView.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+                scrollView.leadingAnchor.constraint(
+                    equalTo: container.leadingAnchor,
+                    constant: pageChrome.horizontalInset
+                ),
+                scrollView.trailingAnchor.constraint(
+                    equalTo: container.trailingAnchor,
+                    constant: -pageChrome.horizontalInset
+                ),
                 scrollView.bottomAnchor.constraint(equalTo: container.bottomAnchor),
             ])
         } else {
@@ -2548,7 +2551,6 @@ struct SubtitleTableView: NSViewRepresentable {
             details: "table=\(tableName)"
         )
         context.coordinator.bindPageScrollbar(pageScrollbar)
-        context.coordinator.horizontalContentInset = horizontalContentInset
         context.coordinator.isRedesign = isRedesign
         context.coordinator.isEnabled = isEnabled
         context.coordinator.isExternalPopupLayerOpen = isWorkbenchPopupLayerOpen
@@ -2699,7 +2701,6 @@ struct SubtitleTableView: NSViewRepresentable {
         private weak var headerView: SubtitleVirtualTableHeaderView?
         private weak var scrollView: NSScrollView?
         private var pageScrollbar: WorkbenchPageScrollbar?
-        var horizontalContentInset: CGFloat = 0
         private weak var documentView: SubtitleVirtualTableDocumentView?
         private weak var pageChromeViewport: SubtitleTablePageChromeViewportView?
         private var pageChrome: SubtitleTablePageChrome?
@@ -3082,8 +3083,8 @@ struct SubtitleTableView: NSViewRepresentable {
         private func layoutPageChrome() {
             guard let pageChrome,
                   let geometry = pageScrollGeometry,
+                  let container,
                   let scrollView,
-                  let documentView,
                   let headerView,
                   let scrollablePageChromeHost,
                   let pinnedPageChromeHost
@@ -3092,17 +3093,10 @@ struct SubtitleTableView: NSViewRepresentable {
             }
 
             let scrollOffset = scrollView.contentView.bounds.minY
-            // The chrome shares the table's content width and horizontal
-            // offset, so it stops shrinking where the columns do and scrolls
-            // with them instead.
-            let contentWidth = max(
-                0,
-                documentView.frame.width - 2 * horizontalContentInset
-            )
-            let originX = horizontalContentInset
-                - scrollView.contentView.bounds.minX
+            let inset = max(0, pageChrome.horizontalInset)
+            let contentWidth = max(0, container.bounds.width - 2 * inset)
             scrollablePageChromeHost.frame = CGRect(
-                x: originX,
+                x: inset,
                 y: geometry.scrollableHeaderOriginY(scrollOffset: scrollOffset),
                 width: contentWidth,
                 height: pageChrome.scrollableHeaderHeight
@@ -3111,17 +3105,15 @@ struct SubtitleTableView: NSViewRepresentable {
                 scrollOffset: scrollOffset
             )
             pinnedPageChromeHost.frame = CGRect(
-                x: originX,
+                x: inset,
                 y: pinnedOriginY,
                 width: contentWidth,
                 height: pageChrome.pinnedHeaderHeight
             )
-            // The header keeps the viewport frame; it offsets its own column
-            // layout for horizontal scrolling.
             headerView.frame = CGRect(
-                x: 0,
+                x: inset,
                 y: pinnedOriginY + pageChrome.pinnedHeaderHeight,
-                width: scrollView.contentView.bounds.width,
+                width: contentWidth,
                 height: currentHeaderHeight
             )
         }
@@ -4319,12 +4311,10 @@ struct SubtitleTableView: NSViewRepresentable {
                 showsLanguageColumn: showsLanguageColumn,
                 cuesMinimumWidth: cuesMinimumWidth
             )
-            return max(viewportWidth, minimumWidth + 2 * horizontalContentInset)
+            return max(viewportWidth, minimumWidth)
         }
 
         private func tableColumnLayout(contentWidth: CGFloat, height: CGFloat) -> SubtitleTableColumnLayout {
-            let inset = horizontalContentInset
-            let contentWidth = max(0, contentWidth - 2 * inset)
             guard isRedesign else {
                 return SubtitleTableColumnLayout.legacy(
                     contentWidth: contentWidth,
@@ -4344,7 +4334,7 @@ struct SubtitleTableView: NSViewRepresentable {
                 showsLanguageColumn: showsLanguageColumn,
                 cuesMinimumWidth: SubtitleTableMetrics.cuesColumnMinimumWidth,
                 columnOrder: columnOrder
-            ).offsetBy(dx: inset)
+            )
         }
 
         private func visibleTextColumnOrder() -> [String] {
@@ -4713,12 +4703,6 @@ struct SubtitleTableView: NSViewRepresentable {
         }
 
         private func drawRowBackground(row: Int, rect: CGRect) {
-            let rect = CGRect(
-                x: rect.minX + horizontalContentInset,
-                y: rect.minY,
-                width: max(0, rect.width - 2 * horizontalContentInset),
-                height: rect.height
-            )
             if let backgroundColor = rowBackgroundColor(row: row) {
                 backgroundColor.setFill()
                 rect.fill()
@@ -5765,8 +5749,7 @@ struct SubtitleTableView: NSViewRepresentable {
         private func checkboxRect(forRowRect rowRect: CGRect) -> CGRect {
             let size = SubtitleTableMetrics.checkboxSize
             return CGRect(
-                x: horizontalContentInset
-                    + (SubtitleTableMetrics.indexColumnWidth - size) / 2,
+                x: (SubtitleTableMetrics.indexColumnWidth - size) / 2,
                 y: rowRect.midY - size / 2,
                 width: size,
                 height: size
