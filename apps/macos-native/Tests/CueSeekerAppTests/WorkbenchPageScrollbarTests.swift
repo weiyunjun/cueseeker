@@ -45,13 +45,15 @@ func workbenchPageOwnsTheTableScrollbarAtItsOwnViewport() async throws {
         ) == nil
     )
 
-    // The page viewport owns it, and is wider than the table scroll viewport.
+    // The page viewport owns it, and the scroll viewport fills the same page
+    // region — the page padding travels inside the scrolled content.
     expectSameWorkbenchPageRect(
         overlay.convert(overlay.bounds, to: host),
         host.bounds
     )
-    #expect(overlay.bounds.width > scrollView.bounds.width)
-    #expect(overlay.bounds.height > scrollView.bounds.height)
+    let scrollFrame = scrollView.convert(scrollView.bounds, to: host)
+    #expect(abs(scrollFrame.minX) < 0.5)
+    #expect(abs(scrollFrame.width - host.bounds.width) < 0.5)
 
     #expect(overlay.isPresented)
     #expect(!scrollView.hasVerticalScroller)
@@ -115,20 +117,18 @@ func workbenchPageChromeStopsShrinkingWithTheTableColumns() async throws {
         cuesMinimumWidth: SubtitleTableMetrics.cuesColumnMinimumWidth
     )
 
-    // The clamped page chrome must not distort the table's own page geometry.
+    // No fixed gutter outside the viewport: container and viewport fill the page.
     let containerFrame = container.convert(container.bounds, to: host)
+    #expect(abs(containerFrame.minX) < 0.5)
+    #expect(abs(containerFrame.width - host.bounds.width) < 0.5)
     #expect(
-        abs(containerFrame.minX - SchemaWorkbenchStyle.pageHorizontalPadding) < 0.5
-    )
-    #expect(
-        abs(
-            containerFrame.width
-                - (host.bounds.width - 2 * SchemaWorkbenchStyle.pageHorizontalPadding)
-        ) < 0.5
+        abs(scrollView.contentView.bounds.width - host.bounds.width) < 0.5
     )
 
-    // The columns stop at their minimums, so the page scrolls horizontally.
-    #expect(abs(documentView.frame.width - tableMinimumWidth) < 0.5)
+    // The columns stop at their minimums and the page padding rides along, so
+    // the page scrolls horizontally.
+    let padding = 2 * SchemaWorkbenchStyle.pageHorizontalPadding
+    #expect(abs(documentView.frame.width - (tableMinimumWidth + padding)) < 0.5)
     #expect(documentView.frame.width > scrollView.contentView.bounds.width)
 
     let maximumOffset = documentView.frame.width - scrollView.contentView.bounds.width
@@ -136,6 +136,15 @@ func workbenchPageChromeStopsShrinkingWithTheTableColumns() async throws {
     scrollView.reflectScrolledClipView(scrollView.contentView)
     await settleWorkbenchPage(host)
 
+    // Scrolled to the end, the content's own trailing padding meets the viewport
+    // edge instead of leaving a permanent blank strip.
+    #expect(
+        abs(
+            documentView.frame.width
+                - (scrollView.contentView.bounds.minX
+                    + scrollView.contentView.bounds.width)
+        ) < 0.5
+    )
     let horizontal = try #require(overlay.presentationProvider()?.horizontal)
     #expect(abs(horizontal.positionFraction - 1) < 0.01)
 }
@@ -206,6 +215,7 @@ func subtitleTablePageChromeFollowsTheHorizontalScrollOffset() async throws {
         onPlay: { _ in }
     )
     coordinator.isRedesign = true
+    coordinator.horizontalContentInset = 32
 
     let inset: CGFloat = 32
     let container = SubtitleTableContainerView(
@@ -242,7 +252,6 @@ func subtitleTablePageChromeFollowsTheHorizontalScrollOffset() async throws {
         pinnedHeader: AnyView(Color.clear),
         scrollableHeaderHeight: 100,
         pinnedHeaderHeight: 52,
-        horizontalInset: inset,
         bottomInset: 14
     ))
     coordinator.resizeDocument()
@@ -251,9 +260,10 @@ func subtitleTablePageChromeFollowsTheHorizontalScrollOffset() async throws {
     #expect(contentWidth > scrollView.contentView.bounds.width)
 
     var frames = try #require(coordinator.pageChromeFramesForTesting())
-    #expect(frames.scrollable.minX == 0)
-    #expect(abs(frames.scrollable.width - contentWidth) < 0.5)
-    #expect(abs(frames.pinned.width - contentWidth) < 0.5)
+    #expect(frames.scrollable.minX == inset)
+    // Chrome spans the document minus its padding, matching the columns.
+    #expect(abs(frames.scrollable.width - (contentWidth - 2 * inset)) < 0.5)
+    #expect(abs(frames.pinned.width - (contentWidth - 2 * inset)) < 0.5)
     // The header keeps the viewport frame and offsets its own columns.
     #expect(frames.tableHeader.minX == 0)
     #expect(abs(frames.tableHeader.width - scrollView.contentView.bounds.width) < 0.5)
@@ -263,9 +273,15 @@ func subtitleTablePageChromeFollowsTheHorizontalScrollOffset() async throws {
     coordinator.scrollContentDidChange()
 
     frames = try #require(coordinator.pageChromeFramesForTesting())
-    #expect(frames.scrollable.minX == -40)
-    #expect(frames.pinned.minX == -40)
+    #expect(frames.scrollable.minX == inset - 40)
+    #expect(frames.pinned.minX == inset - 40)
     #expect(frames.tableHeader.minX == 0)
+
+    // Columns live inside the document's own padding.
+    let firstCell = try #require(
+        coordinator.dataCellRectForTesting(row: 0, columnID: "cues")
+    )
+    #expect(firstCell.minX >= inset)
 
     // The page chrome geometry the SwiftUI page reads is published on the next
     // main-queue turn.
@@ -305,7 +321,8 @@ private struct WorkbenchPageScrollbarFixture: View {
                 rowsUpdate: .reload,
                 showsTimeColumn: true,
                 onPlay: { _ in },
-                isRedesign: true
+                isRedesign: true,
+                horizontalContentInset: SchemaWorkbenchStyle.pageHorizontalPadding
             )
         }
     }

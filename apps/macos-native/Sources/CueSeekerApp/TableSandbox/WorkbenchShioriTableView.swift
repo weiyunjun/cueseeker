@@ -124,6 +124,8 @@ private struct WorkbenchShioriTableContent: View {
                     onDuplicateShiori: duplicateShiori,
                     onRemoveShiori: requestRemoveShiori,
                     isRedesign: true,
+                    horizontalContentInset:
+                        SchemaWorkbenchStyle.pageHorizontalPadding,
                     pageChrome: shioriDetailPageChrome
                 )
 
@@ -298,7 +300,6 @@ private struct WorkbenchShioriTableContent: View {
                     ? CueFacetFilterPanelMetrics.pinnedHeight
                         + WorkbenchControlMetrics.redesignSpacing3
                     : 0),
-            horizontalInset: SchemaWorkbenchStyle.pageHorizontalPadding,
             bottomInset: SchemaWorkbenchStyle.pageBottomPadding
         )
     }

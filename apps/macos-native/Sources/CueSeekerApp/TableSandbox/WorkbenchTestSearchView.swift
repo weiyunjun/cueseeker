@@ -119,7 +119,9 @@ struct WorkbenchTestSearchView: View {
                             return await loadRowsForTextCopy(range: range, source: textCopySource)
                         },
                         onPlay: play,
-                        isRedesign: true
+                        isRedesign: true,
+                        horizontalContentInset:
+                            SchemaWorkbenchStyle.pageHorizontalPadding
                     )
 
                     if showsSearchEmptyHint {

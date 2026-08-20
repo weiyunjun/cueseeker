@@ -200,7 +200,6 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
                                 .padding(.bottom, WorkbenchControlMetrics.redesignSpacing4)
                             }
                         }
-                        .padding(.horizontal, SchemaWorkbenchStyle.pageHorizontalPadding)
                         .padding(
                             .bottom,
                             pageTitle == nil
@@ -233,6 +232,7 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
         VStack(spacing: 0) {
             if isRedesign, let pageTitle {
                 WorkbenchPageTitle(pageTitle)
+                    .padding(.horizontal, SchemaWorkbenchStyle.pageHorizontalPadding)
                     .padding(
                         .top,
                         WorkbenchControlMetrics.redesignWorkbenchPageTopPadding
@@ -242,6 +242,7 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
 
             if isRedesign {
                 searchToolbar
+                    .padding(.horizontal, SchemaWorkbenchStyle.pageHorizontalPadding)
                     .padding(
                         .top,
                         pageTitle == nil
@@ -255,6 +256,7 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
                     searchDraft: $searchDraft,
                     onSubmit: onSearchSubmit
                 )
+                .padding(.horizontal, SchemaWorkbenchStyle.pageHorizontalPadding)
                 .padding(.top, SchemaWorkbenchStyle.pageTopPadding)
                 .padding(.bottom, 12)
 
@@ -262,11 +264,13 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
                     isFilterPanelOpen: isFilterPanelVisible,
                     onFilter: onToggleFilterPanel
                 )
+                .padding(.horizontal, SchemaWorkbenchStyle.pageHorizontalPadding)
                 .padding(.bottom, 12)
             }
 
             if isRedesign, isFilterPanelVisible {
                 filterPanel
+                    .padding(.horizontal, SchemaWorkbenchStyle.pageHorizontalPadding)
                     .padding(.bottom, WorkbenchControlMetrics.redesignSpacing3)
             }
         }
@@ -275,9 +279,9 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
     /// Width the chrome must keep so it stops shrinking where the table columns
     /// do. `nil` while the table has not reported its content width yet.
     private var pageChromeContentWidth: CGFloat? {
-        let tableContentWidth = pageScrollbar.horizontalContentWidth
-        guard tableContentWidth > 0 else { return nil }
-        return tableContentWidth
+        let documentWidth = pageScrollbar.horizontalContentWidth
+        guard documentWidth > 0 else { return nil }
+        return documentWidth
     }
 
     private var externalTextSelectionIsBlocked: Bool {
@@ -309,8 +313,8 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
 /// Keeps page chrome at the table's content width and moves it with the table's
 /// horizontal scroll offset, so the whole page stops shrinking together.
 ///
-/// The clipping window matches the table's own scroll viewport — page padding on
-/// both sides — so chrome and table are cut at the same boundary.
+/// The clipping window is the whole page, matching the table's scroll viewport;
+/// the page padding travels inside the scrolled content on both sides.
 private struct WorkbenchPageChromeHorizontalScroll: ViewModifier {
     let contentWidth: CGFloat?
     let pageWidth: CGFloat
@@ -320,13 +324,8 @@ private struct WorkbenchPageChromeHorizontalScroll: ViewModifier {
         content
             .frame(width: contentWidth, alignment: .topLeading)
             .offset(x: -horizontalOffset)
-            .frame(width: viewportWidth, alignment: .topLeading)
+            .frame(width: pageWidth, alignment: .topLeading)
             .clipped()
-            .padding(.horizontal, SchemaWorkbenchStyle.pageHorizontalPadding)
-    }
-
-    private var viewportWidth: CGFloat {
-        max(0, pageWidth - 2 * SchemaWorkbenchStyle.pageHorizontalPadding)
     }
 }
 
