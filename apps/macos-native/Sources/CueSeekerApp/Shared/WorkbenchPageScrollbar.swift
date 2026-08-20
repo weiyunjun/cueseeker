@@ -10,8 +10,14 @@ final class WorkbenchPageScrollbar: ObservableObject {
     private(set) weak var overlayView: SubtitleTableScrollbarOverlayView?
     private weak var scrollView: NSScrollView?
     private var isRedesign = false
+    private var isPublishScheduled = false
 
     var onDragStateChanged: ((Bool) -> Void)?
+
+    /// Horizontal geometry of the bound scroll container, published so the page
+    /// chrome can stop shrinking and scroll together with the table.
+    @Published private(set) var horizontalContentWidth: CGFloat = 0
+    @Published private(set) var horizontalOffset: CGFloat = 0
 
     func attach(overlayView: SubtitleTableScrollbarOverlayView) {
         self.overlayView = overlayView
@@ -43,6 +49,7 @@ final class WorkbenchPageScrollbar: ObservableObject {
 
     func metricsDidChange() {
         overlayView?.scrollMetricsDidChange()
+        publishHorizontalGeometry()
     }
 
     func setNeedsDisplay() {
@@ -58,6 +65,27 @@ final class WorkbenchPageScrollbar: ObservableObject {
         overlayView.scrollView = isRedesign ? scrollView : nil
         overlayView.isRedesign = isRedesign && scrollView != nil
         overlayView.needsDisplay = true
+        publishHorizontalGeometry()
+    }
+
+    /// Publishing runs on the next main-queue turn: AppKit reports geometry from
+    /// inside SwiftUI's own update pass, and mutating observed state there would
+    /// re-enter the view body that reads it.
+    private func publishHorizontalGeometry() {
+        guard !isPublishScheduled else { return }
+        isPublishScheduled = true
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.isPublishScheduled = false
+            let contentWidth = self.scrollView?.documentView?.frame.width ?? 0
+            let offset = self.scrollView?.contentView.bounds.minX ?? 0
+            if self.horizontalContentWidth != contentWidth {
+                self.horizontalContentWidth = contentWidth
+            }
+            if self.horizontalOffset != offset {
+                self.horizontalOffset = offset
+            }
+        }
     }
 }
 

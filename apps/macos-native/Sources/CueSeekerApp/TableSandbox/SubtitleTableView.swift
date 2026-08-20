@@ -2506,8 +2506,8 @@ struct SubtitleTableView: NSViewRepresentable {
             header.translatesAutoresizingMaskIntoConstraints = true
             NSLayoutConstraint.activate([
                 pageChromeViewport.topAnchor.constraint(equalTo: container.topAnchor),
-                pageChromeViewport.leadingAnchor.constraint(equalTo: container.leadingAnchor),
-                pageChromeViewport.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+                pageChromeViewport.leadingAnchor.constraint(equalTo: scrollView.leadingAnchor),
+                pageChromeViewport.trailingAnchor.constraint(equalTo: scrollView.trailingAnchor),
                 pageChromeViewport.bottomAnchor.constraint(equalTo: container.bottomAnchor),
 
                 scrollView.topAnchor.constraint(equalTo: container.topAnchor),
@@ -3083,8 +3083,8 @@ struct SubtitleTableView: NSViewRepresentable {
         private func layoutPageChrome() {
             guard let pageChrome,
                   let geometry = pageScrollGeometry,
-                  let container,
                   let scrollView,
+                  let documentView,
                   let headerView,
                   let scrollablePageChromeHost,
                   let pinnedPageChromeHost
@@ -3093,10 +3093,13 @@ struct SubtitleTableView: NSViewRepresentable {
             }
 
             let scrollOffset = scrollView.contentView.bounds.minY
-            let inset = max(0, pageChrome.horizontalInset)
-            let contentWidth = max(0, container.bounds.width - 2 * inset)
+            // The chrome shares the table's content width and horizontal
+            // offset, so it stops shrinking where the columns do and scrolls
+            // with them instead.
+            let contentWidth = documentView.frame.width
+            let originX = -scrollView.contentView.bounds.minX
             scrollablePageChromeHost.frame = CGRect(
-                x: inset,
+                x: originX,
                 y: geometry.scrollableHeaderOriginY(scrollOffset: scrollOffset),
                 width: contentWidth,
                 height: pageChrome.scrollableHeaderHeight
@@ -3105,15 +3108,17 @@ struct SubtitleTableView: NSViewRepresentable {
                 scrollOffset: scrollOffset
             )
             pinnedPageChromeHost.frame = CGRect(
-                x: inset,
+                x: originX,
                 y: pinnedOriginY,
                 width: contentWidth,
                 height: pageChrome.pinnedHeaderHeight
             )
+            // The header keeps the viewport frame; it offsets its own column
+            // layout for horizontal scrolling.
             headerView.frame = CGRect(
-                x: inset,
+                x: 0,
                 y: pinnedOriginY + pageChrome.pinnedHeaderHeight,
-                width: contentWidth,
+                width: scrollView.contentView.bounds.width,
                 height: currentHeaderHeight
             )
         }

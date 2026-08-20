@@ -175,74 +175,41 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                VStack(spacing: 0) {
-                    if isRedesign, let pageTitle {
-                        WorkbenchPageTitle(pageTitle)
-                            .padding(.horizontal, SchemaWorkbenchStyle.pageHorizontalPadding)
-                            .padding(
-                                .top,
-                                WorkbenchControlMetrics.redesignWorkbenchPageTopPadding
+                GeometryReader { geometry in
+                    VStack(spacing: 0) {
+                        pageChromeStack
+                            .modifier(
+                                WorkbenchPageChromeHorizontalScroll(
+                                    contentWidth: pageChromeContentWidth,
+                                    pageWidth: geometry.size.width,
+                                    horizontalOffset: pageScrollbar.horizontalOffset
+                                )
                             )
-                            .padding(.bottom, WorkbenchControlMetrics.redesignSpacing4)
-                    }
 
-                    if isRedesign {
-                        searchToolbar
-                            .padding(.horizontal, SchemaWorkbenchStyle.pageHorizontalPadding)
-                            .padding(
-                                .top,
-                                pageTitle == nil
-                                    ? SchemaWorkbenchStyle.pageTopPadding
-                                    : 0
-                            )
-                            .padding(.bottom, WorkbenchControlMetrics.redesignSpacing3)
-                    } else {
-                        SchemaWorkbenchLegacySearchCommandBar(
-                            placeholder: searchPlaceholder,
-                            searchDraft: $searchDraft,
-                            onSubmit: onSearchSubmit
-                        )
-                        .padding(.horizontal, SchemaWorkbenchStyle.pageHorizontalPadding)
-                        .padding(.top, SchemaWorkbenchStyle.pageTopPadding)
-                        .padding(.bottom, 12)
+                        ZStack(alignment: .bottom) {
+                            tableContent(columns)
 
-                        SchemaWorkbenchLegacyFilterControlBar(
-                            isFilterPanelOpen: isFilterPanelVisible,
-                            onFilter: onToggleFilterPanel
-                        )
-                        .padding(.horizontal, SchemaWorkbenchStyle.pageHorizontalPadding)
-                        .padding(.bottom, 12)
-                    }
-
-                    if isRedesign,
-                       isFilterPanelVisible {
-                        filterPanel
-                            .padding(.horizontal, SchemaWorkbenchStyle.pageHorizontalPadding)
-                            .padding(.bottom, WorkbenchControlMetrics.redesignSpacing3)
-                    }
-
-                    ZStack(alignment: .bottom) {
-                        tableContent(columns)
-
-                        if isRedesign,
-                           let tableSummary,
-                           tableSummary.selectedRowCount > 0,
-                           let selectionActions {
-                            SchemaWorkbenchSelectionActionOverlay(
-                                selectedRowCount: tableSummary.selectedRowCount,
-                                actions: selectionActions
-                            )
-                            .padding(.bottom, WorkbenchControlMetrics.redesignSpacing4)
+                            if isRedesign,
+                               let tableSummary,
+                               tableSummary.selectedRowCount > 0,
+                               let selectionActions {
+                                SchemaWorkbenchSelectionActionOverlay(
+                                    selectedRowCount: tableSummary.selectedRowCount,
+                                    actions: selectionActions
+                                )
+                                .padding(.bottom, WorkbenchControlMetrics.redesignSpacing4)
+                            }
                         }
+                        .padding(.horizontal, SchemaWorkbenchStyle.pageHorizontalPadding)
+                        .padding(
+                            .bottom,
+                            pageTitle == nil
+                                ? SchemaWorkbenchStyle.pageBottomPadding
+                                : WorkbenchControlMetrics.redesignWorkbenchPageBottomPadding
+                        )
+                        .frame(maxHeight: .infinity)
                     }
-                    .padding(.horizontal, SchemaWorkbenchStyle.pageHorizontalPadding)
-                    .padding(
-                        .bottom,
-                        pageTitle == nil
-                            ? SchemaWorkbenchStyle.pageBottomPadding
-                            : WorkbenchControlMetrics.redesignWorkbenchPageBottomPadding
-                    )
-                    .frame(maxHeight: .infinity)
+                    .frame(width: geometry.size.width, height: geometry.size.height)
                 }
             }
 
@@ -259,6 +226,63 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
             externalTextSelectionSession.cancel()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    @ViewBuilder
+    private var pageChromeStack: some View {
+        VStack(spacing: 0) {
+            if isRedesign, let pageTitle {
+                WorkbenchPageTitle(pageTitle)
+                    .padding(.horizontal, SchemaWorkbenchStyle.pageHorizontalPadding)
+                    .padding(
+                        .top,
+                        WorkbenchControlMetrics.redesignWorkbenchPageTopPadding
+                    )
+                    .padding(.bottom, WorkbenchControlMetrics.redesignSpacing4)
+            }
+
+            if isRedesign {
+                searchToolbar
+                    .padding(.horizontal, SchemaWorkbenchStyle.pageHorizontalPadding)
+                    .padding(
+                        .top,
+                        pageTitle == nil
+                            ? SchemaWorkbenchStyle.pageTopPadding
+                            : 0
+                    )
+                    .padding(.bottom, WorkbenchControlMetrics.redesignSpacing3)
+            } else {
+                SchemaWorkbenchLegacySearchCommandBar(
+                    placeholder: searchPlaceholder,
+                    searchDraft: $searchDraft,
+                    onSubmit: onSearchSubmit
+                )
+                .padding(.horizontal, SchemaWorkbenchStyle.pageHorizontalPadding)
+                .padding(.top, SchemaWorkbenchStyle.pageTopPadding)
+                .padding(.bottom, 12)
+
+                SchemaWorkbenchLegacyFilterControlBar(
+                    isFilterPanelOpen: isFilterPanelVisible,
+                    onFilter: onToggleFilterPanel
+                )
+                .padding(.horizontal, SchemaWorkbenchStyle.pageHorizontalPadding)
+                .padding(.bottom, 12)
+            }
+
+            if isRedesign, isFilterPanelVisible {
+                filterPanel
+                    .padding(.horizontal, SchemaWorkbenchStyle.pageHorizontalPadding)
+                    .padding(.bottom, WorkbenchControlMetrics.redesignSpacing3)
+            }
+        }
+    }
+
+    /// Width the chrome must keep so it stops shrinking where the table columns
+    /// do. `nil` while the table has not reported its content width yet.
+    private var pageChromeContentWidth: CGFloat? {
+        let tableContentWidth = pageScrollbar.horizontalContentWidth
+        guard tableContentWidth > 0 else { return nil }
+        return tableContentWidth + 2 * SchemaWorkbenchStyle.pageHorizontalPadding
     }
 
     private var externalTextSelectionIsBlocked: Bool {
@@ -285,6 +309,22 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
         )
     }
 
+}
+
+/// Keeps page chrome at the table's content width and moves it with the
+/// table's horizontal scroll offset, so the whole page stops shrinking together.
+private struct WorkbenchPageChromeHorizontalScroll: ViewModifier {
+    let contentWidth: CGFloat?
+    let pageWidth: CGFloat
+    let horizontalOffset: CGFloat
+
+    func body(content: Content) -> some View {
+        content
+            .frame(width: contentWidth, alignment: .topLeading)
+            .offset(x: -horizontalOffset)
+            .frame(width: pageWidth, alignment: .topLeading)
+            .clipped()
+    }
 }
 
 enum SchemaWorkbenchStyle {

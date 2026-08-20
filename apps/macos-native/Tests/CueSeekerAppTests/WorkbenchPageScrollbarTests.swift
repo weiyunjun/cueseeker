@@ -3,7 +3,10 @@ import SwiftUI
 import Testing
 @testable import CueSeekerApp
 
+/// Hosting-based cases share AppKit window state, so they must not interleave.
 @MainActor
+@Suite(.serialized)
+struct WorkbenchPageScrollbarHostingTests {
 @Test
 func workbenchPageOwnsTheTableScrollbarAtItsOwnViewport() async throws {
     let host = NSHostingView(
@@ -75,6 +78,161 @@ func workbenchPageOwnsTheTableScrollbarAtItsOwnViewport() async throws {
     )
 }
 
+@Test
+func workbenchPageChromeStopsShrinkingWithTheTableColumns() async throws {
+    let host = NSHostingView(
+        rootView: WorkbenchPageScrollbarFixture()
+            .frame(width: 480, height: 640)
+    )
+    host.frame = CGRect(x: 0, y: 0, width: 480, height: 640)
+    let window = NSWindow(
+        contentRect: host.frame,
+        styleMask: [.borderless],
+        backing: .buffered,
+        defer: false
+    )
+    window.contentView = host
+
+    await settleWorkbenchPage(host)
+
+    let overlay = try #require(
+        firstWorkbenchPageSubview(
+            of: SubtitleTableScrollbarOverlayView.self,
+            in: host
+        )
+    )
+    let container = try #require(
+        firstWorkbenchPageSubview(of: SubtitleTableContainerView.self, in: host)
+    )
+    let scrollView = try #require(overlay.scrollView)
+    let documentView = try #require(scrollView.documentView)
+
+    let tableMinimumWidth = SubtitleTableColumnLayout.minimumContentWidth(
+        showsDateAddedColumn: false,
+        showsDisplayTitleColumn: true,
+        showsTimeColumn: true,
+        showsLanguageColumn: false,
+        cuesMinimumWidth: SubtitleTableMetrics.cuesColumnMinimumWidth
+    )
+
+    // The clamped page chrome must not distort the table's own page geometry.
+    let containerFrame = container.convert(container.bounds, to: host)
+    #expect(
+        abs(containerFrame.minX - SchemaWorkbenchStyle.pageHorizontalPadding) < 0.5
+    )
+    #expect(
+        abs(
+            containerFrame.width
+                - (host.bounds.width - 2 * SchemaWorkbenchStyle.pageHorizontalPadding)
+        ) < 0.5
+    )
+
+    // The columns stop at their minimums, so the page scrolls horizontally.
+    #expect(abs(documentView.frame.width - tableMinimumWidth) < 0.5)
+    #expect(documentView.frame.width > scrollView.contentView.bounds.width)
+
+    let maximumOffset = documentView.frame.width - scrollView.contentView.bounds.width
+    scrollView.contentView.scroll(to: CGPoint(x: maximumOffset, y: 0))
+    scrollView.reflectScrolledClipView(scrollView.contentView)
+    await settleWorkbenchPage(host)
+
+    let horizontal = try #require(overlay.presentationProvider()?.horizontal)
+    #expect(abs(horizontal.positionFraction - 1) < 0.01)
+}
+
+@Test
+func subtitleTablePageChromeFollowsTheHorizontalScrollOffset() async throws {
+    let row = SubtitleTableRow(
+        id: 1,
+        primaryCueID: 1,
+        displayTitle: "Episode 01",
+        primaryCueText: "cue text",
+        cueGroupTexts: ["cue text"],
+        primaryGroupIndex: 0
+    )
+    let coordinator = SubtitleTableView.Coordinator(
+        tableName: "shiori",
+        probeSurface: .shiori,
+        rowCount: 20,
+        rowProvider: { _ in row },
+        rowsVersion: 1,
+        displayTitleHeader: "Display Title",
+        showsLanguageColumn: false,
+        onVisibleRowsChange: { _ in },
+        isRowSelected: { _ in false },
+        onPlay: { _ in }
+    )
+    coordinator.isRedesign = true
+
+    let inset: CGFloat = 32
+    let container = SubtitleTableContainerView(
+        frame: CGRect(x: 0, y: 0, width: 400, height: 600)
+    )
+    let viewport = SubtitleTablePageChromeViewportView(
+        frame: CGRect(x: inset, y: 0, width: 400 - 2 * inset, height: 600)
+    )
+    let header = SubtitleVirtualTableHeaderView()
+    let scrollView = NSScrollView(
+        frame: CGRect(x: inset, y: 0, width: 400 - 2 * inset, height: 600)
+    )
+    let documentView = SubtitleVirtualTableDocumentView(
+        frame: CGRect(x: 0, y: 0, width: 400 - 2 * inset, height: 1)
+    )
+    container.addSubview(scrollView)
+    container.addSubview(viewport)
+    viewport.addSubview(header)
+    scrollView.documentView = documentView
+
+    let overlay = SubtitleTableScrollbarOverlayView(frame: container.bounds)
+    let pageScrollbar = WorkbenchPageScrollbar()
+    pageScrollbar.attach(overlayView: overlay)
+    coordinator.attach(
+        container: container,
+        headerView: header,
+        scrollView: scrollView,
+        pageScrollbar: pageScrollbar,
+        documentView: documentView,
+        pageChromeViewport: viewport
+    )
+    coordinator.updatePageChrome(SubtitleTablePageChrome(
+        scrollableHeader: AnyView(Color.clear),
+        pinnedHeader: AnyView(Color.clear),
+        scrollableHeaderHeight: 100,
+        pinnedHeaderHeight: 52,
+        horizontalInset: inset,
+        bottomInset: 14
+    ))
+    coordinator.resizeDocument()
+
+    let contentWidth = documentView.frame.width
+    #expect(contentWidth > scrollView.contentView.bounds.width)
+
+    var frames = try #require(coordinator.pageChromeFramesForTesting())
+    #expect(frames.scrollable.minX == 0)
+    #expect(abs(frames.scrollable.width - contentWidth) < 0.5)
+    #expect(abs(frames.pinned.width - contentWidth) < 0.5)
+    // The header keeps the viewport frame and offsets its own columns.
+    #expect(frames.tableHeader.minX == 0)
+    #expect(abs(frames.tableHeader.width - scrollView.contentView.bounds.width) < 0.5)
+
+    scrollView.contentView.scroll(to: CGPoint(x: 40, y: 0))
+    scrollView.reflectScrolledClipView(scrollView.contentView)
+    coordinator.scrollContentDidChange()
+
+    frames = try #require(coordinator.pageChromeFramesForTesting())
+    #expect(frames.scrollable.minX == -40)
+    #expect(frames.pinned.minX == -40)
+    #expect(frames.tableHeader.minX == 0)
+
+    // The page chrome geometry the SwiftUI page reads is published on the next
+    // main-queue turn.
+    await Task.yield()
+    #expect(pageScrollbar.horizontalOffset == 40)
+    #expect(abs(pageScrollbar.horizontalContentWidth - contentWidth) < 0.5)
+}
+
+}
+
 private struct WorkbenchPageScrollbarFixture: View {
     @State private var searchDraft = ""
 
@@ -102,6 +260,7 @@ private struct WorkbenchPageScrollbarFixture: View {
                 rowProvider: { _ in row },
                 rowsVersion: 1,
                 rowsUpdate: .reload,
+                showsTimeColumn: true,
                 onPlay: { _ in },
                 isRedesign: true
             )
