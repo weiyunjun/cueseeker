@@ -11,6 +11,7 @@ enum DebugE2ECommand: Equatable {
     case click(x: CGFloat, y: CGFloat, sceneID: String)
     case scroll(x: CGFloat, y: CGFloat, deltaY: Int32, sceneID: String)
     case keyPress(key: String, modifiers: [String], sceneID: String)
+    case setWidth(width: CGFloat, sceneID: String)
 
     init(line: String) throws {
         let payload: Payload
@@ -28,6 +29,7 @@ enum DebugE2ECommand: Equatable {
                   payload.deltaY == nil,
                   payload.key == nil,
                   payload.modifiers == nil,
+                  payload.width == nil,
                   payload.sceneID == nil
             else {
                 throw DebugE2EError.invalidCommand("inspect takes no arguments")
@@ -40,6 +42,7 @@ enum DebugE2ECommand: Equatable {
                   payload.deltaY == nil,
                   payload.key == nil,
                   payload.modifiers == nil,
+                  payload.width == nil,
                   payload.sceneID == nil
             else {
                 throw DebugE2EError.invalidCommand(
@@ -54,6 +57,7 @@ enum DebugE2ECommand: Equatable {
                   payload.deltaY == nil,
                   payload.key == nil,
                   payload.modifiers == nil,
+                  payload.width == nil,
                   let sceneID = payload.sceneID
             else {
                 throw DebugE2EError.invalidCommand(
@@ -69,6 +73,7 @@ enum DebugE2ECommand: Equatable {
                   deltaY != 0,
                   payload.key == nil,
                   payload.modifiers == nil,
+                  payload.width == nil,
                   let sceneID = payload.sceneID
             else {
                 throw DebugE2EError.invalidCommand(
@@ -88,6 +93,7 @@ enum DebugE2ECommand: Equatable {
                   payload.deltaY == nil,
                   let key = payload.key,
                   let modifiers = payload.modifiers,
+                  payload.width == nil,
                   let sceneID = payload.sceneID
             else {
                 throw DebugE2EError.invalidCommand(
@@ -99,6 +105,23 @@ enum DebugE2ECommand: Equatable {
                 modifiers: modifiers,
                 sceneID: sceneID
             )
+        case "setWidth":
+            guard payload.name == nil,
+                  payload.x == nil,
+                  payload.y == nil,
+                  payload.deltaY == nil,
+                  payload.key == nil,
+                  payload.modifiers == nil,
+                  let width = payload.width,
+                  width.isFinite,
+                  width > 0,
+                  let sceneID = payload.sceneID
+            else {
+                throw DebugE2EError.invalidCommand(
+                    "setWidth requires a finite positive width and sceneID"
+                )
+            }
+            self = .setWidth(width: CGFloat(width), sceneID: sceneID)
         default:
             throw DebugE2EError.invalidCommand(
                 "Unsupported action: \(payload.action)"
@@ -114,6 +137,7 @@ enum DebugE2ECommand: Equatable {
         let deltaY: Int32?
         let key: String?
         let modifiers: [String]?
+        let width: Double?
         let sceneID: String?
     }
 }
@@ -137,6 +161,7 @@ enum DebugE2EError: Error, CustomStringConvertible {
     case unsupportedModifier(String)
     case keyWindowUnavailable
     case keyboardEventCreationFailed
+    case invalidWindowWidth
 
     var code: String {
         switch self {
@@ -176,6 +201,8 @@ enum DebugE2EError: Error, CustomStringConvertible {
             "keyWindowUnavailable"
         case .keyboardEventCreationFailed:
             "keyboardEventCreationFailed"
+        case .invalidWindowWidth:
+            "invalidWindowWidth"
         }
     }
 
@@ -217,6 +244,8 @@ enum DebugE2EError: Error, CustomStringConvertible {
             "CueSeeker must be active with a visible key window in the current scene"
         case .keyboardEventCreationFailed:
             "The AppKit keyboard events could not be created"
+        case .invalidWindowWidth:
+            "Window width must be a finite positive number"
         }
     }
 }
@@ -660,6 +689,23 @@ enum DebugE2EScrollDispatcher {
     }
 }
 
+@MainActor
+enum DebugE2EWindowSizeDispatcher {
+    static func setWidth(_ width: CGFloat, window: NSWindow) throws {
+        guard width.isFinite, width > 0 else {
+            throw DebugE2EError.invalidWindowWidth
+        }
+        let frame = window.frame
+        window.setFrame(
+            NSRect(
+                origin: frame.origin,
+                size: NSSize(width: width, height: frame.height)
+            ),
+            display: true
+        )
+    }
+}
+
 struct DebugE2EKeyStroke: Equatable {
     let key: String
     let modifiers: [String]
@@ -1085,6 +1131,34 @@ final class DebugE2EController {
                     "action": "keyPress",
                     "key": keyStroke.key,
                     "modifiers": keyStroke.modifiers,
+                ], uniquingKeysWith: { _, new in new })
+                Self.write(payload)
+            case .setWidth(let width, let sceneID):
+                let scene = try DebugE2EScene.current(mainWindow: mainWindow)
+                guard commandSceneID(for: scene) == sceneID else {
+                    throw DebugE2EError.sceneChanged
+                }
+                let previousFrame = mainWindow.frame
+                try DebugE2EWindowSizeDispatcher.setWidth(
+                    width,
+                    window: mainWindow
+                )
+                try await Task.sleep(for: .milliseconds(50))
+                let currentScene: DebugE2EScene
+                do {
+                    currentScene = try DebugE2EScene.current(
+                        mainWindow: mainWindow
+                    )
+                } catch {
+                    mainWindow.setFrame(previousFrame, display: true)
+                    throw error
+                }
+                interactionRevision &+= 1
+                var payload = scenePayload(currentScene)
+                payload.merge([
+                    "status": "ok",
+                    "action": "setWidth",
+                    "windowWidth": mainWindow.frame.width,
                 ], uniquingKeysWith: { _, new in new })
                 Self.write(payload)
             }

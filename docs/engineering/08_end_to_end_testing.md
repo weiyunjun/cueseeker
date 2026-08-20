@@ -27,8 +27,9 @@ Known CueSeeker-owned macOS UI flows use the Debug in-app E2E controller by
 default. The controller captures the actual WindowServer composition of every
 visible CueSeeker-owned window with ScreenCaptureKit, dispatches a left click at
 a documented complete-scene coordinate, dispatches a discrete vertical mouse
-wheel event at a documented coordinate, and posts documented keyboard events
-inside the app. It does not reconstruct views, move the real pointer, request
+wheel event at a documented coordinate, posts documented keyboard events
+inside the app, and sets the main window's width. It does not reconstruct views,
+move the real pointer, request
 Accessibility or Input Monitoring permission, inspect other applications, or
 locate controls from screenshots.
 
@@ -70,6 +71,7 @@ Supported commands are one JSON object per line:
 {"action":"click","x":80,"y":155,"sceneID":"current-scene-id"}
 {"action":"scroll","x":80,"y":420,"deltaY":-3,"sceneID":"current-scene-id"}
 {"action":"keyPress","key":"enter","modifiers":[],"sceneID":"current-scene-id"}
+{"action":"setWidth","width":1100,"sceneID":"current-scene-id"}
 ```
 
 `inspect` returns the current scene contract without producing an image.
@@ -103,6 +105,18 @@ an active CueSeeker app, a visible key window in the current scene, and a curren
 product action directly. Success returns a fresh `sceneID`; stale state,
 unsupported keys or modifiers, unavailable key windows, and event-construction
 failure are explicit errors.
+
+`setWidth` resizes the main window only. `width` is a finite positive length in
+logical points; the window's height and upper-left corner do not change. AppKit
+clamps the request to the window's own minimum and maximum size, so read the
+effective width from the returned scene rather than assuming the requested value
+was applied. Use this command to verify width-dependent adaptive layout instead
+of resizing the window by hand. It does not change backing scale, display
+configuration, or product state. A stale `sceneID`, a non-positive or non-finite
+`width`, a missing main window, or a resulting scene that breaks the
+single-display rule is an explicit error; a scene rebuild failure restores the
+previous frame so a failed command leaves the window unchanged. Success returns
+a fresh `sceneID` plus `windowWidth`, the width actually in effect.
 
 `capture` accepts a nonempty name made from letters, numbers, hyphens, and
 underscores. It writes a PNG under the per-process temporary artifact directory

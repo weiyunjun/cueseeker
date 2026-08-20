@@ -42,9 +42,68 @@ struct DebugE2EControllerTests {
                 line: #"{"action":"keyPress","key":"enter","sceneID":"abc"}"#
             )
         }
+        #expect(
+            try DebugE2ECommand(
+                line: #"{"action":"setWidth","width":1100,"sceneID":"abc"}"#
+            ) == .setWidth(width: 1100, sceneID: "abc")
+        )
+        #expect(throws: DebugE2EError.self) {
+            try DebugE2ECommand(line: #"{"action":"setWidth","width":1100}"#)
+        }
+        #expect(throws: DebugE2EError.self) {
+            try DebugE2ECommand(
+                line: #"{"action":"setWidth","width":0,"sceneID":"abc"}"#
+            )
+        }
+        #expect(throws: DebugE2EError.self) {
+            try DebugE2ECommand(
+                line: #"{"action":"setWidth","width":-320,"sceneID":"abc"}"#
+            )
+        }
+        #expect(throws: DebugE2EError.self) {
+            try DebugE2ECommand(line: #"{"action":"setWidth","sceneID":"abc"}"#)
+        }
         #expect(throws: DebugE2EError.self) {
             try DebugE2ECommand(line: #"{"action":"unknown"}"#)
         }
+    }
+
+    @Test
+    @MainActor
+    func setWidthResizesMainWindowAndInvalidatesScene() throws {
+        let screen = try #require(NSScreen.main)
+        let window = makeWindow(
+            frame: NSRect(
+                x: screen.frame.minX + 80,
+                y: screen.frame.minY + 100,
+                width: 300,
+                height: 200
+            )
+        )
+        window.orderFront(nil)
+        defer { window.orderOut(nil) }
+
+        let scene = try DebugE2EScene.current(mainWindow: window)
+        let topLeft = NSPoint(x: window.frame.minX, y: window.frame.maxY)
+
+        try DebugE2EWindowSizeDispatcher.setWidth(460, window: window)
+
+        #expect(window.frame.width == 460)
+        #expect(window.frame.height == 200)
+        #expect(window.frame.minX == topLeft.x)
+        #expect(window.frame.maxY == topLeft.y)
+
+        let resizedScene = try DebugE2EScene.current(mainWindow: window)
+        #expect(resizedScene.width == 460)
+        #expect(resizedScene.id != scene.id)
+
+        #expect(throws: DebugE2EError.self) {
+            try DebugE2EWindowSizeDispatcher.setWidth(0, window: window)
+        }
+        #expect(throws: DebugE2EError.self) {
+            try DebugE2EWindowSizeDispatcher.setWidth(.nan, window: window)
+        }
+        #expect(window.frame.width == 460)
     }
 
     @Test
