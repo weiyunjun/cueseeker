@@ -22,6 +22,7 @@ private struct ContentRootView: View {
     @ObservedObject var fullscreenManager: PlaybackFullscreenManager
     @EnvironmentObject private var settingsStore: SettingsStore
     @EnvironmentObject private var layoutState: WorkbenchLayoutState
+    @EnvironmentObject private var routeState: WorkbenchRouteState
     @EnvironmentObject private var libraryStore: LibraryStore
     @EnvironmentObject private var shioriStore: ShioriStore
     @EnvironmentObject private var playback: PlaybackStore
@@ -70,18 +71,18 @@ private struct ContentRootView: View {
 
                     TitlebarCommandBridge()
                         .frame(width: 0, height: 0)
+
+                    WorkbenchWindowMinimumWidthBridge()
+                        .frame(width: 0, height: 0)
                 }
                 .frame(width: geometry.size.width, height: geometry.size.height)
                 .environment(\.isWorkbenchPopupLayerOpen, isEditorModalPresented)
-                .onAppear {
-                    collapseSidebarForCompactWindowIfNeeded(width: geometry.size.width)
-                }
-                .onChange(of: geometry.size.width) { width in
-                    collapseSidebarForCompactWindowIfNeeded(width: width)
-                }
             }
             .ignoresSafeArea(.container, edges: .top)
-            .frame(minWidth: AppShellLayout.minimumWindowWidth, minHeight: AppShellLayout.minimumWindowHeight)
+            .frame(
+                minWidth: windowMinimumWidth,
+                minHeight: AppShellLayout.minimumWindowHeight
+            )
             .sheet(item: $libraryStore.coverEditingSession) { session in
                 LibraryEditCoverDialog(
                     session: session,
@@ -121,17 +122,19 @@ private struct ContentRootView: View {
         SearchView()
     }
 
+    private var windowMinimumWidth: CGFloat {
+        WorkbenchContentMinimumWidth.windowWidth(
+            panelMode: routeState.panelMode,
+            isShioriListDetail: routeState.selectedShioriListID != nil,
+            isSidebarVisible: layoutState.isSidebarVisible
+        )
+    }
+
     private var isEditorModalPresented: Bool {
         libraryStore.coverEditingSession != nil
             || shioriStore.listEditorSession != nil
     }
 
-    private func collapseSidebarForCompactWindowIfNeeded(width: CGFloat) {
-        layoutState.collapseSidebarForCompactWindowIfNeeded(
-            width: width,
-            threshold: AppShellLayout.sidebarAutoCollapseWindowWidth
-        )
-    }
 }
 
 private struct AppTopBar: View {
@@ -213,6 +216,74 @@ private struct AppTopBar: View {
         .accessibilityLabel(layoutState.isSidebarVisible ? "Hide Sidebar" : "Show Sidebar")
     }
 
+}
+
+/// Keeps the main window's minimum width in step with the current page and
+/// sidebar state, and widens the window instead of shrinking the content
+/// region when the sidebar opens.
+private struct WorkbenchWindowMinimumWidthBridge: View {
+    @EnvironmentObject private var layoutState: WorkbenchLayoutState
+    @EnvironmentObject private var routeState: WorkbenchRouteState
+
+    var body: some View {
+        WorkbenchWindowMinimumWidthApplier(
+            minimumWidth: WorkbenchContentMinimumWidth.windowWidth(
+                panelMode: routeState.panelMode,
+                isShioriListDetail: routeState.selectedShioriListID != nil,
+                isSidebarVisible: layoutState.isSidebarVisible
+            )
+        )
+    }
+}
+
+private struct WorkbenchWindowMinimumWidthApplier: NSViewRepresentable {
+    let minimumWidth: CGFloat
+
+    func makeNSView(context: Context) -> WorkbenchWindowMinimumWidthView {
+        let view = WorkbenchWindowMinimumWidthView()
+        view.minimumWidth = minimumWidth
+        return view
+    }
+
+    func updateNSView(
+        _ nsView: WorkbenchWindowMinimumWidthView,
+        context: Context
+    ) {
+        nsView.minimumWidth = minimumWidth
+    }
+}
+
+final class WorkbenchWindowMinimumWidthView: NSView {
+    var minimumWidth: CGFloat = 0 {
+        didSet {
+            guard minimumWidth != oldValue else { return }
+            applyToWindow()
+        }
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        applyToWindow()
+    }
+
+    private func applyToWindow() {
+        guard minimumWidth > 0, let window else { return }
+
+        window.minSize = NSSize(
+            width: minimumWidth,
+            height: window.minSize.height
+        )
+
+        guard !window.styleMask.contains(.fullScreen),
+              window.frame.width < minimumWidth
+        else {
+            return
+        }
+
+        var frame = window.frame
+        frame.size.width = minimumWidth
+        window.setFrame(frame, display: true)
+    }
 }
 
 private struct TitlebarCommandBridge: View {
@@ -597,7 +668,6 @@ enum AppShellLayout {
     static let defaultWindowWidth: CGFloat = 1_000
     static let minimumWindowWidth: CGFloat = 480
     static let minimumWindowHeight: CGFloat = 560
-    static let sidebarAutoCollapseWindowWidth: CGFloat = 760
     static let topBarHeight = WorkbenchControlMetrics.redesignAppTopbarHeight
     static let sidePanelAnimationDuration: Double = 0.18
 

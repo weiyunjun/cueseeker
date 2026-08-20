@@ -100,45 +100,6 @@ func sidebarVisibilityDoesNotInvalidateRouteState() {
 
 @MainActor
 @Test
-func workbenchLayoutStateCollapsesSidebarForCompactWindowOnce() {
-    withTemporaryWorkbenchLayoutUserDefaults { userDefaults in
-        let layoutState = WorkbenchLayoutState(userDefaults: userDefaults)
-
-        let collapsed = layoutState.collapseSidebarForCompactWindowIfNeeded(
-            width: 760,
-            threshold: 760
-        )
-        let expandedAgain = layoutState.collapseSidebarForCompactWindowIfNeeded(
-            width: 900,
-            threshold: 760
-        )
-
-        let reloadedLayoutState = WorkbenchLayoutState(userDefaults: userDefaults)
-        #expect(collapsed)
-        #expect(!expandedAgain)
-        #expect(!layoutState.isSidebarVisible)
-        #expect(!reloadedLayoutState.isSidebarVisible)
-    }
-}
-
-@MainActor
-@Test
-func workbenchLayoutStateIgnoresNonPositiveCompactWindowWidth() {
-    withTemporaryWorkbenchLayoutUserDefaults { userDefaults in
-        let layoutState = WorkbenchLayoutState(userDefaults: userDefaults)
-
-        let collapsed = layoutState.collapseSidebarForCompactWindowIfNeeded(
-            width: 0,
-            threshold: 760
-        )
-
-        #expect(!collapsed)
-        #expect(layoutState.isSidebarVisible)
-    }
-}
-
-@MainActor
-@Test
 func workbenchLayoutStateTracksShioriListDetailWithoutPersistingIt() {
     withTemporaryWorkbenchLayoutUserDefaults { userDefaults in
         let layoutState = WorkbenchLayoutState(userDefaults: userDefaults)
@@ -230,4 +191,69 @@ private func withTemporaryWorkbenchLayoutUserDefaults(_ body: (UserDefaults) -> 
     }
 
     body(userDefaults)
+}
+
+@MainActor
+@Test
+func workbenchContentMinimumWidthFollowsTheCurrentPage() {
+    let searchContent = WorkbenchContentMinimumWidth.contentWidth(
+        panelMode: .search,
+        isShioriListDetail: false
+    )
+    let shioriDetailContent = WorkbenchContentMinimumWidth.contentWidth(
+        panelMode: .shiori,
+        isShioriListDetail: true
+    )
+    let shioriOverviewContent = WorkbenchContentMinimumWidth.contentWidth(
+        panelMode: .shiori,
+        isShioriListDetail: false
+    )
+    let dataContent = WorkbenchContentMinimumWidth.contentWidth(
+        panelMode: .data,
+        isShioriListDetail: false
+    )
+
+    let pagePadding = 2 * WorkbenchControlMetrics.redesignWorkbenchPageHorizontalPadding
+    #expect(
+        searchContent == SubtitleTableColumnLayout.minimumContentWidth(
+            showsDateAddedColumn: false,
+            showsDisplayTitleColumn: true,
+            showsTimeColumn: true,
+            showsLanguageColumn: false,
+            cuesMinimumWidth: SubtitleTableMetrics.cuesColumnMinimumWidth
+        ) + pagePadding
+    )
+    // The Shiori table carries one more column than Search.
+    #expect(shioriDetailContent > searchContent)
+    // Pages without a table stay at the App minimum window width.
+    #expect(shioriOverviewContent == AppShellLayout.minimumWindowWidth)
+    #expect(dataContent == AppShellLayout.minimumWindowWidth)
+}
+
+@MainActor
+@Test
+func workbenchWindowMinimumWidthAddsTheSidebarInsteadOfShrinkingContent() {
+    for (panelMode, isShioriListDetail) in [
+        (WorkbenchPanelMode.search, false),
+        (WorkbenchPanelMode.shiori, true),
+        (WorkbenchPanelMode.data, false),
+    ] {
+        let content = WorkbenchContentMinimumWidth.contentWidth(
+            panelMode: panelMode,
+            isShioriListDetail: isShioriListDetail
+        )
+        let collapsed = WorkbenchContentMinimumWidth.windowWidth(
+            panelMode: panelMode,
+            isShioriListDetail: isShioriListDetail,
+            isSidebarVisible: false
+        )
+        let expanded = WorkbenchContentMinimumWidth.windowWidth(
+            panelMode: panelMode,
+            isShioriListDetail: isShioriListDetail,
+            isSidebarVisible: true
+        )
+
+        #expect(collapsed == content)
+        #expect(expanded == content + AppShellLayout.sidebarWidth)
+    }
 }
