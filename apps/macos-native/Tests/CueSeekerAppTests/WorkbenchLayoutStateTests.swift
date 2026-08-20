@@ -231,3 +231,19 @@ private func withTemporaryWorkbenchLayoutUserDefaults(_ body: (UserDefaults) -> 
 
     body(userDefaults)
 }
+
+@Test
+func workbenchSidebarCollapsesBeforeThePageDropsBelowItsMinimumWidth() {
+    #expect(
+        AppShellLayout.sidebarAutoCollapseWindowWidth
+            == AppShellLayout.pageContentMinimumWidth + AppShellLayout.sidebarWidth
+    )
+    #expect(AppShellLayout.sidebarAutoCollapseWindowWidth == 720)
+
+    // At the threshold an expanded sidebar leaves exactly the page content
+    // minimum, so widening past it never needs page-level horizontal scrolling.
+    #expect(
+        AppShellLayout.sidebarAutoCollapseWindowWidth - AppShellLayout.sidebarWidth
+            == AppShellLayout.pageContentMinimumWidth
+    )
+}

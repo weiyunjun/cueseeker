@@ -601,7 +601,9 @@ enum AppShellLayout {
     /// here and scroll horizontally instead.
     static let pageContentMinimumWidth = minimumWindowWidth
     static let minimumWindowHeight: CGFloat = 560
-    static let sidebarAutoCollapseWindowWidth: CGFloat = 760
+    /// The sidebar collapses exactly when keeping it would push the page below
+    /// its content minimum width and force page-level horizontal scrolling.
+    static let sidebarAutoCollapseWindowWidth = pageContentMinimumWidth + sidebarWidth
     static let topBarHeight = WorkbenchControlMetrics.redesignAppTopbarHeight
     static let sidePanelAnimationDuration: Double = 0.18
 

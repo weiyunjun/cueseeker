@@ -34,15 +34,24 @@ form for wide widths and a 16:9 backdrop form for narrow widths.
      the same content box, and passed the new page values from the Shiori
      detail page.
 
+2. Sidebar auto-collapse threshold.
+   - Derived `sidebarAutoCollapseWindowWidth` from the page content minimum
+     width plus the sidebar width instead of the previous hard-coded 760, so the
+     sidebar collapses exactly when keeping it would force page-level horizontal
+     scrolling.
+
 # Verification
 
 - Step 1: `swift build` succeeds; `swift test` over the Workbench control
   metrics, page Scrollbar, Cover Summary, and virtual-row suites passes
   (104 tests).
+- Step 2: `swift build` succeeds; the Workbench layout-state suite passes
+  (12 tests), including a new assertion that the threshold equals the page
+  content minimum width plus the sidebar width.
 
 # Outcome
 
-Step 1 matches expectations. Remaining steps pending.
+Steps 1 and 2 match expectations. Remaining steps pending.
 
 # Follow-ups
 
