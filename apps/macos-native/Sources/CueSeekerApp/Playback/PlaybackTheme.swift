@@ -329,18 +329,10 @@ enum PlaybackSubtitleFocusMetrics {
 }
 
 enum PlaybackCueTimelineMetrics {
-    /// --font-size-playback-cue-sequence
-    static let sequenceFontSize = PlaybackSubtitleFocusMetrics.cueFontSize
-    /// --font-weight-playback-cue-sequence
-    static let sequenceFontWeight = NSFont.Weight.semibold
-    /// --line-height-playback-cue-sequence
-    static let sequenceLineHeight = PlaybackSubtitleFocusMetrics.cueLineHeight
-    /// --width-playback-cue-sequence-digit
-    static let sequenceDigitWidth = WorkbenchControlMetrics.redesignSpacing4
     /// --gap-playback-cue-timeline-marker-inline
     static let markerHorizontalGap = WorkbenchControlMetrics.redesignSpacing6
     /// --size-playback-cue-timeline-dot
-    static let dotSize = WorkbenchControlMetrics.redesignSpacing3
+    static let dotSize = WorkbenchControlMetrics.redesignSpacing2
     /// --width-playback-cue-timeline-connector
     static let connectorWidth: CGFloat = 1
     /// --gap-playback-cue-timeline-connector-marker

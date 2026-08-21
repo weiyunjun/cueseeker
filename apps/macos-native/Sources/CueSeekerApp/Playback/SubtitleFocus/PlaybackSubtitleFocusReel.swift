@@ -117,7 +117,6 @@ typealias PlaybackTextSelectionHit = (
 @MainActor
 protocol PlaybackVirtualReelContentAdapter: AnyObject {
     var snapshot: PlaybackVirtualReelSnapshot { get }
-    var sequenceTotalCount: Int { get }
     var supportsWindowRequests: Bool { get }
     var measurementCacheCountForTesting: Int { get }
     var measuredOrdinalsForTesting: Set<Int> { get }
@@ -151,10 +150,6 @@ protocol PlaybackVirtualReelContentAdapter: AnyObject {
 }
 
 extension PlaybackVirtualReelContentAdapter {
-    var sequenceTotalCount: Int {
-        snapshot.totalCount
-    }
-
     var supportsWindowRequests: Bool {
         false
     }
@@ -2415,10 +2410,6 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
         documentView.collageCheckboxRectForTesting(at: ordinal)
     }
 
-    func cueTimelineSequenceRectForTesting(at ordinal: Int) -> CGRect? {
-        documentView.cueTimelineSequenceRectForTesting(at: ordinal)
-    }
-
     func cueContentRectForTesting(at ordinal: Int) -> CGRect? {
         documentView.cueContentRectForTesting(at: ordinal)
     }
@@ -3424,58 +3415,34 @@ private final class PlaybackSubtitleFocusNativeScrollbarView:
 }
 
 struct PlaybackCueTimelineRowLayout: Equatable {
-    let sequenceRect: CGRect
     let markerRect: CGRect
     let cueRect: CGRect
 }
 
 @MainActor
 enum PlaybackCueTimelineLayout {
-    private static let sequenceTextLayout = PlaybackVisualLineStackLayout()
-
-    static func sequenceText(ordinal: Int) -> String {
-        "\(max(0, ordinal) + 1)"
-    }
-
-    static func leadingAccessoryWidth(
-        totalCount: Int,
-        usesCheckbox: Bool
-    ) -> CGFloat {
-        sequenceColumnWidth(totalCount: totalCount)
-            + PlaybackCueTimelineMetrics.markerHorizontalGap
-            + markerSize(usesCheckbox: usesCheckbox)
+    static func leadingAccessoryWidth(usesCheckbox: Bool) -> CGFloat {
+        markerSize(usesCheckbox: usesCheckbox)
             + PlaybackCueTimelineMetrics.markerHorizontalGap
     }
 
     static func rowLayout(
         in rowRect: CGRect,
-        totalCount: Int,
         usesCheckbox: Bool,
         markerCenterY: CGFloat? = nil
     ) -> PlaybackCueTimelineRowLayout {
-        let sequenceWidth = sequenceColumnWidth(totalCount: totalCount)
         let markerSize = markerSize(usesCheckbox: usesCheckbox)
-        let markerX = rowRect.minX
-            + sequenceWidth
-            + PlaybackCueTimelineMetrics.markerHorizontalGap
         let resolvedMarkerCenterY = markerCenterY
             ?? rowRect.minY
             + PlaybackSubtitleFocusMetrics.cueVerticalPadding
             + PlaybackSubtitleFocusMetrics.cueLineHeight / 2
         let markerY = resolvedMarkerCenterY - markerSize / 2
-        let cueX = markerX
+        let cueX = rowRect.minX
             + markerSize
             + PlaybackCueTimelineMetrics.markerHorizontalGap
         return PlaybackCueTimelineRowLayout(
-            sequenceRect: CGRect(
-                x: rowRect.minX,
-                y: rowRect.minY
-                    + PlaybackSubtitleFocusMetrics.cueVerticalPadding,
-                width: sequenceWidth,
-                height: PlaybackCueTimelineMetrics.sequenceLineHeight
-            ),
             markerRect: CGRect(
-                x: markerX,
+                x: rowRect.minX,
                 y: markerY,
                 width: markerSize,
                 height: markerSize
@@ -3514,37 +3481,6 @@ enum PlaybackCueTimelineLayout {
         NSBezierPath(rect: rect).fill()
     }
 
-    static func drawSequence(
-        ordinal: Int,
-        isFocused: Bool,
-        isEnabled: Bool,
-        rowLayout: PlaybackCueTimelineRowLayout
-    ) {
-        let color = isEnabled
-            ? isFocused
-                ? PlaybackTheme.cueTimelineFocusedNative
-                : PlaybackTheme.cueTimelineMutedNative
-            : WorkbenchRedesignColors.NS.textDisabled
-        let plan = sequenceTextLayout.prepare(
-            segments: [PlaybackVisualLineStackSegment(
-                text: sequenceText(ordinal: ordinal),
-                font: sequenceFont,
-                color: color,
-                nominalLineHeight: PlaybackCueTimelineMetrics.sequenceLineHeight
-            )],
-            width: rowLayout.sequenceRect.width
-        )
-        guard let line = plan.lines.first else {
-            return
-        }
-        sequenceTextLayout.drawPreparedPlan(in: CGRect(
-            x: rowLayout.sequenceRect.maxX - line.usedRect.maxX,
-            y: rowLayout.markerRect.midY - line.visibleCenterY,
-            width: max(1, line.usedRect.maxX),
-            height: plan.resolvedContentHeight
-        ))
-    }
-
     static func drawDot(
         isFocused: Bool,
         isEnabled: Bool,
@@ -3559,23 +3495,10 @@ enum PlaybackCueTimelineLayout {
         NSBezierPath(ovalIn: rect).fill()
     }
 
-    private static func sequenceColumnWidth(totalCount: Int) -> CGFloat {
-        let digitCount = String(max(1, totalCount)).count
-        return CGFloat(digitCount)
-            * PlaybackCueTimelineMetrics.sequenceDigitWidth
-    }
-
     private static func markerSize(usesCheckbox: Bool) -> CGFloat {
         usesCheckbox
             ? PlaybackCollageSelectionMetrics.checkboxSize
             : PlaybackCueTimelineMetrics.dotSize
-    }
-
-    private static var sequenceFont: NSFont {
-        NSFont.systemFont(
-            ofSize: PlaybackCueTimelineMetrics.sequenceFontSize,
-            weight: PlaybackCueTimelineMetrics.sequenceFontWeight
-        )
     }
 }
 
@@ -3847,12 +3770,6 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView {
                 in: cueContentRect(for: placement.rect)
             )
             let timelineLayout = cueTimelineRowLayout(for: placement)
-            PlaybackCueTimelineLayout.drawSequence(
-                ordinal: placement.ordinal,
-                isFocused: placement.ordinal == selectedOrdinal,
-                isEnabled: canToggle,
-                rowLayout: timelineLayout
-            )
             if isEditingCollage {
                 PlaybackCollageCheckboxDrawing.draw(
                     isSelected: isChecked,
@@ -4052,12 +3969,6 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView {
 
     func collageCheckboxRectForTesting(at ordinal: Int) -> CGRect? {
         placements.first { $0.ordinal == ordinal }.map(collageCheckboxRect)
-    }
-
-    func cueTimelineSequenceRectForTesting(at ordinal: Int) -> CGRect? {
-        placements.first { $0.ordinal == ordinal }.map {
-            cueTimelineRowLayout(for: $0.rect).sequenceRect
-        }
     }
 
     func cueContentRectForTesting(at ordinal: Int) -> CGRect? {
@@ -4315,7 +4226,6 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView {
         return max(
             0,
             width - PlaybackCueTimelineLayout.leadingAccessoryWidth(
-                totalCount: sequenceTotalCount,
                 usesCheckbox: isEditingCollage
             )
         )
@@ -4334,16 +4244,11 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView {
         return cueTimelineRowLayout(for: placement).markerRect
     }
 
-    private var sequenceTotalCount: Int {
-        contentAdapter?.sequenceTotalCount ?? layout.totalCount
-    }
-
     private func cueTimelineRowLayout(
         for rect: CGRect
     ) -> PlaybackCueTimelineRowLayout {
         PlaybackCueTimelineLayout.rowLayout(
             in: rect,
-            totalCount: sequenceTotalCount,
             usesCheckbox: isEditingCollage
         )
     }
@@ -4353,7 +4258,6 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView {
     ) -> PlaybackCueTimelineRowLayout {
         PlaybackCueTimelineLayout.rowLayout(
             in: placement.rect,
-            totalCount: sequenceTotalCount,
             usesCheckbox: isEditingCollage,
             markerCenterY: placement.rect.minY
                 + placement.extent.firstVisualLineCenterOffset

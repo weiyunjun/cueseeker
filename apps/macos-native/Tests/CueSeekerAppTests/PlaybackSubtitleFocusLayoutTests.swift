@@ -14,12 +14,8 @@ func subtitleFocusMetricsMatchCompactIterationGeometry() {
     #expect(PlaybackSubtitleFocusMetrics.contentInset == 32)
     #expect(PlaybackSubtitleFocusMetrics.cueFontSize == 24)
     #expect(PlaybackSubtitleFocusMetrics.cueLineHeight == 32)
-    #expect(PlaybackCueTimelineMetrics.sequenceFontSize == 24)
-    #expect(PlaybackCueTimelineMetrics.sequenceFontWeight == .semibold)
-    #expect(PlaybackCueTimelineMetrics.sequenceLineHeight == 32)
-    #expect(PlaybackCueTimelineMetrics.sequenceDigitWidth == 16)
     #expect(PlaybackCueTimelineMetrics.markerHorizontalGap == 24)
-    #expect(PlaybackCueTimelineMetrics.dotSize == 12)
+    #expect(PlaybackCueTimelineMetrics.dotSize == 8)
     #expect(PlaybackCueTimelineMetrics.connectorWidth == 1)
     #expect(PlaybackCueTimelineMetrics.connectorMarkerGap == 8)
     #expect(PlaybackCueFooterMetrics.height == 48)
@@ -63,90 +59,50 @@ func playbackCueFooterFormatsCompleteAndPreviewLimitedCounts() {
 
 @MainActor
 @Test
-func playbackCueTimelineUsesPlainSequenceAndAlignedMarkers() throws {
+func playbackCueTimelineLeadsWithMarkerAndNoSequenceColumn() throws {
     _ = NSApplication.shared
-    #expect(PlaybackCueTimelineLayout.sequenceText(
-        ordinal: 12
-    ) == "13")
-    #expect(PlaybackCueTimelineLayout.sequenceText(
-        ordinal: 149_999
-    ) == "150000")
-
     let rowRect = CGRect(x: 40, y: 100, width: 900, height: 72)
     let markerCenterY = rowRect.minY + 19
     let unfocused = PlaybackCueTimelineLayout.rowLayout(
         in: rowRect,
-        totalCount: 28,
         usesCheckbox: false,
         markerCenterY: markerCenterY
     )
     let focused = PlaybackCueTimelineLayout.rowLayout(
         in: rowRect,
-        totalCount: 28,
         usesCheckbox: false,
         markerCenterY: markerCenterY
     )
-    let expectedSequenceWidth = 2
-        * PlaybackCueTimelineMetrics.sequenceDigitWidth
-    #expect(unfocused.sequenceRect.width == expectedSequenceWidth)
-    #expect(unfocused.sequenceRect == focused.sequenceRect)
-    #expect(unfocused.cueRect == focused.cueRect)
-    #expect(
-        unfocused.markerRect.midY == markerCenterY
-    )
-    #expect(
-        unfocused.markerRect.minX - unfocused.sequenceRect.maxX
-            == PlaybackCueTimelineMetrics.markerHorizontalGap
-    )
+    #expect(unfocused == focused)
+    #expect(unfocused.markerRect.minX == rowRect.minX)
+    #expect(unfocused.markerRect.width == PlaybackCueTimelineMetrics.dotSize)
+    #expect(unfocused.markerRect.height == PlaybackCueTimelineMetrics.dotSize)
+    #expect(unfocused.markerRect.midY == markerCenterY)
     #expect(
         unfocused.cueRect.minX - unfocused.markerRect.maxX
             == PlaybackCueTimelineMetrics.markerHorizontalGap
     )
-
-    let sixDigit = PlaybackCueTimelineLayout.rowLayout(
-        in: rowRect,
-        totalCount: 150_000,
-        usesCheckbox: false,
-        markerCenterY: markerCenterY
+    #expect(unfocused.cueRect.maxX == rowRect.maxX)
+    #expect(
+        PlaybackCueTimelineLayout.leadingAccessoryWidth(usesCheckbox: false)
+            == PlaybackCueTimelineMetrics.dotSize
+                + PlaybackCueTimelineMetrics.markerHorizontalGap
     )
     #expect(
-        sixDigit.sequenceRect.width
-            == 6 * PlaybackCueTimelineMetrics.sequenceDigitWidth
-    )
-    let sequenceFont = NSFont.systemFont(
-        ofSize: PlaybackCueTimelineMetrics.sequenceFontSize,
-        weight: PlaybackCueTimelineMetrics.sequenceFontWeight
-    )
-    for digit in 0...9 {
-        let sample = String(repeating: String(digit), count: 6)
-        #expect(
-            ceil((sample as NSString).size(withAttributes: [
-                .font: sequenceFont,
-            ]).width) <= sixDigit.sequenceRect.width
-        )
-    }
-    let maximumDigitCount = String(Int.max).count
-    let maximumDigitLayout = PlaybackCueTimelineLayout.rowLayout(
-        in: rowRect,
-        totalCount: Int.max,
-        usesCheckbox: false,
-        markerCenterY: markerCenterY
-    )
-    #expect(
-        maximumDigitLayout.sequenceRect.width
-            == CGFloat(maximumDigitCount)
-                * PlaybackCueTimelineMetrics.sequenceDigitWidth
+        PlaybackCueTimelineLayout.leadingAccessoryWidth(usesCheckbox: true)
+            == PlaybackCollageSelectionMetrics.checkboxSize
+                + PlaybackCueTimelineMetrics.markerHorizontalGap
     )
 
     let next = PlaybackCueTimelineLayout.rowLayout(
         in: rowRect.offsetBy(dx: 0, dy: 100),
-        totalCount: 28,
         usesCheckbox: false,
         markerCenterY: markerCenterY + 100
     )
     let connector = try #require(
         PlaybackCueTimelineLayout.connectorRect(from: unfocused, to: next)
     )
+    #expect(connector.midX == unfocused.markerRect.midX)
     #expect(
         connector.minY
             == unfocused.markerRect.maxY
@@ -161,12 +117,11 @@ func playbackCueTimelineUsesPlainSequenceAndAlignedMarkers() throws {
 
 @MainActor
 @Test
-func playbackCueTimelineRasterAlignsSequenceInkWithMarkerCenter() throws {
+func playbackCueTimelineRasterCentersDotInkOnMarkerCenter() throws {
     _ = NSApplication.shared
     let rowRect = CGRect(x: 0, y: 0, width: 320, height: 72)
     let rowLayout = PlaybackCueTimelineLayout.rowLayout(
         in: rowRect,
-        totalCount: 500,
         usesCheckbox: false,
         markerCenterY: 20
     )
@@ -174,12 +129,6 @@ func playbackCueTimelineRasterAlignsSequenceInkWithMarkerCenter() throws {
         NSAppearance(named: .aqua)!.performAsCurrentDrawingAppearance {
             NSColor.white.setFill()
             NSBezierPath(rect: imageRect).fill()
-            PlaybackCueTimelineLayout.drawSequence(
-                ordinal: 474,
-                isFocused: true,
-                isEnabled: true,
-                rowLayout: rowLayout
-            )
             PlaybackCueTimelineLayout.drawDot(
                 isFocused: true,
                 isEnabled: true,
@@ -189,20 +138,8 @@ func playbackCueTimelineRasterAlignsSequenceInkWithMarkerCenter() throws {
         return true
     }
     let imageData = try #require(image.tiffRepresentation)
-    let bitmap = try #require(
-        NSBitmapImageRep(data: imageData)
-    )
-    let sequenceCenterY = try #require(
-        playbackCueTimelineInkCenterY(
-            in: bitmap,
-            pointXRange: (
-                rowLayout.sequenceRect.minX
-                    ..< rowLayout.sequenceRect.maxX
-            ),
-            canvasWidth: rowRect.width
-        )
-    )
-    let markerCenterY = try #require(
+    let bitmap = try #require(NSBitmapImageRep(data: imageData))
+    let dotInkCenterY = try #require(
         playbackCueTimelineInkCenterY(
             in: bitmap,
             pointXRange: (
@@ -212,7 +149,7 @@ func playbackCueTimelineRasterAlignsSequenceInkWithMarkerCenter() throws {
             canvasWidth: rowRect.width
         )
     )
-    #expect(abs(sequenceCenterY - markerCenterY) <= 1)
+    #expect(abs(dotInkCenterY - rowLayout.markerRect.midY) <= 1)
 }
 
 @MainActor
@@ -255,17 +192,11 @@ func editingCollageReusesCurrentReelWithPrimaryCueCheckboxSelection() throws {
             != PlaybackSubtitleFocusMetrics.cueVerticalPadding
                 + PlaybackSubtitleFocusMetrics.cueLineHeight / 2
     )
-    let sequenceRect = try #require(
-        view.cueTimelineSequenceRectForTesting(at: 11)
-    )
     let cueRect = try #require(view.cueContentRectForTesting(at: 11))
     let nextCheckboxRect = try #require(
         view.collageCheckboxRectForTesting(at: 12)
     )
-    #expect(
-        checkboxRect.minX - sequenceRect.maxX
-            == PlaybackCueTimelineMetrics.markerHorizontalGap
-    )
+    #expect(checkboxRect.minX == placement.rect.minX)
     #expect(
         cueRect.minX - checkboxRect.maxX
             == PlaybackCueTimelineMetrics.markerHorizontalGap

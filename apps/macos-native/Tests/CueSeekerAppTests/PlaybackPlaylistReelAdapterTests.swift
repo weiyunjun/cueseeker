@@ -22,7 +22,6 @@ func playbackPlaylistReelAdapterUsesResidentDatasetImmediately() throws {
     #expect(!adapter.supportsWindowRequests)
     #expect(adapter.itemID(at: 20) == AnyHashable(PlaybackPlaylistItemIdentity.search(1_020)))
     let item = try #require(adapter.item(at: 20))
-    #expect(adapter.sequenceTotalCount == 40)
     #expect(adapter.cueResult(at: 20)?.metadata?.displayTitle == item.displayTitle)
     #expect(adapter.cueResult(at: 20)?.metadata?.timeRange == item.timeRange)
     #expect(adapter.cueResult(at: 20)?.additionalCueTexts == ["context-20"])
