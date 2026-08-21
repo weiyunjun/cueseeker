@@ -791,6 +791,7 @@ func playbackCommandPanelSearchSupportsCueShortcutsAndFullPlaylist() async throw
         )
         let firstResult = try #require(previewAdapter.cueResult(at: 0))
         #expect(firstResult.metadata == PlaybackCueMetadata(
+            ordinal: 0,
             displayTitle: "Command Episode 0",
             timeRange: results[0].timeRange
         ))

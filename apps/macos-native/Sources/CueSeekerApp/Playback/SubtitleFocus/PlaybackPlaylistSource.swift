@@ -197,6 +197,7 @@ struct PlaybackPlaylistItem: Equatable, Sendable {
             primaryCueText: primaryCueText,
             additionalCueTexts: additionalCueTexts,
             metadata: PlaybackCueMetadata(
+                ordinal: ordinal,
                 displayTitle: displayTitle,
                 timeRange: timeRange
             )

@@ -28,11 +28,24 @@ struct PlaybackCueResult: Equatable {
 }
 
 struct PlaybackCueMetadata: Equatable {
+    /// Zero-based position in the owning list; rendered as a 1-based `#N`.
+    let ordinal: Int?
     let displayTitle: String
     let timeRange: String
 
+    init(ordinal: Int? = nil, displayTitle: String, timeRange: String) {
+        self.ordinal = ordinal
+        self.displayTitle = displayTitle
+        self.timeRange = timeRange
+    }
+
+    var ordinalText: String {
+        ordinal.map { "#\(max(0, $0) + 1)" } ?? ""
+    }
+
     var isEmpty: Bool {
-        displayTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        ordinal == nil
+            && displayTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && timeRange.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 }
@@ -124,9 +137,11 @@ struct PlaybackCueResultVisualLine {
 }
 
 struct PlaybackCueMetadataPlan: Equatable {
+    let ordinalText: String
     let displayTitle: String
     let timeRange: String
     /// Frames are relative to the metadata row origin.
+    let ordinalFrame: CGRect
     let displayTitleFrame: CGRect
     let timeRangeFrame: CGRect
 }
@@ -140,37 +155,53 @@ enum PlaybackCueMetadataLayout {
         guard let metadata, !metadata.isEmpty, width > 0 else {
             return nil
         }
+        let ordinalText = metadata.ordinalText
+        let hasOrdinal = !ordinalText.isEmpty
         let hasDisplayTitle = !metadata.displayTitle
             .trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         let hasTimeRange = !metadata.timeRange
             .trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         let desiredDisplayTitleWidth = hasDisplayTitle
-            ? ceil((metadata.displayTitle as NSString).size(withAttributes: [
-                .font: font,
-            ]).width)
+            ? textWidth(metadata.displayTitle)
             : 0
-        let desiredTimeWidth = hasTimeRange
-            ? ceil((metadata.timeRange as NSString).size(withAttributes: [
-                .font: font,
-            ]).width)
+        let desiredTimeWidth = hasTimeRange ? textWidth(metadata.timeRange) : 0
+        // The ordinal and the time range keep their intrinsic width; the
+        // display title absorbs whatever horizontal space is left.
+        let ordinalWidth = hasOrdinal
+            ? min(width, textWidth(ordinalText))
             : 0
-        let timeWidth = min(width, desiredTimeWidth)
-        let gap = hasDisplayTitle && hasTimeRange && width > timeWidth
+        let ordinalGap = hasOrdinal && (hasDisplayTitle || hasTimeRange)
             ? min(
                 PlaybackSubtitleFocusMetrics.metadataItemGap,
-                width - timeWidth
+                max(0, width - ordinalWidth)
+            )
+            : 0
+        let leading = ordinalWidth + ordinalGap
+        let remainingWidth = max(0, width - leading)
+        let timeWidth = min(remainingWidth, desiredTimeWidth)
+        let gap = hasDisplayTitle && hasTimeRange && remainingWidth > timeWidth
+            ? min(
+                PlaybackSubtitleFocusMetrics.metadataItemGap,
+                remainingWidth - timeWidth
             )
             : 0
         let displayTitleWidth = min(
             desiredDisplayTitleWidth,
-            max(0, width - timeWidth - gap)
+            max(0, remainingWidth - timeWidth - gap)
         )
-        let timeX = hasDisplayTitle ? displayTitleWidth + gap : 0
+        let timeX = leading + (hasDisplayTitle ? displayTitleWidth + gap : 0)
         return PlaybackCueMetadataPlan(
+            ordinalText: ordinalText,
             displayTitle: hasDisplayTitle ? metadata.displayTitle : "",
             timeRange: hasTimeRange ? metadata.timeRange : "",
-            displayTitleFrame: CGRect(
+            ordinalFrame: CGRect(
                 x: 0,
+                y: 0,
+                width: ordinalWidth,
+                height: PlaybackSubtitleFocusMetrics.metadataLineHeight
+            ),
+            displayTitleFrame: CGRect(
+                x: leading,
                 y: 0,
                 width: displayTitleWidth,
                 height: PlaybackSubtitleFocusMetrics.metadataLineHeight
@@ -202,6 +233,12 @@ enum PlaybackCueMetadataLayout {
             .paragraphStyle: paragraphStyle,
         ]
         draw(
+            plan.ordinalText,
+            frame: plan.ordinalFrame,
+            metadataRect: metadataRect,
+            attributes: attributes
+        )
+        draw(
             plan.displayTitle,
             frame: plan.displayTitleFrame,
             metadataRect: metadataRect,
@@ -220,6 +257,10 @@ enum PlaybackCueMetadataLayout {
             ofSize: PlaybackSubtitleFocusMetrics.metadataFontSize,
             weight: PlaybackSubtitleFocusMetrics.metadataFontWeight
         )
+    }
+
+    private static func textWidth(_ text: String) -> CGFloat {
+        ceil((text as NSString).size(withAttributes: [.font: font]).width)
     }
 
     private static func draw(

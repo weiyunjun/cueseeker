@@ -31,9 +31,11 @@ func playbackPlaylistSearchItemMapsPrimaryCueAndRemovesOnlyPrimaryGroupIndex() t
     #expect(actionContext.cue.ordinal == 7)
     #expect(cueResult.itemID == AnyHashable(PlaybackPlaylistItemIdentity.search(42)))
     #expect(cueResult.metadata == PlaybackCueMetadata(
+        ordinal: 7,
         displayTitle: searchResult.displayTitle,
         timeRange: searchResult.timeRange
     ))
+    #expect(cueResult.metadata?.ordinalText == "#8")
 }
 
 @MainActor

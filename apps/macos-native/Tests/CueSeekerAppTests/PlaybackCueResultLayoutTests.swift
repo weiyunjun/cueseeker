@@ -507,6 +507,61 @@ func playbackCueResultShowsPlainMetadataBelowEntireCueGroup() throws {
                 + PlaybackSubtitleFocusMetrics.metadataItemGap
     )
     #expect(wideMetadata.timeRangeFrame.maxX < 800)
+    #expect(wideMetadata.ordinalText.isEmpty)
+    #expect(wideMetadata.ordinalFrame.width == 0)
+    #expect(wideMetadata.displayTitleFrame.minX == 0)
+}
+
+@MainActor
+@Test
+func playbackCueResultMetadataLeadsWithOrdinalAndKeepsSharedItemGap() throws {
+    let metadata = PlaybackCueMetadata(
+        ordinal: 237,
+        displayTitle: "Fate Stay Night - 02",
+        timeRange: "07:29 - 07:31"
+    )
+    #expect(metadata.ordinalText == "#238")
+
+    let wide = try #require(PlaybackCueMetadataLayout.makePlan(
+        metadata: metadata,
+        width: 800
+    ))
+    #expect(wide.ordinalText == "#238")
+    #expect(wide.ordinalFrame.minX == 0)
+    #expect(wide.ordinalFrame.width > 0)
+    #expect(
+        wide.displayTitleFrame.minX
+            == wide.ordinalFrame.maxX
+                + PlaybackSubtitleFocusMetrics.metadataItemGap
+    )
+    #expect(
+        wide.timeRangeFrame.minX
+            == wide.displayTitleFrame.maxX
+                + PlaybackSubtitleFocusMetrics.metadataItemGap
+    )
+    #expect(wide.timeRangeFrame.maxX <= 800)
+
+    // The ordinal and the time range survive a narrow row; only the display
+    // title gives up width.
+    let narrow = try #require(PlaybackCueMetadataLayout.makePlan(
+        metadata: metadata,
+        width: 160
+    ))
+    #expect(narrow.ordinalFrame.width == wide.ordinalFrame.width)
+    #expect(narrow.timeRangeFrame.width == wide.timeRangeFrame.width)
+    #expect(narrow.displayTitleFrame.width < wide.displayTitleFrame.width)
+    #expect(narrow.timeRangeFrame.maxX <= 160)
+
+    // Current and Editing Collage keep an ordinal-free metadata row.
+    let withoutOrdinal = try #require(PlaybackCueMetadataLayout.makePlan(
+        metadata: PlaybackCueMetadata(
+            displayTitle: "Fate Stay Night - 02",
+            timeRange: "07:29 - 07:31"
+        ),
+        width: 800
+    ))
+    #expect(withoutOrdinal.ordinalText.isEmpty)
+    #expect(withoutOrdinal.displayTitleFrame.minX == 0)
 }
 
 @MainActor
