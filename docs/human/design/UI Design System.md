@@ -227,7 +227,7 @@
 
 - `--size-checkbox`: `16px`
 - `--size-playback-collage-checkbox`: `24px`
-- `--size-playback-cue-timeline-dot`: `12px`
+- `--size-playback-cue-timeline-dot`: `8px`
 - `--min-width-filter-data-card`: `200px`
 - `--size-inline-clear-button`: `24px`
 - `--size-inline-clear-icon`: `16px`
@@ -254,7 +254,6 @@
 - `--size-player-window-control-glyph`: `7px`
 - `--width-player-topbar-title-max`: `520px`
 - `--width-playback-cue-timeline-connector`: `1px`
-- `--width-playback-cue-sequence-digit`: `16px`
 - `--width-subtitle-focus-content-max`: `960px`
 - `--aspect-library-cover`: `16 / 9`
 - `--min-width-cover-summary-content`: `448px`
@@ -2341,8 +2340,10 @@
 
 ##### Anatomy
 
-1. Display Title
-2. Time Range
+1. Ordinal
+   - Presence：Optional
+2. Display Title
+3. Time Range
 
 ##### Sizes
 
@@ -2433,7 +2434,6 @@
 
 - Viewport
 - Cue Stack
-  - Sequence
   - Timeline Marker
   - Cue Content
   - Connector
@@ -2445,12 +2445,6 @@
 
 - Maximum Content Width：`--width-subtitle-focus-content-max`
 - Cue Gap：`--gap-subtitle-focus-cue`
-- Sequence Font Family：`--font-family-base`
-- Sequence Font Size：`--font-size-subtitle-focus-cue`
-- Sequence Line Height：`--line-height-subtitle-focus-cue`
-- Sequence Font Weight：`--font-weight-subtitle-focus-cue`
-- Sequence Column Width：Maximum Ordinal Digit Count × `--width-playback-cue-sequence-digit`
-- Sequence to Marker Gap：`--spacing-6`
 - Marker to Cue Gap：`--spacing-6`
 - Connector Width：`--width-playback-cue-timeline-connector`
 - Connector to Marker Gap：`--spacing-2`
@@ -2466,18 +2460,15 @@
 
 #### Cue Timeline Layout
 
-- Sequence Content：Ordinal Only
-- Sequence Alignment：Trailing
-- Vertical Alignment：Sequence、Timeline Marker 与 Primary Cue 第一视觉行的可见字形中心位于同一水平线
+- Leading Element：Timeline Marker
+- Vertical Alignment：Timeline Marker 与 Primary Cue 第一视觉行的可见字形中心位于同一水平线
 - Connector：Connect Adjacent Timeline Markers
 
 #### Cue Timeline States
 
 - Unselected
-  - Sequence Color：`--color-playback-cue-timeline-muted`
   - Dot Color：`--color-playback-cue-timeline-muted`
 - Selected
-  - Sequence Color：`--color-playback-cue-timeline-focused`
   - Dot Color：`--color-playback-cue-timeline-focused`
 - Connector Color：`--color-playback-cue-timeline-muted`
 - Timeline Visual Priority：Lower than the corresponding Cue Content
@@ -3520,8 +3511,8 @@
 
 #### Cue Timeline
 
-- Sequence：Current Subtitle File 1-based Cue Display Order
 - Marker：Dot
+- Metadata Ordinal：None
 
 #### States
 
@@ -3554,8 +3545,8 @@
 
 #### Cue Timeline / Subtitle Playlist
 
-- Sequence：Cue Playlist 1-based Position
 - Marker：Dot
+- Metadata Ordinal：Cue Playlist 1-based Position，形如 `#238`
 
 #### States
 
@@ -3602,8 +3593,8 @@
 
 #### Cue Timeline
 
-- Sequence：Current Subtitle File 1-based Cue Display Order
 - Marker：Checkbox / Playback Selection Checkbox
+- Metadata Ordinal：None
 
 #### States
 
@@ -3692,8 +3683,8 @@
 
 #### Cue Timeline
 
-- Sequence：Search Result 1-based Position
 - Marker：Dot
+- Metadata Ordinal：Search Result 1-based Position，形如 `#238`
 
 #### States
 
