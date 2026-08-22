@@ -62,6 +62,8 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
 
 struct SettingsView: View {
     @EnvironmentObject private var settingsStore: SettingsStore
+    // Observed so the category titles are re-read when the language changes.
+    @EnvironmentObject private var localization: AppLocalizationStore
     @State private var selectedCategory: SettingsCategory = .library
 
     var body: some View {
@@ -74,7 +76,6 @@ struct SettingsView: View {
                 .frame(width: WorkbenchControlMetrics.hairlineWidth)
 
             selectedContent
-                .id(settingsStore.appLanguage)
                 .padding(.top, WorkbenchControlMetrics.redesignAppTopbarHeight)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }

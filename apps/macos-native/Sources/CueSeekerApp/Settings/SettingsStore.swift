@@ -105,20 +105,6 @@ final class SettingsStore: ObservableObject {
         }
     }
 
-    @Published var appLanguage: AppLanguage {
-        didSet {
-            guard appLanguage != oldValue else {
-                return
-            }
-            userDefaults.set(appLanguage.rawValue, forKey: Self.appLanguageKey)
-            AppLocalization.apply(appLanguage)
-            NotificationCenter.default.post(
-                name: .cueSeekerAppLanguageChanged,
-                object: nil
-            )
-        }
-    }
-
     var searchFacetFilter: CueFacetFilter {
         didSet {
             Self.saveSearchFacetFilter(searchFacetFilter, to: userDefaults)
@@ -126,6 +112,8 @@ final class SettingsStore: ObservableObject {
     }
 
     let cueGroupPresentation: CueGroupPresentationStore
+
+    let localization: AppLocalizationStore
 
     var showCueGroup: Bool {
         get { cueGroupPresentation.isEnabled }
@@ -261,10 +249,13 @@ final class SettingsStore: ObservableObject {
             userDefaultsKey: Self.showCueGroupKey,
             uiProbeScope: uiProbeScope
         )
+        self.localization = AppLocalizationStore(
+            language: Self.loadAppLanguage(from: userDefaults),
+            userDefaults: userDefaults,
+            userDefaultsKey: Self.appLanguageKey
+        )
         let loadedAppearance = Self.loadAppAppearanceMode(from: userDefaults)
         self.appAppearanceMode = loadedAppearance
-        let loadedLanguage = Self.loadAppLanguage(from: userDefaults)
-        self.appLanguage = loadedLanguage
         self.searchFacetFilter = Self.loadSearchFacetFilter(from: userDefaults)
         self.prefillCommandPanelWithFocusedCue = userDefaults.bool(
             forKey: Self.prefillCommandPanelWithFocusedCueKey
@@ -300,7 +291,6 @@ final class SettingsStore: ObservableObject {
             userDefaults.removeObject(forKey: Self.legacyAutoStopAfterCueFinishesEnabledKey)
         }
 
-        AppLocalization.apply(loadedLanguage)
         Self.applyAppAppearanceMode(loadedAppearance)
     }
 

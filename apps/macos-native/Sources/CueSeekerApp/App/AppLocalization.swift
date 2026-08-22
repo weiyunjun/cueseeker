@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 
 /// The interface language the user selected in Settings.
 ///
@@ -78,6 +79,48 @@ enum AppLocalization {
             return nil
         }
         return Bundle(path: path)
+    }
+}
+
+/// Publishes interface-language changes to the views that render localized
+/// text.
+///
+/// Only views that observe this store are invalidated when the language
+/// changes, so a language switch does not re-render unrelated surfaces and does
+/// not rebuild the interface.
+@MainActor
+final class AppLocalizationStore: ObservableObject {
+    @Published private(set) var language: AppLanguage
+
+    private let userDefaults: UserDefaults
+    private let userDefaultsKey: String
+
+    init(
+        language: AppLanguage,
+        userDefaults: UserDefaults,
+        userDefaultsKey: String
+    ) {
+        self.language = language
+        self.userDefaults = userDefaults
+        self.userDefaultsKey = userDefaultsKey
+        AppLocalization.apply(language)
+    }
+
+    func set(_ language: AppLanguage) {
+        guard self.language != language else {
+            return
+        }
+        // Resolve the new bundle before publishing so every view that re-renders
+        // reads the new language.
+        AppLocalization.apply(language)
+        self.language = language
+        userDefaults.set(language.rawValue, forKey: userDefaultsKey)
+        // The menu bar is built with AppKit and does not participate in SwiftUI
+        // invalidation, so it is rebuilt explicitly.
+        NotificationCenter.default.post(
+            name: .cueSeekerAppLanguageChanged,
+            object: nil
+        )
     }
 }
 

@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct SettingsLanguageCategory: View {
-    @EnvironmentObject private var settingsStore: SettingsStore
+    @EnvironmentObject private var localization: AppLocalizationStore
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
@@ -20,7 +20,7 @@ struct SettingsLanguageCategory: View {
 
                 Spacer()
 
-                Picker("", selection: $settingsStore.appLanguage) {
+                Picker("", selection: selection) {
                     ForEach(AppLanguage.allCases) { language in
                         Text(language.displayName).tag(language)
                     }
@@ -35,5 +35,12 @@ struct SettingsLanguageCategory: View {
         .padding(24)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(WorkbenchRedesignColors.bgSurface)
+    }
+
+    private var selection: Binding<AppLanguage> {
+        Binding(
+            get: { localization.language },
+            set: { localization.set($0) }
+        )
     }
 }

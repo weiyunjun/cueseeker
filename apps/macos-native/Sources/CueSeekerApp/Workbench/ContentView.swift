@@ -113,9 +113,6 @@ private struct ContentRootView: View {
             }
             .preferredColorScheme(settingsStore.appAppearanceMode.colorScheme)
             .background(LayoutPerformanceProbe(name: "ContentView.layout"))
-            // Give the window tree a new identity per language so every cached
-            // interface string is resolved again after the user switches.
-            .id(settingsStore.appLanguage)
         }
     }
 
