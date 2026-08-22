@@ -76,3 +76,25 @@ private func withTemporaryLocalizationUserDefaults(_ body: (UserDefaults) -> Voi
 
     body(userDefaults)
 }
+
+@Test
+func everyBundledLanguageDefinesTheSameKeys() {
+    let english = localizableKeys(for: .english)
+
+    #expect(!english.isEmpty)
+    #expect(localizableKeys(for: .simplifiedChinese) == english)
+    #expect(localizableKeys(for: .traditionalChinese) == english)
+}
+
+/// Reads the keys a language actually ships, so a translation that is added to
+/// one language but forgotten in another fails the build instead of silently
+/// falling back to the key name at runtime.
+private func localizableKeys(for language: AppLanguage) -> Set<String> {
+    let bundle = AppLocalization._bundleForTesting(language)
+    guard let path = bundle.path(forResource: "Localizable", ofType: "strings"),
+          let entries = NSDictionary(contentsOfFile: path) as? [String: String]
+    else {
+        return []
+    }
+    return Set(entries.keys)
+}

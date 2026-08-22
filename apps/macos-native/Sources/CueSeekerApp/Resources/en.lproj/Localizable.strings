@@ -37,3 +37,21 @@
 "sidebar.settings" = "Settings";
 "sidebar.collapse" = "Collapse";
 "sidebar.expand" = "Expand";
+
+/* Info page states */
+"info.search_no_query.title" = "No Search Query";
+"info.search_no_query.message" = "Type a query in the topbar Search field to start searching.";
+"info.searching.title" = "Searching";
+"info.searching.message" = "Looking through indexed subtitle text.";
+"info.search_failed.title" = "Search Failed";
+"info.search_no_results.title" = "No Results";
+"info.search_no_results.message" = "No indexed subtitle entries matched this query.";
+"info.library_no_library.title" = "No Library";
+"info.library_no_library.message" = "Add subtitle folders in CueSeeker > Settings..., then reindex.";
+"info.library_loading.title" = "Loading Library";
+"info.library_loading.message" = "Reading indexed videos.";
+"info.library_failed.title" = "Library Failed";
+"info.library_no_videos.title" = "No Videos";
+"info.library_no_videos.message" = "Reindex subtitle folders to populate Library videos.";
+"info.shiori_empty.title" = "No Shiori";
+"info.shiori_empty.message" = "Save subtitles from playback to collect Shiori.";

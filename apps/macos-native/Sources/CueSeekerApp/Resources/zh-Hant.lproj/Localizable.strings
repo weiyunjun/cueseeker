@@ -37,3 +37,21 @@
 "sidebar.settings" = "設定";
 "sidebar.collapse" = "收合";
 "sidebar.expand" = "展開";
+
+/* Info page states */
+"info.search_no_query.title" = "未輸入搜尋字詞";
+"info.search_no_query.message" = "在頂列搜尋欄位中輸入內容即可開始搜尋。";
+"info.searching.title" = "搜尋中";
+"info.searching.message" = "正在檢索已索引的字幕文字。";
+"info.search_failed.title" = "搜尋失敗";
+"info.search_no_results.title" = "沒有結果";
+"info.search_no_results.message" = "沒有已索引的字幕項目符合此搜尋字詞。";
+"info.library_no_library.title" = "媒體庫為空";
+"info.library_no_library.message" = "請在「字幕求索 > 設定⋯」中加入字幕資料夾，然後重新索引。";
+"info.library_loading.title" = "正在載入媒體庫";
+"info.library_loading.message" = "正在讀取已索引的影片。";
+"info.library_failed.title" = "媒體庫載入失敗";
+"info.library_no_videos.title" = "沒有影片";
+"info.library_no_videos.message" = "重新索引字幕資料夾以填入媒體庫影片。";
+"info.shiori_empty.title" = "沒有 Shiori";
+"info.shiori_empty.message" = "在播放時儲存字幕即可收集 Shiori。";

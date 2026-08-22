@@ -27,15 +27,15 @@ enum InfoPageState: Equatable {
     /// Shared steady copy for the current Search, Library, and Shiori states.
     var title: String {
         switch self {
-        case .searchNoQuery: return "No Search Query"
-        case .searching: return "Searching"
-        case .searchFailed: return "Search Failed"
-        case .searchNoResults: return "No Results"
-        case .libraryNoLibrary: return "No Library"
-        case .libraryLoading: return "Loading Library"
-        case .libraryFailed: return "Library Failed"
-        case .libraryNoVideos: return "No Videos"
-        case .shioriEmpty: return "No Shiori"
+        case .searchNoQuery: return L("info.search_no_query.title")
+        case .searching: return L("info.searching.title")
+        case .searchFailed: return L("info.search_failed.title")
+        case .searchNoResults: return L("info.search_no_results.title")
+        case .libraryNoLibrary: return L("info.library_no_library.title")
+        case .libraryLoading: return L("info.library_loading.title")
+        case .libraryFailed: return L("info.library_failed.title")
+        case .libraryNoVideos: return L("info.library_no_videos.title")
+        case .shioriEmpty: return L("info.shiori_empty.title")
         }
     }
 
@@ -54,23 +54,23 @@ enum InfoPageState: Equatable {
     var message: String {
         switch self {
         case .searchNoQuery:
-            return "Type a query in the topbar Search field to start searching."
+            return L("info.search_no_query.message")
         case .searching:
-            return "Looking through indexed subtitle text."
+            return L("info.searching.message")
         case .searchFailed(let message):
             return message
         case .searchNoResults:
-            return "No indexed subtitle entries matched this query."
+            return L("info.search_no_results.message")
         case .libraryNoLibrary:
-            return "Add subtitle folders in CueSeeker > Settings..., then reindex."
+            return L("info.library_no_library.message")
         case .libraryLoading:
-            return "Reading indexed videos."
+            return L("info.library_loading.message")
         case .libraryFailed(let message):
             return message
         case .libraryNoVideos:
-            return "Reindex subtitle folders to populate Library videos."
+            return L("info.library_no_videos.message")
         case .shioriEmpty:
-            return "Save subtitles from playback to collect Shiori."
+            return L("info.shiori_empty.message")
         }
     }
 
@@ -87,6 +87,8 @@ enum InfoPageState: Equatable {
 
 struct InfoPageStateView: View {
     let state: InfoPageState
+    // Observed so the copy below is re-read when the language changes.
+    @EnvironmentObject private var localization: AppLocalizationStore
 
     var body: some View {
         EmptyStateView(
