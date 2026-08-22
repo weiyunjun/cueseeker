@@ -54,7 +54,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         )
         NotificationCenter.default.addObserver(
             self,
-            selector: #selector(rebuildMainMenuForLanguageChange(_:)),
+            selector: #selector(applyLanguageChange(_:)),
             name: .cueSeekerAppLanguageChanged,
             object: nil
         )
@@ -156,7 +156,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             defer: false
         )
 
-        window.title = "CueSeeker"
+        window.title = L("app.name")
         window.titleVisibility = .hidden
         window.titlebarAppearsTransparent = true
         window.isMovableByWindowBackground = false
@@ -245,8 +245,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 #endif
 
-    @objc private func rebuildMainMenuForLanguageChange(_ notification: Notification) {
+    /// The menu bar and window titles are AppKit state that does not take part
+    /// in SwiftUI invalidation, so they are refreshed explicitly.
+    @objc private func applyLanguageChange(_ notification: Notification) {
         configureMainMenu()
+        window?.title = L("app.name")
+        settingsWindow?.title = L("sidebar.settings")
     }
 
     @objc private func showSettingsFromNotification(_ notification: Notification) {
@@ -285,7 +289,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             backing: .buffered,
             defer: false
         )
-        settingsWindow.title = "Settings"
+        settingsWindow.title = L("sidebar.settings")
         settingsWindow.titleVisibility = .hidden
         settingsWindow.titlebarAppearsTransparent = true
         settingsWindow.minSize = NSSize(
@@ -461,7 +465,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let appMenuItem = NSMenuItem()
         let appMenu = NSMenu()
         let settingsItem = NSMenuItem(
-            title: "Settings...",
+            title: L("menu.settings"),
             action: #selector(showSettings(_:)),
             keyEquivalent: ","
         )
@@ -470,7 +474,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         appMenu.addItem(NSMenuItem.separator())
         appMenu.addItem(
             NSMenuItem(
-                title: "Quit \(ApplicationInfo.name)",
+                title: L("menu.quit", L("app.name")),
                 action: #selector(NSApplication.terminate(_:)),
                 keyEquivalent: "q"
             )
@@ -480,35 +484,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
         // Edit Menu
         let editMenuItem = NSMenuItem()
-        let editMenu = NSMenu(title: "Edit")
-        editMenu.addItem(NSMenuItem(title: "Undo", action: Selector(("undo:")), keyEquivalent: "z"))
-        editMenu.addItem(NSMenuItem(title: "Redo", action: Selector(("redo:")), keyEquivalent: "Z"))
+        let editMenu = NSMenu(title: L("menu.edit"))
+        editMenu.addItem(NSMenuItem(title: L("menu.edit.undo"), action: Selector(("undo:")), keyEquivalent: "z"))
+        editMenu.addItem(NSMenuItem(title: L("menu.edit.redo"), action: Selector(("redo:")), keyEquivalent: "Z"))
         editMenu.addItem(NSMenuItem.separator())
-        editMenu.addItem(NSMenuItem(title: "Cut", action: #selector(NSText.cut(_:)), keyEquivalent: "x"))
-        editMenu.addItem(NSMenuItem(title: "Copy", action: #selector(NSText.copy(_:)), keyEquivalent: "c"))
-        editMenu.addItem(NSMenuItem(title: "Paste", action: #selector(NSText.paste(_:)), keyEquivalent: "v"))
-        editMenu.addItem(NSMenuItem(title: "Delete", action: #selector(NSText.delete(_:)), keyEquivalent: "\u{8}")) // Backspace
-        editMenu.addItem(NSMenuItem(title: "Select All", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a"))
+        editMenu.addItem(NSMenuItem(title: L("menu.edit.cut"), action: #selector(NSText.cut(_:)), keyEquivalent: "x"))
+        editMenu.addItem(NSMenuItem(title: L("menu.edit.copy"), action: #selector(NSText.copy(_:)), keyEquivalent: "c"))
+        editMenu.addItem(NSMenuItem(title: L("menu.edit.paste"), action: #selector(NSText.paste(_:)), keyEquivalent: "v"))
+        editMenu.addItem(NSMenuItem(title: L("menu.edit.delete"), action: #selector(NSText.delete(_:)), keyEquivalent: "\u{8}")) // Backspace
+        editMenu.addItem(NSMenuItem(title: L("menu.edit.select_all"), action: #selector(NSText.selectAll(_:)), keyEquivalent: "a"))
         editMenuItem.submenu = editMenu
         mainMenu.addItem(editMenuItem)
 
         // Window Menu
         let windowMenuItem = NSMenuItem(
-            title: "Window",
+            title: L("menu.window"),
             action: nil,
             keyEquivalent: ""
         )
-        let windowMenu = NSMenu(title: "Window")
+        let windowMenu = NSMenu(title: L("menu.window"))
         windowMenu.addItem(
             NSMenuItem(
-                title: "Minimize",
+                title: L("menu.window.minimize"),
                 action: #selector(NSWindow.performMiniaturize(_:)),
                 keyEquivalent: "m"
             )
         )
         windowMenu.addItem(
             NSMenuItem(
-                title: "Zoom",
+                title: L("menu.window.zoom"),
                 action: #selector(NSWindow.performZoom(_:)),
                 keyEquivalent: ""
             )
@@ -516,7 +520,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         windowMenu.addItem(NSMenuItem.separator())
         windowMenu.addItem(
             NSMenuItem(
-                title: "Bring All to Front",
+                title: L("menu.window.bring_all_to_front"),
                 action: #selector(NSApplication.arrangeInFront(_:)),
                 keyEquivalent: ""
             )

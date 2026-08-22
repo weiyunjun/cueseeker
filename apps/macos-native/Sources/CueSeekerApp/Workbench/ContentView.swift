@@ -138,6 +138,8 @@ private struct AppTopBar: View {
     @EnvironmentObject private var appState: AppCoordinator
     @EnvironmentObject private var layoutState: WorkbenchLayoutState
     @EnvironmentObject private var routeState: WorkbenchRouteState
+    // Observed so the labels below are re-read when the language changes.
+    @EnvironmentObject private var localization: AppLocalizationStore
 
     var body: some View {
         UIInvalidationProbe.count(
@@ -169,8 +171,8 @@ private struct AppTopBar: View {
             !routeState.canNavigateBack
                 || layoutState.isVideoSizeTransitionInProgress
         )
-        .help("Back")
-        .accessibilityLabel("Back")
+        .help(L("topbar.back"))
+        .accessibilityLabel(L("topbar.back"))
     }
 
     private func navigateBack() {
@@ -209,10 +211,15 @@ private struct AppTopBar: View {
         )
         .foregroundStyle(WorkbenchRedesignColors.iconDefault)
         .focusable(false)
-        .help(layoutState.isSidebarVisible ? "Hide Sidebar" : "Show Sidebar")
-        .accessibilityLabel(layoutState.isSidebarVisible ? "Hide Sidebar" : "Show Sidebar")
+        .help(sidebarToggleLabel)
+        .accessibilityLabel(sidebarToggleLabel)
     }
 
+    private var sidebarToggleLabel: String {
+        layoutState.isSidebarVisible
+            ? L("topbar.hide_sidebar")
+            : L("topbar.show_sidebar")
+    }
 }
 
 private struct TitlebarCommandBridge: View {
@@ -235,6 +242,8 @@ private struct AppSidebar: View {
     @EnvironmentObject private var layoutState: WorkbenchLayoutState
     @EnvironmentObject private var routeState: WorkbenchRouteState
     @EnvironmentObject private var shioriStore: ShioriStore
+    // Observed so the labels below are re-read when the language changes.
+    @EnvironmentObject private var localization: AppLocalizationStore
     @State private var isRecentExpanded = true
     @State private var isShioriExpanded = true
 
@@ -274,7 +283,7 @@ private struct AppSidebar: View {
 
             if isRecentExpanded {
                 AppSidebarChildItem(
-                    label: "Recent Videos",
+                    label: L("sidebar.recent_videos"),
                     isSelected: routeState.panelMode == .recentWatching
                         && routeState.selectedRecentSection == .videos,
                     isEnabled: !layoutState.isVideoSizeTransitionInProgress
@@ -285,7 +294,7 @@ private struct AppSidebar: View {
                     }
                 }
                 AppSidebarChildItem(
-                    label: "Recent Shioris",
+                    label: L("sidebar.recent_shioris"),
                     isSelected: routeState.panelMode == .recentWatching
                         && routeState.selectedRecentSection == .shioris,
                     isEnabled: !layoutState.isVideoSizeTransitionInProgress
@@ -413,7 +422,7 @@ private struct AppSidebarNavigationItem: View {
                 }
                 .buttonStyle(.plain)
                 .focusable(false)
-                .accessibilityLabel(isExpanded ? "Collapse" : "Expand")
+                .accessibilityLabel(isExpanded ? L("sidebar.collapse") : L("sidebar.expand"))
             }
         }
         .background(
@@ -493,7 +502,7 @@ private struct AppSidebarSettingsItem: View {
         Button(action: action) {
             AppSidebarItemLabel(
                 systemImage: "gearshape",
-                label: "Settings",
+                label: L("sidebar.settings"),
                 isSelected: false,
                 isEnabled: true
             )
@@ -501,8 +510,8 @@ private struct AppSidebarSettingsItem: View {
         .buttonStyle(AppSidebarItemButtonStyle(isSelected: false))
         .subtitleTableTextSelectionInteractiveRegion()
         .focusable(false)
-        .help("Settings")
-        .accessibilityLabel("Settings")
+        .help(L("sidebar.settings"))
+        .accessibilityLabel(L("sidebar.settings"))
     }
 }
 

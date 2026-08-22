@@ -3,3 +3,37 @@
 "settings.language.description" = "選擇字幕求索使用的語言。";
 "settings.language.field" = "語言";
 "settings.language.follow_system" = "跟隨系統";
+
+/* Application */
+"app.name" = "字幕求索";
+
+/* Menu bar */
+"menu.settings" = "設定⋯";
+"menu.quit" = "結束%@";
+"menu.edit" = "編輯";
+"menu.edit.undo" = "還原";
+"menu.edit.redo" = "重做";
+"menu.edit.cut" = "剪下";
+"menu.edit.copy" = "拷貝";
+"menu.edit.paste" = "貼上";
+"menu.edit.delete" = "刪除";
+"menu.edit.select_all" = "全選";
+"menu.window" = "視窗";
+"menu.window.minimize" = "縮到最小";
+"menu.window.zoom" = "縮放";
+"menu.window.bring_all_to_front" = "將所有視窗移至最前";
+
+/* Topbar and sidebar */
+"topbar.back" = "返回";
+"topbar.hide_sidebar" = "隱藏側邊欄";
+"topbar.show_sidebar" = "顯示側邊欄";
+"sidebar.search" = "搜尋";
+"sidebar.recent" = "最近";
+"sidebar.recent_videos" = "最近影片";
+"sidebar.recent_shioris" = "最近 Shiori";
+"sidebar.library" = "媒體庫";
+"sidebar.shiori" = "Shiori";
+"sidebar.data" = "資料";
+"sidebar.settings" = "設定";
+"sidebar.collapse" = "收合";
+"sidebar.expand" = "展開";

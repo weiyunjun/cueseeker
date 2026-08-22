@@ -3,3 +3,37 @@
 "settings.language.description" = "Choose the language used by CueSeeker.";
 "settings.language.field" = "Language";
 "settings.language.follow_system" = "Follow System";
+
+/* Application */
+"app.name" = "CueSeeker";
+
+/* Menu bar */
+"menu.settings" = "Settings...";
+"menu.quit" = "Quit %@";
+"menu.edit" = "Edit";
+"menu.edit.undo" = "Undo";
+"menu.edit.redo" = "Redo";
+"menu.edit.cut" = "Cut";
+"menu.edit.copy" = "Copy";
+"menu.edit.paste" = "Paste";
+"menu.edit.delete" = "Delete";
+"menu.edit.select_all" = "Select All";
+"menu.window" = "Window";
+"menu.window.minimize" = "Minimize";
+"menu.window.zoom" = "Zoom";
+"menu.window.bring_all_to_front" = "Bring All to Front";
+
+/* Topbar and sidebar */
+"topbar.back" = "Back";
+"topbar.hide_sidebar" = "Hide Sidebar";
+"topbar.show_sidebar" = "Show Sidebar";
+"sidebar.search" = "Search";
+"sidebar.recent" = "Recent";
+"sidebar.recent_videos" = "Recent Videos";
+"sidebar.recent_shioris" = "Recent Shioris";
+"sidebar.library" = "Library";
+"sidebar.shiori" = "Shiori";
+"sidebar.data" = "Data";
+"sidebar.settings" = "Settings";
+"sidebar.collapse" = "Collapse";
+"sidebar.expand" = "Expand";

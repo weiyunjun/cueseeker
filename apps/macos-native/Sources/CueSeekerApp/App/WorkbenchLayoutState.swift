@@ -14,17 +14,17 @@ enum WorkbenchPanelMode: String, CaseIterable {
     var sidebarLabel: String {
         switch self {
         case .library:
-            return "Library"
+            return L("sidebar.library")
         case .shiori:
-            return "Shiori"
+            return L("sidebar.shiori")
         case .recentWatching:
-            return "Recent"
+            return L("sidebar.recent")
         case .testLibrary:
-            return "Library"
+            return L("sidebar.library")
         case .data:
-            return "Data"
+            return L("sidebar.data")
         case .search:
-            return "Search"
+            return L("sidebar.search")
         }
     }
 

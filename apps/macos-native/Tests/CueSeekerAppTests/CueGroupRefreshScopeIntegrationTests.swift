@@ -911,6 +911,7 @@ private final class CueGroupRefreshScopeMountedHarness {
             .environmentObject(app.workbenchLayout.route)
             .environmentObject(app.settings)
             .environmentObject(app.settings.cueGroupPresentation)
+            .environmentObject(app.settings.localization)
             .environmentObject(app.indexing)
             .environmentObject(app.shiori)
             .environmentObject(app.library)
