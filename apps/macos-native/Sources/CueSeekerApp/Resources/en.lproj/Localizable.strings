@@ -55,3 +55,77 @@
 "info.library_no_videos.message" = "Reindex subtitle folders to populate Library videos.";
 "info.shiori_empty.title" = "No Shiori";
 "info.shiori_empty.message" = "Save subtitles from playback to collect Shiori.";
+
+/* Common */
+"common.remove" = "Remove";
+"common.cancel" = "Cancel";
+
+/* Table */
+"table.column.cues" = "Cues";
+"table.column.display_title" = "Display Title";
+"table.column.time_range" = "Time Range";
+"table.column.date_added" = "Date Added";
+"table.column.name" = "Name";
+"table.column.language" = "Language";
+"table.sort_ascending" = "Sort Ascending";
+"table.sort_descending" = "Sort Descending";
+"table.row.play" = "Play";
+"table.row.copy" = "Copy";
+"table.state.content_changed" = "Content Changed";
+"table.state.unavailable" = "Unavailable";
+"table.state.changed_after_reindex" = "This cue changed after reindexing.";
+"table.state.previous" = "Previous";
+"table.state.current" = "Current";
+"table.state.library_unavailable" = "The library source is currently unavailable.";
+"table.state.video_missing" = "The video file is missing. The subtitle file is still available.";
+"table.state.subtitle_missing" = "The subtitle file is missing or could not be reconnected.";
+"table.state.cue_missing" = "This cue could not be found in the current subtitle file.";
+"table.result_count.one" = "1 result";
+"table.result_count.other" = "%d results";
+"table.selected_count" = "%d selected";
+"table.filter" = "Filter";
+"table.select" = "Select";
+"table.exit_select" = "Exit Select";
+"table.search_placeholder" = "Search cues by name, lyrics, or keywords...";
+"table.search_empty_hint" = "Enter a search term to show cues.";
+"table.toolbar.anki" = "Anki";
+"table.toolbar.copy_deep_links" = "Copy Deep Links";
+"table.toolbar.copy_table" = "Copy Table";
+
+/* Row action menu */
+"row_menu.play" = "Play";
+"row_menu.open_subtitle_folder" = "Open Subtitle Folder";
+"row_menu.copy_cue_text" = "Copy Cue Text";
+"row_menu.copy_deep_link" = "Copy Deep Link";
+"row_menu.copy_cue_group_text" = "Copy Cue Group Text";
+"row_menu.copy_time_range" = "Copy Time Range";
+"row_menu.move_to" = "Move to ...";
+"row_menu.duplicate_to" = "Duplicate to ...";
+"row_menu.remove_shiori" = "Remove Shiori";
+
+/* Facet filter */
+"facet.duration" = "Duration";
+"facet.character" = "Character";
+"facet.language" = "Language";
+"facet.watch_status" = "Watch Status";
+"facet.calculating" = "Calculating";
+"facet.selected" = "Selected";
+"facet.not_selected" = "Not selected";
+"facet.duration.under_1s" = "<1s";
+"facet.duration.1_to_3s" = "1–2.999s";
+"facet.duration.3_to_5s" = "3–4.999s";
+"facet.duration.5s_and_up" = "≥5s";
+"facet.language.english" = "English";
+"facet.language.japanese" = "Japanese";
+"facet.language.chinese" = "Chinese";
+"facet.language.simplified_chinese" = "Simplified Chinese";
+"facet.language.traditional_chinese" = "Traditional Chinese";
+"facet.language.unknown" = "Unknown";
+"facet.watch_status.finished" = "Finished";
+"facet.watch_status.watching" = "Watching";
+"facet.watch_status.unwatched" = "Unwatched";
+
+/* Shiori table */
+"shiori.table.empty_hint" = "Save cues from playback to collect Shiori.";
+"shiori.remove.title" = "Remove Shiori";
+"shiori.remove.message" = "This cue will be removed from your Shiori. The original subtitle and video files will not be deleted.";

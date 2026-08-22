@@ -55,3 +55,77 @@
 "info.library_no_videos.message" = "重新索引字幕文件夹以填充媒体库视频。";
 "info.shiori_empty.title" = "没有 Shiori";
 "info.shiori_empty.message" = "在播放时保存字幕即可收集 Shiori。";
+
+/* Common */
+"common.remove" = "移除";
+"common.cancel" = "取消";
+
+/* Table */
+"table.column.cues" = "台词数";
+"table.column.display_title" = "显示标题";
+"table.column.time_range" = "时间范围";
+"table.column.date_added" = "添加日期";
+"table.column.name" = "名称";
+"table.column.language" = "语言";
+"table.sort_ascending" = "升序排序";
+"table.sort_descending" = "降序排序";
+"table.row.play" = "播放";
+"table.row.copy" = "复制";
+"table.state.content_changed" = "内容已变更";
+"table.state.unavailable" = "不可用";
+"table.state.changed_after_reindex" = "该台词在重新索引后发生了变化。";
+"table.state.previous" = "变更前";
+"table.state.current" = "当前";
+"table.state.library_unavailable" = "媒体库来源当前不可用。";
+"table.state.video_missing" = "视频文件缺失，字幕文件仍然可用。";
+"table.state.subtitle_missing" = "字幕文件缺失或无法重新连接。";
+"table.state.cue_missing" = "在当前字幕文件中找不到该台词。";
+"table.result_count.one" = "1 条结果";
+"table.result_count.other" = "%d 条结果";
+"table.selected_count" = "已选 %d 项";
+"table.filter" = "筛选";
+"table.select" = "选择";
+"table.exit_select" = "退出选择";
+"table.search_placeholder" = "按名称、台词或关键词搜索…";
+"table.search_empty_hint" = "输入搜索词以显示台词。";
+"table.toolbar.anki" = "Anki";
+"table.toolbar.copy_deep_links" = "复制 Deep Links";
+"table.toolbar.copy_table" = "复制表格";
+
+/* Row action menu */
+"row_menu.play" = "播放";
+"row_menu.open_subtitle_folder" = "打开字幕文件夹";
+"row_menu.copy_cue_text" = "复制台词文本";
+"row_menu.copy_deep_link" = "复制 Deep Link";
+"row_menu.copy_cue_group_text" = "复制台词组文本";
+"row_menu.copy_time_range" = "复制时间范围";
+"row_menu.move_to" = "移动到…";
+"row_menu.duplicate_to" = "复制到…";
+"row_menu.remove_shiori" = "移除 Shiori";
+
+/* Facet filter */
+"facet.duration" = "时长";
+"facet.character" = "字符数";
+"facet.language" = "语言";
+"facet.watch_status" = "观看状态";
+"facet.calculating" = "计算中";
+"facet.selected" = "已选中";
+"facet.not_selected" = "未选中";
+"facet.duration.under_1s" = "<1 秒";
+"facet.duration.1_to_3s" = "1–2.999 秒";
+"facet.duration.3_to_5s" = "3–4.999 秒";
+"facet.duration.5s_and_up" = "≥5 秒";
+"facet.language.english" = "英语";
+"facet.language.japanese" = "日语";
+"facet.language.chinese" = "中文";
+"facet.language.simplified_chinese" = "简体中文";
+"facet.language.traditional_chinese" = "繁体中文";
+"facet.language.unknown" = "未知";
+"facet.watch_status.finished" = "已看完";
+"facet.watch_status.watching" = "观看中";
+"facet.watch_status.unwatched" = "未观看";
+
+/* Shiori table */
+"shiori.table.empty_hint" = "在播放时保存台词即可收集 Shiori。";
+"shiori.remove.title" = "移除 Shiori";
+"shiori.remove.message" = "该台词将从你的 Shiori 中移除。原始字幕和视频文件不会被删除。";

@@ -30,6 +30,8 @@ struct WorkbenchTestSearchView: View {
     @EnvironmentObject private var appState: AppCoordinator
     @EnvironmentObject private var search: SearchStore
     @EnvironmentObject private var settingsStore: SettingsStore
+    // Observed so the copy below is re-read when the language changes.
+    @EnvironmentObject private var localization: AppLocalizationStore
     private let rowStore: TableSandboxRowModelStore
     @State private var appliedShowCueGroup: Bool?
     @State private var searchDraft: String
@@ -63,7 +65,7 @@ struct WorkbenchTestSearchView: View {
         SchemaWorkbenchSearchShell(
             searchDraft: searchInputBinding,
             columns: SchemaWorkbenchSearchDefaults.columns,
-            pageTitle: "Search",
+            pageTitle: L("sidebar.search"),
             isRedesign: true,
             tableSummary: tableSummary,
             searchResultCountText: exactSearchResultCountText,
@@ -95,10 +97,10 @@ struct WorkbenchTestSearchView: View {
                         rowProvider: { snapshot.row(at: $0) },
                         rowsVersion: snapshot.version,
                         rowsUpdate: snapshot.update,
-                        displayTitleHeader: columnTitle("display", in: tableColumns, fallback: "Display Title"),
-                        timeHeader: columnTitle("time", in: tableColumns, fallback: "Time Range"),
-                        cuesHeader: columnTitle("cues", in: tableColumns, fallback: "Cues"),
-                        languageHeader: columnTitle("language", in: tableColumns, fallback: "Language"),
+                        displayTitleHeader: columnTitle("display", in: tableColumns, fallback: L("table.column.display_title")),
+                        timeHeader: columnTitle("time", in: tableColumns, fallback: L("table.column.time_range")),
+                        cuesHeader: columnTitle("cues", in: tableColumns, fallback: L("table.column.cues")),
+                        languageHeader: columnTitle("language", in: tableColumns, fallback: L("table.column.language")),
                         columnOrder: tableColumns.map(\.id),
                         showsDisplayTitleColumn: containsColumn("display", in: tableColumns),
                         showsTimeColumn: containsColumn("time", in: tableColumns),
@@ -123,7 +125,7 @@ struct WorkbenchTestSearchView: View {
                     )
 
                     if showsSearchEmptyHint {
-                        WorkbenchEmptyHint(message: "Enter a search term to show cues.")
+                        WorkbenchEmptyHint(message: L("table.search_empty_hint"))
                     }
                 }
                 .onChange(of: snapshot.version) { _ in
@@ -386,19 +388,19 @@ struct WorkbenchTestSearchView: View {
         return AnyView(
             HStack(spacing: WorkbenchControlMetrics.redesignSpacing3) {
                 WorkbenchButton(
-                    title: "Anki",
+                    title: L("table.toolbar.anki"),
                     systemImage: "square.and.arrow.up",
                     isRedesign: true,
                     action: exportSelectedRowsToAnki
                 )
                 WorkbenchButton(
-                    title: "Copy Deep Link(s)",
+                    title: L("table.toolbar.copy_deep_links"),
                     systemImage: "doc.on.doc",
                     isRedesign: true,
                     action: copySelectedRowsAsDeepLinks
                 )
                 WorkbenchButton(
-                    title: "Copy Table",
+                    title: L("table.toolbar.copy_table"),
                     systemImage: "doc.on.doc",
                     isRedesign: true,
                     action: copySelectedRowsAsTable

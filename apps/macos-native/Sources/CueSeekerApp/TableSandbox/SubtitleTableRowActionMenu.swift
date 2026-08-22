@@ -12,23 +12,23 @@ enum SubtitleTableRowAction: Hashable, Sendable {
     var title: String {
         switch self {
         case .play:
-            return "Play"
+            return L("row_menu.play")
         case .openSubtitleFolder:
-            return "Open Subtitle Folder"
+            return L("row_menu.open_subtitle_folder")
         case .copyCueText:
-            return "Copy Cue Text"
+            return L("row_menu.copy_cue_text")
         case .copyDeepLink:
-            return "Copy Deep Link"
+            return L("row_menu.copy_deep_link")
         case .copyCueGroupText:
-            return "Copy Cue Group Text"
+            return L("row_menu.copy_cue_group_text")
         case .copyTimeRange:
-            return "Copy Time Range"
+            return L("row_menu.copy_time_range")
         case .moveToList:
-            return "Move to ..."
+            return L("row_menu.move_to")
         case .duplicateToList:
-            return "Duplicate to ..."
+            return L("row_menu.duplicate_to")
         case .removeShiori:
-            return "Remove Shiori"
+            return L("row_menu.remove_shiori")
         }
     }
 

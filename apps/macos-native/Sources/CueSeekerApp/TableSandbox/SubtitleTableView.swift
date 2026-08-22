@@ -756,8 +756,8 @@ private struct CueHoverButtons: View {
 
     var body: some View {
         HStack(spacing: 2) {
-            button(title: "Play", systemImage: "play.fill", action: onPlay)
-            button(title: "Copy", systemImage: "doc.on.doc", action: onCopy)
+            button(title: L("table.row.play"), systemImage: "play.fill", action: onPlay)
+            button(title: L("table.row.copy"), systemImage: "doc.on.doc", action: onCopy)
         }
         .padding(.horizontal, 4)
         .padding(.vertical, 2)
@@ -1181,10 +1181,10 @@ private struct CueStateTip: View {
             case .normal:
                 EmptyView()
             case .contentChanged(let previous, let current):
-                Text("This cue changed after reindexing.")
+                Text(L("table.state.changed_after_reindex"))
                     .foregroundStyle(Color(nsColor: WorkbenchRedesignColors.NS.textSecondary))
-                value(label: "Previous", text: previous)
-                value(label: "Current", text: current)
+                value(label: L("table.state.previous"), text: previous)
+                value(label: L("table.state.current"), text: current)
             case .unavailable:
                 Text(state.unavailableMessage ?? "")
                     .foregroundStyle(Color(nsColor: WorkbenchRedesignColors.NS.textSecondary))
@@ -1208,9 +1208,9 @@ private struct CueStateTip: View {
         case .normal:
             ""
         case .contentChanged:
-            "Content Changed"
+            L("table.state.content_changed")
         case .unavailable:
-            "Unavailable"
+            L("table.state.unavailable")
         }
     }
 
@@ -1784,7 +1784,7 @@ final class SubtitleVirtualTableHeaderView: NSView {
             )
             if showsDateAddedColumn {
                 drawHeader(
-                    coordinator?.dateAddedHeaderForRendering() ?? "Date Added",
+                    coordinator?.dateAddedHeaderForRendering() ?? L("table.column.date_added"),
                     rect: CGRect(x: M.indexColumnWidth, y: 0, width: dateAddedWidth, height: bounds.height),
                     leading: M.headerHorizontalInset,
                     trailing: M.trailingInset
@@ -1792,7 +1792,7 @@ final class SubtitleVirtualTableHeaderView: NSView {
             }
             if showsDisplayTitleColumn {
                 drawHeader(
-                    coordinator?.displayTitleHeaderForRendering() ?? "Name",
+                    coordinator?.displayTitleHeaderForRendering() ?? L("table.column.name"),
                     rect: CGRect(x: M.indexColumnWidth + dateAddedWidth, y: 0, width: displayTitleWidth, height: bounds.height),
                     leading: M.headerHorizontalInset,
                     trailing: M.trailingInset
@@ -1800,14 +1800,14 @@ final class SubtitleVirtualTableHeaderView: NSView {
             }
             if showsTimeColumn {
                 drawHeader(
-                    coordinator?.timeHeaderForRendering() ?? "Time Range",
+                    coordinator?.timeHeaderForRendering() ?? L("table.column.time_range"),
                     rect: CGRect(x: M.indexColumnWidth + dateAddedWidth + displayTitleWidth, y: 0, width: timeWidth, height: bounds.height),
                     leading: M.headerHorizontalInset,
                     trailing: M.trailingInset
                 )
             }
             drawHeader(
-                coordinator?.cuesHeaderForRendering() ?? "Cues",
+                coordinator?.cuesHeaderForRendering() ?? L("table.column.cues"),
                 rect: CGRect(
                     x: cuesX,
                     y: 0,
@@ -1819,7 +1819,7 @@ final class SubtitleVirtualTableHeaderView: NSView {
             )
             if showsLanguageColumn {
                 drawHeader(
-                    coordinator?.languageHeaderForRendering() ?? "Language",
+                    coordinator?.languageHeaderForRendering() ?? L("table.column.language"),
                     rect: CGRect(
                         x: max(cuesX, bounds.width - M.languageColumnWidth),
                         y: 0,
@@ -1889,24 +1889,24 @@ final class SubtitleVirtualTableHeaderView: NSView {
             )
         }
         if let dateAddedRect = layout.dateAddedRect {
-            updateHeaderHost(&dateAddedHeaderHost, title: coordinator?.dateAddedHeaderForRendering() ?? "Date Added", columnID: "dateAdded", isSortable: true, frame: dateAddedRect)
+            updateHeaderHost(&dateAddedHeaderHost, title: coordinator?.dateAddedHeaderForRendering() ?? L("table.column.date_added"), columnID: "dateAdded", isSortable: true, frame: dateAddedRect)
         } else {
             dateAddedHeaderHost?.isHidden = true
         }
         if coordinator?.showsDisplayTitleColumnForRendering() ?? true {
-            updateHeaderHost(&nameHeaderHost, title: coordinator?.displayTitleHeaderForRendering() ?? "Name", columnID: "display", isSortable: true, frame: layout.nameRect)
+            updateHeaderHost(&nameHeaderHost, title: coordinator?.displayTitleHeaderForRendering() ?? L("table.column.name"), columnID: "display", isSortable: true, frame: layout.nameRect)
         } else {
             nameHeaderHost?.isHidden = true
         }
         if let timeRect = layout.timeRect {
-            updateHeaderHost(&timeHeaderHost, title: coordinator?.timeHeaderForRendering() ?? "Time Range", columnID: "time", isSortable: true, frame: timeRect)
+            updateHeaderHost(&timeHeaderHost, title: coordinator?.timeHeaderForRendering() ?? L("table.column.time_range"), columnID: "time", isSortable: true, frame: timeRect)
         } else {
             timeHeaderHost?.isHidden = true
         }
-        updateHeaderHost(&cuesHeaderHost, title: coordinator?.cuesHeaderForRendering() ?? "Cues", columnID: "cues", isSortable: true, frame: layout.cuesRect)
+        updateHeaderHost(&cuesHeaderHost, title: coordinator?.cuesHeaderForRendering() ?? L("table.column.cues"), columnID: "cues", isSortable: true, frame: layout.cuesRect)
 
         if let languageRect = layout.languageRect {
-            updateHeaderHost(&languageHeaderHost, title: coordinator?.languageHeaderForRendering() ?? "Language", columnID: "language", isSortable: true, frame: languageRect)
+            updateHeaderHost(&languageHeaderHost, title: coordinator?.languageHeaderForRendering() ?? L("table.column.language"), columnID: "language", isSortable: true, frame: languageRect)
         } else {
             languageHeaderHost?.isHidden = true
         }
@@ -2371,11 +2371,11 @@ struct SubtitleTableView: NSViewRepresentable {
     var rowProvider: (Int) -> SubtitleTableRow?
     var rowsVersion: Int
     var rowsUpdate: TableSandboxRowsUpdate
-    var dateAddedHeader = "Date Added"
-    var displayTitleHeader = "Name"
-    var timeHeader = "Time Range"
-    var cuesHeader = "Cues"
-    var languageHeader = "Language"
+    var dateAddedHeader = L("table.column.date_added")
+    var displayTitleHeader = L("table.column.name")
+    var timeHeader = L("table.column.time_range")
+    var cuesHeader = L("table.column.cues")
+    var languageHeader = L("table.column.language")
     var columnOrder: [String] = []
     var showsDateAddedColumn = false
     var showsDisplayTitleColumn = true
@@ -2856,11 +2856,11 @@ struct SubtitleTableView: NSViewRepresentable {
             rowCount: Int,
             rowProvider: @escaping (Int) -> SubtitleTableRow?,
             rowsVersion: Int,
-            dateAddedHeader: String = "Date Added",
-            displayTitleHeader: String = "Name",
-            timeHeader: String = "Time Range",
-            cuesHeader: String = "Cues",
-            languageHeader: String = "Language",
+            dateAddedHeader: String = L("table.column.date_added"),
+            displayTitleHeader: String = L("table.column.name"),
+            timeHeader: String = L("table.column.time_range"),
+            cuesHeader: String = L("table.column.cues"),
+            languageHeader: String = L("table.column.language"),
             columnOrder: [String] = [],
             showsDateAddedColumn: Bool = false,
             showsDisplayTitleColumn: Bool = true,
@@ -3172,11 +3172,11 @@ struct SubtitleTableView: NSViewRepresentable {
             rowProvider: @escaping (Int) -> SubtitleTableRow?,
             rowsVersion: Int,
             rowsUpdate: TableSandboxRowsUpdate,
-            dateAddedHeader: String = "Date Added",
+            dateAddedHeader: String = L("table.column.date_added"),
             displayTitleHeader: String,
-            timeHeader: String = "Time Range",
-            cuesHeader: String = "Cues",
-            languageHeader: String = "Language",
+            timeHeader: String = L("table.column.time_range"),
+            cuesHeader: String = L("table.column.cues"),
+            languageHeader: String = L("table.column.language"),
             columnOrder: [String] = [],
             showsDateAddedColumn: Bool = false,
             showsDisplayTitleColumn: Bool = true,
@@ -7848,7 +7848,7 @@ struct ColumnHeaderMenu: View {
         WorkbenchPopoverPanel(isRedesign: true) {
             VStack(spacing: 0) {
                 WorkbenchPopoverRow(
-                    title: "Sort Ascending",
+                    title: L("table.sort_ascending"),
                     isSelected: false,
                     isHighlighted: sortDirection == .asc,
                     systemImage: "arrow.up",
@@ -7858,7 +7858,7 @@ struct ColumnHeaderMenu: View {
                     action: onSortAscending
                 )
                 WorkbenchPopoverRow(
-                    title: "Sort Descending",
+                    title: L("table.sort_descending"),
                     isSelected: false,
                     isHighlighted: sortDirection == .desc,
                     systemImage: "arrow.down",

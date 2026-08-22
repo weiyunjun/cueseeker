@@ -7,6 +7,8 @@ enum CueFacetFilterPanelMetrics {
 }
 
 struct CueFacetFilterPanel: View {
+    // Observed so the copy below is re-read when the language changes.
+    @EnvironmentObject private var localization: AppLocalizationStore
     let distribution: CueFacetDistribution?
     let availableLanguages: [SubtitleLanguageCode]
     let isCalculating: Bool
@@ -16,7 +18,7 @@ struct CueFacetFilterPanel: View {
     var body: some View {
         CueFacetAdaptiveGridLayout {
             card(
-                title: "Duration",
+                title: L("facet.duration"),
                 systemImage: "clock",
                 options: CueDurationFacet.allCases.map { facet in
                     CueFacetOption(
@@ -30,7 +32,7 @@ struct CueFacetFilterPanel: View {
             )
 
             card(
-                title: "Character",
+                title: L("facet.character"),
                 systemImage: "textformat",
                 options: CueCharacterFacet.allCases.map { facet in
                     CueFacetOption(
@@ -44,7 +46,7 @@ struct CueFacetFilterPanel: View {
             )
 
             card(
-                title: "Language",
+                title: L("facet.language"),
                 systemImage: "globe",
                 options: availableLanguages.map { language in
                     CueFacetOption(
@@ -58,7 +60,7 @@ struct CueFacetFilterPanel: View {
             )
 
             card(
-                title: "Watch Status",
+                title: L("facet.watch_status"),
                 systemImage: "eye",
                 options: LibraryWatchState.facetCases.map { state in
                     CueFacetOption(
@@ -272,7 +274,7 @@ struct CueFacetCard: View {
 
                         Spacer(minLength: WorkbenchControlMetrics.redesignSpacing2)
 
-                        Text(isCalculating ? "Calculating" : String(option.count))
+                        Text(isCalculating ? L("facet.calculating") : String(option.count))
                             .font(.system(size: WorkbenchControlMetrics.redesignFontSizeCaption))
                             .foregroundStyle(
                                 isDisabled
@@ -290,8 +292,8 @@ struct CueFacetCard: View {
                 .accessibilityLabel("\(title), \(option.title)")
                 .accessibilityValue(
                     isCalculating
-                        ? "Calculating"
-                        : "\(option.count), \(option.isSelected ? "selected" : "not selected")"
+                        ? L("facet.calculating")
+                        : "\(option.count), \(option.isSelected ? L("facet.selected") : L("facet.not_selected"))"
                 )
             }
         }
@@ -316,13 +318,13 @@ private extension CueDurationFacet {
     var title: String {
         switch self {
         case .underOneSecond:
-            return "<1s"
+            return L("facet.duration.under_1s")
         case .oneToUnderThreeSeconds:
-            return "1–2.999s"
+            return L("facet.duration.1_to_3s")
         case .threeToUnderFiveSeconds:
-            return "3–4.999s"
+            return L("facet.duration.3_to_5s")
         case .fiveSecondsOrMore:
-            return "≥5s"
+            return L("facet.duration.5s_and_up")
         }
     }
 }
@@ -346,17 +348,17 @@ private extension SubtitleLanguageCode {
     var title: String {
         switch self {
         case .english:
-            return "English"
+            return L("facet.language.english")
         case .japanese:
-            return "Japanese"
+            return L("facet.language.japanese")
         case .chinese:
-            return "Chinese"
+            return L("facet.language.chinese")
         case .simplifiedChinese:
-            return "Simplified Chinese"
+            return L("facet.language.simplified_chinese")
         case .traditionalChinese:
-            return "Traditional Chinese"
+            return L("facet.language.traditional_chinese")
         case .unknown:
-            return "Unknown"
+            return L("facet.language.unknown")
         }
     }
 }
@@ -371,11 +373,11 @@ private extension LibraryWatchState {
     var title: String {
         switch self {
         case .finished:
-            return "Finished"
+            return L("facet.watch_status.finished")
         case .watching:
-            return "Watching"
+            return L("facet.watch_status.watching")
         case .unwatched:
-            return "Unwatched"
+            return L("facet.watch_status.unwatched")
         }
     }
 }

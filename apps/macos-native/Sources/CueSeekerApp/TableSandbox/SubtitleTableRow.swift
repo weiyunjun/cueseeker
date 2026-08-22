@@ -39,13 +39,13 @@ enum SubtitleTableCueState: Equatable {
         }
         switch reason {
         case .libraryUnavailable:
-            return "The library source is currently unavailable."
+            return L("table.state.library_unavailable")
         case .videoMissing:
-            return "The video file is missing. The subtitle file is still available."
+            return L("table.state.video_missing")
         case .subtitleMissing:
-            return "The subtitle file is missing or could not be reconnected."
+            return L("table.state.subtitle_missing")
         case .cueMissing:
-            return "This cue could not be found in the current subtitle file."
+            return L("table.state.cue_missing")
         }
     }
 

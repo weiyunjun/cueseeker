@@ -7,11 +7,13 @@ struct SchemaWorkbenchTableSummary: Equatable {
 
 func schemaWorkbenchResultCountText(_ count: Int) -> String {
     let safeCount = max(0, count)
-    return safeCount == 1 ? "1 result" : "\(safeCount) results"
+    return safeCount == 1
+        ? L("table.result_count.one")
+        : L("table.result_count.other", safeCount)
 }
 
 func schemaWorkbenchSelectedCountText(_ count: Int) -> String {
-    "\(max(0, count)) selected"
+    L("table.selected_count", max(0, count))
 }
 
 func schemaWorkbenchCanEnterSelectionMode(hasExactResultSet: Bool) -> Bool {
@@ -19,7 +21,8 @@ func schemaWorkbenchCanEnterSelectionMode(hasExactResultSet: Bool) -> Bool {
 }
 
 enum SchemaWorkbenchSearchDefaults {
-    static let columns: [WorkbenchTableColumn] = [
+    static var columns: [WorkbenchTableColumn] {
+        [
         WorkbenchTableColumn(
             id: "rowNumber",
             title: "#",
@@ -28,25 +31,27 @@ enum SchemaWorkbenchSearchDefaults {
         ),
         WorkbenchTableColumn(
             id: "cues",
-            title: "Cues",
+            title: L("table.column.cues"),
             kind: .text,
             width: .weighted(weight: 6, min: 240)
         ),
         WorkbenchTableColumn(
             id: "display",
-            title: "Display Title",
+            title: L("table.column.display_title"),
             kind: .text,
             width: .weighted(weight: 3, min: 180)
         ),
         WorkbenchTableColumn(
             id: "time",
-            title: "Time Range",
+            title: L("table.column.time_range"),
             kind: .text,
             width: .weighted(weight: 2, min: 140)
         ),
-    ]
+        ]
+    }
 
-    static let shioriColumns: [WorkbenchTableColumn] = [
+    static var shioriColumns: [WorkbenchTableColumn] {
+        [
         WorkbenchTableColumn(
             id: "rowNumber",
             title: "#",
@@ -55,33 +60,36 @@ enum SchemaWorkbenchSearchDefaults {
         ),
         WorkbenchTableColumn(
             id: "cues",
-            title: "Cues",
+            title: L("table.column.cues"),
             kind: .text,
             width: .weighted(weight: 6, min: 240)
         ),
         WorkbenchTableColumn(
             id: "display",
-            title: "Display Title",
+            title: L("table.column.display_title"),
             kind: .text,
             width: .weighted(weight: 3, min: 180)
         ),
         WorkbenchTableColumn(
             id: "time",
-            title: "Time Range",
+            title: L("table.column.time_range"),
             kind: .text,
             width: .weighted(weight: 2, min: 140)
         ),
         WorkbenchTableColumn(
             id: "dateAdded",
-            title: "Date Added",
+            title: L("table.column.date_added"),
             kind: .text,
             width: .weighted(weight: 2, min: 120)
         ),
-    ]
+        ]
+    }
 }
 
 struct SchemaWorkbenchSearchShell<TableContent: View>: View {
     @Environment(\.isWorkbenchPopupLayerOpen) private var isParentWorkbenchPopupLayerOpen
+    // Observed so the copy below is re-read when the language changes.
+    @EnvironmentObject private var localization: AppLocalizationStore
 
     @Binding var searchDraft: String
 
@@ -110,7 +118,7 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
         searchDraft: Binding<String>,
         columns: [WorkbenchTableColumn],
         pageTitle: String? = nil,
-        searchPlaceholder: String = "Search cues by name, lyrics, or keywords...",
+        searchPlaceholder: String = L("table.search_placeholder"),
         isRedesign: Bool = false,
         summaryContent: AnyView? = nil,
         hostsPageChromeInTable: Bool = false,
@@ -373,7 +381,7 @@ struct SchemaWorkbenchSearchToolbar: View {
             .disabled(isSelectionMode)
 
             WorkbenchToolbarButton(
-                title: "Filter",
+                title: L("table.filter"),
                 systemImage: "line.3.horizontal.decrease",
                 showsChevron: true,
                 isRedesign: true,
@@ -383,7 +391,7 @@ struct SchemaWorkbenchSearchToolbar: View {
             .disabled(isSelectionMode)
 
             WorkbenchToolbarButton(
-                title: isSelectionMode ? "Exit Select" : "Select",
+                title: isSelectionMode ? L("table.exit_select") : L("table.select"),
                 systemImage: "square.and.pencil",
                 isRedesign: true,
                 action: onToggleSelectionMode
@@ -462,7 +470,7 @@ struct SchemaWorkbenchLegacyFilterControlBar: View {
     var body: some View {
         HStack(spacing: 10) {
             WorkbenchToolbarButton(
-                title: "Filter",
+                title: L("table.filter"),
                 systemImage: "line.3.horizontal.decrease",
                 showsChevron: true,
                 isMenuOpen: isFilterPanelOpen,

@@ -11,6 +11,8 @@ private struct WorkbenchShioriTableTextCopySource {
 
 struct WorkbenchShioriTableView: View {
     static let defaultFacetPanelVisibility = false
+    // Observed so the copy below is re-read when the language changes.
+    @EnvironmentObject private var localization: AppLocalizationStore
 
     @EnvironmentObject private var shioriStore: ShioriStore
     let isTableResponseActive: Bool
@@ -93,11 +95,11 @@ private struct WorkbenchShioriTableContent: View {
                     rowProvider: { rowStore.snapshot.row(at: $0) },
                     rowsVersion: rowStore.snapshot.version,
                     rowsUpdate: rowStore.snapshot.update,
-                    dateAddedHeader: columnTitle("dateAdded", in: tableColumns, fallback: "Date Added"),
-                    displayTitleHeader: columnTitle("display", in: tableColumns, fallback: "Display Title"),
-                    timeHeader: columnTitle("time", in: tableColumns, fallback: "Time Range"),
-                    cuesHeader: columnTitle("cues", in: tableColumns, fallback: "Cues"),
-                    languageHeader: columnTitle("language", in: tableColumns, fallback: "Language"),
+                    dateAddedHeader: columnTitle("dateAdded", in: tableColumns, fallback: L("table.column.date_added")),
+                    displayTitleHeader: columnTitle("display", in: tableColumns, fallback: L("table.column.display_title")),
+                    timeHeader: columnTitle("time", in: tableColumns, fallback: L("table.column.time_range")),
+                    cuesHeader: columnTitle("cues", in: tableColumns, fallback: L("table.column.cues")),
+                    languageHeader: columnTitle("language", in: tableColumns, fallback: L("table.column.language")),
                     columnOrder: tableColumns.map(\.id),
                     showsDateAddedColumn: containsColumn("dateAdded", in: tableColumns),
                     showsDisplayTitleColumn: containsColumn("display", in: tableColumns),
@@ -128,17 +130,17 @@ private struct WorkbenchShioriTableContent: View {
                 )
 
                 if shioriStore.tableHasLoadedInitialPage && shioriStore.tableTotalSavedRowCount == 0 {
-                    WorkbenchEmptyHint(message: "Save cues from playback to collect Shiori.")
+                    WorkbenchEmptyHint(message: L("shiori.table.empty_hint"))
                 }
             }
         }
         .overlay {
             if let pendingRemoval {
                 WorkbenchConfirmationDialog(
-                    title: "Remove Shiori",
-                    message: "This cue will be removed from your Shiori. The original subtitle and video files will not be deleted.",
-                    destructiveTitle: "Remove",
-                    cancelTitle: "Cancel",
+                    title: L("shiori.remove.title"),
+                    message: L("shiori.remove.message"),
+                    destructiveTitle: L("common.remove"),
+                    cancelTitle: L("common.cancel"),
                     onDestructive: {
                         confirmRemoveShiori(pendingRemoval)
                     },
@@ -241,7 +243,7 @@ private struct WorkbenchShioriTableContent: View {
         let pinnedContent = AnyView(
             VStack(spacing: 0) {
                 SchemaWorkbenchSearchToolbar(
-                    placeholder: "Search cues by name, lyrics, or keywords...",
+                    placeholder: L("table.search_placeholder"),
                     searchDraft: searchInputBinding,
                     searchResultCountText: exactSearchResultCountText,
                     isSelectionMode: isSelectionMode,
@@ -343,19 +345,19 @@ private struct WorkbenchShioriTableContent: View {
         return AnyView(
             HStack(spacing: WorkbenchControlMetrics.redesignSpacing3) {
                 WorkbenchButton(
-                    title: "Anki",
+                    title: L("table.toolbar.anki"),
                     systemImage: "square.and.arrow.up",
                     isRedesign: true,
                     action: exportSelectedRowsToAnki
                 )
                 WorkbenchButton(
-                    title: "Copy Deep Link(s)",
+                    title: L("table.toolbar.copy_deep_links"),
                     systemImage: "doc.on.doc",
                     isRedesign: true,
                     action: copySelectedRowsAsDeepLinks
                 )
                 WorkbenchButton(
-                    title: "Copy Table",
+                    title: L("table.toolbar.copy_table"),
                     systemImage: "doc.on.doc",
                     isRedesign: true,
                     action: copySelectedRowsAsTable
