@@ -139,7 +139,7 @@ final class AppCoordinator: ObservableObject {
         library.selectedLibraryVideo?.videoName
             ?? search.selectedSearchResult?.videoName
             ?? shiori.selectedShiori?.videoName
-            ?? "No video selected"
+            ?? L("playback.no_video_selected")
     }
 
     func playbackDisplayTitle(

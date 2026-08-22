@@ -8,7 +8,7 @@ extension AppCoordinator {
             throw NSError(
                 domain: "CueSeeker.Data",
                 code: 1,
-                userInfo: [NSLocalizedDescriptionKey: "Database is not initialized"]
+                userInfo: [NSLocalizedDescriptionKey: L("status.database_not_initialized")]
             )
         }
 

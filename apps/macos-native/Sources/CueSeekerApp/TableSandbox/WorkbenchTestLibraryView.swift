@@ -77,7 +77,7 @@ struct WorkbenchRecentView: View {
                 spacing: WorkbenchControlMetrics.redesignSpacing3
             ) {
                 RecentSectionHeader(
-                    title: "Recent Videos",
+                    title: L("sidebar.recent_videos"),
                     count: library.testRecentWatchingItems.count
                 ) {
                     appState.workbenchLayout.selectRecentSection(.videos)
@@ -93,7 +93,7 @@ struct WorkbenchRecentView: View {
                 spacing: WorkbenchControlMetrics.redesignSpacing3
             ) {
                 RecentSectionHeader(
-                    title: "Recent Shioris",
+                    title: L("sidebar.recent_shioris"),
                     count: shiori.recentListSummaries.count
                 ) {
                     appState.workbenchLayout.selectRecentSection(.shioris)
