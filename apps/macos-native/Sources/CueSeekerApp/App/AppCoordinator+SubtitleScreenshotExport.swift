@@ -90,7 +90,7 @@ extension AppCoordinator {
 
     private func subtitleScreenshotDestinationURL(for item: SubtitleScreenshotExportItem) -> URL? {
         let panel = NSSavePanel()
-        panel.title = "Export Screenshot"
+        panel.title = L("export.screenshot")
         panel.nameFieldStringValue = SubtitleScreenshotExporter.defaultScreenshotFileName(for: item)
         if let pngType = UTType(filenameExtension: "png") {
             panel.allowedContentTypes = [pngType]
@@ -106,7 +106,7 @@ extension AppCoordinator {
 
     private func subtitleScreenshotDirectoryURL() -> URL? {
         let panel = NSSavePanel()
-        panel.title = "Export Screenshots"
+        panel.title = L("export.screenshots")
         panel.nameFieldStringValue = SubtitleScreenshotExporter.defaultScreenshotFolderName()
         panel.canCreateDirectories = true
         panel.isExtensionHidden = false
@@ -136,7 +136,7 @@ extension AppCoordinator {
 enum SubtitleCollageSavePanel {
     static func destinationURL(defaultFileName: String) -> URL? {
         let panel = NSSavePanel()
-        panel.title = "Export Collage"
+        panel.title = L("playback.collage.export")
         panel.nameFieldStringValue = defaultFileName
         if let pngType = UTType(filenameExtension: "png") {
             panel.allowedContentTypes = [pngType]

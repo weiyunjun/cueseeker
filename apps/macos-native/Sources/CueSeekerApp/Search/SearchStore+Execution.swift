@@ -111,7 +111,7 @@ extension SearchStore {
 
         guard !databaseIsCompacting else {
             failBeforeSearch(
-                "Database compaction is running",
+                L("status.compaction_running"),
                 event: "search_failed_database_compacting",
                 run: run,
                 onFirstPageResolved: onFirstPageResolved
@@ -121,7 +121,7 @@ extension SearchStore {
 
         guard let database else {
             failBeforeSearch(
-                "Database is not initialized",
+                L("status.database_not_initialized"),
                 event: "search_failed_no_database",
                 run: run,
                 onFirstPageResolved: onFirstPageResolved

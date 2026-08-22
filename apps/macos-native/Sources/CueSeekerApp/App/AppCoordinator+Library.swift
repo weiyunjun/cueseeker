@@ -266,7 +266,7 @@ extension AppCoordinator {
         library.libraryStatus = .loading
         guard let database = libraryDatabase else {
             applyLibraryPresentation([])
-            library.libraryStatus = .failed("Database is not initialized")
+            library.libraryStatus = .failed(L("status.database_not_initialized"))
             return
         }
         libraryTask = Task {
@@ -492,7 +492,7 @@ extension AppCoordinator {
 
         guard let database = libraryDatabase else {
             applyRecentWatching([])
-            library.recentWatchingStatus = .failed("Database is not initialized")
+            library.recentWatchingStatus = .failed(L("status.database_not_initialized"))
             return
         }
 
@@ -528,7 +528,7 @@ extension AppCoordinator {
 
         guard let database = libraryDatabase else {
             applyTestRecentWatching([])
-            library.testRecentWatchingStatus = .failed("Database is not initialized")
+            library.testRecentWatchingStatus = .failed(L("status.database_not_initialized"))
             return
         }
 
@@ -571,7 +571,7 @@ extension AppCoordinator {
 
         guard let database = libraryDatabase else {
             applyCompleteLibrary([])
-            library.completeLibraryStatus = .failed("Database is not initialized")
+            library.completeLibraryStatus = .failed(L("status.database_not_initialized"))
             return
         }
 
@@ -603,7 +603,7 @@ extension AppCoordinator {
             throw NSError(
                 domain: "CueSeeker.Library",
                 code: 1,
-                userInfo: [NSLocalizedDescriptionKey: "Database is not initialized"]
+                userInfo: [NSLocalizedDescriptionKey: L("status.database_not_initialized")]
             )
         }
 
@@ -707,7 +707,7 @@ extension AppCoordinator {
                         return
                     }
                     library.completeLibraryFolderDetailStatusesByPath[folderPath]
-                        = .failed("Folder detail is unavailable")
+                        = .failed(L("status.folder_detail_unavailable"))
                     return
                 }
                 library.completeLibraryFolderDetailsByPath[folderPath] = detail

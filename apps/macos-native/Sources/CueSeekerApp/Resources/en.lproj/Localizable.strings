@@ -363,3 +363,45 @@
 "settings.developer.updated" = "Updated %@";
 "settings.developer.docs" = "docs %@";
 "settings.developer.occ" = "occ %@";
+
+/* Data page */
+"data.title" = "Data";
+"data.empty" = "No indexed content.";
+"data.toggle" = "Toggle";
+"data.expanded" = "Expanded";
+"data.collapsed" = "Collapsed";
+
+/* Export */
+"export.anki_package" = "Export Anki Package";
+"export.anki_default_name" = "Anki Export";
+"export.group_to_anki" = "Export group to Anki";
+"export.screenshot" = "Export Screenshot";
+"export.screenshots" = "Export Screenshots";
+"export.collage" = "Export Collage";
+"export.error.no_items" = "No Anki export items.";
+"export.error.ffmpeg_missing" = "ffmpeg was not found.";
+"export.error.database_create" = "Could not create Anki database: %@";
+"export.error.database_execute" = "Could not execute Anki database SQL: %@";
+"export.error.database_prepare" = "Could not prepare Anki database SQL: %@";
+"export.error.database_bind" = "Could not bind Anki database SQL: %@";
+"export.error.database_write" = "Could not write Anki database SQL: %@";
+"export.error.process_exit" = "%1$@ exited with status %2$d.";
+
+/* Running status */
+"status.indexing_running" = "Indexing is running";
+"status.folder_removal_running" = "Folder removal is running";
+"status.compaction_running" = "Database compaction is running";
+"status.search_running" = "Search is running";
+"status.search_diagnostics_loading" = "Search diagnostics are loading";
+"status.library_loading" = "Library is loading";
+"status.complete_library_loading" = "Complete Library is loading";
+"status.database_not_initialized" = "Database is not initialized";
+"status.folder_detail_unavailable" = "Folder detail is unavailable";
+"status.not_enough_disk_space" = "Not enough free disk space";
+"status.reclaimed" = "Reclaimed %@";
+"status.video_metadata_failed" = "Video metadata failed for %1$d file(s). First: %2$@";
+"status.video_metadata_refresh_failed" = "Video metadata refresh failed: %@";
+"status.cover_generation_failed_counts" = "Automatic cover generation failed for %1$d cover(s) and %2$d display rendition(s).";
+"status.cover_generation_failed" = "Automatic cover generation failed: %@";
+"status.library_presentation_failed" = "Library presentation refresh failed: %@";
+"status.folder_index_removal_failed" = "Failed to remove folder index: %@";

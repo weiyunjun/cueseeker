@@ -23,21 +23,21 @@ enum AnkiPackageExportError: Error, CustomStringConvertible {
     var description: String {
         switch self {
         case .emptyItems:
-            "No Anki export items."
+            L("export.error.no_items")
         case .ffmpegNotFound:
-            "ffmpeg was not found."
+            L("export.error.ffmpeg_missing")
         case .sqliteOpenFailed(let message):
-            "Could not create Anki database: \(message)"
+            L("export.error.database_create", message)
         case .sqliteExecuteFailed(let message):
-            "Could not execute Anki database SQL: \(message)"
+            L("export.error.database_execute", message)
         case .sqlitePrepareFailed(let message):
-            "Could not prepare Anki database SQL: \(message)"
+            L("export.error.database_prepare", message)
         case .sqliteBindFailed(let message):
-            "Could not bind Anki database SQL: \(message)"
+            L("export.error.database_bind", message)
         case .sqliteStepFailed(let message):
-            "Could not write Anki database SQL: \(message)"
+            L("export.error.database_write", message)
         case .processFailed(let executable, let status):
-            "\(executable) exited with status \(status)."
+            L("export.error.process_exit", executable, status)
         }
     }
 }
@@ -641,7 +641,7 @@ enum AnkiPackageExporter {
             .components(separatedBy: forbidden)
             .joined(separator: "-")
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        return safe.isEmpty ? "Anki Export" : safe
+        return safe.isEmpty ? L("export.anki_default_name") : safe
     }
 
     private static let collectionSchemaSQL = """

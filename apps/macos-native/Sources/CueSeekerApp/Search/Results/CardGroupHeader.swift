@@ -46,7 +46,7 @@ struct CardGroupHeader: View {
                 }
                 .buttonStyle(.plain)
                 .focusable(false)
-                .help("Export group to Anki")
+                .help(L("export.group_to_anki"))
             }
 
             Spacer(minLength: 0)

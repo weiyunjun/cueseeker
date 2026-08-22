@@ -363,3 +363,45 @@
 "settings.developer.updated" = "更新於 %@";
 "settings.developer.docs" = "文件 %@";
 "settings.developer.occ" = "出現 %@";
+
+/* Data page */
+"data.title" = "資料";
+"data.empty" = "沒有已索引的內容。";
+"data.toggle" = "展開/收合";
+"data.expanded" = "已展開";
+"data.collapsed" = "已收合";
+
+/* Export */
+"export.anki_package" = "匯出 Anki 套件";
+"export.anki_default_name" = "Anki 匯出";
+"export.group_to_anki" = "將此群組匯出至 Anki";
+"export.screenshot" = "匯出截圖";
+"export.screenshots" = "匯出截圖";
+"export.collage" = "匯出長截圖";
+"export.error.no_items" = "沒有可匯出的 Anki 項目。";
+"export.error.ffmpeg_missing" = "找不到 ffmpeg。";
+"export.error.database_create" = "無法建立 Anki 資料庫：%@";
+"export.error.database_execute" = "無法執行 Anki 資料庫 SQL：%@";
+"export.error.database_prepare" = "無法準備 Anki 資料庫 SQL：%@";
+"export.error.database_bind" = "無法綁定 Anki 資料庫 SQL：%@";
+"export.error.database_write" = "無法寫入 Anki 資料庫 SQL：%@";
+"export.error.process_exit" = "%1$@ 結束，狀態碼 %2$d。";
+
+/* Running status */
+"status.indexing_running" = "正在索引";
+"status.folder_removal_running" = "正在移除資料夾";
+"status.compaction_running" = "正在壓縮資料庫";
+"status.search_running" = "正在搜尋";
+"status.search_diagnostics_loading" = "正在載入搜尋診斷";
+"status.library_loading" = "正在載入媒體庫";
+"status.complete_library_loading" = "正在載入完整媒體庫";
+"status.database_not_initialized" = "資料庫尚未初始化";
+"status.folder_detail_unavailable" = "無法取得資料夾詳細資訊";
+"status.not_enough_disk_space" = "磁碟可用空間不足";
+"status.reclaimed" = "已回收 %@";
+"status.video_metadata_failed" = "%1$d 個檔案的影片中繼資料處理失敗。第一個：%2$@";
+"status.video_metadata_refresh_failed" = "影片中繼資料重新整理失敗：%@";
+"status.cover_generation_failed_counts" = "自動產生封面失敗：%1$d 個封面、%2$d 個顯示版本。";
+"status.cover_generation_failed" = "自動產生封面失敗：%@";
+"status.library_presentation_failed" = "媒體庫呈現重新整理失敗：%@";
+"status.folder_index_removal_failed" = "移除資料夾索引失敗：%@";

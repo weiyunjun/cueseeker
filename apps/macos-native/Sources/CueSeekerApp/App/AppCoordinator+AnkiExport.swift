@@ -82,7 +82,7 @@ extension AppCoordinator {
 
     private func ankiExportDestinationURL() -> URL? {
         let panel = NSSavePanel()
-        panel.title = "Export Anki Package"
+        panel.title = L("export.anki_package")
         panel.nameFieldStringValue = AnkiPackageExporter.defaultFileName()
         if let apkgType = UTType(filenameExtension: "apkg") {
             panel.allowedContentTypes = [apkgType]

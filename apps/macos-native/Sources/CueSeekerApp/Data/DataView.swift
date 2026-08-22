@@ -2,6 +2,8 @@ import SwiftUI
 import CueSeekerCore
 
 struct DataView: View {
+    // Observed so the copy below is re-read when the language changes.
+    @EnvironmentObject private var localization: AppLocalizationStore
     @EnvironmentObject private var appState: AppCoordinator
     @State private var loadState: DataLoadState = .loading
     @State private var roots: [IndexedContentRoot] = []
@@ -32,7 +34,7 @@ struct DataView: View {
             WorkbenchEmptyHint(message: message)
                 .frame(minHeight: DataTreeLayout.stateMinimumHeight)
         case .loaded where roots.isEmpty:
-            WorkbenchEmptyHint(message: "No indexed content.")
+            WorkbenchEmptyHint(message: L("data.empty"))
                 .frame(minHeight: DataTreeLayout.stateMinimumHeight)
         case .loaded:
             DataTreeView(
@@ -85,7 +87,7 @@ private struct DataPageLayout<Content: View>: View {
                     alignment: .leading,
                     spacing: WorkbenchControlMetrics.redesignSpacing4
                 ) {
-                    WorkbenchPageTitle("Data")
+                    WorkbenchPageTitle(L("data.title"))
                     content
                         .frame(maxWidth: .infinity, alignment: .topLeading)
                 }
@@ -251,7 +253,7 @@ private struct DataTreeRow: View {
             rowContent
                 .onTapGesture(perform: onToggle)
                 .accessibilityAddTraits(.isButton)
-                .accessibilityAction(named: Text("Toggle"), onToggle)
+                .accessibilityAction(named: Text(L("data.toggle")), onToggle)
         } else {
             rowContent
         }
@@ -342,7 +344,7 @@ private struct DataTreeRow: View {
         guard let isExpanded else {
             return ""
         }
-        return isExpanded ? "Expanded" : "Collapsed"
+        return isExpanded ? L("data.expanded") : L("data.collapsed")
     }
 }
 

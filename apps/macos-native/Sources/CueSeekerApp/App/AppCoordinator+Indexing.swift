@@ -40,9 +40,11 @@ private func performFolderIndex(
                     IndexingAuxiliaryFailure(
                         kind: .videoMetadata,
                         message:
-                            "Video metadata failed for "
-                            + "\(metadataResult.failures.count) file(s). "
-                            + "First: \(firstFailure.reason)"
+                            L(
+                                "status.video_metadata_failed",
+                                metadataResult.failures.count,
+                                firstFailure.reason
+                            )
                     )
                 )
             }
@@ -51,8 +53,10 @@ private func performFolderIndex(
                 IndexingAuxiliaryFailure(
                     kind: .videoMetadata,
                     message:
-                        "Video metadata refresh failed: "
-                        + error.localizedDescription
+                        L(
+                            "status.video_metadata_refresh_failed",
+                            error.localizedDescription
+                        )
                 )
             )
         }
@@ -85,11 +89,11 @@ private func performFolderIndex(
                 IndexingAuxiliaryFailure(
                     kind: .automaticCover,
                     message:
-                        "Automatic cover generation failed for "
-                        + "\(coverResult.failedCoverCount) cover(s) "
-                        + "and "
-                        + "\(coverResult.failedDisplayCoverCount) "
-                        + "display rendition(s)."
+                        L(
+                            "status.cover_generation_failed_counts",
+                            coverResult.failedCoverCount,
+                            coverResult.failedDisplayCoverCount
+                        )
                 )
             )
         }
@@ -98,8 +102,10 @@ private func performFolderIndex(
             IndexingAuxiliaryFailure(
                 kind: .automaticCover,
                 message:
-                    "Automatic cover generation failed: "
-                    + error.localizedDescription
+                    L(
+                        "status.cover_generation_failed",
+                        error.localizedDescription
+                    )
             )
         )
     }
@@ -128,8 +134,10 @@ private func performFolderIndex(
                 IndexingAuxiliaryFailure(
                     kind: .libraryPresentation,
                     message:
-                        "Library presentation refresh failed: "
-                        + error.localizedDescription
+                        L(
+                            "status.library_presentation_failed",
+                            error.localizedDescription
+                        )
                 )
             )
         }
@@ -146,12 +154,12 @@ private func performFolderIndex(
 extension AppCoordinator {
     func addFolder(_ folder: URL) {
         guard !indexing.folderRemovalStatus.isRemoving else {
-            startupError = "Folder removal is running"
+            startupError = L("status.folder_removal_running")
             return
         }
 
         guard !indexing.databaseMaintenanceStatus.isCompacting else {
-            startupError = "Database compaction is running"
+            startupError = L("status.compaction_running")
             return
         }
 
@@ -175,23 +183,23 @@ extension AppCoordinator {
 
     func removeFolder(_ folder: URL) {
         guard !indexing.indexingStatus.isIndexing else {
-            startupError = "Indexing is running"
+            startupError = L("status.indexing_running")
             return
         }
 
         guard !indexing.folderRemovalStatus.isRemoving else {
-            startupError = "Folder removal is running"
+            startupError = L("status.folder_removal_running")
             return
         }
 
         guard !indexing.databaseMaintenanceStatus.isCompacting else {
-            startupError = "Database compaction is running"
+            startupError = L("status.compaction_running")
             return
         }
 
         let folder = folder.standardizedFileURL
         guard indexingDatabase != nil else {
-            startupError = "Database is not initialized"
+            startupError = L("status.database_not_initialized")
             return
         }
         let searchMutationToken = search.beginIndexedCueDataMutation()
@@ -240,7 +248,7 @@ extension AppCoordinator {
                 self.restoreCurrentSearchAfterIndexedCueMutationFailure(
                     reloadFromDatabase: false
                 )
-                self.startupError = "Failed to remove folder index: \(Self.errorMessage(for: error))"
+                self.startupError = L("status.folder_index_removal_failed", Self.errorMessage(for: error))
                 self.folderRemovalTask = nil
             }
         }
@@ -248,12 +256,12 @@ extension AppCoordinator {
 
     func indexFolder(_ folder: URL) {
         guard !indexing.folderRemovalStatus.isRemoving else {
-            startupError = "Folder removal is running"
+            startupError = L("status.folder_removal_running")
             return
         }
 
         guard !indexing.databaseMaintenanceStatus.isCompacting else {
-            startupError = "Database compaction is running"
+            startupError = L("status.compaction_running")
             return
         }
 
@@ -263,7 +271,7 @@ extension AppCoordinator {
               let libraryDatabase,
               let coverDatabase = libraryCoverDatabase
         else {
-            indexing.indexingStatus = .failed(folder, "Database is not initialized")
+            indexing.indexingStatus = .failed(folder, L("status.database_not_initialized"))
             return
         }
         let displayRenditionCommitToken = libraryDisplayRenditionCommitGate.beginGeneration()
@@ -318,12 +326,12 @@ extension AppCoordinator {
 
     func indexAllFolders() {
         guard !indexing.folderRemovalStatus.isRemoving else {
-            startupError = "Folder removal is running"
+            startupError = L("status.folder_removal_running")
             return
         }
 
         guard !indexing.databaseMaintenanceStatus.isCompacting else {
-            startupError = "Database compaction is running"
+            startupError = L("status.compaction_running")
             return
         }
 
@@ -338,7 +346,7 @@ extension AppCoordinator {
               let libraryDatabase,
               let coverDatabase = libraryCoverDatabase
         else {
-            indexing.indexingStatus = .failed(firstFolder, "Database is not initialized")
+            indexing.indexingStatus = .failed(firstFolder, L("status.database_not_initialized"))
             return
         }
         let displayRenditionCommitToken = libraryDisplayRenditionCommitGate.beginGeneration()
@@ -523,7 +531,7 @@ extension AppCoordinator {
 
         databaseStorageStatsTask?.cancel()
         guard indexingDatabase != nil else {
-            indexing.databaseMaintenanceStatus = .failed("Database is not initialized")
+            indexing.databaseMaintenanceStatus = .failed(L("status.database_not_initialized"))
             return
         }
         let databaseURL = self.databaseURL
@@ -565,7 +573,7 @@ extension AppCoordinator {
 
         indexing.searchFTSVocabularyDiagnosticsTask?.cancel()
         guard search.isDatabaseAvailable else {
-            indexing.searchFTSVocabularyDiagnosticsStatus = .failed("Database is not initialized")
+            indexing.searchFTSVocabularyDiagnosticsStatus = .failed(L("status.database_not_initialized"))
             return
         }
 
@@ -606,37 +614,37 @@ extension AppCoordinator {
         }
 
         guard !indexing.folderRemovalStatus.isRemoving else {
-            indexing.databaseMaintenanceStatus = .failed("Folder removal is running")
+            indexing.databaseMaintenanceStatus = .failed(L("status.folder_removal_running"))
             return
         }
 
         guard !indexing.indexingStatus.isIndexing else {
-            indexing.databaseMaintenanceStatus = .failed("Indexing is running")
+            indexing.databaseMaintenanceStatus = .failed(L("status.indexing_running"))
             return
         }
 
         guard !search.isSearching else {
-            indexing.databaseMaintenanceStatus = .failed("Search is running")
+            indexing.databaseMaintenanceStatus = .failed(L("status.search_running"))
             return
         }
 
         guard indexing.searchFTSVocabularyDiagnosticsTask == nil else {
-            indexing.databaseMaintenanceStatus = .failed("Search diagnostics are loading")
+            indexing.databaseMaintenanceStatus = .failed(L("status.search_diagnostics_loading"))
             return
         }
 
         guard library.libraryStatus != .loading else {
-            indexing.databaseMaintenanceStatus = .failed("Library is loading")
+            indexing.databaseMaintenanceStatus = .failed(L("status.library_loading"))
             return
         }
 
         guard library.completeLibraryStatus != .loading else {
-            indexing.databaseMaintenanceStatus = .failed("Complete Library is loading")
+            indexing.databaseMaintenanceStatus = .failed(L("status.complete_library_loading"))
             return
         }
 
         guard indexingDatabase != nil else {
-            indexing.databaseMaintenanceStatus = .failed("Database is not initialized")
+            indexing.databaseMaintenanceStatus = .failed(L("status.database_not_initialized"))
             return
         }
 
@@ -655,7 +663,7 @@ extension AppCoordinator {
 
         if let availableBytes = Self.availableDiskSpaceBytes(for: databaseURL),
            availableBytes < max(statsBefore.databaseFileBytes, 100 * 1024 * 1024) {
-            indexing.databaseMaintenanceStatus = .failed("Not enough free disk space")
+            indexing.databaseMaintenanceStatus = .failed(L("status.not_enough_disk_space"))
             return
         }
 
@@ -681,7 +689,7 @@ extension AppCoordinator {
                 let bytesBefore = statsBefore.databaseFileBytes + statsBefore.walFileBytes
                 let bytesAfter = statsAfter.databaseFileBytes + statsAfter.walFileBytes
                 let reclaimedBytes = max(0, bytesBefore - bytesAfter)
-                indexing.databaseMaintenanceStatus = .completed("Reclaimed \(Self.formattedBytes(reclaimedBytes))")
+                indexing.databaseMaintenanceStatus = .completed(L("status.reclaimed", Self.formattedBytes(reclaimedBytes)))
             } catch {
                 guard !Task.isCancelled else {
                     return
