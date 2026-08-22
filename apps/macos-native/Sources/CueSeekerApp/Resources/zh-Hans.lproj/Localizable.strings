@@ -255,3 +255,111 @@
 "playback.episodes_empty" = "还没有剧集。";
 "playback.video_count" = "%d 个视频";
 "playback.shiori_count" = "%d 个 Shiori";
+
+/* Settings categories */
+"settings.category.library" = "媒体库";
+"settings.category.play" = "播放";
+"settings.category.appearance" = "外观";
+"settings.category.search" = "搜索";
+"settings.category.decode" = "解码";
+"settings.category.maintenance" = "维护";
+"settings.category.developer" = "开发者选项";
+
+/* Settings: Library */
+"settings.library.description" = "管理用于索引和搜索的字幕文件夹。";
+"settings.library.add_folder" = "添加文件夹";
+"settings.library.index_now" = "立即索引";
+"settings.library.choose_folder" = "选择字幕文件夹";
+"settings.library.empty_title" = "没有字幕文件夹";
+"settings.library.empty_message" = "选择一个包含字幕文件的本地文件夹。";
+"settings.library.remove_folder_title" = "移除文件夹？";
+"settings.library.remove_folder_message" = "要从字幕求索中移除“%@”吗？这不会删除本地文件。";
+"settings.library.database_path" = "数据库：%@";
+"settings.library.removing" = "正在移除 %@…";
+"settings.library.removed" = "已移除 %@";
+"settings.library.indexing" = "正在索引 %@…";
+"settings.library.indexing_folder" = "正在索引第 %1$d/%2$d 个文件夹：%3$@…";
+"settings.library.indexed" = "已索引 %@";
+"settings.library.indexed_folders" = "已索引 %d 个文件夹";
+"settings.library.index_failed" = "索引 %@ 失败";
+"settings.library.files_failed" = "%1$d 个文件失败。首个：%2$@";
+"settings.library.scanned" = "已扫描 %d";
+"settings.library.indexed_files" = "已索引 %d 个文件";
+"settings.library.entries" = "%d 个条目";
+"settings.library.unchanged" = "%d 个未变更";
+"settings.library.missing_videos" = "%d 个缺失视频";
+"settings.library.unreadable" = "%d 个无法读取";
+
+/* Settings: Play */
+"settings.play.auto_pause" = "台词结束后自动暂停";
+"settings.play.auto_switch" = "自动切换到播放列表中的下一条台词";
+"settings.play.auto_switch_gap" = "自动切换间隔";
+
+/* Settings: Appearance */
+"settings.appearance.description" = "选择字幕求索如何跟随浅色和深色模式。";
+"settings.appearance.mode" = "外观模式";
+"settings.appearance.note" = "“自动”会跟随当前 macOS 系统外观。";
+"settings.appearance.light" = "浅色";
+"settings.appearance.dark" = "深色";
+"settings.appearance.auto" = "自动";
+"settings.appearance.accessibility" = "外观 %@";
+
+/* Settings: Search */
+"settings.search.description" = "选择台词在搜索中的呈现方式。";
+"settings.search.show_cue_group" = "显示台词组";
+"settings.search.prefill" = "用聚焦台词预填";
+"settings.search.prefill_note" = "从播放覆盖层打开命令面板时，自动填入当前聚焦的台词。";
+
+/* Settings: Deep Link */
+"settings.deep_link.description" = "选择字幕求索如何处理 Deep Links。";
+"settings.deep_link.play_first" = "播放第一条搜索结果";
+"settings.deep_link.play_first_note" = "自动播放完整首页搜索结果中的第一条。";
+
+/* Settings: Decode */
+"settings.decode.description" = "选择播放使用的视频解码模式。";
+"settings.decode.decoder" = "解码器";
+"settings.decode.note" = "对新打开的播放会话生效。";
+"settings.decode.hardware" = "硬件解码";
+"settings.decode.software" = "软件解码";
+"settings.decode.auto" = "自动";
+"settings.decode.accessibility" = "解码器 %@";
+
+/* Settings: Maintenance */
+"settings.maintenance.description" = "查看本地数据库存储并回收未使用空间。";
+"settings.maintenance.database_size" = "数据库大小";
+"settings.maintenance.used_estimate" = "已用估算";
+"settings.maintenance.reclaimable" = "可回收空间";
+"settings.maintenance.wal_size" = "WAL 大小";
+"settings.maintenance.shm_size" = "SHM 大小";
+"settings.maintenance.compaction_recommended" = "建议进行压缩";
+"settings.maintenance.within_threshold" = "数据库存储在维护阈值以内";
+"settings.maintenance.stats_unavailable" = "无法获取存储统计";
+"settings.maintenance.refresh" = "刷新";
+"settings.maintenance.compact" = "压缩数据库";
+"settings.maintenance.compact_title" = "压缩数据库？";
+"settings.maintenance.compact_confirm" = "压缩";
+"settings.maintenance.compact_message" = "字幕求索将回收未使用的 SQLite 空间。压缩期间搜索和索引会暂停。";
+"settings.maintenance.loading_stats" = "正在加载存储统计…";
+"settings.maintenance.compacting" = "正在压缩数据库…";
+
+/* Settings: Developer */
+"settings.developer.description" = "配置开发期间使用的本地诊断功能。";
+"settings.developer.e2e_logs" = "搜索 E2E JSON 日志";
+"settings.developer.e2e_logs_note" = "将每次搜索运行记录为 logs/search-e2e/ 下的 JSONL 文件。";
+"settings.developer.fts_diagnostics" = "FTS 词表诊断";
+"settings.developer.fts_diagnostics_note" = "为本地开发者工具启用 fts5vocab 诊断。";
+"settings.developer.fts_data" = "FTS 词表数据";
+"settings.developer.terms" = "词条";
+"settings.developer.doc_refs" = "文档引用";
+"settings.developer.occurrences" = "出现次数";
+"settings.developer.query_terms" = "查询词条";
+"settings.developer.query_terms_value" = "查询词条：%@";
+"settings.developer.most_frequent" = "高频词条";
+"settings.developer.no_query_terms" = "没有查询词条。";
+"settings.developer.no_vocabulary" = "没有词表数据。";
+"settings.developer.no_data" = "未加载数据。";
+"settings.developer.loading" = "正在加载词表数据…";
+"settings.developer.disabled" = "已禁用";
+"settings.developer.updated" = "更新于 %@";
+"settings.developer.docs" = "文档 %@";
+"settings.developer.occ" = "出现 %@";

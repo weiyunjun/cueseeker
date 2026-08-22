@@ -255,3 +255,111 @@
 "playback.episodes_empty" = "No episodes yet.";
 "playback.video_count" = "%d videos";
 "playback.shiori_count" = "%d shioris";
+
+/* Settings categories */
+"settings.category.library" = "Library";
+"settings.category.play" = "Play";
+"settings.category.appearance" = "Appearance";
+"settings.category.search" = "Search";
+"settings.category.decode" = "Decode";
+"settings.category.maintenance" = "Maintenance";
+"settings.category.developer" = "Developer";
+
+/* Settings: Library */
+"settings.library.description" = "Manage subtitle folders used for indexing and search.";
+"settings.library.add_folder" = "Add Folder";
+"settings.library.index_now" = "Index Now";
+"settings.library.choose_folder" = "Choose Subtitle Folder";
+"settings.library.empty_title" = "No Subtitle Folders";
+"settings.library.empty_message" = "Choose a local folder containing subtitle files.";
+"settings.library.remove_folder_title" = "Remove Folder?";
+"settings.library.remove_folder_message" = "Remove “%@” from CueSeeker? This will not delete local files.";
+"settings.library.database_path" = "Database: %@";
+"settings.library.removing" = "Removing %@…";
+"settings.library.removed" = "Removed %@";
+"settings.library.indexing" = "Indexing %@...";
+"settings.library.indexing_folder" = "Indexing folder %1$d of %2$d: %3$@...";
+"settings.library.indexed" = "Indexed %@";
+"settings.library.indexed_folders" = "Indexed %d folder(s)";
+"settings.library.index_failed" = "Failed to index %@";
+"settings.library.files_failed" = "%1$d file(s) failed. First: %2$@";
+"settings.library.scanned" = "%d scanned";
+"settings.library.indexed_files" = "%d indexed files";
+"settings.library.entries" = "%d entries";
+"settings.library.unchanged" = "%d unchanged";
+"settings.library.missing_videos" = "%d missing videos";
+"settings.library.unreadable" = "%d unreadable";
+
+/* Settings: Play */
+"settings.play.auto_pause" = "Auto Pause After a Cue Finishes";
+"settings.play.auto_switch" = "Auto Switch to Next Cues in Playlist";
+"settings.play.auto_switch_gap" = "Auto Switch Gap";
+
+/* Settings: Appearance */
+"settings.appearance.description" = "Choose how CueSeeker follows light and dark mode.";
+"settings.appearance.mode" = "Appearance Mode";
+"settings.appearance.note" = "Auto follows the current macOS system appearance.";
+"settings.appearance.light" = "Light";
+"settings.appearance.dark" = "Dark";
+"settings.appearance.auto" = "Auto";
+"settings.appearance.accessibility" = "Appearance %@";
+
+/* Settings: Search */
+"settings.search.description" = "Choose how cues are presented in Search.";
+"settings.search.show_cue_group" = "Show Cue Group";
+"settings.search.prefill" = "Prefill with Focused Cue";
+"settings.search.prefill_note" = "Automatically fill the Command Panel with the focused cue when opened from Playback Overlay.";
+
+/* Settings: Deep Link */
+"settings.deep_link.description" = "Choose how CueSeeker handles Deep Links.";
+"settings.deep_link.play_first" = "Play First Search Result";
+"settings.deep_link.play_first_note" = "Automatically play the first result from the complete first search page.";
+
+/* Settings: Decode */
+"settings.decode.description" = "Choose the video decode mode used by playback.";
+"settings.decode.decoder" = "Decoder";
+"settings.decode.note" = "Applies to newly opened playback sessions.";
+"settings.decode.hardware" = "Hardware";
+"settings.decode.software" = "Software";
+"settings.decode.auto" = "Auto";
+"settings.decode.accessibility" = "Decoder %@";
+
+/* Settings: Maintenance */
+"settings.maintenance.description" = "Review local database storage and reclaim unused space.";
+"settings.maintenance.database_size" = "Database Size";
+"settings.maintenance.used_estimate" = "Used Estimate";
+"settings.maintenance.reclaimable" = "Reclaimable Space";
+"settings.maintenance.wal_size" = "WAL Size";
+"settings.maintenance.shm_size" = "SHM Size";
+"settings.maintenance.compaction_recommended" = "Compaction recommended";
+"settings.maintenance.within_threshold" = "Database storage is within the maintenance threshold";
+"settings.maintenance.stats_unavailable" = "Storage stats unavailable";
+"settings.maintenance.refresh" = "Refresh";
+"settings.maintenance.compact" = "Compact Database";
+"settings.maintenance.compact_title" = "Compact Database?";
+"settings.maintenance.compact_confirm" = "Compact";
+"settings.maintenance.compact_message" = "CueSeeker will reclaim unused SQLite space. Search and indexing are paused while compaction runs.";
+"settings.maintenance.loading_stats" = "Loading storage stats...";
+"settings.maintenance.compacting" = "Compacting database...";
+
+/* Settings: Developer */
+"settings.developer.description" = "Configure local diagnostics used during development.";
+"settings.developer.e2e_logs" = "Search E2E JSON Logs";
+"settings.developer.e2e_logs_note" = "Record each Search run as JSONL under logs/search-e2e/.";
+"settings.developer.fts_diagnostics" = "FTS Vocabulary Diagnostics";
+"settings.developer.fts_diagnostics_note" = "Enable fts5vocab diagnostics for local developer tools.";
+"settings.developer.fts_data" = "FTS Vocabulary Data";
+"settings.developer.terms" = "Terms";
+"settings.developer.doc_refs" = "Doc refs";
+"settings.developer.occurrences" = "Occurrences";
+"settings.developer.query_terms" = "Query Terms";
+"settings.developer.query_terms_value" = "Query Terms: %@";
+"settings.developer.most_frequent" = "Most Frequent Terms";
+"settings.developer.no_query_terms" = "No query terms.";
+"settings.developer.no_vocabulary" = "No vocabulary data.";
+"settings.developer.no_data" = "No data loaded.";
+"settings.developer.loading" = "Loading vocabulary data...";
+"settings.developer.disabled" = "Disabled";
+"settings.developer.updated" = "Updated %@";
+"settings.developer.docs" = "docs %@";
+"settings.developer.occ" = "occ %@";

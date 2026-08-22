@@ -3,6 +3,8 @@ import CueSeekerCore
 import SwiftUI
 
 struct SettingsLibraryCategory: View {
+    // Observed so the copy below is re-read when the language changes.
+    @EnvironmentObject private var localization: AppLocalizationStore
     @EnvironmentObject private var appState: AppCoordinator
     @EnvironmentObject private var indexing: IndexingStore
     @State private var folderPendingRemoval: URL?
@@ -12,10 +14,10 @@ struct SettingsLibraryCategory: View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(alignment: .top, spacing: 16) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Library")
+                    Text(L("settings.category.library"))
                         .font(.title2)
                         .fontWeight(.semibold)
-                    Text("Manage subtitle folders used for indexing and search.")
+                    Text(L("settings.library.description"))
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
@@ -26,14 +28,14 @@ struct SettingsLibraryCategory: View {
                     Button {
                         chooseFolder()
                     } label: {
-                        Label("Add Folder", systemImage: "folder.badge.plus")
+                        Label(L("settings.library.add_folder"), systemImage: "folder.badge.plus")
                     }
                     .disabled(indexing.isLibraryFolderOperationActive || isChoosingFolder)
 
                     Button {
                         appState.indexAllFolders()
                     } label: {
-                        Label("Index Now", systemImage: "arrow.clockwise")
+                        Label(L("settings.library.index_now"), systemImage: "arrow.clockwise")
                     }
                     .disabled(indexing.selectedFolders.isEmpty || indexing.isLibraryFolderOperationActive)
                 }
@@ -43,9 +45,9 @@ struct SettingsLibraryCategory: View {
 
             if indexing.selectedFolders.isEmpty {
                 EmptyStateView(
-                    title: "No Subtitle Folders",
+                    title: L("settings.library.empty_title"),
                     systemImage: "folder",
-                    message: "Choose a local folder containing subtitle files."
+                    message: L("settings.library.empty_message")
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
@@ -56,19 +58,19 @@ struct SettingsLibraryCategory: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(WorkbenchRedesignColors.bgSurface)
         .alert(
-            "Remove Folder?",
+            L("settings.library.remove_folder_title"),
             isPresented: removalConfirmationBinding,
             presenting: folderPendingRemoval
         ) { folder in
-            Button("Cancel", role: .cancel) {
+            Button(L("common.cancel"), role: .cancel) {
                 folderPendingRemoval = nil
             }
-            Button("Remove", role: .destructive) {
+            Button(L("common.remove"), role: .destructive) {
                 appState.removeFolder(folder)
                 folderPendingRemoval = nil
             }
         } message: { folder in
-            Text("Remove \"\(folder.lastPathComponent)\" from CueSeeker? This will not delete local files.")
+            Text(L("settings.library.remove_folder_message", folder.lastPathComponent))
         }
     }
 
@@ -102,7 +104,7 @@ struct SettingsLibraryCategory: View {
             Button {
                 folderPendingRemoval = folder
             } label: {
-                Label("Remove", systemImage: "minus.circle")
+                Label(L("common.remove"), systemImage: "minus.circle")
             }
             .disabled(indexing.isLibraryFolderOperationActive)
         }
@@ -127,7 +129,7 @@ struct SettingsLibraryCategory: View {
 
         isChoosingFolder = true
         let panel = NSOpenPanel()
-        panel.title = "Choose Subtitle Folder"
+        panel.title = L("settings.library.choose_folder")
         panel.canChooseFiles = false
         panel.canChooseDirectories = true
         panel.allowsMultipleSelection = false
@@ -158,7 +160,7 @@ struct SettingsLibraryCategory: View {
                     .foregroundStyle(.red)
             }
 
-            Text("Database: \(appState.databaseURL.path)")
+            Text(L("settings.library.database_path", appState.databaseURL.path))
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
@@ -168,11 +170,11 @@ struct SettingsLibraryCategory: View {
                 HStack(spacing: 8) {
                     ProgressView()
                         .controlSize(.small)
-                    Text("Removing \(folder.lastPathComponent)…")
+                    Text(L("settings.library.removing", folder.lastPathComponent))
                         .font(.subheadline)
                 }
             } else if let removedFolder = indexing.removedFolderNotice {
-                Label("Removed \(removedFolder.lastPathComponent)", systemImage: "checkmark.circle")
+                Label(L("settings.library.removed", removedFolder.lastPathComponent), systemImage: "checkmark.circle")
                     .foregroundStyle(.green)
             } else {
                 switch indexing.indexingStatus {
@@ -182,25 +184,25 @@ struct SettingsLibraryCategory: View {
                     HStack(spacing: 8) {
                         ProgressView()
                             .controlSize(.small)
-                        Text("Indexing \(folder.lastPathComponent)...")
+                        Text(L("settings.library.indexing", folder.lastPathComponent))
                             .font(.subheadline)
                     }
                 case .indexingAll(let folder, let completedFolders, let totalFolders):
                     HStack(spacing: 8) {
                         ProgressView()
                             .controlSize(.small)
-                        Text("Indexing folder \(completedFolders + 1) of \(totalFolders): \(folder.lastPathComponent)...")
+                        Text(L("settings.library.indexing_folder", completedFolders + 1, totalFolders, folder.lastPathComponent))
                             .font(.subheadline)
                     }
                 case .completed(let folder, let result):
                     VStack(alignment: .leading, spacing: 4) {
-                        Label("Indexed \(folder.lastPathComponent)", systemImage: "checkmark.circle")
+                        Label(L("settings.library.indexed", folder.lastPathComponent), systemImage: "checkmark.circle")
                             .foregroundStyle(.green)
                         Text(indexingSummary(result))
                             .font(.caption)
                             .foregroundStyle(.secondary)
                         if !result.failedFiles.isEmpty {
-                            Text("\(result.failedFiles.count) file(s) failed. First: \(result.failedFiles[0].reason)")
+                            Text(L("settings.library.files_failed", result.failedFiles.count, result.failedFiles[0].reason))
                                 .font(.caption)
                                 .foregroundStyle(.orange)
                                 .lineLimit(2)
@@ -208,13 +210,13 @@ struct SettingsLibraryCategory: View {
                     }
                 case .completedAll(let folderCount, let result):
                     VStack(alignment: .leading, spacing: 4) {
-                        Label("Indexed \(folderCount) folder(s)", systemImage: "checkmark.circle")
+                        Label(L("settings.library.indexed_folders", folderCount), systemImage: "checkmark.circle")
                             .foregroundStyle(.green)
                         Text(indexingSummary(result))
                             .font(.caption)
                             .foregroundStyle(.secondary)
                         if !result.failedFiles.isEmpty {
-                            Text("\(result.failedFiles.count) file(s) failed. First: \(result.failedFiles[0].reason)")
+                            Text(L("settings.library.files_failed", result.failedFiles.count, result.failedFiles[0].reason))
                                 .font(.caption)
                                 .foregroundStyle(.orange)
                                 .lineLimit(2)
@@ -222,7 +224,7 @@ struct SettingsLibraryCategory: View {
                     }
                 case .failed(let folder, let message):
                     VStack(alignment: .leading, spacing: 4) {
-                        Label("Failed to index \(folder.lastPathComponent)", systemImage: "exclamationmark.triangle")
+                        Label(L("settings.library.index_failed", folder.lastPathComponent), systemImage: "exclamationmark.triangle")
                             .foregroundStyle(.red)
                         Text(message)
                             .font(.caption)
@@ -248,12 +250,12 @@ struct SettingsLibraryCategory: View {
 
     private func indexingSummary(_ result: SubtitleIndexingResult) -> String {
         [
-            "\(result.scannedSubtitleFiles) scanned",
-            "\(result.indexedSubtitleFiles) indexed files",
-            "\(result.indexedSubtitleEntries) entries",
-            "\(result.skippedUnchangedSubtitleFiles) unchanged",
-            "\(result.skippedMissingVideo) missing videos",
-            "\(result.skippedUnreadableSubtitle) unreadable"
+            L("settings.library.scanned", result.scannedSubtitleFiles),
+            L("settings.library.indexed_files", result.indexedSubtitleFiles),
+            L("settings.library.entries", result.indexedSubtitleEntries),
+            L("settings.library.unchanged", result.skippedUnchangedSubtitleFiles),
+            L("settings.library.missing_videos", result.skippedMissingVideo),
+            L("settings.library.unreadable", result.skippedUnreadableSubtitle)
         ].joined(separator: " · ")
     }
 }

@@ -141,11 +141,11 @@ enum AppAppearanceMode: String, CaseIterable, Identifiable {
     var displayName: String {
         switch self {
         case .light:
-            "Light"
+            L("settings.appearance.light")
         case .dark:
-            "Dark"
+            L("settings.appearance.dark")
         case .auto:
-            "Auto"
+            L("settings.appearance.auto")
         }
     }
 

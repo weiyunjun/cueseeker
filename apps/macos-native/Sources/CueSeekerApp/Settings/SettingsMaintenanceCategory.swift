@@ -1,6 +1,8 @@
 import SwiftUI
 
 struct SettingsMaintenanceCategory: View {
+    // Observed so the copy below is re-read when the language changes.
+    @EnvironmentObject private var localization: AppLocalizationStore
     @EnvironmentObject private var appState: AppCoordinator
     @EnvironmentObject private var indexing: IndexingStore
     @State private var isShowingCompactConfirmation = false
@@ -8,10 +10,10 @@ struct SettingsMaintenanceCategory: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
             VStack(alignment: .leading, spacing: 4) {
-                Text("Maintenance")
+                Text(L("settings.category.maintenance"))
                     .font(.title2)
                     .fontWeight(.semibold)
-                Text("Review local database storage and reclaim unused space.")
+                Text(L("settings.maintenance.description"))
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
@@ -21,25 +23,25 @@ struct SettingsMaintenanceCategory: View {
 
                 if let stats = indexing.databaseStorageStats {
                     VStack(alignment: .leading, spacing: 8) {
-                        storageRow("Database Size", bytes: stats.databaseFileBytes)
-                        storageRow("Used Estimate", bytes: stats.usedBytesEstimate)
-                        storageRow("Reclaimable Space", bytes: stats.freelistBytes)
-                        storageRow("WAL Size", bytes: stats.walFileBytes)
-                        storageRow("SHM Size", bytes: stats.shmFileBytes)
+                        storageRow(L("settings.maintenance.database_size"), bytes: stats.databaseFileBytes)
+                        storageRow(L("settings.maintenance.used_estimate"), bytes: stats.usedBytesEstimate)
+                        storageRow(L("settings.maintenance.reclaimable"), bytes: stats.freelistBytes)
+                        storageRow(L("settings.maintenance.wal_size"), bytes: stats.walFileBytes)
+                        storageRow(L("settings.maintenance.shm_size"), bytes: stats.shmFileBytes)
                     }
                     .padding(.vertical, 4)
 
                     if appState.isDatabaseCompactionRecommended {
-                        Label("Compaction recommended", systemImage: "exclamationmark.circle")
+                        Label(L("settings.maintenance.compaction_recommended"), systemImage: "exclamationmark.circle")
                             .font(.caption)
                             .foregroundStyle(.orange)
                     } else {
-                        Label("Database storage is within the maintenance threshold", systemImage: "checkmark.circle")
+                        Label(L("settings.maintenance.within_threshold"), systemImage: "checkmark.circle")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
                 } else {
-                    Text("Storage stats unavailable")
+                    Text(L("settings.maintenance.stats_unavailable"))
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
@@ -49,7 +51,7 @@ struct SettingsMaintenanceCategory: View {
                 Button {
                     appState.refreshDatabaseStorageStats()
                 } label: {
-                    Label("Refresh", systemImage: "arrow.clockwise")
+                    Label(L("settings.maintenance.refresh"), systemImage: "arrow.clockwise")
                 }
                 .disabled(
                     indexing.folderRemovalStatus.isRemoving
@@ -59,12 +61,12 @@ struct SettingsMaintenanceCategory: View {
                 Button {
                     isShowingCompactConfirmation = true
                 } label: {
-                    Label("Compact Database", systemImage: "arrow.down.doc")
+                    Label(L("settings.maintenance.compact"), systemImage: "arrow.down.doc")
                 }
                 .disabled(!appState.canCompactDatabase)
             }
 
-            Text("Database: \(appState.databaseURL.path)")
+            Text(L("settings.library.database_path", appState.databaseURL.path))
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
@@ -78,13 +80,13 @@ struct SettingsMaintenanceCategory: View {
         .onAppear {
             appState.refreshDatabaseStorageStats()
         }
-        .alert("Compact Database?", isPresented: $isShowingCompactConfirmation) {
-            Button("Cancel", role: .cancel) {}
-            Button("Compact", role: .destructive) {
+        .alert(L("settings.maintenance.compact_title"), isPresented: $isShowingCompactConfirmation) {
+            Button(L("common.cancel"), role: .cancel) {}
+            Button(L("settings.maintenance.compact_confirm"), role: .destructive) {
                 appState.compactDatabaseStorage()
             }
         } message: {
-            Text("CueSeeker will reclaim unused SQLite space. Search and indexing are paused while compaction runs.")
+            Text(L("settings.maintenance.compact_message"))
         }
     }
 
@@ -97,14 +99,14 @@ struct SettingsMaintenanceCategory: View {
             HStack(spacing: 8) {
                 ProgressView()
                     .controlSize(.small)
-                Text("Loading storage stats...")
+                Text(L("settings.maintenance.loading_stats"))
                     .font(.subheadline)
             }
         case .compacting:
             HStack(spacing: 8) {
                 ProgressView()
                     .controlSize(.small)
-                Text("Compacting database...")
+                Text(L("settings.maintenance.compacting"))
                     .font(.subheadline)
             }
         case .completed(let message):

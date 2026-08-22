@@ -1,24 +1,26 @@
 import SwiftUI
 
 struct SettingsAppearanceCategory: View {
+    // Observed so the copy below is re-read when the language changes.
+    @EnvironmentObject private var localization: AppLocalizationStore
     @EnvironmentObject private var settingsStore: SettingsStore
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
             VStack(alignment: .leading, spacing: 4) {
-                Text("Appearance")
+                Text(L("settings.category.appearance"))
                     .font(.title2)
                     .fontWeight(.semibold)
-                Text("Choose how CueSeeker follows light and dark mode.")
+                Text(L("settings.appearance.description"))
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
 
             HStack(spacing: 16) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Appearance Mode")
+                    Text(L("settings.appearance.mode"))
                         .font(.headline)
-                    Text("Auto follows the current macOS system appearance.")
+                    Text(L("settings.appearance.note"))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -59,8 +61,8 @@ private struct AppearanceModeSegmentedControl: View {
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("Appearance \(mode.displayName)")
-                .accessibilityValue(isSelected ? "Selected" : "Not selected")
+                .accessibilityLabel(L("settings.appearance.accessibility", mode.displayName))
+                .accessibilityValue(isSelected ? L("facet.selected") : L("facet.not_selected"))
             }
         }
         .padding(3)

@@ -255,3 +255,111 @@
 "playback.episodes_empty" = "尚無單集。";
 "playback.video_count" = "%d 部影片";
 "playback.shiori_count" = "%d 個 Shiori";
+
+/* Settings categories */
+"settings.category.library" = "媒體庫";
+"settings.category.play" = "播放";
+"settings.category.appearance" = "外觀";
+"settings.category.search" = "搜尋";
+"settings.category.decode" = "解碼";
+"settings.category.maintenance" = "維護";
+"settings.category.developer" = "開發者選項";
+
+/* Settings: Library */
+"settings.library.description" = "管理用於索引與搜尋的字幕資料夾。";
+"settings.library.add_folder" = "加入資料夾";
+"settings.library.index_now" = "立即索引";
+"settings.library.choose_folder" = "選擇字幕資料夾";
+"settings.library.empty_title" = "沒有字幕資料夾";
+"settings.library.empty_message" = "選擇一個包含字幕檔案的本機資料夾。";
+"settings.library.remove_folder_title" = "移除資料夾？";
+"settings.library.remove_folder_message" = "要從字幕求索中移除「%@」嗎？這不會刪除本機檔案。";
+"settings.library.database_path" = "資料庫：%@";
+"settings.library.removing" = "正在移除 %@⋯";
+"settings.library.removed" = "已移除 %@";
+"settings.library.indexing" = "正在索引 %@⋯";
+"settings.library.indexing_folder" = "正在索引第 %1$d/%2$d 個資料夾：%3$@⋯";
+"settings.library.indexed" = "已索引 %@";
+"settings.library.indexed_folders" = "已索引 %d 個資料夾";
+"settings.library.index_failed" = "索引 %@ 失敗";
+"settings.library.files_failed" = "%1$d 個檔案失敗。第一個：%2$@";
+"settings.library.scanned" = "已掃描 %d";
+"settings.library.indexed_files" = "已索引 %d 個檔案";
+"settings.library.entries" = "%d 個項目";
+"settings.library.unchanged" = "%d 個未變更";
+"settings.library.missing_videos" = "%d 部遺失影片";
+"settings.library.unreadable" = "%d 個無法讀取";
+
+/* Settings: Play */
+"settings.play.auto_pause" = "台詞結束後自動暫停";
+"settings.play.auto_switch" = "自動切換至播放列表中的下一條台詞";
+"settings.play.auto_switch_gap" = "自動切換間隔";
+
+/* Settings: Appearance */
+"settings.appearance.description" = "選擇字幕求索如何跟隨淺色與深色模式。";
+"settings.appearance.mode" = "外觀模式";
+"settings.appearance.note" = "「自動」會跟隨目前的 macOS 系統外觀。";
+"settings.appearance.light" = "淺色";
+"settings.appearance.dark" = "深色";
+"settings.appearance.auto" = "自動";
+"settings.appearance.accessibility" = "外觀 %@";
+
+/* Settings: Search */
+"settings.search.description" = "選擇台詞在搜尋中的呈現方式。";
+"settings.search.show_cue_group" = "顯示台詞組";
+"settings.search.prefill" = "以聚焦台詞預先填入";
+"settings.search.prefill_note" = "從播放覆蓋層開啟指令面板時，自動填入目前聚焦的台詞。";
+
+/* Settings: Deep Link */
+"settings.deep_link.description" = "選擇字幕求索如何處理 Deep Links。";
+"settings.deep_link.play_first" = "播放第一筆搜尋結果";
+"settings.deep_link.play_first_note" = "自動播放完整第一頁搜尋結果中的第一筆。";
+
+/* Settings: Decode */
+"settings.decode.description" = "選擇播放使用的影片解碼模式。";
+"settings.decode.decoder" = "解碼器";
+"settings.decode.note" = "對新開啟的播放工作階段生效。";
+"settings.decode.hardware" = "硬體解碼";
+"settings.decode.software" = "軟體解碼";
+"settings.decode.auto" = "自動";
+"settings.decode.accessibility" = "解碼器 %@";
+
+/* Settings: Maintenance */
+"settings.maintenance.description" = "檢視本機資料庫儲存空間並回收未使用空間。";
+"settings.maintenance.database_size" = "資料庫大小";
+"settings.maintenance.used_estimate" = "已用估計";
+"settings.maintenance.reclaimable" = "可回收空間";
+"settings.maintenance.wal_size" = "WAL 大小";
+"settings.maintenance.shm_size" = "SHM 大小";
+"settings.maintenance.compaction_recommended" = "建議進行壓縮";
+"settings.maintenance.within_threshold" = "資料庫儲存空間在維護門檻以內";
+"settings.maintenance.stats_unavailable" = "無法取得儲存空間統計";
+"settings.maintenance.refresh" = "重新整理";
+"settings.maintenance.compact" = "壓縮資料庫";
+"settings.maintenance.compact_title" = "壓縮資料庫？";
+"settings.maintenance.compact_confirm" = "壓縮";
+"settings.maintenance.compact_message" = "字幕求索將回收未使用的 SQLite 空間。壓縮期間搜尋與索引會暫停。";
+"settings.maintenance.loading_stats" = "正在載入儲存空間統計⋯";
+"settings.maintenance.compacting" = "正在壓縮資料庫⋯";
+
+/* Settings: Developer */
+"settings.developer.description" = "設定開發期間使用的本機診斷功能。";
+"settings.developer.e2e_logs" = "搜尋 E2E JSON 日誌";
+"settings.developer.e2e_logs_note" = "將每次搜尋執行記錄為 logs/search-e2e/ 下的 JSONL 檔案。";
+"settings.developer.fts_diagnostics" = "FTS 詞表診斷";
+"settings.developer.fts_diagnostics_note" = "為本機開發者工具啟用 fts5vocab 診斷。";
+"settings.developer.fts_data" = "FTS 詞表資料";
+"settings.developer.terms" = "詞條";
+"settings.developer.doc_refs" = "文件引用";
+"settings.developer.occurrences" = "出現次數";
+"settings.developer.query_terms" = "查詢詞條";
+"settings.developer.query_terms_value" = "查詢詞條：%@";
+"settings.developer.most_frequent" = "高頻詞條";
+"settings.developer.no_query_terms" = "沒有查詢詞條。";
+"settings.developer.no_vocabulary" = "沒有詞表資料。";
+"settings.developer.no_data" = "未載入資料。";
+"settings.developer.loading" = "正在載入詞表資料⋯";
+"settings.developer.disabled" = "已停用";
+"settings.developer.updated" = "更新於 %@";
+"settings.developer.docs" = "文件 %@";
+"settings.developer.occ" = "出現 %@";

@@ -1,28 +1,30 @@
 import SwiftUI
 
 struct SettingsSearchCategory: View {
+    // Observed so the copy below is re-read when the language changes.
+    @EnvironmentObject private var localization: AppLocalizationStore
     @EnvironmentObject private var settingsStore: SettingsStore
     @EnvironmentObject private var cueGroupPresentation: CueGroupPresentationStore
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
             VStack(alignment: .leading, spacing: 4) {
-                Text("Search")
+                Text(L("settings.category.search"))
                     .font(.title2)
                     .fontWeight(.semibold)
-                Text("Choose how cues are presented in Search.")
+                Text(L("settings.search.description"))
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
 
             VStack(alignment: .leading, spacing: 14) {
                 HStack(spacing: 16) {
-                    Text("Show Cue Group")
+                    Text(L("settings.search.show_cue_group"))
                         .font(.headline)
 
                     Spacer()
 
-                    Toggle("Show Cue Group", isOn: Binding(
+                    Toggle(L("settings.search.show_cue_group"), isOn: Binding(
                         get: { cueGroupPresentation.isEnabled },
                         set: { cueGroupPresentation.setFromUser($0) }
                     ))
@@ -33,10 +35,10 @@ struct SettingsSearchCategory: View {
 
                 HStack(alignment: .top, spacing: 16) {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("Prefill with Focused Cue")
+                        Text(L("settings.search.prefill"))
                             .font(.headline)
                         Text(
-                            "Automatically fill the Command Panel with the focused cue when opened from Playback Overlay."
+                            L("settings.search.prefill_note")
                         )
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
@@ -45,7 +47,7 @@ struct SettingsSearchCategory: View {
                     Spacer()
 
                     Toggle(
-                        "Prefill with Focused Cue",
+                        L("settings.search.prefill"),
                         isOn: $settingsStore.prefillCommandPanelWithFocusedCue
                     )
                     .labelsHidden()

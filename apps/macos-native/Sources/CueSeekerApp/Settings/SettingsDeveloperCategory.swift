@@ -2,6 +2,8 @@ import CueSeekerCore
 import SwiftUI
 
 struct SettingsDeveloperCategory: View {
+    // Observed so the copy below is re-read when the language changes.
+    @EnvironmentObject private var localization: AppLocalizationStore
     @Environment(\.colorScheme) private var colorScheme
     @EnvironmentObject private var appState: AppCoordinator
     @EnvironmentObject private var settingsStore: SettingsStore
@@ -12,19 +14,19 @@ struct SettingsDeveloperCategory: View {
         WorkbenchScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Developer")
+                    Text(L("settings.category.developer"))
                         .font(.title2)
                         .fontWeight(.semibold)
-                    Text("Configure local diagnostics used during development.")
+                    Text(L("settings.developer.description"))
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
 
                 HStack(spacing: 16) {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("Search E2E JSON Logs")
+                        Text(L("settings.developer.e2e_logs"))
                             .font(.headline)
-                        Text("Record each Search run as JSONL under logs/search-e2e/.")
+                        Text(L("settings.developer.e2e_logs_note"))
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -38,9 +40,9 @@ struct SettingsDeveloperCategory: View {
 
                 HStack(spacing: 16) {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("FTS Vocabulary Diagnostics")
+                        Text(L("settings.developer.fts_diagnostics"))
                             .font(.headline)
-                        Text("Enable fts5vocab diagnostics for local developer tools.")
+                        Text(L("settings.developer.fts_diagnostics_note"))
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -69,7 +71,7 @@ struct SettingsDeveloperCategory: View {
     private var ftsVocabularyDiagnosticsPanel: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 12) {
-                Text("FTS Vocabulary Data")
+                Text(L("settings.developer.fts_data"))
                     .font(.headline)
 
                 Spacer()
@@ -77,7 +79,7 @@ struct SettingsDeveloperCategory: View {
                 Button {
                     appState.refreshSearchFTSVocabularyDiagnostics()
                 } label: {
-                    Label("Refresh", systemImage: "arrow.clockwise")
+                    Label(L("settings.maintenance.refresh"), systemImage: "arrow.clockwise")
                 }
                 .disabled(
                     !settingsStore.searchFTSVocabularyDiagnosticsEnabled
@@ -91,15 +93,15 @@ struct SettingsDeveloperCategory: View {
                settingsStore.searchFTSVocabularyDiagnosticsEnabled {
                 HStack(spacing: 18) {
                     ftsVocabularyMetricView(
-                        title: "Terms",
+                        title: L("settings.developer.terms"),
                         value: diagnostics.uniqueTermCount
                     )
                     ftsVocabularyMetricView(
-                        title: "Doc refs",
+                        title: L("settings.developer.doc_refs"),
                         value: diagnostics.totalDocumentReferences
                     )
                     ftsVocabularyMetricView(
-                        title: "Occurrences",
+                        title: L("settings.developer.occurrences"),
                         value: diagnostics.totalOccurrences
                     )
                 }
@@ -109,13 +111,13 @@ struct SettingsDeveloperCategory: View {
                 ftsVocabularyTermsSection(
                     title: currentQueryTermsTitle,
                     terms: diagnostics.queryTerms,
-                    emptyMessage: "No query terms."
+                    emptyMessage: L("settings.developer.no_query_terms")
                 )
 
                 ftsVocabularyTermsSection(
-                    title: "Most Frequent Terms",
+                    title: L("settings.developer.most_frequent"),
                     terms: diagnostics.mostFrequentTerms,
-                    emptyMessage: "No vocabulary data."
+                    emptyMessage: L("settings.developer.no_vocabulary")
                 )
             }
         }
@@ -133,25 +135,25 @@ struct SettingsDeveloperCategory: View {
     @ViewBuilder
     private var ftsVocabularyDiagnosticsStatusView: some View {
         if !settingsStore.searchFTSVocabularyDiagnosticsEnabled {
-            Text("Disabled")
+            Text(L("settings.developer.disabled"))
                 .font(.caption)
                 .foregroundStyle(.secondary)
         } else {
             switch indexing.searchFTSVocabularyDiagnosticsStatus {
             case .idle:
-                Text("No data loaded.")
+                Text(L("settings.developer.no_data"))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             case .loading:
                 HStack(spacing: 8) {
                     ProgressView()
                         .controlSize(.small)
-                    Text("Loading vocabulary data...")
+                    Text(L("settings.developer.loading"))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
             case .completed(let date):
-                Text("Updated \(date.formatted(date: .omitted, time: .standard))")
+                Text(L("settings.developer.updated", date.formatted(date: .omitted, time: .standard)))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             case .failed(let message):
@@ -164,7 +166,7 @@ struct SettingsDeveloperCategory: View {
 
     private var currentQueryTermsTitle: String {
         let query = search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
-        return query.isEmpty ? "Query Terms" : "Query Terms: \(query)"
+        return query.isEmpty ? L("settings.developer.query_terms") : L("settings.developer.query_terms_value", query)
     }
 
     private func ftsVocabularyMetricView(title: String, value: Int) -> some View {
@@ -204,12 +206,12 @@ struct SettingsDeveloperCategory: View {
 
                             Spacer()
 
-                            Text("docs \(formattedCount(term.documentCount))")
+                            Text(L("settings.developer.docs", formattedCount(term.documentCount)))
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                                 .monospacedDigit()
 
-                            Text("occ \(formattedCount(term.occurrenceCount))")
+                            Text(L("settings.developer.occ", formattedCount(term.occurrenceCount)))
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                                 .monospacedDigit()

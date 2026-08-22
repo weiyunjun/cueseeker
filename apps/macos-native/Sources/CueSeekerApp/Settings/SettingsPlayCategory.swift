@@ -1,6 +1,8 @@
 import SwiftUI
 
 struct SettingsPlayCategory: View {
+    // Observed so the copy below is re-read when the language changes.
+    @EnvironmentObject private var localization: AppLocalizationStore
     @EnvironmentObject private var settingsStore: SettingsStore
     @State private var gapDraft = ""
     @FocusState private var isGapFieldFocused: Bool
@@ -8,13 +10,13 @@ struct SettingsPlayCategory: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
             VStack(alignment: .leading, spacing: 4) {
-                Text("Play")
+                Text(L("settings.category.play"))
                     .font(.title2)
                     .fontWeight(.semibold)
             }
 
             HStack(spacing: 16) {
-                Text("Auto Pause After a Cue Finishes")
+                Text(L("settings.play.auto_pause"))
                     .font(.headline)
 
                 Spacer()
@@ -25,7 +27,7 @@ struct SettingsPlayCategory: View {
             }
 
             HStack(spacing: 16) {
-                Text("Auto Switch to Next Cues in Playlist")
+                Text(L("settings.play.auto_switch"))
                     .font(.headline)
 
                 Spacer()
@@ -37,7 +39,7 @@ struct SettingsPlayCategory: View {
             }
 
             HStack(spacing: 16) {
-                Text("Auto Switch Gap")
+                Text(L("settings.play.auto_switch_gap"))
                     .font(.headline)
 
                 Spacer()

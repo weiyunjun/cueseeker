@@ -16,23 +16,23 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .library:
-            "Library"
+            L("settings.category.library")
         case .play:
-            "Play"
+            L("settings.category.play")
         case .appearance:
-            "Appearance"
+            L("settings.category.appearance")
         case .search:
-            "Search"
+            L("settings.category.search")
         case .language:
             L("settings.category.language")
         case .urlScheme:
             "Deep Link"
         case .decode:
-            "Decode"
+            L("settings.category.decode")
         case .maintenance:
-            "Maintenance"
+            L("settings.category.maintenance")
         case .developer:
-            "Developer"
+            L("settings.category.developer")
         }
     }
 
