@@ -11,7 +11,9 @@ struct ShioriCardGroupView: View {
         VStack(alignment: .leading, spacing: 12) {
             CardGroupHeader(
                 title: group.subtitleDisplayTitle,
-                countText: "\(group.totalCount) \(group.totalCount == 1 ? "shiori" : "shioris")",
+                countText: group.totalCount == 1
+                    ? L("shiori.count.one", group.totalCount)
+                    : L("shiori.count.other", group.totalCount),
                 isCollapsed: group.isCollapsed,
                 onToggle: onToggle,
                 onExportToAnki: group.shioris.isEmpty ? nil : onExportToAnki

@@ -163,3 +163,32 @@
 "cover.support_note" = "支援 JPG、JPEG、PNG 與 GIF，且不超過 20 MB。";
 "cover.crop_editor" = "封面裁切編輯器";
 "cover.save" = "儲存";
+
+/* Shiori */
+"shiori.overview.summary" = "%1$d 個列表 · %2$d 條台詞";
+"shiori.cue_count" = "%d 條台詞";
+"shiori.count.one" = "%d 個 Shiori";
+"shiori.count.other" = "%d 個 Shiori";
+"shiori.new_list" = "新增列表";
+"shiori.edit_list" = "編輯列表";
+"shiori.delete_list" = "刪除列表";
+"shiori.delete_list.message" = "列表「%@」及其中的 Shiori 項目將被刪除。原始字幕與影片檔案不會被刪除。";
+"shiori.delete" = "刪除";
+"shiori.create" = "建立";
+"shiori.save" = "儲存";
+"shiori.list_name" = "列表名稱";
+"shiori.list_name.placeholder" = "輸入列表名稱";
+"shiori.description" = "描述";
+"shiori.description.placeholder" = "加入描述（選填）";
+"shiori.validation.name_required" = "請輸入列表名稱。";
+"shiori.validation.name_too_long" = "列表名稱不能超過 30 個字元。";
+"shiori.validation.description_too_long" = "描述不能超過 100 個字元。";
+"shiori.validation.name_taken" = "已有同名的列表。";
+
+/* Toast */
+"toast.shiori.moved" = "已移動至「%@」";
+"toast.shiori.duplicated" = "已複製至「%@」";
+"toast.shiori.destination_unavailable" = "此列表已不存在";
+"toast.shiori.move_failed" = "無法移動 Shiori，請重試";
+"toast.shiori.duplicate_failed" = "無法複製 Shiori，請重試";
+"toast.shiori.already_exists" = "「%@」中已有此 Shiori";

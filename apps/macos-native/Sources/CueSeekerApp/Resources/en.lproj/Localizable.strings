@@ -163,3 +163,32 @@
 "cover.support_note" = "Support: JPG, JPEG, PNG, and GIF no more than 20 MB.";
 "cover.crop_editor" = "Cover crop editor";
 "cover.save" = "Save";
+
+/* Shiori */
+"shiori.overview.summary" = "%1$d Lists · %2$d Cues";
+"shiori.cue_count" = "%d Cues";
+"shiori.count.one" = "%d shiori";
+"shiori.count.other" = "%d shioris";
+"shiori.new_list" = "New List";
+"shiori.edit_list" = "Edit List";
+"shiori.delete_list" = "Delete List";
+"shiori.delete_list.message" = "The list “%@” and its Shiori entries will be deleted. The original subtitle and video files will not be deleted.";
+"shiori.delete" = "Delete";
+"shiori.create" = "Create";
+"shiori.save" = "Save";
+"shiori.list_name" = "List Name";
+"shiori.list_name.placeholder" = "Enter a list name";
+"shiori.description" = "Description";
+"shiori.description.placeholder" = "Add a description (optional)";
+"shiori.validation.name_required" = "Enter a list name.";
+"shiori.validation.name_too_long" = "List name must be 30 characters or fewer.";
+"shiori.validation.description_too_long" = "Description must be 100 characters or fewer.";
+"shiori.validation.name_taken" = "A list with this name already exists.";
+
+/* Toast */
+"toast.shiori.moved" = "Moved to “%@”";
+"toast.shiori.duplicated" = "Duplicated to “%@”";
+"toast.shiori.destination_unavailable" = "The list is no longer available";
+"toast.shiori.move_failed" = "Couldn’t move Shiori. Try again";
+"toast.shiori.duplicate_failed" = "Couldn’t duplicate Shiori. Try again";
+"toast.shiori.already_exists" = "Shiori already exists in “%@”";

@@ -163,3 +163,32 @@
 "cover.support_note" = "支持 JPG、JPEG、PNG 和 GIF，且不超过 20 MB。";
 "cover.crop_editor" = "封面裁剪编辑器";
 "cover.save" = "保存";
+
+/* Shiori */
+"shiori.overview.summary" = "%1$d 个列表 · %2$d 条台词";
+"shiori.cue_count" = "%d 条台词";
+"shiori.count.one" = "%d 个 Shiori";
+"shiori.count.other" = "%d 个 Shiori";
+"shiori.new_list" = "新建列表";
+"shiori.edit_list" = "编辑列表";
+"shiori.delete_list" = "删除列表";
+"shiori.delete_list.message" = "列表“%@”及其中的 Shiori 条目将被删除。原始字幕和视频文件不会被删除。";
+"shiori.delete" = "删除";
+"shiori.create" = "创建";
+"shiori.save" = "保存";
+"shiori.list_name" = "列表名称";
+"shiori.list_name.placeholder" = "输入列表名称";
+"shiori.description" = "描述";
+"shiori.description.placeholder" = "添加描述（可选）";
+"shiori.validation.name_required" = "请输入列表名称。";
+"shiori.validation.name_too_long" = "列表名称不能超过 30 个字符。";
+"shiori.validation.description_too_long" = "描述不能超过 100 个字符。";
+"shiori.validation.name_taken" = "已存在同名列表。";
+
+/* Toast */
+"toast.shiori.moved" = "已移动到“%@”";
+"toast.shiori.duplicated" = "已复制到“%@”";
+"toast.shiori.destination_unavailable" = "该列表已不存在";
+"toast.shiori.move_failed" = "无法移动 Shiori，请重试";
+"toast.shiori.duplicate_failed" = "无法复制 Shiori，请重试";
+"toast.shiori.already_exists" = "“%@”中已存在该 Shiori";

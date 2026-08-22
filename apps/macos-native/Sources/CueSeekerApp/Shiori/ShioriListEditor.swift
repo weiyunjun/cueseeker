@@ -9,18 +9,18 @@ enum ShioriListEditorMode {
     var title: String {
         switch self {
         case .newList:
-            "New List"
+            L("shiori.new_list")
         case .edit:
-            "Edit List"
+            L("shiori.edit_list")
         }
     }
 
     var primaryActionTitle: String {
         switch self {
         case .newList:
-            "Create"
+            L("shiori.create")
         case .edit:
-            "Save"
+            L("shiori.save")
         }
     }
 
@@ -83,13 +83,13 @@ final class ShioriListEditorSession: ObservableObject, Identifiable {
         case nil:
             nil
         case .emptyName:
-            "Enter a list name."
+            L("shiori.validation.name_required")
         case .nameTooLong:
-            "List name must be 30 characters or fewer."
+            L("shiori.validation.name_too_long")
         case .descriptionTooLong:
-            "Description must be 100 characters or fewer."
+            L("shiori.validation.description_too_long")
         case .duplicateName:
-            "A list with this name already exists."
+            L("shiori.validation.name_taken")
         }
     }
 }
@@ -176,16 +176,16 @@ struct ShioriListEditorDialog: View {
     private var formRegion: some View {
         VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing4) {
             WorkbenchFormTextField(
-                label: "List Name",
-                placeholder: "Enter a list name",
+                label: L("shiori.list_name"),
+                placeholder: L("shiori.list_name.placeholder"),
                 text: $session.name,
                 validationMessage: session.nameValidationMessage,
                 focus: $isNameFocused
             )
 
             WorkbenchFormTextArea(
-                label: "Description",
-                placeholder: "Add a description (optional)",
+                label: L("shiori.description"),
+                placeholder: L("shiori.description.placeholder"),
                 text: $session.listDescription,
                 validationMessage: session.descriptionValidationMessage,
                 focus: $isDescriptionFocused
@@ -198,7 +198,7 @@ struct ShioriListEditorDialog: View {
             Spacer(minLength: 0)
 
             WorkbenchButton(
-                title: "Cancel",
+                title: L("common.cancel"),
                 isRedesign: true,
                 action: onClose
             )

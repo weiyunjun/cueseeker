@@ -2,6 +2,8 @@ import SwiftUI
 import CueSeekerCore
 
 struct ShioriListOverviewView: View {
+    // Observed so the copy below is re-read when the language changes.
+    @EnvironmentObject private var localization: AppLocalizationStore
     @EnvironmentObject private var appState: AppCoordinator
     @EnvironmentObject private var shioriStore: ShioriStore
     @State private var pendingDeletion: ShioriListSummary?
@@ -9,10 +11,13 @@ struct ShioriListOverviewView: View {
     var body: some View {
         LibraryCardContextMenuHost { openContextMenu in
             LibraryOverviewLayout(
-                title: "Shiori",
-                summaryText: "\(shioriStore.listOverview.lists.count) Lists · "
-                    + "\(shioriStore.listOverview.uniqueCueCount) Cues",
-                actionTitle: "New List",
+                title: L("sidebar.shiori"),
+                summaryText: L(
+                    "shiori.overview.summary",
+                    shioriStore.listOverview.lists.count,
+                    shioriStore.listOverview.uniqueCueCount
+                ),
+                actionTitle: L("shiori.new_list"),
                 actionSystemImage: "plus",
                 action: appState.beginCreatingShioriList
             ) {
@@ -31,10 +36,10 @@ struct ShioriListOverviewView: View {
         .overlay {
             if let pendingDeletion {
                 WorkbenchConfirmationDialog(
-                    title: "Delete List",
-                    message: "The list “\(pendingDeletion.list.name)” and its Shiori entries will be deleted. The original subtitle and video files will not be deleted.",
-                    destructiveTitle: "Delete",
-                    cancelTitle: "Cancel",
+                    title: L("shiori.delete_list"),
+                    message: L("shiori.delete_list.message", pendingDeletion.list.name),
+                    destructiveTitle: L("shiori.delete"),
+                    cancelTitle: L("common.cancel"),
                     onDestructive: {
                         if appState.deleteShioriList(id: pendingDeletion.id) {
                             self.pendingDeletion = nil
@@ -118,7 +123,7 @@ private struct ShioriListCard: View {
             ZStack(alignment: .bottomTrailing) {
                 ShioriListCoverView(coverPath: summary.list.coverPath)
 
-                Text("\(summary.cueCount) Cues")
+                Text(L("shiori.cue_count", summary.cueCount))
                     .font(.system(
                         size: WorkbenchControlMetrics.redesignFontSizeLibraryTimeBadge,
                         weight: .semibold
@@ -155,12 +160,12 @@ private struct ShioriListCard: View {
     private var contextMenuItems: [LibraryCardContextMenuItem] {
         [
             LibraryCardContextMenuItem(
-                title: "Edit List",
+                title: L("shiori.edit_list"),
                 systemImage: "square.and.pencil",
                 action: onEdit
             ),
             LibraryCardContextMenuItem(
-                title: "Delete List",
+                title: L("shiori.delete_list"),
                 systemImage: "trash",
                 isEnabled: canDelete,
                 action: onDelete

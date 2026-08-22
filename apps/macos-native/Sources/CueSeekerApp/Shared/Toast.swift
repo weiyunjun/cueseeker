@@ -36,36 +36,42 @@ enum ShioriToastRequest {
     static func moveSucceeded(listName: String) -> ToastRequest {
         ToastRequest(
             scenarioID: "shiori.move.succeeded",
-            message: "Moved to “\(listName)”"
+            message: L("toast.shiori.moved", listName)
         )
     }
 
     static func duplicateSucceeded(listName: String) -> ToastRequest {
         ToastRequest(
             scenarioID: "shiori.duplicate.succeeded",
-            message: "Duplicated to “\(listName)”"
+            message: L("toast.shiori.duplicated", listName)
         )
     }
 
-    static let destinationUnavailable = ToastRequest(
-        scenarioID: "shiori.destination.unavailable",
-        message: "The list is no longer available"
-    )
+    static var destinationUnavailable: ToastRequest {
+        ToastRequest(
+            scenarioID: "shiori.destination.unavailable",
+            message: L("toast.shiori.destination_unavailable")
+        )
+    }
 
-    static let moveFailed = ToastRequest(
-        scenarioID: "shiori.move.failed",
-        message: "Couldn’t move Shiori. Try again"
-    )
+    static var moveFailed: ToastRequest {
+        ToastRequest(
+            scenarioID: "shiori.move.failed",
+            message: L("toast.shiori.move_failed")
+        )
+    }
 
-    static let duplicateFailed = ToastRequest(
-        scenarioID: "shiori.duplicate.failed",
-        message: "Couldn’t duplicate Shiori. Try again"
-    )
+    static var duplicateFailed: ToastRequest {
+        ToastRequest(
+            scenarioID: "shiori.duplicate.failed",
+            message: L("toast.shiori.duplicate_failed")
+        )
+    }
 
     static func destinationAlreadyContainsCue(listName: String) -> ToastRequest {
         ToastRequest(
             scenarioID: "shiori.destination.cue.already_exists",
-            message: "Shiori already exists in “\(listName)”"
+            message: L("toast.shiori.already_exists", listName)
         )
     }
 }
