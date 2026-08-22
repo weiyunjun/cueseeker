@@ -2278,7 +2278,7 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
         let menu = WorkbenchPopoverPanel(isRedesign: true) {
             VStack(spacing: 0) {
                 WorkbenchPopoverRow(
-                    title: "Copy Selected Text",
+                    title: L("playback.copy_selected_text"),
                     systemImage: "doc.on.doc",
                     isRedesign: true,
                     showsCheckmarkSlot: false
@@ -2287,7 +2287,7 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
                     self?.onCopySelectedText(text)
                 }
                 WorkbenchPopoverRow(
-                    title: "Search Selected Text",
+                    title: L("playback.search_selected_text"),
                     systemImage: "magnifyingglass",
                     isRedesign: true,
                     showsCheckmarkSlot: false

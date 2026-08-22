@@ -7,7 +7,7 @@ enum PlaybackCueFooterMetrics {
 
 enum PlaybackCueFooterStatus {
     static func cues(totalCount: Int) -> String {
-        "\(max(0, totalCount)) cues"
+        L("playback.cue_count", max(0, totalCount))
     }
 
     static func searchResults(
@@ -18,14 +18,16 @@ enum PlaybackCueFooterStatus {
         let resolvedTotalCount = max(0, totalCount)
         let resolvedPreviewLimit = max(0, previewLimit)
         guard resolvedTotalCount > resolvedPreviewLimit || hasMoreResults else {
-            return "\(resolvedTotalCount) results"
+            return L("playback.result_count", resolvedTotalCount)
         }
-        return "\(resolvedTotalCount) results "
-            + "(Showing first \(resolvedPreviewLimit) results)"
+        return L("playback.result_count", resolvedTotalCount) + " "
+            + L("playback.result_preview_note", resolvedPreviewLimit)
     }
 }
 
 struct PlaybackCueFooter: View {
+    // Observed so the copy below is re-read when the language changes.
+    @EnvironmentObject private var localization: AppLocalizationStore
     let status: String
     let actionTitle: String
 
@@ -42,7 +44,7 @@ struct PlaybackCueFooter: View {
             Spacer(minLength: WorkbenchControlMetrics.redesignSpacing3)
 
             HStack(spacing: WorkbenchControlMetrics.redesignSpacing1) {
-                Text("Navigate")
+                Text(L("playback.navigate"))
                     .lineLimit(1)
                 PlaybackCueFooterKeycap(content: .text("↑"))
                 PlaybackCueFooterKeycap(content: .text("↓"))

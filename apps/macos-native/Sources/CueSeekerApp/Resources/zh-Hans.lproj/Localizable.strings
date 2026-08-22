@@ -192,3 +192,66 @@
 "toast.shiori.move_failed" = "无法移动 Shiori，请重试";
 "toast.shiori.duplicate_failed" = "无法复制 Shiori，请重试";
 "toast.shiori.already_exists" = "“%@”中已存在该 Shiori";
+
+/* Playback chrome */
+"playback.play" = "播放";
+"playback.pause" = "暂停";
+"playback.previous_video" = "上一个视频";
+"playback.next_video" = "下一个视频";
+"playback.repeat" = "循环";
+"playback.copy_screenshot" = "复制截图";
+"playback.subtitles" = "字幕";
+"playback.speed" = "播放速度";
+"playback.fullscreen" = "全屏";
+"playback.mute" = "静音";
+"playback.close_and_return" = "关闭视频并返回结果";
+"playback.minimize" = "最小化播放";
+"playback.no_video_selected" = "未选择视频";
+
+/* Playback HUD */
+"playback.hud.cue_text_copied" = "已复制台词";
+"playback.hud.selected_text_copied" = "已复制选中文本";
+"playback.hud.screenshot_copied" = "已复制截图";
+"playback.hud.deep_link_copied" = "已复制 Deep Link";
+"playback.hud.copy_failed" = "复制失败";
+"playback.hud.no_subtitle" = "无字幕";
+"playback.hud.auto_pause" = "自动暂停";
+"playback.hud.shiori_saved" = "已保存 Shiori";
+"playback.hud.shiori_already_saved" = "Shiori 已存在";
+"playback.hud.shiori_removed" = "已移除 Shiori";
+"playback.hud.previous_result" = "上一条结果";
+"playback.hud.next_result" = "下一条结果";
+"playback.hud.no_result" = "没有结果";
+"playback.hud.previous_library_video" = "上一个媒体库视频";
+"playback.hud.next_library_video" = "下一个媒体库视频";
+"playback.hud.no_library_video" = "没有媒体库视频";
+"playback.hud.previous_bookmark" = "上一个书签";
+"playback.hud.next_bookmark" = "下一个书签";
+"playback.hud.no_bookmark" = "没有书签";
+"playback.hud.enter_fullscreen" = "进入全屏";
+"playback.hud.exit_fullscreen" = "退出全屏";
+"playback.hud.subtitles_on" = "字幕已开";
+"playback.hud.subtitles_off" = "字幕已关";
+"playback.hud.muted" = "已静音";
+
+/* Playback subtitle focus, collage and command panel */
+"playback.copy_selected_text" = "复制选中文本";
+"playback.search_selected_text" = "搜索选中文本";
+"playback.collage" = "长截图";
+"playback.collage.exit" = "退出";
+"playback.collage.editing" = "正在编辑长截图";
+"playback.collage.preview" = "长截图预览";
+"playback.collage.copy" = "复制长截图";
+"playback.collage.export" = "导出长截图";
+"playback.select" = "选择";
+"playback.source.current" = "当前";
+"playback.source.playlist" = "播放列表";
+"playback.cue_count" = "%d 条台词";
+"playback.result_count" = "%d 条结果";
+"playback.result_preview_note" = "（仅显示前 %d 条结果）";
+"playback.navigate" = "导航";
+"playback.open" = "打开";
+"playback.back" = "返回";
+"playback.episodes_empty" = "还没有剧集。";
+"playback.video_count" = "%d 个视频";
+"playback.shiori_count" = "%d 个 Shiori";

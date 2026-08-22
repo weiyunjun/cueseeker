@@ -26,7 +26,7 @@ struct PlaybackChromeSnapshot: Equatable {
     let hasPlaybackSelection: Bool
 
     static let empty = PlaybackChromeSnapshot(
-        displayTitle: "No video selected",
+        displayTitle: L("playback.no_video_selected"),
         canGoPrevious: false,
         canGoNext: false,
         hasPlaybackSelection: false

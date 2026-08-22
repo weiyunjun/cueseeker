@@ -192,3 +192,66 @@
 "toast.shiori.move_failed" = "無法移動 Shiori，請重試";
 "toast.shiori.duplicate_failed" = "無法複製 Shiori，請重試";
 "toast.shiori.already_exists" = "「%@」中已有此 Shiori";
+
+/* Playback chrome */
+"playback.play" = "播放";
+"playback.pause" = "暫停";
+"playback.previous_video" = "上一部影片";
+"playback.next_video" = "下一部影片";
+"playback.repeat" = "循環";
+"playback.copy_screenshot" = "拷貝截圖";
+"playback.subtitles" = "字幕";
+"playback.speed" = "播放速度";
+"playback.fullscreen" = "全螢幕";
+"playback.mute" = "靜音";
+"playback.close_and_return" = "關閉影片並返回結果";
+"playback.minimize" = "縮小播放";
+"playback.no_video_selected" = "未選擇影片";
+
+/* Playback HUD */
+"playback.hud.cue_text_copied" = "已拷貝台詞";
+"playback.hud.selected_text_copied" = "已拷貝選取文字";
+"playback.hud.screenshot_copied" = "已拷貝截圖";
+"playback.hud.deep_link_copied" = "已拷貝 Deep Link";
+"playback.hud.copy_failed" = "拷貝失敗";
+"playback.hud.no_subtitle" = "沒有字幕";
+"playback.hud.auto_pause" = "自動暫停";
+"playback.hud.shiori_saved" = "已儲存 Shiori";
+"playback.hud.shiori_already_saved" = "Shiori 已存在";
+"playback.hud.shiori_removed" = "已移除 Shiori";
+"playback.hud.previous_result" = "上一筆結果";
+"playback.hud.next_result" = "下一筆結果";
+"playback.hud.no_result" = "沒有結果";
+"playback.hud.previous_library_video" = "上一部媒體庫影片";
+"playback.hud.next_library_video" = "下一部媒體庫影片";
+"playback.hud.no_library_video" = "沒有媒體庫影片";
+"playback.hud.previous_bookmark" = "上一個書籤";
+"playback.hud.next_bookmark" = "下一個書籤";
+"playback.hud.no_bookmark" = "沒有書籤";
+"playback.hud.enter_fullscreen" = "進入全螢幕";
+"playback.hud.exit_fullscreen" = "結束全螢幕";
+"playback.hud.subtitles_on" = "字幕已開";
+"playback.hud.subtitles_off" = "字幕已關";
+"playback.hud.muted" = "已靜音";
+
+/* Playback subtitle focus, collage and command panel */
+"playback.copy_selected_text" = "拷貝選取文字";
+"playback.search_selected_text" = "搜尋選取文字";
+"playback.collage" = "長截圖";
+"playback.collage.exit" = "結束";
+"playback.collage.editing" = "正在編輯長截圖";
+"playback.collage.preview" = "長截圖預覽";
+"playback.collage.copy" = "拷貝長截圖";
+"playback.collage.export" = "匯出長截圖";
+"playback.select" = "選取";
+"playback.source.current" = "目前";
+"playback.source.playlist" = "播放列表";
+"playback.cue_count" = "%d 條台詞";
+"playback.result_count" = "%d 筆結果";
+"playback.result_preview_note" = "（僅顯示前 %d 筆結果）";
+"playback.navigate" = "瀏覽";
+"playback.open" = "打開";
+"playback.back" = "返回";
+"playback.episodes_empty" = "尚無單集。";
+"playback.video_count" = "%d 部影片";
+"playback.shiori_count" = "%d 個 Shiori";

@@ -52,6 +52,8 @@ struct PlaybackSubtitleFocusLayer: View {
 }
 
 struct PlaybackOverlay: View {
+    // Observed so the copy below is re-read when the language changes.
+    @EnvironmentObject private var localization: AppLocalizationStore
     @ObservedObject var session: PlaybackSubtitleFocusSessionStore
     let snapshot: SubtitleFocusSnapshot
     let cues: [SubtitleFocusCue]
@@ -240,7 +242,7 @@ private struct PlaybackOverlayTopBar: View {
                             weight: WorkbenchControlMetrics.redesignButtonIconWeight
                         ))
 
-                    Text("Editing Collage")
+                    Text(L("playback.collage.editing"))
                         .font(.system(
                             size: PlaybackOverlayMetrics.tabFontSize,
                             weight: .semibold
@@ -298,7 +300,7 @@ private struct PlaybackOverlayTopBar: View {
             if selectedModule == .current {
                 HStack {
                     WorkbenchToolbarButton(
-                        title: isEditingCollage ? "Exit" : "Collage",
+                        title: isEditingCollage ? L("playback.collage.exit") : L("playback.collage"),
                         systemImage: "square.and.pencil",
                         isRedesign: true
                     ) {
@@ -345,7 +347,7 @@ private struct PlaybackSubtitlePlaylist: View {
                 status: PlaybackCueFooterStatus.cues(
                     totalCount: windowStore.snapshot.totalCount
                 ),
-                actionTitle: "Play"
+                actionTitle: L("playback.play")
             )
             .frame(maxWidth: PlaybackSubtitleFocusMetrics.contentMaxWidth)
             .padding(
@@ -358,6 +360,8 @@ private struct PlaybackSubtitlePlaylist: View {
 }
 
 struct PlaybackSubtitleFocusOverlay: View {
+    // Observed so the copy below is re-read when the language changes.
+    @EnvironmentObject private var localization: AppLocalizationStore
     let snapshot: SubtitleFocusSnapshot
     let cues: [SubtitleFocusCue]
     let displayTitle: String
@@ -506,8 +510,8 @@ struct PlaybackSubtitleFocusOverlay: View {
                         totalCount: snapshot.totalCount
                     ),
                     actionTitle: collageSelectionPlan == nil
-                        ? "Play"
-                        : "Select"
+                        ? L("playback.play")
+                        : L("playback.select")
                 )
                 .frame(maxWidth: PlaybackSubtitleFocusMetrics.contentMaxWidth)
                 .padding(

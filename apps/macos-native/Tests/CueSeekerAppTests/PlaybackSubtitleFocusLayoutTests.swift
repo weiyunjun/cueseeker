@@ -3178,6 +3178,7 @@ func subtitleFocusOverlayRendersAppearanceBackgroundAtStageSize() throws {
     ] {
         let renderer = ImageRenderer(
             content: PlaybackSubtitleFocusOverlay(snapshot: snapshot)
+                .environmentObject(makeTestAppLocalizationStore())
                 .frame(width: 1_280, height: 720)
                 .environment(\.colorScheme, colorScheme)
         )
@@ -3282,6 +3283,7 @@ func subtitleFocusOverlayConsumesPointerAcrossItsCompleteSurface() throws {
                 return true
             }
         )
+        .environmentObject(makeTestAppLocalizationStore())
         .frame(width: 1_280, height: 720)
     )
     let parent = NSView(frame: CGRect(x: 0, y: 0, width: 1_280, height: 720))

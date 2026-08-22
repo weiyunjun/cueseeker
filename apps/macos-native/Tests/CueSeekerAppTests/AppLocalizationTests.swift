@@ -98,3 +98,16 @@ private func localizableKeys(for language: AppLanguage) -> Set<String> {
     }
     return Set(entries.keys)
 }
+
+/// The focus overlay renders localized copy, so hosting it outside the App
+/// shell still needs a language store in the environment.
+@MainActor
+func makeTestAppLocalizationStore() -> AppLocalizationStore {
+    AppLocalizationStore(
+        language: .followSystem,
+        userDefaults: UserDefaults(
+            suiteName: "CueSeekerLocalizationHost-\(UUID().uuidString)"
+        ) ?? .standard,
+        userDefaultsKey: "appLanguage"
+    )
+}

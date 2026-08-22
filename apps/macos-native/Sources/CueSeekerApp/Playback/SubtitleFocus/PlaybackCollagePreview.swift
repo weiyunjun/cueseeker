@@ -3,6 +3,8 @@ import CoreGraphics
 import SwiftUI
 
 struct PlaybackCollagePreviewPane: View {
+    // Observed so the copy below is re-read when the language changes.
+    @EnvironmentObject private var localization: AppLocalizationStore
     @ObservedObject var store: PlaybackCollagePreviewStore
     let displayTitle: String
     let uiProbeScope: String?
@@ -16,7 +18,7 @@ struct PlaybackCollagePreviewPane: View {
             alignment: .leading,
             spacing: WorkbenchControlMetrics.redesignSpacing4
         ) {
-            Text("Collage Preview")
+            Text(L("playback.collage.preview"))
                 .font(.system(
                     size: WorkbenchControlMetrics.redesignFontSizeSectionTitle,
                     weight: .semibold
@@ -33,7 +35,7 @@ struct PlaybackCollagePreviewPane: View {
 
             HStack(spacing: WorkbenchControlMetrics.redesignSpacing3) {
                 WorkbenchButton(
-                    title: "Copy Collage",
+                    title: L("playback.collage.copy"),
                     systemImage: "doc.on.doc",
                     isRedesign: true,
                     action: {
@@ -41,7 +43,7 @@ struct PlaybackCollagePreviewPane: View {
                     }
                 )
                 WorkbenchButton(
-                    title: "Export Collage",
+                    title: L("playback.collage.export"),
                     systemImage: "square.and.arrow.up",
                     isRedesign: true,
                     action: {

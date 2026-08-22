@@ -192,3 +192,66 @@
 "toast.shiori.move_failed" = "Couldn’t move Shiori. Try again";
 "toast.shiori.duplicate_failed" = "Couldn’t duplicate Shiori. Try again";
 "toast.shiori.already_exists" = "Shiori already exists in “%@”";
+
+/* Playback chrome */
+"playback.play" = "Play";
+"playback.pause" = "Pause";
+"playback.previous_video" = "Previous video";
+"playback.next_video" = "Next video";
+"playback.repeat" = "Repeat";
+"playback.copy_screenshot" = "Copy screenshot";
+"playback.subtitles" = "Subtitles";
+"playback.speed" = "Playback speed";
+"playback.fullscreen" = "Fullscreen";
+"playback.mute" = "Mute";
+"playback.close_and_return" = "Close video and return to results";
+"playback.minimize" = "Minimize playback";
+"playback.no_video_selected" = "No video selected";
+
+/* Playback HUD */
+"playback.hud.cue_text_copied" = "Cue Text Copied";
+"playback.hud.selected_text_copied" = "Selected Text Copied";
+"playback.hud.screenshot_copied" = "Screenshot Copied";
+"playback.hud.deep_link_copied" = "Deep Link Copied";
+"playback.hud.copy_failed" = "Copy Failed";
+"playback.hud.no_subtitle" = "No Subtitle";
+"playback.hud.auto_pause" = "Auto Pause";
+"playback.hud.shiori_saved" = "Shiori Saved";
+"playback.hud.shiori_already_saved" = "Shiori Already Saved";
+"playback.hud.shiori_removed" = "Shiori Removed";
+"playback.hud.previous_result" = "Previous Result";
+"playback.hud.next_result" = "Next Result";
+"playback.hud.no_result" = "No Result";
+"playback.hud.previous_library_video" = "Previous Library Video";
+"playback.hud.next_library_video" = "Next Library Video";
+"playback.hud.no_library_video" = "No Library Video";
+"playback.hud.previous_bookmark" = "Previous Bookmark";
+"playback.hud.next_bookmark" = "Next Bookmark";
+"playback.hud.no_bookmark" = "No Bookmark";
+"playback.hud.enter_fullscreen" = "Enter Fullscreen";
+"playback.hud.exit_fullscreen" = "Exit Fullscreen";
+"playback.hud.subtitles_on" = "Subtitles On";
+"playback.hud.subtitles_off" = "Subtitles Off";
+"playback.hud.muted" = "Muted";
+
+/* Playback subtitle focus, collage and command panel */
+"playback.copy_selected_text" = "Copy Selected Text";
+"playback.search_selected_text" = "Search Selected Text";
+"playback.collage" = "Collage";
+"playback.collage.exit" = "Exit";
+"playback.collage.editing" = "Editing Collage";
+"playback.collage.preview" = "Collage Preview";
+"playback.collage.copy" = "Copy Collage";
+"playback.collage.export" = "Export Collage";
+"playback.select" = "Select";
+"playback.source.current" = "Current";
+"playback.source.playlist" = "Playlist";
+"playback.cue_count" = "%d cues";
+"playback.result_count" = "%d results";
+"playback.result_preview_note" = "(Showing first %d results)";
+"playback.navigate" = "Navigate";
+"playback.open" = "Open";
+"playback.back" = "Back";
+"playback.episodes_empty" = "No episodes yet.";
+"playback.video_count" = "%d videos";
+"playback.shiori_count" = "%d shioris";

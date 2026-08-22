@@ -20,11 +20,11 @@ struct LiquidGlassWindowControlButton: View {
         var accessibilityLabel: String {
             switch self {
             case .close:
-                return "Close video and return to results"
+                return L("playback.close_and_return")
             case .minimize:
-                return "Minimize playback"
+                return L("playback.minimize")
             case .zoom:
-                return "Fullscreen"
+                return L("playback.fullscreen")
             }
         }
     }

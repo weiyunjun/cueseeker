@@ -51,6 +51,8 @@ private struct PlaybackSpeedButtonAnchorKey: PreferenceKey {
 
 @MainActor
 struct PlaybackChromeView: View {
+    // Observed so the copy below is re-read when the language changes.
+    @EnvironmentObject private var localization: AppLocalizationStore
     let viewModel: PlaybackViewModel
     let timeline: PlaybackTimelineInteractionStore
     let controls: PlaybackChromeControls
@@ -168,7 +170,7 @@ struct PlaybackChromeView: View {
                     kind: .transport,
                     isDisabled: !controls.canGoPrevious,
                     hasPersistentBase: false,
-                    accessibilityLabel: "Previous video",
+                    accessibilityLabel: L("playback.previous_video"),
                     action: controls.goPrevious
                 )
 
@@ -178,7 +180,7 @@ struct PlaybackChromeView: View {
                     kind: .transport,
                     isDisabled: !controls.canGoNext,
                     hasPersistentBase: false,
-                    accessibilityLabel: "Next video",
+                    accessibilityLabel: L("playback.next_video"),
                     action: controls.goNext
                 )
             }
@@ -205,7 +207,7 @@ struct PlaybackChromeView: View {
                 systemName: "repeat",
                 kind: .transport,
                 isDisabled: !controls.canRepeatCurrentCue,
-                accessibilityLabel: "Repeat",
+                accessibilityLabel: L("playback.repeat"),
                 action: controls.repeatCurrentCue
             )
 
@@ -213,7 +215,7 @@ struct PlaybackChromeView: View {
                 timeline: timeline,
                 systemName: "photo",
                 kind: .transport,
-                accessibilityLabel: "Copy screenshot",
+                accessibilityLabel: L("playback.copy_screenshot"),
                 action: viewModel.copyCurrentFrameScreenshot
             )
 
@@ -231,7 +233,7 @@ struct PlaybackChromeView: View {
                     : "viewfinder",
                 kind: .transport,
                 isDisabled: controls.isFullscreenToggleDisabled,
-                accessibilityLabel: "Fullscreen",
+                accessibilityLabel: L("playback.fullscreen"),
                 action: controls.toggleFullscreen
             )
         }
@@ -350,7 +352,7 @@ private struct PlaybackPlayPauseChromeButton: View {
             systemName: viewModel.isPlaying ? "pause.fill" : "play.fill",
             kind: .transport,
             suppressesInteraction: timeline.isScrubbing,
-            accessibilityLabel: viewModel.isPlaying ? "Pause" : "Play",
+            accessibilityLabel: viewModel.isPlaying ? L("playback.pause") : L("playback.play"),
             action: action
         )
     }
@@ -366,7 +368,7 @@ private struct PlaybackSubtitleChromeButton: View {
             kind: .circle,
             isSelected: viewModel.areSubtitlesVisible,
             suppressesInteraction: timeline.isScrubbing,
-            accessibilityLabel: "Subtitles",
+            accessibilityLabel: L("playback.subtitles"),
             action: viewModel.toggleSubtitles
         )
     }
@@ -442,7 +444,7 @@ private struct PlaybackSpeedChromeButton: View {
                 suppressesInteraction: timeline.isScrubbing
             )
         )
-        .accessibilityLabel("Playback speed")
+        .accessibilityLabel(L("playback.speed"))
         .frame(
             width: PlaybackChromeMetrics.speedButtonWidth,
             height: PlaybackChromeMetrics.capsuleButtonHeight,

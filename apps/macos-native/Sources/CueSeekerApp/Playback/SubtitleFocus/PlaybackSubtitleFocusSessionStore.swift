@@ -54,15 +54,15 @@ enum PlaybackOverlayModule: String, CaseIterable, Equatable, Sendable {
     var label: String {
         switch self {
         case .current:
-            "Current"
+            L("playback.source.current")
         case .playlist:
-            "Playlist"
+            L("playback.source.playlist")
         case .search:
-            "Search"
+            L("sidebar.search")
         case .library:
-            "Library"
+            L("sidebar.library")
         case .shiori:
-            "Shiori"
+            L("sidebar.shiori")
         }
     }
 

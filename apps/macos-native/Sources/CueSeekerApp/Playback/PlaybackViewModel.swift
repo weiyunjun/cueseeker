@@ -525,7 +525,7 @@ public final class PlaybackViewModel: ObservableObject {
             PlaybackFeedback(
                 position: .center,
                 icon: copied ? .copy : .system("exclamationmark.triangle"),
-                text: copied ? "Cue Text Copied" : "No Subtitle"
+                text: copied ? L("playback.hud.cue_text_copied") : L("playback.hud.no_subtitle")
             ),
             durationMilliseconds: 1_000
         )
@@ -536,7 +536,7 @@ public final class PlaybackViewModel: ObservableObject {
             PlaybackFeedback(
                 position: .center,
                 icon: copied ? .copy : .system("exclamationmark.triangle"),
-                text: copied ? "Selected Text Copied" : "Copy Failed"
+                text: copied ? L("playback.hud.selected_text_copied") : L("playback.hud.copy_failed")
             ),
             durationMilliseconds: 1_000
         )
@@ -578,7 +578,7 @@ public final class PlaybackViewModel: ObservableObject {
             PlaybackFeedback(
                 position: .center,
                 systemImage: "photo",
-                text: "Screenshot Copied"
+                text: L("playback.hud.screenshot_copied")
             ),
             durationMilliseconds: 1_000
         )
@@ -589,7 +589,7 @@ public final class PlaybackViewModel: ObservableObject {
             PlaybackFeedback(
                 position: .center,
                 systemImage: "pause.fill",
-                text: "Auto Pause"
+                text: L("playback.hud.auto_pause")
             )
         )
     }
@@ -599,7 +599,7 @@ public final class PlaybackViewModel: ObservableObject {
             PlaybackFeedback(
                 position: .center,
                 systemImage: "repeat",
-                text: "Repeat"
+                text: L("playback.repeat")
             )
         )
     }
@@ -609,7 +609,7 @@ public final class PlaybackViewModel: ObservableObject {
             PlaybackFeedback(
                 position: .center,
                 icon: copied ? .copy : .system("exclamationmark.triangle"),
-                text: copied ? "Deep Link Copied" : "No Subtitle"
+                text: copied ? L("playback.hud.deep_link_copied") : L("playback.hud.no_subtitle")
             ),
             durationMilliseconds: 1_000
         )
@@ -621,25 +621,25 @@ public final class PlaybackViewModel: ObservableObject {
             PlaybackFeedback(
                 position: .center,
                 systemImage: "bookmark.fill",
-                text: "Shiori Saved"
+                text: L("playback.hud.shiori_saved")
             )
         case .alreadySaved:
             PlaybackFeedback(
                 position: .center,
                 systemImage: "bookmark.fill",
-                text: "Shiori Already Saved"
+                text: L("playback.hud.shiori_already_saved")
             )
         case .removed:
             PlaybackFeedback(
                 position: .center,
                 systemImage: "bookmark",
-                text: "Shiori Removed"
+                text: L("playback.hud.shiori_removed")
             )
         case .unavailable:
             PlaybackFeedback(
                 position: .center,
                 systemImage: "exclamationmark.triangle",
-                text: "No Subtitle"
+                text: L("playback.hud.no_subtitle")
             )
         }
 
@@ -651,7 +651,7 @@ public final class PlaybackViewModel: ObservableObject {
             PlaybackFeedback(
                 position: .center,
                 systemImage: isPlaying ? "play.fill" : "pause.fill",
-                text: isPlaying ? "Play" : "Pause"
+                text: isPlaying ? L("playback.play") : L("playback.pause")
             )
         )
     }
@@ -665,8 +665,8 @@ public final class PlaybackViewModel: ObservableObject {
                 position: direction == .previous ? .leading : .trailing,
                 systemImage: direction == .previous ? "chevron.left" : "chevron.right",
                 text: hasResult
-                    ? (direction == .previous ? "Previous Result" : "Next Result")
-                    : "No Result"
+                    ? (direction == .previous ? L("playback.hud.previous_result") : L("playback.hud.next_result"))
+                    : L("playback.hud.no_result")
             ),
             durationMilliseconds: 1_000
         )
@@ -681,8 +681,8 @@ public final class PlaybackViewModel: ObservableObject {
                 position: direction == .previous ? .leading : .trailing,
                 systemImage: direction == .previous ? "chevron.left" : "chevron.right",
                 text: hasResult
-                    ? (direction == .previous ? "Previous Library Video" : "Next Library Video")
-                    : "No Library Video"
+                    ? (direction == .previous ? L("playback.hud.previous_library_video") : L("playback.hud.next_library_video"))
+                    : L("playback.hud.no_library_video")
             ),
             durationMilliseconds: 1_000
         )
@@ -697,8 +697,8 @@ public final class PlaybackViewModel: ObservableObject {
                 position: direction == .previous ? .leading : .trailing,
                 systemImage: direction == .previous ? "chevron.left" : "chevron.right",
                 text: hasResult
-                    ? (direction == .previous ? "Previous Bookmark" : "Next Bookmark")
-                    : "No Bookmark"
+                    ? (direction == .previous ? L("playback.hud.previous_bookmark") : L("playback.hud.next_bookmark"))
+                    : L("playback.hud.no_bookmark")
             ),
             durationMilliseconds: 1_000
         )
@@ -708,7 +708,7 @@ public final class PlaybackViewModel: ObservableObject {
         showFeedback(
             PlaybackFeedback(
                 position: .center,
-                text: enteringFullscreen ? "Enter Fullscreen" : "Exit Fullscreen"
+                text: enteringFullscreen ? L("playback.hud.enter_fullscreen") : L("playback.hud.exit_fullscreen")
             ),
             durationMilliseconds: 1_000
         )
@@ -719,7 +719,7 @@ public final class PlaybackViewModel: ObservableObject {
             PlaybackFeedback(
                 position: .center,
                 systemImage: isVisible ? "captions.bubble.fill" : "captions.bubble",
-                text: isVisible ? "Subtitles On" : "Subtitles Off"
+                text: isVisible ? L("playback.hud.subtitles_on") : L("playback.hud.subtitles_off")
             ),
             durationMilliseconds: 1_000
         )
@@ -749,7 +749,7 @@ public final class PlaybackViewModel: ObservableObject {
             PlaybackFeedback(
                 position: .center,
                 systemImage: systemImage,
-                text: volume > 0 ? "\(Int(volume.rounded()))%" : "Muted"
+                text: volume > 0 ? "\(Int(volume.rounded()))%" : L("playback.hud.muted")
             )
         )
     }

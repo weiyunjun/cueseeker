@@ -2,6 +2,8 @@ import CueSeekerCore
 import SwiftUI
 
 struct PlaybackLibraryOverlay: View {
+    // Observed so the copy below is re-read when the language changes.
+    @EnvironmentObject private var localization: AppLocalizationStore
     @ObservedObject var store: PlaybackLibrarySessionStore
     @ObservedObject private var library: LibraryStore
     let onOpenEpisode: (CompleteLibraryVideoPresentation) -> Bool
@@ -110,7 +112,7 @@ private struct PlaybackLibraryEpisodeList: View {
                 .frame(width: 0, height: 0)
             }
         } else {
-            PlaybackLibraryEmptyHint("No episodes yet.")
+            PlaybackLibraryEmptyHint(L("playback.episodes_empty"))
         }
     }
 

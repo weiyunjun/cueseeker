@@ -2,6 +2,8 @@ import CueSeekerCore
 import SwiftUI
 
 struct PlaybackCommandPanel: View {
+    // Observed so the copy below is re-read when the language changes.
+    @EnvironmentObject private var localization: AppLocalizationStore
     @EnvironmentObject private var pointerVisibility:
         PlaybackPointerVisibilityStore
     @ObservedObject var appState: AppCoordinator
@@ -165,7 +167,7 @@ private struct PlaybackCommandPanelRoot: View {
     var body: some View {
         VStack(spacing: 0) {
             WorkbenchSearchField(
-                placeholder: "Search",
+                placeholder: L("sidebar.search"),
                 text: $query,
                 isRedesign: true,
                 autofocus: true,
@@ -181,7 +183,7 @@ private struct PlaybackCommandPanelRoot: View {
                 ).isEmpty {
                     PlaybackCommandPanelRootRow(
                         systemImage: "magnifyingglass",
-                        title: "Search",
+                        title: L("sidebar.search"),
                         detail: query,
                         isSelected: presentation.selectedOrdinal == 0
                     ) {
@@ -191,7 +193,7 @@ private struct PlaybackCommandPanelRoot: View {
 
                 PlaybackCommandPanelRootRow(
                     systemImage: "play.rectangle",
-                    title: "Recent Videos",
+                    title: L("sidebar.recent_videos"),
                     detail: nil,
                     isSelected: presentation.selectedOrdinal
                         == (trimmedQuery.isEmpty ? 0 : 1)
@@ -201,7 +203,7 @@ private struct PlaybackCommandPanelRoot: View {
 
                 PlaybackCommandPanelRootRow(
                     systemImage: "bookmark",
-                    title: "Recent Shioris",
+                    title: L("sidebar.recent_shioris"),
                     detail: nil,
                     isSelected: presentation.selectedOrdinal
                         == (trimmedQuery.isEmpty ? 1 : 2)
@@ -327,7 +329,7 @@ private struct PlaybackCommandPanelSecondaryHeader: View {
                 .buttonStyle(.plain)
                 .focusable(false)
                 .pointerOnHover(isEnabled: true)
-                .accessibilityLabel("Back")
+                .accessibilityLabel(L("playback.back"))
 
                 Spacer(minLength: 0)
             }
@@ -374,7 +376,7 @@ private struct PlaybackCommandPanelSearchResults: View {
 
             PlaybackCueFooter(
                 status: resultStatus,
-                actionTitle: "Play"
+                actionTitle: L("playback.play")
             )
             .padding(
                 .horizontal,
@@ -479,7 +481,7 @@ struct PlaybackCommandPanelRecentVideos: View {
     var body: some View {
         VStack(spacing: 0) {
             PlaybackCommandPanelSecondaryHeader(
-                title: "Recent Videos",
+                title: L("sidebar.recent_videos"),
                 onBack: onBack
             )
 
@@ -539,7 +541,7 @@ struct PlaybackCommandPanelRecentVideos: View {
             }
 
             PlaybackCommandPanelFooter(
-                status: "\(libraryStore.testRecentWatchingItems.count) videos",
+                status: L("playback.video_count", libraryStore.testRecentWatchingItems.count),
                 showsHorizontalNavigation: true
             )
         }
@@ -619,7 +621,7 @@ private struct PlaybackCommandPanelRecentShioris: View {
     var body: some View {
         VStack(spacing: 0) {
             PlaybackCommandPanelSecondaryHeader(
-                title: "Recent Shioris",
+                title: L("sidebar.recent_shioris"),
                 onBack: onBack
             )
 
@@ -654,7 +656,7 @@ private struct PlaybackCommandPanelRecentShioris: View {
             }
 
             PlaybackCommandPanelFooter(
-                status: "\(shioriStore.recentListSummaries.count) shioris"
+                status: L("playback.shiori_count", shioriStore.recentListSummaries.count)
             )
         }
         .onAppear(perform: onSynchronize)
@@ -688,10 +690,10 @@ private struct PlaybackCommandPanelFooter: View {
                 }
                 PlaybackCommandPanelKeycap(symbol: "↑")
                 PlaybackCommandPanelKeycap(symbol: "↓")
-                Text("Navigate")
+                Text(L("playback.navigate"))
             }
 
-            Text("Open")
+            Text(L("playback.open"))
             PlaybackCommandPanelKeycap(symbol: "↩")
         }
         .font(.system(
