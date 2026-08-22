@@ -4,6 +4,7 @@ import CueSeekerCore
 
 extension Notification.Name {
     static let cueSeekerShowSettings = Notification.Name("cueSeekerShowSettings")
+    static let cueSeekerAppLanguageChanged = Notification.Name("cueSeekerAppLanguageChanged")
     static let cueSeekerLeftMouseDown = Notification.Name("cueSeekerLeftMouseDown")
 }
 
@@ -49,6 +50,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             self,
             selector: #selector(showSettingsFromNotification(_:)),
             name: .cueSeekerShowSettings,
+            object: nil
+        )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(rebuildMainMenuForLanguageChange(_:)),
+            name: .cueSeekerAppLanguageChanged,
             object: nil
         )
         configureMainMenu()
@@ -236,6 +243,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
     }
 #endif
+
+    @objc private func rebuildMainMenuForLanguageChange(_ notification: Notification) {
+        configureMainMenu()
+    }
 
     @objc private func showSettingsFromNotification(_ notification: Notification) {
         showSettings(notification.object)

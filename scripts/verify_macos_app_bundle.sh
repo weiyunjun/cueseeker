@@ -14,7 +14,9 @@ FFMPEG_EXECUTABLE="$CONTENTS/Helpers/ffmpeg"
 FRAMEWORKS="$CONTENTS/Frameworks"
 PLIST="$CONTENTS/Info.plist"
 
-for path in "$EXECUTABLE" "$FFMPEG_EXECUTABLE" "$PLIST" "$FRAMEWORKS"; do
+LOCALIZATION_BUNDLE="$CONTENTS/Resources/CueSeekerNative_CueSeekerApp.bundle"
+
+for path in "$EXECUTABLE" "$FFMPEG_EXECUTABLE" "$PLIST" "$FRAMEWORKS" "$LOCALIZATION_BUNDLE"; do
     if [ ! -e "$path" ]; then
         echo "error: required app item missing: $path" >&2
         exit 1
@@ -30,6 +32,13 @@ if ! "$FFMPEG_EXECUTABLE" -hide_banner -decoders 2>/dev/null | \
     echo "error: bundled ffmpeg executable does not expose libdav1d" >&2
     exit 1
 fi
+
+for localization in en zh-hans zh-hant; do
+    if [ ! -f "$LOCALIZATION_BUNDLE/$localization.lproj/Localizable.strings" ]; then
+        echo "error: missing bundled localization: $localization" >&2
+        exit 1
+    fi
+done
 
 if [ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$PLIST")" != \
     "com.cueseeker.app" ]; then

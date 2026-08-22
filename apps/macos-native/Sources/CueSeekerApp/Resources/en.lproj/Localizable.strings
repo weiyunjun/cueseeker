@@ -1,0 +1,5 @@
+/* Settings: Language category */
+"settings.category.language" = "Language";
+"settings.language.description" = "Choose the language used by CueSeeker.";
+"settings.language.field" = "Language";
+"settings.language.follow_system" = "Follow System";

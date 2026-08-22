@@ -49,9 +49,15 @@ mkdir -p "$CLANG_MODULE_CACHE_PATH" "$XDG_CACHE_HOME"
 )
 BIN_DIR="$(cd "$PACKAGE_ROOT" && swift build -c release --show-bin-path)"
 EXECUTABLE="$BIN_DIR/CueSeeker"
+RESOURCE_BUNDLE="$BIN_DIR/CueSeekerNative_CueSeekerApp.bundle"
 
 if [ ! -x "$EXECUTABLE" ]; then
     echo "error: release executable missing: $EXECUTABLE" >&2
+    exit 1
+fi
+
+if [ ! -d "$RESOURCE_BUNDLE" ]; then
+    echo "error: app resource bundle missing: $RESOURCE_BUNDLE" >&2
     exit 1
 fi
 
@@ -65,6 +71,7 @@ mkdir -p \
 cp "$EXECUTABLE" "$APP_PATH/Contents/MacOS/CueSeeker"
 cp "$MEDIA_ROOT/bin/ffmpeg" "$APP_PATH/Contents/Helpers/ffmpeg"
 cp "$PLIST_SOURCE" "$APP_PATH/Contents/Info.plist"
+cp -R "$RESOURCE_BUNDLE" "$APP_PATH/Contents/Resources/"
 find "$MEDIA_ROOT/lib" -maxdepth 1 -type f -name '*.dylib' -print | sort | while read -r dylib; do
     cp "$dylib" "$APP_PATH/Contents/Frameworks/$(basename "$dylib")"
 done

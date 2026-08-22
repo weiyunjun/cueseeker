@@ -10,6 +10,12 @@
     <string>CueSeeker</string>
     <key>CFBundleIdentifier</key>
     <string>com.cueseeker.app</string>
+    <key>CFBundleLocalizations</key>
+    <array>
+        <string>en</string>
+        <string>zh-Hans</string>
+        <string>zh-Hant</string>
+    </array>
     <key>CFBundleInfoDictionaryVersion</key>
     <string>6.0</string>
     <key>CFBundleName</key>

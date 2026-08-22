@@ -56,6 +56,7 @@ let mediaRuntimeLinkerFlags = [
 
 let package = Package(
     name: "CueSeekerNative",
+    defaultLocalization: "en",
     platforms: [
         .macOS(.v13)
     ],
@@ -129,6 +130,9 @@ let package = Package(
                 "CueSeekerPlayback"
             ],
             path: "Sources/CueSeekerApp",
+            resources: [
+                .process("Resources")
+            ],
             linkerSettings: [
                 .linkedFramework("GameController")
             ]

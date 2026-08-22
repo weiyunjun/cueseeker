@@ -1,0 +1,5 @@
+/* Settings: Language category */
+"settings.category.language" = "語言";
+"settings.language.description" = "選擇字幕求索使用的語言。";
+"settings.language.field" = "語言";
+"settings.language.follow_system" = "跟隨系統";

@@ -78,6 +78,7 @@ struct CueGroupPresentationGate: View {
 @MainActor
 final class SettingsStore: ObservableObject {
     private static let appAppearanceModeKey = "appAppearanceMode"
+    private static let appLanguageKey = "appLanguage"
     private static let searchFacetExclusionsKey = "searchFacetExclusions"
     private static let shioriFacetExclusionsKey = "shioriFacetExclusionsByListID"
     private static let showCueGroupKey = "showCueGroup"
@@ -101,6 +102,20 @@ final class SettingsStore: ObservableObject {
         didSet {
             userDefaults.set(appAppearanceMode.rawValue, forKey: Self.appAppearanceModeKey)
             Self.applyAppAppearanceMode(appAppearanceMode)
+        }
+    }
+
+    @Published var appLanguage: AppLanguage {
+        didSet {
+            guard appLanguage != oldValue else {
+                return
+            }
+            userDefaults.set(appLanguage.rawValue, forKey: Self.appLanguageKey)
+            AppLocalization.apply(appLanguage)
+            NotificationCenter.default.post(
+                name: .cueSeekerAppLanguageChanged,
+                object: nil
+            )
         }
     }
 
@@ -231,6 +246,7 @@ final class SettingsStore: ObservableObject {
             && requestedAutoSwitchPreference
         userDefaults.register(defaults: [
             Self.appAppearanceModeKey: AppAppearanceMode.auto.rawValue,
+            Self.appLanguageKey: AppLanguage.followSystem.rawValue,
             Self.showCueGroupKey: false,
             Self.prefillCommandPanelWithFocusedCueKey: false,
             Self.playbackDecodeModeKey: PlaybackDecodeMode.auto.rawValue,
@@ -247,6 +263,8 @@ final class SettingsStore: ObservableObject {
         )
         let loadedAppearance = Self.loadAppAppearanceMode(from: userDefaults)
         self.appAppearanceMode = loadedAppearance
+        let loadedLanguage = Self.loadAppLanguage(from: userDefaults)
+        self.appLanguage = loadedLanguage
         self.searchFacetFilter = Self.loadSearchFacetFilter(from: userDefaults)
         self.prefillCommandPanelWithFocusedCue = userDefaults.bool(
             forKey: Self.prefillCommandPanelWithFocusedCueKey
@@ -282,6 +300,7 @@ final class SettingsStore: ObservableObject {
             userDefaults.removeObject(forKey: Self.legacyAutoStopAfterCueFinishesEnabledKey)
         }
 
+        AppLocalization.apply(loadedLanguage)
         Self.applyAppAppearanceMode(loadedAppearance)
     }
 
@@ -326,6 +345,15 @@ final class SettingsStore: ObservableObject {
             return .auto
         }
         return mode
+    }
+
+    private static func loadAppLanguage(from userDefaults: UserDefaults) -> AppLanguage {
+        guard let rawValue = userDefaults.string(forKey: appLanguageKey),
+              let language = AppLanguage(rawValue: rawValue)
+        else {
+            return .followSystem
+        }
+        return language
     }
 
     private static func loadSearchFacetFilter(from userDefaults: UserDefaults) -> CueFacetFilter {

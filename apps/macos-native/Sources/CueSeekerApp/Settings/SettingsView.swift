@@ -5,6 +5,7 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
     case play
     case appearance
     case search
+    case language
     case urlScheme
     case decode
     case maintenance
@@ -22,6 +23,8 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
             "Appearance"
         case .search:
             "Search"
+        case .language:
+            L("settings.category.language")
         case .urlScheme:
             "Deep Link"
         case .decode:
@@ -43,6 +46,8 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
             "circle.lefthalf.filled"
         case .search:
             "magnifyingglass"
+        case .language:
+            "globe"
         case .urlScheme:
             "link"
         case .decode:
@@ -69,6 +74,7 @@ struct SettingsView: View {
                 .frame(width: WorkbenchControlMetrics.hairlineWidth)
 
             selectedContent
+                .id(settingsStore.appLanguage)
                 .padding(.top, WorkbenchControlMetrics.redesignAppTopbarHeight)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
@@ -168,6 +174,8 @@ struct SettingsView: View {
             SettingsAppearanceCategory()
         case .search:
             SettingsSearchCategory()
+        case .language:
+            SettingsLanguageCategory()
         case .urlScheme:
             SettingsURLSchemeCategory()
         case .decode:
