@@ -259,7 +259,7 @@ private extension View {
         contentShape(Rectangle())
             .onTapGesture(perform: action)
             .accessibilityAddTraits(.isButton)
-            .accessibilityAction(named: Text("Activate"), action)
+            .accessibilityAction(named: Text(L("library.activate")), action)
     }
 }
 

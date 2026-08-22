@@ -129,3 +129,37 @@
 "shiori.table.empty_hint" = "Save cues from playback to collect Shiori.";
 "shiori.remove.title" = "Remove Shiori";
 "shiori.remove.message" = "This cue will be removed from your Shiori. The original subtitle and video files will not be deleted.";
+
+/* Library */
+"library.add_content" = "Add Content";
+"library.play" = "Play";
+"library.resume" = "Resume";
+"library.resume_progress" = "Resume %1$@ / %2$@";
+"library.open_folder" = "Open Folder";
+"library.change_cover" = "Change Cover";
+"library.mark_finished" = "Mark as Finished";
+"library.mark_unwatched" = "Mark as Unwatched";
+"library.mark_watching" = "Mark as Watching";
+"library.mark_all_finished" = "Mark All as Finished";
+"library.mark_all_unwatched" = "Mark All as Unwatched";
+"library.mark_all_watching" = "Mark All as Watching";
+"library.episode_count.one" = "1 episode";
+"library.episode_count.other" = "%d episodes";
+"library.episode" = "Episode %d";
+"library.playing_episode" = "%1$@ · Playing %2$d";
+"library.folder_summary" = "%1$d Folders · %2$d Videos · ";
+"library.subtitle_count" = "%d Subtitles";
+"library.video_subtitle_count" = "%1$d videos %2$d subtitles";
+"library.empty" = "No library videos yet.";
+"library.recent_watching_empty" = "No recent watching yet.";
+"library.recent_shioris_empty" = "No recent Shioris yet.";
+"library.episodes_empty" = "No episodes yet.";
+"library.activate" = "Activate";
+
+/* Library cover editing */
+"cover.edit_title" = "Edit Cover";
+"cover.choose_image" = "Choose Image";
+"cover.choose_cover_image" = "Choose Cover Image";
+"cover.support_note" = "Support: JPG, JPEG, PNG, and GIF no more than 20 MB.";
+"cover.crop_editor" = "Cover crop editor";
+"cover.save" = "Save";

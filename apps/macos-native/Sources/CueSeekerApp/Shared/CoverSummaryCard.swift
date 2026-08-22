@@ -12,9 +12,9 @@ enum CoverSummaryActionKind: Equatable {
     var title: String {
         switch self {
         case .play:
-            "Play"
+            L("library.play")
         case .resume:
-            "Resume"
+            L("library.resume")
         }
     }
 }

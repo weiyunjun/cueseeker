@@ -129,3 +129,37 @@
 "shiori.table.empty_hint" = "在播放時儲存台詞即可收集 Shiori。";
 "shiori.remove.title" = "移除 Shiori";
 "shiori.remove.message" = "此台詞將從你的 Shiori 中移除。原始字幕與影片檔案不會被刪除。";
+
+/* Library */
+"library.add_content" = "加入內容";
+"library.play" = "播放";
+"library.resume" = "繼續播放";
+"library.resume_progress" = "繼續 %1$@ / %2$@";
+"library.open_folder" = "打開資料夾";
+"library.change_cover" = "更換封面";
+"library.mark_finished" = "標示為已看完";
+"library.mark_unwatched" = "標示為未觀看";
+"library.mark_watching" = "標示為觀看中";
+"library.mark_all_finished" = "全部標示為已看完";
+"library.mark_all_unwatched" = "全部標示為未觀看";
+"library.mark_all_watching" = "全部標示為觀看中";
+"library.episode_count.one" = "1 集";
+"library.episode_count.other" = "%d 集";
+"library.episode" = "第 %d 集";
+"library.playing_episode" = "%1$@ · 正在播放第 %2$d 集";
+"library.folder_summary" = "%1$d 個資料夾 · %2$d 部影片 · ";
+"library.subtitle_count" = "%d 個字幕";
+"library.video_subtitle_count" = "%1$d 部影片 %2$d 個字幕";
+"library.empty" = "尚無媒體庫影片。";
+"library.recent_watching_empty" = "尚無最近觀看。";
+"library.recent_shioris_empty" = "尚無最近的 Shiori。";
+"library.episodes_empty" = "尚無單集。";
+"library.activate" = "啟用";
+
+/* Library cover editing */
+"cover.edit_title" = "編輯封面";
+"cover.choose_image" = "選擇圖片";
+"cover.choose_cover_image" = "選擇封面圖片";
+"cover.support_note" = "支援 JPG、JPEG、PNG 與 GIF，且不超過 20 MB。";
+"cover.crop_editor" = "封面裁切編輯器";
+"cover.save" = "儲存";

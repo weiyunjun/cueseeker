@@ -286,7 +286,7 @@ struct LibraryCoverCropEditor: View {
             }
         }
         .accessibilityElement(children: .contain)
-        .accessibilityLabel("Cover crop editor")
+        .accessibilityLabel(L("cover.crop_editor"))
     }
 
     private var cropHandle: some View {

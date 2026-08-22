@@ -59,11 +59,11 @@ struct WorkbenchRecentView: View {
     private var recentPageTitle: String {
         switch routeState.selectedRecentSection {
         case .videos:
-            "Recent Videos"
+            L("sidebar.recent_videos")
         case .shioris:
-            "Recent Shioris"
+            L("sidebar.recent_shioris")
         case nil:
-            "Recent"
+            L("sidebar.recent")
         }
     }
 
@@ -118,7 +118,7 @@ struct WorkbenchRecentView: View {
         } else if case .failed(let message) = status {
             LibraryEmptyHint(message)
         } else if items.isEmpty {
-            LibraryEmptyHint("No recent watching yet.")
+            LibraryEmptyHint(L("library.recent_watching_empty"))
         } else {
             RecentWatchingGrid(
                 items: items,
@@ -141,7 +141,7 @@ struct WorkbenchRecentView: View {
                     .controlSize(.small)
             }
         } else if summaries.isEmpty {
-            LibraryEmptyHint("No recent Shioris yet.")
+            LibraryEmptyHint(L("library.recent_shioris_empty"))
         } else {
             RecentShioriResumeList(summaries: summaries) { summary in
                 appState.openRecentShiori(summary)
@@ -267,7 +267,7 @@ struct RecentShioriResumeRow: View {
                         .frame(minHeight: 15)
 
                     Text(
-                        "Resume \(summary.resumePosition ?? 1) / \(summary.cueCount)"
+                        L("library.resume_progress", String(summary.resumePosition ?? 1), String(summary.cueCount))
                     )
                     .font(.system(
                         size: WorkbenchControlMetrics.redesignFontSizeLibraryMeta,
@@ -311,6 +311,8 @@ struct RecentShioriResumeRow: View {
 }
 
 struct WorkbenchTestLibraryView: View {
+    // Observed so the copy below is re-read when the language changes.
+    @EnvironmentObject private var localization: AppLocalizationStore
     @EnvironmentObject private var appState: AppCoordinator
     @EnvironmentObject private var indexing: IndexingStore
     @EnvironmentObject private var routeState: WorkbenchRouteState
@@ -346,9 +348,9 @@ struct WorkbenchTestLibraryView: View {
                 }
             } else {
                 LibraryOverviewLayout(
-                    title: "Library",
+                    title: L("sidebar.library"),
                     summaryText: completeLibrarySummaryText,
-                    actionTitle: "Add Content",
+                    actionTitle: L("library.add_content"),
                     actionSystemImage: "plus",
                     action: openLibrarySettings
                 ) {
@@ -387,7 +389,7 @@ struct WorkbenchTestLibraryView: View {
         } else if case .failed(let message) = library.completeLibraryStatus {
             LibraryEmptyHint(message)
         } else if library.completeLibraryFolderSummaries.isEmpty {
-            LibraryEmptyHint("No library videos yet.")
+            LibraryEmptyHint(L("library.empty"))
         } else {
             CompleteLibraryFolderGrid(
                 folders: library.completeLibraryFolderSummaries,
@@ -445,7 +447,7 @@ struct WorkbenchTestLibraryView: View {
         return CoverSummaryCard(
             title: detail.folderTitle,
             supportingContent: .metadata(
-                primary: "\(itemCount) videos \(itemCount) subtitles",
+                primary: L("library.video_subtitle_count", itemCount, itemCount),
                 secondary: detail.folderPath
             ),
             actionKind: recentItem == nil ? .play : .resume,
@@ -537,8 +539,8 @@ struct WorkbenchTestLibraryView: View {
         let itemCount = folders.reduce(0) { count, folder in
             count + folder.episodeCount
         }
-        return "\(folders.count) Folders · \(itemCount) Videos · "
-            + "\(itemCount) Subtitles"
+        return L("library.folder_summary", folders.count, itemCount)
+            + L("library.subtitle_count", itemCount)
     }
 
     private func openLibrarySettings() {
@@ -869,7 +871,7 @@ private struct LibraryVideoCard: View {
 
     private var contextMenuItems: [LibraryCardContextMenuItem] {
         [
-            LibraryCardContextMenuItem(title: "Open Folder", systemImage: "folder") {
+            LibraryCardContextMenuItem(title: L("library.open_folder"), systemImage: "folder") {
                 actions.revealFile(content.videoPath)
             },
             LibraryCardContextMenuItem(
@@ -882,13 +884,13 @@ private struct LibraryVideoCard: View {
                     content.coverRevision
                 )
             },
-            LibraryCardContextMenuItem(title: "Mark as Finished", systemImage: "checkmark.circle") {
+            LibraryCardContextMenuItem(title: L("library.mark_finished"), systemImage: "checkmark.circle") {
                 actions.markVideo(content.libraryVideo, .finished)
             },
-            LibraryCardContextMenuItem(title: "Mark as Unwatched", systemImage: "circle") {
+            LibraryCardContextMenuItem(title: L("library.mark_unwatched"), systemImage: "circle") {
                 actions.markVideo(content.libraryVideo, .unwatched)
             },
-            LibraryCardContextMenuItem(title: "Mark as Watching", systemImage: "play.circle") {
+            LibraryCardContextMenuItem(title: L("library.mark_watching"), systemImage: "play.circle") {
                 actions.markVideo(content.libraryVideo, .watching)
             }
         ]
@@ -1026,7 +1028,7 @@ private struct LibraryFolderCard: View {
 
     private var folderContextMenuItems: [LibraryCardContextMenuItem] {
         [
-            LibraryCardContextMenuItem(title: "Open Folder", systemImage: "folder") {
+            LibraryCardContextMenuItem(title: L("library.open_folder"), systemImage: "folder") {
                 actions.openFolder(folder.folderPath)
             },
             LibraryCardContextMenuItem(
@@ -1039,20 +1041,22 @@ private struct LibraryFolderCard: View {
                     folder.coverRevision
                 )
             },
-            LibraryCardContextMenuItem(title: "Mark All as Finished", systemImage: "checkmark.circle") {
+            LibraryCardContextMenuItem(title: L("library.mark_all_finished"), systemImage: "checkmark.circle") {
                 actions.markFolder(folder.folderPath, .finished)
             },
-            LibraryCardContextMenuItem(title: "Mark All as Unwatched", systemImage: "circle") {
+            LibraryCardContextMenuItem(title: L("library.mark_all_unwatched"), systemImage: "circle") {
                 actions.markFolder(folder.folderPath, .unwatched)
             },
-            LibraryCardContextMenuItem(title: "Mark All as Watching", systemImage: "play.circle") {
+            LibraryCardContextMenuItem(title: L("library.mark_all_watching"), systemImage: "play.circle") {
                 actions.markFolder(folder.folderPath, .watching)
             }
         ]
     }
 
     private var episodeCountText: String {
-        folder.episodeCount == 1 ? "1 episode" : "\(folder.episodeCount) episodes"
+        folder.episodeCount == 1
+            ? L("library.episode_count.one")
+            : L("library.episode_count.other", folder.episodeCount)
     }
 }
 
@@ -1078,7 +1082,7 @@ struct CompleteLibraryEpisodeGrid: View {
 
     var body: some View {
         if videos.isEmpty {
-            LibraryEmptyHint("No episodes yet.")
+            LibraryEmptyHint(L("library.episodes_empty"))
         } else {
             LibraryVideoCardGrid(
                 items: videos,
@@ -1127,7 +1131,7 @@ struct LibraryCardContextMenuItem: Identifiable {
 }
 
 enum LibraryCoverContextMenuItem {
-    static let title = "Change Cover"
+    static let title = L("library.change_cover")
     static let systemImage = "square.and.arrow.up"
 }
 
@@ -1780,11 +1784,11 @@ enum LibraryWatchStatus: Equatable {
     var title: String {
         switch self {
         case .unwatched:
-            return "Unwatched"
+            return L("facet.watch_status.unwatched")
         case .watching:
-            return "Watching"
+            return L("facet.watch_status.watching")
         case .finished:
-            return "Finished"
+            return L("facet.watch_status.finished")
         }
     }
 

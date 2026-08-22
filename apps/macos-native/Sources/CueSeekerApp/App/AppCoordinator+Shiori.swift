@@ -169,7 +169,7 @@ extension AppCoordinator {
         let panel = NSOpenPanel()
         let delegate = LibraryCoverOpenPanelDelegate()
         panel.delegate = delegate
-        panel.title = "Choose Cover Image"
+        panel.title = L("cover.choose_cover_image")
         panel.canChooseFiles = true
         panel.canChooseDirectories = false
         panel.allowsMultipleSelection = false

@@ -4,12 +4,12 @@ import Foundation
 import UniformTypeIdentifiers
 
 enum LibraryCoverEditingCopy {
-    static let dialogTitle = "Edit Cover"
-    static let chooseImageActionTitle = "Choose Image"
+    static let dialogTitle = L("cover.edit_title")
+    static let chooseImageActionTitle = L("cover.choose_image")
     static let editSystemImage = "pencil"
-    static let hint = "Support: JPG, JPEG, PNG, and GIF no more than 20 MB."
-    static let cancelButtonTitle = "Cancel"
-    static let saveButtonTitle = "Save"
+    static let hint = L("cover.support_note")
+    static let cancelButtonTitle = L("common.cancel")
+    static let saveButtonTitle = L("cover.save")
 }
 
 @MainActor

@@ -61,10 +61,12 @@ struct LibraryFolderHeader: View {
     }
 
     private var subtitleText: String {
-        let label = episodeCount == 1 ? "episode" : "episodes"
+        let label = episodeCount == 1
+            ? L("library.episode_count.one")
+            : L("library.episode_count.other", episodeCount)
         if let rank = playingRank {
-            return "\(episodeCount) \(label) · Playing \(rank)"
+            return L("library.playing_episode", label, rank)
         }
-        return "\(episodeCount) \(label)"
+        return label
     }
 }

@@ -22,7 +22,7 @@ struct LibraryEpisodeButton: View {
         )
         .onHover { isHovered = $0 }
         .focusable(false)
-        .accessibilityLabel("Episode \(rank)")
+        .accessibilityLabel(L("library.episode", rank))
     }
 
     // EP01-style compact rank label (finding H / doc 12 §7.2). `%02d` keeps
