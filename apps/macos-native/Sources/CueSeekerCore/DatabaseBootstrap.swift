@@ -12,7 +12,7 @@ public enum DatabaseBootstrapError: Error, Equatable, CustomStringConvertible {
 }
 
 public enum DatabaseBootstrap {
-    public static let currentSchemaVersion = 43
+    public static let currentSchemaVersion = 44
 
     public static func prepare(at path: URL) throws {
         let database = try SQLiteDatabase(path: path, access: .readWrite)
@@ -55,6 +55,7 @@ private extension DatabaseBootstrap {
                 || previousVersion == 40
                 || previousVersion == 41
                 || previousVersion == 42
+                || previousVersion == 43
                 || previousVersion == DatabaseBootstrap.currentSchemaVersion
         else {
             throw DatabaseBootstrapError.unsupportedSchemaVersion(
@@ -130,6 +131,9 @@ private extension DatabaseBootstrap {
         }
         if previousVersion >= 33, previousVersion <= 42 {
             try migrateSchema42To43(on: database)
+        }
+        if previousVersion >= 33, previousVersion <= 43 {
+            try migrateSchema43To44(on: database)
             return
         }
         guard previousVersion == 0 else {
@@ -463,22 +467,20 @@ private extension DatabaseBootstrap {
             );
 
             CREATE TABLE IF NOT EXISTS library_playback_history (
-                video_path TEXT PRIMARY KEY,
-                video_file_id INTEGER,
+                video_file_id INTEGER PRIMARY KEY,
                 position_ms INTEGER NOT NULL,
                 duration REAL,
                 started_at TEXT,
                 completed_at TEXT,
                 updated_at TEXT NOT NULL,
-                FOREIGN KEY(video_file_id) REFERENCES video_files(id)
+                FOREIGN KEY(video_file_id) REFERENCES video_files(id) ON DELETE CASCADE
             );
 
             CREATE TABLE IF NOT EXISTS library_watch_states (
-                video_path TEXT PRIMARY KEY,
-                video_file_id INTEGER,
+                video_file_id INTEGER PRIMARY KEY,
                 state TEXT NOT NULL,
                 updated_at TEXT NOT NULL,
-                FOREIGN KEY(video_file_id) REFERENCES video_files(id)
+                FOREIGN KEY(video_file_id) REFERENCES video_files(id) ON DELETE CASCADE
             );
 
             CREATE TABLE IF NOT EXISTS library_video_rows (
@@ -980,6 +982,62 @@ private extension DatabaseBootstrap {
                 \(cueReferenceIntegrityTriggerSQL)
 
                 PRAGMA user_version = 42;
+                """
+            )
+        }
+    }
+
+    /// Watch state, progress and playback history reference the VideoID, never a path.
+    static func migrateSchema43To44(on database: SQLiteDatabase) throws {
+        guard try columnNames(of: "library_watch_states", in: database).contains("video_path")
+        else {
+            try database.execute("PRAGMA user_version = 44;")
+            return
+        }
+
+        try database.withImmediateTransaction {
+            try database.execute(
+                """
+                CREATE TABLE library_playback_history_v44 (
+                    video_file_id INTEGER PRIMARY KEY,
+                    position_ms INTEGER NOT NULL,
+                    duration REAL,
+                    started_at TEXT,
+                    completed_at TEXT,
+                    updated_at TEXT NOT NULL,
+                    FOREIGN KEY(video_file_id) REFERENCES video_files(id) ON DELETE CASCADE
+                );
+
+                INSERT INTO library_playback_history_v44(
+                    video_file_id, position_ms, duration,
+                    started_at, completed_at, updated_at
+                )
+                SELECT video_file_id, position_ms, duration,
+                       started_at, completed_at, updated_at
+                FROM library_playback_history
+                WHERE video_file_id IS NOT NULL;
+
+                DROP TABLE library_playback_history;
+                ALTER TABLE library_playback_history_v44
+                    RENAME TO library_playback_history;
+
+                CREATE TABLE library_watch_states_v44 (
+                    video_file_id INTEGER PRIMARY KEY,
+                    state TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    FOREIGN KEY(video_file_id) REFERENCES video_files(id) ON DELETE CASCADE
+                );
+
+                INSERT INTO library_watch_states_v44(video_file_id, state, updated_at)
+                SELECT video_file_id, state, updated_at
+                FROM library_watch_states
+                WHERE video_file_id IS NOT NULL;
+
+                DROP TABLE library_watch_states;
+                ALTER TABLE library_watch_states_v44
+                    RENAME TO library_watch_states;
+
+                PRAGMA user_version = 44;
                 """
             )
         }

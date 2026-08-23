@@ -254,7 +254,7 @@ extension LibraryDatabase {
         let videoFileID = try videoFileID(for: videoFile)
         let statement = try database.prepare(
             """
-            SELECT COALESCE(vf.path, h.video_path),
+            SELECT vf.path,
                    h.position_ms, h.duration,
                    CASE
                        WHEN ws.state = 'finished' THEN COALESCE(h.started_at, ws.updated_at)
@@ -270,23 +270,15 @@ extension LibraryDatabase {
                    END,
                    h.updated_at
             FROM library_playback_history h
-            LEFT JOIN video_files vf ON vf.id = h.video_file_id
-            LEFT JOIN library_watch_states ws
-              ON ws.video_file_id = h.video_file_id
-              OR (
-                  h.video_file_id IS NULL
-                  AND ws.video_file_id IS NULL
-                  AND ws.video_path = h.video_path
-              )
-            WHERE h.video_file_id = ? OR h.video_path = ?;
+            JOIN video_files vf ON vf.id = h.video_file_id
+            LEFT JOIN library_watch_states ws ON ws.video_file_id = h.video_file_id
+            WHERE h.video_file_id = ?;
             """
         )
-        if let videoFileID {
-            try statement.bind(videoFileID, at: 1)
-        } else {
-            try statement.bindNull(at: 1)
+        guard let videoFileID else {
+            return nil
         }
-        try statement.bind(videoFile.path, at: 2)
+        try statement.bind(videoFileID, at: 1)
 
         guard try statement.step() else {
             return nil
@@ -319,12 +311,11 @@ extension LibraryDatabase {
         let statement = try database.prepare(
             """
             INSERT INTO library_playback_history(
-                video_path, video_file_id, position_ms, duration,
+                video_file_id, position_ms, duration,
                 started_at, completed_at, updated_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(video_path) DO UPDATE SET
-                video_file_id = excluded.video_file_id,
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(video_file_id) DO UPDATE SET
                 position_ms = excluded.position_ms,
                 duration = excluded.duration,
                 started_at = COALESCE(library_playback_history.started_at, excluded.started_at),
@@ -332,13 +323,12 @@ extension LibraryDatabase {
                 updated_at = excluded.updated_at;
             """
         )
-        try statement.bind(videoFile.path, at: 1)
-        try statement.bind(videoFileID, at: 2)
-        try statement.bind(max(0, positionMilliseconds), at: 3)
-        try bind(normalizedDuration, to: statement, at: 4)
-        try bind(startedAt, to: statement, at: 5)
-        try bind(completedAt, to: statement, at: 6)
-        try statement.bind(updatedAtString, at: 7)
+        try statement.bind(videoFileID, at: 1)
+        try statement.bind(max(0, positionMilliseconds), at: 2)
+        try bind(normalizedDuration, to: statement, at: 3)
+        try bind(startedAt, to: statement, at: 4)
+        try bind(completedAt, to: statement, at: 5)
+        try statement.bind(updatedAtString, at: 6)
         try statement.run()
 
         if markCompleted {
@@ -373,29 +363,27 @@ extension LibraryDatabase {
         updatedAt: Date
     ) throws {
         try database.withImmediateTransaction {
+            let videoFileID = try upsertVideoFile(videoFile)
             let previousState = try database.prepare(
-                "SELECT state FROM library_watch_states WHERE video_path = ?;"
+                "SELECT state FROM library_watch_states WHERE video_file_id = ?;"
             )
-            try previousState.bind(videoFile.path, at: 1)
+            try previousState.bind(videoFileID, at: 1)
             let previousValue = try previousState.step()
                 ? LibraryWatchState(rawValue: previousState.stringColumn(0)) ?? .unwatched
                 : .unwatched
 
-            let videoFileID = try upsertVideoFile(videoFile)
             let statement = try database.prepare(
                 """
-                INSERT INTO library_watch_states(video_path, video_file_id, state, updated_at)
-                VALUES (?, ?, ?, ?)
-                ON CONFLICT(video_path) DO UPDATE SET
-                    video_file_id = excluded.video_file_id,
+                INSERT INTO library_watch_states(video_file_id, state, updated_at)
+                VALUES (?, ?, ?)
+                ON CONFLICT(video_file_id) DO UPDATE SET
                     state = excluded.state,
                     updated_at = excluded.updated_at;
                 """
             )
-            try statement.bind(videoFile.path, at: 1)
-            try statement.bind(videoFileID, at: 2)
-            try statement.bind(state.rawValue, at: 3)
-            try statement.bind(Self.playbackHistoryTimestamp(from: updatedAt), at: 4)
+            try statement.bind(videoFileID, at: 1)
+            try statement.bind(state.rawValue, at: 2)
+            try statement.bind(Self.playbackHistoryTimestamp(from: updatedAt), at: 3)
             try statement.run()
 
             if previousValue != state {

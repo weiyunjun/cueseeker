@@ -650,23 +650,18 @@ func reindexPreservesSubtitleIDAndLibraryStateReferencesVideoID() throws {
             databaseURL: databaseURL
         ) == originalSubtitleID
     )
+    // Progress and watch state are keyed by the VideoID, not by a path.
     #expect(
-        try sqliteReferencedID(
-            table: "library_playback_history",
-            idColumn: "video_file_id",
-            pathColumn: "video_path",
-            path: videoFile.path,
-            databaseURL: databaseURL
-        ) == videoID
+        try sqliteStringValue(
+            at: databaseURL,
+            sql: "SELECT video_file_id FROM library_playback_history;"
+        ) == String(videoID)
     )
     #expect(
-        try sqliteReferencedID(
-            table: "library_watch_states",
-            idColumn: "video_file_id",
-            pathColumn: "video_path",
-            path: videoFile.path,
-            databaseURL: databaseURL
-        ) == videoID
+        try sqliteStringValue(
+            at: databaseURL,
+            sql: "SELECT video_file_id FROM library_watch_states;"
+        ) == String(videoID)
     )
 }
 

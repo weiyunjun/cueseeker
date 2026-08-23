@@ -223,7 +223,7 @@ func rejectsUnsupportedLowerSchemaWithoutChangingVersion() throws {
 
 @Test
 func rejectsNewerSchemaWithoutChangingVersion() throws {
-    try expectUnsupportedSchemaVersion(44)
+    try expectUnsupportedSchemaVersion(45)
 }
 
 @Test
@@ -770,6 +770,9 @@ let identityEraFixtureSchemaSQL = """
         video_path TEXT PRIMARY KEY,
         video_file_id INTEGER,
         position_ms INTEGER NOT NULL DEFAULT 0,
+        duration REAL,
+        started_at TEXT,
+        completed_at TEXT,
         updated_at TEXT NOT NULL DEFAULT ''
     );
     CREATE TABLE IF NOT EXISTS library_watch_states (
