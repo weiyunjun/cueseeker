@@ -68,10 +68,15 @@ naming: a subtitle that leaves the index and later returns at the same path is a
 new resource, so a Shiori that pointed into it stays available as a record but
 remains unavailable against its Tombstone instead of being restored.
 
-## Left for the owner
+## Follow-up
 
-- `apps/macos-native/Sources/CueSeekerCore/FileResourceIdentity.swift` is now
-  dead code and should be deleted.
-- `apps/macos-native/Sources/MigrationCheck/main.swift` was a throwaway tool used
-  only to run the migration against a copy of the real database; its package
-  target has been removed and the file should be deleted.
+Both leftover files were deleted by the owner and the deletions are committed
+separately:
+
+- `apps/macos-native/Sources/CueSeekerCore/FileResourceIdentity.swift`, the
+  platform identity implementation, which nothing referenced any more.
+- `apps/macos-native/Sources/MigrationCheck/main.swift`, a throwaway tool used
+  only to run the migration against a copy of the real database. Its package
+  target was removed after the check, but the file itself was committed by
+  mistake in the schema 44 commit because that commit staged a directory path
+  instead of the individual files.
