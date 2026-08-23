@@ -77,8 +77,6 @@ enum CueFacetCountCache {
             JOIN video_files vf ON vf.id = m.video_file_id
             LEFT JOIN library_watch_states ws
               ON ws.video_file_id = vf.id
-            WHERE sf.binding_state = 'available'
-              AND vf.binding_state = 'available'
             GROUP BY COALESCE(ws.state, '\(LibraryWatchState.unwatched.rawValue)');
             """
         )
@@ -101,14 +99,12 @@ enum CueFacetCountCache {
                    COUNT(*)
             FROM subtitle_cue_lines l
             JOIN subtitle_files sf ON sf.id = l.subtitle_file_id
-            WHERE sf.binding_state = 'available'
-              AND EXISTS (
+            WHERE EXISTS (
                   SELECT 1
                   FROM subtitle_video_matches m
                   JOIN video_files vf ON vf.id = m.video_file_id
                   WHERE m.subtitle_file_id = sf.id
                     AND m.is_active = 1
-                    AND vf.binding_state = 'available'
               )
             GROUP BY 2;
             """
@@ -132,14 +128,12 @@ enum CueFacetCountCache {
                    COUNT(*)
             FROM subtitle_cue_lines l
             JOIN subtitle_files sf ON sf.id = l.subtitle_file_id
-            WHERE sf.binding_state = 'available'
-              AND EXISTS (
+            WHERE EXISTS (
                   SELECT 1
                   FROM subtitle_video_matches m
                   JOIN video_files vf ON vf.id = m.video_file_id
                   WHERE m.subtitle_file_id = sf.id
                     AND m.is_active = 1
-                    AND vf.binding_state = 'available'
               )
             GROUP BY 2;
             """
@@ -161,14 +155,12 @@ enum CueFacetCountCache {
                        END AS style_key
                 FROM subtitle_cue_lines l
                 JOIN subtitle_files sf ON sf.id = l.subtitle_file_id
-                WHERE sf.binding_state = 'available'
-                  AND EXISTS (
+                WHERE EXISTS (
                       SELECT 1
                       FROM subtitle_video_matches m
                       JOIN video_files vf ON vf.id = m.video_file_id
                       WHERE m.subtitle_file_id = sf.id
                         AND m.is_active = 1
-                        AND vf.binding_state = 'available'
                   )
             ),
             files_with_detections AS (

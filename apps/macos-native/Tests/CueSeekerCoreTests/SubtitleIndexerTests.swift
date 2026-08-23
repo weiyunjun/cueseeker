@@ -350,7 +350,7 @@ func reindexingUnchangedSubtitleFileSkipsRewrite() throws {
 }
 
 @Test
-func atomicSubtitleSaveWithSameSizeAndModificationDateReusesSubtitleID() throws {
+func sameSizeAndModificationDateIsTreatedAsUnchanged() throws {
     let fixture = try IndexingFixture()
     defer {
         fixture.cleanUp()
@@ -385,18 +385,9 @@ func atomicSubtitleSaveWithSameSizeAndModificationDateReusesSubtitleID() throws 
             atPath: subtitleURL.path
         )[.modificationDate] as? Date
     )
-    let originalIdentity = try #require(
-        FileResourceIdentityResolver.resourceIdentifier(
-            for: subtitleURL
-        )
-    )
-    let archivedURL = fixture.root.appendingPathComponent(
-        "Episode-original.bak"
-    )
-    try FileManager.default.moveItem(
-        at: subtitleURL,
-        to: archivedURL
-    )
+
+    // Replacing the content while keeping size and modification date is the
+    // documented blind spot of the size + timestamp rule.
     try """
     1
     00:00:01,000 --> 00:00:03,000
@@ -411,27 +402,21 @@ func atomicSubtitleSaveWithSameSizeAndModificationDateReusesSubtitleID() throws 
         [.modificationDate: originalModificationDate],
         ofItemAtPath: subtitleURL.path
     )
-    let replacementIdentity = try #require(
-        FileResourceIdentityResolver.resourceIdentifier(
-            for: subtitleURL
-        )
-    )
-    #expect(replacementIdentity != originalIdentity)
 
     let result = try indexer.index(
         folder: fixture.root,
         into: database
     )
 
-    #expect(result.indexedSubtitleFiles == 1)
-    #expect(result.skippedUnchangedSubtitleFiles == 0)
+    #expect(result.indexedSubtitleFiles == 0)
+    #expect(result.skippedUnchangedSubtitleFiles == 1)
     #expect(
         try SearchDatabase(path: fixture.databaseURL)
-            .search("AAAA").isEmpty
+            .search("AAAA").count == 1
     )
     #expect(
         try SearchDatabase(path: fixture.databaseURL)
-            .search("BBBB").count == 1
+            .search("BBBB").isEmpty
     )
     #expect(
         try sqliteRowID(
@@ -1177,53 +1162,6 @@ func reversedSRTBlockIsSkippedWhileValidBlocksPublish() throws {
 }
 
 @Test
-func staleLibraryIndexTokenCannotPublish() throws {
-    let fixture = try IndexingFixture()
-    defer {
-        fixture.cleanUp()
-    }
-
-    let database = try IndexingDatabase(path: fixture.databaseURL)
-    let older = try database.beginLibraryIndex(fixture.root)
-    let newer = try database.beginLibraryIndex(fixture.root)
-
-    #expect(
-        throws: SubtitleIndexingError.stalePublication(
-            libraryID: older.libraryID,
-            token: older.token
-        )
-    ) {
-        try database.publishLibraryIndex(
-            PreparedLibraryIndex(
-                folder: fixture.root,
-                lease: older,
-                changedFiles: [],
-                bindingRefreshes: [],
-                missingVideoSubtitleFiles: [],
-                keptSubtitlePaths: []
-            )
-        )
-    }
-
-    _ = try database.publishLibraryIndex(
-        PreparedLibraryIndex(
-            folder: fixture.root,
-            lease: newer,
-            changedFiles: [],
-            bindingRefreshes: [],
-            missingVideoSubtitleFiles: [],
-            keptSubtitlePaths: []
-        )
-    )
-    #expect(
-        try queryInt(
-            at: fixture.databaseURL,
-            sql: "SELECT published_index_token FROM search_paths WHERE id = \(newer.libraryID);"
-        ) == newer.token
-    )
-}
-
-@Test
 func reindexingUnchangedSubtitleFileRefreshesVideoFileMetadata() throws {
     let fixture = try IndexingFixture()
     defer {
@@ -1820,9 +1758,6 @@ func samePathASSJapaneseTextEditKeepsShioriAvailable() throws {
         )
     )
 
-    let originalResourceIdentity = try #require(
-        FileResourceIdentityResolver.resourceIdentifier(for: subtitleFile)
-    )
     let originalSubtitleID = try #require(
         try sqliteRowID(
             table: "subtitle_files",
@@ -1845,11 +1780,6 @@ func samePathASSJapaneseTextEditKeepsShioriAvailable() throws {
         name: "Episode.ass",
         contents: validASS(text: "生き残ったのは私たち…")
     )
-    let currentResourceIdentity = try #require(
-        FileResourceIdentityResolver.resourceIdentifier(for: subtitleFile)
-    )
-    #expect(currentResourceIdentity != originalResourceIdentity)
-
     _ = try indexer.index(folder: fixture.root, into: database)
 
     let currentCue = try #require(
@@ -1879,7 +1809,7 @@ func samePathASSJapaneseTextEditKeepsShioriAvailable() throws {
 }
 
 @Test
-func referencedCueTombstoneSurvivesMissingResourcesAndRestoresCueID() throws {
+func referencedCueTombstoneSurvivesMissingResourcesAndReturningFiles() throws {
     let fixture = try IndexingFixture()
     defer {
         fixture.cleanUp()
@@ -1953,11 +1883,12 @@ func referencedCueTombstoneSurvivesMissingResourcesAndRestoresCueID() throws {
     #expect(try SearchDatabase(path: fixture.databaseURL).search("Persisted").isEmpty)
     #expect(try libraryDatabase.libraryPresentation(under: [fixture.root]).isEmpty)
     #expect(try libraryDatabase.recentLibraryWatching(under: [fixture.root]).isEmpty)
+    // The video left the current scan result, so its progress left with it.
     #expect(
         try sqliteRowCount(
             in: "library_playback_history",
             databaseURL: fixture.databaseURL
-        ) == 1
+        ) == 0
     )
     #expect(try sqliteRowCount(in: "cue_tombstones", databaseURL: fixture.databaseURL) == 0)
 
@@ -2009,17 +1940,17 @@ func referencedCueTombstoneSurvivesMissingResourcesAndRestoresCueID() throws {
         )
     }
 
+    // A subtitle that left the index and comes back is a new resource: the
+    // Shiori is kept and stays unavailable against its Tombstone.
     _ = try fixture.writeSubtitle(name: "Lifecycle.ass", contents: contents)
     _ = try indexer.index(folder: fixture.root, into: database)
 
-    let restored = try #require(try shioriDatabase.shiori(id: saved.id))
-    #expect(restored.isValid)
+    let returned = try #require(try shioriDatabase.shiori(id: saved.id))
+    #expect(!returned.isValid)
+    #expect(returned.unavailableReason == .subtitleMissing)
     #expect(try shioriDatabase.cueID(forShioriID: saved.id) == originalCueID)
-    #expect(try sqliteRowCount(in: "cue_tombstones", databaseURL: fixture.databaseURL) == 0)
-
-    try FileManager.default.removeItem(at: subtitleFile)
-    _ = try indexer.index(folder: fixture.root, into: database)
     #expect(try sqliteRowCount(in: "cue_tombstones", databaseURL: fixture.databaseURL) == 1)
+
     #expect(try shioriDatabase.removeShiori(id: saved.id))
     #expect(try sqliteRowCount(in: "cue_tombstones", databaseURL: fixture.databaseURL) == 0)
 }

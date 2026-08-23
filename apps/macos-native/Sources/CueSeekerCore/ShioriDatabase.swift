@@ -6,15 +6,9 @@ public final class ShioriDatabase: @unchecked Sendable {
 
     private static let resolvedShioriSelectSQL = """
         SELECT s.id,
-               CASE
-                 WHEN sf.binding_state = 'available' THEN sf.subtitle_path
-                 ELSE COALESCE(NULLIF(sf.last_known_path, ''), t.subtitle_path, '')
-               END,
+               COALESCE(sf.subtitle_path, t.subtitle_path, ''),
                COALESCE(sf.format, t.source_format, 'srt'),
-               CASE
-                 WHEN vf.binding_state = 'available' THEN vf.path
-                 ELSE COALESCE(NULLIF(vf.last_known_path, ''), t.video_path, '')
-               END,
+               COALESCE(vf.path, t.video_path, ''),
                COALESCE(vf.video_name, t.display_title, ''),
                COALESCE(l.start_ms, t.start_ms, 0),
                COALESCE(l.end_ms, t.end_ms, 0),
@@ -40,8 +34,8 @@ public final class ShioriDatabase: @unchecked Sendable {
                ),
                CASE
                  WHEN l.id IS NULL THEN COALESCE(t.unavailable_reason, 'cue_missing')
-                 WHEN sf.binding_state <> 'available' THEN 'subtitle_missing'
-                 WHEN vf.id IS NULL OR vf.binding_state <> 'available' THEN 'video_missing'
+                 WHEN sf.id IS NULL THEN 'subtitle_missing'
+                 WHEN vf.id IS NULL THEN 'video_missing'
                  ELSE NULL
                END,
                s.created_at,
@@ -676,8 +670,6 @@ public final class ShioriDatabase: @unchecked Sendable {
             WHERE s.list_id = ?
               AND \(orderingPredicate)
               AND l.id IS NOT NULL
-              AND sf.binding_state = 'available'
-              AND vf.binding_state = 'available'
             \(orderingClause)
             LIMIT 1;
             """

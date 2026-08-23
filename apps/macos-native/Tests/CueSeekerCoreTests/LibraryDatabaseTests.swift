@@ -1072,7 +1072,7 @@ func libraryCoverPresentationsNeverFallBackToMasterRendition() throws {
 }
 
 @Test
-func removingIndexedFolderPreservesLibraryPlaybackHistory() throws {
+func removingIndexedFolderForgetsLibraryPlaybackHistory() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
         try? FileManager.default.removeItem(at: databaseURL)
@@ -1106,9 +1106,11 @@ func removingIndexedFolderPreservesLibraryPlaybackHistory() throws {
 
     try database.removeIndexedFolder(folder)
 
+    // Removing a Library removes it: the videos leave the index and the
+    // progress that belonged to them leaves with them.
     #expect(try LibraryDatabase(path: databaseURL).libraryVideos(under: [folder]).isEmpty)
-    let history = try #require(try LibraryDatabase(path: databaseURL).libraryPlaybackHistory(forVideoFile: videoFile))
-    #expect(history.videoPath == videoFile.path)
-    #expect(history.positionMilliseconds == 42_000)
-    #expect(history.duration == 1_200.0)
+    #expect(
+        try LibraryDatabase(path: databaseURL)
+            .libraryPlaybackHistory(forVideoFile: videoFile) == nil
+    )
 }

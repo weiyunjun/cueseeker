@@ -12,7 +12,7 @@ public enum DatabaseBootstrapError: Error, Equatable, CustomStringConvertible {
 }
 
 public enum DatabaseBootstrap {
-    public static let currentSchemaVersion = 42
+    public static let currentSchemaVersion = 43
 
     public static func prepare(at path: URL) throws {
         let database = try SQLiteDatabase(path: path, access: .readWrite)
@@ -29,6 +29,18 @@ public enum DatabaseBootstrap {
 }
 
 private extension DatabaseBootstrap {
+    static func columnNames(
+        of table: String,
+        in database: SQLiteDatabase
+    ) throws -> Set<String> {
+        let statement = try database.prepare("PRAGMA table_info(\(table))")
+        var names: Set<String> = []
+        while try statement.step() {
+            names.insert(statement.stringColumn(1))
+        }
+        return names
+    }
+
     static func prepareSchema(on database: SQLiteDatabase) throws {
         let previousVersion = try schemaVersion(in: database)
 
@@ -42,6 +54,7 @@ private extension DatabaseBootstrap {
                 || previousVersion == 39
                 || previousVersion == 40
                 || previousVersion == 41
+                || previousVersion == 42
                 || previousVersion == DatabaseBootstrap.currentSchemaVersion
         else {
             throw DatabaseBootstrapError.unsupportedSchemaVersion(
@@ -114,6 +127,9 @@ private extension DatabaseBootstrap {
             || previousVersion == 41
         {
             try migrateSchema41To42(on: database)
+        }
+        if previousVersion >= 33, previousVersion <= 42 {
+            try migrateSchema42To43(on: database)
             return
         }
         guard previousVersion == 0 else {
@@ -127,38 +143,19 @@ private extension DatabaseBootstrap {
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     type TEXT NOT NULL DEFAULT 'local',
                     path TEXT NOT NULL UNIQUE,
-                    last_known_path TEXT NOT NULL DEFAULT '',
-                    resource_identity TEXT,
-                    binding_state TEXT NOT NULL DEFAULT 'available',
-                    is_configured INTEGER NOT NULL DEFAULT 1,
-                    last_seen_at TEXT,
                     last_successful_index_at TEXT,
-                    latest_index_token INTEGER NOT NULL DEFAULT 0,
-                    published_index_token INTEGER NOT NULL DEFAULT 0,
                     presentation_retry_pending INTEGER NOT NULL DEFAULT 0,
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL
                 );
 
-                CREATE UNIQUE INDEX IF NOT EXISTS idx_search_paths_resource_identity
-                    ON search_paths(resource_identity)
-                    WHERE resource_identity IS NOT NULL;
-
                 CREATE TABLE IF NOT EXISTS library_folders (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     library_id INTEGER NOT NULL,
                     relative_path TEXT NOT NULL,
-                    last_known_path TEXT NOT NULL,
-                    resource_identity TEXT,
-                    binding_state TEXT NOT NULL DEFAULT 'available',
-                    last_seen_at TEXT,
                     UNIQUE(library_id, relative_path),
                     FOREIGN KEY(library_id) REFERENCES search_paths(id)
                 );
-
-                CREATE UNIQUE INDEX IF NOT EXISTS idx_library_folders_resource_identity
-                    ON library_folders(library_id, resource_identity)
-                    WHERE resource_identity IS NOT NULL;
                 """
             )
 
@@ -215,11 +212,6 @@ private extension DatabaseBootstrap {
                 folder_id INTEGER,
                 relative_path TEXT,
                 subtitle_path TEXT NOT NULL UNIQUE,
-                last_known_path TEXT NOT NULL DEFAULT '',
-                resource_identity TEXT,
-                content_fingerprint TEXT,
-                binding_state TEXT NOT NULL DEFAULT 'available',
-                last_seen_at TEXT,
                 format TEXT NOT NULL,
                 file_size INTEGER,
                 modified_at REAL,
@@ -235,11 +227,6 @@ private extension DatabaseBootstrap {
                 folder_id INTEGER,
                 relative_path TEXT,
                 path TEXT NOT NULL UNIQUE,
-                last_known_path TEXT NOT NULL DEFAULT '',
-                resource_identity TEXT,
-                content_fingerprint TEXT,
-                binding_state TEXT NOT NULL DEFAULT 'available',
-                last_seen_at TEXT,
                 video_name TEXT NOT NULL,
                 file_size INTEGER,
                 modified_at REAL,
@@ -258,14 +245,6 @@ private extension DatabaseBootstrap {
                 FOREIGN KEY(library_id) REFERENCES search_paths(id),
                 FOREIGN KEY(folder_id) REFERENCES library_folders(id)
             );
-
-            CREATE UNIQUE INDEX IF NOT EXISTS idx_subtitle_files_resource_identity
-                ON subtitle_files(library_id, resource_identity)
-                WHERE resource_identity IS NOT NULL;
-
-            CREATE UNIQUE INDEX IF NOT EXISTS idx_video_files_resource_identity
-                ON video_files(library_id, resource_identity)
-                WHERE resource_identity IS NOT NULL;
 
             CREATE TABLE IF NOT EXISTS subtitle_video_matches (
                 subtitle_file_id INTEGER NOT NULL,
@@ -604,21 +583,6 @@ private extension DatabaseBootstrap {
                 cue_count INTEGER NOT NULL CHECK(cue_count >= 0),
                 PRIMARY KEY(facet, value)
             );
-
-            CREATE TABLE IF NOT EXISTS resource_binding_conflicts (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                library_id INTEGER NOT NULL,
-                resource_kind TEXT NOT NULL,
-                existing_resource_id INTEGER,
-                candidate_path TEXT NOT NULL,
-                reason TEXT NOT NULL,
-                created_at TEXT NOT NULL,
-                resolved_at TEXT,
-                FOREIGN KEY(library_id) REFERENCES search_paths(id)
-            );
-
-            CREATE INDEX IF NOT EXISTS idx_resource_binding_conflicts_unresolved
-                ON resource_binding_conflicts(library_id, resolved_at, id);
 
             \(shioriSchemaSQL)
 
@@ -1018,6 +982,189 @@ private extension DatabaseBootstrap {
                 PRAGMA user_version = 42;
                 """
             )
+        }
+    }
+
+    /// Removes the platform resource identity and binding state machine.
+    ///
+    /// Resources that had already left the index keep no data: their rows and the
+    /// covers, watch states, progress and playback history that belong to them are
+    /// deleted. Cues still referenced by a Shiori are tombstoned first.
+    static func migrateSchema42To43(on database: SQLiteDatabase) throws {
+        guard try columnNames(of: "search_paths", in: database).contains("binding_state")
+        else {
+            try database.execute("PRAGMA user_version = 43;")
+            return
+        }
+
+        try database.withImmediateTransaction {
+            try database.execute(
+                """
+                CREATE TEMP TABLE retired_libraries AS
+                    SELECT id FROM search_paths
+                    WHERE binding_state <> 'available' OR is_configured = 0;
+
+                CREATE TEMP TABLE retired_folders AS
+                    SELECT id FROM library_folders
+                    WHERE binding_state <> 'available'
+                       OR library_id IN (SELECT id FROM retired_libraries);
+
+                CREATE TEMP TABLE retired_subtitles AS
+                    SELECT id FROM subtitle_files
+                    WHERE binding_state <> 'available'
+                       OR library_id IN (SELECT id FROM retired_libraries);
+
+                CREATE TEMP TABLE retired_videos AS
+                    SELECT id FROM video_files
+                    WHERE binding_state <> 'available'
+                       OR library_id IN (SELECT id FROM retired_libraries);
+
+                INSERT INTO cue_tombstones(
+                    cue_id,
+                    subtitle_file_id,
+                    source_format,
+                    source_style,
+                    source_identity_remainder,
+                    start_time,
+                    end_time,
+                    start_ms,
+                    end_ms,
+                    content,
+                    cue_group_content,
+                    display_title,
+                    subtitle_path,
+                    video_path,
+                    unavailable_reason,
+                    tombstoned_at,
+                    updated_at
+                )
+                SELECT l.id,
+                       l.subtitle_file_id,
+                       l.source_format,
+                       l.source_style,
+                       l.source_identity_remainder,
+                       l.start_time,
+                       l.end_time,
+                       l.start_ms,
+                       l.end_ms,
+                       l.content,
+                       COALESCE(
+                         (
+                           SELECT GROUP_CONCAT(ordered.content, char(31))
+                           FROM (
+                             SELECT group_cue.content
+                             FROM subtitle_cue_lines group_cue
+                             WHERE group_cue.cue_group_id = l.cue_group_id
+                             ORDER BY group_cue.display_order ASC,
+                                      group_cue.event_index ASC,
+                                      group_cue.id ASC
+                           ) ordered
+                         ),
+                         l.content
+                       ),
+                       COALESCE(
+                         (
+                           SELECT lvr.display_title
+                           FROM library_video_rows lvr
+                           WHERE lvr.subtitle_file_id = sf.id
+                           LIMIT 1
+                         ),
+                         vf.video_name,
+                         ''
+                       ),
+                       COALESCE(NULLIF(sf.last_known_path, ''), sf.subtitle_path),
+                       COALESCE(NULLIF(vf.last_known_path, ''), vf.path),
+                       'cue_missing',
+                       strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
+                       strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+                FROM subtitle_cue_lines l
+                JOIN shioris s ON s.cue_id = l.id
+                JOIN subtitle_files sf ON sf.id = l.subtitle_file_id
+                LEFT JOIN cue_tombstones t ON t.cue_id = l.id
+                LEFT JOIN subtitle_video_matches m
+                  ON m.subtitle_file_id = sf.id AND m.is_active = 1
+                LEFT JOIN video_files vf ON vf.id = m.video_file_id
+                WHERE t.cue_id IS NULL
+                  AND sf.id IN (SELECT id FROM retired_subtitles);
+
+                DELETE FROM subtitle_search_order_rows
+                WHERE subtitle_file_id IN (SELECT id FROM retired_subtitles);
+
+                DELETE FROM library_video_rows
+                WHERE subtitle_file_id IN (SELECT id FROM retired_subtitles)
+                   OR video_file_id IN (SELECT id FROM retired_videos);
+
+                DELETE FROM library_playback_history
+                WHERE video_file_id IN (SELECT id FROM retired_videos);
+
+                DELETE FROM library_watch_states
+                WHERE video_file_id IN (SELECT id FROM retired_videos);
+
+                DELETE FROM folder_covers
+                WHERE folder_id IN (SELECT id FROM retired_folders);
+
+                DELETE FROM user_folder_covers
+                WHERE folder_id IN (SELECT id FROM retired_folders);
+
+                DELETE FROM subtitle_files
+                WHERE id IN (SELECT id FROM retired_subtitles);
+
+                DELETE FROM video_files
+                WHERE id IN (SELECT id FROM retired_videos);
+
+                UPDATE subtitle_files SET folder_id = NULL
+                WHERE folder_id IN (SELECT id FROM retired_folders);
+
+                UPDATE video_files SET folder_id = NULL
+                WHERE folder_id IN (SELECT id FROM retired_folders);
+
+                DELETE FROM library_folders
+                WHERE id IN (SELECT id FROM retired_folders);
+
+                DELETE FROM search_paths
+                WHERE id IN (SELECT id FROM retired_libraries);
+
+                DROP TABLE retired_videos;
+                DROP TABLE retired_subtitles;
+                DROP TABLE retired_folders;
+                DROP TABLE retired_libraries;
+
+                DROP TABLE IF EXISTS resource_binding_conflicts;
+                DROP INDEX IF EXISTS idx_search_paths_resource_identity;
+                DROP INDEX IF EXISTS idx_library_folders_resource_identity;
+                DROP INDEX IF EXISTS idx_subtitle_files_resource_identity;
+                DROP INDEX IF EXISTS idx_video_files_resource_identity;
+
+                ALTER TABLE search_paths DROP COLUMN resource_identity;
+                ALTER TABLE search_paths DROP COLUMN binding_state;
+                ALTER TABLE search_paths DROP COLUMN last_known_path;
+                ALTER TABLE search_paths DROP COLUMN last_seen_at;
+                ALTER TABLE search_paths DROP COLUMN is_configured;
+                ALTER TABLE search_paths DROP COLUMN latest_index_token;
+                ALTER TABLE search_paths DROP COLUMN published_index_token;
+
+                ALTER TABLE library_folders DROP COLUMN resource_identity;
+                ALTER TABLE library_folders DROP COLUMN binding_state;
+                ALTER TABLE library_folders DROP COLUMN last_known_path;
+                ALTER TABLE library_folders DROP COLUMN last_seen_at;
+
+                ALTER TABLE subtitle_files DROP COLUMN resource_identity;
+                ALTER TABLE subtitle_files DROP COLUMN content_fingerprint;
+                ALTER TABLE subtitle_files DROP COLUMN binding_state;
+                ALTER TABLE subtitle_files DROP COLUMN last_known_path;
+                ALTER TABLE subtitle_files DROP COLUMN last_seen_at;
+
+                ALTER TABLE video_files DROP COLUMN resource_identity;
+                ALTER TABLE video_files DROP COLUMN content_fingerprint;
+                ALTER TABLE video_files DROP COLUMN binding_state;
+                ALTER TABLE video_files DROP COLUMN last_known_path;
+                ALTER TABLE video_files DROP COLUMN last_seen_at;
+
+                PRAGMA user_version = 43;
+                """
+            )
+
+            try CueFacetCountCache.rebuildAll(on: database)
         }
     }
 

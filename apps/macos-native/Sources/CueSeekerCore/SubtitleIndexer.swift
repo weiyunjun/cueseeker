@@ -40,12 +40,6 @@ public struct SubtitleIndexingFailure: Equatable, Sendable {
 
 public enum SubtitleIndexingError: Error, Equatable, Sendable {
     case incomplete(path: String, reason: String)
-    case stalePublication(libraryID: Int64, token: Int64)
-}
-
-struct LibraryIndexLease: Equatable, Sendable {
-    let libraryID: Int64
-    let token: Int64
 }
 
 struct PreparedSubtitleIndexFile: Sendable {
@@ -57,7 +51,6 @@ struct PreparedSubtitleIndexFile: Sendable {
     let assFontReferences: [ASSFontReferenceIntent]
     let fileSize: Int64?
     let modifiedAt: Date?
-    let fileIdentity: FileResourceIdentity
     let languageAnalysis: SubtitleLanguageAnalysis
     let refreshVideoMetadata: Bool
 }
@@ -65,7 +58,6 @@ struct PreparedSubtitleIndexFile: Sendable {
 struct SubtitleFileObservation: Equatable, Sendable {
     let fileSize: Int64?
     let modifiedAt: Date?
-    let resourceIdentity: String?
 
     static func capture(_ file: URL) throws -> SubtitleFileObservation {
         let attributes = try FileManager.default.attributesOfItem(
@@ -73,10 +65,7 @@ struct SubtitleFileObservation: Equatable, Sendable {
         )
         return SubtitleFileObservation(
             fileSize: (attributes[.size] as? NSNumber)?.int64Value,
-            modifiedAt: attributes[.modificationDate] as? Date,
-            resourceIdentity: FileResourceIdentityResolver.resourceIdentifier(
-                for: file
-            )
+            modifiedAt: attributes[.modificationDate] as? Date
         )
     }
 }
@@ -84,13 +73,10 @@ struct SubtitleFileObservation: Equatable, Sendable {
 struct PreparedSubtitleBindingRefresh: Sendable {
     let subtitleFile: URL
     let videoFile: URL
-    let subtitleResourceIdentity: String?
-    let refreshesSubtitleIdentity: Bool
 }
 
 struct PreparedLibraryIndex: Sendable {
     let folder: URL
-    let lease: LibraryIndexLease
     let changedFiles: [PreparedSubtitleIndexFile]
     let bindingRefreshes: [PreparedSubtitleBindingRefresh]
     let missingVideoSubtitleFiles: [URL]
@@ -140,7 +126,6 @@ public struct SubtitleIndexer {
 
     public func index(folder: URL, into database: IndexingDatabase) throws -> SubtitleIndexingResult {
         try scanner.validateReadableDirectory(folder)
-        let lease = try database.beginLibraryIndex(folder)
         let playbackDatabase = try PlaybackSubtitleDatabase(path: database.path)
 
         var result = SubtitleIndexingResult()
@@ -169,9 +154,7 @@ public struct SubtitleIndexer {
         )
         let existingVideoMetadataByPath: [String: SubtitleFileMetadata] = Dictionary(
             existingFiles.values.compactMap { metadata -> (String, SubtitleFileMetadata)? in
-                guard metadata.videoBindingState == .available,
-                      let videoPath = metadata.videoPath
-                else {
+                guard let videoPath = metadata.videoPath else {
                     return nil
                 }
                 return (videoPath, metadata)
@@ -211,28 +194,18 @@ public struct SubtitleIndexer {
                     database: database,
                     playbackDatabase: playbackDatabase,
                     fileSize: observation.fileSize,
-                    modifiedAt: observation.modifiedAt,
-                    resourceIdentity: observation.resourceIdentity
+                    modifiedAt: observation.modifiedAt
                )
             {
                 keptSubtitlePaths.insert(subtitleFile.path)
-                let refreshesSubtitleIdentity =
-                    metadata.subtitleResourceIdentity
-                        != observation.resourceIdentity
-                if refreshesSubtitleIdentity
-                    || videoBindingNeedsRefresh(
+                if videoBindingNeedsRefresh(
                     metadata: metadata,
                     videoFile: videoFile
-                    )
-                {
+                ) {
                     bindingRefreshes.append(
                         PreparedSubtitleBindingRefresh(
                             subtitleFile: subtitleFile,
-                            videoFile: videoFile,
-                            subtitleResourceIdentity:
-                                observation.resourceIdentity,
-                            refreshesSubtitleIdentity:
-                                refreshesSubtitleIdentity
+                            videoFile: videoFile
                         )
                     )
                 }
@@ -332,13 +305,6 @@ public struct SubtitleIndexer {
                     assFontReferences: assFontReferences,
                     fileSize: observation.fileSize,
                     modifiedAt: observation.modifiedAt,
-                    fileIdentity: FileResourceIdentity(
-                        resourceIdentifier: observation.resourceIdentity,
-                        contentFingerprint:
-                            FileResourceIdentityResolver.contentFingerprint(
-                                for: data
-                            )
-                    ),
                     languageAnalysis: languageAnalysis,
                     refreshVideoMetadata: existingVideoMetadataByPath[
                         videoFile.path
@@ -359,7 +325,6 @@ public struct SubtitleIndexer {
         let mutation = try database.publishLibraryIndex(
             PreparedLibraryIndex(
                 folder: folder,
-                lease: lease,
                 changedFiles: changedFiles,
                 bindingRefreshes: bindingRefreshes,
                 missingVideoSubtitleFiles: missingVideoSubtitleFiles,
@@ -402,8 +367,7 @@ public struct SubtitleIndexer {
         database: IndexingDatabase,
         playbackDatabase: PlaybackSubtitleDatabase,
         fileSize: Int64?,
-        modifiedAt: Date?,
-        resourceIdentity: String?
+        modifiedAt: Date?
     ) throws -> Bool {
         guard metadata.fileSize == fileSize,
               metadata.indexAlgorithmVersion == SubtitleCueIndexingRules.algorithmVersion,
@@ -414,13 +378,6 @@ public struct SubtitleIndexer {
         }
 
         guard abs(existingModifiedAt.timeIntervalSince1970 - modifiedAt.timeIntervalSince1970) < 0.001 else {
-            return false
-        }
-
-        if let storedResourceIdentity = metadata.subtitleResourceIdentity,
-           let resourceIdentity,
-           storedResourceIdentity != resourceIdentity
-        {
             return false
         }
 
@@ -448,9 +405,7 @@ public struct SubtitleIndexer {
         metadata: SubtitleFileMetadata,
         videoFile: URL
     ) -> Bool {
-        guard metadata.videoBindingState == .available,
-              metadata.videoPath == videoFile.path
-        else {
+        guard metadata.videoPath == videoFile.path else {
             return true
         }
 
@@ -459,19 +414,17 @@ public struct SubtitleIndexer {
         )
         let fileSize = (attributes?[.size] as? NSNumber)?.int64Value
         let modifiedAt = attributes?[.modificationDate] as? Date
-        guard metadata.videoFileSize == fileSize,
-              let storedModifiedAt = metadata.videoModifiedAt,
-              let modifiedAt,
-              abs(
-                storedModifiedAt.timeIntervalSince1970
-                    - modifiedAt.timeIntervalSince1970
-              ) < 0.001
-        else {
-            return true
-        }
-
-        return metadata.videoResourceIdentity
-            != FileResourceIdentityResolver.resourceIdentifier(for: videoFile)
+        return !(
+            metadata.videoFileSize == fileSize
+                && metadata.videoModifiedAt.map { storedModifiedAt in
+                    modifiedAt.map {
+                        abs(
+                            storedModifiedAt.timeIntervalSince1970
+                                - $0.timeIntervalSince1970
+                        ) < 0.001
+                    } ?? false
+                } ?? false
+        )
     }
 }
 
@@ -480,8 +433,6 @@ extension SubtitleIndexingError: LocalizedError {
         switch self {
         case let .incomplete(path, reason):
             return "\(reason) Index publication was cancelled for \(path)."
-        case let .stalePublication(libraryID, token):
-            return "Index token \(token) no longer has publication rights for Library \(libraryID)."
         }
     }
 }

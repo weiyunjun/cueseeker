@@ -28,8 +28,6 @@ public final class LibraryDatabase: @unchecked Sendable {
             JOIN subtitle_video_matches m ON m.subtitle_file_id = sf.id AND m.is_active = 1
             JOIN video_files vf ON vf.id = m.video_file_id
             WHERE (\(scopeCondition))
-              AND sf.binding_state = 'available'
-              AND vf.binding_state = 'available'
             ORDER BY vf.path ASC, sf.subtitle_path ASC;
             """
         )
@@ -256,10 +254,7 @@ extension LibraryDatabase {
         let videoFileID = try videoFileID(for: videoFile)
         let statement = try database.prepare(
             """
-            SELECT CASE
-                       WHEN vf.binding_state = 'available' THEN vf.path
-                       ELSE COALESCE(NULLIF(vf.last_known_path, ''), h.video_path)
-                   END,
+            SELECT COALESCE(vf.path, h.video_path),
                    h.position_ms, h.duration,
                    CASE
                        WHEN ws.state = 'finished' THEN COALESCE(h.started_at, ws.updated_at)
@@ -454,18 +449,10 @@ extension LibraryDatabase {
             """
             SELECT id
             FROM video_files
-            WHERE path = ?
-               OR (
-                 last_known_path = ?
-                 AND binding_state <> 'available'
-               )
-            ORDER BY CASE WHEN path = ? THEN 0 ELSE 1 END, id DESC
-            LIMIT 1;
+            WHERE path = ?;
             """
         )
         try statement.bind(videoFile.path, at: 1)
-        try statement.bind(videoFile.path, at: 2)
-        try statement.bind(videoFile.path, at: 3)
         return try statement.step() ? statement.int64Column(0) : nil
     }
 

@@ -139,7 +139,18 @@ func migratesSchema33ShioriListMetadataWithoutDroppingTheList() throws {
             modified_at REAL
         );
         CREATE TABLE subtitle_cue_lines (
-            id INTEGER PRIMARY KEY AUTOINCREMENT
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            subtitle_file_id INTEGER,
+            cue_group_id INTEGER,
+            event_index INTEGER NOT NULL DEFAULT 0,
+            source_format TEXT NOT NULL DEFAULT 'srt',
+            source_style TEXT,
+            start_time TEXT NOT NULL DEFAULT '',
+            end_time TEXT NOT NULL DEFAULT '',
+            start_ms INTEGER NOT NULL DEFAULT 0,
+            end_ms INTEGER NOT NULL DEFAULT 0,
+            content TEXT NOT NULL DEFAULT '',
+            display_order INTEGER NOT NULL DEFAULT 0
         );
         CREATE TABLE shiori_lists (
             id INTEGER PRIMARY KEY,
@@ -169,6 +180,7 @@ func migratesSchema33ShioriListMetadataWithoutDroppingTheList() throws {
             FOREIGN KEY(shiori_id) REFERENCES shioris(id) ON DELETE CASCADE,
             FOREIGN KEY(tag_id) REFERENCES shiori_tags(id) ON DELETE CASCADE
         );
+        \(identityEraFixtureSchemaSQL)
         CREATE TABLE folder_covers (
             folder_path TEXT PRIMARY KEY,
             cover_path TEXT NOT NULL,
@@ -211,7 +223,7 @@ func rejectsUnsupportedLowerSchemaWithoutChangingVersion() throws {
 
 @Test
 func rejectsNewerSchemaWithoutChangingVersion() throws {
-    try expectUnsupportedSchemaVersion(43)
+    try expectUnsupportedSchemaVersion(44)
 }
 
 @Test
@@ -349,27 +361,41 @@ func permanentIdentitySchemaIncludesLibraryRelativePathsAndIDReferences() throws
 
     try DatabaseBootstrap.prepare(at: databaseURL)
 
-    #expect(try sqliteColumnNames(in: "subtitle_files", databaseURL: databaseURL).isSuperset(of: [
-        "id", "library_id", "folder_id", "relative_path", "last_known_path",
-        "resource_identity", "content_fingerprint", "binding_state", "last_seen_at"
+    let subtitleColumns = try sqliteColumnNames(in: "subtitle_files", databaseURL: databaseURL)
+    let videoColumns = try sqliteColumnNames(in: "video_files", databaseURL: databaseURL)
+    let searchPathColumns = try sqliteColumnNames(in: "search_paths", databaseURL: databaseURL)
+
+    #expect(subtitleColumns.isSuperset(of: [
+        "id", "library_id", "folder_id", "relative_path", "subtitle_path"
     ]))
-    #expect(try sqliteColumnNames(in: "video_files", databaseURL: databaseURL).isSuperset(of: [
-        "id", "library_id", "folder_id", "relative_path", "last_known_path",
-        "resource_identity", "content_fingerprint", "binding_state", "last_seen_at",
+    #expect(videoColumns.isSuperset(of: [
+        "id", "library_id", "folder_id", "relative_path", "path",
         "duration_retry_pending"
     ]))
     #expect(try sqliteColumnNames(in: "subtitle_cue_lines", databaseURL: databaseURL).isSuperset(of: [
         "id", "subtitle_file_id", "source_identity_remainder"
     ]))
-    #expect(try sqliteColumnNames(in: "search_paths", databaseURL: databaseURL).isSuperset(of: [
-        "id", "last_known_path", "resource_identity", "binding_state", "is_configured",
-        "latest_index_token", "published_index_token",
-        "presentation_retry_pending"
+    #expect(searchPathColumns.isSuperset(of: [
+        "id", "path", "presentation_retry_pending"
     ]))
+
+    // Path and file name are the only identity; nothing else may decide it.
+    let retiredColumns: Set<String> = [
+        "resource_identity", "content_fingerprint", "binding_state",
+        "last_known_path", "last_seen_at", "is_configured",
+        "latest_index_token", "published_index_token"
+    ]
+    #expect(subtitleColumns.isDisjoint(with: retiredColumns))
+    #expect(videoColumns.isDisjoint(with: retiredColumns))
+    #expect(searchPathColumns.isDisjoint(with: retiredColumns))
+    #expect(
+        try sqliteColumnNames(in: "library_folders", databaseURL: databaseURL)
+            .isDisjoint(with: retiredColumns)
+    )
     #expect(try sqliteTableExists("library_folders", databaseURL: databaseURL))
     #expect(try sqliteTableExists("cue_tombstones", databaseURL: databaseURL))
     #expect(try sqliteTableExists("cue_change_notices", databaseURL: databaseURL))
-    #expect(try sqliteTableExists("resource_binding_conflicts", databaseURL: databaseURL))
+    #expect(try !sqliteTableExists("resource_binding_conflicts", databaseURL: databaseURL))
     #expect(try sqliteColumnNames(in: "folder_covers", databaseURL: databaseURL)
         .contains("folder_id"))
     #expect(try sqliteColumnNames(in: "user_folder_covers", databaseURL: databaseURL)
@@ -578,7 +604,18 @@ func migratesSchema34IdentityFoundationWithoutLosingShioriAndRemovesTags() throw
             modified_at REAL
         );
         CREATE TABLE subtitle_cue_lines (
-            id INTEGER PRIMARY KEY AUTOINCREMENT
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            subtitle_file_id INTEGER,
+            cue_group_id INTEGER,
+            event_index INTEGER NOT NULL DEFAULT 0,
+            source_format TEXT NOT NULL DEFAULT 'srt',
+            source_style TEXT,
+            start_time TEXT NOT NULL DEFAULT '',
+            end_time TEXT NOT NULL DEFAULT '',
+            start_ms INTEGER NOT NULL DEFAULT 0,
+            end_ms INTEGER NOT NULL DEFAULT 0,
+            content TEXT NOT NULL DEFAULT '',
+            display_order INTEGER NOT NULL DEFAULT 0
         );
         CREATE TABLE shiori_lists (
             id INTEGER PRIMARY KEY,
@@ -611,6 +648,7 @@ func migratesSchema34IdentityFoundationWithoutLosingShioriAndRemovesTags() throw
             FOREIGN KEY(shiori_id) REFERENCES shioris(id) ON DELETE CASCADE,
             FOREIGN KEY(tag_id) REFERENCES shiori_tags(id) ON DELETE CASCADE
         );
+        \(identityEraFixtureSchemaSQL)
         CREATE TABLE folder_covers (
             folder_path TEXT PRIMARY KEY,
             cover_path TEXT NOT NULL,
@@ -706,3 +744,52 @@ func freshSchemaOmitsShioriTagTablesAndIndexes() throws {
     #expect(try sqliteIndexExists("idx_shiori_tag_assignments_tag", databaseURL: databaseURL) == false)
     #expect(try sqliteIndexExists("idx_shiori_tag_assignments_shiori", databaseURL: databaseURL) == false)
 }
+
+/// Tables a real pre-43 database always has and that the schema 43 migration
+/// touches while it removes the resource identity and binding state machine.
+let identityEraFixtureSchemaSQL = """
+    CREATE TABLE IF NOT EXISTS subtitle_video_matches (
+        subtitle_file_id INTEGER NOT NULL,
+        video_file_id INTEGER NOT NULL,
+        match_method TEXT NOT NULL DEFAULT 'exact',
+        confidence REAL NOT NULL DEFAULT 1.0,
+        is_active INTEGER NOT NULL DEFAULT 1,
+        PRIMARY KEY(subtitle_file_id, video_file_id)
+    );
+    CREATE TABLE IF NOT EXISTS library_video_rows (
+        video_path TEXT PRIMARY KEY,
+        video_file_id INTEGER,
+        subtitle_file_id INTEGER,
+        display_title TEXT NOT NULL DEFAULT ''
+    );
+    CREATE TABLE IF NOT EXISTS subtitle_search_order_rows (
+        subtitle_path TEXT PRIMARY KEY,
+        subtitle_file_id INTEGER
+    );
+    CREATE TABLE IF NOT EXISTS library_playback_history (
+        video_path TEXT PRIMARY KEY,
+        video_file_id INTEGER,
+        position_ms INTEGER NOT NULL DEFAULT 0,
+        updated_at TEXT NOT NULL DEFAULT ''
+    );
+    CREATE TABLE IF NOT EXISTS library_watch_states (
+        video_path TEXT PRIMARY KEY,
+        video_file_id INTEGER,
+        state TEXT NOT NULL DEFAULT 'unwatched',
+        updated_at TEXT NOT NULL DEFAULT ''
+    );
+    CREATE TABLE IF NOT EXISTS subtitle_language_detections (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        subtitle_file_id INTEGER NOT NULL,
+        scope TEXT NOT NULL,
+        scope_key TEXT
+    );
+    CREATE TABLE IF NOT EXISTS subtitle_language_detection_codes (
+        detection_id INTEGER NOT NULL,
+        language_code TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS subtitle_cue_group_languages (
+        cue_group_id INTEGER NOT NULL,
+        language_code TEXT NOT NULL
+    );
+    """

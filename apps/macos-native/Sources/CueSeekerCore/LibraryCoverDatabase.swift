@@ -156,8 +156,7 @@ public final class LibraryCoverDatabase: @unchecked Sendable {
             FROM video_files vf
             JOIN video_covers vc
               ON vc.video_file_id = vf.id AND vc.status = ?
-            WHERE vf.binding_state = 'available'
-              AND vf.path IN (\(placeholders))
+            WHERE vf.path IN (\(placeholders))
             ORDER BY vf.path ASC;
             """
         )
@@ -534,11 +533,11 @@ public final class LibraryCoverDatabase: @unchecked Sendable {
     private func libraryFolderID(forPath folderPath: String) throws -> Int64? {
         let statement = try database.prepare(
             """
-            SELECT id
-            FROM library_folders
-            WHERE last_known_path = ?
-              AND binding_state = 'available'
-            ORDER BY id DESC
+            SELECT lf.id
+            FROM library_folders lf
+            JOIN search_paths sp ON sp.id = lf.library_id
+            WHERE rtrim(sp.path || '/' || lf.relative_path, '/') = ?
+            ORDER BY lf.id DESC
             LIMIT 1;
             """
         )
@@ -552,8 +551,7 @@ public final class LibraryCoverDatabase: @unchecked Sendable {
     ) throws {
         let statement = try database.prepare(
             """
-            UPDATE folder_covers
-            SET folder_path = 'cueseeker-unbound://folder-cover/' || rowid
+            DELETE FROM folder_covers
             WHERE folder_path = ?
               AND (folder_id IS NULL OR folder_id <> ?);
             """
@@ -569,8 +567,7 @@ public final class LibraryCoverDatabase: @unchecked Sendable {
     ) throws {
         let statement = try database.prepare(
             """
-            UPDATE user_folder_covers
-            SET folder_path = 'cueseeker-unbound://user-folder-cover/' || rowid
+            DELETE FROM user_folder_covers
             WHERE folder_path = ?
               AND (folder_id IS NULL OR folder_id <> ?);
             """
@@ -606,9 +603,7 @@ public final class LibraryCoverDatabase: @unchecked Sendable {
             JOIN subtitle_video_matches m
               ON m.subtitle_file_id = sf.id AND m.is_active = 1
             JOIN video_files vf ON vf.id = m.video_file_id
-            WHERE sf.binding_state = 'available'
-              AND vf.binding_state = 'available'
-              AND \(whereClause) (\(placeholders))
+            WHERE \(whereClause) (\(placeholders))
             ORDER BY vf.path ASC, sf.subtitle_path ASC;
             """
         )

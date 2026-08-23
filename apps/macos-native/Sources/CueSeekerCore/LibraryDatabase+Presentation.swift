@@ -21,8 +21,6 @@ extension LibraryDatabase {
             JOIN subtitle_files sf ON sf.id = lvr.subtitle_file_id
             JOIN video_files vf ON vf.id = lvr.video_file_id
             WHERE (\(scopeCondition))
-              AND sf.binding_state = 'available'
-              AND vf.binding_state = 'available'
             ORDER BY lvr.folder_title COLLATE NOCASE ASC,
                      lvr.folder_path COLLATE NOCASE ASC,
                      lvr.video_order ASC, lvr.video_path ASC;
@@ -131,8 +129,6 @@ extension LibraryDatabase {
                 AND vc.status = ? AND vc.display_profile_version = ?
             LEFT JOIN user_video_covers uvc ON uvc.video_file_id = vf.id
             WHERE (\(scopeCondition))
-              AND sf.binding_state = 'available'
-              AND vf.binding_state = 'available'
             ORDER BY julianday(h.updated_at) DESC, h.updated_at DESC,
                      lvr.folder_title COLLATE NOCASE ASC,
                      lvr.folder_path COLLATE NOCASE ASC,
@@ -238,8 +234,6 @@ extension LibraryDatabase {
                 AND fvc.status = ? AND fvc.display_profile_version = ?
             LEFT JOIN user_folder_covers ufc ON ufc.folder_path = lvr.folder_path
             WHERE (\(scopeCondition))
-              AND sf.binding_state = 'available'
-              AND vf.binding_state = 'available'
             ORDER BY lvr.folder_title COLLATE NOCASE ASC,
                      lvr.folder_path COLLATE NOCASE ASC,
                      lvr.video_order ASC, lvr.video_path ASC;
@@ -388,8 +382,6 @@ extension LibraryDatabase {
                        LEFT JOIN video_covers vc ON vc.video_file_id = first_vf.id
                            AND vc.status = ? AND vc.display_profile_version = ?
                        WHERE first_lvr.folder_path = lvr.folder_path
-                         AND first_sf.binding_state = 'available'
-                         AND first_vf.binding_state = 'available'
                        ORDER BY first_lvr.video_order ASC, first_lvr.video_path ASC
                        LIMIT 1
                    ) AS first_video_cover_path,
@@ -403,8 +395,6 @@ extension LibraryDatabase {
                            AND vc.status = 'generated'
                            AND vc.display_profile_version = \(LibraryCoverDisplayProfileVersion.current)
                        WHERE first_lvr.folder_path = lvr.folder_path
-                         AND first_sf.binding_state = 'available'
-                         AND first_vf.binding_state = 'available'
                        ORDER BY first_lvr.video_order ASC, first_lvr.video_path ASC
                        LIMIT 1
                    ) AS first_video_cover_revision
@@ -416,8 +406,6 @@ extension LibraryDatabase {
                 AND fvc.status = ? AND fvc.display_profile_version = ?
             LEFT JOIN user_folder_covers ufc ON ufc.folder_path = lvr.folder_path
             WHERE (\(scopeCondition))
-              AND sf.binding_state = 'available'
-              AND vf.binding_state = 'available'
             GROUP BY lvr.folder_path, lvr.folder_title,
                      ufc.display_cover_path, ufc.updated_at,
                      fvc.display_cover_path, fvc.generated_at
@@ -507,8 +495,6 @@ extension LibraryDatabase {
                 AND vc.status = ? AND vc.display_profile_version = ?
             LEFT JOIN user_video_covers uvc ON uvc.video_file_id = vf.id
             WHERE lvr.folder_path = ?
-              AND sf.binding_state = 'available'
-              AND vf.binding_state = 'available'
             ORDER BY lvr.video_order ASC, lvr.video_path ASC;
             """
         )
@@ -829,8 +815,8 @@ extension LibraryDatabase {
         let scopeCondition = pathPrefixes?.map { _ in "(sf.subtitle_path >= ? AND sf.subtitle_path < ?)" }
             .joined(separator: " OR ") ?? ""
         let whereClause = pathPrefixes?.isEmpty == false
-            ? "WHERE (\(scopeCondition)) AND sf.binding_state = 'available' AND vf.binding_state = 'available'"
-            : "WHERE sf.binding_state = 'available' AND vf.binding_state = 'available'"
+            ? "WHERE (\(scopeCondition))"
+            : ""
         let statement = try database.prepare(
             """
             SELECT vf.id, sf.id, vf.path, vf.video_name, vf.duration,
@@ -893,8 +879,6 @@ extension LibraryDatabase {
               ON m.subtitle_file_id = sf.id AND m.is_active = 1
             JOIN video_files vf ON vf.id = m.video_file_id
             WHERE sf.library_id = ?
-              AND sf.binding_state = 'available'
-              AND vf.binding_state = 'available'
             ORDER BY vf.path ASC, sf.subtitle_path ASC;
             """
         )

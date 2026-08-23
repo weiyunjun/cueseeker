@@ -70,8 +70,6 @@ public final class IndexedContentDatabase: @unchecked Sendable {
             SELECT sp.id,
                    sp.path
             FROM search_paths sp
-            WHERE sp.is_configured = 1
-              AND sp.binding_state = 'available'
             ORDER BY sp.path ASC;
             """
         )
@@ -97,11 +95,8 @@ public final class IndexedContentDatabase: @unchecked Sendable {
             FROM search_paths sp
             JOIN video_files vf
               ON vf.library_id = sp.id
-             AND vf.binding_state = 'available'
             JOIN library_folders lf
-              ON lf.id = vf.folder_id
-            WHERE sp.is_configured = 1
-              AND sp.binding_state = 'available';
+              ON lf.id = vf.folder_id;
             """
         )
 
@@ -128,7 +123,6 @@ public final class IndexedContentDatabase: @unchecked Sendable {
             FROM subtitle_video_matches match
             JOIN subtitle_files sf
               ON sf.id = match.subtitle_file_id
-             AND sf.binding_state = 'available'
             WHERE match.is_active = 1
             ORDER BY match.video_file_id ASC,
                      sf.subtitle_path ASC,

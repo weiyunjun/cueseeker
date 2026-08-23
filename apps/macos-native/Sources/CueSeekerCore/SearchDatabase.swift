@@ -211,7 +211,7 @@ public final class SearchDatabase: @unchecked Sendable {
         let scopeCondition = pathPrefixes.map {
             let conditions = $0.map { _ in "(sf.subtitle_path >= ? AND sf.subtitle_path < ?)" }
                 .joined(separator: " OR ")
-            return "AND (\(conditions))"
+            return "WHERE (\(conditions))"
         } ?? ""
 
         try requireCompleteSearchOrderRows(
@@ -239,8 +239,6 @@ public final class SearchDatabase: @unchecked Sendable {
             JOIN video_files vf ON vf.id = m.video_file_id
             JOIN subtitle_search_order_rows sor ON sor.subtitle_file_id = sf.id
             JOIN subtitle_cue_lines l ON l.cue_group_id = g.id
-            WHERE sf.binding_state = 'available'
-              AND vf.binding_state = 'available'
             \(scopeCondition)
             ORDER BY sor.display_title COLLATE NOCASE ASC,
                      sf.subtitle_path COLLATE NOCASE ASC,
@@ -684,9 +682,7 @@ public final class SearchDatabase: @unchecked Sendable {
                 JOIN video_files vf ON vf.id = m.video_file_id
                 \(watchStateJoin)
                 JOIN subtitle_search_order_rows sor ON sor.subtitle_file_id = sf.id
-                WHERE sf.binding_state = 'available'
-                  AND vf.binding_state = 'available'
-                  AND subtitle_cue_groups_fts MATCH ?
+                WHERE subtitle_cue_groups_fts MATCH ?
                 \(scopeCondition)
                 \(subtitlePathCondition)
                 \(languageCondition)
@@ -1242,8 +1238,7 @@ public final class SearchDatabase: @unchecked Sendable {
             SELECT sf.subtitle_path
             FROM subtitle_files sf
             LEFT JOIN subtitle_search_order_rows sor ON sor.subtitle_file_id = sf.id
-            WHERE sf.binding_state = 'available'
-              AND sor.subtitle_file_id IS NULL
+            WHERE sor.subtitle_file_id IS NULL
             \(scopeCondition)
             \(subtitlePathCondition)
             LIMIT 1;
@@ -1854,9 +1849,7 @@ public final class SearchDatabase: @unchecked Sendable {
             JOIN subtitle_video_matches m ON m.subtitle_file_id = sf.id AND m.is_active = 1
             JOIN video_files vf ON vf.id = m.video_file_id
             JOIN subtitle_search_order_rows sor ON sor.subtitle_file_id = sf.id
-            WHERE sf.binding_state = 'available'
-              AND vf.binding_state = 'available'
-              AND g.id IN (\(placeholders));
+            WHERE g.id IN (\(placeholders));
             """
         )
 

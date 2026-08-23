@@ -260,13 +260,17 @@ extension AppCoordinator {
             return
         }
 
+        guard !indexing.indexingStatus.isIndexing else {
+            startupError = L("status.indexing_running")
+            return
+        }
+
         guard !indexing.databaseMaintenanceStatus.isCompacting else {
             startupError = L("status.compaction_running")
             return
         }
 
         indexing.removedFolderNotice = nil
-        indexingTask?.cancel()
         guard let database = indexingDatabase,
               let libraryDatabase,
               let coverDatabase = libraryCoverDatabase
@@ -330,6 +334,11 @@ extension AppCoordinator {
             return
         }
 
+        guard !indexing.indexingStatus.isIndexing else {
+            startupError = L("status.indexing_running")
+            return
+        }
+
         guard !indexing.databaseMaintenanceStatus.isCompacting else {
             startupError = L("status.compaction_running")
             return
@@ -341,7 +350,6 @@ extension AppCoordinator {
         }
 
         indexing.removedFolderNotice = nil
-        indexingTask?.cancel()
         guard let database = indexingDatabase,
               let libraryDatabase,
               let coverDatabase = libraryCoverDatabase
