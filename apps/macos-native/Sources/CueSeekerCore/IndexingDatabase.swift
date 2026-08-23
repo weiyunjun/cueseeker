@@ -177,6 +177,7 @@ public final class IndexingDatabase: @unchecked Sendable {
                     unavailableReason: .subtitleMissing
                 )
             )
+            try deleteEmptyLibraryFolders(libraryID: libraryID)
             if !affectedFolderPaths.isEmpty {
                 try refreshSearchOrderRows(
                     affectedFolderPaths: affectedFolderPaths
@@ -3349,6 +3350,42 @@ public final class IndexingDatabase: @unchecked Sendable {
             "UPDATE subtitle_files SET folder_id = NULL WHERE \(folderScope);",
             "UPDATE video_files SET folder_id = NULL WHERE \(folderScope);",
             "DELETE FROM library_folders WHERE library_id = ?;"
+        ] {
+            let statement = try database.prepare(sql)
+            try statement.bind(libraryID, at: 1)
+            try statement.run()
+        }
+    }
+
+    /// A folder that no longer holds any indexed file has left the scan result,
+    /// so it goes away together with its covers.
+    private func deleteEmptyLibraryFolders(libraryID: Int64) throws {
+        let emptyFolders = """
+            folder_id IN (
+                SELECT lf.id
+                FROM library_folders lf
+                WHERE lf.library_id = ?
+                  AND NOT EXISTS (
+                      SELECT 1 FROM subtitle_files sf WHERE sf.folder_id = lf.id
+                  )
+                  AND NOT EXISTS (
+                      SELECT 1 FROM video_files vf WHERE vf.folder_id = lf.id
+                  )
+            )
+            """
+        for sql in [
+            "DELETE FROM folder_covers WHERE \(emptyFolders);",
+            "DELETE FROM user_folder_covers WHERE \(emptyFolders);",
+            """
+            DELETE FROM library_folders
+            WHERE library_id = ?
+              AND NOT EXISTS (
+                  SELECT 1 FROM subtitle_files sf WHERE sf.folder_id = library_folders.id
+              )
+              AND NOT EXISTS (
+                  SELECT 1 FROM video_files vf WHERE vf.folder_id = library_folders.id
+              );
+            """
         ] {
             let statement = try database.prepare(sql)
             try statement.bind(libraryID, at: 1)

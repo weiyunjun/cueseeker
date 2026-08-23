@@ -541,7 +541,11 @@ public final class LibraryCoverDatabase: @unchecked Sendable {
             LIMIT 1;
             """
         )
-        try statement.bind(folderPath, at: 1)
+        // The Library root is stored standardized, so the lookup must be too.
+        try statement.bind(
+            URL(fileURLWithPath: folderPath).standardizedFileURL.path,
+            at: 1
+        )
         return try statement.step() ? statement.int64Column(0) : nil
     }
 
