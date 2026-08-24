@@ -878,6 +878,9 @@ func subtitleTableViewDisplayTitleContentLeftClickHasNoAction() throws {
 @Test
 func subtitleTableViewCueContentRightClickOpensMenuBelowClickPosition() throws {
     let fixture = makeAttachedVirtualTableCoordinator()
+    // Tall enough that the menu has room below the click, which is where the
+    // shared placement rule puts it.
+    fixture.container.frame.size.height = 800
     let cuesRect = try #require(fixture.coordinator.cellContentHoverDocumentRectForTesting(row: 0, columnID: "cues"))
     let cuesPoint = CGPoint(x: cuesRect.midX, y: cuesRect.midY)
     let windowPoint = fixture.documentView.convert(cuesPoint, to: nil)
@@ -893,6 +896,7 @@ func subtitleTableViewCueContentRightClickOpensMenuBelowClickPosition() throws {
 @Test
 func subtitleTableViewDisplayTitleContentRightClickOpensMenuBelowClickPosition() throws {
     let fixture = makeAttachedVirtualTableCoordinator()
+    fixture.container.frame.size.height = 800
     let displayRect = try #require(fixture.coordinator.cellContentHoverDocumentRectForTesting(row: 0, columnID: "display"))
     let displayPoint = CGPoint(x: displayRect.midX, y: displayRect.midY)
     let windowPoint = fixture.documentView.convert(displayPoint, to: nil)
@@ -907,7 +911,7 @@ func subtitleTableViewDisplayTitleContentRightClickOpensMenuBelowClickPosition()
 private func expectMenuFrame(_ menuFrame: CGRect, opensBelow clickPoint: CGPoint) {
     let gap = WorkbenchControlMetrics.redesignSpacing1
     #expect(abs(menuFrame.minX - clickPoint.x) < 0.5)
-    #expect(abs(menuFrame.maxY - (clickPoint.y - gap)) < 0.5)
+    #expect(abs(menuFrame.minY - (clickPoint.y + gap)) < 0.5)
 }
 
 @MainActor
@@ -948,6 +952,9 @@ func subtitleTableViewDateAddedContentLeftClickHasNoAction() throws {
 @Test
 func subtitleTableViewRightClickOutsideContentHoverRegionOpensRowMenu() throws {
     let fixture = makeAttachedVirtualTableCoordinator()
+    // Tall enough that the menu has room below the click, which is where the
+    // shared placement rule puts it.
+    fixture.container.frame.size.height = 800
     let cuesRect = try #require(fixture.coordinator.cellContentHoverDocumentRectForTesting(row: 0, columnID: "cues"))
     let outsideContentPoint = CGPoint(
         x: cuesRect.maxX + SubtitleTableMetrics.tableCellHoverPaddingX + 12,
@@ -2501,6 +2508,9 @@ func subtitleTableUnavailableShioriBlocksInteractiveActionsButKeepsAllowedMenuAc
 @Test
 func subtitleTableViewSuppressesInteractiveCursorRectsWhenExternalLayerIsOpen() throws {
     let fixture = makeAttachedVirtualTableCoordinator()
+    // Tall enough that the menu has room below the click, which is where the
+    // shared placement rule puts it.
+    fixture.container.frame.size.height = 800
     let cuesRect = try #require(fixture.coordinator.cellContentHoverDocumentRectForTesting(row: 0, columnID: "cues"))
     let cuesPoint = CGPoint(x: cuesRect.midX, y: cuesRect.midY)
 
@@ -2643,7 +2653,7 @@ func subtitleTableShioriSubmenuTouchesAndAlignsWithItsParentItem() async throws 
     fixture.coordinator.showMenu(
         for: 0,
         buttonFrame: .zero,
-        clickPointInContainer: CGPoint(x: 100, y: 700)
+        clickPointInDocument: CGPoint(x: 100, y: 700)
     )
     let parentFrameBefore = try #require(
         fixture.coordinator.menuFrameForTesting()

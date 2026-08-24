@@ -137,20 +137,25 @@ struct PlaybackChromeView: View {
         if playback.isSpeedMenuOpen, let anchor {
             GeometryReader { proxy in
                 let buttonFrame = proxy[anchor]
-                let menuWidth = PlaybackChromeMetrics.speedMenuWidth
-                let menuHeight = PlaybackChromeMetrics.speedMenuHeight
-                let x = min(
-                    max(buttonFrame.maxX - menuWidth / 2, menuWidth / 2),
-                    proxy.size.width - menuWidth / 2
+                let menuSize = CGSize(
+                    width: PlaybackChromeMetrics.speedMenuWidth,
+                    height: PlaybackChromeMetrics.speedMenuHeight
                 )
-                let calculatedY = buttonFrame.minY - PlaybackChromeMetrics.speedMenuGap - menuHeight / 2
-                let maxMenuCenterY = proxy.size.width > 0
-                    ? proxy.size.height - PlaybackChromeMetrics.height + PlaybackChromeMetrics.speedMenuOverlapClearance - menuHeight / 2
-                    : calculatedY
-                let y = max(
-                    menuHeight / 2,
-                    min(calculatedY, maxMenuCenterY)
+                // The button sits on the bottom chrome, so the shared rule finds
+                // no room below and opens the menu upward.
+                let menuFrame = MenuPlacement.openingFrame(
+                    anchor: buttonFrame,
+                    menuSize: menuSize,
+                    in: CGRect(origin: .zero, size: proxy.size),
+                    gap: PlaybackChromeMetrics.speedMenuGap,
+                    // Keeps the menu inside the same margin the controls use
+                    // instead of resting on the window edge.
+                    edgeInset: PlaybackChromeMetrics.chromeHorizontalPadding
                 )
+                let menuWidth = menuSize.width
+                let menuHeight = menuSize.height
+                let x = menuFrame.midX
+                let y = menuFrame.midY
 
                 PlaybackChromeSpeedMenu(
                     selectedSpeed: viewModel.playbackSpeed,

@@ -2709,6 +2709,8 @@ struct SubtitleTableView: NSViewRepresentable {
         private var submenuHost: SubtitleTableMenuHostingView?
         private var menuOverlayView: SubtitleTableMenuOverlayView?
         private var activeMenuAnchor: ActiveMenuAnchor?
+        /// Where the menu sits relative to its anchor, fixed when it opened.
+        private var menuPlacementOffset: CGSize?
         private var activeRowMenuRow: Int?
         private var activeRowMenuColumnID: String?
         private var activeRowMenuTarget: SubtitleTableRow?
@@ -2723,7 +2725,9 @@ struct SubtitleTableView: NSViewRepresentable {
         private weak var externalTextSelectionSession: SubtitleTableExternalTextSelectionSession?
 
         private enum ActiveMenuAnchor {
-            case row(row: Int, columnID: String, anchorFrame: CGRect, clickPointInContainer: CGPoint?)
+            /// A right-click anchor is kept in document coordinates, so the
+            /// menu travels with the content the pointer landed on.
+            case row(row: Int, columnID: String, anchorFrame: CGRect, clickPointInDocument: CGPoint?)
         }
 
         struct DynamicScrollAnchor {
@@ -6620,13 +6624,15 @@ struct SubtitleTableView: NSViewRepresentable {
             else {
                 return false
             }
-            let anchorPoint = container.convert(point, from: documentView)
-            let fallbackFrame = CGRect(origin: anchorPoint, size: .zero)
+            let fallbackFrame = CGRect(
+                origin: container.convert(point, from: documentView),
+                size: .zero
+            )
             showMenu(
                 for: row,
                 columnID: columnID,
                 buttonFrame: fallbackFrame,
-                clickPointInContainer: anchorPoint
+                clickPointInDocument: point
             )
             return true
         }
@@ -7104,57 +7110,47 @@ struct SubtitleTableView: NSViewRepresentable {
             }
         }
 
-        private func positionMenu(triggerFrameInContainer: CGRect, menuSize: CGSize) -> CGRect {
-            let visibleRect = container?.bounds ?? .zero
-            let M = SubtitleTableMetrics.self
-            let menuWidth = menuSize.width
-            let menuHeight = menuSize.height
-
-            var menuX = triggerFrameInContainer.minX
-            if menuX + menuWidth > visibleRect.maxX - M.trailingInset {
-                menuX = max(visibleRect.minX, visibleRect.maxX - menuWidth - M.trailingInset)
-            }
-
-            var menuY = triggerFrameInContainer.minY - menuHeight - WorkbenchControlMetrics.redesignSpacing1
-            if menuY < visibleRect.minY {
-                menuY = triggerFrameInContainer.maxY + WorkbenchControlMetrics.redesignSpacing1
-                if menuY + menuHeight > visibleRect.maxY {
-                    menuY = max(visibleRect.minY, visibleRect.maxY - menuHeight)
+        /// The rectangle the open menu hangs off, in container coordinates.
+        /// A right-click anchor is stored in document coordinates so it follows
+        /// the row the pointer landed on while the table scrolls.
+        private func menuAnchorFrameInContainer(
+            _ anchor: ActiveMenuAnchor
+        ) -> CGRect {
+            switch anchor {
+            case .row(let row, let columnID, let anchorFrame, let clickPointInDocument):
+                if let clickPointInDocument, let container, let documentView {
+                    let point = container.convert(
+                        clickPointInDocument,
+                        from: documentView
+                    )
+                    return CGRect(origin: point, size: .zero)
                 }
+                return rowMenuTriggerFrameInContainer(
+                    row: row,
+                    columnID: columnID,
+                    fallback: anchorFrame
+                )
             }
-
-            return CGRect(x: menuX, y: menuY, width: menuWidth, height: menuHeight)
         }
 
-        private func positionMenuBelowClick(clickPointInContainer: CGPoint, menuSize: CGSize) -> CGRect {
-            let visibleRect = container?.bounds ?? .zero
-            let M = SubtitleTableMetrics.self
-            let gap = WorkbenchControlMetrics.redesignSpacing1
-            let menuWidth = menuSize.width
-            let menuHeight = menuSize.height
-
-            var menuX = clickPointInContainer.x
-            if menuX + menuWidth > visibleRect.maxX - M.trailingInset {
-                menuX = max(visibleRect.minX, visibleRect.maxX - menuWidth - M.trailingInset)
-            }
-            menuX = max(visibleRect.minX, menuX)
-
-            var menuY = clickPointInContainer.y - menuHeight - gap
-            if menuY < visibleRect.minY {
-                menuY = clickPointInContainer.y + gap
-                if menuY + menuHeight > visibleRect.maxY {
-                    menuY = max(visibleRect.minY, visibleRect.maxY - menuHeight)
-                }
-            }
-
-            return CGRect(x: menuX, y: menuY, width: menuWidth, height: menuHeight)
+        private func openingMenuFrame(
+            anchorFrameInContainer: CGRect,
+            menuSize: CGSize
+        ) -> CGRect {
+            MenuPlacement.openingFrame(
+                anchor: anchorFrameInContainer,
+                menuSize: menuSize,
+                in: container?.bounds ?? .zero,
+                gap: WorkbenchControlMetrics.redesignSpacing1,
+                edgeInset: SubtitleTableMetrics.trailingInset
+            )
         }
 
         func showMenu(
             for row: Int,
             columnID: String = "cues",
             buttonFrame: CGRect,
-            clickPointInContainer: CGPoint? = nil
+            clickPointInDocument: CGPoint? = nil
         ) {
             guard !isSelectionMode,
                   row >= 0,
@@ -7173,8 +7169,9 @@ struct SubtitleTableView: NSViewRepresentable {
                 row: row,
                 columnID: columnID,
                 anchorFrame: buttonFrame,
-                clickPointInContainer: clickPointInContainer
+                clickPointInDocument: clickPointInDocument
             )
+            menuPlacementOffset = nil
             layoutHoverButtons()
             invalidateRows([row])
 
@@ -7184,6 +7181,7 @@ struct SubtitleTableView: NSViewRepresentable {
                 activeRowMenuColumnID = nil
                 activeRowMenuTarget = nil
                 activeMenuAnchor = nil
+            menuPlacementOffset = nil
                 return
             }
 
@@ -7244,20 +7242,15 @@ struct SubtitleTableView: NSViewRepresentable {
             menuHost?.layout()
             let menuSize = menuHost?.fittingSize ?? CGSize(width: 172, height: 128)
 
-            let finalMenuFrame: CGRect
-            if let clickPointInContainer {
-                finalMenuFrame = positionMenuBelowClick(
-                    clickPointInContainer: clickPointInContainer,
-                    menuSize: menuSize
-                )
-            } else {
-                let triggerFrameInContainer = rowMenuTriggerFrameInContainer(
-                    row: row,
-                    columnID: columnID,
-                    fallback: buttonFrame
-                )
-                finalMenuFrame = positionMenu(triggerFrameInContainer: triggerFrameInContainer, menuSize: menuSize)
-            }
+            let anchorFrame = activeMenuAnchor.map(menuAnchorFrameInContainer) ?? .zero
+            let finalMenuFrame = openingMenuFrame(
+                anchorFrameInContainer: anchorFrame,
+                menuSize: menuSize
+            )
+            menuPlacementOffset = MenuPlacement.offset(
+                from: anchorFrame,
+                to: finalMenuFrame
+            )
 
             menuHost?.frame = finalMenuFrame
             menuHost?.isHidden = false
@@ -7379,6 +7372,7 @@ struct SubtitleTableView: NSViewRepresentable {
             rowActionSubmenuState = nil
             rowActionHighlight.close()
             activeMenuAnchor = nil
+            menuPlacementOffset = nil
             updateHoveredColumnID(nil)
             updateHoveredCueTextRow(nil)
             updateHoveredRowActionRow(nil)
@@ -7467,26 +7461,19 @@ struct SubtitleTableView: NSViewRepresentable {
                 height: menuSize.height > 0 ? menuSize.height : menuHost.frame.height
             )
 
-            let finalMenuFrame: CGRect
-            switch activeMenuAnchor {
-            case .row(let row, let columnID, let anchorFrame, let clickPointInContainer):
-                if let clickPointInContainer {
-                    finalMenuFrame = positionMenuBelowClick(
-                        clickPointInContainer: clickPointInContainer,
-                        menuSize: resolvedMenuSize
-                    )
-                } else {
-                    let triggerFrameInContainer = rowMenuTriggerFrameInContainer(
-                        row: row,
-                        columnID: columnID,
-                        fallback: anchorFrame
-                    )
-                    finalMenuFrame = positionMenu(
-                        triggerFrameInContainer: triggerFrameInContainer,
-                        menuSize: resolvedMenuSize
-                    )
-                }
-            }
+            let anchorFrame = menuAnchorFrameInContainer(activeMenuAnchor)
+            // The side was chosen when the menu opened. Moving the anchor only
+            // moves the menu; it never sends it to the other side mid-scroll.
+            let offset = menuPlacementOffset ?? MenuPlacement.offset(
+                from: anchorFrame,
+                to: menuHost.frame
+            )
+            menuPlacementOffset = offset
+            let finalMenuFrame = MenuPlacement.followingFrame(
+                anchor: anchorFrame,
+                offset: offset,
+                menuSize: resolvedMenuSize
+            )
 
             menuHost.frame = finalMenuFrame
             if let openParent = rowActionSubmenuState?.openParent {

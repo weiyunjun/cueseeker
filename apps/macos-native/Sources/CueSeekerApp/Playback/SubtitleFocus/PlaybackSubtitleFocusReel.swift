@@ -2333,25 +2333,12 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
         anchor: CGPoint,
         size: CGSize
     ) -> CGRect {
-        let gap = WorkbenchControlMetrics.redesignSpacing1
-        let visibleRect = bounds
-        var x = anchor.x + gap
-        if x + size.width > visibleRect.maxX {
-            x = anchor.x - gap - size.width
-        }
-        x = min(
-            max(visibleRect.minX, x),
-            max(visibleRect.minX, visibleRect.maxX - size.width)
+        MenuPlacement.openingFrame(
+            anchor: CGRect(origin: anchor, size: .zero),
+            menuSize: size,
+            in: bounds,
+            gap: WorkbenchControlMetrics.redesignSpacing1
         )
-        var y = anchor.y
-        if y + size.height > visibleRect.maxY {
-            y = anchor.y - size.height
-        }
-        y = min(
-            max(visibleRect.minY, y),
-            max(visibleRect.minY, visibleRect.maxY - size.height)
-        )
-        return CGRect(origin: CGPoint(x: x, y: y), size: size)
     }
 
     private func dismissSelectedTextActions() {

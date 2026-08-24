@@ -1131,10 +1131,21 @@ private struct LibraryCardContextMenuIsOpenKey: EnvironmentKey {
     static let defaultValue = false
 }
 
+/// The card whose menu is open reports its new anchor through this, so the menu
+/// travels with the card when the page scrolls or the grid reflows.
+private struct LibraryCardContextMenuAnchorUpdateKey: EnvironmentKey {
+    nonisolated(unsafe) static let defaultValue: ((CGPoint) -> Void)? = nil
+}
+
 private extension EnvironmentValues {
     var libraryCardContextMenuIsOpen: Bool {
         get { self[LibraryCardContextMenuIsOpenKey.self] }
         set { self[LibraryCardContextMenuIsOpenKey.self] = newValue }
+    }
+
+    var libraryCardContextMenuAnchorUpdate: ((CGPoint) -> Void)? {
+        get { self[LibraryCardContextMenuAnchorUpdateKey.self] }
+        set { self[LibraryCardContextMenuAnchorUpdateKey.self] = newValue }
     }
 }
 
@@ -1156,19 +1167,22 @@ enum LibraryCoverContextMenuItem {
 
 private struct LibraryCardContextMenuState: Identifiable {
     let id = UUID()
-    let anchorPoint: CGPoint
+    var anchorPoint: CGPoint
     let items: [LibraryCardContextMenuItem]
 }
 
 struct LibraryCardContextMenuHost<Content: View>: View {
     @State private var activeMenu: LibraryCardContextMenuState?
     @State private var menuSize: CGSize = .zero
+    /// Where the menu sits relative to the card, fixed when it opened.
+    @State private var placementOffset: CGSize?
     @StateObject private var highlight = MenuHighlightModel()
     @ViewBuilder var content: (_ openContextMenu: @escaping ([LibraryCardContextMenuItem], CGPoint) -> Void) -> Content
 
     var body: some View {
         content(openContextMenu)
             .environment(\.libraryCardContextMenuIsOpen, activeMenu != nil)
+            .environment(\.libraryCardContextMenuAnchorUpdate, updateAnchorPoint)
             .coordinateSpace(name: LibraryCardContextMenuCoordinateSpace.name)
             .overlay(alignment: .topLeading) {
                 if let activeMenu {
@@ -1216,6 +1230,22 @@ struct LibraryCardContextMenuHost<Content: View>: View {
                             )
                             .offset(menuOffset(for: activeMenu, in: proxy.size))
                         }
+                        // The side is chosen once, as soon as the menu reports a
+                        // real size, and then only travels with its card.
+                        .onChange(of: menuFrame) { frame in
+                            guard placementOffset == nil,
+                                  menuSize.height > 0
+                            else {
+                                return
+                            }
+                            placementOffset = MenuPlacement.offset(
+                                from: CGRect(
+                                    origin: activeMenu.anchorPoint,
+                                    size: .zero
+                                ),
+                                to: frame
+                            )
+                        }
                     }
                     .zIndex(1000)
                     .onPreferenceChange(LibraryCardContextMenuSizePreferenceKey.self) { newSize in
@@ -1224,12 +1254,14 @@ struct LibraryCardContextMenuHost<Content: View>: View {
                         }
                         menuSize = newSize
                     }
+
                 }
             }
     }
 
     private func openContextMenu(items: [LibraryCardContextMenuItem], anchorPoint: CGPoint) {
         menuSize = .zero
+        placementOffset = nil
         activeMenu = LibraryCardContextMenuState(anchorPoint: anchorPoint, items: items)
         highlight.open(
             selectablePositions: items.indices.filter { items[$0].isEnabled }
@@ -1238,7 +1270,17 @@ struct LibraryCardContextMenuHost<Content: View>: View {
 
     private func dismissContextMenu() {
         activeMenu = nil
+        placementOffset = nil
         highlight.close()
+    }
+
+    /// Moves the open menu with its card. The side it opened on is already in
+    /// `placementOffset`, so this is pure translation.
+    private func updateAnchorPoint(_ anchorPoint: CGPoint) {
+        guard activeMenu != nil, activeMenu?.anchorPoint != anchorPoint else {
+            return
+        }
+        activeMenu?.anchorPoint = anchorPoint
     }
 
     /// Enter runs whatever the highlight sits on, so the keyboard and the
@@ -1259,23 +1301,26 @@ struct LibraryCardContextMenuHost<Content: View>: View {
     }
 
     private func menuFrame(for menu: LibraryCardContextMenuState, in containerSize: CGSize) -> CGRect {
-        let offset = menuOffset(for: menu, in: containerSize)
         let size = resolvedMenuSize(for: menu)
-        return CGRect(
-            x: offset.width,
-            y: offset.height,
-            width: size.width,
-            height: size.height
+        let anchor = CGRect(origin: menu.anchorPoint, size: .zero)
+        if let placementOffset {
+            return MenuPlacement.followingFrame(
+                anchor: anchor,
+                offset: placementOffset,
+                menuSize: size
+            )
+        }
+        return MenuPlacement.openingFrame(
+            anchor: anchor,
+            menuSize: size,
+            in: CGRect(origin: .zero, size: containerSize),
+            gap: WorkbenchControlMetrics.redesignSpacing1
         )
     }
 
     private func menuOffset(for menu: LibraryCardContextMenuState, in containerSize: CGSize) -> CGSize {
-        let resolvedSize = resolvedMenuSize(for: menu)
-        let maxX = max(0, containerSize.width - resolvedSize.width)
-        let maxY = max(0, containerSize.height - resolvedSize.height)
-        let x = min(max(0, menu.anchorPoint.x), maxX)
-        let y = min(max(0, menu.anchorPoint.y), maxY)
-        return CGSize(width: x, height: y)
+        let frame = menuFrame(for: menu, in: containerSize)
+        return CGSize(width: frame.minX, height: frame.minY)
     }
 
     private func resolvedMenuSize(for menu: LibraryCardContextMenuState) -> CGSize {
@@ -1509,12 +1554,17 @@ private struct LibraryCardContextMenuTriggerModifier: ViewModifier {
     let items: [LibraryCardContextMenuItem]
     let openContextMenu: ([LibraryCardContextMenuItem], CGPoint) -> Void
     @Environment(\.libraryCardContextMenuIsOpen) private var isContextMenuOpen
+    @Environment(\.libraryCardContextMenuAnchorUpdate) private var updateAnchor
+    /// Set on the one card the open menu belongs to, so only that card reports
+    /// where it moved to.
+    @State private var localAnchorPoint: CGPoint?
 
     func body(content: Content) -> some View {
         content.background(
             GeometryReader { proxy in
                 let frame = proxy.frame(in: .named(LibraryCardContextMenuCoordinateSpace.name))
                 LibraryCardRightClickMonitor(isEnabled: isEnabled && isHovered && !isContextMenuOpen) { localPoint in
+                    localAnchorPoint = localPoint
                     openContextMenu(
                         items,
                         CGPoint(
@@ -1522,6 +1572,22 @@ private struct LibraryCardContextMenuTriggerModifier: ViewModifier {
                             y: frame.minY + localPoint.y
                         )
                     )
+                }
+                .onChange(of: frame.origin) { origin in
+                    guard isContextMenuOpen, let localAnchorPoint else {
+                        return
+                    }
+                    updateAnchor?(
+                        CGPoint(
+                            x: origin.x + localAnchorPoint.x,
+                            y: origin.y + localAnchorPoint.y
+                        )
+                    )
+                }
+                .onChange(of: isContextMenuOpen) { isOpen in
+                    if !isOpen {
+                        localAnchorPoint = nil
+                    }
                 }
             }
         )

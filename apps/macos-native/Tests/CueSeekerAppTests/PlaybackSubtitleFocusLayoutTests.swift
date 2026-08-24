@@ -664,17 +664,20 @@ func selectedTextMenuOpensDownwardUnlessBottomSpaceIsInsufficient() {
     )
     let menuSize = CGSize(width: 240, height: 160)
 
+    let gap = WorkbenchControlMetrics.redesignSpacing1
+
     let downwardFrame = view.selectedTextMenuFrame(
         anchor: CGPoint(x: 200, y: 180),
         size: menuSize
     )
-    #expect(downwardFrame.minY == 180)
+    #expect(downwardFrame.minY == 180 + gap)
+    #expect(downwardFrame.minX == 200)
 
     let upwardFrame = view.selectedTextMenuFrame(
         anchor: CGPoint(x: 200, y: 580),
         size: menuSize
     )
-    #expect(upwardFrame.maxY == 580)
+    #expect(upwardFrame.maxY == 580 - gap)
 }
 
 @MainActor
