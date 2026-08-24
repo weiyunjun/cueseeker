@@ -9,6 +9,7 @@ struct PlaybackCueResultOverlay: View {
     let uiProbeScope: String?
     let onCopySelectedText: (String) -> Void
     let onSearchSelectedText: (String) -> Void
+    var onSelectedTextMenuKeyHandlerChanged: (((UInt16) -> Bool)?) -> Void = { _ in }
     let onExecuteAction: (PlaybackSubtitleFocusActionExecution) -> Bool
 
     @EnvironmentObject private var cueGroupPresentation: CueGroupPresentationStore
@@ -41,6 +42,8 @@ struct PlaybackCueResultOverlay: View {
                     onCommitSelection: commitReelSelection,
                     onCopySelectedText: onCopySelectedText,
                     onSearchSelectedText: onSearchSelectedText,
+                    onSelectedTextMenuKeyHandlerChanged:
+                        onSelectedTextMenuKeyHandlerChanged,
                     allowsNativeWheelInput: session.allowsNativeWheelInput,
                     allowsNativeScrollbarInput: session.allowsNativeScrollbarInput,
                     onScrollbarDraggingChanged: { isDragging in
@@ -144,6 +147,10 @@ struct PlaybackCueResultReelRepresentable: NSViewRepresentable {
     let onCommitSelection: (PlaybackVirtualReelSelectionCommit) -> Bool
     let onCopySelectedText: (String) -> Void
     let onSearchSelectedText: (String) -> Void
+    /// Only a reel whose menu must outrank the playback page publishes here.
+    /// The Command Panel's own reel keeps the default: a menu opened inside the
+    /// panel is above it and is handled by the reel's own monitor.
+    var onSelectedTextMenuKeyHandlerChanged: (((UInt16) -> Bool)?) -> Void = { _ in }
     let allowsNativeWheelInput: () -> Bool
     let allowsNativeScrollbarInput: () -> Bool
     let onScrollbarDraggingChanged: (Bool) -> Void
@@ -194,6 +201,8 @@ struct PlaybackCueResultReelRepresentable: NSViewRepresentable {
         view.onCommitVirtualReelSelection = onCommitSelection
         view.onCopySelectedText = onCopySelectedText
         view.onSearchSelectedText = onSearchSelectedText
+        view.onSelectedTextMenuKeyHandlerChanged =
+            onSelectedTextMenuKeyHandlerChanged
         view.allowsNativeWheelInput = allowsNativeWheelInput
         view.allowsNativeScrollbarInput = allowsNativeScrollbarInput
         view.onScrollbarDraggingChanged = onScrollbarDraggingChanged

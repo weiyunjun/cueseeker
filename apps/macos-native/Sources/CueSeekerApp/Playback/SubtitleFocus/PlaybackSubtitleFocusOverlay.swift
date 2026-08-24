@@ -124,7 +124,9 @@ struct PlaybackOverlay: View {
                     uiProbeScope: uiProbeScope,
                     onExecuteAction: onExecuteAction,
                     onCopySelectedText: onCopySelectedText,
-                    onSearchSelectedText: onSearchSelectedText
+                    onSearchSelectedText: onSearchSelectedText,
+                    onSelectedTextMenuKeyHandlerChanged:
+                        onSelectedTextMenuKeyHandlerChanged
                 )
             } else {
                 PlaybackTheme.subtitleFocusOverlayBackground
@@ -337,6 +339,7 @@ private struct PlaybackSubtitlePlaylist: View {
     let onExecuteAction: (PlaybackSubtitleFocusActionExecution) -> Bool
     let onCopySelectedText: (String) -> Void
     let onSearchSelectedText: (String) -> Void
+    let onSelectedTextMenuKeyHandlerChanged: (((UInt16) -> Bool)?) -> Void
 
     var body: some View {
         VStack(spacing: 0) {
@@ -347,6 +350,8 @@ private struct PlaybackSubtitlePlaylist: View {
                 uiProbeScope: uiProbeScope,
                 onCopySelectedText: onCopySelectedText,
                 onSearchSelectedText: onSearchSelectedText,
+                onSelectedTextMenuKeyHandlerChanged:
+                    onSelectedTextMenuKeyHandlerChanged,
                 onExecuteAction: onExecuteAction
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
