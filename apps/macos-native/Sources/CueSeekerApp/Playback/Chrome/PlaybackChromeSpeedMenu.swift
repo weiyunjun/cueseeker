@@ -3,11 +3,15 @@ import SwiftUI
 struct PlaybackChromeSpeedMenu: View {
     let selectedSpeed: Double
     var suppressesInteraction = false
+    @ObservedObject var highlight: MenuHighlightModel
     let onSelect: (Double) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: PlaybackChromeMetrics.speedMenuItemVerticalGap) {
-            ForEach(PlaybackViewModel.speedPresets, id: \.self) { speed in
+            ForEach(
+                Array(PlaybackViewModel.speedPresets.enumerated()),
+                id: \.element
+            ) { position, speed in
                 Button {
                     guard !suppressesInteraction else {
                         return
@@ -39,8 +43,11 @@ struct PlaybackChromeSpeedMenu: View {
                 }
                 .buttonStyle(
                     PlaybackChromeMenuButtonStyle(
-                        isSelected: abs(selectedSpeed - speed) < 0.01,
-                        suppressesInteraction: suppressesInteraction
+                        isHighlighted: highlight.highlightedPosition == position,
+                        suppressesInteraction: suppressesInteraction,
+                        onHoverChange: { isHovered in
+                            highlight.noteHover(isHovered, at: position)
+                        }
                     )
                 )
             }
@@ -63,9 +70,9 @@ struct PlaybackChromeSpeedMenu: View {
 }
 
 private struct PlaybackChromeMenuButtonStyle: ButtonStyle {
-    let isSelected: Bool
+    let isHighlighted: Bool
     let suppressesInteraction: Bool
-    @State private var isHovered = false
+    let onHoverChange: (Bool) -> Void
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
@@ -75,16 +82,20 @@ private struct PlaybackChromeMenuButtonStyle: ButtonStyle {
             )
             .scaleEffect(configuration.isPressed ? 0.99 : 1)
             .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
-            .onHover { isHovered = suppressesInteraction ? false : $0 }
+            .onHover { isHovered in
+                onHoverChange(suppressesInteraction ? false : isHovered)
+            }
             .onChange(of: suppressesInteraction) { isSuppressed in
                 if isSuppressed {
-                    isHovered = false
+                    onHoverChange(false)
                 }
             }
     }
 
+    /// Only the menu's highlight paints a background. The item in effect is
+    /// marked by its check mark, so the highlight is free to move away from it.
     private func backgroundColor(isPressed: Bool) -> Color {
-        if !suppressesInteraction && (isPressed || isHovered || isSelected) {
+        if !suppressesInteraction && (isPressed || isHighlighted) {
             return PlaybackTheme.menuItemHoverBackground
         }
         return .clear

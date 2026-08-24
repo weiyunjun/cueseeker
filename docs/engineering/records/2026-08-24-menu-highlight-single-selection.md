@@ -78,6 +78,28 @@ Files: `Shared/WorkbenchControls/WorkbenchControls.swift`,
 `Playback/SubtitleFocus/PlaybackSubtitleFocusReel.swift`,
 `Shared/AppCursorVisibility.swift`, `Shared/MenuHighlightModel.swift`.
 
+### Step 3: the player speed menu
+
+The speed menu is the one Radio-style surface: it has a value in effect as well
+as a current item. The check mark and bold weight keep marking the speed in
+effect; the background now follows the highlight instead. Opening the menu puts
+the highlight on the speed in effect, so the first arrow key steps away from the
+current value rather than jumping to the top of the list.
+
+The menu keeps its own metrics and player-chrome colours; only which state the
+background hangs off changed.
+
+Its dismiss monitor now also handles arrow keys, Enter and Escape. Local event
+monitors are invoked most-recently-added first, which was verified with a probe,
+so the monitor installed when the menu opens reaches the arrow keys before the
+App's playback shortcut monitor can seek.
+
+`PlaybackViewModel.speedPresetIndex(for:)` answers which preset a speed is on,
+so the lookup is testable instead of living inside the view.
+
+Files: `Playback/Chrome/PlaybackChromeSpeedMenu.swift`,
+`Playback/Chrome/PlaybackChromeView.swift`, `Playback/PlaybackViewModel.swift`.
+
 ## Verification
 
 - `swift build` clean.
@@ -118,9 +140,22 @@ Debug E2E run against the real App, on a Shiori list of 397 rows:
   submenu's own highlight from the first to the second list, and the parent row
   stayed highlighted.
 
+Step 3 additions:
+
+- `MenuHighlightModelTests` grew to 11 tests, covering the menu opening on the
+  speed in effect, the highlight moving off it while the preset lookup still
+  reports the value in effect, and an unrecognised speed falling back to the
+  first preset.
+- Playback chrome, shortcut, store and row-menu suites: 35 tests green.
+
+The speed menu could not be verified in the running App. Its chrome only appears
+on real pointer movement over an `NSTrackingArea`, which synthesized events
+cannot drive, so the menu cannot be opened from Debug E2E at all. It stays a
+manual acceptance step for the same reason the cover context menu does.
+
 ## Outcome
 
-Steps 1 and 2 matched expectations.
+Steps 1 through 3 matched expectations.
 
 One interpretation needs the owner's confirmation. The requirement says no two
 highlights may exist at once. While a destination submenu is open, its parent
@@ -133,4 +168,4 @@ intended instead.
 Escape now closes the cover context menu, which previously had no keyboard
 handling at all. This is consistent with the other menus but was not asked for.
 
-The speed menu and the four list surfaces follow in separate steps.
+The four list surfaces follow in a separate step.

@@ -169,6 +169,35 @@ struct MenuHighlightModelTests {
     }
 
     @Test
+    func speedMenuOpensOnTheSpeedInEffectAndTheHighlightMovesOffIt() {
+        let presets = PlaybackViewModel.speedPresets
+        #expect(PlaybackViewModel.speedPresetIndex(for: 1.0) == 2)
+        #expect(PlaybackViewModel.speedPresetIndex(for: 1.75) == 5)
+        #expect(PlaybackViewModel.speedPresetIndex(for: 1.3) == nil)
+
+        let model = MenuHighlightModel()
+        defer { model.close() }
+        model.open(
+            selectablePositions: Array(presets.indices),
+            defaultPosition: PlaybackViewModel.speedPresetIndex(for: 1.5)
+        )
+        #expect(model.highlightedPosition == 4)
+
+        // The check mark stays on 1.5x while the highlight moves away, so the
+        // menu can show the value in effect and the current item separately.
+        model.moveHighlight(by: 1)
+        #expect(model.highlightedPosition == 5)
+        #expect(PlaybackViewModel.speedPresetIndex(for: 1.5) == 4)
+
+        // An unrecognised speed falls back to the first preset.
+        model.open(
+            selectablePositions: Array(presets.indices),
+            defaultPosition: PlaybackViewModel.speedPresetIndex(for: 1.3)
+        )
+        #expect(model.highlightedPosition == 0)
+    }
+
+    @Test
     func closingASubmenuKeepsTheParentMenuCursorHidden() {
         AppCursorVisibility.resetForTesting()
         let parent = MenuHighlightModel()

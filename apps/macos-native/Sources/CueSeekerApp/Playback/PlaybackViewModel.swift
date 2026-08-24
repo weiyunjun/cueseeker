@@ -913,6 +913,12 @@ public final class PlaybackViewModel: ObservableObject {
         }
     }
 
+    /// The preset the given speed is currently on, so the speed menu can open
+    /// with its highlight already on the value in effect.
+    static func speedPresetIndex(for speed: Double) -> Int? {
+        speedPresets.firstIndex { abs($0 - speed) < 0.01 }
+    }
+
     static func formatSpeed(_ speed: Double) -> String {
         if speed.rounded() == speed {
             return String(format: "%.0f×", speed)

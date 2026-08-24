@@ -58,6 +58,7 @@ struct PlaybackChromeView: View {
     let controls: PlaybackChromeControls
     @State private var isSpeedMenuVisible = false
     @State private var speedMenuEventMonitor: Any?
+    @StateObject private var speedMenuHighlight = MenuHighlightModel()
     @State private var speedButtonFrame: CGRect = .zero
     @State private var isTimeHovered = false
 
@@ -82,12 +83,15 @@ struct PlaybackChromeView: View {
         )
         .onChange(of: isSpeedMenuVisible) { isVisible in
             if isVisible {
+                openSpeedMenuHighlight()
                 installSpeedMenuDismissMonitor()
             } else {
+                speedMenuHighlight.close()
                 removeSpeedMenuDismissMonitor()
             }
         }
         .onDisappear {
+            speedMenuHighlight.close()
             removeSpeedMenuDismissMonitor()
         }
     }
@@ -135,6 +139,7 @@ struct PlaybackChromeView: View {
                 PlaybackChromeSpeedMenu(
                     selectedSpeed: viewModel.playbackSpeed,
                     suppressesInteraction: timeline.isScrubbing,
+                    highlight: speedMenuHighlight,
                     onSelect: { speed in
                         viewModel.setSpeed(speed)
                         isSpeedMenuVisible = false
@@ -249,9 +254,54 @@ struct PlaybackChromeView: View {
         .anchorPreference(key: PlaybackSpeedButtonAnchorKey.self, value: .bounds) { $0 }
     }
 
+    /// The speed menu opens on the value already in effect, so the first arrow
+    /// key moves away from the current speed instead of jumping to the top.
+    private func openSpeedMenuHighlight() {
+        speedMenuHighlight.open(
+            selectablePositions: Array(PlaybackViewModel.speedPresets.indices),
+            defaultPosition: PlaybackViewModel.speedPresetIndex(
+                for: viewModel.playbackSpeed
+            )
+        )
+    }
+
+    private func selectHighlightedSpeed() -> Bool {
+        let presets = PlaybackViewModel.speedPresets
+        guard let position = speedMenuHighlight.highlightedPosition,
+              presets.indices.contains(position)
+        else {
+            return false
+        }
+        viewModel.setSpeed(presets[position])
+        isSpeedMenuVisible = false
+        return true
+    }
+
     private func installSpeedMenuDismissMonitor() {
         removeSpeedMenuDismissMonitor()
-        speedMenuEventMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { event in
+        // Local monitors run most-recently-added first, so this one reaches the
+        // arrow keys before the App's playback shortcut monitor does.
+        speedMenuEventMonitor = NSEvent.addLocalMonitorForEvents(
+            matching: [.leftMouseDown, .rightMouseDown, .keyDown]
+        ) { event in
+            if event.type == .keyDown {
+                guard isSpeedMenuVisible else {
+                    return event
+                }
+                switch event.keyCode {
+                case 53:
+                    isSpeedMenuVisible = false
+                    return nil
+                case 126:
+                    return speedMenuHighlight.moveHighlight(by: -1) ? nil : event
+                case 125:
+                    return speedMenuHighlight.moveHighlight(by: 1) ? nil : event
+                case 36, 76:
+                    return selectHighlightedSpeed() ? nil : event
+                default:
+                    return event
+                }
+            }
             if isSpeedMenuVisible {
                 if let window = event.window {
                     let windowHeight = window.contentView?.bounds.height ?? 0
