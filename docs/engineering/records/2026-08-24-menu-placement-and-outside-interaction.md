@@ -296,7 +296,64 @@ Debug E2E against the running App, Shiori list of 397 rows:
 the rest to the page — has nothing to exercise it until §7 gives a menu a
 scrollable region. It is covered by construction and needs verifying with §7.
 
+## Step 5: the padding is the scrollbar's room (§7)
+
+A menu that scrolls has to put its scrollbar somewhere. The two candidates were
+both wrong: draw it over the items, and it crosses the highlight and the
+dividers, which run edge to edge; widen the menu when it appears, and the menu
+changes size for a reason the reader cannot see.
+
+The answer is neither. **The menu's padding is now exactly what a scrollbar
+occupies** — the thumb's 8pt plus the 4pt it keeps from the edge — so the
+scrollbar is drawn in the padding ring, flush against the items and touching
+nothing. No measuring is needed to decide whether a scrollbar will appear,
+because the room is there either way, and the menu never changes width.
+
+That made the padding a shared measurement rather than a per-menu number. It was
+4pt in the shared popover panel and 6pt in the speed menu, which is why the two
+looked subtly different; both now take the same token. The menus are wider by
+twice the difference — 16pt for the four panel-based menus, 12pt for the speed
+menu — and nothing inside them moved: item widths, text and icon positions,
+highlight and divider widths, radii, colours and shadows are all unchanged.
+
+The height cap is the second token. The panel now wraps its content in the
+existing `WorkbenchScrollView` — already "system indicators hidden plus the
+project's own overlay scrollbar", which is the scrollbar `UI Design System.md`
+§2.7 describes — with the scroll view spanning the whole panel and the padding
+inside it. Height stops at the cap; width still comes from the items.
+
+Files: `Shared/MenuMetrics.swift` (new),
+`Shared/WorkbenchControls/WorkbenchControls.swift`, `Playback/PlaybackTheme.swift`.
+
+### Verification
+
+- `swift build` clean. Table suite 154 tests passing, including a new case:
+  thirty destinations make the submenu stop exactly at the cap, while the menu
+  above it stays well under the cap and is not stretched to it. That case is
+  also what proves the SwiftUI sizing works — a scroll view has no intrinsic
+  size, and a wrong wrapping would have collapsed the width or stretched the
+  height.
+- Full suite: 1051 tests, 29 issues, the same families as before;
+  `subtitleTableViewMapsTextColumnsWhenDisplayTitleIsHidden` appears only in the
+  parallel run and passes alone.
+- Debug E2E: the row menu's highlight and dividers now stop short of the menu
+  edge on every side, and the items inside sit exactly where they did.
+  Screenshot `padding12-row-menu`.
+
+Two acceptance points could not be driven, and no capability was added:
+
+- **A menu long enough to scroll** does not exist in this library: the
+  destination submenu needs about twelve Shiori lists to pass 480pt and there
+  are five. The cap itself is covered by the unit test; the scrollbar sitting in
+  the padding ring, and §6.2's stop at the end of a scrollable menu, need either
+  more lists or manual acceptance.
+- **The speed menu** cannot be reached: the playback chrome appears on real
+  cursor movement, which the controller does not produce. Its padding change is
+  manual acceptance.
+
 ## Outcome
 
-Steps 1 through 4 cover the requirement's §2 through §6. §7 — the height cap and
-its scrollbar — is the next step and is not in this change.
+Steps 1 through 5 cover the requirement's §2 through §7 — every section. What
+remains is the manual acceptance listed above plus the table row hover and the
+middle button from Step 3, and then updating and committing
+`docs/human/design/UI Design System.md`.

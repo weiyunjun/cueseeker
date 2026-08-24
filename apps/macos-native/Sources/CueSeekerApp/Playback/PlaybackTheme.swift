@@ -365,8 +365,8 @@ enum PlaybackChromeMetrics {
     static let circleButtonSize: CGFloat = 40
     static let circleButtonIconSize: CGFloat = 18
     static let speedButtonWidth: CGFloat = 54
-    static let speedMenuWidth: CGFloat = 172
-    static let speedMenuHeight: CGFloat = 234
+    static let speedMenuWidth: CGFloat = 184
+    static let speedMenuHeight: CGFloat = 246
     static let speedMenuItemHeight: CGFloat = 30
     static let progressHitAreaHeight: CGFloat = 18
     static let progressTrackHeight: CGFloat = 3
@@ -381,7 +381,7 @@ enum PlaybackChromeMetrics {
     static let chromeBottomPadding: CGFloat = 12
     static let progressTopPadding: CGFloat = 16
     static let capsuleButtonHorizontalPadding: CGFloat = 16
-    static let speedMenuPadding: CGFloat = 6
+    static let speedMenuPadding: CGFloat = MenuMetrics.padding
     static let speedMenuItemHorizontalPadding: CGFloat = 8
     static let progressTimeCapsuleHorizontalPadding: CGFloat = 8
     static let topbarHorizontalPadding: CGFloat = 16

@@ -2714,6 +2714,46 @@ func subtitleTableViewUnifiedRowMenuAndClipboardKeepPrimaryAndGroupSemantics() {
 
 @MainActor
 @Test
+func subtitleTableShioriSubmenuStopsAtTheMenuHeightCap() async throws {
+    let destinations = (2...31).map {
+        SubtitleTableRowActionDestination(id: Int64($0), title: "List \($0)")
+    }
+    let fixture = makeAttachedVirtualTableCoordinator(
+        width: 1_200,
+        showsCueGroup: true,
+        rowActionMenuStyle: .shiori,
+        rowActionDestinations: destinations
+    )
+    fixture.container.frame.size.height = 900
+    fixture.scrollView.frame.size.height = 856
+    fixture.coordinator.showMenu(
+        for: 0,
+        buttonFrame: .zero,
+        clickPointInDocument: CGPoint(x: 100, y: 700)
+    )
+
+    // The menu itself is well under the cap and is not stretched to it.
+    let menuFrame = try #require(fixture.coordinator.menuFrameForTesting())
+    #expect(menuFrame.height > 0)
+    #expect(menuFrame.height < MenuMetrics.maximumHeight)
+
+    for _ in 0..<10
+    where fixture.coordinator.rowActionParentItemFrameForTesting(
+        .moveToList
+    ) == nil {
+        await Task.yield()
+    }
+    fixture.coordinator.openRowActionSubmenuForTesting(.moveToList)
+
+    // Thirty destinations are far taller than the cap, so the submenu stops
+    // there and scrolls instead of growing.
+    let submenuFrame = try #require(fixture.coordinator.submenuFrameForTesting())
+    #expect(abs(submenuFrame.height - MenuMetrics.maximumHeight) < 0.5)
+    #expect(submenuFrame.width > 0)
+}
+
+@MainActor
+@Test
 func subtitleTableShioriSubmenuTouchesAndAlignsWithItsParentItem() async throws {
     let fixture = makeAttachedVirtualTableCoordinator(
         width: 1_200,

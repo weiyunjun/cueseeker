@@ -1153,8 +1153,15 @@ struct WorkbenchPopoverPanel<Content: View>: View {
 
     var body: some View {
         let cornerRadius: CGFloat = isRedesign ? 16 : 10
-        content()
-            .padding(isRedesign ? 4 : 8)
+        // The scroll view spans the whole panel and the padding sits inside it,
+        // so the scrollbar is drawn in the padding ring rather than over the
+        // items. Height stops at the cap; width stays whatever the items need.
+        WorkbenchScrollView {
+            content()
+                .padding(isRedesign ? MenuMetrics.padding : 8)
+        }
+            .frame(maxHeight: MenuMetrics.maximumHeight)
+            .fixedSize(horizontal: true, vertical: false)
             .background(
                 Group {
                     if isRedesign {
