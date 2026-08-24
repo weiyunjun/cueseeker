@@ -351,9 +351,69 @@ Two acceptance points could not be driven, and no capability was added:
   cursor movement, which the controller does not produce. Its padding change is
   manual acceptance.
 
+## Step 5a: the cap is a cap, not a height (§7)
+
+Step 5 declared §7 done and it was not. Every card right-click menu came out
+exactly 480pt tall — the cap — whether it held two items or five, with a field of
+empty space below the last one. Shiori's list page, the recent-video page and the
+library page all showed it.
+
+The cap had been written as a `maxHeight` frame. **`maxHeight` does not mean
+"stop here", it means "you may grow this large"** — it is the same modifier
+`maxWidth: .infinity` uses to fill a row. A menu offered more height than it
+needs therefore grows straight to the cap. Wrapping the panel in a scroll view
+had nothing to do with it: the panel stretches the same way with the scroll view
+taken out and only the frame left.
+
+Which menus were offered that height decided which ones broke. The table's row
+menu, the Shiori submenu and the playback selected-text menu are each measured by
+their AppKit host with no height offered at all, so the frame had nothing to grow
+into and reported the items' own height; the speed menu never used this panel.
+The three card menus live in an overlay spanning the whole page, and that overlay
+offers the page's full height. One panel, two hosting styles, and only one of
+them stretched.
+
+Step 5's own test went through the AppKit host, which is why it passed while
+three menus in the App were visibly wrong.
+
+`MenuHeightCap` replaces the frame. It asks its content how tall it wants to be
+and gives it that, or the cap, whichever is smaller. The scroll view inside is
+handed a definite height either way: its own content's height, where there is
+nothing to scroll, or the cap, where it scrolls. Nothing depends on what the menu
+is offered, so both hosting styles now behave the same. Same padding token, same
+cap token, same width, same placement, colours, radii and shadows.
+
+Files: `Shared/MenuMetrics.swift`,
+`Shared/WorkbenchControls/WorkbenchControls.swift`.
+
+### Verification
+
+- `swift build` clean.
+- New `MenuPanelHeightTests`, 2 cases, hosting the panel the way a card menu is
+  hosted — inside an overlay 900pt tall. Three 30pt items make a 114pt menu
+  (items plus the padding ring), and thirty items stop at the cap. The first case
+  measures 480pt on the old code, which is the regression itself. No new test
+  capability was needed: `WorkbenchScrollViewTests` and
+  `WorkbenchPageScrollbarTests` already host SwiftUI at a fixed size and read
+  what came out.
+- Menu suites: 51 tests passing, including
+  `subtitleTableShioriSubmenuStopsAtTheMenuHeightCap`, which covers the same cap
+  through the AppKit host.
+- Full suite: 1053 tests, 25 issues, all in the media-timing and cue-group-scope
+  families that were already failing. The two cue-group cases were run against
+  unchanged sources and fail there identically.
+
+Manual acceptance, for the reason §1.1 of
+`docs/engineering/08_end_to_end_testing.md` records — these menus install their
+right-click monitor only while the card reports SwiftUI hover, which a
+synthesized move cannot produce: right-click a card on the Shiori list page, the
+recent-video page and the library page; each menu should end just below its last
+item, and the table row menu, the playback selected-text menu and the speed menu
+should look exactly as they did.
+
 ## Outcome
 
-Steps 1 through 5 cover the requirement's §2 through §7 — every section. What
+Steps 1 through 5a cover the requirement's §2 through §7 — every section. What
 remains is the manual acceptance listed above plus the table row hover and the
 middle button from Step 3, and then updating and committing
 `docs/human/design/UI Design System.md`.
