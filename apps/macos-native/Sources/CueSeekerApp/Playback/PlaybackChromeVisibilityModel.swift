@@ -1,21 +1,6 @@
 import AppKit
 import SwiftUI
 
-/// Process-wide record of whether CueSeeker currently hides the system cursor.
-///
-/// `PlaybackChromeVisibilityModel` is the only writer, because it owns the only
-/// `NSCursor.hide()` / `NSCursor.unhide()` pair in the App. Debug E2E `inspect`
-/// reads it: a screenshot never contains the cursor, so pointer-visibility
-/// rules would otherwise have no observable evidence.
-@MainActor
-enum AppCursorVisibility {
-    private(set) static var isCursorHidden = false
-
-    static func noteCursorHidden(_ isHidden: Bool) {
-        isCursorHidden = isHidden
-    }
-}
-
 /// Single explicit Player-UI / cursor visibility state machine (v4).
 ///
 /// Authoritative specs: `docs/product/12_liquid_glass_ux_mapping.md` §10.4 and
@@ -244,8 +229,7 @@ final class PlaybackChromeVisibilityModel: ObservableObject {
             return
         }
         cursorHiddenByPlayer = false
-        NSCursor.unhide()
-        AppCursorVisibility.noteCursorHidden(false)
+        AppCursorVisibility.setHidden(false, owner: .player)
     }
 
     private func hideCursor() {
@@ -253,8 +237,7 @@ final class PlaybackChromeVisibilityModel: ObservableObject {
             return
         }
         cursorHiddenByPlayer = true
-        NSCursor.hide()
-        AppCursorVisibility.noteCursorHidden(true)
+        AppCursorVisibility.setHidden(true, owner: .player)
     }
 
     // MARK: - Focus observers
