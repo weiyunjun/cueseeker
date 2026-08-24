@@ -2905,7 +2905,11 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
                     self.suspendWheelInputForSuppression()
                     return nil
                 }
-                return isInside ? nil : event
+                // A reel that is not taking wheel input must not swallow it
+                // either. Its rectangle still covers whatever is stacked on
+                // top, so swallowing here would starve the overlay above it;
+                // passing the event on lets that surface's own monitor take it.
+                return event
             }
             let sample = PlaybackSubtitleFocusScrollSample(
                 deltaY: event.scrollingDeltaY,

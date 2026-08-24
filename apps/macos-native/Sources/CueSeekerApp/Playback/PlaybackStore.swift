@@ -1,3 +1,4 @@
+import Carbon.HIToolbox
 import Combine
 import CoreGraphics
 import CueSeekerCore
@@ -162,6 +163,7 @@ final class PlaybackStore: ObservableObject {
             _ = session.presentModule(.playlist)
         }
         subtitleFocusSession = session
+        synchronizeOverlayInputOwnership()
         return session
     }
 
@@ -183,7 +185,25 @@ final class PlaybackStore: ObservableObject {
         if presentation.page != .searchResults {
             releaseCommandPanelSearchPreview()
         }
+        // The Command Panel is the topmost surface, so menus opened underneath
+        // it close instead of competing for the same keys.
+        closeSpeedMenu()
+        dismissSelectedTextMenu()
         commandPanelPresentation = presentation
+        synchronizeOverlayInputOwnership()
+    }
+
+    /// Closes an open selected-text menu through the Escape path the menu
+    /// already implements, so the menu keeps a single dismissal route.
+    func dismissSelectedTextMenu() {
+        _ = selectedTextMenuKeyHandler?(UInt16(kVK_Escape))
+    }
+
+    /// Only the topmost interactive surface owns the wheel and the scrollbar.
+    private func synchronizeOverlayInputOwnership() {
+        subtitleFocusSession?.setCoveredByHigherOverlay(
+            commandPanelPresentation != nil
+        )
     }
 
     func synchronizeCommandPanelSearchPreview(
@@ -271,6 +291,7 @@ final class PlaybackStore: ObservableObject {
             commandPanelPresentation = nil
             resetCommandPanelRecentVideoGridLayout()
             releaseCommandPanelSearchPreview()
+            synchronizeOverlayInputOwnership()
         }
         return commandPanelPresentation
     }

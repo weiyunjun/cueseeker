@@ -292,3 +292,70 @@ func openSelectedTextMenuOwnsArrowKeysInsteadOfVolume() throws {
         #expect(viewModel.volume != volumeBeforeMenu)
     }
 }
+
+@MainActor
+@Test
+func openingCommandPanelClosesTheMenusUnderneathIt() throws {
+    try withNormalPlaybackApp { app, _ in
+        app.playback.isPlaybackSurfaceExpanded = true
+        var seenKeyCodes: [UInt16] = []
+        app.playback.selectedTextMenuKeyHandler = { keyCode in
+            seenKeyCodes.append(keyCode)
+            if keyCode == UInt16(kVK_Escape) {
+                app.playback.selectedTextMenuKeyHandler = nil
+            }
+            return true
+        }
+        app.playback.openSpeedMenu(
+            defaultPosition: PlaybackViewModel.speedPresetIndex(for: 1.0)
+        )
+        #expect(app.playback.isSpeedMenuOpen)
+
+        #expect(app.handlePlaybackKeyDown(
+            keyCode: UInt16(kVK_ANSI_K),
+            modifierFlagsRawValue: 0
+        ))
+
+        // Both menus are gone, so the arrow keys reach the Command Panel.
+        #expect(app.playback.commandPanelPresentation != nil)
+        #expect(!app.playback.isSpeedMenuOpen)
+        #expect(seenKeyCodes == [UInt16(kVK_Escape)])
+        #expect(app.playback.selectedTextMenuKeyHandler == nil)
+
+        // Closing the panel does not bring either menu back.
+        #expect(app.handlePlaybackKeyDown(keyCode: 53, modifierFlagsRawValue: 0))
+        #expect(app.playback.commandPanelPresentation == nil)
+        #expect(!app.playback.isSpeedMenuOpen)
+        #expect(app.playback.selectedTextMenuKeyHandler == nil)
+    }
+}
+
+@MainActor
+@Test
+func openCommandPanelTakesWheelAndScrollbarFromThePlaybackOverlay() throws {
+    try withNormalPlaybackApp { app, _ in
+        app.playback.isPlaybackSurfaceExpanded = true
+        let session = try #require(app.playback.beginSubtitleFocusSession(
+            openSnapshot: PlaybackSubtitleFocusOpenSnapshot(
+                source: SubtitleFocusSourceIdentity(
+                    videoPath: "/Media/Normal-Playback.mkv",
+                    subtitlePath: "/Media/Normal-Playback.srt",
+                    subtitleFormat: .srt
+                ),
+                timestampMilliseconds: 1_000,
+                wasPlaying: false
+            )
+        ))
+        #expect(session.allowsNativeWheelInput())
+
+        #expect(app.handlePlaybackKeyDown(
+            keyCode: UInt16(kVK_ANSI_K),
+            modifierFlagsRawValue: 0
+        ))
+        #expect(!session.allowsNativeWheelInput())
+        #expect(!session.allowsNativeScrollbarInput())
+
+        #expect(app.handlePlaybackKeyDown(keyCode: 53, modifierFlagsRawValue: 0))
+        #expect(session.allowsNativeWheelInput())
+    }
+}

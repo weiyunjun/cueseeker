@@ -146,6 +146,10 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
     private var isSessionActive = true
     private var isScrollbarDragging = false
     private var isCueReelMotionActive = false
+    /// True while the Command Panel is stacked on top of this overlay. The reel
+    /// claims wheel events with a window-wide monitor and only knows its own
+    /// rectangle, so it cannot see what covers it; `PlaybackStore` tells it.
+    private var isCoveredByHigherOverlay = false
     private var keyboardNavigationSequence = 0
     private var pendingKeyboardNavigationTargetOrdinal: Int?
     private var pendingKeyboardNavigationTargetIdentity: PlaybackCueResultItemIdentity?
@@ -748,8 +752,15 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
         isCueReelMotionActive = isActive
     }
 
+    /// Records whether a higher overlay owns input. Only the topmost
+    /// interactive surface takes the wheel and the scrollbar.
+    func setCoveredByHigherOverlay(_ isCovered: Bool) {
+        isCoveredByHigherOverlay = isCovered
+    }
+
     func allowsNativeWheelInput() -> Bool {
         isSessionActive
+            && !isCoveredByHigherOverlay
             && pendingKeyboardAction == nil
             && activeKeyboardAction == nil
             && pendingKeyboardNavigationTargetOrdinal == nil
@@ -758,6 +769,7 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
 
     func allowsNativeScrollbarInput() -> Bool {
         isSessionActive
+            && !isCoveredByHigherOverlay
             && hasSelectedReelItem
             && pendingKeyboardAction == nil
             && activeKeyboardAction == nil
