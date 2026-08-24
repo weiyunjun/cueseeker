@@ -2681,11 +2681,11 @@ func subtitleTableShioriSubmenuTouchesAndAlignsWithItsParentItem() async throws 
 
     #expect(parentFrameAfter == parentFrameBefore)
     #expect(abs(submenuFrame.minX - parentFrameAfter.maxX) < 0.5)
-    #expect(submenuFrame.maxY < parentFrameAfter.maxY - 200)
+    #expect(submenuFrame.minY > parentFrameAfter.minY + 200)
     #expect(
         abs(
-            submenuFrame.maxY
-                - (parentFrameAfter.maxY - moveItemFrame.minY)
+            submenuFrame.minY
+                - (parentFrameAfter.minY + moveItemFrame.minY)
         ) < 0.5
     )
 

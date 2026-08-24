@@ -260,7 +260,7 @@ func subtitleTableShioriSubmenuStaysOpenAcrossDirectPointerTransfer() async {
 }
 
 @Test
-func subtitleTableShioriSubmenuUsesTopDownItemFrameInAppKitCoordinates() {
+func subtitleTableShioriSubmenuAlignsWithItsParentItemTop() {
     let parentMenuFrame = CGRect(x: 100, y: 100, width: 240, height: 400)
     let parentItemFrame = CGRect(x: 4, y: 246, width: 232, height: 40)
     let submenuFrame = SubtitleTableRowActionSubmenuGeometry.frame(
@@ -273,8 +273,8 @@ func subtitleTableShioriSubmenuUsesTopDownItemFrameInAppKitCoordinates() {
     #expect(SubtitleTableRowActionSubmenuGeometry.horizontalGap == 0)
     #expect(submenuFrame.minX == parentMenuFrame.maxX)
     #expect(
-        submenuFrame.maxY
-            == parentMenuFrame.maxY - parentItemFrame.minY
+        submenuFrame.minY
+            == parentMenuFrame.minY + parentItemFrame.minY
     )
 }
 

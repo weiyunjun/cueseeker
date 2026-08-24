@@ -1045,8 +1045,7 @@ enum SubtitleTableRowActionSubmenuGeometry {
             min(x, visibleRect.maxX - width)
         )
 
-        let parentItemTop = parentMenuFrame.maxY - parentItemFrame.minY
-        var y = parentItemTop - height
+        var y = parentMenuFrame.minY + parentItemFrame.minY
         if y < visibleRect.minY {
             y = visibleRect.minY
         }
@@ -1372,6 +1371,13 @@ private struct WorkbenchCheckboxButton: View {
 final class SubtitleTableContainerView: NSView {
     var onLayout: (() -> Void)?
     var isRedesign: Bool = false { didSet { applyAppearanceColors() } }
+
+    /// The document, the header, the page chrome viewport and the menu overlay
+    /// all measure downward from their top edge. The container was the one view
+    /// left measuring upward, so every frame placed directly in it had to be
+    /// mirrored by hand. It measures downward too now, and the whole table
+    /// speaks one direction.
+    override var isFlipped: Bool { true }
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -3481,7 +3487,11 @@ struct SubtitleTableView: NSViewRepresentable {
             guard let container,
                   let submenuHost,
                   !submenuHost.isHidden,
-                  let hitView = container.hitTest(containerPoint)
+                  // `hitTest` reads its point in the space outside the
+                  // container, which measures the other way up.
+                  let hitView = container.hitTest(
+                      container.convert(containerPoint, to: container.superview)
+                  )
             else {
                 return false
             }
