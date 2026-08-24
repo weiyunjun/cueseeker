@@ -350,3 +350,131 @@ private func expectSameWorkbenchRect(
     #expect(abs(actual.width - expected.width) <= tolerance)
     #expect(abs(actual.height - expected.height) <= tolerance)
 }
+
+@Test
+func workbenchScrollViewportShowsOnlyTheScrolledWindowOfATallGrid() {
+    let viewport = CGSize(width: 600, height: 800)
+    let grid = CGSize(width: 600, height: 3_000)
+
+    // Scrolled to the middle: the grid's top is 1000pt above the viewport's.
+    expectSameWorkbenchRect(
+        WorkbenchScrollViewport.visibleRect(
+            originInViewport: CGPoint(x: 0, y: -1_000),
+            viewportSize: viewport,
+            size: grid
+        ),
+        CGRect(x: 0, y: 1_000, width: 600, height: 800)
+    )
+
+    // Scrolled to the end.
+    expectSameWorkbenchRect(
+        WorkbenchScrollViewport.visibleRect(
+            originInViewport: CGPoint(x: 0, y: -2_200),
+            viewportSize: viewport,
+            size: grid
+        ),
+        CGRect(x: 0, y: 2_200, width: 600, height: 800)
+    )
+}
+
+@Test
+func workbenchScrollViewportShowsAGridShorterThanItselfInFull() {
+    expectSameWorkbenchRect(
+        WorkbenchScrollViewport.visibleRect(
+            originInViewport: .zero,
+            viewportSize: CGSize(width: 600, height: 800),
+            size: CGSize(width: 600, height: 300)
+        ),
+        CGRect(x: 0, y: 0, width: 600, height: 300)
+    )
+}
+
+@Test
+func workbenchScrollViewportFallsBackToTheWholeGridWhenNothingOverlaps() {
+    // A grid scrolled entirely out of the viewport would otherwise leave the
+    // menu nothing to be placed in.
+    expectSameWorkbenchRect(
+        WorkbenchScrollViewport.visibleRect(
+            originInViewport: CGPoint(x: 0, y: 900),
+            viewportSize: CGSize(width: 600, height: 800),
+            size: CGSize(width: 600, height: 300)
+        ),
+        CGRect(x: 0, y: 0, width: 600, height: 300)
+    )
+}
+
+@MainActor
+private final class WorkbenchViewportProbe {
+    var viewportSize: CGSize?
+    var originInViewport: CGPoint?
+}
+
+private struct WorkbenchViewportReader: View {
+    @Environment(\.workbenchScrollViewportSize) private var viewportSize
+    let probe: WorkbenchViewportProbe
+
+    var body: some View {
+        GeometryReader { proxy in
+            // Recorded as the body runs, so the reading is whatever the last
+            // layout pass actually handed this view.
+            let _ = record(proxy)
+            Color.clear
+        }
+    }
+
+    private func record(_ proxy: GeometryProxy) {
+        probe.viewportSize = viewportSize
+        probe.originInViewport = proxy
+            .frame(in: .named(WorkbenchScrollViewport.name))
+            .origin
+    }
+}
+
+@MainActor
+@Test
+func workbenchScrollViewPublishesItsViewportToWhatItScrolls() async throws {
+    let probe = WorkbenchViewportProbe()
+    let host = NSHostingView(
+        rootView: WorkbenchScrollView {
+            WorkbenchViewportReader(probe: probe)
+                .frame(maxWidth: .infinity)
+                .frame(height: 900)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    )
+    host.frame = CGRect(x: 0, y: 0, width: 300, height: 200)
+    let window = NSWindow(
+        contentRect: host.frame,
+        styleMask: [.borderless],
+        backing: .buffered,
+        defer: false
+    )
+    window.contentView = host
+
+    await settleWorkbenchScrollView(host)
+
+    // The content is 900pt tall inside a 200pt window onto it.
+    let viewportSize = try #require(probe.viewportSize)
+    #expect(abs(viewportSize.height - 200) < 0.5)
+    #expect(abs(viewportSize.width - 300) < 0.5)
+
+    // Unscrolled, the content starts at the viewport's own top-left.
+    let origin = try #require(probe.originInViewport)
+    #expect(abs(origin.y) < 0.5)
+
+    // Scrolled down, the content's top sits that far above the viewport's, which
+    // is the sign `visibleRect` reads.
+    let overlay = try #require(
+        firstWorkbenchSubview(
+            of: WorkbenchScrollViewOverlayView.self,
+            in: host
+        )
+    )
+    let scrollView = try #require(overlay.targetScrollViewForTesting)
+    scrollView.contentView.scroll(to: CGPoint(x: 0, y: 300))
+    scrollView.reflectScrolledClipView(scrollView.contentView)
+    await settleWorkbenchScrollView(host)
+
+    let scrolledOrigin = try #require(probe.originInViewport)
+    #expect(abs(scrolledOrigin.y + 300) < 0.5)
+}

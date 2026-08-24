@@ -411,6 +411,66 @@ recent-video page and the library page; each menu should end just below its last
 item, and the table row menu, the playback selected-text menu and the speed menu
 should look exactly as they did.
 
+## Step 1b: a card menu measures the room the reader can see (§3)
+
+Step 1 gave the card menu the flip it never had, and it still opened downward
+into places nobody can see. Right-click a cover near the bottom of the window and
+the menu opens below the pointer and runs off the screen.
+
+§3 says "below first, above when it will not fit below". **What the card menu was
+measuring "below" against was its own grid** — forty covers, eight rows, twice the
+height of the window. There is plenty of room below inside that rectangle; it is
+simply not room anybody can see. The table's menus never had this problem because
+§4.4 already binds them to the table body, which is a viewport. Nothing bound the
+card menu to anything.
+
+This is independent of Step 5a: at 480pt the same click opened downward too, just
+further off-screen.
+
+`LibraryCardContextMenuHost` is carried into five grids, all of them inside a
+scrolling page: the library overview, the library folder detail, the recent-video
+page, the Command Panel's recent videos and the playback library overlay. Only
+Shiori's list page puts the host above the page's scroll view, where the host's
+own rectangle already is the visible one — which is why Shiori was the one page
+whose direction was right.
+
+So the fix belongs in the host, not in five call sites. `WorkbenchScrollView` now
+publishes its viewport: a named coordinate space so content can tell where it
+sits relative to the window onto it, and the viewport's size through the
+environment. The host asks for the visible part of itself and hands that to the
+existing `MenuPlacement.openingFrame` instead of its whole rectangle. A host that
+is not inside a scroll view gets nothing from the environment and keeps using its
+own rectangle, so Shiori's path is untouched.
+
+Following (§4) is unchanged: the side and the offset are still fixed at opening
+time, and a menu whose card scrolls out of view still travels out with it.
+
+Files: `Shared/WorkbenchScrollView.swift`,
+`TableSandbox/WorkbenchTestLibraryView.swift`.
+
+### Verification
+
+- `swift build` clean.
+- `WorkbenchScrollViewTests` gained four cases: three on the visible-rectangle
+  arithmetic — scrolled to the middle, scrolled to the end, and a grid shorter
+  than the viewport — and one that hosts a real scroll view and reads what it
+  publishes. The last one scrolls the view 300pt and checks the sign the
+  arithmetic depends on, which is the mistake Step 1a already cost once.
+- Menu and placement suites unchanged and passing; `MenuPlacement` was not
+  touched.
+- Full suite before and after: 1053 tests with 29 issues before, 1057 with 27
+  after. The failing sets differ in both directions between the two runs and all
+  of them are the media-timing, library-removal, refresh-scope and
+  persistence-migration families that already fail in a full parallel run; the
+  two that appeared only in the run after the change pass alone. No test failed
+  that was not already failing.
+
+Manual acceptance, for the hover reason recorded in Step 5a: right-click a card
+near the bottom of the window on the library overview, a folder's episode list,
+the recent-video page and the Shiori list page — each menu should open upward and
+stay fully visible — then scroll with a menu open and confirm it still travels
+with its card and keeps its side.
+
 ## Outcome
 
 Steps 1 through 5a cover the requirement's §2 through §7 — every section. What

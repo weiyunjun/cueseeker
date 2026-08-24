@@ -6,6 +6,7 @@ struct WorkbenchScrollView<Content: View>: View {
     private let axes: Axis.Set
     private let content: Content
     @StateObject private var bridge: WorkbenchScrollViewBridge
+    @State private var viewportSize: CGSize = .zero
 
     init(
         _ axes: Axis.Set = .vertical,
@@ -19,6 +20,10 @@ struct WorkbenchScrollView<Content: View>: View {
     var body: some View {
         ScrollView(axes, showsIndicators: false) {
             content
+                .environment(
+                    \.workbenchScrollViewportSize,
+                    viewportSize == .zero ? nil : viewportSize
+                )
                 .background(alignment: .topLeading) {
                     WorkbenchScrollViewBindingRepresentable(
                         axes: axes,
@@ -34,6 +39,63 @@ struct WorkbenchScrollView<Content: View>: View {
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+        // Measured in the background, where it cannot change what the scroll
+        // view is laid out at, and published so content that has to reason
+        // about what the reader can see — a menu deciding which way to open —
+        // can ask for it.
+        .background(
+            GeometryReader { proxy in
+                Color.clear
+                    .onAppear { viewportSize = proxy.size }
+                    .onChange(of: proxy.size) { size in viewportSize = size }
+            }
+        )
+        .coordinateSpace(name: WorkbenchScrollViewport.name)
+    }
+}
+
+/// The window a `WorkbenchScrollView` shows onto its content.
+///
+/// Content inside a scrolling page cannot use its own rectangle to reason about
+/// space: a grid of forty covers is twice the height of the window, so "there is
+/// room below" can be true of a place nobody can see. A menu that opens there
+/// opens off-screen. This is the same thing the table gives its own menus by
+/// bounding them with the table body.
+enum WorkbenchScrollViewport {
+    static let name = "workbench-scroll-viewport"
+
+    /// The visible part of a view sitting inside the scroll view, in that view's
+    /// own coordinates.
+    ///
+    /// `originInViewport` is where the view's top-left sits relative to the
+    /// viewport's, which goes negative as the page scrolls the view upward.
+    static func visibleRect(
+        originInViewport: CGPoint,
+        viewportSize: CGSize,
+        size: CGSize
+    ) -> CGRect {
+        let whole = CGRect(origin: .zero, size: size)
+        let visible = CGRect(
+            x: -originInViewport.x,
+            y: -originInViewport.y,
+            width: viewportSize.width,
+            height: viewportSize.height
+        )
+        let clipped = visible.intersection(whole)
+        return clipped.isNull || clipped.isEmpty ? whole : clipped
+    }
+}
+
+private struct WorkbenchScrollViewportSizeKey: EnvironmentKey {
+    static let defaultValue: CGSize? = nil
+}
+
+extension EnvironmentValues {
+    /// The size of the scroll view the current content sits in, or `nil` when it
+    /// does not sit in one.
+    var workbenchScrollViewportSize: CGSize? {
+        get { self[WorkbenchScrollViewportSizeKey.self] }
+        set { self[WorkbenchScrollViewportSizeKey.self] = newValue }
     }
 }
 

@@ -1177,6 +1177,9 @@ struct LibraryCardContextMenuHost<Content: View>: View {
     /// Where the menu sits relative to the card, fixed when it opened.
     @State private var placementOffset: CGSize?
     @StateObject private var highlight = MenuHighlightModel()
+    /// Set when this host sits inside a scrolling page, which is what tells the
+    /// menu how much room the reader can actually see below a card.
+    @Environment(\.workbenchScrollViewportSize) private var viewportSize
     @ViewBuilder var content: (_ openContextMenu: @escaping ([LibraryCardContextMenuItem], CGPoint) -> Void) -> Content
 
     var body: some View {
@@ -1187,7 +1190,10 @@ struct LibraryCardContextMenuHost<Content: View>: View {
             .overlay(alignment: .topLeading) {
                 if let activeMenu {
                     GeometryReader { proxy in
-                        let menuFrame = menuFrame(for: activeMenu, in: proxy.size)
+                        let menuFrame = menuFrame(
+                            for: activeMenu,
+                            in: visibleRect(of: proxy)
+                        )
                         ZStack(alignment: .topLeading) {
                             LibraryCardMenuKeyboardMonitor(
                                 isActive: true,
@@ -1221,7 +1227,7 @@ struct LibraryCardContextMenuHost<Content: View>: View {
                                     )
                                 }
                             )
-                            .offset(menuOffset(for: activeMenu, in: proxy.size))
+                            .offset(menuOffset(for: activeMenu, in: visibleRect(of: proxy)))
                         }
                         // The side is chosen once, as soon as the menu reports a
                         // real size, and then only travels with its card.
@@ -1293,7 +1299,22 @@ struct LibraryCardContextMenuHost<Content: View>: View {
         return true
     }
 
-    private func menuFrame(for menu: LibraryCardContextMenuState, in containerSize: CGSize) -> CGRect {
+    /// The part of this host the reader can see, in the host's own coordinates.
+    /// A host that is not inside a scrolling page is visible in full.
+    private func visibleRect(of proxy: GeometryProxy) -> CGRect {
+        guard let viewportSize else {
+            return CGRect(origin: .zero, size: proxy.size)
+        }
+        return WorkbenchScrollViewport.visibleRect(
+            originInViewport: proxy
+                .frame(in: .named(WorkbenchScrollViewport.name))
+                .origin,
+            viewportSize: viewportSize,
+            size: proxy.size
+        )
+    }
+
+    private func menuFrame(for menu: LibraryCardContextMenuState, in container: CGRect) -> CGRect {
         let size = resolvedMenuSize(for: menu)
         let anchor = CGRect(origin: menu.anchorPoint, size: .zero)
         if let placementOffset {
@@ -1306,13 +1327,13 @@ struct LibraryCardContextMenuHost<Content: View>: View {
         return MenuPlacement.openingFrame(
             anchor: anchor,
             menuSize: size,
-            in: CGRect(origin: .zero, size: containerSize),
+            in: container,
             gap: WorkbenchControlMetrics.redesignSpacing1
         )
     }
 
-    private func menuOffset(for menu: LibraryCardContextMenuState, in containerSize: CGSize) -> CGSize {
-        let frame = menuFrame(for: menu, in: containerSize)
+    private func menuOffset(for menu: LibraryCardContextMenuState, in container: CGRect) -> CGSize {
+        let frame = menuFrame(for: menu, in: container)
         return CGSize(width: frame.minX, height: frame.minY)
     }
 
