@@ -16,8 +16,9 @@ main
 2. 反引号键不再打开 Command Panel。
 3. 手柄 Options 键改为对应 K 键，与 `docs/human/design/Controller.md` 一致。
 4. 焦点在可编辑文本控件（含 Command Panel 搜索框）时，K 键按普通字符输入处理，不触发打开。
-5. Command Panel 的关闭方式、页面切换、搜索行为、预填规则均不改变。
-6. 更新受影响的自动化测试改用 K 键，并补充 Debug E2E 通过 keyPress 打开 Command Panel 的覆盖。
+5. 手柄 Options 键在 Command Panel 已打开时不产生字符输入，只作为入口键。
+6. Command Panel 的关闭方式、页面切换、搜索行为、预填规则均不改变。
+7. 更新受影响的自动化测试改用 K 键，并补充 Debug E2E 通过 keyPress 打开 Command Panel 的覆盖。
 
 # 范围
 
