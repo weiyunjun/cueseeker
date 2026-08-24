@@ -1657,16 +1657,6 @@ final class SubtitleTableHeaderTextOverlayView: NSView {
     @IBAction func copy(_ sender: Any?) {
         coordinator?.copyTableTextSelection()
     }
-
-    override func draw(_ dirtyRect: NSRect) {
-        super.draw(dirtyRect)
-        coordinator?.drawHeaderTextSelection(in: dirtyRect)
-    }
-
-    override func viewDidChangeEffectiveAppearance() {
-        super.viewDidChangeEffectiveAppearance()
-        needsDisplay = true
-    }
 }
 
 final class SubtitleVirtualTableHeaderView: NSView {
@@ -1757,6 +1747,7 @@ final class SubtitleVirtualTableHeaderView: NSView {
             super.draw(dirtyRect)
             
             if isRedesign {
+                coordinator?.drawHeaderTextSelectionBackground(in: dirtyRect)
                 WorkbenchRedesignColors.NS.borderDivider.setStroke()
                 let path = NSBezierPath()
                 path.move(to: NSPoint(x: bounds.minX, y: bounds.maxY - 0.5))
@@ -1938,7 +1929,7 @@ final class SubtitleVirtualTableHeaderView: NSView {
         updateHeaderFrame(&timeHeaderHost, frame: layout.timeRect)
         updateHeaderFrame(&cuesHeaderHost, frame: layout.cuesRect)
         updateHeaderFrame(&languageHeaderHost, frame: layout.languageRect)
-        textInteractionOverlay?.needsDisplay = true
+        needsDisplay = true
         lastHeaderLayout = layout
     }
 
@@ -1959,11 +1950,11 @@ final class SubtitleVirtualTableHeaderView: NSView {
         } else {
             addSubview(overlay, positioned: .above, relativeTo: nil)
         }
-        overlay.needsDisplay = true
+        needsDisplay = true
     }
 
-    func invalidateTextSelectionOverlay() {
-        textInteractionOverlay?.needsDisplay = true
+    func invalidateHeaderTextSelection() {
+        needsDisplay = true
     }
 
     func textInteractionOverlayForTesting() -> SubtitleTableHeaderTextOverlayView? {
@@ -4491,7 +4482,7 @@ struct SubtitleTableView: NSViewRepresentable {
                 textSelectionProjection(textSelection, for: .header)
             {
                 textSelectionInvalidationCount += 1
-                headerView?.invalidateTextSelectionOverlay()
+                headerView?.invalidateHeaderTextSelection()
             }
 
             guard let documentView,
@@ -4540,9 +4531,12 @@ struct SubtitleTableView: NSViewRepresentable {
                 let attributed = SubtitleTableText.header(title, isRedesign: isRedesign)
                 let size = attributed.size()
                 let leading = WorkbenchControlMetrics.redesignPaddingHeaderTriggerX
+                let width = max(1, cellRect.width - 2 * leading)
+                textLayout.update(attributedString: attributed, width: width)
+                let lineHeight = textLayout.usedHeight
                 let origin = CGPoint(
                     x: cellRect.minX + leading,
-                    y: cellRect.minY + max(0, (cellRect.height - size.height) / 2)
+                    y: cellRect.minY + max(0, (cellRect.height - lineHeight) / 2)
                 )
                 return HeaderTextFragmentLayout(
                     columnID: columnID,
@@ -4551,12 +4545,12 @@ struct SubtitleTableView: NSViewRepresentable {
                     fragment: SubtitleTableTextFragmentLayout(
                         attributed: attributed,
                         origin: origin,
-                        width: max(1, cellRect.width - 2 * leading),
+                        width: width,
                         clipRect: CGRect(
                             x: origin.x,
                             y: origin.y,
                             width: max(0, min(size.width, cellRect.maxX - leading - origin.x)),
-                            height: min(size.height, cellRect.height)
+                            height: min(lineHeight, cellRect.height)
                         ),
                         logicalUTF16Range: NSRange(
                             location: 0,
@@ -4607,7 +4601,7 @@ struct SubtitleTableView: NSViewRepresentable {
             headerTextPosition(at: point, requiresTextHit: true) != nil
         }
 
-        func drawHeaderTextSelection(in dirtyRect: CGRect) {
+        func drawHeaderTextSelectionBackground(in dirtyRect: CGRect) {
             guard textSelection.hasSelection else { return }
             for item in headerTextFragments() where item.fragment.clipRect.intersects(dirtyRect) {
                 let title = item.fragment.attributed.string
@@ -4629,7 +4623,6 @@ struct SubtitleTableView: NSViewRepresentable {
                     with: textLayout,
                     at: item.fragment.origin
                 )
-                textLayout.draw(at: item.fragment.origin)
                 NSGraphicsContext.restoreGraphicsState()
             }
         }
