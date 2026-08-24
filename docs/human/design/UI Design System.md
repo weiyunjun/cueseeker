@@ -3444,6 +3444,9 @@
 - Current
 - Playlist
 - Editing Collage
+- Covered
+  - 触发：Command Panel 打开
+  - 内容照常显示，不接受指针、滚轮与键盘
 - Closing
 
 ### Playback Topbar Layout
@@ -3626,6 +3629,12 @@
 - Keycap
 - Keycap Group
 - Scrollbar / Vertical
+
+#### Layer
+
+- 位于 Playback Overlay 之上
+- 打开期间独占指针、滚轮与键盘
+- 打开时关闭下层已展开的菜单
 
 #### States
 
