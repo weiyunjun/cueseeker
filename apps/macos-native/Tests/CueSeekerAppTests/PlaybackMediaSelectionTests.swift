@@ -248,3 +248,36 @@ private func findScrollView(in view: NSView) -> NSScrollView? {
     }
     return nil
 }
+
+@MainActor
+@Test
+func playbackMediaSelectionFromPointerMovesSelectionWithoutScrolling() throws {
+    let selection = PlaybackMediaSelectionStore()
+    selection.replaceItems(
+        orderedItemIDs: ["0", "1", "2", "3"],
+        availableItemIDs: ["0", "2", "3"],
+        resetsSelection: true
+    )
+    #expect(selection.selectedItemID == "0")
+    let initialRequest = try #require(selection.scrollRequest)
+    selection.markScrollRequestHandled(sequence: initialRequest.sequence)
+
+    // The pointer is already on the card, so moving the selection there must
+    // not ask the list to scroll under the cursor.
+    selection.selectFromPointer(itemID: "3")
+    #expect(selection.selectedItemID == "3")
+    #expect(selection.scrollRequest?.sequence == initialRequest.sequence)
+    #expect(selection.pendingScrollRequest == nil)
+
+    // Unavailable and unknown items cannot take the selection.
+    selection.selectFromPointer(itemID: "1")
+    #expect(selection.selectedItemID == "3")
+    selection.selectFromPointer(itemID: "missing")
+    #expect(selection.selectedItemID == "3")
+
+    // Keyboard movement still scrolls, so the two paths stay distinguishable.
+    #expect(selection.move(.up) || selection.selectedItemID == "3")
+    selection.invalidate()
+    selection.selectFromPointer(itemID: "0")
+    #expect(selection.selectedItemID == nil)
+}

@@ -142,6 +142,18 @@ final class PlaybackMediaSelectionStore: ObservableObject {
         return true
     }
 
+    /// Moves the selection onto the pointer without requesting a scroll: the
+    /// item is already under the cursor, and scrolling would fight the pointer.
+    func selectFromPointer(itemID: String) {
+        guard isActive,
+              availableItemIDs.contains(itemID),
+              selectedItemID != itemID
+        else {
+            return
+        }
+        selectedItemID = itemID
+    }
+
     func recordVisibleFrames(
         _ framesByItemID: [String: CGRect],
         viewportHeight: CGFloat

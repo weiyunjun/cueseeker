@@ -23,6 +23,11 @@ struct PlaybackCommandPanel: View {
                         case .root:
                             PlaybackCommandPanelRoot(
                                 presentation: presentation,
+                                allowsHover: pointerVisibility.isVisible,
+                                onSelect: {
+                                    appState
+                                        .selectPlaybackCommandPanelItem(at: $0)
+                                },
                                 query: Binding(
                                     get: { presentation.query },
                                     set: {
@@ -81,6 +86,10 @@ struct PlaybackCommandPanel: View {
                                             itemFramesByID: $1
                                         )
                                 },
+                                onSelect: {
+                                    appState
+                                        .selectPlaybackCommandPanelItem(at: $0)
+                                },
                                 onOpen: {
                                     appState.openPlaybackCommandPanelRecentVideo(
                                         at: $0
@@ -98,6 +107,10 @@ struct PlaybackCommandPanel: View {
                                 onSynchronize: {
                                     appState
                                         .synchronizePlaybackCommandPanelSelection()
+                                },
+                                onSelect: {
+                                    appState
+                                        .selectPlaybackCommandPanelItem(at: $0)
                                 },
                                 onOpen: {
                                     appState.openPlaybackCommandPanelRecentShiori(
@@ -160,6 +173,8 @@ private enum PlaybackCommandPanelMetrics {
 
 private struct PlaybackCommandPanelRoot: View {
     let presentation: PlaybackCommandPanelPresentation
+    let allowsHover: Bool
+    let onSelect: (Int) -> Void
     @Binding var query: String
     let onSubmitSearch: () -> Bool
     let onOpenPage: (PlaybackCommandPanelPage) -> Bool
@@ -185,7 +200,9 @@ private struct PlaybackCommandPanelRoot: View {
                         systemImage: "magnifyingglass",
                         title: L("sidebar.search"),
                         detail: query,
-                        isSelected: presentation.selectedOrdinal == 0
+                        isSelected: presentation.selectedOrdinal == 0,
+                        allowsHover: allowsHover,
+                        onHoverChange: { hoverChanged($0, ordinal: 0) }
                     ) {
                         _ = onSubmitSearch()
                     }
@@ -196,7 +213,11 @@ private struct PlaybackCommandPanelRoot: View {
                     title: L("sidebar.recent_videos"),
                     detail: nil,
                     isSelected: presentation.selectedOrdinal
-                        == (trimmedQuery.isEmpty ? 0 : 1)
+                        == recentVideosOrdinal,
+                    allowsHover: allowsHover,
+                    onHoverChange: {
+                        hoverChanged($0, ordinal: recentVideosOrdinal)
+                    }
                 ) {
                     _ = onOpenPage(.recentVideos)
                 }
@@ -206,7 +227,11 @@ private struct PlaybackCommandPanelRoot: View {
                     title: L("sidebar.recent_shioris"),
                     detail: nil,
                     isSelected: presentation.selectedOrdinal
-                        == (trimmedQuery.isEmpty ? 1 : 2)
+                        == recentShiorisOrdinal,
+                    allowsHover: allowsHover,
+                    onHoverChange: {
+                        hoverChanged($0, ordinal: recentShiorisOrdinal)
+                    }
                 ) {
                     _ = onOpenPage(.recentShioris)
                 }
@@ -222,6 +247,21 @@ private struct PlaybackCommandPanelRoot: View {
     private var trimmedQuery: String {
         query.trimmingCharacters(in: .whitespacesAndNewlines)
     }
+
+    private var recentVideosOrdinal: Int {
+        trimmedQuery.isEmpty ? 0 : 1
+    }
+
+    private var recentShiorisOrdinal: Int {
+        trimmedQuery.isEmpty ? 1 : 2
+    }
+
+    private func hoverChanged(_ isHovered: Bool, ordinal: Int) {
+        guard isHovered else {
+            return
+        }
+        onSelect(ordinal)
+    }
 }
 
 private struct PlaybackCommandPanelRootRow: View {
@@ -229,7 +269,16 @@ private struct PlaybackCommandPanelRootRow: View {
     let title: String
     let detail: String?
     let isSelected: Bool
+    let allowsHover: Bool
+    let onHoverChange: (Bool) -> Void
     let action: () -> Void
+    @State private var isHovered = false
+
+    /// Hover only counts while the pointer is visible, so keyboard navigation
+    /// cannot be pulled back by a pointer resting on another row.
+    private var isHoverActive: Bool {
+        allowsHover && isHovered
+    }
 
     var body: some View {
         Button(action: action) {
@@ -284,7 +333,11 @@ private struct PlaybackCommandPanelRootRow: View {
         }
         .buttonStyle(.plain)
         .focusable(false)
-        .pointerOnHover(isEnabled: true)
+        .onHover { isHovered = $0 }
+        .onChange(of: isHoverActive) { isActive in
+            onHoverChange(isActive)
+        }
+        .pointerOnHover(isEnabled: allowsHover)
     }
 }
 
@@ -459,6 +512,7 @@ struct PlaybackCommandPanelRecentVideos: View {
     let onBack: () -> Bool
     let onSynchronize: () -> Void
     let onGridLayoutChange: (Int, [String: CGRect]) -> Void
+    let onSelect: (Int) -> Void
     let onOpen: (Int) -> Void
 
     private let coordinateSpaceName =
@@ -504,7 +558,17 @@ struct PlaybackCommandPanelRecentVideos: View {
                                 itemFramesByID = frames
                                 onGridLayoutChange(columnCount, frames)
                             },
-                            allowsHover: allowsHover
+                            allowsHover: allowsHover,
+                            onItemHoverChange: { item, isHovered in
+                                guard isHovered,
+                                      let ordinal = items.firstIndex(where: {
+                                          $0.id == item.id
+                                      })
+                                else {
+                                    return
+                                }
+                                onSelect(ordinal)
+                            }
                         ) { item in
                             if let ordinal = items.firstIndex(where: {
                                 $0.id == item.id
@@ -603,7 +667,12 @@ private struct PlaybackCommandPanelRecentShioris: View {
     let allowsHover: Bool
     let onBack: () -> Bool
     let onSynchronize: () -> Void
+    let onSelect: (Int) -> Void
     let onOpen: (Int) -> Void
+
+    /// The row the pointer moved the selection onto. It is already on screen,
+    /// so that change must not scroll the list under the cursor.
+    @State private var pointerSelectedItemID: Int64?
 
     private var summaries: [ShioriListSummary] {
         shioriStore.recentListSummaries
@@ -630,7 +699,18 @@ private struct PlaybackCommandPanelRecentShioris: View {
                     RecentShioriResumeList(
                         summaries: summaries,
                         selectedItemID: selectedItemID,
-                        allowsHover: allowsHover
+                        allowsHover: allowsHover,
+                        onItemHoverChange: { summary, isHovered in
+                            guard isHovered,
+                                  let ordinal = summaries.firstIndex(where: {
+                                      $0.id == summary.id
+                                  })
+                            else {
+                                return
+                            }
+                            pointerSelectedItemID = summary.id
+                            onSelect(ordinal)
+                        }
                     ) { summary in
                         if let ordinal = summaries.firstIndex(where: {
                             $0.id == summary.id
@@ -648,7 +728,9 @@ private struct PlaybackCommandPanelRecentShioris: View {
                     )
                 }
                 .onChange(of: selectedItemID) { selectedItemID in
-                    guard let selectedItemID else {
+                    guard let selectedItemID,
+                          selectedItemID != pointerSelectedItemID
+                    else {
                         return
                     }
                     proxy.scrollTo(selectedItemID)

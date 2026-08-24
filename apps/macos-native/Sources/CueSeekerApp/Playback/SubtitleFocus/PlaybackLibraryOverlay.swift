@@ -99,6 +99,12 @@ private struct PlaybackLibraryEpisodeList: View {
                     )
                 },
                 allowsHover: pointerVisibility.isVisible,
+                onItemHoverChange: { video, isHovered in
+                    guard isHovered else {
+                        return
+                    }
+                    selection.selectFromPointer(itemID: video.id)
+                },
                 onOpen: { video in
                     _ = onOpenEpisode(video)
                 }

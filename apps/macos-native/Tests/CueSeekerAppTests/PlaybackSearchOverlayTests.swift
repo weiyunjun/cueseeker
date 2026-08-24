@@ -174,3 +174,45 @@ private func playbackSharedSearchResult(
         searchRank: rank
     )
 }
+
+@MainActor
+@Test
+func commandPanelPointerSelectionMovesTheRootHighlightWithinBounds() throws {
+    _ = NSApplication.shared
+    let suiteName = "PlaybackCommandPanelPointerSelection-\(UUID().uuidString)"
+    let userDefaults = try #require(UserDefaults(suiteName: suiteName))
+    let databaseURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent(
+            "playback-command-panel-pointer-\(UUID().uuidString).sqlite"
+        )
+    defer {
+        userDefaults.removePersistentDomain(forName: suiteName)
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+    let app = AppCoordinator(
+        userDefaults: userDefaults,
+        databaseURL: databaseURL
+    )
+    app.search.selectResult(playbackSharedSearchResult(id: 9_101, rank: 0))
+    app.activePlaybackSource = .search
+    app.playback.isPlaybackSurfaceExpanded = true
+
+    #expect(app.presentPlaybackCommandPanel())
+    #expect(app.playback.commandPanelPresentation?.selectedOrdinal == 0)
+
+    // An empty query leaves two rows: Recent Videos and Recent Shioris.
+    app.selectPlaybackCommandPanelItem(at: 1)
+    #expect(app.playback.commandPanelPresentation?.selectedOrdinal == 1)
+
+    // Out-of-range ordinals are ignored rather than clearing the highlight.
+    app.selectPlaybackCommandPanelItem(at: 2)
+    #expect(app.playback.commandPanelPresentation?.selectedOrdinal == 1)
+    app.selectPlaybackCommandPanelItem(at: -1)
+    #expect(app.playback.commandPanelPresentation?.selectedOrdinal == 1)
+
+    // A query adds the search row, so the third position becomes reachable.
+    app.updatePlaybackCommandPanelQuery("query")
+    #expect(app.playback.commandPanelPresentation?.selectedOrdinal == 0)
+    app.selectPlaybackCommandPanelItem(at: 2)
+    #expect(app.playback.commandPanelPresentation?.selectedOrdinal == 2)
+}

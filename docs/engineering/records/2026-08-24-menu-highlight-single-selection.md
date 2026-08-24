@@ -100,6 +100,36 @@ so the lookup is testable instead of living inside the view.
 Files: `Playback/Chrome/PlaybackChromeSpeedMenu.swift`,
 `Playback/Chrome/PlaybackChromeView.swift`, `Playback/PlaybackViewModel.swift`.
 
+### Step 4: the four list surfaces
+
+These surfaces already had the gate the requirement asks for. Their hover is
+passed `pointerVisibility.isVisible`, which the playback visibility model sets
+false on keyboard input and true again on real pointer movement. That is exactly
+"hover only counts after the pointer really moves", so no new mechanism was
+added for them.
+
+The cards and rows now report the hover state that is actually in effect, and
+the surfaces that own a selection move it onto the pointer. Because hover and
+selection then land on the same card, the existing background rule already
+lights exactly one item; no colour or condition changed. The Workbench Library
+and Recent pages pass no handler, so their hover feedback is untouched.
+
+Command Panel's root list had no hover feedback at all and did not consult
+pointer visibility. It now does both, which was the gap this step was added to
+close.
+
+Pointer-driven selection never scrolls. `selectFromPointer` sets the selection
+without raising a scroll request, and Recent Shioris skips its scroll for the
+row the pointer just selected, because scrolling the list under the cursor would
+fight the pointer. Recent Videos already only scrolled when the item was not
+fully visible.
+
+Files: `TableSandbox/WorkbenchTestLibraryView.swift`,
+`Playback/SubtitleFocus/PlaybackMediaSelectionStore.swift`,
+`Playback/SubtitleFocus/PlaybackLibraryOverlay.swift`,
+`Playback/SubtitleFocus/PlaybackCommandPanel.swift`,
+`App/AppCoordinator+PlaybackCommandPanel.swift`.
+
 ## Verification
 
 - `swift build` clean.
@@ -153,9 +183,28 @@ on real pointer movement over an `NSTrackingArea`, which synthesized events
 cannot drive, so the menu cannot be opened from Debug E2E at all. It stays a
 manual acceptance step for the same reason the cover context menu does.
 
+Step 4 additions:
+
+- `PlaybackMediaSelectionTests`: pointer selection moves the selection, raises
+  no scroll request, refuses unavailable and unknown items, and does nothing
+  once the store is invalidated.
+- `PlaybackSearchOverlayTests`: Command Panel pointer selection moves the root
+  highlight, ignores out-of-range ordinals instead of clearing the highlight,
+  and reaches the third row once a query adds the search row.
+- Filtered sweep over the media-selection, command-panel, menu, shiori, library,
+  workbench and table suites: 352 tests, all green except two cases that pass in
+  isolation. One asserts English column labels and read Chinese ones, a language
+  leak from the localization suite; the other is a library folder-removal case.
+  Neither touches hover or selection.
+
+Debug E2E run against the real App: pressing `K` opened the Command Panel with
+the first row highlighted, one `downarrow` moved the highlight to the second row
+with nothing else lit, and `pointerVisible` was `false` throughout, so a pointer
+resting on another row cannot pull the highlight back.
+
 ## Outcome
 
-Steps 1 through 3 matched expectations.
+Steps 1 through 4 matched expectations.
 
 One interpretation needs the owner's confirmation. The requirement says no two
 highlights may exist at once. While a destination submenu is open, its parent
@@ -168,4 +217,7 @@ intended instead.
 Escape now closes the cover context menu, which previously had no keyboard
 handling at all. This is consistent with the other menus but was not asked for.
 
-The four list surfaces follow in a separate step.
+Hover-driven selection on the four list surfaces could not be verified in the
+running App, for the documented reason that synthesized events cannot drive
+SwiftUI hover. What was verified is the half that matters most: while the
+pointer is hidden after keyboard input, hover has no effect at all.

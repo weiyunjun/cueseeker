@@ -166,6 +166,20 @@ extension AppCoordinator {
         return true
     }
 
+    /// Moves the Command Panel selection onto the pointer. Nothing scrolls: the
+    /// item is already under the cursor.
+    func selectPlaybackCommandPanelItem(at ordinal: Int) {
+        guard var presentation = playback.commandPanelPresentation,
+              presentation.selectedOrdinal != ordinal,
+              ordinal >= 0,
+              ordinal < playbackCommandPanelItemCount(for: presentation.page)
+        else {
+            return
+        }
+        presentation.selectedOrdinal = ordinal
+        playback.presentCommandPanel(presentation)
+    }
+
     func updatePlaybackCommandPanelRecentVideoGridLayout(
         columnCount: Int,
         itemFramesByID: [String: CGRect]

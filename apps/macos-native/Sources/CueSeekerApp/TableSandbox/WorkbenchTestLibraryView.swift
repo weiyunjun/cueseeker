@@ -154,6 +154,7 @@ struct RecentShioriResumeList: View {
     let summaries: [ShioriListSummary]
     var selectedItemID: Int64? = nil
     var allowsHover = true
+    var onItemHoverChange: (ShioriListSummary, Bool) -> Void = { _, _ in }
     let onOpen: (ShioriListSummary) -> Void
 
     var body: some View {
@@ -162,7 +163,8 @@ struct RecentShioriResumeList: View {
                 RecentShioriResumeRow(
                     summary: summary,
                     isSelected: selectedItemID == summary.id,
-                    allowsHover: allowsHover
+                    allowsHover: allowsHover,
+                    onHoverChange: { onItemHoverChange(summary, $0) }
                 ) {
                     onOpen(summary)
                 }
@@ -224,6 +226,7 @@ struct RecentShioriResumeRow: View {
     let summary: ShioriListSummary
     var isSelected = false
     var allowsHover = true
+    var onHoverChange: ((Bool) -> Void)?
     let onOpen: () -> Void
     @State private var isHovered = false
 
@@ -305,6 +308,9 @@ struct RecentShioriResumeRow: View {
         .buttonStyle(.plain)
         .focusable(false)
         .onHover { isHovered = $0 }
+        .onChange(of: isHoverActive) { isActive in
+            onHoverChange?(isActive)
+        }
         .pointerOnHover(isEnabled: allowsHover)
         .accessibilityLabel(summary.list.name)
     }
@@ -612,6 +618,7 @@ struct RecentWatchingGrid: View {
     var itemFrameCoordinateSpace: String? = nil
     var onItemFramesChange: ([String: CGRect]) -> Void = { _ in }
     var allowsHover = true
+    var onItemHoverChange: (RecentLibraryWatchingPresentation, Bool) -> Void = { _, _ in }
     let onOpen: (RecentLibraryWatchingPresentation) -> Void
 
     var body: some View {
@@ -621,6 +628,7 @@ struct RecentWatchingGrid: View {
             itemFrameCoordinateSpace: itemFrameCoordinateSpace,
             onItemFramesChange: onItemFramesChange,
             allowsHover: allowsHover,
+            onItemHoverChange: onItemHoverChange,
             content: LibraryVideoCardContent.init,
             onOpen: onOpen
         )
@@ -635,6 +643,7 @@ where Item.ID == String {
     let itemFrameCoordinateSpace: String?
     let onItemFramesChange: ([String: CGRect]) -> Void
     let allowsHover: Bool
+    let onItemHoverChange: (Item, Bool) -> Void
     let content: (Item) -> LibraryVideoCardContent
     let onOpen: (Item) -> Void
 
@@ -665,6 +674,7 @@ where Item.ID == String {
                         actions: .appState(appState),
                         openContextMenu: openContextMenu,
                         allowsHover: allowsHover,
+                        onHoverChange: { onItemHoverChange(item, $0) },
                         onOpen: { onOpen(item) }
                     )
                     .background {
@@ -777,6 +787,10 @@ private struct LibraryVideoCard: View {
     let actions: LibraryCardActionHandlers
     let openContextMenu: ([LibraryCardContextMenuItem], CGPoint) -> Void
     let allowsHover: Bool
+    /// Reports the hover state that is actually in effect, which already folds
+    /// in pointer visibility. Surfaces with a selection use it to move that
+    /// selection onto the pointer, so only one card is ever lit.
+    var onHoverChange: ((Bool) -> Void)?
     let onOpen: () -> Void
     @State private var isHovered = false
 
@@ -834,6 +848,9 @@ private struct LibraryVideoCard: View {
             onOpen()
         }
         .onHover { isHovered = $0 }
+        .onChange(of: isHoverActive) { isActive in
+            onHoverChange?(isActive)
+        }
         .onChange(of: isWorkbenchPopupLayerOpen) { isOpen in
             if isOpen {
                 isHovered = false
@@ -1078,6 +1095,7 @@ struct CompleteLibraryEpisodeGrid: View {
     var itemFrameCoordinateSpace: String? = nil
     var onItemFramesChange: ([String: CGRect]) -> Void = { _ in }
     var allowsHover = true
+    var onItemHoverChange: (CompleteLibraryVideoPresentation, Bool) -> Void = { _, _ in }
     let onOpen: (CompleteLibraryVideoPresentation) -> Void
 
     var body: some View {
@@ -1092,6 +1110,7 @@ struct CompleteLibraryEpisodeGrid: View {
                 itemFrameCoordinateSpace: itemFrameCoordinateSpace,
                 onItemFramesChange: onItemFramesChange,
                 allowsHover: allowsHover,
+                onItemHoverChange: onItemHoverChange,
                 content: {
                     LibraryVideoCardContent(
                         folderTitle: folderTitle,
