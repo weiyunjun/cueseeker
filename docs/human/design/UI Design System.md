@@ -1243,7 +1243,6 @@
 
 ##### Anatomy
 
-- Trigger Surface
 - Label
   - Font Family：`--font-family-base`
   - Font Size：`--font-size-table-header`
@@ -1262,19 +1261,9 @@
 ##### States
 
 - Default
-- Hover
-- Focused
 - Disabled
 
 #### Variants
-
-##### Sortable
-
-- Trailing Slot：Sort Indicator
-- States
-  - Unsorted
-  - Ascending
-  - Descending
 
 ##### Selection
 
@@ -3126,7 +3115,7 @@
 #### Components
 
 - Table
-- Table Header Cell / Sortable
+- Table Header Cell
 - Table Header Cell / Selection
 - Table Row
 - Table Cell / Text
