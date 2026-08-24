@@ -1883,30 +1883,28 @@ final class SubtitleVirtualTableHeaderView: NSView {
             updateHeaderHost(
                 &indexHeaderHost,
                 title: "#",
-                columnID: "selection",
-                isSortable: false,
                 frame: layout.indexRect
             )
         }
         if let dateAddedRect = layout.dateAddedRect {
-            updateHeaderHost(&dateAddedHeaderHost, title: coordinator?.dateAddedHeaderForRendering() ?? L("table.column.date_added"), columnID: "dateAdded", isSortable: true, frame: dateAddedRect)
+            updateHeaderHost(&dateAddedHeaderHost, title: coordinator?.dateAddedHeaderForRendering() ?? L("table.column.date_added"), frame: dateAddedRect)
         } else {
             dateAddedHeaderHost?.isHidden = true
         }
         if coordinator?.showsDisplayTitleColumnForRendering() ?? true {
-            updateHeaderHost(&nameHeaderHost, title: coordinator?.displayTitleHeaderForRendering() ?? L("table.column.name"), columnID: "display", isSortable: true, frame: layout.nameRect)
+            updateHeaderHost(&nameHeaderHost, title: coordinator?.displayTitleHeaderForRendering() ?? L("table.column.name"), frame: layout.nameRect)
         } else {
             nameHeaderHost?.isHidden = true
         }
         if let timeRect = layout.timeRect {
-            updateHeaderHost(&timeHeaderHost, title: coordinator?.timeHeaderForRendering() ?? L("table.column.time_range"), columnID: "time", isSortable: true, frame: timeRect)
+            updateHeaderHost(&timeHeaderHost, title: coordinator?.timeHeaderForRendering() ?? L("table.column.time_range"), frame: timeRect)
         } else {
             timeHeaderHost?.isHidden = true
         }
-        updateHeaderHost(&cuesHeaderHost, title: coordinator?.cuesHeaderForRendering() ?? L("table.column.cues"), columnID: "cues", isSortable: true, frame: layout.cuesRect)
+        updateHeaderHost(&cuesHeaderHost, title: coordinator?.cuesHeaderForRendering() ?? L("table.column.cues"), frame: layout.cuesRect)
 
         if let languageRect = layout.languageRect {
-            updateHeaderHost(&languageHeaderHost, title: coordinator?.languageHeaderForRendering() ?? L("table.column.language"), columnID: "language", isSortable: true, frame: languageRect)
+            updateHeaderHost(&languageHeaderHost, title: coordinator?.languageHeaderForRendering() ?? L("table.column.language"), frame: languageRect)
         } else {
             languageHeaderHost?.isHidden = true
         }
@@ -2090,26 +2088,16 @@ final class SubtitleVirtualTableHeaderView: NSView {
     private func updateHeaderHost(
         _ hostVar: inout NSHostingView<AnyView>?,
         title: String,
-        columnID: String,
-        isSortable: Bool,
         frame: CGRect
     ) {
         guard let coordinator else { return }
-        let sortDirection = coordinator.sortedColumnID == columnID ? coordinator.sortDirection : nil
-        let isMenuOpen = coordinator.isMenuOpen && coordinator.activeHeaderMenuColumnID == columnID
         let isEnabled = coordinator.isEnabled && !coordinator.isSelectionModeForRendering()
 
         let cellView = SubtitleTableHeaderCellView(
             title: title,
-            columnID: columnID,
-            isSortable: isSortable,
             isEnabled: isEnabled,
-            sortDirection: sortDirection,
-            isMenuOpen: isMenuOpen,
             columnRect: frame
-        ) { [weak self] rect in
-            self?.coordinator?.showHeaderMenu(for: columnID, triggerFrame: rect)
-        }
+        )
 
         let anyView = AnyView(cellView)
 
@@ -2739,7 +2727,6 @@ struct SubtitleTableView: NSViewRepresentable {
 
         private enum ActiveMenuAnchor {
             case row(row: Int, columnID: String, anchorFrame: CGRect, clickPointInContainer: CGPoint?)
-            case header(triggerFrame: CGRect)
         }
 
         struct DynamicScrollAnchor {
@@ -2748,14 +2735,6 @@ struct SubtitleTableView: NSViewRepresentable {
             let primaryFirstLineScreenY: CGFloat
         }
 
-        enum TableSortDirection: Equatable {
-            case asc
-            case desc
-        }
-
-        var sortedColumnID: String?
-        var sortDirection: TableSortDirection?
-        var activeHeaderMenuColumnID: String?
         var suspendsMenuOutsideClickDismiss = false
         var isExternalPopupLayerOpen = false {
             didSet {
@@ -2819,7 +2798,6 @@ struct SubtitleTableView: NSViewRepresentable {
         private enum PendingDirectTextAction {
             case none
             case play(row: Int)
-            case headerMenu(columnID: String, triggerFrame: CGRect)
         }
 
         private struct PendingTextInteraction {
@@ -6539,26 +6517,11 @@ struct SubtitleTableView: NSViewRepresentable {
                 return false
             }
 
-            let exactAnchor = headerTextPosition(at: point, requiresTextHit: true)
-            let directAction: PendingDirectTextAction
-            if let exactAnchor,
-               let headerFragment = headerTextFragments().first(where: {
-                   $0.columnIndex == exactAnchor.columnIndex
-               })
-            {
-                directAction = .headerMenu(
-                    columnID: headerFragment.columnID,
-                    triggerFrame: headerFragment.cellRect
-                )
-            } else {
-                directAction = .none
-            }
-
             clearFocusedCheckbox()
             pendingTextInteraction = PendingTextInteraction(
                 startPoint: windowPoint,
                 anchor: anchor,
-                directAction: directAction,
+                directAction: .none,
                 latestWindowPoint: windowPoint
             )
             return true
@@ -6612,8 +6575,6 @@ struct SubtitleTableView: NSViewRepresentable {
                 break
             case .play(let row):
                 playRow(row)
-            case .headerMenu(let columnID, let triggerFrame):
-                showHeaderMenu(for: columnID, triggerFrame: triggerFrame)
             }
             return true
         }
@@ -7324,79 +7285,10 @@ struct SubtitleTableView: NSViewRepresentable {
             submenuHost?.isHidden = true
         }
 
-        func showHeaderMenu(for columnID: String, triggerFrame: CGRect) {
-            guard !isSelectionMode else { return }
-            cancelPendingTextInteraction()
-            isMenuOpen = true
-            activeRowMenuRow = nil
-            activeRowMenuColumnID = nil
-            activeRowMenuTarget = nil
-            activeHeaderMenuColumnID = columnID
-            activeMenuAnchor = .header(triggerFrame: triggerFrame)
-            layoutHoverButtons()
-            headerView?.refreshHeaderHosts()
-
-            guard let container = self.container, let headerView = self.headerView else {
-                isMenuOpen = false
-                activeHeaderMenuColumnID = nil
-                activeRowMenuColumnID = nil
-                activeRowMenuTarget = nil
-                activeMenuAnchor = nil
-                return
-            }
-
-            if menuOverlayView == nil {
-                let overlay = SubtitleTableMenuOverlayView()
-                overlay.onClick = { [weak self] in
-                    self?.dismissMenu()
-                }
-                container.addSubview(overlay)
-                menuOverlayView = overlay
-            }
-            menuOverlayView?.frame = container.bounds
-            menuOverlayView?.isHidden = false
-
-            let sortDirection = (sortedColumnID == columnID) ? self.sortDirection : nil
-            let menuView = ColumnHeaderMenu(
-                sortDirection: sortDirection,
-                onSortAscending: { [weak self] in
-                    self?.sortedColumnID = columnID
-                    self?.sortDirection = .asc
-                    self?.dismissMenu()
-                },
-                onSortDescending: { [weak self] in
-                    self?.sortedColumnID = columnID
-                    self?.sortDirection = .desc
-                    self?.dismissMenu()
-                }
-            )
-
-            setMenuHost(menuView, in: container)
-
-            if let menuOverlayView {
-                container.addSubview(menuOverlayView)
-            }
-            if let menuHost {
-                container.addSubview(menuHost)
-            }
-
-            menuHost?.layout()
-            let menuSize = menuHost?.fittingSize ?? CGSize(width: 172, height: 128)
-
-            let triggerFrameInContainer = container.convert(triggerFrame, from: headerView)
-            let finalMenuFrame = positionMenu(triggerFrameInContainer: triggerFrameInContainer, menuSize: menuSize)
-
-            menuHost?.frame = finalMenuFrame
-            menuHost?.isHidden = false
-
-            installMenuDismissMonitor()
-        }
-
         func dismissMenu(recalculateHover: Bool = true) {
             let previousRowMenuRow = activeRowMenuRow
             let previousHoveredRow = hoveredRow
             isMenuOpen = false
-            activeHeaderMenuColumnID = nil
             activeRowMenuRow = nil
             activeRowMenuColumnID = nil
             activeRowMenuTarget = nil
@@ -7510,13 +7402,6 @@ struct SubtitleTableView: NSViewRepresentable {
                         menuSize: resolvedMenuSize
                     )
                 }
-            case .header(let triggerFrame):
-                guard let headerView else { return }
-                let triggerFrameInContainer = container.convert(triggerFrame, from: headerView)
-                finalMenuFrame = positionMenu(
-                    triggerFrameInContainer: triggerFrameInContainer,
-                    menuSize: resolvedMenuSize
-                )
             }
 
             menuHost.frame = finalMenuFrame
@@ -7678,196 +7563,23 @@ struct SubtitleTableView: NSViewRepresentable {
     }
 }
 
-// MARK: - Header Cell and Header Menu Views
+// MARK: - Header Cell View
 
 struct SubtitleTableHeaderCellView: View {
     let title: String
-    let columnID: String
-    let isSortable: Bool
     let isEnabled: Bool
-    let sortDirection: SubtitleTableView.Coordinator.TableSortDirection?
-    let isMenuOpen: Bool
     let columnRect: CGRect
-    let onTrigger: (CGRect) -> Void
-
-    @FocusState private var isFocused: Bool
-    @State private var isHovered = false
-    @State private var hasPushedCursor = false
-    @State private var triggerWidth: CGFloat = 0
 
     var body: some View {
-        HStack(spacing: 0) {
-            if isSortable {
-                Button(action: {
-                    let triggerRect = CGRect(
-                        x: columnRect.minX,
-                        y: columnRect.minY,
-                        width: triggerWidth,
-                        height: columnRect.height
-                    )
-                    onTrigger(triggerRect)
-                }) {
-                    buttonContent
-                        .background(
-                            GeometryReader { geo in
-                                Color.clear
-                                    .onAppear { triggerWidth = geo.size.width }
-                                    .onChange(of: geo.size.width) { newValue in triggerWidth = newValue }
-                            }
-                        )
-                }
-                .buttonStyle(.plain)
-                .disabled(!isEnabled)
-                .subtitleTableTextSelectionInteractiveRegion(isActive: isEnabled)
-                .focused($isFocused)
-                .disableFocusEffect()
-                .overlay(
-                    Group {
-                        if isFocused && isEnabled {
-                            RoundedRectangle(
-                                cornerRadius: WorkbenchControlMetrics.redesignFieldRadius + WorkbenchControlMetrics.redesignFocusRingPathExpansion,
-                                style: .continuous
-                            )
-                            .stroke(WorkbenchRedesignColors.focusRing, lineWidth: WorkbenchControlMetrics.redesignFocusRingWidth)
-                            .padding(-WorkbenchControlMetrics.redesignFocusRingPathExpansion)
-                        }
-                    }
-                )
-                .contentShape(Rectangle())
-                .onHover { inside in
-                    if isEnabled {
-                        isHovered = inside
-                        updateCursor(inside: inside)
-                    } else {
-                        isHovered = false
-                    }
-                }
-                .onChange(of: isEnabled) { newValue in
-                    if isHovered {
-                        if hasPushedCursor {
-                            NSCursor.pop()
-                            hasPushedCursor = false
-                        }
-                        if newValue {
-                            NSCursor.pointingHand.push()
-                        }
-                        hasPushedCursor = newValue
-                    }
-                }
-                .onDisappear {
-                    if hasPushedCursor {
-                        NSCursor.pop()
-                        hasPushedCursor = false
-                    }
-                }
-            } else {
-                staticContent
-            }
-            Spacer(minLength: 0)
-        }
-        .frame(width: columnRect.width, height: columnRect.height, alignment: .leading)
-    }
-
-    private var buttonContent: some View {
-        HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
-            Text(title)
-                .font(.system(size: WorkbenchControlMetrics.redesignFontSizeTableHeader, weight: .medium))
-                .foregroundStyle(textColor)
-                .lineLimit(1)
-            
-            Image(systemName: sortIconName)
-                .font(.system(
-                    size: WorkbenchControlMetrics.redesignSelectIndicatorSymbolFontSizeMacOS,
-                    weight: WorkbenchControlMetrics.redesignSelectIndicatorWeightMacOS
-                ))
-                .foregroundStyle(iconColor)
-        }
-        .padding(.horizontal, WorkbenchControlMetrics.redesignPaddingHeaderTriggerX)
-        .frame(maxHeight: .infinity)
-        .background(
-            RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignFieldRadius, style: .continuous)
-                .fill((isHovered || isMenuOpen) && isEnabled ? WorkbenchRedesignColors.bgHover : Color.clear)
-        )
-    }
-
-    private var staticContent: some View {
         HStack(spacing: 0) {
             Text(title)
                 .font(.system(size: WorkbenchControlMetrics.redesignFontSizeTableHeader, weight: .medium))
                 .foregroundStyle(isEnabled ? WorkbenchRedesignColors.textSecondary : WorkbenchRedesignColors.textDisabled)
                 .lineLimit(1)
+                .padding(.horizontal, WorkbenchControlMetrics.redesignPaddingHeaderTriggerX)
+                .frame(maxHeight: .infinity)
+            Spacer(minLength: 0)
         }
-        .padding(.horizontal, WorkbenchControlMetrics.redesignPaddingHeaderTriggerX)
-        .frame(maxHeight: .infinity)
-    }
-
-    private var textColor: Color {
-        guard isEnabled else { return WorkbenchRedesignColors.textDisabled }
-        return WorkbenchRedesignColors.textSecondary
-    }
-
-    private var iconColor: Color {
-        guard isEnabled else { return WorkbenchRedesignColors.iconDisabled }
-        return WorkbenchRedesignColors.iconDefault
-    }
-
-    private var sortIconName: String {
-        switch sortDirection {
-        case .asc:
-            return "arrow.up"
-        case .desc:
-            return "arrow.down"
-        case nil:
-            return "chevron.up.chevron.down"
-        }
-    }
-
-    private func updateCursor(inside: Bool) {
-        if inside {
-            if !hasPushedCursor {
-                if isEnabled {
-                    NSCursor.pointingHand.push()
-                }
-                hasPushedCursor = isEnabled
-            }
-        } else {
-            if hasPushedCursor {
-                NSCursor.pop()
-                hasPushedCursor = false
-            }
-        }
-    }
-}
-
-struct ColumnHeaderMenu: View {
-    let sortDirection: SubtitleTableView.Coordinator.TableSortDirection?
-    let onSortAscending: () -> Void
-    let onSortDescending: () -> Void
-
-    var body: some View {
-        WorkbenchPopoverPanel(isRedesign: true) {
-            VStack(spacing: 0) {
-                WorkbenchPopoverRow(
-                    title: L("table.sort_ascending"),
-                    isSelected: false,
-                    isHighlighted: sortDirection == .asc,
-                    systemImage: "arrow.up",
-                    isRedesign: true,
-                    showsCheckmarkSlot: false,
-                    isEnabled: true,
-                    action: onSortAscending
-                )
-                WorkbenchPopoverRow(
-                    title: L("table.sort_descending"),
-                    isSelected: false,
-                    isHighlighted: sortDirection == .desc,
-                    systemImage: "arrow.down",
-                    isRedesign: true,
-                    showsCheckmarkSlot: false,
-                    isEnabled: true,
-                    action: onSortDescending
-                )
-            }
-        }
+        .frame(width: columnRect.width, height: columnRect.height, alignment: .leading)
     }
 }

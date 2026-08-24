@@ -67,8 +67,6 @@
 "table.column.date_added" = "添加日期";
 "table.column.name" = "名称";
 "table.column.language" = "语言";
-"table.sort_ascending" = "升序排序";
-"table.sort_descending" = "降序排序";
 "table.row.play" = "播放";
 "table.row.copy" = "复制";
 "table.state.content_changed" = "内容已变更";

@@ -1026,8 +1026,6 @@ func subtitleTableViewSelectModeReservesColumnAndMakesWholeRowSelectable() throw
     #expect(fixture.coordinator.selectableTextCursorRectsForTesting().isEmpty)
     fixture.coordinator.handleMouseHover(windowPoint: displayWindowPoint)
     #expect(!fixture.coordinator.isCellHoveredForTesting(row: 0, columnID: "cues"))
-    fixture.coordinator.showHeaderMenu(for: "display", triggerFrame: displayRect)
-    #expect(!fixture.coordinator.isMenuOpenForTesting())
 }
 
 @MainActor
@@ -1931,7 +1929,7 @@ func subtitleTableViewExternalSelectionTargetBeginsUpdatesEndsAndCancels() throw
 
 @MainActor
 @Test
-func subtitleTableViewHeaderTextDragSelectsWithoutOpeningSortMenu() throws {
+func subtitleTableViewHeaderTextDragSelectsAndClickOpensNoMenu() throws {
     let fixture = makeAttachedVirtualTableCoordinator(width: 1_400, rowCount: 2)
     let fragments = fixture.coordinator.headerTextFragmentInfoForTesting()
     let display = try #require(fragments.first(where: { $0.columnID == "display" }))
@@ -1952,8 +1950,8 @@ func subtitleTableViewHeaderTextDragSelectsWithoutOpeningSortMenu() throws {
     let jitterPoint = CGPoint(x: startWindowPoint.x + 2.5, y: startWindowPoint.y)
     #expect(fixture.coordinator.handleHeaderMouseDown(windowPoint: startWindowPoint))
     #expect(fixture.coordinator.handleMouseUp(windowPoint: jitterPoint))
-    #expect(fixture.coordinator.isMenuOpenForTesting())
-    fixture.coordinator.dismissMenu(recalculateHover: false)
+    #expect(!fixture.coordinator.isMenuOpenForTesting())
+    #expect(fixture.coordinator.headerTextSelectionRectsForTesting(columnID: "display").isEmpty)
 }
 
 @MainActor
@@ -1990,7 +1988,7 @@ func subtitleTableViewHeaderNonInteractiveBlankStartsDragButClickDoesNothing() t
     )
     #expect(displayCell.contains(blankPoint))
     #expect(fixture.header.shouldRouteTextSelectionMouseDownForTesting(at: blankPoint))
-    #expect(!fixture.header.shouldRouteTextSelectionMouseDownForTesting(at: CGPoint(
+    #expect(fixture.header.shouldRouteTextSelectionMouseDownForTesting(at: CGPoint(
         x: displayCell.minX + 4,
         y: displayCell.midY
     )))

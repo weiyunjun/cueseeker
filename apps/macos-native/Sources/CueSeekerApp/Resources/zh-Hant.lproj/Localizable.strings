@@ -67,8 +67,6 @@
 "table.column.date_added" = "加入日期";
 "table.column.name" = "名稱";
 "table.column.language" = "語言";
-"table.sort_ascending" = "遞增排序";
-"table.sort_descending" = "遞減排序";
 "table.row.play" = "播放";
 "table.row.copy" = "拷貝";
 "table.state.content_changed" = "內容已變更";

@@ -67,8 +67,6 @@
 "table.column.date_added" = "Date Added";
 "table.column.name" = "Name";
 "table.column.language" = "Language";
-"table.sort_ascending" = "Sort Ascending";
-"table.sort_descending" = "Sort Descending";
 "table.row.play" = "Play";
 "table.row.copy" = "Copy";
 "table.state.content_changed" = "Content Changed";
