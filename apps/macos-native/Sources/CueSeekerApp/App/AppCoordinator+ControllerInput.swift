@@ -120,11 +120,7 @@ extension AppCoordinator {
         case .auxiliaryLeft:
             return keyboardEquivalent(35, isRepeat: isRepeat)
         case .auxiliaryRight:
-            return keyboardEquivalent(
-                50,
-                isRepeat: isRepeat,
-                nativeTextAction: .insertText("`")
-            )
+            return keyboardEquivalent(UInt16(kVK_ANSI_K), isRepeat: isRepeat)
         case .centerSurface:
             guard playback.commandPanelPresentation == nil,
                   playback.subtitleFocusSession == nil

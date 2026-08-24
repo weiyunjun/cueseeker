@@ -840,7 +840,7 @@ extension AppCoordinator {
             .option,
             .shift,
         ]
-        if keyCode == 50,
+        if keyCode == UInt16(kVK_ANSI_K),
            modifierFlags.intersection(commandPanelModifiers).isEmpty,
            !textInputState.isEditableFocused {
             if !isRepeat {

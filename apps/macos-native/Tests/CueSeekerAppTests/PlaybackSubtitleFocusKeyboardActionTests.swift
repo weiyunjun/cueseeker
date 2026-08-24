@@ -143,7 +143,7 @@ func playbackOverlayPControlsExclusiveEditingCollageMode() async throws {
         #expect(!session.collageSelectionPlan.contains(cueID: 13))
         #expect(app.handlePlaybackKeyDown(keyCode: 36, modifierFlagsRawValue: 0))
         #expect(session.collageSelectionPlan.contains(cueID: 13))
-        #expect(app.handlePlaybackKeyDown(keyCode: 50, modifierFlagsRawValue: 0))
+        #expect(app.handlePlaybackKeyDown(keyCode: 40, modifierFlagsRawValue: 0))
         #expect(app.playback.commandPanelPresentation == nil)
         #expect(app.handlePlaybackKeyDown(keyCode: 126, modifierFlagsRawValue: 0))
         #expect(session.keyboardNavigationRequest?.targetOrdinal == 11)
@@ -267,7 +267,7 @@ func playbackControllerUsesNativeTextActionsOnCommandPanelRoot() async throws {
             ),
             textActionHandler: recordAction
         ))
-        #expect(app.handlePlaybackControllerInput(
+        #expect(!app.handlePlaybackControllerInput(
             .button(.auxiliaryRight, isRepeat: true),
             textInputState: editableInput,
             textActionHandler: recordAction
@@ -279,7 +279,6 @@ func playbackControllerUsesNativeTextActionsOnCommandPanelRoot() async throws {
             .moveLeft,
             .moveRight,
             .moveUp,
-            .insertText("`"),
         ])
 
         #expect(app.handlePlaybackControllerInput(.button(.east)))
@@ -450,13 +449,13 @@ func playbackControllerRoutesThumbstickRepeatThroughEveryInterface() async throw
 
 @MainActor
 @Test
-func playbackCommandPanelBacktickOpensRootAndEscapeCloses() async throws {
+func playbackCommandPanelKeyOpensRootAndEscapeCloses() async throws {
     try await withKeyboardActionApp { app, _ in
         app.playback.isPlaybackSurfaceExpanded = true
         app.settings.prefillCommandPanelWithFocusedCue = true
 
         #expect(app.handlePlaybackKeyDown(
-            keyCode: 50,
+            keyCode: 40,
             modifierFlagsRawValue: 0
         ))
         let presentation = try #require(
@@ -474,12 +473,18 @@ func playbackCommandPanelBacktickOpensRootAndEscapeCloses() async throws {
 
         #expect(!app.handlePlaybackKeyDown(
             keyCode: 50,
+            modifierFlagsRawValue: 0
+        ))
+        #expect(app.playback.commandPanelPresentation == nil)
+
+        #expect(!app.handlePlaybackKeyDown(
+            keyCode: 40,
             modifierFlagsRawValue: NSEvent.ModifierFlags.shift.rawValue
         ))
         #expect(app.playback.commandPanelPresentation == nil)
 
         #expect(!app.handlePlaybackKeyDown(
-            keyCode: 50,
+            keyCode: 40,
             modifierFlagsRawValue: 0,
             textInputState: PlaybackKeyboardTextInputState(
                 isEditableFocused: true,
@@ -510,7 +515,7 @@ func playbackCommandPanelPreservesUnderlyingOverlay() async throws {
         ))
 
         #expect(app.handlePlaybackKeyDown(
-            keyCode: 50,
+            keyCode: 40,
             modifierFlagsRawValue: 0
         ))
         #expect(app.playback.commandPanelPresentation?.page == .root)
