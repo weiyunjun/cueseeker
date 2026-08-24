@@ -1282,15 +1282,6 @@ final class SubtitleTableMenuClipView: NSView {
     }
 }
 
-final class SubtitleTableMenuHostingView: NSHostingView<AnyView> {
-    var onIntrinsicContentSizeInvalidated: (() -> Void)?
-
-    override func invalidateIntrinsicContentSize() {
-        super.invalidateIntrinsicContentSize()
-        onIntrinsicContentSizeInvalidated?()
-    }
-}
-
 private enum WorkbenchCheckboxDrawing {
     @MainActor
     static func draw(
@@ -2711,8 +2702,8 @@ struct SubtitleTableView: NSViewRepresentable {
         private var pinnedPageChromeHost: SubtitleTablePageChromeHostingView?
         private var buttonsHost: NSHostingView<CueHoverButtons>?
         fileprivate var isMenuOpen = false
-        private var menuHost: SubtitleTableMenuHostingView?
-        private var submenuHost: SubtitleTableMenuHostingView?
+        private var menuHost: MenuHostingView?
+        private var submenuHost: MenuHostingView?
         private var menuClipView: SubtitleTableMenuClipView?
         private var activeMenuAnchor: ActiveMenuAnchor?
         /// Where the menu sits relative to its anchor, fixed when it opened.
@@ -7137,7 +7128,7 @@ struct SubtitleTableView: NSViewRepresentable {
                 menuHost.rootView = wrapped
                 menuHost.invalidateIntrinsicContentSize()
             } else {
-                let host = SubtitleTableMenuHostingView(rootView: wrapped)
+                let host = MenuHostingView(rootView: wrapped)
                 host.wantsLayer = true
                 host.layer?.masksToBounds = false
                 host.onIntrinsicContentSizeInvalidated = { [weak self] in
@@ -7157,7 +7148,7 @@ struct SubtitleTableView: NSViewRepresentable {
                 submenuHost.rootView = wrapped
                 submenuHost.invalidateIntrinsicContentSize()
             } else {
-                let host = SubtitleTableMenuHostingView(rootView: wrapped)
+                let host = MenuHostingView(rootView: wrapped)
                 host.wantsLayer = true
                 host.layer?.masksToBounds = false
                 ensureMenuClipView(in: container).addSubview(host)

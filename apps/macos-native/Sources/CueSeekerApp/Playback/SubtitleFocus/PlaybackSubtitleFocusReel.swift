@@ -1738,7 +1738,7 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
     private let documentView = PlaybackSubtitleFocusReelDocumentView()
     private let scrollbarView = PlaybackSubtitleFocusNativeScrollbarView()
     private let currentCueAdapter = PlaybackSubtitleFocusCueReelAdapter()
-    private var selectedTextMenuHost: NSHostingView<AnyView>?
+    private var selectedTextMenuHost: MenuHostingView?
     private var selectedTextMenuEventMonitor: Any?
     private let selectedTextMenuHighlight = MenuHighlightModel()
     private var selectedTextMenuActions: [() -> Void] = []
@@ -2315,7 +2315,7 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
                 self?.activateSelectedTextAction(at: position)
             }
         )
-        let host = NSHostingView(rootView: AnyView(menu))
+        let host = MenuHostingView(rootView: AnyView(menu))
         host.translatesAutoresizingMaskIntoConstraints = true
         selectedTextMenuHost = host
         addSubview(host)

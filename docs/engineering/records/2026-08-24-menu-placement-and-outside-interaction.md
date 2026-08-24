@@ -256,8 +256,47 @@ capability was added for them:
   App.
 - **The middle button** has no controller command. Manual acceptance.
 
+## Step 4: the menu owns the wheel over itself (§6)
+
+A menu drew over the page but did not own the pointer's wheel: rolling over an
+open menu scrolled whatever was behind it. §6 gives the wheel to the menu while
+the pointer is on it, and only while it is on it.
+
+Two mechanisms, because the menus are hosted two ways. The AppKit-hosted menus —
+the table's menu and submenu, and the selected-text menu — now share one hosting
+view that ends the wheel event at itself. This also answers §6.2 for free:
+content inside a menu that can scroll sees the event first and scrolls with it;
+when that content reaches its end AppKit passes the event up, where it stops
+instead of travelling on to the page. The two SwiftUI menus have no view to
+override, so their existing pointer monitors took the wheel as well: swallowed
+while the pointer is on the menu, untouched everywhere else.
+
+The table's own menu hosting view and the selected-text menu's plain hosting
+view became one `MenuHostingView`, so the rule is written once. The cover menu's
+monitor is no longer only about dismissal and is named for what it does.
+
+Files: `Shared/MenuHostingView.swift` (new),
+`TableSandbox/SubtitleTableView.swift`,
+`TableSandbox/WorkbenchTestLibraryView.swift`,
+`Playback/Chrome/PlaybackChromeView.swift`,
+`Playback/SubtitleFocus/PlaybackSubtitleFocusReel.swift`.
+
+### Verification
+
+- `swift build` clean. Table suite 153 tests passing.
+
+Debug E2E against the running App, Shiori list of 397 rows:
+
+- One wheel step with the pointer **on** the open menu: nothing moved — not the
+  page, not the cover, not the rows. Screenshot `wheel-on-menu`.
+- The same wheel step with the pointer **outside** the menu: the page scrolled
+  as usual and the menu travelled with its row. Screenshot `wheel-outside-menu`.
+
+§6.2 — a menu that scrolls internally stopping at its end rather than handing
+the rest to the page — has nothing to exercise it until §7 gives a menu a
+scrollable region. It is covered by construction and needs verifying with §7.
+
 ## Outcome
 
-Steps 1, 1a, 2 and 3 cover the requirement's §2 through §5. §6 and §7 — the
-wheel inside the menu, and the height cap with its scrollbar — are the next
-steps and are not in this change.
+Steps 1 through 4 cover the requirement's §2 through §6. §7 — the height cap and
+its scrollbar — is the next step and is not in this change.

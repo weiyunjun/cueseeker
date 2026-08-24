@@ -296,31 +296,38 @@ struct PlaybackChromeView: View {
         // Mouse dismissal only. Keyboard handling belongs to
         // `handlePlaybackKeyDown`, which owns playback-page keys.
         speedMenuEventMonitor = NSEvent.addLocalMonitorForEvents(
-            matching: [.leftMouseDown, .rightMouseDown]
+            matching: [.leftMouseDown, .rightMouseDown, .scrollWheel]
         ) { event in
-            if playback.isSpeedMenuOpen {
-                if let window = event.window {
-                    let windowHeight = window.contentView?.bounds.height ?? 0
-                    let clickPoint = CGPoint(
-                        x: event.locationInWindow.x,
-                        y: windowHeight - event.locationInWindow.y
-                    )
-                    if speedButtonFrame.contains(clickPoint) {
-                        // Let the button action handle toggling isSpeedMenuVisible to false
-                        return event
-                    }
-                    if speedMenuFrame.contains(clickPoint) {
-                        return event
-                    }
-                }
-                DispatchQueue.main.async {
-                    playback.closeSpeedMenu()
-                }
-                // The press that closes the menu is spent on closing it and
-                // never reaches the video or the controls underneath.
-                return nil
+            guard playback.isSpeedMenuOpen else {
+                return event
             }
-            return event
+            let pointerInWindow = event.window.map { window in
+                CGPoint(
+                    x: event.locationInWindow.x,
+                    y: (window.contentView?.bounds.height ?? 0)
+                        - event.locationInWindow.y
+                )
+            }
+            let isPointerOnMenu = pointerInWindow
+                .map(speedMenuFrame.contains) ?? false
+            if event.type == .scrollWheel {
+                // The menu owns the wheel while the pointer is on it. Anywhere
+                // else the wheel is the page's as usual.
+                return isPointerOnMenu ? nil : event
+            }
+            if isPointerOnMenu {
+                return event
+            }
+            if let pointerInWindow, speedButtonFrame.contains(pointerInWindow) {
+                // Let the button action handle toggling isSpeedMenuVisible to false
+                return event
+            }
+            DispatchQueue.main.async {
+                playback.closeSpeedMenu()
+            }
+            // The press that closes the menu is spent on closing it and
+            // never reaches the video or the controls underneath.
+            return nil
         }
     }
 

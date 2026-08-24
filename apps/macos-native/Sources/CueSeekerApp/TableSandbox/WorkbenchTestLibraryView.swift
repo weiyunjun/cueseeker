@@ -1200,7 +1200,7 @@ struct LibraryCardContextMenuHost<Content: View>: View {
                             .frame(width: 0, height: 0)
                             .allowsHitTesting(false)
 
-                            LibraryCardMenuDismissMonitor(
+                            LibraryCardMenuPointerMonitor(
                                 isActive: true,
                                 menuFrame: menuFrame,
                                 onDismiss: dismissContextMenu
@@ -1424,7 +1424,7 @@ private struct LibraryCardMenuKeyboardMonitor: NSViewRepresentable {
     }
 }
 
-private struct LibraryCardMenuDismissMonitor: NSViewRepresentable {
+private struct LibraryCardMenuPointerMonitor: NSViewRepresentable {
     let isActive: Bool
     let menuFrame: CGRect
     let onDismiss: () -> Void
@@ -1474,7 +1474,9 @@ private struct LibraryCardMenuDismissMonitor: NSViewRepresentable {
                 return
             }
             // The middle button is not a dismissal, so it is not matched.
-            monitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] event in
+            monitor = NSEvent.addLocalMonitorForEvents(
+                matching: [.leftMouseDown, .rightMouseDown, .scrollWheel]
+            ) { [weak self] event in
                 guard let self else {
                     return event
                 }
@@ -1483,7 +1485,13 @@ private struct LibraryCardMenuDismissMonitor: NSViewRepresentable {
                 }
 
                 let localPoint = self.convert(event.locationInWindow, from: nil)
-                guard !self.menuFrame.contains(localPoint) else {
+                let isPointerOnMenu = self.menuFrame.contains(localPoint)
+                if event.type == .scrollWheel {
+                    // The menu owns the wheel while the pointer is on it. The
+                    // grid keeps the wheel everywhere else.
+                    return isPointerOnMenu ? nil : event
+                }
+                guard !isPointerOnMenu else {
                     return event
                 }
 
