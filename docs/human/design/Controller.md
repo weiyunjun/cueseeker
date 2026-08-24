@@ -13,7 +13,7 @@ Triangle键：视频播放界面，相当于键盘的R键。用于Playback Overl
 
 Create键：用于视频播放界面截图和进入/退出Collage界面，相当于键盘的P键。
 Touchpad键：用于从视频播放界面进入Playback Overlay界面，按下Touchpad键相当于视频播放界面下的键盘的Enter键。
-Options键：相当于键盘的打开Command Panel的按键，相当于键盘的`键。
+Options键：相当于键盘的打开Command Panel的按键，相当于键盘的K键。
 
 方向上键：相当于键盘的方向上键。
 左摇杆往上拨：相当于键盘的方向上键。
