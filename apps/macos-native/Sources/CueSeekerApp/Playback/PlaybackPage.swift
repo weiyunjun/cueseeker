@@ -41,6 +41,10 @@ struct PlaybackPageView: View {
                             appState.copyPlaybackSelectedText,
                         onSearchSelectedText:
                             appState.searchPlaybackSelectedText,
+                        onSelectedTextMenuKeyHandlerChanged: { handler in
+                            appState.playback
+                                .selectedTextMenuKeyHandler = handler
+                        },
                         onOpenLibraryEpisode:
                             appState.openPlaybackLibraryEpisodeFromOverlay
                     )

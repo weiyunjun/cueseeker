@@ -1597,6 +1597,7 @@ struct PlaybackSubtitleFocusReelRepresentable: NSViewRepresentable {
     let onScrollbarDraggingChanged: (Bool) -> Void
     let onNativeMotionGateChanged: (Bool) -> Void
     let onKeyboardMotionChanged: (Bool) -> Void
+    let onSelectedTextMenuKeyHandlerChanged: (((UInt16) -> Bool)?) -> Void
 
     func makeNSView(context: Context) -> PlaybackSubtitleFocusReelContainerView {
         UIInvalidationProbe.count(
@@ -1638,6 +1639,8 @@ struct PlaybackSubtitleFocusReelRepresentable: NSViewRepresentable {
         view.onScrollbarDraggingChanged = onScrollbarDraggingChanged
         view.onNativeMotionGateChanged = onNativeMotionGateChanged
         view.onKeyboardMotionChanged = onKeyboardMotionChanged
+        view.onSelectedTextMenuKeyHandlerChanged =
+            onSelectedTextMenuKeyHandlerChanged
         view.update(
             cues: cues,
             totalCount: totalCount,
@@ -1728,6 +1731,8 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
     var onScrollbarDraggingChanged: (Bool) -> Void = { _ in }
     var onNativeMotionGateChanged: (Bool) -> Void = { _ in }
     var onKeyboardMotionChanged: (Bool) -> Void = { _ in }
+    /// Publishes the selected-text menu's key handler while that menu is open.
+    var onSelectedTextMenuKeyHandlerChanged: (((UInt16) -> Bool)?) -> Void = { _ in }
 
     private let scrollView = PlaybackSubtitleFocusNativeScrollView()
     private let documentView = PlaybackSubtitleFocusReelDocumentView()
@@ -2290,6 +2295,9 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
         selectedTextMenuHighlight.open(
             selectablePositions: Array(selectedTextMenuActions.indices)
         )
+        onSelectedTextMenuKeyHandlerChanged { [weak self] keyCode in
+            self?.handleSelectedTextMenuKey(keyCode) ?? false
+        }
 
         let menu = PlaybackSelectedTextMenu(
             highlight: selectedTextMenuHighlight,
@@ -2351,7 +2359,29 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
         selectedTextMenuHost = nil
         selectedTextMenuHighlight.close()
         selectedTextMenuActions = []
+        onSelectedTextMenuKeyHandlerChanged(nil)
         removeSelectedTextMenuEventMonitor()
+    }
+
+    /// Arrow keys, Enter and Escape for the open menu. Reported as handled so
+    /// the playback page does not also navigate cues or seek.
+    private func handleSelectedTextMenuKey(_ keyCode: UInt16) -> Bool {
+        guard selectedTextMenuHost != nil else {
+            return false
+        }
+        switch keyCode {
+        case 53:
+            dismissSelectedTextActions()
+            return true
+        case 126:
+            return selectedTextMenuHighlight.moveHighlight(by: -1)
+        case 125:
+            return selectedTextMenuHighlight.moveHighlight(by: 1)
+        case 36, 76:
+            return activateHighlightedSelectedTextAction()
+        default:
+            return false
+        }
     }
 
     private func activateSelectedTextAction(at position: Int) {
@@ -2381,25 +2411,12 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
                 return event
             }
             if event.type == .keyDown {
-                switch event.keyCode {
-                case 53:
-                    self.dismissSelectedTextActions()
-                    return nil
-                case 126:
-                    return self.selectedTextMenuHighlight.moveHighlight(by: -1)
-                        ? nil
-                        : event
-                case 125:
-                    return self.selectedTextMenuHighlight.moveHighlight(by: 1)
-                        ? nil
-                        : event
-                case 36, 76:
-                    return self.activateHighlightedSelectedTextAction()
-                        ? nil
-                        : event
-                default:
-                    return event
-                }
+                // Fallback for surfaces the playback key owner does not reach.
+                // On the playback page it already consumed the key, so this
+                // monitor never sees it and the menu is handled exactly once.
+                return self.handleSelectedTextMenuKey(event.keyCode)
+                    ? nil
+                    : event
             }
             guard event.type == .leftMouseDown
                     || event.type == .rightMouseDown

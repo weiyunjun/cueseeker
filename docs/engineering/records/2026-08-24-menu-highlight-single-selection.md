@@ -89,10 +89,8 @@ current value rather than jumping to the top of the list.
 The menu keeps its own metrics and player-chrome colours; only which state the
 background hangs off changed.
 
-Its dismiss monitor now also handles arrow keys, Enter and Escape. Local event
-monitors are invoked most-recently-added first, which was verified with a probe,
-so the monitor installed when the menu opens reaches the arrow keys before the
-App's playback shortcut monitor can seek.
+Its dismiss monitor was first given the arrow keys, Enter and Escape. **That was
+wrong and is corrected in step 5.**
 
 `PlaybackViewModel.speedPresetIndex(for:)` answers which preset a speed is on,
 so the lookup is testable instead of living inside the view.
@@ -178,10 +176,10 @@ Step 3 additions:
   first preset.
 - Playback chrome, shortcut, store and row-menu suites: 35 tests green.
 
-The speed menu could not be verified in the running App. Its chrome only appears
-on real pointer movement over an `NSTrackingArea`, which synthesized events
-cannot drive, so the menu cannot be opened from Debug E2E at all. It stays a
-manual acceptance step for the same reason the cover context menu does.
+The speed menu was not verified in the running App at this step, and the step was
+reported as complete anyway. That was the mistake behind the step-5 regression:
+the claim that arrow keys reached the menu rested on a standalone probe, not on
+the App.
 
 Step 4 additions:
 
@@ -202,9 +200,68 @@ the first row highlighted, one `downarrow` moved the highlight to the second row
 with nothing else lit, and `pointerVisible` was `false` throughout, so a pointer
 resting on another row cannot pull the highlight back.
 
+### Step 5: the arrow keys never reached the menus on the playback page
+
+The speed menu's arrow keys still changed the volume, and the selected-text
+menu's arrow keys still moved the playlist selection. Both menus tried to claim
+the keys with an event monitor installed when they opened, on the belief that
+local monitors run most-recently-added first. A standalone probe suggested that;
+the running App disproved it.
+
+Instrumenting both monitors showed the menu's monitor installed and never
+removed, the App-wide playback monitor receiving the arrow key, and the menu's
+monitor never invoked once. **Local monitors are invoked in the order they were
+added.** The playback shortcut monitor is added at launch, handles the key as
+volume, and returns nil, so no monitor installed later can ever see it. No
+monitor a menu installs on the playback page can preempt it.
+
+The keys now go through `handlePlaybackKeyDown`, the App's single owner of
+playback-page keys, which already routes the Command Panel this way. The speed
+menu's open state and highlight moved into `PlaybackStore` so that owner can
+reach them. The selected-text menu publishes a key handler into the same store
+while it is open; its own monitor now delegates to the same function, so there is
+one implementation and it is the fallback for surfaces the playback owner does
+not reach.
+
+`PlaybackChromeView` takes the store explicitly rather than from the environment,
+because the environment is absent in the test rendering paths.
+
+Files: `Playback/PlaybackStore.swift`, `Playback/Chrome/PlaybackChromeView.swift`,
+`Playback/PlaybackVideoStage.swift`, `App/AppCoordinator+Playback.swift`,
+`Playback/SubtitleFocus/PlaybackSubtitleFocusReel.swift`,
+`Playback/SubtitleFocus/PlaybackSubtitleFocusOverlay.swift`,
+`Playback/PlaybackPage.swift`.
+
+Step 5 verification:
+
+- Two regression tests in `PlaybackNormalShortcutTests` assert the actual
+  defect: with the speed menu open, arrow keys move its highlight and leave the
+  volume and the speed in effect untouched, Enter applies the highlighted preset,
+  and the volume responds again once the menu closes. The second covers the
+  selected-text menu handler receiving keys, declining keys falling through to
+  the playback shortcuts, and the volume responding again once no menu is open.
+- Debug E2E against the real App, which is what the earlier step should have
+  done. The player chrome is visible for three seconds after playback starts, so
+  the speed menu can be opened inside that window without any hover. Opening it
+  highlighted 1x with its check mark, two `downarrow` presses moved the highlight
+  to 1.5x while the check mark stayed on 1x and the badge still read 1x, `enter`
+  applied 1.5x, and `escape` closed the menu without changing the speed. No
+  volume feedback appeared at any point.
+- Debug E2E for the selected-text menu, using the new drag commands:
+  `mouseDown`, two `mouseDrag`s and `mouseUp` across a cue selected its text and
+  opened the menu with the first item highlighted; `downarrow` then moved the
+  menu highlight while the playlist selection stayed on the same cue. Before the
+  fix the same sequence moved the playlist selection to the next cue instead.
+- The `Playback`, `MenuHighlight` and `SubtitleTable` suites were run with the
+  step-5 files restored from Git and then with the fix in place: 11 failures
+  without it, 10 with it, from the same media-timing and localization-leak family
+  that varies between runs. The fix adds none.
+
 ## Outcome
 
-Steps 1 through 4 matched expectations.
+Steps 1 through 4 matched expectations at the level they were verified, but
+step 3 was reported complete on unverified reasoning and shipped a regression.
+Step 5 corrects it.
 
 One interpretation needs the owner's confirmation. The requirement says no two
 highlights may exist at once. While a destination submenu is open, its parent

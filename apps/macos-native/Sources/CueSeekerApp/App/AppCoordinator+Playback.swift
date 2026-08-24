@@ -769,6 +769,21 @@ extension AppCoordinator {
         )
     }
 
+    /// Applies whatever the speed-menu highlight sits on, so Enter and a click
+    /// commit through one path.
+    private func commitPlaybackSpeedMenuSelection() {
+        let presets = PlaybackViewModel.speedPresets
+        guard let position = playback.speedMenuHighlight.highlightedPosition,
+              presets.indices.contains(position),
+              let viewModel = playback.playbackViewModel
+        else {
+            playback.closeSpeedMenu()
+            return
+        }
+        viewModel.setSpeed(presets[position])
+        playback.closeSpeedMenu()
+    }
+
     @discardableResult
     func handlePlaybackKeyDown(
         keyCode: UInt16,
@@ -847,6 +862,52 @@ extension AppCoordinator {
                 _ = presentPlaybackCommandPanel()
             }
             return true
+        }
+
+        // The speed menu is the topmost surface when open, so it owns the
+        // arrow keys before seeking or volume can see them.
+        if playback.isSpeedMenuOpen {
+            let speedMenuDisallowedModifiers: NSEvent.ModifierFlags = [
+                .command,
+                .control,
+                .option,
+                .shift,
+            ]
+            if modifierFlags.intersection(speedMenuDisallowedModifiers).isEmpty {
+                switch keyCode {
+                case 53:
+                    playback.closeSpeedMenu()
+                    return true
+                case 126:
+                    playback.speedMenuHighlight.moveHighlight(by: -1)
+                    return true
+                case 125:
+                    playback.speedMenuHighlight.moveHighlight(by: 1)
+                    return true
+                case 36, 76:
+                    if !isRepeat {
+                        commitPlaybackSpeedMenuSelection()
+                    }
+                    return true
+                default:
+                    break
+                }
+            }
+        }
+
+        // A selected-text menu, when open, owns arrows, Enter and Escape before
+        // cue navigation or seeking can see them.
+        if let selectedTextMenuKeyHandler = playback.selectedTextMenuKeyHandler {
+            let disallowed: NSEvent.ModifierFlags = [
+                .command,
+                .control,
+                .option,
+                .shift,
+            ]
+            if modifierFlags.intersection(disallowed).isEmpty,
+               selectedTextMenuKeyHandler(keyCode) {
+                return true
+            }
         }
 
         if let commandPanel = playback.commandPanelPresentation {

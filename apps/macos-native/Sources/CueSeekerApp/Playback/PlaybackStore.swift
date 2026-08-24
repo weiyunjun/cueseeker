@@ -85,6 +85,37 @@ final class PlaybackStore: ObservableObject {
     @Published var playbackViewModel: PlaybackViewModel?
     @Published private(set) var chromeSnapshot = PlaybackChromeSnapshot.empty
     @Published private(set) var canRepeatCurrentCue = false
+
+    /// The player speed menu lives here rather than in the chrome view because
+    /// `handlePlaybackKeyDown` is the App's single owner of playback-page keys.
+    /// A local event monitor installed when the menu opens cannot reach the
+    /// arrow keys first: monitors are invoked in the order they were added, and
+    /// the App-wide playback monitor is added at launch.
+    @Published private(set) var isSpeedMenuOpen = false
+    let speedMenuHighlight = MenuHighlightModel()
+
+    func openSpeedMenu(defaultPosition: Int?) {
+        speedMenuHighlight.open(
+            selectablePositions: Array(PlaybackViewModel.speedPresets.indices),
+            defaultPosition: defaultPosition
+        )
+        isSpeedMenuOpen = true
+    }
+
+    /// Set by the reel that owns an open selected-text menu, and offered every
+    /// key before seeking, volume and cue navigation see it. A menu that opens
+    /// on the playback page cannot claim keys with its own event monitor:
+    /// monitors are invoked in the order they were added, and the App-wide
+    /// playback monitor is added at launch.
+    var selectedTextMenuKeyHandler: ((UInt16) -> Bool)?
+
+    func closeSpeedMenu() {
+        guard isSpeedMenuOpen else {
+            return
+        }
+        speedMenuHighlight.close()
+        isSpeedMenuOpen = false
+    }
     private(set) var pointerHideRequestGeneration: UInt64 = 0
     private var subtitleFocusSessionGeneration = 0
 

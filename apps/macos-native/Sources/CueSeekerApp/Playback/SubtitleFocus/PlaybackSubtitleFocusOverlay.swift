@@ -10,6 +10,7 @@ struct PlaybackSubtitleFocusLayer: View {
     let onOpenLibraryEpisode: (CompleteLibraryVideoPresentation) -> Bool
     let onCopySelectedText: (String) -> Void
     let onSearchSelectedText: (String) -> Void
+    let onSelectedTextMenuKeyHandlerChanged: (((UInt16) -> Bool)?) -> Void
 
     init(
         session: PlaybackSubtitleFocusSessionStore,
@@ -17,6 +18,7 @@ struct PlaybackSubtitleFocusLayer: View {
         onExecuteAction: ((PlaybackSubtitleFocusActionExecution) -> Bool)? = nil,
         onCopySelectedText: @escaping (String) -> Void = { _ in },
         onSearchSelectedText: @escaping (String) -> Void = { _ in },
+        onSelectedTextMenuKeyHandlerChanged: @escaping (((UInt16) -> Bool)?) -> Void = { _ in },
         onOpenLibraryEpisode:
             @escaping (CompleteLibraryVideoPresentation) -> Bool = {
                 _ in false
@@ -29,6 +31,8 @@ struct PlaybackSubtitleFocusLayer: View {
         }
         self.onCopySelectedText = onCopySelectedText
         self.onSearchSelectedText = onSearchSelectedText
+        self.onSelectedTextMenuKeyHandlerChanged =
+            onSelectedTextMenuKeyHandlerChanged
         self.onOpenLibraryEpisode = onOpenLibraryEpisode
     }
 
@@ -45,6 +49,8 @@ struct PlaybackSubtitleFocusLayer: View {
                 onExecuteAction: onExecuteAction,
                 onCopySelectedText: onCopySelectedText,
                 onSearchSelectedText: onSearchSelectedText,
+                onSelectedTextMenuKeyHandlerChanged:
+                    onSelectedTextMenuKeyHandlerChanged,
                 onOpenLibraryEpisode: onOpenLibraryEpisode
             )
         }
@@ -61,6 +67,7 @@ struct PlaybackOverlay: View {
     let onExecuteAction: (PlaybackSubtitleFocusActionExecution) -> Bool
     let onCopySelectedText: (String) -> Void
     let onSearchSelectedText: (String) -> Void
+    var onSelectedTextMenuKeyHandlerChanged: (((UInt16) -> Bool)?) -> Void = { _ in }
     let onOpenLibraryEpisode: (CompleteLibraryVideoPresentation) -> Bool
 
     var body: some View {
@@ -142,6 +149,7 @@ struct PlaybackOverlay: View {
             collageSelectionPlan: session.isEditingCollage
                 ? session.collageSelectionPlan
                 : nil,
+            onSelectedTextMenuKeyHandlerChanged: onSelectedTextMenuKeyHandlerChanged,
             onCommitKeyboardNavigation: session.commitKeyboardNavigation,
             onCommitNativeReelSelection: session.commitNativeReelSelection,
             onToggleCollageCueSelection: session.toggleCollageCueSelection,
@@ -370,6 +378,9 @@ struct PlaybackSubtitleFocusOverlay: View {
     let keyboardNavigationRequest: PlaybackSubtitleFocusKeyboardNavigationRequest?
     let blocksNewNavigation: Bool
     let collageSelectionPlan: SubtitleCollageSelectionPlan?
+    /// Publishes the open selected-text menu's key handler so the playback key
+    /// owner can offer it keys before cue navigation sees them.
+    var onSelectedTextMenuKeyHandlerChanged: (((UInt16) -> Bool)?) -> Void = { _ in }
     let onCommitKeyboardNavigation: (PlaybackSubtitleFocusKeyboardNavigationRequest) -> Bool
     let onCommitNativeReelSelection: (Int) -> Bool
     let onToggleCollageCueSelection: (Int) -> SubtitleCollageSelectionMutation
@@ -393,6 +404,8 @@ struct PlaybackSubtitleFocusOverlay: View {
         keyboardNavigationRequest: PlaybackSubtitleFocusKeyboardNavigationRequest? = nil,
         blocksNewNavigation: Bool = false,
         collageSelectionPlan: SubtitleCollageSelectionPlan? = nil,
+        onSelectedTextMenuKeyHandlerChanged:
+            @escaping (((UInt16) -> Bool)?) -> Void = { _ in },
         onCommitKeyboardNavigation: @escaping (
             PlaybackSubtitleFocusKeyboardNavigationRequest
         ) -> Bool = { _ in false },
@@ -416,6 +429,8 @@ struct PlaybackSubtitleFocusOverlay: View {
         self.keyboardNavigationRequest = keyboardNavigationRequest
         self.blocksNewNavigation = blocksNewNavigation
         self.collageSelectionPlan = collageSelectionPlan
+        self.onSelectedTextMenuKeyHandlerChanged =
+            onSelectedTextMenuKeyHandlerChanged
         self.onCommitKeyboardNavigation = onCommitKeyboardNavigation
         self.onCommitNativeReelSelection = onCommitNativeReelSelection
         self.onToggleCollageCueSelection = onToggleCollageCueSelection
@@ -490,7 +505,9 @@ struct PlaybackSubtitleFocusOverlay: View {
                         }
                     },
                     onNativeMotionGateChanged: handleCueReelMotionChanged,
-                    onKeyboardMotionChanged: handleCueReelMotionChanged
+                    onKeyboardMotionChanged: handleCueReelMotionChanged,
+                    onSelectedTextMenuKeyHandlerChanged:
+                        onSelectedTextMenuKeyHandlerChanged
                 )
                 .frame(
                     width: viewportSize.width,

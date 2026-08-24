@@ -53,12 +53,11 @@ private struct PlaybackSpeedButtonAnchorKey: PreferenceKey {
 struct PlaybackChromeView: View {
     // Observed so the copy below is re-read when the language changes.
     @EnvironmentObject private var localization: AppLocalizationStore
+    @ObservedObject var playback: PlaybackStore
     let viewModel: PlaybackViewModel
     let timeline: PlaybackTimelineInteractionStore
     let controls: PlaybackChromeControls
-    @State private var isSpeedMenuVisible = false
     @State private var speedMenuEventMonitor: Any?
-    @StateObject private var speedMenuHighlight = MenuHighlightModel()
     @State private var speedButtonFrame: CGRect = .zero
     @State private var isTimeHovered = false
 
@@ -77,23 +76,40 @@ struct PlaybackChromeView: View {
         .background(
             PlaybackChromeTimelineResetter(
                 timeline: timeline,
-                isSpeedMenuVisible: $isSpeedMenuVisible,
+                isSpeedMenuVisible: isSpeedMenuVisibleBinding,
                 isTimeHovered: $isTimeHovered
             )
         )
-        .onChange(of: isSpeedMenuVisible) { isVisible in
+        .onChange(of: playback.isSpeedMenuOpen) { isVisible in
             if isVisible {
-                openSpeedMenuHighlight()
                 installSpeedMenuDismissMonitor()
             } else {
-                speedMenuHighlight.close()
                 removeSpeedMenuDismissMonitor()
             }
         }
         .onDisappear {
-            speedMenuHighlight.close()
+            playback.closeSpeedMenu()
             removeSpeedMenuDismissMonitor()
         }
+    }
+
+    /// Toggling the menu goes through the store, which also seeds the highlight
+    /// with the speed already in effect.
+    private var isSpeedMenuVisibleBinding: Binding<Bool> {
+        Binding(
+            get: { playback.isSpeedMenuOpen },
+            set: { isVisible in
+                if isVisible {
+                    playback.openSpeedMenu(
+                        defaultPosition: PlaybackViewModel.speedPresetIndex(
+                            for: viewModel.playbackSpeed
+                        )
+                    )
+                } else {
+                    playback.closeSpeedMenu()
+                }
+            }
+        )
     }
 
     private var chromeSurface: some View {
@@ -118,7 +134,7 @@ struct PlaybackChromeView: View {
     @MainActor
     @ViewBuilder
     private func speedMenuOverlay(anchor: Anchor<CGRect>?) -> some View {
-        if isSpeedMenuVisible, let anchor {
+        if playback.isSpeedMenuOpen, let anchor {
             GeometryReader { proxy in
                 let buttonFrame = proxy[anchor]
                 let menuWidth = PlaybackChromeMetrics.speedMenuWidth
@@ -139,10 +155,10 @@ struct PlaybackChromeView: View {
                 PlaybackChromeSpeedMenu(
                     selectedSpeed: viewModel.playbackSpeed,
                     suppressesInteraction: timeline.isScrubbing,
-                    highlight: speedMenuHighlight,
+                    highlight: playback.speedMenuHighlight,
                     onSelect: { speed in
                         viewModel.setSpeed(speed)
-                        isSpeedMenuVisible = false
+                        playback.closeSpeedMenu()
                     }
                 )
                 .frame(width: menuWidth, height: menuHeight)
@@ -248,61 +264,20 @@ struct PlaybackChromeView: View {
         PlaybackSpeedChromeButton(
             viewModel: viewModel,
             timeline: timeline,
-            isSpeedMenuVisible: $isSpeedMenuVisible,
+            isSpeedMenuVisible: isSpeedMenuVisibleBinding,
             speedButtonFrame: $speedButtonFrame
         )
         .anchorPreference(key: PlaybackSpeedButtonAnchorKey.self, value: .bounds) { $0 }
     }
 
-    /// The speed menu opens on the value already in effect, so the first arrow
-    /// key moves away from the current speed instead of jumping to the top.
-    private func openSpeedMenuHighlight() {
-        speedMenuHighlight.open(
-            selectablePositions: Array(PlaybackViewModel.speedPresets.indices),
-            defaultPosition: PlaybackViewModel.speedPresetIndex(
-                for: viewModel.playbackSpeed
-            )
-        )
-    }
-
-    private func selectHighlightedSpeed() -> Bool {
-        let presets = PlaybackViewModel.speedPresets
-        guard let position = speedMenuHighlight.highlightedPosition,
-              presets.indices.contains(position)
-        else {
-            return false
-        }
-        viewModel.setSpeed(presets[position])
-        isSpeedMenuVisible = false
-        return true
-    }
-
     private func installSpeedMenuDismissMonitor() {
         removeSpeedMenuDismissMonitor()
-        // Local monitors run most-recently-added first, so this one reaches the
-        // arrow keys before the App's playback shortcut monitor does.
+        // Mouse dismissal only. Keyboard handling belongs to
+        // `handlePlaybackKeyDown`, which owns playback-page keys.
         speedMenuEventMonitor = NSEvent.addLocalMonitorForEvents(
-            matching: [.leftMouseDown, .rightMouseDown, .keyDown]
+            matching: [.leftMouseDown, .rightMouseDown]
         ) { event in
-            if event.type == .keyDown {
-                guard isSpeedMenuVisible else {
-                    return event
-                }
-                switch event.keyCode {
-                case 53:
-                    isSpeedMenuVisible = false
-                    return nil
-                case 126:
-                    return speedMenuHighlight.moveHighlight(by: -1) ? nil : event
-                case 125:
-                    return speedMenuHighlight.moveHighlight(by: 1) ? nil : event
-                case 36, 76:
-                    return selectHighlightedSpeed() ? nil : event
-                default:
-                    return event
-                }
-            }
-            if isSpeedMenuVisible {
+            if playback.isSpeedMenuOpen {
                 if let window = event.window {
                     let windowHeight = window.contentView?.bounds.height ?? 0
                     let clickPoint = CGPoint(
@@ -315,7 +290,7 @@ struct PlaybackChromeView: View {
                     }
                 }
                 DispatchQueue.main.async {
-                    isSpeedMenuVisible = false
+                    playback.closeSpeedMenu()
                 }
             }
             return event

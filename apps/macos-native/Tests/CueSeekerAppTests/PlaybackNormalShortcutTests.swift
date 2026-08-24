@@ -222,3 +222,73 @@ private func withNormalPlaybackApp(
     app.playback.playbackStatus = .paused
     try body(app, database)
 }
+
+@MainActor
+@Test
+func openSpeedMenuOwnsArrowKeysInsteadOfVolume() throws {
+    try withNormalPlaybackApp { app, _ in
+        let viewModel = try #require(app.playback.playbackViewModel)
+        let initialVolume = viewModel.volume
+        #expect(viewModel.playbackSpeed == 1.0)
+
+        // Arrow keys change the volume while no menu is open. Volume starts at
+        // its maximum, so the down arrow is the one that can move it.
+        #expect(app.handlePlaybackKeyDown(keyCode: 125, modifierFlagsRawValue: 0))
+        #expect(viewModel.volume != initialVolume)
+        let volumeBeforeMenu = viewModel.volume
+
+        app.playback.openSpeedMenu(
+            defaultPosition: PlaybackViewModel.speedPresetIndex(for: 1.0)
+        )
+        let highlight = app.playback.speedMenuHighlight
+        #expect(highlight.highlightedPosition == 2)
+
+        // With the menu open the same keys move its highlight and must not
+        // touch the volume or the speed in effect.
+        #expect(app.handlePlaybackKeyDown(keyCode: 125, modifierFlagsRawValue: 0))
+        #expect(highlight.highlightedPosition == 3)
+        #expect(app.handlePlaybackKeyDown(keyCode: 125, modifierFlagsRawValue: 0))
+        #expect(highlight.highlightedPosition == 4)
+        #expect(app.handlePlaybackKeyDown(keyCode: 126, modifierFlagsRawValue: 0))
+        #expect(highlight.highlightedPosition == 3)
+        #expect(viewModel.volume == volumeBeforeMenu)
+        #expect(viewModel.playbackSpeed == 1.0)
+
+        // Enter applies the highlighted preset and closes the menu.
+        #expect(app.handlePlaybackKeyDown(keyCode: 36, modifierFlagsRawValue: 0))
+        #expect(viewModel.playbackSpeed == 1.25)
+        #expect(!app.playback.isSpeedMenuOpen)
+        #expect(viewModel.volume == volumeBeforeMenu)
+
+        // Volume responds again once the menu is closed.
+        #expect(app.handlePlaybackKeyDown(keyCode: 125, modifierFlagsRawValue: 0))
+        #expect(viewModel.volume != volumeBeforeMenu)
+    }
+}
+
+@MainActor
+@Test
+func openSelectedTextMenuOwnsArrowKeysInsteadOfVolume() throws {
+    try withNormalPlaybackApp { app, _ in
+        let viewModel = try #require(app.playback.playbackViewModel)
+        var seenKeyCodes: [UInt16] = []
+        app.playback.selectedTextMenuKeyHandler = { keyCode in
+            seenKeyCodes.append(keyCode)
+            return [53, 125, 126, 36, 76].contains(keyCode)
+        }
+        let volumeBeforeMenu = viewModel.volume
+
+        #expect(app.handlePlaybackKeyDown(keyCode: 125, modifierFlagsRawValue: 0))
+        #expect(app.handlePlaybackKeyDown(keyCode: 126, modifierFlagsRawValue: 0))
+        #expect(seenKeyCodes == [125, 126])
+        #expect(viewModel.volume == volumeBeforeMenu)
+
+        // A key the menu declines still reaches the playback shortcuts.
+        #expect(app.handlePlaybackKeyDown(keyCode: 12, modifierFlagsRawValue: 0))
+        #expect(seenKeyCodes == [125, 126, 12])
+
+        app.playback.selectedTextMenuKeyHandler = nil
+        #expect(app.handlePlaybackKeyDown(keyCode: 125, modifierFlagsRawValue: 0))
+        #expect(viewModel.volume != volumeBeforeMenu)
+    }
+}
