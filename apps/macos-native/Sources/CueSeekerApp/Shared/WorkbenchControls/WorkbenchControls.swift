@@ -1036,19 +1036,14 @@ struct WorkbenchPopoverRow: View {
         }
     }
 
+    /// Only the owning menu's highlight paints a background. The row's own
+    /// hover must not, or the keyboard highlight and the row under the pointer
+    /// would both light up at once.
     private var rowBackground: Color {
-        guard isEnabled else { return .clear }
-        if isRedesign {
-            if isHighlighted || isHovered {
-                return WorkbenchRedesignColors.bgHover
-            }
-            return .clear
-        } else {
-            if isHighlighted || isHovered {
-                return WorkbenchControlColors.hoverFill
-            }
-            return .clear
-        }
+        guard isEnabled, isHighlighted else { return .clear }
+        return isRedesign
+            ? WorkbenchRedesignColors.bgHover
+            : WorkbenchControlColors.hoverFill
     }
 }
 

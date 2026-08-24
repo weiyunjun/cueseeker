@@ -97,4 +97,44 @@ struct SubtitleTableRowActionMenuModel: Equatable, Sendable {
             return action
         }
     }
+
+    func action(at position: Int) -> SubtitleTableRowAction? {
+        guard elements.indices.contains(position),
+              case .action(let action) = elements[position]
+        else {
+            return nil
+        }
+        return action
+    }
+
+    func isEnabled(
+        _ action: SubtitleTableRowAction,
+        disabledActions: Set<SubtitleTableRowAction>,
+        canOpenFolder: Bool,
+        hasDestinations: Bool
+    ) -> Bool {
+        !disabledActions.contains(action)
+            && (action != .openSubtitleFolder || canOpenFolder)
+            && (!action.opensDestinationSubmenu || hasDestinations)
+    }
+
+    /// Element positions the highlight may land on. Dividers and disabled
+    /// actions are absent, so keyboard navigation skips them.
+    func selectablePositions(
+        disabledActions: Set<SubtitleTableRowAction>,
+        canOpenFolder: Bool,
+        hasDestinations: Bool
+    ) -> [Int] {
+        elements.indices.filter { position in
+            guard let action = action(at: position) else {
+                return false
+            }
+            return isEnabled(
+                action,
+                disabledActions: disabledActions,
+                canOpenFolder: canOpenFolder,
+                hasDestinations: hasDestinations
+            )
+        }
+    }
 }

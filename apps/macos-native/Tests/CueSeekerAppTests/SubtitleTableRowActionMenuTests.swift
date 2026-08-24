@@ -26,6 +26,70 @@ func subtitleTableSearchRowActionMenuUsesUnifiedOrderAndDivider() {
 }
 
 @Test
+func subtitleTableRowActionMenuSelectablePositionsSkipDividersAndDisabledItems() {
+    let model = SubtitleTableRowActionMenuModel(style: .search, showsCueGroup: false)
+
+    // Elements are play, openSubtitleFolder, divider, copyCueText,
+    // copyDeepLink, copyTimeRange.
+    #expect(
+        model.selectablePositions(
+            disabledActions: [],
+            canOpenFolder: true,
+            hasDestinations: false
+        ) == [0, 1, 3, 4, 5]
+    )
+
+    // The divider at position 2 is never an action.
+    #expect(model.action(at: 2) == nil)
+    #expect(model.action(at: 0) == .play)
+    #expect(model.action(at: 99) == nil)
+
+    // A disabled action and an unopenable folder drop out, so arrow keys skip
+    // them instead of parking the highlight on a dead row.
+    #expect(
+        model.selectablePositions(
+            disabledActions: [.play],
+            canOpenFolder: false,
+            hasDestinations: false
+        ) == [3, 4, 5]
+    )
+}
+
+@Test
+func subtitleTableRowActionMenuSubmenuParentsNeedDestinations() {
+    let model = SubtitleTableRowActionMenuModel(style: .shiori, showsCueGroup: false)
+
+    #expect(
+        !model.isEnabled(
+            .moveToList,
+            disabledActions: [],
+            canOpenFolder: true,
+            hasDestinations: false
+        )
+    )
+    #expect(
+        model.isEnabled(
+            .moveToList,
+            disabledActions: [],
+            canOpenFolder: true,
+            hasDestinations: true
+        )
+    )
+
+    let withoutDestinations = model.selectablePositions(
+        disabledActions: [],
+        canOpenFolder: true,
+        hasDestinations: false
+    )
+    let withDestinations = model.selectablePositions(
+        disabledActions: [],
+        canOpenFolder: true,
+        hasDestinations: true
+    )
+    #expect(withDestinations.count == withoutDestinations.count + 2)
+}
+
+@Test
 func subtitleTableRowActionMenuHidesCueGroupCopyWhenCueGroupIsHidden() {
     let model = SubtitleTableRowActionMenuModel(style: .search, showsCueGroup: false)
 
@@ -135,7 +199,7 @@ func subtitleTableShioriSubmenuSupportsImmediateAndDelayedEntryRules() {
     #expect(state.openParent == .moveToList)
     #expect(state.closeSubmenu())
     #expect(state.openParent == nil)
-    #expect(state.openHighlightedParent())
+    state.open(.moveToList)
     #expect(state.openParent == .moveToList)
 
     state.setOtherItemHovered(true)

@@ -26,6 +26,10 @@ final class MenuHighlightModel: ObservableObject {
         pointerMonitor != nil
     }
 
+    private var cursorOwner: AppCursorVisibility.Owner {
+        .menu(ObjectIdentifier(self))
+    }
+
     /// Opens the surface with `defaultPosition` highlighted, or the first
     /// selectable position when it is absent or not selectable.
     func open(selectablePositions: [Int], defaultPosition: Int? = nil) {
@@ -44,7 +48,7 @@ final class MenuHighlightModel: ObservableObject {
         highlightedPosition = nil
         hoveredPosition = nil
         adoptsHover = false
-        AppCursorVisibility.setHidden(false, owner: .menu)
+        AppCursorVisibility.setHidden(false, owner: cursorOwner)
     }
 
     /// Moves the highlight and reports whether the surface consumed the key.
@@ -56,7 +60,7 @@ final class MenuHighlightModel: ObservableObject {
             return false
         }
         adoptsHover = false
-        AppCursorVisibility.setHidden(true, owner: .menu)
+        AppCursorVisibility.setHidden(true, owner: cursorOwner)
         let current = highlightedPosition
             .flatMap { selectablePositions.firstIndex(of: $0) } ?? 0
         let target = min(
@@ -80,7 +84,7 @@ final class MenuHighlightModel: ObservableObject {
     }
 
     func notePointerMoved() {
-        AppCursorVisibility.setHidden(false, owner: .menu)
+        AppCursorVisibility.setHidden(false, owner: cursorOwner)
         adoptsHover = true
         adoptHoverIfAllowed()
     }

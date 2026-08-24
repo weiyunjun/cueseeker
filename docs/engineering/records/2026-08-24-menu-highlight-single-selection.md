@@ -43,6 +43,41 @@ Files: `Shared/AppCursorVisibility.swift` (new),
 `Playback/PlaybackChromeVisibilityModel.swift`,
 `Tests/CueSeekerAppTests/MenuHighlightModelTests.swift` (new).
 
+### Step 2: the three menus built from the shared popover row
+
+`WorkbenchPopoverRow` no longer paints a background for its own hover, only for
+the highlight its owning menu gives it. That single line was the direct cause of
+two rows lighting up at once. Hover is now reported upward instead, and the menu
+decides whether it may move the highlight.
+
+Three menus adopted the model: the Workbench table row context menu, the
+Workbench cover context menu, and the selected-text menu shared by the Playback
+Overlay and the Command Panel. Each opens the model with the positions its own
+content allows, keeps its existing dismiss monitor, and gained arrow keys and
+Enter through the monitor pattern already used for Escape.
+
+The row menu's destination submenu is treated as its own surface with its own
+highlight: while it is open it owns the arrow keys, its parent row stays
+highlighted so the relationship stays visible, and the left arrow closes it and
+returns the keys to the parent. Enter on a submenu parent opens the submenu
+rather than acting, matching a click on the same row.
+
+`SubtitleTableRowActionMenuModel` now answers which element positions can take
+the highlight, so the view and the coordinator agree on which items are enabled
+instead of computing it twice. `openHighlightedParent` became unreachable once
+the right arrow read the shared highlight, so it and its assertion were removed.
+
+Each menu surface owns its cursor-hiding claim by identity. A parent and its
+submenu are separate owners, so closing a submenu no longer reveals the cursor
+that the parent, still being navigated by keyboard, wants hidden.
+
+Files: `Shared/WorkbenchControls/WorkbenchControls.swift`,
+`TableSandbox/SubtitleTableView.swift`,
+`TableSandbox/SubtitleTableRowActionMenu.swift`,
+`TableSandbox/WorkbenchTestLibraryView.swift`,
+`Playback/SubtitleFocus/PlaybackSubtitleFocusReel.swift`,
+`Shared/AppCursorVisibility.swift`, `Shared/MenuHighlightModel.swift`.
+
 ## Verification
 
 - `swift build` clean.
@@ -57,8 +92,45 @@ Files: `Shared/AppCursorVisibility.swift` (new),
 - Regression: `DebugE2EControllerTests` 12 green, `PlaybackNormalShortcutTests`
   9 green including `playbackPointerStartsHiddenAndOnlyMovementRestoresIt`.
 
+Step 2 additions:
+
+- `MenuHighlightModelTests` grew to 10 tests, adding the parent/submenu cursor
+  ownership case.
+- `SubtitleTableRowActionMenuTests` covers selectable positions skipping
+  dividers and disabled actions, `action(at:)` on a divider and out of range,
+  and submenu parents being disabled without destinations.
+- Filtered sweep over the table, workbench, library, playback-focus, menu and
+  E2E suites: 476 tests, all green except two `DebugE2EControllerTests`
+  scene-geometry cases. Those two were re-run with every step-2 file restored
+  from Git and fail identically without this change: another suite in the mixed
+  run leaves a window on screen that `DebugE2EScene.current` picks up. They pass
+  when the suite runs alone or with the library suites.
+
+Debug E2E run against the real App, on a Shiori list of 397 rows:
+
+- `rightClick` on a row opened the context menu with Play highlighted and
+  nothing else.
+- Three `downarrow` presses moved the highlight to Copy Deep Link, skipping the
+  divider, with exactly one row highlighted throughout.
+- `pointerVisible` reported `true` before the first arrow key and `false` after
+  it, which is the first time the Workbench hides the cursor on keyboard input.
+- `rightarrow` on Move to… opened the destination submenu, `downarrow` moved the
+  submenu's own highlight from the first to the second list, and the parent row
+  stayed highlighted.
+
 ## Outcome
 
-Step 1 matched expectations. No user-visible behaviour changed yet: nothing
-consumes `MenuHighlightModel` so far. The four menus and the four list surfaces
-follow in separate steps.
+Steps 1 and 2 matched expectations.
+
+One interpretation needs the owner's confirmation. The requirement says no two
+highlights may exist at once. While a destination submenu is open, its parent
+row stays highlighted and the submenu carries its own highlight, so two are
+visible. The alternative, dropping the parent's highlight, loses which parent
+the submenu belongs to. The submenu is treated as a separate surface with its
+own single highlight; say so if the literal single-highlight reading was
+intended instead.
+
+Escape now closes the cover context menu, which previously had no keyboard
+handling at all. This is consistent with the other menus but was not asked for.
+
+The speed menu and the four list surfaces follow in separate steps.

@@ -16,9 +16,11 @@ enum AppCursorVisibility {
         /// The playback page, which hides the cursor on keyboard input and
         /// while the player is idle.
         case player
-        /// An open menu surface, which hides the cursor while its highlight is
-        /// being moved by the keyboard.
-        case menu
+        /// One open menu surface, identified by its highlight model, which
+        /// hides the cursor while its highlight is being moved by the keyboard.
+        /// A parent menu and its submenu are separate owners, so closing the
+        /// submenu must not reveal the cursor the parent still hides.
+        case menu(ObjectIdentifier)
     }
 
     private(set) static var isCursorHidden = false

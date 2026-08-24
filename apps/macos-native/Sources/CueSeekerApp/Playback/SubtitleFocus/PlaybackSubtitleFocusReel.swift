@@ -1735,6 +1735,8 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
     private let currentCueAdapter = PlaybackSubtitleFocusCueReelAdapter()
     private var selectedTextMenuHost: NSHostingView<AnyView>?
     private var selectedTextMenuEventMonitor: Any?
+    private let selectedTextMenuHighlight = MenuHighlightModel()
+    private var selectedTextMenuActions: [() -> Void] = []
     private var mountedContentAdapter:
         (any PlaybackVirtualReelContentAdapter)?
     private var contentSnapshot: PlaybackVirtualReelSnapshot?
@@ -2275,28 +2277,36 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
     ) {
         dismissSelectedTextActions()
 
-        let menu = WorkbenchPopoverPanel(isRedesign: true) {
-            VStack(spacing: 0) {
-                WorkbenchPopoverRow(
+        selectedTextMenuActions = [
+            { [weak self] in
+                self?.dismissSelectedTextActions()
+                self?.onCopySelectedText(text)
+            },
+            { [weak self] in
+                self?.dismissSelectedTextActions()
+                self?.onSearchSelectedText(text)
+            },
+        ]
+        selectedTextMenuHighlight.open(
+            selectablePositions: Array(selectedTextMenuActions.indices)
+        )
+
+        let menu = PlaybackSelectedTextMenu(
+            highlight: selectedTextMenuHighlight,
+            items: [
+                PlaybackSelectedTextMenu.Item(
                     title: L("playback.copy_selected_text"),
-                    systemImage: "doc.on.doc",
-                    isRedesign: true,
-                    showsCheckmarkSlot: false
-                ) { [weak self] in
-                    self?.dismissSelectedTextActions()
-                    self?.onCopySelectedText(text)
-                }
-                WorkbenchPopoverRow(
+                    systemImage: "doc.on.doc"
+                ),
+                PlaybackSelectedTextMenu.Item(
                     title: L("playback.search_selected_text"),
-                    systemImage: "magnifyingglass",
-                    isRedesign: true,
-                    showsCheckmarkSlot: false
-                ) { [weak self] in
-                    self?.dismissSelectedTextActions()
-                    self?.onSearchSelectedText(text)
-                }
+                    systemImage: "magnifyingglass"
+                ),
+            ],
+            onActivate: { [weak self] position in
+                self?.activateSelectedTextAction(at: position)
             }
-        }
+        )
         let host = NSHostingView(rootView: AnyView(menu))
         host.translatesAutoresizingMaskIntoConstraints = true
         selectedTextMenuHost = host
@@ -2339,7 +2349,27 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
     private func dismissSelectedTextActions() {
         selectedTextMenuHost?.removeFromSuperview()
         selectedTextMenuHost = nil
+        selectedTextMenuHighlight.close()
+        selectedTextMenuActions = []
         removeSelectedTextMenuEventMonitor()
+    }
+
+    private func activateSelectedTextAction(at position: Int) {
+        guard selectedTextMenuActions.indices.contains(position) else {
+            return
+        }
+        selectedTextMenuActions[position]()
+    }
+
+    /// Enter runs whatever the highlight currently sits on, so the keyboard and
+    /// the pointer commit through one path.
+    private func activateHighlightedSelectedTextAction() -> Bool {
+        guard let position = selectedTextMenuHighlight.highlightedPosition
+        else {
+            return false
+        }
+        activateSelectedTextAction(at: position)
+        return true
     }
 
     private func installSelectedTextMenuEventMonitor() {
@@ -2350,9 +2380,26 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
             guard let self else {
                 return event
             }
-            if event.type == .keyDown, event.keyCode == 53 {
-                self.dismissSelectedTextActions()
-                return nil
+            if event.type == .keyDown {
+                switch event.keyCode {
+                case 53:
+                    self.dismissSelectedTextActions()
+                    return nil
+                case 126:
+                    return self.selectedTextMenuHighlight.moveHighlight(by: -1)
+                        ? nil
+                        : event
+                case 125:
+                    return self.selectedTextMenuHighlight.moveHighlight(by: 1)
+                        ? nil
+                        : event
+                case 36, 76:
+                    return self.activateHighlightedSelectedTextAction()
+                        ? nil
+                        : event
+                default:
+                    return event
+                }
             }
             guard event.type == .leftMouseDown
                     || event.type == .rightMouseDown
@@ -4532,5 +4579,40 @@ final class PlaybackSubtitleFocusReelPositionAnimator: NSObject {
         return 3 * inverse * inverse * parameter * firstControl
             + 3 * inverse * parameter * parameter * secondControl
             + parameter * parameter * parameter
+    }
+}
+
+/// The menu offered after selecting subtitle text with the pointer.
+///
+/// It observes the highlight model so arrow keys and pointer motion move one
+/// highlight; the rows never paint their own hover.
+private struct PlaybackSelectedTextMenu: View {
+    struct Item {
+        let title: String
+        let systemImage: String
+    }
+
+    @ObservedObject var highlight: MenuHighlightModel
+    let items: [Item]
+    let onActivate: (Int) -> Void
+
+    var body: some View {
+        WorkbenchPopoverPanel(isRedesign: true) {
+            VStack(spacing: 0) {
+                ForEach(Array(items.enumerated()), id: \.offset) { position, item in
+                    WorkbenchPopoverRow(
+                        title: item.title,
+                        isHighlighted: highlight.highlightedPosition == position,
+                        systemImage: item.systemImage,
+                        isRedesign: true,
+                        showsCheckmarkSlot: false,
+                        action: { onActivate(position) },
+                        onHoverChange: { isHovered in
+                            highlight.noteHover(isHovered, at: position)
+                        }
+                    )
+                }
+            }
+        }
     }
 }

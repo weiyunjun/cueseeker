@@ -926,15 +926,6 @@ final class SubtitleTableRowActionSubmenuState: ObservableObject {
     }
 
     @discardableResult
-    func openHighlightedParent() -> Bool {
-        guard let highlightedParent else {
-            return false
-        }
-        open(highlightedParent)
-        return true
-    }
-
-    @discardableResult
     func closeSubmenu() -> Bool {
         guard openParent != nil else {
             return false
@@ -1074,18 +1065,19 @@ private struct RowActionMenu: View {
     var disabledActions: Set<SubtitleTableRowAction> = []
     let destinations: [SubtitleTableRowActionDestination]
     @ObservedObject var submenuState: SubtitleTableRowActionSubmenuState
+    @ObservedObject var highlight: MenuHighlightModel
     var onAction: (SubtitleTableRowAction) -> Void
 
     var body: some View {
         WorkbenchPopoverPanel(isRedesign: true) {
             VStack(spacing: 0) {
-                ForEach(Array(model.elements.enumerated()), id: \.offset) { _, element in
+                ForEach(Array(model.elements.enumerated()), id: \.offset) { position, element in
                     switch element {
                     case .divider:
                         Divider()
                             .onHover(perform: submenuState.setOtherItemHovered)
                     case .action(let action):
-                        actionRow(action)
+                        actionRow(action, at: position)
                     }
                 }
             }
@@ -1101,14 +1093,20 @@ private struct RowActionMenu: View {
         SubtitleTableRowActionMenuModel(style: style, showsCueGroup: showsCueGroup)
     }
 
-    private func actionRow(_ action: SubtitleTableRowAction) -> some View {
+    private func actionRow(
+        _ action: SubtitleTableRowAction,
+        at position: Int
+    ) -> some View {
         let isSubmenuParent = action.opensDestinationSubmenu
-        let isEnabled = !disabledActions.contains(action)
-            && (action != .openSubtitleFolder || canOpenFolder)
-            && (!isSubmenuParent || !destinations.isEmpty)
+        let isEnabled = model.isEnabled(
+            action,
+            disabledActions: disabledActions,
+            canOpenFolder: canOpenFolder,
+            hasDestinations: !destinations.isEmpty
+        )
         return WorkbenchPopoverRow(
             title: action.title,
-            isHighlighted: submenuState.openParent == action,
+            isHighlighted: highlight.highlightedPosition == position,
             systemImage: action.systemImage,
             isRedesign: true,
             showsCheckmarkSlot: false,
@@ -1123,6 +1121,7 @@ private struct RowActionMenu: View {
             },
             trailingSystemImage: isSubmenuParent ? "chevron.right" : nil,
             onHoverChange: { isHovered in
+                highlight.noteHover(isHovered, at: position)
                 if isSubmenuParent, isEnabled {
                     submenuState.setParentHovered(action, isHovered: isHovered)
                 } else {
@@ -1148,18 +1147,23 @@ private struct RowActionMenu: View {
 private struct RowActionDestinationSubmenu: View {
     let destinations: [SubtitleTableRowActionDestination]
     @ObservedObject var submenuState: SubtitleTableRowActionSubmenuState
+    @ObservedObject var highlight: MenuHighlightModel
     var onDestinationAction: (SubtitleTableRowActionDestination) -> Void
 
     var body: some View {
         WorkbenchPopoverPanel(isRedesign: true) {
             VStack(spacing: 0) {
-                ForEach(destinations) { destination in
+                ForEach(Array(destinations.enumerated()), id: \.element.id) { position, destination in
                     WorkbenchPopoverRow(
                         title: destination.title,
+                        isHighlighted: highlight.highlightedPosition == position,
                         isRedesign: true,
                         showsCheckmarkSlot: false,
                         action: {
                             onDestinationAction(destination)
+                        },
+                        onHoverChange: { isHovered in
+                            highlight.noteHover(isHovered, at: position)
                         }
                     )
                 }
@@ -2709,6 +2713,8 @@ struct SubtitleTableView: NSViewRepresentable {
         private var activeRowMenuColumnID: String?
         private var activeRowMenuTarget: SubtitleTableRow?
         private var rowActionSubmenuState: SubtitleTableRowActionSubmenuState?
+        private let rowActionHighlight = MenuHighlightModel()
+        private let rowActionDestinationHighlight = MenuHighlightModel()
         private var pendingMenuReposition = false
         nonisolated(unsafe) private var menuEventMonitor: Any?
         nonisolated(unsafe) private var keyboardFocusEventMonitor: Any?
@@ -6785,18 +6791,34 @@ struct SubtitleTableView: NSViewRepresentable {
                activeRowMenuTarget != nil,
                let rowActionSubmenuState
             {
+                // While a destination submenu is open it owns the arrow keys;
+                // otherwise the parent menu does.
+                let isSubmenuOpen = rowActionSubmenuState.openParent != nil
                 switch event.keyCode {
                 case 53:
                     dismissMenu()
                     return nil
+                case 126:
+                    let didMove = isSubmenuOpen
+                        ? rowActionDestinationHighlight.moveHighlight(by: -1)
+                        : rowActionHighlight.moveHighlight(by: -1)
+                    return didMove ? nil : event
+                case 125:
+                    let didMove = isSubmenuOpen
+                        ? rowActionDestinationHighlight.moveHighlight(by: 1)
+                        : rowActionHighlight.moveHighlight(by: 1)
+                    return didMove ? nil : event
                 case 124:
-                    return rowActionSubmenuState.openHighlightedParent()
-                        ? nil
-                        : event
+                    return openHighlightedRowActionSubmenu() ? nil : event
                 case 123:
                     return rowActionSubmenuState.closeSubmenu()
                         ? nil
                         : event
+                case 36, 76:
+                    let didActivate = isSubmenuOpen
+                        ? activateHighlightedRowActionDestination()
+                        : activateHighlightedRowAction()
+                    return didActivate ? nil : event
                 default:
                     break
                 }
@@ -7188,13 +7210,23 @@ struct SubtitleTableView: NSViewRepresentable {
                     self.hideRowActionDestinationSubmenu()
                 }
             }
+            let canOpenFolder = canOpenSubtitleFile(target: target)
+            let disabledActions = disabledRowActions(for: target)
+            rowActionHighlight.open(
+                selectablePositions: activeRowActionMenuModel.selectablePositions(
+                    disabledActions: disabledActions,
+                    canOpenFolder: canOpenFolder,
+                    hasDestinations: !rowActionDestinations.isEmpty
+                )
+            )
             let menuView = RowActionMenu(
                 style: rowActionMenuStyle,
                 showsCueGroup: showsCueGroup,
-                canOpenFolder: canOpenSubtitleFile(target: target),
-                disabledActions: disabledRowActions(for: target),
+                canOpenFolder: canOpenFolder,
+                disabledActions: disabledActions,
                 destinations: rowActionDestinations,
                 submenuState: submenuState,
+                highlight: rowActionHighlight,
                 onAction: { [weak self] action in
                     self?.performActiveRowMenuAction(action)
                 }
@@ -7233,6 +7265,57 @@ struct SubtitleTableView: NSViewRepresentable {
             installMenuDismissMonitor()
         }
 
+        private var activeRowActionMenuModel: SubtitleTableRowActionMenuModel {
+            SubtitleTableRowActionMenuModel(
+                style: rowActionMenuStyle,
+                showsCueGroup: showsCueGroup
+            )
+        }
+
+        /// Runs whatever the parent highlight sits on. A submenu parent opens
+        /// its submenu instead of acting, matching a click on the same row.
+        private func activateHighlightedRowAction() -> Bool {
+            guard let position = rowActionHighlight.highlightedPosition,
+                  let action = activeRowActionMenuModel.action(at: position)
+            else {
+                return false
+            }
+            if action.opensDestinationSubmenu {
+                rowActionSubmenuState?.open(action)
+                return true
+            }
+            rowActionSubmenuState?.reset()
+            performActiveRowMenuAction(action)
+            return true
+        }
+
+        private func openHighlightedRowActionSubmenu() -> Bool {
+            guard let position = rowActionHighlight.highlightedPosition,
+                  let action = activeRowActionMenuModel.action(at: position),
+                  action.opensDestinationSubmenu,
+                  !rowActionDestinations.isEmpty
+            else {
+                return false
+            }
+            rowActionSubmenuState?.open(action)
+            return true
+        }
+
+        private func activateHighlightedRowActionDestination() -> Bool {
+            guard let openParent = rowActionSubmenuState?.openParent,
+                  let position = rowActionDestinationHighlight
+                      .highlightedPosition,
+                  rowActionDestinations.indices.contains(position)
+            else {
+                return false
+            }
+            performActiveRowMenuDestinationAction(
+                openParent,
+                destinationID: rowActionDestinations[position].id
+            )
+            return true
+        }
+
         private func showRowActionDestinationSubmenu(
             for action: SubtitleTableRowAction
         ) {
@@ -7245,9 +7328,15 @@ struct SubtitleTableView: NSViewRepresentable {
             else {
                 return
             }
+            if !rowActionDestinationHighlight.isOpen {
+                rowActionDestinationHighlight.open(
+                    selectablePositions: Array(rowActionDestinations.indices)
+                )
+            }
             let submenuView = RowActionDestinationSubmenu(
                 destinations: rowActionDestinations,
                 submenuState: submenuState,
+                highlight: rowActionDestinationHighlight,
                 onDestinationAction: { [weak self] destination in
                     self?.performActiveRowMenuDestinationAction(
                         action,
@@ -7273,6 +7362,7 @@ struct SubtitleTableView: NSViewRepresentable {
         }
 
         private func hideRowActionDestinationSubmenu() {
+            rowActionDestinationHighlight.close()
             submenuHost?.rootView = AnyView(EmptyView())
             submenuHost?.invalidateIntrinsicContentSize()
             submenuHost?.isHidden = true
@@ -7287,6 +7377,7 @@ struct SubtitleTableView: NSViewRepresentable {
             activeRowMenuTarget = nil
             rowActionSubmenuState?.reset()
             rowActionSubmenuState = nil
+            rowActionHighlight.close()
             activeMenuAnchor = nil
             updateHoveredColumnID(nil)
             updateHoveredCueTextRow(nil)

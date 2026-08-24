@@ -1144,6 +1144,7 @@ private struct LibraryCardContextMenuState: Identifiable {
 struct LibraryCardContextMenuHost<Content: View>: View {
     @State private var activeMenu: LibraryCardContextMenuState?
     @State private var menuSize: CGSize = .zero
+    @StateObject private var highlight = MenuHighlightModel()
     @ViewBuilder var content: (_ openContextMenu: @escaping ([LibraryCardContextMenuItem], CGPoint) -> Void) -> Content
 
     var body: some View {
@@ -1155,6 +1156,17 @@ struct LibraryCardContextMenuHost<Content: View>: View {
                     GeometryReader { proxy in
                         let menuFrame = menuFrame(for: activeMenu, in: proxy.size)
                         ZStack(alignment: .topLeading) {
+                            LibraryCardMenuKeyboardMonitor(
+                                isActive: true,
+                                onMoveHighlight: {
+                                    highlight.moveHighlight(by: $0)
+                                },
+                                onActivateHighlight: activateHighlightedItem,
+                                onDismiss: dismissContextMenu
+                            )
+                            .frame(width: 0, height: 0)
+                            .allowsHitTesting(false)
+
                             LibraryCardMenuDismissMonitor(
                                 isActive: true,
                                 menuFrame: menuFrame,
@@ -1172,6 +1184,7 @@ struct LibraryCardContextMenuHost<Content: View>: View {
 
                             LibraryCardContextMenu(
                                 items: activeMenu.items,
+                                highlight: highlight,
                                 onDismiss: dismissContextMenu
                             )
                             .background(
@@ -1199,10 +1212,31 @@ struct LibraryCardContextMenuHost<Content: View>: View {
     private func openContextMenu(items: [LibraryCardContextMenuItem], anchorPoint: CGPoint) {
         menuSize = .zero
         activeMenu = LibraryCardContextMenuState(anchorPoint: anchorPoint, items: items)
+        highlight.open(
+            selectablePositions: items.indices.filter { items[$0].isEnabled }
+        )
     }
 
     private func dismissContextMenu() {
         activeMenu = nil
+        highlight.close()
+    }
+
+    /// Enter runs whatever the highlight sits on, so the keyboard and the
+    /// pointer commit through one path.
+    @discardableResult
+    private func activateHighlightedItem() -> Bool {
+        guard let position = highlight.highlightedPosition,
+              let items = activeMenu?.items,
+              items.indices.contains(position),
+              items[position].isEnabled
+        else {
+            return false
+        }
+        let item = items[position]
+        dismissContextMenu()
+        item.action()
+        return true
     }
 
     private func menuFrame(for menu: LibraryCardContextMenuState, in containerSize: CGSize) -> CGRect {
@@ -1234,6 +1268,102 @@ struct LibraryCardContextMenuHost<Content: View>: View {
             width: menuSize.width > 0 ? menuSize.width : fallbackSize.width,
             height: menuSize.height > 0 ? menuSize.height : fallbackSize.height
         )
+    }
+}
+
+/// Arrow keys and Enter for the open cover context menu.
+///
+/// The menu is a SwiftUI overlay rather than a focused control, so it listens
+/// for key events the same way its dismiss monitor listens for clicks.
+private struct LibraryCardMenuKeyboardMonitor: NSViewRepresentable {
+    let isActive: Bool
+    let onMoveHighlight: (Int) -> Bool
+    let onActivateHighlight: () -> Bool
+    let onDismiss: () -> Void
+
+    func makeNSView(context _: Context) -> MonitoringView {
+        MonitoringView()
+    }
+
+    func updateNSView(_ nsView: MonitoringView, context _: Context) {
+        nsView.update(
+            isActive: isActive,
+            onMoveHighlight: onMoveHighlight,
+            onActivateHighlight: onActivateHighlight,
+            onDismiss: onDismiss
+        )
+    }
+
+    final class MonitoringView: NSView {
+        nonisolated(unsafe) private var monitor: Any?
+        private var isActive = false
+        private var onMoveHighlight: ((Int) -> Bool)?
+        private var onActivateHighlight: (() -> Bool)?
+        private var onDismiss: (() -> Void)?
+
+        func update(
+            isActive: Bool,
+            onMoveHighlight: @escaping (Int) -> Bool,
+            onActivateHighlight: @escaping () -> Bool,
+            onDismiss: @escaping () -> Void
+        ) {
+            self.isActive = isActive
+            self.onMoveHighlight = onMoveHighlight
+            self.onActivateHighlight = onActivateHighlight
+            self.onDismiss = onDismiss
+            updateMonitor()
+        }
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            updateMonitor()
+        }
+
+        deinit {
+            if let monitor {
+                NSEvent.removeMonitor(monitor)
+            }
+        }
+
+        private func updateMonitor() {
+            guard isActive, window != nil else {
+                removeMonitor()
+                return
+            }
+            guard monitor == nil else {
+                return
+            }
+            monitor = NSEvent.addLocalMonitorForEvents(
+                matching: [.keyDown]
+            ) { [weak self] event in
+                guard let self,
+                      event.window === self.window
+                else {
+                    return event
+                }
+                switch event.keyCode {
+                case 53:
+                    self.onDismiss?()
+                    return nil
+                case 126:
+                    return self.onMoveHighlight?(-1) == true ? nil : event
+                case 125:
+                    return self.onMoveHighlight?(1) == true ? nil : event
+                case 36, 76:
+                    return self.onActivateHighlight?() == true ? nil : event
+                default:
+                    return event
+                }
+            }
+        }
+
+        private func removeMonitor() {
+            guard let monitor else {
+                return
+            }
+            NSEvent.removeMonitor(monitor)
+            self.monitor = nil
+        }
     }
 }
 
@@ -1324,14 +1454,16 @@ private struct LibraryCardContextMenuSizePreferenceKey: PreferenceKey {
 
 private struct LibraryCardContextMenu: View {
     let items: [LibraryCardContextMenuItem]
+    @ObservedObject var highlight: MenuHighlightModel
     let onDismiss: () -> Void
 
     var body: some View {
         WorkbenchPopoverPanel(isRedesign: true) {
             VStack(alignment: .leading, spacing: 0) {
-                ForEach(items) { item in
+                ForEach(Array(items.enumerated()), id: \.element.id) { position, item in
                     WorkbenchPopoverRow(
                         title: item.title,
+                        isHighlighted: highlight.highlightedPosition == position,
                         systemImage: item.systemImage,
                         isRedesign: true,
                         showsCheckmarkSlot: false,
@@ -1339,6 +1471,9 @@ private struct LibraryCardContextMenu: View {
                         action: {
                             onDismiss()
                             item.action()
+                        },
+                        onHoverChange: { isHovered in
+                            highlight.noteHover(isHovered, at: position)
                         }
                     )
                 }
