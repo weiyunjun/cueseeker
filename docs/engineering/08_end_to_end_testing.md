@@ -25,10 +25,12 @@ before the user starts testing.
 
 Known CueSeeker-owned macOS UI flows use the Debug in-app E2E controller by
 default. The controller captures the actual WindowServer composition of every
-visible CueSeeker-owned window with ScreenCaptureKit, dispatches a left click at
-a documented complete-scene coordinate, dispatches a discrete vertical mouse
+visible CueSeeker-owned window with ScreenCaptureKit, dispatches left and right
+clicks at a documented complete-scene coordinate, dispatches pointer-move and
+separable drag events, dispatches a discrete vertical mouse
 wheel event at a documented coordinate, posts documented keyboard events
-inside the app, and sets the main window's width. It does not reconstruct views,
+inside the app, reports whether the App currently hides the cursor, and sets the
+main window's width. It does not reconstruct views,
 move the real pointer, request
 Accessibility or Input Monitoring permission, inspect other applications, or
 locate controls from screenshots.
@@ -72,6 +74,11 @@ Supported commands are one JSON object per line:
 {"action":"scroll","x":80,"y":420,"deltaY":-3,"sceneID":"current-scene-id"}
 {"action":"keyPress","key":"enter","modifiers":[],"sceneID":"current-scene-id"}
 {"action":"setWidth","width":1100,"sceneID":"current-scene-id"}
+{"action":"mouseMove","x":80,"y":155,"sceneID":"current-scene-id"}
+{"action":"rightClick","x":80,"y":155,"sceneID":"current-scene-id"}
+{"action":"mouseDown","x":80,"y":155,"sceneID":"current-scene-id"}
+{"action":"mouseDrag","x":240,"y":155,"sceneID":"current-scene-id"}
+{"action":"mouseUp","x":240,"y":155,"sceneID":"current-scene-id"}
 ```
 
 `inspect` returns the current scene contract without producing an image.
@@ -117,6 +124,42 @@ configuration, or product state. A stale `sceneID`, a non-positive or non-finite
 single-display rule is an explicit error; a scene rebuild failure restores the
 previous frame so a failed command leaves the window unchanged. Success returns
 a fresh `sceneID` plus `windowWidth`, the width actually in effect.
+
+`mouseMove` posts one AppKit `mouseMoved` event using the same complete-scene
+coordinates and frontmost-window routing as `click`. It does not activate the
+app, raise a window, or move the real pointer.
+
+`mouseMove` has a hard platform limit that a test procedure must respect. AppKit
+routes `mouseMoved` to the window's current first responder, and only views that
+derive their hovered element from the event's own location react to it. The
+Workbench subtitle table works this way. `NSTrackingArea` enter/exit callbacks
+and SwiftUI's `.onHover` are driven by the real cursor position instead, so a
+synthesized move never reaches them: SwiftUI cards, popover rows, and every
+control whose hover state comes from `.onHover` cannot be hovered by this
+command. Hover behavior on those surfaces stays a manual acceptance step. Do not
+read an absent hover effect after `mouseMove` as a product defect without first
+checking which mechanism the surface uses.
+
+`rightClick` posts a right-button down/up pair at the scene coordinate and, like
+`click`, performs normal click activation. Use it for the Workbench table row
+context menu. The Library cover context menu installs its right-click monitor
+only while the card reports SwiftUI hover, so it cannot be opened by this
+command alone; it remains a manual acceptance step for the same reason
+`mouseMove` cannot drive `.onHover`.
+
+`mouseDown`, `mouseDrag`, and `mouseUp` split a left-button drag into separable
+steps for interactions that need the intermediate motion, such as selecting
+subtitle text in the Playback Overlay before its selected-text menu appears.
+`mouseDown` activates the app exactly as `click` does; `mouseDrag` and `mouseUp`
+do not, so a sequence never reorders windows midway. The controller enforces the
+order: `mouseDrag` or `mouseUp` without an open press, and a second `mouseDown`
+before a release, fail with `invalidDragSequence` without posting an event. Each
+step returns a fresh `sceneID` that the next step must use.
+
+Every scene response includes `pointerVisible`, which is `false` while the App
+hides the system cursor and `true` otherwise. Screenshots never contain the
+cursor, so this field is the only evidence for pointer-visibility rules. The
+playback page is currently the only owner that hides the cursor.
 
 `capture` accepts a nonempty name made from letters, numbers, hyphens, and
 underscores. It writes a PNG under the per-process temporary artifact directory

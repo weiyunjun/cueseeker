@@ -12,6 +12,11 @@ enum DebugE2ECommand: Equatable {
     case scroll(x: CGFloat, y: CGFloat, deltaY: Int32, sceneID: String)
     case keyPress(key: String, modifiers: [String], sceneID: String)
     case setWidth(width: CGFloat, sceneID: String)
+    case mouseMove(x: CGFloat, y: CGFloat, sceneID: String)
+    case rightClick(x: CGFloat, y: CGFloat, sceneID: String)
+    case mouseDown(x: CGFloat, y: CGFloat, sceneID: String)
+    case mouseDrag(x: CGFloat, y: CGFloat, sceneID: String)
+    case mouseUp(x: CGFloat, y: CGFloat, sceneID: String)
 
     init(line: String) throws {
         let payload: Payload
@@ -51,20 +56,23 @@ enum DebugE2ECommand: Equatable {
             }
             self = .capture(name: name)
         case "click":
-            guard payload.name == nil,
-                  let x = payload.x,
-                  let y = payload.y,
-                  payload.deltaY == nil,
-                  payload.key == nil,
-                  payload.modifiers == nil,
-                  payload.width == nil,
-                  let sceneID = payload.sceneID
-            else {
-                throw DebugE2EError.invalidCommand(
-                    "click requires x, y, and sceneID"
-                )
-            }
-            self = .click(x: CGFloat(x), y: CGFloat(y), sceneID: sceneID)
+            let point = try Self.pointArguments(payload, action: "click")
+            self = .click(x: point.x, y: point.y, sceneID: point.sceneID)
+        case "mouseMove":
+            let point = try Self.pointArguments(payload, action: "mouseMove")
+            self = .mouseMove(x: point.x, y: point.y, sceneID: point.sceneID)
+        case "rightClick":
+            let point = try Self.pointArguments(payload, action: "rightClick")
+            self = .rightClick(x: point.x, y: point.y, sceneID: point.sceneID)
+        case "mouseDown":
+            let point = try Self.pointArguments(payload, action: "mouseDown")
+            self = .mouseDown(x: point.x, y: point.y, sceneID: point.sceneID)
+        case "mouseDrag":
+            let point = try Self.pointArguments(payload, action: "mouseDrag")
+            self = .mouseDrag(x: point.x, y: point.y, sceneID: point.sceneID)
+        case "mouseUp":
+            let point = try Self.pointArguments(payload, action: "mouseUp")
+            self = .mouseUp(x: point.x, y: point.y, sceneID: point.sceneID)
         case "scroll":
             guard payload.name == nil,
                   let x = payload.x,
@@ -129,6 +137,26 @@ enum DebugE2ECommand: Equatable {
         }
     }
 
+    private static func pointArguments(
+        _ payload: Payload,
+        action: String
+    ) throws -> (x: CGFloat, y: CGFloat, sceneID: String) {
+        guard payload.name == nil,
+              let x = payload.x,
+              let y = payload.y,
+              payload.deltaY == nil,
+              payload.key == nil,
+              payload.modifiers == nil,
+              payload.width == nil,
+              let sceneID = payload.sceneID
+        else {
+            throw DebugE2EError.invalidCommand(
+                "\(action) requires x, y, and sceneID"
+            )
+        }
+        return (CGFloat(x), CGFloat(y), sceneID)
+    }
+
     private struct Payload: Decodable {
         let action: String
         let name: String?
@@ -152,6 +180,8 @@ enum DebugE2EError: Error, CustomStringConvertible {
     case screenshotEncodingFailed
     case screenshotSaveFailed(String)
     case invalidClickCoordinate
+    case invalidPointerCoordinate
+    case invalidDragSequence
     case invalidScrollCoordinate
     case invalidScrollDelta
     case sceneChanged
@@ -183,6 +213,10 @@ enum DebugE2EError: Error, CustomStringConvertible {
             "screenshotSaveFailed"
         case .invalidClickCoordinate:
             "invalidClickCoordinate"
+        case .invalidPointerCoordinate:
+            "invalidPointerCoordinate"
+        case .invalidDragSequence:
+            "invalidDragSequence"
         case .invalidScrollCoordinate:
             "invalidScrollCoordinate"
         case .invalidScrollDelta:
@@ -226,6 +260,10 @@ enum DebugE2EError: Error, CustomStringConvertible {
             "The current CueSeeker scene could not be saved: \(message)"
         case .invalidClickCoordinate:
             "Click coordinates must be finite and hit a visible CueSeeker window"
+        case .invalidPointerCoordinate:
+            "Pointer coordinates must be finite and hit a visible CueSeeker window"
+        case .invalidDragSequence:
+            "Drag commands must follow mouseDown, then mouseDrag, then mouseUp"
         case .invalidScrollCoordinate:
             "Scroll coordinates must be finite and hit a visible CueSeeker window"
         case .invalidScrollDelta:
@@ -623,6 +661,129 @@ enum DebugE2EClickDispatcher {
 }
 
 @MainActor
+enum DebugE2EMouseDispatcher {
+    /// Pointer actions the controller posts outside the existing atomic click.
+    enum Action {
+        case move
+        case rightClick
+        case press
+        case drag
+        case release
+
+        var eventTypes: [NSEvent.EventType] {
+            switch self {
+            case .move:
+                [.mouseMoved]
+            case .rightClick:
+                [.rightMouseDown, .rightMouseUp]
+            case .press:
+                [.leftMouseDown]
+            case .drag:
+                [.leftMouseDragged]
+            case .release:
+                [.leftMouseUp]
+            }
+        }
+
+        /// Only actions that begin an interaction activate the app, matching
+        /// `click`. Moving, continuing, and ending a drag must not reorder
+        /// windows midway through a sequence.
+        var activatesApp: Bool {
+            switch self {
+            case .rightClick, .press:
+                true
+            case .move, .drag, .release:
+                false
+            }
+        }
+    }
+
+    static func send(
+        _ action: Action,
+        x: CGFloat,
+        y: CGFloat,
+        scene: DebugE2EScene,
+        postEvents: ([NSEvent]) -> Void = { events in
+            events.forEach {
+                NSApplication.shared.postEvent($0, atStart: false)
+            }
+        }
+    ) throws {
+        let screenPoint: NSPoint
+        let window: NSWindow
+        do {
+            screenPoint = try scene.screenPoint(x: x, y: y)
+            window = try scene.frontmostWindow(at: screenPoint)
+        } catch DebugE2EError.invalidClickCoordinate {
+            throw DebugE2EError.invalidPointerCoordinate
+        }
+
+        let location = window.convertPoint(fromScreen: screenPoint)
+        if action.activatesApp {
+            NSApplication.shared.activate(ignoringOtherApps: true)
+            window.makeKeyAndOrderFront(nil)
+        }
+        let timestamp = ProcessInfo.processInfo.systemUptime
+        var events: [NSEvent] = []
+        for (offset, type) in action.eventTypes.enumerated() {
+            guard let event = NSEvent.mouseEvent(
+                with: type,
+                location: location,
+                modifierFlags: [],
+                timestamp: timestamp + Double(offset) * 0.001,
+                windowNumber: window.windowNumber,
+                context: nil,
+                eventNumber: 0,
+                clickCount: type == .mouseMoved ? 0 : 1,
+                pressure: Self.pressure(for: type)
+            ) else {
+                throw DebugE2EError.eventCreationFailed
+            }
+            events.append(event)
+        }
+
+        postEvents(events)
+    }
+
+    private static func pressure(for type: NSEvent.EventType) -> Float {
+        switch type {
+        case .leftMouseDown, .leftMouseDragged, .rightMouseDown:
+            1
+        default:
+            0
+        }
+    }
+}
+
+/// Open/closed state of a `mouseDown` -> `mouseDrag` -> `mouseUp` sequence, so
+/// an out-of-order drag command fails instead of posting a misleading event.
+struct DebugE2EDragSequence {
+    private(set) var isPressed = false
+
+    func validate(_ action: DebugE2EMouseDispatcher.Action) throws {
+        let isValid = switch action {
+        case .press: !isPressed
+        case .drag, .release: isPressed
+        case .move, .rightClick: true
+        }
+        guard isValid else {
+            throw DebugE2EError.invalidDragSequence
+        }
+    }
+
+    mutating func commit(_ action: DebugE2EMouseDispatcher.Action) {
+        switch action {
+        case .press:
+            isPressed = true
+        case .release:
+            isPressed = false
+        case .move, .drag, .rightClick:
+            break
+        }
+    }
+}
+
+@MainActor
 enum DebugE2EScrollDispatcher {
     static func scroll(
         x: CGFloat,
@@ -949,6 +1110,7 @@ final class DebugE2EController {
     private let artifactDirectory: URL
     private var inputTask: Task<Void, Never>?
     private var interactionRevision: UInt64 = 0
+    private var dragSequence = DebugE2EDragSequence()
 
     static func isRequested(
         arguments: [String] = ProcessInfo.processInfo.arguments
@@ -1161,15 +1323,89 @@ final class DebugE2EController {
                     "windowWidth": mainWindow.frame.width,
                 ], uniquingKeysWith: { _, new in new })
                 Self.write(payload)
+            case .mouseMove(let x, let y, let sceneID):
+                try await performMouse(
+                    .move,
+                    named: "mouseMove",
+                    x: x,
+                    y: y,
+                    sceneID: sceneID,
+                    mainWindow: mainWindow
+                )
+            case .rightClick(let x, let y, let sceneID):
+                try await performMouse(
+                    .rightClick,
+                    named: "rightClick",
+                    x: x,
+                    y: y,
+                    sceneID: sceneID,
+                    mainWindow: mainWindow
+                )
+            case .mouseDown(let x, let y, let sceneID):
+                try await performMouse(
+                    .press,
+                    named: "mouseDown",
+                    x: x,
+                    y: y,
+                    sceneID: sceneID,
+                    mainWindow: mainWindow
+                )
+            case .mouseDrag(let x, let y, let sceneID):
+                try await performMouse(
+                    .drag,
+                    named: "mouseDrag",
+                    x: x,
+                    y: y,
+                    sceneID: sceneID,
+                    mainWindow: mainWindow
+                )
+            case .mouseUp(let x, let y, let sceneID):
+                try await performMouse(
+                    .release,
+                    named: "mouseUp",
+                    x: x,
+                    y: y,
+                    sceneID: sceneID,
+                    mainWindow: mainWindow
+                )
             }
         } catch {
             Self.report(error: error)
         }
     }
 
+    private func performMouse(
+        _ action: DebugE2EMouseDispatcher.Action,
+        named name: String,
+        x: CGFloat,
+        y: CGFloat,
+        sceneID: String,
+        mainWindow: NSWindow
+    ) async throws {
+        let scene = try DebugE2EScene.current(mainWindow: mainWindow)
+        guard commandSceneID(for: scene) == sceneID else {
+            throw DebugE2EError.sceneChanged
+        }
+        try dragSequence.validate(action)
+        try DebugE2EMouseDispatcher.send(action, x: x, y: y, scene: scene)
+        dragSequence.commit(action)
+        try await Task.sleep(for: .milliseconds(50))
+        interactionRevision &+= 1
+        let currentScene = try DebugE2EScene.current(mainWindow: mainWindow)
+        var payload = scenePayload(currentScene)
+        payload.merge([
+            "status": "ok",
+            "action": name,
+            "x": x,
+            "y": y,
+        ], uniquingKeysWith: { _, new in new })
+        Self.write(payload)
+    }
+
     private func scenePayload(_ scene: DebugE2EScene) -> [String: Any] {
         var payload = scene.json
         payload["sceneID"] = commandSceneID(for: scene)
+        payload["pointerVisible"] = !AppCursorVisibility.isCursorHidden
         return payload
     }
 

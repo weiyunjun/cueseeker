@@ -69,6 +69,52 @@ struct DebugE2EControllerTests {
     }
 
     @Test
+    func commandParsesPointerAndDragActions() throws {
+        #expect(
+            try DebugE2ECommand(
+                line: #"{"action":"mouseMove","x":40,"y":18,"sceneID":"abc"}"#
+            ) == .mouseMove(x: 40, y: 18, sceneID: "abc")
+        )
+        #expect(
+            try DebugE2ECommand(
+                line: #"{"action":"rightClick","x":40,"y":18,"sceneID":"abc"}"#
+            ) == .rightClick(x: 40, y: 18, sceneID: "abc")
+        )
+        #expect(
+            try DebugE2ECommand(
+                line: #"{"action":"mouseDown","x":40,"y":18,"sceneID":"abc"}"#
+            ) == .mouseDown(x: 40, y: 18, sceneID: "abc")
+        )
+        #expect(
+            try DebugE2ECommand(
+                line: #"{"action":"mouseDrag","x":40,"y":18,"sceneID":"abc"}"#
+            ) == .mouseDrag(x: 40, y: 18, sceneID: "abc")
+        )
+        #expect(
+            try DebugE2ECommand(
+                line: #"{"action":"mouseUp","x":40,"y":18,"sceneID":"abc"}"#
+            ) == .mouseUp(x: 40, y: 18, sceneID: "abc")
+        )
+        for action in ["mouseMove", "rightClick", "mouseDown", "mouseDrag", "mouseUp"] {
+            #expect(throws: DebugE2EError.self) {
+                try DebugE2ECommand(
+                    line: #"{"action":"\#(action)","x":40,"y":18}"#
+                )
+            }
+            #expect(throws: DebugE2EError.self) {
+                try DebugE2ECommand(
+                    line: #"{"action":"\#(action)","x":40,"sceneID":"abc"}"#
+                )
+            }
+            #expect(throws: DebugE2EError.self) {
+                try DebugE2ECommand(
+                    line: #"{"action":"\#(action)","x":40,"y":18,"deltaY":2,"sceneID":"abc"}"#
+                )
+            }
+        }
+    }
+
+    @Test
     @MainActor
     func setWidthResizesMainWindowAndInvalidatesScene() throws {
         let screen = try #require(NSScreen.main)
@@ -236,6 +282,158 @@ struct DebugE2EControllerTests {
         #expect(frontView.mouseUpLocations.count == 1)
         #expect(backView.mouseDownLocations.isEmpty)
         #expect(backView.mouseUpLocations.isEmpty)
+    }
+
+    @Test
+    func dragSequenceRejectsOutOfOrderCommands() throws {
+        var sequence = DebugE2EDragSequence()
+
+        // Moving and right-clicking are always allowed and never open a drag.
+        try sequence.validate(.move)
+        sequence.commit(.move)
+        try sequence.validate(.rightClick)
+        sequence.commit(.rightClick)
+        #expect(!sequence.isPressed)
+
+        #expect(throws: DebugE2EError.self) { try sequence.validate(.drag) }
+        #expect(throws: DebugE2EError.self) { try sequence.validate(.release) }
+
+        try sequence.validate(.press)
+        sequence.commit(.press)
+        #expect(sequence.isPressed)
+        #expect(throws: DebugE2EError.self) { try sequence.validate(.press) }
+
+        try sequence.validate(.drag)
+        sequence.commit(.drag)
+        #expect(sequence.isPressed)
+
+        try sequence.validate(.release)
+        sequence.commit(.release)
+        #expect(!sequence.isPressed)
+        #expect(throws: DebugE2EError.self) { try sequence.validate(.drag) }
+    }
+
+    @Test
+    @MainActor
+    func pointerActionsPostExpectedEventsToFrontmostWindow() throws {
+        let backWindow = makeWindow(
+            frame: NSRect(x: 100, y: 100, width: 200, height: 160)
+        )
+        let frontWindow = makeWindow(
+            frame: NSRect(x: 130, y: 130, width: 140, height: 100)
+        )
+        backWindow.orderFront(nil)
+        frontWindow.orderFront(nil)
+        defer {
+            frontWindow.orderOut(nil)
+            backWindow.orderOut(nil)
+        }
+        let bounds = backWindow.frame.union(frontWindow.frame)
+        let scene = DebugE2EScene(
+            windows: [frontWindow, backWindow],
+            bounds: bounds,
+            screenFrame: bounds,
+            displayID: 0,
+            scale: 1,
+            layouts: [],
+            id: "scene"
+        )
+        let screenPoint = NSPoint(x: 160, y: 170)
+        let x = screenPoint.x - bounds.minX
+        let y = bounds.maxY - screenPoint.y
+
+        let expected: [(DebugE2EMouseDispatcher.Action, [NSEvent.EventType])] = [
+            (.move, [.mouseMoved]),
+            (.rightClick, [.rightMouseDown, .rightMouseUp]),
+            (.press, [.leftMouseDown]),
+            (.drag, [.leftMouseDragged]),
+            (.release, [.leftMouseUp]),
+        ]
+        for (action, types) in expected {
+            var posted: [NSEvent] = []
+            try DebugE2EMouseDispatcher.send(
+                action,
+                x: x,
+                y: y,
+                scene: scene,
+                postEvents: { posted = $0 }
+            )
+            #expect(posted.map(\.type) == types)
+            #expect(
+                posted.allSatisfy {
+                    $0.windowNumber == frontWindow.windowNumber
+                }
+            )
+            #expect(
+                posted.allSatisfy {
+                    $0.locationInWindow
+                        == frontWindow.convertPoint(fromScreen: screenPoint)
+                }
+            )
+        }
+
+        #expect(throws: DebugE2EError.self) {
+            try DebugE2EMouseDispatcher.send(
+                .move,
+                x: -1,
+                y: y,
+                scene: scene,
+                postEvents: { _ in }
+            )
+        }
+        #expect(throws: DebugE2EError.self) {
+            try DebugE2EMouseDispatcher.send(
+                .move,
+                x: .nan,
+                y: y,
+                scene: scene,
+                postEvents: { _ in }
+            )
+        }
+    }
+
+    @Test
+    @MainActor
+    func mouseMoveReachesFirstResponderAndRightClickHitsView() throws {
+        let view = DebugE2EPointerRecordingView(
+            frame: NSRect(x: 0, y: 0, width: 200, height: 160)
+        )
+        let window = makeWindow(
+            frame: NSRect(x: 100, y: 100, width: 200, height: 160),
+            contentView: view
+        )
+        window.acceptsMouseMovedEvents = true
+        window.orderFront(nil)
+        #expect(window.makeFirstResponder(view))
+        defer { window.orderOut(nil) }
+        let scene = DebugE2EScene(
+            windows: [window],
+            bounds: window.frame,
+            screenFrame: window.frame,
+            displayID: 0,
+            scale: 1,
+            layouts: [],
+            id: "scene"
+        )
+        let send: (DebugE2EMouseDispatcher.Action, CGFloat, CGFloat) throws -> Void = {
+            action, x, y in
+            try DebugE2EMouseDispatcher.send(
+                action,
+                x: x,
+                y: y,
+                scene: scene,
+                postEvents: { events in
+                    events.forEach { $0.window?.sendEvent($0) }
+                }
+            )
+        }
+
+        try send(.move, 40, 30)
+        try send(.move, 120, 90)
+        try send(.rightClick, 40, 30)
+
+        #expect(view.movedPoints == [NSPoint(x: 40, y: 30), NSPoint(x: 120, y: 90)])
+        #expect(view.rightMouseDownCount == 1)
     }
 
     @Test
@@ -454,6 +652,22 @@ private final class DebugE2EClickRecordingView: NSView {
 
     override func mouseUp(with event: NSEvent) {
         mouseUpLocations.append(convert(event.locationInWindow, from: nil))
+    }
+}
+
+private final class DebugE2EPointerRecordingView: NSView {
+    private(set) var movedPoints: [NSPoint] = []
+    private(set) var rightMouseDownCount = 0
+
+    override var isFlipped: Bool { true }
+    override var acceptsFirstResponder: Bool { true }
+
+    override func mouseMoved(with event: NSEvent) {
+        movedPoints.append(convert(event.locationInWindow, from: nil))
+    }
+
+    override func rightMouseDown(with event: NSEvent) {
+        rightMouseDownCount += 1
     }
 }
 
