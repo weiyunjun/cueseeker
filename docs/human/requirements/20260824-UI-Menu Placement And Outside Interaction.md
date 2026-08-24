@@ -81,4 +81,3 @@ Workbench 表格行菜单（⋯ 按钮与右键）、Workbench 封面右键菜�
 验收完成后，由人类维护者更新并提交 `docs/human/design/UI Design System.md`：
 
 1. `2.4 Menus / Menu` 补 Placement 与高度上限。
-2. `2.7 Scrollbars` 记录菜单内的滚动条占据宽度，与现有 Overlay 布局不同。
