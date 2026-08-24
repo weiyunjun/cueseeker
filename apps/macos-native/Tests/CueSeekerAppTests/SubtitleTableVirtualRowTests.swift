@@ -878,9 +878,10 @@ func subtitleTableViewDisplayTitleContentLeftClickHasNoAction() throws {
 @Test
 func subtitleTableViewCueContentRightClickOpensMenuBelowClickPosition() throws {
     let fixture = makeAttachedVirtualTableCoordinator()
-    // Tall enough that the menu has room below the click, which is where the
-    // shared placement rule puts it.
+    // A table body tall enough to have room below the click, which is where
+    // the shared placement rule puts the menu.
     fixture.container.frame.size.height = 800
+    fixture.scrollView.frame.size.height = 756
     let cuesRect = try #require(fixture.coordinator.cellContentHoverDocumentRectForTesting(row: 0, columnID: "cues"))
     let cuesPoint = CGPoint(x: cuesRect.midX, y: cuesRect.midY)
     let windowPoint = fixture.documentView.convert(cuesPoint, to: nil)
@@ -897,6 +898,7 @@ func subtitleTableViewCueContentRightClickOpensMenuBelowClickPosition() throws {
 func subtitleTableViewDisplayTitleContentRightClickOpensMenuBelowClickPosition() throws {
     let fixture = makeAttachedVirtualTableCoordinator()
     fixture.container.frame.size.height = 800
+    fixture.scrollView.frame.size.height = 756
     let displayRect = try #require(fixture.coordinator.cellContentHoverDocumentRectForTesting(row: 0, columnID: "display"))
     let displayPoint = CGPoint(x: displayRect.midX, y: displayRect.midY)
     let windowPoint = fixture.documentView.convert(displayPoint, to: nil)
@@ -906,6 +908,32 @@ func subtitleTableViewDisplayTitleContentRightClickOpensMenuBelowClickPosition()
 
     let menuFrame = try #require(fixture.coordinator.menuFrameForTesting())
     expectMenuFrame(menuFrame, opensBelow: clickPointInContainer)
+}
+
+@MainActor
+@Test
+func subtitleTableViewRightClickMenuIsBoundedByTheTableBody() throws {
+    // This fixture's body is shorter than the menu, so the menu fits on neither
+    // side of the click. It still starts at the body's top edge rather than
+    // reaching the frozen header above it, and the body cuts off the rest.
+    let fixture = makeAttachedVirtualTableCoordinator()
+    let cuesRect = try #require(
+        fixture.coordinator.cellContentHoverDocumentRectForTesting(row: 0, columnID: "cues")
+    )
+    let windowPoint = fixture.documentView.convert(
+        CGPoint(x: cuesRect.midX, y: cuesRect.midY),
+        to: nil
+    )
+
+    #expect(fixture.coordinator.handleRightMouseDown(windowPoint: windowPoint) == true)
+
+    let menuFrame = try #require(fixture.coordinator.menuFrameForTesting())
+    let bodyFrame = fixture.coordinator.menuBodyFrameForTesting()
+    #expect(bodyFrame.height > 0)
+    #expect(menuFrame.height > bodyFrame.height)
+    #expect(menuFrame.minY >= bodyFrame.minY - 0.5)
+    #expect(menuFrame.minX >= bodyFrame.minX - 0.5)
+    #expect(fixture.coordinator.menuIsClippedToTableBodyForTesting())
 }
 
 private func expectMenuFrame(_ menuFrame: CGRect, opensBelow clickPoint: CGPoint) {
@@ -952,8 +980,8 @@ func subtitleTableViewDateAddedContentLeftClickHasNoAction() throws {
 @Test
 func subtitleTableViewRightClickOutsideContentHoverRegionOpensRowMenu() throws {
     let fixture = makeAttachedVirtualTableCoordinator()
-    // Tall enough that the menu has room below the click, which is where the
-    // shared placement rule puts it.
+    // A tall container: this case only needs the menu to open, not to land
+    // anywhere in particular.
     fixture.container.frame.size.height = 800
     let cuesRect = try #require(fixture.coordinator.cellContentHoverDocumentRectForTesting(row: 0, columnID: "cues"))
     let outsideContentPoint = CGPoint(
@@ -2508,8 +2536,8 @@ func subtitleTableUnavailableShioriBlocksInteractiveActionsButKeepsAllowedMenuAc
 @Test
 func subtitleTableViewSuppressesInteractiveCursorRectsWhenExternalLayerIsOpen() throws {
     let fixture = makeAttachedVirtualTableCoordinator()
-    // Tall enough that the menu has room below the click, which is where the
-    // shared placement rule puts it.
+    // A tall container: this case only needs the menu to open, not to land
+    // anywhere in particular.
     fixture.container.frame.size.height = 800
     let cuesRect = try #require(fixture.coordinator.cellContentHoverDocumentRectForTesting(row: 0, columnID: "cues"))
     let cuesPoint = CGPoint(x: cuesRect.midX, y: cuesRect.midY)
@@ -2650,6 +2678,7 @@ func subtitleTableShioriSubmenuTouchesAndAlignsWithItsParentItem() async throws 
         ]
     )
     fixture.container.frame.size.height = 800
+    fixture.scrollView.frame.size.height = 756
     fixture.coordinator.showMenu(
         for: 0,
         buttonFrame: .zero,

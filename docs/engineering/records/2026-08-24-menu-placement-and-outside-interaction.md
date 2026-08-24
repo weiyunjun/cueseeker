@@ -137,9 +137,62 @@ Debug E2E against the running App, Shiori list of 397 rows:
   same amount and the menu stayed below the click. Screenshot
   `menu-after-scroll`.
 
+## Step 2: the table body is the boundary (§4.4)
+
+A menu carried up past the table body drew over the frozen header, the search
+field and the cover. §4.4 makes the table body the boundary. The boundary that
+cuts is also the boundary that measures: the table hands the shared rule its
+body rectangle instead of the whole page, so a menu is placed inside the region
+it is allowed to occupy, and cut off at that same region once its row carries it
+out. Nothing is hidden and nothing closes.
+
+This is not a promise that a menu stays whole. A body shorter than the menu
+still cuts it, exactly as a row that scrolls out is cut. What the boundary
+prevents is a menu that is born under the frozen chrome.
+
+The rectangle is the existing `currentTableBodyVisibleRect`, which already
+accounts for the pinned header taking up and giving back space; it is converted
+into container coordinates for the menus. The menus now live in a clipping view
+kept the size of that rectangle and stacked above the dismiss overlay, so a
+press on a menu still reaches it. The clipping view's bounds are set to its
+frame, which keeps one coordinate space either side of it — the menus are still
+placed in container coordinates, and no offset arithmetic was added anywhere.
+
+No placement arithmetic changed. `MenuPlacement` was not touched, and the other
+four menus keep passing their own rectangles as before.
+
+Files: `TableSandbox/SubtitleTableView.swift`.
+
+### Verification
+
+- `swift build` clean.
+- Table suite 152 tests passing, including a new case: with a body shorter than
+  the menu, the menu starts at the body's top edge instead of reaching the
+  header above it, and it sits in the view that clips it. Three existing cases
+  now grow the fixture's scroll view as well as its container, because the body
+  — not the container — is what has to be tall enough for a menu to open below a
+  click.
+- Full suite: 1049 tests, 29 issues, the same count and the same families as the
+  run before this change. The one new name,
+  `subtitleTableViewUnifiedRowMenuAndClipboardKeepPrimaryAndGroupSemantics`,
+  appears only in the parallel run and passes alone; it shares the system
+  pasteboard with other cases.
+
+Debug E2E against the running App, Shiori list of 397 rows:
+
+- The right-click that used to flip up over the header now opens **below** the
+  click: inside the body there is room below, and the body is what is measured.
+  Screenshot `clip-row2`.
+- Scrolling until that row leaves the body: the menu travels with it and is
+  **cut off flat at the body's top edge** — the first three items are gone, the
+  header and the pinned search field are untouched, and the menu is still open.
+  Screenshot `clip-cut`.
+- The destination submenu opens beside its parent item, inside the body, and is
+  bounded by it too. Screenshot `clip-submenu`.
+
 ## Outcome
 
-Step 1 and Step 1a cover the requirement's §2, §3 and §4.1 to §4.3. §4.4, the
-table's own clipping boundary, and §5 through §7 — the menu not blocking the
-rest of the interface, the middle button, the wheel inside the menu, and the
-height cap with its scrollbar — are the next steps and are not in this change.
+Steps 1, 1a and 2 cover the requirement's §2, §3 and §4. §5 through §7 — the
+menu not blocking the rest of the interface, the middle button, the wheel inside
+the menu, and the height cap with its scrollbar — are the next steps and are not
+in this change.

@@ -1259,6 +1259,29 @@ private final class CueStateTipHostingView: NSHostingView<AnyView> {
     }
 }
 
+/// Holds the table's menus and cuts off whatever leaves the table body.
+///
+/// Its bounds are set to its frame, so a menu inside it is placed in the
+/// container's coordinates like everything else the table positions.
+final class SubtitleTableMenuClipView: NSView {
+    override var isFlipped: Bool { true }
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        wantsLayer = true
+        layer?.masksToBounds = true
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    /// Transparent itself, so a press that misses the menus keeps travelling.
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        let hit = super.hitTest(point)
+        return hit === self ? nil : hit
+    }
+}
+
 final class SubtitleTableMenuOverlayView: NSView {
     var onClick: (() -> Void)?
     weak var passthroughView: NSView?
@@ -2714,6 +2737,7 @@ struct SubtitleTableView: NSViewRepresentable {
         private var menuHost: SubtitleTableMenuHostingView?
         private var submenuHost: SubtitleTableMenuHostingView?
         private var menuOverlayView: SubtitleTableMenuOverlayView?
+        private var menuClipView: SubtitleTableMenuClipView?
         private var activeMenuAnchor: ActiveMenuAnchor?
         /// Where the menu sits relative to its anchor, fixed when it opened.
         private var menuPlacementOffset: CGSize?
@@ -3472,6 +3496,21 @@ struct SubtitleTableView: NSViewRepresentable {
 
         func menuFrameForTesting() -> CGRect? {
             menuHost?.frame
+        }
+
+        func menuBodyFrameForTesting() -> CGRect {
+            menuBodyFrameInContainer()
+        }
+
+        /// True while the open menu sits in the view that cuts it off at the
+        /// table body.
+        func menuIsClippedToTableBodyForTesting() -> Bool {
+            guard let menuHost, !menuHost.isHidden, let menuClipView else {
+                return false
+            }
+            return menuHost.superview === menuClipView
+                && menuClipView.layer?.masksToBounds == true
+                && menuClipView.frame == menuBodyFrameInContainer()
         }
 
         func submenuFrameForTesting() -> CGRect? {
@@ -7075,6 +7114,49 @@ struct SubtitleTableView: NSViewRepresentable {
             buttonsHost.isHidden = model.cues.isEmpty
         }
 
+        /// The table body in container coordinates. The menus are placed inside
+        /// it and cut off at it: the page chrome above the body is frozen, so a
+        /// menu that reached it would draw over the header and the toolbar.
+        /// This is the table's own boundary, not a rule for menus.
+        private func menuBodyFrameInContainer() -> CGRect {
+            guard let container, let documentView else {
+                return container?.bounds ?? .zero
+            }
+            let body = container.convert(
+                currentTableBodyVisibleRect,
+                from: documentView
+            )
+            let clipped = body.intersection(container.bounds)
+            return clipped.isNull ? .zero : clipped
+        }
+
+        /// The clip view, kept the size of the table body and above the dismiss
+        /// overlay so a press on a menu still reaches it.
+        @discardableResult
+        private func ensureMenuClipView(in container: NSView) -> SubtitleTableMenuClipView {
+            let clipView = menuClipView ?? {
+                let created = SubtitleTableMenuClipView(frame: .zero)
+                menuClipView = created
+                return created
+            }()
+            if let menuOverlayView, menuOverlayView.superview === container {
+                container.addSubview(
+                    clipView,
+                    positioned: .above,
+                    relativeTo: menuOverlayView
+                )
+            } else if clipView.superview !== container {
+                container.addSubview(clipView)
+            }
+            let body = menuBodyFrameInContainer()
+            clipView.frame = body
+            // Matching bounds to frame keeps one coordinate space either side
+            // of the clip view.
+            clipView.bounds = body
+            clipView.isHidden = false
+            return clipView
+        }
+
         private func setMenuHost<Content: View>(_ content: Content, in container: NSView) {
             let wrapped = AnyView(content)
             if let menuHost {
@@ -7087,7 +7169,7 @@ struct SubtitleTableView: NSViewRepresentable {
                 host.onIntrinsicContentSizeInvalidated = { [weak self] in
                     self?.requestOpenMenuReposition()
                 }
-                container.addSubview(host)
+                ensureMenuClipView(in: container).addSubview(host)
                 menuHost = host
             }
             menuOverlayView?.passthroughView = menuHost
@@ -7105,7 +7187,7 @@ struct SubtitleTableView: NSViewRepresentable {
                 let host = SubtitleTableMenuHostingView(rootView: wrapped)
                 host.wantsLayer = true
                 host.layer?.masksToBounds = false
-                container.addSubview(host)
+                ensureMenuClipView(in: container).addSubview(host)
                 submenuHost = host
             }
         }
@@ -7150,7 +7232,7 @@ struct SubtitleTableView: NSViewRepresentable {
             MenuPlacement.openingFrame(
                 anchor: anchorFrameInContainer,
                 menuSize: menuSize,
-                in: container?.bounds ?? .zero,
+                in: menuBodyFrameInContainer(),
                 gap: WorkbenchControlMetrics.redesignSpacing1,
                 edgeInset: SubtitleTableMetrics.trailingInset
             )
@@ -7245,8 +7327,9 @@ struct SubtitleTableView: NSViewRepresentable {
             if let menuOverlayView {
                 container.addSubview(menuOverlayView)
             }
+            let clipView = ensureMenuClipView(in: container)
             if let menuHost {
-                container.addSubview(menuHost)
+                clipView.addSubview(menuHost)
             }
 
             menuHost?.layout()
@@ -7353,13 +7436,13 @@ struct SubtitleTableView: NSViewRepresentable {
             else {
                 return
             }
-            container.addSubview(submenuHost)
+            ensureMenuClipView(in: container).addSubview(submenuHost)
             submenuHost.layoutSubtreeIfNeeded()
             submenuHost.frame = SubtitleTableRowActionSubmenuGeometry.frame(
                 parentMenuFrame: menuHost.frame,
                 parentItemFrame: parentItemFrame,
                 submenuSize: submenuHost.fittingSize,
-                visibleRect: container.bounds
+                visibleRect: menuBodyFrameInContainer()
             )
             submenuHost.isHidden = false
         }
@@ -7392,6 +7475,7 @@ struct SubtitleTableView: NSViewRepresentable {
             hideRowActionDestinationSubmenu()
             menuOverlayView?.isHidden = true
             menuOverlayView?.passthroughView = nil
+            menuClipView?.isHidden = true
             invalidateDocumentCursorRects()
             removeMenuDismissMonitor()
             headerView?.refreshHeaderHosts()
@@ -7463,6 +7547,7 @@ struct SubtitleTableView: NSViewRepresentable {
 
             menuOverlayView?.frame = container.bounds
             menuOverlayView?.isHidden = false
+            ensureMenuClipView(in: container)
 
             menuHost.layoutSubtreeIfNeeded()
             let menuSize = menuHost.fittingSize
