@@ -205,13 +205,14 @@
 - `--min-height-table-row`: `40px`
 - `--height-action-menu-item`: `40px`
 - `--height-select-menu-item`: `40px`
+- `--max-height-menu`: `480px`
 - `--height-app-sidebar-item`: `32px`
 - `--height-app-topbar`: `45px`
 - `--height-player-topbar`: `46px`
 - `--height-player-bottom-control-bar`: `98px`
 - `--height-player-bottom-controls-row`: `52px`
 - `--height-player-capsule-button`: `40px`
-- `--height-player-speed-menu`: `234px`
+- `--height-player-speed-menu`: `246px`
 - `--height-player-speed-menu-item`: `30px`
 - `--height-player-progress-hit-area`: `18px`
 - `--height-player-progress-track`: `3px`
@@ -248,7 +249,7 @@
 - `--size-player-circle-button`: `40px`
 - `--size-player-circle-button-icon`: `18px`
 - `--width-player-speed-button`: `54px`
-- `--width-player-speed-menu`: `172px`
+- `--width-player-speed-menu`: `184px`
 - `--size-player-progress-thumb`: `12px`
 - `--size-player-window-control-button`: `13px`
 - `--size-player-window-control-glyph`: `7px`
@@ -299,6 +300,7 @@
 
 - `--padding-control-x`: `14px`
 - `--padding-field-x`: `16px`
+- `--padding-menu`: `12px`
 - `--padding-menu-item`: `12px 16px`
 - `--padding-header-trigger-x`: `12px`
 - `--padding-chip-x`: `10px`
@@ -316,7 +318,6 @@
 - `--padding-player-chrome-bottom`: `12px`
 - `--padding-player-progress-top`: `16px`
 - `--padding-player-capsule-button-x`: `16px`
-- `--padding-player-speed-menu`: `6px`
 - `--padding-player-speed-menu-item-x`: `8px`
 - `--padding-player-progress-time-capsule-x`: `8px`
 - `--padding-player-topbar-x`: `16px`
@@ -953,10 +954,19 @@
 - Vertical Scrollbar
   - Presence：Content Overflow
   - Component：Scrollbar / Vertical
+  - Placement：落在 Padding 之内，不与 Item Stack 重叠；出现与否都不改变菜单宽度
 
 ##### Sizes
 
-- Padding：`--padding-menu-item`
+- Padding：`--padding-menu`
+- Max Height：`--max-height-menu`
+
+##### Placement
+
+- Anchor：由按钮弹出时挂靠该按钮，由右键弹出时挂靠右键点中的内容
+- Direction：默认朝下；下方空间不足时朝上；仍不足时贴边内移
+- 方向在弹出瞬间确定一次，之后随挂靠对象平移，不再重新计算
+- Workbench 表格行菜单以表格正文区域为边界，超出部分被裁剪
 
 ##### States
 
