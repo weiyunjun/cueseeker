@@ -190,9 +190,74 @@ Debug E2E against the running App, Shiori list of 397 rows:
 - The destination submenu opens beside its parent item, inside the body, and is
   bounded by it too. Screenshot `clip-submenu`.
 
+## Step 3: nothing is covered, and the closing press is spent (§5)
+
+Four menus each answered "what happens outside me" differently. The table and
+the cover menu each spread a full-surface layer to catch the press, which also
+caught every hover and every scroll behind it. The speed menu and the
+selected-text menu covered nothing but let the closing press fall through to
+whatever was underneath, so one press both closed the menu and acted.
+
+§5 settles it the same way for all of them. Nothing is covered: while a menu is
+open, hover, scrolling and clicks all still reach the rest of the interface. The
+press that closes a menu is the price of the menu being open — it is spent on
+closing and never reaches what is under it. The middle button is not a
+dismissal.
+
+That leaves each menu with one mechanism instead of two: a local event monitor
+that dismisses and then keeps the event. The table's blocking overlay view is
+gone, and so is the cover menu's full-size tap layer. Two menus that only leaked
+the press now keep it; the cover menu's monitor no longer matches the middle
+button. Both playback menus needed the frame of the open menu to tell a press on
+the menu from a press outside it — the speed menu now reports its frame the same
+way its button already did.
+
+A press in another window still closes the menu but is left to that window: it
+was never this menu's to swallow.
+
+Hover suppression went with the overlay. The table used to freeze every hover
+while a menu was open; now it only ignores the pointer while the pointer is on
+the menu, where it is not on a row at all, and clears the row hover on the way
+in. The higher-priority overlay suppression from
+`20260824-UI-Overlay Layer Priority And Input Ownership.md` is untouched.
+
+Files: `TableSandbox/SubtitleTableView.swift`,
+`TableSandbox/WorkbenchTestLibraryView.swift`,
+`Playback/Chrome/PlaybackChromeView.swift`,
+`Playback/SubtitleFocus/PlaybackSubtitleFocusReel.swift`.
+
+### Verification
+
+- `swift build` clean.
+- Table suite 153 tests passing, including a new case: with a menu open, a row
+  outside it still takes hover, and moving the pointer onto the menu clears that
+  row's hover while the menu stays open.
+- Full suite: 1050 tests, 25 issues, all in the families that already fail on a
+  full parallel run and fewer than the 29 of the run before this change.
+
+Debug E2E against the running App:
+
+- With a row menu open, a click on a sidebar list closed the menu and **did not
+  navigate**. Screenshot `outside-press-eaten`. Clicking the same item again
+  navigated normally, so only the closing press is spent. Screenshot
+  `second-press-navigates`.
+- A click inside the menu still reaches it: the destination submenu opens.
+  Screenshot `menu-click-still-works`.
+
+Two of §5's acceptance points cannot be driven by the controller, and no
+capability was added for them:
+
+- **Row hover while a menu is open** is not reachable. The requirement's
+  acceptance §11 assumes the table's row hover is covered by the existing
+  automated end-to-end tests, but the table hovers from an `NSTrackingArea`,
+  which follows the real cursor; the controller documents that it never moves
+  the real pointer, and a synthesized `mouseMoved` does not reach that path. The
+  behaviour is covered by the unit test above and needs manual acceptance in the
+  App.
+- **The middle button** has no controller command. Manual acceptance.
+
 ## Outcome
 
-Steps 1, 1a and 2 cover the requirement's §2, §3 and §4. §5 through §7 — the
-menu not blocking the rest of the interface, the middle button, the wheel inside
-the menu, and the height cap with its scrollbar — are the next steps and are not
-in this change.
+Steps 1, 1a, 2 and 3 cover the requirement's §2 through §5. §6 and §7 — the
+wheel inside the menu, and the height cap with its scrollbar — are the next
+steps and are not in this change.

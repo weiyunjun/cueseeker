@@ -1208,13 +1208,6 @@ struct LibraryCardContextMenuHost<Content: View>: View {
                             .frame(width: proxy.size.width, height: proxy.size.height)
                             .allowsHitTesting(false)
 
-                            Color.clear
-                                .frame(width: proxy.size.width, height: proxy.size.height)
-                                .contentShape(Rectangle())
-                                .onTapGesture {
-                                    dismissContextMenu()
-                                }
-
                             LibraryCardContextMenu(
                                 items: activeMenu.items,
                                 highlight: highlight,
@@ -1480,7 +1473,8 @@ private struct LibraryCardMenuDismissMonitor: NSViewRepresentable {
             guard monitor == nil else {
                 return
             }
-            monitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown]) { [weak self] event in
+            // The middle button is not a dismissal, so it is not matched.
+            monitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] event in
                 guard let self else {
                     return event
                 }

@@ -1282,29 +1282,6 @@ final class SubtitleTableMenuClipView: NSView {
     }
 }
 
-final class SubtitleTableMenuOverlayView: NSView {
-    var onClick: (() -> Void)?
-    weak var passthroughView: NSView?
-    override var isFlipped: Bool { true }
-
-    override func hitTest(_ point: NSPoint) -> NSView? {
-        if let passthroughView,
-           !passthroughView.isHidden,
-           passthroughView.bounds.contains(convert(point, to: passthroughView)) {
-            return nil
-        }
-        return super.hitTest(point)
-    }
-
-    override func mouseDown(with event: NSEvent) {
-        onClick?()
-    }
-
-    override func rightMouseDown(with event: NSEvent) {
-        onClick?()
-    }
-}
-
 final class SubtitleTableMenuHostingView: NSHostingView<AnyView> {
     var onIntrinsicContentSizeInvalidated: (() -> Void)?
 
@@ -1766,7 +1743,7 @@ final class SubtitleVirtualTableHeaderView: NSView {
             isHeaderHovered = false
             return
         }
-        if let coordinator = coordinator, (coordinator.isMenuOpen || coordinator.isExternalPopupLayerOpen) {
+        if coordinator?.isExternalPopupLayerOpen == true {
             isHeaderHovered = false
             return
         }
@@ -2736,7 +2713,6 @@ struct SubtitleTableView: NSViewRepresentable {
         fileprivate var isMenuOpen = false
         private var menuHost: SubtitleTableMenuHostingView?
         private var submenuHost: SubtitleTableMenuHostingView?
-        private var menuOverlayView: SubtitleTableMenuOverlayView?
         private var menuClipView: SubtitleTableMenuClipView?
         private var activeMenuAnchor: ActiveMenuAnchor?
         /// Where the menu sits relative to its anchor, fixed when it opened.
@@ -3491,7 +3467,7 @@ struct SubtitleTableView: NSViewRepresentable {
         }
 
         func isMenuOpenForTesting() -> Bool {
-            isMenuOpen && menuHost?.isHidden == false && menuOverlayView?.isHidden == false
+            isMenuOpen && menuHost?.isHidden == false
         }
 
         func menuFrameForTesting() -> CGRect? {
@@ -6461,7 +6437,13 @@ struct SubtitleTableView: NSViewRepresentable {
         }
 
         func handleMouseHover(windowPoint: CGPoint) {
-            if isMenuOpen || isExternalPopupLayerOpen {
+            if isExternalPopupLayerOpen {
+                return
+            }
+            // Everything outside the menu keeps its hover. The pointer sitting
+            // on the menu is not on the row underneath it.
+            if isMenuOpen, isWindowPointInsideOpenMenu(windowPoint) {
+                clearHover()
                 return
             }
             guard let documentView else { return }
@@ -6904,7 +6886,7 @@ struct SubtitleTableView: NSViewRepresentable {
         }
 
         private func updateHoveredRow(_ newRow: Int?) {
-            if isMenuOpen || isExternalPopupLayerOpen {
+            if isExternalPopupLayerOpen {
                 return
             }
             guard newRow != hoveredRow else { return }
@@ -7139,15 +7121,7 @@ struct SubtitleTableView: NSViewRepresentable {
                 menuClipView = created
                 return created
             }()
-            if let menuOverlayView, menuOverlayView.superview === container {
-                container.addSubview(
-                    clipView,
-                    positioned: .above,
-                    relativeTo: menuOverlayView
-                )
-            } else if clipView.superview !== container {
-                container.addSubview(clipView)
-            }
+            container.addSubview(clipView)
             let body = menuBodyFrameInContainer()
             clipView.frame = body
             // Matching bounds to frame keeps one coordinate space either side
@@ -7172,7 +7146,6 @@ struct SubtitleTableView: NSViewRepresentable {
                 ensureMenuClipView(in: container).addSubview(host)
                 menuHost = host
             }
-            menuOverlayView?.passthroughView = menuHost
         }
 
         private func setSubmenuHost<Content: View>(
@@ -7277,17 +7250,6 @@ struct SubtitleTableView: NSViewRepresentable {
                 return
             }
 
-            if menuOverlayView == nil {
-                let overlay = SubtitleTableMenuOverlayView()
-                overlay.onClick = { [weak self] in
-                    self?.dismissMenu()
-                }
-                container.addSubview(overlay)
-                menuOverlayView = overlay
-            }
-            menuOverlayView?.frame = container.bounds
-            menuOverlayView?.isHidden = false
-
             let submenuState = SubtitleTableRowActionSubmenuState()
             rowActionSubmenuState = submenuState
             submenuState.onOpenParentChange = { [weak self] action in
@@ -7324,9 +7286,6 @@ struct SubtitleTableView: NSViewRepresentable {
 
             setMenuHost(menuView, in: container)
 
-            if let menuOverlayView {
-                container.addSubview(menuOverlayView)
-            }
             let clipView = ensureMenuClipView(in: container)
             if let menuHost {
                 clipView.addSubview(menuHost)
@@ -7473,8 +7432,6 @@ struct SubtitleTableView: NSViewRepresentable {
             menuHost?.invalidateIntrinsicContentSize()
             menuHost?.isHidden = true
             hideRowActionDestinationSubmenu()
-            menuOverlayView?.isHidden = true
-            menuOverlayView?.passthroughView = nil
             menuClipView?.isHidden = true
             invalidateDocumentCursorRects()
             removeMenuDismissMonitor()
@@ -7495,20 +7452,30 @@ struct SubtitleTableView: NSViewRepresentable {
             }
         }
 
+        /// Closes the menu on the first press outside it and keeps that press.
+        ///
+        /// Nothing covers the rest of the table while a menu is open, so this
+        /// monitor is the only thing standing between the press and the row
+        /// under it. The press is spent on closing the menu and goes no
+        /// further. A press in another window closes the menu but stays that
+        /// window's own. The middle button is not a dismissal, so it is not
+        /// matched here.
         private func installMenuDismissMonitor() {
             removeMenuDismissMonitor()
             menuEventMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] event in
                 guard let self else { return event }
                 guard let container = self.container else { return event }
-                if self.shouldDismissOpenMenu(
-                    isEventInContainerWindow: event.window === container.window,
+                let isEventInContainerWindow = event.window === container.window
+                guard self.shouldDismissOpenMenu(
+                    isEventInContainerWindow: isEventInContainerWindow,
                     windowPoint: event.locationInWindow
-                ) {
-                    DispatchQueue.main.async {
-                        self.dismissMenu()
-                    }
+                ) else {
+                    return event
                 }
-                return event
+                DispatchQueue.main.async {
+                    self.dismissMenu()
+                }
+                return isEventInContainerWindow ? nil : event
             }
         }
 
@@ -7545,8 +7512,6 @@ struct SubtitleTableView: NSViewRepresentable {
                 return
             }
 
-            menuOverlayView?.frame = container.bounds
-            menuOverlayView?.isHidden = false
             ensureMenuClipView(in: container)
 
             menuHost.layoutSubtreeIfNeeded()

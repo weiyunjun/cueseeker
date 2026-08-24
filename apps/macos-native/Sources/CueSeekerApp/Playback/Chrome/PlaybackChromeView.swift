@@ -59,6 +59,7 @@ struct PlaybackChromeView: View {
     let controls: PlaybackChromeControls
     @State private var speedMenuEventMonitor: Any?
     @State private var speedButtonFrame: CGRect = .zero
+    @State private var speedMenuFrame: CGRect = .zero
     @State private var isTimeHovered = false
 
     var body: some View {
@@ -84,6 +85,7 @@ struct PlaybackChromeView: View {
             if isVisible {
                 installSpeedMenuDismissMonitor()
             } else {
+                speedMenuFrame = .zero
                 removeSpeedMenuDismissMonitor()
             }
         }
@@ -168,6 +170,20 @@ struct PlaybackChromeView: View {
                 )
                 .frame(width: menuWidth, height: menuHeight)
                 .position(x: x, y: y)
+                // The dismiss monitor keeps the press that closes the menu, so
+                // it needs to know where the menu is to let a press on the menu
+                // itself through.
+                .background(
+                    GeometryReader { menuGeometry in
+                        Color.clear
+                            .onAppear {
+                                speedMenuFrame = menuGeometry.frame(in: .global)
+                            }
+                            .onChange(of: menuGeometry.frame(in: .global)) { newFrame in
+                                speedMenuFrame = newFrame
+                            }
+                    }
+                )
                 .zIndex(2)
             }
         }
@@ -293,10 +309,16 @@ struct PlaybackChromeView: View {
                         // Let the button action handle toggling isSpeedMenuVisible to false
                         return event
                     }
+                    if speedMenuFrame.contains(clickPoint) {
+                        return event
+                    }
                 }
                 DispatchQueue.main.async {
                     playback.closeSpeedMenu()
                 }
+                // The press that closes the menu is spent on closing it and
+                // never reaches the video or the controls underneath.
+                return nil
             }
             return event
         }

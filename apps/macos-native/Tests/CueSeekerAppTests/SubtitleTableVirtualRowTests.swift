@@ -912,6 +912,53 @@ func subtitleTableViewDisplayTitleContentRightClickOpensMenuBelowClickPosition()
 
 @MainActor
 @Test
+func subtitleTableViewOpenMenuLeavesTheRestOfTheTableHoverable() throws {
+    let fixture = makeAttachedVirtualTableCoordinator()
+    fixture.container.frame.size.height = 800
+    fixture.scrollView.frame.size.height = 756
+    let firstRowRect = try #require(
+        fixture.coordinator.cellContentHoverDocumentRectForTesting(row: 0, columnID: "cues")
+    )
+    #expect(
+        fixture.coordinator.handleRightMouseDown(
+            windowPoint: fixture.documentView.convert(
+                CGPoint(x: firstRowRect.midX, y: firstRowRect.midY),
+                to: nil
+            )
+        )
+    )
+    #expect(fixture.coordinator.isMenuOpenForTesting())
+
+    // The menu opens at the click, so the left of the row below it is outside
+    // the menu and keeps its hover.
+    let secondRowRect = try #require(
+        fixture.coordinator.cellContentHoverDocumentRectForTesting(row: 1, columnID: "cues")
+    )
+    fixture.coordinator.handleMouseHover(
+        windowPoint: fixture.documentView.convert(
+            CGPoint(x: secondRowRect.minX + 2, y: secondRowRect.midY),
+            to: nil
+        )
+    )
+    #expect(
+        fixture.coordinator.rowBackgroundColorForTesting(row: 1)
+            === WorkbenchRedesignColors.NS.rowHover
+    )
+
+    // The pointer on the menu is not on the row underneath it.
+    let menuFrame = try #require(fixture.coordinator.menuFrameForTesting())
+    fixture.coordinator.handleMouseHover(
+        windowPoint: fixture.container.convert(
+            CGPoint(x: menuFrame.midX, y: menuFrame.midY),
+            to: nil
+        )
+    )
+    #expect(fixture.coordinator.rowBackgroundColorForTesting(row: 1) == nil)
+    #expect(fixture.coordinator.isMenuOpenForTesting())
+}
+
+@MainActor
+@Test
 func subtitleTableViewRightClickMenuIsBoundedByTheTableBody() throws {
     // This fixture's body is shorter than the menu, so the menu fits on neither
     // side of the click. It still starts at the body's top edge rather than

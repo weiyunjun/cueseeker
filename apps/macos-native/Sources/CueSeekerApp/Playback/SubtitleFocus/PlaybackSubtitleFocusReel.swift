@@ -2421,7 +2421,9 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
                 return event
             }
             self.dismissSelectedTextActions()
-            return event
+            // The press that closes the menu is spent on closing it. It does
+            // not also land on the subtitle text underneath.
+            return nil
         }
     }
 
