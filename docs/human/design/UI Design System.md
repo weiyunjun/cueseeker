@@ -962,12 +962,19 @@
 
 - Closed
 - Open
+  - Highlight：打开时默认高亮首项；键盘与指针共用同一个高亮，同时只有一项高亮
 
 #### Variants
 
 ##### Dropdown Menu
 
 ##### Context Menu
+
+##### Player Speed Menu
+
+- Surface：Player Chrome
+- Item：Menu Item / Radio Menu Item
+- Highlight On Open：当前生效倍速
 
 ### Submenu
 
@@ -1028,8 +1035,9 @@
 
 - Leading Slot：Selection Indicator
 - Indicator Slot：Always Reserved
-- Selected：Indicator Visible
+- Selected：Indicator Visible，不带背景
 - Unselected：Indicator Hidden
+- Highlighted：背景按 Menu Item / Highlighted，可与 Selected 落在不同项
 - Height：`--height-select-menu-item`
 - Radius：`--radius-select-menu-item`
 
@@ -2037,10 +2045,9 @@
 ##### States
 
 - Default
-- Hover
-  - Background：`--color-library-media-card-hover-bg`
 - Selected
   - Background：`--color-library-media-card-hover-bg`
+  - 指针停留在某张卡片上时选中随之移动;同一网格中同时只有一张
 - Disabled
 
 ## 2.12 Player Controls
@@ -2772,7 +2779,6 @@
 #### States
 
 - Default
-- Hover
 - Selected
 - Disabled
 
@@ -2799,7 +2805,6 @@
 #### States
 
 - Default
-- Hover
 - Selected
 - Disabled
 
