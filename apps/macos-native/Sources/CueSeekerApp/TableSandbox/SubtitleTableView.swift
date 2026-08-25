@@ -6431,10 +6431,10 @@ struct SubtitleTableView: NSViewRepresentable {
             if isExternalPopupLayerOpen {
                 return
             }
-            // Everything outside the menu keeps its hover. The pointer sitting
-            // on the menu is not on the row underneath it.
-            if isMenuOpen, isWindowPointInsideOpenMenu(windowPoint) {
-                clearHover()
+            // An open menu freezes the table. The row it hangs off keeps the
+            // highlight it had when the menu opened, and no other row takes
+            // one, wherever the pointer goes.
+            if isMenuOpen {
                 return
             }
             guard let documentView else { return }
@@ -6869,6 +6869,11 @@ struct SubtitleTableView: NSViewRepresentable {
         }
 
         func clearHover() {
+            // The pointer leaving the table for the menu above it is not a
+            // reason to drop the highlight the menu hangs off.
+            if isMenuOpen {
+                return
+            }
             updateHoveredColumnID(nil)
             updateHoveredRow(nil)
             updateHoveredCueTextRow(nil)
@@ -7217,6 +7222,11 @@ struct SubtitleTableView: NSViewRepresentable {
             }
             cancelPendingTextInteraction()
             updateHoveredCueStateRow(nil)
+            // The row the menu hangs off stays lit until the menu closes, so
+            // it is said here rather than left to whatever the pointer happened
+            // to hover on the way in. Hover is frozen from now on.
+            updateHoveredRow(row)
+            updateHoveredColumnID(columnID)
             isMenuOpen = true
             activeRowMenuRow = row
             activeRowMenuColumnID = columnID

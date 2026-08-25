@@ -86,10 +86,15 @@ private struct ShioriListCard: View {
     let onEdit: () -> Void
     let onDelete: () -> Void
     let openContextMenu: ([LibraryCardContextMenuItem], CGPoint) -> Void
+    @Environment(\.libraryCardContextMenuIsOpen) private var isContextMenuOpen
     @State private var isHovered = false
+    @State private var ownsOpenMenu = false
 
     private var isHoverActive: Bool {
-        isHovered && !isWorkbenchPopupLayerOpen
+        if isContextMenuOpen {
+            return ownsOpenMenu
+        }
+        return isHovered && !isWorkbenchPopupLayerOpen
     }
 
     var body: some View {
@@ -112,7 +117,8 @@ private struct ShioriListCard: View {
             isEnabled: true,
             isHovered: isHoverActive,
             items: contextMenuItems,
-            openContextMenu: openContextMenu
+            openContextMenu: openContextMenu,
+            ownsOpenMenu: $ownsOpenMenu
         )
         .pointerOnHover(isEnabled: !isWorkbenchPopupLayerOpen)
         .accessibilityLabel(summary.list.name)

@@ -912,7 +912,7 @@ func subtitleTableViewDisplayTitleContentRightClickOpensMenuBelowClickPosition()
 
 @MainActor
 @Test
-func subtitleTableViewOpenMenuLeavesTheRestOfTheTableHoverable() throws {
+func subtitleTableViewOpenMenuFreezesTheTableUnderneathIt() throws {
     let fixture = makeAttachedVirtualTableCoordinator()
     fixture.container.frame.size.height = 800
     fixture.scrollView.frame.size.height = 756
@@ -928,9 +928,13 @@ func subtitleTableViewOpenMenuLeavesTheRestOfTheTableHoverable() throws {
         )
     )
     #expect(fixture.coordinator.isMenuOpenForTesting())
+    #expect(
+        fixture.coordinator.rowBackgroundColorForTesting(row: 0)
+            === WorkbenchRedesignColors.NS.rowHover
+    )
 
-    // The menu opens at the click, so the left of the row below it is outside
-    // the menu and keeps its hover.
+    // The row below the menu cannot take the highlight away from the row the
+    // menu hangs off.
     let secondRowRect = try #require(
         fixture.coordinator.cellContentHoverDocumentRectForTesting(row: 1, columnID: "cues")
     )
@@ -940,12 +944,13 @@ func subtitleTableViewOpenMenuLeavesTheRestOfTheTableHoverable() throws {
             to: nil
         )
     )
+    #expect(fixture.coordinator.rowBackgroundColorForTesting(row: 1) == nil)
     #expect(
-        fixture.coordinator.rowBackgroundColorForTesting(row: 1)
+        fixture.coordinator.rowBackgroundColorForTesting(row: 0)
             === WorkbenchRedesignColors.NS.rowHover
     )
 
-    // The pointer on the menu is not on the row underneath it.
+    // Nor does the pointer moving onto the menu, or leaving the table.
     let menuFrame = try #require(fixture.coordinator.menuFrameForTesting())
     fixture.coordinator.handleMouseHover(
         windowPoint: fixture.container.convert(
@@ -953,7 +958,11 @@ func subtitleTableViewOpenMenuLeavesTheRestOfTheTableHoverable() throws {
             to: nil
         )
     )
-    #expect(fixture.coordinator.rowBackgroundColorForTesting(row: 1) == nil)
+    fixture.coordinator.clearHover()
+    #expect(
+        fixture.coordinator.rowBackgroundColorForTesting(row: 0)
+            === WorkbenchRedesignColors.NS.rowHover
+    )
     #expect(fixture.coordinator.isMenuOpenForTesting())
 }
 

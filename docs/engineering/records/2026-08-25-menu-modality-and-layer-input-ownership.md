@@ -68,6 +68,23 @@ Files: `Playback/SubtitleFocus/PlaybackSubtitleFocusReel.swift`,
 `TableSandbox/SubtitleTableView.swift`,
 `TableSandbox/WorkbenchTestLibraryView.swift`.
 
+### The surface below a menu freezes, and the anchor stays lit
+
+The table stops updating hover while a menu is open, and stops clearing it when
+the pointer leaves for the menu. Freezing alone would have left the anchor lit
+only by accident — because the pointer happened to hover the row on its way to
+the right-click — so opening the menu now says which row is lit. An automated
+right-click that never moved the pointer first lights the same row.
+
+The card grids resolve their highlight the same way, but the "which card owns
+the open menu" fact stays in the one modifier every card already applies, and is
+handed back through a binding. The three card kinds gain a stored flag and one
+branch each; none of them carries its own copy of the rule.
+
+Files: `TableSandbox/SubtitleTableView.swift`,
+`TableSandbox/WorkbenchTestLibraryView.swift`,
+`Shiori/ShioriListOverviewView.swift`.
+
 ## Verification
 
 - `swift build`
