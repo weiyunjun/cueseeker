@@ -15,7 +15,7 @@ import SwiftUI
 ///
 /// The Settings window and the system menu bar are separate windows and are
 /// not part of this list.
-enum InterfaceLayer: Int, Comparable {
+enum InterfaceLayer: Int, CaseIterable, Comparable {
     /// 工作台页面 — the base.
     case workbenchPage
     /// 播放页视频与控制条, routed over the whole workbench.
@@ -97,6 +97,14 @@ final class InterfaceLayerRegistry: ObservableObject {
         isCovered(layer) || openMenuCounts.keys.contains { $0 >= layer }
     }
 
+    /// Every layer that must keep its picture, so a surface can ask about the
+    /// layer it is on rather than about the page underneath it. The same card
+    /// grid appears on the workbench page, in the Command Panel and in the
+    /// Playback Overlay, and each of those must answer for itself.
+    var frozenLayers: Set<InterfaceLayer> {
+        Set(InterfaceLayer.allCases.filter(isFrozen))
+    }
+
     /// Whether a menu owned by `owner` is covered. A menu sits only above its
     /// own layer, so whatever covers that layer covers the menu with it.
     func isMenuCovered(ownedBy owner: InterfaceLayer) -> Bool {
@@ -133,8 +141,8 @@ private struct IsWorkbenchPageCoveredKey: EnvironmentKey {
     static let defaultValue = false
 }
 
-private struct IsWorkbenchPageFrozenKey: EnvironmentKey {
-    static let defaultValue = false
+private struct InterfaceLayerContextKey: EnvironmentKey {
+    static let defaultValue = InterfaceLayerContext()
 }
 
 private struct IsPlaybackOverlayCoveredKey: EnvironmentKey {
@@ -157,11 +165,11 @@ extension EnvironmentValues {
         set { self[IsWorkbenchPageCoveredKey.self] = newValue }
     }
 
-    /// Whether the workbench page must keep its picture — covered, or a menu
-    /// is open. Hover and selection highlights stop following the pointer.
-    var isWorkbenchPageFrozen: Bool {
-        get { self[IsWorkbenchPageFrozenKey.self] }
-        set { self[IsWorkbenchPageFrozenKey.self] = newValue }
+    /// Which layer this subtree is on, and which layers must keep their
+    /// picture. Ask it whether the surface reading it is frozen.
+    var interfaceLayerContext: InterfaceLayerContext {
+        get { self[InterfaceLayerContextKey.self] }
+        set { self[InterfaceLayerContextKey.self] = newValue }
     }
 
     /// Whether the Command Panel is stacked above the Playback Overlay.
@@ -185,12 +193,49 @@ struct InterfaceLayerCoverageBridge: ViewModifier {
                 layers.isCovered(.workbenchPage)
             )
             .environment(
-                \.isWorkbenchPageFrozen,
-                layers.isFrozen(.workbenchPage)
+                \.interfaceLayerContext,
+                InterfaceLayerContext(frozenLayers: layers.frozenLayers)
             )
             .environment(
                 \.isPlaybackOverlayCovered,
                 layers.isCovered(.playbackOverlay)
             )
+    }
+}
+
+
+/// The freeze question answered from where the surface actually is.
+///
+/// A card grid is reused above the page it was written for: the Command Panel
+/// and the Playback Overlay both show one. Asking the workbench page's answer
+/// there reads back "frozen" the moment those layers open, which is exactly
+/// when their own cards are the ones the reader is pointing at.
+struct InterfaceLayerContext: Equatable {
+    var layer: InterfaceLayer = .workbenchPage
+    var frozenLayers: Set<InterfaceLayer> = []
+
+    /// Whether the surface reading this must keep the picture it had.
+    var isFrozen: Bool {
+        frozenLayers.contains(layer)
+    }
+}
+
+extension View {
+    /// Says which layer everything inside belongs to. A layer that hosts
+    /// content written for the page below it must claim it.
+    func interfaceLayer(_ layer: InterfaceLayer) -> some View {
+        modifier(InterfaceLayerModifier(layer: layer))
+    }
+}
+
+private struct InterfaceLayerModifier: ViewModifier {
+    let layer: InterfaceLayer
+    @Environment(\.interfaceLayerContext) private var context
+
+    func body(content: Content) -> some View {
+        content.environment(
+            \.interfaceLayerContext,
+            InterfaceLayerContext(layer: layer, frozenLayers: context.frozenLayers)
+        )
     }
 }

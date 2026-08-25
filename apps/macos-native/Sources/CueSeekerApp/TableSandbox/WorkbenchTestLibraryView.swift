@@ -797,9 +797,11 @@ private struct LibraryVideoCardContent {
 }
 
 private struct LibraryVideoCard: View {
-    /// True while a surface above the grid owns input: a dialog, or a menu.
-    /// The card keeps the picture it had and stops following the pointer.
-    @Environment(\.isWorkbenchPageFrozen) private var isFrozen
+    /// Answers for the layer this card is actually on: the workbench page, or
+    /// the Command Panel or Playback Overlay that reuses the same grid. While
+    /// frozen the card keeps the picture it had and stops following the
+    /// pointer.
+    @Environment(\.interfaceLayerContext) private var layerContext
     let content: LibraryVideoCardContent
     let isSelected: Bool
     let actions: LibraryCardActionHandlers
@@ -878,7 +880,7 @@ private struct LibraryVideoCard: View {
         .onHover { hovering in
             // A covered card keeps the picture it had; only a card that owns
             // input follows the pointer.
-            guard !isFrozen else {
+            guard !layerContext.isFrozen else {
                 return
             }
             isHovered = hovering
@@ -892,7 +894,7 @@ private struct LibraryVideoCard: View {
             items: contextMenuItems,
             openContextMenu: openContextMenu
         )
-        .handPointer(isEnabled: isAvailable && allowsHover && !isFrozen)
+        .handPointer(isEnabled: isAvailable && allowsHover && !layerContext.isFrozen)
         .animation(
             .easeOut(duration: WorkbenchTestLibraryMetrics.coverHoverDuration),
             value: isHoverActive
@@ -997,7 +999,7 @@ struct CompleteLibraryFolderGrid: View {
 }
 
 private struct LibraryFolderCard: View {
-    @Environment(\.isWorkbenchPageFrozen) private var isFrozen
+    @Environment(\.interfaceLayerContext) private var layerContext
     let folder: CompleteLibraryFolderSummaryPresentation
     let isSelected: Bool
     let actions: LibraryCardActionHandlers
@@ -1035,7 +1037,7 @@ private struct LibraryFolderCard: View {
             }
             // A Button decides the pointer for its own area, so the hand goes
             // on the label rather than around the Button.
-            .handPointer(isEnabled: isAvailable && !isFrozen)
+            .handPointer(isEnabled: isAvailable && !layerContext.isFrozen)
         }
         .buttonStyle(
             LibraryOverviewCardButtonStyle(
@@ -1046,7 +1048,7 @@ private struct LibraryFolderCard: View {
         )
         .disabled(!isAvailable)
         .onHover { hovering in
-            guard !isFrozen else {
+            guard !layerContext.isFrozen else {
                 return
             }
             isHovered = hovering

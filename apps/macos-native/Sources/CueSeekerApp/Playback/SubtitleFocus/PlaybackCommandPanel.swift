@@ -138,6 +138,10 @@ struct PlaybackCommandPanel: View {
                             )
                         )
                     )
+                    // The panel reuses grids written for the workbench page.
+                    // They must answer for this layer, not for the page the
+                    // panel is covering.
+                    .interfaceLayer(.commandPanel)
                     .background(WorkbenchRedesignColors.bgPopover)
                     .clipShape(
                         RoundedRectangle(

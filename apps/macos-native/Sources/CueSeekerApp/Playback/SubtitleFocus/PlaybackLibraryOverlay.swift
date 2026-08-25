@@ -78,6 +78,14 @@ private struct PlaybackLibraryEpisodeList: View {
 
     @ViewBuilder
     private func content(viewportHeight: CGFloat) -> some View {
+        // The overlay reuses the workbench episode grid; it must answer for
+        // this layer rather than for the page underneath it.
+        contentBody(viewportHeight: viewportHeight)
+            .interfaceLayer(.playbackOverlay)
+    }
+
+    @ViewBuilder
+    private func contentBody(viewportHeight: CGFloat) -> some View {
         if case .loading = store.detailStatus, store.detail == nil {
             PlaybackLibraryEmptyHint {
                 ProgressView()

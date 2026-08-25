@@ -106,3 +106,50 @@ current shape through `inspect` would make these five checks repeatable; the
 owner declined that for this requirement, so acceptance items 1 to 6 remain the
 owner's manual check, including the macOS 15 boundary, which cannot be exercised
 on this machine.
+
+## Follow-up: the freeze answer belongs to the layer, not the page
+
+The hand did not appear on cards in the Command Panel or the Playback Overlay,
+and their hover highlight did not appear either. Both surfaces reuse the card
+grids written for the workbench page, and those cards asked whether the
+*workbench page* was frozen. The workbench page is frozen exactly because the
+Command Panel or the playback page is open above it, so a panel declared its own
+cards frozen the moment it opened.
+
+The hand there was this change's own gap: the frozen rule was wired to the only
+answer available. The missing hover was older — the same flag already guarded the
+hover handler before this work started, so those cards never followed the pointer
+inside the panel.
+
+The registry now answers for every layer at once, and a subtree says which layer
+it is on: the Command Panel claims its own layer, the Playback Library Overlay
+claims the overlay. A card asks the layer it is actually on. The registry is
+still the only place the question is answered, and no new state was added.
+
+Files:
+
+- `apps/macos-native/Sources/CueSeekerApp/Shared/InterfaceLayerRegistry.swift`
+  - `frozenLayers` answers for all layers; `InterfaceLayerContext` carries the
+    subtree's layer with it, and `interfaceLayer(_:)` claims one. The
+    workbench-page freeze environment value it replaces is gone.
+- `apps/macos-native/Sources/CueSeekerApp/Playback/SubtitleFocus/PlaybackCommandPanel.swift`,
+  `.../PlaybackLibraryOverlay.swift`
+  - Each claims its layer for the grids it hosts.
+- The three cards read the context instead of the page's answer.
+
+Covered by `## 4. 覆盖与冻结` item 3 of the requirement.
+
+### Verification
+
+Four tests in `InterfaceLayerFreezeTests.swift` pin the defect: an open layer
+freezes the page below it and not itself, a surface answers for the layer it is
+on, a menu still freezes the layer that owns it, and nothing is frozen with only
+the workbench page open. `swift test`: 1065 tests, no new failures against the
+baseline.
+
+With the cursor instrumentation still installed, the workbench page was
+re-checked and is unchanged: the video card shows the hand, and a card whose
+neighbour has an open menu shows the arrow. The Command Panel and Playback
+Overlay could not be driven reliably through the E2E controller — playback did
+not stay open across the scripted steps — so the on-screen confirmation there is
+the owner's, and the automated guard is the unit tests above.

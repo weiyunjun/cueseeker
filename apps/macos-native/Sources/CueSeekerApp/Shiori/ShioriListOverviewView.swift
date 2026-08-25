@@ -79,9 +79,11 @@ struct ShioriListOverviewView: View {
 }
 
 private struct ShioriListCard: View {
-    /// True while a surface above the grid owns input: a dialog, or a menu.
-    /// The card keeps the picture it had and stops following the pointer.
-    @Environment(\.isWorkbenchPageFrozen) private var isFrozen
+    /// Answers for the layer this card is actually on: the workbench page, or
+    /// the Command Panel or Playback Overlay that reuses the same grid. While
+    /// frozen the card keeps the picture it had and stops following the
+    /// pointer.
+    @Environment(\.interfaceLayerContext) private var layerContext
     let summary: ShioriListSummary
     let canDelete: Bool
     let onOpen: () -> Void
@@ -112,11 +114,11 @@ private struct ShioriListCard: View {
             }
             // A Button decides the pointer for its own area, so the hand
             // goes on the label rather than around the Button.
-            .handPointer(isEnabled: !isFrozen)
+            .handPointer(isEnabled: !layerContext.isFrozen)
         }
         .buttonStyle(LibraryOverviewCardButtonStyle(isHovered: isHoverActive))
         .onHover { hovering in
-            guard !isFrozen else {
+            guard !layerContext.isFrozen else {
                 return
             }
             isHovered = hovering
