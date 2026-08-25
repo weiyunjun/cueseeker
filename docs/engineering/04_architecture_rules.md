@@ -812,6 +812,22 @@ Replacement and simplicity rules:
   surface: SwiftUI keeps it out of hit testing, so AppKit never consults it.
 - A SwiftUI `Button` decides the pointer for its own area, so a pointer style
   meant for a button must be applied to its label rather than around it.
+- Hover that produces a visual effect must go through `onPointerHover`, not
+  through a bare `onHover`. A menu open over a layer, or a higher layer covering
+  it, stops every surface on that layer from answering the pointer; asking each
+  surface to remember that is what left every button and the Scrollbar lighting
+  under an open menu. `onPointerHover` answers it once, from the layer registry.
+  A bare `onHover` is allowed in exactly three places, and a grep for it should
+  find nothing else: menu content, which belongs to the layer it froze and
+  reports to `MenuHighlightModel`; cards, which report to `CardHighlightModel`;
+  and Toast, which does not participate in the layer list at all.
+- An AppKit surface that takes `mouseMoved` from its own tracking area is
+  outside `onPointerHover` and must carry the freeze answer itself, the way the
+  Scrollbar does. Reaching for a new one is a reason to check this rule.
+- A layer that hosts its own interactive content must claim it with
+  `interfaceLayer(_:)`. A subtree that does not claim one answers for the
+  workbench page, so a dialog or the playback chrome would read the freeze it
+  put on the page below and stop answering its own pointer.
 - Playback keyboard shortcuts are handled through a local AppKit key-down monitor and must not intercept keys while native text input is focused.
 - Playback shortcut handling should route through shared playback state instead of duplicating command behavior in individual views.
 - Playback controller support is a macOS platform-integration boundary covered

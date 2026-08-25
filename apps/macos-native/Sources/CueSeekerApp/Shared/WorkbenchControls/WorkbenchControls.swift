@@ -382,7 +382,7 @@ struct WorkbenchInlineClearButton: View {
         .subtitleTableTextSelectionInteractiveRegion(isActive: isEnabled)
         .focused($isFocused)
         .disableFocusEffect()
-        .onHover { isHovered = $0 }
+        .onPointerHover { isHovered = $0 }
         .overlay(
             Group {
                 if isFocused {
@@ -604,7 +604,7 @@ struct WorkbenchToolbarButton: View {
                 }
             }
         )
-        .onHover { isHovered = $0 }
+        .onPointerHover { isHovered = $0 }
         .fixedSize(horizontal: true, vertical: false)
         .contentShape(Rectangle())
     }
@@ -672,7 +672,7 @@ struct WorkbenchButton: View {
         .subtitleTableTextSelectionInteractiveRegion(isActive: isEnabled)
         .focused($isFocused)
         .disableFocusEffect()
-        .onHover { isHovered = $0 }
+        .onPointerHover { isHovered = $0 }
     }
 }
 
@@ -751,7 +751,7 @@ struct WorkbenchPrimaryButton: View {
         .subtitleTableTextSelectionInteractiveRegion(isActive: isEnabled)
         .focused($isFocused)
         .disableFocusEffect()
-        .onHover { isHovered = $0 }
+        .onPointerHover { isHovered = $0 }
     }
 }
 
@@ -806,7 +806,7 @@ struct WorkbenchDestructiveButton: View {
         .subtitleTableTextSelectionInteractiveRegion(isActive: isEnabled)
         .focused($isFocused)
         .disableFocusEffect()
-        .onHover { isHovered = $0 }
+        .onPointerHover { isHovered = $0 }
     }
 
     private var borderColor: Color {
@@ -872,7 +872,7 @@ struct WorkbenchPlainActionButton: View {
         .subtitleTableTextSelectionInteractiveRegion(isActive: isEnabled)
         .focused($isFocused)
         .disableFocusEffect()
-        .onHover { isHovered = $0 }
+        .onPointerHover { isHovered = $0 }
     }
 }
 
@@ -1034,7 +1034,7 @@ struct WorkbenchIconButton: View {
                 label
             }
         }
-        .onHover { inside in
+        .onPointerHover { inside in
             isHovered = inside
         }
     }

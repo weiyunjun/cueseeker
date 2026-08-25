@@ -217,3 +217,72 @@ Driven through the Debug in-app E2E controller, with captures:
 The Command Panel's selected-text menu needs a video playing across scripted
 steps, which the controller has not managed on this tree, so that one is the
 owner's check.
+
+## Follow-up: the same defect was on every button, not just the Scrollbar
+
+Fixing the Scrollbar by hand answered the report and nothing else. The App had
+48 places reacting to hover and **one** of them asked whether its layer still
+owned input. Every Workbench button, every player-chrome control, the Command
+Panel's root rows and the Data page's rows went on lighting under the pointer
+while a card menu was open, exactly as the Scrollbar did. The owner asked
+whether the Scrollbar fix would hold for controls added later; it would not,
+because the rule lived in the caller and a new caller starts out not knowing it.
+
+The rule now lives in one place. `onPointerHover` reports hover only while the
+surface's layer owns input, and holds the report otherwise; the held value is
+delivered when the freeze lifts, so a pointer that walked away during a menu
+does not leave a control lit behind it. A bare `onHover` survives in exactly
+three kinds of place, and a grep is the enforcement: menu content, which belongs
+to the layer it froze and reports to `MenuHighlightModel`; cards, which report to
+`CardHighlightModel`; and Toast, which the design excludes from the layer list
+altogether.
+
+Two layers had never claimed themselves, and the conversion would have frozen
+them against the page they were covering: the playback chrome and the two
+dialog sheets read the workbench page's answer, which is frozen precisely while
+they are open. Both now claim their own layer. This is the same defect class as
+the Command Panel and Playback Overlay grids in the pointer-shape work above —
+a subtree that does not claim a layer answers for the workbench page.
+
+Files:
+
+- `apps/macos-native/Sources/CueSeekerApp/Shared/PointerHover.swift`
+  - New. `onPointerHover` and `PointerHoverGate`, the delivery rule kept out of
+    the view so it can be pinned by tests.
+- Sixteen files converted, one line each: `WorkbenchControls` (six controls),
+  `WorkbenchIconButton`, `LibraryOverviewComponents`, `HoverEffectModifier`,
+  `CoverSummaryCard`, `LibraryFolderHeader`, `LibraryEpisodeButton`,
+  `LiquidGlassSelectableCard`, `PlaybackChromeIconButton`,
+  `PlaybackProgressScrubber`, `PlaybackChromeView`, `LiquidGlassVideoTopBar`,
+  `PlaybackVolumeControl`, `ContentView`, `PlaybackCommandPanel`, `DataView`,
+  `SubtitleTableView`'s toolbar.
+- `apps/macos-native/Sources/CueSeekerApp/Playback/PlaybackPage.swift`,
+  `.../Workbench/ContentView.swift`
+  - The playback chrome claims `.playbackPage`; both dialog sheets claim
+    `.dialog`.
+- `docs/engineering/04_architecture_rules.md`
+  - Three rules: hover goes through `onPointerHover`, an AppKit surface with its
+    own tracking area carries the freeze itself, and a layer with interactive
+    content must claim itself.
+
+`HoverBackgroundModifier` was converted with the rest and is unused by anything
+in the App — pre-existing dead code, left in place rather than removed.
+
+### Verification
+
+`swift test`: 1083 tests, no new failure against the baseline. Five tests in
+`PointerHoverGateTests.swift` pin the rule: an active surface is told what the
+pointer did, nothing is said twice, a frozen surface is told nothing, where the
+pointer ended up is delivered when the freeze lifts, and a pointer that came back
+to where it started changes nothing.
+
+The Scrollbar is the one converted surface the Debug in-app E2E controller can
+drive to a visible answer, and it still gives it: interactive thumb colour with
+no menu, default colour with a card menu open and the pointer on the same spot.
+
+Per-button confirmation is the owner's. The controller's synthetic `mouseMove`
+does not reliably reach SwiftUI's `onHover` — the same limit recorded in the
+pointer-shape work above — so a capture cannot prove a SwiftUI button's hover
+either way. What is machine-checked is the rule itself and the AppKit path;
+what is left to the eye is that each converted control still lights normally
+with no menu open, and stops while one is.

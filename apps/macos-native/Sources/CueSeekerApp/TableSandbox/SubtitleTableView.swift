@@ -766,7 +766,7 @@ private struct CueHoverButtons: View {
             RoundedRectangle(cornerRadius: 7, style: .continuous)
                 .stroke(Color(nsColor: .separatorColor), lineWidth: 0.5)
         )
-        .onHover { inside in
+        .onPointerHover { inside in
             isHovered = inside
         }
     }

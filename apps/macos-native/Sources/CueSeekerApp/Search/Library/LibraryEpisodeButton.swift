@@ -20,7 +20,7 @@ struct LibraryEpisodeButton: View {
                 tokens: LiquidGlassTokens(colorScheme: colorScheme)
             )
         )
-        .onHover { isHovered = $0 }
+        .onPointerHover { isHovered = $0 }
         .focusable(false)
         .accessibilityLabel(L("library.episode", rank))
     }

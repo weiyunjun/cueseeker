@@ -318,7 +318,7 @@ private struct DataTreeRow: View {
                 : Color.clear
         )
         .contentShape(Rectangle())
-        .onHover { hovering in
+        .onPointerHover { hovering in
             isHovered = isHoverEnabled && hovering
         }
         .accessibilityLabel(title)

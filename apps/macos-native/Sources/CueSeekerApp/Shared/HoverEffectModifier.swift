@@ -9,7 +9,7 @@ struct HoverBackgroundModifier: ViewModifier {
         content
             .background(isHovered ? hoverColor : Color.clear)
             .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
-            .onHover { hovering in
+            .onPointerHover { hovering in
                 isHovered = hovering
             }
     }
@@ -31,7 +31,7 @@ struct ToolbarButtonStyle: ButtonStyle {
                 (isHovered ? Color.black.opacity(0.08) : Color.clear)
             )
             .clipShape(RoundedRectangle(cornerRadius: 6))
-            .onHover { hovering in
+            .onPointerHover { hovering in
                 isHovered = hovering
             }
     }

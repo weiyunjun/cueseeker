@@ -95,6 +95,9 @@ private struct ContentRootView: View {
                         appState.saveLibraryCoverEditing(session)
                     }
                 )
+                // A dialog is the top layer; its own controls must not read the
+                // freeze the dialog itself put on the page below.
+                .interfaceLayer(.dialog)
                 .interactiveDismissDisabled(session.isSaving)
             }
             .sheet(item: $shioriStore.listEditorSession) { session in
@@ -111,6 +114,7 @@ private struct ContentRootView: View {
                     },
                     onClose: appState.closeShioriListEditor
                 )
+                .interfaceLayer(.dialog)
                 .interactiveDismissDisabled(true)
             }
             .preferredColorScheme(settingsStore.appAppearanceMode.colorScheme)
@@ -594,7 +598,7 @@ private struct AppSidebarToggleButtonStyle: ButtonStyle {
                     .fill(isHovered && isEnabled ? WorkbenchRedesignColors.bgHover : Color.clear)
             )
             .opacity(isEnabled ? 1 : 0.62)
-            .onHover { isHovered = $0 }
+            .onPointerHover { isHovered = $0 }
     }
 }
 

@@ -433,7 +433,7 @@ private struct PlaybackChromeTimeCapsule: View {
                 scaleY: 0.85
             )
         )
-        .onHover { hovering in
+        .onPointerHover { hovering in
             withAnimation(.easeInOut(duration: 0.15)) {
                 isTimeHovered = timeline.isScrubbing ? false : hovering
             }
@@ -526,7 +526,7 @@ private struct PlaybackChromeCapsuleButtonStyle: ButtonStyle {
             .scaleEffect(configuration.isPressed && isInteractive ? 0.98 : 1)
             .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
             .animation(.easeInOut(duration: 0.15), value: isHovered)
-            .onHover { isHovered = suppressesInteraction ? false : $0 }
+            .onPointerHover { isHovered = suppressesInteraction ? false : $0 }
             .onChange(of: suppressesInteraction) { isSuppressed in
                 if isSuppressed {
                     isHovered = false

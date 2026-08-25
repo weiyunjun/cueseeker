@@ -159,7 +159,7 @@ struct LiquidGlassSelectableCard<Content: View>: View {
                     tokens: LiquidGlassTokens(colorScheme: colorScheme)
                 )
             )
-            .onHover { isHovered = $0 }
+            .onPointerHover { isHovered = $0 }
     }
 }
 

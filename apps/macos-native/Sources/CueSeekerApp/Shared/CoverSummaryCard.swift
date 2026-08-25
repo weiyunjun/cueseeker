@@ -426,7 +426,7 @@ private struct CoverSummaryActionButton: View {
         .subtitleTableTextSelectionInteractiveRegion(isActive: isEnabled)
         .focused($isFocused)
         .disableFocusEffect()
-        .onHover { isHovered = $0 }
+        .onPointerHover { isHovered = $0 }
     }
 
     private var buttonBackground: Color {

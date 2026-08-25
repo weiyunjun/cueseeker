@@ -27,6 +27,10 @@ struct PlaybackPageView: View {
                     fullscreenManager: appState.playbackFullscreenManager,
                     onClose: onClose
                 )
+                // The chrome is on the playback page, not on the workbench page
+                // underneath it. Asking the workbench page's answer would call
+                // the chrome frozen for as long as playback is open.
+                .interfaceLayer(.playbackPage)
                 .frame(width: geometry.size.width, height: geometry.size.height)
                 .allowsHitTesting(!isPlaybackModalActive)
                 .accessibilityHidden(isPlaybackModalActive)

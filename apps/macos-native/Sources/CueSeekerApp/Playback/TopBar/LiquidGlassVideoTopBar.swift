@@ -56,7 +56,7 @@ struct LiquidGlassVideoTopBar: View {
                             action: onZoom
                         )
                     }
-                    .onHover { isClusterActive = $0 }
+                    .onPointerHover { isClusterActive = $0 }
 
                     Spacer(minLength: 0)
                 }

@@ -55,7 +55,7 @@ struct LibraryFolderHeader: View {
         }
         .buttonStyle(.plain)
         .focusable(false)
-        .onHover { hovering in
+        .onPointerHover { hovering in
             withAnimation(.easeOut(duration: 0.1)) { isHovered = hovering }
         }
     }

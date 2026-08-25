@@ -335,7 +335,7 @@ private struct PlaybackCommandPanelRootRow: View {
         }
         .buttonStyle(.plain)
         .focusable(false)
-        .onHover { isHovered = $0 }
+        .onPointerHover { isHovered = $0 }
         .onChange(of: isHoverActive) { isActive in
             onHoverChange(isActive)
         }
