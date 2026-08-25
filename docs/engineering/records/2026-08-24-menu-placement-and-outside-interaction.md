@@ -534,6 +534,48 @@ Files: `TableSandbox/WorkbenchTestLibraryView.swift`,
   that had not appeared in the previous run all pass alone. No test failed that
   was not already failing.
 
+## Step 1d: the selected-text menu joins the same lifecycle (§4.1, §5.2)
+
+The playback overlay's selected-text menu still kept two habits of its own.
+
+**It never followed its text.** It had the first half of the lifecycle — measured,
+placed once — and nothing at all for the second: no offset kept, and no code
+anywhere that moved it again. Scroll the reel and the sentence slid away while
+the menu stayed where it was.
+
+This surface is harder than the table, and that is why it had been skipped: the
+reel does not scroll a document under a window, it **re-lays its cues out inside
+a document that never moves**, so neither a point in the document nor a point in
+the view keeps its meaning. What does keep its meaning is where the point sits
+inside its own cue. So an open menu now remembers four things settled at the
+click — which cue, where inside that cue, how big it is, and the offset it opened
+with — and every geometry update translates it to where that cue is now. One cue
+carried outside the laid-out window leaves the menu where it last was, on its way
+out.
+
+**A press outside closed it and it opened straight back up.** The press itself was
+already handled correctly: the monitor swallows it, so §5.2 holds and it never
+reaches the subtitle text. The release was not. The reel opened this menu on any
+release that found a live selection, without asking whether that release ended a
+drag it had started — so the release belonging to the swallowed press was read as
+"a selection just finished" and re-opened the menu the press had just closed.
+A release now only counts when it ends a drag this view began.
+
+Files: `Playback/SubtitleFocus/PlaybackSubtitleFocusReel.swift`.
+
+### Verification
+
+- `swift build` clean.
+- Two new cases in `PlaybackSubtitleFocusLayoutTests` drive real mouse events on
+  a mounted reel — press, drag, release across a cue's own text — so they
+  exercise the handlers that changed: the menu moves by exactly what its cue
+  moved when the reel scrolls, and a release with no press does not re-open it.
+  **Both fail on the code before this step**, one per symptom.
+- Playback focus suites: 130 tests passing.
+- Full suite: 1060 tests, 34 issues, the same run-to-run families; the four names
+  that had not appeared in the previous run all pass alone, including the one
+  that names selected text. No test failed that was not already failing.
+
 ## Outcome
 
 Steps 1 through 5a cover the requirement's §2 through §7 — every section. What

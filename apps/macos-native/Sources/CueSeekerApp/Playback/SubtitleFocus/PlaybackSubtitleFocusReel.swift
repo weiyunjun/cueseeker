@@ -1739,6 +1739,17 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
     private let scrollbarView = PlaybackSubtitleFocusNativeScrollbarView()
     private let currentCueAdapter = PlaybackSubtitleFocusCueReelAdapter()
     private var selectedTextMenuHost: MenuHostingView?
+    /// What the selected-text menu settled on when it opened: the cue it hangs
+    /// off, where inside that cue, how big it is, and the offset that carries it
+    /// along. Nothing here is recomputed while the menu is open.
+    private struct SelectedTextMenuPlacement {
+        let ordinal: Int
+        let pointInCue: CGPoint
+        let menuSize: CGSize
+        let offset: CGSize
+    }
+
+    private var selectedTextMenuPlacement: SelectedTextMenuPlacement?
     private var selectedTextMenuEventMonitor: Any?
     private let selectedTextMenuHighlight = MenuHighlightModel()
     private var selectedTextMenuActions: [() -> Void] = []
@@ -1813,8 +1824,12 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
         documentView.onToggleCollageCueSelection = { [weak self] ordinal in
             self?.onToggleCollageCueSelection(ordinal)
         }
-        documentView.onPresentSelectedTextActions = { [weak self] text, point in
-            self?.presentSelectedTextActions(text: text, at: point)
+        documentView.onPresentSelectedTextActions = { [weak self] text, ordinal, pointInCue in
+            self?.presentSelectedTextActions(
+                text: text,
+                ordinal: ordinal,
+                pointInCue: pointInCue
+            )
         }
         documentView.onDismissSelectedTextActions = { [weak self] in
             self?.dismissSelectedTextActions()
@@ -2278,7 +2293,8 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
 
     private func presentSelectedTextActions(
         text: String,
-        at pointInDocument: CGPoint
+        ordinal: Int,
+        pointInCue: CGPoint
     ) {
         dismissSelectedTextActions()
 
@@ -2321,12 +2337,61 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
         addSubview(host)
         host.layoutSubtreeIfNeeded()
 
-        let anchor = convert(pointInDocument, from: documentView)
-        host.frame = selectedTextMenuFrame(
-            anchor: anchor,
-            size: host.fittingSize
+        // Measured, placed once, and the offset kept — the same order every
+        // other menu in the App follows. Afterwards the menu only translates.
+        let menuSize = host.fittingSize
+        let anchor = selectedTextAnchor(ordinal: ordinal, pointInCue: pointInCue)
+            ?? .zero
+        let openingFrame = selectedTextMenuFrame(anchor: anchor, size: menuSize)
+        selectedTextMenuPlacement = SelectedTextMenuPlacement(
+            ordinal: ordinal,
+            pointInCue: pointInCue,
+            menuSize: menuSize,
+            offset: MenuPlacement.offset(
+                from: CGRect(origin: anchor, size: .zero),
+                to: openingFrame
+            )
         )
+        host.frame = openingFrame
         installSelectedTextMenuEventMonitor()
+    }
+
+    /// Where the menu hangs off, in this view's coordinates, as the reel lays
+    /// its cues out now.
+    private func selectedTextAnchor(
+        ordinal: Int,
+        pointInCue: CGPoint
+    ) -> CGPoint? {
+        guard let cueOrigin = documentView.cueContentOrigin(at: ordinal) else {
+            return nil
+        }
+        return convert(
+            CGPoint(
+                x: cueOrigin.x + pointInCue.x,
+                y: cueOrigin.y + pointInCue.y
+            ),
+            from: documentView
+        )
+    }
+
+    /// Pure translation, run whenever the reel moves. The side was chosen when
+    /// the menu opened and is never revisited. A cue carried outside the
+    /// laid-out window leaves the menu where it last was, on its way out.
+    private func repositionSelectedTextMenu() {
+        guard let host = selectedTextMenuHost,
+              let placement = selectedTextMenuPlacement,
+              let anchor = selectedTextAnchor(
+                  ordinal: placement.ordinal,
+                  pointInCue: placement.pointInCue
+              )
+        else {
+            return
+        }
+        host.frame = MenuPlacement.followingFrame(
+            anchor: CGRect(origin: anchor, size: .zero),
+            offset: placement.offset,
+            menuSize: placement.menuSize
+        )
     }
 
     func selectedTextMenuFrame(
@@ -2344,6 +2409,7 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
     private func dismissSelectedTextActions() {
         selectedTextMenuHost?.removeFromSuperview()
         selectedTextMenuHost = nil
+        selectedTextMenuPlacement = nil
         selectedTextMenuHighlight.close()
         selectedTextMenuActions = []
         onSelectedTextMenuKeyHandlerChanged(nil)
@@ -2439,6 +2505,14 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
         fractionalOrdinal
     }
 
+    var selectedTextMenuFrameForTesting: CGRect? {
+        selectedTextMenuHost?.frame
+    }
+
+    var documentViewForTesting: PlaybackSubtitleFocusReelDocumentView {
+        documentView
+    }
+
     var selectedOrdinalForTesting: Int {
         selectedOrdinal ?? 0
     }
@@ -2531,6 +2605,7 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
         if scrollView.contentView.bounds.origin != .zero {
             scrollView.contentView.scroll(to: .zero)
         }
+        repositionSelectedTextMenu()
     }
 
     private func synchronizeFractionalOrdinalIfIdle() {
@@ -3617,7 +3692,11 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView {
 
     var uiProbeScope: String?
     var onToggleCollageCueSelection: (Int) -> Void = { _ in }
-    var onPresentSelectedTextActions: (String, CGPoint) -> Void = { _, _ in }
+    /// The text, the cue it came from, and where the menu hangs off inside that
+    /// cue. A point in the document is no use on its own: the reel scrolls by
+    /// laying its cues out somewhere else, so only the place inside the cue
+    /// stays true.
+    var onPresentSelectedTextActions: (String, Int, CGPoint) -> Void = { _, _, _ in }
     var onDismissSelectedTextActions: () -> Void = {}
     private var layout = PlaybackSubtitleFocusVirtualReelLayout(
         viewportSize: .zero,
@@ -3632,6 +3711,8 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView {
     private var collageCanSelectAnotherCue = true
     private var textSelection: TextSelection?
     private(set) var placements: [PlaybackSubtitleFocusCuePlacement] = []
+    /// Set while a drag started in this view is choosing text.
+    private var isSelectingText = false
 
     override var isFlipped: Bool {
         true
@@ -3967,6 +4048,7 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView {
             return
         }
         beginTextSelection(at: point)
+        isSelectingText = textSelection != nil
     }
 
     override func mouseDragged(with event: NSEvent) {
@@ -3976,6 +4058,15 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView {
     }
 
     override func mouseUp(with event: NSEvent) {
+        // A release only ends a drag this view began. The press that closes an
+        // open menu is swallowed before it reaches here, and its release must
+        // not be read as a finished selection and open the menu straight back
+        // up.
+        guard isSelectingText else {
+            return
+        }
+        isSelectingText = false
+
         let point = convert(event.locationInWindow, from: nil)
         updateTextSelection(focusPoint: point)
         guard let textSelection,
@@ -3984,16 +4075,23 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView {
                   at: textSelection.ordinal,
                   range: textSelection.range
               ),
-              !text.isEmpty
+              !text.isEmpty,
+              let cueOrigin = cueContentOrigin(at: textSelection.ordinal)
         else {
             clearTextSelection()
             return
         }
+        let anchorPoint = textSelection.focusUTF16Offset
+            >= textSelection.anchorUTF16Offset
+            ? textSelection.focusPoint
+            : textSelection.anchorPoint
         onPresentSelectedTextActions(
             text,
-            textSelection.focusUTF16Offset >= textSelection.anchorUTF16Offset
-                ? textSelection.focusPoint
-                : textSelection.anchorPoint
+            textSelection.ordinal,
+            CGPoint(
+                x: anchorPoint.x - cueOrigin.x,
+                y: anchorPoint.y - cueOrigin.y
+            )
         )
     }
 
@@ -4032,6 +4130,23 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView {
         placements.first { $0.ordinal == ordinal }.map {
             cueContentRect(for: $0.rect)
         }
+    }
+
+    var hasTextSelectionForTesting: Bool {
+        textSelection != nil
+    }
+
+    /// The lines of a cue that can be selected, where they sit in the document.
+    func selectableTextRectsForTesting(at ordinal: Int) -> [CGRect] {
+        guard let placement = placements.first(where: { $0.ordinal == ordinal }),
+              let contentAdapter
+        else {
+            return []
+        }
+        return contentAdapter.selectableTextRects(
+            at: ordinal,
+            in: cueContentRect(for: placement.rect)
+        )
     }
 
     var cueTimelineConnectorRectsForTesting: [CGRect] {
@@ -4290,6 +4405,14 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView {
 
     private func cueContentRect(for rect: CGRect) -> CGRect {
         cueTimelineRowLayout(for: rect).cueRect
+    }
+
+    /// Where a cue's text starts in the document as the reel lays it out now.
+    /// `nil` once the reel has carried that cue outside the laid-out window.
+    func cueContentOrigin(at ordinal: Int) -> CGPoint? {
+        placements.first { $0.ordinal == ordinal }.map {
+            cueContentRect(for: $0.rect).origin
+        }
     }
 
     private func collageCheckboxRect(

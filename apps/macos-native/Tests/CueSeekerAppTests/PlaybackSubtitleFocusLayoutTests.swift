@@ -681,6 +681,157 @@ func selectedTextMenuOpensDownwardUnlessBottomSpaceIsInsufficient() {
 }
 
 @MainActor
+private func mountedSelectedTextMenuReel() -> (
+    view: PlaybackSubtitleFocusReelContainerView,
+    window: NSWindow
+) {
+    _ = NSApplication.shared
+    let cues = focusLayoutCues(0..<40)
+    let view = PlaybackSubtitleFocusReelContainerView()
+    view.frame = CGRect(x: 0, y: 0, width: 640, height: 656)
+    let window = NSWindow(
+        contentRect: view.frame,
+        styleMask: [.borderless],
+        backing: .buffered,
+        defer: false
+    )
+    window.contentView = view
+    view.update(
+        cues: cues,
+        totalCount: cues.count,
+        selectedOrdinal: 20,
+        displayTitle: "Ave Mujica - 01",
+        keyboardNavigationRequest: nil,
+        reducesMotion: true,
+        isInteractionEnabled: true,
+        cancelsWheelMotion: false,
+        collageSelectedCueIDs: nil,
+        collageCanSelectAnotherCue: true
+    )
+    view.layoutSubtreeIfNeeded()
+    return (view, window)
+}
+
+@MainActor
+private func selectedTextMouseEvent(
+    _ type: NSEvent.EventType,
+    at point: CGPoint,
+    in view: NSView,
+    window: NSWindow
+) -> NSEvent {
+    NSEvent.mouseEvent(
+        with: type,
+        location: view.convert(point, to: nil),
+        modifierFlags: [],
+        timestamp: ProcessInfo.processInfo.systemUptime,
+        windowNumber: window.windowNumber,
+        context: nil,
+        eventNumber: 0,
+        clickCount: 1,
+        pressure: 1
+    )!
+}
+
+/// Drags across a cue's text, which is what opens the selected-text menu.
+@MainActor
+private func dragSelectText(
+    at ordinal: Int,
+    in view: PlaybackSubtitleFocusReelContainerView,
+    window: NSWindow
+) throws {
+    let documentView = view.documentViewForTesting
+    let line = try #require(
+        documentView.selectableTextRectsForTesting(at: ordinal).first
+    )
+    let start = CGPoint(x: line.minX + 1, y: line.midY)
+    let end = CGPoint(x: line.maxX - 1, y: line.midY)
+    documentView.mouseDown(
+        with: selectedTextMouseEvent(
+            .leftMouseDown,
+            at: start,
+            in: documentView,
+            window: window
+        )
+    )
+    documentView.mouseDragged(
+        with: selectedTextMouseEvent(
+            .leftMouseDragged,
+            at: end,
+            in: documentView,
+            window: window
+        )
+    )
+    documentView.mouseUp(
+        with: selectedTextMouseEvent(
+            .leftMouseUp,
+            at: end,
+            in: documentView,
+            window: window
+        )
+    )
+}
+
+@MainActor
+@Test
+func selectedTextMenuTravelsWithItsCueWhenTheReelScrolls() throws {
+    let (view, window) = mountedSelectedTextMenuReel()
+    defer { window.contentView = nil }
+
+    try dragSelectText(at: 20, in: view, window: window)
+
+    let openedFrame = try #require(view.selectedTextMenuFrameForTesting)
+    let openedCue = try #require(view.cueContentRectForTesting(at: 20))
+
+    view.applyPreciseWheelDeltaForTesting(-40)
+    view.settlePreciseWheelForTesting()
+    view.layoutSubtreeIfNeeded()
+
+    let movedCue = try #require(view.cueContentRectForTesting(at: 20))
+    #expect(abs(movedCue.minY - openedCue.minY) > 1)
+
+    // The menu moved by exactly what its cue moved: it travels, it does not
+    // stay put and it does not re-decide.
+    let movedFrame = try #require(view.selectedTextMenuFrameForTesting)
+    #expect(
+        abs((movedFrame.minY - openedFrame.minY)
+            - (movedCue.minY - openedCue.minY)) < 0.5
+    )
+    #expect(abs(movedFrame.minX - openedFrame.minX) < 0.5)
+}
+
+@MainActor
+@Test
+func selectedTextMenuIgnoresAReleaseWithoutItsPress() throws {
+    let (view, window) = mountedSelectedTextMenuReel()
+    defer { window.contentView = nil }
+
+    try dragSelectText(at: 20, in: view, window: window)
+    #expect(view.selectedTextMenuFrameForTesting != nil)
+
+    // The press that closes an open menu is swallowed before it reaches the
+    // reel, so only its release arrives. That release must not be read as a
+    // finished selection and open the menu straight back up.
+    let documentView = view.documentViewForTesting
+    var presentedAgain = false
+    let present = documentView.onPresentSelectedTextActions
+    documentView.onPresentSelectedTextActions = { text, ordinal, pointInCue in
+        presentedAgain = true
+        present(text, ordinal, pointInCue)
+    }
+    let cueRect = try #require(view.cueContentRectForTesting(at: 20))
+    documentView.mouseUp(
+        with: selectedTextMouseEvent(
+            .leftMouseUp,
+            at: CGPoint(x: cueRect.midX, y: cueRect.midY),
+            in: documentView,
+            window: window
+        )
+    )
+
+    #expect(!presentedAgain)
+}
+
+@MainActor
 @Test
 func subtitleFocusOversizedTextStartsAtHeadAndClipsTrailingLines() throws {
     let text = "first\nsecond\nthird\nfourth"
