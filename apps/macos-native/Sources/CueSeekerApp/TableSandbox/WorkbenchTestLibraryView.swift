@@ -1169,17 +1169,61 @@ private struct LibraryCardContextMenuState: Identifiable {
     let id = UUID()
     var anchorPoint: CGPoint
     let items: [LibraryCardContextMenuItem]
+    /// Measured and decided when the menu opened. From then on the menu only
+    /// translates, so nothing can send it to the other side mid-scroll.
+    let menuSize: CGSize
+    let placementOffset: CGSize
+}
+
+/// Answers "how much of this page can the reader see", which is what a menu
+/// measures the room below a card against. Asked at the moment of the click, the
+/// way the table asks its own scroll view, so nothing has to be published ahead
+/// of time or kept in step.
+@MainActor
+private final class LibraryCardMenuHostGeometry {
+    weak var probe: LibraryCardMenuViewportProbe.ProbeView?
+
+    var visibleRect: CGRect {
+        guard let probe else {
+            return .zero
+        }
+        // A page that is not inside a scroll view is visible in full.
+        let visible = probe.visibleRect
+        return visible.isEmpty ? probe.bounds : visible
+    }
+}
+
+/// Sits behind the page at its exact size and reports what of it is unclipped.
+private struct LibraryCardMenuViewportProbe: NSViewRepresentable {
+    let geometry: LibraryCardMenuHostGeometry
+
+    func makeNSView(context _: Context) -> ProbeView {
+        let view = ProbeView()
+        geometry.probe = view
+        return view
+    }
+
+    func updateNSView(_ nsView: ProbeView, context _: Context) {
+        geometry.probe = nsView
+    }
+
+    final class ProbeView: NSView {
+        /// SwiftUI measures top-left down; this view has to answer in the same
+        /// direction or every "below" becomes an "above".
+        override var isFlipped: Bool {
+            true
+        }
+
+        override func hitTest(_ point: NSPoint) -> NSView? {
+            nil
+        }
+    }
 }
 
 struct LibraryCardContextMenuHost<Content: View>: View {
     @State private var activeMenu: LibraryCardContextMenuState?
-    @State private var menuSize: CGSize = .zero
-    /// Where the menu sits relative to the card, fixed when it opened.
-    @State private var placementOffset: CGSize?
     @StateObject private var highlight = MenuHighlightModel()
-    /// Set when this host sits inside a scrolling page, which is what tells the
-    /// menu how much room the reader can actually see below a card.
-    @Environment(\.workbenchScrollViewportSize) private var viewportSize
+    @State private var geometry = LibraryCardMenuHostGeometry()
     @ViewBuilder var content: (_ openContextMenu: @escaping ([LibraryCardContextMenuItem], CGPoint) -> Void) -> Content
 
     var body: some View {
@@ -1187,89 +1231,83 @@ struct LibraryCardContextMenuHost<Content: View>: View {
             .environment(\.libraryCardContextMenuIsOpen, activeMenu != nil)
             .environment(\.libraryCardContextMenuAnchorUpdate, updateAnchorPoint)
             .coordinateSpace(name: LibraryCardContextMenuCoordinateSpace.name)
+            .background(LibraryCardMenuViewportProbe(geometry: geometry))
             .overlay(alignment: .topLeading) {
                 if let activeMenu {
-                    GeometryReader { proxy in
-                        let menuFrame = menuFrame(
-                            for: activeMenu,
-                            in: visibleRect(of: proxy)
+                    let menuFrame = menuFrame(for: activeMenu)
+                    ZStack(alignment: .topLeading) {
+                        LibraryCardMenuKeyboardMonitor(
+                            isActive: true,
+                            onMoveHighlight: {
+                                highlight.moveHighlight(by: $0)
+                            },
+                            onActivateHighlight: activateHighlightedItem,
+                            onDismiss: dismissContextMenu
                         )
-                        ZStack(alignment: .topLeading) {
-                            LibraryCardMenuKeyboardMonitor(
-                                isActive: true,
-                                onMoveHighlight: {
-                                    highlight.moveHighlight(by: $0)
-                                },
-                                onActivateHighlight: activateHighlightedItem,
-                                onDismiss: dismissContextMenu
-                            )
-                            .frame(width: 0, height: 0)
-                            .allowsHitTesting(false)
+                        .frame(width: 0, height: 0)
+                        .allowsHitTesting(false)
 
-                            LibraryCardMenuPointerMonitor(
-                                isActive: true,
-                                menuFrame: menuFrame,
-                                onDismiss: dismissContextMenu
-                            )
-                            .frame(width: proxy.size.width, height: proxy.size.height)
-                            .allowsHitTesting(false)
+                        LibraryCardMenuPointerMonitor(
+                            isActive: true,
+                            menuFrame: menuFrame,
+                            onDismiss: dismissContextMenu
+                        )
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .allowsHitTesting(false)
 
-                            LibraryCardContextMenu(
-                                items: activeMenu.items,
-                                highlight: highlight,
-                                onDismiss: dismissContextMenu
+                        LibraryCardContextMenu(
+                            items: activeMenu.items,
+                            highlight: highlight,
+                            onDismiss: dismissContextMenu
+                        )
+                        .offset(
+                            CGSize(
+                                width: menuFrame.minX,
+                                height: menuFrame.minY
                             )
-                            .background(
-                                GeometryReader { menuProxy in
-                                    Color.clear.preference(
-                                        key: LibraryCardContextMenuSizePreferenceKey.self,
-                                        value: menuProxy.size
-                                    )
-                                }
-                            )
-                            .offset(menuOffset(for: activeMenu, in: visibleRect(of: proxy)))
-                        }
-                        // The side is chosen once, as soon as the menu reports a
-                        // real size, and then only travels with its card.
-                        .onChange(of: menuFrame) { frame in
-                            guard placementOffset == nil,
-                                  menuSize.height > 0
-                            else {
-                                return
-                            }
-                            placementOffset = MenuPlacement.offset(
-                                from: CGRect(
-                                    origin: activeMenu.anchorPoint,
-                                    size: .zero
-                                ),
-                                to: frame
-                            )
-                        }
+                        )
                     }
                     .zIndex(1000)
-                    .onPreferenceChange(LibraryCardContextMenuSizePreferenceKey.self) { newSize in
-                        guard menuSize != newSize else {
-                            return
-                        }
-                        menuSize = newSize
-                    }
-
                 }
             }
     }
 
+    /// Measures the menu, chooses its side once, and remembers the offset — the
+    /// same order the table's menus follow.
     private func openContextMenu(items: [LibraryCardContextMenuItem], anchorPoint: CGPoint) {
-        menuSize = .zero
-        placementOffset = nil
-        activeMenu = LibraryCardContextMenuState(anchorPoint: anchorPoint, items: items)
+        let menuSize = measuredMenuSize(for: items)
+        let anchor = CGRect(origin: anchorPoint, size: .zero)
+        let openingFrame = MenuPlacement.openingFrame(
+            anchor: anchor,
+            menuSize: menuSize,
+            in: geometry.visibleRect,
+            gap: WorkbenchControlMetrics.redesignSpacing1
+        )
+        activeMenu = LibraryCardContextMenuState(
+            anchorPoint: anchorPoint,
+            items: items,
+            menuSize: menuSize,
+            placementOffset: MenuPlacement.offset(from: anchor, to: openingFrame)
+        )
         highlight.open(
             selectablePositions: items.indices.filter { items[$0].isEnabled }
         )
     }
 
+    private func measuredMenuSize(for items: [LibraryCardContextMenuItem]) -> CGSize {
+        let host = NSHostingView(
+            rootView: LibraryCardContextMenu(
+                items: items,
+                highlight: highlight,
+                onDismiss: {}
+            )
+        )
+        host.layoutSubtreeIfNeeded()
+        return host.fittingSize
+    }
+
     private func dismissContextMenu() {
         activeMenu = nil
-        placementOffset = nil
         highlight.close()
     }
 
@@ -1299,52 +1337,13 @@ struct LibraryCardContextMenuHost<Content: View>: View {
         return true
     }
 
-    /// The part of this host the reader can see, in the host's own coordinates.
-    /// A host that is not inside a scrolling page is visible in full.
-    private func visibleRect(of proxy: GeometryProxy) -> CGRect {
-        guard let viewportSize else {
-            return CGRect(origin: .zero, size: proxy.size)
-        }
-        return WorkbenchScrollViewport.visibleRect(
-            originInViewport: proxy
-                .frame(in: .named(WorkbenchScrollViewport.name))
-                .origin,
-            viewportSize: viewportSize,
-            size: proxy.size
-        )
-    }
-
-    private func menuFrame(for menu: LibraryCardContextMenuState, in container: CGRect) -> CGRect {
-        let size = resolvedMenuSize(for: menu)
-        let anchor = CGRect(origin: menu.anchorPoint, size: .zero)
-        if let placementOffset {
-            return MenuPlacement.followingFrame(
-                anchor: anchor,
-                offset: placementOffset,
-                menuSize: size
-            )
-        }
-        return MenuPlacement.openingFrame(
-            anchor: anchor,
-            menuSize: size,
-            in: container,
-            gap: WorkbenchControlMetrics.redesignSpacing1
-        )
-    }
-
-    private func menuOffset(for menu: LibraryCardContextMenuState, in container: CGRect) -> CGSize {
-        let frame = menuFrame(for: menu, in: container)
-        return CGSize(width: frame.minX, height: frame.minY)
-    }
-
-    private func resolvedMenuSize(for menu: LibraryCardContextMenuState) -> CGSize {
-        let fallbackSize = CGSize(
-            width: 220,
-            height: CGFloat(menu.items.count * 40 + 8)
-        )
-        return CGSize(
-            width: menuSize.width > 0 ? menuSize.width : fallbackSize.width,
-            height: menuSize.height > 0 ? menuSize.height : fallbackSize.height
+    /// Pure translation. The side and the distance were settled when the menu
+    /// opened, so a scrolling page moves the menu and never re-decides it.
+    private func menuFrame(for menu: LibraryCardContextMenuState) -> CGRect {
+        MenuPlacement.followingFrame(
+            anchor: CGRect(origin: menu.anchorPoint, size: .zero),
+            offset: menu.placementOffset,
+            menuSize: menu.menuSize
         )
     }
 }
@@ -1445,7 +1444,7 @@ private struct LibraryCardMenuKeyboardMonitor: NSViewRepresentable {
     }
 }
 
-private struct LibraryCardMenuPointerMonitor: NSViewRepresentable {
+struct LibraryCardMenuPointerMonitor: NSViewRepresentable {
     let isActive: Bool
     let menuFrame: CGRect
     let onDismiss: () -> Void
@@ -1461,7 +1460,7 @@ private struct LibraryCardMenuPointerMonitor: NSViewRepresentable {
     final class MonitoringView: NSView {
         nonisolated(unsafe) private var monitor: Any?
         private var isActive = false
-        private var menuFrame = CGRect.zero
+        private(set) var menuFrame = CGRect.zero
         private var onDismiss: (() -> Void)?
 
         override var isFlipped: Bool {
@@ -1528,14 +1527,6 @@ private struct LibraryCardMenuPointerMonitor: NSViewRepresentable {
             NSEvent.removeMonitor(monitor)
             self.monitor = nil
         }
-    }
-}
-
-private struct LibraryCardContextMenuSizePreferenceKey: PreferenceKey {
-    static let defaultValue: CGSize = .zero
-
-    static func reduce(value: inout CGSize, nextValue: () -> CGSize) {
-        value = nextValue()
     }
 }
 

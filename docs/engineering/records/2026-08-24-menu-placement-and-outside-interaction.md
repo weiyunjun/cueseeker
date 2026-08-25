@@ -471,6 +471,69 @@ the recent-video page and the Shiori list page — each menu should open upward 
 stay fully visible — then scroll with a menu open and confirm it still travels
 with its card and keeps its side.
 
+(The mechanism this step introduced for reading the viewport was replaced in Step
+1c, which also removes it. What survives from this step is the rule: a card menu
+measures against what the reader can see.)
+
+## Step 1c: one placement lifecycle, the table's (§3)
+
+Step 1b gave the card menu the right boundary and the App got worse: a menu would
+open above a cover and then, as the page scrolled, move to below it — and it
+never slid off the screen the way §4.3 asks, it kept pulling itself back into
+view.
+
+Both are one cause. **The card menu had its own placement lifecycle.** It could
+not measure itself when it opened, so it deferred the decision until the menu
+reported its size through a side channel, and **until that record was written it
+re-ran the opening rule on every layout pass**. Re-running is exactly what §3.3
+forbids. It had been harmless only because the boundary used to be a fixed
+rectangle, so every re-run gave the same answer; Step 1b made the boundary follow
+the window, and the same re-run started answering differently as the page moved.
+The second symptom is the same sentence read further: the opening rule ends by
+sliding the menu inside its boundary, so every re-run pulled it back on screen.
+
+The table never had either symptom because it does it in the other order: when a
+menu opens it puts it in a hosting view, **measures it**, chooses the side once,
+**stores the offset in that same call**, and from then on only translates.
+
+The card host now follows that order. Because the size is known at the click,
+three things the deferred version needed are gone: the size-reporting preference,
+the guessed fallback size, and the handshake that wrote the decision one frame
+later. The side and the offset live in the open menu's own state, and the body
+has one job — translate.
+
+The boundary is now asked for the same way the table asks: a view behind the page
+reports its own unclipped rectangle, read at the moment of the click. That
+replaces Step 1b's published viewport, which is removed with its tests, so there
+is one way to answer "what can the reader see" instead of two — and no value that
+has to be published ahead of the click and kept in step.
+
+`MenuPlacement` was not touched; it was already the shared part. What was
+duplicated was the lifecycle around it, and now it is not.
+
+Files: `TableSandbox/WorkbenchTestLibraryView.swift`,
+`Shared/WorkbenchScrollView.swift` (Step 1b's addition removed).
+
+### Verification
+
+- `swift build` clean.
+- New `LibraryCardMenuPlacementTests`, 5 cases. They drive the menu through the
+  very callback the cards are handed, so the hover gate that kept these menus out
+  of automation is not in the way: opens above a card with no room below it on
+  screen, keeps its side and offset while the page scrolls, keeps them when
+  opened a second time, keeps them when opened on an already scrolled page, and
+  travels out of the viewport with its card instead of being pulled back. The
+  first and last both fail on Step 1b's code, which is the pair of symptoms
+  reported. **Card menu placement is no longer manual-only acceptance.**
+  Observing it needed one production change: the pointer monitor that already
+  holds the menu's frame now exposes it, the way `WorkbenchScrollViewOverlayView`
+  exposes its scroll view.
+- Menu, placement and scroll-view suites: 62 tests passing.
+- Full suite: 1058 tests, 39 issues, all in the media-timing, refresh-scope,
+  localization-leak and persistence families that vary run to run; the four names
+  that had not appeared in the previous run all pass alone. No test failed that
+  was not already failing.
+
 ## Outcome
 
 Steps 1 through 5a cover the requirement's §2 through §7 — every section. What
