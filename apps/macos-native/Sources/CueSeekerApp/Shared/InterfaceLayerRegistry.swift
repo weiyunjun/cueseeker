@@ -105,6 +105,11 @@ final class InterfaceLayerRegistry: ObservableObject {
         Set(InterfaceLayer.allCases.filter(isFrozen))
     }
 
+    /// Every layer something else owns input above, answered the same way.
+    var coveredLayers: Set<InterfaceLayer> {
+        Set(InterfaceLayer.allCases.filter(isCovered))
+    }
+
     /// Whether a menu owned by `owner` is covered. A menu sits only above its
     /// own layer, so whatever covers that layer covers the menu with it.
     func isMenuCovered(ownedBy owner: InterfaceLayer) -> Bool {
@@ -194,7 +199,10 @@ struct InterfaceLayerCoverageBridge: ViewModifier {
             )
             .environment(
                 \.interfaceLayerContext,
-                InterfaceLayerContext(frozenLayers: layers.frozenLayers)
+                InterfaceLayerContext(
+                    coveredLayers: layers.coveredLayers,
+                    frozenLayers: layers.frozenLayers
+                )
             )
             .environment(
                 \.isPlaybackOverlayCovered,
@@ -212,7 +220,14 @@ struct InterfaceLayerCoverageBridge: ViewModifier {
 /// when their own cards are the ones the reader is pointing at.
 struct InterfaceLayerContext: Equatable {
     var layer: InterfaceLayer = .workbenchPage
+    var coveredLayers: Set<InterfaceLayer> = []
     var frozenLayers: Set<InterfaceLayer> = []
+
+    /// Whether something above the surface reading this owns input. Its own
+    /// menus and pointer interactions stop while covered.
+    var isCovered: Bool {
+        coveredLayers.contains(layer)
+    }
 
     /// Whether the surface reading this must keep the picture it had.
     var isFrozen: Bool {
@@ -235,7 +250,11 @@ private struct InterfaceLayerModifier: ViewModifier {
     func body(content: Content) -> some View {
         content.environment(
             \.interfaceLayerContext,
-            InterfaceLayerContext(layer: layer, frozenLayers: context.frozenLayers)
+            InterfaceLayerContext(
+                layer: layer,
+                coveredLayers: context.coveredLayers,
+                frozenLayers: context.frozenLayers
+            )
         )
     }
 }

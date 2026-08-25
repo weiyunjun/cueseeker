@@ -1464,7 +1464,7 @@ private struct LibraryCardContextMenuTriggerModifier: ViewModifier {
     let ownerID: String
     let items: [LibraryCardContextMenuItem]
     let openContextMenu: ([LibraryCardContextMenuItem], CGPoint, String) -> Void
-    @Environment(\.isWorkbenchPageCovered) private var isCovered
+    @Environment(\.interfaceLayerContext) private var layerContext
     @Environment(\.libraryCardContextMenuOwner) private var contextMenuOwnerID
     @Environment(\.libraryCardContextMenuAnchorUpdate) private var updateAnchor
     /// Set on the one card the open menu belongs to, so only that card reports
@@ -1478,7 +1478,7 @@ private struct LibraryCardContextMenuTriggerModifier: ViewModifier {
                 // An open menu is not a reason to refuse: the press that
                 // closed it is the same press that opens this card's menu.
                 LibraryCardRightClickMonitor(
-                    isEnabled: isEnabled && !isCovered
+                    isEnabled: isEnabled && !layerContext.isCovered
                 ) { localPoint in
                     localAnchorPoint = localPoint
                     openContextMenu(

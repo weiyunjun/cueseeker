@@ -153,3 +153,47 @@ neighbour has an open menu shows the arrow. The Command Panel and Playback
 Overlay could not be driven reliably through the E2E controller — playback did
 not stay open across the scripted steps — so the on-screen confirmation there is
 the owner's, and the automated guard is the unit tests above.
+
+## Follow-up: the card menu came back the same way
+
+Cards in the Command Panel and the Playback Overlay had no right-click menu
+either. This one was not a gap in this work — it is a regression from
+`e65c97f6`, the commit that moved coverage into the registry.
+
+Before it, the card's right-click monitor was gated on a flag that the workbench
+subtree set on itself and the playback subtree never inherited, so a card inside
+the Command Panel read "not covered" and kept its menu. That commit replaced the
+flag with the registry's "is the workbench page covered", which is true wherever
+you read it once a higher layer is open — including inside the panel that made it
+true. The menu stopped opening there and the loss went unnoticed.
+
+Coverage now answers per layer the same way freezing does: the registry reports
+every covered layer, and the card's right-click gate asks about the layer the
+card is on. Cards in the Command Panel and the Playback Overlay behave like
+workbench cards again.
+
+Files:
+
+- `apps/macos-native/Sources/CueSeekerApp/Shared/InterfaceLayerRegistry.swift`
+  - `coveredLayers`, and `InterfaceLayerContext.isCovered` beside `isFrozen`.
+- `apps/macos-native/Sources/CueSeekerApp/TableSandbox/WorkbenchTestLibraryView.swift`
+  - The card menu trigger asks the context instead of the page's answer.
+
+### Verification
+
+Three more tests in `InterfaceLayerFreezeTests.swift`: an open layer covers the
+page below it and not itself, a surface answers coverage for its own layer, and a
+dialog still covers the layer it opens over. `swift test`: 1068 tests, no new
+failures against the baseline.
+
+Driven through the Debug in-app E2E controller: play an episode, open the Command
+Panel, open its Recent Videos page, right-click a card. The capture shows the
+card menu open over the panel with the right-clicked card highlighted. The
+Playback Overlay's episode grid takes the same path and claims its own layer, but
+its module could not be opened from the scripted steps, so that surface is the
+owner's check.
+
+The menu inventory in `docs/human/design/UI Application Rules.md` lists the card
+menu as a Workbench menu. After acceptance it should record that the same menu
+belongs to the Command Panel and the Playback Overlay as well; that is the
+owner's edit.
