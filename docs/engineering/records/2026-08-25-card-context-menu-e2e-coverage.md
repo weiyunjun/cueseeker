@@ -106,3 +106,12 @@ Outcome matched expectations after the clipping defect was corrected. The manual
 acceptance that `20260825-UI-Menu Modality And Layer Input Ownership.md`
 assigned to the SwiftUI cards is now automated, as its acceptance point 10 is
 superseded by the current requirement.
+
+## Follow-up: the E2E command reference still described the old gate
+
+`docs/engineering/08_end_to_end_testing.md` still told a reader that `rightClick`
+could not open a card menu because the monitor was installed only while the card
+reported SwiftUI hover. That stopped being true with this change, and it
+contradicted the card menu case documented later in the same file. The
+`rightClick` paragraph now states that the table row menu and the card and cover
+menus all open from the press, with no preceding `mouseMove`.

@@ -142,10 +142,10 @@ checking which mechanism the surface uses.
 
 `rightClick` posts a right-button down/up pair at the scene coordinate and, like
 `click`, performs normal click activation. Use it for the Workbench table row
-context menu. The Library cover context menu installs its right-click monitor
-only while the card reports SwiftUI hover, so it cannot be opened by this
-command alone; it remains a manual acceptance step for the same reason
-`mouseMove` cannot drive `.onHover`.
+context menu and for the Workbench card and cover context menus. A card opens its
+menu from the press itself, so no preceding `mouseMove` is needed and none would
+help: the highlight the open menu leaves on that card comes from the press, not
+from hover.
 
 `mouseDown`, `mouseDrag`, and `mouseUp` split a left-button drag into separable
 steps for interactions that need the intermediate motion, such as selecting
