@@ -3507,7 +3507,8 @@ struct SubtitleTableView: NSViewRepresentable {
         }
 
         func menuOutsideClickDismissesForTesting(windowPoint: CGPoint) -> Bool {
-            shouldDismissOpenMenu(isEventInContainerWindow: true, windowPoint: windowPoint)
+            guard isMenuOpen, !suspendsMenuOutsideClickDismiss else { return false }
+            return !isWindowPointInsideOpenMenu(windowPoint)
         }
 
         func dataCellRectForTesting(row: Int, columnID: String) -> CGRect? {
@@ -6611,9 +6612,10 @@ struct SubtitleTableView: NSViewRepresentable {
         }
 
         func handleRightMouseDown(windowPoint: CGPoint) -> Bool {
+            // An open menu is not a reason to refuse: the press that closed it
+            // is the same press that opens this row's menu.
             guard isRedesign,
                   isEnabled,
-                  !isMenuOpen,
                   !isExternalPopupLayerOpen,
                   let documentView,
                   let container
@@ -7439,14 +7441,12 @@ struct SubtitleTableView: NSViewRepresentable {
             }
         }
 
-        /// Closes the menu on the first press outside it and keeps that press,
-        /// and bans scrolling for the whole window while the menu is open.
+        /// Applies `MenuOutsidePress` to the row menu, and bans scrolling for
+        /// the whole window while the menu is open.
         ///
         /// Nothing covers the rest of the table while a menu is open, so this
         /// monitor is the only thing standing between the press and the row
-        /// under it. The press is spent on closing the menu and goes no
-        /// further. A press in another window closes the menu but stays that
-        /// window's own. The middle button is not a dismissal, so it is not
+        /// under it. The middle button is not a dismissal, so it is not
         /// matched here.
         private func installMenuDismissMonitor() {
             removeMenuDismissMonitor()
@@ -7455,9 +7455,14 @@ struct SubtitleTableView: NSViewRepresentable {
             ) { [weak self] event in
                 guard let self else { return event }
                 guard let container = self.container else { return event }
-                let isEventInContainerWindow = event.window === container.window
+                let menuWindow = container.window
                 if event.type == .scrollWheel {
-                    guard self.isMenuOpen, isEventInContainerWindow else {
+                    guard self.isMenuOpen,
+                          !MenuOutsidePress.isFromAnotherWindow(
+                              event,
+                              menuWindow: menuWindow
+                          )
+                    else {
                         return event
                     }
                     // The menu is the one surface that may still scroll.
@@ -7465,24 +7470,30 @@ struct SubtitleTableView: NSViewRepresentable {
                         event.locationInWindow
                     ) ? event : nil
                 }
-                guard self.shouldDismissOpenMenu(
-                    isEventInContainerWindow: isEventInContainerWindow,
-                    windowPoint: event.locationInWindow
-                ) else {
+                guard self.isMenuOpen, !self.suspendsMenuOutsideClickDismiss else {
                     return event
                 }
-                DispatchQueue.main.async {
+                switch MenuOutsidePress.decide(
+                    event,
+                    menuWindow: menuWindow,
+                    isPointerOnMenu: {
+                        self.isWindowPointInsideOpenMenu(event.locationInWindow)
+                    }
+                ) {
+                case .leaveToOtherWindow, .leaveToMenu:
+                    return event
+                case .dismissAndForward:
+                    // Closed before the press reaches the row under it, so the
+                    // row's own right-click opens its menu on this same press.
                     self.dismissMenu()
+                    return event
+                case .dismissAndConsume:
+                    DispatchQueue.main.async {
+                        self.dismissMenu()
+                    }
+                    return nil
                 }
-                return isEventInContainerWindow ? nil : event
             }
-        }
-
-        private func shouldDismissOpenMenu(isEventInContainerWindow: Bool, windowPoint: CGPoint) -> Bool {
-            guard isMenuOpen else { return false }
-            guard !suspendsMenuOutsideClickDismiss else { return false }
-            guard isEventInContainerWindow else { return true }
-            return !isWindowPointInsideOpenMenu(windowPoint)
         }
 
         private func isWindowPointInsideOpenMenu(_ windowPoint: CGPoint) -> Bool {

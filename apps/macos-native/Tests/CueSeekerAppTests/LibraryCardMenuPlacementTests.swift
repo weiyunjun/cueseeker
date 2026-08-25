@@ -7,7 +7,7 @@ import Testing
 /// callback the cards are handed — inside a page tall enough to scroll.
 @MainActor
 private final class CardMenuOpener {
-    var open: (([LibraryCardContextMenuItem], CGPoint) -> Void)?
+    var open: (([LibraryCardContextMenuItem], CGPoint, String) -> Void)?
     var items: [LibraryCardContextMenuItem] = []
 }
 
@@ -54,7 +54,7 @@ private func hostCardMenu(
 
     // Right-clicked on a page that is already on screen, which is the only way a
     // reader can reach a card.
-    opener.open?(opener.items, anchor)
+    opener.open?(opener.items, anchor, "card")
     for _ in 0..<6 {
         host.layoutSubtreeIfNeeded()
         await Task.yield()
@@ -150,7 +150,7 @@ func libraryCardMenuKeepsItsSideAfterBeingOpenedASecondTime() async throws {
 
     // Opened again on another card, the way a reader moves from one cover to the
     // next. The second menu holds the same items, so it is exactly the same size.
-    opener.open?(opener.items, CGPoint(x: 200, y: 720))
+    opener.open?(opener.items, CGPoint(x: 200, y: 720), "card")
     for _ in 0..<6 {
         host.layoutSubtreeIfNeeded()
         await Task.yield()
@@ -184,7 +184,7 @@ func libraryCardMenuOpenedOnAScrolledPageKeepsItsSide() async throws {
     defer { window.contentView = nil }
 
     await scrollCardMenuPage(host, to: 400)
-    opener.open?(opener.items, CGPoint(x: 150, y: 1_150))
+    opener.open?(opener.items, CGPoint(x: 150, y: 1_150), "card")
     for _ in 0..<6 {
         host.layoutSubtreeIfNeeded()
         await Task.yield()

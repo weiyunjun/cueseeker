@@ -61,6 +61,9 @@ struct PlaybackChromeView: View {
     @State private var speedButtonFrame: CGRect = .zero
     @State private var speedMenuFrame: CGRect = .zero
     @State private var isTimeHovered = false
+    /// The window the chrome is in, so the dismissal monitor can tell a press
+    /// meant for this window from one that belongs to another window.
+    @State private var hostWindow: NSWindow?
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -71,6 +74,7 @@ struct PlaybackChromeView: View {
                 .zIndex(1)
         }
         .frame(height: PlaybackChromeMetrics.interactiveHeight, alignment: .bottom)
+        .background(MenuHostWindowReader(window: $hostWindow).frame(width: 0, height: 0))
         .overlayPreferenceValue(PlaybackSpeedButtonAnchorKey.self) { anchor in
             speedMenuOverlay(anchor: anchor)
         }
@@ -309,6 +313,15 @@ struct PlaybackChromeView: View {
             guard playback.commandPanelPresentation == nil else {
                 return event
             }
+            // Until the reader has reported, the press counts as this
+            // window's, so a menu can never become impossible to close.
+            let menuWindow = hostWindow ?? event.window
+            guard !MenuOutsidePress.isFromAnotherWindow(
+                event,
+                menuWindow: menuWindow
+            ) else {
+                return event
+            }
             let pointerInWindow = event.window.map { window in
                 CGPoint(
                     x: event.locationInWindow.x,
@@ -323,19 +336,30 @@ struct PlaybackChromeView: View {
                 // else the wheel is the page's as usual.
                 return isPointerOnMenu ? nil : event
             }
-            if isPointerOnMenu {
+            switch MenuOutsidePress.decide(
+                event,
+                menuWindow: menuWindow,
+                isPointerOnMenu: { isPointerOnMenu }
+            ) {
+            case .leaveToOtherWindow, .leaveToMenu:
                 return event
-            }
-            if let pointerInWindow, speedButtonFrame.contains(pointerInWindow) {
-                // Let the button action handle toggling isSpeedMenuVisible to false
+            case .dismissAndForward:
+                DispatchQueue.main.async {
+                    playback.closeSpeedMenu()
+                }
                 return event
+            case .dismissAndConsume:
+                if let pointerInWindow, speedButtonFrame.contains(pointerInWindow) {
+                    // Let the button action handle toggling isSpeedMenuVisible to false
+                    return event
+                }
+                DispatchQueue.main.async {
+                    playback.closeSpeedMenu()
+                }
+                // The press that closes the menu is spent on closing it and
+                // never reaches the video or the controls underneath.
+                return nil
             }
-            DispatchQueue.main.async {
-                playback.closeSpeedMenu()
-            }
-            // The press that closes the menu is spent on closing it and
-            // never reaches the video or the controls underneath.
-            return nil
         }
     }
 

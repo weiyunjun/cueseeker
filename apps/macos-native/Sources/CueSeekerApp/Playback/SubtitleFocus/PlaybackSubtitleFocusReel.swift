@@ -2483,20 +2483,29 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
             else {
                 return event
             }
-            guard event.window === self.window else {
+            switch MenuOutsidePress.decide(
+                event,
+                menuWindow: self.window,
+                isPointerOnMenu: {
+                    guard let host = self.selectedTextMenuHost else {
+                        return false
+                    }
+                    return host.bounds.contains(
+                        host.convert(event.locationInWindow, from: nil)
+                    )
+                }
+            ) {
+            case .leaveToOtherWindow, .leaveToMenu:
+                return event
+            case .dismissAndForward:
                 self.dismissSelectedTextActions()
                 return event
+            case .dismissAndConsume:
+                self.dismissSelectedTextActions()
+                // The press that closes the menu is spent on closing it. It
+                // does not also land on the subtitle text underneath.
+                return nil
             }
-            if let host = self.selectedTextMenuHost,
-               host.bounds.contains(
-                   host.convert(event.locationInWindow, from: nil)
-               ) {
-                return event
-            }
-            self.dismissSelectedTextActions()
-            // The press that closes the menu is spent on closing it. It does
-            // not also land on the subtitle text underneath.
-            return nil
         }
     }
 

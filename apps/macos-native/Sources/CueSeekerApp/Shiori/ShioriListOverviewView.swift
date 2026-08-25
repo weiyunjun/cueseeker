@@ -55,7 +55,7 @@ struct ShioriListOverviewView: View {
     }
 
     private func listGrid(
-        openContextMenu: @escaping ([LibraryCardContextMenuItem], CGPoint) -> Void
+        openContextMenu: @escaping ([LibraryCardContextMenuItem], CGPoint, String) -> Void
     ) -> some View {
         LibraryOverviewGrid {
             ForEach(shioriStore.listOverview.lists) { summary in
@@ -85,10 +85,14 @@ private struct ShioriListCard: View {
     let onOpen: () -> Void
     let onEdit: () -> Void
     let onDelete: () -> Void
-    let openContextMenu: ([LibraryCardContextMenuItem], CGPoint) -> Void
+    let openContextMenu: ([LibraryCardContextMenuItem], CGPoint, String) -> Void
     @Environment(\.libraryCardContextMenuIsOpen) private var isContextMenuOpen
     @State private var isHovered = false
-    @State private var ownsOpenMenu = false
+    @Environment(\.libraryCardContextMenuOwner) private var contextMenuOwnerID
+
+    private var contextMenuOwnerIdentity: String {
+        String(summary.id)
+    }
 
     /// True while a surface above the grid owns input: a dialog, or a card
     /// menu. The card keeps the picture it had and stops following the pointer.
@@ -98,7 +102,7 @@ private struct ShioriListCard: View {
 
     private var isHoverActive: Bool {
         if isContextMenuOpen {
-            return ownsOpenMenu
+            return contextMenuOwnerID == contextMenuOwnerIdentity
         }
         return isHovered
     }
@@ -121,9 +125,9 @@ private struct ShioriListCard: View {
         }
         .libraryCardContextMenuTrigger(
             isEnabled: true,
+            ownerID: contextMenuOwnerIdentity,
             items: contextMenuItems,
-            openContextMenu: openContextMenu,
-            ownsOpenMenu: $ownsOpenMenu
+            openContextMenu: openContextMenu
         )
         .pointerOnHover(isEnabled: !isWorkbenchPopupLayerOpen)
         .accessibilityLabel(summary.list.name)
