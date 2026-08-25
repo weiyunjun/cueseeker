@@ -548,6 +548,9 @@ extension AppCoordinator {
         if playback.commandPanelPresentation != nil {
             return true
         }
+        // Opening the Command Panel closes the speed menu, whatever key or
+        // controller button asked for it.
+        playback.closeSpeedMenu()
         let wasPlaying = playback.playbackViewModel?.isPlaying == true
         guard suspendPlaybackForModalPresentation(
             wasPlaying: wasPlaying

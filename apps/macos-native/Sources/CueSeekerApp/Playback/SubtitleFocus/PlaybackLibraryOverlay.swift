@@ -34,7 +34,6 @@ struct PlaybackLibraryOverlay: View {
 }
 
 private struct PlaybackLibraryEpisodeList: View {
-    @EnvironmentObject private var pointerVisibility: PlaybackPointerVisibilityStore
     @ObservedObject var store: PlaybackLibrarySessionStore
     @ObservedObject var selection: PlaybackMediaSelectionStore
     let onOpenEpisode: (CompleteLibraryVideoPresentation) -> Bool
@@ -81,6 +80,7 @@ private struct PlaybackLibraryEpisodeList: View {
         // The overlay reuses the workbench episode grid; it must answer for
         // this layer rather than for the page underneath it.
         contentBody(viewportHeight: viewportHeight)
+            .cardHighlightFreeze(selection.highlight)
             .interfaceLayer(.playbackOverlay)
     }
 
@@ -97,21 +97,13 @@ private struct PlaybackLibraryEpisodeList: View {
             CompleteLibraryEpisodeGrid(
                 folderTitle: detail.folderTitle,
                 videos: detail.videos,
-                mode: .playback,
-                selectedItemID: selection.selectedItemID,
+                highlight: selection.highlight,
                 itemFrameCoordinateSpace: coordinateSpaceName,
                 onItemFramesChange: { frames in
                     selection.recordVisibleFrames(
                         frames,
                         viewportHeight: viewportHeight
                     )
-                },
-                allowsHover: pointerVisibility.isVisible,
-                onItemHoverChange: { video, isHovered in
-                    guard isHovered else {
-                        return
-                    }
-                    selection.selectFromPointer(itemID: video.id)
                 },
                 onOpen: { video in
                     _ = onOpenEpisode(video)

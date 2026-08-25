@@ -309,8 +309,7 @@ struct LibraryOverviewCardContent<Cover: View>: View {
 }
 
 struct LibraryOverviewCardButtonStyle: ButtonStyle {
-    let isHovered: Bool
-    var isSelected = false
+    let isCurrent: Bool
     var isEnabled = true
 
     func makeBody(configuration: Configuration) -> some View {
@@ -326,7 +325,7 @@ struct LibraryOverviewCardButtonStyle: ButtonStyle {
                     style: .continuous
                 )
                 .fill(
-                    (isHovered || isSelected) && isEnabled
+                    isCurrent && isEnabled
                         ? WorkbenchRedesignColors.libraryMediaCardHoverBg
                         : Color.clear
                 )
@@ -353,7 +352,7 @@ struct LibraryOverviewCardButtonStyle: ButtonStyle {
                 .easeOut(
                     duration: WorkbenchControlMetrics.redesignLibraryCoverHoverDuration
                 ),
-                value: isHovered
+                value: isCurrent
             )
     }
 }

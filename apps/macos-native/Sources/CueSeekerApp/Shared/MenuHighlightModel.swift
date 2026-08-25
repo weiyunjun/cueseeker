@@ -7,8 +7,7 @@ import SwiftUI
 /// fight the keyboard: the row already beneath the cursor would pull the
 /// highlight straight back, and the same happens after every keyboard move that
 /// lands away from a stationary pointer. Hover is therefore only adopted once
-/// the pointer has really moved, and a keyboard move closes that gate again and
-/// hides the cursor until it does.
+/// the pointer has really moved, and a keyboard move closes that gate again.
 ///
 /// The menu that owns this model supplies the positions that can take the
 /// highlight, so dividers and disabled items are simply absent and keyboard
@@ -24,10 +23,6 @@ final class MenuHighlightModel: ObservableObject {
 
     var isOpen: Bool {
         pointerMonitor != nil
-    }
-
-    private var cursorOwner: AppCursorVisibility.Owner {
-        .menu(ObjectIdentifier(self))
     }
 
     /// Opens the surface with `defaultPosition` highlighted, or the first
@@ -48,7 +43,6 @@ final class MenuHighlightModel: ObservableObject {
         highlightedPosition = nil
         hoveredPosition = nil
         adoptsHover = false
-        AppCursorVisibility.setHidden(false, owner: cursorOwner)
     }
 
     /// Moves the highlight and reports whether the surface consumed the key.
@@ -60,7 +54,6 @@ final class MenuHighlightModel: ObservableObject {
             return false
         }
         adoptsHover = false
-        AppCursorVisibility.setHidden(true, owner: cursorOwner)
         let current = highlightedPosition
             .flatMap { selectablePositions.firstIndex(of: $0) } ?? 0
         let target = min(
@@ -84,7 +77,6 @@ final class MenuHighlightModel: ObservableObject {
     }
 
     func notePointerMoved() {
-        AppCursorVisibility.setHidden(false, owner: cursorOwner)
         adoptsHover = true
         adoptHoverIfAllowed()
     }

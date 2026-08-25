@@ -784,8 +784,6 @@ extension AppCoordinator {
             return false
         }
 
-        playback.requestPointerHide()
-
         guard currentPlaybackVideoPath != nil,
               let viewModel = playback.playbackViewModel
         else {

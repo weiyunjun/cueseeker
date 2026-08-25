@@ -264,20 +264,20 @@ func playbackMediaSelectionFromPointerMovesSelectionWithoutScrolling() throws {
 
     // The pointer is already on the card, so moving the selection there must
     // not ask the list to scroll under the cursor.
-    selection.selectFromPointer(itemID: "3")
+    selection.highlight.notePress(id: "3")
     #expect(selection.selectedItemID == "3")
     #expect(selection.scrollRequest?.sequence == initialRequest.sequence)
     #expect(selection.pendingScrollRequest == nil)
 
     // Unavailable and unknown items cannot take the selection.
-    selection.selectFromPointer(itemID: "1")
+    selection.highlight.notePress(id: "1")
     #expect(selection.selectedItemID == "3")
-    selection.selectFromPointer(itemID: "missing")
+    selection.highlight.notePress(id: "missing")
     #expect(selection.selectedItemID == "3")
 
     // Keyboard movement still scrolls, so the two paths stay distinguishable.
     #expect(selection.move(.up) || selection.selectedItemID == "3")
     selection.invalidate()
-    selection.selectFromPointer(itemID: "0")
+    selection.highlight.notePress(id: "0")
     #expect(selection.selectedItemID == nil)
 }

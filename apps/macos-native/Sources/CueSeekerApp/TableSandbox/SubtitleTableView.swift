@@ -6774,26 +6774,33 @@ struct SubtitleTableView: NSViewRepresentable {
             // While a destination submenu is open it owns the arrow keys;
             // otherwise the parent menu does.
             let isSubmenuOpen = rowActionSubmenuState.openParent != nil
+            // Every arrow and Enter belongs to the open menu, whether or not
+            // it has anywhere to move: nothing outside the menu may respond.
             switch keyCode {
             case 53:
                 dismissMenu()
                 return true
             case 126:
-                return isSubmenuOpen
+                _ = isSubmenuOpen
                     ? rowActionDestinationHighlight.moveHighlight(by: -1)
                     : rowActionHighlight.moveHighlight(by: -1)
+                return true
             case 125:
-                return isSubmenuOpen
+                _ = isSubmenuOpen
                     ? rowActionDestinationHighlight.moveHighlight(by: 1)
                     : rowActionHighlight.moveHighlight(by: 1)
+                return true
             case 124:
-                return openHighlightedRowActionSubmenu()
+                _ = openHighlightedRowActionSubmenu()
+                return true
             case 123:
-                return rowActionSubmenuState.closeSubmenu()
+                _ = rowActionSubmenuState.closeSubmenu()
+                return true
             case 36, 76:
-                return isSubmenuOpen
+                _ = isSubmenuOpen
                     ? activateHighlightedRowActionDestination()
                     : activateHighlightedRowAction()
+                return true
             default:
                 return false
             }

@@ -1,0 +1,158 @@
+# One card highlight per interface
+
+Human-owned documents:
+
+- `docs/human/requirements/20260826-UI-Card Highlight Single Authority And Menu Input Rules.md`
+
+## Why
+
+Every card kept half of its own truth. The view held a private hover flag and was
+handed a separate selection flag from outside, and it painted the union of the
+two. Nothing in that arrangement can promise that one card is lit: the two
+sources never see each other, so a card lit by a stationary pointer and a card
+lit by the keyboard were both lit, and neither knew about the other.
+
+Around that grew four different owners for the same idea — a store for the
+Playback Overlay, an ordinal for the Command Panel, nothing at all for the
+Workbench cards, and a fourth copy for the Shiori list — and three unrelated
+gates deciding whether hover was allowed to count: whether the pointer was
+visible, whether the layer was frozen, and whether the grid was in "playback
+mode". Behaviour was the sum of all seven, which is why it could not be reasoned
+about.
+
+There was also a mechanical fault underneath. SwiftUI reports hover when a card
+is scrolled, reflowed or revealed under a pointer that never moved. The menus had
+already solved this — `MenuHighlightModel` adopts hover only after a real pointer
+movement — but the cards had no such gate, so a wheel could hand the highlight to
+whatever slid under the cursor.
+
+## What changed
+
+Hover and selection are one state for a card, and the card no longer holds any of
+it. `CardHighlightModel` owns the current card of one interface; the card paints
+what it is told and reports the pointer back. That is the whole fix — one card can
+be lit because there is one place that can light one.
+
+The model reuses the menus' proven shape: a gate opened by real pointer movement
+and closed by a wheel, by a freeze, and by a selection landing somewhere the
+pointer is not. The card under the pointer is remembered while the gate is shut,
+so the next real movement applies it without the pointer having to leave the card
+and come back.
+
+The Workbench and Playback difference is one flag rather than a mode enum
+threaded through the grids: a Workbench interface lets the pointer leave and
+lights nothing, a Playback interface keeps one lit at all times. Interfaces that
+already navigate with a selection of their own — the Playback Overlay's grid, the
+Command Panel's two card pages — point the model's `adopt` at that selection and
+report the result back, so those pages still have exactly one place the answer
+lives.
+
+Three gates are gone. Pointer visibility no longer decides whether a card may
+follow the pointer; the keyboard no longer hides the pointer at all, in the menus
+or on the playback page, so the idle player is the only thing left that hides it
+and the cursor authority no longer needs to count owners. The per-card
+"is my menu the open one" special case is gone too: a right-click now moves the
+highlight like any other press, and the freeze holds it there.
+
+On the menu side, every arrow and Enter now belongs to an open menu whether or
+not the menu has anywhere to move — previously a key the menu declined leaked to
+the grid or the page underneath. The playback speed menu is the single exception
+and still lets left and right through to seeking. Three menu behaviours were
+missing outright and were added: the speed menu closes when a result is switched,
+when the Command Panel opens and when the Playback Overlay opens, decided by
+those three events rather than by the key or controller button that caused them;
+closing a selected-text menu takes the selection with it; and a card menu closes
+when the interface under it changes, which the Recent page needed because it
+hosts one menu for its overview and both of its sections.
+
+Files:
+
+- `apps/macos-native/Sources/CueSeekerApp/Shared/CardHighlightModel.swift`
+  - New. The current card of one interface, its pointer gate, and the freeze
+    modifier that keeps it in step with the layer.
+- `apps/macos-native/Sources/CueSeekerApp/TableSandbox/WorkbenchTestLibraryView.swift`
+  - The video card, the folder card and the Shiori resume row lost their hover
+    state, their `allowsHover` gate and their menu-owner special case; the grids
+    take the model; Recent and Library own one model each and reset it when the
+    interface changes; the card menu takes the horizontal arrows and closes on an
+    interface change.
+- `apps/macos-native/Sources/CueSeekerApp/Shiori/ShioriListOverviewView.swift`
+  - The Shiori list card the same way.
+- `apps/macos-native/Sources/CueSeekerApp/Shared/LibraryOverviewComponents.swift`
+  - The card button style paints one state instead of hover-or-selected.
+- `apps/macos-native/Sources/CueSeekerApp/Playback/SubtitleFocus/PlaybackMediaSelectionStore.swift`
+  - Keeps the grid geometry and scrolling; the selection itself is now the
+    model's, and `selectFromPointer` is replaced by the model's adoption.
+- `apps/macos-native/Sources/CueSeekerApp/Playback/SubtitleFocus/PlaybackLibraryOverlay.swift`,
+  `.../PlaybackCommandPanel.swift`
+  - Pass the model instead of a selected id, a hover callback and a pointer-
+    visibility flag. The Command Panel root list is not a card surface and is
+    unchanged.
+- `apps/macos-native/Sources/CueSeekerApp/Shared/MenuHighlightModel.swift`,
+  `.../Shared/AppCursorVisibility.swift`,
+  `.../Playback/PlaybackChromeVisibilityModel.swift`,
+  `.../Playback/PlaybackVideoStage.swift`,
+  `.../App/AppCoordinator+Playback.swift`
+  - The keyboard no longer hides the cursor. The counted-owner cursor authority
+    collapses to one flag; the player's idle hide and the controller's hide are
+    unchanged.
+- `apps/macos-native/Sources/CueSeekerApp/TableSandbox/SubtitleTableView.swift`,
+  `.../Playback/SubtitleFocus/PlaybackSubtitleFocusReel.swift`
+  - The row menu and the selected-text menu consume every arrow and Enter; the
+    selected-text menu clears the selection when it closes.
+- `apps/macos-native/Sources/CueSeekerApp/App/AppCoordinator.swift`,
+  `.../App/AppCoordinator+PlaybackCommandPanel.swift`,
+  `.../App/AppCoordinator+PlaybackSubtitleFocus.swift`
+  - The three events that close the speed menu.
+
+No colour, size, radius or spacing token was added, changed or replaced, and no
+interface gained a private implementation of the rule.
+
+## Verification
+
+`swift build`: clean.
+
+`swift test`: 1076 tests. Ten new tests in `CardHighlightModelTests.swift` pin the
+rule itself — nothing lit on entry, hover ignored until a real movement, a wheel
+refused, one card at a time, the Workbench and Playback difference, a press
+landing without movement and while frozen, a frozen interface keeping its picture
+and not replaying what the pointer did meanwhile, a selection moved away from the
+pointer not being pulled back, an interface with its own selection receiving the
+adopted card, and an interface switch starting over.
+
+Four existing tests changed because the rules changed, not because they broke:
+two playback shortcut tests now expect the keyboard to leave the pointer alone,
+the Command Panel freeze test now expects the speed menu to close, and the menu
+highlight tests no longer expect a hidden cursor.
+
+Against a baseline run of the same suite with this change stashed, no new failure
+survives. The suite has a set of failures that shift between runs on both trees —
+native playback timeline, window geometry, refresh-scope, library folder removal,
+persistence migration, the submenu timing test — and each of the names that
+appeared in one run passes when run on its own.
+
+Driven through the Debug in-app E2E controller, with captures at each step:
+
+- Shiori list page, pointer moved onto a card: that card is lit and no other.
+- Pointer moved off the cards: nothing is lit.
+- Right-click a second card: the highlight moves to it, the first goes out, the
+  menu opens on it.
+- Left-click outside the menu: the menu closes and the highlight stays put.
+- Library folder list, pointer on a folder card: lit. Click it: the episode grid
+  opens with nothing lit, although the pointer is over a card.
+- A key press leaves `pointerVisible` true.
+
+What the controller cannot check is which card is lit, because `inspect` does not
+report it; the checks above read it from the captures. The Playback Overlay and
+Command Panel card surfaces need a video playing across scripted steps, which the
+controller has not managed on this tree, so acceptance items 1, 3 and the
+playback halves of 5 and 6, together with items 8 to 10, are the owner's manual
+check. The owner accepted item 1 as manual when the requirement was agreed.
+
+## Design documents
+
+Sections 3 to 9 of the requirement go into `docs/human/design/UI Design System.md`
+and `docs/human/design/UI Application Rules.md` after visual acceptance. Two
+existing lines will need rewording rather than adding: Media Card's states say the
+selection follows a pointer that *rests* on a card and that one grid holds one,
+where the rule is now a *real movement* and one *interface*.

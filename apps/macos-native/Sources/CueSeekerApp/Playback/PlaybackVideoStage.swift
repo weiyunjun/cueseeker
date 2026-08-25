@@ -109,7 +109,7 @@ struct PlaybackVideoStage: View {
                 playback.pointerVisibility.setVisible(false)
             }
             .onReceive(playback.pointerHideRequests) {
-                chrome.keyboardInputReceived()
+                chrome.pointerHideRequested()
             }
             .onChange(of: chrome.isPointerVisible) { isVisible in
                 playback.pointerVisibility.setVisible(isVisible)

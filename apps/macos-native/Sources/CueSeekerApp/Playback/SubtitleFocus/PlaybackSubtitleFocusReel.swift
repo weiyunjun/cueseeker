@@ -2420,6 +2420,10 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
         selectedTextMenuActions = []
         menuGateSession?.close()
         menuGateSession = nil
+        // The menu hangs off the selected text, so closing the menu takes the
+        // selection with it. This clears without reporting back, because the
+        // report is what asked for this dismissal in the first place.
+        documentView.discardTextSelection()
     }
 
     /// Arrow keys, Enter and Escape for the open menu. Reported as handled so
@@ -2428,16 +2432,23 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
         guard selectedTextMenuHost != nil else {
             return false
         }
+        // Every arrow and Enter belongs to the open menu; the reel and the
+        // page under it must not respond to any of them.
         switch keyCode {
         case 53:
             dismissSelectedTextActions()
             return true
         case 126:
-            return selectedTextMenuHighlight.moveHighlight(by: -1)
+            _ = selectedTextMenuHighlight.moveHighlight(by: -1)
+            return true
         case 125:
-            return selectedTextMenuHighlight.moveHighlight(by: 1)
+            _ = selectedTextMenuHighlight.moveHighlight(by: 1)
+            return true
+        case 123, 124:
+            return true
         case 36, 76:
-            return activateHighlightedSelectedTextAction()
+            _ = activateHighlightedSelectedTextAction()
+            return true
         default:
             return false
         }
@@ -4218,6 +4229,16 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView {
         }
         self.textSelection = nil
         onDismissSelectedTextActions()
+        invalidateRow(textSelection.ordinal)
+    }
+
+    /// Drops the selection without reporting it, for the reel closing the menu
+    /// that hangs off it.
+    func discardTextSelection() {
+        guard let textSelection else {
+            return
+        }
+        self.textSelection = nil
         invalidateRow(textSelection.ordinal)
     }
 

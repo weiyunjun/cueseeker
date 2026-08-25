@@ -121,7 +121,9 @@ final class PlaybackChromeVisibilityModel: ObservableObject {
         applyCursorOwnership()
     }
 
-    func keyboardInputReceived() {
+    /// A controller has no pointer, so input from one hides the cursor. The
+    /// keyboard no longer does.
+    func pointerHideRequested() {
         setCursorState(.hidden)
         applyCursorOwnership()
     }
@@ -229,7 +231,7 @@ final class PlaybackChromeVisibilityModel: ObservableObject {
             return
         }
         cursorHiddenByPlayer = false
-        AppCursorVisibility.setHidden(false, owner: .player)
+        AppCursorVisibility.setHidden(false)
     }
 
     private func hideCursor() {
@@ -237,7 +239,7 @@ final class PlaybackChromeVisibilityModel: ObservableObject {
             return
         }
         cursorHiddenByPlayer = true
-        AppCursorVisibility.setHidden(true, owner: .player)
+        AppCursorVisibility.setHidden(true)
     }
 
     // MARK: - Focus observers

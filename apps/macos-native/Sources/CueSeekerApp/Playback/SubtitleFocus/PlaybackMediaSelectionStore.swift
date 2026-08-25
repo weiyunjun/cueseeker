@@ -19,8 +19,14 @@ struct PlaybackMediaSelectionScrollRequest: Equatable, Sendable {
 /// positions, while the views remain responsible for rendering and scrolling.
 @MainActor
 final class PlaybackMediaSelectionStore: ObservableObject {
-    @Published private(set) var selectedItemID: String?
+    /// The grid's one highlighted card. A playback grid always keeps one lit,
+    /// so a pointer that leaves the cards leaves it where it was.
+    let highlight = CardHighlightModel(keepsCurrentWhenPointerLeaves: true)
     @Published private(set) var scrollRequest: PlaybackMediaSelectionScrollRequest?
+
+    var selectedItemID: String? {
+        highlight.currentID
+    }
 
     private(set) var orderedItemIDs: [String] = []
     private(set) var availableItemIDs: Set<String> = []
@@ -32,6 +38,20 @@ final class PlaybackMediaSelectionStore: ObservableObject {
     private var scrollRequestSequence: UInt64 = 0
     private var handledScrollRequestSequence: UInt64 = 0
     private var isActive = true
+
+    init() {
+        // The pointer moves the grid's own selection, which reports back
+        // through the model; nothing scrolls, because the card the pointer
+        // adopted is already under the cursor.
+        highlight.adopt = { [weak self] itemID in
+            guard let self, self.isActive, let itemID,
+                  self.availableItemIDs.contains(itemID)
+            else {
+                return
+            }
+            self.highlight.setCurrent(itemID)
+        }
+    }
 
     var restorationItemID: String? {
         scrollAnchorItemID ?? selectedItemID
@@ -142,18 +162,6 @@ final class PlaybackMediaSelectionStore: ObservableObject {
         return true
     }
 
-    /// Moves the selection onto the pointer without requesting a scroll: the
-    /// item is already under the cursor, and scrolling would fight the pointer.
-    func selectFromPointer(itemID: String) {
-        guard isActive,
-              availableItemIDs.contains(itemID),
-              selectedItemID != itemID
-        else {
-            return
-        }
-        selectedItemID = itemID
-    }
-
     func recordVisibleFrames(
         _ framesByItemID: [String: CGRect],
         viewportHeight: CGFloat
@@ -209,7 +217,7 @@ final class PlaybackMediaSelectionStore: ObservableObject {
         isActive = false
         orderedItemIDs = []
         availableItemIDs = []
-        selectedItemID = nil
+        highlight.reset()
         scrollAnchorItemID = nil
         scrollOffsetY = 0
         scrollRequest = nil
@@ -222,7 +230,7 @@ final class PlaybackMediaSelectionStore: ObservableObject {
         guard selectedItemID != itemID || forcesScroll else {
             return
         }
-        selectedItemID = itemID
+        highlight.setCurrent(itemID)
         guard let itemID else {
             scrollRequest = nil
             return

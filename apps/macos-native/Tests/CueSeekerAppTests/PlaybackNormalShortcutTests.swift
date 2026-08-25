@@ -26,11 +26,12 @@ func normalPlaybackQToggleSubtitlesWhileSAndCDoNothing() throws {
         let viewModel = try #require(app.playback.playbackViewModel)
 
         #expect(viewModel.areSubtitlesVisible)
+        // Keyboard input never hides the pointer.
         let initialPointerHideGeneration = app.playback.pointerHideRequestGeneration
         #expect(app.handlePlaybackKeyDown(keyCode: 12, modifierFlagsRawValue: 0))
         #expect(
             app.playback.pointerHideRequestGeneration
-                == initialPointerHideGeneration + 1
+                == initialPointerHideGeneration
         )
         #expect(!viewModel.areSubtitlesVisible)
         #expect(viewModel.feedback?.text == "Subtitles Off")
@@ -40,7 +41,7 @@ func normalPlaybackQToggleSubtitlesWhileSAndCDoNothing() throws {
         #expect(!app.handlePlaybackKeyDown(keyCode: 8, modifierFlagsRawValue: 0))
         #expect(
             app.playback.pointerHideRequestGeneration
-                == initialPointerHideGeneration + 3
+                == initialPointerHideGeneration
         )
 
         #expect(!viewModel.areSubtitlesVisible)
@@ -57,9 +58,10 @@ func normalPlaybackBarePCopiesScreenshotWhileShiftPDoesNothing() throws {
         let initialPointerHideGeneration = app.playback.pointerHideRequestGeneration
 
         #expect(app.handlePlaybackKeyDown(keyCode: 35, modifierFlagsRawValue: 0))
+        // Keyboard input never hides the pointer.
         #expect(
             app.playback.pointerHideRequestGeneration
-                == initialPointerHideGeneration + 1
+                == initialPointerHideGeneration
         )
         #expect(viewModel.feedback == nil)
 
@@ -75,7 +77,7 @@ func normalPlaybackBarePCopiesScreenshotWhileShiftPDoesNothing() throws {
         ))
         #expect(
             app.playback.pointerHideRequestGeneration
-                == initialPointerHideGeneration + 3
+                == initialPointerHideGeneration
         )
     }
 }
@@ -157,7 +159,7 @@ func playbackPointerStartsHiddenAndOnlyMovementRestoresIt() {
     model.pointerMovedInPlayerArea(view: view)
     #expect(model.isPointerVisible)
 
-    model.keyboardInputReceived()
+    model.pointerHideRequested()
     #expect(!model.isPointerVisible)
 
     model.leaveVideoPage()
@@ -368,27 +370,24 @@ func openingCommandPanelFreezesTheMenusUnderneathIt() throws {
             modifierFlagsRawValue: 0
         ))
 
-        // Both menus stay on screen. They belong to the surfaces below the
-        // panel, so they keep their state and stop taking keys.
+        // Opening the Command Panel closes the speed menu outright, while the
+        // selected-text menu stays on screen: it belongs to the surface below
+        // the panel, so it keeps its state and stops taking keys.
         #expect(app.playback.commandPanelPresentation != nil)
-        #expect(app.playback.isSpeedMenuOpen)
+        #expect(!app.playback.isSpeedMenuOpen)
+        #expect(highlight.highlightedPosition == nil)
         #expect(seenKeyCodes.isEmpty)
 
-        // The arrow keys reach the Command Panel instead of either menu.
+        // The arrow keys reach the Command Panel instead of the frozen menu.
         #expect(app.handlePlaybackKeyDown(keyCode: 125, modifierFlagsRawValue: 0))
-        #expect(highlight.highlightedPosition == 2)
         #expect(seenKeyCodes.isEmpty)
 
-        // The selected-text menu is gone by the time the panel closes; only
-        // the speed menu is left to answer.
         menuSession.close()
+        speedMenuSession.close()
 
-        // Escape closes the panel and the speed menu answers the arrows again.
+        // Escape closes the panel.
         #expect(app.handlePlaybackKeyDown(keyCode: 53, modifierFlagsRawValue: 0))
         #expect(app.playback.commandPanelPresentation == nil)
-        #expect(app.playback.isSpeedMenuOpen)
-        #expect(app.handlePlaybackKeyDown(keyCode: 125, modifierFlagsRawValue: 0))
-        #expect(highlight.highlightedPosition == 3)
     }
 }
 

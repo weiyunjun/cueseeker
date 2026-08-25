@@ -8,12 +8,20 @@ struct WorkbenchRecentView: View {
     @EnvironmentObject private var routeState: WorkbenchRouteState
     @EnvironmentObject private var library: LibraryStore
     @EnvironmentObject private var shiori: ShioriStore
+    /// One highlight for the whole page: the overview shows the video cards and
+    /// the Shiori cards together, and only one of them may be lit.
+    @StateObject private var highlight = CardHighlightModel(
+        keepsCurrentWhenPointerLeaves: false
+    )
 
     var body: some View {
         // The menu belongs to the page, not to one section of it, so the page
         // hosts it. A menu opened from a video card then covers the sections
         // laid out below the card grid instead of being painted under them.
-        LibraryCardContextMenuHost { _ in
+        LibraryCardContextMenuHost(
+            interfaceID: routeState.selectedRecentSection
+                .map(String.init(describing:)) ?? "overview"
+        ) { _ in
         GeometryReader { geometry in
             WorkbenchScrollView([.vertical, .horizontal]) {
                 VStack(alignment: .leading, spacing: WorkbenchTestLibraryMetrics.sectionSpacing) {
@@ -49,6 +57,10 @@ struct WorkbenchRecentView: View {
         }
         }
         .background(WorkbenchRedesignColors.bgSurface)
+        .cardHighlightFreeze(highlight)
+        .onChange(of: routeState.selectedRecentSection) { _ in
+            highlight.reset()
+        }
         .task {
             appState.hydrateRecentWatchingAsync()
             appState.hydrateTestRecentWatchingAsync()
@@ -127,6 +139,7 @@ struct WorkbenchRecentView: View {
         } else {
             RecentWatchingGrid(
                 items: items,
+                highlight: highlight,
                 onOpen: { item in
                     Task {
                         await appState.openRecentLibraryWatching(item)
@@ -148,7 +161,10 @@ struct WorkbenchRecentView: View {
         } else if summaries.isEmpty {
             LibraryEmptyHint(L("library.recent_shioris_empty"))
         } else {
-            RecentShioriResumeList(summaries: summaries) { summary in
+            RecentShioriResumeList(
+                summaries: summaries,
+                highlight: highlight
+            ) { summary in
                 appState.openRecentShiori(summary)
             }
         }
@@ -157,9 +173,7 @@ struct WorkbenchRecentView: View {
 
 struct RecentShioriResumeList: View {
     let summaries: [ShioriListSummary]
-    var selectedItemID: Int64? = nil
-    var allowsHover = true
-    var onItemHoverChange: (ShioriListSummary, Bool) -> Void = { _, _ in }
+    @ObservedObject var highlight: CardHighlightModel
     let onOpen: (ShioriListSummary) -> Void
 
     var body: some View {
@@ -167,9 +181,8 @@ struct RecentShioriResumeList: View {
             ForEach(summaries) { summary in
                 RecentShioriResumeRow(
                     summary: summary,
-                    isSelected: selectedItemID == summary.id,
-                    allowsHover: allowsHover,
-                    onHoverChange: { onItemHoverChange(summary, $0) }
+                    highlight: highlight,
+                    isCurrent: highlight.currentID == String(summary.id)
                 ) {
                     onOpen(summary)
                 }
@@ -229,18 +242,19 @@ private struct RecentSectionHeader: View {
 
 struct RecentShioriResumeRow: View {
     let summary: ShioriListSummary
-    var isSelected = false
-    var allowsHover = true
-    var onHoverChange: ((Bool) -> Void)?
+    let highlight: CardHighlightModel
+    let isCurrent: Bool
     let onOpen: () -> Void
-    @State private var isHovered = false
 
-    private var isHoverActive: Bool {
-        allowsHover && isHovered
+    private var cardID: String {
+        String(summary.id)
     }
 
     var body: some View {
-        Button(action: onOpen) {
+        Button {
+            highlight.notePress(id: cardID)
+            onOpen()
+        } label: {
             HStack(
                 alignment: .center,
                 spacing: WorkbenchControlMetrics.redesignSpacing4
@@ -304,7 +318,7 @@ struct RecentShioriResumeRow: View {
                     style: .continuous
                 )
                 .fill(
-                    isHoverActive || isSelected
+                    isCurrent
                         ? WorkbenchRedesignColors.libraryMediaCardHoverBg
                         : Color.clear
                 )
@@ -312,10 +326,7 @@ struct RecentShioriResumeRow: View {
         }
         .buttonStyle(.plain)
         .focusable(false)
-        .onHover { isHovered = $0 }
-        .onChange(of: isHoverActive) { isActive in
-            onHoverChange?(isActive)
-        }
+        .onHover { highlight.noteHover($0, id: cardID) }
         .accessibilityLabel(summary.list.name)
     }
 }
@@ -327,6 +338,11 @@ struct WorkbenchTestLibraryView: View {
     @EnvironmentObject private var indexing: IndexingStore
     @EnvironmentObject private var routeState: WorkbenchRouteState
     @EnvironmentObject private var library: LibraryStore
+    /// The folder list and one folder's detail are two interfaces sharing this
+    /// view, so entering the detail starts with nothing lit.
+    @StateObject private var highlight = CardHighlightModel(
+        keepsCurrentWhenPointerLeaves: false
+    )
 
     var body: some View {
         Group {
@@ -369,6 +385,10 @@ struct WorkbenchTestLibraryView: View {
             }
         }
         .background(WorkbenchRedesignColors.bgSurface)
+        .cardHighlightFreeze(highlight)
+        .onChange(of: routeState.selectedTestLibraryFolder) { _ in
+            highlight.reset()
+        }
         .task {
             appState.hydrateCompleteLibraryAsync()
             appState.hydrateTestRecentWatchingAsync()
@@ -403,6 +423,7 @@ struct WorkbenchTestLibraryView: View {
         } else {
             CompleteLibraryFolderGrid(
                 folders: library.completeLibraryFolderSummaries,
+                highlight: highlight,
                 onOpen: { folder in
                     appState.workbenchLayout.selectTestLibraryFolder(folder)
                 }
@@ -429,7 +450,7 @@ struct WorkbenchTestLibraryView: View {
                 CompleteLibraryEpisodeGrid(
                     folderTitle: folderDetail.folderTitle,
                     videos: folderDetail.videos,
-                    mode: .workbench,
+                    highlight: highlight,
                     onOpen: { video in
                         appState.prepareLibraryNavigationVideos(folderDetail.videos)
                         appState.openLibraryVideo(
@@ -618,21 +639,17 @@ private enum WorkbenchTestLibraryMetrics {
 
 struct RecentWatchingGrid: View {
     let items: [RecentLibraryWatchingPresentation]
-    var selectedItemID: String? = nil
+    @ObservedObject var highlight: CardHighlightModel
     var itemFrameCoordinateSpace: String? = nil
     var onItemFramesChange: ([String: CGRect]) -> Void = { _ in }
-    var allowsHover = true
-    var onItemHoverChange: (RecentLibraryWatchingPresentation, Bool) -> Void = { _, _ in }
     let onOpen: (RecentLibraryWatchingPresentation) -> Void
 
     var body: some View {
         LibraryVideoCardGrid(
             items: items,
-            selectedItemID: selectedItemID,
+            highlight: highlight,
             itemFrameCoordinateSpace: itemFrameCoordinateSpace,
             onItemFramesChange: onItemFramesChange,
-            allowsHover: allowsHover,
-            onItemHoverChange: onItemHoverChange,
             content: LibraryVideoCardContent.init,
             onOpen: onOpen
         )
@@ -647,11 +664,9 @@ where Item.ID == String {
     /// grid it was opened from.
     @Environment(\.libraryCardContextMenuOpen) private var pageContextMenuOpen
     let items: [Item]
-    let selectedItemID: String?
+    @ObservedObject var highlight: CardHighlightModel
     let itemFrameCoordinateSpace: String?
     let onItemFramesChange: ([String: CGRect]) -> Void
-    let allowsHover: Bool
-    let onItemHoverChange: (Item, Bool) -> Void
     let content: (Item) -> LibraryVideoCardContent
     let onOpen: (Item) -> Void
 
@@ -687,11 +702,10 @@ where Item.ID == String {
             ForEach(items) { item in
                 LibraryVideoCard(
                     content: content(item),
-                    isSelected: selectedItemID == item.id,
+                    highlight: highlight,
+                    isCurrent: highlight.currentID == item.id,
                     actions: .appState(appState),
                     openContextMenu: openContextMenu,
-                    allowsHover: allowsHover,
-                    onHoverChange: { onItemHoverChange(item, $0) },
                     onOpen: { onOpen(item) }
                 )
                 .background {
@@ -803,33 +817,18 @@ private struct LibraryVideoCard: View {
     /// pointer.
     @Environment(\.interfaceLayerContext) private var layerContext
     let content: LibraryVideoCardContent
-    let isSelected: Bool
+    let highlight: CardHighlightModel
+    let isCurrent: Bool
     let actions: LibraryCardActionHandlers
     let openContextMenu: ([LibraryCardContextMenuItem], CGPoint, String) -> Void
-    let allowsHover: Bool
-    /// Reports the hover state that is actually in effect, which already folds
-    /// in pointer visibility. Surfaces with a selection use it to move that
-    /// selection onto the pointer, so only one card is ever lit.
-    var onHoverChange: ((Bool) -> Void)?
     let onOpen: () -> Void
-    @State private var isHovered = false
-    @Environment(\.libraryCardContextMenuOwner) private var contextMenuOwnerID
 
     private var isAvailable: Bool {
         FileManager.default.fileExists(atPath: content.videoPath)
     }
 
-    private var contextMenuOwnerIdentity: String {
+    private var cardID: String {
         content.videoPath
-    }
-
-    private var isHoverActive: Bool {
-        // An open menu freezes the grid: only the card the menu hangs off
-        // stays lit, and the pointer cannot move that anywhere else.
-        if let contextMenuOwnerID {
-            return contextMenuOwnerID == contextMenuOwnerIdentity
-        }
-        return allowsHover && isHovered
     }
 
     var body: some View {
@@ -859,7 +858,7 @@ private struct LibraryVideoCard: View {
                 style: .continuous
             )
             .fill(
-                (isHoverActive || isSelected) && isAvailable
+                isCurrent && isAvailable
                     ? WorkbenchRedesignColors.libraryMediaCardHoverBg
                     : Color.clear
             )
@@ -875,29 +874,23 @@ private struct LibraryVideoCard: View {
             guard isAvailable else {
                 return
             }
+            highlight.notePress(id: cardID)
             onOpen()
         }
-        .onHover { hovering in
-            // A covered card keeps the picture it had; only a card that owns
-            // input follows the pointer.
-            guard !layerContext.isFrozen else {
-                return
-            }
-            isHovered = hovering
-        }
-        .onChange(of: isHoverActive) { isActive in
-            onHoverChange?(isActive)
-        }
+        .onHover { highlight.noteHover($0, id: cardID) }
         .libraryCardContextMenuTrigger(
             isEnabled: isAvailable,
-            ownerID: contextMenuOwnerIdentity,
+            ownerID: cardID,
             items: contextMenuItems,
-            openContextMenu: openContextMenu
+            openContextMenu: { items, point, ownerID in
+                highlight.notePress(id: cardID)
+                openContextMenu(items, point, ownerID)
+            }
         )
-        .handPointer(isEnabled: isAvailable && allowsHover && !layerContext.isFrozen)
+        .handPointer(isEnabled: isAvailable && !layerContext.isFrozen)
         .animation(
             .easeOut(duration: WorkbenchTestLibraryMetrics.coverHoverDuration),
-            value: isHoverActive
+            value: isCurrent
         )
         .accessibilityLabel(
             "\(content.folderTitle), \(episodeLabel), \(content.watchStatus.title)"
@@ -912,7 +905,7 @@ private struct LibraryVideoCard: View {
             duration: content.duration
         )
         .libraryCoverHoverEffect(
-            isActive: (isHoverActive || isSelected) && isAvailable
+            isActive: isCurrent && isAvailable
         )
     }
 
@@ -951,11 +944,7 @@ private struct LibraryVideoCard: View {
 struct CompleteLibraryFolderGrid: View {
     @EnvironmentObject private var appState: AppCoordinator
     let folders: [CompleteLibraryFolderSummaryPresentation]
-    var selectedItemID: String? = nil
-    var itemFrameCoordinateSpace: String? = nil
-    var onItemFramesChange: ([String: CGRect]) -> Void = { _ in }
-    var allowsHoverSelection = false
-    var onHoverSelection: (CompleteLibraryFolderSummaryPresentation) -> Void = { _ in }
+    @ObservedObject var highlight: CardHighlightModel
     let onOpen: (CompleteLibraryFolderSummaryPresentation) -> Void
 
     var body: some View {
@@ -964,35 +953,14 @@ struct CompleteLibraryFolderGrid: View {
                 ForEach(folders) { folder in
                     LibraryFolderCard(
                         folder: folder,
-                        isSelected: selectedItemID == folder.id,
+                        highlight: highlight,
+                        isCurrent: highlight.currentID == folder.id,
                         actions: .appState(appState),
-                        openContextMenu: openContextMenu,
-                        allowsHoverSelection: allowsHoverSelection,
-                        onHoverSelection: { onHoverSelection(folder) }
+                        openContextMenu: openContextMenu
                     ) {
                         onOpen(folder)
                     }
-                    .background {
-                        if let itemFrameCoordinateSpace {
-                            GeometryReader { proxy in
-                                Color.clear.preference(
-                                    key: LibraryItemFramePreferenceKey.self,
-                                    value: [
-                                        folder.id: proxy.frame(
-                                            in: .named(itemFrameCoordinateSpace)
-                                        )
-                                    ]
-                                )
-                            }
-                        }
-                    }
                 }
-            }
-            .onPreferenceChange(LibraryItemFramePreferenceKey.self) { frames in
-                guard itemFrameCoordinateSpace != nil else {
-                    return
-                }
-                onItemFramesChange(frames)
             }
         }
     }
@@ -1001,28 +969,18 @@ struct CompleteLibraryFolderGrid: View {
 private struct LibraryFolderCard: View {
     @Environment(\.interfaceLayerContext) private var layerContext
     let folder: CompleteLibraryFolderSummaryPresentation
-    let isSelected: Bool
+    let highlight: CardHighlightModel
+    let isCurrent: Bool
     let actions: LibraryCardActionHandlers
     let openContextMenu: ([LibraryCardContextMenuItem], CGPoint, String) -> Void
-    let allowsHoverSelection: Bool
-    let onHoverSelection: () -> Void
     let onOpen: () -> Void
-    @State private var isHovered = false
-    @Environment(\.libraryCardContextMenuOwner) private var contextMenuOwnerID
 
     private var isAvailable: Bool {
         folder.episodeCount > 0
     }
 
-    private var contextMenuOwnerIdentity: String {
+    private var cardID: String {
         folder.id
-    }
-
-    private var isHoverActive: Bool {
-        if let contextMenuOwnerID {
-            return contextMenuOwnerID == contextMenuOwnerIdentity
-        }
-        return isHovered
     }
 
     var body: some View {
@@ -1030,6 +988,7 @@ private struct LibraryFolderCard: View {
             guard isAvailable else {
                 return
             }
+            highlight.notePress(id: cardID)
             onOpen()
         } label: {
             LibraryOverviewCardContent(title: folder.folderTitle) {
@@ -1041,31 +1000,20 @@ private struct LibraryFolderCard: View {
         }
         .buttonStyle(
             LibraryOverviewCardButtonStyle(
-                isHovered: isHoverActive,
-                isSelected: isSelected,
+                isCurrent: isCurrent,
                 isEnabled: isAvailable
             )
         )
         .disabled(!isAvailable)
-        .onHover { hovering in
-            guard !layerContext.isFrozen else {
-                return
-            }
-            isHovered = hovering
-            if hovering, allowsHoverSelection, isAvailable {
-                onHoverSelection()
-            }
-        }
-        .onChange(of: allowsHoverSelection) { allowsSelection in
-            if allowsSelection, isHovered, isAvailable {
-                onHoverSelection()
-            }
-        }
+        .onHover { highlight.noteHover($0, id: cardID) }
         .libraryCardContextMenuTrigger(
             isEnabled: isAvailable,
-            ownerID: contextMenuOwnerIdentity,
+            ownerID: cardID,
             items: folderContextMenuItems,
-            openContextMenu: openContextMenu
+            openContextMenu: { items, point, ownerID in
+                highlight.notePress(id: cardID)
+                openContextMenu(items, point, ownerID)
+            }
         )
         .accessibilityLabel(folder.folderTitle)
     }
@@ -1077,7 +1025,7 @@ private struct LibraryFolderCard: View {
             badgeText: episodeCountText
         )
         .libraryCoverHoverEffect(
-            isActive: (isHoverActive || isSelected) && isAvailable
+            isActive: isCurrent && isAvailable
         )
     }
 
@@ -1115,25 +1063,12 @@ private struct LibraryFolderCard: View {
     }
 }
 
-enum CompleteLibraryEpisodeGridMode: Equatable {
-    case workbench
-    case playback
-
-    var displaysPersistentSelection: Bool {
-        self == .playback
-    }
-
-}
-
 struct CompleteLibraryEpisodeGrid: View {
     let folderTitle: String
     let videos: [CompleteLibraryVideoPresentation]
-    var mode: CompleteLibraryEpisodeGridMode = .workbench
-    var selectedItemID: String? = nil
+    @ObservedObject var highlight: CardHighlightModel
     var itemFrameCoordinateSpace: String? = nil
     var onItemFramesChange: ([String: CGRect]) -> Void = { _ in }
-    var allowsHover = true
-    var onItemHoverChange: (CompleteLibraryVideoPresentation, Bool) -> Void = { _, _ in }
     let onOpen: (CompleteLibraryVideoPresentation) -> Void
 
     var body: some View {
@@ -1142,13 +1077,9 @@ struct CompleteLibraryEpisodeGrid: View {
         } else {
             LibraryVideoCardGrid(
                 items: videos,
-                selectedItemID: mode.displaysPersistentSelection
-                    ? selectedItemID
-                    : nil,
+                highlight: highlight,
                 itemFrameCoordinateSpace: itemFrameCoordinateSpace,
                 onItemFramesChange: onItemFramesChange,
-                allowsHover: allowsHover,
-                onItemHoverChange: onItemHoverChange,
                 content: {
                     LibraryVideoCardContent(
                         folderTitle: folderTitle,
@@ -1283,6 +1214,11 @@ struct LibraryCardContextMenuHost<Content: View>: View {
     /// it considers covered, so the menu takes no keys, no outside press and
     /// no scroll ban, and the panel's own cards keep following the pointer.
     @Environment(\.interfaceLayerContext) private var layerContext
+    /// Names the interface whose cards this host is showing. A host that spans
+    /// several interfaces — the Recent page hosts one menu for its overview and
+    /// both of its sections — closes the menu when the interface changes under
+    /// it, because the card it hangs off is no longer on screen.
+    var interfaceID: String = ""
     @State private var activeMenu: LibraryCardContextMenuState?
     @StateObject private var highlight = MenuHighlightModel()
     @State private var geometry = LibraryCardMenuHostGeometry()
@@ -1290,6 +1226,9 @@ struct LibraryCardContextMenuHost<Content: View>: View {
 
     var body: some View {
         content(openContextMenu)
+            .onChange(of: interfaceID) { _ in
+                dismissContextMenu()
+            }
             .environment(\.libraryCardContextMenuAnchorUpdate, updateAnchorPoint)
             .environment(\.libraryCardContextMenuOpen, openContextMenu)
             .environment(\.libraryCardContextMenuOwner, activeMenu?.ownerID)
@@ -1310,16 +1249,24 @@ struct LibraryCardContextMenuHost<Content: View>: View {
                             receivesKeysFromRouter: true,
                             menuFrame: menuFrame,
                             handleKey: { keyCode, _ in
+                                // Every arrow and Enter belongs to the open
+                                // menu; the card grid and the page under it
+                                // must not respond to any of them.
                                 switch keyCode {
                                 case 53:
                                     dismissContextMenu()
                                     return true
                                 case 126:
-                                    return highlight.moveHighlight(by: -1)
+                                    _ = highlight.moveHighlight(by: -1)
+                                    return true
                                 case 125:
-                                    return highlight.moveHighlight(by: 1)
+                                    _ = highlight.moveHighlight(by: 1)
+                                    return true
+                                case 123, 124:
+                                    return true
                                 case 36, 76:
-                                    return activateHighlightedItem()
+                                    _ = activateHighlightedItem()
+                                    return true
                                 default:
                                     return false
                                 }

@@ -110,7 +110,7 @@ struct MenuHighlightModelTests {
     }
 
     @Test
-    func keyboardMovementHidesTheCursorAndPointerMotionRestoresIt() {
+    func keyboardMovementNeverHidesTheCursor() {
         AppCursorVisibility.resetForTesting()
         let model = MenuHighlightModel()
         defer {
@@ -121,51 +121,23 @@ struct MenuHighlightModelTests {
         #expect(!AppCursorVisibility.isCursorHidden)
 
         model.moveHighlight(by: 1)
-        #expect(AppCursorVisibility.isCursorHidden)
+        #expect(!AppCursorVisibility.isCursorHidden)
 
         model.notePointerMoved()
         #expect(!AppCursorVisibility.isCursorHidden)
     }
 
     @Test
-    func closingReleasesTheCursorAndClearsTheHighlight() {
-        AppCursorVisibility.resetForTesting()
+    func closingClearsTheHighlight() {
         let model = MenuHighlightModel()
-        defer { AppCursorVisibility.resetForTesting() }
         model.open(selectablePositions: [0, 1])
         model.moveHighlight(by: 1)
         #expect(model.isOpen)
-        #expect(AppCursorVisibility.isCursorHidden)
 
         model.close()
 
         #expect(!model.isOpen)
         #expect(model.highlightedPosition == nil)
-        #expect(!AppCursorVisibility.isCursorHidden)
-    }
-
-    @Test
-    func cursorStaysHiddenWhileAnyOwnerAsksForIt() {
-        AppCursorVisibility.resetForTesting()
-        let surface = MenuHighlightModel()
-        defer { AppCursorVisibility.resetForTesting() }
-
-        AppCursorVisibility.setHidden(true, owner: .player)
-        AppCursorVisibility.setHidden(
-            true,
-            owner: .menu(ObjectIdentifier(surface))
-        )
-        #expect(AppCursorVisibility.isCursorHidden)
-
-        // Releasing one owner must not reveal the cursor the other still hides.
-        AppCursorVisibility.setHidden(
-            false,
-            owner: .menu(ObjectIdentifier(surface))
-        )
-        #expect(AppCursorVisibility.isCursorHidden)
-
-        AppCursorVisibility.setHidden(false, owner: .player)
-        #expect(!AppCursorVisibility.isCursorHidden)
     }
 
     @Test
@@ -198,7 +170,7 @@ struct MenuHighlightModelTests {
     }
 
     @Test
-    func closingASubmenuKeepsTheParentMenuCursorHidden() {
+    func aParentMenuAndItsSubmenuBothLeaveTheCursorAlone() {
         AppCursorVisibility.resetForTesting()
         let parent = MenuHighlightModel()
         let submenu = MenuHighlightModel()
@@ -211,14 +183,9 @@ struct MenuHighlightModelTests {
         parent.moveHighlight(by: 1)
         submenu.open(selectablePositions: [0, 1])
         submenu.moveHighlight(by: 1)
-        #expect(AppCursorVisibility.isCursorHidden)
+        #expect(!AppCursorVisibility.isCursorHidden)
 
-        // The parent is still being navigated by keyboard, so the cursor must
-        // stay hidden after the submenu closes.
         submenu.close()
-        #expect(AppCursorVisibility.isCursorHidden)
-
-        parent.close()
         #expect(!AppCursorVisibility.isCursorHidden)
     }
 }

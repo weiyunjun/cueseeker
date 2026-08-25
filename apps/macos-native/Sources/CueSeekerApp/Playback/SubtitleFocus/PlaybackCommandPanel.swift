@@ -71,7 +71,6 @@ struct PlaybackCommandPanel: View {
                             PlaybackCommandPanelRecentVideos(
                                 presentation: presentation,
                                 libraryStore: libraryStore,
-                                allowsHover: pointerVisibility.isVisible,
                                 onBack: {
                                     appState.returnPlaybackCommandPanelToRoot()
                                 },
@@ -100,7 +99,6 @@ struct PlaybackCommandPanel: View {
                             PlaybackCommandPanelRecentShioris(
                                 presentation: presentation,
                                 shioriStore: shioriStore,
-                                allowsHover: pointerVisibility.isVisible,
                                 onBack: {
                                     appState.returnPlaybackCommandPanelToRoot()
                                 },
@@ -513,7 +511,6 @@ private struct PlaybackCommandPanelSearchReel: View {
 struct PlaybackCommandPanelRecentVideos: View {
     let presentation: PlaybackCommandPanelPresentation
     @ObservedObject var libraryStore: LibraryStore
-    let allowsHover: Bool
     let onBack: () -> Bool
     let onSynchronize: () -> Void
     let onGridLayoutChange: (Int, [String: CGRect]) -> Void
@@ -523,6 +520,11 @@ struct PlaybackCommandPanelRecentVideos: View {
     private let coordinateSpaceName =
         "playback-command-panel-recent-videos-scroll"
     @State private var itemFramesByID: [String: CGRect] = [:]
+    /// The page keeps navigating with its own ordinal; this owns which card is
+    /// lit and decides when the pointer may move it.
+    @StateObject private var highlight = CardHighlightModel(
+        keepsCurrentWhenPointerLeaves: true
+    )
 
     private var items: [RecentLibraryWatchingPresentation] {
         libraryStore.testRecentWatchingItems
@@ -557,22 +559,11 @@ struct PlaybackCommandPanelRecentVideos: View {
                     WorkbenchScrollView {
                         RecentWatchingGrid(
                             items: items,
-                            selectedItemID: selectedItemID,
+                            highlight: highlight,
                             itemFrameCoordinateSpace: coordinateSpaceName,
                             onItemFramesChange: { frames in
                                 itemFramesByID = frames
                                 onGridLayoutChange(columnCount, frames)
-                            },
-                            allowsHover: allowsHover,
-                            onItemHoverChange: { item, isHovered in
-                                guard isHovered,
-                                      let ordinal = items.firstIndex(where: {
-                                          $0.id == item.id
-                                      })
-                                else {
-                                    return
-                                }
-                                onSelect(ordinal)
                             }
                         ) { item in
                             if let ordinal = items.firstIndex(where: {
@@ -614,7 +605,24 @@ struct PlaybackCommandPanelRecentVideos: View {
                 showsHorizontalNavigation: true
             )
         }
-        .onAppear(perform: onSynchronize)
+        .cardHighlightFreeze(highlight)
+        .onAppear {
+            highlight.adopt = { adoptedID in
+                guard let adoptedID,
+                      let ordinal = items.firstIndex(where: {
+                          $0.id == adoptedID
+                      })
+                else {
+                    return
+                }
+                onSelect(ordinal)
+            }
+            highlight.setCurrent(selectedItemID)
+            onSynchronize()
+        }
+        .onChange(of: selectedItemID) { itemID in
+            highlight.setCurrent(itemID)
+        }
         .onChange(
             of: libraryStore.testRecentWatchingItems.map(\.id)
         ) { _ in
@@ -669,7 +677,6 @@ struct PlaybackCommandPanelRecentVideos: View {
 private struct PlaybackCommandPanelRecentShioris: View {
     let presentation: PlaybackCommandPanelPresentation
     @ObservedObject var shioriStore: ShioriStore
-    let allowsHover: Bool
     let onBack: () -> Bool
     let onSynchronize: () -> Void
     let onSelect: (Int) -> Void
@@ -678,6 +685,11 @@ private struct PlaybackCommandPanelRecentShioris: View {
     /// The row the pointer moved the selection onto. It is already on screen,
     /// so that change must not scroll the list under the cursor.
     @State private var pointerSelectedItemID: Int64?
+    /// The page keeps navigating with its own ordinal; this owns which card is
+    /// lit and decides when the pointer may move it.
+    @StateObject private var highlight = CardHighlightModel(
+        keepsCurrentWhenPointerLeaves: true
+    )
 
     private var summaries: [ShioriListSummary] {
         shioriStore.recentListSummaries
@@ -703,19 +715,7 @@ private struct PlaybackCommandPanelRecentShioris: View {
                 WorkbenchScrollView {
                     RecentShioriResumeList(
                         summaries: summaries,
-                        selectedItemID: selectedItemID,
-                        allowsHover: allowsHover,
-                        onItemHoverChange: { summary, isHovered in
-                            guard isHovered,
-                                  let ordinal = summaries.firstIndex(where: {
-                                      $0.id == summary.id
-                                  })
-                            else {
-                                return
-                            }
-                            pointerSelectedItemID = summary.id
-                            onSelect(ordinal)
-                        }
+                        highlight: highlight
                     ) { summary in
                         if let ordinal = summaries.firstIndex(where: {
                             $0.id == summary.id
@@ -746,7 +746,25 @@ private struct PlaybackCommandPanelRecentShioris: View {
                 status: L("playback.shiori_count", shioriStore.recentListSummaries.count)
             )
         }
-        .onAppear(perform: onSynchronize)
+        .cardHighlightFreeze(highlight)
+        .onAppear {
+            highlight.adopt = { adoptedID in
+                guard let adoptedID,
+                      let ordinal = summaries.firstIndex(where: {
+                          String($0.id) == adoptedID
+                      })
+                else {
+                    return
+                }
+                pointerSelectedItemID = summaries[ordinal].id
+                onSelect(ordinal)
+            }
+            highlight.setCurrent(selectedItemID.map(String.init))
+            onSynchronize()
+        }
+        .onChange(of: selectedItemID) { itemID in
+            highlight.setCurrent(itemID.map(String.init))
+        }
         .onChange(of: shioriStore.recentListSummaries.map(\.id)) { _ in
             onSynchronize()
         }

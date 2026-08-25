@@ -7,6 +7,9 @@ struct ShioriListOverviewView: View {
     @EnvironmentObject private var appState: AppCoordinator
     @EnvironmentObject private var shioriStore: ShioriStore
     @State private var pendingDeletion: ShioriListSummary?
+    @StateObject private var highlight = CardHighlightModel(
+        keepsCurrentWhenPointerLeaves: false
+    )
 
     var body: some View {
         LibraryCardContextMenuHost { openContextMenu in
@@ -30,6 +33,7 @@ struct ShioriListOverviewView: View {
             }
         }
         .background(WorkbenchRedesignColors.bgSurface)
+        .cardHighlightFreeze(highlight)
         .task {
             appState.loadShioriListOverviewIfNeeded()
         }
@@ -61,6 +65,8 @@ struct ShioriListOverviewView: View {
             ForEach(shioriStore.listOverview.lists) { summary in
                 ShioriListCard(
                     summary: summary,
+                    highlight: highlight,
+                    isCurrent: highlight.currentID == String(summary.id),
                     canDelete: shioriStore.listOverview.lists.count > 1,
                     onOpen: {
                         appState.openShioriList(id: summary.id)
@@ -85,27 +91,23 @@ private struct ShioriListCard: View {
     /// pointer.
     @Environment(\.interfaceLayerContext) private var layerContext
     let summary: ShioriListSummary
+    let highlight: CardHighlightModel
+    let isCurrent: Bool
     let canDelete: Bool
     let onOpen: () -> Void
     let onEdit: () -> Void
     let onDelete: () -> Void
     let openContextMenu: ([LibraryCardContextMenuItem], CGPoint, String) -> Void
-    @State private var isHovered = false
-    @Environment(\.libraryCardContextMenuOwner) private var contextMenuOwnerID
 
-    private var contextMenuOwnerIdentity: String {
+    private var cardID: String {
         String(summary.id)
     }
 
-    private var isHoverActive: Bool {
-        if let contextMenuOwnerID {
-            return contextMenuOwnerID == contextMenuOwnerIdentity
-        }
-        return isHovered
-    }
-
     var body: some View {
-        Button(action: onOpen) {
+        Button {
+            highlight.notePress(id: cardID)
+            onOpen()
+        } label: {
             LibraryOverviewCardContent(
                 title: summary.list.name,
                 description: summary.list.description
@@ -116,18 +118,16 @@ private struct ShioriListCard: View {
             // goes on the label rather than around the Button.
             .handPointer(isEnabled: !layerContext.isFrozen)
         }
-        .buttonStyle(LibraryOverviewCardButtonStyle(isHovered: isHoverActive))
-        .onHover { hovering in
-            guard !layerContext.isFrozen else {
-                return
-            }
-            isHovered = hovering
-        }
+        .buttonStyle(LibraryOverviewCardButtonStyle(isCurrent: isCurrent))
+        .onHover { highlight.noteHover($0, id: cardID) }
         .libraryCardContextMenuTrigger(
             isEnabled: true,
-            ownerID: contextMenuOwnerIdentity,
+            ownerID: cardID,
             items: contextMenuItems,
-            openContextMenu: openContextMenu
+            openContextMenu: { items, point, ownerID in
+                highlight.notePress(id: cardID)
+                openContextMenu(items, point, ownerID)
+            }
         )
         .accessibilityLabel(summary.list.name)
     }
@@ -163,11 +163,11 @@ private struct ShioriListCard: View {
             }
         }
         .scaleEffect(
-            isHoverActive ? WorkbenchControlMetrics.redesignLibraryCoverHoverScale : 1
+            isCurrent ? WorkbenchControlMetrics.redesignLibraryCoverHoverScale : 1
         )
         .animation(
             .easeOut(duration: WorkbenchControlMetrics.redesignLibraryCoverHoverDuration),
-            value: isHoverActive
+            value: isCurrent
         )
     }
 
