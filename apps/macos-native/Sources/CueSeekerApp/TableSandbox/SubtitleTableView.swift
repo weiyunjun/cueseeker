@@ -7443,7 +7443,8 @@ struct SubtitleTableView: NSViewRepresentable {
             }
         }
 
-        /// Closes the menu on the first press outside it and keeps that press.
+        /// Closes the menu on the first press outside it and keeps that press,
+        /// and bans scrolling for the whole window while the menu is open.
         ///
         /// Nothing covers the rest of the table while a menu is open, so this
         /// monitor is the only thing standing between the press and the row
@@ -7453,10 +7454,21 @@ struct SubtitleTableView: NSViewRepresentable {
         /// matched here.
         private func installMenuDismissMonitor() {
             removeMenuDismissMonitor()
-            menuEventMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] event in
+            menuEventMonitor = NSEvent.addLocalMonitorForEvents(
+                matching: [.leftMouseDown, .rightMouseDown, .scrollWheel]
+            ) { [weak self] event in
                 guard let self else { return event }
                 guard let container = self.container else { return event }
                 let isEventInContainerWindow = event.window === container.window
+                if event.type == .scrollWheel {
+                    guard self.isMenuOpen, isEventInContainerWindow else {
+                        return event
+                    }
+                    // The menu is the one surface that may still scroll.
+                    return self.isWindowPointInsideOpenMenu(
+                        event.locationInWindow
+                    ) ? event : nil
+                }
                 guard self.shouldDismissOpenMenu(
                     isEventInContainerWindow: isEventInContainerWindow,
                     windowPoint: event.locationInWindow

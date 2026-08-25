@@ -48,6 +48,26 @@ Files: `Playback/PlaybackStore.swift`, `App/AppCoordinator+Playback.swift`,
 `Playback/SubtitleFocus/PlaybackPlaylistOverlay.swift`,
 `Playback/SubtitleFocus/PlaybackSubtitleFocusReel.swift`.
 
+### Four menus ban scrolling for the whole window
+
+Each of the four menus already installs one window-wide event monitor while it
+is open, and each already answers "is this point on me". The ban reuses both:
+the monitor takes the wheel as well, passes it on when the pointer is on the
+menu — the one place the reader may still scroll — and drops it everywhere else.
+Nothing new arbitrates, and no scroll view had to be gated one by one.
+
+The reel's wheel monitor carries the ban for both of its hosts, because the
+monitor is window-wide: a selected-text menu opened in the Playback Overlay
+stops the playlist and the page, and one opened in the Command Panel stops the
+panel's own list. A menu that a higher surface has frozen bans nothing; it lets
+the event travel on so the surface above decides.
+
+The speed menu keeps scrolling as it was: the requirement exempts it.
+
+Files: `Playback/SubtitleFocus/PlaybackSubtitleFocusReel.swift`,
+`TableSandbox/SubtitleTableView.swift`,
+`TableSandbox/WorkbenchTestLibraryView.swift`.
+
 ## Verification
 
 - `swift build`

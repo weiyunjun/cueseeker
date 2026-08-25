@@ -2971,6 +2971,17 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
             }
             let point = self.convert(event.locationInWindow, from: nil)
             let isInside = self.bounds.contains(point)
+            // An open selected-text menu bans scrolling for the whole window.
+            // This monitor is window-wide, so one guard covers every surface
+            // under the menu, not only this reel. The menu itself still sees
+            // the wheel: it is the one place the reader may still scroll.
+            // A frozen menu bans nothing — the surface above it decides.
+            if let menuHost = self.selectedTextMenuHost,
+               !self.isCoveredByHigherLayer {
+                return menuHost.bounds.contains(
+                    menuHost.convert(event.locationInWindow, from: nil)
+                ) ? event : nil
+            }
             guard self.allowsNativeWheelInput() else {
                 if self.isWheelMotionActive {
                     self.suspendWheelInputForSuppression()

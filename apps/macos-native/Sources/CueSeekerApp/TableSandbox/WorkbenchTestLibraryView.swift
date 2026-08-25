@@ -1504,14 +1504,14 @@ struct LibraryCardMenuPointerMonitor: NSViewRepresentable {
                     return event
                 }
 
-                let localPoint = self.convert(event.locationInWindow, from: nil)
-                let isPointerOnMenu = self.menuFrame.contains(localPoint)
                 if event.type == .scrollWheel {
-                    // The menu owns the wheel while the pointer is on it. The
-                    // grid keeps the wheel everywhere else.
-                    return isPointerOnMenu ? nil : event
+                    // An open menu bans scrolling for the whole window, and
+                    // owns the wheel over itself, so nothing moves under it.
+                    return nil
                 }
-                guard !isPointerOnMenu else {
+
+                let localPoint = self.convert(event.locationInWindow, from: nil)
+                guard !self.menuFrame.contains(localPoint) else {
                     return event
                 }
 
