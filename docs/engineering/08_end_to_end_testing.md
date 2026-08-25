@@ -1776,3 +1776,71 @@ Settings window before starting.
 Provide Dock-menu screenshots for steps 1 through 5 and report whether step 6
 kept the `CueSeeker` label. Quit CueSeeker after the check; no files or product
 data are created by this procedure.
+
+## 13. Card Context Menu Modality
+
+### Feature
+
+Verify that the Workbench card and cover right-click menus open from a bare
+right-click and obey the menu modality rules, without the pointer preparation
+the cards used to require. This gate replaces the manual acceptance that
+`docs/human/requirements/20260825-UI-Menu Modality And Layer Input Ownership.md`
+assigned to the SwiftUI cards.
+
+### Preconditions And Launch
+
+```bash
+cd apps/macos-native
+swift run CueSeeker --cueseeker-debug-e2e
+```
+
+- One visible main window, Sidebar expanded, Recent and Shiori expanded.
+- The Library overview must hold enough folders to overflow the page, and the
+  Shiori overview at least three lists.
+- Let the main-window frame from `inspect` be `M`. Sidebar coordinates follow
+  §11: Library `(M.minX + 80, M.minY + 217)`, Shiori `(M.minX + 80, M.minY + 289)`.
+  On an overview at the top of its scroll position, card centres are
+  `(M.minX + 378 + 229 * column, M.minY + 218 + 171 * row)` with zero-based
+  column and row; read the effective positions from a `capture` before using
+  them and stop if the grid differs.
+- Compare captures pixel by pixel, not by eye. Two captures taken with no
+  command between them must be identical before a comparison is trusted; a
+  change of the window's active state alters the menu material and the traffic
+  lights, so restrict comparisons to the content area and treat a few hundred
+  scattered pixels there as that noise.
+
+### Actions
+
+1. Open Library. Send `rightClick` at the first card centre with no preceding
+   `mouseMove` and capture. Repeat on a third-row card, on a Shiori list card,
+   and on a video card inside a Library folder detail.
+2. With a card menu open, send one `scroll` over the grid and capture. Close the
+   menu and repeat the same wheel step as the control.
+3. With a card menu open, send `mouseMove` onto a different card and capture.
+   Perform the same move with no menu open as the control.
+4. Press `escape` and capture. Reopen a menu and send `click` on another card,
+   then capture.
+5. Scroll until whole rows sit above the viewport, then send `rightClick` inside
+   the toolbar strip and capture. Send another `rightClick` just below the
+   viewport edge and capture.
+
+Every command must return `status: ok`, and the next command must use the
+returned `sceneID`.
+
+### Acceptance Criteria
+
+- Each bare `rightClick` opens the menu of the card under the press, and that
+  card — not any other — carries the highlight while the menu is open.
+- With a menu open the wheel changes nothing in the content area, while the
+  control wheel step moves the grid.
+- With a menu open a pointer move leaves the content area byte-identical, while
+  the control move lights the card under the pointer.
+- Esc restores the capture taken before the menu opened, byte for byte. A press
+  on another card closes the menu and does not open that card.
+- A right-click inside the toolbar strip opens nothing even when a scrolled-away
+  card's rectangle reaches it; a right-click just below the viewport edge opens
+  the menu of the card visible there.
+
+### Cleanup
+
+Quit the Debug process with Control-C. The procedure changes no product data.

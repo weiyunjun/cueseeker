@@ -873,7 +873,6 @@ private struct LibraryVideoCard: View {
         }
         .libraryCardContextMenuTrigger(
             isEnabled: isAvailable,
-            isHovered: isHoverActive,
             items: contextMenuItems,
             openContextMenu: openContextMenu,
             ownsOpenMenu: $ownsOpenMenu
@@ -1047,7 +1046,6 @@ private struct LibraryFolderCard: View {
         }
         .libraryCardContextMenuTrigger(
             isEnabled: isAvailable,
-            isHovered: isHoverActive,
             items: folderContextMenuItems,
             openContextMenu: openContextMenu,
             ownsOpenMenu: $ownsOpenMenu
@@ -1590,12 +1588,12 @@ private struct LibraryCardContextMenu: View {
 
 private struct LibraryCardContextMenuTriggerModifier: ViewModifier {
     let isEnabled: Bool
-    let isHovered: Bool
     let items: [LibraryCardContextMenuItem]
     let openContextMenu: ([LibraryCardContextMenuItem], CGPoint) -> Void
     /// Told to the one card the open menu belongs to, so it can keep its
     /// highlight while every other card is frozen.
     @Binding var ownsOpenMenu: Bool
+    @Environment(\.isWorkbenchPopupLayerOpen) private var isWorkbenchPopupLayerOpen
     @Environment(\.libraryCardContextMenuIsOpen) private var isContextMenuOpen
     @Environment(\.libraryCardContextMenuAnchorUpdate) private var updateAnchor
     /// Set on the one card the open menu belongs to, so only that card reports
@@ -1606,7 +1604,9 @@ private struct LibraryCardContextMenuTriggerModifier: ViewModifier {
         content.background(
             GeometryReader { proxy in
                 let frame = proxy.frame(in: .named(LibraryCardContextMenuCoordinateSpace.name))
-                LibraryCardRightClickMonitor(isEnabled: isEnabled && isHovered && !isContextMenuOpen) { localPoint in
+                LibraryCardRightClickMonitor(
+                    isEnabled: isEnabled && !isContextMenuOpen && !isWorkbenchPopupLayerOpen
+                ) { localPoint in
                     localAnchorPoint = localPoint
                     ownsOpenMenu = true
                     openContextMenu(
@@ -1694,7 +1694,10 @@ private struct LibraryCardRightClickMonitor: NSViewRepresentable {
                 }
 
                 let localPoint = self.convert(event.locationInWindow, from: nil)
-                guard self.bounds.contains(localPoint) else {
+                // Only the part of the card the reader can actually see answers:
+                // a card the page has scrolled out of view must not claim a
+                // press made over whatever covers it.
+                guard self.bounds.intersection(self.visibleRect).contains(localPoint) else {
                     return event
                 }
 
@@ -1772,7 +1775,6 @@ extension View {
 
     func libraryCardContextMenuTrigger(
         isEnabled: Bool,
-        isHovered: Bool,
         items: [LibraryCardContextMenuItem],
         openContextMenu: @escaping ([LibraryCardContextMenuItem], CGPoint) -> Void,
         ownsOpenMenu: Binding<Bool>
@@ -1780,7 +1782,6 @@ extension View {
         modifier(
             LibraryCardContextMenuTriggerModifier(
                 isEnabled: isEnabled,
-                isHovered: isHovered,
                 items: items,
                 openContextMenu: openContextMenu,
                 ownsOpenMenu: ownsOpenMenu

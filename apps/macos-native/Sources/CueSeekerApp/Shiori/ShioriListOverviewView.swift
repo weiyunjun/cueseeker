@@ -121,7 +121,6 @@ private struct ShioriListCard: View {
         }
         .libraryCardContextMenuTrigger(
             isEnabled: true,
-            isHovered: isHoverActive,
             items: contextMenuItems,
             openContextMenu: openContextMenu,
             ownsOpenMenu: $ownsOpenMenu
