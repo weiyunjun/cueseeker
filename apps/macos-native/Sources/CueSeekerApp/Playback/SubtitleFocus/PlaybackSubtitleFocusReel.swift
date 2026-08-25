@@ -1598,6 +1598,7 @@ struct PlaybackSubtitleFocusReelRepresentable: NSViewRepresentable {
     let onNativeMotionGateChanged: (Bool) -> Void
     let onKeyboardMotionChanged: (Bool) -> Void
     let onSelectedTextMenuKeyHandlerChanged: (((UInt16) -> Bool)?) -> Void
+    var isCoveredByHigherLayer = false
 
     func makeNSView(context: Context) -> PlaybackSubtitleFocusReelContainerView {
         UIInvalidationProbe.count(
@@ -1641,6 +1642,7 @@ struct PlaybackSubtitleFocusReelRepresentable: NSViewRepresentable {
         view.onKeyboardMotionChanged = onKeyboardMotionChanged
         view.onSelectedTextMenuKeyHandlerChanged =
             onSelectedTextMenuKeyHandlerChanged
+        view.isCoveredByHigherLayer = isCoveredByHigherLayer
         view.update(
             cues: cues,
             totalCount: totalCount,
@@ -1733,6 +1735,11 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
     var onKeyboardMotionChanged: (Bool) -> Void = { _ in }
     /// Publishes the selected-text menu's key handler while that menu is open.
     var onSelectedTextMenuKeyHandlerChanged: (((UInt16) -> Bool)?) -> Void = { _ in }
+    /// True while a higher surface covers this reel. Its menu keeps its place
+    /// on screen and stops answering keys and presses: those belong to whatever
+    /// is on top. Hit testing already stops at the covering surface, but an
+    /// `NSEvent` monitor never sees hit testing, so the reel is told directly.
+    var isCoveredByHigherLayer = false
 
     private let scrollView = PlaybackSubtitleFocusNativeScrollView()
     private let documentView = PlaybackSubtitleFocusReelDocumentView()
@@ -2460,7 +2467,7 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
         selectedTextMenuEventMonitor = NSEvent.addLocalMonitorForEvents(
             matching: [.keyDown, .leftMouseDown, .rightMouseDown]
         ) { [weak self] event in
-            guard let self else {
+            guard let self, !self.isCoveredByHigherLayer else {
                 return event
             }
             if event.type == .keyDown {

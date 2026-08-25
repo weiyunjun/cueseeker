@@ -295,38 +295,44 @@ func openSelectedTextMenuOwnsArrowKeysInsteadOfVolume() throws {
 
 @MainActor
 @Test
-func openingCommandPanelClosesTheMenusUnderneathIt() throws {
+func openingCommandPanelFreezesTheMenusUnderneathIt() throws {
     try withNormalPlaybackApp { app, _ in
         app.playback.isPlaybackSurfaceExpanded = true
         var seenKeyCodes: [UInt16] = []
         app.playback.selectedTextMenuKeyHandler = { keyCode in
             seenKeyCodes.append(keyCode)
-            if keyCode == UInt16(kVK_Escape) {
-                app.playback.selectedTextMenuKeyHandler = nil
-            }
             return true
         }
         app.playback.openSpeedMenu(
             defaultPosition: PlaybackViewModel.speedPresetIndex(for: 1.0)
         )
+        let highlight = app.playback.speedMenuHighlight
         #expect(app.playback.isSpeedMenuOpen)
+        #expect(highlight.highlightedPosition == 2)
 
         #expect(app.handlePlaybackKeyDown(
             keyCode: UInt16(kVK_ANSI_K),
             modifierFlagsRawValue: 0
         ))
 
-        // Both menus are gone, so the arrow keys reach the Command Panel.
+        // Both menus stay on screen. They belong to the surfaces below the
+        // panel, so they keep their state and stop taking keys.
         #expect(app.playback.commandPanelPresentation != nil)
-        #expect(!app.playback.isSpeedMenuOpen)
-        #expect(seenKeyCodes == [UInt16(kVK_Escape)])
-        #expect(app.playback.selectedTextMenuKeyHandler == nil)
+        #expect(app.playback.isSpeedMenuOpen)
+        #expect(app.playback.selectedTextMenuKeyHandler != nil)
+        #expect(seenKeyCodes.isEmpty)
 
-        // Closing the panel does not bring either menu back.
+        // The arrow keys reach the Command Panel instead of either menu.
+        #expect(app.handlePlaybackKeyDown(keyCode: 125, modifierFlagsRawValue: 0))
+        #expect(highlight.highlightedPosition == 2)
+        #expect(seenKeyCodes.isEmpty)
+
+        // Escape closes the panel and the speed menu answers the arrows again.
         #expect(app.handlePlaybackKeyDown(keyCode: 53, modifierFlagsRawValue: 0))
         #expect(app.playback.commandPanelPresentation == nil)
-        #expect(!app.playback.isSpeedMenuOpen)
-        #expect(app.playback.selectedTextMenuKeyHandler == nil)
+        #expect(app.playback.isSpeedMenuOpen)
+        #expect(app.handlePlaybackKeyDown(keyCode: 125, modifierFlagsRawValue: 0))
+        #expect(highlight.highlightedPosition == 3)
     }
 }
 

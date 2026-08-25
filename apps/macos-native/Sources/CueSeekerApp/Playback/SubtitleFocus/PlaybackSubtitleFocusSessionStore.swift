@@ -147,9 +147,10 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
     private var isScrollbarDragging = false
     private var isCueReelMotionActive = false
     /// True while the Command Panel is stacked on top of this overlay. The reel
-    /// claims wheel events with a window-wide monitor and only knows its own
-    /// rectangle, so it cannot see what covers it; `PlaybackStore` tells it.
-    private var isCoveredByHigherOverlay = false
+    /// claims wheel events and its menu's presses with window-wide monitors and
+    /// only knows its own rectangle, so it cannot see what covers it;
+    /// `PlaybackStore` tells it.
+    @Published private(set) var isCoveredByHigherOverlay = false
     private var keyboardNavigationSequence = 0
     private var pendingKeyboardNavigationTargetOrdinal: Int?
     private var pendingKeyboardNavigationTargetIdentity: PlaybackCueResultItemIdentity?

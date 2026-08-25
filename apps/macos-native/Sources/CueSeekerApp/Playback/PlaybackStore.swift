@@ -1,4 +1,3 @@
-import Carbon.HIToolbox
 import Combine
 import CoreGraphics
 import CueSeekerCore
@@ -186,17 +185,9 @@ final class PlaybackStore: ObservableObject {
             releaseCommandPanelSearchPreview()
         }
         // The Command Panel is the topmost surface, so menus opened underneath
-        // it close instead of competing for the same keys.
-        closeSpeedMenu()
-        dismissSelectedTextMenu()
+        // it stay on screen and stop taking input rather than closing.
         commandPanelPresentation = presentation
         synchronizeOverlayInputOwnership()
-    }
-
-    /// Closes an open selected-text menu through the Escape path the menu
-    /// already implements, so the menu keeps a single dismissal route.
-    func dismissSelectedTextMenu() {
-        _ = selectedTextMenuKeyHandler?(UInt16(kVK_Escape))
     }
 
     /// Only the topmost interactive surface owns the wheel and the scrollbar.

@@ -1,0 +1,59 @@
+# Menu modality and layer input ownership
+
+Human-owned documents:
+
+- `docs/human/requirements/20260825-UI-Menu Modality And Layer Input Ownership.md`
+
+## Why
+
+The App's five menus each decided for themselves what the rest of the window was
+allowed to do while they were open, and the answer was "everything". Scrolling
+carried the page out from under an open menu, the pointer kept moving the
+current row or card away from the one the menu belonged to, and a menu that was
+no longer the topmost surface still competed for keys and presses.
+
+The accepted requirement settles all of it with three rules: a higher surface
+takes every input and freezes what is below instead of closing or clearing it;
+four of the five menus ban scrolling for the whole window while they are open;
+and the object a menu hangs off keeps its highlight until the menu closes.
+
+## What changed
+
+### A higher surface freezes the menus below instead of closing them
+
+Presenting the Command Panel used to close the speed menu and the selected-text
+menu. That was a workaround for input ownership, not a product rule: both menus
+are consulted for keys before the panel is, so leaving them open left them
+holding the arrow keys. The rule is now the layer itself — a menu belongs to the
+surface that opened it and never outranks what is stacked above that surface —
+so the key owner asks whether the Command Panel is present before offering a key
+to either menu, and the menus stay on screen.
+
+Two monitors had to learn the same thing. A menu closes on the first press
+outside itself, and it decides "outside" from the pointer alone; an `NSEvent`
+monitor never sees hit testing, so a press on the Command Panel read as a press
+outside the menu, closed it, and was swallowed on the way. The speed menu's
+monitor now stands down while the panel is open, and the reel's selected-text
+monitor stands down while a higher layer covers the reel. The covering flag was
+already in `PlaybackSubtitleFocusSessionStore` for the wheel; it is now published
+and handed to the reel rather than duplicated.
+
+The frozen speed menu also stops drawing hover and pressed feedback, through the
+suppression flag it already accepts for scrubbing.
+
+Files: `Playback/PlaybackStore.swift`, `App/AppCoordinator+Playback.swift`,
+`Playback/Chrome/PlaybackChromeView.swift`,
+`Playback/SubtitleFocus/PlaybackSubtitleFocusSessionStore.swift`,
+`Playback/SubtitleFocus/PlaybackSubtitleFocusOverlay.swift`,
+`Playback/SubtitleFocus/PlaybackPlaylistOverlay.swift`,
+`Playback/SubtitleFocus/PlaybackSubtitleFocusReel.swift`.
+
+## Verification
+
+- `swift build`
+- `swift test --filter PlaybackNormalShortcutTests` — the test that asserted the
+  old "both menus close" rule now asserts the frozen behaviour: both menus stay
+  open, the arrows and Enter reach the Command Panel, and the speed menu answers
+  the arrows again once the panel closes.
+
+Outcome matched expectations.

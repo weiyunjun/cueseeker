@@ -864,9 +864,14 @@ extension AppCoordinator {
             return true
         }
 
+        // A menu is above the surface that opened it, but not above the
+        // Command Panel: both menus below the panel stay on screen and hand the
+        // keys over while it is open.
+        let isCoveredByCommandPanel = playback.commandPanelPresentation != nil
+
         // The speed menu is the topmost surface when open, so it owns the
         // arrow keys before seeking or volume can see them.
-        if playback.isSpeedMenuOpen {
+        if playback.isSpeedMenuOpen, !isCoveredByCommandPanel {
             let speedMenuDisallowedModifiers: NSEvent.ModifierFlags = [
                 .command,
                 .control,
@@ -896,8 +901,11 @@ extension AppCoordinator {
         }
 
         // A selected-text menu, when open, owns arrows, Enter and Escape before
-        // cue navigation or seeking can see them.
-        if let selectedTextMenuKeyHandler = playback.selectedTextMenuKeyHandler {
+        // cue navigation or seeking can see them. Only the Playback Overlay's
+        // menu registers here, so the Command Panel's own selected-text menu —
+        // which sits above the panel — keeps its keys through its own monitor.
+        if let selectedTextMenuKeyHandler = playback.selectedTextMenuKeyHandler,
+           !isCoveredByCommandPanel {
             let disallowed: NSEvent.ModifierFlags = [
                 .command,
                 .control,

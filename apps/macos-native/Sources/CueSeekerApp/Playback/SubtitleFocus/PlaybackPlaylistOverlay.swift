@@ -53,7 +53,8 @@ struct PlaybackCueResultOverlay: View {
                         }
                     },
                     onNativeMotionGateChanged: handleReelMotionChanged,
-                    onKeyboardMotionChanged: handleReelMotionChanged
+                    onKeyboardMotionChanged: handleReelMotionChanged,
+                    isCoveredByHigherLayer: session.isCoveredByHigherOverlay
                 )
                 .id("\(module.rawValue):\(windowStore.reelDatasetID ?? "empty")")
                 .frame(
@@ -156,6 +157,8 @@ struct PlaybackCueResultReelRepresentable: NSViewRepresentable {
     let onScrollbarDraggingChanged: (Bool) -> Void
     let onNativeMotionGateChanged: (Bool) -> Void
     let onKeyboardMotionChanged: (Bool) -> Void
+    /// The Command Panel's own reel keeps the default: nothing covers it.
+    var isCoveredByHigherLayer = false
 
     func makeCoordinator() -> Coordinator {
         Coordinator(
@@ -203,6 +206,7 @@ struct PlaybackCueResultReelRepresentable: NSViewRepresentable {
         view.onSearchSelectedText = onSearchSelectedText
         view.onSelectedTextMenuKeyHandlerChanged =
             onSelectedTextMenuKeyHandlerChanged
+        view.isCoveredByHigherLayer = isCoveredByHigherLayer
         view.allowsNativeWheelInput = allowsNativeWheelInput
         view.allowsNativeScrollbarInput = allowsNativeScrollbarInput
         view.onScrollbarDraggingChanged = onScrollbarDraggingChanged

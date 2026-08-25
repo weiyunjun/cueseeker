@@ -151,6 +151,7 @@ struct PlaybackOverlay: View {
             collageSelectionPlan: session.isEditingCollage
                 ? session.collageSelectionPlan
                 : nil,
+            isCoveredByHigherLayer: session.isCoveredByHigherOverlay,
             onSelectedTextMenuKeyHandlerChanged: onSelectedTextMenuKeyHandlerChanged,
             onCommitKeyboardNavigation: session.commitKeyboardNavigation,
             onCommitNativeReelSelection: session.commitNativeReelSelection,
@@ -383,6 +384,8 @@ struct PlaybackSubtitleFocusOverlay: View {
     let keyboardNavigationRequest: PlaybackSubtitleFocusKeyboardNavigationRequest?
     let blocksNewNavigation: Bool
     let collageSelectionPlan: SubtitleCollageSelectionPlan?
+    /// True while the Command Panel is stacked on top of this overlay.
+    let isCoveredByHigherLayer: Bool
     /// Publishes the open selected-text menu's key handler so the playback key
     /// owner can offer it keys before cue navigation sees them.
     var onSelectedTextMenuKeyHandlerChanged: (((UInt16) -> Bool)?) -> Void = { _ in }
@@ -409,6 +412,7 @@ struct PlaybackSubtitleFocusOverlay: View {
         keyboardNavigationRequest: PlaybackSubtitleFocusKeyboardNavigationRequest? = nil,
         blocksNewNavigation: Bool = false,
         collageSelectionPlan: SubtitleCollageSelectionPlan? = nil,
+        isCoveredByHigherLayer: Bool = false,
         onSelectedTextMenuKeyHandlerChanged:
             @escaping (((UInt16) -> Bool)?) -> Void = { _ in },
         onCommitKeyboardNavigation: @escaping (
@@ -434,6 +438,7 @@ struct PlaybackSubtitleFocusOverlay: View {
         self.keyboardNavigationRequest = keyboardNavigationRequest
         self.blocksNewNavigation = blocksNewNavigation
         self.collageSelectionPlan = collageSelectionPlan
+        self.isCoveredByHigherLayer = isCoveredByHigherLayer
         self.onSelectedTextMenuKeyHandlerChanged =
             onSelectedTextMenuKeyHandlerChanged
         self.onCommitKeyboardNavigation = onCommitKeyboardNavigation
@@ -512,7 +517,8 @@ struct PlaybackSubtitleFocusOverlay: View {
                     onNativeMotionGateChanged: handleCueReelMotionChanged,
                     onKeyboardMotionChanged: handleCueReelMotionChanged,
                     onSelectedTextMenuKeyHandlerChanged:
-                        onSelectedTextMenuKeyHandlerChanged
+                        onSelectedTextMenuKeyHandlerChanged,
+                    isCoveredByHigherLayer: isCoveredByHigherLayer
                 )
                 .frame(
                     width: viewportSize.width,

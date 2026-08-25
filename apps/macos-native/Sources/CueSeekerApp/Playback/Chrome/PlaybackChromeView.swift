@@ -161,7 +161,8 @@ struct PlaybackChromeView: View {
 
                 PlaybackChromeSpeedMenu(
                     selectedSpeed: viewModel.playbackSpeed,
-                    suppressesInteraction: timeline.isScrubbing,
+                    suppressesInteraction: timeline.isScrubbing
+                        || playback.commandPanelPresentation != nil,
                     highlight: playback.speedMenuHighlight,
                     onSelect: { speed in
                         viewModel.setSpeed(speed)
@@ -299,6 +300,13 @@ struct PlaybackChromeView: View {
             matching: [.leftMouseDown, .rightMouseDown, .scrollWheel]
         ) { event in
             guard playback.isSpeedMenuOpen else {
+                return event
+            }
+            // A monitor bypasses hit testing, so the menu has to check for
+            // itself whether something above it owns this press. A frozen menu
+            // neither closes on the press nor eats it: it belongs to the
+            // Command Panel.
+            guard playback.commandPanelPresentation == nil else {
                 return event
             }
             let pointerInWindow = event.window.map { window in
