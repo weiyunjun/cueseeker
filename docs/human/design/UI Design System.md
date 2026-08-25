@@ -973,6 +973,7 @@
 - Closed
 - Open
   - Highlight：打开时默认高亮首项；键盘与指针共用同一个高亮，同时只有一项高亮
+  - Modality：打开期间下层不出现任何 Hover 或选中的视觉变化，挂靠对象保持打开时的高亮
 
 #### Variants
 
@@ -1313,6 +1314,7 @@
 - Default
 - Hover
   - Background：`--color-row-hover`
+  - 菜单或对话框打开期间不随指针移动；右键菜单的关联行保持 Hover
 - Selected
   - Background：`--color-row-selected`
 - Disabled
@@ -2058,6 +2060,7 @@
 - Selected
   - Background：`--color-library-media-card-hover-bg`
   - 指针停留在某张卡片上时选中随之移动;同一网格中同时只有一张
+  - 菜单或对话框打开期间不随指针移动；右键菜单的关联卡片保持选中
 - Disabled
 
 ## 2.12 Player Controls
@@ -3036,7 +3039,7 @@
 
 #### Position
 
-- Flow：Overlay
+- Flow：In Page
 - Width：Adaptive to App Window
 
 #### Structure
@@ -3457,6 +3460,7 @@
 - Covered
   - 触发：Command Panel 打开
   - 内容照常显示，不接受指针、滚轮与键盘
+  - 已展开的菜单保持展开
 - Closing
 
 ### Playback Topbar Layout
@@ -3644,7 +3648,7 @@
 
 - 位于 Playback Overlay 之上
 - 打开期间独占指针、滚轮与键盘
-- 打开时关闭下层已展开的菜单
+- 不关闭下层已展开的菜单
 
 #### States
 
