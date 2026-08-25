@@ -59,10 +59,9 @@ on disabled cards and buttons, which macOS does not use.
 
 Files:
 
-- `apps/macos-native/Sources/CueSeekerApp/Shared/PointerOnHoverModifier.swift`
-  - Replaced wholesale: was `pointerOnHover`, now holds `handPointer`. The file
-    name still says `PointerOnHoverModifier`; it should be renamed to
-    `HandPointer.swift`, which is left to the owner.
+- `apps/macos-native/Sources/CueSeekerApp/Shared/HandPointer.swift`
+  - Replaced wholesale: was `PointerOnHoverModifier.swift` holding
+    `pointerOnHover`, now holds `handPointer`. Renamed after acceptance.
 - `apps/macos-native/Sources/CueSeekerApp/TableSandbox/WorkbenchTestLibraryView.swift`
   - The video card and the folder card ask for the hand; the retired
     `LibraryCardCursorModifier` and the Recent Shiori row's pointer are gone.
