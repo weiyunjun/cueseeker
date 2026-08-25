@@ -35,11 +35,10 @@ Documentation only, so verification is a read of the amended section. The three
 new bullets sit inside section 11, after the existing `docs/human/` conflict
 bullet and before the ambiguity bullet, and do not contradict either.
 
-## Open point for the owner
+## Follow-up: the deciding date is the last commit
 
-The requirement says the more recent `修改日期` decides but does not define how
-that date is read. The file name carries a creation date that does not move when
-the requirement is later edited, so it cannot serve. The rule as written says
-"more recently modified"; pinning it to the document's last Git commit time
-would make it mechanical. That choice is the owner's and needs a requirement
-update before the rule states it.
+The requirement left `修改日期` undefined. The file name carries a creation date
+that does not move when the requirement is later edited, so it cannot serve as
+the answer. The owner settled it: the deciding date is the document's last Git
+commit time, and the file name date is ignored. The requirement and the rule now
+say so, which makes the comparison mechanical rather than a judgement call.

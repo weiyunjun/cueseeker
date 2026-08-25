@@ -295,7 +295,8 @@ Rules:
 - When one human-owned document contradicts itself, the AI must stop and report
   the conflict. It must not pick one reading and continue.
 - When two human-owned documents disagree and neither states which one applies,
-  the more recently modified document decides.
+  the more recently modified document decides. The deciding date is the
+  document's last Git commit time, not the date in its file name.
 - If a human-owned document is ambiguous, incomplete, or hard for the AI to
   understand, the AI must report the unclear point and ask for clarification or
   suggest explanatory text outside `docs/human/`. It must not silently reinterpret
