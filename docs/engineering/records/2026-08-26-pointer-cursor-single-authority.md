@@ -242,3 +242,38 @@ Videos page, with captures at each step:
 `swift test`: 1068 tests, no new failures against the baseline. The Playback
 Overlay's episode grid takes the same path but its module could not be opened
 from the scripted steps, so that surface is the owner's check.
+
+## Follow-up: nothing states a shape while a menu is open
+
+The owner requires that no pointer shape be stated explicitly while a right-click
+menu is open, because an upcoming requirement tests that. Two things violated it.
+
+This work had added `NSCursor.arrow.set()` when the table's row menu opens, and a
+cursor refresh when it closes. Both are gone: opening and closing only ask AppKit
+to decide again, and the frozen guard on the cursor rects is what leaves the
+arrow. The table's exit reset is now silent while frozen for the same reason.
+
+A second pushed pointer survived the earlier sweep: the table row's hover action
+bar still pushed the hand, and the not-allowed shape when disabled. It is
+removed, so no SwiftUI surface in the App pushes a cursor any more.
+
+The freeze answer the table uses is now its own `isMenuOpen` flag. The gate
+session it used before is not opened on the path that shows the row menu, so the
+guard never fired.
+
+Cards state nothing either: while frozen they withdraw their pointer style rather
+than naming a shape, so the surrounding decision stands.
+
+Files:
+
+- `apps/macos-native/Sources/CueSeekerApp/TableSandbox/SubtitleTableView.swift`
+
+### Verification
+
+With the cursor setter instrumented and the row menu open, no cursor set
+originates in the App: every set logged while the menu is up comes from AppKit's
+own cursor-update pass. A grep over the sources confirms the only remaining
+cursor code is the table's own guarded per-move decision, the scrollbar's arrow
+rect, the reel's rects and the cursor-visibility counter.
+
+`swift test`: 1068 tests, no new failures against the baseline.

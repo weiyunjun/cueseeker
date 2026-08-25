@@ -752,7 +752,6 @@ private struct CueHoverButtons: View {
     var onCopy: () -> Void
 
     @State private var isHovered = false
-    @State private var hasPushedCursor = false
 
     var body: some View {
         HStack(spacing: 2) {
@@ -769,45 +768,6 @@ private struct CueHoverButtons: View {
         )
         .onHover { inside in
             isHovered = inside
-            updateCursor(inside: inside)
-        }
-        .onChange(of: isEnabled) { newValue in
-            if isHovered {
-                if hasPushedCursor {
-                    NSCursor.pop()
-                    hasPushedCursor = false
-                }
-                if newValue {
-                    NSCursor.pointingHand.push()
-                } else {
-                    NSCursor.operationNotAllowed.push()
-                }
-                hasPushedCursor = true
-            }
-        }
-        .onDisappear {
-            if hasPushedCursor {
-                NSCursor.pop()
-                hasPushedCursor = false
-            }
-        }
-    }
-
-    private func updateCursor(inside: Bool) {
-        if inside {
-            if !hasPushedCursor {
-                if isEnabled {
-                    NSCursor.pointingHand.push()
-                } else {
-                    NSCursor.operationNotAllowed.push()
-                }
-                hasPushedCursor = true
-            }
-        } else {
-            if hasPushedCursor {
-                NSCursor.pop()
-                hasPushedCursor = false
-            }
         }
     }
 
@@ -2194,7 +2154,9 @@ final class SubtitleVirtualTableDocumentView: NSView {
 
     override func mouseExited(with event: NSEvent) {
         coordinator?.clearHover()
-        NSCursor.arrow.set()
+        // Leaving the table states the arrow, except while a menu is open:
+        // nothing may state a shape then.
+        coordinator?.resetCursorOnExit()
     }
 
     override func mouseDown(with event: NSEvent) {
@@ -5823,7 +5785,7 @@ struct SubtitleTableView: NSViewRepresentable {
         /// The cue cursor follows the same rule as the cards: a table that a
         /// higher layer covers, or that has its own menu open, keeps the arrow.
         private var isPointerFrozen: Bool {
-            isCoveredByHigherLayer || menuGateSession != nil
+            isCoveredByHigherLayer || isMenuOpen
         }
 
         func installCursorRects(in documentView: SubtitleVirtualTableDocumentView) {
@@ -5841,6 +5803,12 @@ struct SubtitleTableView: NSViewRepresentable {
             ) {
                 documentView.addCursorRect(rect, cursor: .pointingHand)
             }
+        }
+
+        /// The pointer leaving the table. Silent while frozen.
+        func resetCursorOnExit() {
+            guard !isPointerFrozen else { return }
+            NSCursor.arrow.set()
         }
 
         func refreshDocumentCursor(windowPoint: CGPoint) {
@@ -7440,10 +7408,10 @@ struct SubtitleTableView: NSViewRepresentable {
             guard menuGateSession == nil else {
                 return
             }
-            defer {
-                invalidateDocumentCursorRects()
-                NSCursor.arrow.set()
-            }
+            // Only ask AppKit to decide the shape again; the frozen guard on
+            // the cursor rects is what leaves the arrow. Nothing states a
+            // shape while a menu is open.
+            defer { invalidateDocumentCursorRects() }
             menuGateSession = interfaceLayers?.menuGate.open(
                 MenuGate.Client(
                     owner: .workbenchPage,
@@ -7533,12 +7501,9 @@ struct SubtitleTableView: NSViewRepresentable {
         private func closeMenuGateSession() {
             menuGateSession?.close()
             menuGateSession = nil
+            // The rects come back with the menu gone, and AppKit re-decides
+            // from them.
             invalidateDocumentCursorRects()
-            if let window = documentView?.window {
-                refreshDocumentCursor(
-                    windowPoint: window.mouseLocationOutsideOfEventStream
-                )
-            }
         }
 
         private func playRow(_ row: Int) {
