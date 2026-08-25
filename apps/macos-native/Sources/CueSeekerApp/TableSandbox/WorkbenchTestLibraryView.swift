@@ -10,6 +10,10 @@ struct WorkbenchRecentView: View {
     @EnvironmentObject private var shiori: ShioriStore
 
     var body: some View {
+        // The menu belongs to the page, not to one section of it, so the page
+        // hosts it. A menu opened from a video card then covers the sections
+        // laid out below the card grid instead of being painted under them.
+        LibraryCardContextMenuHost { _ in
         GeometryReader { geometry in
             WorkbenchScrollView([.vertical, .horizontal]) {
                 VStack(alignment: .leading, spacing: WorkbenchTestLibraryMetrics.sectionSpacing) {
@@ -42,6 +46,7 @@ struct WorkbenchRecentView: View {
                     alignment: .topLeading
                 )
             }
+        }
         }
         .background(WorkbenchRedesignColors.bgSurface)
         .task {
@@ -638,6 +643,10 @@ struct RecentWatchingGrid: View {
 private struct LibraryVideoCardGrid<Item: Identifiable>: View
 where Item.ID == String {
     @EnvironmentObject private var appState: AppCoordinator
+    /// Set when the page already hosts the menu at its own root. The grid then
+    /// uses that host, so the menu covers the whole page instead of only the
+    /// grid it was opened from.
+    @Environment(\.libraryCardContextMenuOpen) private var pageContextMenuOpen
     let items: [Item]
     let selectedItemID: String?
     let itemFrameCoordinateSpace: String?
@@ -661,46 +670,54 @@ where Item.ID == String {
     }
 
     var body: some View {
-        LibraryCardContextMenuHost { openContextMenu in
-            LazyVGrid(
-                columns: columns,
-                alignment: .leading,
-                spacing: WorkbenchTestLibraryMetrics.recentGridGap
-            ) {
-                ForEach(items) { item in
-                    LibraryVideoCard(
-                        content: content(item),
-                        isSelected: selectedItemID == item.id,
-                        actions: .appState(appState),
-                        openContextMenu: openContextMenu,
-                        allowsHover: allowsHover,
-                        onHoverChange: { onItemHoverChange(item, $0) },
-                        onOpen: { onOpen(item) }
-                    )
-                    .background {
-                        if let itemFrameCoordinateSpace {
-                            GeometryReader { proxy in
-                                Color.clear.preference(
-                                    key: LibraryItemFramePreferenceKey.self,
-                                    value: [
-                                        item.id: proxy.frame(
-                                            in: .named(itemFrameCoordinateSpace)
-                                        )
-                                    ]
-                                )
-                            }
+        if let pageContextMenuOpen {
+            grid(openContextMenu: pageContextMenuOpen)
+        } else {
+            LibraryCardContextMenuHost { grid(openContextMenu: $0) }
+        }
+    }
+
+    private func grid(
+        openContextMenu: @escaping ([LibraryCardContextMenuItem], CGPoint) -> Void
+    ) -> some View {
+        LazyVGrid(
+            columns: columns,
+            alignment: .leading,
+            spacing: WorkbenchTestLibraryMetrics.recentGridGap
+        ) {
+            ForEach(items) { item in
+                LibraryVideoCard(
+                    content: content(item),
+                    isSelected: selectedItemID == item.id,
+                    actions: .appState(appState),
+                    openContextMenu: openContextMenu,
+                    allowsHover: allowsHover,
+                    onHoverChange: { onItemHoverChange(item, $0) },
+                    onOpen: { onOpen(item) }
+                )
+                .background {
+                    if let itemFrameCoordinateSpace {
+                        GeometryReader { proxy in
+                            Color.clear.preference(
+                                key: LibraryItemFramePreferenceKey.self,
+                                value: [
+                                    item.id: proxy.frame(
+                                        in: .named(itemFrameCoordinateSpace)
+                                    )
+                                ]
+                            )
                         }
                     }
-                    .id(item.id)
                 }
+                .id(item.id)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .onPreferenceChange(LibraryItemFramePreferenceKey.self) { frames in
-                guard itemFrameCoordinateSpace != nil else {
-                    return
-                }
-                onItemFramesChange(frames)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .onPreferenceChange(LibraryItemFramePreferenceKey.self) { frames in
+            guard itemFrameCoordinateSpace != nil else {
+                return
             }
+            onItemFramesChange(frames)
         }
     }
 }
@@ -1159,6 +1176,13 @@ private struct LibraryCardContextMenuAnchorUpdateKey: EnvironmentKey {
     nonisolated(unsafe) static let defaultValue: ((CGPoint) -> Void)? = nil
 }
 
+/// The nearest enclosing host's opener. A page that hosts the menu at its own
+/// root publishes it here, so a grid inside that page hands its cards the page's
+/// host instead of standing up one of its own.
+private struct LibraryCardContextMenuOpenKey: EnvironmentKey {
+    nonisolated(unsafe) static let defaultValue: (([LibraryCardContextMenuItem], CGPoint) -> Void)? = nil
+}
+
 extension EnvironmentValues {
     /// True while any card's context menu is open. A card reads it to freeze
     /// its highlight: an open menu must not let the pointer move the lit card.
@@ -1170,6 +1194,11 @@ extension EnvironmentValues {
     var libraryCardContextMenuAnchorUpdate: ((CGPoint) -> Void)? {
         get { self[LibraryCardContextMenuAnchorUpdateKey.self] }
         set { self[LibraryCardContextMenuAnchorUpdateKey.self] = newValue }
+    }
+
+    var libraryCardContextMenuOpen: (([LibraryCardContextMenuItem], CGPoint) -> Void)? {
+        get { self[LibraryCardContextMenuOpenKey.self] }
+        set { self[LibraryCardContextMenuOpenKey.self] = newValue }
     }
 }
 
@@ -1254,6 +1283,7 @@ struct LibraryCardContextMenuHost<Content: View>: View {
         content(openContextMenu)
             .environment(\.libraryCardContextMenuIsOpen, activeMenu != nil)
             .environment(\.libraryCardContextMenuAnchorUpdate, updateAnchorPoint)
+            .environment(\.libraryCardContextMenuOpen, openContextMenu)
             .coordinateSpace(name: LibraryCardContextMenuCoordinateSpace.name)
             .background(LibraryCardMenuViewportProbe(geometry: geometry))
             .overlay(alignment: .topLeading) {
