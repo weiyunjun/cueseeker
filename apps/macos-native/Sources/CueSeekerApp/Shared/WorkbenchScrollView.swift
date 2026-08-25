@@ -77,9 +77,13 @@ private struct WorkbenchScrollViewBindingRepresentable: NSViewRepresentable {
 private struct WorkbenchScrollViewOverlayRepresentable: NSViewRepresentable {
     let axes: Axis.Set
     let bridge: WorkbenchScrollViewBridge
+    /// A menu open over this layer, or a higher layer covering it, freezes the
+    /// Scrollbar the same way it freezes the cards beside it.
+    @Environment(\.interfaceLayerContext) private var layerContext
 
     func makeNSView(context: Context) -> WorkbenchScrollViewOverlayView {
         let view = WorkbenchScrollViewOverlayView()
+        view.isInteractionFrozen = layerContext.isFrozen
         bridge.register(overlayView: view, axes: axes)
         return view
     }
@@ -88,6 +92,7 @@ private struct WorkbenchScrollViewOverlayRepresentable: NSViewRepresentable {
         _ nsView: WorkbenchScrollViewOverlayView,
         context: Context
     ) {
+        nsView.isInteractionFrozen = layerContext.isFrozen
         bridge.register(overlayView: nsView, axes: axes)
     }
 

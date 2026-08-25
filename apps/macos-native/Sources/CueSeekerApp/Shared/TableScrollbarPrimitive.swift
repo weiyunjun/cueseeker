@@ -256,6 +256,12 @@ class TableScrollbarOverlayView: NSView {
             needsDisplay = true
         }
     }
+    /// Set while a menu is open over this Scrollbar's layer, or while a higher
+    /// layer covers it. The Scrollbar then keeps the picture it had: the
+    /// pointer moving over it no longer lights the thumb, and moving off no
+    /// longer puts it out. Presses and the wheel are already withheld by the
+    /// menu gate before they reach here.
+    var isInteractionFrozen = false
     var isPresented = false {
         didSet {
             guard isPresented != oldValue else {
@@ -406,12 +412,15 @@ class TableScrollbarOverlayView: NSView {
 
     override func mouseMoved(with event: NSEvent) {
         super.mouseMoved(with: event)
+        guard !isInteractionFrozen else {
+            return
+        }
         hoveredAxis = axis(at: convert(event.locationInWindow, from: nil))
     }
 
     override func mouseExited(with event: NSEvent) {
         super.mouseExited(with: event)
-        guard draggingAxis == nil else {
+        guard draggingAxis == nil, !isInteractionFrozen else {
             return
         }
         hoveredAxis = nil

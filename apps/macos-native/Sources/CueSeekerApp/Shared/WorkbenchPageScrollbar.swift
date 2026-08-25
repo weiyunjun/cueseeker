@@ -118,9 +118,13 @@ struct WorkbenchPageScrollbarOverlay: View {
 private struct WorkbenchPageScrollbarRepresentable: NSViewRepresentable {
     let scrollbar: WorkbenchPageScrollbar
     let axis: TableScrollbarAxis
+    /// A menu open over this layer, or a higher layer covering it, freezes the
+    /// Scrollbar the same way it freezes the page beneath it.
+    @Environment(\.interfaceLayerContext) private var layerContext
 
     func makeNSView(context: Context) -> SubtitleTableScrollbarOverlayView {
         let view = SubtitleTableScrollbarOverlayView()
+        view.isInteractionFrozen = layerContext.isFrozen
         scrollbar.attach(overlayView: view, axis: axis)
         return view
     }
@@ -129,6 +133,7 @@ private struct WorkbenchPageScrollbarRepresentable: NSViewRepresentable {
         _ nsView: SubtitleTableScrollbarOverlayView,
         context: Context
     ) {
+        nsView.isInteractionFrozen = layerContext.isFrozen
         scrollbar.attach(overlayView: nsView, axis: axis)
         nsView.scrollMetricsDidChange()
     }

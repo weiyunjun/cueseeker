@@ -73,26 +73,27 @@ final class CardHighlightModel: ObservableObject {
     }
 
     /// A covered interface, or one with a menu open, keeps the picture it had.
-    /// Reports are dropped rather than queued, so nothing the pointer did while
-    /// frozen can be applied after the freeze lifts.
+    /// Where the pointer is goes on being tracked meanwhile — the pointer can
+    /// travel to another card while a menu is open, and the first real movement
+    /// after the menu closes has to hand the highlight to the card it is
+    /// actually on. Only the picture is frozen, not the bookkeeping.
     func setFrozen(_ isFrozen: Bool) {
         guard self.isFrozen != isFrozen else {
             return
         }
         self.isFrozen = isFrozen
         adoptsHover = false
-        hoveredID = nil
     }
 
     /// From a card's hover callback.
     func noteHover(_ isHovered: Bool, id: String) {
-        guard !isFrozen else {
-            return
-        }
         if isHovered {
             hoveredID = id
         } else if hoveredID == id {
             hoveredID = nil
+        }
+        guard !isFrozen else {
+            return
         }
         adoptHoverIfAllowed()
     }

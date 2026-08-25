@@ -2305,7 +2305,10 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
         ordinal: Int,
         pointInCue: CGPoint
     ) {
-        dismissSelectedTextActions()
+        tearDownSelectedTextMenu()
+        // The Scrollbar is outside the menu, so it stops answering the pointer
+        // for as long as the menu is up.
+        scrollbarView.isInteractionFrozen = true
 
         selectedTextMenuActions = [
             { [weak self] in
@@ -2412,7 +2415,18 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
         )
     }
 
+    /// Closes the menu and takes the selection it hangs off with it. Clearing
+    /// here does not report back, because a report is what asks for this in the
+    /// first place.
     private func dismissSelectedTextActions() {
+        tearDownSelectedTextMenu()
+        documentView.discardTextSelection()
+    }
+
+    /// Removes the menu and leaves the selection alone, for the open path,
+    /// which tears down any previous menu before putting up the one belonging
+    /// to the selection just made.
+    private func tearDownSelectedTextMenu() {
         selectedTextMenuHost?.removeFromSuperview()
         selectedTextMenuHost = nil
         selectedTextMenuPlacement = nil
@@ -2420,10 +2434,7 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
         selectedTextMenuActions = []
         menuGateSession?.close()
         menuGateSession = nil
-        // The menu hangs off the selected text, so closing the menu takes the
-        // selection with it. This clears without reporting back, because the
-        // report is what asked for this dismissal in the first place.
-        documentView.discardTextSelection()
+        scrollbarView.isInteractionFrozen = false
     }
 
     /// Arrow keys, Enter and Escape for the open menu. Reported as handled so

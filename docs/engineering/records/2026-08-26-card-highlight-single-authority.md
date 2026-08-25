@@ -156,3 +156,64 @@ and `docs/human/design/UI Application Rules.md` after visual acceptance. Two
 existing lines will need rewording rather than adding: Media Card's states say the
 selection follows a pointer that *rests* on a card and that one grid holds one,
 where the rule is now a *real movement* and one *interface*.
+
+## Follow-up: three defects found in acceptance
+
+**The Scrollbar still answered the pointer while a menu was open.** The menu gate
+withholds presses and the wheel from everything outside the menu, and it never
+had to withhold hover, because until now hover reached SwiftUI views that asked
+the layer registry themselves. The Scrollbar is an AppKit view taking
+`mouseMoved` from its own tracking area, and nothing had ever told it about
+layers. It now carries the same freeze answer as the cards beside it — while
+frozen the thumb keeps the picture it had, rather than lighting under the
+pointer or going out when the pointer leaves. Presses and the wheel were already
+withheld by the gate, so only hover changed.
+
+**A highlight could not be handed to the card the pointer had walked to while a
+menu was open.** Right-click card A, walk to card B with the menu up, close the
+menu with a click, move: on the Workbench the highlight went out and in Playback
+it stayed on A. The cause was in this change's own model: freezing dropped hover
+reports outright, so it forgot the pointer had reached B, and SwiftUI does not
+report hover again for a card the pointer never left. Freezing now stops the
+*picture* changing and keeps tracking where the pointer is, so the first real
+movement after the menu closes hands the highlight to the card the pointer is
+actually on. Nothing is replayed at the moment the freeze lifts; a real movement
+is still required.
+
+**Opening a selected-text menu cleared the selection it belonged to.** Making
+menu dismissal take the selection with it (§9.3) was wired into the one function
+that also runs at the start of the open path, where it tears down any previous
+menu. So the menu came up on a selection that had just been erased. Teardown and
+dismissal are now separate: the open path only tears down, and dismissal clears.
+
+Files:
+
+- `apps/macos-native/Sources/CueSeekerApp/Shared/TableScrollbarPrimitive.swift`
+  - `isInteractionFrozen` suppresses the hover updates.
+- `apps/macos-native/Sources/CueSeekerApp/Shared/WorkbenchScrollView.swift`,
+  `.../Shared/WorkbenchPageScrollbar.swift`
+  - Both Scrollbar hosts read the layer context and pass it down.
+- `apps/macos-native/Sources/CueSeekerApp/Playback/SubtitleFocus/PlaybackSubtitleFocusReel.swift`
+  - The reel's Scrollbar freezes with its own menu; teardown split from
+    dismissal.
+- `apps/macos-native/Sources/CueSeekerApp/Shared/CardHighlightModel.swift`
+  - Freezing keeps the pointer bookkeeping.
+
+### Verification
+
+`swift test`: 1078 tests, no new failure against the baseline. Two more tests in
+`CardHighlightModelTests.swift` pin the second defect from both ends — the
+pointer that travelled to another card while frozen, and the pointer that left
+the cards entirely — and the frozen-picture test was corrected, because it had
+asserted the defect.
+
+Driven through the Debug in-app E2E controller, with captures:
+
+- Library page, pointer on the Scrollbar: the thumb is the interactive colour.
+  With a card menu open and the pointer on the same spot: the default colour.
+- Shiori page: right-click card 1, move to card 2, click to close the menu, move
+  once. Card 2 is lit and card 1 is out.
+
+The Command Panel's selected-text menu needs a video playing across scripted
+steps, which the controller has not managed on this tree, so that one is the
+owner's check.

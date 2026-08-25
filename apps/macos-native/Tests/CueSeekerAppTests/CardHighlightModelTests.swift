@@ -96,7 +96,7 @@ struct CardHighlightModelTests {
     }
 
     @Test
-    func aFrozenInterfaceKeepsItsPictureAndDropsPointerReports() {
+    func aFrozenInterfaceKeepsItsPicture() {
         let model = workbench()
         model.notePointerMoved()
         model.noteHover(true, id: "a")
@@ -107,14 +107,41 @@ struct CardHighlightModelTests {
         model.notePointerMoved()
         #expect(model.currentID == "a")
 
-        // Unfreezing does not replay what the pointer did meanwhile: it has to
-        // move again first.
+        // Unfreezing does not replay it either: the pointer has to move again.
         model.setFrozen(false)
         #expect(model.currentID == "a")
+    }
+
+    @Test
+    func aPointerThatTravelledWhileFrozenIsFoundWhereItActuallyIs() {
+        // Right-click one card, walk to another with the menu up, close the
+        // menu with a click, then move. The highlight has to land on the card
+        // the pointer is on, not go out and not stay behind: SwiftUI will not
+        // report hover again for a card the pointer never left.
+        let model = workbench()
+        model.notePress(id: "a")
+        model.setFrozen(true)
+        model.noteHover(false, id: "a")
         model.noteHover(true, id: "b")
+        #expect(model.currentID == "a")
+
+        model.setFrozen(false)
         #expect(model.currentID == "a")
         model.notePointerMoved()
         #expect(model.currentID == "b")
+    }
+
+    @Test
+    func aPointerThatLeftTheCardsWhileFrozenPutsTheHighlightOut() {
+        let model = workbench()
+        model.notePress(id: "a")
+        model.setFrozen(true)
+        model.noteHover(false, id: "a")
+
+        model.setFrozen(false)
+        #expect(model.currentID == "a")
+        model.notePointerMoved()
+        #expect(model.currentID == nil)
     }
 
     @Test
