@@ -115,4 +115,36 @@ Files: `TableSandbox/SubtitleTableView.swift`,
   one-second waits in the refresh-scope integration suite. The full parallel run
   fails a different subset each time; the serial run is the stable signal.
 
+Debug E2E against the running App, on the Shiori list of 397 rows. Every
+capture below was compared pixel by pixel, not by eye:
+
+- **The wheel with no menu open** scrolls the table, and scrolling back returns
+  the first capture byte for byte. That is the control for the two that follow.
+- **Acceptance 1.** Right-click row 3, then one wheel step down: the capture
+  after the wheel is **byte-identical** to the capture before it. Nothing in the
+  window moved.
+- **Acceptance 3 and 4.** With that menu open, move the pointer to row 6: the
+  only pixels that change in the whole window are the traffic lights at
+  (8,8)–(76,28), which react to the window, not to the table. Row 3 keeps its
+  highlight and row 6 takes none. The table's hover follows the event's own
+  location, so a synthesized move does reach it, as
+  `docs/engineering/08_end_to_end_testing.md` §1.1 records.
+- **The ban lifts with the menu.** A press outside closes the menu and is spent
+  on closing it; the next wheel step scrolls the table again.
+
+Three acceptance points could not be driven, and no capability was added for
+them. They need manual acceptance in the App:
+
+- **Acceptance 2, 5, 6 and 7** need the playback chrome and the speed menu. The
+  chrome appears on real cursor movement, which the controller does not produce
+  — the same limit `20260824-UI-Menu Placement And Outside Interaction` already
+  recorded. The key ownership and the freeze are covered by the unit test above;
+  what needs eyes is that a click inside the Command Panel leaves the speed menu
+  open and is answered by the panel.
+- **The card and cover menus** in acceptance 1, 3 and 4 install their right-click
+  monitor only while the card reports SwiftUI hover, which a synthesized move
+  cannot produce. The requirement already assigns them manual acceptance.
+- **Acceptance 8** is covered by a unit test rather than the controller, because
+  a dialog is opened from a control the controller cannot activate.
+
 Outcome matched expectations.
