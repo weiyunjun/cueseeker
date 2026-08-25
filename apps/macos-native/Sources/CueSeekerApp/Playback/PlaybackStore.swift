@@ -68,9 +68,34 @@ final class PlaybackStore: ObservableObject {
     let pointerVisibility = PlaybackPointerVisibilityStore()
     let pointerHideRequests = PassthroughSubject<Void, Never>()
 
-    @Published private(set) var subtitleFocusSession: PlaybackSubtitleFocusSessionStore?
+    /// The layer registry answers every "is this layer covered" question, so
+    /// the store reports its layers — Playback Overlay, Command Panel — and
+    /// the speed menu there instead of keeping coverage flags of its own.
+    let interfaceLayers: InterfaceLayerRegistry
+
+    @Published private(set) var subtitleFocusSession: PlaybackSubtitleFocusSessionStore? {
+        didSet {
+            guard (subtitleFocusSession != nil) != (oldValue != nil) else {
+                return
+            }
+            interfaceLayers.setOpen(
+                .playbackOverlay,
+                subtitleFocusSession != nil
+            )
+        }
+    }
     @Published private(set) var commandPanelPresentation:
-        PlaybackCommandPanelPresentation?
+        PlaybackCommandPanelPresentation? {
+        didSet {
+            guard (commandPanelPresentation != nil) != (oldValue != nil) else {
+                return
+            }
+            interfaceLayers.setOpen(
+                .commandPanel,
+                commandPanelPresentation != nil
+            )
+        }
+    }
     @Published private(set) var commandPanelSearchWindow:
         PlaybackCueResultSessionWindowStore?
     private var commandPanelSearchSource: PlaybackCueResultSource?
@@ -93,12 +118,18 @@ final class PlaybackStore: ObservableObject {
     /// the App-wide playback monitor is added at launch.
     @Published private(set) var isSpeedMenuOpen = false
     let speedMenuHighlight = MenuHighlightModel()
+    private var speedMenuRegistration: InterfaceLayerRegistry.OpenMenuToken?
 
     func openSpeedMenu(defaultPosition: Int?) {
         speedMenuHighlight.open(
             selectablePositions: Array(PlaybackViewModel.speedPresets.indices),
             defaultPosition: defaultPosition
         )
+        if speedMenuRegistration == nil {
+            speedMenuRegistration = interfaceLayers.registerOpenMenu(
+                ownedBy: .playbackPage
+            )
+        }
         isSpeedMenuOpen = true
     }
 
@@ -114,12 +145,18 @@ final class PlaybackStore: ObservableObject {
             return
         }
         speedMenuHighlight.close()
+        speedMenuRegistration = nil
         isSpeedMenuOpen = false
     }
     private(set) var pointerHideRequestGeneration: UInt64 = 0
     private var subtitleFocusSessionGeneration = 0
 
-    init(userDefaults _: UserDefaults) {}
+    init(
+        userDefaults _: UserDefaults,
+        interfaceLayers: InterfaceLayerRegistry = InterfaceLayerRegistry()
+    ) {
+        self.interfaceLayers = interfaceLayers
+    }
 
     var isTimelineScrubbing: Bool {
         get { timeline.isScrubbing }
@@ -155,14 +192,14 @@ final class PlaybackStore: ObservableObject {
             playlistPosition: playlistPosition,
             searchStore: searchStore,
             libraryStore: libraryStore,
-            shioriStore: shioriStore
+            shioriStore: shioriStore,
+            interfaceLayers: interfaceLayers
         )
         if libraryStore == nil,
            playlistSource?.hasItems == true {
             _ = session.presentModule(.playlist)
         }
         subtitleFocusSession = session
-        synchronizeOverlayInputOwnership()
         return session
     }
 
@@ -187,14 +224,6 @@ final class PlaybackStore: ObservableObject {
         // The Command Panel is the topmost surface, so menus opened underneath
         // it stay on screen and stop taking input rather than closing.
         commandPanelPresentation = presentation
-        synchronizeOverlayInputOwnership()
-    }
-
-    /// Only the topmost interactive surface owns the wheel and the scrollbar.
-    private func synchronizeOverlayInputOwnership() {
-        subtitleFocusSession?.setCoveredByHigherOverlay(
-            commandPanelPresentation != nil
-        )
     }
 
     func synchronizeCommandPanelSearchPreview(
@@ -282,7 +311,6 @@ final class PlaybackStore: ObservableObject {
             commandPanelPresentation = nil
             resetCommandPanelRecentVideoGridLayout()
             releaseCommandPanelSearchPreview()
-            synchronizeOverlayInputOwnership()
         }
         return commandPanelPresentation
     }

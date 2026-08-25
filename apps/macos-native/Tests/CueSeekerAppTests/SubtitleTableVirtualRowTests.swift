@@ -931,7 +931,7 @@ func subtitleTableCoveredByADialogKeepsItsHighlight() throws {
     )
 
     // A dialog above the table takes its input and leaves its picture alone.
-    fixture.coordinator.isExternalPopupLayerOpen = true
+    fixture.coordinator.isCoveredByHigherLayer = true
     fixture.coordinator.clearHover()
     let secondRowRect = try #require(
         fixture.coordinator.cellContentHoverDocumentRectForTesting(row: 1, columnID: "cues")
@@ -1522,12 +1522,12 @@ func subtitleTableViewSuppressesVisibleRowNotificationsWhenExternalLayerIsOpen()
     )
 
     visibleRowNotifications = 0
-    fixture.coordinator.isExternalPopupLayerOpen = true
+    fixture.coordinator.isCoveredByHigherLayer = true
     fixture.coordinator.notifyVisibleRowsChanged(force: true)
 
     #expect(visibleRowNotifications == 0)
 
-    fixture.coordinator.isExternalPopupLayerOpen = false
+    fixture.coordinator.isCoveredByHigherLayer = false
     fixture.coordinator.notifyVisibleRowsChanged(force: true)
 
     #expect(visibleRowNotifications == 1)
@@ -2637,7 +2637,7 @@ func subtitleTableViewSuppressesInteractiveCursorRectsWhenExternalLayerIsOpen() 
     let cuesRect = try #require(fixture.coordinator.cellContentHoverDocumentRectForTesting(row: 0, columnID: "cues"))
     let cuesPoint = CGPoint(x: cuesRect.midX, y: cuesRect.midY)
 
-    fixture.coordinator.isExternalPopupLayerOpen = true
+    fixture.coordinator.isCoveredByHigherLayer = true
 
     #expect(fixture.coordinator.interactiveCellCursorRectsForTesting().isEmpty)
     #expect(fixture.coordinator.isInteractiveCellCursorActiveForTesting(documentPoint: cuesPoint) == false)

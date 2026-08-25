@@ -14,6 +14,7 @@ struct PlaybackCueResultOverlay: View {
 
     @EnvironmentObject private var cueGroupPresentation: CueGroupPresentationStore
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.isPlaybackOverlayCovered) private var isCoveredByHigherLayer
     @State private var deferredActionTask: Task<Void, Never>?
 
     var body: some View {
@@ -54,7 +55,7 @@ struct PlaybackCueResultOverlay: View {
                     },
                     onNativeMotionGateChanged: handleReelMotionChanged,
                     onKeyboardMotionChanged: handleReelMotionChanged,
-                    isCoveredByHigherLayer: session.isCoveredByHigherOverlay
+                    isCoveredByHigherLayer: isCoveredByHigherLayer
                 )
                 .id("\(module.rawValue):\(windowStore.reelDatasetID ?? "empty")")
                 .frame(

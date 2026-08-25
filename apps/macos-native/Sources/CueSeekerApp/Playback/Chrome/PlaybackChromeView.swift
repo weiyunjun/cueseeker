@@ -166,7 +166,7 @@ struct PlaybackChromeView: View {
                 PlaybackChromeSpeedMenu(
                     selectedSpeed: viewModel.playbackSpeed,
                     suppressesInteraction: timeline.isScrubbing
-                        || playback.commandPanelPresentation != nil,
+                        || playback.interfaceLayers.isOpen(.commandPanel),
                     highlight: playback.speedMenuHighlight,
                     onSelect: { speed in
                         viewModel.setSpeed(speed)
@@ -310,7 +310,7 @@ struct PlaybackChromeView: View {
             // itself whether something above it owns this press. A frozen menu
             // neither closes on the press nor eats it: it belongs to the
             // Command Panel.
-            guard playback.commandPanelPresentation == nil else {
+            guard !playback.interfaceLayers.isOpen(.commandPanel) else {
                 return event
             }
             // Until the reader has reported, the press counts as this

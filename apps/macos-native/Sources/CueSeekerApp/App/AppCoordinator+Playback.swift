@@ -867,7 +867,7 @@ extension AppCoordinator {
         // A menu is above the surface that opened it, but not above the
         // Command Panel: both menus below the panel stay on screen and hand the
         // keys over while it is open.
-        let isCoveredByCommandPanel = playback.commandPanelPresentation != nil
+        let isCoveredByCommandPanel = interfaceLayers.isOpen(.commandPanel)
 
         // The speed menu is the topmost surface when open, so it owns the
         // arrow keys before seeking or volume can see them.

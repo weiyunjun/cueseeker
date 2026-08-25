@@ -60,6 +60,7 @@ struct PlaybackSubtitleFocusLayer: View {
 struct PlaybackOverlay: View {
     // Observed so the copy below is re-read when the language changes.
     @EnvironmentObject private var localization: AppLocalizationStore
+    @Environment(\.isPlaybackOverlayCovered) private var isCoveredByHigherLayer
     @ObservedObject var session: PlaybackSubtitleFocusSessionStore
     let snapshot: SubtitleFocusSnapshot
     let cues: [SubtitleFocusCue]
@@ -151,7 +152,7 @@ struct PlaybackOverlay: View {
             collageSelectionPlan: session.isEditingCollage
                 ? session.collageSelectionPlan
                 : nil,
-            isCoveredByHigherLayer: session.isCoveredByHigherOverlay,
+            isCoveredByHigherLayer: isCoveredByHigherLayer,
             onSelectedTextMenuKeyHandlerChanged: onSelectedTextMenuKeyHandlerChanged,
             onCommitKeyboardNavigation: session.commitKeyboardNavigation,
             onCommitNativeReelSelection: session.commitNativeReelSelection,

@@ -1734,7 +1734,7 @@ final class SubtitleVirtualTableHeaderView: NSView {
             isHeaderHovered = false
             return
         }
-        if coordinator?.isExternalPopupLayerOpen == true {
+        if coordinator?.isCoveredByHigherLayer == true {
             isHeaderHovered = false
             return
         }
@@ -2255,17 +2255,6 @@ final class SubtitleVirtualTableDocumentView: NSView {
 
 // MARK: - SwiftUI bridge
 
-struct IsWorkbenchPopupLayerOpenKey: EnvironmentKey {
-    static let defaultValue: Bool = false
-}
-
-extension EnvironmentValues {
-    var isWorkbenchPopupLayerOpen: Bool {
-        get { self[IsWorkbenchPopupLayerOpenKey.self] }
-        set { self[IsWorkbenchPopupLayerOpenKey.self] = newValue }
-    }
-}
-
 typealias SubtitleTableTextCopyRowLoader = @MainActor (Range<Int>) async -> [SubtitleTableRow]?
 
 struct SubtitleTablePageChrome {
@@ -2342,7 +2331,8 @@ final class SubtitleTablePageChromeHostingView: NSHostingView<AnyView> {
 
 struct SubtitleTableView: NSViewRepresentable {
     @Environment(\.isEnabled) private var isEnabled
-    @Environment(\.isWorkbenchPopupLayerOpen) var isWorkbenchPopupLayerOpen
+    @Environment(\.isWorkbenchPageCovered) var isWorkbenchPageCovered
+    @Environment(\.interfaceLayers) private var interfaceLayers
     @Environment(\.subtitleTableExternalTextSelectionSession) private var externalTextSelectionSession
     var tableName: String
     var probeSurface: SubtitleTableProbeSurface = .search
@@ -2364,7 +2354,6 @@ struct SubtitleTableView: NSViewRepresentable {
     var showsCueGroup = false
     var scrollResetToken = 0
     var scrollTargetRow: Int?
-    var suspendsMenuOutsideClickDismiss = false
     var onVisibleRowsChange: (Range<Int>) -> Void = { _ in }
     var isSelectionMode = false
     var isRowSelected: (Int) -> Bool = { _ in false }
@@ -2434,8 +2423,8 @@ struct SubtitleTableView: NSViewRepresentable {
             details: "table=\(tableName)"
         )
         context.coordinator.isEnabled = isEnabled
-        context.coordinator.isExternalPopupLayerOpen = isWorkbenchPopupLayerOpen
-        context.coordinator.suspendsMenuOutsideClickDismiss = suspendsMenuOutsideClickDismiss
+        context.coordinator.isCoveredByHigherLayer = isWorkbenchPageCovered
+        context.coordinator.interfaceLayers = interfaceLayers
         let container = SubtitleTableContainerView()
 
         let header = SubtitleVirtualTableHeaderView()
@@ -2547,8 +2536,8 @@ struct SubtitleTableView: NSViewRepresentable {
         context.coordinator.bindPageScrollbar(pageScrollbar)
         context.coordinator.isRedesign = isRedesign
         context.coordinator.isEnabled = isEnabled
-        context.coordinator.isExternalPopupLayerOpen = isWorkbenchPopupLayerOpen
-        context.coordinator.suspendsMenuOutsideClickDismiss = suspendsMenuOutsideClickDismiss
+        context.coordinator.isCoveredByHigherLayer = isWorkbenchPageCovered
+        context.coordinator.interfaceLayers = interfaceLayers
         context.coordinator.updatePageChrome(pageChrome)
         context.coordinator.bindExternalTextSelectionSession(externalTextSelectionSession)
         context.coordinator.update(
@@ -2733,11 +2722,14 @@ struct SubtitleTableView: NSViewRepresentable {
             let primaryFirstLineScreenY: CGFloat
         }
 
-        var suspendsMenuOutsideClickDismiss = false
-        var isExternalPopupLayerOpen = false {
+        /// The registry the open row menu is reported to. nil in hierarchies
+        /// outside the main window.
+        var interfaceLayers: InterfaceLayerRegistry?
+        private var menuRegistration: InterfaceLayerRegistry.OpenMenuToken?
+        var isCoveredByHigherLayer = false {
             didSet {
-                guard isExternalPopupLayerOpen != oldValue else { return }
-                if isExternalPopupLayerOpen {
+                guard isCoveredByHigherLayer != oldValue else { return }
+                if isCoveredByHigherLayer {
                     // A surface above the table takes its input and leaves its
                     // picture alone: the highlight stays where it was and an
                     // open menu stays open. Only work already in flight stops.
@@ -3507,7 +3499,7 @@ struct SubtitleTableView: NSViewRepresentable {
         }
 
         func menuOutsideClickDismissesForTesting(windowPoint: CGPoint) -> Bool {
-            guard isMenuOpen, !suspendsMenuOutsideClickDismiss else { return false }
+            guard isMenuOpen else { return false }
             return !isWindowPointInsideOpenMenu(windowPoint)
         }
 
@@ -4231,7 +4223,7 @@ struct SubtitleTableView: NSViewRepresentable {
         }
 
         func notifyVisibleRowsChanged(force: Bool = false) {
-            guard !isExternalPopupLayerOpen else { return }
+            guard !isCoveredByHigherLayer else { return }
             if isRedesign {
                 reflowVisibleRows()
             }
@@ -5849,7 +5841,7 @@ struct SubtitleTableView: NSViewRepresentable {
         }
 
         func refreshDocumentCursor(windowPoint: CGPoint) {
-            guard !isExternalPopupLayerOpen, let documentView else { return }
+            guard !isCoveredByHigherLayer, let documentView else { return }
             let point = documentView.convert(windowPoint, from: nil)
             guard currentTableBodyVisibleRect.contains(point) else {
                 NSCursor.arrow.set()
@@ -5873,7 +5865,7 @@ struct SubtitleTableView: NSViewRepresentable {
             guard isRedesign,
                   isEnabled,
                   !isMenuOpen,
-                  !isExternalPopupLayerOpen,
+                  !isCoveredByHigherLayer,
                   let range = visibleRowRange(in: visibleRect)
             else {
                 return []
@@ -5928,7 +5920,7 @@ struct SubtitleTableView: NSViewRepresentable {
                   isEnabled,
                   !isSelectionMode,
                   !isMenuOpen,
-                  !isExternalPopupLayerOpen,
+                  !isCoveredByHigherLayer,
                   let range = visibleRowRange(in: visibleRect)
             else {
                 return []
@@ -5958,7 +5950,7 @@ struct SubtitleTableView: NSViewRepresentable {
             guard isRedesign,
                   isEnabled,
                   !isMenuOpen,
-                  !isExternalPopupLayerOpen,
+                  !isCoveredByHigherLayer,
                   let documentView,
                   currentTableBodyVisibleRect.contains(point),
                   let row = rowAtDocumentPoint(point)
@@ -6379,7 +6371,7 @@ struct SubtitleTableView: NSViewRepresentable {
             guard isRedesign,
                   isEnabled,
                   isSelectionMode,
-                  !isExternalPopupLayerOpen,
+                  !isCoveredByHigherLayer,
                   row >= 0,
                   row < rowCount,
                   rowProvider(row) != nil,
@@ -6414,7 +6406,7 @@ struct SubtitleTableView: NSViewRepresentable {
         }
 
         func handleMouseHover(windowPoint: CGPoint) {
-            if isExternalPopupLayerOpen {
+            if isCoveredByHigherLayer {
                 return
             }
             // An open menu freezes the table. The row it hangs off keeps the
@@ -6459,7 +6451,7 @@ struct SubtitleTableView: NSViewRepresentable {
             guard isRedesign,
                   isEnabled,
                   !isMenuOpen,
-                  !isExternalPopupLayerOpen,
+                  !isCoveredByHigherLayer,
                   let documentView
             else {
                 return false
@@ -6516,7 +6508,7 @@ struct SubtitleTableView: NSViewRepresentable {
                   isEnabled,
                   !isSelectionMode,
                   !isMenuOpen,
-                  !isExternalPopupLayerOpen,
+                  !isCoveredByHigherLayer,
                   let headerView
             else {
                 return false
@@ -6616,7 +6608,7 @@ struct SubtitleTableView: NSViewRepresentable {
             // is the same press that opens this row's menu.
             guard isRedesign,
                   isEnabled,
-                  !isExternalPopupLayerOpen,
+                  !isCoveredByHigherLayer,
                   let documentView,
                   let container
             else {
@@ -6651,7 +6643,7 @@ struct SubtitleTableView: NSViewRepresentable {
                   isEnabled,
                   isSelectionMode,
                   !isMenuOpen,
-                  !isExternalPopupLayerOpen,
+                  !isCoveredByHigherLayer,
                   row >= 0,
                   row < rowCount
             else {
@@ -6669,7 +6661,7 @@ struct SubtitleTableView: NSViewRepresentable {
                   isEnabled,
                   isSelectionMode,
                   !isMenuOpen,
-                  !isExternalPopupLayerOpen
+                  !isCoveredByHigherLayer
             else {
                 return false
             }
@@ -6765,7 +6757,7 @@ struct SubtitleTableView: NSViewRepresentable {
                   isEnabled,
                   rowCount > 0,
                   !isMenuOpen,
-                  !isExternalPopupLayerOpen,
+                  !isCoveredByHigherLayer,
                   let documentView
             else {
                 return false
@@ -6845,7 +6837,7 @@ struct SubtitleTableView: NSViewRepresentable {
                   isRedesign,
                   isEnabled,
                   !isMenuOpen,
-                  !isExternalPopupLayerOpen,
+                  !isCoveredByHigherLayer,
                   event.modifierFlags.intersection([.command, .control, .option, .shift]).isEmpty,
                   let firstResponder = event.window?.firstResponder,
                   headerView?.isLastInteractiveHeaderResponder(firstResponder) == true
@@ -6859,7 +6851,7 @@ struct SubtitleTableView: NSViewRepresentable {
             // The pointer leaving the table for a surface above it is not a
             // reason to drop the highlight underneath: a covered table keeps
             // its picture until it owns input again.
-            if isMenuOpen || isExternalPopupLayerOpen {
+            if isMenuOpen || isCoveredByHigherLayer {
                 return
             }
             updateHoveredColumnID(nil)
@@ -6870,7 +6862,7 @@ struct SubtitleTableView: NSViewRepresentable {
         }
 
         private func updateHoveredRow(_ newRow: Int?) {
-            if isExternalPopupLayerOpen {
+            if isCoveredByHigherLayer {
                 return
             }
             guard newRow != hoveredRow else { return }
@@ -7216,6 +7208,11 @@ struct SubtitleTableView: NSViewRepresentable {
             updateHoveredRow(row)
             updateHoveredColumnID(columnID)
             isMenuOpen = true
+            if menuRegistration == nil {
+                menuRegistration = interfaceLayers?.registerOpenMenu(
+                    ownedBy: .workbenchPage
+                )
+            }
             activeRowMenuRow = row
             activeRowMenuColumnID = columnID
             activeRowMenuTarget = target
@@ -7231,6 +7228,7 @@ struct SubtitleTableView: NSViewRepresentable {
 
             guard let container = self.container else {
                 isMenuOpen = false
+                menuRegistration = nil
                 activeRowMenuRow = nil
                 activeRowMenuColumnID = nil
                 activeRowMenuTarget = nil
@@ -7406,6 +7404,7 @@ struct SubtitleTableView: NSViewRepresentable {
             let previousRowMenuRow = activeRowMenuRow
             let previousHoveredRow = hoveredRow
             isMenuOpen = false
+            menuRegistration = nil
             activeRowMenuRow = nil
             activeRowMenuColumnID = nil
             activeRowMenuTarget = nil
@@ -7470,7 +7469,7 @@ struct SubtitleTableView: NSViewRepresentable {
                         event.locationInWindow
                     ) ? event : nil
                 }
-                guard self.isMenuOpen, !self.suspendsMenuOutsideClickDismiss else {
+                guard self.isMenuOpen else {
                     return event
                 }
                 switch MenuOutsidePress.decide(

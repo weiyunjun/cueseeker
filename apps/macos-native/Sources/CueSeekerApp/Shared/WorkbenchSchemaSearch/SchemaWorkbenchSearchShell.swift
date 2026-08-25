@@ -87,7 +87,7 @@ enum SchemaWorkbenchSearchDefaults {
 }
 
 struct SchemaWorkbenchSearchShell<TableContent: View>: View {
-    @Environment(\.isWorkbenchPopupLayerOpen) private var isParentWorkbenchPopupLayerOpen
+    @Environment(\.isWorkbenchPageCovered) private var isWorkbenchPageCovered
     // Observed so the copy below is re-read when the language changes.
     @EnvironmentObject private var localization: AppLocalizationStore
 
@@ -323,7 +323,7 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
     }
 
     private var externalTextSelectionIsBlocked: Bool {
-        !isRedesign || isParentWorkbenchPopupLayerOpen || isSelectionMode
+        !isRedesign || isWorkbenchPageCovered || isSelectionMode
     }
 
     private var externalTextSelectionStartPolicy: SubtitleTableExternalTextSelectionStartPolicy {

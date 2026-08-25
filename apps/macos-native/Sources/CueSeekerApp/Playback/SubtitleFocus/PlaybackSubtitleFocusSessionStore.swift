@@ -148,9 +148,9 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
     private var isCueReelMotionActive = false
     /// True while the Command Panel is stacked on top of this overlay. The reel
     /// claims wheel events and its menu's presses with window-wide monitors and
-    /// only knows its own rectangle, so it cannot see what covers it;
-    /// `PlaybackStore` tells it.
-    @Published private(set) var isCoveredByHigherOverlay = false
+    /// only knows its own rectangle, so it cannot see what covers it; the
+    /// layer registry answers.
+    private let interfaceLayers: InterfaceLayerRegistry
     private var keyboardNavigationSequence = 0
     private var pendingKeyboardNavigationTargetOrdinal: Int?
     private var pendingKeyboardNavigationTargetIdentity: PlaybackCueResultItemIdentity?
@@ -173,8 +173,10 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
         playlistPosition: PlaybackPlaylistPosition? = nil,
         searchStore: SearchStore? = nil,
         libraryStore: PlaybackLibrarySessionStore? = nil,
-        shioriStore: ShioriStore? = nil
+        shioriStore: ShioriStore? = nil,
+        interfaceLayers: InterfaceLayerRegistry = InterfaceLayerRegistry()
     ) {
+        self.interfaceLayers = interfaceLayers
         self.openSnapshot = openSnapshot
         let requestedModules = Set(availableModules)
         var normalizedModules = PlaybackOverlayModule.allCases.filter {
@@ -753,15 +755,9 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
         isCueReelMotionActive = isActive
     }
 
-    /// Records whether a higher overlay owns input. Only the topmost
-    /// interactive surface takes the wheel and the scrollbar.
-    func setCoveredByHigherOverlay(_ isCovered: Bool) {
-        isCoveredByHigherOverlay = isCovered
-    }
-
     func allowsNativeWheelInput() -> Bool {
         isSessionActive
-            && !isCoveredByHigherOverlay
+            && !interfaceLayers.isCovered(.playbackOverlay)
             && pendingKeyboardAction == nil
             && activeKeyboardAction == nil
             && pendingKeyboardNavigationTargetOrdinal == nil
@@ -770,7 +766,7 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
 
     func allowsNativeScrollbarInput() -> Bool {
         isSessionActive
-            && !isCoveredByHigherOverlay
+            && !interfaceLayers.isCovered(.playbackOverlay)
             && hasSelectedReelItem
             && pendingKeyboardAction == nil
             && activeKeyboardAction == nil

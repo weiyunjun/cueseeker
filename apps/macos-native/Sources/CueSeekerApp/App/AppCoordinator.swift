@@ -33,7 +33,9 @@ final class AppCoordinator: ObservableObject {
     let cueContent: CueContentStore
     let playback: PlaybackStore
     let toast = ToastCenter()
+    let interfaceLayers = InterfaceLayerRegistry()
     var settingsCancellables: Set<AnyCancellable> = []
+    private var interfaceLayerCancellables: Set<AnyCancellable> = []
 
     let databaseURL: URL
     let libraryCoverDirectory: URL
@@ -471,7 +473,10 @@ final class AppCoordinator: ObservableObject {
             cueContentStore: cueContentStore,
             uiProbeScope: uiProbeScope
         )
-        playback = PlaybackStore(userDefaults: userDefaults)
+        playback = PlaybackStore(
+            userDefaults: userDefaults,
+            interfaceLayers: interfaceLayers
+        )
 
         var openedDatabase: IndexingDatabase?
         var openedSearchDatabase: SearchDatabase?
@@ -543,6 +548,23 @@ final class AppCoordinator: ObservableObject {
         }
         shiori.setActiveListID(initialShioriListID)
         setupSettingsObservers()
+        setupInterfaceLayerObservers()
+    }
+
+    /// The Edit Cover and Shiori List Editor sheets are the dialog layer.
+    /// Their sessions live on the stores — the sheet bindings write nil on an
+    /// interactive dismissal — so the registry follows the sessions.
+    private func setupInterfaceLayerObservers() {
+        Publishers.CombineLatest(
+            library.$coverEditingSession,
+            shiori.$listEditorSession
+        )
+        .map { $0 != nil || $1 != nil }
+        .removeDuplicates()
+        .sink { [interfaceLayers] isDialogOpen in
+            interfaceLayers.setOpen(.dialog, isDialogOpen)
+        }
+        .store(in: &interfaceLayerCancellables)
     }
 
     func setupSettingsObservers() {

@@ -79,14 +79,16 @@ struct ShioriListOverviewView: View {
 }
 
 private struct ShioriListCard: View {
-    @Environment(\.isWorkbenchPopupLayerOpen) private var isWorkbenchPopupLayerOpen
+    @Environment(\.isWorkbenchPageCovered) private var isCovered
+    /// True while a surface above the grid owns input: a dialog, or a menu.
+    /// The card keeps the picture it had and stops following the pointer.
+    @Environment(\.isWorkbenchPageFrozen) private var isFrozen
     let summary: ShioriListSummary
     let canDelete: Bool
     let onOpen: () -> Void
     let onEdit: () -> Void
     let onDelete: () -> Void
     let openContextMenu: ([LibraryCardContextMenuItem], CGPoint, String) -> Void
-    @Environment(\.libraryCardContextMenuIsOpen) private var isContextMenuOpen
     @State private var isHovered = false
     @Environment(\.libraryCardContextMenuOwner) private var contextMenuOwnerID
 
@@ -94,14 +96,8 @@ private struct ShioriListCard: View {
         String(summary.id)
     }
 
-    /// True while a surface above the grid owns input: a dialog, or a card
-    /// menu. The card keeps the picture it had and stops following the pointer.
-    private var isFrozen: Bool {
-        isWorkbenchPopupLayerOpen || isContextMenuOpen
-    }
-
     private var isHoverActive: Bool {
-        if isContextMenuOpen {
+        if let contextMenuOwnerID {
             return contextMenuOwnerID == contextMenuOwnerIdentity
         }
         return isHovered
@@ -129,7 +125,7 @@ private struct ShioriListCard: View {
             items: contextMenuItems,
             openContextMenu: openContextMenu
         )
-        .pointerOnHover(isEnabled: !isWorkbenchPopupLayerOpen)
+        .pointerOnHover(isEnabled: !isCovered)
         .accessibilityLabel(summary.list.name)
     }
 

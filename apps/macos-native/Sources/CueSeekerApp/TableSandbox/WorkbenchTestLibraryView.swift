@@ -798,7 +798,10 @@ private struct LibraryVideoCardContent {
 }
 
 private struct LibraryVideoCard: View {
-    @Environment(\.isWorkbenchPopupLayerOpen) private var isWorkbenchPopupLayerOpen
+    @Environment(\.isWorkbenchPageCovered) private var isCovered
+    /// True while a surface above the grid owns input: a dialog, or a menu.
+    /// The card keeps the picture it had and stops following the pointer.
+    @Environment(\.isWorkbenchPageFrozen) private var isFrozen
     let content: LibraryVideoCardContent
     let isSelected: Bool
     let actions: LibraryCardActionHandlers
@@ -809,7 +812,6 @@ private struct LibraryVideoCard: View {
     /// selection onto the pointer, so only one card is ever lit.
     var onHoverChange: ((Bool) -> Void)?
     let onOpen: () -> Void
-    @Environment(\.libraryCardContextMenuIsOpen) private var isContextMenuOpen
     @State private var isHovered = false
     @Environment(\.libraryCardContextMenuOwner) private var contextMenuOwnerID
 
@@ -821,16 +823,10 @@ private struct LibraryVideoCard: View {
         content.videoPath
     }
 
-    /// True while a surface above the grid owns input: a dialog, or a card
-    /// menu. The card keeps the picture it had and stops following the pointer.
-    private var isFrozen: Bool {
-        isWorkbenchPopupLayerOpen || isContextMenuOpen
-    }
-
     private var isHoverActive: Bool {
         // An open menu freezes the grid: only the card the menu hangs off
         // stays lit, and the pointer cannot move that anywhere else.
-        if isContextMenuOpen {
+        if let contextMenuOwnerID {
             return contextMenuOwnerID == contextMenuOwnerIdentity
         }
         return allowsHover && isHovered
@@ -899,7 +895,7 @@ private struct LibraryVideoCard: View {
             openContextMenu: openContextMenu
         )
         .libraryCardCursor(
-            isEnabled: isAvailable && allowsHover && !isWorkbenchPopupLayerOpen
+            isEnabled: isAvailable && allowsHover && !isCovered
         )
         .animation(
             .easeOut(duration: WorkbenchTestLibraryMetrics.coverHoverDuration),
@@ -1005,7 +1001,8 @@ struct CompleteLibraryFolderGrid: View {
 }
 
 private struct LibraryFolderCard: View {
-    @Environment(\.isWorkbenchPopupLayerOpen) private var isWorkbenchPopupLayerOpen
+    @Environment(\.isWorkbenchPageCovered) private var isCovered
+    @Environment(\.isWorkbenchPageFrozen) private var isFrozen
     let folder: CompleteLibraryFolderSummaryPresentation
     let isSelected: Bool
     let actions: LibraryCardActionHandlers
@@ -1013,7 +1010,6 @@ private struct LibraryFolderCard: View {
     let allowsHoverSelection: Bool
     let onHoverSelection: () -> Void
     let onOpen: () -> Void
-    @Environment(\.libraryCardContextMenuIsOpen) private var isContextMenuOpen
     @State private var isHovered = false
     @Environment(\.libraryCardContextMenuOwner) private var contextMenuOwnerID
 
@@ -1025,12 +1021,8 @@ private struct LibraryFolderCard: View {
         folder.id
     }
 
-    private var isFrozen: Bool {
-        isWorkbenchPopupLayerOpen || isContextMenuOpen
-    }
-
     private var isHoverActive: Bool {
-        if isContextMenuOpen {
+        if let contextMenuOwnerID {
             return contextMenuOwnerID == contextMenuOwnerIdentity
         }
         return isHovered
@@ -1075,7 +1067,7 @@ private struct LibraryFolderCard: View {
             items: folderContextMenuItems,
             openContextMenu: openContextMenu
         )
-        .libraryCardCursor(isEnabled: isAvailable && !isWorkbenchPopupLayerOpen)
+        .libraryCardCursor(isEnabled: isAvailable && !isCovered)
         .accessibilityLabel(folder.folderTitle)
     }
 
@@ -1174,10 +1166,6 @@ private enum LibraryCardContextMenuCoordinateSpace {
     static let name = "LibraryCardContextMenuCoordinateSpace"
 }
 
-private struct LibraryCardContextMenuIsOpenKey: EnvironmentKey {
-    static let defaultValue = false
-}
-
 /// The card whose menu is open reports its new anchor through this, so the menu
 /// travels with the card when the page scrolls or the grid reflows.
 private struct LibraryCardContextMenuAnchorUpdateKey: EnvironmentKey {
@@ -1197,13 +1185,6 @@ private struct LibraryCardContextMenuOpenKey: EnvironmentKey {
 }
 
 extension EnvironmentValues {
-    /// True while any card's context menu is open. A card reads it to freeze
-    /// its highlight: an open menu must not let the pointer move the lit card.
-    var libraryCardContextMenuIsOpen: Bool {
-        get { self[LibraryCardContextMenuIsOpenKey.self] }
-        set { self[LibraryCardContextMenuIsOpenKey.self] = newValue }
-    }
-
     var libraryCardContextMenuAnchorUpdate: ((CGPoint) -> Void)? {
         get { self[LibraryCardContextMenuAnchorUpdateKey.self] }
         set { self[LibraryCardContextMenuAnchorUpdateKey.self] = newValue }
@@ -1297,14 +1278,17 @@ private struct LibraryCardMenuViewportProbe: NSViewRepresentable {
 }
 
 struct LibraryCardContextMenuHost<Content: View>: View {
+    @Environment(\.interfaceLayers) private var interfaceLayers
     @State private var activeMenu: LibraryCardContextMenuState?
+    /// Held while a menu is open. Releasing it — including by this host being
+    /// torn down with the menu open — takes the menu out of the registry.
+    @State private var menuRegistration: InterfaceLayerRegistry.OpenMenuToken?
     @StateObject private var highlight = MenuHighlightModel()
     @State private var geometry = LibraryCardMenuHostGeometry()
     @ViewBuilder var content: (_ openContextMenu: @escaping ([LibraryCardContextMenuItem], CGPoint, String) -> Void) -> Content
 
     var body: some View {
         content(openContextMenu)
-            .environment(\.libraryCardContextMenuIsOpen, activeMenu != nil)
             .environment(\.libraryCardContextMenuAnchorUpdate, updateAnchorPoint)
             .environment(\.libraryCardContextMenuOpen, openContextMenu)
             .environment(\.libraryCardContextMenuOwner, activeMenu?.ownerID)
@@ -1372,6 +1356,11 @@ struct LibraryCardContextMenuHost<Content: View>: View {
             menuSize: menuSize,
             placementOffset: MenuPlacement.offset(from: anchor, to: openingFrame)
         )
+        if menuRegistration == nil {
+            menuRegistration = interfaceLayers?.registerOpenMenu(
+                ownedBy: .workbenchPage
+            )
+        }
         highlight.open(
             selectablePositions: items.indices.filter { items[$0].isEnabled }
         )
@@ -1398,6 +1387,7 @@ struct LibraryCardContextMenuHost<Content: View>: View {
             return
         }
         activeMenu = nil
+        menuRegistration = nil
         highlight.close()
     }
 
@@ -1673,8 +1663,8 @@ private struct LibraryCardContextMenuTriggerModifier: ViewModifier {
     let ownerID: String
     let items: [LibraryCardContextMenuItem]
     let openContextMenu: ([LibraryCardContextMenuItem], CGPoint, String) -> Void
-    @Environment(\.isWorkbenchPopupLayerOpen) private var isWorkbenchPopupLayerOpen
-    @Environment(\.libraryCardContextMenuIsOpen) private var isContextMenuOpen
+    @Environment(\.isWorkbenchPageCovered) private var isCovered
+    @Environment(\.libraryCardContextMenuOwner) private var contextMenuOwnerID
     @Environment(\.libraryCardContextMenuAnchorUpdate) private var updateAnchor
     /// Set on the one card the open menu belongs to, so only that card reports
     /// where it moved to.
@@ -1687,7 +1677,7 @@ private struct LibraryCardContextMenuTriggerModifier: ViewModifier {
                 // An open menu is not a reason to refuse: the press that
                 // closed it is the same press that opens this card's menu.
                 LibraryCardRightClickMonitor(
-                    isEnabled: isEnabled && !isWorkbenchPopupLayerOpen
+                    isEnabled: isEnabled && !isCovered
                 ) { localPoint in
                     localAnchorPoint = localPoint
                     openContextMenu(
@@ -1700,7 +1690,7 @@ private struct LibraryCardContextMenuTriggerModifier: ViewModifier {
                     )
                 }
                 .onChange(of: frame.origin) { origin in
-                    guard isContextMenuOpen, let localAnchorPoint else {
+                    guard contextMenuOwnerID != nil, let localAnchorPoint else {
                         return
                     }
                     updateAnchor?(
@@ -1710,8 +1700,8 @@ private struct LibraryCardContextMenuTriggerModifier: ViewModifier {
                         )
                     )
                 }
-                .onChange(of: isContextMenuOpen) { isOpen in
-                    if !isOpen {
+                .onChange(of: contextMenuOwnerID == nil) { isClosed in
+                    if isClosed {
                         localAnchorPoint = nil
                     }
                 }

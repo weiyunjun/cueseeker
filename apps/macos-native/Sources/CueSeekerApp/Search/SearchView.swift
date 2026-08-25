@@ -10,7 +10,6 @@ struct SearchView: View {
     @EnvironmentObject private var library: LibraryStore
     @EnvironmentObject private var playback: PlaybackStore
     @Environment(\.colorScheme) private var colorScheme
-    @Environment(\.isWorkbenchPopupLayerOpen) private var isParentWorkbenchPopupLayerOpen
     @State private var collapsedLibraryFolderPaths: Set<String> = []
 
     var body: some View {
@@ -22,15 +21,12 @@ struct SearchView: View {
 
             return GeometryReader { geometry in
                 let showsPlaybackRoute = appState.isPlaybackPageVisible
-                let isWorkbenchPopupLayerOpen =
-                    isParentWorkbenchPopupLayerOpen || showsPlaybackRoute
 
                 ZStack {
                     mainContent
                         .frame(width: geometry.size.width, height: geometry.size.height)
                         .frame(maxHeight: .infinity, alignment: .top)
                         .clipped()
-                        .environment(\.isWorkbenchPopupLayerOpen, isWorkbenchPopupLayerOpen)
                         .allowsHitTesting(!showsPlaybackRoute)
 
                     if showsPlaybackRoute {
@@ -49,6 +45,17 @@ struct SearchView: View {
                 .frame(width: geometry.size.width, height: geometry.size.height)
                 .clipped()
                 .background(LayoutPerformanceProbe(name: "SearchView.root.layout"))
+                // This is where the playback page is routed over the whole
+                // workbench, so this is where that layer is registered.
+                .onAppear {
+                    appState.interfaceLayers.setOpen(
+                        .playbackPage,
+                        showsPlaybackRoute
+                    )
+                }
+                .onChange(of: showsPlaybackRoute) { isOpen in
+                    appState.interfaceLayers.setOpen(.playbackPage, isOpen)
+                }
             }
             .onAppear {
                 resetCollapsedLibraryFolders()
