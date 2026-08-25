@@ -197,3 +197,48 @@ The menu inventory in `docs/human/design/UI Application Rules.md` lists the card
 menu as a Workbench menu. After acceptance it should record that the same menu
 belongs to the Command Panel and the Playback Overlay as well; that is the
 owner's edit.
+
+## Follow-up: the menu had to belong to the layer too
+
+Restoring the menu was not enough — it opened, and then behaved like a menu
+nobody owned. Two more places named the workbench page where they should have
+named the layer the cards are on.
+
+The menu host registered its gate client as owned by the workbench page. The gate
+takes no input for a menu whose owning layer is covered, and the workbench page is
+covered while the Command Panel is open, so the panel's card menu got no keys, no
+outside press and no scroll ban — and, registered against the wrong layer, it
+froze the hidden page instead of the panel, leaving the panel's own cards
+following the pointer underneath an open menu.
+
+The card menu also never took keys from the playback key router. On the workbench
+page nothing competes for the arrows, but on a playback layer the key owner
+offers keys to the gate before the Command Panel navigates its grid. Opted out,
+the menu watched the panel move its selection while its own highlight sat still.
+
+Both now follow the layer: the client is registered against the layer the cards
+are on, and it accepts router keys the way the playback speed menu already does.
+
+Files:
+
+- `apps/macos-native/Sources/CueSeekerApp/TableSandbox/WorkbenchTestLibraryView.swift`
+  - `LibraryCardContextMenuHost` registers with `layerContext.layer` and sets
+    `receivesKeysFromRouter`.
+
+### Verification
+
+Driven through the Debug in-app E2E controller, in the Command Panel's Recent
+Videos page, with captures at each step:
+
+- Right-click a card: the menu opens, the card keeps its highlight.
+- Down arrow: the menu highlight moves to the next item and the panel's own
+  selection stays where it was.
+- Wheel over the grid: the grid does not scroll.
+- Right-click a second card: the menu and the highlight move to it, and the menu
+  highlight restarts at the first item.
+- Click outside: the menu closes, the panel stays open, the card keeps its
+  selection.
+
+`swift test`: 1068 tests, no new failures against the baseline. The Playback
+Overlay's episode grid takes the same path but its module could not be opened
+from the scripted steps, so that surface is the owner's check.

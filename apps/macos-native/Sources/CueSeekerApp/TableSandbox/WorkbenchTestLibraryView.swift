@@ -1278,6 +1278,11 @@ private struct LibraryCardMenuViewportProbe: NSViewRepresentable {
 
 struct LibraryCardContextMenuHost<Content: View>: View {
     @Environment(\.interfaceLayers) private var interfaceLayers
+    /// The menu belongs to the layer its cards are on. Registering it against
+    /// the workbench page from inside the Command Panel hands the gate a menu
+    /// it considers covered, so the menu takes no keys, no outside press and
+    /// no scroll ban, and the panel's own cards keep following the pointer.
+    @Environment(\.interfaceLayerContext) private var layerContext
     @State private var activeMenu: LibraryCardContextMenuState?
     @StateObject private var highlight = MenuHighlightModel()
     @State private var geometry = LibraryCardMenuHostGeometry()
@@ -1296,9 +1301,13 @@ struct LibraryCardContextMenuHost<Content: View>: View {
                     ZStack(alignment: .topLeading) {
                         MenuGateClientView(
                             gate: interfaceLayers?.menuGate,
-                            owner: .workbenchPage,
+                            owner: layerContext.layer,
                             bansScrolling: true,
                             menuTakesWheel: false,
+                            // On a playback layer the key owner offers keys to
+                            // the gate before the Command Panel navigates, so
+                            // the menu must take them there.
+                            receivesKeysFromRouter: true,
                             menuFrame: menuFrame,
                             handleKey: { keyCode, _ in
                                 switch keyCode {
