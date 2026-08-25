@@ -2704,7 +2704,6 @@ struct SubtitleTableView: NSViewRepresentable {
         private let rowActionHighlight = MenuHighlightModel()
         private let rowActionDestinationHighlight = MenuHighlightModel()
         private var pendingMenuReposition = false
-        nonisolated(unsafe) private var menuEventMonitor: Any?
         nonisolated(unsafe) private var keyboardFocusEventMonitor: Any?
         nonisolated(unsafe) private var textCopyTask: Task<Void, Never>?
         nonisolated(unsafe) private var textDragAutoScrollTimer: Timer?
@@ -2725,7 +2724,7 @@ struct SubtitleTableView: NSViewRepresentable {
         /// The registry the open row menu is reported to. nil in hierarchies
         /// outside the main window.
         var interfaceLayers: InterfaceLayerRegistry?
-        private var menuRegistration: InterfaceLayerRegistry.OpenMenuToken?
+        private var menuGateSession: MenuGate.Session?
         var isCoveredByHigherLayer = false {
             didSet {
                 guard isCoveredByHigherLayer != oldValue else { return }
@@ -2880,9 +2879,6 @@ struct SubtitleTableView: NSViewRepresentable {
             textCopyTask?.cancel()
             textDragAutoScrollTimer?.invalidate()
             NotificationCenter.default.removeObserver(self)
-            if let monitor = menuEventMonitor {
-                NSEvent.removeMonitor(monitor)
-            }
             if let monitor = keyboardFocusEventMonitor {
                 NSEvent.removeMonitor(monitor)
             }
@@ -3410,7 +3406,7 @@ struct SubtitleTableView: NSViewRepresentable {
             cancelPendingTextInteraction()
             unbindExternalTextSelectionSession()
             NotificationCenter.default.removeObserver(self)
-            removeMenuDismissMonitor()
+            closeMenuGateSession()
             if let monitor = keyboardFocusEventMonitor {
                 NSEvent.removeMonitor(monitor)
                 keyboardFocusEventMonitor = nil
@@ -6791,46 +6787,44 @@ struct SubtitleTableView: NSViewRepresentable {
             }
         }
 
-        private func handleKeyboardFocusEvent(_ event: NSEvent) -> NSEvent? {
-            if let container,
-               event.window === container.window,
-               isMenuOpen,
-               activeRowMenuTarget != nil,
-               let rowActionSubmenuState
-            {
-                // While a destination submenu is open it owns the arrow keys;
-                // otherwise the parent menu does.
-                let isSubmenuOpen = rowActionSubmenuState.openParent != nil
-                switch event.keyCode {
-                case 53:
-                    dismissMenu()
-                    return nil
-                case 126:
-                    let didMove = isSubmenuOpen
-                        ? rowActionDestinationHighlight.moveHighlight(by: -1)
-                        : rowActionHighlight.moveHighlight(by: -1)
-                    return didMove ? nil : event
-                case 125:
-                    let didMove = isSubmenuOpen
-                        ? rowActionDestinationHighlight.moveHighlight(by: 1)
-                        : rowActionHighlight.moveHighlight(by: 1)
-                    return didMove ? nil : event
-                case 124:
-                    return openHighlightedRowActionSubmenu() ? nil : event
-                case 123:
-                    return rowActionSubmenuState.closeSubmenu()
-                        ? nil
-                        : event
-                case 36, 76:
-                    let didActivate = isSubmenuOpen
-                        ? activateHighlightedRowActionDestination()
-                        : activateHighlightedRowAction()
-                    return didActivate ? nil : event
-                default:
-                    break
-                }
+        /// Arrow keys, Enter, Esc, and the submenu's left and right for the
+        /// open row menu, offered by the menu gate.
+        private func handleMenuKey(_ keyCode: UInt16) -> Bool {
+            guard isMenuOpen,
+                  activeRowMenuTarget != nil,
+                  let rowActionSubmenuState
+            else {
+                return false
             }
+            // While a destination submenu is open it owns the arrow keys;
+            // otherwise the parent menu does.
+            let isSubmenuOpen = rowActionSubmenuState.openParent != nil
+            switch keyCode {
+            case 53:
+                dismissMenu()
+                return true
+            case 126:
+                return isSubmenuOpen
+                    ? rowActionDestinationHighlight.moveHighlight(by: -1)
+                    : rowActionHighlight.moveHighlight(by: -1)
+            case 125:
+                return isSubmenuOpen
+                    ? rowActionDestinationHighlight.moveHighlight(by: 1)
+                    : rowActionHighlight.moveHighlight(by: 1)
+            case 124:
+                return openHighlightedRowActionSubmenu()
+            case 123:
+                return rowActionSubmenuState.closeSubmenu()
+            case 36, 76:
+                return isSubmenuOpen
+                    ? activateHighlightedRowActionDestination()
+                    : activateHighlightedRowAction()
+            default:
+                return false
+            }
+        }
 
+        private func handleKeyboardFocusEvent(_ event: NSEvent) -> NSEvent? {
             guard event.keyCode == 48,
                   let container,
                   event.window === container.window,
@@ -7208,11 +7202,6 @@ struct SubtitleTableView: NSViewRepresentable {
             updateHoveredRow(row)
             updateHoveredColumnID(columnID)
             isMenuOpen = true
-            if menuRegistration == nil {
-                menuRegistration = interfaceLayers?.registerOpenMenu(
-                    ownedBy: .workbenchPage
-                )
-            }
             activeRowMenuRow = row
             activeRowMenuColumnID = columnID
             activeRowMenuTarget = target
@@ -7228,7 +7217,6 @@ struct SubtitleTableView: NSViewRepresentable {
 
             guard let container = self.container else {
                 isMenuOpen = false
-                menuRegistration = nil
                 activeRowMenuRow = nil
                 activeRowMenuColumnID = nil
                 activeRowMenuTarget = nil
@@ -7294,7 +7282,7 @@ struct SubtitleTableView: NSViewRepresentable {
             menuHost?.frame = finalMenuFrame
             menuHost?.isHidden = false
 
-            installMenuDismissMonitor()
+            openMenuGateSession()
         }
 
         private var activeRowActionMenuModel: SubtitleTableRowActionMenuModel {
@@ -7404,7 +7392,6 @@ struct SubtitleTableView: NSViewRepresentable {
             let previousRowMenuRow = activeRowMenuRow
             let previousHoveredRow = hoveredRow
             isMenuOpen = false
-            menuRegistration = nil
             activeRowMenuRow = nil
             activeRowMenuColumnID = nil
             activeRowMenuTarget = nil
@@ -7422,7 +7409,7 @@ struct SubtitleTableView: NSViewRepresentable {
             hideRowActionDestinationSubmenu()
             menuClipView?.isHidden = true
             invalidateDocumentCursorRects()
-            removeMenuDismissMonitor()
+            closeMenuGateSession()
             headerView?.refreshHeaderHosts()
             invalidateRows([previousRowMenuRow, previousHoveredRow])
 
@@ -7440,59 +7427,41 @@ struct SubtitleTableView: NSViewRepresentable {
             }
         }
 
-        /// Applies `MenuOutsidePress` to the row menu, and bans scrolling for
-        /// the whole window while the menu is open.
-        ///
-        /// Nothing covers the rest of the table while a menu is open, so this
-        /// monitor is the only thing standing between the press and the row
-        /// under it. The middle button is not a dismissal, so it is not
-        /// matched here.
-        private func installMenuDismissMonitor() {
-            removeMenuDismissMonitor()
-            menuEventMonitor = NSEvent.addLocalMonitorForEvents(
-                matching: [.leftMouseDown, .rightMouseDown, .scrollWheel]
-            ) { [weak self] event in
-                guard let self else { return event }
-                guard let container = self.container else { return event }
-                let menuWindow = container.window
-                if event.type == .scrollWheel {
-                    guard self.isMenuOpen,
-                          !MenuOutsidePress.isFromAnotherWindow(
-                              event,
-                              menuWindow: menuWindow
-                          )
-                    else {
-                        return event
-                    }
-                    // The menu is the one surface that may still scroll.
-                    return self.isWindowPointInsideOpenMenu(
-                        event.locationInWindow
-                    ) ? event : nil
-                }
-                guard self.isMenuOpen else {
-                    return event
-                }
-                switch MenuOutsidePress.decide(
-                    event,
-                    menuWindow: menuWindow,
-                    isPointerOnMenu: {
-                        self.isWindowPointInsideOpenMenu(event.locationInWindow)
-                    }
-                ) {
-                case .leaveToOtherWindow, .leaveToMenu:
-                    return event
-                case .dismissAndForward:
-                    // Closed before the press reaches the row under it, so the
-                    // row's own right-click opens its menu on this same press.
-                    self.dismissMenu()
-                    return event
-                case .dismissAndConsume:
-                    DispatchQueue.main.async {
-                        self.dismissMenu()
-                    }
-                    return nil
-                }
+        /// Hands the open row menu to the menu gate, which owns the outside
+        /// press, the whole-window scroll ban, and the menu's keys.
+        private func openMenuGateSession() {
+            guard menuGateSession == nil else {
+                return
             }
+            menuGateSession = interfaceLayers?.menuGate.open(
+                MenuGate.Client(
+                    owner: .workbenchPage,
+                    window: { [weak self] in self?.container?.window },
+                    isPointerOnMenu: { [weak self] event in
+                        self?.isWindowPointInsideOpenMenu(
+                            event.locationInWindow
+                        ) ?? false
+                    },
+                    bansScrolling: true,
+                    menuTakesWheel: true,
+                    handleKey: { [weak self] keyCode, _ in
+                        self?.handleMenuKey(keyCode) ?? false
+                    },
+                    dismiss: { [weak self] forwarding in
+                        guard let self else { return }
+                        if forwarding {
+                            // Closed before the press reaches the row under
+                            // it, so the row's own right-click opens its menu
+                            // on this same press.
+                            self.dismissMenu()
+                        } else {
+                            DispatchQueue.main.async {
+                                self.dismissMenu()
+                            }
+                        }
+                    }
+                )
+            )
         }
 
         private func isWindowPointInsideOpenMenu(_ windowPoint: CGPoint) -> Bool {
@@ -7550,11 +7519,9 @@ struct SubtitleTableView: NSViewRepresentable {
             }
         }
 
-        private func removeMenuDismissMonitor() {
-            if let monitor = menuEventMonitor {
-                NSEvent.removeMonitor(monitor)
-                menuEventMonitor = nil
-            }
+        private func closeMenuGateSession() {
+            menuGateSession?.close()
+            menuGateSession = nil
         }
 
         private func playRow(_ row: Int) {

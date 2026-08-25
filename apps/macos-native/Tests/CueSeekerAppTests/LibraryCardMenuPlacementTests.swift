@@ -70,9 +70,9 @@ private func openCardMenuFrame(in host: NSView) -> CGRect? {
 @MainActor
 private func firstCardMenuMonitor(
     in root: NSView
-) -> LibraryCardMenuPointerMonitor.MonitoringView? {
+) -> MenuGateClientView.ClientView? {
     for subview in root.subviews {
-        if let match = subview as? LibraryCardMenuPointerMonitor.MonitoringView {
+        if let match = subview as? MenuGateClientView.ClientView {
             return match
         }
         if let match = firstCardMenuMonitor(in: subview) {

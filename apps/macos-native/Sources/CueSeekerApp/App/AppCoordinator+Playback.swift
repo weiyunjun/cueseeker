@@ -771,19 +771,6 @@ extension AppCoordinator {
 
     /// Applies whatever the speed-menu highlight sits on, so Enter and a click
     /// commit through one path.
-    private func commitPlaybackSpeedMenuSelection() {
-        let presets = PlaybackViewModel.speedPresets
-        guard let position = playback.speedMenuHighlight.highlightedPosition,
-              presets.indices.contains(position),
-              let viewModel = playback.playbackViewModel
-        else {
-            playback.closeSpeedMenu()
-            return
-        }
-        viewModel.setSpeed(presets[position])
-        playback.closeSpeedMenu()
-    }
-
     @discardableResult
     func handlePlaybackKeyDown(
         keyCode: UInt16,
@@ -864,58 +851,19 @@ extension AppCoordinator {
             return true
         }
 
-        // A menu is above the surface that opened it, but not above the
-        // Command Panel: both menus below the panel stay on screen and hand the
-        // keys over while it is open.
-        let isCoveredByCommandPanel = interfaceLayers.isOpen(.commandPanel)
-
-        // The speed menu is the topmost surface when open, so it owns the
-        // arrow keys before seeking or volume can see them.
-        if playback.isSpeedMenuOpen, !isCoveredByCommandPanel {
-            let speedMenuDisallowedModifiers: NSEvent.ModifierFlags = [
-                .command,
-                .control,
-                .option,
-                .shift,
-            ]
-            if modifierFlags.intersection(speedMenuDisallowedModifiers).isEmpty {
-                switch keyCode {
-                case 53:
-                    playback.closeSpeedMenu()
-                    return true
-                case 126:
-                    playback.speedMenuHighlight.moveHighlight(by: -1)
-                    return true
-                case 125:
-                    playback.speedMenuHighlight.moveHighlight(by: 1)
-                    return true
-                case 36, 76:
-                    if !isRepeat {
-                        commitPlaybackSpeedMenuSelection()
-                    }
-                    return true
-                default:
-                    break
-                }
-            }
-        }
-
-        // A selected-text menu, when open, owns arrows, Enter and Escape before
-        // cue navigation or seeking can see them. Only the Playback Overlay's
-        // menu registers here, so the Command Panel's own selected-text menu —
-        // which sits above the panel — keeps its keys through its own monitor.
-        if let selectedTextMenuKeyHandler = playback.selectedTextMenuKeyHandler,
-           !isCoveredByCommandPanel {
-            let disallowed: NSEvent.ModifierFlags = [
-                .command,
-                .control,
-                .option,
-                .shift,
-            ]
-            if modifierFlags.intersection(disallowed).isEmpty,
-               selectedTextMenuKeyHandler(keyCode) {
-                return true
-            }
+        // An open menu owns arrows, Enter and Esc before seeking, volume and
+        // cue navigation see them. The gate walks the open menus and skips
+        // covered ones, so a menu below the Command Panel stays on screen and
+        // hands its keys over while the panel is open.
+        let menuDisallowedModifiers: NSEvent.ModifierFlags = [
+            .command,
+            .control,
+            .option,
+            .shift,
+        ]
+        if modifierFlags.intersection(menuDisallowedModifiers).isEmpty,
+           interfaceLayers.menuGate.routeKey(keyCode, isRepeat: isRepeat) {
+            return true
         }
 
         if let commandPanel = playback.commandPanelPresentation {

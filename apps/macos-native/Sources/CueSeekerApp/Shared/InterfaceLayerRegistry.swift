@@ -41,6 +41,11 @@ enum InterfaceLayer: Int, Comparable {
 /// keep a coverage flag of its own asks this registry instead.
 @MainActor
 final class InterfaceLayerRegistry: ObservableObject {
+    /// The one menu event implementation. It lives on the registry because
+    /// every place that reports or asks about layers is also where menus are
+    /// opened, so the existing plumbing reaches both.
+    private(set) lazy var menuGate = MenuGate(interfaceLayers: self)
+
     @Published private(set) var openLayers: Set<InterfaceLayer> = []
     /// Open menus counted by owning layer. A count rather than a flag: a
     /// right-click relay opens the next menu before the previous one has

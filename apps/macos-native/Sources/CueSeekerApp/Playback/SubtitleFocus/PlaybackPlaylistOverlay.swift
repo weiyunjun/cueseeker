@@ -9,12 +9,12 @@ struct PlaybackCueResultOverlay: View {
     let uiProbeScope: String?
     let onCopySelectedText: (String) -> Void
     let onSearchSelectedText: (String) -> Void
-    var onSelectedTextMenuKeyHandlerChanged: (((UInt16) -> Bool)?) -> Void = { _ in }
     let onExecuteAction: (PlaybackSubtitleFocusActionExecution) -> Bool
 
     @EnvironmentObject private var cueGroupPresentation: CueGroupPresentationStore
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.isPlaybackOverlayCovered) private var isCoveredByHigherLayer
+    @Environment(\.interfaceLayers) private var interfaceLayers
     @State private var deferredActionTask: Task<Void, Never>?
 
     var body: some View {
@@ -43,8 +43,6 @@ struct PlaybackCueResultOverlay: View {
                     onCommitSelection: commitReelSelection,
                     onCopySelectedText: onCopySelectedText,
                     onSearchSelectedText: onSearchSelectedText,
-                    onSelectedTextMenuKeyHandlerChanged:
-                        onSelectedTextMenuKeyHandlerChanged,
                     allowsNativeWheelInput: session.allowsNativeWheelInput,
                     allowsNativeScrollbarInput: session.allowsNativeScrollbarInput,
                     onScrollbarDraggingChanged: { isDragging in
@@ -55,6 +53,8 @@ struct PlaybackCueResultOverlay: View {
                     },
                     onNativeMotionGateChanged: handleReelMotionChanged,
                     onKeyboardMotionChanged: handleReelMotionChanged,
+                    interfaceLayers: interfaceLayers,
+                    menuOwner: .playbackOverlay,
                     isCoveredByHigherLayer: isCoveredByHigherLayer
                 )
                 .id("\(module.rawValue):\(windowStore.reelDatasetID ?? "empty")")
@@ -149,15 +149,15 @@ struct PlaybackCueResultReelRepresentable: NSViewRepresentable {
     let onCommitSelection: (PlaybackVirtualReelSelectionCommit) -> Bool
     let onCopySelectedText: (String) -> Void
     let onSearchSelectedText: (String) -> Void
-    /// Only a reel whose menu must outrank the playback page publishes here.
-    /// The Command Panel's own reel keeps the default: a menu opened inside the
-    /// panel is above it and is handled by the reel's own monitor.
-    var onSelectedTextMenuKeyHandlerChanged: (((UInt16) -> Bool)?) -> Void = { _ in }
     let allowsNativeWheelInput: () -> Bool
     let allowsNativeScrollbarInput: () -> Bool
     let onScrollbarDraggingChanged: (Bool) -> Void
     let onNativeMotionGateChanged: (Bool) -> Void
     let onKeyboardMotionChanged: (Bool) -> Void
+    var interfaceLayers: InterfaceLayerRegistry?
+    /// Which layer this reel's menu belongs to: the Playback Overlay for the
+    /// playlist module, the Command Panel for the panel's own reel.
+    var menuOwner: InterfaceLayer = .commandPanel
     /// The Command Panel's own reel keeps the default: nothing covers it.
     var isCoveredByHigherLayer = false
 
@@ -205,8 +205,8 @@ struct PlaybackCueResultReelRepresentable: NSViewRepresentable {
         view.onCommitVirtualReelSelection = onCommitSelection
         view.onCopySelectedText = onCopySelectedText
         view.onSearchSelectedText = onSearchSelectedText
-        view.onSelectedTextMenuKeyHandlerChanged =
-            onSelectedTextMenuKeyHandlerChanged
+        view.interfaceLayers = interfaceLayers
+        view.menuOwner = menuOwner
         view.isCoveredByHigherLayer = isCoveredByHigherLayer
         view.allowsNativeWheelInput = allowsNativeWheelInput
         view.allowsNativeScrollbarInput = allowsNativeScrollbarInput

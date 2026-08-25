@@ -463,6 +463,7 @@ private struct PlaybackCommandPanelSearchResults: View {
 
 private struct PlaybackCommandPanelSearchReel: View {
     @ObservedObject var windowStore: PlaybackCueResultSessionWindowStore
+    @Environment(\.interfaceLayers) private var interfaceLayers
     let showsCueGroup: Bool
     let viewportSize: CGSize
     let reducesMotion: Bool
@@ -493,7 +494,9 @@ private struct PlaybackCommandPanelSearchReel: View {
             allowsNativeScrollbarInput: { true },
             onScrollbarDraggingChanged: { _ in },
             onNativeMotionGateChanged: { _ in },
-            onKeyboardMotionChanged: { _ in }
+            onKeyboardMotionChanged: { _ in },
+            interfaceLayers: interfaceLayers,
+            menuOwner: .commandPanel
         )
         .id("command-search:\(windowStore.reelDatasetID ?? "empty")")
         .frame(

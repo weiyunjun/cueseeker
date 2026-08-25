@@ -1280,9 +1280,6 @@ private struct LibraryCardMenuViewportProbe: NSViewRepresentable {
 struct LibraryCardContextMenuHost<Content: View>: View {
     @Environment(\.interfaceLayers) private var interfaceLayers
     @State private var activeMenu: LibraryCardContextMenuState?
-    /// Held while a menu is open. Releasing it — including by this host being
-    /// torn down with the menu open — takes the menu out of the registry.
-    @State private var menuRegistration: InterfaceLayerRegistry.OpenMenuToken?
     @StateObject private var highlight = MenuHighlightModel()
     @State private var geometry = LibraryCardMenuHostGeometry()
     @ViewBuilder var content: (_ openContextMenu: @escaping ([LibraryCardContextMenuItem], CGPoint, String) -> Void) -> Content
@@ -1298,21 +1295,30 @@ struct LibraryCardContextMenuHost<Content: View>: View {
                 if let activeMenu {
                     let menuFrame = menuFrame(for: activeMenu)
                     ZStack(alignment: .topLeading) {
-                        LibraryCardMenuKeyboardMonitor(
-                            isActive: true,
-                            onMoveHighlight: {
-                                highlight.moveHighlight(by: $0)
-                            },
-                            onActivateHighlight: activateHighlightedItem,
-                            onDismiss: { dismissContextMenu() }
-                        )
-                        .frame(width: 0, height: 0)
-                        .allowsHitTesting(false)
-
-                        LibraryCardMenuPointerMonitor(
-                            isActive: true,
+                        MenuGateClientView(
+                            gate: interfaceLayers?.menuGate,
+                            owner: .workbenchPage,
+                            bansScrolling: true,
+                            menuTakesWheel: false,
                             menuFrame: menuFrame,
-                            onDismiss: { dismissContextMenu(openedAs: activeMenu.id) }
+                            handleKey: { keyCode, _ in
+                                switch keyCode {
+                                case 53:
+                                    dismissContextMenu()
+                                    return true
+                                case 126:
+                                    return highlight.moveHighlight(by: -1)
+                                case 125:
+                                    return highlight.moveHighlight(by: 1)
+                                case 36, 76:
+                                    return activateHighlightedItem()
+                                default:
+                                    return false
+                                }
+                            },
+                            dismiss: { _ in
+                                dismissContextMenu(openedAs: activeMenu.id)
+                            }
                         )
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .allowsHitTesting(false)
@@ -1356,11 +1362,6 @@ struct LibraryCardContextMenuHost<Content: View>: View {
             menuSize: menuSize,
             placementOffset: MenuPlacement.offset(from: anchor, to: openingFrame)
         )
-        if menuRegistration == nil {
-            menuRegistration = interfaceLayers?.registerOpenMenu(
-                ownedBy: .workbenchPage
-            )
-        }
         highlight.open(
             selectablePositions: items.indices.filter { items[$0].isEnabled }
         )
@@ -1387,7 +1388,6 @@ struct LibraryCardContextMenuHost<Content: View>: View {
             return
         }
         activeMenu = nil
-        menuRegistration = nil
         highlight.close()
     }
 
@@ -1425,204 +1425,6 @@ struct LibraryCardContextMenuHost<Content: View>: View {
             offset: menu.placementOffset,
             menuSize: menu.menuSize
         )
-    }
-}
-
-/// Arrow keys and Enter for the open cover context menu.
-///
-/// The menu is a SwiftUI overlay rather than a focused control, so it listens
-/// for key events the same way its dismiss monitor listens for clicks.
-private struct LibraryCardMenuKeyboardMonitor: NSViewRepresentable {
-    let isActive: Bool
-    let onMoveHighlight: (Int) -> Bool
-    let onActivateHighlight: () -> Bool
-    let onDismiss: () -> Void
-
-    func makeNSView(context _: Context) -> MonitoringView {
-        MonitoringView()
-    }
-
-    func updateNSView(_ nsView: MonitoringView, context _: Context) {
-        nsView.update(
-            isActive: isActive,
-            onMoveHighlight: onMoveHighlight,
-            onActivateHighlight: onActivateHighlight,
-            onDismiss: onDismiss
-        )
-    }
-
-    final class MonitoringView: NSView {
-        nonisolated(unsafe) private var monitor: Any?
-        private var isActive = false
-        private var onMoveHighlight: ((Int) -> Bool)?
-        private var onActivateHighlight: (() -> Bool)?
-        private var onDismiss: (() -> Void)?
-
-        func update(
-            isActive: Bool,
-            onMoveHighlight: @escaping (Int) -> Bool,
-            onActivateHighlight: @escaping () -> Bool,
-            onDismiss: @escaping () -> Void
-        ) {
-            self.isActive = isActive
-            self.onMoveHighlight = onMoveHighlight
-            self.onActivateHighlight = onActivateHighlight
-            self.onDismiss = onDismiss
-            updateMonitor()
-        }
-
-        override func viewDidMoveToWindow() {
-            super.viewDidMoveToWindow()
-            updateMonitor()
-        }
-
-        deinit {
-            if let monitor {
-                NSEvent.removeMonitor(monitor)
-            }
-        }
-
-        private func updateMonitor() {
-            guard isActive, window != nil else {
-                removeMonitor()
-                return
-            }
-            guard monitor == nil else {
-                return
-            }
-            monitor = NSEvent.addLocalMonitorForEvents(
-                matching: [.keyDown]
-            ) { [weak self] event in
-                guard let self,
-                      event.window === self.window
-                else {
-                    return event
-                }
-                switch event.keyCode {
-                case 53:
-                    self.onDismiss?()
-                    return nil
-                case 126:
-                    return self.onMoveHighlight?(-1) == true ? nil : event
-                case 125:
-                    return self.onMoveHighlight?(1) == true ? nil : event
-                case 36, 76:
-                    return self.onActivateHighlight?() == true ? nil : event
-                default:
-                    return event
-                }
-            }
-        }
-
-        private func removeMonitor() {
-            guard let monitor else {
-                return
-            }
-            NSEvent.removeMonitor(monitor)
-            self.monitor = nil
-        }
-    }
-}
-
-struct LibraryCardMenuPointerMonitor: NSViewRepresentable {
-    let isActive: Bool
-    let menuFrame: CGRect
-    let onDismiss: () -> Void
-
-    func makeNSView(context _: Context) -> MonitoringView {
-        MonitoringView()
-    }
-
-    func updateNSView(_ nsView: MonitoringView, context _: Context) {
-        nsView.update(isActive: isActive, menuFrame: menuFrame, onDismiss: onDismiss)
-    }
-
-    final class MonitoringView: NSView {
-        nonisolated(unsafe) private var monitor: Any?
-        private var isActive = false
-        private(set) var menuFrame = CGRect.zero
-        private var onDismiss: (() -> Void)?
-
-        override var isFlipped: Bool {
-            true
-        }
-
-        func update(isActive: Bool, menuFrame: CGRect, onDismiss: @escaping () -> Void) {
-            self.isActive = isActive
-            self.menuFrame = menuFrame
-            self.onDismiss = onDismiss
-            updateMonitor()
-        }
-
-        override func viewDidMoveToWindow() {
-            super.viewDidMoveToWindow()
-            updateMonitor()
-        }
-
-        deinit {
-            if let monitor {
-                NSEvent.removeMonitor(monitor)
-            }
-        }
-
-        private func updateMonitor() {
-            guard isActive, window != nil else {
-                removeMonitor()
-                return
-            }
-            guard monitor == nil else {
-                return
-            }
-            // The middle button is not a dismissal, so it is not matched.
-            monitor = NSEvent.addLocalMonitorForEvents(
-                matching: [.leftMouseDown, .rightMouseDown, .scrollWheel]
-            ) { [weak self] event in
-                guard let self else {
-                    return event
-                }
-                guard !MenuOutsidePress.isFromAnotherWindow(
-                    event,
-                    menuWindow: self.window
-                ) else {
-                    return event
-                }
-
-                if event.type == .scrollWheel {
-                    // An open menu bans scrolling for the whole window, and
-                    // owns the wheel over itself, so nothing moves under it.
-                    return nil
-                }
-
-                switch MenuOutsidePress.decide(
-                    event,
-                    menuWindow: self.window,
-                    isPointerOnMenu: {
-                        self.menuFrame.contains(
-                            self.convert(event.locationInWindow, from: nil)
-                        )
-                    }
-                ) {
-                case .leaveToOtherWindow, .leaveToMenu:
-                    return event
-                case .dismissAndForward:
-                    // The card under the press opens its own menu from this
-                    // same press, so the press goes on.
-                    self.onDismiss?()
-                    return event
-                case .dismissAndConsume:
-                    self.onDismiss?()
-                    return nil
-                }
-            }
-        }
-
-        private func removeMonitor() {
-            guard let monitor else {
-                return
-            }
-            NSEvent.removeMonitor(monitor)
-            self.monitor = nil
-        }
     }
 }
 

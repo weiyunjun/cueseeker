@@ -118,35 +118,52 @@ final class PlaybackStore: ObservableObject {
     /// the App-wide playback monitor is added at launch.
     @Published private(set) var isSpeedMenuOpen = false
     let speedMenuHighlight = MenuHighlightModel()
-    private var speedMenuRegistration: InterfaceLayerRegistry.OpenMenuToken?
 
     func openSpeedMenu(defaultPosition: Int?) {
         speedMenuHighlight.open(
             selectablePositions: Array(PlaybackViewModel.speedPresets.indices),
             defaultPosition: defaultPosition
         )
-        if speedMenuRegistration == nil {
-            speedMenuRegistration = interfaceLayers.registerOpenMenu(
-                ownedBy: .playbackPage
-            )
-        }
         isSpeedMenuOpen = true
     }
-
-    /// Set by the reel that owns an open selected-text menu, and offered every
-    /// key before seeking, volume and cue navigation see it. A menu that opens
-    /// on the playback page cannot claim keys with its own event monitor:
-    /// monitors are invoked in the order they were added, and the App-wide
-    /// playback monitor is added at launch.
-    var selectedTextMenuKeyHandler: ((UInt16) -> Bool)?
 
     func closeSpeedMenu() {
         guard isSpeedMenuOpen else {
             return
         }
         speedMenuHighlight.close()
-        speedMenuRegistration = nil
         isSpeedMenuOpen = false
+    }
+
+    /// Arrow keys, Enter and Esc for the open speed menu, offered by the menu
+    /// gate through the playback key owner.
+    func handleSpeedMenuKey(_ keyCode: UInt16, isRepeat: Bool) -> Bool {
+        guard isSpeedMenuOpen else {
+            return false
+        }
+        switch keyCode {
+        case 53:
+            closeSpeedMenu()
+            return true
+        case 126:
+            speedMenuHighlight.moveHighlight(by: -1)
+            return true
+        case 125:
+            speedMenuHighlight.moveHighlight(by: 1)
+            return true
+        case 36, 76:
+            if !isRepeat {
+                let presets = PlaybackViewModel.speedPresets
+                if let position = speedMenuHighlight.highlightedPosition,
+                   presets.indices.contains(position) {
+                    playbackViewModel?.setSpeed(presets[position])
+                }
+                closeSpeedMenu()
+            }
+            return true
+        default:
+            return false
+        }
     }
     private(set) var pointerHideRequestGeneration: UInt64 = 0
     private var subtitleFocusSessionGeneration = 0

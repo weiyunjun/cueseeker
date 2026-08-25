@@ -1597,7 +1597,7 @@ struct PlaybackSubtitleFocusReelRepresentable: NSViewRepresentable {
     let onScrollbarDraggingChanged: (Bool) -> Void
     let onNativeMotionGateChanged: (Bool) -> Void
     let onKeyboardMotionChanged: (Bool) -> Void
-    let onSelectedTextMenuKeyHandlerChanged: (((UInt16) -> Bool)?) -> Void
+    var interfaceLayers: InterfaceLayerRegistry?
     var isCoveredByHigherLayer = false
 
     func makeNSView(context: Context) -> PlaybackSubtitleFocusReelContainerView {
@@ -1640,8 +1640,7 @@ struct PlaybackSubtitleFocusReelRepresentable: NSViewRepresentable {
         view.onScrollbarDraggingChanged = onScrollbarDraggingChanged
         view.onNativeMotionGateChanged = onNativeMotionGateChanged
         view.onKeyboardMotionChanged = onKeyboardMotionChanged
-        view.onSelectedTextMenuKeyHandlerChanged =
-            onSelectedTextMenuKeyHandlerChanged
+        view.interfaceLayers = interfaceLayers
         view.isCoveredByHigherLayer = isCoveredByHigherLayer
         view.update(
             cues: cues,
@@ -1733,8 +1732,11 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
     var onScrollbarDraggingChanged: (Bool) -> Void = { _ in }
     var onNativeMotionGateChanged: (Bool) -> Void = { _ in }
     var onKeyboardMotionChanged: (Bool) -> Void = { _ in }
-    /// Publishes the selected-text menu's key handler while that menu is open.
-    var onSelectedTextMenuKeyHandlerChanged: (((UInt16) -> Bool)?) -> Void = { _ in }
+    /// The registry whose gate handles the selected-text menu's events, and
+    /// which layer this reel's menu belongs to: the Playback Overlay for the
+    /// overlay's reels, the Command Panel for the panel's.
+    var interfaceLayers: InterfaceLayerRegistry?
+    var menuOwner: InterfaceLayer = .playbackOverlay
     /// True while a higher surface covers this reel. Its menu keeps its place
     /// on screen and stops answering keys and presses: those belong to whatever
     /// is on top. Hit testing already stops at the covering surface, but an
@@ -1757,7 +1759,7 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
     }
 
     private var selectedTextMenuPlacement: SelectedTextMenuPlacement?
-    private var selectedTextMenuEventMonitor: Any?
+    private var menuGateSession: MenuGate.Session?
     private let selectedTextMenuHighlight = MenuHighlightModel()
     private var selectedTextMenuActions: [() -> Void] = []
     private var mountedContentAdapter:
@@ -2318,9 +2320,6 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
         selectedTextMenuHighlight.open(
             selectablePositions: Array(selectedTextMenuActions.indices)
         )
-        onSelectedTextMenuKeyHandlerChanged { [weak self] keyCode in
-            self?.handleSelectedTextMenuKey(keyCode) ?? false
-        }
 
         let menu = PlaybackSelectedTextMenu(
             highlight: selectedTextMenuHighlight,
@@ -2360,7 +2359,7 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
             )
         )
         host.frame = openingFrame
-        installSelectedTextMenuEventMonitor()
+        openMenuGateSession()
     }
 
     /// Where the menu hangs off, in this view's coordinates, as the reel lays
@@ -2419,8 +2418,8 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
         selectedTextMenuPlacement = nil
         selectedTextMenuHighlight.close()
         selectedTextMenuActions = []
-        onSelectedTextMenuKeyHandlerChanged(nil)
-        removeSelectedTextMenuEventMonitor()
+        menuGateSession?.close()
+        menuGateSession = nil
     }
 
     /// Arrow keys, Enter and Escape for the open menu. Reported as handled so
@@ -2462,59 +2461,39 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
         return true
     }
 
-    private func installSelectedTextMenuEventMonitor() {
-        removeSelectedTextMenuEventMonitor()
-        selectedTextMenuEventMonitor = NSEvent.addLocalMonitorForEvents(
-            matching: [.keyDown, .leftMouseDown, .rightMouseDown]
-        ) { [weak self] event in
-            guard let self, !self.isCoveredByHigherLayer else {
-                return event
-            }
-            if event.type == .keyDown {
-                // Fallback for surfaces the playback key owner does not reach.
-                // On the playback page it already consumed the key, so this
-                // monitor never sees it and the menu is handled exactly once.
-                return self.handleSelectedTextMenuKey(event.keyCode)
-                    ? nil
-                    : event
-            }
-            guard event.type == .leftMouseDown
-                    || event.type == .rightMouseDown
-            else {
-                return event
-            }
-            switch MenuOutsidePress.decide(
-                event,
-                menuWindow: self.window,
-                isPointerOnMenu: {
-                    guard let host = self.selectedTextMenuHost else {
+    /// Hands the open selected-text menu to the menu gate, which owns the
+    /// outside press, the whole-window scroll ban, and the menu's keys. The
+    /// overlay's menu also receives its keys through the gate's route: the
+    /// playback key owner sees keys first and offers them to the gate.
+    private func openMenuGateSession() {
+        guard menuGateSession == nil else {
+            return
+        }
+        menuGateSession = interfaceLayers?.menuGate.open(
+            MenuGate.Client(
+                owner: menuOwner,
+                window: { [weak self] in self?.window },
+                isPointerOnMenu: { [weak self] event in
+                    guard let host = self?.selectedTextMenuHost else {
                         return false
                     }
                     return host.bounds.contains(
                         host.convert(event.locationInWindow, from: nil)
                     )
+                },
+                bansScrolling: true,
+                menuTakesWheel: true,
+                receivesKeysFromRouter: menuOwner == .playbackOverlay,
+                handleKey: { [weak self] keyCode, _ in
+                    self?.handleSelectedTextMenuKey(keyCode) ?? false
+                },
+                dismiss: { [weak self] _ in
+                    // The press that closes the menu is spent on closing it.
+                    // It does not also land on the subtitle text underneath.
+                    self?.dismissSelectedTextActions()
                 }
-            ) {
-            case .leaveToOtherWindow, .leaveToMenu:
-                return event
-            case .dismissAndForward:
-                self.dismissSelectedTextActions()
-                return event
-            case .dismissAndConsume:
-                self.dismissSelectedTextActions()
-                // The press that closes the menu is spent on closing it. It
-                // does not also land on the subtitle text underneath.
-                return nil
-            }
-        }
-    }
-
-    private func removeSelectedTextMenuEventMonitor() {
-        guard let selectedTextMenuEventMonitor else {
-            return
-        }
-        NSEvent.removeMonitor(selectedTextMenuEventMonitor)
-        self.selectedTextMenuEventMonitor = nil
+            )
+        )
     }
 
     var fractionalOrdinalForTesting: CGFloat {
@@ -2980,16 +2959,14 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
             }
             let point = self.convert(event.locationInWindow, from: nil)
             let isInside = self.bounds.contains(point)
-            // An open selected-text menu bans scrolling for the whole window.
-            // This monitor is window-wide, so one guard covers every surface
-            // under the menu, not only this reel. The menu itself still sees
-            // the wheel: it is the one place the reader may still scroll.
+            // An open selected-text menu hands the wheel to the menu gate,
+            // which bans scrolling for the whole window and leaves the menu
+            // its own. The reel must not spend the wheel first: this monitor
+            // was installed before the gate's, so it sees the event first.
             // A frozen menu bans nothing — the surface above it decides.
-            if let menuHost = self.selectedTextMenuHost,
+            if self.selectedTextMenuHost != nil,
                !self.isCoveredByHigherLayer {
-                return menuHost.bounds.contains(
-                    menuHost.convert(event.locationInWindow, from: nil)
-                ) ? event : nil
+                return event
             }
             guard self.allowsNativeWheelInput() else {
                 if self.isWheelMotionActive {

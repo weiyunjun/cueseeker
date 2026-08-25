@@ -94,4 +94,93 @@ needs an owner decision:
 
 ## Step B — the menu gate
 
-(Recorded with the Step B commit.)
+### What existed
+
+Each of the five menus installed and removed its own `NSEvent` monitors and
+implemented the modality rules for itself: the table's dismiss monitor plus a
+menu block inside its keyboard monitor, the card host's keyboard and pointer
+monitor views, the speed menu's dismiss monitor in the chrome plus key blocks
+in the playback key router, and the reel's monitor serving both selected-text
+menus, with a hand-registered key handler relayed from the overlay's reel
+through six plumbing layers to the router.
+
+### What the step did
+
+`Shared/MenuGate.swift` is now the one implementation of menu event handling.
+An open menu registers as a client describing itself — owning layer, window,
+pointer hit tests, the design's scroll answer, its keys, how it dismisses —
+and the gate owns everything the requirement lists: one monitor installed
+while any menu is open and removed with the last one; arrows, Enter, Esc and
+the submenu's left/right routed to the open menu; the outside press through
+the already-unified `MenuOutsidePress` decision; the wheel through the
+design's per-menu scroll table (two client facts: whether the window is
+banned, and whether the menu surface takes its own wheel); and the freeze,
+which the registry from Step A already answers. A covered menu is skipped
+wholesale — it stays on screen and takes no input, as the modality design
+specifies. Clients are processed in the order their menus opened, each seeing
+an event only if the ones before passed it on — the same contract the
+separate monitors had.
+
+Sessions close themselves on any teardown path, replacing Step A's separate
+menu tokens. SwiftUI-hosted menus (cards, speed) mount a `MenuGateClientView`
+exactly while the menu is open; AppKit owners (table coordinator, reels) open
+the session directly.
+
+The playback key owner still sees keys first — monitors run in install order
+and the app-wide playback monitor is installed at launch — so it offers every
+plain key to the gate (`routeKey`) before seeking, volume and cue navigation.
+This one call replaced the router's separate speed-menu and selected-text
+blocks, the store's hand-registered key handler, and the whole
+`onSelectedTextMenuKeyHandlerChanged` plumbing chain. The speed menu's key
+logic moved next to its state (`PlaybackStore.handleSpeedMenuKey`) so the
+chrome client and the unit tests exercise the same implementation.
+
+`MenuHighlightModel`, `MenuPlacement`, `MenuOutsidePress` and the popover
+panels stay what they were: single shared implementations the menus already
+present themselves with. The text-selection drag engine is untouched, per the
+requirement.
+
+### Deviations resolved and left
+
+- Step A's deviation 1 is resolved: the speed menu's coverage now comes from
+  the registry like every other menu's, so a menu below the Playback Overlay
+  or the Command Panel is uniformly frozen — the behavior the committed
+  modality and outside-press requirements already specify.
+- Found and preserved, reported for an owner decision: the Command Panel's
+  selected-text menu never actually receives keys — the playback key router
+  consumes arrows and Enter for panel navigation before the menu's (now the
+  gate's) monitor can see them, unchanged from before this work. Routing the
+  panel's menu through `routeKey` would fix it in one line once approved.
+
+### Verification
+
+- `swift build` clean; `swift test` full run matches the same-day baseline
+  (the two pre-existing `CueGroupRefreshScopeIntegrationTests` failures plus
+  the shifting load-sensitive media/window set; every case failing only on
+  the modified tree passes in isolation). `PlaybackNormalShortcutTests` menu
+  cases now drive the real router→gate→store path;
+  `LibraryCardMenuPlacementTests` reads the menu frame from the gate client
+  view; `SubtitleTableVirtualRowTests` 93/93.
+- Debug E2E against the running App (scene-checked captures, compared byte
+  for byte outside the traffic-light corner):
+  - **Card menu**: right-click opens it anchored to the card, the anchor card
+    alone stays lit; Down moves the highlight and hides the cursor; a wheel
+    step outside changes not one pixel, and scrolls again after close; a
+    right-click on another card closes and reopens in the same press with the
+    highlight moving cards; a left press outside closes the menu, is spent,
+    and hover returns only after real pointer movement; Esc closes.
+  - **Table row menu**: the same set, plus six Downs and Right opening the
+    destination submenu with its first item highlighted, and Left closing it.
+  - The speed menu and the two selected-text menus are not reachable from the
+    controller (the chrome needs real cursor movement; text selection needs a
+    drag the procedure has no recipe for), the same limit every earlier menu
+    record hit. Their key ownership and freeze are covered by
+    `PlaybackNormalShortcutTests`; the pointer-side behavior needs the same
+    manual pass the earlier requirements assigned them.
+
+## Outcome
+
+The five menus answer coverage from one registry and handle events through
+one gate; a new modality rule now has exactly two possible homes. Behavior
+matches the acceptance list everywhere the controller can reach; the playback
+menus' pointer behavior awaits the owner's manual pass.

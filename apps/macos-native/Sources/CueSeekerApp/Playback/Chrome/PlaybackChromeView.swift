@@ -57,13 +57,8 @@ struct PlaybackChromeView: View {
     let viewModel: PlaybackViewModel
     let timeline: PlaybackTimelineInteractionStore
     let controls: PlaybackChromeControls
-    @State private var speedMenuEventMonitor: Any?
     @State private var speedButtonFrame: CGRect = .zero
-    @State private var speedMenuFrame: CGRect = .zero
     @State private var isTimeHovered = false
-    /// The window the chrome is in, so the dismissal monitor can tell a press
-    /// meant for this window from one that belongs to another window.
-    @State private var hostWindow: NSWindow?
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -74,7 +69,6 @@ struct PlaybackChromeView: View {
                 .zIndex(1)
         }
         .frame(height: PlaybackChromeMetrics.interactiveHeight, alignment: .bottom)
-        .background(MenuHostWindowReader(window: $hostWindow).frame(width: 0, height: 0))
         .overlayPreferenceValue(PlaybackSpeedButtonAnchorKey.self) { anchor in
             speedMenuOverlay(anchor: anchor)
         }
@@ -85,17 +79,8 @@ struct PlaybackChromeView: View {
                 isTimeHovered: $isTimeHovered
             )
         )
-        .onChange(of: playback.isSpeedMenuOpen) { isVisible in
-            if isVisible {
-                installSpeedMenuDismissMonitor()
-            } else {
-                speedMenuFrame = .zero
-                removeSpeedMenuDismissMonitor()
-            }
-        }
         .onDisappear {
             playback.closeSpeedMenu()
-            removeSpeedMenuDismissMonitor()
         }
     }
 
@@ -163,36 +148,54 @@ struct PlaybackChromeView: View {
                 let x = menuFrame.midX
                 let y = menuFrame.midY
 
-                PlaybackChromeSpeedMenu(
-                    selectedSpeed: viewModel.playbackSpeed,
-                    suppressesInteraction: timeline.isScrubbing
-                        || playback.interfaceLayers.isOpen(.commandPanel),
-                    highlight: playback.speedMenuHighlight,
-                    onSelect: { speed in
-                        viewModel.setSpeed(speed)
-                        playback.closeSpeedMenu()
-                    }
-                )
-                .frame(width: menuWidth, height: menuHeight)
-                .position(x: x, y: y)
-                // The dismiss monitor keeps the press that closes the menu, so
-                // it needs to know where the menu is to let a press on the menu
-                // itself through.
-                .background(
-                    GeometryReader { menuGeometry in
-                        Color.clear
-                            .onAppear {
-                                speedMenuFrame = menuGeometry.frame(in: .global)
+                ZStack(alignment: .topLeading) {
+                    MenuGateClientView(
+                        gate: playback.interfaceLayers.menuGate,
+                        owner: .playbackPage,
+                        // The one menu the design's scroll table leaves free.
+                        bansScrolling: false,
+                        menuTakesWheel: false,
+                        // The playback key owner sees keys first, so this menu
+                        // receives its keys through the gate's route instead.
+                        receivesKeysFromMonitor: false,
+                        receivesKeysFromRouter: true,
+                        menuFrame: menuFrame,
+                        // A press on the speed button is left to the button,
+                        // which toggles the menu itself.
+                        anchorFrame: buttonFrame,
+                        handleKey: { keyCode, isRepeat in
+                            playback.handleSpeedMenuKey(
+                                keyCode,
+                                isRepeat: isRepeat
+                            )
+                        },
+                        dismiss: { _ in
+                            DispatchQueue.main.async {
+                                playback.closeSpeedMenu()
                             }
-                            .onChange(of: menuGeometry.frame(in: .global)) { newFrame in
-                                speedMenuFrame = newFrame
-                            }
-                    }
-                )
+                        }
+                    )
+                    .frame(width: proxy.size.width, height: proxy.size.height)
+                    .allowsHitTesting(false)
+
+                    PlaybackChromeSpeedMenu(
+                        selectedSpeed: viewModel.playbackSpeed,
+                        suppressesInteraction: timeline.isScrubbing
+                            || playback.interfaceLayers.isOpen(.commandPanel),
+                        highlight: playback.speedMenuHighlight,
+                        onSelect: { speed in
+                            viewModel.setSpeed(speed)
+                            playback.closeSpeedMenu()
+                        }
+                    )
+                    .frame(width: menuWidth, height: menuHeight)
+                    .position(x: x, y: y)
+                }
                 .zIndex(2)
             }
         }
     }
+
 
     private var scrubberRow: some View {
         PlaybackProgressScrubber(
@@ -296,79 +299,6 @@ struct PlaybackChromeView: View {
         .anchorPreference(key: PlaybackSpeedButtonAnchorKey.self, value: .bounds) { $0 }
     }
 
-    private func installSpeedMenuDismissMonitor() {
-        removeSpeedMenuDismissMonitor()
-        // Mouse dismissal only. Keyboard handling belongs to
-        // `handlePlaybackKeyDown`, which owns playback-page keys.
-        speedMenuEventMonitor = NSEvent.addLocalMonitorForEvents(
-            matching: [.leftMouseDown, .rightMouseDown, .scrollWheel]
-        ) { event in
-            guard playback.isSpeedMenuOpen else {
-                return event
-            }
-            // A monitor bypasses hit testing, so the menu has to check for
-            // itself whether something above it owns this press. A frozen menu
-            // neither closes on the press nor eats it: it belongs to the
-            // Command Panel.
-            guard !playback.interfaceLayers.isOpen(.commandPanel) else {
-                return event
-            }
-            // Until the reader has reported, the press counts as this
-            // window's, so a menu can never become impossible to close.
-            let menuWindow = hostWindow ?? event.window
-            guard !MenuOutsidePress.isFromAnotherWindow(
-                event,
-                menuWindow: menuWindow
-            ) else {
-                return event
-            }
-            let pointerInWindow = event.window.map { window in
-                CGPoint(
-                    x: event.locationInWindow.x,
-                    y: (window.contentView?.bounds.height ?? 0)
-                        - event.locationInWindow.y
-                )
-            }
-            let isPointerOnMenu = pointerInWindow
-                .map(speedMenuFrame.contains) ?? false
-            if event.type == .scrollWheel {
-                // The menu owns the wheel while the pointer is on it. Anywhere
-                // else the wheel is the page's as usual.
-                return isPointerOnMenu ? nil : event
-            }
-            switch MenuOutsidePress.decide(
-                event,
-                menuWindow: menuWindow,
-                isPointerOnMenu: { isPointerOnMenu }
-            ) {
-            case .leaveToOtherWindow, .leaveToMenu:
-                return event
-            case .dismissAndForward:
-                DispatchQueue.main.async {
-                    playback.closeSpeedMenu()
-                }
-                return event
-            case .dismissAndConsume:
-                if let pointerInWindow, speedButtonFrame.contains(pointerInWindow) {
-                    // Let the button action handle toggling isSpeedMenuVisible to false
-                    return event
-                }
-                DispatchQueue.main.async {
-                    playback.closeSpeedMenu()
-                }
-                // The press that closes the menu is spent on closing it and
-                // never reaches the video or the controls underneath.
-                return nil
-            }
-        }
-    }
-
-    private func removeSpeedMenuDismissMonitor() {
-        if let speedMenuEventMonitor {
-            NSEvent.removeMonitor(speedMenuEventMonitor)
-            self.speedMenuEventMonitor = nil
-        }
-    }
 
 }
 

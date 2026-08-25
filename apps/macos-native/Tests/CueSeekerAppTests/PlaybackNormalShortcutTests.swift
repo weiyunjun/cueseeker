@@ -223,6 +223,54 @@ private func withNormalPlaybackApp(
     try body(app, database)
 }
 
+/// Registers the speed menu with the menu gate the way the chrome's client
+/// view does when the menu opens, minus the pointer geometry no unit test
+/// exercises.
+@MainActor
+private func openSpeedMenuGateClient(
+    _ app: AppCoordinator
+) -> MenuGate.Session {
+    app.interfaceLayers.menuGate.open(
+        MenuGate.Client(
+            owner: .playbackPage,
+            window: { nil },
+            isPointerOnMenu: { _ in false },
+            bansScrolling: false,
+            menuTakesWheel: false,
+            receivesKeysFromMonitor: false,
+            receivesKeysFromRouter: true,
+            handleKey: { [weak app] keyCode, isRepeat in
+                app?.playback.handleSpeedMenuKey(
+                    keyCode,
+                    isRepeat: isRepeat
+                ) ?? false
+            },
+            dismiss: { _ in }
+        )
+    )
+}
+
+/// Registers a selected-text menu with the menu gate the way the overlay's
+/// reel does, with the test's own key handler standing in for the menu.
+@MainActor
+private func openSelectedTextMenuGateClient(
+    _ app: AppCoordinator,
+    handleKey: @escaping (UInt16) -> Bool
+) -> MenuGate.Session {
+    app.interfaceLayers.menuGate.open(
+        MenuGate.Client(
+            owner: .playbackOverlay,
+            window: { nil },
+            isPointerOnMenu: { _ in false },
+            bansScrolling: true,
+            menuTakesWheel: true,
+            receivesKeysFromRouter: true,
+            handleKey: { keyCode, _ in handleKey(keyCode) },
+            dismiss: { _ in }
+        )
+    )
+}
+
 @MainActor
 @Test
 func openSpeedMenuOwnsArrowKeysInsteadOfVolume() throws {
@@ -240,6 +288,8 @@ func openSpeedMenuOwnsArrowKeysInsteadOfVolume() throws {
         app.playback.openSpeedMenu(
             defaultPosition: PlaybackViewModel.speedPresetIndex(for: 1.0)
         )
+        let speedMenuSession = openSpeedMenuGateClient(app)
+        defer { speedMenuSession.close() }
         let highlight = app.playback.speedMenuHighlight
         #expect(highlight.highlightedPosition == 2)
 
@@ -272,7 +322,7 @@ func openSelectedTextMenuOwnsArrowKeysInsteadOfVolume() throws {
     try withNormalPlaybackApp { app, _ in
         let viewModel = try #require(app.playback.playbackViewModel)
         var seenKeyCodes: [UInt16] = []
-        app.playback.selectedTextMenuKeyHandler = { keyCode in
+        let menuSession = openSelectedTextMenuGateClient(app) { keyCode in
             seenKeyCodes.append(keyCode)
             return [53, 125, 126, 36, 76].contains(keyCode)
         }
@@ -287,7 +337,7 @@ func openSelectedTextMenuOwnsArrowKeysInsteadOfVolume() throws {
         #expect(app.handlePlaybackKeyDown(keyCode: 12, modifierFlagsRawValue: 0))
         #expect(seenKeyCodes == [125, 126, 12])
 
-        app.playback.selectedTextMenuKeyHandler = nil
+        menuSession.close()
         #expect(app.handlePlaybackKeyDown(keyCode: 125, modifierFlagsRawValue: 0))
         #expect(viewModel.volume != volumeBeforeMenu)
     }
@@ -299,13 +349,16 @@ func openingCommandPanelFreezesTheMenusUnderneathIt() throws {
     try withNormalPlaybackApp { app, _ in
         app.playback.isPlaybackSurfaceExpanded = true
         var seenKeyCodes: [UInt16] = []
-        app.playback.selectedTextMenuKeyHandler = { keyCode in
+        let menuSession = openSelectedTextMenuGateClient(app) { keyCode in
             seenKeyCodes.append(keyCode)
             return true
         }
+        defer { menuSession.close() }
         app.playback.openSpeedMenu(
             defaultPosition: PlaybackViewModel.speedPresetIndex(for: 1.0)
         )
+        let speedMenuSession = openSpeedMenuGateClient(app)
+        defer { speedMenuSession.close() }
         let highlight = app.playback.speedMenuHighlight
         #expect(app.playback.isSpeedMenuOpen)
         #expect(highlight.highlightedPosition == 2)
@@ -319,13 +372,16 @@ func openingCommandPanelFreezesTheMenusUnderneathIt() throws {
         // panel, so they keep their state and stop taking keys.
         #expect(app.playback.commandPanelPresentation != nil)
         #expect(app.playback.isSpeedMenuOpen)
-        #expect(app.playback.selectedTextMenuKeyHandler != nil)
         #expect(seenKeyCodes.isEmpty)
 
         // The arrow keys reach the Command Panel instead of either menu.
         #expect(app.handlePlaybackKeyDown(keyCode: 125, modifierFlagsRawValue: 0))
         #expect(highlight.highlightedPosition == 2)
         #expect(seenKeyCodes.isEmpty)
+
+        // The selected-text menu is gone by the time the panel closes; only
+        // the speed menu is left to answer.
+        menuSession.close()
 
         // Escape closes the panel and the speed menu answers the arrows again.
         #expect(app.handlePlaybackKeyDown(keyCode: 53, modifierFlagsRawValue: 0))
