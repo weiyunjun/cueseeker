@@ -90,11 +90,17 @@ private struct ShioriListCard: View {
     @State private var isHovered = false
     @State private var ownsOpenMenu = false
 
+    /// True while a surface above the grid owns input: a dialog, or a card
+    /// menu. The card keeps the picture it had and stops following the pointer.
+    private var isFrozen: Bool {
+        isWorkbenchPopupLayerOpen || isContextMenuOpen
+    }
+
     private var isHoverActive: Bool {
         if isContextMenuOpen {
             return ownsOpenMenu
         }
-        return isHovered && !isWorkbenchPopupLayerOpen
+        return isHovered
     }
 
     var body: some View {
@@ -107,11 +113,11 @@ private struct ShioriListCard: View {
             }
         }
         .buttonStyle(LibraryOverviewCardButtonStyle(isHovered: isHoverActive))
-        .onHover { isHovered = $0 }
-        .onChange(of: isWorkbenchPopupLayerOpen) { isOpen in
-            if isOpen {
-                isHovered = false
+        .onHover { hovering in
+            guard !isFrozen else {
+                return
             }
+            isHovered = hovering
         }
         .libraryCardContextMenuTrigger(
             isEnabled: true,

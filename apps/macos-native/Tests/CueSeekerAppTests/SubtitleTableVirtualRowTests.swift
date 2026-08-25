@@ -912,6 +912,45 @@ func subtitleTableViewDisplayTitleContentRightClickOpensMenuBelowClickPosition()
 
 @MainActor
 @Test
+func subtitleTableCoveredByADialogKeepsItsHighlight() throws {
+    let fixture = makeAttachedVirtualTableCoordinator()
+    fixture.container.frame.size.height = 800
+    fixture.scrollView.frame.size.height = 756
+    let firstRowRect = try #require(
+        fixture.coordinator.cellContentHoverDocumentRectForTesting(row: 0, columnID: "cues")
+    )
+    fixture.coordinator.handleMouseHover(
+        windowPoint: fixture.documentView.convert(
+            CGPoint(x: firstRowRect.midX, y: firstRowRect.midY),
+            to: nil
+        )
+    )
+    #expect(
+        fixture.coordinator.rowBackgroundColorForTesting(row: 0)
+            === WorkbenchRedesignColors.NS.rowHover
+    )
+
+    // A dialog above the table takes its input and leaves its picture alone.
+    fixture.coordinator.isExternalPopupLayerOpen = true
+    fixture.coordinator.clearHover()
+    let secondRowRect = try #require(
+        fixture.coordinator.cellContentHoverDocumentRectForTesting(row: 1, columnID: "cues")
+    )
+    fixture.coordinator.handleMouseHover(
+        windowPoint: fixture.documentView.convert(
+            CGPoint(x: secondRowRect.midX, y: secondRowRect.midY),
+            to: nil
+        )
+    )
+    #expect(fixture.coordinator.rowBackgroundColorForTesting(row: 1) == nil)
+    #expect(
+        fixture.coordinator.rowBackgroundColorForTesting(row: 0)
+            === WorkbenchRedesignColors.NS.rowHover
+    )
+}
+
+@MainActor
+@Test
 func subtitleTableViewOpenMenuFreezesTheTableUnderneathIt() throws {
     let fixture = makeAttachedVirtualTableCoordinator()
     fixture.container.frame.size.height = 800

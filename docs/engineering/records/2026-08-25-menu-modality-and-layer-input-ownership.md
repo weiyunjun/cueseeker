@@ -85,12 +85,34 @@ Files: `TableSandbox/SubtitleTableView.swift`,
 `TableSandbox/WorkbenchTestLibraryView.swift`,
 `Shiori/ShioriListOverviewView.swift`.
 
+### A dialog freezes the surface below rather than clearing it
+
+Opening a dialog used to wipe the table's hover, drop the card grid's lit card,
+and close an open menu. The requirement makes covering uniform: the layer below
+keeps its picture and only stops taking input. The table now leaves its
+highlight and its open menu alone, and the cards stop following the pointer
+instead of going dark. Work already in flight — a text drag, a cue-state tip —
+still stops, because it is not a picture.
+
+Files: `TableSandbox/SubtitleTableView.swift`,
+`TableSandbox/WorkbenchTestLibraryView.swift`,
+`Shiori/ShioriListOverviewView.swift`.
+
 ## Verification
 
 - `swift build`
-- `swift test --filter PlaybackNormalShortcutTests` — the test that asserted the
-  old "both menus close" rule now asserts the frozen behaviour: both menus stay
-  open, the arrows and Enter reach the Command Panel, and the speed menu answers
-  the arrows again once the panel closes.
+- `swift test --filter CueSeekerAppTests --no-parallel`
+- `PlaybackNormalShortcutTests` — the test that asserted the old "both menus
+  close" rule now asserts the frozen behaviour: both menus stay open, the arrows
+  and Enter reach the Command Panel, and the speed menu answers the arrows again
+  once the panel closes.
+- `SubtitleTableVirtualRowTests` — the test that asserted the old "the rest of
+  the table stays hoverable" rule now asserts the freeze, and a new test covers
+  a dialog covering the table.
+- Four tests fail on this machine before and after the change, for reasons the
+  change does not touch: two localization assertions that expect English while
+  the App runs in Chinese, one user-defaults migration assertion, and two
+  one-second waits in the refresh-scope integration suite. The full parallel run
+  fails a different subset each time; the serial run is the stable signal.
 
 Outcome matched expectations.

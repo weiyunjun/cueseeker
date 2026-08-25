@@ -2738,27 +2738,12 @@ struct SubtitleTableView: NSViewRepresentable {
             didSet {
                 guard isExternalPopupLayerOpen != oldValue else { return }
                 if isExternalPopupLayerOpen {
+                    // A surface above the table takes its input and leaves its
+                    // picture alone: the highlight stays where it was and an
+                    // open menu stays open. Only work already in flight stops.
                     cancelPendingTextInteraction()
-                    if isMenuOpen {
-                        dismissMenu(recalculateHover: false)
-                    }
-                    let invalidatedRows = [
-                        hoveredRow,
-                        hoveredCueTextRow,
-                        hoveredCueStateRow,
-                        hoveredRowActionRow,
-                    ]
-                    hoveredRow = nil
-                    hoveredColumnID = nil
-                    hoveredCueTextRow = nil
-                    hoveredCueStateRow = nil
-                    hoveredRowActionRow = nil
                     hideCueStateTip()
-                    activeRowMenuColumnID = nil
                     invalidateDocumentCursorRects()
-                    buttonsHost?.isHidden = true
-                    layoutHoverButtons()
-                    invalidateRows(invalidatedRows)
                     headerView?.refreshHeaderHosts()
                 } else {
                     invalidateDocumentCursorRects()
@@ -6869,9 +6854,10 @@ struct SubtitleTableView: NSViewRepresentable {
         }
 
         func clearHover() {
-            // The pointer leaving the table for the menu above it is not a
-            // reason to drop the highlight the menu hangs off.
-            if isMenuOpen {
+            // The pointer leaving the table for a surface above it is not a
+            // reason to drop the highlight underneath: a covered table keeps
+            // its picture until it owns input again.
+            if isMenuOpen || isExternalPopupLayerOpen {
                 return
             }
             updateHoveredColumnID(nil)

@@ -800,13 +800,19 @@ private struct LibraryVideoCard: View {
         FileManager.default.fileExists(atPath: content.videoPath)
     }
 
+    /// True while a surface above the grid owns input: a dialog, or a card
+    /// menu. The card keeps the picture it had and stops following the pointer.
+    private var isFrozen: Bool {
+        isWorkbenchPopupLayerOpen || isContextMenuOpen
+    }
+
     private var isHoverActive: Bool {
         // An open menu freezes the grid: only the card the menu hangs off
         // stays lit, and the pointer cannot move that anywhere else.
         if isContextMenuOpen {
             return ownsOpenMenu
         }
-        return allowsHover && isHovered && !isWorkbenchPopupLayerOpen
+        return allowsHover && isHovered
     }
 
     var body: some View {
@@ -854,14 +860,16 @@ private struct LibraryVideoCard: View {
             }
             onOpen()
         }
-        .onHover { isHovered = $0 }
+        .onHover { hovering in
+            // A covered card keeps the picture it had; only a card that owns
+            // input follows the pointer.
+            guard !isFrozen else {
+                return
+            }
+            isHovered = hovering
+        }
         .onChange(of: isHoverActive) { isActive in
             onHoverChange?(isActive)
-        }
-        .onChange(of: isWorkbenchPopupLayerOpen) { isOpen in
-            if isOpen {
-                isHovered = false
-            }
         }
         .libraryCardContextMenuTrigger(
             isEnabled: isAvailable,
@@ -993,11 +1001,15 @@ private struct LibraryFolderCard: View {
         folder.episodeCount > 0
     }
 
+    private var isFrozen: Bool {
+        isWorkbenchPopupLayerOpen || isContextMenuOpen
+    }
+
     private var isHoverActive: Bool {
         if isContextMenuOpen {
             return ownsOpenMenu
         }
-        return isHovered && !isWorkbenchPopupLayerOpen
+        return isHovered
     }
 
     var body: some View {
@@ -1020,6 +1032,9 @@ private struct LibraryFolderCard: View {
         )
         .disabled(!isAvailable)
         .onHover { hovering in
+            guard !isFrozen else {
+                return
+            }
             isHovered = hovering
             if hovering, allowsHoverSelection, isAvailable {
                 onHoverSelection()
@@ -1028,11 +1043,6 @@ private struct LibraryFolderCard: View {
         .onChange(of: allowsHoverSelection) { allowsSelection in
             if allowsSelection, isHovered, isAvailable {
                 onHoverSelection()
-            }
-        }
-        .onChange(of: isWorkbenchPopupLayerOpen) { isOpen in
-            if isOpen {
-                isHovered = false
             }
         }
         .libraryCardContextMenuTrigger(
