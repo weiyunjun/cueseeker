@@ -2059,7 +2059,9 @@
 - Default
 - Selected
   - Background：`--color-library-media-card-hover-bg`
-  - 指针停留在某张卡片上时选中随之移动;同一网格中同时只有一张
+  - Hover 与 Selected 是同一个状态，同一界面内同时只有一张卡片处于该状态
+  - 指针真实移动后落在卡片上时随之移动；滚动与布局变化不移动它
+  - Workbench 界面允许一张都没有，Playback 界面始终保持一张
   - 菜单或对话框打开期间不随指针移动；右键菜单的关联卡片保持选中
 - Disabled
 
