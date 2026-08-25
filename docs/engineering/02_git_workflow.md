@@ -290,6 +290,12 @@ Rules:
   `docs/human/` as the stronger product/documentation authority, report the
   conflict, and ask for alignment before relying on the conflicting lower
   authority source.
+- `docs/human/` is the highest-priority rule source. Where it conflicts with any
+  other source, `docs/human/` decides.
+- When one human-owned document contradicts itself, the AI must stop and report
+  the conflict. It must not pick one reading and continue.
+- When two human-owned documents disagree and neither states which one applies,
+  the more recently modified document decides.
 - If a human-owned document is ambiguous, incomplete, or hard for the AI to
   understand, the AI must report the unclear point and ask for clarification or
   suggest explanatory text outside `docs/human/`. It must not silently reinterpret
