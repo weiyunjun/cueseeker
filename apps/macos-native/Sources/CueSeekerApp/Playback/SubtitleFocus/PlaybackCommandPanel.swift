@@ -337,7 +337,6 @@ private struct PlaybackCommandPanelRootRow: View {
         .onChange(of: isHoverActive) { isActive in
             onHoverChange(isActive)
         }
-        .pointerOnHover(isEnabled: allowsHover)
     }
 }
 
@@ -381,7 +380,6 @@ private struct PlaybackCommandPanelSecondaryHeader: View {
                 }
                 .buttonStyle(.plain)
                 .focusable(false)
-                .pointerOnHover(isEnabled: true)
                 .accessibilityLabel(L("playback.back"))
 
                 Spacer(minLength: 0)

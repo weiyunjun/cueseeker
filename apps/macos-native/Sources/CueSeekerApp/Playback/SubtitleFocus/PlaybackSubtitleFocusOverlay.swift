@@ -292,7 +292,6 @@ private struct PlaybackOverlayTopBar: View {
                         }
                         .buttonStyle(.plain)
                         .focusable(false)
-                        .pointerOnHover(isEnabled: true)
                         .accessibilityLabel(module.label)
                         .accessibilityIdentifier("playback-view-\(module.rawValue)")
                     }

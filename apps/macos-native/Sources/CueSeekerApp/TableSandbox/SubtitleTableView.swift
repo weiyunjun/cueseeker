@@ -5820,7 +5820,14 @@ struct SubtitleTableView: NSViewRepresentable {
             return lowerBound < upperBound ? lowerBound..<upperBound : nil
         }
 
+        /// The cue cursor follows the same rule as the cards: a table that a
+        /// higher layer covers, or that has its own menu open, keeps the arrow.
+        private var isPointerFrozen: Bool {
+            isCoveredByHigherLayer || menuGateSession != nil
+        }
+
         func installCursorRects(in documentView: SubtitleVirtualTableDocumentView) {
+            guard !isPointerFrozen else { return }
             let visibleRect = currentTableBodyVisibleRect
             for rect in selectableTextCursorRects(
                 in: visibleRect,
@@ -5837,7 +5844,7 @@ struct SubtitleTableView: NSViewRepresentable {
         }
 
         func refreshDocumentCursor(windowPoint: CGPoint) {
-            guard !isCoveredByHigherLayer, let documentView else { return }
+            guard !isPointerFrozen, let documentView else { return }
             let point = documentView.convert(windowPoint, from: nil)
             guard currentTableBodyVisibleRect.contains(point) else {
                 NSCursor.arrow.set()
@@ -7433,6 +7440,10 @@ struct SubtitleTableView: NSViewRepresentable {
             guard menuGateSession == nil else {
                 return
             }
+            defer {
+                invalidateDocumentCursorRects()
+                NSCursor.arrow.set()
+            }
             menuGateSession = interfaceLayers?.menuGate.open(
                 MenuGate.Client(
                     owner: .workbenchPage,
@@ -7522,6 +7533,12 @@ struct SubtitleTableView: NSViewRepresentable {
         private func closeMenuGateSession() {
             menuGateSession?.close()
             menuGateSession = nil
+            invalidateDocumentCursorRects()
+            if let window = documentView?.window {
+                refreshDocumentCursor(
+                    windowPoint: window.mouseLocationOutsideOfEventStream
+                )
+            }
         }
 
         private func playRow(_ row: Int) {

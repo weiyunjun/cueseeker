@@ -79,7 +79,6 @@ struct ShioriListOverviewView: View {
 }
 
 private struct ShioriListCard: View {
-    @Environment(\.isWorkbenchPageCovered) private var isCovered
     /// True while a surface above the grid owns input: a dialog, or a menu.
     /// The card keeps the picture it had and stops following the pointer.
     @Environment(\.isWorkbenchPageFrozen) private var isFrozen
@@ -111,6 +110,9 @@ private struct ShioriListCard: View {
             ) {
                 cover
             }
+            // A Button decides the pointer for its own area, so the hand
+            // goes on the label rather than around the Button.
+            .handPointer(isEnabled: !isFrozen)
         }
         .buttonStyle(LibraryOverviewCardButtonStyle(isHovered: isHoverActive))
         .onHover { hovering in
@@ -125,7 +127,6 @@ private struct ShioriListCard: View {
             items: contextMenuItems,
             openContextMenu: openContextMenu
         )
-        .pointerOnHover(isEnabled: !isCovered)
         .accessibilityLabel(summary.list.name)
     }
 

@@ -906,7 +906,6 @@ struct WorkbenchPopoverRow: View {
     var trailingSystemImage: String?
     var onHoverChange: ((Bool) -> Void)?
     @State private var isHovered = false
-    @State private var hasPushedCursor = false
 
     var body: some View {
         if let action {
@@ -997,42 +996,7 @@ struct WorkbenchPopoverRow: View {
         .contentShape(Rectangle())
         .onHover { inside in
             onHoverChange?(inside)
-            if isRedesign && isEnabled && action != nil {
-                isHovered = inside
-                if inside {
-                    if !hasPushedCursor {
-                        NSCursor.pointingHand.push()
-                        hasPushedCursor = true
-                    }
-                } else {
-                    if hasPushedCursor {
-                        NSCursor.pop()
-                        hasPushedCursor = false
-                    }
-                }
-            } else if isEnabled {
-                isHovered = inside
-            } else {
-                isHovered = false
-            }
-        }
-        .onChange(of: isEnabled) { newValue in
-            if isRedesign && isHovered && action != nil {
-                if hasPushedCursor {
-                    NSCursor.pop()
-                    hasPushedCursor = false
-                }
-                if newValue {
-                    NSCursor.pointingHand.push()
-                    hasPushedCursor = true
-                }
-            }
-        }
-        .onDisappear {
-            if hasPushedCursor {
-                NSCursor.pop()
-                hasPushedCursor = false
-            }
+            isHovered = isEnabled && inside
         }
     }
 
@@ -1054,7 +1018,6 @@ struct WorkbenchIconButton: View {
 
     @FocusState private var isFocused: Bool
     @State private var isHovered = false
-    @State private var hasPushedCursor = false
     @Environment(\.isEnabled) private var isEnabled
 
     var body: some View {
@@ -1073,46 +1036,6 @@ struct WorkbenchIconButton: View {
         }
         .onHover { inside in
             isHovered = inside
-            if isRedesign {
-                updateCursor(inside: inside)
-            }
-        }
-        .onChange(of: isEnabled) { newValue in
-            if isRedesign && isHovered {
-                updateCursor(inside: true, isEnabledVal: newValue)
-            }
-        }
-        .onDisappear {
-            if hasPushedCursor {
-                NSCursor.pop()
-                hasPushedCursor = false
-            }
-        }
-    }
-
-    private func updateCursor(inside: Bool, isEnabledVal: Bool? = nil) {
-        let currentEnabled = isEnabledVal ?? isEnabled
-        if inside {
-            if !hasPushedCursor {
-                if currentEnabled {
-                    NSCursor.pointingHand.push()
-                } else {
-                    NSCursor.operationNotAllowed.push()
-                }
-                hasPushedCursor = true
-            } else {
-                NSCursor.pop()
-                if currentEnabled {
-                    NSCursor.pointingHand.push()
-                } else {
-                    NSCursor.operationNotAllowed.push()
-                }
-            }
-        } else {
-            if hasPushedCursor {
-                NSCursor.pop()
-                hasPushedCursor = false
-            }
         }
     }
 

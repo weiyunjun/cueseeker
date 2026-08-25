@@ -198,7 +198,6 @@ struct LibraryCoverChooser<Content: View>: View {
                 isHovered = false
             }
         }
-        .pointerOnHover(isEnabled: isEnabled)
         .accessibilityLabel(title)
     }
 }

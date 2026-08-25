@@ -803,6 +803,15 @@ Replacement and simplicity rules:
 - To achieve custom offsets for native traffic light buttons, the app uses a Proxy View reparenting pattern to extract buttons from the system's `_NSTitlebarContainerView` rather than fighting the private AppKit layout engine with frame or bounds overrides.
 - Window dragging must be handled explicitly by the custom titlebar (`performDrag(with:)`) with `window.isMovableByWindowBackground` set to `false`. Relying on window background dragging causes conflicts with SwiftUI drag gestures on transparent views.
 - Resizable dividers must use a custom `NSView` overlay to natively handle `resetCursorRects`, `NSTrackingArea`, and drag events (`mouseDown`/`mouseDragged`). SwiftUI's `.onHover` with `NSCursor.push()` is unreliable due to AppKit's continuous cursor rect evaluation, and SwiftUI's `DragGesture` can conflict with window event routing.
+- A pointer shape must come from the framework that draws the surface. SwiftUI
+  surfaces declare it with SwiftUI's own pointer style; AppKit surfaces register
+  cursor rects on a view that takes hits. Setting or pushing a shape from
+  outside the hosting framework is overwritten on the next mouse move, because
+  the SwiftUI hosting view and AppKit both restate the shape while the pointer
+  moves. A representable's `NSView` cannot carry a cursor rect for a SwiftUI
+  surface: SwiftUI keeps it out of hit testing, so AppKit never consults it.
+- A SwiftUI `Button` decides the pointer for its own area, so a pointer style
+  meant for a button must be applied to its label rather than around it.
 - Playback keyboard shortcuts are handled through a local AppKit key-down monitor and must not intercept keys while native text input is focused.
 - Playback shortcut handling should route through shared playback state instead of duplicating command behavior in individual views.
 - Playback controller support is a macOS platform-integration boundary covered

@@ -316,7 +316,6 @@ struct RecentShioriResumeRow: View {
         .onChange(of: isHoverActive) { isActive in
             onHoverChange?(isActive)
         }
-        .pointerOnHover(isEnabled: allowsHover)
         .accessibilityLabel(summary.list.name)
     }
 }
@@ -798,7 +797,6 @@ private struct LibraryVideoCardContent {
 }
 
 private struct LibraryVideoCard: View {
-    @Environment(\.isWorkbenchPageCovered) private var isCovered
     /// True while a surface above the grid owns input: a dialog, or a menu.
     /// The card keeps the picture it had and stops following the pointer.
     @Environment(\.isWorkbenchPageFrozen) private var isFrozen
@@ -894,9 +892,7 @@ private struct LibraryVideoCard: View {
             items: contextMenuItems,
             openContextMenu: openContextMenu
         )
-        .libraryCardCursor(
-            isEnabled: isAvailable && allowsHover && !isCovered
-        )
+        .handPointer(isEnabled: isAvailable && allowsHover && !isFrozen)
         .animation(
             .easeOut(duration: WorkbenchTestLibraryMetrics.coverHoverDuration),
             value: isHoverActive
@@ -1001,7 +997,6 @@ struct CompleteLibraryFolderGrid: View {
 }
 
 private struct LibraryFolderCard: View {
-    @Environment(\.isWorkbenchPageCovered) private var isCovered
     @Environment(\.isWorkbenchPageFrozen) private var isFrozen
     let folder: CompleteLibraryFolderSummaryPresentation
     let isSelected: Bool
@@ -1038,6 +1033,9 @@ private struct LibraryFolderCard: View {
             LibraryOverviewCardContent(title: folder.folderTitle) {
                 cover
             }
+            // A Button decides the pointer for its own area, so the hand goes
+            // on the label rather than around the Button.
+            .handPointer(isEnabled: isAvailable && !isFrozen)
         }
         .buttonStyle(
             LibraryOverviewCardButtonStyle(
@@ -1067,7 +1065,6 @@ private struct LibraryFolderCard: View {
             items: folderContextMenuItems,
             openContextMenu: openContextMenu
         )
-        .libraryCardCursor(isEnabled: isAvailable && !isCovered)
         .accessibilityLabel(folder.folderTitle)
     }
 
@@ -1589,48 +1586,6 @@ private struct LibraryCardRightClickMonitor: NSViewRepresentable {
     }
 }
 
-private struct LibraryCardCursorModifier: ViewModifier {
-    let isEnabled: Bool
-    @State private var hasPushedCursor = false
-
-    func body(content: Content) -> some View {
-        content
-            .onHover { hovering in
-                updateCursor(isHovering: hovering)
-            }
-            .onChange(of: isEnabled) { _ in
-                resetCursor()
-            }
-            .onDisappear {
-                resetCursor()
-            }
-    }
-
-    private func updateCursor(isHovering: Bool) {
-        guard isHovering else {
-            resetCursor()
-            return
-        }
-        guard !hasPushedCursor else {
-            return
-        }
-        if isEnabled {
-            NSCursor.pointingHand.push()
-        } else {
-            NSCursor.operationNotAllowed.push()
-        }
-        hasPushedCursor = true
-    }
-
-    private func resetCursor() {
-        guard hasPushedCursor else {
-            return
-        }
-        NSCursor.pop()
-        hasPushedCursor = false
-    }
-}
-
 private struct LibraryCoverHoverEffectModifier: ViewModifier {
     let isActive: Bool
 
@@ -1642,10 +1597,6 @@ private struct LibraryCoverHoverEffectModifier: ViewModifier {
 }
 
 extension View {
-    func libraryCardCursor(isEnabled: Bool) -> some View {
-        modifier(LibraryCardCursorModifier(isEnabled: isEnabled))
-    }
-
     func libraryCardContextMenuTrigger(
         isEnabled: Bool,
         ownerID: String,
