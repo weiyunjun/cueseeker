@@ -114,11 +114,13 @@ private struct ShioriListCard: View {
             ) {
                 cover
             }
-            // A Button decides the pointer for its own area, so the hand
-            // goes on the label rather than around the Button.
-            .handPointer(isEnabled: !layerContext.isFrozen)
         }
-        .buttonStyle(LibraryOverviewCardButtonStyle(isCurrent: isCurrent))
+        .buttonStyle(
+            LibraryOverviewCardButtonStyle(
+                isCurrent: isCurrent,
+                isFrozen: layerContext.isFrozen
+            )
+        )
         .onHover { highlight.noteHover($0, id: cardID) }
         .libraryCardContextMenuTrigger(
             isEnabled: true,

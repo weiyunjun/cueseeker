@@ -870,6 +870,9 @@ private struct LibraryVideoCard: View {
                 style: .continuous
             )
         )
+        // The hand sits on the same shape that answers Hover and the tap, so
+        // the three cover exactly the same area.
+        .handPointer(isEnabled: isAvailable && !layerContext.isFrozen)
         .onTapGesture {
             guard isAvailable else {
                 return
@@ -887,7 +890,6 @@ private struct LibraryVideoCard: View {
                 openContextMenu(items, point, ownerID)
             }
         )
-        .handPointer(isEnabled: isAvailable && !layerContext.isFrozen)
         .animation(
             .easeOut(duration: WorkbenchTestLibraryMetrics.coverHoverDuration),
             value: isCurrent
@@ -994,14 +996,12 @@ private struct LibraryFolderCard: View {
             LibraryOverviewCardContent(title: folder.folderTitle) {
                 cover
             }
-            // A Button decides the pointer for its own area, so the hand goes
-            // on the label rather than around the Button.
-            .handPointer(isEnabled: isAvailable && !layerContext.isFrozen)
         }
         .buttonStyle(
             LibraryOverviewCardButtonStyle(
                 isCurrent: isCurrent,
-                isEnabled: isAvailable
+                isEnabled: isAvailable,
+                isFrozen: layerContext.isFrozen
             )
         )
         .disabled(!isAvailable)

@@ -3571,11 +3571,7 @@ struct SubtitleTableView: NSViewRepresentable {
         }
 
         func interactiveCellCursorRectsForTesting() -> [CGRect] {
-            guard let documentView else { return [] }
-            return interactiveCellCursorRects(
-                in: currentTableBodyVisibleRect,
-                documentWidth: documentView.bounds.width
-            )
+            interactiveCellCursorRects(in: currentTableBodyVisibleRect)
         }
 
         func isInteractiveCellCursorActiveForTesting(documentPoint: CGPoint) -> Bool {
@@ -5871,10 +5867,7 @@ struct SubtitleTableView: NSViewRepresentable {
             ) {
                 documentView.addCursorRect(rect, cursor: .iBeam)
             }
-            for rect in interactiveCellCursorRects(
-                in: visibleRect,
-                documentWidth: documentView.bounds.width
-            ) {
+            for rect in interactiveCellCursorRects(in: visibleRect) {
                 documentView.addCursorRect(rect, cursor: .pointingHand)
             }
         }
@@ -5906,24 +5899,17 @@ struct SubtitleTableView: NSViewRepresentable {
             documentView.window?.invalidateCursorRects(for: documentView)
         }
 
-        private func interactiveCellCursorRects(in visibleRect: CGRect, documentWidth: CGFloat) -> [CGRect] {
+        /// Select Mode has no hand anywhere: a press on the row ticks its
+        /// checkbox instead of playing, so no part of it is playable cue text.
+        private func interactiveCellCursorRects(in visibleRect: CGRect) -> [CGRect] {
             guard isRedesign,
                   isEnabled,
+                  !isSelectionMode,
                   !isMenuOpen,
                   !isCoveredByHigherLayer,
                   let range = visibleRowRange(in: visibleRect)
             else {
                 return []
-            }
-
-            if isSelectionMode {
-                return range.compactMap { row in
-                    guard rowProvider(row) != nil else { return nil }
-                    let clipped = rectForRow(row, width: documentWidth).intersection(visibleRect)
-                    return clipped.isNull || clipped.width <= 0 || clipped.height <= 0
-                        ? nil
-                        : clipped
-                }
             }
 
             return range.flatMap { row -> [CGRect] in
@@ -5946,15 +5932,11 @@ struct SubtitleTableView: NSViewRepresentable {
         }
 
         private func isInteractiveCellCursorActive(at point: CGPoint) -> Bool {
-            guard let documentView,
-                  currentTableBodyVisibleRect.contains(point)
-            else {
+            guard currentTableBodyVisibleRect.contains(point) else {
                 return false
             }
-            return interactiveCellCursorRects(
-                in: currentTableBodyVisibleRect,
-                documentWidth: documentView.bounds.width
-            ).contains { $0.contains(point) }
+            return interactiveCellCursorRects(in: currentTableBodyVisibleRect)
+                .contains { $0.contains(point) }
         }
 
         private func selectableTextCursorRects(

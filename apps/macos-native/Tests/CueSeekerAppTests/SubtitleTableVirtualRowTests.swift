@@ -1622,6 +1622,29 @@ func subtitleTableViewLimitsPointingHandToCueContent() throws {
 
 @MainActor
 @Test
+func subtitleTableViewDropsPointingHandInSelectionMode() throws {
+    let fixture = makeAttachedVirtualTableCoordinator()
+    let cuesRect = try #require(fixture.coordinator.cellContentHoverDocumentRectForTesting(row: 0, columnID: "cues"))
+    let cuesPoint = CGPoint(x: cuesRect.midX, y: cuesRect.midY)
+    let checkboxRect = try #require(fixture.coordinator.checkboxRectForTesting(row: 0))
+    let checkboxPoint = CGPoint(x: checkboxRect.midX, y: checkboxRect.midY)
+    let displayRect = try #require(fixture.coordinator.cellContentHoverDocumentRectForTesting(row: 0, columnID: "display"))
+    let displayPoint = CGPoint(x: displayRect.midX, y: displayRect.midY)
+
+    fixture.coordinator.setSelectionModeForTesting(true)
+
+    #expect(fixture.coordinator.interactiveCellCursorRectsForTesting().isEmpty)
+    #expect(fixture.coordinator.isInteractiveCellCursorActiveForTesting(documentPoint: cuesPoint) == false)
+    #expect(fixture.coordinator.isInteractiveCellCursorActiveForTesting(documentPoint: checkboxPoint) == false)
+    #expect(fixture.coordinator.isInteractiveCellCursorActiveForTesting(documentPoint: displayPoint) == false)
+
+    fixture.coordinator.setSelectionModeForTesting(false)
+
+    #expect(fixture.coordinator.isInteractiveCellCursorActiveForTesting(documentPoint: cuesPoint))
+}
+
+@MainActor
+@Test
 func subtitleTableViewMapsCueAndLanguageTagFragmentsIntoSingleLogicalCells() throws {
     let row = SubtitleTableRow(
         id: 1,
