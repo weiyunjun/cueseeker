@@ -1,6 +1,7 @@
 import AppKit
 import SwiftUI
 import Testing
+import CueSeekerCore
 @testable import CueSeekerApp
 
 @MainActor
@@ -252,8 +253,14 @@ private struct WorkbenchPageScrollbarFixture: View {
             columns: SchemaWorkbenchSearchDefaults.columns,
             pageTitle: "Search",
             isRedesign: true,
-            filterPanel: AnyView(EmptyView()),
-            onToggleFilterPanel: {}
+            filterMenu: CueFacetFilterMenuModel(
+                distribution: nil,
+                availableLanguages: [],
+                isCalculating: false,
+                filter: .constant(CueFacetFilter())
+            ),
+            onToggleFilterMenu: {},
+            onDismissFilterMenu: {}
         ) { _ in
             SubtitleTableView(
                 tableName: "page-scrollbar",

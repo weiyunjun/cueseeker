@@ -24,7 +24,8 @@ private struct WorkbenchSearchTableTextCopySource {
 }
 
 struct WorkbenchTestSearchView: View {
-    static let defaultFacetPanelVisibility = true
+    /// The filter menu starts closed on every entry to the page.
+    static let defaultFilterMenuOpen = false
 
     let isTableResponseActive: Bool
     @EnvironmentObject private var appState: AppCoordinator
@@ -43,7 +44,7 @@ struct WorkbenchTestSearchView: View {
     @State private var rowSelection = TableSandboxRowSelectionState()
     @State private var isSelectionMode = false
     @State private var hasDeferredRefreshWhileCovered = false
-    @State private var isFacetPanelVisible: Bool
+    @State private var isFilterMenuOpen: Bool
     @State private var searchFacetFilter = CueFacetFilter()
 
     init(
@@ -53,7 +54,7 @@ struct WorkbenchTestSearchView: View {
         self.rowStore = rowStore
         self.isTableResponseActive = isTableResponseActive
         _searchDraft = State(initialValue: "")
-        _isFacetPanelVisible = State(initialValue: Self.defaultFacetPanelVisibility)
+        _isFilterMenuOpen = State(initialValue: Self.defaultFilterMenuOpen)
     }
 
     var body: some View {
@@ -73,18 +74,18 @@ struct WorkbenchTestSearchView: View {
             isSelectionMode: isSelectionMode,
             canEnterSelectionMode: canEnterSelectionMode,
             onToggleSelectionMode: toggleSelectionMode,
-            filterPanel: AnyView(
-                CueFacetFilterPanel(
-                    distribution: facetDistribution,
-                    availableLanguages: availableFacetLanguages,
-                    isCalculating: search.isFacetSnapshotCalculating,
-                    isDisabled: isSelectionMode,
-                    filter: searchFacetFilterBinding
-                )
+            filterMenu: CueFacetFilterMenuModel(
+                distribution: facetDistribution,
+                availableLanguages: availableFacetLanguages,
+                isCalculating: search.isFacetSnapshotCalculating,
+                filter: searchFacetFilterBinding
             ),
-            isFilterPanelVisible: isFacetPanelVisible,
-            onToggleFilterPanel: {
-                isFacetPanelVisible.toggle()
+            isFilterMenuOpen: isFilterMenuOpen,
+            onToggleFilterMenu: {
+                isFilterMenuOpen.toggle()
+            },
+            onDismissFilterMenu: {
+                isFilterMenuOpen = false
             }
         ) { tableColumns in
             WorkbenchSearchTableRowsObserver(rowStore: rowStore) { snapshot in
@@ -181,6 +182,8 @@ struct WorkbenchTestSearchView: View {
         .onChange(of: isTableResponseActive) { isActive in
             if !isActive {
                 exitSelectionMode()
+                // The menu belongs to this page: switching away closes it.
+                isFilterMenuOpen = false
             }
             search.setTableProjectionResponseActive(isActive)
             if isActive {
@@ -194,6 +197,7 @@ struct WorkbenchTestSearchView: View {
         }
         .onDisappear {
             exitSelectionMode()
+            isFilterMenuOpen = false
             search.setTableProjectionResponseActive(false)
             persistSearchDraft()
             persistSelection()

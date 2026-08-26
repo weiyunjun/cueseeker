@@ -88,6 +88,8 @@ enum SchemaWorkbenchSearchDefaults {
 
 struct SchemaWorkbenchSearchShell<TableContent: View>: View {
     @Environment(\.isWorkbenchPageCovered) private var isWorkbenchPageCovered
+    @Environment(\.interfaceLayers) private var interfaceLayers
+    @Environment(\.interfaceLayerContext) private var layerContext
     // Observed so the copy below is re-read when the language changes.
     @EnvironmentObject private var localization: AppLocalizationStore
 
@@ -105,14 +107,25 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
     let isSelectionMode: Bool
     let canEnterSelectionMode: Bool
     let onToggleSelectionMode: () -> Void
-    let filterPanel: AnyView
-    let isFilterPanelVisible: Bool
-    let onToggleFilterPanel: () -> Void
+    let filterMenu: CueFacetFilterMenuModel
+    let isFilterMenuOpen: Bool
+    let onToggleFilterMenu: () -> Void
+    let onDismissFilterMenu: () -> Void
+    /// Supplied when the caller hosts the toolbar itself (the Shiori detail
+    /// pins it inside the table); the shell's own toolbar registers into the
+    /// shell-owned handle instead.
+    let externalFilterMenuAnchor: MenuAnchorHandle?
     var onSearchSubmit: (() -> Void)?
     let tableContent: ([WorkbenchTableColumn]) -> TableContent
 
     @StateObject private var externalTextSelectionSession = SubtitleTableExternalTextSelectionSession()
     @StateObject private var pageScrollbar = WorkbenchPageScrollbar()
+    @StateObject private var filterMenuHighlight = MenuHighlightModel()
+    @State private var ownFilterMenuAnchor = MenuAnchorHandle()
+    @State private var filterMenuHost = MenuAnchorHandle()
+    /// Measured when the menu opens and when its content changes — never
+    /// during a view update, which AttributeGraph forbids.
+    @State private var filterMenuSize: CGSize?
 
     init(
         searchDraft: Binding<String>,
@@ -128,9 +141,11 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
         isSelectionMode: Bool = false,
         canEnterSelectionMode: Bool = false,
         onToggleSelectionMode: @escaping () -> Void = {},
-        filterPanel: AnyView,
-        isFilterPanelVisible: Bool = false,
-        onToggleFilterPanel: @escaping () -> Void,
+        filterMenu: CueFacetFilterMenuModel,
+        isFilterMenuOpen: Bool = false,
+        onToggleFilterMenu: @escaping () -> Void,
+        onDismissFilterMenu: @escaping () -> Void,
+        externalFilterMenuAnchor: MenuAnchorHandle? = nil,
         onSearchSubmit: (() -> Void)? = nil,
         @ViewBuilder tableContent: @escaping ([WorkbenchTableColumn]) -> TableContent
     ) {
@@ -147,9 +162,11 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
         self.isSelectionMode = isSelectionMode
         self.canEnterSelectionMode = canEnterSelectionMode
         self.onToggleSelectionMode = onToggleSelectionMode
-        self.filterPanel = filterPanel
-        self.isFilterPanelVisible = isFilterPanelVisible
-        self.onToggleFilterPanel = onToggleFilterPanel
+        self.filterMenu = filterMenu
+        self.isFilterMenuOpen = isFilterMenuOpen
+        self.onToggleFilterMenu = onToggleFilterMenu
+        self.onDismissFilterMenu = onDismissFilterMenu
+        self.externalFilterMenuAnchor = externalFilterMenuAnchor
         self.onSearchSubmit = onSearchSubmit
         self.tableContent = tableContent
     }
@@ -190,6 +207,12 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
                 )
             }
             .frame(width: geometry.size.width, height: geometry.size.height)
+            .background(MenuAnchorProbe(handle: filterMenuHost))
+            .overlay(alignment: .topLeading) {
+                if isRedesign, isFilterMenuOpen {
+                    filterMenuOverlay
+                }
+            }
             .onAppear {
                 updateTableScrollbarReserve(pageScrollsHorizontally)
             }
@@ -204,6 +227,21 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
                 externalTextSelectionSession.cancel()
             }
         }
+        .onChange(of: isFilterMenuOpen) { isOpen in
+            if isOpen {
+                filterMenuHighlight.open(
+                    selectablePositions: filterMenu.selectablePositions
+                )
+                filterMenuSize = measuredFilterMenuSize()
+            } else {
+                filterMenuHighlight.close()
+                filterMenuSize = nil
+            }
+        }
+        .onChange(of: filterMenu.contentHash) { _ in
+            guard isFilterMenuOpen else { return }
+            filterMenuSize = measuredFilterMenuSize()
+        }
         .onDisappear {
             externalTextSelectionSession.cancel()
         }
@@ -215,6 +253,104 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
             ? TableScrollbarPrimitiveMetrics.size
                 + TableScrollbarPrimitiveMetrics.inset
             : 0
+    }
+
+    private var activeFilterMenuAnchor: MenuAnchorHandle {
+        externalFilterMenuAnchor ?? ownFilterMenuAnchor
+    }
+
+    /// The filter menu, hanging off the filter button and drawn above the
+    /// whole page. The button never moves within the page — the toolbar is
+    /// pinned — so placement is simply redone against its current frame each
+    /// render, and a window resize keeps the menu on its button.
+    @ViewBuilder
+    private var filterMenuOverlay: some View {
+        if let menuSize = filterMenuSize,
+           let anchorFrame = activeFilterMenuAnchor.frame(in: filterMenuHost),
+           let hostBounds = filterMenuHost.bounds {
+            let menuView = CueFacetFilterMenu(
+                model: filterMenu,
+                highlight: filterMenuHighlight
+            )
+            let menuFrame = MenuPlacement.openingFrame(
+                anchor: anchorFrame,
+                menuSize: menuSize,
+                in: hostBounds,
+                gap: WorkbenchControlMetrics.redesignSpacing1
+            )
+            ZStack(alignment: .topLeading) {
+                MenuGateClientView(
+                    gate: interfaceLayers?.menuGate,
+                    owner: layerContext.layer,
+                    bansScrolling: true,
+                    // The menu's own content scrolls; whatever the content
+                    // does not spend stops at the menu's hosting view instead
+                    // of reaching the page.
+                    menuTakesWheel: true,
+                    receivesKeysFromRouter: true,
+                    menuFrame: menuFrame,
+                    anchorFrame: anchorFrame,
+                    handleKey: handleFilterMenuKey,
+                    dismiss: { _ in onDismissFilterMenu() }
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .allowsHitTesting(false)
+
+                FilterMenuSurfaceHost(menu: menuView)
+                    .frame(width: menuFrame.width, height: menuFrame.height)
+                    .offset(x: menuFrame.minX, y: menuFrame.minY)
+            }
+            .zIndex(1000)
+        }
+    }
+
+    private func measuredFilterMenuSize() -> CGSize {
+        let host = NSHostingView(
+            rootView: CueFacetFilterMenu(
+                model: filterMenu,
+                highlight: filterMenuHighlight
+            )
+        )
+        host.layoutSubtreeIfNeeded()
+        return host.fittingSize
+    }
+
+    private func handleFilterMenuKey(
+        _ keyCode: UInt16,
+        _ isRepeat: Bool
+    ) -> Bool {
+        // Every arrow, Enter and Esc belongs to the open menu; the page under
+        // it must not respond to any of them.
+        switch keyCode {
+        case 53:
+            onDismissFilterMenu()
+            return true
+        case 126:
+            _ = filterMenuHighlight.moveHighlight(by: -1)
+            return true
+        case 125:
+            _ = filterMenuHighlight.moveHighlight(by: 1)
+            return true
+        case 123, 124:
+            return true
+        case 36, 76:
+            toggleHighlightedFilterOption()
+            return true
+        default:
+            return false
+        }
+    }
+
+    /// Enter checks whatever the highlight sits on and leaves the menu open,
+    /// the same commitment the pointer makes with a click.
+    private func toggleHighlightedFilterOption() {
+        guard !filterMenu.isCalculating,
+              let position = filterMenuHighlight.highlightedPosition,
+              let option = filterMenu.option(at: position)
+        else {
+            return
+        }
+        option.toggle()
     }
 
     @ViewBuilder
@@ -279,18 +415,11 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
                         .padding(.bottom, 12)
 
                         SchemaWorkbenchLegacyFilterControlBar(
-                            isFilterPanelOpen: isFilterPanelVisible,
-                            onFilter: onToggleFilterPanel
+                            isFilterPanelOpen: isFilterMenuOpen,
+                            onFilter: onToggleFilterMenu
                         )
                         .workbenchPageInlinePadding()
                         .padding(.bottom, 12)
-                    }
-
-                    if isRedesign,
-                       isFilterPanelVisible {
-                        filterPanel
-                            .workbenchPageInlinePadding()
-                            .padding(.bottom, WorkbenchControlMetrics.redesignSpacing3)
                     }
 
                     ZStack(alignment: .bottom) {
@@ -338,10 +467,11 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
             searchDraft: $searchDraft,
             searchResultCountText: searchResultCountText,
             isSelectionMode: isSelectionMode,
-            isFilterPanelOpen: isFilterPanelVisible,
+            isFilterMenuOpen: isFilterMenuOpen,
             canEnterSelectionMode: canEnterSelectionMode,
+            filterMenuAnchor: activeFilterMenuAnchor,
             onSubmit: onSearchSubmit,
-            onFilter: onToggleFilterPanel,
+            onFilter: onToggleFilterMenu,
             onToggleSelectionMode: onToggleSelectionMode
         )
     }
@@ -362,8 +492,12 @@ struct SchemaWorkbenchSearchToolbar: View {
     @Binding var searchDraft: String
     let searchResultCountText: String?
     var isSelectionMode: Bool = false
-    var isFilterPanelOpen: Bool = false
+    var isFilterMenuOpen: Bool = false
     var canEnterSelectionMode: Bool = false
+    /// Where the filter menu should hang: the probe behind the filter button
+    /// registers into this handle so the menu host can find the button across
+    /// hosting boundaries.
+    var filterMenuAnchor: MenuAnchorHandle?
     var onSubmit: (() -> Void)?
     var onFilter: () -> Void
     var onToggleSelectionMode: () -> Void
@@ -380,14 +514,18 @@ struct SchemaWorkbenchSearchToolbar: View {
             .frame(maxWidth: .infinity)
             .disabled(isSelectionMode)
 
-            WorkbenchToolbarButton(
-                title: L("table.filter"),
+            WorkbenchIconButton(
                 systemImage: "line.3.horizontal.decrease",
-                showsChevron: true,
                 isRedesign: true,
-                isMenuOpen: isFilterPanelOpen,
+                isMenuOpen: isFilterMenuOpen,
                 action: onFilter
             )
+            .background {
+                if let filterMenuAnchor {
+                    MenuAnchorProbe(handle: filterMenuAnchor)
+                }
+            }
+            .accessibilityLabel(L("table.filter"))
             .disabled(isSelectionMode)
 
             WorkbenchToolbarButton(
@@ -460,6 +598,22 @@ struct SchemaWorkbenchLegacySearchCommandBar: View {
             .frame(maxWidth: .infinity)
         }
         .frame(height: WorkbenchControlMetrics.searchFieldHeight)
+    }
+}
+
+/// Hosts the filter menu's SwiftUI surface in the menu hosting view, so a
+/// wheel the menu's own scrolling does not spend stops there instead of
+/// scrolling the page, and the menu's scrollbar escapes the page-wide
+/// interaction freeze that an open menu imposes.
+private struct FilterMenuSurfaceHost: NSViewRepresentable {
+    let menu: CueFacetFilterMenu
+
+    func makeNSView(context _: Context) -> MenuHostingView {
+        MenuHostingView(rootView: AnyView(menu))
+    }
+
+    func updateNSView(_ nsView: MenuHostingView, context _: Context) {
+        nsView.rootView = AnyView(menu)
     }
 }
 

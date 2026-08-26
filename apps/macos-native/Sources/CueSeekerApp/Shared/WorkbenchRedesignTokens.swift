@@ -66,6 +66,10 @@ enum WorkbenchRedesignColors {
         static let appSidebarItemSelectedBg = NSColor.controlAccentColor
         static let appSidebarItemSelectedContent = iconOnDark
         static let appTopbarBg = NSColor.dynamic(lightHex: "#FFFFFF", darkHex: "#18181B")
+        /// --color-icon-button-open-bg
+        static let iconButtonOpenBg = NSColor.controlAccentColor
+        /// --color-icon-button-open-content
+        static let iconButtonOpenContent = iconOnDark
         /// --color-keycap-bg
         static let keycapBackground = bgHover
 
@@ -168,6 +172,8 @@ enum WorkbenchRedesignColors {
     static let appSidebarItemSelectedBg = Color(nsColor: NS.appSidebarItemSelectedBg)
     static let appSidebarItemSelectedContent = Color(nsColor: NS.appSidebarItemSelectedContent)
     static let appTopbarBg = Color(nsColor: NS.appTopbarBg)
+    static let iconButtonOpenBg = Color(nsColor: NS.iconButtonOpenBg)
+    static let iconButtonOpenContent = Color(nsColor: NS.iconButtonOpenContent)
     static let keycapBackground = Color(nsColor: NS.keycapBackground)
 
     // Cover Summary

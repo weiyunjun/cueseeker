@@ -29,8 +29,8 @@ func searchStoresPersistOnlyNormalizedSingleLineQueries() {
 
 @MainActor
 @Test
-func searchFacetPanelDefaultsToVisible() {
-    #expect(WorkbenchTestSearchView.defaultFacetPanelVisibility)
+func searchFilterMenuDefaultsToClosed() {
+    #expect(!WorkbenchTestSearchView.defaultFilterMenuOpen)
 }
 
 @MainActor
@@ -43,8 +43,8 @@ func emptySearchDisplaysZeroFacetCounts() {
 
 @MainActor
 @Test
-func shioriFacetPanelDefaultsToHidden() {
-    #expect(!WorkbenchShioriTableView.defaultFacetPanelVisibility)
+func shioriFilterMenuDefaultsToClosed() {
+    #expect(!WorkbenchShioriTableView.defaultFilterMenuOpen)
 }
 
 @MainActor

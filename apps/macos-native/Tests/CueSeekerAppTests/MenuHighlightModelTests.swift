@@ -97,6 +97,44 @@ struct MenuHighlightModelTests {
     }
 
     @Test
+    func wheelScrollingClosesTheHoverGateUntilThePointerMovesAgain() {
+        let model = MenuHighlightModel()
+        defer { model.close() }
+        model.open(selectablePositions: [0, 1, 2])
+        model.notePointerMoved()
+        model.noteHover(true, at: 1)
+        #expect(model.highlightedPosition == 1)
+
+        // The wheel slides rows under a stationary pointer; the hover change
+        // that raises must not move the highlight.
+        model.noteScrolled()
+        model.noteHover(false, at: 1)
+        model.noteHover(true, at: 2)
+        #expect(model.highlightedPosition == 1)
+
+        // Real motion reopens the gate and adopts the row under the pointer.
+        model.notePointerMoved()
+        #expect(model.highlightedPosition == 2)
+    }
+
+    @Test
+    func onlyKeyboardMovesAnnounceThemselvesForScrollFollowing() {
+        let model = MenuHighlightModel()
+        defer { model.close() }
+        model.open(selectablePositions: [0, 1])
+        #expect(model.keyboardMoveCount == 0)
+
+        model.moveHighlight(by: 1)
+        #expect(model.keyboardMoveCount == 1)
+
+        // Wheel and hover movement have nothing to reveal.
+        model.noteScrolled()
+        model.notePointerMoved()
+        model.noteHover(true, at: 0)
+        #expect(model.keyboardMoveCount == 1)
+    }
+
+    @Test
     func hoverOnAnUnselectablePositionIsIgnored() {
         let model = MenuHighlightModel()
         defer { model.close() }

@@ -1,6 +1,7 @@
 import AppKit
 import Combine
 import Foundation
+import SwiftUI
 import Testing
 import CueSeekerCore
 @testable import CueSeekerApp
@@ -187,31 +188,36 @@ func searchFacetPersistenceDoesNotInvalidateGlobalSettingsObservers() {
     }
 }
 
+@MainActor
 @Test
-func facetCardGridUsesTwoThreeAndArbitraryColumnCounts() {
-    let spacing = WorkbenchControlMetrics.redesignSpacing3
-    let minimumWidth = WorkbenchControlMetrics.redesignFilterDataCardMinWidth
+func filterMenuFlattensTitleSectionsAndOptionsInOrder() {
+    var filter = CueFacetFilter()
+    let model = CueFacetFilterMenuModel(
+        distribution: nil,
+        availableLanguages: [.english, .japanese],
+        isCalculating: false,
+        filter: Binding(get: { filter }, set: { filter = $0 })
+    )
 
-    #expect(CueFacetAdaptiveGridLayout.columnCount(
-        availableWidth: minimumWidth * 2 + spacing,
-        cardCount: 7
-    ) == 2)
-    #expect(CueFacetAdaptiveGridLayout.columnCount(
-        availableWidth: minimumWidth * 3 + spacing * 2,
-        cardCount: 7
-    ) == 3)
-    #expect(CueFacetAdaptiveGridLayout.columnCount(
-        availableWidth: minimumWidth * 6 + spacing * 5,
-        cardCount: 7
-    ) == 6)
-    #expect(CueFacetAdaptiveGridLayout.columnCount(
-        availableWidth: 10_000,
-        cardCount: 7
-    ) == 7)
-    #expect(CueFacetAdaptiveGridLayout.columnCount(
-        availableWidth: 10_000,
-        cardCount: 1
-    ) == 1)
+    // The title, then four sections of divider + header + options
+    // (4 durations, 4 character ranges, 2 languages, 3 watch states).
+    #expect(model.elements.count == 22)
+    guard case .title = model.elements[0] else {
+        Issue.record("the menu must lead with its title")
+        return
+    }
+
+    // Only option rows can take the highlight; the first selectable position
+    // is Duration's <1s, which the menu highlights on open.
+    #expect(model.selectablePositions.count == 13)
+    #expect(model.selectablePositions.first == 3)
+    #expect(
+        model.option(at: 3)?.id == CueDurationFacet.underOneSecond.rawValue
+    )
+
+    // Checking through the model applies straight to the filter.
+    model.option(at: 3)?.toggle()
+    #expect(filter.durations.contains(.underOneSecond))
 }
 
 @MainActor

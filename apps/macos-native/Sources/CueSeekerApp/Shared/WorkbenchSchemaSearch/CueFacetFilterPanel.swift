@@ -1,213 +1,6 @@
 import SwiftUI
 import CueSeekerCore
 
-enum CueFacetFilterPanelMetrics {
-    static let pinnedHeight =
-        WorkbenchControlMetrics.redesignCueFacetFilterPanelPinnedHeight
-}
-
-struct CueFacetFilterPanel: View {
-    // Observed so the copy below is re-read when the language changes.
-    @EnvironmentObject private var localization: AppLocalizationStore
-    let distribution: CueFacetDistribution?
-    let availableLanguages: [SubtitleLanguageCode]
-    let isCalculating: Bool
-    let isDisabled: Bool
-    @Binding var filter: CueFacetFilter
-
-    var body: some View {
-        CueFacetAdaptiveGridLayout {
-            card(
-                title: L("facet.duration"),
-                systemImage: "clock",
-                options: CueDurationFacet.allCases.map { facet in
-                    CueFacetOption(
-                        id: facet.rawValue,
-                        title: facet.title,
-                        count: distribution?.durationCounts[facet] ?? 0,
-                        isSelected: filter.durations.contains(facet),
-                        toggle: { toggle(facet, at: \.durations) }
-                    )
-                }
-            )
-
-            card(
-                title: L("facet.character"),
-                systemImage: "textformat",
-                options: CueCharacterFacet.allCases.map { facet in
-                    CueFacetOption(
-                        id: facet.rawValue,
-                        title: facet.title,
-                        count: distribution?.characterCounts[facet] ?? 0,
-                        isSelected: filter.characters.contains(facet),
-                        toggle: { toggle(facet, at: \.characters) }
-                    )
-                }
-            )
-
-            card(
-                title: L("facet.language"),
-                systemImage: "globe",
-                options: availableLanguages.map { language in
-                    CueFacetOption(
-                        id: language.rawValue,
-                        title: language.title,
-                        count: distribution?.languageCounts[language] ?? 0,
-                        isSelected: filter.languages.contains(language),
-                        toggle: { toggle(language, at: \.languages) }
-                    )
-                }
-            )
-
-            card(
-                title: L("facet.watch_status"),
-                systemImage: "eye",
-                options: LibraryWatchState.facetCases.map { state in
-                    CueFacetOption(
-                        id: state.rawValue,
-                        title: state.title,
-                        count: distribution?.watchStateCounts[state] ?? 0,
-                        isSelected: filter.watchStates.contains(state),
-                        toggle: { toggle(state, at: \.watchStates) }
-                    )
-                }
-            )
-        }
-    }
-
-    private func card(
-        title: String,
-        systemImage: String,
-        options: [CueFacetOption]
-    ) -> some View {
-        CueFacetCard(
-            title: title,
-            systemImage: systemImage,
-            options: options,
-            isCalculating: isCalculating,
-            isDisabled: isDisabled
-        )
-    }
-
-    private func toggle<Value: Hashable>(
-        _ value: Value,
-        at keyPath: WritableKeyPath<CueFacetFilter, Set<Value>>
-    ) {
-        var nextFilter = filter
-        var selection = nextFilter[keyPath: keyPath]
-        if selection.contains(value) {
-            selection.remove(value)
-        } else {
-            selection.insert(value)
-        }
-        nextFilter[keyPath: keyPath] = selection
-        filter = nextFilter
-    }
-}
-
-struct CueFacetAdaptiveGridLayout: Layout {
-    private let spacing = WorkbenchControlMetrics.redesignSpacing3
-    private let minimumCardWidth = WorkbenchControlMetrics.redesignFilterDataCardMinWidth
-
-    static func columnCount(availableWidth: CGFloat, cardCount: Int) -> Int {
-        guard cardCount > 0 else { return 0 }
-        guard availableWidth.isFinite else { return cardCount }
-        let spacing = WorkbenchControlMetrics.redesignSpacing3
-        let minimumWidth = WorkbenchControlMetrics.redesignFilterDataCardMinWidth
-        let fittingCount = max(
-            1,
-            Int((max(0, availableWidth) + spacing) / (minimumWidth + spacing))
-        )
-        return min(cardCount, max(min(2, cardCount), fittingCount))
-    }
-
-    func sizeThatFits(
-        proposal: ProposedViewSize,
-        subviews: Subviews,
-        cache: inout ()
-    ) -> CGSize {
-        guard !subviews.isEmpty else { return .zero }
-        let availableWidth = proposal.width ?? minimumFallbackWidth(cardCount: subviews.count)
-        let columns = Self.columnCount(
-            availableWidth: availableWidth,
-            cardCount: subviews.count
-        )
-        let measurements = rowMeasurements(
-            subviews: subviews,
-            availableWidth: availableWidth,
-            columns: columns
-        )
-        return CGSize(
-            width: availableWidth,
-            height: measurements.rowHeights.reduce(0, +)
-                + CGFloat(max(0, measurements.rowHeights.count - 1)) * spacing
-        )
-    }
-
-    func placeSubviews(
-        in bounds: CGRect,
-        proposal: ProposedViewSize,
-        subviews: Subviews,
-        cache: inout ()
-    ) {
-        guard !subviews.isEmpty else { return }
-        let columns = Self.columnCount(
-            availableWidth: bounds.width,
-            cardCount: subviews.count
-        )
-        let measurements = rowMeasurements(
-            subviews: subviews,
-            availableWidth: bounds.width,
-            columns: columns
-        )
-        var rowOriginY = bounds.minY
-        for index in subviews.indices {
-            let row = index / columns
-            let column = index % columns
-            if column == 0, row > 0 {
-                rowOriginY += measurements.rowHeights[row - 1] + spacing
-            }
-            subviews[index].place(
-                at: CGPoint(
-                    x: bounds.minX + CGFloat(column) * (measurements.cardWidth + spacing),
-                    y: rowOriginY
-                ),
-                anchor: .topLeading,
-                proposal: ProposedViewSize(
-                    width: measurements.cardWidth,
-                    height: measurements.rowHeights[row]
-                )
-            )
-        }
-    }
-
-    private func minimumFallbackWidth(cardCount: Int) -> CGFloat {
-        let columns = min(2, cardCount)
-        return CGFloat(columns) * minimumCardWidth + CGFloat(max(0, columns - 1)) * spacing
-    }
-
-    private func rowMeasurements(
-        subviews: Subviews,
-        availableWidth: CGFloat,
-        columns: Int
-    ) -> (cardWidth: CGFloat, rowHeights: [CGFloat]) {
-        let cardWidth = (
-            availableWidth - CGFloat(max(0, columns - 1)) * spacing
-        ) / CGFloat(columns)
-        var rowHeights = Array(
-            repeating: CGFloat.zero,
-            count: (subviews.count + columns - 1) / columns
-        )
-        for index in subviews.indices {
-            let size = subviews[index].sizeThatFits(
-                ProposedViewSize(width: cardWidth, height: nil)
-            )
-            rowHeights[index / columns] = max(rowHeights[index / columns], size.height)
-        }
-        return (cardWidth, rowHeights)
-    }
-}
-
 struct CueFacetOption: Identifiable {
     let id: String
     let title: String
@@ -216,23 +9,207 @@ struct CueFacetOption: Identifiable {
     let toggle: () -> Void
 }
 
-struct CueFacetCard: View {
-    let title: String
-    let systemImage: String
-    let options: [CueFacetOption]
+/// What the filter menu shows, flattened into render order: the title, then
+/// each facet group as a divider, a header and its option rows. The flat
+/// positions are what the keyboard highlight indexes, and only option rows
+/// appear among the selectable ones.
+enum CueFacetFilterMenuElement {
+    case title(String)
+    case divider
+    case sectionHeader(title: String, systemImage: String)
+    case option(CueFacetOption)
+}
+
+struct CueFacetFilterMenuModel {
+    let elements: [CueFacetFilterMenuElement]
+    let selectablePositions: [Int]
     let isCalculating: Bool
-    let isDisabled: Bool
+    /// Changes whenever something that affects the menu's measured size
+    /// changes — texts, counts, the calculating placeholder — so the menu is
+    /// re-measured outside of view updates exactly when it needs to be.
+    let contentHash: Int
+
+    init(
+        distribution: CueFacetDistribution?,
+        availableLanguages: [SubtitleLanguageCode],
+        isCalculating: Bool,
+        filter: Binding<CueFacetFilter>
+    ) {
+        var elements: [CueFacetFilterMenuElement] = [.title(L("table.filter"))]
+        Self.appendSection(
+            to: &elements,
+            title: L("facet.duration"),
+            systemImage: "clock",
+            options: CueDurationFacet.allCases.map { facet in
+                CueFacetOption(
+                    id: facet.rawValue,
+                    title: facet.title,
+                    count: distribution?.durationCounts[facet] ?? 0,
+                    isSelected: filter.wrappedValue.durations.contains(facet),
+                    toggle: { Self.toggle(facet, at: \.durations, in: filter) }
+                )
+            }
+        )
+        Self.appendSection(
+            to: &elements,
+            title: L("facet.character"),
+            systemImage: "textformat",
+            options: CueCharacterFacet.allCases.map { facet in
+                CueFacetOption(
+                    id: facet.rawValue,
+                    title: facet.title,
+                    count: distribution?.characterCounts[facet] ?? 0,
+                    isSelected: filter.wrappedValue.characters.contains(facet),
+                    toggle: { Self.toggle(facet, at: \.characters, in: filter) }
+                )
+            }
+        )
+        Self.appendSection(
+            to: &elements,
+            title: L("facet.language"),
+            systemImage: "globe",
+            options: availableLanguages.map { language in
+                CueFacetOption(
+                    id: language.rawValue,
+                    title: language.title,
+                    count: distribution?.languageCounts[language] ?? 0,
+                    isSelected: filter.wrappedValue.languages.contains(language),
+                    toggle: { Self.toggle(language, at: \.languages, in: filter) }
+                )
+            }
+        )
+        Self.appendSection(
+            to: &elements,
+            title: L("facet.watch_status"),
+            systemImage: "eye",
+            options: LibraryWatchState.facetCases.map { state in
+                CueFacetOption(
+                    id: state.rawValue,
+                    title: state.title,
+                    count: distribution?.watchStateCounts[state] ?? 0,
+                    isSelected: filter.wrappedValue.watchStates.contains(state),
+                    toggle: { Self.toggle(state, at: \.watchStates, in: filter) }
+                )
+            }
+        )
+        self.elements = elements
+        self.selectablePositions = elements.indices.filter {
+            if case .option = elements[$0] {
+                return true
+            }
+            return false
+        }
+        self.isCalculating = isCalculating
+        var hasher = Hasher()
+        hasher.combine(isCalculating)
+        for element in elements {
+            switch element {
+            case .title(let title):
+                hasher.combine(title)
+            case .divider:
+                hasher.combine(0)
+            case .sectionHeader(let title, let systemImage):
+                hasher.combine(title)
+                hasher.combine(systemImage)
+            case .option(let option):
+                hasher.combine(option.title)
+                hasher.combine(option.count)
+            }
+        }
+        self.contentHash = hasher.finalize()
+    }
+
+    func option(at position: Int) -> CueFacetOption? {
+        guard elements.indices.contains(position),
+              case .option(let option) = elements[position]
+        else {
+            return nil
+        }
+        return option
+    }
+
+    private static func appendSection(
+        to elements: inout [CueFacetFilterMenuElement],
+        title: String,
+        systemImage: String,
+        options: [CueFacetOption]
+    ) {
+        elements.append(.divider)
+        elements.append(.sectionHeader(title: title, systemImage: systemImage))
+        elements.append(contentsOf: options.map { .option($0) })
+    }
+
+    private static func toggle<Value: Hashable>(
+        _ value: Value,
+        at keyPath: WritableKeyPath<CueFacetFilter, Set<Value>>,
+        in filter: Binding<CueFacetFilter>
+    ) {
+        var nextFilter = filter.wrappedValue
+        var selection = nextFilter[keyPath: keyPath]
+        if selection.contains(value) {
+            selection.remove(value)
+        } else {
+            selection.insert(value)
+        }
+        nextFilter[keyPath: keyPath] = selection
+        filter.wrappedValue = nextFilter
+    }
+}
+
+/// The filter menu surface. Checking an option applies it right away and the
+/// menu stays open; the counts and the calculating placeholder keep updating
+/// in place. Taller content than the menu cap scrolls inside the panel.
+struct CueFacetFilterMenu: View {
+    let model: CueFacetFilterMenuModel
+    @ObservedObject var highlight: MenuHighlightModel
 
     var body: some View {
-        VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing2) {
+        ScrollViewReader { proxy in
+            WorkbenchPopoverPanel(isRedesign: true) {
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(model.elements.indices, id: \.self) { position in
+                        elementView(model.elements[position], at: position)
+                    }
+                }
+            }
+            .fixedSize(horizontal: true, vertical: false)
+            .onChange(of: highlight.keyboardMoveCount) { _ in
+                guard let position = highlight.highlightedPosition else {
+                    return
+                }
+                proxy.scrollTo(position)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func elementView(
+        _ element: CueFacetFilterMenuElement,
+        at position: Int
+    ) -> some View {
+        switch element {
+        case .title(let title):
+            Text(title)
+                .font(.system(
+                    size: WorkbenchControlMetrics.redesignFontSizeControl,
+                    weight: .semibold
+                ))
+                .foregroundStyle(WorkbenchRedesignColors.textPrimary)
+                .fixedSize(horizontal: true, vertical: false)
+                .padding(
+                    .horizontal,
+                    WorkbenchControlMetrics.redesignMenuItemHorizontalPadding
+                )
+                .frame(height: WorkbenchControlMetrics.redesignHeight)
+
+        case .divider:
+            Divider()
+
+        case .sectionHeader(let title, let systemImage):
             HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
                 Image(systemName: systemImage)
                     .font(.system(size: WorkbenchControlMetrics.redesignCheckboxSize))
-                    .foregroundStyle(
-                        isDisabled
-                            ? WorkbenchRedesignColors.iconDisabled
-                            : WorkbenchRedesignColors.textSecondary
-                    )
+                    .foregroundStyle(WorkbenchRedesignColors.textSecondary)
                     .frame(
                         width: WorkbenchControlMetrics.redesignCheckboxSize,
                         height: WorkbenchControlMetrics.redesignCheckboxSize
@@ -243,74 +220,84 @@ struct CueFacetCard: View {
                         size: WorkbenchControlMetrics.redesignFontSizeControl,
                         weight: .semibold
                     ))
-                    .foregroundStyle(
-                        isDisabled
-                            ? WorkbenchRedesignColors.textDisabled
-                            : WorkbenchRedesignColors.textSecondary
-                    )
+                    .foregroundStyle(WorkbenchRedesignColors.textSecondary)
+                    .fixedSize(horizontal: true, vertical: false)
             }
-            .padding(.bottom, WorkbenchControlMetrics.redesignSpacing1)
-
-            ForEach(options) { option in
-                Button {
-                    guard !isCalculating, !isDisabled else { return }
-                    option.toggle()
-                } label: {
-                    HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
-                        WorkbenchCheckboxGlyph(
-                            state: option.isSelected ? .checked : .unchecked,
-                            isEnabled: !isDisabled,
-                            size: WorkbenchControlMetrics.redesignCheckboxSize
-                        )
-
-                        Text(option.title)
-                            .font(.system(size: WorkbenchControlMetrics.redesignFontSizeBody))
-                            .foregroundStyle(
-                                isDisabled
-                                    ? WorkbenchRedesignColors.textDisabled
-                                    : WorkbenchRedesignColors.textMuted
-                            )
-                            .lineLimit(1)
-
-                        Spacer(minLength: WorkbenchControlMetrics.redesignSpacing2)
-
-                        Text(isCalculating ? L("facet.calculating") : String(option.count))
-                            .font(.system(size: WorkbenchControlMetrics.redesignFontSizeCaption))
-                            .foregroundStyle(
-                                isDisabled
-                                    ? WorkbenchRedesignColors.textDisabled
-                                    : WorkbenchRedesignColors.textMuted
-                            )
-                            .lineLimit(1)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(StaticButtonStyle())
-                .allowsHitTesting(!isCalculating)
-                .disabled(isDisabled)
-                .accessibilityLabel("\(title), \(option.title)")
-                .accessibilityValue(
-                    isCalculating
-                        ? L("facet.calculating")
-                        : "\(option.count), \(option.isSelected ? L("facet.selected") : L("facet.not_selected"))"
-                )
-            }
-        }
-        .padding(WorkbenchControlMetrics.redesignSpacing3)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(WorkbenchRedesignColors.bgSurface)
-        .overlay {
-            RoundedRectangle(
-                cornerRadius: WorkbenchControlMetrics.redesignCornerRadius,
-                style: .continuous
+            .padding(
+                .horizontal,
+                WorkbenchControlMetrics.redesignMenuItemHorizontalPadding
             )
-            .strokeBorder(WorkbenchRedesignColors.borderControl, lineWidth: 1)
+            .frame(height: WorkbenchControlMetrics.redesignHeight)
+
+        case .option(let option):
+            optionRow(option, at: position)
         }
-        .clipShape(RoundedRectangle(
-            cornerRadius: WorkbenchControlMetrics.redesignCornerRadius,
-            style: .continuous
-        ))
+    }
+
+    private func optionRow(
+        _ option: CueFacetOption,
+        at position: Int
+    ) -> some View {
+        Button {
+            guard !model.isCalculating else { return }
+            option.toggle()
+        } label: {
+            HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
+                WorkbenchCheckboxGlyph(
+                    state: option.isSelected ? .checked : .unchecked,
+                    isEnabled: true,
+                    size: WorkbenchControlMetrics.redesignCheckboxSize
+                )
+
+                Text(option.title)
+                    .font(.system(size: WorkbenchControlMetrics.redesignFontSizeBody))
+                    .foregroundStyle(WorkbenchRedesignColors.textPrimary)
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
+
+                Spacer(minLength: WorkbenchControlMetrics.redesignSpacing2)
+
+                Text(
+                    model.isCalculating
+                        ? L("facet.calculating")
+                        : String(option.count)
+                )
+                .font(.system(size: WorkbenchControlMetrics.redesignFontSizeCaption))
+                .foregroundStyle(WorkbenchRedesignColors.textMuted)
+                .lineLimit(1)
+            }
+            .padding(
+                .horizontal,
+                WorkbenchControlMetrics.redesignMenuItemHorizontalPadding
+            )
+            .frame(height: WorkbenchControlMetrics.redesignHeight)
+            .background(
+                RoundedRectangle(
+                    cornerRadius: WorkbenchControlMetrics.redesignCornerRadius,
+                    style: .continuous
+                )
+                .fill(
+                    highlight.highlightedPosition == position
+                        ? WorkbenchRedesignColors.bgHover
+                        : Color.clear
+                )
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(StaticButtonStyle())
+        .id(position)
+        // Menu rows read the pointer directly: the layer freeze applies to
+        // everything under the menu, not to the menu itself, and the highlight
+        // model decides whether the hover may move the highlight.
+        .onHover { isHovered in
+            highlight.noteHover(isHovered, at: position)
+        }
+        .accessibilityLabel(option.title)
+        .accessibilityValue(
+            model.isCalculating
+                ? L("facet.calculating")
+                : "\(option.count), \(option.isSelected ? L("facet.selected") : L("facet.not_selected"))"
+        )
     }
 }
 

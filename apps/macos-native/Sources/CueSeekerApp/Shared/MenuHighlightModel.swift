@@ -15,6 +15,10 @@ import SwiftUI
 @MainActor
 final class MenuHighlightModel: ObservableObject {
     @Published private(set) var highlightedPosition: Int?
+    /// Bumped by every keyboard move, so a scrolling menu can bring the new
+    /// highlight into view. Wheel and scrollbar movement never bump it: they
+    /// must not move the highlight, so they have nothing to reveal.
+    @Published private(set) var keyboardMoveCount = 0
 
     private(set) var selectablePositions: [Int] = []
     private(set) var adoptsHover = false
@@ -61,7 +65,16 @@ final class MenuHighlightModel: ObservableObject {
             selectablePositions.count - 1
         )
         highlightedPosition = selectablePositions[target]
+        keyboardMoveCount += 1
         return true
+    }
+
+    /// Scrolling slides rows under a stationary pointer, and the hover events
+    /// that raises must not move the highlight. The wheel therefore closes the
+    /// hover gate the same way a keyboard move does; real pointer motion
+    /// reopens it.
+    func noteScrolled() {
+        adoptsHover = false
     }
 
     /// Records where the pointer is. The hovered position is remembered even
@@ -96,12 +109,20 @@ final class MenuHighlightModel: ObservableObject {
             return
         }
         // The main window accepts mouse-moved events, so a local monitor sees
-        // real pointer motion over every surface that can host a menu.
+        // real pointer motion over every surface that can host a menu. The
+        // wheel is watched too, because it moves rows rather than the pointer.
         pointerMonitor = NSEvent.addLocalMonitorForEvents(
-            matching: [.mouseMoved, .leftMouseDragged, .rightMouseDragged]
+            matching: [
+                .mouseMoved, .leftMouseDragged, .rightMouseDragged,
+                .scrollWheel,
+            ]
         ) { [weak self] event in
             MainActor.assumeIsolated {
-                self?.notePointerMoved()
+                if event.type == .scrollWheel {
+                    self?.noteScrolled()
+                } else {
+                    self?.notePointerMoved()
+                }
             }
             return event
         }

@@ -10,7 +10,8 @@ private struct WorkbenchShioriTableTextCopySource {
 }
 
 struct WorkbenchShioriTableView: View {
-    static let defaultFacetPanelVisibility = false
+    /// The filter menu starts closed on every entry to the page.
+    static let defaultFilterMenuOpen = false
     // Observed so the copy below is re-read when the language changes.
     @EnvironmentObject private var localization: AppLocalizationStore
 
@@ -45,9 +46,12 @@ private struct WorkbenchShioriTableContent: View {
     @State private var isSelectionMode = false
     @State private var pendingRemoval: Shiori?
     @State private var hasDeferredReloadWhileCovered = false
-    @State private var isFacetPanelVisible =
-        WorkbenchShioriTableView.defaultFacetPanelVisibility
+    @State private var isFilterMenuOpen =
+        WorkbenchShioriTableView.defaultFilterMenuOpen
     @State private var shioriFacetFilter = CueFacetFilter()
+    /// The filter button lives in the table's pinned chrome, a separate
+    /// hosting hierarchy; this handle is how the shell's menu host finds it.
+    @State private var filterMenuAnchor = MenuAnchorHandle()
 
     var body: some View {
         let _ = UIInvalidationProbe.count(
@@ -67,24 +71,20 @@ private struct WorkbenchShioriTableContent: View {
             isSelectionMode: isSelectionMode,
             canEnterSelectionMode: canEnterSelectionMode,
             onToggleSelectionMode: toggleSelectionMode,
-            filterPanel: AnyView(
-                CueFacetFilterPanel(
-                    distribution:
-                        shioriStore.tableFacetDistribution
-                            ?? shioriStore.residentFacetSnapshot?.distribution,
-                    availableLanguages: availableFacetLanguages,
-                    isCalculating: shioriStore.residentFacetSnapshot == nil,
-                    isDisabled: isSelectionMode,
-                    filter: shioriFacetFilterBinding
-                )
+            filterMenu: CueFacetFilterMenuModel(
+                distribution:
+                    shioriStore.tableFacetDistribution
+                        ?? shioriStore.residentFacetSnapshot?.distribution,
+                availableLanguages: availableFacetLanguages,
+                isCalculating: shioriStore.residentFacetSnapshot == nil,
+                filter: shioriFacetFilterBinding
             ),
-            isFilterPanelVisible: isFacetPanelVisible,
-            onToggleFilterPanel: {
-                if !isFacetPanelVisible {
-                    restoreShioriFacetFilter()
-                }
-                isFacetPanelVisible.toggle()
-            }
+            isFilterMenuOpen: isFilterMenuOpen,
+            onToggleFilterMenu: toggleFilterMenu,
+            onDismissFilterMenu: {
+                isFilterMenuOpen = false
+            },
+            externalFilterMenuAnchor: filterMenuAnchor
         ) { tableColumns in
             ZStack {
                 SubtitleTableView(
@@ -175,6 +175,8 @@ private struct WorkbenchShioriTableContent: View {
             tableScrollTargetRow = nil
             didRestoreViewport = true
             tableScrollResetToken += 1
+            // Another list is another interface for the menu: it closes.
+            isFilterMenuOpen = false
             restoreShioriFacetFilter()
         }
         .onChange(of: canEnterSelectionMode) { canEnter in
@@ -185,6 +187,8 @@ private struct WorkbenchShioriTableContent: View {
         .onChange(of: isTableResponseActive) { isActive in
             if !isActive {
                 exitSelectionMode()
+                // The menu belongs to this page: switching away closes it.
+                isFilterMenuOpen = false
             }
             shioriStore.setTableProjectionResponseActive(isActive)
             if isActive {
@@ -193,6 +197,7 @@ private struct WorkbenchShioriTableContent: View {
         }
         .onDisappear {
             exitSelectionMode()
+            isFilterMenuOpen = false
             shioriStore.setTableProjectionResponseActive(false)
             persistSelection()
             shioriStore.tableViewportAnchor = nil
@@ -247,31 +252,13 @@ private struct WorkbenchShioriTableContent: View {
                     searchDraft: searchInputBinding,
                     searchResultCountText: exactSearchResultCountText,
                     isSelectionMode: isSelectionMode,
-                    isFilterPanelOpen: isFacetPanelVisible,
+                    isFilterMenuOpen: isFilterMenuOpen,
                     canEnterSelectionMode: canEnterSelectionMode,
-                    onFilter: {
-                        if !isFacetPanelVisible {
-                            restoreShioriFacetFilter()
-                        }
-                        isFacetPanelVisible.toggle()
-                    },
+                    filterMenuAnchor: filterMenuAnchor,
+                    onFilter: toggleFilterMenu,
                     onToggleSelectionMode: toggleSelectionMode
                 )
                 .padding(.bottom, WorkbenchControlMetrics.redesignSpacing3)
-
-                if isFacetPanelVisible {
-                    CueFacetFilterPanel(
-                        distribution:
-                            shioriStore.tableFacetDistribution
-                                ?? shioriStore.residentFacetSnapshot?.distribution,
-                        availableLanguages: availableFacetLanguages,
-                        isCalculating: shioriStore.residentFacetSnapshot == nil,
-                        isDisabled: isSelectionMode,
-                        filter: shioriFacetFilterBinding
-                    )
-                    .frame(height: CueFacetFilterPanelMetrics.pinnedHeight)
-                    .padding(.bottom, WorkbenchControlMetrics.redesignSpacing3)
-                }
             }
             .background(WorkbenchRedesignColors.bgSurface)
         )
@@ -296,11 +283,7 @@ private struct WorkbenchShioriTableContent: View {
             },
             pinnedHeaderHeight:
                 WorkbenchControlMetrics.redesignHeight
-                + WorkbenchControlMetrics.redesignSpacing3
-                + (isFacetPanelVisible
-                    ? CueFacetFilterPanelMetrics.pinnedHeight
-                        + WorkbenchControlMetrics.redesignSpacing3
-                    : 0),
+                + WorkbenchControlMetrics.redesignSpacing3,
             leadingInset:
                 WorkbenchControlMetrics.redesignWorkbenchPageHorizontalPadding,
             trailingInset:
@@ -467,6 +450,13 @@ private struct WorkbenchShioriTableContent: View {
         didRestoreViewport = true
         tableScrollResetToken += 1
         appState.updateShioriSearchQuery(searchText)
+    }
+
+    private func toggleFilterMenu() {
+        if !isFilterMenuOpen {
+            restoreShioriFacetFilter()
+        }
+        isFilterMenuOpen.toggle()
     }
 
     private func restoreShioriFacetFilter() {

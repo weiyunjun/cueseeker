@@ -48,8 +48,6 @@ enum WorkbenchControlMetrics {
     static let redesignControlIconSize: CGFloat = 16
     /// --size-checkbox: 16px
     static let redesignCheckboxSize: CGFloat = 16
-    /// --min-width-filter-data-card: 200px
-    static let redesignFilterDataCardMinWidth: CGFloat = 200
     /// --size-select-indicator: 12pt
     static let redesignSelectIndicatorSymbolFontSizeMacOS: CGFloat = 12
     /// --weight-select-indicator: semibold
@@ -66,6 +64,8 @@ enum WorkbenchControlMetrics {
     static let redesignInlineAddSymbolFontSizeMacOS: CGFloat = 16
     /// --size-menu-item-symbol-font-size-macos: 14pt
     static let redesignMenuItemSymbolFontSizeMacOS: CGFloat = 14
+    /// --padding-menu-item: 12px 16px (horizontal component)
+    static let redesignMenuItemHorizontalPadding: CGFloat = 16
     /// --size-icon-button: 32px
     static let redesignIconButtonSize: CGFloat = 32
     /// --height-table-header: 40px
@@ -291,8 +291,6 @@ enum WorkbenchControlMetrics {
     static let redesignFontWeightCoverSummaryTitle: Font.Weight = .bold
     /// --gap-cover-summary-to-toolbar: 24px
     static let redesignCoverSummaryToolbarGap: CGFloat = 24
-    /// --height-cue-facet-filter-panel-pinned: 244px
-    static let redesignCueFacetFilterPanelPinnedHeight: CGFloat = 244
     /// Shared top padding for Workbench details led by Cover Summary.
     static let redesignCoverSummaryDetailTopPadding = redesignSpacing1
     /// Shared inline padding for Workbench pages with an explicit page title.
@@ -1014,6 +1012,9 @@ struct WorkbenchPopoverRow: View {
 struct WorkbenchIconButton: View {
     let systemImage: String
     var isRedesign: Bool = false
+    /// The button a menu hangs off keeps this look for as long as the menu is
+    /// open: accent background, white glyph, no hover response.
+    var isMenuOpen: Bool = false
     var action: (() -> Void)? = nil
 
     @FocusState private var isFocused: Bool
@@ -1042,7 +1043,7 @@ struct WorkbenchIconButton: View {
     private var label: some View {
         Image(systemName: systemImage)
             .font(.system(size: isRedesign ? WorkbenchControlMetrics.redesignControlIconSize : WorkbenchControlMetrics.iconSize, weight: isRedesign ? .semibold : .medium))
-            .foregroundStyle(isRedesign ? (isEnabled ? WorkbenchRedesignColors.iconDefault : WorkbenchRedesignColors.iconDisabled) : WorkbenchControlColors.primaryText)
+            .foregroundStyle(isRedesign ? redesignIconColor : WorkbenchControlColors.primaryText)
             .frame(
                 width: isRedesign ? WorkbenchControlMetrics.redesignIconButtonSize : WorkbenchControlMetrics.controlHeight,
                 height: isRedesign ? WorkbenchControlMetrics.redesignIconButtonSize : WorkbenchControlMetrics.controlHeight
@@ -1051,7 +1052,7 @@ struct WorkbenchIconButton: View {
                 Group {
                     if isRedesign {
                         RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignCornerRadius, style: .continuous)
-                            .fill(isEnabled && isHovered ? WorkbenchRedesignColors.bgHover : Color.clear)
+                            .fill(redesignBackgroundColor)
                     } else {
                         Color.clear
                     }
@@ -1067,6 +1068,22 @@ struct WorkbenchIconButton: View {
                 }
             )
             .contentShape(Rectangle())
+    }
+
+    private var redesignIconColor: Color {
+        guard isEnabled else { return WorkbenchRedesignColors.iconDisabled }
+        return isMenuOpen
+            ? WorkbenchRedesignColors.iconButtonOpenContent
+            : WorkbenchRedesignColors.iconDefault
+    }
+
+    private var redesignBackgroundColor: Color {
+        if isMenuOpen {
+            return WorkbenchRedesignColors.iconButtonOpenBg
+        }
+        return isEnabled && isHovered
+            ? WorkbenchRedesignColors.bgHover
+            : Color.clear
     }
 }
 
