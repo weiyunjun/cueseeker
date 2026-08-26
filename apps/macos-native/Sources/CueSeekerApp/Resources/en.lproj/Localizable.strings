@@ -67,8 +67,6 @@
 "table.column.date_added" = "Date Added";
 "table.column.name" = "Name";
 "table.column.language" = "Language";
-"table.row.play" = "Play";
-"table.row.copy" = "Copy";
 "table.state.content_changed" = "Content Changed";
 "table.state.unavailable" = "Unavailable";
 "table.state.changed_after_reindex" = "This cue changed after reindexing.";

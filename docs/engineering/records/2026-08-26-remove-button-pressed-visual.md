@@ -133,3 +133,60 @@ Cards could not be measured the same way. This machine's library is empty, so
 there is no card to hold, and card hover cannot be synthesized in the first
 place. That half stays the owner's manual check, as the requirement's acceptance
 already assumes.
+
+## Follow-up: the row buttons that could not be seen
+
+The owner extended the requirement to delete the pre-redesign row Play/Copy
+pair rather than leave it in place. It was worth deleting for a reason beyond
+tidiness: it was not inert. The coordinator still built its hosting view at
+init, still kept it as a subview of the document, and a layout function was
+still being called from twelve places across the table — on data updates, on
+enablement changes, on scrolls, on hover changes, on menu open and menu close —
+each call reaching a function whose first act was to hide the thing and return.
+Every one of those call sites read as if the table maintained something it had
+not maintained since the redesign.
+
+That is also why the deletion is larger than the two type names suggest. The
+view, its hosting property, the branch that created it, the layout function and
+all twelve calls go together; leaving any of them would leave the same
+misleading trail.
+
+Two of the calls sat in branches that existed only for them. The scroll handler
+chose between repositioning an open menu and laying the buttons out, and the
+scrollbar-drag handler had an else that did nothing else; both collapse to the
+work that remains. A comment at menu close explaining that the hover stays where
+the menu left it went with the call it was attached to — the rule it states
+lives in `docs/human/design/UI Application Rules.md`, and there is no longer a
+statement here for it to explain.
+
+The removal orphaned the `table.row.play` and `table.row.copy` strings, which
+had no other consumer; they are gone from all three localizations.
+
+The same pass emptied `HoverEffectModifier.swift` of everything except
+`StaticButtonStyle`: `ToolbarButtonStyle` had exactly one caller, the deleted
+row buttons, and `HoverBackgroundModifier` with its `hoverBackground` helper had
+none at all. By owner decision the file keeps its name; renaming or moving the
+one surviving style is not part of this requirement.
+
+Files:
+
+- `apps/macos-native/Sources/CueSeekerApp/TableSandbox/SubtitleTableView.swift`
+  - `CueHoverButtons`, the `buttonsHost` property, its creation branch,
+    `layoutHoverButtons` and its twelve call sites.
+- `apps/macos-native/Sources/CueSeekerApp/Shared/HoverEffectModifier.swift`
+  - Only `StaticButtonStyle` remains.
+- `apps/macos-native/Sources/CueSeekerApp/Resources/*.lproj/Localizable.strings`
+  - `table.row.play` and `table.row.copy` removed.
+
+### Verification
+
+`swift build`: clean. `swift test`: 1098 tests, the same failing set as the
+stashed baseline plus three names that pass on their own — the suite parallelism
+flake, unchanged in character from the earlier runs.
+
+Nothing was expected to move on screen and nothing did: every deleted call
+reached a function that returned before doing anything, because `isRedesign` is
+true at every call site. The Workbench Search page was captured after the
+deletion and renders as before; the pixel differences against the earlier
+capture are the Shiori group left expanded and the search field left unfocused
+by this session's own navigation, not the change.

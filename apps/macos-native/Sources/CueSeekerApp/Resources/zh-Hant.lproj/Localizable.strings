@@ -67,8 +67,6 @@
 "table.column.date_added" = "加入日期";
 "table.column.name" = "名稱";
 "table.column.language" = "語言";
-"table.row.play" = "播放";
-"table.row.copy" = "拷貝";
 "table.state.content_changed" = "內容已變更";
 "table.state.unavailable" = "無法使用";
 "table.state.changed_after_reindex" = "此台詞在重新索引後已變更。";

@@ -744,48 +744,6 @@ private struct SubtitleTableTextFragmentLayout {
     let logicalUTF16Range: NSRange
 }
 
-// MARK: - Hover Play/Copy buttons
-
-private struct CueHoverButtons: View {
-    var isEnabled: Bool = true
-    var onPlay: () -> Void
-    var onCopy: () -> Void
-
-    @State private var isHovered = false
-
-    var body: some View {
-        HStack(spacing: 2) {
-            button(title: L("table.row.play"), systemImage: "play.fill", action: onPlay)
-            button(title: L("table.row.copy"), systemImage: "doc.on.doc", action: onCopy)
-        }
-        .padding(.horizontal, 4)
-        .padding(.vertical, 2)
-        .background(Color(nsColor: .textBackgroundColor))
-        .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 7, style: .continuous)
-                .stroke(Color(nsColor: .separatorColor), lineWidth: 0.5)
-        )
-        .onPointerHover { inside in
-            isHovered = inside
-        }
-    }
-
-    private func button(title: String, systemImage: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            HStack(spacing: 4) {
-                Image(systemName: systemImage)
-                Text(title)
-            }
-            .font(.system(size: 11, weight: .medium))
-            .padding(.horizontal, 6)
-            .padding(.vertical, 3)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(ToolbarButtonStyle())
-    }
-}
-
 enum SubtitleTableRowActionMenuStyle {
     case search
     case shiori
@@ -2625,7 +2583,6 @@ struct SubtitleTableView: NSViewRepresentable {
                 updateHoveredCueTextRow(nil)
                 updateHoveredCueStateRow(nil)
                 invalidateDocumentCursorRects()
-                layoutHoverButtons()
                 headerView?.refreshHeaderHosts()
                 headerView?.needsDisplay = true
                 invalidateVisibleDocument()
@@ -2643,7 +2600,6 @@ struct SubtitleTableView: NSViewRepresentable {
                     updateHoveredCueStateRow(nil)
                 }
                 invalidateDocumentCursorRects()
-                layoutHoverButtons()
                 headerView?.refreshHeaderHosts()
             }
         }
@@ -2667,7 +2623,6 @@ struct SubtitleTableView: NSViewRepresentable {
         private var pageChrome: SubtitleTablePageChrome?
         private var scrollablePageChromeHost: SubtitleTablePageChromeHostingView?
         private var pinnedPageChromeHost: SubtitleTablePageChromeHostingView?
-        private var buttonsHost: NSHostingView<CueHoverButtons>?
         fileprivate var isMenuOpen = false
         private var menuHost: MenuHostingView?
         private var submenuHost: MenuHostingView?
@@ -2916,18 +2871,6 @@ struct SubtitleTableView: NSViewRepresentable {
             bindPageScrollbar(pageScrollbar)
             configureScrollbars()
             updatePageChromeHosts()
-
-            if !isRedesign {
-                let buttonsHost = NSHostingView(rootView: CueHoverButtons(
-                    isEnabled: isEnabled,
-                    onPlay: {},
-                    onCopy: {}
-                ))
-                buttonsHost.isHidden = true
-                buttonsHost.translatesAutoresizingMaskIntoConstraints = true
-                documentView.addSubview(buttonsHost)
-                self.buttonsHost = buttonsHost
-            }
 
             container.onLayout = { [weak self] in
                 self?.resizeDocument()
@@ -3339,7 +3282,6 @@ struct SubtitleTableView: NSViewRepresentable {
             if showCueGroupChanged {
                 invalidateVisibleDocument()
                 invalidateDocumentCursorRects()
-                layoutHoverButtons()
                 if isMenuOpen {
                     dismissMenu()
                 }
@@ -3356,7 +3298,6 @@ struct SubtitleTableView: NSViewRepresentable {
             invalidateRows(for: effectiveRowsUpdate, rowsChanged: rowsChanged)
             if needsDocumentResize || columnVisibilityChanged || headerTitleChanged || shouldResetScroll || selectionModeChanged {
                 invalidateDocumentCursorRects()
-                layoutHoverButtons()
             }
         }
 
@@ -4328,9 +4269,6 @@ struct SubtitleTableView: NSViewRepresentable {
             invalidateDocumentCursorRects()
             if isMenuOpen {
                 repositionOpenMenu()
-                layoutHoverButtons()
-            } else if !isScrollbarDragging {
-                layoutHoverButtons()
             }
         }
 
@@ -5764,7 +5702,6 @@ struct SubtitleTableView: NSViewRepresentable {
             pageScrollbar?.setNeedsDisplay()
             documentView.setNeedsDisplay(documentView.visibleRect)
             invalidateDocumentCursorRects()
-            layoutHoverButtons()
             if isMenuOpen {
                 repositionOpenMenu()
             }
@@ -6898,7 +6835,6 @@ struct SubtitleTableView: NSViewRepresentable {
             let oldRow = hoveredRow
             hoveredRow = newRow
             invalidateRows([oldRow, newRow])
-            layoutHoverButtons()
         }
 
         private func updateHoveredColumnID(_ newColumnID: String?) {
@@ -7052,53 +6988,12 @@ struct SubtitleTableView: NSViewRepresentable {
             guard isScrollbarDragging != isDragging else { return }
             isScrollbarDragging = isDragging
             if isDragging, !isRedesign {
-                buttonsHost?.isHidden = true
                 updateHoveredCueTextRow(nil)
-            } else {
-                layoutHoverButtons()
             }
         }
 
         private func backingScaleFactor() -> CGFloat {
             documentView?.window?.backingScaleFactor ?? NSScreen.main?.backingScaleFactor ?? 1
-        }
-
-        private func layoutHoverButtons() {
-            if isRedesign {
-                buttonsHost?.isHidden = true
-                return
-            }
-
-            guard !isScrollbarDragging,
-                  let buttonsHost,
-                  let documentView,
-                  let hoveredRow,
-                  hoveredRow >= 0,
-                  hoveredRow < rowCount,
-                  let model = rowProvider(hoveredRow)
-            else {
-                buttonsHost?.isHidden = true
-                return
-            }
-
-            let buttonFrame: CGRect
-            let M = SubtitleTableMetrics.self
-            let rowRect = rectForRow(hoveredRow, width: documentView.bounds.width)
-            let dateAddedWidth = showsDateAddedColumn ? M.dateAddedColumnWidth : 0
-            let displayTitleWidth = showsDisplayTitleColumn ? M.nameColumnWidth : 0
-            let timeWidth = showsTimeColumn ? M.timeColumnWidth : 0
-            let x = M.indexColumnWidth + dateAddedWidth + displayTitleWidth + timeWidth + M.cellLeading
-            let y = rowRect.minY + M.rowVerticalInset - 4
-            buttonFrame = CGRect(x: x, y: y, width: 120, height: 28)
-
-            buttonsHost.rootView = CueHoverButtons(
-                isEnabled: isEnabled,
-                onPlay: { [weak self] in self?.playRow(hoveredRow) },
-                onCopy: { [weak self] in self?.copyRow(hoveredRow) }
-            )
-
-            buttonsHost.frame = buttonFrame
-            buttonsHost.isHidden = model.cues.isEmpty
         }
 
         /// The table body in container coordinates. The menus are placed inside
@@ -7247,7 +7142,6 @@ struct SubtitleTableView: NSViewRepresentable {
                 clickPointInDocument: clickPointInDocument
             )
             menuPlacementOffset = nil
-            layoutHoverButtons()
             invalidateRows([row])
 
             guard let container = self.container else {
@@ -7447,11 +7341,6 @@ struct SubtitleTableView: NSViewRepresentable {
             closeMenuGateSession()
             headerView?.refreshHeaderHosts()
             invalidateRows([previousRowMenuRow, previousHoveredRow])
-
-            // The hover stays where the menu left it. Closing a menu is not a
-            // reason to move it: only a real pointer movement, a right-click,
-            // or a left-click that is not spent closing the menu may.
-            layoutHoverButtons()
         }
 
         /// Hands the open row menu to the menu gate, which owns the outside
