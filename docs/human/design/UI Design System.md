@@ -7,8 +7,8 @@
 
 ### Text
 
-- `--color-text-primary`: Light `#0F172A`; Dark `#F4F4F5`
-- `--color-text-secondary`: Light `#404040`; Dark `#D4D4D4`
+- `--color-text-primary`: Light `#404040`; Dark `#D4D4D4`
+- `--color-text-secondary`: Light `#535761`; Dark `#BABABF`
 - `--color-text-muted`: Light `#667085`; Dark `#A1A1AA`
 - `--color-text-placeholder`: Light `#98A2B3`; Dark `#71717A`
 - `--color-text-disabled`: Light `#98A2B3`; Dark `#71717A`
@@ -731,8 +731,8 @@
 - Default
   - Background：`--color-bg-surface`
   - Border Color：`--color-border-control`
-  - Label Color：`--color-text-primary`
-  - Icon Color：`--color-icon-default`
+  - Label Color：`--color-text-secondary`
+  - Icon Color：`--color-text-secondary`
 - Hover
   - Background：`--color-bg-hover`
   - Border Color：`--color-border-control-hover`
@@ -883,8 +883,8 @@
 - Default
   - Background：Transparent
   - Border：None
-  - Label Color：`--color-text-primary`
-  - Icon Color：`--color-icon-default`
+  - Label Color：`--color-text-secondary`
+  - Icon Color：`--color-text-secondary`
 - Hover
   - Background：`--color-bg-hover`
 - Disabled
@@ -899,8 +899,8 @@
 - Default
   - Background：`--color-bg-surface`
   - Border Color：`--color-border-control`
-  - Label Color：`--color-text-primary`
-  - Icon Color：`--color-icon-default`
+  - Label Color：`--color-text-secondary`
+  - Icon Color：`--color-text-secondary`
 - Hover
   - Background：`--color-bg-hover`
   - Border Color：`--color-border-control-hover`
@@ -921,16 +921,16 @@
 - Default
   - Background：`--color-bg-surface`
   - Border Color：`--color-border-control`
-  - Label Color：`--color-text-primary`
-  - Icon Color：`--color-icon-default`
+  - Label Color：`--color-text-secondary`
+  - Icon Color：`--color-text-secondary`
 - Hover
   - Background：`--color-bg-hover`
   - Border Color：`--color-border-control-hover`
 - Active
   - Background：`--color-bg-hover`
   - Border Color：`--color-border-control-hover`
-  - Label Color：`--color-text-primary`
-  - Icon Color：`--color-icon-default`
+  - Label Color：`--color-text-secondary`
+  - Icon Color：`--color-text-secondary`
 - Focused
   - Border Color：`--color-border-focus`
 - Disabled
@@ -1034,7 +1034,8 @@
 ##### States
 
 - Default
-  - Label Color：`--color-text-primary`
+  - Label Color：`--color-text-secondary`
+  - Icon Color：`--color-text-secondary`
 - Highlighted
   - Background：`--color-bg-hover`
 - Disabled
@@ -1065,7 +1066,7 @@
 - Leading Slot：Checkbox / Filter Checkbox
 - Label
   - Font Size：`--font-size-body`
-  - Color：`--color-text-primary`
+  - Color：`--color-text-secondary`
 - Trailing Slot：计数或 calculating 提示
   - Font Size：`--font-size-caption`
   - Color：`--color-text-muted`
@@ -1334,6 +1335,7 @@
 - Label
   - Font Family：`--font-family-base`
   - Font Size：`--font-size-table-header`
+  - Color：`--color-text-secondary`
 - Leading Slot
   - Presence：Optional
 - Trailing Slot
@@ -1417,7 +1419,7 @@
 
 - Font Family：`--font-family-base`
 - Font Size：`--font-size-table`
-- Color：`--color-text-primary`
+- Color：`--color-text-muted`
 - Selection：Enabled
 
 ##### Interactive Text
@@ -1433,6 +1435,9 @@
 - States
   - Default
   - Hover
+    - Text Decoration：Underline
+    - Underline Color：与该行文字同色
+    - Text Color：不变
   - Focused
   - Disabled
 
@@ -1448,6 +1453,7 @@
   - Radius：`--radius-control`
   - Shadow：`--shadow-popover`
 - Selected Count Slot
+  - Color：`--color-text-muted`
 - Action Slots
 
 ##### Sizes
