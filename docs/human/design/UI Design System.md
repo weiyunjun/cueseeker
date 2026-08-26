@@ -2118,6 +2118,7 @@
 
 - Interaction Surface
   - Radius：`--radius-library-media-card-hover`
+  - 判定区域为整张卡片的矩形，四角在内；Radius 只作用于背景外观
 - Content Slot
 
 ##### Sizes
