@@ -71,3 +71,39 @@ says. It cannot be automated with what the project has: the Debug E2E
 controller's `mouseMove` never reaches SwiftUI's pointer machinery, captures
 never contain the cursor, and the padding ring is exactly the area that needs a
 real pointer to be in it. No test capability was added for this.
+
+## Follow-up: the card's area is its rectangle, corners included
+
+The first attempt aligned the hand with the press, and the owner rejected it:
+the area to match is the one that decides Hover, and that one is the card's
+plain rectangle. Hover is asked of the whole frame; the press and the hand were
+asked of the rounded shape the background is drawn with. At a 20pt radius each
+corner is a visible sliver that lit the card up, took no click, and kept the
+arrow.
+
+The rounded shape was never a hit area — it is what the hover background is
+drawn with, and using it to answer input made the card's edge disagree with
+itself. The three cards now answer over their rectangle, so a corner lights up,
+shows the hand and opens the card. The background stays rounded; nothing about
+the card's appearance changed. Right-click already used the rectangle and is
+unaffected.
+
+Owner decision, recorded because it reads as the opposite of an obvious
+alternative: shrinking Hover to the rounded shape was offered and refused. A
+card's interactive area is a rectangle.
+
+Files:
+
+- `apps/macos-native/Sources/CueSeekerApp/Shared/LibraryOverviewComponents.swift`,
+  `apps/macos-native/Sources/CueSeekerApp/TableSandbox/WorkbenchTestLibraryView.swift`
+  - The interaction shape is `Rectangle()`; the hand keeps sitting on it.
+
+### Verification
+
+`swift build`: clean. `swift test`: 1098 tests, no new failures against the
+baseline — the three library-folder-removal names that surfaced in this run pass
+in isolation and are the same suite-parallelism flake the earlier record noted.
+
+Corner behaviour stays the owner's manual check for the same reason as before:
+the E2E controller cannot put a real pointer in the corner, and captures never
+contain the cursor.

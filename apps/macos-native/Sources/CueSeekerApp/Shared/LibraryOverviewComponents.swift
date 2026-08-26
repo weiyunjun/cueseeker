@@ -333,14 +333,10 @@ struct LibraryOverviewCardButtonStyle: ButtonStyle {
                         : Color.clear
                 )
             )
-            .contentShape(
-                RoundedRectangle(
-                    cornerRadius: WorkbenchControlMetrics.redesignLibraryMediaCardHoverRadius,
-                    style: .continuous
-                )
-            )
-            // The hand goes on the padded interaction surface, not on the
-            // label inside it, so it covers exactly what Hover covers.
+            // The card answers the pointer over its whole rectangle, corners
+            // included, so the press, the hand and Hover share one area. The
+            // rounded background is appearance only and does not narrow it.
+            .contentShape(Rectangle())
             .handPointer(isEnabled: isEnabled && !isFrozen)
             .opacity(isEnabled ? 1 : 0.55)
             .scaleEffect(

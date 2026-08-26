@@ -864,14 +864,10 @@ private struct LibraryVideoCard: View {
             )
         )
         .opacity(isAvailable ? 1 : 0.55)
-        .contentShape(
-            RoundedRectangle(
-                cornerRadius: WorkbenchTestLibraryMetrics.mediaCardHoverRadius,
-                style: .continuous
-            )
-        )
-        // The hand sits on the same shape that answers Hover and the tap, so
-        // the three cover exactly the same area.
+        // The card answers the pointer over its whole rectangle, corners
+        // included, so the tap, the hand and Hover share one area. The rounded
+        // background is appearance only and does not narrow it.
+        .contentShape(Rectangle())
         .handPointer(isEnabled: isAvailable && !layerContext.isFrozen)
         .onTapGesture {
             guard isAvailable else {
