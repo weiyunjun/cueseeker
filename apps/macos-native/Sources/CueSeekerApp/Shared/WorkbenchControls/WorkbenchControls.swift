@@ -549,11 +549,11 @@ struct WorkbenchToolbarButton: View {
             Image(systemName: systemImage)
                 .font(.system(size: isRedesign ? WorkbenchControlMetrics.redesignControlIconSize : WorkbenchControlMetrics.iconSize, weight: isRedesign ? .semibold : .medium))
                 .frame(width: isRedesign ? WorkbenchControlMetrics.redesignControlIconSize : nil, height: isRedesign ? WorkbenchControlMetrics.redesignControlIconSize : nil) // --size-control-icon
-                .foregroundStyle(isRedesign ? (isEnabled ? WorkbenchRedesignColors.textPrimary : WorkbenchRedesignColors.iconDisabled) : WorkbenchControlColors.primaryText)
+                .foregroundStyle(isRedesign ? (isEnabled ? WorkbenchRedesignColors.textSecondary : WorkbenchRedesignColors.iconDisabled) : WorkbenchControlColors.primaryText)
 
             Text(title)
                 .font(.system(size: isRedesign ? WorkbenchControlMetrics.redesignFontSizeControl : 15, weight: isRedesign ? WorkbenchControlMetrics.redesignFontWeightControl : .medium))
-                .foregroundStyle(isRedesign ? (isEnabled ? WorkbenchRedesignColors.textPrimary : WorkbenchRedesignColors.textPlaceholder) : WorkbenchControlColors.primaryText)
+                .foregroundStyle(isRedesign ? (isEnabled ? WorkbenchRedesignColors.textSecondary : WorkbenchRedesignColors.textPlaceholder) : WorkbenchControlColors.primaryText)
                 .lineLimit(1)
                 .fixedSize(horizontal: true, vertical: false)
 
@@ -562,7 +562,7 @@ struct WorkbenchToolbarButton: View {
                     Image(systemName: "chevron.up.chevron.down")
                         .font(.system(size: WorkbenchControlMetrics.redesignSelectIndicatorSymbolFontSizeMacOS, weight: WorkbenchControlMetrics.redesignSelectIndicatorWeightMacOS))
                         .frame(width: WorkbenchControlMetrics.redesignControlIconSize, height: WorkbenchControlMetrics.redesignControlIconSize) // --size-control-icon
-                        .foregroundStyle(isEnabled ? WorkbenchRedesignColors.textPrimary : WorkbenchRedesignColors.iconDisabled)
+                        .foregroundStyle(isEnabled ? WorkbenchRedesignColors.textSecondary : WorkbenchRedesignColors.iconDisabled)
                 } else {
                     Spacer(minLength: 0)
                     Image(systemName: "chevron.down")
@@ -623,12 +623,12 @@ struct WorkbenchButton: View {
                     Image(systemName: systemImage)
                         .font(.system(size: isRedesign ? WorkbenchControlMetrics.redesignButtonIconSize : WorkbenchControlMetrics.iconSize, weight: isRedesign ? WorkbenchControlMetrics.redesignButtonIconWeight : .regular))
                         .frame(width: isRedesign ? WorkbenchControlMetrics.redesignButtonIconSize : nil, height: isRedesign ? WorkbenchControlMetrics.redesignButtonIconSize : nil)
-                        .foregroundStyle(isRedesign ? (isEnabled ? WorkbenchRedesignColors.textPrimary : WorkbenchRedesignColors.iconDisabled) : WorkbenchControlColors.primaryText)
+                        .foregroundStyle(isRedesign ? (isEnabled ? WorkbenchRedesignColors.textSecondary : WorkbenchRedesignColors.iconDisabled) : WorkbenchControlColors.primaryText)
                 }
 
                 Text(title)
                     .font(.system(size: isRedesign ? WorkbenchControlMetrics.redesignFontSizeControl : 14, weight: isRedesign ? WorkbenchControlMetrics.redesignFontWeightControl : .medium))
-                    .foregroundStyle(isRedesign ? (isEnabled ? WorkbenchRedesignColors.textPrimary : WorkbenchRedesignColors.textDisabled) : WorkbenchControlColors.primaryText)
+                    .foregroundStyle(isRedesign ? (isEnabled ? WorkbenchRedesignColors.textSecondary : WorkbenchRedesignColors.textDisabled) : WorkbenchControlColors.primaryText)
                     .lineLimit(1)
                     .fixedSize(horizontal: true, vertical: false)
             }
@@ -898,6 +898,7 @@ struct WorkbenchPopoverRow: View {
     var isRedesign: Bool = false
     var showsCheckmarkSlot = true
     var isEnabled = true
+    var isDestructive = false
     var action: (() -> Void)? = nil
     var trailingSystemImage: String?
     var onHoverChange: ((Bool) -> Void)?
@@ -924,7 +925,7 @@ struct WorkbenchPopoverRow: View {
                         Image(systemName: "checkmark")
                             .font(.system(size: WorkbenchControlMetrics.redesignMenuItemSymbolFontSizeMacOS, weight: .semibold))
                             .frame(width: WorkbenchControlMetrics.redesignControlIconSize, height: WorkbenchControlMetrics.redesignControlIconSize)
-                            .foregroundStyle(isEnabled ? WorkbenchRedesignColors.textPrimary : WorkbenchRedesignColors.iconDisabled)
+                            .foregroundStyle(iconColor)
                     } else {
                         Color.clear
                             .frame(width: WorkbenchControlMetrics.redesignControlIconSize, height: WorkbenchControlMetrics.redesignControlIconSize)
@@ -943,13 +944,13 @@ struct WorkbenchPopoverRow: View {
             if let systemImage {
                 Image(systemName: systemImage)
                     .font(.system(size: isRedesign ? WorkbenchControlMetrics.redesignMenuItemSymbolFontSizeMacOS : 14, weight: isRedesign ? .medium : .medium))
-                    .foregroundStyle(isRedesign ? (isEnabled ? WorkbenchRedesignColors.textPrimary : WorkbenchRedesignColors.iconDisabled) : (isEnabled ? WorkbenchControlColors.primaryText : WorkbenchControlColors.mutedText))
+                    .foregroundStyle(isRedesign ? iconColor : (isEnabled ? WorkbenchControlColors.primaryText : WorkbenchControlColors.mutedText))
                     .frame(width: isRedesign ? WorkbenchControlMetrics.redesignControlIconSize : nil, height: isRedesign ? WorkbenchControlMetrics.redesignControlIconSize : nil)
             }
 
             Text(title)
                 .font(.system(size: isRedesign ? WorkbenchControlMetrics.redesignFontSizeTable : 15, weight: .regular))
-                .foregroundStyle(isRedesign ? (isEnabled ? WorkbenchRedesignColors.textPrimary : WorkbenchRedesignColors.textDisabled) : (isEnabled ? WorkbenchControlColors.primaryText : WorkbenchControlColors.mutedText))
+                .foregroundStyle(isRedesign ? labelColor : (isEnabled ? WorkbenchControlColors.primaryText : WorkbenchControlColors.mutedText))
                 .lineLimit(1)
                 .fixedSize(horizontal: true, vertical: false)
 
@@ -965,9 +966,7 @@ struct WorkbenchPopoverRow: View {
                     ))
                     .foregroundStyle(
                         isRedesign
-                            ? (isEnabled
-                                ? WorkbenchRedesignColors.iconDefault
-                                : WorkbenchRedesignColors.iconDisabled)
+                            ? iconColor
                             : (isEnabled
                                 ? WorkbenchControlColors.primaryText
                                 : WorkbenchControlColors.mutedText)
@@ -982,7 +981,7 @@ struct WorkbenchPopoverRow: View {
                     )
             }
         }
-        .foregroundStyle(isRedesign ? (isEnabled ? WorkbenchRedesignColors.textPrimary : WorkbenchRedesignColors.textDisabled) : (isEnabled ? WorkbenchControlColors.primaryText : WorkbenchControlColors.mutedText))
+        .foregroundStyle(isRedesign ? labelColor : (isEnabled ? WorkbenchControlColors.primaryText : WorkbenchControlColors.mutedText))
         .padding(.horizontal, isRedesign ? 16 : 12)
         .frame(height: isRedesign ? 40 : 40)
         .background(
@@ -1001,9 +1000,24 @@ struct WorkbenchPopoverRow: View {
     /// would both light up at once.
     private var rowBackground: Color {
         guard isEnabled, isHighlighted else { return .clear }
-        return isRedesign
-            ? WorkbenchRedesignColors.bgHover
-            : WorkbenchControlColors.hoverFill
+        guard isRedesign else { return WorkbenchControlColors.hoverFill }
+        return isDestructive
+            ? WorkbenchRedesignColors.dangerBgHover
+            : WorkbenchRedesignColors.bgHover
+    }
+
+    private var labelColor: Color {
+        guard isEnabled else { return WorkbenchRedesignColors.textDisabled }
+        return isDestructive
+            ? WorkbenchRedesignColors.dangerText
+            : WorkbenchRedesignColors.textSecondary
+    }
+
+    private var iconColor: Color {
+        guard isEnabled else { return WorkbenchRedesignColors.iconDisabled }
+        return isDestructive
+            ? WorkbenchRedesignColors.dangerText
+            : WorkbenchRedesignColors.textSecondary
     }
 }
 

@@ -251,7 +251,7 @@ struct CueFacetFilterMenu: View {
 
                 Text(option.title)
                     .font(.system(size: WorkbenchControlMetrics.redesignFontSizeBody))
-                    .foregroundStyle(WorkbenchRedesignColors.textPrimary)
+                    .foregroundStyle(WorkbenchRedesignColors.textSecondary)
                     .lineLimit(1)
                     .fixedSize(horizontal: true, vertical: false)
 

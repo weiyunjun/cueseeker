@@ -42,7 +42,7 @@ func workbenchTagRedesignColorsMapLanguageTokens() {
 @Test
 func workbenchTagRedesignColorsMapShioriGrayTokens() {
     #expect(hexString(WorkbenchTagColorID.gray.redesignFillColor()) == "#F3F4F6")
-    #expect(hexString(WorkbenchTagColorID.gray.redesignForegroundColor()) == "#404040")
+    #expect(hexString(WorkbenchTagColorID.gray.redesignForegroundColor()) == "#535761")
 }
 
 private func hexString(_ color: NSColor) -> String {

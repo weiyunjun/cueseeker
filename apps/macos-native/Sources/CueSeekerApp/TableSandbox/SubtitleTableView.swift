@@ -522,7 +522,7 @@ enum SubtitleTableText {
         guard isRedesign else { return NSColor.labelColor }
         switch role {
         case .primaryContent:
-            return WorkbenchRedesignColors.NS.textSecondary
+            return WorkbenchRedesignColors.NS.textPrimary
         case .secondaryContext, .metadata:
             return WorkbenchRedesignColors.NS.textMuted
         }
@@ -742,6 +742,11 @@ private struct SubtitleTableTextFragmentLayout {
     let width: CGFloat
     let clipRect: CGRect
     let logicalUTF16Range: NSRange
+
+    var foregroundColor: NSColor? {
+        guard attributed.length > 0 else { return nil }
+        return attributed.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? NSColor
+    }
 }
 
 enum SubtitleTableRowActionMenuStyle {
@@ -1028,6 +1033,7 @@ private struct RowActionMenu: View {
             isRedesign: true,
             showsCheckmarkSlot: false,
             isEnabled: isEnabled,
+            isDestructive: action.isDestructive,
             action: {
                 if isSubmenuParent {
                     submenuState.open(action)
@@ -4892,8 +4898,6 @@ struct SubtitleTableView: NSViewRepresentable {
             trailing: CGFloat,
             role: SubtitleTableTextRole = .primaryContent,
             foregroundColor: NSColor? = nil,
-            isHovered: Bool = false,
-            underline: Bool = false,
             selectedRange: NSRange? = nil
         ) {
             let M = SubtitleTableMetrics.self
@@ -4905,28 +4909,12 @@ struct SubtitleTableView: NSViewRepresentable {
                     text,
                     role: role,
                     isRedesign: isRedesign,
-                    foregroundColor: isHovered
-                        ? WorkbenchRedesignColors.NS.textPrimary
-                        : foregroundColor
+                    foregroundColor: foregroundColor
                 ),
                 width: max(0, rect.width - M.cellLeading - trailing)
             )
             let origin = bodyTextOrigin(in: rect)
-            if isHovered {
-                if let textBounds = textLayout.unionUsedRect(at: origin) {
-                    drawContentHoverBackground(rects: [textBounds], clippedTo: rect)
-                }
-            }
             drawSelectionBackground(selectedRange, with: textLayout, at: origin)
-            if underline {
-                textLayout.drawUnderline(
-                    at: origin,
-                    color: WorkbenchRedesignColors.NS.textPrimary,
-                    thickness: M.interactiveTextUnderlineThickness,
-                    offset: M.interactiveTextUnderlineOffset,
-                    backingScaleFactor: backingScaleFactor()
-                )
-            }
             textLayout.draw(at: origin)
             NSGraphicsContext.restoreGraphicsState()
         }
@@ -4941,9 +4929,7 @@ struct SubtitleTableView: NSViewRepresentable {
             guard let model else { return }
             let primaryColor = model.cueState.isUnavailable
                 ? WorkbenchRedesignColors.NS.textMuted
-                : isHovered
-                    ? WorkbenchRedesignColors.NS.textPrimary
-                    : WorkbenchRedesignColors.NS.textSecondary
+                : WorkbenchRedesignColors.NS.textPrimary
             let extraColor = WorkbenchRedesignColors.NS.textMuted
             let fragments = cueTextFragments(
                 model: model,
@@ -4956,7 +4942,7 @@ struct SubtitleTableView: NSViewRepresentable {
             NSGraphicsContext.saveGraphicsState()
             NSBezierPath.clip(rect)
 
-            for (index, fragment) in fragments.enumerated() {
+            for fragment in fragments {
                 textLayout.update(
                     attributedString: fragment.attributed,
                     width: cuesTextWidth(in: rect, model: model)
@@ -4969,7 +4955,7 @@ struct SubtitleTableView: NSViewRepresentable {
                 if isHovered {
                     textLayout.drawUnderline(
                         at: fragment.origin,
-                        color: index == fragments.count - 1 ? WorkbenchRedesignColors.NS.textPrimary : extraColor,
+                        color: fragment.foregroundColor ?? primaryColor,
                         thickness: SubtitleTableMetrics.interactiveTextUnderlineThickness,
                         offset: SubtitleTableMetrics.interactiveTextUnderlineOffset,
                         backingScaleFactor: backingScaleFactor()
@@ -5094,7 +5080,7 @@ struct SubtitleTableView: NSViewRepresentable {
             model: SubtitleTableRow,
             in rect: CGRect,
             measurement: SubtitleTableRowMeasurement,
-            primaryColor: NSColor = WorkbenchRedesignColors.NS.textSecondary,
+            primaryColor: NSColor = WorkbenchRedesignColors.NS.textPrimary,
             extraColor: NSColor = WorkbenchRedesignColors.NS.textMuted
         ) -> [SubtitleTableTextFragmentLayout] {
             let extraTexts = showsCueGroup ? model.additionalCueTexts : []
@@ -5214,7 +5200,7 @@ struct SubtitleTableView: NSViewRepresentable {
                 attributedString: SubtitleTableCueTextMeasurer.attributedString(
                     model.primaryCueText,
                     style: .primary,
-                    foregroundColor: WorkbenchRedesignColors.NS.textSecondary
+                    foregroundColor: WorkbenchRedesignColors.NS.textPrimary
                 ),
                 width: textWidth
             )

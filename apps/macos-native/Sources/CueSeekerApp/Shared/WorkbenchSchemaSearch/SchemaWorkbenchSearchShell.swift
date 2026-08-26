@@ -549,7 +549,7 @@ struct SchemaWorkbenchSelectionActionOverlay: View {
                     size: WorkbenchControlMetrics.redesignFontSizeBody,
                     weight: .regular
                 ))
-                .foregroundStyle(WorkbenchRedesignColors.textSecondary)
+                .foregroundStyle(WorkbenchRedesignColors.textMuted)
                 .lineLimit(1)
                 .fixedSize(horizontal: true, vertical: false)
 

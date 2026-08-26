@@ -45,7 +45,7 @@ enum SubtitleTableRowAction: Hashable, Sendable {
         case .moveToList:
             return "arrow.right"
         case .duplicateToList:
-            return "copy"
+            return "arrow.right"
         case .removeShiori:
             return "bookmark.slash"
         }
@@ -53,6 +53,10 @@ enum SubtitleTableRowAction: Hashable, Sendable {
 
     var opensDestinationSubmenu: Bool {
         self == .moveToList || self == .duplicateToList
+    }
+
+    var isDestructive: Bool {
+        self == .removeShiori
     }
 }
 
