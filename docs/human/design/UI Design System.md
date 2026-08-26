@@ -30,6 +30,8 @@
 - `--color-app-sidebar-item-selected-bg`: macOS accent color
 - `--color-app-sidebar-item-selected-content`: Light `#FFFFFF`; Dark `#FFFFFF`
 - `--color-app-topbar-bg`: Light `#FFFFFF`; Dark `#18181B`
+- `--color-icon-button-open-bg`: macOS accent color
+- `--color-icon-button-open-content`: Light `#FFFFFF`; Dark `#FFFFFF`
 - `--color-keycap-bg`: Light `#F3F4F6`; Dark `#27272A`
 
 ### Border
@@ -221,7 +223,6 @@
 - `--height-library-progress-bar`: `4px`
 - `--height-library-list-cover`: `115px`
 - `--height-cover-summary-backdrop`: `225px`
-- `--height-cue-facet-filter-panel-pinned`: `244px`
 - `--height-keycap`: `22px`
 
 ### Size
@@ -229,7 +230,6 @@
 - `--size-checkbox`: `16px`
 - `--size-playback-collage-checkbox`: `24px`
 - `--size-playback-cue-timeline-dot`: `8px`
-- `--min-width-filter-data-card`: `200px`
 - `--size-inline-clear-button`: `24px`
 - `--size-inline-clear-icon`: `16px`
 - `--size-inline-clear-symbol-font-size-macos`: `11pt`
@@ -831,6 +831,9 @@
   - Icon Color：`--color-icon-default`
 - Hover
   - Background：`--color-bg-hover`
+- Open
+  - Background：`--color-icon-button-open-bg`
+  - Icon Color：`--color-icon-button-open-content`
 - Focused
   - Ring Color：`--color-focus-ring`
   - Ring Width：`--focus-ring-width`
@@ -972,7 +975,7 @@
 
 - Closed
 - Open
-  - Highlight：打开时默认高亮首项；键盘与指针共用同一个高亮，同时只有一项高亮
+  - Highlight：打开时默认高亮首项；键盘与指针共用同一个高亮，同时只有一项高亮；滚轮滚动与拖拽滚动条本身不改变高亮；键盘导航后的高亮项不在可见范围内时，菜单滚动使其可见
   - Modality：打开期间下层不出现任何 Hover 或选中的视觉变化，挂靠对象保持打开时的高亮；右键点中另一个带右键菜单的对象时，菜单与高亮一起换到那个对象
 
 #### Variants
@@ -986,6 +989,12 @@
 - Surface：Player Chrome
 - Item：Menu Item / Radio Menu Item
 - Highlight On Open：当前生效倍速
+
+##### Filter Menu
+
+- Anchor：工具栏的筛选按钮
+- Structure：Menu Title 起头；随后 Duration、Character、Language、Watch Status 四个分节，每节依次为 Menu Divider、Menu Section Header 与该节的 Menu Item / Filter Option Menu Item
+- 勾选即时生效，勾选后菜单保持打开；计数与 calculating 提示在打开期间实时更新
 
 ### Submenu
 
@@ -1052,6 +1061,19 @@
 - Height：`--height-select-menu-item`
 - Radius：`--radius-select-menu-item`
 
+##### Filter Option Menu Item
+
+- Leading Slot：Checkbox / Filter Checkbox
+- Label
+  - Font Size：`--font-size-body`
+  - Color：`--color-text-primary`
+- Trailing Slot：计数或 calculating 提示
+  - Font Size：`--font-size-caption`
+  - Color：`--color-text-muted`
+- 点击或回车勾选/取消勾选，菜单保持打开；勾选区域与 Hover 区域一致，为整行
+- Height：`--height-select-menu-item`
+- Radius：`--radius-select-menu-item`
+
 ##### Destructive Menu Item
 
 - Leading Slot：Icon / Empty
@@ -1081,6 +1103,54 @@
 ##### Sizes
 
 ##### States
+
+### Menu Title
+
+#### Shared
+
+##### Anatomy
+
+- Label
+  - Font Family：`--font-family-base`
+  - Font Size：`--font-size-control`
+  - Font Weight：Semibold
+  - Color：`--color-text-primary`
+
+##### Sizes
+
+- Height：`--height-select-menu-item`
+- Padding Inline：`--padding-menu-item`
+
+##### Interaction
+
+- Highlight：None
+- 键盘导航自动跳过
+
+### Menu Section Header
+
+#### Shared
+
+##### Anatomy
+
+- Leading Icon
+  - Size：`--size-control-icon`
+  - Color：`--color-text-secondary`
+- Label
+  - Font Family：`--font-family-base`
+  - Font Size：`--font-size-control`
+  - Font Weight：Semibold
+  - Color：`--color-text-secondary`
+- Content Gap：`--spacing-2`
+
+##### Sizes
+
+- Height：`--height-select-menu-item`
+- Padding Inline：`--padding-menu-item`
+
+##### Interaction
+
+- Highlight：None
+- 键盘导航自动跳过
 
 ## 2.5 Navigation
 
@@ -2978,16 +3048,13 @@
 
 1. Cover Summary
 2. Toolbar
-3. Filter Panel
-   - Presence：Optional
-4. Table
-5. Selection Action Overlay
+3. Table
+4. Selection Action Overlay
 
 #### Components
 
 - Cover Summary
 - Search / Shiori Toolbar Layout
-- Filter Panel Layout
 - Search / Shiori Table Layout
 - Selection Action Overlay Layout
 
@@ -3007,7 +3074,7 @@
 
 - Vertical Scroll Context：Single Page Viewport
 - Cover Summary：Scrollable
-- Toolbar、打开的 Filter Panel 与 Table Header：Pinned
+- Toolbar 与 Table Header：Pinned
 - Vertical Scrollbar：Page Viewport Trailing Edge
 
 ### Search / Shiori Toolbar Layout
@@ -3021,7 +3088,7 @@
 #### Components
 
 - Search Field
-- Toolbar Button / Panel Trigger
+- Icon Button
 - Toolbar Button / Mode Toggle
 
 #### Sizes
@@ -3033,67 +3100,9 @@
 #### States
 
 - Default
-- Filter Panel Open
+- Filter Menu Open
 - Select Mode
 - Calculating
-
-### Filter Panel Layout
-
-#### Position
-
-- Flow：In Page
-- Width：Adaptive to App Window
-
-#### Structure
-
-1. Filter Group Grid
-2. Footer
-   1. Reset
-   2. Flexible Spacer
-   3. Cancel
-   4. Apply
-
-#### Components
-
-- Checkbox / Filter Checkbox
-- Button / Neutral
-- Button / Primary
-- Scrollbar / Vertical
-
-#### Sizes
-
-- Group Minimum Width：`--min-width-filter-data-card`
-- Grid Gap：`--spacing-3`
-- Group Content Gap：`--spacing-2`
-- Footer Gap：`--spacing-3`
-
-#### States
-
-- Closed
-- Open / Clean Draft
-  - Apply Disabled
-- Open / Modified Draft
-- Calculating
-- Applying
-- Disabled
-
-#### Focus
-
-- Mode：Non-modal
-- Order：Normal
-- Boundary：Uncontained
-
-#### State Transition
-
-- Open：Applied State → Draft State
-- Edit：Draft State only
-- Reset：Draft State → Empty Draft State; Panel remains open
-- Cancel：Discard Draft State; Applied State unchanged; Panel closes
-- Filter Trigger / Open：Cancel
-- Apply：Draft State → Applied State; Panel closes
-- Apply Disabled：Draft State = Applied State
-- Outside Click：No State Change
-- Escape：No State Change
 
 ### Selection Action Overlay Layout
 

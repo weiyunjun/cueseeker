@@ -10,8 +10,7 @@
 4. 菜单：属于打开它的那一层，只高于该层自身。
 5. 对话框：Edit Cover、Shiori List Editor、Confirmation。
 
-Toast 与播放反馈只有视觉，不接受输入，不参与层级。Filter Panel 是页面内容，
-不是浮层。独立窗口与系统菜单栏不属于本清单。
+Toast 与播放反馈只有视觉，不接受输入，不参与层级。独立窗口与系统菜单栏不属于本清单。
 
 # 更高层界面的屏蔽
 
@@ -32,6 +31,7 @@ Toast 与播放反馈只有视觉，不接受输入，不参与层级。Filter P
 | 菜单 | 滚动 |
 | --- | --- |
 | Workbench 表格行右键菜单 | 整窗口禁止 |
+| 筛选菜单 | 整窗口禁止 |
 | 卡片与封面右键菜单（Workbench、Command Panel、Playback Overlay） | 整窗口禁止 |
 | Playback Overlay 选中文字菜单 | 整窗口禁止 |
 | Command Panel 选中文字菜单 | 整窗口禁止 |
