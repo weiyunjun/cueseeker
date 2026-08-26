@@ -1260,7 +1260,7 @@ func subtitleTableViewRightClickUsesEveryNonSelectionCellFullArea() throws {
 
         #expect(fixture.coordinator.handleRightMouseDown(windowPoint: windowPoint) == true)
         #expect(fixture.coordinator.isMenuOpenForTesting())
-        fixture.coordinator.dismissMenu(recalculateHover: false)
+        fixture.coordinator.dismissMenu()
     }
 }
 
@@ -1446,7 +1446,7 @@ func subtitleTableViewRowMenuActionsKeepTheOriginalTargetAfterItsIndexChanges() 
     currentRow = original
     fixture.coordinator.showMenu(for: 0, buttonFrame: anchorFrame)
     #expect(fixture.coordinator.activeRowMenuTargetForTesting() == original)
-    fixture.coordinator.dismissMenu(recalculateHover: false)
+    fixture.coordinator.dismissMenu()
     #expect(fixture.coordinator.activeRowMenuTargetForTesting() == nil)
     fixture.coordinator.performActiveRowMenuActionForTesting(.play)
     #expect(playedRowIDs == [original.id])
@@ -2626,7 +2626,7 @@ func subtitleTableViewCueDragSuppressesPlayAfterThresholdAndClickStillPlays() th
 
     #expect(fixture.coordinator.handleMouseDown(windowPoint: cueWindowPoint))
     #expect(fixture.coordinator.handleRightMouseDown(windowPoint: cueWindowPoint))
-    fixture.coordinator.dismissMenu(recalculateHover: false)
+    fixture.coordinator.dismissMenu()
     #expect(fixture.coordinator.handleMouseUp(windowPoint: cueWindowPoint) == false)
     #expect(playCount == 2)
 }
@@ -2717,7 +2717,7 @@ func subtitleTableViewDismissMenuKeepsInteractiveCellCursorRectAvailable() throw
     let cuesPoint = CGPoint(x: cuesRect.midX, y: cuesRect.midY)
 
     fixture.coordinator.showMenu(for: 0, buttonFrame: anchorFrame)
-    fixture.coordinator.dismissMenu(recalculateHover: false)
+    fixture.coordinator.dismissMenu()
 
     #expect(fixture.coordinator.isInteractiveCellCursorActiveForTesting(documentPoint: cuesPoint) == true)
 }

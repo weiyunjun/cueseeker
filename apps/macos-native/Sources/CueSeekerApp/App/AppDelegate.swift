@@ -6,6 +6,9 @@ extension Notification.Name {
     static let cueSeekerShowSettings = Notification.Name("cueSeekerShowSettings")
     static let cueSeekerAppLanguageChanged = Notification.Name("cueSeekerAppLanguageChanged")
     static let cueSeekerLeftMouseDown = Notification.Name("cueSeekerLeftMouseDown")
+    /// Posted when a menu opens. Every surface holding selected text drops it,
+    /// so no selection outlives the menu that covered it.
+    static let cueSeekerClearTextSelection = Notification.Name("cueSeekerClearTextSelection")
 }
 
 enum CueSeekerPointerEventRouter {
@@ -149,12 +152,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             .environmentObject(appState.search)
             .environmentObject(appState.playback)
 
-        let window = NSWindow(
+        let window = CueSeekerMainWindow(
             contentRect: NSRect(x: 0, y: 0, width: AppShellLayout.defaultWindowWidth, height: 720),
             styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
             backing: .buffered,
             defer: false
         )
+        // While a menu owns input nothing under it may take the keyboard back.
+        window.isFocusLocked = { [appState] in
+            MainActor.assumeIsolated {
+                appState.interfaceLayers.hasUncoveredOpenMenu
+            }
+        }
 
         window.title = L("app.name")
         window.titleVisibility = .hidden

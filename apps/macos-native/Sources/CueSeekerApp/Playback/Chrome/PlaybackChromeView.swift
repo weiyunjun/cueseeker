@@ -152,13 +152,7 @@ struct PlaybackChromeView: View {
                     MenuGateClientView(
                         gate: playback.interfaceLayers.menuGate,
                         owner: .playbackPage,
-                        // The one menu the design's scroll table leaves free.
-                        bansScrolling: false,
-                        menuTakesWheel: false,
-                        // The playback key owner sees keys first, so this menu
-                        // receives its keys through the gate's route instead.
-                        receivesKeysFromMonitor: false,
-                        receivesKeysFromRouter: true,
+                        kind: .playerSpeedMenu,
                         menuFrame: menuFrame,
                         // A press on the speed button is left to the button,
                         // which toggles the menu itself.

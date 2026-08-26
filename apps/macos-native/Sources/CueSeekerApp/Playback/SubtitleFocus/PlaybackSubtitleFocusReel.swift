@@ -1902,11 +1902,28 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
         super.viewDidMoveToWindow()
         if window == nil {
             removeEventMonitor()
+            NotificationCenter.default.removeObserver(
+                self,
+                name: .cueSeekerClearTextSelection,
+                object: nil
+            )
             dismissSelectedTextActions()
             resetWheelInteraction(requiresNewGesture: true)
         } else {
             installEventMonitorIfNeeded()
+            NotificationCenter.default.addObserver(
+                self,
+                selector: #selector(appClearTextSelection),
+                name: .cueSeekerClearTextSelection,
+                object: nil
+            )
         }
+    }
+
+    /// A menu opening anywhere in the App takes every selection with it, so the
+    /// reel drops its own — and the menu hanging off it — when one does.
+    @objc private func appClearTextSelection(_ notification: Notification) {
+        dismissSelectedTextActions()
     }
 
     func update(
@@ -2494,6 +2511,7 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
         menuGateSession = interfaceLayers?.menuGate.open(
             MenuGate.Client(
                 owner: menuOwner,
+                kind: .selectedTextMenu,
                 window: { [weak self] in self?.window },
                 isPointerOnMenu: { [weak self] event in
                     guard let host = self?.selectedTextMenuHost else {
@@ -2503,9 +2521,6 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
                         host.convert(event.locationInWindow, from: nil)
                     )
                 },
-                bansScrolling: true,
-                menuTakesWheel: true,
-                receivesKeysFromRouter: menuOwner == .playbackOverlay,
                 handleKey: { [weak self] keyCode, _ in
                     self?.handleSelectedTextMenuKey(keyCode) ?? false
                 },

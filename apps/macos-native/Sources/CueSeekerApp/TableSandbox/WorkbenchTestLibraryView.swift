@@ -1241,12 +1241,10 @@ struct LibraryCardContextMenuHost<Content: View>: View {
                         MenuGateClientView(
                             gate: interfaceLayers?.menuGate,
                             owner: layerContext.layer,
-                            bansScrolling: true,
-                            menuTakesWheel: false,
                             // On a playback layer the key owner offers keys to
                             // the gate before the Command Panel navigates, so
                             // the menu must take them there.
-                            receivesKeysFromRouter: true,
+                            kind: .cardMenu,
                             menuFrame: menuFrame,
                             handleKey: { keyCode, _ in
                                 // Every arrow and Enter belongs to the open

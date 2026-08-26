@@ -235,12 +235,9 @@ private func openSpeedMenuGateClient(
     app.interfaceLayers.menuGate.open(
         MenuGate.Client(
             owner: .playbackPage,
+            kind: .playerSpeedMenu,
             window: { nil },
             isPointerOnMenu: { _ in false },
-            bansScrolling: false,
-            menuTakesWheel: false,
-            receivesKeysFromMonitor: false,
-            receivesKeysFromRouter: true,
             handleKey: { [weak app] keyCode, isRepeat in
                 app?.playback.handleSpeedMenuKey(
                     keyCode,
@@ -262,11 +259,9 @@ private func openSelectedTextMenuGateClient(
     app.interfaceLayers.menuGate.open(
         MenuGate.Client(
             owner: .playbackOverlay,
+            kind: .selectedTextMenu,
             window: { nil },
             isPointerOnMenu: { _ in false },
-            bansScrolling: true,
-            menuTakesWheel: true,
-            receivesKeysFromRouter: true,
             handleKey: { keyCode, _ in handleKey(keyCode) },
             dismiss: { _ in }
         )

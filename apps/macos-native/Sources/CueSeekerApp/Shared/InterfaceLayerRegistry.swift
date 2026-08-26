@@ -110,6 +110,13 @@ final class InterfaceLayerRegistry: ObservableObject {
         Set(InterfaceLayer.allCases.filter(isCovered))
     }
 
+    /// Whether a menu that nothing covers is open. The main window's focus
+    /// barrier asks this: while such a menu owns input, nothing underneath may
+    /// take the keyboard back.
+    var hasUncoveredOpenMenu: Bool {
+        openMenuCounts.keys.contains { !isCovered($0) }
+    }
+
     /// Whether a menu owned by `owner` is covered. A menu sits only above its
     /// own layer, so whatever covers that layer covers the menu with it.
     func isMenuCovered(ownedBy owner: InterfaceLayer) -> Bool {

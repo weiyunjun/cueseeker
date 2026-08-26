@@ -3,21 +3,76 @@ import SwiftUI
 
 /// The one implementation of menu event handling.
 ///
-/// Every open menu registers here as a client, and the gate owns what used to
-/// be five separate event monitors: installing and removing the monitor,
-/// arrow keys, Enter and Esc, the outside press (through `MenuOutsidePress`),
-/// and the wheel (through the design's per-menu scroll table). A menu covered
-/// by a higher layer — the registry answers — stays on screen and takes no
-/// input. Clients only describe their menu: which layer owns it, where it is,
-/// what its keys do, and how it dismisses.
+/// Every open menu registers here as a client, and the gate owns the whole of
+/// what an open menu does to the App: the event monitor, arrow keys, Enter and
+/// Esc, the outside press (through `MenuOutsidePress`), the wheel, and the
+/// barrier that keeps everything else from reaching the interface underneath
+/// (through `MenuInputBarrier`). A menu covered by a higher layer — the
+/// registry answers — stays on screen and takes no input. Clients only describe
+/// their menu: which layer owns it, which menu it is, where it is, what its
+/// keys do, and how it dismisses.
 ///
 /// Clients are processed in the order their menus opened, each seeing the
 /// event only if the ones before it passed it on — the same contract the
 /// separate `NSEvent` monitors had, collapsed into one implementation.
 @MainActor
 final class MenuGate {
+    /// The menus the design names, and the only things it lets them differ in:
+    /// the scroll table in `docs/human/design/UI Application Rules.md` 菜单模态
+    /// 6, and where the menu's keys come from. A caller states which menu it is
+    /// opening and nothing else, so a menu added later cannot quietly invent a
+    /// modality of its own.
+    enum Kind {
+        case tableRowMenu
+        case filterMenu
+        case cardMenu
+        case selectedTextMenu
+        case playerSpeedMenu
+
+        /// 菜单模态 6: the speed menu is the one menu the scroll table leaves
+        /// free.
+        var bansScrolling: Bool {
+            self != .playerSpeedMenu
+        }
+
+        /// Whether the menu surface spends the wheel itself. When it does not,
+        /// the gate spends a wheel over the menu so nothing moves underneath
+        /// it.
+        var takesWheel: Bool {
+            switch self {
+            case .tableRowMenu, .filterMenu, .selectedTextMenu:
+                true
+            case .cardMenu, .playerSpeedMenu:
+                false
+            }
+        }
+
+        /// Whether the gate's own monitor feeds this menu keys. The speed menu
+        /// receives keys only from the playback key owner instead: monitors run
+        /// in install order, and the app-wide playback monitor installed at
+        /// launch sees keys first.
+        var receivesKeysFromMonitor: Bool {
+            self != .playerSpeedMenu
+        }
+
+        /// Whether the playback key owner offers this menu keys through
+        /// `routeKey` before seeking, volume, cue navigation and Command Panel
+        /// navigation see them.
+        var receivesKeysFromRouter: Bool {
+            self != .tableRowMenu
+        }
+
+        /// 选中文字菜单 hangs off the very selection it would clear, so it is
+        /// the one menu that keeps the selection and clears it on the way out
+        /// instead.
+        var clearsTextSelection: Bool {
+            self != .selectedTextMenu
+        }
+    }
+
     struct Client {
         let owner: InterfaceLayer
+        let kind: Kind
         /// The window the menu lives in. While unknown, a press counts as
         /// this window's, so a menu can never become impossible to close.
         var window: () -> NSWindow?
@@ -25,21 +80,6 @@ final class MenuGate {
         /// A press here is left to the control that toggles the menu (the
         /// speed button), so the toggle does not run twice.
         var isPointerOnAnchorControl: ((NSEvent) -> Bool)?
-        /// From the design's menu scroll table: whether the whole window is
-        /// banned from scrolling while this menu is open.
-        let bansScrolling: Bool
-        /// Whether the menu surface consumes the wheel itself. When it does
-        /// not, the gate spends a wheel over the menu so nothing moves
-        /// underneath it.
-        let menuTakesWheel: Bool
-        /// Whether the gate's own monitor feeds this menu keys. The speed
-        /// menu receives keys only from the playback key owner instead:
-        /// monitors run in install order, and the app-wide playback monitor
-        /// installed at launch sees keys first.
-        var receivesKeysFromMonitor = true
-        /// Whether the playback key owner offers this menu keys through
-        /// `routeKey` before seeking, volume and cue navigation see them.
-        var receivesKeysFromRouter = false
         /// Returns whether the key was spent on the menu.
         let handleKey: (_ keyCode: UInt16, _ isRepeat: Bool) -> Bool
         /// forwarding: the press closed the menu and travels on, so whatever
@@ -86,6 +126,12 @@ final class MenuGate {
     private unowned let interfaceLayers: InterfaceLayerRegistry
     private var clients: [(id: UUID, client: Client)] = []
     nonisolated(unsafe) private var eventMonitor: Any?
+    /// The window the barrier was applied to, so exactly what was switched off
+    /// when the first menu opened is switched back on when the last one closes.
+    private var barrierWindow: NSWindow?
+    /// Whether a press landed on a menu and has not been released yet. The
+    /// drag it started belongs to the menu wherever the pointer travels.
+    private var isTrackingMenuDrag = false
 
     init(interfaceLayers: InterfaceLayerRegistry) {
         self.interfaceLayers = interfaceLayers
@@ -93,30 +139,70 @@ final class MenuGate {
 
     func open(_ client: Client) -> Session {
         let id = UUID()
+        let isFirstMenu = clients.isEmpty
         clients.append((id: id, client: client))
         installMonitorIfNeeded()
-        return Session(
+        let session = Session(
             gate: self,
             id: id,
             registration: interfaceLayers.registerOpenMenu(
                 ownedBy: client.owner
             )
         )
+        if isFirstMenu {
+            applyBarrier(to: client.window() ?? NSApp.keyWindow)
+        }
+        if client.kind.clearsTextSelection {
+            NotificationCenter.default.post(
+                name: .cueSeekerClearTextSelection,
+                object: nil
+            )
+        }
+        return session
     }
 
     private func close(id: UUID) {
         clients.removeAll { $0.id == id }
         if clients.isEmpty {
             removeMonitor()
+            releaseBarrier()
+            isTrackingMenuDrag = false
         }
     }
 
+    /// Everything an open menu switches off in its window, applied once and
+    /// undone once.
+    ///
+    /// The cursor is the App's, not each surface's: cursor rects are switched
+    /// off so no view under the menu can state a shape, and the pointer gives
+    /// up whatever shape it was already wearing. The keyboard is nobody's: the
+    /// focus is cancelled, and `CueSeekerMainWindow` refuses to hand it back
+    /// while a menu is open, so a field cannot take it again on its own.
+    private func applyBarrier(to window: NSWindow?) {
+        guard let window else {
+            return
+        }
+        barrierWindow = window
+        window.disableCursorRects()
+        NSCursor.arrow.set()
+        window.makeFirstResponder(nil)
+    }
+
+    private func releaseBarrier() {
+        guard let barrierWindow else {
+            return
+        }
+        barrierWindow.enableCursorRects()
+        barrierWindow.resetCursorRects()
+        self.barrierWindow = nil
+    }
+
     /// Keys the playback key owner offers the open menus before seeking,
-    /// volume and cue navigation see them. Returns whether a menu spent the
-    /// key.
+    /// volume, cue navigation and Command Panel navigation see them. Returns
+    /// whether a menu spent the key.
     func routeKey(_ keyCode: UInt16, isRepeat: Bool) -> Bool {
         for (_, client) in clients {
-            guard client.receivesKeysFromRouter,
+            guard client.kind.receivesKeysFromRouter,
                   !interfaceLayers.isMenuCovered(ownedBy: client.owner)
             else {
                 continue
@@ -133,7 +219,14 @@ final class MenuGate {
             return
         }
         eventMonitor = NSEvent.addLocalMonitorForEvents(
-            matching: [.keyDown, .leftMouseDown, .rightMouseDown, .scrollWheel]
+            matching: [
+                .keyDown,
+                .leftMouseDown, .rightMouseDown, .otherMouseDown,
+                .leftMouseUp, .rightMouseUp, .otherMouseUp,
+                .leftMouseDragged, .rightMouseDragged, .otherMouseDragged,
+                .mouseMoved, .mouseEntered, .mouseExited, .cursorUpdate,
+                .scrollWheel,
+            ]
         ) { [weak self] event in
             var routed: NSEvent? = event
             MainActor.assumeIsolated {
@@ -152,14 +245,37 @@ final class MenuGate {
     }
 
     private func route(_ event: NSEvent) -> NSEvent? {
-        var event: NSEvent? = event
+        noteDragTrackingBeforeRouting(event)
+        var routed: NSEvent? = event
         for (_, client) in clients {
-            guard let current = event else {
-                return nil
+            guard let current = routed else {
+                break
             }
-            event = route(current, to: client)
+            routed = route(current, to: client)
         }
-        return event
+        noteDragTrackingAfterRouting(event)
+        return routed
+    }
+
+    private func noteDragTrackingBeforeRouting(_ event: NSEvent) {
+        switch event.type {
+        case .leftMouseDown, .rightMouseDown, .otherMouseDown:
+            isTrackingMenuDrag = clients.contains { entry in
+                !interfaceLayers.isMenuCovered(ownedBy: entry.client.owner)
+                    && entry.client.isPointerOnMenu(event)
+            }
+        default:
+            break
+        }
+    }
+
+    private func noteDragTrackingAfterRouting(_ event: NSEvent) {
+        switch event.type {
+        case .leftMouseUp, .rightMouseUp, .otherMouseUp:
+            isTrackingMenuDrag = false
+        default:
+            break
+        }
     }
 
     private func route(_ event: NSEvent, to client: Client) -> NSEvent? {
@@ -169,38 +285,42 @@ final class MenuGate {
             return event
         }
 
+        let menuWindow = client.window() ?? event.window
+        let isFromAnotherWindow = MenuOutsidePress.isFromAnotherWindow(
+            event,
+            menuWindow: menuWindow
+        )
+
         switch event.type {
         case .keyDown:
-            guard client.receivesKeysFromMonitor,
-                  let eventWindow = event.window,
-                  eventWindow === client.window()
-            else {
-                return event
+            if client.kind.receivesKeysFromMonitor,
+               !isFromAnotherWindow,
+               client.handleKey(event.keyCode, event.isARepeat) {
+                return nil
             }
-            return client.handleKey(event.keyCode, event.isARepeat)
-                ? nil
-                : event
+            return MenuInputBarrier.passesKey(
+                isFromAnotherWindow: isFromAnotherWindow,
+                isShortcut: event.modifierFlags
+                    .intersection(.deviceIndependentFlagsMask)
+                    .contains(.command)
+            ) ? event : nil
 
         case .scrollWheel:
-            let menuWindow = client.window() ?? event.window
-            guard !MenuOutsidePress.isFromAnotherWindow(
-                event,
-                menuWindow: menuWindow
-            ) else {
+            guard !isFromAnotherWindow else {
                 return event
             }
             if client.isPointerOnMenu(event) {
                 // The menu is the one surface that may still scroll; a menu
                 // that cannot scroll spends the wheel so nothing moves
                 // underneath it.
-                return client.menuTakesWheel ? event : nil
+                return client.kind.takesWheel ? event : nil
             }
-            return client.bansScrolling ? nil : event
+            return client.kind.bansScrolling ? nil : event
 
         case .leftMouseDown, .rightMouseDown:
             switch MenuOutsidePress.decide(
                 event,
-                menuWindow: client.window() ?? event.window,
+                menuWindow: menuWindow,
                 isPointerOnMenu: { client.isPointerOnMenu(event) }
             ) {
             case .leaveToOtherWindow, .leaveToMenu:
@@ -216,8 +336,24 @@ final class MenuGate {
                 return nil
             }
 
+        case .otherMouseDown, .leftMouseUp, .rightMouseUp, .otherMouseUp:
+            // The middle press never closes a menu, and a release belongs to
+            // the press it completes. Outside the menu both are spent.
+            return MenuInputBarrier.passesNonDismissingButton(
+                isFromAnotherWindow: isFromAnotherWindow,
+                isPointerOnMenu: client.isPointerOnMenu(event),
+                isPointerOnAnchorControl:
+                    client.isPointerOnAnchorControl?(event) == true,
+                isTrackingMenuDrag: isTrackingMenuDrag
+            ) ? event : nil
+
         default:
-            return event
+            // Pointer motion, hover crossings, cursor updates and drags.
+            return MenuInputBarrier.passesPointerTracking(
+                isFromAnotherWindow: isFromAnotherWindow,
+                isPointerOnMenu: client.isPointerOnMenu(event),
+                isTrackingMenuDrag: isTrackingMenuDrag
+            ) ? event : nil
         }
     }
 }
@@ -233,10 +369,7 @@ final class MenuGate {
 struct MenuGateClientView: NSViewRepresentable {
     let gate: MenuGate?
     let owner: InterfaceLayer
-    let bansScrolling: Bool
-    let menuTakesWheel: Bool
-    var receivesKeysFromMonitor = true
-    var receivesKeysFromRouter = false
+    let kind: MenuGate.Kind
     let menuFrame: CGRect
     var anchorFrame: CGRect?
     var handleKey: (_ keyCode: UInt16, _ isRepeat: Bool) -> Bool = { _, _ in
@@ -285,6 +418,7 @@ struct MenuGateClientView: NSViewRepresentable {
             session = gate?.open(
                 MenuGate.Client(
                     owner: representable.owner,
+                    kind: representable.kind,
                     window: { [weak self] in self?.window },
                     isPointerOnMenu: { [weak self] event in
                         guard let self else {
@@ -303,12 +437,6 @@ struct MenuGateClientView: NSViewRepresentable {
                             self.convert(event.locationInWindow, from: nil)
                         )
                     },
-                    bansScrolling: representable.bansScrolling,
-                    menuTakesWheel: representable.menuTakesWheel,
-                    receivesKeysFromMonitor:
-                        representable.receivesKeysFromMonitor,
-                    receivesKeysFromRouter:
-                        representable.receivesKeysFromRouter,
                     handleKey: { [weak self] keyCode, isRepeat in
                         self?.handleKey(keyCode, isRepeat) ?? false
                     },

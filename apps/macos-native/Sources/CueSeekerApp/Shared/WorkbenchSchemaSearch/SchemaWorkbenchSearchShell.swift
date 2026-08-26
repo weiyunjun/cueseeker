@@ -282,12 +282,10 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
                 MenuGateClientView(
                     gate: interfaceLayers?.menuGate,
                     owner: layerContext.layer,
-                    bansScrolling: true,
                     // The menu's own content scrolls; whatever the content
                     // does not spend stops at the menu's hosting view instead
                     // of reaching the page.
-                    menuTakesWheel: true,
-                    receivesKeysFromRouter: true,
+                    kind: .filterMenu,
                     menuFrame: menuFrame,
                     anchorFrame: anchorFrame,
                     handleKey: handleFilterMenuKey,

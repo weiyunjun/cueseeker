@@ -2717,7 +2717,9 @@ struct SubtitleTableView: NSViewRepresentable {
                 } else {
                     invalidateDocumentCursorRects()
                     if let window = documentView?.window {
-                        handleMouseHover(windowPoint: window.mouseLocationOutsideOfEventStream)
+                        // The pointer shape is answered again, but not the
+                        // highlight: it stays where the freeze left it until
+                        // the pointer really moves.
                         refreshDocumentCursor(windowPoint: window.mouseLocationOutsideOfEventStream)
                     }
                     headerView?.refreshHeaderHosts()
@@ -2747,7 +2749,9 @@ struct SubtitleTableView: NSViewRepresentable {
                 } else {
                     invalidateDocumentCursorRects()
                     if let window = documentView?.window {
-                        handleMouseHover(windowPoint: window.mouseLocationOutsideOfEventStream)
+                        // The pointer shape is answered again, but not the
+                        // highlight: it stays where the freeze left it until
+                        // the pointer really moves.
                         refreshDocumentCursor(windowPoint: window.mouseLocationOutsideOfEventStream)
                     }
                     headerView?.refreshHeaderHosts()
@@ -2934,6 +2938,12 @@ struct SubtitleTableView: NSViewRepresentable {
                 self,
                 selector: #selector(appLeftMouseDown),
                 name: .cueSeekerLeftMouseDown,
+                object: nil
+            )
+            NotificationCenter.default.addObserver(
+                self,
+                selector: #selector(appClearTextSelection),
+                name: .cueSeekerClearTextSelection,
                 object: nil
             )
             installKeyboardFocusEventMonitor()
@@ -3297,7 +3307,7 @@ struct SubtitleTableView: NSViewRepresentable {
                 updateHoveredCueTextRow(nil)
                 updateHoveredCueStateRow(nil)
                 if isMenuOpen {
-                    dismissMenu(recalculateHover: false)
+                    dismissMenu()
                 }
             }
 
@@ -3331,7 +3341,7 @@ struct SubtitleTableView: NSViewRepresentable {
                 invalidateDocumentCursorRects()
                 layoutHoverButtons()
                 if isMenuOpen {
-                    dismissMenu(recalculateHover: false)
+                    dismissMenu()
                 }
             }
             if tableChanged || rowsChanged || columnVisibilityChanged || headerTitleChanged || selectionHeaderChanged || selectionModeChanged {
@@ -3967,7 +3977,7 @@ struct SubtitleTableView: NSViewRepresentable {
         }
 
         func performActiveRowMenuActionForTesting(_ action: SubtitleTableRowAction) {
-            performActiveRowMenuAction(action, recalculateHover: false)
+            performActiveRowMenuAction(action)
         }
 
         func performActiveRowMenuDestinationActionForTesting(
@@ -3976,8 +3986,7 @@ struct SubtitleTableView: NSViewRepresentable {
         ) {
             performActiveRowMenuDestinationAction(
                 action,
-                destinationID: destinationID,
-                recalculateHover: false
+                destinationID: destinationID
             )
         }
 
@@ -4382,6 +4391,11 @@ struct SubtitleTableView: NSViewRepresentable {
         }
 
         @objc private func appLeftMouseDown(_ notification: Notification) {
+            clearTextSelection()
+        }
+
+        /// A menu opening anywhere in the App takes every selection with it.
+        @objc private func appClearTextSelection(_ notification: Notification) {
             clearTextSelection()
         }
 
@@ -7427,7 +7441,7 @@ struct SubtitleTableView: NSViewRepresentable {
             submenuHost?.isHidden = true
         }
 
-        func dismissMenu(recalculateHover: Bool = true) {
+        func dismissMenu() {
             let previousRowMenuRow = activeRowMenuRow
             let previousHoveredRow = hoveredRow
             isMenuOpen = false
@@ -7452,18 +7466,10 @@ struct SubtitleTableView: NSViewRepresentable {
             headerView?.refreshHeaderHosts()
             invalidateRows([previousRowMenuRow, previousHoveredRow])
 
-            guard recalculateHover else { return }
-
-            if let window = documentView?.window {
-                handleMouseHover(windowPoint: window.mouseLocationOutsideOfEventStream)
-                DispatchQueue.main.async { [weak self, weak window] in
-                    guard let self, let window, !self.isMenuOpen else { return }
-                    self.invalidateDocumentCursorRects()
-                    self.refreshDocumentCursor(windowPoint: window.mouseLocationOutsideOfEventStream)
-                }
-            } else {
-                layoutHoverButtons()
-            }
+            // The hover stays where the menu left it. Closing a menu is not a
+            // reason to move it: only a real pointer movement, a right-click,
+            // or a left-click that is not spent closing the menu may.
+            layoutHoverButtons()
         }
 
         /// Hands the open row menu to the menu gate, which owns the outside
@@ -7479,14 +7485,13 @@ struct SubtitleTableView: NSViewRepresentable {
             menuGateSession = interfaceLayers?.menuGate.open(
                 MenuGate.Client(
                     owner: .workbenchPage,
+                    kind: .tableRowMenu,
                     window: { [weak self] in self?.container?.window },
                     isPointerOnMenu: { [weak self] event in
                         self?.isWindowPointInsideOpenMenu(
                             event.locationInWindow
                         ) ?? false
                     },
-                    bansScrolling: true,
-                    menuTakesWheel: true,
                     handleKey: { [weak self] keyCode, _ in
                         self?.handleMenuKey(keyCode) ?? false
                     },
@@ -7581,18 +7586,16 @@ struct SubtitleTableView: NSViewRepresentable {
         }
 
         private func performActiveRowMenuAction(
-            _ action: SubtitleTableRowAction,
-            recalculateHover: Bool = true
+            _ action: SubtitleTableRowAction
         ) {
             guard let target = activeRowMenuTarget else { return }
-            dismissMenu(recalculateHover: recalculateHover)
+            dismissMenu()
             performRowAction(action, target: target)
         }
 
         private func performActiveRowMenuDestinationAction(
             _ action: SubtitleTableRowAction,
-            destinationID: Int64,
-            recalculateHover: Bool = true
+            destinationID: Int64
         ) {
             guard let target = activeRowMenuTarget else {
                 return
@@ -7600,7 +7603,7 @@ struct SubtitleTableView: NSViewRepresentable {
             guard !disabledRowActions(for: target).contains(action) else {
                 return
             }
-            dismissMenu(recalculateHover: recalculateHover)
+            dismissMenu()
             switch action {
             case .moveToList:
                 onMoveShiori(target, destinationID)
