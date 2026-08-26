@@ -339,17 +339,6 @@ struct LibraryOverviewCardButtonStyle: ButtonStyle {
             .contentShape(Rectangle())
             .handPointer(isEnabled: isEnabled && !isFrozen)
             .opacity(isEnabled ? 1 : 0.55)
-            .scaleEffect(
-                configuration.isPressed && isEnabled
-                    ? WorkbenchControlMetrics.redesignLibraryMediaCardPressedScale
-                    : 1
-            )
-            .animation(
-                .easeOut(
-                    duration: WorkbenchControlMetrics.redesignLibraryCoverHoverDuration
-                ),
-                value: configuration.isPressed
-            )
             .animation(
                 .easeOut(
                     duration: WorkbenchControlMetrics.redesignLibraryCoverHoverDuration

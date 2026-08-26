@@ -77,9 +77,7 @@ private struct LibraryEpisodeButtonStyle: ButtonStyle {
                         y: isPlaying ? 0 : (lifted ? 4 : 1)
                     )
             }
-            .scaleEffect(configuration.isPressed ? 0.96 : 1)
             .contentShape(shape)
             .animation(.easeOut(duration: 0.14), value: isHovered)
-            .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
     }
 }

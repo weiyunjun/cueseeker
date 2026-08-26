@@ -78,10 +78,8 @@ private struct PlaybackChromeMenuButtonStyle: ButtonStyle {
         configuration.label
             .background(
                 RoundedRectangle(cornerRadius: PlaybackChromeMetrics.speedMenuItemRadius)
-                    .fill(backgroundColor(isPressed: configuration.isPressed))
+                    .fill(backgroundColor)
             )
-            .scaleEffect(configuration.isPressed ? 0.99 : 1)
-            .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
             .onHover { isHovered in
                 onHoverChange(suppressesInteraction ? false : isHovered)
             }
@@ -94,8 +92,8 @@ private struct PlaybackChromeMenuButtonStyle: ButtonStyle {
 
     /// Only the menu's highlight paints a background. The item in effect is
     /// marked by its check mark, so the highlight is free to move away from it.
-    private func backgroundColor(isPressed: Bool) -> Color {
-        if !suppressesInteraction && (isPressed || isHighlighted) {
+    private var backgroundColor: Color {
+        if !suppressesInteraction && isHighlighted {
             return PlaybackTheme.menuItemHoverBackground
         }
         return .clear

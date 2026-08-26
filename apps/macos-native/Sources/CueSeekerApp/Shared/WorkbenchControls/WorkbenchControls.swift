@@ -187,8 +187,6 @@ enum WorkbenchControlMetrics {
     static let redesignLibraryListInfoVerticalGap: CGFloat = 8
     /// --gap-library-folder-card-content: 12px
     static let redesignLibraryFolderCardContentGap: CGFloat = 12
-    /// --scale-library-media-card-pressed: 0.98
-    static let redesignLibraryMediaCardPressedScale: CGFloat = 0.98
     /// --scale-library-cover-hover: 1.02
     static let redesignLibraryCoverHoverScale: CGFloat = 1.02
     /// --duration-library-cover-hover: 0.12s

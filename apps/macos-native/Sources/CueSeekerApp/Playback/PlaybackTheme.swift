@@ -420,24 +420,21 @@ enum PlaybackChromeMetrics {
 }
 
 /// A unified concentric backing visual element for cinematic buttons and interactive controls.
-/// Supports both circular and capsule-like shapes with standardized micro-animation hover/press dynamics.
+/// Supports both circular and capsule-like shapes with a standardized micro-animation hover dynamic.
 public struct PlaybackCinematicBacking<S: Shape>: View {
     public let shape: S
     public let isHovered: Bool
-    public let isPressed: Bool
     public let scaleX: CGFloat
     public let scaleY: CGFloat
 
     public init(
         shape: S,
         isHovered: Bool,
-        isPressed: Bool = false,
         scaleX: CGFloat = 0.85,
         scaleY: CGFloat = 0.85
     ) {
         self.shape = shape
         self.isHovered = isHovered
-        self.isPressed = isPressed
         self.scaleX = scaleX
         self.scaleY = scaleY
     }
@@ -449,7 +446,7 @@ public struct PlaybackCinematicBacking<S: Shape>: View {
                 .fill(PlaybackTheme.controlBackground)
 
             // Concentric inner hover highlight
-            if isHovered || isPressed {
+            if isHovered {
                 shape
                     .fill(PlaybackTheme.controlHoverBackground)
                     .scaleEffect(x: scaleX, y: scaleY)

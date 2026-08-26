@@ -18,7 +18,6 @@ import SwiftUI
 enum LiquidGlassControlState: Equatable {
     case normal
     case hovered
-    case pressed
     case selected
     case disabled
 }
@@ -129,14 +128,14 @@ struct LiquidGlassTokens {
     func cardFill(for state: LiquidGlassControlState) -> Color {
         switch state {
         case .normal, .disabled: return cardFill
-        case .hovered, .pressed: return cardHoverFill
+        case .hovered: return cardHoverFill
         case .selected: return cardSelectedFill
         }
     }
 }
 
 /// Shared Liquid Glass selectable card. A button-shaped v6 glass tile with
-/// hover / pressed / selected / disabled states. Callers supply the inner
+/// hover / selected / disabled states. Callers supply the inner
 /// content (and its padding), mirroring the prototype `.result-card`.
 struct LiquidGlassSelectableCard<Content: View>: View {
     var isSelected: Bool = false
@@ -171,8 +170,8 @@ private struct LiquidGlassSelectableCardStyle: ButtonStyle {
     let tokens: LiquidGlassTokens
 
     func makeBody(configuration: Configuration) -> some View {
-        let state = resolvedState(isPressed: configuration.isPressed)
-        let lifted = state == .hovered || state == .pressed
+        let state = resolvedState()
+        let lifted = state == .hovered
         let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
 
         return configuration.label
@@ -213,16 +212,13 @@ private struct LiquidGlassSelectableCardStyle: ButtonStyle {
                         y: lifted ? 4 : 1
                     )
             }
-            .scaleEffect(configuration.isPressed ? 0.995 : 1)
             .opacity(state == .disabled ? 0.5 : 1)
             .contentShape(shape)
             .animation(.easeOut(duration: 0.14), value: state)
-            .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
     }
 
-    private func resolvedState(isPressed: Bool) -> LiquidGlassControlState {
+    private func resolvedState() -> LiquidGlassControlState {
         if !isEnabled { return .disabled }
-        if isPressed { return .pressed }
         if isSelected { return .selected }
         if isHovered { return .hovered }
         return .normal

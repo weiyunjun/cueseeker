@@ -107,15 +107,13 @@ private struct PlaybackChromeIconButtonStyle: ButtonStyle {
                     }
 
                     // Concentric inner hover circle
-                    if isInteractive && !isSelected && (isHovered || configuration.isPressed) {
+                    if isInteractive && !isSelected && isHovered {
                         Circle()
                             .fill(PlaybackTheme.controlHoverBackground)
                             .scaleEffect(0.85)
                     }
                 }
             )
-            .scaleEffect(configuration.isPressed && isInteractive ? 0.98 : 1)
-            .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
             .animation(.easeInOut(duration: 0.15), value: isHovered)
             .onPointerHover { isHovered = suppressesInteraction ? false : $0 }
             .onChange(of: suppressesInteraction) { isSuppressed in

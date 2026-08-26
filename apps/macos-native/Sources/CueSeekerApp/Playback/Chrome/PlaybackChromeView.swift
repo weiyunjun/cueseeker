@@ -512,13 +512,10 @@ private struct PlaybackChromeCapsuleButtonStyle: ButtonStyle {
                 PlaybackCinematicBacking(
                     shape: Capsule(),
                     isHovered: isInteractive && isHovered,
-                    isPressed: isInteractive && configuration.isPressed,
                     scaleX: 0.88,
                     scaleY: 0.85
                 )
             )
-            .scaleEffect(configuration.isPressed && isInteractive ? 0.98 : 1)
-            .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
             .animation(.easeInOut(duration: 0.15), value: isHovered)
             .onPointerHover { isHovered = suppressesInteraction ? false : $0 }
             .onChange(of: suppressesInteraction) { isSuppressed in
