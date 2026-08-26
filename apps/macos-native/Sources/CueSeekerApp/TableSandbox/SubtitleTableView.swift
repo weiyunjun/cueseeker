@@ -1698,6 +1698,11 @@ final class SubtitleVirtualTableHeaderView: NSView {
             isHeaderHovered = false
             return
         }
+        // A frozen header keeps the state it had: it neither follows the
+        // pointer nor drops what was lit when the freeze began.
+        if coordinator?.isPointerFrozen == true {
+            return
+        }
         let mouseLoc = window.mouseLocationOutsideOfEventStream
         let localLoc = convert(mouseLoc, from: nil)
         isHeaderHovered = bounds.contains(localLoc)
@@ -2020,7 +2025,11 @@ final class SubtitleVirtualTableHeaderView: NSView {
                 self?.coordinator?.toggleAllRowSelection()
             }
         )
-        let anyView = AnyView(checkboxView)
+        let anyView = InterfaceLayerHosting.bridgedRootView(
+            AnyView(checkboxView),
+            layers: coordinator.interfaceLayers,
+            context: coordinator.interfaceLayerContext
+        )
 
         if let host = hostVar {
             host.rootView = anyView
@@ -2051,7 +2060,11 @@ final class SubtitleVirtualTableHeaderView: NSView {
             columnRect: frame
         )
 
-        let anyView = AnyView(cellView)
+        let anyView = InterfaceLayerHosting.bridgedRootView(
+            AnyView(cellView),
+            layers: coordinator.interfaceLayers,
+            context: coordinator.interfaceLayerContext
+        )
 
         if let host = hostVar {
             host.rootView = anyView
@@ -2295,6 +2308,7 @@ struct SubtitleTableView: NSViewRepresentable {
     @Environment(\.isEnabled) private var isEnabled
     @Environment(\.isWorkbenchPageCovered) var isWorkbenchPageCovered
     @Environment(\.interfaceLayers) private var interfaceLayers
+    @Environment(\.interfaceLayerContext) private var interfaceLayerContext
     @Environment(\.subtitleTableExternalTextSelectionSession) private var externalTextSelectionSession
     var tableName: String
     var probeSurface: SubtitleTableProbeSurface = .search
@@ -2387,6 +2401,7 @@ struct SubtitleTableView: NSViewRepresentable {
         context.coordinator.isEnabled = isEnabled
         context.coordinator.isCoveredByHigherLayer = isWorkbenchPageCovered
         context.coordinator.interfaceLayers = interfaceLayers
+        context.coordinator.interfaceLayerContext = interfaceLayerContext
         let container = SubtitleTableContainerView()
 
         let header = SubtitleVirtualTableHeaderView()
@@ -2500,6 +2515,7 @@ struct SubtitleTableView: NSViewRepresentable {
         context.coordinator.isEnabled = isEnabled
         context.coordinator.isCoveredByHigherLayer = isWorkbenchPageCovered
         context.coordinator.interfaceLayers = interfaceLayers
+        context.coordinator.interfaceLayerContext = interfaceLayerContext
         context.coordinator.updatePageChrome(pageChrome)
         context.coordinator.bindExternalTextSelectionSession(externalTextSelectionSession)
         context.coordinator.update(
@@ -2694,6 +2710,36 @@ struct SubtitleTableView: NSViewRepresentable {
                     // A surface above the table takes its input and leaves its
                     // picture alone: the highlight stays where it was and an
                     // open menu stays open. Only work already in flight stops.
+                    cancelPendingTextInteraction()
+                    hideCueStateTip()
+                    invalidateDocumentCursorRects()
+                    headerView?.refreshHeaderHosts()
+                } else {
+                    invalidateDocumentCursorRects()
+                    if let window = documentView?.window {
+                        handleMouseHover(windowPoint: window.mouseLocationOutsideOfEventStream)
+                        refreshDocumentCursor(windowPoint: window.mouseLocationOutsideOfEventStream)
+                    }
+                    headerView?.refreshHeaderHosts()
+                }
+            }
+        }
+
+        /// The layer context read where the table sits. It carries the
+        /// registry's freeze answer into this AppKit surface — a menu open on
+        /// the table's layer, wherever it hangs, freezes the table exactly
+        /// like the table's own row menu does — and it is re-injected into
+        /// every view the table hosts, whose own hover gates would otherwise
+        /// read a default context that is never frozen.
+        var interfaceLayerContext = InterfaceLayerContext() {
+            didSet {
+                guard interfaceLayerContext != oldValue else { return }
+                updatePageChromeHosts()
+                guard interfaceLayerContext.isFrozen != oldValue.isFrozen
+                else {
+                    return
+                }
+                if interfaceLayerContext.isFrozen {
                     cancelPendingTextInteraction()
                     hideCueStateTip()
                     invalidateDocumentCursorRects()
@@ -2989,22 +3035,32 @@ struct SubtitleTableView: NSViewRepresentable {
                 return
             }
 
+            let scrollableRootView = InterfaceLayerHosting.bridgedRootView(
+                pageChrome.scrollableHeader,
+                layers: interfaceLayers,
+                context: interfaceLayerContext
+            )
             if let scrollablePageChromeHost {
-                scrollablePageChromeHost.rootView = pageChrome.scrollableHeader
+                scrollablePageChromeHost.rootView = scrollableRootView
             } else {
                 let host = SubtitleTablePageChromeHostingView(
-                    rootView: pageChrome.scrollableHeader
+                    rootView: scrollableRootView
                 )
                 host.scrollView = scrollView
                 pageChromeViewport.addSubview(host)
                 scrollablePageChromeHost = host
             }
 
+            let pinnedRootView = InterfaceLayerHosting.bridgedRootView(
+                pageChrome.pinnedHeader,
+                layers: interfaceLayers,
+                context: interfaceLayerContext
+            )
             if let pinnedPageChromeHost {
-                pinnedPageChromeHost.rootView = pageChrome.pinnedHeader
+                pinnedPageChromeHost.rootView = pinnedRootView
             } else {
                 let host = SubtitleTablePageChromeHostingView(
-                    rootView: pageChrome.pinnedHeader
+                    rootView: pinnedRootView
                 )
                 host.scrollView = scrollView
                 pageChromeViewport.addSubview(host)
@@ -5782,10 +5838,14 @@ struct SubtitleTableView: NSViewRepresentable {
             return lowerBound < upperBound ? lowerBound..<upperBound : nil
         }
 
-        /// The cue cursor follows the same rule as the cards: a table that a
-        /// higher layer covers, or that has its own menu open, keeps the arrow.
-        private var isPointerFrozen: Bool {
+        /// The one answer to "may the table follow the pointer". A table that
+        /// a higher layer covers, that has its own menu open, or whose layer
+        /// the registry reports frozen — any menu open on it, wherever it
+        /// hangs — keeps its picture: hover, cursor shapes, everything.
+        /// Every pointer-following path asks this and nothing else.
+        fileprivate var isPointerFrozen: Bool {
             isCoveredByHigherLayer || isMenuOpen
+                || interfaceLayerContext.isFrozen
         }
 
         func installCursorRects(in documentView: SubtitleVirtualTableDocumentView) {
@@ -6377,13 +6437,10 @@ struct SubtitleTableView: NSViewRepresentable {
         }
 
         func handleMouseHover(windowPoint: CGPoint) {
-            if isCoveredByHigherLayer {
-                return
-            }
-            // An open menu freezes the table. The row it hangs off keeps the
-            // highlight it had when the menu opened, and no other row takes
-            // one, wherever the pointer goes.
-            if isMenuOpen {
+            // A frozen table keeps its picture: the row a menu hangs off, or
+            // the one lit when the freeze began, keeps its highlight, and no
+            // other row takes one, wherever the pointer goes.
+            if isPointerFrozen {
                 return
             }
             guard let documentView else { return }
@@ -6825,9 +6882,9 @@ struct SubtitleTableView: NSViewRepresentable {
 
         func clearHover() {
             // The pointer leaving the table for a surface above it is not a
-            // reason to drop the highlight underneath: a covered table keeps
+            // reason to drop the highlight underneath: a frozen table keeps
             // its picture until it owns input again.
-            if isMenuOpen || isCoveredByHigherLayer {
+            if isPointerFrozen {
                 return
             }
             updateHoveredColumnID(nil)

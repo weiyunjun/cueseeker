@@ -951,6 +951,66 @@ func subtitleTableCoveredByADialogKeepsItsHighlight() throws {
 
 @MainActor
 @Test
+func subtitleTableForeignMenuOnItsLayerFreezesHover() throws {
+    let fixture = makeAttachedVirtualTableCoordinator()
+    fixture.container.frame.size.height = 800
+    fixture.scrollView.frame.size.height = 756
+    let firstRowRect = try #require(
+        fixture.coordinator.cellContentHoverDocumentRectForTesting(row: 0, columnID: "cues")
+    )
+    fixture.coordinator.handleMouseHover(
+        windowPoint: fixture.documentView.convert(
+            CGPoint(x: firstRowRect.midX, y: firstRowRect.midY),
+            to: nil
+        )
+    )
+    #expect(
+        fixture.coordinator.rowBackgroundColorForTesting(row: 0)
+            === WorkbenchRedesignColors.NS.rowHover
+    )
+
+    // A menu opened elsewhere on the table's layer — the filter menu — is
+    // reported through the layer context and freezes the table exactly like
+    // its own row menu: the lit row keeps its highlight, no other row takes
+    // one, and leaving the table does not drop it.
+    fixture.coordinator.interfaceLayerContext = InterfaceLayerContext(
+        layer: .workbenchPage,
+        frozenLayers: [.workbenchPage]
+    )
+    let secondRowRect = try #require(
+        fixture.coordinator.cellContentHoverDocumentRectForTesting(row: 1, columnID: "cues")
+    )
+    fixture.coordinator.handleMouseHover(
+        windowPoint: fixture.documentView.convert(
+            CGPoint(x: secondRowRect.midX, y: secondRowRect.midY),
+            to: nil
+        )
+    )
+    fixture.coordinator.clearHover()
+    #expect(fixture.coordinator.rowBackgroundColorForTesting(row: 1) == nil)
+    #expect(
+        fixture.coordinator.rowBackgroundColorForTesting(row: 0)
+            === WorkbenchRedesignColors.NS.rowHover
+    )
+
+    // The freeze lifting hands hover back to wherever the pointer really is.
+    fixture.coordinator.interfaceLayerContext = InterfaceLayerContext(
+        layer: .workbenchPage
+    )
+    fixture.coordinator.handleMouseHover(
+        windowPoint: fixture.documentView.convert(
+            CGPoint(x: secondRowRect.midX, y: secondRowRect.midY),
+            to: nil
+        )
+    )
+    #expect(
+        fixture.coordinator.rowBackgroundColorForTesting(row: 1)
+            === WorkbenchRedesignColors.NS.rowHover
+    )
+}
+
+@MainActor
+@Test
 func subtitleTableViewOpenMenuFreezesTheTableUnderneathIt() throws {
     let fixture = makeAttachedVirtualTableCoordinator()
     fixture.container.frame.size.height = 800

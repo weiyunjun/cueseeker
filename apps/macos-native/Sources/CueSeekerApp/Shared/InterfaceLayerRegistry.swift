@@ -243,6 +243,33 @@ extension View {
     }
 }
 
+/// The one way to hand main-window content to a separately hosted
+/// `NSHostingView`.
+///
+/// The SwiftUI environment stops at a hosting boundary, so content given to
+/// its own hosting view reads a nil registry and a default layer context that
+/// is never frozen — its hover gates go silently blind. Every non-menu host
+/// wraps its root view here, and content added to a hosted surface later
+/// inherits the freeze without anyone remembering to wire it.
+///
+/// Menu surfaces are the deliberate exception and must not be bridged: a menu
+/// belongs to the layer it freezes, so bridging would freeze the menu's own
+/// rows and scrollbar together with the page below it.
+@MainActor
+enum InterfaceLayerHosting {
+    static func bridgedRootView(
+        _ view: AnyView,
+        layers: InterfaceLayerRegistry?,
+        context: InterfaceLayerContext
+    ) -> AnyView {
+        AnyView(
+            view
+                .environment(\.interfaceLayers, layers)
+                .environment(\.interfaceLayerContext, context)
+        )
+    }
+}
+
 private struct InterfaceLayerModifier: ViewModifier {
     let layer: InterfaceLayer
     @Environment(\.interfaceLayerContext) private var context

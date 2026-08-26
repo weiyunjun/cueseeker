@@ -86,3 +86,45 @@ Files:
 
 `CueFacetFilterPanel.swift` now holds the filter menu; the file name lags its
 content and renaming is left to the owner.
+
+## Acceptance defect: the table kept answering hover under the open menu
+
+Acceptance found the table rows still lighting under the pointer while the
+filter menu was open — even with the pointer on the menu itself. Two wiring
+gaps, both older than the menu and both exposed by the first menu that floats
+above the table:
+
+- The table's own hover freeze asked the wrong authority. Body hover already
+  funnels through one entry, and that entry already froze for a covering
+  layer and for the table's own row menu — but it never asked the layer
+  registry, whose answer is what a foreign menu raises. Tracking-area mouse
+  moves are delivered by position, not hit testing, so nothing above the
+  table could shield it; only the gate could, and the gate was blind.
+- The toolbar and cover the Shiori detail pins inside the table live in their
+  own hosting views, and the SwiftUI environment stops at that boundary, so
+  their hover gates read a default context that is never frozen.
+
+The fix is architectural rather than point-by-point. The table's freeze
+question is now one authority — covered, own menu, or the layer context's
+frozen answer, plumbed in from the wrapper like the covered flag — asked at
+the hover entries, the header's, `clearHover` and the cursor rects; a future
+interaction path asking the same property cannot get a stale answer. And
+`InterfaceLayerHosting.bridgedRootView` is now the one way non-menu hosts
+receive their content, re-injecting the registry and layer context across the
+hosting boundary, so controls added to a hosted surface later inherit the
+freeze without new wiring. Menu surfaces stay unbridged on purpose: bridging
+would freeze a menu's own rows and scrollbar with the page below it.
+
+Verified by a new unit test (a frozen layer context holds the lit row against
+hover, clear and pointer exit, and hands hover back when it lifts) and by
+driving the app with `mouseMove`, the path the first verification round
+missed: with the menu open the lit row keeps its picture and no other row or
+toolbar button answers the pointer, on the menu the menu's own highlight
+follows, and after closing the row hover returns. The full suite passed with
+no failures.
+
+Additional files:
+
+- `Sources/CueSeekerApp/Shared/InterfaceLayerRegistry.swift`
+- `Sources/CueSeekerApp/TableSandbox/SubtitleTableView.swift`
+- `Tests/CueSeekerAppTests/SubtitleTableVirtualRowTests.swift`
