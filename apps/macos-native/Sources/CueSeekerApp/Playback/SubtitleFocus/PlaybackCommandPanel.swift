@@ -333,7 +333,7 @@ private struct PlaybackCommandPanelRootRow: View {
             }
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(StaticButtonStyle())
         .focusable(false)
         .onPointerHover { isHovered = $0 }
         .onChange(of: isHoverActive) { isActive in
@@ -380,7 +380,7 @@ private struct PlaybackCommandPanelSecondaryHeader: View {
                             .fill(WorkbenchRedesignColors.bgHover)
                         }
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(StaticButtonStyle())
                 .focusable(false)
                 .accessibilityLabel(L("playback.back"))
 

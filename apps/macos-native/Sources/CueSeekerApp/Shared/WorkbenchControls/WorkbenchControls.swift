@@ -373,7 +373,7 @@ struct WorkbenchInlineClearButton: View {
                     }
                 )
         }
-        .buttonStyle(.plain)
+        .buttonStyle(StaticButtonStyle())
         .disabled(!isEnabled)
         .subtitleTableTextSelectionInteractiveRegion(isActive: isEnabled)
         .focused($isFocused)
@@ -535,7 +535,7 @@ struct WorkbenchToolbarButton: View {
             Button(action: action) {
                 label
             }
-            .buttonStyle(.plain)
+            .buttonStyle(StaticButtonStyle())
             .focused($isFocused)
             .disableFocusEffect()
             .subtitleTableTextSelectionInteractiveRegion(isActive: isEnabled)
@@ -664,7 +664,7 @@ struct WorkbenchButton: View {
             .fixedSize(horizontal: true, vertical: false)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(StaticButtonStyle())
         .subtitleTableTextSelectionInteractiveRegion(isActive: isEnabled)
         .focused($isFocused)
         .disableFocusEffect()
@@ -743,7 +743,7 @@ struct WorkbenchPrimaryButton: View {
             .fixedSize(horizontal: true, vertical: false)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(StaticButtonStyle())
         .subtitleTableTextSelectionInteractiveRegion(isActive: isEnabled)
         .focused($isFocused)
         .disableFocusEffect()
@@ -798,7 +798,7 @@ struct WorkbenchDestructiveButton: View {
             .fixedSize(horizontal: true, vertical: false)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(StaticButtonStyle())
         .subtitleTableTextSelectionInteractiveRegion(isActive: isEnabled)
         .focused($isFocused)
         .disableFocusEffect()
@@ -864,7 +864,7 @@ struct WorkbenchPlainActionButton: View {
             .fixedSize(horizontal: true, vertical: false)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(StaticButtonStyle())
         .subtitleTableTextSelectionInteractiveRegion(isActive: isEnabled)
         .focused($isFocused)
         .disableFocusEffect()
@@ -908,7 +908,7 @@ struct WorkbenchPopoverRow: View {
             Button(action: action) {
                 label
             }
-            .buttonStyle(.plain)
+            .buttonStyle(StaticButtonStyle())
             .disabled(!isEnabled)
             .subtitleTableTextSelectionInteractiveRegion(isActive: isEnabled)
         } else {
@@ -1025,7 +1025,7 @@ struct WorkbenchIconButton: View {
                 Button(action: action) {
                     label
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(StaticButtonStyle())
                 .focused($isFocused)
                 .disableFocusEffect()
                 .subtitleTableTextSelectionInteractiveRegion(isActive: isEnabled)

@@ -55,7 +55,7 @@ struct LiquidGlassWindowControlButton: View {
                 )
                 .contentShape(Circle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(StaticButtonStyle())
         .accessibilityLabel(kind.accessibilityLabel)
     }
 

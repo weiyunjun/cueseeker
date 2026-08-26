@@ -53,7 +53,7 @@ struct LibraryFolderHeader: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(StaticButtonStyle())
         .focusable(false)
         .onPointerHover { hovering in
             withAnimation(.easeOut(duration: 0.1)) { isHovered = hovering }

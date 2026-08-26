@@ -1294,7 +1294,7 @@ private struct WorkbenchCheckboxButton: View {
                 }
             )
         }
-        .buttonStyle(.plain)
+        .buttonStyle(StaticButtonStyle())
         .disabled(!isEnabled)
         .subtitleTableTextSelectionInteractiveRegion(isActive: isEnabled)
         .focused($isFocused)

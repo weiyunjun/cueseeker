@@ -404,7 +404,7 @@ private struct AppSidebarNavigationItem: View {
                     isEnabled: isEnabled
                 )
             }
-            .buttonStyle(.plain)
+            .buttonStyle(StaticButtonStyle())
 
             if let isExpanded, let onToggleExpansion {
                 Button(action: onToggleExpansion) {
@@ -421,7 +421,7 @@ private struct AppSidebarNavigationItem: View {
                         )
                         .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(StaticButtonStyle())
                 .focusable(false)
                 .accessibilityLabel(isExpanded ? L("sidebar.collapse") : L("sidebar.expand"))
             }

@@ -79,3 +79,57 @@ with what the project already has — the Debug E2E controller splits `mouseDown
 from `mouseUp`, so a capture taken while the button is held can be compared with
 an idle one — and that is worth adding when a regression is suspected. No test
 capability was added here.
+
+## The other half: the press SwiftUI adds on its own
+
+`.buttonStyle(.plain)` is not a neutral style on macOS. It draws no chrome, but
+it still dims the label for as long as the mouse is held down. Nothing in the
+App asked for that, and nothing in the App could see it — it is not in any of
+these files. It is why the Sidebar's top-level pages flashed on click while its
+child rows did not: the pages are `.plain`, the child rows already use the
+project's own style.
+
+The project had solved this once before. `StaticButtonStyle` draws the label and
+nothing else, and the facet option rows adopted it in July for exactly this
+reason. It is now the style every button uses; no new mechanism was added, and
+the one comment explaining why sits on the style itself rather than on each of
+the twenty-four call sites.
+
+Every one of those labels already states its own colour for enabled, disabled
+and selected, so nothing depended on `.plain` for its appearance. Hit area,
+focus ring, hover and action are untouched.
+
+Files:
+
+- Twenty-four `.buttonStyle(.plain)` call sites across Workbench controls, the
+  Sidebar, Settings, the search and library headers, the cover summary, the
+  subtitle table checkbox, and the player and overlay chrome now pass
+  `StaticButtonStyle()`.
+- `apps/macos-native/Sources/CueSeekerApp/Shared/HoverEffectModifier.swift`
+  - `StaticButtonStyle` gains the note that says what it is for.
+
+`CueHoverButtons` and the `ToolbarButtonStyle` it uses were left alone. They are
+the pre-redesign row Play/Copy pair: the coordinator still builds the host at
+init, but every caller passes `isRedesign: true` and the layout pass hides it
+before it can appear. Its press effect cannot be seen, and removing dead code is
+not part of this requirement.
+
+### Verification
+
+`swift build`: clean. `swift test`: 1098 tests, the same failing set as the
+stashed baseline apart from `subtitleFocusDownThenShioriSavesTheFinalSettledCue`,
+which passes on its own — the suite parallelism flake again, in the other
+direction this time, since the baseline run had a name this run does not.
+
+The press itself was measured rather than eyeballed, using the Debug E2E
+controller's separable `mouseDown`. Holding the Sidebar's Library page down and
+capturing before release: 1330 pixels of that row differ from idle on the
+baseline tree, up to 58 levels of dimming, and 0 pixels differ with the change
+in place. The same held capture on the Workbench Select button and on Library's
+Add Content primary button differs from idle by 0 pixels; Add Content keeps its
+focus ring while held, which is the state it is actually in.
+
+Cards could not be measured the same way. This machine's library is empty, so
+there is no card to hold, and card hover cannot be synthesized in the first
+place. That half stays the owner's manual check, as the requirement's acceptance
+already assumes.

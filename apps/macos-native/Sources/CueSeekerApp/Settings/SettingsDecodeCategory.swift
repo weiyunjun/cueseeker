@@ -74,7 +74,7 @@ private struct DecodeModeSegmentedControl: View {
                         )
                         .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(StaticButtonStyle())
                 .accessibilityLabel(L("settings.decode.accessibility", Self.displayName(for: mode)))
                 .accessibilityValue(isSelected ? L("facet.selected") : L("facet.not_selected"))
             }

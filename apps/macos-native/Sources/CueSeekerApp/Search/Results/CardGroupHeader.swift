@@ -33,7 +33,7 @@ struct CardGroupHeader: View {
                 }
                 .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(StaticButtonStyle())
             .focusable(false)
 
             if let onExportToAnki {
@@ -44,7 +44,7 @@ struct CardGroupHeader: View {
                         .frame(width: 24, height: 24)
                         .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(StaticButtonStyle())
                 .focusable(false)
                 .help(L("export.group_to_anki"))
             }

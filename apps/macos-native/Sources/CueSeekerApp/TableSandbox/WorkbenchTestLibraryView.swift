@@ -234,7 +234,7 @@ private struct RecentSectionHeader: View {
             }
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(StaticButtonStyle())
         .focusable(false)
         .accessibilityLabel("\(title), \(count)")
     }
@@ -324,7 +324,7 @@ struct RecentShioriResumeRow: View {
                 )
             )
         }
-        .buttonStyle(.plain)
+        .buttonStyle(StaticButtonStyle())
         .focusable(false)
         .onHover { highlight.noteHover($0, id: cardID) }
         .accessibilityLabel(summary.list.name)

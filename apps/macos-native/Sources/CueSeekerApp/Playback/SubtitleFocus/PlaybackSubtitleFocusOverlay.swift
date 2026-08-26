@@ -290,7 +290,7 @@ private struct PlaybackOverlayTopBar: View {
                             )
                             .contentShape(Rectangle())
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(StaticButtonStyle())
                         .focusable(false)
                         .accessibilityLabel(module.label)
                         .accessibilityIdentifier("playback-view-\(module.rawValue)")
