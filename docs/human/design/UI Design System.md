@@ -390,7 +390,6 @@
 
 ### Interaction Motion
 
-- `--scale-library-media-card-pressed`: `0.98`
 - `--scale-library-cover-hover`: `1.02`
 - `--duration-library-cover-hover`: `0.12s`
 
@@ -1971,8 +1970,6 @@
   - Content Gap：`--spacing-2`
   - Content Alignment：Center
 - Focused
-  - Additional Visual：None
-- Pressed
   - Additional Visual：None
 - Crop Editing
   - Component：Cover Crop Editor
