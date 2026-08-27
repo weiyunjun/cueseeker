@@ -52,6 +52,7 @@ app.*.map.json
 
 # Claude / Gemini Worktrees
 .claude/
+.agents/
 
 # Local UI redesign drafts copied into the requirement and kept out of commits
 docs/human/design/UI Redesign.md
