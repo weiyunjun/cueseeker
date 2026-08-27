@@ -33,6 +33,8 @@ Temporary instrumentation was added at three points — an App-wide monitor inst
 
 The barrier was torn down cleanly, motion kept arriving at the App, nothing was spending it any more, and the table still never heard another one.
 
+One reading of the same log was wrong and is worth naming, because the log invites it. Two adjacent lines appeared to show the gate's monitor running ahead of one installed at launch, which would have made `MenuGate.Kind.receivesKeysFromMonitor` wrong and the speed menu's key routing with it. They were not the same event: each probe throttles itself independently, so their lines drift apart and land next to each other by coincidence. Every pair the log produced for one event puts the monitor installed at launch first. Local monitors do run in install order, and that comment is right.
+
 ## What changed
 
 A crossing into or out of a tracking area always travels on. Motion, drags and cursor updates are spent exactly as before, so the modality the design describes is unchanged.
@@ -56,7 +58,3 @@ The instrumentation is not part of this change. Its three call sites were revert
 The whole suite is noisy enough that its count has to be reported rather than read as a result. Runs during this session produced 17, 19, 17 and 22 distinct failures on trees that differed only in this area, and every entry that appeared in one run and not another passes on its own. The stable remainder is the known native playback timeline, presentation transition, window geometry and localization set. Nothing menu-related fails.
 
 The acceptance points need the App to actually lose and regain activation with the pointer in a particular place, which the Debug E2E controller cannot do: it drives the key window's own pointer and keyboard and has no activate or deactivate command. This was reported before implementation started and no test capability was added for it. Acceptance is the owner's manual check.
-
-## Open for review
-
-- `MenuGate.Kind.receivesKeysFromMonitor` says local monitors run in install order, and that the playback monitor installed at launch therefore sees keys first. The instrumentation showed the opposite: the gate's monitor, installed later, ran ahead of one installed at launch. The comment is wrong, and the speed menu's key routing rests on it. It was left alone because it is outside this defect and no requirement covers it, but it is worth its own look.
