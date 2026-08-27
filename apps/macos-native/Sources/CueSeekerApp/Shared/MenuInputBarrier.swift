@@ -17,18 +17,38 @@ import AppKit
 /// See `docs/human/requirements/20260826-UI-Menu Modality Input Barrier And
 /// Focus Cancellation.md`.
 enum MenuInputBarrier {
-    /// Pointer motion, hover crossings and cursor updates. Only the menu sees
-    /// them, so nothing underneath lights up and nothing states a cursor shape
-    /// of its own — the arrow set when the menu opened stays.
+    /// Pointer motion and cursor updates. Only the menu sees them, so nothing
+    /// underneath lights up and nothing states a cursor shape of its own — the
+    /// arrow set when the menu opened stays.
     ///
     /// A drag that began on the menu keeps its events wherever the pointer
     /// travels, the way dragging a scrollbar thumb past its track does.
+    ///
+    /// A crossing into or out of a tracking area always travels on, because it
+    /// is not input at all: it is how AppKit records which areas the pointer is
+    /// inside, and that record is only ever written when the crossing is
+    /// delivered. Spending one leaves the window believing the pointer is
+    /// somewhere it is not, and AppKit then stops sending that area any motion
+    /// — for good, because the correction it is waiting for is the very
+    /// crossing it never saw. Leaving the App with a menu open and coming back
+    /// with the pointer elsewhere produces exactly one such crossing, which is
+    /// how the whole interface stopped answering the pointer and stayed that
+    /// way after the menu had closed.
+    ///
+    /// Nothing underneath lights up from a crossing either: the freeze is what
+    /// holds those surfaces still, and every one of them already asks it before
+    /// acting.
+    ///
+    /// See `docs/human/requirements/20260827-Bug-Menu Hover Dies After
+    /// Switching Apps.md`.
     static func passesPointerTracking(
+        isTrackingAreaCrossing: Bool,
         isFromAnotherWindow: Bool,
         isPointerOnMenu: Bool,
         isTrackingMenuDrag: Bool
     ) -> Bool {
-        isFromAnotherWindow || isPointerOnMenu || isTrackingMenuDrag
+        isTrackingAreaCrossing || isFromAnotherWindow || isPointerOnMenu
+            || isTrackingMenuDrag
     }
 
     /// The button events that must never close the menu: every release, and the

@@ -348,8 +348,11 @@ final class MenuGate {
             ) ? event : nil
 
         default:
-            // Pointer motion, hover crossings, cursor updates and drags.
+            // Pointer motion, tracking area crossings, cursor updates and
+            // drags.
             return MenuInputBarrier.passesPointerTracking(
+                isTrackingAreaCrossing: event.type == .mouseEntered
+                    || event.type == .mouseExited,
                 isFromAnotherWindow: isFromAnotherWindow,
                 isPointerOnMenu: client.isPointerOnMenu(event),
                 isTrackingMenuDrag: isTrackingMenuDrag

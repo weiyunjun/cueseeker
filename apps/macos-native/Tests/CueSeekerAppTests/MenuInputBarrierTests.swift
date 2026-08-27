@@ -9,6 +9,7 @@ struct MenuInputBarrierTests {
     @Test
     func pointerTrackingOutsideTheMenuStops() {
         #expect(MenuInputBarrier.passesPointerTracking(
+            isTrackingAreaCrossing: false,
             isFromAnotherWindow: false,
             isPointerOnMenu: false,
             isTrackingMenuDrag: false
@@ -18,6 +19,7 @@ struct MenuInputBarrierTests {
     @Test
     func pointerTrackingOnTheMenuTravelsOn() {
         #expect(MenuInputBarrier.passesPointerTracking(
+            isTrackingAreaCrossing: false,
             isFromAnotherWindow: false,
             isPointerOnMenu: true,
             isTrackingMenuDrag: false
@@ -27,6 +29,7 @@ struct MenuInputBarrierTests {
     @Test
     func aDragBegunOnTheMenuKeepsItsEventsOffTheMenu() {
         #expect(MenuInputBarrier.passesPointerTracking(
+            isTrackingAreaCrossing: false,
             isFromAnotherWindow: false,
             isPointerOnMenu: false,
             isTrackingMenuDrag: true
@@ -34,8 +37,22 @@ struct MenuInputBarrierTests {
     }
 
     @Test
+    func aTrackingAreaCrossingTravelsOnWhereverItLanded() {
+        // It is AppKit's own record of where the pointer is, not input. A
+        // window that never hears a crossing stops sending that area motion,
+        // and the loss outlives the menu that spent it.
+        #expect(MenuInputBarrier.passesPointerTracking(
+            isTrackingAreaCrossing: true,
+            isFromAnotherWindow: false,
+            isPointerOnMenu: false,
+            isTrackingMenuDrag: false
+        ) == true)
+    }
+
+    @Test
     func anotherWindowIsNoneOfTheMenusBusiness() {
         #expect(MenuInputBarrier.passesPointerTracking(
+            isTrackingAreaCrossing: false,
             isFromAnotherWindow: true,
             isPointerOnMenu: false,
             isTrackingMenuDrag: false
