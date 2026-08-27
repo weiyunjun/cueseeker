@@ -30,14 +30,13 @@ main
 
 ## 4. 任务界面
 
-1. 按 Dialog 呈现：整窗口压暗、popover 背景、边框、阴影，模态屏蔽下层输入。
-2. Header 行中间为 segment control，包含 Current、Completed、Incomplete，沿用 Playback Overlay 的 Current / Playlist 标签样式。
-3. Header 行右端为 `-` 按钮，占据 Dialog 关闭按钮的位置。
-4. 关闭方式只有 `-` 按钮与 Esc；点击界面之外不关闭。
-5. 关闭时有收缩回入口按钮的动画。
-6. 标签选择不持久化，每次打开都停在 Current。
-7. 三个标签下的任务都按先发起的排在前面。
-8. 进度更新时只刷新对应卡片的进度部分，不重建整个任务界面。
+1. 与 Edit Cover、Shiori List Editor、Confirmation 一样以窗口模态呈现，压暗整个窗口并屏蔽下层输入；容器为 popover 背景、边框、阴影。
+2. Header 行中间为 segment control，包含 Current、Completed、Incomplete，沿用 Playback Overlay 的 Current / Playlist 标签样式。选中文字与指示条使用 `--color-playback-module-sidebar-selected`，未选中文字使用 `--color-playback-module-sidebar-unselected`，不使用 accent。
+3. Header 行右端为 `x` 按钮，即 Dialog 的标准关闭按钮。
+4. 关闭方式只有 `x` 按钮与 Esc；点击界面之外不关闭。
+5. 标签选择不持久化，每次打开都停在 Current。
+6. 三个标签下的任务都按先发起的排在前面。
+7. 进度更新时只刷新对应卡片的进度部分，不重建整个任务界面。
 
 ## 5. Current 卡片
 
@@ -92,7 +91,7 @@ main
 
 ## 12. 设计文档同步
 
-本需求验收通过后再更新设计文档：UI Application Rules 的界面层级新增任务界面一层，位于工作台页面之上、对话框之下；UI Design System 新增任务状态徽标、任务卡片、数量徽标、确定进度的进度条与任务界面布局，App Topbar Layout 增加尾部功能区。
+本需求验收通过后再更新设计文档：UI Application Rules 的界面层级中，任务界面归入既有的对话框层；UI Design System 新增任务状态徽标、任务卡片、数量徽标、确定进度的进度条与任务界面布局，App Topbar Layout 增加尾部功能区，Tab 的指示条颜色与实际实现对齐。
 
 # 验收
 
@@ -101,12 +100,13 @@ main
 3. 数量徽标随进行中与队列中的总数变化，1 位为圆形、2 位以上为胶囊形，为 0 时不显示。
 4. 连续发起多个导出时，只有第一个执行，其余为 Queued，按发起顺序排列。
 5. Current 卡片五行内容与进度文案正确；进度条只出现在进行中的任务上。
-6. 任务界面为模态：下层不响应指针与键盘，点击界面之外不关闭，`-` 与 Esc 可关闭并播放收缩动画。
-7. 每次打开都停在 Current 标签。
-8. 三种卡片的删除或取消都先弹出二次确认，标题分别为 Remove Task 与 Delete Record。
-9. 取消进行中的任务后立即停止，并出现在 Incomplete，错误信息为 `Cancelled by user`。
-10. 导出失败的任务出现在 Incomplete 并显示红色错误信息。
-11. 任务执行期间退出 App，重新启动后原进行中与队列中的任务都出现在 Incomplete，错误信息为 `Interrupted before the task finished`。
-12. Completed 与 Incomplete 的记录跨重启保留，删除后不再出现。
-13. 进度跳动期间任务界面其余部分不重建。
-14. 现有自动化端到端与单元用例全部通过。
+6. 任务界面为模态：下层不响应指针与键盘，点击界面之外不关闭，`x` 与 Esc 可关闭。
+7. 顶部三个标签的选中文字与指示条为 `--color-playback-module-sidebar-selected`，未选中文字为 `--color-playback-module-sidebar-unselected`，与 Playback Overlay 的 Current / Playlist 一致。
+8. 每次打开都停在 Current 标签。
+9. 三种卡片的删除或取消都先弹出二次确认，标题分别为 Remove Task 与 Delete Record。
+10. 取消进行中的任务后立即停止，并出现在 Incomplete，错误信息为 `Cancelled by user`。
+11. 导出失败的任务出现在 Incomplete 并显示红色错误信息。
+12. 任务执行期间退出 App，重新启动后原进行中与队列中的任务都出现在 Incomplete，错误信息为 `Interrupted before the task finished`。
+13. Completed 与 Incomplete 的记录跨重启保留，删除后不再出现。
+14. 进度跳动期间任务界面其余部分不重建。
+15. 现有自动化端到端与单元用例全部通过。
