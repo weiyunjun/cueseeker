@@ -149,12 +149,6 @@ enum WorkbenchRedesignColors {
         static let taskCountBadgeBg = NSColor.controlAccentColor
         static let taskCountBadgeText = iconOnDark
 
-        // Dialog
-        /// The dim behind a dialog. The three sheet-presented dialogs get it
-        /// from macOS; the Task panel is drawn in the window, so it paints the
-        /// same dim itself.
-        static let dialogScrim = NSColor.dynamic(lightHex: "#000000", lightAlpha: 0.18, darkHex: "#000000", darkAlpha: 0.18)
-
         // Shadow Color
         static let shadowPopover = NSColor.dynamic(lightHex: "#0F172A", lightAlpha: 0.12, darkHex: "#000000", darkAlpha: 0.36)
     }
@@ -261,9 +255,6 @@ enum WorkbenchRedesignColors {
     // Task
     static let taskCountBadgeBg = Color(nsColor: NS.taskCountBadgeBg)
     static let taskCountBadgeText = Color(nsColor: NS.taskCountBadgeText)
-
-    // Dialog
-    static let dialogScrim = Color(nsColor: NS.dialogScrim)
 
     // Shadow Popover
     static let shadowPopover = WorkbenchRedesignShadow(

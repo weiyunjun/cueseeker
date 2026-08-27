@@ -23,8 +23,6 @@ enum CueSeekerPointerEventRouter {
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
-    private static let escapeKeyCode: UInt16 = 53
-
     private var window: NSWindow?
     private var settingsWindow: NSWindow?
     private let appState = AppCoordinator()
@@ -66,7 +64,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         configureMainMenu()
         let launchesFromPendingURLSchemeCommand = pendingURLSchemeCommand != nil
         createMainWindow(showImmediately: !launchesFromPendingURLSchemeCommand)
-        configureWindowKeyboardShortcuts()
+        configurePlaybackKeyboardShortcuts()
         configureControllerInput()
         configurePointerEventRouting()
         consumePendingURLSchemeCommand()
@@ -188,9 +186,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         adjustTrafficLights()
     }
 
-    /// The window's one keyDown monitor. Escape belongs to the topmost open
-    /// surface, so the Task panel is asked before the playback shortcuts.
-    private func configureWindowKeyboardShortcuts() {
+    private func configurePlaybackKeyboardShortcuts() {
         keyDownMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             guard let self, event.window === self.window else {
                 return event
@@ -200,15 +196,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             let modifierFlags = event.modifierFlags
                 .intersection(.deviceIndependentFlagsMask)
                 .rawValue
-            let handled = MainActor.assumeIsolated { () -> Bool in
-                if keyCode == AppDelegate.escapeKeyCode,
-                   self.appState.tasks.isPanelOpen
-                {
-                    self.appState.tasks.closePanel()
-                    return true
-                }
-
-                return self.appState.handlePlaybackKeyDown(
+            let handled = MainActor.assumeIsolated {
+                self.appState.handlePlaybackKeyDown(
                     keyCode: keyCode,
                     modifierFlagsRawValue: modifierFlags,
                     isRepeat: event.isARepeat

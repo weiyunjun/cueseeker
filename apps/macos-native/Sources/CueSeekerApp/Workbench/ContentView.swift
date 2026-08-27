@@ -13,7 +13,8 @@ struct ContentView: View {
         ContentRootView(
             appState: appState,
             fullscreenManager: appState.playbackFullscreenManager,
-            confirmation: appState.confirmation
+            confirmation: appState.confirmation,
+            tasks: appState.tasks
         )
     }
 }
@@ -22,14 +23,14 @@ private struct ContentRootView: View {
     @ObservedObject var appState: AppCoordinator
     @ObservedObject var fullscreenManager: PlaybackFullscreenManager
     @ObservedObject var confirmation: ConfirmationCenter
+    /// Observed because the window root presents the Task panel: the sheet's
+    /// binding has to be re-read when the panel opens or closes.
+    @ObservedObject var tasks: TaskQueueStore
     @EnvironmentObject private var settingsStore: SettingsStore
     @EnvironmentObject private var layoutState: WorkbenchLayoutState
     @EnvironmentObject private var libraryStore: LibraryStore
     @EnvironmentObject private var shioriStore: ShioriStore
     @EnvironmentObject private var playback: PlaybackStore
-    /// Shared between the top bar's entry button and the panel, so the panel
-    /// can collapse back into the button across their hosting boundary.
-    @State private var taskEntryAnchor = MenuAnchorHandle()
 
     private let windowBackground = Color(
         red: 0.955,
@@ -65,18 +66,9 @@ private struct ContentRootView: View {
                     }
 
                     if !hidesWorkbenchChrome {
-                        AppTopBar(taskEntryAnchor: taskEntryAnchor)
+                        AppTopBar()
                             .zIndex(3)
                     }
-
-                    // Above the top bar it opens from, below the toasts, which
-                    // are visual only and take no input.
-                    TaskPanelHost(
-                        tasks: appState.tasks,
-                        confirmation: confirmation,
-                        entryAnchor: taskEntryAnchor
-                    )
-                    .zIndex(4)
 
                     ToastStackView(center: appState.toast)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -131,6 +123,11 @@ private struct ContentRootView: View {
                 .interfaceLayer(.dialog)
                 .interactiveDismissDisabled(true)
             }
+            .sheet(isPresented: taskPanelPresentation) {
+                TaskPanel(tasks: tasks)
+                    .interfaceLayer(.dialog)
+                    .interactiveDismissDisabled(true)
+            }
             .sheet(item: $confirmation.session) { session in
                 WorkbenchConfirmationDialog(
                     session: session,
@@ -141,6 +138,20 @@ private struct ContentRootView: View {
             .preferredColorScheme(settingsStore.appAppearanceMode.colorScheme)
             .background(LayoutPerformanceProbe(name: "ContentView.layout"))
         }
+    }
+
+    /// The sheet only ever closes the panel. Opening goes through the store, so
+    /// every open resets the tab the way the requirement asks.
+    private var taskPanelPresentation: Binding<Bool> {
+        Binding(
+            get: { tasks.isPanelOpen },
+            set: { isPresented in
+                guard !isPresented else {
+                    return
+                }
+                tasks.closePanel()
+            }
+        )
     }
 
     @ViewBuilder
@@ -157,8 +168,6 @@ private struct ContentRootView: View {
 }
 
 private struct AppTopBar: View {
-    let taskEntryAnchor: MenuAnchorHandle
-
     @EnvironmentObject private var appState: AppCoordinator
     @EnvironmentObject private var layoutState: WorkbenchLayoutState
     @EnvironmentObject private var routeState: WorkbenchRouteState
@@ -183,7 +192,6 @@ private struct AppTopBar: View {
         } trailingContent: {
             TaskEntryButton(
                 tasks: appState.tasks,
-                anchor: taskEntryAnchor,
                 onOpen: {
                     appState.performUserInitiatedAppCommand {
                         appState.tasks.openPanel()

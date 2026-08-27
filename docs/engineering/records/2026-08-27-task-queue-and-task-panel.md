@@ -26,15 +26,15 @@ Progress is deliberately not a column. It moves once per exported card and means
 
 Running and queued rows are written all the same, and that is what makes the interruption rule work. A row still marked running or queued belongs to a process that is gone, so the next launch closes it out as Incomplete before reading the history. A crash cannot write anything on the way down; the only way to know a task never finished is to have said, in advance, that it had started. The cues a queued export holds stay in memory, which is why the queue is not resumed but retired.
 
-### The panel is drawn in the window, not presented as a sheet
+### The panel is a sheet, like the App's other three dialogs
 
-The other three dialogs are sheets, and the previous session deliberately removed the second way of presenting a modal. This one has to come back for a reason the requirement states: the panel collapses into the button that opened it, and a sheet is animated by macOS and always leaves the same way.
+It is presented from the window root beside Edit Cover, the Shiori List Editor and Confirmation, so the dimming, the input barrier and Escape all come from the one modal presentation the App has. It is the fourth member of the existing dialog layer rather than a layer of its own, so the workbench page underneath reads as covered without anything new being ranked.
 
-So the panel is mounted at the window root, above the top bar and below the toasts, and takes on what the sheet would have provided: it paints the dim (`--color-dialog-scrim`, the value the old confirmation scrim already used) and swallows every click, drag and wheel that lands outside itself. Both cover the whole window, which is the part the old page-level confirmation scrim got wrong — that scrim failed because it was drawn inside a page, not because it was hand-painted.
+A confirmation raised from inside the panel is presented by the panel, not written to the app-level holder: a sheet is presented by the surface it belongs to, and the window root is already presenting the panel. That is the stacking case the design has always allowed and nothing had yet used. The panel keeps it in local state, so no second holder exists.
 
-It registers as its own interface layer between the workbench page and the dialogs, so the page underneath reads as covered and keeps the picture it had, and the confirmations the panel raises are presented as sheets by the window root and stack above it natively.
+The close button carries `.keyboardShortcut(.cancelAction)`, which is how Edit Cover, the Shiori List Editor and Confirmation already give Escape to their own cancel path.
 
-Escape goes through the window's existing keyDown monitor rather than a second one; the panel is asked before the playback shortcuts, since Escape belongs to the topmost open surface.
+This was not the first shape. The panel was originally drawn in the window with a hand-painted dim and an event shield, because the accepted requirement asked it to collapse back into the button that opened it and a sheet is animated by macOS. When the owner dropped that animation and asked for an ordinary modal close, the only reason for the second presentation route disappeared with it, and the shield, the dim token, the extra interface layer, the anchor plumbing between the top bar and the panel, and a second keyDown monitor all came out.
 
 ### Refreshing only what moved
 
@@ -43,6 +43,12 @@ Progress is its own observable object, one per entry, and only the running card'
 ### Cancellation reaches ffmpeg
 
 Cancelling used to be checked only between cards, so a cancel could sit for several seconds behind the cue already in flight. `runProcess` now adopts its `Process` into a small lock-guarded box and terminates it from the cancellation handler, and adopts it after checking for a cancel that already arrived so a cancelled task never launches one more helper. Whatever error the termination produces on the way down, the store records the outcome the reader asked for: the task they removed is Incomplete with "Cancelled by user", not with a process exit code.
+
+### The tab indicator
+
+The Design System's Tab component gives the indicator `--color-accent`, and the Playback Overlay's Current / Playlist tabs — which the requirement points at — use `--color-playback-module-sidebar-selected`. Those two human-owned statements disagree, and this implementation quietly followed the first, which put a blue underline in a panel whose sibling control has a black one.
+
+Reporting the conflict was the required move and did not happen. The owner has since resolved it in the requirement, which is the more recently modified document: the tabs use the Playback Overlay's selected and unselected colours, and the Design System's Tab entry is to be brought into line when this is accepted.
 
 ### Two things found by running the App
 
@@ -68,11 +74,10 @@ Files:
 - `apps/macos-native/Sources/CueSeekerApp/Export/AnkiPackageExporter.swift` — per-card progress callback; process termination on cancel.
 - `apps/macos-native/Sources/CueSeekerApp/App/AppCoordinator+AnkiExport.swift` — enqueues instead of running.
 - `apps/macos-native/Sources/CueSeekerApp/App/AppCoordinator.swift` — opens the task database, owns the store, reports the panel layer.
-- `apps/macos-native/Sources/CueSeekerApp/App/AppDelegate.swift` — the window keyDown monitor answers Escape for the panel first.
-- `apps/macos-native/Sources/CueSeekerApp/Shared/InterfaceLayerRegistry.swift` — `taskPanel` case.
+- `apps/macos-native/Sources/CueSeekerApp/Shared/InterfaceLayerRegistry.swift` — the dialog layer's documentation names the panel.
 - `apps/macos-native/Sources/CueSeekerApp/Workbench/AppTopbarLayout.swift` — trailing function region.
-- `apps/macos-native/Sources/CueSeekerApp/Workbench/ContentView.swift` — entry button in the top bar, panel at the window root, shared anchor between them.
-- `apps/macos-native/Sources/CueSeekerApp/Shared/WorkbenchRedesignTokens.swift` — task count badge and dialog scrim tokens.
+- `apps/macos-native/Sources/CueSeekerApp/Workbench/ContentView.swift` — entry button in the top bar; the panel's sheet at the window root.
+- `apps/macos-native/Sources/CueSeekerApp/Shared/WorkbenchRedesignTokens.swift` — task count badge tokens.
 - `apps/macos-native/Sources/CueSeekerApp/Shared/WorkbenchControls/WorkbenchControls.swift` — task badge, panel and progress bar metrics.
 - `apps/macos-native/Sources/CueSeekerApp/TableSandbox/TableSandboxRowModelStore.swift` — the Date Added format takes a `Date` too, so the table column and the panel's history cannot drift.
 - `apps/macos-native/Sources/CueSeekerApp/Resources/*/Localizable.strings` — task strings in all three languages.
@@ -88,16 +93,20 @@ Reused rather than added: `WorkbenchIconButton` and its Open state (the filter b
 
 The new tests cover the queue's own behaviour through an injected export runner, so no ffmpeg or real video is involved: one task runs while the rest wait, Current keeps the order tasks were started in, a queued card carries the file, folder and count it will write, a finished export moves to Completed and releases the next one, a failed one moves to Incomplete carrying its error, progress is reported on the running task, removing a running task stops it and records the removal rather than the cancellation error, the queue keeps going after that, deleting a record clears it from the history and the database, and a second launch closes out everything the first left running or queued. The database's own tests cover the table, insertion, ordering, state and error write-through, deletion, the launch sweep, and that the history survives reopening the connection.
 
+The panel was driven in the App after it became a sheet. Opening it produces a second window of kind `sheet`, 460 by 440, frontmost over the main window — the same shape Edit Cover and Confirmation produce. The tab indicator and the selected label are the Playback Overlay's black; the header's trailing control is an X. Clicking a card's delete raises a third window, a 360 by 182 sheet stacked on the panel with the panel dimmed behind it, which is the stacking case this change is the first to use; cancelling it returns to the panel alone. Escape closes the panel, and reopening it lands on Current after Completed had been selected.
+
 The trailing alignment was measured on the owner's own Completed records with the Debug E2E controller: the completion time's right edge and the card count's left edge now sit the same 12 points from the card's borders, matching the file name and folder rows above them.
 
 Two tests, `playbackShioriCopiesSettledPrimaryCueAsMarkdownLink` and `screenshotCopiedFeedbackUsesRequiredIconAndText`, began failing between the first run and this one because they compare against hard-coded English feedback text and the App's persisted language is now Chinese. Both fail identically on the pristine `HEAD` copy, so they are environment-driven and not caused by this change.
 
 Behaviour was measured with the Debug E2E controller against the owner's real library. The entry button renders at the top bar's trailing edge on the Shiori page. Clicking it opens the panel: the sidebar, top bar and page dim together, the button holds the accent Open look, and the tab bar, the minimise button and the Current empty state render. Clicking Completed switches the tab. Clicking the page at (500, 650) with the panel open changes nothing underneath and does not close the panel. Escape closes it and the page returns to full brightness. The minimise button closes it and the button returns to Default. Reopening lands on Current after Completed had been selected.
 
-Three acceptance points stay the owner's manual check, for the reason stated before implementation started: the destination is chosen through `NSSavePanel`, a system-owned panel the in-app controller cannot drive, so no automated path reaches an enqueued task. That leaves card rendering, the progress numbers and bar, the count badge, the two confirmations, the collapse animation and the interruption case to manual acceptance. No test capability was added for them.
+Three acceptance points stay the owner's manual check, for the reason stated before implementation started: the destination is chosen through `NSSavePanel`, a system-owned panel the in-app controller cannot drive, so no automated path reaches an enqueued task. That leaves the progress numbers and bar, the count badge and the interruption case to manual acceptance. No test capability was added for them.
 
 ## Open for review
 
 - The entry button's icon is `list.bullet.rectangle`. The requirement does not name one and the owner said the choice needed discussion.
 - The three tabs show an empty hint when they have no cards. The requirement does not ask for one; a blank panel on first open seemed worse than a line of text.
-- The panel's width and height, the count badge's size and font, and the collapse timing are new metrics. They are named constants, not literals at the use site, and belong in the Design System when this is accepted.
+- The panel's width and height and the count badge's size and font are new metrics. They are named constants, not literals at the use site, and belong in the Design System when this is accepted.
+- The panel draws the shadow the Design System's Dialog anatomy lists, inside a sheet window that already casts one. Confirmation, which was accepted, draws none. One of the two is wrong; deciding which is a Design System question rather than something to settle silently here.
+- The close button takes the sheet's focus and shows a focus ring at rest, the same as the other dialogs' close buttons.

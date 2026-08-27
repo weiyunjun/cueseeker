@@ -405,7 +405,6 @@
 
 /* Tasks */
 "task.entry" = "Tasks";
-"task.minimize" = "Minimize";
 "task.tab.current" = "Current";
 "task.tab.completed" = "Completed";
 "task.tab.incomplete" = "Incomplete";

@@ -7,8 +7,6 @@ import SwiftUI
 /// that opens one thing and stays lit while it is open.
 struct TaskEntryButton: View {
     @ObservedObject var tasks: TaskQueueStore
-    /// Where the panel shrinks back to when it closes.
-    let anchor: MenuAnchorHandle
     let onOpen: () -> Void
 
     var body: some View {
@@ -22,7 +20,6 @@ struct TaskEntryButton: View {
         // control the window hands focus to on launch, which is what happens on
         // a page with no search field and a disabled Back.
         .focusable(false)
-        .background(MenuAnchorProbe(handle: anchor))
         .overlay(alignment: .bottomTrailing) {
             TaskCountBadge(count: tasks.remainingTaskCount)
         }

@@ -2,100 +2,22 @@ import AppKit
 import SwiftUI
 import CueSeekerCore
 
-enum TaskPanelMotion {
-    /// The curve the Design System already uses for a surface arriving and
-    /// leaving. The close is a shrink back into the entry button, so the panel
-    /// reads as going back to where it came from rather than blinking out.
-    static let collapse = Animation.timingCurve(0.22, 1, 0.36, 1, duration: 0.20)
-    /// How small the panel gets before it disappears. Not zero: a hair of the
-    /// surface is still on screen when the opacity finishes, which is what
-    /// makes the movement read as travel rather than a scale to nothing.
-    static let collapsedScale: CGFloat = 0.02
-}
-
-/// The Task panel and the dim behind it.
+/// The Task panel.
 ///
-/// It is drawn in the window rather than presented as a sheet, which the three
-/// other dialogs are. A sheet is animated by macOS and always leaves the same
-/// way, and this panel has to collapse back into the button that opened it. So
-/// it paints the dim the sheet would have given it, and swallows the input the
-/// sheet would have blocked; both cover the whole window because the host is
-/// mounted at the window root, which is the part the old page-level
-/// confirmation scrim got wrong.
-struct TaskPanelHost: View {
+/// Presented as a sheet from the window root, beside Edit Cover, the Shiori
+/// List Editor and Confirmation, so the dimming and the input barrier come from
+/// the App's one modal presentation rather than from a second one written here.
+///
+/// It raises its own confirmations rather than writing to the app-level holder,
+/// because a sheet is presented by the surface it belongs to: a confirmation
+/// asked for from inside this panel has to stack on the panel, and the window
+/// root is already presenting the panel itself.
+struct TaskPanel: View {
+
     @ObservedObject var tasks: TaskQueueStore
-    let confirmation: ConfirmationCenter
-    /// The entry button, so the panel knows what to collapse into.
-    let entryAnchor: MenuAnchorHandle
-
-    @State private var hostAnchor = MenuAnchorHandle()
-    @State private var collapseAnchor = UnitPoint.center
-
-    var body: some View {
-        GeometryReader { geometry in
-            ZStack {
-                if tasks.isPanelOpen {
-                    TaskPanelScrim()
-                        .ignoresSafeArea()
-                        .transition(.opacity)
-
-                    TaskPanel(
-                        tasks: tasks,
-                        confirmation: confirmation
-                    )
-                    .transition(
-                        .scale(
-                            scale: TaskPanelMotion.collapsedScale,
-                            anchor: collapseAnchor
-                        )
-                        .combined(with: .opacity)
-                    )
-                }
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .animation(TaskPanelMotion.collapse, value: tasks.isPanelOpen)
-            .background(MenuAnchorProbe(handle: hostAnchor))
-            .onChange(of: geometry.size) { _ in
-                updateCollapseAnchor(hostSize: geometry.size)
-            }
-            .onChange(of: tasks.isPanelOpen) { isOpen in
-                guard isOpen else {
-                    return
-                }
-                updateCollapseAnchor(hostSize: geometry.size)
-            }
-        }
-        .allowsHitTesting(tasks.isPanelOpen)
-        .interfaceLayer(.taskPanel)
-    }
-
-    /// Turns the entry button's position into the point the panel keeps still
-    /// while it scales. Scaling toward a point outside the panel is what walks
-    /// it across the window, so the unit point is deliberately not clamped.
-    private func updateCollapseAnchor(hostSize: CGSize) {
-        guard let buttonFrame = entryAnchor.frame(in: hostAnchor) else {
-            collapseAnchor = .center
-            return
-        }
-
-        let panelWidth = WorkbenchControlMetrics.redesignTaskPanelWidth
-        let panelHeight = WorkbenchControlMetrics.redesignTaskPanelHeight
-        let panelOrigin = CGPoint(
-            x: (hostSize.width - panelWidth) / 2,
-            y: (hostSize.height - panelHeight) / 2
-        )
-        collapseAnchor = UnitPoint(
-            x: (buttonFrame.midX - panelOrigin.x) / panelWidth,
-            y: (buttonFrame.midY - panelOrigin.y) / panelHeight
-        )
-    }
-}
-
-private struct TaskPanel: View {
-    @ObservedObject var tasks: TaskQueueStore
-    let confirmation: ConfirmationCenter
     // Observed so the labels below are re-read when the language changes.
     @EnvironmentObject private var localization: AppLocalizationStore
+    @State private var pendingConfirmation: WorkbenchConfirmationSession?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -137,6 +59,13 @@ private struct TaskPanel: View {
             .strokeBorder(WorkbenchRedesignColors.borderMuted, lineWidth: 1)
         )
         .subtitleTableTextSelectionNonInteractiveRegion()
+        .sheet(item: $pendingConfirmation) { session in
+            WorkbenchConfirmationDialog(
+                session: session,
+                onClose: { pendingConfirmation = nil }
+            )
+            .interfaceLayer(.dialog)
+        }
     }
 
     private var header: some View {
@@ -149,13 +78,16 @@ private struct TaskPanel: View {
                 Spacer(minLength: 0)
 
                 WorkbenchIconButton(
-                    systemImage: "minus",
+                    systemImage: "xmark",
                     isRedesign: true,
                     action: tasks.closePanel
                 )
-                .help(L("task.minimize"))
-                .accessibilityLabel(L("task.minimize"))
-                .accessibilityIdentifier("task-panel-minimize")
+                // Escape closes the panel the way it closes the other dialogs,
+                // through the control that closes it.
+                .keyboardShortcut(.cancelAction)
+                .help(L("common.close"))
+                .accessibilityLabel(L("common.close"))
+                .accessibilityIdentifier("task-panel-close")
             }
         }
         .padding(.horizontal, WorkbenchControlMetrics.redesignSpacing4)
@@ -212,41 +144,41 @@ private struct TaskPanel: View {
     }
 
     private func confirmRemove(_ record: TaskRecord) {
-        confirmation.session = WorkbenchConfirmationSession(
+        pendingConfirmation = WorkbenchConfirmationSession(
             title: L("task.confirm.remove.title"),
             message: L("task.confirm.remove.message", record.fileName),
             destructiveTitle: L("common.remove"),
             cancelTitle: L("common.cancel"),
             onDestructive: {
                 tasks.removeCurrentTask(id: record.id)
-                confirmation.session = nil
+                pendingConfirmation = nil
             },
             onCancel: {
-                confirmation.session = nil
+                pendingConfirmation = nil
             }
         )
     }
 
     private func confirmDelete(_ record: TaskRecord) {
-        confirmation.session = WorkbenchConfirmationSession(
+        pendingConfirmation = WorkbenchConfirmationSession(
             title: L("task.confirm.delete.title"),
             message: L("task.confirm.delete.message", record.fileName),
             destructiveTitle: L("shiori.delete"),
             cancelTitle: L("common.cancel"),
             onDestructive: {
                 tasks.deleteRecord(id: record.id)
-                confirmation.session = nil
+                pendingConfirmation = nil
             },
             onCancel: {
-                confirmation.session = nil
+                pendingConfirmation = nil
             }
         )
     }
 }
 
-/// The panel's three tabs. Same shape as the Playback Overlay's Current /
-/// Playlist tabs — label over a selection indicator — in the workbench's own
-/// text and accent colours.
+/// The panel's three tabs. The Playback Overlay's Current / Playlist tabs —
+/// label over a selection indicator — in the same colours, so the two segment
+/// controls in the App cannot read as different things.
 private struct TaskPanelTabBar: View {
     @Binding var selectedTab: TaskQueueTab
 
@@ -265,7 +197,7 @@ private struct TaskPanelTabBar: View {
                             .lineLimit(1)
 
                         Capsule()
-                            .fill(WorkbenchRedesignColors.accent)
+                            .fill(PlaybackTheme.playbackModuleSidebarSelected)
                             .frame(
                                 width: PlaybackOverlayMetrics.tabIndicatorWidth,
                                 height: PlaybackOverlayMetrics.tabIndicatorHeight
@@ -274,8 +206,8 @@ private struct TaskPanelTabBar: View {
                     }
                     .foregroundStyle(
                         selectedTab == tab
-                            ? WorkbenchRedesignColors.textPrimary
-                            : WorkbenchRedesignColors.textMuted
+                            ? PlaybackTheme.playbackModuleSidebarSelected
+                            : PlaybackTheme.playbackModuleSidebarUnselected
                     )
                     .padding(.horizontal, PlaybackOverlayMetrics.tabHorizontalPadding)
                     .contentShape(Rectangle())
@@ -503,48 +435,5 @@ extension TaskRecordKind {
         case .ankiExport:
             L("task.name.anki_export")
         }
-    }
-}
-
-/// The dim behind the panel, and the barrier the panel needs because it is not
-/// a sheet. Every button, wheel and click that lands outside the panel stops
-/// here, so nothing underneath lights up or acts while the panel is open.
-private struct TaskPanelScrim: NSViewRepresentable {
-    func makeNSView(context _: Context) -> ScrimView {
-        let view = ScrimView()
-        view.wantsLayer = true
-        view.updateBackgroundColor()
-        return view
-    }
-
-    func updateNSView(_ nsView: ScrimView, context _: Context) {
-        nsView.updateBackgroundColor()
-    }
-
-    final class ScrimView: NSView {
-        override var isOpaque: Bool { false }
-        override var acceptsFirstResponder: Bool { false }
-
-        override func viewDidChangeEffectiveAppearance() {
-            super.viewDidChangeEffectiveAppearance()
-            updateBackgroundColor()
-        }
-
-        func updateBackgroundColor() {
-            effectiveAppearance.performAsCurrentDrawingAppearance {
-                layer?.backgroundColor = WorkbenchRedesignColors.NS.dialogScrim
-                    .usingColorSpace(.sRGB)?
-                    .cgColor
-            }
-        }
-
-        override func mouseDown(with event: NSEvent) {}
-        override func rightMouseDown(with event: NSEvent) {}
-        override func otherMouseDown(with event: NSEvent) {}
-        override func mouseUp(with event: NSEvent) {}
-        override func rightMouseUp(with event: NSEvent) {}
-        override func otherMouseUp(with event: NSEvent) {}
-        override func mouseDragged(with event: NSEvent) {}
-        override func scrollWheel(with event: NSEvent) {}
     }
 }

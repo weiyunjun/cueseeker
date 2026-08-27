@@ -405,7 +405,6 @@
 
 /* Tasks */
 "task.entry" = "任務";
-"task.minimize" = "最小化";
 "task.tab.current" = "進行中";
 "task.tab.completed" = "已完成";
 "task.tab.incomplete" = "未完成";

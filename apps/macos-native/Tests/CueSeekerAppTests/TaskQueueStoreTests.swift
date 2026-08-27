@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import Testing
 @testable import CueSeekerApp
@@ -235,24 +236,31 @@ func theRemainingCountIsRunningPlusQueued() throws {
     #expect(store.remainingTaskCount == 1)
 }
 
-/// The Task panel is a layer of its own, above the workbench page it covers
-/// and below the dialogs its confirmations are presented as.
-@Test
-func theTaskPanelSitsBetweenTheWorkbenchPageAndTheDialogs() {
-    #expect(InterfaceLayer.workbenchPage < InterfaceLayer.taskPanel)
-    #expect(InterfaceLayer.taskPanel < InterfaceLayer.dialog)
-}
-
+/// The Task panel is one of the App's dialogs, so opening it covers the
+/// workbench page the way the other three do.
 @MainActor
 @Test
-func anOpenTaskPanelCoversTheWorkbenchPage() {
-    let registry = InterfaceLayerRegistry()
+func openingTheTaskPanelOpensTheDialogLayer() throws {
+    _ = NSApplication.shared
+    let suiteName = "CueSeekerTaskPanelLayerTests-\(UUID().uuidString)"
+    let userDefaults = try #require(UserDefaults(suiteName: suiteName))
+    let databaseURL = taskQueueTestDatabaseURL()
+    defer {
+        userDefaults.removePersistentDomain(forName: suiteName)
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
 
-    registry.setOpen(.taskPanel, true)
+    let app = AppCoordinator(userDefaults: userDefaults, databaseURL: databaseURL)
+    #expect(!app.interfaceLayers.isCovered(.workbenchPage))
 
-    #expect(registry.isCovered(.workbenchPage))
-    #expect(registry.isFrozen(.workbenchPage))
-    #expect(!registry.isCovered(.taskPanel))
+    app.tasks.openPanel()
+    #expect(app.interfaceLayers.isOpen(.dialog))
+    #expect(app.interfaceLayers.isCovered(.workbenchPage))
+    #expect(app.interfaceLayers.isFrozen(.workbenchPage))
+
+    app.tasks.closePanel()
+    #expect(!app.interfaceLayers.isOpen(.dialog))
+    #expect(!app.interfaceLayers.isCovered(.workbenchPage))
 }
 
 @MainActor

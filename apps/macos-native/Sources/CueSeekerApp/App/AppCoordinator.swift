@@ -564,31 +564,22 @@ final class AppCoordinator: ObservableObject {
         setupInterfaceLayerObservers()
     }
 
-    /// The Edit Cover, Shiori List Editor and Confirmation sheets are the
-    /// dialog layer. Their sessions live on the stores — the sheet bindings
-    /// write nil on an interactive dismissal — so the registry follows the
-    /// sessions.
+    /// The Edit Cover, Shiori List Editor, Task panel and Confirmation sheets
+    /// are the dialog layer. Their open state lives on the stores — the sheet
+    /// bindings write back on a dismissal — so the registry follows them.
     private func setupInterfaceLayerObservers() {
-        Publishers.CombineLatest3(
+        Publishers.CombineLatest4(
             library.$coverEditingSession,
             shiori.$listEditorSession,
-            confirmation.$session
+            confirmation.$session,
+            tasks.$isPanelOpen
         )
-        .map { $0 != nil || $1 != nil || $2 != nil }
+        .map { $0 != nil || $1 != nil || $2 != nil || $3 }
         .removeDuplicates()
         .sink { [interfaceLayers] isDialogOpen in
             interfaceLayers.setOpen(.dialog, isDialogOpen)
         }
         .store(in: &interfaceLayerCancellables)
-
-        // The Task panel is a modal of its own layer, so the workbench page
-        // underneath reads as covered and keeps the picture it had.
-        tasks.$isPanelOpen
-            .removeDuplicates()
-            .sink { [interfaceLayers] isPanelOpen in
-                interfaceLayers.setOpen(.taskPanel, isPanelOpen)
-            }
-            .store(in: &interfaceLayerCancellables)
     }
 
     func setupSettingsObservers() {

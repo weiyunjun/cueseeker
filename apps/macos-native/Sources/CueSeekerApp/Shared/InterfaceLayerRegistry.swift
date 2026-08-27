@@ -18,10 +18,6 @@ import SwiftUI
 enum InterfaceLayer: Int, CaseIterable, Comparable {
     /// 工作台页面 — the base.
     case workbenchPage
-    /// 任务界面, a modal above the workbench page. It is reachable only from
-    /// the workbench top bar, so it never meets the playback layers; it is
-    /// ranked here because the page underneath must read as covered.
-    case taskPanel
     /// 播放页视频与控制条, routed over the whole workbench.
     case playbackPage
     /// Playback Overlay and its same-layer modules (Current, Playlist,
@@ -30,9 +26,10 @@ enum InterfaceLayer: Int, CaseIterable, Comparable {
     case playbackOverlay
     /// Command Panel, above the Playback Overlay.
     case commandPanel
-    /// The Edit Cover, Shiori List Editor and Confirmation sheets. Dialogs may
-    /// stack — a Confirmation raised inside another dialog is presented by it —
-    /// and the layer stays open until the last of them closes.
+    /// The Edit Cover, Shiori List Editor, Task panel and Confirmation sheets.
+    /// Dialogs may stack — a Confirmation raised inside another dialog is
+    /// presented by it — and the layer stays open until the last of them
+    /// closes.
     case dialog
 
     static func < (lhs: InterfaceLayer, rhs: InterfaceLayer) -> Bool {
