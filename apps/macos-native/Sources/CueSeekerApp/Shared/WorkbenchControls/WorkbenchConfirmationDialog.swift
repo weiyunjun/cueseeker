@@ -80,13 +80,13 @@ final class ConfirmationCenter: ObservableObject {
 /// input barrier come from the modal presentation it is placed in.
 struct WorkbenchConfirmationDialog: View {
     let session: WorkbenchConfirmationSession
+    /// Closing dismisses the confirmation itself. It does not run the caller's
+    /// cancel action, so a confirmation without one still closes.
+    let onClose: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing3) {
-            Text(session.title)
-                .font(.system(size: 20, weight: .semibold))
-                .foregroundStyle(WorkbenchRedesignColors.textPrimary)
-                .multilineTextAlignment(.leading)
+            WorkbenchDialogHeader(title: session.title, onClose: onClose)
 
             Text(session.message)
                 .font(.system(size: WorkbenchControlMetrics.redesignFontSizeBody, weight: .regular))

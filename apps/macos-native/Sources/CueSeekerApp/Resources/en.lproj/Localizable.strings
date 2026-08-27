@@ -59,6 +59,7 @@
 /* Common */
 "common.remove" = "Remove";
 "common.cancel" = "Cancel";
+"common.close" = "Close";
 
 /* Table */
 "table.column.cues" = "Cues";

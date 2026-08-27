@@ -8,9 +8,11 @@ struct LibraryEditCoverDialog: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
-            Text(LibraryCoverEditingCopy.dialogTitle)
-                .font(.system(size: 20, weight: .semibold))
-                .foregroundStyle(WorkbenchRedesignColors.textPrimary)
+            WorkbenchDialogHeader(
+                title: LibraryCoverEditingCopy.dialogTitle,
+                onClose: onCancel,
+                isCloseDisabled: session.isSaving
+            )
 
             coverEditor
 

@@ -106,9 +106,11 @@ struct ShioriListEditorDialog: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
-            Text(session.mode.title)
-                .font(.system(size: 20, weight: .semibold))
-                .foregroundStyle(WorkbenchRedesignColors.textPrimary)
+            WorkbenchDialogHeader(
+                title: session.mode.title,
+                onClose: onClose,
+                isCloseDisabled: session.isSaving
+            )
 
             HStack(alignment: .top, spacing: WorkbenchControlMetrics.redesignSpacing6) {
                 coverRegion

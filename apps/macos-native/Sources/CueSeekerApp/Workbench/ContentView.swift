@@ -120,7 +120,10 @@ private struct ContentRootView: View {
                 .interactiveDismissDisabled(true)
             }
             .sheet(item: $confirmation.session) { session in
-                WorkbenchConfirmationDialog(session: session)
+                WorkbenchConfirmationDialog(
+                    session: session,
+                    onClose: { confirmation.session = nil }
+                )
                     .interfaceLayer(.dialog)
             }
             .preferredColorScheme(settingsStore.appAppearanceMode.colorScheme)
