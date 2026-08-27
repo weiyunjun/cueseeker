@@ -32,7 +32,12 @@
 - `--color-app-topbar-bg`: Light `#FFFFFF`; Dark `#18181B`
 - `--color-icon-button-open-bg`: macOS accent color
 - `--color-icon-button-open-content`: Light `#FFFFFF`; Dark `#FFFFFF`
-- `--color-keycap-bg`: Light `#F3F4F6`; Dark `#27272A`
+- `--color-playback-overlay-shortcut-button-bg-hover`: Light `#EDEEF2`; Dark `#2C2C30`
+- `--color-playback-overlay-keycap-bg`: Light `#E1E4E9`; Dark `#35353A`
+- `--color-playback-overlay-keycap-bg-hover`: Light `#D2D6DE`; Dark `#414147`
+- `--color-command-panel-shortcut-button-bg-hover`: Light `#F7F8FA`; Dark `#252529`
+- `--color-command-panel-keycap-bg`: Light `#EDEFF2`; Dark `#2E2E33`
+- `--color-command-panel-keycap-bg-hover`: Light `#E0E3E8`; Dark `#3A3A40`
 
 ### Border
 
@@ -229,6 +234,7 @@
 - `--height-library-list-cover`: `115px`
 - `--height-cover-summary-backdrop`: `225px`
 - `--height-keycap`: `22px`
+- `--min-height-playback-footer`: `48px`
 
 ### Size
 
@@ -945,6 +951,53 @@
   - Border Color：`--color-border-disabled`
   - Label Color：`--color-text-disabled`
   - Icon Color：`--color-icon-disabled`
+
+### Shortcut Action Button
+
+#### Shared
+
+##### Anatomy
+
+- Container
+  - Background：Transparent
+  - Border：None
+  - Radius：`--radius-chip`
+- Label
+  - Font Family：`--font-family-base`
+  - Font Size：`--font-size-body`
+  - Font Weight：`--font-weight-control`
+  - Color：`--color-text-muted`
+- Keycap：Keycap
+- Content Gap：`--spacing-1`
+
+##### Sizes
+
+- Padding Inline：`--spacing-2`
+- Padding Block：`--spacing-1`
+
+##### Interaction
+
+- 点击执行的动作与 Keycap 所示按键相同
+
+##### States
+
+- Default
+- Hover
+  - 内部 Keycap 一并切换到 Hover
+
+#### Variants
+
+##### Playback Overlay
+
+- Keycap：Keycap / Playback Overlay
+- Hover
+  - Background：`--color-playback-overlay-shortcut-button-bg-hover`
+
+##### Command Panel
+
+- Keycap：Keycap / Command Panel
+- Hover
+  - Background：`--color-command-panel-shortcut-button-bg-hover`
 
 ## 2.4 Menus
 
@@ -1754,7 +1807,6 @@
 ##### Anatomy
 
 - Container
-  - Background：`--color-keycap-bg`
   - Border：None
   - Radius：`--radius-keycap`
 - Label
@@ -1777,24 +1829,24 @@
 ##### States
 
 - Default
+- Hover
+  - 跟随所属 Shortcut Action Button
 
-### Keycap Group
+#### Variants
 
-#### Shared
-
-##### Anatomy
-
-- Items：Keycap
-- Separator
-  - Presence：Optional
-
-##### Sizes
-
-- Item Gap：`--spacing-1`
-
-##### States
+##### Playback Overlay
 
 - Default
+  - Background：`--color-playback-overlay-keycap-bg`
+- Hover
+  - Background：`--color-playback-overlay-keycap-bg-hover`
+
+##### Command Panel
+
+- Default
+  - Background：`--color-command-panel-keycap-bg`
+- Hover
+  - Background：`--color-command-panel-keycap-bg-hover`
 
 ## 2.9 Feedback
 
@@ -3592,6 +3644,7 @@
 1. Overlay Surface
 2. Playback Topbar
 3. View Content Region
+4. Playback Footer
 
 #### Components
 
@@ -3599,6 +3652,7 @@
 - Playback Current Layout
 - Playback Playlist Layout
 - Playback Collage Editor Layout
+- Playback Footer Layout
 
 #### Surface
 
@@ -3658,6 +3712,45 @@
 - Current
 - Playlist
 - Editing Collage
+
+### Playback Footer Layout
+
+#### Structure
+
+1. Status
+2. Action Region
+
+#### Components
+
+- Shortcut Action Button
+- Keycap
+
+#### Sizes
+
+- Minimum Height：`--min-height-playback-footer`
+- Action Gap：`--spacing-1`
+
+#### Layout
+
+- Status 靠左，动作按钮靠右
+- 一行放不下时动作按钮换行并右对齐，区域随之增高，内容不省略
+
+#### Actions
+
+| 所在界面 | Status | 动作 |
+| --- | --- | --- |
+| Playback Current | 字幕条数 | Save to Shiori `S`、Copy Cue Text `C`、Copy Deep Link `X`、Play `Return` |
+| Playback Current / Editing Collage | 字幕条数 | Select `Return` |
+| Playback Playlist / Subtitle Playlist | 字幕条数 | Save to Shiori `S`、Copy Cue Text `C`、Copy Deep Link `X`、Play `Return` |
+| Playback Playlist / Video Playlist | 视频数 | Play `Return` |
+| Command Panel Root | None | Open `Return` |
+| Command Panel / Recent Videos | 视频数 | Open `Return` |
+| Command Panel / Recent Shioris | 栞数 | Open `Return` |
+| Command Panel / Search Results | 结果数 | Save to Shiori `S`、Copy Cue Text `C`、Copy Deep Link `X`、Play `Return` |
+
+#### States
+
+- Default
 
 ### Playback Current Layout
 
@@ -3799,8 +3892,7 @@
 
 - Search Field
 - Menu Item / Action Menu Item
-- Keycap
-- Keycap Group
+- Playback Footer Layout
 - Scrollbar / Vertical
 
 #### Layer
@@ -3830,8 +3922,7 @@
 
 - Icon Button
 - Section Title
-- Keycap
-- Keycap Group
+- Playback Footer Layout
 - Scrollbar / Vertical
 
 #### Variants
