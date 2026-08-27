@@ -44,7 +44,6 @@ private struct WorkbenchShioriTableContent: View {
     @State private var viewportAnchorToRestore: TableViewportAnchor?
     @State private var rowSelection = TableSandboxRowSelectionState()
     @State private var isSelectionMode = false
-    @State private var pendingRemoval: Shiori?
     @State private var hasDeferredReloadWhileCovered = false
     @State private var isFilterMenuOpen =
         WorkbenchShioriTableView.defaultFilterMenuOpen
@@ -132,23 +131,6 @@ private struct WorkbenchShioriTableContent: View {
                 if shioriStore.tableHasLoadedInitialPage && shioriStore.tableTotalSavedRowCount == 0 {
                     WorkbenchEmptyHint(message: L("shiori.table.empty_hint"))
                 }
-            }
-        }
-        .overlay {
-            if let pendingRemoval {
-                WorkbenchConfirmationDialog(
-                    title: L("shiori.remove.title"),
-                    message: L("shiori.remove.message"),
-                    destructiveTitle: L("common.remove"),
-                    cancelTitle: L("common.cancel"),
-                    onDestructive: {
-                        confirmRemoveShiori(pendingRemoval)
-                    },
-                    onCancel: {
-                        self.pendingRemoval = nil
-                    }
-                )
-                .zIndex(20)
             }
         }
         .onAppear {
@@ -540,7 +522,21 @@ private struct WorkbenchShioriTableContent: View {
     }
 
     private func requestRemoveShiori(_ row: SubtitleTableRow) {
-        pendingRemoval = rowStore.snapshot.shiori(entryID: row.id)
+        guard let item = rowStore.snapshot.shiori(entryID: row.id) else {
+            return
+        }
+        appState.confirmation.session = WorkbenchConfirmationSession(
+            title: L("shiori.remove.title"),
+            message: L("shiori.remove.message"),
+            destructiveTitle: L("common.remove"),
+            cancelTitle: L("common.cancel"),
+            onDestructive: {
+                confirmRemoveShiori(item)
+            },
+            onCancel: {
+                appState.confirmation.session = nil
+            }
+        )
     }
 
     private var rowActionDestinations: [SubtitleTableRowActionDestination] {
@@ -570,7 +566,7 @@ private struct WorkbenchShioriTableContent: View {
     }
 
     private func confirmRemoveShiori(_ item: Shiori) {
-        pendingRemoval = nil
+        appState.confirmation.session = nil
         guard appState.removeShiori(item, reloadPresentation: false) else {
             return
         }

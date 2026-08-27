@@ -6,7 +6,6 @@ struct ShioriListOverviewView: View {
     @EnvironmentObject private var localization: AppLocalizationStore
     @EnvironmentObject private var appState: AppCoordinator
     @EnvironmentObject private var shioriStore: ShioriStore
-    @State private var pendingDeletion: ShioriListSummary?
     @StateObject private var highlight = CardHighlightModel(
         keepsCurrentWhenPointerLeaves: false
     )
@@ -37,25 +36,23 @@ struct ShioriListOverviewView: View {
         .task {
             appState.loadShioriListOverviewIfNeeded()
         }
-        .overlay {
-            if let pendingDeletion {
-                WorkbenchConfirmationDialog(
-                    title: L("shiori.delete_list"),
-                    message: L("shiori.delete_list.message", pendingDeletion.list.name),
-                    destructiveTitle: L("shiori.delete"),
-                    cancelTitle: L("common.cancel"),
-                    onDestructive: {
-                        if appState.deleteShioriList(id: pendingDeletion.id) {
-                            self.pendingDeletion = nil
-                        }
-                    },
-                    onCancel: {
-                        self.pendingDeletion = nil
-                    }
-                )
-                .zIndex(20)
+    }
+
+    private func requestDeletion(of summary: ShioriListSummary) {
+        appState.confirmation.session = WorkbenchConfirmationSession(
+            title: L("shiori.delete_list"),
+            message: L("shiori.delete_list.message", summary.list.name),
+            destructiveTitle: L("shiori.delete"),
+            cancelTitle: L("common.cancel"),
+            onDestructive: {
+                if appState.deleteShioriList(id: summary.id) {
+                    appState.confirmation.session = nil
+                }
+            },
+            onCancel: {
+                appState.confirmation.session = nil
             }
-        }
+        )
     }
 
     private func listGrid(
@@ -75,7 +72,7 @@ struct ShioriListOverviewView: View {
                         appState.beginEditingShioriList(summary.list)
                     },
                     onDelete: {
-                        pendingDeletion = summary
+                        requestDeletion(of: summary)
                     },
                     openContextMenu: openContextMenu
                 )

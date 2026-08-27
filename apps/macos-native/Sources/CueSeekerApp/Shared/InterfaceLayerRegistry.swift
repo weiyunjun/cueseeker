@@ -26,8 +26,9 @@ enum InterfaceLayer: Int, CaseIterable, Comparable {
     case playbackOverlay
     /// Command Panel, above the Playback Overlay.
     case commandPanel
-    /// Edit Cover and Shiori List Editor sheets. The in-page Confirmation
-    /// dialog is not registered today: it blocks input with its own scrim.
+    /// The Edit Cover, Shiori List Editor and Confirmation sheets. Dialogs may
+    /// stack — a Confirmation raised inside another dialog is presented by it —
+    /// and the layer stays open until the last of them closes.
     case dialog
 
     static func < (lhs: InterfaceLayer, rhs: InterfaceLayer) -> Bool {

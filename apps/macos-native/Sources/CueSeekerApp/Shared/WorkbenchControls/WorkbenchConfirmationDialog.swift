@@ -15,7 +15,12 @@ struct WorkbenchConfirmationAction: Identifiable {
     let action: () -> Void
 }
 
-struct WorkbenchConfirmationDialog: View {
+/// One open Confirmation. It is a session like the Edit Cover and Shiori List
+/// Editor sessions so all three dialogs are presented the same way: the layer
+/// that raises the confirmation writes the session, and the layer that
+/// presents it owns the dimming and the input barrier.
+struct WorkbenchConfirmationSession: Identifiable {
+    let id = UUID()
     let title: String
     let message: String
     let actions: [WorkbenchConfirmationAction]
@@ -59,45 +64,56 @@ struct WorkbenchConfirmationDialog: View {
             ]
         )
     }
+}
+
+/// The main window's open Confirmation. A confirmation raised from a page goes
+/// here and the window presents it, so it dims and blocks the whole window the
+/// way the other dialogs do. A confirmation raised from inside another dialog
+/// is presented by that dialog instead, which is how one modal stacks over
+/// another; the layer registry already reads as open in that case.
+@MainActor
+final class ConfirmationCenter: ObservableObject {
+    @Published var session: WorkbenchConfirmationSession?
+}
+
+/// The Confirmation dialog body. It draws no scrim of its own: dimming and the
+/// input barrier come from the modal presentation it is placed in.
+struct WorkbenchConfirmationDialog: View {
+    let session: WorkbenchConfirmationSession
 
     var body: some View {
-        ZStack {
-            Color.black.opacity(0.18)
-                .ignoresSafeArea()
+        VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing3) {
+            Text(session.title)
+                .font(.system(size: 20, weight: .semibold))
+                .foregroundStyle(WorkbenchRedesignColors.textPrimary)
+                .multilineTextAlignment(.leading)
 
-            VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing3) {
-                Text(title)
-                    .font(.system(size: 20, weight: .semibold))
-                    .foregroundStyle(WorkbenchRedesignColors.textPrimary)
-                    .multilineTextAlignment(.leading)
+            Text(session.message)
+                .font(.system(size: WorkbenchControlMetrics.redesignFontSizeBody, weight: .regular))
+                .foregroundStyle(WorkbenchRedesignColors.textMuted)
+                .multilineTextAlignment(.leading)
+                .lineLimit(nil)
+                .fixedSize(horizontal: false, vertical: true)
 
-                Text(message)
-                    .font(.system(size: WorkbenchControlMetrics.redesignFontSizeBody, weight: .regular))
-                    .foregroundStyle(WorkbenchRedesignColors.textMuted)
-                    .multilineTextAlignment(.leading)
-                    .lineLimit(nil)
-                    .fixedSize(horizontal: false, vertical: true)
+            HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
+                Spacer(minLength: 0)
 
-                HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
-                    Spacer(minLength: 0)
-
-                    ForEach(actions) { action in
-                        actionButton(action)
-                    }
+                ForEach(session.actions) { action in
+                    actionButton(action)
                 }
-                .padding(.top, WorkbenchControlMetrics.redesignSpacing1)
             }
-            .padding(24)
-            .frame(width: 360, alignment: .leading)
-            .background(
-                RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignCornerRadius, style: .continuous)
-                    .fill(WorkbenchRedesignColors.bgSurface)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignCornerRadius, style: .continuous)
-                    .strokeBorder(WorkbenchRedesignColors.borderControl, lineWidth: 1)
-            )
+            .padding(.top, WorkbenchControlMetrics.redesignSpacing1)
         }
+        .padding(24)
+        .frame(width: 360, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignCornerRadius, style: .continuous)
+                .fill(WorkbenchRedesignColors.bgSurface)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignCornerRadius, style: .continuous)
+                .strokeBorder(WorkbenchRedesignColors.borderControl, lineWidth: 1)
+        )
         .subtitleTableTextSelectionNonInteractiveRegion()
     }
 

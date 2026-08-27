@@ -12,7 +12,8 @@ struct ContentView: View {
     var body: some View {
         ContentRootView(
             appState: appState,
-            fullscreenManager: appState.playbackFullscreenManager
+            fullscreenManager: appState.playbackFullscreenManager,
+            confirmation: appState.confirmation
         )
     }
 }
@@ -20,6 +21,7 @@ struct ContentView: View {
 private struct ContentRootView: View {
     @ObservedObject var appState: AppCoordinator
     @ObservedObject var fullscreenManager: PlaybackFullscreenManager
+    @ObservedObject var confirmation: ConfirmationCenter
     @EnvironmentObject private var settingsStore: SettingsStore
     @EnvironmentObject private var layoutState: WorkbenchLayoutState
     @EnvironmentObject private var libraryStore: LibraryStore
@@ -116,6 +118,10 @@ private struct ContentRootView: View {
                 )
                 .interfaceLayer(.dialog)
                 .interactiveDismissDisabled(true)
+            }
+            .sheet(item: $confirmation.session) { session in
+                WorkbenchConfirmationDialog(session: session)
+                    .interfaceLayer(.dialog)
             }
             .preferredColorScheme(settingsStore.appAppearanceMode.colorScheme)
             .background(LayoutPerformanceProbe(name: "ContentView.layout"))

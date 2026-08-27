@@ -33,6 +33,7 @@ final class AppCoordinator: ObservableObject {
     let cueContent: CueContentStore
     let playback: PlaybackStore
     let toast = ToastCenter()
+    let confirmation = ConfirmationCenter()
     let interfaceLayers = InterfaceLayerRegistry()
     var settingsCancellables: Set<AnyCancellable> = []
     private var interfaceLayerCancellables: Set<AnyCancellable> = []
@@ -555,15 +556,17 @@ final class AppCoordinator: ObservableObject {
         setupInterfaceLayerObservers()
     }
 
-    /// The Edit Cover and Shiori List Editor sheets are the dialog layer.
-    /// Their sessions live on the stores — the sheet bindings write nil on an
-    /// interactive dismissal — so the registry follows the sessions.
+    /// The Edit Cover, Shiori List Editor and Confirmation sheets are the
+    /// dialog layer. Their sessions live on the stores — the sheet bindings
+    /// write nil on an interactive dismissal — so the registry follows the
+    /// sessions.
     private func setupInterfaceLayerObservers() {
-        Publishers.CombineLatest(
+        Publishers.CombineLatest3(
             library.$coverEditingSession,
-            shiori.$listEditorSession
+            shiori.$listEditorSession,
+            confirmation.$session
         )
-        .map { $0 != nil || $1 != nil }
+        .map { $0 != nil || $1 != nil || $2 != nil }
         .removeDuplicates()
         .sink { [interfaceLayers] isDialogOpen in
             interfaceLayers.setOpen(.dialog, isDialogOpen)
