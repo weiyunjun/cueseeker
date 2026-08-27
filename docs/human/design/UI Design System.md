@@ -1903,8 +1903,8 @@
 - Content
 - Footer
 - Close Button
-  - Presence：Optional
-  - Component：Icon Button
+  - Placement：Header 行右端
+  - Component：Icon Button / Default
 
 ##### Sizes
 
@@ -3210,6 +3210,7 @@
 
 1. Header
    1. Title：`Edit Cover`
+   2. Close Button
 2. Cover Region
    - Default：Cover / Editor Action
    - Image Selected：Cover Crop Editor
@@ -3245,6 +3246,7 @@
 
 1. Header
    1. Title
+   2. Close Button
 2. Main Region
    1. Cover Region
       1. Cover / Editor Action
