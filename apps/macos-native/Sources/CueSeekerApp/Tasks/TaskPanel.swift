@@ -477,6 +477,10 @@ private struct TaskCardContainer<Content: View>: View {
     }
 }
 
+/// A card's secondary line. It sizes to its own text and does not claim the
+/// row: a detail that decided to fill would take half the width from the
+/// detail beside it and leave the spacer between them nothing to push with,
+/// which is what kept the completion time off the card's trailing edge.
 private struct TaskCardDetailText: View {
     let text: String
 
@@ -490,7 +494,6 @@ private struct TaskCardDetailText: View {
             .foregroundStyle(WorkbenchRedesignColors.textMuted)
             .lineLimit(1)
             .truncationMode(.middle)
-            .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
