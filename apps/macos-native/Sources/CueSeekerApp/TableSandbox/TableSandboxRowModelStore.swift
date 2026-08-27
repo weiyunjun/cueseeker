@@ -986,6 +986,15 @@ func tableSandboxShioriDateAddedDisplayText(
         return value
     }
 
+    return tableSandboxShioriDateAddedDisplayText(for: date, timeZone: timeZone)
+}
+
+/// The one date shape the App shows a reader. The Shiori table's Date Added
+/// column and the Task panel's history both read it, so they cannot drift.
+func tableSandboxShioriDateAddedDisplayText(
+    for date: Date,
+    timeZone: TimeZone = .current
+) -> String {
     let displayFormatter = DateFormatter()
     displayFormatter.locale = Locale(identifier: "en_US_POSIX")
     displayFormatter.timeZone = timeZone

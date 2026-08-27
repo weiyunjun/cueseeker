@@ -34,6 +34,7 @@ final class AppCoordinator: ObservableObject {
     let playback: PlaybackStore
     let toast = ToastCenter()
     let confirmation = ConfirmationCenter()
+    let tasks: TaskQueueStore
     let interfaceLayers = InterfaceLayerRegistry()
     var settingsCancellables: Set<AnyCancellable> = []
     private var interfaceLayerCancellables: Set<AnyCancellable> = []
@@ -47,6 +48,7 @@ final class AppCoordinator: ObservableObject {
     let indexedContentDatabase: IndexedContentDatabase?
     let libraryCoverDatabase: LibraryCoverDatabase?
     let shioriDatabase: ShioriDatabase?
+    let taskRecordDatabase: TaskRecordDatabase?
     let libraryUserCoverService: LibraryUserCoverService?
     let shioriListCoverStorage: ShioriListCoverStorage
     let workbenchLayout: WorkbenchLayoutState
@@ -490,6 +492,7 @@ final class AppCoordinator: ObservableObject {
         var openedIndexedContentDatabase: IndexedContentDatabase?
         var openedLibraryCoverDatabase: LibraryCoverDatabase?
         var openedShioriDatabase: ShioriDatabase?
+        var openedTaskRecordDatabase: TaskRecordDatabase?
         var initialError: Error?
         do {
             try Self.prepareDatabaseDirectory(for: self.databaseURL)
@@ -502,6 +505,7 @@ final class AppCoordinator: ObservableObject {
             openedIndexedContentDatabase = try IndexedContentDatabase(path: self.databaseURL)
             openedLibraryCoverDatabase = try LibraryCoverDatabase(path: self.databaseURL)
             openedShioriDatabase = try ShioriDatabase(path: self.databaseURL)
+            openedTaskRecordDatabase = try TaskRecordDatabase(path: self.databaseURL)
             initialError = nil
         } catch {
             openedDatabase = nil
@@ -511,6 +515,7 @@ final class AppCoordinator: ObservableObject {
             openedIndexedContentDatabase = nil
             openedLibraryCoverDatabase = nil
             openedShioriDatabase = nil
+            openedTaskRecordDatabase = nil
             initialError = error
         }
 
@@ -528,6 +533,8 @@ final class AppCoordinator: ObservableObject {
         self.indexedContentDatabase = openedIndexedContentDatabase
         self.libraryCoverDatabase = openedLibraryCoverDatabase
         self.shioriDatabase = openedShioriDatabase
+        self.taskRecordDatabase = openedTaskRecordDatabase
+        self.tasks = TaskQueueStore(database: openedTaskRecordDatabase)
         self.libraryUserCoverService = openedLibraryCoverDatabase.map { database in
             LibraryUserCoverService(
                 database: database,
@@ -552,6 +559,7 @@ final class AppCoordinator: ObservableObject {
             )
         }
         shiori.setActiveListID(initialShioriListID)
+        tasks.loadPersistedRecords()
         setupSettingsObservers()
         setupInterfaceLayerObservers()
     }
@@ -572,6 +580,15 @@ final class AppCoordinator: ObservableObject {
             interfaceLayers.setOpen(.dialog, isDialogOpen)
         }
         .store(in: &interfaceLayerCancellables)
+
+        // The Task panel is a modal of its own layer, so the workbench page
+        // underneath reads as covered and keeps the picture it had.
+        tasks.$isPanelOpen
+            .removeDuplicates()
+            .sink { [interfaceLayers] isPanelOpen in
+                interfaceLayers.setOpen(.taskPanel, isPanelOpen)
+            }
+            .store(in: &interfaceLayerCancellables)
     }
 
     func setupSettingsObservers() {

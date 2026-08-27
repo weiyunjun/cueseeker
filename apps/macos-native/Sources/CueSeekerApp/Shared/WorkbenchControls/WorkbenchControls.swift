@@ -147,6 +147,19 @@ enum WorkbenchControlMetrics {
     /// --font-size-app-sidebar-item: 13px
     static let redesignFontSizeAppSidebarItem: CGFloat = 13
 
+    /// --size-task-count-badge: 16px
+    static let redesignTaskCountBadgeHeight: CGFloat = 16
+    /// --padding-task-count-badge-x
+    static let redesignTaskCountBadgeHorizontalPadding = redesignSpacing1
+    /// --font-size-task-count-badge: 10px
+    static let redesignFontSizeTaskCountBadge: CGFloat = 10
+    /// --width-task-panel: 460px
+    static let redesignTaskPanelWidth: CGFloat = 460
+    /// --height-task-panel: 440px
+    static let redesignTaskPanelHeight: CGFloat = 440
+    /// --height-task-progress-bar: 4px
+    static let redesignTaskProgressBarHeight = redesignLibraryProgressBarHeight
+
     /// --aspect-library-cover: 16 / 9
     static let redesignLibraryCoverAspectRatio: CGFloat = 16.0 / 9.0
     /// --height-library-progress-bar: 4px

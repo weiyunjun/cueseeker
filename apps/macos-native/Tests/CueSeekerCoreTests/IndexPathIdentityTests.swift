@@ -265,7 +265,8 @@ func referencedCueIsTombstonedWhenItsLibraryIsRemoved() throws {
     #expect(try sqliteRowCount(in: "cue_tombstones", databaseURL: fixture.databaseURL) == 1)
 }
 
-/// Schema 44 must not be reachable with any identity or binding state left over.
+/// The current schema must not be reachable with any identity or binding state
+/// left over.
 @Test
 func migratedSchemaKeepsNoIdentityOrBindingState() throws {
     let databaseURL = temporaryDatabaseURL()
@@ -273,7 +274,10 @@ func migratedSchemaKeepsNoIdentityOrBindingState() throws {
 
     try DatabaseBootstrap.prepare(at: databaseURL)
 
-    #expect(try sqliteSchemaVersion(at: databaseURL) == 44)
+    #expect(
+        try sqliteSchemaVersion(at: databaseURL)
+            == DatabaseBootstrap.currentSchemaVersion
+    )
     #expect(try !sqliteTableExists("resource_binding_conflicts", databaseURL: databaseURL))
     for table in ["search_paths", "library_folders", "subtitle_files", "video_files"] {
         let columns = try sqliteColumnNames(in: table, databaseURL: databaseURL)

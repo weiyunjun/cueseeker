@@ -27,6 +27,9 @@ private struct ContentRootView: View {
     @EnvironmentObject private var libraryStore: LibraryStore
     @EnvironmentObject private var shioriStore: ShioriStore
     @EnvironmentObject private var playback: PlaybackStore
+    /// Shared between the top bar's entry button and the panel, so the panel
+    /// can collapse back into the button across their hosting boundary.
+    @State private var taskEntryAnchor = MenuAnchorHandle()
 
     private let windowBackground = Color(
         red: 0.955,
@@ -62,9 +65,18 @@ private struct ContentRootView: View {
                     }
 
                     if !hidesWorkbenchChrome {
-                        AppTopBar()
+                        AppTopBar(taskEntryAnchor: taskEntryAnchor)
                             .zIndex(3)
                     }
+
+                    // Above the top bar it opens from, below the toasts, which
+                    // are visual only and take no input.
+                    TaskPanelHost(
+                        tasks: appState.tasks,
+                        confirmation: confirmation,
+                        entryAnchor: taskEntryAnchor
+                    )
+                    .zIndex(4)
 
                     ToastStackView(center: appState.toast)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -145,6 +157,8 @@ private struct ContentRootView: View {
 }
 
 private struct AppTopBar: View {
+    let taskEntryAnchor: MenuAnchorHandle
+
     @EnvironmentObject private var appState: AppCoordinator
     @EnvironmentObject private var layoutState: WorkbenchLayoutState
     @EnvironmentObject private var routeState: WorkbenchRouteState
@@ -166,6 +180,16 @@ private struct AppTopBar: View {
             }
         ) {
             backButton
+        } trailingContent: {
+            TaskEntryButton(
+                tasks: appState.tasks,
+                anchor: taskEntryAnchor,
+                onOpen: {
+                    appState.performUserInitiatedAppCommand {
+                        appState.tasks.openPanel()
+                    }
+                }
+            )
         } sidebarToggle: {
             sidebarToggle
         }

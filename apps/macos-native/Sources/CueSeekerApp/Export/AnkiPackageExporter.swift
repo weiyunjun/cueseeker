@@ -47,9 +47,13 @@ enum AnkiPackageExporter {
     private static let modelName = "CueSeeker Media Recall"
     private static let deckPrefix = "CueSeeker::"
 
+    /// `onItemExported` reports how many cards are finished, once per card. It
+    /// is called off the main actor, so a caller that drives UI with it has to
+    /// hop.
     static func export(
         items: [AnkiExportItem],
-        to destinationURL: URL
+        to destinationURL: URL,
+        onItemExported: (@Sendable (Int) -> Void)? = nil
     ) async throws {
         guard !items.isEmpty else {
             throw AnkiPackageExportError.emptyItems
@@ -99,6 +103,8 @@ enum AnkiPackageExporter {
                     textField: textHTML(for: item.text)
                 )
             )
+
+            onItemExported?(index + 1)
         }
 
         let collectionURL = workspaceURL.appendingPathComponent("collection.anki2")
@@ -391,37 +397,83 @@ enum AnkiPackageExporter {
         }
     }
 
+    /// Runs a helper and stops it if the export is cancelled.
+    ///
+    /// A cancel that only takes effect between cards leaves the reader waiting
+    /// for the card already in flight, which for a long cue is several seconds
+    /// of an action that visibly did nothing. The running helper is therefore
+    /// terminated with the task, and the export ends on the error that
+    /// termination produces.
     private static func runProcess(
         executableURL: URL,
         arguments: [String],
         currentDirectoryURL: URL? = nil
     ) async throws {
-        try await withCheckedThrowingContinuation { continuation in
-            let process = Process()
-            process.executableURL = executableURL
-            process.arguments = arguments
-            process.currentDirectoryURL = currentDirectoryURL
-            process.standardInput = FileHandle.nullDevice
-            process.standardOutput = FileHandle.nullDevice
-            process.standardError = FileHandle.nullDevice
-            process.qualityOfService = .utility
-            process.terminationHandler = { process in
-                if process.terminationStatus == 0 {
-                    continuation.resume()
-                } else {
-                    continuation.resume(
-                        throwing: AnkiPackageExportError.processFailed(
-                            executableURL.lastPathComponent,
-                            process.terminationStatus
+        let runningProcess = RunningProcess()
+        try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { continuation in
+                let process = Process()
+                process.executableURL = executableURL
+                process.arguments = arguments
+                process.currentDirectoryURL = currentDirectoryURL
+                process.standardInput = FileHandle.nullDevice
+                process.standardOutput = FileHandle.nullDevice
+                process.standardError = FileHandle.nullDevice
+                process.qualityOfService = .utility
+                process.terminationHandler = { process in
+                    if process.terminationStatus == 0 {
+                        continuation.resume()
+                    } else {
+                        continuation.resume(
+                            throwing: AnkiPackageExportError.processFailed(
+                                executableURL.lastPathComponent,
+                                process.terminationStatus
+                            )
                         )
-                    )
+                    }
+                }
+                // Cancellation can arrive before the helper is launched. Adopt
+                // it first so that case ends here instead of starting work
+                // nobody is waiting for.
+                guard runningProcess.adopt(process) else {
+                    continuation.resume(throwing: CancellationError())
+                    return
+                }
+                do {
+                    try process.run()
+                } catch {
+                    continuation.resume(throwing: error)
                 }
             }
-            do {
-                try process.run()
-            } catch {
-                continuation.resume(throwing: error)
+        } onCancel: {
+            runningProcess.terminate()
+        }
+    }
+
+    /// The helper an in-flight `runProcess` is waiting on, so cancellation
+    /// reaches it from whichever thread cancels.
+    private final class RunningProcess: @unchecked Sendable {
+        private let lock = NSLock()
+        private var process: Process?
+        private var isCancelled = false
+
+        /// Returns false when cancellation already arrived.
+        func adopt(_ process: Process) -> Bool {
+            lock.lock()
+            defer { lock.unlock() }
+            guard !isCancelled else {
+                return false
             }
+            self.process = process
+            return true
+        }
+
+        func terminate() {
+            lock.lock()
+            isCancelled = true
+            let running = process
+            lock.unlock()
+            running?.terminate()
         }
     }
 

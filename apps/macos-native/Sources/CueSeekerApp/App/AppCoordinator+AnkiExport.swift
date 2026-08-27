@@ -63,21 +63,18 @@ extension AppCoordinator {
         )
     }
 
+    /// Asks where the package goes, then hands the export to the queue.
+    ///
+    /// The destination is chosen here rather than when the task reaches the
+    /// front, so a queued task can already name the file and folder it is going
+    /// to write, and so the reader is asked once, while they are still looking
+    /// at the selection they just exported.
     private func exportAnkiItems(_ items: [AnkiExportItem]) {
         guard !items.isEmpty, let destinationURL = ankiExportDestinationURL() else {
             return
         }
 
-        Task {
-            do {
-                try await AnkiPackageExporter.export(
-                    items: items,
-                    to: destinationURL
-                )
-            } catch {
-                print("Failed to export Anki package: \(error)")
-            }
-        }
+        tasks.enqueueAnkiExport(items: items, destinationURL: destinationURL)
     }
 
     private func ankiExportDestinationURL() -> URL? {

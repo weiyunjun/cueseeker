@@ -402,3 +402,24 @@
 "status.cover_generation_failed" = "自動產生封面失敗：%@";
 "status.library_presentation_failed" = "媒體庫呈現重新整理失敗：%@";
 "status.folder_index_removal_failed" = "移除資料夾索引失敗：%@";
+
+/* Tasks */
+"task.entry" = "任務";
+"task.minimize" = "最小化";
+"task.tab.current" = "進行中";
+"task.tab.completed" = "已完成";
+"task.tab.incomplete" = "未完成";
+"task.status.in_progress" = "進行中";
+"task.status.queued" = "佇列中";
+"task.name.anki_export" = "匯出至 Anki";
+"task.progress.exported" = "已匯出 %1$d / %2$d 張卡片";
+"task.card_count" = "%d 張卡片";
+"task.error.cancelled" = "已被使用者取消";
+"task.error.interrupted" = "任務未完成即被中斷";
+"task.confirm.remove.title" = "移除任務";
+"task.confirm.remove.message" = "「%@」將停止並移入未完成。已匯出的卡片會被捨棄。";
+"task.confirm.delete.title" = "刪除記錄";
+"task.confirm.delete.message" = "「%@」的記錄將被刪除。匯出的檔案不會被刪除。";
+"task.empty.current" = "沒有正在進行或等待中的任務。";
+"task.empty.completed" = "還沒有已完成的任務。";
+"task.empty.incomplete" = "沒有未完成的任務。";

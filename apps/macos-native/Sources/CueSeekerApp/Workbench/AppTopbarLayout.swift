@@ -1,11 +1,18 @@
 import AppKit
 import SwiftUI
 
-struct AppTopbarLayout<Content: View, SidebarToggle: View>: View {
+struct AppTopbarLayout<
+    Content: View,
+    TrailingContent: View,
+    SidebarToggle: View
+>: View {
     let isSidebarVisible: Bool
     let isAppFullscreen: Bool
     let onDoubleClickZoom: (NSWindow) -> Bool
     @ViewBuilder let content: () -> Content
+    /// The trailing function region. It holds what belongs to the App rather
+    /// than to the page below, so it is the same in every workbench page.
+    @ViewBuilder let trailingContent: () -> TrailingContent
     @ViewBuilder let sidebarToggle: () -> SidebarToggle
 
     var body: some View {
@@ -23,6 +30,10 @@ struct AppTopbarLayout<Content: View, SidebarToggle: View>: View {
         .overlay(alignment: .leading) {
             content()
                 .padding(.leading, contentLeadingInset)
+                .padding(.trailing, WorkbenchControlMetrics.redesignAppTopbarContentHorizontalPadding)
+        }
+        .overlay(alignment: .trailing) {
+            trailingContent()
                 .padding(.trailing, WorkbenchControlMetrics.redesignAppTopbarContentHorizontalPadding)
         }
         .overlay(alignment: .leading) {

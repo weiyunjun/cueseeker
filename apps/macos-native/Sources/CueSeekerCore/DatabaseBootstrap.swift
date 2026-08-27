@@ -12,7 +12,7 @@ public enum DatabaseBootstrapError: Error, Equatable, CustomStringConvertible {
 }
 
 public enum DatabaseBootstrap {
-    public static let currentSchemaVersion = 44
+    public static let currentSchemaVersion = 45
 
     public static func prepare(at path: URL) throws {
         let database = try SQLiteDatabase(path: path, access: .readWrite)
@@ -56,6 +56,7 @@ private extension DatabaseBootstrap {
                 || previousVersion == 41
                 || previousVersion == 42
                 || previousVersion == 43
+                || previousVersion == 44
                 || previousVersion == DatabaseBootstrap.currentSchemaVersion
         else {
             throw DatabaseBootstrapError.unsupportedSchemaVersion(
@@ -134,6 +135,9 @@ private extension DatabaseBootstrap {
         }
         if previousVersion >= 33, previousVersion <= 43 {
             try migrateSchema43To44(on: database)
+        }
+        if previousVersion >= 33, previousVersion <= 44 {
+            try migrateSchema44To45(on: database)
             return
         }
         guard previousVersion == 0 else {
@@ -588,12 +592,43 @@ private extension DatabaseBootstrap {
 
             \(shioriSchemaSQL)
 
+            \(taskRecordSchemaSQL)
+
             \(cueReferenceIntegrityTriggerSQL)
 
             """
             )
 
             try database.execute("PRAGMA user_version = \(DatabaseBootstrap.currentSchemaVersion);")
+        }
+    }
+
+    /// The task queue's history. Written by `TaskRecordDatabase`; see its
+    /// documentation for why progress is not a column.
+    static let taskRecordSchemaSQL = """
+        CREATE TABLE IF NOT EXISTS task_records (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            kind TEXT NOT NULL,
+            file_name TEXT NOT NULL,
+            folder_path TEXT NOT NULL,
+            item_count INTEGER NOT NULL,
+            state TEXT NOT NULL,
+            error_message TEXT,
+            created_at TEXT NOT NULL,
+            state_changed_at TEXT NOT NULL
+        );
+        """
+
+    /// Adds the task queue's history. Nothing existing is read or rewritten.
+    static func migrateSchema44To45(on database: SQLiteDatabase) throws {
+        try database.withImmediateTransaction {
+            try database.execute(
+                """
+                \(taskRecordSchemaSQL)
+
+                PRAGMA user_version = 45;
+                """
+            )
         }
     }
 

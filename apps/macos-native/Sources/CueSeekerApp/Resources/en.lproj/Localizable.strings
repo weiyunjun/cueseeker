@@ -402,3 +402,24 @@
 "status.cover_generation_failed" = "Automatic cover generation failed: %@";
 "status.library_presentation_failed" = "Library presentation refresh failed: %@";
 "status.folder_index_removal_failed" = "Failed to remove folder index: %@";
+
+/* Tasks */
+"task.entry" = "Tasks";
+"task.minimize" = "Minimize";
+"task.tab.current" = "Current";
+"task.tab.completed" = "Completed";
+"task.tab.incomplete" = "Incomplete";
+"task.status.in_progress" = "In Progress";
+"task.status.queued" = "Queued";
+"task.name.anki_export" = "Export to Anki";
+"task.progress.exported" = "%1$d / %2$d cards exported";
+"task.card_count" = "%d cards";
+"task.error.cancelled" = "Cancelled by user";
+"task.error.interrupted" = "Interrupted before the task finished";
+"task.confirm.remove.title" = "Remove Task";
+"task.confirm.remove.message" = "“%@” will stop and move to Incomplete. The cards it already exported are discarded.";
+"task.confirm.delete.title" = "Delete Record";
+"task.confirm.delete.message" = "The record for “%@” will be deleted. The exported file is not deleted.";
+"task.empty.current" = "No task is running or waiting.";
+"task.empty.completed" = "No completed task yet.";
+"task.empty.incomplete" = "No incomplete task.";
