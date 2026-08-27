@@ -246,7 +246,7 @@
 "playback.cue_count" = "%d cues";
 "playback.result_count" = "%d results";
 "playback.result_preview_note" = "(Showing first %d results)";
-"playback.navigate" = "Navigate";
+"playback.save_to_shiori" = "Save to Shiori";
 "playback.open" = "Open";
 "playback.back" = "Back";
 "playback.episodes_empty" = "No episodes yet.";

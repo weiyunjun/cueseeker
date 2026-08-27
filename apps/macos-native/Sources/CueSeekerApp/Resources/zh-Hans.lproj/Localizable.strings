@@ -246,7 +246,7 @@
 "playback.cue_count" = "%d 条台词";
 "playback.result_count" = "%d 条结果";
 "playback.result_preview_note" = "（仅显示前 %d 条结果）";
-"playback.navigate" = "导航";
+"playback.save_to_shiori" = "保存到栞";
 "playback.open" = "打开";
 "playback.back" = "返回";
 "playback.episodes_empty" = "还没有剧集。";

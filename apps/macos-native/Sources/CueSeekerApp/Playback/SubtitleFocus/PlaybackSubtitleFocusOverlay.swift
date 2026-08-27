@@ -7,6 +7,7 @@ struct PlaybackSubtitleFocusLayer: View {
     @ObservedObject var session: PlaybackSubtitleFocusSessionStore
     let uiProbeScope: String?
     let onExecuteAction: (PlaybackSubtitleFocusActionExecution) -> Bool
+    let onRequestAction: (PlaybackSubtitleFocusAction) -> Void
     let onOpenLibraryEpisode: (CompleteLibraryVideoPresentation) -> Bool
     let onCopySelectedText: (String) -> Void
     let onSearchSelectedText: (String) -> Void
@@ -15,6 +16,9 @@ struct PlaybackSubtitleFocusLayer: View {
         session: PlaybackSubtitleFocusSessionStore,
         uiProbeScope: String? = nil,
         onExecuteAction: ((PlaybackSubtitleFocusActionExecution) -> Bool)? = nil,
+        onRequestAction: @escaping (PlaybackSubtitleFocusAction) -> Void = {
+            _ in
+        },
         onCopySelectedText: @escaping (String) -> Void = { _ in },
         onSearchSelectedText: @escaping (String) -> Void = { _ in },
         onOpenLibraryEpisode:
@@ -27,6 +31,7 @@ struct PlaybackSubtitleFocusLayer: View {
         self.onExecuteAction = onExecuteAction ?? { execution in
             session.finishKeyboardAction(execution)
         }
+        self.onRequestAction = onRequestAction
         self.onCopySelectedText = onCopySelectedText
         self.onSearchSelectedText = onSearchSelectedText
         self.onOpenLibraryEpisode = onOpenLibraryEpisode
@@ -43,6 +48,7 @@ struct PlaybackSubtitleFocusLayer: View {
                 cues: session.completeCueBatch?.cues ?? snapshot.cues,
                 uiProbeScope: uiProbeScope,
                 onExecuteAction: onExecuteAction,
+                onRequestAction: onRequestAction,
                 onCopySelectedText: onCopySelectedText,
                 onSearchSelectedText: onSearchSelectedText,
                 onOpenLibraryEpisode: onOpenLibraryEpisode
@@ -60,6 +66,7 @@ struct PlaybackOverlay: View {
     let cues: [SubtitleFocusCue]
     let uiProbeScope: String?
     let onExecuteAction: (PlaybackSubtitleFocusActionExecution) -> Bool
+    let onRequestAction: (PlaybackSubtitleFocusAction) -> Void
     let onCopySelectedText: (String) -> Void
     let onSearchSelectedText: (String) -> Void
     let onOpenLibraryEpisode: (CompleteLibraryVideoPresentation) -> Bool
@@ -117,6 +124,7 @@ struct PlaybackOverlay: View {
                     windowStore: playlistWindow,
                     uiProbeScope: uiProbeScope,
                     onExecuteAction: onExecuteAction,
+                    onRequestAction: onRequestAction,
                     onCopySelectedText: onCopySelectedText,
                     onSearchSelectedText: onSearchSelectedText
                 )
@@ -162,7 +170,8 @@ struct PlaybackOverlay: View {
             onCueReelMotionChanged: {
                 session.noteCueReelMotion($0, module: .current)
             },
-            onExecuteAction: onExecuteAction
+            onExecuteAction: onExecuteAction,
+            onRequestAction: onRequestAction
         )
     }
 
@@ -328,6 +337,7 @@ private struct PlaybackSubtitlePlaylist: View {
     @ObservedObject var windowStore: PlaybackPlaylistSessionWindowStore
     let uiProbeScope: String?
     let onExecuteAction: (PlaybackSubtitleFocusActionExecution) -> Bool
+    let onRequestAction: (PlaybackSubtitleFocusAction) -> Void
     let onCopySelectedText: (String) -> Void
     let onSearchSelectedText: (String) -> Void
 
@@ -345,10 +355,14 @@ private struct PlaybackSubtitlePlaylist: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
             PlaybackCueFooter(
+                surface: .playbackOverlay,
                 status: PlaybackCueFooterStatus.cues(
                     totalCount: windowStore.snapshot.totalCount
                 ),
-                actionTitle: L("playback.play")
+                actions: PlaybackCueFooterAction.cueActions(
+                    playTitle: L("playback.play"),
+                    request: onRequestAction
+                )
             )
             .frame(maxWidth: PlaybackSubtitleFocusMetrics.contentMaxWidth)
             .padding(
@@ -384,9 +398,13 @@ struct PlaybackSubtitleFocusOverlay: View {
     let onScrollbarDraggingChanged: (Bool) -> Void
     let onCueReelMotionChanged: (Bool) -> Void
     let onExecuteAction: (PlaybackSubtitleFocusActionExecution) -> Bool
+    let onRequestAction: (PlaybackSubtitleFocusAction) -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.interfaceLayers) private var interfaceLayers
+    /// The footer wraps rather than truncating, so the reel viewport has to
+    /// subtract what the footer actually took.
+    @State private var footerHeight = PlaybackCueFooterMetrics.minimumHeight
 
     init(
         snapshot: SubtitleFocusSnapshot,
@@ -411,7 +429,8 @@ struct PlaybackSubtitleFocusOverlay: View {
         consumeDeferredAction: @escaping () -> PlaybackSubtitleFocusActionExecution? = { nil },
         onScrollbarDraggingChanged: @escaping (Bool) -> Void = { _ in },
         onCueReelMotionChanged: @escaping (Bool) -> Void = { _ in },
-        onExecuteAction: @escaping (PlaybackSubtitleFocusActionExecution) -> Bool = { _ in false }
+        onExecuteAction: @escaping (PlaybackSubtitleFocusActionExecution) -> Bool = { _ in false },
+        onRequestAction: @escaping (PlaybackSubtitleFocusAction) -> Void = { _ in }
     ) {
         self.snapshot = snapshot
         self.cues = cues ?? snapshot.cues
@@ -433,6 +452,7 @@ struct PlaybackSubtitleFocusOverlay: View {
         self.onScrollbarDraggingChanged = onScrollbarDraggingChanged
         self.onCueReelMotionChanged = onCueReelMotionChanged
         self.onExecuteAction = onExecuteAction
+        self.onRequestAction = onRequestAction
     }
 
     var body: some View {
@@ -444,7 +464,7 @@ struct PlaybackSubtitleFocusOverlay: View {
             let viewportSize = geometry.size
             let reelViewportHeight = max(
                 0,
-                viewportSize.height - PlaybackCueFooterMetrics.height
+                viewportSize.height - footerHeight
             )
             let cueViewportHeight = max(
                 0,
@@ -514,18 +534,20 @@ struct PlaybackSubtitleFocusOverlay: View {
             )
             .overlay(alignment: .bottom) {
                 PlaybackCueFooter(
+                    surface: .playbackOverlay,
                     status: PlaybackCueFooterStatus.cues(
                         totalCount: snapshot.totalCount
                     ),
-                    actionTitle: collageSelectionPlan == nil
-                        ? L("playback.play")
-                        : L("playback.select")
+                    actions: footerActions
                 )
                 .frame(maxWidth: PlaybackSubtitleFocusMetrics.contentMaxWidth)
                 .padding(
                     .horizontal,
                     PlaybackSubtitleFocusMetrics.contentInset
                 )
+                .onPreferenceChange(PlaybackCueFooterHeightKey.self) {
+                    footerHeight = $0
+                }
             }
             .clipped()
             .contentShape(Rectangle())
@@ -535,6 +557,22 @@ struct PlaybackSubtitleFocusOverlay: View {
             onCueReelMotionChanged(false)
             onScrollbarDraggingChanged(false)
         }
+    }
+
+    /// While a collage is being assembled the cue actions do not apply; Return
+    /// is the only key the overlay answers there.
+    private var footerActions: [PlaybackCueFooterAction] {
+        guard collageSelectionPlan == nil else {
+            return [
+                .primary(id: "select", title: L("playback.select")) {
+                    onRequestAction(.playFromThisCue)
+                },
+            ]
+        }
+        return PlaybackCueFooterAction.cueActions(
+            playTitle: L("playback.play"),
+            request: onRequestAction
+        )
     }
 
     private func handleCueReelMotionChanged(_ isActive: Bool) {

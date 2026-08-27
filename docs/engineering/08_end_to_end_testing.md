@@ -1844,3 +1844,62 @@ returned `sceneID`.
 ### Cleanup
 
 Quit the Debug process with Control-C. The procedure changes no product data.
+
+## 14. Playback Footer Shortcut Buttons
+
+### Feature
+
+Verify that the Playback Overlay and Command Panel footers show one clickable
+button per available action instead of a Navigate hint, that a click runs the
+same work as the shortcut key, that the keycap is legible on both surfaces, and
+that a narrow window wraps the buttons rather than shortening them.
+
+Covers `docs/human/requirements/20260827-UI-Playback Footer Shortcut Buttons.md`.
+
+### Automated Checks
+
+```bash
+cd apps/macos-native
+swift test --filter 'PlaybackSubtitleFocus|PlaybackCommandPanel|PlaybackPlaylist|Layout'
+```
+
+### In-App E2E Preconditions
+
+- Use the Debug in-app controller.
+- Start on the Workbench with at least one Library folder holding a video that
+  has subtitles.
+- Stop if `inspect` reports more than the main window.
+
+### In-App E2E Actions
+
+1. Open a Library folder, click its first Video Card, and press Enter to open
+   the Overlay on Current. Capture `footer-overlay-current`. The footer must
+   read the cue count on the left and `Save to Shiori S`, `Copy Cue Text C`,
+   `Copy Deep Link X`, `Play` Return on the right, with no Navigate hint and no
+   arrow keycaps.
+2. Click the `Copy Cue Text` button and read the clipboard; it must hold the
+   selected cue's text. Click `Copy Deep Link` and read the clipboard again; it
+   must hold that cue's Markdown deep link.
+3. Press Tab to enter the Video Playlist and capture
+   `footer-overlay-video-playlist`. The footer must read the video count on the
+   left and only `Play` Return on the right.
+4. Open the Command Panel, capture `footer-command-panel-root` — only `Open`
+   Return, no count — then run a search and capture
+   `footer-command-panel-results`, which must carry the result count and the
+   same four buttons.
+5. `setWidth` to 520, return to Current, and capture `footer-narrow`. The four
+   buttons must wrap onto a second right-aligned row with the footer taller; no
+   label may be shortened or elided.
+
+### Manual Acceptance
+
+- Hover each button and confirm the button background appears and its keycap
+  darkens. `mouseMove` cannot drive SwiftUI `.onHover`, so this stays manual.
+- Repeat the Current and Command Panel captures in Dark Appearance and confirm
+  the keycap is still separable from the surface behind it.
+- Click `Save to Shiori`; it writes a Shiori row, so automation leaves it out.
+
+### Cleanup
+
+Close the Overlay and the player, restore the window width, and quit the Debug
+process with Control-C.

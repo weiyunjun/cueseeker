@@ -18,7 +18,7 @@ func subtitleFocusMetricsMatchCompactIterationGeometry() {
     #expect(PlaybackCueTimelineMetrics.dotSize == 8)
     #expect(PlaybackCueTimelineMetrics.connectorWidth == 1)
     #expect(PlaybackCueTimelineMetrics.connectorMarkerGap == 8)
-    #expect(PlaybackCueFooterMetrics.height == 48)
+    #expect(PlaybackCueFooterMetrics.minimumHeight == 48)
     #expect(WorkbenchControlMetrics.redesignKeycapHeight == 22)
     #expect(WorkbenchControlMetrics.redesignKeycapRadius == 4)
     #expect(WorkbenchControlMetrics.redesignKeycapHorizontalPadding == 4)
@@ -40,6 +40,8 @@ func subtitleFocusMetricsMatchCompactIterationGeometry() {
 func playbackCueFooterFormatsCompleteAndPreviewLimitedCounts() {
     #expect(PlaybackCueFooterStatus.cues(totalCount: 6) == "6 cues")
     #expect(PlaybackCueFooterStatus.cues(totalCount: -1) == "0 cues")
+    #expect(PlaybackCueFooterStatus.videos(totalCount: 4) == "4 videos")
+    #expect(PlaybackCueFooterStatus.videos(totalCount: -1) == "0 videos")
     #expect(PlaybackCueFooterStatus.searchResults(
         totalCount: 6,
         previewLimit: 50,

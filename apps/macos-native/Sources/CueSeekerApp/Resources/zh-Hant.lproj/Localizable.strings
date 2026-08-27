@@ -246,7 +246,7 @@
 "playback.cue_count" = "%d 條台詞";
 "playback.result_count" = "%d 筆結果";
 "playback.result_preview_note" = "（僅顯示前 %d 筆結果）";
-"playback.navigate" = "瀏覽";
+"playback.save_to_shiori" = "儲存到栞";
 "playback.open" = "打開";
 "playback.back" = "返回";
 "playback.episodes_empty" = "尚無單集。";

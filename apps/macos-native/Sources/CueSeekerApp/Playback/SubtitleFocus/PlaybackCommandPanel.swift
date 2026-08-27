@@ -41,7 +41,8 @@ struct PlaybackCommandPanel: View {
                                 },
                                 onOpenPage: {
                                     appState.presentPlaybackCommandPanelPage($0)
-                                }
+                                },
+                                onOpenSelectedItem: openSelectedItem
                             )
                         case .searchResults:
                             PlaybackCommandPanelSearchResults(
@@ -65,7 +66,13 @@ struct PlaybackCommandPanel: View {
                                 onCopySelectedText:
                                     appState.copyPlaybackSelectedText,
                                 onSearchSelectedText:
-                                    appState.searchPlaybackSelectedText
+                                    appState.searchPlaybackSelectedText,
+                                onRequestAction: { action in
+                                    _ = appState
+                                        .requestPlaybackCommandPanelSearchAction(
+                                            action
+                                        )
+                                }
                             )
                         case .recentVideos:
                             PlaybackCommandPanelRecentVideos(
@@ -93,7 +100,8 @@ struct PlaybackCommandPanel: View {
                                     appState.openPlaybackCommandPanelRecentVideo(
                                         at: $0
                                     )
-                                }
+                                },
+                                onOpenSelectedItem: openSelectedItem
                             )
                         case .recentShioris:
                             PlaybackCommandPanelRecentShioris(
@@ -114,7 +122,8 @@ struct PlaybackCommandPanel: View {
                                     appState.openPlaybackCommandPanelRecentShiori(
                                         at: $0
                                     )
-                                }
+                                },
+                                onOpenSelectedItem: openSelectedItem
                             )
                         }
                     }
@@ -159,6 +168,11 @@ struct PlaybackCommandPanel: View {
             .contentShape(Rectangle())
         }
     }
+
+    /// The footer's Open button and Return run the same path.
+    private func openSelectedItem() {
+        _ = appState.openSelectedPlaybackCommandPanelItem()
+    }
 }
 
 private enum PlaybackCommandPanelMetrics {
@@ -170,7 +184,6 @@ private enum PlaybackCommandPanelMetrics {
     static let rowHeight: CGFloat = 48
     static let rowRadius: CGFloat = 10
     static let headerHeight: CGFloat = 58
-    static let footerHeight = PlaybackCueFooterMetrics.height
 }
 
 private struct PlaybackCommandPanelRoot: View {
@@ -180,6 +193,7 @@ private struct PlaybackCommandPanelRoot: View {
     @Binding var query: String
     let onSubmitSearch: () -> Bool
     let onOpenPage: (PlaybackCommandPanelPage) -> Bool
+    let onOpenSelectedItem: () -> Void
 
     var body: some View {
         VStack(spacing: 0) {
@@ -242,7 +256,10 @@ private struct PlaybackCommandPanelRoot: View {
 
             Spacer(minLength: 0)
 
-            PlaybackCommandPanelFooter(status: nil)
+            PlaybackCommandPanelFooter(
+                status: nil,
+                onOpenSelectedItem: onOpenSelectedItem
+            )
         }
     }
 
@@ -401,6 +418,7 @@ private struct PlaybackCommandPanelSearchResults: View {
     let onCommitSelection: (PlaybackVirtualReelSelectionCommit) -> Bool
     let onCopySelectedText: (String) -> Void
     let onSearchSelectedText: (String) -> Void
+    let onRequestAction: (PlaybackSubtitleFocusAction) -> Void
 
     @EnvironmentObject private var cueGroupPresentation:
         CueGroupPresentationStore
@@ -428,8 +446,12 @@ private struct PlaybackCommandPanelSearchResults: View {
             }
 
             PlaybackCueFooter(
+                surface: .commandPanel,
                 status: resultStatus,
-                actionTitle: L("playback.play")
+                actions: PlaybackCueFooterAction.cueActions(
+                    playTitle: L("playback.play"),
+                    request: onRequestAction
+                )
             )
             .padding(
                 .horizontal,
@@ -516,6 +538,7 @@ struct PlaybackCommandPanelRecentVideos: View {
     let onGridLayoutChange: (Int, [String: CGRect]) -> Void
     let onSelect: (Int) -> Void
     let onOpen: (Int) -> Void
+    let onOpenSelectedItem: () -> Void
 
     private let coordinateSpaceName =
         "playback-command-panel-recent-videos-scroll"
@@ -601,8 +624,11 @@ struct PlaybackCommandPanelRecentVideos: View {
             }
 
             PlaybackCommandPanelFooter(
-                status: L("playback.video_count", libraryStore.testRecentWatchingItems.count),
-                showsHorizontalNavigation: true
+                status: L(
+                    "playback.video_count",
+                    libraryStore.testRecentWatchingItems.count
+                ),
+                onOpenSelectedItem: onOpenSelectedItem
             )
         }
         .cardHighlightFreeze(highlight)
@@ -681,6 +707,7 @@ private struct PlaybackCommandPanelRecentShioris: View {
     let onSynchronize: () -> Void
     let onSelect: (Int) -> Void
     let onOpen: (Int) -> Void
+    let onOpenSelectedItem: () -> Void
 
     /// The row the pointer moved the selection onto. It is already on screen,
     /// so that change must not scroll the list under the cursor.
@@ -743,7 +770,11 @@ private struct PlaybackCommandPanelRecentShioris: View {
             }
 
             PlaybackCommandPanelFooter(
-                status: L("playback.shiori_count", shioriStore.recentListSummaries.count)
+                status: L(
+                    "playback.shiori_count",
+                    shioriStore.recentListSummaries.count
+                ),
+                onOpenSelectedItem: onOpenSelectedItem
             )
         }
         .cardHighlightFreeze(highlight)
@@ -771,62 +802,22 @@ private struct PlaybackCommandPanelRecentShioris: View {
     }
 }
 
+/// The pages whose only key is Return. Everything else about the footer comes
+/// from the shared component.
 private struct PlaybackCommandPanelFooter: View {
     let status: String?
-    var showsHorizontalNavigation = false
+    let onOpenSelectedItem: () -> Void
 
     var body: some View {
-        HStack(spacing: WorkbenchControlMetrics.redesignSpacing3) {
-            if let status {
-                Text(status)
-                    .font(.system(
-                        size: WorkbenchControlMetrics.redesignFontSizeBody,
-                        weight: .regular
-                    ))
-                    .foregroundStyle(WorkbenchRedesignColors.textMuted)
-            }
-
-            Spacer(minLength: 0)
-
-            HStack(spacing: WorkbenchControlMetrics.redesignSpacing1) {
-                if showsHorizontalNavigation {
-                    PlaybackCommandPanelKeycap(symbol: "←")
-                    PlaybackCommandPanelKeycap(symbol: "→")
-                }
-                PlaybackCommandPanelKeycap(symbol: "↑")
-                PlaybackCommandPanelKeycap(symbol: "↓")
-                Text(L("playback.navigate"))
-            }
-
-            Text(L("playback.open"))
-            PlaybackCommandPanelKeycap(symbol: "↩")
-        }
-        .font(.system(
-            size: WorkbenchControlMetrics.redesignFontSizeBody,
-            weight: .medium
-        ))
-        .foregroundStyle(WorkbenchRedesignColors.textMuted)
+        PlaybackCueFooter(
+            surface: .commandPanel,
+            status: status,
+            actions: [
+                .primary(id: "open", title: L("playback.open")) {
+                    onOpenSelectedItem()
+                },
+            ]
+        )
         .padding(.horizontal, PlaybackCommandPanelMetrics.contentInset)
-        .frame(height: PlaybackCommandPanelMetrics.footerHeight)
-    }
-}
-
-private struct PlaybackCommandPanelKeycap: View {
-    let symbol: String
-
-    var body: some View {
-        Text(symbol)
-            .font(.system(
-                size: WorkbenchControlMetrics.redesignFontSizeBody,
-                weight: .semibold
-            ))
-            .frame(minWidth: 24, minHeight: 22)
-            .background {
-                RoundedRectangle(
-                    cornerRadius: WorkbenchControlMetrics.redesignSpacing1,
-                    style: .continuous
-                )
-                .fill(WorkbenchRedesignColors.bgHover)
-            }
     }
 }

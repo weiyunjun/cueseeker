@@ -18,11 +18,35 @@ struct PlaybackLibraryOverlay: View {
     }
 
     var body: some View {
-        PlaybackLibraryEpisodeList(
-            store: store,
-            selection: store.selection,
-            onOpenEpisode: onOpenEpisode
-        )
+        VStack(spacing: 0) {
+            PlaybackLibraryEpisodeList(
+                store: store,
+                selection: store.selection,
+                onOpenEpisode: onOpenEpisode
+            )
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            PlaybackCueFooter(
+                surface: .playbackOverlay,
+                status: PlaybackCueFooterStatus.videos(
+                    totalCount: store.detail?.videos.count ?? 0
+                ),
+                actions: [
+                    .primary(id: "play", title: L("playback.play")) {
+                        // The same path Return takes: resolve the selected
+                        // episode, then open it.
+                        guard let video = store.primaryActionVideo() else {
+                            return
+                        }
+                        _ = onOpenEpisode(video)
+                    },
+                ]
+            )
+            .padding(
+                .horizontal,
+                PlaybackSubtitleFocusMetrics.contentInset
+            )
+        }
         .onAppear {
             store.activate()
         }

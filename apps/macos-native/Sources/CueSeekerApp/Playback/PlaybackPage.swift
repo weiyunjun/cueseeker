@@ -41,6 +41,10 @@ struct PlaybackPageView: View {
                         uiProbeScope: appState.uiProbeScope,
                         onExecuteAction:
                             appState.executePlaybackSubtitleFocusAction,
+                        onRequestAction: { action in
+                            _ = appState
+                                .requestPlaybackSubtitleFocusAction(action)
+                        },
                         onCopySelectedText:
                             appState.copyPlaybackSelectedText,
                         onSearchSelectedText:

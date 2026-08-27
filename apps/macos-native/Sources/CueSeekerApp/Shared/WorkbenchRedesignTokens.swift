@@ -70,8 +70,17 @@ enum WorkbenchRedesignColors {
         static let iconButtonOpenBg = NSColor.controlAccentColor
         /// --color-icon-button-open-content
         static let iconButtonOpenContent = iconOnDark
-        /// --color-keycap-bg
-        static let keycapBackground = bgHover
+        // Playback footer shortcut buttons and their keycaps. Each surface
+        // carries its own set so the keycap always reads one step deeper than
+        // the background it sits on: the shared keycap colour used to match
+        // --color-bg-hover, which is indistinguishable from the Playback
+        // Overlay's own background.
+        static let playbackOverlayShortcutButtonHoverBg = NSColor.dynamic(lightHex: "#EDEEF2", darkHex: "#2C2C30")
+        static let playbackOverlayKeycapBg = NSColor.dynamic(lightHex: "#E1E4E9", darkHex: "#35353A")
+        static let playbackOverlayKeycapHoverBg = NSColor.dynamic(lightHex: "#D2D6DE", darkHex: "#414147")
+        static let commandPanelShortcutButtonHoverBg = NSColor.dynamic(lightHex: "#F7F8FA", darkHex: "#252529")
+        static let commandPanelKeycapBg = NSColor.dynamic(lightHex: "#EDEFF2", darkHex: "#2E2E33")
+        static let commandPanelKeycapHoverBg = NSColor.dynamic(lightHex: "#E0E3E8", darkHex: "#3A3A40")
 
         // Border
         static let borderControl = NSColor.dynamic(lightHex: "#E5E7EB", darkHex: "#3F3F46")
@@ -178,7 +187,12 @@ enum WorkbenchRedesignColors {
     static let appTopbarBg = Color(nsColor: NS.appTopbarBg)
     static let iconButtonOpenBg = Color(nsColor: NS.iconButtonOpenBg)
     static let iconButtonOpenContent = Color(nsColor: NS.iconButtonOpenContent)
-    static let keycapBackground = Color(nsColor: NS.keycapBackground)
+    static let playbackOverlayShortcutButtonHoverBg = Color(nsColor: NS.playbackOverlayShortcutButtonHoverBg)
+    static let playbackOverlayKeycapBg = Color(nsColor: NS.playbackOverlayKeycapBg)
+    static let playbackOverlayKeycapHoverBg = Color(nsColor: NS.playbackOverlayKeycapHoverBg)
+    static let commandPanelShortcutButtonHoverBg = Color(nsColor: NS.commandPanelShortcutButtonHoverBg)
+    static let commandPanelKeycapBg = Color(nsColor: NS.commandPanelKeycapBg)
+    static let commandPanelKeycapHoverBg = Color(nsColor: NS.commandPanelKeycapHoverBg)
 
     // Cover Summary
     static let coverSummaryScrim = Color(nsColor: NS.coverSummaryScrim)
