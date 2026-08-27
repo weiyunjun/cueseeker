@@ -1893,6 +1893,7 @@
 
 ##### Anatomy
 
+- Scrim：覆盖整个窗口
 - Container
   - Background：`--color-bg-popover`
   - Border Color：`--color-border-muted`
