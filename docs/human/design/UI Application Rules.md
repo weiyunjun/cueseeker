@@ -8,7 +8,7 @@
 2. 页面内浮层：Selection Action Overlay；Playback Overlay（Current、Playlist、Collage Editor 是它的同层模块）。
 3. Command Panel，位于 Playback Overlay 之上。
 4. 菜单：属于打开它的那一层，只高于该层自身。
-5. 对话框：Edit Cover、Shiori List Editor、Confirmation。
+5. 对话框：Edit Cover、Shiori List Editor、任务界面、Confirmation。
 
 Toast 与播放反馈只有视觉，不接受输入，不参与层级。独立窗口与系统菜单栏不属于本清单。
 

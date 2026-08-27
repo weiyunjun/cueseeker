@@ -88,6 +88,8 @@
 - `--color-watch-status-watching-text`: Light `#0040FF`; Dark `#93C5FD`
 - `--color-watch-status-finished-bg`: Light `#D1FAE5`; Dark `#123A2A`
 - `--color-watch-status-finished-text`: Light `#047857`; Dark `#6EE7B7`
+- `--color-task-count-badge-bg`: macOS accent color
+- `--color-task-count-badge-text`: Light `#FFFFFF`; Dark `#FFFFFF`
 
 ### Scrollbar
 
@@ -184,6 +186,7 @@
 - `--font-size-library-title`: `14px`
 - `--font-size-library-meta`: `12px`
 - `--font-size-library-time-badge`: `10px`
+- `--font-size-task-count-badge`: `10px`
 - `--font-size-library-list-title`: `15px`
 - `--font-size-library-list-subtitle`: `13px`
 - `--font-size-library-list-meta`: `12px`
@@ -221,6 +224,8 @@
 - `--height-player-progress-track-hover`: `6px`
 - `--height-player-progress-time-capsule`: `22px`
 - `--height-library-progress-bar`: `4px`
+- `--height-task-progress-bar`: `4px`
+- `--height-task-panel`: `440px`
 - `--height-library-list-cover`: `115px`
 - `--height-cover-summary-backdrop`: `225px`
 - `--height-keycap`: `22px`
@@ -246,6 +251,7 @@
 - `--width-page-scrollbar-channel`: `16px`
 - `--width-app-sidebar`: `240px`
 - `--size-app-sidebar-item-icon`: `18px`
+- `--size-task-count-badge`: `16px`
 - `--size-player-circle-button`: `40px`
 - `--size-player-circle-button-icon`: `18px`
 - `--width-player-speed-button`: `54px`
@@ -270,6 +276,7 @@
 - `--width-library-folder-cover`: `120px`
 - `--min-height-library-folder-card`: `96px`
 - `--min-width-workbench-page-content`: `480px`
+- `--width-task-panel`: `460px`
 
 ## 1.4 间距
 
@@ -1285,11 +1292,11 @@
 ##### States
 
 - Unselected
-  - Label Color：`--color-text-muted`
+  - Label Color：`--color-playback-module-sidebar-unselected`
 - Hover
 - Selected
-  - Label Color：`--color-text-primary`
-  - Indicator Color：`--color-accent`
+  - Label Color：`--color-playback-module-sidebar-selected`
+  - Indicator Color：`--color-playback-module-sidebar-selected`
 - Focused
 - Disabled
   - Label Color：`--color-text-disabled`
@@ -1552,6 +1559,32 @@
   - Background：`--color-bg-disabled`
   - Text Color：`--color-text-disabled`
 
+### Task Status Badge
+
+#### Shared
+
+##### Anatomy
+
+- Container
+  - Radius：`--radius-chip`
+- Label
+  - Font Family：`--font-family-base`
+  - Font Size：`--font-size-caption`
+
+##### Sizes
+
+- Padding Inline：`--padding-chip-x`
+- Padding Block：`--padding-chip-y`
+
+##### States
+
+- In Progress
+  - Background：`--color-watch-status-watching-bg`
+  - Text Color：`--color-watch-status-watching-text`
+- Queued
+  - Background：`--color-watch-status-unwatched-bg`
+  - Text Color：`--color-watch-status-unwatched-text`
+
 ### Information Badge
 
 #### Shared
@@ -1579,6 +1612,19 @@
   - Time
   - Count
   - Hidden
+
+##### Task Count Badge
+
+- Shape：1 位数为圆形，2 位及以上为胶囊形
+- Size：`--size-task-count-badge`
+- Padding Inline：`--spacing-1`
+- Background：`--color-task-count-badge-bg`
+- Font Family：`--font-family-base`
+- Font Size：`--font-size-task-count-badge`
+- Text Color：`--color-task-count-badge-text`
+- States
+  - Count
+  - Hidden：数量为 0
 
 ### Tag
 
@@ -1847,6 +1893,17 @@
 ##### States
 
 - Indeterminate
+
+#### Variants
+
+##### Bar
+
+- Track Color：`--color-library-progress-track`
+- Fill Color：`--color-library-progress-fill`
+- Height：`--height-task-progress-bar`
+- Radius：Capsule
+- States
+  - Determinate
 
 ### Playback Feedback
 
@@ -2630,12 +2687,16 @@
 2. Sidebar Toggle Slot
 3. Function Region
    1. Back Action
-4. Draggable Region
+4. Trailing Function Region
+   1. Task Entry
+5. Draggable Region
 
 #### Components
 
 - Sidebar Toggle
 - Icon Button / Back
+- Icon Button / Default
+- Information Badge / Task Count Badge
 
 #### Sizes
 
@@ -3316,6 +3377,86 @@
 - Destructive
 - Confirm Disabled
 - Submitting
+
+### Task Panel Layout
+
+#### Structure
+
+1. Header
+   1. Tabs：`Current`、`Completed`、`Incomplete`
+   2. Close Button
+2. Task Card List
+
+#### Components
+
+- Dialog
+- Tabs
+- Tab
+- Icon Button / Default
+- Scrollbar / Vertical
+
+#### Sizes
+
+- Width：`--width-task-panel`
+- Height：`--height-task-panel`
+
+#### Spacing
+
+- Header Padding Inline：`--spacing-4`
+- Content Padding Inline：`--spacing-4`
+- Card Gap：`--spacing-3`
+
+#### States
+
+- Current
+- Completed
+- Incomplete
+- Empty
+
+### Task Card Layout
+
+#### Structure / Current
+
+1. Task Status Badge、Task Name、Remove Action
+2. Package Name
+3. Destination Folder
+4. Progress Text 或 Card Count
+5. Progress Bar：仅 In Progress
+
+#### Structure / History
+
+1. Task Name、Delete Action
+2. Package Name
+3. Destination Folder
+4. Card Count（Leading）、Time（Trailing）
+5. Error Message：仅 Incomplete
+
+#### Components
+
+- Task Status Badge
+- Icon Button / Default
+- Progress Indicator / Bar
+
+#### Sizes
+
+- Padding：`--spacing-3`
+- Row Gap：`--spacing-1`
+- Radius：`--radius-control`
+- Background：`--color-bg-surface`
+- Border Color：`--color-border-control`
+
+#### Text
+
+- Detail Font Size：`--font-size-caption`
+- Detail Color：`--color-text-muted`
+- Error Color：`--color-danger-text`
+
+#### States
+
+- In Progress
+- Queued
+- Completed
+- Incomplete
 
 ## 3.7 Player
 
