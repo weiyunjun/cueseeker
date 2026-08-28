@@ -158,9 +158,9 @@ final class ShioriStore: ObservableObject {
             lists.append(ShioriListSummary(list: list, cueCount: 0))
             lists.sort {
                 if $0.list.createdAt != $1.list.createdAt {
-                    return $0.list.createdAt > $1.list.createdAt
+                    return $0.list.createdAt < $1.list.createdAt
                 }
-                return $0.id > $1.id
+                return $0.id < $1.id
             }
         }
         installListOverview(ShioriListOverview(

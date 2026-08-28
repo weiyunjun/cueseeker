@@ -6,6 +6,15 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Turned Shiori ordering around. Shiori list cards and Shiori table rows now
+  run oldest first, so a new list lands at the end of the overview and a new
+  saved cue lands at the bottom of its table. Search, filters, export, copy,
+  the playlist a table opens, and playback's previous and next all follow the
+  same order, and the default save target is now the first card, the oldest
+  list.
+- Added New List to the end of the Move to and Duplicate to submenus. Creating
+  a list from there runs the interrupted move or duplicate against it, and both
+  actions now stay available when the current list is the only one.
 - Renamed the Library Overview action to `Add Folder`, sharing the existing
   Settings label in all three languages, and removed the plus icon from both
   the Library Overview and Shiori List Overview primary buttons. Their

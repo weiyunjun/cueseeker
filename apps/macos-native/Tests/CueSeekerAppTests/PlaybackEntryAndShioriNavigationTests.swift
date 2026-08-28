@@ -140,14 +140,14 @@ func shioriPlaybackNavigationUsesDatabaseWhenStoreIsNotHydrated() async throws {
         #expect(app.canOpenNextShiori)
 
         app.openPreviousShiori()
-        #expect(app.shiori.selectedShiori?.id == newest.id)
+        #expect(app.shiori.selectedShiori?.id == old.id)
         #expect(!app.canOpenPreviousShiori)
 
         app.openNextShiori()
         #expect(app.shiori.selectedShiori?.id == middle.id)
 
         app.openNextShiori()
-        #expect(app.shiori.selectedShiori?.id == old.id)
+        #expect(app.shiori.selectedShiori?.id == newest.id)
         #expect(!app.canOpenNextShiori)
     }
 }

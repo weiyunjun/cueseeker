@@ -111,23 +111,22 @@ struct SubtitleTableRowActionMenuModel: Equatable, Sendable {
         return action
     }
 
+    /// The destination submenu always offers New List, so a Shiori with no
+    /// other list to move to still opens it.
     func isEnabled(
         _ action: SubtitleTableRowAction,
         disabledActions: Set<SubtitleTableRowAction>,
-        canOpenFolder: Bool,
-        hasDestinations: Bool
+        canOpenFolder: Bool
     ) -> Bool {
         !disabledActions.contains(action)
             && (action != .openSubtitleFolder || canOpenFolder)
-            && (!action.opensDestinationSubmenu || hasDestinations)
     }
 
     /// Element positions the highlight may land on. Dividers and disabled
     /// actions are absent, so keyboard navigation skips them.
     func selectablePositions(
         disabledActions: Set<SubtitleTableRowAction>,
-        canOpenFolder: Bool,
-        hasDestinations: Bool
+        canOpenFolder: Bool
     ) -> [Int] {
         elements.indices.filter { position in
             guard let action = action(at: position) else {
@@ -136,8 +135,7 @@ struct SubtitleTableRowActionMenuModel: Equatable, Sendable {
             return isEnabled(
                 action,
                 disabledActions: disabledActions,
-                canOpenFolder: canOpenFolder,
-                hasDestinations: hasDestinations
+                canOpenFolder: canOpenFolder
             )
         }
     }

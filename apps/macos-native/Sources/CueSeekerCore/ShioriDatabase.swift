@@ -180,7 +180,7 @@ public final class ShioriDatabase: @unchecked Sendable {
             SELECT id, name, description, cover_path, created_at,
                    recent_cue_id, recent_sort_order, recent_played_at
             FROM shiori_lists
-            ORDER BY created_at DESC, id DESC;
+            ORDER BY created_at ASC, id ASC;
             """
         )
         var lists: [ShioriList] = []
@@ -208,7 +208,7 @@ public final class ShioriDatabase: @unchecked Sendable {
             """
             SELECT id
             FROM shiori_lists
-            ORDER BY created_at DESC, id DESC
+            ORDER BY created_at ASC, id ASC
             LIMIT 1;
             """
         )
@@ -224,7 +224,7 @@ public final class ShioriDatabase: @unchecked Sendable {
             FROM shiori_lists l
             LEFT JOIN shioris s ON s.list_id = l.id
             GROUP BY l.id
-            ORDER BY l.created_at DESC, l.id DESC;
+            ORDER BY l.created_at ASC, l.id ASC;
             """
         )
         var lists: [ShioriListSummary] = []
@@ -478,7 +478,7 @@ public final class ShioriDatabase: @unchecked Sendable {
             SELECT id, list_id, cue_id, created_at
             FROM shioris
             WHERE list_id = ?
-            ORDER BY created_at DESC, id DESC;
+            ORDER BY created_at ASC, id ASC;
             """
         )
         try statement.bind(listID, at: 1)
@@ -657,11 +657,11 @@ public final class ShioriDatabase: @unchecked Sendable {
         let orderingClause: String
         switch direction {
         case .previous:
-            orderingPredicate = "(s.created_at > ? OR (s.created_at = ? AND s.id > ?))"
-            orderingClause = "ORDER BY s.created_at ASC, s.id ASC"
-        case .next:
             orderingPredicate = "(s.created_at < ? OR (s.created_at = ? AND s.id < ?))"
             orderingClause = "ORDER BY s.created_at DESC, s.id DESC"
+        case .next:
+            orderingPredicate = "(s.created_at > ? OR (s.created_at = ? AND s.id > ?))"
+            orderingClause = "ORDER BY s.created_at ASC, s.id ASC"
         }
 
         let statement = try database.prepare(

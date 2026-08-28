@@ -985,7 +985,6 @@ private struct RowActionMenu: View {
     var showsCueGroup = false
     var canOpenFolder = true
     var disabledActions: Set<SubtitleTableRowAction> = []
-    let destinations: [SubtitleTableRowActionDestination]
     @ObservedObject var submenuState: SubtitleTableRowActionSubmenuState
     @ObservedObject var highlight: MenuHighlightModel
     var onAction: (SubtitleTableRowAction) -> Void
@@ -1023,8 +1022,7 @@ private struct RowActionMenu: View {
         let isEnabled = model.isEnabled(
             action,
             disabledActions: disabledActions,
-            canOpenFolder: canOpenFolder,
-            hasDestinations: !destinations.isEmpty
+            canOpenFolder: canOpenFolder
         )
         return WorkbenchPopoverRow(
             title: action.title,
@@ -1072,6 +1070,7 @@ private struct RowActionDestinationSubmenu: View {
     @ObservedObject var submenuState: SubtitleTableRowActionSubmenuState
     @ObservedObject var highlight: MenuHighlightModel
     var onDestinationAction: (SubtitleTableRowActionDestination) -> Void
+    var onCreateList: () -> Void
 
     var body: some View {
         WorkbenchPopoverPanel(isRedesign: true) {
@@ -1090,6 +1089,20 @@ private struct RowActionDestinationSubmenu: View {
                         }
                     )
                 }
+                if !destinations.isEmpty {
+                    Divider()
+                }
+                WorkbenchPopoverRow(
+                    title: L("shiori.new_list"),
+                    isHighlighted: highlight.highlightedPosition
+                        == destinations.count,
+                    isRedesign: true,
+                    showsCheckmarkSlot: false,
+                    action: onCreateList,
+                    onHoverChange: { isHovered in
+                        highlight.noteHover(isHovered, at: destinations.count)
+                    }
+                )
             }
         }
         .onHover(perform: submenuState.setSubmenuHovered)
@@ -2310,6 +2323,8 @@ struct SubtitleTableView: NSViewRepresentable {
     var rowActionDestinations: [SubtitleTableRowActionDestination] = []
     var onMoveShiori: (SubtitleTableRow, Int64) -> Void = { _, _ in }
     var onDuplicateShiori: (SubtitleTableRow, Int64) -> Void = { _, _ in }
+    var onCreateShioriList: (SubtitleTableRow, SubtitleTableRowAction) -> Void
+        = { _, _ in }
     var onRemoveShiori: (SubtitleTableRow) -> Void = { _ in }
     var isRedesign: Bool = false
     var pageChrome: SubtitleTablePageChrome?
@@ -2350,6 +2365,7 @@ struct SubtitleTableView: NSViewRepresentable {
             rowActionDestinations: rowActionDestinations,
             onMoveShiori: onMoveShiori,
             onDuplicateShiori: onDuplicateShiori,
+            onCreateShioriList: onCreateShioriList,
             onRemoveShiori: onRemoveShiori
         )
         coordinator.isRedesign = isRedesign
@@ -2517,6 +2533,7 @@ struct SubtitleTableView: NSViewRepresentable {
             rowActionDestinations: rowActionDestinations,
             onMoveShiori: onMoveShiori,
             onDuplicateShiori: onDuplicateShiori,
+            onCreateShioriList: onCreateShioriList,
             onRemoveShiori: onRemoveShiori
         )
     }
@@ -2567,6 +2584,8 @@ struct SubtitleTableView: NSViewRepresentable {
         private var rowActionDestinations: [SubtitleTableRowActionDestination]
         private var onMoveShiori: (SubtitleTableRow, Int64) -> Void
         private var onDuplicateShiori: (SubtitleTableRow, Int64) -> Void
+        private var onCreateShioriList:
+            (SubtitleTableRow, SubtitleTableRowAction) -> Void
         private var onRemoveShiori: (SubtitleTableRow) -> Void
 
         var isRedesign: Bool = false {
@@ -2810,6 +2829,9 @@ struct SubtitleTableView: NSViewRepresentable {
             rowActionDestinations: [SubtitleTableRowActionDestination] = [],
             onMoveShiori: @escaping (SubtitleTableRow, Int64) -> Void = { _, _ in },
             onDuplicateShiori: @escaping (SubtitleTableRow, Int64) -> Void = { _, _ in },
+            onCreateShioriList: @escaping (
+                SubtitleTableRow, SubtitleTableRowAction
+            ) -> Void = { _, _ in },
             onRemoveShiori: @escaping (SubtitleTableRow) -> Void = { _ in }
         ) {
             self.tableName = tableName
@@ -2845,6 +2867,7 @@ struct SubtitleTableView: NSViewRepresentable {
             self.rowActionDestinations = rowActionDestinations
             self.onMoveShiori = onMoveShiori
             self.onDuplicateShiori = onDuplicateShiori
+            self.onCreateShioriList = onCreateShioriList
             self.onRemoveShiori = onRemoveShiori
         }
 
@@ -3127,6 +3150,9 @@ struct SubtitleTableView: NSViewRepresentable {
             rowActionDestinations: [SubtitleTableRowActionDestination] = [],
             onMoveShiori: @escaping (SubtitleTableRow, Int64) -> Void = { _, _ in },
             onDuplicateShiori: @escaping (SubtitleTableRow, Int64) -> Void = { _, _ in },
+            onCreateShioriList: @escaping (
+                SubtitleTableRow, SubtitleTableRowAction
+            ) -> Void = { _, _ in },
             onRemoveShiori: @escaping (SubtitleTableRow) -> Void = { _ in }
         ) {
             let tableChanged = tableName != self.tableName
@@ -3203,6 +3229,7 @@ struct SubtitleTableView: NSViewRepresentable {
             self.rowActionDestinations = rowActionDestinations
             self.onMoveShiori = onMoveShiori
             self.onDuplicateShiori = onDuplicateShiori
+            self.onCreateShioriList = onCreateShioriList
             self.onRemoveShiori = onRemoveShiori
 
             self.rowCount = nextRowCount
@@ -3463,6 +3490,12 @@ struct SubtitleTableView: NSViewRepresentable {
             _ action: SubtitleTableRowAction
         ) {
             rowActionSubmenuState?.open(action)
+        }
+
+        /// The menu gate owns these keys at runtime, so tests reach the same
+        /// handler directly.
+        func handleMenuKeyForTesting(_ keyCode: UInt16) -> Bool {
+            handleMenuKey(keyCode)
         }
 
         func menuContainsWindowPointForTesting(_ windowPoint: CGPoint) -> Bool {
@@ -7157,8 +7190,7 @@ struct SubtitleTableView: NSViewRepresentable {
             rowActionHighlight.open(
                 selectablePositions: activeRowActionMenuModel.selectablePositions(
                     disabledActions: disabledActions,
-                    canOpenFolder: canOpenFolder,
-                    hasDestinations: !rowActionDestinations.isEmpty
+                    canOpenFolder: canOpenFolder
                 )
             )
             let menuView = RowActionMenu(
@@ -7166,7 +7198,6 @@ struct SubtitleTableView: NSViewRepresentable {
                 showsCueGroup: showsCueGroup,
                 canOpenFolder: canOpenFolder,
                 disabledActions: disabledActions,
-                destinations: rowActionDestinations,
                 submenuState: submenuState,
                 highlight: rowActionHighlight,
                 onAction: { [weak self] action in
@@ -7227,8 +7258,7 @@ struct SubtitleTableView: NSViewRepresentable {
         private func openHighlightedRowActionSubmenu() -> Bool {
             guard let position = rowActionHighlight.highlightedPosition,
                   let action = activeRowActionMenuModel.action(at: position),
-                  action.opensDestinationSubmenu,
-                  !rowActionDestinations.isEmpty
+                  action.opensDestinationSubmenu
             else {
                 return false
             }
@@ -7239,9 +7269,15 @@ struct SubtitleTableView: NSViewRepresentable {
         private func activateHighlightedRowActionDestination() -> Bool {
             guard let openParent = rowActionSubmenuState?.openParent,
                   let position = rowActionDestinationHighlight
-                      .highlightedPosition,
-                  rowActionDestinations.indices.contains(position)
+                      .highlightedPosition
             else {
+                return false
+            }
+            if position == rowActionDestinations.count {
+                performActiveRowMenuCreateListAction(openParent)
+                return true
+            }
+            guard rowActionDestinations.indices.contains(position) else {
                 return false
             }
             performActiveRowMenuDestinationAction(
@@ -7265,7 +7301,7 @@ struct SubtitleTableView: NSViewRepresentable {
             }
             if !rowActionDestinationHighlight.isOpen {
                 rowActionDestinationHighlight.open(
-                    selectablePositions: Array(rowActionDestinations.indices)
+                    selectablePositions: Array(0...rowActionDestinations.count)
                 )
             }
             let submenuView = RowActionDestinationSubmenu(
@@ -7277,6 +7313,9 @@ struct SubtitleTableView: NSViewRepresentable {
                         action,
                         destinationID: destination.id
                     )
+                },
+                onCreateList: { [weak self] in
+                    self?.performActiveRowMenuCreateListAction(action)
                 }
             )
             setSubmenuHost(submenuView, in: container)
@@ -7469,6 +7508,19 @@ struct SubtitleTableView: NSViewRepresentable {
             default:
                 break
             }
+        }
+
+        private func performActiveRowMenuCreateListAction(
+            _ action: SubtitleTableRowAction
+        ) {
+            guard let target = activeRowMenuTarget,
+                  action.opensDestinationSubmenu,
+                  !disabledRowActions(for: target).contains(action)
+            else {
+                return
+            }
+            dismissMenu()
+            onCreateShioriList(target, action)
         }
 
         private func performRowAction(_ action: SubtitleTableRowAction, row: Int) {

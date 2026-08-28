@@ -119,11 +119,16 @@ extension AppCoordinator {
         }
     }
 
-    func beginCreatingShioriList() {
+    func beginCreatingShioriList(
+        pendingTransfer: ShioriListEditorPendingTransfer? = nil
+    ) {
         guard shiori.listEditorSession == nil else {
             return
         }
-        shiori.listEditorSession = ShioriListEditorSession(mode: .newList)
+        shiori.listEditorSession = ShioriListEditorSession(
+            mode: .newList,
+            pendingTransfer: pendingTransfer
+        )
     }
 
     func beginEditingShioriList(_ list: ShioriList) {
@@ -285,6 +290,12 @@ extension AppCoordinator {
                 self.shiori.listEditorSession = nil
                 if !self.shiori.upsertListSummary(savedList) {
                     self.reloadShioriListOverview()
+                }
+                if let pendingTransfer = session.pendingTransfer {
+                    self.runShioriListEditorPendingTransfer(
+                        pendingTransfer,
+                        toListID: savedList.id
+                    )
                 }
             } catch is CancellationError {
                 if let publishedCoverPath {
@@ -644,6 +655,20 @@ extension AppCoordinator {
     }
 
     @discardableResult
+    private func runShioriListEditorPendingTransfer(
+        _ transfer: ShioriListEditorPendingTransfer,
+        toListID destinationListID: Int64
+    ) {
+        switch transfer.action {
+        case .moveToList:
+            _ = moveShiori(transfer.shiori, toListID: destinationListID)
+        case .duplicateToList:
+            _ = duplicateShiori(transfer.shiori, toListID: destinationListID)
+        default:
+            break
+        }
+    }
+
     func moveShiori(_ item: Shiori, toListID destinationListID: Int64) -> Bool {
         guard let database = shioriDatabase else {
             toast.show(ShioriToastRequest.moveFailed)

@@ -32,10 +32,18 @@ enum ShioriListEditorMode {
     }
 }
 
+/// A Move to or Duplicate to that the destination submenu's New List item
+/// interrupted. It runs against the list this session creates.
+struct ShioriListEditorPendingTransfer {
+    let action: SubtitleTableRowAction
+    let shiori: Shiori
+}
+
 @MainActor
 final class ShioriListEditorSession: ObservableObject, Identifiable {
     let id = UUID()
     let mode: ShioriListEditorMode
+    let pendingTransfer: ShioriListEditorPendingTransfer?
     let originalName: String
     let originalDescription: String
     let originalCoverPath: String?
@@ -49,8 +57,12 @@ final class ShioriListEditorSession: ObservableObject, Identifiable {
     @Published var hasAttemptedValidation = false
     @Published var isSaving = false
 
-    init(mode: ShioriListEditorMode) {
+    init(
+        mode: ShioriListEditorMode,
+        pendingTransfer: ShioriListEditorPendingTransfer? = nil
+    ) {
         self.mode = mode
+        self.pendingTransfer = pendingTransfer
         let list = mode.editedList
         originalName = list?.name ?? ""
         originalDescription = list?.description ?? ""

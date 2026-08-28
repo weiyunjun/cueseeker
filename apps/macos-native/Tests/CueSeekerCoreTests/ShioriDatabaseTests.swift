@@ -43,7 +43,7 @@ func shioriListsSupportMetadataValidationSortingAndDeletion() throws {
     #expect(older.name == "Favorites")
     #expect(older.description == "First line\nSecond line")
     #expect(older.coverPath == "/tmp/favorites.jpg")
-    #expect(try database.shioriLists().map(\.id) == [newer.id, older.id, initial.id])
+    #expect(try database.shioriLists().map(\.id) == [initial.id, older.id, newer.id])
 
     let duplicate = try database.validateShioriList(
         name: "favorites",
@@ -180,7 +180,7 @@ func recentShioriPlaybackResumesAnchorAndFallsBackWithinOriginalList() throws {
     #expect(summary.list.recentSortOrder == "created_at_desc")
     #expect(summary.cueCount == 2)
     #expect(summary.resumeShiori?.id == older.id)
-    #expect(summary.resumePosition == 2)
+    #expect(summary.resumePosition == 1)
 
     _ = try database.removeShiori(id: older.id)
     summary = try #require(try database.recentShioriListSummaries().first)
@@ -251,11 +251,11 @@ func shioriSaveMoveAndDuplicateUseListScopeAndPreserveMetadata() throws {
     let firstCueID = try #require(firstSelection.cueLineID)
 
     let transitionalSave = try database.upsertShiori(selection: firstSelection)
-    #expect(try database.shioriRelation(id: transitionalSave.id)?.listID == destinationList.id)
+    #expect(try database.shioriRelation(id: transitionalSave.id)?.listID == defaultList.id)
     #expect(try database.shiori(cueID: firstCueID)?.id == transitionalSave.id)
     #expect(try database.shiori(
         cueID: firstCueID,
-        listID: defaultList.id
+        listID: destinationList.id
     ) == nil)
     _ = try database.removeShiori(id: transitionalSave.id)
 
@@ -653,7 +653,7 @@ func shioriRelationSchemaAllowsOneCueInDifferentListsOnly() throws {
     #expect(
         try ShioriDatabase(path: database.path).shioriRelations(
             listID: ShioriListIdentity.defaultListID
-        ).map(\.id) == [defaultOnlyShiori.id, defaultShiori.id]
+        ).map(\.id) == [defaultShiori.id, defaultOnlyShiori.id]
     )
     let futureRelation = try #require(try ShioriDatabase(path: database.path).shioriRelations(listID: 2).first)
     #expect(futureRelation.cueID == cueID)

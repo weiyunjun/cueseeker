@@ -92,7 +92,7 @@ func appCoordinatorCreatesEditsAndDeletesShioriListsFromEditorSessions() async t
     })
     #expect(created.description == "Review later")
     #expect(app.shiori.listEditorSession == nil)
-    #expect(app.shiori.listOverview.lists.first?.id == created.id)
+    #expect(app.shiori.listOverview.lists.last?.id == created.id)
     #expect(!loadedStates.contains(false))
 
     app.beginEditingShioriList(created)
@@ -106,7 +106,7 @@ func appCoordinatorCreatesEditsAndDeletesShioriListsFromEditorSessions() async t
     let updated = try #require(try database.shioriList(id: created.id))
     #expect(updated.name == "Study Queue")
     #expect(updated.description.isEmpty)
-    #expect(app.shiori.listOverview.lists.first?.list == updated)
+    #expect(app.shiori.listOverview.lists.last?.list == updated)
     #expect(!loadedStates.contains(false))
     #expect(app.deleteShioriList(id: ShioriListIdentity.defaultListID))
     try await waitForShioriListEditorTasks(app)

@@ -123,6 +123,7 @@ private struct WorkbenchShioriTableContent: View {
                     rowActionDestinations: rowActionDestinations,
                     onMoveShiori: moveShiori,
                     onDuplicateShiori: duplicateShiori,
+                    onCreateShioriList: createShioriList,
                     onRemoveShiori: requestRemoveShiori,
                     isRedesign: true,
                     pageChrome: shioriDetailPageChrome
@@ -556,6 +557,21 @@ private struct WorkbenchShioriTableContent: View {
             return
         }
         appState.moveShiori(item, toListID: listID)
+    }
+
+    private func createShioriList(
+        _ row: SubtitleTableRow,
+        for action: SubtitleTableRowAction
+    ) {
+        guard let item = rowStore.snapshot.shiori(entryID: row.id) else {
+            return
+        }
+        appState.beginCreatingShioriList(
+            pendingTransfer: ShioriListEditorPendingTransfer(
+                action: action,
+                shiori: item
+            )
+        )
     }
 
     private func duplicateShiori(_ row: SubtitleTableRow, toListID listID: Int64) {

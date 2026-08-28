@@ -98,7 +98,7 @@ func shioriOverviewAndTableLoadingFollowTheSelectedList() async throws {
 
     app.reloadShioriListOverview()
     try await waitForShioriTasksToFinish(app)
-    #expect(app.shiori.listOverview.lists.map(\.id) == [secondList.id, defaultList.id])
+    #expect(app.shiori.listOverview.lists.map(\.id) == [defaultList.id, secondList.id])
     #expect(app.shiori.listOverview.lists.map(\.cueCount) == [1, 1])
     #expect(app.shiori.listOverview.uniqueCueCount == 2)
     #expect(app.shiori.recentListSummaries.map(\.id) == [secondList.id])

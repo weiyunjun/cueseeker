@@ -34,8 +34,7 @@ func subtitleTableRowActionMenuSelectablePositionsSkipDividersAndDisabledItems()
     #expect(
         model.selectablePositions(
             disabledActions: [],
-            canOpenFolder: true,
-            hasDestinations: false
+            canOpenFolder: true
         ) == [0, 1, 3, 4, 5]
     )
 
@@ -49,44 +48,46 @@ func subtitleTableRowActionMenuSelectablePositionsSkipDividersAndDisabledItems()
     #expect(
         model.selectablePositions(
             disabledActions: [.play],
-            canOpenFolder: false,
-            hasDestinations: false
+            canOpenFolder: false
         ) == [3, 4, 5]
     )
 }
 
 @Test
-func subtitleTableRowActionMenuSubmenuParentsNeedDestinations() {
+func subtitleTableRowActionMenuSubmenuParentsStayEnabledWithoutOtherLists() {
     let model = SubtitleTableRowActionMenuModel(style: .shiori, showsCueGroup: false)
 
-    #expect(
-        !model.isEnabled(
-            .moveToList,
-            disabledActions: [],
-            canOpenFolder: true,
-            hasDestinations: false
-        )
-    )
+    // The submenu always offers New List, so the only list is not a dead end.
     #expect(
         model.isEnabled(
             .moveToList,
             disabledActions: [],
-            canOpenFolder: true,
-            hasDestinations: true
+            canOpenFolder: true
+        )
+    )
+    #expect(
+        model.isEnabled(
+            .duplicateToList,
+            disabledActions: [],
+            canOpenFolder: true
         )
     )
 
-    let withoutDestinations = model.selectablePositions(
-        disabledActions: [],
-        canOpenFolder: true,
-        hasDestinations: false
+    // An unavailable Shiori still disables both.
+    #expect(
+        !model.isEnabled(
+            .moveToList,
+            disabledActions: [.moveToList, .duplicateToList],
+            canOpenFolder: true
+        )
     )
-    let withDestinations = model.selectablePositions(
-        disabledActions: [],
-        canOpenFolder: true,
-        hasDestinations: true
+    let positions = model.selectablePositions(
+        disabledActions: [.moveToList, .duplicateToList],
+        canOpenFolder: true
     )
-    #expect(withDestinations.count == withoutDestinations.count + 2)
+    #expect(!positions.contains(where: {
+        model.action(at: $0)?.opensDestinationSubmenu == true
+    }))
 }
 
 @Test

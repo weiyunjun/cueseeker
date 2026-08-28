@@ -20,7 +20,7 @@ struct ShioriListOverviewView: View {
                     shioriStore.listOverview.uniqueCueCount
                 ),
                 actionTitle: L("shiori.new_list"),
-                action: appState.beginCreatingShioriList
+                action: { appState.beginCreatingShioriList() }
             ) {
                 if shioriStore.hasLoadedListOverview {
                     listGrid(openContextMenu: openContextMenu)

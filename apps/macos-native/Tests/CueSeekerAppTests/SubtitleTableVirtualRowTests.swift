@@ -2885,6 +2885,35 @@ func subtitleTableShioriSubmenuStopsAtTheMenuHeightCap() async throws {
 
 @MainActor
 @Test
+func subtitleTableShioriSubmenuReachesNewListWithoutOtherLists() async throws {
+    var createRequests: [(rowID: Int, action: SubtitleTableRowAction)] = []
+    let fixture = makeAttachedVirtualTableCoordinator(
+        width: 1_200,
+        showsCueGroup: true,
+        rowActionMenuStyle: .shiori,
+        rowActionDestinations: [],
+        onCreateShioriList: { createRequests.append(($0.id, $1)) }
+    )
+    let anchorFrame = try #require(
+        fixture.coordinator.dataCellRectForTesting(row: 0, columnID: "cues")
+    )
+    fixture.coordinator.showMenu(for: 0, buttonFrame: anchorFrame)
+
+    // The current list is the only list, and Move to still opens a submenu
+    // because New List always sits at its end.
+    fixture.coordinator.openRowActionSubmenuForTesting(.moveToList)
+    #expect(fixture.coordinator.submenuFrameForTesting() != nil)
+
+    // The submenu opens highlighting New List, so Return reaches it by
+    // keyboard alone.
+    #expect(fixture.coordinator.handleMenuKeyForTesting(36))
+    #expect(createRequests.count == 1)
+    #expect(createRequests.first?.action == .moveToList)
+    #expect(!fixture.coordinator.isMenuOpenForTesting())
+}
+
+@MainActor
+@Test
 func subtitleTableShioriSubmenuTouchesAndAlignsWithItsParentItem() async throws {
     let fixture = makeAttachedVirtualTableCoordinator(
         width: 1_200,
@@ -2954,10 +2983,11 @@ func subtitleTableShioriSubmenuTouchesAndAlignsWithItsParentItem() async throws 
         )
     )
 
+    // Right of the parent menu and above the submenu, so it sits in neither.
     let outsideBothMenusInWindow = fixture.container.convert(
         CGPoint(
             x: submenuFrame.midX,
-            y: parentFrameAfter.maxY - 10
+            y: submenuFrame.minY - 10
         ),
         to: nil
     )
@@ -3357,6 +3387,9 @@ private func makeAttachedVirtualTableCoordinator(
     rowActionDestinations: [SubtitleTableRowActionDestination] = [],
     onMoveShiori: @escaping (SubtitleTableRow, Int64) -> Void = { _, _ in },
     onDuplicateShiori: @escaping (SubtitleTableRow, Int64) -> Void = { _, _ in },
+    onCreateShioriList: @escaping (
+        SubtitleTableRow, SubtitleTableRowAction
+    ) -> Void = { _, _ in },
     onRemoveShiori: @escaping (SubtitleTableRow) -> Void = { _ in }
 ) -> (
     coordinator: SubtitleTableView.Coordinator,
@@ -3402,6 +3435,7 @@ private func makeAttachedVirtualTableCoordinator(
         rowActionDestinations: rowActionDestinations,
         onMoveShiori: onMoveShiori,
         onDuplicateShiori: onDuplicateShiori,
+        onCreateShioriList: onCreateShioriList,
         onRemoveShiori: onRemoveShiori
     )
     coordinator.isRedesign = true
