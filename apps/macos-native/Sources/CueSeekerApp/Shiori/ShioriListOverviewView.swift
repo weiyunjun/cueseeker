@@ -20,7 +20,6 @@ struct ShioriListOverviewView: View {
                     shioriStore.listOverview.uniqueCueCount
                 ),
                 actionTitle: L("shiori.new_list"),
-                actionSystemImage: "plus",
                 action: appState.beginCreatingShioriList
             ) {
                 if shioriStore.hasLoadedListOverview {

@@ -376,8 +376,7 @@ struct WorkbenchTestLibraryView: View {
                 LibraryOverviewLayout(
                     title: L("sidebar.library"),
                     summaryText: completeLibrarySummaryText,
-                    actionTitle: L("library.add_content"),
-                    actionSystemImage: "plus",
+                    actionTitle: L("settings.library.add_folder"),
                     action: openLibrarySettings
                 ) {
                     completeLibraryContent

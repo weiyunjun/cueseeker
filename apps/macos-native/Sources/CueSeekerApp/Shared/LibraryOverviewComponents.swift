@@ -5,7 +5,6 @@ struct LibraryOverviewLayout<Content: View>: View {
     let title: String
     let summaryText: String
     let actionTitle: String
-    let actionSystemImage: String
     let action: () -> Void
     private let content: Content
 
@@ -13,14 +12,12 @@ struct LibraryOverviewLayout<Content: View>: View {
         title: String,
         summaryText: String,
         actionTitle: String,
-        actionSystemImage: String,
         action: @escaping () -> Void,
         @ViewBuilder content: () -> Content
     ) {
         self.title = title
         self.summaryText = summaryText
         self.actionTitle = actionTitle
-        self.actionSystemImage = actionSystemImage
         self.action = action
         self.content = content()
     }
@@ -46,7 +43,6 @@ struct LibraryOverviewLayout<Content: View>: View {
 
                     WorkbenchPrimaryButton(
                         title: actionTitle,
-                        systemImage: actionSystemImage,
                         action: action
                     )
                 }

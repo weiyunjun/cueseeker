@@ -418,7 +418,7 @@ Workbench Library and Shiori level-one pages reuse one Overview layout, one
 adaptive Grid, and one Media Card content/style structure. Their differences
 are data and actions: Library cards represent folders without a Description,
 while Shiori cards represent lists with a Description. Library statistics are
-derived from the same displayed folder summaries, and `Add Content` opens the
+derived from the same displayed folder summaries, and `Add Folder` opens the
 existing Settings Library entry point rather than adding another folder picker.
 
 Workbench Recent overview and detail, Workbench Library Folder Detail, Playback

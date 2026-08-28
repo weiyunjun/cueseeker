@@ -1245,7 +1245,7 @@ pbpaste
 11. Before reopening Playback, enter Workbench Library. Confirm its Summary Row
     displays the visible Folder count plus Video and Subtitle totals, and that
     the Folder count equals the number of Folder Cards currently displayed.
-    Confirm `Add Content` opens Settings with Library selected. Return to
+    Confirm `Add Folder` opens Settings with Library selected. Return to
     Workbench, compare Library and Shiori level one, and confirm they share the
     same Summary Row, adaptive Grid, card width, Hover, and Pressed structure;
     only Shiori cards include the Description line. Enter one Library Folder

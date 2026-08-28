@@ -128,7 +128,6 @@
 "shiori.remove.message" = "该台词将从你的 Shiori 中移除。原始字幕和视频文件不会被删除。";
 
 /* Library */
-"library.add_content" = "添加内容";
 "library.play" = "播放";
 "library.resume" = "继续播放";
 "library.resume_progress" = "继续 %1$@ / %2$@";

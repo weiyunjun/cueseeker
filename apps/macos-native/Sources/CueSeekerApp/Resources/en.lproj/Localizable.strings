@@ -128,7 +128,6 @@
 "shiori.remove.message" = "This cue will be removed from your Shiori. The original subtitle and video files will not be deleted.";
 
 /* Library */
-"library.add_content" = "Add Content";
 "library.play" = "Play";
 "library.resume" = "Resume";
 "library.resume_progress" = "Resume %1$@ / %2$@";

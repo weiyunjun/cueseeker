@@ -6,6 +6,10 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Renamed the Library Overview action to `Add Folder`, sharing the existing
+  Settings label in all three languages, and removed the plus icon from both
+  the Library Overview and Shiori List Overview primary buttons. Their
+  positions, styles, states, and actions are unchanged.
 - Promoted the Library Overview `Add Content` action and Shiori List Overview
   `New List` action to the shared Primary Button treatment without changing
   their labels, plus icons, positions, states, or behavior.

@@ -104,8 +104,7 @@ func workbenchPageWithoutATableStopsAtTheContentMinimumWidth() async throws {
         rootView: LibraryOverviewLayout(
             title: "Library",
             summaryText: "0 Folders",
-            actionTitle: "Add Content",
-            actionSystemImage: "plus",
+            actionTitle: "Add Folder",
             action: {}
         ) {
             Color.clear.frame(height: 40)
