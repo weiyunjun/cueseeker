@@ -1071,6 +1071,13 @@
 - Highlighted
 - Disabled
 
+#### Variants
+
+##### Shiori Destination Submenu
+
+- Structure：Shiori 列表项依次排列，末尾是 Menu Divider 与 New List 项；没有列表项时不显示 Divider
+- Item：Menu Item / Action Menu Item，均不带 Leading Icon
+
 ### Menu Item
 
 #### Shared
@@ -3128,6 +3135,10 @@
 
 - Page Layout：Workbench Titled Page Layout
 
+#### Ordering
+
+- 按列表创建时间正序排列，最新创建的列表在最后
+
 #### Sizes
 
 - Summary to Grid Gap：`--spacing-4`
@@ -3274,6 +3285,10 @@
 
 - Fixed Header 与 Scrollable Body 使用相同宽度和水平边界，横向滚动时同步移动。
 - Horizontal Scrollbar：Page Viewport Bottom Edge，长度与 Table 宽度一致。
+
+#### Ordering
+
+- Shiori：按收藏时间正序排列，最新收藏的在最下方
 
 #### Sizes
 
