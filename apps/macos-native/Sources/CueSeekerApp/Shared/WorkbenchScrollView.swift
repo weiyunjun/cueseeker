@@ -4,14 +4,17 @@ import SwiftUI
 @MainActor
 struct WorkbenchScrollView<Content: View>: View {
     private let axes: Axis.Set
+    private let scrollbarInset: CGFloat
     private let content: Content
     @StateObject private var bridge: WorkbenchScrollViewBridge
 
     init(
         _ axes: Axis.Set = .vertical,
+        scrollbarInset: CGFloat = TableScrollbarPrimitiveMetrics.inset,
         @ViewBuilder content: () -> Content
     ) {
         self.axes = axes
+        self.scrollbarInset = scrollbarInset
         self.content = content()
         _bridge = StateObject(wrappedValue: WorkbenchScrollViewBridge())
     }
@@ -30,7 +33,8 @@ struct WorkbenchScrollView<Content: View>: View {
         .overlay {
             WorkbenchScrollViewOverlayRepresentable(
                 axes: axes,
-                bridge: bridge
+                bridge: bridge,
+                scrollbarInset: scrollbarInset
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
@@ -77,6 +81,7 @@ private struct WorkbenchScrollViewBindingRepresentable: NSViewRepresentable {
 private struct WorkbenchScrollViewOverlayRepresentable: NSViewRepresentable {
     let axes: Axis.Set
     let bridge: WorkbenchScrollViewBridge
+    let scrollbarInset: CGFloat
     /// A menu open over this layer, or a higher layer covering it, freezes the
     /// Scrollbar the same way it freezes the cards beside it.
     @Environment(\.interfaceLayerContext) private var layerContext
@@ -84,6 +89,7 @@ private struct WorkbenchScrollViewOverlayRepresentable: NSViewRepresentable {
     func makeNSView(context: Context) -> WorkbenchScrollViewOverlayView {
         let view = WorkbenchScrollViewOverlayView()
         view.isInteractionFrozen = layerContext.isFrozen
+        view.edgeInset = scrollbarInset
         bridge.register(overlayView: view, axes: axes)
         return view
     }
@@ -93,6 +99,7 @@ private struct WorkbenchScrollViewOverlayRepresentable: NSViewRepresentable {
         context: Context
     ) {
         nsView.isInteractionFrozen = layerContext.isFrozen
+        nsView.edgeInset = scrollbarInset
         bridge.register(overlayView: nsView, axes: axes)
     }
 

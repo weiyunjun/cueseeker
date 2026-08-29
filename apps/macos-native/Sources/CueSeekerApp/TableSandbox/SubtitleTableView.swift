@@ -995,7 +995,7 @@ private struct RowActionMenu: View {
                 ForEach(Array(model.elements.enumerated()), id: \.offset) { position, element in
                     switch element {
                     case .divider:
-                        Divider()
+                        WorkbenchMenuDivider()
                             .onHover(perform: submenuState.setOtherItemHovered)
                     case .action(let action):
                         actionRow(action, at: position)
@@ -1090,7 +1090,7 @@ private struct RowActionDestinationSubmenu: View {
                     )
                 }
                 if !destinations.isEmpty {
-                    Divider()
+                    WorkbenchMenuDivider()
                 }
                 WorkbenchPopoverRow(
                     title: L("shiori.new_list"),

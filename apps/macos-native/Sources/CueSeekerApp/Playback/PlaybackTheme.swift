@@ -381,7 +381,10 @@ enum PlaybackChromeMetrics {
     static let chromeBottomPadding: CGFloat = 12
     static let progressTopPadding: CGFloat = 16
     static let capsuleButtonHorizontalPadding: CGFloat = 16
-    static let speedMenuPadding: CGFloat = MenuMetrics.padding
+    /// The speed menu keeps the padding every menu shared before menus were
+    /// tightened; its own width and height are fixed numbers measured against
+    /// this one, and it is not part of that change.
+    static let speedMenuPadding: CGFloat = 12
     static let speedMenuItemHorizontalPadding: CGFloat = 8
     static let progressTimeCapsuleHorizontalPadding: CGFloat = 8
     static let topbarHorizontalPadding: CGFloat = 16

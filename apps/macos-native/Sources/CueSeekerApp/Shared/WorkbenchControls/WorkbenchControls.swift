@@ -64,8 +64,30 @@ enum WorkbenchControlMetrics {
     static let redesignInlineAddSymbolFontSizeMacOS: CGFloat = 16
     /// --size-menu-item-symbol-font-size-macos: 14pt
     static let redesignMenuItemSymbolFontSizeMacOS: CGFloat = 14
-    /// --padding-menu-item: 12px 16px (horizontal component)
-    static let redesignMenuItemHorizontalPadding: CGFloat = 16
+    /// --padding-menu-item: 10px
+    static let redesignMenuItemHorizontalPadding: CGFloat = 10
+    /// Menu Item padding on a side whose slot holds an icon rather than text.
+    ///
+    /// A glyph carries transparent room inside its own box, so matching the
+    /// text side's padding reads looser than it measures. Trimming two points
+    /// puts the two sides back in visual balance.
+    static let redesignMenuItemTrailingIconPadding: CGFloat =
+        redesignMenuItemHorizontalPadding - 2
+    /// --height-action-menu-item, --height-select-menu-item: 32px
+    ///
+    /// A menu is a list to read down, not a row of controls to hit, so it is
+    /// denser than a button: the 14px label's 20px line box plus six points
+    /// above and below it.
+    static let redesignMenuItemHeight: CGFloat = 32
+    /// --radius-menu: 16px -> 12px
+    static let redesignMenuRadius: CGFloat = 12
+    /// --radius-action-menu-item, --radius-select-menu-item: 6px
+    ///
+    /// Concentric with the menu around it: the menu's own radius less the
+    /// padding between the two. Equal radii would leave the corners of the
+    /// highlight bulging into corners of the menu.
+    static let redesignMenuItemRadius: CGFloat =
+        redesignMenuRadius - MenuMetrics.padding
     /// --size-icon-button: 32px
     static let redesignIconButtonSize: CGFloat = 32
     /// --height-table-header: 40px
@@ -931,7 +953,7 @@ struct WorkbenchPopoverRow: View {
     }
 
     private var label: some View {
-        HStack(spacing: isRedesign ? 12 : 12) {
+        HStack(spacing: isRedesign ? WorkbenchControlMetrics.redesignSpacing2 : 12) {
             if showsCheckmarkSlot {
                 if isRedesign {
                     if isSelected {
@@ -984,10 +1006,10 @@ struct WorkbenchPopoverRow: View {
                                 ? WorkbenchControlColors.primaryText
                                 : WorkbenchControlColors.mutedText)
                     )
+                    // No fixed width: a lone trailing glyph centred in a
+                    // 16pt slot would leave the space after it reading wider
+                    // than the space before the leading icon.
                     .frame(
-                        width: isRedesign
-                            ? WorkbenchControlMetrics.redesignControlIconSize
-                            : nil,
                         height: isRedesign
                             ? WorkbenchControlMetrics.redesignControlIconSize
                             : nil
@@ -995,17 +1017,36 @@ struct WorkbenchPopoverRow: View {
             }
         }
         .foregroundStyle(isRedesign ? labelColor : (isEnabled ? WorkbenchControlColors.primaryText : WorkbenchControlColors.mutedText))
-        .padding(.horizontal, isRedesign ? 16 : 12)
-        .frame(height: isRedesign ? 40 : 40)
+        .padding(
+            .leading,
+            isRedesign
+                ? WorkbenchControlMetrics.redesignMenuItemHorizontalPadding
+                : 12
+        )
+        .padding(.trailing, isRedesign ? redesignTrailingPadding : 12)
+        .frame(height: isRedesign ? WorkbenchControlMetrics.redesignMenuItemHeight : 40)
         .background(
-            RoundedRectangle(cornerRadius: isRedesign ? 8 : 8, style: .continuous)
-                .fill(rowBackground)
+            RoundedRectangle(
+                cornerRadius: isRedesign
+                    ? WorkbenchControlMetrics.redesignMenuItemRadius
+                    : 8,
+                style: .continuous
+            )
+            .fill(rowBackground)
         )
         .contentShape(Rectangle())
         .onHover { inside in
             onHoverChange?(inside)
             isHovered = isEnabled && inside
         }
+    }
+
+    /// A trailing icon sits closer to the edge than trailing text does, so the
+    /// two sides of the row read as equally spaced.
+    private var redesignTrailingPadding: CGFloat {
+        trailingSystemImage == nil
+            ? WorkbenchControlMetrics.redesignMenuItemHorizontalPadding
+            : WorkbenchControlMetrics.redesignMenuItemTrailingIconPadding
     }
 
     /// Only the owning menu's highlight paints a background. The row's own
@@ -1112,20 +1153,51 @@ struct WorkbenchIconButton: View {
     }
 }
 
+/// Menu Divider.
+///
+/// It runs the full width of the menu rather than stopping where the items do,
+/// so it reads as a break between groups instead of an underline belonging to
+/// the row above it. In a menu that scrolls it stops at the scrollbar, which
+/// the item stack has already kept clear.
+struct WorkbenchMenuDivider: View {
+    var body: some View {
+        Divider()
+            .padding(.horizontal, -MenuMetrics.padding)
+    }
+}
+
 struct WorkbenchPopoverPanel<Content: View>: View {
     var isRedesign: Bool = false
     @ViewBuilder var content: () -> Content
 
     var body: some View {
-        let cornerRadius: CGFloat = isRedesign ? 16 : 10
-        // The scroll view spans the whole panel and the padding sits inside it,
-        // so the scrollbar is drawn in the padding ring rather than over the
-        // items. The cap makes the menu its items' own height until they pass
-        // it; width stays whatever the items need.
+        let cornerRadius: CGFloat = isRedesign
+            ? WorkbenchControlMetrics.redesignMenuRadius
+            : 10
+        // The scroll view spans the whole panel, and the item stack inside it
+        // both applies the menu's padding and reserves the strip the scrollbar
+        // needs — but only once the items outgrow the cap, so a menu that does
+        // not scroll spends nothing on a scrollbar that never appears. The cap
+        // makes the menu its items' own height until they pass it; width stays
+        // whatever the items need, plus that strip when it is reserved.
         MenuHeightCap(height: MenuMetrics.maximumHeight) {
-            WorkbenchScrollView {
-                content()
-                    .padding(isRedesign ? MenuMetrics.padding : 8)
+            WorkbenchScrollView(
+                scrollbarInset: isRedesign
+                    ? MenuMetrics.scrollbarOuterGap
+                    : TableScrollbarPrimitiveMetrics.inset
+            ) {
+                if isRedesign {
+                    MenuItemStack(
+                        padding: MenuMetrics.padding,
+                        strip: MenuMetrics.scrollbarStrip,
+                        cap: MenuMetrics.maximumHeight
+                    ) {
+                        content()
+                    }
+                } else {
+                    content()
+                        .padding(8)
+                }
             }
         }
             .fixedSize(horizontal: true, vertical: false)

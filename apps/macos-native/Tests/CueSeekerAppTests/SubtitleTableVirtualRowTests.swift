@@ -1072,6 +1072,11 @@ func subtitleTableViewRightClickMenuIsBoundedByTheTableBody() throws {
     // side of the click. It still starts at the body's top edge rather than
     // reaching the frozen header above it, and the body cuts off the rest.
     let fixture = makeAttachedVirtualTableCoordinator()
+    // The body is cut down until it is shorter than the menu again: the menu's
+    // own height follows the menu item metrics, so the fixture states the
+    // relationship it is testing instead of relying on a particular density.
+    fixture.container.frame.size.height = 204
+    fixture.scrollView.frame.size.height = 144
     let cuesRect = try #require(
         fixture.coordinator.cellContentHoverDocumentRectForTesting(row: 0, columnID: "cues")
     )
@@ -2943,8 +2948,13 @@ func subtitleTableShioriSubmenuTouchesAndAlignsWithItsParentItem() async throws 
     let moveItemFrame = try #require(
         fixture.coordinator.rowActionParentItemFrameForTesting(.moveToList)
     )
-    #expect(moveItemFrame.minY > 200)
-    #expect(moveItemFrame.height == 40)
+    // Six items and the two dividers between them sit above Move to, so the
+    // submenu's alignment below is measured against a real offset rather than
+    // against the top of the menu.
+    let itemHeight = WorkbenchControlMetrics.redesignMenuItemHeight
+    let moveItemOffset = MenuMetrics.padding + 6 * itemHeight
+    #expect(moveItemFrame.minY >= moveItemOffset)
+    #expect(moveItemFrame.height == itemHeight)
 
     fixture.coordinator.openRowActionSubmenuForTesting(.moveToList)
 
@@ -2957,7 +2967,7 @@ func subtitleTableShioriSubmenuTouchesAndAlignsWithItsParentItem() async throws 
 
     #expect(parentFrameAfter == parentFrameBefore)
     #expect(abs(submenuFrame.minX - parentFrameAfter.maxX) < 0.5)
-    #expect(submenuFrame.minY > parentFrameAfter.minY + 200)
+    #expect(submenuFrame.minY >= parentFrameAfter.minY + moveItemOffset)
     #expect(
         abs(
             submenuFrame.minY

@@ -53,6 +53,10 @@ enum TableScrollbarPrimitiveMetrics {
 
 struct TableScrollbarGeometry: Equatable {
     let presentation: TableScrollbarPresentation
+    /// What the track keeps clear of its bounds on every side. Menus widen to
+    /// make room for their scrollbar rather than borrowing the padding around
+    /// their items, so they ask for a wider one than tables do.
+    var inset: CGFloat = TableScrollbarPrimitiveMetrics.inset
 
     func trackRect(
         for axis: TableScrollbarAxis,
@@ -62,7 +66,6 @@ struct TableScrollbarGeometry: Equatable {
             return nil
         }
         let size = TableScrollbarPrimitiveMetrics.size
-        let inset = TableScrollbarPrimitiveMetrics.inset
         let verticalReserve = presentation.vertical == nil ? 0 : size + inset
         let horizontalReserve = presentation.horizontal == nil ? 0 : size + inset
 
@@ -262,6 +265,17 @@ class TableScrollbarOverlayView: NSView {
     /// longer puts it out. Presses and the wheel are already withheld by the
     /// menu gate before they reach here.
     var isInteractionFrozen = false
+    /// What this Overlay's scrollbar keeps clear of its own edge. Tables use
+    /// the shared default; a menu passes its own so the scrollbar lands in the
+    /// strip the menu widened by rather than over its items.
+    var edgeInset: CGFloat = TableScrollbarPrimitiveMetrics.inset {
+        didSet {
+            guard edgeInset != oldValue else { return }
+            lastPresentation = nil
+            needsDisplay = true
+            window?.invalidateCursorRects(for: self)
+        }
+    }
     var isPresented = false {
         didSet {
             guard isPresented != oldValue else {
@@ -397,7 +411,10 @@ class TableScrollbarOverlayView: NSView {
         }
         lastPresentation = presentation
         let draw = {
-            let geometry = TableScrollbarGeometry(presentation: presentation)
+            let geometry = TableScrollbarGeometry(
+                presentation: presentation,
+                inset: self.edgeInset
+            )
             self.drawThumb(axis: .vertical, geometry: geometry)
             self.drawThumb(axis: .horizontal, geometry: geometry)
         }
@@ -538,7 +555,10 @@ class TableScrollbarOverlayView: NSView {
         guard let presentation = currentPresentation() else {
             return nil
         }
-        return TableScrollbarGeometry(presentation: presentation)
+        return TableScrollbarGeometry(
+            presentation: presentation,
+            inset: edgeInset
+        )
     }
 
     private func axis(at point: CGPoint) -> TableScrollbarAxis? {
@@ -588,13 +608,17 @@ class TableScrollbarOverlayView: NSView {
         var dirtyRect = CGRect.null
         for axis in axes {
             if let oldPresentation,
-               let oldRect = TableScrollbarGeometry(presentation: oldPresentation)
-                .thumbRect(for: axis, in: geometryBounds) {
+               let oldRect = TableScrollbarGeometry(
+                   presentation: oldPresentation,
+                   inset: edgeInset
+               ).thumbRect(for: axis, in: geometryBounds) {
                 dirtyRect = dirtyRect.union(oldRect)
             }
             if let newPresentation,
-               let newRect = TableScrollbarGeometry(presentation: newPresentation)
-                .thumbRect(for: axis, in: geometryBounds) {
+               let newRect = TableScrollbarGeometry(
+                   presentation: newPresentation,
+                   inset: edgeInset
+               ).thumbRect(for: axis, in: geometryBounds) {
                 dirtyRect = dirtyRect.union(newRect)
             }
         }

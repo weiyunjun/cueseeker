@@ -200,10 +200,10 @@ struct CueFacetFilterMenu: View {
                     .horizontal,
                     WorkbenchControlMetrics.redesignMenuItemHorizontalPadding
                 )
-                .frame(height: WorkbenchControlMetrics.redesignHeight)
+                .frame(height: WorkbenchControlMetrics.redesignMenuItemHeight)
 
         case .divider:
-            Divider()
+            WorkbenchMenuDivider()
 
         case .sectionHeader(let title, let systemImage):
             HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
@@ -227,7 +227,7 @@ struct CueFacetFilterMenu: View {
                 .horizontal,
                 WorkbenchControlMetrics.redesignMenuItemHorizontalPadding
             )
-            .frame(height: WorkbenchControlMetrics.redesignHeight)
+            .frame(height: WorkbenchControlMetrics.redesignMenuItemHeight)
 
         case .option(let option):
             optionRow(option, at: position)
@@ -270,10 +270,10 @@ struct CueFacetFilterMenu: View {
                 .horizontal,
                 WorkbenchControlMetrics.redesignMenuItemHorizontalPadding
             )
-            .frame(height: WorkbenchControlMetrics.redesignHeight)
+            .frame(height: WorkbenchControlMetrics.redesignMenuItemHeight)
             .background(
                 RoundedRectangle(
-                    cornerRadius: WorkbenchControlMetrics.redesignCornerRadius,
+                    cornerRadius: WorkbenchControlMetrics.redesignMenuItemRadius,
                     style: .continuous
                 )
                 .fill(
