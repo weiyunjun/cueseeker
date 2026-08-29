@@ -88,6 +88,16 @@ enum WorkbenchControlMetrics {
     /// highlight bulging into corners of the menu.
     static let redesignMenuItemRadius: CGFloat =
         redesignMenuRadius - MenuMetrics.padding
+    /// --inset-menu-divider
+    ///
+    /// Where a divider's ends sit, measured from the menu's edge: the menu's
+    /// own padding plus the item's. That is where an item's content starts,
+    /// whether the content begins with an icon or straight with the label, so
+    /// one figure covers menus that have leading icons and menus that do not.
+    static let redesignMenuDividerInset: CGFloat =
+        MenuMetrics.padding + redesignMenuItemHorizontalPadding
+    /// --gap-menu-divider: the room a divider keeps above and below itself.
+    static let redesignMenuDividerGap: CGFloat = 4
     /// --size-icon-button: 32px
     static let redesignIconButtonSize: CGFloat = 32
     /// --height-table-header: 40px
@@ -1155,14 +1165,21 @@ struct WorkbenchIconButton: View {
 
 /// Menu Divider.
 ///
-/// It runs the full width of the menu rather than stopping where the items do,
-/// so it reads as a break between groups instead of an underline belonging to
-/// the row above it. In a menu that scrolls it stops at the scrollbar, which
-/// the item stack has already kept clear.
+/// Its ends line up with where the items' content starts, and it keeps room
+/// above and below itself, so it reads as a break between two groups rather
+/// than as an underline belonging to the row above it.
+///
+/// The inset is written as the distance from the menu's edge and then given
+/// back the menu's padding, because the divider is laid out inside the item
+/// stack, which that padding has already moved in.
 struct WorkbenchMenuDivider: View {
     var body: some View {
         Divider()
-            .padding(.horizontal, -MenuMetrics.padding)
+            .padding(
+                .horizontal,
+                WorkbenchControlMetrics.redesignMenuDividerInset - MenuMetrics.padding
+            )
+            .padding(.vertical, WorkbenchControlMetrics.redesignMenuDividerGap)
     }
 }
 

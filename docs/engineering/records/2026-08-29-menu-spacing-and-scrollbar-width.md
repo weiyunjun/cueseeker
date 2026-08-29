@@ -72,10 +72,13 @@ every table call site is unchanged, and `WorkbenchScrollView` accepts a
 `scrollbarInset` that menus set to `MenuMetrics.scrollbarOuterGap`.
 
 `WorkbenchMenuDivider` replaces the bare `Divider()` in the three menus that had
-one. It cancels the menu's padding with a negative inset, so the line reaches
-both borders and reads as a break between groups instead of an underline
-belonging to the row above it; in a scrolling menu it stops at the scrollbar,
-because the reserved strip is already outside it.
+one, so the line reads as a break between groups instead of an underline
+belonging to the row above it. Its ends sit where the items' content starts and
+it keeps four points above and below itself. Writing the inset as a distance
+from the menu's edge and then giving back the menu's padding is deliberate: the
+divider is laid out inside the item stack, which that padding has already moved
+in, so the token can state the figure the design system states rather than the
+remainder left after the container.
 
 The trailing icon lost its fixed 16pt width and the row's trailing padding drops
 two points when that slot holds a glyph rather than text, which is the optical
@@ -127,9 +130,22 @@ measured 179pt around a 153pt item stack: 153 + 6 padding + 6 gap + 8 scrollbar
 + 6 outer gap. Its items end six points before the scrollbar's left edge, the
 same six points the row action menu's items keep from its right border.
 
-Dividers: the row action menu's lines run border to border. The filter menu's
-run from the left border and stop exactly at the scrollbar's left edge, with no
-pixel of divider under the thumb.
+Dividers, measured on a second pass after the requirement's fourth section was
+amended from border-to-border to inset:
+
+| Menu | Divider ends | Against |
+| --- | --- | --- |
+| Row action | 16.0 from both menu edges | Item content start, which there is the leading icon's box |
+| Shiori destination | 16.0 from both menu edges | Item content start, which there is the label — no leading icon |
+| Filter (scrolling) | 16.0 from the left edge, 10.0 inside the item stack's trailing edge | Item content on both sides; 16.0 clear of the scrollbar |
+
+Vertically the divider block measures 4.0 above the line and 4.0 below it: an
+item ends, four points of white follow, the line, four more, then the next item.
+
+The row action menu's dividers no longer cross x = the item stack's left edge,
+which is how the inset was confirmed rather than inferred — a vertical scan
+taken inside the menu but outside the item content found no divider pixel at
+all.
 
 Dark appearance was not captured. Switching it is a system setting on the
 owner's machine, and this change moves no colour token and no theme-dependent
