@@ -36,7 +36,9 @@ main
 
 ## 4. 分隔线
 
-Menu Divider 横贯菜单，左右各外扩一个 `--padding-menu`，两端与菜单内边框相接，不再随菜单项内边距缩进。
+1. 分隔线两端与菜单项内容的起点对齐，即距菜单边缘为 `--padding-menu` 与 `--padding-menu-item` 之和。该距离由新增 token `--inset-menu-divider` 表达，取值为这两个 token 之和，不写成独立字面量。
+2. 该位置与菜单项是否带前置图标无关：带图标的菜单项对齐到图标左边，不带图标的对齐到文字左边。
+3. 分隔线上下各留 `4px`，由新增 token `--gap-menu-divider` 表达。菜单因此变高，不做补偿。
 
 ## 5. 滚动条宽度规则
 
@@ -63,14 +65,14 @@ Menu Divider 横贯菜单，左右各外扩一个 `--padding-menu`，两端与�
 
 ## 8. 设计文档同步
 
-本需求验收通过后再更新 `UI Design System.md`：更新上表各 token 取值，新增 `--gap-menu-scrollbar-outer`，Menu Item 增加后置图标侧内边距的补偿规定，Menu Divider 补齐尺寸规定，Menu 的 Vertical Scrollbar 改写 Placement 一条。
+本需求验收通过后再更新 `UI Design System.md`：更新上表各 token 取值，新增 `--gap-menu-scrollbar-outer`、`--inset-menu-divider` 与 `--gap-menu-divider`，Menu Item 增加后置图标侧内边距的补偿规定，Menu Divider 补齐尺寸规定，Menu 的 Vertical Scrollbar 改写 Placement 一条。
 
 # 验收
 
 1. 菜单边缘到前置图标的距离为 16px；菜单项高度为 32px。
 2. 菜单圆角 12px、菜单项高亮圆角 6px，高亮块四角与菜单内边框的间隙均匀。
 3. 子菜单指示箭头到菜单边缘的距离，视觉上不比前置图标到菜单边缘的距离更松。
-4. 分隔线两端与菜单内边框相接。
+4. 分隔线左右两端与菜单项内容起点对齐：行右键菜单对齐到前置图标左边，Shiori 目标子菜单对齐到文字左边；上下与相邻菜单项之间有可见留白，上下相等。
 5. Filter 菜单出现滚动条时菜单加宽，菜单项右边缘到滚动条左边缘的距离与无滚动条时的右内边距相同。
 6. 行右键菜单、筛选菜单、列头菜单、卡片右键菜单、Shiori 目标子菜单外观一致。
 7. Light 与 Dark 两个主题分别核对。
