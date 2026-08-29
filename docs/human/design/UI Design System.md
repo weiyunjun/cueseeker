@@ -213,8 +213,8 @@
 - `--height-form-text-area`: `77.5px`
 - `--height-table-header`: `40px`
 - `--min-height-table-row`: `40px`
-- `--height-action-menu-item`: `40px`
-- `--height-select-menu-item`: `40px`
+- `--height-action-menu-item`: `32px`
+- `--height-select-menu-item`: `32px`
 - `--max-height-menu`: `480px`
 - `--height-app-sidebar-item`: `32px`
 - `--height-app-topbar`: `45px`
@@ -294,6 +294,9 @@
 - `--spacing-4`: `16px`
 - `--spacing-6`: `24px`
 - `--spacing-8`: `32px`
+- `--gap-menu-scrollbar-outer`: `6px`
+- `--inset-menu-divider`: `--padding-menu` 与 `--padding-menu-item` 之和
+- `--gap-menu-divider`: `4px`
 - `--gap-subtitle-focus-cue`: `8px`
 - `--gap-subtitle-focus-internal-line`: `3px`
 - `--gap-player-bottom-left-controls`: `8px`
@@ -313,8 +316,8 @@
 
 - `--padding-control-x`: `14px`
 - `--padding-field-x`: `16px`
-- `--padding-menu`: `12px`
-- `--padding-menu-item`: `12px 16px`
+- `--padding-menu`: `6px`
+- `--padding-menu-item`: `10px`
 - `--padding-header-trigger-x`: `12px`
 - `--padding-chip-x`: `10px`
 - `--padding-chip-y`: `4px`
@@ -350,9 +353,9 @@
 - `--radius-search`: `9999px`
 - `--radius-inline-clear-button`: `9999px`
 - `--radius-checkbox`: `9999px`
-- `--radius-menu`: `16px`
-- `--radius-select-menu-item`: `8px`
-- `--radius-action-menu-item`: `8px`
+- `--radius-menu`: `12px`
+- `--radius-select-menu-item`: `6px`
+- `--radius-action-menu-item`: `6px`
 - `--radius-row-action`: `8px`
 - `--radius-table-cell-hover`: `8px`
 - `--radius-chip`: `6px`
@@ -1016,12 +1019,13 @@
 - Vertical Scrollbar
   - Presence：Content Overflow
   - Component：Scrollbar / Vertical
-  - Placement：落在 Padding 之内，不与 Item Stack 重叠；出现与否都不改变菜单宽度
+  - Placement：位于 Item Stack 之外，与 Item Stack 相距 `--padding-menu`，与菜单边缘相距 `--gap-menu-scrollbar-outer`；出现时菜单加宽，Item Stack 宽度不变
 
 ##### Sizes
 
 - Padding：`--padding-menu`
 - Max Height：`--max-height-menu`
+- Menu Item 的 Radius 等于 `--radius-menu` 减 `--padding-menu`
 
 ##### Placement
 
@@ -1096,7 +1100,7 @@
 
 ##### Sizes
 
-- Padding Inline：`--padding-menu-item`
+- Padding Inline：`--padding-menu-item`；Trailing Slot 为图标时该侧减 `2px`
 
 ##### States
 
@@ -1156,7 +1160,7 @@
 
 ##### Submenu Trigger
 
-- Trailing Slot：Submenu Indicator
+- Trailing Slot：Submenu Indicator，宽度按图形本身，不留左右空白
 
 ### Menu Divider
 
@@ -1168,6 +1172,9 @@
   - Color：`--color-border-divider`
 
 ##### Sizes
+
+- Inset Inline：`--inset-menu-divider`，两端与 Menu Item 的内容对齐
+- Margin Block：`--gap-menu-divider`
 
 ##### States
 
