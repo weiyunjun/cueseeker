@@ -188,12 +188,8 @@ func cueStateTipUsesRightSideThenFallsBackToLeft() {
 
 @MainActor
 @Test
-func subtitleTableShioriSubmenuSupportsImmediateAndDelayedEntryRules() {
+func subtitleTableShioriSubmenuOpensOnHoverWithoutDelay() {
     let state = SubtitleTableRowActionSubmenuState()
-    #expect(
-        SubtitleTableRowActionSubmenuState.nativeHoverDelayNanoseconds
-            == 300_000_000
-    )
 
     state.open(.moveToList)
     #expect(state.highlightedParent == .moveToList)
@@ -207,30 +203,35 @@ func subtitleTableShioriSubmenuSupportsImmediateAndDelayedEntryRules() {
     #expect(state.highlightedParent == nil)
     #expect(state.openParent == nil)
 
-    let immediateHoverState = SubtitleTableRowActionSubmenuState(
-        hoverDelayNanoseconds: 0
-    )
-    immediateHoverState.setParentHovered(
-        .duplicateToList,
-        isHovered: true
-    )
-    #expect(immediateHoverState.highlightedParent == .duplicateToList)
-    #expect(immediateHoverState.openParent == .duplicateToList)
-    immediateHoverState.setParentHovered(
-        .duplicateToList,
-        isHovered: false
-    )
-    #expect(immediateHoverState.openParent == .duplicateToList)
+    let hoverState = SubtitleTableRowActionSubmenuState()
+    let openParents = OpenParentRecorder()
+    hoverState.onOpenParentChange = { openParents.record($0) }
 
-    let cancelledHoverState = SubtitleTableRowActionSubmenuState()
-    cancelledHoverState.setParentHovered(.moveToList, isHovered: true)
-    cancelledHoverState.setParentHovered(.moveToList, isHovered: false)
-    #expect(cancelledHoverState.highlightedParent == nil)
-    #expect(cancelledHoverState.openParent == nil)
+    hoverState.setParentHovered(.moveToList, isHovered: true)
+    #expect(hoverState.highlightedParent == .moveToList)
+    #expect(hoverState.openParent == .moveToList)
 
-    immediateHoverState.reset()
-    #expect(immediateHoverState.highlightedParent == nil)
-    #expect(immediateHoverState.openParent == nil)
+    hoverState.setParentHovered(.moveToList, isHovered: false)
+    #expect(hoverState.openParent == .moveToList)
+
+    hoverState.setParentHovered(.duplicateToList, isHovered: true)
+    #expect(hoverState.highlightedParent == .duplicateToList)
+    #expect(hoverState.openParent == .duplicateToList)
+    // The trigger the pointer left closes before the one it reached opens.
+    #expect(openParents.recorded == [.moveToList, nil, .duplicateToList])
+
+    hoverState.reset()
+    #expect(hoverState.highlightedParent == nil)
+    #expect(hoverState.openParent == nil)
+}
+
+@MainActor
+private final class OpenParentRecorder {
+    private(set) var recorded: [SubtitleTableRowAction?] = []
+
+    func record(_ action: SubtitleTableRowAction?) {
+        recorded.append(action)
+    }
 }
 
 @MainActor

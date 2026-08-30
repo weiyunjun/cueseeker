@@ -777,65 +777,40 @@ enum SubtitleTableProbeSurface: String, CaseIterable, Sendable {
 
 @MainActor
 final class SubtitleTableRowActionSubmenuState: ObservableObject {
-    static let nativeHoverDelayNanoseconds: UInt64 = 300_000_000
     static let pointerTransferGraceNanoseconds: UInt64 = 100_000_000
 
     @Published private(set) var highlightedParent: SubtitleTableRowAction?
     @Published private(set) var openParent: SubtitleTableRowAction?
     var onOpenParentChange: ((SubtitleTableRowAction?) -> Void)?
-    private let hoverDelayNanoseconds: UInt64
-    private var hoverTask: Task<Void, Never>?
     private var pointerExitTask: Task<Void, Never>?
     private var parentItemFrames: [SubtitleTableRowAction: CGRect] = [:]
     private var isParentMenuHovered = false
     private var isSubmenuHovered = false
 
-    init(
-        hoverDelayNanoseconds: UInt64 = nativeHoverDelayNanoseconds
-    ) {
-        self.hoverDelayNanoseconds = hoverDelayNanoseconds
-    }
-
+    /// The pointer reaching a trigger opens its submenu there and then. Moving
+    /// between the two triggers closes the one it left before opening the one
+    /// it reached, so the destination highlight starts at the first item again.
     func setParentHovered(_ action: SubtitleTableRowAction, isHovered: Bool) {
         guard action.opensDestinationSubmenu else {
             return
         }
         guard isHovered else {
-            hoverTask?.cancel()
-            hoverTask = nil
             if openParent != action, highlightedParent == action {
                 highlightedParent = nil
             }
             return
         }
-        hoverTask?.cancel()
         highlightedParent = action
         if openParent != action {
             updateOpenParent(nil)
         }
-        if hoverDelayNanoseconds == 0 {
-            updateOpenParent(action)
-            return
-        }
-        hoverTask = Task { @MainActor [weak self] in
-            guard let self else {
-                return
-            }
-            try? await Task.sleep(nanoseconds: self.hoverDelayNanoseconds)
-            guard !Task.isCancelled,
-                  self.highlightedParent == action
-            else {
-                return
-            }
-            self.updateOpenParent(action)
-        }
+        updateOpenParent(action)
     }
 
     func setOtherItemHovered(_ isHovered: Bool) {
         guard isHovered else {
             return
         }
-        hoverTask?.cancel()
         pointerExitTask?.cancel()
         highlightedParent = nil
         updateOpenParent(nil)
@@ -845,7 +820,6 @@ final class SubtitleTableRowActionSubmenuState: ObservableObject {
         guard action.opensDestinationSubmenu else {
             return
         }
-        hoverTask?.cancel()
         pointerExitTask?.cancel()
         highlightedParent = action
         updateOpenParent(action)
@@ -856,7 +830,6 @@ final class SubtitleTableRowActionSubmenuState: ObservableObject {
         guard openParent != nil else {
             return false
         }
-        hoverTask?.cancel()
         pointerExitTask?.cancel()
         updateOpenParent(nil)
         return true
@@ -891,8 +864,6 @@ final class SubtitleTableRowActionSubmenuState: ObservableObject {
     }
 
     func reset() {
-        hoverTask?.cancel()
-        hoverTask = nil
         pointerExitTask?.cancel()
         pointerExitTask = nil
         highlightedParent = nil
