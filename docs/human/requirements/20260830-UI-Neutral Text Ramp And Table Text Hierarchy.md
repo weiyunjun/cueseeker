@@ -37,19 +37,25 @@ Token 名称与数量不变。图标色、状态色、危险色、播放页 `--c
 | Time Range | `--color-text-secondary` | Regular |
 | Date Added | `--color-text-muted` | Regular |
 
-其中四处为变更：列头由 `--color-text-secondary` + Medium 改为上表取值；Display Title
-与 Time Range 由 `--color-text-muted` 升为 `--color-text-secondary`；目标字幕由
-Regular 改为 Medium。
+其中三处为变更：列头由 `--color-text-secondary` + Medium 改为上表取值；Display Title
+与 Time Range 由 `--color-text-muted` 升为 `--color-text-secondary`；Display Title、
+Time Range 与 Date Added 的字重由 Medium 降为 Regular。
+
+目标字幕的 Medium 与 Cue Group 附加字幕的 Regular 是现状，上表记录规格，不产生改动。
 
 所有列头的字号、字重、颜色必须完全一致，不因列而异。
 
 ## 3. 设计系统条目补记
 
-以下两处为文档漏记，本次一并补上：
+以下四处为文档漏记或已不成立，本次一并补上：
 
 1. `Table Cell / Interactive Text` 只记了一个颜色，实际有两行。补充为：目标字幕
    `--color-text-primary`，Cue Group 附加字幕 `--color-text-muted`。
-2. `Table Header Cell` 的 Label 缺少 Font Weight 条目，补充为 Regular。
+2. `Table Cell / Text` 只记了一个颜色，本次起按列分档。改为：Display Title 与
+   Time Range `--color-text-secondary`，序号与 Date Added `--color-text-muted`。
+3. `Table Cell` 的两个变体都缺少 Font Weight 条目。补充为：目标字幕 Medium，
+   其余一律 Regular。
+4. `Table Header Cell` 的 Label 缺少 Font Weight 条目，补充为 Regular。
 
 ## 4. 不变项
 
@@ -70,4 +76,6 @@ Regular 改为 Medium。
    需在真机确认可读性后再接受本项。
 7. `#404040`、`#535761`、`#667085`、`#98A2B3` 不再作为文字色出现在设计系统与代码中。
 8. Light 与 Dark 两个主题分别核对以上各项。
-9. 现有自动化端到端与单元用例全部通过。
+9. 本次改动不新增任何自动化端到端或单元用例的失败。仓库现有失败项与本需求无关，
+   在需求提交版本上同样存在。
+10. 表格内除目标字幕外的全部文字为 Regular，目标字幕为 Medium。
