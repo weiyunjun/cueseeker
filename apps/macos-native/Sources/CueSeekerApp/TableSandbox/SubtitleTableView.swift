@@ -777,21 +777,21 @@ enum SubtitleTableProbeSurface: String, CaseIterable, Sendable {
 
 @MainActor
 final class SubtitleTableRowActionSubmenuState: ObservableObject {
-    static let pointerTransferGraceNanoseconds: UInt64 = 100_000_000
-
     @Published private(set) var highlightedParent: SubtitleTableRowAction?
     @Published private(set) var openParent: SubtitleTableRowAction?
     var onOpenParentChange: ((SubtitleTableRowAction?) -> Void)?
-    private var pointerExitTask: Task<Void, Never>?
+    /// Set while the pointer is crossing to the open submenu. The menu's own
+    /// rows ask before reacting, so a row the pointer merely passes over on
+    /// the way does not take the highlight or close anything.
+    private(set) var isPointerInSafeArea = false
     private var parentItemFrames: [SubtitleTableRowAction: CGRect] = [:]
-    private var isParentMenuHovered = false
-    private var isSubmenuHovered = false
+    private var safeAreaAnchor: CGPoint?
 
     /// The pointer reaching a trigger opens its submenu there and then. Moving
     /// between the two triggers closes the one it left before opening the one
     /// it reached, so the destination highlight starts at the first item again.
     func setParentHovered(_ action: SubtitleTableRowAction, isHovered: Bool) {
-        guard action.opensDestinationSubmenu else {
+        guard action.opensDestinationSubmenu, !isPointerInSafeArea else {
             return
         }
         guard isHovered else {
@@ -808,10 +808,9 @@ final class SubtitleTableRowActionSubmenuState: ObservableObject {
     }
 
     func setOtherItemHovered(_ isHovered: Bool) {
-        guard isHovered else {
+        guard isHovered, !isPointerInSafeArea else {
             return
         }
-        pointerExitTask?.cancel()
         highlightedParent = nil
         updateOpenParent(nil)
     }
@@ -820,7 +819,6 @@ final class SubtitleTableRowActionSubmenuState: ObservableObject {
         guard action.opensDestinationSubmenu else {
             return
         }
-        pointerExitTask?.cancel()
         highlightedParent = action
         updateOpenParent(action)
     }
@@ -830,7 +828,7 @@ final class SubtitleTableRowActionSubmenuState: ObservableObject {
         guard openParent != nil else {
             return false
         }
-        pointerExitTask?.cancel()
+        clearSafeArea()
         updateOpenParent(nil)
         return true
     }
@@ -853,84 +851,141 @@ final class SubtitleTableRowActionSubmenuState: ObservableObject {
         parentItemFrames[action]
     }
 
-    func setParentMenuHovered(_ isHovered: Bool) {
-#if DEBUG
-        NSLog("SUBMENU-PROBE heard parentMenuHovered=%d", isHovered ? 1 : 0)
-#endif
-        isParentMenuHovered = isHovered
-        updatePointerTransfer()
-    }
-
-    func setSubmenuHovered(_ isHovered: Bool) {
-#if DEBUG
-        NSLog("SUBMENU-PROBE heard submenuHovered=%d", isHovered ? 1 : 0)
-#endif
-        isSubmenuHovered = isHovered
-        updatePointerTransfer()
+    /// Where the pointer is, told by the menu gate rather than waited for from
+    /// the menu's own views: an open menu's barrier spends the moves that land
+    /// outside it, and those moves are what AppKit needs to notice a pointer
+    /// leaving. Every frame is in the container's space.
+    func notePointer(
+        _ point: CGPoint,
+        parentMenuFrame: CGRect,
+        triggerFrame: CGRect,
+        submenuFrame: CGRect
+    ) {
+        guard openParent != nil else {
+            clearSafeArea()
+            return
+        }
+        if triggerFrame.contains(point) {
+            // The crossing starts wherever the pointer last stood on the
+            // trigger, so the safe area follows it along that item.
+            safeAreaAnchor = point
+            isPointerInSafeArea = false
+            return
+        }
+        if submenuFrame.contains(point) {
+            // Arrived: there is nothing left to cross.
+            clearSafeArea()
+            return
+        }
+        isPointerInSafeArea = SubtitleTableRowActionSubmenuSafeArea.contains(
+            point,
+            anchor: safeAreaAnchor,
+            parentMenuFrame: parentMenuFrame,
+            submenuFrame: submenuFrame
+        )
+        if !isPointerInSafeArea, !parentMenuFrame.contains(point) {
+            closeSubmenu()
+        }
     }
 
     func reset() {
-        pointerExitTask?.cancel()
-        pointerExitTask = nil
+        clearSafeArea()
         highlightedParent = nil
         updateOpenParent(nil)
     }
 
-    private func updatePointerTransfer() {
-        pointerExitTask?.cancel()
-        pointerExitTask = nil
-        guard !isParentMenuHovered,
-              !isSubmenuHovered,
-              openParent != nil
-        else {
-#if DEBUG
-            NSLog(
-                "SUBMENU-PROBE grace skipped parent=%d submenu=%d open=%d",
-                isParentMenuHovered ? 1 : 0,
-                isSubmenuHovered ? 1 : 0,
-                openParent != nil ? 1 : 0
-            )
-#endif
-            return
-        }
-#if DEBUG
-        NSLog("SUBMENU-PROBE grace started")
-#endif
-        pointerExitTask = Task { @MainActor [weak self] in
-            try? await Task.sleep(
-                nanoseconds: Self.pointerTransferGraceNanoseconds
-            )
-            guard let self,
-                  !Task.isCancelled,
-                  !self.isParentMenuHovered,
-                  !self.isSubmenuHovered
-            else {
-#if DEBUG
-                NSLog("SUBMENU-PROBE grace cancelled")
-#endif
-                return
-            }
-#if DEBUG
-            NSLog("SUBMENU-PROBE grace fired")
-#endif
-            self.highlightedParent = nil
-            self.updateOpenParent(nil)
-        }
+    private func clearSafeArea() {
+        safeAreaAnchor = nil
+        isPointerInSafeArea = false
     }
 
     private func updateOpenParent(_ action: SubtitleTableRowAction?) {
-#if DEBUG
-        NSLog(
-            "SUBMENU-PROBE openParent %@ -> %@",
-            String(describing: openParent),
-            String(describing: action)
-        )
-#endif
         guard openParent != action else {
             return
         }
         openParent = action
         onOpenParentChange?(action)
+    }
+}
+
+/// The area the pointer may cross without the open submenu closing: the
+/// triangle from where it left the trigger to the submenu's near edge, plus
+/// whatever gap separates the two menus. Inside it the pointer is on its way
+/// to the submenu, so the rows it passes over are not what it means.
+enum SubtitleTableRowActionSubmenuSafeArea {
+    static func contains(
+        _ point: CGPoint,
+        anchor: CGPoint?,
+        parentMenuFrame: CGRect,
+        submenuFrame: CGRect
+    ) -> Bool {
+        guard let anchor,
+              submenuFrame.width > 0,
+              submenuFrame.height > 0
+        else {
+            return false
+        }
+        if let gap = gapRect(
+            parentMenuFrame: parentMenuFrame,
+            submenuFrame: submenuFrame
+        ), gap.contains(point) {
+            return true
+        }
+        let edgeX = submenuFrame.midX >= parentMenuFrame.midX
+            ? submenuFrame.minX
+            : submenuFrame.maxX
+        return triangleContains(
+            point,
+            anchor,
+            CGPoint(x: edgeX, y: submenuFrame.minY),
+            CGPoint(x: edgeX, y: submenuFrame.maxY)
+        )
+    }
+
+    /// The strip between the two menus, as wide as they are apart and as tall
+    /// as the submenu. Nil when they touch, which is how this table places
+    /// them.
+    private static func gapRect(
+        parentMenuFrame: CGRect,
+        submenuFrame: CGRect
+    ) -> CGRect? {
+        let leading = submenuFrame.midX >= parentMenuFrame.midX
+            ? parentMenuFrame.maxX
+            : submenuFrame.maxX
+        let trailing = submenuFrame.midX >= parentMenuFrame.midX
+            ? submenuFrame.minX
+            : parentMenuFrame.minX
+        guard trailing > leading else {
+            return nil
+        }
+        return CGRect(
+            x: leading,
+            y: submenuFrame.minY,
+            width: trailing - leading,
+            height: submenuFrame.height
+        )
+    }
+
+    private static func triangleContains(
+        _ point: CGPoint,
+        _ a: CGPoint,
+        _ b: CGPoint,
+        _ c: CGPoint
+    ) -> Bool {
+        let d1 = cross(point, a, b)
+        let d2 = cross(point, b, c)
+        let d3 = cross(point, c, a)
+        let hasNegative = d1 < 0 || d2 < 0 || d3 < 0
+        let hasPositive = d1 > 0 || d2 > 0 || d3 > 0
+        return !(hasNegative && hasPositive)
+    }
+
+    private static func cross(
+        _ point: CGPoint,
+        _ a: CGPoint,
+        _ b: CGPoint
+    ) -> CGFloat {
+        (point.x - b.x) * (a.y - b.y) - (a.x - b.x) * (point.y - b.y)
     }
 }
 
@@ -1011,7 +1066,6 @@ private struct RowActionMenu: View {
         .onPreferenceChange(RowActionMenuItemFramePreferenceKey.self) {
             submenuState.updateParentItemFrames($0)
         }
-        .onHover(perform: submenuState.setParentMenuHovered)
     }
 
     private var model: SubtitleTableRowActionMenuModel {
@@ -1046,6 +1100,9 @@ private struct RowActionMenu: View {
             },
             trailingSystemImage: isSubmenuParent ? "chevron.right" : nil,
             onHoverChange: { isHovered in
+                guard !submenuState.isPointerInSafeArea else {
+                    return
+                }
                 highlight.noteHover(isHovered, at: position)
                 if isSubmenuParent, isEnabled {
                     submenuState.setParentHovered(action, isHovered: isHovered)
@@ -1109,7 +1166,6 @@ private struct RowActionDestinationSubmenu: View {
                 )
             }
         }
-        .onHover(perform: submenuState.setSubmenuHovered)
     }
 }
 
@@ -7394,6 +7450,11 @@ struct SubtitleTableView: NSViewRepresentable {
                             event.locationInWindow
                         ) ?? false
                     },
+                    notePointer: { [weak self] event in
+                        self?.noteMenuPointer(
+                            windowPoint: event.locationInWindow
+                        )
+                    },
                     handleKey: { [weak self] keyCode, _ in
                         self?.handleMenuKey(keyCode) ?? false
                     },
@@ -7411,6 +7472,33 @@ struct SubtitleTableView: NSViewRepresentable {
                         }
                     }
                 )
+            )
+        }
+
+        /// The open submenu's whole account of where the pointer is. Every
+        /// frame is in the container's space, which the menu clip view shares.
+        private func noteMenuPointer(windowPoint: CGPoint) {
+            guard let container,
+                  let submenuState = rowActionSubmenuState,
+                  let openParent = submenuState.openParent,
+                  let menuHost,
+                  !menuHost.isHidden,
+                  let submenuHost,
+                  !submenuHost.isHidden,
+                  let parentItemFrame = submenuState.parentItemFrame(
+                    for: openParent
+                  )
+            else {
+                return
+            }
+            submenuState.notePointer(
+                container.convert(windowPoint, from: nil),
+                parentMenuFrame: menuHost.frame,
+                triggerFrame: parentItemFrame.offsetBy(
+                    dx: menuHost.frame.minX,
+                    dy: menuHost.frame.minY
+                ),
+                submenuFrame: submenuHost.frame
             )
         }
 

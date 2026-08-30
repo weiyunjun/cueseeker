@@ -80,6 +80,13 @@ final class MenuGate {
         /// A press here is left to the control that toggles the menu (the
         /// speed button), so the toggle does not run twice.
         var isPointerOnAnchorControl: ((NSEvent) -> Bool)?
+        /// Where the pointer is, on every move in this window. The barrier
+        /// spends the moves that land outside the menu, and AppKit only works
+        /// out that a pointer left a tracking area while it is delivering
+        /// them — so a menu that waits to be told it was left is never told.
+        /// The gate already has the answer for its own decision; this hands
+        /// it over.
+        var notePointer: ((NSEvent) -> Void)?
         /// Returns whether the key was spent on the menu.
         let handleKey: (_ keyCode: UInt16, _ isRepeat: Bool) -> Bool
         /// forwarding: the press closed the menu and travels on, so whatever
@@ -351,6 +358,11 @@ final class MenuGate {
             // Pointer motion, tracking area crossings, cursor updates and
             // drags.
             let isPointerOnMenu = client.isPointerOnMenu(event)
+            if !isFromAnotherWindow {
+                // Another window's event carries that window's coordinates,
+                // which say nothing about where this menu is.
+                client.notePointer?(event)
+            }
             let passes = MenuInputBarrier.passesPointerTracking(
                 isTrackingAreaCrossing: event.type == .mouseEntered
                     || event.type == .mouseExited,
@@ -358,16 +370,6 @@ final class MenuGate {
                 isPointerOnMenu: isPointerOnMenu,
                 isTrackingMenuDrag: isTrackingMenuDrag
             )
-#if DEBUG
-            // TEMPORARY probe for
-            // docs/human/requirements/20260830-Bug-Submenu Stays Open After Pointer Leaves.md
-            NSLog(
-                "SUBMENU-PROBE gate type=%d onMenu=%d passed=%d",
-                event.type.rawValue,
-                isPointerOnMenu ? 1 : 0,
-                passes ? 1 : 0
-            )
-#endif
             return passes ? event : nil
         }
     }

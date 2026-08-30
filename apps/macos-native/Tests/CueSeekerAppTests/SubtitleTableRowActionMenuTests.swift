@@ -234,31 +234,168 @@ private final class OpenParentRecorder {
     }
 }
 
+// The menu sits at x 100...340, its Move to... item at y 246...286, and the
+// submenu hangs off that item's top edge, flush against the menu's right side.
+private enum SubmenuPointerFixture {
+    static let parentMenu = CGRect(x: 100, y: 100, width: 240, height: 400)
+    static let trigger = CGRect(x: 104, y: 246, width: 232, height: 40)
+    static let submenu = CGRect(x: 340, y: 246, width: 160, height: 120)
+}
+
 @MainActor
 @Test
-func subtitleTableShioriSubmenuStaysOpenAcrossDirectPointerTransfer() async {
+func subtitleTableShioriSubmenuStaysOpenWhileThePointerCrossesToIt() {
+    let f = SubmenuPointerFixture.self
     let state = SubtitleTableRowActionSubmenuState()
-    state.setParentMenuHovered(true)
     state.open(.moveToList)
 
-    state.setParentMenuHovered(false)
-    state.setSubmenuHovered(true)
-    try? await Task.sleep(
-        nanoseconds:
-            SubtitleTableRowActionSubmenuState.pointerTransferGraceNanoseconds
-            + 50_000_000
+    // On the trigger, about to leave it.
+    state.notePointer(
+        CGPoint(x: 330, y: 266),
+        parentMenuFrame: f.parentMenu,
+        triggerFrame: f.trigger,
+        submenuFrame: f.submenu
     )
-
     #expect(state.openParent == .moveToList)
+    #expect(!state.isPointerInSafeArea)
 
-    state.setSubmenuHovered(false)
-    try? await Task.sleep(
-        nanoseconds:
-            SubtitleTableRowActionSubmenuState.pointerTransferGraceNanoseconds
-            + 50_000_000
+    // Cutting the corner over the item below, aimed at the submenu's lower
+    // rows: inside the triangle, so nothing else may react to it.
+    state.notePointer(
+        CGPoint(x: 336, y: 300),
+        parentMenuFrame: f.parentMenu,
+        triggerFrame: f.trigger,
+        submenuFrame: f.submenu
+    )
+    #expect(state.openParent == .moveToList)
+    #expect(state.isPointerInSafeArea)
+    state.setOtherItemHovered(true)
+    state.setParentHovered(.duplicateToList, isHovered: true)
+    #expect(state.openParent == .moveToList)
+    #expect(state.highlightedParent == .moveToList)
+
+    // Arrived.
+    state.notePointer(
+        CGPoint(x: 400, y: 320),
+        parentMenuFrame: f.parentMenu,
+        triggerFrame: f.trigger,
+        submenuFrame: f.submenu
+    )
+    #expect(state.openParent == .moveToList)
+    #expect(!state.isPointerInSafeArea)
+}
+
+@MainActor
+@Test
+func subtitleTableShioriSubmenuClosesOnceThePointerLeavesTheSafeArea() {
+    let f = SubmenuPointerFixture.self
+    let state = SubtitleTableRowActionSubmenuState()
+    state.open(.moveToList)
+    state.notePointer(
+        CGPoint(x: 330, y: 266),
+        parentMenuFrame: f.parentMenu,
+        triggerFrame: f.trigger,
+        submenuFrame: f.submenu
     )
 
+    // Turning away below both menus, well outside the triangle.
+    state.notePointer(
+        CGPoint(x: 360, y: 560),
+        parentMenuFrame: f.parentMenu,
+        triggerFrame: f.trigger,
+        submenuFrame: f.submenu
+    )
     #expect(state.openParent == nil)
+    #expect(!state.isPointerInSafeArea)
+
+    // Out to the right of the submenu closes it just the same.
+    let rightward = SubtitleTableRowActionSubmenuState()
+    rightward.open(.moveToList)
+    rightward.notePointer(
+        CGPoint(x: 400, y: 300),
+        parentMenuFrame: f.parentMenu,
+        triggerFrame: f.trigger,
+        submenuFrame: f.submenu
+    )
+    rightward.notePointer(
+        CGPoint(x: 700, y: 300),
+        parentMenuFrame: f.parentMenu,
+        triggerFrame: f.trigger,
+        submenuFrame: f.submenu
+    )
+    #expect(rightward.openParent == nil)
+}
+
+@MainActor
+@Test
+func subtitleTableShioriSubmenuStaysOpenOverTheParentMenuOutsideTheSafeArea() {
+    let f = SubmenuPointerFixture.self
+    let state = SubtitleTableRowActionSubmenuState()
+    state.open(.moveToList)
+    state.notePointer(
+        CGPoint(x: 330, y: 266),
+        parentMenuFrame: f.parentMenu,
+        triggerFrame: f.trigger,
+        submenuFrame: f.submenu
+    )
+
+    // Back over the menu's own rows: the rows own that case, so the pointer
+    // report leaves the submenu alone and stops shielding them.
+    state.notePointer(
+        CGPoint(x: 150, y: 400),
+        parentMenuFrame: f.parentMenu,
+        triggerFrame: f.trigger,
+        submenuFrame: f.submenu
+    )
+    #expect(state.openParent == .moveToList)
+    #expect(!state.isPointerInSafeArea)
+    state.setOtherItemHovered(true)
+    #expect(state.openParent == nil)
+}
+
+@Test
+func subtitleTableShioriSubmenuSafeAreaSpansTheTriangleAndTheGap() {
+    let f = SubmenuPointerFixture.self
+    let anchor = CGPoint(x: 330, y: 266)
+
+    #expect(SubtitleTableRowActionSubmenuSafeArea.contains(
+        CGPoint(x: 336, y: 300),
+        anchor: anchor,
+        parentMenuFrame: f.parentMenu,
+        submenuFrame: f.submenu
+    ))
+    #expect(!SubtitleTableRowActionSubmenuSafeArea.contains(
+        CGPoint(x: 336, y: 420),
+        anchor: anchor,
+        parentMenuFrame: f.parentMenu,
+        submenuFrame: f.submenu
+    ))
+    // No anchor means the pointer never came off the trigger, so nothing is
+    // being crossed and nothing is safe.
+    #expect(!SubtitleTableRowActionSubmenuSafeArea.contains(
+        CGPoint(x: 336, y: 300),
+        anchor: nil,
+        parentMenuFrame: f.parentMenu,
+        submenuFrame: f.submenu
+    ))
+
+    // A submenu pushed to the left side turns the triangle around with it.
+    let leftSubmenu = CGRect(x: -60, y: 246, width: 160, height: 120)
+    #expect(SubtitleTableRowActionSubmenuSafeArea.contains(
+        CGPoint(x: 104, y: 300),
+        anchor: CGPoint(x: 110, y: 266),
+        parentMenuFrame: f.parentMenu,
+        submenuFrame: leftSubmenu
+    ))
+
+    // Parted menus: the strip between them is safe on its own.
+    let partedSubmenu = CGRect(x: 380, y: 246, width: 160, height: 120)
+    #expect(SubtitleTableRowActionSubmenuSafeArea.contains(
+        CGPoint(x: 360, y: 360),
+        anchor: anchor,
+        parentMenuFrame: f.parentMenu,
+        submenuFrame: partedSubmenu
+    ))
 }
 
 @Test
