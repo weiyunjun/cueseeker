@@ -1072,6 +1072,8 @@
 
 - Closed
 - Open
+  - 指针进入 Trigger 即展开，不等待；指针移到另一个 Trigger 时，前一个收起，后一个展开
+  - 点击 Trigger 与键盘右方向键同样立即展开
 - Highlighted
 - Disabled
 
