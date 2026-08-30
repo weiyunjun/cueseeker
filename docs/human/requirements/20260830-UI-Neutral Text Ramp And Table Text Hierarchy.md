@@ -53,8 +53,10 @@ Time Range 与 Date Added 的字重由 Medium 降为 Regular。
    `--color-text-primary`，Cue Group 附加字幕 `--color-text-muted`。
 2. `Table Cell / Text` 只记了一个颜色，本次起按列分档。改为：Display Title 与
    Time Range `--color-text-secondary`，序号与 Date Added `--color-text-muted`。
-3. `Table Cell` 的两个变体都缺少 Font Weight 条目。补充为：目标字幕 Medium，
-   其余一律 Regular。
+3. `Table Cell` 的两个变体缺少 Font Weight 条目，且序号与 Cue Group 附加字幕实为
+   12px，与记录的 `--font-size-table` 不符。补充字重（目标字幕 Medium，其余
+   Regular），序号与附加字幕的字号改为 `--font-size-caption`，序号另立
+   `Index Text` 变体。
 4. `Table Header Cell` 的 Label 缺少 Font Weight 条目，补充为 Regular。
 
 ## 4. 不变项

@@ -7,11 +7,11 @@
 
 ### Text
 
-- `--color-text-primary`: Light `#404040`; Dark `#D4D4D4`
-- `--color-text-secondary`: Light `#535761`; Dark `#BABABF`
-- `--color-text-muted`: Light `#667085`; Dark `#A1A1AA`
-- `--color-text-placeholder`: Light `#98A2B3`; Dark `#71717A`
-- `--color-text-disabled`: Light `#98A2B3`; Dark `#71717A`
+- `--color-text-primary`: Light `#1F1F1F`; Dark `#F7F7F7`
+- `--color-text-secondary`: Light `#494949`; Dark `#B9B9B9`
+- `--color-text-muted`: Light `#717171`; Dark `#878787`
+- `--color-text-placeholder`: Light `#9A9A9A`; Dark `#606060`
+- `--color-text-disabled`: Light `#9A9A9A`; Dark `#606060`
 
 ### Icon
 
@@ -1409,7 +1409,8 @@
 - Label
   - Font Family：`--font-family-base`
   - Font Size：`--font-size-table-header`
-  - Color：`--color-text-secondary`
+  - Font Weight：Regular
+  - Color：`--color-text-muted`
 - Leading Slot
   - Presence：Optional
 - Trailing Slot
@@ -1493,14 +1494,31 @@
 
 - Font Family：`--font-family-base`
 - Font Size：`--font-size-table`
-- Color：`--color-text-muted`
+- Font Weight：Regular
+- Color
+  - Display Title、Time Range：`--color-text-secondary`
+  - Date Added：`--color-text-muted`
 - Selection：Enabled
+
+##### Index Text
+
+- Font Family：`--font-family-base`
+- Font Size：`--font-size-caption`
+- Font Weight：Regular
+- Color：`--color-text-muted`
+- Selection：Disabled
 
 ##### Interactive Text
 
 - Font Family：`--font-family-base`
-- Font Size：`--font-size-table`
-- Color：`--color-text-primary`
+- 目标字幕
+  - Font Size：`--font-size-table`
+  - Font Weight：Medium
+  - Color：`--color-text-primary`
+- Cue Group 附加字幕
+  - Font Size：`--font-size-caption`
+  - Font Weight：Regular
+  - Color：`--color-text-muted`
 - Hover Region
   - Padding Inline：`--padding-table-cell-hover-x`
   - Padding Block：`--padding-table-cell-hover-y`
