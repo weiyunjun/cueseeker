@@ -1074,6 +1074,8 @@
 - Open
   - 指针进入 Trigger 即展开，不等待；指针移到另一个 Trigger 时，前一个收起，后一个展开
   - 点击 Trigger 与键盘右方向键同样立即展开
+  - Safe Area：指针位置与二级菜单靠 Menu 那条边的两端围成的区域，连同两个菜单之间的间隙。指针位于其中时保持展开，途经的 Menu Item 不取得高亮，也不展开自己的二级菜单
+  - 指针离开 Safe Area，且不在 Menu 与二级菜单之上时关闭
 - Highlighted
 - Disabled
 
