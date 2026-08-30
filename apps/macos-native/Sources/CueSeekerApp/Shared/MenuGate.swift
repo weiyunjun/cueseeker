@@ -350,13 +350,25 @@ final class MenuGate {
         default:
             // Pointer motion, tracking area crossings, cursor updates and
             // drags.
-            return MenuInputBarrier.passesPointerTracking(
+            let isPointerOnMenu = client.isPointerOnMenu(event)
+            let passes = MenuInputBarrier.passesPointerTracking(
                 isTrackingAreaCrossing: event.type == .mouseEntered
                     || event.type == .mouseExited,
                 isFromAnotherWindow: isFromAnotherWindow,
-                isPointerOnMenu: client.isPointerOnMenu(event),
+                isPointerOnMenu: isPointerOnMenu,
                 isTrackingMenuDrag: isTrackingMenuDrag
-            ) ? event : nil
+            )
+#if DEBUG
+            // TEMPORARY probe for
+            // docs/human/requirements/20260830-Bug-Submenu Stays Open After Pointer Leaves.md
+            NSLog(
+                "SUBMENU-PROBE gate type=%d onMenu=%d passed=%d",
+                event.type.rawValue,
+                isPointerOnMenu ? 1 : 0,
+                passes ? 1 : 0
+            )
+#endif
+            return passes ? event : nil
         }
     }
 }

@@ -854,11 +854,17 @@ final class SubtitleTableRowActionSubmenuState: ObservableObject {
     }
 
     func setParentMenuHovered(_ isHovered: Bool) {
+#if DEBUG
+        NSLog("SUBMENU-PROBE heard parentMenuHovered=%d", isHovered ? 1 : 0)
+#endif
         isParentMenuHovered = isHovered
         updatePointerTransfer()
     }
 
     func setSubmenuHovered(_ isHovered: Bool) {
+#if DEBUG
+        NSLog("SUBMENU-PROBE heard submenuHovered=%d", isHovered ? 1 : 0)
+#endif
         isSubmenuHovered = isHovered
         updatePointerTransfer()
     }
@@ -877,8 +883,19 @@ final class SubtitleTableRowActionSubmenuState: ObservableObject {
               !isSubmenuHovered,
               openParent != nil
         else {
+#if DEBUG
+            NSLog(
+                "SUBMENU-PROBE grace skipped parent=%d submenu=%d open=%d",
+                isParentMenuHovered ? 1 : 0,
+                isSubmenuHovered ? 1 : 0,
+                openParent != nil ? 1 : 0
+            )
+#endif
             return
         }
+#if DEBUG
+        NSLog("SUBMENU-PROBE grace started")
+#endif
         pointerExitTask = Task { @MainActor [weak self] in
             try? await Task.sleep(
                 nanoseconds: Self.pointerTransferGraceNanoseconds
@@ -888,14 +905,27 @@ final class SubtitleTableRowActionSubmenuState: ObservableObject {
                   !self.isParentMenuHovered,
                   !self.isSubmenuHovered
             else {
+#if DEBUG
+                NSLog("SUBMENU-PROBE grace cancelled")
+#endif
                 return
             }
+#if DEBUG
+            NSLog("SUBMENU-PROBE grace fired")
+#endif
             self.highlightedParent = nil
             self.updateOpenParent(nil)
         }
     }
 
     private func updateOpenParent(_ action: SubtitleTableRowAction?) {
+#if DEBUG
+        NSLog(
+            "SUBMENU-PROBE openParent %@ -> %@",
+            String(describing: openParent),
+            String(describing: action)
+        )
+#endif
         guard openParent != action else {
             return
         }
