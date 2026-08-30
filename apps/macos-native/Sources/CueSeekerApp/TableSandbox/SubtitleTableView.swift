@@ -509,12 +509,12 @@ enum SubtitleTableText {
         case .secondaryContext:
             return NSFont.systemFont(
                 ofSize: WorkbenchControlMetrics.redesignFontSizeTable,
-                weight: .medium
+                weight: .regular
             )
         case .metadata, .metadataMuted:
             return NSFont.monospacedDigitSystemFont(
                 ofSize: WorkbenchControlMetrics.redesignFontSizeTable,
-                weight: .medium
+                weight: .regular
             )
         }
     }

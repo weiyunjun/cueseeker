@@ -91,6 +91,7 @@ func subtitleTableTextUsesRedesignVisualHierarchy() throws {
     let primaryFont = try attributedFont(primary)
     let secondaryFont = try attributedFont(secondary)
     let metadataFont = try attributedFont(metadata)
+    let metadataMutedFont = try attributedFont(metadataMuted)
     let headerFont = try attributedFont(header)
 
     #expect(primaryFont.pointSize == WorkbenchControlMetrics.redesignFontSizeTable)
@@ -101,12 +102,20 @@ func subtitleTableTextUsesRedesignVisualHierarchy() throws {
         ofSize: WorkbenchControlMetrics.redesignFontSizeTableHeader,
         weight: .regular
     ).fontDescriptor)
-    #expect(fontWeight(primaryFont) == fontWeight(secondaryFont))
     #expect(fontWeight(secondaryFont) == fontWeight(metadataFont))
-    #expect(metadataFont.fontDescriptor == NSFont.monospacedDigitSystemFont(
+    #expect(primaryFont.fontDescriptor == NSFont.systemFont(
         ofSize: WorkbenchControlMetrics.redesignFontSizeTable,
         weight: .medium
     ).fontDescriptor)
+    #expect(secondaryFont.fontDescriptor == NSFont.systemFont(
+        ofSize: WorkbenchControlMetrics.redesignFontSizeTable,
+        weight: .regular
+    ).fontDescriptor)
+    #expect(metadataFont.fontDescriptor == NSFont.monospacedDigitSystemFont(
+        ofSize: WorkbenchControlMetrics.redesignFontSizeTable,
+        weight: .regular
+    ).fontDescriptor)
+    #expect(metadataMutedFont.fontDescriptor == metadataFont.fontDescriptor)
 
     #expect(try attributedForeground(primary) === WorkbenchRedesignColors.NS.textPrimary)
     #expect(try attributedForeground(secondary) === WorkbenchRedesignColors.NS.textSecondary)

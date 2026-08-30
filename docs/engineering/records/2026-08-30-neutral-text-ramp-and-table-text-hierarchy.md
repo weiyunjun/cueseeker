@@ -63,6 +63,15 @@ AppKit path (`SubtitleTableText.header`) and the SwiftUI one
 requirement asks for every column header to be identical and the two paths
 draw headers in the same table.
 
+The display title, the time range and the date drop from medium to regular.
+`SubtitleTableText.bodyFont` returned medium for every role, so the target cue
+was the same weight as the three columns it is supposed to stand out from and
+adding weight to it could not have separated them. `.primaryContent` stays at
+medium: nothing is drawn through it — the target cue is drawn by
+`SubtitleTableCueTextMeasurer` — and its only job is to measure text selection
+geometry for the cues column, which requires it to match the font that column
+actually draws.
+
 ## Verification
 
 `swift build`: clean.
@@ -81,10 +90,16 @@ regular weight, which nothing covered before. Two expectations in
 `SubtitleTableTagStyleTests` name hex values reached through
 `--color-text-secondary` and `--color-text-disabled` and moved with them.
 
-The requirement's ninth acceptance item asks for the whole suite to pass. It
-cannot be met by this change and could not have been met before it, because the
-suite does not pass at the requirement commit either. What is shown here is
-that the change adds no failure.
+The suite was run again after the weight change: 15 failures, every one a
+member of the baseline set. `playbackPlaylistCopyAndShioriTargetTheSettledPrimaryCue`
+is the only one absent from the baseline listing above and it passes in
+isolation, which puts it in the same flake.
+
+The requirement's ninth acceptance item originally asked for the whole suite to
+pass. That could not be met by this change and could not have been met before
+it, because the suite does not pass at the requirement commit either; the item
+was amended to ask instead that the change add no failure, which is what the
+two comparisons above show.
 
 Nothing was verified visually. The build and the tests establish which token
 each piece of text resolves to; they say nothing about how the result looks,
@@ -97,25 +112,21 @@ where it sits today rather than closer to a reference.
 
 ## Outcome
 
-Sections 1 and 2 of the requirement are implemented, with one exception.
+Sections 1 and 2 of the requirement are implemented.
 
-The requirement's table gives Regular as the weight for the display title, the
-time range and the date. All three are drawn at Medium today —
-`SubtitleTableText.bodyFont` returns Medium for every role — and the
-requirement's own summary of what changes lists only the four colour and weight
-moves it names, none of which covers those three columns. The table and the
-summary therefore disagree about whether their weight changes, so the weight
-was left alone and the question raised with the owner rather than resolved
-here.
+The exception recorded when this change first landed is resolved. The
+requirement's table and its summary of what changes disagreed about the weight
+of the display title, the time range and the date; the owner settled it in
+favour of the table, the requirement was corrected to name the weight drop as
+one of its deltas, and the three columns are now regular. The same correction
+removed the requirement's claim that the target cue moves from regular to
+medium — it was already medium, and no code was needed for it.
 
-The same paragraph records a second thing the requirement states as a change
-that is not one: the target cue is described as moving from Regular to Medium,
-and `SubtitleTableCueStyle.primary` is already Medium. No code was needed and
-none was written. Worth noting because the requirement's goal is for the target
-cue to stand out, and it will not gain separation from the three metadata
-columns while they are Medium as well — which is the practical reason the
-weight question above matters.
-
-Section 3 asks for two entries to be added to the design system. Those live
+Section 3 asks for four entries to be added to the design system. Those live
 under `docs/human/`, which this assistant must not edit; the wording was handed
 to the owner to apply.
+
+The acceptance items covering appearance are outstanding: whether the four
+steps read as distinct, whether the blue is gone, and the Dark pass, where the
+third and fourth steps are the only two figures in the change that move further
+from where they sit today.
