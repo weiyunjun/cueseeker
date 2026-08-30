@@ -599,9 +599,9 @@ func subtitleTablePageChromePinsAgainstTheFullViewportScrollbar() throws {
     let coveredWindowPoint = documentView.convert(coveredPoint, to: nil)
     #expect(documentView.visibleRect.contains(coveredPoint))
     #expect(
-        !coordinator.isInteractiveCellCursorActiveForTesting(
-            documentPoint: coveredPoint
-        )
+        !coordinator.interactiveCellCursorRectsForTesting().contains {
+            $0.contains(coveredPoint)
+        }
     )
     #expect(!coordinator.handleMouseDown(windowPoint: coveredWindowPoint))
     #expect(!coordinator.handleRightMouseDown(windowPoint: coveredWindowPoint))
@@ -1577,6 +1577,28 @@ func subtitleTableViewDoesNotRedrawForCallbackOnlyUpdates() {
 
 @MainActor
 @Test
+func subtitleTableHandsTheArrowBackWhenAHigherLayerCoversIt() {
+    let fixture = makeAttachedVirtualTableCoordinator(width: 900)
+    defer { NSCursor.arrow.set() }
+
+    // The hand the cue text was wearing when the pointer clicked through to
+    // the playback page. Nothing above the table states a shape of its own,
+    // so the table has to give this one up on its way out.
+    NSCursor.pointingHand.set()
+    #expect(NSCursor.current == NSCursor.pointingHand)
+    fixture.coordinator.isCoveredByHigherLayer = true
+    #expect(NSCursor.current == NSCursor.arrow)
+
+    NSCursor.pointingHand.set()
+    fixture.coordinator.interfaceLayerContext = InterfaceLayerContext(
+        layer: .workbenchPage,
+        frozenLayers: [.workbenchPage]
+    )
+    #expect(NSCursor.current == NSCursor.arrow)
+}
+
+@MainActor
+@Test
 func subtitleTableViewSuppressesVisibleRowNotificationsWhenExternalLayerIsOpen() {
     var visibleRowNotifications = 0
     let fixture = makeAttachedVirtualTableCoordinator(
@@ -1614,15 +1636,15 @@ func subtitleTableViewLimitsPointingHandToCueContent() throws {
     )
 
     #expect(fixture.coordinator.interactiveCellCursorRectsForTesting().contains { $0.contains(checkboxPoint) } == false)
-    #expect(fixture.coordinator.isInteractiveCellCursorActiveForTesting(documentPoint: checkboxPoint) == false)
+    #expect(!fixture.coordinator.interactiveCellCursorRectsForTesting().contains { $0.contains(checkboxPoint) })
     #expect(fixture.coordinator.interactiveCellCursorRectsForTesting().contains { $0.contains(cuesPoint) })
-    #expect(fixture.coordinator.isInteractiveCellCursorActiveForTesting(documentPoint: cuesPoint) == true)
-    #expect(fixture.coordinator.isInteractiveCellCursorActiveForTesting(documentPoint: displayPoint) == false)
+    #expect(fixture.coordinator.interactiveCellCursorRectsForTesting().contains { $0.contains(cuesPoint) })
+    #expect(!fixture.coordinator.interactiveCellCursorRectsForTesting().contains { $0.contains(displayPoint) })
     #expect(fixture.coordinator.selectableTextCursorRectsForTesting().contains { $0.contains(displayPoint) })
-    #expect(fixture.coordinator.isSelectableTextCursorActiveForTesting(documentPoint: displayPoint))
-    #expect(!fixture.coordinator.isSelectableTextCursorActiveForTesting(documentPoint: cuesPoint))
+    #expect(fixture.coordinator.selectableTextCursorRectsForTesting().contains { $0.contains(displayPoint) })
+    #expect(!fixture.coordinator.selectableTextCursorRectsForTesting().contains { $0.contains(cuesPoint) })
     #expect(fixture.coordinator.interactiveCellCursorRectsForTesting().contains { $0.contains(outsideContentPoint) } == false)
-    #expect(fixture.coordinator.isInteractiveCellCursorActiveForTesting(documentPoint: outsideContentPoint) == false)
+    #expect(!fixture.coordinator.interactiveCellCursorRectsForTesting().contains { $0.contains(outsideContentPoint) })
 }
 
 @MainActor
@@ -1639,13 +1661,13 @@ func subtitleTableViewDropsPointingHandInSelectionMode() throws {
     fixture.coordinator.setSelectionModeForTesting(true)
 
     #expect(fixture.coordinator.interactiveCellCursorRectsForTesting().isEmpty)
-    #expect(fixture.coordinator.isInteractiveCellCursorActiveForTesting(documentPoint: cuesPoint) == false)
-    #expect(fixture.coordinator.isInteractiveCellCursorActiveForTesting(documentPoint: checkboxPoint) == false)
-    #expect(fixture.coordinator.isInteractiveCellCursorActiveForTesting(documentPoint: displayPoint) == false)
+    #expect(!fixture.coordinator.interactiveCellCursorRectsForTesting().contains { $0.contains(cuesPoint) })
+    #expect(!fixture.coordinator.interactiveCellCursorRectsForTesting().contains { $0.contains(checkboxPoint) })
+    #expect(!fixture.coordinator.interactiveCellCursorRectsForTesting().contains { $0.contains(displayPoint) })
 
     fixture.coordinator.setSelectionModeForTesting(false)
 
-    #expect(fixture.coordinator.isInteractiveCellCursorActiveForTesting(documentPoint: cuesPoint))
+    #expect(fixture.coordinator.interactiveCellCursorRectsForTesting().contains { $0.contains(cuesPoint) })
 }
 
 @MainActor
@@ -2699,9 +2721,9 @@ func subtitleTableUnavailableShioriBlocksInteractiveActionsButKeepsAllowedMenuAc
     )
     let cueWindowPoint = fixture.documentView.convert(cuePoint, to: nil)
     #expect(
-        !fixture.coordinator.isInteractiveCellCursorActiveForTesting(
-            documentPoint: cuePoint
-        )
+        !fixture.coordinator.interactiveCellCursorRectsForTesting().contains {
+            $0.contains(cuePoint)
+        }
     )
     #expect(fixture.coordinator.handleMouseDown(windowPoint: cueWindowPoint))
     #expect(fixture.coordinator.handleMouseUp(windowPoint: cueWindowPoint))
@@ -2728,7 +2750,7 @@ func subtitleTableViewSuppressesInteractiveCursorRectsWhenExternalLayerIsOpen() 
     fixture.coordinator.isCoveredByHigherLayer = true
 
     #expect(fixture.coordinator.interactiveCellCursorRectsForTesting().isEmpty)
-    #expect(fixture.coordinator.isInteractiveCellCursorActiveForTesting(documentPoint: cuesPoint) == false)
+    #expect(!fixture.coordinator.interactiveCellCursorRectsForTesting().contains { $0.contains(cuesPoint) })
 }
 
 @MainActor
@@ -2747,7 +2769,7 @@ func subtitleTableViewDismissMenuKeepsInteractiveCellCursorRectAvailable() throw
     fixture.coordinator.showMenu(for: 0, buttonFrame: anchorFrame)
     fixture.coordinator.dismissMenu()
 
-    #expect(fixture.coordinator.isInteractiveCellCursorActiveForTesting(documentPoint: cuesPoint) == true)
+    #expect(fixture.coordinator.interactiveCellCursorRectsForTesting().contains { $0.contains(cuesPoint) })
 }
 
 @MainActor

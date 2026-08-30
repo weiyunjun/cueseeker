@@ -2194,19 +2194,14 @@ final class SubtitleVirtualTableDocumentView: NSView {
 
     override func mouseMoved(with event: NSEvent) {
         coordinator?.handleMouseHover(windowPoint: event.locationInWindow)
-        coordinator?.refreshDocumentCursor(windowPoint: event.locationInWindow)
     }
 
     override func mouseEntered(with event: NSEvent) {
         coordinator?.handleMouseHover(windowPoint: event.locationInWindow)
-        coordinator?.refreshDocumentCursor(windowPoint: event.locationInWindow)
     }
 
     override func mouseExited(with event: NSEvent) {
         coordinator?.clearHover()
-        // Leaving the table states the arrow, except while a menu is open:
-        // nothing may state a shape then.
-        coordinator?.resetCursorOnExit()
     }
 
     override func mouseDown(with event: NSEvent) {
@@ -2752,16 +2747,11 @@ struct SubtitleTableView: NSViewRepresentable {
                     // open menu stays open. Only work already in flight stops.
                     cancelPendingTextInteraction()
                     hideCueStateTip()
+                    handBackCursor()
                     invalidateDocumentCursorRects()
                     headerView?.refreshHeaderHosts()
                 } else {
                     invalidateDocumentCursorRects()
-                    if let window = documentView?.window {
-                        // The pointer shape is answered again, but not the
-                        // highlight: it stays where the freeze left it until
-                        // the pointer really moves.
-                        refreshDocumentCursor(windowPoint: window.mouseLocationOutsideOfEventStream)
-                    }
                     headerView?.refreshHeaderHosts()
                 }
             }
@@ -2784,16 +2774,11 @@ struct SubtitleTableView: NSViewRepresentable {
                 if interfaceLayerContext.isFrozen {
                     cancelPendingTextInteraction()
                     hideCueStateTip()
+                    handBackCursor()
                     invalidateDocumentCursorRects()
                     headerView?.refreshHeaderHosts()
                 } else {
                     invalidateDocumentCursorRects()
-                    if let window = documentView?.window {
-                        // The pointer shape is answered again, but not the
-                        // highlight: it stays where the freeze left it until
-                        // the pointer really moves.
-                        refreshDocumentCursor(windowPoint: window.mouseLocationOutsideOfEventStream)
-                    }
                     headerView?.refreshHeaderHosts()
                 }
             }
@@ -3614,20 +3599,12 @@ struct SubtitleTableView: NSViewRepresentable {
             interactiveCellCursorRects(in: currentTableBodyVisibleRect)
         }
 
-        func isInteractiveCellCursorActiveForTesting(documentPoint: CGPoint) -> Bool {
-            isInteractiveCellCursorActive(at: documentPoint)
-        }
-
         func selectableTextCursorRectsForTesting() -> [CGRect] {
             guard let documentView else { return [] }
             return selectableTextCursorRects(
                 in: currentTableBodyVisibleRect,
                 documentWidth: documentView.bounds.width
             )
-        }
-
-        func isSelectableTextCursorActiveForTesting(documentPoint: CGPoint) -> Bool {
-            isSelectableTextCursorActive(at: documentPoint)
         }
 
         func selectableTextForTesting(row: Int, columnID: String) -> String? {
@@ -5890,26 +5867,16 @@ struct SubtitleTableView: NSViewRepresentable {
             }
         }
 
-        /// The pointer leaving the table. Silent while frozen.
-        func resetCursorOnExit() {
-            guard !isPointerFrozen else { return }
+        /// The table's shape, given up the moment something covers it.
+        ///
+        /// A cursor rect is undone by leaving it, which is why the rects are
+        /// the only thing here that states a shape. Being covered is not
+        /// leaving: the pointer stays exactly where it was, over a rect that
+        /// is about to stop existing, and nothing above the table states a
+        /// shape of its own — so the table says the arrow once, on its way
+        /// out, the way the menu barrier already does.
+        private func handBackCursor() {
             NSCursor.arrow.set()
-        }
-
-        func refreshDocumentCursor(windowPoint: CGPoint) {
-            guard !isPointerFrozen, let documentView else { return }
-            let point = documentView.convert(windowPoint, from: nil)
-            guard currentTableBodyVisibleRect.contains(point) else {
-                NSCursor.arrow.set()
-                return
-            }
-            if isInteractiveCellCursorActive(at: point) {
-                NSCursor.pointingHand.set()
-            } else if isSelectableTextCursorActive(at: point) {
-                NSCursor.iBeam.set()
-            } else {
-                NSCursor.arrow.set()
-            }
         }
 
         private func invalidateDocumentCursorRects() {
@@ -5949,14 +5916,6 @@ struct SubtitleTableView: NSViewRepresentable {
             }
         }
 
-        private func isInteractiveCellCursorActive(at point: CGPoint) -> Bool {
-            guard currentTableBodyVisibleRect.contains(point) else {
-                return false
-            }
-            return interactiveCellCursorRects(in: currentTableBodyVisibleRect)
-                .contains { $0.contains(point) }
-        }
-
         private func selectableTextCursorRects(
             in visibleRect: CGRect,
             documentWidth: CGFloat
@@ -5989,32 +5948,6 @@ struct SubtitleTableView: NSViewRepresentable {
                     }
                 }
             }
-        }
-
-        private func isSelectableTextCursorActive(at point: CGPoint) -> Bool {
-            guard isRedesign,
-                  isEnabled,
-                  !isMenuOpen,
-                  !isCoveredByHigherLayer,
-                  let documentView,
-                  currentTableBodyVisibleRect.contains(point),
-                  let row = rowAtDocumentPoint(point)
-            else {
-                return false
-            }
-            let rowRect = rectForRow(row, width: documentView.bounds.width)
-            guard let columnID = visibleTextColumnOrder().first(where: {
-                $0 != "cues" &&
-                    dataCellRect(columnID: $0, rowRect: rowRect)?.contains(point) == true
-            }) else {
-                return false
-            }
-            return textPosition(
-                row: row,
-                columnID: columnID,
-                point: point,
-                requiresTextHit: true
-            ) != nil
         }
 
         private func rowAtDocumentPoint(_ point: CGPoint) -> Int? {
