@@ -45,11 +45,11 @@ enum WorkbenchRedesignColors {
     // AppKit Custom Drawing Layer Dynamic Tokens
     enum NS {
         // Text
-        static let textPrimary = NSColor.dynamic(lightHex: "#404040", darkHex: "#D4D4D4")
-        static let textSecondary = NSColor.dynamic(lightHex: "#535761", darkHex: "#BABABF")
-        static let textMuted = NSColor.dynamic(lightHex: "#667085", darkHex: "#A1A1AA")
-        static let textPlaceholder = NSColor.dynamic(lightHex: "#98A2B3", darkHex: "#71717A")
-        static let textDisabled = NSColor.dynamic(lightHex: "#98A2B3", darkHex: "#71717A")
+        static let textPrimary = NSColor.dynamic(lightHex: "#1F1F1F", darkHex: "#F7F7F7")
+        static let textSecondary = NSColor.dynamic(lightHex: "#494949", darkHex: "#B9B9B9")
+        static let textMuted = NSColor.dynamic(lightHex: "#717171", darkHex: "#878787")
+        static let textPlaceholder = NSColor.dynamic(lightHex: "#9A9A9A", darkHex: "#606060")
+        static let textDisabled = NSColor.dynamic(lightHex: "#9A9A9A", darkHex: "#606060")
 
         // Icon
         static let iconDefault = NSColor.dynamic(lightHex: "#667085", darkHex: "#A1A1AA")

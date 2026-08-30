@@ -446,6 +446,7 @@ enum SubtitleTableTextRole {
     case primaryContent
     case secondaryContext
     case metadata
+    case metadataMuted
 }
 
 @MainActor
@@ -486,14 +487,14 @@ enum SubtitleTableText {
     static func header(_ text: String, isRedesign: Bool = false) -> NSAttributedString {
         NSAttributedString(string: text, attributes: [
             .font: isRedesign ? redesignHeaderFont : headerFont,
-            .foregroundColor: isRedesign ? WorkbenchRedesignColors.NS.textSecondary : NSColor.labelColor,
+            .foregroundColor: isRedesign ? WorkbenchRedesignColors.NS.textMuted : NSColor.labelColor,
         ])
     }
 
     private static var redesignHeaderFont: NSFont {
         NSFont.systemFont(
             ofSize: WorkbenchControlMetrics.redesignFontSizeTableHeader,
-            weight: .medium
+            weight: .regular
         )
     }
 
@@ -510,7 +511,7 @@ enum SubtitleTableText {
                 ofSize: WorkbenchControlMetrics.redesignFontSizeTable,
                 weight: .medium
             )
-        case .metadata:
+        case .metadata, .metadataMuted:
             return NSFont.monospacedDigitSystemFont(
                 ofSize: WorkbenchControlMetrics.redesignFontSizeTable,
                 weight: .medium
@@ -524,6 +525,8 @@ enum SubtitleTableText {
         case .primaryContent:
             return WorkbenchRedesignColors.NS.textPrimary
         case .secondaryContext, .metadata:
+            return WorkbenchRedesignColors.NS.textSecondary
+        case .metadataMuted:
             return WorkbenchRedesignColors.NS.textMuted
         }
     }
@@ -4777,7 +4780,7 @@ struct SubtitleTableView: NSViewRepresentable {
                     text,
                     in: cellRect,
                     trailing: M.trailingInset,
-                    role: .metadata,
+                    role: .metadataMuted,
                     foregroundColor: isUnavailable ? WorkbenchRedesignColors.NS.textMuted : nil,
                     selectedRange: hasTextSelection
                         ? selectedUTF16Range(row: row, columnID: "dateAdded", text: text)
@@ -5169,7 +5172,9 @@ struct SubtitleTableView: NSViewRepresentable {
 
         private func bodyTextRole(for columnID: String) -> SubtitleTableTextRole {
             switch columnID {
-            case "dateAdded", "time":
+            case "dateAdded":
+                return .metadataMuted
+            case "time":
                 return .metadata
             case "display":
                 return .secondaryContext
@@ -5466,7 +5471,7 @@ struct SubtitleTableView: NSViewRepresentable {
                     model.dateAdded,
                     cellWidth: dateAddedRect.width,
                     trailing: SubtitleTableMetrics.trailingInset,
-                    role: .metadata
+                    role: .metadataMuted
                 ))
             }
             if showsDisplayTitleColumn {
@@ -7638,8 +7643,8 @@ struct SubtitleTableHeaderCellView: View {
     var body: some View {
         HStack(spacing: 0) {
             Text(title)
-                .font(.system(size: WorkbenchControlMetrics.redesignFontSizeTableHeader, weight: .medium))
-                .foregroundStyle(isEnabled ? WorkbenchRedesignColors.textSecondary : WorkbenchRedesignColors.textDisabled)
+                .font(.system(size: WorkbenchControlMetrics.redesignFontSizeTableHeader, weight: .regular))
+                .foregroundStyle(isEnabled ? WorkbenchRedesignColors.textMuted : WorkbenchRedesignColors.textDisabled)
                 .lineLimit(1)
                 .padding(.horizontal, WorkbenchControlMetrics.redesignPaddingHeaderTriggerX)
                 .frame(maxHeight: .infinity)

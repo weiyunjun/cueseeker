@@ -80,6 +80,11 @@ func subtitleTableTextUsesRedesignVisualHierarchy() throws {
         role: .metadata,
         isRedesign: true
     )
+    let metadataMuted = SubtitleTableText.body(
+        "26-07-01 13:51",
+        role: .metadataMuted,
+        isRedesign: true
+    )
     let header = SubtitleTableText.header("Cues", isRedesign: true)
     let sequence = SubtitleTableText.index(37, isRedesign: true)
 
@@ -92,6 +97,10 @@ func subtitleTableTextUsesRedesignVisualHierarchy() throws {
     #expect(secondaryFont.pointSize == WorkbenchControlMetrics.redesignFontSizeTable)
     #expect(metadataFont.pointSize == WorkbenchControlMetrics.redesignFontSizeTable)
     #expect(headerFont.pointSize == WorkbenchControlMetrics.redesignFontSizeTableHeader)
+    #expect(headerFont.fontDescriptor == NSFont.systemFont(
+        ofSize: WorkbenchControlMetrics.redesignFontSizeTableHeader,
+        weight: .regular
+    ).fontDescriptor)
     #expect(fontWeight(primaryFont) == fontWeight(secondaryFont))
     #expect(fontWeight(secondaryFont) == fontWeight(metadataFont))
     #expect(metadataFont.fontDescriptor == NSFont.monospacedDigitSystemFont(
@@ -100,9 +109,10 @@ func subtitleTableTextUsesRedesignVisualHierarchy() throws {
     ).fontDescriptor)
 
     #expect(try attributedForeground(primary) === WorkbenchRedesignColors.NS.textPrimary)
-    #expect(try attributedForeground(secondary) === WorkbenchRedesignColors.NS.textMuted)
-    #expect(try attributedForeground(metadata) === WorkbenchRedesignColors.NS.textMuted)
-    #expect(try attributedForeground(header) === WorkbenchRedesignColors.NS.textSecondary)
+    #expect(try attributedForeground(secondary) === WorkbenchRedesignColors.NS.textSecondary)
+    #expect(try attributedForeground(metadata) === WorkbenchRedesignColors.NS.textSecondary)
+    #expect(try attributedForeground(metadataMuted) === WorkbenchRedesignColors.NS.textMuted)
+    #expect(try attributedForeground(header) === WorkbenchRedesignColors.NS.textMuted)
     #expect(sequence.string == "37")
     #expect(try attributedForeground(sequence) === WorkbenchRedesignColors.NS.textMuted)
 }

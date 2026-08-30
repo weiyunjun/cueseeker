@@ -30,7 +30,7 @@ func subtitleTableTagStyleUsesDisabledRedesignColors() {
     let foreground = attributed.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? NSColor
 
     #expect(hexString(style.fillColor(for: tag, isRedesign: true, isEnabled: false)) == "#F3F4F6")
-    #expect(foreground.map(hexString) == "#98A2B3")
+    #expect(foreground.map(hexString) == "#9A9A9A")
 }
 
 @Test
@@ -42,7 +42,7 @@ func workbenchTagRedesignColorsMapLanguageTokens() {
 @Test
 func workbenchTagRedesignColorsMapShioriGrayTokens() {
     #expect(hexString(WorkbenchTagColorID.gray.redesignFillColor()) == "#F3F4F6")
-    #expect(hexString(WorkbenchTagColorID.gray.redesignForegroundColor()) == "#535761")
+    #expect(hexString(WorkbenchTagColorID.gray.redesignForegroundColor()) == "#494949")
 }
 
 private func hexString(_ color: NSColor) -> String {
