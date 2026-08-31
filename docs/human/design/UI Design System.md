@@ -1109,8 +1109,8 @@
 ##### States
 
 - Default
-  - Label Color：`--color-text-secondary`
-  - Icon Color：`--color-text-secondary`
+  - Label Color：`--color-text-primary`
+  - Icon Color：`--color-text-primary`
 - Highlighted
   - Background：`--color-bg-hover`
 - Disabled
@@ -1141,10 +1141,10 @@
 - Leading Slot：Checkbox / Filter Checkbox
 - Label
   - Font Size：`--font-size-body`
-  - Color：`--color-text-secondary`
+  - Color：`--color-text-primary`
 - Trailing Slot：计数或 calculating 提示
   - Font Size：`--font-size-caption`
-  - Color：`--color-text-muted`
+  - Color：`--color-text-secondary`
 - 点击或回车勾选/取消勾选，菜单保持打开；勾选区域与 Hover 区域一致，为整行
 - Height：`--height-select-menu-item`
 - Radius：`--radius-select-menu-item`
@@ -1212,11 +1212,12 @@
 
 - Leading Icon
   - Size：`--size-control-icon`
+  - Font Weight：Medium
   - Color：`--color-text-secondary`
 - Label
   - Font Family：`--font-family-base`
   - Font Size：`--font-size-control`
-  - Font Weight：Semibold
+  - Font Weight：Medium
   - Color：`--color-text-secondary`
 - Content Gap：`--spacing-2`
 
