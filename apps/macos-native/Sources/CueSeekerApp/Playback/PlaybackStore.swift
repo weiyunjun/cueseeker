@@ -8,6 +8,12 @@ enum PlaybackCommandPanelPage: Equatable {
     case searchResults
     case recentVideos
     case recentShioris
+
+    /// The pages laid out as a card grid. They are walked with all four arrow
+    /// keys and report where their cards sit; the other pages are lists.
+    var showsRecentCardGrid: Bool {
+        self == .recentVideos || self == .recentShioris
+    }
 }
 
 struct PlaybackCommandPanelPresentation: Equatable {
@@ -99,8 +105,8 @@ final class PlaybackStore: ObservableObject {
     @Published private(set) var commandPanelSearchWindow:
         PlaybackCueResultSessionWindowStore?
     private var commandPanelSearchSource: PlaybackCueResultSource?
-    private(set) var commandPanelRecentVideoColumnCount = 1
-    private(set) var commandPanelRecentVideoItemFramesByID: [String: CGRect] = [:]
+    private(set) var commandPanelRecentCardColumnCount = 1
+    private(set) var commandPanelRecentCardItemFramesByID: [String: CGRect] = [:]
     @Published private(set) var playlistSource: PlaybackPlaylistSource?
     private(set) var playbackSearchPlaylistOrdinal: Int?
     private(set) var playlistPosition: PlaybackPlaylistPosition?
@@ -232,8 +238,8 @@ final class PlaybackStore: ObservableObject {
     }
 
     func presentCommandPanel(_ presentation: PlaybackCommandPanelPresentation) {
-        if presentation.page != .recentVideos {
-            resetCommandPanelRecentVideoGridLayout()
+        if !presentation.page.showsRecentCardGrid {
+            resetCommandPanelRecentCardGridLayout()
         }
         if presentation.page != .searchResults {
             releaseCommandPanelSearchPreview()
@@ -311,30 +317,32 @@ final class PlaybackStore: ObservableObject {
         commandPanelSearchWindow?.commitSelection(commit) == true
     }
 
-    func updateCommandPanelRecentVideoGridLayout(
+    func updateCommandPanelRecentCardGridLayout(
         columnCount: Int,
         itemFramesByID: [String: CGRect]
     ) {
-        guard commandPanelPresentation?.page == .recentVideos else {
+        guard let page = commandPanelPresentation?.page,
+              page.showsRecentCardGrid
+        else {
             return
         }
-        commandPanelRecentVideoColumnCount = max(1, columnCount)
-        commandPanelRecentVideoItemFramesByID = itemFramesByID
+        commandPanelRecentCardColumnCount = max(1, columnCount)
+        commandPanelRecentCardItemFramesByID = itemFramesByID
     }
 
     @discardableResult
     func dismissCommandPanel() -> PlaybackCommandPanelPresentation? {
         defer {
             commandPanelPresentation = nil
-            resetCommandPanelRecentVideoGridLayout()
+            resetCommandPanelRecentCardGridLayout()
             releaseCommandPanelSearchPreview()
         }
         return commandPanelPresentation
     }
 
-    private func resetCommandPanelRecentVideoGridLayout() {
-        commandPanelRecentVideoColumnCount = 1
-        commandPanelRecentVideoItemFramesByID = [:]
+    private func resetCommandPanelRecentCardGridLayout() {
+        commandPanelRecentCardColumnCount = 1
+        commandPanelRecentCardItemFramesByID = [:]
     }
 
     private func releaseCommandPanelSearchPreview() {

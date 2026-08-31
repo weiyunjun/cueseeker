@@ -161,37 +161,11 @@ struct WorkbenchRecentView: View {
         } else if summaries.isEmpty {
             LibraryEmptyHint(L("library.recent_shioris_empty"))
         } else {
-            RecentShioriResumeList(
+            ShioriListCardGrid(
                 summaries: summaries,
                 highlight: highlight
             ) { summary in
                 appState.openRecentShiori(summary)
-            }
-        }
-    }
-}
-
-struct RecentShioriResumeList: View {
-    let summaries: [ShioriListSummary]
-    @ObservedObject var highlight: CardHighlightModel
-    let onOpen: (ShioriListSummary) -> Void
-
-    var body: some View {
-        LazyVStack(alignment: .leading, spacing: 0) {
-            ForEach(summaries) { summary in
-                RecentShioriResumeRow(
-                    summary: summary,
-                    highlight: highlight,
-                    isCurrent: highlight.currentID == String(summary.id)
-                ) {
-                    onOpen(summary)
-                }
-                .id(summary.id)
-
-                if summary.id != summaries.last?.id {
-                    Divider()
-                        .foregroundStyle(WorkbenchRedesignColors.borderMuted)
-                }
             }
         }
     }
@@ -237,97 +211,6 @@ private struct RecentSectionHeader: View {
         .buttonStyle(StaticButtonStyle())
         .focusable(false)
         .accessibilityLabel("\(title), \(count)")
-    }
-}
-
-struct RecentShioriResumeRow: View {
-    let summary: ShioriListSummary
-    let highlight: CardHighlightModel
-    let isCurrent: Bool
-    let onOpen: () -> Void
-
-    private var cardID: String {
-        String(summary.id)
-    }
-
-    var body: some View {
-        Button {
-            highlight.notePress(id: cardID)
-            onOpen()
-        } label: {
-            HStack(
-                alignment: .center,
-                spacing: WorkbenchControlMetrics.redesignSpacing4
-            ) {
-                LibraryCoverFrame {
-                    ShioriListCoverView(coverPath: summary.list.coverPath)
-                }
-                .frame(
-                    width: WorkbenchControlMetrics.redesignLibraryListCoverWidth,
-                    height: WorkbenchControlMetrics.redesignLibraryListCoverHeight
-                )
-
-                VStack(
-                    alignment: .leading,
-                    spacing: WorkbenchControlMetrics.redesignSpacing2
-                ) {
-                    Text(summary.list.name)
-                        .font(.system(
-                            size: WorkbenchControlMetrics.redesignFontSizeLibraryTitle,
-                            weight: .semibold
-                        ))
-                        .foregroundStyle(WorkbenchRedesignColors.textPrimary)
-                        .lineLimit(1)
-
-                    Text(summary.list.description)
-                        .font(.system(
-                            size: WorkbenchControlMetrics.redesignFontSizeLibraryMeta,
-                            weight: .regular
-                        ))
-                        .foregroundStyle(WorkbenchRedesignColors.textMuted)
-                        .lineLimit(1)
-                        .frame(minHeight: 15)
-
-                    Text(
-                        L("library.resume_progress", String(summary.resumePosition ?? 1), String(summary.cueCount))
-                    )
-                    .font(.system(
-                        size: WorkbenchControlMetrics.redesignFontSizeLibraryMeta,
-                        weight: .regular
-                    ))
-                    .foregroundStyle(WorkbenchRedesignColors.textSecondary)
-                    .monospacedDigit()
-
-                    Text(summary.resumeShiori?.content ?? "")
-                        .font(.system(
-                            size: WorkbenchControlMetrics.redesignFontSizeBody,
-                            weight: .regular
-                        ))
-                        .foregroundStyle(WorkbenchRedesignColors.textPrimary)
-                        .lineLimit(2)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .padding(.vertical, WorkbenchControlMetrics.redesignSpacing3)
-            .padding(.horizontal, WorkbenchControlMetrics.redesignSpacing2)
-            .contentShape(Rectangle())
-            .background(
-                RoundedRectangle(
-                    cornerRadius: WorkbenchControlMetrics.redesignLibraryMediaCardHoverRadius,
-                    style: .continuous
-                )
-                .fill(
-                    isCurrent
-                        ? WorkbenchRedesignColors.libraryMediaCardHoverBg
-                        : Color.clear
-                )
-            )
-        }
-        .buttonStyle(StaticButtonStyle())
-        .focusable(false)
-        .onHover { highlight.noteHover($0, id: cardID) }
-        .accessibilityLabel(summary.list.name)
     }
 }
 
@@ -734,7 +617,9 @@ where Item.ID == String {
     }
 }
 
-private struct LibraryItemFramePreferenceKey: PreferenceKey {
+/// Shared by the video card grid and the Shiori card grid: both report where
+/// their cards sit so the Command Panel can walk them with the arrow keys.
+struct LibraryItemFramePreferenceKey: PreferenceKey {
     static let defaultValue: [String: CGRect] = [:]
 
     static func reduce(

@@ -180,40 +180,41 @@ extension AppCoordinator {
         playback.presentCommandPanel(presentation)
     }
 
-    func updatePlaybackCommandPanelRecentVideoGridLayout(
+    func updatePlaybackCommandPanelRecentCardGridLayout(
         columnCount: Int,
         itemFramesByID: [String: CGRect]
     ) {
-        playback.updateCommandPanelRecentVideoGridLayout(
+        playback.updateCommandPanelRecentCardGridLayout(
             columnCount: columnCount,
             itemFramesByID: itemFramesByID
         )
     }
 
     @discardableResult
-    func movePlaybackCommandPanelRecentVideoSelection(
+    func movePlaybackCommandPanelRecentCardSelection(
         _ direction: PlaybackMediaSelectionDirection
     ) -> Bool {
         guard var presentation = playback.commandPanelPresentation,
-              presentation.page == .recentVideos
+              presentation.page.showsRecentCardGrid
         else {
             return false
         }
-        let items = library.testRecentWatchingItems
+        let itemIDs = playbackCommandPanelRecentCardItemIDs(
+            for: presentation.page
+        )
         guard let selectedOrdinal = presentation.selectedOrdinal,
-              items.indices.contains(selectedOrdinal)
+              itemIDs.indices.contains(selectedOrdinal)
         else {
             synchronizePlaybackCommandPanelSelection()
             return true
         }
-        let itemIDs = items.map(\.id)
         guard let targetOrdinal = PlaybackMediaSelectionStore.targetIndex(
             from: selectedOrdinal,
             direction: direction,
             orderedItemIDs: itemIDs,
             availableItemIDs: Set(itemIDs),
-            columnCount: playback.commandPanelRecentVideoColumnCount,
-            itemFramesByID: playback.commandPanelRecentVideoItemFramesByID
+            columnCount: playback.commandPanelRecentCardColumnCount,
+            itemFramesByID: playback.commandPanelRecentCardItemFramesByID
         ) else {
             return true
         }
@@ -221,6 +222,19 @@ extension AppCoordinator {
         presentation.selectedOrdinal = targetOrdinal
         playback.presentCommandPanel(presentation)
         return true
+    }
+
+    private func playbackCommandPanelRecentCardItemIDs(
+        for page: PlaybackCommandPanelPage
+    ) -> [String] {
+        switch page {
+        case .recentVideos:
+            return library.testRecentWatchingItems.map(\.id)
+        case .recentShioris:
+            return shiori.recentListSummaries.map { String($0.id) }
+        case .root, .searchResults:
+            return []
+        }
     }
 
     func synchronizePlaybackCommandPanelSelection() {

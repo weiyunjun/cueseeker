@@ -668,7 +668,7 @@ func playbackCommandPanelRecentVideosUsesFourVisualGridDirections() async throws
         presentation.page = .recentVideos
         presentation.selectedOrdinal = 0
         app.playback.presentCommandPanel(presentation)
-        app.updatePlaybackCommandPanelRecentVideoGridLayout(
+        app.updatePlaybackCommandPanelRecentCardGridLayout(
             columnCount: 3,
             itemFramesByID: Dictionary(uniqueKeysWithValues: items.indices.map {
                 ordinal in
@@ -722,25 +722,25 @@ func playbackCommandPanelRecentVideosUsesNearestEdgeForPartialAndLazyTargets() {
         "19": CGRect(x: 784, y: 560, width: 180, height: 160),
     ]
 
-    #expect(PlaybackCommandPanelRecentVideos.scrollAnchor(
+    #expect(PlaybackCommandPanelCardGrid.scrollAnchor(
         for: "0",
         orderedItemIDs: orderedItemIDs,
         itemFramesByID: frames,
         viewportHeight: 614
     ) == .top)
-    #expect(PlaybackCommandPanelRecentVideos.scrollAnchor(
+    #expect(PlaybackCommandPanelCardGrid.scrollAnchor(
         for: "15",
         orderedItemIDs: orderedItemIDs,
         itemFramesByID: frames,
         viewportHeight: 614
     ) == .bottom)
-    #expect(PlaybackCommandPanelRecentVideos.scrollAnchor(
+    #expect(PlaybackCommandPanelCardGrid.scrollAnchor(
         for: "20",
         orderedItemIDs: orderedItemIDs,
         itemFramesByID: frames,
         viewportHeight: 614
     ) == .bottom)
-    #expect(PlaybackCommandPanelRecentVideos.scrollAnchor(
+    #expect(PlaybackCommandPanelCardGrid.scrollAnchor(
         for: "10",
         orderedItemIDs: orderedItemIDs,
         itemFramesByID: [

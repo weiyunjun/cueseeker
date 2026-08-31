@@ -910,19 +910,19 @@ extension AppCoordinator {
                 return true
             }
             switch keyCode {
-            case 123 where commandPanel.page == .recentVideos:
-                _ = movePlaybackCommandPanelRecentVideoSelection(.left)
-            case 124 where commandPanel.page == .recentVideos:
-                _ = movePlaybackCommandPanelRecentVideoSelection(.right)
+            case 123 where commandPanel.page.showsRecentCardGrid:
+                _ = movePlaybackCommandPanelRecentCardSelection(.left)
+            case 124 where commandPanel.page.showsRecentCardGrid:
+                _ = movePlaybackCommandPanelRecentCardSelection(.right)
             case 126:
-                if commandPanel.page == .recentVideos {
-                    _ = movePlaybackCommandPanelRecentVideoSelection(.up)
+                if commandPanel.page.showsRecentCardGrid {
+                    _ = movePlaybackCommandPanelRecentCardSelection(.up)
                 } else {
                     _ = movePlaybackCommandPanelSelection(-1)
                 }
             case 125:
-                if commandPanel.page == .recentVideos {
-                    _ = movePlaybackCommandPanelRecentVideoSelection(.down)
+                if commandPanel.page.showsRecentCardGrid {
+                    _ = movePlaybackCommandPanelRecentCardSelection(.down)
                 } else {
                     _ = movePlaybackCommandPanelSelection(1)
                 }
