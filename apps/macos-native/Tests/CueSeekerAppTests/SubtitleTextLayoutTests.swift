@@ -80,18 +80,12 @@ func subtitleTableTextUsesRedesignVisualHierarchy() throws {
         role: .metadata,
         isRedesign: true
     )
-    let metadataMuted = SubtitleTableText.body(
-        "26-07-01 13:51",
-        role: .metadataMuted,
-        isRedesign: true
-    )
     let header = SubtitleTableText.header("Cues", isRedesign: true)
     let sequence = SubtitleTableText.index(37, isRedesign: true)
 
     let primaryFont = try attributedFont(primary)
     let secondaryFont = try attributedFont(secondary)
     let metadataFont = try attributedFont(metadata)
-    let metadataMutedFont = try attributedFont(metadataMuted)
     let headerFont = try attributedFont(header)
 
     #expect(primaryFont.pointSize == WorkbenchControlMetrics.redesignFontSizeTable)
@@ -115,13 +109,11 @@ func subtitleTableTextUsesRedesignVisualHierarchy() throws {
         ofSize: WorkbenchControlMetrics.redesignFontSizeTable,
         weight: .regular
     ).fontDescriptor)
-    #expect(metadataMutedFont.fontDescriptor == metadataFont.fontDescriptor)
 
     #expect(try attributedForeground(primary) === WorkbenchRedesignColors.NS.textPrimary)
     #expect(try attributedForeground(secondary) === WorkbenchRedesignColors.NS.textSecondary)
     #expect(try attributedForeground(metadata) === WorkbenchRedesignColors.NS.textSecondary)
-    #expect(try attributedForeground(metadataMuted) === WorkbenchRedesignColors.NS.textMuted)
-    #expect(try attributedForeground(header) === WorkbenchRedesignColors.NS.textMuted)
+    #expect(try attributedForeground(header) === WorkbenchRedesignColors.NS.textSecondary)
     #expect(sequence.string == "37")
     #expect(try attributedForeground(sequence) === WorkbenchRedesignColors.NS.textMuted)
 }

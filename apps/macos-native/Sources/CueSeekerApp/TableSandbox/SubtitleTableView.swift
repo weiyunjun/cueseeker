@@ -446,7 +446,6 @@ enum SubtitleTableTextRole {
     case primaryContent
     case secondaryContext
     case metadata
-    case metadataMuted
 }
 
 @MainActor
@@ -487,7 +486,7 @@ enum SubtitleTableText {
     static func header(_ text: String, isRedesign: Bool = false) -> NSAttributedString {
         NSAttributedString(string: text, attributes: [
             .font: isRedesign ? redesignHeaderFont : headerFont,
-            .foregroundColor: isRedesign ? WorkbenchRedesignColors.NS.textMuted : NSColor.labelColor,
+            .foregroundColor: isRedesign ? WorkbenchRedesignColors.NS.textSecondary : NSColor.labelColor,
         ])
     }
 
@@ -511,7 +510,7 @@ enum SubtitleTableText {
                 ofSize: WorkbenchControlMetrics.redesignFontSizeTable,
                 weight: .regular
             )
-        case .metadata, .metadataMuted:
+        case .metadata:
             return NSFont.monospacedDigitSystemFont(
                 ofSize: WorkbenchControlMetrics.redesignFontSizeTable,
                 weight: .regular
@@ -526,8 +525,6 @@ enum SubtitleTableText {
             return WorkbenchRedesignColors.NS.textPrimary
         case .secondaryContext, .metadata:
             return WorkbenchRedesignColors.NS.textSecondary
-        case .metadataMuted:
-            return WorkbenchRedesignColors.NS.textMuted
         }
     }
 
@@ -4814,7 +4811,7 @@ struct SubtitleTableView: NSViewRepresentable {
                     text,
                     in: cellRect,
                     trailing: M.trailingInset,
-                    role: .metadataMuted,
+                    role: .metadata,
                     foregroundColor: isUnavailable ? WorkbenchRedesignColors.NS.textMuted : nil,
                     selectedRange: hasTextSelection
                         ? selectedUTF16Range(row: row, columnID: "dateAdded", text: text)
@@ -5000,7 +4997,7 @@ struct SubtitleTableView: NSViewRepresentable {
             let primaryColor = model.cueState.isUnavailable
                 ? WorkbenchRedesignColors.NS.textMuted
                 : WorkbenchRedesignColors.NS.textPrimary
-            let extraColor = WorkbenchRedesignColors.NS.textMuted
+            let extraColor = WorkbenchRedesignColors.NS.textSecondary
             let fragments = cueTextFragments(
                 model: model,
                 in: rect,
@@ -5151,7 +5148,7 @@ struct SubtitleTableView: NSViewRepresentable {
             in rect: CGRect,
             measurement: SubtitleTableRowMeasurement,
             primaryColor: NSColor = WorkbenchRedesignColors.NS.textPrimary,
-            extraColor: NSColor = WorkbenchRedesignColors.NS.textMuted
+            extraColor: NSColor = WorkbenchRedesignColors.NS.textSecondary
         ) -> [SubtitleTableTextFragmentLayout] {
             let extraTexts = showsCueGroup ? model.additionalCueTexts : []
             let textX = rect.minX + SubtitleTableCueGeometry.cellLeadingPadding
@@ -5207,7 +5204,7 @@ struct SubtitleTableView: NSViewRepresentable {
         private func bodyTextRole(for columnID: String) -> SubtitleTableTextRole {
             switch columnID {
             case "dateAdded":
-                return .metadataMuted
+                return .metadata
             case "time":
                 return .metadata
             case "display":
@@ -5505,7 +5502,7 @@ struct SubtitleTableView: NSViewRepresentable {
                     model.dateAdded,
                     cellWidth: dateAddedRect.width,
                     trailing: SubtitleTableMetrics.trailingInset,
-                    role: .metadataMuted
+                    role: .metadata
                 ))
             }
             if showsDisplayTitleColumn {
@@ -7666,7 +7663,7 @@ struct SubtitleTableHeaderCellView: View {
         HStack(spacing: 0) {
             Text(title)
                 .font(.system(size: WorkbenchControlMetrics.redesignFontSizeTableHeader, weight: .medium))
-                .foregroundStyle(isEnabled ? WorkbenchRedesignColors.textMuted : WorkbenchRedesignColors.textDisabled)
+                .foregroundStyle(isEnabled ? WorkbenchRedesignColors.textSecondary : WorkbenchRedesignColors.textDisabled)
                 .lineLimit(1)
                 .padding(.horizontal, WorkbenchControlMetrics.redesignPaddingHeaderTriggerX)
                 .frame(maxHeight: .infinity)
