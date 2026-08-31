@@ -494,7 +494,7 @@ enum SubtitleTableText {
     private static var redesignHeaderFont: NSFont {
         NSFont.systemFont(
             ofSize: WorkbenchControlMetrics.redesignFontSizeTableHeader,
-            weight: .regular
+            weight: .medium
         )
     }
 
@@ -7665,7 +7665,7 @@ struct SubtitleTableHeaderCellView: View {
     var body: some View {
         HStack(spacing: 0) {
             Text(title)
-                .font(.system(size: WorkbenchControlMetrics.redesignFontSizeTableHeader, weight: .regular))
+                .font(.system(size: WorkbenchControlMetrics.redesignFontSizeTableHeader, weight: .medium))
                 .foregroundStyle(isEnabled ? WorkbenchRedesignColors.textMuted : WorkbenchRedesignColors.textDisabled)
                 .lineLimit(1)
                 .padding(.horizontal, WorkbenchControlMetrics.redesignPaddingHeaderTriggerX)
