@@ -33,7 +33,6 @@
 "sidebar.recent_shioris" = "最近 Shiori";
 "sidebar.library" = "媒體庫";
 "sidebar.shiori" = "Shiori";
-"sidebar.data" = "資料";
 "sidebar.settings" = "設定";
 "sidebar.collapse" = "收合";
 "sidebar.expand" = "展開";
@@ -360,12 +359,13 @@
 "settings.developer.docs" = "文件 %@";
 "settings.developer.occ" = "出現 %@";
 
-/* Data page */
-"data.title" = "資料";
-"data.empty" = "沒有已索引的內容。";
-"data.toggle" = "展開/收合";
-"data.expanded" = "已展開";
-"data.collapsed" = "已收合";
+/* Library file tree */
+"library.segment.video" = "影片";
+"library.segment.file" = "檔案";
+"library.file.empty" = "沒有已索引的內容。";
+"library.file.toggle" = "展開/收合";
+"library.file.expanded" = "已展開";
+"library.file.collapsed" = "已收合";
 
 /* Export */
 "export.anki_package" = "匯出 Anki 套件";

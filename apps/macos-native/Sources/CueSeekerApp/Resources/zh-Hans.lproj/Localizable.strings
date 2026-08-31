@@ -33,7 +33,6 @@
 "sidebar.recent_shioris" = "最近 Shiori";
 "sidebar.library" = "媒体库";
 "sidebar.shiori" = "Shiori";
-"sidebar.data" = "数据";
 "sidebar.settings" = "设置";
 "sidebar.collapse" = "折叠";
 "sidebar.expand" = "展开";
@@ -360,12 +359,13 @@
 "settings.developer.docs" = "文档 %@";
 "settings.developer.occ" = "出现 %@";
 
-/* Data page */
-"data.title" = "数据";
-"data.empty" = "没有已索引的内容。";
-"data.toggle" = "展开/折叠";
-"data.expanded" = "已展开";
-"data.collapsed" = "已折叠";
+/* Library file tree */
+"library.segment.video" = "视频";
+"library.segment.file" = "文件";
+"library.file.empty" = "没有已索引的内容。";
+"library.file.toggle" = "展开/折叠";
+"library.file.expanded" = "已展开";
+"library.file.collapsed" = "已折叠";
 
 /* Export */
 "export.anki_package" = "导出 Anki 包";

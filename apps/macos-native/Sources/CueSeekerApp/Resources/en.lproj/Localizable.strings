@@ -33,7 +33,6 @@
 "sidebar.recent_shioris" = "Recent Shioris";
 "sidebar.library" = "Library";
 "sidebar.shiori" = "Shiori";
-"sidebar.data" = "Data";
 "sidebar.settings" = "Settings";
 "sidebar.collapse" = "Collapse";
 "sidebar.expand" = "Expand";
@@ -360,12 +359,13 @@
 "settings.developer.docs" = "docs %@";
 "settings.developer.occ" = "occ %@";
 
-/* Data page */
-"data.title" = "Data";
-"data.empty" = "No indexed content.";
-"data.toggle" = "Toggle";
-"data.expanded" = "Expanded";
-"data.collapsed" = "Collapsed";
+/* Library file tree */
+"library.segment.video" = "Video";
+"library.segment.file" = "File";
+"library.file.empty" = "No indexed content.";
+"library.file.toggle" = "Toggle";
+"library.file.expanded" = "Expanded";
+"library.file.collapsed" = "Collapsed";
 
 /* Export */
 "export.anki_package" = "Export Anki Package";

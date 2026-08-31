@@ -20,6 +20,11 @@ final class LibraryStore: ObservableObject {
     @Published var completeLibraryFolderDetailStatusesByPath:
         [String: LibraryStatus] = [:]
     @Published var completeLibraryRevision = 0
+    @Published var fileTreeStatus: LibraryStatus = .idle
+    @Published var fileTreeRoots: [IndexedContentRoot] = []
+    /// The `completeLibraryRevision` the tree above was read at, so the File
+    /// segment can tell a current tree from one the library has outgrown.
+    var fileTreeLoadedRevision: Int?
     @Published var libraryPlaybackHistoryRevision = 0
     @Published var selectedLibraryVideo: LibraryVideo?
     @Published var coverEditingSession: LibraryCoverEditingSession?

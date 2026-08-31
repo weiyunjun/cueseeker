@@ -70,9 +70,18 @@ struct TaskPanel: View {
 
     private var header: some View {
         ZStack {
-            TaskPanelTabBar(
-                selectedTab: $tasks.selectedTab
-            )
+            WorkbenchTabs(
+                items: TaskQueueTab.allCases.map {
+                    .init(
+                        value: $0,
+                        label: $0.label,
+                        accessibilityIdentifier: "task-tab-\($0.rawValue)"
+                    )
+                },
+                selection: tasks.selectedTab
+            ) { tab in
+                tasks.selectedTab = tab
+            }
 
             HStack(spacing: 0) {
                 Spacer(minLength: 0)
@@ -173,51 +182,6 @@ struct TaskPanel: View {
                 pendingConfirmation = nil
             }
         )
-    }
-}
-
-/// The panel's three tabs. The Playback Overlay's Current / Playlist tabs —
-/// label over a selection indicator — in the same colours, so the two segment
-/// controls in the App cannot read as different things.
-private struct TaskPanelTabBar: View {
-    @Binding var selectedTab: TaskQueueTab
-
-    var body: some View {
-        HStack(spacing: PlaybackOverlayMetrics.tabGap) {
-            ForEach(TaskQueueTab.allCases) { tab in
-                Button {
-                    selectedTab = tab
-                } label: {
-                    VStack(spacing: PlaybackOverlayMetrics.tabIndicatorGap) {
-                        Text(tab.label)
-                            .font(.system(
-                                size: PlaybackOverlayMetrics.tabFontSize,
-                                weight: selectedTab == tab ? .semibold : .regular
-                            ))
-                            .lineLimit(1)
-
-                        Capsule()
-                            .fill(PlaybackTheme.playbackModuleSidebarSelected)
-                            .frame(
-                                width: PlaybackOverlayMetrics.tabIndicatorWidth,
-                                height: PlaybackOverlayMetrics.tabIndicatorHeight
-                            )
-                            .opacity(selectedTab == tab ? 1 : 0)
-                    }
-                    .foregroundStyle(
-                        selectedTab == tab
-                            ? PlaybackTheme.playbackModuleSidebarSelected
-                            : PlaybackTheme.playbackModuleSidebarUnselected
-                    )
-                    .padding(.horizontal, PlaybackOverlayMetrics.tabHorizontalPadding)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(StaticButtonStyle())
-                .focusable(false)
-                .accessibilityLabel(tab.label)
-                .accessibilityIdentifier("task-tab-\(tab.rawValue)")
-            }
-        }
     }
 }
 

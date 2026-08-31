@@ -40,6 +40,7 @@ public final class IndexedContentDatabase: @unchecked Sendable {
             roots[rootIndex].folders.append(FolderBuilder(
                 id: videoLocation.folderID,
                 relativePath: videoLocation.relativePath,
+                folderPath: libraryFolder.folderPath,
                 objects: libraryFolder.videos.map { video in
                     ObjectBuilder(
                         id: video.videoFileID,
@@ -166,12 +167,14 @@ private struct RootBuilder {
 private struct FolderBuilder {
     let id: Int64
     let relativePath: String
+    let folderPath: String
     var objects: [ObjectBuilder]
 
     var snapshot: IndexedContentFolder {
         IndexedContentFolder(
             id: id,
             relativePath: relativePath,
+            folderPath: folderPath,
             objects: objects.map(\.snapshot)
         )
     }

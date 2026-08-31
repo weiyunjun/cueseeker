@@ -226,6 +226,9 @@ struct WorkbenchTestLibraryView: View {
     @StateObject private var highlight = CardHighlightModel(
         keepsCurrentWhenPointerLeaves: false
     )
+    /// The two interfaces pick their segment separately: moving between them
+    /// starts again on Video.
+    @State private var segment: LibraryContentSegment = .video
 
     var body: some View {
         Group {
@@ -262,7 +265,23 @@ struct WorkbenchTestLibraryView: View {
                     actionTitle: L("settings.library.add_folder"),
                     action: openLibrarySettings
                 ) {
-                    completeLibraryContent
+                    VStack(
+                        alignment: .leading,
+                        spacing: WorkbenchTestLibraryMetrics.sectionSpacing
+                    ) {
+                        segmentTabs
+
+                        switch segment {
+                        case .video:
+                            completeLibraryContent
+                        case .file:
+                            fileTreeContent(
+                                scope: library.fileTreeRoots.isEmpty
+                                    ? nil
+                                    : .roots(library.fileTreeRoots)
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -270,6 +289,7 @@ struct WorkbenchTestLibraryView: View {
         .cardHighlightFreeze(highlight)
         .onChange(of: routeState.selectedTestLibraryFolder) { _ in
             highlight.reset()
+            segment = .video
         }
         .task {
             appState.hydrateCompleteLibraryAsync()
@@ -329,18 +349,34 @@ struct WorkbenchTestLibraryView: View {
             ) {
                 folderCoverSummary(folder: folder, detail: folderDetail)
 
-                CompleteLibraryEpisodeGrid(
-                    folderTitle: folderDetail.folderTitle,
-                    videos: folderDetail.videos,
-                    highlight: highlight,
-                    onOpen: { video in
-                        appState.prepareLibraryNavigationVideos(folderDetail.videos)
-                        appState.openLibraryVideo(
-                            video.libraryVideo,
-                            displayTitle: video.displayTitle
+                VStack(
+                    alignment: .leading,
+                    spacing: WorkbenchTestLibraryMetrics.sectionSpacing
+                ) {
+                    segmentTabs
+
+                    switch segment {
+                    case .video:
+                        CompleteLibraryEpisodeGrid(
+                            folderTitle: folderDetail.folderTitle,
+                            videos: folderDetail.videos,
+                            highlight: highlight,
+                            onOpen: { video in
+                                appState.prepareLibraryNavigationVideos(folderDetail.videos)
+                                appState.openLibraryVideo(
+                                    video.libraryVideo,
+                                    displayTitle: video.displayTitle
+                                )
+                            }
+                        )
+                    case .file:
+                        fileTreeContent(
+                            scope: fileTreeFolder(
+                                folderPath: folderDetail.folderPath
+                            ).map { .folder($0) }
                         )
                     }
-                )
+                }
             }
         } else {
             LibraryEmptyHint {
@@ -348,6 +384,52 @@ struct WorkbenchTestLibraryView: View {
                     .controlSize(.small)
             }
         }
+    }
+
+    private var segmentTabs: some View {
+        WorkbenchTabs(
+            items: LibraryContentSegment.allCases.map {
+                .init(
+                    value: $0,
+                    label: $0.label,
+                    accessibilityIdentifier: "library-segment-\($0.rawValue)"
+                )
+            },
+            selection: segment,
+            isLeadingEdgeAligned: true
+        ) { selected in
+            segment = selected
+        }
+    }
+
+    @ViewBuilder
+    private func fileTreeContent(scope: LibraryFileTree.Scope?) -> some View {
+        Group {
+            if case .loading = library.fileTreeStatus, library.fileTreeRoots.isEmpty {
+                LibraryEmptyHint {
+                    ProgressView()
+                        .controlSize(.small)
+                }
+            } else if case .failed(let message) = library.fileTreeStatus {
+                LibraryEmptyHint(message)
+            } else if let scope {
+                LibraryFileTree(scope: scope)
+            } else {
+                LibraryEmptyHint(L("library.file.empty"))
+            }
+        }
+        .task(id: library.completeLibraryRevision) {
+            appState.hydrateLibraryFileTreeAsync()
+        }
+    }
+
+    /// The folder cards and the file tree group by the same folder path, so a
+    /// detail can show its own subtree without reading the database again.
+    private func fileTreeFolder(folderPath: String) -> IndexedContentFolder? {
+        library.fileTreeRoots
+            .lazy
+            .flatMap(\.folders)
+            .first { $0.folderPath == folderPath }
     }
 
     private func folderCoverSummary(
@@ -485,6 +567,20 @@ private extension WorkbenchTestLibraryView {
         return library.completeLibraryFolderDetailStatusesByPath[
             selectedFolder.folderPath
         ] ?? .idle
+    }
+}
+
+enum LibraryContentSegment: String, CaseIterable {
+    case video
+    case file
+
+    var label: String {
+        switch self {
+        case .video:
+            L("library.segment.video")
+        case .file:
+            L("library.segment.file")
+        }
     }
 }
 

@@ -13,6 +13,7 @@ public struct IndexedContentRoot: Identifiable, Equatable, Sendable {
 public struct IndexedContentFolder: Identifiable, Equatable, Sendable {
     public let id: Int64
     public let relativePath: String
+    public let folderPath: String
     public let objects: [IndexedContentObject]
 
     public var displayPath: String {

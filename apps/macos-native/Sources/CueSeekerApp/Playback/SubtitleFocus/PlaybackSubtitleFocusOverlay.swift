@@ -265,45 +265,17 @@ private struct PlaybackOverlayTopBar: View {
                 .accessibilityElement(children: .combine)
                 .accessibilityIdentifier("playback-collage-editor-title")
             } else {
-                HStack(spacing: PlaybackOverlayMetrics.tabGap) {
-                    ForEach(modules, id: \.self) { module in
-                        Button {
-                            _ = onSelect(module)
-                        } label: {
-                            VStack(spacing: PlaybackOverlayMetrics.tabIndicatorGap) {
-                                Text(module.label)
-                                    .font(.system(
-                                        size: PlaybackOverlayMetrics.tabFontSize,
-                                        weight: selectedModule == module
-                                            ? .semibold
-                                            : .regular
-                                    ))
-                                    .lineLimit(1)
-
-                                Capsule()
-                                    .fill(PlaybackTheme.playbackModuleSidebarSelected)
-                                    .frame(
-                                        width: PlaybackOverlayMetrics.tabIndicatorWidth,
-                                        height: PlaybackOverlayMetrics.tabIndicatorHeight
-                                    )
-                                    .opacity(selectedModule == module ? 1 : 0)
-                            }
-                            .foregroundStyle(
-                                selectedModule == module
-                                    ? PlaybackTheme.playbackModuleSidebarSelected
-                                    : PlaybackTheme.playbackModuleSidebarUnselected
-                            )
-                            .padding(
-                                .horizontal,
-                                PlaybackOverlayMetrics.tabHorizontalPadding
-                            )
-                            .contentShape(Rectangle())
-                        }
-                        .buttonStyle(StaticButtonStyle())
-                        .focusable(false)
-                        .accessibilityLabel(module.label)
-                        .accessibilityIdentifier("playback-view-\(module.rawValue)")
-                    }
+                WorkbenchTabs(
+                    items: modules.map {
+                        .init(
+                            value: $0,
+                            label: $0.label,
+                            accessibilityIdentifier: "playback-view-\($0.rawValue)"
+                        )
+                    },
+                    selection: selectedModule
+                ) { module in
+                    _ = onSelect(module)
                 }
             }
 
