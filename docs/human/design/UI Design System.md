@@ -78,6 +78,11 @@
 - `--color-danger-text`: Light `#B42318`; Dark `#FCA5A5`
 - `--color-danger-bg-hover`: Light `#FEF3F2`; Dark `#3A1717`
 
+### Tab
+
+- `--color-tab-selected`: Light `#111827`; Dark `rgba(255,255,255,0.94)`
+- `--color-tab-unselected`: Light `#667085`; Dark `rgba(255,255,255,0.34)`
+
 ### Table
 
 - `--color-row-hover`: Light `#F9FAFB`; Dark `#202024`
@@ -153,8 +158,6 @@
 - `--color-playback-cue-timeline-focused`: Light `#667085`; Dark `#71717A`
 - `--color-playback-cue-timeline-muted`: Light `#D0D5DD`; Dark `#52525B`
 - `--color-playback-cue-metadata`: Light `#667085`; Dark `#A1A1AA`
-- `--color-playback-module-sidebar-selected`: Light `#111827`; Dark `rgba(255,255,255,0.94)`
-- `--color-playback-module-sidebar-unselected`: Light `#667085`; Dark `rgba(255,255,255,0.34)`
 
 ## 1.2 字体与文本
 
@@ -1364,11 +1367,11 @@
 ##### States
 
 - Unselected
-  - Label Color：`--color-playback-module-sidebar-unselected`
+  - Label Color：`--color-tab-unselected`
 - Hover
 - Selected
-  - Label Color：`--color-playback-module-sidebar-selected`
-  - Indicator Color：`--color-playback-module-sidebar-selected`
+  - Label Color：`--color-tab-selected`
+  - Indicator Color：`--color-tab-selected`
 - Focused
 - Disabled
   - Label Color：`--color-text-disabled`
@@ -2805,7 +2808,6 @@
 - Search
 - Recent
 - Library
-- Data
 - Shiori
 - Recent Videos
 - Recent Shioris
@@ -3028,21 +3030,30 @@
 #### Structure
 
 1. Summary Row
-2. Adaptive Folder Card Grid
+2. Tabs：`Video`、`File`
+3. Video：Adaptive Folder Card Grid
+4. File：Library File Tree Layout / Roots
 
 #### Components
 
 - Section Title
 - Button / Primary
+- Tabs
+- Tab
 - Library Folder Card Layout
+- Library File Tree Layout
 
 #### Layout
 
 - Page Layout：Workbench Titled Page Layout
+- Tabs 左对齐，首个标签与页面内容左边界对齐。
+- 默认 Tab：Video。
+- Summary Row 与 Button / Primary 在两个 Tab 下都显示。
 
 #### Sizes
 
-- Summary to Grid Gap：`--spacing-4`
+- Summary to Tabs Gap：`--spacing-4`
+- Tabs to Content Gap：`--spacing-4`
 - Summary Height：`--height-control`
 - Summary Item Gap：`--spacing-3`
 - Card Width：`--width-library-recent-card-min` to `--width-library-recent-card-max`
@@ -3077,25 +3088,34 @@
 #### Structure
 
 1. Cover Summary
-2. Episode Grid
+2. Tabs：`Video`、`File`
+3. Video：Episode Grid
+4. File：Library File Tree Layout / Folder
 
 #### Components
 
 - Cover Summary / Library Variant
+- Tabs
+- Tab
 - Library Episode Grid Layout
+- Library File Tree Layout
 
 #### Layout
 
 - Content Page Padding Inline 与 Shiori List Detail 相同。
 - Cover Summary 与 Episode Grid 使用相同宽度和水平边界。
 - Cover Summary 宽度跟随页面可用宽度变化，并在 Split Form 与 Backdrop Form 之间切换。
+- Tabs 左对齐，首个标签与页面内容左边界对齐。
+- 默认 Tab：Video。
+- Cover Summary 在两个 Tab 下都显示。
 
 #### Spacing
 
 - Content Page Padding Inline：`--spacing-8`
 - Content Page Padding Top：`--spacing-1`
 - Content Page Padding Bottom：`--spacing-6`
-- Cover Summary to Episode Grid Gap：`--spacing-6`
+- Cover Summary to Tabs Gap：`--spacing-6`
+- Tabs to Content Gap：`--spacing-4`
 
 #### Scrolling
 
@@ -3118,6 +3138,58 @@
 
 - Card Width：`--width-library-recent-card-min` to `--width-library-recent-card-max`
 - Grid Gap：`--gap-library-recent-grid`
+
+### Library File Tree Layout
+
+#### Structure / Roots
+
+1. Root Path
+   1. Object Folder
+      1. Display Title Object
+         1. Video File
+         2. Subtitle Files
+
+#### Structure / Folder
+
+1. Object Folder
+   1. Display Title Object
+      1. Video File
+      2. Subtitle Files
+
+#### Labels
+
+- Root Path：Complete Path Without Leading or Trailing `/`
+- Object Folder：Path Relative to Root Without Leading `/`
+- All Labels：Complete Display / Character Wrapping / No Truncation
+
+#### Rows
+
+- Minimum Height：`--height-control`
+- Padding Block：`--spacing-2`
+- Hierarchy Indent：`--spacing-6`
+- Anatomy：Disclosure Slot + `--spacing-2` + Icon + `--spacing-2` + Label
+- Disclosure Slot / Icon Size：`--size-control-icon`
+- Disclosure Slot：Reserved For Every Row
+- Root Path / Object Folder / Display Title：`--font-size-body` / `--font-weight-control` / `--color-text-primary`
+- Video / Subtitle：`--font-size-body` / Regular / `--color-text-secondary`
+- Multiline Alignment：Disclosure and Icon align with Label first line
+
+#### Icons
+
+- Root Path / Object Folder：Folder
+- Display Title：`rectangle.stack`
+- Video：Video
+- Subtitle：Subtitle
+
+#### States
+
+- Default / Roots：Root Paths Expanded / Object Folders Collapsed
+- Default / Folder：Object Folder Expanded / Display Title Objects Collapsed
+- Display Title / Video / Subtitle：Independent Row Hover using `--color-row-hover`
+- Root Path / Object Folder Hover：None
+- Object Divider：Between Display Title Objects / Starts At File Icon Column / `--color-border-divider`
+- Inside Object Divider：None
+- 展开状态与 Tab 选择不跨界面保留：进入或离开 Library Folder Detail Layout、离开 Library 页面后都回到默认。
 
 ## 3.5 Search and Shiori
 
@@ -3987,60 +4059,3 @@
 - Empty
 - Scrolling
 - Settling
-
-## 3.10 Data
-
-### Data Tree Layout
-
-#### Entry
-
-- Sidebar Position：Between Library and Shiori
-- Sidebar Icon：`cylinder.split.1x2`
-- Page Layout：Workbench Titled Page Layout
-- Page Title：Data
-
-#### Structure
-
-1. Root Path
-   1. Object Folder
-      1. Display Title Object
-         1. Video File
-         2. Subtitle Files
-
-#### Labels
-
-- Root Path：Complete Path Without Leading or Trailing `/`
-- Object Folder：Path Relative to Root Without Leading `/`
-- All Labels：Complete Display / Character Wrapping / No Truncation
-
-#### Rows
-
-- Minimum Height：`--height-control`
-- Padding Block：`--spacing-2`
-- Hierarchy Indent：`--spacing-6`
-- Anatomy：Disclosure Slot + `--spacing-2` + Icon + `--spacing-2` + Label
-- Disclosure Slot / Icon Size：`--size-control-icon`
-- Disclosure Slot：Reserved For Every Row
-- Root Path / Object Folder / Display Title：`--font-size-body` / `--font-weight-control` / `--color-text-primary`
-- Video / Subtitle：`--font-size-body` / Regular / `--color-text-secondary`
-- Multiline Alignment：Disclosure and Icon align with Label first line
-
-#### Icons
-
-- Root Path / Object Folder：Folder
-- Display Title：`rectangle.stack`
-- Video：Video
-- Subtitle：Subtitle
-
-#### States
-
-- Default：Root Paths Expanded / Object Folders Collapsed
-- Display Title / Video / Subtitle：Independent Row Hover using `--color-row-hover`
-- Root Path / Object Folder Hover：None
-- Object Divider：Between Display Title Objects / Starts At File Icon Column / `--color-border-divider`
-- Inside Object Divider：None
-
-#### Scrolling
-
-- Direction：Vertical Only
-- Vertical Scrollbar：Page Viewport Trailing Edge
