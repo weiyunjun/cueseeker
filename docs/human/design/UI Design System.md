@@ -1415,7 +1415,7 @@
   - Font Family：`--font-family-base`
   - Font Size：`--font-size-table-header`
   - Font Weight：Medium
-  - Color：`--color-text-muted`
+  - Color：`--color-text-secondary`
 - Leading Slot
   - Presence：Optional
 - Trailing Slot
@@ -1500,9 +1500,7 @@
 - Font Family：`--font-family-base`
 - Font Size：`--font-size-table`
 - Font Weight：Regular
-- Color
-  - Display Title、Time Range：`--color-text-secondary`
-  - Date Added：`--color-text-muted`
+- Color：`--color-text-secondary`
 - Selection：Enabled
 
 ##### Index Text
@@ -1523,7 +1521,7 @@
 - Cue Group 附加字幕
   - Font Size：`--font-size-caption`
   - Font Weight：Regular
-  - Color：`--color-text-muted`
+  - Color：`--color-text-secondary`
 - Hover Region
   - Padding Inline：`--padding-table-cell-hover-x`
   - Padding Block：`--padding-table-cell-hover-y`
