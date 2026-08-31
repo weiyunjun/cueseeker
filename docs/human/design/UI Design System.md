@@ -2977,16 +2977,17 @@
 #### Structure
 
 1. Section Header
-2. Recent Shiori Resume Row List
+2. Shiori List Card Grid
 
 #### Components
 
 - Recent Section Header Layout
-- Recent Shiori Resume Row Layout
+- Shiori List Card Layout
 
-#### Spacing
+#### Sizes
 
-- Row Gap：`--spacing-3`
+- Card Width：`--width-library-recent-card-min` to `--width-library-recent-card-max`
+- Grid Gap：`--gap-library-recent-grid`
 
 ### Recent Watching Card Layout
 
@@ -3012,32 +3013,6 @@
 #### Sizes
 
 - Width：`--width-library-recent-card-min` to `--width-library-recent-card-max`
-- Content Gap：`--spacing-2`
-
-#### States
-
-- Default
-- Selected
-- Disabled
-
-### Recent Shiori Resume Row Layout
-
-#### Structure
-
-1. Cover Region
-2. Content Region
-   1. List Name
-   2. Description
-   3. Resume Position
-   4. Recent Cue
-
-#### Components
-
-- Cover
-
-#### Spacing
-
-- Region Gap：`--spacing-3`
 - Content Gap：`--spacing-2`
 
 #### States
@@ -3188,15 +3163,24 @@
 - Media Card
 - Cover
 - Information Badge / Cover Badge
+- Menu / Context Menu
 
 #### Sizes
 
 - Width：`--width-library-recent-card-min` to `--width-library-recent-card-max`
 - Content Gap：`--spacing-2`
 
+#### Context Menu
+
+1. `Edit List`
+2. `Delete List`
+
+只有一个 Shiori List 时 `Delete List` 为 Disabled。
+
 #### States
 
 - Default
+- Selected
 - Disabled
 
 ### Shiori List Detail Layout
@@ -3973,7 +3957,7 @@
 - Recent Videos
   - Content：Recent Watching Card Grid
 - Recent Shioris
-  - Content：Recent Shiori Resume Row List
+  - Content：Shiori List Card Grid
 - Search Results
   - Content：Command Panel Search Results Layout
 
