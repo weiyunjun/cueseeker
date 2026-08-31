@@ -1413,7 +1413,7 @@
 - Label
   - Font Family：`--font-family-base`
   - Font Size：`--font-size-table-header`
-  - Font Weight：Regular
+  - Font Weight：Medium
   - Color：`--color-text-muted`
 - Leading Slot
   - Presence：Optional
