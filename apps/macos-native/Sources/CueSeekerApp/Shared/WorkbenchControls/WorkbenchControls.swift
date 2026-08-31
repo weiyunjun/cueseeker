@@ -1074,14 +1074,14 @@ struct WorkbenchPopoverRow: View {
         guard isEnabled else { return WorkbenchRedesignColors.textDisabled }
         return isDestructive
             ? WorkbenchRedesignColors.dangerText
-            : WorkbenchRedesignColors.textSecondary
+            : WorkbenchRedesignColors.textPrimary
     }
 
     private var iconColor: Color {
         guard isEnabled else { return WorkbenchRedesignColors.iconDisabled }
         return isDestructive
             ? WorkbenchRedesignColors.dangerText
-            : WorkbenchRedesignColors.textSecondary
+            : WorkbenchRedesignColors.textPrimary
     }
 }
 

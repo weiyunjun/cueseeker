@@ -208,7 +208,10 @@ struct CueFacetFilterMenu: View {
         case .sectionHeader(let title, let systemImage):
             HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
                 Image(systemName: systemImage)
-                    .font(.system(size: WorkbenchControlMetrics.redesignCheckboxSize))
+                    .font(.system(
+                        size: WorkbenchControlMetrics.redesignCheckboxSize,
+                        weight: .medium
+                    ))
                     .foregroundStyle(WorkbenchRedesignColors.textSecondary)
                     .frame(
                         width: WorkbenchControlMetrics.redesignCheckboxSize,
@@ -218,7 +221,7 @@ struct CueFacetFilterMenu: View {
                 Text(title)
                     .font(.system(
                         size: WorkbenchControlMetrics.redesignFontSizeControl,
-                        weight: .semibold
+                        weight: .medium
                     ))
                     .foregroundStyle(WorkbenchRedesignColors.textSecondary)
                     .fixedSize(horizontal: true, vertical: false)
@@ -251,7 +254,7 @@ struct CueFacetFilterMenu: View {
 
                 Text(option.title)
                     .font(.system(size: WorkbenchControlMetrics.redesignFontSizeBody))
-                    .foregroundStyle(WorkbenchRedesignColors.textSecondary)
+                    .foregroundStyle(WorkbenchRedesignColors.textPrimary)
                     .lineLimit(1)
                     .fixedSize(horizontal: true, vertical: false)
 
@@ -263,7 +266,7 @@ struct CueFacetFilterMenu: View {
                         : String(option.count)
                 )
                 .font(.system(size: WorkbenchControlMetrics.redesignFontSizeCaption))
-                .foregroundStyle(WorkbenchRedesignColors.textMuted)
+                .foregroundStyle(WorkbenchRedesignColors.textSecondary)
                 .lineLimit(1)
             }
             .padding(
