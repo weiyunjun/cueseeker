@@ -73,8 +73,8 @@ gone, along with the `data.*` strings; the tree strings came back as
 no longer resolves and falls back to Search, so no migration was needed. The
 indexed-content query stays where it was — it is what the File segment reads.
 
-`Data/DataView.swift` is now unreferenced. The AI does not delete files, so it is
-left in the tree for the owner to remove; nothing builds or runs it.
+`Data/DataView.swift` became unreferenced and the owner removed it, along with the
+`Data` directory.
 
 Files: `App/WorkbenchLayoutState.swift`, `Workbench/ContentView.swift`,
 `Search/SearchView.swift`, `App/AppCoordinator+Playback.swift`,
