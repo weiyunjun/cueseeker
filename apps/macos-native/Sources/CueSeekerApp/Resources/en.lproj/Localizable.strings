@@ -34,8 +34,6 @@
 "sidebar.library" = "Library";
 "sidebar.shiori" = "Shiori";
 "sidebar.settings" = "Settings";
-"sidebar.collapse" = "Collapse";
-"sidebar.expand" = "Expand";
 
 /* Info page states */
 "info.search_no_query.title" = "No Search Query";

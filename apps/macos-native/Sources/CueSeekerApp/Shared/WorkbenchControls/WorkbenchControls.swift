@@ -166,8 +166,6 @@ enum WorkbenchControlMetrics {
     static let redesignSettingsWindowMinimumHeight: CGFloat = 420
     /// --size-app-sidebar-item-icon: 18px
     static let redesignAppSidebarItemIconSize: CGFloat = 18
-    /// --size-app-sidebar-item-chevron: 10px
-    static let redesignAppSidebarItemChevronSize: CGFloat = 10
     /// --width-interactive-text-underline: 1px
     static let redesignInteractiveTextUnderlineThickness: CGFloat = 1
     /// --offset-interactive-text-underline: 2px

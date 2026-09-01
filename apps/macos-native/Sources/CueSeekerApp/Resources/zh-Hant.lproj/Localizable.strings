@@ -34,8 +34,6 @@
 "sidebar.library" = "媒體庫";
 "sidebar.shiori" = "Shiori";
 "sidebar.settings" = "設定";
-"sidebar.collapse" = "收合";
-"sidebar.expand" = "展開";
 
 /* Info page states */
 "info.search_no_query.title" = "未輸入搜尋字詞";
