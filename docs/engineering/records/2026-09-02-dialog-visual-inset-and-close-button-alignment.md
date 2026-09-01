@@ -31,7 +31,7 @@ title and its body.
 
 New metrics, each recorded next to the constant it derives from:
 
-- `--inset-dialog` = `20`, the one visual inset every dialog edge keeps.
+- `--inset-dialog` = `24`, the one visual inset every dialog edge keeps.
 - `--size-dialog-close-button` = `24`, the close button's own box, replacing the
   shared `--size-icon-button` so the focus ring stays in proportion to the
   smaller glyph. The hit area stays at or above the 24-point accessibility floor.
@@ -44,7 +44,7 @@ New metrics, each recorded next to the constant it derives from:
   ascender, descender, cap height and default line height rather than written
   down as a number, so a change of title size or weight recomputes it instead of
   silently breaking the inset. It resolves to 4.967 for the 20pt semibold title.
-- `redesignDialogTopPadding` = `--inset-dialog` minus that give-back, 15.033.
+- `redesignDialogTopPadding` = `--inset-dialog` minus that give-back, 19.033.
 
 `WorkbenchIconButton` gained an optional `boxSize` beside its existing optional
 `iconSize`; every other instance keeps `--size-icon-button`.
@@ -78,33 +78,34 @@ device pixels and converted to points; the dialog's frame edge is taken as the
 outermost border pixel, and the title and body figures convert measured ink to
 the text box and the cap line using the font's own bearing and cap metrics.
 
-Confirmation (Delete List), frame measured at exactly `360.0 x 178.0`:
+Confirmation (Delete List), frame measured at exactly `360.0 x 186.0`:
 
 | Distance | Measured |
 | --- | --- |
-| Title text box → left edge | 20.00 |
-| Body text box → left edge | 20.00 |
-| Rightmost button → right edge | 20.00 |
-| Bottom button → bottom edge | 20.00 |
-| Close glyph → right edge | 20.00 |
-| Title cap line → top edge | 20.22 |
-| Close glyph → top edge | 20.00 |
+| Title text box → left edge | 24.00 |
+| Body text box → left edge | 24.00 |
+| Rightmost button → right edge | 24.00 |
+| Bottom button → bottom edge | 24.00 |
+| Close glyph → right edge | 24.00 |
+| Title cap line → top edge | 24.22 |
+| Close glyph → top edge | 24.00 |
 
 The spread across the set is 0.22 points, inside the requirement's one-point
 band. The close glyph measures 9.50 x 9.50, matching the ink the offsets were
 built from.
 
-Shiori List Editor, frame `792.0 x 382.0`: title text box 20.00, title cap line
-20.22, close glyph right 20.00 and top 20.50, rightmost button 20.00, bottom
-button 20.00.
+Shiori List Editor, frame `792.0 x 390.0`: title text box 24.00, title cap line
+24.22, close glyph right 24.00 and top 24.50, rightmost button 24.00, bottom
+button 24.00.
 
-Edit Cover, frame `760.0 x 600.0`: title text box 20.00, title cap line 20.22,
-close glyph right 20.00 and top 20.50, rightmost button 20.00, bottom button
-20.00.
+Edit Cover, frame `760.0 x 600.0`: title text box 24.00, title cap line 24.22,
+close glyph right 24.00 and top 24.50, rightmost button 24.00, bottom button
+24.00.
 
 Task panel: close glyph 9.50 x 9.50 with its right edge 15.50 from the panel's
 right edge, against the tab bar's unchanged 16-point inset; its vertical
 position in the tab bar is unchanged because the box still centres in the row.
+The inset does not reach it, so raising the inset left these figures untouched.
 
 Not verified in the running App:
 

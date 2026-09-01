@@ -60,11 +60,11 @@ enum WorkbenchControlMetrics {
     /// The slack the close button's box keeps around its glyph on each side.
     static let redesignDialogCloseBoxSlack: CGFloat =
         (redesignDialogCloseButtonSize - redesignDialogCloseGlyphInk) / 2
-    /// --inset-dialog: 20px. Every dialog edge keeps the same visual inset,
+    /// --inset-dialog: 24px. Every dialog edge keeps the same visual inset,
     /// measured to what is visible: the text box for a text's horizontal edge,
     /// the cap line for the title's top, the visible border for a control, and
     /// the glyph ink for an icon button.
-    static let redesignDialogInset: CGFloat = 20
+    static let redesignDialogInset: CGFloat = 24
     /// Dialog title type. The cap-line give-back below is derived from it, so
     /// the two must stay together.
     static let redesignDialogTitleFontSize: CGFloat = 20
