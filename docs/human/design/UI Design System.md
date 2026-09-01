@@ -261,7 +261,6 @@
 - `--width-page-scrollbar-channel`: `16px`
 - `--width-app-sidebar`: `240px`
 - `--size-app-sidebar-item-icon`: `18px`
-- `--size-app-sidebar-item-chevron`: `10px`
 - `--size-task-count-badge`: `16px`
 - `--size-player-circle-button`: `40px`
 - `--size-player-circle-button-icon`: `18px`
@@ -1291,10 +1290,6 @@
 - Label
   - Font Family：`--font-family-base`
   - Font Size：`--font-size-app-sidebar-item`
-- Trailing Indicator
-  - Presence：Optional
-  - Size：`--size-app-sidebar-item-chevron`
-  - Color：`--color-text-secondary`
 - Content Gap：`--spacing-3`
 
 ##### Sizes
@@ -1310,10 +1305,7 @@
   - Background：`--color-app-sidebar-item-selected-bg`
   - Label Color：`--color-app-sidebar-item-selected-content`
   - Icon Color：`--color-app-sidebar-item-selected-content`
-  - Trailing Indicator Color：`--color-app-sidebar-item-selected-content`
   - Selection Scope：Current Item Only
-- Expanded
-- Collapsed
 - Disabled
   - Label Color：`--color-text-disabled`
   - Icon Color：`--color-icon-disabled`
@@ -1323,12 +1315,11 @@
 ##### Primary
 
 - Leading Icon：Required
-- Trailing Indicator：Optional
 
 ##### Child
 
-- Leading Icon：None
-- Indentation：Required
+- Leading Icon：Required
+- Indentation：Leading Icon 与 Primary 的 Label 左对齐
 
 ##### Action
 
@@ -2756,7 +2747,6 @@
 - Sidebar Item / Primary
 - Sidebar Item / Child
 - Sidebar Item / Action
-- Scrollbar / Vertical
 
 #### Sizes
 
@@ -2770,7 +2760,6 @@
 - Expanded
 - Collapsed
   - Auto Collapse：窗口宽度 ≤ `--min-width-workbench-page-content` + `--width-app-sidebar` 时自动收起，收起后不自动展开。
-- Child Region Scrolling
 
 ### App Topbar Layout
 
