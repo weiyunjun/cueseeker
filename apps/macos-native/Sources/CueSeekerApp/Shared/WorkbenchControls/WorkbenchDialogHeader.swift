@@ -21,6 +21,7 @@ struct WorkbenchDialogHeader: View {
             WorkbenchIconButton(
                 systemImage: "xmark",
                 isRedesign: true,
+                iconSize: WorkbenchControlMetrics.redesignDialogCloseIconSize,
                 action: onClose
             )
             .disabled(isCloseDisabled)

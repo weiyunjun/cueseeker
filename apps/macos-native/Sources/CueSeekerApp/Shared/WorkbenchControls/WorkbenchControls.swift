@@ -46,6 +46,10 @@ enum WorkbenchControlMetrics {
     static let redesignInlineClearButtonRadius: CGFloat = 9999
     /// --size-control-icon: 16px
     static let redesignControlIconSize: CGFloat = 16
+    /// --weight-control-icon: medium
+    static let redesignControlIconWeight: Font.Weight = .medium
+    /// --size-dialog-close-icon: 14px
+    static let redesignDialogCloseIconSize: CGFloat = 14
     /// --size-checkbox: 16px
     static let redesignCheckboxSize: CGFloat = 16
     /// --size-select-indicator: 12pt
@@ -162,6 +166,8 @@ enum WorkbenchControlMetrics {
     static let redesignSettingsWindowMinimumHeight: CGFloat = 420
     /// --size-app-sidebar-item-icon: 18px
     static let redesignAppSidebarItemIconSize: CGFloat = 18
+    /// --size-app-sidebar-item-chevron: 10px
+    static let redesignAppSidebarItemChevronSize: CGFloat = 10
     /// --width-interactive-text-underline: 1px
     static let redesignInteractiveTextUnderlineThickness: CGFloat = 1
     /// --offset-interactive-text-underline: 2px
@@ -396,34 +402,23 @@ enum WorkbenchControlColors {
 
 struct WorkbenchInlineClearButton: View {
     var isEnabled: Bool = true
-    var isActiveContext: Bool = false
     var action: () -> Void
 
-    @State private var isHovered = false
     @FocusState private var isFocused: Bool
 
     var body: some View {
         Button(action: action) {
             Image(systemName: "xmark")
-                .font(.system(size: WorkbenchControlMetrics.inlineClearSymbolFontSizeMacOS, weight: .bold)) // --size-inline-clear-symbol-font-size-macos: 11pt
+                .font(.system(size: WorkbenchControlMetrics.inlineClearSymbolFontSizeMacOS, weight: WorkbenchControlMetrics.redesignControlIconWeight)) // --size-inline-clear-symbol-font-size-macos: 11pt
                 .frame(width: WorkbenchControlMetrics.inlineClearIconSize, height: WorkbenchControlMetrics.inlineClearIconSize) // --size-inline-clear-icon: 16px
-                .foregroundStyle(isEnabled ? WorkbenchRedesignColors.iconDefault : WorkbenchRedesignColors.iconMuted)
+                .foregroundStyle(isEnabled ? WorkbenchRedesignColors.textSecondary : WorkbenchRedesignColors.textDisabled)
                 .frame(width: WorkbenchControlMetrics.redesignInlineClearButtonSize, height: WorkbenchControlMetrics.redesignInlineClearButtonSize)
-                .background(
-                    Group {
-                        if isEnabled && isHovered {
-                            RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignInlineClearButtonRadius, style: .continuous)
-                                .fill(isActiveContext ? WorkbenchRedesignColors.bgActiveClearHover : WorkbenchRedesignColors.bgHover)
-                        }
-                    }
-                )
         }
         .buttonStyle(StaticButtonStyle())
         .disabled(!isEnabled)
         .subtitleTableTextSelectionInteractiveRegion(isActive: isEnabled)
         .focused($isFocused)
         .disableFocusEffect()
-        .onPointerHover { isHovered = $0 }
         .overlay(
             Group {
                 if isFocused {
@@ -518,7 +513,7 @@ struct WorkbenchSearchField: View {
             }
 
             if isRedesign && !text.isEmpty {
-                WorkbenchInlineClearButton(isEnabled: isEnabled, isActiveContext: false) {
+                WorkbenchInlineClearButton(isEnabled: isEnabled) {
                     text = ""
                 }
             }
@@ -1089,12 +1084,14 @@ struct WorkbenchIconButton: View {
     let systemImage: String
     var isRedesign: Bool = false
     /// The button a menu hangs off keeps this look for as long as the menu is
-    /// open: accent background, white glyph, no hover response.
+    /// open: accent background, white glyph.
     var isMenuOpen: Bool = false
+    /// Dialog close buttons carry a smaller glyph than the rest of the icon
+    /// buttons; everything else keeps the shared control icon size.
+    var iconSize: CGFloat? = nil
     var action: (() -> Void)? = nil
 
     @FocusState private var isFocused: Bool
-    @State private var isHovered = false
     @Environment(\.isEnabled) private var isEnabled
 
     var body: some View {
@@ -1111,14 +1108,11 @@ struct WorkbenchIconButton: View {
                 label
             }
         }
-        .onPointerHover { inside in
-            isHovered = inside
-        }
     }
 
     private var label: some View {
         Image(systemName: systemImage)
-            .font(.system(size: isRedesign ? WorkbenchControlMetrics.redesignControlIconSize : WorkbenchControlMetrics.iconSize, weight: isRedesign ? .semibold : .medium))
+            .font(.system(size: isRedesign ? (iconSize ?? WorkbenchControlMetrics.redesignControlIconSize) : WorkbenchControlMetrics.iconSize, weight: isRedesign ? WorkbenchControlMetrics.redesignControlIconWeight : .medium))
             .foregroundStyle(isRedesign ? redesignIconColor : WorkbenchControlColors.primaryText)
             .frame(
                 width: isRedesign ? WorkbenchControlMetrics.redesignIconButtonSize : WorkbenchControlMetrics.controlHeight,
@@ -1147,19 +1141,16 @@ struct WorkbenchIconButton: View {
     }
 
     private var redesignIconColor: Color {
-        guard isEnabled else { return WorkbenchRedesignColors.iconDisabled }
+        guard isEnabled else { return WorkbenchRedesignColors.textDisabled }
         return isMenuOpen
             ? WorkbenchRedesignColors.iconButtonOpenContent
-            : WorkbenchRedesignColors.iconDefault
+            : WorkbenchRedesignColors.textSecondary
     }
 
+    /// Only the open state paints a background. Icon buttons have no hover
+    /// response at all.
     private var redesignBackgroundColor: Color {
-        if isMenuOpen {
-            return WorkbenchRedesignColors.iconButtonOpenBg
-        }
-        return isEnabled && isHovered
-            ? WorkbenchRedesignColors.bgHover
-            : Color.clear
+        isMenuOpen ? WorkbenchRedesignColors.iconButtonOpenBg : Color.clear
     }
 }
 

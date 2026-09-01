@@ -388,21 +388,17 @@ private struct PlaybackCommandPanelSecondaryHeader: View {
                         .font(.system(
                             size: WorkbenchControlMetrics
                                 .redesignControlIconSize,
-                            weight: .semibold
+                            weight: WorkbenchControlMetrics
+                                .redesignControlIconWeight
                         ))
-                        .foregroundStyle(WorkbenchRedesignColors.iconDefault)
+                        .foregroundStyle(WorkbenchRedesignColors.textSecondary)
                         .frame(
-                            width: PlaybackCommandPanelMetrics.rowHeight,
-                            height: PlaybackCommandPanelMetrics.rowHeight
+                            width: WorkbenchControlMetrics
+                                .redesignIconButtonSize,
+                            height: WorkbenchControlMetrics
+                                .redesignIconButtonSize
                         )
-                        .background {
-                            RoundedRectangle(
-                                cornerRadius:
-                                    PlaybackCommandPanelMetrics.rowRadius,
-                                style: .continuous
-                            )
-                            .fill(WorkbenchRedesignColors.bgHover)
-                        }
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(StaticButtonStyle())
                 .focusable(false)

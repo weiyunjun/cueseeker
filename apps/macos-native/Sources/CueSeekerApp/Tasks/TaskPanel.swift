@@ -89,6 +89,7 @@ struct TaskPanel: View {
                 WorkbenchIconButton(
                     systemImage: "xmark",
                     isRedesign: true,
+                    iconSize: WorkbenchControlMetrics.redesignDialogCloseIconSize,
                     action: tasks.closePanel
                 )
                 // Escape closes the panel the way it closes the other dialogs,

@@ -239,7 +239,7 @@ private struct AppTopBar: View {
             }
         } label: {
             Image(systemName: "sidebar.left")
-                .font(.system(size: WorkbenchControlMetrics.redesignControlIconSize, weight: .medium))
+                .font(.system(size: WorkbenchControlMetrics.redesignControlIconSize, weight: WorkbenchControlMetrics.redesignControlIconWeight))
                 .frame(
                     width: AppShellLayout.sidebarToggleSize,
                     height: AppShellLayout.sidebarToggleSize
@@ -251,7 +251,11 @@ private struct AppTopBar: View {
         .subtitleTableTextSelectionInteractiveRegion(
             isActive: !layoutState.isVideoSizeTransitionInProgress
         )
-        .foregroundStyle(WorkbenchRedesignColors.iconDefault)
+        .foregroundStyle(
+            layoutState.isVideoSizeTransitionInProgress
+                ? WorkbenchRedesignColors.textDisabled
+                : WorkbenchRedesignColors.textSecondary
+        )
         .focusable(false)
         .help(sidebarToggleLabel)
         .accessibilityLabel(sidebarToggleLabel)
@@ -440,11 +444,14 @@ private struct AppSidebarNavigationItem: View {
             if let isExpanded, let onToggleExpansion {
                 Button(action: onToggleExpansion) {
                     Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
-                        .font(.system(size: 10, weight: .semibold))
+                        .font(.system(
+                            size: WorkbenchControlMetrics.redesignAppSidebarItemChevronSize,
+                            weight: WorkbenchControlMetrics.redesignControlIconWeight
+                        ))
                         .foregroundStyle(
                             isSelected
                                 ? WorkbenchRedesignColors.appSidebarItemSelectedContent
-                                : WorkbenchRedesignColors.iconMuted
+                                : WorkbenchRedesignColors.textSecondary
                         )
                         .frame(
                             width: WorkbenchControlMetrics.redesignAppSidebarItemHeight,
@@ -618,18 +625,11 @@ private struct AppSidebarItemButtonStyle: ButtonStyle {
     }
 }
 
+/// The toggle has no hover response and no background of its own; the disabled
+/// look comes from its icon color, the way the other icon buttons work.
 private struct AppSidebarToggleButtonStyle: ButtonStyle {
-    @Environment(\.isEnabled) private var isEnabled
-    @State private var isHovered = false
-
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .background(
-                RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignCornerRadius, style: .continuous)
-                    .fill(isHovered && isEnabled ? WorkbenchRedesignColors.bgHover : Color.clear)
-            )
-            .opacity(isEnabled ? 1 : 0.62)
-            .onPointerHover { isHovered = $0 }
     }
 }
 
