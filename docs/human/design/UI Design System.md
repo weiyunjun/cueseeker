@@ -56,7 +56,6 @@
 - `--color-border-active`: Light `#0040FF`; Dark `#7AA2FF`
 - `--color-bg-active`: Light `#EBF5FF`; Dark `#14275A`
 - `--color-bg-active-hover`: Light `#E1EBFF`; Dark `#1B3470`
-- `--color-bg-active-clear-hover`: Light `#D8E8FD`; Dark `#243F7F`
 
 ### Focus
 
@@ -169,6 +168,7 @@
 - `--font-weight-control`: `500`
 - `--weight-select-indicator`: `semibold`
 - `--weight-button-icon`: `medium`
+- `--weight-control-icon`: `medium`
 - `--font-size-table`: `14px`
 - `--font-size-table-header`: `14px`
 - `--font-size-caption`: `12px`
@@ -253,6 +253,7 @@
 - `--size-button-icon`: `14px`
 - `--size-library-cover-edit-overlay-icon`: `32px`
 - `--size-control-icon`: `16px`
+- `--size-dialog-close-icon`: `14px`
 - `--size-icon-button`: `32px`
 - `--size-row-action-button`: `36px`
 - `--scrollbar-size`: `8px`
@@ -260,6 +261,7 @@
 - `--width-page-scrollbar-channel`: `16px`
 - `--width-app-sidebar`: `240px`
 - `--size-app-sidebar-item-icon`: `18px`
+- `--size-app-sidebar-item-chevron`: `10px`
 - `--size-task-count-badge`: `16px`
 - `--size-player-circle-button`: `40px`
 - `--size-player-circle-button-icon`: `18px`
@@ -823,6 +825,7 @@
   - Border：None
 - Icon
   - Size：Size Variant
+  - Font Weight：`--weight-control-icon`
 
 ##### Sizes
 
@@ -846,9 +849,7 @@
 
 - Default
   - Background：Transparent
-  - Icon Color：`--color-icon-default`
-- Hover
-  - Background：`--color-bg-hover`
+  - Icon Color：`--color-text-secondary`
 - Open
   - Background：`--color-icon-button-open-bg`
   - Icon Color：`--color-icon-button-open-content`
@@ -858,7 +859,7 @@
   - Ring Offset：`--focus-ring-offset`
 - Disabled
   - Background：Transparent
-  - Icon Color：`--color-icon-disabled`
+  - Icon Color：`--color-text-disabled`
 
 ### Toolbar Button
 
@@ -1272,7 +1273,6 @@
 ##### States
 
 - Default
-- Hover
 - Focused
 - Disabled
 
@@ -1293,6 +1293,8 @@
   - Font Size：`--font-size-app-sidebar-item`
 - Trailing Indicator
   - Presence：Optional
+  - Size：`--size-app-sidebar-item-chevron`
+  - Color：`--color-text-secondary`
 - Content Gap：`--spacing-3`
 
 ##### Sizes
@@ -2052,6 +2054,7 @@
 - Close Button
   - Placement：Header 行右端
   - Component：Icon Button / Default
+  - Icon Size：`--size-dialog-close-icon`
 
 ##### Sizes
 
