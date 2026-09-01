@@ -90,8 +90,13 @@ struct TaskPanel: View {
                     systemImage: "xmark",
                     isRedesign: true,
                     iconSize: WorkbenchControlMetrics.redesignDialogCloseIconSize,
+                    boxSize: WorkbenchControlMetrics.redesignDialogCloseButtonSize,
                     action: tasks.closePanel
                 )
+                // Placed by its glyph like the dialogs' close buttons, so the
+                // box gives back the slack it keeps around the glyph and the X
+                // itself lands on the tab bar's own inset.
+                .padding(.trailing, -WorkbenchControlMetrics.redesignDialogCloseBoxSlack)
                 // Escape closes the panel the way it closes the other dialogs,
                 // through the control that closes it.
                 .keyboardShortcut(.cancelAction)

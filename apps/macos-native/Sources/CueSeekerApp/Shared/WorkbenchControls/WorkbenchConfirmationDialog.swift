@@ -86,7 +86,7 @@ struct WorkbenchConfirmationDialog: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing3) {
-            WorkbenchDialogHeader(title: session.title, onClose: onClose)
+            WorkbenchDialogHeader(title: session.title)
 
             Text(session.message)
                 .font(.system(size: WorkbenchControlMetrics.redesignFontSizeBody, weight: .regular))
@@ -104,7 +104,9 @@ struct WorkbenchConfirmationDialog: View {
             }
             .padding(.top, WorkbenchControlMetrics.redesignSpacing1)
         }
-        .padding(24)
+        .padding(.top, WorkbenchControlMetrics.redesignDialogTopPadding)
+        .padding(.horizontal, WorkbenchControlMetrics.redesignDialogInset)
+        .padding(.bottom, WorkbenchControlMetrics.redesignDialogInset)
         .frame(width: 360, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignCornerRadius, style: .continuous)
@@ -114,6 +116,7 @@ struct WorkbenchConfirmationDialog: View {
             RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignCornerRadius, style: .continuous)
                 .strokeBorder(WorkbenchRedesignColors.borderControl, lineWidth: 1)
         )
+        .workbenchDialogCloseButton(onClose: onClose)
         .subtitleTableTextSelectionNonInteractiveRegion()
     }
 

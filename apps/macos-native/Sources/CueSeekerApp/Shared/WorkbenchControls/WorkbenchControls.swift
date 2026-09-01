@@ -48,8 +48,42 @@ enum WorkbenchControlMetrics {
     static let redesignControlIconSize: CGFloat = 16
     /// --weight-control-icon: medium
     static let redesignControlIconWeight: Font.Weight = .medium
-    /// --size-dialog-close-icon: 14px
-    static let redesignDialogCloseIconSize: CGFloat = 14
+    /// --size-dialog-close-icon: 12px
+    static let redesignDialogCloseIconSize: CGFloat = 12
+    /// --size-dialog-close-button: 24px
+    static let redesignDialogCloseButtonSize: CGFloat = 24
+    /// Measured ink of SF Symbol `xmark` at 12pt medium: 9.5 x 9.5. The close
+    /// button is placed by what the eye sees, so the glyph's own ink is the
+    /// figure the offsets are built from. Re-measure when the glyph size or
+    /// weight changes.
+    static let redesignDialogCloseGlyphInk: CGFloat = 9.5
+    /// The slack the close button's box keeps around its glyph on each side.
+    static let redesignDialogCloseBoxSlack: CGFloat =
+        (redesignDialogCloseButtonSize - redesignDialogCloseGlyphInk) / 2
+    /// --inset-dialog: 20px. Every dialog edge keeps the same visual inset,
+    /// measured to what is visible: the text box for a text's horizontal edge,
+    /// the cap line for the title's top, the visible border for a control, and
+    /// the glyph ink for an icon button.
+    static let redesignDialogInset: CGFloat = 20
+    /// Dialog title type. The cap-line give-back below is derived from it, so
+    /// the two must stay together.
+    static let redesignDialogTitleFontSize: CGFloat = 20
+    /// A single line of text starts below its own top edge by the half-leading
+    /// plus the run from the ascender down to the cap height. The inset is
+    /// measured to the cap line, so the container's top padding gives that
+    /// distance back. This is what CSS spells `text-box-edge: cap`.
+    static let redesignDialogTitleCapTopInset: CGFloat = {
+        let font = NSFont.systemFont(ofSize: redesignDialogTitleFontSize, weight: .semibold)
+        let lineHeight = NSLayoutManager().defaultLineHeight(for: font)
+        let halfLeading = (lineHeight - (font.ascender - font.descender)) / 2
+        return halfLeading + font.ascender - font.capHeight
+    }()
+    /// The dialog's own top padding. The other three edges use the inset.
+    static let redesignDialogTopPadding: CGFloat =
+        redesignDialogInset - redesignDialogTitleCapTopInset
+    /// Where the close button's box sits so that its glyph lands on the inset.
+    static let redesignDialogCloseAnchorInset: CGFloat =
+        redesignDialogInset - redesignDialogCloseBoxSlack
     /// --size-checkbox: 16px
     static let redesignCheckboxSize: CGFloat = 16
     /// --size-select-indicator: 12pt
@@ -1087,6 +1121,9 @@ struct WorkbenchIconButton: View {
     /// Dialog close buttons carry a smaller glyph than the rest of the icon
     /// buttons; everything else keeps the shared control icon size.
     var iconSize: CGFloat? = nil
+    /// Dialog close buttons also carry a smaller box, so their focus ring stays
+    /// in proportion to the smaller glyph; everything else keeps the shared one.
+    var boxSize: CGFloat? = nil
     var action: (() -> Void)? = nil
 
     @FocusState private var isFocused: Bool
@@ -1113,8 +1150,8 @@ struct WorkbenchIconButton: View {
             .font(.system(size: isRedesign ? (iconSize ?? WorkbenchControlMetrics.redesignControlIconSize) : WorkbenchControlMetrics.iconSize, weight: isRedesign ? WorkbenchControlMetrics.redesignControlIconWeight : .medium))
             .foregroundStyle(isRedesign ? redesignIconColor : WorkbenchControlColors.primaryText)
             .frame(
-                width: isRedesign ? WorkbenchControlMetrics.redesignIconButtonSize : WorkbenchControlMetrics.controlHeight,
-                height: isRedesign ? WorkbenchControlMetrics.redesignIconButtonSize : WorkbenchControlMetrics.controlHeight
+                width: isRedesign ? (boxSize ?? WorkbenchControlMetrics.redesignIconButtonSize) : WorkbenchControlMetrics.controlHeight,
+                height: isRedesign ? (boxSize ?? WorkbenchControlMetrics.redesignIconButtonSize) : WorkbenchControlMetrics.controlHeight
             )
             .background(
                 Group {

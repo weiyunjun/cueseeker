@@ -118,11 +118,7 @@ struct ShioriListEditorDialog: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
-            WorkbenchDialogHeader(
-                title: session.mode.title,
-                onClose: onClose,
-                isCloseDisabled: session.isSaving
-            )
+            WorkbenchDialogHeader(title: session.mode.title)
 
             HStack(alignment: .top, spacing: WorkbenchControlMetrics.redesignSpacing6) {
                 coverRegion
@@ -134,9 +130,12 @@ struct ShioriListEditorDialog: View {
 
             actions
         }
-        .padding(24)
+        .padding(.top, WorkbenchControlMetrics.redesignDialogTopPadding)
+        .padding(.horizontal, WorkbenchControlMetrics.redesignDialogInset)
+        .padding(.bottom, WorkbenchControlMetrics.redesignDialogInset)
         .frame(width: 792, alignment: .topLeading)
         .background(WorkbenchRedesignColors.bgSurface)
+        .workbenchDialogCloseButton(isDisabled: session.isSaving, onClose: onClose)
         .onChange(of: session.name) { _ in
             revalidateIfNeeded()
         }

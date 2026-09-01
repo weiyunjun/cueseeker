@@ -1,31 +1,45 @@
 import SwiftUI
 
-/// The shared Dialog header: the title on the leading side and the close
-/// button on the trailing side. Closing is the dialog's own action; it does not
-/// depend on whether the dialog also offers Cancel.
+/// The title row every dialog opens with. The close button is not part of it:
+/// it hangs off the dialog's own top-right corner instead, so its box can no
+/// longer stretch this row and push the title down.
 struct WorkbenchDialogHeader: View {
     let title: String
-    let onClose: () -> Void
-    var isCloseDisabled = false
 
     var body: some View {
-        HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
-            Text(title)
-                .font(.system(size: 20, weight: .semibold))
-                .foregroundStyle(WorkbenchRedesignColors.textPrimary)
-                .multilineTextAlignment(.leading)
-                .fixedSize(horizontal: false, vertical: true)
+        Text(title)
+            .font(.system(
+                size: WorkbenchControlMetrics.redesignDialogTitleFontSize,
+                weight: .semibold
+            ))
+            .foregroundStyle(WorkbenchRedesignColors.textPrimary)
+            .multilineTextAlignment(.leading)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
 
-            Spacer(minLength: 0)
-
+extension View {
+    /// Hangs a dialog's close button off the container's top-right corner.
+    /// The offsets are measured from the glyph's ink rather than the button's
+    /// box, so the X lands on the same inset as the title, the body text and
+    /// the buttons below it.
+    func workbenchDialogCloseButton(
+        isDisabled: Bool = false,
+        onClose: @escaping () -> Void
+    ) -> some View {
+        overlay(alignment: .topTrailing) {
             WorkbenchIconButton(
                 systemImage: "xmark",
                 isRedesign: true,
                 iconSize: WorkbenchControlMetrics.redesignDialogCloseIconSize,
+                boxSize: WorkbenchControlMetrics.redesignDialogCloseButtonSize,
                 action: onClose
             )
-            .disabled(isCloseDisabled)
+            .disabled(isDisabled)
             .accessibilityLabel(L("common.close"))
+            .padding(.top, WorkbenchControlMetrics.redesignDialogCloseAnchorInset)
+            .padding(.trailing, WorkbenchControlMetrics.redesignDialogCloseAnchorInset)
         }
     }
 }

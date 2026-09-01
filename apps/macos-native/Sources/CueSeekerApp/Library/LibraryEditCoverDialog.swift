@@ -8,11 +8,7 @@ struct LibraryEditCoverDialog: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
-            WorkbenchDialogHeader(
-                title: LibraryCoverEditingCopy.dialogTitle,
-                onClose: onCancel,
-                isCloseDisabled: session.isSaving
-            )
+            WorkbenchDialogHeader(title: LibraryCoverEditingCopy.dialogTitle)
 
             coverEditor
 
@@ -43,9 +39,12 @@ struct LibraryEditCoverDialog: View {
                 .keyboardShortcut(.defaultAction)
             }
         }
-        .padding(24)
+        .padding(.top, WorkbenchControlMetrics.redesignDialogTopPadding)
+        .padding(.horizontal, WorkbenchControlMetrics.redesignDialogInset)
+        .padding(.bottom, WorkbenchControlMetrics.redesignDialogInset)
         .frame(width: 760, height: 600, alignment: .topLeading)
         .background(WorkbenchRedesignColors.bgSurface)
+        .workbenchDialogCloseButton(isDisabled: session.isSaving, onClose: onCancel)
         .subtitleTableTextSelectionNonInteractiveRegion()
     }
 
