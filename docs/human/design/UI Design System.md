@@ -15,9 +15,6 @@
 
 ### Icon
 
-- `--color-icon-default`: Light `#667085`; Dark `#A1A1AA`
-- `--color-icon-muted`: Light `#98A2B3`; Dark `#71717A`
-- `--color-icon-disabled`: Light `#98A2B3`; Dark `#71717A`
 - `--color-icon-on-dark`: Light `#FFFFFF`; Dark `#FFFFFF`
 
 ### Background
@@ -547,7 +544,8 @@
   - Radius：`--radius-search`
 - Search Icon
   - Size：`--size-control-icon`
-  - Color：`--color-icon-default`
+  - Font Weight：`--weight-control-icon`
+  - Color：`--color-text-secondary`
 - Input
   - Font Family：`--font-family-base`
   - Font Size：`--font-size-control`
@@ -580,7 +578,7 @@
   - Background：`--color-bg-disabled`
   - Border Color：`--color-border-disabled`
   - Text Color：`--color-text-disabled`
-  - Icon Color：`--color-icon-disabled`
+  - Icon Color：`--color-text-disabled`
 
 ### Number Field
 
@@ -669,7 +667,7 @@
   - Ring Width：`--focus-ring-width`
   - Ring Offset：`--focus-ring-offset`
 - Disabled
-  - Control Color：`--color-icon-disabled`
+  - Control Color：`--color-text-disabled`
   - Label Color：`--color-text-disabled`
 
 #### Variants
@@ -762,7 +760,7 @@
   - Background：`--color-bg-disabled`
   - Border Color：`--color-border-disabled`
   - Label Color：`--color-text-disabled`
-  - Icon Color：`--color-icon-disabled`
+  - Icon Color：`--color-text-disabled`
 
 ##### Cover Summary
 
@@ -793,7 +791,7 @@
 - Disabled
   - Background：`--color-bg-disabled`
   - Label Color：`--color-text-disabled`
-  - Icon Color：`--color-icon-disabled`
+  - Icon Color：`--color-text-disabled`
 
 ##### Destructive
 
@@ -801,7 +799,7 @@
   - Background：`--color-bg-surface`
   - Border Color：`--color-border-control`
   - Label Color：`--color-danger-text`
-  - Icon Color：`--color-icon-default`
+  - Icon Color：`--color-text-secondary`
 - Hover
   - Background：`--color-danger-bg-hover`
   - Border Color：`--color-border-control-hover`
@@ -811,7 +809,7 @@
   - Background：`--color-bg-disabled`
   - Border Color：`--color-border-disabled`
   - Label Color：`--color-text-disabled`
-  - Icon Color：`--color-icon-disabled`
+  - Icon Color：`--color-text-disabled`
 
 ### Icon Button
 
@@ -908,7 +906,7 @@
   - Background：`--color-bg-hover`
 - Disabled
   - Label Color：`--color-text-disabled`
-  - Icon Color：`--color-icon-disabled`
+  - Icon Color：`--color-text-disabled`
 
 ##### Panel Trigger
 
@@ -932,7 +930,7 @@
   - Background：`--color-bg-disabled`
   - Border Color：`--color-border-disabled`
   - Label Color：`--color-text-disabled`
-  - Icon Color：`--color-icon-disabled`
+  - Icon Color：`--color-text-disabled`
 
 ##### Mode Toggle
 
@@ -956,7 +954,7 @@
   - Background：`--color-bg-disabled`
   - Border Color：`--color-border-disabled`
   - Label Color：`--color-text-disabled`
-  - Icon Color：`--color-icon-disabled`
+  - Icon Color：`--color-text-disabled`
 
 ### Shortcut Action Button
 
@@ -1118,7 +1116,7 @@
   - Background：`--color-bg-hover`
 - Disabled
   - Label Color：`--color-text-disabled`
-  - Icon Color：`--color-icon-disabled`
+  - Icon Color：`--color-text-disabled`
 
 #### Variants
 
@@ -1163,7 +1161,7 @@
   - Background：`--color-danger-bg-hover`
 - Disabled
   - Label Color：`--color-text-disabled`
-  - Icon Color：`--color-icon-disabled`
+  - Icon Color：`--color-text-disabled`
 
 ##### Submenu Trigger
 
@@ -1308,7 +1306,7 @@
   - Selection Scope：Current Item Only
 - Disabled
   - Label Color：`--color-text-disabled`
-  - Icon Color：`--color-icon-disabled`
+  - Icon Color：`--color-text-disabled`
 
 #### Variants
 
@@ -1961,7 +1959,7 @@
 ##### Anatomy
 
 - Spinner
-  - Color：`--color-icon-muted`
+  - Color：Platform Native
 
 ##### Sizes
 
@@ -2936,7 +2934,7 @@
 
 - Section Title：Section Title
 - Count：`14px / Regular / --color-text-secondary / Monospaced Digit`
-- Right Arrow Color：`--color-icon-muted`
+- Right Arrow Color：`--color-text-muted`
 - Vertical Alignment：First Text Baseline
 
 #### Spacing
