@@ -19,7 +19,7 @@ struct ShioriListCoverView: View {
             } else {
                 Image(systemName: "bookmark")
                     .font(.system(size: 44, weight: .medium))
-                    .foregroundStyle(WorkbenchRedesignColors.iconMuted)
+                    .foregroundStyle(WorkbenchRedesignColors.textMuted)
                     .accessibilityHidden(true)
             }
         }

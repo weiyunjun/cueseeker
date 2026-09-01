@@ -52,9 +52,6 @@ enum WorkbenchRedesignColors {
         static let textDisabled = NSColor.dynamic(lightHex: "#9A9A9A", darkHex: "#606060")
 
         // Icon
-        static let iconDefault = NSColor.dynamic(lightHex: "#667085", darkHex: "#A1A1AA")
-        static let iconMuted = NSColor.dynamic(lightHex: "#98A2B3", darkHex: "#71717A")
-        static let iconDisabled = NSColor.dynamic(lightHex: "#98A2B3", darkHex: "#71717A")
         static let iconOnDark = NSColor.dynamic(lightHex: "#FFFFFF", darkHex: "#FFFFFF")
 
         // Background
@@ -170,9 +167,6 @@ enum WorkbenchRedesignColors {
     static let textDisabled = Color(nsColor: NS.textDisabled)
 
     // Icon
-    static let iconDefault = Color(nsColor: NS.iconDefault)
-    static let iconMuted = Color(nsColor: NS.iconMuted)
-    static let iconDisabled = Color(nsColor: NS.iconDisabled)
     static let iconOnDark = Color(nsColor: NS.iconOnDark)
 
     // Background

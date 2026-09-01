@@ -142,8 +142,8 @@ func editingCollageCheckboxMatchesSearchColorsAndMonochromeRendering() throws {
     for (isSelected, isEnabled, lightHex, darkHex) in [
         (true, true, "#667085", "#A1A1AA"),
         (false, true, "#D0D5DD", "#52525B"),
-        (true, false, "#98A2B3", "#71717A"),
-        (false, false, "#98A2B3", "#71717A"),
+        (true, false, "#9A9A9A", "#606060"),
+        (false, false, "#9A9A9A", "#606060"),
     ] {
         let color = PlaybackCollageCheckboxDrawing.color(
             isSelected: isSelected,

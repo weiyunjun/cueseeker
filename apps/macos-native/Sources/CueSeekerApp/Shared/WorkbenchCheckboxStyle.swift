@@ -24,7 +24,7 @@ enum WorkbenchCheckboxStyle {
         isEnabled: Bool
     ) -> NSColor {
         guard isEnabled else {
-            return WorkbenchRedesignColors.NS.iconDisabled
+            return WorkbenchRedesignColors.NS.textDisabled
         }
         switch state {
         case .unchecked:

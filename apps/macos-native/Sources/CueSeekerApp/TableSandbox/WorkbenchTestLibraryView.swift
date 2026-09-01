@@ -203,7 +203,7 @@ private struct RecentSectionHeader: View {
 
                     Text(Image(systemName: "chevron.right"))
                         .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(WorkbenchRedesignColors.iconMuted)
+                        .foregroundStyle(WorkbenchRedesignColors.textMuted)
                 }
             }
             .contentShape(Rectangle())
@@ -1729,7 +1729,7 @@ struct LibraryCachedCoverImage: View {
 
                     Image(systemName: "film")
                         .font(.system(size: 44, weight: .medium))
-                        .foregroundStyle(WorkbenchRedesignColors.iconMuted)
+                        .foregroundStyle(WorkbenchRedesignColors.textMuted)
                         .accessibilityHidden(true)
                 }
             }

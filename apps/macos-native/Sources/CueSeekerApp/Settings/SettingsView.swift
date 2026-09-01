@@ -109,7 +109,7 @@ struct SettingsView: View {
                             .foregroundStyle(
                                 isSelected
                                     ? WorkbenchRedesignColors.appSidebarItemSelectedContent
-                                    : WorkbenchRedesignColors.iconDefault
+                                    : WorkbenchRedesignColors.textSecondary
                             )
 
                         Text(category.title)

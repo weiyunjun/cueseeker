@@ -470,8 +470,8 @@ struct WorkbenchSearchField: View {
     var body: some View {
         HStack(spacing: isRedesign ? WorkbenchControlMetrics.redesignSpacing2 : 12) {
             Image(systemName: "magnifyingglass")
-                .font(.system(size: isRedesign ? WorkbenchControlMetrics.redesignControlIconSize : 18, weight: .regular))
-                .foregroundStyle(isRedesign ? (isEnabled ? WorkbenchRedesignColors.iconDefault : WorkbenchRedesignColors.iconMuted) : WorkbenchControlColors.mutedText)
+                .font(.system(size: isRedesign ? WorkbenchControlMetrics.redesignControlIconSize : 18, weight: isRedesign ? WorkbenchControlMetrics.redesignControlIconWeight : .regular))
+                .foregroundStyle(isRedesign ? (isEnabled ? WorkbenchRedesignColors.textSecondary : WorkbenchRedesignColors.textDisabled) : WorkbenchControlColors.mutedText)
 
             WorkbenchSingleLineTextInput(
                 placeholder: placeholder,
@@ -587,7 +587,7 @@ struct WorkbenchToolbarButton: View {
             Image(systemName: systemImage)
                 .font(.system(size: isRedesign ? WorkbenchControlMetrics.redesignControlIconSize : WorkbenchControlMetrics.iconSize, weight: isRedesign ? .semibold : .medium))
                 .frame(width: isRedesign ? WorkbenchControlMetrics.redesignControlIconSize : nil, height: isRedesign ? WorkbenchControlMetrics.redesignControlIconSize : nil) // --size-control-icon
-                .foregroundStyle(isRedesign ? (isEnabled ? WorkbenchRedesignColors.textSecondary : WorkbenchRedesignColors.iconDisabled) : WorkbenchControlColors.primaryText)
+                .foregroundStyle(isRedesign ? (isEnabled ? WorkbenchRedesignColors.textSecondary : WorkbenchRedesignColors.textDisabled) : WorkbenchControlColors.primaryText)
 
             Text(title)
                 .font(.system(size: isRedesign ? WorkbenchControlMetrics.redesignFontSizeControl : 15, weight: isRedesign ? WorkbenchControlMetrics.redesignFontWeightControl : .medium))
@@ -600,7 +600,7 @@ struct WorkbenchToolbarButton: View {
                     Image(systemName: "chevron.up.chevron.down")
                         .font(.system(size: WorkbenchControlMetrics.redesignSelectIndicatorSymbolFontSizeMacOS, weight: WorkbenchControlMetrics.redesignSelectIndicatorWeightMacOS))
                         .frame(width: WorkbenchControlMetrics.redesignControlIconSize, height: WorkbenchControlMetrics.redesignControlIconSize) // --size-control-icon
-                        .foregroundStyle(isEnabled ? WorkbenchRedesignColors.textSecondary : WorkbenchRedesignColors.iconDisabled)
+                        .foregroundStyle(isEnabled ? WorkbenchRedesignColors.textSecondary : WorkbenchRedesignColors.textDisabled)
                 } else {
                     Spacer(minLength: 0)
                     Image(systemName: "chevron.down")
@@ -661,7 +661,7 @@ struct WorkbenchButton: View {
                     Image(systemName: systemImage)
                         .font(.system(size: isRedesign ? WorkbenchControlMetrics.redesignButtonIconSize : WorkbenchControlMetrics.iconSize, weight: isRedesign ? WorkbenchControlMetrics.redesignButtonIconWeight : .regular))
                         .frame(width: isRedesign ? WorkbenchControlMetrics.redesignButtonIconSize : nil, height: isRedesign ? WorkbenchControlMetrics.redesignButtonIconSize : nil)
-                        .foregroundStyle(isRedesign ? (isEnabled ? WorkbenchRedesignColors.textSecondary : WorkbenchRedesignColors.iconDisabled) : WorkbenchControlColors.primaryText)
+                        .foregroundStyle(isRedesign ? (isEnabled ? WorkbenchRedesignColors.textSecondary : WorkbenchRedesignColors.textDisabled) : WorkbenchControlColors.primaryText)
                 }
 
                 Text(title)
@@ -805,7 +805,7 @@ struct WorkbenchDestructiveButton: View {
                     Image(systemName: systemImage)
                         .font(.system(size: WorkbenchControlMetrics.redesignButtonIconSize, weight: WorkbenchControlMetrics.redesignButtonIconWeight))
                         .frame(width: WorkbenchControlMetrics.redesignButtonIconSize, height: WorkbenchControlMetrics.redesignButtonIconSize)
-                        .foregroundStyle(isEnabled ? WorkbenchRedesignColors.iconDefault : WorkbenchRedesignColors.iconDisabled)
+                        .foregroundStyle(isEnabled ? WorkbenchRedesignColors.textSecondary : WorkbenchRedesignColors.textDisabled)
                 }
 
                 Text(title)
@@ -1071,7 +1071,7 @@ struct WorkbenchPopoverRow: View {
     }
 
     private var iconColor: Color {
-        guard isEnabled else { return WorkbenchRedesignColors.iconDisabled }
+        guard isEnabled else { return WorkbenchRedesignColors.textDisabled }
         return isDestructive
             ? WorkbenchRedesignColors.dangerText
             : WorkbenchRedesignColors.textPrimary

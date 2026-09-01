@@ -5051,7 +5051,7 @@ struct SubtitleTableView: NSViewRepresentable {
                   )?
                     .withSymbolConfiguration(
                         NSImage.SymbolConfiguration(
-                            hierarchicalColor: WorkbenchRedesignColors.NS.iconMuted
+                            hierarchicalColor: WorkbenchRedesignColors.NS.textMuted
                         )
                     )
             else {
@@ -5059,7 +5059,7 @@ struct SubtitleTableView: NSViewRepresentable {
             }
             image.draw(in: rect)
             if hoveredCueStateRow == row {
-                WorkbenchRedesignColors.NS.iconMuted.withAlphaComponent(0.12).setFill()
+                WorkbenchRedesignColors.NS.textMuted.withAlphaComponent(0.12).setFill()
                 NSBezierPath(
                     roundedRect: rect.insetBy(dx: -3, dy: -3),
                     xRadius: 5,

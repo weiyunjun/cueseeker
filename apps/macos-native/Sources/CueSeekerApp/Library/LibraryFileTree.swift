@@ -202,9 +202,9 @@ private struct LibraryFileTreeRow: View {
             Image(systemName: systemImage)
                 .font(.system(
                     size: LibraryFileTreeLayout.iconSize,
-                    weight: .regular
+                    weight: WorkbenchControlMetrics.redesignControlIconWeight
                 ))
-                .foregroundStyle(WorkbenchRedesignColors.iconDefault)
+                .foregroundStyle(WorkbenchRedesignColors.textSecondary)
                 .frame(
                     width: LibraryFileTreeLayout.iconSize,
                     height: LibraryFileTreeLayout.iconSize,
@@ -259,7 +259,7 @@ private struct LibraryFileTreeRow: View {
                     size: WorkbenchControlMetrics.redesignSelectIndicatorSymbolFontSizeMacOS,
                     weight: WorkbenchControlMetrics.redesignSelectIndicatorWeightMacOS
                 ))
-                .foregroundStyle(WorkbenchRedesignColors.iconMuted)
+                .foregroundStyle(WorkbenchRedesignColors.textMuted)
                 .accessibilityHidden(true)
         } else {
             Color.clear

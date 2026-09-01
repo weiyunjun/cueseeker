@@ -484,9 +484,9 @@ private struct AppSidebarChildItem: View {
             return WorkbenchRedesignColors.appSidebarItemSelectedContent
         }
         guard isEnabled else {
-            return WorkbenchRedesignColors.iconDisabled
+            return WorkbenchRedesignColors.textDisabled
         }
-        return WorkbenchRedesignColors.iconDefault
+        return WorkbenchRedesignColors.textSecondary
     }
 
     private var textColor: Color {
@@ -565,9 +565,9 @@ private struct AppSidebarItemLabel: View {
             return WorkbenchRedesignColors.appSidebarItemSelectedContent
         }
         guard isEnabled else {
-            return WorkbenchRedesignColors.iconDisabled
+            return WorkbenchRedesignColors.textDisabled
         }
-        return WorkbenchRedesignColors.iconDefault
+        return WorkbenchRedesignColors.textSecondary
     }
 
     private var textColor: Color {
