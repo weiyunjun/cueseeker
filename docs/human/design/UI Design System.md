@@ -250,7 +250,8 @@
 - `--size-button-icon`: `14px`
 - `--size-library-cover-edit-overlay-icon`: `32px`
 - `--size-control-icon`: `16px`
-- `--size-dialog-close-icon`: `14px`
+- `--size-dialog-close-icon`: `12px`
+- `--size-dialog-close-button`: `24px`
 - `--size-icon-button`: `32px`
 - `--size-row-action-button`: `36px`
 - `--scrollbar-size`: `8px`
@@ -315,6 +316,7 @@
 
 ### Padding
 
+- `--inset-dialog`: `24px`
 - `--padding-control-x`: `14px`
 - `--padding-field-x`: `16px`
 - `--padding-menu`: `6px`
@@ -841,6 +843,11 @@
   - Height：`--size-row-action-button`
   - Radius：`--radius-row-action`
   - Icon Size：`--size-control-icon`
+- Dialog Close
+  - Width：`--size-dialog-close-button`
+  - Height：`--size-dialog-close-button`
+  - Radius：`--radius-control`
+  - Icon Size：`--size-dialog-close-icon`
 
 ##### States
 
@@ -2041,11 +2048,14 @@
 - Content
 - Footer
 - Close Button
-  - Placement：Header 行右端
-  - Component：Icon Button / Default
-  - Icon Size：`--size-dialog-close-icon`
+  - Placement：容器右上角，不占 Header 行
+  - Component：Icon Button / Dialog Close
 
 ##### Sizes
+
+- Visual Inset：`--inset-dialog`，四边相等
+  - 量到看得见的边：文字的水平边取文本框边缘，文字的上边取 cap 顶；有边框或背景的控件取可见边缘；纯图标按钮取图标字形的墨迹边缘
+  - 覆盖：标题与正文的左缘、正文的折行边界、最右侧按钮的右缘、最下方按钮的下缘、关闭按钮字形的右缘与顶缘
 
 ##### States
 
@@ -3533,7 +3543,7 @@
 - Dialog
 - Tabs
 - Tab
-- Icon Button / Default
+- Icon Button / Dialog Close
 - Scrollbar / Vertical
 
 #### Sizes
