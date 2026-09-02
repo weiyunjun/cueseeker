@@ -441,6 +441,10 @@
 - Single-line Placeholder Position：Same in Empty and Focused Empty states
 - Error Priority：Danger Border overrides Focus Border
 
+#### Pointer
+
+- I-beam
+
 ### Text Field
 
 #### Shared
@@ -1475,6 +1479,7 @@
 - Hover
   - Background：`--color-row-hover`
   - 菜单或对话框打开期间不随指针移动；右键菜单的关联行保持 Hover
+  - 指针真实移动后落在行上时随之移动；滚动与布局变化不移动它
 - Selected
   - Background：`--color-row-selected`
 - Disabled
@@ -1511,6 +1516,7 @@
 - Font Weight：Regular
 - Color：`--color-text-secondary`
 - Selection：Enabled
+- Pointer：I-beam
 
 ##### Index Text
 
@@ -1536,6 +1542,7 @@
   - Padding Block：`--padding-table-cell-hover-y`
   - Radius：`--radius-table-cell-hover`
 - Selection：Enabled
+- Pointer：Grab
 - States
   - Default
   - Hover
@@ -2280,6 +2287,7 @@
 - Interaction Surface
   - Radius：`--radius-library-media-card-hover`
   - 判定区域为整张卡片的矩形，四角在内；Radius 只作用于背景外观
+  - Pointer：Grab
 - Content Slot
 
 ##### Sizes
@@ -2614,6 +2622,7 @@
 
 - Cue Container
 - Visual Line Stack
+  - Pointer：I-beam（可拖选的字幕文字上）
   - Primary Cue Text
 - Cue Metadata
   - Presence：Optional
