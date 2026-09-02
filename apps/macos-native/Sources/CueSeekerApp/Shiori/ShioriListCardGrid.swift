@@ -85,11 +85,6 @@ struct ShioriListCardGrid: View {
 }
 
 private struct ShioriListCard: View {
-    /// Answers for the layer this card is actually on: the workbench page, or
-    /// the Command Panel or Playback Overlay that reuses the same grid. While
-    /// frozen the card keeps the picture it had and stops following the
-    /// pointer.
-    @Environment(\.interfaceLayerContext) private var layerContext
     let summary: ShioriListSummary
     let highlight: CardHighlightModel
     let isCurrent: Bool
@@ -116,10 +111,7 @@ private struct ShioriListCard: View {
             }
         }
         .buttonStyle(
-            LibraryOverviewCardButtonStyle(
-                isCurrent: isCurrent,
-                isFrozen: layerContext.isFrozen
-            )
+            LibraryOverviewCardButtonStyle(isCurrent: isCurrent)
         )
         .onHover { highlight.noteHover($0, id: cardID) }
         .libraryCardContextMenuTrigger(

@@ -51,32 +51,6 @@ func tableScrollbarPrimitiveClampsFractionsAndKeepsMinimumThumb() throws {
     )
 }
 
-@MainActor
-@Test
-func tableScrollbarPrimitiveRegistersArrowCursorForThumbs() throws {
-    _ = NSApplication.shared
-    let view = CursorRecordingTableScrollbarOverlayView(
-        frame: CGRect(x: 0, y: 0, width: 300, height: 200)
-    )
-    view.presentationProvider = {
-        TableScrollbarPresentation(
-            vertical: TableScrollbarAxisPresentation(
-                visibleFraction: 0.2,
-                positionFraction: 0.5
-            ),
-            horizontal: TableScrollbarAxisPresentation(
-                visibleFraction: 0.5,
-                positionFraction: 0.25
-            )
-        )
-    }
-
-    view.resetCursorRects()
-
-    #expect(view.recordedCursors.count == 2)
-    #expect(view.recordedCursors.allSatisfy { $0 === NSCursor.arrow })
-}
-
 @Test
 func tableScrollbarPrimitiveDragFractionRoundTrips() throws {
     let bounds = CGRect(x: 0, y: 0, width: 300, height: 200)
@@ -225,13 +199,4 @@ private func scrollbarMouseEvent(
         clickCount: 1,
         pressure: 1
     )!
-}
-
-@MainActor
-private final class CursorRecordingTableScrollbarOverlayView: TableScrollbarOverlayView {
-    private(set) var recordedCursors: [NSCursor] = []
-
-    override func addCursorRect(_ aRect: NSRect, cursor anObj: NSCursor) {
-        recordedCursors.append(anObj)
-    }
 }

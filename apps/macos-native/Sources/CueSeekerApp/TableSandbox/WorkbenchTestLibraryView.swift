@@ -291,6 +291,10 @@ struct WorkbenchTestLibraryView: View {
             highlight.reset()
             segment = .video
         }
+        .onChange(of: segment) { _ in
+            // Video and File are interfaces of their own.
+            AppPointerShape.reset()
+        }
         .task {
             appState.hydrateCompleteLibraryAsync()
             appState.hydrateTestRecentWatchingAsync()
@@ -791,11 +795,6 @@ private struct LibraryVideoCardContent {
 }
 
 private struct LibraryVideoCard: View {
-    /// Answers for the layer this card is actually on: the workbench page, or
-    /// the Command Panel or Playback Overlay that reuses the same grid. While
-    /// frozen the card keeps the picture it had and stops following the
-    /// pointer.
-    @Environment(\.interfaceLayerContext) private var layerContext
     let content: LibraryVideoCardContent
     let highlight: CardHighlightModel
     let isCurrent: Bool
@@ -848,7 +847,6 @@ private struct LibraryVideoCard: View {
         // included, so the tap, the hand and Hover share one area. The rounded
         // background is appearance only and does not narrow it.
         .contentShape(Rectangle())
-        .handPointer(isEnabled: isAvailable && !layerContext.isFrozen)
         .onTapGesture {
             guard isAvailable else {
                 return
@@ -856,7 +854,7 @@ private struct LibraryVideoCard: View {
             highlight.notePress(id: cardID)
             onOpen()
         }
-        .onHover { highlight.noteHover($0, id: cardID) }
+        .onHover { highlight.noteHover($0, id: cardID, showsHand: isAvailable) }
         .libraryCardContextMenuTrigger(
             isEnabled: isAvailable,
             ownerID: cardID,
@@ -945,7 +943,6 @@ struct CompleteLibraryFolderGrid: View {
 }
 
 private struct LibraryFolderCard: View {
-    @Environment(\.interfaceLayerContext) private var layerContext
     let folder: CompleteLibraryFolderSummaryPresentation
     let highlight: CardHighlightModel
     let isCurrent: Bool
@@ -976,12 +973,11 @@ private struct LibraryFolderCard: View {
         .buttonStyle(
             LibraryOverviewCardButtonStyle(
                 isCurrent: isCurrent,
-                isEnabled: isAvailable,
-                isFrozen: layerContext.isFrozen
+                isEnabled: isAvailable
             )
         )
         .disabled(!isAvailable)
-        .onHover { highlight.noteHover($0, id: cardID) }
+        .onHover { highlight.noteHover($0, id: cardID, showsHand: isAvailable) }
         .libraryCardContextMenuTrigger(
             isEnabled: isAvailable,
             ownerID: cardID,

@@ -598,11 +598,7 @@ func subtitleTablePageChromePinsAgainstTheFullViewportScrollbar() throws {
     )
     let coveredWindowPoint = documentView.convert(coveredPoint, to: nil)
     #expect(documentView.visibleRect.contains(coveredPoint))
-    #expect(
-        !coordinator.interactiveCellCursorRectsForTesting().contains {
-            $0.contains(coveredPoint)
-        }
-    )
+    #expect(coordinator.pointerShape(atWindowPoint: coveredWindowPoint) == .arrow)
     #expect(!coordinator.handleMouseDown(windowPoint: coveredWindowPoint))
     #expect(!coordinator.handleRightMouseDown(windowPoint: coveredWindowPoint))
     coordinator.handleMouseHover(windowPoint: coveredWindowPoint)
@@ -1218,7 +1214,7 @@ func subtitleTableViewSelectModeReservesColumnAndMakesWholeRowSelectable() throw
     #expect(fixture.coordinator.handleRightMouseDown(windowPoint: displayWindowPoint))
     #expect(!fixture.coordinator.isMenuOpenForTesting())
     #expect(!fixture.coordinator.canBeginExternalTextSelection)
-    #expect(fixture.coordinator.selectableTextCursorRectsForTesting().isEmpty)
+    #expect(fixture.coordinator.pointerShape(atWindowPoint: displayWindowPoint) == .arrow)
     fixture.coordinator.handleMouseHover(windowPoint: displayWindowPoint)
     #expect(!fixture.coordinator.isCellHoveredForTesting(row: 0, columnID: "cues"))
 }
@@ -1577,28 +1573,6 @@ func subtitleTableViewDoesNotRedrawForCallbackOnlyUpdates() {
 
 @MainActor
 @Test
-func subtitleTableHandsTheArrowBackWhenAHigherLayerCoversIt() {
-    let fixture = makeAttachedVirtualTableCoordinator(width: 900)
-    defer { NSCursor.arrow.set() }
-
-    // The hand the cue text was wearing when the pointer clicked through to
-    // the playback page. Nothing above the table states a shape of its own,
-    // so the table has to give this one up on its way out.
-    NSCursor.pointingHand.set()
-    #expect(NSCursor.current == NSCursor.pointingHand)
-    fixture.coordinator.isCoveredByHigherLayer = true
-    #expect(NSCursor.current == NSCursor.arrow)
-
-    NSCursor.pointingHand.set()
-    fixture.coordinator.interfaceLayerContext = InterfaceLayerContext(
-        layer: .workbenchPage,
-        frozenLayers: [.workbenchPage]
-    )
-    #expect(NSCursor.current == NSCursor.arrow)
-}
-
-@MainActor
-@Test
 func subtitleTableViewSuppressesVisibleRowNotificationsWhenExternalLayerIsOpen() {
     var visibleRowNotifications = 0
     let fixture = makeAttachedVirtualTableCoordinator(
@@ -1635,16 +1609,31 @@ func subtitleTableViewLimitsPointingHandToCueContent() throws {
         y: cuesRect.midY
     )
 
-    #expect(fixture.coordinator.interactiveCellCursorRectsForTesting().contains { $0.contains(checkboxPoint) } == false)
-    #expect(!fixture.coordinator.interactiveCellCursorRectsForTesting().contains { $0.contains(checkboxPoint) })
-    #expect(fixture.coordinator.interactiveCellCursorRectsForTesting().contains { $0.contains(cuesPoint) })
-    #expect(fixture.coordinator.interactiveCellCursorRectsForTesting().contains { $0.contains(cuesPoint) })
-    #expect(!fixture.coordinator.interactiveCellCursorRectsForTesting().contains { $0.contains(displayPoint) })
-    #expect(fixture.coordinator.selectableTextCursorRectsForTesting().contains { $0.contains(displayPoint) })
-    #expect(fixture.coordinator.selectableTextCursorRectsForTesting().contains { $0.contains(displayPoint) })
-    #expect(!fixture.coordinator.selectableTextCursorRectsForTesting().contains { $0.contains(cuesPoint) })
-    #expect(fixture.coordinator.interactiveCellCursorRectsForTesting().contains { $0.contains(outsideContentPoint) } == false)
-    #expect(!fixture.coordinator.interactiveCellCursorRectsForTesting().contains { $0.contains(outsideContentPoint) })
+    let shape = { (point: CGPoint) in
+        fixture.coordinator.pointerShape(atWindowPoint: fixture.documentView.convert(point, to: nil))
+    }
+    #expect(shape(checkboxPoint) == .arrow)
+    #expect(shape(cuesPoint) == .grab)
+    #expect(shape(displayPoint) == .iBeam)
+    #expect(shape(outsideContentPoint) == .arrow)
+}
+
+@MainActor
+@Test
+func subtitleTableViewKeepsHoverWhenAppKitReportsAnExitUnderAStillPointer() throws {
+    let fixture = makeAttachedVirtualTableCoordinator()
+    let cuesRect = try #require(fixture.coordinator.cellContentHoverDocumentRectForTesting(row: 0, columnID: "cues"))
+    let cuesWindowPoint = fixture.documentView.convert(CGPoint(x: cuesRect.midX, y: cuesRect.midY), to: nil)
+    fixture.coordinator.handleMouseHover(windowPoint: cuesWindowPoint)
+    #expect(fixture.coordinator.isCellHoveredForTesting(row: 0, columnID: "cues"))
+
+    // A scroll makes AppKit report an exit for a pointer that never moved.
+    fixture.coordinator.clearHoverUnlessPointerInside(windowPoint: cuesWindowPoint)
+    #expect(fixture.coordinator.isCellHoveredForTesting(row: 0, columnID: "cues"))
+
+    let outsideWindowPoint = fixture.documentView.convert(CGPoint(x: -40, y: -40), to: nil)
+    fixture.coordinator.clearHoverUnlessPointerInside(windowPoint: outsideWindowPoint)
+    #expect(!fixture.coordinator.isCellHoveredForTesting(row: 0, columnID: "cues"))
 }
 
 @MainActor
@@ -1658,16 +1647,19 @@ func subtitleTableViewDropsPointingHandInSelectionMode() throws {
     let displayRect = try #require(fixture.coordinator.cellContentHoverDocumentRectForTesting(row: 0, columnID: "display"))
     let displayPoint = CGPoint(x: displayRect.midX, y: displayRect.midY)
 
+    let shape = { (point: CGPoint) in
+        fixture.coordinator.pointerShape(atWindowPoint: fixture.documentView.convert(point, to: nil))
+    }
+
     fixture.coordinator.setSelectionModeForTesting(true)
 
-    #expect(fixture.coordinator.interactiveCellCursorRectsForTesting().isEmpty)
-    #expect(!fixture.coordinator.interactiveCellCursorRectsForTesting().contains { $0.contains(cuesPoint) })
-    #expect(!fixture.coordinator.interactiveCellCursorRectsForTesting().contains { $0.contains(checkboxPoint) })
-    #expect(!fixture.coordinator.interactiveCellCursorRectsForTesting().contains { $0.contains(displayPoint) })
+    #expect(shape(cuesPoint) == .arrow)
+    #expect(shape(checkboxPoint) == .arrow)
+    #expect(shape(displayPoint) == .arrow)
 
     fixture.coordinator.setSelectionModeForTesting(false)
 
-    #expect(fixture.coordinator.interactiveCellCursorRectsForTesting().contains { $0.contains(cuesPoint) })
+    #expect(shape(cuesPoint) == .grab)
 }
 
 @MainActor
@@ -2720,11 +2712,7 @@ func subtitleTableUnavailableShioriBlocksInteractiveActionsButKeepsAllowedMenuAc
         y: cueFragment.textBounds.midY
     )
     let cueWindowPoint = fixture.documentView.convert(cuePoint, to: nil)
-    #expect(
-        !fixture.coordinator.interactiveCellCursorRectsForTesting().contains {
-            $0.contains(cuePoint)
-        }
-    )
+    #expect(fixture.coordinator.pointerShape(atWindowPoint: cueWindowPoint) == .arrow)
     #expect(fixture.coordinator.handleMouseDown(windowPoint: cueWindowPoint))
     #expect(fixture.coordinator.handleMouseUp(windowPoint: cueWindowPoint))
     #expect(playCount == 0)
@@ -2739,23 +2727,24 @@ func subtitleTableUnavailableShioriBlocksInteractiveActionsButKeepsAllowedMenuAc
 
 @MainActor
 @Test
-func subtitleTableViewSuppressesInteractiveCursorRectsWhenExternalLayerIsOpen() throws {
+func subtitleTableViewAnswersTheArrowWhenExternalLayerIsOpen() throws {
     let fixture = makeAttachedVirtualTableCoordinator()
     // A tall container: this case only needs the menu to open, not to land
     // anywhere in particular.
     fixture.container.frame.size.height = 800
     let cuesRect = try #require(fixture.coordinator.cellContentHoverDocumentRectForTesting(row: 0, columnID: "cues"))
-    let cuesPoint = CGPoint(x: cuesRect.midX, y: cuesRect.midY)
+    let cuesWindowPoint = fixture.documentView.convert(CGPoint(x: cuesRect.midX, y: cuesRect.midY), to: nil)
+
+    #expect(fixture.coordinator.pointerShape(atWindowPoint: cuesWindowPoint) == .grab)
 
     fixture.coordinator.isCoveredByHigherLayer = true
 
-    #expect(fixture.coordinator.interactiveCellCursorRectsForTesting().isEmpty)
-    #expect(!fixture.coordinator.interactiveCellCursorRectsForTesting().contains { $0.contains(cuesPoint) })
+    #expect(fixture.coordinator.pointerShape(atWindowPoint: cuesWindowPoint) == .arrow)
 }
 
 @MainActor
 @Test
-func subtitleTableViewDismissMenuKeepsInteractiveCellCursorRectAvailable() throws {
+func subtitleTableViewDismissMenuKeepsTheHandAvailable() throws {
     let fixture = makeAttachedVirtualTableCoordinator()
     let anchorFrame = CGRect(
         x: SubtitleTableMetrics.indexColumnWidth + SubtitleTableMetrics.nameColumnWidth,
@@ -2766,10 +2755,13 @@ func subtitleTableViewDismissMenuKeepsInteractiveCellCursorRectAvailable() throw
     let cuesRect = try #require(fixture.coordinator.cellContentHoverDocumentRectForTesting(row: 0, columnID: "cues"))
     let cuesPoint = CGPoint(x: cuesRect.midX, y: cuesRect.midY)
 
+    let cuesWindowPoint = fixture.documentView.convert(cuesPoint, to: nil)
+
     fixture.coordinator.showMenu(for: 0, buttonFrame: anchorFrame)
+    #expect(fixture.coordinator.pointerShape(atWindowPoint: cuesWindowPoint) == .arrow)
     fixture.coordinator.dismissMenu()
 
-    #expect(fixture.coordinator.interactiveCellCursorRectsForTesting().contains { $0.contains(cuesPoint) })
+    #expect(fixture.coordinator.pointerShape(atWindowPoint: cuesWindowPoint) == .grab)
 }
 
 @MainActor

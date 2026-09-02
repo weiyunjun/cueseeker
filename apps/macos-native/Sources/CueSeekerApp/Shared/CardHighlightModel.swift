@@ -55,6 +55,10 @@ final class CardHighlightModel: ObservableObject {
     func setCurrent(_ id: String?) {
         if id != hoveredID {
             adoptsHover = false
+            // The highlight left the card under the pointer by some other
+            // route — the keyboard, or the interface's default — so the hand
+            // goes with it.
+            AppPointerShape.handTargetChanged()
         }
         guard currentID != id else {
             return
@@ -86,12 +90,21 @@ final class CardHighlightModel: ObservableObject {
     }
 
     /// From a card's hover callback.
-    func noteHover(_ isHovered: Bool, id: String) {
+    func noteHover(_ isHovered: Bool, id: String, showsHand: Bool = true) {
         if isHovered {
             hoveredID = id
         } else if hoveredID == id {
             hoveredID = nil
         }
+        // The pointer shape learns of every card under the pointer, but only
+        // a hover the pointer itself caused — not one a scroll or a freeze
+        // slid into place — may change the shape without a further movement.
+        AppPointerShape.noteCardHover(
+            isHovered,
+            id: id,
+            showsHand: showsHand,
+            followsPointer: !isFrozen && adoptsHover
+        )
         guard !isFrozen else {
             return
         }

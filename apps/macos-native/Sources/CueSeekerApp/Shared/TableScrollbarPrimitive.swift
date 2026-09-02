@@ -231,7 +231,6 @@ class TableScrollbarOverlayView: NSView {
             guard visibleAxes != oldValue else { return }
             lastPresentation = nil
             needsDisplay = true
-            window?.invalidateCursorRects(for: self)
         }
     }
     /// Height kept free at the bottom so an outer Scrollbar can take that place.
@@ -240,7 +239,6 @@ class TableScrollbarOverlayView: NSView {
             guard bottomReserve != oldValue else { return }
             lastPresentation = nil
             needsDisplay = true
-            window?.invalidateCursorRects(for: self)
         }
     }
     /// Width kept free at the trailing edge so a Scrollbar drawn by another
@@ -250,7 +248,6 @@ class TableScrollbarOverlayView: NSView {
             guard trailingReserve != oldValue else { return }
             lastPresentation = nil
             needsDisplay = true
-            window?.invalidateCursorRects(for: self)
         }
     }
     var showsInteractiveThumb = false {
@@ -273,7 +270,6 @@ class TableScrollbarOverlayView: NSView {
             guard edgeInset != oldValue else { return }
             lastPresentation = nil
             needsDisplay = true
-            window?.invalidateCursorRects(for: self)
         }
     }
     var isPresented = false {
@@ -287,7 +283,6 @@ class TableScrollbarOverlayView: NSView {
             }
             lastPresentation = nil
             needsDisplay = true
-            window?.invalidateCursorRects(for: self)
         }
     }
 
@@ -376,17 +371,6 @@ class TableScrollbarOverlayView: NSView {
         super.viewDidMoveToWindow()
         if window == nil {
             cancelActiveDrag()
-        }
-    }
-
-    override func resetCursorRects() {
-        super.resetCursorRects()
-        guard let geometry = geometry() else { return }
-        for axis in TableScrollbarAxis.allCases {
-            guard let rect = geometry.interactiveThumbRect(for: axis, in: geometryBounds) else {
-                continue
-            }
-            addCursorRect(rect, cursor: .arrow)
         }
     }
 
@@ -535,7 +519,6 @@ class TableScrollbarOverlayView: NSView {
             newPresentation: newPresentation
         )
         lastPresentation = newPresentation
-        window?.invalidateCursorRects(for: self)
     }
 
     private func cancelActiveDrag() {

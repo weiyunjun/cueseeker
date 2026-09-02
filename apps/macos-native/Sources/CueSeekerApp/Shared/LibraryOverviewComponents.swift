@@ -307,9 +307,6 @@ struct LibraryOverviewCardContent<Cover: View>: View {
 struct LibraryOverviewCardButtonStyle: ButtonStyle {
     let isCurrent: Bool
     var isEnabled = true
-    /// Passed in because a `ButtonStyle` is not a view and cannot watch the
-    /// environment itself. The card that applies the style watches it.
-    var isFrozen = false
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
@@ -333,7 +330,6 @@ struct LibraryOverviewCardButtonStyle: ButtonStyle {
             // included, so the press, the hand and Hover share one area. The
             // rounded background is appearance only and does not narrow it.
             .contentShape(Rectangle())
-            .handPointer(isEnabled: isEnabled && !isFrozen)
             .opacity(isEnabled ? 1 : 0.55)
             .animation(
                 .easeOut(

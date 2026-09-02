@@ -48,11 +48,37 @@ enum WorkbenchRecentSection: Equatable {
 
 @MainActor
 final class WorkbenchRouteState: ObservableObject {
-    @Published fileprivate(set) var panelMode: WorkbenchPanelMode
+    // Each of these is an interface switch: the pointer goes back to the
+    // arrow until it moves again.
+    @Published fileprivate(set) var panelMode: WorkbenchPanelMode {
+        didSet {
+            if panelMode != oldValue {
+                AppPointerShape.reset()
+            }
+        }
+    }
     @Published fileprivate(set) var isSearchFocused = false
-    @Published fileprivate(set) var selectedTestLibraryFolder: CompleteLibraryFolderSummaryPresentation?
-    @Published fileprivate(set) var selectedShioriListID: Int64?
-    @Published fileprivate(set) var selectedRecentSection: WorkbenchRecentSection?
+    @Published fileprivate(set) var selectedTestLibraryFolder: CompleteLibraryFolderSummaryPresentation? {
+        didSet {
+            if selectedTestLibraryFolder?.id != oldValue?.id {
+                AppPointerShape.reset()
+            }
+        }
+    }
+    @Published fileprivate(set) var selectedShioriListID: Int64? {
+        didSet {
+            if selectedShioriListID != oldValue {
+                AppPointerShape.reset()
+            }
+        }
+    }
+    @Published fileprivate(set) var selectedRecentSection: WorkbenchRecentSection? {
+        didSet {
+            if selectedRecentSection != oldValue {
+                AppPointerShape.reset()
+            }
+        }
+    }
 
     init(panelMode: WorkbenchPanelMode) {
         self.panelMode = panelMode

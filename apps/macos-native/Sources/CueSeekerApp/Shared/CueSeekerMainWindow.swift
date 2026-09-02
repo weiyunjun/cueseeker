@@ -18,6 +18,19 @@ final class CueSeekerMainWindow: NSWindow {
     /// Set by the App once the interface layer registry exists.
     var isFocusLocked: () -> Bool = { false }
 
+    /// A real pointer movement is the one event that asks the shape to be
+    /// decided again; it is asked after dispatch, so every surface has
+    /// answered the movement first.
+    override func sendEvent(_ event: NSEvent) {
+        super.sendEvent(event)
+        switch event.type {
+        case .mouseMoved, .leftMouseDragged, .rightMouseDragged:
+            AppPointerShape.pointerMoved(in: self, at: event.locationInWindow)
+        default:
+            break
+        }
+    }
+
     override func makeFirstResponder(_ responder: NSResponder?) -> Bool {
         // Giving the focus up is always allowed; that is how the menu cancels
         // it in the first place.

@@ -131,8 +131,22 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
     @Published private(set) var activeKeyboardAction: PlaybackSubtitleFocusActionExecution? = nil
     @Published private(set) var completeCueBatch: SubtitleFocusCueBatch? = nil
     @Published private(set) var availableModules: [PlaybackOverlayModule]
-    @Published private(set) var selectedModule: PlaybackOverlayModule? = .current
-    @Published private(set) var isEditingCollage = false
+    // Switching the module, or entering and leaving collage editing, is an
+    // interface switch: the pointer goes back to the arrow until it moves.
+    @Published private(set) var selectedModule: PlaybackOverlayModule? = .current {
+        didSet {
+            if selectedModule != oldValue {
+                AppPointerShape.reset()
+            }
+        }
+    }
+    @Published private(set) var isEditingCollage = false {
+        didSet {
+            if isEditingCollage != oldValue {
+                AppPointerShape.reset()
+            }
+        }
+    }
     @Published private(set) var collageSelectionPlan = SubtitleCollageSelectionPlan()
     @Published private(set) var collagePreviewStore: PlaybackCollagePreviewStore?
     @Published private(set) var playlistWindow: PlaybackPlaylistSessionWindowStore?

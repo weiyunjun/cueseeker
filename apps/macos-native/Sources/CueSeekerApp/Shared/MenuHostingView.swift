@@ -7,7 +7,7 @@ import SwiftUI
 /// a long destination list — sees the event first and scrolls with it; once
 /// that content reaches its end the event arrives here and stops, instead of
 /// travelling on to the page underneath the menu.
-final class MenuHostingView: NSHostingView<AnyView> {
+final class MenuHostingView: CueSeekerHostingView<AnyView> {
     var onIntrinsicContentSizeInvalidated: (() -> Void)?
 
     override func invalidateIntrinsicContentSize() {

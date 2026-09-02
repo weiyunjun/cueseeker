@@ -2070,7 +2070,7 @@ final class SubtitleVirtualTableHeaderView: NSView {
             host.frame = frame
             host.isHidden = false
         } else {
-            let host = NSHostingView(rootView: anyView)
+            let host = CueSeekerHostingView(rootView: anyView)
             host.wantsLayer = true
             host.layer?.masksToBounds = false
             addSubview(host)
@@ -2105,7 +2105,7 @@ final class SubtitleVirtualTableHeaderView: NSView {
             host.frame = frame
             host.isHidden = false
         } else {
-            let host = NSHostingView(rootView: anyView)
+            let host = CueSeekerHostingView(rootView: anyView)
             host.wantsLayer = true
             host.layer?.masksToBounds = false
             addSubview(host)
@@ -2156,7 +2156,7 @@ final class SubtitleVirtualTableHeaderView: NSView {
 
 // MARK: - Virtual document view
 
-final class SubtitleVirtualTableDocumentView: NSView {
+final class SubtitleVirtualTableDocumentView: NSView, PointerShapeProviding {
     weak var coordinator: SubtitleTableView.Coordinator?
     private var hoverTracking: NSTrackingArea?
     var isRedesign: Bool = false { didSet { needsDisplay = true } }
@@ -2185,20 +2185,30 @@ final class SubtitleVirtualTableDocumentView: NSView {
     }
 
     override func resetCursorRects() {
-        super.resetCursorRects()
-        coordinator?.installCursorRects(in: self)
+        addCursorRect(visibleRect, cursor: AppPointerShape.rectCursor)
+    }
+
+    func pointerShape(atWindowPoint point: CGPoint) -> PointerShape {
+        coordinator?.pointerShape(atWindowPoint: point) ?? .arrow
     }
 
     override func mouseMoved(with event: NSEvent) {
         coordinator?.handleMouseHover(windowPoint: event.locationInWindow)
     }
 
-    override func mouseEntered(with event: NSEvent) {
-        coordinator?.handleMouseHover(windowPoint: event.locationInWindow)
-    }
+    // Entering and leaving are not movement: AppKit synthesizes both for a
+    // pointer that stayed put while the table scrolled or reflowed under it.
+    // A real entry is followed by a real move, which places the hover; a
+    // synthesized exit leaves the pointer where it was, so the hover stays.
+    override func mouseEntered(with event: NSEvent) {}
 
     override func mouseExited(with event: NSEvent) {
-        coordinator?.clearHover()
+        guard let window else {
+            return
+        }
+        coordinator?.clearHoverUnlessPointerInside(
+            windowPoint: window.mouseLocationOutsideOfEventStream
+        )
     }
 
     override func mouseDown(with event: NSEvent) {
@@ -2663,7 +2673,6 @@ struct SubtitleTableView: NSViewRepresentable {
                 updateHoveredColumnID(nil)
                 updateHoveredCueTextRow(nil)
                 updateHoveredCueStateRow(nil)
-                invalidateDocumentCursorRects()
                 headerView?.refreshHeaderHosts()
                 headerView?.needsDisplay = true
                 invalidateVisibleDocument()
@@ -2680,7 +2689,6 @@ struct SubtitleTableView: NSViewRepresentable {
                     updateHoveredCueTextRow(nil)
                     updateHoveredCueStateRow(nil)
                 }
-                invalidateDocumentCursorRects()
                 headerView?.refreshHeaderHosts()
             }
         }
@@ -2748,13 +2756,8 @@ struct SubtitleTableView: NSViewRepresentable {
                     // open menu stays open. Only work already in flight stops.
                     cancelPendingTextInteraction()
                     hideCueStateTip()
-                    handBackCursor()
-                    invalidateDocumentCursorRects()
-                    headerView?.refreshHeaderHosts()
-                } else {
-                    invalidateDocumentCursorRects()
-                    headerView?.refreshHeaderHosts()
                 }
+                headerView?.refreshHeaderHosts()
             }
         }
 
@@ -2775,13 +2778,8 @@ struct SubtitleTableView: NSViewRepresentable {
                 if interfaceLayerContext.isFrozen {
                     cancelPendingTextInteraction()
                     hideCueStateTip()
-                    handBackCursor()
-                    invalidateDocumentCursorRects()
-                    headerView?.refreshHeaderHosts()
-                } else {
-                    invalidateDocumentCursorRects()
-                    headerView?.refreshHeaderHosts()
                 }
+                headerView?.refreshHeaderHosts()
             }
         }
 
@@ -3364,7 +3362,6 @@ struct SubtitleTableView: NSViewRepresentable {
             }
             if showCueGroupChanged {
                 invalidateVisibleDocument()
-                invalidateDocumentCursorRects()
                 if isMenuOpen {
                     dismissMenu()
                 }
@@ -3380,7 +3377,6 @@ struct SubtitleTableView: NSViewRepresentable {
             }
             invalidateRows(for: effectiveRowsUpdate, rowsChanged: rowsChanged)
             if needsDocumentResize || columnVisibilityChanged || headerTitleChanged || shouldResetScroll || selectionModeChanged {
-                invalidateDocumentCursorRects()
             }
         }
 
@@ -3598,18 +3594,6 @@ struct SubtitleTableView: NSViewRepresentable {
 
         func tableContentWidthForTesting(viewportWidth: CGFloat) -> CGFloat {
             tableContentWidth(viewportWidth: viewportWidth)
-        }
-
-        func interactiveCellCursorRectsForTesting() -> [CGRect] {
-            interactiveCellCursorRects(in: currentTableBodyVisibleRect)
-        }
-
-        func selectableTextCursorRectsForTesting() -> [CGRect] {
-            guard let documentView else { return [] }
-            return selectableTextCursorRects(
-                in: currentTableBodyVisibleRect,
-                documentWidth: documentView.bounds.width
-            )
         }
 
         func selectableTextForTesting(row: Int, columnID: String) -> String? {
@@ -4260,7 +4244,6 @@ struct SubtitleTableView: NSViewRepresentable {
             } else {
                 refreshHeaderForHorizontalScrollIfNeeded()
             }
-            invalidateDocumentCursorRects()
         }
 
         func notifyVisibleRowsChanged(force: Bool = false) {
@@ -4295,7 +4278,6 @@ struct SubtitleTableView: NSViewRepresentable {
             layoutPageChrome()
             invalidateVisibleDocument()
             pageScrollbar?.setNeedsDisplay()
-            invalidateDocumentCursorRects()
             notifyVisibleRowsChanged(force: true)
         }
 
@@ -4321,7 +4303,6 @@ struct SubtitleTableView: NSViewRepresentable {
             layoutPageChrome()
             documentView.setNeedsDisplay(documentView.visibleRect)
             pageScrollbar?.setNeedsDisplay()
-            invalidateDocumentCursorRects()
             notifyVisibleRowsChanged(force: true)
         }
 
@@ -4338,7 +4319,6 @@ struct SubtitleTableView: NSViewRepresentable {
             origin.x = clampedX
             scrollView.contentView.scroll(to: origin)
             scrollView.reflectScrolledClipView(scrollView.contentView)
-            invalidateDocumentCursorRects()
         }
 
         @objc func scrollContentDidChange() {
@@ -4347,7 +4327,6 @@ struct SubtitleTableView: NSViewRepresentable {
             notifyVisibleRowsChanged()
             pageScrollbar?.metricsDidChange()
             refreshHeaderForHorizontalScrollIfNeeded()
-            invalidateDocumentCursorRects()
             if isMenuOpen {
                 repositionOpenMenu()
             }
@@ -5764,7 +5743,6 @@ struct SubtitleTableView: NSViewRepresentable {
             pageScrollbar?.metricsDidChange()
             pageScrollbar?.setNeedsDisplay()
             documentView.setNeedsDisplay(documentView.visibleRect)
-            invalidateDocumentCursorRects()
             if isMenuOpen {
                 repositionOpenMenu()
             }
@@ -5858,46 +5836,49 @@ struct SubtitleTableView: NSViewRepresentable {
                 || interfaceLayerContext.isFrozen
         }
 
-        func installCursorRects(in documentView: SubtitleVirtualTableDocumentView) {
-            guard !isPointerFrozen else { return }
+        /// The table's answer to the pointer, asked by `AppPointerShape` when
+        /// the pointer really moved. Playable cue text takes the hand and
+        /// selectable text the I-beam; a frozen table, Select Mode and
+        /// everything else answer the arrow. Only the row under the pointer
+        /// is laid out for the answer.
+        func pointerShape(atWindowPoint windowPoint: CGPoint) -> PointerShape {
+            guard !isPointerFrozen, let documentView else {
+                return .arrow
+            }
+            let point = documentView.convert(windowPoint, from: nil)
             let visibleRect = currentTableBodyVisibleRect
-            for rect in selectableTextCursorRects(
+            guard visibleRect.contains(point),
+                  let row = rowAtDocumentPoint(point)
+            else {
+                return .arrow
+            }
+            let rows = row..<(row + 1)
+            if interactiveCellRects(in: visibleRect, rows: rows)
+                .contains(where: { $0.contains(point) }) {
+                return .grab
+            }
+            if selectableTextRects(
                 in: visibleRect,
-                documentWidth: documentView.bounds.width
-            ) {
-                documentView.addCursorRect(rect, cursor: .iBeam)
+                documentWidth: documentView.bounds.width,
+                rows: rows
+            ).contains(where: { $0.contains(point) }) {
+                return .iBeam
             }
-            for rect in interactiveCellCursorRects(in: visibleRect) {
-                documentView.addCursorRect(rect, cursor: .pointingHand)
-            }
-        }
-
-        /// The table's shape, given up the moment something covers it.
-        ///
-        /// A cursor rect is undone by leaving it, which is why the rects are
-        /// the only thing here that states a shape. Being covered is not
-        /// leaving: the pointer stays exactly where it was, over a rect that
-        /// is about to stop existing, and nothing above the table states a
-        /// shape of its own — so the table says the arrow once, on its way
-        /// out, the way the menu barrier already does.
-        private func handBackCursor() {
-            NSCursor.arrow.set()
-        }
-
-        private func invalidateDocumentCursorRects() {
-            guard let documentView else { return }
-            documentView.window?.invalidateCursorRects(for: documentView)
+            return .arrow
         }
 
         /// Select Mode has no hand anywhere: a press on the row ticks its
         /// checkbox instead of playing, so no part of it is playable cue text.
-        private func interactiveCellCursorRects(in visibleRect: CGRect) -> [CGRect] {
+        private func interactiveCellRects(
+            in visibleRect: CGRect,
+            rows: Range<Int>? = nil
+        ) -> [CGRect] {
             guard isRedesign,
                   isEnabled,
                   !isSelectionMode,
                   !isMenuOpen,
                   !isCoveredByHigherLayer,
-                  let range = visibleRowRange(in: visibleRect)
+                  let range = rows ?? visibleRowRange(in: visibleRect)
             else {
                 return []
             }
@@ -5921,16 +5902,17 @@ struct SubtitleTableView: NSViewRepresentable {
             }
         }
 
-        private func selectableTextCursorRects(
+        private func selectableTextRects(
             in visibleRect: CGRect,
-            documentWidth: CGFloat
+            documentWidth: CGFloat,
+            rows: Range<Int>? = nil
         ) -> [CGRect] {
             guard isRedesign,
                   isEnabled,
                   !isSelectionMode,
                   !isMenuOpen,
                   !isCoveredByHigherLayer,
-                  let range = visibleRowRange(in: visibleRect)
+                  let range = rows ?? visibleRowRange(in: visibleRect)
             else {
                 return []
             }
@@ -6832,6 +6814,19 @@ struct SubtitleTableView: NSViewRepresentable {
             return focusFirstVisibleCheckboxFromKeyboard() ? nil : event
         }
 
+        /// An exit AppKit reported. Only a pointer that really left the
+        /// table body drops the hover; one that is still over it was not
+        /// moved, the table was, and the hover stays on its row.
+        func clearHoverUnlessPointerInside(windowPoint: CGPoint) {
+            if let documentView,
+               currentTableBodyVisibleRect.contains(
+                   documentView.convert(windowPoint, from: nil)
+               ) {
+                return
+            }
+            clearHover()
+        }
+
         func clearHover() {
             // The pointer leaving the table for a surface above it is not a
             // reason to drop the highlight underneath: a frozen table keeps
@@ -7362,7 +7357,6 @@ struct SubtitleTableView: NSViewRepresentable {
             menuHost?.isHidden = true
             hideRowActionDestinationSubmenu()
             menuClipView?.isHidden = true
-            invalidateDocumentCursorRects()
             closeMenuGateSession()
             headerView?.refreshHeaderHosts()
             invalidateRows([previousRowMenuRow, previousHoveredRow])
@@ -7374,10 +7368,6 @@ struct SubtitleTableView: NSViewRepresentable {
             guard menuGateSession == nil else {
                 return
             }
-            // Only ask AppKit to decide the shape again; the frozen guard on
-            // the cursor rects is what leaves the arrow. Nothing states a
-            // shape while a menu is open.
-            defer { invalidateDocumentCursorRects() }
             menuGateSession = interfaceLayers?.menuGate.open(
                 MenuGate.Client(
                     owner: .workbenchPage,
@@ -7500,7 +7490,6 @@ struct SubtitleTableView: NSViewRepresentable {
             menuGateSession = nil
             // The rects come back with the menu gone, and AppKit re-decides
             // from them.
-            invalidateDocumentCursorRects()
         }
 
         private func playRow(_ row: Int) {

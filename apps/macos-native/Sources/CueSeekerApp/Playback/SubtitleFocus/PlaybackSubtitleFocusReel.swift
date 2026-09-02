@@ -3562,28 +3562,13 @@ private final class PlaybackSubtitleFocusNativeScrollbarView:
     TableScrollbarOverlayView
 {
     var allowsInteraction: () -> Bool = { false }
-    var acceptsInteraction = false {
-        didSet {
-            guard acceptsInteraction != oldValue else {
-                return
-            }
-            window?.invalidateCursorRects(for: self)
-        }
-    }
+    var acceptsInteraction = false
 
     override func hitTest(_ point: NSPoint) -> NSView? {
         guard acceptsInteraction, allowsInteraction() else {
             return nil
         }
         return super.hitTest(point)
-    }
-
-    override func resetCursorRects() {
-        guard acceptsInteraction, allowsInteraction() else {
-            discardCursorRects()
-            return
-        }
-        super.resetCursorRects()
     }
 }
 
@@ -3712,7 +3697,7 @@ enum PlaybackCollageCheckboxDrawing {
     }
 }
 
-final class PlaybackSubtitleFocusReelDocumentView: NSView {
+final class PlaybackSubtitleFocusReelDocumentView: NSView, PointerShapeProviding {
     private struct TextSelection {
         let ordinal: Int
         let itemID: AnyHashable
@@ -3814,7 +3799,6 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView {
         self.contentAdapter = contentAdapter
         contentSnapshot = snapshot
         resolveLocalPlacementsIfNeeded()
-        window?.invalidateCursorRects(for: self)
         needsDisplay = true
     }
 
@@ -3854,7 +3838,6 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView {
         )
         collageSelectedCueIDs = selectedCueIDs
         collageCanSelectAnotherCue = canSelectAnotherCue
-        window?.invalidateCursorRects(for: self)
 
         if changesMode {
             clearTextSelection()
@@ -3903,7 +3886,6 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView {
             details: "ordinal=\(layout.fractionalOrdinal)"
         )
         resolveLocalPlacementsIfNeeded()
-        window?.invalidateCursorRects(for: self)
         needsDisplay = true
     }
 
@@ -4137,19 +4119,25 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView {
     }
 
     override func resetCursorRects() {
-        discardCursorRects()
+        addCursorRect(visibleRect, cursor: AppPointerShape.rectCursor)
+    }
+
+    /// The reel's answer to the pointer, asked by `AppPointerShape` when the
+    /// pointer really moved: the I-beam over selectable cue text, the arrow
+    /// elsewhere and throughout collage editing.
+    func pointerShape(atWindowPoint windowPoint: CGPoint) -> PointerShape {
         guard !isEditingCollage, let contentAdapter else {
-            return
+            return .arrow
         }
-        for placement in placements {
-            let cueRect = cueContentRect(for: placement.rect)
-            for rect in contentAdapter.selectableTextRects(
-                at: placement.ordinal,
-                in: cueRect
-            ) where !rect.isNull && !rect.isEmpty {
-                addCursorRect(rect, cursor: .iBeam)
-            }
+        let point = convert(windowPoint, from: nil)
+        guard let placement = textPlacement(containing: point) else {
+            return .arrow
         }
+        let isOverText = contentAdapter.selectableTextRects(
+            at: placement.ordinal,
+            in: cueContentRect(for: placement.rect)
+        ).contains { $0.contains(point) }
+        return isOverText ? .iBeam : .arrow
     }
 
     func toggleCollageCueForTesting(at ordinal: Int) -> Bool {

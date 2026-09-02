@@ -55,11 +55,17 @@ final class InterfaceLayerRegistry: ObservableObject {
     @Published private(set) var openMenuCounts: [InterfaceLayer: Int] = [:]
 
     func setOpen(_ layer: InterfaceLayer, _ isOpen: Bool) {
+        guard openLayers.contains(layer) != isOpen else {
+            return
+        }
         if isOpen {
             openLayers.insert(layer)
         } else {
             openLayers.remove(layer)
         }
+        // Entering or leaving a layer is an interface switch: the pointer goes
+        // back to the arrow until it moves again.
+        AppPointerShape.reset()
     }
 
     /// Registers an open menu. The owner holds the token while its menu is

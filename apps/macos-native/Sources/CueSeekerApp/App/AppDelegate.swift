@@ -173,7 +173,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         window.minSize = NSSize(width: AppShellLayout.minimumWindowWidth, height: AppShellLayout.minimumWindowHeight)
         window.delegate = self
         window.center()
-        window.contentView = NSHostingView(rootView: contentView)
+        window.contentView = CueSeekerHostingView(rootView: contentView)
+        AppPointerShape.attach(to: window) { [appState] in
+            appState.interfaceLayers.hasUncoveredOpenMenu
+        }
 
         if let screen = window.screen ?? NSScreen.main {
             window.setFrame(screen.visibleFrame, display: true)

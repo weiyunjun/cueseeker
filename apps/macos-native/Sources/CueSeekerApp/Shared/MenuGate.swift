@@ -135,7 +135,6 @@ final class MenuGate {
     nonisolated(unsafe) private var eventMonitor: Any?
     /// The window the barrier was applied to, so exactly what was switched off
     /// when the first menu opened is switched back on when the last one closes.
-    private var barrierWindow: NSWindow?
     /// Whether a press landed on a menu and has not been released yet. The
     /// drag it started belongs to the menu wherever the pointer travels.
     private var isTrackingMenuDrag = false
@@ -172,36 +171,19 @@ final class MenuGate {
         clients.removeAll { $0.id == id }
         if clients.isEmpty {
             removeMonitor()
-            releaseBarrier()
             isTrackingMenuDrag = false
         }
     }
 
-    /// Everything an open menu switches off in its window, applied once and
-    /// undone once.
+    /// Everything an open menu switches off in its window, applied once.
     ///
-    /// The cursor is the App's, not each surface's: cursor rects are switched
-    /// off so no view under the menu can state a shape, and the pointer gives
-    /// up whatever shape it was already wearing. The keyboard is nobody's: the
-    /// focus is cancelled, and `CueSeekerMainWindow` refuses to hand it back
-    /// while a menu is open, so a field cannot take it again on its own.
+    /// The pointer goes back to the arrow: `AppPointerShape` owns the shape
+    /// and ignores movement while a menu owns input. The keyboard is nobody's:
+    /// the focus is cancelled, and `CueSeekerMainWindow` refuses to hand it
+    /// back while a menu is open, so a field cannot take it again on its own.
     private func applyBarrier(to window: NSWindow?) {
-        guard let window else {
-            return
-        }
-        barrierWindow = window
-        window.disableCursorRects()
-        NSCursor.arrow.set()
-        window.makeFirstResponder(nil)
-    }
-
-    private func releaseBarrier() {
-        guard let barrierWindow else {
-            return
-        }
-        barrierWindow.enableCursorRects()
-        barrierWindow.resetCursorRects()
-        self.barrierWindow = nil
+        AppPointerShape.reset()
+        window?.makeFirstResponder(nil)
     }
 
     /// Keys the playback key owner offers the open menus before seeking,

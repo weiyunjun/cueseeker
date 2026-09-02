@@ -803,15 +803,24 @@ Replacement and simplicity rules:
 - To achieve custom offsets for native traffic light buttons, the app uses a Proxy View reparenting pattern to extract buttons from the system's `_NSTitlebarContainerView` rather than fighting the private AppKit layout engine with frame or bounds overrides.
 - Window dragging must be handled explicitly by the custom titlebar (`performDrag(with:)`) with `window.isMovableByWindowBackground` set to `false`. Relying on window background dragging causes conflicts with SwiftUI drag gestures on transparent views.
 - Resizable dividers must use a custom `NSView` overlay to natively handle `resetCursorRects`, `NSTrackingArea`, and drag events (`mouseDown`/`mouseDragged`). SwiftUI's `.onHover` with `NSCursor.push()` is unreliable due to AppKit's continuous cursor rect evaluation, and SwiftUI's `DragGesture` can conflict with window event routing.
-- A pointer shape must come from the framework that draws the surface. SwiftUI
-  surfaces declare it with SwiftUI's own pointer style; AppKit surfaces register
-  cursor rects on a view that takes hits. Setting or pushing a shape from
-  outside the hosting framework is overwritten on the next mouse move, because
-  the SwiftUI hosting view and AppKit both restate the shape while the pointer
-  moves. A representable's `NSView` cannot carry a cursor rect for a SwiftUI
-  surface: SwiftUI keeps it out of hit testing, so AppKit never consults it.
-- A SwiftUI `Button` decides the pointer for its own area, so a pointer style
-  meant for a button must be applied to its label rather than around it.
+- The pointer shape has one owner, `AppPointerShape`, and it is stated only on
+  a real pointer movement and on the resets the pointer requirement names: an
+  interface switch, a menu or dialog opening, and the hand's target losing its
+  highlight to something other than the pointer. No surface declares a shape
+  of its own: SwiftUI pointer styles, cursor rects and direct cursor sets are
+  not used. AppKit re-evaluates the cursor for the pointer's current location
+  at every display cycle — after a scroll, a layout change or a keyboard move —
+  and applies the cursor rect it finds there or the arrow when it finds none,
+  and SwiftUI restates from geometry through its hosting view; a shape left to
+  them follows geometry rather than the pointer. So every surface carries the
+  one decided shape in a cursor rect over its whole area, rebuilt when the
+  decision changes, and the hosting views answer cursor updates with that
+  shape: what AppKit applies at the display cycle is the decision already
+  made.
+- An AppKit surface with a shape of its own answers `PointerShapeProviding` for
+  a point; a SwiftUI card reports its hover through `CardHighlightModel`, which
+  is how the owner learns of it. Editable and selectable text controls are
+  recognised by the owner itself.
 - Hover that produces a visual effect must go through `onPointerHover`, not
   through a bare `onHover`. A menu open over a layer, or a higher layer covering
   it, stops every surface on that layer from answering the pointer; asking each
