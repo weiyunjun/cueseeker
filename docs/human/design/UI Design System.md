@@ -1055,6 +1055,11 @@
 
 ##### Context Menu
 
+- Item：Menu Item / Action Menu Item、Destructive Menu Item、Submenu Trigger
+- Workbench Search 表格行菜单：Play、Open Subtitle Folder、Save to Shiori ...；Menu Divider；Copy Cue Text、Copy Deep Link、Copy Cue Group Text、Copy Time Range
+- Workbench Shiori 表格行菜单：Play、Open Subtitle Folder；Menu Divider；Copy Cue Text、Copy Deep Link、Copy Cue Group Text、Copy Time Range；Menu Divider；Move to ...、Duplicate to ...；Menu Divider；Remove Shiori
+- Copy Cue Group Text 只在显示 Cue Group 时出现
+
 ##### Player Speed Menu
 
 - Surface：Player Chrome
@@ -1092,6 +1097,8 @@
 ##### Shiori Destination Submenu
 
 - Structure：Shiori 列表项依次排列，末尾是 Menu Divider 与 New List 项；没有列表项时不显示 Divider
+- 列表项按创建时间正序，与 Shiori 一级界面的卡片顺序一致
+- 由 Move to ... 与 Duplicate to ... 展开时不含当前所在的列表；由 Save to Shiori ... 展开时含全部列表
 - Item：Menu Item / Action Menu Item，均不带 Leading Icon
 
 ### Menu Item
@@ -1172,6 +1179,7 @@
 
 ##### Submenu Trigger
 
+- Leading Slot：Icon，各 Submenu Trigger 共用同一个右箭头图标
 - Trailing Slot：Submenu Indicator，宽度按图形本身，不留左右空白
 
 ### Menu Divider
@@ -3844,7 +3852,7 @@
 | Playback Playlist / Video Playlist | 视频数 | Play `Return` |
 | Command Panel Root | None | Open `Return` |
 | Command Panel / Recent Videos | 视频数 | Open `Return` |
-| Command Panel / Recent Shioris | 栞数 | Open `Return` |
+| Command Panel / Recent Shioris | Shiori 数 | Open `Return` |
 | Command Panel / Search Results | 结果数 | Save to Shiori `S`、Copy Cue Text `C`、Copy Deep Link `X`、Play `Return` |
 
 #### States

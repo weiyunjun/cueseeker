@@ -43,3 +43,17 @@ Scenario ID：shiori.duplicate.failed
 Scenario ID：shiori.destination.cue.already_exists
 出现位置：App Center
 动画：Default
+
+### 7. 保存成功
+文字：Saved to “{List Name}”
+持续时间：5秒
+Scenario ID：shiori.save.succeeded
+出现位置：App Center
+动画：Default
+
+### 8. 非目标消失原因导致保存失败
+文字：Couldn’t save Shiori. Try again
+持续时间：5秒
+Scenario ID：shiori.save.failed
+出现位置：App Center
+动画：Default
