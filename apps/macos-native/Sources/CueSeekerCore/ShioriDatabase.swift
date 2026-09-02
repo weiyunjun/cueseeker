@@ -85,6 +85,18 @@ public final class ShioriDatabase: @unchecked Sendable {
         guard let cueID = selection.cueLineID else {
             throw SQLiteDatabaseError.stepFailed("Shiori requires a CueID")
         }
+        return try upsertShiori(
+            cueID: cueID,
+            listID: requestedListID,
+            createdAt: createdAt
+        )
+    }
+
+    public func upsertShiori(
+        cueID: Int64,
+        listID requestedListID: Int64? = nil,
+        createdAt: Date = Date()
+    ) throws -> Shiori {
         guard let listID = try requestedListID ?? firstShioriListID() else {
             throw SQLiteDatabaseError.stepFailed("Shiori requires a destination list")
         }

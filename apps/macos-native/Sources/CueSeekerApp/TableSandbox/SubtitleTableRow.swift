@@ -55,6 +55,7 @@ enum SubtitleTableCueState: Equatable {
         }
         var actions: Set<SubtitleTableRowAction> = [
             .play,
+            .saveToShiori,
             .moveToList,
             .duplicateToList,
         ]

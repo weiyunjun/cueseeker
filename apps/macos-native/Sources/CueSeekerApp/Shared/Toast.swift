@@ -40,6 +40,13 @@ enum ShioriToastRequest {
         )
     }
 
+    static func saveSucceeded(listName: String) -> ToastRequest {
+        ToastRequest(
+            scenarioID: "shiori.save.succeeded",
+            message: L("toast.shiori.saved", listName)
+        )
+    }
+
     static func duplicateSucceeded(listName: String) -> ToastRequest {
         ToastRequest(
             scenarioID: "shiori.duplicate.succeeded",
@@ -58,6 +65,13 @@ enum ShioriToastRequest {
         ToastRequest(
             scenarioID: "shiori.move.failed",
             message: L("toast.shiori.move_failed")
+        )
+    }
+
+    static var saveFailed: ToastRequest {
+        ToastRequest(
+            scenarioID: "shiori.save.failed",
+            message: L("toast.shiori.save_failed")
         )
     }
 

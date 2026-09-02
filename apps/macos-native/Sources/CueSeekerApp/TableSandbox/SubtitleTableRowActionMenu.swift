@@ -1,6 +1,7 @@
 enum SubtitleTableRowAction: Hashable, Sendable {
     case play
     case openSubtitleFolder
+    case saveToShiori
     case copyCueText
     case copyDeepLink
     case copyCueGroupText
@@ -15,6 +16,8 @@ enum SubtitleTableRowAction: Hashable, Sendable {
             return L("row_menu.play")
         case .openSubtitleFolder:
             return L("row_menu.open_subtitle_folder")
+        case .saveToShiori:
+            return L("row_menu.save_to_shiori")
         case .copyCueText:
             return L("row_menu.copy_cue_text")
         case .copyDeepLink:
@@ -38,6 +41,8 @@ enum SubtitleTableRowAction: Hashable, Sendable {
             return "play.fill"
         case .openSubtitleFolder:
             return "folder"
+        case .saveToShiori:
+            return "arrow.right"
         case .copyCueText, .copyCueGroupText, .copyTimeRange:
             return "doc.on.doc"
         case .copyDeepLink:
@@ -52,7 +57,7 @@ enum SubtitleTableRowAction: Hashable, Sendable {
     }
 
     var opensDestinationSubmenu: Bool {
-        self == .moveToList || self == .duplicateToList
+        self == .saveToShiori || self == .moveToList || self == .duplicateToList
     }
 
     var isDestructive: Bool {
@@ -77,6 +82,11 @@ struct SubtitleTableRowActionMenuModel: Equatable, Sendable {
         var elements: [SubtitleTableRowActionMenuElement] = [
             .action(.play),
             .action(.openSubtitleFolder),
+        ]
+        if style == .search {
+            elements.append(.action(.saveToShiori))
+        }
+        elements += [
             .divider,
             .action(.copyCueText),
             .action(.copyDeepLink),

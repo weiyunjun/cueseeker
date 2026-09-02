@@ -89,6 +89,7 @@
 /* Row action menu */
 "row_menu.play" = "Play";
 "row_menu.open_subtitle_folder" = "Open Subtitle Folder";
+"row_menu.save_to_shiori" = "Save to Shiori ...";
 "row_menu.copy_cue_text" = "Copy Cue Text";
 "row_menu.copy_deep_link" = "Copy Deep Link";
 "row_menu.copy_cue_group_text" = "Copy Cue Group Text";
@@ -180,9 +181,11 @@
 
 /* Toast */
 "toast.shiori.moved" = "Moved to “%@”";
+"toast.shiori.saved" = "Saved to “%@”";
 "toast.shiori.duplicated" = "Duplicated to “%@”";
 "toast.shiori.destination_unavailable" = "The list is no longer available";
 "toast.shiori.move_failed" = "Couldn’t move Shiori. Try again";
+"toast.shiori.save_failed" = "Couldn’t save Shiori. Try again";
 "toast.shiori.duplicate_failed" = "Couldn’t duplicate Shiori. Try again";
 "toast.shiori.already_exists" = "Shiori already exists in “%@”";
 

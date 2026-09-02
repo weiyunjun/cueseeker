@@ -919,3 +919,57 @@ func removingIndexedFolderPreservesCueBoundShioriRelation() throws {
             .map(\.id) == [savedShiori.id]
     )
 }
+
+@Test
+func shioriSavesByCueIDIntoEachListWithoutDuplicatingWithinOne() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let indexingDatabase = try IndexingDatabase(path: databaseURL)
+    try DatabaseBootstrap.prepare(at: databaseURL)
+    let shioriDatabase = try ShioriDatabase(path: databaseURL)
+    let subtitleFile = URL(fileURLWithPath: "/Media/Show/Save By CueID.srt")
+    try indexingDatabase.replaceEntries(
+        subtitleFile: subtitleFile,
+        videoFile: URL(fileURLWithPath: "/Media/Show/Save By CueID.mkv"),
+        entries: [
+            SubtitleEntry(
+                sequenceNumber: 1,
+                startTimecode: "00:00:01,000",
+                endTimecode: "00:00:02,000",
+                startMilliseconds: 1_000,
+                endMilliseconds: 2_000,
+                text: "Saved from the Search table"
+            )
+        ]
+    )
+    let selection = try #require(try PlaybackSubtitleDatabase(path: databaseURL).cueTextSelection(
+        forSubtitleFile: subtitleFile,
+        atMilliseconds: 1_500
+    ))
+    let cueID = try #require(selection.cueLineID)
+    let defaultListID = try #require(try shioriDatabase.firstShioriListID())
+    let secondList = try shioriDatabase.createShioriList(name: "Second")
+
+    // The Search table has only the Cue, so the save goes in by CueID.
+    let saved = try shioriDatabase.upsertShiori(
+        cueID: cueID,
+        listID: defaultListID
+    )
+    #expect(try shioriDatabase.shiori(cueID: cueID, listID: defaultListID)?.id == saved.id)
+
+    // The same Cue still reaches another list.
+    _ = try shioriDatabase.upsertShiori(cueID: cueID, listID: secondList.id)
+    #expect(try shioriDatabase.shioriCount(listID: secondList.id) == 1)
+
+    // Saving again into a list that already holds the Cue adds nothing.
+    let repeated = try shioriDatabase.upsertShiori(
+        cueID: cueID,
+        listID: defaultListID
+    )
+    #expect(repeated.id == saved.id)
+    #expect(try shioriDatabase.shioriCount(listID: defaultListID) == 1)
+    #expect(try shioriDatabase.uniqueShioriCueCount() == 1)
+}

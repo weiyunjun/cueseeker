@@ -569,7 +569,7 @@ private struct WorkbenchShioriTableContent: View {
         appState.beginCreatingShioriList(
             pendingTransfer: ShioriListEditorPendingTransfer(
                 action: action,
-                shiori: item
+                target: .shiori(item)
             )
         )
     }

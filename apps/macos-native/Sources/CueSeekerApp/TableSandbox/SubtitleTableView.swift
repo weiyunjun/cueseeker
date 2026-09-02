@@ -2373,6 +2373,7 @@ struct SubtitleTableView: NSViewRepresentable {
     }
     var rowActionMenuStyle: SubtitleTableRowActionMenuStyle = .search
     var rowActionDestinations: [SubtitleTableRowActionDestination] = []
+    var onSaveShiori: (SubtitleTableRow, Int64) -> Void = { _, _ in }
     var onMoveShiori: (SubtitleTableRow, Int64) -> Void = { _, _ in }
     var onDuplicateShiori: (SubtitleTableRow, Int64) -> Void = { _, _ in }
     var onCreateShioriList: (SubtitleTableRow, SubtitleTableRowAction) -> Void
@@ -2415,6 +2416,7 @@ struct SubtitleTableView: NSViewRepresentable {
             onOpenSubtitleFile: onOpenSubtitleFile,
             rowActionMenuStyle: rowActionMenuStyle,
             rowActionDestinations: rowActionDestinations,
+            onSaveShiori: onSaveShiori,
             onMoveShiori: onMoveShiori,
             onDuplicateShiori: onDuplicateShiori,
             onCreateShioriList: onCreateShioriList,
@@ -2583,6 +2585,7 @@ struct SubtitleTableView: NSViewRepresentable {
             onOpenSubtitleFile: onOpenSubtitleFile,
             rowActionMenuStyle: rowActionMenuStyle,
             rowActionDestinations: rowActionDestinations,
+            onSaveShiori: onSaveShiori,
             onMoveShiori: onMoveShiori,
             onDuplicateShiori: onDuplicateShiori,
             onCreateShioriList: onCreateShioriList,
@@ -2634,6 +2637,7 @@ struct SubtitleTableView: NSViewRepresentable {
         private var onOpenSubtitleFile: (String) -> Void
         private var rowActionMenuStyle: SubtitleTableRowActionMenuStyle
         private var rowActionDestinations: [SubtitleTableRowActionDestination]
+        private var onSaveShiori: (SubtitleTableRow, Int64) -> Void
         private var onMoveShiori: (SubtitleTableRow, Int64) -> Void
         private var onDuplicateShiori: (SubtitleTableRow, Int64) -> Void
         private var onCreateShioriList:
@@ -2869,6 +2873,7 @@ struct SubtitleTableView: NSViewRepresentable {
             },
             rowActionMenuStyle: SubtitleTableRowActionMenuStyle = .search,
             rowActionDestinations: [SubtitleTableRowActionDestination] = [],
+            onSaveShiori: @escaping (SubtitleTableRow, Int64) -> Void = { _, _ in },
             onMoveShiori: @escaping (SubtitleTableRow, Int64) -> Void = { _, _ in },
             onDuplicateShiori: @escaping (SubtitleTableRow, Int64) -> Void = { _, _ in },
             onCreateShioriList: @escaping (
@@ -2907,6 +2912,7 @@ struct SubtitleTableView: NSViewRepresentable {
             self.onOpenSubtitleFile = onOpenSubtitleFile
             self.rowActionMenuStyle = rowActionMenuStyle
             self.rowActionDestinations = rowActionDestinations
+            self.onSaveShiori = onSaveShiori
             self.onMoveShiori = onMoveShiori
             self.onDuplicateShiori = onDuplicateShiori
             self.onCreateShioriList = onCreateShioriList
@@ -3190,6 +3196,7 @@ struct SubtitleTableView: NSViewRepresentable {
             },
             rowActionMenuStyle: SubtitleTableRowActionMenuStyle = .search,
             rowActionDestinations: [SubtitleTableRowActionDestination] = [],
+            onSaveShiori: @escaping (SubtitleTableRow, Int64) -> Void = { _, _ in },
             onMoveShiori: @escaping (SubtitleTableRow, Int64) -> Void = { _, _ in },
             onDuplicateShiori: @escaping (SubtitleTableRow, Int64) -> Void = { _, _ in },
             onCreateShioriList: @escaping (
@@ -3269,6 +3276,7 @@ struct SubtitleTableView: NSViewRepresentable {
             self.onOpenSubtitleFile = onOpenSubtitleFile
             self.rowActionMenuStyle = rowActionMenuStyle
             self.rowActionDestinations = rowActionDestinations
+            self.onSaveShiori = onSaveShiori
             self.onMoveShiori = onMoveShiori
             self.onDuplicateShiori = onDuplicateShiori
             self.onCreateShioriList = onCreateShioriList
@@ -7525,6 +7533,8 @@ struct SubtitleTableView: NSViewRepresentable {
             }
             dismissMenu()
             switch action {
+            case .saveToShiori:
+                onSaveShiori(target, destinationID)
             case .moveToList:
                 onMoveShiori(target, destinationID)
             case .duplicateToList:
@@ -7572,7 +7582,7 @@ struct SubtitleTableView: NSViewRepresentable {
                 copyCueGroup(target: target)
             case .copyTimeRange:
                 copyCellText(target: target, columnID: "time")
-            case .moveToList, .duplicateToList:
+            case .saveToShiori, .moveToList, .duplicateToList:
                 break
             case .removeShiori:
                 onRemoveShiori(target)
@@ -7585,6 +7595,7 @@ struct SubtitleTableView: NSViewRepresentable {
             var actions = target.cueState.disabledRowActions
             if target.primaryCueID.map({ $0 <= 0 }) ?? true {
                 actions.insert(.copyDeepLink)
+                actions.insert(.saveToShiori)
             }
             return actions
         }

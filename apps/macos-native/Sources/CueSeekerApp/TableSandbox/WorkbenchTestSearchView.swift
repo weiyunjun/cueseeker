@@ -33,6 +33,7 @@ struct WorkbenchTestSearchView: View {
     @EnvironmentObject private var settingsStore: SettingsStore
     // Observed so the copy below is re-read when the language changes.
     @EnvironmentObject private var localization: AppLocalizationStore
+    @EnvironmentObject private var shioriStore: ShioriStore
     private let rowStore: TableSandboxRowModelStore
     @State private var appliedShowCueGroup: Bool?
     @State private var searchDraft: String
@@ -122,6 +123,9 @@ struct WorkbenchTestSearchView: View {
                             return await loadRowsForTextCopy(range: range, source: textCopySource)
                         },
                         onPlay: play,
+                        rowActionDestinations: rowActionDestinations,
+                        onSaveShiori: saveShiori,
+                        onCreateShioriList: createShioriList,
                         isRedesign: true
                     )
 
@@ -460,6 +464,34 @@ struct WorkbenchTestSearchView: View {
             tableScrollResetToken += 1
         }
         AppMemoryPressureRelief.relieveAfterLargeResultRelease(estimatedReleasedRows: releasedRows)
+    }
+
+    /// Search has no current list, so every list is a destination.
+    private var rowActionDestinations: [SubtitleTableRowActionDestination] {
+        shioriStore.listOverview.lists.map { summary in
+            SubtitleTableRowActionDestination(
+                id: summary.id,
+                title: summary.list.name
+            )
+        }
+    }
+
+    private func saveShiori(_ row: SubtitleTableRow, toListID listID: Int64) {
+        guard let cueID = row.primaryCueID else { return }
+        appState.saveShiori(cueID: cueID, toListID: listID)
+    }
+
+    private func createShioriList(
+        _ row: SubtitleTableRow,
+        for action: SubtitleTableRowAction
+    ) {
+        guard let cueID = row.primaryCueID else { return }
+        appState.beginCreatingShioriList(
+            pendingTransfer: ShioriListEditorPendingTransfer(
+                action: action,
+                target: .cue(cueID)
+            )
+        )
     }
 
     private func play(_ row: SubtitleTableRow) {

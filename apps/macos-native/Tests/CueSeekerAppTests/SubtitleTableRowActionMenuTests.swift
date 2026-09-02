@@ -9,6 +9,7 @@ func subtitleTableSearchRowActionMenuUsesUnifiedOrderAndDivider() {
     #expect(model.elements == [
         .action(.play),
         .action(.openSubtitleFolder),
+        .action(.saveToShiori),
         .divider,
         .action(.copyCueText),
         .action(.copyDeepLink),
@@ -18,6 +19,7 @@ func subtitleTableSearchRowActionMenuUsesUnifiedOrderAndDivider() {
     #expect(model.actions.map(\.title) == [
         "Play",
         "Open Subtitle Folder",
+        "Save to Shiori ...",
         "Copy Cue Text",
         "Copy Deep Link",
         "Copy Cue Group Text",
@@ -29,17 +31,17 @@ func subtitleTableSearchRowActionMenuUsesUnifiedOrderAndDivider() {
 func subtitleTableRowActionMenuSelectablePositionsSkipDividersAndDisabledItems() {
     let model = SubtitleTableRowActionMenuModel(style: .search, showsCueGroup: false)
 
-    // Elements are play, openSubtitleFolder, divider, copyCueText,
-    // copyDeepLink, copyTimeRange.
+    // Elements are play, openSubtitleFolder, saveToShiori, divider,
+    // copyCueText, copyDeepLink, copyTimeRange.
     #expect(
         model.selectablePositions(
             disabledActions: [],
             canOpenFolder: true
-        ) == [0, 1, 3, 4, 5]
+        ) == [0, 1, 2, 4, 5, 6]
     )
 
-    // The divider at position 2 is never an action.
-    #expect(model.action(at: 2) == nil)
+    // The divider at position 3 is never an action.
+    #expect(model.action(at: 3) == nil)
     #expect(model.action(at: 0) == .play)
     #expect(model.action(at: 99) == nil)
 
@@ -49,7 +51,7 @@ func subtitleTableRowActionMenuSelectablePositionsSkipDividersAndDisabledItems()
         model.selectablePositions(
             disabledActions: [.play],
             canOpenFolder: false
-        ) == [3, 4, 5]
+        ) == [2, 4, 5, 6]
     )
 }
 
@@ -97,6 +99,7 @@ func subtitleTableRowActionMenuHidesCueGroupCopyWhenCueGroupIsHidden() {
     #expect(model.actions == [
         .play,
         .openSubtitleFolder,
+        .saveToShiori,
         .copyCueText,
         .copyDeepLink,
         .copyTimeRange,
@@ -130,6 +133,7 @@ func subtitleTableUnavailableShioriActionsFollowResourceAvailability() {
     #expect(videoMissing.subtitleFileIsAvailable)
     #expect(videoMissing.disabledRowActions == [
         .play,
+        .saveToShiori,
         .moveToList,
         .duplicateToList,
     ])

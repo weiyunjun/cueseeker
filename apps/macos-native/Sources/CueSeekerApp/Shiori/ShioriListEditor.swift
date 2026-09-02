@@ -32,11 +32,18 @@ enum ShioriListEditorMode {
     }
 }
 
-/// A Move to or Duplicate to that the destination submenu's New List item
-/// interrupted. It runs against the list this session creates.
+/// A Save to, Move to or Duplicate to that the destination submenu's New List
+/// item interrupted. It runs against the list this session creates.
 struct ShioriListEditorPendingTransfer {
     let action: SubtitleTableRowAction
-    let shiori: Shiori
+    let target: Target
+
+    /// Move and Duplicate carry an existing Shiori; Save from the Search table
+    /// has only the Cue.
+    enum Target {
+        case shiori(Shiori)
+        case cue(Int64)
+    }
 }
 
 @MainActor

@@ -659,14 +659,67 @@ extension AppCoordinator {
         _ transfer: ShioriListEditorPendingTransfer,
         toListID destinationListID: Int64
     ) {
-        switch transfer.action {
-        case .moveToList:
-            _ = moveShiori(transfer.shiori, toListID: destinationListID)
-        case .duplicateToList:
-            _ = duplicateShiori(transfer.shiori, toListID: destinationListID)
+        switch (transfer.action, transfer.target) {
+        case (.saveToShiori, .cue(let cueID)):
+            _ = saveShiori(cueID: cueID, toListID: destinationListID)
+        case (.moveToList, .shiori(let item)):
+            _ = moveShiori(item, toListID: destinationListID)
+        case (.duplicateToList, .shiori(let item)):
+            _ = duplicateShiori(item, toListID: destinationListID)
         default:
             break
         }
+    }
+
+    @discardableResult
+    func saveShiori(cueID: Int64, toListID destinationListID: Int64) -> Bool {
+        guard let database = shioriDatabase else {
+            toast.show(ShioriToastRequest.saveFailed)
+            return false
+        }
+        let destination: ShioriList
+        do {
+            guard let availableDestination = try database.shioriList(
+                id: destinationListID
+            ) else {
+                toast.show(ShioriToastRequest.destinationUnavailable)
+                return false
+            }
+            destination = availableDestination
+        } catch {
+            print("Failed to resolve Shiori save destination: \(error)")
+            toast.show(ShioriToastRequest.saveFailed)
+            return false
+        }
+
+        do {
+            guard try database.shiori(
+                cueID: cueID,
+                listID: destinationListID
+            ) == nil else {
+                toast.show(
+                    ShioriToastRequest.destinationAlreadyContainsCue(
+                        listName: destination.name
+                    )
+                )
+                return false
+            }
+            _ = try database.upsertShiori(
+                cueID: cueID,
+                listID: destinationListID
+            )
+            if !shiori.adjustListCueCounts([destinationListID: 1]) {
+                reloadShioriListOverview()
+            }
+            toast.show(
+                ShioriToastRequest.saveSucceeded(listName: destination.name)
+            )
+            return true
+        } catch {
+            print("Failed to save Shiori: \(error)")
+            toast.show(ShioriToastRequest.saveFailed)
+        }
+        return false
     }
 
     func moveShiori(_ item: Shiori, toListID destinationListID: Int64) -> Bool {

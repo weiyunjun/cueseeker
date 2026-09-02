@@ -2845,8 +2845,8 @@ func subtitleTableViewUnifiedRowMenuAndClipboardKeepPrimaryAndGroupSemantics() {
     )
 
     #expect(offFixture.coordinator.rowMenuItemsForTesting().map(\.title) == [
-        "Play", "Open Subtitle Folder", "Copy Cue Text", "Copy Deep Link",
-        "Copy Time Range",
+        "Play", "Open Subtitle Folder", "Save to Shiori ...", "Copy Cue Text",
+        "Copy Deep Link", "Copy Time Range",
     ])
     let onItems = onFixture.coordinator.rowMenuItemsForTesting()
     #expect(onItems.map(\.title) == [

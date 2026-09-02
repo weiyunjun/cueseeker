@@ -89,6 +89,7 @@
 /* Row action menu */
 "row_menu.play" = "播放";
 "row_menu.open_subtitle_folder" = "打開字幕資料夾";
+"row_menu.save_to_shiori" = "儲存到 Shiori⋯";
 "row_menu.copy_cue_text" = "拷貝台詞文字";
 "row_menu.copy_deep_link" = "拷貝 Deep Link";
 "row_menu.copy_cue_group_text" = "拷貝台詞組文字";
@@ -180,9 +181,11 @@
 
 /* Toast */
 "toast.shiori.moved" = "已移動至「%@」";
+"toast.shiori.saved" = "已儲存至「%@」";
 "toast.shiori.duplicated" = "已複製至「%@」";
 "toast.shiori.destination_unavailable" = "此列表已不存在";
 "toast.shiori.move_failed" = "無法移動 Shiori，請重試";
+"toast.shiori.save_failed" = "無法儲存 Shiori，請重試";
 "toast.shiori.duplicate_failed" = "無法複製 Shiori，請重試";
 "toast.shiori.already_exists" = "「%@」中已有此 Shiori";
 
@@ -242,7 +245,7 @@
 "playback.cue_count" = "%d 條台詞";
 "playback.result_count" = "%d 筆結果";
 "playback.result_preview_note" = "（僅顯示前 %d 筆結果）";
-"playback.save_to_shiori" = "儲存到栞";
+"playback.save_to_shiori" = "儲存到 Shiori";
 "playback.open" = "打開";
 "playback.back" = "返回";
 "playback.episodes_empty" = "尚無單集。";
