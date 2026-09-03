@@ -1,20 +1,17 @@
 import SwiftUI
 
-// Custom video-page top bar: left traffic-light cluster + centered video
-// title. Player UI. Maps prototype v6 `.video-topbar` / `.video-traffic`.
+// Custom video-page top bar: the return button after the native window
+// controls, which `AppWindowControls` places at the leading edge, and the
+// centered video title over the topbar gradient. Player UI. Maps prototype
+// v6 `.video-topbar`.
 struct LiquidGlassVideoTopBar: View {
     let title: String
-    let onClose: () -> Void
-    let onMinimize: () -> Void
-    let onZoom: () -> Void
-
-    @State private var isClusterActive = false
+    let onReturn: () -> Void
 
     var body: some View {
         // Transparent standard-titlebar base: empty-area drag moves the window
         // and double-click performs the system AppleActionOnDoubleClick (zoom
-        // via the serialized titlebar-zoom path, or minimize). The control
-        // buttons sit on top and consume their own clicks.
+        // via the serialized titlebar-zoom path, or minimize).
         TitlebarBackgroundView(
             backgroundColor: Color.clear,
             onDoubleClickZoom: { window in
@@ -37,44 +34,22 @@ struct LiquidGlassVideoTopBar: View {
             .allowsHitTesting(false)
         }
         .overlay {
-            ZStack {
-                HStack(spacing: 0) {
-                    HStack(spacing: PlaybackChromeMetrics.windowControlsGap) {
-                        LiquidGlassWindowControlButton(
-                            kind: .close,
-                            glyphVisible: isClusterActive,
-                            action: onClose
-                        )
-                        LiquidGlassWindowControlButton(
-                            kind: .minimize,
-                            glyphVisible: isClusterActive,
-                            action: onMinimize
-                        )
-                        LiquidGlassWindowControlButton(
-                            kind: .zoom,
-                            glyphVisible: isClusterActive,
-                            action: onZoom
-                        )
-                    }
-                    .onPointerHover { isClusterActive = $0 }
-
-                    Spacer(minLength: 0)
-                }
-
-                Text(title)
-                    .font(.system(size: PlaybackChromeMetrics.topbarTitleFontSize, weight: .semibold))
-                    .foregroundStyle(PlaybackTheme.textPrimary)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                    .shadow(
-                        color: PlaybackTheme.topbarTitleShadowColor,
-                        radius: PlaybackTheme.topbarTitleShadowRadius,
-                        y: PlaybackTheme.topbarTitleShadowYOffset
-                    )
-                    .frame(maxWidth: PlaybackChromeMetrics.topbarTitleMaxWidth)
-                    .allowsHitTesting(false)
-            }
-            .padding(.horizontal, PlaybackChromeMetrics.topbarHorizontalPadding)
+            Text(title)
+                .font(.system(size: PlaybackChromeMetrics.topbarTitleFontSize, weight: .semibold))
+                .foregroundStyle(PlaybackTheme.textPrimary)
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .shadow(
+                    color: PlaybackTheme.topbarTitleShadowColor,
+                    radius: PlaybackTheme.topbarTitleShadowRadius,
+                    y: PlaybackTheme.topbarTitleShadowYOffset
+                )
+                .frame(maxWidth: PlaybackChromeMetrics.topbarTitleMaxWidth)
+                .allowsHitTesting(false)
+                .padding(.horizontal, PlaybackChromeMetrics.topbarHorizontalPadding)
+        }
+        .overlay(alignment: .leading) {
+            PlaybackReturnButton(action: onReturn)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }

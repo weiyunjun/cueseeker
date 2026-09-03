@@ -18,6 +18,18 @@ final class CueSeekerMainWindow: NSWindow {
     /// Set by the App once the interface layer registry exists.
     var isFocusLocked: () -> Bool = { false }
 
+    /// The zoom button, the View menu and the shortcut all arrive here. On the
+    /// playback page the request is the page's, so it goes through the same
+    /// gate as the player's own fullscreen button. Returns whether it did.
+    var handlesFullscreenRequest: () -> Bool = { false }
+
+    override func toggleFullScreen(_ sender: Any?) {
+        guard !handlesFullscreenRequest() else {
+            return
+        }
+        super.toggleFullScreen(sender)
+    }
+
     /// A real pointer movement is the one event that asks the shape to be
     /// decided again; it is asked after dispatch, so every surface has
     /// answered the movement first.

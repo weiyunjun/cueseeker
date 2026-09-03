@@ -25,6 +25,7 @@ struct PlaybackPageView: View {
                     playbackSurface: playbackSurface,
                     appState: appState,
                     fullscreenManager: appState.playbackFullscreenManager,
+                    isLayerOpen: isPlaybackModalActive,
                     onClose: onClose
                 )
                 // The chrome is on the playback page, not on the workbench page
@@ -50,7 +51,8 @@ struct PlaybackPageView: View {
                         onSearchSelectedText:
                             appState.searchPlaybackSelectedText,
                         onOpenLibraryEpisode:
-                            appState.openPlaybackLibraryEpisodeFromOverlay
+                            appState.openPlaybackLibraryEpisodeFromOverlay,
+                        onReturn: onClose
                     )
                         .id(subtitleFocusSession.token.sessionGeneration)
                         .environmentObject(playback.pointerVisibility)

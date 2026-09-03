@@ -160,6 +160,8 @@ enum WorkbenchControlMetrics {
     static let redesignKeycapHorizontalPadding = redesignSpacing1
     /// Provisional --gap-app-topbar-content-after-toggle: 12px
     static let redesignAppTopbarContentAfterToggleGap: CGFloat = 12
+    /// --gap-app-topbar-toggle-after-window-controls: 20px
+    static let redesignAppTopbarToggleGapAfterWindowControls: CGFloat = 20
     /// --padding-header-trigger-x: 12px
     static let redesignPaddingHeaderTriggerX: CGFloat = 12
     /// --radius-table-cell-hover: 8px

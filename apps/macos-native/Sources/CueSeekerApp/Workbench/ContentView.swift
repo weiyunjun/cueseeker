@@ -621,11 +621,14 @@ enum AppShellLayout {
     static let topBarHeight = WorkbenchControlMetrics.redesignAppTopbarHeight
     static let sidePanelAnimationDuration: Double = 0.18
 
-    static let windowControlsReservedWidth: CGFloat = 80
-    static let toggleLeadingAfterWindowControls: CGFloat = 18
     static let modeControlsOuterPadding: CGFloat = 12
-    static let collapsedLeadingToggleX: CGFloat = windowControlsReservedWidth
-        + toggleLeadingAfterWindowControls
+    /// After the window controls: their inset, their measured width, then the
+    /// gap to the toggle.
+    @MainActor static var collapsedLeadingToggleX: CGFloat {
+        WorkbenchControlMetrics.redesignSpacing6
+            + AppWindowControls.clusterWidth
+            + WorkbenchControlMetrics.redesignAppTopbarToggleGapAfterWindowControls
+    }
 
     static let sidebarWidth = WorkbenchControlMetrics.redesignAppSidebarWidth
     static let sidebarToggleSize = WorkbenchControlMetrics.redesignIconButtonSize

@@ -26,7 +26,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var window: NSWindow?
     private var settingsWindow: NSWindow?
     private let appState = AppCoordinator()
-    private var windowButtonsProxy: WindowButtonsProxyView?
     private var keyDownMonitor: Any?
     private var leftMouseDownMonitor: Any?
     private var controllerInputMonitor: GameControllerInputMonitor?
@@ -164,6 +163,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 appState.interfaceLayers.hasUncoveredOpenMenu
             }
         }
+        window.handlesFullscreenRequest = { [appState] in
+            MainActor.assumeIsolated {
+                guard appState.isPlaybackPageVisible,
+                      appState.playbackFullscreenManager.state == .windowed
+                else {
+                    return false
+                }
+                appState.togglePlaybackFullscreenFromUser()
+                return true
+            }
+        }
 
         window.title = L("app.name")
         window.titleVisibility = .hidden
@@ -186,7 +196,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         if showImmediately {
             window.makeKeyAndOrderFront(nil)
         }
-        adjustTrafficLights()
+        AppWindowControls.attach(to: window)
     }
 
     private func configurePlaybackKeyboardShortcuts() {
@@ -319,19 +329,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     func windowWillEnterFullScreen(_ notification: Notification) {
         appState.playbackFullscreenManager.windowWillEnterFullScreen(notification)
         window?.titleVisibility = .visible
-        windowButtonsProxy?.isHidden = true
+        AppWindowControls.windowWillEnterFullScreen()
         appState.workbenchLayout.isAppFullscreen = true
-    }
-
-    func windowShouldClose(_ sender: NSWindow) -> Bool {
-        // On the video page (including fullscreen via the native titlebar
-        // close), close means "return to the originating info page", not quit.
-        guard sender === window, appState.isPlaybackPageVisible else {
-            return true
-        }
-        appState.workbenchLayout.clearSearchFocus()
-        appState.stopPlayback()
-        return false
     }
 
     func windowDidEnterFullScreen(_ notification: Notification) {
@@ -353,123 +352,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     func windowDidExitFullScreen(_ notification: Notification) {
         appState.playbackFullscreenManager.windowDidExitFullScreen(notification)
         window?.titleVisibility = .hidden
-        DispatchQueue.main.async { [weak self] in
-            self?.adjustTrafficLights()
-        }
+        AppWindowControls.windowDidLeaveSystemTitlebar()
     }
 
     func windowDidFailToEnterFullScreen(_ window: NSWindow) {
         appState.playbackFullscreenManager.windowDidFailToEnterFullScreen(window)
         window.titleVisibility = .hidden
         appState.workbenchLayout.isAppFullscreen = false
-        DispatchQueue.main.async { [weak self] in
-            self?.adjustTrafficLights()
-        }
+        AppWindowControls.windowDidLeaveSystemTitlebar()
     }
 
     func windowDidFailToExitFullScreen(_ window: NSWindow) {
         appState.playbackFullscreenManager.windowDidFailToExitFullScreen(window)
     }
     
-    func windowDidResize(_ notification: Notification) {
-        AppPerformanceProbe.measure("AppDelegate.windowDidResize", thresholdMilliseconds: 8) {
-            adjustTrafficLights()
-        }
-    }
-    
-    func windowDidUpdate(_ notification: Notification) {
-        AppPerformanceProbe.measure("AppDelegate.windowDidUpdate", thresholdMilliseconds: 8) {
-            adjustTrafficLights()
-        }
-    }
-    
-    private func adjustTrafficLights() {
-        AppPerformanceProbe.measure("AppDelegate.adjustTrafficLights", thresholdMilliseconds: 8) {
-            guard let window = self.window else { return }
-
-            let standardButtons: [NSWindow.ButtonType] = [.closeButton, .miniaturizeButton, .zoomButton]
-
-            // Fullscreen: macOS owns the native fullscreen titlebar (close +
-            // exit-fullscreen). The windowed video page may have hidden these
-            // buttons, so restore them and just hide our reparenting proxy.
-            if window.styleMask.contains(.fullScreen) {
-                for type in standardButtons {
-                    window.standardWindowButton(type)?.isHidden = false
-                }
-                windowButtonsProxy?.isHidden = true
-                return
-            }
-
-            // Windowed video page: the custom top-bar cluster replaces the
-            // native buttons, so hide them and the proxy. The buttons must be
-            // hidden directly, not just the proxy, because AppKit can re-add
-            // the standard buttons to the real titlebar.
-            if appState.isPlaybackPageVisible {
-                for type in standardButtons {
-                    window.standardWindowButton(type)?.isHidden = true
-                }
-                windowButtonsProxy?.isHidden = true
-                return
-            }
-        
-            guard let contentView = window.contentView else { return }
-
-            if windowButtonsProxy == nil {
-                let proxy = WindowButtonsProxyView(
-                    frame: NSRect(
-                        x: WorkbenchControlMetrics.redesignSpacing6,
-                        y: 0,
-                        width: 80,
-                        height: WorkbenchControlMetrics.redesignAppTopbarHeight
-                    )
-                )
-                contentView.addSubview(proxy)
-                windowButtonsProxy = proxy
-            } else if let proxy = windowButtonsProxy, proxy.superview !== contentView {
-                proxy.removeFromSuperview()
-                contentView.addSubview(proxy)
-            }
-        
-            guard let proxy = windowButtonsProxy else { return }
-            proxy.isHidden = false
-        
-            let proxyY = contentView.isFlipped ? 0 : contentView.frame.height - proxy.frame.height
-            proxy.frame.origin = CGPoint(
-                x: WorkbenchControlMetrics.redesignSpacing6,
-                y: proxyY
-            )
-        
-            let buttons: [NSWindow.ButtonType] = [.closeButton, .miniaturizeButton, .zoomButton]
-            var xOffset: CGFloat = 0
-            let targetCenterFromTop = WorkbenchControlMetrics.redesignAppTopbarHeight / 2
-        
-            for type in buttons {
-                guard let button = window.standardWindowButton(type) else { continue }
-
-                // Restore visibility after video-page / fullscreen suppression.
-                button.isHidden = false
-
-                if button.superview !== proxy {
-                    proxy.addSubview(button)
-                }
-            
-                // Prevent clipping just in case
-                button.superview?.clipsToBounds = false
-            
-                let targetY: CGFloat
-                if proxy.isFlipped {
-                    targetY = targetCenterFromTop - (button.frame.height / 2)
-                } else {
-                    targetY = proxy.frame.height - targetCenterFromTop - (button.frame.height / 2)
-                }
-            
-                button.frame.origin = CGPoint(x: xOffset, y: targetY)
-                // Native inter-button spacing is roughly 6pt (button width is typically 14, standard origin diff is 20)
-                xOffset += button.frame.width + 6
-            }
-        }
-    }
-
     private func configureMainMenu() {
         let mainMenu = NSMenu()
 
@@ -542,15 +438,5 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
         NSApp.mainMenu = mainMenu
         NSApp.windowsMenu = windowMenu
-    }
-}
-
-/// A transparent proxy view that holds the native traffic light buttons.
-/// It ignores hit testing on itself so clicks pass through to the background,
-/// but allows clicks on its subviews (the buttons).
-final class WindowButtonsProxyView: NSView {
-    override func hitTest(_ point: NSPoint) -> NSView? {
-        let view = super.hitTest(point)
-        return view === self ? nil : view
     }
 }

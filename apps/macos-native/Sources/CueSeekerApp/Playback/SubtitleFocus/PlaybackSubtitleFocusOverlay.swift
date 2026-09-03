@@ -11,6 +11,7 @@ struct PlaybackSubtitleFocusLayer: View {
     let onOpenLibraryEpisode: (CompleteLibraryVideoPresentation) -> Bool
     let onCopySelectedText: (String) -> Void
     let onSearchSelectedText: (String) -> Void
+    let onReturn: () -> Void
 
     init(
         session: PlaybackSubtitleFocusSessionStore,
@@ -24,7 +25,8 @@ struct PlaybackSubtitleFocusLayer: View {
         onOpenLibraryEpisode:
             @escaping (CompleteLibraryVideoPresentation) -> Bool = {
                 _ in false
-            }
+            },
+        onReturn: @escaping () -> Void = {}
     ) {
         self.session = session
         self.uiProbeScope = uiProbeScope
@@ -35,6 +37,7 @@ struct PlaybackSubtitleFocusLayer: View {
         self.onCopySelectedText = onCopySelectedText
         self.onSearchSelectedText = onSearchSelectedText
         self.onOpenLibraryEpisode = onOpenLibraryEpisode
+        self.onReturn = onReturn
     }
 
     var body: some View {
@@ -51,7 +54,8 @@ struct PlaybackSubtitleFocusLayer: View {
                 onRequestAction: onRequestAction,
                 onCopySelectedText: onCopySelectedText,
                 onSearchSelectedText: onSearchSelectedText,
-                onOpenLibraryEpisode: onOpenLibraryEpisode
+                onOpenLibraryEpisode: onOpenLibraryEpisode,
+                onReturn: onReturn
             )
         }
     }
@@ -70,6 +74,7 @@ struct PlaybackOverlay: View {
     let onCopySelectedText: (String) -> Void
     let onSearchSelectedText: (String) -> Void
     let onOpenLibraryEpisode: (CompleteLibraryVideoPresentation) -> Bool
+    let onReturn: () -> Void
 
     var body: some View {
         ZStack {
@@ -85,7 +90,8 @@ struct PlaybackOverlay: View {
                     selectedModule: session.selectedModule,
                     isEditingCollage: session.isEditingCollage,
                     onSelect: session.selectModule,
-                    onToggleEditingCollage: session.toggleEditingCollage
+                    onToggleEditingCollage: session.toggleEditingCollage,
+                    onReturn: onReturn
                 )
                 .frame(height: PlaybackOverlayMetrics.tabBarHeight)
 
@@ -242,9 +248,15 @@ private struct PlaybackOverlayTopBar: View {
     let isEditingCollage: Bool
     let onSelect: (PlaybackOverlayModule) -> Bool
     let onToggleEditingCollage: () -> Bool
+    let onReturn: () -> Void
 
     var body: some View {
         ZStack {
+            // Where it is in the player top bar, not centred in this taller
+            // bar, so it does not move when the overlay opens.
+            PlaybackReturnButton(action: onReturn)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+
             if isEditingCollage {
                 HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
                     Image(systemName: "square.and.pencil")
@@ -281,6 +293,8 @@ private struct PlaybackOverlayTopBar: View {
 
             if selectedModule == .current {
                 HStack {
+                    Spacer(minLength: 0)
+
                     WorkbenchToolbarButton(
                         title: isEditingCollage ? L("playback.collage.exit") : L("playback.collage"),
                         systemImage: "square.and.pencil",
@@ -293,8 +307,6 @@ private struct PlaybackOverlayTopBar: View {
                             ? "playback-exit-collage"
                             : "playback-enter-collage"
                     )
-
-                    Spacer(minLength: 0)
                 }
                 .padding(.horizontal, WorkbenchControlMetrics.redesignSpacing4)
             }

@@ -4,6 +4,9 @@ struct PlaybackVideoStage: View {
     let playbackSurface: AnyView
     @ObservedObject var appState: AppCoordinator
     @ObservedObject var fullscreenManager: PlaybackFullscreenManager
+    /// A playback layer is open above the stage. The window controls stay
+    /// shown for it even while the Player UI is hidden.
+    let isLayerOpen: Bool
     let onClose: () -> Void
     @EnvironmentObject private var playback: PlaybackStore
     @EnvironmentObject private var layoutState: WorkbenchLayoutState
@@ -22,6 +25,7 @@ struct PlaybackVideoStage: View {
                 || fullscreenManager.isTransitioning
             let isTopBarVisible = chrome.isPlayerUIVisible && !fullscreenManager.isFullscreen
             let isBottomChromeVisible = chrome.isPlayerUIVisible
+            let areWindowControlsVisible = chrome.isPlayerUIVisible || isLayerOpen
 
             ZStack(alignment: .topLeading) {
                 Color.black
@@ -34,9 +38,7 @@ struct PlaybackVideoStage: View {
                 if !fullscreenManager.isFullscreen {
                     LiquidGlassVideoTopBar(
                         title: chromeSnapshot.displayTitle,
-                        onClose: onClose,
-                        onMinimize: { appState.minimizePlaybackWindowFromUser() },
-                        onZoom: { appState.togglePlaybackFullscreenFromUser() }
+                        onReturn: onClose
                     )
                     .frame(
                         width: stageSize.width,
@@ -103,10 +105,15 @@ struct PlaybackVideoStage: View {
             .onAppear {
                 chrome.enterVideoPage()
                 playback.pointerVisibility.setVisible(chrome.isPointerVisible)
+                AppWindowControls.place(.playback(isVisible: areWindowControlsVisible))
             }
             .onDisappear {
                 chrome.leaveVideoPage()
                 playback.pointerVisibility.setVisible(false)
+                AppWindowControls.place(.workbench)
+            }
+            .onChange(of: areWindowControlsVisible) { isVisible in
+                AppWindowControls.place(.playback(isVisible: isVisible))
             }
             .onReceive(playback.pointerHideRequests) {
                 chrome.pointerHideRequested()

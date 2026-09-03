@@ -393,6 +393,9 @@ enum PlaybackChromeMetrics {
     static let rightControlsGap: CGFloat = 6
     static let timeLabelGap: CGFloat = 4
     static let windowControlsGap: CGFloat = 8
+    /// Provisional --gap-player-window-controls-return: after the window
+    /// controls to the return button, pending the owner's value.
+    static let windowControlsReturnGap = topbarHorizontalPadding
     static let speedMenuGap: CGFloat = 8
 
     static let capsuleRadius: CGFloat = 9999
