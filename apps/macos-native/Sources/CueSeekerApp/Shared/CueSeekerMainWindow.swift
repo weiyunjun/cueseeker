@@ -19,12 +19,14 @@ final class CueSeekerMainWindow: NSWindow {
     var isFocusLocked: () -> Bool = { false }
 
     /// The zoom button, the View menu and the shortcut all arrive here. On the
-    /// playback page the request is the page's, so it goes through the same
-    /// gate as the player's own fullscreen button. Returns whether it did.
+    /// playback page an entry is the page's, so it goes through the same gate
+    /// as the player's own fullscreen button. Returns whether it did.
     var handlesFullscreenRequest: () -> Bool = { false }
 
+    /// A window already in fullscreen leaves it the system's way, whoever put
+    /// it there — the tiling menu included. The gate decides entries only.
     override func toggleFullScreen(_ sender: Any?) {
-        guard !handlesFullscreenRequest() else {
+        guard styleMask.contains(.fullScreen) || !handlesFullscreenRequest() else {
             return
         }
         super.toggleFullScreen(sender)

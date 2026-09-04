@@ -48,7 +48,7 @@ struct LiquidGlassVideoTopBar: View {
                 .allowsHitTesting(false)
                 .padding(.horizontal, PlaybackChromeMetrics.topbarHorizontalPadding)
         }
-        .overlay(alignment: .leading) {
+        .overlay(alignment: .topLeading) {
             PlaybackReturnButton(action: onReturn)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

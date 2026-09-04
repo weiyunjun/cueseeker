@@ -10,20 +10,27 @@ import AppKit
 /// offset moves it in to the bar's inset. Both were measured to survive sheets,
 /// resizes and hiding; see the implementation record.
 ///
-/// Pages report their state here and place nothing themselves.
+/// The place is the same on every page — inset `--spacing-6`, centred in
+/// `--height-app-topbar` — and only the visibility follows the page. Pages
+/// report their state here and place nothing themselves.
 ///
 /// See `docs/human/requirements/20260903-UI-Native Window Controls Across
 /// Workbench And Playback.md`.
 @MainActor
 enum AppWindowControls {
     enum Placement: Equatable {
-        /// The Workbench top bar: inset `--spacing-6`, centred in
-        /// `--height-app-topbar`.
+        /// The Workbench: always shown.
         case workbench
-        /// The player top bar: inset `--padding-player-topbar-x`, centred in
-        /// `--height-player-topbar`. Shown with the Player UI, and kept shown
-        /// while a playback layer is open.
+        /// The playback page: shown with the Player UI, and kept shown while a
+        /// playback layer is open.
         case playback(isVisible: Bool)
+
+        fileprivate var isHidden: Bool {
+            if case .playback(let isVisible) = self {
+                return !isVisible
+            }
+            return false
+        }
     }
 
     /// From the close button's leading edge to the zoom button's trailing
@@ -60,9 +67,23 @@ enum AppWindowControls {
         apply()
     }
 
+    // MARK: - Fullscreen
+    //
+    // The buttons are hidden through both transitions, so neither animation
+    // draws them at the native corner. In fullscreen they are shown for the
+    // system's own titlebar; after the exit they take the page's place again.
+
     static func windowWillEnterFullScreen() {
         isSystemTitlebar = true
-        set(inset: nativeLeadingEdge, height: nativeTitlebarHeight, hidden: false)
+        setNative(hidden: true)
+    }
+
+    static func windowDidEnterFullScreen() {
+        setNative(hidden: false)
+    }
+
+    static func windowWillExitFullScreen() {
+        setNative(hidden: true)
     }
 
     static func windowDidLeaveSystemTitlebar() {
@@ -74,20 +95,15 @@ enum AppWindowControls {
         guard !isSystemTitlebar else {
             return
         }
-        switch placement {
-        case .workbench:
-            set(
-                inset: WorkbenchControlMetrics.redesignSpacing6,
-                height: WorkbenchControlMetrics.redesignAppTopbarHeight,
-                hidden: false
-            )
-        case .playback(let isVisible):
-            set(
-                inset: PlaybackChromeMetrics.topbarHorizontalPadding,
-                height: PlaybackChromeMetrics.videoTopBarHeight,
-                hidden: !isVisible
-            )
-        }
+        set(
+            inset: WorkbenchControlMetrics.redesignSpacing6,
+            height: WorkbenchControlMetrics.redesignAppTopbarHeight,
+            hidden: placement.isHidden
+        )
+    }
+
+    private static func setNative(hidden: Bool) {
+        set(inset: nativeLeadingEdge, height: nativeTitlebarHeight, hidden: hidden)
     }
 
     private static func set(inset: CGFloat, height: CGFloat, hidden: Bool) {

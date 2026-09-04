@@ -335,11 +335,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     func windowDidEnterFullScreen(_ notification: Notification) {
         appState.playbackFullscreenManager.windowDidEnterFullScreen(notification)
+        AppWindowControls.windowDidEnterFullScreen()
     }
 
     func windowWillExitFullScreen(_ notification: Notification) {
         appState.playbackFullscreenManager.windowWillExitFullScreen(notification)
         window?.titleVisibility = .hidden
+        AppWindowControls.windowWillExitFullScreen()
         appState.workbenchLayout.isAppFullscreen = false
     }
 
@@ -364,6 +366,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     func windowDidFailToExitFullScreen(_ window: NSWindow) {
         appState.playbackFullscreenManager.windowDidFailToExitFullScreen(window)
+        AppWindowControls.windowDidEnterFullScreen()
     }
     
     private func configureMainMenu() {

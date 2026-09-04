@@ -59,3 +59,36 @@ Full `swift test`: 1132 tests, 13 issues, all in the families the earlier record
 
 - The two setters are private. They were measured on macOS 15.5 only; on a system without them the buttons stay at their native place and the layouts still reserve the room.
 - The Escape-driven and native-titlebar fullscreen exits keep their existing paths; only fullscreen *entry* from the playback page is routed through the page's gate, as before with the drawn zoom button.
+
+## Follow-up (2026-09-04): fullscreen entered by the tiling menu, the transition animations, one place for every page
+
+Human-owned document: the same requirement, amended (§2.5, §2.7, §4.1, acceptance 10–12).
+
+### Why
+
+Three things came from the owner's first round with the native buttons.
+
+- The green button's tiling menu enters system fullscreen without the playback page's fullscreen manager, whose state stays "windowed". A click on the green button in that fullscreen reached the `toggleFullScreen(_:)` override, whose guard — playback page visible, manager windowed — held, so the click was handed to the page's *entry* command; the manager found the window already fullscreen, switched itself to "active" and showed the Enter Fullscreen feedback, and AppKit's exit never ran.
+- The owner switched the buttons to their native place on `windowWillEnterFullScreen` and left them shown; the exit put them back only on `windowDidExitFullScreen`. AppKit draws the exit animation with the titlebar at its native place, so the buttons appeared at the corner until the animation ended.
+- The owner gave the two pages two geometries (24pt in 45pt for the Workbench, 16pt in 46pt for playback), so the group moved between pages.
+
+### What changed
+
+- `CueSeekerMainWindow.toggleFullScreen(_:)`: a window whose style mask already holds `.fullScreen` goes straight to AppKit; the page's gate is asked for entries only. Exit is the system's, whoever entered — the tiling menu included — so CueSeeker leaves its half of a split view and the other app keeps its fullscreen.
+- `AppWindowControls`: one geometry for every page, inset `--spacing-6` centred in `--height-app-topbar`; the placement only decides visibility now. Through both fullscreen transitions the buttons are hidden: hidden with the native place on `windowWillEnterFullScreen`, shown on `windowDidEnterFullScreen` for the system's titlebar, hidden on `windowWillExitFullScreen`, and placed again on `windowDidExitFullScreen`; a failed exit shows them again. `AppDelegate` gained the three delegate calls.
+- `PlaybackReturnButton`: laid out on the controls' centre line — the top-aligned `--height-app-topbar` band — in both the 46pt player top bar and the 54pt overlay bar; its inset starts from `--spacing-6`. `LiquidGlassVideoTopBar` top-aligns it.
+- `LiquidGlassWindowControlButton.swift`, deleted by the owner, is committed with this change.
+
+### Verification
+
+Debug E2E controller, red-button centroid measured in the captures (top-left region, 2× scale):
+
+- Workbench (Recent page) 30.7 / 22.2 pt; playback 30.7 / 22.3 pt; Playback Overlay 30.8 / 22.2 pt; back on the Workbench 30.7 / 22.2 pt — the same place on every page (acceptance 12).
+- Playback, F then Escape: captures 0.3 s and 2 s after each key show no button at the corner or anywhere in the top-left band (window 1504×846 in fullscreen, 1445×821 after). After the exit a synthetic move revealed the Player UI and the buttons at 30.7 / 22.3 pt. The eye-speed look of the animations, and the tiling-menu path itself, remain the owner's — the controller cannot open the tiling menu.
+- The return button at its new place brought the Workbench back.
+
+Full `swift test`: 1132 tests, 25 issues, in the families the earlier records list as failing on the baseline tree — native playback timeline and audio, library folder removal, cue group refresh scope, and the Debug E2E window-geometry cases. Everything outside those families that failed under the full run passes alone (`swift test --filter` on `playbackPlaylistCopyAndShioriTargetTheSettledPrimaryCue`, `subtitleFocusShioriIdentityDistinguishesSameTimeSiblingCues`, `playbackPlayerKeepsAutoPauseBoundaryAcrossUserSeeks`); the three refresh-scope cases that still fail alone failed the same way before this change. No test references the window controls or the fullscreen override.
+
+### Known limits
+
+- Fullscreen entered by the tiling menu leaves the playback page in its windowed presentation (top bar, Player UI rules); only the button semantics were corrected. Adopting such an entry into the fullscreen manager was left out on purpose.
