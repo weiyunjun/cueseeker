@@ -1120,6 +1120,10 @@ struct WorkbenchIconButton: View {
     /// The button a menu hangs off keeps this look for as long as the menu is
     /// open: accent background, white glyph.
     var isMenuOpen: Bool = false
+    /// Input is blocked while a window or video size transition runs. The
+    /// freeze is not a disabled state, so the button keeps the look it had
+    /// before the transition started and nothing about it changes on screen.
+    var isFrozen: Bool = false
     /// Dialog close buttons carry a smaller glyph than the rest of the icon
     /// buttons; everything else keeps the shared control icon size.
     var iconSize: CGFloat? = nil
@@ -1138,6 +1142,7 @@ struct WorkbenchIconButton: View {
                     label
                 }
                 .buttonStyle(StaticButtonStyle())
+                .disabled(isFrozen)
                 .focused($isFocused)
                 .disableFocusEffect()
                 .subtitleTableTextSelectionInteractiveRegion(isActive: isEnabled)

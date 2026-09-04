@@ -207,12 +207,10 @@ private struct AppTopBar: View {
         WorkbenchIconButton(
             systemImage: "chevron.left",
             isRedesign: true,
+            isFrozen: layoutState.isVideoSizeTransitionInProgress,
             action: navigateBack
         )
-        .disabled(
-            !routeState.canNavigateBack
-                || layoutState.isVideoSizeTransitionInProgress
-        )
+        .disabled(!routeState.canNavigateBack)
         .help(L("topbar.back"))
         .accessibilityLabel(L("topbar.back"))
     }
@@ -251,11 +249,7 @@ private struct AppTopBar: View {
         .subtitleTableTextSelectionInteractiveRegion(
             isActive: !layoutState.isVideoSizeTransitionInProgress
         )
-        .foregroundStyle(
-            layoutState.isVideoSizeTransitionInProgress
-                ? WorkbenchRedesignColors.textDisabled
-                : WorkbenchRedesignColors.textSecondary
-        )
+        .foregroundStyle(WorkbenchRedesignColors.textSecondary)
         .focusable(false)
         .help(sidebarToggleLabel)
         .accessibilityLabel(sidebarToggleLabel)
@@ -401,8 +395,7 @@ private struct AppSidebarNavigationItem: View {
             AppSidebarItemLabel(
                 systemImage: mode.systemImage,
                 label: mode.sidebarLabel,
-                isSelected: isSelected,
-                isEnabled: isEnabled
+                isSelected: isSelected
             )
         }
         .buttonStyle(StaticButtonStyle())
@@ -417,7 +410,6 @@ private struct AppSidebarNavigationItem: View {
                     : Color.clear
             )
         )
-        .opacity(isEnabled ? 1 : 0.62)
         .disabled(!isEnabled)
         .subtitleTableTextSelectionInteractiveRegion(isActive: isEnabled)
         .focusable(false)
@@ -480,22 +472,15 @@ private struct AppSidebarChildItem: View {
     }
 
     private var iconColor: Color {
-        if isSelected {
-            return WorkbenchRedesignColors.appSidebarItemSelectedContent
-        }
-        guard isEnabled else {
-            return WorkbenchRedesignColors.textDisabled
-        }
-        return WorkbenchRedesignColors.textSecondary
+        isSelected
+            ? WorkbenchRedesignColors.appSidebarItemSelectedContent
+            : WorkbenchRedesignColors.textSecondary
     }
 
     private var textColor: Color {
-        if isSelected {
-            return WorkbenchRedesignColors.appSidebarItemSelectedContent
-        }
-        return isEnabled
-            ? WorkbenchRedesignColors.textPrimary
-            : WorkbenchRedesignColors.textDisabled
+        isSelected
+            ? WorkbenchRedesignColors.appSidebarItemSelectedContent
+            : WorkbenchRedesignColors.textPrimary
     }
 
     /// The child's icon starts where the primary item's label starts, so the
@@ -515,8 +500,7 @@ private struct AppSidebarSettingsItem: View {
             AppSidebarItemLabel(
                 systemImage: "gearshape",
                 label: L("sidebar.settings"),
-                isSelected: false,
-                isEnabled: true
+                isSelected: false
             )
         }
         .buttonStyle(AppSidebarItemButtonStyle(isSelected: false))
@@ -531,7 +515,6 @@ private struct AppSidebarItemLabel: View {
     let systemImage: String
     let label: String
     let isSelected: Bool
-    let isEnabled: Bool
 
     var body: some View {
         HStack(spacing: WorkbenchControlMetrics.redesignSpacing3) {
@@ -561,29 +544,20 @@ private struct AppSidebarItemLabel: View {
     }
 
     private var iconColor: Color {
-        if isSelected {
-            return WorkbenchRedesignColors.appSidebarItemSelectedContent
-        }
-        guard isEnabled else {
-            return WorkbenchRedesignColors.textDisabled
-        }
-        return WorkbenchRedesignColors.textSecondary
+        isSelected
+            ? WorkbenchRedesignColors.appSidebarItemSelectedContent
+            : WorkbenchRedesignColors.textSecondary
     }
 
     private var textColor: Color {
-        if isSelected {
-            return WorkbenchRedesignColors.appSidebarItemSelectedContent
-        }
-        guard isEnabled else {
-            return WorkbenchRedesignColors.textDisabled
-        }
-        return WorkbenchRedesignColors.textPrimary
+        isSelected
+            ? WorkbenchRedesignColors.appSidebarItemSelectedContent
+            : WorkbenchRedesignColors.textPrimary
     }
 }
 
 private struct AppSidebarItemButtonStyle: ButtonStyle {
     let isSelected: Bool
-    @Environment(\.isEnabled) private var isEnabled
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
@@ -594,7 +568,6 @@ private struct AppSidebarItemButtonStyle: ButtonStyle {
                 )
                 .fill(isSelected ? WorkbenchRedesignColors.appSidebarItemSelectedBg : Color.clear)
             )
-            .opacity(isEnabled ? 1 : 0.62)
     }
 }
 
