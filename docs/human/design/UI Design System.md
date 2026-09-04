@@ -137,11 +137,6 @@
 - `--color-player-progress-fill`: macOS accent color
 - `--color-player-progress-track`: Light `rgba(0,0,0,0.60)`; Dark `rgba(0,0,0,0.60)`
 - `--color-player-progress-hover-track`: Light `rgba(255,255,255,0.35)`; Dark `rgba(255,255,255,0.35)`
-- `--color-player-window-close`: Light `#FF5F57`; Dark `#FF5F57`
-- `--color-player-window-minimize`: Light `#FEBC2E`; Dark `#FEBC2E`
-- `--color-player-window-zoom`: Light `#28C840`; Dark `#28C840`
-- `--color-player-window-control-border`: Light `rgba(0,0,0,0.18)`; Dark `rgba(0,0,0,0.18)`
-- `--color-player-window-control-glyph`: Light `rgba(0,0,0,0.55)`; Dark `rgba(0,0,0,0.55)`
 - `--color-player-topbar-gradient-start`: Light `rgba(18,18,24,0.66)`; Dark `rgba(18,18,24,0.66)`
 - `--color-player-topbar-gradient-end`: Light `rgba(18,18,24,0)`; Dark `rgba(18,18,24,0)`
 
@@ -265,8 +260,6 @@
 - `--width-player-speed-button`: `54px`
 - `--width-player-speed-menu`: `184px`
 - `--size-player-progress-thumb`: `12px`
-- `--size-player-window-control-button`: `13px`
-- `--size-player-window-control-glyph`: `7px`
 - `--width-player-topbar-title-max`: `520px`
 - `--width-playback-cue-timeline-connector`: `1px`
 - `--width-subtitle-focus-content-max`: `960px`
@@ -304,7 +297,8 @@
 - `--gap-player-bottom-left-controls`: `8px`
 - `--gap-player-bottom-right-controls`: `6px`
 - `--gap-player-time-label`: `4px`
-- `--gap-player-window-controls`: `8px`
+- `--gap-app-topbar-toggle-after-window-controls`: `20px`
+- `--gap-player-window-controls-return`: `16px`
 - `--gap-player-speed-menu-from-button`: `8px`
 - `--gap-library-recent-grid`: `16px`
 - `--gap-library-episode-grid`: `16px`
@@ -2526,43 +2520,6 @@
 - Disabled
 - Interaction Suppressed
 
-### Player Window Control Button
-
-#### Shared
-
-##### Anatomy
-
-- Container
-  - Border Color：`--color-player-window-control-border`
-  - Radius：`--radius-player-capsule`
-- Glyph
-  - Size：`--size-player-window-control-glyph`
-  - Color：`--color-player-window-control-glyph`
-
-##### Sizes
-
-- Width：`--size-player-window-control-button`
-- Height：`--size-player-window-control-button`
-
-##### States
-
-- Default
-- Cluster Hover
-
-#### Variants
-
-##### Close
-
-- Background：`--color-player-window-close`
-
-##### Minimize
-
-- Background：`--color-player-window-minimize`
-
-##### Zoom
-
-- Background：`--color-player-window-zoom`
-
 ### Player Title
 
 #### Shared
@@ -2790,16 +2747,18 @@
 
 #### Structure
 
-1. Sidebar Segment
-2. Sidebar Toggle Slot
-3. Function Region
+1. Window Controls
+2. Sidebar Segment
+3. Sidebar Toggle Slot
+4. Function Region
    1. Back Action
-4. Trailing Function Region
+5. Trailing Function Region
    1. Task Entry
-5. Draggable Region
+6. Draggable Region
 
 #### Components
 
+- Window Controls：系统原生红绿灯
 - Sidebar Toggle
 - Icon Button / Back
 - Icon Button / Default
@@ -2809,6 +2768,8 @@
 
 - Height：`--height-app-topbar`
 - Sidebar Segment Width：`--width-app-sidebar`
+- Window Controls Inset：`--spacing-6`
+- Collapsed Toggle Gap After Window Controls：`--gap-app-topbar-toggle-after-window-controls`
 
 #### States
 
@@ -3633,16 +3594,16 @@
 #### Structure
 
 1. Window Controls
-2. Flexible Spacer
-3. Player Title
-4. Flexible Spacer
-5. Window Action Region
+2. Return Action
+3. Flexible Spacer
+4. Player Title
+5. Flexible Spacer
+6. Window Action Region
 
 #### Components
 
-- Player Window Control Button / Close
-- Player Window Control Button / Minimize
-- Player Window Control Button / Zoom
+- Window Controls：系统原生红绿灯
+- Player Circle Button / Standard：返回 Workbench
 - Player Title
 - Player Circle Button
 
@@ -3650,7 +3611,9 @@
 
 - Height：`--height-player-topbar`
 - Padding Inline：`--padding-player-topbar-x`
-- Window Control Gap：`--gap-player-window-controls`
+- Window Controls：与 App Topbar Layout 同一位置，起点 `--spacing-6`，在 `--height-app-topbar` 内垂直居中
+- Return Action：与 Window Controls 同一水平中线
+- Return Action Gap：`--gap-player-window-controls-return`
 
 #### Surface
 
@@ -3796,18 +3759,22 @@
 
 #### Structure / Normal
 
-1. Leading Action Region
-2. Tabs
-3. Flexible Spacer
+1. Window Controls
+2. Return Action
+3. Tabs
+4. Trailing Action Region
 
 #### Structure / Editing Collage
 
-1. Exit Action
-2. Editing Title
-3. Flexible Spacer
+1. Window Controls
+2. Return Action
+3. Editing Title
+4. Exit Action
 
 #### Components
 
+- Window Controls：系统原生红绿灯
+- Player Circle Button / Standard：返回 Workbench
 - Button / Neutral
 - Tabs
 - Tab
@@ -3815,8 +3782,9 @@
 
 #### Spacing
 
-- Leading Margin：`--spacing-4`
+- Trailing Margin：`--spacing-4`
 - Editing Title Content Gap：`--spacing-2`
+- Window Controls 与 Return Action：与 Player Topbar Layout 同一位置
 
 #### Keyboard
 
