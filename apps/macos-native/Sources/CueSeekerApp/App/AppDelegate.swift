@@ -327,6 +327,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     func windowWillEnterFullScreen(_ notification: Notification) {
+        if let window = notification.object as? NSWindow {
+            appState.windowWillEnterSystemFullscreen(window)
+        }
         appState.playbackFullscreenManager.windowWillEnterFullScreen(notification)
         window?.titleVisibility = .visible
         AppWindowControls.windowWillEnterFullScreen()

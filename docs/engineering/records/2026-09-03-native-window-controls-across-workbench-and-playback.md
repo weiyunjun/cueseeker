@@ -92,3 +92,26 @@ Full `swift test`: 1132 tests, 25 issues, in the families the earlier records li
 ### Known limits
 
 - Fullscreen entered by the tiling menu leaves the playback page in its windowed presentation (top bar, Player UI rules); only the button semantics were corrected. Adopting such an entry into the fullscreen manager was left out on purpose.
+
+## Follow-up (2026-09-05): fullscreen means the window's fullscreen, whoever entered it
+
+Human-owned document: the same requirement, amended (§2.7 rewritten, §2.8 added, acceptance 13–14).
+
+### Why
+
+After the zoom button was fixed, F, Escape and the player's fullscreen button still answered the page's own bookkeeping rather than the window. The fullscreen manager only knew fullscreens it had started: a system fullscreen — the tiling menu, or a window the Workbench had made fullscreen before the video opened — left it "windowed". So F and the button took the "enter" branch, found the window already fullscreen, switched on the video-only presentation and showed Enter Fullscreen while the window stayed put; Escape did nothing because the presentation it looks for was never on.
+
+### What changed
+
+- `PlaybackFullscreenManager` adopts a system fullscreen it did not start. `adoptSystemFullscreen(window:entering:)`: while entering, the delegate's callbacks finish it exactly like the manager's own, and leaving the page later leaves fullscreen too, as for an entry by F; already active, the presentation starts at once, and leaving the page keeps the window as the Workbench had it. A user's exit — `exitFullscreen(fromUser: true)`, reached from F, Escape and the button — leaves the window's fullscreen whoever entered it; leaving the page (`fromUser: false`) still undoes only an entry that was playback's own. The exit callbacks follow the manager's state instead of the entry's origin, so the zoom button in an adopted fullscreen is bookkept as well.
+- `AppCoordinator.windowWillEnterSystemFullscreen(_:)` adopts on the delegate's `windowWillEnterFullScreen` when the playback page is visible and nothing is in progress, with the serialized size-transition gate and the entering feedback; the zoom-button path is untouched because its manager is already transitioning when the callback arrives. `playbackPageDidAppear()` adopts a window that is already fullscreen when the stage appears; the stage's existing state observer then hides the Player UI and cursor as for any fullscreen entry.
+
+### Verification
+
+Debug E2E controller. The tiling menu cannot be opened by synthetic events, so the "system fullscreen the page did not start" was produced the other way the requirement names: the Workbench's zoom button first (window 1504×846), then the first Recent video.
+
+- The playback page appeared in fullscreen presentation: no top bar, no return button, no Player UI (acceptance 14).
+- F: window back to 1445×821. Escape: Exit Fullscreen feedback, then 1445×821. A synthetic move revealed the player bar with the exit-fullscreen glyph; its button: Exit Fullscreen feedback, then 1445×821. After each, the return button brought the Workbench back windowed, as the window had been left.
+- The tiling-menu entry itself (acceptance 13) remains the owner's check; by construction it reaches the same adoption through the same delegate callback.
+
+Full `swift test`: 1132 tests, 25 issues, the same families as before this change — native playback timeline and audio, library folder removal, cue group refresh scope, the Debug E2E window-geometry cases — plus two load-sensitive playback cases that pass alone (`swift test --filter "playbackPlayerKeepsAutoPauseBoundaryAcrossUserSeeks|subtitleFocusShioriKeySavesIdempotentlyAndKeepsPausedSession"`: 2 tests pass). No test references the fullscreen manager.

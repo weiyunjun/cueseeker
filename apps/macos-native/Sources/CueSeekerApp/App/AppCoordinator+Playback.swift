@@ -44,7 +44,7 @@ extension AppCoordinator {
         }
 
         let started = playbackFullscreenManager.exitFullscreen(
-            animated: true,
+            fromUser: true,
             onTransitionCompleted: { [weak self] in
                 self?.endVideoSizeTransition()
             }
@@ -54,6 +54,45 @@ extension AppCoordinator {
         } else {
             playback.playbackViewModel?.showFullscreenFeedback(enteringFullscreen: false)
         }
+    }
+
+    /// The window is entering a system fullscreen the page did not ask for —
+    /// the zoom button's tiling menu. On the playback page that is playback's
+    /// fullscreen from here on: same gate, same feedback, and F, Escape, the
+    /// player's button and the zoom button all mean "leave".
+    func windowWillEnterSystemFullscreen(_ window: NSWindow) {
+        guard isPlaybackPageVisible, playbackFullscreenManager.state == .windowed else {
+            return
+        }
+
+        let gated = beginVideoSizeTransition()
+        let adopted = playbackFullscreenManager.adoptSystemFullscreen(
+            window: window,
+            entering: true,
+            onTransitionCompleted: gated ? { [weak self] in self?.endVideoSizeTransition() } : nil
+        )
+        guard adopted else {
+            if gated {
+                endVideoSizeTransition()
+            }
+            return
+        }
+        playback.playbackViewModel?.showFullscreenFeedback(enteringFullscreen: true)
+    }
+
+    /// The playback page appeared in a window that is already fullscreen —
+    /// the Workbench entered it first. The page shows its fullscreen
+    /// presentation; the Workbench gets its fullscreen back when the page
+    /// closes.
+    func playbackPageDidAppear() {
+        guard let window = player?.renderView.window
+            ?? NSApplication.shared.keyWindow
+            ?? NSApplication.shared.mainWindow,
+              window.styleMask.contains(.fullScreen)
+        else {
+            return
+        }
+        playbackFullscreenManager.adoptSystemFullscreen(window: window, entering: false)
     }
 
     func minimizePlaybackWindowFromUser() {

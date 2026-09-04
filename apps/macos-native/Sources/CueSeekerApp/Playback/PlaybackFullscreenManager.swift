@@ -49,7 +49,7 @@ final class PlaybackFullscreenManager: ObservableObject {
             )
         case .activeFullscreen:
             return exitFullscreen(
-                animated: true,
+                fromUser: true,
                 onTransitionCompleted: onTransitionCompleted
             )
         case .enteringSystemFullscreen, .exitingSystemFullscreen:
@@ -93,24 +93,58 @@ final class PlaybackFullscreenManager: ObservableObject {
         return true
     }
 
+    /// A system fullscreen the manager did not start — the zoom button's
+    /// tiling menu, or a window that was fullscreen before the video opened.
+    /// Fullscreen means the window's fullscreen, whoever entered it, so the
+    /// page adopts it. `entering`: the transition has just begun and the
+    /// delegate's callbacks finish it like the manager's own; leaving the
+    /// page later leaves fullscreen too. Not entering: the window is already
+    /// fullscreen, the presentation starts now, and leaving the page keeps
+    /// the window as the Workbench had it.
+    @discardableResult
+    func adoptSystemFullscreen(
+        window: NSWindow,
+        entering: Bool,
+        onTransitionCompleted: (() -> Void)? = nil
+    ) -> Bool {
+        guard state == .windowed, fullscreenWindow == nil else {
+            return false
+        }
+
+        fullscreenWindow = window
+        didEnterSystemFullscreenForPlayback = entering
+        if entering {
+            transitionCompletion = onTransitionCompleted
+            state = .enteringSystemFullscreen
+        } else {
+            state = .activeFullscreen
+            activatePlaybackPresentation()
+            onTransitionCompleted?()
+        }
+        return true
+    }
+
+    /// `fromUser`: F, Escape, the player's button or the zoom button. The
+    /// user leaves the window's fullscreen whoever entered it. Leaving the
+    /// page instead undoes only a fullscreen that playback entered.
     @discardableResult
     func exitFullscreen(
-        animated: Bool = false,
+        fromUser: Bool = false,
         onTransitionCompleted: (() -> Void)? = nil
     ) -> Bool {
         guard state != .windowed || fullscreenWindow != nil else {
             return false
         }
 
-        guard !state.isTransitioning || !animated else {
+        guard !state.isTransitioning || !fromUser else {
             return false
         }
 
         let window = fullscreenWindow
 
-        if didEnterSystemFullscreenForPlayback,
-           let window,
-           window.styleMask.contains(.fullScreen) {
+        if let window,
+           window.styleMask.contains(.fullScreen),
+           fromUser || didEnterSystemFullscreenForPlayback {
             state = .exitingSystemFullscreen
             transitionCompletion = onTransitionCompleted
             window.toggleFullScreen(nil)
@@ -151,7 +185,6 @@ final class PlaybackFullscreenManager: ObservableObject {
 
     func windowWillExitFullScreen(_ notification: Notification) {
         guard notification.object as? NSWindow === fullscreenWindow else { return }
-        guard didEnterSystemFullscreenForPlayback || state == .exitingSystemFullscreen else { return }
         guard state == .activeFullscreen || state == .exitingSystemFullscreen else { return }
 
         state = .exitingSystemFullscreen
@@ -159,7 +192,7 @@ final class PlaybackFullscreenManager: ObservableObject {
 
     func windowDidExitFullScreen(_ notification: Notification) {
         guard notification.object as? NSWindow === fullscreenWindow else { return }
-        guard didEnterSystemFullscreenForPlayback || state == .exitingSystemFullscreen else { return }
+        guard state == .exitingSystemFullscreen else { return }
 
         finishExitFullscreen()
         completeFullscreenTransition()

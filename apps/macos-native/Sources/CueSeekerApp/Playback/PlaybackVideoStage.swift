@@ -106,6 +106,7 @@ struct PlaybackVideoStage: View {
                 chrome.enterVideoPage()
                 playback.pointerVisibility.setVisible(chrome.isPointerVisible)
                 AppWindowControls.place(.playback(isVisible: areWindowControlsVisible))
+                appState.playbackPageDidAppear()
             }
             .onDisappear {
                 chrome.leaveVideoPage()
