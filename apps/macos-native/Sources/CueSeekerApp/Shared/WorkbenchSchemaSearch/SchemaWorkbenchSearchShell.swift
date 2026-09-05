@@ -395,6 +395,13 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
                         .padding(.bottom, WorkbenchControlMetrics.redesignSpacing4)
                     }
                 }
+                // The detail hosts its page chrome inside the table, so the
+                // table would otherwise run to the window edge and put the
+                // Overlay a page margin lower than every other Workbench page.
+                .padding(
+                    .bottom,
+                    WorkbenchControlMetrics.redesignWorkbenchPageBottomPadding
+                )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 VStack(spacing: 0) {

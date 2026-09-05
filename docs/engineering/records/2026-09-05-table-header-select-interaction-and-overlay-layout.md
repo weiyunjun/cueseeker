@@ -34,13 +34,47 @@ Debug E2E controller, main window 1280×821, Shiori list detail and Search, Ligh
 
 - Header colour: the header band excluding the index column is byte-identical between normal mode and Select mode, in both themes.
 - Header click: a click on empty header space selects all 397 rows (Shiori) and 549 rows (Search); a second click clears them, and the resulting capture is byte-identical to the pre-click Select-mode capture.
-- Overlay: renders as two rows with the count left-aligned to the Anki button and Exit last in the action row, in both themes.
+- Overlay: renders as two rows with the count left-aligned to the Anki button and Exit last in the action row, in both themes. Exit leaves Select mode.
 - Filter menu: the table's row dividers end at pixel x=2463 and the menu's right border occupies x=2462–2463 — Shiori and Search, Light and Dark. At a 1000pt window, where the page scrolls sideways and the dividers run off-screen, the menu stays inside the visible page by the same trailing padding.
 
 Full `swift test`: 1132 tests, 23 issues, in the families the earlier records list as failing on the baseline tree — native playback timeline and audio, library folder removal, cue group refresh scope, the Debug E2E window-geometry cases, persistence migration. The unmodified tree was run for comparison and failed in the same families; the two families differ only in which flaky cases happened to fail in each run.
 
+## Follow-up: the Shiori detail's missing page bottom padding
+
+The owner reported that the Overlay's four buttons answered the pointer over
+only part of their box. Measured on the Shiori list detail at a 1280×821
+window: the buttons draw at y 757–796 and answered only 757–775. The same cut
+killed ordinary table rows — a row click at y=790 did nothing, at y=770 it
+worked — so it was never the buttons.
+
+The cause was a page-layout difference. Every other Workbench page puts its
+table inside a page bottom padding (`--spacing-6` for a page with a title, the
+`Workbench Titled Page Layout` value). The Shiori detail hosts its page chrome
+inside the table, and that branch of `pageBody` had no bottom padding at all:
+the table ran to the window edge, and its 14pt `bottomInset` is trailing scroll
+space inside the document, not a margin outside it. The Overlay hangs 16pt above
+the table viewport's bottom, so it sat a whole page margin lower there than on
+Search — low enough to reach into the page's bottom strip, which does not take
+clicks.
+
+The branch now takes the same `redesignWorkbenchPageBottomPadding` the titled
+pages use. `UI Design System.md` records no Page Padding Bottom for
+`Shiori List Detail Layout`, so nothing had to be contradicted; the document
+pass should add it.
+
+Verified: on the Shiori detail the buttons now draw at y 733–772 and answer
+across 733–772 — the same box and the same live band as Search, which was
+already correct. Clicking Exit leaves Select mode and restores the `#` header.
+
 ## Known limits
 
-The Exit button's action could not be verified through the controller. Its synthesized clicks do not activate any button in this overlay: `Copy Table` was clicked at its measured centre on the **unmodified** tree and left the clipboard untouched, so this is a pre-existing bound of the controller on this surface, not something the change introduced. Acceptance point 5's "click Exit and the selection clears" stays a manual check. No test infrastructure was added for it.
+The Shiori detail's table still passes a 14pt `bottomInset`, which is now
+redundant trailing scroll slack under the new page padding. Removing it is not
+part of the reported problem and was left alone.
 
-`SubtitleVirtualTableHeaderView` tracks a hover state (`isHeaderHovered`) that the redesign draw path never reads. It predates this change and is left alone.
+The page's bottom strip not taking clicks is a separate, older fault: rows drawn
+there answer nothing on Search as well. This change moves the Overlay out of the
+strip; it does not fix the strip.
+
+`SubtitleVirtualTableHeaderView` tracks a hover state (`isHeaderHovered`) that
+the redesign draw path never reads. It predates this change and is left alone.
