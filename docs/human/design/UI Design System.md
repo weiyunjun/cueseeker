@@ -27,8 +27,6 @@
 - `--color-app-sidebar-item-selected-bg`: macOS accent color
 - `--color-app-sidebar-item-selected-content`: Light `#FFFFFF`; Dark `#FFFFFF`
 - `--color-app-topbar-bg`: Light `#FFFFFF`; Dark `#18181B`
-- `--color-icon-button-open-bg`: macOS accent color
-- `--color-icon-button-open-content`: Light `#FFFFFF`; Dark `#FFFFFF`
 - `--color-playback-overlay-shortcut-button-bg-hover`: Light `#EDEEF2`; Dark `#2C2C30`
 - `--color-playback-overlay-keycap-bg`: Light `#E1E4E9`; Dark `#35353A`
 - `--color-playback-overlay-keycap-bg-hover`: Light `#D2D6DE`; Dark `#414147`
@@ -852,9 +850,10 @@
 - Default
   - Background：Transparent
   - Icon Color：`--color-text-secondary`
+- Hover
+  - Background：`--color-bg-hover`
 - Open
-  - Background：`--color-icon-button-open-bg`
-  - Icon Color：`--color-icon-button-open-content`
+  - Background：`--color-bg-hover`
 - Focused
   - Ring Color：`--color-focus-ring`
   - Ring Width：`--focus-ring-width`
@@ -1283,6 +1282,7 @@
 ##### States
 
 - Default
+- Hover
 - Focused
 
 ### Sidebar Item
