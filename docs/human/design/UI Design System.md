@@ -975,6 +975,7 @@
 ##### Filter Menu
 
 - Anchor：工具栏的筛选按钮
+- Boundary：以页面内容列为边界，右边界与表格行分隔线右端一致
 - Structure：Menu Title 起头；随后 Duration、Character、Language、Watch Status 四个分节，每节依次为 Menu Divider、Menu Section Header 与该节的 Menu Item / Filter Option Menu Item
 - 勾选即时生效，勾选后菜单保持打开；计数与 calculating 提示在打开期间实时更新
 
@@ -1256,6 +1257,10 @@
 ##### States
 
 - Default
+- Select Mode
+  - Label Color：`--color-text-secondary`，与 Default 相同
+  - 整条 Header 为全选点击区域，效果与点击 Selection Checkbox 一致
+  - 无 Hover 反馈；指针为箭头
 - Disabled
 
 ### Tab
@@ -1462,14 +1467,22 @@
   - Border Color：`--color-border-muted`
   - Radius：`--radius-control`
   - Shadow：`--shadow-popover`
-- Selected Count Slot
+- Selected Count Row
   - Color：`--color-text-muted`
-- Action Slots
+- Action Row
+  - Action Slots
+
+##### Layout
+
+- Selected Count Row 在上，Action Row 在下
+- Selected Count 左对齐到 Action Row 的起始边
 
 ##### Sizes
 
-- Content Gap：`--spacing-2`
-- Padding：`--spacing-3`
+- Row Gap：`--spacing-2`
+- Action Gap：`--spacing-3`
+- Padding Inline：`--spacing-3`
+- Padding Block：`--spacing-2`
 
 ##### States
 
@@ -3165,6 +3178,7 @@
 - Cover Padding Top：`--spacing-1`
 - Cover to Toolbar Gap：`--gap-cover-summary-to-toolbar`
 - Pinned Region Item Gap：`--spacing-3`
+- Page Padding Bottom：`--spacing-6`，与 Workbench Titled Page Layout 一致
 
 #### Scrolling
 
@@ -3217,11 +3231,19 @@
 2. Anki
 3. Copy Deep Links
 4. Copy Table
+5. Exit
+
+#### Layout
+
+- 第 1 项独占上行，第 2 至 5 项在下行依次排列
+- Exit 位于 Action Row 末位，退出 Select Mode，与工具栏 Select Mode Action 关闭时行为一致
 
 #### Spacing
 
-- Content Gap：`--spacing-2`
-- Padding：`--spacing-3`
+- Row Gap：`--spacing-2`
+- Action Gap：`--spacing-3`
+- Padding Inline：`--spacing-3`
+- Padding Block：`--spacing-2`
 
 #### States
 
