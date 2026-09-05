@@ -156,7 +156,6 @@
 - `--font-size-body`: `14px`
 - `--font-size-control`: `14px`
 - `--font-weight-control`: `500`
-- `--weight-select-indicator`: `semibold`
 - `--weight-button-icon`: `medium`
 - `--weight-control-icon`: `medium`
 - `--font-size-table`: `14px`
@@ -239,7 +238,6 @@
 - `--size-inline-clear-symbol-font-size-macos`: `11pt`
 - `--size-inline-add-symbol-font-size-macos`: `16pt`
 - `--size-menu-item-symbol-font-size-macos`: `14pt`
-- `--size-select-indicator`: `12pt`
 - `--size-button-icon`: `14px`
 - `--size-library-cover-edit-overlay-icon`: `32px`
 - `--size-control-icon`: `16px`
@@ -845,119 +843,30 @@
   - Radius：`--radius-control`
   - Icon Size：`--size-dialog-close-icon`
 
+##### Surface Hover
+
+| 所在表面 | Surface Hover |
+| --- | --- |
+| `--color-bg-surface` | `--color-bg-hover` |
+| `--color-subtitle-focus-overlay-bg` | `--color-playback-overlay-shortcut-button-bg-hover` |
+| `--color-bg-popover` | `--color-command-panel-shortcut-button-bg-hover` |
+
 ##### States
 
 - Default
   - Background：Transparent
   - Icon Color：`--color-text-secondary`
 - Hover
-  - Background：`--color-bg-hover`
+  - Background：Surface Hover
 - Open
-  - Background：`--color-bg-hover`
+  - 触发：挂靠的菜单或面板打开，或按钮所控的模式开启
+  - Background：Surface Hover
 - Focused
   - Ring Color：`--color-focus-ring`
   - Ring Width：`--focus-ring-width`
   - Ring Offset：`--focus-ring-offset`
 - Disabled
   - Background：Transparent
-  - Icon Color：`--color-text-disabled`
-
-### Toolbar Button
-
-#### Shared
-
-##### Anatomy
-
-- Container
-  - Radius：`--radius-control`
-- Leading Icon
-  - Size：`--size-button-icon`
-  - Weight：`--weight-button-icon`
-- Label
-  - Font Family：`--font-family-base`
-  - Font Size：`--font-size-control`
-  - Font Weight：`--font-weight-control`
-- Trailing Indicator
-  - Presence：Optional
-- Content Gap：`--spacing-2`
-
-##### Sizes
-
-- Height：`--height-filter-bar-control`
-- Padding Inline：`--padding-control-x`
-
-##### States
-
-- Default
-- Hover
-- Focused
-  - Ring Color：`--color-focus-ring`
-  - Ring Width：`--focus-ring-width`
-  - Ring Offset：`--focus-ring-offset`
-- Disabled
-
-#### Variants
-
-##### Action
-
-- Trailing Indicator：None
-- Default
-  - Background：Transparent
-  - Border：None
-  - Label Color：`--color-text-secondary`
-  - Icon Color：`--color-text-secondary`
-- Hover
-  - Background：`--color-bg-hover`
-- Disabled
-  - Label Color：`--color-text-disabled`
-  - Icon Color：`--color-text-disabled`
-
-##### Panel Trigger
-
-- Trailing Indicator
-  - Size：`--size-select-indicator`
-  - Weight：`--weight-select-indicator`
-- Default
-  - Background：`--color-bg-surface`
-  - Border Color：`--color-border-control`
-  - Label Color：`--color-text-secondary`
-  - Icon Color：`--color-text-secondary`
-- Hover
-  - Background：`--color-bg-hover`
-  - Border Color：`--color-border-control-hover`
-- Open
-  - Background：`--color-bg-hover`
-  - Border Color：`--color-border-control-hover`
-- Focused
-  - Border Color：`--color-border-focus`
-- Disabled
-  - Background：`--color-bg-disabled`
-  - Border Color：`--color-border-disabled`
-  - Label Color：`--color-text-disabled`
-  - Icon Color：`--color-text-disabled`
-
-##### Mode Toggle
-
-- Trailing Indicator：None
-- Default
-  - Background：`--color-bg-surface`
-  - Border Color：`--color-border-control`
-  - Label Color：`--color-text-secondary`
-  - Icon Color：`--color-text-secondary`
-- Hover
-  - Background：`--color-bg-hover`
-  - Border Color：`--color-border-control-hover`
-- Active
-  - Background：`--color-bg-hover`
-  - Border Color：`--color-border-control-hover`
-  - Label Color：`--color-text-secondary`
-  - Icon Color：`--color-text-secondary`
-- Focused
-  - Border Color：`--color-border-focus`
-- Disabled
-  - Background：`--color-bg-disabled`
-  - Border Color：`--color-border-disabled`
-  - Label Color：`--color-text-disabled`
   - Icon Color：`--color-text-disabled`
 
 ### Shortcut Action Button
@@ -3276,7 +3185,6 @@
 
 - Search Field
 - Icon Button
-- Toolbar Button / Mode Toggle
 
 #### Sizes
 
@@ -3771,7 +3679,7 @@
 
 - Window Controls：系统原生红绿灯
 - Player Circle Button / Standard：返回 Workbench
-- Button / Neutral
+- Icon Button
 - Tabs
 - Tab
 - Section Title
