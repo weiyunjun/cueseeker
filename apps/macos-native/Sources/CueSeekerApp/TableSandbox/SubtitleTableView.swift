@@ -1708,6 +1708,44 @@ final class SubtitleVirtualTableHeaderView: NSView {
         updateHoverState()
     }
 
+    /// In Select mode the header is one big select-all target, so everything
+    /// but the Checkbox itself routes here; the Checkbox keeps its own click,
+    /// hover and focus handling.
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        let hit = super.hitTest(point)
+        guard let hit,
+              coordinator?.acceptsSelectModeHeaderClick == true
+        else {
+            return hit
+        }
+        if let checkboxHost = indexHeaderHost,
+           !checkboxHost.isHidden,
+           hit === checkboxHost || hit.isDescendant(of: checkboxHost) {
+            return hit
+        }
+        return self
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        // The action belongs to the release, the same commitment every other
+        // control in the App makes.
+        guard coordinator?.acceptsSelectModeHeaderClick == true else {
+            super.mouseDown(with: event)
+            return
+        }
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        guard coordinator?.acceptsSelectModeHeaderClick == true else {
+            super.mouseUp(with: event)
+            return
+        }
+        guard bounds.contains(convert(event.locationInWindow, from: nil)) else {
+            return
+        }
+        coordinator?.toggleAllRowSelection()
+    }
+
     override func mouseEntered(with event: NSEvent) {
         super.mouseEntered(with: event)
         updateHoverState()
@@ -2086,7 +2124,7 @@ final class SubtitleVirtualTableHeaderView: NSView {
         frame: CGRect
     ) {
         guard let coordinator else { return }
-        let isEnabled = coordinator.isEnabled && !coordinator.isSelectionModeForRendering()
+        let isEnabled = coordinator.isEnabled
 
         let cellView = SubtitleTableHeaderCellView(
             title: title,
@@ -4077,6 +4115,15 @@ struct SubtitleTableView: NSViewRepresentable {
 
         func canToggleSelectionForRendering() -> Bool {
             isEnabled && isSelectionMode && rowCount > 0
+        }
+
+        /// Whether a click anywhere on the header should select or clear every
+        /// row. Same guards the row Checkboxes use.
+        fileprivate var acceptsSelectModeHeaderClick: Bool {
+            isRedesign
+                && canToggleSelectionForRendering()
+                && !isMenuOpen
+                && !isCoveredByHigherLayer
         }
 
         func usesOverlayScrollbarsForTesting() -> Bool {

@@ -85,6 +85,7 @@
 "table.toolbar.anki" = "Anki";
 "table.toolbar.copy_deep_links" = "Copy Deep Links";
 "table.toolbar.copy_table" = "Copy Table";
+"table.toolbar.exit" = "Exit";
 
 /* Row action menu */
 "row_menu.play" = "Play";

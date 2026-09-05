@@ -275,7 +275,7 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
             let menuFrame = MenuPlacement.openingFrame(
                 anchor: anchorFrame,
                 menuSize: menuSize,
-                in: hostBounds,
+                in: filterMenuBounds(in: hostBounds),
                 gap: WorkbenchControlMetrics.redesignSpacing1
             )
             ZStack(alignment: .topLeading) {
@@ -300,6 +300,21 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
             }
             .zIndex(1000)
         }
+    }
+
+    /// The box the filter menu stays inside: the page's content column, whose
+    /// trailing edge is where the table's row dividers end. Clamping to the
+    /// page itself would let the menu hang over the page margin and the
+    /// Scrollbar channel, past the dividers under it.
+    private func filterMenuBounds(in hostBounds: CGRect) -> CGRect {
+        let leading = WorkbenchControlMetrics.redesignWorkbenchPageHorizontalPadding
+        let trailing = WorkbenchControlMetrics.redesignWorkbenchPageTrailingPadding
+        return CGRect(
+            x: hostBounds.minX + leading,
+            y: hostBounds.minY,
+            width: max(0, hostBounds.width - leading - trailing),
+            height: hostBounds.height
+        )
     }
 
     private func measuredFilterMenuSize() -> CGSize {
@@ -374,7 +389,8 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
                        let selectionActions {
                         SchemaWorkbenchSelectionActionOverlay(
                             selectedRowCount: tableSummary.selectedRowCount,
-                            actions: selectionActions
+                            actions: selectionActions,
+                            onExitSelectionMode: onToggleSelectionMode
                         )
                         .padding(.bottom, WorkbenchControlMetrics.redesignSpacing4)
                     }
@@ -429,7 +445,8 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
                            let selectionActions {
                             SchemaWorkbenchSelectionActionOverlay(
                                 selectedRowCount: tableSummary.selectedRowCount,
-                                actions: selectionActions
+                                actions: selectionActions,
+                                onExitSelectionMode: onToggleSelectionMode
                             )
                             .padding(.bottom, WorkbenchControlMetrics.redesignSpacing4)
                         }
@@ -542,9 +559,13 @@ struct SchemaWorkbenchSearchToolbar: View {
 struct SchemaWorkbenchSelectionActionOverlay: View {
     let selectedRowCount: Int
     let actions: AnyView
+    let onExitSelectionMode: () -> Void
 
     var body: some View {
-        HStack(spacing: WorkbenchControlMetrics.redesignSpacing3) {
+        VStack(
+            alignment: .leading,
+            spacing: WorkbenchControlMetrics.redesignSpacing2
+        ) {
             Text(schemaWorkbenchSelectedCountText(selectedRowCount))
                 .font(.system(
                     size: WorkbenchControlMetrics.redesignFontSizeBody,
@@ -554,7 +575,16 @@ struct SchemaWorkbenchSelectionActionOverlay: View {
                 .lineLimit(1)
                 .fixedSize(horizontal: true, vertical: false)
 
-            actions
+            HStack(spacing: WorkbenchControlMetrics.redesignSpacing3) {
+                actions
+
+                WorkbenchButton(
+                    title: L("table.toolbar.exit"),
+                    systemImage: "xmark",
+                    isRedesign: true,
+                    action: onExitSelectionMode
+                )
+            }
         }
         .padding(.horizontal, WorkbenchControlMetrics.redesignSpacing3)
         .padding(.vertical, WorkbenchControlMetrics.redesignSpacing2)

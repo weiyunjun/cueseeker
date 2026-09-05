@@ -85,6 +85,7 @@
 "table.toolbar.anki" = "Anki";
 "table.toolbar.copy_deep_links" = "复制 Deep Links";
 "table.toolbar.copy_table" = "复制表格";
+"table.toolbar.exit" = "退出";
 
 /* Row action menu */
 "row_menu.play" = "播放";
