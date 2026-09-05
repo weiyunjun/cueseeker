@@ -1284,7 +1284,6 @@
 
 - Default
 - Focused
-- Disabled
 
 ### Sidebar Item
 
@@ -1317,9 +1316,6 @@
   - Label Color：`--color-app-sidebar-item-selected-content`
   - Icon Color：`--color-app-sidebar-item-selected-content`
   - Selection Scope：Current Item Only
-- Disabled
-  - Label Color：`--color-text-disabled`
-  - Icon Color：`--color-text-disabled`
 
 #### Variants
 
