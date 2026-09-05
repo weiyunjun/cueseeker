@@ -271,7 +271,7 @@ private struct WorkbenchShioriTableContent: View {
                 WorkbenchControlMetrics.redesignWorkbenchPageHorizontalPadding,
             trailingInset:
                 WorkbenchControlMetrics.redesignWorkbenchPageTrailingPadding,
-            bottomInset: SchemaWorkbenchStyle.pageBottomPadding
+            bottomInset: 0
         )
     }
 

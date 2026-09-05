@@ -66,11 +66,34 @@ Verified: on the Shiori detail the buttons now draw at y 733–772 and answer
 across 733–772 — the same box and the same live band as Search, which was
 already correct. Clicking Exit leaves Select mode and restores the `#` header.
 
-## Known limits
+## Follow-up: the page style constants become tokens
 
-The Shiori detail's table still passes a 14pt `bottomInset`, which is now
-redundant trailing scroll slack under the new page padding. Removing it is not
-part of the reported problem and was left alone.
+`SchemaWorkbenchStyle` carried four raw lengths that no design document backs —
+`pageTopPadding` 10, `pageBottomPadding` 14, `tableCornerRadius` 8 and
+`hairlineWidth` 0.5. The owner asked for tokens.
+
+`tableCornerRadius` and `hairlineWidth` had no reader at all. The other two were
+read only from arms that no caller reaches: the shell's two callers both pass
+`isRedesign: true`, Search passes a page title and the Shiori detail takes the
+chrome-in-table branch, so every `pageTitle == nil` and legacy arm was dead. The
+page paddings now read the documented `Workbench Titled Page Layout` values —
+Page Padding Top `--spacing-1`, Page Padding Bottom `--spacing-6` — and the
+enum keeps only its existing token alias.
+
+The one live reader was the Shiori detail's table `bottomInset: 14`, trailing
+scroll slack inside the document. The page padding added above now supplies that
+margin from outside, exactly as it does on Search, whose table carries no bottom
+inset; the inset is `0`. Scrolled to the bottom, both pages leave the same
+`--spacing-6` under the last row.
+
+No design value in the App is a bare number after this change: the only literal
+left in the diff is a `max(0, …)` guard against a negative width.
+
+Verified: the Overlay's buttons still draw at y 733–772 and answer across
+733–772 on the Shiori detail, and the page renders unchanged apart from the
+scroll extent losing its redundant 14pt.
+
+## Known limits
 
 The page's bottom strip not taking clicks is a separate, older fault: rows drawn
 there answer nothing on Search as well. This change moves the Overlay out of the

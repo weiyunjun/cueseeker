@@ -421,7 +421,7 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
                             .padding(
                                 .top,
                                 pageTitle == nil
-                                    ? SchemaWorkbenchStyle.pageTopPadding
+                                    ? WorkbenchControlMetrics.redesignWorkbenchPageTopPadding
                                     : 0
                             )
                             .padding(.bottom, WorkbenchControlMetrics.redesignSpacing3)
@@ -432,7 +432,7 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
                             onSubmit: onSearchSubmit
                         )
                         .workbenchPageInlinePadding()
-                        .padding(.top, SchemaWorkbenchStyle.pageTopPadding)
+                        .padding(.top, WorkbenchControlMetrics.redesignWorkbenchPageTopPadding)
                         .padding(.bottom, 12)
 
                         SchemaWorkbenchLegacyFilterControlBar(
@@ -461,9 +461,7 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
                     .workbenchPageInlinePadding()
                     .padding(
                         .bottom,
-                        pageTitle == nil
-                            ? SchemaWorkbenchStyle.pageBottomPadding
-                            : WorkbenchControlMetrics.redesignWorkbenchPageBottomPadding
+                        WorkbenchControlMetrics.redesignWorkbenchPageBottomPadding
                     )
                     .frame(maxHeight: .infinity)
                 }
@@ -503,10 +501,6 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
 enum SchemaWorkbenchStyle {
     static let pageHorizontalPadding =
         WorkbenchControlMetrics.redesignWorkbenchPageHorizontalPadding
-    static let pageTopPadding: CGFloat = 10
-    static let pageBottomPadding: CGFloat = 14
-    static let tableCornerRadius: CGFloat = 8
-    static let hairlineWidth: CGFloat = 0.5
 }
 
 struct SchemaWorkbenchSearchToolbar: View {
