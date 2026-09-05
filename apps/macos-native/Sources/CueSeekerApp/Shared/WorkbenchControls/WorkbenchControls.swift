@@ -1123,9 +1123,14 @@ struct WorkbenchPopoverRow: View {
 struct WorkbenchIconButton: View {
     let systemImage: String
     var isRedesign: Bool = false
-    /// The button a menu hangs off stays lit for as long as the menu is open,
-    /// with the same background hover paints.
-    var isMenuOpen: Bool = false
+    /// The button stays lit for as long as the menu or panel it hangs off is
+    /// open, and for as long as the mode it switches on is on, with the same
+    /// background hover paints.
+    var isOpen: Bool = false
+    /// Hover and the open state are read against the surface the button sits
+    /// on, so a button drawn on another surface passes that surface's own
+    /// step; the Workbench surface's is the default.
+    var hoverBackground: Color = WorkbenchRedesignColors.bgHover
     /// Input is blocked while a window or video size transition runs. The
     /// freeze is not a disabled state, so the button keeps the look it had
     /// before the transition started and nothing about it changes on screen.
@@ -1196,11 +1201,11 @@ struct WorkbenchIconButton: View {
             : WorkbenchRedesignColors.textDisabled
     }
 
-    /// Hover and the open state paint the same background, the way Toolbar
-    /// Button already does.
+    /// Hover and the open state paint the same background, in the step that
+    /// belongs to the surface the button sits on.
     private var redesignBackgroundColor: Color {
-        isEnabled && (isHovered || isMenuOpen)
-            ? WorkbenchRedesignColors.bgHover
+        isEnabled && (isHovered || isOpen)
+            ? hoverBackground
             : Color.clear
     }
 }

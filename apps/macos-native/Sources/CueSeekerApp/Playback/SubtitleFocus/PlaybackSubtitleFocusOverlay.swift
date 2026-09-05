@@ -295,13 +295,20 @@ private struct PlaybackOverlayTopBar: View {
                 HStack {
                     Spacer(minLength: 0)
 
-                    WorkbenchToolbarButton(
-                        title: isEditingCollage ? L("playback.collage.exit") : L("playback.collage"),
+                    WorkbenchIconButton(
                         systemImage: "square.and.pencil",
-                        isRedesign: true
+                        isRedesign: true,
+                        isOpen: isEditingCollage,
+                        hoverBackground: WorkbenchRedesignColors
+                            .playbackOverlayShortcutButtonHoverBg
                     ) {
                         _ = onToggleEditingCollage()
                     }
+                    .accessibilityLabel(
+                        isEditingCollage
+                            ? L("playback.collage.exit")
+                            : L("playback.collage")
+                    )
                     .accessibilityIdentifier(
                         isEditingCollage
                             ? "playback-exit-collage"

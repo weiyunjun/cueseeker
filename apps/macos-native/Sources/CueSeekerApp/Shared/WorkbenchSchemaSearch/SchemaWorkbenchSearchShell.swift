@@ -515,7 +515,7 @@ struct SchemaWorkbenchSearchToolbar: View {
             WorkbenchIconButton(
                 systemImage: "line.3.horizontal.decrease",
                 isRedesign: true,
-                isMenuOpen: isFilterMenuOpen,
+                isOpen: isFilterMenuOpen,
                 action: onFilter
             )
             .background {
@@ -526,12 +526,13 @@ struct SchemaWorkbenchSearchToolbar: View {
             .accessibilityLabel(L("table.filter"))
             .disabled(isSelectionMode)
 
-            WorkbenchToolbarButton(
-                title: isSelectionMode ? L("table.exit_select") : L("table.select"),
+            WorkbenchIconButton(
                 systemImage: "square.and.pencil",
                 isRedesign: true,
+                isOpen: isSelectionMode,
                 action: onToggleSelectionMode
             )
+            .accessibilityLabel(isSelectionMode ? L("table.exit_select") : L("table.select"))
             .disabled(!isSelectionMode && !canEnterSelectionMode)
         }
         .frame(height: WorkbenchControlMetrics.redesignHeight)

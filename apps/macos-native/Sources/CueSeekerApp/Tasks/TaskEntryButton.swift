@@ -13,7 +13,7 @@ struct TaskEntryButton: View {
         WorkbenchIconButton(
             systemImage: "list.bullet.rectangle",
             isRedesign: true,
-            isMenuOpen: tasks.isPanelOpen,
+            isOpen: tasks.isPanelOpen,
             action: onOpen
         )
         // App chrome, like the sidebar toggle beside it: it must not be the
