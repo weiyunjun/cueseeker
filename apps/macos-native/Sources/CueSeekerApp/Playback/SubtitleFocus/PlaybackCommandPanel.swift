@@ -370,6 +370,8 @@ private struct PlaybackCommandPanelSecondaryHeader: View {
     let title: String
     let onBack: () -> Bool
 
+    @State private var isBackHovered = false
+
     var body: some View {
         ZStack {
             Text(title)
@@ -398,10 +400,23 @@ private struct PlaybackCommandPanelSecondaryHeader: View {
                             height: WorkbenchControlMetrics
                                 .redesignIconButtonSize
                         )
+                        .background(
+                            RoundedRectangle(
+                                cornerRadius: WorkbenchControlMetrics
+                                    .redesignCornerRadius,
+                                style: .continuous
+                            )
+                            .fill(
+                                isBackHovered
+                                    ? WorkbenchRedesignColors.bgHover
+                                    : Color.clear
+                            )
+                        )
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(StaticButtonStyle())
                 .focusable(false)
+                .onPointerHover { isBackHovered = $0 }
                 .accessibilityLabel(L("playback.back"))
 
                 Spacer(minLength: 0)

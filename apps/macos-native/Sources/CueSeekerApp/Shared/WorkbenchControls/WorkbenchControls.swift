@@ -439,6 +439,7 @@ struct WorkbenchInlineClearButton: View {
     var action: () -> Void
 
     @FocusState private var isFocused: Bool
+    @State private var isHovered = false
 
     var body: some View {
         Button(action: action) {
@@ -447,12 +448,17 @@ struct WorkbenchInlineClearButton: View {
                 .frame(width: WorkbenchControlMetrics.inlineClearIconSize, height: WorkbenchControlMetrics.inlineClearIconSize) // --size-inline-clear-icon: 16px
                 .foregroundStyle(isEnabled ? WorkbenchRedesignColors.textSecondary : WorkbenchRedesignColors.textDisabled)
                 .frame(width: WorkbenchControlMetrics.redesignInlineClearButtonSize, height: WorkbenchControlMetrics.redesignInlineClearButtonSize)
+                .background(
+                    RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignInlineClearButtonRadius, style: .continuous)
+                        .fill(isEnabled && isHovered ? WorkbenchRedesignColors.bgHover : Color.clear)
+                )
         }
         .buttonStyle(StaticButtonStyle())
         .disabled(!isEnabled)
         .subtitleTableTextSelectionInteractiveRegion(isActive: isEnabled)
         .focused($isFocused)
         .disableFocusEffect()
+        .onPointerHover { isHovered = $0 }
         .overlay(
             Group {
                 if isFocused {
@@ -1117,8 +1123,8 @@ struct WorkbenchPopoverRow: View {
 struct WorkbenchIconButton: View {
     let systemImage: String
     var isRedesign: Bool = false
-    /// The button a menu hangs off keeps this look for as long as the menu is
-    /// open: accent background, white glyph.
+    /// The button a menu hangs off stays lit for as long as the menu is open,
+    /// with the same background hover paints.
     var isMenuOpen: Bool = false
     /// Input is blocked while a window or video size transition runs. The
     /// freeze is not a disabled state, so the button keeps the look it had
@@ -1134,6 +1140,7 @@ struct WorkbenchIconButton: View {
 
     @FocusState private var isFocused: Bool
     @Environment(\.isEnabled) private var isEnabled
+    @State private var isHovered = false
 
     var body: some View {
         Group {
@@ -1146,6 +1153,7 @@ struct WorkbenchIconButton: View {
                 .focused($isFocused)
                 .disableFocusEffect()
                 .subtitleTableTextSelectionInteractiveRegion(isActive: isEnabled)
+                .onPointerHover { isHovered = $0 }
             } else {
                 label
             }
@@ -1183,16 +1191,17 @@ struct WorkbenchIconButton: View {
     }
 
     private var redesignIconColor: Color {
-        guard isEnabled else { return WorkbenchRedesignColors.textDisabled }
-        return isMenuOpen
-            ? WorkbenchRedesignColors.iconButtonOpenContent
-            : WorkbenchRedesignColors.textSecondary
+        isEnabled
+            ? WorkbenchRedesignColors.textSecondary
+            : WorkbenchRedesignColors.textDisabled
     }
 
-    /// Only the open state paints a background. Icon buttons have no hover
-    /// response at all.
+    /// Hover and the open state paint the same background, the way Toolbar
+    /// Button already does.
     private var redesignBackgroundColor: Color {
-        isMenuOpen ? WorkbenchRedesignColors.iconButtonOpenBg : Color.clear
+        isEnabled && (isHovered || isMenuOpen)
+            ? WorkbenchRedesignColors.bgHover
+            : Color.clear
     }
 }
 
