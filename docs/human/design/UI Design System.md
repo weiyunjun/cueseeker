@@ -367,15 +367,18 @@
 
 ### Shadow
 
-- `--shadow-popover`:
-  - Light: `0 12px 24px rgba(15,23,42,0.12)`
-  - Dark: `0 12px 24px rgba(0,0,0,0.36)`
+- `--shadow-popover`: Light 与 Dark 相同
+  - `0 10px 15px -3px rgba(15,23,42,0.10)`
+  - `0 4px 6px -4px rgba(15,23,42,0.10)`
 - `--shadow-player-overlay`:
   - Light: `0 12px 24px rgba(0,0,0,0.42)`
   - Dark: `0 12px 24px rgba(0,0,0,0.42)`
 - `--shadow-player-topbar-title`:
   - Light: `0 1px 2px rgba(0,0,0,0.50)`
   - Dark: `0 1px 2px rgba(0,0,0,0.50)`
+
+阴影由容器形状投射，容器内部元素不各自投射阴影。
+深色下该阴影几乎不可见，浮层与页面的分离由容器边框承担。深色若需更强分层，提亮浮层背景，不加重阴影。
 
 ### Cover Summary Scrim
 
@@ -1972,7 +1975,7 @@
   - Background：`--color-bg-popover`
   - Border Color：`--color-border-muted`
   - Radius：`--radius-control`
-  - Shadow：`--shadow-popover`
+  - Shadow：系统 sheet 阴影
 - Header
 - Content
 - Footer
