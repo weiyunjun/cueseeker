@@ -63,17 +63,17 @@ enum WorkbenchRedesignColors {
         static let appSidebarItemSelectedBg = NSColor.controlAccentColor
         static let appSidebarItemSelectedContent = iconOnDark
         static let appTopbarBg = NSColor.dynamic(lightHex: "#FFFFFF", darkHex: "#18181B")
-        // Playback footer shortcut buttons and their keycaps. Each surface
-        // carries its own set so the keycap always reads one step deeper than
-        // the background it sits on: the shared keycap colour used to match
-        // --color-bg-hover, which is indistinguishable from the Playback
-        // Overlay's own background.
-        static let playbackOverlayShortcutButtonHoverBg = NSColor.dynamic(lightHex: "#EDEEF2", darkHex: "#2C2C30")
-        static let playbackOverlayKeycapBg = NSColor.dynamic(lightHex: "#E1E4E9", darkHex: "#35353A")
-        static let playbackOverlayKeycapHoverBg = NSColor.dynamic(lightHex: "#D2D6DE", darkHex: "#414147")
-        static let commandPanelShortcutButtonHoverBg = NSColor.dynamic(lightHex: "#F7F8FA", darkHex: "#252529")
-        static let commandPanelKeycapBg = NSColor.dynamic(lightHex: "#EDEFF2", darkHex: "#2E2E33")
-        static let commandPanelKeycapHoverBg = NSColor.dynamic(lightHex: "#E0E3E8", darkHex: "#3A3A40")
+        // Shortcut action buttons and their keycaps. Named after the surface
+        // they sit on rather than the interface that uses them: the Command
+        // Panel and the workbench Selection Action Overlay are both popover
+        // surfaces and share one set. Each surface carries its own so the
+        // keycap always reads one step deeper than the background under it.
+        static let overlaySurfaceShortcutButtonHoverBg = NSColor.dynamic(lightHex: "#EDEEF2", darkHex: "#2C2C30")
+        static let overlaySurfaceKeycapBg = NSColor.dynamic(lightHex: "#E1E4E9", darkHex: "#35353A")
+        static let overlaySurfaceKeycapHoverBg = NSColor.dynamic(lightHex: "#D2D6DE", darkHex: "#414147")
+        static let popoverSurfaceShortcutButtonHoverBg = NSColor.dynamic(lightHex: "#F7F8FA", darkHex: "#252529")
+        static let popoverSurfaceKeycapBg = NSColor.dynamic(lightHex: "#EDEFF2", darkHex: "#2E2E33")
+        static let popoverSurfaceKeycapHoverBg = NSColor.dynamic(lightHex: "#E0E3E8", darkHex: "#3A3A40")
 
         // Border
         static let borderControl = NSColor.dynamic(lightHex: "#E5E7EB", darkHex: "#3F3F46")
@@ -179,12 +179,12 @@ enum WorkbenchRedesignColors {
     static let appSidebarItemSelectedBg = Color(nsColor: NS.appSidebarItemSelectedBg)
     static let appSidebarItemSelectedContent = Color(nsColor: NS.appSidebarItemSelectedContent)
     static let appTopbarBg = Color(nsColor: NS.appTopbarBg)
-    static let playbackOverlayShortcutButtonHoverBg = Color(nsColor: NS.playbackOverlayShortcutButtonHoverBg)
-    static let playbackOverlayKeycapBg = Color(nsColor: NS.playbackOverlayKeycapBg)
-    static let playbackOverlayKeycapHoverBg = Color(nsColor: NS.playbackOverlayKeycapHoverBg)
-    static let commandPanelShortcutButtonHoverBg = Color(nsColor: NS.commandPanelShortcutButtonHoverBg)
-    static let commandPanelKeycapBg = Color(nsColor: NS.commandPanelKeycapBg)
-    static let commandPanelKeycapHoverBg = Color(nsColor: NS.commandPanelKeycapHoverBg)
+    static let overlaySurfaceShortcutButtonHoverBg = Color(nsColor: NS.overlaySurfaceShortcutButtonHoverBg)
+    static let overlaySurfaceKeycapBg = Color(nsColor: NS.overlaySurfaceKeycapBg)
+    static let overlaySurfaceKeycapHoverBg = Color(nsColor: NS.overlaySurfaceKeycapHoverBg)
+    static let popoverSurfaceShortcutButtonHoverBg = Color(nsColor: NS.popoverSurfaceShortcutButtonHoverBg)
+    static let popoverSurfaceKeycapBg = Color(nsColor: NS.popoverSurfaceKeycapBg)
+    static let popoverSurfaceKeycapHoverBg = Color(nsColor: NS.popoverSurfaceKeycapHoverBg)
 
     // Cover Summary
     static let coverSummaryScrim = Color(nsColor: NS.coverSummaryScrim)

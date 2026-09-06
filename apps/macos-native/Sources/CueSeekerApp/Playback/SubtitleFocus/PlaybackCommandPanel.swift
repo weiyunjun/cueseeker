@@ -417,7 +417,7 @@ private struct PlaybackCommandPanelSecondaryHeader: View {
                             .fill(
                                 isBackHovered
                                     ? WorkbenchRedesignColors
-                                        .commandPanelShortcutButtonHoverBg
+                                        .popoverSurfaceShortcutButtonHoverBg
                                     : Color.clear
                             )
                         )

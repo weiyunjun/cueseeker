@@ -8,7 +8,10 @@ func schemaWorkbenchFormatsSearchAndSelectionCounts() {
     #expect(schemaWorkbenchResultCountText(1) == "1 result")
     #expect(schemaWorkbenchResultCountText(42) == "42 results")
     #expect(schemaWorkbenchResultCountText(-1) == "0 results")
-    #expect(schemaWorkbenchSelectedCountText(3) == "3 selected")
+    #expect(schemaWorkbenchSelectedCountText(0) == "0 rows selected")
+    #expect(schemaWorkbenchSelectedCountText(1) == "1 row selected")
+    #expect(schemaWorkbenchSelectedCountText(3) == "3 rows selected")
+    #expect(schemaWorkbenchSelectedCountText(-1) == "0 rows selected")
 }
 
 @Test

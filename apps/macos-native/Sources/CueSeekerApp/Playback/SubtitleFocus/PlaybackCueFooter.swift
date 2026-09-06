@@ -25,27 +25,27 @@ enum PlaybackCueFooterSurface: Equatable {
     var buttonHoverBackground: Color {
         switch self {
         case .playbackOverlay:
-            WorkbenchRedesignColors.playbackOverlayShortcutButtonHoverBg
+            WorkbenchRedesignColors.overlaySurfaceShortcutButtonHoverBg
         case .commandPanel:
-            WorkbenchRedesignColors.commandPanelShortcutButtonHoverBg
+            WorkbenchRedesignColors.popoverSurfaceShortcutButtonHoverBg
         }
     }
 
     var keycapBackground: Color {
         switch self {
         case .playbackOverlay:
-            WorkbenchRedesignColors.playbackOverlayKeycapBg
+            WorkbenchRedesignColors.overlaySurfaceKeycapBg
         case .commandPanel:
-            WorkbenchRedesignColors.commandPanelKeycapBg
+            WorkbenchRedesignColors.popoverSurfaceKeycapBg
         }
     }
 
     var keycapHoverBackground: Color {
         switch self {
         case .playbackOverlay:
-            WorkbenchRedesignColors.playbackOverlayKeycapHoverBg
+            WorkbenchRedesignColors.overlaySurfaceKeycapHoverBg
         case .commandPanel:
-            WorkbenchRedesignColors.commandPanelKeycapHoverBg
+            WorkbenchRedesignColors.popoverSurfaceKeycapHoverBg
         }
     }
 }

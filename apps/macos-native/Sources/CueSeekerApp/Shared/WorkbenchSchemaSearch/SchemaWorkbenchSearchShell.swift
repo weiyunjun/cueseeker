@@ -13,7 +13,10 @@ func schemaWorkbenchResultCountText(_ count: Int) -> String {
 }
 
 func schemaWorkbenchSelectedCountText(_ count: Int) -> String {
-    L("table.selected_count", max(0, count))
+    let safeCount = max(0, count)
+    return safeCount == 1
+        ? L("table.selected_count.one")
+        : L("table.selected_count.other", safeCount)
 }
 
 func schemaWorkbenchCanEnterSelectionMode(hasExactResultSet: Bool) -> Bool {
@@ -103,7 +106,7 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
     let hostsPageChromeInTable: Bool
     let tableSummary: SchemaWorkbenchTableSummary?
     let searchResultCountText: String?
-    let selectionActions: AnyView?
+    let selectionActions: [SchemaWorkbenchSelectionAction]?
     let isSelectionMode: Bool
     let canEnterSelectionMode: Bool
     let onToggleSelectionMode: () -> Void
@@ -144,7 +147,7 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
         hostsPageChromeInTable: Bool = false,
         tableSummary: SchemaWorkbenchTableSummary? = nil,
         searchResultCountText: String? = nil,
-        selectionActions: AnyView? = nil,
+        selectionActions: [SchemaWorkbenchSelectionAction]? = nil,
         isSelectionMode: Bool = false,
         canEnterSelectionMode: Bool = false,
         onToggleSelectionMode: @escaping () -> Void = {},
@@ -614,70 +617,6 @@ struct SchemaWorkbenchSearchToolbar: View {
             .disabled(!isSelectionMode && !canEnterSelectionMode)
         }
         .frame(height: WorkbenchControlMetrics.redesignHeight)
-    }
-}
-
-struct SchemaWorkbenchSelectionActionOverlay: View {
-    let selectedRowCount: Int
-    let actions: AnyView
-    let anchor: MenuAnchorHandle?
-    let onExitSelectionMode: () -> Void
-
-    var body: some View {
-        VStack(
-            alignment: .leading,
-            spacing: WorkbenchControlMetrics.redesignSpacing2
-        ) {
-            Text(schemaWorkbenchSelectedCountText(selectedRowCount))
-                .font(.system(
-                    size: WorkbenchControlMetrics.redesignFontSizeBody,
-                    weight: .regular
-                ))
-                .foregroundStyle(WorkbenchRedesignColors.textMuted)
-                .lineLimit(1)
-                .fixedSize(horizontal: true, vertical: false)
-
-            HStack(spacing: WorkbenchControlMetrics.redesignSpacing3) {
-                actions
-
-                WorkbenchButton(
-                    title: L("table.toolbar.exit"),
-                    systemImage: "xmark",
-                    isRedesign: true,
-                    action: onExitSelectionMode
-                )
-            }
-        }
-        .padding(.horizontal, WorkbenchControlMetrics.redesignSpacing3)
-        .padding(.vertical, WorkbenchControlMetrics.redesignSpacing2)
-        // The shadow belongs to the overlay's shape, not to the overlay.
-        // Applied to the whole surface it is cast by every leaf inside it, so
-        // each action button and the count line carried a shadow of its own.
-        .background(
-            RoundedRectangle(
-                cornerRadius: WorkbenchControlMetrics.redesignCornerRadius,
-                style: .continuous
-            )
-            .fill(WorkbenchRedesignColors.bgPopover)
-            .shadowToken(
-                WorkbenchRedesignColors.shadowPopover,
-                cornerRadius: WorkbenchControlMetrics.redesignCornerRadius
-            )
-        )
-        .overlay(
-            RoundedRectangle(
-                cornerRadius: WorkbenchControlMetrics.redesignCornerRadius,
-                style: .continuous
-            )
-            .strokeBorder(WorkbenchRedesignColors.borderMuted, lineWidth: 1)
-        )
-        .background(anchor.map { MenuAnchorProbe(handle: $0) })
-        .contentShape(
-            RoundedRectangle(
-                cornerRadius: WorkbenchControlMetrics.redesignCornerRadius,
-                style: .continuous
-            )
-        )
     }
 }
 

@@ -300,7 +300,7 @@ private struct PlaybackOverlayTopBar: View {
                         isRedesign: true,
                         isOpen: isEditingCollage,
                         hoverBackground: WorkbenchRedesignColors
-                            .playbackOverlayShortcutButtonHoverBg
+                            .overlaySurfaceShortcutButtonHoverBg
                     ) {
                         _ = onToggleEditingCollage()
                     }

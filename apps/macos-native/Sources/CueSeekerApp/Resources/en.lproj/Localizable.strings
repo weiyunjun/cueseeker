@@ -76,13 +76,14 @@
 "table.state.cue_missing" = "This cue could not be found in the current subtitle file.";
 "table.result_count.one" = "1 result";
 "table.result_count.other" = "%d results";
-"table.selected_count" = "%d selected";
+"table.selected_count.one" = "1 row selected";
+"table.selected_count.other" = "%d rows selected";
 "table.filter" = "Filter";
 "table.select" = "Select";
 "table.exit_select" = "Exit Select";
 "table.search_placeholder" = "Search cues by name, lyrics, or keywords...";
 "table.search_empty_hint" = "Enter a search term to show cues.";
-"table.toolbar.anki" = "Anki";
+"table.toolbar.anki" = "Export to Anki";
 "table.toolbar.copy_deep_links" = "Copy Deep Links";
 "table.toolbar.copy_table" = "Copy Table";
 "table.toolbar.exit" = "Exit";

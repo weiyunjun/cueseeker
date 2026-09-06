@@ -308,31 +308,14 @@ private struct WorkbenchShioriTableContent: View {
         )
     }
 
-    private var selectedSummaryActions: AnyView? {
+    private var selectedSummaryActions: [SchemaWorkbenchSelectionAction]? {
         guard isSelectionMode else {
             return nil
         }
-        return AnyView(
-            HStack(spacing: WorkbenchControlMetrics.redesignSpacing3) {
-                WorkbenchButton(
-                    title: L("table.toolbar.anki"),
-                    systemImage: "square.and.arrow.up",
-                    isRedesign: true,
-                    action: exportSelectedRowsToAnki
-                )
-                WorkbenchButton(
-                    title: L("table.toolbar.copy_deep_links"),
-                    systemImage: "doc.on.doc",
-                    isRedesign: true,
-                    action: copySelectedRowsAsDeepLinks
-                )
-                WorkbenchButton(
-                    title: L("table.toolbar.copy_table"),
-                    systemImage: "doc.on.doc",
-                    isRedesign: true,
-                    action: copySelectedRowsAsTable
-                )
-            }
+        return SchemaWorkbenchSelectionAction.exportActions(
+            exportToAnki: exportSelectedRowsToAnki,
+            copyDeepLinks: copySelectedRowsAsDeepLinks,
+            copyTable: copySelectedRowsAsTable
         )
     }
 

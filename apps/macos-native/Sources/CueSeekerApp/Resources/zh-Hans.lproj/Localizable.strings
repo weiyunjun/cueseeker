@@ -76,13 +76,14 @@
 "table.state.cue_missing" = "在当前字幕文件中找不到该台词。";
 "table.result_count.one" = "1 条结果";
 "table.result_count.other" = "%d 条结果";
-"table.selected_count" = "已选 %d 项";
+"table.selected_count.one" = "已选取 1 行";
+"table.selected_count.other" = "已选取 %d 行";
 "table.filter" = "筛选";
 "table.select" = "选择";
 "table.exit_select" = "退出选择";
 "table.search_placeholder" = "按名称、台词或关键词搜索…";
 "table.search_empty_hint" = "输入搜索词以显示台词。";
-"table.toolbar.anki" = "Anki";
+"table.toolbar.anki" = "导出到 Anki";
 "table.toolbar.copy_deep_links" = "复制 Deep Links";
 "table.toolbar.copy_table" = "复制表格";
 "table.toolbar.exit" = "退出";

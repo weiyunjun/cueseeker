@@ -76,13 +76,14 @@
 "table.state.cue_missing" = "在目前的字幕檔案中找不到此台詞。";
 "table.result_count.one" = "1 筆結果";
 "table.result_count.other" = "%d 筆結果";
-"table.selected_count" = "已選取 %d 項";
+"table.selected_count.one" = "已選取 1 行";
+"table.selected_count.other" = "已選取 %d 行";
 "table.filter" = "篩選";
 "table.select" = "選取";
 "table.exit_select" = "結束選取";
 "table.search_placeholder" = "依名稱、台詞或關鍵字搜尋⋯";
 "table.search_empty_hint" = "輸入搜尋字詞以顯示台詞。";
-"table.toolbar.anki" = "Anki";
+"table.toolbar.anki" = "匯出至 Anki";
 "table.toolbar.copy_deep_links" = "拷貝 Deep Links";
 "table.toolbar.copy_table" = "拷貝表格";
 "table.toolbar.exit" = "結束";
