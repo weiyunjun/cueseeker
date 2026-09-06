@@ -296,16 +296,18 @@ struct PlaybackCueFooter: View {
                     .frame(width: proxy.size.width, height: proxy.size.height)
                     .allowsHitTesting(false)
 
-                    ShioriDestinationMenu(
-                        destinations: menu.destinations,
-                        highlight: playback.shioriDestinationMenuHighlight,
-                        maximumHeight: placement.maximumHeight,
-                        onSelect: { destination in
-                            saveToDestination(destination, menu: menu)
-                        },
-                        onCreateList: {
-                            createDestinationList(menu: menu)
-                        }
+                    ShioriDestinationMenuSurfaceHost(
+                        menu: ShioriDestinationMenu(
+                            destinations: menu.destinations,
+                            highlight: playback.shioriDestinationMenuHighlight,
+                            maximumHeight: placement.maximumHeight,
+                            onSelect: { destination in
+                                saveToDestination(destination, menu: menu)
+                            },
+                            onCreateList: {
+                                createDestinationList(menu: menu)
+                            }
+                        )
                     )
                     .frame(width: menuFrame.width, height: menuFrame.height)
                     .offset(x: menuFrame.minX, y: menuFrame.minY)
@@ -636,5 +638,23 @@ private struct PlaybackCueFooterActionFlow: Layout {
             rows.append(row)
         }
         return rows
+    }
+}
+
+/// Hosts the destination menu's SwiftUI surface in the menu hosting view, the
+/// way every menu in the App is hosted. The menu's own scrolling sees the wheel
+/// first, and whatever it does not spend stops there instead of reaching the
+/// cue list underneath — a surface drawn straight into the footer's overlay has
+/// no view of its own at the place it is drawn, so the list below owned that
+/// wheel.
+private struct ShioriDestinationMenuSurfaceHost: NSViewRepresentable {
+    let menu: ShioriDestinationMenu
+
+    func makeNSView(context _: Context) -> MenuHostingView {
+        MenuHostingView(rootView: AnyView(menu))
+    }
+
+    func updateNSView(_ nsView: MenuHostingView, context _: Context) {
+        nsView.rootView = AnyView(menu)
     }
 }

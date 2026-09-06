@@ -2996,13 +2996,16 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
             }
             let point = self.convert(event.locationInWindow, from: nil)
             let isInside = self.bounds.contains(point)
-            // An open selected-text menu hands the wheel to the menu gate,
-            // which bans scrolling for the whole window and leaves the menu
-            // its own. The reel must not spend the wheel first: this monitor
-            // was installed before the gate's, so it sees the event first.
-            // A frozen menu bans nothing — the surface above it decides.
-            if self.selectedTextMenuHost != nil,
-               !self.isCoveredByHigherLayer {
+            // An open menu hands the wheel to the menu gate, which bans
+            // scrolling for the whole window and leaves the menu its own. The
+            // reel must not spend the wheel first: this monitor was installed
+            // before the gate's, so it sees the event first. Every menu the
+            // gate holds counts, not only this reel's own: the footer's
+            // `Save to Shiori` menu is opened by another surface, and a reel
+            // that recognised only its own selected-text menu went on scrolling
+            // under it. A menu the gate reports as covered bans nothing — the
+            // surface above it decides.
+            if self.interfaceLayers?.menuGate.bansScrolling == true {
                 return event
             }
             guard self.allowsNativeWheelInput() else {

@@ -188,6 +188,21 @@ final class MenuGate {
         window?.makeFirstResponder(nil)
     }
 
+    /// Whether an open menu bans scrolling where it can still be seen.
+    ///
+    /// 菜单模态 6 is applied here for every surface that takes the wheel from
+    /// an `NSEvent` monitor of its own. A monitor never sees hit testing, and
+    /// one installed before the gate's sees the wheel before the gate can spend
+    /// it, so such a surface has to ask the gate to stand aside instead. The
+    /// question is about menus, not about who opened them: a reel that only
+    /// recognised its own menu kept scrolling under the footer's.
+    var bansScrolling: Bool {
+        clients.contains { entry in
+            entry.client.kind.bansScrolling
+                && !interfaceLayers.isMenuCovered(ownedBy: entry.client.owner)
+        }
+    }
+
     /// Keys the playback key owner offers the open menus before seeking,
     /// volume, cue navigation and Command Panel navigation see them. Returns
     /// whether a menu spent the key.

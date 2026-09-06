@@ -156,3 +156,82 @@ save target pointing at `5`. Nothing else was changed.
 No end-to-end capability was added for this change. The controller cannot report
 which menu item is highlighted, so every highlight above was read from `capture`
 images.
+
+## Follow-up: the wheel over the open destination menu
+
+Reported after the run above: with the menu open on the Playback Overlay or the
+Command Panel, the wheel did nothing to the menu and scrolled the cue list
+underneath it instead. The selected-text menu on the same surfaces was correct,
+which is what named the cause.
+
+### Why
+
+The cue list does not take the wheel by being under the pointer. It takes it
+from an `NSEvent` monitor installed when the reel appears, which is before the
+menu gate's, so it sees every wheel first. That monitor carried one exemption,
+written when the reel's own selected-text menu was the only menu it could be
+under: stand aside while *that* menu is open. The destination menu is opened by
+the footer, a different surface, so the reel did not recognise it, spent the
+wheel on its own scrolling, and returned `nil` — the gate never saw the event,
+and the menu could not have scrolled even if it had been able to.
+
+The menu could not have taken the wheel anyway. Every other menu in the App is
+hosted in `MenuHostingView`, a real view at the place the menu is drawn: its
+content scrolls first and the host spends what is left, so nothing travels to
+the page below. The footer's menu was drawn straight into a SwiftUI overlay with
+no view of its own there, and in AppKit terms that region still belonged to the
+cue list.
+
+### What changed
+
+**The reel asks about menus, not about its own menu.** `MenuGate` answers a new
+`bansScrolling` — is a menu open, and not covered, that 菜单模态 6 bans scrolling
+for. The reel's monitor asks that instead of testing for its own menu host, so a
+menu added later is covered without the reel being taught about it. The old
+test's `isCoveredByHigherLayer` half is subsumed: the gate already reports a
+covered menu as banning nothing. The speed menu, the one menu the scroll table
+leaves free, is excluded by `Kind.bansScrolling`, and cannot be open beside a
+reel anyway — 菜单模态 3 closes it when the Playback Overlay opens.
+
+**The destination menu is hosted the way every other menu is.**
+`ShioriDestinationMenuSurfaceHost` wraps it in `MenuHostingView`, the same
+thirteen lines `FilterMenuSurfaceHost` uses for the filter menu. This is also
+what 实现约束 10.2 asks for: reuse the existing menu shell rather than a second
+one.
+
+### Verification
+
+`swift build` clean. `swift test`: 1142 tests. The failures are the same
+environment-bound set as above — native playback media and presentation tests,
+the Debug E2E scene and window tests, and three
+`CueGroupRefreshScopeIntegrationTests` — measured against the same tree with the
+three files stashed, so nothing regressed. Two further suites
+(`LibraryFolderRemovalTests`, `ApplicationPersistenceTests`) failed in one whole
+run and passed in a filtered rerun with the change applied; they are
+order-dependent, not caused by this change.
+
+Debug E2E controller, `swift run CueSeeker --cueseeker-debug-e2e`, against the
+real library, 15 Shiori lists so the menu scrolls:
+
+1. Playback Overlay Playlist, `S`: the menu opens with its scrollbar up. Three
+   `scroll` commands at the menu's centre: the menu reaches `New List`, and the
+   cue list behind it does not move.
+2. Three `scroll` commands over the cue list, outside the menu: neither the menu
+   nor the cue list moves.
+3. `S` to close, then the same three commands over the cue list: it scrolls
+   normally again, from cue 1 to cues 7–12.
+4. Command Panel over the Playback Overlay, search results, `S`: the same two
+   checks, with the same outcome — the menu scrolls to `New List`, the results
+   behind it and the Playback Overlay under that stay where they are.
+5. Playback Overlay Current, text selected, the selected-text menu up: three
+   `scroll` commands outside it move nothing, as before the change.
+6. Choosing 列表 3 from the menu still closes it and shows
+   `Saved to “列表 3”` in the playback feedback, so hosting the menu in a view of
+   its own did not cost it the click.
+
+This run wrote one more Shiori row into the owner's real library — the focused
+cue `３万円くらいなら。` of `胜者即是正义 - 02` into `列表 3` — and left the
+remembered save target on `列表 3`.
+
+No end-to-end capability was added. `scroll` at a stated coordinate and
+`capture` were enough; the before/after comparisons were read from the images.
