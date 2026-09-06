@@ -144,22 +144,62 @@ enum AppPointerShape {
             CFIndex.max
         ) { _, _ in
             MainActor.assumeIsolated {
-                restoreIfAppKitTookOver()
+                followPointerOwnership()
             }
         }
         runLoopObserver = observer
         CFRunLoopAddObserver(CFRunLoopGetMain(), observer, .commonModes)
     }
 
-    private static func restoreIfAppKitTookOver() {
-        let cursor = model.shape.cursor
-        guard NSApp.isActive,
-              let window,
-              let content = window.contentView,
-              content.frame.contains(window.mouseLocationOutsideOfEventStream)
-        else {
+    /// The shape is the App's only while the pointer is over the App's own
+    /// window. Over anybody else's — the Settings window, a menu, another App
+    /// — the cursor belongs to that window, so the held shape goes back to the
+    /// arrow and nothing is stated until the pointer comes back.
+    private static func followPointerOwnership() {
+        guard NSApp.isActive, isPointerOverOwnWindow() else {
+            releaseToOtherWindow()
             return
         }
+        reclaimAfterRealMovement()
+        restoreIfAppKitTookOver()
+    }
+
+    /// Which window the pointer is really on, asked of the window server. The
+    /// main window's own geometry cannot answer it: the window fills the
+    /// screen and the Settings window sits inside that frame, so geometry says
+    /// yes for a pointer that is not on the main window at all.
+    private static func isPointerOverOwnWindow() -> Bool {
+        guard let window else {
+            return false
+        }
+        return NSWindow.windowNumber(
+            at: NSEvent.mouseLocation,
+            belowWindowWithWindowNumber: 0
+        ) == window.windowNumber
+    }
+
+    private static func releaseToOtherWindow() {
+        pointerLocationOutside = NSEvent.mouseLocation
+        setRectShape(model.reset())
+    }
+
+    /// The pointer came back. Arriving somewhere other than where it left is a
+    /// real movement and decides a shape; arriving at the very point it left
+    /// from is not, so a menu closing under a still pointer leaves the arrow
+    /// where it is.
+    private static func reclaimAfterRealMovement() {
+        guard let outside = pointerLocationOutside, let window else {
+            return
+        }
+        pointerLocationOutside = nil
+        guard outside != NSEvent.mouseLocation else {
+            return
+        }
+        decide(at: window.mouseLocationOutsideOfEventStream)
+    }
+
+    private static func restoreIfAppKitTookOver() {
+        let cursor = model.shape.cursor
         let current = NSCursor.current
         guard current !== cursor,
               [NSCursor.arrow, NSCursor.iBeam, NSCursor.pointingHand].contains(where: { $0 === current })
@@ -213,6 +253,13 @@ enum AppPointerShape {
     }
 
     private static func decide(at windowPoint: CGPoint) {
+        // A movement over somebody else's window is not this window's to read:
+        // while the main window is key it keeps receiving movements wherever
+        // the pointer is, and hit testing them would answer for the surface
+        // that happens to lie under the other window.
+        guard isPointerOverOwnWindow() else {
+            return
+        }
         set(model.pointerMoved(
             over: surfaceShape(at: windowPoint),
             isMenuOpen: isMenuOpen()
@@ -243,16 +290,26 @@ enum AppPointerShape {
     }
 
     private static var rectShape: PointerShape = .arrow
+    /// Where the pointer was while it was over somebody else's window, or nil
+    /// while the App's own window has it.
+    private static var pointerLocationOutside: CGPoint?
 
     private static func set(_ shape: PointerShape?) {
         guard let shape else {
             return
         }
-        shape.cursor.set()
-        if shape != rectShape {
-            rectShape = shape
-            window?.resetCursorRects()
+        if pointerLocationOutside == nil {
+            shape.cursor.set()
         }
+        setRectShape(shape)
+    }
+
+    private static func setRectShape(_ shape: PointerShape) {
+        guard shape != rectShape else {
+            return
+        }
+        rectShape = shape
+        window?.resetCursorRects()
     }
 }
 
