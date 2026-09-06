@@ -70,6 +70,7 @@ Toast 与播放反馈只有视觉，不接受输入，不参与层级。独立�
 1. 鼠标默认样式：即最常见的箭头样式。鼠标特殊样式：在CueSeeker中包括Grab样式和I-beam样式。
 2. 不可用或禁用的内容仍是箭头，不使用禁止指针。
 3. 卡片的手型指针需要 macOS 15 及以上；更低版本上卡片为箭头。
+4. 本章规则只在主窗口内生效。指针离开主窗口即恢复默认样式；设置窗口等主窗口之外的窗口，指针形状由系统决定。
 
 ## 规则
 1. 鼠标Grab样式出现场景：1. 表格中，鼠标移动到字幕文字内容上时变为Grab样式。表格包括：Workbench Search界面的表格、Shiori二级界面的表格。2. 鼠标移动到封面卡片组件上，变为Grab。封面卡片组件包括：Library一级界面的封面卡片、Library二级界面的封面卡片、Recent一级界面的视频和Shiori的封面卡片、Recent Videos界面的封面卡片、Recent Shioris界面的封面卡片、Shiori一级界面的封面卡片、Playback Overlay Playlist界面的封面卡片、Command Panel Recent Videos界面的封面卡片、Command Panel Recent Shioris界面的封面卡片。
