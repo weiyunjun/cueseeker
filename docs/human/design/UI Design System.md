@@ -27,12 +27,12 @@
 - `--color-app-sidebar-item-selected-bg`: macOS accent color
 - `--color-app-sidebar-item-selected-content`: Light `#FFFFFF`; Dark `#FFFFFF`
 - `--color-app-topbar-bg`: Light `#FFFFFF`; Dark `#18181B`
-- `--color-playback-overlay-shortcut-button-bg-hover`: Light `#EDEEF2`; Dark `#2C2C30`
-- `--color-playback-overlay-keycap-bg`: Light `#E1E4E9`; Dark `#35353A`
-- `--color-playback-overlay-keycap-bg-hover`: Light `#D2D6DE`; Dark `#414147`
-- `--color-command-panel-shortcut-button-bg-hover`: Light `#F7F8FA`; Dark `#252529`
-- `--color-command-panel-keycap-bg`: Light `#EDEFF2`; Dark `#2E2E33`
-- `--color-command-panel-keycap-bg-hover`: Light `#E0E3E8`; Dark `#3A3A40`
+- `--color-overlay-surface-shortcut-button-bg-hover`: Light `#EDEEF2`; Dark `#2C2C30`
+- `--color-overlay-surface-keycap-bg`: Light `#E1E4E9`; Dark `#35353A`
+- `--color-overlay-surface-keycap-bg-hover`: Light `#D2D6DE`; Dark `#414147`
+- `--color-popover-surface-shortcut-button-bg-hover`: Light `#F7F8FA`; Dark `#252529`
+- `--color-popover-surface-keycap-bg`: Light `#EDEFF2`; Dark `#2E2E33`
+- `--color-popover-surface-keycap-bg-hover`: Light `#E0E3E8`; Dark `#3A3A40`
 
 ### Border
 
@@ -851,8 +851,8 @@
 | 所在表面 | Surface Hover |
 | --- | --- |
 | `--color-bg-surface` | `--color-bg-hover` |
-| `--color-subtitle-focus-overlay-bg` | `--color-playback-overlay-shortcut-button-bg-hover` |
-| `--color-bg-popover` | `--color-command-panel-shortcut-button-bg-hover` |
+| `--color-subtitle-focus-overlay-bg` | `--color-overlay-surface-shortcut-button-bg-hover` |
+| `--color-bg-popover` | `--color-popover-surface-shortcut-button-bg-hover` |
 
 ##### States
 
@@ -910,17 +910,19 @@
 
 #### Variants
 
-##### Playback Overlay
+##### Overlay Surface
 
-- Keycap：Keycap / Playback Overlay
+- Surface：`--color-subtitle-focus-overlay-bg`
+- Keycap：Keycap / Overlay Surface
 - Hover
-  - Background：`--color-playback-overlay-shortcut-button-bg-hover`
+  - Background：`--color-overlay-surface-shortcut-button-bg-hover`
 
-##### Command Panel
+##### Popover Surface
 
-- Keycap：Keycap / Command Panel
+- Surface：`--color-bg-popover`
+- Keycap：Keycap / Popover Surface
 - Hover
-  - Background：`--color-command-panel-shortcut-button-bg-hover`
+  - Background：`--color-popover-surface-shortcut-button-bg-hover`
 
 ## 2.4 Menus
 
@@ -1477,20 +1479,23 @@
   - Border Color：`--color-border-muted`
   - Radius：`--radius-control`
   - Shadow：`--shadow-popover`
-- Selected Count Row
+- Selected Count
   - Color：`--color-text-muted`
-- Action Row
-  - Action Slots
+  - Leading Inset：`--spacing-3`，与相邻按钮的透明内边距等宽
+- Action Slots
+  - Component：Shortcut Action Button / Popover Surface
+  - Padding Inline：`--spacing-3`
+  - Padding Block：`--spacing-2`
 
 ##### Layout
 
-- Selected Count Row 在上，Action Row 在下
-- Selected Count 左对齐到 Action Row 的起始边
+- Selected Count 在左，Action Slots 在右，同一行居中对齐
+- 不做两端对齐，容器宽度由内容决定
 
 ##### Sizes
 
-- Row Gap：`--spacing-2`
-- Action Gap：`--spacing-3`
+- Group Gap：`--spacing-4`
+- Action Gap：`--spacing-2`
 - Padding Inline：`--spacing-3`
 - Padding Block：`--spacing-2`
 
@@ -1807,19 +1812,19 @@
 
 #### Variants
 
-##### Playback Overlay
+##### Overlay Surface
 
 - Default
-  - Background：`--color-playback-overlay-keycap-bg`
+  - Background：`--color-overlay-surface-keycap-bg`
 - Hover
-  - Background：`--color-playback-overlay-keycap-bg-hover`
+  - Background：`--color-overlay-surface-keycap-bg-hover`
 
-##### Command Panel
+##### Popover Surface
 
 - Default
-  - Background：`--color-command-panel-keycap-bg`
+  - Background：`--color-popover-surface-keycap-bg`
 - Hover
-  - Background：`--color-command-panel-keycap-bg-hover`
+  - Background：`--color-popover-surface-keycap-bg-hover`
 
 ## 2.9 Feedback
 
@@ -3233,25 +3238,26 @@
 #### Components
 
 - Selection Action Overlay
-- Button / Neutral
+- Shortcut Action Button / Popover Surface
+- Keycap / Popover Surface
 
 #### Structure
 
 1. Selected Count
-2. Anki
-3. Copy Deep Links
-4. Copy Table
-5. Exit
+2. Export to Anki `A`
+3. Copy Deep Links `D`
+4. Copy Table `T`
+5. Exit `Esc`
 
 #### Layout
 
-- 第 1 项独占上行，第 2 至 5 项在下行依次排列
-- Exit 位于 Action Row 末位，退出 Select Mode，与工具栏 Select Mode Action 关闭时行为一致
+- 第 1 项在左，第 2 至 5 项在右，同一行
+- Exit 位于末位，退出 Select Mode，与工具栏 Select Mode Action 关闭时行为一致
 
 #### Spacing
 
-- Row Gap：`--spacing-2`
-- Action Gap：`--spacing-3`
+- Group Gap：`--spacing-4`
+- Action Gap：`--spacing-2`
 - Padding Inline：`--spacing-3`
 - Padding Block：`--spacing-2`
 
