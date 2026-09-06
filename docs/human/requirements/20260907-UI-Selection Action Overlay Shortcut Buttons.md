@@ -54,7 +54,7 @@ Shortcut Action Button 与 Keycap 的两个变体原按界面命名，现按所�
 1. `Playback Overlay` 改为 `Overlay Surface`，对应底色 `--color-subtitle-focus-overlay-bg`。
 2. `Command Panel` 改为 `Popover Surface`，对应底色 `--color-bg-popover`；Command Panel 与 Selection Action Overlay 共用该变体。
 3. 六个配色 token 随之改名，颜色数值不变。
-4. Shortcut Action Button 的 Sizes 从 Shared 下沉到各变体：Overlay Surface 为 `--spacing-2` / `--spacing-1`，Popover Surface 为 `--spacing-3` / `--spacing-2`。
+4. Shortcut Action Button 的 Sizes 留在 Shared 不动，仍为 `--spacing-2` / `--spacing-1`。内边距不随底色走：只有 Selection Action Overlay 的按钮改用 `--spacing-3` / `--spacing-2`，写在它自己的组件里。
 
 ## 7. 不变项
 
@@ -65,7 +65,7 @@ Shortcut Action Button 与 Keycap 的两个变体原按界面命名，现按所�
 
 ## 8. 文档
 
-本次改动稳定并验收后，更新 `docs/human/design/UI Design System.md`：改写 Selection Action Overlay 与 Selection Action Overlay Layout 的结构、布局与间距；为 Shortcut Action Button 新增 Popover Surface 变体并把 Sizes 下沉到变体；同步两个组件的变体名与 token 名；更新 Icon Button 的 Surface Hover 表。
+本次改动稳定并验收后，更新 `docs/human/design/UI Design System.md`：改写 Selection Action Overlay 与 Selection Action Overlay Layout 的结构、布局与间距；把 Shortcut Action Button 与 Keycap 的两个变体名与六个 token 名改为按底色命名；更新 Icon Button 的 Surface Hover 表。
 
 # 验收
 
