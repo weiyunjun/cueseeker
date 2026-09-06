@@ -177,6 +177,33 @@ final class PlaybackStore: ObservableObject {
             return false
         }
     }
+    /// The open `Save to Shiori` destination menu, and which footer it hangs
+    /// off. It lives beside the speed menu for the same reason: the App's single
+    /// owner of playback-page keys is the only thing that can hand a menu its
+    /// arrows, Enter and Esc before seeking and cue navigation see them.
+    @Published private(set) var shioriDestinationMenu: PlaybackShioriDestinationMenu?
+    let shioriDestinationMenuHighlight = MenuHighlightModel()
+
+    func openShioriDestinationMenu(_ menu: PlaybackShioriDestinationMenu) {
+        shioriDestinationMenuHighlight.open(
+            selectablePositions: ShioriDestinationMenu.selectablePositions(
+                destinationCount: menu.destinations.count
+            ),
+            defaultPosition: ShioriDestinationMenu.defaultPosition(
+                destinations: menu.destinations
+            )
+        )
+        shioriDestinationMenu = menu
+    }
+
+    func closeShioriDestinationMenu() {
+        guard shioriDestinationMenu != nil else {
+            return
+        }
+        shioriDestinationMenuHighlight.close()
+        shioriDestinationMenu = nil
+    }
+
     private(set) var pointerHideRequestGeneration: UInt64 = 0
     private var subtitleFocusSessionGeneration = 0
 

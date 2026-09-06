@@ -34,6 +34,16 @@ final class MenuAnchorHandle {
     var bounds: CGRect? {
         view?.bounds
     }
+
+    /// The window's content area in this handle's own top-left-down space, or
+    /// nil while it is off screen. A menu hung off a control whose own surface
+    /// is not mounted as a handle places itself against this instead.
+    var windowBounds: CGRect? {
+        guard let view, let contentView = view.window?.contentView else {
+            return nil
+        }
+        return view.convert(contentView.bounds, from: contentView)
+    }
 }
 
 /// Mount as the background of the anchor control, or of the surface a menu is

@@ -92,7 +92,6 @@ func playbackShioriUsesWorkbenchCuePresentationForActions() throws {
     }
     #expect(targetItem.additionalCueTexts == ["before-0", "after-0"])
     #expect(execution.target.actionContext?.cue.id == 20_000)
-    #expect(execution.target.representsSavedShiori)
 }
 
 @MainActor

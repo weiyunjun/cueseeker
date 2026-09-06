@@ -54,18 +54,6 @@ enum PlaybackSubtitleFocusActionTarget: Equatable, Sendable {
             return shiori.videoName
         }
     }
-
-    var representsSavedShiori: Bool {
-        switch self {
-        case .current:
-            return false
-        case .playlist(let item), .search(let item), .shiori(let item):
-            if case .shiori = item.target {
-                return true
-            }
-            return false
-        }
-    }
 }
 
 struct PlaybackSubtitleFocusActionContext: Equatable, Sendable {

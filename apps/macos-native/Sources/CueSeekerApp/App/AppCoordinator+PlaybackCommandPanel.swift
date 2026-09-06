@@ -367,11 +367,12 @@ extension AppCoordinator {
         let result = search.projectedSearchResults[ordinal]
         switch action {
         case .shiori:
-            startPlaybackCommandPanelShioriSave(
-                PlaybackPlaylistItem(
+            togglePlaybackShioriDestinationMenu(
+                surface: .commandPanel,
+                context: PlaybackPlaylistItem(
                     searchResult: result,
                     ordinal: ordinal
-                )
+                ).actionContext
             )
         case .copyCueText:
             let copied = CueClipboard.copy(
@@ -500,61 +501,6 @@ extension AppCoordinator {
             return library.testRecentWatchingItems.count
         case .recentShioris:
             return shiori.recentListSummaries.count
-        }
-    }
-
-    private func startPlaybackCommandPanelShioriSave(
-        _ item: PlaybackPlaylistItem
-    ) {
-        guard let actionContext = item.actionContext,
-              !actionContext.cue.text.isEmpty
-        else {
-            playback.playbackViewModel?.showShioriFeedback(.unavailable)
-            return
-        }
-
-        cancelPlaybackSubtitleFocusActionTask()
-        let taskGeneration = playbackSubtitleFocusActionGeneration
-        let databaseReader = playbackSubtitleFocusDatabaseReader
-        playbackSubtitleFocusActionTask = Task { @MainActor [weak self] in
-            guard let self else {
-                return
-            }
-            do {
-                let result = try await databaseReader.saveShiori(
-                    context: actionContext
-                )
-                guard playbackSubtitleFocusActionGeneration == taskGeneration
-                else {
-                    return
-                }
-                playbackSubtitleFocusActionTask = nil
-                switch result {
-                case .saved(let listID, let uniqueCueCount):
-                    shiori.markTableRowsStale()
-                    _ = shiori.adjustListCueCounts(
-                        [listID: 1],
-                        uniqueCueCount: uniqueCueCount
-                    )
-                    playback.playbackViewModel?.showShioriFeedback(.saved)
-                case .alreadySaved:
-                    playback.playbackViewModel?
-                        .showShioriFeedback(.alreadySaved)
-                }
-            } catch is CancellationError {
-                if playbackSubtitleFocusActionGeneration == taskGeneration {
-                    playbackSubtitleFocusActionTask = nil
-                }
-            } catch {
-                guard playbackSubtitleFocusActionGeneration == taskGeneration
-                else {
-                    return
-                }
-                playbackSubtitleFocusActionTask = nil
-                print("Failed to save Playback Command Panel Shiori: \(error)")
-                playback.playbackViewModel?
-                    .showShioriFeedback(.unavailable)
-            }
         }
     }
 

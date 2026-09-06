@@ -708,9 +708,14 @@ extension AppCoordinator {
                 cueID: cueID,
                 listID: destinationListID
             )
-            if !shiori.adjustListCueCounts([destinationListID: 1]) {
+            shiori.markTableRowsStale()
+            if !shiori.adjustListCueCounts(
+                [destinationListID: 1],
+                uniqueCueCount: try? database.uniqueShioriCueCount()
+            ) {
                 reloadShioriListOverview()
             }
+            shiori.setRecentSaveListID(destinationListID)
             toast.show(
                 ShioriToastRequest.saveSucceeded(listName: destination.name)
             )

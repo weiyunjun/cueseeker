@@ -297,12 +297,13 @@ extension AppCoordinator {
 
         switch execution.action {
         case .shiori:
-            if execution.target.representsSavedShiori {
-                playback.playbackViewModel?.showShioriFeedback(.alreadySaved)
-                _ = session.finishKeyboardAction(execution)
-                return true
-            }
-            startPlaybackSubtitleFocusShioriSave(execution, session: session)
+            // A cue already saved somewhere still opens the menu: the point of
+            // choosing a destination is that it can go to another list too.
+            togglePlaybackShioriDestinationMenu(
+                surface: .playbackOverlay,
+                context: execution.target.actionContext
+            )
+            _ = session.finishKeyboardAction(execution)
         case .copyCueText:
             let copied = copyPlaybackSubtitleFocusCueText(
                 execution.target.primaryCueText
@@ -368,78 +369,27 @@ extension AppCoordinator {
         return true
     }
 
-    private func startPlaybackSubtitleFocusShioriSave(
-        _ execution: PlaybackSubtitleFocusActionExecution,
-        session: PlaybackSubtitleFocusSessionStore
+    /// Opens the destination menu the `Save to Shiori` button hangs off, or
+    /// closes it when it is already up: the key and the button both toggle it.
+    func togglePlaybackShioriDestinationMenu(
+        surface: PlaybackCueFooterSurface,
+        context: PlaybackSubtitleFocusActionContext?
     ) {
-        guard let actionContext = execution.target.actionContext,
-              !actionContext.cue.text.isEmpty
-        else {
+        guard playback.shioriDestinationMenu?.surface != surface else {
+            playback.closeShioriDestinationMenu()
+            return
+        }
+        guard let context, !context.cue.text.isEmpty else {
             playback.playbackViewModel?.showShioriFeedback(.unavailable)
-            _ = session.finishKeyboardAction(execution)
             return
         }
-        cancelPlaybackSubtitleFocusActionTask()
-        let taskGeneration = playbackSubtitleFocusActionGeneration
-        let databaseReader = playbackSubtitleFocusDatabaseReader
-        playbackSubtitleFocusActionTask = Task { @MainActor [weak self, weak session] in
-            guard let self, let session else {
-                return
-            }
-
-            do {
-                let result = try await databaseReader.saveShiori(context: actionContext)
-                self.finishPlaybackSubtitleFocusShioriSave(
-                    result,
-                    execution,
-                    session: session,
-                    taskGeneration: taskGeneration
-                )
-            } catch is CancellationError {
-                if self.playbackSubtitleFocusActionGeneration == taskGeneration {
-                    self.playbackSubtitleFocusActionTask = nil
-                }
-            } catch {
-                guard self.playbackSubtitleFocusActionGeneration == taskGeneration,
-                      self.playback.subtitleFocusSession === session
-                else {
-                    return
-                }
-                self.playbackSubtitleFocusActionTask = nil
-                print("Failed to save Playback Subtitle Focus Shiori: \(error)")
-                self.playback.playbackViewModel?.showShioriFeedback(.unavailable)
-                _ = session.finishKeyboardAction(execution)
-            }
-        }
-    }
-
-    func finishPlaybackSubtitleFocusShioriSave(
-        _ result: PlaybackSubtitleFocusShioriWriteResult,
-        _ execution: PlaybackSubtitleFocusActionExecution,
-        session: PlaybackSubtitleFocusSessionStore,
-        taskGeneration: Int
-    ) {
-        let feedback: ShioriFeedbackState
-        switch result {
-        case .saved(let listID, let uniqueCueCount):
-            shiori.markTableRowsStale()
-            _ = shiori.adjustListCueCounts(
-                [listID: 1],
-                uniqueCueCount: uniqueCueCount
+        playback.openShioriDestinationMenu(
+            PlaybackShioriDestinationMenu(
+                surface: surface,
+                cueID: context.cue.id,
+                destinations: shiori.saveDestinations
             )
-            feedback = .saved
-        case .alreadySaved:
-            feedback = .alreadySaved
-        }
-        guard playbackSubtitleFocusActionGeneration == taskGeneration,
-              playback.subtitleFocusSession === session,
-              session.activeKeyboardAction == execution
-        else {
-            return
-        }
-        playbackSubtitleFocusActionTask = nil
-        playback.playbackViewModel?.showShioriFeedback(feedback)
-        _ = session.finishKeyboardAction(execution)
+        )
     }
 
     private func copyPlaybackSubtitleFocusCueText(_ text: String) -> Bool {

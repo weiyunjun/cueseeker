@@ -68,6 +68,9 @@ enum SubtitleTableRowAction: Hashable, Sendable {
 struct SubtitleTableRowActionDestination: Equatable, Sendable, Identifiable {
     let id: Int64
     let title: String
+    /// The list this cue was saved to most recently, which `Save to Shiori`
+    /// highlights when its menu opens.
+    var isRecentSaveTarget = false
 }
 
 enum SubtitleTableRowActionMenuElement: Equatable, Sendable {

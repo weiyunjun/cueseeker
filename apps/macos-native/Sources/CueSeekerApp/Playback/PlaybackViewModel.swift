@@ -9,8 +9,6 @@ enum PlaybackFeedbackPosition: Equatable {
 }
 
 enum ShioriFeedbackState {
-    case saved
-    case alreadySaved
     case removed
     case unavailable
 }
@@ -617,18 +615,6 @@ public final class PlaybackViewModel: ObservableObject {
 
     func showShioriFeedback(_ state: ShioriFeedbackState) {
         let feedback: PlaybackFeedback = switch state {
-        case .saved:
-            PlaybackFeedback(
-                position: .center,
-                systemImage: "bookmark.fill",
-                text: L("playback.hud.shiori_saved")
-            )
-        case .alreadySaved:
-            PlaybackFeedback(
-                position: .center,
-                systemImage: "bookmark.fill",
-                text: L("playback.hud.shiori_already_saved")
-            )
         case .removed:
             PlaybackFeedback(
                 position: .center,

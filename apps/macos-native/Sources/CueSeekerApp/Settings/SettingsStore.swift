@@ -81,6 +81,7 @@ final class SettingsStore: ObservableObject {
     private static let appLanguageKey = "appLanguage"
     private static let searchFacetExclusionsKey = "searchFacetExclusions"
     private static let shioriFacetExclusionsKey = "shioriFacetExclusionsByListID"
+    private static let recentShioriSaveListKey = "recentShioriSaveListID"
     private static let showCueGroupKey = "showCueGroup"
     private static let prefillCommandPanelWithFocusedCueKey =
         "prefillCommandPanelWithFocusedCue"
@@ -312,6 +313,21 @@ final class SettingsStore: ObservableObject {
             return CueFacetFilter()
         }
         return Self.loadFacetFilter(exclusions: exclusions)
+    }
+
+    /// The list the last successful `Save to Shiori` went to. Kept across
+    /// launches so the destination menu opens on it again.
+    var recentShioriSaveListID: Int64? {
+        (userDefaults.object(forKey: Self.recentShioriSaveListKey) as? Int)
+            .map(Int64.init)
+    }
+
+    func setRecentShioriSaveListID(_ listID: Int64?) {
+        guard let listID else {
+            userDefaults.removeObject(forKey: Self.recentShioriSaveListKey)
+            return
+        }
+        userDefaults.set(Int(listID), forKey: Self.recentShioriSaveListKey)
     }
 
     func setShioriFacetFilter(

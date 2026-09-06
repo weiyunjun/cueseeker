@@ -949,7 +949,11 @@ func playbackCommandPanelSearchSavesSelectedCue() async throws {
         ))
 
         #expect(app.handlePlaybackKeyDown(keyCode: 1, modifierFlagsRawValue: 0))
-        await app.playbackSubtitleFocusActionTask?.value
+
+        let menu = try #require(app.playback.shioriDestinationMenu)
+        #expect(menu.surface == .commandPanel)
+        #expect(menu.cueID == 1)
+        #expect(try saveThroughShioriDestinationMenu(app))
 
         let savedShiori = try? app.shioriDatabase?.shiori(
             cueID: 1,
@@ -1015,10 +1019,8 @@ func subtitleFocusShioriKeySavesIdempotentlyAndKeepsPausedSession() async throws
         let tableRevisionBefore = app.shiori.tableDataRevision
 
         #expect(app.handlePlaybackKeyDown(keyCode: 1, modifierFlagsRawValue: 0))
-        try await waitForKeyboardActionState {
-            session.activeKeyboardAction == nil
-                && app.playback.playbackViewModel?.feedback?.text == "Shiori Saved"
-        }
+        #expect(session.activeKeyboardAction == nil)
+        #expect(try saveThroughShioriDestinationMenu(app))
 
         let saved = try #require(try shioriDatabase.shiori(
             subtitleFile: URL(fileURLWithPath: keyboardActionSource().subtitlePath),
@@ -1032,12 +1034,9 @@ func subtitleFocusShioriKeySavesIdempotentlyAndKeepsPausedSession() async throws
         #expect(session.currentSnapshot?.selectedOrdinal == 12)
         #expect(app.playback.playbackStatus == .paused)
 
+        // The same cue and the same list a second time writes nothing more.
         #expect(app.handlePlaybackKeyDown(keyCode: 1, modifierFlagsRawValue: 0))
-        try await waitForKeyboardActionState {
-            session.activeKeyboardAction == nil
-                && app.playback.playbackViewModel?.feedback?.text
-                    == "Shiori Already Saved"
-        }
+        #expect(!(try saveThroughShioriDestinationMenu(app)))
 
         #expect(try shioriDatabase.shioriCount() == 1)
         #expect(app.shiori.tableDataRevision == tableRevisionBefore + 1)
@@ -1080,17 +1079,13 @@ func subtitleFocusShioriIdentityDistinguishesSameTimeSiblingCues() async throws 
         let tableRevisionBefore = app.shiori.tableDataRevision
 
         #expect(app.handlePlaybackKeyDown(keyCode: 1, modifierFlagsRawValue: 0))
-        try await waitForKeyboardActionState {
-            session.activeKeyboardAction == nil
-                && app.shiori.tableDataRevision == tableRevisionBefore + 1
-        }
+        #expect(try saveThroughShioriDestinationMenu(app))
+        #expect(app.shiori.tableDataRevision == tableRevisionBefore + 1)
         #expect(session.commitNativeReelSelection(ordinal: 13))
 
         #expect(app.handlePlaybackKeyDown(keyCode: 1, modifierFlagsRawValue: 0))
-        try await waitForKeyboardActionState {
-            session.activeKeyboardAction == nil
-                && app.shiori.tableDataRevision == tableRevisionBefore + 2
-        }
+        #expect(try saveThroughShioriDestinationMenu(app))
+        #expect(app.shiori.tableDataRevision == tableRevisionBefore + 2)
 
         let savedFirst = try #require(try shioriDatabase.shiori(cueID: firstCue.id))
         let savedSecond = try #require(try shioriDatabase.shiori(cueID: secondCue.id))
@@ -1100,11 +1095,7 @@ func subtitleFocusShioriIdentityDistinguishesSameTimeSiblingCues() async throws 
         #expect(try shioriDatabase.shioriCount() == 2)
 
         #expect(app.handlePlaybackKeyDown(keyCode: 1, modifierFlagsRawValue: 0))
-        try await waitForKeyboardActionState {
-            session.activeKeyboardAction == nil
-                && app.playback.playbackViewModel?.feedback?.text
-                    == "Shiori Already Saved"
-        }
+        #expect(!(try saveThroughShioriDestinationMenu(app)))
         #expect(try shioriDatabase.shioriCount() == 2)
         #expect(app.shiori.tableDataRevision == tableRevisionBefore + 2)
         #expect(session.currentSnapshot?.selectedCue == secondCue)
@@ -1137,10 +1128,8 @@ func subtitleFocusDownThenShioriSavesTheFinalSettledCue() async throws {
 
         #expect(execution.context.cue.ordinal == 13)
         #expect(app.executePlaybackSubtitleFocusAction(execution))
-        try await waitForKeyboardActionState {
-            session.activeKeyboardAction == nil
-                && app.playback.playbackViewModel?.feedback?.text == "Shiori Saved"
-        }
+        #expect(session.activeKeyboardAction == nil)
+        #expect(try saveThroughShioriDestinationMenu(app))
 
         #expect(try shioriDatabase.shiori(cueID: 13) == nil)
         let saved = try #require(try shioriDatabase.shiori(cueID: 14))
@@ -1190,10 +1179,8 @@ func playbackPlaylistCopyAndShioriTargetTheSettledPrimaryCue() async throws {
         #expect(window.selectedOrdinal == 0)
 
         #expect(app.handlePlaybackKeyDown(keyCode: 1, modifierFlagsRawValue: 0))
-        try await waitForKeyboardActionState {
-            session.activeKeyboardAction == nil
-                && app.playback.playbackViewModel?.feedback?.text == "Shiori Saved"
-        }
+        #expect(session.activeKeyboardAction == nil)
+        #expect(try saveThroughShioriDestinationMenu(app))
         let saved = try #require(try shioriDatabase.shiori(
             subtitleFile: URL(fileURLWithPath: result.subtitlePath),
             startMilliseconds: result.startMilliseconds,
@@ -1214,7 +1201,7 @@ func playbackPlaylistCopyAndShioriTargetTheSettledPrimaryCue() async throws {
 
 @MainActor
 @Test
-func playbackPlaylistShioriItemReportsAlreadySavedWithoutCreatingAnotherRow() async throws {
+func playbackPlaylistShioriItemWithoutACueIdentityOpensNoDestinationMenu() async throws {
     try await withKeyboardActionApp { app, database in
         let shioriDatabase = try #require(app.shioriDatabase)
         let shiori = Shiori(
@@ -1241,10 +1228,10 @@ func playbackPlaylistShioriItemReportsAlreadySavedWithoutCreatingAnotherRow() as
 
         #expect(app.handlePlaybackKeyDown(keyCode: 1, modifierFlagsRawValue: 0))
 
-        #expect(
-            app.playback.playbackViewModel?.feedback?.text
-                == "Shiori Already Saved"
-        )
+        // Nothing identifies the cue, so there is no destination to offer and
+        // nothing to write.
+        #expect(app.playback.shioriDestinationMenu == nil)
+        #expect(app.playback.playbackViewModel?.feedback?.text == "No Subtitle")
         #expect(try shioriDatabase.shioriCount() == 0)
         #expect(session.activeKeyboardAction == nil)
         #expect(app.playback.subtitleFocusSession === session)
@@ -1351,7 +1338,7 @@ func playbackOverlayPlayActionUsesExactCueThenDestroysSession() async throws {
 
 @MainActor
 @Test
-func subtitleFocusCommittedShioriInvalidatesRowsAfterActionIsSuperseded() async throws {
+func subtitleFocusShioriOpensTheDestinationMenuAndSavingRemembersTheList() async throws {
     try await withKeyboardActionApp { app, _ in
         let session = try #require(app.playback.beginSubtitleFocusSession(
             openSnapshot: keyboardActionOpenSnapshot(wasPlaying: false)
@@ -1368,27 +1355,54 @@ func subtitleFocusCommittedShioriInvalidatesRowsAfterActionIsSuperseded() async 
             Issue.record("Expected an immediately ready Shiori action")
             return
         }
+
+        #expect(app.executePlaybackSubtitleFocusAction(execution))
+
+        let menu = try #require(app.playback.shioriDestinationMenu)
+        #expect(menu.surface == .playbackOverlay)
+        #expect(menu.cueID == execution.context.cue.id)
+        // Nothing is written by opening the menu, and the player says nothing
+        // either: the result is a Toast once a destination is chosen.
+        #expect(app.playback.playbackViewModel?.feedback == nil)
+
+        // The same key again closes the menu it opened.
+        switch session.requestKeyboardAction(.shiori) {
+        case .ready(let readyExecution):
+            #expect(app.executePlaybackSubtitleFocusAction(readyExecution))
+        case .deferred, .rejected:
+            Issue.record("Expected the second Shiori action to be ready")
+            return
+        }
+        #expect(app.playback.shioriDestinationMenu == nil)
+
         let tableRevisionBefore = app.shiori.tableDataRevision
         app.shiori.markTableRowsLoaded(totalSavedRowCount: 7)
 
-        app.finishPlaybackSubtitleFocusShioriSave(
-            .saved(
-                listID: ShioriListIdentity.defaultListID,
-                uniqueCueCount: 1
-            ),
-            execution,
-            session: session,
-            taskGeneration: .min
-        )
+        #expect(app.saveShiori(
+            cueID: execution.context.cue.id,
+            toListID: ShioriListIdentity.defaultListID
+        ))
 
         #expect(app.shiori.tableDataRevision == tableRevisionBefore + 1)
         #expect(app.shiori.tableRowsNeedReload)
-        #expect(app.shiori.tableHasLoadedInitialPage)
         #expect(app.shiori.tableTotalSavedRowCount == 7)
-        #expect(app.playback.subtitleFocusSession === session)
-        #expect(session.activeKeyboardAction == execution)
-        #expect(app.playback.playbackViewModel?.feedback == nil)
+        #expect(app.shiori.recentSaveListID == ShioriListIdentity.defaultListID)
+        #expect(app.settings.recentShioriSaveListID == ShioriListIdentity.defaultListID)
     }
+}
+
+/// What the footer's menu does when a destination is picked: the cue the menu
+/// carries is written to that list through the one saver every surface shares.
+@MainActor
+@discardableResult
+private func saveThroughShioriDestinationMenu(
+    _ app: AppCoordinator,
+    toListID listID: Int64 = ShioriListIdentity.defaultListID
+) throws -> Bool {
+    let menu = try #require(app.playback.shioriDestinationMenu)
+    let saved = app.saveShiori(cueID: menu.cueID, toListID: listID)
+    app.playback.closeShioriDestinationMenu()
+    return saved
 }
 
 @MainActor

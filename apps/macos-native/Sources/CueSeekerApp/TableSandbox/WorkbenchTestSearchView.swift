@@ -472,12 +472,7 @@ struct WorkbenchTestSearchView: View {
 
     /// Search has no current list, so every list is a destination.
     private var rowActionDestinations: [SubtitleTableRowActionDestination] {
-        shioriStore.listOverview.lists.map { summary in
-            SubtitleTableRowActionDestination(
-                id: summary.id,
-                title: summary.list.name
-            )
-        }
+        shioriStore.saveDestinations
     }
 
     private func saveShiori(_ row: SubtitleTableRow, toListID listID: Int64) {

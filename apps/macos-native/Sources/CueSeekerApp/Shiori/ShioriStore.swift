@@ -15,6 +15,10 @@ final class ShioriStore: ObservableObject {
     @Published private(set) var recentListSummaries: [ShioriListSummary] = []
     @Published private(set) var hasLoadedListOverview = false
     @Published private(set) var activeListID: Int64?
+    /// The list the last successful `Save to Shiori` went to, loaded from
+    /// settings at launch. Only the destination menu's opening highlight reads
+    /// it; a list that is gone by then is cleared rather than tracked here.
+    @Published private(set) var recentSaveListID: Int64?
     @Published var listEditorSession: ShioriListEditorSession?
     @Published var selectedShiori: Shiori?
     @Published var tableSearchDraft = ""
@@ -111,6 +115,13 @@ final class ShioriStore: ObservableObject {
         listOverview = overview
         if !hasLoadedListOverview {
             hasLoadedListOverview = true
+        }
+        // A deleted list's id is handed to the next list created, so the
+        // remembered save target is dropped the moment its list leaves the
+        // overview rather than when a menu next asks for it.
+        if let recentSaveListID,
+           !overview.lists.contains(where: { $0.id == recentSaveListID }) {
+            self.recentSaveListID = nil
         }
     }
 
@@ -213,6 +224,13 @@ final class ShioriStore: ObservableObject {
             uniqueCueCount: uniqueCueCount ?? listOverview.uniqueCueCount
         ))
         return true
+    }
+
+    func setRecentSaveListID(_ listID: Int64?) {
+        guard recentSaveListID != listID else {
+            return
+        }
+        recentSaveListID = listID
     }
 
     func setActiveListID(_ listID: Int64?) {

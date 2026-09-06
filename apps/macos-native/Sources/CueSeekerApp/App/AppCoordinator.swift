@@ -559,6 +559,7 @@ final class AppCoordinator: ObservableObject {
             )
         }
         shiori.setActiveListID(initialShioriListID)
+        shiori.setRecentSaveListID(settings.recentShioriSaveListID)
         tasks.loadPersistedRecords()
         setupSettingsObservers()
         setupInterfaceLayerObservers()
@@ -595,6 +596,16 @@ final class AppCoordinator: ObservableObject {
                     clearExistingResults: true,
                     folderScopeOverride: folders
                 )
+            }
+            .store(in: &settingsCancellables)
+
+        // The remembered save target is answered from the store, and settings
+        // keep whatever it currently is — both the list a save just went to and
+        // the nil left behind when that list is deleted.
+        shiori.$recentSaveListID
+            .removeDuplicates()
+            .sink { [settings] listID in
+                settings.setRecentShioriSaveListID(listID)
             }
             .store(in: &settingsCancellables)
 

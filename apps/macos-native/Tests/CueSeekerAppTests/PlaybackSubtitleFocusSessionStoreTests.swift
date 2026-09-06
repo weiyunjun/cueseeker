@@ -735,6 +735,10 @@ func subtitleFocusScrollbarSettlesBeforeDeferredPlayClosesSession() throws {
 @Test
 func subtitleFocusOverlayCommitsKeyboardTargetQueuedBeforeMount() throws {
     _ = NSApplication.shared
+    let databaseURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent("focus-overlay-mount-\(UUID().uuidString).sqlite")
+    defer { try? FileManager.default.removeItem(at: databaseURL) }
+    let app = AppCoordinator(databaseURL: databaseURL)
     let session = PlaybackSubtitleFocusSessionStore(
         openSnapshot: focusOpenSnapshot(wasPlaying: false),
         sessionGeneration: 1
@@ -748,6 +752,8 @@ func subtitleFocusOverlayCommitsKeyboardTargetQueuedBeforeMount() throws {
 
     let hostingView = NSHostingView(
         rootView: PlaybackSubtitleFocusLayer(session: session)
+            .environmentObject(app)
+            .environmentObject(app.playback)
             .frame(width: 1_280, height: 720)
     )
     hostingView.frame = CGRect(x: 0, y: 0, width: 1_280, height: 720)

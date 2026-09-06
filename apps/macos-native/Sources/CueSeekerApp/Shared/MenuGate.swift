@@ -28,6 +28,7 @@ final class MenuGate {
         case cardMenu
         case selectedTextMenu
         case playerSpeedMenu
+        case shioriDestinationMenu
 
         /// 菜单模态 6: the speed menu is the one menu the scroll table leaves
         /// free.
@@ -40,7 +41,8 @@ final class MenuGate {
         /// it.
         var takesWheel: Bool {
             switch self {
-            case .tableRowMenu, .filterMenu, .selectedTextMenu:
+            case .tableRowMenu, .filterMenu, .selectedTextMenu,
+                 .shioriDestinationMenu:
                 true
             case .cardMenu, .playerSpeedMenu:
                 false

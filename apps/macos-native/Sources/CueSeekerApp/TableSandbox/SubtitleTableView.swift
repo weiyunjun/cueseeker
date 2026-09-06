@@ -1135,38 +1135,13 @@ private struct RowActionDestinationSubmenu: View {
     var onCreateList: () -> Void
 
     var body: some View {
-        WorkbenchPopoverPanel(isRedesign: true, maximumHeight: maximumHeight) {
-            VStack(spacing: 0) {
-                ForEach(Array(destinations.enumerated()), id: \.element.id) { position, destination in
-                    WorkbenchPopoverRow(
-                        title: destination.title,
-                        isHighlighted: highlight.highlightedPosition == position,
-                        isRedesign: true,
-                        showsCheckmarkSlot: false,
-                        action: {
-                            onDestinationAction(destination)
-                        },
-                        onHoverChange: { isHovered in
-                            highlight.noteHover(isHovered, at: position)
-                        }
-                    )
-                }
-                if !destinations.isEmpty {
-                    WorkbenchMenuDivider()
-                }
-                WorkbenchPopoverRow(
-                    title: L("shiori.new_list"),
-                    isHighlighted: highlight.highlightedPosition
-                        == destinations.count,
-                    isRedesign: true,
-                    showsCheckmarkSlot: false,
-                    action: onCreateList,
-                    onHoverChange: { isHovered in
-                        highlight.noteHover(isHovered, at: destinations.count)
-                    }
-                )
-            }
-        }
+        ShioriDestinationMenu(
+            destinations: destinations,
+            highlight: highlight,
+            maximumHeight: maximumHeight,
+            onSelect: onDestinationAction,
+            onCreateList: onCreateList
+        )
     }
 }
 
@@ -7414,7 +7389,17 @@ struct SubtitleTableView: NSViewRepresentable {
             }
             if !rowActionDestinationHighlight.isOpen {
                 rowActionDestinationHighlight.open(
-                    selectablePositions: Array(0...rowActionDestinations.count)
+                    selectablePositions: ShioriDestinationMenu
+                        .selectablePositions(
+                            destinationCount: rowActionDestinations.count
+                        ),
+                    // Only saving remembers a destination; moving and
+                    // duplicating open on their first list as before.
+                    defaultPosition: action == .saveToShiori
+                        ? ShioriDestinationMenu.defaultPosition(
+                            destinations: rowActionDestinations
+                        )
+                        : nil
                 )
             }
             let submenuView = { [rowActionDestinationHighlight, rowActionDestinations] (maximumHeight: CGFloat) in

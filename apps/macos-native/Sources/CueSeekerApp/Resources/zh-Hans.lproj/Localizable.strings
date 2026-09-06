@@ -213,8 +213,6 @@
 "playback.hud.copy_failed" = "复制失败";
 "playback.hud.no_subtitle" = "无字幕";
 "playback.hud.auto_pause" = "自动暂停";
-"playback.hud.shiori_saved" = "已保存 Shiori";
-"playback.hud.shiori_already_saved" = "Shiori 已存在";
 "playback.hud.shiori_removed" = "已移除 Shiori";
 "playback.hud.previous_result" = "上一条结果";
 "playback.hud.next_result" = "下一条结果";

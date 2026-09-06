@@ -9,7 +9,7 @@ enum PlaybackCueFooterMetrics {
 /// Which surface the footer is drawn on. The two surfaces have different
 /// backgrounds, so each carries its own keycap and button colours; it also
 /// says which interface layer the buttons answer the pointer for.
-enum PlaybackCueFooterSurface {
+enum PlaybackCueFooterSurface: Equatable {
     case playbackOverlay
     case commandPanel
 
@@ -63,6 +63,10 @@ struct PlaybackCueFooterAction: Identifiable {
     let id: String
     let title: String
     let keycap: PlaybackCueFooterKeycap
+    /// Whether the action hangs the Shiori destination menu off its button
+    /// rather than finishing on its own. The button then takes its Open
+    /// appearance while the menu is up.
+    var opensShioriDestinationMenu = false
     let perform: () -> Void
 
     /// The four cue actions shared by Current, the subtitle Playlist and the
@@ -76,6 +80,7 @@ struct PlaybackCueFooterAction: Identifiable {
                 id: "shiori",
                 title: L("playback.save_to_shiori"),
                 keycap: .text("S"),
+                opensShioriDestinationMenu: true,
                 perform: { request(.shiori) }
             ),
             Self(
@@ -143,12 +148,41 @@ struct PlaybackCueFooterHeightKey: PreferenceKey {
     }
 }
 
+/// The open `Save to Shiori` menu: the footer it hangs off, the cue it saves,
+/// and the lists it offers. The lists are read once, when the menu opens;
+/// creating one closes the menu, so the snapshot cannot go stale while it is up.
+struct PlaybackShioriDestinationMenu: Equatable {
+    let surface: PlaybackCueFooterSurface
+    let cueID: Int64
+    let destinations: [SubtitleTableRowActionDestination]
+}
+
+private struct PlaybackShioriMenuAnchorKey: PreferenceKey {
+    static let defaultValue: Anchor<CGRect>? = nil
+
+    static func reduce(
+        value: inout Anchor<CGRect>?,
+        nextValue: () -> Anchor<CGRect>?
+    ) {
+        value = nextValue() ?? value
+    }
+}
+
 struct PlaybackCueFooter: View {
     // Observed so the copy below is re-read when the language changes.
     @EnvironmentObject private var localization: AppLocalizationStore
+    @EnvironmentObject private var appState: AppCoordinator
+    @EnvironmentObject private var playback: PlaybackStore
     let surface: PlaybackCueFooterSurface
     let status: String?
     let actions: [PlaybackCueFooterAction]
+    /// Describes the footer's own area, and through it the window the menu is
+    /// placed in.
+    @State private var hostAnchor = MenuAnchorHandle()
+    @State private var menuSize: CGSize?
+    /// The width the menu ends up with once its scrollbar is up, so a menu held
+    /// to the room above the footer is placed against the width it really has.
+    @State private var menuScrollingWidth: CGFloat?
 
     var body: some View {
         HStack(spacing: WorkbenchControlMetrics.redesignSpacing3) {
@@ -169,7 +203,9 @@ struct PlaybackCueFooter: View {
                 ForEach(actions) { action in
                     PlaybackCueFooterActionButton(
                         surface: surface,
-                        action: action
+                        action: action,
+                        isOpen: action.opensShioriDestinationMenu
+                            && openMenu != nil
                     )
                 }
             }
@@ -186,16 +222,262 @@ struct PlaybackCueFooter: View {
                 )
             }
         }
+        .background(MenuAnchorProbe(handle: hostAnchor))
+        .overlayPreferenceValue(PlaybackShioriMenuAnchorKey.self) { anchor in
+            destinationMenuOverlay(anchor: anchor)
+        }
+        .onChange(of: openMenu) { menu in
+            measureDestinationMenu(menu)
+        }
+        .onDisappear {
+            // A menu belongs to the surface that opened it: switching modules
+            // or closing the surface takes the footer away, and the menu with
+            // it.
+            if openMenu != nil {
+                playback.closeShioriDestinationMenu()
+            }
+        }
         .interfaceLayer(surface.interfaceLayer)
         .accessibilityIdentifier("playback-cue-footer")
+    }
+
+    /// The destination menu, but only while it belongs to this footer: the
+    /// Command Panel's footer and the Overlay's are both mounted when the panel
+    /// is stacked above the Overlay.
+    private var openMenu: PlaybackShioriDestinationMenu? {
+        guard let menu = playback.shioriDestinationMenu,
+              menu.surface == surface
+        else {
+            return nil
+        }
+        return menu
+    }
+
+    @ViewBuilder
+    private func destinationMenuOverlay(anchor: Anchor<CGRect>?) -> some View {
+        if let menu = openMenu,
+           let anchor,
+           let naturalSize = menuSize,
+           let windowBounds = hostAnchor.windowBounds {
+            GeometryReader { proxy in
+                let buttonFrame = proxy[anchor]
+                let placement = destinationMenuPlacement(
+                    naturalSize: naturalSize,
+                    anchorFrame: buttonFrame,
+                    bounds: menuBounds(
+                        windowBounds: windowBounds,
+                        footerHeight: proxy.size.height
+                    )
+                )
+                let menuFrame = placement.frame
+
+                ZStack(alignment: .topLeading) {
+                    MenuGateClientView(
+                        gate: playback.interfaceLayers.menuGate,
+                        owner: surface.interfaceLayer,
+                        kind: .shioriDestinationMenu,
+                        menuFrame: menuFrame,
+                        // A press on the button is left to the button, which
+                        // closes the menu it opened.
+                        anchorFrame: buttonFrame,
+                        handleKey: { keyCode, isRepeat in
+                            handleDestinationMenuKey(
+                                keyCode,
+                                isRepeat: isRepeat,
+                                menu: menu
+                            )
+                        },
+                        dismiss: { _ in
+                            DispatchQueue.main.async {
+                                playback.closeShioriDestinationMenu()
+                            }
+                        }
+                    )
+                    .frame(width: proxy.size.width, height: proxy.size.height)
+                    .allowsHitTesting(false)
+
+                    ShioriDestinationMenu(
+                        destinations: menu.destinations,
+                        highlight: playback.shioriDestinationMenuHighlight,
+                        maximumHeight: placement.maximumHeight,
+                        onSelect: { destination in
+                            saveToDestination(destination, menu: menu)
+                        },
+                        onCreateList: {
+                            createDestinationList(menu: menu)
+                        }
+                    )
+                    .frame(width: menuFrame.width, height: menuFrame.height)
+                    .offset(x: menuFrame.minX, y: menuFrame.minY)
+                }
+                .zIndex(1)
+            }
+        }
+    }
+
+    /// The room the menu is placed in: the window above the footer. The footer
+    /// is the last row of its surface, so there is nothing below it to open
+    /// into, and the shared rule turns the menu upward on its own.
+    private func menuBounds(
+        windowBounds: CGRect,
+        footerHeight: CGFloat
+    ) -> CGRect {
+        CGRect(
+            x: windowBounds.minX,
+            y: windowBounds.minY,
+            width: windowBounds.width,
+            height: max(0, footerHeight - windowBounds.minY)
+        )
+    }
+
+    /// Where the menu sits and how tall it may be there. When the room above
+    /// the footer is shorter than the menu wants, the menu is held to that room,
+    /// which brings its scrollbar up and widens it, so the placement is taken
+    /// again against the wider surface.
+    private func destinationMenuPlacement(
+        naturalSize: CGSize,
+        anchorFrame: CGRect,
+        bounds: CGRect
+    ) -> (frame: CGRect, maximumHeight: CGFloat) {
+        let frame = MenuPlacement.openingFrame(
+            anchor: anchorFrame,
+            menuSize: naturalSize,
+            in: bounds,
+            gap: WorkbenchControlMetrics.redesignSpacing1,
+            shrinksToFit: true
+        )
+        guard frame.height < naturalSize.height else {
+            return (frame, MenuMetrics.maximumHeight)
+        }
+        return (
+            MenuPlacement.openingFrame(
+                anchor: anchorFrame,
+                menuSize: CGSize(
+                    width: menuScrollingWidth ?? naturalSize.width,
+                    height: frame.height
+                ),
+                in: bounds,
+                gap: WorkbenchControlMetrics.redesignSpacing1,
+                shrinksToFit: true
+            ),
+            frame.height
+        )
+    }
+
+    private func measureDestinationMenu(
+        _ menu: PlaybackShioriDestinationMenu?
+    ) {
+        guard let menu else {
+            menuSize = nil
+            menuScrollingWidth = nil
+            return
+        }
+        menuSize = measuredDestinationMenuSize(
+            menu,
+            maximumHeight: MenuMetrics.maximumHeight
+        )
+        // Measured against no room at all, so the scrollbar is certainly up and
+        // the width is the one a shortened menu ends up with.
+        menuScrollingWidth = measuredDestinationMenuSize(
+            menu,
+            maximumHeight: 0
+        ).width
+    }
+
+    private func measuredDestinationMenuSize(
+        _ menu: PlaybackShioriDestinationMenu,
+        maximumHeight: CGFloat
+    ) -> CGSize {
+        let host = NSHostingView(
+            rootView: ShioriDestinationMenu(
+                destinations: menu.destinations,
+                highlight: playback.shioriDestinationMenuHighlight,
+                maximumHeight: maximumHeight,
+                onSelect: { _ in },
+                onCreateList: {}
+            )
+        )
+        host.layoutSubtreeIfNeeded()
+        return host.fittingSize
+    }
+
+    /// Arrows, Enter and Esc belong to the open menu; the surface under it must
+    /// not respond to any of them. `S` belongs to it too: a plain key stops at
+    /// an open menu, so the key that opened this one has to close it from here
+    /// rather than by reaching the footer again.
+    private func handleDestinationMenuKey(
+        _ keyCode: UInt16,
+        isRepeat: Bool,
+        menu: PlaybackShioriDestinationMenu
+    ) -> Bool {
+        switch keyCode {
+        case 53, 1:
+            if !isRepeat {
+                playback.closeShioriDestinationMenu()
+            }
+            return true
+        case 126:
+            playback.shioriDestinationMenuHighlight.moveHighlight(by: -1)
+            return true
+        case 125:
+            playback.shioriDestinationMenuHighlight.moveHighlight(by: 1)
+            return true
+        case 123, 124:
+            return true
+        case 36, 76:
+            if !isRepeat,
+               let position = playback.shioriDestinationMenuHighlight
+                   .highlightedPosition {
+                activateDestination(at: position, menu: menu)
+            }
+            return true
+        default:
+            return false
+        }
+    }
+
+    private func activateDestination(
+        at position: Int,
+        menu: PlaybackShioriDestinationMenu
+    ) {
+        if menu.destinations.indices.contains(position) {
+            saveToDestination(menu.destinations[position], menu: menu)
+        } else if position == menu.destinations.count {
+            createDestinationList(menu: menu)
+        }
+    }
+
+    private func saveToDestination(
+        _ destination: SubtitleTableRowActionDestination,
+        menu: PlaybackShioriDestinationMenu
+    ) {
+        playback.closeShioriDestinationMenu()
+        appState.saveShiori(cueID: menu.cueID, toListID: destination.id)
+    }
+
+    private func createDestinationList(menu: PlaybackShioriDestinationMenu) {
+        playback.closeShioriDestinationMenu()
+        appState.beginCreatingShioriList(
+            pendingTransfer: ShioriListEditorPendingTransfer(
+                action: .saveToShiori,
+                target: .cue(menu.cueID)
+            )
+        )
     }
 }
 
 private struct PlaybackCueFooterActionButton: View {
     let surface: PlaybackCueFooterSurface
     let action: PlaybackCueFooterAction
+    /// The menu this button opened is up. It wears the same background it wears
+    /// on hover for as long as that menu stays open.
+    var isOpen = false
 
     @State private var isHovered = false
+
+    private var isHighlighted: Bool {
+        isHovered || isOpen
+    }
 
     var body: some View {
         Button(action: action.perform) {
@@ -209,7 +491,7 @@ private struct PlaybackCueFooterActionButton: View {
 
                 PlaybackCueFooterKeycapView(
                     keycap: action.keycap,
-                    background: isHovered
+                    background: isHighlighted
                         ? surface.keycapHoverBackground
                         : surface.keycapBackground
                 )
@@ -222,7 +504,7 @@ private struct PlaybackCueFooterActionButton: View {
                     style: .continuous
                 )
                 .fill(
-                    isHovered
+                    isHighlighted
                         ? surface.buttonHoverBackground
                         : Color.clear
                 )
@@ -232,6 +514,12 @@ private struct PlaybackCueFooterActionButton: View {
         .buttonStyle(StaticButtonStyle())
         .focusable(false)
         .onPointerHover { isHovered = $0 }
+        .anchorPreference(
+            key: PlaybackShioriMenuAnchorKey.self,
+            value: .bounds
+        ) { anchor in
+            action.opensShioriDestinationMenu ? anchor : nil
+        }
         .accessibilityIdentifier("playback-cue-footer-action-\(action.id)")
     }
 }
