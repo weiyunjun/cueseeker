@@ -2251,7 +2251,10 @@ final class SubtitleVirtualTableDocumentView: NSView, PointerShapeProviding {
 
     override func mouseDown(with event: NSEvent) {
         window?.makeFirstResponder(self)
-        if coordinator?.handleMouseDown(windowPoint: event.locationInWindow) == true {
+        if coordinator?.handleMouseDown(
+            windowPoint: event.locationInWindow,
+            isShiftPressed: event.modifierFlags.contains(.shift)
+        ) == true {
             return
         }
         coordinator?.clearFocusedCheckbox()
@@ -2412,7 +2415,11 @@ struct SubtitleTableView: NSViewRepresentable {
     var isRowSelected: (Int) -> Bool = { _ in false }
     var selectionHeaderState: WorkbenchCheckboxState = .unchecked
     var onToggleRowSelection: (Int) -> Void = { _ in }
+    var onShiftRowSelection: (Int) -> Void = { _ in }
     var onToggleAllSelection: () -> Void = {}
+    /// The Selection Action Overlay's probe, so the pointer stops changing the
+    /// table's Hover once it moves onto the Overlay.
+    var selectionOverlayAnchor: MenuAnchorHandle?
     var allResultsTextCopyRowCount: Int?
     var loadRowsForTextCopy: SubtitleTableTextCopyRowLoader?
     var onPlay: (SubtitleTableRow) -> Void
@@ -2457,7 +2464,9 @@ struct SubtitleTableView: NSViewRepresentable {
             isRowSelected: isRowSelected,
             selectionHeaderState: selectionHeaderState,
             onToggleRowSelection: onToggleRowSelection,
+            onShiftRowSelection: onShiftRowSelection,
             onToggleAllSelection: onToggleAllSelection,
+            selectionOverlayAnchor: selectionOverlayAnchor,
             allResultsTextCopyRowCount: allResultsTextCopyRowCount,
             loadRowsForTextCopy: loadRowsForTextCopy,
             onPlay: onPlay,
@@ -2626,7 +2635,9 @@ struct SubtitleTableView: NSViewRepresentable {
             isRowSelected: isRowSelected,
             selectionHeaderState: selectionHeaderState,
             onToggleRowSelection: onToggleRowSelection,
+            onShiftRowSelection: onShiftRowSelection,
             onToggleAllSelection: onToggleAllSelection,
+            selectionOverlayAnchor: selectionOverlayAnchor,
             allResultsTextCopyRowCount: allResultsTextCopyRowCount,
             loadRowsForTextCopy: loadRowsForTextCopy,
             onPlay: onPlay,
@@ -2678,7 +2689,9 @@ struct SubtitleTableView: NSViewRepresentable {
         private var isRowSelected: (Int) -> Bool
         private var selectionHeaderState: WorkbenchCheckboxState
         private var onToggleRowSelection: (Int) -> Void
+        private var onShiftRowSelection: (Int) -> Void
         private var onToggleAllSelection: () -> Void
+        private var selectionOverlayAnchor: MenuAnchorHandle?
         private var allResultsTextCopyRowCount: Int
         private var loadRowsForTextCopy: SubtitleTableTextCopyRowLoader?
         private var onPlay: (SubtitleTableRow) -> Void
@@ -2900,7 +2913,9 @@ struct SubtitleTableView: NSViewRepresentable {
             isRowSelected: @escaping (Int) -> Bool = { _ in false },
             selectionHeaderState: WorkbenchCheckboxState = .unchecked,
             onToggleRowSelection: @escaping (Int) -> Void = { _ in },
+            onShiftRowSelection: @escaping (Int) -> Void = { _ in },
             onToggleAllSelection: @escaping () -> Void = {},
+            selectionOverlayAnchor: MenuAnchorHandle? = nil,
             allResultsTextCopyRowCount: Int? = nil,
             loadRowsForTextCopy: SubtitleTableTextCopyRowLoader? = nil,
             onPlay: @escaping (SubtitleTableRow) -> Void,
@@ -2941,7 +2956,9 @@ struct SubtitleTableView: NSViewRepresentable {
             self.isRowSelected = isRowSelected
             self.selectionHeaderState = selectionHeaderState
             self.onToggleRowSelection = onToggleRowSelection
+            self.onShiftRowSelection = onShiftRowSelection
             self.onToggleAllSelection = onToggleAllSelection
+            self.selectionOverlayAnchor = selectionOverlayAnchor
             self.allResultsTextCopyRowCount = max(0, allResultsTextCopyRowCount ?? rowCount)
             self.loadRowsForTextCopy = loadRowsForTextCopy
             self.onPlay = onPlay
@@ -3223,7 +3240,9 @@ struct SubtitleTableView: NSViewRepresentable {
             isRowSelected: @escaping (Int) -> Bool,
             selectionHeaderState: WorkbenchCheckboxState,
             onToggleRowSelection: @escaping (Int) -> Void,
+            onShiftRowSelection: @escaping (Int) -> Void = { _ in },
             onToggleAllSelection: @escaping () -> Void,
+            selectionOverlayAnchor: MenuAnchorHandle? = nil,
             allResultsTextCopyRowCount: Int? = nil,
             loadRowsForTextCopy: SubtitleTableTextCopyRowLoader? = nil,
             onPlay: @escaping (SubtitleTableRow) -> Void,
@@ -3305,7 +3324,9 @@ struct SubtitleTableView: NSViewRepresentable {
             let selectionHeaderChanged = selectionHeaderState != self.selectionHeaderState
             self.selectionHeaderState = selectionHeaderState
             self.onToggleRowSelection = onToggleRowSelection
+            self.onShiftRowSelection = onShiftRowSelection
             self.onToggleAllSelection = onToggleAllSelection
+            self.selectionOverlayAnchor = selectionOverlayAnchor
             self.allResultsTextCopyRowCount = max(0, allResultsTextCopyRowCount ?? rowCount)
             self.loadRowsForTextCopy = loadRowsForTextCopy
             self.onPlay = onPlay
@@ -6424,6 +6445,14 @@ struct SubtitleTableView: NSViewRepresentable {
             if isPointerFrozen {
                 return
             }
+            // The Selection Action Overlay floats over the table. Inside it the
+            // table keeps the row it had when the pointer moved in, and takes a
+            // new one only after the pointer moves back onto the table.
+            if isSelectionMode,
+               let overlayFrame = selectionOverlayAnchor?.windowFrame,
+               overlayFrame.contains(windowPoint) {
+                return
+            }
             guard let documentView else { return }
             let point = documentView.convert(windowPoint, from: nil)
             guard currentTableBodyVisibleRect.contains(point) else {
@@ -6456,7 +6485,7 @@ struct SubtitleTableView: NSViewRepresentable {
             updateHoveredCueTextRow(cueTextRow)
         }
 
-        func handleMouseDown(windowPoint: CGPoint) -> Bool {
+        func handleMouseDown(windowPoint: CGPoint, isShiftPressed: Bool = false) -> Bool {
             guard isRedesign,
                   isEnabled,
                   !isMenuOpen,
@@ -6472,7 +6501,9 @@ struct SubtitleTableView: NSViewRepresentable {
             let row = rowAtDocumentPoint(point)
             if isSelectionMode {
                 guard let row else { return false }
-                return toggleRowCheckboxFromMouse(row: row)
+                return isShiftPressed
+                    ? shiftSelectRowFromMouse(row: row)
+                    : toggleRowCheckboxFromMouse(row: row)
             }
             if let row, isPointInCheckbox(row: row, point: point) {
                 return toggleRowCheckboxFromMouse(row: row)
@@ -6662,6 +6693,26 @@ struct SubtitleTableView: NSViewRepresentable {
             onToggleRowSelection(row)
             invalidateRows([row])
             headerView?.refreshHeaderHosts()
+            return true
+        }
+
+        /// A Shift range covers rows the click never touched, so the whole
+        /// visible document is redrawn instead of the clicked row.
+        private func shiftSelectRowFromMouse(row: Int) -> Bool {
+            guard isRedesign,
+                  isEnabled,
+                  isSelectionMode,
+                  !isMenuOpen,
+                  !isCoveredByHigherLayer,
+                  row >= 0,
+                  row < rowCount
+            else {
+                return false
+            }
+            clearFocusedCheckbox()
+            onShiftRowSelection(row)
+            headerView?.refreshHeaderHosts()
+            invalidateVisibleDocument()
             return true
         }
 

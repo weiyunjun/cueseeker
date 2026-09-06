@@ -47,6 +47,7 @@ struct WorkbenchTestSearchView: View {
     @State private var hasDeferredRefreshWhileCovered = false
     @State private var isFilterMenuOpen: Bool
     @State private var searchFacetFilter = CueFacetFilter()
+    @State private var selectionOverlayAnchor = MenuAnchorHandle()
 
     init(
         rowStore: TableSandboxRowModelStore,
@@ -87,7 +88,8 @@ struct WorkbenchTestSearchView: View {
             },
             onDismissFilterMenu: {
                 isFilterMenuOpen = false
-            }
+            },
+            selectionOverlayAnchor: selectionOverlayAnchor
         ) { tableColumns in
             WorkbenchSearchTableRowsObserver(rowStore: rowStore) { snapshot in
                 ZStack {
@@ -116,7 +118,9 @@ struct WorkbenchTestSearchView: View {
                         isRowSelected: { rowSelection.isSelected($0, rowCount: snapshot.totalRowCount) },
                         selectionHeaderState: rowSelection.headerState(rowCount: snapshot.totalRowCount),
                         onToggleRowSelection: toggleRowSelection,
+                        onShiftRowSelection: shiftSelectRow,
                         onToggleAllSelection: toggleAllRowSelection,
+                        selectionOverlayAnchor: selectionOverlayAnchor,
                         allResultsTextCopyRowCount: textCopySource?.resultRowCount,
                         loadRowsForTextCopy: { range in
                             guard let textCopySource else { return nil }
@@ -390,7 +394,7 @@ struct WorkbenchTestSearchView: View {
     }
 
     private var selectedSummaryActions: AnyView? {
-        guard isSelectionMode, tableSummary.selectedRowCount > 0 else {
+        guard isSelectionMode else {
             return nil
         }
         return AnyView(
@@ -598,6 +602,11 @@ struct WorkbenchTestSearchView: View {
 
     private func toggleRowSelection(_ row: Int) {
         rowSelection.toggle(row: row, rowCount: rowStore.snapshot.totalRowCount)
+        persistSelection()
+    }
+
+    private func shiftSelectRow(_ row: Int) {
+        rowSelection.shiftClick(row: row, rowCount: rowStore.snapshot.totalRowCount)
         persistSelection()
     }
 

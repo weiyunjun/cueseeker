@@ -151,3 +151,88 @@ func tableSandboxRowSelectionShiftsAllExceptRowsWhenRowsArePrepended() {
     #expect(!selection.isSelected(4, rowCount: 8))
     #expect(selection.selectedCount(rowCount: 8) == 7)
 }
+
+@Test
+func tableSandboxShiftClickSelectsFromTheFirstRowWhenNothingIsSelected() {
+    var selection = TableSandboxRowSelectionState()
+
+    selection.shiftClick(row: 4, rowCount: 10)
+
+    #expect(selection.selectedRows(rowCount: 10) == [0, 1, 2, 3, 4])
+    #expect(selection.anchorRow == 4)
+}
+
+@Test
+func tableSandboxShiftClickOnlyDeselectsARowThatIsAlreadySelected() {
+    var selection = TableSandboxRowSelectionState()
+    selection.shiftClick(row: 4, rowCount: 10)
+
+    selection.shiftClick(row: 2, rowCount: 10)
+
+    #expect(selection.selectedRows(rowCount: 10) == [0, 1, 3, 4])
+    #expect(selection.anchorRow == 4)
+}
+
+@Test
+func tableSandboxShiftClickExtendsFromTheAnchorToAnUnselectedRow() {
+    var selection = TableSandboxRowSelectionState()
+    selection.shiftClick(row: 4, rowCount: 10)
+    selection.shiftClick(row: 2, rowCount: 10)
+
+    selection.shiftClick(row: 7, rowCount: 10)
+
+    #expect(selection.selectedRows(rowCount: 10) == [0, 1, 3, 4, 5, 6, 7])
+    #expect(selection.anchorRow == 7)
+}
+
+@Test
+func tableSandboxShiftClickKeepsTheAnchorAfterDeselectingIt() {
+    var selection = TableSandboxRowSelectionState()
+    selection.shiftClick(row: 4, rowCount: 10)
+
+    selection.shiftClick(row: 4, rowCount: 10)
+
+    #expect(selection.selectedRows(rowCount: 10) == [0, 1, 2, 3])
+    #expect(selection.anchorRow == 4)
+
+    selection.shiftClick(row: 6, rowCount: 10)
+
+    #expect(selection.selectedRows(rowCount: 10) == [0, 1, 2, 3, 4, 5, 6])
+}
+
+@Test
+func tableSandboxShiftClickAfterSelectAllOnlyDeselectsTheClickedRow() {
+    var selection = TableSandboxRowSelectionState()
+    selection.toggleAll(rowCount: 100_000)
+
+    #expect(selection.anchorRow == 99_999)
+
+    selection.shiftClick(row: 42, rowCount: 100_000)
+
+    #expect(selection.selectedCount(rowCount: 100_000) == 99_999)
+    #expect(!selection.isSelected(42, rowCount: 100_000))
+    #expect(selection.trackedIndexCountForTesting == 1)
+    #expect(selection.anchorRow == 99_999)
+}
+
+@Test
+func tableSandboxSelectionAnchorFollowsRowsAndFallsBackWhenClamped() {
+    var selection = TableSandboxRowSelectionState()
+    selection.toggle(row: 1, rowCount: 5)
+    selection.toggle(row: 3, rowCount: 5)
+
+    #expect(selection.anchorRow == 3)
+
+    selection.shiftRows(by: 4)
+
+    #expect(selection.anchorRow == 7)
+
+    selection.clamp(rowCount: 6)
+
+    #expect(selection.selectedRows(rowCount: 6) == [5])
+    #expect(selection.anchorRow == 5)
+
+    selection.reset()
+
+    #expect(selection.anchorRow == nil)
+}

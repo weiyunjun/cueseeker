@@ -51,6 +51,7 @@ private struct WorkbenchShioriTableContent: View {
     /// The filter button lives in the table's pinned chrome, a separate
     /// hosting hierarchy; this handle is how the shell's menu host finds it.
     @State private var filterMenuAnchor = MenuAnchorHandle()
+    @State private var selectionOverlayAnchor = MenuAnchorHandle()
 
     var body: some View {
         let _ = UIInvalidationProbe.count(
@@ -83,7 +84,8 @@ private struct WorkbenchShioriTableContent: View {
             onDismissFilterMenu: {
                 isFilterMenuOpen = false
             },
-            externalFilterMenuAnchor: filterMenuAnchor
+            externalFilterMenuAnchor: filterMenuAnchor,
+            selectionOverlayAnchor: selectionOverlayAnchor
         ) { tableColumns in
             ZStack {
                 SubtitleTableView(
@@ -113,7 +115,9 @@ private struct WorkbenchShioriTableContent: View {
                     isRowSelected: { rowSelection.isSelected($0, rowCount: rowStore.snapshot.totalRowCount) },
                     selectionHeaderState: rowSelection.headerState(rowCount: rowStore.snapshot.totalRowCount),
                     onToggleRowSelection: toggleRowSelection,
+                    onShiftRowSelection: shiftSelectRow,
                     onToggleAllSelection: toggleAllRowSelection,
+                    selectionOverlayAnchor: selectionOverlayAnchor,
                     allResultsTextCopyRowCount: textCopySource.resultRowCount,
                     loadRowsForTextCopy: { range in
                         await loadRowsForTextCopy(range: range, source: textCopySource)
@@ -305,7 +309,7 @@ private struct WorkbenchShioriTableContent: View {
     }
 
     private var selectedSummaryActions: AnyView? {
-        guard isSelectionMode, tableSummary.selectedRowCount > 0 else {
+        guard isSelectionMode else {
             return nil
         }
         return AnyView(
@@ -646,6 +650,11 @@ private struct WorkbenchShioriTableContent: View {
 
     private func toggleRowSelection(_ row: Int) {
         rowSelection.toggle(row: row, rowCount: rowStore.snapshot.totalRowCount)
+        persistSelection()
+    }
+
+    private func shiftSelectRow(_ row: Int) {
+        rowSelection.shiftClick(row: row, rowCount: rowStore.snapshot.totalRowCount)
         persistSelection()
     }
 

@@ -115,6 +115,9 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
     /// pins it inside the table); the shell's own toolbar registers into the
     /// shell-owned handle instead.
     let externalFilterMenuAnchor: MenuAnchorHandle?
+    /// Registered with the Selection Action Overlay's own area, so the table
+    /// can tell when the pointer is over it.
+    let selectionOverlayAnchor: MenuAnchorHandle?
     var onSearchSubmit: (() -> Void)?
     let tableContent: ([WorkbenchTableColumn]) -> TableContent
 
@@ -146,6 +149,7 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
         onToggleFilterMenu: @escaping () -> Void,
         onDismissFilterMenu: @escaping () -> Void,
         externalFilterMenuAnchor: MenuAnchorHandle? = nil,
+        selectionOverlayAnchor: MenuAnchorHandle? = nil,
         onSearchSubmit: (() -> Void)? = nil,
         @ViewBuilder tableContent: @escaping ([WorkbenchTableColumn]) -> TableContent
     ) {
@@ -167,6 +171,7 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
         self.onToggleFilterMenu = onToggleFilterMenu
         self.onDismissFilterMenu = onDismissFilterMenu
         self.externalFilterMenuAnchor = externalFilterMenuAnchor
+        self.selectionOverlayAnchor = selectionOverlayAnchor
         self.onSearchSubmit = onSearchSubmit
         self.tableContent = tableContent
     }
@@ -384,12 +389,13 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
                 ZStack(alignment: .bottom) {
                     tableContent(columns)
 
-                    if let tableSummary,
-                       tableSummary.selectedRowCount > 0,
+                    if isSelectionMode,
+                       let tableSummary,
                        let selectionActions {
                         SchemaWorkbenchSelectionActionOverlay(
                             selectedRowCount: tableSummary.selectedRowCount,
                             actions: selectionActions,
+                            anchor: selectionOverlayAnchor,
                             onExitSelectionMode: onToggleSelectionMode
                         )
                         .padding(.bottom, WorkbenchControlMetrics.redesignSpacing4)
@@ -447,12 +453,13 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
                         tableContent(columns)
 
                         if isRedesign,
+                           isSelectionMode,
                            let tableSummary,
-                           tableSummary.selectedRowCount > 0,
                            let selectionActions {
                             SchemaWorkbenchSelectionActionOverlay(
                                 selectedRowCount: tableSummary.selectedRowCount,
                                 actions: selectionActions,
+                                anchor: selectionOverlayAnchor,
                                 onExitSelectionMode: onToggleSelectionMode
                             )
                             .padding(.bottom, WorkbenchControlMetrics.redesignSpacing4)
@@ -560,6 +567,7 @@ struct SchemaWorkbenchSearchToolbar: View {
 struct SchemaWorkbenchSelectionActionOverlay: View {
     let selectedRowCount: Int
     let actions: AnyView
+    let anchor: MenuAnchorHandle?
     let onExitSelectionMode: () -> Void
 
     var body: some View {
@@ -603,6 +611,7 @@ struct SchemaWorkbenchSelectionActionOverlay: View {
             )
             .strokeBorder(WorkbenchRedesignColors.borderMuted, lineWidth: 1)
         )
+        .background(anchor.map { MenuAnchorProbe(handle: $0) })
         .shadowToken(WorkbenchRedesignColors.shadowPopover)
         .contentShape(
             RoundedRectangle(

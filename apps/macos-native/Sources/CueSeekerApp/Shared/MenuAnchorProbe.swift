@@ -23,6 +23,14 @@ final class MenuAnchorHandle {
         return hostView.convert(view.convert(view.bounds, to: nil), from: nil)
     }
 
+    /// This anchor's frame in the window's own space, or nil while it is off
+    /// screen. Callers that already work in AppKit window points, such as the
+    /// table's pointer handling, compare against this directly.
+    var windowFrame: CGRect? {
+        guard let view, view.window != nil else { return nil }
+        return view.convert(view.bounds, to: nil)
+    }
+
     var bounds: CGRect? {
         view?.bounds
     }

@@ -25,6 +25,10 @@ struct TableSandboxRowSelectionState: Equatable {
 
     private var storage: Storage = .explicit([])
 
+    /// The row a Shift range extends from: the highest row the most recent
+    /// selecting operation selected. Deselecting never moves it.
+    private(set) var anchorRow: Int?
+
     func isSelected(_ row: Int, rowCount: Int) -> Bool {
         guard row >= 0, row < rowCount else { return false }
         switch storage {
@@ -81,6 +85,23 @@ struct TableSandboxRowSelectionState: Equatable {
         }
     }
 
+    /// The highest selected row, used to restore the anchor after the rows
+    /// underneath it move or disappear.
+    func lastSelectedRow(rowCount: Int) -> Int? {
+        let safeRowCount = max(0, rowCount)
+        guard safeRowCount > 0 else { return nil }
+        switch storage {
+        case .explicit(let selectedRows):
+            return selectedRows.filter { $0 >= 0 && $0 < safeRowCount }.max()
+        case .allExcept(let deselectedRows):
+            var row = safeRowCount - 1
+            while row >= 0, deselectedRows.contains(row) {
+                row -= 1
+            }
+            return row >= 0 ? row : nil
+        }
+    }
+
     func headerState(rowCount: Int) -> WorkbenchCheckboxState {
         let safeRowCount = max(0, rowCount)
         guard safeRowCount > 0 else { return .unchecked }
@@ -96,22 +117,31 @@ struct TableSandboxRowSelectionState: Equatable {
 
     mutating func toggle(row: Int, rowCount: Int) {
         guard row >= 0, row < rowCount else { return }
-        switch storage {
-        case .explicit(var selectedRows):
-            if selectedRows.contains(row) {
-                selectedRows.remove(row)
-            } else {
-                selectedRows.insert(row)
-            }
-            storage = .explicit(selectedRows)
-        case .allExcept(var deselectedRows):
-            if deselectedRows.contains(row) {
-                deselectedRows.remove(row)
-            } else {
-                deselectedRows.insert(row)
-            }
-            storage = .allExcept(deselectedRows)
+        let willSelect = !isSelected(row, rowCount: rowCount)
+        setSelected(willSelect, row: row)
+        if willSelect {
+            anchorRow = row
+        } else if selectedCount(rowCount: rowCount) == 0 {
+            anchorRow = nil
         }
+    }
+
+    /// Shift plus a click on `row`, per the Shift range selection rules.
+    mutating func shiftClick(row: Int, rowCount: Int) {
+        guard row >= 0, row < rowCount else { return }
+        guard selectedCount(rowCount: rowCount) > 0 else {
+            selectRange(through: row, from: 0, rowCount: rowCount)
+            return
+        }
+        if isSelected(row, rowCount: rowCount) {
+            setSelected(false, row: row)
+            if selectedCount(rowCount: rowCount) == 0 {
+                anchorRow = nil
+            }
+            return
+        }
+        let anchor = anchorRow ?? lastSelectedRow(rowCount: rowCount) ?? row
+        selectRange(through: row, from: anchor, rowCount: rowCount)
     }
 
     mutating func toggleAll(rowCount: Int) {
@@ -124,15 +154,52 @@ struct TableSandboxRowSelectionState: Equatable {
                 return
             }
             storage = .allExcept([])
+            anchorRow = rowCount - 1
         }
     }
 
     mutating func reset() {
         storage = .explicit([])
+        anchorRow = nil
+    }
+
+    private mutating func setSelected(_ isSelected: Bool, row: Int) {
+        switch storage {
+        case .explicit(var selectedRows):
+            if isSelected {
+                selectedRows.insert(row)
+            } else {
+                selectedRows.remove(row)
+            }
+            storage = .explicit(selectedRows)
+        case .allExcept(var deselectedRows):
+            if isSelected {
+                deselectedRows.remove(row)
+            } else {
+                deselectedRows.insert(row)
+            }
+            storage = .allExcept(deselectedRows)
+        }
+    }
+
+    private mutating func selectRange(through row: Int, from other: Int, rowCount: Int) {
+        let lower = max(0, min(row, other))
+        let upper = min(rowCount - 1, max(row, other))
+        guard lower <= upper else { return }
+        switch storage {
+        case .explicit(var selectedRows):
+            selectedRows.formUnion(lower...upper)
+            storage = .explicit(selectedRows)
+        case .allExcept(var deselectedRows):
+            deselectedRows.subtract(lower...upper)
+            storage = .allExcept(deselectedRows)
+        }
+        anchorRow = upper
     }
 
     mutating func shiftRows(by offset: Int) {
         guard offset != 0 else { return }
+        anchorRow = anchorRow.map { $0 + offset }
         switch storage {
         case .explicit(let selectedRows):
             storage = .explicit(Set(selectedRows.map { $0 + offset }))
@@ -149,6 +216,10 @@ struct TableSandboxRowSelectionState: Equatable {
         case .allExcept(let deselectedRows):
             storage = .allExcept(Set(deselectedRows.filter { $0 >= 0 && $0 < safeRowCount }))
         }
+        if let anchorRow, anchorRow >= 0, anchorRow < safeRowCount {
+            return
+        }
+        anchorRow = lastSelectedRow(rowCount: safeRowCount)
     }
 
     var trackedIndexCountForTesting: Int {
