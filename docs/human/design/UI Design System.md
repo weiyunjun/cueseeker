@@ -1386,6 +1386,8 @@
   - 指针真实移动后落在行上时随之移动；滚动与布局变化不移动它
 - Selected
   - Background：`--color-row-selected`
+  - Select Mode 下 Shift 加左键点击按区间选中：无选中时从第 1 行选到点击行；点击行已选中时只取消该行；点击行未选中时选中它到最近选中行之间的全部行
+  - 最近选中行是最近一次产生选中的操作所选中的最高行；取消选中不改变它，选中清空时它一并清空
 - Disabled
 
 ### Table Cell
@@ -3247,8 +3249,8 @@
 
 #### States
 
-- Hidden：Selected Count = 0
-- Visible：Selected Count > 0
+- Hidden：Select Mode 关闭
+- Visible：Select Mode 开启
 
 ### Search / Shiori Table Layout
 
