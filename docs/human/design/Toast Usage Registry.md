@@ -17,7 +17,7 @@ Scenario ID：shiori.duplicate.succeeded
 动画：Default
 
 ### 3. 执行时目标列表已经不存在
-文字：The list is no longer available
+文字：“{List Name}” is no longer available
 持续时间：5秒
 Scenario ID：shiori.destination.unavailable
 出现位置：App Center
@@ -52,7 +52,7 @@ Scenario ID：shiori.save.succeeded
 动画：Default
 
 ### 8. 非目标消失原因导致保存失败
-文字：Couldn’t save Shiori. Try again
+文字：Couldn’t save to “{List Name}”. Try again
 持续时间：5秒
 Scenario ID：shiori.save.failed
 出现位置：App Center

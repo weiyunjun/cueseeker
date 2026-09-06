@@ -904,6 +904,9 @@
 - Default
 - Hover
   - 内部 Keycap 一并切换到 Hover
+- Open
+  - 触发：挂靠的菜单打开
+  - 外观与 Hover 相同
 
 #### Variants
 
@@ -1009,6 +1012,8 @@
 - Structure：Shiori 列表项依次排列，末尾是 Menu Divider 与 New List 项；没有列表项时不显示 Divider
 - 列表项按创建时间正序，与 Shiori 一级界面的卡片顺序一致
 - 由 Move to ... 与 Duplicate to ... 展开时不含当前所在的列表；由 Save to Shiori ... 展开时含全部列表
+- 也由 Playback Footer 的 Save to Shiori 按钮直接弹出，挂靠该按钮，内容与 Save to Shiori ... 相同
+- Highlight On Open：由 Save to Shiori 打开时为最近保存的列表，没有则首项；由 Move to ... 与 Duplicate to ... 展开时为首项
 - Item：Menu Item / Action Menu Item，均不带 Leading Icon
 
 ### Menu Item
@@ -3762,6 +3767,8 @@
 | Command Panel / Recent Videos | 视频数 | Open `Return` |
 | Command Panel / Recent Shioris | Shiori 数 | Open `Return` |
 | Command Panel / Search Results | 结果数 | Save to Shiori `S`、Copy Cue Text `C`、Copy Deep Link `X`、Play `Return` |
+
+- Save to Shiori 打开 Shiori Destination Submenu 选择目标列表，不直接保存；结果由 Playback Feedback 呈现，Icon 为实心书签
 
 #### States
 
