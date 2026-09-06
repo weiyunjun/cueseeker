@@ -560,7 +560,11 @@ private struct WorkbenchShioriTableContent: View {
         guard let item = rowStore.snapshot.shiori(entryID: row.id) else {
             return
         }
-        appState.moveShiori(item, toListID: listID)
+        appState.moveShiori(
+            item,
+            toListID: listID,
+            listName: shioriStore.listName(id: listID)
+        )
     }
 
     private func createShioriList(
@@ -582,7 +586,11 @@ private struct WorkbenchShioriTableContent: View {
         guard let item = rowStore.snapshot.shiori(entryID: row.id) else {
             return
         }
-        appState.duplicateShiori(item, toListID: listID)
+        appState.duplicateShiori(
+            item,
+            toListID: listID,
+            listName: shioriStore.listName(id: listID)
+        )
     }
 
     private func confirmRemoveShiori(_ item: Shiori) {

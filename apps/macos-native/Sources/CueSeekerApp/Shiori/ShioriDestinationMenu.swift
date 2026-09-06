@@ -73,6 +73,12 @@ extension ShioriStore {
     /// Every list, in creation order, as a `Save to Shiori` destination. Saving
     /// has no current list to leave out, and the list saved to most recently
     /// carries the flag the menu opens its highlight on.
+    /// What the destination menu calls this list. Empty when the overview does
+    /// not have it, which is the same state that leaves the menu without it.
+    func listName(id: Int64) -> String {
+        listOverview.lists.first { $0.id == id }?.list.name ?? ""
+    }
+
     var saveDestinations: [SubtitleTableRowActionDestination] {
         listOverview.lists.map { summary in
             SubtitleTableRowActionDestination(

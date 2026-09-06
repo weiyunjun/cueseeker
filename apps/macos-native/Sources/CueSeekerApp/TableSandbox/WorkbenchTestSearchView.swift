@@ -477,7 +477,12 @@ struct WorkbenchTestSearchView: View {
 
     private func saveShiori(_ row: SubtitleTableRow, toListID listID: Int64) {
         guard let cueID = row.primaryCueID else { return }
-        appState.saveShiori(cueID: cueID, toListID: listID)
+        appState.saveShiori(
+            cueID: cueID,
+            toListID: listID,
+            listName: shioriStore.listName(id: listID),
+            report: .toast
+        )
     }
 
     private func createShioriList(

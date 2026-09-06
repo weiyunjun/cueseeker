@@ -452,7 +452,12 @@ struct PlaybackCueFooter: View {
         menu: PlaybackShioriDestinationMenu
     ) {
         playback.closeShioriDestinationMenu()
-        appState.saveShiori(cueID: menu.cueID, toListID: destination.id)
+        appState.saveShiori(
+            cueID: menu.cueID,
+            toListID: destination.id,
+            listName: destination.title,
+            report: .playbackFeedback
+        )
     }
 
     private func createDestinationList(menu: PlaybackShioriDestinationMenu) {
@@ -460,7 +465,8 @@ struct PlaybackCueFooter: View {
         appState.beginCreatingShioriList(
             pendingTransfer: ShioriListEditorPendingTransfer(
                 action: .saveToShiori,
-                target: .cue(menu.cueID)
+                target: .cue(menu.cueID),
+                report: .playbackFeedback
             )
         )
     }

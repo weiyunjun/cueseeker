@@ -54,10 +54,10 @@ enum ShioriToastRequest {
         )
     }
 
-    static var destinationUnavailable: ToastRequest {
+    static func destinationUnavailable(listName: String) -> ToastRequest {
         ToastRequest(
             scenarioID: "shiori.destination.unavailable",
-            message: L("toast.shiori.destination_unavailable")
+            message: L("toast.shiori.destination_unavailable", listName)
         )
     }
 
@@ -68,10 +68,10 @@ enum ShioriToastRequest {
         )
     }
 
-    static var saveFailed: ToastRequest {
+    static func saveFailed(listName: String) -> ToastRequest {
         ToastRequest(
             scenarioID: "shiori.save.failed",
-            message: L("toast.shiori.save_failed")
+            message: L("toast.shiori.save_failed", listName)
         )
     }
 

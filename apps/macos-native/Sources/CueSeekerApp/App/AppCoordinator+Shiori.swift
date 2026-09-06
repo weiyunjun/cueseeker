@@ -3,6 +3,14 @@ import Foundation
 import CueSeekerCore
 import CueSeekerPlayback
 
+/// Where a `Save to Shiori` result is reported. The sentence is the same either
+/// way; the Workbench shows it in a Toast and the playback surfaces show it in
+/// the playback feedback, which is the only thing visible there.
+enum ShioriSaveReport {
+    case toast
+    case playbackFeedback
+}
+
 @MainActor
 extension AppCoordinator {
     func loadShioriListOverviewIfNeeded() {
@@ -294,7 +302,8 @@ extension AppCoordinator {
                 if let pendingTransfer = session.pendingTransfer {
                     self.runShioriListEditorPendingTransfer(
                         pendingTransfer,
-                        toListID: savedList.id
+                        toListID: savedList.id,
+                        listName: savedList.name
                     )
                 }
             } catch is CancellationError {
@@ -654,27 +663,65 @@ extension AppCoordinator {
             && shiori.tableDataRevision == dataRevision
     }
 
-    @discardableResult
     private func runShioriListEditorPendingTransfer(
         _ transfer: ShioriListEditorPendingTransfer,
-        toListID destinationListID: Int64
+        toListID destinationListID: Int64,
+        listName: String
     ) {
         switch (transfer.action, transfer.target) {
         case (.saveToShiori, .cue(let cueID)):
-            _ = saveShiori(cueID: cueID, toListID: destinationListID)
+            saveShiori(
+                cueID: cueID,
+                toListID: destinationListID,
+                listName: listName,
+                report: transfer.report
+            )
         case (.moveToList, .shiori(let item)):
-            _ = moveShiori(item, toListID: destinationListID)
+            _ = moveShiori(
+                item,
+                toListID: destinationListID,
+                listName: listName
+            )
         case (.duplicateToList, .shiori(let item)):
-            _ = duplicateShiori(item, toListID: destinationListID)
+            _ = duplicateShiori(
+                item,
+                toListID: destinationListID,
+                listName: listName
+            )
         default:
             break
         }
     }
 
+    private func reportShioriSave(
+        _ request: ToastRequest,
+        _ report: ShioriSaveReport
+    ) {
+        switch report {
+        case .toast:
+            toast.show(request)
+        case .playbackFeedback:
+            playback.playbackViewModel?.showShioriSaveFeedback(
+                message: request.message
+            )
+        }
+    }
+
+    /// `listName` is the name the destination menu displayed. Every outcome
+    /// names the list, and a list that is gone by the time the save runs can
+    /// only be named by what the menu showed.
     @discardableResult
-    func saveShiori(cueID: Int64, toListID destinationListID: Int64) -> Bool {
+    func saveShiori(
+        cueID: Int64,
+        toListID destinationListID: Int64,
+        listName: String,
+        report: ShioriSaveReport
+    ) -> Bool {
         guard let database = shioriDatabase else {
-            toast.show(ShioriToastRequest.saveFailed)
+            reportShioriSave(
+                ShioriToastRequest.saveFailed(listName: listName),
+                report
+            )
             return false
         }
         let destination: ShioriList
@@ -682,13 +729,21 @@ extension AppCoordinator {
             guard let availableDestination = try database.shioriList(
                 id: destinationListID
             ) else {
-                toast.show(ShioriToastRequest.destinationUnavailable)
+                reportShioriSave(
+                    ShioriToastRequest.destinationUnavailable(
+                        listName: listName
+                    ),
+                    report
+                )
                 return false
             }
             destination = availableDestination
         } catch {
             print("Failed to resolve Shiori save destination: \(error)")
-            toast.show(ShioriToastRequest.saveFailed)
+            reportShioriSave(
+                ShioriToastRequest.saveFailed(listName: listName),
+                report
+            )
             return false
         }
 
@@ -697,10 +752,11 @@ extension AppCoordinator {
                 cueID: cueID,
                 listID: destinationListID
             ) == nil else {
-                toast.show(
+                reportShioriSave(
                     ShioriToastRequest.destinationAlreadyContainsCue(
                         listName: destination.name
-                    )
+                    ),
+                    report
                 )
                 return false
             }
@@ -716,18 +772,26 @@ extension AppCoordinator {
                 reloadShioriListOverview()
             }
             shiori.setRecentSaveListID(destinationListID)
-            toast.show(
-                ShioriToastRequest.saveSucceeded(listName: destination.name)
+            reportShioriSave(
+                ShioriToastRequest.saveSucceeded(listName: destination.name),
+                report
             )
             return true
         } catch {
             print("Failed to save Shiori: \(error)")
-            toast.show(ShioriToastRequest.saveFailed)
+            reportShioriSave(
+                ShioriToastRequest.saveFailed(listName: destination.name),
+                report
+            )
         }
         return false
     }
 
-    func moveShiori(_ item: Shiori, toListID destinationListID: Int64) -> Bool {
+    func moveShiori(
+        _ item: Shiori,
+        toListID destinationListID: Int64,
+        listName: String
+    ) -> Bool {
         guard let database = shioriDatabase else {
             toast.show(ShioriToastRequest.moveFailed)
             return false
@@ -737,7 +801,11 @@ extension AppCoordinator {
             guard let availableDestination = try database.shioriList(
                 id: destinationListID
             ) else {
-                toast.show(ShioriToastRequest.destinationUnavailable)
+                toast.show(
+                    ShioriToastRequest.destinationUnavailable(
+                        listName: listName
+                    )
+                )
                 return false
             }
             destination = availableDestination
@@ -768,7 +836,11 @@ extension AppCoordinator {
             )
             return true
         } catch ShioriTransferError.destinationUnavailable {
-            toast.show(ShioriToastRequest.destinationUnavailable)
+            toast.show(
+                ShioriToastRequest.destinationUnavailable(
+                    listName: destination.name
+                )
+            )
         } catch ShioriTransferError.destinationAlreadyContainsCue {
             toast.show(
                 ShioriToastRequest.destinationAlreadyContainsCue(
@@ -785,7 +857,8 @@ extension AppCoordinator {
     @discardableResult
     func duplicateShiori(
         _ item: Shiori,
-        toListID destinationListID: Int64
+        toListID destinationListID: Int64,
+        listName: String
     ) -> Bool {
         guard let database = shioriDatabase else {
             toast.show(ShioriToastRequest.duplicateFailed)
@@ -796,7 +869,11 @@ extension AppCoordinator {
             guard let availableDestination = try database.shioriList(
                 id: destinationListID
             ) else {
-                toast.show(ShioriToastRequest.destinationUnavailable)
+                toast.show(
+                    ShioriToastRequest.destinationUnavailable(
+                        listName: listName
+                    )
+                )
                 return false
             }
             destination = availableDestination
@@ -819,7 +896,11 @@ extension AppCoordinator {
             )
             return true
         } catch ShioriTransferError.destinationUnavailable {
-            toast.show(ShioriToastRequest.destinationUnavailable)
+            toast.show(
+                ShioriToastRequest.destinationUnavailable(
+                    listName: destination.name
+                )
+            )
         } catch ShioriTransferError.destinationAlreadyContainsCue {
             toast.show(
                 ShioriToastRequest.destinationAlreadyContainsCue(

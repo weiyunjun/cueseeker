@@ -184,9 +184,9 @@
 "toast.shiori.moved" = "已移动到“%@”";
 "toast.shiori.saved" = "已保存到“%@”";
 "toast.shiori.duplicated" = "已复制到“%@”";
-"toast.shiori.destination_unavailable" = "该列表已不存在";
+"toast.shiori.destination_unavailable" = "“%@”已不存在";
 "toast.shiori.move_failed" = "无法移动 Shiori，请重试";
-"toast.shiori.save_failed" = "无法保存 Shiori，请重试";
+"toast.shiori.save_failed" = "无法保存到“%@”，请重试";
 "toast.shiori.duplicate_failed" = "无法复制 Shiori，请重试";
 "toast.shiori.already_exists" = "“%@”中已存在该 Shiori";
 

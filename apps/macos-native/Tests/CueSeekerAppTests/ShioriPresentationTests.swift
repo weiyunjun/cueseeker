@@ -246,7 +246,11 @@ func shioriTransfersRefreshPresentationAndPublishRegisteredToasts() async throws
     #expect(app.shiori.tableHasLoadedInitialPage)
     #expect(app.shiori.tableRowStore.snapshot.totalRowCount == 2)
 
-    #expect(app.moveShiori(movedSource, toListID: destination.id))
+    #expect(app.moveShiori(
+        movedSource,
+        toListID: destination.id,
+        listName: destination.name
+    ))
     #expect(try shioriDatabase.shioriRelation(id: movedSource.id) == nil)
     #expect(app.toast.visibleItems.last?.request == ShioriToastRequest.moveSucceeded(
         listName: destination.name
@@ -260,7 +264,11 @@ func shioriTransfersRefreshPresentationAndPublishRegisteredToasts() async throws
         $0.id == destination.id
     }?.cueCount == 1)
 
-    #expect(app.duplicateShiori(duplicatedSource, toListID: destination.id))
+    #expect(app.duplicateShiori(
+        duplicatedSource,
+        toListID: destination.id,
+        listName: destination.name
+    ))
     #expect(try shioriDatabase.shioriRelation(id: duplicatedSource.id) != nil)
     #expect(app.toast.visibleItems.last?.request == ShioriToastRequest.duplicateSucceeded(
         listName: destination.name
@@ -270,7 +278,11 @@ func shioriTransfersRefreshPresentationAndPublishRegisteredToasts() async throws
         $0.id == destination.id
     }?.cueCount == 2)
 
-    #expect(!app.duplicateShiori(duplicatedSource, toListID: destination.id))
+    #expect(!app.duplicateShiori(
+        duplicatedSource,
+        toListID: destination.id,
+        listName: destination.name
+    ))
     #expect(
         app.toast.visibleItems.last?.request
             == ShioriToastRequest.destinationAlreadyContainsCue(
@@ -279,10 +291,17 @@ func shioriTransfersRefreshPresentationAndPublishRegisteredToasts() async throws
     )
 
     _ = try shioriDatabase.deleteShioriList(id: destination.id)
-    #expect(!app.moveShiori(duplicatedSource, toListID: destination.id))
+    // The list is gone, so the only name left is the one the menu displayed.
+    #expect(!app.moveShiori(
+        duplicatedSource,
+        toListID: destination.id,
+        listName: destination.name
+    ))
     #expect(
         app.toast.visibleItems.last?.request
-            == ShioriToastRequest.destinationUnavailable
+            == ShioriToastRequest.destinationUnavailable(
+                listName: destination.name
+            )
     )
     try await waitForShioriTasksToFinish(app)
 }

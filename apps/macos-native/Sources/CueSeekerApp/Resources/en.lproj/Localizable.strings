@@ -184,9 +184,9 @@
 "toast.shiori.moved" = "Moved to “%@”";
 "toast.shiori.saved" = "Saved to “%@”";
 "toast.shiori.duplicated" = "Duplicated to “%@”";
-"toast.shiori.destination_unavailable" = "The list is no longer available";
+"toast.shiori.destination_unavailable" = "“%@” is no longer available";
 "toast.shiori.move_failed" = "Couldn’t move Shiori. Try again";
-"toast.shiori.save_failed" = "Couldn’t save Shiori. Try again";
+"toast.shiori.save_failed" = "Couldn’t save to “%@”. Try again";
 "toast.shiori.duplicate_failed" = "Couldn’t duplicate Shiori. Try again";
 "toast.shiori.already_exists" = "Shiori already exists in “%@”";
 

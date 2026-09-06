@@ -37,6 +37,9 @@ enum ShioriListEditorMode {
 struct ShioriListEditorPendingTransfer {
     let action: SubtitleTableRowAction
     let target: Target
+    /// The surface that asked, so the result lands where that surface can show
+    /// it once the editor closes.
+    var report: ShioriSaveReport = .toast
 
     /// Move and Duplicate carry an existing Shiori; Save from the Search table
     /// has only the Cue.

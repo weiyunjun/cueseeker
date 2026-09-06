@@ -44,9 +44,17 @@ func toastCenterPausesAllDurationsWhileAppIsInactive() {
 func shioriToastRequestsMatchTheUsageRegistry() {
     #expect(ShioriToastRequest.moveSucceeded(listName: "Study").message == "Moved to “Study”")
     #expect(ShioriToastRequest.duplicateSucceeded(listName: "Study").message == "Duplicated to “Study”")
-    #expect(ShioriToastRequest.destinationUnavailable.message == "The list is no longer available")
+    #expect(
+        ShioriToastRequest.destinationUnavailable(listName: "Study").message
+            == "“Study” is no longer available"
+    )
     #expect(ShioriToastRequest.moveFailed.message == "Couldn’t move Shiori. Try again")
     #expect(ShioriToastRequest.duplicateFailed.message == "Couldn’t duplicate Shiori. Try again")
+    #expect(ShioriToastRequest.saveSucceeded(listName: "Study").message == "Saved to “Study”")
+    #expect(
+        ShioriToastRequest.saveFailed(listName: "Study").message
+            == "Couldn’t save to “Study”. Try again"
+    )
     #expect(
         ShioriToastRequest.destinationAlreadyContainsCue(listName: "Study").message
             == "Shiori already exists in “Study”"

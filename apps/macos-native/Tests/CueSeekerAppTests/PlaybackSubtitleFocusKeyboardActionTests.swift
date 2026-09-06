@@ -1380,7 +1380,9 @@ func subtitleFocusShioriOpensTheDestinationMenuAndSavingRemembersTheList() async
 
         #expect(app.saveShiori(
             cueID: execution.context.cue.id,
-            toListID: ShioriListIdentity.defaultListID
+            toListID: ShioriListIdentity.defaultListID,
+            listName: app.shiori.listName(id: ShioriListIdentity.defaultListID),
+            report: .playbackFeedback
         ))
 
         #expect(app.shiori.tableDataRevision == tableRevisionBefore + 1)
@@ -1400,7 +1402,12 @@ private func saveThroughShioriDestinationMenu(
     toListID listID: Int64 = ShioriListIdentity.defaultListID
 ) throws -> Bool {
     let menu = try #require(app.playback.shioriDestinationMenu)
-    let saved = app.saveShiori(cueID: menu.cueID, toListID: listID)
+    let saved = app.saveShiori(
+        cueID: menu.cueID,
+        toListID: listID,
+        listName: app.shiori.listName(id: listID),
+        report: .playbackFeedback
+    )
     app.playback.closeShioriDestinationMenu()
     return saved
 }

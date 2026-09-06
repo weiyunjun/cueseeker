@@ -613,6 +613,21 @@ public final class PlaybackViewModel: ObservableObject {
         )
     }
 
+    /// A `Save to Shiori` result on the playback page and in the Command Panel.
+    /// The sentence is the registry's, the same one the Workbench shows in a
+    /// Toast; only the container differs, and every outcome wears the same
+    /// bookmark.
+    func showShioriSaveFeedback(message: String) {
+        showFeedback(
+            PlaybackFeedback(
+                position: .center,
+                systemImage: "bookmark.fill",
+                text: message
+            ),
+            durationMilliseconds: 1_000
+        )
+    }
+
     func showShioriFeedback(_ state: ShioriFeedbackState) {
         let feedback: PlaybackFeedback = switch state {
         case .removed:
