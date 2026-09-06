@@ -58,8 +58,18 @@ main
 
 ## 8. 提示
 
-1. 三处保存的结果提示统一为现有 Toast 场景：成功 `shiori.save.succeeded`，失败 `shiori.save.failed`，目标列表已含同一 Cue `shiori.destination.cue.already_exists`，目标列表已不存在 `shiori.destination.unavailable`。
-2. 播放页原本用于本路径的播放器内保存反馈不再使用；其它场景的播放器内反馈不变。
+1. Search 行菜单的保存结果沿用现有 Toast，位置与持续时间不变。
+2. Playback Overlay 与 Command Panel 的保存结果改用播放页反馈，这两处不出 Toast。容器沿用现有的播放页反馈，图标为实心书签，四种结果一致；持续时间维持现有的 1 秒，时长调整留待后续需求。
+3. 四种结果都带目标列表名：保存成功、目标列表已含同一 Cue、保存失败、目标列表已不存在。
+4. 「目标列表已不存在」使用菜单打开时快照中的列表名。
+5. 保存失败与目标列表已不存在两条文案补上列表名，Toast 与播放页反馈共用同一句话：
+
+| 用途 | English | 简体 | 繁体 |
+| --- | --- | --- | --- |
+| 保存失败 | Couldn’t save to “{list}”. Try again | 无法保存到“{list}”，请重试 | 無法儲存至「{list}」，請重試 |
+| 目标列表已不存在 | “{list}” is no longer available | “{list}”已不存在 | 「{list}」已不存在 |
+
+6. 保存成功与目标列表已含同一 Cue 沿用现有文案，不作改动。
 
 ## 9. 作废条款
 
@@ -80,6 +90,8 @@ main
 3. `UI Design System.md` 的 Shiori Destination Submenu 补充：该结构也可由页脚的 `Save to Shiori` 按钮直接弹出。
 4. `UI Design System.md` 的 Playback Footer Layout 注明 `Save to Shiori` `S` 打开目标列表菜单，不直接保存。
 5. `UI Application Rules.md` 菜单模态第 6 条表格增加 `Save to Shiori 菜单`，滚动为整窗口禁止。
+6. `Toast Usage Registry.md` 的 `shiori.save.failed` 与 `shiori.destination.unavailable` 文案改为带列表名。
+7. `UI Design System.md` 的 Playback Feedback 补充：Playback Overlay 与 Command Panel 的 Shiori 保存结果由它呈现，图标为实心书签。
 
 # 验收
 
@@ -92,8 +104,10 @@ main
 7. 重命名最近保存的列表后，菜单显示新名称，默认高亮仍在该列表。
 8. 删除最近保存的列表后再打开菜单，默认高亮回到第一项；随后新建同名列表不会被重新认作最近保存。
 9. 重启 App 后默认高亮仍为上次保存成功的列表。
-10. 目标列表已含同一 Cue 时出现已存在提示，且默认高亮不变。
-11. 选择列表或选择 `New List` 后菜单立即关闭；`New List` 取消则无任何写入，创建成功则保存进新列表并成为最近保存。
-12. 从 Shiori 进入播放、当前字幕已是收藏时，按 `S` 照常弹出菜单。
-13. 三种语言分别核对；Light 与 Dark 两个主题分别核对。
-14. 现有自动化端到端与单元用例全部通过。
+10. 目标列表已含同一 Cue 时出现已存在提示且带列表名，默认高亮不变。
+11. Search 行菜单的结果为 Toast；Playback Overlay 与 Command Panel 的结果为播放页反馈，图标为实心书签，这两处画面上不出现 Toast。
+12. 四种结果都显示目标列表名；删除目标列表后立即在已打开的菜单里选中它，提示显示菜单打开时的那个名字。
+13. 选择列表或选择 `New List` 后菜单立即关闭；`New List` 取消则无任何写入，创建成功则保存进新列表并成为最近保存。
+14. 从 Shiori 进入播放、当前字幕已是收藏时，按 `S` 照常弹出菜单。
+15. 三种语言分别核对；Light 与 Dark 两个主题分别核对。
+16. 现有自动化端到端与单元用例全部通过。
