@@ -1270,7 +1270,10 @@ struct WorkbenchPopoverPanel<Content: View>: View {
                     if isRedesign {
                         RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                             .fill(WorkbenchRedesignColors.bgPopover)
-                            .shadowToken(WorkbenchRedesignColors.shadowPopover)
+                            .shadowToken(
+                                WorkbenchRedesignColors.shadowPopover,
+                                cornerRadius: cornerRadius
+                            )
                     } else {
                         RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                             .fill(WorkbenchControlColors.surfaceFill)

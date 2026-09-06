@@ -172,7 +172,10 @@ struct PlaybackCommandPanel: View {
                             style: .continuous
                         )
                         .fill(WorkbenchRedesignColors.bgPopover)
-                        .shadowToken(WorkbenchRedesignColors.shadowPopover)
+                        .shadowToken(
+                            WorkbenchRedesignColors.shadowPopover,
+                            cornerRadius: PlaybackCommandPanelMetrics.cornerRadius
+                        )
                     )
                 }
             }

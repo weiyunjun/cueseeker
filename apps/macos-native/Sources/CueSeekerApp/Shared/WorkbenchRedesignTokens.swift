@@ -151,7 +151,12 @@ enum WorkbenchRedesignColors {
         static let taskCountBadgeText = iconOnDark
 
         // Shadow Color
-        static let shadowPopover = NSColor.dynamic(lightHex: "#0F172A", lightAlpha: 0.12, darkHex: "#000000", darkAlpha: 0.36)
+        // One colour for both themes. On a dark page a shadow this light
+        // changes the pixels under it by about a tenth of what it changes on a
+        // white one, so dark separates the popover from the page with the
+        // container border instead. If dark ever needs more lift, the popover
+        // background goes up a step; the shadow does not get heavier.
+        static let shadowPopover = NSColor.hex("#0F172A", alpha: 0.10)
     }
 
     // SwiftUI Wrapper Tokens
@@ -257,28 +262,68 @@ enum WorkbenchRedesignColors {
     static let taskCountBadgeText = Color(nsColor: NS.taskCountBadgeText)
 
     // Shadow Popover
-    static let shadowPopover = WorkbenchRedesignShadow(
-        color: Color(nsColor: NS.shadowPopover),
-        radius: 24,
-        x: 0,
-        y: 12
-    )
+    // Two layers, both shrunk before they are blurred: the main layer lifts
+    // the surface, the contact layer bites its edge so the outline stays
+    // legible. The shrink is what keeps either layer from reaching past the
+    // container's top edge, where a floating surface should cast nothing.
+    static let shadowPopover = WorkbenchRedesignShadow(layers: [
+        WorkbenchRedesignShadowLayer(
+            color: Color(nsColor: NS.shadowPopover),
+            radius: 7.5,
+            x: 0,
+            y: 10,
+            spread: -3
+        ),
+        WorkbenchRedesignShadowLayer(
+            color: Color(nsColor: NS.shadowPopover),
+            radius: 3,
+            x: 0,
+            y: 4,
+            spread: -4
+        ),
+    ])
 }
 
-struct WorkbenchRedesignShadow {
+/// One blurred copy of the container's shape. `radius` is half the blur the
+/// design system records, because a CSS blur radius spans twice the standard
+/// deviation that this one takes.
+struct WorkbenchRedesignShadowLayer {
     let color: Color
     let radius: CGFloat
     let x: CGFloat
     let y: CGFloat
+    /// Negative shrinks the casting shape before it is blurred, so the layer
+    /// leaves the container only where its own offset pushes it out.
+    let spread: CGFloat
+}
+
+struct WorkbenchRedesignShadow {
+    let layers: [WorkbenchRedesignShadowLayer]
 }
 
 extension View {
-    func shadowToken(_ shadow: WorkbenchRedesignShadow) -> some View {
-        self.shadow(
-            color: shadow.color,
-            radius: shadow.radius,
-            x: shadow.x,
-            y: shadow.y
+    /// Draws the token's layers behind the caller's own filled shape. SwiftUI
+    /// has no spread, so every layer is cast by a copy of that shape shrunk by
+    /// the layer's own spread. The copies are opaque and strictly smaller than
+    /// the caller's shape, which must be opaque too so that it covers them.
+    func shadowToken(
+        _ shadow: WorkbenchRedesignShadow,
+        cornerRadius: CGFloat
+    ) -> some View {
+        background(
+            ZStack {
+                ForEach(Array(shadow.layers.enumerated()), id: \.offset) { _, layer in
+                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                        .inset(by: -layer.spread)
+                        .fill(Color.black)
+                        .shadow(
+                            color: layer.color,
+                            radius: layer.radius,
+                            x: layer.x,
+                            y: layer.y
+                        )
+                }
+            }
         )
     }
 }

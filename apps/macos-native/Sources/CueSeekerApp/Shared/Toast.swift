@@ -261,7 +261,10 @@ private struct ToastView: View {
                     style: .continuous
                 )
                 .fill(WorkbenchRedesignColors.bgPopover)
-                .shadowToken(WorkbenchRedesignColors.shadowPopover)
+                .shadowToken(
+                    WorkbenchRedesignColors.shadowPopover,
+                    cornerRadius: WorkbenchControlMetrics.redesignCornerRadius
+                )
             )
             .overlay(
                 RoundedRectangle(
