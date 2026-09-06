@@ -53,6 +53,61 @@ func menuSlidesAlongTheEdgeWhenNeitherSideFits() {
 }
 
 @Test
+func aScrollingMenuTakesTheRoomierSideAndGivesUpTheHeightItCannotHave() {
+    // Neither side holds the menu whole, and there is more room above the
+    // anchor than below it.
+    let anchor = CGRect(x: 40, y: 180, width: 60, height: 20)
+    let tallMenu = CGSize(width: 120, height: 280)
+
+    let frame = MenuPlacement.openingFrame(
+        anchor: anchor,
+        menuSize: tallMenu,
+        in: container,
+        gap: 8,
+        shrinksToFit: true
+    )
+
+    // Above, filling the room between the container's top edge and the anchor.
+    #expect(frame.minY == container.minY)
+    #expect(frame.maxY == anchor.minY - 8)
+    #expect(frame.height < tallMenu.height)
+}
+
+@Test
+func aScrollingMenuStaysBelowWhenBelowIsTheRoomierSide() {
+    let anchor = CGRect(x: 40, y: 100, width: 60, height: 20)
+    let tallMenu = CGSize(width: 120, height: 280)
+
+    let frame = MenuPlacement.openingFrame(
+        anchor: anchor,
+        menuSize: tallMenu,
+        in: container,
+        gap: 8,
+        shrinksToFit: true
+    )
+
+    #expect(frame.minY == anchor.maxY + 8)
+    #expect(frame.maxY == container.maxY)
+    #expect(frame.height < tallMenu.height)
+}
+
+@Test
+func aScrollingMenuThatFitsWholeKeepsTheHeightItAskedFor() {
+    let anchor = CGRect(x: 40, y: 50, width: 60, height: 20)
+
+    let frame = MenuPlacement.openingFrame(
+        anchor: anchor,
+        menuSize: menuSize,
+        in: container,
+        gap: 8,
+        shrinksToFit: true
+    )
+
+    #expect(frame.minY == anchor.maxY + 8)
+    #expect(frame.height == menuSize.height)
+}
+
+@Test
 func menuMovesInsideTheTrailingEdgeAndRespectsItsInset() {
     let anchor = CGRect(x: 360, y: 50, width: 30, height: 20)
 

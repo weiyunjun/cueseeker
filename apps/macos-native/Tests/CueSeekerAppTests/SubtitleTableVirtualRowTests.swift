@@ -1065,8 +1065,9 @@ func subtitleTableViewOpenMenuFreezesTheTableUnderneathIt() throws {
 @Test
 func subtitleTableViewRightClickMenuIsBoundedByTheTableBody() throws {
     // This fixture's body is shorter than the menu, so the menu fits on neither
-    // side of the click. It still starts at the body's top edge rather than
-    // reaching the frozen header above it, and the body cuts off the rest.
+    // side of the click. It takes the roomier side, gives up the height it
+    // cannot have, and scrolls the rest — nothing is left hanging over the body
+    // for the clip to cut off.
     let fixture = makeAttachedVirtualTableCoordinator()
     // The body is cut down until it is shorter than the menu again: the menu's
     // own height follows the menu item metrics, so the fixture states the
@@ -1086,9 +1087,13 @@ func subtitleTableViewRightClickMenuIsBoundedByTheTableBody() throws {
     let menuFrame = try #require(fixture.coordinator.menuFrameForTesting())
     let bodyFrame = fixture.coordinator.menuBodyFrameForTesting()
     #expect(bodyFrame.height > 0)
-    #expect(menuFrame.height > bodyFrame.height)
+    #expect(menuFrame.height > 0)
+    #expect(menuFrame.height <= bodyFrame.height + 0.5)
     #expect(menuFrame.minY >= bodyFrame.minY - 0.5)
+    #expect(menuFrame.maxY <= bodyFrame.maxY + 0.5)
     #expect(menuFrame.minX >= bodyFrame.minX - 0.5)
+    // The clip stays: it is what keeps a menu that follows its row up under the
+    // frozen header from drawing over it.
     #expect(fixture.coordinator.menuIsClippedToTableBodyForTesting())
 }
 

@@ -162,10 +162,11 @@ struct CueFacetFilterMenuModel {
 struct CueFacetFilterMenu: View {
     let model: CueFacetFilterMenuModel
     @ObservedObject var highlight: MenuHighlightModel
+    var maximumHeight: CGFloat = MenuMetrics.maximumHeight
 
     var body: some View {
         ScrollViewReader { proxy in
-            WorkbenchPopoverPanel(isRedesign: true) {
+            WorkbenchPopoverPanel(isRedesign: true, maximumHeight: maximumHeight) {
                 VStack(alignment: .leading, spacing: 0) {
                     ForEach(model.elements.indices, id: \.self) { position in
                         elementView(model.elements[position], at: position)

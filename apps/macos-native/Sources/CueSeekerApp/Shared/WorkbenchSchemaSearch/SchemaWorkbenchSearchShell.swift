@@ -129,6 +129,10 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
     /// Measured when the menu opens and when its content changes — never
     /// during a view update, which AttributeGraph forbids.
     @State private var filterMenuSize: CGSize?
+    /// What the menu measures once its scrollbar is up. Kept beside the natural
+    /// size so a render that has to shorten the menu already knows how much
+    /// wider the scrollbar makes it, without measuring again.
+    @State private var filterMenuScrollingWidth: CGFloat?
 
     init(
         searchDraft: Binding<String>,
@@ -237,15 +241,16 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
                 filterMenuHighlight.open(
                     selectablePositions: filterMenu.selectablePositions
                 )
-                filterMenuSize = measuredFilterMenuSize()
+                measureFilterMenu()
             } else {
                 filterMenuHighlight.close()
                 filterMenuSize = nil
+                filterMenuScrollingWidth = nil
             }
         }
         .onChange(of: filterMenu.contentHash) { _ in
             guard isFilterMenuOpen else { return }
-            filterMenuSize = measuredFilterMenuSize()
+            measureFilterMenu()
         }
         .onDisappear {
             externalTextSelectionSession.cancel()
@@ -273,15 +278,16 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
         if let menuSize = filterMenuSize,
            let anchorFrame = activeFilterMenuAnchor.frame(in: filterMenuHost),
            let hostBounds = filterMenuHost.bounds {
+            let placement = filterMenuPlacement(
+                naturalSize: menuSize,
+                anchorFrame: anchorFrame,
+                hostBounds: hostBounds
+            )
+            let menuFrame = placement.frame
             let menuView = CueFacetFilterMenu(
                 model: filterMenu,
-                highlight: filterMenuHighlight
-            )
-            let menuFrame = MenuPlacement.openingFrame(
-                anchor: anchorFrame,
-                menuSize: menuSize,
-                in: filterMenuBounds(in: hostBounds),
-                gap: WorkbenchControlMetrics.redesignSpacing1
+                highlight: filterMenuHighlight,
+                maximumHeight: placement.maximumHeight
             )
             ZStack(alignment: .topLeading) {
                 MenuGateClientView(
@@ -322,11 +328,58 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
         )
     }
 
-    private func measuredFilterMenuSize() -> CGSize {
+    /// Where the filter menu sits and how tall it may be there. The page's
+    /// content column is short enough on a low window that the menu cannot
+    /// always be had whole; when that happens it is held to the room on its
+    /// side, which brings its scrollbar up and widens it, so the placement is
+    /// taken again against the wider surface.
+    private func filterMenuPlacement(
+        naturalSize: CGSize,
+        anchorFrame: CGRect,
+        hostBounds: CGRect
+    ) -> (frame: CGRect, maximumHeight: CGFloat) {
+        let bounds = filterMenuBounds(in: hostBounds)
+        let frame = MenuPlacement.openingFrame(
+            anchor: anchorFrame,
+            menuSize: naturalSize,
+            in: bounds,
+            gap: WorkbenchControlMetrics.redesignSpacing1,
+            shrinksToFit: true
+        )
+        guard frame.height < naturalSize.height else {
+            return (frame, MenuMetrics.maximumHeight)
+        }
+        let scrollingSize = CGSize(
+            width: filterMenuScrollingWidth ?? naturalSize.width,
+            height: frame.height
+        )
+        return (
+            MenuPlacement.openingFrame(
+                anchor: anchorFrame,
+                menuSize: scrollingSize,
+                in: bounds,
+                gap: WorkbenchControlMetrics.redesignSpacing1,
+                shrinksToFit: true
+            ),
+            frame.height
+        )
+    }
+
+    private func measureFilterMenu() {
+        filterMenuSize = measuredFilterMenuSize(
+            maximumHeight: MenuMetrics.maximumHeight
+        )
+        // Measured against no room at all, so the scrollbar is certainly up and
+        // the width is the one a shortened menu ends up with.
+        filterMenuScrollingWidth = measuredFilterMenuSize(maximumHeight: 0).width
+    }
+
+    private func measuredFilterMenuSize(maximumHeight: CGFloat) -> CGSize {
         let host = NSHostingView(
             rootView: CueFacetFilterMenu(
                 model: filterMenu,
-                highlight: filterMenuHighlight
+                highlight: filterMenuHighlight,
+                maximumHeight: maximumHeight
             )
         )
         host.layoutSubtreeIfNeeded()

@@ -1013,7 +1013,9 @@ enum SubtitleTableRowActionSubmenuGeometry {
         visibleRect: CGRect
     ) -> CGRect {
         let width = max(0, submenuSize.width)
-        let height = max(0, submenuSize.height)
+        // A submenu never flips to the other side of its parent. When the
+        // boundary cannot hold it, it gives up height and scrolls the rest.
+        let height = max(0, min(submenuSize.height, visibleRect.height))
 
         var x = parentMenuFrame.maxX + horizontalGap
         if x + width > visibleRect.maxX {
@@ -1041,12 +1043,13 @@ private struct RowActionMenu: View {
     var showsCueGroup = false
     var canOpenFolder = true
     var disabledActions: Set<SubtitleTableRowAction> = []
+    var maximumHeight: CGFloat = MenuMetrics.maximumHeight
     @ObservedObject var submenuState: SubtitleTableRowActionSubmenuState
     @ObservedObject var highlight: MenuHighlightModel
     var onAction: (SubtitleTableRowAction) -> Void
 
     var body: some View {
-        WorkbenchPopoverPanel(isRedesign: true) {
+        WorkbenchPopoverPanel(isRedesign: true, maximumHeight: maximumHeight) {
             VStack(spacing: 0) {
                 ForEach(Array(model.elements.enumerated()), id: \.offset) { position, element in
                     switch element {
@@ -1127,11 +1130,12 @@ private struct RowActionDestinationSubmenu: View {
     let destinations: [SubtitleTableRowActionDestination]
     @ObservedObject var submenuState: SubtitleTableRowActionSubmenuState
     @ObservedObject var highlight: MenuHighlightModel
+    var maximumHeight: CGFloat = MenuMetrics.maximumHeight
     var onDestinationAction: (SubtitleTableRowActionDestination) -> Void
     var onCreateList: () -> Void
 
     var body: some View {
-        WorkbenchPopoverPanel(isRedesign: true) {
+        WorkbenchPopoverPanel(isRedesign: true, maximumHeight: maximumHeight) {
             VStack(spacing: 0) {
                 ForEach(Array(destinations.enumerated()), id: \.element.id) { position, destination in
                     WorkbenchPopoverRow(
@@ -7219,7 +7223,8 @@ struct SubtitleTableView: NSViewRepresentable {
                 menuSize: menuSize,
                 in: menuBodyFrameInContainer(),
                 gap: WorkbenchControlMetrics.redesignSpacing1,
-                edgeInset: SubtitleTableMetrics.trailingInset
+                edgeInset: SubtitleTableMetrics.trailingInset,
+                shrinksToFit: true
             )
         }
 
@@ -7286,19 +7291,22 @@ struct SubtitleTableView: NSViewRepresentable {
                     canOpenFolder: canOpenFolder
                 )
             )
-            let menuView = RowActionMenu(
-                style: rowActionMenuStyle,
-                showsCueGroup: showsCueGroup,
-                canOpenFolder: canOpenFolder,
-                disabledActions: disabledActions,
-                submenuState: submenuState,
-                highlight: rowActionHighlight,
-                onAction: { [weak self] action in
-                    self?.performActiveRowMenuAction(action)
-                }
-            )
+            let menuView = { [rowActionHighlight, rowActionMenuStyle, showsCueGroup] (maximumHeight: CGFloat) in
+                RowActionMenu(
+                    style: rowActionMenuStyle,
+                    showsCueGroup: showsCueGroup,
+                    canOpenFolder: canOpenFolder,
+                    disabledActions: disabledActions,
+                    maximumHeight: maximumHeight,
+                    submenuState: submenuState,
+                    highlight: rowActionHighlight,
+                    onAction: { [weak self] action in
+                        self?.performActiveRowMenuAction(action)
+                    }
+                )
+            }
 
-            setMenuHost(menuView, in: container)
+            setMenuHost(menuView(MenuMetrics.maximumHeight), in: container)
 
             let clipView = ensureMenuClipView(in: container)
             if let menuHost {
@@ -7309,10 +7317,22 @@ struct SubtitleTableView: NSViewRepresentable {
             let menuSize = menuHost?.fittingSize ?? CGSize(width: 172, height: 128)
 
             let anchorFrame = activeMenuAnchor.map(menuAnchorFrameInContainer) ?? .zero
-            let finalMenuFrame = openingMenuFrame(
+            var finalMenuFrame = openingMenuFrame(
                 anchorFrameInContainer: anchorFrame,
                 menuSize: menuSize
             )
+            if finalMenuFrame.height < menuSize.height {
+                // The side it opened on has less room than the menu wanted, so
+                // it is rebuilt against that room. Its scrollbar comes up, which
+                // widens it, which moves its trailing edge — hence the second
+                // placement rather than only a shorter frame.
+                setMenuHost(menuView(finalMenuFrame.height), in: container)
+                menuHost?.layout()
+                finalMenuFrame = openingMenuFrame(
+                    anchorFrameInContainer: anchorFrame,
+                    menuSize: menuHost?.fittingSize ?? finalMenuFrame.size
+                )
+            }
             menuPlacementOffset = MenuPlacement.offset(
                 from: anchorFrame,
                 to: finalMenuFrame
@@ -7397,21 +7417,24 @@ struct SubtitleTableView: NSViewRepresentable {
                     selectablePositions: Array(0...rowActionDestinations.count)
                 )
             }
-            let submenuView = RowActionDestinationSubmenu(
-                destinations: rowActionDestinations,
-                submenuState: submenuState,
-                highlight: rowActionDestinationHighlight,
-                onDestinationAction: { [weak self] destination in
-                    self?.performActiveRowMenuDestinationAction(
-                        action,
-                        destinationID: destination.id
-                    )
-                },
-                onCreateList: { [weak self] in
-                    self?.performActiveRowMenuCreateListAction(action)
-                }
-            )
-            setSubmenuHost(submenuView, in: container)
+            let submenuView = { [rowActionDestinationHighlight, rowActionDestinations] (maximumHeight: CGFloat) in
+                RowActionDestinationSubmenu(
+                    destinations: rowActionDestinations,
+                    submenuState: submenuState,
+                    highlight: rowActionDestinationHighlight,
+                    maximumHeight: maximumHeight,
+                    onDestinationAction: { [weak self] destination in
+                        self?.performActiveRowMenuDestinationAction(
+                            action,
+                            destinationID: destination.id
+                        )
+                    },
+                    onCreateList: { [weak self] in
+                        self?.performActiveRowMenuCreateListAction(action)
+                    }
+                )
+            }
+            setSubmenuHost(submenuView(MenuMetrics.maximumHeight), in: container)
             guard let menuHost,
                   let submenuHost
             else {
@@ -7419,12 +7442,29 @@ struct SubtitleTableView: NSViewRepresentable {
             }
             ensureMenuClipView(in: container).addSubview(submenuHost)
             submenuHost.layoutSubtreeIfNeeded()
-            submenuHost.frame = SubtitleTableRowActionSubmenuGeometry.frame(
+            let visibleRect = menuBodyFrameInContainer()
+            var submenuSize = submenuHost.fittingSize
+            var submenuFrame = SubtitleTableRowActionSubmenuGeometry.frame(
                 parentMenuFrame: menuHost.frame,
                 parentItemFrame: parentItemFrame,
-                submenuSize: submenuHost.fittingSize,
-                visibleRect: menuBodyFrameInContainer()
+                submenuSize: submenuSize,
+                visibleRect: visibleRect
             )
+            if submenuFrame.height < submenuSize.height {
+                // Same second pass the parent menu makes: held to the room the
+                // boundary leaves, the submenu gains its scrollbar and widens,
+                // and the wider surface has to be placed again.
+                setSubmenuHost(submenuView(submenuFrame.height), in: container)
+                submenuHost.layoutSubtreeIfNeeded()
+                submenuSize = submenuHost.fittingSize
+                submenuFrame = SubtitleTableRowActionSubmenuGeometry.frame(
+                    parentMenuFrame: menuHost.frame,
+                    parentItemFrame: parentItemFrame,
+                    submenuSize: submenuSize,
+                    visibleRect: visibleRect
+                )
+            }
+            submenuHost.frame = submenuFrame
             submenuHost.isHidden = false
         }
 

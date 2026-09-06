@@ -1232,6 +1232,10 @@ struct WorkbenchMenuDivider: View {
 
 struct WorkbenchPopoverPanel<Content: View>: View {
     var isRedesign: Bool = false
+    /// How tall the panel may grow. It is the menu's own cap by default; a menu
+    /// that opened on a side with less room than that is given the room it has,
+    /// and scrolls whatever no longer fits.
+    var maximumHeight: CGFloat = MenuMetrics.maximumHeight
     @ViewBuilder var content: () -> Content
 
     var body: some View {
@@ -1244,7 +1248,7 @@ struct WorkbenchPopoverPanel<Content: View>: View {
         // not scroll spends nothing on a scrollbar that never appears. The cap
         // makes the menu its items' own height until they pass it; width stays
         // whatever the items need, plus that strip when it is reserved.
-        MenuHeightCap(height: MenuMetrics.maximumHeight) {
+        MenuHeightCap(height: maximumHeight) {
             WorkbenchScrollView(
                 scrollbarInset: isRedesign
                     ? MenuMetrics.scrollbarOuterGap
@@ -1254,7 +1258,7 @@ struct WorkbenchPopoverPanel<Content: View>: View {
                     MenuItemStack(
                         padding: MenuMetrics.padding,
                         strip: MenuMetrics.scrollbarStrip,
-                        cap: MenuMetrics.maximumHeight
+                        cap: maximumHeight
                     ) {
                         content()
                     }

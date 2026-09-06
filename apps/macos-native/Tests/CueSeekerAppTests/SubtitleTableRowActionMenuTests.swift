@@ -422,6 +422,25 @@ func subtitleTableShioriSubmenuAlignsWithItsParentItemTop() {
 }
 
 @Test
+func subtitleTableShioriSubmenuGivesUpHeightTheBoundaryCannotHold() {
+    // A boundary shorter than the submenu. It does not flip and it does not
+    // hang over the edge: it takes the boundary's height and scrolls the rest.
+    let visibleRect = CGRect(x: 0, y: 0, width: 1_000, height: 300)
+    let parentMenuFrame = CGRect(x: 100, y: 0, width: 240, height: 300)
+    let parentItemFrame = CGRect(x: 4, y: 200, width: 232, height: 40)
+    let submenuFrame = SubtitleTableRowActionSubmenuGeometry.frame(
+        parentMenuFrame: parentMenuFrame,
+        parentItemFrame: parentItemFrame,
+        submenuSize: CGSize(width: 160, height: 480),
+        visibleRect: visibleRect
+    )
+
+    #expect(submenuFrame.height == visibleRect.height)
+    #expect(submenuFrame.minY == visibleRect.minY)
+    #expect(submenuFrame.maxY == visibleRect.maxY)
+}
+
+@Test
 func subtitleTableRowActionMetadataUsesAcceptedLabelsAndSymbols() {
     #expect(SubtitleTableRowAction.openSubtitleFolder.title == "Open Subtitle Folder")
     #expect(SubtitleTableRowAction.copyDeepLink.title == "Copy Deep Link")

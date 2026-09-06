@@ -1131,6 +1131,10 @@ private struct LibraryCardContextMenuState: Identifiable {
     /// Measured and decided when the menu opened. From then on the menu only
     /// translates, so nothing can send it to the other side mid-scroll.
     let menuSize: CGSize
+    /// The room the side it opened on had for it, when that was less than the
+    /// menu wanted. It scrolls the rest, and keeps this for as long as it stays
+    /// open.
+    let maximumHeight: CGFloat
     let placementOffset: CGSize
 }
 
@@ -1251,6 +1255,7 @@ struct LibraryCardContextMenuHost<Content: View>: View {
                         LibraryCardContextMenu(
                             items: activeMenu.items,
                             highlight: highlight,
+                            maximumHeight: activeMenu.maximumHeight,
                             onDismiss: { dismissContextMenu() }
                         )
                         .offset(
@@ -1272,19 +1277,36 @@ struct LibraryCardContextMenuHost<Content: View>: View {
         anchorPoint: CGPoint,
         ownerID: String
     ) {
-        let menuSize = measuredMenuSize(for: items)
-        let anchor = CGRect(origin: anchorPoint, size: .zero)
-        let openingFrame = MenuPlacement.openingFrame(
-            anchor: anchor,
-            menuSize: menuSize,
-            in: geometry.visibleRect,
-            gap: WorkbenchControlMetrics.redesignSpacing1
+        let naturalSize = measuredMenuSize(
+            for: items,
+            maximumHeight: MenuMetrics.maximumHeight
         )
+        let anchor = CGRect(origin: anchorPoint, size: .zero)
+        let place = { (menuSize: CGSize) in
+            MenuPlacement.openingFrame(
+                anchor: anchor,
+                menuSize: menuSize,
+                in: geometry.visibleRect,
+                gap: WorkbenchControlMetrics.redesignSpacing1,
+                shrinksToFit: true
+            )
+        }
+        var menuSize = naturalSize
+        var maximumHeight = MenuMetrics.maximumHeight
+        var openingFrame = place(naturalSize)
+        if openingFrame.height < naturalSize.height {
+            // Held to the room on its side, the menu gains its scrollbar and
+            // widens, so it is measured and placed again.
+            maximumHeight = openingFrame.height
+            menuSize = measuredMenuSize(for: items, maximumHeight: maximumHeight)
+            openingFrame = place(menuSize)
+        }
         activeMenu = LibraryCardContextMenuState(
             ownerID: ownerID,
             anchorPoint: anchorPoint,
             items: items,
             menuSize: menuSize,
+            maximumHeight: maximumHeight,
             placementOffset: MenuPlacement.offset(from: anchor, to: openingFrame)
         )
         highlight.open(
@@ -1292,11 +1314,15 @@ struct LibraryCardContextMenuHost<Content: View>: View {
         )
     }
 
-    private func measuredMenuSize(for items: [LibraryCardContextMenuItem]) -> CGSize {
+    private func measuredMenuSize(
+        for items: [LibraryCardContextMenuItem],
+        maximumHeight: CGFloat
+    ) -> CGSize {
         let host = NSHostingView(
             rootView: LibraryCardContextMenu(
                 items: items,
                 highlight: highlight,
+                maximumHeight: maximumHeight,
                 onDismiss: {}
             )
         )
@@ -1356,10 +1382,11 @@ struct LibraryCardContextMenuHost<Content: View>: View {
 private struct LibraryCardContextMenu: View {
     let items: [LibraryCardContextMenuItem]
     @ObservedObject var highlight: MenuHighlightModel
+    var maximumHeight: CGFloat = MenuMetrics.maximumHeight
     let onDismiss: () -> Void
 
     var body: some View {
-        WorkbenchPopoverPanel(isRedesign: true) {
+        WorkbenchPopoverPanel(isRedesign: true, maximumHeight: maximumHeight) {
             VStack(alignment: .leading, spacing: 0) {
                 ForEach(Array(items.enumerated()), id: \.element.id) { position, item in
                     WorkbenchPopoverRow(
