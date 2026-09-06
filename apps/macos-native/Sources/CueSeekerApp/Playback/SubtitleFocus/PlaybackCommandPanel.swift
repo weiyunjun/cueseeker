@@ -156,18 +156,23 @@ struct PlaybackCommandPanel: View {
                     // They must answer for this layer, not for the page the
                     // panel is covering.
                     .interfaceLayer(.commandPanel)
-                    .background(WorkbenchRedesignColors.bgPopover)
                     .clipShape(
                         RoundedRectangle(
                             cornerRadius: PlaybackCommandPanelMetrics.cornerRadius,
                             style: .continuous
                         )
                     )
-                    .shadow(
-                        color: WorkbenchRedesignColors.shadowPopover.color,
-                        radius: WorkbenchRedesignColors.shadowPopover.radius,
-                        x: WorkbenchRedesignColors.shadowPopover.x,
-                        y: WorkbenchRedesignColors.shadowPopover.y
+                    // The shadow belongs to the panel's shape, not to the
+                    // panel. Applied to the whole surface it is cast by every
+                    // leaf inside it. The backing shape sits behind the clip
+                    // so the clip cannot cut the shadow off.
+                    .background(
+                        RoundedRectangle(
+                            cornerRadius: PlaybackCommandPanelMetrics.cornerRadius,
+                            style: .continuous
+                        )
+                        .fill(WorkbenchRedesignColors.bgPopover)
+                        .shadowToken(WorkbenchRedesignColors.shadowPopover)
                     )
                 }
             }

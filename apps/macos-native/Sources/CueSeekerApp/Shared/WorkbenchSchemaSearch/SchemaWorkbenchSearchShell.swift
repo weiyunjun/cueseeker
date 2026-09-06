@@ -597,12 +597,16 @@ struct SchemaWorkbenchSelectionActionOverlay: View {
         }
         .padding(.horizontal, WorkbenchControlMetrics.redesignSpacing3)
         .padding(.vertical, WorkbenchControlMetrics.redesignSpacing2)
+        // The shadow belongs to the overlay's shape, not to the overlay.
+        // Applied to the whole surface it is cast by every leaf inside it, so
+        // each action button and the count line carried a shadow of its own.
         .background(
             RoundedRectangle(
                 cornerRadius: WorkbenchControlMetrics.redesignCornerRadius,
                 style: .continuous
             )
             .fill(WorkbenchRedesignColors.bgPopover)
+            .shadowToken(WorkbenchRedesignColors.shadowPopover)
         )
         .overlay(
             RoundedRectangle(
@@ -612,7 +616,6 @@ struct SchemaWorkbenchSelectionActionOverlay: View {
             .strokeBorder(WorkbenchRedesignColors.borderMuted, lineWidth: 1)
         )
         .background(anchor.map { MenuAnchorProbe(handle: $0) })
-        .shadowToken(WorkbenchRedesignColors.shadowPopover)
         .contentShape(
             RoundedRectangle(
                 cornerRadius: WorkbenchControlMetrics.redesignCornerRadius,

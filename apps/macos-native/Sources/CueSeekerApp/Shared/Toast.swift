@@ -252,12 +252,16 @@ private struct ToastView: View {
             .fixedSize(horizontal: false, vertical: true)
             .padding(.vertical, 12)
             .padding(.horizontal, 16)
+            // The shadow belongs to the toast's shape, not to the toast.
+            // Applied to the whole surface it is cast by every leaf inside it,
+            // which haloes the message text.
             .background(
                 RoundedRectangle(
                     cornerRadius: WorkbenchControlMetrics.redesignCornerRadius,
                     style: .continuous
                 )
                 .fill(WorkbenchRedesignColors.bgPopover)
+                .shadowToken(WorkbenchRedesignColors.shadowPopover)
             )
             .overlay(
                 RoundedRectangle(
@@ -266,7 +270,6 @@ private struct ToastView: View {
                 )
                 .strokeBorder(WorkbenchRedesignColors.borderMuted, lineWidth: 1)
             )
-            .shadowToken(WorkbenchRedesignColors.shadowPopover)
             .onHover { isHovered in
                 center.setHovered(isHovered, itemID: item.id)
             }
