@@ -8,6 +8,7 @@ enum WorkbenchPanelMode: String, CaseIterable {
     case shiori
     case recentWatching
     case testLibrary
+    case file
     case search
 
     var sidebarLabel: String {
@@ -20,6 +21,8 @@ enum WorkbenchPanelMode: String, CaseIterable {
             return L("sidebar.recent")
         case .testLibrary:
             return L("sidebar.library")
+        case .file:
+            return L("sidebar.file")
         case .search:
             return L("sidebar.search")
         }
@@ -34,6 +37,10 @@ enum WorkbenchPanelMode: String, CaseIterable {
         case .recentWatching:
             return "clock"
         case .testLibrary:
+            // Library shows a grid of folder cards; the folder glyph belongs
+            // to File, which owns the indexed root folders.
+            return "square.grid.2x2"
+        case .file:
             return "folder"
         case .search:
             return "magnifyingglass"
@@ -92,7 +99,7 @@ final class WorkbenchRouteState: ObservableObject {
             selectedTestLibraryFolder != nil
         case .shiori:
             selectedShioriListID != nil
-        case .library, .search:
+        case .library, .file, .search:
             false
         }
     }

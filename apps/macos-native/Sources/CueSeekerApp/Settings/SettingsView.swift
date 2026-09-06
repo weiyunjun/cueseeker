@@ -1,7 +1,6 @@
 import SwiftUI
 
 private enum SettingsCategory: String, CaseIterable, Identifiable {
-    case library
     case play
     case appearance
     case search
@@ -15,8 +14,6 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .library:
-            L("settings.category.library")
         case .play:
             L("settings.category.play")
         case .appearance:
@@ -38,8 +35,6 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
 
     var systemImage: String {
         switch self {
-        case .library:
-            "folder"
         case .play:
             "play.fill"
         case .appearance:
@@ -64,7 +59,7 @@ struct SettingsView: View {
     @EnvironmentObject private var settingsStore: SettingsStore
     // Observed so the category titles are re-read when the language changes.
     @EnvironmentObject private var localization: AppLocalizationStore
-    @State private var selectedCategory: SettingsCategory = .library
+    @State private var selectedCategory: SettingsCategory = .play
 
     var body: some View {
         HStack(spacing: 0) {
@@ -167,8 +162,6 @@ struct SettingsView: View {
     @ViewBuilder
     private var selectedContent: some View {
         switch selectedCategory {
-        case .library:
-            SettingsLibraryCategory()
         case .play:
             SettingsPlayCategory()
         case .appearance:

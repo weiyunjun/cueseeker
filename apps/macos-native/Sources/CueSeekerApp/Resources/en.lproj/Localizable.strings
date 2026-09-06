@@ -32,6 +32,7 @@
 "sidebar.recent_videos" = "Recent Videos";
 "sidebar.recent_shioris" = "Recent Shioris";
 "sidebar.library" = "Library";
+"sidebar.file" = "File";
 "sidebar.shiori" = "Shiori";
 "sidebar.settings" = "Settings";
 
@@ -44,7 +45,7 @@
 "info.search_no_results.title" = "No Results";
 "info.search_no_results.message" = "No indexed subtitle entries matched this query.";
 "info.library_no_library.title" = "No Library";
-"info.library_no_library.message" = "Add subtitle folders in CueSeeker > Settings..., then reindex.";
+"info.library_no_library.message" = "Add subtitle folders on the File page, then reindex.";
 "info.library_loading.title" = "Loading Library";
 "info.library_loading.message" = "Reading indexed videos.";
 "info.library_failed.title" = "Library Failed";
@@ -261,6 +262,9 @@
 "settings.category.maintenance" = "Maintenance";
 "settings.category.developer" = "Developer";
 
+/* File page */
+"file.description" = "A subtitle file is paired with the video that shares its file name. Videos and subtitles in the same folder form one group, named after that folder; subfolders are not included.";
+
 /* Settings: Library */
 "settings.library.description" = "Manage subtitle folders used for indexing and search.";
 "settings.library.add_folder" = "Add Folder";
@@ -362,7 +366,7 @@
 
 /* Library file tree */
 "library.segment.video" = "Video";
-"library.segment.file" = "File";
+"library.segment.metadata" = "Metadata";
 "library.file.empty" = "No indexed content.";
 "library.file.toggle" = "Toggle";
 "library.file.expanded" = "Expanded";

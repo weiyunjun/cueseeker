@@ -113,6 +113,9 @@ enum WorkbenchRedesignColors {
         static let dangerText = NSColor.dynamic(lightHex: "#B42318", darkHex: "#FCA5A5")
         static let dangerBgHover = NSColor.dynamic(lightHex: "#FEF3F2", darkHex: "#3A1717")
 
+        // Success
+        static let successText = NSColor.dynamic(lightHex: "#047857", darkHex: "#6EE7B7")
+
         // Scrollbar
         static let scrollbarThumbDefault = NSColor.dynamic(lightHex: "#CBD5E1", darkHex: "#52525B")
         static let scrollbarThumbInteractive = NSColor.dynamic(lightHex: "#94A3B8", darkHex: "#71717A")
@@ -227,6 +230,9 @@ enum WorkbenchRedesignColors {
     // Danger
     static let dangerText = Color(nsColor: NS.dangerText)
     static let dangerBgHover = Color(nsColor: NS.dangerBgHover)
+
+    // Success
+    static let successText = Color(nsColor: NS.successText)
 
     // Scrollbar
     static let scrollbarThumbDefault = Color(nsColor: NS.scrollbarThumbDefault)

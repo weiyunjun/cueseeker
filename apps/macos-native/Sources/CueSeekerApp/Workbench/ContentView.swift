@@ -225,7 +225,7 @@ private struct AppTopBar: View {
                 layoutState.clearTestLibraryFolder()
             case .shiori:
                 appState.showShioriListOverview()
-            case .library, .search:
+            case .library, .file, .search:
                 break
             }
         }
@@ -353,6 +353,16 @@ private struct AppSidebar: View {
             ) {
                 appState.performUserInitiatedAppCommand {
                     appState.activateWorkbenchPanelMode(.testLibrary)
+                }
+            }
+
+            AppSidebarNavigationItem(
+                mode: .file,
+                isSelected: routeState.panelMode == .file,
+                isEnabled: !layoutState.isVideoSizeTransitionInProgress
+            ) {
+                appState.performUserInitiatedAppCommand {
+                    appState.activateWorkbenchPanelMode(.file)
                 }
             }
 

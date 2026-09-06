@@ -261,6 +261,9 @@ extension AppCoordinator {
             .shiori
         case .recentWatching:
             .recent
+        case .file:
+            // The File page starts no playback, so it is never returned to.
+            nil
         case .library, .testLibrary:
             workbenchLayout.selectedTestLibraryFolder.map {
                 .libraryFolderDetail(folderPath: $0.folderPath)

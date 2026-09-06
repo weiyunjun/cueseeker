@@ -32,6 +32,7 @@
 "sidebar.recent_videos" = "最近视频";
 "sidebar.recent_shioris" = "最近 Shiori";
 "sidebar.library" = "媒体库";
+"sidebar.file" = "文件";
 "sidebar.shiori" = "Shiori";
 "sidebar.settings" = "设置";
 
@@ -44,7 +45,7 @@
 "info.search_no_results.title" = "没有结果";
 "info.search_no_results.message" = "没有已索引的字幕条目匹配该搜索词。";
 "info.library_no_library.title" = "媒体库为空";
-"info.library_no_library.message" = "请在“字幕求索 > 设置…”中添加字幕文件夹，然后重新索引。";
+"info.library_no_library.message" = "请在“文件”页面中添加字幕文件夹，然后重新索引。";
 "info.library_loading.title" = "正在加载媒体库";
 "info.library_loading.message" = "正在读取已索引的视频。";
 "info.library_failed.title" = "媒体库加载失败";
@@ -261,6 +262,9 @@
 "settings.category.maintenance" = "维护";
 "settings.category.developer" = "开发者选项";
 
+/* File page */
+"file.description" = "字幕文件与同名的视频文件配对。同一个文件夹下的视频和字幕算作一组，并以该文件夹的名称作为组名，子文件夹不计入其中。";
+
 /* Settings: Library */
 "settings.library.description" = "管理用于索引和搜索的字幕文件夹。";
 "settings.library.add_folder" = "添加文件夹";
@@ -362,7 +366,7 @@
 
 /* Library file tree */
 "library.segment.video" = "视频";
-"library.segment.file" = "文件";
+"library.segment.metadata" = "元数据";
 "library.file.empty" = "没有已索引的内容。";
 "library.file.toggle" = "展开/折叠";
 "library.file.expanded" = "已展开";

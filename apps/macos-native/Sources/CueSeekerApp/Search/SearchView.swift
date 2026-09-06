@@ -85,6 +85,8 @@ struct SearchView: View {
                     WorkbenchRecentView()
                 case .testLibrary:
                     WorkbenchTestLibraryView()
+                case .file:
+                    WorkbenchFileView()
                 case .search:
                     workbenchSearchSurface
                 }

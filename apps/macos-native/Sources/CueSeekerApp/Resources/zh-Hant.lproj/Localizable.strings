@@ -32,6 +32,7 @@
 "sidebar.recent_videos" = "最近影片";
 "sidebar.recent_shioris" = "最近 Shiori";
 "sidebar.library" = "媒體庫";
+"sidebar.file" = "檔案";
 "sidebar.shiori" = "Shiori";
 "sidebar.settings" = "設定";
 
@@ -44,7 +45,7 @@
 "info.search_no_results.title" = "沒有結果";
 "info.search_no_results.message" = "沒有已索引的字幕項目符合此搜尋字詞。";
 "info.library_no_library.title" = "媒體庫為空";
-"info.library_no_library.message" = "請在「字幕求索 > 設定⋯」中加入字幕資料夾，然後重新索引。";
+"info.library_no_library.message" = "請在「檔案」頁面中加入字幕資料夾，然後重新索引。";
 "info.library_loading.title" = "正在載入媒體庫";
 "info.library_loading.message" = "正在讀取已索引的影片。";
 "info.library_failed.title" = "媒體庫載入失敗";
@@ -261,6 +262,9 @@
 "settings.category.maintenance" = "維護";
 "settings.category.developer" = "開發者選項";
 
+/* File page */
+"file.description" = "字幕檔案與同名的影片檔案配對。同一個資料夾下的影片與字幕算作一組，並以該資料夾的名稱作為組名，子資料夾不計入其中。";
+
 /* Settings: Library */
 "settings.library.description" = "管理用於索引與搜尋的字幕資料夾。";
 "settings.library.add_folder" = "加入資料夾";
@@ -362,7 +366,7 @@
 
 /* Library file tree */
 "library.segment.video" = "影片";
-"library.segment.file" = "檔案";
+"library.segment.metadata" = "中繼資料";
 "library.file.empty" = "沒有已索引的內容。";
 "library.file.toggle" = "展開/收合";
 "library.file.expanded" = "已展開";

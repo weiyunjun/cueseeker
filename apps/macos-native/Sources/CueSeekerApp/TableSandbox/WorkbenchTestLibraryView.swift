@@ -263,7 +263,7 @@ struct WorkbenchTestLibraryView: View {
                     title: L("sidebar.library"),
                     summaryText: completeLibrarySummaryText,
                     actionTitle: L("settings.library.add_folder"),
-                    action: openLibrarySettings
+                    action: openFilePage
                 ) {
                     VStack(
                         alignment: .leading,
@@ -274,7 +274,7 @@ struct WorkbenchTestLibraryView: View {
                         switch segment {
                         case .video:
                             completeLibraryContent
-                        case .file:
+                        case .metadata:
                             fileTreeContent(
                                 scope: library.fileTreeRoots.isEmpty
                                     ? nil
@@ -373,7 +373,7 @@ struct WorkbenchTestLibraryView: View {
                                 )
                             }
                         )
-                    case .file:
+                    case .metadata:
                         fileTreeContent(
                             scope: fileTreeFolder(
                                 folderPath: folderDetail.folderPath
@@ -542,12 +542,11 @@ struct WorkbenchTestLibraryView: View {
             + L("library.subtitle_count", itemCount)
     }
 
-    private func openLibrarySettings() {
+    /// Adding a folder now belongs to the File page, so the Library action is
+    /// a jump to that page rather than a Settings window.
+    private func openFilePage() {
         appState.performUserInitiatedAppCommand {
-            NotificationCenter.default.post(
-                name: .cueSeekerShowSettings,
-                object: nil
-            )
+            appState.activateWorkbenchPanelMode(.file)
         }
     }
 
@@ -576,14 +575,14 @@ private extension WorkbenchTestLibraryView {
 
 enum LibraryContentSegment: String, CaseIterable {
     case video
-    case file
+    case metadata
 
     var label: String {
         switch self {
         case .video:
             L("library.segment.video")
-        case .file:
-            L("library.segment.file")
+        case .metadata:
+            L("library.segment.metadata")
         }
     }
 }
