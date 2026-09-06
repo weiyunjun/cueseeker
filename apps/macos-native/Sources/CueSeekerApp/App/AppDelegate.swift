@@ -183,6 +183,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         window.minSize = NSSize(width: AppShellLayout.minimumWindowWidth, height: AppShellLayout.minimumWindowHeight)
         window.delegate = self
         window.center()
+        // Measured and placed before the content view is hosted: the top bar
+        // reads the window controls' width on its first layout, and a reading
+        // taken later would not reach a layout that never changes again.
+        AppWindowControls.attach(to: window)
         window.contentView = CueSeekerHostingView(rootView: contentView)
         AppPointerShape.attach(to: window) { [appState] in
             appState.interfaceLayers.hasUncoveredOpenMenu
@@ -196,7 +200,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         if showImmediately {
             window.makeKeyAndOrderFront(nil)
         }
-        AppWindowControls.attach(to: window)
     }
 
     private func configurePlaybackKeyboardShortcuts() {
