@@ -4772,7 +4772,7 @@ private struct PlaybackSelectedTextMenu: View {
     let onActivate: (Int) -> Void
 
     var body: some View {
-        WorkbenchPopoverPanel(isRedesign: true) {
+        WorkbenchPopoverPanel(isRedesign: true, highlight: highlight) {
             VStack(spacing: 0) {
                 ForEach(Array(items.enumerated()), id: \.offset) { position, item in
                     WorkbenchPopoverRow(
@@ -4786,6 +4786,7 @@ private struct PlaybackSelectedTextMenu: View {
                             highlight.noteHover(isHovered, at: position)
                         }
                     )
+                    .id(position)
                 }
             }
         }

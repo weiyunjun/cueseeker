@@ -165,22 +165,19 @@ struct CueFacetFilterMenu: View {
     var maximumHeight: CGFloat = MenuMetrics.maximumHeight
 
     var body: some View {
-        ScrollViewReader { proxy in
-            WorkbenchPopoverPanel(isRedesign: true, maximumHeight: maximumHeight) {
-                VStack(alignment: .leading, spacing: 0) {
-                    ForEach(model.elements.indices, id: \.self) { position in
-                        elementView(model.elements[position], at: position)
-                    }
+        WorkbenchPopoverPanel(
+            isRedesign: true,
+            maximumHeight: maximumHeight,
+            highlight: highlight
+        ) {
+            VStack(alignment: .leading, spacing: 0) {
+                ForEach(model.elements.indices, id: \.self) { position in
+                    elementView(model.elements[position], at: position)
+                        .id(position)
                 }
-            }
-            .fixedSize(horizontal: true, vertical: false)
-            .onChange(of: highlight.keyboardMoveCount) { _ in
-                guard let position = highlight.highlightedPosition else {
-                    return
-                }
-                proxy.scrollTo(position)
             }
         }
+        .fixedSize(horizontal: true, vertical: false)
     }
 
     @ViewBuilder

@@ -31,7 +31,11 @@ struct ShioriDestinationMenu: View {
     }
 
     var body: some View {
-        WorkbenchPopoverPanel(isRedesign: true, maximumHeight: maximumHeight) {
+        WorkbenchPopoverPanel(
+            isRedesign: true,
+            maximumHeight: maximumHeight,
+            highlight: highlight
+        ) {
             VStack(spacing: 0) {
                 ForEach(
                     Array(destinations.enumerated()),
@@ -49,6 +53,7 @@ struct ShioriDestinationMenu: View {
                             highlight.noteHover(isHovered, at: position)
                         }
                     )
+                    .id(position)
                 }
                 if !destinations.isEmpty {
                     WorkbenchMenuDivider()
@@ -64,6 +69,7 @@ struct ShioriDestinationMenu: View {
                         highlight.noteHover(isHovered, at: destinations.count)
                     }
                 )
+                .id(destinations.count)
             }
         }
     }

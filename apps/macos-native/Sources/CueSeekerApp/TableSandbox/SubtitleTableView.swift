@@ -1049,7 +1049,11 @@ private struct RowActionMenu: View {
     var onAction: (SubtitleTableRowAction) -> Void
 
     var body: some View {
-        WorkbenchPopoverPanel(isRedesign: true, maximumHeight: maximumHeight) {
+        WorkbenchPopoverPanel(
+            isRedesign: true,
+            maximumHeight: maximumHeight,
+            highlight: highlight
+        ) {
             VStack(spacing: 0) {
                 ForEach(Array(model.elements.enumerated()), id: \.offset) { position, element in
                     switch element {
@@ -1123,6 +1127,7 @@ private struct RowActionMenu: View {
                 )
             }
         )
+        .id(position)
     }
 }
 

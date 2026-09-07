@@ -20,7 +20,10 @@ private func hostMenuPanel(itemCount: Int) async -> MenuPanelSizeProbe {
     let root = ZStack(alignment: .topLeading) {
         Color.clear
 
-        WorkbenchPopoverPanel(isRedesign: true) {
+        WorkbenchPopoverPanel(
+            isRedesign: true,
+            highlight: MenuHighlightModel()
+        ) {
             VStack(spacing: 0) {
                 ForEach(0..<itemCount, id: \.self) { _ in
                     Color.clear.frame(width: 200, height: 30)

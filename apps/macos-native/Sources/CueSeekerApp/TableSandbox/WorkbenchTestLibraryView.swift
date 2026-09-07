@@ -1385,7 +1385,11 @@ private struct LibraryCardContextMenu: View {
     let onDismiss: () -> Void
 
     var body: some View {
-        WorkbenchPopoverPanel(isRedesign: true, maximumHeight: maximumHeight) {
+        WorkbenchPopoverPanel(
+            isRedesign: true,
+            maximumHeight: maximumHeight,
+            highlight: highlight
+        ) {
             VStack(alignment: .leading, spacing: 0) {
                 ForEach(Array(items.enumerated()), id: \.element.id) { position, item in
                     WorkbenchPopoverRow(
@@ -1403,6 +1407,7 @@ private struct LibraryCardContextMenu: View {
                             highlight.noteHover(isHovered, at: position)
                         }
                     )
+                    .id(position)
                 }
             }
             .frame(minWidth: 220, alignment: .leading)

@@ -1236,6 +1236,12 @@ struct WorkbenchPopoverPanel<Content: View>: View {
     /// that opened on a side with less room than that is given the room it has,
     /// and scrolls whatever no longer fits.
     var maximumHeight: CGFloat = MenuMetrics.maximumHeight
+    /// The open menu's highlight. Keeping the highlighted item visible belongs
+    /// to the surface every menu shares, not to each menu: a menu that grows
+    /// past the cap then reveals its highlight without doing anything itself,
+    /// and a menu that never scrolls is unaffected. Items must carry `.id` of
+    /// their own position for the reveal to find them.
+    @ObservedObject var highlight: MenuHighlightModel
     @ViewBuilder var content: () -> Content
 
     var body: some View {
@@ -1248,26 +1254,27 @@ struct WorkbenchPopoverPanel<Content: View>: View {
         // not scroll spends nothing on a scrollbar that never appears. The cap
         // makes the menu its items' own height until they pass it; width stays
         // whatever the items need, plus that strip when it is reserved.
-        MenuHeightCap(height: maximumHeight) {
-            WorkbenchScrollView(
-                scrollbarInset: isRedesign
-                    ? MenuMetrics.scrollbarOuterGap
-                    : TableScrollbarPrimitiveMetrics.inset
-            ) {
-                if isRedesign {
-                    MenuItemStack(
-                        padding: MenuMetrics.padding,
-                        strip: MenuMetrics.scrollbarStrip,
-                        cap: maximumHeight
-                    ) {
+        ScrollViewReader { proxy in
+            MenuHeightCap(height: maximumHeight) {
+                WorkbenchScrollView(
+                    scrollbarInset: isRedesign
+                        ? MenuMetrics.scrollbarOuterGap
+                        : TableScrollbarPrimitiveMetrics.inset
+                ) {
+                    if isRedesign {
+                        MenuItemStack(
+                            padding: MenuMetrics.padding,
+                            strip: MenuMetrics.scrollbarStrip,
+                            cap: maximumHeight
+                        ) {
+                            content()
+                        }
+                    } else {
                         content()
+                            .padding(8)
                     }
-                } else {
-                    content()
-                        .padding(8)
                 }
             }
-        }
             .fixedSize(horizontal: true, vertical: false)
             .background(
                 Group {
@@ -1297,6 +1304,27 @@ struct WorkbenchPopoverPanel<Content: View>: View {
             .subtitleTableTextSelectionNonInteractiveRegion(
                 cornerRadius: cornerRadius
             )
+            // The item highlighted when the menu opens can already be out of
+            // reach — `Save to Shiori` opens on the list saved to most
+            // recently — so opening reveals it the same way a keyboard move
+            // does. The wheel and the scrollbar bump neither signal, so they
+            // never pull the menu back to the highlight.
+            .onAppear {
+                revealHighlight(proxy)
+            }
+            .onChange(of: highlight.keyboardMoveCount) { _ in
+                revealHighlight(proxy)
+            }
+        }
+    }
+
+    /// Scrolls the least amount that makes the highlighted item whole, without
+    /// animating: the menu is already open and the item has to be there now.
+    private func revealHighlight(_ proxy: ScrollViewProxy) {
+        guard let position = highlight.highlightedPosition else {
+            return
+        }
+        proxy.scrollTo(position)
     }
 }
 
