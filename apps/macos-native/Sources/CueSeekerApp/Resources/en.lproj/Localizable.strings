@@ -254,7 +254,6 @@
 "playback.shiori_count" = "%d shioris";
 
 /* Settings categories */
-"settings.category.library" = "Library";
 "settings.category.play" = "Play";
 "settings.category.appearance" = "Appearance";
 "settings.category.search" = "Search";

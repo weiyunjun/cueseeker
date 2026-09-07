@@ -80,9 +80,9 @@ The `settings.library.*` strings stayed as they are: the File page is the only
 thing reading them now, and renaming twenty keys across three languages would
 have been churn with no reader-visible effect.
 
-`Settings/SettingsLibraryCategory.swift` is now unreferenced. It was left in
-place for the owner to remove, along with the `settings.category.library` string
-it is the last reader of.
+`Settings/SettingsLibraryCategory.swift` became unreferenced and the owner
+removed it. The `settings.category.library` string, whose last reader it was,
+went with it in the same change.
 
 Files: `Settings/SettingsView.swift`.
 

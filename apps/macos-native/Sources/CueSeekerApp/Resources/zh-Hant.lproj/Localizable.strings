@@ -254,7 +254,6 @@
 "playback.shiori_count" = "%d 個 Shiori";
 
 /* Settings categories */
-"settings.category.library" = "媒體庫";
 "settings.category.play" = "播放";
 "settings.category.appearance" = "外觀";
 "settings.category.search" = "搜尋";

@@ -254,7 +254,6 @@
 "playback.shiori_count" = "%d 个 Shiori";
 
 /* Settings categories */
-"settings.category.library" = "媒体库";
 "settings.category.play" = "播放";
 "settings.category.appearance" = "外观";
 "settings.category.search" = "搜索";
