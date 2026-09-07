@@ -8,6 +8,9 @@ struct SearchView: View {
     @EnvironmentObject private var routeState: WorkbenchRouteState
     @EnvironmentObject private var indexing: IndexingStore
     @EnvironmentObject private var library: LibraryStore
+    // Observed so a Shiori detail turns into the unknown page when its list
+    // leaves the overview.
+    @EnvironmentObject private var shioriStore: ShioriStore
     @EnvironmentObject private var playback: PlaybackStore
     @Environment(\.colorScheme) private var colorScheme
     @State private var collapsedLibraryFolderPaths: Set<String> = []
@@ -248,10 +251,14 @@ struct SearchView: View {
             Color(nsColor: .textBackgroundColor)
                 .ignoresSafeArea()
 
-            if routeState.selectedShioriListID != nil {
-                WorkbenchShioriTableView(
-                    isTableResponseActive: !appState.isPlaybackPageVisible
-                )
+            if let listID = routeState.selectedShioriListID {
+                if appState.isWorkbenchRouteUnknown(.shioriList(id: listID)) {
+                    WorkbenchUnknownPage()
+                } else {
+                    WorkbenchShioriTableView(
+                        isTableResponseActive: !appState.isPlaybackPageVisible
+                    )
+                }
             } else {
                 ShioriListOverviewView()
             }

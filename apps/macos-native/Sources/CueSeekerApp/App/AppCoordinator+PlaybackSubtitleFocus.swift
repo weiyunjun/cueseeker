@@ -481,8 +481,7 @@ extension AppCoordinator {
                 shiori,
                 navigationScopeIDs: scope,
                 playlistScope: playlistScope,
-                playlistSelectedOrdinal: item.ordinal,
-                playbackReturnContextOnSuccessfulPlay: .shiori
+                playlistSelectedOrdinal: item.ordinal
             )
         }
     }

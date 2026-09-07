@@ -194,8 +194,8 @@ struct CueGroupRefreshScopeIntegrationTests {
             try #require(didScrollSearch)
 
             app.shiori.setActiveListID(ShioriListIdentity.defaultListID)
-            app.workbenchLayout.selectShioriList(
-                id: ShioriListIdentity.defaultListID
+            app.workbenchLayout.navigate(
+                to: .shioriList(id: ShioriListIdentity.defaultListID)
             )
             app.activateWorkbenchPanelMode(.shiori)
             let didMountShiori = await waitUntil(timeout: 2) {
@@ -890,8 +890,8 @@ private final class CueGroupRefreshScopeMountedHarness {
                 rowCount: 200
             )
             app.shiori.setActiveListID(ShioriListIdentity.defaultListID)
-            app.workbenchLayout.selectShioriList(
-                id: ShioriListIdentity.defaultListID
+            app.workbenchLayout.navigate(
+                to: .shioriList(id: ShioriListIdentity.defaultListID)
             )
             app.shiori.tableRowStore.hydrateShioriRows(
                 sources,

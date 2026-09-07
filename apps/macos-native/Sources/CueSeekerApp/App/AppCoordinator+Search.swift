@@ -42,7 +42,7 @@ extension AppCoordinator {
         if playback.playbackViewModel?.isPlaying == true {
             pausePlayback()
         }
-        workbenchLayout.selectPanelMode(.search)
+        navigateWorkbench(to: .search)
         search.updateQuery(trimmedQuery)
         search.updateActiveFilterSet(SubtitleSearchFilterSet())
         search.updateNavigationSnapshot(nil)

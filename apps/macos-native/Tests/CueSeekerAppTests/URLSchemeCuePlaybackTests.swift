@@ -28,7 +28,7 @@ func urlSchemeCueDeepLinkBuildsOneItemPlaylistAndReturnsToSearch() async throws 
     #expect(resolvedResult.entryID == cueID)
     #expect(try searchDatabase.cuePlaybackResult(cueID: Int64.max) == nil)
 
-    fixture.app.workbenchLayout.selectPanelMode(.shiori)
+    fixture.app.workbenchLayout.navigate(to: .shiori)
     var presentationReadyCount = 0
     fixture.app.handleURLSchemeCommand(.cue(id: cueID)) {
         presentationReadyCount += 1
@@ -40,7 +40,7 @@ func urlSchemeCueDeepLinkBuildsOneItemPlaylistAndReturnsToSearch() async throws 
     #expect(fixture.app.pendingURLSchemeCuePlaybackIntent == nil)
     #expect(fixture.app.search.selectedSearchResult?.entryID == cueID)
     #expect(fixture.app.playback.isPlaybackSurfaceExpanded)
-    #expect(fixture.app.workbenchLayout.panelMode == .search)
+    #expect(fixture.app.workbenchLayout.panelMode == .shiori)
 
     let source = try #require(fixture.app.playback.playlistSource)
     let position = try #require(fixture.app.playback.playlistPosition)
@@ -73,12 +73,8 @@ func urlSchemeCueDeepLinkBuildsOneItemPlaylistAndReturnsToSearch() async throws 
     #expect(overlaySession.playlistWindow?.selectedOrdinal == 0)
     #expect(overlaySession.playlistWindow?.item(at: 0)?.primaryCueIdentity == .cue(cueID))
 
-    for _ in 0..<100 where fixture.app.playbackReturnContext != .search {
-        await Task.yield()
-    }
-    #expect(fixture.app.playbackReturnContext == .search)
     fixture.app.stopPlayback()
-    #expect(fixture.app.workbenchLayout.panelMode == .search)
+    #expect(fixture.app.workbenchLayout.panelMode == .shiori)
     #expect(!fixture.app.playback.isPlaybackSurfaceExpanded)
 }
 
@@ -87,7 +83,7 @@ func urlSchemeCueDeepLinkBuildsOneItemPlaylistAndReturnsToSearch() async throws 
 func urlSchemeUnavailableCueDoesNotReplaceCurrentPresentation() async throws {
     let fixture = try makeURLSchemeCuePlaybackFixture("Unavailable")
     defer { fixture.cleanup() }
-    fixture.app.workbenchLayout.selectPanelMode(.shiori)
+    fixture.app.workbenchLayout.navigate(to: .shiori)
     fixture.app.search.updateQuery("keep me")
 
     var presentationReadyCount = 0

@@ -61,17 +61,11 @@ extension AppCoordinator {
     }
 
     func openShioriList(id: Int64) {
-        workbenchLayout.selectShioriList(id: id)
-        shiori.updateTableFacetFilter(
-            settings.shioriFacetFilter(forListID: id)
-        )
-        shiori.setActiveListID(id)
-        reloadShioriTableRows()
+        navigateWorkbench(to: .shioriList(id: id))
     }
 
     func showShioriListOverview() {
-        workbenchLayout.clearShioriList()
-        loadShioriListOverviewIfNeeded()
+        navigateWorkbench(to: .shiori)
     }
 
     func openRecentShiori(_ summary: ShioriListSummary) {
@@ -348,7 +342,9 @@ extension AppCoordinator {
         do {
             let deleted = try database.deleteShioriList(id: id)
             if workbenchLayout.selectedShioriListID == id {
-                workbenchLayout.clearShioriList()
+                // The page being looked at is gone: going back to the overview
+                // is a step of its own, like any other page change.
+                navigateWorkbench(to: .shiori)
             }
             if shiori.activeListID == id {
                 let nextListID = try database.firstShioriListID()
@@ -967,8 +963,7 @@ extension AppCoordinator {
         navigationScopeIDs: [Int64]? = nil,
         playlistScope: PlaybackPlaylistShioriScope? = nil,
         playlistSelectedOrdinal: Int? = nil,
-        displayTitle: String? = nil,
-        playbackReturnContextOnSuccessfulPlay: PlaybackReturnContext? = nil
+        displayTitle: String? = nil
     ) {
         guard shiori.isValid else {
             return
@@ -1011,7 +1006,6 @@ extension AppCoordinator {
         } else {
             playback.clearPlaylistPosition()
         }
-        initializePlaybackReturnContextIfEntering()
         saveCurrentLibraryPlaybackHistory()
         stopLibraryPlaybackHistoryTracking()
         activePlaybackSource = .shiori
@@ -1027,13 +1021,7 @@ extension AppCoordinator {
         playback.isPlaybackSurfaceExpanded = true
         Task { @MainActor in
             await Task.yield()
-            let didStartPlayback = play(shiori)
-            if let playbackReturnContextOnSuccessfulPlay {
-                commitPlaybackReturnContext(
-                    playbackReturnContextOnSuccessfulPlay,
-                    afterSuccessfulPlayback: didStartPlayback
-                )
-            }
+            _ = play(shiori)
         }
     }
 

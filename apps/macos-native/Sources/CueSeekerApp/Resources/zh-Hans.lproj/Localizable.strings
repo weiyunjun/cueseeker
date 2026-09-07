@@ -25,6 +25,7 @@
 
 /* Topbar and sidebar */
 "topbar.back" = "返回";
+"topbar.forward" = "前进";
 "topbar.hide_sidebar" = "隐藏边栏";
 "topbar.show_sidebar" = "显示边栏";
 "sidebar.search" = "搜索";
@@ -35,6 +36,8 @@
 "sidebar.file" = "文件";
 "sidebar.shiori" = "Shiori";
 "sidebar.settings" = "设置";
+"page.unknown.title" = "未知页面";
+"page.unknown.message" = "该页面已不存在";
 
 /* Info page states */
 "info.search_no_query.title" = "未输入搜索词";

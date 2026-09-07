@@ -25,6 +25,7 @@
 
 /* Topbar and sidebar */
 "topbar.back" = "Back";
+"topbar.forward" = "Forward";
 "topbar.hide_sidebar" = "Hide Sidebar";
 "topbar.show_sidebar" = "Show Sidebar";
 "sidebar.search" = "Search";
@@ -35,6 +36,8 @@
 "sidebar.file" = "File";
 "sidebar.shiori" = "Shiori";
 "sidebar.settings" = "Settings";
+"page.unknown.title" = "Unknown Page";
+"page.unknown.message" = "This page no longer exists.";
 
 /* Info page states */
 "info.search_no_query.title" = "No Search Query";

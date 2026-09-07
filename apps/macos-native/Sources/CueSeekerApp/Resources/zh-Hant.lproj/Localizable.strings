@@ -25,6 +25,7 @@
 
 /* Topbar and sidebar */
 "topbar.back" = "返回";
+"topbar.forward" = "前進";
 "topbar.hide_sidebar" = "隱藏側邊欄";
 "topbar.show_sidebar" = "顯示側邊欄";
 "sidebar.search" = "搜尋";
@@ -35,6 +36,8 @@
 "sidebar.file" = "檔案";
 "sidebar.shiori" = "Shiori";
 "sidebar.settings" = "設定";
+"page.unknown.title" = "未知頁面";
+"page.unknown.message" = "該頁面已不存在";
 
 /* Info page states */
 "info.search_no_query.title" = "未輸入搜尋字詞";

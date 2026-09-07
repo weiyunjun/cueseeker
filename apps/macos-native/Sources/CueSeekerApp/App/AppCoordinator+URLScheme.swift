@@ -199,10 +199,8 @@ extension AppCoordinator {
         )
         openSearchResult(
             result,
-            returnPanelMode: .search,
             playlistSourceOverride: playlistSource
         )
-        playbackReturnContext = .search
         intent.onPresentationReady()
         return true
     }
@@ -228,7 +226,7 @@ extension AppCoordinator {
         if !hadActivePlayback {
             search.selectResult(nil)
         }
-        workbenchLayout.selectPanelMode(.search)
+        navigateWorkbench(to: .search)
         if startsSearch {
             submitSearch(keyword)
         }

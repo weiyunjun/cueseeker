@@ -419,7 +419,6 @@ final class AppCoordinator: ObservableObject {
     var shioriPlaybackNavigationScopeIDs: [Int64]?
     var shioriPlaybackNavigationSnapshot: (currentID: Int64, previousID: Int64?, nextID: Int64?)?
     var activePlaybackSource: ActivePlaybackSource = .none
-    var playbackReturnContext: PlaybackReturnContext?
     var currentCueAutoStopReached = false
     var cuePlaybackGeneration = 0
     var activeCueAutoPauseBoundary: PlaybackAutoStopBoundary?
@@ -685,6 +684,8 @@ final class AppCoordinator: ObservableObject {
         ))
     }
 
+    /// A Sidebar item opens its section's first level. On its own section it
+    /// does nothing, whichever level is open.
     func activateWorkbenchPanelMode(_ mode: WorkbenchPanelMode) {
         AppPerformanceProbe.action("AppCoordinator.activateWorkbenchPanelMode", thresholdMilliseconds: 4) {
             if workbenchLayout.panelMode == mode {
@@ -695,7 +696,75 @@ final class AppCoordinator: ObservableObject {
                 "ACTION UI.WorkbenchMode.selected",
                 details: "from=\(workbenchLayout.panelMode.rawValue) to=\(mode.rawValue)"
             )
-            workbenchLayout.selectPanelMode(mode)
+            navigateWorkbench(to: .firstLevel(of: mode))
+        }
+    }
+
+    /// Shows a Workbench page as one step of the history.
+    func navigateWorkbench(to route: WorkbenchRoute) {
+        guard workbenchLayout.currentRoute != route else {
+            return
+        }
+
+        workbenchLayout.navigate(to: route)
+        prepareWorkbenchRoute(route)
+    }
+
+    func goBackInWorkbench() {
+        guard workbenchLayout.route.canGoBack else {
+            return
+        }
+
+        workbenchLayout.goBack()
+        prepareWorkbenchRoute(workbenchLayout.currentRoute)
+    }
+
+    func goForwardInWorkbench() {
+        guard workbenchLayout.route.canGoForward else {
+            return
+        }
+
+        workbenchLayout.goForward()
+        prepareWorkbenchRoute(workbenchLayout.currentRoute)
+    }
+
+    /// The data a page needs that its own view does not load: the Shiori
+    /// overview, and the list a Shiori detail shows in its table.
+    private func prepareWorkbenchRoute(_ route: WorkbenchRoute) {
+        switch route {
+        case .shiori:
+            loadShioriListOverviewIfNeeded()
+        case .shioriList(let id):
+            guard !isWorkbenchRouteUnknown(route) else {
+                return
+            }
+            shiori.updateTableFacetFilter(
+                settings.shioriFacetFilter(forListID: id)
+            )
+            shiori.setActiveListID(id)
+            reloadShioriTableRows()
+        case .search, .recent, .library, .libraryFolder, .file:
+            break
+        }
+    }
+
+    /// Whether the page a history entry points to is gone: a Shiori list that
+    /// was deleted, or a Library folder that is no longer indexed. Unknown is
+    /// never claimed before the store that would know has loaded.
+    func isWorkbenchRouteUnknown(_ route: WorkbenchRoute) -> Bool {
+        switch route {
+        case .libraryFolder(let folderPath):
+            guard library.completeLibraryStatus == .completed else {
+                return false
+            }
+            return !library.completeLibraryFolderSummaries.contains {
+                $0.folderPath == folderPath
+            }
+        case .shioriList(let id):
+            return shiori.hasLoadedListOverview
+                && !shiori.listOverview.lists.contains { $0.id == id }
+        case .search, .recent, .library, .file, .shiori:
+            return false
         }
     }
 

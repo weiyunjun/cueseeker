@@ -6,117 +6,61 @@ import Testing
 
 @MainActor
 @Test
-func playbackReturnContextInitializesFromTheEnteringWorkbenchFeature() throws {
-    let fixture = try playbackReturnContextFixture("initial")
-    defer { fixture.cleanup() }
-    let app = fixture.app
-
-    app.workbenchLayout.selectPanelMode(.search)
-    app.initializePlaybackReturnContextIfEntering()
-    #expect(app.playbackReturnContext == .search)
-
-    app.playbackReturnContext = nil
-    app.workbenchLayout.selectPanelMode(.shiori)
-    app.initializePlaybackReturnContextIfEntering()
-    #expect(app.playbackReturnContext == .shiori)
-
-    app.playbackReturnContext = nil
-    app.workbenchLayout.selectPanelMode(.recentWatching)
-    app.initializePlaybackReturnContextIfEntering()
-    #expect(app.playbackReturnContext == .recent)
-
-    let folder = playbackReturnContextFolder()
-    app.library.completeLibraryFolderSummaries = [folder]
-    app.workbenchLayout.selectPanelMode(.testLibrary)
-    app.workbenchLayout.selectTestLibraryFolder(folder)
-    app.playbackReturnContext = nil
-    app.initializePlaybackReturnContextIfEntering()
-    #expect(app.playbackReturnContext == .libraryFolderDetail(
-        folderPath: folder.folderPath
-    ))
-
-    app.playback.isPlaybackSurfaceExpanded = true
-    app.workbenchLayout.selectPanelMode(.search)
-    app.initializePlaybackReturnContextIfEntering()
-    #expect(app.playbackReturnContext == .libraryFolderDetail(
-        folderPath: folder.folderPath
-    ))
-}
-
-@MainActor
-@Test
-func playbackReturnContextChangesOnlyAfterSuccessfulPlayback() throws {
-    let fixture = try playbackReturnContextFixture("success")
-    defer { fixture.cleanup() }
-    let app = fixture.app
-
-    app.playbackReturnContext = .shiori
-    app.commitPlaybackReturnContext(
-        .search,
-        afterSuccessfulPlayback: false
-    )
-    #expect(app.playbackReturnContext == .shiori)
-
-    app.commitPlaybackReturnContext(
-        .search,
-        afterSuccessfulPlayback: true
-    )
-    #expect(app.playbackReturnContext == .search)
-
-    app.commitPlaybackReturnContext(
-        .recent,
-        afterSuccessfulPlayback: true
-    )
-    #expect(app.playbackReturnContext == .recent)
-
-    app.commitPlaybackReturnContext(
-        .libraryFolderDetail(folderPath: "/Media/Show"),
-        afterSuccessfulPlayback: true
-    )
-    #expect(app.playbackReturnContext == .libraryFolderDetail(
-        folderPath: "/Media/Show"
-    ))
-}
-
-@MainActor
-@Test
-func closingPlaybackRestoresEveryReturnTargetAndClearsTheContext() throws {
-    let fixture = try playbackReturnContextFixture("restore")
+func playbackLeavesTheWorkbenchOnThePageItWasEnteredFrom() throws {
+    let fixture = try playbackReturnContextFixture("entry")
     defer { fixture.cleanup() }
     let app = fixture.app
     let folder = playbackReturnContextFolder()
     app.library.completeLibraryFolderSummaries = [folder]
     app.search.updateQuery("current shared query")
 
-    let cases: [(PlaybackReturnContext, WorkbenchPanelMode)] = [
-        (.search, .search),
-        (.shiori, .shiori),
-        (.recent, .recentWatching),
+    let routes: [WorkbenchRoute] = [
+        .search,
+        .shiori,
+        .recent,
+        .file,
+        .libraryFolder(folderPath: folder.folderPath),
     ]
-    for (context, expectedMode) in cases {
-        app.workbenchLayout.selectPanelMode(.testLibrary)
-        app.playback.isPlaybackSurfaceExpanded = true
-        app.playbackReturnContext = context
+    for route in routes {
+        app.navigateWorkbench(to: route)
+        let historyBefore = app.workbenchLayout.route.history
+
+        app.openSearchResult(playbackReturnContextResult())
+        #expect(app.playback.isPlaybackSurfaceExpanded)
+        #expect(app.workbenchLayout.currentRoute == route)
 
         app.stopPlayback()
 
-        #expect(app.workbenchLayout.panelMode == expectedMode)
-        #expect(app.playbackReturnContext == nil)
+        #expect(!app.playback.isPlaybackSurfaceExpanded)
+        #expect(app.workbenchLayout.currentRoute == route)
+        #expect(app.workbenchLayout.route.history == historyBefore)
         #expect(app.search.searchQuery == "current shared query")
     }
+    #expect(app.workbenchLayout.selectedLibraryFolderPath == folder.folderPath)
+}
 
-    app.workbenchLayout.selectPanelMode(.search)
-    app.workbenchLayout.clearTestLibraryFolder()
-    app.playback.isPlaybackSurfaceExpanded = true
-    app.playbackReturnContext = .libraryFolderDetail(
-        folderPath: folder.folderPath
+@MainActor
+@Test
+func searchingDuringPlaybackDoesNotMoveTheWorkbench() throws {
+    let fixture = try playbackReturnContextFixture("search")
+    defer { fixture.cleanup() }
+    let app = fixture.app
+    app.navigateWorkbench(to: .recent)
+    app.openSearchResult(playbackReturnContextResult())
+
+    app.openSearchResult(
+        playbackReturnContextResult(),
+        playbackSearchPromotion: PlaybackSearchPromotion(
+            query: "promoted",
+            scopePaths: [],
+            selectedOrdinal: 0
+        )
     )
+    #expect(app.workbenchLayout.currentRoute == .recent)
 
     app.stopPlayback()
-
-    #expect(app.workbenchLayout.panelMode == .testLibrary)
-    #expect(app.workbenchLayout.selectedTestLibraryFolder == folder)
-    #expect(app.playbackReturnContext == nil)
+    #expect(app.workbenchLayout.currentRoute == .recent)
+    #expect(app.workbenchLayout.route.history == [.search, .recent])
 }
 
 @MainActor
@@ -151,5 +95,19 @@ private func playbackReturnContextFolder()
         coverPath: nil,
         coverRevision: nil,
         episodeCount: 3
+    )
+}
+
+private func playbackReturnContextResult() -> SubtitleSearchResult {
+    SubtitleSearchResult(
+        entryID: 1,
+        subtitlePath: "/Media/Show/Episode.srt",
+        subtitleFormat: .srt,
+        videoPath: "/Media/Show/Episode.mkv",
+        videoName: "Episode.mkv",
+        startMilliseconds: 1_000,
+        endMilliseconds: 2_000,
+        content: "shared query",
+        cueLines: ["shared query"]
     )
 }

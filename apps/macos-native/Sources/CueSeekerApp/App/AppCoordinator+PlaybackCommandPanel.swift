@@ -425,8 +425,7 @@ extension AppCoordinator {
             await prepareRecentLibraryNavigation(for: item)
             openLibraryVideo(
                 item.libraryVideo,
-                displayTitle: item.displayTitle,
-                playbackReturnContextOnSuccessfulPlay: .recent
+                displayTitle: item.displayTitle
             )
         }
         return true

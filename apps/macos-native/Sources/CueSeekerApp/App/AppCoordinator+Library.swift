@@ -950,7 +950,6 @@ extension AppCoordinator {
     func openLibraryVideo(
         _ video: LibraryVideo,
         displayTitle: String? = nil,
-        playbackReturnContextOnSuccessfulPlay: PlaybackReturnContext? = nil,
         savesCurrentPlaybackHistory: Bool = true
     ) {
         invalidatePlaybackSubtitleFocusForSourceReplacement()
@@ -961,7 +960,6 @@ extension AppCoordinator {
             details: "duration=\(video.duration.map { String(format: "%.2f", $0) } ?? "unknown")"
         )
         preparePlaybackKeyboardFocus()
-        initializePlaybackReturnContextIfEntering()
         if savesCurrentPlaybackHistory, case .library = activePlaybackSource {
             saveCurrentLibraryPlaybackHistory()
         }
@@ -983,12 +981,6 @@ extension AppCoordinator {
             let didStartPlayback = play(video)
             if didStartPlayback {
                 recordRecentLibraryWatching(for: video)
-            }
-            if let playbackReturnContextOnSuccessfulPlay {
-                commitPlaybackReturnContext(
-                    playbackReturnContextOnSuccessfulPlay,
-                    afterSuccessfulPlayback: didStartPlayback
-                )
             }
         }
     }

@@ -189,7 +189,10 @@ private struct AppTopBar: View {
                 return true
             }
         ) {
-            backButton
+            HStack(spacing: WorkbenchControlMetrics.redesignAppTopbarContentAfterToggleGap) {
+                backButton
+                forwardButton
+            }
         } trailingContent: {
             TaskEntryButton(
                 tasks: appState.tasks,
@@ -208,25 +211,32 @@ private struct AppTopBar: View {
         WorkbenchIconButton(
             systemImage: "chevron.left",
             isRedesign: true,
-            isFrozen: layoutState.isVideoSizeTransitionInProgress,
-            action: navigateBack
-        )
-        .disabled(!routeState.canNavigateBack)
-        .help(L("topbar.back"))
-        .accessibilityLabel(L("topbar.back"))
-    }
-
-    private func navigateBack() {
-        appState.performUserInitiatedAppCommand {
-            switch routeState.panelMode {
-            case .testLibrary:
-                layoutState.clearTestLibraryFolder()
-            case .shiori:
-                appState.showShioriListOverview()
-            case .recentWatching, .library, .file, .search:
-                break
+            isFrozen: layoutState.isVideoSizeTransitionInProgress
+        ) {
+            appState.performUserInitiatedAppCommand {
+                appState.goBackInWorkbench()
             }
         }
+        .disabled(!routeState.canGoBack)
+        .help(L("topbar.back"))
+        .accessibilityLabel(L("topbar.back"))
+        .accessibilityIdentifier("topbar-back")
+    }
+
+    private var forwardButton: some View {
+        WorkbenchIconButton(
+            systemImage: "chevron.right",
+            isRedesign: true,
+            isFrozen: layoutState.isVideoSizeTransitionInProgress
+        ) {
+            appState.performUserInitiatedAppCommand {
+                appState.goForwardInWorkbench()
+            }
+        }
+        .disabled(!routeState.canGoForward)
+        .help(L("topbar.forward"))
+        .accessibilityLabel(L("topbar.forward"))
+        .accessibilityIdentifier("topbar-forward")
     }
 
     private var sidebarToggle: some View {
@@ -343,7 +353,6 @@ private struct AppSidebar: View {
             ) {
                 appState.performUserInitiatedAppCommand {
                     appState.activateWorkbenchPanelMode(.shiori)
-                    appState.showShioriListOverview()
                 }
             }
 

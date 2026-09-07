@@ -155,10 +155,10 @@ struct WorkbenchTestLibraryView: View {
 
     var body: some View {
         Group {
-            if let selectedFolder {
+            if let folderPath = routeState.selectedLibraryFolderPath {
                 GeometryReader { geometry in
                     WorkbenchScrollView([.vertical, .horizontal]) {
-                        folderDetailContent(for: selectedFolder)
+                        folderPageContent(folderPath: folderPath)
                             .workbenchPageInlinePadding()
                             .padding(
                                 .top,
@@ -210,7 +210,7 @@ struct WorkbenchTestLibraryView: View {
         }
         .background(WorkbenchRedesignColors.bgSurface)
         .cardHighlightFreeze(highlight)
-        .onChange(of: routeState.selectedTestLibraryFolder) { _ in
+        .onChange(of: routeState.selectedLibraryFolderPath) { _ in
             highlight.reset()
             segment = .video
         }
@@ -254,9 +254,29 @@ struct WorkbenchTestLibraryView: View {
                 folders: library.completeLibraryFolderSummaries,
                 highlight: highlight,
                 onOpen: { folder in
-                    appState.workbenchLayout.selectTestLibraryFolder(folder)
+                    appState.navigateWorkbench(
+                        to: .libraryFolder(folderPath: folder.folderPath)
+                    )
                 }
             )
+        }
+    }
+
+    /// The history can point at a folder that is no longer indexed; the page
+    /// then says so instead of waiting for a detail that will never load.
+    @ViewBuilder
+    private func folderPageContent(folderPath: String) -> some View {
+        if let selectedFolder {
+            folderDetailContent(for: selectedFolder)
+        } else if appState.isWorkbenchRouteUnknown(
+            .libraryFolder(folderPath: folderPath)
+        ) {
+            WorkbenchUnknownPage()
+        } else {
+            LibraryEmptyHint {
+                ProgressView()
+                    .controlSize(.small)
+            }
         }
     }
 
@@ -439,21 +459,20 @@ struct WorkbenchTestLibraryView: View {
         return "\(selectedFolder.folderPath)|\(library.completeLibraryRevision)"
     }
 
+    /// The folder being looked at is gone: going back to the overview is a
+    /// step of its own, like any other page change.
     private func closeFolderDetail() {
-        appState.workbenchLayout.clearTestLibraryFolder()
+        appState.navigateWorkbench(to: .library)
     }
 
     private func reconcileSelectedFolder() {
-        guard let selectedFolder else {
+        guard routeState.selectedLibraryFolderPath != nil,
+              selectedFolder == nil,
+              library.completeLibraryStatus != .loading
+        else {
             return
         }
-        guard let updatedFolder = library.completeLibraryFolderSummaries.first(where: { $0.folderPath == selectedFolder.folderPath }) else {
-            if library.completeLibraryStatus != .loading {
-                closeFolderDetail()
-            }
-            return
-        }
-        appState.workbenchLayout.selectTestLibraryFolder(updatedFolder)
+        closeFolderDetail()
     }
 
     private var completeLibrarySummaryText: String {
@@ -476,8 +495,14 @@ struct WorkbenchTestLibraryView: View {
 }
 
 private extension WorkbenchTestLibraryView {
+    /// The route names the folder by path; the summary is read live, so a
+    /// re-index that changes the cover or the count shows without a reload.
     var selectedFolder: CompleteLibraryFolderSummaryPresentation? {
-        routeState.selectedTestLibraryFolder
+        routeState.selectedLibraryFolderPath.flatMap { folderPath in
+            library.completeLibraryFolderSummaries.first {
+                $0.folderPath == folderPath
+            }
+        }
     }
 
     var folderDetail: CompleteLibraryFolderDetailPresentation? {
@@ -1798,6 +1823,17 @@ struct WatchStatusBadge: View {
             foregroundColor: status.foregroundColor,
             fillColor: status.fillColor
         )
+    }
+}
+
+/// What a history entry shows when the page it points to is gone.
+struct WorkbenchUnknownPage: View {
+    // Observed so the copy below is re-read when the language changes.
+    @EnvironmentObject private var localization: AppLocalizationStore
+
+    var body: some View {
+        LibraryEmptyHint(L("page.unknown.message"))
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 

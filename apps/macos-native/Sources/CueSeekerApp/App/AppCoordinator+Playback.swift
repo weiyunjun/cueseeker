@@ -219,88 +219,9 @@ extension AppCoordinator {
         )
     }
 
-    func initializePlaybackReturnContextIfEntering() {
-        guard !playback.isPlaybackSurfaceExpanded else {
-            return
-        }
-        playbackReturnContext = resolvedPlaybackReturnContext(
-            for: workbenchLayout.panelMode
-        )
-    }
-
-    func commitPlaybackReturnContext(
-        _ context: PlaybackReturnContext,
-        afterSuccessfulPlayback didStartPlayback: Bool
-    ) {
-        guard didStartPlayback else {
-            return
-        }
-        playbackReturnContext = context
-    }
-
-    func commitPlaybackReturnContext(
-        for panelMode: WorkbenchPanelMode,
-        afterSuccessfulPlayback didStartPlayback: Bool
-    ) {
-        guard let context = resolvedPlaybackReturnContext(for: panelMode) else {
-            return
-        }
-        commitPlaybackReturnContext(
-            context,
-            afterSuccessfulPlayback: didStartPlayback
-        )
-    }
-
-    private func resolvedPlaybackReturnContext(
-        for panelMode: WorkbenchPanelMode
-    ) -> PlaybackReturnContext? {
-        switch panelMode {
-        case .search:
-            .search
-        case .shiori:
-            .shiori
-        case .recentWatching:
-            .recent
-        case .file:
-            // The File page starts no playback, so it is never returned to.
-            nil
-        case .library, .testLibrary:
-            workbenchLayout.selectedTestLibraryFolder.map {
-                .libraryFolderDetail(folderPath: $0.folderPath)
-            }
-        }
-    }
-
-    func restorePlaybackReturnContext() {
-        guard let context = playbackReturnContext else {
-            return
-        }
-        playbackReturnContext = nil
-
-        switch context {
-        case .search:
-            workbenchLayout.selectPanelMode(.search)
-        case .shiori:
-            workbenchLayout.selectPanelMode(.shiori)
-        case .recent:
-            workbenchLayout.selectPanelMode(.recentWatching)
-        case .libraryFolderDetail(let folderPath):
-            workbenchLayout.selectPanelMode(.testLibrary)
-            guard let folder = library.completeLibraryFolderSummaries.first(
-                where: { $0.folderPath == folderPath }
-            ) else {
-                workbenchLayout.clearTestLibraryFolder()
-                return
-            }
-            workbenchLayout.selectTestLibraryFolder(folder)
-            hydrateCompleteLibraryFolderDetailAsync(folderPath: folderPath)
-        }
-    }
-
     func openSearchResult(
         _ result: SubtitleSearchResult,
         displayTitle: String? = nil,
-        returnPanelMode: WorkbenchPanelMode? = nil,
         playbackSearchPromotion: PlaybackSearchPromotion? = nil,
         playlistSourceOverride: PlaybackPlaylistSource? = nil
     ) {
@@ -330,7 +251,6 @@ extension AppCoordinator {
             details: "time=\(String(format: "%.2f", Double(result.startMilliseconds) / 1000.0))"
         )
         preparePlaybackKeyboardFocus()
-        initializePlaybackReturnContextIfEntering()
         saveCurrentLibraryPlaybackHistory()
         stopLibraryPlaybackHistoryTracking()
         activePlaybackSource = .search
@@ -349,22 +269,9 @@ extension AppCoordinator {
             )
         )
         playback.isPlaybackSurfaceExpanded = true
-        workbenchLayout.selectPanelMode(.search)
         Task { @MainActor in
             await Task.yield()
-            let didStartPlayback = play(result)
-            if let returnPanelMode {
-                commitPlaybackReturnContext(
-                    for: returnPanelMode,
-                    afterSuccessfulPlayback: didStartPlayback
-                )
-            }
-            if playbackSearchPromotion != nil {
-                commitPlaybackReturnContext(
-                    .search,
-                    afterSuccessfulPlayback: didStartPlayback
-                )
-            }
+            _ = play(result)
         }
     }
 
@@ -1286,7 +1193,6 @@ extension AppCoordinator {
             shiori.selectedShiori = nil
             clearPlaybackChromeSnapshot()
             playback.isPlaybackSurfaceExpanded = false
-            restorePlaybackReturnContext()
             playback.playbackStatus = .idle
         } catch {
             playback.playbackStatus = .failed(Self.errorMessage(for: error))

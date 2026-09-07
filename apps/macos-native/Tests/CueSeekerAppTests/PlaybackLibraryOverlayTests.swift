@@ -136,8 +136,8 @@ func playbackLibrarySourceOpensAsTheMediaPlaylist() async throws {
         app.library.selectedLibraryVideo = video.libraryVideo
         app.search.selectResult(nil)
         app.activePlaybackSource = .library(videoPath: video.videoPath)
-        app.playbackReturnContext = .libraryFolderDetail(
-            folderPath: folder.folderPath
+        app.workbenchLayout.navigate(
+            to: .libraryFolder(folderPath: folder.folderPath)
         )
         app.ensurePlayerInitialized()
         let expectedVideos = fixture
@@ -168,7 +168,7 @@ func playbackRecentEntryUsesTheCurrentFolderLibraryPlaylist() async throws {
         app.library.selectedLibraryVideo = video.libraryVideo
         app.search.selectResult(nil)
         app.activePlaybackSource = .library(videoPath: video.videoPath)
-        app.playbackReturnContext = .recent
+        app.workbenchLayout.navigate(to: .recent)
         app.ensurePlayerInitialized()
 
         #expect(app.openPlaybackSubtitleFocusFromUser())
@@ -179,7 +179,7 @@ func playbackRecentEntryUsesTheCurrentFolderLibraryPlaylist() async throws {
             session.libraryStore?.detail?.videos
                 == fixture.detailsByFolderPath[folder.folderPath]?.videos
         )
-        #expect(app.playbackReturnContext == .recent)
+        #expect(app.workbenchLayout.currentRoute == .recent)
         app.invalidatePlaybackSubtitleFocusForSourceReplacement()
     }
 }
@@ -300,13 +300,13 @@ func playbackLibraryEpisodeOpenUsesSharedFolderDetailOrder() async throws {
         let detail = try #require(store.detail)
         let clickedVideo = detail.videos[1]
         app.playback.isPlaybackSurfaceExpanded = true
-        app.playbackReturnContext = .recent
+        app.workbenchLayout.navigate(to: .recent)
 
         #expect(app.openPlaybackLibraryEpisodeFromOverlay(clickedVideo))
         await Task.yield()
         #expect(app.playback.subtitleFocusSession == nil)
         #expect(app.library.selectedLibraryVideo?.videoPath == clickedVideo.videoPath)
-        #expect(app.playbackReturnContext == .recent)
+        #expect(app.workbenchLayout.currentRoute == .recent)
         #expect(
             app.library.libraryPlaybackNavigationVideos.map(\.videoPath)
                 == detail.videos.map(\.videoPath)

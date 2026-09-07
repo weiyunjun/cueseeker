@@ -63,6 +63,51 @@ enum WorkbenchRecentSection: String, CaseIterable {
     }
 }
 
+/// One Workbench page, the way the history remembers it. The Recent tab, the
+/// Video / Metadata segments and the search text are not part of the page.
+@MainActor
+enum WorkbenchRoute: Equatable {
+    case search
+    case recent
+    case library
+    case libraryFolder(folderPath: String)
+    case file
+    case shiori
+    case shioriList(id: Int64)
+
+    /// The first level of the section a Sidebar item opens. The retired
+    /// `library` mode lands on Search, as it did when it was migrated.
+    static func firstLevel(of mode: WorkbenchPanelMode) -> WorkbenchRoute {
+        switch mode {
+        case .search, .library:
+            .search
+        case .recentWatching:
+            .recent
+        case .testLibrary:
+            .library
+        case .file:
+            .file
+        case .shiori:
+            .shiori
+        }
+    }
+
+    var panelMode: WorkbenchPanelMode {
+        switch self {
+        case .search:
+            .search
+        case .recent:
+            .recentWatching
+        case .library, .libraryFolder:
+            .testLibrary
+        case .file:
+            .file
+        case .shiori, .shioriList:
+            .shiori
+        }
+    }
+}
+
 @MainActor
 final class WorkbenchRouteState: ObservableObject {
     // Each of these is an interface switch: the pointer goes back to the
@@ -75,9 +120,9 @@ final class WorkbenchRouteState: ObservableObject {
         }
     }
     @Published fileprivate(set) var isSearchFocused = false
-    @Published fileprivate(set) var selectedTestLibraryFolder: CompleteLibraryFolderSummaryPresentation? {
+    @Published fileprivate(set) var selectedLibraryFolderPath: String? {
         didSet {
-            if selectedTestLibraryFolder?.id != oldValue?.id {
+            if selectedLibraryFolderPath != oldValue {
                 AppPointerShape.reset()
             }
         }
@@ -97,19 +142,41 @@ final class WorkbenchRouteState: ObservableObject {
             }
         }
     }
+    /// Browser-style history of the pages shown since launch. It lives only
+    /// as long as the App runs; the launch page is its first entry.
+    @Published fileprivate(set) var history: [WorkbenchRoute]
+    @Published fileprivate(set) var historyIndex: Int
 
     init(panelMode: WorkbenchPanelMode) {
-        self.panelMode = panelMode
+        let route = WorkbenchRoute.firstLevel(of: panelMode)
+        self.panelMode = route.panelMode
+        history = [route]
+        historyIndex = 0
     }
 
-    var canNavigateBack: Bool {
-        switch panelMode {
-        case .testLibrary:
-            selectedTestLibraryFolder != nil
-        case .shiori:
-            selectedShioriListID != nil
-        case .recentWatching, .library, .file, .search:
-            false
+    var currentRoute: WorkbenchRoute {
+        history[historyIndex]
+    }
+
+    var canGoBack: Bool {
+        historyIndex > 0
+    }
+
+    var canGoForward: Bool {
+        historyIndex < history.count - 1
+    }
+
+    fileprivate func show(_ route: WorkbenchRoute) {
+        panelMode = route.panelMode
+        if case .libraryFolder(let folderPath) = route {
+            selectedLibraryFolderPath = folderPath
+        } else {
+            selectedLibraryFolderPath = nil
+        }
+        if case .shioriList(let id) = route {
+            selectedShioriListID = id
+        } else {
+            selectedShioriListID = nil
         }
     }
 }
@@ -131,7 +198,7 @@ final class WorkbenchLayoutState: ObservableObject {
         let savedMode = WorkbenchPanelMode(
             rawValue: userDefaults.string(forKey: Self.panelModeKey) ?? ""
         ) ?? .search
-        route = WorkbenchRouteState(panelMode: savedMode == .library ? .search : savedMode)
+        route = WorkbenchRouteState(panelMode: savedMode)
         isSidebarVisible = userDefaults.object(forKey: Self.isSidebarVisibleKey) as? Bool ?? true
     }
 
@@ -139,14 +206,17 @@ final class WorkbenchLayoutState: ObservableObject {
         route.panelMode
     }
 
+    var currentRoute: WorkbenchRoute {
+        route.currentRoute
+    }
+
     var isSearchFocused: Bool {
         get { route.isSearchFocused }
         set { route.isSearchFocused = newValue }
     }
 
-    var selectedTestLibraryFolder: CompleteLibraryFolderSummaryPresentation? {
-        get { route.selectedTestLibraryFolder }
-        set { route.selectedTestLibraryFolder = newValue }
+    var selectedLibraryFolderPath: String? {
+        route.selectedLibraryFolderPath
     }
 
     var selectedShioriListID: Int64? {
@@ -157,13 +227,43 @@ final class WorkbenchLayoutState: ObservableObject {
         route.selectedRecentSection
     }
 
-    func selectPanelMode(_ mode: WorkbenchPanelMode) {
-        guard route.panelMode != mode else {
+    /// Shows a page as one new step of the history, dropping whatever could
+    /// have been reached with Forward. Showing the page already shown is not
+    /// a step.
+    func navigate(to target: WorkbenchRoute) {
+        guard route.currentRoute != target else {
             return
         }
 
-        route.panelMode = mode
-        userDefaults.set(mode.rawValue, forKey: Self.panelModeKey)
+        route.show(target)
+        route.history.removeSubrange((route.historyIndex + 1)...)
+        route.history.append(target)
+        route.historyIndex += 1
+        userDefaults.set(target.panelMode.rawValue, forKey: Self.panelModeKey)
+    }
+
+    func goBack() {
+        guard route.canGoBack else {
+            return
+        }
+
+        route.historyIndex -= 1
+        showCurrentHistoryEntry()
+    }
+
+    func goForward() {
+        guard route.canGoForward else {
+            return
+        }
+
+        route.historyIndex += 1
+        showCurrentHistoryEntry()
+    }
+
+    private func showCurrentHistoryEntry() {
+        let target = route.currentRoute
+        route.show(target)
+        userDefaults.set(target.panelMode.rawValue, forKey: Self.panelModeKey)
     }
 
     func toggleSidebarVisibility() {
@@ -188,22 +288,6 @@ final class WorkbenchLayoutState: ObservableObject {
 
         setSidebarVisible(false)
         return true
-    }
-
-    func selectTestLibraryFolder(_ folder: CompleteLibraryFolderSummaryPresentation) {
-        route.selectedTestLibraryFolder = folder
-    }
-
-    func clearTestLibraryFolder() {
-        route.selectedTestLibraryFolder = nil
-    }
-
-    func selectShioriList(id: Int64) {
-        route.selectedShioriListID = id
-    }
-
-    func clearShioriList() {
-        route.selectedShioriListID = nil
     }
 
     func selectRecentSection(_ section: WorkbenchRecentSection) {

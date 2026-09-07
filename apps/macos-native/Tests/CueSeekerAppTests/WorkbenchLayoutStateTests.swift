@@ -33,7 +33,7 @@ func workbenchLayoutStatePersistsSelectedPanelMode() {
     withTemporaryWorkbenchLayoutUserDefaults { userDefaults in
         let layoutState = WorkbenchLayoutState(userDefaults: userDefaults)
 
-        layoutState.selectPanelMode(.testLibrary)
+        layoutState.navigate(to: .library)
 
         let reloadedLayoutState = WorkbenchLayoutState(userDefaults: userDefaults)
         #expect(reloadedLayoutState.panelMode == .testLibrary)
@@ -45,13 +45,13 @@ func workbenchLayoutStatePersistsSelectedPanelMode() {
 func workbenchLayoutStateDoesNotInvalidateAnAlreadySelectedLibraryPanel() {
     withTemporaryWorkbenchLayoutUserDefaults { userDefaults in
         let layoutState = WorkbenchLayoutState(userDefaults: userDefaults)
-        layoutState.selectPanelMode(.testLibrary)
+        layoutState.navigate(to: .library)
         var routeInvalidations = 0
         let cancellable = layoutState.route.objectWillChange.sink {
             routeInvalidations += 1
         }
 
-        layoutState.selectPanelMode(.testLibrary)
+        layoutState.navigate(to: .library)
 
         #expect(routeInvalidations == 0)
         #expect(layoutState.panelMode == .testLibrary)
@@ -143,11 +143,11 @@ func workbenchLayoutStateTracksShioriListDetailWithoutPersistingIt() {
     withTemporaryWorkbenchLayoutUserDefaults { userDefaults in
         let layoutState = WorkbenchLayoutState(userDefaults: userDefaults)
 
-        layoutState.selectShioriList(id: 42)
+        layoutState.navigate(to: .shioriList(id: 42))
         #expect(layoutState.selectedShioriListID == 42)
         #expect(layoutState.route.selectedShioriListID == 42)
 
-        layoutState.clearShioriList()
+        layoutState.navigate(to: .shiori)
         #expect(layoutState.selectedShioriListID == nil)
 
         let reloadedLayoutState = WorkbenchLayoutState(userDefaults: userDefaults)
@@ -166,7 +166,7 @@ func workbenchLayoutStateTracksRecentSectionWithoutPersistingIt() {
         #expect(layoutState.selectedRecentSection == .shioris)
         #expect(layoutState.route.selectedRecentSection == .shioris)
 
-        layoutState.selectPanelMode(.search)
+        layoutState.navigate(to: .file)
         #expect(layoutState.selectedRecentSection == .shioris)
 
         let reloadedLayoutState = WorkbenchLayoutState(userDefaults: userDefaults)
@@ -176,44 +176,55 @@ func workbenchLayoutStateTracksRecentSectionWithoutPersistingIt() {
 
 @MainActor
 @Test
-func workbenchRouteEnablesBackOnlyForSecondaryPages() {
+func workbenchHistoryStepsThroughPagesAndDropsForwardOnNewNavigation() {
     withTemporaryWorkbenchLayoutUserDefaults { userDefaults in
         let layoutState = WorkbenchLayoutState(userDefaults: userDefaults)
+        #expect(layoutState.currentRoute == .search)
+        #expect(!layoutState.route.canGoBack)
+        #expect(!layoutState.route.canGoForward)
 
-        #expect(!layoutState.route.canNavigateBack)
+        layoutState.navigate(to: .recent)
+        layoutState.navigate(to: .library)
+        layoutState.navigate(to: .libraryFolder(folderPath: "/Media/Show"))
+        #expect(layoutState.panelMode == .testLibrary)
+        #expect(layoutState.selectedLibraryFolderPath == "/Media/Show")
+        #expect(layoutState.route.canGoBack)
+        #expect(!layoutState.route.canGoForward)
 
-        layoutState.selectPanelMode(.recentWatching)
-        #expect(!layoutState.route.canNavigateBack)
-        layoutState.selectRecentSection(.shioris)
-        #expect(!layoutState.route.canNavigateBack)
+        layoutState.goBack()
+        #expect(layoutState.currentRoute == .library)
+        #expect(layoutState.selectedLibraryFolderPath == nil)
+        #expect(layoutState.route.canGoForward)
+        layoutState.goBack()
+        #expect(layoutState.currentRoute == .recent)
+        layoutState.goBack()
+        #expect(layoutState.currentRoute == .search)
+        #expect(!layoutState.route.canGoBack)
+        layoutState.goBack()
+        #expect(layoutState.currentRoute == .search)
 
-        layoutState.selectPanelMode(.testLibrary)
-        #expect(!layoutState.route.canNavigateBack)
-        layoutState.selectTestLibraryFolder(
-            CompleteLibraryFolderSummaryPresentation(
-                folderPath: "/Media/Show",
-                folderTitle: "Show",
-                coverPath: nil,
-                coverRevision: nil,
-                episodeCount: 1
-            )
-        )
-        #expect(layoutState.route.canNavigateBack)
-        layoutState.clearTestLibraryFolder()
-        #expect(!layoutState.route.canNavigateBack)
+        layoutState.goForward()
+        layoutState.goForward()
+        layoutState.goForward()
+        #expect(layoutState.currentRoute == .libraryFolder(folderPath: "/Media/Show"))
+        #expect(!layoutState.route.canGoForward)
+        layoutState.goForward()
+        #expect(layoutState.currentRoute == .libraryFolder(folderPath: "/Media/Show"))
 
-        layoutState.selectPanelMode(.shiori)
-        #expect(!layoutState.route.canNavigateBack)
-        layoutState.selectShioriList(id: 42)
-        #expect(layoutState.route.canNavigateBack)
-        layoutState.clearShioriList()
-        #expect(!layoutState.route.canNavigateBack)
+        layoutState.goBack()
+        layoutState.navigate(to: .shiori)
+        #expect(layoutState.currentRoute == .shiori)
+        #expect(!layoutState.route.canGoForward)
+        #expect(layoutState.route.history == [.search, .recent, .library, .shiori])
 
-        layoutState.selectPanelMode(.search)
-        #expect(!layoutState.route.canNavigateBack)
+        layoutState.navigate(to: .shiori)
+        #expect(layoutState.route.history.count == 4)
 
-        layoutState.selectPanelMode(.testLibrary)
-        #expect(!layoutState.route.canNavigateBack)
+        layoutState.navigate(to: .shioriList(id: 42))
+        #expect(layoutState.selectedShioriListID == 42)
+        layoutState.goBack()
+        #expect(layoutState.selectedShioriListID == nil)
+        #expect(layoutState.panelMode == .shiori)
     }
 }
 
