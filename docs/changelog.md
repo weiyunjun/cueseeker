@@ -6,6 +6,12 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Moved every Workbench page title into a taller topbar beside new Back and
+  Forward buttons that walk a browser-style history of the pages shown since
+  launch. Recent is one page with Recent Videos and Recent Shioris tabs, a
+  Sidebar item does nothing on its own section, a history entry whose Shiori
+  list or Library folder is gone shows an unknown page, and closing playback
+  returns to the page it was opened from instead of Search.
 - Turned Shiori ordering around. Shiori list cards and Shiori table rows now
   run oldest first, so a new list lands at the end of the overview and a new
   saved cue lands at the bottom of its table. Search, filters, export, copy,
