@@ -37,7 +37,7 @@ File 页面增加 `Index` 与 `Edit` 两个 Tab。Edit 提供 App 内改名：Fo
 
 ## 5. 改名 Dialog
 
-1. 结构：Header（标题、关闭按钮）；静态文字（当前名）；Text Field（新名）；Footer（Cancel、Primary 确认）。复用 Shiori List Editor 的 Form Region 与 Footer，无封面列。
+1. 结构：Header（标题、关闭按钮）；静态文字（标签 Current Name、当前名）；Text Field（新名）；Footer（Cancel、Primary 确认）。复用 Shiori List Editor 的 Form Region 与 Footer，无封面列；Dialog 宽度为 Form Region 宽度加两侧 Dialog 内边距，静态文字与 Text Field 的右缘与最右侧按钮的右缘对齐。标签样式与 Text Field 的 Label 相同，标签与当前名的间距为 `--spacing-1`。
 2. Folder 改名：静态文字为完整路径，输入框只编辑最后一段。
 3. 整体改名：静态文字为当前公共名，即去掉一级与二级扩展名后的公共部分；输入框编辑新公共名，各文件的扩展名尾巴不变。
 4. 语法校验在 Dialog 即时提示，不合法不能确认：空或仅空白；与原名相同（区分大小写，仅 Unicode 规范化不同视为相同）；以 `.` 开头；以空格或 `.` 结尾；含 `\ / : * ? " < > |` 或控制字符；为 Windows 设备名（CON、PRN、AUX、NUL、COM1–COM9、LPT1–LPT9，不分大小写，带扩展名也算）。
@@ -63,6 +63,7 @@ File 页面增加 `Index` 与 `Edit` 两个 Tab。Edit 提供 App 内改名：Fo
 | Tab | Edit | 编辑 | 編輯 |
 | 菜单项、任务名、Dialog 标题 | Rename Folder | 重命名文件夹 | 重新命名資料夾 |
 | 菜单项、任务名、Dialog 标题 | Rename Files | 重命名文件 | 重新命名檔案 |
+| 当前名标签 | Current Name | 当前名称 | 目前名稱 |
 | 输入框标签 | New Name | 新名称 | 新名稱 |
 | 确认按钮 | Rename | 重命名 | 重新命名 |
 | 阶段 1 | Checking for conflicts | 正在检测冲突 | 正在檢查衝突 |
