@@ -169,7 +169,6 @@
 - `--font-size-player-progress-time`: `10px`
 - `--font-size-player-speed-menu-check`: `11px`
 - `--font-size-player-speed-menu-item`: `13px`
-- `--font-size-player-topbar-title`: `13px`
 - `--font-size-subtitle-focus-cue`: `24px`
 - `--line-height-subtitle-focus-cue`: `32px`
 - `--font-weight-subtitle-focus-cue`: `600`
@@ -212,7 +211,6 @@
 - `--height-app-sidebar-item`: `32px`
 - `--height-app-topbar`: `45px`
 - `--height-workbench-topbar`: `54px`
-- `--height-player-topbar`: `46px`
 - `--height-player-bottom-control-bar`: `98px`
 - `--height-player-bottom-controls-row`: `52px`
 - `--height-player-capsule-button`: `40px`
@@ -225,6 +223,7 @@
 - `--height-library-progress-bar`: `4px`
 - `--height-task-progress-bar`: `4px`
 - `--height-task-panel`: `440px`
+- `--height-task-panel-header`: `54px`
 - `--height-library-list-cover`: `115px`
 - `--height-cover-summary-backdrop`: `225px`
 - `--height-keycap`: `22px`
@@ -856,12 +855,13 @@
 | `--color-bg-surface` | `--color-bg-hover` |
 | `--color-subtitle-focus-overlay-bg` | `--color-overlay-surface-shortcut-button-bg-hover` |
 | `--color-bg-popover` | `--color-popover-surface-shortcut-button-bg-hover` |
+| `--color-player-topbar-gradient-start` | `--color-player-control-bg-hover` |
 
 ##### States
 
 - Default
   - Background：Transparent
-  - Icon Color：`--color-text-secondary`
+  - Icon Color：`--color-text-secondary`；在 `--color-player-topbar-gradient-start` 上为 `--color-player-text-primary`
 - Hover
   - Background：Surface Hover
 - Open
@@ -2453,7 +2453,7 @@
 ##### Anatomy
 
 - Label
-  - Font Size：`--font-size-player-topbar-title`
+  - Font Size：`--font-size-body`
   - Color：`--color-player-text-primary`
   - Shadow：`--shadow-player-topbar-title`
 
@@ -2719,7 +2719,7 @@
 - History End：Forward Disabled
 - Sidebar Expanded
 - Sidebar Collapsed
-- Hidden On Playback
+- Hidden On Playback：Task Entry 与 Settings Entry 改由播放页与 Playback Overlay 的顶栏显示
 - Settings Window Open：Settings Entry Open，窗口最小化期间保持
 
 ### Workbench Titled Page Layout
@@ -3479,6 +3479,7 @@
 
 - Width：`--width-task-panel`
 - Height：`--height-task-panel`
+- Header Height：`--height-task-panel-header`
 
 #### Spacing
 
@@ -3549,18 +3550,22 @@
 3. Flexible Spacer
 4. Player Title
 5. Flexible Spacer
-6. Window Action Region
+6. Trailing Function Region
+   1. Task Entry
+   2. Settings Entry
 
 #### Components
 
 - Window Controls：系统原生红绿灯
-- Player Circle Button / Standard：返回 Workbench
+- Icon Button / Default：返回 Workbench
 - Player Title
-- Player Circle Button
+- Icon Button / Default
+- Information Badge / Task Count Badge
 
 #### Sizes
 
-- Height：`--height-player-topbar`
+- Height：`--height-app-topbar`
+- Task to Settings Gap：`--spacing-1`
 - Padding Inline：`--padding-player-topbar-x`
 - Window Controls：与 App Topbar Layout 同一位置，起点 `--spacing-6`，在 `--height-app-topbar` 内垂直居中
 - Return Action：与 Window Controls 同一水平中线
@@ -3713,28 +3718,39 @@
 1. Window Controls
 2. Return Action
 3. Tabs
-4. Trailing Action Region
+4. Trailing Function Region
+   1. Collage Action：仅 Current
+   2. Task Entry
+   3. Settings Entry
 
 #### Structure / Editing Collage
 
 1. Window Controls
 2. Return Action
 3. Editing Title
-4. Exit Action
+4. Trailing Function Region
+   1. Collage Action：Open
+   2. Task Entry
+   3. Settings Entry
 
 #### Components
 
 - Window Controls：系统原生红绿灯
-- Player Circle Button / Standard：返回 Workbench
-- Icon Button
+- Icon Button / Default：返回 Workbench
+- Icon Button / Default
+- Information Badge / Task Count Badge
 - Tabs
 - Tab
-- Section Title
+- Editing Title：与 Tab / Selected 的 Label 相同，无 Selection Indicator
+
+#### Sizes
+
+- Height：`--height-app-topbar`
 
 #### Spacing
 
 - Trailing Margin：`--spacing-4`
-- Editing Title Content Gap：`--spacing-2`
+- Trailing Gap：`--spacing-1`
 - Window Controls 与 Return Action：与 Player Topbar Layout 同一位置
 
 #### Keyboard
