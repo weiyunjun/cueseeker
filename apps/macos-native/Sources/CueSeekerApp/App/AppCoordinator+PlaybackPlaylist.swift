@@ -309,13 +309,11 @@ extension AppCoordinator {
                 return nil
             }
             let item = items[ordinal]
-            let cueID = shiori.residentRelations.first {
-                $0.id == item.id
-            }?.cueID ?? (try? shioriDatabase?.cueID(forShioriID: item.id)) ?? nil
             return PlaybackPlaylistItem(
                 shiori: item,
-                cuePresentation: cueID.flatMap(cueContent.content(for:))
-                    .map(ShioriCuePresentation.init(cueContent:)),
+                cuePresentation: shioriPlaybackCuePresentation(
+                    shioriID: item.id
+                ),
                 ordinal: ordinal
             )
         case .explicitIDs(let shioriIDs):
@@ -335,13 +333,48 @@ extension AppCoordinator {
             }
             return PlaybackPlaylistItem(
                 shiori: item,
-                cuePresentation: shiori.residentRelations
-                    .first { $0.id == shioriID }
-                    .flatMap { cueContent.content(for: $0.cueID) }
-                    .map(ShioriCuePresentation.init(cueContent:)),
+                cuePresentation: shioriPlaybackCuePresentation(
+                    shioriID: shioriID
+                ),
                 ordinal: ordinal
             )
         }
+    }
+
+    /// The cue a saved Shiori stands for, as the playlist item needs it.
+    ///
+    /// The cue content store is filled when a Shiori list's table page loads,
+    /// and this lookup used to read nothing else. Playback started from Recent
+    /// never opens that page, so every item arrived carrying the line of text
+    /// saved with it and no cue identity at all — and the cue is what
+    /// `Save to Shiori` and `Copy Deep Link` are addressed by, so both answered
+    /// that there was no subtitle, while the rows showed one line where the cue
+    /// has two.
+    ///
+    /// So the store is a cache here rather than the only source: what it does
+    /// not hold is read from the database and kept, the way `shiori(withID:)`
+    /// already does for the Shiori itself. A list whose page has been opened
+    /// answers from memory as before and reads nothing.
+    private func shioriPlaybackCuePresentation(
+        shioriID: Int64
+    ) -> ShioriCuePresentation? {
+        let cueID = shiori.residentRelations.first {
+            $0.id == shioriID
+        }?.cueID ?? (try? shioriDatabase?.cueID(forShioriID: shioriID)) ?? nil
+        guard let cueID else {
+            return nil
+        }
+        if let content = cueContent.content(for: cueID) {
+            return ShioriCuePresentation(cueContent: content)
+        }
+        guard let content = try? CueContentDatabase(path: databaseURL)
+            .cueContents(forCueIDs: [cueID])
+            .first
+        else {
+            return nil
+        }
+        cueContent.install([content])
+        return ShioriCuePresentation(cueContent: content)
     }
 
     private func shioriTablePlaybackItem(

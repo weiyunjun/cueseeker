@@ -235,3 +235,74 @@ remembered save target on `列表 3`.
 
 No end-to-end capability was added. `scroll` at a stated coordinate and
 `capture` were enough; the before/after comparisons were read from the images.
+
+## Follow-up: the menu on a list opened from Recent
+
+Reported next: restart the App, open the first list under Recent Shioris, enter
+the Playback Overlay and press `S` — `No Subtitle`, on a list that plainly
+exists. Entering the same list by its cue from the Shiori page was fine.
+
+### Why
+
+A saved Shiori keeps the line of text it was saved with. Which cue that line
+belongs to is looked up separately, and the playlist item read that only from
+the cue content store — a store filled when a Shiori list's table page loads.
+Recent opens playback without ever opening that page, so the store was empty and
+every item arrived with its text and no cue at all. `Save to Shiori` and
+`Copy Deep Link` are addressed to a cue, so both answered `No Subtitle`, while
+`Copy Cue Text`, which needs only the text, worked. The rows showed the same
+gap: one line where the cue has two.
+
+The guard behind that sentence is not new — it is the same one the footer's save
+had before the destination menu. What is new is that it can be reached: 需求
+§7.4 removed the `already saved` reply that used to return first on exactly
+these items, and a Shiori playlist is nothing but saved cues, so that reply had
+been covering the missing cue on every one of them. 验收 14 asks for the menu
+here, so this is that acceptance item rather than a separate requirement.
+
+### What changed
+
+The store is a cache rather than the only source: `shioriPlaybackCuePresentation`
+resolves the Shiori's cue from memory when it is there, and otherwise reads it
+from the database and keeps it, the way `shiori(withID:)` already does for the
+Shiori itself. Both scopes that build a playlist item from a saved Shiori — the
+explicit list of IDs that Recent opens, and database order — now ask it, so the
+duplicated cue-ID lookup goes away with the gap. The table scope is unchanged:
+its page has the cue already. A list whose page has been opened still answers
+from memory and reads nothing.
+
+`Copy Deep Link` and the missing second row line come back with it. They are not
+extra scope: they were the same absent cue, and no code was written for them.
+
+### Verification
+
+`swift build` clean. `swift test`: 1142 tests, failing set unchanged from the
+runs above (native playback media and presentation, the Debug E2E scene and
+window tests, and the two known `CueGroupRefreshScopeIntegrationTests` —
+`shioriTableStartsAtTopAfterPanelRemount` and
+`showCueGroupInvalidationIsScopedToMountedShiori` — which fail the same way
+without this change; the library-removal and shared-persistence tests remain
+order-dependent). The suites this change can reach —
+`PlaybackPlaylistSourceTests`, `PlaybackEntryAndShioriNavigationTests`,
+`ShioriPresentationTests`, `PlaybackShioriOverlayTests`, `CueContentStoreTests`,
+`PlaybackMultiModuleOverlayIntegrationTests` — all pass.
+
+Debug E2E controller, against the real library. The bug first, on the build
+before the fix: Recent, the first Recent Shiori, Return into the Playback
+Overlay, `S` → `No Subtitle`; `X` → `No Subtitle`; `C` → `Cue Text Copied`; and
+every playlist row showed one line. That split is what named the cause.
+
+After the fix, from a fresh launch that opened on Recent, having opened no
+Shiori page:
+
+1. First Recent Shiori, Return, `S`: the menu opens on 列表 3, the remembered
+   list, and the rows now show both lines of each cue.
+2. `S` to close, `X`: `Deep Link Copied`.
+3. Back out, Shiori page, the same list, `Resume`, Return, `S`: the menu opens
+   the same way, so the path that already worked still does.
+
+Entering playback by clicking a cue row could not be driven from the controller
+— it takes a double click, which the controller does not post — so the table
+scope was left to the owner. It is the one scope this change does not touch.
+
+No end-to-end capability was added.
