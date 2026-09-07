@@ -431,3 +431,23 @@
 "task.empty.current" = "No task is running or waiting.";
 "task.empty.completed" = "No completed task yet.";
 "task.empty.incomplete" = "No incomplete task.";
+
+/* File page tabs and in-App rename */
+"file.section.index" = "Index";
+"file.section.edit" = "Edit";
+"rename.folder" = "Rename Folder";
+"rename.files" = "Rename Files";
+"rename.new_name" = "New Name";
+"rename.confirm" = "Rename";
+"rename.stage.checking" = "Checking for conflicts";
+"rename.stage.renaming" = "Renaming";
+"rename.validation.empty" = "Enter a name";
+"rename.validation.unchanged" = "The name is unchanged";
+"rename.validation.invalid" = "The name can't start with a period, end with a space or period, contain \\ / : * ? \" < > |, or be a Windows reserved name";
+"rename.error.files_changed" = "Files changed since the last index. Index again first";
+"rename.error.exists" = "“%@” already exists in this folder";
+"rename.error.pairing" = "Renaming to “%@” would change how videos and subtitles are paired";
+"rename.error.playing" = "The video is playing";
+"rename.error.export_queued" = "A queued export uses these files";
+"rename.error.rename_failed" = "Couldn’t rename “%@”. Files were restored";
+"rename.error.database_failed" = "Couldn’t update the database. Files were restored";

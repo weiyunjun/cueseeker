@@ -123,6 +123,17 @@ private struct ContentRootView: View {
                 .interfaceLayer(.dialog)
                 .interactiveDismissDisabled(true)
             }
+            .sheet(item: $libraryStore.renameSession) { session in
+                LibraryRenameDialog(
+                    session: session,
+                    onConfirm: {
+                        appState.confirmRename(session)
+                    },
+                    onClose: appState.closeRenameDialog
+                )
+                .interfaceLayer(.dialog)
+                .interactiveDismissDisabled(true)
+            }
             .sheet(isPresented: taskPanelPresentation) {
                 TaskPanel(tasks: tasks)
                     .interfaceLayer(.dialog)

@@ -217,26 +217,36 @@ private struct TaskCurrentCard: View {
 
                 Spacer(minLength: 0)
 
-                WorkbenchIconButton(
-                    systemImage: "xmark",
-                    isRedesign: true,
-                    action: onRemove
-                )
-                .help(L("task.confirm.remove.title"))
-                .accessibilityLabel(L("task.confirm.remove.title"))
-                .accessibilityIdentifier("task-remove-\(entry.id)")
+                // A running rename has no point at which stopping leaves the
+                // disk and the database agreeing, so it cannot be removed.
+                if !(entry.isRename && entry.record.state == .running) {
+                    WorkbenchIconButton(
+                        systemImage: "xmark",
+                        isRedesign: true,
+                        action: onRemove
+                    )
+                    .help(L("task.confirm.remove.title"))
+                    .accessibilityLabel(L("task.confirm.remove.title"))
+                    .accessibilityIdentifier("task-remove-\(entry.id)")
+                }
             }
 
-            TaskCardDetailText(entry.record.fileName)
-            TaskCardDetailText(entry.record.folderPath)
+            TaskCardPathLines(record: entry.record)
 
-            if entry.record.state == .running {
-                TaskProgressRow(
-                    progress: entry.progress,
-                    itemCount: entry.record.itemCount
-                )
-            } else {
-                TaskCardDetailText(L("task.card_count", entry.record.itemCount))
+            switch entry.record.kind {
+            case .ankiExport:
+                if entry.record.state == .running {
+                    TaskProgressRow(
+                        progress: entry.progress,
+                        itemCount: entry.record.itemCount
+                    )
+                } else {
+                    TaskCardDetailText(L("task.card_count", entry.record.itemCount))
+                }
+            case .renameFolder, .renameFiles:
+                if entry.record.state == .running {
+                    TaskRenameProgressRow(progress: entry.progress)
+                }
             }
         }
     }
@@ -270,13 +280,42 @@ private struct TaskProgressRow: View {
     let itemCount: Int
 
     var body: some View {
+        TaskProgressBarRow(
+            text: L("task.progress.exported", progress.exportedCount, itemCount),
+            fraction: fraction
+        )
+    }
+
+    private var fraction: Double {
+        guard itemCount > 0 else {
+            return 0
+        }
+        return min(1, Double(progress.exportedCount) / Double(itemCount))
+    }
+}
+
+/// The stage and the bar for the running rename: each stage is half.
+private struct TaskRenameProgressRow: View {
+    @ObservedObject var progress: TaskProgressModel
+
+    var body: some View {
+        TaskProgressBarRow(
+            text: progress.renameStage.label,
+            fraction: progress.renameStage.fraction
+        )
+    }
+}
+
+private struct TaskProgressBarRow: View {
+    let text: String
+    let fraction: Double
+
+    var body: some View {
         VStack(
             alignment: .leading,
             spacing: WorkbenchControlMetrics.redesignSpacing1
         ) {
-            TaskCardDetailText(
-                L("task.progress.exported", progress.exportedCount, itemCount)
-            )
+            TaskCardDetailText(text)
 
             GeometryReader { proxy in
                 ZStack(alignment: .leading) {
@@ -291,13 +330,6 @@ private struct TaskProgressRow: View {
             .frame(height: WorkbenchControlMetrics.redesignTaskProgressBarHeight)
             .accessibilityIdentifier("task-progress-bar")
         }
-    }
-
-    private var fraction: Double {
-        guard itemCount > 0 else {
-            return 0
-        }
-        return min(1, Double(progress.exportedCount) / Double(itemCount))
     }
 }
 
@@ -328,11 +360,12 @@ private struct TaskHistoryCard: View {
                 .accessibilityIdentifier("task-delete-\(record.id)")
             }
 
-            TaskCardDetailText(record.fileName)
-            TaskCardDetailText(record.folderPath)
+            TaskCardPathLines(record: record)
 
             HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
-                TaskCardDetailText(L("task.card_count", record.itemCount))
+                if record.kind == .ankiExport {
+                    TaskCardDetailText(L("task.card_count", record.itemCount))
+                }
 
                 Spacer(minLength: 0)
 
@@ -350,6 +383,35 @@ private struct TaskHistoryCard: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
+    }
+}
+
+/// What the task wrote or moved: the package and its folder for an export;
+/// the old and the new name for a folder rename; every file's old path and
+/// then every file's new path for a group rename, one per line.
+private struct TaskCardPathLines: View {
+    let record: TaskRecord
+
+    var body: some View {
+        switch record.kind {
+        case .ankiExport:
+            TaskCardDetailText(record.fileName)
+            TaskCardDetailText(record.folderPath)
+        case .renameFolder:
+            ForEach(names(of: record.oldPaths) + names(of: record.newPaths), id: \.offset) {
+                TaskCardDetailText($0.element)
+            }
+        case .renameFiles:
+            ForEach(Array((record.oldPaths + record.newPaths).enumerated()), id: \.offset) {
+                TaskCardDetailText($0.element)
+            }
+        }
+    }
+
+    private func names(of paths: [String]) -> [(offset: Int, element: String)] {
+        paths.map { URL(fileURLWithPath: $0).lastPathComponent }
+            .enumerated()
+            .map { ($0.offset, $0.element) }
     }
 }
 
@@ -407,6 +469,10 @@ extension TaskRecordKind {
         switch self {
         case .ankiExport:
             L("task.name.anki_export")
+        case .renameFolder:
+            L("rename.folder")
+        case .renameFiles:
+            L("rename.files")
         }
     }
 }

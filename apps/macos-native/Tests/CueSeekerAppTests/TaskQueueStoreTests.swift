@@ -16,18 +16,28 @@ private let neverFinishingExport: TaskExportRunner = { _, _, _ in
     try await Task.sleep(nanoseconds: .max)
 }
 
+private let neverFinishingRename: TaskRenameRunner = { _, _ in
+    try await Task.sleep(nanoseconds: .max)
+}
+
 @MainActor
 private func makeTaskQueueStore(
-    runExport: @escaping TaskExportRunner = neverFinishingExport
+    runExport: @escaping TaskExportRunner = neverFinishingExport,
+    runRename: @escaping TaskRenameRunner = neverFinishingRename
 ) throws -> (TaskQueueStore, URL) {
     let databaseURL = taskQueueTestDatabaseURL()
     try DatabaseBootstrap.prepare(at: databaseURL)
     let database = try TaskRecordDatabase(path: databaseURL)
     return (
-        TaskQueueStore(database: database, runExport: runExport),
+        TaskQueueStore(database: database, runExport: runExport, runRename: runRename),
         databaseURL
     )
 }
+
+private let showFolderRename = LibraryRenameRequest.folder(
+    path: "/Videos/Show",
+    newName: "Show Renamed"
+)
 
 /// Runs the main actor until `condition` holds, so a test can wait on the
 /// queue's own completion instead of guessing at a delay.
@@ -374,4 +384,96 @@ func theQueueKeepsGoingAfterTheRunningTaskIsRemoved() async throws {
 
     #expect(store.current.map(\.record.fileName) == ["Second.apkg"])
     #expect(store.current.first?.record.state == .running)
+}
+
+/// The rename's two stages each reach the panel, and the finished task keeps
+/// the paths it was queued with.
+@MainActor
+@Test
+func aRenameReportsItsStagesAndCompletes() async throws {
+    let (store, databaseURL) = try makeTaskQueueStore(runRename: { _, onStage in
+        onStage(.renaming)
+    })
+    defer { try? FileManager.default.removeItem(at: databaseURL) }
+
+    store.enqueueRename(
+        showFolderRename,
+        oldPaths: ["/Videos/Show"],
+        newPaths: ["/Videos/Show Renamed"]
+    )
+    let progress = try #require(store.current.first?.progress)
+    #expect(store.current.first?.record.kind == .renameFolder)
+
+    await waitUntil { store.current.isEmpty }
+
+    #expect(progress.renameStage == .renaming)
+    #expect(store.completed.map(\.kind) == [.renameFolder])
+    #expect(store.completed.first?.oldPaths == ["/Videos/Show"])
+    #expect(store.completed.first?.newPaths == ["/Videos/Show Renamed"])
+}
+
+@MainActor
+@Test
+func aRefusedRenameCarriesTheConflictItHit() async throws {
+    let (store, databaseURL) = try makeTaskQueueStore(runRename: { _, _ in
+        throw LibraryRenameConflict.destinationExists(name: "Show Renamed")
+    })
+    defer { try? FileManager.default.removeItem(at: databaseURL) }
+
+    store.enqueueRename(showFolderRename, oldPaths: ["/Videos/Show"], newPaths: ["/Videos/Show Renamed"])
+    await waitUntil { store.current.isEmpty }
+
+    #expect(store.incomplete.first?.errorMessage == L("rename.error.exists", "Show Renamed"))
+}
+
+/// An export queued behind the rename holds the paths it was given; renaming
+/// them first would only make it fail, so the rename gives way.
+@MainActor
+@Test
+func aRenameGivesWayToAQueuedExportOfItsFiles() async throws {
+    let (store, databaseURL) = try makeTaskQueueStore(
+        runExport: { _, _, _ in },
+        runRename: { _, _ in }
+    )
+    defer { try? FileManager.default.removeItem(at: databaseURL) }
+
+    store.enqueueAnkiExport(
+        items: exportItems(1),
+        destinationURL: URL(fileURLWithPath: "/Exports/First.apkg")
+    )
+    store.enqueueRename(showFolderRename, oldPaths: ["/Videos/Show"], newPaths: ["/Videos/Show Renamed"])
+    store.enqueueAnkiExport(
+        items: [
+            AnkiExportItem(
+                deckDisplayTitle: "Show",
+                videoPath: "/Videos/Show/EP01.mkv",
+                startMilliseconds: 0,
+                endMilliseconds: 500,
+                text: "line"
+            )
+        ],
+        destinationURL: URL(fileURLWithPath: "/Exports/Second.apkg")
+    )
+
+    await waitUntil { store.current.isEmpty }
+
+    #expect(store.completed.map(\.fileName) == ["First.apkg", "Second.apkg"])
+    #expect(store.incomplete.map(\.kind) == [.renameFolder])
+    #expect(store.incomplete.first?.errorMessage == L("rename.error.export_queued"))
+}
+
+@MainActor
+@Test
+func aRunningRenameCannotBeRemoved() throws {
+    let (store, databaseURL) = try makeTaskQueueStore()
+    defer { try? FileManager.default.removeItem(at: databaseURL) }
+
+    store.enqueueRename(showFolderRename, oldPaths: ["/Videos/Show"], newPaths: ["/Videos/Show Renamed"])
+    let running = try #require(store.current.first)
+    #expect(running.record.state == .running)
+
+    store.removeCurrentTask(id: running.id)
+
+    #expect(store.current.map(\.id) == [running.id])
+    #expect(store.incomplete.isEmpty)
 }

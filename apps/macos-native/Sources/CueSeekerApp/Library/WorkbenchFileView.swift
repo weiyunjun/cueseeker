@@ -2,33 +2,40 @@ import AppKit
 import CueSeekerCore
 import SwiftUI
 
-/// The File primary page. It owns the indexed root folders and the indexing
-/// controls that used to live in the Settings window's Library category.
+/// The File primary page: the Index tab owns the indexed root folders and the
+/// indexing controls; the Edit tab shows every indexed folder and renames
+/// folders and file groups in place.
 struct WorkbenchFileView: View {
     // Observed so the copy below is re-read when the language changes.
     @EnvironmentObject private var localization: AppLocalizationStore
     @EnvironmentObject private var appState: AppCoordinator
     @EnvironmentObject private var indexing: IndexingStore
+    @EnvironmentObject private var routeState: WorkbenchRouteState
+    @EnvironmentObject private var library: LibraryStore
+    /// Observed because a rename that is running or waiting disables the
+    /// Index tab's folder controls.
+    @ObservedObject var tasks: TaskQueueStore
     @State private var isChoosingFolder = false
 
     var body: some View {
+        // The menu belongs to the page, not to one tab of it, so the page
+        // hosts it; switching tabs closes it.
+        LibraryCardContextMenuHost(
+            interfaceID: routeState.selectedFileSection.rawValue
+        ) { _ in
         GeometryReader { geometry in
             WorkbenchScrollView([.vertical, .horizontal]) {
                 VStack(alignment: .leading, spacing: 0) {
-                    pageDescription
+                    sectionTabs
 
-                    actionRow
-                        .padding(.top, WorkbenchControlMetrics.redesignSpacing4)
-
-                    // Nothing has been indexed yet: the status region takes no
-                    // room at all rather than reserving an empty band.
-                    if hasStatus {
-                        statusView
+                    switch routeState.selectedFileSection {
+                    case .index:
+                        indexContent
+                            .padding(.top, WorkbenchControlMetrics.redesignSpacing4)
+                    case .edit:
+                        editContent
                             .padding(.top, WorkbenchControlMetrics.redesignSpacing4)
                     }
-
-                    folderRegion
-                        .padding(.top, WorkbenchControlMetrics.redesignSpacing6)
                 }
                 .workbenchPageInlinePadding()
                 .padding(.top, WorkbenchControlMetrics.redesignWorkbenchPageTopPadding)
@@ -43,7 +50,52 @@ struct WorkbenchFileView: View {
                 .frame(minHeight: geometry.size.height, alignment: .topLeading)
             }
         }
+        }
         .background(WorkbenchRedesignColors.bgSurface)
+    }
+
+    /// The same Tabs as the Recent page, flush with the content's left edge.
+    private var sectionTabs: some View {
+        WorkbenchTabs(
+            items: WorkbenchFileSection.allCases.map {
+                .init(
+                    value: $0,
+                    label: $0.label,
+                    accessibilityIdentifier: "file-segment-\($0.rawValue)"
+                )
+            },
+            selection: routeState.selectedFileSection,
+            isLeadingEdgeAligned: true
+        ) { section in
+            appState.workbenchLayout.selectFileSection(section)
+        }
+    }
+
+    // MARK: - Index
+
+    private var indexContent: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            pageDescription
+
+            actionRow
+                .padding(.top, WorkbenchControlMetrics.redesignSpacing4)
+
+            // Nothing has been indexed yet: the status region takes no
+            // room at all rather than reserving an empty band.
+            if hasStatus {
+                statusView
+                    .padding(.top, WorkbenchControlMetrics.redesignSpacing4)
+            }
+
+            folderRegion
+                .padding(.top, WorkbenchControlMetrics.redesignSpacing6)
+        }
+    }
+
+    /// The folder controls wait for an Index, a removal, a compaction, and for
+    /// any rename that is running or waiting.
+    private var isFolderOperationBlocked: Bool {
+        indexing.isLibraryFolderOperationActive || tasks.hasRenameTasks
     }
 
     private var pageDescription: some View {
@@ -66,7 +118,7 @@ struct WorkbenchFileView: View {
             ) {
                 chooseFolder()
             }
-            .disabled(indexing.isLibraryFolderOperationActive || isChoosingFolder)
+            .disabled(isFolderOperationBlocked || isChoosingFolder)
 
             WorkbenchButton(
                 title: L("settings.library.index_now"),
@@ -77,7 +129,7 @@ struct WorkbenchFileView: View {
             }
             .disabled(
                 indexing.selectedFolders.isEmpty
-                    || indexing.isLibraryFolderOperationActive
+                    || isFolderOperationBlocked
             )
         }
     }
@@ -136,7 +188,7 @@ struct WorkbenchFileView: View {
             ) {
                 requestRemoval(of: folder)
             }
-            .disabled(indexing.isLibraryFolderOperationActive)
+            .disabled(isFolderOperationBlocked)
         }
         .padding(.vertical, WorkbenchControlMetrics.redesignSpacing3)
     }
@@ -378,5 +430,44 @@ struct WorkbenchFileView: View {
             L("settings.library.missing_videos", result.skippedMissingVideo),
             L("settings.library.unreadable", result.skippedUnreadableSubtitle)
         ].joined(separator: " · ")
+    }
+
+    // MARK: - Edit
+
+    /// Every indexed folder at its full path, in the order the Metadata tree
+    /// lists them with the root level removed. A root that holds pairs of its
+    /// own is a folder like any other here.
+    private var editFolders: [IndexedContentFolder] {
+        library.fileTreeRoots.flatMap(\.folders)
+    }
+
+    @ViewBuilder
+    private var editContent: some View {
+        Group {
+            if case .loading = library.fileTreeStatus, library.fileTreeRoots.isEmpty {
+                ProgressView()
+                    .controlSize(.small)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+            } else if case .failed(let message) = library.fileTreeStatus {
+                WorkbenchEmptyHint(message: message)
+            } else if editFolders.isEmpty {
+                WorkbenchEmptyHint(message: L("library.file.empty"))
+            } else {
+                LibraryFileTree(
+                    scope: .editFolders(editFolders),
+                    renameActions: LibraryFileTreeRenameActions(
+                        isEnabled: !indexing.isLibraryFolderOperationActive,
+                        renameFolder: appState.requestFolderRename,
+                        renameFiles: appState.requestFileGroupRename
+                    )
+                )
+            }
+        }
+        .task {
+            appState.hydrateCompleteLibraryAsync()
+        }
+        .task(id: library.completeLibraryRevision) {
+            appState.hydrateLibraryFileTreeAsync()
+        }
     }
 }

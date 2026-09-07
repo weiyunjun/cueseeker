@@ -48,6 +48,24 @@ final class IndexingStore: ObservableObject {
         persistSelectedFolders()
     }
 
+    /// A root that was renamed in the App, or sits inside a folder that was,
+    /// keeps its place in the list under its new path.
+    func replaceFolderPathPrefix(_ oldPath: String, with newPath: String) {
+        let oldPrefix = oldPath + "/"
+        selectedFolders = selectedFolders.map { folder in
+            let path = folder.path
+            if path == oldPath {
+                return URL(fileURLWithPath: newPath).standardizedFileURL
+            }
+            if path.hasPrefix(oldPrefix) {
+                return URL(fileURLWithPath: newPath + path.dropFirst(oldPath.count))
+                    .standardizedFileURL
+            }
+            return folder
+        }
+        persistSelectedFolders()
+    }
+
     var isLibraryFolderOperationActive: Bool {
         indexingStatus.isIndexing
             || folderRemovalStatus.isRemoving

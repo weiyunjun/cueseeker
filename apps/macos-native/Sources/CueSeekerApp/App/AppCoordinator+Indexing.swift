@@ -461,7 +461,7 @@ extension AppCoordinator {
         }
     }
 
-    private func applyPublishedIndexMutation(
+    func applyPublishedIndexMutation(
         _ result: SubtitleIndexingResult,
         shioriFallbackFolders: [URL]
     ) {

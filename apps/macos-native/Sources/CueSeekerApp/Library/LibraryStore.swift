@@ -28,6 +28,7 @@ final class LibraryStore: ObservableObject {
     @Published var libraryPlaybackHistoryRevision = 0
     @Published var selectedLibraryVideo: LibraryVideo?
     @Published var coverEditingSession: LibraryCoverEditingSession?
+    @Published var renameSession: LibraryRenameSession?
     var libraryPlaybackNavigationVideos: [LibraryVideo] = []
 
     func applyUserCoverSave(

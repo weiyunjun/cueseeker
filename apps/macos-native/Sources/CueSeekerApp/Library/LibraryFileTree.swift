@@ -1,15 +1,30 @@
 import SwiftUI
 import CueSeekerCore
 
+/// What the Edit tree's context menus do. The tree shows the menus only when
+/// it is given these.
+struct LibraryFileTreeRenameActions {
+    /// Off while an Index, a root removal or a compaction runs.
+    let isEnabled: Bool
+    let renameFolder: (IndexedContentFolder) -> Void
+    let renameFiles: (IndexedContentObject) -> Void
+}
+
 /// The Library File tree. The overview shows every root path, a folder detail
-/// shows only its own folder, and both use this one implementation.
+/// shows only its own folder, the File page's Edit tab shows every folder at
+/// its full path, and all three use this one implementation.
 struct LibraryFileTree: View {
     enum Scope: Equatable {
         case roots([IndexedContentRoot])
         case folder(IndexedContentFolder)
+        /// Every indexed folder, labelled with its complete path and without
+        /// the root level above it.
+        case editFolders([IndexedContentFolder])
     }
 
     let scope: Scope
+    var renameActions: LibraryFileTreeRenameActions? = nil
+    @Environment(\.libraryCardContextMenuOpen) private var openContextMenu
     /// The rows the reader flipped away from their default disclosure. Rows
     /// keep their default until then, so no state has to be seeded when the
     /// tree arrives.
@@ -24,6 +39,10 @@ struct LibraryFileTree: View {
                 }
             case .folder(let folder):
                 folderRows(folder, level: 0, isExpandedByDefault: true)
+            case .editFolders(let folders):
+                ForEach(folders) { folder in
+                    editFolderRows(folder)
+                }
             }
         }
         .frame(maxWidth: .infinity, alignment: .topLeading)
@@ -84,6 +103,67 @@ struct LibraryFileTree: View {
         }
     }
 
+    @ViewBuilder
+    private func editFolderRows(_ folder: IndexedContentFolder) -> some View {
+        let isFolderExpanded = isExpanded(.folder(folder.id), byDefault: false)
+
+        LibraryFileTreeRow(
+            level: 0,
+            title: folder.folderPath,
+            systemImage: "folder",
+            isExpanded: isFolderExpanded,
+            isFile: false,
+            isHoverEnabled: true,
+            onToggle: { toggle(.folder(folder.id)) }
+        )
+        .libraryFileTreeContextMenu(
+            items: folderMenuItems(folder),
+            ownerID: "edit-folder-\(folder.id)",
+            open: openContextMenu
+        )
+
+        if isFolderExpanded {
+            ForEach(folder.objects) { object in
+                LibraryFileTreeObjectGroup(
+                    object: object,
+                    level: 1,
+                    isExpanded: isExpanded(.object(object.id), byDefault: false),
+                    showsDivider: object.id != folder.objects.last?.id,
+                    onToggle: { toggle(.object(object.id)) },
+                    contextMenuItems: objectMenuItems(object)
+                )
+            }
+        }
+    }
+
+    private func folderMenuItems(_ folder: IndexedContentFolder) -> [LibraryCardContextMenuItem]? {
+        renameActions.map { actions in
+            [
+                LibraryCardContextMenuItem(
+                    title: L("rename.folder"),
+                    systemImage: "pencil",
+                    isEnabled: actions.isEnabled
+                ) {
+                    actions.renameFolder(folder)
+                }
+            ]
+        }
+    }
+
+    private func objectMenuItems(_ object: IndexedContentObject) -> [LibraryCardContextMenuItem]? {
+        renameActions.map { actions in
+            [
+                LibraryCardContextMenuItem(
+                    title: L("rename.files"),
+                    systemImage: "pencil",
+                    isEnabled: actions.isEnabled
+                ) {
+                    actions.renameFiles(object)
+                }
+            ]
+        }
+    }
+
     private func isExpanded(_ row: RowID, byDefault defaultValue: Bool) -> Bool {
         defaultValue != toggledRows.contains(row)
     }
@@ -111,6 +191,9 @@ private struct LibraryFileTreeObjectGroup: View {
     let isExpanded: Bool
     let showsDivider: Bool
     let onToggle: () -> Void
+    /// The Edit tree's menu; the object row and its file rows all open it.
+    var contextMenuItems: [LibraryCardContextMenuItem]? = nil
+    @Environment(\.libraryCardContextMenuOpen) private var openContextMenu
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -123,6 +206,11 @@ private struct LibraryFileTreeObjectGroup: View {
                 isHoverEnabled: true,
                 onToggle: onToggle
             )
+            .libraryFileTreeContextMenu(
+                items: contextMenuItems,
+                ownerID: "edit-object-\(object.id)",
+                open: openContextMenu
+            )
 
             if isExpanded {
                 LibraryFileTreeRow(
@@ -134,6 +222,11 @@ private struct LibraryFileTreeObjectGroup: View {
                     isHoverEnabled: true,
                     onToggle: nil
                 )
+                .libraryFileTreeContextMenu(
+                    items: contextMenuItems,
+                    ownerID: "edit-video-\(object.id)",
+                    open: openContextMenu
+                )
 
                 ForEach(object.subtitles) { subtitle in
                     LibraryFileTreeRow(
@@ -144,6 +237,11 @@ private struct LibraryFileTreeObjectGroup: View {
                         isFile: true,
                         isHoverEnabled: true,
                         onToggle: nil
+                    )
+                    .libraryFileTreeContextMenu(
+                        items: contextMenuItems,
+                        ownerID: "edit-subtitle-\(subtitle.id)",
+                        open: openContextMenu
                     )
                 }
             }
@@ -159,6 +257,28 @@ private struct LibraryFileTreeObjectGroup: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .topLeading)
+    }
+}
+
+private extension View {
+    /// The card context menu on a tree row, when the tree has one to offer and
+    /// sits inside a host that can open it.
+    @ViewBuilder
+    func libraryFileTreeContextMenu(
+        items: [LibraryCardContextMenuItem]?,
+        ownerID: String,
+        open: (([LibraryCardContextMenuItem], CGPoint, String) -> Void)?
+    ) -> some View {
+        if let items, let open {
+            libraryCardContextMenuTrigger(
+                isEnabled: true,
+                ownerID: ownerID,
+                items: items,
+                openContextMenu: open
+            )
+        } else {
+            self
+        }
     }
 }
 

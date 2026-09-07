@@ -63,8 +63,24 @@ enum WorkbenchRecentSection: String, CaseIterable {
     }
 }
 
-/// One Workbench page, the way the history remembers it. The Recent tab, the
-/// Video / Metadata segments and the search text are not part of the page.
+/// The two Tabs of the File page.
+enum WorkbenchFileSection: String, CaseIterable {
+    case index
+    case edit
+
+    var label: String {
+        switch self {
+        case .index:
+            L("file.section.index")
+        case .edit:
+            L("file.section.edit")
+        }
+    }
+}
+
+/// One Workbench page, the way the history remembers it. The Recent and File
+/// tabs, the Video / Metadata segments and the search text are not part of
+/// the page.
 @MainActor
 enum WorkbenchRoute: Equatable {
     case search
@@ -138,6 +154,14 @@ final class WorkbenchRouteState: ObservableObject {
     @Published fileprivate(set) var selectedRecentSection: WorkbenchRecentSection = .videos {
         didSet {
             if selectedRecentSection != oldValue {
+                AppPointerShape.reset()
+            }
+        }
+    }
+    /// Kept the same way as the Recent tab.
+    @Published fileprivate(set) var selectedFileSection: WorkbenchFileSection = .index {
+        didSet {
+            if selectedFileSection != oldValue {
                 AppPointerShape.reset()
             }
         }
@@ -231,6 +255,10 @@ final class WorkbenchLayoutState: ObservableObject {
         route.selectedRecentSection
     }
 
+    var selectedFileSection: WorkbenchFileSection {
+        route.selectedFileSection
+    }
+
     /// Shows a page as one new step of the history, dropping whatever could
     /// have been reached with Forward. Showing the page already shown is not
     /// a step.
@@ -296,6 +324,10 @@ final class WorkbenchLayoutState: ObservableObject {
 
     func selectRecentSection(_ section: WorkbenchRecentSection) {
         route.selectedRecentSection = section
+    }
+
+    func selectFileSection(_ section: WorkbenchFileSection) {
+        route.selectedFileSection = section
     }
 
     func beginVideoSizeTransition() -> Bool {

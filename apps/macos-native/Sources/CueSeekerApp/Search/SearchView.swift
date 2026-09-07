@@ -89,7 +89,7 @@ struct SearchView: View {
                 case .testLibrary:
                     WorkbenchTestLibraryView()
                 case .file:
-                    WorkbenchFileView()
+                    WorkbenchFileView(tasks: appState.tasks)
                 case .search:
                     workbenchSearchSurface
                 }

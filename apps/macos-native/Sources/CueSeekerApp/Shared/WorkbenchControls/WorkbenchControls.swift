@@ -65,6 +65,9 @@ enum WorkbenchControlMetrics {
     /// the cap line for the title's top, the visible border for a control, and
     /// the glyph ink for an icon button.
     static let redesignDialogInset: CGFloat = 24
+    /// The width of a dialog's form column: the Shiori List Editor's, and the
+    /// rename dialog's, which is that column on its own.
+    static let redesignDialogFormRegionWidth: CGFloat = 340
     /// Dialog title type. The cap-line give-back below is derived from it, so
     /// the two must stay together.
     static let redesignDialogTitleFontSize: CGFloat = 20

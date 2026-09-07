@@ -135,7 +135,7 @@ struct ShioriListEditorDialog: View {
                     .frame(width: 380)
 
                 formRegion
-                    .frame(width: 340)
+                    .frame(width: WorkbenchControlMetrics.redesignDialogFormRegionWidth)
             }
 
             actions

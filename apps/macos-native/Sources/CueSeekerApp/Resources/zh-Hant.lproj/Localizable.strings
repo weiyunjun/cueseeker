@@ -431,3 +431,23 @@
 "task.empty.current" = "沒有正在進行或等待中的任務。";
 "task.empty.completed" = "還沒有已完成的任務。";
 "task.empty.incomplete" = "沒有未完成的任務。";
+
+/* File page tabs and in-App rename */
+"file.section.index" = "索引";
+"file.section.edit" = "編輯";
+"rename.folder" = "重新命名資料夾";
+"rename.files" = "重新命名檔案";
+"rename.new_name" = "新名稱";
+"rename.confirm" = "重新命名";
+"rename.stage.checking" = "正在檢查衝突";
+"rename.stage.renaming" = "正在重新命名";
+"rename.validation.empty" = "請輸入名稱";
+"rename.validation.unchanged" = "名稱未變更";
+"rename.validation.invalid" = "名稱不能以 . 開頭，不能以空格或 . 結尾，不能包含 \\ / : * ? \" < > |，也不能是 Windows 保留名稱";
+"rename.error.files_changed" = "檔案在上次索引後已變更，請先重新索引";
+"rename.error.exists" = "資料夾中已存在「%@」";
+"rename.error.pairing" = "改為「%@」會改變影片與字幕的配對關係";
+"rename.error.playing" = "該影片正在播放";
+"rename.error.export_queued" = "排隊中的匯出任務正在使用這些檔案";
+"rename.error.rename_failed" = "無法重新命名「%@」，檔案已還原";
+"rename.error.database_failed" = "無法更新資料庫，檔案已還原";

@@ -541,6 +541,7 @@ final class AppCoordinator: ObservableObject {
             )
         }
         libraryPlaybackHistoryWriter = LibraryPlaybackHistoryWriter(database: openedLibraryDatabase)
+        configureRenameRunner()
 
         if let initialError {
             startupError = Self.errorMessage(for: initialError)
