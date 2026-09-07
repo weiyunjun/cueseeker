@@ -28,6 +28,7 @@
 "topbar.forward" = "前进";
 "topbar.hide_sidebar" = "隐藏边栏";
 "topbar.show_sidebar" = "显示边栏";
+"topbar.settings" = "设置";
 "sidebar.search" = "搜索";
 "sidebar.recent" = "最近";
 "sidebar.recent_videos" = "最近视频";
@@ -35,7 +36,6 @@
 "sidebar.library" = "媒体库";
 "sidebar.file" = "文件";
 "sidebar.shiori" = "Shiori";
-"sidebar.settings" = "设置";
 "page.unknown.title" = "未知页面";
 "page.unknown.message" = "该页面已不存在";
 
@@ -255,6 +255,9 @@
 "playback.episodes_empty" = "还没有剧集。";
 "playback.video_count" = "%d 个视频";
 "playback.shiori_count" = "%d 个 Shiori";
+
+/* Settings window */
+"settings.window.title" = "设置";
 
 /* Settings categories */
 "settings.category.play" = "播放";

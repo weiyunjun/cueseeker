@@ -275,7 +275,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     @objc private func applyLanguageChange(_ notification: Notification) {
         configureMainMenu()
         window?.title = L("app.name")
-        settingsWindow?.title = L("sidebar.settings")
+        settingsWindow?.title = L("settings.window.title")
     }
 
     @objc private func showSettingsFromNotification(_ notification: Notification) {
@@ -284,9 +284,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     @objc private func showSettings(_ sender: Any?) {
         appState.workbenchLayout.clearSearchFocus()
+        appState.workbenchLayout.isSettingsWindowOpen = true
 
         if let settingsWindow {
-            settingsWindow.makeKeyAndOrderFront(sender)
+            // Ordering a window that sits in the Dock to the front draws it at
+            // its own place for a frame before the system notices it is still
+            // minimised, so the restore has to be asked for on its own.
+            if settingsWindow.isMiniaturized {
+                settingsWindow.deminiaturize(sender)
+            } else {
+                settingsWindow.makeKeyAndOrderFront(sender)
+            }
             NSApp.activate(ignoringOtherApps: true)
             return
         }
@@ -314,7 +322,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             backing: .buffered,
             defer: false
         )
-        settingsWindow.title = L("sidebar.settings")
+        settingsWindow.title = L("settings.window.title")
         settingsWindow.titleVisibility = .hidden
         settingsWindow.titlebarAppearsTransparent = true
         settingsWindow.minSize = NSSize(
@@ -326,7 +334,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         settingsWindow.center()
         settingsWindow.makeKeyAndOrderFront(sender)
         self.settingsWindow = settingsWindow
+        // The topbar's Settings button stays lit while this window is open, so
+        // the window's own close is what puts it out again.
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(settingsWindowWillClose(_:)),
+            name: NSWindow.willCloseNotification,
+            object: settingsWindow
+        )
         NSApp.activate(ignoringOtherApps: true)
+    }
+
+    @objc private func settingsWindowWillClose(_ notification: Notification) {
+        appState.workbenchLayout.isSettingsWindowOpen = false
     }
 
     func windowWillEnterFullScreen(_ notification: Notification) {

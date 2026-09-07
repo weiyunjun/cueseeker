@@ -206,14 +206,18 @@ private struct AppTopBar: View {
                 }
             }
         } trailingContent: {
-            TaskEntryButton(
-                tasks: appState.tasks,
-                onOpen: {
-                    appState.performUserInitiatedAppCommand {
-                        appState.tasks.openPanel()
+            HStack(spacing: WorkbenchControlMetrics.redesignSpacing1) {
+                TaskEntryButton(
+                    tasks: appState.tasks,
+                    onOpen: {
+                        appState.performUserInitiatedAppCommand {
+                            appState.tasks.openPanel()
+                        }
                     }
-                }
-            )
+                )
+
+                settingsButton
+            }
         } sidebarToggle: {
             sidebarToggle
         }
@@ -270,6 +274,27 @@ private struct AppTopBar: View {
         .help(L("topbar.forward"))
         .accessibilityLabel(L("topbar.forward"))
         .accessibilityIdentifier("topbar-forward")
+    }
+
+    /// The Settings window's entry. It is the Task entry's component and
+    /// states: an Icon Button that stays lit for as long as the surface it
+    /// opens is open, including while that window sits in the Dock.
+    private var settingsButton: some View {
+        WorkbenchIconButton(
+            systemImage: "gearshape",
+            isRedesign: true,
+            isOpen: layoutState.isSettingsWindowOpen
+        ) {
+            appState.performUserInitiatedAppCommand {
+                NotificationCenter.default.post(name: .cueSeekerShowSettings, object: nil)
+            }
+        }
+        // App chrome, like the Task entry beside it: it must not be the control
+        // the window hands focus to on launch.
+        .focusable(false)
+        .help(L("topbar.settings"))
+        .accessibilityLabel(L("topbar.settings"))
+        .accessibilityIdentifier("topbar-settings-button")
     }
 
     private var sidebarToggle: some View {
@@ -388,14 +413,6 @@ private struct AppSidebar: View {
                     appState.activateWorkbenchPanelMode(.shiori)
                 }
             }
-
-            Spacer(minLength: 0)
-
-            AppSidebarSettingsItem {
-                appState.performUserInitiatedAppCommand {
-                    NotificationCenter.default.post(name: .cueSeekerShowSettings, object: nil)
-                }
-            }
         }
         // The Sidebar keeps clear of the window controls, not of the topbar,
         // so its items stay put when the topbar is taller than that band.
@@ -448,25 +465,6 @@ private struct AppSidebarNavigationItem: View {
     }
 }
 
-private struct AppSidebarSettingsItem: View {
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            AppSidebarItemLabel(
-                systemImage: "gearshape",
-                label: L("sidebar.settings"),
-                isSelected: false
-            )
-        }
-        .buttonStyle(AppSidebarItemButtonStyle(isSelected: false))
-        .subtitleTableTextSelectionInteractiveRegion()
-        .focusable(false)
-        .help(L("sidebar.settings"))
-        .accessibilityLabel(L("sidebar.settings"))
-    }
-}
-
 private struct AppSidebarItemLabel: View {
     let systemImage: String
     let label: String
@@ -509,21 +507,6 @@ private struct AppSidebarItemLabel: View {
         isSelected
             ? WorkbenchRedesignColors.appSidebarItemSelectedContent
             : WorkbenchRedesignColors.textPrimary
-    }
-}
-
-private struct AppSidebarItemButtonStyle: ButtonStyle {
-    let isSelected: Bool
-
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .background(
-                RoundedRectangle(
-                    cornerRadius: WorkbenchControlMetrics.redesignAppSidebarItemRadius,
-                    style: .continuous
-                )
-                .fill(isSelected ? WorkbenchRedesignColors.appSidebarItemSelectedBg : Color.clear)
-            )
     }
 }
 

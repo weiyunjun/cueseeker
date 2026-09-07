@@ -28,6 +28,7 @@
 "topbar.forward" = "前進";
 "topbar.hide_sidebar" = "隱藏側邊欄";
 "topbar.show_sidebar" = "顯示側邊欄";
+"topbar.settings" = "設定";
 "sidebar.search" = "搜尋";
 "sidebar.recent" = "最近";
 "sidebar.recent_videos" = "最近影片";
@@ -35,7 +36,6 @@
 "sidebar.library" = "媒體庫";
 "sidebar.file" = "檔案";
 "sidebar.shiori" = "Shiori";
-"sidebar.settings" = "設定";
 "page.unknown.title" = "未知頁面";
 "page.unknown.message" = "該頁面已不存在";
 
@@ -255,6 +255,9 @@
 "playback.episodes_empty" = "尚無單集。";
 "playback.video_count" = "%d 部影片";
 "playback.shiori_count" = "%d 個 Shiori";
+
+/* Settings window */
+"settings.window.title" = "設定";
 
 /* Settings categories */
 "settings.category.play" = "播放";

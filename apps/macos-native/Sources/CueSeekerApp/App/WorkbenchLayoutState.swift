@@ -189,6 +189,10 @@ final class WorkbenchLayoutState: ObservableObject {
     @Published var isSidebarVisible: Bool
     @Published fileprivate(set) var isVideoSizeTransitionInProgress = false
     @Published var isAppFullscreen = false
+    /// Whether the Settings window is open, so the topbar's Settings button can
+    /// stay lit for as long as it is. It follows the window's open and closed
+    /// edges, not its visibility, so minimising to the Dock keeps the button lit.
+    @Published var isSettingsWindowOpen = false
     let route: WorkbenchRouteState
 
     private let userDefaults: UserDefaults

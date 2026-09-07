@@ -28,6 +28,7 @@
 "topbar.forward" = "Forward";
 "topbar.hide_sidebar" = "Hide Sidebar";
 "topbar.show_sidebar" = "Show Sidebar";
+"topbar.settings" = "Settings";
 "sidebar.search" = "Search";
 "sidebar.recent" = "Recent";
 "sidebar.recent_videos" = "Recent Videos";
@@ -35,7 +36,6 @@
 "sidebar.library" = "Library";
 "sidebar.file" = "File";
 "sidebar.shiori" = "Shiori";
-"sidebar.settings" = "Settings";
 "page.unknown.title" = "Unknown Page";
 "page.unknown.message" = "This page no longer exists.";
 
@@ -255,6 +255,9 @@
 "playback.episodes_empty" = "No episodes yet.";
 "playback.video_count" = "%d videos";
 "playback.shiori_count" = "%d shioris";
+
+/* Settings window */
+"settings.window.title" = "Settings";
 
 /* Settings categories */
 "settings.category.play" = "Play";
