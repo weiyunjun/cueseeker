@@ -158,7 +158,7 @@ enum WorkbenchControlMetrics {
     static let redesignKeycapRadius = redesignSpacing1
     /// Keycap Padding Inline: --spacing-1
     static let redesignKeycapHorizontalPadding = redesignSpacing1
-    /// Provisional --gap-app-topbar-content-after-toggle: 12px
+    /// --gap-app-topbar-content: 12px
     static let redesignAppTopbarContentAfterToggleGap: CGFloat = 12
     /// --gap-app-topbar-toggle-after-window-controls: 20px
     static let redesignAppTopbarToggleGapAfterWindowControls: CGFloat = 20
