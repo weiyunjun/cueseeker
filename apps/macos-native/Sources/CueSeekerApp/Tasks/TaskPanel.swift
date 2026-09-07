@@ -397,21 +397,19 @@ private struct TaskCardPathLines: View {
         case .ankiExport:
             TaskCardDetailText(record.fileName)
             TaskCardDetailText(record.folderPath)
-        case .renameFolder:
-            ForEach(names(of: record.oldPaths) + names(of: record.newPaths), id: \.offset) {
-                TaskCardDetailText($0.element)
-            }
-        case .renameFiles:
-            ForEach(Array((record.oldPaths + record.newPaths).enumerated()), id: \.offset) {
+        case .renameFolder, .renameFiles:
+            ForEach(Array(renameLines.enumerated()), id: \.offset) {
                 TaskCardDetailText($0.element)
             }
         }
     }
 
-    private func names(of paths: [String]) -> [(offset: Int, element: String)] {
-        paths.map { URL(fileURLWithPath: $0).lastPathComponent }
-            .enumerated()
-            .map { ($0.offset, $0.element) }
+    private var renameLines: [String] {
+        let paths = record.oldPaths + record.newPaths
+        guard record.kind == .renameFolder else {
+            return paths
+        }
+        return paths.map { URL(fileURLWithPath: $0).lastPathComponent }
     }
 }
 

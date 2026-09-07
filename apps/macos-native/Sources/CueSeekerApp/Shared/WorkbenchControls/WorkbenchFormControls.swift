@@ -167,6 +167,20 @@ struct WorkbenchNumberField: View {
     }
 }
 
+/// The label above a form field, and above the rename dialog's current name.
+struct WorkbenchFormLabel: View {
+    let text: String
+
+    var body: some View {
+        Text(text)
+            .font(.system(
+                size: WorkbenchControlMetrics.redesignFontSizeControl,
+                weight: .medium
+            ))
+            .foregroundStyle(WorkbenchRedesignColors.textPrimary)
+    }
+}
+
 private struct WorkbenchFormFieldContainer<Content: View>: View {
     let label: String
     let validationMessage: String?
@@ -174,12 +188,7 @@ private struct WorkbenchFormFieldContainer<Content: View>: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing1) {
-            Text(label)
-                .font(.system(
-                    size: WorkbenchControlMetrics.redesignFontSizeControl,
-                    weight: .medium
-                ))
-                .foregroundStyle(WorkbenchRedesignColors.textPrimary)
+            WorkbenchFormLabel(text: label)
 
             Text(validationMessage ?? "\u{00A0}")
                 .font(.system(

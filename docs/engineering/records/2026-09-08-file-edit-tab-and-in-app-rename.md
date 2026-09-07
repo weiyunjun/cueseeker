@@ -180,3 +180,62 @@ cards by `TaskQueueStoreTests`. Languages and Dark appearance were verified as
 string data and tokens, not on screen, the known gap of earlier records.
 
 Outcome matched expectations for everything verified.
+
+## Follow-up: dialog width, Current Name label, task card lines
+
+Requirement update: `63cb603`, which adds the Current Name label and the
+single-column width rule to section 5.1 and the label's three strings to
+section 7. Three defects the reader found on the first manual pass.
+
+### Why
+
+- **Width.** The rename dialog fixed only its form column at 340 and left its
+  own width to the sheet, which came out about 80 points wider; the field sat
+  on the left and the buttons on the right. The Shiori List Editor and the
+  Edit Cover dialog do not have this problem because each fixes the whole
+  dialog's width.
+- **Label.** The current name had no label above it: the requirement said
+  "static text" and listed no string for one.
+- **Card lines.** The Rename Folder card numbered the old-name list and the
+  new-name list separately before joining them, so both rows carried id 0.
+  SwiftUI renders a duplicate id as the first row again, which is why the
+  card showed the old name twice while the task record held the right pair
+  (checked read-only in the reader's database: `非自然死亡测试2233` to
+  `一个测试文件啊`). The Rename Files card numbered its four lines in one
+  pass and was correct.
+
+### What changed
+
+- `Library/LibraryRenameDialog.swift`: the dialog's width is the form region
+  width plus twice the dialog inset, both existing tokens, so the field's
+  right edge is the last button's right edge; the inner form frame is gone.
+  The current name sits under a `Current Name` label at `spacing-1`.
+- `Shared/WorkbenchControls/WorkbenchFormControls.swift`: the form label is
+  now `WorkbenchFormLabel`, used by the field container and the rename dialog,
+  so the label's tokens exist once.
+- `Tasks/TaskPanel.swift`: one numbering over old lines then new lines for
+  both rename kinds; the folder kind maps each path to its last component.
+- `Resources/*/Localizable.strings`: `rename.current_name` in the three
+  languages as the requirement lists them.
+
+### Verification
+
+- `swift build` — clean.
+- `swift test --filter "AppLocalizationTests|TaskQueueStoreTests"` — 22 tests
+  (4 and 18), all passed.
+- `plutil -lint` on the three strings files; identical key sets; the new key
+  present in each.
+- Debug in-app E2E against the running App and the reader's own library, main
+  window `1445 × 821`, with `click`, `rightClick`, `keyPress`, `scroll` and
+  `capture`. No E2E facility was added.
+  - **Rename Folder dialog.** The scene reports the sheet at width `388`.
+    The capture shows `Current Name` above the full path, `New Name` above
+    the field, and the field's right edge on the Rename button's right edge.
+  - **Rename Files dialog.** Same layout; the shared base name wraps inside
+    the column under its label.
+  - **Task panel, Completed.** The Rename Folder card for the 07:02 task
+    shows `一个测试文件啊` then `非自然死亡真的好垃圾`; the Rename Files
+    card shows its two old paths then its two new paths. The Completed tab
+    was clicked at a coordinate read from the Current capture, because the
+    tab bar is centred in the header and the tab widths are not documented.
+- Both dialogs were dismissed with Escape; no rename was queued.

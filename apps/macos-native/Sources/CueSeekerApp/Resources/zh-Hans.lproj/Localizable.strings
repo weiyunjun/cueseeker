@@ -437,6 +437,7 @@
 "file.section.edit" = "编辑";
 "rename.folder" = "重命名文件夹";
 "rename.files" = "重命名文件";
+"rename.current_name" = "当前名称";
 "rename.new_name" = "新名称";
 "rename.confirm" = "重命名";
 "rename.stage.checking" = "正在检测冲突";

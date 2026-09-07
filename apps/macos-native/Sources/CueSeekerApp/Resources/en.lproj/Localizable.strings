@@ -437,6 +437,7 @@
 "file.section.edit" = "Edit";
 "rename.folder" = "Rename Folder";
 "rename.files" = "Rename Files";
+"rename.current_name" = "Current Name";
 "rename.new_name" = "New Name";
 "rename.confirm" = "Rename";
 "rename.stage.checking" = "Checking for conflicts";

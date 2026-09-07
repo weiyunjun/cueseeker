@@ -127,7 +127,7 @@ final class LibraryRenameSession: ObservableObject, Identifiable {
 }
 
 /// The rename dialog: the Shiori List Editor's form column and footer, without
-/// the cover column, with the current name as a line of text above the field.
+/// the cover column, with the current name under its own label above the field.
 struct LibraryRenameDialog: View {
     @ObservedObject var session: LibraryRenameSession
     let onConfirm: () -> Void
@@ -140,16 +140,20 @@ struct LibraryRenameDialog: View {
             WorkbenchDialogHeader(title: session.title)
 
             VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing4) {
-                Text(session.currentText)
-                    .font(.system(
-                        size: WorkbenchControlMetrics.redesignFontSizeControl,
-                        weight: .regular
-                    ))
-                    .foregroundStyle(WorkbenchRedesignColors.textPrimary)
-                    .multilineTextAlignment(.leading)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .accessibilityIdentifier("rename-current-name")
+                VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing1) {
+                    WorkbenchFormLabel(text: L("rename.current_name"))
+
+                    Text(session.currentText)
+                        .font(.system(
+                            size: WorkbenchControlMetrics.redesignFontSizeControl,
+                            weight: .regular
+                        ))
+                        .foregroundStyle(WorkbenchRedesignColors.textPrimary)
+                        .multilineTextAlignment(.leading)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .accessibilityIdentifier("rename-current-name")
+                }
 
                 WorkbenchFormTextField(
                     label: L("rename.new_name"),
@@ -160,13 +164,19 @@ struct LibraryRenameDialog: View {
                 )
                 .accessibilityIdentifier("rename-new-name")
             }
-            .frame(width: WorkbenchControlMetrics.redesignDialogFormRegionWidth)
 
             actions
         }
         .padding(.top, WorkbenchControlMetrics.redesignDialogTopPadding)
         .padding(.horizontal, WorkbenchControlMetrics.redesignDialogInset)
         .padding(.bottom, WorkbenchControlMetrics.redesignDialogInset)
+        // One column: the form region plus the two insets is the whole width,
+        // so the field's right edge is the last button's right edge.
+        .frame(
+            width: WorkbenchControlMetrics.redesignDialogFormRegionWidth
+                + 2 * WorkbenchControlMetrics.redesignDialogInset,
+            alignment: .topLeading
+        )
         .background(WorkbenchRedesignColors.bgSurface)
         .workbenchDialogCloseButton(onClose: onClose)
         .onAppear {

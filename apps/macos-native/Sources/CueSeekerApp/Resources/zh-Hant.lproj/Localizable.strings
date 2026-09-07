@@ -437,6 +437,7 @@
 "file.section.edit" = "編輯";
 "rename.folder" = "重新命名資料夾";
 "rename.files" = "重新命名檔案";
+"rename.current_name" = "目前名稱";
 "rename.new_name" = "新名稱";
 "rename.confirm" = "重新命名";
 "rename.stage.checking" = "正在檢查衝突";
