@@ -48,9 +48,19 @@ enum WorkbenchPanelMode: String, CaseIterable {
     }
 }
 
-enum WorkbenchRecentSection: Equatable {
+/// The two Tabs of the Recent page.
+enum WorkbenchRecentSection: String, CaseIterable {
     case videos
     case shioris
+
+    var label: String {
+        switch self {
+        case .videos:
+            L("sidebar.recent_videos")
+        case .shioris:
+            L("sidebar.recent_shioris")
+        }
+    }
 }
 
 @MainActor
@@ -79,7 +89,8 @@ final class WorkbenchRouteState: ObservableObject {
             }
         }
     }
-    @Published fileprivate(set) var selectedRecentSection: WorkbenchRecentSection? {
+    /// Kept while the reader is on other pages, for as long as the App runs.
+    @Published fileprivate(set) var selectedRecentSection: WorkbenchRecentSection = .videos {
         didSet {
             if selectedRecentSection != oldValue {
                 AppPointerShape.reset()
@@ -93,13 +104,11 @@ final class WorkbenchRouteState: ObservableObject {
 
     var canNavigateBack: Bool {
         switch panelMode {
-        case .recentWatching:
-            selectedRecentSection != nil
         case .testLibrary:
             selectedTestLibraryFolder != nil
         case .shiori:
             selectedShioriListID != nil
-        case .library, .file, .search:
+        case .recentWatching, .library, .file, .search:
             false
         }
     }
@@ -144,7 +153,7 @@ final class WorkbenchLayoutState: ObservableObject {
         route.selectedShioriListID
     }
 
-    var selectedRecentSection: WorkbenchRecentSection? {
+    var selectedRecentSection: WorkbenchRecentSection {
         route.selectedRecentSection
     }
 
@@ -199,10 +208,6 @@ final class WorkbenchLayoutState: ObservableObject {
 
     func selectRecentSection(_ section: WorkbenchRecentSection) {
         route.selectedRecentSection = section
-    }
-
-    func clearRecentSection() {
-        route.selectedRecentSection = nil
     }
 
     func beginVideoSizeTransition() -> Bool {

@@ -4,28 +4,29 @@ import CueSeekerCore
 import SwiftUI
 
 struct WorkbenchRecentView: View {
+    // Observed so the tab labels below are re-read when the language changes.
+    @EnvironmentObject private var localization: AppLocalizationStore
     @EnvironmentObject private var appState: AppCoordinator
     @EnvironmentObject private var routeState: WorkbenchRouteState
     @EnvironmentObject private var library: LibraryStore
     @EnvironmentObject private var shiori: ShioriStore
-    /// One highlight for the whole page: the overview shows the video cards and
-    /// the Shiori cards together, and only one of them may be lit.
+    /// One highlight for the page: only one card may be lit at a time.
     @StateObject private var highlight = CardHighlightModel(
         keepsCurrentWhenPointerLeaves: false
     )
 
     var body: some View {
-        // The menu belongs to the page, not to one section of it, so the page
-        // hosts it. A menu opened from a video card then covers the sections
-        // laid out below the card grid instead of being painted under them.
+        // The menu belongs to the page, not to one tab of it, so the page
+        // hosts it.
         LibraryCardContextMenuHost(
-            interfaceID: routeState.selectedRecentSection
-                .map(String.init(describing:)) ?? "overview"
+            interfaceID: routeState.selectedRecentSection.rawValue
         ) { _ in
         GeometryReader { geometry in
             WorkbenchScrollView([.vertical, .horizontal]) {
                 VStack(alignment: .leading, spacing: WorkbenchTestLibraryMetrics.sectionSpacing) {
-                WorkbenchPageTitle(recentPageTitle)
+                WorkbenchPageTitle(L("sidebar.recent"))
+
+                sectionTabs
 
                 switch routeState.selectedRecentSection {
                 case .videos:
@@ -35,8 +36,6 @@ struct WorkbenchRecentView: View {
                     )
                 case .shioris:
                     recentShiorisContent(shiori.recentListSummaries)
-                case nil:
-                    overview
                 }
             }
                 .workbenchPageInlinePadding()
@@ -62,7 +61,6 @@ struct WorkbenchRecentView: View {
             highlight.reset()
         }
         .task {
-            appState.hydrateRecentWatchingAsync()
             appState.hydrateTestRecentWatchingAsync()
             appState.reloadShioriListOverview()
         }
@@ -73,52 +71,20 @@ struct WorkbenchRecentView: View {
         }
     }
 
-    private var recentPageTitle: String {
-        switch routeState.selectedRecentSection {
-        case .videos:
-            L("sidebar.recent_videos")
-        case .shioris:
-            L("sidebar.recent_shioris")
-        case nil:
-            L("sidebar.recent")
-        }
-    }
-
-    private var overview: some View {
-        VStack(
-            alignment: .leading,
-            spacing: WorkbenchTestLibraryMetrics.sectionSpacing
-        ) {
-            VStack(
-                alignment: .leading,
-                spacing: WorkbenchControlMetrics.redesignSpacing3
-            ) {
-                RecentSectionHeader(
-                    title: L("sidebar.recent_videos"),
-                    count: library.testRecentWatchingItems.count
-                ) {
-                    appState.workbenchLayout.selectRecentSection(.videos)
-                }
-                recentVideosContent(
-                    status: library.recentWatchingStatus,
-                    items: library.recentWatchingItems
+    /// The same Tabs as the Library page, flush with the content's left edge.
+    private var sectionTabs: some View {
+        WorkbenchTabs(
+            items: WorkbenchRecentSection.allCases.map {
+                .init(
+                    value: $0,
+                    label: $0.label,
+                    accessibilityIdentifier: "recent-segment-\($0.rawValue)"
                 )
-            }
-
-            VStack(
-                alignment: .leading,
-                spacing: WorkbenchControlMetrics.redesignSpacing3
-            ) {
-                RecentSectionHeader(
-                    title: L("sidebar.recent_shioris"),
-                    count: shiori.recentListSummaries.count
-                ) {
-                    appState.workbenchLayout.selectRecentSection(.shioris)
-                }
-                recentShiorisContent(
-                    Array(shiori.recentListSummaries.prefix(5))
-                )
-            }
+            },
+            selection: routeState.selectedRecentSection,
+            isLeadingEdgeAligned: true
+        ) { section in
+            appState.workbenchLayout.selectRecentSection(section)
         }
     }
 
@@ -168,49 +134,6 @@ struct WorkbenchRecentView: View {
                 appState.openRecentShiori(summary)
             }
         }
-    }
-}
-
-private struct RecentSectionHeader: View {
-    let title: String
-    let count: Int
-    let onOpen: () -> Void
-
-    var body: some View {
-        Button(action: onOpen) {
-            HStack(
-                alignment: .firstTextBaseline,
-                spacing: WorkbenchControlMetrics.redesignSpacing2
-            ) {
-                Text(title)
-                    .font(.system(
-                        size: WorkbenchControlMetrics.redesignFontSizeSectionTitle,
-                        weight: .semibold
-                    ))
-                    .foregroundStyle(WorkbenchRedesignColors.textPrimary)
-
-                HStack(
-                    alignment: .firstTextBaseline,
-                    spacing: WorkbenchControlMetrics.redesignSpacing1
-                ) {
-                    Text("\(count)")
-                        .font(.system(
-                            size: WorkbenchControlMetrics.redesignFontSizeBody,
-                            weight: .regular
-                        ))
-                        .foregroundStyle(WorkbenchRedesignColors.textSecondary)
-                        .monospacedDigit()
-
-                    Text(Image(systemName: "chevron.right"))
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(WorkbenchRedesignColors.textMuted)
-                }
-            }
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(StaticButtonStyle())
-        .focusable(false)
-        .accessibilityLabel("\(title), \(count)")
     }
 }
 

@@ -219,13 +219,11 @@ private struct AppTopBar: View {
     private func navigateBack() {
         appState.performUserInitiatedAppCommand {
             switch routeState.panelMode {
-            case .recentWatching:
-                layoutState.clearRecentSection()
             case .testLibrary:
                 layoutState.clearTestLibraryFolder()
             case .shiori:
                 appState.showShioriListOverview()
-            case .library, .file, .search:
+            case .recentWatching, .library, .file, .search:
                 break
             }
         }
@@ -310,39 +308,11 @@ private struct AppSidebar: View {
 
             AppSidebarNavigationItem(
                 mode: .recentWatching,
-                isSelected: routeState.panelMode == .recentWatching
-                    && routeState.selectedRecentSection == nil,
-                isEnabled: !layoutState.isVideoSizeTransitionInProgress
-            ) {
-                appState.performUserInitiatedAppCommand {
-                    layoutState.clearRecentSection()
-                    appState.activateWorkbenchPanelMode(.recentWatching)
-                }
-            }
-
-            AppSidebarChildItem(
-                systemImage: "film",
-                label: L("sidebar.recent_videos"),
-                isSelected: routeState.panelMode == .recentWatching
-                    && routeState.selectedRecentSection == .videos,
+                isSelected: routeState.panelMode == .recentWatching,
                 isEnabled: !layoutState.isVideoSizeTransitionInProgress
             ) {
                 appState.performUserInitiatedAppCommand {
                     appState.activateWorkbenchPanelMode(.recentWatching)
-                    layoutState.selectRecentSection(.videos)
-                }
-            }
-
-            AppSidebarChildItem(
-                systemImage: "bookmark",
-                label: L("sidebar.recent_shioris"),
-                isSelected: routeState.panelMode == .recentWatching
-                    && routeState.selectedRecentSection == .shioris,
-                isEnabled: !layoutState.isVideoSizeTransitionInProgress
-            ) {
-                appState.performUserInitiatedAppCommand {
-                    appState.activateWorkbenchPanelMode(.recentWatching)
-                    layoutState.selectRecentSection(.shioris)
                 }
             }
 
@@ -431,80 +401,6 @@ private struct AppSidebarNavigationItem: View {
         .focusable(false)
         .help(mode.sidebarLabel)
         .accessibilityLabel(mode.sidebarLabel)
-    }
-}
-
-private struct AppSidebarChildItem: View {
-    let systemImage: String
-    let label: String
-    let isSelected: Bool
-    let isEnabled: Bool
-    let onSelect: () -> Void
-
-    var body: some View {
-        Button(action: onSelect) {
-            HStack(spacing: WorkbenchControlMetrics.redesignSpacing3) {
-                Image(systemName: systemImage)
-                    .font(.system(
-                        size: WorkbenchControlMetrics.redesignAppSidebarItemIconSize,
-                        weight: .medium
-                    ))
-                    .frame(
-                        width: WorkbenchControlMetrics.redesignAppSidebarItemIconSize,
-                        height: WorkbenchControlMetrics.redesignAppSidebarItemIconSize
-                    )
-                    .foregroundStyle(iconColor)
-
-                Text(label)
-                    .font(.system(
-                        size: WorkbenchControlMetrics.redesignFontSizeAppSidebarItem,
-                        weight: .regular
-                    ))
-                    .foregroundStyle(textColor)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-
-                Spacer(minLength: 0)
-            }
-            .padding(.leading, childLeadingPadding)
-            .padding(
-                .trailing,
-                WorkbenchControlMetrics.redesignAppSidebarItemHorizontalPadding
-            )
-            .frame(
-                maxWidth: .infinity,
-                minHeight: WorkbenchControlMetrics.redesignAppSidebarItemHeight,
-                maxHeight: WorkbenchControlMetrics.redesignAppSidebarItemHeight,
-                alignment: .leading
-            )
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(AppSidebarItemButtonStyle(isSelected: isSelected))
-        .disabled(!isEnabled)
-        .subtitleTableTextSelectionInteractiveRegion(isActive: isEnabled)
-        .focusable(false)
-        .help(label)
-        .accessibilityLabel(label)
-    }
-
-    private var iconColor: Color {
-        isSelected
-            ? WorkbenchRedesignColors.appSidebarItemSelectedContent
-            : WorkbenchRedesignColors.textSecondary
-    }
-
-    private var textColor: Color {
-        isSelected
-            ? WorkbenchRedesignColors.appSidebarItemSelectedContent
-            : WorkbenchRedesignColors.textPrimary
-    }
-
-    /// The child's icon starts where the primary item's label starts, so the
-    /// two levels read as one step of indentation.
-    private var childLeadingPadding: CGFloat {
-        WorkbenchControlMetrics.redesignAppSidebarItemHorizontalPadding
-            + WorkbenchControlMetrics.redesignAppSidebarItemIconSize
-            + WorkbenchControlMetrics.redesignSpacing3
     }
 }
 

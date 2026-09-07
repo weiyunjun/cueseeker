@@ -160,19 +160,17 @@ func workbenchLayoutStateTracksShioriListDetailWithoutPersistingIt() {
 func workbenchLayoutStateTracksRecentSectionWithoutPersistingIt() {
     withTemporaryWorkbenchLayoutUserDefaults { userDefaults in
         let layoutState = WorkbenchLayoutState(userDefaults: userDefaults)
-
-        layoutState.selectRecentSection(.videos)
         #expect(layoutState.selectedRecentSection == .videos)
-        #expect(layoutState.route.selectedRecentSection == .videos)
 
         layoutState.selectRecentSection(.shioris)
         #expect(layoutState.selectedRecentSection == .shioris)
+        #expect(layoutState.route.selectedRecentSection == .shioris)
 
-        layoutState.clearRecentSection()
-        #expect(layoutState.selectedRecentSection == nil)
+        layoutState.selectPanelMode(.search)
+        #expect(layoutState.selectedRecentSection == .shioris)
 
         let reloadedLayoutState = WorkbenchLayoutState(userDefaults: userDefaults)
-        #expect(reloadedLayoutState.selectedRecentSection == nil)
+        #expect(reloadedLayoutState.selectedRecentSection == .videos)
     }
 }
 
@@ -186,9 +184,7 @@ func workbenchRouteEnablesBackOnlyForSecondaryPages() {
 
         layoutState.selectPanelMode(.recentWatching)
         #expect(!layoutState.route.canNavigateBack)
-        layoutState.selectRecentSection(.videos)
-        #expect(layoutState.route.canNavigateBack)
-        layoutState.clearRecentSection()
+        layoutState.selectRecentSection(.shioris)
         #expect(!layoutState.route.canNavigateBack)
 
         layoutState.selectPanelMode(.testLibrary)
