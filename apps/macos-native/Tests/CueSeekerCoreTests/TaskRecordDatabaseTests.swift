@@ -19,7 +19,8 @@ func migratedSchemaCarriesTheTaskRecordTable() throws {
     #expect(
         try sqliteColumnNames(in: "task_records", databaseURL: databaseURL) == [
             "id", "kind", "file_name", "folder_path", "item_count",
-            "state", "error_message", "created_at", "state_changed_at"
+            "state", "error_message", "created_at", "state_changed_at",
+            "old_paths", "new_paths"
         ]
     )
 }
@@ -164,4 +165,25 @@ func historySurvivesReopeningTheDatabase() throws {
 
     let reader = try TaskRecordDatabase(path: databaseURL)
     #expect(try reader.records().map(\.state) == [.completed])
+}
+
+@Test
+func aRenameRecordKeepsItsPathsOnePerLine() throws {
+    let (database, databaseURL) = try makeTaskRecordDatabase()
+    defer { try? FileManager.default.removeItem(at: databaseURL) }
+
+    let inserted = try database.insertQueuedTask(
+        kind: .renameFiles,
+        fileName: "",
+        folderPath: "",
+        itemCount: 2,
+        oldPaths: ["/Show/EP01.mkv", "/Show/EP01.srt"],
+        newPaths: ["/Show/EP09.mkv", "/Show/EP09.srt"]
+    )
+
+    let record = try #require(try database.records().first)
+    #expect(record.id == inserted.id)
+    #expect(record.kind == .renameFiles)
+    #expect(record.oldPaths == ["/Show/EP01.mkv", "/Show/EP01.srt"])
+    #expect(record.newPaths == ["/Show/EP09.mkv", "/Show/EP09.srt"])
 }

@@ -23,6 +23,8 @@ public struct SubtitleIndexingResult: Equatable, Sendable {
     public var presentationRefreshRequest:
         LibraryPresentationRefreshRequest = .none
 
+    public init() {}
+
     public var hasIndexedContentChanges: Bool {
         !changedSubtitlePaths.isEmpty || !affectedVideoPaths.isEmpty
             || !affectedFolderPaths.isEmpty

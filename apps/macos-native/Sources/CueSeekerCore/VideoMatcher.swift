@@ -109,6 +109,30 @@ public struct VideoMatcher {
         )
     }
 
+    /// Pairs subtitle file names with video file names by the same rules as
+    /// `matchingVideos(for:)`, without touching the file system. Every name is
+    /// a bare file name from one directory; the result maps each matched
+    /// subtitle name to its video name.
+    public func matchingVideoNames(
+        subtitleFileNames: [String],
+        among fileNames: [String]
+    ) -> [String: String] {
+        let directory = URL(fileURLWithPath: "/")
+        let candidates = fileNames.compactMap {
+            videoCandidate(fileName: $0, in: directory)
+        }
+        var matches: [String: String] = [:]
+        for subtitleName in subtitleFileNames {
+            if let video = matchingVideo(
+                for: directory.appendingPathComponent(subtitleName),
+                videoCandidates: candidates
+            ) {
+                matches[subtitleName] = video.lastPathComponent
+            }
+        }
+        return matches
+    }
+
     private func videos(in directory: URL) throws -> [VideoCandidate] {
         let contents: [URL]
         do {
@@ -122,8 +146,9 @@ public struct VideoMatcher {
         }
 
         return try contents.compactMap { url in
-            guard let extensionPriority = videoExtensions.firstIndex(
-                of: url.pathExtension.lowercased()
+            guard let candidate = videoCandidate(
+                fileName: url.lastPathComponent,
+                in: directory
             ) else {
                 return nil
             }
@@ -138,22 +163,32 @@ public struct VideoMatcher {
             guard attributes[.type] as? FileAttributeType == .typeRegular else {
                 return nil
             }
-
-            let baseNames = candidateBaseNames(
-                for: url.deletingPathExtension().lastPathComponent
-            ).map(Self.normalizedName)
-
-            guard let nameAfterRemovingOneExtension = baseNames.first else {
-                return nil
-            }
-
-            return VideoCandidate(
-                url: directory.appendingPathComponent(url.lastPathComponent),
-                nameAfterRemovingOneExtension: nameAfterRemovingOneExtension,
-                nameAfterRemovingTwoExtensions: baseNames.count == 2 ? baseNames[1] : nil,
-                extensionPriority: extensionPriority
-            )
+            return candidate
         }
+    }
+
+    private func videoCandidate(fileName: String, in directory: URL) -> VideoCandidate? {
+        let url = directory.appendingPathComponent(fileName)
+        guard let extensionPriority = videoExtensions.firstIndex(
+            of: url.pathExtension.lowercased()
+        ) else {
+            return nil
+        }
+
+        let baseNames = candidateBaseNames(
+            for: url.deletingPathExtension().lastPathComponent
+        ).map(Self.normalizedName)
+
+        guard let nameAfterRemovingOneExtension = baseNames.first else {
+            return nil
+        }
+
+        return VideoCandidate(
+            url: url,
+            nameAfterRemovingOneExtension: nameAfterRemovingOneExtension,
+            nameAfterRemovingTwoExtensions: baseNames.count == 2 ? baseNames[1] : nil,
+            extensionPriority: extensionPriority
+        )
     }
 
     private func preferredVideo(from candidates: [VideoCandidate]) -> URL? {

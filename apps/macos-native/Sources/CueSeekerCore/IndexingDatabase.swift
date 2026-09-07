@@ -2,9 +2,9 @@ import Foundation
 
 public final class IndexingDatabase: @unchecked Sendable {
     let path: URL
-    private let database: SQLiteDatabase
+    let database: SQLiteDatabase
 
-    private struct LibraryPathRecord {
+    struct LibraryPathRecord {
         let id: Int64
         let rootURL: URL
     }
@@ -825,7 +825,7 @@ public final class IndexingDatabase: @unchecked Sendable {
         try rebuildFTSRowsInProductOrder()
     }
 
-    private func refreshSearchOrderRows(
+    func refreshSearchOrderRows(
         affectedFolderPaths: Set<String>
     ) throws {
         guard !affectedFolderPaths.isEmpty else {
@@ -3022,7 +3022,7 @@ public final class IndexingDatabase: @unchecked Sendable {
         return paths
     }
 
-    private func libraryPathRecords() throws -> [LibraryPathRecord] {
+    func libraryPathRecords() throws -> [LibraryPathRecord] {
         let statement = try database.prepare(
             """
             SELECT id, path
@@ -3160,7 +3160,7 @@ public final class IndexingDatabase: @unchecked Sendable {
         return try readBoundResourceRecord(statement)
     }
 
-    private func updateFolderOwnedPaths(folderID: Int64, path: String) throws {
+    func updateFolderOwnedPaths(folderID: Int64, path: String) throws {
         let generatedCover = try database.prepare(
             """
             UPDATE folder_covers
@@ -3430,7 +3430,7 @@ public final class IndexingDatabase: @unchecked Sendable {
         return prefixes.sorted()
     }
 
-    private static func pathPrefixUpperBound(for prefix: String) -> String {
+    static func pathPrefixUpperBound(for prefix: String) -> String {
         prefix + "\u{10FFFF}"
     }
 
@@ -3441,11 +3441,11 @@ public final class IndexingDatabase: @unchecked Sendable {
             .path
     }
 
-    private static func subtitlePathPrefix(forFolderPath folderPath: String) -> String {
+    static func subtitlePathPrefix(forFolderPath folderPath: String) -> String {
         folderPath.hasSuffix("/") ? folderPath : folderPath + "/"
     }
 
-    private static func folderPathVariants(for folder: URL) -> [String] {
+    static func folderPathVariants(for folder: URL) -> [String] {
         let path = normalizedFolderPath(folder.standardizedFileURL.path)
         var paths = Set([path])
 

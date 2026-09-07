@@ -223,7 +223,7 @@ func rejectsUnsupportedLowerSchemaWithoutChangingVersion() throws {
 
 @Test
 func rejectsNewerSchemaWithoutChangingVersion() throws {
-    try expectUnsupportedSchemaVersion(46)
+    try expectUnsupportedSchemaVersion(DatabaseBootstrap.currentSchemaVersion + 1)
 }
 
 @Test

@@ -12,7 +12,7 @@ public enum DatabaseBootstrapError: Error, Equatable, CustomStringConvertible {
 }
 
 public enum DatabaseBootstrap {
-    public static let currentSchemaVersion = 45
+    public static let currentSchemaVersion = 46
 
     public static func prepare(at path: URL) throws {
         let database = try SQLiteDatabase(path: path, access: .readWrite)
@@ -57,6 +57,7 @@ private extension DatabaseBootstrap {
                 || previousVersion == 42
                 || previousVersion == 43
                 || previousVersion == 44
+                || previousVersion == 45
                 || previousVersion == DatabaseBootstrap.currentSchemaVersion
         else {
             throw DatabaseBootstrapError.unsupportedSchemaVersion(
@@ -138,6 +139,9 @@ private extension DatabaseBootstrap {
         }
         if previousVersion >= 33, previousVersion <= 44 {
             try migrateSchema44To45(on: database)
+        }
+        if previousVersion >= 33, previousVersion <= 45 {
+            try migrateSchema45To46(on: database)
             return
         }
         guard previousVersion == 0 else {
@@ -615,20 +619,45 @@ private extension DatabaseBootstrap {
             state TEXT NOT NULL,
             error_message TEXT,
             created_at TEXT NOT NULL,
-            state_changed_at TEXT NOT NULL
+            state_changed_at TEXT NOT NULL,
+            old_paths TEXT,
+            new_paths TEXT
         );
         """
 
     /// Adds the task queue's history. Nothing existing is read or rewritten.
+    /// The table is created as version 45 had it; 45 to 46 adds its columns.
     static func migrateSchema44To45(on database: SQLiteDatabase) throws {
         try database.withImmediateTransaction {
             try database.execute(
                 """
-                \(taskRecordSchemaSQL)
+                CREATE TABLE IF NOT EXISTS task_records (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    kind TEXT NOT NULL,
+                    file_name TEXT NOT NULL,
+                    folder_path TEXT NOT NULL,
+                    item_count INTEGER NOT NULL,
+                    state TEXT NOT NULL,
+                    error_message TEXT,
+                    created_at TEXT NOT NULL,
+                    state_changed_at TEXT NOT NULL
+                );
 
                 PRAGMA user_version = 45;
                 """
             )
+        }
+    }
+
+    /// Adds the paths a rename task records, so its history can name what it
+    /// moved. Export records leave them empty.
+    static func migrateSchema45To46(on database: SQLiteDatabase) throws {
+        try database.withImmediateTransaction {
+            let columns = try columnNames(of: "task_records", in: database)
+            for column in ["old_paths", "new_paths"] where !columns.contains(column) {
+                try database.execute("ALTER TABLE task_records ADD COLUMN \(column) TEXT;")
+            }
+            try database.execute("PRAGMA user_version = 46;")
         }
     }
 

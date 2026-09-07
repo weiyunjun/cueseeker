@@ -10,6 +10,12 @@ public final class LibraryDatabase: @unchecked Sendable {
         database = try SQLiteDatabase(path: path, access: access)
     }
 
+    /// Reads and writes through a connection another database object owns, so
+    /// that object's transaction can include the Library presentation rows.
+    init(sharing database: SQLiteDatabase) {
+        self.database = database
+    }
+
     public func libraryVideos(under folders: [URL]) throws -> [LibraryVideo] {
         let pathPrefixes = Self.folderPathPrefixes(for: folders)
         guard !pathPrefixes.isEmpty else {

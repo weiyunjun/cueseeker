@@ -9,9 +9,11 @@ public enum TaskRecordState: String, Sendable, CaseIterable {
     case incomplete
 }
 
-/// The work a task performs. One kind exists today.
+/// The work a task performs.
 public enum TaskRecordKind: String, Sendable {
     case ankiExport = "anki_export"
+    case renameFolder = "rename_folder"
+    case renameFiles = "rename_files"
 }
 
 public struct TaskRecord: Identifiable, Equatable, Sendable {
@@ -25,6 +27,10 @@ public struct TaskRecord: Identifiable, Equatable, Sendable {
     public let createdAt: Date
     /// When the task entered the state it is in. The history tabs show it.
     public let stateChangedAt: Date
+    /// What a rename task moves, as absolute paths before and after. Empty
+    /// for an export.
+    public let oldPaths: [String]
+    public let newPaths: [String]
 
     public init(
         id: Int64,
@@ -35,7 +41,9 @@ public struct TaskRecord: Identifiable, Equatable, Sendable {
         state: TaskRecordState,
         errorMessage: String?,
         createdAt: Date,
-        stateChangedAt: Date
+        stateChangedAt: Date,
+        oldPaths: [String] = [],
+        newPaths: [String] = []
     ) {
         self.id = id
         self.kind = kind
@@ -46,6 +54,28 @@ public struct TaskRecord: Identifiable, Equatable, Sendable {
         self.errorMessage = errorMessage
         self.createdAt = createdAt
         self.stateChangedAt = stateChangedAt
+        self.oldPaths = oldPaths
+        self.newPaths = newPaths
+    }
+
+    public func withState(
+        _ state: TaskRecordState,
+        errorMessage: String?,
+        changedAt: Date
+    ) -> TaskRecord {
+        TaskRecord(
+            id: id,
+            kind: kind,
+            fileName: fileName,
+            folderPath: folderPath,
+            itemCount: itemCount,
+            state: state,
+            errorMessage: errorMessage,
+            createdAt: createdAt,
+            stateChangedAt: changedAt,
+            oldPaths: oldPaths,
+            newPaths: newPaths
+        )
     }
 }
 
@@ -70,7 +100,9 @@ public final class TaskRecordDatabase: @unchecked Sendable {
                state,
                error_message,
                created_at,
-               state_changed_at
+               state_changed_at,
+               old_paths,
+               new_paths
         FROM task_records
         """
 
@@ -101,6 +133,8 @@ public final class TaskRecordDatabase: @unchecked Sendable {
         fileName: String,
         folderPath: String,
         itemCount: Int,
+        oldPaths: [String] = [],
+        newPaths: [String] = [],
         createdAt: Date = Date()
     ) throws -> TaskRecord {
         let timestamp = Self.timestamp(from: createdAt)
@@ -108,9 +142,10 @@ public final class TaskRecordDatabase: @unchecked Sendable {
             """
             INSERT INTO task_records(
                 kind, file_name, folder_path, item_count,
-                state, error_message, created_at, state_changed_at
+                state, error_message, created_at, state_changed_at,
+                old_paths, new_paths
             )
-            VALUES (?, ?, ?, ?, ?, NULL, ?, ?);
+            VALUES (?, ?, ?, ?, ?, NULL, ?, ?, ?, ?);
             """
         )
         try statement.bind(kind.rawValue, at: 1)
@@ -120,6 +155,8 @@ public final class TaskRecordDatabase: @unchecked Sendable {
         try statement.bind(TaskRecordState.queued.rawValue, at: 5)
         try statement.bind(timestamp, at: 6)
         try statement.bind(timestamp, at: 7)
+        try bindPaths(oldPaths, to: statement, at: 8)
+        try bindPaths(newPaths, to: statement, at: 9)
         try statement.run()
 
         return TaskRecord(
@@ -131,8 +168,26 @@ public final class TaskRecordDatabase: @unchecked Sendable {
             state: .queued,
             errorMessage: nil,
             createdAt: createdAt,
-            stateChangedAt: createdAt
+            stateChangedAt: createdAt,
+            oldPaths: oldPaths,
+            newPaths: newPaths
         )
+    }
+
+    /// Paths are stored one per line; a path cannot contain a newline.
+    private func bindPaths(_ paths: [String], to statement: SQLiteStatement, at index: Int32) throws {
+        if paths.isEmpty {
+            try statement.bindNull(at: index)
+        } else {
+            try statement.bind(paths.joined(separator: "\n"), at: index)
+        }
+    }
+
+    private static func paths(from value: String?) -> [String] {
+        guard let value, !value.isEmpty else {
+            return []
+        }
+        return value.components(separatedBy: "\n")
     }
 
     public func updateState(
@@ -206,7 +261,9 @@ public final class TaskRecordDatabase: @unchecked Sendable {
             state: state,
             errorMessage: statement.nullableStringColumn(6),
             createdAt: createdAt,
-            stateChangedAt: date(from: statement.stringColumn(8)) ?? createdAt
+            stateChangedAt: date(from: statement.stringColumn(8)) ?? createdAt,
+            oldPaths: paths(from: statement.nullableStringColumn(9)),
+            newPaths: paths(from: statement.nullableStringColumn(10))
         )
     }
 

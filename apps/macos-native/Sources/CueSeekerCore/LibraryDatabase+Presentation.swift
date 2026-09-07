@@ -586,6 +586,23 @@ extension LibraryDatabase {
         guard !affectedFolderPaths.isEmpty else {
             return
         }
+        try database.withImmediateTransaction {
+            try rebuildPresentationRowsInCurrentTransaction(
+                folderPaths: affectedFolderPaths
+            )
+            if let libraryID {
+                try clearPresentationRetry(libraryID: libraryID)
+            }
+        }
+    }
+
+    /// Replaces the rows of the given folders inside the caller's transaction.
+    func rebuildPresentationRowsInCurrentTransaction(
+        folderPaths affectedFolderPaths: Set<String>
+    ) throws {
+        guard !affectedFolderPaths.isEmpty else {
+            return
+        }
         let scopedFolderPaths = Set(
             Self.folderPathPrefixes(
                 for: affectedFolderPaths.map(
@@ -617,27 +634,22 @@ extension LibraryDatabase {
                 .path
         }
 
-        try database.withImmediateTransaction {
-            let placeholders = folderPaths.map { _ in "?" }
-                .joined(separator: ", ")
-            let delete = try database.prepare(
-                """
-                DELETE FROM library_video_rows
-                WHERE folder_path IN (\(placeholders));
-                """
-            )
-            for (offset, folderPath) in folderPaths.enumerated() {
-                try delete.bind(folderPath, at: Int32(offset + 1))
-            }
-            try delete.run()
-            try insertLibraryVideoRows(
-                videosByFolderPath: videosByFolderPath,
-                folderPaths: folderPaths
-            )
-            if let libraryID {
-                try clearPresentationRetry(libraryID: libraryID)
-            }
+        let placeholders = folderPaths.map { _ in "?" }
+            .joined(separator: ", ")
+        let delete = try database.prepare(
+            """
+            DELETE FROM library_video_rows
+            WHERE folder_path IN (\(placeholders));
+            """
+        )
+        for (offset, folderPath) in folderPaths.enumerated() {
+            try delete.bind(folderPath, at: Int32(offset + 1))
         }
+        try delete.run()
+        try insertLibraryVideoRows(
+            videosByFolderPath: videosByFolderPath,
+            folderPaths: folderPaths
+        )
     }
 
     public func refreshPresentationAfterIndexedContentChange(

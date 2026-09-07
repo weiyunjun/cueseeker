@@ -339,3 +339,13 @@ private final class FailingVideoFileManager: FileManager, @unchecked Sendable {
         return try super.attributesOfItem(atPath: path)
     }
 }
+
+@Test
+func nameListMatchingFollowsTheDirectoryRules() {
+    let matches = VideoMatcher().matchingVideoNames(
+        subtitleFileNames: ["First.srt", "Second.commentary.ass", "Orphan.srt"],
+        among: ["First.srt", "First.mkv", "Second.commentary.ass", "Second.mp4", "Orphan.srt", "Notes.txt"]
+    )
+
+    #expect(matches == ["First.srt": "First.mkv", "Second.commentary.ass": "Second.mp4"])
+}
