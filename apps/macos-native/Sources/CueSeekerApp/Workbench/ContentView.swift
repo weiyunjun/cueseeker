@@ -206,18 +206,7 @@ private struct AppTopBar: View {
                 }
             }
         } trailingContent: {
-            HStack(spacing: WorkbenchControlMetrics.redesignSpacing1) {
-                TaskEntryButton(
-                    tasks: appState.tasks,
-                    onOpen: {
-                        appState.performUserInitiatedAppCommand {
-                            appState.tasks.openPanel()
-                        }
-                    }
-                )
-
-                settingsButton
-            }
+            TopbarAppEntries()
         } sidebarToggle: {
             sidebarToggle
         }
@@ -274,27 +263,6 @@ private struct AppTopBar: View {
         .help(L("topbar.forward"))
         .accessibilityLabel(L("topbar.forward"))
         .accessibilityIdentifier("topbar-forward")
-    }
-
-    /// The Settings window's entry. It is the Task entry's component and
-    /// states: an Icon Button that stays lit for as long as the surface it
-    /// opens is open, including while that window sits in the Dock.
-    private var settingsButton: some View {
-        WorkbenchIconButton(
-            systemImage: "gearshape",
-            isRedesign: true,
-            isOpen: layoutState.isSettingsWindowOpen
-        ) {
-            appState.performUserInitiatedAppCommand {
-                NotificationCenter.default.post(name: .cueSeekerShowSettings, object: nil)
-            }
-        }
-        // App chrome, like the Task entry beside it: it must not be the control
-        // the window hands focus to on launch.
-        .focusable(false)
-        .help(L("topbar.settings"))
-        .accessibilityLabel(L("topbar.settings"))
-        .accessibilityIdentifier("topbar-settings-button")
     }
 
     private var sidebarToggle: some View {

@@ -1,22 +1,26 @@
 import SwiftUI
 
-/// The way back to the Workbench from the playback page: a Player Circle
-/// Button after the native window controls, in the player top bar and again
-/// in the Playback Overlay's top bar, at the same place in both. The window
-/// controls sit where they do on every page, so the button is laid out on
-/// their centre line — the top-aligned `--height-app-topbar` band — not on
-/// the centre line of whichever bar holds it.
+/// The way back to the Workbench from the playback page: an Icon Button after
+/// the native window controls, in the player top bar and again in the
+/// Playback Overlay's top bar, at the same place in both. Both bars are the
+/// window controls' band, so centring the button in the bar puts it on the
+/// controls' centre line.
 struct PlaybackReturnButton: View {
+    /// The colors of the surface the button is drawn on.
+    var iconColor: Color? = nil
+    let hoverBackground: Color
     let action: () -> Void
 
     var body: some View {
-        PlaybackChromeIconButton(
-            systemName: "chevron.left",
-            accessibilityLabel: L("playback.close_and_return"),
+        WorkbenchIconButton(
+            systemImage: "chevron.left",
+            isRedesign: true,
+            hoverBackground: hoverBackground,
+            iconColor: iconColor,
             action: action
         )
+        .accessibilityLabel(L("playback.close_and_return"))
         .accessibilityIdentifier("playback-return")
-        .frame(height: WorkbenchControlMetrics.redesignAppTopbarHeight)
         .padding(.leading, leadingInset)
     }
 

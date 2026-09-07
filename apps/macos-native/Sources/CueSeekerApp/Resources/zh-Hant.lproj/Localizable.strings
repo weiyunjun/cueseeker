@@ -239,7 +239,7 @@
 "playback.search_selected_text" = "搜尋選取文字";
 "playback.collage" = "長截圖";
 "playback.collage.exit" = "結束";
-"playback.collage.editing" = "正在編輯長截圖";
+"playback.collage.editing" = "正在編輯長截圖…";
 "playback.collage.preview" = "長截圖預覽";
 "playback.collage.copy" = "拷貝長截圖";
 "playback.collage.export" = "匯出長截圖";

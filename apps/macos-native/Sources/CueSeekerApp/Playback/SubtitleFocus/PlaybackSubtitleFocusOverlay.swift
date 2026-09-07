@@ -93,7 +93,7 @@ struct PlaybackOverlay: View {
                     onToggleEditingCollage: session.toggleEditingCollage,
                     onReturn: onReturn
                 )
-                .frame(height: PlaybackOverlayMetrics.tabBarHeight)
+                .frame(height: WorkbenchControlMetrics.redesignAppTopbarHeight)
 
                 moduleContent
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -252,30 +252,23 @@ private struct PlaybackOverlayTopBar: View {
 
     var body: some View {
         ZStack {
-            // Where it is in the player top bar, not centred in this taller
-            // bar, so it does not move when the overlay opens.
-            PlaybackReturnButton(action: onReturn)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            PlaybackReturnButton(
+                hoverBackground: WorkbenchRedesignColors
+                    .overlaySurfaceShortcutButtonHoverBg,
+                action: onReturn
+            )
+            .frame(maxWidth: .infinity, alignment: .leading)
 
             if isEditingCollage {
-                HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
-                    Image(systemName: "square.and.pencil")
-                        .font(.system(
-                            size: WorkbenchControlMetrics.redesignControlIconSize,
-                            weight: WorkbenchControlMetrics.redesignButtonIconWeight
-                        ))
-
-                    Text(L("playback.collage.editing"))
-                        .font(.system(
-                            size: PlaybackOverlayMetrics.tabFontSize,
-                            weight: .semibold
-                        ))
-                        .lineLimit(1)
-                }
-                .foregroundStyle(PlaybackTheme.playbackModuleSidebarSelected)
-                .allowsHitTesting(false)
-                .accessibilityElement(children: .combine)
-                .accessibilityIdentifier("playback-collage-editor-title")
+                Text(L("playback.collage.editing"))
+                    .font(.system(
+                        size: WorkbenchControlMetrics.redesignFontSizeBody,
+                        weight: .semibold
+                    ))
+                    .lineLimit(1)
+                    .foregroundStyle(PlaybackTheme.playbackModuleSidebarSelected)
+                    .allowsHitTesting(false)
+                    .accessibilityIdentifier("playback-collage-editor-title")
             } else {
                 WorkbenchTabs(
                     items: modules.map {
@@ -291,10 +284,8 @@ private struct PlaybackOverlayTopBar: View {
                 }
             }
 
-            if selectedModule == .current {
-                HStack {
-                    Spacer(minLength: 0)
-
+            HStack(spacing: WorkbenchControlMetrics.redesignSpacing1) {
+                if selectedModule == .current {
                     WorkbenchIconButton(
                         systemImage: "square.and.pencil",
                         isRedesign: true,
@@ -315,10 +306,16 @@ private struct PlaybackOverlayTopBar: View {
                             : "playback-enter-collage"
                     )
                 }
-                .padding(.horizontal, WorkbenchControlMetrics.redesignSpacing4)
+
+                TopbarAppEntries(
+                    hoverBackground: WorkbenchRedesignColors
+                        .overlaySurfaceShortcutButtonHoverBg
+                )
             }
+            .frame(maxWidth: .infinity, alignment: .trailing)
+            .padding(.trailing, WorkbenchControlMetrics.redesignSpacing4)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(PlaybackTheme.subtitleFocusOverlayBackground)
     }
 }

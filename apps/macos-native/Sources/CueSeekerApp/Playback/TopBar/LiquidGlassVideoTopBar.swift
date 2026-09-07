@@ -1,9 +1,9 @@
 import SwiftUI
 
 // Custom video-page top bar: the return button after the native window
-// controls, which `AppWindowControls` places at the leading edge, and the
-// centered video title over the topbar gradient. Player UI. Maps prototype
-// v6 `.video-topbar`.
+// controls, which `AppWindowControls` places at the leading edge, the centered
+// video title over the topbar gradient, and the App's Task and Settings
+// entries at the trailing edge. Player UI. Maps prototype v6 `.video-topbar`.
 struct LiquidGlassVideoTopBar: View {
     let title: String
     let onReturn: () -> Void
@@ -35,7 +35,7 @@ struct LiquidGlassVideoTopBar: View {
         }
         .overlay {
             Text(title)
-                .font(.system(size: PlaybackChromeMetrics.topbarTitleFontSize, weight: .semibold))
+                .font(.system(size: WorkbenchControlMetrics.redesignFontSizeBody, weight: .semibold))
                 .foregroundStyle(PlaybackTheme.textPrimary)
                 .lineLimit(1)
                 .truncationMode(.tail)
@@ -48,8 +48,19 @@ struct LiquidGlassVideoTopBar: View {
                 .allowsHitTesting(false)
                 .padding(.horizontal, PlaybackChromeMetrics.topbarHorizontalPadding)
         }
-        .overlay(alignment: .topLeading) {
-            PlaybackReturnButton(action: onReturn)
+        .overlay(alignment: .leading) {
+            PlaybackReturnButton(
+                iconColor: PlaybackTheme.textPrimary,
+                hoverBackground: PlaybackTheme.controlHoverBackground,
+                action: onReturn
+            )
+        }
+        .overlay(alignment: .trailing) {
+            TopbarAppEntries(
+                iconColor: PlaybackTheme.textPrimary,
+                hoverBackground: PlaybackTheme.controlHoverBackground
+            )
+            .padding(.trailing, PlaybackChromeMetrics.topbarHorizontalPadding)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }

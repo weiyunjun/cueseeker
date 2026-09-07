@@ -345,7 +345,6 @@ enum PlaybackCollageSelectionMetrics {
 }
 
 enum PlaybackOverlayMetrics {
-    static let tabBarHeight: CGFloat = 54
     static let tabGap = WorkbenchControlMetrics.redesignSpacing4
     static let tabHorizontalPadding = WorkbenchControlMetrics.redesignSpacing2
     static let tabIndicatorGap = WorkbenchControlMetrics.redesignSpacing1
@@ -358,7 +357,6 @@ enum PlaybackChromeMetrics {
     static let horizontalInset: CGFloat = 0
     static let bottomInset: CGFloat = 0
 
-    static let videoTopBarHeight: CGFloat = 46
     static let height: CGFloat = 98
     static let bottomControlsRowHeight: CGFloat = 52
     static let capsuleButtonHeight: CGFloat = 40
@@ -406,7 +404,6 @@ enum PlaybackChromeMetrics {
     static let progressTimeFontSize: CGFloat = 10
     static let speedMenuCheckFontSize: CGFloat = 11
     static let speedMenuItemFontSize: CGFloat = 13
-    static let topbarTitleFontSize: CGFloat = 13
 
     static let speedMenuItemVerticalGap: CGFloat = 2
     static let speedMenuItemContentGap: CGFloat = 10

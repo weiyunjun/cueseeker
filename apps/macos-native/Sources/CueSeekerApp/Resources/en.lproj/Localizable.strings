@@ -239,7 +239,7 @@
 "playback.search_selected_text" = "Search Selected Text";
 "playback.collage" = "Collage";
 "playback.collage.exit" = "Exit";
-"playback.collage.editing" = "Editing Collage";
+"playback.collage.editing" = "Editing Collage…";
 "playback.collage.preview" = "Collage Preview";
 "playback.collage.copy" = "Copy Collage";
 "playback.collage.export" = "Export Collage";

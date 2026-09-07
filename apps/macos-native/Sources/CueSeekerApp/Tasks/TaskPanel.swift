@@ -109,7 +109,7 @@ struct TaskPanel: View {
             }
         }
         .padding(.horizontal, WorkbenchControlMetrics.redesignSpacing4)
-        .frame(height: PlaybackOverlayMetrics.tabBarHeight)
+        .frame(height: WorkbenchControlMetrics.redesignTaskPanelHeaderHeight)
     }
 
     @ViewBuilder

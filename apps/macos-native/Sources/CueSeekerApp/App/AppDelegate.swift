@@ -187,7 +187,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         // reads the window controls' width on its first layout, and a reading
         // taken later would not reach a layout that never changes again.
         AppWindowControls.attach(to: window)
-        window.contentView = CueSeekerHostingView(rootView: contentView)
+        let hostingView = CueSeekerHostingView(rootView: contentView)
+        // The window controls' band is not a safe area to the pages: every
+        // page lays itself out from the window's top edge with the band's
+        // token. Left as a safe area, SwiftUI drops any subtree that lies
+        // wholly inside the band - a top bar of exactly the band's height
+        // is neither drawn nor hit-tested.
+        if #available(macOS 13.3, *) {
+            hostingView.safeAreaRegions = []
+        }
+        window.contentView = hostingView
         AppPointerShape.attach(to: window) { [appState] in
             appState.interfaceLayers.hasUncoveredOpenMenu
         }

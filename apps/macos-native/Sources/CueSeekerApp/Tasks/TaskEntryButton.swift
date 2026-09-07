@@ -7,6 +7,10 @@ import SwiftUI
 /// that opens one thing and stays lit while it is open.
 struct TaskEntryButton: View {
     @ObservedObject var tasks: TaskQueueStore
+    /// The colors of the surface the button is drawn on; the Workbench's by
+    /// default.
+    var iconColor: Color? = nil
+    var hoverBackground: Color = WorkbenchRedesignColors.bgHover
     let onOpen: () -> Void
 
     var body: some View {
@@ -14,6 +18,8 @@ struct TaskEntryButton: View {
             systemImage: "list.bullet.rectangle",
             isRedesign: true,
             isOpen: tasks.isPanelOpen,
+            hoverBackground: hoverBackground,
+            iconColor: iconColor,
             action: onOpen
         )
         // App chrome, like the sidebar toggle beside it: it must not be the

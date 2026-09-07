@@ -239,7 +239,7 @@
 "playback.search_selected_text" = "搜索选中文本";
 "playback.collage" = "长截图";
 "playback.collage.exit" = "退出";
-"playback.collage.editing" = "正在编辑长截图";
+"playback.collage.editing" = "正在编辑长截图…";
 "playback.collage.preview" = "长截图预览";
 "playback.collage.copy" = "复制长截图";
 "playback.collage.export" = "导出长截图";

@@ -370,7 +370,6 @@ func editingCollageDisablesOnlyUncheckedCuesAtSelectionLimit() {
 
 @Test
 func playbackOverlayCurrentAndPlaylistShareFullWidthCueGeometry() {
-    #expect(PlaybackOverlayMetrics.tabBarHeight == 54)
     #expect(PlaybackOverlayMetrics.tabIndicatorHeight == 2)
     #expect(PlaybackOverlayModule.standardModules == [.current])
     #expect(

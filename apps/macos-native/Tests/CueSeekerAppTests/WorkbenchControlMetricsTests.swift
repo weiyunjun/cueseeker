@@ -80,3 +80,8 @@ func workbenchTopbarIsTallerThanTheWindowControlsBand() {
     #expect(WorkbenchControlMetrics.redesignAppTopbarHeight == 45)
     #expect(AppShellLayout.topBarHeight == WorkbenchControlMetrics.redesignWorkbenchTopbarHeight)
 }
+
+@Test
+func taskPanelHeaderKeepsItsHeightWhileThePlaybackTopbarsAreTheBand() {
+    #expect(WorkbenchControlMetrics.redesignTaskPanelHeaderHeight == 54)
+}

@@ -42,11 +42,11 @@ struct PlaybackVideoStage: View {
                     )
                     .frame(
                         width: stageSize.width,
-                        height: PlaybackChromeMetrics.videoTopBarHeight
+                        height: WorkbenchControlMetrics.redesignAppTopbarHeight
                     )
                     .position(
                         x: stageSize.width / 2,
-                        y: PlaybackChromeMetrics.videoTopBarHeight / 2
+                        y: WorkbenchControlMetrics.redesignAppTopbarHeight / 2
                     )
                     .opacity(isTopBarVisible ? 1 : 0)
                     .allowsHitTesting(isTopBarVisible)

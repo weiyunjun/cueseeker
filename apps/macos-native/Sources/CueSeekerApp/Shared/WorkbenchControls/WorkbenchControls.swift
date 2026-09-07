@@ -231,6 +231,9 @@ enum WorkbenchControlMetrics {
     static let redesignTaskPanelWidth: CGFloat = 460
     /// --height-task-panel: 440px
     static let redesignTaskPanelHeight: CGFloat = 440
+    /// The panel's header keeps the height the Playback Overlay's top bar had
+    /// before that bar shrank to the window controls' band.
+    static let redesignTaskPanelHeaderHeight: CGFloat = 54
     /// --height-task-progress-bar: 4px
     static let redesignTaskProgressBarHeight = redesignLibraryProgressBarHeight
 
@@ -1133,6 +1136,10 @@ struct WorkbenchIconButton: View {
     /// on, so a button drawn on another surface passes that surface's own
     /// step; the Workbench surface's is the default.
     var hoverBackground: Color = WorkbenchRedesignColors.bgHover
+    /// The icon is read against the surface too: on the video page it takes
+    /// the player's text color, because the Workbench's secondary text is dark
+    /// on a dark video in Light appearance.
+    var iconColor: Color? = nil
     /// Input is blocked while a window or video size transition runs. The
     /// freeze is not a disabled state, so the button keeps the look it had
     /// before the transition started and nothing about it changes on screen.
@@ -1199,7 +1206,7 @@ struct WorkbenchIconButton: View {
 
     private var redesignIconColor: Color {
         isEnabled
-            ? WorkbenchRedesignColors.textSecondary
+            ? (iconColor ?? WorkbenchRedesignColors.textSecondary)
             : WorkbenchRedesignColors.textDisabled
     }
 
