@@ -865,7 +865,7 @@
 - Hover
   - Background：Surface Hover
 - Open
-  - 触发：挂靠的菜单或面板打开，或按钮所控的模式开启
+  - 触发：挂靠的菜单、面板或窗口打开，或按钮所控的模式开启
   - Background：Surface Hover
 - Focused
   - Ring Color：`--color-focus-ring`
@@ -1245,11 +1245,6 @@
 ##### Primary
 
 - Leading Icon：Required
-
-##### Action
-
-- Leading Icon：Required
-- Selection：None
 
 ### Tabs
 
@@ -2655,15 +2650,12 @@
    3. Library / Grid
    4. File / Folder
    5. Shiori / Bookmark
-3. Flexible Spacer
-4. Settings Region
 
 #### Components
 
 - Sidebar
 - Sidebar Toggle
 - Sidebar Item / Primary
-- Sidebar Item / Action
 
 #### Sizes
 
@@ -2691,6 +2683,7 @@
    3. Page Title
 5. Trailing Function Region
    1. Task Entry
+   2. Settings Entry
 6. Draggable Region
 
 #### Components
@@ -2709,6 +2702,7 @@
 - Sidebar Toggle：在 `--height-app-topbar` 内垂直居中，与 Window Controls 同一中线
 - Function Region Gap：`--gap-app-topbar-content`
 - Back to Forward Gap：`--spacing-1`
+- Task to Settings Gap：`--spacing-1`
 - Sidebar Segment Width：`--width-app-sidebar`
 - Window Controls Inset：`--spacing-6`
 - Collapsed Toggle Gap After Window Controls：`--gap-app-topbar-toggle-after-window-controls`
@@ -2726,6 +2720,7 @@
 - Sidebar Expanded
 - Sidebar Collapsed
 - Hidden On Playback
+- Settings Window Open：Settings Entry Open，窗口最小化期间保持
 
 ### Workbench Titled Page Layout
 
