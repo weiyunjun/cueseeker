@@ -51,6 +51,17 @@ Debug E2E controller, main window 1445×821, Light appearance, English. The vide
 
 `swift test`: 1144 tests, 32 issues. The same suite on this commit's parent, with the changes stashed, produced 26 issues. The four tests that failed only with the changes — the three library-folder-removal cases and `nativeSeekAndOpenRetainPresentedImageUntilCurrentGenerationCommits` — pass in isolation with the changes applied, so they are the load-dependent cases the earlier records describe. Two `CueGroupRefreshScopeIntegrationTests` cases, `showCueGroupInvalidationIsScopedToMountedShiori` and `shioriTableStartsAtTopAfterPanelRemount`, fail in isolation on the parent commit on the same two expectations, so they are not this change's either. The first full run with the changes crashed on the missing environment object described above; the numbers are from the run after that fix. Nothing in the failing set reads a top bar, and the two suites touched here, `WorkbenchControlMetricsTests` and `PlaybackSubtitleFocusLayoutTests`, pass.
 
+## Follow-up: two defects the owner found on the Overlay top bar
+
+Both were reported against the shipped commit and fixed in the same requirement's scope; both predate it and were merely hard to reach before the bar carried the Settings entry.
+
+- **No hover on any of the bar's Icon Buttons.** The bar never claimed the Overlay's interface layer, so its buttons read the default context — the Workbench page's — and that page counts as frozen for as long as playback is open. The hover gate delivers nothing to a frozen surface. The old Collage button had the same blind spot. The bar now claims `.playbackOverlay` for itself, the way the footer does, so its hover follows the Overlay's own coverage: live while the Overlay is the top layer, stopped while the Command Panel covers it.
+- **Tabs and the editing title kept the old language after a switch.** Language switching re-renders only the views that observe `AppLocalizationStore`; the bar's inputs — modules, selection, callbacks — do not change with the language, so SwiftUI skipped the bar even though its parent re-rendered, while the footer, which observes the store itself, updated. The bar now observes the store too.
+
+Verified with the Debug E2E controller: with the Overlay open, Settings → Language → Simplified Chinese through the popup and the arrow keys. The tabs read 当前 / 播放列表 at once, the Collage screen's title reads 正在编辑长截图…, and the Playlist tab stays translated after Tab. The language was put back to Follow System afterwards. Hover is not automatable, for the reason below; the layer claim is proven by reading, not by capture.
+
+`swift test` after the two fixes: 1144 tests, 32 issues, the same families as the run above. Two clipboard cases, `playbackShioriCopiesSettledPrimaryCueAsMarkdownLink` and `subtitleTableViewUnifiedRowMenuAndClipboardKeepPrimaryAndGroupSemantics`, failed in that run — a Debug E2E session of the App was running alongside it — and pass in isolation.
+
 ## Known limits
 
 Hover on the new Icon Buttons is a manual acceptance step for the reason `docs/engineering/08_end_to_end_testing.md` §1.1 records: a synthesized `mouseMove` never reaches SwiftUI's `.onHover`. The Open paint is the same fill as hover, so the token itself is proven on every surface; the hover trigger is not.

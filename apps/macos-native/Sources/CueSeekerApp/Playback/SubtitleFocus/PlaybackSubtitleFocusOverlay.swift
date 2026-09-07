@@ -243,6 +243,10 @@ private struct PlaybackCollageEditor<SubtitleContent: View>: View {
 }
 
 private struct PlaybackOverlayTopBar: View {
+    // Observed so the tab labels and the editing title are re-read when the
+    // language changes: the bar's own inputs do not change with it, so
+    // without this SwiftUI would leave the bar as it was.
+    @EnvironmentObject private var localization: AppLocalizationStore
     let modules: [PlaybackOverlayModule]
     let selectedModule: PlaybackOverlayModule?
     let isEditingCollage: Bool
@@ -317,6 +321,10 @@ private struct PlaybackOverlayTopBar: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(PlaybackTheme.subtitleFocusOverlayBackground)
+        // On the Overlay's layer, like the footer: read from the page
+        // underneath, the bar's buttons would count as frozen for as long as
+        // playback is open and never take a hover.
+        .interfaceLayer(.playbackOverlay)
     }
 }
 
