@@ -179,8 +179,8 @@
 - `--font-weight-playback-cue-metadata`: `400`
 - `--line-height-playback-cue-metadata`: `16px`
 - `--font-size-section-title`: `18px`
-- `--font-size-page-title`: `28px`
-- `--font-weight-page-title`: `700`
+- `--font-size-page-title`: `20px`
+- `--font-weight-page-title`: `600`
 - `--font-size-library-title`: `14px`
 - `--font-size-library-meta`: `12px`
 - `--font-size-library-time-badge`: `10px`
@@ -211,6 +211,7 @@
 - `--max-height-menu`: `480px`
 - `--height-app-sidebar-item`: `32px`
 - `--height-app-topbar`: `45px`
+- `--height-workbench-topbar`: `54px`
 - `--height-player-topbar`: `46px`
 - `--height-player-bottom-control-bar`: `98px`
 - `--height-player-bottom-controls-row`: `52px`
@@ -295,6 +296,7 @@
 - `--gap-player-bottom-right-controls`: `6px`
 - `--gap-player-time-label`: `4px`
 - `--gap-app-topbar-toggle-after-window-controls`: `20px`
+- `--gap-app-topbar-content`: `12px`
 - `--gap-player-window-controls-return`: `16px`
 - `--gap-player-speed-menu-from-button`: `8px`
 - `--gap-library-recent-grid`: `16px`
@@ -1244,11 +1246,6 @@
 
 - Leading Icon：Required
 
-##### Child
-
-- Leading Icon：Required
-- Indentation：Leading Icon 与 Primary 的 Label 左对齐
-
 ##### Action
 
 - Leading Icon：Required
@@ -1282,7 +1279,7 @@
 
 - Label
   - Font Family：`--font-family-base`
-  - Font Size：`--font-size-app-sidebar-item`
+  - Font Size：`--font-size-body`
 - Leading Icon
   - Presence：Optional
 - Selection Indicator
@@ -2655,8 +2652,6 @@
 2. Navigation Region
    1. Search / Magnifying Glass
    2. Recent / Clock
-      1. Recent Videos / Film
-      2. Recent Shioris / Bookmark
    3. Library / Grid
    4. File / Folder
    5. Shiori / Bookmark
@@ -2668,7 +2663,6 @@
 - Sidebar
 - Sidebar Toggle
 - Sidebar Item / Primary
-- Sidebar Item / Child
 - Sidebar Item / Action
 
 #### Sizes
@@ -2693,6 +2687,8 @@
 3. Sidebar Toggle Slot
 4. Function Region
    1. Back Action
+   2. Forward Action
+   3. Page Title
 5. Trailing Function Region
    1. Task Entry
 6. Draggable Region
@@ -2702,20 +2698,31 @@
 - Window Controls：系统原生红绿灯
 - Sidebar Toggle
 - Icon Button / Back
+- Icon Button / Forward
+- Workbench Page Title
 - Icon Button / Default
 - Information Badge / Task Count Badge
 
 #### Sizes
 
-- Height：`--height-app-topbar`
+- Height：`--height-workbench-topbar`
+- Sidebar Toggle：在 `--height-app-topbar` 内垂直居中，与 Window Controls 同一中线
+- Function Region Gap：`--gap-app-topbar-content`
+- Back to Forward Gap：`--spacing-1`
 - Sidebar Segment Width：`--width-app-sidebar`
 - Window Controls Inset：`--spacing-6`
 - Collapsed Toggle Gap After Window Controls：`--gap-app-topbar-toggle-after-window-controls`
 
+#### Page Title
+
+- 一级页：Search、Recent、Library、File、Shiori
+- 二级页：None
+- 页面已不存在：`Unknown Page`
+
 #### States
 
-- Primary Page：Back Disabled
-- Secondary Page：Back Enabled
+- History Start：Back Disabled
+- History End：Forward Disabled
 - Sidebar Expanded
 - Sidebar Collapsed
 - Hidden On Playback
@@ -2729,17 +2736,13 @@
 - Library
 - File
 - Shiori
-- Recent Videos
-- Recent Shioris
 
 #### Structure
 
-1. Page Title
-2. Page Content
+1. Page Content
 
 #### Components
 
-- Workbench Page Title
 - Scrollbar / Vertical
 - Scrollbar / Horizontal
 
@@ -2831,83 +2834,30 @@
 - Control Gap：`--spacing-3`
 
 ## 3.3 Recent
-
-### Recent Overview Layout
+### Recent Layout
 
 #### Structure
 
-1. Recent Videos Section
-2. Recent Shioris Section
+1. Tabs：`Recent Videos`、`Recent Shioris`
+2. Recent Videos：Recent Watching Card Grid
+3. Recent Shioris：Shiori List Card Grid
 
 #### Components
 
-- Recent Videos Section Layout
-- Recent Shioris Section Layout
+- Tabs
+- Tab
+- Recent Watching Card Layout
+- Shiori List Card Layout
 
 #### Layout
 
 - Page Layout：Workbench Titled Page Layout
-
-#### Spacing
-
-- Section Gap：`--spacing-6`
-
-### Recent Section Header Layout
-
-#### Structure
-
-1. Section Title
-2. Count
-3. Right Arrow
-
-#### Visual
-
-- Section Title：Section Title
-- Count：`14px / Regular / --color-text-secondary / Monospaced Digit`
-- Right Arrow Color：`--color-text-muted`
-- Vertical Alignment：First Text Baseline
-
-#### Spacing
-
-- Section Title to Count：`--spacing-2`
-- Count to Right Arrow：`--spacing-1`
-
-#### Interaction
-
-- Hit Area：Visible Section Title, Count, and Right Arrow Group
-- Outside Blank Area：Not Interactive
-
-### Recent Videos Section Layout
-
-#### Structure
-
-1. Section Header
-2. Recent Watching Card Grid
-
-#### Components
-
-- Recent Section Header Layout
-- Recent Watching Card Layout
+- Tabs 左对齐，首个标签与页面内容左边界对齐。
+- 默认 Tab：Recent Videos。Tab 选择在 App 运行期间保留，重新启动后回到默认。
 
 #### Sizes
 
-- Card Width：`--width-library-recent-card-min` to `--width-library-recent-card-max`
-- Grid Gap：`--gap-library-recent-grid`
-
-### Recent Shioris Section Layout
-
-#### Structure
-
-1. Section Header
-2. Shiori List Card Grid
-
-#### Components
-
-- Recent Section Header Layout
-- Shiori List Card Layout
-
-#### Sizes
-
+- Tabs to Content Gap：`--spacing-4`
 - Card Width：`--width-library-recent-card-min` to `--width-library-recent-card-max`
 - Grid Gap：`--gap-library-recent-grid`
 
@@ -3044,6 +2994,10 @@
 - Episode Grid：Scrollable
 - Vertical Scrollbar：Page Viewport Trailing Edge
 
+#### States
+
+- Unknown：文件夹已不在索引中，页面正文为 Empty State / Empty Hint，文案 `This page no longer exists.`
+
 ### Library Episode Grid Layout
 
 #### Structure
@@ -3115,15 +3069,13 @@
 
 #### Structure
 
-1. Page Title
-2. Page Description
-3. Action Row：`Add Folder`、`Index Now`
-4. Index Status
-5. Root Folder List
+1. Page Description
+2. Action Row：`Add Folder`、`Index Now`
+3. Index Status
+4. Root Folder List
 
 #### Components
 
-- Workbench Page Title
 - Button / Neutral
 - Button / Destructive
 - Empty State
@@ -3139,7 +3091,6 @@
 
 #### Spacing
 
-- Page Title to Page Description：`--spacing-2`
 - Page Description to Action Row：`--spacing-4`
 - Action Row to Index Status：`--spacing-4`
 - Index Status to Root Folder List：`--spacing-6`
@@ -3260,6 +3211,10 @@
 - Cover Summary：Scrollable
 - Toolbar 与 Table Header：Pinned
 - Vertical Scrollbar：Page Viewport Trailing Edge
+
+#### States
+
+- Unknown：列表已删除，页面正文为 Empty State / Empty Hint，文案 `This page no longer exists.`
 
 ### Search / Shiori Toolbar Layout
 

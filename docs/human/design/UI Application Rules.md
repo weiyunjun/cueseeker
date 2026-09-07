@@ -57,7 +57,7 @@ Toast 与播放反馈只有视觉，不接受输入，不参与层级。独立�
 
 # 尺寸过渡
 
-1. 窗口尺寸变化与进出播放页的画面尺寸变化期间，Sidebar、Sidebar Toggle 与返回按钮不接受点击，外观保持进入过渡之前的样子，过渡的开始与结束在它们身上不可见。
+1. 窗口尺寸变化与进出播放页的画面尺寸变化期间，Sidebar、Sidebar Toggle、后退与前进按钮不接受点击，外观保持进入过渡之前的样子，过渡的开始与结束在它们身上不可见。
 
 # 全屏
 
@@ -74,7 +74,7 @@ Toast 与播放反馈只有视觉，不接受输入，不参与层级。独立�
 4. 本章规则只在主窗口内生效。指针离开主窗口即恢复默认样式；设置窗口等主窗口之外的窗口，指针形状由系统决定。
 
 ## 规则
-1. 鼠标Grab样式出现场景：1. 表格中，鼠标移动到字幕文字内容上时变为Grab样式。表格包括：Workbench Search界面的表格、Shiori二级界面的表格。2. 鼠标移动到封面卡片组件上，变为Grab。封面卡片组件包括：Library一级界面的封面卡片、Library二级界面的封面卡片、Recent一级界面的视频和Shiori的封面卡片、Recent Videos界面的封面卡片、Recent Shioris界面的封面卡片、Shiori一级界面的封面卡片、Playback Overlay Playlist界面的封面卡片、Command Panel Recent Videos界面的封面卡片、Command Panel Recent Shioris界面的封面卡片。
+1. 鼠标Grab样式出现场景：1. 表格中，鼠标移动到字幕文字内容上时变为Grab样式。表格包括：Workbench Search界面的表格、Shiori二级界面的表格。2. 鼠标移动到封面卡片组件上，变为Grab。封面卡片组件包括：Library一级界面的封面卡片、Library二级界面的封面卡片、Recent界面Recent Videos与Recent Shioris的封面卡片、Shiori一级界面的封面卡片、Playback Overlay Playlist界面的封面卡片、Command Panel Recent Videos界面的封面卡片、Command Panel Recent Shioris界面的封面卡片。
 2. 鼠标I-beam样式出现场景：1. 鼠标移动到任何文字可以按下左键拖拽鼠标选中的、且不变为鼠标Grab样式的区域，变为I-beam样式。2. 鼠标移动到可以输入文本的区域，例如搜索框、编辑列表名称、编辑列表描述等。
 3. 界面切换，会将鼠标样式恢复为默认样式。
 4. 弹出菜单或Dialog等，会将鼠标样式恢复为默认样式。
@@ -83,7 +83,7 @@ Toast 与播放反馈只有视觉，不接受输入，不参与层级。独立�
 ## 规则解释
 1. 规则1和规则2描述了：鼠标移动。这意味着除非其他规则影响，否则鼠标自身位置没有变化的情况下，不会主动改变鼠标样式。之所以这么设置，是出于防止鼠标hover和键盘操作冲突的考虑。注意只是滚动鼠标滚轮或按下鼠标左键不会改变鼠标样式。
 2. 规则优先级：规则5 > 规则4 > 规则3 > 规则2 = 规则1。 下面会描述。注意这些规则，优先级会低于鼠标位置变化。也就是说，当鼠标移动和5条中的若干条规则发生冲突，会优先判断鼠标移动带来的影响。
-3. 规则3界面切换补充说明：Sidebar标签切换；Library一级界面和Library二级界面的Video/Metadata之间切换；Library一级界面/二级界面切换；Shiori一级界面/二级界面切换；进入/退出播放页；进入/退出Playback Overlay；Playback Overlay界面中切换Current/Playlist/Collage；Command Panel 开关及页面切换。
+3. 规则3界面切换补充说明：Sidebar标签切换；顶栏后退/前进；Recent的Recent Videos/Recent Shioris之间切换；Library一级界面和Library二级界面的Video/Metadata之间切换；Library一级界面/二级界面切换；Shiori一级界面/二级界面切换；进入/退出播放页；进入/退出Playback Overlay；Playback Overlay界面中切换Current/Playlist/Collage；Command Panel 开关及页面切换。
 
 ## 具体场景解释
 为了帮助理解，描述几个具体场景：
