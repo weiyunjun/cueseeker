@@ -281,12 +281,12 @@ Rules:
   if a user asks the AI to update a human-owned document. In that case, the AI
   may only provide proposed text, review notes, or a suggested change for the
   human owner to apply manually.
-- When the AI proposes edits to a human-owned document, it must deliver the
-  whole list inside one fenced code block so the owner can copy it in one
-  step. Inside the block, each change names the section, then gives the
-  before text and the after text verbatim on their own lines, with no added
-  quoting, code spans, or other formatting around them, so every line can be
-  pasted into the document's search as-is.
+- When the AI proposes edits to a human-owned document, it must present each
+  change on its own: the section it belongs to as plain text, then the before
+  text and the after text each in its own fenced code block that holds only
+  the document's verbatim lines. The section name and the words marking the
+  before and after halves stay outside the blocks, so every block can be
+  copied whole and pasted into the document's search as-is.
 - Requirement documents under `docs/human/requirements/` record historical
   change requests or implementation requests. Design and planning documents
   under `docs/human/design/` record stabilized product content and expected
