@@ -68,7 +68,6 @@ struct WorkbenchTestSearchView: View {
         SchemaWorkbenchSearchShell(
             searchDraft: searchInputBinding,
             columns: SchemaWorkbenchSearchDefaults.columns,
-            pageTitle: L("sidebar.search"),
             isRedesign: true,
             tableSummary: tableSummary,
             searchResultCountText: exactSearchResultCountText,

@@ -13,7 +13,6 @@ struct ShioriListOverviewView: View {
     var body: some View {
         LibraryCardContextMenuHost { _ in
             LibraryOverviewLayout(
-                title: L("sidebar.shiori"),
                 summaryText: L(
                     "shiori.overview.summary",
                     shioriStore.listOverview.lists.count,

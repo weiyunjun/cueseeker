@@ -11,11 +11,10 @@ func workbenchFocusRingMetricsMatchDesignTokens() {
 
 @Test
 func workbenchPageTitleAndDetailSpacingMatchTheAcceptedHierarchy() {
-    #expect(
-        WorkbenchControlMetrics.redesignFontSizePageTitle
-            == WorkbenchControlMetrics.redesignFontSizeCoverSummaryTitle
-    )
-    #expect(WorkbenchControlMetrics.redesignFontSizePageTitle == 28)
+    // The page title sits in the topbar now, a step below the Cover Summary
+    // title that names a second-level page and above the Section Title.
+    #expect(WorkbenchControlMetrics.redesignFontSizePageTitle == 24)
+    #expect(WorkbenchControlMetrics.redesignFontSizeCoverSummaryTitle == 28)
     #expect(WorkbenchControlMetrics.redesignFontSizeSectionTitle == 18)
     #expect(WorkbenchControlMetrics.redesignFontSizeBody == 14)
     #expect(WorkbenchControlMetrics.redesignSpacing2 == 8)
@@ -72,4 +71,11 @@ func workbenchSearchFieldPlacesInsertionPointAfterCompleteText() {
     WorkbenchSearchField.placeInsertionPointAtEnd(in: editor)
 
     #expect(editor.selectedRange() == expectedRange)
+}
+
+@Test
+func workbenchTopbarIsTallerThanTheWindowControlsBand() {
+    #expect(WorkbenchControlMetrics.redesignWorkbenchTopbarHeight == 54)
+    #expect(WorkbenchControlMetrics.redesignAppTopbarHeight == 45)
+    #expect(AppShellLayout.topBarHeight == WorkbenchControlMetrics.redesignWorkbenchTopbarHeight)
 }

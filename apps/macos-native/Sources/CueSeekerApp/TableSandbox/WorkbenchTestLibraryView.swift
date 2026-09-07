@@ -24,8 +24,6 @@ struct WorkbenchRecentView: View {
         GeometryReader { geometry in
             WorkbenchScrollView([.vertical, .horizontal]) {
                 VStack(alignment: .leading, spacing: WorkbenchTestLibraryMetrics.sectionSpacing) {
-                WorkbenchPageTitle(L("sidebar.recent"))
-
                 sectionTabs
 
                 switch routeState.selectedRecentSection {
@@ -183,7 +181,6 @@ struct WorkbenchTestLibraryView: View {
                 }
             } else {
                 LibraryOverviewLayout(
-                    title: L("sidebar.library"),
                     summaryText: completeLibrarySummaryText,
                     actionTitle: L("settings.library.add_folder"),
                     action: openFilePage

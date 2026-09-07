@@ -99,7 +99,6 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
     @Binding var searchDraft: String
 
     let columns: [WorkbenchTableColumn]
-    let pageTitle: String?
     let searchPlaceholder: String
     let isRedesign: Bool
     let summaryContent: AnyView?
@@ -140,7 +139,6 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
     init(
         searchDraft: Binding<String>,
         columns: [WorkbenchTableColumn],
-        pageTitle: String? = nil,
         searchPlaceholder: String = L("table.search_placeholder"),
         isRedesign: Bool = false,
         summaryContent: AnyView? = nil,
@@ -162,7 +160,6 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
     ) {
         _searchDraft = searchDraft
         self.columns = columns
-        self.pageTitle = pageTitle
         self.searchPlaceholder = searchPlaceholder
         self.isRedesign = isRedesign
         self.summaryContent = summaryContent
@@ -467,24 +464,12 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 VStack(spacing: 0) {
-                    if isRedesign, let pageTitle {
-                        WorkbenchPageTitle(pageTitle)
-                            .workbenchPageInlinePadding()
-                            .padding(
-                                .top,
-                                WorkbenchControlMetrics.redesignWorkbenchPageTopPadding
-                            )
-                            .padding(.bottom, WorkbenchControlMetrics.redesignSpacing4)
-                    }
-
                     if isRedesign {
                         searchToolbar
                             .workbenchPageInlinePadding()
                             .padding(
                                 .top,
-                                pageTitle == nil
-                                    ? WorkbenchControlMetrics.redesignWorkbenchPageTopPadding
-                                    : 0
+                                WorkbenchControlMetrics.redesignWorkbenchPageTopPadding
                             )
                             .padding(.bottom, WorkbenchControlMetrics.redesignSpacing3)
                     } else {

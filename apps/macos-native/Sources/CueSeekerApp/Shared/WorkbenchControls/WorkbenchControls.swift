@@ -186,8 +186,10 @@ enum WorkbenchControlMetrics {
     static let redesignChipVerticalPadding: CGFloat = 4
     /// --height-app-sidebar-item: 32px
     static let redesignAppSidebarItemHeight: CGFloat = 32
-    /// --height-app-topbar: 45px
+    /// --height-app-topbar: 45px — the band the window controls sit in.
     static let redesignAppTopbarHeight: CGFloat = 45
+    /// --height-workbench-topbar: 54px — the Workbench topbar itself.
+    static let redesignWorkbenchTopbarHeight: CGFloat = 54
     /// --width-app-sidebar: 240px
     static let redesignAppSidebarWidth: CGFloat = 240
     /// Provisional --width-settings-sidebar: 184px
@@ -289,8 +291,8 @@ enum WorkbenchControlMetrics {
     static let redesignLibraryListCardHorizontalPadding: CGFloat = 16
     /// --font-size-section-title: 18px
     static let redesignFontSizeSectionTitle: CGFloat = 18
-    /// Provisional --font-size-page-title: 28px
-    static let redesignFontSizePageTitle: CGFloat = 28
+    /// --font-size-page-title: 24px
+    static let redesignFontSizePageTitle: CGFloat = 24
     /// Provisional --font-weight-page-title: 700
     static let redesignFontWeightPageTitle: Font.Weight = .bold
     /// --font-size-library-title: 14px

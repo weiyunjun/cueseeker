@@ -2,20 +2,17 @@ import CoreGraphics
 import SwiftUI
 
 struct LibraryOverviewLayout<Content: View>: View {
-    let title: String
     let summaryText: String
     let actionTitle: String
     let action: () -> Void
     private let content: Content
 
     init(
-        title: String,
         summaryText: String,
         actionTitle: String,
         action: @escaping () -> Void,
         @ViewBuilder content: () -> Content
     ) {
-        self.title = title
         self.summaryText = summaryText
         self.actionTitle = actionTitle
         self.action = action
@@ -29,8 +26,6 @@ struct LibraryOverviewLayout<Content: View>: View {
                     alignment: .leading,
                     spacing: WorkbenchControlMetrics.redesignSpacing4
                 ) {
-                WorkbenchPageTitle(title)
-
                 HStack(spacing: WorkbenchControlMetrics.redesignSpacing3) {
                     Text(summaryText)
                         .font(.system(

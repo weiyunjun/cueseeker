@@ -39,7 +39,7 @@ struct AppTopbarLayout<
         .overlay(alignment: .leading) {
             leadingControls
         }
-        .frame(height: WorkbenchControlMetrics.redesignAppTopbarHeight)
+        .frame(height: WorkbenchControlMetrics.redesignWorkbenchTopbarHeight)
         .simultaneousGesture(
             TapGesture().onEnded {
                 NotificationCenter.default.post(name: .topbarDismissMenusRequested, object: nil)
@@ -57,10 +57,10 @@ struct AppTopbarLayout<
                 )
                 .offset(
                     x: sidebarToggleHandleX,
-                    y: (WorkbenchControlMetrics.redesignAppTopbarHeight - AppShellLayout.sidebarToggleSize) / 2
+                    y: (WorkbenchControlMetrics.redesignWorkbenchTopbarHeight - AppShellLayout.sidebarToggleSize) / 2
                 )
         }
-        .frame(height: WorkbenchControlMetrics.redesignAppTopbarHeight)
+        .frame(height: WorkbenchControlMetrics.redesignWorkbenchTopbarHeight)
         .clipped()
     }
 

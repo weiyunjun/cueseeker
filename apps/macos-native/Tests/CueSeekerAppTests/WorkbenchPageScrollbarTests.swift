@@ -102,7 +102,6 @@ func workbenchPageWithoutATableStopsAtTheContentMinimumWidth() async throws {
     let available: CGFloat = 300
     let host = NSHostingView(
         rootView: LibraryOverviewLayout(
-            title: "Library",
             summaryText: "0 Folders",
             actionTitle: "Add Folder",
             action: {}
@@ -250,7 +249,6 @@ private struct WorkbenchPageScrollbarFixture: View {
         SchemaWorkbenchSearchShell(
             searchDraft: $searchDraft,
             columns: SchemaWorkbenchSearchDefaults.columns,
-            pageTitle: "Search",
             isRedesign: true,
             filterMenu: CueFacetFilterMenuModel(
                 distribution: nil,

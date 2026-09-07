@@ -171,6 +171,10 @@ private struct AppTopBar: View {
     @EnvironmentObject private var appState: AppCoordinator
     @EnvironmentObject private var layoutState: WorkbenchLayoutState
     @EnvironmentObject private var routeState: WorkbenchRouteState
+    // Observed so the title turns into the unknown page's when the Shiori
+    // list or Library folder a history entry points to disappears.
+    @EnvironmentObject private var library: LibraryStore
+    @EnvironmentObject private var shioriStore: ShioriStore
     @State private var isSidebarToggleHovered = false
     // Observed so the labels below are re-read when the language changes.
     @EnvironmentObject private var localization: AppLocalizationStore
@@ -192,6 +196,10 @@ private struct AppTopBar: View {
             HStack(spacing: WorkbenchControlMetrics.redesignAppTopbarContentAfterToggleGap) {
                 backButton
                 forwardButton
+
+                if let pageTitle {
+                    WorkbenchPageTitle(pageTitle)
+                }
             }
         } trailingContent: {
             TaskEntryButton(
@@ -221,6 +229,27 @@ private struct AppTopBar: View {
         .help(L("topbar.back"))
         .accessibilityLabel(L("topbar.back"))
         .accessibilityIdentifier("topbar-back")
+    }
+
+    /// First-level pages carry their name; a second-level page carries none,
+    /// its Cover Summary names it — unless the page it points to is gone.
+    private var pageTitle: String? {
+        switch routeState.currentRoute {
+        case .search:
+            L("sidebar.search")
+        case .recent:
+            L("sidebar.recent")
+        case .library:
+            L("sidebar.library")
+        case .file:
+            L("sidebar.file")
+        case .shiori:
+            L("sidebar.shiori")
+        case .libraryFolder, .shioriList:
+            appState.isWorkbenchRouteUnknown(routeState.currentRoute)
+                ? L("page.unknown.title")
+                : nil
+        }
     }
 
     private var forwardButton: some View {
@@ -364,7 +393,9 @@ private struct AppSidebar: View {
                 }
             }
         }
-        .padding(.top, AppShellLayout.topBarHeight + WorkbenchControlMetrics.redesignAppSidebarVerticalPadding)
+        // The Sidebar keeps clear of the window controls, not of the topbar,
+        // so its items stay put when the topbar is taller than that band.
+        .padding(.top, WorkbenchControlMetrics.redesignAppTopbarHeight + WorkbenchControlMetrics.redesignAppSidebarVerticalPadding)
         .padding(.horizontal, WorkbenchControlMetrics.redesignAppSidebarHorizontalPadding)
         .padding(.bottom, WorkbenchControlMetrics.redesignAppSidebarVerticalPadding)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -512,7 +543,7 @@ enum AppShellLayout {
     /// The sidebar collapses exactly when keeping it would push the page below
     /// its content minimum width and force page-level horizontal scrolling.
     static let sidebarAutoCollapseWindowWidth = pageContentMinimumWidth + sidebarWidth
-    static let topBarHeight = WorkbenchControlMetrics.redesignAppTopbarHeight
+    static let topBarHeight = WorkbenchControlMetrics.redesignWorkbenchTopbarHeight
     static let sidePanelAnimationDuration: Double = 0.18
 
     static let modeControlsOuterPadding: CGFloat = 12

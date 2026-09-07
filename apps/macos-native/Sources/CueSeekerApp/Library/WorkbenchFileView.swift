@@ -15,10 +15,7 @@ struct WorkbenchFileView: View {
         GeometryReader { geometry in
             WorkbenchScrollView([.vertical, .horizontal]) {
                 VStack(alignment: .leading, spacing: 0) {
-                    WorkbenchPageTitle(L("sidebar.file"))
-
                     pageDescription
-                        .padding(.top, WorkbenchControlMetrics.redesignSpacing2)
 
                     actionRow
                         .padding(.top, WorkbenchControlMetrics.redesignSpacing4)
