@@ -291,10 +291,10 @@ enum WorkbenchControlMetrics {
     static let redesignLibraryListCardHorizontalPadding: CGFloat = 16
     /// --font-size-section-title: 18px
     static let redesignFontSizeSectionTitle: CGFloat = 18
-    /// --font-size-page-title: 24px
-    static let redesignFontSizePageTitle: CGFloat = 24
-    /// Provisional --font-weight-page-title: 700
-    static let redesignFontWeightPageTitle: Font.Weight = .bold
+    /// --font-size-page-title: 20px
+    static let redesignFontSizePageTitle: CGFloat = 20
+    /// --font-weight-page-title: 600
+    static let redesignFontWeightPageTitle: Font.Weight = .semibold
     /// --font-size-library-title: 14px
     static let redesignFontSizeLibraryTitle: CGFloat = 14
     /// --font-size-library-meta: 12px

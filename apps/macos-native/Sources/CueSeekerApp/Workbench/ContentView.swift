@@ -194,8 +194,12 @@ private struct AppTopBar: View {
             }
         ) {
             HStack(spacing: WorkbenchControlMetrics.redesignAppTopbarContentAfterToggleGap) {
-                backButton
-                forwardButton
+                // Back and Forward are one pair, closer to each other than
+                // to what stands on either side of them.
+                HStack(spacing: WorkbenchControlMetrics.redesignSpacing1) {
+                    backButton
+                    forwardButton
+                }
 
                 if let pageTitle {
                     WorkbenchPageTitle(pageTitle)

@@ -13,7 +13,8 @@ func workbenchFocusRingMetricsMatchDesignTokens() {
 func workbenchPageTitleAndDetailSpacingMatchTheAcceptedHierarchy() {
     // The page title sits in the topbar now, a step below the Cover Summary
     // title that names a second-level page and above the Section Title.
-    #expect(WorkbenchControlMetrics.redesignFontSizePageTitle == 24)
+    #expect(WorkbenchControlMetrics.redesignFontSizePageTitle == 20)
+    #expect(WorkbenchControlMetrics.redesignFontWeightPageTitle == .semibold)
     #expect(WorkbenchControlMetrics.redesignFontSizeCoverSummaryTitle == 28)
     #expect(WorkbenchControlMetrics.redesignFontSizeSectionTitle == 18)
     #expect(WorkbenchControlMetrics.redesignFontSizeBody == 14)

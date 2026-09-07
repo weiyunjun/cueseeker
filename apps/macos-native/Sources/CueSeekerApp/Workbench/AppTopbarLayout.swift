@@ -55,9 +55,10 @@ struct AppTopbarLayout<
                     width: AppShellLayout.sidebarToggleSize,
                     height: AppShellLayout.sidebarToggleSize
                 )
+                // On the window controls' centre line, not the taller bar's.
                 .offset(
                     x: sidebarToggleHandleX,
-                    y: (WorkbenchControlMetrics.redesignWorkbenchTopbarHeight - AppShellLayout.sidebarToggleSize) / 2
+                    y: (WorkbenchControlMetrics.redesignAppTopbarHeight - AppShellLayout.sidebarToggleSize) / 2
                 )
         }
         .frame(height: WorkbenchControlMetrics.redesignWorkbenchTopbarHeight)
