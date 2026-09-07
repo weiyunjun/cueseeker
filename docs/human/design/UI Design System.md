@@ -71,6 +71,7 @@
 - `--color-checkbox-icon`: Light `#FFFFFF`; Dark `#18181B`
 - `--color-danger-text`: Light `#B42318`; Dark `#FCA5A5`
 - `--color-danger-bg-hover`: Light `#FEF3F2`; Dark `#3A1717`
+- `--color-success-text`: Light `#047857`; Dark `#6EE7B7`
 
 ### Tab
 
@@ -798,7 +799,7 @@
   - Background：`--color-bg-surface`
   - Border Color：`--color-border-control`
   - Label Color：`--color-danger-text`
-  - Icon Color：`--color-text-secondary`
+  - Icon Color：`--color-danger-text`
 - Hover
   - Background：`--color-danger-bg-hover`
   - Border Color：`--color-border-control-hover`
@@ -2652,6 +2653,13 @@
 
 1. Top Safe Area
 2. Navigation Region
+   1. Search / Magnifying Glass
+   2. Recent / Clock
+      1. Recent Videos / Film
+      2. Recent Shioris / Bookmark
+   3. Library / Grid
+   4. File / Folder
+   5. Shiori / Bookmark
 3. Flexible Spacer
 4. Settings Region
 
@@ -2719,6 +2727,7 @@
 - Search
 - Recent
 - Library
+- File
 - Shiori
 - Recent Videos
 - Recent Shioris
@@ -2934,16 +2943,16 @@
 - Selected
 - Disabled
 
-## 3.4 Library
+## 3.4 Library and File
 
 ### Library Overview Layout
 
 #### Structure
 
 1. Summary Row
-2. Tabs：`Video`、`File`
+2. Tabs：`Video`、`Metadata`
 3. Video：Adaptive Folder Card Grid
-4. File：Library File Tree Layout / Roots
+4. Metadata：Library File Tree Layout / Roots
 
 #### Components
 
@@ -2999,9 +3008,9 @@
 #### Structure
 
 1. Cover Summary
-2. Tabs：`Video`、`File`
+2. Tabs：`Video`、`Metadata`
 3. Video：Episode Grid
-4. File：Library File Tree Layout / Folder
+4. Metadata：Library File Tree Layout / Folder
 
 #### Components
 
@@ -3101,6 +3110,56 @@
 - Object Divider：Between Display Title Objects / Starts At File Icon Column / `--color-border-divider`
 - Inside Object Divider：None
 - 展开状态与 Tab 选择不跨界面保留：进入或离开 Library Folder Detail Layout、离开 Library 页面后都回到默认。
+
+### File Page Layout
+
+#### Structure
+
+1. Page Title
+2. Page Description
+3. Action Row：`Add Folder`、`Index Now`
+4. Index Status
+5. Root Folder List
+
+#### Components
+
+- Workbench Page Title
+- Button / Neutral
+- Button / Destructive
+- Empty State
+- Confirmation Dialog
+
+#### Layout
+
+- Page Layout：Workbench Titled Page Layout
+- Page Description、Action Row 与 Root Folder List 均左对齐。
+- Index Status 只在有状态时出现，没有状态时不占高度。
+- 没有根目录时，Root Folder List 的位置显示 Empty State。
+- 移除根目录前弹出 Confirmation Dialog。
+
+#### Spacing
+
+- Page Title to Page Description：`--spacing-2`
+- Page Description to Action Row：`--spacing-4`
+- Action Row to Index Status：`--spacing-4`
+- Index Status to Root Folder List：`--spacing-6`
+- Action Row Gap：`--spacing-2`
+
+#### Index Status
+
+- Anatomy：Icon + `--spacing-2` + Status Line，Detail Line 与 Status Line 左对齐
+- Status Line：`--font-size-body` / Regular，成功为 `--color-success-text`，失败为 `--color-danger-text`
+- Detail Line：`--font-size-caption` / Regular / `--color-text-muted`
+- Line Gap：`--spacing-1`
+
+#### Root Folder Row
+
+- Anatomy：Folder Name 与 Path 上下两行，尾部为 Button / Destructive
+- Folder Name：`--font-size-body` / `--font-weight-control` / `--color-text-primary`
+- Path：`--font-size-caption` / Regular / `--color-text-muted`
+- Padding Block：`--spacing-3`
+- Line Gap：`--spacing-1`
+- Divider：`--color-border-divider`
 
 ## 3.5 Search and Shiori
 
