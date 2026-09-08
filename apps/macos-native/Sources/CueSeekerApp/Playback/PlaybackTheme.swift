@@ -375,6 +375,15 @@ enum PlaybackChromeMetrics {
     static let windowControlGlyphSize: CGFloat = 7
     static let topbarTitleMaxWidth: CGFloat = 520
 
+    /// --height-playback-feedback: 52px
+    static let feedbackHeight: CGFloat = 52
+    /// --radius-playback-feedback: 16px
+    static let feedbackRadius: CGFloat = 16
+    /// --size-playback-feedback-icon: 24px
+    static let feedbackIconSize: CGFloat = 24
+    /// --font-size-playback-feedback: 18px
+    static let feedbackFontSize: CGFloat = 18
+
     static let chromeHorizontalPadding: CGFloat = 24
     static let chromeBottomPadding: CGFloat = 12
     static let progressTopPadding: CGFloat = 16

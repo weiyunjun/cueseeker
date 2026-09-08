@@ -28,12 +28,12 @@ struct PlaybackFeedbackOverlay: View {
     }
 
     private func capsule(_ feedback: PlaybackFeedback) -> some View {
-        HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
+        HStack(spacing: WorkbenchControlMetrics.redesignSpacing3) {
             feedbackIcon(feedback.icon)
             feedbackText(feedback.text)
         }
-        .padding(.horizontal, WorkbenchControlMetrics.redesignSpacing3)
-        .frame(height: WorkbenchControlMetrics.redesignHeight)
+        .padding(.horizontal, WorkbenchControlMetrics.redesignSpacing4)
+        .frame(height: PlaybackChromeMetrics.feedbackHeight)
         .background(feedbackBackground)
     }
 
@@ -43,7 +43,7 @@ struct PlaybackFeedbackOverlay: View {
             Image(systemName: Self.symbolName(for: icon))
                 .font(
                     .system(
-                        size: PlaybackChromeMetrics.circleButtonIconSize,
+                        size: PlaybackChromeMetrics.feedbackIconSize,
                         weight: .semibold
                     )
                 )
@@ -57,7 +57,7 @@ struct PlaybackFeedbackOverlay: View {
             Text(text)
                 .font(
                     .system(
-                        size: WorkbenchControlMetrics.redesignFontSizeBody,
+                        size: PlaybackChromeMetrics.feedbackFontSize,
                         weight: WorkbenchControlMetrics.redesignFontWeightControl
                     )
                     // Accumulated seek seconds and volume percentages change
@@ -87,7 +87,7 @@ struct PlaybackFeedbackOverlay: View {
     /// border and the fill carry the separation on their own.
     private var feedbackBackground: some View {
         let shape = RoundedRectangle(
-            cornerRadius: WorkbenchControlMetrics.redesignMenuRadius
+            cornerRadius: PlaybackChromeMetrics.feedbackRadius
         )
 
         return shape
