@@ -1,23 +1,13 @@
 import SwiftUI
 
-/// Playback feedback has one anchor: the leading edge of the stage, under the
-/// topbar band. Direction is carried by the icon, not by where the capsule
-/// lands, so the picture and the subtitle band stay clear and the eye always
-/// looks in the same place.
+/// Playback feedback has one anchor: the centre of the stage. Direction is
+/// carried by the icon, not by where the capsule lands, so every message
+/// arrives in the same place and the eye never has to look for it.
 struct PlaybackFeedbackOverlay: View {
-    /// The same vertical line the window controls and the bottom bar start on.
-    private static let leadingInset = PlaybackChromeMetrics.chromeHorizontalPadding
-    /// Below the topbar band, whether or not the topbar is currently drawn, so
-    /// the capsule never moves as the Player UI, fullscreen or an overlay
-    /// changes around it.
-    private static let topInset =
-        WorkbenchControlMetrics.redesignAppTopbarHeight
-            + WorkbenchControlMetrics.redesignSpacing3
-
     let feedback: PlaybackFeedback?
 
     var body: some View {
-        ZStack(alignment: .topLeading) {
+        ZStack {
             Color.clear
 
             if let feedback {
@@ -26,20 +16,14 @@ struct PlaybackFeedbackOverlay: View {
                     // label's ceiling would become its width and every capsule
                     // would be as wide as the longest one can be.
                     .fixedSize(horizontal: true, vertical: false)
-                    .padding(.leading, Self.leadingInset)
-                    .padding(.top, Self.topInset)
-                    .transition(
-                        .opacity.combined(
-                            with: .scale(scale: 0.96, anchor: .topLeading)
-                        )
-                    )
+                    .transition(.opacity.combined(with: .scale(scale: 0.96)))
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .allowsHitTesting(false)
         // Only the capsule's presence animates. Its content is swapped in
         // place, so a held-down seek key redraws the counter without the
-        // capsule fading or moving under it.
+        // capsule fading underneath it.
         .animation(ToastCenter.motion, value: feedback != nil)
     }
 
@@ -97,8 +81,10 @@ struct PlaybackFeedbackOverlay: View {
         }
     }
 
-    /// The floating surface the speed menu already uses, so every panel that
-    /// sits above the video reads as the same material.
+    /// The speed menu's surface without its shadow. The capsule appears over
+    /// the picture and over the light Subtitle Focus panel alike, and a scrim
+    /// heavy enough to read on video casts a grey cloud on the panel, so the
+    /// border and the fill carry the separation on their own.
     private var feedbackBackground: some View {
         let shape = RoundedRectangle(
             cornerRadius: WorkbenchControlMetrics.redesignMenuRadius
@@ -112,11 +98,6 @@ struct PlaybackFeedbackOverlay: View {
                     PlaybackTheme.textTertiary.opacity(0.3),
                     lineWidth: WorkbenchControlMetrics.hairlineWidth
                 )
-            )
-            .shadow(
-                color: PlaybackTheme.overlayShadowColor,
-                radius: PlaybackTheme.overlayShadowRadius,
-                y: PlaybackTheme.overlayShadowYOffset
             )
     }
 }
