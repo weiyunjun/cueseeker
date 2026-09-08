@@ -11,7 +11,7 @@ main
 
 ## 1. 目标
 
-视频内反馈从 Center、Leading、Trailing 三个锚点收敛为画面正中一个锚点，样式由当前写死的数值改为引用已有令牌。本次不新增令牌。
+视频内反馈从 Center、Leading、Trailing 三个锚点收敛为画面正中一个锚点，样式由当前写死的数值改为引用令牌。通用值复用已有令牌，其余落到播放反馈自己的组件令牌上。
 
 ## 2. 锚点
 
@@ -22,11 +22,11 @@ main
 
 ## 3. 样式
 
-1. 高度 `--height-control`（40px）。
-2. 圆角 `--radius-menu`（12px），取消全圆角。
-3. 横向内距 `--spacing-3`（12px），图标与文字间距 `--spacing-2`（8px）。
-4. 图标尺寸 `--size-player-circle-button-icon`（18px），颜色 `--color-player-text-primary`，不再单独投影。
-5. 文字 `--font-size-body`（14px）、字重 `--font-weight-control`（500）、颜色 `--color-player-text-primary`，单行，超过 `--width-player-topbar-title-max`（520px）尾部截断。
+1. 高度 `--height-playback-feedback`（52px）。
+2. 圆角 `--radius-playback-feedback`（16px），取消全圆角。
+3. 横向内距 `--spacing-4`（16px），图标与文字间距 `--spacing-3`（12px）。
+4. 图标尺寸 `--size-playback-feedback-icon`（24px），颜色 `--color-player-text-primary`，不再单独投影。
+5. 文字 `--font-size-playback-feedback`（18px）、字重 `--font-weight-control`（500）、颜色 `--color-player-text-primary`，单行，超过 `--width-player-topbar-title-max`（520px）尾部截断。
 6. 表面为背景 `--color-player-menu-bg`、毛玻璃与 0.5px 描边，不投阴影。与背景的分离由描边和底色承担，`--shadow-player-overlay` 不再用于播放反馈。
 7. 反馈中的数字使用等宽数字，累计快进快退与音量变化时胶囊宽度不跳动。
 8. 动效改用 `--duration-toast-motion` 与 `--easing-toast-motion`。
@@ -43,7 +43,7 @@ Playback Feedback 位于 Playback Overlay 与 Command Panel 之上，Subtitle Fo
 
 ## 6. 设计文档同步
 
-本需求验收通过后再更新设计文档：Playback Feedback 的 Anatomy 改为引用 Player Chrome 的浮层令牌、去掉 Shadow 并补齐 Sizes；Playback Feedback Overlay Layout 的 Position 由三值改为画面正中的单一锚点，并记录层级。
+本需求验收通过后再更新设计文档：Height、Size、Radius、Typography 四节分别补入 `--height-playback-feedback`、`--size-playback-feedback-icon`、`--radius-playback-feedback`、`--font-size-playback-feedback`；Playback Feedback 的 Anatomy 改为引用 Player Chrome 的浮层令牌、去掉 Shadow 并补齐 Sizes；Playback Feedback Overlay Layout 的 Position 由三值改为画面正中的单一锚点，并记录层级。
 
 # 验收
 
@@ -51,7 +51,7 @@ Playback Feedback 位于 Playback Overlay 与 Command Panel 之上，Subtitle Fo
 2. 胶囊的中心与画面中心重合。
 3. Player UI 显示与隐藏、进入与退出全屏、打开与关闭 Overlay，胶囊位置不变。
 4. 连续按快进，秒数累计到三位数期间胶囊中心不动、数字不抖动。
-5. 胶囊高 40px、圆角 12px、图标 18px、文字 14px，四周无可见阴影。
+5. 胶囊高 52px、圆角 16px、图标 24px、文字 18px，四周无可见阴影。
 6. Subtitle Focus、Playlist、Command Panel 打开期间触发复制与 Save to Shiori，反馈可见且不遮挡这些界面的顶栏。
 7. 列表名很长的 Save to Shiori 反馈在 520px 处尾部截断，不横穿画面。
 8. 简体、繁体、英文分别核对全部反馈文案不换行、不溢出。
