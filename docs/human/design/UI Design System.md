@@ -976,6 +976,9 @@
 - Workbench Search 表格行菜单：Play、Open Subtitle Folder、Save to Shiori ...；Menu Divider；Copy Cue Text、Copy Deep Link、Copy Cue Group Text、Copy Time Range
 - Workbench Shiori 表格行菜单：Play、Open Subtitle Folder；Menu Divider；Copy Cue Text、Copy Deep Link、Copy Cue Group Text、Copy Time Range；Menu Divider；Move to ...、Duplicate to ...；Menu Divider；Remove Shiori
 - Copy Cue Group Text 只在显示 Cue Group 时出现
+- File Edit 树 Object Folder 行菜单：Rename Folder
+- File Edit 树 Display Title、Video、Subtitle 行菜单：Rename Files
+- Index、移除根目录、数据库压缩进行中时，两个 Rename 项为 Disabled
 
 ##### Player Speed Menu
 
@@ -3025,10 +3028,18 @@
       1. Video File
       2. Subtitle Files
 
+#### Structure / Edit
+
+1. Object Folder
+   1. Display Title Object
+      1. Video File
+      2. Subtitle Files
+
 #### Labels
 
 - Root Path：Complete Path Without Leading or Trailing `/`
 - Object Folder：Path Relative to Root Without Leading `/`
+- Object Folder / Edit：Complete Path
 - All Labels：Complete Display / Character Wrapping / No Truncation
 
 #### Rows
@@ -3054,8 +3065,9 @@
 
 - Default / Roots：Root Paths Expanded / Object Folders Collapsed
 - Default / Folder：Object Folder Expanded / Display Title Objects Collapsed
+- Default / Edit：Object Folders Collapsed / Display Title Objects Collapsed
 - Display Title / Video / Subtitle：Independent Row Hover using `--color-row-hover`
-- Root Path / Object Folder Hover：None
+- Root Path / Object Folder Hover：None；Edit 的 Object Folder 与 Display Title 相同
 - Object Divider：Between Display Title Objects / Starts At File Icon Column / `--color-border-divider`
 - Inside Object Divider：None
 - 展开状态与 Tab 选择不跨界面保留：进入或离开 Library Folder Detail Layout、离开 Library 页面后都回到默认。
@@ -3064,28 +3076,41 @@
 
 #### Structure
 
-1. Page Description
-2. Action Row：`Add Folder`、`Index Now`
-3. Index Status
-4. Root Folder List
+1. Tabs：`Index`、`Edit`
+2. Index
+   1. Page Description
+   2. Action Row：`Add Folder`、`Index Now`
+   3. Index Status
+   4. Root Folder List
+3. Edit：Library File Tree Layout / Edit
 
 #### Components
 
+- Tabs
+- Tab
 - Button / Neutral
 - Button / Destructive
 - Empty State
 - Confirmation Dialog
+- Library File Tree Layout
+- Menu / Context Menu
+- Rename Dialog Layout
 
 #### Layout
 
 - Page Layout：Workbench Titled Page Layout
+- Tabs 左对齐，首个标签与页面内容左边界对齐。
+- 默认 Tab：Index。Tab 选择在 App 运行期间保留，重新启动后回到默认。
+- Edit 列出全部 Object Folder，含自身有配对的根目录，不显示 Root Path 层级；展开状态离开页面后回到默认；没有任何配对时显示 Empty State / Empty Hint，文案 `No indexed content.`
 - Page Description、Action Row 与 Root Folder List 均左对齐。
 - Index Status 只在有状态时出现，没有状态时不占高度。
 - 没有根目录时，Root Folder List 的位置显示 Empty State。
 - 移除根目录前弹出 Confirmation Dialog。
+- Rename 任务运行或排队期间，Add Folder、Index Now 与 Remove 为 Disabled。
 
 #### Spacing
 
+- Tabs to Content Gap：`--spacing-4`
 - Page Description to Action Row：`--spacing-4`
 - Action Row to Index Status：`--spacing-4`
 - Index Status to Root Folder List：`--spacing-6`
@@ -3371,7 +3396,7 @@
 #### Spacing
 
 - Region Gap：`--spacing-4`
-- Footer Action Gap：`--spacing-3`
+- Footer Action Gap：`--spacing-2`
 
 #### States
 
@@ -3421,7 +3446,7 @@
 - Column Gap：`--spacing-6`
 - Cover to Support Text Gap：`--spacing-3`
 - Field Gap：`--spacing-4`
-- Footer Action Gap：`--spacing-3`
+- Footer Action Gap：`--spacing-2`
 
 #### States
 
@@ -3429,6 +3454,44 @@
 - Edit
 - Validation Error
 - Saving
+
+### Rename Dialog Layout
+
+#### Structure
+
+1. Header
+   1. Title：`Rename Folder` 或 `Rename Files`
+   2. Close Button
+2. Form Region
+   1. Current Name：Label 与当前名
+   2. New Name Field
+3. Footer
+   1. Cancel
+   2. Rename
+
+#### Components
+
+- Dialog
+- Text Field
+- Button / Neutral
+- Button / Primary
+
+#### Layout
+
+- Form Region 为 Shiori List Editor Dialog Layout 的 Form Region，单列；Dialog 宽度为 Form Region 宽度加两侧 `--inset-dialog`，Current Name 与 New Name Field 的右缘与最右侧按钮的右缘对齐。
+- Current Name 的 Label 与 Text Field 的 Label 相同；Rename Folder 显示完整路径，Rename Files 显示视频与字幕去掉扩展名后的公共名。
+
+#### Spacing
+
+- Region Gap：`--spacing-4`
+- Field Gap：`--spacing-4`
+- Label to Current Name Gap：`--spacing-1`
+- Footer Action Gap：`--spacing-2`
+
+#### States
+
+- Default
+- Validation Error
 
 ### Confirmation Dialog Layout
 
@@ -3449,7 +3512,7 @@
 #### Spacing
 
 - Region Gap：`--spacing-4`
-- Footer Action Gap：`--spacing-3`
+- Footer Action Gap：`--spacing-2`
 
 #### States
 
@@ -3511,6 +3574,12 @@
 3. Destination Folder
 4. Card Count（Leading）、Time（Trailing）
 5. Error Message：仅 Incomplete
+
+#### Structure / Rename
+
+- Rename Folder：Package Name 与 Destination Folder 换为旧名与新名两行
+- Rename Files：Package Name 与 Destination Folder 换为全部文件的旧完整路径与新完整路径，一行一个，超长时中间截断
+- 不显示 Card Count；Current 的 Progress Text 为阶段文字 `Checking for conflicts`、`Renaming`，Progress Bar 每阶段占一半；In Progress 时无 Remove Action
 
 #### Components
 

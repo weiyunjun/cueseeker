@@ -8,7 +8,7 @@
 2. 页面内浮层：Selection Action Overlay；Playback Overlay（Current、Playlist、Collage Editor 是它的同层模块）。
 3. Command Panel，位于 Playback Overlay 之上。
 4. 菜单：属于打开它的那一层，只高于该层自身。
-5. 对话框：Edit Cover、Shiori List Editor、任务界面、Confirmation。
+5. 对话框：Edit Cover、Shiori List Editor、Rename、任务界面、Confirmation。
 
 Toast 与播放反馈只有视觉，不接受输入，不参与层级。独立窗口与系统菜单栏不属于本清单。红绿灯属于窗口，不参与层级与菜单模态，任何界面状态下可见可用；播放页无 Overlay 时随 Player UI 显隐，Overlay 与 Command Panel 打开时保持显示。红灯关闭主窗口，返回按钮回到来源页。全屏进入与退出的动画期间不显示红绿灯，进入完成后由系统标题栏显示，退出完成后回到页面落位。
 
@@ -34,6 +34,7 @@ Toast 与播放反馈只有视觉，不接受输入，不参与层级。独立�
 | Workbench 表格行右键菜单 | 整窗口禁止 |
 | 筛选菜单 | 整窗口禁止 |
 | 卡片与封面右键菜单（Workbench、Command Panel、Playback Overlay） | 整窗口禁止 |
+| File Edit 树右键菜单 | 整窗口禁止 |
 | Playback Overlay 选中文字菜单 | 整窗口禁止 |
 | Command Panel 选中文字菜单 | 整窗口禁止 |
 | Save to Shiori 菜单（Playback Overlay、Command Panel） | 整窗口禁止 |
@@ -83,7 +84,7 @@ Toast 与播放反馈只有视觉，不接受输入，不参与层级。独立�
 ## 规则解释
 1. 规则1和规则2描述了：鼠标移动。这意味着除非其他规则影响，否则鼠标自身位置没有变化的情况下，不会主动改变鼠标样式。之所以这么设置，是出于防止鼠标hover和键盘操作冲突的考虑。注意只是滚动鼠标滚轮或按下鼠标左键不会改变鼠标样式。
 2. 规则优先级：规则5 > 规则4 > 规则3 > 规则2 = 规则1。 下面会描述。注意这些规则，优先级会低于鼠标位置变化。也就是说，当鼠标移动和5条中的若干条规则发生冲突，会优先判断鼠标移动带来的影响。
-3. 规则3界面切换补充说明：Sidebar标签切换；顶栏后退/前进；Recent的Recent Videos/Recent Shioris之间切换；Library一级界面和Library二级界面的Video/Metadata之间切换；Library一级界面/二级界面切换；Shiori一级界面/二级界面切换；进入/退出播放页；进入/退出Playback Overlay；Playback Overlay界面中切换Current/Playlist/Collage；Command Panel 开关及页面切换。
+3. 规则3界面切换补充说明：Sidebar标签切换；顶栏后退/前进；Recent的Recent Videos/Recent Shioris之间切换；Library一级界面和Library二级界面的Video/Metadata之间切换；Library一级界面/二级界面切换；File的Index/Edit之间切换；Shiori一级界面/二级界面切换；进入/退出播放页；进入/退出Playback Overlay；Playback Overlay界面中切换Current/Playlist/Collage；Command Panel 开关及页面切换。
 
 ## 具体场景解释
 为了帮助理解，描述几个具体场景：
