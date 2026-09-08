@@ -2,12 +2,6 @@ import Foundation
 import SwiftUI
 import CueSeekerPlayback
 
-enum PlaybackFeedbackPosition: Equatable {
-    case center
-    case leading
-    case trailing
-}
-
 enum ShioriFeedbackState {
     case removed
     case unavailable
@@ -20,26 +14,21 @@ enum PlaybackFeedbackIcon: Equatable {
 
 struct PlaybackFeedback: Identifiable, Equatable {
     let id = UUID()
-    let position: PlaybackFeedbackPosition
     let icon: PlaybackFeedbackIcon?
     let text: String?
 
     init(
-        position: PlaybackFeedbackPosition,
         systemImage: String? = nil,
         text: String?
     ) {
-        self.position = position
         self.icon = systemImage.map { .system($0) }
         self.text = text
     }
 
     init(
-        position: PlaybackFeedbackPosition,
         icon: PlaybackFeedbackIcon?,
         text: String?
     ) {
-        self.position = position
         self.icon = icon
         self.text = text
     }
@@ -385,7 +374,6 @@ public final class PlaybackViewModel: ObservableObject {
             accumulatedForwardSeconds += Int(abs(seconds))
             showFeedback(
                 PlaybackFeedback(
-                    position: .trailing,
                     systemImage: "chevron.right",
                     text: "+ \(accumulatedForwardSeconds)s"
                 )
@@ -395,7 +383,6 @@ public final class PlaybackViewModel: ObservableObject {
             accumulatedRewindSeconds += Int(abs(seconds))
             showFeedback(
                 PlaybackFeedback(
-                    position: .leading,
                     systemImage: "chevron.left",
                     text: "- \(accumulatedRewindSeconds)s"
                 )
@@ -521,7 +508,6 @@ public final class PlaybackViewModel: ObservableObject {
     func showSubtitleCopyFeedback(copied: Bool) {
         showFeedback(
             PlaybackFeedback(
-                position: .center,
                 icon: copied ? .copy : .system("exclamationmark.triangle"),
                 text: copied ? L("playback.hud.cue_text_copied") : L("playback.hud.no_subtitle")
             ),
@@ -532,7 +518,6 @@ public final class PlaybackViewModel: ObservableObject {
     func showSelectedTextCopyFeedback(copied: Bool) {
         showFeedback(
             PlaybackFeedback(
-                position: .center,
                 icon: copied ? .copy : .system("exclamationmark.triangle"),
                 text: copied ? L("playback.hud.selected_text_copied") : L("playback.hud.copy_failed")
             ),
@@ -574,7 +559,6 @@ public final class PlaybackViewModel: ObservableObject {
     func showScreenshotCopiedFeedback() {
         showFeedback(
             PlaybackFeedback(
-                position: .center,
                 systemImage: "photo",
                 text: L("playback.hud.screenshot_copied")
             ),
@@ -585,7 +569,6 @@ public final class PlaybackViewModel: ObservableObject {
     func showAutoPauseFeedback() {
         showFeedback(
             PlaybackFeedback(
-                position: .center,
                 systemImage: "pause.fill",
                 text: L("playback.hud.auto_pause")
             )
@@ -595,7 +578,6 @@ public final class PlaybackViewModel: ObservableObject {
     func showRepeatFeedback() {
         showFeedback(
             PlaybackFeedback(
-                position: .center,
                 systemImage: "repeat",
                 text: L("playback.repeat")
             )
@@ -605,7 +587,6 @@ public final class PlaybackViewModel: ObservableObject {
     func showSubtitleMarkdownLinkCopyFeedback(copied: Bool) {
         showFeedback(
             PlaybackFeedback(
-                position: .center,
                 icon: copied ? .copy : .system("exclamationmark.triangle"),
                 text: copied ? L("playback.hud.deep_link_copied") : L("playback.hud.no_subtitle")
             ),
@@ -620,7 +601,6 @@ public final class PlaybackViewModel: ObservableObject {
     func showShioriSaveFeedback(message: String) {
         showFeedback(
             PlaybackFeedback(
-                position: .center,
                 systemImage: "bookmark.fill",
                 text: message
             ),
@@ -632,13 +612,11 @@ public final class PlaybackViewModel: ObservableObject {
         let feedback: PlaybackFeedback = switch state {
         case .removed:
             PlaybackFeedback(
-                position: .center,
                 systemImage: "bookmark",
                 text: L("playback.hud.shiori_removed")
             )
         case .unavailable:
             PlaybackFeedback(
-                position: .center,
                 systemImage: "exclamationmark.triangle",
                 text: L("playback.hud.no_subtitle")
             )
@@ -650,7 +628,6 @@ public final class PlaybackViewModel: ObservableObject {
     func showPlayPauseFeedback(isPlaying: Bool) {
         showFeedback(
             PlaybackFeedback(
-                position: .center,
                 systemImage: isPlaying ? "play.fill" : "pause.fill",
                 text: isPlaying ? L("playback.play") : L("playback.pause")
             )
@@ -663,7 +640,6 @@ public final class PlaybackViewModel: ObservableObject {
     ) {
         showFeedback(
             PlaybackFeedback(
-                position: direction == .previous ? .leading : .trailing,
                 systemImage: direction == .previous ? "chevron.left" : "chevron.right",
                 text: hasResult
                     ? (direction == .previous ? L("playback.hud.previous_result") : L("playback.hud.next_result"))
@@ -679,7 +655,6 @@ public final class PlaybackViewModel: ObservableObject {
     ) {
         showFeedback(
             PlaybackFeedback(
-                position: direction == .previous ? .leading : .trailing,
                 systemImage: direction == .previous ? "chevron.left" : "chevron.right",
                 text: hasResult
                     ? (direction == .previous ? L("playback.hud.previous_library_video") : L("playback.hud.next_library_video"))
@@ -695,7 +670,6 @@ public final class PlaybackViewModel: ObservableObject {
     ) {
         showFeedback(
             PlaybackFeedback(
-                position: direction == .previous ? .leading : .trailing,
                 systemImage: direction == .previous ? "chevron.left" : "chevron.right",
                 text: hasResult
                     ? (direction == .previous ? L("playback.hud.previous_bookmark") : L("playback.hud.next_bookmark"))
@@ -708,7 +682,6 @@ public final class PlaybackViewModel: ObservableObject {
     func showFullscreenFeedback(enteringFullscreen: Bool) {
         showFeedback(
             PlaybackFeedback(
-                position: .center,
                 text: enteringFullscreen ? L("playback.hud.enter_fullscreen") : L("playback.hud.exit_fullscreen")
             ),
             durationMilliseconds: 1_000
@@ -718,7 +691,6 @@ public final class PlaybackViewModel: ObservableObject {
     private func showSubtitleFeedback(isVisible: Bool) {
         showFeedback(
             PlaybackFeedback(
-                position: .center,
                 systemImage: isVisible ? "captions.bubble.fill" : "captions.bubble",
                 text: isVisible ? L("playback.hud.subtitles_on") : L("playback.hud.subtitles_off")
             ),
@@ -729,7 +701,6 @@ public final class PlaybackViewModel: ObservableObject {
     private func showSpeedFeedback(_ speed: Double) {
         showFeedback(
             PlaybackFeedback(
-                position: .center,
                 systemImage: "speedometer",
                 text: Self.formatSpeed(speed)
             )
@@ -748,7 +719,6 @@ public final class PlaybackViewModel: ObservableObject {
 
         showFeedback(
             PlaybackFeedback(
-                position: .center,
                 systemImage: systemImage,
                 text: volume > 0 ? "\(Int(volume.rounded()))%" : L("playback.hud.muted")
             )
@@ -884,15 +854,8 @@ public final class PlaybackViewModel: ObservableObject {
 
             await MainActor.run {
                 self?.feedback = nil
-                switch nextFeedback.position {
-                case .trailing:
-                    self?.accumulatedForwardSeconds = 0
-                case .leading:
-                    self?.accumulatedRewindSeconds = 0
-                case .center:
-                    self?.accumulatedForwardSeconds = 0
-                    self?.accumulatedRewindSeconds = 0
-                }
+                self?.accumulatedForwardSeconds = 0
+                self?.accumulatedRewindSeconds = 0
             }
         }
     }

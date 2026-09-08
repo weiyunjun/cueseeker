@@ -1,87 +1,69 @@
 import SwiftUI
 
+/// Playback feedback has one anchor: the leading edge of the stage, under the
+/// topbar band. Direction is carried by the icon, not by where the capsule
+/// lands, so the picture and the subtitle band stay clear and the eye always
+/// looks in the same place.
 struct PlaybackFeedbackOverlay: View {
+    /// The same vertical line the window controls and the bottom bar start on.
+    private static let leadingInset = PlaybackChromeMetrics.chromeHorizontalPadding
+    /// Below the topbar band, whether or not the topbar is currently drawn, so
+    /// the capsule never moves as the Player UI, fullscreen or an overlay
+    /// changes around it.
+    private static let topInset =
+        WorkbenchControlMetrics.redesignAppTopbarHeight
+            + WorkbenchControlMetrics.redesignSpacing3
+
     let feedback: PlaybackFeedback?
 
     var body: some View {
-        ZStack {
+        ZStack(alignment: .topLeading) {
+            Color.clear
+
             if let feedback {
-                switch feedback.position {
-                case .center:
-                    centerFeedback(feedback)
-                case .leading:
-                    sideFeedback(feedback, isTrailing: false)
-                case .trailing:
-                    sideFeedback(feedback, isTrailing: true)
-                }
+                capsule(feedback)
+                    // The stage offers the whole window, so without this the
+                    // label's ceiling would become its width and every capsule
+                    // would be as wide as the longest one can be.
+                    .fixedSize(horizontal: true, vertical: false)
+                    .padding(.leading, Self.leadingInset)
+                    .padding(.top, Self.topInset)
+                    .transition(
+                        .opacity.combined(
+                            with: .scale(scale: 0.96, anchor: .topLeading)
+                        )
+                    )
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .allowsHitTesting(false)
-        .animation(.easeOut(duration: 0.14), value: feedback != nil)
+        // Only the capsule's presence animates. Its content is swapped in
+        // place, so a held-down seek key redraws the counter without the
+        // capsule fading or moving under it.
+        .animation(ToastCenter.motion, value: feedback != nil)
     }
 
-    private func centerFeedback(_ feedback: PlaybackFeedback) -> some View {
-        feedbackContent(feedback, isSideFeedback: false, isTrailing: false)
-            .frame(height: 60)
-            .background(feedbackBackground(cornerRadius: 30))
-            .transition(.opacity.combined(with: .scale(scale: 0.96)))
-    }
-
-    private func sideFeedback(
-        _ feedback: PlaybackFeedback,
-        isTrailing: Bool
-    ) -> some View {
-        HStack {
-            if isTrailing {
-                Spacer()
-            }
-
-            feedbackContent(feedback, isSideFeedback: true, isTrailing: isTrailing)
-            .frame(height: 60)
-            .background(feedbackBackground(cornerRadius: 30))
-            .transition(.opacity.combined(with: .scale(scale: 0.96)))
-
-            if !isTrailing {
-                Spacer()
-            }
+    private func capsule(_ feedback: PlaybackFeedback) -> some View {
+        HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
+            feedbackIcon(feedback.icon)
+            feedbackText(feedback.text)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding(.horizontal, 25)
-    }
-
-    private func feedbackContent(
-        _ feedback: PlaybackFeedback,
-        isSideFeedback: Bool,
-        isTrailing: Bool
-    ) -> some View {
-        HStack(spacing: 16) {
-            if isSideFeedback && isTrailing {
-                feedbackText(feedback.text)
-                feedbackIcon(feedback.icon, size: 30)
-            } else {
-                feedbackIcon(feedback.icon, size: 30)
-                feedbackText(feedback.text)
-            }
-        }
-        .padding(.horizontal, 28)
+        .padding(.horizontal, WorkbenchControlMetrics.redesignSpacing3)
+        .frame(height: WorkbenchControlMetrics.redesignHeight)
+        .background(feedbackBackground)
     }
 
     @ViewBuilder
-    private func feedbackIcon(_ icon: PlaybackFeedbackIcon?, size: CGFloat) -> some View {
+    private func feedbackIcon(_ icon: PlaybackFeedbackIcon?) -> some View {
         if let icon {
-            switch icon {
-            case .system(let name):
-                Image(systemName: name)
-                    .font(.system(size: size, weight: .semibold))
-                    .foregroundColor(.white)
-                    .shadow(color: .black.opacity(0.44), radius: 2, y: 1)
-            case .copy:
-                Image(systemName: "doc.on.doc")
-                    .font(.system(size: size, weight: .semibold))
-                    .foregroundColor(.white)
-                    .shadow(color: .black.opacity(0.44), radius: 2, y: 1)
-            }
+            Image(systemName: Self.symbolName(for: icon))
+                .font(
+                    .system(
+                        size: PlaybackChromeMetrics.circleButtonIconSize,
+                        weight: .semibold
+                    )
+                )
+                .foregroundColor(PlaybackTheme.textPrimary)
         }
     }
 
@@ -89,21 +71,52 @@ struct PlaybackFeedbackOverlay: View {
     private func feedbackText(_ text: String?) -> some View {
         if let text {
             Text(text)
-                .font(.system(size: 20, weight: .semibold))
-                .foregroundColor(.white)
+                .font(
+                    .system(
+                        size: WorkbenchControlMetrics.redesignFontSizeBody,
+                        weight: WorkbenchControlMetrics.redesignFontWeightControl
+                    )
+                    // Accumulated seek seconds and volume percentages change
+                    // digit by digit; tabular figures keep the capsule from
+                    // breathing while they do.
+                    .monospacedDigit()
+                )
+                .foregroundColor(PlaybackTheme.textPrimary)
                 .lineLimit(1)
                 .truncationMode(.tail)
+                .frame(maxWidth: PlaybackChromeMetrics.topbarTitleMaxWidth, alignment: .leading)
         }
     }
 
-    private func feedbackBackground(cornerRadius: CGFloat) -> some View {
-        RoundedRectangle(cornerRadius: cornerRadius)
-            .fill(PlaybackTheme.cinematicBacking)
-            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: cornerRadius))
+    private static func symbolName(for icon: PlaybackFeedbackIcon) -> String {
+        switch icon {
+        case .system(let name):
+            name
+        case .copy:
+            "doc.on.doc"
+        }
+    }
+
+    /// The floating surface the speed menu already uses, so every panel that
+    /// sits above the video reads as the same material.
+    private var feedbackBackground: some View {
+        let shape = RoundedRectangle(
+            cornerRadius: WorkbenchControlMetrics.redesignMenuRadius
+        )
+
+        return shape
+            .fill(PlaybackTheme.menuBackground)
+            .background(.ultraThinMaterial, in: shape)
             .overlay(
-                RoundedRectangle(cornerRadius: cornerRadius)
-                    .strokeBorder(PlaybackTheme.textTertiary.opacity(0.3), lineWidth: 0.5)
+                shape.strokeBorder(
+                    PlaybackTheme.textTertiary.opacity(0.3),
+                    lineWidth: WorkbenchControlMetrics.hairlineWidth
+                )
             )
-            .shadow(color: .black.opacity(0.42), radius: 24, y: 12)
+            .shadow(
+                color: PlaybackTheme.overlayShadowColor,
+                radius: PlaybackTheme.overlayShadowRadius,
+                y: PlaybackTheme.overlayShadowYOffset
+            )
     }
 }
