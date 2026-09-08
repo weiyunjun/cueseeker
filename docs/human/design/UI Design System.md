@@ -169,6 +169,7 @@
 - `--font-size-player-progress-time`: `10px`
 - `--font-size-player-speed-menu-check`: `11px`
 - `--font-size-player-speed-menu-item`: `13px`
+- `--font-size-playback-feedback`: `18px`
 - `--font-size-subtitle-focus-cue`: `24px`
 - `--line-height-subtitle-focus-cue`: `32px`
 - `--font-weight-subtitle-focus-cue`: `600`
@@ -220,6 +221,7 @@
 - `--height-player-progress-track`: `3px`
 - `--height-player-progress-track-hover`: `6px`
 - `--height-player-progress-time-capsule`: `22px`
+- `--height-playback-feedback`: `52px`
 - `--height-library-progress-bar`: `4px`
 - `--height-task-progress-bar`: `4px`
 - `--height-task-panel`: `440px`
@@ -258,6 +260,7 @@
 - `--width-player-speed-menu`: `184px`
 - `--size-player-progress-thumb`: `12px`
 - `--width-player-topbar-title-max`: `520px`
+- `--size-playback-feedback-icon`: `24px`
 - `--width-playback-cue-timeline-connector`: `1px`
 - `--width-subtitle-focus-content-max`: `960px`
 - `--aspect-library-cover`: `16 / 9`
@@ -359,6 +362,7 @@
 - `--radius-app-sidebar-item`: `8px`
 - `--radius-player-capsule`: `9999px`
 - `--radius-player-speed-menu`: `14px`
+- `--radius-playback-feedback`: `16px`
 - `--radius-player-speed-menu-item`: `8px`
 - `--radius-library-cover`: `8px`
 - `--radius-library-time-badge`: `4px`
@@ -1938,14 +1942,19 @@
 ##### Anatomy
 
 - Container
-  - Background：`--color-bg-popover`
-  - Border Color：`--color-border-muted`
-  - Radius：`--radius-control`
-  - Shadow：`--shadow-popover`
+  - Background：`--color-player-menu-bg`
+  - Border Color：`--color-player-text-tertiary`（30%）
+  - Radius：`--radius-playback-feedback`
+  - Shadow：None
 - Icon
   - Presence：Optional
+  - Color：`--color-player-text-primary`
 - Label
   - Presence：Optional
+  - Font Size：`--font-size-playback-feedback`
+  - Font Weight：`--font-weight-control`
+  - Color：`--color-player-text-primary`
+  - 数字等宽；单行，超出最大宽度尾部截断
 
 ##### Motion
 
@@ -1954,12 +1963,17 @@
 
 ##### Presentation Inputs
 
-- Position
 - Duration
 - Motion
   - Default：Toast Motion
 
 ##### Sizes
+
+- Height：`--height-playback-feedback`
+- Icon Size：`--size-playback-feedback-icon`
+- Padding Inline：`--spacing-4`
+- Icon to Label Gap：`--spacing-3`
+- Label Maximum Width：`--width-player-topbar-title-max`
 
 ##### States
 
@@ -3716,13 +3730,9 @@
 
 #### Position
 
-- Input：Playback Feedback / Position
-- Values
-  - Center
-  - Leading
-  - Trailing
-- Anchor：Player Stage
-- Layer：Above Video; Below Playback Overlay and Command Panel
+- Anchor：Player Stage Center
+- 水平与垂直双向居中，内容变长时以中心为基准向两侧延伸
+- Layer：Above Video, Playback Overlay and Command Panel
 
 #### Timing
 
