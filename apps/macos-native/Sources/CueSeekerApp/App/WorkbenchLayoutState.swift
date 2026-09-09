@@ -217,6 +217,10 @@ final class WorkbenchLayoutState: ObservableObject {
     /// stay lit for as long as it is. It follows the window's open and closed
     /// edges, not its visibility, so minimising to the Dock keeps the button lit.
     @Published var isSettingsWindowOpen = false
+    /// The Workbench page's horizontal scroll, kept in its own object so the
+    /// top bar can follow it without every other reader of this state
+    /// re-rendering on each scroll event.
+    let pageScroll = WorkbenchPageScrollOffset()
     let route: WorkbenchRouteState
 
     private let userDefaults: UserDefaults

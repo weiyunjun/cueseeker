@@ -266,8 +266,15 @@ private struct PlaybackOverlayTopBar: View {
     let onSelect: (PlaybackOverlayModule) -> Bool
     let onToggleEditingCollage: () -> Bool
     let onReturn: () -> Void
+    @Environment(\.isAppFullscreen) private var isAppFullscreen
 
     var body: some View {
+        GeometryReader { proxy in
+            bar(centerMaxWidth: centerMaxWidth(barWidth: proxy.size.width))
+        }
+    }
+
+    private func bar(centerMaxWidth: CGFloat) -> some View {
         ZStack {
             PlaybackReturnButton(
                 hoverBackground: WorkbenchRedesignColors
@@ -284,6 +291,7 @@ private struct PlaybackOverlayTopBar: View {
                     ))
                     .lineLimit(1)
                     .foregroundStyle(PlaybackTheme.playbackModuleSidebarSelected)
+                    .frame(maxWidth: centerMaxWidth)
                     .allowsHitTesting(false)
                     .accessibilityIdentifier("playback-collage-editor-title")
             } else {
@@ -299,6 +307,7 @@ private struct PlaybackOverlayTopBar: View {
                 ) { module in
                     _ = onSelect(module)
                 }
+                .frame(maxWidth: centerMaxWidth)
             }
 
             HStack(spacing: WorkbenchControlMetrics.redesignSpacing1) {
@@ -338,6 +347,17 @@ private struct PlaybackOverlayTopBar: View {
         // underneath, the bar's buttons would count as frozen for as long as
         // playback is open and never take a hover.
         .interfaceLayer(.playbackOverlay)
+    }
+
+    /// What the Tabs or the editing title may occupy without reaching the
+    /// return button or the trailing buttons.
+    private func centerMaxWidth(barWidth: CGFloat) -> CGFloat {
+        PlaybackChromeMetrics.topbarCenterMaxWidth(
+            barWidth: barWidth,
+            isFullscreen: isAppFullscreen,
+            trailingButtonCount: selectedModule == .current ? 3 : 2,
+            trailingPadding: WorkbenchControlMetrics.redesignSpacing4
+        )
     }
 }
 

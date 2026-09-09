@@ -429,6 +429,43 @@ enum PlaybackChromeMetrics {
 
     static let interactiveHeight: CGFloat = height + speedMenuHeight + speedMenuGap + speedMenuOverlayTopPadding
     static let hiddenOffset: CGFloat = interactiveHeight + hiddenOffsetPadding
+
+    /// Where the return button starts in the player and Playback Overlay top
+    /// bars: after the window controls, or at the bar's own padding once the
+    /// system titlebar has taken them over in fullscreen.
+    @MainActor
+    static func topbarReturnLeadingInset(isFullscreen: Bool) -> CGFloat {
+        guard !isFullscreen else {
+            return topbarHorizontalPadding
+        }
+
+        return WorkbenchControlMetrics.redesignSpacing6
+            + AppWindowControls.clusterWidth
+            + windowControlsReturnGap
+    }
+
+    /// A trailing function region of `buttonCount` Icon Buttons.
+    static func topbarButtonGroupWidth(buttonCount: Int) -> CGFloat {
+        CGFloat(buttonCount) * WorkbenchControlMetrics.redesignIconButtonSize
+            + CGFloat(max(0, buttonCount - 1)) * WorkbenchControlMetrics.redesignSpacing1
+    }
+
+    /// What a centred title or Tabs may occupy: the bar minus twice the wider
+    /// side, so it stays on the bar's centre line and reaches neither the
+    /// return button nor the trailing buttons.
+    @MainActor
+    static func topbarCenterMaxWidth(
+        barWidth: CGFloat,
+        isFullscreen: Bool,
+        trailingButtonCount: Int,
+        trailingPadding: CGFloat
+    ) -> CGFloat {
+        let leading = topbarReturnLeadingInset(isFullscreen: isFullscreen)
+            + WorkbenchControlMetrics.redesignIconButtonSize
+        let trailing = trailingPadding
+            + topbarButtonGroupWidth(buttonCount: trailingButtonCount)
+        return max(0, barWidth - 2 * (max(leading, trailing) + topbarHorizontalPadding))
+    }
 }
 
 /// A unified concentric backing visual element for cinematic buttons and interactive controls.

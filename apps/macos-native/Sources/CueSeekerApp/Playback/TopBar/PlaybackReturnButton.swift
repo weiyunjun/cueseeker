@@ -10,6 +10,7 @@ struct PlaybackReturnButton: View {
     var iconColor: Color? = nil
     let hoverBackground: Color
     let action: () -> Void
+    @Environment(\.isAppFullscreen) private var isAppFullscreen
 
     var body: some View {
         WorkbenchIconButton(
@@ -25,10 +26,11 @@ struct PlaybackReturnButton: View {
     }
 
     /// After the window controls: their inset, their measured width, then
-    /// the gap.
+    /// the gap. In fullscreen the system titlebar owns them, so the button
+    /// takes the bar's own leading padding instead of their empty band.
     private var leadingInset: CGFloat {
-        WorkbenchControlMetrics.redesignSpacing6
-            + AppWindowControls.clusterWidth
-            + PlaybackChromeMetrics.windowControlsReturnGap
+        PlaybackChromeMetrics.topbarReturnLeadingInset(
+            isFullscreen: isAppFullscreen
+        )
     }
 }

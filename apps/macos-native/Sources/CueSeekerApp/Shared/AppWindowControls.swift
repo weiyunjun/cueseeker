@@ -1,4 +1,19 @@
 import AppKit
+import SwiftUI
+
+private struct AppFullscreenKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
+extension EnvironmentValues {
+    /// The window is in system fullscreen, so the system titlebar owns the
+    /// window controls and a page's own bar starts at its own padding instead
+    /// of reserving their band.
+    var isAppFullscreen: Bool {
+        get { self[AppFullscreenKey.self] }
+        set { self[AppFullscreenKey.self] = newValue }
+    }
+}
 
 /// The one owner of the native window controls: close, minimize and zoom.
 ///

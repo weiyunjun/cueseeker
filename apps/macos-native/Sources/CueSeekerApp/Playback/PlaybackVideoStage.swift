@@ -23,7 +23,9 @@ struct PlaybackVideoStage: View {
             let isFullscreenToggleDisabled = !chromeSnapshot.hasPlaybackSelection
                 || layoutState.isVideoSizeTransitionInProgress
                 || fullscreenManager.isTransitioning
-            let isTopBarVisible = chrome.isPlayerUIVisible && !fullscreenManager.isFullscreen
+            // Fullscreen keeps the bar; only the window controls leave, to the
+            // system titlebar.
+            let isTopBarVisible = chrome.isPlayerUIVisible
             let isBottomChromeVisible = chrome.isPlayerUIVisible
             let areWindowControlsVisible = chrome.isPlayerUIVisible || isLayerOpen
 
@@ -35,23 +37,21 @@ struct PlaybackVideoStage: View {
                     .background(Color.black)
                     .position(x: frame.midX, y: frame.midY)
 
-                if !fullscreenManager.isFullscreen {
-                    LiquidGlassVideoTopBar(
-                        title: chromeSnapshot.displayTitle,
-                        onReturn: onClose
-                    )
-                    .frame(
-                        width: stageSize.width,
-                        height: WorkbenchControlMetrics.redesignAppTopbarHeight
-                    )
-                    .position(
-                        x: stageSize.width / 2,
-                        y: WorkbenchControlMetrics.redesignAppTopbarHeight / 2
-                    )
-                    .opacity(isTopBarVisible ? 1 : 0)
-                    .allowsHitTesting(isTopBarVisible)
-                    .accessibilityHidden(!isTopBarVisible)
-                }
+                LiquidGlassVideoTopBar(
+                    title: chromeSnapshot.displayTitle,
+                    onReturn: onClose
+                )
+                .frame(
+                    width: stageSize.width,
+                    height: WorkbenchControlMetrics.redesignAppTopbarHeight
+                )
+                .position(
+                    x: stageSize.width / 2,
+                    y: WorkbenchControlMetrics.redesignAppTopbarHeight / 2
+                )
+                .opacity(isTopBarVisible ? 1 : 0)
+                .allowsHitTesting(isTopBarVisible)
+                .accessibilityHidden(!isTopBarVisible)
 
                 if case .failed(let message) = playback.playbackStatus {
                     Label(message, systemImage: "exclamationmark.triangle")

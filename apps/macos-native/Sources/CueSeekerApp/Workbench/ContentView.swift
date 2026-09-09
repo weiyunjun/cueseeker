@@ -63,10 +63,11 @@ private struct ContentRootView: View {
                         mainWorkspace
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                             .padding(.top, hidesWorkbenchChrome ? 0 : AppShellLayout.topBarHeight)
+                            .environment(\.workbenchPageScrollOffset, layoutState.pageScroll)
                     }
 
                     if !hidesWorkbenchChrome {
-                        AppTopBar()
+                        AppTopBar(pageScroll: layoutState.pageScroll)
                             .zIndex(3)
                     }
 
@@ -81,11 +82,27 @@ private struct ContentRootView: View {
                 .modifier(
                     InterfaceLayerCoverageBridge(layers: appState.interfaceLayers)
                 )
+                .environment(\.isAppFullscreen, layoutState.isAppFullscreen)
                 .onAppear {
-                    collapseSidebarForCompactWindowIfNeeded(width: geometry.size.width)
+                    collapseSidebarForCompactWindowIfNeeded(
+                        width: geometry.size.width,
+                        isWorkbenchVisible: !hidesWorkbenchChrome
+                    )
                 }
                 .onChange(of: geometry.size.width) { width in
-                    collapseSidebarForCompactWindowIfNeeded(width: width)
+                    collapseSidebarForCompactWindowIfNeeded(
+                        width: width,
+                        isWorkbenchVisible: !hidesWorkbenchChrome
+                    )
+                }
+                // The playback page must not decide the Sidebar's state. While
+                // it is up the width is not tested at all, and the return to
+                // the Workbench tests the width that is in effect by then.
+                .onChange(of: hidesWorkbenchChrome) { hidesChrome in
+                    collapseSidebarForCompactWindowIfNeeded(
+                        width: geometry.size.width,
+                        isWorkbenchVisible: !hidesChrome
+                    )
                 }
             }
             .ignoresSafeArea(.container, edges: .top)
@@ -170,7 +187,14 @@ private struct ContentRootView: View {
         SearchView()
     }
 
-    private func collapseSidebarForCompactWindowIfNeeded(width: CGFloat) {
+    private func collapseSidebarForCompactWindowIfNeeded(
+        width: CGFloat,
+        isWorkbenchVisible: Bool
+    ) {
+        guard isWorkbenchVisible else {
+            return
+        }
+
         layoutState.collapseSidebarForCompactWindowIfNeeded(
             width: width,
             threshold: AppShellLayout.sidebarAutoCollapseWindowWidth
@@ -179,6 +203,9 @@ private struct ContentRootView: View {
 }
 
 private struct AppTopBar: View {
+    /// Observed so the function region follows the page's horizontal scroll;
+    /// it is the only view that re-reads it.
+    @ObservedObject var pageScroll: WorkbenchPageScrollOffset
     @EnvironmentObject private var appState: AppCoordinator
     @EnvironmentObject private var layoutState: WorkbenchLayoutState
     @EnvironmentObject private var routeState: WorkbenchRouteState
@@ -199,6 +226,7 @@ private struct AppTopBar: View {
         return AppTopbarLayout(
             isSidebarVisible: layoutState.isSidebarVisible,
             isAppFullscreen: layoutState.isAppFullscreen,
+            pageScrollOffset: pageScroll.horizontal,
             onDoubleClickZoom: { window in
                 NotificationCenter.default.post(name: .topbarTitlebarZoomRequested, object: window)
                 return true

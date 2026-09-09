@@ -8,6 +8,9 @@ struct AppTopbarLayout<
 >: View {
     let isSidebarVisible: Bool
     let isAppFullscreen: Bool
+    /// How far the page below is scrolled sideways. The function region is the
+    /// page's own row, so it travels with the page.
+    let pageScrollOffset: CGFloat
     let onDoubleClickZoom: (NSWindow) -> Bool
     @ViewBuilder let content: () -> Content
     /// The trailing function region. It holds what belongs to the App rather
@@ -27,14 +30,8 @@ struct AppTopbarLayout<
                     .allowsHitTesting(false)
             }
         }
-        .overlay(alignment: .leading) {
-            content()
-                .padding(.leading, contentLeadingInset)
-                .padding(.trailing, WorkbenchControlMetrics.redesignAppTopbarContentHorizontalPadding)
-        }
-        .overlay(alignment: .trailing) {
-            trailingContent()
-                .padding(.trailing, WorkbenchControlMetrics.redesignAppTopbarContentHorizontalPadding)
+        .overlay {
+            functionRegion
         }
         .overlay(alignment: .leading) {
             leadingControls
@@ -46,6 +43,33 @@ struct AppTopbarLayout<
             }
         )
         .background(LayoutPerformanceProbe(name: "AppTopbarLayout.layout"))
+    }
+
+    /// One row for the function region and the trailing function region: they
+    /// share the page's content minimum width, so the title yields to the
+    /// buttons instead of running under them, and below that width the whole
+    /// row travels with the page rather than staying pinned to the window.
+    private var functionRegion: some View {
+        GeometryReader { proxy in
+            let regionWidth = max(0, proxy.size.width - regionLeadingEdge)
+            let rowWidth = max(regionWidth, AppShellLayout.pageContentMinimumWidth)
+            let offset = min(max(0, pageScrollOffset), rowWidth - regionWidth)
+
+            HStack(spacing: 0) {
+                content()
+
+                Spacer(minLength: WorkbenchControlMetrics.redesignAppTopbarContentAfterToggleGap)
+
+                trailingContent()
+            }
+            .padding(.leading, rowLeadingInset)
+            .padding(.trailing, WorkbenchControlMetrics.redesignAppTopbarContentHorizontalPadding)
+            .frame(width: rowWidth, height: proxy.size.height)
+            .offset(x: -offset)
+            .frame(width: regionWidth, height: proxy.size.height, alignment: .leading)
+            .clipped()
+            .offset(x: regionLeadingEdge)
+        }
     }
 
     private var leadingControls: some View {
@@ -65,9 +89,15 @@ struct AppTopbarLayout<
         .clipped()
     }
 
-    private var contentLeadingInset: CGFloat {
+    /// Where the scrolling row starts: after the sidebar segment, which stays
+    /// put, or at the window's leading edge when the sidebar is collapsed.
+    private var regionLeadingEdge: CGFloat {
+        isSidebarVisible ? AppShellLayout.sidebarWidth : 0
+    }
+
+    private var rowLeadingInset: CGFloat {
         if isSidebarVisible {
-            return AppShellLayout.sidebarWidth + WorkbenchControlMetrics.redesignAppTopbarContentHorizontalPadding
+            return WorkbenchControlMetrics.redesignAppTopbarContentHorizontalPadding
         }
 
         return max(
