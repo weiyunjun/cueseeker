@@ -368,3 +368,35 @@ private func exportTestImageContainsBrightPixel(_ image: CGImage) -> Bool {
         bytes[$0] > 240 && bytes[$0 + 1] > 240 && bytes[$0 + 2] > 240
     }
 }
+
+@Test
+func subtitleCollageASSRenderScriptKeepsTheClippedCopiesOfASelectedDialogue() throws {
+    let sourceScript = """
+    [Script Info]
+    PlayResX: 640
+    PlayResY: 360
+
+    [V4+ Styles]
+    Format: Name, Fontname, Fontsize
+    Style: ED,Arial,32
+
+    [Events]
+    Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+    Dialogue: 0,0:00:01.00,0:00:03.00,ED,,0,0,0,,{\\clip(0,0,640,8)}Gradient line
+    Dialogue: 0,0:00:01.00,0:00:03.00,ED,,0,0,0,,{\\clip(0,8,640,16)}Gradient line
+    Dialogue: 0,0:00:01.00,0:00:03.00,ED,,0,0,0,,Another line
+    Dialogue: 0,0:00:01.00,0:00:03.00,ED,,0,0,20,,{\\clip(0,0,640,8)}Gradient line
+    """
+
+    let selectedScript = try #require(
+        SubtitleScreenshotExporter._selectedASSRenderScriptForTesting(
+            sourceScript,
+            eventIndices: [0]
+        )
+    )
+
+    #expect(selectedScript.contains("{\\clip(0,0,640,8)}Gradient line"))
+    #expect(selectedScript.contains("{\\clip(0,8,640,16)}Gradient line"))
+    #expect(!selectedScript.contains("Another line"))
+    #expect(!selectedScript.contains("0,0,20,,"))
+}

@@ -716,12 +716,14 @@ public enum SubtitleScreenshotExporter {
         selectedBytes.reserveCapacity(1 << 16)
 
         ASSScriptScanner.withScriptBytes(sourceScript) { bytes in
+            let selectedGlyphs = glyphSignatures(bytes, eventIndices: eventIndices)
             ASSScriptScanner.scanLines(bytes) { lineRange, kind in
                 if case .dialogue(let eventIndex) = kind {
-                    guard eventIndices.contains(eventIndex) else {
+                    if eventIndices.contains(eventIndex) {
+                        foundEventIndices.insert(eventIndex)
+                    } else if !selectedGlyphs.contains(glyphSignature(bytes, lineRange)) {
                         return
                     }
-                    foundEventIndices.insert(eventIndex)
                 }
                 selectedBytes.append(contentsOf: bytes[lineRange])
                 selectedBytes.append(0x0A)
@@ -733,6 +735,50 @@ public enum SubtitleScreenshotExporter {
         }
         return String(decoding: selectedBytes, as: UTF8.self)
             .replacingOccurrences(of: "\u{feff}", with: "")
+    }
+
+    /// A Dialogue line stripped of its override blocks.
+    ///
+    /// Some scripts paint one gradient line as a stack of copies of the same
+    /// event, each clipped to a horizontal band of the same glyphs. The copies
+    /// only differ inside `{...}`, so indexing collapses them into one Cue and
+    /// keeps one event. Rendering that event alone draws one band, which reads
+    /// as a missing subtitle, so the copies have to come back with it.
+    private static func glyphSignature(
+        _ bytes: UnsafeBufferPointer<UInt8>,
+        _ lineRange: Range<Int>
+    ) -> [UInt8] {
+        var signature: [UInt8] = []
+        signature.reserveCapacity(lineRange.count)
+        var isInsideOverride = false
+
+        for index in lineRange {
+            let byte = bytes[index]
+            if byte == 0x7B {
+                isInsideOverride = true
+            } else if byte == 0x7D {
+                isInsideOverride = false
+            } else if !isInsideOverride {
+                signature.append(byte)
+            }
+        }
+        return signature
+    }
+
+    private static func glyphSignatures(
+        _ bytes: UnsafeBufferPointer<UInt8>,
+        eventIndices: Set<Int>
+    ) -> Set<[UInt8]> {
+        var signatures = Set<[UInt8]>()
+        ASSScriptScanner.scanLines(bytes) { lineRange, kind in
+            guard case .dialogue(let eventIndex) = kind,
+                  eventIndices.contains(eventIndex)
+            else {
+                return
+            }
+            signatures.insert(glyphSignature(bytes, lineRange))
+        }
+        return signatures
     }
 
     private static func makeASSSession(
