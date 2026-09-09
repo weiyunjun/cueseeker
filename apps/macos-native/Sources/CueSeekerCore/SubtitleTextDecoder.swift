@@ -93,6 +93,10 @@ public enum SubtitleTextDecoder {
         _ contents: String,
         format: SubtitleFormat
     ) throws -> String {
+        // Foundation hands back a lazily bridged string, which would re-materialize
+        // its UTF-8 buffer on every byte scan performed by a caller.
+        var contents = contents
+        contents.makeContiguousUTF8()
         guard hasValidStructure(contents, format: format) else {
             throw SubtitleTextDecodingError.invalidStructure(format)
         }
@@ -105,21 +109,19 @@ public enum SubtitleTextDecoder {
     ) -> Bool {
         switch format {
         case .ass:
-            var isInsideEvents = false
             var hasEventsSection = false
             var hasEventFormat = false
 
-            for rawLine in contents.split(
-                omittingEmptySubsequences: false,
-                whereSeparator: { $0.isNewline }
-            ) {
-                let line = rawLine.trimmingCharacters(in: .whitespacesAndNewlines)
-                    .lowercased()
-                if line.hasPrefix("[") && line.hasSuffix("]") {
-                    isInsideEvents = line == "[events]"
-                    hasEventsSection = hasEventsSection || isInsideEvents
-                } else if isInsideEvents, line.hasPrefix("format:") {
-                    hasEventFormat = true
+            ASSScriptScanner.withScriptBytes(contents) { bytes in
+                ASSScriptScanner.scanLines(bytes) { _, kind in
+                    switch kind {
+                    case .sectionHeader(let isEvents):
+                        hasEventsSection = hasEventsSection || isEvents
+                    case .eventFormat:
+                        hasEventFormat = true
+                    case .dialogue, .other:
+                        break
+                    }
                 }
             }
             return hasEventsSection && hasEventFormat

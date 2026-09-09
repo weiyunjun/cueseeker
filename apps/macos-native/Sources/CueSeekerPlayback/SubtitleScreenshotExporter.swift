@@ -743,55 +743,28 @@ public enum SubtitleScreenshotExporter {
             return nil
         }
 
-        let normalizedScript = sourceScript
-            .replacingOccurrences(of: "\u{feff}", with: "")
-            .replacingOccurrences(of: "\r\n", with: "\n")
-            .replacingOccurrences(of: "\r", with: "\n")
-        let lines = normalizedScript
-            .split(separator: "\n", omittingEmptySubsequences: false)
-            .map(String.init)
-        var isEventsSection = false
-        var hasEventFormat = false
-        var nextEventIndex = 0
         var foundEventIndices = Set<Int>()
-        var selectedLines: [String] = []
-        selectedLines.reserveCapacity(lines.count)
+        var selectedBytes: [UInt8] = []
+        selectedBytes.reserveCapacity(1 << 16)
 
-        for line in lines {
-            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
-            let lowercased = trimmed.lowercased()
-
-            if lowercased.hasPrefix("[") && lowercased.hasSuffix("]") {
-                isEventsSection = lowercased == "[events]"
-                selectedLines.append(line)
-                continue
+        ASSScriptScanner.withScriptBytes(sourceScript) { bytes in
+            ASSScriptScanner.scanLines(bytes) { lineRange, kind in
+                if case .dialogue(let eventIndex) = kind {
+                    guard eventIndices.contains(eventIndex) else {
+                        return
+                    }
+                    foundEventIndices.insert(eventIndex)
+                }
+                selectedBytes.append(contentsOf: bytes[lineRange])
+                selectedBytes.append(0x0A)
             }
-            if isEventsSection, lowercased.hasPrefix("format:") {
-                hasEventFormat = true
-                selectedLines.append(line)
-                continue
-            }
-            guard isEventsSection,
-                  hasEventFormat,
-                  lowercased.hasPrefix("dialogue:")
-            else {
-                selectedLines.append(line)
-                continue
-            }
-
-            let eventIndex = nextEventIndex
-            nextEventIndex += 1
-            guard eventIndices.contains(eventIndex) else {
-                continue
-            }
-            foundEventIndices.insert(eventIndex)
-            selectedLines.append(line)
         }
 
         guard foundEventIndices == eventIndices else {
             return nil
         }
-        return selectedLines.joined(separator: "\n") + "\n"
+        return String(decoding: selectedBytes, as: UTF8.self)
+            .replacingOccurrences(of: "\u{feff}", with: "")
     }
 
     private static func makeASSSession(
