@@ -182,26 +182,27 @@ final class PlaybackCollagePreviewStore: ObservableObject {
         }
     }
 
-    /// Shows the groups of the current plan that are already rendered, in plan
-    /// order; missing groups appear once they finish. Copy and Export stay
-    /// unavailable until the plan is committed in full.
+    /// Shows what the current plan can show now, in plan order; missing groups
+    /// appear once they finish. Copy and Export stay unavailable until the plan
+    /// is committed in full.
     private func publishAvailableGroups() {
         guard let plan = requestedPlan else {
             return
         }
-        let available = plan.groups.filter { renderedGroup(for: $0) != nil }
-        guard available != publishedGroups else {
+        let displayed = displayableGroups(for: plan)
+        let displayedGroups = displayed.map(\.group)
+        guard displayedGroups != publishedGroups else {
             return
         }
-        publishedGroups = available
+        publishedGroups = displayedGroups
         publishGeneration += 1
         let generation = publishGeneration
-        guard !available.isEmpty else {
+        guard !displayed.isEmpty else {
             image = nil
             return
         }
 
-        let assembled = available.compactMap { renderedGroup(for: $0) }
+        let assembled = displayed.map(\.rendered)
         let compose = self.compose
         Task { [weak self] in
             guard let renderedImage = try? await compose(assembled),
@@ -354,6 +355,32 @@ final class PlaybackCollagePreviewStore: ObservableObject {
         for group: SubtitleCollageGroup
     ) -> SubtitleCollageRenderedGroup? {
         renderedGroups.first { $0.group == group }?.rendered
+    }
+
+    /// Each rendered group of the plan, and for a missing group the image of a
+    /// kept group that shares a cue with it — the same group whose content just
+    /// changed — so the preview overwrites it in place instead of removing it
+    /// and inserting it back. Each kept image stands in once; a missing group
+    /// with nothing to borrow is left out until it renders.
+    private func displayableGroups(
+        for plan: SubtitleCollageSelectionPlan
+    ) -> [(group: SubtitleCollageGroup, rendered: SubtitleCollageRenderedGroup)] {
+        var used: [SubtitleCollageGroup] = []
+        var displayed: [(group: SubtitleCollageGroup, rendered: SubtitleCollageRenderedGroup)] = []
+        for group in plan.groups {
+            let cueIDs = Set(group.cues.map(\.id))
+            let entry = renderedGroups.first { $0.group == group }
+                ?? renderedGroups.first { entry in
+                    !used.contains(entry.group)
+                        && entry.group.cues.contains { cueIDs.contains($0.id) }
+                }
+            guard let entry else {
+                continue
+            }
+            used.append(entry.group)
+            displayed.append(entry)
+        }
+        return displayed
     }
 
     private func keep(

@@ -59,9 +59,10 @@ func playbackCollagePreviewRendersOnlyChangedGroups() async throws {
     #expect(renderedGroups.count == 4)
     #expect(renderedGroups[3] == plan.groups[1])
     // Each finished group is published as it lands and the full plan once more
-    // on commit; the second plan first shows the two groups it still has. The
-    // composes run as separate tasks, so only their set is deterministic.
-    #expect(composedGroupCounts.sorted() == [1, 2, 2, 3, 3, 3, 3])
+    // on commit. The second plan changes one group, whose old image stands in,
+    // so nothing is published until the new render lands. The composes run as
+    // separate tasks, so only their set is deterministic.
+    #expect(composedGroupCounts.sorted() == [1, 2, 3, 3, 3, 3])
     #expect(store.image?.width == 3)
 }
 
@@ -381,6 +382,66 @@ func playbackCollagePreviewMovesOnFromAFailedGroupThePlanNoLongerNeeds() async t
     #expect(store.errorDescription != nil)
     #expect(store.image == nil)
     #expect(!store.canUseCurrentResult)
+}
+
+@MainActor
+@Test
+func playbackCollagePreviewKeepsAChangedGroupsImageUntilItsNewRenderLands() async throws {
+    let second = collagePreviewCue(
+        id: 80,
+        ordinal: 0,
+        startMilliseconds: 1_000,
+        endMilliseconds: 2_000
+    )
+    let third = collagePreviewCue(
+        id: 81,
+        ordinal: 1,
+        startMilliseconds: 1_000,
+        endMilliseconds: 2_000
+    )
+    var renderCallCount = 0
+    var pendingRender: CheckedContinuation<
+        SubtitleCollageRenderedGroup,
+        Never
+    >?
+    let store = PlaybackCollagePreviewStore(
+        renderGroup: { _ in
+            renderCallCount += 1
+            if renderCallCount == 2 {
+                return await withCheckedContinuation { continuation in
+                    pendingRender = continuation
+                }
+            }
+            return collagePreviewRenderedGroup()
+        },
+        compose: { groups in
+            collagePreviewImage(width: groups.count, height: 1)
+        }
+    )
+
+    var plan = try SubtitleCollageSelectionPlan(selectedCues: [second])
+    store.update(plan: plan)
+    await waitForCollagePreviewToSettle(store)
+    #expect(store.image?.width == 1)
+
+    // The third cue shares the second cue's timestamps, so it joins that group
+    // and changes it: the group's old image stays in place until the new one.
+    _ = plan.select(third)
+    #expect(plan.groups.count == 1)
+    store.update(plan: plan)
+    #expect(store.image?.width == 1)
+    #expect(!store.canUseCurrentResult)
+    await waitForCollagePreviewCondition {
+        pendingRender != nil
+    }
+    #expect(store.image?.width == 1)
+
+    pendingRender?.resume(returning: collagePreviewRenderedGroup())
+    await waitForCollagePreviewToSettle(store)
+    #expect(store.image?.width == 1)
+    #expect(store.canUseCurrentResult)
+    #expect(store.currentActionResult()?.plan == plan)
+    #expect(renderCallCount == 2)
 }
 
 @MainActor
