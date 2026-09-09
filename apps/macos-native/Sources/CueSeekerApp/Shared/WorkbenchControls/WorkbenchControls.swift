@@ -1132,12 +1132,12 @@ struct WorkbenchIconButton: View {
     let systemImage: String
     var isRedesign: Bool = false
     /// The button stays lit for as long as the menu or panel it hangs off is
-    /// open, and for as long as the mode it switches on is on, with the same
-    /// background hover paints.
+    /// open, and for as long as the mode it switches on is on.
     var isOpen: Bool = false
-    /// Hover and the open state are read against the surface the button sits
-    /// on, so a button drawn on another surface passes that surface's own
-    /// step; the Workbench surface's is the default.
+    /// Hover is read against the surface the button sits on, so a button drawn
+    /// on another surface passes that surface's own step; the Workbench
+    /// surface's is the default. Open does not take a surface step - it is the
+    /// same solid block everywhere.
     var hoverBackground: Color = WorkbenchRedesignColors.bgHover
     /// The icon is read against the surface too: on the video page it takes
     /// the player's text color, because the Workbench's secondary text is dark
@@ -1208,17 +1208,29 @@ struct WorkbenchIconButton: View {
     }
 
     private var redesignIconColor: Color {
-        isEnabled
-            ? (iconColor ?? WorkbenchRedesignColors.textSecondary)
-            : WorkbenchRedesignColors.textDisabled
+        guard isEnabled else {
+            return WorkbenchRedesignColors.textDisabled
+        }
+        // Open reverses the button rather than tinting it, so the glyph is the
+        // one that reads on the filled block, not the surface's own icon color.
+        if isOpen {
+            return WorkbenchRedesignColors.iconOnDark
+        }
+        return iconColor ?? WorkbenchRedesignColors.textSecondary
     }
 
-    /// Hover and the open state paint the same background, in the step that
-    /// belongs to the surface the button sits on.
+    /// Hover takes the step belonging to the surface the button sits on. Open
+    /// is a solid block instead: one opaque fill and a white glyph, the same on
+    /// every surface, so a button that is lit is never mistaken for one the
+    /// pointer happens to rest on.
     private var redesignBackgroundColor: Color {
-        isEnabled && (isHovered || isOpen)
-            ? hoverBackground
-            : Color.clear
+        guard isEnabled else {
+            return Color.clear
+        }
+        if isOpen {
+            return WorkbenchRedesignColors.textMuted
+        }
+        return isHovered ? hoverBackground : Color.clear
     }
 }
 
