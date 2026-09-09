@@ -33,12 +33,12 @@ func playbackCollagePreviewRendersOnlyChangedGroups() async throws {
         startMilliseconds: 4_000,
         endMilliseconds: 5_000
     )
-    var renderedBatches: [[SubtitleCollageGroup]] = []
+    var renderedGroups: [SubtitleCollageGroup] = []
     var composedGroupCounts: [Int] = []
     let store = PlaybackCollagePreviewStore(
-        renderGroups: { groups in
-            renderedBatches.append(groups)
-            return groups.map { _ in collagePreviewRenderedGroup() }
+        renderGroup: { group in
+            renderedGroups.append(group)
+            return collagePreviewRenderedGroup()
         },
         compose: { groups in
             composedGroupCounts.append(groups.count)
@@ -56,8 +56,8 @@ func playbackCollagePreviewRendersOnlyChangedGroups() async throws {
     store.update(plan: plan)
     await waitForCollagePreviewToSettle(store)
 
-    #expect(renderedBatches.map(\.count) == [3, 1])
-    #expect(renderedBatches[1][0] == plan.groups[1])
+    #expect(renderedGroups.count == 4)
+    #expect(renderedGroups[3] == plan.groups[1])
     #expect(composedGroupCounts == [3, 3])
     #expect(store.image?.width == 3)
 }
@@ -88,12 +88,15 @@ func playbackCollagePreviewRejectsObsoleteAsyncResults() async throws {
         )
     ])
     var continuations: [
-        Int: CheckedContinuation<[SubtitleCollageRenderedGroup], Never>
+        Int: CheckedContinuation<SubtitleCollageRenderedGroup, Never>
     ] = [:]
+    var pendingRenderCallCount = 0
     let store = PlaybackCollagePreviewStore(
-        renderGroups: { groups in
-            await withCheckedContinuation { continuation in
-                continuations[groups.count] = continuation
+        renderGroup: { _ in
+            pendingRenderCallCount += 1
+            let call = pendingRenderCallCount
+            return await withCheckedContinuation { continuation in
+                continuations[call] = continuation
             }
         },
         compose: { groups in
@@ -106,29 +109,31 @@ func playbackCollagePreviewRejectsObsoleteAsyncResults() async throws {
     await waitForCollagePreviewCondition {
         continuations[1] != nil
     }
+
+    // Superseding the plan must not start a second render of its own; the group
+    // already in flight finishes first.
     store.update(plan: secondPlan)
     #expect(!store.canUseCurrentResult)
+    #expect(continuations[2] == nil)
+
+    continuations[1]?.resume(returning: collagePreviewRenderedGroup())
     await waitForCollagePreviewCondition {
         continuations[2] != nil
     }
+    #expect(store.image == nil)
+    #expect(!store.canUseCurrentResult)
 
-    continuations[2]?.resume(
-        returning: Array(repeating: collagePreviewRenderedGroup(), count: 2)
-    )
+    continuations[2]?.resume(returning: collagePreviewRenderedGroup())
+    await waitForCollagePreviewCondition {
+        continuations[3] != nil
+    }
+    continuations[3]?.resume(returning: collagePreviewRenderedGroup())
     await waitForCollagePreviewToSettle(store)
     #expect(store.image?.width == 2)
     #expect(store.canUseCurrentResult)
     #expect(store.currentActionResult()?.plan == secondPlan)
     #expect(store.currentActionResult()?.image.width == 2)
-
-    continuations[1]?.resume(
-        returning: [collagePreviewRenderedGroup()]
-    )
-    for _ in 0..<20 {
-        await Task.yield()
-    }
-    #expect(store.image?.width == 2)
-    #expect(store.currentActionResult()?.plan == secondPlan)
+    #expect(pendingRenderCallCount == 3)
 }
 
 @MainActor
@@ -153,18 +158,18 @@ func playbackCollagePreviewActionsRejectVisiblePreviousGeneration() async throws
     ])
     var renderCallCount = 0
     var pendingRender: CheckedContinuation<
-        [SubtitleCollageRenderedGroup],
+        SubtitleCollageRenderedGroup,
         Never
     >?
     let store = PlaybackCollagePreviewStore(
-        renderGroups: { groups in
+        renderGroup: { _ in
             renderCallCount += 1
             if renderCallCount == 2 {
                 return await withCheckedContinuation { continuation in
                     pendingRender = continuation
                 }
             }
-            return groups.map { _ in collagePreviewRenderedGroup() }
+            return collagePreviewRenderedGroup()
         },
         compose: { groups in
             collagePreviewImage(width: groups.count, height: 1)
@@ -183,7 +188,7 @@ func playbackCollagePreviewActionsRejectVisiblePreviousGeneration() async throws
     #expect(store.image?.width == 1)
     #expect(!store.canUseCurrentResult)
 
-    pendingRender?.resume(returning: [collagePreviewRenderedGroup()])
+    pendingRender?.resume(returning: collagePreviewRenderedGroup())
     await waitForCollagePreviewToSettle(store)
     #expect(store.currentActionResult()?.plan == secondPlan)
     #expect(store.currentActionResult()?.image.width == 2)
@@ -199,8 +204,8 @@ func playbackCollagePreviewPublicationStaysInsidePreviewBranch() async throws {
     )
     defer { recordingSession.finish() }
     let store = PlaybackCollagePreviewStore(
-        renderGroups: { groups in
-            groups.map { _ in collagePreviewRenderedGroup() }
+        renderGroup: { _ in
+            collagePreviewRenderedGroup()
         },
         compose: { groups in
             collagePreviewImage(width: groups.count, height: 1)

@@ -15,9 +15,9 @@ private struct PlaybackCollageImageActionWorkItem: @unchecked Sendable {
 
 @MainActor
 final class PlaybackCollagePreviewStore: ObservableObject {
-    typealias RenderGroups = (
-        [SubtitleCollageGroup]
-    ) async throws -> [SubtitleCollageRenderedGroup]
+    typealias RenderGroup = (
+        SubtitleCollageGroup
+    ) async throws -> SubtitleCollageRenderedGroup
     typealias Compose = (
         [SubtitleCollageRenderedGroup]
     ) async throws -> CGImage
@@ -26,12 +26,14 @@ final class PlaybackCollagePreviewStore: ObservableObject {
     @Published private(set) var isRendering = false
     @Published private(set) var errorDescription: String?
 
-    private let renderGroups: RenderGroups
+    private let renderGroup: RenderGroup
     private let compose: Compose
     private var requestedPlan: SubtitleCollageSelectionPlan?
     private var committedPlan: SubtitleCollageSelectionPlan?
-    private var committedGroups: [SubtitleCollageGroup] = []
-    private var committedRenderedGroups: [SubtitleCollageRenderedGroup] = []
+    private var renderedGroups: [(
+        group: SubtitleCollageGroup,
+        rendered: SubtitleCollageRenderedGroup
+    )] = []
     private var requestGeneration = 0
     private var renderTask: Task<Void, Never>?
 
@@ -39,12 +41,16 @@ final class PlaybackCollagePreviewStore: ObservableObject {
         videoURL: URL,
         subtitleSource: PlaybackSubtitleSource
     ) {
-        renderGroups = { groups in
-            try await SubtitleScreenshotExporter.renderCollageGroups(
-                groups,
+        renderGroup = { group in
+            let rendered = try await SubtitleScreenshotExporter.renderCollageGroups(
+                [group],
                 videoURL: videoURL,
                 subtitleSource: subtitleSource
             )
+            guard let renderedGroup = rendered.first, rendered.count == 1 else {
+                throw PlaybackCollagePreviewError.renderedGroupCountMismatch
+            }
+            return renderedGroup
         }
         compose = { renderedGroups in
             try await Task.detached(priority: .userInitiated) {
@@ -54,10 +60,10 @@ final class PlaybackCollagePreviewStore: ObservableObject {
     }
 
     init(
-        renderGroups: @escaping RenderGroups,
+        renderGroup: @escaping RenderGroup,
         compose: @escaping Compose
     ) {
-        self.renderGroups = renderGroups
+        self.renderGroup = renderGroup
         self.compose = compose
     }
 
@@ -67,88 +73,125 @@ final class PlaybackCollagePreviewStore: ObservableObject {
         }
 
         requestedPlan = plan
-        requestGeneration += 1
-        let generation = requestGeneration
-        renderTask?.cancel()
+        errorDescription = nil
 
         guard !plan.groups.isEmpty else {
+            stopRendering()
             committedPlan = nil
-            committedGroups = []
-            committedRenderedGroups = []
+            renderedGroups = []
             image = nil
             isRendering = false
-            errorDescription = nil
             return
         }
 
-        let reuse = reusableEdges(
-            previousGroups: committedGroups,
-            currentGroups: plan.groups,
-            previousRenderedGroupCount: committedRenderedGroups.count
-        )
-        let groupsToRender = Array(plan.groups[reuse.currentReplacementRange])
-        let prefix = Array(
-            committedRenderedGroups.prefix(reuse.prefixCount)
-        )
-        let suffix = reuse.suffixCount == 0
-            ? []
-            : Array(committedRenderedGroups.suffix(reuse.suffixCount))
-        let renderGroups = self.renderGroups
-        let compose = self.compose
-
         isRendering = true
-        errorDescription = nil
+        startRenderingIfNeeded()
+    }
+
+    private func startRenderingIfNeeded() {
+        guard renderTask == nil else {
+            // The running worker re-reads the requested plan after each group,
+            // so a new selection needs no second worker and no interruption.
+            return
+        }
+
+        requestGeneration += 1
+        let generation = requestGeneration
+        let renderGroup = self.renderGroup
+        let compose = self.compose
         renderTask = Task { [weak self] in
+            await self?.render(renderGroup: renderGroup, compose: compose)
+            self?.releaseRenderTask(generation: generation)
+        }
+    }
+
+    private func render(
+        renderGroup: @escaping RenderGroup,
+        compose: @escaping Compose
+    ) async {
+        while !Task.isCancelled {
+            guard let plan = requestedPlan, !plan.groups.isEmpty else {
+                isRendering = false
+                return
+            }
+
+            if let missing = plan.groups.first(where: { renderedGroup(for: $0) == nil }) {
+                do {
+                    // Never interrupted: one group is rendered to completion and
+                    // kept, then the loop picks up whatever plan is current now.
+                    let rendered = try await renderGroup(missing)
+                    keep(rendered, for: missing)
+                } catch {
+                    report(error, whileRendering: plan)
+                    return
+                }
+                continue
+            }
+
+            let assembled = plan.groups.compactMap { renderedGroup(for: $0) }
+            guard assembled.count == plan.groups.count else {
+                report(
+                    PlaybackCollagePreviewError.renderedGroupCountMismatch,
+                    whileRendering: plan
+                )
+                return
+            }
+
             do {
-                let replacement = try await renderGroups(groupsToRender)
-                try Task.checkCancellation()
-                guard replacement.count == groupsToRender.count else {
-                    throw PlaybackCollagePreviewError.renderedGroupCountMismatch
-                }
-
-                let renderedGroups = prefix + replacement + suffix
-                let renderedImage = try await compose(renderedGroups)
-                try Task.checkCancellation()
-                guard let self,
-                      self.requestGeneration == generation,
-                      self.requestedPlan == plan
-                else {
+                let renderedImage = try await compose(assembled)
+                guard !Task.isCancelled else {
                     return
                 }
-
-                self.committedGroups = plan.groups
-                self.committedRenderedGroups = renderedGroups
-                self.committedPlan = plan
-                self.image = renderedImage
-                self.isRendering = false
-                self.errorDescription = nil
-                self.renderTask = nil
+                guard requestedPlan == plan else {
+                    continue
+                }
+                pruneRenderedGroups(to: plan.groups)
+                committedPlan = plan
+                image = renderedImage
+                isRendering = false
+                errorDescription = nil
+                return
             } catch {
-                guard let self,
-                      self.requestGeneration == generation,
-                      self.requestedPlan == plan,
-                      !Task.isCancelled,
-                      !(error is CancellationError)
-                else {
-                    return
-                }
-                self.committedPlan = nil
-                self.image = nil
-                self.isRendering = false
-                self.errorDescription = String(describing: error)
-                self.renderTask = nil
+                report(error, whileRendering: plan)
+                return
             }
         }
     }
 
-    func invalidate() {
+    private func report(
+        _ error: Error,
+        whileRendering plan: SubtitleCollageSelectionPlan
+    ) {
+        guard !Task.isCancelled,
+              !(error is CancellationError),
+              requestedPlan == plan
+        else {
+            return
+        }
+        committedPlan = nil
+        image = nil
+        isRendering = false
+        errorDescription = String(describing: error)
+    }
+
+    private func releaseRenderTask(generation: Int) {
+        guard requestGeneration == generation else {
+            return
+        }
+        renderTask = nil
+    }
+
+    private func stopRendering() {
         requestGeneration += 1
         renderTask?.cancel()
         renderTask = nil
+    }
+
+    func invalidate() {
+        stopRendering()
         requestedPlan = nil
         committedPlan = nil
-        committedGroups = []
-        committedRenderedGroups = []
+        renderedGroups = []
         image = nil
         isRendering = false
         errorDescription = nil
@@ -222,37 +265,25 @@ final class PlaybackCollagePreviewStore: ObservableObject {
         return true
     }
 
-    private func reusableEdges(
-        previousGroups: [SubtitleCollageGroup],
-        currentGroups: [SubtitleCollageGroup],
-        previousRenderedGroupCount: Int
-    ) -> (
-        prefixCount: Int,
-        suffixCount: Int,
-        currentReplacementRange: Range<Int>
+    private func renderedGroup(
+        for group: SubtitleCollageGroup
+    ) -> SubtitleCollageRenderedGroup? {
+        renderedGroups.first { $0.group == group }?.rendered
+    }
+
+    private func keep(
+        _ rendered: SubtitleCollageRenderedGroup,
+        for group: SubtitleCollageGroup
     ) {
-        guard previousRenderedGroupCount == previousGroups.count else {
-            return (0, 0, currentGroups.indices)
+        guard renderedGroup(for: group) == nil else {
+            return
         }
+        renderedGroups.append((group: group, rendered: rendered))
+    }
 
-        let sharedCount = min(previousGroups.count, currentGroups.count)
-        var prefixCount = 0
-        while prefixCount < sharedCount,
-              previousGroups[prefixCount] == currentGroups[prefixCount] {
-            prefixCount += 1
+    private func pruneRenderedGroups(to groups: [SubtitleCollageGroup]) {
+        renderedGroups.removeAll { entry in
+            !groups.contains(entry.group)
         }
-
-        var suffixCount = 0
-        while suffixCount < sharedCount - prefixCount,
-              previousGroups[previousGroups.count - suffixCount - 1]
-                == currentGroups[currentGroups.count - suffixCount - 1] {
-            suffixCount += 1
-        }
-
-        return (
-            prefixCount,
-            suffixCount,
-            prefixCount..<(currentGroups.count - suffixCount)
-        )
     }
 }
