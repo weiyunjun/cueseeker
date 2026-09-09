@@ -242,13 +242,6 @@ public enum SubtitleScreenshotExporter {
             throw SubtitleScreenshotExportError.ffmpegNotFound
         }
 
-        let workspaceURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent("CueSeekerSubtitleCollage-\(UUID().uuidString)", isDirectory: true)
-        try FileManager.default.createDirectory(at: workspaceURL, withIntermediateDirectories: true)
-        defer {
-            try? FileManager.default.removeItem(at: workspaceURL)
-        }
-
         var renderedFrames: [RenderedSubtitleFrame] = []
         let sortedItems = sortedByTimeline(items)
         let preparedSRTSources = try await prepareSRTSources(for: sortedItems)
@@ -257,7 +250,6 @@ public enum SubtitleScreenshotExporter {
             renderedFrames.append(try await renderedSubtitleFrame(
                 item: item,
                 ffmpegURL: ffmpegURL,
-                workspaceURL: workspaceURL,
                 preparedSRTSources: preparedSRTSources
             ))
         }
@@ -304,19 +296,6 @@ public enum SubtitleScreenshotExporter {
             throw SubtitleScreenshotExportError.ffmpegNotFound
         }
 
-        let workspaceURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent(
-                "CueSeekerSelectedSubtitleCollage-\(UUID().uuidString)",
-                isDirectory: true
-            )
-        try FileManager.default.createDirectory(
-            at: workspaceURL,
-            withIntermediateDirectories: true
-        )
-        defer {
-            try? FileManager.default.removeItem(at: workspaceURL)
-        }
-
         let assSourceScript = subtitleSource.format == .ass
             ? try SubtitleTextDecoder.decode(
                 contentsOf: subtitleSource.url,
@@ -332,8 +311,7 @@ public enum SubtitleScreenshotExporter {
             let frameImage = try await videoFrame(
                 videoPath: videoURL.path,
                 timestampMilliseconds: timestampMilliseconds,
-                ffmpegURL: ffmpegURL,
-                workspaceURL: workspaceURL
+                ffmpegURL: ffmpegURL
             )
             try Task.checkCancellation()
             let renderedFrame = try renderSelectedSubtitleFrame(
@@ -384,20 +362,12 @@ public enum SubtitleScreenshotExporter {
             throw SubtitleScreenshotExportError.ffmpegNotFound
         }
 
-        let workspaceURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent("CueSeekerSubtitleScreenshots-\(UUID().uuidString)", isDirectory: true)
-        try FileManager.default.createDirectory(at: workspaceURL, withIntermediateDirectories: true)
-        defer {
-            try? FileManager.default.removeItem(at: workspaceURL)
-        }
-
         let defaultFileNames = defaultScreenshotFileNames(for: items)
         let preparedSRTSources = try await prepareSRTSources(for: items)
         for (index, item) in items.enumerated() {
             let renderedFrame = try await renderedSubtitleFrame(
                 item: item,
                 ffmpegURL: ffmpegURL,
-                workspaceURL: workspaceURL,
                 preparedSRTSources: preparedSRTSources
             )
             let destinationURL = explicitSingleDestinationURL
@@ -431,15 +401,13 @@ public enum SubtitleScreenshotExporter {
     private static func renderedSubtitleFrame(
         item: SubtitleScreenshotExportItem,
         ffmpegURL: URL,
-        workspaceURL: URL,
         preparedSRTSources: [PreparedSRTSource]
     ) async throws -> RenderedSubtitleFrame {
         let timestampMilliseconds = midpointMilliseconds(for: item)
         let frameImage = try await videoFrame(
             videoPath: item.videoPath,
             timestampMilliseconds: timestampMilliseconds,
-            ffmpegURL: ffmpegURL,
-            workspaceURL: workspaceURL
+            ffmpegURL: ffmpegURL
         )
         return try renderSubtitleFrame(
             item: item,
@@ -452,22 +420,31 @@ public enum SubtitleScreenshotExporter {
     private static func videoFrame(
         videoPath: String,
         timestampMilliseconds: Int,
-        ffmpegURL: URL,
-        workspaceURL: URL
+        ffmpegURL: URL
     ) async throws -> CGImage {
-        let frameURL = workspaceURL
-            .appendingPathComponent("frame-\(UUID().uuidString)")
-            .appendingPathExtension("png")
-        try await exportVideoFrame(
-            videoPath: videoPath,
-            timestampMilliseconds: timestampMilliseconds,
-            ffmpegURL: ffmpegURL,
-            outputURL: frameURL
+        // BMP keeps the frame uncompressed and self-describing, so the pixels
+        // reach the compositor without a PNG round trip through the file system.
+        // The 10-bit sources this reads would otherwise produce a 16-bit
+        // intermediate that the 8-bit compositing context discards anyway.
+        let frameData = try await runProcessCapturingStandardOutput(
+            executableURL: ffmpegURL,
+            arguments: [
+                "-nostdin",
+                "-hide_banner",
+                "-loglevel", "error",
+                "-ss", String(format: "%.3f", Double(max(0, timestampMilliseconds)) / 1_000),
+                "-i", videoPath,
+                "-frames:v", "1",
+                "-pix_fmt", "bgr24",
+                "-f", "image2pipe",
+                "-vcodec", "bmp",
+                "-"
+            ]
         )
-        guard FileManager.default.fileExists(atPath: frameURL.path) else {
-            throw SubtitleScreenshotExportError.missingFrameImage(frameURL.path)
+        guard !frameData.isEmpty else {
+            throw SubtitleScreenshotExportError.missingFrameImage(videoPath)
         }
-        return try loadImage(at: frameURL)
+        return try loadImage(from: frameData, sourceDescription: videoPath)
     }
 
     private static func subtitleSource(
@@ -492,27 +469,6 @@ public enum SubtitleScreenshotExporter {
             format: .srt,
             matchedVideoURL: source.matchedVideoURL,
             renderCacheDatabaseURL: source.renderCacheDatabaseURL
-        )
-    }
-
-    private static func exportVideoFrame(
-        videoPath: String,
-        timestampMilliseconds: Int,
-        ffmpegURL: URL,
-        outputURL: URL
-    ) async throws {
-        try await runProcess(
-            executableURL: ffmpegURL,
-            arguments: [
-                "-nostdin",
-                "-y",
-                "-hide_banner",
-                "-loglevel", "error",
-                "-ss", String(format: "%.3f", Double(max(0, timestampMilliseconds)) / 1_000),
-                "-i", videoPath,
-                "-frames:v", "1",
-                outputURL.path
-            ]
         )
     }
 
@@ -1013,11 +969,14 @@ public enum SubtitleScreenshotExporter {
         )
     }
 
-    private static func loadImage(at url: URL) throws -> CGImage {
-        guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
+    private static func loadImage(
+        from data: Data,
+        sourceDescription: String
+    ) throws -> CGImage {
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil),
               let image = CGImageSourceCreateImageAtIndex(source, 0, nil)
         else {
-            throw SubtitleScreenshotExportError.imageDecodeFailed(url.path)
+            throw SubtitleScreenshotExportError.imageDecodeFailed(sourceDescription)
         }
 
         return image
@@ -1123,41 +1082,38 @@ public enum SubtitleScreenshotExporter {
         return candidates.first { FileManager.default.isExecutableFile(atPath: $0.path) }
     }
 
-    private static func runProcess(
+    private static func runProcessCapturingStandardOutput(
         executableURL: URL,
-        arguments: [String],
-        currentDirectoryURL: URL? = nil
-    ) async throws {
-        try await withCheckedThrowingContinuation { continuation in
+        arguments: [String]
+    ) async throws -> Data {
+        try await Task.detached(priority: .userInitiated) {
             let process = Process()
             process.executableURL = executableURL
             process.arguments = arguments
-            process.currentDirectoryURL = currentDirectoryURL
 
-            let pipe = Pipe()
-            process.standardOutput = pipe
-            process.standardError = pipe
-            process.terminationHandler = { process in
-                let data = pipe.fileHandleForReading.readDataToEndOfFile()
-                let output = String(data: data, encoding: .utf8) ?? ""
-                if process.terminationStatus == 0 {
-                    continuation.resume()
-                } else {
-                    continuation.resume(
-                        throwing: SubtitleScreenshotExportError.processFailed(
-                            executableURL.lastPathComponent,
-                            process.terminationStatus,
-                            output
-                        )
-                    )
-                }
-            }
+            let outputPipe = Pipe()
+            let errorPipe = Pipe()
+            process.standardOutput = outputPipe
+            process.standardError = errorPipe
 
-            do {
-                try process.run()
-            } catch {
-                continuation.resume(throwing: error)
+            try process.run()
+            // Drain the output before waiting; a frame is far larger than the pipe
+            // buffer, so the child would block forever if this waited first.
+            let output = outputPipe.fileHandleForReading.readDataToEndOfFile()
+            let errorText = String(
+                data: errorPipe.fileHandleForReading.readDataToEndOfFile(),
+                encoding: .utf8
+            ) ?? ""
+            process.waitUntilExit()
+
+            guard process.terminationStatus == 0 else {
+                throw SubtitleScreenshotExportError.processFailed(
+                    executableURL.lastPathComponent,
+                    process.terminationStatus,
+                    errorText
+                )
             }
-        }
+            return output
+        }.value
     }
 }
