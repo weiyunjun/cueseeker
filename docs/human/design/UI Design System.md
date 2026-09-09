@@ -278,6 +278,7 @@
 - `--min-height-library-folder-card`: `96px`
 - `--min-width-workbench-page-content`: `480px`
 - `--width-task-panel`: `460px`
+- `--border-width-control`: `1px`
 
 ## 1.4 间距
 
@@ -410,6 +411,8 @@
 
 - `--scale-library-cover-hover`: `1.02`
 - `--duration-library-cover-hover`: `0.12s`
+- `--scale-collage-group-hover`: `1.02`
+- `--duration-collage-group-hover`: `0.12s`
 
 ### Toast Motion
 
@@ -546,6 +549,7 @@
 - Container
   - Background：`--color-bg-surface`
   - Border Color：`--color-border-control`
+  - Border Width：`--border-width-control`
   - Radius：`--radius-search`
 - Search Icon
   - Size：`--size-control-icon`
@@ -3999,6 +4003,9 @@
 - Rendering
 - Selection Limit Reached
 - Exporting
+- Group Hovered
+  - 指针所在的截图组整体放大：Scale `--scale-collage-group-hover`，Duration `--duration-collage-group-hover`，easeOut
+  - 放大部分越过图片边缘与相邻组，不被裁切；其余画面不变
 
 ## 3.9 Command Panel
 
