@@ -286,6 +286,10 @@ enum WorkbenchControlMetrics {
     static let redesignLibraryCoverHoverScale: CGFloat = 1.02
     /// --duration-library-cover-hover: 0.12s
     static let redesignLibraryCoverHoverDuration: Double = 0.12
+    /// --scale-collage-group-hover: 1.02
+    static let redesignCollageGroupHoverScale: CGFloat = 1.02
+    /// --duration-collage-group-hover: 0.12s
+    static let redesignCollageGroupHoverDuration: Double = 0.12
     /// --padding-library-folder-card: 12px 16px
     static let redesignLibraryFolderCardVerticalPadding: CGFloat = 12
     static let redesignLibraryFolderCardHorizontalPadding: CGFloat = 16

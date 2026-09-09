@@ -578,7 +578,7 @@ func playbackCollagePreviewPublishesASegmentPerDrawnGroup() async throws {
 
 @MainActor
 @Test
-func playbackCollagePreviewFrameFollowsOnlyRealPointerMovement() throws {
+func playbackCollagePreviewHoverEnlargesOnlyOnRealPointerMovement() throws {
     _ = NSApplication.shared
     let view = PlaybackCollagePreviewScrollContainerView()
     view.frame = CGRect(x: 0, y: 0, width: 400, height: 300)
@@ -592,41 +592,61 @@ func playbackCollagePreviewFrameFollowsOnlyRealPointerMovement() throws {
         segments: segments
     )
     view.layoutSubtreeIfNeeded()
+    let hoverScale = WorkbenchControlMetrics.redesignCollageGroupHoverScale
 
     // Scaled to the 400pt viewport the strips span 0–200 and 200–600.
     view.pointerMoved(toWindowPoint: collagePreviewWindowPoint(fromTop: 50))
     #expect(view.hoveredSegmentIndex == 0)
-    #expect(
-        view.groupFrameRectForTesting
-            == CGRect(x: 0, y: 0, width: 400, height: 200)
-    )
+    #expect(view.hoveredStripScaleForTesting == hoverScale)
+    #expect(view.retiringStripIndicesForTesting.isEmpty)
+
+    // Moving on shrinks the first strip while the second grows.
     view.pointerMoved(toWindowPoint: collagePreviewWindowPoint(fromTop: 250))
     #expect(view.hoveredSegmentIndex == 1)
-    #expect(
-        view.groupFrameRectForTesting
-            == CGRect(x: 0, y: 200, width: 400, height: 400)
-    )
+    #expect(view.hoveredStripScaleForTesting == hoverScale)
+    #expect(view.retiringStripIndicesForTesting == [0])
 
-    // A new picture clears the frame until the pointer moves again.
+    // The enlarged strip is hit as far as it has grown: 2pt above its rest
+    // edge, and past the image's left edge.
+    view.pointerMoved(toWindowPoint: collagePreviewWindowPoint(fromTop: 199))
+    #expect(view.hoveredSegmentIndex == 1)
+    view.pointerMoved(toWindowPoint: CGPoint(x: -2, y: 300 - 250))
+    #expect(view.hoveredSegmentIndex == 1)
+    // Not hovered, that same point is outside the image.
+    view.pointerMoved(toWindowPoint: collagePreviewWindowPoint(fromTop: 100))
+    #expect(view.hoveredSegmentIndex == 0)
+    view.pointerMoved(toWindowPoint: CGPoint(x: -2, y: 300 - 250))
+    #expect(view.hoveredSegmentIndex == nil)
+
+    // A new picture ends the hover until the pointer moves again; the strip
+    // under the still pointer inherits the size and shrinks back.
+    view.pointerMoved(toWindowPoint: collagePreviewWindowPoint(fromTop: 250))
+    #expect(view.hoveredSegmentIndex == 1)
     view.updateImage(
         collagePreviewImage(width: 800, height: 1_200),
         segments: segments
     )
     #expect(view.hoveredSegmentIndex == nil)
-    #expect(view.groupFrameRectForTesting == nil)
+    #expect(view.hoveredStripScaleForTesting == nil)
+    #expect(view.retiringStripIndicesForTesting == [1])
     view.pointerMoved(toWindowPoint: collagePreviewWindowPoint(fromTop: 250))
     #expect(view.hoveredSegmentIndex == 1)
 
-    // Frozen, the frame keeps the strip it had.
+    // Frozen, the hover keeps the strip it had.
     view.isInteractionEnabled = false
     view.pointerMoved(toWindowPoint: collagePreviewWindowPoint(fromTop: 50))
     #expect(view.hoveredSegmentIndex == 1)
     view.isInteractionEnabled = true
 
-    // Outside the viewport there is no strip.
+    // Outside the viewport there is no strip; a picture arriving with no
+    // strip under the pointer has nothing to hand its size to.
     view.pointerMoved(toWindowPoint: collagePreviewWindowPoint(fromTop: 350))
     #expect(view.hoveredSegmentIndex == nil)
-    #expect(view.groupFrameRectForTesting == nil)
+    view.updateImage(
+        collagePreviewImage(width: 800, height: 1_200),
+        segments: segments
+    )
+    #expect(view.retiringStripIndicesForTesting.isEmpty)
 }
 
 @MainActor

@@ -1,4 +1,4 @@
-# The Collage preview frames the hovered group, and a click sends the reel to its first cue
+# The Collage preview enlarges the hovered group, and a click sends the reel to its first cue
 
 Human-owned documents:
 
@@ -6,7 +6,9 @@ Human-owned documents:
 
 ## Why
 
-The Collage preview showed one composed image and nothing connected it back to the cue reel: to find the cues behind a strip, the reader had to scroll the reel by hand. The requirement adds the one pointer interaction that closes that gap — an accent frame on the group under the pointer, and a click that sends the reel to that group's first cue — under the hover rules the rest of the App already follows: only a real pointer movement decides the frame, the wheel never moves it, and a new picture clears it until the pointer moves again.
+The Collage preview showed one composed image and nothing connected it back to the cue reel: to find the cues behind a strip, the reader had to scroll the reel by hand. The requirement adds the one pointer interaction that closes that gap — an accent frame on the group under the pointer, and a click that sends the reel to that group's first cue — under the hover rules the rest of the App already follows: only a real pointer movement decides the hover, the wheel never moves it, and a new picture ends it until the pointer moves again.
+
+The first version drew the frame. On the real picture a one-point accent line was too easy to lose, and the owner judged that a line was the wrong kind of feedback rather than a thin one: the requirement now asks for the cover card's hover — the group itself grows by the cover's scale and duration — with the picture at rest unchanged and the enlarged strip free to spill past the image's edges on every side.
 
 ## What changed
 
@@ -24,6 +26,14 @@ The Collage preview showed one composed image and nothing connected it back to t
 - The session store's keyboard navigation already carried an absolute target ordinal to the reel, which animates to it with the reel transition the wheel uses, loads the window around a far target, and commits the selection on arrival. Its body is now the shared `requestNavigation`, given a function from the current target to the next one: a key asks for the neighbour, a Collage strip asks for its first cue. The direction the request carries is derived from the two ordinals, which for a key is the key's own direction. A target equal to the current one asks for nothing, so a click on the strip already in focus leaves no pending request behind.
 - `jumpToCollageCue(ordinal:)` is that entry, refused outside Collage editing, and otherwise under exactly the gate a key is under: no pending or running action, and no wheel motion in flight unless a request is already pending. It moves the focus only; the selection plan is untouched.
 - The overlay hands the pane's click to that entry through the Collage editor.
+
+### Step 4 — the frame becomes the cover-style enlargement
+
+- The frame view is gone. A hovered group is drawn again above the image as its own Core Animation layer holding that strip's pixels, scaled about its centre to `--scale-collage-group-hover` (1.02) over `--duration-collage-group-hover` (0.12 s, ease-out) — the cover card's values, under Collage's own token names. The base image is untouched, so the preview at rest is pixel-for-pixel what it was.
+- The strip layers live in a transparent view between the scroll view and the scrollbar, outside the scroll clip, so an enlarged strip spills past the image's edges on every side. Each strip carries its own clip: the viewport grown by exactly that strip's own growth, so nothing that was scrolled out of view is revealed by the enlargement — only the extra ring the growth adds. Strips are repositioned on every scroll and layout pass, and follow the image with the wheel.
+- Every size change starts from the scale on screen at that moment — read from the layer's presentation, so a strip caught mid-animation continues from where it is — and runs at one speed, the hover scale's distance in the hover duration, with the remaining distance taking proportionally less. Leaving a strip shrinks it while the next one grows; returning to a strip still shrinking takes it back and grows it from where it is. A generation counter on each strip keeps a superseded animation's completion from removing a layer that was taken back.
+- A new picture ends the hover. The size stays continuous: the scale shown under the pointer at that instant — the hovered strip's, or a still-shrinking strip's — is handed to whichever strip of the new picture lies at the pointer's last position, which appears at that size and shrinks back at the same speed; a further publish hands the size on again. With no strip under the pointer nothing inherits.
+- The hit region follows the enlarged rectangle: the hovered strip is tested first over the whole area it has grown to, spill included, and wins where it overlaps its neighbours. Because that area can lie outside the container's own bounds, where view hit testing never reaches, presses and releases now arrive through the same event monitor as movements, from the event's own location; a press that lands on a strip is the preview's and goes no further, everything else passes on as before. The document view's hit-test override and the container's mouse-down handlers are gone with it.
 
 Files:
 
@@ -58,6 +68,22 @@ Sample: `It's MyGO!!!!!` episode 05, Debug build, driven by the Debug E2E contro
 
 Full `swift test`, 1171 tests: 15 names failed, every one in a family earlier records already list as failing on this tree — native playback audio and seeking (`nativeAutoStopKeepsSessionAliveAndResumesFromBoundary`, `nativePlaybackNotifiesNaturalCompletionAfterAudioDrain`, `nativePlaybackRebuildsAudioOutputAndContinuesInCurrentSession`, `nativePlaybackUsesCommonTimelineWhenVideoTrackStartsAfterAudio`, `nativeRapidSeeksCommitOnlyLatestPresentationGeneration`, `nativeSeekAndOpenRetainPresentedImageUntilCurrentGenerationCommits`, `playbackPlayerKeepsAutoPauseBoundaryAcrossUserSeeks`), library folder removal (`libraryFolderRemovalAndIndexingRejectEachOther`, `libraryFolderRemovalPublishesProgressWithoutBlockingMainActor`), the Debug E2E window geometry (`sceneUsesVisibleWindowUnionAndTopLeftCoordinates`, `setWidthResizesMainWindowAndInvalidatesScene`), and the Search and Shiori refresh-scope integration tests (`progressiveSearchProjectionRefreshesOnlyMountedTable`, `searchFacetSelectionDoesNotRefreshGlobalOrInactiveSurfaces`, `shioriTableStartsAtTopAfterPanelRemount`, `showCueGroupInvalidationIsScopedToMountedShiori`). None touches the Collage editor, the subtitle focus session, or the preview.
 
+### Step 4 — end to end
+
+Same sample, launch and coordinates as step 3, with an activating click before the four checkbox clicks so all four register; the reel opened at a different position this time, so the plan was the `13:18` pair (the full frame), the focused `13:20` cue, and the `13:23` pair.
+
+- `s4-rest`: the preview at rest is unchanged from before the change.
+- `s4-hover-first`, `s4-hover-third`: `mouseMove` to (300, 300) and (300, 545). The first frame, then the `13:23` band, is drawn enlarged: it reaches about 6 pt past the image's left and right edges into the pane's margin, covers the edges of the neighbouring strips, and at the viewport's top edge shows only the growth's own ring above the image.
+- `s4-after-click-first`: `click` at (300, 300) sends the reel to `就必须要有目标` (13:18), the pair's first cue; the strip stays enlarged, the hover having followed the click.
+- `s4-after-return`: with the pointer still, Return unticks the focused cue; the group re-renders as `目標が` alone and the preview shows the new picture at rest — the hover ended, nothing enlarged.
+- `s4-after-move`: a movement of one point enlarges the strip again.
+- `s4-off-image`: (300, 700), under the image: at rest.
+- The shrink's continuity is too fast for the 90 ms capture cadence; it is covered by the unit test and by the animation reading its start from the presentation layer.
+
+Unit tests: the 12 Collage preview tests pass. The frame test became a hover test — a movement enlarges the strip under the pointer and shrinks the one it left; the enlarged strip is hit 2 pt above its rest edge and past the image's left edge while the same points hit nothing when it is not enlarged; a new picture ends the hover and the strip under the still pointer is left shrinking; a picture arriving with no strip under the pointer leaves nothing shrinking; the hover keeps its strip while frozen.
+
+Full `swift test` after step 4, 1171 tests: 14 names failed, the step 3 set less `libraryFolderRemovalPublishesProgressWithoutBlockingMainActor`, which passed this time — every one in a family earlier records already list as failing on this tree, none touching the Collage editor, the subtitle focus session, or the preview.
+
 ## Design documents
 
-Deferred to acceptance, as the requirement says: `--border-width-control: 1px` under 1.3 尺寸; `Border Width：--border-width-control` on the Search Field container; a Collage Group Frame entry and a Group Hovered state under Playback Collage Editor Layout; and the four Collage rules under Hover 与选中 in the application rules. Proposed text is provided on request; the AI does not edit `docs/human/`.
+Deferred to acceptance, as the requirement says: `--border-width-control: 1px` under 1.3 尺寸, `--scale-collage-group-hover: 1.02` and `--duration-collage-group-hover: 0.12s` under 1.6 动效; `Border Width：--border-width-control` on the Search Field container; a Group Hovered state under Playback Collage Editor Layout describing the enlargement and the shrink; and the Collage rules under Hover 与选中 in the application rules. Proposed text is provided on request; the AI does not edit `docs/human/`.

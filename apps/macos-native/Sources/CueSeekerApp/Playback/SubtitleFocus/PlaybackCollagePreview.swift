@@ -1,12 +1,13 @@
 import AppKit
 import CoreGraphics
+import QuartzCore
 import SwiftUI
 
 struct PlaybackCollagePreviewPane: View {
     // Observed so the copy below is re-read when the language changes.
     @EnvironmentObject private var localization: AppLocalizationStore
     // Covered by the Command Panel, or under an open menu, the preview keeps
-    // its frame where it is and takes no click.
+    // its hover where it is and takes no click.
     @Environment(\.interfaceLayerContext) private var layerContext
     @ObservedObject var store: PlaybackCollagePreviewStore
     let uiProbeScope: String?
@@ -101,18 +102,28 @@ struct PlaybackCollagePreviewImageScrollView: NSViewRepresentable {
 }
 
 final class PlaybackCollagePreviewScrollContainerView: NSView {
+    private static let hoverScale = WorkbenchControlMetrics.redesignCollageGroupHoverScale
+    private static let hoverDuration = WorkbenchControlMetrics.redesignCollageGroupHoverDuration
+
     private let scrollView = NSScrollView()
     private let imageDocumentView = PlaybackCollagePreviewImageDocumentView()
     private let imageView = NSImageView()
-    private let groupFrameView = PlaybackCollagePreviewGroupFrameView()
+    // Enlarged strips live here, above the scroll view and below the
+    // scrollbar: outside the clip, so a strip can grow past the image's edges.
+    private let spillView = PlaybackCollagePreviewSpillView()
     private let scrollbarView = PlaybackCollagePreviewScrollbarView()
     private var image: CGImage?
     private var segments: [PlaybackCollagePreviewSegment] = []
     /// The strip under the pointer at its last real movement. Nothing else
     /// moves it: the wheel scrolls it along with the image, and a new image
-    /// only clears it until the pointer moves again.
+    /// only ends it until the pointer moves again.
     private(set) var hoveredSegmentIndex: Int?
     private var pressedSegmentIndex: Int?
+    private var lastPointerWindowPoint: CGPoint?
+    /// The strip under the pointer, growing or grown.
+    private var hoveredStrip: PlaybackCollagePreviewStrip?
+    /// Strips shrinking back to their place; gone once they arrive.
+    private var retiringStrips: [PlaybackCollagePreviewStrip] = []
     nonisolated(unsafe) private var pointerMonitor: Any?
 
     var isInteractionEnabled = true
@@ -142,13 +153,11 @@ final class PlaybackCollagePreviewScrollContainerView: NSView {
         imageView.imageScaling = .scaleAxesIndependently
         imageView.isEditable = false
         imageDocumentView.addSubview(imageView)
-        // In the document, so it scrolls with the strip it frames.
-        groupFrameView.isHidden = true
-        imageDocumentView.addSubview(groupFrameView)
         scrollView.documentView = imageDocumentView
 
         scrollbarView.scrollView = scrollView
         addSubview(scrollView)
+        addSubview(spillView)
         addSubview(scrollbarView)
 
         NotificationCenter.default.addObserver(
@@ -183,6 +192,7 @@ final class PlaybackCollagePreviewScrollContainerView: NSView {
     override func layout() {
         super.layout()
         scrollView.frame = bounds
+        spillView.frame = bounds
         scrollbarView.frame = bounds
         updateImageLayout()
     }
@@ -200,9 +210,13 @@ final class PlaybackCollagePreviewScrollContainerView: NSView {
             return
         }
 
+        // A new picture ends the hover until the pointer moves again. The size
+        // stays continuous: whatever strip of the new picture lies under the
+        // pointer starts at the size shown there now and shrinks back.
+        let inheritedScale = displayedScaleAtPointer()
+        removeAllStrips()
         self.image = image
         self.segments = segments
-        // A new picture clears the frame; the next real movement decides again.
         hoveredSegmentIndex = nil
         pressedSegmentIndex = nil
         imageView.image = image.map {
@@ -212,6 +226,16 @@ final class PlaybackCollagePreviewScrollContainerView: NSView {
             )
         }
         updateImageLayout()
+
+        guard inheritedScale > 1,
+              let pointer = lastPointerWindowPoint,
+              let index = baseSegmentIndex(atLocalPoint: convert(pointer, from: nil))
+        else {
+            return
+        }
+        let strip = makeStrip(for: index)
+        strip.setScale(inheritedScale)
+        retire(strip)
     }
 
     var renderedImageSizeForTesting: CGSize {
@@ -222,25 +246,23 @@ final class PlaybackCollagePreviewScrollContainerView: NSView {
         scrollbarView.isPresented
     }
 
-    var groupFrameRectForTesting: CGRect? {
-        groupFrameView.isHidden ? nil : groupFrameView.frame
+    /// The hovered strip's target scale, or nil without one.
+    var hoveredStripScaleForTesting: CGFloat? {
+        hoveredStrip?.targetScale
     }
 
-    /// A real pointer movement, from the window's event: the frame goes to
+    var retiringStripIndicesForTesting: [Int] {
+        retiringStrips.map(\.index)
+    }
+
+    /// A real pointer movement, from the window's event: the hover goes to
     /// the strip under the pointer, or away when there is none.
     func pointerMoved(toWindowPoint windowPoint: CGPoint) {
+        lastPointerWindowPoint = windowPoint
         guard isInteractionEnabled else {
             return
         }
         setHoveredSegment(segmentIndex(atWindowPoint: windowPoint))
-    }
-
-    override func mouseDown(with event: NSEvent) {
-        press(atWindowPoint: event.locationInWindow)
-    }
-
-    override func mouseUp(with event: NSEvent) {
-        release(atWindowPoint: event.locationInWindow)
     }
 
     func press(atWindowPoint windowPoint: CGPoint) {
@@ -250,7 +272,7 @@ final class PlaybackCollagePreviewScrollContainerView: NSView {
     }
 
     /// The action is on release, inside the strip the press began on. The
-    /// frame follows the click as it would any pointer hit, and the target is
+    /// hover follows the click as it would any pointer hit, and the target is
     /// read from the segments of the picture on screen right now.
     func release(atWindowPoint windowPoint: CGPoint) {
         let pressed = pressedSegmentIndex
@@ -269,12 +291,15 @@ final class PlaybackCollagePreviewScrollContainerView: NSView {
         guard pointerMonitor == nil else {
             return
         }
-        // A local monitor sees every real pointer movement in the window and
-        // reads the event's own location, so the frame can clear when the
-        // pointer leaves the image, and a synthesized move drives it too.
+        // One monitor answers every pointer event from the event's own
+        // location, so an enlarged strip is hit wherever it has grown to —
+        // past the container's edge included, where view hit testing would
+        // never reach — and a synthesized move drives it too. A click that
+        // lands on a strip is the preview's and goes no further.
         pointerMonitor = NSEvent.addLocalMonitorForEvents(
-            matching: [.mouseMoved, .leftMouseDragged]
+            matching: [.mouseMoved, .leftMouseDragged, .leftMouseDown, .leftMouseUp]
         ) { [weak self] event in
+            var consumed = false
             MainActor.assumeIsolated {
                 guard let self,
                       let window = self.window,
@@ -282,9 +307,38 @@ final class PlaybackCollagePreviewScrollContainerView: NSView {
                 else {
                     return
                 }
-                self.pointerMoved(toWindowPoint: event.locationInWindow)
+                consumed = self.handlePointerEvent(
+                    type: event.type,
+                    atWindowPoint: event.locationInWindow
+                )
             }
-            return event
+            return consumed ? nil : event
+        }
+    }
+
+    /// Returns whether the event was the preview's to keep.
+    private func handlePointerEvent(
+        type: NSEvent.EventType,
+        atWindowPoint point: CGPoint
+    ) -> Bool {
+        switch type {
+        case .leftMouseDown:
+            guard isInteractionEnabled,
+                  segmentIndex(atWindowPoint: point) != nil
+            else {
+                return false
+            }
+            press(atWindowPoint: point)
+            return true
+        case .leftMouseUp:
+            guard pressedSegmentIndex != nil else {
+                return false
+            }
+            release(atWindowPoint: point)
+            return true
+        default:
+            pointerMoved(toWindowPoint: point)
+            return false
         }
     }
 
@@ -296,11 +350,24 @@ final class PlaybackCollagePreviewScrollContainerView: NSView {
         self.pointerMonitor = nil
     }
 
+    // MARK: Hit testing
+
+    /// The enlarged strip is hit over the whole rectangle it has grown to,
+    /// and wins where that overlaps its neighbours.
     private func segmentIndex(atWindowPoint windowPoint: CGPoint) -> Int? {
-        guard bounds.contains(convert(windowPoint, from: nil)) else {
+        let local = convert(windowPoint, from: nil)
+        if let hoveredStrip,
+           scaledRect(of: hoveredStrip.index).contains(local) {
+            return hoveredStrip.index
+        }
+        return baseSegmentIndex(atLocalPoint: local)
+    }
+
+    private func baseSegmentIndex(atLocalPoint local: CGPoint) -> Int? {
+        guard scrollView.frame.contains(local) else {
             return nil
         }
-        let point = imageDocumentView.convert(windowPoint, from: nil)
+        let point = imageDocumentView.convert(local, from: self)
         guard imageView.frame.contains(point) else {
             return nil
         }
@@ -316,6 +383,8 @@ final class PlaybackCollagePreviewScrollContainerView: NSView {
         return nil
     }
 
+    // MARK: Geometry
+
     private var segmentScale: CGFloat {
         guard let image, image.width > 0 else {
             return 0
@@ -323,30 +392,179 @@ final class PlaybackCollagePreviewScrollContainerView: NSView {
         return imageView.frame.width / CGFloat(image.width)
     }
 
-    private func setHoveredSegment(_ index: Int?) {
-        hoveredSegmentIndex = index
-        positionGroupFrame()
-    }
-
-    private func positionGroupFrame() {
-        guard let index = hoveredSegmentIndex,
-              segments.indices.contains(index)
-        else {
-            groupFrameView.isHidden = true
-            return
-        }
-        let scale = segmentScale
-        let top = segments.prefix(index).reduce(CGFloat(0)) {
-            $0 + CGFloat($1.height) * scale
-        }
-        groupFrameView.frame = CGRect(
+    /// The strip's rectangle in the image, in image pixels.
+    private func pixelRect(of index: Int) -> CGRect {
+        let top = segments.prefix(index).reduce(0) { $0 + $1.height }
+        return CGRect(
             x: 0,
             y: top,
-            width: imageView.frame.width,
-            height: CGFloat(segments[index].height) * scale
+            width: image?.width ?? 0,
+            height: segments[index].height
         )
-        groupFrameView.isHidden = false
-        groupFrameView.needsDisplay = true
+    }
+
+    /// The strip's rectangle at rest, in this view's coordinates.
+    private func baseRect(of index: Int) -> CGRect {
+        let scale = segmentScale
+        let pixels = pixelRect(of: index)
+        let documentRect = CGRect(
+            x: 0,
+            y: pixels.minY * scale,
+            width: imageView.frame.width,
+            height: pixels.height * scale
+        )
+        return imageDocumentView.convert(documentRect, to: self)
+    }
+
+    /// How far the strip grows on each side at the hover scale.
+    private func growth(of rect: CGRect) -> CGSize {
+        let factor = (Self.hoverScale - 1) / 2
+        return CGSize(width: rect.width * factor, height: rect.height * factor)
+    }
+
+    /// Where the strip may draw: the viewport plus its own growth, so the
+    /// image's edges do not clip it, yet nothing scrolled out of view shows.
+    private func spillRect(of index: Int) -> CGRect {
+        let growth = growth(of: baseRect(of: index))
+        return scrollView.frame.insetBy(dx: -growth.width, dy: -growth.height)
+    }
+
+    /// The strip's rectangle once enlarged, as far as it may draw.
+    private func scaledRect(of index: Int) -> CGRect {
+        let rect = baseRect(of: index)
+        let growth = growth(of: rect)
+        return rect.insetBy(dx: -growth.width, dy: -growth.height)
+            .intersection(spillRect(of: index))
+    }
+
+    // MARK: Strips
+
+    private func setHoveredSegment(_ index: Int?) {
+        guard index != hoveredSegmentIndex else {
+            return
+        }
+        hoveredSegmentIndex = index
+        if let hoveredStrip {
+            self.hoveredStrip = nil
+            retire(hoveredStrip)
+        }
+        guard let index else {
+            return
+        }
+        let strip = takeStrip(for: index)
+        hoveredStrip = strip
+        animate(strip, toScale: Self.hoverScale)
+    }
+
+    /// A strip still shrinking is taken back rather than made again, so the
+    /// pointer returning to it grows it from where it is.
+    private func takeStrip(for index: Int) -> PlaybackCollagePreviewStrip {
+        if let position = retiringStrips.firstIndex(where: { $0.index == index }) {
+            return retiringStrips.remove(at: position)
+        }
+        return makeStrip(for: index)
+    }
+
+    private func makeStrip(for index: Int) -> PlaybackCollagePreviewStrip {
+        let strip = PlaybackCollagePreviewStrip(index: index)
+        strip.content.contents = image?.cropping(to: pixelRect(of: index))
+        strip.content.contentsScale = window?.backingScaleFactor
+            ?? NSScreen.main?.backingScaleFactor
+            ?? 2
+        spillView.layer?.addSublayer(strip.clip)
+        position(strip)
+        return strip
+    }
+
+    private func retire(_ strip: PlaybackCollagePreviewStrip) {
+        retiringStrips.append(strip)
+        animate(strip, toScale: 1) { [weak self, weak strip] in
+            guard let self, let strip,
+                  let position = self.retiringStrips.firstIndex(where: { $0 === strip })
+            else {
+                return
+            }
+            self.retiringStrips.remove(at: position)
+            strip.clip.removeFromSuperlayer()
+        }
+    }
+
+    private func removeAllStrips() {
+        for strip in retiringStrips {
+            strip.clip.removeFromSuperlayer()
+        }
+        retiringStrips = []
+        hoveredStrip?.clip.removeFromSuperlayer()
+        hoveredStrip = nil
+    }
+
+    /// The size shown at the pointer right now: the hovered strip's, or that
+    /// of a strip still shrinking under it; 1 when nothing is enlarged there.
+    private func displayedScaleAtPointer() -> CGFloat {
+        if let hoveredStrip {
+            return hoveredStrip.displayedScale
+        }
+        guard let pointer = lastPointerWindowPoint else {
+            return 1
+        }
+        let local = convert(pointer, from: nil)
+        return retiringStrips
+            .first { baseRect(of: $0.index).contains(local) }?
+            .displayedScale ?? 1
+    }
+
+    /// Every change of size starts from the size on screen at that moment and
+    /// runs at one speed — the hover scale's distance in the hover duration —
+    /// so a strip caught mid-way neither jumps nor slows down.
+    private func animate(
+        _ strip: PlaybackCollagePreviewStrip,
+        toScale target: CGFloat,
+        completion: (() -> Void)? = nil
+    ) {
+        let current = strip.displayedScale
+        let duration = Self.hoverDuration
+            * Double(abs(target - current) / (Self.hoverScale - 1))
+        strip.animationGeneration += 1
+        let generation = strip.animationGeneration
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        CATransaction.setCompletionBlock { [weak strip] in
+            guard let strip, strip.animationGeneration == generation else {
+                return
+            }
+            completion?()
+        }
+        strip.targetScale = target
+        strip.content.transform = CATransform3DMakeScale(target, target, 1)
+        let animation = CABasicAnimation(keyPath: "transform.scale")
+        animation.fromValue = current
+        animation.toValue = target
+        animation.duration = duration
+        animation.timingFunction = CAMediaTimingFunction(name: .easeOut)
+        strip.content.add(animation, forKey: "scale")
+        CATransaction.commit()
+    }
+
+    private func position(_ strip: PlaybackCollagePreviewStrip) {
+        let spill = spillRect(of: strip.index)
+        let rect = baseRect(of: strip.index)
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        strip.clip.frame = spill
+        strip.content.frame = rect.offsetBy(dx: -spill.minX, dy: -spill.minY)
+        CATransaction.commit()
+    }
+
+    private func positionStrips() {
+        guard image != nil else {
+            return
+        }
+        for strip in retiringStrips {
+            position(strip)
+        }
+        if let hoveredStrip {
+            position(hoveredStrip)
+        }
     }
 
     private func updateImageLayout() {
@@ -375,7 +593,6 @@ final class PlaybackCollagePreviewScrollContainerView: NSView {
             )
         )
         imageView.frame = CGRect(origin: .zero, size: imageSize)
-        positionGroupFrame()
 
         let maximumOffset = max(
             0,
@@ -386,6 +603,7 @@ final class PlaybackCollagePreviewScrollContainerView: NSView {
         origin.y = min(max(0, origin.y), maximumOffset)
         scrollView.contentView.scroll(to: origin)
         scrollView.reflectScrolledClipView(scrollView.contentView)
+        positionStrips()
 
         scrollbarView.isPresented = imageSize.height > viewportSize.height + 0.5
         scrollbarView.scrollbarMetricsDidChange()
@@ -393,7 +611,39 @@ final class PlaybackCollagePreviewScrollContainerView: NSView {
 
     @objc
     private func scrollBoundsDidChange() {
+        positionStrips()
         scrollbarView.scrollbarMetricsDidChange()
+    }
+}
+
+/// One group's strip drawn above the image: a clip the size of the viewport
+/// plus the strip's own growth, holding the strip's pixels scaled about
+/// their centre.
+private final class PlaybackCollagePreviewStrip {
+    let index: Int
+    let clip = CALayer()
+    let content = CALayer()
+    var targetScale: CGFloat = 1
+    var animationGeneration = 0
+
+    init(index: Int) {
+        self.index = index
+        clip.masksToBounds = true
+        content.contentsGravity = .resize
+        clip.addSublayer(content)
+    }
+
+    /// The scale on screen right now, mid-animation included.
+    var displayedScale: CGFloat {
+        (content.presentation() ?? content).transform.m11
+    }
+
+    func setScale(_ scale: CGFloat) {
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        targetScale = scale
+        content.transform = CATransform3DMakeScale(scale, scale, 1)
+        CATransaction.commit()
     }
 }
 
@@ -401,29 +651,27 @@ private final class PlaybackCollagePreviewImageDocumentView: NSView {
     override var isFlipped: Bool {
         true
     }
-
-    /// Clicks anywhere on the document are the container's: the image view
-    /// would otherwise keep them as a control, and the frame is not a target.
-    override func hitTest(_ point: NSPoint) -> NSView? {
-        super.hitTest(point) == nil ? nil : self
-    }
 }
 
-/// The accent frame around the hovered group — the search field's focus
-/// border, drawn inside the strip so the image's edges do not clip it.
-private final class PlaybackCollagePreviewGroupFrameView: NSView {
+/// Hosts the enlarged strips; takes no clicks of its own.
+private final class PlaybackCollagePreviewSpillView: NSView {
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        wantsLayer = true
+        layer?.masksToBounds = false
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
     override var isFlipped: Bool {
         true
     }
 
-    override func draw(_ dirtyRect: NSRect) {
-        let width = WorkbenchControlMetrics.redesignControlBorderWidth
-        WorkbenchRedesignColors.NS.borderFocus.setStroke()
-        let path = NSBezierPath(
-            rect: bounds.insetBy(dx: width / 2, dy: width / 2)
-        )
-        path.lineWidth = width
-        path.stroke()
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        nil
     }
 }
 
