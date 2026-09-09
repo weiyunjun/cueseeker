@@ -216,6 +216,7 @@
 "playback.hud.screenshot_copied" = "已拷貝截圖";
 "playback.hud.deep_link_copied" = "已拷貝 Deep Link";
 "playback.hud.copy_failed" = "拷貝失敗";
+"playback.hud.collage_not_ready" = "長截圖未就緒";
 "playback.hud.no_subtitle" = "沒有字幕";
 "playback.hud.auto_pause" = "自動暫停";
 "playback.hud.shiori_removed" = "已移除 Shiori";

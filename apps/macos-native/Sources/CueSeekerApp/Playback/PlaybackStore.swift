@@ -255,6 +255,11 @@ final class PlaybackStore: ObservableObject {
            playlistSource?.hasItems == true {
             _ = session.presentModule(.playlist)
         }
+        session.presentCollageNotReady = { [weak self] systemImage in
+            self?.playbackViewModel?.showCollageNotReadyFeedback(
+                systemImage: systemImage
+            )
+        }
         subtitleFocusSession = session
         return session
     }

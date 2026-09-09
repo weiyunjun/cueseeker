@@ -108,9 +108,10 @@ struct PlaybackOverlay: View {
                let previewStore = session.collagePreviewStore {
                 PlaybackCollageEditor(
                     plan: session.collageSelectionPlan,
-                    displayTitle: currentDisplayTitle,
                     previewStore: previewStore,
-                    uiProbeScope: uiProbeScope
+                    uiProbeScope: uiProbeScope,
+                    onCopy: { session.copyCurrentCollage() },
+                    onExport: { session.exportCurrentCollage() }
                 ) {
                     currentSubtitleOverlay
                 }
@@ -198,22 +199,25 @@ enum PlaybackCollageEditorLayout {
 
 private struct PlaybackCollageEditor<SubtitleContent: View>: View {
     let plan: SubtitleCollageSelectionPlan
-    let displayTitle: String
     @ObservedObject var previewStore: PlaybackCollagePreviewStore
     let uiProbeScope: String?
+    let onCopy: () -> Void
+    let onExport: () -> Void
     let subtitleContent: SubtitleContent
 
     init(
         plan: SubtitleCollageSelectionPlan,
-        displayTitle: String,
         previewStore: PlaybackCollagePreviewStore,
         uiProbeScope: String?,
+        onCopy: @escaping () -> Void,
+        onExport: @escaping () -> Void,
         @ViewBuilder subtitleContent: () -> SubtitleContent
     ) {
         self.plan = plan
-        self.displayTitle = displayTitle
         self.previewStore = previewStore
         self.uiProbeScope = uiProbeScope
+        self.onCopy = onCopy
+        self.onExport = onExport
         self.subtitleContent = subtitleContent()
     }
 
@@ -225,8 +229,9 @@ private struct PlaybackCollageEditor<SubtitleContent: View>: View {
             HStack(spacing: 0) {
                 PlaybackCollagePreviewPane(
                     store: previewStore,
-                    displayTitle: displayTitle,
-                    uiProbeScope: uiProbeScope
+                    uiProbeScope: uiProbeScope,
+                    onCopy: onCopy,
+                    onExport: onExport
                 )
                 .frame(width: columnWidth, height: geometry.size.height)
 

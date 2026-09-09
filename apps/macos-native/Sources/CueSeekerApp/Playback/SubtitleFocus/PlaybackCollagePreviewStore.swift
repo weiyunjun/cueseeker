@@ -34,8 +34,15 @@ final class PlaybackCollagePreviewStore: ObservableObject {
         group: SubtitleCollageGroup,
         rendered: SubtitleCollageRenderedGroup
     )] = []
+    // The groups the preview currently shows, in plan order; a publish is
+    // skipped when the available set has not changed.
+    private var publishedGroups: [SubtitleCollageGroup] = []
+    private var publishGeneration = 0
     private var requestGeneration = 0
     private var renderTask: Task<Void, Never>?
+    // Each group is an independent frame grab and subtitle render, so missing
+    // groups render side by side, bounded by the machine's performance cores.
+    private static let maximumConcurrentGroupRenders = 4
 
     init(
         videoURL: URL,
@@ -79,18 +86,22 @@ final class PlaybackCollagePreviewStore: ObservableObject {
             stopRendering()
             committedPlan = nil
             renderedGroups = []
+            publishedGroups = []
             image = nil
             isRendering = false
             return
         }
 
         isRendering = true
+        // What this plan already has is shown at once; the rest follows as it
+        // renders.
+        publishAvailableGroups()
         startRenderingIfNeeded()
     }
 
     private func startRenderingIfNeeded() {
         guard renderTask == nil else {
-            // The running worker re-reads the requested plan after each group,
+            // The running worker re-reads the requested plan after each batch,
             // so a new selection needs no second worker and no interruption.
             return
         }
@@ -115,14 +126,23 @@ final class PlaybackCollagePreviewStore: ObservableObject {
                 return
             }
 
-            if let missing = plan.groups.first(where: { renderedGroup(for: $0) == nil }) {
-                do {
-                    // Never interrupted: one group is rendered to completion and
-                    // kept, then the loop picks up whatever plan is current now.
-                    let rendered = try await renderGroup(missing)
-                    keep(rendered, for: missing)
-                } catch {
-                    report(error, whileRendering: plan)
+            let missing = plan.groups
+                .filter { renderedGroup(for: $0) == nil }
+                .prefix(Self.maximumConcurrentGroupRenders)
+            if !missing.isEmpty {
+                // Never interrupted: the batch is rendered to completion and
+                // every finished group kept, then the loop picks up whatever
+                // plan is current now.
+                if let failure = await renderBatch(
+                    Array(missing),
+                    renderGroup: renderGroup
+                ) {
+                    // A plan that has moved on may not need the failed group any
+                    // more; only a failure the current plan depends on is reported.
+                    guard requestedPlan == plan else {
+                        continue
+                    }
+                    report(failure, whileRendering: plan)
                     return
                 }
                 continue
@@ -138,6 +158,10 @@ final class PlaybackCollagePreviewStore: ObservableObject {
             }
 
             do {
+                // Composed once more in full, so the committed image can never
+                // be a partial publish that lands late.
+                publishedGroups = plan.groups
+                publishGeneration += 1
                 let renderedImage = try await compose(assembled)
                 guard !Task.isCancelled else {
                     return
@@ -158,6 +182,65 @@ final class PlaybackCollagePreviewStore: ObservableObject {
         }
     }
 
+    /// Shows the groups of the current plan that are already rendered, in plan
+    /// order; missing groups appear once they finish. Copy and Export stay
+    /// unavailable until the plan is committed in full.
+    private func publishAvailableGroups() {
+        guard let plan = requestedPlan else {
+            return
+        }
+        let available = plan.groups.filter { renderedGroup(for: $0) != nil }
+        guard available != publishedGroups else {
+            return
+        }
+        publishedGroups = available
+        publishGeneration += 1
+        let generation = publishGeneration
+        guard !available.isEmpty else {
+            image = nil
+            return
+        }
+
+        let assembled = available.compactMap { renderedGroup(for: $0) }
+        let compose = self.compose
+        Task { [weak self] in
+            guard let renderedImage = try? await compose(assembled),
+                  let self,
+                  self.publishGeneration == generation
+            else {
+                return
+            }
+            self.image = renderedImage
+        }
+    }
+
+    private func renderBatch(
+        _ groups: [SubtitleCollageGroup],
+        renderGroup: @escaping RenderGroup
+    ) async -> Error? {
+        // Unstructured on purpose: cancelling the worker does not cut a batch
+        // short, so the worker stops at the batch boundary and nothing waits.
+        let renders = groups.map { group in
+            Task { () async -> Error? in
+                do {
+                    let rendered = try await renderGroup(group)
+                    self.keep(rendered, for: group)
+                    self.publishAvailableGroups()
+                    return nil
+                } catch {
+                    return error
+                }
+            }
+        }
+        var failure: Error?
+        for render in renders {
+            if let error = await render.value {
+                failure = failure ?? error
+            }
+        }
+        return failure
+    }
+
     private func report(
         _ error: Error,
         whileRendering plan: SubtitleCollageSelectionPlan
@@ -169,6 +252,7 @@ final class PlaybackCollagePreviewStore: ObservableObject {
             return
         }
         committedPlan = nil
+        publishedGroups = []
         image = nil
         isRendering = false
         errorDescription = String(describing: error)
@@ -192,6 +276,7 @@ final class PlaybackCollagePreviewStore: ObservableObject {
         requestedPlan = nil
         committedPlan = nil
         renderedGroups = []
+        publishedGroups = []
         image = nil
         isRendering = false
         errorDescription = nil

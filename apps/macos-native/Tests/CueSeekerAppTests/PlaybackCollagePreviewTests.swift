@@ -58,8 +58,72 @@ func playbackCollagePreviewRendersOnlyChangedGroups() async throws {
 
     #expect(renderedGroups.count == 4)
     #expect(renderedGroups[3] == plan.groups[1])
-    #expect(composedGroupCounts == [3, 3])
+    // Each finished group is published as it lands and the full plan once more
+    // on commit; the second plan first shows the two groups it still has. The
+    // composes run as separate tasks, so only their set is deterministic.
+    #expect(composedGroupCounts.sorted() == [1, 2, 2, 3, 3, 3, 3])
     #expect(store.image?.width == 3)
+}
+
+@MainActor
+@Test
+func playbackCollagePreviewPublishesRenderedGroupsBeforeThePlanCompletes() async throws {
+    let first = collagePreviewCue(
+        id: 70,
+        ordinal: 0,
+        startMilliseconds: 1_000,
+        endMilliseconds: 2_000
+    )
+    let second = collagePreviewCue(
+        id: 71,
+        ordinal: 1,
+        startMilliseconds: 4_000,
+        endMilliseconds: 5_000
+    )
+    let plan = try SubtitleCollageSelectionPlan(selectedCues: [first, second])
+    var continuations: [
+        Int: CheckedContinuation<SubtitleCollageRenderedGroup, Never>
+    ] = [:]
+    var renderCallCount = 0
+    let store = PlaybackCollagePreviewStore(
+        renderGroup: { _ in
+            renderCallCount += 1
+            let call = renderCallCount
+            return await withCheckedContinuation { continuation in
+                continuations[call] = continuation
+            }
+        },
+        compose: { groups in
+            collagePreviewImage(width: groups.count, height: 1)
+        }
+    )
+
+    store.update(plan: plan)
+    await waitForCollagePreviewCondition {
+        continuations.count == 2
+    }
+    #expect(store.image == nil)
+
+    // The second group lands first and shows alone; Copy and Export wait.
+    continuations[2]?.resume(returning: collagePreviewRenderedGroup())
+    await waitForCollagePreviewCondition {
+        store.image != nil
+    }
+    #expect(store.image?.width == 1)
+    #expect(store.isRendering)
+    #expect(!store.canUseCurrentResult)
+
+    continuations[1]?.resume(returning: collagePreviewRenderedGroup())
+    await waitForCollagePreviewToSettle(store)
+    #expect(store.image?.width == 2)
+    #expect(store.canUseCurrentResult)
+
+    // Deselecting needs no render: the remaining group is shown from cache.
+    store.update(plan: try SubtitleCollageSelectionPlan(selectedCues: [first]))
+    await waitForCollagePreviewToSettle(store)
+    #expect(renderCallCount == 2)
+    #expect(store.image?.width == 1)
+    #expect(store.canUseCurrentResult)
 }
 
 @MainActor
@@ -192,6 +256,131 @@ func playbackCollagePreviewActionsRejectVisiblePreviousGeneration() async throws
     await waitForCollagePreviewToSettle(store)
     #expect(store.currentActionResult()?.plan == secondPlan)
     #expect(store.currentActionResult()?.image.width == 2)
+}
+
+@MainActor
+@Test
+func playbackCollagePreviewRendersMissingGroupsFourAtATime() async throws {
+    var cues: [SubtitleFocusCue] = []
+    for index in 0..<5 {
+        let offset = index * 3_000
+        cues.append(collagePreviewCue(
+            id: Int64(50 + index),
+            ordinal: index,
+            startMilliseconds: 1_000 + offset,
+            endMilliseconds: 2_000 + offset
+        ))
+    }
+    let plan = try SubtitleCollageSelectionPlan(selectedCues: cues)
+    var continuations: [
+        Int: CheckedContinuation<SubtitleCollageRenderedGroup, Never>
+    ] = [:]
+    var renderCallCount = 0
+    let store = PlaybackCollagePreviewStore(
+        renderGroup: { _ in
+            renderCallCount += 1
+            let call = renderCallCount
+            return await withCheckedContinuation { continuation in
+                continuations[call] = continuation
+            }
+        },
+        compose: { groups in
+            collagePreviewImage(width: groups.count, height: 1)
+        }
+    )
+
+    store.update(plan: plan)
+    await waitForCollagePreviewCondition {
+        continuations.count == 4
+    }
+    for _ in 0..<50 {
+        await Task.yield()
+    }
+    // The fifth group waits for the batch: four render side by side, no more.
+    #expect(renderCallCount == 4)
+
+    for call in 1...4 {
+        continuations[call]?.resume(returning: collagePreviewRenderedGroup())
+    }
+    await waitForCollagePreviewCondition {
+        continuations[5] != nil
+    }
+    #expect(renderCallCount == 5)
+    continuations[5]?.resume(returning: collagePreviewRenderedGroup())
+    await waitForCollagePreviewToSettle(store)
+    #expect(store.image?.width == 5)
+    #expect(store.currentActionResult()?.plan == plan)
+}
+
+@MainActor
+@Test
+func playbackCollagePreviewMovesOnFromAFailedGroupThePlanNoLongerNeeds() async throws {
+    let stalePlan = try SubtitleCollageSelectionPlan(selectedCues: [
+        collagePreviewCue(
+            id: 60,
+            ordinal: 0,
+            startMilliseconds: 1_000,
+            endMilliseconds: 2_000
+        )
+    ])
+    let currentPlan = try SubtitleCollageSelectionPlan(selectedCues: [
+        collagePreviewCue(
+            id: 61,
+            ordinal: 1,
+            startMilliseconds: 4_000,
+            endMilliseconds: 5_000
+        )
+    ])
+    let failingPlan = try SubtitleCollageSelectionPlan(selectedCues: [
+        collagePreviewCue(
+            id: 62,
+            ordinal: 2,
+            startMilliseconds: 7_000,
+            endMilliseconds: 8_000
+        )
+    ])
+    var pendingRender: CheckedContinuation<SubtitleCollageRenderedGroup, Error>?
+    let store = PlaybackCollagePreviewStore(
+        renderGroup: { group in
+            if group.cues[0].id == 61 {
+                return collagePreviewRenderedGroup()
+            }
+            return try await withCheckedThrowingContinuation { continuation in
+                pendingRender = continuation
+            }
+        },
+        compose: { groups in
+            collagePreviewImage(width: groups.count, height: 1)
+        }
+    )
+
+    store.update(plan: stalePlan)
+    await waitForCollagePreviewCondition {
+        pendingRender != nil
+    }
+    store.update(plan: currentPlan)
+    pendingRender?.resume(
+        throwing: PlaybackCollagePreviewError.renderedGroupCountMismatch
+    )
+    pendingRender = nil
+    await waitForCollagePreviewToSettle(store)
+    // The failed group is not in the current plan, so the loop moves on to it.
+    #expect(store.errorDescription == nil)
+    #expect(store.currentActionResult()?.plan == currentPlan)
+    #expect(store.image?.width == 1)
+
+    store.update(plan: failingPlan)
+    await waitForCollagePreviewCondition {
+        pendingRender != nil
+    }
+    pendingRender?.resume(
+        throwing: PlaybackCollagePreviewError.renderedGroupCountMismatch
+    )
+    await waitForCollagePreviewToSettle(store)
+    // The failed group is what the current plan needs, so it is reported.
+    #expect(store.errorDescription != nil)
+    #expect(store.image == nil)
+    #expect(!store.canUseCurrentResult)
 }
 
 @MainActor
@@ -343,7 +532,6 @@ private struct PlaybackCollageRefreshBoundaryOwner: View {
         )
         PlaybackCollagePreviewPane(
             store: store,
-            displayTitle: "Show - 01",
             uiProbeScope: uiProbeScope
         )
     }

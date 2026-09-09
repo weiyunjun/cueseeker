@@ -515,6 +515,16 @@ public final class PlaybackViewModel: ObservableObject {
         )
     }
 
+    func showCollageNotReadyFeedback(systemImage: String) {
+        showFeedback(
+            PlaybackFeedback(
+                systemImage: systemImage,
+                text: L("playback.hud.collage_not_ready")
+            ),
+            durationMilliseconds: 1_000
+        )
+    }
+
     func showSelectedTextCopyFeedback(copied: Bool) {
         showFeedback(
             PlaybackFeedback(

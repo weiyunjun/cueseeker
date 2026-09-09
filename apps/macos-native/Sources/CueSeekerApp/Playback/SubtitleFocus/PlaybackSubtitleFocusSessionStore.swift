@@ -501,22 +501,37 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
         return mutation
     }
 
+    // Copy and Export while the preview is still rendering answer with a
+    // feedback capsule carrying the triggered button's icon, never a disabled
+    // button. Wired by the playback store to the playback feedback.
+    var presentCollageNotReady: ((_ systemImage: String) -> Void)?
+
     @discardableResult
     func copyCurrentCollage() -> Bool {
-        guard isEditingCollage else {
+        guard isEditingCollage, let collagePreviewStore else {
             return false
         }
-        return collagePreviewStore?.copyCurrentResult() == true
+        guard collagePreviewStore.canUseCurrentResult else {
+            presentCollageNotReady?("doc.on.doc")
+            return true
+        }
+        collagePreviewStore.copyCurrentResult()
+        return true
     }
 
     @discardableResult
     func exportCurrentCollage() -> Bool {
-        guard isEditingCollage else {
+        guard isEditingCollage, let collagePreviewStore else {
             return false
         }
-        return collagePreviewStore?.exportCurrentResult(
+        guard collagePreviewStore.canUseCurrentResult else {
+            presentCollageNotReady?("square.and.arrow.up")
+            return true
+        }
+        collagePreviewStore.exportCurrentResult(
             displayTitle: collageDisplayTitle
-        ) == true
+        )
+        return true
     }
 
     @discardableResult

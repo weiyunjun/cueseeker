@@ -216,6 +216,7 @@
 "playback.hud.screenshot_copied" = "Screenshot Copied";
 "playback.hud.deep_link_copied" = "Deep Link Copied";
 "playback.hud.copy_failed" = "Copy Failed";
+"playback.hud.collage_not_ready" = "Collage Not Ready";
 "playback.hud.no_subtitle" = "No Subtitle";
 "playback.hud.auto_pause" = "Auto Pause";
 "playback.hud.shiori_removed" = "Shiori Removed";

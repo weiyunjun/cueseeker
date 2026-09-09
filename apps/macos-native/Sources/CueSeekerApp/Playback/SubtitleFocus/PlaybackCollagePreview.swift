@@ -6,8 +6,11 @@ struct PlaybackCollagePreviewPane: View {
     // Observed so the copy below is re-read when the language changes.
     @EnvironmentObject private var localization: AppLocalizationStore
     @ObservedObject var store: PlaybackCollagePreviewStore
-    let displayTitle: String
     let uiProbeScope: String?
+    // The session owns both actions: a result that is not ready yet answers
+    // with a feedback capsule, so the buttons are never disabled.
+    var onCopy: () -> Void = {}
+    var onExport: () -> Void = {}
 
     var body: some View {
         let _ = UIInvalidationProbe.count(
@@ -38,22 +41,15 @@ struct PlaybackCollagePreviewPane: View {
                     title: L("playback.collage.copy"),
                     systemImage: "doc.on.doc",
                     isRedesign: true,
-                    action: {
-                        _ = store.copyCurrentResult()
-                    }
+                    action: onCopy
                 )
                 WorkbenchButton(
                     title: L("playback.collage.export"),
                     systemImage: "square.and.arrow.up",
                     isRedesign: true,
-                    action: {
-                        _ = store.exportCurrentResult(
-                            displayTitle: displayTitle
-                        )
-                    }
+                    action: onExport
                 )
             }
-            .disabled(!store.canUseCurrentResult)
             .accessibilityIdentifier("playback-collage-preview-actions")
         }
         .padding(PlaybackSubtitleFocusMetrics.contentInset)
