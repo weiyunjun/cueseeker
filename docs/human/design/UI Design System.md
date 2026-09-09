@@ -870,7 +870,8 @@
   - Background：Surface Hover
 - Open
   - 触发：挂靠的菜单、面板或窗口打开，或按钮所控的模式开启
-  - Background：Surface Hover
+  - Background：`--color-text-muted`
+  - Icon Color：`--color-icon-on-dark`
 - Focused
   - Ring Color：`--color-focus-ring`
   - Ring Width：`--focus-ring-width`
