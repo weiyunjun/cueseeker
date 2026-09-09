@@ -2481,12 +2481,12 @@
 
 ##### Sizes
 
-- Maximum Width：`--width-player-topbar-title-max`
+- Maximum Width：`--width-player-topbar-title-max`，且不超过顶栏的居中元素可用宽度
 
 ##### States
 
 - Default
-- Truncated
+- Truncated：中间截断，尾部的 ` - 序号` 不省略
 
 ## 2.13 Playback Content
 
@@ -2690,7 +2690,7 @@
 
 - Expanded
 - Collapsed
-  - Auto Collapse：窗口宽度 ≤ `--min-width-workbench-page-content` + `--width-app-sidebar` 时自动收起，收起后不自动展开。
+  - Auto Collapse：窗口宽度 ≤ `--min-width-workbench-page-content` + `--width-app-sidebar` 时自动收起，收起后不自动展开。只在 Workbench 可见时判定，从播放页返回时判定一次。
 
 ### App Topbar Layout
 
@@ -2726,6 +2726,7 @@
 - Back to Forward Gap：`--spacing-1`
 - Task to Settings Gap：`--spacing-1`
 - Sidebar Segment Width：`--width-app-sidebar`
+- Function Region Minimum Width：`--min-width-workbench-page-content`，由 Function Region 与 Trailing Function Region 共用
 - Window Controls Inset：`--spacing-6`
 - Collapsed Toggle Gap After Window Controls：`--gap-app-topbar-toggle-after-window-controls`
 
@@ -2734,6 +2735,7 @@
 - 一级页：Search、Recent、Library、File、Shiori
 - 二级页：None
 - 页面已不存在：`Unknown Page`
+- 宽度：Back、Forward 与 Trailing Function Region 之外的剩余宽度，不足时尾部截断
 
 #### States
 
@@ -2741,6 +2743,7 @@
 - History End：Forward Disabled
 - Sidebar Expanded
 - Sidebar Collapsed
+- Below Function Region Minimum Width：Function Region 与 Trailing Function Region 随页面一起横向滚动，Window Controls 与 Sidebar Toggle 不参与
 - Hidden On Playback：Task Entry 与 Settings Entry 改由播放页与 Playback Overlay 的顶栏显示
 - Settings Window Open：Settings Entry Open，窗口最小化期间保持
 
@@ -3658,6 +3661,8 @@
 - Window Controls：与 App Topbar Layout 同一位置，起点 `--spacing-6`，在 `--height-app-topbar` 内垂直居中
 - Return Action：与 Window Controls 同一水平中线
 - Return Action Gap：`--gap-player-window-controls-return`
+- Fullscreen：Window Controls 由系统标题栏显示，Return Action 起点改为 `--padding-player-topbar-x`
+- 居中元素可用宽度：顶栏宽度减去左右占用较大一侧的两倍，居中元素始终在顶栏中线上
 
 #### Surface
 
@@ -3830,6 +3835,7 @@
 #### Sizes
 
 - Height：`--height-app-topbar`
+- Tabs 与 Editing Title 最大宽度：顶栏的居中元素可用宽度
 
 #### Spacing
 
