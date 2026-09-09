@@ -280,15 +280,18 @@ func subtitleCollageCompositionKeepsFirstFrameAndCropsLaterSubtitleBands() throw
     #expect(collage.width == 20)
     #expect(collage.height == 15)
 
-    let reusableCollage = try SubtitleScreenshotExporter.composeCollage([
+    let composition = try SubtitleScreenshotExporter.composeCollage([
         SubtitleCollageRenderedGroup(image: first, subtitleBands: []),
         SubtitleCollageRenderedGroup(
             image: second,
             subtitleBands: [2...4, 7...8]
         ),
     ])
+    let reusableCollage = composition.image
     #expect(reusableCollage.width == collage.width)
     #expect(reusableCollage.height == collage.height)
+    // The first group is its whole frame; the second is its two bands stacked.
+    #expect(composition.groupHeights == [10, 5])
 
     let destinationURL = FileManager.default.temporaryDirectory
         .appendingPathComponent("CueSeeker-Collage-\(UUID().uuidString).png")

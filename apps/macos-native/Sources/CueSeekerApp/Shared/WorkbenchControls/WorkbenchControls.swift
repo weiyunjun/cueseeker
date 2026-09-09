@@ -35,6 +35,8 @@ enum WorkbenchControlMetrics {
     static let inlineClearSymbolFontSizeMacOS: CGFloat = 11
     /// --size-inline-clear-icon: 16px
     static let inlineClearIconSize: CGFloat = 16
+    /// --border-width-control: 1px
+    static let redesignControlBorderWidth: CGFloat = 1
     /// --focus-ring-width: 2px
     static let redesignFocusRingWidth: CGFloat = 2
     /// --focus-ring-offset: 2px
@@ -576,7 +578,7 @@ struct WorkbenchSearchField: View {
             RoundedRectangle(cornerRadius: isRedesign ? WorkbenchControlMetrics.redesignSearchRadius : WorkbenchControlMetrics.cornerRadius, style: .continuous)
                 .strokeBorder(
                     isRedesign ? (isFocused ? WorkbenchRedesignColors.borderFocus : WorkbenchRedesignColors.borderControl) : WorkbenchControlColors.border,
-                    lineWidth: isRedesign ? 1.0 : WorkbenchControlMetrics.hairlineWidth
+                    lineWidth: isRedesign ? WorkbenchControlMetrics.redesignControlBorderWidth : WorkbenchControlMetrics.hairlineWidth
                 )
         )
         .subtitleTableTextSelectionInteractiveRegion(isActive: isEnabled)

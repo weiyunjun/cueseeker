@@ -5,12 +5,18 @@ import SwiftUI
 struct PlaybackCollagePreviewPane: View {
     // Observed so the copy below is re-read when the language changes.
     @EnvironmentObject private var localization: AppLocalizationStore
+    // Covered by the Command Panel, or under an open menu, the preview keeps
+    // its frame where it is and takes no click.
+    @Environment(\.interfaceLayerContext) private var layerContext
     @ObservedObject var store: PlaybackCollagePreviewStore
     let uiProbeScope: String?
     // The session owns both actions: a result that is not ready yet answers
     // with a feedback capsule, so the buttons are never disabled.
     var onCopy: () -> Void = {}
     var onExport: () -> Void = {}
+    /// A click on a group's strip, with the reel ordinal of the first cue of
+    /// the group drawn there.
+    var onJumpToCue: (Int) -> Void = { _ in }
 
     var body: some View {
         let _ = UIInvalidationProbe.count(
@@ -31,6 +37,9 @@ struct PlaybackCollagePreviewPane: View {
 
             PlaybackCollagePreviewImageScrollView(
                 image: store.image,
+                segments: store.segments,
+                isInteractionEnabled: !layerContext.isFrozen,
+                onJumpToCue: onJumpToCue,
                 uiProbeScope: uiProbeScope
             )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -58,6 +67,9 @@ struct PlaybackCollagePreviewPane: View {
 
 struct PlaybackCollagePreviewImageScrollView: NSViewRepresentable {
     let image: CGImage?
+    let segments: [PlaybackCollagePreviewSegment]
+    let isInteractionEnabled: Bool
+    let onJumpToCue: (Int) -> Void
     let uiProbeScope: String?
 
     func makeNSView(context: Context) -> PlaybackCollagePreviewScrollContainerView {
@@ -66,7 +78,7 @@ struct PlaybackCollagePreviewImageScrollView: NSViewRepresentable {
             scope: uiProbeScope
         )
         let view = PlaybackCollagePreviewScrollContainerView()
-        view.updateImage(image)
+        configure(view)
         return view
     }
 
@@ -78,7 +90,13 @@ struct PlaybackCollagePreviewImageScrollView: NSViewRepresentable {
             "playback.collage_preview.native_update",
             scope: uiProbeScope
         )
-        nsView.updateImage(image)
+        configure(nsView)
+    }
+
+    private func configure(_ view: PlaybackCollagePreviewScrollContainerView) {
+        view.isInteractionEnabled = isInteractionEnabled
+        view.onJumpToCue = onJumpToCue
+        view.updateImage(image, segments: segments)
     }
 }
 
@@ -86,8 +104,19 @@ final class PlaybackCollagePreviewScrollContainerView: NSView {
     private let scrollView = NSScrollView()
     private let imageDocumentView = PlaybackCollagePreviewImageDocumentView()
     private let imageView = NSImageView()
+    private let groupFrameView = PlaybackCollagePreviewGroupFrameView()
     private let scrollbarView = PlaybackCollagePreviewScrollbarView()
     private var image: CGImage?
+    private var segments: [PlaybackCollagePreviewSegment] = []
+    /// The strip under the pointer at its last real movement. Nothing else
+    /// moves it: the wheel scrolls it along with the image, and a new image
+    /// only clears it until the pointer moves again.
+    private(set) var hoveredSegmentIndex: Int?
+    private var pressedSegmentIndex: Int?
+    nonisolated(unsafe) private var pointerMonitor: Any?
+
+    var isInteractionEnabled = true
+    var onJumpToCue: (Int) -> Void = { _ in }
 
     override var isFlipped: Bool {
         true
@@ -113,6 +142,9 @@ final class PlaybackCollagePreviewScrollContainerView: NSView {
         imageView.imageScaling = .scaleAxesIndependently
         imageView.isEditable = false
         imageDocumentView.addSubview(imageView)
+        // In the document, so it scrolls with the strip it frames.
+        groupFrameView.isHidden = true
+        imageDocumentView.addSubview(groupFrameView)
         scrollView.documentView = imageDocumentView
 
         scrollbarView.scrollView = scrollView
@@ -134,6 +166,18 @@ final class PlaybackCollagePreviewScrollContainerView: NSView {
 
     deinit {
         NotificationCenter.default.removeObserver(self)
+        if let pointerMonitor {
+            NSEvent.removeMonitor(pointerMonitor)
+        }
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        if window == nil {
+            removePointerMonitor()
+        } else {
+            installPointerMonitorIfNeeded()
+        }
     }
 
     override func layout() {
@@ -143,7 +187,10 @@ final class PlaybackCollagePreviewScrollContainerView: NSView {
         updateImageLayout()
     }
 
-    func updateImage(_ image: CGImage?) {
+    func updateImage(
+        _ image: CGImage?,
+        segments: [PlaybackCollagePreviewSegment] = []
+    ) {
         if let currentImage = self.image,
            let image,
            currentImage === image {
@@ -154,6 +201,10 @@ final class PlaybackCollagePreviewScrollContainerView: NSView {
         }
 
         self.image = image
+        self.segments = segments
+        // A new picture clears the frame; the next real movement decides again.
+        hoveredSegmentIndex = nil
+        pressedSegmentIndex = nil
         imageView.image = image.map {
             NSImage(
                 cgImage: $0,
@@ -169,6 +220,133 @@ final class PlaybackCollagePreviewScrollContainerView: NSView {
 
     var isVerticalScrollbarPresentedForTesting: Bool {
         scrollbarView.isPresented
+    }
+
+    var groupFrameRectForTesting: CGRect? {
+        groupFrameView.isHidden ? nil : groupFrameView.frame
+    }
+
+    /// A real pointer movement, from the window's event: the frame goes to
+    /// the strip under the pointer, or away when there is none.
+    func pointerMoved(toWindowPoint windowPoint: CGPoint) {
+        guard isInteractionEnabled else {
+            return
+        }
+        setHoveredSegment(segmentIndex(atWindowPoint: windowPoint))
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        press(atWindowPoint: event.locationInWindow)
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        release(atWindowPoint: event.locationInWindow)
+    }
+
+    func press(atWindowPoint windowPoint: CGPoint) {
+        pressedSegmentIndex = isInteractionEnabled
+            ? segmentIndex(atWindowPoint: windowPoint)
+            : nil
+    }
+
+    /// The action is on release, inside the strip the press began on. The
+    /// frame follows the click as it would any pointer hit, and the target is
+    /// read from the segments of the picture on screen right now.
+    func release(atWindowPoint windowPoint: CGPoint) {
+        let pressed = pressedSegmentIndex
+        pressedSegmentIndex = nil
+        guard isInteractionEnabled,
+              let index = segmentIndex(atWindowPoint: windowPoint),
+              index == pressed
+        else {
+            return
+        }
+        setHoveredSegment(index)
+        onJumpToCue(segments[index].firstCueOrdinal)
+    }
+
+    private func installPointerMonitorIfNeeded() {
+        guard pointerMonitor == nil else {
+            return
+        }
+        // A local monitor sees every real pointer movement in the window and
+        // reads the event's own location, so the frame can clear when the
+        // pointer leaves the image, and a synthesized move drives it too.
+        pointerMonitor = NSEvent.addLocalMonitorForEvents(
+            matching: [.mouseMoved, .leftMouseDragged]
+        ) { [weak self] event in
+            MainActor.assumeIsolated {
+                guard let self,
+                      let window = self.window,
+                      event.window === window
+                else {
+                    return
+                }
+                self.pointerMoved(toWindowPoint: event.locationInWindow)
+            }
+            return event
+        }
+    }
+
+    private func removePointerMonitor() {
+        guard let pointerMonitor else {
+            return
+        }
+        NSEvent.removeMonitor(pointerMonitor)
+        self.pointerMonitor = nil
+    }
+
+    private func segmentIndex(atWindowPoint windowPoint: CGPoint) -> Int? {
+        guard bounds.contains(convert(windowPoint, from: nil)) else {
+            return nil
+        }
+        let point = imageDocumentView.convert(windowPoint, from: nil)
+        guard imageView.frame.contains(point) else {
+            return nil
+        }
+        let scale = segmentScale
+        var top: CGFloat = 0
+        for (index, segment) in segments.enumerated() {
+            let bottom = top + CGFloat(segment.height) * scale
+            if point.y < bottom {
+                return index
+            }
+            top = bottom
+        }
+        return nil
+    }
+
+    private var segmentScale: CGFloat {
+        guard let image, image.width > 0 else {
+            return 0
+        }
+        return imageView.frame.width / CGFloat(image.width)
+    }
+
+    private func setHoveredSegment(_ index: Int?) {
+        hoveredSegmentIndex = index
+        positionGroupFrame()
+    }
+
+    private func positionGroupFrame() {
+        guard let index = hoveredSegmentIndex,
+              segments.indices.contains(index)
+        else {
+            groupFrameView.isHidden = true
+            return
+        }
+        let scale = segmentScale
+        let top = segments.prefix(index).reduce(CGFloat(0)) {
+            $0 + CGFloat($1.height) * scale
+        }
+        groupFrameView.frame = CGRect(
+            x: 0,
+            y: top,
+            width: imageView.frame.width,
+            height: CGFloat(segments[index].height) * scale
+        )
+        groupFrameView.isHidden = false
+        groupFrameView.needsDisplay = true
     }
 
     private func updateImageLayout() {
@@ -197,6 +375,7 @@ final class PlaybackCollagePreviewScrollContainerView: NSView {
             )
         )
         imageView.frame = CGRect(origin: .zero, size: imageSize)
+        positionGroupFrame()
 
         let maximumOffset = max(
             0,
@@ -221,6 +400,30 @@ final class PlaybackCollagePreviewScrollContainerView: NSView {
 private final class PlaybackCollagePreviewImageDocumentView: NSView {
     override var isFlipped: Bool {
         true
+    }
+
+    /// Clicks anywhere on the document are the container's: the image view
+    /// would otherwise keep them as a control, and the frame is not a target.
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        super.hitTest(point) == nil ? nil : self
+    }
+}
+
+/// The accent frame around the hovered group — the search field's focus
+/// border, drawn inside the strip so the image's edges do not clip it.
+private final class PlaybackCollagePreviewGroupFrameView: NSView {
+    override var isFlipped: Bool {
+        true
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        let width = WorkbenchControlMetrics.redesignControlBorderWidth
+        WorkbenchRedesignColors.NS.borderFocus.setStroke()
+        let path = NSBezierPath(
+            rect: bounds.insetBy(dx: width / 2, dy: width / 2)
+        )
+        path.lineWidth = width
+        path.stroke()
     }
 }
 

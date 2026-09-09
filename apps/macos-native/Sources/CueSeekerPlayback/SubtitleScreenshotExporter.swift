@@ -55,6 +55,18 @@ public struct SubtitleCollageRenderedGroup: @unchecked Sendable {
     }
 }
 
+/// A collage and where each group sits in it: the groups' heights in image
+/// pixels, in group order, so a viewer can map a point back to its group.
+public struct SubtitleCollageComposition: @unchecked Sendable {
+    public let image: CGImage
+    public let groupHeights: [Int]
+
+    public init(image: CGImage, groupHeights: [Int]) {
+        self.image = image
+        self.groupHeights = groupHeights
+    }
+}
+
 public enum SubtitleScreenshotExportError: Error, CustomStringConvertible {
     case emptyItems
     case ffmpegNotFound
@@ -254,10 +266,10 @@ public enum SubtitleScreenshotExporter {
             ))
         }
 
-        guard let collage = collageImage(from: renderedFrames) else {
+        guard let collage = collageComposition(from: renderedFrames) else {
             throw SubtitleScreenshotExportError.imageContextFailed
         }
-        try exportCollage(image: collage, to: destinationURL)
+        try exportCollage(image: collage.image, to: destinationURL)
     }
 
     public static func exportCollage(
@@ -281,7 +293,7 @@ public enum SubtitleScreenshotExporter {
             videoURL: videoURL,
             subtitleSource: subtitleSource
         )
-        return try composeCollage(renderedGroups)
+        return try composeCollage(renderedGroups).image
     }
 
     public static func renderCollageGroups(
@@ -334,7 +346,7 @@ public enum SubtitleScreenshotExporter {
 
     public static func composeCollage(
         _ renderedGroups: [SubtitleCollageRenderedGroup]
-    ) throws -> CGImage {
+    ) throws -> SubtitleCollageComposition {
         let renderedFrames = renderedGroups.map { group in
             RenderedSubtitleFrame(
                 image: group.image,
@@ -343,7 +355,7 @@ public enum SubtitleScreenshotExporter {
                 }
             )
         }
-        guard let collage = collageImage(from: renderedFrames) else {
+        guard let collage = collageComposition(from: renderedFrames) else {
             throw SubtitleScreenshotExportError.imageContextFailed
         }
         return collage
@@ -679,7 +691,7 @@ public enum SubtitleScreenshotExporter {
     static func _composeCollageForTesting(
         frames: [(image: CGImage, subtitleBands: [ClosedRange<Int>])]
     ) -> CGImage? {
-        collageImage(
+        collageComposition(
             from: frames.map { frame in
                 RenderedSubtitleFrame(
                     image: frame.image,
@@ -688,7 +700,7 @@ public enum SubtitleScreenshotExporter {
                     }
                 )
             }
-        )
+        )?.image
     }
 
     private static func selectedASSRenderScript(
@@ -874,31 +886,37 @@ public enum SubtitleScreenshotExporter {
         return context.makeImage()
     }
 
-    private static func collageImage(
+    private static func collageComposition(
         from renderedFrames: [RenderedSubtitleFrame]
-    ) -> CGImage? {
+    ) -> SubtitleCollageComposition? {
         var strips: [CGImage] = []
+        var groupHeights: [Int] = []
         for (index, renderedFrame) in renderedFrames.enumerated() {
+            let groupStrips: [CGImage]
             if index == 0 || renderedFrame.subtitleBands.isEmpty {
-                strips.append(renderedFrame.image)
-                continue
-            }
-
-            for band in renderedFrame.subtitleBands {
-                guard let crop = renderedFrame.image.cropping(
-                    to: CGRect(
-                        x: 0,
-                        y: band.y1,
-                        width: renderedFrame.image.width,
-                        height: band.height
+                groupStrips = [renderedFrame.image]
+            } else {
+                groupStrips = renderedFrame.subtitleBands.compactMap { band in
+                    renderedFrame.image.cropping(
+                        to: CGRect(
+                            x: 0,
+                            y: band.y1,
+                            width: renderedFrame.image.width,
+                            height: band.height
+                        )
                     )
-                ) else {
-                    continue
                 }
-                strips.append(crop)
             }
+            strips.append(contentsOf: groupStrips)
+            groupHeights.append(groupStrips.reduce(0) { $0 + $1.height })
         }
-        return verticalStack(strips)
+        guard let image = verticalStack(strips) else {
+            return nil
+        }
+        return SubtitleCollageComposition(
+            image: image,
+            groupHeights: groupHeights
+        )
     }
 
     private static func verticalStack(_ images: [CGImage]) -> CGImage? {

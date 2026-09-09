@@ -13,6 +13,14 @@ private struct PlaybackCollageImageActionWorkItem: @unchecked Sendable {
     let image: CGImage
 }
 
+/// One group's strip of the published preview: its height in image pixels,
+/// and the reel ordinal of the first cue of the group actually drawn there —
+/// for a stand-in, the group whose old image is on screen.
+struct PlaybackCollagePreviewSegment: Equatable {
+    let height: Int
+    let firstCueOrdinal: Int
+}
+
 @MainActor
 final class PlaybackCollagePreviewStore: ObservableObject {
     typealias RenderGroup = (
@@ -20,9 +28,11 @@ final class PlaybackCollagePreviewStore: ObservableObject {
     ) async throws -> SubtitleCollageRenderedGroup
     typealias Compose = (
         [SubtitleCollageRenderedGroup]
-    ) async throws -> CGImage
+    ) async throws -> SubtitleCollageComposition
 
     @Published private(set) var image: CGImage?
+    /// The strips of `image` in display order, published with it.
+    @Published private(set) var segments: [PlaybackCollagePreviewSegment] = []
     @Published private(set) var isRendering = false
     @Published private(set) var errorDescription: String?
 
@@ -87,7 +97,7 @@ final class PlaybackCollagePreviewStore: ObservableObject {
             committedPlan = nil
             renderedGroups = []
             publishedGroups = []
-            image = nil
+            clearImage()
             isRendering = false
             return
         }
@@ -162,7 +172,7 @@ final class PlaybackCollagePreviewStore: ObservableObject {
                 // be a partial publish that lands late.
                 publishedGroups = plan.groups
                 publishGeneration += 1
-                let renderedImage = try await compose(assembled)
+                let composition = try await compose(assembled)
                 guard !Task.isCancelled else {
                     return
                 }
@@ -171,7 +181,7 @@ final class PlaybackCollagePreviewStore: ObservableObject {
                 }
                 pruneRenderedGroups(to: plan.groups)
                 committedPlan = plan
-                image = renderedImage
+                publish(composition, for: plan.groups)
                 isRendering = false
                 errorDescription = nil
                 return
@@ -198,21 +208,41 @@ final class PlaybackCollagePreviewStore: ObservableObject {
         publishGeneration += 1
         let generation = publishGeneration
         guard !displayed.isEmpty else {
-            image = nil
+            clearImage()
             return
         }
 
         let assembled = displayed.map(\.rendered)
         let compose = self.compose
         Task { [weak self] in
-            guard let renderedImage = try? await compose(assembled),
+            guard let composition = try? await compose(assembled),
                   let self,
                   self.publishGeneration == generation
             else {
                 return
             }
-            self.image = renderedImage
+            self.publish(composition, for: displayedGroups)
         }
+    }
+
+    /// The image and its segments are one publication: a click reads the
+    /// segments of the very picture on screen.
+    private func publish(
+        _ composition: SubtitleCollageComposition,
+        for groups: [SubtitleCollageGroup]
+    ) {
+        image = composition.image
+        segments = zip(composition.groupHeights, groups).map { height, group in
+            PlaybackCollagePreviewSegment(
+                height: height,
+                firstCueOrdinal: group.cues.map(\.ordinal).min() ?? 0
+            )
+        }
+    }
+
+    private func clearImage() {
+        image = nil
+        segments = []
     }
 
     private func renderBatch(
@@ -254,7 +284,7 @@ final class PlaybackCollagePreviewStore: ObservableObject {
         }
         committedPlan = nil
         publishedGroups = []
-        image = nil
+        clearImage()
         isRendering = false
         errorDescription = String(describing: error)
     }
@@ -278,7 +308,7 @@ final class PlaybackCollagePreviewStore: ObservableObject {
         committedPlan = nil
         renderedGroups = []
         publishedGroups = []
-        image = nil
+        clearImage()
         isRendering = false
         errorDescription = nil
     }

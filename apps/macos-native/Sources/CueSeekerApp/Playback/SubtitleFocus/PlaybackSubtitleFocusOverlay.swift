@@ -234,6 +234,9 @@ private struct PlaybackCollageEditor<SubtitleContent: View>: View {
                     onExport: onExport
                 )
                 .frame(width: columnWidth, height: geometry.size.height)
+                // On the Overlay's layer, like the top bar: the preview asks
+                // whether it is frozen from where it actually is.
+                .interfaceLayer(.playbackOverlay)
 
                 subtitleContent
                     .frame(width: columnWidth, height: geometry.size.height)

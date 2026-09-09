@@ -42,7 +42,7 @@ func playbackCollagePreviewRendersOnlyChangedGroups() async throws {
         },
         compose: { groups in
             composedGroupCounts.append(groups.count)
-            return collagePreviewImage(width: groups.count, height: 1)
+            return collagePreviewComposition(groupCount: groups.count)
         }
     )
 
@@ -95,7 +95,7 @@ func playbackCollagePreviewPublishesRenderedGroupsBeforeThePlanCompletes() async
             }
         },
         compose: { groups in
-            collagePreviewImage(width: groups.count, height: 1)
+            collagePreviewComposition(groupCount: groups.count)
         }
     )
 
@@ -165,7 +165,7 @@ func playbackCollagePreviewRejectsObsoleteAsyncResults() async throws {
             }
         },
         compose: { groups in
-            collagePreviewImage(width: groups.count, height: 1)
+            collagePreviewComposition(groupCount: groups.count)
         }
     )
 
@@ -237,7 +237,7 @@ func playbackCollagePreviewActionsRejectVisiblePreviousGeneration() async throws
             return collagePreviewRenderedGroup()
         },
         compose: { groups in
-            collagePreviewImage(width: groups.count, height: 1)
+            collagePreviewComposition(groupCount: groups.count)
         }
     )
 
@@ -286,7 +286,7 @@ func playbackCollagePreviewRendersMissingGroupsFourAtATime() async throws {
             }
         },
         compose: { groups in
-            collagePreviewImage(width: groups.count, height: 1)
+            collagePreviewComposition(groupCount: groups.count)
         }
     )
 
@@ -351,7 +351,7 @@ func playbackCollagePreviewMovesOnFromAFailedGroupThePlanNoLongerNeeds() async t
             }
         },
         compose: { groups in
-            collagePreviewImage(width: groups.count, height: 1)
+            collagePreviewComposition(groupCount: groups.count)
         }
     )
 
@@ -415,7 +415,7 @@ func playbackCollagePreviewKeepsAChangedGroupsImageUntilItsNewRenderLands() asyn
             return collagePreviewRenderedGroup()
         },
         compose: { groups in
-            collagePreviewImage(width: groups.count, height: 1)
+            collagePreviewComposition(groupCount: groups.count)
         }
     )
 
@@ -458,7 +458,7 @@ func playbackCollagePreviewPublicationStaysInsidePreviewBranch() async throws {
             collagePreviewRenderedGroup()
         },
         compose: { groups in
-            collagePreviewImage(width: groups.count, height: 1)
+            collagePreviewComposition(groupCount: groups.count)
         }
     )
     let hostingView = NSHostingView(
@@ -499,6 +499,174 @@ func playbackCollagePreviewPublicationStaysInsidePreviewBranch() async throws {
 
 @MainActor
 @Test
+func playbackCollagePreviewPublishesASegmentPerDrawnGroup() async throws {
+    // One timestamp, so one group; its first cue is the lower reel ordinal.
+    let laterInReel = collagePreviewCue(
+        id: 80,
+        ordinal: 3,
+        startMilliseconds: 1_000,
+        endMilliseconds: 2_000
+    )
+    let firstInReel = collagePreviewCue(
+        id: 81,
+        ordinal: 1,
+        startMilliseconds: 1_000,
+        endMilliseconds: 2_000
+    )
+    let second = collagePreviewCue(
+        id: 82,
+        ordinal: 2,
+        startMilliseconds: 4_000,
+        endMilliseconds: 5_000
+    )
+    var continuations: [
+        Int: CheckedContinuation<SubtitleCollageRenderedGroup, Never>
+    ] = [:]
+    var renderCallCount = 0
+    let store = PlaybackCollagePreviewStore(
+        renderGroup: { _ in
+            renderCallCount += 1
+            let call = renderCallCount
+            return await withCheckedContinuation { continuation in
+                continuations[call] = continuation
+            }
+        },
+        compose: { groups in
+            SubtitleCollageComposition(
+                image: collagePreviewImage(width: groups.count, height: 1),
+                groupHeights: groups.indices.map { $0 + 10 }
+            )
+        }
+    )
+
+    var plan = try SubtitleCollageSelectionPlan(
+        selectedCues: [laterInReel, firstInReel, second]
+    )
+    store.update(plan: plan)
+    await waitForCollagePreviewCondition {
+        continuations.count == 2
+    }
+    continuations[1]?.resume(returning: collagePreviewRenderedGroup())
+    continuations[2]?.resume(returning: collagePreviewRenderedGroup())
+    await waitForCollagePreviewToSettle(store)
+    #expect(store.segments == [
+        PlaybackCollagePreviewSegment(height: 10, firstCueOrdinal: 1),
+        PlaybackCollagePreviewSegment(height: 11, firstCueOrdinal: 2),
+    ])
+
+    // Changing the second group keeps its old image in place, and the segment
+    // names the group drawn there, not the one it stands in for.
+    _ = plan.select(collagePreviewCue(
+        id: 83,
+        ordinal: 0,
+        startMilliseconds: 4_000,
+        endMilliseconds: 5_000
+    ))
+    store.update(plan: plan)
+    await waitForCollagePreviewCondition {
+        continuations.count == 3
+    }
+    #expect(store.segments.map(\.firstCueOrdinal) == [1, 2])
+    continuations[3]?.resume(returning: collagePreviewRenderedGroup())
+    await waitForCollagePreviewToSettle(store)
+    #expect(store.segments.map(\.firstCueOrdinal) == [1, 0])
+
+    store.update(plan: SubtitleCollageSelectionPlan())
+    #expect(store.image == nil)
+    #expect(store.segments.isEmpty)
+}
+
+@MainActor
+@Test
+func playbackCollagePreviewFrameFollowsOnlyRealPointerMovement() throws {
+    _ = NSApplication.shared
+    let view = PlaybackCollagePreviewScrollContainerView()
+    view.frame = CGRect(x: 0, y: 0, width: 400, height: 300)
+    view.layoutSubtreeIfNeeded()
+    let segments = [
+        PlaybackCollagePreviewSegment(height: 400, firstCueOrdinal: 7),
+        PlaybackCollagePreviewSegment(height: 800, firstCueOrdinal: 3),
+    ]
+    view.updateImage(
+        collagePreviewImage(width: 800, height: 1_200),
+        segments: segments
+    )
+    view.layoutSubtreeIfNeeded()
+
+    // Scaled to the 400pt viewport the strips span 0–200 and 200–600.
+    view.pointerMoved(toWindowPoint: collagePreviewWindowPoint(fromTop: 50))
+    #expect(view.hoveredSegmentIndex == 0)
+    #expect(
+        view.groupFrameRectForTesting
+            == CGRect(x: 0, y: 0, width: 400, height: 200)
+    )
+    view.pointerMoved(toWindowPoint: collagePreviewWindowPoint(fromTop: 250))
+    #expect(view.hoveredSegmentIndex == 1)
+    #expect(
+        view.groupFrameRectForTesting
+            == CGRect(x: 0, y: 200, width: 400, height: 400)
+    )
+
+    // A new picture clears the frame until the pointer moves again.
+    view.updateImage(
+        collagePreviewImage(width: 800, height: 1_200),
+        segments: segments
+    )
+    #expect(view.hoveredSegmentIndex == nil)
+    #expect(view.groupFrameRectForTesting == nil)
+    view.pointerMoved(toWindowPoint: collagePreviewWindowPoint(fromTop: 250))
+    #expect(view.hoveredSegmentIndex == 1)
+
+    // Frozen, the frame keeps the strip it had.
+    view.isInteractionEnabled = false
+    view.pointerMoved(toWindowPoint: collagePreviewWindowPoint(fromTop: 50))
+    #expect(view.hoveredSegmentIndex == 1)
+    view.isInteractionEnabled = true
+
+    // Outside the viewport there is no strip.
+    view.pointerMoved(toWindowPoint: collagePreviewWindowPoint(fromTop: 350))
+    #expect(view.hoveredSegmentIndex == nil)
+    #expect(view.groupFrameRectForTesting == nil)
+}
+
+@MainActor
+@Test
+func playbackCollagePreviewClickJumpsToTheStripReleasedOn() throws {
+    _ = NSApplication.shared
+    let view = PlaybackCollagePreviewScrollContainerView()
+    view.frame = CGRect(x: 0, y: 0, width: 400, height: 300)
+    view.layoutSubtreeIfNeeded()
+    view.updateImage(
+        collagePreviewImage(width: 800, height: 1_200),
+        segments: [
+            PlaybackCollagePreviewSegment(height: 400, firstCueOrdinal: 7),
+            PlaybackCollagePreviewSegment(height: 800, firstCueOrdinal: 3),
+        ]
+    )
+    view.layoutSubtreeIfNeeded()
+    var jumped: [Int] = []
+    view.onJumpToCue = { jumped.append($0) }
+
+    view.press(atWindowPoint: collagePreviewWindowPoint(fromTop: 250))
+    view.release(atWindowPoint: collagePreviewWindowPoint(fromTop: 250))
+    #expect(jumped == [3])
+    #expect(view.hoveredSegmentIndex == 1)
+
+    // Released on another strip, or off the image, nothing happens.
+    view.press(atWindowPoint: collagePreviewWindowPoint(fromTop: 50))
+    view.release(atWindowPoint: collagePreviewWindowPoint(fromTop: 250))
+    view.press(atWindowPoint: collagePreviewWindowPoint(fromTop: 250))
+    view.release(atWindowPoint: collagePreviewWindowPoint(fromTop: 350))
+    #expect(jumped == [3])
+
+    view.isInteractionEnabled = false
+    view.press(atWindowPoint: collagePreviewWindowPoint(fromTop: 50))
+    view.release(atWindowPoint: collagePreviewWindowPoint(fromTop: 50))
+    #expect(jumped == [3])
+}
+
+@MainActor
+@Test
 func playbackCollagePreviewUsesEqualColumnsAndTableScrollbar() throws {
     _ = NSApplication.shared
     #expect(PlaybackCollageEditorLayout.columnWidth(totalWidth: 901) == 450.5)
@@ -533,6 +701,22 @@ private func collagePreviewCue(
         startMilliseconds: startMilliseconds,
         endMilliseconds: endMilliseconds,
         content: "Cue \(id)"
+    )
+}
+
+/// Without a window, a view converts "window" points from the unflipped base
+/// coordinates of its top-level view, so a point measured from the top of the
+/// 300pt-tall container is given as its distance from the bottom.
+private func collagePreviewWindowPoint(fromTop y: CGFloat) -> CGPoint {
+    CGPoint(x: 100, y: 300 - y)
+}
+
+private func collagePreviewComposition(
+    groupCount: Int
+) -> SubtitleCollageComposition {
+    SubtitleCollageComposition(
+        image: collagePreviewImage(width: groupCount, height: 1),
+        groupHeights: Array(repeating: 1, count: groupCount)
     )
 }
 
