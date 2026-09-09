@@ -111,7 +111,8 @@ struct PlaybackOverlay: View {
                     previewStore: previewStore,
                     uiProbeScope: uiProbeScope,
                     onCopy: { session.copyCurrentCollage() },
-                    onExport: { session.exportCurrentCollage() }
+                    onExport: { session.exportCurrentCollage() },
+                    onJumpToCue: { session.jumpToCollageCue(ordinal: $0) }
                 ) {
                     currentSubtitleOverlay
                 }
@@ -203,6 +204,7 @@ private struct PlaybackCollageEditor<SubtitleContent: View>: View {
     let uiProbeScope: String?
     let onCopy: () -> Void
     let onExport: () -> Void
+    let onJumpToCue: (Int) -> Void
     let subtitleContent: SubtitleContent
 
     init(
@@ -211,6 +213,7 @@ private struct PlaybackCollageEditor<SubtitleContent: View>: View {
         uiProbeScope: String?,
         onCopy: @escaping () -> Void,
         onExport: @escaping () -> Void,
+        onJumpToCue: @escaping (Int) -> Void,
         @ViewBuilder subtitleContent: () -> SubtitleContent
     ) {
         self.plan = plan
@@ -218,6 +221,7 @@ private struct PlaybackCollageEditor<SubtitleContent: View>: View {
         self.uiProbeScope = uiProbeScope
         self.onCopy = onCopy
         self.onExport = onExport
+        self.onJumpToCue = onJumpToCue
         self.subtitleContent = subtitleContent()
     }
 
@@ -231,7 +235,8 @@ private struct PlaybackCollageEditor<SubtitleContent: View>: View {
                     store: previewStore,
                     uiProbeScope: uiProbeScope,
                     onCopy: onCopy,
-                    onExport: onExport
+                    onExport: onExport,
+                    onJumpToCue: onJumpToCue
                 )
                 .frame(width: columnWidth, height: geometry.size.height)
                 // On the Overlay's layer, like the top bar: the preview asks

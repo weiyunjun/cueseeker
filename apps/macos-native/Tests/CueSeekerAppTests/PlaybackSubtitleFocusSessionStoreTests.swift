@@ -112,6 +112,40 @@ func playbackOverlaySessionCyclesModulesAndPreservesCurrentSelection() throws {
 
 @MainActor
 @Test
+func playbackOverlayCollageStripClickTravelsLikeAKey() throws {
+    let session = PlaybackSubtitleFocusSessionStore(
+        openSnapshot: focusOpenSnapshot(wasPlaying: false),
+        sessionGeneration: 1,
+        availableModules: [.current, .playlist]
+    )
+    #expect(session.publishInitialSnapshot(
+        focusPresentationSnapshot(),
+        token: session.token
+    ))
+    // No strip exists outside Collage editing.
+    #expect(!session.jumpToCollageCue(ordinal: 11))
+    #expect(session.keyboardNavigationRequest == nil)
+
+    #expect(session.toggleEditingCollage())
+    #expect(session.jumpToCollageCue(ordinal: 11))
+    let request = try #require(session.keyboardNavigationRequest)
+    #expect(request.targetOrdinal == 11)
+    #expect(request.direction == .backward)
+    // Only the focus moves; the plan keeps the cue it started with.
+    #expect(session.collageSelectionPlan.selectedCueCount == 1)
+    #expect(session.collageSelectionPlan.contains(cueID: 13))
+
+    #expect(session.commitKeyboardNavigation(request))
+    #expect(session.currentSnapshot?.selectedOrdinal == 11)
+    // Already there, the click asks for nothing.
+    #expect(!session.jumpToCollageCue(ordinal: 11))
+    #expect(session.keyboardNavigationRequest == nil)
+    #expect(session.jumpToCollageCue(ordinal: 14))
+    #expect(session.keyboardNavigationRequest?.direction == .forward)
+}
+
+@MainActor
+@Test
 func playbackOverlayEditingCollageIsExclusiveToCurrent() throws {
     let session = PlaybackSubtitleFocusSessionStore(
         openSnapshot: focusOpenSnapshot(wasPlaying: false),

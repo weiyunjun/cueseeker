@@ -19,9 +19,17 @@ The Collage preview showed one composed image and nothing connected it back to t
 - A press remembers the strip under the pointer; the release acts only inside that same strip, moves the frame there, and hands the strip's first-cue ordinal to the pane's callback. The document view answers hit tests for itself so the image view, a control, cannot keep the click.
 - `WorkbenchControlMetrics.redesignControlBorderWidth` (`--border-width-control: 1px`) is the code-side token; the search field's stroke reads it instead of its literal.
 
+### Step 2 — the click reaches the reel
+
+- The session store's keyboard navigation already carried an absolute target ordinal to the reel, which animates to it with the reel transition the wheel uses, loads the window around a far target, and commits the selection on arrival. Its body is now the shared `requestNavigation`, given a function from the current target to the next one: a key asks for the neighbour, a Collage strip asks for its first cue. The direction the request carries is derived from the two ordinals, which for a key is the key's own direction. A target equal to the current one asks for nothing, so a click on the strip already in focus leaves no pending request behind.
+- `jumpToCollageCue(ordinal:)` is that entry, refused outside Collage editing, and otherwise under exactly the gate a key is under: no pending or running action, and no wheel motion in flight unless a request is already pending. It moves the focus only; the selection plan is untouched.
+- The overlay hands the pane's click to that entry through the Collage editor.
+
 Files:
 
 - `apps/macos-native/Sources/CueSeekerPlayback/SubtitleScreenshotExporter.swift`
+- `apps/macos-native/Sources/CueSeekerApp/Playback/SubtitleFocus/PlaybackSubtitleFocusSessionStore.swift`
+- `apps/macos-native/Tests/CueSeekerAppTests/PlaybackSubtitleFocusSessionStoreTests.swift`
 - `apps/macos-native/Sources/CueSeekerApp/Playback/SubtitleFocus/PlaybackCollagePreviewStore.swift`
 - `apps/macos-native/Sources/CueSeekerApp/Playback/SubtitleFocus/PlaybackCollagePreview.swift`
 - `apps/macos-native/Sources/CueSeekerApp/Playback/SubtitleFocus/PlaybackSubtitleFocusOverlay.swift`
@@ -32,3 +40,5 @@ Files:
 ## Verification
 
 Step 1: `swift build` clean. The 12 Collage preview tests pass, three of them new — the store publishes a segment per drawn group with the stand-in naming the group drawn, the frame follows only real pointer movement and is cleared by a new image and held while frozen, and a click acts only on release inside the pressed strip. The composition test now also checks the group heights `[10, 5]`. One thing the tests taught: a view without a window converts "window" points from its top-level view's unflipped base coordinates, so the tests give pointer points as distances from the container's bottom.
+
+Step 2: the 63 session, overlay, keyboard-action and Collage tests pass, one new — a strip click outside Collage editing is refused, inside it issues a request for the given ordinal with the direction derived from the current focus, leaves the plan alone, and asks for nothing once the focus is already there.

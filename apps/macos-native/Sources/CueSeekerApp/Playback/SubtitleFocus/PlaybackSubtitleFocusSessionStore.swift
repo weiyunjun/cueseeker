@@ -617,6 +617,25 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
     func requestKeyboardNavigation(
         _ direction: SubtitleFocusNavigationDirection
     ) -> Bool {
+        requestNavigation { current in
+            direction == .backward ? current - 1 : current + 1
+        }
+    }
+
+    /// A click on a Collage strip: the reel travels to that group's first cue
+    /// the way a key would, under the same gate, and the selection plan is
+    /// untouched. A strip whose cue is already the target asks for nothing.
+    @discardableResult
+    func jumpToCollageCue(ordinal: Int) -> Bool {
+        guard isEditingCollage else {
+            return false
+        }
+        return requestNavigation { _ in ordinal }
+    }
+
+    private func requestNavigation(
+        to target: (_ current: Int) -> Int
+    ) -> Bool {
         guard isSessionActive,
               pendingKeyboardAction == nil,
               activeKeyboardAction == nil,
@@ -660,15 +679,16 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
             return false
         }
 
-        let targetOrdinal = direction == .backward
-            ? currentTarget - 1
-            : currentTarget + 1
-        guard targetOrdinal >= 0,
+        let targetOrdinal = target(currentTarget)
+        guard targetOrdinal != currentTarget,
+              targetOrdinal >= 0,
               targetOrdinal < totalCount,
               selectedModule != .current || cue(at: targetOrdinal) != nil
         else {
             return false
         }
+        let direction: SubtitleFocusNavigationDirection = targetOrdinal
+            < currentTarget ? .backward : .forward
         if let window = cueResultWindow(for: selectedModule) {
             targetIdentity = window.item(at: targetOrdinal)?.identity
                 ?? window.knownItemIdentity(at: targetOrdinal)
