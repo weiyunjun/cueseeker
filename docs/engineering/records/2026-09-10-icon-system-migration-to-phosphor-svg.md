@@ -50,10 +50,12 @@ Two things are recorded rather than resolved:
 - **The minimum supported system is macOS 13; this machine is macOS 15.** Whether `NSImage` reads SVG directly on macOS 13 is untested. If it does not, the fallback is PDF, which was measured working the same way; the SVG masters stay the source either way.
 - **`tray` and `list-bullets` were added although the requirement's table omits them.** Both back branches that cannot currently be reached, and the table left them out for that reason; converting the code wholesale needed them anyway. They cost two files and disappear with the dead branches.
 
-## Follow-up: the sub-24px band moved to Regular
+## Follow-up: the sub-24px band, twice
 
 The first pass drew Light below 18pt. In the running app that reads as 0.66–0.84pt of stroke, roughly half of the 1.50pt the playback feedback overlay draws at 24pt, and about half of what the SF Symbols it replaced were drawing at the same sizes. The owner read the two sizes that looked right — the 24pt feedback overlay and the 44pt cover placeholder, both Regular — against the sizes that looked thin, all Light, and asked for everything below 24pt to move to Regular while the sizes above it stay as they are.
 
 `AppIconWeight.tier(forSize:)` now answers Regular for every size. The size stays in the signature so a band can be split off again without touching a view. Verified in the running app through the E2E controller: Search and File at 14–18pt now carry the same stroke as the 24pt overlay.
 
-This puts the code ahead of the requirement, which still records the two-tier split. The requirement needs the matching edit before this reading is treated as settled.
+Regular still read light beside the text, so the band moved once more, to Bold. `AppIconWeight` gained that cut and all 59 icons gained the artwork; below 24px the drawn stroke is now 1.03pt at 11px through 1.69pt at 18px, against 1.50pt for the 24px overlay that reads correctly. Sizes from 24px up are untouched at Regular.
+
+This puts the code ahead of the requirement, which still records Light below 18px. The owner is tuning and has held the requirement edit until the reading settles; the requirement needs it before this is treated as final.

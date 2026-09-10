@@ -5,10 +5,14 @@ import Testing
 
 @MainActor
 @Test
-func everyIconResolvesAtBothStrokeTiers() {
+func everyIconResolvesAtEveryStrokeCut() {
     for icon in AppIcon.allCases {
-        #expect(AppIconStore.image(icon, weight: .light) != nil, "missing light asset for \(icon.rawValue)")
-        #expect(AppIconStore.image(icon, weight: .regular) != nil, "missing regular asset for \(icon.rawValue)")
+        for weight in [AppIconWeight.light, .regular, .bold] {
+            #expect(
+                AppIconStore.image(icon, weight: weight) != nil,
+                "missing \(weight.rawValue) asset for \(icon.rawValue)"
+            )
+        }
     }
 }
 
@@ -26,8 +30,11 @@ func stateVariantIconsResolveFilled() {
 }
 
 @Test
-func everySizeCurrentlyDrawsTheRegularStroke() {
-    for size in [11.0, 14.0, 16.0, 18.0, 24.0, 32.0, 44.0] as [CGFloat] {
+func smallSizesDrawBoldAndLargeSizesDrawRegular() {
+    for size in [11.0, 14.0, 16.0, 18.0] as [CGFloat] {
+        #expect(AppIconWeight.tier(forSize: size) == .bold)
+    }
+    for size in [24.0, 32.0, 44.0] as [CGFloat] {
         #expect(AppIconWeight.tier(forSize: size) == .regular)
     }
 }

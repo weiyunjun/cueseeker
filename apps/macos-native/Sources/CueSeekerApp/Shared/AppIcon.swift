@@ -77,14 +77,14 @@ enum AppIcon: String, CaseIterable, Sendable {
 enum AppIconWeight: String, Sendable {
     case light
     case regular
+    case bold
     case fill
 
-    /// Every size draws Regular for now. Light read too thin below 24px
-    /// beside the text it sits next to, and 24px and up were Regular already.
-    /// The size stays in the signature so a band can be split off again
-    /// without touching a view.
+    /// Below 24px the glyph sits beside body text and needs the heavier cut
+    /// to hold its own; from 24px up the drawn stroke is already thick enough
+    /// at Regular.
     static func tier(forSize size: CGFloat) -> AppIconWeight {
-        .regular
+        size < 24 ? .bold : .regular
     }
 }
 
@@ -150,7 +150,7 @@ enum AppIconStore {
         switch weight {
         case .regular:
             icon.rawValue
-        case .light, .fill:
+        case .light, .bold, .fill:
             "\(icon.rawValue)-\(weight.rawValue)"
         }
     }

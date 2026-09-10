@@ -9,7 +9,7 @@ func checkboxVariantsShareOneGlyphFamilyAndKeepDocumentedSizes() {
     #expect(WorkbenchCheckboxStyle.icon(for: .indeterminate) == .minusCircle)
 
     // A ticked box reads as a solid mark; the empty box follows the size tier.
-    #expect(WorkbenchCheckboxStyle.iconWeight(for: .unchecked, size: 16) == .regular)
+    #expect(WorkbenchCheckboxStyle.iconWeight(for: .unchecked, size: 16) == .bold)
     #expect(WorkbenchCheckboxStyle.iconWeight(for: .checked, size: 16) == .fill)
     #expect(WorkbenchCheckboxStyle.iconWeight(for: .indeterminate, size: 16) == .fill)
 
