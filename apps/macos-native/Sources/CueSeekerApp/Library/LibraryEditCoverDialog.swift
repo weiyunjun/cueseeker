@@ -7,7 +7,7 @@ struct LibraryEditCoverDialog: View {
     let onSave: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
+        VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignCoverDialogRegionGap) {
             WorkbenchDialogHeader(title: LibraryCoverEditingCopy.dialogTitle)
 
             coverEditor
@@ -42,7 +42,11 @@ struct LibraryEditCoverDialog: View {
         .padding(.top, WorkbenchControlMetrics.redesignDialogTopPadding)
         .padding(.horizontal, WorkbenchControlMetrics.redesignDialogInset)
         .padding(.bottom, WorkbenchControlMetrics.redesignDialogInset)
-        .frame(width: 760, height: 600, alignment: .topLeading)
+        .frame(
+            width: WorkbenchControlMetrics.redesignEditCoverDialogWidth,
+            height: WorkbenchControlMetrics.redesignEditCoverDialogHeight,
+            alignment: .topLeading
+        )
         .background(WorkbenchRedesignColors.bgSurface)
         .workbenchDialogCloseButton(isDisabled: session.isSaving, onClose: onCancel)
         .subtitleTableTextSelectionNonInteractiveRegion()

@@ -70,9 +70,19 @@ enum WorkbenchControlMetrics {
     /// the cap line for the title's top, the visible border for a control, and
     /// the glyph ink for an icon button.
     static let redesignDialogInset: CGFloat = 24
-    /// The width of a dialog's form column: the Shiori List Editor's, and the
-    /// rename dialog's, which is that column on its own.
+    /// --width-dialog-form-region: 340px. The width of a dialog's form column:
+    /// the Shiori List Editor's, and the rename dialog's, which is that column
+    /// on its own.
     static let redesignDialogFormRegionWidth: CGFloat = 340
+    /// --gap-cover-dialog-region: 20px. The gap between the header, the main
+    /// region and the footer of the two dialogs that carry a cover.
+    static let redesignCoverDialogRegionGap: CGFloat = 20
+    /// --width-shiori-list-editor-cover: 380px
+    static let redesignShioriListEditorCoverWidth: CGFloat = 380
+    /// --width-edit-cover-dialog: 760px
+    static let redesignEditCoverDialogWidth: CGFloat = 760
+    /// --height-edit-cover-dialog: 600px
+    static let redesignEditCoverDialogHeight: CGFloat = 600
     /// Dialog title type. The cap-line give-back below is derived from it, so
     /// the two must stay together.
     static let redesignDialogTitleFontSize: CGFloat = 20

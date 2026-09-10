@@ -8,13 +8,13 @@ import Testing
 func shioriDescriptionBoxEndsOnTheCoverBottom() {
     let formView = NSHostingView(
         rootView: ShioriFormHeightProbe()
-            .frame(width: 340)
+            .frame(width: WorkbenchControlMetrics.redesignDialogFormRegionWidth)
     )
     let coverView = NSHostingView(
         rootView: LibraryCoverFrame {
             Color.clear
         }
-        .frame(width: 380)
+        .frame(width: WorkbenchControlMetrics.redesignShioriListEditorCoverWidth)
     )
     // The Description's reserved message line hangs below the box.
     let messageLineView = NSHostingView(
