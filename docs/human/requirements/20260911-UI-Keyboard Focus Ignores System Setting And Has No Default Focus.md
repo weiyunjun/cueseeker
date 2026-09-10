@@ -11,7 +11,7 @@ main
 
 ## 1. 不受系统设置影响
 
-1. CueSeeker 的键盘焦点不受 macOS「系统设置 → 键盘 → 键盘导航」开关影响，开与关表现完全一致。
+1. CueSeeker 的键盘焦点不受 macOS「系统设置 → 键盘 → 键盘导航」开关影响，一律按关闭处理，开与关表现完全一致。
 2. 系统自身的界面（文件选择框、系统提示框、菜单栏）不属于本需求。
 
 ## 2. 没有默认焦点
@@ -26,8 +26,8 @@ main
 
 ## 3. Tab 与焦点
 
-1. Tab 与 Shift-Tab 可以把焦点移到按钮等控件上，与系统开关打开时的现状一致；哪些控件参与、顺序如何，保持现状。
-2. Tab 已有的专门用法不变：Playback Overlay 中切换 Current / Playlist / Collage，字幕表格中进入复选框。
+1. Tab 与 Shift-Tab 不把焦点移到按钮、卡片、标签等控件上，只在输入框之间移动。
+2. Playback Overlay 中用 Tab 切换 Current / Playlist / Collage 不变；字幕表格中用 Tab 进入复选框随本需求一并关闭，以后另行加回。
 3. 鼠标点击按钮不使按钮获得焦点；点击输入框照常获得光标。
 4. 焦点只使用设计文档已定义的 Focused 外观，不显示系统自带的焦点环。
 
@@ -46,8 +46,8 @@ main
 3. 打开 Rename：光标在新名称输入框，其它控件没有焦点。
 4. 打开 Command Panel：光标在搜索框。
 5. 打开任一 Confirmation：Cancel 显示焦点；按空格或回车等同点击 Cancel。
-6. 在 Confirmation 中按 Tab：焦点在 Cancel、确认按钮与 X 之间移动。
-7. 在 Workbench 中按 Tab：焦点可以移到按钮上，显示设计文档定义的 Focused 外观。
-8. 用 Tab 把焦点移到某个按钮，用空格打开对话框后关闭：该按钮不再显示焦点。
+6. 在 Confirmation 中按 Tab：焦点保持在 Cancel，不移到其它控件。
+7. 在 Workbench 中按 Tab：焦点不会移到任何按钮上。
+8. 输入框有光标时，点击顶栏任务按钮打开任务界面后关闭：输入框不再有光标。
 9. 用鼠标点击任意按钮：按钮不显示焦点。
 10. Playback Overlay 中按 Tab 仍切换 Current / Playlist / Collage。
