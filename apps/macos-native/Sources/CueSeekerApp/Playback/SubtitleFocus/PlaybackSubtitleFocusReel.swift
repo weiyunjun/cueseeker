@@ -2075,7 +2075,10 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
         self.reducesMotion = reducesMotion
         let wasInteractionEnabled = self.isInteractionEnabled
         self.isInteractionEnabled = isInteractionEnabled
-        if cancelsWheelMotion {
+        // A keyboard motion already in flight owns the reel: wheel and
+        // scrollbar input are gated off, and repeating the cancel would put
+        // the highlight back on the committed row mid-motion.
+        if cancelsWheelMotion, !isKeyboardMotionActive {
             cancelActiveScrollbarDrag()
             resetWheelInteraction(requiresNewGesture: true)
         } else if wasInteractionEnabled, !isInteractionEnabled {

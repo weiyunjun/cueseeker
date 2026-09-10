@@ -3074,6 +3074,55 @@ func subtitleFocusKeyboardRequestCancelsOldScrollbarDragBeforeCommit() async {
 
 @MainActor
 @Test
+func subtitleFocusRefreshDuringKeyboardMotionKeepsDisplayedHighlightOnTarget() {
+    let view = PlaybackSubtitleFocusReelContainerView()
+    view.frame = CGRect(x: 0, y: 0, width: 1_280, height: 656)
+    view.update(
+        cues: focusLayoutCues(0..<20),
+        totalCount: 20,
+        selectedOrdinal: 12,
+        keyboardNavigationRequest: nil,
+        reducesMotion: false,
+        isInteractionEnabled: true,
+        cancelsWheelMotion: false
+    )
+    view.layoutSubtreeIfNeeded()
+    let request = PlaybackSubtitleFocusKeyboardNavigationRequest(
+        sequence: 1,
+        direction: .forward,
+        targetOrdinal: 13
+    )
+    view.update(
+        cues: focusLayoutCues(0..<20),
+        totalCount: 20,
+        selectedOrdinal: 12,
+        keyboardNavigationRequest: request,
+        reducesMotion: false,
+        isInteractionEnabled: false,
+        cancelsWheelMotion: true
+    )
+    #expect(view.displayedSelectedOrdinalForTesting == 13)
+
+    // A deferred shortcut or a Collage toggle publishes while the reel is
+    // still travelling: the refresh repeats the same request with the
+    // committed ordinal still on the old row.
+    view.update(
+        cues: focusLayoutCues(0..<20),
+        totalCount: 20,
+        selectedOrdinal: 12,
+        keyboardNavigationRequest: request,
+        reducesMotion: false,
+        isInteractionEnabled: false,
+        cancelsWheelMotion: true
+    )
+
+    #expect(view.displayedSelectedOrdinalForTesting == 13)
+    #expect(view.selectedOrdinalForTesting == 12)
+    view.invalidate()
+}
+
+@MainActor
+@Test
 func subtitleFocusResizePreservesSelectedIdentityAndAcceptedPlacement() throws {
     let view = PlaybackSubtitleFocusReelContainerView()
     var cues = focusLayoutCues(0..<20)
