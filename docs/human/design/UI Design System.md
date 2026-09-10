@@ -157,8 +157,6 @@
 - `--font-size-body`: `14px`
 - `--font-size-control`: `14px`
 - `--font-weight-control`: `500`
-- `--weight-button-icon`: `medium`
-- `--weight-control-icon`: `medium`
 - `--font-size-table`: `14px`
 - `--font-size-table-header`: `14px`
 - `--font-size-caption`: `12px`
@@ -167,7 +165,7 @@
 - `--font-size-app-sidebar-item`: `13px`
 - `--font-size-player-time`: `12px`
 - `--font-size-player-progress-time`: `10px`
-- `--font-size-player-speed-menu-check`: `11px`
+- `--font-size-player-speed-menu-check`: `14px`
 - `--font-size-player-speed-menu-item`: `13px`
 - `--font-size-playback-feedback`: `18px`
 - `--font-size-subtitle-focus-cue`: `24px`
@@ -233,18 +231,18 @@
 
 ### Size
 
-- `--size-checkbox`: `16px`
-- `--size-playback-collage-checkbox`: `24px`
+- `--size-checkbox`: `21px`
+- `--size-playback-collage-checkbox`: `31px`
 - `--size-playback-cue-timeline-dot`: `8px`
 - `--size-inline-clear-button`: `24px`
 - `--size-inline-clear-icon`: `16px`
-- `--size-inline-clear-symbol-font-size-macos`: `11pt`
-- `--size-inline-add-symbol-font-size-macos`: `16pt`
-- `--size-menu-item-symbol-font-size-macos`: `14pt`
-- `--size-button-icon`: `14px`
-- `--size-library-cover-edit-overlay-icon`: `32px`
-- `--size-control-icon`: `16px`
-- `--size-dialog-close-icon`: `12px`
+- `--size-inline-clear-symbol-font-size-macos`: `14px`
+- `--size-inline-add-symbol-font-size-macos`: `21px`
+- `--size-menu-item-symbol-font-size-macos`: `18px`
+- `--size-button-icon`: `18px`
+- `--size-library-cover-edit-overlay-icon`: `42px`
+- `--size-control-icon`: `21px`
+- `--size-dialog-close-icon`: `16px`
 - `--size-dialog-close-button`: `24px`
 - `--size-icon-button`: `32px`
 - `--size-row-action-button`: `36px`
@@ -252,15 +250,15 @@
 - `--scrollbar-min-thumb-length`: `24px`
 - `--width-page-scrollbar-channel`: `16px`
 - `--width-app-sidebar`: `240px`
-- `--size-app-sidebar-item-icon`: `18px`
+- `--size-app-sidebar-item-icon`: `23px`
 - `--size-task-count-badge`: `16px`
 - `--size-player-circle-button`: `40px`
-- `--size-player-circle-button-icon`: `18px`
+- `--size-player-circle-button-icon`: `23px`
 - `--width-player-speed-button`: `54px`
 - `--width-player-speed-menu`: `184px`
 - `--size-player-progress-thumb`: `12px`
 - `--width-player-topbar-title-max`: `520px`
-- `--size-playback-feedback-icon`: `24px`
+- `--size-playback-feedback-icon`: `31px`
 - `--width-playback-cue-timeline-connector`: `1px`
 - `--width-subtitle-focus-content-max`: `960px`
 - `--aspect-library-cover`: `16 / 9`
@@ -553,7 +551,6 @@
   - Radius：`--radius-search`
 - Search Icon
   - Size：`--size-control-icon`
-  - Font Weight：`--weight-control-icon`
   - Color：`--color-text-secondary`
 - Input
   - Font Family：`--font-family-base`
@@ -645,8 +642,7 @@
 
 - Control
   - Shape：Circle
-  - Rendering：SF Symbols / Monochrome
-  - Symbol Weight：Regular
+  - Rendering：Phosphor / Monochrome
   - Size：`--size-checkbox`
 - Indicator
 - Label
@@ -660,15 +656,15 @@
 ##### States
 
 - Unchecked
-  - System Symbol：`circle`
+  - Icon：`circle`
   - Background：`--color-bg-checkbox-unchecked`
   - Border Color：`--color-border-checkbox`
 - Checked
-  - System Symbol：`checkmark.circle.fill`
+  - Icon：`check-circle`（Fill）
   - Background：`--color-bg-checkbox-checked`
   - Indicator Color：`--color-checkbox-icon`
 - Indeterminate
-  - System Symbol：`minus.circle.fill`
+  - Icon：`minus-circle`（Fill）
   - Background：`--color-bg-checkbox-checked`
   - Indicator Color：`--color-checkbox-icon`
 - Focused
@@ -729,7 +725,6 @@
 - Leading Icon
   - Presence：Optional
   - Size：`--size-button-icon`
-  - Weight：`--weight-button-icon`
 - Label
   - Font Family：`--font-family-base`
   - Font Size：`--font-size-control`
@@ -831,7 +826,6 @@
   - Border：None
 - Icon
   - Size：Size Variant
-  - Font Weight：`--weight-control-icon`
 
 ##### Sizes
 
@@ -1160,7 +1154,6 @@
 
 - Leading Icon
   - Size：`--size-control-icon`
-  - Font Weight：Medium
   - Color：`--color-text-secondary`
 - Label
   - Font Family：`--font-family-base`
@@ -1206,7 +1199,7 @@
 ##### Anatomy
 
 - Container：Icon Button
-- Icon：Platform Native Sidebar Toggle
+- Icon：`sidebar-simple`
 
 ##### Sizes
 
@@ -1917,7 +1910,7 @@
 
 ##### Sizes
 
-- Size：`--size-control-icon`
+- Size：`16px`
 
 ##### Motion
 
@@ -3079,7 +3072,7 @@
 #### Icons
 
 - Root Path / Object Folder：Folder
-- Display Title：`rectangle.stack`
+- Display Title：`stack`
 - Video：Video
 - Subtitle：Subtitle
 
