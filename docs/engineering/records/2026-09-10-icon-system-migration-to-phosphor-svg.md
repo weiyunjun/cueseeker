@@ -82,3 +82,13 @@ Verification:
 - `AppIconAssetTests` now resolves every icon at every documented size and checks that every stroke master draws all of its lines at the one master width, so a line the rewrite cannot reach fails the suite.
 - `swift test`: 1177 tests, 15 failures in the parallel run. Rerun alone, 13 pass. The other two, `shioriTableStartsAtTopAfterPanelRemount` and `showCueGroupInvalidationIsScopedToMountedShiori`, fail the same way on a clean `HEAD` built from `git archive`, so neither comes from this change.
 - Debug in-app E2E controller: Shiori (18pt sidebar, topbar entries, 44pt cover placeholder), File (14pt button icons, Remove), and Search (16pt field, filter and select-mode icons) all draw from the stroke masters at their table widths.
+
+The owner removed the 118 unused Light and Bold files, committed on their own.
+
+## Follow-up: heavier small sizes
+
+The first table ran from 0.80pt at 10pt to 1.50pt at 24pt. The owner asked for heavier small sizes, flattening that ramp to 1.10pt at 10pt through 1.45pt at 20pt, in 0.05pt steps with one 0.10pt step from 12 to 14pt. 24pt and above are unchanged. Only `AppIconLineWidth.bySize` changed.
+
+The owner is still tuning, and the requirement's line width table stays at the first values until the reading settles. The code is ahead of the requirement until then.
+
+Verification: `swift build` clean, no warnings. The icon and checkbox tests pass (18). In the Debug in-app E2E controller, the Shiori sidebar and File buttons draw visibly heavier than in the previous capture.
