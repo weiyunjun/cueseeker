@@ -67,18 +67,18 @@ struct WorkbenchConfirmationSession: Identifiable {
     }
 }
 
-/// The main window's open Confirmation. A confirmation raised from a page goes
-/// here and the window presents it, so it dims and blocks the whole window the
-/// way the other dialogs do. A confirmation raised from inside another dialog
-/// is presented by that dialog instead, which is how one modal stacks over
-/// another; the layer registry already reads as open in that case.
+/// The main window's open Confirmation. Every confirmation goes here, raised
+/// from a page or from inside the Task panel, and the dialog layer presents it
+/// above whatever dialog is open, so it dims and blocks the whole window the
+/// way the other dialogs do. While one is open the App does not close; see
+/// `AppDelegate.applicationShouldTerminate(_:)`.
 @MainActor
 final class ConfirmationCenter: ObservableObject {
     @Published var session: WorkbenchConfirmationSession?
 }
 
 /// The Confirmation dialog body. It draws no scrim of its own: dimming and the
-/// input barrier come from the modal presentation it is placed in.
+/// input barrier come from the dialog layer it is placed in.
 ///
 /// It is the one interface that opens with focus, on Cancel. Buttons never
 /// take the keyboard focus, so the dialog draws Cancel's Focused state itself
@@ -123,21 +123,39 @@ struct WorkbenchConfirmationDialog: View {
         )
         .workbenchDialogCloseButton(onClose: onClose)
         .subtitleTableTextSelectionNonInteractiveRegion()
-        .background(WindowKeyDownMonitor(handle: pressFocusedAction))
+        .background(WindowKeyDownMonitor(handle: handleKey))
     }
 
-    /// Returns whether Space was spent on Cancel, in which case nothing below
-    /// sees it. Enter and Esc keep their own shortcuts.
-    private func pressFocusedAction(_ event: NSEvent) -> Bool {
-        guard event.keyCode == 49,
-              event.modifierFlags
-              .intersection([.command, .control, .option, .shift])
-              .isEmpty,
-              let cancel = session.actions.first(where: \.isCancel)
+    /// Returns whether the key was spent here, in which case nothing below
+    /// sees it. Enter keeps its own shortcut.
+    private func handleKey(_ event: NSEvent) -> Bool {
+        guard event.modifierFlags
+            .intersection([.command, .control, .option, .shift])
+            .isEmpty
         else {
             return false
         }
-        if !event.isARepeat {
+        switch event.keyCode {
+        case 49:
+            return pressFocusedAction(isRepeat: event.isARepeat)
+        case 53:
+            // Escape closes it, as it closed the sheet the confirmation used
+            // to be.
+            if !event.isARepeat {
+                onClose()
+            }
+            return true
+        default:
+            return false
+        }
+    }
+
+    /// Space presses Cancel, the button the dialog draws as focused.
+    private func pressFocusedAction(isRepeat: Bool) -> Bool {
+        guard let cancel = session.actions.first(where: \.isCancel) else {
+            return false
+        }
+        if !isRepeat {
             cancel.action()
         }
         return true

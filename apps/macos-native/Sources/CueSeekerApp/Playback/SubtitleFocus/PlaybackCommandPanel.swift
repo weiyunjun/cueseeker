@@ -506,6 +506,7 @@ private struct PlaybackCommandPanelSearchResults: View {
 private struct PlaybackCommandPanelSearchReel: View {
     @ObservedObject var windowStore: PlaybackCueResultSessionWindowStore
     @Environment(\.interfaceLayers) private var interfaceLayers
+    @Environment(\.interfaceLayerContext) private var layerContext
     let showsCueGroup: Bool
     let viewportSize: CGSize
     let reducesMotion: Bool
@@ -532,7 +533,9 @@ private struct PlaybackCommandPanelSearchReel: View {
             onCommitSelection: onCommitSelection,
             onCopySelectedText: onCopySelectedText,
             onSearchSelectedText: onSearchSelectedText,
-            allowsNativeWheelInput: { true },
+            // A dialog drawn over the panel owns the wheel, even where it lies
+            // over the reel; the reel lets it through untouched.
+            allowsNativeWheelInput: { [isCovered = layerContext.isCovered] in !isCovered },
             allowsNativeScrollbarInput: { true },
             onScrollbarDraggingChanged: { _ in },
             onNativeMotionGateChanged: { _ in },

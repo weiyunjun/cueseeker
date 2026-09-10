@@ -10,6 +10,7 @@ struct PlaybackVideoStage: View {
     let onClose: () -> Void
     @EnvironmentObject private var playback: PlaybackStore
     @EnvironmentObject private var layoutState: WorkbenchLayoutState
+    @Environment(\.isDialogOpen) private var isDialogOpen
     @StateObject private var chrome = PlaybackChromeVisibilityModel()
 
     var body: some View {
@@ -104,6 +105,7 @@ struct PlaybackVideoStage: View {
             .clipped()
             .onAppear {
                 chrome.enterVideoPage()
+                chrome.setDialogOpen(isDialogOpen)
                 playback.pointerVisibility.setVisible(chrome.isPointerVisible)
                 AppWindowControls.place(.playback(isVisible: areWindowControlsVisible))
                 appState.playbackPageDidAppear()
@@ -115,6 +117,9 @@ struct PlaybackVideoStage: View {
             }
             .onChange(of: areWindowControlsVisible) { isVisible in
                 AppWindowControls.place(.playback(isVisible: isVisible))
+            }
+            .onChange(of: isDialogOpen) { isOpen in
+                chrome.setDialogOpen(isOpen)
             }
             .onReceive(playback.pointerHideRequests) {
                 chrome.pointerHideRequested()

@@ -4,20 +4,20 @@ import CueSeekerCore
 
 /// The Task panel.
 ///
-/// Presented as a sheet from the window root, beside Edit Cover, the Shiori
-/// List Editor and Confirmation, so the dimming and the input barrier come from
-/// the App's one modal presentation rather than from a second one written here.
+/// Presented by the dialog layer at the window root, beside Edit Cover, the
+/// Shiori List Editor and Confirmation, so the dimming and the input barrier
+/// come from the App's one modal presentation rather than from a second one
+/// written here.
 ///
-/// It raises its own confirmations rather than writing to the app-level holder,
-/// because a sheet is presented by the surface it belongs to: a confirmation
-/// asked for from inside this panel has to stack on the panel, and the window
-/// root is already presenting the panel itself.
+/// Its confirmations go to the app-level holder like every page's: the dialog
+/// layer stacks them on the panel.
 struct TaskPanel: View {
 
     @ObservedObject var tasks: TaskQueueStore
+    /// Observed because a confirmation open above the panel takes its Escape.
+    @ObservedObject var confirmation: ConfirmationCenter
     // Observed so the labels below are re-read when the language changes.
     @EnvironmentObject private var localization: AppLocalizationStore
-    @State private var pendingConfirmation: WorkbenchConfirmationSession?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -62,13 +62,6 @@ struct TaskPanel: View {
             .strokeBorder(WorkbenchRedesignColors.borderMuted, lineWidth: 1)
         )
         .subtitleTableTextSelectionNonInteractiveRegion()
-        .sheet(item: $pendingConfirmation) { session in
-            WorkbenchConfirmationDialog(
-                session: session,
-                onClose: { pendingConfirmation = nil }
-            )
-            .interfaceLayer(.dialog)
-        }
     }
 
     private var header: some View {
@@ -101,8 +94,9 @@ struct TaskPanel: View {
                 // itself lands on the tab bar's own inset.
                 .padding(.trailing, -WorkbenchControlMetrics.redesignDialogCloseBoxSlack)
                 // Escape closes the panel the way it closes the other dialogs,
-                // through the control that closes it.
-                .keyboardShortcut(.cancelAction)
+                // through the control that closes it — unless a confirmation
+                // stands above the panel in the same window, which owns it.
+                .keyboardShortcut(confirmation.session == nil ? .cancelAction : nil)
                 .help(L("common.close"))
                 .accessibilityLabel(L("common.close"))
                 .accessibilityIdentifier("task-panel-close")
@@ -162,33 +156,33 @@ struct TaskPanel: View {
     }
 
     private func confirmRemove(_ record: TaskRecord) {
-        pendingConfirmation = WorkbenchConfirmationSession(
+        confirmation.session = WorkbenchConfirmationSession(
             title: L("task.confirm.remove.title"),
             message: L("task.confirm.remove.message", record.fileName),
             destructiveTitle: L("common.remove"),
             cancelTitle: L("common.cancel"),
             onDestructive: {
                 tasks.removeCurrentTask(id: record.id)
-                pendingConfirmation = nil
+                confirmation.session = nil
             },
             onCancel: {
-                pendingConfirmation = nil
+                confirmation.session = nil
             }
         )
     }
 
     private func confirmDelete(_ record: TaskRecord) {
-        pendingConfirmation = WorkbenchConfirmationSession(
+        confirmation.session = WorkbenchConfirmationSession(
             title: L("task.confirm.delete.title"),
             message: L("task.confirm.delete.message", record.fileName),
             destructiveTitle: L("shiori.delete"),
             cancelTitle: L("common.cancel"),
             onDestructive: {
                 tasks.deleteRecord(id: record.id)
-                pendingConfirmation = nil
+                confirmation.session = nil
             },
             onCancel: {
-                pendingConfirmation = nil
+                confirmation.session = nil
             }
         )
     }

@@ -79,6 +79,40 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         true
     }
 
+    /// Only a Confirmation keeps the App open: Cmd+Q and the Dock's Quit do
+    /// nothing while one is up. The system's own quit — log out, restart,
+    /// shut down — is never held; the confirmed action simply does not run.
+    /// See `docs/human/requirements/20260911-UI-In-Window Dialogs And Only
+    /// Confirmation Blocks Closing.md`.
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        guard appState.confirmation.session != nil,
+              !Self.isSystemQuit(NSAppleEventManager.shared().currentAppleEvent)
+        else {
+            return .terminateNow
+        }
+        return .terminateCancel
+    }
+
+    /// The system states why it asks the App to quit; Cmd+Q and the Dock do
+    /// not.
+    private static func isSystemQuit(_ event: NSAppleEventDescriptor?) -> Bool {
+        guard let event,
+              event.eventClass == AEEventClass(kCoreEventClass),
+              event.eventID == AEEventID(kAEQuitApplication)
+        else {
+            return false
+        }
+        let keyword = AEKeyword(kAEQuitReason)
+        let reason = event.paramDescriptor(forKeyword: keyword)
+            ?? event.attributeDescriptor(forKeyword: keyword)
+        guard let reason = reason?.enumCodeValue else {
+            return false
+        }
+        return [kAEShutDown, kAERestart, kAEReallyLogOut, kAEQuitAll]
+            .map { OSType($0) }
+            .contains(reason)
+    }
+
     func applicationWillTerminate(_ notification: Notification) {
         if let keyDownMonitor {
             NSEvent.removeMonitor(keyDownMonitor)
@@ -163,6 +197,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 appState.interfaceLayers.hasUncoveredOpenMenu
             }
         }
+        window.dialogSize = { [appState] in
+            MainActor.assumeIsolated {
+                appState.interfaceLayers.topDialogSize
+            }
+        }
         window.handlesFullscreenRequest = { [appState] in
             MainActor.assumeIsolated {
                 guard appState.isPlaybackPageVisible,
@@ -222,7 +261,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 .intersection(.deviceIndependentFlagsMask)
                 .rawValue
             let handled = MainActor.assumeIsolated {
-                self.appState.handlePlaybackKeyDown(
+                // An open dialog owns the keyboard; the player under it hears
+                // nothing.
+                guard !self.appState.interfaceLayers.isOpen(.dialog) else {
+                    return false
+                }
+                return self.appState.handlePlaybackKeyDown(
                     keyCode: keyCode,
                     modifierFlagsRawValue: modifierFlags,
                     isRepeat: event.isARepeat
@@ -246,7 +290,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             inputEligibility: { [weak self] in
                 guard let self,
                       NSApplication.shared.isActive,
-                      self.window?.isKeyWindow == true
+                      self.window?.isKeyWindow == true,
+                      !self.appState.interfaceLayers.isOpen(.dialog)
                 else {
                     return false
                 }
@@ -378,6 +423,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         window?.titleVisibility = .hidden
         AppWindowControls.windowWillExitFullScreen()
         appState.workbenchLayout.isAppFullscreen = false
+    }
+
+    /// A file panel is the only sheet left on the main window.
+    func windowWillBeginSheet(_ notification: Notification) {
+        appState.interfaceLayers.setSystemSheetAttached(true)
+    }
+
+    func windowDidEndSheet(_ notification: Notification) {
+        appState.interfaceLayers.setSystemSheetAttached(window?.attachedSheet != nil)
     }
 
     func windowWillClose(_ notification: Notification) {

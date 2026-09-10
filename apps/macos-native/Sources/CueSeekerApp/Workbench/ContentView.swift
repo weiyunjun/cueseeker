@@ -23,8 +23,8 @@ private struct ContentRootView: View {
     @ObservedObject var appState: AppCoordinator
     @ObservedObject var fullscreenManager: PlaybackFullscreenManager
     @ObservedObject var confirmation: ConfirmationCenter
-    /// Observed because the window root presents the Task panel: the sheet's
-    /// binding has to be re-read when the panel opens or closes.
+    /// Observed because the window root presents the Task panel, so the dialog
+    /// layer has to be re-read when the panel opens or closes.
     @ObservedObject var tasks: TaskQueueStore
     @EnvironmentObject private var settingsStore: SettingsStore
     @EnvironmentObject private var layoutState: WorkbenchLayoutState
@@ -75,6 +75,9 @@ private struct ContentRootView: View {
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .zIndex(100)
 
+                    dialogLayer(isPlaybackPageVisible: hidesWorkbenchChrome)
+                        .zIndex(200)
+
                     TitlebarCommandBridge()
                         .frame(width: 0, height: 0)
                 }
@@ -108,7 +111,21 @@ private struct ContentRootView: View {
             .ignoresSafeArea(.container, edges: .top)
             .frame(minWidth: AppShellLayout.minimumWindowWidth, minHeight: AppShellLayout.minimumWindowHeight)
             .opensWithoutFocus()
-            .sheet(item: $libraryStore.coverEditingSession) { session in
+            .preferredColorScheme(settingsStore.appAppearanceMode.colorScheme)
+            .background(LayoutPerformanceProbe(name: "ContentView.layout"))
+        }
+    }
+
+    /// The dialogs, bottom first. Only a Confirmation stacks on another one:
+    /// the Task panel raises its confirmations here, as every page does.
+    private func dialogLayer(isPlaybackPageVisible: Bool) -> some View {
+        WorkbenchDialogLayer(
+            dialogIDs: openDialogIDs,
+            topBandHeight: isPlaybackPageVisible
+                ? WorkbenchControlMetrics.redesignAppTopbarHeight
+                : AppShellLayout.topBarHeight
+        ) {
+            if let session = libraryStore.coverEditingSession {
                 LibraryEditCoverDialog(
                     session: session,
                     onChooseImage: {
@@ -119,12 +136,10 @@ private struct ContentRootView: View {
                         appState.saveLibraryCoverEditing(session)
                     }
                 )
-                // A dialog is the top layer; its own controls must not read the
-                // freeze the dialog itself put on the page below.
-                .interfaceLayer(.dialog)
-                .interactiveDismissDisabled(session.isSaving)
+                .workbenchDialog()
             }
-            .sheet(item: $shioriStore.listEditorSession) { session in
+
+            if let session = shioriStore.listEditorSession {
                 ShioriListEditorDialog(
                     session: session,
                     onChooseImage: {
@@ -138,13 +153,10 @@ private struct ContentRootView: View {
                     },
                     onClose: appState.closeShioriListEditor
                 )
-                .interfaceLayer(.dialog)
-                .interactiveDismissDisabled(true)
-                // Its name field would otherwise take the caret the moment it
-                // opens. Rename keeps that caret on purpose.
-                .opensWithoutFocus()
+                .workbenchDialog()
             }
-            .sheet(item: $libraryStore.renameSession) { session in
+
+            if let session = libraryStore.renameSession {
                 LibraryRenameDialog(
                     session: session,
                     onConfirm: {
@@ -152,38 +164,42 @@ private struct ContentRootView: View {
                     },
                     onClose: appState.closeRenameDialog
                 )
-                .interfaceLayer(.dialog)
-                .interactiveDismissDisabled(true)
+                .workbenchDialog()
             }
-            .sheet(isPresented: taskPanelPresentation) {
-                TaskPanel(tasks: tasks)
-                    .interfaceLayer(.dialog)
-                    .interactiveDismissDisabled(true)
+
+            if tasks.isPanelOpen {
+                TaskPanel(tasks: tasks, confirmation: confirmation)
+                    .workbenchDialog(isCovered: confirmation.session != nil)
             }
-            .sheet(item: $confirmation.session) { session in
+
+            if let session = confirmation.session {
                 WorkbenchConfirmationDialog(
                     session: session,
                     onClose: { confirmation.session = nil }
                 )
-                    .interfaceLayer(.dialog)
+                .workbenchDialog()
             }
-            .preferredColorScheme(settingsStore.appAppearanceMode.colorScheme)
-            .background(LayoutPerformanceProbe(name: "ContentView.layout"))
         }
     }
 
-    /// The sheet only ever closes the panel. Opening goes through the store, so
-    /// every open resets the tab the way the requirement asks.
-    private var taskPanelPresentation: Binding<Bool> {
-        Binding(
-            get: { tasks.isPanelOpen },
-            set: { isPresented in
-                guard !isPresented else {
-                    return
-                }
-                tasks.closePanel()
-            }
-        )
+    private var openDialogIDs: [AnyHashable] {
+        var ids: [AnyHashable] = []
+        if let session = libraryStore.coverEditingSession {
+            ids.append(session.id)
+        }
+        if let session = shioriStore.listEditorSession {
+            ids.append(session.id)
+        }
+        if let session = libraryStore.renameSession {
+            ids.append(session.id)
+        }
+        if tasks.isPanelOpen {
+            ids.append("task-panel")
+        }
+        if let session = confirmation.session {
+            ids.append(session.id)
+        }
+        return ids
     }
 
     @ViewBuilder

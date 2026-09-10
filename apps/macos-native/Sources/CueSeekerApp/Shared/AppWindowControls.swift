@@ -82,6 +82,14 @@ enum AppWindowControls {
         apply()
     }
 
+    /// The red light is unavailable only while a Confirmation is open. No
+    /// dialog is a system sheet any more, so nothing else disables it; see
+    /// `docs/human/requirements/20260911-UI-In-Window Dialogs And Only
+    /// Confirmation Blocks Closing.md`.
+    static func setCloseEnabled(_ isEnabled: Bool) {
+        window?.standardWindowButton(.closeButton)?.isEnabled = isEnabled
+    }
+
     // MARK: - Fullscreen
     //
     // The buttons are hidden through both transitions, so neither animation

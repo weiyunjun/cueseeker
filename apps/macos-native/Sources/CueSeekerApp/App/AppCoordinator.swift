@@ -565,29 +565,45 @@ final class AppCoordinator: ObservableObject {
         setupInterfaceLayerObservers()
     }
 
-    /// The Edit Cover, Shiori List Editor, Task panel and Confirmation sheets
-    /// are the dialog layer. Their open state lives on the stores — the sheet
-    /// bindings write back on a dismissal — so the registry follows them.
+    /// Edit Cover, the Shiori List Editor, Rename, the Task panel and
+    /// Confirmation are the dialog layer. Their open state lives on the
+    /// stores, so the registry follows them.
     private func setupInterfaceLayerObservers() {
-        Publishers.CombineLatest4(
-            library.$coverEditingSession,
-            shiori.$listEditorSession,
-            confirmation.$session,
-            tasks.$isPanelOpen
+        Publishers.CombineLatest(
+            Publishers.CombineLatest4(
+                library.$coverEditingSession,
+                shiori.$listEditorSession,
+                confirmation.$session,
+                tasks.$isPanelOpen
+            ),
+            library.$renameSession
         )
-        .map { $0 != nil || $1 != nil || $2 != nil || $3 }
+        .map { dialogs, renameSession in
+            dialogs.0 != nil || dialogs.1 != nil || dialogs.2 != nil || dialogs.3
+                || renameSession != nil
+        }
         .removeDuplicates()
         .sink { [interfaceLayers] isDialogOpen in
             interfaceLayers.setOpen(.dialog, isDialogOpen)
             // The page gives its focus up as the dialog opens, the way it does
             // for a menu, so nothing it had focused comes back when the dialog
-            // closes. The dialog is not presented yet: the key window is still
-            // the page's.
+            // closes. The dialog is not drawn yet, so nothing of its own is
+            // focused either.
             if isDialogOpen {
                 NSApplication.shared.keyWindow?.makeFirstResponder(nil)
             }
         }
         .store(in: &interfaceLayerCancellables)
+
+        // A Confirmation is the one dialog that keeps the App open, and it is
+        // always the top one. The quit half of the rule is the App delegate's.
+        confirmation.$session
+            .map { $0 == nil }
+            .removeDuplicates()
+            .sink { isClosable in
+                AppWindowControls.setCloseEnabled(isClosable)
+            }
+            .store(in: &interfaceLayerCancellables)
     }
 
     func setupSettingsObservers() {

@@ -32,6 +32,9 @@ final class PlaybackChromeVisibilityModel: ObservableObject {
     private var pointerDragEventMonitor: Any?
     private weak var playerAreaView: NSView?
     private weak var playerWindow: NSWindow?
+    /// A dialog takes the player's focus the way another key window does; it
+    /// was one until dialogs were drawn inside the main window.
+    private var isDialogOpen = false
 
     // MARK: - Lifecycle
 
@@ -130,8 +133,16 @@ final class PlaybackChromeVisibilityModel: ObservableObject {
 
     // MARK: - Focus and cursor governance
 
+    func setDialogOpen(_ isOpen: Bool) {
+        guard isDialogOpen != isOpen else {
+            return
+        }
+        isDialogOpen = isOpen
+        focusChanged()
+    }
+
     private var playerHasFocus: Bool {
-        guard NSApp.isActive else {
+        guard NSApp.isActive, !isDialogOpen else {
             return false
         }
         guard let window = playerWindow ?? playerAreaView?.window else {

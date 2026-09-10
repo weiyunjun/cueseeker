@@ -70,6 +70,9 @@ enum WorkbenchControlMetrics {
     /// the cap line for the title's top, the visible border for a control, and
     /// the glyph ink for an icon button.
     static let redesignDialogInset: CGFloat = 24
+    /// --radius-dialog: 10px, a circular corner. The corner the system sheet
+    /// cut every dialog to, over the dialog's own.
+    static let redesignDialogCornerRadius: CGFloat = 10
     /// --width-dialog-form-region: 340px. The width of a dialog's form column:
     /// the Shiori List Editor's, and the rename dialog's, which is that column
     /// on its own.

@@ -26,10 +26,10 @@ enum InterfaceLayer: Int, CaseIterable, Comparable {
     case playbackOverlay
     /// Command Panel, above the Playback Overlay.
     case commandPanel
-    /// The Edit Cover, Shiori List Editor, Task panel and Confirmation sheets.
-    /// Dialogs may stack — a Confirmation raised inside another dialog is
-    /// presented by it — and the layer stays open until the last of them
-    /// closes.
+    /// Edit Cover, the Shiori List Editor, Rename, the Task panel and
+    /// Confirmation, drawn by the dialog layer inside the main window. A
+    /// Confirmation may stack on another dialog, and the layer stays open until
+    /// the last of them closes.
     case dialog
 
     static func < (lhs: InterfaceLayer, rhs: InterfaceLayer) -> Bool {
@@ -53,6 +53,21 @@ final class InterfaceLayerRegistry: ObservableObject {
     /// right-click relay opens the next menu before the previous one has
     /// finished closing.
     @Published private(set) var openMenuCounts: [InterfaceLayer: Int] = [:]
+    /// The size of the dialog that owns input, or nil while no dialog is open.
+    /// Dialogs are centred in the main window, so this is where it keeps the
+    /// keyboard.
+    var topDialogSize: CGSize?
+    /// Whether a system sheet — a file panel — is attached to the main window.
+    /// The system dims the whole window under it, so the dialog layer's own
+    /// veil steps aside rather than dimming the page twice.
+    @Published private(set) var isSystemSheetAttached = false
+
+    func setSystemSheetAttached(_ isAttached: Bool) {
+        guard isSystemSheetAttached != isAttached else {
+            return
+        }
+        isSystemSheetAttached = isAttached
+    }
 
     func setOpen(_ layer: InterfaceLayer, _ isOpen: Bool) {
         guard openLayers.contains(layer) != isOpen else {
@@ -62,6 +77,9 @@ final class InterfaceLayerRegistry: ObservableObject {
             openLayers.insert(layer)
         } else {
             openLayers.remove(layer)
+            if layer == .dialog {
+                topDialogSize = nil
+            }
         }
         // Entering or leaving a layer is an interface switch: the pointer goes
         // back to the arrow until it moves again.
@@ -169,6 +187,14 @@ private struct IsPlaybackOverlayCoveredKey: EnvironmentKey {
     static let defaultValue = false
 }
 
+private struct IsDialogOpenKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
+private struct IsSystemSheetAttachedKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
 extension EnvironmentValues {
     /// The registry, for surfaces that report menu transitions or need a
     /// direct answer. nil in hierarchies outside the main window.
@@ -197,6 +223,19 @@ extension EnvironmentValues {
         get { self[IsPlaybackOverlayCoveredKey.self] }
         set { self[IsPlaybackOverlayCoveredKey.self] = newValue }
     }
+
+    /// Whether a dialog is open. The player reads it as the loss of its focus,
+    /// which a dialog in its own window used to take from the main window.
+    var isDialogOpen: Bool {
+        get { self[IsDialogOpenKey.self] }
+        set { self[IsDialogOpenKey.self] = newValue }
+    }
+
+    /// See `InterfaceLayerRegistry.isSystemSheetAttached`.
+    var isSystemSheetAttached: Bool {
+        get { self[IsSystemSheetAttachedKey.self] }
+        set { self[IsSystemSheetAttachedKey.self] = newValue }
+    }
 }
 
 /// Publishes the registry's answers as plain environment values, so consumers
@@ -223,6 +262,8 @@ struct InterfaceLayerCoverageBridge: ViewModifier {
                 \.isPlaybackOverlayCovered,
                 layers.isCovered(.playbackOverlay)
             )
+            .environment(\.isDialogOpen, layers.isOpen(.dialog))
+            .environment(\.isSystemSheetAttached, layers.isSystemSheetAttached)
     }
 }
 

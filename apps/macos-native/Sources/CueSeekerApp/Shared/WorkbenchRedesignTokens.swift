@@ -160,6 +160,36 @@ enum WorkbenchRedesignColors {
         // container border instead. If dark ever needs more lift, the popover
         // background goes up a step; the shadow does not get heavier.
         static let shadowPopover = NSColor.hex("#0F172A", alpha: 0.10)
+
+        // Dialog
+        // What the system sheet drew around a dialog, measured from it on
+        // macOS 15.5: the veil over what the dialog covers, the shadow, the
+        // hairline just outside the edge and the highlight just inside it.
+        // --color-dialog-scrim with --opacity-dialog-scrim
+        static let dialogScrim = NSColor.dynamic(
+            lightHex: "#AAAAAA",
+            lightAlpha: 0.60,
+            darkHex: "#161819",
+            darkAlpha: 0.60
+        )
+        static let dialogShadow = NSColor.dynamic(
+            lightHex: "#000000",
+            lightAlpha: 0.25,
+            darkHex: "#000000",
+            darkAlpha: 0.43
+        )
+        static let dialogOutline = NSColor.dynamic(
+            lightHex: "#000000",
+            lightAlpha: 0.19,
+            darkHex: "#000000",
+            darkAlpha: 0.94
+        )
+        static let dialogEdgeHighlight = NSColor.dynamic(
+            lightHex: "#FFFFFF",
+            lightAlpha: 0,
+            darkHex: "#FFFFFF",
+            darkAlpha: 0.20
+        )
     }
 
     // SwiftUI Wrapper Tokens
@@ -266,6 +296,24 @@ enum WorkbenchRedesignColors {
     // Task
     static let taskCountBadgeBg = Color(nsColor: NS.taskCountBadgeBg)
     static let taskCountBadgeText = Color(nsColor: NS.taskCountBadgeText)
+
+    // Dialog
+    static let dialogScrim = Color(nsColor: NS.dialogScrim)
+    static let dialogOutline = Color(nsColor: NS.dialogOutline)
+    static let dialogEdgeHighlight = Color(nsColor: NS.dialogEdgeHighlight)
+
+    // Shadow Dialog
+    // --shadow-dialog: 0 18px 40px, one layer in both themes; only its
+    // strength differs, as the system sheet's did.
+    static let shadowDialog = WorkbenchRedesignShadow(layers: [
+        WorkbenchRedesignShadowLayer(
+            color: Color(nsColor: NS.dialogShadow),
+            radius: 20,
+            x: 0,
+            y: 18,
+            spread: 0
+        ),
+    ])
 
     // Shadow Popover
     // Two layers, both shrunk before they are blurred: the main layer lifts
