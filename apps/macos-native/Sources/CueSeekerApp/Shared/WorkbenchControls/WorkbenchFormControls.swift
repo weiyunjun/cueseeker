@@ -187,20 +187,22 @@ private struct WorkbenchFormFieldContainer<Content: View>: View {
     @ViewBuilder let content: Content
 
     var body: some View {
-        VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing1) {
+        VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing2) {
             WorkbenchFormLabel(text: label)
 
-            content
+            VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing1) {
+                content
 
-            Text(validationMessage ?? "\u{00A0}")
-                .font(.system(
-                    size: WorkbenchControlMetrics.redesignFontSizeCaption,
-                    weight: .regular
-                ))
-                .foregroundStyle(WorkbenchRedesignColors.dangerText)
-                .lineLimit(1)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .accessibilityHidden(validationMessage == nil)
+                Text(validationMessage ?? "\u{00A0}")
+                    .font(.system(
+                        size: WorkbenchControlMetrics.redesignFontSizeCaption,
+                        weight: .regular
+                    ))
+                    .foregroundStyle(WorkbenchRedesignColors.dangerText)
+                    .lineLimit(1)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .accessibilityHidden(validationMessage == nil)
+            }
         }
     }
 }

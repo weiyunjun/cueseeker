@@ -197,7 +197,7 @@ struct ShioriListEditorDialog: View {
     }
 
     private var formRegion: some View {
-        VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing4) {
+        VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing2) {
             WorkbenchFormTextField(
                 label: L("shiori.list_name"),
                 placeholder: L("shiori.list_name.placeholder"),

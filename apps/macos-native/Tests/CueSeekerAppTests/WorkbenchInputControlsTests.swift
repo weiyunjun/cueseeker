@@ -5,7 +5,7 @@ import Testing
 
 @MainActor
 @Test
-func shioriFormHeightMatchesTheCoverFrame() {
+func shioriDescriptionBoxEndsOnTheCoverBottom() {
     let formView = NSHostingView(
         rootView: ShioriFormHeightProbe()
             .frame(width: 340)
@@ -16,10 +16,24 @@ func shioriFormHeightMatchesTheCoverFrame() {
         }
         .frame(width: 380)
     )
+    // The Description's reserved message line hangs below the box.
+    let messageLineView = NSHostingView(
+        rootView: Text("\u{00A0}")
+            .font(.system(
+                size: WorkbenchControlMetrics.redesignFontSizeCaption,
+                weight: .regular
+            ))
+    )
     formView.layoutSubtreeIfNeeded()
     coverView.layoutSubtreeIfNeeded()
+    messageLineView.layoutSubtreeIfNeeded()
 
-    #expect(formView.fittingSize.height == coverView.fittingSize.height)
+    #expect(
+        formView.fittingSize.height
+            == coverView.fittingSize.height
+            + WorkbenchControlMetrics.redesignSpacing1
+            + messageLineView.fittingSize.height
+    )
 }
 
 @MainActor
@@ -36,7 +50,7 @@ func textAreaUsesOneContentInsetWithoutNativeScrollbars() {
     view.configure(placeholder: "Description", isEnabled: true)
     view.layout()
 
-    #expect(WorkbenchControlMetrics.redesignFormTextAreaHeight == 77.5)
+    #expect(WorkbenchControlMetrics.redesignFormTextAreaHeight == 96.75)
     #expect(view.contentInsetForTesting == NSSize(width: 16, height: 10))
     #expect(view.lineFragmentPaddingForTesting == 0)
     #expect(view.textView.textContainerOrigin == NSPoint(x: 16, y: 10))
@@ -113,7 +127,7 @@ private struct ShioriFormHeightProbe: View {
     var body: some View {
         VStack(
             alignment: .leading,
-            spacing: WorkbenchControlMetrics.redesignSpacing4
+            spacing: WorkbenchControlMetrics.redesignSpacing2
         ) {
             WorkbenchFormTextField(
                 label: "List Name",

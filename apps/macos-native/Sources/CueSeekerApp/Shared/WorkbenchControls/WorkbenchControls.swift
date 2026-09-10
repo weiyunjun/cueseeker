@@ -17,8 +17,9 @@ enum WorkbenchControlMetrics {
     static let redesignCornerRadius: CGFloat = 8
     /// --height-field: 40px
     static let redesignFieldHeight: CGFloat = 40
-    /// Provisional --height-form-text-area: 77.5px
-    static let redesignFormTextAreaHeight: CGFloat = 77.5
+    /// Provisional --height-form-text-area: 96.75px. Sized so the Shiori List
+    /// Editor's Description box ends on the cover's bottom edge.
+    static let redesignFormTextAreaHeight: CGFloat = 96.75
     /// --height-filter-bar-control (Search box): 40px
     static let redesignSearchHeight: CGFloat = 40
     /// --radius-field: 8px
