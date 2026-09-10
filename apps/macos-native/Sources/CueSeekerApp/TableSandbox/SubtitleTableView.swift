@@ -1296,9 +1296,6 @@ private struct WorkbenchCheckboxButton: View {
     var isEnabled: Bool = true
     var action: () -> Void
 
-    @FocusState private var isFocused: Bool
-    @State private var suppressFocusRingUntilBlur = false
-
     var body: some View {
         Button(action: action) {
             WorkbenchCheckboxGlyph(
@@ -1306,36 +1303,13 @@ private struct WorkbenchCheckboxButton: View {
                 isEnabled: isEnabled,
                 size: SubtitleTableMetrics.checkboxSize
             )
-            .overlay(
-                Group {
-                    if showsKeyboardFocus {
-                        Circle()
-                        .stroke(WorkbenchRedesignColors.focusRing, lineWidth: WorkbenchControlMetrics.redesignFocusRingWidth)
-                        .padding(-WorkbenchControlMetrics.redesignFocusRingPathExpansion)
-                    }
-                }
-            )
         }
         .buttonStyle(StaticButtonStyle())
         .disabled(!isEnabled)
         .subtitleTableTextSelectionInteractiveRegion(isActive: isEnabled)
-        .focused($isFocused)
-        .disableFocusEffect()
+        .focusable(false)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .contentShape(Rectangle())
-        .simultaneousGesture(
-            DragGesture(minimumDistance: 0)
-                .onChanged { _ in suppressFocusRingUntilBlur = true }
-        )
-        .onChange(of: isFocused) { focused in
-            if !focused {
-                suppressFocusRingUntilBlur = false
-            }
-        }
-    }
-
-    private var showsKeyboardFocus: Bool {
-        isFocused && isEnabled && !suppressFocusRingUntilBlur
     }
 }
 

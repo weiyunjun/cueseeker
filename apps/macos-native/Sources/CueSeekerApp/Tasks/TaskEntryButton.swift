@@ -22,10 +22,6 @@ struct TaskEntryButton: View {
             iconColor: iconColor,
             action: onOpen
         )
-        // App chrome, like the sidebar toggle beside it: it must not be the
-        // control the window hands focus to on launch, which is what happens on
-        // a page with no search field and a disabled Back.
-        .focusable(false)
         .overlay(alignment: .bottomTrailing) {
             TaskCountBadge(count: tasks.remainingTaskCount)
         }

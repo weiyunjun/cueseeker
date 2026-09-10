@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 enum WorkbenchConfirmationActionStyle {
@@ -78,6 +79,10 @@ final class ConfirmationCenter: ObservableObject {
 
 /// The Confirmation dialog body. It draws no scrim of its own: dimming and the
 /// input barrier come from the modal presentation it is placed in.
+///
+/// It is the one interface that opens with focus, on Cancel. Buttons never
+/// take the keyboard focus, so the dialog draws Cancel's Focused state itself
+/// and gives Space to it the way Space presses a focused button.
 struct WorkbenchConfirmationDialog: View {
     let session: WorkbenchConfirmationSession
     /// Closing dismisses the confirmation itself. It does not run the caller's
@@ -118,6 +123,24 @@ struct WorkbenchConfirmationDialog: View {
         )
         .workbenchDialogCloseButton(onClose: onClose)
         .subtitleTableTextSelectionNonInteractiveRegion()
+        .background(WindowKeyDownMonitor(handle: pressFocusedAction))
+    }
+
+    /// Returns whether Space was spent on Cancel, in which case nothing below
+    /// sees it. Enter and Esc keep their own shortcuts.
+    private func pressFocusedAction(_ event: NSEvent) -> Bool {
+        guard event.keyCode == 49,
+              event.modifierFlags
+              .intersection([.command, .control, .option, .shift])
+              .isEmpty,
+              let cancel = session.actions.first(where: \.isCancel)
+        else {
+            return false
+        }
+        if !event.isARepeat {
+            cancel.action()
+        }
+        return true
     }
 
     @ViewBuilder
@@ -128,6 +151,7 @@ struct WorkbenchConfirmationDialog: View {
                 WorkbenchButton(
                     title: action.title,
                     isRedesign: true,
+                    isFocused: action.isCancel,
                     action: action.action
                 )
             case .primary:

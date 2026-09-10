@@ -24,6 +24,7 @@ struct SettingsPlayCategory: View {
                 Toggle("", isOn: $settingsStore.autoPauseAfterCueFinishesEnabled)
                     .labelsHidden()
                     .toggleStyle(.switch)
+                    .focusable(false)
             }
 
             HStack(spacing: 16) {
@@ -35,6 +36,7 @@ struct SettingsPlayCategory: View {
                 Toggle("", isOn: $settingsStore.autoSwitchToNextCuesInPlaylistEnabled)
                     .labelsHidden()
                     .toggleStyle(.switch)
+                    .focusable(false)
                     .disabled(!settingsStore.autoPauseAfterCueFinishesEnabled)
             }
 

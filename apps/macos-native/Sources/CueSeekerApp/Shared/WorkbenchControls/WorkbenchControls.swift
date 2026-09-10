@@ -471,7 +471,6 @@ struct WorkbenchInlineClearButton: View {
     var isEnabled: Bool = true
     var action: () -> Void
 
-    @FocusState private var isFocused: Bool
     @State private var isHovered = false
 
     var body: some View {
@@ -488,18 +487,8 @@ struct WorkbenchInlineClearButton: View {
         .buttonStyle(StaticButtonStyle())
         .disabled(!isEnabled)
         .subtitleTableTextSelectionInteractiveRegion(isActive: isEnabled)
-        .focused($isFocused)
-        .disableFocusEffect()
+        .focusable(false)
         .onPointerHover { isHovered = $0 }
-        .overlay(
-            Group {
-                if isFocused {
-                    RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignInlineClearButtonRadius, style: .continuous)
-                        .stroke(WorkbenchRedesignColors.focusRing, lineWidth: WorkbenchControlMetrics.redesignFocusRingWidth)
-                        .padding(-WorkbenchControlMetrics.redesignFocusRingPathExpansion)
-                }
-            }
-        )
     }
 }
 
@@ -633,9 +622,11 @@ struct WorkbenchButton: View {
     let title: String
     var icon: AppIcon? = nil
     var isRedesign: Bool = false
+    /// Buttons never take the keyboard focus, so the one that opens focused -
+    /// Confirmation's Cancel - is told to draw its Focused state.
+    var isFocused: Bool = false
     var action: () -> Void
 
-    @FocusState private var isFocused: Bool
     @State private var isHovered = false
     @Environment(\.isEnabled) private var isEnabled
 
@@ -687,8 +678,7 @@ struct WorkbenchButton: View {
         }
         .buttonStyle(StaticButtonStyle())
         .subtitleTableTextSelectionInteractiveRegion(isActive: isEnabled)
-        .focused($isFocused)
-        .disableFocusEffect()
+        .focusable(false)
         .onPointerHover { isHovered = $0 }
     }
 }
@@ -699,7 +689,6 @@ struct WorkbenchPrimaryButton: View {
     var iconWeight: AppIconWeight? = nil
     var action: () -> Void
 
-    @FocusState private var isFocused: Bool
     @State private var isHovered = false
     @Environment(\.isEnabled) private var isEnabled
 
@@ -744,27 +733,12 @@ struct WorkbenchPrimaryButton: View {
                         : WorkbenchRedesignColors.bgDisabled
                 )
             )
-            .overlay {
-                if isFocused && isEnabled {
-                    RoundedRectangle(
-                        cornerRadius: WorkbenchControlMetrics.redesignCornerRadius
-                            + WorkbenchControlMetrics.redesignFocusRingPathExpansion,
-                        style: .continuous
-                    )
-                    .stroke(
-                        WorkbenchRedesignColors.focusRing,
-                        lineWidth: WorkbenchControlMetrics.redesignFocusRingWidth
-                    )
-                    .padding(-WorkbenchControlMetrics.redesignFocusRingPathExpansion)
-                }
-            }
             .fixedSize(horizontal: true, vertical: false)
             .contentShape(Rectangle())
         }
         .buttonStyle(StaticButtonStyle())
         .subtitleTableTextSelectionInteractiveRegion(isActive: isEnabled)
-        .focused($isFocused)
-        .disableFocusEffect()
+        .focusable(false)
         .onPointerHover { isHovered = $0 }
     }
 }
@@ -774,7 +748,6 @@ struct WorkbenchDestructiveButton: View {
     var icon: AppIcon? = nil
     var action: () -> Void
 
-    @FocusState private var isFocused: Bool
     @State private var isHovered = false
     @Environment(\.isEnabled) private var isEnabled
 
@@ -802,31 +775,18 @@ struct WorkbenchDestructiveButton: View {
                 RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignCornerRadius, style: .continuous)
                     .strokeBorder(borderColor, lineWidth: 1)
             )
-            .overlay(
-                Group {
-                    if isFocused && isEnabled {
-                        RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignCornerRadius + WorkbenchControlMetrics.redesignFocusRingPathExpansion, style: .continuous)
-                            .stroke(WorkbenchRedesignColors.focusRing, lineWidth: WorkbenchControlMetrics.redesignFocusRingWidth)
-                            .padding(-WorkbenchControlMetrics.redesignFocusRingPathExpansion)
-                    }
-                }
-            )
             .fixedSize(horizontal: true, vertical: false)
             .contentShape(Rectangle())
         }
         .buttonStyle(StaticButtonStyle())
         .subtitleTableTextSelectionInteractiveRegion(isActive: isEnabled)
-        .focused($isFocused)
-        .disableFocusEffect()
+        .focusable(false)
         .onPointerHover { isHovered = $0 }
     }
 
     private var borderColor: Color {
         guard isEnabled else {
             return WorkbenchRedesignColors.borderDisabled
-        }
-        if isFocused {
-            return WorkbenchRedesignColors.borderFocus
         }
         return isHovered
             ? WorkbenchRedesignColors.borderControlHover
@@ -875,6 +835,7 @@ struct WorkbenchPopoverRow: View {
             .buttonStyle(StaticButtonStyle())
             .disabled(!isEnabled)
             .subtitleTableTextSelectionInteractiveRegion(isActive: isEnabled)
+            .focusable(false)
         } else {
             label
         }
@@ -1027,12 +988,11 @@ struct WorkbenchIconButton: View {
     /// Dialog close buttons carry a smaller glyph than the rest of the icon
     /// buttons; everything else keeps the shared control icon size.
     var iconSize: CGFloat? = nil
-    /// Dialog close buttons also carry a smaller box, so their focus ring stays
+    /// Dialog close buttons also carry a smaller box, so their hover block stays
     /// in proportion to the smaller glyph; everything else keeps the shared one.
     var boxSize: CGFloat? = nil
     var action: (() -> Void)? = nil
 
-    @FocusState private var isFocused: Bool
     @Environment(\.isEnabled) private var isEnabled
     @State private var isHovered = false
 
@@ -1044,8 +1004,7 @@ struct WorkbenchIconButton: View {
                 }
                 .buttonStyle(StaticButtonStyle())
                 .disabled(isFrozen)
-                .focused($isFocused)
-                .disableFocusEffect()
+                .focusable(false)
                 .subtitleTableTextSelectionInteractiveRegion(isActive: isEnabled)
                 .onPointerHover { isHovered = $0 }
             } else {
@@ -1068,15 +1027,6 @@ struct WorkbenchIconButton: View {
                             .fill(redesignBackgroundColor)
                     } else {
                         Color.clear
-                    }
-                }
-            )
-            .overlay(
-                Group {
-                    if isRedesign && isFocused && isEnabled {
-                        RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignCornerRadius + WorkbenchControlMetrics.redesignFocusRingPathExpansion, style: .continuous)
-                            .stroke(WorkbenchRedesignColors.focusRing, lineWidth: WorkbenchControlMetrics.redesignFocusRingWidth)
-                            .padding(-WorkbenchControlMetrics.redesignFocusRingPathExpansion)
                     }
                 }
             )
@@ -1245,17 +1195,6 @@ struct WorkbenchControlBackground: View {
                 lineWidth: WorkbenchControlMetrics.hairlineWidth
             )
         )
-    }
-}
-
-extension View {
-    @ViewBuilder
-    func disableFocusEffect() -> some View {
-        if #available(macOS 14.0, *) {
-            self.focusEffectDisabled()
-        } else {
-            self
-        }
     }
 }
 

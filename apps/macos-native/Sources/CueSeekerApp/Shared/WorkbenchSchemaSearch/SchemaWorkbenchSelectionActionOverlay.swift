@@ -113,18 +113,32 @@ struct SchemaWorkbenchSelectionActionOverlay: View {
             .strokeBorder(WorkbenchRedesignColors.borderMuted, lineWidth: 1)
         )
         .background(anchor.map { MenuAnchorProbe(handle: $0) })
-        .background(
-            SchemaWorkbenchSelectionShortcutMonitor(
-                actions: allActions,
-                isEnabled: !layerContext.isFrozen
-            )
-        )
+        // The overlay exists only in Select Mode, so its keys do too.
+        .background(WindowKeyDownMonitor(handle: handleShortcut))
         .contentShape(
             RoundedRectangle(
                 cornerRadius: WorkbenchControlMetrics.redesignCornerRadius,
                 style: .continuous
             )
         )
+    }
+
+    /// Returns whether the key was spent here, in which case nothing below
+    /// sees it.
+    private func handleShortcut(_ event: NSEvent) -> Bool {
+        guard !layerContext.isFrozen,
+              event.modifierFlags
+              .intersection([.command, .control, .option, .shift])
+              .isEmpty,
+              !AppCoordinator.isEditableTextInputFocused(),
+              let action = allActions.first(where: { $0.keyCode == event.keyCode })
+        else {
+            return false
+        }
+        if !event.isARepeat {
+            action.perform()
+        }
+        return true
     }
 }
 
@@ -200,110 +214,5 @@ private struct SchemaWorkbenchSelectionKeycap: View {
                 .fill(background)
             }
             .allowsHitTesting(false)
-    }
-}
-
-/// The overlay's keys. It lives and dies with the overlay, which exists only
-/// in Select Mode, so nothing else has to remember to switch it off.
-///
-/// The monitor answers only for its own window: a key pressed while the
-/// Settings window — or any other window — is the key window belongs to that
-/// window and is passed straight through.
-private struct SchemaWorkbenchSelectionShortcutMonitor: NSViewRepresentable {
-    let actions: [SchemaWorkbenchSelectionAction]
-    let isEnabled: Bool
-
-    func makeNSView(context _: Context) -> MonitoringView {
-        MonitoringView()
-    }
-
-    func updateNSView(_ nsView: MonitoringView, context _: Context) {
-        nsView.update(actions: actions, isEnabled: isEnabled)
-    }
-
-    static func dismantleNSView(_ nsView: MonitoringView, coordinator _: Void) {
-        nsView.tearDown()
-    }
-
-    @MainActor
-    final class MonitoringView: NSView {
-        nonisolated(unsafe) private var eventMonitor: Any?
-        private var actions: [SchemaWorkbenchSelectionAction] = []
-        private var isEnabled = false
-
-        func update(
-            actions: [SchemaWorkbenchSelectionAction],
-            isEnabled: Bool
-        ) {
-            self.actions = actions
-            self.isEnabled = isEnabled
-            installEventMonitorIfNeeded()
-        }
-
-        override func viewDidMoveToWindow() {
-            super.viewDidMoveToWindow()
-            if window == nil {
-                removeEventMonitor()
-            } else {
-                installEventMonitorIfNeeded()
-            }
-        }
-
-        func tearDown() {
-            actions = []
-            removeEventMonitor()
-        }
-
-        @discardableResult
-        func handleForTesting(_ event: NSEvent) -> Bool {
-            handle(event)
-        }
-
-        deinit {
-            if let eventMonitor {
-                NSEvent.removeMonitor(eventMonitor)
-            }
-        }
-
-        private func installEventMonitorIfNeeded() {
-            guard window != nil, eventMonitor == nil else {
-                return
-            }
-            eventMonitor = NSEvent.addLocalMonitorForEvents(
-                matching: .keyDown
-            ) { [weak self] event in
-                let handled = MainActor.assumeIsolated {
-                    self?.handle(event) ?? false
-                }
-                return handled ? nil : event
-            }
-        }
-
-        private func removeEventMonitor() {
-            guard let eventMonitor else {
-                return
-            }
-            NSEvent.removeMonitor(eventMonitor)
-            self.eventMonitor = nil
-        }
-
-        /// Returns whether the key was spent here, in which case nothing
-        /// below sees it.
-        private func handle(_ event: NSEvent) -> Bool {
-            guard isEnabled,
-                  event.window === window,
-                  event.modifierFlags
-                  .intersection([.command, .control, .option, .shift])
-                  .isEmpty,
-                  !AppCoordinator.isEditableTextInputFocused(),
-                  let action = actions.first(where: { $0.keyCode == event.keyCode })
-            else {
-                return false
-            }
-            if !event.isARepeat {
-                action.perform()
-            }
-            return true
-        }
     }
 }

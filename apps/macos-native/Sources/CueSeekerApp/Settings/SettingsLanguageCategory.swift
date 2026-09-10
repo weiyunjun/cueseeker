@@ -27,6 +27,7 @@ struct SettingsLanguageCategory: View {
                 }
                 .labelsHidden()
                 .pickerStyle(.menu)
+                .focusable(false)
                 .frame(width: 180)
             }
 

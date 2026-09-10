@@ -22,6 +22,7 @@ struct PlaybackVolumeControl: View {
                     .contentShape(Circle())
             }
             .buttonStyle(StaticButtonStyle())
+            .focusable(false)
             .accessibilityLabel(L("playback.mute"))
 
             if isHovered {

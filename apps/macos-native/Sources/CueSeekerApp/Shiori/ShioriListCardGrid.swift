@@ -113,6 +113,7 @@ private struct ShioriListCard: View {
         .buttonStyle(
             LibraryOverviewCardButtonStyle(isCurrent: isCurrent)
         )
+        .focusable(false)
         .onHover { highlight.noteHover($0, id: cardID) }
         .libraryCardContextMenuTrigger(
             isEnabled: true,

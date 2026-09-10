@@ -464,6 +464,7 @@ private struct PlaybackSpeedChromeButton: View {
                 suppressesInteraction: timeline.isScrubbing
             )
         )
+        .focusable(false)
         .accessibilityLabel(L("playback.speed"))
         .frame(
             width: PlaybackChromeMetrics.speedButtonWidth,

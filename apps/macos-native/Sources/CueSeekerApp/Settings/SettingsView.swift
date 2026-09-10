@@ -85,6 +85,7 @@ struct SettingsView: View {
             minHeight: WorkbenchControlMetrics.redesignSettingsWindowMinimumHeight
         )
         .background(WorkbenchRedesignColors.bgSurface)
+        .opensWithoutFocus()
         .preferredColorScheme(settingsStore.appAppearanceMode.colorScheme)
     }
 

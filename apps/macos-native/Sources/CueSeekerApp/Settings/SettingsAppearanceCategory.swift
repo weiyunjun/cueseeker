@@ -61,6 +61,7 @@ private struct AppearanceModeSegmentedControl: View {
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(StaticButtonStyle())
+                .focusable(false)
                 .accessibilityLabel(L("settings.appearance.accessibility", mode.displayName))
                 .accessibilityValue(isSelected ? L("facet.selected") : L("facet.not_selected"))
             }

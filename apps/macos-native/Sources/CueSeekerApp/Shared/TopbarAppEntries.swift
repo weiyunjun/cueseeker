@@ -56,9 +56,6 @@ struct SettingsEntryButton: View {
             iconColor: iconColor,
             action: onOpen
         )
-        // App chrome, like the Task entry beside it: it must not be the control
-        // the window hands focus to on launch.
-        .focusable(false)
         .help(L("topbar.settings"))
         .accessibilityLabel(L("topbar.settings"))
         .accessibilityIdentifier("topbar-settings-button")

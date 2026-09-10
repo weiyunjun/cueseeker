@@ -579,6 +579,13 @@ final class AppCoordinator: ObservableObject {
         .removeDuplicates()
         .sink { [interfaceLayers] isDialogOpen in
             interfaceLayers.setOpen(.dialog, isDialogOpen)
+            // The page gives its focus up as the dialog opens, the way it does
+            // for a menu, so nothing it had focused comes back when the dialog
+            // closes. The dialog is not presented yet: the key window is still
+            // the page's.
+            if isDialogOpen {
+                NSApplication.shared.keyWindow?.makeFirstResponder(nil)
+            }
         }
         .store(in: &interfaceLayerCancellables)
     }

@@ -282,6 +282,7 @@ struct CueFacetFilterMenu: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(StaticButtonStyle())
+        .focusable(false)
         .id(position)
         // Menu rows read the pointer directly: the layer freeze applies to
         // everything under the menu, not to the menu itself, and the highlight

@@ -107,6 +107,7 @@ private struct ContentRootView: View {
             }
             .ignoresSafeArea(.container, edges: .top)
             .frame(minWidth: AppShellLayout.minimumWindowWidth, minHeight: AppShellLayout.minimumWindowHeight)
+            .opensWithoutFocus()
             .sheet(item: $libraryStore.coverEditingSession) { session in
                 LibraryEditCoverDialog(
                     session: session,
@@ -139,6 +140,9 @@ private struct ContentRootView: View {
                 )
                 .interfaceLayer(.dialog)
                 .interactiveDismissDisabled(true)
+                // Its name field would otherwise take the caret the moment it
+                // opens. Rename keeps that caret on purpose.
+                .opensWithoutFocus()
             }
             .sheet(item: $libraryStore.renameSession) { session in
                 LibraryRenameDialog(

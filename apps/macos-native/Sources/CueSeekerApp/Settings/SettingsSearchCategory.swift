@@ -30,6 +30,7 @@ struct SettingsSearchCategory: View {
                     ))
                         .labelsHidden()
                         .toggleStyle(.switch)
+                        .focusable(false)
                         .accessibilityIdentifier("settings.search.show-cue-group")
                 }
 
@@ -52,6 +53,7 @@ struct SettingsSearchCategory: View {
                     )
                     .labelsHidden()
                     .toggleStyle(.switch)
+                    .focusable(false)
                     .accessibilityIdentifier(
                         "settings.search.prefill-command-panel-with-focused-cue"
                     )

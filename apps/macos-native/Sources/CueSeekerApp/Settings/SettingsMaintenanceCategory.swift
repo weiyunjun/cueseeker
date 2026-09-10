@@ -53,6 +53,7 @@ struct SettingsMaintenanceCategory: View {
                 } label: {
                     Label { Text(L("settings.maintenance.refresh")) } icon: { AppIconImage(.arrowClockwise, size: WorkbenchControlMetrics.redesignControlIconSize) }
                 }
+                .focusable(false)
                 .disabled(
                     indexing.folderRemovalStatus.isRemoving
                         || indexing.databaseMaintenanceStatus.isCompacting
@@ -63,6 +64,7 @@ struct SettingsMaintenanceCategory: View {
                 } label: {
                     Label { Text(L("settings.maintenance.compact")) } icon: { AppIconImage(.fileArrowDown, size: WorkbenchControlMetrics.redesignControlIconSize) }
                 }
+                .focusable(false)
                 .disabled(!appState.canCompactDatabase)
             }
 

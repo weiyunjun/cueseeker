@@ -49,6 +49,7 @@ struct PlaybackChromeSpeedMenu: View {
                         }
                     )
                 )
+                .focusable(false)
             }
         }
         .padding(PlaybackChromeMetrics.speedMenuPadding)

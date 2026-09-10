@@ -369,7 +369,6 @@ private struct CoverSummaryActionButton: View {
 
     @Environment(\.isEnabled) private var isEnabled
     @State private var isHovered = false
-    @FocusState private var isFocused: Bool
 
     var body: some View {
         Button(action: action) {
@@ -404,18 +403,6 @@ private struct CoverSummaryActionButton: View {
                     lineWidth: 1
                 )
             }
-            .overlay {
-                if isFocused && isEnabled {
-                    buttonShape
-                        .stroke(
-                            WorkbenchRedesignColors.focusRing,
-                            lineWidth: WorkbenchControlMetrics.redesignFocusRingWidth
-                        )
-                        .padding(
-                            -WorkbenchControlMetrics.redesignFocusRingPathExpansion
-                        )
-                }
-            }
             .opacity(
                 isEnabled
                     ? 1
@@ -425,8 +412,7 @@ private struct CoverSummaryActionButton: View {
         }
         .buttonStyle(StaticButtonStyle())
         .subtitleTableTextSelectionInteractiveRegion(isActive: isEnabled)
-        .focused($isFocused)
-        .disableFocusEffect()
+        .focusable(false)
         .onPointerHover { isHovered = $0 }
     }
 

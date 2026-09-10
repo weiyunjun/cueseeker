@@ -36,6 +36,7 @@ struct SettingsDeveloperCategory: View {
                     Toggle("", isOn: $settingsStore.searchE2ELoggingEnabled)
                         .labelsHidden()
                         .toggleStyle(.switch)
+                        .focusable(false)
                 }
 
                 HStack(spacing: 16) {
@@ -52,6 +53,7 @@ struct SettingsDeveloperCategory: View {
                     Toggle("", isOn: $settingsStore.searchFTSVocabularyDiagnosticsEnabled)
                         .labelsHidden()
                         .toggleStyle(.switch)
+                        .focusable(false)
                 }
 
                 ftsVocabularyDiagnosticsPanel
@@ -81,6 +83,7 @@ struct SettingsDeveloperCategory: View {
                 } label: {
                     Label { Text(L("settings.maintenance.refresh")) } icon: { AppIconImage(.arrowClockwise, size: WorkbenchControlMetrics.redesignControlIconSize) }
                 }
+                .focusable(false)
                 .disabled(
                     !settingsStore.searchFTSVocabularyDiagnosticsEnabled
                         || indexing.searchFTSVocabularyDiagnosticsStatus.isLoading

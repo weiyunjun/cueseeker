@@ -33,6 +33,7 @@ struct SettingsURLSchemeCategory: View {
                 )
                 .labelsHidden()
                 .toggleStyle(.switch)
+                .focusable(false)
                 .accessibilityIdentifier("settings.url-scheme.play-first-search-result")
             }
 
