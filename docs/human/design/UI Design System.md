@@ -201,7 +201,7 @@
 - `--height-filter-bar-control`: `40px`
 - `--height-control`: `40px`
 - `--height-field`: `40px`
-- `--height-form-text-area`: `77.5px`
+- `--height-form-text-area`: `96.75px`
 - `--height-table-header`: `40px`
 - `--min-height-table-row`: `40px`
 - `--height-action-menu-item`: `32px`
@@ -224,6 +224,7 @@
 - `--height-task-progress-bar`: `4px`
 - `--height-task-panel`: `440px`
 - `--height-task-panel-header`: `54px`
+- `--height-edit-cover-dialog`: `600px`
 - `--height-library-list-cover`: `115px`
 - `--height-cover-summary-backdrop`: `225px`
 - `--height-keycap`: `22px`
@@ -276,6 +277,9 @@
 - `--min-height-library-folder-card`: `96px`
 - `--min-width-workbench-page-content`: `480px`
 - `--width-task-panel`: `460px`
+- `--width-dialog-form-region`: `340px`
+- `--width-shiori-list-editor-cover`: `380px`
+- `--width-edit-cover-dialog`: `760px`
 - `--border-width-control`: `1px`
 
 ## 1.4 间距
@@ -307,6 +311,7 @@
 - `--gap-library-folder-card-content`: `12px`
 - `--gap-cover-summary-to-toolbar`: `24px`
 - `--gap-cover-summary-split`: `24px`
+- `--gap-cover-dialog-region`: `20px`
 
 ### Padding
 
@@ -453,6 +458,7 @@
 
 - Label
 - Validation Message
+  - Placement：Below Container
   - Content：Optional
   - Reserved Lines：`1`
   - Maximum Lines：`1`
@@ -471,6 +477,8 @@
 
 - Height：`--height-field`
 - Padding Inline：`--padding-field-x`
+- Label to Container Gap：`--spacing-2`
+- Container to Validation Message Gap：`--spacing-1`
 
 ##### States
 
@@ -495,6 +503,7 @@
 
 - Label
 - Validation Message
+  - Placement：Below Container
   - Content：Optional
   - Reserved Lines：`1`
   - Maximum Lines：`1`
@@ -522,6 +531,8 @@
 - Height：`--height-form-text-area`
 - Padding Inline：`--padding-field-x`
 - Padding Block：`10px`
+- Label to Container Gap：`--spacing-2`
+- Container to Validation Message Gap：`--spacing-1`
 
 ##### States
 
@@ -3408,9 +3419,14 @@
 - Button / Neutral
 - Button / Primary
 
+#### Sizes
+
+- Width：`--width-edit-cover-dialog`
+- Height：`--height-edit-cover-dialog`
+
 #### Spacing
 
-- Region Gap：`--spacing-4`
+- Region Gap：`--gap-cover-dialog-region`
 - Footer Action Gap：`--spacing-2`
 
 #### States
@@ -3453,14 +3469,17 @@
 #### Layout
 
 - Main Region：Two Columns, Top Aligned
-- Cover Height：Form Region Height
+- Cover Width：`--width-shiori-list-editor-cover`
+- Form Region Width：`--width-dialog-form-region`
+- Dialog 宽度为 Cover Width、Column Gap、Form Region Width 之和加两侧 `--inset-dialog`
+- Description Field 的 Container 底边与 Cover 底边对齐
 
 #### Spacing
 
-- Region Gap：`--spacing-4`
+- Region Gap：`--gap-cover-dialog-region`
 - Column Gap：`--spacing-6`
 - Cover to Support Text Gap：`--spacing-3`
-- Field Gap：`--spacing-4`
+- Field Gap：`--spacing-2`
 - Footer Action Gap：`--spacing-2`
 
 #### States
