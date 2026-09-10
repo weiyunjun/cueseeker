@@ -70,21 +70,46 @@ enum AppIcon: String, CaseIterable, Sendable {
 
 /// Which cut of an icon to draw.
 ///
-/// `light` and `regular` are the two stroke tiers; the tier follows the size
-/// the call site asks for, so one icon stays visually even across the sizes it
-/// appears at. `fill` is a state variant instead of a tier, and the call site
-/// asks for it directly.
+/// `regular` is the stroke master, whose line width follows the size the call
+/// site asks for. `fill` is the solid state variant; it has no line to adjust,
+/// so the call site asks for it directly.
 enum AppIconWeight: String, Sendable {
-    case light
     case regular
-    case bold
     case fill
+}
 
-    /// Below 24px the glyph sits beside body text and needs the heavier cut
-    /// to hold its own; from 24px up the drawn stroke is already thick enough
-    /// at Regular.
-    static func tier(forSize size: CGFloat) -> AppIconWeight {
-        size < 24 ? .bold : .regular
+/// The line width drawn at each display size, in points.
+///
+/// Mirrors the line width table of the icon requirement. A size missing here
+/// has no documented width and has to be added there before an icon is drawn
+/// at it.
+enum AppIconLineWidth {
+    static let bySize: [CGFloat: CGFloat] = [
+        10: 0.80,
+        11: 0.85,
+        12: 0.90,
+        13: 0.95,
+        14: 1.00,
+        16: 1.10,
+        18: 1.20,
+        20: 1.30,
+        24: 1.50,
+        32: 1.90,
+        36: 2.10,
+        44: 2.50,
+    ]
+
+    /// Every stroke master draws its lines 16 units wide on a 256-unit grid.
+    static let master: CGFloat = 16
+
+    /// The master width that shows `bySize[size]` points of line once the
+    /// 256-unit grid is drawn `size` points wide.
+    static func units(forSize size: CGFloat) -> CGFloat {
+        guard let points = bySize[size] else {
+            assertionFailure("No documented line width for a \(size)pt icon")
+            return master
+        }
+        return points * 256 / size
     }
 }
 
@@ -92,15 +117,21 @@ enum AppIconWeight: String, Sendable {
 enum AppIconStore {
     private static var cache: [String: NSImage] = [:]
 
-    static func image(_ icon: AppIcon, weight: AppIconWeight) -> NSImage? {
+    static func image(
+        _ icon: AppIcon,
+        size: CGFloat,
+        weight: AppIconWeight = .regular
+    ) -> NSImage? {
         let name = assetName(icon, weight: weight)
+        let key = "\(name)-\(size)"
 
-        if let cached = cache[name] {
+        if let cached = cache[key] {
             return cached
         }
 
         guard let url = Bundle.module.url(forResource: name, withExtension: "svg"),
-              let image = NSImage(contentsOf: url)
+              let master = try? String(contentsOf: url, encoding: .utf8),
+              let image = NSImage(data: Data(settingLineWidth(of: master, forSize: size).utf8))
         else {
             return nil
         }
@@ -108,8 +139,17 @@ enum AppIconStore {
         // The assets carry no colour of their own; the interface tints them
         // through the same foreground styles the symbols used.
         image.isTemplate = true
-        cache[name] = image
+        cache[key] = image
         return image
+    }
+
+    /// The master with its line width replaced by the one documented for
+    /// `size`. The fill cut draws no lines and passes through unchanged.
+    private static func settingLineWidth(of master: String, forSize size: CGFloat) -> String {
+        master.replacingOccurrences(
+            of: "stroke-width=\"\(Int(AppIconLineWidth.master))\"",
+            with: "stroke-width=\"\(AppIconLineWidth.units(forSize: size))\""
+        )
     }
 
     /// The same glyph already filled with one colour, for the places that
@@ -119,16 +159,15 @@ enum AppIconStore {
         _ icon: AppIcon,
         size: CGFloat,
         color: NSColor,
-        weight: AppIconWeight? = nil
+        weight: AppIconWeight = .regular
     ) -> NSImage? {
-        let resolved = weight ?? .tier(forSize: size)
-        let key = "\(assetName(icon, weight: resolved))-\(size)-\(color.hashValue)"
+        let key = "\(assetName(icon, weight: weight))-\(size)-\(color.hashValue)"
 
         if let cached = tintedCache[key] {
             return cached
         }
 
-        guard let base = image(icon, weight: resolved) else {
+        guard let base = image(icon, size: size, weight: weight) else {
             return nil
         }
 
@@ -150,8 +189,8 @@ enum AppIconStore {
         switch weight {
         case .regular:
             icon.rawValue
-        case .light, .bold, .fill:
-            "\(icon.rawValue)-\(weight.rawValue)"
+        case .fill:
+            "\(icon.rawValue)-fill"
         }
     }
 }
@@ -169,7 +208,7 @@ struct AppIconImage: View {
     }
 
     var body: some View {
-        if let image = AppIconStore.image(icon, weight: weight ?? .tier(forSize: size)) {
+        if let image = AppIconStore.image(icon, size: size, weight: weight ?? .regular) {
             Image(nsImage: image)
                 .resizable()
                 .renderingMode(.template)

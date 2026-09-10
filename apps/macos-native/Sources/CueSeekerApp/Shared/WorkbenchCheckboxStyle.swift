@@ -20,14 +20,11 @@ enum WorkbenchCheckboxStyle {
     }
 
     /// A ticked box reads as a solid mark, so both marked states draw the
-    /// filled cut; the empty box follows the ordinary stroke tier.
-    static func iconWeight(
-        for state: WorkbenchCheckboxState,
-        size: CGFloat
-    ) -> AppIconWeight {
+    /// filled cut; the empty box draws the ordinary stroke master.
+    static func iconWeight(for state: WorkbenchCheckboxState) -> AppIconWeight {
         switch state {
         case .unchecked:
-            return .tier(forSize: size)
+            return .regular
         case .checked, .indeterminate:
             return .fill
         }
@@ -58,7 +55,7 @@ enum WorkbenchCheckboxStyle {
             icon(for: state),
             size: size,
             color: controlColor(for: state, isEnabled: isEnabled),
-            weight: iconWeight(for: state, size: size)
+            weight: iconWeight(for: state)
         )
     }
 
@@ -102,7 +99,7 @@ struct WorkbenchCheckboxGlyph: View {
         AppIconImage(
             WorkbenchCheckboxStyle.icon(for: state),
             size: size,
-            weight: WorkbenchCheckboxStyle.iconWeight(for: state, size: size)
+            weight: WorkbenchCheckboxStyle.iconWeight(for: state)
         )
             .foregroundStyle(Color(nsColor: WorkbenchCheckboxStyle.controlColor(
                 for: state,

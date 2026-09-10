@@ -59,3 +59,26 @@ The first pass drew Light below 18pt. In the running app that reads as 0.66–0.
 Regular still read light beside the text, so the band moved once more, to Bold. `AppIconWeight` gained that cut and all 59 icons gained the artwork; below 24px the drawn stroke is now 1.03pt at 11px through 1.69pt at 18px, against 1.50pt for the 24px overlay that reads correctly. Sizes from 24px up are untouched at Regular.
 
 This puts the code ahead of the requirement, which still records Light below 18px. The owner is tuning and has held the requirement edit until the reading settles; the requirement needs it before this is treated as final.
+
+## Follow-up: stroke masters, one line width per size
+
+Bold overshot: 1.31pt at 14px against an owner target of about 1.0pt, with Regular undershooting at 0.88pt. Phosphor's four cuts sit at 8, 12, 16 and 24 units, so no published file lands between them. The earlier conclusion that Phosphor's widths are baked into the artwork was wrong. The files under `assets/` are outlined, but the same repository keeps the originals under `raw/`, drawn as centre-line strokes with one `stroke-width` per cut. Thin, Light, Regular and Bold share the same geometry there; only that number changes. All 59 icons exist in `raw/regular`.
+
+**Each icon is now one stroke master, and the line width is a number chosen at draw time.** The regular files were replaced by their `raw/regular` originals, every line drawn at 16 units. `AppIconLineWidth.bySize` mirrors the requirement's line width table, one entry per display size in use (10–44pt). `AppIconStore` reads the master, rewrites the 16 to `points × 256 ÷ size`, and loads the result through `NSImage(data:)`, caching per icon and size. A size missing from the table trips an assertion in Debug and draws the master unchanged in Release, so an undocumented size surfaces during development instead of silently picking a width.
+
+**Solid dots follow the line.** Warning, warning-circle, question, image, hard-drives and list-bullets carry solid dots, which a line width cannot reach. Across Phosphor's cuts the dot radius is always half the line width plus 4 units (8, 10, 12 and 16 for 8, 12, 16 and 24), so each dot was redrawn as a radius-4 circle stroked at the master width. At 16 it renders identically to the original radius-12 dot, and it grows with the line from then on.
+
+**Fill is untouched.** The seven solid state variants draw no lines, pass through the rewrite unchanged, and keep their files. `AppIconWeight` is down to `regular` and `fill`; the size tier and its Light and Bold cuts are gone.
+
+Measured before the swap, in a scratch harness outside the project: a raw master at 16 units against the outlined Regular it replaces differs by under 1% of covered pixels across magnifying-glass, x, check, warning, gear and speaker-high. Round caps and joins render, `currentColor` resolves opaque, and a master rewritten to 24 units covers 1.49–1.53× the area, as expected.
+
+The 59 `-light.svg` and 59 `-bold.svg` files are no longer referenced. They stay in the tree until the owner removes them.
+
+The PDF fallback recorded above no longer fits: a PDF cannot have its line width rewritten at draw time. If macOS 13 turns out not to read SVG, that needs its own decision; the SVG masters stay the source either way.
+
+Verification:
+
+- `swift build` clean, no warnings.
+- `AppIconAssetTests` now resolves every icon at every documented size and checks that every stroke master draws all of its lines at the one master width, so a line the rewrite cannot reach fails the suite.
+- `swift test`: 1177 tests, 15 failures in the parallel run. Rerun alone, 13 pass. The other two, `shioriTableStartsAtTopAfterPanelRemount` and `showCueGroupInvalidationIsScopedToMountedShiori`, fail the same way on a clean `HEAD` built from `git archive`, so neither comes from this change.
+- Debug in-app E2E controller: Shiori (18pt sidebar, topbar entries, 44pt cover placeholder), File (14pt button icons, Remove), and Search (16pt field, filter and select-mode icons) all draw from the stroke masters at their table widths.
