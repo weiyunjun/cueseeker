@@ -10,7 +10,6 @@ enum AppIcon: String, CaseIterable, Sendable {
     case caretLeft = "caret-left"
     case caretRight = "caret-right"
     case caretDown = "caret-down"
-    case caretUpDown = "caret-up-down"
     case sidebarSimple = "sidebar-simple"
     case arrowLeft = "arrow-left"
     case arrowRight = "arrow-right"
@@ -18,7 +17,6 @@ enum AppIcon: String, CaseIterable, Sendable {
     case check = "check"
     case magnifyingGlass = "magnifying-glass"
     case funnel = "funnel"
-    case plus = "plus"
     case arrowElbowDownLeft = "arrow-elbow-down-left"
     case squaresFour = "squares-four"
     case folder = "folder"
@@ -64,8 +62,6 @@ enum AppIcon: String, CaseIterable, Sendable {
     case hardDrives = "hard-drives"
     case hammer = "hammer"
     case fileArrowDown = "file-arrow-down"
-    case tray = "tray"
-    case listBullets = "list-bullets"
 }
 
 /// Which cut of an icon to draw.
@@ -80,19 +76,16 @@ enum AppIconWeight: String, Sendable {
 
 /// The line width drawn at each display size, in points.
 ///
-/// Mirrors the line width table of the icon requirement. A size missing here
-/// has no documented width and has to be added there before an icon is drawn
-/// at it.
+/// Mirrors the line width table in `docs/human/design/Icon Registry.md`. A
+/// size missing here has no documented width and has to be added there before
+/// an icon is drawn at it.
 enum AppIconLineWidth {
     static let bySize: [CGFloat: CGFloat] = [
-        13: 1.10,
         14: 1.15,
         16: 1.20,
-        17: 1.25,
         18: 1.30,
         21: 1.35,
         23: 1.40,
-        26: 1.45,
         31: 1.50,
         42: 1.90,
         47: 2.10,

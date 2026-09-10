@@ -363,8 +363,6 @@ enum PlaybackChromeMetrics {
     static let circleButtonSize: CGFloat = 40
     /// Provisional --size-player-circle-button-icon: 23px icon box (document: 18px)
     static let circleButtonIconSize: CGFloat = 23
-    /// Provisional: the play/pause glyph of the primary transport button, 26px icon box.
-    static let primaryTransportIconSize: CGFloat = 26
     static let speedButtonWidth: CGFloat = 54
     static let speedMenuWidth: CGFloat = 184
     static let speedMenuHeight: CGFloat = 246

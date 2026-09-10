@@ -472,22 +472,6 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
                                 WorkbenchControlMetrics.redesignWorkbenchPageTopPadding
                             )
                             .padding(.bottom, WorkbenchControlMetrics.redesignSpacing3)
-                    } else {
-                        SchemaWorkbenchLegacySearchCommandBar(
-                            placeholder: searchPlaceholder,
-                            searchDraft: $searchDraft,
-                            onSubmit: onSearchSubmit
-                        )
-                        .workbenchPageInlinePadding()
-                        .padding(.top, WorkbenchControlMetrics.redesignWorkbenchPageTopPadding)
-                        .padding(.bottom, 12)
-
-                        SchemaWorkbenchLegacyFilterControlBar(
-                            isFilterPanelOpen: isFilterMenuOpen,
-                            onFilter: onToggleFilterMenu
-                        )
-                        .workbenchPageInlinePadding()
-                        .padding(.bottom, 12)
                     }
 
                     ZStack(alignment: .bottom) {
@@ -605,24 +589,6 @@ struct SchemaWorkbenchSearchToolbar: View {
     }
 }
 
-struct SchemaWorkbenchLegacySearchCommandBar: View {
-    let placeholder: String
-    @Binding var searchDraft: String
-    var onSubmit: (() -> Void)?
-
-    var body: some View {
-        HStack(spacing: 12) {
-            WorkbenchSearchField(
-                placeholder: placeholder,
-                text: $searchDraft,
-                onSubmit: onSubmit
-            )
-            .frame(maxWidth: .infinity)
-        }
-        .frame(height: WorkbenchControlMetrics.searchFieldHeight)
-    }
-}
-
 /// Hosts the filter menu's SwiftUI surface in the menu hosting view, so a
 /// wheel the menu's own scrolling does not spend stops there instead of
 /// scrolling the page, and the menu's scrollbar escapes the page-wide
@@ -636,25 +602,5 @@ private struct FilterMenuSurfaceHost: NSViewRepresentable {
 
     func updateNSView(_ nsView: MenuHostingView, context _: Context) {
         nsView.rootView = AnyView(menu)
-    }
-}
-
-struct SchemaWorkbenchLegacyFilterControlBar: View {
-    var isFilterPanelOpen: Bool = false
-    var onFilter: () -> Void
-
-    var body: some View {
-        HStack(spacing: 10) {
-            WorkbenchToolbarButton(
-                title: L("table.filter"),
-                icon: .funnel,
-                showsChevron: true,
-                isMenuOpen: isFilterPanelOpen,
-                action: onFilter
-            )
-
-            Spacer(minLength: 0)
-        }
-        .frame(height: WorkbenchControlMetrics.controlHeight)
     }
 }

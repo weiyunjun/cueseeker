@@ -3,7 +3,6 @@ import SwiftUI
 enum PlaybackChromeButtonKind {
     case circle
     case transport
-    case primaryTransport
 
     var size: CGFloat {
         switch self {
@@ -11,8 +10,6 @@ enum PlaybackChromeButtonKind {
             return PlaybackChromeMetrics.circleButtonSize
         case .transport:
             return PlaybackChromeMetrics.circleButtonSize
-        case .primaryTransport:
-            return 44
         }
     }
 
@@ -22,8 +19,6 @@ enum PlaybackChromeButtonKind {
             return PlaybackChromeMetrics.circleButtonIconSize
         case .transport:
             return PlaybackChromeMetrics.circleButtonIconSize
-        case .primaryTransport:
-            return PlaybackChromeMetrics.primaryTransportIconSize
         }
     }
 }

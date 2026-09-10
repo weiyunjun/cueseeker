@@ -6,14 +6,11 @@ import CueSeekerCore
 struct SearchView: View {
     @EnvironmentObject private var appState: AppCoordinator
     @EnvironmentObject private var routeState: WorkbenchRouteState
-    @EnvironmentObject private var indexing: IndexingStore
-    @EnvironmentObject private var library: LibraryStore
     // Observed so a Shiori detail turns into the unknown page when its list
     // leaves the overview.
     @EnvironmentObject private var shioriStore: ShioriStore
     @EnvironmentObject private var playback: PlaybackStore
     @Environment(\.colorScheme) private var colorScheme
-    @State private var collapsedLibraryFolderPaths: Set<String> = []
 
     var body: some View {
         AppPerformanceProbe.measure("SearchView.body", thresholdMilliseconds: 4) {
@@ -60,12 +57,6 @@ struct SearchView: View {
                     appState.interfaceLayers.setOpen(.playbackPage, isOpen)
                 }
             }
-            .onAppear {
-                resetCollapsedLibraryFolders()
-            }
-            .onChange(of: library.libraryPresentationRevision) { _ in
-                resetCollapsedLibraryFolders()
-            }
         }
     }
 
@@ -80,8 +71,6 @@ struct SearchView: View {
 
             return Group {
                 switch routeState.panelMode {
-                case .library:
-                    workbenchSearchSurface
                 case .shiori:
                     workbenchShioriSurface
                 case .recentWatching:
@@ -94,130 +83,6 @@ struct SearchView: View {
                     workbenchSearchSurface
                 }
             }
-        }
-    }
-
-    private var libraryPanel: some View {
-        AppPerformanceProbe.measure("SearchView.libraryPanel.body", thresholdMilliseconds: 4) {
-            UIInvalidationProbe.count(
-                "UI.LibraryPanel.body",
-                scope: appState.uiProbeScope
-            )
-
-            return VStack(alignment: .leading, spacing: 6) {
-                libraryHeader
-
-                if indexing.selectedFolders.isEmpty {
-                    InfoPageStateView(state: .libraryNoLibrary)
-                    .font(.system(size: SearchTypography.bodySize))
-                } else if case .loading = library.libraryStatus, library.libraryVideos.isEmpty {
-                    InfoPageStateView(state: .libraryLoading)
-                    .font(.system(size: SearchTypography.bodySize))
-                    .overlay {
-                        ProgressView()
-                            .offset(y: 72)
-                    }
-                } else if case .failed(let message) = library.libraryStatus {
-                    InfoPageStateView(state: .libraryFailed(message))
-                    .font(.system(size: SearchTypography.bodySize))
-                } else if library.libraryVideos.isEmpty {
-                    InfoPageStateView(state: .libraryNoVideos)
-                    .font(.system(size: SearchTypography.bodySize))
-                } else {
-                    libraryList
-                }
-
-                Spacer()
-            }
-            .frame(maxHeight: .infinity, alignment: .topLeading)
-            .padding(.top, AppShellLayout.contentTopPadding)
-            .background(LiquidGlassTokens(colorScheme: colorScheme).pageBackground)
-            .background(LayoutPerformanceProbe(name: "SearchView.libraryPanel.layout"))
-            .task {
-                appState.hydrateLibraryAsync()
-            }
-        }
-    }
-
-    private var libraryHeader: some View {
-        HStack(spacing: 12) {
-            Text("Library")
-                .font(.system(size: SearchTypography.groupHeaderSize, weight: .semibold))
-                .foregroundStyle(.secondary)
-
-            Spacer()
-        }
-        .padding(.leading, 12)
-        .padding(.trailing, 28) // 12pt margin + 16pt custom-scrollbar clearance
-        .frame(height: 36)
-    }
-
-    private var libraryList: some View {
-        let rowCount = library.libraryFolderGroups.reduce(0) { $0 + $1.videos.count }
-        UIInvalidationProbe.count(
-            "UI.LibraryRows.rendered",
-            details: "groups=\(library.libraryFolderGroups.count) rows=\(rowCount)"
-        )
-
-        return GeometryReader { geo in
-            ScrollViewReader { proxy in
-                WorkbenchScrollView {
-                    // Content padding unified with the card search surface;
-                    // groups carry their own vertical rhythm so LazyVStack
-                    // spacing is 0 (P5.3 Confirmed Pixel Spec, owner decision 1).
-                    LazyVStack(alignment: .leading, spacing: 0) {
-                        ForEach(library.libraryFolderGroups) { group in
-                            let isCollapsed = collapsedLibraryFolderPaths.contains(group.folderPath)
-                            LibraryFolderGroupView(
-                                group: group,
-                                isCollapsed: isCollapsed,
-                                selectedLibraryVideoPath: library.selectedLibraryVideo?.videoPath,
-                                onToggle: {
-                                    appState.workbenchLayout.clearSearchFocus()
-                                    toggleLibraryFolderGroup(group.folderPath, proxy: proxy)
-                                },
-                                onOpenVideo: { video in
-                                    appState.workbenchLayout.clearSearchFocus()
-                                    appState.openLibraryVideo(
-                                        video.video,
-                                        displayTitle: video.displayTitle
-                                    )
-                                }
-                            )
-                        }
-                    }
-                    .padding(.horizontal, SearchCardLayout.contentHorizontalPadding)
-                    .padding(.top, SearchCardLayout.contentTopPadding)
-                    .padding(.bottom, SearchCardLayout.contentBottomPadding)
-                    .frame(width: max(0, geo.size.width), alignment: .topLeading)
-                }
-            }
-        }
-    }
-
-    private func resetCollapsedLibraryFolders() {
-        collapsedLibraryFolderPaths = Set(library.libraryFolderGroups.map(\.id))
-    }
-
-    private func toggleLibraryFolderGroup(_ folderPath: String, proxy: ScrollViewProxy) {
-        let wasCollapsed = collapsedLibraryFolderPaths.contains(folderPath)
-        UIInvalidationProbe.mark(
-            "ACTION UI.LibraryFolder.toggled",
-            details: "collapsedBefore=\(wasCollapsed)"
-        )
-        if wasCollapsed {
-            collapsedLibraryFolderPaths.remove(folderPath)
-            if let selectedVideoPath = library.selectedLibraryVideo?.videoPath,
-               let group = library.libraryFolderGroups.first(where: { $0.folderPath == folderPath }),
-               group.videos.contains(where: { $0.video.videoPath == selectedVideoPath }) {
-                DispatchQueue.main.async {
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        proxy.scrollTo(selectedVideoPath, anchor: .center)
-                    }
-                }
-            }
-        } else {
-            collapsedLibraryFolderPaths.insert(folderPath)
         }
     }
 
@@ -282,124 +147,6 @@ private extension View {
 
 
 
-enum SearchCardLayout {
-    static let contentHorizontalPadding: CGFloat = 24
-    static let contentTopPadding: CGFloat = 4
-    static let contentBottomPadding: CGFloat = 28
-    static let groupSpacing: CGFloat = 26
-    static let cardMinimumWidth: CGFloat = 280
-    static let cardHorizontalSpacing: CGFloat = 10
-    static let cardVerticalSpacing: CGFloat = 10
-    static let cardCornerRadius: CGFloat = 10
-    static let cardMinHeight: CGFloat = 92
-}
-
-struct EqualHeightCardGridLayout: Layout {
-    let minimumColumnWidth: CGFloat
-    let horizontalSpacing: CGFloat
-    let verticalSpacing: CGFloat
-
-    func sizeThatFits(
-        proposal: ProposedViewSize,
-        subviews: Subviews,
-        cache: inout ()
-    ) -> CGSize {
-        guard !subviews.isEmpty else {
-            return .zero
-        }
-
-        let availableWidth = max(0, proposal.width ?? minimumColumnWidth)
-        let columns = columnCount(for: availableWidth)
-        let columnWidth = widthPerColumn(availableWidth: availableWidth, columns: columns)
-        let rowHeights = measuredRowHeights(
-            subviews: subviews,
-            columns: columns,
-            columnWidth: columnWidth
-        )
-        let totalHeight = rowHeights.reduce(CGFloat.zero, +)
-            + verticalSpacing * CGFloat(max(0, rowHeights.count - 1))
-
-        return CGSize(width: availableWidth, height: totalHeight)
-    }
-
-    func placeSubviews(
-        in bounds: CGRect,
-        proposal: ProposedViewSize,
-        subviews: Subviews,
-        cache: inout ()
-    ) {
-        guard !subviews.isEmpty else {
-            return
-        }
-
-        let columns = columnCount(for: bounds.width)
-        let columnWidth = widthPerColumn(availableWidth: bounds.width, columns: columns)
-        let rowHeights = measuredRowHeights(
-            subviews: subviews,
-            columns: columns,
-            columnWidth: columnWidth
-        )
-
-        var y = bounds.minY
-        for rowIndex in 0..<rowHeights.count {
-            let rowHeight = rowHeights[rowIndex]
-            let rowStart = rowIndex * columns
-            let rowEnd = min(rowStart + columns, subviews.count)
-
-            for index in rowStart..<rowEnd {
-                let column = index - rowStart
-                let x = bounds.minX + CGFloat(column) * (columnWidth + horizontalSpacing)
-                subviews[index].place(
-                    at: CGPoint(x: x, y: y),
-                    anchor: .topLeading,
-                    proposal: ProposedViewSize(width: columnWidth, height: rowHeight)
-                )
-            }
-
-            y += rowHeight + verticalSpacing
-        }
-    }
-
-    private func columnCount(for availableWidth: CGFloat) -> Int {
-        guard availableWidth > 0 else {
-            return 1
-        }
-
-        return max(
-            1,
-            Int((availableWidth + horizontalSpacing) / (minimumColumnWidth + horizontalSpacing))
-        )
-    }
-
-    private func widthPerColumn(availableWidth: CGFloat, columns: Int) -> CGFloat {
-        let totalSpacing = horizontalSpacing * CGFloat(max(0, columns - 1))
-        return max(0, (availableWidth - totalSpacing) / CGFloat(max(1, columns)))
-    }
-
-    private func measuredRowHeights(
-        subviews: Subviews,
-        columns: Int,
-        columnWidth: CGFloat
-    ) -> [CGFloat] {
-        stride(from: 0, to: subviews.count, by: columns).map { rowStart in
-            let rowEnd = min(rowStart + columns, subviews.count)
-            return (rowStart..<rowEnd).reduce(CGFloat.zero) { height, index in
-                max(
-                    height,
-                    subviews[index].sizeThatFits(
-                        ProposedViewSize(width: columnWidth, height: nil)
-                    ).height
-                )
-            }
-        }
-    }
-}
-
-
-
-
-
-
 enum SearchHighlightState {
     case `default`
     case hover
@@ -410,12 +157,6 @@ enum SearchHighlightTokens {
     static let `default` = Color(red: 1.0, green: 224.0 / 255.0, blue: 102.0 / 255.0)
     static let hover = Color(red: 1.0, green: 203.0 / 255.0, blue: 31.0 / 255.0)
     static let onSelected = Color.white.opacity(0.30)
-}
-
-enum SearchTypography {
-    static let groupHeaderSize: CGFloat = 13
-    static let bodySize: CGFloat = 14
-    static let detailSize: CGFloat = 12
 }
 
 func displayTitleWithSoftWrapOpportunities(_ displayTitle: String) -> String {

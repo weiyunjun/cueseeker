@@ -66,21 +66,6 @@ enum PlaybackOverlayModule: String, CaseIterable, Equatable, Sendable {
         }
     }
 
-    var icon: AppIcon {
-        switch self {
-        case .current:
-            .clock
-        case .playlist:
-            .listBullets
-        case .search:
-            .magnifyingGlass
-        case .library:
-            .folder
-        case .shiori:
-            .bookmarkSimple
-        }
-    }
-
     var usesSharedCueShortcuts: Bool {
         switch self {
         case .current, .playlist, .shiori:

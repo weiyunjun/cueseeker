@@ -40,22 +40,6 @@
 "page.unknown.message" = "This page no longer exists.";
 
 /* Info page states */
-"info.search_no_query.title" = "No Search Query";
-"info.search_no_query.message" = "Type a query in the topbar Search field to start searching.";
-"info.searching.title" = "Searching";
-"info.searching.message" = "Looking through indexed subtitle text.";
-"info.search_failed.title" = "Search Failed";
-"info.search_no_results.title" = "No Results";
-"info.search_no_results.message" = "No indexed subtitle entries matched this query.";
-"info.library_no_library.title" = "No Library";
-"info.library_no_library.message" = "Add subtitle folders on the File page, then reindex.";
-"info.library_loading.title" = "Loading Library";
-"info.library_loading.message" = "Reading indexed videos.";
-"info.library_failed.title" = "Library Failed";
-"info.library_no_videos.title" = "No Videos";
-"info.library_no_videos.message" = "Reindex subtitle folders to populate Library videos.";
-"info.shiori_empty.title" = "No Shiori";
-"info.shiori_empty.message" = "Save subtitles from playback to collect Shiori.";
 
 /* Common */
 "common.remove" = "Remove";
@@ -145,8 +129,6 @@
 "library.mark_all_watching" = "Mark All as Watching";
 "library.episode_count.one" = "1 episode";
 "library.episode_count.other" = "%d episodes";
-"library.episode" = "Episode %d";
-"library.playing_episode" = "%1$@ · Playing %2$d";
 "library.folder_summary" = "%1$d Folders · %2$d Videos · ";
 "library.subtitle_count" = "%d Subtitles";
 "library.video_subtitle_count" = "%1$d videos %2$d subtitles";
@@ -167,8 +149,6 @@
 /* Shiori */
 "shiori.overview.summary" = "%1$d Lists · %2$d Cues";
 "shiori.cue_count" = "%d Cues";
-"shiori.count.one" = "%d shiori";
-"shiori.count.other" = "%d shioris";
 "shiori.new_list" = "New List";
 "shiori.edit_list" = "Edit List";
 "shiori.delete_list" = "Delete List";
@@ -381,7 +361,6 @@
 /* Export */
 "export.anki_package" = "Export Anki Package";
 "export.anki_default_name" = "Anki Export";
-"export.group_to_anki" = "Export group to Anki";
 "export.screenshot" = "Export Screenshot";
 "export.screenshots" = "Export Screenshots";
 "export.collage" = "Export Collage";

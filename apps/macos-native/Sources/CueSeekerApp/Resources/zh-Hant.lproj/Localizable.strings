@@ -40,22 +40,6 @@
 "page.unknown.message" = "該頁面已不存在";
 
 /* Info page states */
-"info.search_no_query.title" = "未輸入搜尋字詞";
-"info.search_no_query.message" = "在頂列搜尋欄位中輸入內容即可開始搜尋。";
-"info.searching.title" = "搜尋中";
-"info.searching.message" = "正在檢索已索引的字幕文字。";
-"info.search_failed.title" = "搜尋失敗";
-"info.search_no_results.title" = "沒有結果";
-"info.search_no_results.message" = "沒有已索引的字幕項目符合此搜尋字詞。";
-"info.library_no_library.title" = "媒體庫為空";
-"info.library_no_library.message" = "請在「檔案」頁面中加入字幕資料夾，然後重新索引。";
-"info.library_loading.title" = "正在載入媒體庫";
-"info.library_loading.message" = "正在讀取已索引的影片。";
-"info.library_failed.title" = "媒體庫載入失敗";
-"info.library_no_videos.title" = "沒有影片";
-"info.library_no_videos.message" = "重新索引字幕資料夾以填入媒體庫影片。";
-"info.shiori_empty.title" = "沒有 Shiori";
-"info.shiori_empty.message" = "在播放時儲存字幕即可收集 Shiori。";
 
 /* Common */
 "common.remove" = "移除";
@@ -145,8 +129,6 @@
 "library.mark_all_watching" = "全部標示為觀看中";
 "library.episode_count.one" = "1 集";
 "library.episode_count.other" = "%d 集";
-"library.episode" = "第 %d 集";
-"library.playing_episode" = "%1$@ · 正在播放第 %2$d 集";
 "library.folder_summary" = "%1$d 個資料夾 · %2$d 部影片 · ";
 "library.subtitle_count" = "%d 個字幕";
 "library.video_subtitle_count" = "%1$d 部影片 %2$d 個字幕";
@@ -167,8 +149,6 @@
 /* Shiori */
 "shiori.overview.summary" = "%1$d 個列表 · %2$d 條台詞";
 "shiori.cue_count" = "%d 條台詞";
-"shiori.count.one" = "%d 個 Shiori";
-"shiori.count.other" = "%d 個 Shiori";
 "shiori.new_list" = "新增列表";
 "shiori.edit_list" = "編輯列表";
 "shiori.delete_list" = "刪除列表";
@@ -381,7 +361,6 @@
 /* Export */
 "export.anki_package" = "匯出 Anki 套件";
 "export.anki_default_name" = "Anki 匯出";
-"export.group_to_anki" = "將此群組匯出至 Anki";
 "export.screenshot" = "匯出截圖";
 "export.screenshots" = "匯出截圖";
 "export.collage" = "匯出長截圖";

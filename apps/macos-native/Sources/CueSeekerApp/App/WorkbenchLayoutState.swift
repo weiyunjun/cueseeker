@@ -4,7 +4,6 @@ import CueSeekerCore
 
 @MainActor
 enum WorkbenchPanelMode: String, CaseIterable {
-    case library
     case shiori
     case recentWatching
     case testLibrary
@@ -13,8 +12,6 @@ enum WorkbenchPanelMode: String, CaseIterable {
 
     var sidebarLabel: String {
         switch self {
-        case .library:
-            return L("sidebar.library")
         case .shiori:
             return L("sidebar.shiori")
         case .recentWatching:
@@ -30,8 +27,6 @@ enum WorkbenchPanelMode: String, CaseIterable {
 
     var icon: AppIcon {
         switch self {
-        case .library:
-            return .folder
         case .shiori:
             return .bookmarkSimple
         case .recentWatching:
@@ -91,11 +86,10 @@ enum WorkbenchRoute: Equatable {
     case shiori
     case shioriList(id: Int64)
 
-    /// The first level of the section a Sidebar item opens. The retired
-    /// `library` mode lands on Search, as it did when it was migrated.
+    /// The first level of the section a Sidebar item opens.
     static func firstLevel(of mode: WorkbenchPanelMode) -> WorkbenchRoute {
         switch mode {
-        case .search, .library:
+        case .search:
             .search
         case .recentWatching:
             .recent
@@ -227,6 +221,8 @@ final class WorkbenchLayoutState: ObservableObject {
 
     init(userDefaults: UserDefaults) {
         self.userDefaults = userDefaults
+        // A mode this build no longer has, such as the retired `library`,
+        // opens on Search.
         let savedMode = WorkbenchPanelMode(
             rawValue: userDefaults.string(forKey: Self.panelModeKey) ?? ""
         ) ?? .search

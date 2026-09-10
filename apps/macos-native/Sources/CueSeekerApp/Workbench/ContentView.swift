@@ -520,7 +520,6 @@ private struct AppSidebarToggleButtonStyle: ButtonStyle {
 }
 
 enum AppShellLayout {
-    static let contentTopPadding: CGFloat = 16
     static let defaultWindowWidth: CGFloat = 1_000
     static let minimumWindowWidth: CGFloat = 480
     /// Lower bound for Workbench page content: the right region width when the

@@ -19,7 +19,7 @@ func workbenchLayoutStateDefaultsToSearchWithExpandedSidebar() {
 @Test
 func workbenchLayoutStateMigratesLegacyLibraryPanelToSearch() {
     withTemporaryWorkbenchLayoutUserDefaults { userDefaults in
-        userDefaults.set(WorkbenchPanelMode.library.rawValue, forKey: "workbenchPanelMode")
+        userDefaults.set("library", forKey: "workbenchPanelMode")
 
         let layoutState = WorkbenchLayoutState(userDefaults: userDefaults)
 
