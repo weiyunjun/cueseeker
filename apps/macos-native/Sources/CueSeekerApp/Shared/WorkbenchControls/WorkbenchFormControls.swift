@@ -190,6 +190,8 @@ private struct WorkbenchFormFieldContainer<Content: View>: View {
         VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing1) {
             WorkbenchFormLabel(text: label)
 
+            content
+
             Text(validationMessage ?? "\u{00A0}")
                 .font(.system(
                     size: WorkbenchControlMetrics.redesignFontSizeCaption,
@@ -199,8 +201,6 @@ private struct WorkbenchFormFieldContainer<Content: View>: View {
                 .lineLimit(1)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .accessibilityHidden(validationMessage == nil)
-
-            content
         }
     }
 }
