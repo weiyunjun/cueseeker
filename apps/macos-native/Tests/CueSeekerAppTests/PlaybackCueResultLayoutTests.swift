@@ -138,7 +138,7 @@ func playbackSubtitleFocusColorsResolveDocumentedLightAndDarkTokens() {
 
 @MainActor
 @Test
-func editingCollageCheckboxMatchesSearchColorsAndMonochromeRendering() throws {
+func editingCollageCheckboxMatchesSearchColorsAndFlatRendering() throws {
     for (isSelected, isEnabled, lightHex, darkHex) in [
         (true, true, "#667085", "#A1A1AA"),
         (false, true, "#D0D5DD", "#52525B"),
@@ -162,13 +162,15 @@ func editingCollageCheckboxMatchesSearchColorsAndMonochromeRendering() throws {
             isSelected: isSelected,
             isEnabled: isEnabled
         ))
-        let expectedConfiguration = NSImage.SymbolConfiguration(
-            pointSize: PlaybackCollageSelectionMetrics.checkboxSize,
-            weight: .regular
+        // The glyph arrives already filled with the colour checked above, so
+        // the drawing carries no tint of its own.
+        #expect(
+            image.size == NSSize(
+                width: PlaybackCollageSelectionMetrics.checkboxSize,
+                height: PlaybackCollageSelectionMetrics.checkboxSize
+            )
         )
-        .applying(NSImage.SymbolConfiguration(hierarchicalColor: color))
-        .applying(.preferringMonochrome())
-        #expect(image.symbolConfiguration.isEqual(expectedConfiguration))
+        #expect(image.isTemplate == false)
     }
 }
 

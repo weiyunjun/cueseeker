@@ -90,7 +90,7 @@ struct TaskPanel: View {
                 Spacer(minLength: 0)
 
                 WorkbenchIconButton(
-                    systemImage: "xmark",
+                    icon: .x,
                     isRedesign: true,
                     iconSize: WorkbenchControlMetrics.redesignDialogCloseIconSize,
                     boxSize: WorkbenchControlMetrics.redesignDialogCloseButtonSize,
@@ -221,7 +221,7 @@ private struct TaskCurrentCard: View {
                 // disk and the database agreeing, so it cannot be removed.
                 if !(entry.isRename && entry.record.state == .running) {
                     WorkbenchIconButton(
-                        systemImage: "xmark",
+                        icon: .x,
                         isRedesign: true,
                         action: onRemove
                     )
@@ -351,7 +351,7 @@ private struct TaskHistoryCard: View {
                 Spacer(minLength: 0)
 
                 WorkbenchIconButton(
-                    systemImage: "trash",
+                    icon: .trash,
                     isRedesign: true,
                     action: onDelete
                 )

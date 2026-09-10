@@ -101,7 +101,7 @@ func screenshotCopiedFeedbackUsesRequiredIconAndText() {
 
     viewModel.showScreenshotCopiedFeedback()
 
-    #expect(viewModel.feedback?.icon == .system("photo"))
+    #expect(viewModel.feedback?.icon == .image)
     #expect(viewModel.feedback?.text == "Screenshot Copied")
 }
 
@@ -111,11 +111,11 @@ func repeatAndAutoPauseFeedbackUseRequiredIconsAndText() {
     let viewModel = PlaybackViewModel(player: PlaybackPlayer())
 
     viewModel.showRepeatFeedback()
-    #expect(viewModel.feedback?.icon == .system("repeat"))
+    #expect(viewModel.feedback?.icon == .repeatIcon)
     #expect(viewModel.feedback?.text == "Repeat")
 
     viewModel.showAutoPauseFeedback()
-    #expect(viewModel.feedback?.icon == .system("pause.fill"))
+    #expect(viewModel.feedback?.icon == .pause)
     #expect(viewModel.feedback?.text == "Auto Pause")
 }
 

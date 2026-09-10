@@ -2349,11 +2349,11 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
             items: [
                 PlaybackSelectedTextMenu.Item(
                     title: L("playback.copy_selected_text"),
-                    systemImage: "doc.on.doc"
+                    icon: .copy
                 ),
                 PlaybackSelectedTextMenu.Item(
                     title: L("playback.search_selected_text"),
-                    systemImage: "magnifyingglass"
+                    icon: .magnifyingGlass
                 ),
             ],
             onActivate: { [weak self] position in
@@ -4767,7 +4767,7 @@ final class PlaybackSubtitleFocusReelPositionAnimator: NSObject {
 private struct PlaybackSelectedTextMenu: View {
     struct Item {
         let title: String
-        let systemImage: String
+        let icon: AppIcon
     }
 
     @ObservedObject var highlight: MenuHighlightModel
@@ -4781,7 +4781,7 @@ private struct PlaybackSelectedTextMenu: View {
                     WorkbenchPopoverRow(
                         title: item.title,
                         isHighlighted: highlight.highlightedPosition == position,
-                        systemImage: item.systemImage,
+                        icon: item.icon,
                         isRedesign: true,
                         showsCheckmarkSlot: false,
                         action: { onActivate(position) },

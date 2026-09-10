@@ -129,7 +129,7 @@ func subtitleTableShioriRowActionMenuAddsTransferSubmenusAndDividers() {
 @Test
 func subtitleTableUnavailableShioriActionsFollowResourceAvailability() {
     let videoMissing = SubtitleTableCueState.unavailable(.videoMissing)
-    #expect(videoMissing.systemImage == "questionmark.circle")
+    #expect(videoMissing.icon == .question)
     #expect(videoMissing.subtitleFileIsAvailable)
     #expect(videoMissing.disabledRowActions == [
         .play,
@@ -162,7 +162,7 @@ func subtitleTableChangedShioriRemainsAvailable() {
         previous: "Previous",
         current: "Current"
     )
-    #expect(state.systemImage == "clock.arrow.circlepath")
+    #expect(state.icon == .clockCounterClockwise)
     #expect(!state.isUnavailable)
     #expect(state.disabledRowActions.isEmpty)
 }
@@ -447,13 +447,13 @@ func subtitleTableRowActionMetadataUsesAcceptedLabelsAndSymbols() {
     #expect(SubtitleTableRowAction.copyTimeRange.title == "Copy Time Range")
     #expect(SubtitleTableRowAction.moveToList.title == "Move to ...")
     #expect(SubtitleTableRowAction.duplicateToList.title == "Duplicate to ...")
-    #expect(SubtitleTableRowAction.moveToList.systemImage == "arrow.right")
-    #expect(SubtitleTableRowAction.duplicateToList.systemImage == "arrow.right")
-    #expect(SubtitleTableRowAction.copyCueText.systemImage == "doc.on.doc")
-    #expect(SubtitleTableRowAction.copyDeepLink.systemImage == "link")
-    #expect(SubtitleTableRowAction.copyCueGroupText.systemImage == "doc.on.doc")
-    #expect(SubtitleTableRowAction.copyTimeRange.systemImage == "doc.on.doc")
-    #expect(SubtitleTableRowAction.removeShiori.systemImage == "bookmark.slash")
+    #expect(SubtitleTableRowAction.moveToList.icon == .arrowRight)
+    #expect(SubtitleTableRowAction.duplicateToList.icon == .arrowRight)
+    #expect(SubtitleTableRowAction.copyCueText.icon == .copy)
+    #expect(SubtitleTableRowAction.copyDeepLink.icon == .linkSimple)
+    #expect(SubtitleTableRowAction.copyCueGroupText.icon == .copy)
+    #expect(SubtitleTableRowAction.copyTimeRange.icon == .copy)
+    #expect(SubtitleTableRowAction.removeShiori.icon == .bookmarkSimple)
     #expect(SubtitleTableRowAction.removeShiori.isDestructive)
     #expect(!SubtitleTableRowAction.play.isDestructive)
     #expect(!SubtitleTableRowAction.duplicateToList.isDestructive)

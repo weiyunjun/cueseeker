@@ -13,8 +13,7 @@ struct CardGroupHeader: View {
         HStack(alignment: .firstTextBaseline, spacing: 6) {
             Button(action: onToggle) {
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 10, weight: .semibold))
+                    AppIconImage(.caretRight, size: 10)
                         .foregroundStyle(tokens.text3)
                         .rotationEffect(.degrees(isCollapsed ? 0 : 90))
                         .animation(.easeInOut(duration: 0.16), value: isCollapsed)
@@ -38,8 +37,7 @@ struct CardGroupHeader: View {
 
             if let onExportToAnki {
                 Button(action: onExportToAnki) {
-                    Image(systemName: "square.and.arrow.up")
-                        .font(.system(size: 12, weight: .semibold))
+                    AppIconImage(.export, size: 12)
                         .foregroundStyle(tokens.text3)
                         .frame(width: 24, height: 24)
                         .contentShape(Rectangle())

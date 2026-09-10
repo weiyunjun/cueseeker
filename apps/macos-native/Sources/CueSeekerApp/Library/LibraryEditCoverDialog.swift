@@ -59,7 +59,7 @@ struct LibraryEditCoverDialog: View {
         } else {
             LibraryCoverChooser(
                 title: LibraryCoverEditingCopy.chooseImageActionTitle,
-                systemImage: LibraryCoverEditingCopy.editSystemImage,
+                icon: LibraryCoverEditingCopy.editIcon,
                 isEnabled: !session.isSaving,
                 action: onChooseImage
             ) {

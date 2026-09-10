@@ -33,25 +33,30 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
         }
     }
 
-    var systemImage: String {
+    var icon: AppIcon {
         switch self {
         case .play:
-            "play.fill"
+            .play
         case .appearance:
-            "circle.lefthalf.filled"
+            .circleHalf
         case .search:
-            "magnifyingglass"
+            .magnifyingGlass
         case .language:
-            "globe"
+            .globe
         case .urlScheme:
-            "link"
+            .linkSimple
         case .decode:
-            "play.rectangle"
+            .video
         case .maintenance:
-            "externaldrive"
+            .hardDrives
         case .developer:
-            "hammer"
+            .hammer
         }
+    }
+
+    /// Play is the one category whose glyph reads as a solid mark.
+    var iconWeight: AppIconWeight? {
+        self == .play ? .fill : nil
     }
 }
 
@@ -92,15 +97,11 @@ struct SettingsView: View {
                     selectedCategory = category
                 } label: {
                     HStack(spacing: WorkbenchControlMetrics.redesignSpacing3) {
-                        Image(systemName: category.systemImage)
-                            .font(.system(
-                                size: WorkbenchControlMetrics.redesignAppSidebarItemIconSize,
-                                weight: .medium
-                            ))
-                            .frame(
-                                width: WorkbenchControlMetrics.redesignAppSidebarItemIconSize,
-                                height: WorkbenchControlMetrics.redesignAppSidebarItemIconSize
-                            )
+                        AppIconImage(
+                            category.icon,
+                            size: WorkbenchControlMetrics.redesignAppSidebarItemIconSize,
+                            weight: category.iconWeight
+                        )
                             .foregroundStyle(
                                 isSelected
                                     ? WorkbenchRedesignColors.appSidebarItemSelectedContent

@@ -79,7 +79,7 @@ struct SettingsDeveloperCategory: View {
                 Button {
                     appState.refreshSearchFTSVocabularyDiagnostics()
                 } label: {
-                    Label(L("settings.maintenance.refresh"), systemImage: "arrow.clockwise")
+                    Label { Text(L("settings.maintenance.refresh")) } icon: { AppIconImage(.arrowClockwise, size: WorkbenchControlMetrics.redesignControlIconSize) }
                 }
                 .disabled(
                     !settingsStore.searchFTSVocabularyDiagnosticsEnabled

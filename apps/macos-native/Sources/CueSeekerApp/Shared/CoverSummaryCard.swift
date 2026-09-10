@@ -267,7 +267,8 @@ struct CoverSummaryCard<Cover: View>: View {
         case .split:
             WorkbenchPrimaryButton(
                 title: actionKind.title,
-                systemImage: "play.fill",
+                icon: .play,
+                iconWeight: .fill,
                 action: action
             )
             .disabled(!isActionEnabled)
@@ -373,11 +374,11 @@ private struct CoverSummaryActionButton: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
-                Image(systemName: "play.fill")
-                    .font(.system(
-                        size: WorkbenchControlMetrics.redesignButtonIconSize,
-                        weight: WorkbenchControlMetrics.redesignButtonIconWeight
-                    ))
+                AppIconImage(
+                    .play,
+                    size: WorkbenchControlMetrics.redesignButtonIconSize,
+                    weight: .fill
+                )
                     .frame(
                         width: WorkbenchControlMetrics.redesignButtonIconSize,
                         height: WorkbenchControlMetrics.redesignButtonIconSize

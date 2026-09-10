@@ -17,8 +17,7 @@ struct ShioriListCoverView: View {
                     verticalAlignment: imageVerticalAlignment
                 )
             } else {
-                Image(systemName: "bookmark")
-                    .font(.system(size: 44, weight: .medium))
+                AppIconImage(.bookmarkSimple, size: 44)
                     .foregroundStyle(WorkbenchRedesignColors.textMuted)
                     .accessibilityHidden(true)
             }

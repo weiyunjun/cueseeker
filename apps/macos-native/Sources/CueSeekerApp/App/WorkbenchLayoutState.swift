@@ -28,22 +28,22 @@ enum WorkbenchPanelMode: String, CaseIterable {
         }
     }
 
-    var systemImage: String {
+    var icon: AppIcon {
         switch self {
         case .library:
-            return "folder"
+            return .folder
         case .shiori:
-            return "bookmark"
+            return .bookmarkSimple
         case .recentWatching:
-            return "clock"
+            return .clock
         case .testLibrary:
             // Library shows a grid of folder cards; the folder glyph belongs
             // to File, which owns the indexed root folders.
-            return "square.grid.2x2"
+            return .squaresFour
         case .file:
-            return "folder"
+            return .folder
         case .search:
-            return "magnifyingglass"
+            return .magnifyingGlass
         }
     }
 }

@@ -210,7 +210,8 @@ struct PlaybackChromeView: View {
             HStack(spacing: 0) {
                 PlaybackTimelineChromeIconButton(
                     timeline: timeline,
-                    systemName: "backward.end.fill",
+                    icon: .skipBack,
+                    iconWeight: .fill,
                     kind: .transport,
                     isDisabled: !controls.canGoPrevious,
                     hasPersistentBase: false,
@@ -220,7 +221,8 @@ struct PlaybackChromeView: View {
 
                 PlaybackTimelineChromeIconButton(
                     timeline: timeline,
-                    systemName: "forward.end.fill",
+                    icon: .skipForward,
+                    iconWeight: .fill,
                     kind: .transport,
                     isDisabled: !controls.canGoNext,
                     hasPersistentBase: false,
@@ -248,7 +250,7 @@ struct PlaybackChromeView: View {
         HStack(spacing: PlaybackChromeMetrics.rightControlsGap) {
             PlaybackTimelineChromeIconButton(
                 timeline: timeline,
-                systemName: "repeat",
+                icon: .repeatIcon,
                 kind: .transport,
                 isDisabled: !controls.canRepeatCurrentCue,
                 accessibilityLabel: L("playback.repeat"),
@@ -257,7 +259,7 @@ struct PlaybackChromeView: View {
 
             PlaybackTimelineChromeIconButton(
                 timeline: timeline,
-                systemName: "photo",
+                icon: .image,
                 kind: .transport,
                 accessibilityLabel: L("playback.copy_screenshot"),
                 action: viewModel.copyCurrentFrameScreenshot
@@ -272,9 +274,7 @@ struct PlaybackChromeView: View {
 
             PlaybackTimelineChromeIconButton(
                 timeline: timeline,
-                systemName: controls.isFullscreen
-                    ? "arrow.down.right.and.arrow.up.left"
-                    : "viewfinder",
+                icon: controls.isFullscreen ? .cornersIn : .cornersOut,
                 kind: .transport,
                 isDisabled: controls.isFullscreenToggleDisabled,
                 accessibilityLabel: L("playback.fullscreen"),
@@ -315,7 +315,8 @@ private struct PlaybackChromeTimelineResetter: View {
 
 private struct PlaybackTimelineChromeIconButton: View {
     @ObservedObject var timeline: PlaybackTimelineInteractionStore
-    let systemName: String
+    let icon: AppIcon
+    var iconWeight: AppIconWeight?
     var kind: PlaybackChromeButtonKind = .circle
     var isSelected = false
     var isDisabled = false
@@ -325,7 +326,8 @@ private struct PlaybackTimelineChromeIconButton: View {
 
     init(
         timeline: PlaybackTimelineInteractionStore,
-        systemName: String,
+        icon: AppIcon,
+        iconWeight: AppIconWeight? = nil,
         kind: PlaybackChromeButtonKind = .circle,
         isSelected: Bool = false,
         isDisabled: Bool = false,
@@ -334,7 +336,8 @@ private struct PlaybackTimelineChromeIconButton: View {
         action: @escaping () -> Void
     ) {
         self.timeline = timeline
-        self.systemName = systemName
+        self.icon = icon
+        self.iconWeight = iconWeight
         self.kind = kind
         self.isSelected = isSelected
         self.isDisabled = isDisabled
@@ -345,7 +348,8 @@ private struct PlaybackTimelineChromeIconButton: View {
 
     var body: some View {
         PlaybackChromeIconButton(
-            systemName: systemName,
+            icon: icon,
+            iconWeight: iconWeight,
             kind: kind,
             isSelected: isSelected,
             isDisabled: isDisabled,
@@ -364,7 +368,8 @@ private struct PlaybackPlayPauseChromeButton: View {
 
     var body: some View {
         PlaybackChromeIconButton(
-            systemName: viewModel.isPlaying ? "pause.fill" : "play.fill",
+            icon: viewModel.isPlaying ? .pause : .play,
+            iconWeight: .fill,
             kind: .transport,
             suppressesInteraction: timeline.isScrubbing,
             accessibilityLabel: viewModel.isPlaying ? L("playback.pause") : L("playback.play"),
@@ -379,7 +384,7 @@ private struct PlaybackSubtitleChromeButton: View {
 
     var body: some View {
         PlaybackChromeIconButton(
-            systemName: viewModel.areSubtitlesVisible ? "captions.bubble.fill" : "captions.bubble",
+            icon: .subtitles,
             kind: .circle,
             isSelected: viewModel.areSubtitlesVisible,
             suppressesInteraction: timeline.isScrubbing,

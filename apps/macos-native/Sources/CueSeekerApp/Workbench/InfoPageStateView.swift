@@ -39,15 +39,14 @@ enum InfoPageState: Equatable {
         }
     }
 
-    var systemImage: String {
+    var icon: AppIcon {
         switch self {
-        case .searchNoQuery: return "text.magnifyingglass"
-        case .searching: return "magnifyingglass"
-        case .searchFailed, .libraryFailed: return "exclamationmark.triangle"
-        case .searchNoResults: return "tray"
-        case .libraryNoLibrary, .libraryLoading: return "folder"
-        case .libraryNoVideos: return "play.rectangle"
-        case .shioriEmpty: return "bookmark"
+        case .searchNoQuery, .searching: return .magnifyingGlass
+        case .searchFailed, .libraryFailed: return .warning
+        case .searchNoResults: return .tray
+        case .libraryNoLibrary, .libraryLoading: return .folder
+        case .libraryNoVideos: return .video
+        case .shioriEmpty: return .bookmarkSimple
         }
     }
 
@@ -93,7 +92,7 @@ struct InfoPageStateView: View {
     var body: some View {
         EmptyStateView(
             title: state.title,
-            systemImage: state.systemImage,
+            icon: state.icon,
             message: state.message
         )
     }

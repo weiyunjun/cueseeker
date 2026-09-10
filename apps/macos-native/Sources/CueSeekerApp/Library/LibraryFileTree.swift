@@ -55,7 +55,7 @@ struct LibraryFileTree: View {
         LibraryFileTreeRow(
             level: 0,
             title: root.displayPath,
-            systemImage: "folder",
+            icon: .folder,
             isExpanded: isRootExpanded,
             isFile: false,
             isHoverEnabled: false,
@@ -83,7 +83,7 @@ struct LibraryFileTree: View {
         LibraryFileTreeRow(
             level: level,
             title: folder.displayPath,
-            systemImage: "folder",
+            icon: .folder,
             isExpanded: isFolderExpanded,
             isFile: false,
             isHoverEnabled: false,
@@ -110,7 +110,7 @@ struct LibraryFileTree: View {
         LibraryFileTreeRow(
             level: 0,
             title: folder.folderPath,
-            systemImage: "folder",
+            icon: .folder,
             isExpanded: isFolderExpanded,
             isFile: false,
             isHoverEnabled: true,
@@ -141,7 +141,7 @@ struct LibraryFileTree: View {
             [
                 LibraryCardContextMenuItem(
                     title: L("rename.folder"),
-                    systemImage: "pencil",
+                    icon: .pencilSimple,
                     isEnabled: actions.isEnabled
                 ) {
                     actions.renameFolder(folder)
@@ -155,7 +155,7 @@ struct LibraryFileTree: View {
             [
                 LibraryCardContextMenuItem(
                     title: L("rename.files"),
-                    systemImage: "pencil",
+                    icon: .pencilSimple,
                     isEnabled: actions.isEnabled
                 ) {
                     actions.renameFiles(object)
@@ -200,7 +200,7 @@ private struct LibraryFileTreeObjectGroup: View {
             LibraryFileTreeRow(
                 level: level,
                 title: object.displayTitle,
-                systemImage: "rectangle.stack",
+                icon: .stack,
                 isExpanded: isExpanded,
                 isFile: false,
                 isHoverEnabled: true,
@@ -216,7 +216,7 @@ private struct LibraryFileTreeObjectGroup: View {
                 LibraryFileTreeRow(
                     level: level + 1,
                     title: object.videoName,
-                    systemImage: "film",
+                    icon: .video,
                     isExpanded: nil,
                     isFile: true,
                     isHoverEnabled: true,
@@ -232,7 +232,7 @@ private struct LibraryFileTreeObjectGroup: View {
                     LibraryFileTreeRow(
                         level: level + 1,
                         title: subtitle.name,
-                        systemImage: "captions.bubble",
+                        icon: .subtitles,
                         isExpanded: nil,
                         isFile: true,
                         isHoverEnabled: true,
@@ -285,7 +285,7 @@ private extension View {
 private struct LibraryFileTreeRow: View {
     let level: Int
     let title: String
-    let systemImage: String
+    let icon: AppIcon
     let isExpanded: Bool?
     let isFile: Bool
     let isHoverEnabled: Bool
@@ -319,11 +319,7 @@ private struct LibraryFileTreeRow: View {
             Color.clear
                 .frame(width: LibraryFileTreeLayout.itemSpacing)
 
-            Image(systemName: systemImage)
-                .font(.system(
-                    size: LibraryFileTreeLayout.iconSize,
-                    weight: WorkbenchControlMetrics.redesignControlIconWeight
-                ))
+            AppIconImage(icon, size: LibraryFileTreeLayout.iconSize)
                 .foregroundStyle(WorkbenchRedesignColors.textSecondary)
                 .frame(
                     width: LibraryFileTreeLayout.iconSize,
@@ -374,11 +370,10 @@ private struct LibraryFileTreeRow: View {
     @ViewBuilder
     private var disclosureIndicator: some View {
         if let isExpanded {
-            Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
-                .font(.system(
-                    size: WorkbenchControlMetrics.redesignSelectIndicatorSymbolFontSizeMacOS,
-                    weight: WorkbenchControlMetrics.redesignSelectIndicatorWeightMacOS
-                ))
+            AppIconImage(
+                isExpanded ? .caretDown : .caretRight,
+                size: WorkbenchControlMetrics.redesignSelectIndicatorSymbolFontSizeMacOS
+            )
                 .foregroundStyle(WorkbenchRedesignColors.textMuted)
                 .accessibilityHidden(true)
         } else {

@@ -1089,7 +1089,8 @@ private struct RowActionMenu: View {
         return WorkbenchPopoverRow(
             title: action.title,
             isHighlighted: highlight.highlightedPosition == position,
-            systemImage: action.systemImage,
+            icon: action.icon,
+            iconWeight: action.iconWeight,
             isRedesign: true,
             showsCheckmarkSlot: false,
             isEnabled: isEnabled,
@@ -1102,7 +1103,7 @@ private struct RowActionMenu: View {
                     onAction(action)
                 }
             },
-            trailingSystemImage: isSubmenuParent ? "chevron.right" : nil,
+            trailingIcon: isSubmenuParent ? .caretRight : nil,
             onHoverChange: { isHovered in
                 guard !submenuState.isPointerInSafeArea else {
                     return
@@ -4010,11 +4011,11 @@ struct SubtitleTableView: NSViewRepresentable {
             ).elements
         }
 
-        func rowMenuItemsForTesting() -> [(title: String, systemImage: String)] {
+        func rowMenuItemsForTesting() -> [(title: String, icon: AppIcon)] {
             SubtitleTableRowActionMenuModel(
                 style: rowActionMenuStyle,
                 showsCueGroup: showsCueGroup
-            ).actions.map { ($0.title, $0.systemImage) }
+            ).actions.map { ($0.title, $0.icon) }
         }
 
         func performRowActionForTesting(_ action: SubtitleTableRowAction, row: Int) {
@@ -5078,21 +5079,17 @@ struct SubtitleTableView: NSViewRepresentable {
             cuesRect: CGRect,
             measurement: SubtitleTableRowMeasurement
         ) {
-            guard let systemImage = model.cueState.systemImage,
+            guard let icon = model.cueState.icon,
                   let rect = cueStateIndicatorRect(
                     model: model,
                     cuesRect: cuesRect,
                     measurement: measurement
                   ),
-                  let image = NSImage(
-                    systemSymbolName: systemImage,
-                    accessibilityDescription: nil
-                  )?
-                    .withSymbolConfiguration(
-                        NSImage.SymbolConfiguration(
-                            hierarchicalColor: WorkbenchRedesignColors.NS.textMuted
-                        )
-                    )
+                  let image = AppIconStore.tintedImage(
+                    icon,
+                    size: rect.height,
+                    color: WorkbenchRedesignColors.NS.textMuted
+                  )
             else {
                 return
             }
@@ -5113,7 +5110,7 @@ struct SubtitleTableView: NSViewRepresentable {
             cuesRect: CGRect,
             measurement: SubtitleTableRowMeasurement
         ) -> CGRect? {
-            guard model.cueState.systemImage != nil,
+            guard model.cueState.icon != nil,
                   let primary = cueTextFragments(
                     model: model,
                     in: cuesRect,
@@ -5172,7 +5169,7 @@ struct SubtitleTableView: NSViewRepresentable {
             model: SubtitleTableRow
         ) -> CGFloat {
             let indicatorReservation: CGFloat =
-                model.cueState.systemImage == nil ? 0 : 22
+                model.cueState.icon == nil ? 0 : 22
             return max(
                 1,
                 rect.width
@@ -5573,7 +5570,7 @@ struct SubtitleTableView: NSViewRepresentable {
             let measuredCuesWidth = max(
                 1,
                 effectiveCuesWidth
-                    - (model.cueState.systemImage == nil ? 0 : 22)
+                    - (model.cueState.icon == nil ? 0 : 22)
             )
             return cueTextMeasurer.rowMeasurement(
                 row: model,
@@ -6968,7 +6965,7 @@ struct SubtitleTableView: NSViewRepresentable {
             guard let container,
                   let documentView,
                   let model = rowProvider(row),
-                  model.cueState.systemImage != nil,
+                  model.cueState.icon != nil,
                   let documentRect = cueStateIndicatorRectInDocument(row: row)
             else {
                 hideCueStateTip()

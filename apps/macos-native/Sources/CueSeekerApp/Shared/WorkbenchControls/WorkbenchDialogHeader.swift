@@ -30,7 +30,7 @@ extension View {
     ) -> some View {
         overlay(alignment: .topTrailing) {
             WorkbenchIconButton(
-                systemImage: "xmark",
+                icon: .x,
                 isRedesign: true,
                 iconSize: WorkbenchControlMetrics.redesignDialogCloseIconSize,
                 boxSize: WorkbenchControlMetrics.redesignDialogCloseButtonSize,

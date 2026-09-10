@@ -2851,10 +2851,10 @@ func subtitleTableViewUnifiedRowMenuAndClipboardKeepPrimaryAndGroupSemantics() {
         "Copy Cue Group Text", "Copy Time Range", "Move to ...",
         "Duplicate to ...", "Remove Shiori",
     ])
-    #expect(onItems[2].systemImage == "doc.on.doc")
-    #expect(onItems[3].systemImage == "link")
-    #expect(onItems[4].systemImage == "doc.on.doc")
-    #expect(onItems[5].systemImage == "doc.on.doc")
+    #expect(onItems[2].icon == .copy)
+    #expect(onItems[3].icon == .linkSimple)
+    #expect(onItems[4].icon == .copy)
+    #expect(onItems[5].icon == .copy)
 
     offFixture.coordinator.copyCueTextForTesting(row: 0)
     #expect(NSPasteboard.general.string(forType: .string) == "main\nline")

@@ -113,7 +113,7 @@ struct WorkbenchFileView: View {
         HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
             WorkbenchButton(
                 title: L("settings.library.add_folder"),
-                systemImage: "folder.badge.plus",
+                icon: .folderPlus,
                 isRedesign: true
             ) {
                 chooseFolder()
@@ -122,7 +122,7 @@ struct WorkbenchFileView: View {
 
             WorkbenchButton(
                 title: L("settings.library.index_now"),
-                systemImage: "arrow.clockwise",
+                icon: .arrowClockwise,
                 isRedesign: true
             ) {
                 appState.indexAllFolders()
@@ -139,7 +139,7 @@ struct WorkbenchFileView: View {
         if indexing.selectedFolders.isEmpty {
             EmptyStateView(
                 title: L("settings.library.empty_title"),
-                systemImage: "folder",
+                icon: .folder,
                 message: L("settings.library.empty_message")
             )
             .frame(maxWidth: .infinity, alignment: .top)
@@ -184,7 +184,7 @@ struct WorkbenchFileView: View {
 
             WorkbenchDestructiveButton(
                 title: L("common.remove"),
-                systemImage: "minus.circle"
+                icon: .minusCircle
             ) {
                 requestRemoval(of: folder)
             }
@@ -271,7 +271,7 @@ struct WorkbenchFileView: View {
             if let startupError = appState.startupError {
                 statusLine(
                     startupError,
-                    systemImage: "exclamationmark.triangle",
+                    icon: .warning,
                     color: WorkbenchRedesignColors.dangerText
                 )
             }
@@ -283,7 +283,7 @@ struct WorkbenchFileView: View {
             } else if let removedFolder = indexing.removedFolderNotice {
                 statusLine(
                     L("settings.library.removed", removedFolder.lastPathComponent),
-                    systemImage: "checkmark.circle",
+                    icon: .checkCircle,
                     color: WorkbenchRedesignColors.successText
                 )
             } else {
@@ -320,7 +320,7 @@ struct WorkbenchFileView: View {
                     ) {
                         statusLine(
                             L("settings.library.index_failed", folder.lastPathComponent),
-                            systemImage: "exclamationmark.triangle",
+                            icon: .warning,
                             color: WorkbenchRedesignColors.dangerText
                         )
                         detailLine(message)
@@ -334,7 +334,7 @@ struct WorkbenchFileView: View {
             ) { _, failure in
                 statusLine(
                     failure.message,
-                    systemImage: "exclamationmark.triangle",
+                    icon: .warning,
                     color: WorkbenchRedesignColors.dangerText
                 )
             }
@@ -352,7 +352,7 @@ struct WorkbenchFileView: View {
         ) {
             statusLine(
                 title,
-                systemImage: "checkmark.circle",
+                icon: .checkCircle,
                 color: WorkbenchRedesignColors.successText
             )
 
@@ -372,15 +372,11 @@ struct WorkbenchFileView: View {
 
     private func statusLine(
         _ text: String,
-        systemImage: String,
+        icon: AppIcon,
         color: Color
     ) -> some View {
         HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
-            Image(systemName: systemImage)
-                .font(.system(
-                    size: WorkbenchControlMetrics.redesignControlIconSize,
-                    weight: WorkbenchControlMetrics.redesignControlIconWeight
-                ))
+            AppIconImage(icon, size: WorkbenchControlMetrics.redesignControlIconSize)
 
             Text(text)
                 .font(.system(

@@ -579,7 +579,7 @@ struct SchemaWorkbenchSearchToolbar: View {
             .disabled(isSelectionMode)
 
             WorkbenchIconButton(
-                systemImage: "line.3.horizontal.decrease",
+                icon: .funnel,
                 isRedesign: true,
                 isOpen: isFilterMenuOpen,
                 action: onFilter
@@ -593,7 +593,7 @@ struct SchemaWorkbenchSearchToolbar: View {
             .disabled(isSelectionMode)
 
             WorkbenchIconButton(
-                systemImage: "square.and.pencil",
+                icon: .notePencil,
                 isRedesign: true,
                 isOpen: isSelectionMode,
                 action: onToggleSelectionMode
@@ -647,7 +647,7 @@ struct SchemaWorkbenchLegacyFilterControlBar: View {
         HStack(spacing: 10) {
             WorkbenchToolbarButton(
                 title: L("table.filter"),
-                systemImage: "line.3.horizontal.decrease",
+                icon: .funnel,
                 showsChevron: true,
                 isMenuOpen: isFilterPanelOpen,
                 action: onFilter

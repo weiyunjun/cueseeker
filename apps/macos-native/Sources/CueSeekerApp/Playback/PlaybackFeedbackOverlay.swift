@@ -29,7 +29,7 @@ struct PlaybackFeedbackOverlay: View {
 
     private func capsule(_ feedback: PlaybackFeedback) -> some View {
         HStack(spacing: WorkbenchControlMetrics.redesignSpacing3) {
-            feedbackIcon(feedback.icon)
+            feedbackIcon(feedback.icon, weight: feedback.iconWeight)
             feedbackText(feedback.text)
         }
         .padding(.horizontal, WorkbenchControlMetrics.redesignSpacing4)
@@ -38,15 +38,13 @@ struct PlaybackFeedbackOverlay: View {
     }
 
     @ViewBuilder
-    private func feedbackIcon(_ icon: PlaybackFeedbackIcon?) -> some View {
+    private func feedbackIcon(_ icon: AppIcon?, weight: AppIconWeight?) -> some View {
         if let icon {
-            Image(systemName: Self.symbolName(for: icon))
-                .font(
-                    .system(
-                        size: PlaybackChromeMetrics.feedbackIconSize,
-                        weight: .semibold
-                    )
-                )
+            AppIconImage(
+                icon,
+                size: PlaybackChromeMetrics.feedbackIconSize,
+                weight: weight
+            )
                 .foregroundColor(PlaybackTheme.textPrimary)
         }
     }
@@ -69,15 +67,6 @@ struct PlaybackFeedbackOverlay: View {
                 .lineLimit(1)
                 .truncationMode(.tail)
                 .frame(maxWidth: PlaybackChromeMetrics.topbarTitleMaxWidth, alignment: .leading)
-        }
-    }
-
-    private static func symbolName(for icon: PlaybackFeedbackIcon) -> String {
-        switch icon {
-        case .system(let name):
-            name
-        case .copy:
-            "doc.on.doc"
         }
     }
 

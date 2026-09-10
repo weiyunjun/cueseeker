@@ -16,8 +16,7 @@ struct LibraryFolderHeader: View {
         let tokens = LiquidGlassTokens(colorScheme: colorScheme)
         Button(action: onToggle) {
             HStack(alignment: .top, spacing: LibraryLayout.folderHeaderGap) {
-                Image(systemName: "chevron.right")
-                    .font(.system(size: LibraryLayout.chevronGlyph, weight: .semibold))
+                AppIconImage(.caretRight, size: LibraryLayout.chevronGlyph)
                     .foregroundStyle(tokens.text3)
                     .frame(
                         width: LibraryLayout.chevronBox,

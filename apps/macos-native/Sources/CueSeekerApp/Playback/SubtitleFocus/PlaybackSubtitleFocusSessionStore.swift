@@ -66,18 +66,18 @@ enum PlaybackOverlayModule: String, CaseIterable, Equatable, Sendable {
         }
     }
 
-    var systemImage: String {
+    var icon: AppIcon {
         switch self {
         case .current:
-            "clock"
+            .clock
         case .playlist:
-            "list.bullet"
+            .listBullets
         case .search:
-            "magnifyingglass"
+            .magnifyingGlass
         case .library:
-            "folder"
+            .folder
         case .shiori:
-            "bookmark"
+            .bookmarkSimple
         }
     }
 
@@ -504,7 +504,7 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
     // Copy and Export while the preview is still rendering answer with a
     // feedback capsule carrying the triggered button's icon, never a disabled
     // button. Wired by the playback store to the playback feedback.
-    var presentCollageNotReady: ((_ systemImage: String) -> Void)?
+    var presentCollageNotReady: ((_ icon: AppIcon) -> Void)?
 
     @discardableResult
     func copyCurrentCollage() -> Bool {
@@ -512,7 +512,7 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
             return false
         }
         guard collagePreviewStore.canUseCurrentResult else {
-            presentCollageNotReady?("doc.on.doc")
+            presentCollageNotReady?(.copy)
             return true
         }
         collagePreviewStore.copyCurrentResult()
@@ -525,7 +525,7 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
             return false
         }
         guard collagePreviewStore.canUseCurrentResult else {
-            presentCollageNotReady?("square.and.arrow.up")
+            presentCollageNotReady?(.export)
             return true
         }
         collagePreviewStore.exportCurrentResult(

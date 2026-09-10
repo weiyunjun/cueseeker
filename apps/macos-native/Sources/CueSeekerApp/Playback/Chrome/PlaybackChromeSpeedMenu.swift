@@ -19,8 +19,7 @@ struct PlaybackChromeSpeedMenu: View {
                     onSelect(speed)
                 } label: {
                     HStack(spacing: PlaybackChromeMetrics.speedMenuItemContentGap) {
-                        Image(systemName: "checkmark")
-                            .font(.system(size: PlaybackChromeMetrics.speedMenuCheckFontSize, weight: .bold))
+                        AppIconImage(.check, size: PlaybackChromeMetrics.speedMenuCheckFontSize)
                             .opacity(abs(selectedSpeed - speed) < 0.01 ? 1 : 0)
                             .frame(width: PlaybackChromeMetrics.speedMenuCheckColumnWidth)
 

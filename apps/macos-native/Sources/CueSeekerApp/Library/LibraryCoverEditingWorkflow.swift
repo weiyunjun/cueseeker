@@ -6,7 +6,7 @@ import UniformTypeIdentifiers
 enum LibraryCoverEditingCopy {
     static let dialogTitle = L("cover.edit_title")
     static let chooseImageActionTitle = L("cover.choose_image")
-    static let editSystemImage = "pencil"
+    static let editIcon = AppIcon.pencilSimple
     static let hint = L("cover.support_note")
     static let cancelButtonTitle = L("common.cancel")
     static let saveButtonTitle = L("cover.save")

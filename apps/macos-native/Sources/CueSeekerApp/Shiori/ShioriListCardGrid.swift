@@ -169,12 +169,12 @@ private struct ShioriListCard: View {
         [
             LibraryCardContextMenuItem(
                 title: L("shiori.edit_list"),
-                systemImage: "square.and.pencil",
+                icon: .notePencil,
                 action: onEdit
             ),
             LibraryCardContextMenuItem(
                 title: L("shiori.delete_list"),
-                systemImage: "trash",
+                icon: .trash,
                 isEnabled: canDelete,
                 action: onDelete
             ),

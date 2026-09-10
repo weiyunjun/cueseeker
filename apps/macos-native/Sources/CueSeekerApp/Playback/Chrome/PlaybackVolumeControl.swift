@@ -13,8 +13,7 @@ struct PlaybackVolumeControl: View {
                 }
                 viewModel.toggleMute()
             } label: {
-                Image(systemName: volumeIcon)
-                    .font(.system(size: PlaybackChromeMetrics.circleButtonIconSize, weight: .semibold))
+                AppIconImage(volumeIcon, size: PlaybackChromeMetrics.circleButtonIconSize)
                     .foregroundStyle(PlaybackTheme.textPrimary)
                     .frame(
                         width: PlaybackChromeMetrics.circleButtonSize,
@@ -70,8 +69,8 @@ struct PlaybackVolumeControl: View {
         }
     }
 
-    private var volumeIcon: String {
-        viewModel.volume <= 0 ? "speaker.slash.fill" : "speaker.wave.2.fill"
+    private var volumeIcon: AppIcon {
+        viewModel.volume <= 0 ? .speakerX : .speakerHigh
     }
 }
 

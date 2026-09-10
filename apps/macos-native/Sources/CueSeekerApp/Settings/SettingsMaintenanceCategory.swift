@@ -32,11 +32,11 @@ struct SettingsMaintenanceCategory: View {
                     .padding(.vertical, 4)
 
                     if appState.isDatabaseCompactionRecommended {
-                        Label(L("settings.maintenance.compaction_recommended"), systemImage: "exclamationmark.circle")
+                        Label { Text(L("settings.maintenance.compaction_recommended")) } icon: { AppIconImage(.warningCircle, size: WorkbenchControlMetrics.redesignControlIconSize) }
                             .font(.caption)
                             .foregroundStyle(.orange)
                     } else {
-                        Label(L("settings.maintenance.within_threshold"), systemImage: "checkmark.circle")
+                        Label { Text(L("settings.maintenance.within_threshold")) } icon: { AppIconImage(.checkCircle, size: WorkbenchControlMetrics.redesignControlIconSize) }
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -51,7 +51,7 @@ struct SettingsMaintenanceCategory: View {
                 Button {
                     appState.refreshDatabaseStorageStats()
                 } label: {
-                    Label(L("settings.maintenance.refresh"), systemImage: "arrow.clockwise")
+                    Label { Text(L("settings.maintenance.refresh")) } icon: { AppIconImage(.arrowClockwise, size: WorkbenchControlMetrics.redesignControlIconSize) }
                 }
                 .disabled(
                     indexing.folderRemovalStatus.isRemoving
@@ -61,7 +61,7 @@ struct SettingsMaintenanceCategory: View {
                 Button {
                     isShowingCompactConfirmation = true
                 } label: {
-                    Label(L("settings.maintenance.compact"), systemImage: "arrow.down.doc")
+                    Label { Text(L("settings.maintenance.compact")) } icon: { AppIconImage(.fileArrowDown, size: WorkbenchControlMetrics.redesignControlIconSize) }
                 }
                 .disabled(!appState.canCompactDatabase)
             }
@@ -110,11 +110,11 @@ struct SettingsMaintenanceCategory: View {
                     .font(.subheadline)
             }
         case .completed(let message):
-            Label(message, systemImage: "checkmark.circle")
+            Label { Text(message) } icon: { AppIconImage(.checkCircle, size: WorkbenchControlMetrics.redesignControlIconSize) }
                 .font(.subheadline)
                 .foregroundStyle(.green)
         case .failed(let message):
-            Label(message, systemImage: "exclamationmark.triangle")
+            Label { Text(message) } icon: { AppIconImage(.warning, size: WorkbenchControlMetrics.redesignControlIconSize) }
                 .font(.subheadline)
                 .foregroundStyle(.red)
         }

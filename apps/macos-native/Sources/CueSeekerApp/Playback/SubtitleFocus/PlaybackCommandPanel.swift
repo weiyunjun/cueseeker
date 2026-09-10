@@ -228,7 +228,7 @@ private struct PlaybackCommandPanelRoot: View {
                     in: .whitespacesAndNewlines
                 ).isEmpty {
                     PlaybackCommandPanelRootRow(
-                        systemImage: "magnifyingglass",
+                        icon: .magnifyingGlass,
                         title: L("sidebar.search"),
                         detail: query,
                         isSelected: presentation.selectedOrdinal == 0,
@@ -240,7 +240,7 @@ private struct PlaybackCommandPanelRoot: View {
                 }
 
                 PlaybackCommandPanelRootRow(
-                    systemImage: "play.rectangle",
+                    icon: .video,
                     title: L("sidebar.recent_videos"),
                     detail: nil,
                     isSelected: presentation.selectedOrdinal
@@ -254,7 +254,7 @@ private struct PlaybackCommandPanelRoot: View {
                 }
 
                 PlaybackCommandPanelRootRow(
-                    systemImage: "bookmark",
+                    icon: .bookmarkSimple,
                     title: L("sidebar.recent_shioris"),
                     detail: nil,
                     isSelected: presentation.selectedOrdinal
@@ -299,7 +299,7 @@ private struct PlaybackCommandPanelRoot: View {
 }
 
 private struct PlaybackCommandPanelRootRow: View {
-    let systemImage: String
+    let icon: AppIcon
     let title: String
     let detail: String?
     let isSelected: Bool
@@ -317,11 +317,7 @@ private struct PlaybackCommandPanelRootRow: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: WorkbenchControlMetrics.redesignSpacing3) {
-                Image(systemName: systemImage)
-                    .font(.system(
-                        size: WorkbenchControlMetrics.redesignControlIconSize,
-                        weight: .medium
-                    ))
+                AppIconImage(icon, size: WorkbenchControlMetrics.redesignControlIconSize)
                     .frame(
                         width: WorkbenchControlMetrics.redesignControlIconSize,
                         height: WorkbenchControlMetrics.redesignControlIconSize
@@ -394,13 +390,10 @@ private struct PlaybackCommandPanelSecondaryHeader: View {
                 Button {
                     _ = onBack()
                 } label: {
-                    Image(systemName: "arrow.left")
-                        .font(.system(
-                            size: WorkbenchControlMetrics
-                                .redesignControlIconSize,
-                            weight: WorkbenchControlMetrics
-                                .redesignControlIconWeight
-                        ))
+                    AppIconImage(
+                        .arrowLeft,
+                        size: WorkbenchControlMetrics.redesignControlIconSize
+                    )
                         .foregroundStyle(WorkbenchRedesignColors.textSecondary)
                         .frame(
                             width: WorkbenchControlMetrics

@@ -21,7 +21,7 @@ private func hostCardMenu(
     let items = (1...5).map { index in
         LibraryCardContextMenuItem(
             title: "Item \(index)",
-            systemImage: "circle",
+            icon: .circle,
             action: {}
         )
     }

@@ -7,29 +7,19 @@ enum ShioriFeedbackState {
     case unavailable
 }
 
-enum PlaybackFeedbackIcon: Equatable {
-    case system(String)
-    case copy
-}
-
 struct PlaybackFeedback: Identifiable, Equatable {
     let id = UUID()
-    let icon: PlaybackFeedbackIcon?
+    let icon: AppIcon?
+    let iconWeight: AppIconWeight?
     let text: String?
 
     init(
-        systemImage: String? = nil,
-        text: String?
-    ) {
-        self.icon = systemImage.map { .system($0) }
-        self.text = text
-    }
-
-    init(
-        icon: PlaybackFeedbackIcon?,
+        icon: AppIcon? = nil,
+        iconWeight: AppIconWeight? = nil,
         text: String?
     ) {
         self.icon = icon
+        self.iconWeight = iconWeight
         self.text = text
     }
 }
@@ -374,7 +364,7 @@ public final class PlaybackViewModel: ObservableObject {
             accumulatedForwardSeconds += Int(abs(seconds))
             showFeedback(
                 PlaybackFeedback(
-                    systemImage: "chevron.right",
+                    icon: .caretRight,
                     text: "+ \(accumulatedForwardSeconds)s"
                 )
             )
@@ -383,7 +373,7 @@ public final class PlaybackViewModel: ObservableObject {
             accumulatedRewindSeconds += Int(abs(seconds))
             showFeedback(
                 PlaybackFeedback(
-                    systemImage: "chevron.left",
+                    icon: .caretLeft,
                     text: "- \(accumulatedRewindSeconds)s"
                 )
             )
@@ -508,17 +498,17 @@ public final class PlaybackViewModel: ObservableObject {
     func showSubtitleCopyFeedback(copied: Bool) {
         showFeedback(
             PlaybackFeedback(
-                icon: copied ? .copy : .system("exclamationmark.triangle"),
+                icon: copied ? .copy : .warning,
                 text: copied ? L("playback.hud.cue_text_copied") : L("playback.hud.no_subtitle")
             ),
             durationMilliseconds: 1_000
         )
     }
 
-    func showCollageNotReadyFeedback(systemImage: String) {
+    func showCollageNotReadyFeedback(icon: AppIcon) {
         showFeedback(
             PlaybackFeedback(
-                systemImage: systemImage,
+                icon: icon,
                 text: L("playback.hud.collage_not_ready")
             ),
             durationMilliseconds: 1_000
@@ -528,7 +518,7 @@ public final class PlaybackViewModel: ObservableObject {
     func showSelectedTextCopyFeedback(copied: Bool) {
         showFeedback(
             PlaybackFeedback(
-                icon: copied ? .copy : .system("exclamationmark.triangle"),
+                icon: copied ? .copy : .warning,
                 text: copied ? L("playback.hud.selected_text_copied") : L("playback.hud.copy_failed")
             ),
             durationMilliseconds: 1_000
@@ -569,7 +559,7 @@ public final class PlaybackViewModel: ObservableObject {
     func showScreenshotCopiedFeedback() {
         showFeedback(
             PlaybackFeedback(
-                systemImage: "photo",
+                icon: .image,
                 text: L("playback.hud.screenshot_copied")
             ),
             durationMilliseconds: 1_000
@@ -579,7 +569,8 @@ public final class PlaybackViewModel: ObservableObject {
     func showAutoPauseFeedback() {
         showFeedback(
             PlaybackFeedback(
-                systemImage: "pause.fill",
+                icon: .pause,
+                iconWeight: .fill,
                 text: L("playback.hud.auto_pause")
             )
         )
@@ -588,7 +579,7 @@ public final class PlaybackViewModel: ObservableObject {
     func showRepeatFeedback() {
         showFeedback(
             PlaybackFeedback(
-                systemImage: "repeat",
+                icon: .repeatIcon,
                 text: L("playback.repeat")
             )
         )
@@ -597,7 +588,7 @@ public final class PlaybackViewModel: ObservableObject {
     func showSubtitleMarkdownLinkCopyFeedback(copied: Bool) {
         showFeedback(
             PlaybackFeedback(
-                icon: copied ? .copy : .system("exclamationmark.triangle"),
+                icon: copied ? .copy : .warning,
                 text: copied ? L("playback.hud.deep_link_copied") : L("playback.hud.no_subtitle")
             ),
             durationMilliseconds: 1_000
@@ -611,7 +602,8 @@ public final class PlaybackViewModel: ObservableObject {
     func showShioriSaveFeedback(message: String) {
         showFeedback(
             PlaybackFeedback(
-                systemImage: "bookmark.fill",
+                icon: .bookmarkSimple,
+                iconWeight: .fill,
                 text: message
             ),
             durationMilliseconds: 1_000
@@ -622,12 +614,12 @@ public final class PlaybackViewModel: ObservableObject {
         let feedback: PlaybackFeedback = switch state {
         case .removed:
             PlaybackFeedback(
-                systemImage: "bookmark",
+                icon: .bookmarkSimple,
                 text: L("playback.hud.shiori_removed")
             )
         case .unavailable:
             PlaybackFeedback(
-                systemImage: "exclamationmark.triangle",
+                icon: .warning,
                 text: L("playback.hud.no_subtitle")
             )
         }
@@ -638,7 +630,8 @@ public final class PlaybackViewModel: ObservableObject {
     func showPlayPauseFeedback(isPlaying: Bool) {
         showFeedback(
             PlaybackFeedback(
-                systemImage: isPlaying ? "play.fill" : "pause.fill",
+                icon: isPlaying ? .play : .pause,
+                iconWeight: .fill,
                 text: isPlaying ? L("playback.play") : L("playback.pause")
             )
         )
@@ -650,7 +643,7 @@ public final class PlaybackViewModel: ObservableObject {
     ) {
         showFeedback(
             PlaybackFeedback(
-                systemImage: direction == .previous ? "chevron.left" : "chevron.right",
+                icon: direction == .previous ? .caretLeft : .caretRight,
                 text: hasResult
                     ? (direction == .previous ? L("playback.hud.previous_result") : L("playback.hud.next_result"))
                     : L("playback.hud.no_result")
@@ -665,7 +658,7 @@ public final class PlaybackViewModel: ObservableObject {
     ) {
         showFeedback(
             PlaybackFeedback(
-                systemImage: direction == .previous ? "chevron.left" : "chevron.right",
+                icon: direction == .previous ? .caretLeft : .caretRight,
                 text: hasResult
                     ? (direction == .previous ? L("playback.hud.previous_library_video") : L("playback.hud.next_library_video"))
                     : L("playback.hud.no_library_video")
@@ -680,7 +673,7 @@ public final class PlaybackViewModel: ObservableObject {
     ) {
         showFeedback(
             PlaybackFeedback(
-                systemImage: direction == .previous ? "chevron.left" : "chevron.right",
+                icon: direction == .previous ? .caretLeft : .caretRight,
                 text: hasResult
                     ? (direction == .previous ? L("playback.hud.previous_bookmark") : L("playback.hud.next_bookmark"))
                     : L("playback.hud.no_bookmark")
@@ -701,7 +694,7 @@ public final class PlaybackViewModel: ObservableObject {
     private func showSubtitleFeedback(isVisible: Bool) {
         showFeedback(
             PlaybackFeedback(
-                systemImage: isVisible ? "captions.bubble.fill" : "captions.bubble",
+                icon: .subtitles,
                 text: isVisible ? L("playback.hud.subtitles_on") : L("playback.hud.subtitles_off")
             ),
             durationMilliseconds: 1_000
@@ -711,25 +704,25 @@ public final class PlaybackViewModel: ObservableObject {
     private func showSpeedFeedback(_ speed: Double) {
         showFeedback(
             PlaybackFeedback(
-                systemImage: "speedometer",
+                icon: .speedometer,
                 text: Self.formatSpeed(speed)
             )
         )
     }
 
     private func showVolumeFeedback(_ volume: Double, isIncrease: Bool?) {
-        let systemImage: String
+        let icon: AppIcon
         if volume <= 0 {
-            systemImage = "speaker.slash.fill"
+            icon = .speakerX
         } else if let isIncrease {
-            systemImage = isIncrease ? "speaker.wave.3.fill" : "speaker.wave.1.fill"
+            icon = isIncrease ? .speakerHigh : .speakerLow
         } else {
-            systemImage = "speaker.wave.2.fill"
+            icon = .speakerHigh
         }
 
         showFeedback(
             PlaybackFeedback(
-                systemImage: systemImage,
+                icon: icon,
                 text: volume > 0 ? "\(Int(volume.rounded()))%" : L("playback.hud.muted")
             )
         )

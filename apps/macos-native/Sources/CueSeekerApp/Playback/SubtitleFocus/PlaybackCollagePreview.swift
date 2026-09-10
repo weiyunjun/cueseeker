@@ -49,13 +49,13 @@ struct PlaybackCollagePreviewPane: View {
             HStack(spacing: WorkbenchControlMetrics.redesignSpacing3) {
                 WorkbenchButton(
                     title: L("playback.collage.copy"),
-                    systemImage: "doc.on.doc",
+                    icon: .copy,
                     isRedesign: true,
                     action: onCopy
                 )
                 WorkbenchButton(
                     title: L("playback.collage.export"),
-                    systemImage: "square.and.arrow.up",
+                    icon: .export,
                     isRedesign: true,
                     action: onExport
                 )

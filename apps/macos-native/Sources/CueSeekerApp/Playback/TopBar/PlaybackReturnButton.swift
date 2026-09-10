@@ -14,7 +14,7 @@ struct PlaybackReturnButton: View {
 
     var body: some View {
         WorkbenchIconButton(
-            systemImage: "chevron.left",
+            icon: .caretLeft,
             isRedesign: true,
             hoverBackground: hoverBackground,
             iconColor: iconColor,

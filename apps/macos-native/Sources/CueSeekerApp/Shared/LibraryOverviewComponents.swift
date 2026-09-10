@@ -131,7 +131,7 @@ struct LibraryCoverFrame<Content: View>: View {
 
 struct LibraryCoverChooser<Content: View>: View {
     let title: String
-    let systemImage: String
+    let icon: AppIcon
     let isEnabled: Bool
     let action: () -> Void
     private let content: Content
@@ -140,13 +140,13 @@ struct LibraryCoverChooser<Content: View>: View {
 
     init(
         title: String,
-        systemImage: String,
+        icon: AppIcon,
         isEnabled: Bool,
         action: @escaping () -> Void,
         @ViewBuilder content: () -> Content
     ) {
         self.title = title
-        self.systemImage = systemImage
+        self.icon = icon
         self.isEnabled = isEnabled
         self.action = action
         self.content = content()
@@ -163,11 +163,10 @@ struct LibraryCoverChooser<Content: View>: View {
                         WorkbenchRedesignColors.libraryCoverEditOverlay
 
                         VStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
-                            Image(systemName: systemImage)
-                                .font(.system(
-                                    size: WorkbenchControlMetrics.redesignLibraryCoverEditOverlayIconSize,
-                                    weight: .regular
-                                ))
+                            AppIconImage(
+                                icon,
+                                size: WorkbenchControlMetrics.redesignLibraryCoverEditOverlayIconSize
+                            )
 
                             Text(title)
                                 .font(.system(

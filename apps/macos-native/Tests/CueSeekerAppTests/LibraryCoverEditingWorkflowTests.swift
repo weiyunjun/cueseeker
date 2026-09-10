@@ -76,7 +76,7 @@ func libraryChangeCoverOpensEditorBeforeSourceSelection() throws {
 func libraryCoverEditingUsesAcceptedCopyAndContentTypes() {
     #expect(LibraryCoverEditingCopy.dialogTitle == "Edit Cover")
     #expect(LibraryCoverEditingCopy.chooseImageActionTitle == "Choose Image")
-    #expect(LibraryCoverEditingCopy.editSystemImage == "pencil")
+    #expect(LibraryCoverEditingCopy.editIcon == .pencilSimple)
     #expect(
         LibraryCoverEditingCopy.hint
             == "Support: JPG, JPEG, PNG, and GIF no more than 20 MB."
@@ -85,7 +85,7 @@ func libraryCoverEditingUsesAcceptedCopyAndContentTypes() {
     #expect(LibraryCoverEditingCopy.saveButtonTitle == "Save")
     #expect(Set(LibraryCoverOpenPanelPolicy.allowedContentTypes) == [.jpeg, .png, .gif])
     #expect(LibraryCoverContextMenuItem.title == "Change Cover")
-    #expect(LibraryCoverContextMenuItem.systemImage == "square.and.arrow.up")
+    #expect(LibraryCoverContextMenuItem.icon == .export)
 }
 
 @Test

@@ -16,7 +16,7 @@ struct CueFacetOption: Identifiable {
 enum CueFacetFilterMenuElement {
     case title(String)
     case divider
-    case sectionHeader(title: String, systemImage: String)
+    case sectionHeader(title: String, icon: AppIcon)
     case option(CueFacetOption)
 }
 
@@ -39,7 +39,7 @@ struct CueFacetFilterMenuModel {
         Self.appendSection(
             to: &elements,
             title: L("facet.duration"),
-            systemImage: "clock",
+            icon: .clock,
             options: CueDurationFacet.allCases.map { facet in
                 CueFacetOption(
                     id: facet.rawValue,
@@ -53,7 +53,7 @@ struct CueFacetFilterMenuModel {
         Self.appendSection(
             to: &elements,
             title: L("facet.character"),
-            systemImage: "textformat",
+            icon: .textAa,
             options: CueCharacterFacet.allCases.map { facet in
                 CueFacetOption(
                     id: facet.rawValue,
@@ -67,7 +67,7 @@ struct CueFacetFilterMenuModel {
         Self.appendSection(
             to: &elements,
             title: L("facet.language"),
-            systemImage: "globe",
+            icon: .globe,
             options: availableLanguages.map { language in
                 CueFacetOption(
                     id: language.rawValue,
@@ -81,7 +81,7 @@ struct CueFacetFilterMenuModel {
         Self.appendSection(
             to: &elements,
             title: L("facet.watch_status"),
-            systemImage: "eye",
+            icon: .eye,
             options: LibraryWatchState.facetCases.map { state in
                 CueFacetOption(
                     id: state.rawValue,
@@ -108,9 +108,9 @@ struct CueFacetFilterMenuModel {
                 hasher.combine(title)
             case .divider:
                 hasher.combine(0)
-            case .sectionHeader(let title, let systemImage):
+            case .sectionHeader(let title, let icon):
                 hasher.combine(title)
-                hasher.combine(systemImage)
+                hasher.combine(icon)
             case .option(let option):
                 hasher.combine(option.title)
                 hasher.combine(option.count)
@@ -131,11 +131,11 @@ struct CueFacetFilterMenuModel {
     private static func appendSection(
         to elements: inout [CueFacetFilterMenuElement],
         title: String,
-        systemImage: String,
+        icon: AppIcon,
         options: [CueFacetOption]
     ) {
         elements.append(.divider)
-        elements.append(.sectionHeader(title: title, systemImage: systemImage))
+        elements.append(.sectionHeader(title: title, icon: icon))
         elements.append(contentsOf: options.map { .option($0) })
     }
 
@@ -203,13 +203,9 @@ struct CueFacetFilterMenu: View {
         case .divider:
             WorkbenchMenuDivider()
 
-        case .sectionHeader(let title, let systemImage):
+        case .sectionHeader(let title, let icon):
             HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
-                Image(systemName: systemImage)
-                    .font(.system(
-                        size: WorkbenchControlMetrics.redesignCheckboxSize,
-                        weight: .medium
-                    ))
+                AppIconImage(icon, size: WorkbenchControlMetrics.redesignCheckboxSize)
                     .foregroundStyle(WorkbenchRedesignColors.textSecondary)
                     .frame(
                         width: WorkbenchControlMetrics.redesignCheckboxSize,

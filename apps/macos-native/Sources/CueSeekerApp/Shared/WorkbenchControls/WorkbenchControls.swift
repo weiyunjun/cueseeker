@@ -457,8 +457,7 @@ struct WorkbenchInlineClearButton: View {
 
     var body: some View {
         Button(action: action) {
-            Image(systemName: "xmark")
-                .font(.system(size: WorkbenchControlMetrics.inlineClearSymbolFontSizeMacOS, weight: WorkbenchControlMetrics.redesignControlIconWeight)) // --size-inline-clear-symbol-font-size-macos: 11pt
+            AppIconImage(.x, size: WorkbenchControlMetrics.inlineClearSymbolFontSizeMacOS) // --size-inline-clear-symbol-font-size-macos: 11pt
                 .frame(width: WorkbenchControlMetrics.inlineClearIconSize, height: WorkbenchControlMetrics.inlineClearIconSize) // --size-inline-clear-icon: 16px
                 .foregroundStyle(isEnabled ? WorkbenchRedesignColors.textSecondary : WorkbenchRedesignColors.textDisabled)
                 .frame(width: WorkbenchControlMetrics.redesignInlineClearButtonSize, height: WorkbenchControlMetrics.redesignInlineClearButtonSize)
@@ -525,8 +524,7 @@ struct WorkbenchSearchField: View {
 
     var body: some View {
         HStack(spacing: isRedesign ? WorkbenchControlMetrics.redesignSpacing2 : 12) {
-            Image(systemName: "magnifyingglass")
-                .font(.system(size: isRedesign ? WorkbenchControlMetrics.redesignControlIconSize : 18, weight: isRedesign ? WorkbenchControlMetrics.redesignControlIconWeight : .regular))
+            AppIconImage(.magnifyingGlass, size: isRedesign ? WorkbenchControlMetrics.redesignControlIconSize : 18)
                 .foregroundStyle(isRedesign ? (isEnabled ? WorkbenchRedesignColors.textSecondary : WorkbenchRedesignColors.textDisabled) : WorkbenchControlColors.mutedText)
 
             WorkbenchSingleLineTextInput(
@@ -614,7 +612,7 @@ struct WorkbenchSearchField: View {
 
 struct WorkbenchToolbarButton: View {
     let title: String
-    let systemImage: String
+    let icon: AppIcon
     var showsChevron = false
     var isRedesign: Bool = false
     var isMenuOpen: Bool = false
@@ -640,9 +638,7 @@ struct WorkbenchToolbarButton: View {
 
     private var label: some View {
         HStack(spacing: isRedesign ? 8 : 10) {
-            Image(systemName: systemImage)
-                .font(.system(size: isRedesign ? WorkbenchControlMetrics.redesignControlIconSize : WorkbenchControlMetrics.iconSize, weight: isRedesign ? .semibold : .medium))
-                .frame(width: isRedesign ? WorkbenchControlMetrics.redesignControlIconSize : nil, height: isRedesign ? WorkbenchControlMetrics.redesignControlIconSize : nil) // --size-control-icon
+            AppIconImage(icon, size: isRedesign ? WorkbenchControlMetrics.redesignControlIconSize : WorkbenchControlMetrics.iconSize) // --size-control-icon
                 .foregroundStyle(isRedesign ? (isEnabled ? WorkbenchRedesignColors.textSecondary : WorkbenchRedesignColors.textDisabled) : WorkbenchControlColors.primaryText)
 
             Text(title)
@@ -653,14 +649,12 @@ struct WorkbenchToolbarButton: View {
 
             if showsChevron {
                 if isRedesign {
-                    Image(systemName: "chevron.up.chevron.down")
-                        .font(.system(size: WorkbenchControlMetrics.redesignSelectIndicatorSymbolFontSizeMacOS, weight: WorkbenchControlMetrics.redesignSelectIndicatorWeightMacOS))
+                    AppIconImage(.caretUpDown, size: WorkbenchControlMetrics.redesignSelectIndicatorSymbolFontSizeMacOS)
                         .frame(width: WorkbenchControlMetrics.redesignControlIconSize, height: WorkbenchControlMetrics.redesignControlIconSize) // --size-control-icon
                         .foregroundStyle(isEnabled ? WorkbenchRedesignColors.textSecondary : WorkbenchRedesignColors.textDisabled)
                 } else {
                     Spacer(minLength: 0)
-                    Image(systemName: "chevron.down")
-                        .font(.system(size: 11, weight: .semibold))
+                    AppIconImage(.caretDown, size: 11)
                         .foregroundStyle(WorkbenchControlColors.mutedText)
                 }
             }
@@ -702,7 +696,7 @@ struct WorkbenchToolbarButton: View {
 
 struct WorkbenchButton: View {
     let title: String
-    var systemImage: String? = nil
+    var icon: AppIcon? = nil
     var isRedesign: Bool = false
     var action: () -> Void
 
@@ -713,10 +707,8 @@ struct WorkbenchButton: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: isRedesign ? WorkbenchControlMetrics.redesignSpacing2 : 8) {
-                if let systemImage {
-                    Image(systemName: systemImage)
-                        .font(.system(size: isRedesign ? WorkbenchControlMetrics.redesignButtonIconSize : WorkbenchControlMetrics.iconSize, weight: isRedesign ? WorkbenchControlMetrics.redesignButtonIconWeight : .regular))
-                        .frame(width: isRedesign ? WorkbenchControlMetrics.redesignButtonIconSize : nil, height: isRedesign ? WorkbenchControlMetrics.redesignButtonIconSize : nil)
+                if let icon {
+                    AppIconImage(icon, size: isRedesign ? WorkbenchControlMetrics.redesignButtonIconSize : WorkbenchControlMetrics.iconSize)
                         .foregroundStyle(isRedesign ? (isEnabled ? WorkbenchRedesignColors.textSecondary : WorkbenchRedesignColors.textDisabled) : WorkbenchControlColors.primaryText)
                 }
 
@@ -768,7 +760,8 @@ struct WorkbenchButton: View {
 
 struct WorkbenchPrimaryButton: View {
     let title: String
-    var systemImage: String? = nil
+    var icon: AppIcon? = nil
+    var iconWeight: AppIconWeight? = nil
     var action: () -> Void
 
     @FocusState private var isFocused: Bool
@@ -778,16 +771,12 @@ struct WorkbenchPrimaryButton: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
-                if let systemImage {
-                    Image(systemName: systemImage)
-                        .font(.system(
-                            size: WorkbenchControlMetrics.redesignButtonIconSize,
-                            weight: WorkbenchControlMetrics.redesignButtonIconWeight
-                        ))
-                        .frame(
-                            width: WorkbenchControlMetrics.redesignButtonIconSize,
-                            height: WorkbenchControlMetrics.redesignButtonIconSize
-                        )
+                if let icon {
+                    AppIconImage(
+                        icon,
+                        size: WorkbenchControlMetrics.redesignButtonIconSize,
+                        weight: iconWeight
+                    )
                 }
 
                 Text(title)
@@ -847,7 +836,7 @@ struct WorkbenchPrimaryButton: View {
 
 struct WorkbenchDestructiveButton: View {
     let title: String
-    var systemImage: String? = nil
+    var icon: AppIcon? = nil
     var action: () -> Void
 
     @FocusState private var isFocused: Bool
@@ -857,10 +846,8 @@ struct WorkbenchDestructiveButton: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
-                if let systemImage {
-                    Image(systemName: systemImage)
-                        .font(.system(size: WorkbenchControlMetrics.redesignButtonIconSize, weight: WorkbenchControlMetrics.redesignButtonIconWeight))
-                        .frame(width: WorkbenchControlMetrics.redesignButtonIconSize, height: WorkbenchControlMetrics.redesignButtonIconSize)
+                if let icon {
+                    AppIconImage(icon, size: WorkbenchControlMetrics.redesignButtonIconSize)
                         .foregroundStyle(isEnabled ? WorkbenchRedesignColors.dangerText : WorkbenchRedesignColors.textDisabled)
                 }
 
@@ -914,7 +901,7 @@ struct WorkbenchDestructiveButton: View {
 
 struct WorkbenchPlainActionButton: View {
     let title: String
-    let systemImage: String
+    let icon: AppIcon
     var isRedesign: Bool = false
     var action: () -> Void
 
@@ -925,8 +912,7 @@ struct WorkbenchPlainActionButton: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: isRedesign ? WorkbenchControlMetrics.redesignSpacing2 : 10) {
-                Image(systemName: systemImage)
-                    .font(.system(size: isRedesign ? WorkbenchControlMetrics.redesignInlineAddSymbolFontSizeMacOS : WorkbenchControlMetrics.iconSize, weight: isRedesign ? (systemImage == "plus" ? .medium : .semibold) : .regular))
+                AppIconImage(icon, size: isRedesign ? WorkbenchControlMetrics.redesignInlineAddSymbolFontSizeMacOS : WorkbenchControlMetrics.iconSize)
                     .frame(width: isRedesign ? WorkbenchControlMetrics.redesignControlIconSize : nil, height: isRedesign ? WorkbenchControlMetrics.redesignControlIconSize : nil)
                     .foregroundStyle(isRedesign ? (isEnabled ? WorkbenchRedesignColors.textPrimary : WorkbenchRedesignColors.textDisabled) : WorkbenchControlColors.primaryText)
 
@@ -988,13 +974,14 @@ struct WorkbenchPopoverRow: View {
     let title: String
     var isSelected = false
     var isHighlighted = false
-    var systemImage: String?
+    var icon: AppIcon?
+    var iconWeight: AppIconWeight?
     var isRedesign: Bool = false
     var showsCheckmarkSlot = true
     var isEnabled = true
     var isDestructive = false
     var action: (() -> Void)? = nil
-    var trailingSystemImage: String?
+    var trailingIcon: AppIcon?
     var onHoverChange: ((Bool) -> Void)?
     @State private var isHovered = false
 
@@ -1016,8 +1003,7 @@ struct WorkbenchPopoverRow: View {
             if showsCheckmarkSlot {
                 if isRedesign {
                     if isSelected {
-                        Image(systemName: "checkmark")
-                            .font(.system(size: WorkbenchControlMetrics.redesignMenuItemSymbolFontSizeMacOS, weight: .semibold))
+                        AppIconImage(.check, size: WorkbenchControlMetrics.redesignMenuItemSymbolFontSizeMacOS)
                             .frame(width: WorkbenchControlMetrics.redesignControlIconSize, height: WorkbenchControlMetrics.redesignControlIconSize)
                             .foregroundStyle(iconColor)
                     } else {
@@ -1026,8 +1012,7 @@ struct WorkbenchPopoverRow: View {
                     }
                 } else {
                     if isSelected {
-                        Image(systemName: "checkmark")
-                            .font(.system(size: 13, weight: .semibold))
+                        AppIconImage(.check, size: 13)
                     } else {
                         Color.clear
                             .frame(width: 13, height: 13)
@@ -1035,9 +1020,12 @@ struct WorkbenchPopoverRow: View {
                 }
             }
 
-            if let systemImage {
-                Image(systemName: systemImage)
-                    .font(.system(size: isRedesign ? WorkbenchControlMetrics.redesignMenuItemSymbolFontSizeMacOS : 14, weight: isRedesign ? .medium : .medium))
+            if let icon {
+                AppIconImage(
+                    icon,
+                    size: isRedesign ? WorkbenchControlMetrics.redesignMenuItemSymbolFontSizeMacOS : 14,
+                    weight: iconWeight
+                )
                     .foregroundStyle(isRedesign ? iconColor : (isEnabled ? WorkbenchControlColors.primaryText : WorkbenchControlColors.mutedText))
                     .frame(width: isRedesign ? WorkbenchControlMetrics.redesignControlIconSize : nil, height: isRedesign ? WorkbenchControlMetrics.redesignControlIconSize : nil)
             }
@@ -1050,14 +1038,13 @@ struct WorkbenchPopoverRow: View {
 
             Spacer(minLength: 0)
 
-            if let trailingSystemImage {
-                Image(systemName: trailingSystemImage)
-                    .font(.system(
-                        size: isRedesign
-                            ? WorkbenchControlMetrics.redesignMenuItemSymbolFontSizeMacOS
-                            : 14,
-                        weight: .medium
-                    ))
+            if let trailingIcon {
+                AppIconImage(
+                    trailingIcon,
+                    size: isRedesign
+                        ? WorkbenchControlMetrics.redesignMenuItemSymbolFontSizeMacOS
+                        : 14
+                )
                     .foregroundStyle(
                         isRedesign
                             ? iconColor
@@ -1103,7 +1090,7 @@ struct WorkbenchPopoverRow: View {
     /// A trailing icon sits closer to the edge than trailing text does, so the
     /// two sides of the row read as equally spaced.
     private var redesignTrailingPadding: CGFloat {
-        trailingSystemImage == nil
+        trailingIcon == nil
             ? WorkbenchControlMetrics.redesignMenuItemHorizontalPadding
             : WorkbenchControlMetrics.redesignMenuItemTrailingIconPadding
     }
@@ -1135,7 +1122,7 @@ struct WorkbenchPopoverRow: View {
 }
 
 struct WorkbenchIconButton: View {
-    let systemImage: String
+    let icon: AppIcon
     var isRedesign: Bool = false
     /// The button stays lit for as long as the menu or panel it hangs off is
     /// open, and for as long as the mode it switches on is on.
@@ -1184,8 +1171,7 @@ struct WorkbenchIconButton: View {
     }
 
     private var label: some View {
-        Image(systemName: systemImage)
-            .font(.system(size: isRedesign ? (iconSize ?? WorkbenchControlMetrics.redesignControlIconSize) : WorkbenchControlMetrics.iconSize, weight: isRedesign ? WorkbenchControlMetrics.redesignControlIconWeight : .medium))
+        AppIconImage(icon, size: isRedesign ? (iconSize ?? WorkbenchControlMetrics.redesignControlIconSize) : WorkbenchControlMetrics.iconSize)
             .foregroundStyle(isRedesign ? redesignIconColor : WorkbenchControlColors.primaryText)
             .frame(
                 width: isRedesign ? (boxSize ?? WorkbenchControlMetrics.redesignIconButtonSize) : WorkbenchControlMetrics.controlHeight,

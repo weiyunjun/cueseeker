@@ -35,25 +35,30 @@ enum SubtitleTableRowAction: Hashable, Sendable {
         }
     }
 
-    var systemImage: String {
+    var icon: AppIcon {
         switch self {
         case .play:
-            return "play.fill"
+            return .play
         case .openSubtitleFolder:
-            return "folder"
+            return .folder
         case .saveToShiori:
-            return "arrow.right"
+            return .arrowRight
         case .copyCueText, .copyCueGroupText, .copyTimeRange:
-            return "doc.on.doc"
+            return .copy
         case .copyDeepLink:
-            return "link"
+            return .linkSimple
         case .moveToList:
-            return "arrow.right"
+            return .arrowRight
         case .duplicateToList:
-            return "arrow.right"
+            return .arrowRight
         case .removeShiori:
-            return "bookmark.slash"
+            return .bookmarkSimple
         }
+    }
+
+    /// Play is the one row action whose glyph reads as a solid mark.
+    var iconWeight: AppIconWeight? {
+        self == .play ? .fill : nil
     }
 
     var opensDestinationSubmenu: Bool {

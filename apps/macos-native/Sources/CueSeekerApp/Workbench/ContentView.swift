@@ -253,7 +253,7 @@ private struct AppTopBar: View {
 
     private var backButton: some View {
         WorkbenchIconButton(
-            systemImage: "chevron.left",
+            icon: .caretLeft,
             isRedesign: true,
             isFrozen: layoutState.isVideoSizeTransitionInProgress
         ) {
@@ -290,7 +290,7 @@ private struct AppTopBar: View {
 
     private var forwardButton: some View {
         WorkbenchIconButton(
-            systemImage: "chevron.right",
+            icon: .caretRight,
             isRedesign: true,
             isFrozen: layoutState.isVideoSizeTransitionInProgress
         ) {
@@ -310,8 +310,7 @@ private struct AppTopBar: View {
                 appState.toggleWorkbenchSidebarVisibilityFromUser()
             }
         } label: {
-            Image(systemName: "sidebar.left")
-                .font(.system(size: WorkbenchControlMetrics.redesignControlIconSize, weight: WorkbenchControlMetrics.redesignControlIconWeight))
+            AppIconImage(.sidebarSimple, size: WorkbenchControlMetrics.redesignControlIconSize)
                 .frame(
                     width: AppShellLayout.sidebarToggleSize,
                     height: AppShellLayout.sidebarToggleSize
@@ -447,7 +446,7 @@ private struct AppSidebarNavigationItem: View {
     var body: some View {
         Button(action: onSelect) {
             AppSidebarItemLabel(
-                systemImage: mode.systemImage,
+                icon: mode.icon,
                 label: mode.sidebarLabel,
                 isSelected: isSelected
             )
@@ -473,18 +472,13 @@ private struct AppSidebarNavigationItem: View {
 }
 
 private struct AppSidebarItemLabel: View {
-    let systemImage: String
+    let icon: AppIcon
     let label: String
     let isSelected: Bool
 
     var body: some View {
         HStack(spacing: WorkbenchControlMetrics.redesignSpacing3) {
-            Image(systemName: systemImage)
-                .font(.system(size: WorkbenchControlMetrics.redesignAppSidebarItemIconSize, weight: .medium))
-                .frame(
-                    width: WorkbenchControlMetrics.redesignAppSidebarItemIconSize,
-                    height: WorkbenchControlMetrics.redesignAppSidebarItemIconSize
-                )
+            AppIconImage(icon, size: WorkbenchControlMetrics.redesignAppSidebarItemIconSize)
                 .foregroundStyle(iconColor)
 
             Text(label)

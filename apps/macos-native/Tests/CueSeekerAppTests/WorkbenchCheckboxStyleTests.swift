@@ -3,10 +3,15 @@ import Testing
 @testable import CueSeekerApp
 
 @Test
-func checkboxVariantsShareSystemSymbolsAndKeepDocumentedSizes() {
-    #expect(WorkbenchCheckboxStyle.systemImageName(for: .unchecked) == "circle")
-    #expect(WorkbenchCheckboxStyle.systemImageName(for: .checked) == "checkmark.circle.fill")
-    #expect(WorkbenchCheckboxStyle.systemImageName(for: .indeterminate) == "minus.circle.fill")
+func checkboxVariantsShareOneGlyphFamilyAndKeepDocumentedSizes() {
+    #expect(WorkbenchCheckboxStyle.icon(for: .unchecked) == .circle)
+    #expect(WorkbenchCheckboxStyle.icon(for: .checked) == .checkCircle)
+    #expect(WorkbenchCheckboxStyle.icon(for: .indeterminate) == .minusCircle)
+
+    // A ticked box reads as a solid mark; the empty box follows the size tier.
+    #expect(WorkbenchCheckboxStyle.iconWeight(for: .unchecked, size: 16) == .light)
+    #expect(WorkbenchCheckboxStyle.iconWeight(for: .checked, size: 16) == .fill)
+    #expect(WorkbenchCheckboxStyle.iconWeight(for: .indeterminate, size: 16) == .fill)
 
     #expect(WorkbenchControlMetrics.redesignCheckboxSize == 16)
     #expect(SubtitleTableMetrics.checkboxSize == 16)
@@ -15,7 +20,7 @@ func checkboxVariantsShareSystemSymbolsAndKeepDocumentedSizes() {
 
 @MainActor
 @Test
-func indeterminateCheckboxUsesSharedMonochromeSystemSymbol() throws {
+func indeterminateCheckboxDrawsOneFlatColourAtTheDocumentedSize() throws {
     let size = SubtitleTableMetrics.checkboxSize
     let color = WorkbenchCheckboxStyle.controlColor(
         for: .indeterminate,
@@ -26,14 +31,11 @@ func indeterminateCheckboxUsesSharedMonochromeSystemSymbol() throws {
         isEnabled: true,
         size: size
     ))
-    let expectedConfiguration = NSImage.SymbolConfiguration(
-        pointSize: size,
-        weight: .regular
-    )
-    .applying(NSImage.SymbolConfiguration(hierarchicalColor: color))
-    .applying(.preferringMonochrome())
-
-    #expect(image.symbolConfiguration.isEqual(expectedConfiguration))
+    // The glyph arrives already filled with the one control colour, so the
+    // drawing carries no tint of its own and matches the documented size.
+    #expect(image.size == NSSize(width: size, height: size))
+    #expect(image.isTemplate == false)
+    #expect(color == WorkbenchCheckboxStyle.controlColor(for: .indeterminate, isEnabled: true))
 }
 
 @MainActor

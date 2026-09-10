@@ -8,14 +8,28 @@ enum WorkbenchCheckboxState: Equatable {
 }
 
 enum WorkbenchCheckboxStyle {
-    static func systemImageName(for state: WorkbenchCheckboxState) -> String {
+    static func icon(for state: WorkbenchCheckboxState) -> AppIcon {
         switch state {
         case .unchecked:
-            return "circle"
+            return .circle
         case .checked:
-            return "checkmark.circle.fill"
+            return .checkCircle
         case .indeterminate:
-            return "minus.circle.fill"
+            return .minusCircle
+        }
+    }
+
+    /// A ticked box reads as a solid mark, so both marked states draw the
+    /// filled cut; the empty box follows the ordinary stroke tier.
+    static func iconWeight(
+        for state: WorkbenchCheckboxState,
+        size: CGFloat
+    ) -> AppIconWeight {
+        switch state {
+        case .unchecked:
+            return .tier(forSize: size)
+        case .checked, .indeterminate:
+            return .fill
         }
     }
 
@@ -40,17 +54,12 @@ enum WorkbenchCheckboxStyle {
         isEnabled: Bool,
         size: CGFloat
     ) -> NSImage? {
-        let color = controlColor(for: state, isEnabled: isEnabled)
-        let configuration = NSImage.SymbolConfiguration(
-            pointSize: size,
-            weight: .regular
+        AppIconStore.tintedImage(
+            icon(for: state),
+            size: size,
+            color: controlColor(for: state, isEnabled: isEnabled),
+            weight: iconWeight(for: state, size: size)
         )
-        .applying(NSImage.SymbolConfiguration(hierarchicalColor: color))
-        .applying(.preferringMonochrome())
-        return NSImage(
-            systemSymbolName: systemImageName(for: state),
-            accessibilityDescription: nil
-        )?.withSymbolConfiguration(configuration)
     }
 
     static func appKitDrawingRect(
@@ -90,8 +99,11 @@ struct WorkbenchCheckboxGlyph: View {
     let size: CGFloat
 
     var body: some View {
-        Image(systemName: WorkbenchCheckboxStyle.systemImageName(for: state))
-            .font(.system(size: size))
+        AppIconImage(
+            WorkbenchCheckboxStyle.icon(for: state),
+            size: size,
+            weight: WorkbenchCheckboxStyle.iconWeight(for: state, size: size)
+        )
             .foregroundStyle(Color(nsColor: WorkbenchCheckboxStyle.controlColor(
                 for: state,
                 isEnabled: isEnabled

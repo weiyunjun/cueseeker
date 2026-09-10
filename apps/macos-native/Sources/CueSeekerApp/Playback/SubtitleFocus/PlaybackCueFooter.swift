@@ -52,9 +52,9 @@ enum PlaybackCueFooterSurface: Equatable {
 
 enum PlaybackCueFooterKeycap: Equatable {
     case text(String)
-    case systemImage(String)
+    case icon(AppIcon)
 
-    static let returnKey = Self.systemImage("return")
+    static let returnKey = Self.icon(.arrowElbowDownLeft)
 }
 
 /// One footer action: what it says, which key does the same thing, and the
@@ -562,8 +562,8 @@ private struct PlaybackCueFooterKeycapView: View {
         switch keycap {
         case .text(let text):
             Text(text)
-        case .systemImage(let systemName):
-            Image(systemName: systemName)
+        case .icon(let icon):
+            AppIconImage(icon, size: WorkbenchControlMetrics.redesignFontSizeCaption)
         }
     }
 }

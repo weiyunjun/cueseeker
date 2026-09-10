@@ -831,12 +831,12 @@ private struct LibraryVideoCard: View {
 
     private var contextMenuItems: [LibraryCardContextMenuItem] {
         [
-            LibraryCardContextMenuItem(title: L("library.open_folder"), systemImage: "folder") {
+            LibraryCardContextMenuItem(title: L("library.open_folder"), icon: .folder) {
                 actions.revealFile(content.videoPath)
             },
             LibraryCardContextMenuItem(
                 title: LibraryCoverContextMenuItem.title,
-                systemImage: LibraryCoverContextMenuItem.systemImage
+                icon: LibraryCoverContextMenuItem.icon
             ) {
                 actions.changeCover(
                     .video(path: content.videoPath),
@@ -844,13 +844,13 @@ private struct LibraryVideoCard: View {
                     content.coverRevision
                 )
             },
-            LibraryCardContextMenuItem(title: L("library.mark_finished"), systemImage: "checkmark.circle") {
+            LibraryCardContextMenuItem(title: L("library.mark_finished"), icon: .checkCircle) {
                 actions.markVideo(content.libraryVideo, .finished)
             },
-            LibraryCardContextMenuItem(title: L("library.mark_unwatched"), systemImage: "circle") {
+            LibraryCardContextMenuItem(title: L("library.mark_unwatched"), icon: .circle) {
                 actions.markVideo(content.libraryVideo, .unwatched)
             },
-            LibraryCardContextMenuItem(title: L("library.mark_watching"), systemImage: "play.circle") {
+            LibraryCardContextMenuItem(title: L("library.mark_watching"), icon: .playCircle) {
                 actions.markVideo(content.libraryVideo, .watching)
             }
         ]
@@ -947,12 +947,12 @@ private struct LibraryFolderCard: View {
 
     private var folderContextMenuItems: [LibraryCardContextMenuItem] {
         [
-            LibraryCardContextMenuItem(title: L("library.open_folder"), systemImage: "folder") {
+            LibraryCardContextMenuItem(title: L("library.open_folder"), icon: .folder) {
                 actions.openFolder(folder.folderPath)
             },
             LibraryCardContextMenuItem(
                 title: LibraryCoverContextMenuItem.title,
-                systemImage: LibraryCoverContextMenuItem.systemImage
+                icon: LibraryCoverContextMenuItem.icon
             ) {
                 actions.changeCover(
                     .folder(path: folder.folderPath),
@@ -960,13 +960,13 @@ private struct LibraryFolderCard: View {
                     folder.coverRevision
                 )
             },
-            LibraryCardContextMenuItem(title: L("library.mark_all_finished"), systemImage: "checkmark.circle") {
+            LibraryCardContextMenuItem(title: L("library.mark_all_finished"), icon: .checkCircle) {
                 actions.markFolder(folder.folderPath, .finished)
             },
-            LibraryCardContextMenuItem(title: L("library.mark_all_unwatched"), systemImage: "circle") {
+            LibraryCardContextMenuItem(title: L("library.mark_all_unwatched"), icon: .circle) {
                 actions.markFolder(folder.folderPath, .unwatched)
             },
-            LibraryCardContextMenuItem(title: L("library.mark_all_watching"), systemImage: "play.circle") {
+            LibraryCardContextMenuItem(title: L("library.mark_all_watching"), icon: .playCircle) {
                 actions.markFolder(folder.folderPath, .watching)
             }
         ]
@@ -1051,7 +1051,7 @@ extension EnvironmentValues {
 
 struct LibraryCardContextMenuItem: Identifiable {
     let title: String
-    let systemImage: String
+    let icon: AppIcon
     var isEnabled = true
     let action: () -> Void
 
@@ -1062,7 +1062,7 @@ struct LibraryCardContextMenuItem: Identifiable {
 
 enum LibraryCoverContextMenuItem {
     static let title = L("library.change_cover")
-    static let systemImage = "square.and.arrow.up"
+    static let icon = AppIcon.export
 }
 
 private struct LibraryCardContextMenuState: Identifiable {
@@ -1340,7 +1340,7 @@ private struct LibraryCardContextMenu: View {
                     WorkbenchPopoverRow(
                         title: item.title,
                         isHighlighted: highlight.highlightedPosition == position,
-                        systemImage: item.systemImage,
+                        icon: item.icon,
                         isRedesign: true,
                         showsCheckmarkSlot: false,
                         isEnabled: item.isEnabled,
@@ -1699,8 +1699,7 @@ struct LibraryCachedCoverImage: View {
                     Rectangle()
                         .fill(WorkbenchRedesignColors.libraryCoverPlaceholderBg)
 
-                    Image(systemName: "film")
-                        .font(.system(size: 44, weight: .medium))
+                    AppIconImage(.video, size: 44)
                         .foregroundStyle(WorkbenchRedesignColors.textMuted)
                         .accessibilityHidden(true)
                 }

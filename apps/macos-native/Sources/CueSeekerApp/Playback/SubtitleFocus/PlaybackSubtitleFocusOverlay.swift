@@ -313,7 +313,7 @@ private struct PlaybackOverlayTopBar: View {
             HStack(spacing: WorkbenchControlMetrics.redesignSpacing1) {
                 if selectedModule == .current {
                     WorkbenchIconButton(
-                        systemImage: "square.and.pencil",
+                        icon: .notePencil,
                         isRedesign: true,
                         isOpen: isEditingCollage,
                         hoverBackground: WorkbenchRedesignColors

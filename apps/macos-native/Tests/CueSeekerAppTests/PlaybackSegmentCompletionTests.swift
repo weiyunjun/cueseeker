@@ -103,7 +103,7 @@ func appCoordinatorMarksSearchCueAutoPauseAsPaused() async throws {
         #expect(app.playback.playbackStatus == .paused)
         #expect(app.currentCueAutoStopReached)
         #expect(app.autoSwitchCueSequenceTask == nil)
-        #expect(app.playback.playbackViewModel?.feedback?.icon == .system("pause.fill"))
+        #expect(app.playback.playbackViewModel?.feedback?.icon == .pause)
         #expect(app.playback.playbackViewModel?.feedback?.text == "Auto Pause")
     }
 }

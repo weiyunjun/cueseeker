@@ -13,14 +13,14 @@ enum SubtitleTableCueState: Equatable {
         return false
     }
 
-    var systemImage: String? {
+    var icon: AppIcon? {
         switch self {
         case .normal:
             nil
         case .contentChanged:
-            "clock.arrow.circlepath"
+            .clockCounterClockwise
         case .unavailable:
-            "questionmark.circle"
+            .question
         }
     }
 

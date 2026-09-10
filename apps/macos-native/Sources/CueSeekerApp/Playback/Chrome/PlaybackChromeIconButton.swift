@@ -29,7 +29,8 @@ enum PlaybackChromeButtonKind {
 }
 
 struct PlaybackChromeIconButton: View {
-    let systemName: String
+    let icon: AppIcon
+    var iconWeight: AppIconWeight?
     var kind: PlaybackChromeButtonKind = .circle
     var isSelected = false
     var isDisabled = false
@@ -39,7 +40,8 @@ struct PlaybackChromeIconButton: View {
     let action: () -> Void
 
     init(
-        systemName: String,
+        icon: AppIcon,
+        iconWeight: AppIconWeight? = nil,
         kind: PlaybackChromeButtonKind = .circle,
         isSelected: Bool = false,
         isDisabled: Bool = false,
@@ -48,7 +50,8 @@ struct PlaybackChromeIconButton: View {
         accessibilityLabel: String,
         action: @escaping () -> Void
     ) {
-        self.systemName = systemName
+        self.icon = icon
+        self.iconWeight = iconWeight
         self.kind = kind
         self.isSelected = isSelected
         self.isDisabled = isDisabled
@@ -65,8 +68,7 @@ struct PlaybackChromeIconButton: View {
             }
             action()
         } label: {
-            Image(systemName: systemName)
-                .font(.system(size: kind.symbolSize, weight: .semibold))
+            AppIconImage(icon, size: kind.symbolSize, weight: iconWeight)
                 .frame(width: kind.size, height: kind.size)
                 .contentShape(Circle())
         }

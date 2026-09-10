@@ -54,7 +54,7 @@ struct PlaybackVideoStage: View {
                 .accessibilityHidden(!isTopBarVisible)
 
                 if case .failed(let message) = playback.playbackStatus {
-                    Label(message, systemImage: "exclamationmark.triangle")
+                    Label { Text(message) } icon: { AppIconImage(.warning, size: WorkbenchControlMetrics.redesignControlIconSize) }
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(.red)
                         .padding(10)
