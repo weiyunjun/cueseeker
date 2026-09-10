@@ -79,9 +79,12 @@ enum AppIconWeight: String, Sendable {
     case regular
     case fill
 
-    /// 12–18px draws Light, 24–32px draws Regular.
+    /// Every size draws Regular for now. Light read too thin below 24px
+    /// beside the text it sits next to, and 24px and up were Regular already.
+    /// The size stays in the signature so a band can be split off again
+    /// without touching a view.
     static func tier(forSize size: CGFloat) -> AppIconWeight {
-        size <= 18 ? .light : .regular
+        .regular
     }
 }
 

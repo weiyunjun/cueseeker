@@ -1,3 +1,4 @@
+import CoreGraphics
 import Foundation
 import Testing
 @testable import CueSeekerApp
@@ -25,9 +26,8 @@ func stateVariantIconsResolveFilled() {
 }
 
 @Test
-func strokeTierFollowsTheRequestedSize() {
-    #expect(AppIconWeight.tier(forSize: 12) == .light)
-    #expect(AppIconWeight.tier(forSize: 18) == .light)
-    #expect(AppIconWeight.tier(forSize: 24) == .regular)
-    #expect(AppIconWeight.tier(forSize: 32) == .regular)
+func everySizeCurrentlyDrawsTheRegularStroke() {
+    for size in [11.0, 14.0, 16.0, 18.0, 24.0, 32.0, 44.0] as [CGFloat] {
+        #expect(AppIconWeight.tier(forSize: size) == .regular)
+    }
 }
