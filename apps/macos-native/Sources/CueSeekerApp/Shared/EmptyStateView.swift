@@ -7,7 +7,7 @@ struct EmptyStateView: View {
 
     var body: some View {
         VStack(spacing: 12) {
-            AppIconImage(icon, size: 36)
+            AppIconImage(icon, size: WorkbenchControlMetrics.redesignEmptyStateIconSize)
                 .foregroundStyle(.secondary)
 
             Text(title)

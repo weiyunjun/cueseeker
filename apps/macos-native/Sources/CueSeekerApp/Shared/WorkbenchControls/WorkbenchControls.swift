@@ -6,7 +6,7 @@ enum WorkbenchControlMetrics {
     static let controlHeight: CGFloat = 40
     static let cornerRadius: CGFloat = 8
     static let hairlineWidth: CGFloat = 0.5
-    static let iconSize: CGFloat = 16
+    static let iconSize: CGFloat = 21
 
     // ==========================================
     // Redesign Tokens (对接新的 Token 规范)
@@ -31,8 +31,8 @@ enum WorkbenchControlMetrics {
     static let redesignControlPaddingX: CGFloat = 14
     /// --padding-field-x: 16px
     static let redesignFieldPaddingX: CGFloat = 16
-    /// --size-inline-clear-symbol-font-size-macos: 11pt
-    static let inlineClearSymbolFontSizeMacOS: CGFloat = 11
+    /// Provisional --size-inline-clear-symbol-font-size-macos: 14px icon box (document: 11pt)
+    static let inlineClearSymbolFontSizeMacOS: CGFloat = 14
     /// --size-inline-clear-icon: 16px
     static let inlineClearIconSize: CGFloat = 16
     /// --border-width-control: 1px
@@ -46,19 +46,21 @@ enum WorkbenchControlMetrics {
         redesignFocusRingOffset + redesignFocusRingWidth / 2
     /// --radius-inline-clear-button: 9999px
     static let redesignInlineClearButtonRadius: CGFloat = 9999
-    /// --size-control-icon: 16px
-    static let redesignControlIconSize: CGFloat = 16
+    /// Provisional --size-control-icon: 21px icon box (document: 16px)
+    static let redesignControlIconSize: CGFloat = 21
     /// --weight-control-icon: medium
     static let redesignControlIconWeight: Font.Weight = .medium
-    /// --size-dialog-close-icon: 12px
-    static let redesignDialogCloseIconSize: CGFloat = 12
+    /// Provisional --size-dialog-close-icon: 16px icon box (document: 12px)
+    static let redesignDialogCloseIconSize: CGFloat = 16
     /// --size-dialog-close-button: 24px
     static let redesignDialogCloseButtonSize: CGFloat = 24
-    /// Measured ink of SF Symbol `xmark` at 12pt medium: 9.5 x 9.5. The close
-    /// button is placed by what the eye sees, so the glyph's own ink is the
-    /// figure the offsets are built from. Re-measure when the glyph size or
-    /// weight changes.
-    static let redesignDialogCloseGlyphInk: CGFloat = 9.5
+    /// The close button is placed by what the eye sees, so the glyph's own
+    /// ink is the figure the offsets are built from. Phosphor's `x` draws its
+    /// two strokes across 144 of its 256-unit grid, and each round cap adds
+    /// half the line width beyond that on either end.
+    static let redesignDialogCloseGlyphInk: CGFloat =
+        redesignDialogCloseIconSize * 144 / 256
+        + (AppIconLineWidth.bySize[redesignDialogCloseIconSize] ?? 0)
     /// The slack the close button's box keeps around its glyph on each side.
     static let redesignDialogCloseBoxSlack: CGFloat =
         (redesignDialogCloseButtonSize - redesignDialogCloseGlyphInk) / 2
@@ -89,24 +91,24 @@ enum WorkbenchControlMetrics {
     /// Where the close button's box sits so that its glyph lands on the inset.
     static let redesignDialogCloseAnchorInset: CGFloat =
         redesignDialogInset - redesignDialogCloseBoxSlack
-    /// --size-checkbox: 16px
-    static let redesignCheckboxSize: CGFloat = 16
-    /// --size-select-indicator: 12pt
-    static let redesignSelectIndicatorSymbolFontSizeMacOS: CGFloat = 12
+    /// Provisional --size-checkbox: 21px icon box (document: 16px)
+    static let redesignCheckboxSize: CGFloat = 21
+    /// Provisional --size-select-indicator: 16px icon box (document: 12pt)
+    static let redesignSelectIndicatorSymbolFontSizeMacOS: CGFloat = 16
     /// --weight-select-indicator: semibold
     static let redesignSelectIndicatorWeightMacOS: Font.Weight = .semibold
     /// --font-size-control: 14px
     static let redesignFontSizeControl: CGFloat = 14
     /// --font-weight-control: 500
     static let redesignFontWeightControl: Font.Weight = .medium
-    /// --size-button-icon: 14px
-    static let redesignButtonIconSize: CGFloat = 14
+    /// Provisional --size-button-icon: 18px icon box (document: 14px)
+    static let redesignButtonIconSize: CGFloat = 18
     /// --weight-button-icon: medium
     static let redesignButtonIconWeight: Font.Weight = .medium
-    /// --size-inline-add-symbol-font-size-macos: 16pt
-    static let redesignInlineAddSymbolFontSizeMacOS: CGFloat = 16
-    /// --size-menu-item-symbol-font-size-macos: 14pt
-    static let redesignMenuItemSymbolFontSizeMacOS: CGFloat = 14
+    /// Provisional --size-inline-add-symbol-font-size-macos: 21px icon box (document: 16pt)
+    static let redesignInlineAddSymbolFontSizeMacOS: CGFloat = 21
+    /// Provisional --size-menu-item-symbol-font-size-macos: 18px icon box (document: 14pt)
+    static let redesignMenuItemSymbolFontSizeMacOS: CGFloat = 18
     /// --padding-menu-item: 10px
     static let redesignMenuItemHorizontalPadding: CGFloat = 10
     /// Menu Item padding on a side whose slot holds an icon rather than text.
@@ -207,8 +209,8 @@ enum WorkbenchControlMetrics {
     static let redesignSettingsWindowMinimumWidth: CGFloat = 680
     /// Provisional --height-settings-window-min: 420px
     static let redesignSettingsWindowMinimumHeight: CGFloat = 420
-    /// --size-app-sidebar-item-icon: 18px
-    static let redesignAppSidebarItemIconSize: CGFloat = 18
+    /// Provisional --size-app-sidebar-item-icon: 23px icon box (document: 18px)
+    static let redesignAppSidebarItemIconSize: CGFloat = 23
     /// --width-interactive-text-underline: 1px
     static let redesignInteractiveTextUnderlineThickness: CGFloat = 1
     /// --offset-interactive-text-underline: 2px
@@ -262,8 +264,14 @@ enum WorkbenchControlMetrics {
     static let redesignLibraryFolderCardMinHeight: CGFloat = 96
     /// --radius-library-cover: 8px
     static let redesignLibraryCoverRadius: CGFloat = 8
-    /// Provisional --size-library-cover-edit-overlay-icon: 32px
-    static let redesignLibraryCoverEditOverlayIconSize: CGFloat = 32
+    /// Provisional --size-library-cover-edit-overlay-icon: 42px icon box (document: 32px)
+    static let redesignLibraryCoverEditOverlayIconSize: CGFloat = 42
+    /// Provisional: the glyph a cover without artwork shows, 57px icon box.
+    static let redesignCoverPlaceholderIconSize: CGFloat = 57
+    /// Provisional: the glyph above an empty state's title, 47px icon box.
+    static let redesignEmptyStateIconSize: CGFloat = 47
+    /// Provisional: a glyph standing in for a key name inside a keycap, 16px icon box.
+    static let redesignKeycapIconSize: CGFloat = 16
     /// --radius-library-time-badge: 4px
     static let redesignLibraryTimeBadgeRadius: CGFloat = 4
     /// --radius-library-folder-card: 8px
@@ -524,7 +532,7 @@ struct WorkbenchSearchField: View {
 
     var body: some View {
         HStack(spacing: isRedesign ? WorkbenchControlMetrics.redesignSpacing2 : 12) {
-            AppIconImage(.magnifyingGlass, size: isRedesign ? WorkbenchControlMetrics.redesignControlIconSize : 18)
+            AppIconImage(.magnifyingGlass, size: isRedesign ? WorkbenchControlMetrics.redesignControlIconSize : 23)
                 .foregroundStyle(isRedesign ? (isEnabled ? WorkbenchRedesignColors.textSecondary : WorkbenchRedesignColors.textDisabled) : WorkbenchControlColors.mutedText)
 
             WorkbenchSingleLineTextInput(
@@ -654,7 +662,7 @@ struct WorkbenchToolbarButton: View {
                         .foregroundStyle(isEnabled ? WorkbenchRedesignColors.textSecondary : WorkbenchRedesignColors.textDisabled)
                 } else {
                     Spacer(minLength: 0)
-                    AppIconImage(.caretDown, size: 11)
+                    AppIconImage(.caretDown, size: 14)
                         .foregroundStyle(WorkbenchControlColors.mutedText)
                 }
             }
@@ -1004,30 +1012,32 @@ struct WorkbenchPopoverRow: View {
                 if isRedesign {
                     if isSelected {
                         AppIconImage(.check, size: WorkbenchControlMetrics.redesignMenuItemSymbolFontSizeMacOS)
-                            .frame(width: WorkbenchControlMetrics.redesignControlIconSize, height: WorkbenchControlMetrics.redesignControlIconSize)
+                            .frame(width: WorkbenchControlMetrics.redesignMenuItemSymbolFontSizeMacOS, height: WorkbenchControlMetrics.redesignMenuItemSymbolFontSizeMacOS)
                             .foregroundStyle(iconColor)
                     } else {
                         Color.clear
-                            .frame(width: WorkbenchControlMetrics.redesignControlIconSize, height: WorkbenchControlMetrics.redesignControlIconSize)
+                            .frame(width: WorkbenchControlMetrics.redesignMenuItemSymbolFontSizeMacOS, height: WorkbenchControlMetrics.redesignMenuItemSymbolFontSizeMacOS)
                     }
                 } else {
                     if isSelected {
-                        AppIconImage(.check, size: 13)
+                        AppIconImage(.check, size: 17)
                     } else {
                         Color.clear
-                            .frame(width: 13, height: 13)
+                            .frame(width: 17, height: 17)
                     }
                 }
             }
 
+            // Every menu glyph is drawn in the same square box, so the slot is
+            // that box: a wider slot would only widen the gap before the label.
             if let icon {
                 AppIconImage(
                     icon,
-                    size: isRedesign ? WorkbenchControlMetrics.redesignMenuItemSymbolFontSizeMacOS : 14,
+                    size: isRedesign ? WorkbenchControlMetrics.redesignMenuItemSymbolFontSizeMacOS : 18,
                     weight: iconWeight
                 )
                     .foregroundStyle(isRedesign ? iconColor : (isEnabled ? WorkbenchControlColors.primaryText : WorkbenchControlColors.mutedText))
-                    .frame(width: isRedesign ? WorkbenchControlMetrics.redesignControlIconSize : nil, height: isRedesign ? WorkbenchControlMetrics.redesignControlIconSize : nil)
+                    .frame(width: isRedesign ? WorkbenchControlMetrics.redesignMenuItemSymbolFontSizeMacOS : nil, height: isRedesign ? WorkbenchControlMetrics.redesignMenuItemSymbolFontSizeMacOS : nil)
             }
 
             Text(title)
@@ -1043,7 +1053,7 @@ struct WorkbenchPopoverRow: View {
                     trailingIcon,
                     size: isRedesign
                         ? WorkbenchControlMetrics.redesignMenuItemSymbolFontSizeMacOS
-                        : 14
+                        : 18
                 )
                     .foregroundStyle(
                         isRedesign
@@ -1053,11 +1063,11 @@ struct WorkbenchPopoverRow: View {
                                 : WorkbenchControlColors.mutedText)
                     )
                     // No fixed width: a lone trailing glyph centred in a
-                    // 16pt slot would leave the space after it reading wider
+                    // wider slot would leave the space after it reading wider
                     // than the space before the leading icon.
                     .frame(
                         height: isRedesign
-                            ? WorkbenchControlMetrics.redesignControlIconSize
+                            ? WorkbenchControlMetrics.redesignMenuItemSymbolFontSizeMacOS
                             : nil
                     )
             }

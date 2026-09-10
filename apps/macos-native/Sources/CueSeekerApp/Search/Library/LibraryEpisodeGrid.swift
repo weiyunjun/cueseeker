@@ -97,7 +97,7 @@ enum LibraryLayout {
     static let folderHeaderCornerRadius: CGFloat = 7
     static let folderHeaderGap: CGFloat = 10
     static let chevronBox: CGFloat = 16
-    static let chevronGlyph: CGFloat = 10
+    static let chevronGlyph: CGFloat = 13
     static let chevronTopInset: CGFloat = 2
     static let headingLineGap: CGFloat = 2
     static let titleSize: CGFloat = 13.5

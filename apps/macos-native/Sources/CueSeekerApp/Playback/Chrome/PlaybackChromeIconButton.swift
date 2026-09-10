@@ -23,7 +23,7 @@ enum PlaybackChromeButtonKind {
         case .transport:
             return PlaybackChromeMetrics.circleButtonIconSize
         case .primaryTransport:
-            return 20
+            return PlaybackChromeMetrics.primaryTransportIconSize
         }
     }
 }

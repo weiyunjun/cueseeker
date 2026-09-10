@@ -13,7 +13,7 @@ struct CardGroupHeader: View {
         HStack(alignment: .firstTextBaseline, spacing: 6) {
             Button(action: onToggle) {
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    AppIconImage(.caretRight, size: 10)
+                    AppIconImage(.caretRight, size: 13)
                         .foregroundStyle(tokens.text3)
                         .rotationEffect(.degrees(isCollapsed ? 0 : 90))
                         .animation(.easeInOut(duration: 0.16), value: isCollapsed)
@@ -37,7 +37,7 @@ struct CardGroupHeader: View {
 
             if let onExportToAnki {
                 Button(action: onExportToAnki) {
-                    AppIconImage(.export, size: 12)
+                    AppIconImage(.export, size: 16)
                         .foregroundStyle(tokens.text3)
                         .frame(width: 24, height: 24)
                         .contentShape(Rectangle())

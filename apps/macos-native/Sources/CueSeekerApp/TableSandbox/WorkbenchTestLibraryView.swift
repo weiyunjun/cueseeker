@@ -1699,7 +1699,7 @@ struct LibraryCachedCoverImage: View {
                     Rectangle()
                         .fill(WorkbenchRedesignColors.libraryCoverPlaceholderBg)
 
-                    AppIconImage(.video, size: 44)
+                    AppIconImage(.video, size: WorkbenchControlMetrics.redesignCoverPlaceholderIconSize)
                         .foregroundStyle(WorkbenchRedesignColors.textMuted)
                         .accessibilityHidden(true)
                 }

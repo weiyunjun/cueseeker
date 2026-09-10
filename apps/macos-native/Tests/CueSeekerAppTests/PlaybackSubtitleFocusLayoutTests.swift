@@ -23,7 +23,7 @@ func subtitleFocusMetricsMatchCompactIterationGeometry() {
     #expect(WorkbenchControlMetrics.redesignKeycapRadius == 4)
     #expect(WorkbenchControlMetrics.redesignKeycapHorizontalPadding == 4)
     #expect(PlaybackSubtitleFocusMetrics.reelTransitionDuration == 0.22)
-    #expect(PlaybackCollageSelectionMetrics.checkboxSize == 24)
+    #expect(PlaybackCollageSelectionMetrics.checkboxSize == 31)
     #expect(
         PlaybackSubtitleFocusMetrics.resolvedReelTransitionDuration(
             reducesMotion: false

@@ -53,8 +53,11 @@ func everyStrokeMasterDrawsAllItsLinesAtTheMasterWidth() throws {
 }
 
 @Test
-func theTwentyFourPointWidthDrawsTheMasterUnchanged() {
-    // 1.5pt of line at 24pt is Phosphor's own Regular: 16 units of 256.
-    #expect(AppIconLineWidth.units(forSize: 24) == AppIconLineWidth.master)
-    #expect(AppIconLineWidth.units(forSize: 14) > AppIconLineWidth.master)
+func masterUnitsDrawTheDocumentedWidthAtEverySize() {
+    // The master's 256-unit grid is drawn `size` points wide, so the rewritten
+    // width has to come back out as the documented points.
+    for (size, points) in AppIconLineWidth.bySize {
+        let drawn = AppIconLineWidth.units(forSize: size) * size / 256
+        #expect(abs(drawn - points) < 0.0001, "\(size)pt draws \(drawn)pt, not \(points)pt")
+    }
 }

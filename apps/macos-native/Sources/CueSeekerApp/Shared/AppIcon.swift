@@ -85,18 +85,18 @@ enum AppIconWeight: String, Sendable {
 /// at it.
 enum AppIconLineWidth {
     static let bySize: [CGFloat: CGFloat] = [
-        10: 1.10,
-        11: 1.15,
-        12: 1.20,
-        13: 1.25,
-        14: 1.30,
-        16: 1.35,
-        18: 1.40,
-        20: 1.45,
-        24: 1.50,
-        32: 1.90,
-        36: 2.10,
-        44: 2.50,
+        13: 1.10,
+        14: 1.15,
+        16: 1.20,
+        17: 1.25,
+        18: 1.30,
+        21: 1.35,
+        23: 1.40,
+        26: 1.45,
+        31: 1.50,
+        42: 1.90,
+        47: 2.10,
+        57: 2.50,
     ]
 
     /// Every stroke master draws its lines 16 units wide on a 256-unit grid.

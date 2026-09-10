@@ -563,7 +563,7 @@ private struct PlaybackCueFooterKeycapView: View {
         case .text(let text):
             Text(text)
         case .icon(let icon):
-            AppIconImage(icon, size: WorkbenchControlMetrics.redesignFontSizeCaption)
+            AppIconImage(icon, size: WorkbenchControlMetrics.redesignKeycapIconSize)
         }
     }
 }

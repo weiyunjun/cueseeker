@@ -36,7 +36,10 @@ enum SubtitleTableMetrics {
     static let tagCornerRadius: CGFloat = 6
     static let tagHorizontalSpacing: CGFloat = 6
     static let tagVerticalSpacing: CGFloat = 4
-    static let checkboxSize: CGFloat = 16
+    /// Provisional --size-checkbox: 21px icon box (document: 16px)
+    static let checkboxSize: CGFloat = 21
+    /// Provisional: the cue state glyph after a row's last text line, 18px icon box.
+    static let cueStateIndicatorSize: CGFloat = 18
     static let checkboxHitSlop: CGFloat = 8
     static let tableCellHoverPaddingX = WorkbenchControlMetrics.redesignTableCellHoverPaddingX
     static let tableCellHoverPaddingY = WorkbenchControlMetrics.redesignTableCellHoverPaddingY
@@ -5126,7 +5129,7 @@ struct SubtitleTableView: NSViewRepresentable {
             guard let lastLine = textLayout.usedRects(at: primary.origin).last else {
                 return nil
             }
-            let size: CGFloat = 14
+            let size = SubtitleTableMetrics.cueStateIndicatorSize
             let proposedX = lastLine.maxX + 8
             let x = min(proposedX, cuesRect.maxX - size - 4)
             return CGRect(

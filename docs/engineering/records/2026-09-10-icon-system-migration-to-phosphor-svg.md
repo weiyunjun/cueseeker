@@ -92,3 +92,23 @@ The first table ran from 0.80pt at 10pt to 1.50pt at 24pt. The owner asked for h
 The owner is still tuning, and the requirement's line width table stays at the first values until the reading settles. The code is ahead of the requirement until then.
 
 Verification: `swift build` clean, no warnings. The icon and checkbox tests pass (18). In the Debug in-app E2E controller, the Shiori sidebar and File buttons draw visibly heavier than in the previous capture.
+
+## Follow-up: sizes are icon boxes
+
+Every icon came out smaller than the SF Symbol it replaced. The owner noticed it first in the table row menu. The migration carried each number across unchanged, but the number meant something else on each side. For SF Symbols it was a point size: a symbol is laid out like a character of that font size and its box follows its own metrics, so `doc.on.doc` at 14pt reports 18 × 20 and `folder` 19 × 15. For Phosphor it is the whole square box the 256-unit canvas is drawn into, and Phosphor keeps its drawing in roughly the middle three quarters of that canvas: `copy` spans 40 to 216 at its line centres, about 10.9pt of ink in a 14pt box at the current line width. Across the seven menu glyphs, a Phosphor icon at the old number drew on average 0.77 of the SF Symbol's height.
+
+Every icon size is therefore now read as an icon box and scaled by 1.3 from the number it had, rounded: 10→13, 11→14, 12→16, 13→17, 14→18, 16→21, 18→23, 20→26, 24→31, 32→42, 36→47, 44→57. This is a starting point to be tuned against the owner's pre-migration build, not a derived rule; glyphs that fill their canvas, such as the checkbox circles, may now read larger than before. The line width table was re-keyed in step, so each place keeps the width the owner tuned for it; the owner adjusts widths next.
+
+- The shared size constants took the new values and are marked provisional against the design document's old ones. The checkbox sizes scale with them, including the table and collage checkboxes, whose layout follows their box.
+- The sizes that were bare numbers at call sites now have names. The cover placeholder (Shiori and Library) and the empty state glyph are in `WorkbenchControlMetrics`; the primary transport glyph is in `PlaybackChromeMetrics`, and the cue state marker in `SubtitleTableMetrics`. The keycap glyph drew at the caption font size, so it gets its own size rather than moving the font.
+- Menu rows sized their icon slots with the control icon size, a slot wider than the 14pt glyph it held. Every Phosphor glyph is a square box, so each slot is now the menu icon box itself (18). The slot would otherwise have grown to 21 and widened the gap before each label.
+- The dialog close button is placed by its glyph's ink. That ink was a measured SF Symbol figure, 9.5, and has been stale since the migration. It is now derived from Phosphor's `x`: its strokes span 144 of 256 units, plus the line width across the two round caps.
+- Branches no view renders (the pre-redesign control paths and the unused card group header) were scaled in place rather than named, so every size an icon can be drawn at stays in the table.
+
+The requirement still records the old sizes and line widths; the owner holds the edit until the reading settles.
+
+Verification:
+
+- `swift build` clean, no warnings.
+- `swift test`: 1177 tests, 15 failures in the parallel run. Rerun alone, 13 pass. The other two are the Shiori table tests that fail the same way on a clean `HEAD`. One name, `failedLibraryFolderRemovalPreservesFolderAndPresentationState`, was new in this parallel run and passes alone.
+- Debug in-app E2E controller: File (18pt button icons, 23pt sidebar), Shiori overview and list detail (21pt search field, filter and select-mode icons, 18pt Resume). A right click on the first row's index cell after a pointer move lit the row but did not open the row menu, and the following Command-Q was refused as `keyWindowUnavailable`, so the app was not active at that point. The row menu at 18pt is left to the owner's check.

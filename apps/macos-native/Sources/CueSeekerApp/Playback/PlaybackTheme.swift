@@ -340,8 +340,8 @@ enum PlaybackCueTimelineMetrics {
 }
 
 enum PlaybackCollageSelectionMetrics {
-    /// --size-playback-collage-checkbox
-    static let checkboxSize: CGFloat = 24
+    /// Provisional --size-playback-collage-checkbox: 31px icon box (document: 24px)
+    static let checkboxSize: CGFloat = 31
 }
 
 enum PlaybackOverlayMetrics {
@@ -361,7 +361,10 @@ enum PlaybackChromeMetrics {
     static let bottomControlsRowHeight: CGFloat = 52
     static let capsuleButtonHeight: CGFloat = 40
     static let circleButtonSize: CGFloat = 40
-    static let circleButtonIconSize: CGFloat = 18
+    /// Provisional --size-player-circle-button-icon: 23px icon box (document: 18px)
+    static let circleButtonIconSize: CGFloat = 23
+    /// Provisional: the play/pause glyph of the primary transport button, 26px icon box.
+    static let primaryTransportIconSize: CGFloat = 26
     static let speedButtonWidth: CGFloat = 54
     static let speedMenuWidth: CGFloat = 184
     static let speedMenuHeight: CGFloat = 246
@@ -379,8 +382,8 @@ enum PlaybackChromeMetrics {
     static let feedbackHeight: CGFloat = 52
     /// --radius-playback-feedback: 16px
     static let feedbackRadius: CGFloat = 16
-    /// --size-playback-feedback-icon: 24px
-    static let feedbackIconSize: CGFloat = 24
+    /// Provisional --size-playback-feedback-icon: 31px icon box (document: 24px)
+    static let feedbackIconSize: CGFloat = 31
     /// --font-size-playback-feedback: 18px
     static let feedbackFontSize: CGFloat = 18
 
@@ -411,7 +414,8 @@ enum PlaybackChromeMetrics {
 
     static let timeFontSize: CGFloat = 12
     static let progressTimeFontSize: CGFloat = 10
-    static let speedMenuCheckFontSize: CGFloat = 11
+    /// Provisional --font-size-player-speed-menu-check: 14px icon box (document: 11px)
+    static let speedMenuCheckFontSize: CGFloat = 14
     static let speedMenuItemFontSize: CGFloat = 13
 
     static let speedMenuItemVerticalGap: CGFloat = 2

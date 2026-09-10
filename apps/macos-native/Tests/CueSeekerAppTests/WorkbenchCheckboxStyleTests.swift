@@ -13,9 +13,9 @@ func checkboxVariantsShareOneGlyphFamilyAndKeepDocumentedSizes() {
     #expect(WorkbenchCheckboxStyle.iconWeight(for: .checked) == .fill)
     #expect(WorkbenchCheckboxStyle.iconWeight(for: .indeterminate) == .fill)
 
-    #expect(WorkbenchControlMetrics.redesignCheckboxSize == 16)
-    #expect(SubtitleTableMetrics.checkboxSize == 16)
-    #expect(PlaybackCollageSelectionMetrics.checkboxSize == 24)
+    #expect(WorkbenchControlMetrics.redesignCheckboxSize == 21)
+    #expect(SubtitleTableMetrics.checkboxSize == 21)
+    #expect(PlaybackCollageSelectionMetrics.checkboxSize == 31)
 }
 
 @MainActor
