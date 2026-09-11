@@ -287,6 +287,7 @@
 - `--width-dialog-medium`: `480px`
 - `--width-dialog-large`: `600px`
 - `--width-dialog-x-large`: `720px`
+- `--width-shortcut-field`: `144px`
 - `--border-width-control`: `1px`
 
 ## 1.4 间距
@@ -662,6 +663,46 @@
   - Background：`--color-bg-disabled`
   - Border Color：`--color-border-disabled`
   - Text Color：`--color-text-disabled`
+
+### Shortcut Field
+
+#### Shared
+
+##### Anatomy
+
+- Container：同 Text Field
+- Keycap
+  - Component：Keycap / Popover Surface
+  - Placement：Leading
+  - Gap：`--spacing-1`
+  - ⇧ 与主键各占一个 Keycap
+- Placeholder
+  - Presence：仅 Recording
+  - Font Size：`--font-size-control`
+  - Color：`--color-text-placeholder`
+- Inline Clear
+  - Component：Icon Button / Inline Clear
+  - Presence：仅 Recording
+  - Placement：Trailing
+- Validation Message：同 Text Field
+
+##### Sizes
+
+- Width：`--width-shortcut-field`
+- Height：`--height-field`
+- Padding Inline：`--padding-field-x`
+
+##### States
+
+- Default
+- Empty
+  - 触发：快捷键已清空
+- Recording
+  - Border Color：`--color-border-focus`
+  - Keycap 换为 Placeholder 与 Inline Clear
+- Error
+  - 触发：快捷键冲突，或 Recording 时按下不可用的键
+  - Border Color：`--color-danger-text`
 
 ## 2.2 Selection Controls
 
@@ -2936,6 +2977,39 @@
 - Group Gap：`--spacing-4`
 - Control Gap：`--spacing-3`
 
+### Settings Shortcuts Layout
+
+#### Structure
+
+1. Page Title
+2. Open Command Panel
+3. Section Title `Playback` 及其功能
+4. Section Title `Playback Overlay & Command Panel` 及其功能
+
+#### Components
+
+- Section Title
+- Shortcut Field
+- Icon Button / Default：Restore Default
+
+#### Row
+
+1. 功能名称
+2. Shortcut Field
+3. Restore Default：当前为默认键时 Disabled
+
+#### Layout
+
+- 功能名称列宽取全页最长的功能名称，Shortcut Field 与 Restore Default 紧随其后
+
+#### Spacing
+
+- Page Title 与第一行：`--spacing-6`
+- 功能名称与 Shortcut Field：`--spacing-6`
+- Shortcut Field 与 Restore Default：`--spacing-1`
+- 行与行：Shortcut Field 的 Validation Message 行兼作行距，不另加间距
+- Section Title 上方：`--spacing-4`；下方：`--spacing-3`
+
 ## 3.3 Recent
 ### Recent Layout
 
@@ -4035,6 +4109,7 @@
 | Command Panel / Search Results | 结果数 | Save to Shiori `S`、Copy Cue Text `C`、Copy Deep Link `X`、Play `Return` |
 
 - Save to Shiori 打开 Shiori Destination Submenu 选择目标列表，不直接保存；结果由 Playback Feedback 呈现，Icon 为实心书签
+- `S`、`C`、`X` 为默认键位，Keycap 显示 Settings / Shortcuts 中的当前键位，⇧ 与主键各占一个 Keycap；快捷键已清空或冲突时不显示 Keycap
 
 #### States
 

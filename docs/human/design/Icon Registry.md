@@ -125,3 +125,5 @@
 | `hard-drives` | Regular | 维护 | Settings / Maintenance |
 | `hammer` | Regular | 开发者 | Settings / Developer |
 | `file-arrow-down` | Regular | 压缩数据库 | Settings / Maintenance / Compact |
+| `keyboard` | Regular | 快捷键 | Settings / Shortcuts |
+| `arrow-counter-clockwise` | Regular | 恢复默认 | Settings / Shortcuts / Restore Default |

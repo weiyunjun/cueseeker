@@ -66,6 +66,13 @@ Toast 与播放反馈只有视觉，不接受输入，不参与层级；播放�
 3. 界面出现时不自动获得焦点。例外：Confirmation 打开时焦点在 Cancel；Rename 打开时光标在新名称输入框；Command Panel 打开时光标在搜索框。
 4. 对话框关闭后，下层不恢复打开前的焦点；切换到其它 App 再切回，焦点保持离开时的状态。
 
+# 快捷键
+
+1. Playback、Playback Overlay 与 Command Panel 的快捷键在 Settings / Shortcuts 修改；Esc、Tab，以及 Playback Overlay 与 Command Panel 中的回车与方向键不可修改。
+2. 快捷键为单键，或 ⇧ 加单键。
+3. 同一分组内两个功能使用相同的键时，该键对双方都不生效；Open Command Panel 与全部功能比较。
+4. 点击 Shortcut Field 开始录入，它不获得焦点，不参与 Tab 切换。录入期间键盘只归 Shortcut Field，App 菜单的快捷键也不生效；Esc、点击 Shortcut Field 以外或离开 Settings 窗口时结束录入，键位不变。
+
 # 尺寸过渡
 
 1. 窗口尺寸变化与进出播放页的画面尺寸变化期间，Sidebar、Sidebar Toggle、后退与前进按钮不接受点击，外观保持进入过渡之前的样子，过渡的开始与结束在它们身上不可见。
@@ -73,7 +80,7 @@ Toast 与播放反馈只有视觉，不接受输入，不参与层级；播放�
 # 全屏
 
 1. 全屏以窗口是否处于系统全屏为准，与谁进入无关。播放页在系统全屏中一律使用全屏呈现，包括系统发起的全屏。
-2. 窗口已全屏时，绿灯、快捷键 F、Esc、播放器全屏按钮效果一致：CueSeeker 自己退出全屏并恢复全屏前状态，不影响其它 App 的全屏。窗口未全屏时，这些操作进入全屏。
+2. 窗口已全屏时，绿灯、全屏快捷键（默认 F）、Esc、播放器全屏按钮效果一致：CueSeeker 自己退出全屏并恢复全屏前状态，不影响其它 App 的全屏。窗口未全屏时，这些操作进入全屏。
 3. 从播放页返回 Workbench：由播放页进入的全屏（含长按绿灯选择的分屏全屏）随之退出；Workbench 先全屏再打开视频的，返回后保持 Workbench 全屏。
 4. 播放页与 Playback Overlay 的顶栏在全屏与非全屏一致：播放页顶栏跟随 Player UI 显隐，Overlay 顶栏保持显示；全屏时只有红绿灯改由系统标题栏显示。
 
