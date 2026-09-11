@@ -70,6 +70,7 @@ struct PlaybackProgressScrubber: View {
             }
             .frame(height: PlaybackChromeMetrics.progressHitAreaHeight, alignment: .center)
             .contentShape(Rectangle())
+            .playerInteractiveRegion()
             .onPointerHover { isHovered = $0 }
             .onContinuousHover { phase in
                 switch phase {

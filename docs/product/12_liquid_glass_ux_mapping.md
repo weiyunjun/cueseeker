@@ -615,107 +615,95 @@ Rules:
 
 ### 10.4 Floating Chrome Visibility
 
-This is the Player-UI / cursor visibility state machine (v4). v4 supersedes
-v3 by separating Player UI state from cursor state, defining player focus
-separately from App focus, and defining when the current player is allowed to
-decide cursor visibility.
+This is the Player-UI / pointer visibility model (v5), the mirror of
+`docs/human/requirements/20260912-UI-Player UI And Pointer Visibility
+Rules.md`; that requirement decides. v5 supersedes v4: the idle hide is a
+condition instead of an event, clickable controls and scrubbing block it,
+same-window layers freeze it and show the pointer, and a lost focus or a
+pointer outside the window hides the Player UI and shows the pointer.
 
 Definitions:
 
-1. Player UI: the bottom player plus the video-page top bar.
-2. Player area: the video window area while the playback page exists.
-3. Player has focus: the current effective interaction target still belongs to
-   the player. Settings, independent windows, system dialogs, and future
-   non-player interfaces that receive interaction are player-focus loss even
-   when CueSeeker remains the foreground App. Playback-page-owned menus and
-   popovers do not count as player-focus loss.
-4. Player UI state:
-   1. Player UI visible: the player area exists and Player UI is shown.
-   2. Player UI hidden: the player area exists and Player UI is not shown.
-5. Cursor state:
-   1. Cursor visible: the player area exists and the cursor is shown.
-   2. Cursor hidden: the player area exists and the cursor is not shown.
-6. Cursor governed by the current player: the player area exists, the physical
-   cursor position is inside the player area, and the player has focus.
+1. Player UI: the video-page top bar, the bottom control bar, and the menus
+   they open. A hidden Player UI closes its menus.
+2. Clickable control: a control of the Player UI that can be clicked or that
+   keyboard focus could reach, disabled ones included: the window controls,
+   the return button, the Task and Settings entries, the progress scrubber's
+   hit area, every bottom-bar button, the volume control and the speed menu's
+   items. The title, the time display, the bars' empty space and the video
+   are not clickable controls.
+3. Focus in the playback window: the App is active and the main window is the
+   key window. The Playback Overlay, the Command Panel and in-window dialogs
+   keep it; the Settings window, other independent windows, system dialogs
+   and other Apps take it.
+4. Pointer movement: a real change of the pointer's position, dragging with a
+   mouse button held included. Clicks, mouse button down/up without a
+   position change, the wheel and the keyboard are not movement.
 
-Core rules:
+Invariants:
 
-7. When the cursor is governed by the current player, mouse movement puts the
-   cursor in the visible state.
-8. Initialization: entering the playback page puts Player UI in the visible
-   state and the cursor in the hidden state.
-9. Fullscreen special case: entering fullscreen forces Player UI and cursor to
-   the hidden state.
-10. When Player UI is visible:
-    1. If the cursor is governed by the current player and then moves out of
-       the player area, Player UI switches to hidden.
-    2. If the cursor is governed by the current player and has not moved for
-       three seconds, Player UI switches to hidden.
-    3. If the player loses focus, Player UI switches to hidden.
-11. When Player UI is hidden, Player UI switches to visible only when the
-    cursor is governed by the current player and the cursor moves.
-12. When the cursor is visible:
-    1. If the cursor is governed by the current player and then moves out of
-       the player area, final cursor visibility is decided by other rules.
-    2. If the cursor is governed by the current player and has not moved for
-       three seconds, the cursor switches to hidden.
-    3. If the player loses focus, this state machine performs no additional
-       cursor action; final cursor visibility is decided by other rules.
-13. When the cursor is hidden, if the cursor is governed by the current player
-    and moves, the cursor switches to visible.
-14. When the cursor is not governed by the current player, the current player
-    no longer decides cursor visibility. Final cursor visibility is decided by
-    whichever other rule owns it.
+5. A hidden pointer always means a hidden Player UI. A shown pointer allows
+   either Player UI state.
+6. Nothing here depends on whether the video is playing or paused.
 
-Supplementary rules:
+Showing:
 
-15. Visibility transitions are primarily driven by mouse movement. Mouse
-    movement means physical pointer position changes, including ordinary
-    movement and dragging while any mouse button is held. Mouse clicks, mouse
-    button down/up events without pointer-position changes, and wheel input do
-    not count as movement and do not reveal the cursor.
-16. Player UI and cursor state transitions do not animate.
-17. Any keyboard key-down while the Playback Page is active puts the cursor in
-    the hidden state without changing Player UI visibility.
-18. Playback media-card Hover may update the session-local Selected Item only
-    while the cursor is visible. A hidden cursor cannot change Selected by
-    Hover. Once movement reveals it, ordinary Hover applies again, including a
-    new card moving under a stationary visible cursor because content scrolled.
+7. Entering the playback page shows the pointer and the Player UI and starts
+   the idle countdown.
+8. A hidden Player UI is shown again only by pointer movement inside the
+   window while the window has focus.
+
+Idle hide:
+
+9. The pointer and the Player UI hide together when all of these hold and the
+   pointer has not moved for `--duration-player-ui-idle-hide` (3 s): focus is
+   in the playback window; the pointer is inside the window and on no
+   clickable control; no scrubbing is in progress; keyboard focus is on no
+   Player UI control.
+10. When any condition breaks, the countdown is cleared; when all hold again,
+    it starts over. Clicks do not restart it. The keyboard-focus condition has
+    no trigger today, since buttons take no focus and the Player UI has no
+    text field; it is recorded, not implemented.
+
+Immediate hide:
+
+11. The pointer leaves the window: the Player UI hides, the pointer stays
+    shown.
+12. Focus leaves the playback window: the Player UI hides, the pointer is
+    shown.
+13. Entering fullscreen hides both.
+
+Same-window layers:
+
+14. While the Playback Overlay, the Command Panel or an in-window dialog is
+    open, the pointer is shown and the Player UI's state and countdown are
+    frozen.
+15. When it closes, the conditions are read again: if they all hold the
+    countdown starts over; if the pointer is outside the window or focus is
+    gone the Player UI hides.
 
 Mapping notes (App implementation):
 
-- Player focus is an explicit player interaction-focus state, not simply
-  `NSApplication` active state or `NSWindow.isKeyWindow`. Settings windows,
-  independent windows, system dialogs, and future non-player interfaces cause
-  player-focus loss when they receive interaction. Playback-page-owned menus
-  and popovers do not.
-- Cursor governance is evaluated from the live cursor location and the current
-  player-focus state at each decision point, not from cached movement state.
-  The playback page must not assume that cursor visibility becomes visible
-  merely because the current player stopped governing it.
-- In fullscreen the custom top bar is not shown (§12), so Player UI there is
-  the bottom player only; the same v4 machine governs its show/hide. The
-  player area is the video window; there is no frozen display-check area and
-  no dock/top-bar exemption.
-- Player-area enter/leave and ordinary in-area movement come from a single
-  authoritative `NSTrackingArea` on a hit-test-transparent full-bleed overlay
-  view (it never intercepts clicks/drag). `mouseEntered` updates player-area
-  governance but is not treated as real movement because layout/fullscreen
-  changes can emit enter events without physical pointer motion. `mouseMoved`
-  is the ordinary governed movement signal; `mouseExited` is the "moved to
-  another area" signal (rule 10.1). Dragged movement (`leftMouseDragged`,
-  `rightMouseDragged`, and `otherMouseDragged`) is also governed movement when
-  the live cursor remains governed by the current player, because AppKit sends
-  drag events to the original press target rather than reliably through the
-  tracking overlay. `NSEvent` global/local mouse-move monitors and SwiftUI hover
-  are not reliable substitutes for enter/exit/ordinary movement tracking.
-  Layout/fullscreen/focus changes are not movement; exiting fullscreen does not
-  change state.
-- The right-aligned overlay panel is not Player UI; its visibility is independent
-  of this machine and it never auto-hides. Hiding the chrome does not pause
-  playback, change selection, or close menus except where a menu cannot remain
-  visible without its anchor. Horizontal geometry changes remain immediate and
-  independent from Player UI visibility.
+- One model owns both states and the system cursor. It hides the cursor only
+  while it governs the pointer — the window has focus, no same-window layer is
+  open, and the live pointer position is inside the player area — and shows
+  it whenever governance is lost.
+- Clickable controls report their frames through a SwiftUI anchor preference
+  collected by the video stage; the window controls' frames are read from
+  AppKit. The pointer's live position is compared with them when the
+  countdown is started and again when it ends. A hidden Player UI's controls
+  do not count.
+- Player-area movement comes from an `NSTrackingArea` on a hit-test-
+  transparent full-bleed overlay view; dragged movement comes from a local
+  event monitor. Enter and exit events only refresh the live picture: layout
+  and fullscreen changes emit them without physical motion.
+- Player UI and pointer transitions do not animate. Hiding the Player UI
+  closes the speed menu and changes nothing else: not playback, not
+  selection.
+- A game controller has no pointer, so its input hides both at once while the
+  pointer is governed. The keyboard hides nothing.
+- Playback media-card Hover may update the session-local Selected Item only
+  while the pointer is shown.
 
 ### 10.5 Playback Close UX
 
@@ -821,7 +809,7 @@ Rules:
   video fill". S5 (complete 2026-05-19) confirmed ADR-0011 acceptance now
   holds by structure (no video freeze, no workbench relayout flash on
   enter/exit; `D`/`X` and seek shortcuts unchanged and smooth; overlay-panel
-  and v4 player-UI/cursor state independent of fullscreen enter/exit) and
+  and §10.4 Player-UI/pointer state independent of fullscreen enter/exit) and
   removed the `69861f2` render-sync band-aid entirely (all four layers);
   fullscreen layout correctness now relies solely on this structural video
   page, with no compensating render-sync machinery. Verification was the
@@ -872,15 +860,11 @@ Rules:
   active video stage. The HTML target size is 42 px high with 18 px horizontal
   padding, full capsule radius, 13 px bold label text, no icon slot, and no
   reserved icon gap.
-- Player UI and cursor visibility in fullscreen follow the §10.4 Player-UI /
-  cursor visibility state machine (v4). Entering fullscreen forces Player UI
-  and cursor into the hidden state; only real physical mouse movement while
-  the cursor is governed by the current player reveals Player UI and cursor.
-  Keyboard input forces the cursor hidden without revealing Player UI; clicks
-  and Wheel do not reveal either state. Exiting fullscreen does not by itself
-  change either state. After three seconds without movement while the cursor
-  is governed by the current player, Player UI and cursor hide again. There is
-  no frozen display-check area.
+- Player UI and pointer visibility in fullscreen follow the §10.4 model.
+  Entering fullscreen hides both; pointer movement inside the window while it
+  has focus shows both again, and the idle countdown then applies as
+  everywhere else. Clicks, the wheel and the keyboard reveal nothing. Exiting
+  fullscreen does not by itself change either state.
 - Clicking the video surface toggles play/pause unless the click targets a
   chrome control.
 - The fullscreen exit control exits playback fullscreen through the existing

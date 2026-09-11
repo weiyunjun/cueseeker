@@ -78,6 +78,7 @@ struct PlaybackChromeIconButton: View {
         .disabled(isDisabled)
         .focusable(false)
         .accessibilityLabel(accessibilityLabel)
+        .playerInteractiveRegion()
     }
 }
 

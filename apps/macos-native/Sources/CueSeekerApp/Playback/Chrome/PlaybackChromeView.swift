@@ -466,6 +466,7 @@ private struct PlaybackSpeedChromeButton: View {
         )
         .focusable(false)
         .accessibilityLabel(L("playback.speed"))
+        .playerInteractiveRegion()
         .frame(
             width: PlaybackChromeMetrics.speedButtonWidth,
             height: PlaybackChromeMetrics.capsuleButtonHeight,

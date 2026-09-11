@@ -29,6 +29,7 @@ struct PlaybackVideoStage: View {
             let isTopBarVisible = chrome.isPlayerUIVisible
             let isBottomChromeVisible = chrome.isPlayerUIVisible
             let areWindowControlsVisible = chrome.isPlayerUIVisible || isLayerOpen
+            let isSameWindowLayerOpen = isLayerOpen || isDialogOpen
 
             ZStack(alignment: .topLeading) {
                 Color.black
@@ -103,9 +104,20 @@ struct PlaybackVideoStage: View {
             }
             .frame(width: stageSize.width, height: stageSize.height)
             .clipped()
+            // The clickable controls report their frames: the pointer resting
+            // on one keeps the Player UI.
+            .overlayPreferenceValue(PlayerInteractiveRegionKey.self) { anchors in
+                GeometryReader { proxy in
+                    let frames = anchors.map { proxy[$0] }
+                    Color.clear
+                        .onAppear { chrome.setInteractiveFrames(frames) }
+                        .onChange(of: frames) { chrome.setInteractiveFrames($0) }
+                }
+                .allowsHitTesting(false)
+            }
             .onAppear {
                 chrome.enterVideoPage()
-                chrome.setDialogOpen(isDialogOpen)
+                chrome.setLayerOpen(isSameWindowLayerOpen)
                 playback.pointerVisibility.setVisible(chrome.isPointerVisible)
                 AppWindowControls.place(.playback(isVisible: areWindowControlsVisible))
                 appState.playbackPageDidAppear()
@@ -118,8 +130,17 @@ struct PlaybackVideoStage: View {
             .onChange(of: areWindowControlsVisible) { isVisible in
                 AppWindowControls.place(.playback(isVisible: isVisible))
             }
-            .onChange(of: isDialogOpen) { isOpen in
-                chrome.setDialogOpen(isOpen)
+            .onChange(of: isSameWindowLayerOpen) { isOpen in
+                chrome.setLayerOpen(isOpen)
+            }
+            .onReceive(playback.timeline.$isScrubbing) { isScrubbing in
+                chrome.setScrubbing(isScrubbing)
+            }
+            .onChange(of: chrome.isPlayerUIVisible) { isVisible in
+                // A hidden Player UI takes its menus with it.
+                if !isVisible {
+                    playback.closeSpeedMenu()
+                }
             }
             .onReceive(playback.pointerHideRequests) {
                 chrome.pointerHideRequested()

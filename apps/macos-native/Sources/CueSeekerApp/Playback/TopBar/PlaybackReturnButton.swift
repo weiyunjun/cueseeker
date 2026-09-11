@@ -22,6 +22,7 @@ struct PlaybackReturnButton: View {
         )
         .accessibilityLabel(L("playback.close_and_return"))
         .accessibilityIdentifier("playback-return")
+        .playerInteractiveRegion()
         .padding(.leading, leadingInset)
     }
 

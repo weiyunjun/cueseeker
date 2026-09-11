@@ -23,6 +23,7 @@ struct TopbarAppEntries: View {
                     appState.tasks.openPanel()
                 }
             }
+            .playerInteractiveRegion()
 
             SettingsEntryButton(
                 layoutState: appState.workbenchLayout,
@@ -33,6 +34,7 @@ struct TopbarAppEntries: View {
                     NotificationCenter.default.post(name: .cueSeekerShowSettings, object: nil)
                 }
             }
+            .playerInteractiveRegion()
         }
     }
 }

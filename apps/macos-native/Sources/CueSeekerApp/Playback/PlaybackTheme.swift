@@ -375,6 +375,8 @@ enum PlaybackChromeMetrics {
     static let windowControlButtonSize: CGFloat = 13
     static let windowControlGlyphSize: CGFloat = 7
     static let topbarTitleMaxWidth: CGFloat = 520
+    /// --duration-player-ui-idle-hide: 3s
+    static let idleHideDuration: TimeInterval = 3
 
     /// --height-playback-feedback: 52px
     static let feedbackHeight: CGFloat = 52

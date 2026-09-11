@@ -56,6 +56,7 @@ struct PlaybackVolumeControl: View {
                 scaleY: 0.85
             )
         )
+        .playerInteractiveRegion()
         .onPointerHover { hovering in
             withAnimation(.easeInOut(duration: 0.22)) {
                 isHovered = timeline.isScrubbing ? false : hovering

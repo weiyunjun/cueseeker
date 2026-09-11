@@ -1,189 +1,249 @@
 import AppKit
 import SwiftUI
 
-/// Single explicit Player-UI / cursor visibility state machine (v4).
+/// The playback page's only owner of Player UI visibility and of the pointer.
 ///
-/// Authoritative specs: `docs/product/12_liquid_glass_ux_mapping.md` §10.4 and
-/// the Playback Pointer Visibility delta in the Shared Workbench Playback
-/// Feature Surfaces requirement. This is the only owner of Player-UI visibility
-/// and the playback cursor.
+/// Authoritative rules: `docs/human/requirements/20260912-UI-Player UI And
+/// Pointer Visibility Rules.md`, mirrored in
+/// `docs/product/12_liquid_glass_ux_mapping.md` §10.4.
 ///
-/// v4 separates Player UI state from cursor state. The current player decides
-/// cursor visibility only while the cursor is governed by that player: the
-/// player area exists, the live cursor position is inside it, and player focus
-/// still belongs to the playback page.
+/// Player UI is the top bar, the bottom control bar and their menus. A hidden
+/// pointer always means a hidden Player UI. The pointer is hidden only while
+/// this model governs it: the playback window has focus, no same-window layer
+/// is open, and the pointer is inside the player area. Leaving governance
+/// shows the pointer; the Player UI comes back only with pointer movement
+/// inside the governed area.
+///
+/// The idle countdown is a condition, not an event. It runs while the window
+/// has focus, the pointer is inside the player area and on no clickable
+/// control, no layer is open, no scrubbing is in progress, and there is still
+/// something to hide. Any change re-evaluates it; pointer movement restarts
+/// it. Clicks, the wheel and the keyboard are not movement.
 @MainActor
 final class PlaybackChromeVisibilityModel: ObservableObject {
     @Published private(set) var isPlayerUIVisible = true
-    @Published private(set) var isPointerVisible = false
+    @Published private(set) var isPointerVisible = true
 
-    private enum VisibilityState {
-        case visible
-        case hidden
-    }
+    /// AppKit answers these in the App; tests answer them directly.
+    var hasWindowFocus: (NSWindow) -> Bool = { NSApp.isActive && $0.isKeyWindow }
+    var pointerScreenLocation: () -> NSPoint = { NSEvent.mouseLocation }
 
-    private static let idleNanoseconds: UInt64 = 3_000_000_000
+    private static let windowControlButtons: [NSWindow.ButtonType] = [
+        .closeButton, .miniaturizeButton, .zoomButton
+    ]
 
-    private var playerUIState: VisibilityState = .visible
-    private var cursorState: VisibilityState = .visible
     private var idleTask: Task<Void, Never>?
     private var cursorHiddenByPlayer = false
     private var focusObservers: [NSObjectProtocol] = []
     private var pointerDragEventMonitor: Any?
     private weak var playerAreaView: NSView?
     private weak var playerWindow: NSWindow?
-    /// A dialog takes the player's focus the way another key window does; it
-    /// was one until dialogs were drawn inside the main window.
-    private var isDialogOpen = false
+    /// A Playback Overlay, Command Panel or in-window dialog is open above the
+    /// page: the pointer is shown and the Player UI's state and countdown are
+    /// frozen until it closes.
+    private var isLayerOpen = false
+    private var isScrubbing = false
+    /// The clickable controls of the Player UI, in the player area's
+    /// top-left-origin coordinates. The window controls are asked from AppKit.
+    private var interactiveFrames: [CGRect] = []
+
+    var isIdleCountdownRunning: Bool {
+        idleTask != nil
+    }
 
     // MARK: - Lifecycle
 
     func enterVideoPage() {
         startObservingFocus()
         startObservingPointerDraggedEvents()
-        setPlayerUIState(.visible)
-        setCursorState(.hidden)
-        applyCursorOwnership()
-        restartIdleTimer()
+        setPlayerUIVisible(true)
+        setPointerVisible(true)
+        reevaluate()
     }
 
     func leaveVideoPage() {
-        idleTask?.cancel()
-        idleTask = nil
+        cancelIdleCountdown()
         stopObservingFocus()
         stopObservingPointerDraggedEvents()
-        releaseCursorOwnership()
+        releaseCursor()
         playerAreaView = nil
         playerWindow = nil
     }
 
-    /// Rule 9: entering playback fullscreen forces Player UI and cursor hidden.
+    /// Entering fullscreen hides both at once.
     func enteringFullscreen() {
-        idleTask?.cancel()
-        idleTask = nil
-        setPlayerUIState(.hidden)
-        setCursorState(.hidden)
+        cancelIdleCountdown()
+        setPlayerUIVisible(false)
+        setPointerVisible(false)
         applyCursorOwnership()
     }
 
-    // MARK: - Pointer (driven by the NSTrackingArea overlay)
+    // MARK: - Inputs
 
     func updatePlayerAreaView(_ view: NSView) {
         playerAreaView = view
-        guard let window = view.window else {
-            return
+        if let window = view.window {
+            playerWindow = window
         }
-        playerWindow = window
-        handleFocusOrGovernanceChanged()
+        reevaluate()
     }
 
-    /// The pointer entered the player area. This updates governance only; it is
-    /// not treated as real movement because layout/fullscreen changes can emit
-    /// enter events without physical pointer motion.
+    /// Enter and exit only refresh the live picture: layout and fullscreen
+    /// changes emit them without physical pointer motion, and the pointer's
+    /// real position is read when deciding.
     func pointerEnteredPlayerArea(view: NSView) {
         updatePlayerAreaView(view)
     }
 
-    /// Rules 7, 11, and 13: only governed real mouse movement reveals Player UI
-    /// and/or the cursor.
+    func pointerExitedPlayerArea(view: NSView) {
+        updatePlayerAreaView(view)
+    }
+
     func pointerMovedInPlayerArea(view: NSView) {
         updatePlayerAreaView(view)
-        handlePhysicalPointerMovement()
+        pointerMoved()
     }
 
-    /// Drag events can be delivered to the original press target instead of the
-    /// tracking overlay. They still represent physical pointer movement.
-    private func pointerDragged() {
-        handlePhysicalPointerMovement()
+    /// Same-window layers: Playback Overlay, Command Panel and dialogs.
+    func setLayerOpen(_ isOpen: Bool) {
+        guard isLayerOpen != isOpen else {
+            return
+        }
+        isLayerOpen = isOpen
+        if isOpen {
+            cancelIdleCountdown()
+            setPointerVisible(true)
+            applyCursorOwnership()
+        } else {
+            reevaluate()
+        }
     }
 
-    private func handlePhysicalPointerMovement() {
-        setCursorState(.visible)
-        guard isCursorGovernedByCurrentPlayer else {
-            if playerHasFocus, !isCursorInPlayerArea(), playerUIState == .visible {
-                transitionPlayerUIToHidden()
-            }
+    func setScrubbing(_ isScrubbing: Bool) {
+        guard self.isScrubbing != isScrubbing else {
+            return
+        }
+        self.isScrubbing = isScrubbing
+        reevaluate()
+    }
+
+    func setInteractiveFrames(_ frames: [CGRect]) {
+        interactiveFrames = frames
+        reevaluate()
+    }
+
+    /// A game controller has no pointer, so its input hides both at once. The
+    /// keyboard does not.
+    func pointerHideRequested() {
+        guard isGoverned else {
+            return
+        }
+        hideBoth()
+    }
+
+    /// The window's or the App's focus changed.
+    func focusChanged() {
+        reevaluate()
+    }
+
+    // MARK: - Decision
+
+    private func pointerMoved() {
+        guard isGoverned else {
+            return
+        }
+        setPointerVisible(true)
+        setPlayerUIVisible(true)
+        applyCursorOwnership()
+        cancelIdleCountdown()
+        reevaluate()
+    }
+
+    private func reevaluate() {
+        guard playerWindow != nil, !isLayerOpen else {
+            return
+        }
+        if !hasFocus || !isPointerInPlayerArea {
+            // Outside the window or without focus the Player UI is hidden and
+            // the pointer is shown.
+            cancelIdleCountdown()
+            setPlayerUIVisible(false)
+            setPointerVisible(true)
             applyCursorOwnership()
             return
         }
-
-        if playerUIState == .hidden {
-            setPlayerUIState(.visible)
-        }
         applyCursorOwnership()
-        restartIdleTimer()
-    }
-
-    /// Rules 10.1 and 14: leaving the player area hides Player UI when visible
-    /// and stops the current player from deciding cursor visibility.
-    func pointerExitedPlayerArea(view: NSView) {
-        updatePlayerAreaView(view)
-        if playerUIState == .visible {
-            transitionPlayerUIToHidden()
+        if isIdleCountdownDue {
+            startIdleCountdownIfNeeded()
+        } else {
+            cancelIdleCountdown()
         }
-        applyCursorOwnership()
     }
 
-    /// A controller has no pointer, so input from one hides the cursor. The
-    /// keyboard no longer does.
-    func pointerHideRequested() {
-        setCursorState(.hidden)
-        applyCursorOwnership()
-    }
-
-    // MARK: - Focus and cursor governance
-
-    func setDialogOpen(_ isOpen: Bool) {
-        guard isDialogOpen != isOpen else {
-            return
-        }
-        isDialogOpen = isOpen
-        focusChanged()
-    }
-
-    private var playerHasFocus: Bool {
-        guard NSApp.isActive, !isDialogOpen else {
+    private var hasFocus: Bool {
+        guard let playerWindow else {
             return false
         }
-        guard let window = playerWindow ?? playerAreaView?.window else {
+        return hasWindowFocus(playerWindow)
+    }
+
+    private var isGoverned: Bool {
+        !isLayerOpen && hasFocus && isPointerInPlayerArea
+    }
+
+    private var isIdleCountdownDue: Bool {
+        isGoverned
+            && !isScrubbing
+            && !isPointerOnInteractiveControl
+            && (isPlayerUIVisible || isPointerVisible)
+    }
+
+    private var pointerLocationInPlayerArea: CGPoint? {
+        guard let view = playerAreaView, let window = playerWindow else {
+            return nil
+        }
+        let windowPoint = window.convertPoint(fromScreen: pointerScreenLocation())
+        return view.convert(windowPoint, from: nil)
+    }
+
+    private var isPointerInPlayerArea: Bool {
+        guard let view = playerAreaView, let point = pointerLocationInPlayerArea else {
             return false
         }
-        return window.isKeyWindow
+        return view.bounds.contains(point)
     }
 
-    private var isCursorGovernedByCurrentPlayer: Bool {
-        playerHasFocus && isCursorInPlayerArea()
-    }
-
-    private func focusChanged() {
-        handleFocusOrGovernanceChanged()
-    }
-
-    private func handleFocusOrGovernanceChanged() {
-        if !playerHasFocus, playerUIState == .visible {
-            // Rule 10.3: losing player focus hides Player UI. Cursor state is
-            // intentionally left to the cursor rules.
-            transitionPlayerUIToHidden()
+    /// Clickable controls only: the shown Player UI's controls and the window
+    /// controls. A hidden control is not clickable.
+    private var isPointerOnInteractiveControl: Bool {
+        if isPlayerUIVisible,
+           let point = pointerLocationInPlayerArea,
+           interactiveFrames.contains(where: { $0.contains(point) }) {
+            return true
         }
-        applyCursorOwnership()
+        guard let window = playerWindow else {
+            return false
+        }
+        let screenPoint = pointerScreenLocation()
+        return Self.windowControlButtons.contains { type in
+            guard let button = window.standardWindowButton(type),
+                  !button.isHiddenOrHasHiddenAncestor,
+                  let buttonWindow = button.window else {
+                return false
+            }
+            let frame = buttonWindow.convertToScreen(button.convert(button.bounds, to: nil))
+            return frame.contains(screenPoint)
+        }
     }
 
-    // MARK: - State helpers
+    // MARK: - Countdown
 
-    private func transitionPlayerUIToHidden() {
-        idleTask?.cancel()
-        idleTask = nil
-        setPlayerUIState(.hidden)
-    }
-
-    private func restartIdleTimer() {
-        idleTask?.cancel()
-        guard playerUIState == .visible else {
-            idleTask = nil
+    private func startIdleCountdownIfNeeded() {
+        guard idleTask == nil else {
             return
         }
         idleTask = Task { [weak self] in
-            try? await Task.sleep(nanoseconds: Self.idleNanoseconds)
+            try? await Task.sleep(for: .seconds(PlaybackChromeMetrics.idleHideDuration))
             guard !Task.isCancelled else {
                 return
             }
@@ -191,53 +251,54 @@ final class PlaybackChromeVisibilityModel: ObservableObject {
         }
     }
 
-    private func idleElapsed() {
-        // Rules 10.2 and 12.2: governed 3s inactivity hides both states.
-        guard playerUIState == .visible, isCursorGovernedByCurrentPlayer else {
+    private func cancelIdleCountdown() {
+        idleTask?.cancel()
+        idleTask = nil
+    }
+
+    /// The countdown's end. Internal so tests need not wait for it.
+    func idleElapsed() {
+        cancelIdleCountdown()
+        guard isIdleCountdownDue else {
             return
         }
-        transitionPlayerUIToHidden()
-        setCursorState(.hidden)
+        hideBoth()
+    }
+
+    private func hideBoth() {
+        cancelIdleCountdown()
+        setPlayerUIVisible(false)
+        setPointerVisible(false)
         applyCursorOwnership()
     }
 
-    private func setPlayerUIState(_ state: VisibilityState) {
-        guard playerUIState != state else {
+    // MARK: - State
+
+    private func setPlayerUIVisible(_ isVisible: Bool) {
+        guard isPlayerUIVisible != isVisible else {
             return
         }
-        playerUIState = state
-        isPlayerUIVisible = state == .visible
+        isPlayerUIVisible = isVisible
     }
 
-    private func setCursorState(_ state: VisibilityState) {
-        guard cursorState != state else {
+    private func setPointerVisible(_ isVisible: Bool) {
+        guard isPointerVisible != isVisible else {
             return
         }
-        cursorState = state
-        isPointerVisible = state == .visible
+        isPointerVisible = isVisible
     }
 
     // MARK: - Cursor ownership
 
-    private func isCursorInPlayerArea() -> Bool {
-        guard let view = playerAreaView,
-              let window = playerWindow ?? view.window else {
-            return false
-        }
-        let windowPoint = window.convertPoint(fromScreen: NSEvent.mouseLocation)
-        let viewPoint = view.convert(windowPoint, from: nil)
-        return view.bounds.contains(viewPoint)
-    }
-
     private func applyCursorOwnership() {
-        if cursorState == .hidden, isCursorGovernedByCurrentPlayer {
+        if !isPointerVisible, isGoverned {
             hideCursor()
         } else {
-            releaseCursorOwnership()
+            releaseCursor()
         }
     }
 
-    private func releaseCursorOwnership() {
+    private func releaseCursor() {
         guard cursorHiddenByPlayer else {
             return
         }
@@ -253,7 +314,7 @@ final class PlaybackChromeVisibilityModel: ObservableObject {
         AppCursorVisibility.setHidden(true)
     }
 
-    // MARK: - Focus observers
+    // MARK: - Observers
 
     private func startObservingFocus() {
         guard focusObservers.isEmpty else {
@@ -261,8 +322,8 @@ final class PlaybackChromeVisibilityModel: ObservableObject {
         }
         let center = NotificationCenter.default
         // Settings and other non-player windows become key windows without the
-        // App resigning active, so player focus must listen to both window and
-        // application focus changes.
+        // App resigning active, so focus listens to both window and
+        // application changes.
         for name in [
             NSWindow.didBecomeKeyNotification,
             NSWindow.didResignKeyNotification,
@@ -286,6 +347,8 @@ final class PlaybackChromeVisibilityModel: ObservableObject {
         focusObservers.removeAll()
     }
 
+    /// Drag events go to the original press target instead of the tracking
+    /// overlay. They are pointer movement all the same.
     private func startObservingPointerDraggedEvents() {
         guard pointerDragEventMonitor == nil else {
             return
@@ -294,7 +357,7 @@ final class PlaybackChromeVisibilityModel: ObservableObject {
             matching: [.leftMouseDragged, .rightMouseDragged, .otherMouseDragged]
         ) { [weak self] event in
             MainActor.assumeIsolated {
-                self?.pointerDragged()
+                self?.pointerMoved()
             }
             return event
         }

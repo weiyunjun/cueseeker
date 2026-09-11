@@ -1,6 +1,24 @@
 import AppKit
 import SwiftUI
 
+/// The frames of the Player UI's clickable controls, collected by the stage
+/// for `PlaybackChromeVisibilityModel`: the pointer resting on one keeps the
+/// Player UI and the pointer shown.
+struct PlayerInteractiveRegionKey: PreferenceKey {
+    static let defaultValue: [Anchor<CGRect>] = []
+
+    static func reduce(value: inout [Anchor<CGRect>], nextValue: () -> [Anchor<CGRect>]) {
+        value.append(contentsOf: nextValue())
+    }
+}
+
+extension View {
+    /// Marks a clickable Player UI control.
+    func playerInteractiveRegion() -> some View {
+        anchorPreference(key: PlayerInteractiveRegionKey.self, value: .bounds) { [$0] }
+    }
+}
+
 struct PlaybackChromeTrackingView: NSViewRepresentable {
     let onViewChanged: (NSView) -> Void
     let onEntered: (NSView) -> Void
@@ -30,6 +48,12 @@ final class PlaybackChromeTrackingNSView: NSView {
     var onEntered: (NSView) -> Void = { _ in }
     var onMoved: (NSView) -> Void = { _ in }
     var onExited: (NSView) -> Void = { _ in }
+
+    /// Top-left origin, so a pointer position converted into this view lands
+    /// in the same coordinates as the SwiftUI frames of the stage it fills.
+    override var isFlipped: Bool {
+        true
+    }
 
     // Never intercept clicks/drag: events pass through to the controls and
     // video below. Tracking-area enter/exit/moved are still delivered.

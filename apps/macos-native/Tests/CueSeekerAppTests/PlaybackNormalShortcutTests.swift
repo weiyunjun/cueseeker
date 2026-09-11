@@ -146,24 +146,6 @@ func normalPlaybackBareRAndTriangleConsumeUnavailableRepeatSilently() throws {
 
 @MainActor
 @Test
-func playbackPointerStartsHiddenAndOnlyMovementRestoresIt() {
-    let model = PlaybackChromeVisibilityModel()
-    let view = NSView()
-
-    model.enterVideoPage()
-    #expect(!model.isPointerVisible)
-
-    model.pointerMovedInPlayerArea(view: view)
-    #expect(model.isPointerVisible)
-
-    model.pointerHideRequested()
-    #expect(!model.isPointerVisible)
-
-    model.leaveVideoPage()
-}
-
-@MainActor
-@Test
 func playbackPointerHideRequestDoesNotInvalidatePlaybackStore() {
     let store = PlaybackStore(userDefaults: .standard)
     var playbackStoreInvalidations = 0

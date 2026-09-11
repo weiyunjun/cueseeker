@@ -6,6 +6,13 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Reworked when the video page's Player UI and the pointer hide. The pointer
+  resting on a clickable control, or dragging the progress bar, keeps them;
+  three seconds without movement over anything else hides both, and the speed
+  menu closes with them. The Playback Overlay, the Command Panel and dialogs
+  show the pointer and freeze the Player UI until they close; losing focus or
+  leaving the window hides the Player UI and shows the pointer; entering the
+  page shows both.
 - Added a Shortcuts page to Settings that rebinds the video page's, the
   Playback Overlay's and the Command Panel's keyboard shortcuts in place. A
   shortcut takes one key or ⇧ with one key; Esc cancels the recording, the
