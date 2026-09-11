@@ -453,6 +453,10 @@
 - `--duration-subtitle-focus-scroll`: `0.22s`
 - `--easing-subtitle-focus-scroll`: `cubic-bezier(0.22, 1, 0.36, 1)`
 
+### Player UI Visibility
+
+- `--duration-player-ui-idle-hide`: `3s`
+
 # 2. Components
 
 ## 2.1 Inputs
@@ -3892,7 +3896,7 @@
 
 - Visible
 - Interaction Suppressed
-- Pointer Hidden
+- Hidden
 
 ### Player Bottom Control Bar Layout
 
@@ -3927,7 +3931,7 @@
 
 - Visible
 - Interaction Suppressed
-- Pointer Hidden
+- Hidden
 
 ### Player Progress Scrubber Layout
 
