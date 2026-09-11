@@ -108,3 +108,15 @@ Files:
 - The layer, menu, task, shortcut, list editor, rename and confirmation suites pass, 85 tests.
 
 The motion itself, frame by frame, is still the owner's comparison by eye.
+
+## Follow-up: the tokens are in the design documents
+
+The owner accepted the look and recorded it in `docs/human/design/UI Design System.md` (Dialog colours, `--radius-dialog`, `--shadow-dialog`, Dialog Motion, and the Dialog's Scrim, Placement, Outline, Edge Highlight, Motion and Covered state) and `docs/human/design/UI Application Rules.md` (the red light and Quit held only under a Confirmation, and the top band that moves and zooms the window under a dialog), in `76182e8e`.
+
+The design system writes the veil as one colour with its alpha, `--color-dialog-scrim` Light `rgba(170,170,170,0.60)`, Dark `rgba(22,24,25,0.60)`; there is no separate `--opacity-dialog-scrim`. The one code comment that still named it now names `--color-dialog-scrim` alone. The code's values already matched the documents, so nothing else changed: the other colours follow the file's naming (`dialogOutline` for `--color-dialog-outline`, `dialogEdgeHighlight` for `--color-dialog-edge-highlight`, `dialogShadow` for the colour of `--shadow-dialog`), and the radius and motion comments already carried the documents' names.
+
+Files:
+
+- `apps/macos-native/Sources/CueSeekerApp/Shared/WorkbenchRedesignTokens.swift`
+
+Verification: `swift build` is clean. The change is a comment, so the App's look and behaviour are unchanged.

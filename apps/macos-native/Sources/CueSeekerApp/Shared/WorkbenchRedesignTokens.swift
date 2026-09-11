@@ -165,7 +165,7 @@ enum WorkbenchRedesignColors {
         // What the system sheet drew around a dialog, measured from it on
         // macOS 15.5: the veil over what the dialog covers, the shadow, the
         // hairline just outside the edge and the highlight just inside it.
-        // --color-dialog-scrim with --opacity-dialog-scrim
+        // --color-dialog-scrim
         static let dialogScrim = NSColor.dynamic(
             lightHex: "#AAAAAA",
             lightAlpha: 0.60,
