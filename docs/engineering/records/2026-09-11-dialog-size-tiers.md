@@ -51,10 +51,18 @@ New and updated tests: the tier widths, the margin, the Task panel height and th
 
 `swift test`: 1179 tests, 15 fail — native playback timeline, audio and presentation, the auto-pause boundary, the refresh-scope waits, library folder removal under load, and the two Debug E2E scene-geometry cases, the same families the in-window dialogs record lists as failing on the tree before it. None reads a dialog.
 
-Not yet verified in the App: the owner's own CueSeeker was running, and the Debug E2E controller is not started beside it.
+**In the App**, after the owner closed their own copy: Debug E2E controller, main window 1445×821 at 2×, light and then dark through the `-appAppearanceMode` launch argument so the owner's setting was never written, with the existing `click`, `rightClick`, `scroll`, `keyPress`, `setWidth` and `capture` commands; no E2E facility was added. Coordinates were read off this session's captures, and every context menu was captured before an item in it was clicked. Measured in pixels:
+
+- Shiori List Editor, window 1445: 720 wide; the cover 312 × 175.5, 24 from the left; column gap 24; the form column 336; the Description box's bottom edge on the same pixel row as the cover's. With the editor open, `setWidth` 740: 360 wide, one column, the same cover, List Name 40 and the Description box 58.5 tall, 24 below the buttons; the List Name field kept its focus across the switch. In dark, two wheel scrolls over the two-column editor left the cover on the same rows.
+- Task panel: 692 × 500 at window 740, 720 × 500 at 1445; title, close button, Tabs centred under the title; cards 24 from both sides. Dark: the panel and the cards both `#18181B`, the cards set off by their `#3F3F46` border; the panel's edge is only the dialog layer's outline and 20% highlight.
+- Confirmation over the Task panel: 360 wide, the panel veiled under it, the red light grey; its edge is the outline and then white, with no grey line inside it. Cancel returned to the panel with the record still there. In dark, Escape closed the Confirmation and left the panel open; a second Escape closed the panel.
+- Rename Folder: 480 wide, the field across the content width with 24 either side; at window 480 it is 432 wide with 24 either side. Cancel left the folder's name as it was.
+- Edit Cover: 360 × 376, the cover 312 × 175.5 with 24 on either side. Cancel left the cover as it was.
+
+Not driven: the one-column list editor in a window too short for it, which the owner checks by hand because the controller cannot set the window's height; text typed into List Name before the layout switch, because the App was not the active App at that moment and the controller refused the keys (the text lives in the editor's session, not in the fields); and a Task card list long enough to scroll to its end.
 
 ## Known limits
 
 - The Task panel's close button no longer shows a `Close` tooltip or carries its own accessibility identifier; it is the close button the other dialogs have, which has neither.
 - The scrollbar's 4pt inset from its scroll area's edge is in code but not in the design document.
-- The Debug E2E controller can set the main window's width but not its height, so the one-column list editor scrolling in a short window cannot be driven automatically.
+- The Debug E2E controller can set the main window's width but not its height, so the one-column list editor scrolling in a short window cannot be driven automatically. The owner chose to check it by hand rather than add the capability.
