@@ -66,3 +66,15 @@ Not driven: the one-column list editor in a window too short for it, which the o
 - The Task panel's close button no longer shows a `Close` tooltip or carries its own accessibility identifier; it is the close button the other dialogs have, which has neither.
 - The scrollbar's 4pt inset from its scroll area's edge is in code but not in the design document.
 - The Debug E2E controller can set the main window's width but not its height, so the one-column list editor scrolling in a short window cannot be driven automatically. The owner chose to check it by hand rather than add the capability.
+
+## Follow-up: the sizes are in the design document
+
+The owner accepted the result and recorded it in `docs/human/design/UI Design System.md` in `18cdf56d`: the four width tiers and `--height-task-panel` 500 among the tokens, with the seven replaced tokens gone; the Dialog's surface background with no border of its own, its width tier, and how it fits the window; the Text Area's height left to its layout; and the Edit Cover, Shiori List Editor, Rename, Confirmation and Task panel layouts. `docs/human/design/UI Application Rules.md` needed no change.
+
+The code's values and token names already matched the document, so nothing else changed.
+
+Files:
+
+- `docs/engineering/records/2026-09-11-dialog-size-tiers.md`
+
+Verification: the change is to this record only.
