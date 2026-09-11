@@ -223,13 +223,13 @@ enum WorkbenchControlMetrics {
     static let redesignSettingsWindowMinimumWidth: CGFloat = 680
     /// Provisional --height-settings-window-min: 420px
     static let redesignSettingsWindowMinimumHeight: CGFloat = 420
-    /// Provisional --height-segmented-control: 32px
+    /// --height-segmented-control: 32px
     static let redesignSegmentedControlHeight: CGFloat = 32
-    /// Provisional --padding-segmented-control: 3px
+    /// --padding-segmented-control: 3px
     static let redesignSegmentedControlPadding: CGFloat = 3
-    /// Provisional --gap-segmented-control: 2px
+    /// --gap-segmented-control: 2px
     static let redesignSegmentedControlGap: CGFloat = 2
-    /// Provisional --font-size-segmented-control: 12px
+    /// --font-size-segmented-control: 12px
     static let redesignFontSizeSegmentedControl: CGFloat = 12
     /// The selected option's block fills the control inside its padding.
     static let redesignSegmentedControlSegmentHeight =

@@ -43,3 +43,15 @@ Debug E2E controller, main window 1445×821 at 2×, Settings window 760×520 at 
 The two controls are no longer the same width. Each follows its own labels, as the requirement asks.
 
 The title and description beside each control, and the settings page title, are still written in place. The requirement leaves them out of scope.
+
+## Follow-up: the tokens are in the design document
+
+The owner accepted the look and recorded it in `docs/human/design/UI Design System.md` in `52bbbca1`: the six new tokens, the Segmented Control under Selection Controls, and its place in the Settings Category Layout components.
+
+The four size and type tokens in code no longer say they are provisional. The two colours never carried that note. The code's values already matched the document, so nothing else changed.
+
+Files:
+
+- `apps/macos-native/Sources/CueSeekerApp/Shared/WorkbenchControls/WorkbenchControls.swift`
+
+Verification: `swift build` is clean. The change is a comment, so the App's look and behaviour are unchanged.
