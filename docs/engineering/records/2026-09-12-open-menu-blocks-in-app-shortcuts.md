@@ -54,4 +54,4 @@ The run advanced the owner's resume position of *It's MyGO!!!!! - 06* from 14:44
 
 ## Outcome
 
-Matched expectations, with one finding beyond them: the speed menu's keyboard had been dead in the running App since the menu gate took over its monitor, hidden from the unit tests because they call the playback key owner directly. The requirement's first acceptance item — ↑↓ move the highlight, Enter selects, Esc closes — now holds in the App. After acceptance the owner updates 菜单模态 1 and 6 and 更高层界面的屏蔽 3 in `UI Application Rules.md`, and the Menu Modality line in `UI Design System.md`.
+Matched expectations, with one finding beyond them: the speed menu's keyboard had been dead in the running App since the menu gate took over its monitor, hidden from the unit tests because they call the playback key owner directly. The requirement's first acceptance item — ↑↓ move the highlight, Enter selects, Esc closes — now holds in the App. After acceptance the owner updated 菜单模态 1 and 6 and 更高层界面的屏蔽 3 in `UI Application Rules.md`, and the Menu Modality line in `UI Design System.md` (bf03346f).
