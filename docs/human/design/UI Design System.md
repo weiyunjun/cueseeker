@@ -122,6 +122,12 @@
 - `--color-cover-summary-scrim`: Light `#000000`; Dark `#000000`
 - `--color-cover-summary-text`: Light `#FFFFFF`; Dark `#FFFFFF`
 
+### Dialog
+
+- `--color-dialog-scrim`: Light `rgba(170,170,170,0.60)`; Dark `rgba(22,24,25,0.60)`
+- `--color-dialog-outline`: Light `rgba(0,0,0,0.19)`; Dark `rgba(0,0,0,0.94)`
+- `--color-dialog-edge-highlight`: Light `transparent`; Dark `rgba(255,255,255,0.20)`
+
 ### Player Chrome
 
 - `--color-player-stage-bg`: Light `#000000`; Dark `#000000`
@@ -356,6 +362,7 @@
 - `--radius-inline-clear-button`: `9999px`
 - `--radius-checkbox`: `9999px`
 - `--radius-menu`: `12px`
+- `--radius-dialog`: `10px`
 - `--radius-select-menu-item`: `6px`
 - `--radius-action-menu-item`: `6px`
 - `--radius-row-action`: `8px`
@@ -380,6 +387,9 @@
 - `--shadow-popover`: Light 与 Dark 相同
   - `0 10px 15px -3px rgba(15,23,42,0.10)`
   - `0 4px 6px -4px rgba(15,23,42,0.10)`
+- `--shadow-dialog`:
+  - Light: `0 18px 40px rgba(0,0,0,0.25)`
+  - Dark: `0 18px 40px rgba(0,0,0,0.43)`
 - `--shadow-player-overlay`:
   - Light: `0 12px 24px rgba(0,0,0,0.42)`
   - Dark: `0 12px 24px rgba(0,0,0,0.42)`
@@ -421,6 +431,13 @@
 
 - `--duration-toast-motion`: `0.20s`
 - `--easing-toast-motion`: `cubic-bezier(0.22, 1, 0.36, 1)`
+
+### Dialog Motion
+
+- `--duration-dialog-motion`: `0.27s`
+- `--duration-dialog-fade-in`: `0.12s`
+- `--distance-dialog-motion`: `34px`
+- `--easing-dialog-motion`: `cubic-bezier(0.4, 0.2, 0.58, 1)`
 
 ### Spinner Motion
 
@@ -1999,12 +2016,17 @@
 
 ##### Anatomy
 
-- Scrim：覆盖整个窗口
+- Scrim
+  - Color：`--color-dialog-scrim`
+  - 覆盖整个窗口，红绿灯除外；系统文件选择框打开期间改由系统压暗
 - Container
+  - Placement：窗口正中
   - Background：`--color-bg-popover`
   - Border Color：`--color-border-muted`
-  - Radius：`--radius-control`
-  - Shadow：系统 sheet 阴影
+  - Radius：`--radius-dialog`
+  - Shadow：`--shadow-dialog`
+  - Outline：`--color-dialog-outline`，容器外侧 1 物理像素
+  - Edge Highlight：`--color-dialog-edge-highlight`，容器内侧 `1px`
 - Header
 - Content
 - Footer
@@ -2018,10 +2040,19 @@
   - 量到看得见的边：文字的水平边取文本框边缘，文字的上边取 cap 顶；有边框或背景的控件取可见边缘；纯图标按钮取图标字形的墨迹边缘
   - 覆盖：标题与正文的左缘、正文的折行边界、最右侧按钮的右缘、最下方按钮的下缘、关闭按钮字形的右缘与顶缘
 
+##### Motion
+
+- 打开：历时 `--duration-dialog-motion`。Scrim 线性淡入；Container 从上方 `--distance-dialog-motion` 处按 `--easing-dialog-motion` 滑入，`--duration-dialog-fade-in` 内完全显示
+- 关闭：历时 `--duration-dialog-motion`。Scrim 线性淡出；Container 按同一曲线反向滑回上方，全程淡出
+- Container 连同阴影与边线整体淡入淡出
+
 ##### States
 
 - Closed
 - Open
+- Covered
+  - 触发：上层对话框打开
+  - Container 上叠加 Scrim，页面不重复压暗
 - Disabled
 
 ### Confirmation Dialog
