@@ -53,7 +53,7 @@
 | 图标 | 字重 | 含义 | 使用位置 |
 | --- | --- | --- | --- |
 | `squares-four` | Regular | Library | Sidebar Item / Library |
-| `folder` | Regular | 文件夹 | Sidebar Item / File；表格行菜单 / Open Subtitle Folder；Library 卡片菜单 / Open Folder；Library File Tree / Root Path、Object Folder；File Page 空状态，47px |
+| `folder` | Regular | 文件夹 | Sidebar Item / File；表格行菜单 / Open Subtitle Folder；Library 卡片菜单 / Open Folder；Library File Tree / Root Path、Object Folder；Export to Anki Dialog / Location；File Page 空状态，47px |
 | `bookmark-simple` | Regular | Shiori | Sidebar Item / Shiori；Command Panel Root / Recent Shioris；表格行菜单 / Remove Shiori；Playback Feedback（移出 Shiori）；Shiori 封面占位，57px |
 | `bookmark-simple` | Fill | 已存入 Shiori | Playback Feedback（Save to Shiori） |
 | `clock` | Regular | 最近、时长 | Sidebar Item / Recent；Filter Menu / Duration |
@@ -69,8 +69,8 @@
 | `minus-circle` | Regular | 移除 | File Page / Root Folder Row / Remove |
 | `minus-circle` | Fill | 半选 | Checkbox / Indeterminate |
 | `stack` | Regular | 剧集 | Library File Tree / Display Title |
-| `video` | Regular | 视频 | Library File Tree / Video；Command Panel Root / Recent Videos；Settings / Decode；Library 封面占位，57px |
-| `subtitles` | Regular | 字幕 | Library File Tree / Subtitle；播放控制条 / 字幕；Playback Feedback（字幕开关） |
+| `video` | Regular | 视频 | Library File Tree / Video；Command Panel Root / Recent Videos；Settings / Decode；Library 封面占位，57px；Anki 卡片 / Video File Path，21px |
+| `subtitles` | Regular | 字幕 | Library File Tree / Subtitle；播放控制条 / 字幕；Playback Feedback（字幕开关）；Anki 卡片 / Subtitle File Path，21px |
 
 ## 3.4 状态与提示
 
@@ -94,7 +94,7 @@
 | `trash` | Regular | 删除 | Shiori 卡片菜单 / Delete List；Task Card / Delete Action |
 | `copy` | Regular | 复制 | 表格行菜单 / Copy Cue Text、Copy Cue Group Text、Copy Time Range；Collage Editor / Copy；Playback Overlay 选中文字菜单 / Copy Selected Text |
 | `export` | Regular | 导出、更换封面 | Collage Editor / Export；Library 卡片菜单 / Change Cover |
-| `link-simple` | Regular | 链接 | 表格行菜单 / Copy Deep Link；Settings / URL Scheme |
+| `link-simple` | Regular | 链接 | 表格行菜单 / Copy Deep Link；Settings / URL Scheme；Anki 卡片 / Deep Link，21px |
 
 ## 3.6 播放控制
 

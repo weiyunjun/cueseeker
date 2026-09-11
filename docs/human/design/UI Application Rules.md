@@ -8,9 +8,9 @@
 2. 页面内浮层：Selection Action Overlay；Playback Overlay（Current、Playlist、Collage Editor 是它的同层模块）。
 3. Command Panel，位于 Playback Overlay 之上。
 4. 菜单：属于打开它的那一层，只高于该层自身。
-5. 对话框：Edit Cover、Shiori List Editor、Rename、任务界面、Confirmation。
+5. 对话框：Edit Cover、Shiori List Editor、Rename、Export to Anki、任务界面、Confirmation。
 
-Toast 与播放反馈只有视觉，不接受输入，不参与层级；播放反馈画在页面内浮层与 Command Panel 之上。独立窗口与系统菜单栏不属于本清单。红绿灯属于窗口，不参与层级与菜单模态，任何界面状态下可见可用，只有 Confirmation 位于最上层时红灯不可用；播放页无 Overlay 时随 Player UI 显隐，Overlay 与 Command Panel 打开时保持显示。红灯关闭主窗口，返回按钮回到来源页。Confirmation 位于最上层时，Cmd+Q 与 Dock 菜单中的退出同样不生效；系统关机、重启与注销不受影响。全屏进入与退出的动画期间不显示红绿灯，进入完成后由系统标题栏显示，退出完成后回到页面落位。
+Toast 与播放反馈只有视觉，不接受输入，不参与层级；播放反馈画在页面内浮层与 Command Panel 之上。独立窗口与系统菜单栏不属于本清单。红绿灯属于窗口，不参与层级与菜单模态，任何界面状态下可见可用，只有 Confirmation 位于最上层、或系统文件选择框与系统警告框打开时红灯不可用；播放页无 Overlay 时随 Player UI 显隐，Overlay 与 Command Panel 打开时保持显示。红灯关闭主窗口，返回按钮回到来源页。Confirmation 位于最上层时，Cmd+Q 与 Dock 菜单中的退出同样不生效；系统关机、重启与注销不受影响。全屏进入与退出的动画期间不显示红绿灯，进入完成后由系统标题栏显示，退出完成后回到页面落位。
 
 # 更高层界面的屏蔽
 

@@ -725,6 +725,16 @@
 - Focus Ring：None
 - Control Size：`--size-playback-collage-checkbox`
 
+##### Form Checkbox
+
+- Hit Area：Control and Label
+- Hover：None
+- Focus Ring：None
+- Label
+  - Font Size：`--font-size-body`
+  - Color：`--color-text-primary`
+- Control to Label Gap：`--spacing-2`
+
 ### Switch
 
 #### Shared
@@ -2054,7 +2064,7 @@
 
 - Scrim
   - Color：`--color-dialog-scrim`
-  - 覆盖整个窗口，红绿灯除外；系统文件选择框打开期间改由系统压暗
+  - 覆盖整个窗口，红绿灯除外；系统文件选择框与系统警告框打开期间改由系统压暗
 - Container
   - Placement：窗口正中
   - Background：`--color-bg-surface`
@@ -3590,6 +3600,55 @@
 - Region Gap：`--spacing-4`
 - Field Gap：`--spacing-4`
 - Label to Current Name Gap：`--spacing-1`
+- Footer Action Gap：`--spacing-2`
+
+#### States
+
+- Default
+- Validation Error
+
+### Export to Anki Dialog Layout
+
+#### Structure
+
+1. Header
+   1. Title：`Export to Anki`
+   2. Close Button
+2. Form Region
+   1. Cue Text Side：Label 与 Segmented Control（`Front`、`Back`）
+   2. Required：Label 与 Checkbox `Cue Text`、`Audio`
+   3. Optional：Label 与 Checkbox `Screenshot`、`Cue Group Text`、`Display Title`、`Time Range`、`Deep Link`、`Subtitle File Path`、`Video File Path`
+   4. File Name Field
+   5. Location：Label、完整文件夹路径与 Icon Button / Default（`folder`）
+3. Footer
+   1. Cancel
+   2. Export
+
+#### Components
+
+- Dialog
+- Segmented Control
+- Checkbox / Form Checkbox
+- Text Field
+- Icon Button / Default
+- Button / Neutral
+- Button / Primary
+
+#### Layout
+
+- Width：`--width-dialog-large`
+- Form Region 单列，占满内容宽度；各组 Label 与 Text Field 的 Label 相同。
+- Checkbox 每行两个，两列等宽，按 Structure 的顺序从左到右、从上到下排列；Required 的 Checkbox 始终为 Checked + Disabled。
+- Location 路径的文字同 Rename 的 Current Name，单行，过长时中间截断；文件夹按钮在路径右侧，字形墨迹右缘与内容右缘对齐。
+- 默认：Cue Text Side 为 `Back`，Optional 只勾 `Screenshot`，Location 为 Downloads。这三项的选择重新启动后保留，Search 与 Shiori 共用；File Name 每次打开时重新生成。
+
+#### Spacing
+
+- Region Gap：`--spacing-4`
+- Group Gap：`--spacing-4`
+- Label to Content Gap：`--spacing-2`
+- Checkbox Row Gap：`--spacing-3`
+- Checkbox Column Gap：`--spacing-4`
 - Footer Action Gap：`--spacing-2`
 
 #### States
