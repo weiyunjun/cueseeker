@@ -27,7 +27,12 @@ struct SettingsAppearanceCategory: View {
 
                 Spacer()
 
-                AppearanceModeSegmentedControl(selection: $settingsStore.appAppearanceMode)
+                WorkbenchSegmentedControl(
+                    options: AppAppearanceMode.allCases,
+                    selection: $settingsStore.appAppearanceMode,
+                    title: \.displayName,
+                    accessibilityLabel: { L("settings.appearance.accessibility", $0.displayName) }
+                )
             }
 
             Spacer()
@@ -35,43 +40,5 @@ struct SettingsAppearanceCategory: View {
         .padding(24)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(WorkbenchRedesignColors.bgSurface)
-    }
-}
-
-private struct AppearanceModeSegmentedControl: View {
-    @Binding var selection: AppAppearanceMode
-
-    var body: some View {
-        HStack(spacing: 2) {
-            ForEach(AppAppearanceMode.allCases) { mode in
-                let isSelected = selection == mode
-
-                Button {
-                    selection = mode
-                } label: {
-                    Text(mode.displayName)
-                        .font(.system(size: 12, weight: .medium))
-                        .lineLimit(1)
-                        .frame(width: 72, height: 26)
-                        .foregroundStyle(isSelected ? Color.white : Color.primary)
-                        .background(
-                            RoundedRectangle(cornerRadius: 5)
-                                .fill(isSelected ? Color.accentColor : Color.clear)
-                        )
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(StaticButtonStyle())
-                .focusable(false)
-                .accessibilityLabel(L("settings.appearance.accessibility", mode.displayName))
-                .accessibilityValue(isSelected ? L("facet.selected") : L("facet.not_selected"))
-            }
-        }
-        .padding(3)
-        .background(Color(nsColor: .controlBackgroundColor))
-        .overlay {
-            RoundedRectangle(cornerRadius: 7)
-                .stroke(Color(nsColor: .separatorColor), lineWidth: 1)
-        }
-        .clipShape(RoundedRectangle(cornerRadius: 7))
     }
 }

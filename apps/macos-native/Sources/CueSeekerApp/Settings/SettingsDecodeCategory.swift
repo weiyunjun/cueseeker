@@ -28,7 +28,12 @@ struct SettingsDecodeCategory: View {
 
                 Spacer()
 
-                DecodeModeSegmentedControl(selection: $settingsStore.playbackDecodeMode)
+                WorkbenchSegmentedControl(
+                    options: PlaybackDecodeMode.allCases,
+                    selection: $settingsStore.playbackDecodeMode,
+                    title: Self.displayName(for:),
+                    accessibilityLabel: { L("settings.decode.accessibility", Self.displayName(for: $0)) }
+                )
             }
 
             Spacer()
@@ -37,14 +42,10 @@ struct SettingsDecodeCategory: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(WorkbenchRedesignColors.bgSurface)
     }
-}
-
-private struct DecodeModeSegmentedControl: View {
-    @Binding var selection: PlaybackDecodeMode
 
     /// The playback module only knows the raw mode, so the human-readable name
     /// is resolved here in the interface layer.
-    static func displayName(for mode: PlaybackDecodeMode) -> String {
+    private static func displayName(for mode: PlaybackDecodeMode) -> String {
         switch mode {
         case .hardware:
             L("settings.decode.hardware")
@@ -53,39 +54,5 @@ private struct DecodeModeSegmentedControl: View {
         case .auto:
             L("settings.decode.auto")
         }
-    }
-
-    var body: some View {
-        HStack(spacing: 2) {
-            ForEach(PlaybackDecodeMode.allCases) { mode in
-                let isSelected = selection == mode
-
-                Button {
-                    selection = mode
-                } label: {
-                    Text(Self.displayName(for: mode))
-                        .font(.system(size: 12, weight: .medium))
-                        .lineLimit(1)
-                        .frame(width: 72, height: 26)
-                        .foregroundStyle(isSelected ? Color.white : Color.primary)
-                        .background(
-                            RoundedRectangle(cornerRadius: 5)
-                                .fill(isSelected ? Color.accentColor : Color.clear)
-                        )
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(StaticButtonStyle())
-                .focusable(false)
-                .accessibilityLabel(L("settings.decode.accessibility", Self.displayName(for: mode)))
-                .accessibilityValue(isSelected ? L("facet.selected") : L("facet.not_selected"))
-            }
-        }
-        .padding(3)
-        .background(Color(nsColor: .controlBackgroundColor))
-        .overlay {
-            RoundedRectangle(cornerRadius: 7)
-                .stroke(Color(nsColor: .separatorColor), lineWidth: 1)
-        }
-        .clipShape(RoundedRectangle(cornerRadius: 7))
     }
 }

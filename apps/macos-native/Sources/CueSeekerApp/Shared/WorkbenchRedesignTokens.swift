@@ -109,6 +109,10 @@ enum WorkbenchRedesignColors {
         static let bgCheckboxChecked = NSColor.dynamic(lightHex: "#667085", darkHex: "#A1A1AA")
         static let checkboxIcon = NSColor.dynamic(lightHex: "#FFFFFF", darkHex: "#18181B")
 
+        // Segmented Control
+        static let segmentedControlSelectedBg = NSColor.controlAccentColor
+        static let segmentedControlSelectedContent = NSColor.dynamic(lightHex: "#FFFFFF", darkHex: "#FFFFFF")
+
         // Danger
         static let dangerText = NSColor.dynamic(lightHex: "#B42318", darkHex: "#FCA5A5")
         static let dangerBgHover = NSColor.dynamic(lightHex: "#FEF3F2", darkHex: "#3A1717")
@@ -256,6 +260,10 @@ enum WorkbenchRedesignColors {
     static let bgCheckboxUnchecked = Color(nsColor: NS.bgCheckboxUnchecked)
     static let bgCheckboxChecked = Color(nsColor: NS.bgCheckboxChecked)
     static let checkboxIcon = Color(nsColor: NS.checkboxIcon)
+
+    // Segmented Control
+    static let segmentedControlSelectedBg = Color(nsColor: NS.segmentedControlSelectedBg)
+    static let segmentedControlSelectedContent = Color(nsColor: NS.segmentedControlSelectedContent)
 
     // Danger
     static let dangerText = Color(nsColor: NS.dangerText)
