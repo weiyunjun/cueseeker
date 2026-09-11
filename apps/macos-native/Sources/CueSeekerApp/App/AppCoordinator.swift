@@ -313,9 +313,6 @@ final class AppCoordinator: ObservableObject {
     }
 
     func goPrevious() {
-        // Switching results closes the speed menu, whatever key or controller
-        // button asked for it.
-        playback.closeSpeedMenu()
         switch activePlaybackSource {
         case .search:
             openAdjacentSearchResult(.previous)
@@ -342,7 +339,6 @@ final class AppCoordinator: ObservableObject {
     }
 
     func goNext() {
-        playback.closeSpeedMenu()
         switch activePlaybackSource {
         case .search:
             openAdjacentSearchResult(.next)

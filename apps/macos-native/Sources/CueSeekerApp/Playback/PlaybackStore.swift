@@ -127,10 +127,11 @@ final class PlaybackStore: ObservableObject {
     @Published private(set) var canRepeatCurrentCue = false
 
     /// The player speed menu lives here rather than in the chrome view because
-    /// `handlePlaybackKeyDown` is the App's single owner of playback-page keys.
-    /// A local event monitor installed when the menu opens cannot reach the
-    /// arrow keys first: monitors are invoked in the order they were added, and
-    /// the App-wide playback monitor is added at launch.
+    /// The menu's keys arrive two ways: from the menu gate's monitor, which
+    /// runs before the App-wide playback monitor (a local monitor installed
+    /// later runs first), and from `handlePlaybackKeyDown`, the App's single
+    /// owner of playback-page keys, which is also where a game controller's
+    /// input arrives.
     @Published private(set) var isSpeedMenuOpen = false
     let speedMenuHighlight = MenuHighlightModel()
 
@@ -151,7 +152,7 @@ final class PlaybackStore: ObservableObject {
     }
 
     /// Arrow keys, Enter and Esc for the open speed menu, offered by the menu
-    /// gate through the playback key owner.
+    /// gate from its monitor and through the playback key owner.
     func handleSpeedMenuKey(_ keyCode: UInt16, isRepeat: Bool) -> Bool {
         guard isSpeedMenuOpen else {
             return false

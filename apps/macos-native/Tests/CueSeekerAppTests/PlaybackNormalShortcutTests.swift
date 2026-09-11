@@ -335,6 +335,9 @@ func openSpeedMenuOwnsArrowKeysInsteadOfVolume() throws {
         #expect(viewModel.playbackSpeed == 1.25)
         #expect(!app.playback.isSpeedMenuOpen)
         #expect(viewModel.volume == volumeBeforeMenu)
+        // The chrome's client view leaves the gate with the menu; the test
+        // stands in for it.
+        speedMenuSession.close()
 
         // Volume responds again once the menu is closed.
         #expect(app.handlePlaybackKeyDown(keyCode: 125, modifierFlagsRawValue: 0))
@@ -389,29 +392,133 @@ func openingCommandPanelFreezesTheMenusUnderneathIt() throws {
         #expect(app.playback.isSpeedMenuOpen)
         #expect(highlight.highlightedPosition == 2)
 
+        // The panel opens over the menus by a path other than the K key, which
+        // the open menus spend. Neither menu closes: both belong to surfaces
+        // below the panel, so they keep their state and stop taking keys.
+        #expect(app.presentPlaybackCommandPanel())
+        #expect(app.playback.commandPanelPresentation != nil)
+        #expect(app.playback.isSpeedMenuOpen)
+        #expect(highlight.highlightedPosition == 2)
+
+        // The arrow keys reach the Command Panel instead of the frozen menus.
+        #expect(app.handlePlaybackKeyDown(keyCode: 125, modifierFlagsRawValue: 0))
+        #expect(seenKeyCodes.isEmpty)
+        #expect(highlight.highlightedPosition == 2)
+
+        // Escape closes the panel, and the menus underneath take keys again.
+        #expect(app.handlePlaybackKeyDown(keyCode: 53, modifierFlagsRawValue: 0))
+        #expect(app.playback.commandPanelPresentation == nil)
+        #expect(app.playback.isSpeedMenuOpen)
+        #expect(app.handlePlaybackKeyDown(keyCode: 125, modifierFlagsRawValue: 0))
+        #expect(seenKeyCodes == [125])
+    }
+}
+
+@MainActor
+@Test
+func openSpeedMenuSpendsEveryKeyItDoesNotTake() throws {
+    try withNormalPlaybackApp { app, _ in
+        let viewModel = try #require(app.playback.playbackViewModel)
+        // The Command Panel opens only over a visible playback page.
+        app.playback.isPlaybackSurfaceExpanded = true
+        app.playback.openSpeedMenu(
+            defaultPosition: PlaybackViewModel.speedPresetIndex(for: 1.0)
+        )
+        let speedMenuSession = openSpeedMenuGateClient(app)
+        defer { speedMenuSession.close() }
+        let volume = viewModel.volume
+
+        // Every in-app function is spent while the menu is open, ⇧ ones too:
+        // the Command Panel and the Playback Overlay do not open, playback does
+        // not toggle, the speed in effect and the volume do not move, and Tab
+        // and the seek and result keys do nothing.
+        let spentKeys: [(keyCode: Int, modifiers: UInt)] = [
+            (kVK_ANSI_K, 0),
+            (kVK_Space, 0),
+            (kVK_LeftArrow, 0),
+            (kVK_RightArrow, 0),
+            (kVK_ANSI_A, 0),
+            (kVK_ANSI_D, 0),
+            (kVK_Tab, 0),
+            (kVK_ANSI_Period, NSEvent.ModifierFlags.shift.rawValue),
+        ]
+        for key in spentKeys {
+            #expect(app.handlePlaybackKeyDown(
+                keyCode: UInt16(key.keyCode),
+                modifierFlagsRawValue: key.modifiers
+            ))
+        }
+        #expect(app.playback.commandPanelPresentation == nil)
+        #expect(app.playback.subtitleFocusSession == nil)
+        #expect(app.playback.isSpeedMenuOpen)
+        #expect(!viewModel.isPlaying)
+        #expect(viewModel.playbackSpeed == 1.0)
+        #expect(viewModel.volume == volume)
+
+        // A ⌘ combination is not the menu's business and travels on.
+        #expect(!app.handlePlaybackKeyDown(
+            keyCode: UInt16(kVK_ANSI_K),
+            modifierFlagsRawValue: NSEvent.ModifierFlags.command.rawValue
+        ))
+        #expect(app.playback.isSpeedMenuOpen)
+
+        // Escape closes the menu, and the same key opens the Command Panel
+        // once no menu is open.
+        #expect(app.handlePlaybackKeyDown(keyCode: 53, modifierFlagsRawValue: 0))
+        #expect(!app.playback.isSpeedMenuOpen)
+        speedMenuSession.close()
         #expect(app.handlePlaybackKeyDown(
             keyCode: UInt16(kVK_ANSI_K),
             modifierFlagsRawValue: 0
         ))
-
-        // Opening the Command Panel closes the speed menu outright, while the
-        // selected-text menu stays on screen: it belongs to the surface below
-        // the panel, so it keeps its state and stops taking keys.
         #expect(app.playback.commandPanelPresentation != nil)
-        #expect(!app.playback.isSpeedMenuOpen)
-        #expect(highlight.highlightedPosition == nil)
-        #expect(seenKeyCodes.isEmpty)
+    }
+}
 
-        // The arrow keys reach the Command Panel instead of the frozen menu.
-        #expect(app.handlePlaybackKeyDown(keyCode: 125, modifierFlagsRawValue: 0))
-        #expect(seenKeyCodes.isEmpty)
+@MainActor
+@Test
+func openOverlayMenuSpendsTabAndTheFooterShortcuts() throws {
+    try withNormalPlaybackApp { app, _ in
+        let shioriDatabase = try #require(app.shioriDatabase)
+        app.playback.isPlaybackSurfaceExpanded = true
+        let session = try #require(app.playback.beginSubtitleFocusSession(
+            openSnapshot: PlaybackSubtitleFocusOpenSnapshot(
+                source: SubtitleFocusSourceIdentity(
+                    videoPath: "/Media/Normal-Playback.mkv",
+                    subtitlePath: "/Media/Normal-Playback.srt",
+                    subtitleFormat: .srt
+                ),
+                timestampMilliseconds: 1_000,
+                wasPlaying: false
+            )
+        ))
+        let module = session.selectedModule
+        var seenKeyCodes: [UInt16] = []
+        let menuSession = openSelectedTextMenuGateClient(app) { keyCode in
+            seenKeyCodes.append(keyCode)
+            return [125, 126, 36, 53].contains(keyCode)
+        }
+        defer { menuSession.close() }
 
-        menuSession.close()
-        speedMenuSession.close()
-
-        // Escape closes the panel.
-        #expect(app.handlePlaybackKeyDown(keyCode: 53, modifierFlagsRawValue: 0))
+        // Tab, the footer shortcuts and the Command Panel key are spent: the
+        // module stays, nothing is saved, no second menu opens, the collage
+        // editor stays closed and the panel does not open.
+        for keyCode in [kVK_Tab, kVK_ANSI_S, kVK_ANSI_C, kVK_ANSI_X, kVK_ANSI_P, kVK_ANSI_K] {
+            #expect(app.handlePlaybackKeyDown(
+                keyCode: UInt16(keyCode),
+                modifierFlagsRawValue: 0
+            ))
+        }
+        #expect(session.selectedModule == module)
+        #expect(app.playback.shioriDestinationMenu == nil)
+        #expect(try shioriDatabase.shioriCount() == 0)
+        #expect(!session.isEditingCollage)
         #expect(app.playback.commandPanelPresentation == nil)
+
+        // The menu's own keys still reach it.
+        seenKeyCodes = []
+        #expect(app.handlePlaybackKeyDown(keyCode: 125, modifierFlagsRawValue: 0))
+        #expect(seenKeyCodes == [125])
     }
 }
 

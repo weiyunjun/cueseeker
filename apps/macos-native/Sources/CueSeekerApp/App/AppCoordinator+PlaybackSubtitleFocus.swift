@@ -32,10 +32,6 @@ extension AppCoordinator {
             return false
         }
 
-        // Opening the Playback Overlay closes the speed menu, whatever key or
-        // controller button asked for it.
-        playback.closeSpeedMenu()
-
         let source = SubtitleFocusSourceIdentity(
             subtitleFileID: subtitleFileID,
             videoPath: URL(fileURLWithPath: videoPath).standardizedFileURL.path,

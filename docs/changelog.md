@@ -6,6 +6,12 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- An open menu now takes the keyboard: the arrows, Enter, Esc and the key that
+  opened it go to the menu, and every other in-app shortcut, and Tab, does
+  nothing until it closes; ⌘ shortcuts are unaffected. The speed menu follows
+  the same rule as every other menu: its ← and → stay in the menu, scrolling
+  is banned while it is open, and it no longer closes when a result, the
+  Command Panel or the Playback Overlay is asked for.
 - Reworked when the video page's Player UI and the pointer hide. The pointer
   resting on a clickable control, or dragging the progress bar or the volume
   slider, keeps them;

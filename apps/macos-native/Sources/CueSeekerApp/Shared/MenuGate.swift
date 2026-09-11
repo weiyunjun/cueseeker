@@ -18,10 +18,10 @@ import SwiftUI
 @MainActor
 final class MenuGate {
     /// The menus the design names, and the only things it lets them differ in:
-    /// the scroll table in `docs/human/design/UI Application Rules.md` 菜单模态
-    /// 6, and where the menu's keys come from. A caller states which menu it is
-    /// opening and nothing else, so a menu added later cannot quietly invent a
-    /// modality of its own.
+    /// whether the playback key owner also offers it keys, whether its surface
+    /// scrolls, and whether it keeps the text selection. A caller states which
+    /// menu it is opening and nothing else, so a menu added later cannot
+    /// quietly invent a modality of its own.
     enum Kind {
         case tableRowMenu
         case filterMenu
@@ -29,12 +29,6 @@ final class MenuGate {
         case selectedTextMenu
         case playerSpeedMenu
         case shioriDestinationMenu
-
-        /// 菜单模态 6: the speed menu is the one menu the scroll table leaves
-        /// free.
-        var bansScrolling: Bool {
-            self != .playerSpeedMenu
-        }
 
         /// Whether the menu surface spends the wheel itself. When it does not,
         /// the gate spends a wheel over the menu so nothing moves underneath
@@ -49,17 +43,14 @@ final class MenuGate {
             }
         }
 
-        /// Whether the gate's own monitor feeds this menu keys. The speed menu
-        /// receives keys only from the playback key owner instead: monitors run
-        /// in install order, and the app-wide playback monitor installed at
-        /// launch sees keys first.
-        var receivesKeysFromMonitor: Bool {
-            self != .playerSpeedMenu
-        }
-
         /// Whether the playback key owner offers this menu keys through
-        /// `routeKey` before seeking, volume, cue navigation and Command Panel
-        /// navigation see them.
+        /// `routeKey`, and spends the keys no open menu takes. Keyboard keys
+        /// reach that owner only after the gate's monitor — a local monitor
+        /// installed later runs first, so the gate sees a key before the
+        /// App-wide playback monitor does — but a game controller's input
+        /// never passes a monitor at all; the router is what lets it drive a
+        /// menu, and the owner's block is what keeps it from the functions
+        /// underneath.
         var receivesKeysFromRouter: Bool {
             self != .tableRowMenu
         }
@@ -103,8 +94,9 @@ final class MenuGate {
     final class Session {
         nonisolated(unsafe) private weak var gate: MenuGate?
         private let id: UUID
-        // Held so the menu stays registered exactly as long as the session.
-        private let registration: InterfaceLayerRegistry.OpenMenuToken?
+        // Held so the menu stays registered exactly as long as the session is
+        // open: released on close, or with the session itself.
+        private var registration: InterfaceLayerRegistry.OpenMenuToken?
 
         fileprivate init(
             gate: MenuGate,
@@ -119,6 +111,7 @@ final class MenuGate {
         @MainActor
         func close() {
             gate?.close(id: id)
+            registration = nil
         }
 
         deinit {
@@ -190,16 +183,16 @@ final class MenuGate {
 
     /// Whether an open menu bans scrolling where it can still be seen.
     ///
-    /// 菜单模态 6 is applied here for every surface that takes the wheel from
-    /// an `NSEvent` monitor of its own. A monitor never sees hit testing, and
-    /// one installed before the gate's sees the wheel before the gate can spend
-    /// it, so such a surface has to ask the gate to stand aside instead. The
-    /// question is about menus, not about who opened them: a reel that only
-    /// recognised its own menu kept scrolling under the footer's.
+    /// 菜单模态 6 — any open menu bans scrolling for the whole window — is
+    /// applied here for every surface that takes the wheel from an `NSEvent`
+    /// monitor of its own. A monitor never sees hit testing, and one installed
+    /// before the gate's sees the wheel before the gate can spend it, so such a
+    /// surface has to ask the gate to stand aside instead. The question is
+    /// about menus, not about who opened them: a reel that only recognised its
+    /// own menu kept scrolling under the footer's.
     var bansScrolling: Bool {
         clients.contains { entry in
-            entry.client.kind.bansScrolling
-                && !interfaceLayers.isMenuCovered(ownedBy: entry.client.owner)
+            !interfaceLayers.isMenuCovered(ownedBy: entry.client.owner)
         }
     }
 
@@ -299,8 +292,7 @@ final class MenuGate {
 
         switch event.type {
         case .keyDown:
-            if client.kind.receivesKeysFromMonitor,
-               !isFromAnotherWindow,
+            if !isFromAnotherWindow,
                client.handleKey(event.keyCode, event.isARepeat) {
                 return nil
             }
@@ -321,7 +313,8 @@ final class MenuGate {
                 // underneath it.
                 return client.kind.takesWheel ? event : nil
             }
-            return client.kind.bansScrolling ? nil : event
+            // 菜单模态 6: the rest of the window does not scroll.
+            return nil
 
         case .leftMouseDown, .rightMouseDown:
             switch MenuOutsidePress.decide(

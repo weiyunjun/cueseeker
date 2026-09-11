@@ -110,26 +110,42 @@ struct MenuInputBarrierTests {
     }
 }
 
-/// The per-menu behaviour the design's scroll table and key rules name, read
-/// from the menu's kind instead of from four switches at each call site.
+/// The per-menu behaviour the design's key rules name, read from the menu's
+/// kind instead of from switches at each call site.
 struct MenuGateKindTests {
+    /// 菜单模态 6: any open menu bans scrolling for the whole window, the speed
+    /// menu included.
+    @MainActor
     @Test
-    func everyMenuButTheSpeedMenuBansWindowScrolling() {
-        for kind in [
-            MenuGate.Kind.tableRowMenu,
-            .filterMenu,
-            .cardMenu,
-            .selectedTextMenu,
-        ] {
-            #expect(kind.bansScrolling)
-        }
-        #expect(MenuGate.Kind.playerSpeedMenu.bansScrolling == false)
+    func everyOpenMenuBansWindowScrolling() {
+        let layers = InterfaceLayerRegistry()
+        let gate = layers.menuGate
+        #expect(!gate.bansScrolling)
+        let session = gate.open(MenuGate.Client(
+            owner: .playbackPage,
+            kind: .playerSpeedMenu,
+            window: { nil },
+            isPointerOnMenu: { _ in false },
+            handleKey: { _, _ in false },
+            dismiss: { _ in }
+        ))
+        #expect(gate.bansScrolling)
+        session.close()
+        #expect(!gate.bansScrolling)
     }
 
     @Test
-    func theSpeedMenuTakesItsKeysFromThePlaybackRouterOnly() {
-        #expect(MenuGate.Kind.playerSpeedMenu.receivesKeysFromMonitor == false)
-        #expect(MenuGate.Kind.playerSpeedMenu.receivesKeysFromRouter)
+    func thePlaybackRouterOffersKeysToEveryMenuButTheTableRowMenu() {
+        #expect(MenuGate.Kind.tableRowMenu.receivesKeysFromRouter == false)
+        for kind in [
+            MenuGate.Kind.filterMenu,
+            .cardMenu,
+            .selectedTextMenu,
+            .playerSpeedMenu,
+            .shioriDestinationMenu,
+        ] {
+            #expect(kind.receivesKeysFromRouter)
+        }
     }
 
     @Test

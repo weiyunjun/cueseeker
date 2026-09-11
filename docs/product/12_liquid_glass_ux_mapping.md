@@ -902,6 +902,11 @@ Rules:
 - `Command`, `Control`, and `Option` modified key events are ignored by
   playback shortcuts.
 - `Shift` is accepted only for the speed shortcuts defined below.
+- While a menu is open and nothing covers it, the keyboard is the menu's: the
+  arrows, Enter, Esc and the key that opened it go to the menu, and every other
+  playback, Playback Overlay and Command Panel shortcut, and Tab, is spent.
+  `Command` shortcuts are unaffected. The speed menu follows the same rule as
+  every other menu.
 - Playback shortcuts dispatch through the same command model as playback
   buttons, mouse video clicks, menu selections, and slider gestures.
 - While the Playback Multi-Module Overlay is visible, its module-specific

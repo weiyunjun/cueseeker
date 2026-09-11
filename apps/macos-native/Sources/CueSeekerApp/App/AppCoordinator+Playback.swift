@@ -768,6 +768,22 @@ extension AppCoordinator {
         let cueShortcutAction: PlaybackSubtitleFocusAction? = shortcutKey
             .flatMap { shortcuts.action(for: $0, in: .overlay) }
             .flatMap(Self.cueAction(for:))
+
+        // An open menu owns the keyboard: the arrows, Enter, Esc and the key
+        // that opened it go to the menu, and every other in-app function is
+        // spent here, so nothing underneath answers a key the menu did not
+        // want. Only a press held with ⌘, ⌃ or ⌥ travels on. The gate skips
+        // covered menus, so a menu below the Command Panel stays on screen and
+        // takes nothing while the panel is open. See
+        // `docs/human/requirements/20260912-UI-Open Menu Blocks In-App
+        // Shortcuts.md`.
+        if shortcutKey != nil, interfaceLayers.hasUncoveredOpenMenu {
+            if !modifierFlags.contains(.shift) {
+                _ = interfaceLayers.menuGate.routeKey(keyCode, isRepeat: isRepeat)
+            }
+            return true
+        }
+
         if let subtitleFocusSession = playback.subtitleFocusSession,
            subtitleFocusSession.isEditingCollage {
             if isShortcut(.editCollage) {
@@ -815,21 +831,6 @@ extension AppCoordinator {
             if !isRepeat {
                 _ = presentPlaybackCommandPanel()
             }
-            return true
-        }
-
-        // An open menu owns arrows, Enter and Esc before seeking, volume and
-        // cue navigation see them. The gate walks the open menus and skips
-        // covered ones, so a menu below the Command Panel stays on screen and
-        // hands its keys over while the panel is open.
-        let menuDisallowedModifiers: NSEvent.ModifierFlags = [
-            .command,
-            .control,
-            .option,
-            .shift,
-        ]
-        if modifierFlags.intersection(menuDisallowedModifiers).isEmpty,
-           interfaceLayers.menuGate.routeKey(keyCode, isRepeat: isRepeat) {
             return true
         }
 
