@@ -618,7 +618,7 @@ Rules:
 This is the Player-UI / pointer visibility model (v5), the mirror of
 `docs/human/requirements/20260912-UI-Player UI And Pointer Visibility
 Rules.md`; that requirement decides. v5 supersedes v4: the idle hide is a
-condition instead of an event, clickable controls and scrubbing block it,
+condition instead of an event, clickable controls and dragging block it,
 same-window layers freeze it and show the pointer, and a lost focus or a
 pointer outside the window hides the Player UI and shows the pointer.
 
@@ -658,8 +658,8 @@ Idle hide:
 9. The pointer and the Player UI hide together when all of these hold and the
    pointer has not moved for `--duration-player-ui-idle-hide` (3 s): focus is
    in the playback window; the pointer is inside the window and on no
-   clickable control; no scrubbing is in progress; keyboard focus is on no
-   Player UI control.
+   clickable control; no drag of the progress bar or the volume slider is in
+   progress; keyboard focus is on no Player UI control.
 10. When any condition breaks, the countdown is cleared; when all hold again,
     it starts over. Clicks do not restart it. The keyboard-focus condition has
     no trigger today, since buttons take no focus and the Player UI has no

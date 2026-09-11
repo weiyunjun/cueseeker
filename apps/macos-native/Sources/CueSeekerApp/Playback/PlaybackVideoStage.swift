@@ -134,7 +134,10 @@ struct PlaybackVideoStage: View {
                 chrome.setLayerOpen(isOpen)
             }
             .onReceive(playback.timeline.$isScrubbing) { isScrubbing in
-                chrome.setScrubbing(isScrubbing)
+                chrome.setDragging(isScrubbing || playback.timeline.isDraggingVolume)
+            }
+            .onReceive(playback.timeline.$isDraggingVolume) { isDraggingVolume in
+                chrome.setDragging(playback.timeline.isScrubbing || isDraggingVolume)
             }
             .onChange(of: chrome.isPlayerUIVisible) { isVisible in
                 // A hidden Player UI takes its menus with it.

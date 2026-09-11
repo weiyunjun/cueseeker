@@ -49,6 +49,9 @@ final class PlaybackTimelineInteractionStore: ObservableObject {
     let scrubTimeStore = PlaybackTimelineScrubTimeStore()
 
     @Published var isScrubbing = false
+    /// The volume slider is being dragged. Like scrubbing, it holds the Player
+    /// UI's idle hide.
+    @Published var isDraggingVolume = false
 
     var scrubTime: Double? {
         get { scrubTimeStore.scrubTime }

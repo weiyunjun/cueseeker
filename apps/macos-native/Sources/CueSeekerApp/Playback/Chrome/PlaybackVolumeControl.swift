@@ -27,10 +27,13 @@ struct PlaybackVolumeControl: View {
 
             if isHovered {
                 HStack(spacing: 4) {
-                    PlaybackVolumeSlider(volume: Binding(
-                        get: { viewModel.volume },
-                        set: { viewModel.setVolume($0, showsFeedback: false) }
-                    ))
+                    PlaybackVolumeSlider(
+                        volume: Binding(
+                            get: { viewModel.volume },
+                            set: { viewModel.setVolume($0, showsFeedback: false) }
+                        ),
+                        timeline: timeline
+                    )
                     .frame(width: 72, height: PlaybackChromeMetrics.capsuleButtonHeight)
 
                     Text("\(Int(viewModel.volume.rounded()))%")
@@ -78,6 +81,7 @@ struct PlaybackVolumeControl: View {
 
 private struct PlaybackVolumeSlider: View {
     @Binding var volume: Double
+    let timeline: PlaybackTimelineInteractionStore
 
     var body: some View {
         GeometryReader { geometry in
@@ -104,9 +108,16 @@ private struct PlaybackVolumeSlider: View {
             .gesture(
                 DragGesture(minimumDistance: 0)
                     .onChanged { value in
+                        timeline.isDraggingVolume = true
                         volume = Double(min(max(value.location.x / max(width, 1), 0), 1)) * 100
                     }
+                    .onEnded { _ in
+                        timeline.isDraggingVolume = false
+                    }
             )
+        }
+        .onDisappear {
+            timeline.isDraggingVolume = false
         }
     }
 }

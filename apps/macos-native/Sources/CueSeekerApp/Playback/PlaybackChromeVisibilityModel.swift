@@ -16,8 +16,8 @@ import SwiftUI
 ///
 /// The idle countdown is a condition, not an event. It runs while the window
 /// has focus, the pointer is inside the player area and on no clickable
-/// control, no layer is open, no scrubbing is in progress, and there is still
-/// something to hide. Any change re-evaluates it; pointer movement restarts
+/// control, no layer is open, no drag of the progress bar or the volume
+/// slider is in progress, and there is still something to hide. Any change re-evaluates it; pointer movement restarts
 /// it. Clicks, the wheel and the keyboard are not movement.
 @MainActor
 final class PlaybackChromeVisibilityModel: ObservableObject {
@@ -42,7 +42,7 @@ final class PlaybackChromeVisibilityModel: ObservableObject {
     /// page: the pointer is shown and the Player UI's state and countdown are
     /// frozen until it closes.
     private var isLayerOpen = false
-    private var isScrubbing = false
+    private var isDragging = false
     /// The clickable controls of the Player UI, in the player area's
     /// top-left-origin coordinates. The window controls are asked from AppKit.
     private var interactiveFrames: [CGRect] = []
@@ -119,11 +119,12 @@ final class PlaybackChromeVisibilityModel: ObservableObject {
         }
     }
 
-    func setScrubbing(_ isScrubbing: Bool) {
-        guard self.isScrubbing != isScrubbing else {
+    /// The progress bar or the volume slider is being dragged.
+    func setDragging(_ isDragging: Bool) {
+        guard self.isDragging != isDragging else {
             return
         }
-        self.isScrubbing = isScrubbing
+        self.isDragging = isDragging
         reevaluate()
     }
 
@@ -193,7 +194,7 @@ final class PlaybackChromeVisibilityModel: ObservableObject {
 
     private var isIdleCountdownDue: Bool {
         isGoverned
-            && !isScrubbing
+            && !isDragging
             && !isPointerOnInteractiveControl
             && (isPlayerUIVisible || isPointerVisible)
     }

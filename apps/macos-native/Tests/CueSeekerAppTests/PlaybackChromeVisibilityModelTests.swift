@@ -80,7 +80,7 @@ func playerUIAndPointerShowOnEntryAndHideTogetherAfterIdle() {
 
 @MainActor
 @Test
-func pointerOnClickableControlOrScrubbingStopsTheCountdown() {
+func pointerOnClickableControlOrDraggingStopsTheCountdown() {
     let area = PlayerArea()
     defer { area.finish() }
 
@@ -93,9 +93,9 @@ func pointerOnClickableControlOrScrubbingStopsTheCountdown() {
     area.movePointer(to: NSPoint(x: 100, y: 100))
     #expect(area.model.isIdleCountdownRunning)
 
-    area.model.setScrubbing(true)
+    area.model.setDragging(true)
     #expect(!area.model.isIdleCountdownRunning)
-    area.model.setScrubbing(false)
+    area.model.setDragging(false)
     #expect(area.model.isIdleCountdownRunning)
 }
 
