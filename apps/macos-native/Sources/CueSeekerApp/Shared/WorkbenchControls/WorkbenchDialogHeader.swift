@@ -24,8 +24,10 @@ extension View {
     /// The offsets are measured from the glyph's ink rather than the button's
     /// box, so the X lands on the same inset as the title, the body text and
     /// the buttons below it.
+    /// A dialog with no Cancel button lets Escape press this one instead.
     func workbenchDialogCloseButton(
         isDisabled: Bool = false,
+        closesOnEscape: Bool = false,
         onClose: @escaping () -> Void
     ) -> some View {
         overlay(alignment: .topTrailing) {
@@ -37,6 +39,7 @@ extension View {
                 action: onClose
             )
             .disabled(isDisabled)
+            .keyboardShortcut(closesOnEscape ? .cancelAction : nil)
             .accessibilityLabel(L("common.close"))
             .padding(.top, WorkbenchControlMetrics.redesignDialogCloseAnchorInset)
             .padding(.trailing, WorkbenchControlMetrics.redesignDialogCloseAnchorInset)

@@ -82,6 +82,13 @@ func workbenchTopbarIsTallerThanTheWindowControlsBand() {
 }
 
 @Test
-func taskPanelHeaderKeepsItsHeightWhileThePlaybackTopbarsAreTheBand() {
-    #expect(WorkbenchControlMetrics.redesignTaskPanelHeaderHeight == 54)
+func dialogWidthTiersAndTheListEditorsDerivedSizes() {
+    #expect(WorkbenchControlMetrics.redesignDialogWidthSmall == 360)
+    #expect(WorkbenchControlMetrics.redesignDialogWidthMedium == 480)
+    #expect(WorkbenchControlMetrics.redesignDialogWidthXLarge == 720)
+    #expect(WorkbenchControlMetrics.redesignDialogWindowMargin == 24)
+    #expect(WorkbenchControlMetrics.redesignTaskPanelHeight == 500)
+    #expect(WorkbenchControlMetrics.redesignShioriListEditorCoverWidth == 312)
+    #expect(WorkbenchControlMetrics.redesignShioriListEditorWideFormWidth == 336)
+    #expect(WorkbenchControlMetrics.redesignShioriListEditorDescriptionHeight == 58.5)
 }

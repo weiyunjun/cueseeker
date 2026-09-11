@@ -112,15 +112,8 @@ struct WorkbenchConfirmationDialog: View {
         .padding(.top, WorkbenchControlMetrics.redesignDialogTopPadding)
         .padding(.horizontal, WorkbenchControlMetrics.redesignDialogInset)
         .padding(.bottom, WorkbenchControlMetrics.redesignDialogInset)
-        .frame(width: 360, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignCornerRadius, style: .continuous)
-                .fill(WorkbenchRedesignColors.bgSurface)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignCornerRadius, style: .continuous)
-                .strokeBorder(WorkbenchRedesignColors.borderControl, lineWidth: 1)
-        )
+        .workbenchDialogWidth(WorkbenchControlMetrics.redesignDialogWidthSmall)
+        .background(WorkbenchRedesignColors.bgSurface)
         .workbenchDialogCloseButton(onClose: onClose)
         .subtitleTableTextSelectionNonInteractiveRegion()
         .background(WindowKeyDownMonitor(handle: handleKey))

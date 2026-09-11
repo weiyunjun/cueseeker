@@ -42,24 +42,27 @@ struct LibraryEditCoverDialog: View {
         .padding(.top, WorkbenchControlMetrics.redesignDialogTopPadding)
         .padding(.horizontal, WorkbenchControlMetrics.redesignDialogInset)
         .padding(.bottom, WorkbenchControlMetrics.redesignDialogInset)
-        .frame(
-            width: WorkbenchControlMetrics.redesignEditCoverDialogWidth,
-            height: WorkbenchControlMetrics.redesignEditCoverDialogHeight,
-            alignment: .topLeading
-        )
+        .workbenchDialogWidth(WorkbenchControlMetrics.redesignDialogWidthSmall)
         .background(WorkbenchRedesignColors.bgSurface)
         .workbenchDialogCloseButton(isDisabled: session.isSaving, onClose: onCancel)
         .subtitleTableTextSelectionNonInteractiveRegion()
     }
 
+    /// The cover across the content width; a chosen image is cropped in the
+    /// same frame, as in the Shiori List Editor.
     @ViewBuilder
     private var coverEditor: some View {
         if let source = session.selectedSource {
-            LibraryCoverCropEditor(
-                source: source,
-                cropRect: $session.cropRect
-            )
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            LibraryCoverFrame {
+                ZStack {
+                    WorkbenchRedesignColors.libraryCoverPlaceholderBg
+
+                    LibraryCoverCropEditor(
+                        source: source,
+                        cropRect: $session.cropRect
+                    )
+                }
+            }
         } else {
             LibraryCoverChooser(
                 title: LibraryCoverEditingCopy.chooseImageActionTitle,
@@ -72,7 +75,6 @@ struct LibraryEditCoverDialog: View {
                     coverRevision: session.currentCoverRevision
                 )
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
 }

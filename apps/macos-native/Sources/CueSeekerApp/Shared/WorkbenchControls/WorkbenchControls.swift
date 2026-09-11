@@ -17,9 +17,6 @@ enum WorkbenchControlMetrics {
     static let redesignCornerRadius: CGFloat = 8
     /// --height-field: 40px
     static let redesignFieldHeight: CGFloat = 40
-    /// Provisional --height-form-text-area: 96.75px. Sized so the Shiori List
-    /// Editor's Description box ends on the cover's bottom edge.
-    static let redesignFormTextAreaHeight: CGFloat = 96.75
     /// --height-filter-bar-control (Search box): 40px
     static let redesignSearchHeight: CGFloat = 40
     /// --radius-field: 8px
@@ -73,19 +70,45 @@ enum WorkbenchControlMetrics {
     /// --radius-dialog: 10px, a circular corner. The corner the system sheet
     /// cut every dialog to, over the dialog's own.
     static let redesignDialogCornerRadius: CGFloat = 10
-    /// --width-dialog-form-region: 340px. The width of a dialog's form column:
-    /// the Shiori List Editor's, and the rename dialog's, which is that column
-    /// on its own.
-    static let redesignDialogFormRegionWidth: CGFloat = 340
+    /// --width-dialog-small: 360px. Every dialog's width is one of these tiers;
+    /// --width-dialog-large (600px) has no dialog yet.
+    static let redesignDialogWidthSmall: CGFloat = 360
+    /// --width-dialog-medium: 480px
+    static let redesignDialogWidthMedium: CGFloat = 480
+    /// --width-dialog-x-large: 720px
+    static let redesignDialogWidthXLarge: CGFloat = 720
+    /// What a dialog keeps clear of the window's edges: --spacing-6.
+    static let redesignDialogWindowMargin = redesignSpacing6
     /// --gap-cover-dialog-region: 20px. The gap between the header, the main
     /// region and the footer of the two dialogs that carry a cover.
     static let redesignCoverDialogRegionGap: CGFloat = 20
-    /// --width-shiori-list-editor-cover: 380px
-    static let redesignShioriListEditorCoverWidth: CGFloat = 380
-    /// --width-edit-cover-dialog: 760px
-    static let redesignEditCoverDialogWidth: CGFloat = 760
-    /// --height-edit-cover-dialog: 600px
-    static let redesignEditCoverDialogHeight: CGFloat = 600
+    /// The Shiori List Editor's cover: the small dialog's content width, which
+    /// its one-column layout is, so the cover keeps one size in both layouts.
+    static let redesignShioriListEditorCoverWidth =
+        redesignDialogWidthSmall - 2 * redesignDialogInset
+    /// The two-column layout's form column: what the x-large dialog leaves
+    /// beside the cover.
+    static let redesignShioriListEditorWideFormWidth =
+        redesignDialogWidthXLarge - 2 * redesignDialogInset
+        - redesignSpacing6 - redesignShioriListEditorCoverWidth
+    /// The Description box ends on the cover's bottom edge. Above the box the
+    /// form column holds the List Name field — label, field and its reserved
+    /// message line — and the Description's own label, so the box is the
+    /// cover's height less those. Both layouts keep this height.
+    static let redesignShioriListEditorDescriptionHeight: CGFloat = {
+        func lineHeight(size: CGFloat, weight: NSFont.Weight) -> CGFloat {
+            NSLayoutManager().defaultLineHeight(
+                for: NSFont.systemFont(ofSize: size, weight: weight)
+            )
+        }
+        let label = lineHeight(size: redesignFontSizeControl, weight: .medium)
+        let message = lineHeight(size: redesignFontSizeCaption, weight: .regular)
+        let coverHeight = redesignShioriListEditorCoverWidth / redesignLibraryCoverAspectRatio
+        return coverHeight
+            - (label + redesignSpacing2 + redesignFieldHeight + redesignSpacing1 + message)
+            - redesignSpacing2
+            - (label + redesignSpacing2)
+    }()
     /// Dialog title type. The cap-line give-back below is derived from it, so
     /// the two must stay together.
     static let redesignDialogTitleFontSize: CGFloat = 20
@@ -263,13 +286,8 @@ enum WorkbenchControlMetrics {
     static let redesignTaskCountBadgeHorizontalPadding = redesignSpacing1
     /// --font-size-task-count-badge: 10px
     static let redesignFontSizeTaskCountBadge: CGFloat = 10
-    /// --width-task-panel: 460px
-    static let redesignTaskPanelWidth: CGFloat = 460
-    /// --height-task-panel: 440px
-    static let redesignTaskPanelHeight: CGFloat = 440
-    /// The panel's header keeps the height the Playback Overlay's top bar had
-    /// before that bar shrank to the window controls' band.
-    static let redesignTaskPanelHeaderHeight: CGFloat = 54
+    /// --height-task-panel: 500px
+    static let redesignTaskPanelHeight: CGFloat = 500
     /// --height-task-progress-bar: 4px
     static let redesignTaskProgressBarHeight = redesignLibraryProgressBarHeight
 

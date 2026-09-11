@@ -125,31 +125,44 @@ struct ShioriListEditorDialog: View {
 
     @FocusState private var isNameFocused: Bool
     @FocusState private var isDescriptionFocused: Bool
+    @Environment(\.workbenchDialogAvailableSize) private var availableSize
 
     var body: some View {
-        VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignCoverDialogRegionGap) {
+        WorkbenchDialogColumn(
+            spacing: WorkbenchControlMetrics.redesignCoverDialogRegionGap,
+            maxHeight: availableSize.height
+                - WorkbenchControlMetrics.redesignDialogTopPadding
+                - WorkbenchControlMetrics.redesignDialogInset
+        ) {
             WorkbenchDialogHeader(title: session.mode.title)
+                .padding(.horizontal, WorkbenchControlMetrics.redesignDialogInset)
 
-            HStack(alignment: .top, spacing: WorkbenchControlMetrics.redesignSpacing6) {
-                coverRegion
-                    .frame(width: WorkbenchControlMetrics.redesignShioriListEditorCoverWidth)
+            // The scroll view reaches the dialog's sides, so its scrollbar runs
+            // in the inset rather than over the cover or the fields.
+            WorkbenchScrollView {
+                mainLayout {
+                    coverRegion
+                        .frame(width: WorkbenchControlMetrics.redesignShioriListEditorCoverWidth)
 
-                formRegion
-                    .frame(width: WorkbenchControlMetrics.redesignDialogFormRegionWidth)
+                    formRegion
+                        .frame(
+                            width: isWide
+                                ? WorkbenchControlMetrics.redesignShioriListEditorWideFormWidth
+                                : WorkbenchControlMetrics.redesignShioriListEditorCoverWidth
+                        )
+                }
+                .padding(.horizontal, WorkbenchControlMetrics.redesignDialogInset)
             }
 
             actions
+                .padding(.horizontal, WorkbenchControlMetrics.redesignDialogInset)
         }
         .padding(.top, WorkbenchControlMetrics.redesignDialogTopPadding)
-        .padding(.horizontal, WorkbenchControlMetrics.redesignDialogInset)
         .padding(.bottom, WorkbenchControlMetrics.redesignDialogInset)
-        // The two columns and the gap between them, plus the two insets.
-        .frame(
-            width: WorkbenchControlMetrics.redesignShioriListEditorCoverWidth
-                + WorkbenchControlMetrics.redesignSpacing6
-                + WorkbenchControlMetrics.redesignDialogFormRegionWidth
-                + 2 * WorkbenchControlMetrics.redesignDialogInset,
-            alignment: .topLeading
+        .workbenchDialogWidth(
+            isWide
+                ? WorkbenchControlMetrics.redesignDialogWidthXLarge
+                : WorkbenchControlMetrics.redesignDialogWidthSmall
         )
         .background(WorkbenchRedesignColors.bgSurface)
         .workbenchDialogCloseButton(isDisabled: session.isSaving, onClose: onClose)
@@ -166,6 +179,20 @@ struct ShioriListEditorDialog: View {
             focusFirstErrorIfNeeded()
         }
         .subtitleTableTextSelectionNonInteractiveRegion()
+    }
+
+    /// Two columns while the window leaves room for the x-large dialog; below
+    /// that, the small dialog with the cover above the form.
+    private var isWide: Bool {
+        availableSize.width >= WorkbenchControlMetrics.redesignDialogWidthXLarge
+    }
+
+    /// One layout switched in place, so the fields keep their state and focus
+    /// when the window crosses the width.
+    private var mainLayout: AnyLayout {
+        isWide
+            ? AnyLayout(HStackLayout(alignment: .top, spacing: WorkbenchControlMetrics.redesignSpacing6))
+            : AnyLayout(VStackLayout(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing6))
     }
 
     @ViewBuilder
@@ -218,7 +245,8 @@ struct ShioriListEditorDialog: View {
                 placeholder: L("shiori.description.placeholder"),
                 text: $session.listDescription,
                 validationMessage: session.descriptionValidationMessage,
-                focus: $isDescriptionFocused
+                focus: $isDescriptionFocused,
+                height: WorkbenchControlMetrics.redesignShioriListEditorDescriptionHeight
             )
         }
     }

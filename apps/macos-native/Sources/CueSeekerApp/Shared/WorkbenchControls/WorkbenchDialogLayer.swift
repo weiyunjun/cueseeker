@@ -56,6 +56,13 @@ struct WorkbenchDialogLayer<Dialogs: View>: View {
             }
             .frame(width: proxy.size.width, height: proxy.size.height)
             .environment(\.workbenchDialogLayerSize, proxy.size)
+            .environment(
+                \.workbenchDialogAvailableSize,
+                CGSize(
+                    width: max(0, proxy.size.width - 2 * WorkbenchControlMetrics.redesignDialogWindowMargin),
+                    height: max(0, proxy.size.height - 2 * WorkbenchControlMetrics.redesignDialogWindowMargin)
+                )
+            )
         }
         .animation(WorkbenchDialogMotion.animation, value: dialogIDs)
         .animation(WorkbenchDialogMotion.animation, value: isSystemSheetAttached)
@@ -66,10 +73,83 @@ private struct WorkbenchDialogLayerSizeKey: EnvironmentKey {
     static let defaultValue = CGSize.zero
 }
 
+private struct WorkbenchDialogAvailableSizeKey: EnvironmentKey {
+    /// Outside the layer nothing narrows a dialog.
+    static let defaultValue = CGSize(width: CGFloat.infinity, height: .infinity)
+}
+
 private extension EnvironmentValues {
     var workbenchDialogLayerSize: CGSize {
         get { self[WorkbenchDialogLayerSizeKey.self] }
         set { self[WorkbenchDialogLayerSizeKey.self] = newValue }
+    }
+}
+
+extension EnvironmentValues {
+    /// The most a dialog may take: the window less `--spacing-6` on every side.
+    var workbenchDialogAvailableSize: CGSize {
+        get { self[WorkbenchDialogAvailableSizeKey.self] }
+        set { self[WorkbenchDialogAvailableSizeKey.self] = newValue }
+    }
+}
+
+extension View {
+    /// Sizes a dialog to its width tier, narrowed to what the window leaves it.
+    func workbenchDialogWidth(_ width: CGFloat) -> some View {
+        modifier(WorkbenchDialogWidth(width: width))
+    }
+}
+
+private struct WorkbenchDialogWidth: ViewModifier {
+    let width: CGFloat
+    @Environment(\.workbenchDialogAvailableSize) private var availableSize
+
+    func body(content: Content) -> some View {
+        content.frame(width: min(width, availableSize.width), alignment: .topLeading)
+    }
+}
+
+/// A dialog's header, content and footer, top to bottom. When the three would
+/// be taller than `maxHeight`, the header and the footer keep their height and
+/// the content, a scroll view, gives up the difference: the title and the
+/// buttons stay in view and the content scrolls between them. A scroll view
+/// asked for no particular height answers with its content's, so a content
+/// that fits takes exactly its own height.
+struct WorkbenchDialogColumn: Layout {
+    let spacing: CGFloat
+    let maxHeight: CGFloat
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache _: inout ()) -> CGSize {
+        let heights = heights(width: proposal.width, subviews: subviews)
+        let width = proposal.width
+            ?? subviews.map { $0.sizeThatFits(.unspecified).width }.max()
+            ?? 0
+        return CGSize(
+            width: width,
+            height: heights.reduce(0, +) + spacing * CGFloat(max(0, heights.count - 1))
+        )
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal _: ProposedViewSize, subviews: Subviews, cache _: inout ()) {
+        var y = bounds.minY
+        for (subview, height) in zip(subviews, heights(width: bounds.width, subviews: subviews)) {
+            subview.place(
+                at: CGPoint(x: bounds.minX, y: y),
+                proposal: ProposedViewSize(width: bounds.width, height: height)
+            )
+            y += height + spacing
+        }
+    }
+
+    private func heights(width: CGFloat?, subviews: Subviews) -> [CGFloat] {
+        var heights = subviews.map {
+            $0.sizeThatFits(ProposedViewSize(width: width, height: nil)).height
+        }
+        guard heights.count == 3 else {
+            return heights
+        }
+        heights[1] = max(0, min(heights[1], maxHeight - heights[0] - heights[2] - 2 * spacing))
+        return heights
     }
 }
 

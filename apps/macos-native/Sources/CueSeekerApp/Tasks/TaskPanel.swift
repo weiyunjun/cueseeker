@@ -20,52 +20,10 @@ struct TaskPanel: View {
     @EnvironmentObject private var localization: AppLocalizationStore
 
     var body: some View {
-        VStack(spacing: 0) {
-            header
+        VStack(spacing: WorkbenchControlMetrics.redesignSpacing4) {
+            WorkbenchDialogHeader(title: L("task.title"))
+                .padding(.horizontal, WorkbenchControlMetrics.redesignDialogInset)
 
-            WorkbenchScrollView {
-                tabContent
-                    .padding(.horizontal, WorkbenchControlMetrics.redesignSpacing4)
-                    .padding(.bottom, WorkbenchControlMetrics.redesignSpacing4)
-            }
-        }
-        .frame(
-            width: WorkbenchControlMetrics.redesignTaskPanelWidth,
-            height: WorkbenchControlMetrics.redesignTaskPanelHeight
-        )
-        // The shadow belongs to the panel's shape, not to the panel. Applied
-        // to the whole surface it would be cast by every leaf inside it —
-        // haloed text — and would rasterize the scroll view's AppKit layer out
-        // of the background it is supposed to sit on.
-        .background(
-            RoundedRectangle(
-                cornerRadius: WorkbenchControlMetrics.redesignCornerRadius,
-                style: .continuous
-            )
-            .fill(WorkbenchRedesignColors.bgPopover)
-            .shadowToken(
-                WorkbenchRedesignColors.shadowPopover,
-                cornerRadius: WorkbenchControlMetrics.redesignCornerRadius
-            )
-        )
-        .clipShape(
-            RoundedRectangle(
-                cornerRadius: WorkbenchControlMetrics.redesignCornerRadius,
-                style: .continuous
-            )
-        )
-        .overlay(
-            RoundedRectangle(
-                cornerRadius: WorkbenchControlMetrics.redesignCornerRadius,
-                style: .continuous
-            )
-            .strokeBorder(WorkbenchRedesignColors.borderMuted, lineWidth: 1)
-        )
-        .subtitleTableTextSelectionNonInteractiveRegion()
-    }
-
-    private var header: some View {
-        ZStack {
             WorkbenchTabs(
                 items: TaskQueueTab.allCases.map {
                     .init(
@@ -79,31 +37,26 @@ struct TaskPanel: View {
                 tasks.selectedTab = tab
             }
 
-            HStack(spacing: 0) {
-                Spacer(minLength: 0)
-
-                WorkbenchIconButton(
-                    icon: .x,
-                    isRedesign: true,
-                    iconSize: WorkbenchControlMetrics.redesignDialogCloseIconSize,
-                    boxSize: WorkbenchControlMetrics.redesignDialogCloseButtonSize,
-                    action: tasks.closePanel
-                )
-                // Placed by its glyph like the dialogs' close buttons, so the
-                // box gives back the slack it keeps around the glyph and the X
-                // itself lands on the tab bar's own inset.
-                .padding(.trailing, -WorkbenchControlMetrics.redesignDialogCloseBoxSlack)
-                // Escape closes the panel the way it closes the other dialogs,
-                // through the control that closes it — unless a confirmation
-                // stands above the panel in the same window, which owns it.
-                .keyboardShortcut(confirmation.session == nil ? .cancelAction : nil)
-                .help(L("common.close"))
-                .accessibilityLabel(L("common.close"))
-                .accessibilityIdentifier("task-panel-close")
+            // The list reaches the dialog's sides and bottom: the scrollbar
+            // runs in the inset, and the last card ends one inset above the
+            // bottom edge.
+            WorkbenchScrollView {
+                tabContent
+                    .padding(.horizontal, WorkbenchControlMetrics.redesignDialogInset)
+                    .padding(.bottom, WorkbenchControlMetrics.redesignDialogInset)
             }
         }
-        .padding(.horizontal, WorkbenchControlMetrics.redesignSpacing4)
-        .frame(height: WorkbenchControlMetrics.redesignTaskPanelHeaderHeight)
+        .padding(.top, WorkbenchControlMetrics.redesignDialogTopPadding)
+        .workbenchDialogWidth(WorkbenchControlMetrics.redesignDialogWidthXLarge)
+        .frame(height: WorkbenchControlMetrics.redesignTaskPanelHeight)
+        .background(WorkbenchRedesignColors.bgSurface)
+        // Escape closes the panel through its close button, unless a
+        // confirmation stands above the panel, which owns it.
+        .workbenchDialogCloseButton(
+            closesOnEscape: confirmation.session == nil,
+            onClose: tasks.closePanel
+        )
+        .subtitleTableTextSelectionNonInteractiveRegion()
     }
 
     @ViewBuilder

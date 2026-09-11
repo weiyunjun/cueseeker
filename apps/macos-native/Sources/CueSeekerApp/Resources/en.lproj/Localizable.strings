@@ -394,6 +394,7 @@
 
 /* Tasks */
 "task.entry" = "Tasks";
+"task.title" = "Task";
 "task.tab.current" = "Current";
 "task.tab.completed" = "Completed";
 "task.tab.incomplete" = "Incomplete";

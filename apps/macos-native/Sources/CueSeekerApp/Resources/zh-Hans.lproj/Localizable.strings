@@ -394,6 +394,7 @@
 
 /* Tasks */
 "task.entry" = "任务";
+"task.title" = "任务";
 "task.tab.current" = "进行中";
 "task.tab.completed" = "已完成";
 "task.tab.incomplete" = "未完成";

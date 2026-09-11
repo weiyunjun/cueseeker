@@ -126,8 +126,8 @@ final class LibraryRenameSession: ObservableObject, Identifiable {
     }
 }
 
-/// The rename dialog: the Shiori List Editor's form column and footer, without
-/// the cover column, with the current name under its own label above the field.
+/// The rename dialog: a form column and footer, with the current name under its
+/// own label above the field.
 struct LibraryRenameDialog: View {
     @ObservedObject var session: LibraryRenameSession
     let onConfirm: () -> Void
@@ -170,13 +170,9 @@ struct LibraryRenameDialog: View {
         .padding(.top, WorkbenchControlMetrics.redesignDialogTopPadding)
         .padding(.horizontal, WorkbenchControlMetrics.redesignDialogInset)
         .padding(.bottom, WorkbenchControlMetrics.redesignDialogInset)
-        // One column: the form region plus the two insets is the whole width,
-        // so the field's right edge is the last button's right edge.
-        .frame(
-            width: WorkbenchControlMetrics.redesignDialogFormRegionWidth
-                + 2 * WorkbenchControlMetrics.redesignDialogInset,
-            alignment: .topLeading
-        )
+        // One column across the content width, so the field's right edge is
+        // the last button's right edge.
+        .workbenchDialogWidth(WorkbenchControlMetrics.redesignDialogWidthMedium)
         .background(WorkbenchRedesignColors.bgSurface)
         .workbenchDialogCloseButton(onClose: onClose)
         .onAppear {

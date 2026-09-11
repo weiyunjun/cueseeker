@@ -8,7 +8,7 @@ import Testing
 func shioriDescriptionBoxEndsOnTheCoverBottom() {
     let formView = NSHostingView(
         rootView: ShioriFormHeightProbe()
-            .frame(width: WorkbenchControlMetrics.redesignDialogFormRegionWidth)
+            .frame(width: WorkbenchControlMetrics.redesignShioriListEditorWideFormWidth)
     )
     let coverView = NSHostingView(
         rootView: LibraryCoverFrame {
@@ -44,13 +44,12 @@ func textAreaUsesOneContentInsetWithoutNativeScrollbars() {
             x: 0,
             y: 0,
             width: 340,
-            height: WorkbenchControlMetrics.redesignFormTextAreaHeight
+            height: WorkbenchControlMetrics.redesignShioriListEditorDescriptionHeight
         )
     )
     view.configure(placeholder: "Description", isEnabled: true)
     view.layout()
 
-    #expect(WorkbenchControlMetrics.redesignFormTextAreaHeight == 96.75)
     #expect(view.contentInsetForTesting == NSSize(width: 16, height: 10))
     #expect(view.lineFragmentPaddingForTesting == 0)
     #expect(view.textView.textContainerOrigin == NSPoint(x: 16, y: 10))
@@ -70,7 +69,7 @@ func textAreaReportsFirstResponderChanges() {
             x: 0,
             y: 0,
             width: 340,
-            height: WorkbenchControlMetrics.redesignFormTextAreaHeight
+            height: WorkbenchControlMetrics.redesignShioriListEditorDescriptionHeight
         )
     )
     let window = NSWindow(
@@ -97,7 +96,7 @@ func textAreaScrollbarPersistsOnlyWhileContentOverflows() {
             x: 0,
             y: 0,
             width: 340,
-            height: WorkbenchControlMetrics.redesignFormTextAreaHeight
+            height: WorkbenchControlMetrics.redesignShioriListEditorDescriptionHeight
         )
     )
     view.layout()
@@ -142,7 +141,8 @@ private struct ShioriFormHeightProbe: View {
                 placeholder: "Add a description (optional)",
                 text: $description,
                 validationMessage: nil,
-                focus: $isDescriptionFocused
+                focus: $isDescriptionFocused,
+                height: WorkbenchControlMetrics.redesignShioriListEditorDescriptionHeight
             )
         }
     }

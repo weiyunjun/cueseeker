@@ -70,6 +70,8 @@ struct WorkbenchFormTextArea: View {
     @Binding var text: String
     let validationMessage: String?
     let focus: FocusState<Bool>.Binding
+    /// The box's height comes from the layout it sits in.
+    let height: CGFloat
 
     @State private var isFocused = false
 
@@ -84,7 +86,7 @@ struct WorkbenchFormTextArea: View {
                 focus: focus,
                 onFocusChange: { isFocused = $0 }
             )
-            .frame(height: WorkbenchControlMetrics.redesignFormTextAreaHeight)
+            .frame(height: height)
             .workbenchFormFieldChrome(
                 hasError: validationMessage != nil,
                 isFocused: isFocused
