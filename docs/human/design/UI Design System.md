@@ -69,6 +69,8 @@
 - `--color-bg-checkbox-unchecked`: Light `#FFFFFF`; Dark `#18181B`
 - `--color-bg-checkbox-checked`: Light `#667085`; Dark `#A1A1AA`
 - `--color-checkbox-icon`: Light `#FFFFFF`; Dark `#18181B`
+- `--color-segmented-control-selected-bg`: macOS accent color
+- `--color-segmented-control-selected-content`: Light `#FFFFFF`; Dark `#FFFFFF`
 - `--color-danger-text`: Light `#B42318`; Dark `#FCA5A5`
 - `--color-danger-bg-hover`: Light `#FEF3F2`; Dark `#3A1717`
 - `--color-success-text`: Light `#047857`; Dark `#6EE7B7`
@@ -163,6 +165,7 @@
 - `--font-size-body`: `14px`
 - `--font-size-control`: `14px`
 - `--font-weight-control`: `500`
+- `--font-size-segmented-control`: `12px`
 - `--font-size-table`: `14px`
 - `--font-size-table-header`: `14px`
 - `--font-size-caption`: `12px`
@@ -206,6 +209,7 @@
 
 - `--height-filter-bar-control`: `40px`
 - `--height-control`: `40px`
+- `--height-segmented-control`: `32px`
 - `--height-field`: `40px`
 - `--height-form-text-area`: `96.75px`
 - `--height-table-header`: `40px`
@@ -298,6 +302,7 @@
 - `--spacing-4`: `16px`
 - `--spacing-6`: `24px`
 - `--spacing-8`: `32px`
+- `--gap-segmented-control`: `2px`
 - `--gap-menu-scrollbar-outer`: `6px`
 - `--inset-menu-divider`: `--padding-menu` 与 `--padding-menu-item` 之和
 - `--gap-menu-divider`: `4px`
@@ -323,6 +328,7 @@
 
 - `--inset-dialog`: `24px`
 - `--padding-control-x`: `14px`
+- `--padding-segmented-control`: `3px`
 - `--padding-field-x`: `16px`
 - `--padding-menu`: `6px`
 - `--padding-menu-item`: `10px`
@@ -739,6 +745,39 @@
 ##### States
 
 - Platform Native
+
+### Segmented Control
+
+#### Shared
+
+##### Anatomy
+
+- Container
+  - Background：`--color-bg-surface`
+  - Border Color：`--color-border-control`
+  - Border Width：`--border-width-control`
+  - Radius：`--radius-control`
+- Label
+  - Font Family：`--font-family-base`
+  - Font Size：`--font-size-segmented-control`
+  - Font Weight：`--font-weight-control`
+
+##### Sizes
+
+- Height：`--height-segmented-control`
+- Padding：`--padding-segmented-control`
+- Option Gap：`--gap-segmented-control`
+- Option Width：各选项等宽，为最长选项文字的宽度加两侧各一个 `--padding-control-x`
+
+##### States
+
+- Unselected
+  - Label Color：`--color-text-primary`
+- Selected
+  - Background：`--color-segmented-control-selected-bg`
+  - Radius：`--radius-control` 减 `--padding-segmented-control`
+  - Label Color：`--color-segmented-control-selected-content`
+- Hover：None
 
 ## 2.3 Buttons
 
@@ -2880,6 +2919,7 @@
 - Number Field
 - Checkbox
 - Switch
+- Segmented Control
 - Button
 
 #### Spacing
