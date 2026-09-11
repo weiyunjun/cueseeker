@@ -42,11 +42,14 @@ extension AppCoordinator {
             isRepeat: Bool = false,
             nativeTextAction: PlaybackControllerTextAction? = nil
         ) -> Bool {
+            // The controller presses the default keys, whatever the keyboard
+            // has been rebound to.
             let handled = handlePlaybackKeyDown(
                 keyCode: keyCode,
                 modifierFlagsRawValue: 0,
                 isRepeat: isRepeat,
-                textInputState: resolvedTextInputState
+                textInputState: resolvedTextInputState,
+                shortcuts: .defaults
             )
             if handled {
                 return true

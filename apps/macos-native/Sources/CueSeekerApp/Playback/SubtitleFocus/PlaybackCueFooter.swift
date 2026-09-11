@@ -57,12 +57,19 @@ enum PlaybackCueFooterKeycap: Equatable {
     static let returnKey = Self.icon(.arrowElbowDownLeft)
 }
 
+/// The key a footer action shows: Return, which is fixed, or a shortcut the
+/// user can rebind, drawn with whatever key it has now.
+enum PlaybackCueFooterKeys: Equatable {
+    case returnKey
+    case shortcut(PlaybackShortcutAction)
+}
+
 /// One footer action: what it says, which key does the same thing, and the
 /// work itself. Clicking runs exactly what the shortcut runs.
 struct PlaybackCueFooterAction: Identifiable {
     let id: String
     let title: String
-    let keycap: PlaybackCueFooterKeycap
+    let keys: PlaybackCueFooterKeys
     /// Whether the action hangs the Shiori destination menu off its button
     /// rather than finishing on its own. The button then takes its Open
     /// appearance while the menu is up.
@@ -79,26 +86,26 @@ struct PlaybackCueFooterAction: Identifiable {
             Self(
                 id: "shiori",
                 title: L("playback.save_to_shiori"),
-                keycap: .text("S"),
+                keys: .shortcut(.saveToShiori),
                 opensShioriDestinationMenu: true,
                 perform: { request(.shiori) }
             ),
             Self(
                 id: "copy-cue-text",
                 title: L("row_menu.copy_cue_text"),
-                keycap: .text("C"),
+                keys: .shortcut(.copyCueText),
                 perform: { request(.copyCueText) }
             ),
             Self(
                 id: "copy-deep-link",
                 title: L("row_menu.copy_deep_link"),
-                keycap: .text("X"),
+                keys: .shortcut(.copyDeepLink),
                 perform: { request(.copyCueMarkdownLink) }
             ),
             Self(
                 id: "play",
                 title: playTitle,
-                keycap: .returnKey,
+                keys: .returnKey,
                 perform: { request(.playFromThisCue) }
             ),
         ]
@@ -110,7 +117,7 @@ struct PlaybackCueFooterAction: Identifiable {
         title: String,
         perform: @escaping () -> Void
     ) -> Self {
-        Self(id: id, title: title, keycap: .returnKey, perform: perform)
+        Self(id: id, title: title, keys: .returnKey, perform: perform)
     }
 }
 
@@ -204,6 +211,7 @@ struct PlaybackCueFooter: View {
                     PlaybackCueFooterActionButton(
                         surface: surface,
                         action: action,
+                        shortcuts: appState.settings.playbackShortcuts,
                         isOpen: action.opensShioriDestinationMenu
                             && openMenu != nil
                     )
@@ -404,20 +412,24 @@ struct PlaybackCueFooter: View {
     }
 
     /// Arrows, Enter and Esc belong to the open menu; the surface under it must
-    /// not respond to any of them. `S` belongs to it too: a plain key stops at
-    /// an open menu, so the key that opened this one has to close it from here
-    /// rather than by reaching the footer again.
+    /// not respond to any of them. The Save to Shiori key belongs to it too: a
+    /// plain key stops at an open menu, so the key that opened this one has to
+    /// close it from here rather than by reaching the footer again.
     private func handleDestinationMenuKey(
         _ keyCode: UInt16,
         isRepeat: Bool,
         menu: PlaybackShioriDestinationMenu
     ) -> Bool {
-        switch keyCode {
-        case 53, 1:
+        let saveToShioriKeyCode = appState.settings.playbackShortcuts.keymap
+            .effectiveKey(for: .saveToShiori)?
+            .keyCode
+        if keyCode == 53 || keyCode == saveToShioriKeyCode {
             if !isRepeat {
                 playback.closeShioriDestinationMenu()
             }
             return true
+        }
+        switch keyCode {
         case 126:
             playback.shioriDestinationMenuHighlight.moveHighlight(by: -1)
             return true
@@ -477,6 +489,8 @@ struct PlaybackCueFooter: View {
 private struct PlaybackCueFooterActionButton: View {
     let surface: PlaybackCueFooterSurface
     let action: PlaybackCueFooterAction
+    /// Observed so the keycaps follow a shortcut rebound in Settings.
+    @ObservedObject var shortcuts: PlaybackShortcutStore
     /// The menu this button opened is up. It wears the same background it wears
     /// on hover for as long as that menu stays open.
     var isOpen = false
@@ -485,6 +499,17 @@ private struct PlaybackCueFooterActionButton: View {
 
     private var isHighlighted: Bool {
         isHovered || isOpen
+    }
+
+    /// A shortcut that is cleared or in conflict shows no keycap: its key does
+    /// nothing, so the button shows only its title.
+    private var keycaps: [PlaybackCueFooterKeycap] {
+        switch action.keys {
+        case .returnKey:
+            [.returnKey]
+        case .shortcut(let shortcut):
+            shortcuts.keymap.effectiveKey(for: shortcut)?.keycaps ?? []
+        }
     }
 
     var body: some View {
@@ -497,12 +522,14 @@ private struct PlaybackCueFooterActionButton: View {
                     ))
                     .fixedSize(horizontal: true, vertical: false)
 
-                PlaybackCueFooterKeycapView(
-                    keycap: action.keycap,
-                    background: isHighlighted
-                        ? surface.keycapHoverBackground
-                        : surface.keycapBackground
-                )
+                ForEach(keycaps.indices, id: \.self) { index in
+                    PlaybackCueFooterKeycapView(
+                        keycap: keycaps[index],
+                        background: isHighlighted
+                            ? surface.keycapHoverBackground
+                            : surface.keycapBackground
+                    )
+                }
             }
             .padding(.horizontal, WorkbenchControlMetrics.redesignSpacing2)
             .padding(.vertical, WorkbenchControlMetrics.redesignSpacing1)
@@ -532,7 +559,8 @@ private struct PlaybackCueFooterActionButton: View {
     }
 }
 
-private struct PlaybackCueFooterKeycapView: View {
+/// Keycap: one key drawn as a label or an icon on its surface's keycap colour.
+struct PlaybackCueFooterKeycapView: View {
     let keycap: PlaybackCueFooterKeycap
     let background: Color
 

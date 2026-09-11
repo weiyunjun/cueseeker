@@ -119,6 +119,8 @@ final class SettingsStore: ObservableObject {
 
     let localization: AppLocalizationStore
 
+    let playbackShortcuts: PlaybackShortcutStore
+
     var showCueGroup: Bool {
         get { cueGroupPresentation.isEnabled }
         set { cueGroupPresentation.set(newValue) }
@@ -258,6 +260,7 @@ final class SettingsStore: ObservableObject {
             userDefaults: userDefaults,
             userDefaultsKey: Self.appLanguageKey
         )
+        self.playbackShortcuts = PlaybackShortcutStore(userDefaults: userDefaults)
         let loadedAppearance = Self.loadAppAppearanceMode(from: userDefaults)
         self.appAppearanceMode = loadedAppearance
         self.searchFacetFilter = Self.loadSearchFacetFilter(from: userDefaults)

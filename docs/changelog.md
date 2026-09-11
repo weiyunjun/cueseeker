@@ -6,6 +6,14 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Added a Shortcuts page to Settings that rebinds the video page's, the
+  Playback Overlay's and the Command Panel's keyboard shortcuts in place. A
+  shortcut takes one key or ⇧ with one key; Esc cancels the recording, the
+  field's clear button removes a shortcut, and each row restores its default.
+  Keys with ⌘, ⌃ or ⌥, Tab, function keys, and Return and the arrows where
+  they confirm and move are refused with a reason. Two shortcuts that share a
+  key where both answer are both marked and neither runs until one changes.
+  The footers show the current keys, and a game controller keeps its buttons.
 - Put an Export to Anki dialog in front of every Anki export in place of the
   save panel. It chooses whether the Cue Text goes on the front or the back of
   the card, which of Screenshot, Cue Group Text, Display Title, Time Range,

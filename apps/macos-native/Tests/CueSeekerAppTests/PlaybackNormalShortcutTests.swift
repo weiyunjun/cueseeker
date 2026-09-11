@@ -183,6 +183,56 @@ func playbackPointerHideRequestDoesNotInvalidatePlaybackStore() {
 }
 
 @MainActor
+@Test
+func normalPlaybackFollowsTheReboundKeyWhileTheControllerKeepsTheDefault() throws {
+    try withNormalPlaybackApp { app, _ in
+        let viewModel = try #require(app.playback.playbackViewModel)
+        app.settings.playbackShortcuts.set(
+            PlaybackShortcutKey(keyCode: UInt16(kVK_ANSI_V), shift: true),
+            for: .toggleSubtitles
+        )
+
+        #expect(!app.handlePlaybackKeyDown(keyCode: 12, modifierFlagsRawValue: 0))
+        #expect(!app.handlePlaybackKeyDown(
+            keyCode: UInt16(kVK_ANSI_V),
+            modifierFlagsRawValue: 0
+        ))
+        #expect(viewModel.areSubtitlesVisible)
+
+        #expect(app.handlePlaybackKeyDown(
+            keyCode: UInt16(kVK_ANSI_V),
+            modifierFlagsRawValue: NSEvent.ModifierFlags.shift.rawValue
+        ))
+        #expect(!viewModel.areSubtitlesVisible)
+
+        // The controller's thumbstick still presses Q.
+        app.playback.isPlaybackSurfaceExpanded = true
+        #expect(app.handlePlaybackControllerInput(.button(.leftThumbstick)))
+        #expect(viewModel.areSubtitlesVisible)
+    }
+}
+
+@MainActor
+@Test
+func normalPlaybackConflictingKeyRunsNeitherShortcut() throws {
+    try withNormalPlaybackApp { app, _ in
+        let viewModel = try #require(app.playback.playbackViewModel)
+        app.settings.playbackShortcuts.set(
+            PlaybackShortcutKey(keyCode: UInt16(kVK_Space)),
+            for: .toggleSubtitles
+        )
+
+        #expect(!app.handlePlaybackKeyDown(keyCode: 49, modifierFlagsRawValue: 0))
+        #expect(viewModel.areSubtitlesVisible)
+        #expect(viewModel.feedback == nil)
+
+        app.settings.playbackShortcuts.reset(.toggleSubtitles)
+        #expect(app.handlePlaybackKeyDown(keyCode: 12, modifierFlagsRawValue: 0))
+        #expect(!viewModel.areSubtitlesVisible)
+    }
+}
+
+@MainActor
 private func withNormalPlaybackApp(
     _ body: (AppCoordinator, IndexingDatabase) throws -> Void
 ) throws {

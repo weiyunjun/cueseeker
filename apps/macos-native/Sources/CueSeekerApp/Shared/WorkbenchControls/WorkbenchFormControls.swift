@@ -195,21 +195,33 @@ private struct WorkbenchFormFieldContainer<Content: View>: View {
             VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing1) {
                 content
 
-                Text(validationMessage ?? "\u{00A0}")
-                    .font(.system(
-                        size: WorkbenchControlMetrics.redesignFontSizeCaption,
-                        weight: .regular
-                    ))
-                    .foregroundStyle(WorkbenchRedesignColors.dangerText)
-                    .lineLimit(1)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .accessibilityHidden(validationMessage == nil)
+                WorkbenchValidationMessage(text: validationMessage)
             }
         }
     }
 }
 
-private extension View {
+/// Text Field's Validation Message: one line below the field, kept even while
+/// there is nothing to say so the field never moves when a message comes.
+struct WorkbenchValidationMessage: View {
+    let text: String?
+
+    var body: some View {
+        Text(text ?? "\u{00A0}")
+            .font(.system(
+                size: WorkbenchControlMetrics.redesignFontSizeCaption,
+                weight: .regular
+            ))
+            .foregroundStyle(WorkbenchRedesignColors.dangerText)
+            .lineLimit(1)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityHidden(text == nil)
+    }
+}
+
+extension View {
+    /// Text Field's container: surface fill and the border for its Default,
+    /// Focused and Error states.
     func workbenchFormFieldChrome(
         hasError: Bool,
         isFocused: Bool

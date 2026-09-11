@@ -360,6 +360,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             .environmentObject(appState.settings)
             .environmentObject(appState.settings.cueGroupPresentation)
             .environmentObject(appState.settings.localization)
+            .environmentObject(appState.settings.playbackShortcuts)
             .environmentObject(appState.indexing)
             .environmentObject(appState.shiori)
             .environmentObject(appState.library)

@@ -242,6 +242,7 @@
 
 /* Settings categories */
 "settings.category.play" = "播放";
+"settings.category.shortcuts" = "快捷键";
 "settings.category.appearance" = "外观";
 "settings.category.search" = "搜索";
 "settings.category.decode" = "解码";
@@ -280,6 +281,36 @@
 "settings.play.auto_pause" = "台词结束后自动暂停";
 "settings.play.auto_switch" = "自动切换到播放列表中的下一条台词";
 "settings.play.auto_switch_gap" = "自动切换间隔";
+
+/* Settings: Shortcuts */
+"settings.shortcuts.section.playback" = "播放";
+"settings.shortcuts.section.overlay" = "播放覆盖层与命令面板";
+"settings.shortcuts.placeholder" = "按下按键";
+"settings.shortcuts.conflict" = "与%@冲突";
+"settings.shortcuts.quoted_name" = "“%@”";
+"settings.shortcuts.name_separator" = "，";
+"settings.shortcuts.rejection.modifier" = "不能包含 ⌘、⌃ 或 ⌥";
+"settings.shortcuts.rejection.reserved" = "保留按键";
+"settings.shortcuts.rejection.unsupported" = "不支持此按键";
+"settings.shortcuts.action.openCommandPanel" = "打开命令面板";
+"settings.shortcuts.action.playPause" = "播放 / 暂停";
+"settings.shortcuts.action.seekBackward" = "快退";
+"settings.shortcuts.action.seekForward" = "快进";
+"settings.shortcuts.action.volumeUp" = "调高音量";
+"settings.shortcuts.action.volumeDown" = "调低音量";
+"settings.shortcuts.action.speedDown" = "降低播放速度";
+"settings.shortcuts.action.speedUp" = "提高播放速度";
+"settings.shortcuts.action.previous" = "上一个";
+"settings.shortcuts.action.next" = "下一个";
+"settings.shortcuts.action.toggleSubtitles" = "开关字幕";
+"settings.shortcuts.action.repeatCue" = "循环";
+"settings.shortcuts.action.copyScreenshot" = "复制截图";
+"settings.shortcuts.action.toggleFullscreen" = "开关全屏";
+"settings.shortcuts.action.openPlaybackOverlay" = "打开播放覆盖层";
+"settings.shortcuts.action.saveToShiori" = "保存到 Shiori";
+"settings.shortcuts.action.copyCueText" = "复制台词文本";
+"settings.shortcuts.action.copyDeepLink" = "复制 Deep Link";
+"settings.shortcuts.action.editCollage" = "编辑长截图";
 
 /* Settings: Appearance */
 "settings.appearance.description" = "选择字幕求索如何跟随浅色和深色模式。";

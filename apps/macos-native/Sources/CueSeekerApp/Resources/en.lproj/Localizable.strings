@@ -242,6 +242,7 @@
 
 /* Settings categories */
 "settings.category.play" = "Play";
+"settings.category.shortcuts" = "Shortcuts";
 "settings.category.appearance" = "Appearance";
 "settings.category.search" = "Search";
 "settings.category.decode" = "Decode";
@@ -280,6 +281,36 @@
 "settings.play.auto_pause" = "Auto Pause After a Cue Finishes";
 "settings.play.auto_switch" = "Auto Switch to Next Cues in Playlist";
 "settings.play.auto_switch_gap" = "Auto Switch Gap";
+
+/* Settings: Shortcuts */
+"settings.shortcuts.section.playback" = "Playback";
+"settings.shortcuts.section.overlay" = "Playback Overlay & Command Panel";
+"settings.shortcuts.placeholder" = "Press a key";
+"settings.shortcuts.conflict" = "Conflicts with %@";
+"settings.shortcuts.quoted_name" = "“%@”";
+"settings.shortcuts.name_separator" = ", ";
+"settings.shortcuts.rejection.modifier" = "Can’t include ⌘, ⌃ or ⌥";
+"settings.shortcuts.rejection.reserved" = "Reserved key";
+"settings.shortcuts.rejection.unsupported" = "Not supported";
+"settings.shortcuts.action.openCommandPanel" = "Open Command Panel";
+"settings.shortcuts.action.playPause" = "Play / Pause";
+"settings.shortcuts.action.seekBackward" = "Seek Backward";
+"settings.shortcuts.action.seekForward" = "Seek Forward";
+"settings.shortcuts.action.volumeUp" = "Volume Up";
+"settings.shortcuts.action.volumeDown" = "Volume Down";
+"settings.shortcuts.action.speedDown" = "Speed Down";
+"settings.shortcuts.action.speedUp" = "Speed Up";
+"settings.shortcuts.action.previous" = "Previous";
+"settings.shortcuts.action.next" = "Next";
+"settings.shortcuts.action.toggleSubtitles" = "Toggle Subtitles";
+"settings.shortcuts.action.repeatCue" = "Repeat";
+"settings.shortcuts.action.copyScreenshot" = "Copy Screenshot";
+"settings.shortcuts.action.toggleFullscreen" = "Toggle Fullscreen";
+"settings.shortcuts.action.openPlaybackOverlay" = "Open Playback Overlay";
+"settings.shortcuts.action.saveToShiori" = "Save to Shiori";
+"settings.shortcuts.action.copyCueText" = "Copy Cue Text";
+"settings.shortcuts.action.copyDeepLink" = "Copy Deep Link";
+"settings.shortcuts.action.editCollage" = "Edit Collage";
 
 /* Settings: Appearance */
 "settings.appearance.description" = "Choose how CueSeeker follows light and dark mode.";

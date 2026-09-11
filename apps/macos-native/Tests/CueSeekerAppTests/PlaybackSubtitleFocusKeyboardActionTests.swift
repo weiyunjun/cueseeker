@@ -1,4 +1,5 @@
 import AppKit
+import Carbon.HIToolbox
 @testable import CueSeekerCore
 import CueSeekerPlayback
 import Foundation
@@ -157,6 +158,49 @@ func playbackOverlayPControlsExclusiveEditingCollageMode() async throws {
         #expect(session.selectModule(.playlist))
         #expect(app.handlePlaybackKeyDown(keyCode: 35, modifierFlagsRawValue: 0))
         #expect(!session.isEditingCollage)
+    }
+}
+
+@MainActor
+@Test
+func playbackOverlayEditCollageAndCommandPanelFollowTheirReboundKeys() async throws {
+    try await withKeyboardActionApp { app, _ in
+        let editKey = PlaybackShortcutKey(keyCode: UInt16(kVK_ANSI_E))
+        app.settings.playbackShortcuts.set(editKey, for: .editCollage)
+        app.settings.playbackShortcuts.set(
+            PlaybackShortcutKey(keyCode: UInt16(kVK_ANSI_J)),
+            for: .openCommandPanel
+        )
+        let session = try #require(app.playback.beginSubtitleFocusSession(
+            openSnapshot: keyboardActionOpenSnapshot(wasPlaying: false),
+            availableModules: [.current, .playlist]
+        ))
+        #expect(session.publishInitialSnapshot(
+            keyboardActionSnapshot(),
+            token: session.token
+        ))
+
+        #expect(app.handlePlaybackKeyDown(keyCode: 35, modifierFlagsRawValue: 0))
+        #expect(!session.isEditingCollage)
+        #expect(app.handlePlaybackKeyDown(keyCode: editKey.keyCode, modifierFlagsRawValue: 0))
+        #expect(session.isEditingCollage)
+        #expect(app.handlePlaybackKeyDown(keyCode: editKey.keyCode, modifierFlagsRawValue: 0))
+        #expect(!session.isEditingCollage)
+
+        // Save to Shiori on the same key: the two conflict and it runs neither.
+        app.settings.playbackShortcuts.set(editKey, for: .saveToShiori)
+        #expect(app.handlePlaybackKeyDown(keyCode: editKey.keyCode, modifierFlagsRawValue: 0))
+        #expect(!session.isEditingCollage)
+        #expect(app.playback.shioriDestinationMenu == nil)
+
+        app.playback.isPlaybackSurfaceExpanded = true
+        #expect(app.handlePlaybackKeyDown(keyCode: 40, modifierFlagsRawValue: 0))
+        #expect(app.playback.commandPanelPresentation == nil)
+        #expect(app.handlePlaybackKeyDown(
+            keyCode: UInt16(kVK_ANSI_J),
+            modifierFlagsRawValue: 0
+        ))
+        #expect(app.playback.commandPanelPresentation?.page == .root)
     }
 }
 

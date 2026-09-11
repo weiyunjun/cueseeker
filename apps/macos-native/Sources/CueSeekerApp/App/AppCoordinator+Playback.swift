@@ -1,5 +1,4 @@
 import AppKit
-import Carbon.HIToolbox
 import Foundation
 import CueSeekerCore
 import CueSeekerPlayback
@@ -718,12 +717,16 @@ extension AppCoordinator {
 
     /// Applies whatever the speed-menu highlight sits on, so Enter and a click
     /// commit through one path.
+    ///
+    /// Rebindable keys are read from `shortcuts`, the user's keymap unless the
+    /// caller passes another: a game controller presses the default keys.
     @discardableResult
     func handlePlaybackKeyDown(
         keyCode: UInt16,
         modifierFlagsRawValue: UInt,
         isRepeat: Bool = false,
-        textInputState: PlaybackKeyboardTextInputState
+        textInputState: PlaybackKeyboardTextInputState,
+        shortcuts: PlaybackShortcutKeymap? = nil
     ) -> Bool {
         let isPlaybackInterfaceVisible = currentPlaybackVideoPath != nil || playbackFullscreenManager.isFullscreen
 
@@ -745,8 +748,34 @@ extension AppCoordinator {
         let modifierFlags = NSEvent.ModifierFlags(
             rawValue: modifierFlagsRawValue
         )
+        let shortcuts = shortcuts ?? settings.playbackShortcuts.keymap
+        // A shortcut is one key, optionally with ⇧; a press held with ⌘, ⌃ or
+        // ⌥ is never one.
+        let shortcutKey: PlaybackShortcutKey? = modifierFlags
+            .intersection([.command, .control, .option])
+            .isEmpty
+            ? PlaybackShortcutKey(
+                keyCode: keyCode,
+                shift: modifierFlags.contains(.shift)
+            )
+            : nil
+        func isShortcut(_ action: PlaybackShortcutAction) -> Bool {
+            shortcutKey != nil && shortcuts.effectiveKey(for: action) == shortcutKey
+        }
+        // The cue action the press runs where the Playback Overlay and the
+        // Command Panel's search results offer Save to Shiori, Copy Cue Text
+        // and Copy Deep Link.
+        let cueShortcutAction: PlaybackSubtitleFocusAction? = shortcutKey
+            .flatMap { shortcuts.action(for: $0, in: .overlay) }
+            .flatMap(Self.cueAction(for:))
         if let subtitleFocusSession = playback.subtitleFocusSession,
            subtitleFocusSession.isEditingCollage {
+            if isShortcut(.editCollage) {
+                if !isRepeat {
+                    _ = subtitleFocusSession.toggleEditingCollage()
+                }
+                return true
+            }
             let editingCollageModifiers: NSEvent.ModifierFlags = [
                 .command,
                 .control,
@@ -759,7 +788,7 @@ extension AppCoordinator {
             }
 
             switch keyCode {
-            case 35, 53:
+            case 53:
                 if !isRepeat {
                     _ = subtitleFocusSession.toggleEditingCollage()
                 }
@@ -781,14 +810,7 @@ extension AppCoordinator {
                 return true
             }
         }
-        let commandPanelModifiers: NSEvent.ModifierFlags = [
-            .command,
-            .control,
-            .option,
-            .shift,
-        ]
-        if keyCode == UInt16(kVK_ANSI_K),
-           modifierFlags.intersection(commandPanelModifiers).isEmpty,
+        if isShortcut(.openCommandPanel),
            !textInputState.isEditableFocused {
             if !isRepeat {
                 _ = presentPlaybackCommandPanel()
@@ -856,6 +878,12 @@ extension AppCoordinator {
             guard modifierFlags.intersection(disallowedModifiers).isEmpty else {
                 return true
             }
+            if let cueShortcutAction {
+                if commandPanel.page == .searchResults, !isRepeat {
+                    _ = requestPlaybackCommandPanelSearchAction(cueShortcutAction)
+                }
+                return true
+            }
             switch keyCode {
             case 123 where commandPanel.page.showsRecentCardGrid:
                 _ = movePlaybackCommandPanelRecentCardSelection(.left)
@@ -872,20 +900,6 @@ extension AppCoordinator {
                     _ = movePlaybackCommandPanelRecentCardSelection(.down)
                 } else {
                     _ = movePlaybackCommandPanelSelection(1)
-                }
-            case 1:
-                if commandPanel.page == .searchResults, !isRepeat {
-                    _ = requestPlaybackCommandPanelSearchAction(.shiori)
-                }
-            case 8:
-                if commandPanel.page == .searchResults, !isRepeat {
-                    _ = requestPlaybackCommandPanelSearchAction(.copyCueText)
-                }
-            case 7:
-                if commandPanel.page == .searchResults, !isRepeat {
-                    _ = requestPlaybackCommandPanelSearchAction(
-                        .copyCueMarkdownLink
-                    )
                 }
             case 36, 76:
                 if !isRepeat {
@@ -906,8 +920,7 @@ extension AppCoordinator {
                 .shift,
             ]
 
-            if keyCode == 35,
-               modifierFlags.intersection(moduleSwitchModifiers).isEmpty {
+            if isShortcut(.editCollage) {
                 if !isRepeat,
                    subtitleFocusSession.selectedModule == .current {
                     _ = subtitleFocusSession.toggleEditingCollage()
@@ -1014,6 +1027,17 @@ extension AppCoordinator {
                 return false
             }
 
+            if let cueShortcutAction {
+                guard !isRepeat else {
+                    return true
+                }
+                if subtitleFocusSession.selectedModule?.usesSharedCueShortcuts
+                    == true {
+                    _ = requestPlaybackSubtitleFocusAction(cueShortcutAction)
+                }
+                return true
+            }
+
             switch keyCode {
             case 126:
                 if subtitleFocusSession.selectedModule?.usesSharedCueShortcuts
@@ -1025,33 +1049,6 @@ extension AppCoordinator {
                 if subtitleFocusSession.selectedModule?.usesSharedCueShortcuts
                     == true {
                     _ = subtitleFocusSession.requestKeyboardNavigation(.forward)
-                }
-                return true
-            case 1:
-                guard !isRepeat else {
-                    return true
-                }
-                if subtitleFocusSession.selectedModule?.usesSharedCueShortcuts
-                    == true {
-                    _ = requestPlaybackSubtitleFocusAction(.shiori)
-                }
-                return true
-            case 8:
-                guard !isRepeat else {
-                    return true
-                }
-                if subtitleFocusSession.selectedModule?.usesSharedCueShortcuts
-                    == true {
-                    _ = requestPlaybackSubtitleFocusAction(.copyCueText)
-                }
-                return true
-            case 7:
-                guard !isRepeat else {
-                    return true
-                }
-                if subtitleFocusSession.selectedModule?.usesSharedCueShortcuts
-                    == true {
-                    _ = requestPlaybackSubtitleFocusAction(.copyCueMarkdownLink)
                 }
                 return true
             case 36, 76:
@@ -1089,60 +1086,63 @@ extension AppCoordinator {
             return false
         }
 
-        let hasShift = modifierFlags.contains(.shift)
-
-        if playback.isTimelineScrubbing {
-            return Self.isPlaybackShortcutKey(keyCode: keyCode, hasShift: hasShift)
+        let playbackShortcut = shortcutKey.flatMap {
+            shortcuts.action(for: $0, in: .playback)
         }
 
-        switch keyCode {
-        case 0:
+        if playback.isTimelineScrubbing {
+            return playbackShortcut != nil
+        }
+
+        switch playbackShortcut {
+        case .previous:
             goPrevious()
             return true
-        case 2:
+        case .next:
             goNext()
             return true
-        case 12:
+        case .toggleSubtitles:
             viewModel.toggleSubtitles()
             return true
-        case UInt16(kVK_ANSI_R) where !hasShift:
+        case .repeatCue:
             if !isRepeat {
                 _ = repeatCurrentPlaylistCue()
             }
             return true
-        case 35 where !hasShift:
+        case .copyScreenshot:
             viewModel.copyCurrentFrameScreenshot()
             return true
-        case 3:
+        case .toggleFullscreen:
             togglePlaybackFullscreenFromUser()
             return true
-        case 49:
+        case .playPause:
             togglePlaybackFromUser()
             return true
-        case 36, 76:
+        case .openPlaybackOverlay:
             guard !isRepeat else {
                 return true
             }
             return openPlaybackSubtitleFocusFromUser()
-        case 123:
+        case .seekBackward:
             viewModel.seekRelative(by: -5)
             return true
-        case 124:
+        case .seekForward:
             viewModel.seekRelative(by: 5)
             return true
-        case 126:
+        case .volumeUp:
             viewModel.adjustVolume(by: 5)
             return true
-        case 125:
+        case .volumeDown:
             viewModel.adjustVolume(by: -5)
             return true
-        case 43 where hasShift:
+        case .speedDown:
             viewModel.adjustSpeed(by: -0.25)
             return true
-        case 47 where hasShift:
+        case .speedUp:
             viewModel.adjustSpeed(by: 0.25)
             return true
-        default:
+        case .openCommandPanel, .saveToShiori, .copyCueText, .copyDeepLink,
+             .editCollage, nil:
             return false
         }
     }
@@ -1162,16 +1162,20 @@ extension AppCoordinator {
         return true
     }
 
-    private static func isPlaybackShortcutKey(keyCode: UInt16, hasShift: Bool) -> Bool {
-        switch keyCode {
-        case 0, 2, 3, 12, UInt16(kVK_ANSI_R), 36, 49, 76, 123, 124, 125, 126:
-            return true
-        case 35:
-            return !hasShift
-        case 43, 47:
-            return hasShift
+    /// The cue action behind an Overlay shortcut, for the three the Playback
+    /// Overlay and the Command Panel's search results share.
+    private static func cueAction(
+        for shortcut: PlaybackShortcutAction
+    ) -> PlaybackSubtitleFocusAction? {
+        switch shortcut {
+        case .saveToShiori:
+            .shiori
+        case .copyCueText:
+            .copyCueText
+        case .copyDeepLink:
+            .copyCueMarkdownLink
         default:
-            return false
+            nil
         }
     }
 
