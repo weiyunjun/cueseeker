@@ -89,11 +89,17 @@ private extension View {
 }
 
 extension View {
-    /// Places a dialog in the dialog layer. A dialog with another one above it
-    /// is veiled and takes no input.
-    func workbenchDialog(isCovered: Bool = false) -> some View {
+    /// Places a dialog in the dialog layer, `level` above the veil. Only a
+    /// Confirmation stacks on another dialog, so it alone takes the level
+    /// above the rest. A dialog with another one above it is veiled and takes
+    /// no input.
+    func workbenchDialog(level: Double = 1, isCovered: Bool = false) -> some View {
         modifier(WorkbenchDialogChrome(isCovered: isCovered))
             .transition(.workbenchDialog)
+            // A view on its way out loses its place in the stack unless it
+            // carries one: the veil would cover a closing dialog, and a closing
+            // Confirmation would drop under the Task panel.
+            .zIndex(level)
     }
 }
 
@@ -269,6 +275,10 @@ private struct WorkbenchDialogMotionEffect: ViewModifier, Animatable {
 
     func body(content: Content) -> some View {
         content
+            // The dialog fades as one picture, the way the sheet's window
+            // did. Faded part by part, the opaque shapes its shadows are cast
+            // from would show through it as grey.
+            .compositingGroup()
             .opacity(opacity)
             .offset(
                 y: -WorkbenchDialogMotion.distance

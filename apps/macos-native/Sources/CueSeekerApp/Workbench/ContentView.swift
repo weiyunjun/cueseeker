@@ -177,7 +177,7 @@ private struct ContentRootView: View {
                     session: session,
                     onClose: { confirmation.session = nil }
                 )
-                .workbenchDialog()
+                .workbenchDialog(level: 2)
             }
         }
     }

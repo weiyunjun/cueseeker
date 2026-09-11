@@ -82,3 +82,29 @@ Left to the owner, because the controller cannot drive them: the Dock's Quit, lo
 - A dialog larger than the window is now cut by the window's edge. A sheet was a window of its own and reached past it: in the old build, narrowing the window under Edit Cover pushed the sheet off the display.
 
 `swift build`: clean. `swift test`: 1176 tests, compared against the pristine copy with `CUESEEKER_MEDIA_RUNTIME_ROOT` pointed at the repository's runtime, so the working tree was never reverted. Both fail 15, 14 of them shared: native playback timeline, audio and presentation, the auto-pause boundary, the refresh-scope waits, library folder removal under load, and the two Debug E2E scene-geometry cases. The one on each side that differs is a library folder removal test, and that suite passes 8 of 8 alone. An earlier run of this tree had swapped a different pair, `sharedPersistenceMigrationCopiesLegacyValuesWithoutOverwritingSharedValues` for `searchFacetSelectionDoesNotRefreshGlobalOrInactiveSurfaces`; both pass alone. The layer, menu, task, shortcut, list editor, rename and confirmation suites pass together, 85 tests.
+
+## Follow-up: the fade showed grey, and the veil covered a closing dialog
+
+The owner compared the packaged pre-change build with the Debug build mid-animation: the sheet let the page show through the fading dialog, while the in-window dialog turned grey.
+
+**Cause 1, the fade.** The fade was applied to every part of the dialog separately instead of to the dialog as one picture. The shapes the shadows are cast from are opaque black and sit behind the dialog, where its opaque background normally hides them; faded part by part, they showed through. The Task panel carries a second such shape for its own popover shadow, so it turned the darkest grey. A scratch probe with a white box over an opaque black one on a light page, faded to 50%, gave 200 faded part by part and 250 faded as one picture.
+
+**Cause 2, the stacking.** SwiftUI drops a leaving view's place in a ZStack unless the view carries an explicit z-index. When a dialog closed, the leaving veil was drawn over the leaving dialog, so the dialog was dimmed as it closed; a Confirmation closing over the Task panel dropped under the panel and vanished at once. Measured in the app mid-close, the Task panel's inside read 216, the same as the dimmed page, and its text and the page text through it fit a dialog about 75% opaque under the veil. A scratch probe reproduced both orders and showed an explicit z-index fixes them.
+
+**Change.** The dialog's motion composes the whole dialog, shadows and edge lines included, before fading it, as the sheet's window did. Every dialog carries its level in the layer: 1 above the veil, and 2 for a Confirmation, the only dialog that stacks on another. No visual value changed.
+
+Files:
+
+- `apps/macos-native/Sources/CueSeekerApp/Shared/WorkbenchControls/WorkbenchDialogLayer.swift`
+- `apps/macos-native/Sources/CueSeekerApp/Workbench/ContentView.swift`
+
+**Verification**, macOS 15.5, Debug E2E controller, light, launched only after the owner's running copy had closed:
+
+- A scratch probe with a system text field and a system scroll view inside the dialog: composed and faded to 50%, the background, field and scroll view all read 246–249 over a 242 page; fully shown, composed and uncomposed are identical, and alignment-guide placement is unchanged.
+- The Task panel at rest matches the previous build's capture exactly inside the dialog and along its edges; the only differing pixels are the top bar's Back button, enabled by this run's navigation.
+- Closing the Task panel, a capture right after the click caught the veil 76% in: the dialog's inside read 245 over a 216 page, where it read 216 before the stacking change. Opening, it read 249 over a 244 page.
+- A delete-record Confirmation over the Task panel, captured right after Cancel: the Confirmation is still above the panel, half faded, with the panel showing through it. Afterwards the panel is back and the record is still there.
+- Cmd+Q with the Task panel open quits the App.
+- The layer, menu, task, shortcut, list editor, rename and confirmation suites pass, 85 tests.
+
+The motion itself, frame by frame, is still the owner's comparison by eye.
