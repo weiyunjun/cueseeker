@@ -27,7 +27,7 @@ enum TaskQueueTab: String, CaseIterable, Identifiable {
 /// to Incomplete — so nothing here has to survive one, and the cues a queued
 /// export is holding never reach the database.
 enum TaskWork {
-    case ankiExport(items: [AnkiExportItem], destinationURL: URL)
+    case ankiExport(items: [AnkiExportItem], options: AnkiExportOptions, destinationURL: URL)
     case rename(LibraryRenameRequest)
 }
 
@@ -72,6 +72,7 @@ final class TaskProgressModel: ObservableObject {
 /// cancelled one records — can be exercised without ffmpeg and a real video.
 typealias TaskExportRunner = @Sendable (
     _ items: [AnkiExportItem],
+    _ options: AnkiExportOptions,
     _ destinationURL: URL,
     _ onItemExported: @escaping @Sendable (Int) -> Void
 ) async throws -> Void
@@ -129,6 +130,8 @@ final class TaskQueueStore: ObservableObject {
     @Published private(set) var isPanelOpen = false
     /// Which tab the panel shows. Not persisted, and reset by every open.
     @Published var selectedTab: TaskQueueTab = .current
+    /// The open Export to Anki dialog, whose Export queues its task here.
+    @Published var ankiExportSession: AnkiExportSession?
 
     /// Running plus queued — what the entry button's badge counts.
     var remainingTaskCount: Int { current.count }
@@ -146,9 +149,10 @@ final class TaskQueueStore: ObservableObject {
     /// is recorded as the removal it actually was.
     private var cancelledTaskIDs: Set<Int64> = []
 
-    static let ankiExportRunner: TaskExportRunner = { items, destinationURL, onItemExported in
+    static let ankiExportRunner: TaskExportRunner = { items, options, destinationURL, onItemExported in
         try await AnkiPackageExporter.export(
             items: items,
+            options: options,
             to: destinationURL,
             onItemExported: onItemExported
         )
@@ -187,7 +191,11 @@ final class TaskQueueStore: ObservableObject {
 
     // MARK: - Queue
 
-    func enqueueAnkiExport(items: [AnkiExportItem], destinationURL: URL) {
+    func enqueueAnkiExport(
+        items: [AnkiExportItem],
+        options: AnkiExportOptions,
+        destinationURL: URL
+    ) {
         guard !items.isEmpty, let database else {
             return
         }
@@ -202,7 +210,7 @@ final class TaskQueueStore: ObservableObject {
             current.append(
                 TaskQueueEntry(
                     record: record,
-                    work: .ankiExport(items: items, destinationURL: destinationURL),
+                    work: .ankiExport(items: items, options: options, destinationURL: destinationURL),
                     progress: TaskProgressModel()
                 )
             )
@@ -313,13 +321,13 @@ final class TaskQueueStore: ObservableObject {
         setState(.running, at: index)
 
         switch entry.work {
-        case .ankiExport(let items, let destinationURL):
+        case .ankiExport(let items, let options, let destinationURL):
             let progress = entry.progress
             let runExport = runExport
             runningTask = Task { [weak self] in
                 var failure: String?
                 do {
-                    try await runExport(items, destinationURL) { exportedCount in
+                    try await runExport(items, options, destinationURL) { exportedCount in
                         Task { @MainActor in
                             progress.exportedCount = exportedCount
                         }
@@ -366,7 +374,7 @@ final class TaskQueueStore: ObservableObject {
     private func queuedExportUses(_ request: LibraryRenameRequest) -> Bool {
         current.contains { entry in
             guard entry.record.state == .queued,
-                  case .ankiExport(let items, _) = entry.work
+                  case .ankiExport(let items, _, _) = entry.work
             else {
                 return false
             }

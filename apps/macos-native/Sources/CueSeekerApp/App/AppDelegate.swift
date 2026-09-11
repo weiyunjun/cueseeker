@@ -425,7 +425,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         appState.workbenchLayout.isAppFullscreen = false
     }
 
-    /// A file panel is the only sheet left on the main window.
+    /// File panels and Export to Anki's replace warning are the only sheets
+    /// left on the main window.
     func windowWillBeginSheet(_ notification: Notification) {
         appState.interfaceLayers.setSystemSheetAttached(true)
     }

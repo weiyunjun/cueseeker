@@ -532,8 +532,8 @@ struct WorkbenchTestSearchView: View {
         }
 
         Task { @MainActor in
-            let results = await selectedSearchResults(for: selectedRows)
-            appState.exportSearchResultsToAnki(results)
+            let selection = await selectedSearchResults(for: selectedRows)
+            appState.exportSearchResultsToAnki(selection)
         }
     }
 
@@ -567,14 +567,18 @@ struct WorkbenchTestSearchView: View {
         SubtitleTableClipboard.copyDeepLinks(rows: rows)
     }
 
-    private func selectedSearchResults(for selectedRows: [Int]) async -> [SubtitleSearchResult] {
+    private func selectedSearchResults(
+        for selectedRows: [Int]
+    ) async -> [(result: SubtitleSearchResult, row: SubtitleTableRow)] {
         await hydrateRowsForExport(selectedRows)
         return selectedRows.compactMap { row in
-            guard let tableRow = rowStore.snapshot.row(at: row) else {
+            guard let tableRow = rowStore.snapshot.row(at: row),
+                  let result = rowStore.snapshot.searchResult(entryID: tableRow.id)
+                    ?? search.searchResults.first(where: { Int($0.entryID) == tableRow.id })
+            else {
                 return nil
             }
-            return rowStore.snapshot.searchResult(entryID: tableRow.id)
-                ?? search.searchResults.first { Int($0.entryID) == tableRow.id }
+            return (result, tableRow)
         }
     }
 

@@ -82,6 +82,9 @@ final class SettingsStore: ObservableObject {
     private static let searchFacetExclusionsKey = "searchFacetExclusions"
     private static let shioriFacetExclusionsKey = "shioriFacetExclusionsByListID"
     private static let recentShioriSaveListKey = "recentShioriSaveListID"
+    private static let ankiExportCueTextSideKey = "ankiExportCueTextSide"
+    private static let ankiExportOptionalItemsKey = "ankiExportOptionalItems"
+    private static let ankiExportFolderPathKey = "ankiExportFolderPath"
     private static let showCueGroupKey = "showCueGroup"
     private static let prefillCommandPanelWithFocusedCueKey =
         "prefillCommandPanelWithFocusedCue"
@@ -328,6 +331,35 @@ final class SettingsStore: ObservableObject {
             return
         }
         userDefaults.set(Int(listID), forKey: Self.recentShioriSaveListKey)
+    }
+
+    /// The Export to Anki dialog's Cue Text Side and Optional checkboxes, as
+    /// the reader last left them. Search and Shiori share them.
+    var ankiExportOptions: AnkiExportOptions {
+        get {
+            var options = AnkiExportOptions()
+            if let side = userDefaults.string(forKey: Self.ankiExportCueTextSideKey)
+                .flatMap(AnkiExportCueTextSide.init(rawValue:)) {
+                options.cueTextSide = side
+            }
+            if let items = userDefaults.stringArray(forKey: Self.ankiExportOptionalItemsKey) {
+                options.optionalItems = Set(items.compactMap(AnkiExportOptionalItem.init(rawValue:)))
+            }
+            return options
+        }
+        set {
+            userDefaults.set(newValue.cueTextSide.rawValue, forKey: Self.ankiExportCueTextSideKey)
+            userDefaults.set(
+                AnkiExportOptionalItem.allCases.filter(newValue.includes).map(\.rawValue),
+                forKey: Self.ankiExportOptionalItemsKey
+            )
+        }
+    }
+
+    /// The folder the Export to Anki dialog's Location was last set to.
+    var ankiExportFolderPath: String? {
+        get { userDefaults.string(forKey: Self.ankiExportFolderPathKey) }
+        set { userDefaults.set(newValue, forKey: Self.ankiExportFolderPathKey) }
     }
 
     func setShioriFacetFilter(

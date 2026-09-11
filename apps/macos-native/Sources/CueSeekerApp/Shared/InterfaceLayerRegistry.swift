@@ -57,7 +57,8 @@ final class InterfaceLayerRegistry: ObservableObject {
     /// Dialogs are centred in the main window, so this is where it keeps the
     /// keyboard.
     var topDialogSize: CGSize?
-    /// Whether a system sheet — a file panel — is attached to the main window.
+    /// Whether a system sheet — a file panel, or Export to Anki's replace
+    /// warning — is attached to the main window.
     /// The system dims the whole window under it, so the dialog layer's own
     /// veil steps aside rather than dimming the page twice.
     @Published private(set) var isSystemSheetAttached = false

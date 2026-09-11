@@ -8,6 +8,48 @@ struct AnkiExportItem: Sendable {
     let startMilliseconds: Int
     let endMilliseconds: Int
     let text: String
+    /// The card's Display Title and Time Range, as the table row shows them.
+    let displayTitle: String
+    let timeRange: String
+    /// The Cue Group's other lines in subtitle order, without the Cue itself.
+    let cueGroupOtherTexts: [String]
+    /// Nil for a Shiori without a Cue identity, which has no Deep Link.
+    let cueID: Int64?
+    let subtitlePath: String
+}
+
+/// The side of the card that carries the Cue Text. The other side carries the
+/// audio and the screenshot.
+enum AnkiExportCueTextSide: String, CaseIterable, Sendable {
+    case front
+    case back
+}
+
+/// The dialog's Optional checkboxes, in the order the dialog lists them.
+enum AnkiExportOptionalItem: String, CaseIterable, Sendable {
+    case screenshot
+    case cueGroupText
+    case displayTitle
+    case timeRange
+    case deepLink
+    case subtitleFilePath
+    case videoFilePath
+}
+
+/// What one export puts on its cards. Cue Text and Audio are always there.
+struct AnkiExportOptions: Equatable, Sendable {
+    var cueTextSide = AnkiExportCueTextSide.back
+    var optionalItems: Set<AnkiExportOptionalItem> = [.screenshot]
+
+    func includes(_ item: AnkiExportOptionalItem) -> Bool {
+        optionalItems.contains(item)
+    }
+
+    mutating func toggle(_ item: AnkiExportOptionalItem) {
+        if optionalItems.remove(item) == nil {
+            optionalItems.insert(item)
+        }
+    }
 }
 
 enum AnkiPackageExportError: Error, CustomStringConvertible {
@@ -43,15 +85,16 @@ enum AnkiPackageExportError: Error, CustomStringConvertible {
 }
 
 enum AnkiPackageExporter {
-    private static let modelID: Int64 = 1_780_000_001_001
-    private static let modelName = "CueSeeker Media Recall"
     private static let deckPrefix = "CueSeeker::"
+    /// Two spaces between the items that share a line of the card.
+    private static let itemSeparator = "&nbsp;&nbsp;"
 
     /// `onItemExported` reports how many cards are finished, once per card. It
     /// is called off the main actor, so a caller that drives UI with it has to
     /// hop.
     static func export(
         items: [AnkiExportItem],
+        options: AnkiExportOptions,
         to destinationURL: URL,
         onItemExported: (@Sendable (Int) -> Void)? = nil
     ) async throws {
@@ -78,29 +121,39 @@ enum AnkiPackageExporter {
 
             let baseName = "cueseeker_\(index + 1)_\(stableHash(item.videoPath + "\(item.startMilliseconds)"))"
             let audioName = "\(baseName).mp3"
-            let imageName = "\(baseName).jpg"
             let audioMediaKey = "\(mediaIndex)"
             let audioURL = workspaceURL.appendingPathComponent(audioMediaKey)
             let audioExportURL = workspaceURL.appendingPathComponent("\(audioMediaKey).mp3")
             mediaMap[audioMediaKey] = audioName
             mediaIndex += 1
-            let imageMediaKey = "\(mediaIndex)"
-            let imageURL = workspaceURL.appendingPathComponent(imageMediaKey)
-            let imageExportURL = workspaceURL.appendingPathComponent("\(imageMediaKey).jpg")
-            mediaMap[imageMediaKey] = imageName
-            mediaIndex += 1
 
             try await exportAudio(item: item, ffmpegURL: ffmpegURL, outputURL: audioExportURL)
             try FileManager.default.moveItem(at: audioExportURL, to: audioURL)
-            try await exportImage(item: item, ffmpegURL: ffmpegURL, outputURL: imageExportURL)
-            try FileManager.default.moveItem(at: imageExportURL, to: imageURL)
 
+            var imageField = ""
+            if options.includes(.screenshot) {
+                let imageName = "\(baseName).jpg"
+                let imageMediaKey = "\(mediaIndex)"
+                let imageURL = workspaceURL.appendingPathComponent(imageMediaKey)
+                let imageExportURL = workspaceURL.appendingPathComponent("\(imageMediaKey).jpg")
+                mediaMap[imageMediaKey] = imageName
+                mediaIndex += 1
+
+                try await exportImage(item: item, ffmpegURL: ffmpegURL, outputURL: imageExportURL)
+                try FileManager.default.moveItem(at: imageExportURL, to: imageURL)
+                imageField = "<img src=\"\(imageName)\">"
+            }
+
+            let details = detailFields(for: item, options: options)
             notes.append(
                 AnkiPackageNote(
                     deckName: deckPrefix + item.deckDisplayTitle,
                     audioField: "[sound:\(audioName)]",
-                    imageField: "<img src=\"\(imageName)\">",
-                    textField: textHTML(for: item.text)
+                    imageField: imageField,
+                    textField: textHTML(for: item.text),
+                    cueGroupField: details.cueGroup,
+                    sourceField: details.source,
+                    linksField: details.links
                 )
             )
 
@@ -110,7 +163,8 @@ enum AnkiPackageExporter {
         let collectionURL = workspaceURL.appendingPathComponent("collection.anki2")
         try createCollection(
             at: collectionURL,
-            notes: notes
+            notes: notes,
+            cueTextSide: options.cueTextSide
         )
 
         let mediaURL = workspaceURL.appendingPathComponent("media")
@@ -188,7 +242,8 @@ enum AnkiPackageExporter {
 
     private static func createCollection(
         at url: URL,
-        notes: [AnkiPackageNote]
+        notes: [AnkiPackageNote],
+        cueTextSide: AnkiExportCueTextSide
     ) throws {
         var database: OpaquePointer?
         guard sqlite3_open_v2(url.path, &database, SQLITE_OPEN_CREATE | SQLITE_OPEN_READWRITE, nil) == SQLITE_OK,
@@ -206,12 +261,12 @@ enum AnkiPackageExporter {
 
         let now = Int(Date().timeIntervalSince1970)
         let nowMilliseconds = Int64(Date().timeIntervalSince1970 * 1_000)
-        let modelID = Self.modelID
+        let modelID = noteType(for: cueTextSide).id
         let deckNames = orderedDeckNames(from: notes)
         let deckIDs = Dictionary(uniqueKeysWithValues: deckNames.map { ($0, deckID(for: $0)) })
         let defaultDeckID = deckIDs[deckNames.first ?? deckPrefix] ?? deckID(for: deckPrefix)
         let modelsJSON = try jsonString(
-            modelJSON(modelID: modelID, deckID: defaultDeckID, now: now)
+            modelJSON(cueTextSide: cueTextSide, deckID: defaultDeckID, now: now)
         )
         let decksJSON = try jsonString(
             Dictionary(uniqueKeysWithValues: deckNames.map { deckName in
@@ -489,11 +544,92 @@ enum AnkiPackageExporter {
         return candidates.first { FileManager.default.isExecutableFile(atPath: $0.path) }
     }
 
-    private static func modelJSON(modelID: Int64, deckID: Int64, now: Int) -> [String: Any] {
-        [
-            String(modelID): [
-                "id": modelID,
-                "name": modelName,
+    /// Each side has a note type of its own. Anki takes an incoming note type
+    /// for an existing one with the same id, or the next id up, when their
+    /// field and template names match, so the two sides keep ids far apart and
+    /// templates named apart: one side's cards never land in the other's.
+    private static func noteType(
+        for cueTextSide: AnkiExportCueTextSide
+    ) -> (id: Int64, name: String, templateName: String) {
+        switch cueTextSide {
+        case .back:
+            (1_780_000_001_001, "CueSeeker Media Recall", "Cue Text Back")
+        case .front:
+            (1_780_000_101_001, "CueSeeker Media Recall (Cue Text Front)", "Cue Text Front")
+        }
+    }
+
+    static func _noteTypeForTesting(
+        cueTextSide: AnkiExportCueTextSide
+    ) -> (id: Int64, name: String, templateName: String) {
+        noteType(for: cueTextSide)
+    }
+
+    static func _cardTemplatesForTesting(
+        cueTextSide: AnkiExportCueTextSide
+    ) -> (question: String, answer: String) {
+        cardTemplates(cueTextSide: cueTextSide)
+    }
+
+    /// The Cue Text's side and the media side, one on each face. The answer
+    /// face repeats the question face above its own content.
+    private static func cardTemplates(
+        cueTextSide: AnkiExportCueTextSide
+    ) -> (question: String, answer: String) {
+        let (questionBlock, answerBlock) = switch cueTextSide {
+        case .back:
+            (mediaTemplateBlock, textTemplateBlock)
+        case .front:
+            (textTemplateBlock, mediaTemplateBlock)
+        }
+        return (
+            """
+            <div class="cue-card front">
+            \(questionBlock)
+            </div>
+            """,
+            """
+            {{FrontSide}}
+            <hr id="answer">
+            <div class="cue-card back">
+            \(answerBlock)
+            </div>
+            """
+        )
+    }
+
+    private static let mediaTemplateBlock = """
+      <div class="audio">{{Audio}}</div>
+      <div class="image">{{Image}}</div>
+    """
+
+    /// A line whose field is empty is left out of the card entirely.
+    private static let textTemplateBlock = """
+      <div class="text">{{Text}}</div>
+      {{#CueGroup}}<div class="cue-group">{{CueGroup}}</div>{{/CueGroup}}
+      {{#Source}}<div class="source">{{Source}}</div>{{/Source}}
+      {{#Links}}<div class="links">{{Links}}</div>{{/Links}}
+    """
+
+    private static func modelJSON(
+        cueTextSide: AnkiExportCueTextSide,
+        deckID: Int64,
+        now: Int
+    ) -> [String: Any] {
+        let noteType = noteType(for: cueTextSide)
+        let templates = cardTemplates(cueTextSide: cueTextSide)
+        // The fields the question face shows: Audio with Image, or Text and
+        // the lines under it.
+        let questionFields = switch cueTextSide {
+        case .back:
+            [0, 1]
+        case .front:
+            [2, 3, 4, 5]
+        }
+        return [
+            String(noteType.id): [
+                "id": noteType.id,
+                "name": noteType.name,
                 "type": 0,
                 "mod": now,
                 "usn": -1,
@@ -502,25 +638,17 @@ enum AnkiPackageExporter {
                 "flds": [
                     fieldJSON(name: "Audio", order: 0, size: 20),
                     fieldJSON(name: "Image", order: 1, size: 20),
-                    fieldJSON(name: "Text", order: 2, size: 24)
+                    fieldJSON(name: "Text", order: 2, size: 24),
+                    fieldJSON(name: "CueGroup", order: 3, size: 20),
+                    fieldJSON(name: "Source", order: 4, size: 20),
+                    fieldJSON(name: "Links", order: 5, size: 20)
                 ],
                 "tmpls": [
                     [
-                        "name": "Card 1",
+                        "name": noteType.templateName,
                         "ord": 0,
-                        "qfmt": """
-                        <div class="cue-card front">
-                          <div class="audio">{{Audio}}</div>
-                          <div class="image">{{Image}}</div>
-                        </div>
-                        """,
-                        "afmt": """
-                        {{FrontSide}}
-                        <hr id="answer">
-                        <div class="cue-card back">
-                          <div class="text">{{Text}}</div>
-                        </div>
-                        """,
+                        "qfmt": templates.question,
+                        "afmt": templates.answer,
                         "bqfmt": "",
                         "bafmt": "",
                         "did": NSNull(),
@@ -532,7 +660,7 @@ enum AnkiPackageExporter {
                 "latexPre": "\\documentclass[12pt]{article}\n\\special{papersize=3in,5in}\n\\usepackage[utf8]{inputenc}\n\\usepackage{amssymb,amsmath}\n\\pagestyle{empty}\n\\setlength{\\parindent}{0in}\n\\begin{document}\n",
                 "latexPost": "\\end{document}",
                 "latexsvg": false,
-                "req": [[0, "any", [0, 1, 2]]]
+                "req": [[0, "any", questionFields]]
             ]
         ]
     }
@@ -638,6 +766,59 @@ enum AnkiPackageExporter {
     static func _textHTMLForTesting(_ text: String) -> String {
         textHTML(for: text)
     }
+
+    /// The lines under the Cue Text: the Cue Group's other lines, the Display
+    /// Title with the Time Range, and the link icons. An unchecked item, or one
+    /// with nothing to show, is left out, and a line left with nothing is an
+    /// empty field the card does not draw.
+    static func detailFields(
+        for item: AnkiExportItem,
+        options: AnkiExportOptions
+    ) -> (cueGroup: String, source: String, links: String) {
+        let cueGroup = options.includes(.cueGroupText)
+            ? item.cueGroupOtherTexts.map(textHTML(for:)).joined(separator: "<br>")
+            : ""
+
+        var source: [String] = []
+        if options.includes(.displayTitle), !item.displayTitle.isEmpty {
+            source.append(htmlEscaped(item.displayTitle))
+        }
+        if options.includes(.timeRange), !item.timeRange.isEmpty {
+            source.append(htmlEscaped(item.timeRange))
+        }
+
+        var links: [String] = []
+        if options.includes(.deepLink), let cueID = item.cueID {
+            links.append(linkHTML(href: "cueseeker://cue?id=\(cueID)", icon: .linkSimple))
+        }
+        if options.includes(.subtitleFilePath), !item.subtitlePath.isEmpty {
+            links.append(linkHTML(href: URL(fileURLWithPath: item.subtitlePath).absoluteString, icon: .subtitles))
+        }
+        if options.includes(.videoFilePath), !item.videoPath.isEmpty {
+            links.append(linkHTML(href: URL(fileURLWithPath: item.videoPath).absoluteString, icon: .video))
+        }
+
+        return (
+            cueGroup,
+            source.joined(separator: itemSeparator),
+            links.joined(separator: itemSeparator)
+        )
+    }
+
+    /// Anki opens a card's links through the system: the Deep Link in
+    /// CueSeeker, a file in the App the system opens it with.
+    private static func linkHTML(href: String, icon: AppIcon) -> String {
+        "<a href=\"\(htmlEscaped(href))\">\(linkIconMarkup[icon] ?? "")</a>"
+    }
+
+    /// The card's link icons, drawn from the App's own icon assets.
+    private static let linkIconMarkup: [AppIcon: String] = Dictionary(
+        uniqueKeysWithValues: [AppIcon.linkSimple, .subtitles, .video].map { icon in
+            let markup = Bundle.module.url(forResource: icon.rawValue, withExtension: "svg")
+                .flatMap { try? String(contentsOf: $0, encoding: .utf8) }
+            return (icon, markup ?? "")
+        }
+    )
 
     private static func textHTML(for text: String) -> String {
         let normalizedLineEndings = text
@@ -781,6 +962,11 @@ enum AnkiPackageExporter {
     .audio { margin: 18px 0 16px; }
     .image img { width: 100%; max-width: 900px; height: auto; border-radius: 10px; }
     .text { margin-top: 18px; font-size: 30px; font-weight: 650; letter-spacing: 0; }
+    .cue-group { margin-top: 12px; color: #a1a1aa; }
+    .source { margin-top: 16px; font-size: 16px; color: #a1a1aa; }
+    .links { margin-top: 8px; font-size: 16px; }
+    .links a { color: #a1a1aa; text-decoration: none; }
+    .links svg { width: 20px; height: 20px; vertical-align: middle; }
     hr#answer { border: 0; border-top: 1px solid #3a3a40; margin: 22px 0; }
     """
 }
@@ -790,9 +976,13 @@ private struct AnkiPackageNote {
     let audioField: String
     let imageField: String
     let textField: String
+    let cueGroupField: String
+    let sourceField: String
+    let linksField: String
 
     var fieldsString: String {
-        [audioField, imageField, textField].joined(separator: "\u{1f}")
+        [audioField, imageField, textField, cueGroupField, sourceField, linksField]
+            .joined(separator: "\u{1f}")
     }
 
     var plainTextSortField: String {

@@ -1,10 +1,11 @@
 import AppKit
 import SwiftUI
 
-/// The dialog layer: Edit Cover, the Shiori List Editor, Rename, the Task panel
-/// and Confirmation, drawn inside the main window rather than as system
-/// sheets. A sheet holds its window's red light and the App's quit, and only a
-/// Confirmation may do that — by the App's own rule, not by a sheet.
+/// The dialog layer: Edit Cover, the Shiori List Editor, Rename, Export to
+/// Anki, the Task panel and Confirmation, drawn inside the main window rather
+/// than as system sheets. A sheet holds its window's red light and the App's
+/// quit, and only a Confirmation may do that — by the App's own rule, not by a
+/// sheet.
 ///
 /// Everything the sheet gave a dialog is drawn here instead, as measured from
 /// the sheet on macOS 15.5: the veil over the whole window, the dialog centred

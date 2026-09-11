@@ -70,11 +70,12 @@ enum WorkbenchControlMetrics {
     /// --radius-dialog: 10px, a circular corner. The corner the system sheet
     /// cut every dialog to, over the dialog's own.
     static let redesignDialogCornerRadius: CGFloat = 10
-    /// --width-dialog-small: 360px. Every dialog's width is one of these tiers;
-    /// --width-dialog-large (600px) has no dialog yet.
+    /// --width-dialog-small: 360px. Every dialog's width is one of these tiers.
     static let redesignDialogWidthSmall: CGFloat = 360
     /// --width-dialog-medium: 480px
     static let redesignDialogWidthMedium: CGFloat = 480
+    /// --width-dialog-large: 600px
+    static let redesignDialogWidthLarge: CGFloat = 600
     /// --width-dialog-x-large: 720px
     static let redesignDialogWidthXLarge: CGFloat = 720
     /// What a dialog keeps clear of the window's edges: --spacing-6.

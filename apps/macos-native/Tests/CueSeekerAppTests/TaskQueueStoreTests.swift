@@ -12,7 +12,7 @@ private func taskQueueTestDatabaseURL() -> URL {
 
 /// An export that never finishes on its own, so a test can look at a queue
 /// while a task is genuinely running.
-private let neverFinishingExport: TaskExportRunner = { _, _, _ in
+private let neverFinishingExport: TaskExportRunner = { _, _, _, _ in
     try await Task.sleep(nanoseconds: .max)
 }
 
@@ -58,7 +58,12 @@ private func exportItems(_ count: Int) -> [AnkiExportItem] {
             videoPath: "/Videos/episode.mkv",
             startMilliseconds: index * 1_000,
             endMilliseconds: index * 1_000 + 500,
-            text: "line \(index)"
+            text: "line \(index)",
+            displayTitle: "Deck",
+            timeRange: "",
+            cueGroupOtherTexts: [],
+            cueID: nil,
+            subtitlePath: ""
         )
     }
 }
@@ -73,10 +78,12 @@ func secondExportWaitsWhileTheFirstRuns() throws {
 
     store.enqueueAnkiExport(
         items: exportItems(2),
+        options: AnkiExportOptions(),
         destinationURL: URL(fileURLWithPath: "/Exports/First.apkg")
     )
     store.enqueueAnkiExport(
         items: exportItems(3),
+        options: AnkiExportOptions(),
         destinationURL: URL(fileURLWithPath: "/Exports/Second.apkg")
     )
 
@@ -93,6 +100,7 @@ func currentKeepsTheOrderTasksWereStartedIn() throws {
     for index in 1...3 {
         store.enqueueAnkiExport(
             items: exportItems(index),
+            options: AnkiExportOptions(),
             destinationURL: URL(fileURLWithPath: "/Exports/Deck\(index).apkg")
         )
     }
@@ -110,6 +118,7 @@ func aQueuedTaskCarriesWhatItWillWrite() throws {
 
     store.enqueueAnkiExport(
         items: exportItems(80),
+        options: AnkiExportOptions(),
         destinationURL: URL(fileURLWithPath: "/Users/reader/Exports/Deck.apkg")
     )
 
@@ -129,10 +138,12 @@ func removingAQueuedTaskRecordsItAsCancelled() throws {
 
     store.enqueueAnkiExport(
         items: exportItems(1),
+        options: AnkiExportOptions(),
         destinationURL: URL(fileURLWithPath: "/Exports/First.apkg")
     )
     store.enqueueAnkiExport(
         items: exportItems(1),
+        options: AnkiExportOptions(),
         destinationURL: URL(fileURLWithPath: "/Exports/Second.apkg")
     )
     let queued = try #require(store.current.last)
@@ -153,10 +164,12 @@ func deletingARecordRemovesItFromTheHistoryAndTheDatabase() throws {
 
     store.enqueueAnkiExport(
         items: exportItems(1),
+        options: AnkiExportOptions(),
         destinationURL: URL(fileURLWithPath: "/Exports/First.apkg")
     )
     store.enqueueAnkiExport(
         items: exportItems(1),
+        options: AnkiExportOptions(),
         destinationURL: URL(fileURLWithPath: "/Exports/Second.apkg")
     )
     let queued = try #require(store.current.last)
@@ -183,10 +196,12 @@ func aLaunchClosesOutWhateverThePreviousOneLeftRunning() throws {
     )
     firstLaunch.enqueueAnkiExport(
         items: exportItems(1),
+        options: AnkiExportOptions(),
         destinationURL: URL(fileURLWithPath: "/Exports/Running.apkg")
     )
     firstLaunch.enqueueAnkiExport(
         items: exportItems(1),
+        options: AnkiExportOptions(),
         destinationURL: URL(fileURLWithPath: "/Exports/Queued.apkg")
     )
 
@@ -234,10 +249,12 @@ func theRemainingCountIsRunningPlusQueued() throws {
 
     store.enqueueAnkiExport(
         items: exportItems(1),
+        options: AnkiExportOptions(),
         destinationURL: URL(fileURLWithPath: "/Exports/First.apkg")
     )
     store.enqueueAnkiExport(
         items: exportItems(1),
+        options: AnkiExportOptions(),
         destinationURL: URL(fileURLWithPath: "/Exports/Second.apkg")
     )
     #expect(store.remainingTaskCount == 2)
@@ -276,15 +293,17 @@ func openingTheTaskPanelOpensTheDialogLayer() throws {
 @MainActor
 @Test
 func aFinishedExportMovesToCompletedAndLetsTheNextOneStart() async throws {
-    let (store, databaseURL) = try makeTaskQueueStore(runExport: { _, _, _ in })
+    let (store, databaseURL) = try makeTaskQueueStore(runExport: { _, _, _, _ in })
     defer { try? FileManager.default.removeItem(at: databaseURL) }
 
     store.enqueueAnkiExport(
         items: exportItems(1),
+        options: AnkiExportOptions(),
         destinationURL: URL(fileURLWithPath: "/Exports/First.apkg")
     )
     store.enqueueAnkiExport(
         items: exportItems(1),
+        options: AnkiExportOptions(),
         destinationURL: URL(fileURLWithPath: "/Exports/Second.apkg")
     )
 
@@ -298,13 +317,14 @@ func aFinishedExportMovesToCompletedAndLetsTheNextOneStart() async throws {
 @MainActor
 @Test
 func aFailedExportMovesToIncompleteCarryingItsError() async throws {
-    let (store, databaseURL) = try makeTaskQueueStore(runExport: { _, _, _ in
+    let (store, databaseURL) = try makeTaskQueueStore(runExport: { _, _, _, _ in
         throw AnkiPackageExportError.ffmpegNotFound
     })
     defer { try? FileManager.default.removeItem(at: databaseURL) }
 
     store.enqueueAnkiExport(
         items: exportItems(1),
+        options: AnkiExportOptions(),
         destinationURL: URL(fileURLWithPath: "/Exports/First.apkg")
     )
 
@@ -321,7 +341,7 @@ func aFailedExportMovesToIncompleteCarryingItsError() async throws {
 @MainActor
 @Test
 func theRunningTaskReportsHowManyCardsAreDone() async throws {
-    let (store, databaseURL) = try makeTaskQueueStore(runExport: { items, _, onItemExported in
+    let (store, databaseURL) = try makeTaskQueueStore(runExport: { items, _, _, onItemExported in
         for index in items.indices {
             onItemExported(index + 1)
         }
@@ -330,6 +350,7 @@ func theRunningTaskReportsHowManyCardsAreDone() async throws {
 
     store.enqueueAnkiExport(
         items: exportItems(4),
+        options: AnkiExportOptions(),
         destinationURL: URL(fileURLWithPath: "/Exports/First.apkg")
     )
     let progress = try #require(store.current.first?.progress)
@@ -350,6 +371,7 @@ func removingARunningTaskStopsItAndRecordsTheRemoval() async throws {
 
     store.enqueueAnkiExport(
         items: exportItems(1),
+        options: AnkiExportOptions(),
         destinationURL: URL(fileURLWithPath: "/Exports/First.apkg")
     )
     let running = try #require(store.current.first)
@@ -371,10 +393,12 @@ func theQueueKeepsGoingAfterTheRunningTaskIsRemoved() async throws {
 
     store.enqueueAnkiExport(
         items: exportItems(1),
+        options: AnkiExportOptions(),
         destinationURL: URL(fileURLWithPath: "/Exports/First.apkg")
     )
     store.enqueueAnkiExport(
         items: exportItems(1),
+        options: AnkiExportOptions(),
         destinationURL: URL(fileURLWithPath: "/Exports/Second.apkg")
     )
     let running = try #require(store.current.first)
@@ -432,13 +456,14 @@ func aRefusedRenameCarriesTheConflictItHit() async throws {
 @Test
 func aRenameGivesWayToAQueuedExportOfItsFiles() async throws {
     let (store, databaseURL) = try makeTaskQueueStore(
-        runExport: { _, _, _ in },
+        runExport: { _, _, _, _ in },
         runRename: { _, _ in }
     )
     defer { try? FileManager.default.removeItem(at: databaseURL) }
 
     store.enqueueAnkiExport(
         items: exportItems(1),
+        options: AnkiExportOptions(),
         destinationURL: URL(fileURLWithPath: "/Exports/First.apkg")
     )
     store.enqueueRename(showFolderRename, oldPaths: ["/Videos/Show"], newPaths: ["/Videos/Show Renamed"])
@@ -449,9 +474,15 @@ func aRenameGivesWayToAQueuedExportOfItsFiles() async throws {
                 videoPath: "/Videos/Show/EP01.mkv",
                 startMilliseconds: 0,
                 endMilliseconds: 500,
-                text: "line"
+                text: "line",
+                displayTitle: "Show",
+                timeRange: "",
+                cueGroupOtherTexts: [],
+                cueID: nil,
+                subtitlePath: ""
             )
         ],
+        options: AnkiExportOptions(),
         destinationURL: URL(fileURLWithPath: "/Exports/Second.apkg")
     )
 

@@ -49,12 +49,35 @@ func ankiEntryMappingUsesExactPrimaryCueContent() {
         createdAt: "2026-07-12T00:00:00Z"
     )
 
+    let searchRow = SubtitleTableRow(
+        id: 10,
+        primaryCueID: 10,
+        subtitlePath: "/Media/Search.ass",
+        displayTitle: "Search Title",
+        timeRange: "00:01 - 00:02",
+        primaryCueText: searchContent,
+        cueGroupTexts: ["search before", searchContent, "search after"],
+        primaryGroupIndex: 1
+    )
+    let shioriRow = SubtitleTableRow(
+        id: 40,
+        primaryCueID: nil,
+        subtitlePath: "/Media/Shiori.srt",
+        displayTitle: "Shiori Title",
+        timeRange: "00:03 - 00:04",
+        primaryCueText: shioriContent,
+        cueGroupTexts: [shioriContent],
+        primaryGroupIndex: 0
+    )
+
     let searchItem = AppCoordinator.ankiExportItem(
         for: result,
+        row: searchRow,
         deckDisplayTitle: "Search Deck"
     )
     let shioriItem = AppCoordinator.ankiExportItem(
         for: shiori,
+        row: shioriRow,
         deckDisplayTitle: "Shiori Deck"
     )
 
@@ -62,6 +85,179 @@ func ankiEntryMappingUsesExactPrimaryCueContent() {
     #expect(shioriItem.text == shioriContent)
     #expect(searchItem.deckDisplayTitle == "Search Deck")
     #expect(shioriItem.deckDisplayTitle == "Shiori Deck")
+    // The card shows what the table row shows.
+    #expect(searchItem.displayTitle == "Search Title")
+    #expect(searchItem.timeRange == "00:01 - 00:02")
+    #expect(searchItem.cueGroupOtherTexts == ["search before", "search after"])
+    #expect(searchItem.cueID == 10)
+    #expect(searchItem.subtitlePath == "/Media/Search.ass")
+    #expect(shioriItem.displayTitle == "Shiori Title")
+    #expect(shioriItem.cueGroupOtherTexts.isEmpty)
+    #expect(shioriItem.cueID == nil)
+    #expect(shioriItem.videoPath == "/Media/Shiori.mkv")
+}
+
+private func ankiCardItem(
+    displayTitle: String = "Frieren S01E01",
+    timeRange: String = "01:23 - 01:25",
+    cueGroupOtherTexts: [String] = ["Line two", "Line <three>"],
+    cueID: Int64? = 42
+) -> AnkiExportItem {
+    AnkiExportItem(
+        deckDisplayTitle: "Frieren",
+        videoPath: "/Videos/Frieren S01E01.mkv",
+        startMilliseconds: 83_000,
+        endMilliseconds: 85_000,
+        text: "Cue",
+        displayTitle: displayTitle,
+        timeRange: timeRange,
+        cueGroupOtherTexts: cueGroupOtherTexts,
+        cueID: cueID,
+        subtitlePath: "/Videos/Frieren S01E01.ja.srt"
+    )
+}
+
+@Test
+func ankiDetailLinesFollowTheCheckedItemsInOrder() {
+    let options = AnkiExportOptions(
+        cueTextSide: .back,
+        optionalItems: Set(AnkiExportOptionalItem.allCases)
+    )
+
+    let fields = AnkiPackageExporter.detailFields(for: ankiCardItem(), options: options)
+
+    #expect(fields.cueGroup == "Line two<br>Line &lt;three&gt;")
+    #expect(fields.source == "Frieren S01E01&nbsp;&nbsp;01:23 - 01:25")
+    let hrefs = fields.links
+        .components(separatedBy: "<a href=\"")
+        .dropFirst()
+        .map { $0.prefix { $0 != "\"" } }
+    #expect(hrefs == [
+        "cueseeker://cue?id=42",
+        "file:///Videos/Frieren%20S01E01.ja.srt",
+        "file:///Videos/Frieren%20S01E01.mkv",
+    ])
+    #expect(fields.links.components(separatedBy: "</a>&nbsp;&nbsp;<a").count == 3)
+    #expect(fields.links.contains("<svg"))
+}
+
+@Test
+func ankiDetailLinesLeaveOutUncheckedAndEmptyItems() {
+    let defaults = AnkiPackageExporter.detailFields(
+        for: ankiCardItem(),
+        options: AnkiExportOptions()
+    )
+    #expect(defaults.cueGroup.isEmpty)
+    #expect(defaults.source.isEmpty)
+    #expect(defaults.links.isEmpty)
+
+    let everything = AnkiExportOptions(
+        cueTextSide: .back,
+        optionalItems: Set(AnkiExportOptionalItem.allCases)
+    )
+    let sparse = AnkiPackageExporter.detailFields(
+        for: ankiCardItem(displayTitle: "", cueGroupOtherTexts: [], cueID: nil),
+        options: everything
+    )
+    #expect(sparse.cueGroup.isEmpty)
+    #expect(sparse.source == "01:23 - 01:25")
+    #expect(!sparse.links.contains("cueseeker://"))
+    #expect(sparse.links.components(separatedBy: "<a href=").count == 3)
+}
+
+@Test
+func ankiCardTemplatesPutTheCueTextOnTheChosenSide() {
+    let back = AnkiPackageExporter._cardTemplatesForTesting(cueTextSide: .back)
+    #expect(back.question.contains("{{Audio}}"))
+    #expect(back.question.contains("{{Image}}"))
+    #expect(!back.question.contains("{{Text}}"))
+    #expect(back.answer.hasPrefix("{{FrontSide}}"))
+    #expect(back.answer.contains("{{Text}}"))
+
+    let front = AnkiPackageExporter._cardTemplatesForTesting(cueTextSide: .front)
+    #expect(front.question.contains("{{Text}}"))
+    #expect(!front.question.contains("{{Audio}}"))
+    #expect(front.answer.hasPrefix("{{FrontSide}}"))
+    #expect(front.answer.contains("{{Audio}}"))
+    #expect(front.answer.contains("{{Image}}"))
+
+    // Top to bottom: Cue Text, Cue Group Text, Display Title with Time Range,
+    // then the links; a line whose field is empty is not drawn.
+    let textSide = front.question
+    let order = ["{{Text}}", "{{#CueGroup}}", "{{#Source}}", "{{#Links}}"].compactMap {
+        textSide.range(of: $0)?.lowerBound
+    }
+    #expect(order.count == 4)
+    #expect(order == order.sorted())
+}
+
+/// Anki takes an incoming note type for an existing one with the same id, or
+/// the next id up, when field and template names match; the two sides must
+/// never be taken for each other.
+@Test
+func ankiNoteTypesOfTheTwoSidesCannotBeTakenForEachOther() {
+    let back = AnkiPackageExporter._noteTypeForTesting(cueTextSide: .back)
+    let front = AnkiPackageExporter._noteTypeForTesting(cueTextSide: .front)
+
+    #expect(back.templateName != front.templateName)
+    #expect(back.name != front.name)
+    #expect(abs(back.id - front.id) > 1_000)
+}
+
+@MainActor
+@Test
+func ankiExportChoicesAreRememberedAcrossLaunches() throws {
+    let suiteName = "CueSeekerAnkiExportSettingsTests-\(UUID().uuidString)"
+    let userDefaults = try #require(UserDefaults(suiteName: suiteName))
+    defer { userDefaults.removePersistentDomain(forName: suiteName) }
+
+    let firstLaunch = SettingsStore(userDefaults: userDefaults)
+    #expect(firstLaunch.ankiExportOptions == AnkiExportOptions(cueTextSide: .back, optionalItems: [.screenshot]))
+    #expect(firstLaunch.ankiExportFolderPath == nil)
+
+    firstLaunch.ankiExportOptions = AnkiExportOptions(
+        cueTextSide: .front,
+        optionalItems: [.deepLink, .timeRange]
+    )
+    firstLaunch.ankiExportFolderPath = "/Users/reader/Anki"
+
+    let secondLaunch = SettingsStore(userDefaults: userDefaults)
+    #expect(secondLaunch.ankiExportOptions == AnkiExportOptions(cueTextSide: .front, optionalItems: [.deepLink, .timeRange]))
+    #expect(secondLaunch.ankiExportFolderPath == "/Users/reader/Anki")
+}
+
+@MainActor
+@Test
+func ankiExportSessionNamesThePackageAndChecksTheName() {
+    var reportedOptions: [AnkiExportOptions] = []
+    let session = AnkiExportSession(
+        items: [ankiCardItem()],
+        options: AnkiExportOptions(),
+        folderURL: URL(fileURLWithPath: "/Exports", isDirectory: true),
+        onOptionsChange: { reportedOptions.append($0) }
+    )
+
+    #expect(session.fileName.hasPrefix("CueSeeker-"))
+    #expect(session.destinationURL.lastPathComponent == session.fileName)
+
+    session.fileName = "Deck"
+    #expect(session.destinationURL.path == "/Exports/Deck.apkg")
+    session.fileName = "Deck.APKG"
+    #expect(session.destinationURL.path == "/Exports/Deck.APKG")
+
+    session.fileName = " "
+    #expect(!session.validate())
+    #expect(session.validationMessage == L("rename.validation.empty"))
+    session.fileName = "Deck/1"
+    #expect(!session.validate())
+    #expect(session.validationMessage == L("rename.validation.invalid"))
+    session.fileName = "Deck"
+    #expect(session.validate())
+    #expect(session.validationMessage == nil)
+
+    session.options.toggle(.deepLink)
+    session.options.cueTextSide = .front
+    #expect(reportedOptions.last == AnkiExportOptions(cueTextSide: .front, optionalItems: [.screenshot, .deepLink]))
 }
 
 @MainActor

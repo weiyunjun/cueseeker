@@ -590,8 +590,8 @@ private struct WorkbenchShioriTableContent: View {
         }
 
         Task { @MainActor in
-            let selectedShioris = await selectedShioris(for: selectedRows)
-            appState.exportShiorisToAnki(selectedShioris)
+            let selection = await selectedShioris(for: selectedRows)
+            appState.exportShiorisToAnki(selection)
         }
     }
 
@@ -625,13 +625,17 @@ private struct WorkbenchShioriTableContent: View {
         SubtitleTableClipboard.copyDeepLinks(rows: rows)
     }
 
-    private func selectedShioris(for selectedRows: [Int]) async -> [Shiori] {
+    private func selectedShioris(
+        for selectedRows: [Int]
+    ) async -> [(shiori: Shiori, row: SubtitleTableRow)] {
         await hydrateRowsForExport(selectedRows)
         return selectedRows.compactMap { row in
-            guard let tableRow = rowStore.snapshot.row(at: row) else {
+            guard let tableRow = rowStore.snapshot.row(at: row),
+                  let shiori = rowStore.snapshot.shiori(entryID: tableRow.id)
+            else {
                 return nil
             }
-            return rowStore.snapshot.shiori(entryID: tableRow.id)
+            return (shiori, tableRow)
         }
     }
 

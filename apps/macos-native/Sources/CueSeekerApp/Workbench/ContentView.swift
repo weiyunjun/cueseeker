@@ -167,6 +167,20 @@ private struct ContentRootView: View {
                 .workbenchDialog()
             }
 
+            if let session = tasks.ankiExportSession {
+                AnkiExportDialog(
+                    session: session,
+                    onChooseFolder: {
+                        appState.beginChoosingAnkiExportFolder(session)
+                    },
+                    onExport: {
+                        appState.confirmAnkiExport(session)
+                    },
+                    onClose: appState.closeAnkiExportDialog
+                )
+                .workbenchDialog()
+            }
+
             if tasks.isPanelOpen {
                 TaskPanel(tasks: tasks, confirmation: confirmation)
                     .workbenchDialog(isCovered: confirmation.session != nil)
@@ -191,6 +205,9 @@ private struct ContentRootView: View {
             ids.append(session.id)
         }
         if let session = libraryStore.renameSession {
+            ids.append(session.id)
+        }
+        if let session = tasks.ankiExportSession {
             ids.append(session.id)
         }
         if tasks.isPanelOpen {
