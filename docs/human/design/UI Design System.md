@@ -211,7 +211,6 @@
 - `--height-control`: `40px`
 - `--height-segmented-control`: `32px`
 - `--height-field`: `40px`
-- `--height-form-text-area`: `96.75px`
 - `--height-table-header`: `40px`
 - `--min-height-table-row`: `40px`
 - `--height-action-menu-item`: `32px`
@@ -232,9 +231,7 @@
 - `--height-playback-feedback`: `52px`
 - `--height-library-progress-bar`: `4px`
 - `--height-task-progress-bar`: `4px`
-- `--height-task-panel`: `440px`
-- `--height-task-panel-header`: `54px`
-- `--height-edit-cover-dialog`: `600px`
+- `--height-task-panel`: `500px`
 - `--height-library-list-cover`: `115px`
 - `--height-cover-summary-backdrop`: `225px`
 - `--height-keycap`: `22px`
@@ -286,10 +283,10 @@
 - `--width-library-folder-cover`: `120px`
 - `--min-height-library-folder-card`: `96px`
 - `--min-width-workbench-page-content`: `480px`
-- `--width-task-panel`: `460px`
-- `--width-dialog-form-region`: `340px`
-- `--width-shiori-list-editor-cover`: `380px`
-- `--width-edit-cover-dialog`: `760px`
+- `--width-dialog-small`: `360px`
+- `--width-dialog-medium`: `480px`
+- `--width-dialog-large`: `600px`
+- `--width-dialog-x-large`: `720px`
 - `--border-width-control`: `1px`
 
 ## 1.4 间距
@@ -551,7 +548,7 @@
 
 ##### Sizes
 
-- Height：`--height-form-text-area`
+- Height：由所在布局决定
 - Padding Inline：`--padding-field-x`
 - Padding Block：`10px`
 - Label to Container Gap：`--spacing-2`
@@ -2060,8 +2057,7 @@
   - 覆盖整个窗口，红绿灯除外；系统文件选择框打开期间改由系统压暗
 - Container
   - Placement：窗口正中
-  - Background：`--color-bg-popover`
-  - Border Color：`--color-border-muted`
+  - Background：`--color-bg-surface`
   - Radius：`--radius-dialog`
   - Shadow：`--shadow-dialog`
   - Outline：`--color-dialog-outline`，容器外侧 1 物理像素
@@ -2075,6 +2071,8 @@
 
 ##### Sizes
 
+- Width：`--width-dialog-small`、`--width-dialog-medium`、`--width-dialog-large`、`--width-dialog-x-large` 之一；超过窗口宽度减两侧 `--spacing-6` 时取该值
+- Height：Layout 未规定时随内容；超过窗口高度减上下 `--spacing-6` 时取该值，Header 与 Footer 不动，其间内容滚动，滚动条不遮挡内容
 - Visual Inset：`--inset-dialog`，四边相等
   - 量到看得见的边：文字的水平边取文本框边缘，文字的上边取 cap 顶；有边框或背景的控件取可见边缘；纯图标按钮取图标字形的墨迹边缘
   - 覆盖：标题与正文的左缘、正文的折行边界、最右侧按钮的右缘、最下方按钮的下缘、关闭按钮字形的右缘与顶缘
@@ -3492,8 +3490,8 @@
 
 #### Sizes
 
-- Width：`--width-edit-cover-dialog`
-- Height：`--height-edit-cover-dialog`
+- Width：`--width-dialog-small`
+- Cover Region：内容宽度，`--aspect-library-cover`
 
 #### Spacing
 
@@ -3539,11 +3537,11 @@
 
 #### Layout
 
-- Main Region：Two Columns, Top Aligned
-- Cover Width：`--width-shiori-list-editor-cover`
-- Form Region Width：`--width-dialog-form-region`
-- Dialog 宽度为 Cover Width、Column Gap、Form Region Width 之和加两侧 `--inset-dialog`
-- Description Field 的 Container 底边与 Cover 底边对齐
+- Width：窗口宽度不小于 `--width-dialog-x-large` 加两侧 `--spacing-6` 时为 `--width-dialog-x-large`，否则为 `--width-dialog-small`
+- Main Region：`--width-dialog-x-large` 时 Two Columns, Top Aligned；`--width-dialog-small` 时 One Column，Cover Region 在上，Form Region 在下，间距为 Column Gap
+- Cover Width：`--width-dialog-small` 减两侧 `--inset-dialog`，两种排版相同
+- Form Region Width：Two Columns 时为剩余宽度；One Column 时与 Cover Width 相同
+- Description Field 的 Container 高度：Two Columns 时底边与 Cover 底边对齐；One Column 沿用同一高度
 
 #### Spacing
 
@@ -3583,7 +3581,8 @@
 
 #### Layout
 
-- Form Region 为 Shiori List Editor Dialog Layout 的 Form Region，单列；Dialog 宽度为 Form Region 宽度加两侧 `--inset-dialog`，Current Name 与 New Name Field 的右缘与最右侧按钮的右缘对齐。
+- Width：`--width-dialog-medium`
+- Form Region 单列，占满内容宽度；Current Name 与 New Name Field 的右缘与最右侧按钮的右缘对齐。
 - Current Name 的 Label 与 Text Field 的 Label 相同；Rename Folder 显示完整路径，Rename Files 显示视频与字幕去掉扩展名后的公共名。
 
 #### Spacing
@@ -3614,6 +3613,10 @@
 - Button / Neutral
 - Button / Primary or Destructive
 
+#### Sizes
+
+- Width：`--width-dialog-small`
+
 #### Spacing
 
 - Region Gap：`--spacing-4`
@@ -3631,9 +3634,10 @@
 #### Structure
 
 1. Header
-   1. Tabs：`Current`、`Completed`、`Incomplete`
+   1. Title：`Task`
    2. Close Button
-2. Task Card List
+2. Tabs：`Current`、`Completed`、`Incomplete`，水平居中
+3. Task Card List
 
 #### Components
 
@@ -3645,15 +3649,14 @@
 
 #### Sizes
 
-- Width：`--width-task-panel`
+- Width：`--width-dialog-x-large`
 - Height：`--height-task-panel`
-- Header Height：`--height-task-panel-header`
 
 #### Spacing
 
-- Header Padding Inline：`--spacing-4`
-- Content Padding Inline：`--spacing-4`
+- Region Gap：`--spacing-4`
 - Card Gap：`--spacing-3`
+- Task Card List：卡片与左右边缘相距 `--inset-dialog`，滚到底时最后一张卡片与底边相距 `--inset-dialog`
 
 #### States
 
