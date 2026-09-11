@@ -56,4 +56,4 @@ In the App: Debug E2E controller, main window 1445×821 at 2×, the video opened
 
 Not verified here and left to the owner's acceptance list: the pointer resting on each control and on the window controls, the speed menu closing with the hide, the drags of the progress bar and the volume slider, the Task and Settings entries, switching Apps, and fullscreen. Every one of them needs the physical pointer, which the controller does not move; the E2E gap is as recorded in `docs/engineering/08_end_to_end_testing.md`, and no E2E facility was added.
 
-Outcome matched expectations as far as the controller could observe. The design documents are updated by the owner after acceptance, so `UI Application Rules.md` and `UI Design System.md` do not yet carry the rules or the token.
+Outcome matched expectations as far as the controller could observe. After acceptance the owner recorded the rules as a chapter of `UI Application Rules.md` and added `--duration-player-ui-idle-hide` and the player bars' Hidden state to `UI Design System.md` (96bad942).
