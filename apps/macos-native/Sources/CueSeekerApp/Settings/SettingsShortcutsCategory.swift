@@ -3,8 +3,8 @@ import Carbon.HIToolbox
 import SwiftUI
 
 enum SettingsShortcutsMetrics {
-    /// Provisional --width-shortcut-field: room for ⇧ and a key, or the
-    /// recording placeholder and its Inline Clear.
+    /// --width-shortcut-field: room for ⇧ and a key, or the recording
+    /// placeholder and its Inline Clear.
     static let fieldWidth: CGFloat = 144
 }
 

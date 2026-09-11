@@ -65,3 +65,15 @@ In the App: Debug E2E controller, main window 1445×821 at 2×, Settings window 
 - The open Save to Shiori menu closes on the Save to Shiori key's key code whether or not ⇧ is held: the menu is handed key codes only.
 - The Debug E2E controller cannot press `,`, `.`, Backspace, Delete or function keys, so recording those, the Speed shortcuts' effect, and the refusal of function keys and Home, End, Page Up and Page Down were covered by unit tests only. System-intercepted keys (⌘Tab, ⌘Space and the like), and another App or window taking focus in the middle of a recording, stay manual acceptance steps.
 - The design documents do not yet describe the Shortcuts page, the key field, the settings page's name and title styles, which keycap colour the Settings page uses, the recording's hold on the App menu's shortcuts, or the two icons.
+
+## Follow-up: the page is in the design documents
+
+The owner accepted the page and recorded it in `8c07ad1c`: `--width-shortcut-field` and the Shortcut Field in `docs/human/design/UI Design System.md`, with the Settings Shortcuts Layout and the footer's current keycaps; the shortcut rules in `docs/human/design/UI Application Rules.md`; the two icons in `docs/human/design/Icon Registry.md`; and the controller's default keys in `docs/human/design/Controller.md`.
+
+The field width in code no longer says it is provisional. Its value already matched the document, so nothing else changed.
+
+Files:
+
+- `apps/macos-native/Sources/CueSeekerApp/Settings/SettingsShortcutsCategory.swift`
+
+Verification: `swift build` is clean. The change is a comment, so the App's look and behaviour are unchanged.
