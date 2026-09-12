@@ -13,6 +13,8 @@ enum ToastAnimationStyle: Equatable {
 struct ToastRequest: Equatable {
     let scenarioID: String?
     let message: String
+    let icon: AppIcon?
+    let iconWeight: AppIconWeight?
     let duration: TimeInterval
     let position: ToastPosition
     let animation: ToastAnimationStyle
@@ -20,12 +22,16 @@ struct ToastRequest: Equatable {
     init(
         scenarioID: String? = nil,
         message: String,
+        icon: AppIcon? = nil,
+        iconWeight: AppIconWeight? = nil,
         duration: TimeInterval = 5,
         position: ToastPosition = .appCenter,
         animation: ToastAnimationStyle = .default
     ) {
         self.scenarioID = scenarioID
         self.message = message
+        self.icon = icon
+        self.iconWeight = iconWeight
         self.duration = duration
         self.position = position
         self.animation = animation
@@ -33,59 +39,52 @@ struct ToastRequest: Equatable {
 }
 
 enum ShioriToastRequest {
-    static func moveSucceeded(listName: String) -> ToastRequest {
+    /// The Workbench and the playback surfaces report the same event, so they
+    /// carry the same icon.
+    private static func shiori(_ scenarioID: String, _ message: String) -> ToastRequest {
         ToastRequest(
-            scenarioID: "shiori.move.succeeded",
-            message: L("toast.shiori.moved", listName)
+            scenarioID: scenarioID,
+            message: message,
+            icon: .bookmarkSimple,
+            iconWeight: .fill
         )
+    }
+
+    static func moveSucceeded(listName: String) -> ToastRequest {
+        shiori("shiori.move.succeeded", L("toast.shiori.moved", listName))
     }
 
     static func saveSucceeded(listName: String) -> ToastRequest {
-        ToastRequest(
-            scenarioID: "shiori.save.succeeded",
-            message: L("toast.shiori.saved", listName)
-        )
+        shiori("shiori.save.succeeded", L("toast.shiori.saved", listName))
     }
 
     static func duplicateSucceeded(listName: String) -> ToastRequest {
-        ToastRequest(
-            scenarioID: "shiori.duplicate.succeeded",
-            message: L("toast.shiori.duplicated", listName)
-        )
+        shiori("shiori.duplicate.succeeded", L("toast.shiori.duplicated", listName))
     }
 
     static func destinationUnavailable(listName: String) -> ToastRequest {
-        ToastRequest(
-            scenarioID: "shiori.destination.unavailable",
-            message: L("toast.shiori.destination_unavailable", listName)
+        shiori(
+            "shiori.destination.unavailable",
+            L("toast.shiori.destination_unavailable", listName)
         )
     }
 
     static var moveFailed: ToastRequest {
-        ToastRequest(
-            scenarioID: "shiori.move.failed",
-            message: L("toast.shiori.move_failed")
-        )
+        shiori("shiori.move.failed", L("toast.shiori.move_failed"))
     }
 
     static func saveFailed(listName: String) -> ToastRequest {
-        ToastRequest(
-            scenarioID: "shiori.save.failed",
-            message: L("toast.shiori.save_failed", listName)
-        )
+        shiori("shiori.save.failed", L("toast.shiori.save_failed", listName))
     }
 
     static var duplicateFailed: ToastRequest {
-        ToastRequest(
-            scenarioID: "shiori.duplicate.failed",
-            message: L("toast.shiori.duplicate_failed")
-        )
+        shiori("shiori.duplicate.failed", L("toast.shiori.duplicate_failed"))
     }
 
     static func destinationAlreadyContainsCue(listName: String) -> ToastRequest {
-        ToastRequest(
-            scenarioID: "shiori.destination.cue.already_exists",
-            message: L("toast.shiori.already_exists", listName)
+        shiori(
+            "shiori.destination.cue.already_exists",
+            L("toast.shiori.already_exists", listName)
         )
     }
 }
@@ -93,6 +92,7 @@ enum ShioriToastRequest {
 struct ToastItem: Identifiable, Equatable {
     let id: UUID
     let request: ToastRequest
+    let expiresAt: Date
 }
 
 @MainActor
@@ -101,75 +101,61 @@ final class ToastCenter: ObservableObject {
     static let motion = Animation.timingCurve(0.22, 1, 0.36, 1, duration: 0.20)
 
     @Published private(set) var visibleItems: [ToastItem] = []
-    private var queuedItems: [ToastItem] = []
-    private var remainingDurationByID: [UUID: TimeInterval] = [:]
-    private var hoveredIDs: Set<UUID> = []
-    private var isAppActive = true
+    private var expiryTask: Task<Void, Never>?
 
-    var queuedCount: Int {
-        queuedItems.count
-    }
-
-    func show(_ request: ToastRequest) {
-        let item = ToastItem(id: UUID(), request: request)
-        guard visibleItems.count < Self.maximumVisibleCount else {
-            queuedItems.append(item)
-            return
-        }
-        withAnimation(Self.motion) {
-            makeVisible(item)
-        }
-    }
-
-    func setHovered(_ isHovered: Bool, itemID: UUID) {
-        if isHovered {
-            hoveredIDs.insert(itemID)
-        } else {
-            hoveredIDs.remove(itemID)
-        }
-    }
-
-    func setAppActive(_ isActive: Bool) {
-        isAppActive = isActive
-    }
-
-    func advance(by elapsed: TimeInterval) {
-        guard elapsed > 0, isAppActive else {
-            return
-        }
-
-        for item in visibleItems where !hoveredIDs.contains(item.id) {
-            remainingDurationByID[item.id, default: item.request.duration] -= elapsed
-        }
-        let expiredIDs = Set(
-            visibleItems
-                .filter { remainingDurationByID[$0.id, default: $0.request.duration] <= 0 }
-                .map(\.id)
+    func show(_ request: ToastRequest, now: Date = Date()) {
+        // Reporting the same result again is the same message, not a second
+        // one: it keeps its identity, takes the newest slot and starts its stay
+        // over.
+        let existingID = visibleItems.first {
+            $0.request.scenarioID == request.scenarioID
+                && $0.request.message == request.message
+        }?.id
+        let item = ToastItem(
+            id: existingID ?? UUID(),
+            request: request,
+            expiresAt: now.addingTimeInterval(request.duration)
         )
-        guard !expiredIDs.isEmpty else {
-            return
-        }
 
         withAnimation(Self.motion) {
-            visibleItems.removeAll { expiredIDs.contains($0.id) }
-            for id in expiredIDs {
-                remainingDurationByID.removeValue(forKey: id)
-                hoveredIDs.remove(id)
+            visibleItems.removeAll { $0.id == item.id }
+            visibleItems.append(item)
+            // A message that has to wait its turn arrives after the user has
+            // moved on, so the oldest one leaves instead of the newest waiting.
+            if visibleItems.count > Self.maximumVisibleCount {
+                visibleItems.removeFirst(visibleItems.count - Self.maximumVisibleCount)
             }
-            promoteQueuedItems()
         }
+        announce(request.message)
+        scheduleExpiry()
     }
 
-    private func promoteQueuedItems() {
-        while visibleItems.count < Self.maximumVisibleCount, !queuedItems.isEmpty {
-            makeVisible(queuedItems.removeFirst())
+    func removeExpired(at now: Date = Date()) {
+        if visibleItems.contains(where: { $0.expiresAt <= now }) {
+            withAnimation(Self.motion) {
+                visibleItems.removeAll { $0.expiresAt <= now }
+            }
         }
+        scheduleExpiry()
     }
 
-    private func makeVisible(_ item: ToastItem) {
-        remainingDurationByID[item.id] = max(0, item.request.duration)
-        visibleItems.append(item)
-        announce(item.request.message)
+    /// A toast stays for its own duration measured on the wall clock. Nothing
+    /// the user does elsewhere — leaving the app, resting the pointer on it —
+    /// holds it on screen.
+    private func scheduleExpiry() {
+        expiryTask?.cancel()
+        guard let next = visibleItems.map(\.expiresAt).min() else {
+            expiryTask = nil
+            return
+        }
+        let delay = max(0, next.timeIntervalSinceNow)
+        expiryTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+            guard !Task.isCancelled else {
+                return
+            }
+            self?.removeExpired()
+        }
     }
 
     private func announce(_ message: String) {
@@ -187,20 +173,28 @@ final class ToastCenter: ObservableObject {
     }
 }
 
+private struct NewestToastHeightKey: PreferenceKey {
+    static var defaultValue: CGFloat { 0 }
+
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
+    }
+}
+
 struct ToastStackView: View {
     @ObservedObject var center: ToastCenter
 
-    private let timer = Timer.publish(
-        every: 0.1,
-        on: .main,
-        in: .common
-    ).autoconnect()
-    @State private var lastTick = Date()
+    @State private var newestHeight: CGFloat = 0
 
     var body: some View {
-        VStack(spacing: 16) {
-            ForEach(center.visibleItems) { item in
-                ToastView(item: item, center: center)
+        let newestHalfHeight = newestHeight / 2
+
+        return VStack(spacing: WorkbenchControlMetrics.redesignSpacing4) {
+            ForEach(Array(center.visibleItems.enumerated()), id: \.element.id) { index, item in
+                ToastView(item: item)
+                    .background(
+                        newestHeightReader(isNewest: index == center.visibleItems.count - 1)
+                    )
                     .transition(
                         .asymmetric(
                             insertion: .opacity.combined(with: .offset(y: 8)),
@@ -209,74 +203,90 @@ struct ToastStackView: View {
                     )
             }
         }
-        .padding(.horizontal, 24)
+        // The message wraps at the smaller of its own ceiling and the space the
+        // window leaves beside the viewport margin.
+        .frame(maxWidth: WorkbenchControlMetrics.redesignToastMaxWidth)
+        .padding(.horizontal, WorkbenchControlMetrics.redesignSpacing6)
+        // The newest toast holds the window's centre and older ones stack above
+        // it, so the place the eye returns to never moves.
         .alignmentGuide(VerticalAlignment.center) { dimensions in
-            dimensions[.bottom]
+            dimensions[.bottom] - newestHalfHeight
         }
+        .onPreferenceChange(NewestToastHeightKey.self) { height in
+            newestHeight = height
+        }
+        .allowsHitTesting(false)
         .animation(ToastCenter.motion, value: center.visibleItems.map(\.id))
-        .onAppear {
-            lastTick = Date()
-            center.setAppActive(NSApp?.isActive ?? true)
-        }
-        .onReceive(timer) { date in
-            let elapsed = date.timeIntervalSince(lastTick)
-            lastTick = date
-            center.advance(by: elapsed)
-        }
-        .onReceive(NotificationCenter.default.publisher(
-            for: NSApplication.didResignActiveNotification
-        )) { _ in
-            center.setAppActive(false)
-        }
-        .onReceive(NotificationCenter.default.publisher(
-            for: NSApplication.didBecomeActiveNotification
-        )) { _ in
-            lastTick = Date()
-            center.setAppActive(true)
+    }
+
+    @ViewBuilder
+    private func newestHeightReader(isNewest: Bool) -> some View {
+        if isNewest {
+            GeometryReader { proxy in
+                Color.clear.preference(
+                    key: NewestToastHeightKey.self,
+                    value: proxy.size.height
+                )
+            }
         }
     }
 }
 
 private struct ToastView: View {
     let item: ToastItem
-    @ObservedObject var center: ToastCenter
 
     var body: some View {
-        Text(item.request.message)
-            .font(.system(
-                size: WorkbenchControlMetrics.redesignFontSizeBody,
-                weight: .regular
-            ))
-            .foregroundStyle(WorkbenchRedesignColors.textPrimary)
-            .multilineTextAlignment(.leading)
-            .fixedSize(horizontal: false, vertical: true)
-            .padding(.vertical, 12)
-            .padding(.horizontal, 16)
-            // The shadow belongs to the toast's shape, not to the toast.
-            // Applied to the whole surface it is cast by every leaf inside it,
-            // which haloes the message text.
-            .background(
-                RoundedRectangle(
-                    cornerRadius: WorkbenchControlMetrics.redesignCornerRadius,
-                    style: .continuous
+        HStack(
+            alignment: .feedbackFirstLineCenter,
+            spacing: WorkbenchControlMetrics.redesignSpacing3
+        ) {
+            if let icon = item.request.icon {
+                AppIconImage(
+                    icon,
+                    size: WorkbenchControlMetrics.redesignToastIconSize,
+                    weight: item.request.iconWeight
                 )
-                .fill(WorkbenchRedesignColors.bgPopover)
-                .shadowToken(
-                    WorkbenchRedesignColors.shadowPopover,
-                    cornerRadius: WorkbenchControlMetrics.redesignCornerRadius
-                )
-            )
-            .overlay(
-                RoundedRectangle(
-                    cornerRadius: WorkbenchControlMetrics.redesignCornerRadius,
-                    style: .continuous
-                )
-                .strokeBorder(WorkbenchRedesignColors.borderMuted, lineWidth: 1)
-            )
-            .onHover { isHovered in
-                center.setHovered(isHovered, itemID: item.id)
+                .foregroundColor(PlaybackTheme.textPrimary)
+                .alignmentGuide(.feedbackFirstLineCenter) { dimensions in
+                    dimensions[VerticalAlignment.center]
+                }
             }
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel(item.request.message)
+
+            Text(item.request.message)
+                .font(.system(
+                    size: WorkbenchControlMetrics.redesignFontSizeToast,
+                    weight: WorkbenchControlMetrics.redesignFontWeightControl
+                ))
+                .foregroundColor(PlaybackTheme.textPrimary)
+                .multilineTextAlignment(.leading)
+                .fixedSize(horizontal: false, vertical: true)
+                .alignmentGuide(.feedbackFirstLineCenter) { _ in
+                    WorkbenchControlMetrics.firstLineCenter(
+                        fontSize: WorkbenchControlMetrics.redesignFontSizeToast
+                    )
+                }
+        }
+        .padding(.horizontal, WorkbenchControlMetrics.redesignSpacing4)
+        .padding(.vertical, WorkbenchControlMetrics.redesignSpacing3)
+        .background(surface)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(item.request.message)
+    }
+
+    /// The Playback Feedback surface. A toast sits over the Workbench in both
+    /// appearances, so it keeps one scrim instead of following the theme, and
+    /// the border and the fill carry the separation without a shadow.
+    private var surface: some View {
+        let shape = RoundedRectangle(cornerRadius: PlaybackChromeMetrics.feedbackRadius)
+
+        return shape
+            .fill(PlaybackTheme.menuBackground)
+            .background(.ultraThinMaterial, in: shape)
+            .overlay(
+                shape.strokeBorder(
+                    PlaybackTheme.textTertiary.opacity(0.3),
+                    lineWidth: WorkbenchControlMetrics.hairlineWidth
+                )
+            )
     }
 }

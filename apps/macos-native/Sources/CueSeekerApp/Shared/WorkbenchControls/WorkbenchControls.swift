@@ -223,6 +223,12 @@ enum WorkbenchControlMetrics {
     static let redesignFontSizeBody: CGFloat = 14
     /// --font-size-caption: 12px
     static let redesignFontSizeCaption: CGFloat = 12
+    /// --font-size-toast: 16px
+    static let redesignFontSizeToast: CGFloat = 16
+    /// --size-toast-icon: 23px, one of the sizes the Icon Registry documents.
+    static let redesignToastIconSize: CGFloat = 23
+    /// --width-toast-max: 400px
+    static let redesignToastMaxWidth: CGFloat = 400
     /// --radius-chip
     static let redesignChipRadius: CGFloat = 6
     /// --padding-chip-x
@@ -461,6 +467,13 @@ enum WorkbenchControlMetrics {
     static let redesignWorkbenchPageTopPadding = redesignSpacing1
     /// Shared bottom padding for Workbench pages with an explicit page title.
     static let redesignWorkbenchPageBottomPadding = redesignSpacing6
+
+    /// The centre of a message's first line, measured down from the text's top
+    /// edge. Both feedback surfaces set their message in `--font-weight-control`.
+    static func firstLineCenter(fontSize: CGFloat) -> CGFloat {
+        let font = NSFont.systemFont(ofSize: fontSize, weight: .medium)
+        return (font.ascender - font.descender + font.leading) / 2
+    }
 }
 
 extension View {
@@ -1255,4 +1268,18 @@ extension View {
             }
         )
     }
+}
+
+/// Toast and Playback Feedback both put the icon in its own column and wrap the
+/// message beside it. The icon belongs to the first line, not to the block: on
+/// the block's centre it would float into the gap between lines as soon as a
+/// message wraps.
+extension VerticalAlignment {
+    private enum FeedbackFirstLineCenter: AlignmentID {
+        static func defaultValue(in dimensions: ViewDimensions) -> CGFloat {
+            dimensions[VerticalAlignment.center]
+        }
+    }
+
+    static let feedbackFirstLineCenter = VerticalAlignment(FeedbackFirstLineCenter.self)
 }

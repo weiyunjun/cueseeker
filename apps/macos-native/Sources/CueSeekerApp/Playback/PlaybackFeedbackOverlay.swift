@@ -12,10 +12,10 @@ struct PlaybackFeedbackOverlay: View {
 
             if let feedback {
                 capsule(feedback)
-                    // The stage offers the whole window, so without this the
-                    // label's ceiling would become its width and every capsule
-                    // would be as wide as the longest one can be.
-                    .fixedSize(horizontal: true, vertical: false)
+                    // The message wraps at the smaller of its own ceiling and
+                    // the space the stage leaves beside the viewport margin.
+                    .frame(maxWidth: PlaybackChromeMetrics.feedbackMaxWidth)
+                    .padding(.horizontal, WorkbenchControlMetrics.redesignSpacing6)
                     .transition(.opacity.combined(with: .scale(scale: 0.96)))
             }
         }
@@ -28,12 +28,18 @@ struct PlaybackFeedbackOverlay: View {
     }
 
     private func capsule(_ feedback: PlaybackFeedback) -> some View {
-        HStack(spacing: WorkbenchControlMetrics.redesignSpacing3) {
+        HStack(
+            alignment: .feedbackFirstLineCenter,
+            spacing: WorkbenchControlMetrics.redesignSpacing3
+        ) {
             feedbackIcon(feedback.icon, weight: feedback.iconWeight)
             feedbackText(feedback.text)
         }
         .padding(.horizontal, WorkbenchControlMetrics.redesignSpacing4)
-        .frame(height: PlaybackChromeMetrics.feedbackHeight)
+        // A single line stays inside the 52px floor, which still sets its
+        // height; the padding only takes over once a message wraps.
+        .padding(.vertical, WorkbenchControlMetrics.redesignSpacing2)
+        .frame(minHeight: PlaybackChromeMetrics.feedbackMinimumHeight)
         .background(feedbackBackground)
     }
 
@@ -46,6 +52,9 @@ struct PlaybackFeedbackOverlay: View {
                 weight: weight
             )
                 .foregroundColor(PlaybackTheme.textPrimary)
+                .alignmentGuide(.feedbackFirstLineCenter) { dimensions in
+                    dimensions[VerticalAlignment.center]
+                }
         }
     }
 
@@ -64,9 +73,13 @@ struct PlaybackFeedbackOverlay: View {
                     .monospacedDigit()
                 )
                 .foregroundColor(PlaybackTheme.textPrimary)
-                .lineLimit(1)
-                .truncationMode(.tail)
-                .frame(maxWidth: PlaybackChromeMetrics.topbarTitleMaxWidth, alignment: .leading)
+                .multilineTextAlignment(.leading)
+                .fixedSize(horizontal: false, vertical: true)
+                .alignmentGuide(.feedbackFirstLineCenter) { _ in
+                    WorkbenchControlMetrics.firstLineCenter(
+                        fontSize: PlaybackChromeMetrics.feedbackFontSize
+                    )
+                }
         }
     }
 

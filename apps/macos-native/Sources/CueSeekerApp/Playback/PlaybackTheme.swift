@@ -378,8 +378,11 @@ enum PlaybackChromeMetrics {
     /// --duration-player-ui-idle-hide: 3s
     static let idleHideDuration: TimeInterval = 3
 
-    /// --height-playback-feedback: 52px
-    static let feedbackHeight: CGFloat = 52
+    /// --height-playback-feedback: 52px, a floor rather than a fixed height so
+    /// a wrapped message can grow past it.
+    static let feedbackMinimumHeight: CGFloat = 52
+    /// --width-playback-feedback-max: 520px
+    static let feedbackMaxWidth: CGFloat = 520
     /// --radius-playback-feedback: 16px
     static let feedbackRadius: CGFloat = 16
     /// Provisional --size-playback-feedback-icon: 31px icon box (document: 24px)

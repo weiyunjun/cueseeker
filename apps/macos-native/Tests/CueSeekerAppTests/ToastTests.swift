@@ -1,43 +1,73 @@
+import Foundation
 import Testing
 @testable import CueSeekerApp
 
 @MainActor
 @Test
-func toastCenterStacksFourAndPromotesFIFOWithoutReplacingVisibleItems() {
+func toastCenterEvictsTheOldestInsteadOfQueueing() {
     let center = ToastCenter()
+    let start = Date()
     for index in 1...5 {
-        center.show(ToastRequest(message: "Toast \(index)"))
+        center.show(
+            ToastRequest(scenarioID: "scenario.\(index)", message: "Toast \(index)"),
+            now: start
+        )
     }
 
     #expect(center.visibleItems.map(\.request.message) == [
-        "Toast 1", "Toast 2", "Toast 3", "Toast 4"
+        "Toast 2", "Toast 3", "Toast 4", "Toast 5"
     ])
-    #expect(center.queuedCount == 1)
 
-    let firstID = center.visibleItems[0].id
-    center.setHovered(true, itemID: firstID)
-    center.advance(by: 5.1)
-
-    #expect(center.visibleItems.map(\.request.message) == ["Toast 1", "Toast 5"])
-    #expect(center.queuedCount == 0)
-
-    center.setHovered(false, itemID: firstID)
-    center.advance(by: 5.1)
+    center.removeExpired(at: start.addingTimeInterval(5.1))
     #expect(center.visibleItems.isEmpty)
 }
 
 @MainActor
 @Test
-func toastCenterPausesAllDurationsWhileAppIsInactive() {
+func toastCenterKeepsOneToastPerResultAndRestartsItsStay() {
     let center = ToastCenter()
-    center.show(ToastRequest(message: "Paused"))
-    center.setAppActive(false)
-    center.advance(by: 10)
+    let start = Date()
+    let repeated = ShioriToastRequest.saveSucceeded(listName: "Study")
+
+    center.show(repeated, now: start)
+    let firstID = center.visibleItems[0].id
+    center.show(ToastRequest(scenarioID: "scenario.other", message: "Other"), now: start)
+    center.show(repeated, now: start.addingTimeInterval(3))
+
+    #expect(center.visibleItems.count == 2)
+    #expect(center.visibleItems.last?.id == firstID)
+
+    center.removeExpired(at: start.addingTimeInterval(5.1))
+    #expect(center.visibleItems.map(\.request.message) == [repeated.message])
+}
+
+@MainActor
+@Test
+func toastDurationsRunOnTheWallClock() {
+    let center = ToastCenter()
+    let start = Date()
+    center.show(ToastRequest(message: "Away"), now: start)
+
+    center.removeExpired(at: start.addingTimeInterval(4.9))
     #expect(center.visibleItems.count == 1)
 
-    center.setAppActive(true)
-    center.advance(by: 5.1)
+    center.removeExpired(at: start.addingTimeInterval(5))
     #expect(center.visibleItems.isEmpty)
+}
+
+/// Both surfaces draw their icon through the line width table, and a size the
+/// Icon Registry does not document trips an assertion at the moment of drawing
+/// rather than at build time. Nothing else in this suite draws.
+@MainActor
+@Test
+func feedbackIconsDrawAtTheirDocumentedSizes() {
+    for size in [
+        WorkbenchControlMetrics.redesignToastIconSize,
+        PlaybackChromeMetrics.feedbackIconSize,
+    ] {
+        #expect(AppIconLineWidth.bySize[size] != nil, "\(size)pt is not in the registry")
+        #expect(AppIconStore.image(.bookmarkSimple, size: size, weight: .fill) != nil)
+    }
 }
 
 @Test
@@ -62,4 +92,6 @@ func shioriToastRequestsMatchTheUsageRegistry() {
     #expect(ShioriToastRequest.moveSucceeded(listName: "Study").duration == 5)
     #expect(ShioriToastRequest.moveSucceeded(listName: "Study").position == .appCenter)
     #expect(ShioriToastRequest.moveSucceeded(listName: "Study").animation == .default)
+    #expect(ShioriToastRequest.moveSucceeded(listName: "Study").icon == .bookmarkSimple)
+    #expect(ShioriToastRequest.moveSucceeded(listName: "Study").iconWeight == .fill)
 }
