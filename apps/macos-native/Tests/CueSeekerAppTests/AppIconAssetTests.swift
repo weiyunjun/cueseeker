@@ -3,6 +3,25 @@ import Foundation
 import Testing
 @testable import CueSeekerApp
 
+/// The table is a mirror of `docs/human/design/Icon Registry.md`, and a size it
+/// is missing draws with the wrong line or trips an assertion. Update this
+/// expectation with the document.
+@Test
+func lineWidthTableMirrorsTheIconRegistry() {
+    #expect(AppIconLineWidth.bySize == [
+        14: 1.15,
+        16: 1.20,
+        18: 1.30,
+        20: 1.30,
+        21: 1.35,
+        23: 1.40,
+        31: 1.50,
+        42: 1.90,
+        47: 2.10,
+        57: 2.50,
+    ])
+}
+
 @MainActor
 @Test
 func everyIconResolvesAtEveryDocumentedSize() {
