@@ -236,3 +236,84 @@ func tableSandboxSelectionAnchorFollowsRowsAndFallsBackWhenClamped() {
 
     #expect(selection.anchorRow == nil)
 }
+
+@Test
+func tableSandboxUnselectableRowsCannotBeToggled() {
+    var selection = TableSandboxRowSelectionState()
+
+    selection.toggle(row: 2, rowCount: 5, unselectableRows: [2])
+
+    #expect(selection.selectedCount(rowCount: 5) == 0)
+    #expect(selection.anchorRow == nil)
+
+    selection.shiftClick(row: 2, rowCount: 5, unselectableRows: [2])
+
+    #expect(selection.selectedCount(rowCount: 5) == 0)
+}
+
+@Test
+func tableSandboxSelectAllSkipsUnselectableRows() {
+    var selection = TableSandboxRowSelectionState()
+    let unselectable: Set<Int> = [1, 4]
+
+    #expect(TableSandboxRowSelectionState.selectableCount(
+        rowCount: 5,
+        unselectableRows: unselectable
+    ) == 3)
+
+    selection.toggleAll(rowCount: 5, unselectableRows: unselectable)
+
+    #expect(selection.selectedRows(rowCount: 5) == [0, 2, 3])
+    #expect(selection.headerState(rowCount: 5, unselectableRows: unselectable) == .checked)
+    #expect(selection.anchorRow == 3)
+
+    selection.toggle(row: 0, rowCount: 5, unselectableRows: unselectable)
+
+    #expect(selection.headerState(rowCount: 5, unselectableRows: unselectable) == .indeterminate)
+
+    selection.toggleAll(rowCount: 5, unselectableRows: unselectable)
+    selection.toggleAll(rowCount: 5, unselectableRows: unselectable)
+
+    #expect(selection.selectedCount(rowCount: 5) == 0)
+    #expect(selection.headerState(rowCount: 5, unselectableRows: unselectable) == .unchecked)
+}
+
+@Test
+func tableSandboxHeaderStaysUncheckedWhenNoRowIsSelectable() {
+    var selection = TableSandboxRowSelectionState()
+
+    selection.toggleAll(rowCount: 2, unselectableRows: [0, 1])
+
+    #expect(selection.selectedCount(rowCount: 2) == 0)
+    #expect(selection.headerState(rowCount: 2, unselectableRows: [0, 1]) == .unchecked)
+}
+
+@Test
+func tableSandboxShiftRangeSkipsUnselectableRows() {
+    var selection = TableSandboxRowSelectionState()
+    let unselectable: Set<Int> = [2, 6]
+
+    selection.shiftClick(row: 3, rowCount: 8, unselectableRows: unselectable)
+
+    #expect(selection.selectedRows(rowCount: 8) == [0, 1, 3])
+    #expect(selection.anchorRow == 3)
+
+    selection.shiftClick(row: 7, rowCount: 8, unselectableRows: unselectable)
+
+    #expect(selection.selectedRows(rowCount: 8) == [0, 1, 3, 4, 5, 7])
+    #expect(selection.anchorRow == 7)
+}
+
+@Test
+func tableSandboxShiftRangeAfterSelectAllKeepsUnselectableRowsOut() {
+    var selection = TableSandboxRowSelectionState()
+    let unselectable: Set<Int> = [2]
+    selection.toggleAll(rowCount: 6, unselectableRows: unselectable)
+    selection.toggle(row: 1, rowCount: 6, unselectableRows: unselectable)
+    selection.toggle(row: 3, rowCount: 6, unselectableRows: unselectable)
+
+    selection.shiftClick(row: 3, rowCount: 6, unselectableRows: unselectable)
+
+    #expect(selection.selectedRows(rowCount: 6) == [0, 3, 4, 5])
+    #expect(!selection.isSelected(2, rowCount: 6))
+}

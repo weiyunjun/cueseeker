@@ -2,6 +2,8 @@ import SwiftUI
 
 struct SchemaWorkbenchTableSummary: Equatable {
     let totalRowCount: Int
+    /// The rows Select Mode can select: the total less the unavailable rows.
+    let selectableRowCount: Int
     let selectedRowCount: Int
 }
 
@@ -12,15 +14,19 @@ func schemaWorkbenchResultCountText(_ count: Int) -> String {
         : L("table.result_count.other", safeCount)
 }
 
-func schemaWorkbenchSelectedCountText(_ count: Int) -> String {
-    let safeCount = max(0, count)
-    return safeCount == 1
-        ? L("table.selected_count.one")
-        : L("table.selected_count.other", safeCount)
+func schemaWorkbenchSelectedCountText(
+    selectedRowCount: Int,
+    selectableRowCount: Int
+) -> String {
+    L("table.selected_count", max(0, selectedRowCount), max(0, selectableRowCount))
 }
 
-func schemaWorkbenchCanEnterSelectionMode(hasExactResultSet: Bool) -> Bool {
-    hasExactResultSet
+/// Select Mode needs the exact result set and at least one row it can select.
+func schemaWorkbenchCanEnterSelectionMode(
+    hasExactResultSet: Bool,
+    selectableRowCount: Int
+) -> Bool {
+    hasExactResultSet && selectableRowCount > 0
 }
 
 enum SchemaWorkbenchSearchDefaults {
@@ -439,21 +445,14 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
             .allowsHitTesting(false)
 
             if isRedesign, summaryContent != nil, hostsPageChromeInTable {
-                ZStack(alignment: .bottom) {
-                    tableContent(columns)
-
-                    if isSelectionMode,
-                       let tableSummary,
-                       let selectionActions {
-                        SchemaWorkbenchSelectionActionOverlay(
-                            selectedRowCount: tableSummary.selectedRowCount,
-                            actions: selectionActions,
-                            anchor: selectionOverlayAnchor,
-                            onExitSelectionMode: onToggleSelectionMode
-                        )
-                        .padding(.bottom, WorkbenchControlMetrics.redesignSpacing4)
+                tableContent(columns)
+                    .overlay(alignment: .bottom) {
+                        // The table runs to the window edge here, so the
+                        // Overlay takes the page margins the table's content
+                        // region has.
+                        selectionActionOverlay
+                            .workbenchPageInlinePadding()
                     }
-                }
                 // The detail hosts its page chrome inside the table, so the
                 // table would otherwise run to the window edge and put the
                 // Overlay a page margin lower than every other Workbench page.
@@ -474,23 +473,13 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
                             .padding(.bottom, WorkbenchControlMetrics.redesignSpacing3)
                     }
 
-                    ZStack(alignment: .bottom) {
-                        tableContent(columns)
-
-                        if isRedesign,
-                           isSelectionMode,
-                           let tableSummary,
-                           let selectionActions {
-                            SchemaWorkbenchSelectionActionOverlay(
-                                selectedRowCount: tableSummary.selectedRowCount,
-                                actions: selectionActions,
-                                anchor: selectionOverlayAnchor,
-                                onExitSelectionMode: onToggleSelectionMode
-                            )
-                            .padding(.bottom, WorkbenchControlMetrics.redesignSpacing4)
+                    tableContent(columns)
+                        .overlay(alignment: .bottom) {
+                            if isRedesign {
+                                selectionActionOverlay
+                            }
                         }
-                    }
-                    .workbenchPageInlinePadding()
+                        .workbenchPageInlinePadding()
                     .padding(
                         .bottom,
                         WorkbenchControlMetrics.redesignWorkbenchPageBottomPadding
@@ -501,6 +490,24 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
 
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    /// Drawn as the table's overlay, so it is offered the table's size and can
+    /// never widen the page, however long its content.
+    @ViewBuilder
+    private var selectionActionOverlay: some View {
+        if isSelectionMode,
+           let tableSummary,
+           let selectionActions {
+            SchemaWorkbenchSelectionActionOverlay(
+                selectedRowCount: tableSummary.selectedRowCount,
+                selectableRowCount: tableSummary.selectableRowCount,
+                actions: selectionActions,
+                anchor: selectionOverlayAnchor,
+                onExitSelectionMode: onToggleSelectionMode
+            )
+            .padding(.bottom, WorkbenchControlMetrics.redesignSpacing4)
+        }
     }
 
     private var externalTextSelectionIsBlocked: Bool {

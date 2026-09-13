@@ -113,7 +113,10 @@ private struct WorkbenchExcerptTableContent: View {
                     onVisibleRowsChange: captureVisibleRows,
                     isSelectionMode: isSelectionMode,
                     isRowSelected: { rowSelection.isSelected($0, rowCount: rowStore.snapshot.totalRowCount) },
-                    selectionHeaderState: rowSelection.headerState(rowCount: rowStore.snapshot.totalRowCount),
+                    selectionHeaderState: rowSelection.headerState(
+                        rowCount: rowStore.snapshot.totalRowCount,
+                        unselectableRows: rowStore.snapshot.unavailableRows
+                    ),
                     onToggleRowSelection: toggleRowSelection,
                     onShiftRowSelection: shiftSelectRow,
                     onToggleAllSelection: toggleAllRowSelection,
@@ -199,10 +202,15 @@ private struct WorkbenchExcerptTableContent: View {
     }
 
     private var tableSummary: SchemaWorkbenchTableSummary {
-        SchemaWorkbenchTableSummary(
-            totalRowCount: max(
-                excerptStore.tableResultRowCount,
-                rowStore.snapshot.totalRowCount
+        let totalRowCount = max(
+            excerptStore.tableResultRowCount,
+            rowStore.snapshot.totalRowCount
+        )
+        return SchemaWorkbenchTableSummary(
+            totalRowCount: totalRowCount,
+            selectableRowCount: TableSandboxRowSelectionState.selectableCount(
+                rowCount: totalRowCount,
+                unselectableRows: rowStore.snapshot.unavailableRows
             ),
             selectedRowCount: isSelectionMode
                 ? rowSelection.selectedCount(rowCount: rowStore.snapshot.totalRowCount)
@@ -295,7 +303,8 @@ private struct WorkbenchExcerptTableContent: View {
 
     private var canEnterSelectionMode: Bool {
         return schemaWorkbenchCanEnterSelectionMode(
-            hasExactResultSet: hasExactTableResult
+            hasExactResultSet: hasExactTableResult,
+            selectableRowCount: tableSummary.selectableRowCount
         )
     }
 
@@ -644,17 +653,28 @@ private struct WorkbenchExcerptTableContent: View {
     }
 
     private func toggleRowSelection(_ row: Int) {
-        rowSelection.toggle(row: row, rowCount: rowStore.snapshot.totalRowCount)
+        rowSelection.toggle(
+            row: row,
+            rowCount: rowStore.snapshot.totalRowCount,
+            unselectableRows: rowStore.snapshot.unavailableRows
+        )
         persistSelection()
     }
 
     private func shiftSelectRow(_ row: Int) {
-        rowSelection.shiftClick(row: row, rowCount: rowStore.snapshot.totalRowCount)
+        rowSelection.shiftClick(
+            row: row,
+            rowCount: rowStore.snapshot.totalRowCount,
+            unselectableRows: rowStore.snapshot.unavailableRows
+        )
         persistSelection()
     }
 
     private func toggleAllRowSelection() {
-        rowSelection.toggleAll(rowCount: rowStore.snapshot.totalRowCount)
+        rowSelection.toggleAll(
+            rowCount: rowStore.snapshot.totalRowCount,
+            unselectableRows: rowStore.snapshot.unavailableRows
+        )
         persistSelection()
     }
 

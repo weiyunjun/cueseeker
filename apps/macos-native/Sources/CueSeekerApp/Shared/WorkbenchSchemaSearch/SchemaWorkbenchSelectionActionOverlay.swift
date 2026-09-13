@@ -48,6 +48,7 @@ struct SchemaWorkbenchSelectionAction: Identifiable {
 
 struct SchemaWorkbenchSelectionActionOverlay: View {
     let selectedRowCount: Int
+    let selectableRowCount: Int
     let actions: [SchemaWorkbenchSelectionAction]
     let anchor: MenuAnchorHandle?
     let onExitSelectionMode: () -> Void
@@ -68,9 +69,17 @@ struct SchemaWorkbenchSelectionActionOverlay: View {
         ]
     }
 
+    /// The count sits above the actions, and the actions wrap when the table
+    /// is too narrow for one line, so every title stays whole.
     var body: some View {
-        HStack(spacing: WorkbenchControlMetrics.redesignSpacing4) {
-            Text(schemaWorkbenchSelectedCountText(selectedRowCount))
+        VStack(
+            alignment: .leading,
+            spacing: WorkbenchControlMetrics.redesignSpacing2
+        ) {
+            Text(schemaWorkbenchSelectedCountText(
+                selectedRowCount: selectedRowCount,
+                selectableRowCount: selectableRowCount
+            ))
                 .font(.system(
                     size: WorkbenchControlMetrics.redesignFontSizeBody,
                     weight: .regular
@@ -83,7 +92,11 @@ struct SchemaWorkbenchSelectionActionOverlay: View {
                 // to keep both ends of the container equally clear.
                 .padding(.leading, WorkbenchControlMetrics.redesignSpacing3)
 
-            HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
+            WrappingFlowLayout(
+                alignment: .leading,
+                horizontalSpacing: WorkbenchControlMetrics.redesignSpacing2,
+                verticalSpacing: WorkbenchControlMetrics.redesignSpacing2
+            ) {
                 ForEach(allActions) { action in
                     SchemaWorkbenchSelectionActionButton(action: action)
                 }

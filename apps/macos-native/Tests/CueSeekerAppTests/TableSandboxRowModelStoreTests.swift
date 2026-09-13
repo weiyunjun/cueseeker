@@ -754,6 +754,8 @@ func tableSandboxRowModelStoreProjectsExcerptLifecycleStatesAndExactSnapshot() {
     #expect(unavailableRow?.primaryCueText == "Primary\nmultiline")
     #expect(unavailableRow?.cueGroupTexts == ["Primary\nmultiline", "Sibling"])
     #expect(unavailableRow?.cueState == .unavailable(.cueMissing))
+    // A changed Cue still plays, so only the unavailable row is unselectable.
+    #expect(store.snapshot.unavailableRows == [0])
     #expect(
         store.snapshot.row(at: 1)?.cueState
             == .contentChanged(previous: "Previous", current: "Current")

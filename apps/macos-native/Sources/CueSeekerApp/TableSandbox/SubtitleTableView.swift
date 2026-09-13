@@ -4812,11 +4812,14 @@ struct SubtitleTableView: NSViewRepresentable {
 
             if isRedesign, isSelectionMode {
                 let checkboxState: WorkbenchCheckboxState = isRowSelected(row) ? .checked : .unchecked
+                // An unavailable row cannot be selected, so its checkbox is
+                // drawn disabled.
+                let isCheckboxEnabled = isEnabled && !isUnavailable
                 WorkbenchCheckboxDrawing.draw(
                     state: checkboxState,
-                    isEnabled: isEnabled,
+                    isEnabled: isCheckboxEnabled,
                     in: checkboxRect(forRowRect: rowRect),
-                    isFocused: isEnabled && focusedCheckboxRow == row && documentView?.window?.firstResponder === documentView
+                    isFocused: isCheckboxEnabled && focusedCheckboxRow == row && documentView?.window?.firstResponder === documentView
                 )
             } else {
                 drawIndex(row + 1, in: rowColumnRect(layout.indexRect, rowRect: rowRect))

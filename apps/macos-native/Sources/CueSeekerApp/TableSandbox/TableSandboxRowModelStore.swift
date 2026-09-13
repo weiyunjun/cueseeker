@@ -19,6 +19,9 @@ struct TableSandboxRowsSnapshot {
     var version = 0
     var update = TableSandboxRowsUpdate.none
     var totalRowCount = 0
+    /// Rows whose Cue is unavailable. They stay in the table but cannot be
+    /// selected.
+    let unavailableRows: Set<Int>
 
     init(
         rows: [SubtitleTableRow] = [],
@@ -60,6 +63,12 @@ struct TableSandboxRowsSnapshot {
         self.version = version
         self.update = update
         self.totalRowCount = totalRowCount
+        // The same test the rows themselves use for their unavailable state.
+        unavailableRows = excerptRelations.isEmpty
+            ? Set(rows.indices.filter { rows[$0].cueState.isUnavailable })
+            : Set(excerptRelations.indices.filter {
+                excerptsByEntryID[Int(excerptRelations[$0].id)]?.unavailableReason != nil
+            })
     }
 
     var rows: [SubtitleTableRow] {

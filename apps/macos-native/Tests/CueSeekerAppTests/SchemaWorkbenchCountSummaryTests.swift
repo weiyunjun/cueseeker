@@ -8,16 +8,34 @@ func schemaWorkbenchFormatsSearchAndSelectionCounts() {
     #expect(schemaWorkbenchResultCountText(1) == "1 result")
     #expect(schemaWorkbenchResultCountText(42) == "42 results")
     #expect(schemaWorkbenchResultCountText(-1) == "0 results")
-    #expect(schemaWorkbenchSelectedCountText(0) == "0 rows selected")
-    #expect(schemaWorkbenchSelectedCountText(1) == "1 row selected")
-    #expect(schemaWorkbenchSelectedCountText(3) == "3 rows selected")
-    #expect(schemaWorkbenchSelectedCountText(-1) == "0 rows selected")
+    #expect(
+        schemaWorkbenchSelectedCountText(selectedRowCount: 0, selectableRowCount: 4)
+            == "0 / 4 rows selected"
+    )
+    #expect(
+        schemaWorkbenchSelectedCountText(selectedRowCount: 3, selectableRowCount: 4)
+            == "3 / 4 rows selected"
+    )
+    #expect(
+        schemaWorkbenchSelectedCountText(selectedRowCount: -1, selectableRowCount: -1)
+            == "0 / 0 rows selected"
+    )
 }
 
 @Test
-func schemaWorkbenchSelectionModeRequiresExactResults() {
-    #expect(!schemaWorkbenchCanEnterSelectionMode(hasExactResultSet: false))
-    #expect(schemaWorkbenchCanEnterSelectionMode(hasExactResultSet: true))
+func schemaWorkbenchSelectionModeRequiresExactResultsWithASelectableRow() {
+    #expect(!schemaWorkbenchCanEnterSelectionMode(
+        hasExactResultSet: false,
+        selectableRowCount: 3
+    ))
+    #expect(!schemaWorkbenchCanEnterSelectionMode(
+        hasExactResultSet: true,
+        selectableRowCount: 0
+    ))
+    #expect(schemaWorkbenchCanEnterSelectionMode(
+        hasExactResultSet: true,
+        selectableRowCount: 1
+    ))
 }
 
 @Test

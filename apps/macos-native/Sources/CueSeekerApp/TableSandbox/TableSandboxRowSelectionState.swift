@@ -102,21 +102,41 @@ struct TableSandboxRowSelectionState: Equatable {
         }
     }
 
-    func headerState(rowCount: Int) -> WorkbenchCheckboxState {
+    /// Rows that can be selected: every row but the unselectable ones.
+    static func selectableCount(rowCount: Int, unselectableRows: Set<Int>) -> Int {
         let safeRowCount = max(0, rowCount)
-        guard safeRowCount > 0 else { return .unchecked }
-        let count = selectedCount(rowCount: safeRowCount)
+        return safeRowCount - unselectableRows.reduce(0) { count, row in
+            row >= 0 && row < safeRowCount ? count + 1 : count
+        }
+    }
+
+    /// Unselectable rows are never selected, so the header is checked once
+    /// every selectable row is.
+    func headerState(
+        rowCount: Int,
+        unselectableRows: Set<Int> = []
+    ) -> WorkbenchCheckboxState {
+        let selectableCount = Self.selectableCount(
+            rowCount: rowCount,
+            unselectableRows: unselectableRows
+        )
+        guard selectableCount > 0 else { return .unchecked }
+        let count = selectedCount(rowCount: rowCount)
         if count == 0 {
             return .unchecked
         }
-        if count == safeRowCount {
+        if count == selectableCount {
             return .checked
         }
         return .indeterminate
     }
 
-    mutating func toggle(row: Int, rowCount: Int) {
-        guard row >= 0, row < rowCount else { return }
+    mutating func toggle(
+        row: Int,
+        rowCount: Int,
+        unselectableRows: Set<Int> = []
+    ) {
+        guard row >= 0, row < rowCount, !unselectableRows.contains(row) else { return }
         let willSelect = !isSelected(row, rowCount: rowCount)
         setSelected(willSelect, row: row)
         if willSelect {
@@ -126,11 +146,21 @@ struct TableSandboxRowSelectionState: Equatable {
         }
     }
 
-    /// Shift plus a click on `row`, per the Shift range selection rules.
-    mutating func shiftClick(row: Int, rowCount: Int) {
-        guard row >= 0, row < rowCount else { return }
+    /// Shift plus a click on `row`, per the Shift range selection rules. A
+    /// range passes over unselectable rows without selecting them.
+    mutating func shiftClick(
+        row: Int,
+        rowCount: Int,
+        unselectableRows: Set<Int> = []
+    ) {
+        guard row >= 0, row < rowCount, !unselectableRows.contains(row) else { return }
         guard selectedCount(rowCount: rowCount) > 0 else {
-            selectRange(through: row, from: 0, rowCount: rowCount)
+            selectRange(
+                through: row,
+                from: 0,
+                rowCount: rowCount,
+                unselectableRows: unselectableRows
+            )
             return
         }
         if isSelected(row, rowCount: rowCount) {
@@ -141,20 +171,29 @@ struct TableSandboxRowSelectionState: Equatable {
             return
         }
         let anchor = anchorRow ?? lastSelectedRow(rowCount: rowCount) ?? row
-        selectRange(through: row, from: anchor, rowCount: rowCount)
+        selectRange(
+            through: row,
+            from: anchor,
+            rowCount: rowCount,
+            unselectableRows: unselectableRows
+        )
     }
 
-    mutating func toggleAll(rowCount: Int) {
-        switch headerState(rowCount: rowCount) {
+    mutating func toggleAll(rowCount: Int, unselectableRows: Set<Int> = []) {
+        switch headerState(rowCount: rowCount, unselectableRows: unselectableRows) {
         case .checked:
             reset()
         case .unchecked, .indeterminate:
-            guard rowCount > 0 else {
+            var lastSelectableRow = rowCount - 1
+            while lastSelectableRow >= 0, unselectableRows.contains(lastSelectableRow) {
+                lastSelectableRow -= 1
+            }
+            guard lastSelectableRow >= 0 else {
                 reset()
                 return
             }
-            storage = .allExcept([])
-            anchorRow = rowCount - 1
+            storage = .allExcept(unselectableRows.filter { $0 >= 0 && $0 < rowCount })
+            anchorRow = lastSelectableRow
         }
     }
 
@@ -182,19 +221,26 @@ struct TableSandboxRowSelectionState: Equatable {
         }
     }
 
-    private mutating func selectRange(through row: Int, from other: Int, rowCount: Int) {
+    private mutating func selectRange(
+        through row: Int,
+        from other: Int,
+        rowCount: Int,
+        unselectableRows: Set<Int>
+    ) {
         let lower = max(0, min(row, other))
         let upper = min(rowCount - 1, max(row, other))
         guard lower <= upper else { return }
+        let rows = (lower...upper).filter { !unselectableRows.contains($0) }
+        guard let highestRow = rows.last else { return }
         switch storage {
         case .explicit(var selectedRows):
-            selectedRows.formUnion(lower...upper)
+            selectedRows.formUnion(rows)
             storage = .explicit(selectedRows)
         case .allExcept(var deselectedRows):
-            deselectedRows.subtract(lower...upper)
+            deselectedRows.subtract(rows)
             storage = .allExcept(deselectedRows)
         }
-        anchorRow = upper
+        anchorRow = highestRow
     }
 
     mutating func shiftRows(by offset: Int) {

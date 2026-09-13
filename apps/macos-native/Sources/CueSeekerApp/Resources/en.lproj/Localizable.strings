@@ -64,8 +64,7 @@
 "table.state.cue_missing" = "This cue could not be found in the current subtitle file.";
 "table.result_count.one" = "1 result";
 "table.result_count.other" = "%d results";
-"table.selected_count.one" = "1 row selected";
-"table.selected_count.other" = "%d rows selected";
+"table.selected_count" = "%d / %d rows selected";
 "table.filter" = "Filter";
 "table.select" = "Select";
 "table.exit_select" = "Exit Select";

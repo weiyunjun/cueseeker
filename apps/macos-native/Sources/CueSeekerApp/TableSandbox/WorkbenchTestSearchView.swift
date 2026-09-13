@@ -115,7 +115,10 @@ struct WorkbenchTestSearchView: View {
                         onVisibleRowsChange: hydrateVisibleRows,
                         isSelectionMode: isSelectionMode,
                         isRowSelected: { rowSelection.isSelected($0, rowCount: snapshot.totalRowCount) },
-                        selectionHeaderState: rowSelection.headerState(rowCount: snapshot.totalRowCount),
+                        selectionHeaderState: rowSelection.headerState(
+                            rowCount: snapshot.totalRowCount,
+                            unselectableRows: snapshot.unavailableRows
+                        ),
                         onToggleRowSelection: toggleRowSelection,
                         onShiftRowSelection: shiftSelectRow,
                         onToggleAllSelection: toggleAllRowSelection,
@@ -366,6 +369,10 @@ struct WorkbenchTestSearchView: View {
         let totalRowCount = tableSummaryTotalRowCount
         return SchemaWorkbenchTableSummary(
             totalRowCount: totalRowCount,
+            selectableRowCount: TableSandboxRowSelectionState.selectableCount(
+                rowCount: totalRowCount,
+                unselectableRows: rowStore.snapshot.unavailableRows
+            ),
             selectedRowCount: isSelectionMode
                 ? rowSelection.selectedCount(rowCount: totalRowCount)
                 : 0
@@ -374,7 +381,8 @@ struct WorkbenchTestSearchView: View {
 
     private var canEnterSelectionMode: Bool {
         schemaWorkbenchCanEnterSelectionMode(
-            hasExactResultSet: tableTextCopySource != nil
+            hasExactResultSet: tableTextCopySource != nil,
+            selectableRowCount: tableSummary.selectableRowCount
         )
     }
 
@@ -587,17 +595,28 @@ struct WorkbenchTestSearchView: View {
     }
 
     private func toggleRowSelection(_ row: Int) {
-        rowSelection.toggle(row: row, rowCount: rowStore.snapshot.totalRowCount)
+        rowSelection.toggle(
+            row: row,
+            rowCount: rowStore.snapshot.totalRowCount,
+            unselectableRows: rowStore.snapshot.unavailableRows
+        )
         persistSelection()
     }
 
     private func shiftSelectRow(_ row: Int) {
-        rowSelection.shiftClick(row: row, rowCount: rowStore.snapshot.totalRowCount)
+        rowSelection.shiftClick(
+            row: row,
+            rowCount: rowStore.snapshot.totalRowCount,
+            unselectableRows: rowStore.snapshot.unavailableRows
+        )
         persistSelection()
     }
 
     private func toggleAllRowSelection() {
-        rowSelection.toggleAll(rowCount: rowStore.snapshot.totalRowCount)
+        rowSelection.toggleAll(
+            rowCount: rowStore.snapshot.totalRowCount,
+            unselectableRows: rowStore.snapshot.unavailableRows
+        )
         persistSelection()
     }
 
