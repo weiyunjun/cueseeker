@@ -6,6 +6,14 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Settings now has six categories: General, which gathers Appearance,
+  Search, Language and Deep Link; Play, which gathers Play and Decode;
+  Shortcuts; Subtitle; Maintenance; and Developer. Settings opens on General.
+  Every page lays its settings out as titled groups of rows on cards, each
+  name on the left with its control on the right, and the window opens at 880
+  by 640, cannot be made narrower than that, and scrolls when made shorter.
+  A shortcut conflict's message now appears under its field only while there
+  is one.
 - Added a Subtitle page to Settings, below Shortcuts, that styles and places
   SRT subtitles: font, size, bold, italic, color, letter and line spacing; an
   Outline, Opaque Box or Background Box border with its colors, width and

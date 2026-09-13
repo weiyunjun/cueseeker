@@ -243,20 +243,28 @@ enum WorkbenchControlMetrics {
     static let redesignWorkbenchTopbarHeight: CGFloat = 54
     /// --width-app-sidebar: 240px
     static let redesignAppSidebarWidth: CGFloat = 240
-    /// Provisional --width-settings-sidebar: 184px
+    /// --width-settings-sidebar: 184px
     static let redesignSettingsSidebarWidth: CGFloat = 184
-    /// Provisional --width-settings-window-default: 760px
-    static let redesignSettingsWindowDefaultWidth: CGFloat = 760
-    /// Provisional --height-settings-window-default: 520px
-    static let redesignSettingsWindowDefaultHeight: CGFloat = 520
-    /// Provisional --width-settings-window-min: 760px, wide enough for every
-    /// row of Settings / Subtitle
-    static let redesignSettingsWindowMinimumWidth: CGFloat = 760
-    /// Provisional --width-settings-number-field: 114px, as Settings / Play's
-    /// Auto Switch Gap field
-    static let redesignSettingsNumberFieldWidth: CGFloat = 114
-    /// Provisional --height-settings-window-min: 420px
+    /// --width-settings-window: 880px, the Settings window's default width
+    /// and also its minimum
+    static let redesignSettingsWindowWidth: CGFloat = 880
+    /// --height-settings-window: 640px, the Settings window's default height
+    static let redesignSettingsWindowHeight: CGFloat = 640
+    /// --min-height-settings-window: 420px
     static let redesignSettingsWindowMinimumHeight: CGFloat = 420
+    /// --height-settings-titlebar: 36px, the band the window controls sit in
+    /// above the Settings sidebar and page
+    static let redesignSettingsTitlebarHeight: CGFloat = 36
+    /// --width-settings-number-field: 114px
+    static let redesignSettingsNumberFieldWidth: CGFloat = 114
+    /// --width-settings-popup: 180px
+    static let redesignSettingsPopupWidth: CGFloat = 180
+    /// --radius-settings-group: 10px
+    static let redesignSettingsGroupRadius: CGFloat = 10
+    /// --min-height-settings-row: 52px
+    static let redesignSettingsRowMinHeight: CGFloat = 52
+    /// --padding-settings-row-y: 6px
+    static let redesignSettingsRowVerticalPadding: CGFloat = 6
     /// --height-segmented-control: 32px
     static let redesignSegmentedControlHeight: CGFloat = 32
     /// --padding-segmented-control: 3px

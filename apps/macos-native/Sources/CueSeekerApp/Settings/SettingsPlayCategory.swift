@@ -1,5 +1,6 @@
 import SwiftUI
 
+/// Settings / Play's Play group.
 struct SettingsPlayCategory: View {
     // Observed so the copy below is re-read when the language changes.
     @EnvironmentObject private var localization: AppLocalizationStore
@@ -8,31 +9,17 @@ struct SettingsPlayCategory: View {
     @FocusState private var isGapFieldFocused: Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(L("settings.category.play"))
-                    .font(.title2)
-                    .fontWeight(.semibold)
-            }
-
-            HStack(spacing: 16) {
-                Text(L("settings.play.auto_pause"))
-                    .font(.headline)
-
-                Spacer()
-
+        SettingsGroup(title: L("settings.category.play")) {
+            SettingsRow(L("settings.play.auto_pause")) {
                 Toggle("", isOn: $settingsStore.autoPauseAfterCueFinishesEnabled)
                     .labelsHidden()
                     .toggleStyle(.switch)
                     .focusable(false)
             }
 
-            HStack(spacing: 16) {
-                Text(L("settings.play.auto_switch"))
-                    .font(.headline)
+            SettingsRowDivider()
 
-                Spacer()
-
+            SettingsRow(L("settings.play.auto_switch")) {
                 Toggle("", isOn: $settingsStore.autoSwitchToNextCuesInPlaylistEnabled)
                     .labelsHidden()
                     .toggleStyle(.switch)
@@ -40,26 +27,18 @@ struct SettingsPlayCategory: View {
                     .disabled(!settingsStore.autoPauseAfterCueFinishesEnabled)
             }
 
-            HStack(spacing: 16) {
-                Text(L("settings.play.auto_switch_gap"))
-                    .font(.headline)
+            SettingsRowDivider()
 
-                Spacer()
-
+            SettingsRow(L("settings.play.auto_switch_gap")) {
                 WorkbenchNumberField(
                     placeholder: "\(SettingsStore.autoSwitchCueSequenceGapDefaultMilliseconds)",
                     text: $gapDraft,
                     unit: "ms",
                     focus: $isGapFieldFocused
                 )
-                .frame(width: 114)
+                .frame(width: WorkbenchControlMetrics.redesignSettingsNumberFieldWidth)
             }
-
-            Spacer()
         }
-        .padding(24)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(WorkbenchRedesignColors.bgSurface)
         .onAppear {
             syncGapDraftFromStore()
         }

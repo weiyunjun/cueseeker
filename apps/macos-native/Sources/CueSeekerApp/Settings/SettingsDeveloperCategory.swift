@@ -1,68 +1,74 @@
 import CueSeekerCore
 import SwiftUI
 
+/// Settings / Developer: its switches, then the FTS vocabulary data.
 struct SettingsDeveloperCategory: View {
     // Observed so the copy below is re-read when the language changes.
     @EnvironmentObject private var localization: AppLocalizationStore
-    @Environment(\.colorScheme) private var colorScheme
     @EnvironmentObject private var appState: AppCoordinator
     @EnvironmentObject private var settingsStore: SettingsStore
     @EnvironmentObject private var indexing: IndexingStore
     @EnvironmentObject private var search: SearchStore
 
     var body: some View {
-        WorkbenchScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(L("settings.category.developer"))
-                        .font(.title2)
-                        .fontWeight(.semibold)
-                    Text(L("settings.developer.description"))
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
-
-                HStack(spacing: 16) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(L("settings.developer.e2e_logs"))
-                            .font(.headline)
-                        Text(L("settings.developer.e2e_logs_note"))
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-
-                    Spacer()
-
+        VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing6) {
+            SettingsGroup(
+                title: L("settings.category.developer"),
+                description: L("settings.developer.description")
+            ) {
+                SettingsRow(
+                    L("settings.developer.e2e_logs"),
+                    note: L("settings.developer.e2e_logs_note")
+                ) {
                     Toggle("", isOn: $settingsStore.searchE2ELoggingEnabled)
                         .labelsHidden()
                         .toggleStyle(.switch)
                         .focusable(false)
                 }
 
-                HStack(spacing: 16) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(L("settings.developer.fts_diagnostics"))
-                            .font(.headline)
-                        Text(L("settings.developer.fts_diagnostics_note"))
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
+                SettingsRowDivider()
 
-                    Spacer()
-
+                SettingsRow(
+                    L("settings.developer.fts_diagnostics"),
+                    note: L("settings.developer.fts_diagnostics_note")
+                ) {
                     Toggle("", isOn: $settingsStore.searchFTSVocabularyDiagnosticsEnabled)
                         .labelsHidden()
                         .toggleStyle(.switch)
                         .focusable(false)
                 }
-
-                ftsVocabularyDiagnosticsPanel
             }
-            .padding(24)
-            .frame(maxWidth: .infinity, alignment: .topLeading)
+
+            SettingsGroup(title: L("settings.developer.fts_data")) {
+                SettingsRow {
+                    ftsVocabularyDiagnosticsStatusView
+                } trailing: {
+                    WorkbenchButton(
+                        title: L("settings.maintenance.refresh"),
+                        icon: .arrowClockwise,
+                        isRedesign: true
+                    ) {
+                        appState.refreshSearchFTSVocabularyDiagnostics()
+                    }
+                    .disabled(
+                        !settingsStore.searchFTSVocabularyDiagnosticsEnabled
+                            || indexing.searchFTSVocabularyDiagnosticsStatus.isLoading
+                    )
+                }
+
+                if let diagnostics = indexing.searchFTSVocabularyDiagnostics,
+                   settingsStore.searchFTSVocabularyDiagnosticsEnabled {
+                    SettingsRowDivider()
+
+                    ftsVocabularyDiagnosticsData(diagnostics)
+                        .padding(.horizontal, WorkbenchControlMetrics.redesignSpacing4)
+                        .padding(
+                            .vertical,
+                            WorkbenchControlMetrics.redesignSettingsRowVerticalPadding
+                        )
+                }
+            }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(WorkbenchRedesignColors.bgSurface)
         .onAppear {
             if settingsStore.searchFTSVocabularyDiagnosticsEnabled {
                 appState.refreshSearchFTSVocabularyDiagnostics()
@@ -70,69 +76,41 @@ struct SettingsDeveloperCategory: View {
         }
     }
 
-    private var ftsVocabularyDiagnosticsPanel: some View {
+    /// The loaded vocabulary, laid out as it was before it moved onto the card.
+    private func ftsVocabularyDiagnosticsData(
+        _ diagnostics: SubtitleFTSVocabularyDiagnostics
+    ) -> some View {
         VStack(alignment: .leading, spacing: 14) {
-            HStack(spacing: 12) {
-                Text(L("settings.developer.fts_data"))
-                    .font(.headline)
-
-                Spacer()
-
-                Button {
-                    appState.refreshSearchFTSVocabularyDiagnostics()
-                } label: {
-                    Label { Text(L("settings.maintenance.refresh")) } icon: { AppIconImage(.arrowClockwise, size: WorkbenchControlMetrics.redesignControlIconSize) }
-                }
-                .focusable(false)
-                .disabled(
-                    !settingsStore.searchFTSVocabularyDiagnosticsEnabled
-                        || indexing.searchFTSVocabularyDiagnosticsStatus.isLoading
+            HStack(spacing: 18) {
+                ftsVocabularyMetricView(
+                    title: L("settings.developer.terms"),
+                    value: diagnostics.uniqueTermCount
+                )
+                ftsVocabularyMetricView(
+                    title: L("settings.developer.doc_refs"),
+                    value: diagnostics.totalDocumentReferences
+                )
+                ftsVocabularyMetricView(
+                    title: L("settings.developer.occurrences"),
+                    value: diagnostics.totalOccurrences
                 )
             }
 
-            ftsVocabularyDiagnosticsStatusView
+            Divider()
 
-            if let diagnostics = indexing.searchFTSVocabularyDiagnostics,
-               settingsStore.searchFTSVocabularyDiagnosticsEnabled {
-                HStack(spacing: 18) {
-                    ftsVocabularyMetricView(
-                        title: L("settings.developer.terms"),
-                        value: diagnostics.uniqueTermCount
-                    )
-                    ftsVocabularyMetricView(
-                        title: L("settings.developer.doc_refs"),
-                        value: diagnostics.totalDocumentReferences
-                    )
-                    ftsVocabularyMetricView(
-                        title: L("settings.developer.occurrences"),
-                        value: diagnostics.totalOccurrences
-                    )
-                }
+            ftsVocabularyTermsSection(
+                title: currentQueryTermsTitle,
+                terms: diagnostics.queryTerms,
+                emptyMessage: L("settings.developer.no_query_terms")
+            )
 
-                Divider()
-
-                ftsVocabularyTermsSection(
-                    title: currentQueryTermsTitle,
-                    terms: diagnostics.queryTerms,
-                    emptyMessage: L("settings.developer.no_query_terms")
-                )
-
-                ftsVocabularyTermsSection(
-                    title: L("settings.developer.most_frequent"),
-                    terms: diagnostics.mostFrequentTerms,
-                    emptyMessage: L("settings.developer.no_vocabulary")
-                )
-            }
+            ftsVocabularyTermsSection(
+                title: L("settings.developer.most_frequent"),
+                terms: diagnostics.mostFrequentTerms,
+                emptyMessage: L("settings.developer.no_vocabulary")
+            )
         }
-        .padding(12)
-        .background(diagnosticsPanelBackground)
-        .clipShape(RoundedRectangle(cornerRadius: 8))
-    }
-
-    private var diagnosticsPanelBackground: Color {
-        colorScheme == .dark
-            ? WorkbenchRedesignColors.bgHover
-            : Color.black.opacity(0.035)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     @ViewBuilder

@@ -1,5 +1,7 @@
 import SwiftUI
 
+/// Settings / Maintenance's group: the database's storage, how it stands, and
+/// refreshing and compacting it.
 struct SettingsMaintenanceCategory: View {
     // Observed so the copy below is re-read when the language changes.
     @EnvironmentObject private var localization: AppLocalizationStore
@@ -8,77 +10,65 @@ struct SettingsMaintenanceCategory: View {
     @State private var isShowingCompactConfirmation = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(L("settings.category.maintenance"))
-                    .font(.title2)
-                    .fontWeight(.semibold)
-                Text(L("settings.maintenance.description"))
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+        SettingsGroup(
+            title: L("settings.category.maintenance"),
+            description: L("settings.maintenance.description")
+        ) {
+            if let stats = indexing.databaseStorageStats {
+                storageRow(L("settings.maintenance.database_size"), bytes: stats.databaseFileBytes)
+                SettingsRowDivider()
+                storageRow(L("settings.maintenance.used_estimate"), bytes: stats.usedBytesEstimate)
+                SettingsRowDivider()
+                storageRow(L("settings.maintenance.reclaimable"), bytes: stats.freelistBytes)
+                SettingsRowDivider()
+                storageRow(L("settings.maintenance.wal_size"), bytes: stats.walFileBytes)
+                SettingsRowDivider()
+                storageRow(L("settings.maintenance.shm_size"), bytes: stats.shmFileBytes)
+                SettingsRowDivider()
             }
 
-            VStack(alignment: .leading, spacing: 12) {
-                maintenanceStatusView
-
-                if let stats = indexing.databaseStorageStats {
-                    VStack(alignment: .leading, spacing: 8) {
-                        storageRow(L("settings.maintenance.database_size"), bytes: stats.databaseFileBytes)
-                        storageRow(L("settings.maintenance.used_estimate"), bytes: stats.usedBytesEstimate)
-                        storageRow(L("settings.maintenance.reclaimable"), bytes: stats.freelistBytes)
-                        storageRow(L("settings.maintenance.wal_size"), bytes: stats.walFileBytes)
-                        storageRow(L("settings.maintenance.shm_size"), bytes: stats.shmFileBytes)
+            SettingsRow {
+                VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing1) {
+                    maintenanceStatusView
+                    storageStateView
+                }
+            } trailing: {
+                HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
+                    WorkbenchButton(
+                        title: L("settings.maintenance.refresh"),
+                        icon: .arrowClockwise,
+                        isRedesign: true
+                    ) {
+                        appState.refreshDatabaseStorageStats()
                     }
-                    .padding(.vertical, 4)
+                    .disabled(
+                        indexing.folderRemovalStatus.isRemoving
+                            || indexing.databaseMaintenanceStatus.isCompacting
+                    )
 
-                    if appState.isDatabaseCompactionRecommended {
-                        Label { Text(L("settings.maintenance.compaction_recommended")) } icon: { AppIconImage(.warningCircle, size: WorkbenchControlMetrics.redesignControlIconSize) }
-                            .font(.caption)
-                            .foregroundStyle(.orange)
-                    } else {
-                        Label { Text(L("settings.maintenance.within_threshold")) } icon: { AppIconImage(.checkCircle, size: WorkbenchControlMetrics.redesignControlIconSize) }
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                    WorkbenchButton(
+                        title: L("settings.maintenance.compact"),
+                        icon: .fileArrowDown,
+                        isRedesign: true
+                    ) {
+                        isShowingCompactConfirmation = true
                     }
-                } else {
-                    Text(L("settings.maintenance.stats_unavailable"))
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                    .disabled(!appState.canCompactDatabase)
                 }
             }
 
-            HStack(spacing: 8) {
-                Button {
-                    appState.refreshDatabaseStorageStats()
-                } label: {
-                    Label { Text(L("settings.maintenance.refresh")) } icon: { AppIconImage(.arrowClockwise, size: WorkbenchControlMetrics.redesignControlIconSize) }
-                }
-                .focusable(false)
-                .disabled(
-                    indexing.folderRemovalStatus.isRemoving
-                        || indexing.databaseMaintenanceStatus.isCompacting
-                )
+            SettingsRowDivider()
 
-                Button {
-                    isShowingCompactConfirmation = true
-                } label: {
-                    Label { Text(L("settings.maintenance.compact")) } icon: { AppIconImage(.fileArrowDown, size: WorkbenchControlMetrics.redesignControlIconSize) }
-                }
-                .focusable(false)
-                .disabled(!appState.canCompactDatabase)
+            SettingsRow {
+                Text(L("settings.library.database_path", appState.databaseURL.path))
+                    .font(.system(size: WorkbenchControlMetrics.redesignFontSizeCaption))
+                    .foregroundStyle(WorkbenchRedesignColors.textMuted)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            } trailing: {
+                EmptyView()
             }
-
-            Text(L("settings.library.database_path", appState.databaseURL.path))
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-                .truncationMode(.middle)
-
-            Spacer()
         }
-        .padding(24)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(WorkbenchRedesignColors.bgSurface)
         .onAppear {
             appState.refreshDatabaseStorageStats()
         }
@@ -92,48 +82,78 @@ struct SettingsMaintenanceCategory: View {
         }
     }
 
+    /// What maintenance is doing, or last did.
     @ViewBuilder
     private var maintenanceStatusView: some View {
         switch indexing.databaseMaintenanceStatus {
         case .idle:
             EmptyView()
         case .loadingStats:
-            HStack(spacing: 8) {
-                ProgressView()
-                    .controlSize(.small)
-                Text(L("settings.maintenance.loading_stats"))
-                    .font(.subheadline)
-            }
+            progressLabel(L("settings.maintenance.loading_stats"))
         case .compacting:
-            HStack(spacing: 8) {
-                ProgressView()
-                    .controlSize(.small)
-                Text(L("settings.maintenance.compacting"))
-                    .font(.subheadline)
-            }
+            progressLabel(L("settings.maintenance.compacting"))
         case .completed(let message):
-            Label { Text(message) } icon: { AppIconImage(.checkCircle, size: WorkbenchControlMetrics.redesignControlIconSize) }
-                .font(.subheadline)
-                .foregroundStyle(.green)
+            statusLabel(message, icon: .checkCircle, color: WorkbenchRedesignColors.successText)
         case .failed(let message):
-            Label { Text(message) } icon: { AppIconImage(.warning, size: WorkbenchControlMetrics.redesignControlIconSize) }
-                .font(.subheadline)
-                .foregroundStyle(.red)
+            statusLabel(message, icon: .warning, color: WorkbenchRedesignColors.dangerText)
         }
     }
 
-    private func storageRow(_ title: String, bytes: Int64) -> some View {
-        metricRow(title, value: Self.formattedBytes(bytes))
+    /// Whether the storage needs compacting.
+    @ViewBuilder
+    private var storageStateView: some View {
+        if indexing.databaseStorageStats == nil {
+            statusLabel(
+                L("settings.maintenance.stats_unavailable"),
+                icon: nil,
+                color: WorkbenchRedesignColors.textSecondary
+            )
+        } else if appState.isDatabaseCompactionRecommended {
+            statusLabel(
+                L("settings.maintenance.compaction_recommended"),
+                icon: .warningCircle,
+                color: WorkbenchRedesignColors.warningText
+            )
+        } else {
+            statusLabel(
+                L("settings.maintenance.within_threshold"),
+                icon: .checkCircle,
+                color: WorkbenchRedesignColors.textSecondary
+            )
+        }
     }
 
-    private func metricRow(_ title: String, value: String) -> some View {
-        HStack(spacing: 16) {
-            Text(title)
-                .font(.subheadline)
-            Spacer()
-            Text(value)
-                .font(.system(.subheadline, design: .monospaced))
-                .foregroundStyle(.secondary)
+    private func statusLabel(_ text: String, icon: AppIcon?, color: Color) -> some View {
+        HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
+            if let icon {
+                AppIconImage(icon, size: WorkbenchControlMetrics.redesignButtonIconSize)
+            }
+
+            Text(text)
+                .font(.system(size: WorkbenchControlMetrics.redesignFontSizeBody))
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .foregroundStyle(color)
+    }
+
+    private func progressLabel(_ text: String) -> some View {
+        HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
+            ProgressView()
+                .controlSize(.small)
+
+            Text(text)
+                .font(.system(size: WorkbenchControlMetrics.redesignFontSizeBody))
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .foregroundStyle(WorkbenchRedesignColors.textSecondary)
+    }
+
+    private func storageRow(_ title: String, bytes: Int64) -> some View {
+        SettingsRow(title) {
+            Text(Self.formattedBytes(bytes))
+                .font(.system(size: WorkbenchControlMetrics.redesignFontSizeBody))
+                .monospacedDigit()
+                .foregroundStyle(WorkbenchRedesignColors.textSecondary)
         }
     }
 

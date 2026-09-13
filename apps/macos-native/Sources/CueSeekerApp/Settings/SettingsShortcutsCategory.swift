@@ -9,7 +9,8 @@ enum SettingsShortcutsMetrics {
 }
 
 /// Settings / Shortcuts. See `docs/human/requirements/20260912-Feature-Playback
-/// Keyboard Shortcut Rebinding.md`.
+/// Keyboard Shortcut Rebinding.md` and `docs/human/requirements/20260914-UI-
+/// Settings Categories Merge And Grouped Card Layout.md`.
 struct SettingsShortcutsCategory: View {
     // Observed so the copy below is re-read when the language changes.
     @EnvironmentObject private var localization: AppLocalizationStore
@@ -17,34 +18,11 @@ struct SettingsShortcutsCategory: View {
     @StateObject private var recorder = PlaybackShortcutRecorder()
 
     var body: some View {
-        WorkbenchScrollView {
-            VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing6) {
-                Text(L("settings.category.shortcuts"))
-                    .font(.title2)
-                    .fontWeight(.semibold)
-
-                // The names share one column, as wide as the longest of them.
-                Grid(
-                    alignment: .topLeading,
-                    horizontalSpacing: WorkbenchControlMetrics.redesignSpacing6,
-                    verticalSpacing: 0
-                ) {
-                    row(.openCommandPanel)
-                    sectionTitle(L("settings.shortcuts.section.playback"))
-                    ForEach(actions(in: .playback)) { action in
-                        row(action)
-                    }
-                    sectionTitle(L("settings.shortcuts.section.overlay"))
-                    ForEach(actions(in: .overlay)) { action in
-                        row(action)
-                    }
-                }
-            }
-            .padding(WorkbenchControlMetrics.redesignSpacing6)
-            .frame(maxWidth: .infinity, alignment: .topLeading)
+        VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing6) {
+            group(L("settings.category.shortcuts"), .global)
+            group(L("settings.shortcuts.section.playback"), .playback)
+            group(L("settings.shortcuts.section.overlay"), .overlay)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(WorkbenchRedesignColors.bgSurface)
         // A key reaches a recording shortcut one of two ways: the App menu's
         // shortcuts go to the window as key equivalents before any key-down
         // monitor sees them, and every other key comes through the monitor.
@@ -55,28 +33,22 @@ struct SettingsShortcutsCategory: View {
         }
     }
 
-    private func actions(in group: PlaybackShortcutGroup) -> [PlaybackShortcutAction] {
-        PlaybackShortcutAction.allCases.filter { $0.group == group }
-    }
+    private func group(_ title: String, _ group: PlaybackShortcutGroup) -> some View {
+        let actions = PlaybackShortcutAction.allCases.filter { $0.group == group }
 
-    private func sectionTitle(_ title: String) -> some View {
-        GridRow {
-            Text(title)
-                .font(.system(
-                    size: WorkbenchControlMetrics.redesignFontSizeSectionTitle,
-                    weight: .semibold
-                ))
-                .foregroundStyle(WorkbenchRedesignColors.textPrimary)
-                .padding(.top, WorkbenchControlMetrics.redesignSpacing4)
-                .padding(.bottom, WorkbenchControlMetrics.redesignSpacing3)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .gridCellColumns(2)
-                .gridCellUnsizedAxes(.horizontal)
+        return SettingsGroup(title: title) {
+            ForEach(actions) { action in
+                if action != actions.first {
+                    SettingsRowDivider()
+                }
+                row(action)
+            }
         }
     }
 
-    /// The name, the key field with its Restore Default button, and below the
-    /// field the one line its message is kept in, which also spaces the rows.
+    /// The name, then the key field with its Restore Default button. A message
+    /// takes a line below the field only while there is one, so the row grows
+    /// for it and shrinks back.
     private func row(_ action: PlaybackShortcutAction) -> some View {
         let keymap = shortcuts.keymap
         let isRecording = recorder.recordingAction == action
@@ -84,12 +56,8 @@ struct SettingsShortcutsCategory: View {
             ? recorder.rejection?.message
             : conflictMessage(keymap.conflicts(for: action))
 
-        return GridRow {
-            Text(action.title)
-                .font(.headline)
-                .frame(height: WorkbenchControlMetrics.redesignFieldHeight)
-
-            VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing1) {
+        return SettingsRow(action.title) {
+            VStack(alignment: .trailing, spacing: WorkbenchControlMetrics.redesignSpacing1) {
                 HStack(spacing: WorkbenchControlMetrics.redesignSpacing1) {
                     PlaybackShortcutField(
                         key: keymap.key(for: action),
@@ -116,7 +84,22 @@ struct SettingsShortcutsCategory: View {
                     .disabled(keymap.isDefault(action))
                 }
 
-                WorkbenchValidationMessage(text: message)
+                // Starts under the field; a message longer than the field and
+                // its button runs back toward the name instead of past the card.
+                if let message {
+                    WorkbenchValidationMessage(text: message)
+                        .fixedSize()
+                        .frame(
+                            minWidth: SettingsShortcutsMetrics.fieldWidth
+                                + WorkbenchControlMetrics.redesignSpacing1
+                                + WorkbenchControlMetrics.redesignIconButtonSize,
+                            alignment: .leading
+                        )
+                }
+            }
+            // The name stays level with the field while a message shows.
+            .alignmentGuide(VerticalAlignment.center) { _ in
+                WorkbenchControlMetrics.redesignFieldHeight / 2
             }
         }
     }

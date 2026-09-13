@@ -4,7 +4,8 @@ import SwiftUI
 
 /// Settings / Subtitle: how SRT subtitles look and where they sit. See
 /// `docs/human/requirements/20260913-Feature-SRT Subtitle Style And Position
-/// Settings.md`.
+/// Settings.md` and `docs/human/requirements/20260914-UI-Settings Categories
+/// Merge And Grouped Card Layout.md`.
 struct SettingsSubtitleCategory: View {
     // Observed so the copy below is re-read when the language changes.
     @EnvironmentObject private var localization: AppLocalizationStore
@@ -14,109 +15,105 @@ struct SettingsSubtitleCategory: View {
     var body: some View {
         let style = settingsStore.srtSubtitleStyle
 
-        WorkbenchScrollView {
-            VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing6) {
-                Text(L("settings.category.subtitle"))
-                    .font(.title2)
-                    .fontWeight(.semibold)
+        VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing6) {
+            SettingsGroup(title: L("settings.subtitle.section.text")) {
+                row(L("settings.subtitle.font"), isFirst: true) {
+                    HStack(spacing: WorkbenchControlMetrics.redesignSpacing3) {
+                        Text(fontTitle(style.fontName))
+                            .font(.system(size: WorkbenchControlMetrics.redesignFontSizeBody))
+                            .foregroundStyle(WorkbenchRedesignColors.textPrimary)
+                            .lineLimit(1)
 
-                // The names share one column, as wide as the longest of them.
-                Grid(
-                    alignment: .leading,
-                    horizontalSpacing: WorkbenchControlMetrics.redesignSpacing6,
-                    verticalSpacing: WorkbenchControlMetrics.redesignSpacing3
-                ) {
-                    sectionTitle(L("settings.subtitle.section.text"), isFirst: true)
-                    row(L("settings.subtitle.font")) {
-                        HStack(spacing: WorkbenchControlMetrics.redesignSpacing3) {
-                            Text(fontTitle(style.fontName))
-                                .font(.system(size: WorkbenchControlMetrics.redesignFontSizeBody))
-                                .foregroundStyle(WorkbenchRedesignColors.textPrimary)
-                                .lineLimit(1)
-
-                            WorkbenchButton(
-                                title: L("settings.subtitle.choose_font"),
-                                isRedesign: true
-                            ) {
-                                fontPanel.open(fontName: style.fontName) { fontName in
-                                    settingsStore.srtSubtitleStyle.fontName = fontName
-                                }
+                        WorkbenchButton(
+                            title: L("settings.subtitle.choose_font"),
+                            isRedesign: true
+                        ) {
+                            fontPanel.open(fontName: style.fontName) { fontName in
+                                settingsStore.srtSubtitleStyle.fontName = fontName
                             }
                         }
                     }
-                    row(L("settings.subtitle.size")) {
-                        numberField(\.size, minimum: SRTSubtitleStyle.minimumSize)
-                    }
-                    row(L("settings.subtitle.style")) {
-                        HStack(spacing: WorkbenchControlMetrics.redesignSpacing6) {
-                            checkbox(L("settings.subtitle.bold"), \.isBold)
-                            checkbox(L("settings.subtitle.italic"), \.isItalic)
-                        }
-                    }
-                    row(L("settings.subtitle.color")) {
-                        colorWell(\.textColor)
-                    }
-                    row(L("settings.subtitle.letter_spacing")) {
-                        numberField(\.letterSpacing, minimum: nil)
-                    }
-                    row(L("settings.subtitle.line_spacing")) {
-                        numberField(\.lineSpacing, minimum: 0)
-                    }
-
-                    sectionTitle(L("settings.subtitle.section.border"))
-                    row(L("settings.subtitle.border_type")) {
-                        segmentedControl(\.borderType)
-                    }
-                    row(
-                        L("settings.subtitle.outline_color"),
-                        isEnabled: style.borderType != .opaqueBox
-                    ) {
-                        colorWell(\.outlineColor)
-                    }
-                    row(
-                        L("settings.subtitle.outline_width"),
-                        isEnabled: style.borderType != .opaqueBox
-                    ) {
-                        numberField(\.outlineWidth, minimum: 0)
-                    }
-                    row(
-                        L("settings.subtitle.background_color"),
-                        isEnabled: style.borderType != .outline
-                    ) {
-                        colorWell(\.backgroundColor)
-                    }
-                    row(L("settings.subtitle.blur")) {
-                        numberField(\.blur, minimum: 0)
-                    }
-
-                    sectionTitle(L("settings.subtitle.section.shadow"))
-                    row(
-                        L("settings.subtitle.shadow_color"),
-                        isEnabled: style.borderType != .backgroundBox
-                    ) {
-                        colorWell(\.shadowColor)
-                    }
-                    row(
-                        L("settings.subtitle.shadow_offset"),
-                        isEnabled: style.borderType != .backgroundBox
-                    ) {
-                        numberField(\.shadowOffset, minimum: 0)
-                    }
-
-                    sectionTitle(L("settings.subtitle.section.position"))
-                    row(L("settings.subtitle.horizontal")) {
-                        segmentedControl(\.horizontalAlignment)
-                    }
-                    row(L("settings.subtitle.margin_x")) {
-                        numberField(\.marginX, minimum: 0)
-                    }
-                    row(L("settings.subtitle.vertical")) {
-                        segmentedControl(\.verticalAlignment)
-                    }
-                    row(L("settings.subtitle.margin_y")) {
-                        numberField(\.marginY, minimum: 0)
+                }
+                row(L("settings.subtitle.size")) {
+                    numberField(\.size, minimum: SRTSubtitleStyle.minimumSize)
+                }
+                row(L("settings.subtitle.style")) {
+                    HStack(spacing: WorkbenchControlMetrics.redesignSpacing6) {
+                        checkbox(L("settings.subtitle.bold"), \.isBold)
+                        checkbox(L("settings.subtitle.italic"), \.isItalic)
                     }
                 }
+                row(L("settings.subtitle.color")) {
+                    colorWell(\.textColor)
+                }
+                row(L("settings.subtitle.letter_spacing")) {
+                    numberField(\.letterSpacing, minimum: nil)
+                }
+                row(L("settings.subtitle.line_spacing")) {
+                    numberField(\.lineSpacing, minimum: 0)
+                }
+            }
+
+            SettingsGroup(title: L("settings.subtitle.section.border")) {
+                row(L("settings.subtitle.border_type"), isFirst: true) {
+                    segmentedControl(\.borderType)
+                }
+                row(
+                    L("settings.subtitle.outline_color"),
+                    isEnabled: style.borderType != .opaqueBox
+                ) {
+                    colorWell(\.outlineColor)
+                }
+                row(
+                    L("settings.subtitle.outline_width"),
+                    isEnabled: style.borderType != .opaqueBox
+                ) {
+                    numberField(\.outlineWidth, minimum: 0)
+                }
+                row(
+                    L("settings.subtitle.background_color"),
+                    isEnabled: style.borderType != .outline
+                ) {
+                    colorWell(\.backgroundColor)
+                }
+                row(L("settings.subtitle.blur")) {
+                    numberField(\.blur, minimum: 0)
+                }
+            }
+
+            SettingsGroup(title: L("settings.subtitle.section.shadow")) {
+                row(
+                    L("settings.subtitle.shadow_color"),
+                    isFirst: true,
+                    isEnabled: style.borderType != .backgroundBox
+                ) {
+                    colorWell(\.shadowColor)
+                }
+                row(
+                    L("settings.subtitle.shadow_offset"),
+                    isEnabled: style.borderType != .backgroundBox
+                ) {
+                    numberField(\.shadowOffset, minimum: 0)
+                }
+            }
+
+            SettingsGroup(title: L("settings.subtitle.section.position")) {
+                row(L("settings.subtitle.horizontal"), isFirst: true) {
+                    segmentedControl(\.horizontalAlignment)
+                }
+                row(L("settings.subtitle.margin_x")) {
+                    numberField(\.marginX, minimum: 0)
+                }
+                row(L("settings.subtitle.vertical")) {
+                    segmentedControl(\.verticalAlignment)
+                }
+                row(L("settings.subtitle.margin_y")) {
+                    numberField(\.marginY, minimum: 0)
+                }
+            }
+
+            HStack(spacing: 0) {
+                Spacer(minLength: 0)
 
                 WorkbenchButton(
                     title: L("settings.subtitle.restore_defaults"),
@@ -127,48 +124,25 @@ struct SettingsSubtitleCategory: View {
                 }
                 .disabled(style == SRTSubtitleStyle())
             }
-            .padding(WorkbenchControlMetrics.redesignSpacing6)
-            .frame(maxWidth: .infinity, alignment: .topLeading)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(WorkbenchRedesignColors.bgSurface)
         .onDisappear {
             fontPanel.close()
         }
     }
 
-    /// A section after the first sits one group gap below the row above it.
-    private func sectionTitle(_ title: String, isFirst: Bool = false) -> some View {
-        GridRow {
-            Text(title)
-                .font(.system(
-                    size: WorkbenchControlMetrics.redesignFontSizeSectionTitle,
-                    weight: .semibold
-                ))
-                .foregroundStyle(WorkbenchRedesignColors.textPrimary)
-                .padding(
-                    .top,
-                    isFirst
-                        ? 0
-                        : WorkbenchControlMetrics.redesignSpacing4
-                            - WorkbenchControlMetrics.redesignSpacing3
-                )
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .gridCellColumns(2)
-                .gridCellUnsizedAxes(.horizontal)
-        }
-    }
-
+    /// A row, with the line above it unless it opens its card.
+    @ViewBuilder
     private func row<Content: View>(
         _ title: String,
+        isFirst: Bool = false,
         isEnabled: Bool = true,
         @ViewBuilder content: () -> Content
     ) -> some View {
-        GridRow {
-            Text(title)
-                .font(.headline)
-                .frame(minHeight: WorkbenchControlMetrics.redesignFieldHeight)
+        if !isFirst {
+            SettingsRowDivider()
+        }
 
+        SettingsRow(title) {
             content()
                 .disabled(!isEnabled)
         }

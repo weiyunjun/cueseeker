@@ -370,8 +370,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             contentRect: NSRect(
                 x: 0,
                 y: 0,
-                width: WorkbenchControlMetrics.redesignSettingsWindowDefaultWidth,
-                height: WorkbenchControlMetrics.redesignSettingsWindowDefaultHeight
+                width: WorkbenchControlMetrics.redesignSettingsWindowWidth,
+                height: WorkbenchControlMetrics.redesignSettingsWindowHeight
             ),
             styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
             backing: .buffered,
@@ -381,7 +381,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         settingsWindow.titleVisibility = .hidden
         settingsWindow.titlebarAppearsTransparent = true
         settingsWindow.minSize = NSSize(
-            width: WorkbenchControlMetrics.redesignSettingsWindowMinimumWidth,
+            width: WorkbenchControlMetrics.redesignSettingsWindowWidth,
             height: WorkbenchControlMetrics.redesignSettingsWindowMinimumHeight
         )
         settingsWindow.isReleasedWhenClosed = false

@@ -1,14 +1,10 @@
 import SwiftUI
 
 private enum SettingsCategory: String, CaseIterable, Identifiable {
+    case general
     case play
     case shortcuts
     case subtitle
-    case appearance
-    case search
-    case language
-    case urlScheme
-    case decode
     case maintenance
     case developer
 
@@ -16,22 +12,14 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
+        case .general:
+            L("settings.category.general")
         case .play:
             L("settings.category.play")
         case .shortcuts:
             L("settings.category.shortcuts")
         case .subtitle:
             L("settings.category.subtitle")
-        case .appearance:
-            L("settings.category.appearance")
-        case .search:
-            L("settings.category.search")
-        case .language:
-            L("settings.category.language")
-        case .urlScheme:
-            "Deep Link"
-        case .decode:
-            L("settings.category.decode")
         case .maintenance:
             L("settings.category.maintenance")
         case .developer:
@@ -41,22 +29,14 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
 
     var icon: AppIcon {
         switch self {
+        case .general:
+            .gearFine
         case .play:
             .play
         case .shortcuts:
             .keyboard
         case .subtitle:
             .subtitles
-        case .appearance:
-            .circleHalf
-        case .search:
-            .magnifyingGlass
-        case .language:
-            .globe
-        case .urlScheme:
-            .linkSimple
-        case .decode:
-            .video
         case .maintenance:
             .hardDrives
         case .developer:
@@ -74,7 +54,7 @@ struct SettingsView: View {
     @EnvironmentObject private var settingsStore: SettingsStore
     // Observed so the category titles are re-read when the language changes.
     @EnvironmentObject private var localization: AppLocalizationStore
-    @State private var selectedCategory: SettingsCategory = .play
+    @State private var selectedCategory: SettingsCategory = .general
 
     var body: some View {
         HStack(spacing: 0) {
@@ -85,13 +65,17 @@ struct SettingsView: View {
                 .fill(WorkbenchRedesignColors.borderDivider)
                 .frame(width: WorkbenchControlMetrics.hairlineWidth)
 
-            selectedContent
-                .padding(.top, WorkbenchControlMetrics.redesignAppTopbarHeight)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            SettingsPage(title: selectedCategory.title) {
+                selectedContent
+            }
+            // Each category opens scrolled to its top.
+            .id(selectedCategory)
+            .padding(.top, WorkbenchControlMetrics.redesignSettingsTitlebarHeight)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .ignoresSafeArea(.container, edges: .top)
         .frame(
-            minWidth: WorkbenchControlMetrics.redesignSettingsWindowMinimumWidth,
+            minWidth: WorkbenchControlMetrics.redesignSettingsWindowWidth,
             minHeight: WorkbenchControlMetrics.redesignSettingsWindowMinimumHeight
         )
         .background(WorkbenchRedesignColors.bgSurface)
@@ -161,35 +145,29 @@ struct SettingsView: View {
 
             Spacer()
         }
-        .padding(
-            .top,
-            WorkbenchControlMetrics.redesignAppTopbarHeight
-                + WorkbenchControlMetrics.redesignAppSidebarVerticalPadding
-        )
+        .padding(.top, WorkbenchControlMetrics.redesignSettingsTitlebarHeight)
         .padding(.horizontal, WorkbenchControlMetrics.redesignAppSidebarHorizontalPadding)
         .padding(.bottom, WorkbenchControlMetrics.redesignAppSidebarVerticalPadding)
         .background(WorkbenchRedesignColors.appSidebarBg)
     }
 
+    /// The groups on the selected category's page. General and Play gather
+    /// what used to be separate categories, one group each.
     @ViewBuilder
     private var selectedContent: some View {
         switch selectedCategory {
+        case .general:
+            SettingsAppearanceCategory()
+            SettingsSearchCategory()
+            SettingsLanguageCategory()
+            SettingsURLSchemeCategory()
         case .play:
             SettingsPlayCategory()
+            SettingsDecodeCategory()
         case .shortcuts:
             SettingsShortcutsCategory()
         case .subtitle:
             SettingsSubtitleCategory()
-        case .appearance:
-            SettingsAppearanceCategory()
-        case .search:
-            SettingsSearchCategory()
-        case .language:
-            SettingsLanguageCategory()
-        case .urlScheme:
-            SettingsURLSchemeCategory()
-        case .decode:
-            SettingsDecodeCategory()
         case .maintenance:
             SettingsMaintenanceCategory()
         case .developer:

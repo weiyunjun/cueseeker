@@ -250,6 +250,7 @@
 "settings.window.title" = "设置";
 
 /* Settings categories */
+"settings.category.general" = "通用";
 "settings.category.play" = "播放";
 "settings.category.shortcuts" = "快捷键";
 "settings.category.appearance" = "外观";

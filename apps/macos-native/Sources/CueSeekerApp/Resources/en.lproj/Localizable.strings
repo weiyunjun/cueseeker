@@ -250,6 +250,7 @@
 "settings.window.title" = "Settings";
 
 /* Settings categories */
+"settings.category.general" = "General";
 "settings.category.play" = "Play";
 "settings.category.shortcuts" = "Shortcuts";
 "settings.category.appearance" = "Appearance";
