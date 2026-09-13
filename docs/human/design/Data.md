@@ -61,24 +61,24 @@ LibraryID
  ├── VideoID
  ├── SubtitleID
  │    └── CueID
- │          └── ShioriID
+ │          └── ExcerptID
 ```
 
 LibraryID：用户添加的资料库文件夹。
 VideoID：视频文件（例如1.mkv），观看状态和进度属于它。
 SubtitleID：字幕文件（例如1.ass）。
 CueID：对于SRT字幕而言是一条字幕的ID，对于ASS字幕而言是一条Event的ID。注意此处与CueGroup区分开来。
-ShioriID：收藏记录。
+ExcerptID：收藏记录。
 
 ## 补充说明
 1. 资料库、视频和字幕都以当前绝对路径为身份；视频和字幕另存相对于资料库的路径。
-2. 观看状态、播放进度、播放历史引用 `VideoID`。字幕事件引用 `SubtitleID`。Shiori 引用 `CueID`。标签引用 `ShioriID`。字幕与视频的匹配关系保存 `SubtitleID + VideoID`。
+2. 观看状态、播放进度、播放历史引用 `VideoID`。字幕事件引用 `SubtitleID`。Excerpt 引用 `CueID`。标签引用 `ExcerptID`。字幕与视频的匹配关系保存 `SubtitleID + VideoID`。
 3. `VideoID` 和 `SubtitleID` 是一对多的关系。
-4. App 内改名只改路径，保持全部 ID；观看状态、播放进度、播放历史、Shiori 与封面随之保留，改名后无需 Index。
+4. App 内改名只改路径，保持全部 ID；观看状态、播放进度、播放历史、Excerpt 与封面随之保留，改名后无需 Index。
 
 ## 暂时不做
 1. index的日志功能，注意需要对## 失败处理中的情况做显著标记。等Rust Core迁移完成才开始动工。
-2. missing shioris的locate功能，将其绑定到新的位于数据库中的字幕文件，并通过后端校验后完成CueID的迁移。这里等Rust Core迁移完成才开始动工。
+2. missing excerpts的locate功能，将其绑定到新的位于数据库中的字幕文件，并通过后端校验后完成CueID的迁移。这里等Rust Core迁移完成才开始动工。
 3. 旧文件和新文件的身份认定问题。
 
 ## 备忘

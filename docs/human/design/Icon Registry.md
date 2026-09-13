@@ -42,11 +42,11 @@
 | `caret-down` | Regular | 已展开 | Library File Tree 展开态 |
 | `sidebar-simple` | Regular | 折叠、展开 Sidebar | Sidebar Toggle |
 | `arrow-left` | Regular | 返回上一级 | Command Panel Secondary / Back Action |
-| `arrow-right` | Regular | 送往列表 | 表格行菜单 / Save to Shiori ...、Move to ...、Duplicate to ... |
+| `arrow-right` | Regular | 送往列表 | 表格行菜单 / Save to Excerpt List、Move to ...、Duplicate to ... |
 | `x` | Regular | 关闭、清除、移除 | Icon Button / Inline Clear；Icon Button / Dialog Close；Task Card / Remove Action |
 | `check` | Regular | 已选 | Radio Menu Item |
 | `magnifying-glass` | Regular | 搜索 | Search Field；Sidebar Item / Search；Settings / Search；Command Panel Root / Search Action；Playback Overlay 选中文字菜单 / Search Selected Text |
-| `funnel` | Regular | 筛选 | Search / Shiori Toolbar / Filter Trigger |
+| `funnel` | Regular | 筛选 | Search / Excerpt Toolbar / Filter Trigger |
 | `arrow-elbow-down-left` | Regular | 回车键 | Keycap / `Return`，16px |
 
 ## 3.2 页面与入口
@@ -55,8 +55,8 @@
 | --- | --- | --- | --- |
 | `squares-four` | Regular | Library | Sidebar Item / Library |
 | `folder` | Regular | 文件夹 | Sidebar Item / File；表格行菜单 / Open Subtitle Folder；Library 卡片菜单 / Open Folder；Library File Tree / Root Path、Object Folder；Export to Anki Dialog / Location；File Page 空状态，47px |
-| `bookmark-simple` | Regular | Shiori | Sidebar Item / Shiori；Command Panel Root / Recent Shioris；表格行菜单 / Remove Shiori；Playback Feedback（移出 Shiori）；Shiori 封面占位，57px |
-| `bookmark-simple` | Fill | 已存入 Shiori | Playback Feedback（Save to Shiori） |
+| `bookmark-simple` | Regular | Excerpt | Sidebar Item / Excerpt；Command Panel Root / Recent Excerpt Lists；表格行菜单 / Remove Excerpt；Playback Feedback（移出 Excerpt）；Excerpt List 封面占位，57px |
+| `bookmark-simple` | Fill | 已存入 Excerpt | Playback Feedback（Save to Excerpt List） |
 | `clock` | Regular | 最近、时长 | Sidebar Item / Recent；Filter Menu / Duration |
 | `gear` | Regular | 设置 | Settings Entry |
 | `list-checks` | Regular | 任务 | Task Entry |
@@ -91,8 +91,8 @@
 | 图标 | 字重 | 含义 | 使用位置 |
 | --- | --- | --- | --- |
 | `pencil-simple` | Regular | 重命名、编辑封面 | Library File Tree 菜单 / Rename Folder、Rename Files；Cover / Editor Action |
-| `note-pencil` | Regular | 编辑、选择模式 | Search / Shiori Toolbar / Select Mode Action；Shiori 卡片菜单 / Edit List；Playback Topbar / Collage Action |
-| `trash` | Regular | 删除 | Shiori 卡片菜单 / Delete List；Task Card / Delete Action |
+| `note-pencil` | Regular | 编辑、选择模式 | Search / Excerpt Toolbar / Select Mode Action；Excerpt List 卡片菜单 / Edit List；Playback Topbar / Collage Action |
+| `trash` | Regular | 删除 | Excerpt List 卡片菜单 / Delete List；Task Card / Delete Action |
 | `copy` | Regular | 复制 | 表格行菜单 / Copy Cue Text、Copy Cue Group Text、Copy Time Range；Collage Editor / Copy；Playback Overlay 选中文字菜单 / Copy Selected Text |
 | `export` | Regular | 导出、更换封面 | Collage Editor / Export；Library 卡片菜单 / Change Cover |
 | `link-simple` | Regular | 链接 | 表格行菜单 / Copy Deep Link；Settings / URL Scheme；Anki 卡片 / Deep Link，20px |
