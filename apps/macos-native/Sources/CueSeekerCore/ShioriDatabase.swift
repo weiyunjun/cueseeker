@@ -54,7 +54,7 @@ public final class ShioriDatabase: @unchecked Sendable {
                  ''
                ),
                sf.id
-        FROM shioris s
+        FROM excerpts s
         LEFT JOIN subtitle_cue_lines l ON l.id = s.cue_id
         LEFT JOIN cue_tombstones t ON t.cue_id = s.cue_id
         LEFT JOIN subtitle_files sf
@@ -103,7 +103,7 @@ public final class ShioriDatabase: @unchecked Sendable {
 
         let statement = try database.prepare(
             """
-            INSERT INTO shioris(list_id, cue_id, created_at)
+            INSERT INTO excerpts(list_id, cue_id, created_at)
             VALUES (?, ?, ?)
             ON CONFLICT(list_id, cue_id) DO NOTHING;
             """
@@ -154,7 +154,7 @@ public final class ShioriDatabase: @unchecked Sendable {
             return false
         }
         return try database.withImmediateTransaction {
-            let statement = try database.prepare("DELETE FROM shioris WHERE id = ?;")
+            let statement = try database.prepare("DELETE FROM excerpts WHERE id = ?;")
             try statement.bind(id, at: 1)
             try statement.run()
             try deleteUnreferencedTombstone(cueID: relation.cueID)
@@ -191,7 +191,7 @@ public final class ShioriDatabase: @unchecked Sendable {
             """
             SELECT id, name, description, cover_path, created_at,
                    recent_cue_id, recent_sort_order, recent_played_at
-            FROM shiori_lists
+            FROM excerpt_lists
             ORDER BY created_at ASC, id ASC;
             """
         )
@@ -207,7 +207,7 @@ public final class ShioriDatabase: @unchecked Sendable {
             """
             SELECT id, name, description, cover_path, created_at,
                    recent_cue_id, recent_sort_order, recent_played_at
-            FROM shiori_lists
+            FROM excerpt_lists
             WHERE id = ?;
             """
         )
@@ -219,7 +219,7 @@ public final class ShioriDatabase: @unchecked Sendable {
         let statement = try database.prepare(
             """
             SELECT id
-            FROM shiori_lists
+            FROM excerpt_lists
             ORDER BY created_at ASC, id ASC
             LIMIT 1;
             """
@@ -233,8 +233,8 @@ public final class ShioriDatabase: @unchecked Sendable {
             SELECT l.id, l.name, l.description, l.cover_path, l.created_at,
                    l.recent_cue_id, l.recent_sort_order, l.recent_played_at,
                    COUNT(s.id)
-            FROM shiori_lists l
-            LEFT JOIN shioris s ON s.list_id = l.id
+            FROM excerpt_lists l
+            LEFT JOIN excerpts s ON s.list_id = l.id
             GROUP BY l.id
             ORDER BY l.created_at ASC, l.id ASC;
             """
@@ -262,7 +262,7 @@ public final class ShioriDatabase: @unchecked Sendable {
         }
         let statement = try database.prepare(
             """
-            UPDATE shiori_lists
+            UPDATE excerpt_lists
             SET recent_cue_id = ?,
                 recent_sort_order = 'created_at_desc',
                 recent_played_at = ?
@@ -280,7 +280,7 @@ public final class ShioriDatabase: @unchecked Sendable {
             """
             SELECT id, name, description, cover_path, created_at,
                    recent_cue_id, recent_sort_order, recent_played_at
-            FROM shiori_lists
+            FROM excerpt_lists
             WHERE recent_played_at IS NOT NULL
             ORDER BY recent_played_at DESC, id DESC;
             """
@@ -326,7 +326,7 @@ public final class ShioriDatabase: @unchecked Sendable {
 
     public func uniqueShioriCueCount() throws -> Int {
         let statement = try database.prepare(
-            "SELECT COUNT(DISTINCT cue_id) FROM shioris;"
+            "SELECT COUNT(DISTINCT cue_id) FROM excerpts;"
         )
         return try statement.step() ? statement.intColumn(0) : 0
     }
@@ -384,7 +384,7 @@ public final class ShioriDatabase: @unchecked Sendable {
             let name = Self.trimmedListName(rawName)
             let statement = try database.prepare(
                 """
-                INSERT INTO shiori_lists(
+                INSERT INTO excerpt_lists(
                     name,
                     normalized_name,
                     description,
@@ -429,7 +429,7 @@ public final class ShioriDatabase: @unchecked Sendable {
             let name = Self.trimmedListName(rawName)
             let statement = try database.prepare(
                 """
-                UPDATE shiori_lists
+                UPDATE excerpt_lists
                 SET name = ?, normalized_name = ?, description = ?, cover_path = ?
                 WHERE id = ?;
                 """
@@ -454,14 +454,14 @@ public final class ShioriDatabase: @unchecked Sendable {
             guard let list = try shioriList(id: id) else {
                 throw ShioriListMutationError.listNotFound
             }
-            let countStatement = try database.prepare("SELECT COUNT(*) FROM shiori_lists;")
+            let countStatement = try database.prepare("SELECT COUNT(*) FROM excerpt_lists;")
             let listCount = try countStatement.step() ? countStatement.intColumn(0) : 0
             guard listCount > 1 else {
                 throw ShioriListMutationError.cannotDeleteOnlyList
             }
 
             let cueStatement = try database.prepare(
-                "SELECT DISTINCT cue_id FROM shioris WHERE list_id = ?;"
+                "SELECT DISTINCT cue_id FROM excerpts WHERE list_id = ?;"
             )
             try cueStatement.bind(id, at: 1)
             var cueIDs: [Int64] = []
@@ -469,7 +469,7 @@ public final class ShioriDatabase: @unchecked Sendable {
                 cueIDs.append(cueStatement.int64Column(0))
             }
 
-            let statement = try database.prepare("DELETE FROM shiori_lists WHERE id = ?;")
+            let statement = try database.prepare("DELETE FROM excerpt_lists WHERE id = ?;")
             try statement.bind(id, at: 1)
             try statement.run()
             for cueID in cueIDs {
@@ -488,7 +488,7 @@ public final class ShioriDatabase: @unchecked Sendable {
         let statement = try database.prepare(
             """
             SELECT id, list_id, cue_id, created_at
-            FROM shioris
+            FROM excerpts
             WHERE list_id = ?
             ORDER BY created_at ASC, id ASC;
             """
@@ -593,7 +593,7 @@ public final class ShioriDatabase: @unchecked Sendable {
         let statement = try database.prepare(
             """
             SELECT s.id, COALESCE(ws.state, '\(LibraryWatchState.unwatched.rawValue)')
-            FROM shioris s
+            FROM excerpts s
             LEFT JOIN subtitle_cue_lines l ON l.id = s.cue_id
             LEFT JOIN subtitle_files sf ON sf.id = l.subtitle_file_id
             LEFT JOIN subtitle_video_matches m
@@ -617,7 +617,7 @@ public final class ShioriDatabase: @unchecked Sendable {
         let statement = try database.prepare(
             """
             SELECT id, list_id, cue_id, created_at
-            FROM shioris
+            FROM excerpts
             WHERE id = ?;
             """
         )
@@ -626,7 +626,7 @@ public final class ShioriDatabase: @unchecked Sendable {
     }
 
     public func cueID(forShioriID shioriID: Int64) throws -> Int64? {
-        let statement = try database.prepare("SELECT cue_id FROM shioris WHERE id = ?;")
+        let statement = try database.prepare("SELECT cue_id FROM excerpts WHERE id = ?;")
         try statement.bind(shioriID, at: 1)
         return try statement.step() ? statement.nullableInt64Column(0) : nil
     }
@@ -717,7 +717,7 @@ public final class ShioriDatabase: @unchecked Sendable {
             return 0
         }
         let statement = try database.prepare(
-            "SELECT COUNT(*) FROM shioris WHERE list_id = ?;"
+            "SELECT COUNT(*) FROM excerpts WHERE list_id = ?;"
         )
         try statement.bind(listID, at: 1)
         return try statement.step() ? statement.intColumn(0) : 0
@@ -749,7 +749,7 @@ public final class ShioriDatabase: @unchecked Sendable {
 
             let insert = try database.prepare(
                 """
-                INSERT INTO shioris(list_id, cue_id, created_at)
+                INSERT INTO excerpts(list_id, cue_id, created_at)
                 VALUES (?, ?, ?);
                 """
             )
@@ -760,7 +760,7 @@ public final class ShioriDatabase: @unchecked Sendable {
             let destinationShioriID = database.lastInsertRowID()
 
             if removesSource {
-                let delete = try database.prepare("DELETE FROM shioris WHERE id = ?;")
+                let delete = try database.prepare("DELETE FROM excerpts WHERE id = ?;")
                 try delete.bind(source.id, at: 1)
                 try delete.run()
             }
@@ -778,7 +778,7 @@ public final class ShioriDatabase: @unchecked Sendable {
         let statement = try database.prepare(
             """
             SELECT 1
-            FROM shioris
+            FROM excerpts
             WHERE list_id = ? AND cue_id = ?
             LIMIT 1;
             """
@@ -829,7 +829,7 @@ public final class ShioriDatabase: @unchecked Sendable {
             DELETE FROM cue_tombstones
             WHERE cue_id = ?
               AND NOT EXISTS (
-                SELECT 1 FROM shioris WHERE cue_id = ?
+                SELECT 1 FROM excerpts WHERE cue_id = ?
               );
             """
         )
@@ -863,7 +863,7 @@ public final class ShioriDatabase: @unchecked Sendable {
     private func clearRecentShioriPlayback(listID: Int64) throws {
         let statement = try database.prepare(
             """
-            UPDATE shiori_lists
+            UPDATE excerpt_lists
             SET recent_cue_id = NULL,
                 recent_sort_order = NULL,
                 recent_played_at = NULL
@@ -883,7 +883,7 @@ public final class ShioriDatabase: @unchecked Sendable {
             statement = try database.prepare(
                 """
                 SELECT 1
-                FROM shiori_lists
+                FROM excerpt_lists
                 WHERE normalized_name = ? AND id != ?
                 LIMIT 1;
                 """
@@ -894,7 +894,7 @@ public final class ShioriDatabase: @unchecked Sendable {
             statement = try database.prepare(
                 """
                 SELECT 1
-                FROM shiori_lists
+                FROM excerpt_lists
                 WHERE normalized_name = ?
                 LIMIT 1;
                 """

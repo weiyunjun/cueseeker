@@ -1728,7 +1728,7 @@ func samePathAtomicSavePreservesSubtitleCueAndShioriIDs() throws {
             at: fixture.databaseURL,
             sql: """
             SELECT COUNT(*)
-            FROM shioris s
+            FROM excerpts s
             LEFT JOIN subtitle_cue_lines l ON l.id = s.cue_id
             LEFT JOIN cue_tombstones t ON t.cue_id = s.cue_id
             WHERE l.id IS NULL AND t.cue_id IS NULL;

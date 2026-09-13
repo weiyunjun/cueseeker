@@ -12,7 +12,7 @@ public enum DatabaseBootstrapError: Error, Equatable, CustomStringConvertible {
 }
 
 public enum DatabaseBootstrap {
-    public static let currentSchemaVersion = 46
+    public static let currentSchemaVersion = 47
 
     public static func prepare(at path: URL) throws {
         let database = try SQLiteDatabase(path: path, access: .readWrite)
@@ -58,6 +58,7 @@ private extension DatabaseBootstrap {
                 || previousVersion == 43
                 || previousVersion == 44
                 || previousVersion == 45
+                || previousVersion == 46
                 || previousVersion == DatabaseBootstrap.currentSchemaVersion
         else {
             throw DatabaseBootstrapError.unsupportedSchemaVersion(
@@ -142,6 +143,9 @@ private extension DatabaseBootstrap {
         }
         if previousVersion >= 33, previousVersion <= 45 {
             try migrateSchema45To46(on: database)
+        }
+        if previousVersion >= 33, previousVersion <= 46 {
+            try migrateSchema46To47(on: database)
             return
         }
         guard previousVersion == 0 else {
@@ -172,7 +176,7 @@ private extension DatabaseBootstrap {
             )
 
             let shioriSchemaSQL = """
-                CREATE TABLE IF NOT EXISTS shiori_lists (
+                CREATE TABLE IF NOT EXISTS excerpt_lists (
                     id INTEGER PRIMARY KEY,
                     name TEXT NOT NULL,
                     normalized_name TEXT NOT NULL,
@@ -184,7 +188,7 @@ private extension DatabaseBootstrap {
                     recent_played_at TEXT
                 );
 
-                INSERT OR IGNORE INTO shiori_lists(
+                INSERT OR IGNORE INTO excerpt_lists(
                     id,
                     name,
                     normalized_name,
@@ -194,26 +198,26 @@ private extension DatabaseBootstrap {
                 )
                 VALUES (1, 'Default', 'default', '', NULL, '1970-01-01T00:00:00Z');
 
-                CREATE UNIQUE INDEX IF NOT EXISTS idx_shiori_lists_normalized_name
-                    ON shiori_lists(normalized_name);
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_excerpt_lists_normalized_name
+                    ON excerpt_lists(normalized_name);
 
-                CREATE TABLE IF NOT EXISTS shioris (
+                CREATE TABLE IF NOT EXISTS excerpts (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     list_id INTEGER NOT NULL,
                     cue_id INTEGER NOT NULL,
                     created_at TEXT NOT NULL,
                     UNIQUE(list_id, cue_id),
-                    FOREIGN KEY(list_id) REFERENCES shiori_lists(id) ON DELETE CASCADE
+                    FOREIGN KEY(list_id) REFERENCES excerpt_lists(id) ON DELETE CASCADE
                 );
 
-                CREATE INDEX IF NOT EXISTS idx_shioris_list_order
-                    ON shioris(list_id, created_at DESC, id DESC);
+                CREATE INDEX IF NOT EXISTS idx_excerpts_list_order
+                    ON excerpts(list_id, created_at DESC, id DESC);
 
-                CREATE INDEX IF NOT EXISTS idx_shioris_cue
-                    ON shioris(cue_id);
+                CREATE INDEX IF NOT EXISTS idx_excerpts_cue
+                    ON excerpts(cue_id);
 
-                CREATE INDEX IF NOT EXISTS idx_shioris_created_order
-                    ON shioris(created_at DESC, id DESC);
+                CREATE INDEX IF NOT EXISTS idx_excerpts_created_order
+                    ON excerpts(created_at DESC, id DESC);
                 """
 
             try database.execute(
@@ -598,7 +602,7 @@ private extension DatabaseBootstrap {
 
             \(taskRecordSchemaSQL)
 
-            \(cueReferenceIntegrityTriggerSQL)
+            \(cueReferenceIntegrityTriggerSQL(excerptTable: "excerpts"))
 
             """
             )
@@ -658,6 +662,44 @@ private extension DatabaseBootstrap {
                 try database.execute("ALTER TABLE task_records ADD COLUMN \(column) TEXT;")
             }
             try database.execute("PRAGMA user_version = 46;")
+        }
+    }
+
+    /// Shiori became Excerpt: its two tables and their indexes take the new
+    /// names, keeping every row, id and cover path. The triggers name the
+    /// Excerpt table, so they are dropped before the rename and recreated after.
+    static func migrateSchema46To47(on database: SQLiteDatabase) throws {
+        try database.withImmediateTransaction {
+            try database.execute(
+                """
+                DROP TRIGGER IF EXISTS protect_referenced_cue_deletion;
+                DROP TRIGGER IF EXISTS protect_referenced_tombstone_deletion;
+
+                ALTER TABLE shiori_lists RENAME TO excerpt_lists;
+                ALTER TABLE shioris RENAME TO excerpts;
+
+                DROP INDEX IF EXISTS idx_shiori_lists_normalized_name;
+                DROP INDEX IF EXISTS idx_shioris_list_order;
+                DROP INDEX IF EXISTS idx_shioris_cue;
+                DROP INDEX IF EXISTS idx_shioris_created_order;
+
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_excerpt_lists_normalized_name
+                    ON excerpt_lists(normalized_name);
+
+                CREATE INDEX IF NOT EXISTS idx_excerpts_list_order
+                    ON excerpts(list_id, created_at DESC, id DESC);
+
+                CREATE INDEX IF NOT EXISTS idx_excerpts_cue
+                    ON excerpts(cue_id);
+
+                CREATE INDEX IF NOT EXISTS idx_excerpts_created_order
+                    ON excerpts(created_at DESC, id DESC);
+
+                \(cueReferenceIntegrityTriggerSQL(excerptTable: "excerpts"))
+
+                PRAGMA user_version = 47;
+                """
+            )
         }
     }
 
@@ -1043,7 +1085,7 @@ private extension DatabaseBootstrap {
                 LEFT JOIN cue_tombstones t ON t.cue_id = s.cue_id
                 WHERE l.id IS NULL AND t.cue_id IS NULL;
 
-                \(cueReferenceIntegrityTriggerSQL)
+                \(cueReferenceIntegrityTriggerSQL(excerptTable: "shioris"))
 
                 PRAGMA user_version = 42;
                 """
@@ -1292,28 +1334,35 @@ private extension DatabaseBootstrap {
 
 }
 
-private let cueReferenceIntegrityTriggerSQL = """
-    CREATE TRIGGER IF NOT EXISTS protect_referenced_cue_deletion
-    BEFORE DELETE ON subtitle_cue_lines
-    WHEN EXISTS (
-           SELECT 1 FROM shioris WHERE cue_id = OLD.id
-         )
-         AND NOT EXISTS (
-           SELECT 1 FROM cue_tombstones WHERE cue_id = OLD.id
-         )
-    BEGIN
-        SELECT RAISE(ABORT, 'Referenced Cue requires a Tombstone before deletion');
-    END;
+extension DatabaseBootstrap {
+    /// Refuses to delete a Cue, or its Tombstone, while an Excerpt still refers
+    /// to it. The table is a parameter because the 41 to 42 migration creates
+    /// these triggers while the table still has its pre-47 name.
+    static func cueReferenceIntegrityTriggerSQL(excerptTable: String) -> String {
+        """
+        CREATE TRIGGER IF NOT EXISTS protect_referenced_cue_deletion
+        BEFORE DELETE ON subtitle_cue_lines
+        WHEN EXISTS (
+               SELECT 1 FROM \(excerptTable) WHERE cue_id = OLD.id
+             )
+             AND NOT EXISTS (
+               SELECT 1 FROM cue_tombstones WHERE cue_id = OLD.id
+             )
+        BEGIN
+            SELECT RAISE(ABORT, 'Referenced Cue requires a Tombstone before deletion');
+        END;
 
-    CREATE TRIGGER IF NOT EXISTS protect_referenced_tombstone_deletion
-    BEFORE DELETE ON cue_tombstones
-    WHEN EXISTS (
-           SELECT 1 FROM shioris WHERE cue_id = OLD.cue_id
-         )
-         AND NOT EXISTS (
-           SELECT 1 FROM subtitle_cue_lines WHERE id = OLD.cue_id
-         )
-    BEGIN
-        SELECT RAISE(ABORT, 'Referenced Tombstone cannot be deleted without a live Cue');
-    END;
-    """
+        CREATE TRIGGER IF NOT EXISTS protect_referenced_tombstone_deletion
+        BEFORE DELETE ON cue_tombstones
+        WHEN EXISTS (
+               SELECT 1 FROM \(excerptTable) WHERE cue_id = OLD.cue_id
+             )
+             AND NOT EXISTS (
+               SELECT 1 FROM subtitle_cue_lines WHERE id = OLD.cue_id
+             )
+        BEGIN
+            SELECT RAISE(ABORT, 'Referenced Tombstone cannot be deleted without a live Cue');
+        END;
+        """
+    }
+}

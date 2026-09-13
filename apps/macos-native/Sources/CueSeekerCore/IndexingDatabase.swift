@@ -1952,7 +1952,7 @@ public final class IndexingDatabase: @unchecked Sendable {
                    ?,
                    ?
             FROM subtitle_cue_lines l
-            JOIN shioris s ON s.cue_id = l.id
+            JOIN excerpts s ON s.cue_id = l.id
             JOIN subtitle_cue_groups g ON g.id = l.cue_group_id
             JOIN subtitle_files sf ON sf.id = l.subtitle_file_id
             LEFT JOIN subtitle_video_matches m

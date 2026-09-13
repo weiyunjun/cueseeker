@@ -65,8 +65,7 @@ func migratesSchema41DanglingShioriToProtectedTombstone() throws {
     try executeDatabaseTestSQLite(
         at: databaseURL,
         """
-        DROP TRIGGER protect_referenced_cue_deletion;
-        DROP TRIGGER protect_referenced_tombstone_deletion;
+        \(preSchema47ExcerptTablesSQL)
         INSERT INTO shioris(id, list_id, cue_id, created_at)
         VALUES (780, 1, 9007505, '2026-08-03T13:27:29Z');
         PRAGMA user_version = 41;
@@ -99,6 +98,70 @@ func migratesSchema41DanglingShioriToProtectedTombstone() throws {
         )
     }
     #expect(try sqliteRowCount(in: "cue_tombstones", databaseURL: databaseURL) == 1)
+}
+
+@Test
+func migratesSchema46ByRenamingShioriTablesToExcerptTables() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    try DatabaseBootstrap.prepare(at: databaseURL)
+    try executeDatabaseTestSQLite(
+        at: databaseURL,
+        """
+        \(preSchema47ExcerptTablesSQL)
+        \(DatabaseBootstrap.cueReferenceIntegrityTriggerSQL(excerptTable: "shioris"))
+        INSERT INTO shiori_lists(
+            id, name, normalized_name, description, cover_path, created_at
+        )
+        VALUES (2, 'Kept', 'kept', 'Kept description', '/Covers/Shiori/Display/v1/kept.jpg', 'created');
+        INSERT INTO shioris(id, list_id, cue_id, created_at)
+        VALUES (30, 2, 40, 'saved');
+        PRAGMA user_version = 46;
+        """
+    )
+
+    try DatabaseBootstrap.prepare(at: databaseURL)
+
+    #expect(try sqliteSchemaVersion(at: databaseURL) == DatabaseBootstrap.currentSchemaVersion)
+    #expect(try sqliteTableExists("shiori_lists", databaseURL: databaseURL) == false)
+    #expect(try sqliteTableExists("shioris", databaseURL: databaseURL) == false)
+    #expect(try sqliteForeignKeyTables(in: "excerpts", databaseURL: databaseURL) == [
+        "excerpt_lists"
+    ])
+    for index in [
+        "idx_excerpt_lists_normalized_name", "idx_excerpts_list_order",
+        "idx_excerpts_cue", "idx_excerpts_created_order"
+    ] {
+        #expect(try sqliteIndexExists(index, databaseURL: databaseURL))
+    }
+    for index in [
+        "idx_shiori_lists_normalized_name", "idx_shioris_list_order",
+        "idx_shioris_cue", "idx_shioris_created_order"
+    ] {
+        #expect(try sqliteIndexExists(index, databaseURL: databaseURL) == false)
+    }
+    let list = try #require(try ShioriDatabase(path: databaseURL).shioriList(id: 2))
+    #expect(list.description == "Kept description")
+    #expect(list.coverPath == "/Covers/Shiori/Display/v1/kept.jpg")
+    #expect(
+        try sqliteStringValue(
+            at: databaseURL,
+            sql: "SELECT created_at FROM excerpts WHERE id = 30 AND list_id = 2 AND cue_id = 40;"
+        ) == "saved"
+    )
+    for trigger in ["protect_referenced_cue_deletion", "protect_referenced_tombstone_deletion"] {
+        let sql = try #require(
+            try sqliteStringValue(
+                at: databaseURL,
+                sql: "SELECT sql FROM sqlite_master WHERE type = 'trigger' AND name = '\(trigger)';"
+            )
+        )
+        #expect(sql.contains("FROM excerpts"))
+        #expect(!sql.contains("shioris"))
+    }
 }
 
 @Test
@@ -201,12 +264,12 @@ func migratesSchema33ShioriListMetadataWithoutDroppingTheList() throws {
     try DatabaseBootstrap.prepare(at: databaseURL)
 
     #expect(try sqliteSchemaVersion(at: databaseURL) == DatabaseBootstrap.currentSchemaVersion)
-    #expect(try sqliteColumnNames(in: "shiori_lists", databaseURL: databaseURL) == Set([
+    #expect(try sqliteColumnNames(in: "excerpt_lists", databaseURL: databaseURL) == Set([
         "id", "name", "normalized_name", "description", "cover_path", "created_at",
         "recent_cue_id", "recent_sort_order", "recent_played_at"
     ]))
     #expect(try sqliteIndexExists(
-        "idx_shiori_lists_normalized_name",
+        "idx_excerpt_lists_normalized_name",
         databaseURL: databaseURL
     ))
     let list = try #require(try ShioriDatabase(path: databaseURL).shioriLists().first)
@@ -300,8 +363,18 @@ func migratesSchema38ByDroppingOnlySpeakerAndAICacheStorage() throws {
             language_code TEXT NOT NULL
         );
         CREATE TABLE shioris (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            list_id INTEGER NOT NULL,
+            cue_id INTEGER NOT NULL,
+            created_at TEXT NOT NULL
+        );
+        CREATE TABLE shiori_lists (
             id INTEGER PRIMARY KEY,
-            cue_id INTEGER NOT NULL
+            name TEXT NOT NULL,
+            normalized_name TEXT NOT NULL,
+            description TEXT NOT NULL DEFAULT '',
+            cover_path TEXT,
+            created_at TEXT NOT NULL
         );
         \(cueTombstoneFixtureSchemaSQL)
         CREATE VIRTUAL TABLE subtitle_cue_groups_fts USING fts5(
@@ -329,7 +402,7 @@ func migratesSchema38ByDroppingOnlySpeakerAndAICacheStorage() throws {
         INSERT INTO subtitle_cue_lines(id, content) VALUES (1, 'retained cue');
         INSERT INTO subtitle_cue_group_languages(cue_group_id, language_code)
             VALUES (10, 'ja');
-        INSERT INTO shioris(id, cue_id) VALUES (20, 1);
+        INSERT INTO shioris(id, list_id, cue_id, created_at) VALUES (20, 1, 1, 'created');
         INSERT INTO subtitle_cue_groups_fts(content, cue_group_id)
             VALUES ('retained search', 10);
         INSERT INTO subtitle_cue_line_speakers(
@@ -348,7 +421,7 @@ func migratesSchema38ByDroppingOnlySpeakerAndAICacheStorage() throws {
     #expect(try sqliteTableExists("ai_chunk_cache_entries", databaseURL: databaseURL) == false)
     #expect(try sqliteRowCount(in: "subtitle_cue_lines", databaseURL: databaseURL) == 1)
     #expect(try sqliteRowCount(in: "subtitle_cue_group_languages", databaseURL: databaseURL) == 1)
-    #expect(try sqliteRowCount(in: "shioris", databaseURL: databaseURL) == 1)
+    #expect(try sqliteRowCount(in: "excerpts", databaseURL: databaseURL) == 1)
     #expect(try sqliteRowCount(in: "subtitle_cue_groups_fts", databaseURL: databaseURL) == 1)
 }
 
@@ -406,14 +479,14 @@ func permanentIdentitySchemaIncludesLibraryRelativePathsAndIDReferences() throws
         "video_file_id", "subtitle_file_id"
     ]))
     #expect(try sqliteColumnNames(in: "subtitle_search_order_rows", databaseURL: databaseURL).contains("subtitle_file_id"))
-    #expect(try sqliteColumnNames(in: "shioris", databaseURL: databaseURL) == Set([
+    #expect(try sqliteColumnNames(in: "excerpts", databaseURL: databaseURL) == Set([
         "id", "list_id", "cue_id", "created_at"
     ]))
-    #expect(try sqliteForeignKeyTables(in: "shioris", databaseURL: databaseURL) == [
-        "shiori_lists"
+    #expect(try sqliteForeignKeyTables(in: "excerpts", databaseURL: databaseURL) == [
+        "excerpt_lists"
     ])
-    #expect(try sqliteTableExists("shiori_lists", databaseURL: databaseURL))
-    #expect(try sqliteColumnNames(in: "shiori_lists", databaseURL: databaseURL) == Set([
+    #expect(try sqliteTableExists("excerpt_lists", databaseURL: databaseURL))
+    #expect(try sqliteColumnNames(in: "excerpt_lists", databaseURL: databaseURL) == Set([
         "id", "name", "normalized_name", "description", "cover_path", "created_at",
         "recent_cue_id", "recent_sort_order", "recent_played_at"
     ]))
@@ -440,8 +513,10 @@ func migratesSchema37RecentShioriStateWithoutDroppingLists() throws {
             id INTEGER PRIMARY KEY
         );
         CREATE TABLE shioris (
-            id INTEGER PRIMARY KEY,
-            cue_id INTEGER NOT NULL
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            list_id INTEGER NOT NULL,
+            cue_id INTEGER NOT NULL,
+            created_at TEXT NOT NULL
         );
         \(cueTombstoneFixtureSchemaSQL)
         INSERT INTO shiori_lists(
@@ -455,7 +530,7 @@ func migratesSchema37RecentShioriStateWithoutDroppingLists() throws {
     try DatabaseBootstrap.prepare(at: databaseURL)
 
     #expect(try sqliteSchemaVersion(at: databaseURL) == DatabaseBootstrap.currentSchemaVersion)
-    #expect(try sqliteColumnNames(in: "shiori_lists", databaseURL: databaseURL) == Set([
+    #expect(try sqliteColumnNames(in: "excerpt_lists", databaseURL: databaseURL) == Set([
         "id", "name", "normalized_name", "description", "cover_path", "created_at",
         "recent_cue_id", "recent_sort_order", "recent_played_at"
     ]))
@@ -491,8 +566,10 @@ func migratesSchema36AuxiliaryRetryStateAndUnavailableReasons()
             id INTEGER PRIMARY KEY
         );
         CREATE TABLE shioris (
-            id INTEGER PRIMARY KEY,
-            cue_id INTEGER NOT NULL
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            list_id INTEGER NOT NULL,
+            cue_id INTEGER NOT NULL,
+            created_at TEXT NOT NULL
         );
         \(cueTombstoneFixtureSchemaSQL)
         CREATE TABLE shiori_lists (
@@ -689,11 +766,11 @@ func migratesSchema34IdentityFoundationWithoutLosingShioriAndRemovesTags() throw
         try sqliteSchemaVersion(at: databaseURL)
             == DatabaseBootstrap.currentSchemaVersion
     )
-    #expect(try sqliteRowCount(in: "shioris", databaseURL: databaseURL) == 1)
+    #expect(try sqliteRowCount(in: "excerpts", databaseURL: databaseURL) == 1)
     #expect(try sqliteTableExists("shiori_tags", databaseURL: databaseURL) == false)
     #expect(try sqliteTableExists("shiori_tag_assignments", databaseURL: databaseURL) == false)
-    #expect(try sqliteForeignKeyTables(in: "shioris", databaseURL: databaseURL) == [
-        "shiori_lists"
+    #expect(try sqliteForeignKeyTables(in: "excerpts", databaseURL: databaseURL) == [
+        "excerpt_lists"
     ])
     #expect(try sqliteColumnNames(in: "subtitle_cue_lines", databaseURL: databaseURL)
         .contains("source_identity_remainder"))
@@ -725,7 +802,7 @@ func freshSchemaCreatesShioriTablePerformanceIndexes() throws {
 
     try DatabaseBootstrap.prepare(at: databaseURL)
 
-    #expect(try sqliteIndexExists("idx_shioris_created_order", databaseURL: databaseURL))
+    #expect(try sqliteIndexExists("idx_excerpts_created_order", databaseURL: databaseURL))
     #expect(try sqliteIndexExists("idx_subtitle_cue_groups_file_time", databaseURL: databaseURL))
 }
 

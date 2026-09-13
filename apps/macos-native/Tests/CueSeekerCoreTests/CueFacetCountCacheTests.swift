@@ -182,7 +182,7 @@ func schema39MigrationBackfillsFacetCountsWithoutStartupRebuilds() throws {
 
     try executeDatabaseTestSQLite(
         at: databaseURL,
-        "DROP TABLE cue_facet_counts; PRAGMA user_version = 39;"
+        "DROP TABLE cue_facet_counts; \(preSchema47ExcerptTablesSQL) PRAGMA user_version = 39;"
     )
     try DatabaseBootstrap.prepare(at: databaseURL)
     #expect(try SearchDatabase(path: databaseURL).cueFacetDistribution().totalCount == 4)

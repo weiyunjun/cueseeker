@@ -107,7 +107,7 @@ func shioriListOverviewCountsPerListAndDeduplicatesCueIDs() throws {
     try executeDatabaseTestSQLite(
         at: databaseURL,
         """
-        INSERT INTO shioris(list_id, cue_id, created_at)
+        INSERT INTO excerpts(list_id, cue_id, created_at)
         VALUES (\(secondList.id), \(cueID), '2026-07-24T00:00:00Z');
         """
     )
@@ -629,7 +629,7 @@ func shioriRelationSchemaAllowsOneCueInDifferentListsOnly() throws {
     try executeDatabaseTestSQLite(
         at: databaseURL,
         """
-        INSERT INTO shiori_lists(
+        INSERT INTO excerpt_lists(
             id,
             name,
             normalized_name,
@@ -645,7 +645,7 @@ func shioriRelationSchemaAllowsOneCueInDifferentListsOnly() throws {
             NULL,
             '2026-07-21T00:00:00Z'
         );
-        INSERT INTO shioris(list_id, cue_id, created_at)
+        INSERT INTO excerpts(list_id, cue_id, created_at)
         VALUES (2, \(cueID), '2026-07-21T00:00:01Z');
         """
     )
@@ -672,7 +672,7 @@ func shioriRelationSchemaAllowsOneCueInDifferentListsOnly() throws {
         try executeDatabaseTestSQLite(
             at: databaseURL,
             """
-            INSERT INTO shioris(list_id, cue_id, created_at)
+            INSERT INTO excerpts(list_id, cue_id, created_at)
             VALUES (2, \(cueID), '2026-07-21T00:00:02Z');
             """
         )

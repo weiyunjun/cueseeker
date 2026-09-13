@@ -645,3 +645,25 @@ private enum DatabaseTestSQLiteError: Error {
     case openFailed(String)
     case executeFailed(String)
 }
+
+/// Turns a freshly prepared database's Excerpt tables, their indexes and the
+/// Cue reference triggers back into what a database before schema 47 has, so
+/// a fixture can start an older migration from the current schema.
+let preSchema47ExcerptTablesSQL = """
+    DROP TRIGGER protect_referenced_cue_deletion;
+    DROP TRIGGER protect_referenced_tombstone_deletion;
+    ALTER TABLE excerpt_lists RENAME TO shiori_lists;
+    ALTER TABLE excerpts RENAME TO shioris;
+    DROP INDEX idx_excerpt_lists_normalized_name;
+    DROP INDEX idx_excerpts_list_order;
+    DROP INDEX idx_excerpts_cue;
+    DROP INDEX idx_excerpts_created_order;
+    CREATE UNIQUE INDEX idx_shiori_lists_normalized_name
+        ON shiori_lists(normalized_name);
+    CREATE INDEX idx_shioris_list_order
+        ON shioris(list_id, created_at DESC, id DESC);
+    CREATE INDEX idx_shioris_cue
+        ON shioris(cue_id);
+    CREATE INDEX idx_shioris_created_order
+        ON shioris(created_at DESC, id DESC);
+    """
