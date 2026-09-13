@@ -71,7 +71,7 @@
 | `minus-circle` | Fill | 半选 | Checkbox / Indeterminate |
 | `stack` | Regular | 剧集 | Library File Tree / Display Title |
 | `video` | Regular | 视频 | Library File Tree / Video；Command Panel Root / Recent Videos；Settings / Decode；Library 封面占位，57px；Anki 卡片 / Video File Path，20px |
-| `subtitles` | Regular | 字幕 | Library File Tree / Subtitle；播放控制条 / 字幕；Playback Feedback（字幕开关）；Anki 卡片 / Subtitle File Path，20px |
+| `subtitles` | Regular | 字幕 | Library File Tree / Subtitle；播放控制条 / 字幕；Playback Feedback（字幕开关）；Anki 卡片 / Subtitle File Path，20px；Settings / Subtitle |
 
 ## 3.4 状态与提示
 
@@ -126,4 +126,4 @@
 | `hammer` | Regular | 开发者 | Settings / Developer |
 | `file-arrow-down` | Regular | 压缩数据库 | Settings / Maintenance / Compact |
 | `keyboard` | Regular | 快捷键 | Settings / Shortcuts |
-| `arrow-counter-clockwise` | Regular | 恢复默认 | Settings / Shortcuts / Restore Default |
+| `arrow-counter-clockwise` | Regular | 恢复默认 | Settings / Shortcuts / Restore Default；Settings / Subtitle / Restore Defaults |

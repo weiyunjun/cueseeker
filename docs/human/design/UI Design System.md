@@ -292,6 +292,7 @@
 - `--width-dialog-large`: `600px`
 - `--width-dialog-x-large`: `720px`
 - `--width-shortcut-field`: `144px`
+- `--width-settings-number-field`: `114px`
 - `--border-width-control`: `1px`
 
 ## 1.4 间距
@@ -793,6 +794,23 @@
 - Platform Native Switch
 - Label
   - Presence：Optional
+
+##### Sizes
+
+- Platform Native
+
+##### States
+
+- Platform Native
+
+### Color Well
+
+#### Shared
+
+##### Anatomy
+
+- Platform Native Color Well
+  - 点击打开系统颜色面板，含不透明度
 
 ##### Sizes
 
@@ -3014,6 +3032,7 @@
 - Number Field
 - Checkbox
 - Switch
+- Color Well
 - Segmented Control
 - Button
 
@@ -3055,6 +3074,48 @@
 - Shortcut Field 与 Restore Default：`--spacing-1`
 - 行与行：Shortcut Field 的 Validation Message 行兼作行距，不另加间距
 - Section Title 上方：`--spacing-4`；下方：`--spacing-3`
+
+### Settings Subtitle Layout
+
+#### Structure
+
+1. Page Title
+2. Section Title `Text`：Font、Size、Style、Color、Letter Spacing、Line Spacing
+3. Section Title `Border`：Type、Outline Color、Outline Width、Background Color、Blur
+4. Section Title `Shadow`：Shadow Color、Shadow Offset
+5. Section Title `Position`：Horizontal、Margin X、Vertical、Margin Y
+6. Restore Defaults
+
+#### Components
+
+- Section Title
+- Number Field：Size、Letter Spacing、Line Spacing、Outline Width、Blur、Shadow Offset、Margin X、Margin Y
+- Checkbox / Form Checkbox：Bold、Italic
+- Color Well：Color、Outline Color、Background Color、Shadow Color
+- Segmented Control：Type、Horizontal、Vertical
+- Button / Neutral：Choose…、Restore Defaults
+
+#### Row
+
+1. 设置项名称
+2. 控件；Font 为当前字体名称与 Choose…，Choose… 打开系统字体面板
+
+#### Layout
+
+- 设置项名称列宽取全页最长的名称，控件紧随其后
+- Number Field 宽度：`--width-settings-number-field`
+- 当前 Type 用不到的行，控件为 Disabled：Outline 时 Background Color；Opaque Box 时 Outline Color、Outline Width；Background Box 时 Shadow Color、Shadow Offset
+- Restore Defaults：Leading Icon `arrow-counter-clockwise`；全部为默认值时 Disabled
+
+#### Spacing
+
+- Page Title 与第一个 Section Title：`--spacing-6`
+- 设置项名称与控件：`--spacing-6`
+- 行与行：`--spacing-3`
+- Section Title 上方：`--spacing-4`；下方：`--spacing-3`
+- Font 名称与 Choose…：`--spacing-3`
+- Bold 与 Italic：`--spacing-6`
+- 最后一行与 Restore Defaults：`--spacing-6`
 
 ## 3.3 Recent
 ### Recent Layout
