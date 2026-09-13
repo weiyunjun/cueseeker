@@ -253,7 +253,7 @@ func excerptListCoverStoragePublishesAndSafelyRemovesCroppedCovers() async throw
         cropRect: CGRect(x: 0, y: 0, width: 1_600, height: 900)
     )
     #expect(FileManager.default.fileExists(atPath: path))
-    #expect(path.contains("/Shiori/Display/v1/"))
+    #expect(path.contains("/Excerpt/Display/v1/"))
 
     try await service.remove(path: path)
     #expect(!FileManager.default.fileExists(atPath: path))
@@ -262,6 +262,45 @@ func excerptListCoverStoragePublishesAndSafelyRemovesCroppedCovers() async throw
     await #expect(throws: LibraryUserCoverError.invalidStoredCoverPath(externalPath)) {
         try await service.remove(path: externalPath)
     }
+}
+
+@Test
+func excerptListCoverStorageCopiesPreRenameCoversAndPointsListsAtTheCopies() async throws {
+    let directory = libraryUserCoverTemporaryDirectory()
+    defer { try? FileManager.default.removeItem(at: directory) }
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    let databaseURL = directory.appendingPathComponent("covers.sqlite")
+    try DatabaseBootstrap.prepare(at: databaseURL)
+    let database = try ExcerptDatabase(path: databaseURL)
+    let preRenameDirectory = directory
+        .appendingPathComponent("Shiori/Display/v1", isDirectory: true)
+    try FileManager.default.createDirectory(
+        at: preRenameDirectory,
+        withIntermediateDirectories: true
+    )
+    let preRenameCover = preRenameDirectory.appendingPathComponent("kept.jpg")
+    try Data([1, 2, 3]).write(to: preRenameCover)
+    let list = try database.createExcerptList(
+        name: "Kept",
+        description: "Kept description",
+        coverPath: preRenameCover.path
+    )
+    let uncovered = try database.createExcerptList(name: "Uncovered")
+
+    try ExcerptListCoverStorage.adoptPreRenameCovers(coverDirectory: directory, database: database)
+    try ExcerptListCoverStorage.adoptPreRenameCovers(coverDirectory: directory, database: database)
+
+    let copy = directory.appendingPathComponent("Excerpt/Display/v1/kept.jpg")
+    let adopted = try #require(try database.excerptList(id: list.id))
+    #expect(adopted.coverPath == copy.path)
+    #expect(adopted.name == "Kept")
+    #expect(adopted.description == "Kept description")
+    #expect(try Data(contentsOf: copy) == Data([1, 2, 3]))
+    #expect(FileManager.default.fileExists(atPath: preRenameCover.path))
+    #expect(try database.excerptList(id: uncovered.id)?.coverPath == nil)
+
+    try await ExcerptListCoverStorage(coverDirectory: directory).remove(path: adopted.coverPath)
+    #expect(!FileManager.default.fileExists(atPath: copy.path))
 }
 
 private func libraryUserCoverTemporaryDirectory() -> URL {

@@ -103,3 +103,28 @@ Verification:
 - `swift build`: clean.
 - `swift test`: 1208 tests, 15 failing. Thirteen are the baseline set — the seven native playback cases, the two Debug E2E cases, the four refresh-scope integration cases now named `excerptTableStartsAtTopAfterPanelRemount`, `showCueGroupInvalidationIsScopedToMountedExcerpt`, `progressiveSearchProjectionRefreshesOnlyMountedTable` and `searchFacetSelectionDoesNotRefreshGlobalOrInactiveSurfaces` — and `libraryFolderRemovalAndIndexingRejectEachOther`; the last three of those pass when run on their own.
 - `playbackExcerptCopiesSettledPrimaryCueAsMarkdownLink` fails on its own too, and not because of the rename: it builds its App on the shared preferences, whose App language was set to Simplified Chinese at 20:34 today outside this work, so the feedback it reads is 已复制 Deep Link. The same test passed in the earlier full run. The preference was left as it is.
+
+## Covers move to the Excerpt folder
+
+Requirement 2.5 as updated in `582dc5bb`.
+
+- New list covers are published under `Covers/Excerpt/Display/v1`.
+- At launch, once the Excerpt database is open, `ExcerptListCoverStorage.adoptPreRenameCovers` walks the lists. A cover whose file is in `Covers/Shiori/Display/v1` is copied into the new folder under the same file name, and its list is updated to the copy. A list without a cover, or whose file is missing, is left alone. The copy is skipped when it already exists, so a launch that stopped halfway finishes on the next one, and once every list points at the new folder a launch only reads the lists.
+- Copy rather than move: a failure at any point leaves the original where the list still finds it. The old folder is never deleted by the App; the owner deletes it.
+- Without this step, `remove(path:)` would refuse an old cover — it only removes files from its own folder — so replacing or deleting such a cover would have left its file behind.
+- A failure is printed and does not stop the launch.
+
+Test: `excerptListCoverStorageCopiesPreRenameCoversAndPointsListsAtTheCopies` runs the step twice over a list with a pre-rename cover and a list without one, and checks the copy, the list's new path with its name and description unchanged, the original still in place, the uncovered list untouched, and that the storage can now remove the adopted cover. The publish test now expects the `Excerpt` folder.
+
+Files:
+
+- `apps/macos-native/Sources/CueSeekerApp/Excerpt/ExcerptListCoverStorage.swift`
+- `apps/macos-native/Sources/CueSeekerApp/App/AppCoordinator.swift`
+- `apps/macos-native/Tests/CueSeekerAppTests/LibraryUserCoverServiceTests.swift`
+
+Verification:
+
+- `swift build`: clean. `swift test --filter` over both cover storage tests, two App coordinator Excerpt list tests and the fresh schema test: all pass.
+- In the App, the same Debug E2E setup as above, on the owner's real library. Before launch all 6 covered lists pointed into `Covers/Shiori/Display/v1` and there was no `Covers/Excerpt`. After launch all 6 point into `Covers/Excerpt/Display/v1`, the six copies are byte-for-byte equal to the originals, the `Shiori` folder still holds all six, and nothing was printed about a failed copy.
+- The App opened on Search rather than on the page it was last closed on, the stored panel mode having reset as 2.5 now says. The shared App language had been set to Simplified Chinese, so this run also shows the Chinese copy: Sidebar 摘录, the page title 摘录, the summary 8 个摘录集 · 695 条台词, the button 新建摘录集, and badges in the form 397 条台词. All six covers draw from their new location.
+- `swift test`: 1209 tests, 18 failing, none from the cover step. Thirteen are the baseline set — the seven native playback cases, the two Debug E2E cases and the four refresh-scope integration cases. `failedLibraryFolderRemovalPreservesFolderAndPresentationState`, `libraryFolderRemovalAndIndexingRejectEachOther` and `libraryFolderRemovalPublishesProgressWithoutBlockingMainActor` timed out waiting for the removal under the full suite's load and pass on their own. `playbackExcerptCopiesSettledPrimaryCueAsMarkdownLink` and `playbackPlaylistBoundaryRefreshUpdatesResidentSnapshotAndSelection` read Chinese copy because the shared App language is now Simplified Chinese; the second passes on its own, and only reads Chinese after a test that builds its App on the shared preferences has switched the interface language.

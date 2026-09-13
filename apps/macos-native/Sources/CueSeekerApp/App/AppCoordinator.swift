@@ -513,6 +513,16 @@ final class AppCoordinator: ObservableObject {
             openedTaskRecordDatabase = nil
             initialError = error
         }
+        if let openedExcerptDatabase {
+            do {
+                try ExcerptListCoverStorage.adoptPreRenameCovers(
+                    coverDirectory: resolvedLibraryCoverDirectory,
+                    database: openedExcerptDatabase
+                )
+            } catch {
+                print("Failed to copy pre-rename Excerpt list covers: \(error)")
+            }
+        }
 
         self.indexingDatabase = openedDatabase
         search = SearchStore(

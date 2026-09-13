@@ -1,4 +1,5 @@
 import CoreGraphics
+import CueSeekerCore
 import Foundation
 
 actor ExcerptListCoverStorage {
@@ -11,12 +12,55 @@ actor ExcerptListCoverStorage {
         imagePipeline: LibraryCoverImagePipeline = .shared,
         fileManager: FileManager = .default
     ) {
-        displayDirectory = coverDirectory
-            .appendingPathComponent("Shiori", isDirectory: true)
-            .appendingPathComponent("Display", isDirectory: true)
-            .appendingPathComponent("v1", isDirectory: true)
+        displayDirectory = Self.displayDirectory(in: coverDirectory, folder: "Excerpt")
         self.imagePipeline = imagePipeline
         self.fileManager = fileManager
+    }
+
+    /// Covers published before Shiori became Excerpt live in the old folder,
+    /// where `remove(path:)` will not touch them. Each one is copied into the
+    /// current folder and its list points at the copy; the old folder stays for
+    /// the owner to delete. A cover already copied is not copied again.
+    static func adoptPreRenameCovers(
+        coverDirectory: URL,
+        database: ExcerptDatabase,
+        fileManager: FileManager = .default
+    ) throws {
+        let preRenameDirectory = displayDirectory(in: coverDirectory, folder: "Shiori")
+            .standardizedFileURL
+        let currentDirectory = displayDirectory(in: coverDirectory, folder: "Excerpt")
+        for list in try database.excerptLists() {
+            guard let coverPath = list.coverPath else {
+                continue
+            }
+            let coverURL = URL(fileURLWithPath: coverPath).standardizedFileURL
+            guard coverURL.deletingLastPathComponent() == preRenameDirectory,
+                  fileManager.fileExists(atPath: coverURL.path)
+            else {
+                continue
+            }
+            let copyURL = currentDirectory.appendingPathComponent(coverURL.lastPathComponent)
+            if !fileManager.fileExists(atPath: copyURL.path) {
+                try fileManager.createDirectory(
+                    at: currentDirectory,
+                    withIntermediateDirectories: true
+                )
+                try fileManager.copyItem(at: coverURL, to: copyURL)
+            }
+            try database.updateExcerptList(
+                id: list.id,
+                name: list.name,
+                description: list.description,
+                coverPath: copyURL.path
+            )
+        }
+    }
+
+    private static func displayDirectory(in coverDirectory: URL, folder: String) -> URL {
+        coverDirectory
+            .appendingPathComponent(folder, isDirectory: true)
+            .appendingPathComponent("Display", isDirectory: true)
+            .appendingPathComponent("v1", isDirectory: true)
     }
 
     func publish(
