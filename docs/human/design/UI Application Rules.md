@@ -8,7 +8,7 @@
 2. 页面内浮层：Selection Action Overlay；Playback Overlay（Current、Playlist、Collage Editor 是它的同层模块）。
 3. Command Panel，位于 Playback Overlay 之上。
 4. 菜单：属于打开它的那一层，只高于该层自身。
-5. 对话框：Edit Cover、Shiori List Editor、Rename、Export to Anki、任务界面、Confirmation。
+5. 对话框：Edit Cover、Excerpt List Editor、Rename、Export to Anki、任务界面、Confirmation。
 
 Toast 与播放反馈只有视觉，不接受输入，落在其上的点击穿透到下层，不参与层级；播放反馈画在页面内浮层与 Command Panel 之上。独立窗口与系统菜单栏不属于本清单。红绿灯属于窗口，不参与层级与菜单模态，任何界面状态下可见可用，只有 Confirmation 位于最上层、或系统文件选择框与系统警告框打开时红灯不可用；播放页无 Overlay 时随 Player UI 显隐，Overlay 与 Command Panel 打开时保持显示。红灯关闭主窗口，返回按钮回到来源页。Confirmation 位于最上层时，Cmd+Q 与 Dock 菜单中的退出同样不生效；系统关机、重启与注销不受影响。全屏进入与退出的动画期间不显示红绿灯，进入完成后由系统标题栏显示，退出完成后回到页面落位。
 
@@ -92,7 +92,7 @@ Toast 与播放反馈只有视觉，不接受输入，落在其上的点击穿�
 4. 本章规则只在主窗口内生效。指针离开主窗口即恢复默认样式；设置窗口等主窗口之外的窗口，指针形状由系统决定。
 
 ## 规则
-1. 鼠标Grab样式出现场景：1. 表格中，鼠标移动到字幕文字内容上时变为Grab样式。表格包括：Workbench Search界面的表格、Shiori二级界面的表格。2. 鼠标移动到封面卡片组件上，变为Grab。封面卡片组件包括：Library一级界面的封面卡片、Library二级界面的封面卡片、Recent界面Recent Videos与Recent Shioris的封面卡片、Shiori一级界面的封面卡片、Playback Overlay Playlist界面的封面卡片、Command Panel Recent Videos界面的封面卡片、Command Panel Recent Shioris界面的封面卡片。
+1. 鼠标Grab样式出现场景：1. 表格中，鼠标移动到字幕文字内容上时变为Grab样式。表格包括：Workbench Search界面的表格、Excerpt二级界面的表格。2. 鼠标移动到封面卡片组件上，变为Grab。封面卡片组件包括：Library一级界面的封面卡片、Library二级界面的封面卡片、Recent界面Recent Videos与Recent Excerpt Lists的封面卡片、Excerpt一级界面的封面卡片、Playback Overlay Playlist界面的封面卡片、Command Panel Recent Videos界面的封面卡片、Command Panel Recent Excerpt Lists界面的封面卡片。
 2. 鼠标I-beam样式出现场景：1. 鼠标移动到任何文字可以按下左键拖拽鼠标选中的、且不变为鼠标Grab样式的区域，变为I-beam样式。2. 鼠标移动到可以输入文本的区域，例如搜索框、编辑列表名称、编辑列表描述等。
 3. 界面切换，会将鼠标样式恢复为默认样式。
 4. 弹出菜单或Dialog等，会将鼠标样式恢复为默认样式。
@@ -101,7 +101,7 @@ Toast 与播放反馈只有视觉，不接受输入，落在其上的点击穿�
 ## 规则解释
 1. 规则1和规则2描述了：鼠标移动。这意味着除非其他规则影响，否则鼠标自身位置没有变化的情况下，不会主动改变鼠标样式。之所以这么设置，是出于防止鼠标hover和键盘操作冲突的考虑。注意只是滚动鼠标滚轮或按下鼠标左键不会改变鼠标样式。
 2. 规则优先级：规则5 > 规则4 > 规则3 > 规则2 = 规则1。 下面会描述。注意这些规则，优先级会低于鼠标位置变化。也就是说，当鼠标移动和5条中的若干条规则发生冲突，会优先判断鼠标移动带来的影响。
-3. 规则3界面切换补充说明：Sidebar标签切换；顶栏后退/前进；Recent的Recent Videos/Recent Shioris之间切换；Library一级界面和Library二级界面的Video/Metadata之间切换；Library一级界面/二级界面切换；File的Index/Edit之间切换；Shiori一级界面/二级界面切换；进入/退出播放页；进入/退出Playback Overlay；Playback Overlay界面中切换Current/Playlist/Collage；Command Panel 开关及页面切换。
+3. 规则3界面切换补充说明：Sidebar标签切换；顶栏后退/前进；Recent的Recent Videos/Recent Excerpt Lists之间切换；Library一级界面和Library二级界面的Video/Metadata之间切换；Library一级界面/二级界面切换；File的Index/Edit之间切换；Excerpt一级界面/二级界面切换；进入/退出播放页；进入/退出Playback Overlay；Playback Overlay界面中切换Current/Playlist/Collage；Command Panel 开关及页面切换。
 
 ## 具体场景解释
 为了帮助理解，描述几个具体场景：

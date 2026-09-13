@@ -1099,8 +1099,8 @@
 ##### Context Menu
 
 - Item：Menu Item / Action Menu Item、Destructive Menu Item、Submenu Trigger
-- Workbench Search 表格行菜单：Play、Open Subtitle Folder、Save to Shiori ...；Menu Divider；Copy Cue Text、Copy Deep Link、Copy Cue Group Text、Copy Time Range
-- Workbench Shiori 表格行菜单：Play、Open Subtitle Folder；Menu Divider；Copy Cue Text、Copy Deep Link、Copy Cue Group Text、Copy Time Range；Menu Divider；Move to ...、Duplicate to ...；Menu Divider；Remove Shiori
+- Workbench Search 表格行菜单：Play、Open Subtitle Folder、Save to Excerpt List；Menu Divider；Copy Cue Text、Copy Deep Link、Copy Cue Group Text、Copy Time Range
+- Workbench Excerpt 表格行菜单：Play、Open Subtitle Folder；Menu Divider；Copy Cue Text、Copy Deep Link、Copy Cue Group Text、Copy Time Range；Menu Divider；Move to ...、Duplicate to ...；Menu Divider；Remove Excerpt
 - Copy Cue Group Text 只在显示 Cue Group 时出现
 - File Edit 树 Object Folder 行菜单：Rename Folder
 - File Edit 树 Display Title、Video、Subtitle 行菜单：Rename Files
@@ -1141,13 +1141,13 @@
 
 #### Variants
 
-##### Shiori Destination Submenu
+##### Excerpt Destination Submenu
 
-- Structure：Shiori 列表项依次排列，末尾是 Menu Divider 与 New List 项；没有列表项时不显示 Divider
-- 列表项按创建时间正序，与 Shiori 一级界面的卡片顺序一致
-- 由 Move to ... 与 Duplicate to ... 展开时不含当前所在的列表；由 Save to Shiori ... 展开时含全部列表
-- 也由 Playback Footer 的 Save to Shiori 按钮直接弹出，挂靠该按钮，内容与 Save to Shiori ... 相同
-- Highlight On Open：由 Save to Shiori 打开时为最近保存的列表，没有则首项；由 Move to ... 与 Duplicate to ... 展开时为首项
+- Structure：Excerpt List 项依次排列，末尾是 Menu Divider 与 New List 项；没有列表项时不显示 Divider
+- 列表项按创建时间正序，与 Excerpt 一级界面的卡片顺序一致
+- 由 Move to ... 与 Duplicate to ... 展开时不含当前所在的列表；由 Save to Excerpt List 展开时含全部列表
+- 也由 Playback Footer 的 Save to Excerpt List 按钮直接弹出，挂靠该按钮，内容与表格行菜单的 Save to Excerpt List 相同
+- Highlight On Open：由 Save to Excerpt List 打开时为最近保存的列表，没有则首项；由 Move to ... 与 Duplicate to ... 展开时为首项
 - Item：Menu Item / Action Menu Item，均不带 Leading Icon
 
 ### Menu Item
@@ -2812,7 +2812,7 @@
    2. Recent / Clock
    3. Library / Grid
    4. File / Folder
-   5. Shiori / Bookmark
+   5. Excerpt / Bookmark
 
 #### Components
 
@@ -2873,7 +2873,7 @@
 
 #### Page Title
 
-- 一级页：Search、Recent、Library、File、Shiori
+- 一级页：Search、Recent、Library、File、Excerpt
 - 二级页：None
 - 页面已不存在：`Unknown Page`
 - 宽度：Back、Forward 与 Trailing Function Region 之外的剩余宽度，不足时尾部截断
@@ -2896,7 +2896,7 @@
 - Recent
 - Library
 - File
-- Shiori
+- Excerpt
 
 #### Structure
 
@@ -3061,16 +3061,16 @@
 
 #### Structure
 
-1. Tabs：`Recent Videos`、`Recent Shioris`
+1. Tabs：`Recent Videos`、`Recent Excerpt Lists`
 2. Recent Videos：Recent Watching Card Grid
-3. Recent Shioris：Shiori List Card Grid
+3. Recent Excerpt Lists：Excerpt List Card Grid
 
 #### Components
 
 - Tabs
 - Tab
 - Recent Watching Card Layout
-- Shiori List Card Layout
+- Excerpt List Card Layout
 
 #### Layout
 
@@ -3195,7 +3195,7 @@
 
 #### Layout
 
-- Content Page Padding Inline 与 Shiori List Detail 相同。
+- Content Page Padding Inline 与 Excerpt List Detail 相同。
 - Cover Summary 与 Episode Grid 使用相同宽度和水平边界。
 - Cover Summary 宽度跟随页面可用宽度变化，并在 Split Form 与 Backdrop Form 之间切换。
 - Tabs 左对齐，首个标签与页面内容左边界对齐。
@@ -3357,20 +3357,20 @@
 - Line Gap：`--spacing-1`
 - Divider：`--color-border-divider`
 
-## 3.5 Search and Shiori
+## 3.5 Search and Excerpt
 
-### Shiori List Overview Layout
+### Excerpt List Overview Layout
 
 #### Structure
 
 1. Summary Row
-2. Adaptive Shiori List Card Grid
+2. Adaptive Excerpt List Card Grid
 
 #### Components
 
 - Section Title
 - Button / Primary
-- Shiori List Card Layout
+- Excerpt List Card Layout
 
 #### Layout
 
@@ -3388,7 +3388,7 @@
 - Card Width：`--width-library-recent-card-min` to `--width-library-recent-card-max`
 - Grid Gap：`--gap-library-recent-grid`
 
-### Shiori List Card Layout
+### Excerpt List Card Layout
 
 #### Structure
 
@@ -3413,7 +3413,7 @@
 1. `Edit List`
 2. `Delete List`
 
-只有一个 Shiori List 时 `Delete List` 为 Disabled。
+只有一个 Excerpt List 时 `Delete List` 为 Disabled。
 
 #### States
 
@@ -3421,7 +3421,7 @@
 - Selected
 - Disabled
 
-### Shiori List Detail Layout
+### Excerpt List Detail Layout
 
 #### Structure
 
@@ -3433,8 +3433,8 @@
 #### Components
 
 - Cover Summary
-- Search / Shiori Toolbar Layout
-- Search / Shiori Table Layout
+- Search / Excerpt Toolbar Layout
+- Search / Excerpt Table Layout
 - Selection Action Overlay Layout
 
 #### Layout
@@ -3461,7 +3461,7 @@
 
 - Unknown：列表已删除，页面正文为 Empty State / Empty Hint，文案 `This page no longer exists.`
 
-### Search / Shiori Toolbar Layout
+### Search / Excerpt Toolbar Layout
 
 #### Structure
 
@@ -3525,7 +3525,7 @@
 - Hidden：Select Mode 关闭
 - Visible：Select Mode 开启
 
-### Search / Shiori Table Layout
+### Search / Excerpt Table Layout
 
 #### Structure
 
@@ -3551,7 +3551,7 @@
 
 #### Ordering
 
-- Shiori：按收藏时间正序排列，最新收藏的在最下方
+- Excerpt：按收藏时间正序排列，最新收藏的在最下方
 
 #### Sizes
 
@@ -3579,7 +3579,7 @@
   - Weight：`2`
   - Minimum Width：`140pt`
 - Date Added
-  - Presence：Shiori
+  - Presence：Excerpt
   - Mode：Weighted
   - Weight：`2`
   - Minimum Width：`120pt`
@@ -3636,7 +3636,7 @@
 - Crop Editing
 - Saving
 
-### Shiori List Editor Dialog Layout
+### Excerpt List Editor Dialog Layout
 
 #### Structure
 
@@ -3760,7 +3760,7 @@
 - Form Region 单列，占满内容宽度；各组 Label 与 Text Field 的 Label 相同。
 - Checkbox 每行两个，两列等宽，按 Structure 的顺序从左到右、从上到下排列；Required 的 Checkbox 始终为 Checked + Disabled。
 - Location 路径的文字同 Rename 的 Current Name，单行，过长时中间截断；文件夹按钮在路径右侧，字形墨迹右缘与内容右缘对齐。
-- 默认：Cue Text Side 为 `Back`，Optional 只勾 `Screenshot`，Location 为 Downloads。这三项的选择重新启动后保留，Search 与 Shiori 共用；File Name 每次打开时重新生成。
+- 默认：Cue Text Side 为 `Back`，Optional 只勾 `Screenshot`，Location 为 Downloads。这三项的选择重新启动后保留，Search 与 Excerpt 共用；File Name 每次打开时重新生成。
 
 #### Spacing
 
@@ -4145,16 +4145,16 @@
 
 | 所在界面 | Status | 动作 |
 | --- | --- | --- |
-| Playback Current | 字幕条数 | Save to Shiori `S`、Copy Cue Text `C`、Copy Deep Link `X`、Play `Return` |
+| Playback Current | 字幕条数 | Save to Excerpt List `S`、Copy Cue Text `C`、Copy Deep Link `X`、Play `Return` |
 | Playback Current / Editing Collage | 字幕条数 | Select `Return` |
-| Playback Playlist / Subtitle Playlist | 字幕条数 | Save to Shiori `S`、Copy Cue Text `C`、Copy Deep Link `X`、Play `Return` |
+| Playback Playlist / Subtitle Playlist | 字幕条数 | Save to Excerpt List `S`、Copy Cue Text `C`、Copy Deep Link `X`、Play `Return` |
 | Playback Playlist / Video Playlist | 视频数 | Play `Return` |
 | Command Panel Root | None | Open `Return` |
 | Command Panel / Recent Videos | 视频数 | Open `Return` |
-| Command Panel / Recent Shioris | Shiori 数 | Open `Return` |
-| Command Panel / Search Results | 结果数 | Save to Shiori `S`、Copy Cue Text `C`、Copy Deep Link `X`、Play `Return` |
+| Command Panel / Recent Excerpt Lists | 摘录集数 | Open `Return` |
+| Command Panel / Search Results | 结果数 | Save to Excerpt List `S`、Copy Cue Text `C`、Copy Deep Link `X`、Play `Return` |
 
-- Save to Shiori 打开 Shiori Destination Submenu 选择目标列表，不直接保存；结果由 Playback Feedback 呈现，Icon 为实心书签
+- Save to Excerpt List 打开 Excerpt Destination Submenu 选择目标列表，不直接保存；结果由 Playback Feedback 呈现，Icon 为实心书签
 - `S`、`C`、`X` 为默认键位，Keycap 显示 Settings / Shortcuts 中的当前键位，⇧ 与主键各占一个 Keycap；快捷键已清空或冲突时不显示 Keycap
 
 #### States
@@ -4288,7 +4288,7 @@
 1. Search Field
 2. Option List
    1. Recent Videos
-   2. Recent Shioris
+   2. Recent Excerpt Lists
 3. Footer
 
 #### Structure / Filled Query
@@ -4297,7 +4297,7 @@
 2. Option List
    1. Search Action
    2. Recent Videos
-   3. Recent Shioris
+   3. Recent Excerpt Lists
 3. Footer
 
 #### Components
@@ -4341,8 +4341,8 @@
 
 - Recent Videos
   - Content：Recent Watching Card Grid
-- Recent Shioris
-  - Content：Shiori List Card Grid
+- Recent Excerpt Lists
+  - Content：Excerpt List Card Grid
 - Search Results
   - Content：Command Panel Search Results Layout
 
