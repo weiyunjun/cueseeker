@@ -754,17 +754,17 @@ private struct SubtitleTableTextFragmentLayout {
 
 enum SubtitleTableRowActionMenuStyle {
     case search
-    case shiori
+    case excerpt
 }
 
 enum SubtitleTableProbeSurface: String, CaseIterable, Sendable {
     case search
-    case shiori
+    case excerpt
 
     init(tableName: String) {
         let normalizedName = tableName.lowercased()
-        if normalizedName.contains("shiori") {
-            self = .shiori
+        if normalizedName.contains("excerpt") {
+            self = .excerpt
         } else {
             self = .search
         }
@@ -1144,7 +1144,7 @@ private struct RowActionDestinationSubmenu: View {
     var onCreateList: () -> Void
 
     var body: some View {
-        ShioriDestinationMenu(
+        ExcerptDestinationMenu(
             destinations: destinations,
             highlight: highlight,
             maximumHeight: maximumHeight,
@@ -2390,12 +2390,12 @@ struct SubtitleTableView: NSViewRepresentable {
     }
     var rowActionMenuStyle: SubtitleTableRowActionMenuStyle = .search
     var rowActionDestinations: [SubtitleTableRowActionDestination] = []
-    var onSaveShiori: (SubtitleTableRow, Int64) -> Void = { _, _ in }
-    var onMoveShiori: (SubtitleTableRow, Int64) -> Void = { _, _ in }
-    var onDuplicateShiori: (SubtitleTableRow, Int64) -> Void = { _, _ in }
-    var onCreateShioriList: (SubtitleTableRow, SubtitleTableRowAction) -> Void
+    var onSaveExcerpt: (SubtitleTableRow, Int64) -> Void = { _, _ in }
+    var onMoveExcerpt: (SubtitleTableRow, Int64) -> Void = { _, _ in }
+    var onDuplicateExcerpt: (SubtitleTableRow, Int64) -> Void = { _, _ in }
+    var onCreateExcerptList: (SubtitleTableRow, SubtitleTableRowAction) -> Void
         = { _, _ in }
-    var onRemoveShiori: (SubtitleTableRow) -> Void = { _ in }
+    var onRemoveExcerpt: (SubtitleTableRow) -> Void = { _ in }
     var isRedesign: Bool = false
     var pageChrome: SubtitleTablePageChrome?
     @Environment(\.workbenchPageScrollbar) private var pageScrollbar
@@ -2435,11 +2435,11 @@ struct SubtitleTableView: NSViewRepresentable {
             onOpenSubtitleFile: onOpenSubtitleFile,
             rowActionMenuStyle: rowActionMenuStyle,
             rowActionDestinations: rowActionDestinations,
-            onSaveShiori: onSaveShiori,
-            onMoveShiori: onMoveShiori,
-            onDuplicateShiori: onDuplicateShiori,
-            onCreateShioriList: onCreateShioriList,
-            onRemoveShiori: onRemoveShiori
+            onSaveExcerpt: onSaveExcerpt,
+            onMoveExcerpt: onMoveExcerpt,
+            onDuplicateExcerpt: onDuplicateExcerpt,
+            onCreateExcerptList: onCreateExcerptList,
+            onRemoveExcerpt: onRemoveExcerpt
         )
         coordinator.isRedesign = isRedesign
         return coordinator
@@ -2606,11 +2606,11 @@ struct SubtitleTableView: NSViewRepresentable {
             onOpenSubtitleFile: onOpenSubtitleFile,
             rowActionMenuStyle: rowActionMenuStyle,
             rowActionDestinations: rowActionDestinations,
-            onSaveShiori: onSaveShiori,
-            onMoveShiori: onMoveShiori,
-            onDuplicateShiori: onDuplicateShiori,
-            onCreateShioriList: onCreateShioriList,
-            onRemoveShiori: onRemoveShiori
+            onSaveExcerpt: onSaveExcerpt,
+            onMoveExcerpt: onMoveExcerpt,
+            onDuplicateExcerpt: onDuplicateExcerpt,
+            onCreateExcerptList: onCreateExcerptList,
+            onRemoveExcerpt: onRemoveExcerpt
         )
     }
 
@@ -2660,12 +2660,12 @@ struct SubtitleTableView: NSViewRepresentable {
         private var onOpenSubtitleFile: (String) -> Void
         private var rowActionMenuStyle: SubtitleTableRowActionMenuStyle
         private var rowActionDestinations: [SubtitleTableRowActionDestination]
-        private var onSaveShiori: (SubtitleTableRow, Int64) -> Void
-        private var onMoveShiori: (SubtitleTableRow, Int64) -> Void
-        private var onDuplicateShiori: (SubtitleTableRow, Int64) -> Void
-        private var onCreateShioriList:
+        private var onSaveExcerpt: (SubtitleTableRow, Int64) -> Void
+        private var onMoveExcerpt: (SubtitleTableRow, Int64) -> Void
+        private var onDuplicateExcerpt: (SubtitleTableRow, Int64) -> Void
+        private var onCreateExcerptList:
             (SubtitleTableRow, SubtitleTableRowAction) -> Void
-        private var onRemoveShiori: (SubtitleTableRow) -> Void
+        private var onRemoveExcerpt: (SubtitleTableRow) -> Void
 
         var isRedesign: Bool = false {
             didSet {
@@ -2886,13 +2886,13 @@ struct SubtitleTableView: NSViewRepresentable {
             },
             rowActionMenuStyle: SubtitleTableRowActionMenuStyle = .search,
             rowActionDestinations: [SubtitleTableRowActionDestination] = [],
-            onSaveShiori: @escaping (SubtitleTableRow, Int64) -> Void = { _, _ in },
-            onMoveShiori: @escaping (SubtitleTableRow, Int64) -> Void = { _, _ in },
-            onDuplicateShiori: @escaping (SubtitleTableRow, Int64) -> Void = { _, _ in },
-            onCreateShioriList: @escaping (
+            onSaveExcerpt: @escaping (SubtitleTableRow, Int64) -> Void = { _, _ in },
+            onMoveExcerpt: @escaping (SubtitleTableRow, Int64) -> Void = { _, _ in },
+            onDuplicateExcerpt: @escaping (SubtitleTableRow, Int64) -> Void = { _, _ in },
+            onCreateExcerptList: @escaping (
                 SubtitleTableRow, SubtitleTableRowAction
             ) -> Void = { _, _ in },
-            onRemoveShiori: @escaping (SubtitleTableRow) -> Void = { _ in }
+            onRemoveExcerpt: @escaping (SubtitleTableRow) -> Void = { _ in }
         ) {
             self.tableName = tableName
             self.probeSurface = probeSurface
@@ -2927,11 +2927,11 @@ struct SubtitleTableView: NSViewRepresentable {
             self.onOpenSubtitleFile = onOpenSubtitleFile
             self.rowActionMenuStyle = rowActionMenuStyle
             self.rowActionDestinations = rowActionDestinations
-            self.onSaveShiori = onSaveShiori
-            self.onMoveShiori = onMoveShiori
-            self.onDuplicateShiori = onDuplicateShiori
-            self.onCreateShioriList = onCreateShioriList
-            self.onRemoveShiori = onRemoveShiori
+            self.onSaveExcerpt = onSaveExcerpt
+            self.onMoveExcerpt = onMoveExcerpt
+            self.onDuplicateExcerpt = onDuplicateExcerpt
+            self.onCreateExcerptList = onCreateExcerptList
+            self.onRemoveExcerpt = onRemoveExcerpt
         }
 
         deinit {
@@ -3213,13 +3213,13 @@ struct SubtitleTableView: NSViewRepresentable {
             },
             rowActionMenuStyle: SubtitleTableRowActionMenuStyle = .search,
             rowActionDestinations: [SubtitleTableRowActionDestination] = [],
-            onSaveShiori: @escaping (SubtitleTableRow, Int64) -> Void = { _, _ in },
-            onMoveShiori: @escaping (SubtitleTableRow, Int64) -> Void = { _, _ in },
-            onDuplicateShiori: @escaping (SubtitleTableRow, Int64) -> Void = { _, _ in },
-            onCreateShioriList: @escaping (
+            onSaveExcerpt: @escaping (SubtitleTableRow, Int64) -> Void = { _, _ in },
+            onMoveExcerpt: @escaping (SubtitleTableRow, Int64) -> Void = { _, _ in },
+            onDuplicateExcerpt: @escaping (SubtitleTableRow, Int64) -> Void = { _, _ in },
+            onCreateExcerptList: @escaping (
                 SubtitleTableRow, SubtitleTableRowAction
             ) -> Void = { _, _ in },
-            onRemoveShiori: @escaping (SubtitleTableRow) -> Void = { _ in }
+            onRemoveExcerpt: @escaping (SubtitleTableRow) -> Void = { _ in }
         ) {
             let tableChanged = tableName != self.tableName
             self.probeSurface = probeSurface
@@ -3295,11 +3295,11 @@ struct SubtitleTableView: NSViewRepresentable {
             self.onOpenSubtitleFile = onOpenSubtitleFile
             self.rowActionMenuStyle = rowActionMenuStyle
             self.rowActionDestinations = rowActionDestinations
-            self.onSaveShiori = onSaveShiori
-            self.onMoveShiori = onMoveShiori
-            self.onDuplicateShiori = onDuplicateShiori
-            self.onCreateShioriList = onCreateShioriList
-            self.onRemoveShiori = onRemoveShiori
+            self.onSaveExcerpt = onSaveExcerpt
+            self.onMoveExcerpt = onMoveExcerpt
+            self.onDuplicateExcerpt = onDuplicateExcerpt
+            self.onCreateExcerptList = onCreateExcerptList
+            self.onRemoveExcerpt = onRemoveExcerpt
 
             self.rowCount = nextRowCount
             self.rowsVersion = rowsVersion
@@ -7368,14 +7368,14 @@ struct SubtitleTableView: NSViewRepresentable {
             }
             if !rowActionDestinationHighlight.isOpen {
                 rowActionDestinationHighlight.open(
-                    selectablePositions: ShioriDestinationMenu
+                    selectablePositions: ExcerptDestinationMenu
                         .selectablePositions(
                             destinationCount: rowActionDestinations.count
                         ),
                     // Only saving remembers a destination; moving and
                     // duplicating open on their first list as before.
-                    defaultPosition: action == .saveToShiori
-                        ? ShioriDestinationMenu.defaultPosition(
+                    defaultPosition: action == .saveToExcerpt
+                        ? ExcerptDestinationMenu.defaultPosition(
                             destinations: rowActionDestinations
                         )
                         : nil
@@ -7624,12 +7624,12 @@ struct SubtitleTableView: NSViewRepresentable {
             }
             dismissMenu()
             switch action {
-            case .saveToShiori:
-                onSaveShiori(target, destinationID)
+            case .saveToExcerpt:
+                onSaveExcerpt(target, destinationID)
             case .moveToList:
-                onMoveShiori(target, destinationID)
+                onMoveExcerpt(target, destinationID)
             case .duplicateToList:
-                onDuplicateShiori(target, destinationID)
+                onDuplicateExcerpt(target, destinationID)
             default:
                 break
             }
@@ -7645,7 +7645,7 @@ struct SubtitleTableView: NSViewRepresentable {
                 return
             }
             dismissMenu()
-            onCreateShioriList(target, action)
+            onCreateExcerptList(target, action)
         }
 
         private func performRowAction(_ action: SubtitleTableRowAction, row: Int) {
@@ -7673,10 +7673,10 @@ struct SubtitleTableView: NSViewRepresentable {
                 copyCueGroup(target: target)
             case .copyTimeRange:
                 copyCellText(target: target, columnID: "time")
-            case .saveToShiori, .moveToList, .duplicateToList:
+            case .saveToExcerpt, .moveToList, .duplicateToList:
                 break
-            case .removeShiori:
-                onRemoveShiori(target)
+            case .removeExcerpt:
+                onRemoveExcerpt(target)
             }
         }
 
@@ -7686,7 +7686,7 @@ struct SubtitleTableView: NSViewRepresentable {
             var actions = target.cueState.disabledRowActions
             if target.primaryCueID.map({ $0 <= 0 }) ?? true {
                 actions.insert(.copyDeepLink)
-                actions.insert(.saveToShiori)
+                actions.insert(.saveToExcerpt)
             }
             return actions
         }

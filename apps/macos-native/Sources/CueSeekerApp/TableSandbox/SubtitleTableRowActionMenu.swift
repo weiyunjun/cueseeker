@@ -1,14 +1,14 @@
 enum SubtitleTableRowAction: Hashable, Sendable {
     case play
     case openSubtitleFolder
-    case saveToShiori
+    case saveToExcerpt
     case copyCueText
     case copyDeepLink
     case copyCueGroupText
     case copyTimeRange
     case moveToList
     case duplicateToList
-    case removeShiori
+    case removeExcerpt
 
     var title: String {
         switch self {
@@ -16,8 +16,8 @@ enum SubtitleTableRowAction: Hashable, Sendable {
             return L("row_menu.play")
         case .openSubtitleFolder:
             return L("row_menu.open_subtitle_folder")
-        case .saveToShiori:
-            return L("row_menu.save_to_shiori")
+        case .saveToExcerpt:
+            return L("row_menu.save_to_excerpt")
         case .copyCueText:
             return L("row_menu.copy_cue_text")
         case .copyDeepLink:
@@ -30,8 +30,8 @@ enum SubtitleTableRowAction: Hashable, Sendable {
             return L("row_menu.move_to")
         case .duplicateToList:
             return L("row_menu.duplicate_to")
-        case .removeShiori:
-            return L("row_menu.remove_shiori")
+        case .removeExcerpt:
+            return L("row_menu.remove_excerpt")
         }
     }
 
@@ -41,7 +41,7 @@ enum SubtitleTableRowAction: Hashable, Sendable {
             return .play
         case .openSubtitleFolder:
             return .folder
-        case .saveToShiori:
+        case .saveToExcerpt:
             return .arrowRight
         case .copyCueText, .copyCueGroupText, .copyTimeRange:
             return .copy
@@ -51,7 +51,7 @@ enum SubtitleTableRowAction: Hashable, Sendable {
             return .arrowRight
         case .duplicateToList:
             return .arrowRight
-        case .removeShiori:
+        case .removeExcerpt:
             return .bookmarkSimple
         }
     }
@@ -62,18 +62,18 @@ enum SubtitleTableRowAction: Hashable, Sendable {
     }
 
     var opensDestinationSubmenu: Bool {
-        self == .saveToShiori || self == .moveToList || self == .duplicateToList
+        self == .saveToExcerpt || self == .moveToList || self == .duplicateToList
     }
 
     var isDestructive: Bool {
-        self == .removeShiori
+        self == .removeExcerpt
     }
 }
 
 struct SubtitleTableRowActionDestination: Equatable, Sendable, Identifiable {
     let id: Int64
     let title: String
-    /// The list this cue was saved to most recently, which `Save to Shiori`
+    /// The list this cue was saved to most recently, which `Save to Excerpt`
     /// highlights when its menu opens.
     var isRecentSaveTarget = false
 }
@@ -92,7 +92,7 @@ struct SubtitleTableRowActionMenuModel: Equatable, Sendable {
             .action(.openSubtitleFolder),
         ]
         if style == .search {
-            elements.append(.action(.saveToShiori))
+            elements.append(.action(.saveToExcerpt))
         }
         elements += [
             .divider,
@@ -103,12 +103,12 @@ struct SubtitleTableRowActionMenuModel: Equatable, Sendable {
             elements.append(.action(.copyCueGroupText))
         }
         elements.append(.action(.copyTimeRange))
-        if style == .shiori {
+        if style == .excerpt {
             elements.append(.divider)
             elements.append(.action(.moveToList))
             elements.append(.action(.duplicateToList))
             elements.append(.divider)
-            elements.append(.action(.removeShiori))
+            elements.append(.action(.removeExcerpt))
         }
         self.elements = elements
     }
@@ -129,7 +129,7 @@ struct SubtitleTableRowActionMenuModel: Equatable, Sendable {
         return action
     }
 
-    /// The destination submenu always offers New List, so a Shiori with no
+    /// The destination submenu always offers New List, so a Excerpt with no
     /// other list to move to still opens it.
     func isEnabled(
         _ action: SubtitleTableRowAction,

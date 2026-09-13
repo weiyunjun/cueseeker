@@ -26,7 +26,7 @@ enum InterfaceLayer: Int, CaseIterable, Comparable {
     case playbackOverlay
     /// Command Panel, above the Playback Overlay.
     case commandPanel
-    /// Edit Cover, the Shiori List Editor, Rename, the Task panel and
+    /// Edit Cover, the Excerpt List Editor, Rename, the Task panel and
     /// Confirmation, drawn by the dialog layer inside the main window. A
     /// Confirmation may stack on another dialog, and the layer stays open until
     /// the last of them closes.

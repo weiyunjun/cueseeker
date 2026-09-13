@@ -149,7 +149,7 @@ enum PlaybackShortcutAction: String, CaseIterable, Identifiable, Sendable {
     case copyScreenshot
     case toggleFullscreen
     case openPlaybackOverlay
-    case saveToShiori
+    case saveToExcerpt
     case copyCueText
     case copyDeepLink
     case editCollage
@@ -164,7 +164,7 @@ enum PlaybackShortcutAction: String, CaseIterable, Identifiable, Sendable {
         switch self {
         case .openCommandPanel:
             .global
-        case .saveToShiori, .copyCueText, .copyDeepLink, .editCollage:
+        case .saveToExcerpt, .copyCueText, .copyDeepLink, .editCollage:
             .overlay
         default:
             .playback
@@ -209,7 +209,7 @@ enum PlaybackShortcutAction: String, CaseIterable, Identifiable, Sendable {
             PlaybackShortcutKey(keyCode: UInt16(kVK_ANSI_F))
         case .openPlaybackOverlay:
             PlaybackShortcutKey(keyCode: UInt16(kVK_Return))
-        case .saveToShiori:
+        case .saveToExcerpt:
             PlaybackShortcutKey(keyCode: UInt16(kVK_ANSI_S))
         case .copyCueText:
             PlaybackShortcutKey(keyCode: UInt16(kVK_ANSI_C))

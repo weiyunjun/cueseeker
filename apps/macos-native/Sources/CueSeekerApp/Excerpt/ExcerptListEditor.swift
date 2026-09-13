@@ -2,29 +2,29 @@ import CoreGraphics
 import SwiftUI
 import CueSeekerCore
 
-enum ShioriListEditorMode {
+enum ExcerptListEditorMode {
     case newList
-    case edit(ShioriList)
+    case edit(ExcerptList)
 
     var title: String {
         switch self {
         case .newList:
-            L("shiori.new_list")
+            L("excerpt.new_list")
         case .edit:
-            L("shiori.edit_list")
+            L("excerpt.edit_list")
         }
     }
 
     var primaryActionTitle: String {
         switch self {
         case .newList:
-            L("shiori.create")
+            L("excerpt.create")
         case .edit:
-            L("shiori.save")
+            L("excerpt.save")
         }
     }
 
-    var editedList: ShioriList? {
+    var editedList: ExcerptList? {
         guard case .edit(let list) = self else {
             return nil
         }
@@ -34,26 +34,26 @@ enum ShioriListEditorMode {
 
 /// A Save to, Move to or Duplicate to that the destination submenu's New List
 /// item interrupted. It runs against the list this session creates.
-struct ShioriListEditorPendingTransfer {
+struct ExcerptListEditorPendingTransfer {
     let action: SubtitleTableRowAction
     let target: Target
     /// The surface that asked, so the result lands where that surface can show
     /// it once the editor closes.
-    var report: ShioriSaveReport = .toast
+    var report: ExcerptSaveReport = .toast
 
-    /// Move and Duplicate carry an existing Shiori; Save from the Search table
+    /// Move and Duplicate carry an existing Excerpt; Save from the Search table
     /// has only the Cue.
     enum Target {
-        case shiori(Shiori)
+        case excerpt(Excerpt)
         case cue(Int64)
     }
 }
 
 @MainActor
-final class ShioriListEditorSession: ObservableObject, Identifiable {
+final class ExcerptListEditorSession: ObservableObject, Identifiable {
     let id = UUID()
-    let mode: ShioriListEditorMode
-    let pendingTransfer: ShioriListEditorPendingTransfer?
+    let mode: ExcerptListEditorMode
+    let pendingTransfer: ExcerptListEditorPendingTransfer?
     let originalName: String
     let originalDescription: String
     let originalCoverPath: String?
@@ -68,8 +68,8 @@ final class ShioriListEditorSession: ObservableObject, Identifiable {
     @Published var isSaving = false
 
     init(
-        mode: ShioriListEditorMode,
-        pendingTransfer: ShioriListEditorPendingTransfer? = nil
+        mode: ExcerptListEditorMode,
+        pendingTransfer: ExcerptListEditorPendingTransfer? = nil
     ) {
         self.mode = mode
         self.pendingTransfer = pendingTransfer
@@ -94,30 +94,30 @@ final class ShioriListEditorSession: ObservableObject, Identifiable {
         )
     }
 
-    func apply(validation: ShioriListValidation) {
+    func apply(validation: ExcerptListValidation) {
         hasAttemptedValidation = true
         nameValidationMessage = Self.message(for: validation.nameError)
         descriptionValidationMessage = Self.message(for: validation.descriptionError)
     }
 
-    private static func message(for error: ShioriListValidationError?) -> String? {
+    private static func message(for error: ExcerptListValidationError?) -> String? {
         switch error {
         case nil:
             nil
         case .emptyName:
-            L("shiori.validation.name_required")
+            L("excerpt.validation.name_required")
         case .nameTooLong:
-            L("shiori.validation.name_too_long")
+            L("excerpt.validation.name_too_long")
         case .descriptionTooLong:
-            L("shiori.validation.description_too_long")
+            L("excerpt.validation.description_too_long")
         case .duplicateName:
-            L("shiori.validation.name_taken")
+            L("excerpt.validation.name_taken")
         }
     }
 }
 
-struct ShioriListEditorDialog: View {
-    @ObservedObject var session: ShioriListEditorSession
+struct ExcerptListEditorDialog: View {
+    @ObservedObject var session: ExcerptListEditorSession
     let onChooseImage: () -> Void
     let onValidate: () -> Void
     let onSave: () -> Void
@@ -142,13 +142,13 @@ struct ShioriListEditorDialog: View {
             WorkbenchScrollView {
                 mainLayout {
                     coverRegion
-                        .frame(width: WorkbenchControlMetrics.redesignShioriListEditorCoverWidth)
+                        .frame(width: WorkbenchControlMetrics.redesignExcerptListEditorCoverWidth)
 
                     formRegion
                         .frame(
                             width: isWide
-                                ? WorkbenchControlMetrics.redesignShioriListEditorWideFormWidth
-                                : WorkbenchControlMetrics.redesignShioriListEditorCoverWidth
+                                ? WorkbenchControlMetrics.redesignExcerptListEditorWideFormWidth
+                                : WorkbenchControlMetrics.redesignExcerptListEditorCoverWidth
                         )
                 }
                 .padding(.horizontal, WorkbenchControlMetrics.redesignDialogInset)
@@ -216,7 +216,7 @@ struct ShioriListEditorDialog: View {
                     isEnabled: !session.isSaving,
                     action: onChooseImage
                 ) {
-                    ShioriListCoverView(coverPath: session.originalCoverPath)
+                    ExcerptListCoverView(coverPath: session.originalCoverPath)
                 }
             }
 
@@ -233,20 +233,20 @@ struct ShioriListEditorDialog: View {
     private var formRegion: some View {
         VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing2) {
             WorkbenchFormTextField(
-                label: L("shiori.list_name"),
-                placeholder: L("shiori.list_name.placeholder"),
+                label: L("excerpt.list_name"),
+                placeholder: L("excerpt.list_name.placeholder"),
                 text: $session.name,
                 validationMessage: session.nameValidationMessage,
                 focus: $isNameFocused
             )
 
             WorkbenchFormTextArea(
-                label: L("shiori.description"),
-                placeholder: L("shiori.description.placeholder"),
+                label: L("excerpt.description"),
+                placeholder: L("excerpt.description.placeholder"),
                 text: $session.listDescription,
                 validationMessage: session.descriptionValidationMessage,
                 focus: $isDescriptionFocused,
-                height: WorkbenchControlMetrics.redesignShioriListEditorDescriptionHeight
+                height: WorkbenchControlMetrics.redesignExcerptListEditorDescriptionHeight
             )
         }
     }

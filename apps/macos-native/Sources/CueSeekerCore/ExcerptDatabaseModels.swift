@@ -1,39 +1,39 @@
 import Foundation
 
-public enum ShioriListIdentity {
+public enum ExcerptListIdentity {
     public static let defaultListID: Int64 = 1
 }
 
-public enum ShioriListValidationError: Error, Equatable, Sendable {
+public enum ExcerptListValidationError: Error, Equatable, Sendable {
     case emptyName
     case nameTooLong(maximumCharacters: Int, currentCharacters: Int)
     case descriptionTooLong(maximumCharacters: Int, currentCharacters: Int)
     case duplicateName
 }
 
-public enum ShioriListMutationError: Error, Equatable, Sendable {
+public enum ExcerptListMutationError: Error, Equatable, Sendable {
     case listNotFound
     case cannotDeleteOnlyList
 }
 
-public struct ShioriListValidation: Equatable, Sendable {
-    public let nameError: ShioriListValidationError?
-    public let descriptionError: ShioriListValidationError?
+public struct ExcerptListValidation: Equatable, Sendable {
+    public let nameError: ExcerptListValidationError?
+    public let descriptionError: ExcerptListValidationError?
 
     public var isValid: Bool {
         nameError == nil && descriptionError == nil
     }
 
     public init(
-        nameError: ShioriListValidationError?,
-        descriptionError: ShioriListValidationError?
+        nameError: ExcerptListValidationError?,
+        descriptionError: ExcerptListValidationError?
     ) {
         self.nameError = nameError
         self.descriptionError = descriptionError
     }
 }
 
-public struct ShioriList: Equatable, Sendable, Identifiable {
+public struct ExcerptList: Equatable, Sendable, Identifiable {
     public let id: Int64
     public let name: String
     public let description: String
@@ -64,10 +64,10 @@ public struct ShioriList: Equatable, Sendable, Identifiable {
     }
 }
 
-public struct ShioriListSummary: Equatable, Sendable, Identifiable {
-    public let list: ShioriList
+public struct ExcerptListSummary: Equatable, Sendable, Identifiable {
+    public let list: ExcerptList
     public let cueCount: Int
-    public let resumeShiori: Shiori?
+    public let resumeExcerpt: Excerpt?
     public let resumePosition: Int?
 
     public var id: Int64 {
@@ -75,29 +75,29 @@ public struct ShioriListSummary: Equatable, Sendable, Identifiable {
     }
 
     public init(
-        list: ShioriList,
+        list: ExcerptList,
         cueCount: Int,
-        resumeShiori: Shiori? = nil,
+        resumeExcerpt: Excerpt? = nil,
         resumePosition: Int? = nil
     ) {
         self.list = list
         self.cueCount = cueCount
-        self.resumeShiori = resumeShiori
+        self.resumeExcerpt = resumeExcerpt
         self.resumePosition = resumePosition
     }
 }
 
-public struct ShioriListOverview: Equatable, Sendable {
-    public let lists: [ShioriListSummary]
+public struct ExcerptListOverview: Equatable, Sendable {
+    public let lists: [ExcerptListSummary]
     public let uniqueCueCount: Int
 
-    public init(lists: [ShioriListSummary], uniqueCueCount: Int) {
+    public init(lists: [ExcerptListSummary], uniqueCueCount: Int) {
         self.lists = lists
         self.uniqueCueCount = uniqueCueCount
     }
 }
 
-public struct ShioriRelation: Equatable, Sendable, Identifiable {
+public struct ExcerptRelation: Equatable, Sendable, Identifiable {
     public let id: Int64
     public let listID: Int64
     public let cueID: Int64
@@ -111,39 +111,39 @@ public struct ShioriRelation: Equatable, Sendable, Identifiable {
     }
 }
 
-public struct ShioriResidentSnapshot: Equatable, Sendable {
-    public let relations: [ShioriRelation]
-    public let resolvedShioris: [Shiori]
+public struct ExcerptResidentSnapshot: Equatable, Sendable {
+    public let relations: [ExcerptRelation]
+    public let resolvedExcerpts: [Excerpt]
     public let cueContents: [CueContent]
     public let facetSnapshot: CueFacetSnapshot
 
     public init(
-        relations: [ShioriRelation],
-        resolvedShioris: [Shiori] = [],
+        relations: [ExcerptRelation],
+        resolvedExcerpts: [Excerpt] = [],
         cueContents: [CueContent],
         facetSnapshot: CueFacetSnapshot = .empty
     ) {
         self.relations = relations
-        self.resolvedShioris = resolvedShioris
+        self.resolvedExcerpts = resolvedExcerpts
         self.cueContents = cueContents
         self.facetSnapshot = facetSnapshot
     }
 }
 
-public enum ShioriTransferError: Error, Equatable, Sendable {
+public enum ExcerptTransferError: Error, Equatable, Sendable {
     case sourceUnavailable
     case destinationUnavailable
     case destinationAlreadyContainsCue(listID: Int64)
 }
 
-public enum ShioriUnavailableReason: String, Equatable, Sendable {
+public enum ExcerptUnavailableReason: String, Equatable, Sendable {
     case libraryUnavailable = "library_unavailable"
     case videoMissing = "video_missing"
     case subtitleMissing = "subtitle_missing"
     case cueMissing = "cue_missing"
 }
 
-public struct ShioriCueContentChange: Equatable, Sendable {
+public struct ExcerptCueContentChange: Equatable, Sendable {
     public let previousContent: String
     public let currentContent: String
 
@@ -153,10 +153,10 @@ public struct ShioriCueContentChange: Equatable, Sendable {
     }
 }
 
-/// A resolved Shiori value used by playback and legacy presentation call sites.
-/// Persisted Shiori state is represented by `ShioriRelation`; every other field
+/// A resolved Excerpt value used by playback and legacy presentation call sites.
+/// Persisted Excerpt state is represented by `ExcerptRelation`; every other field
 /// here is resolved from the referenced current Cue.
-public struct Shiori: Equatable, Sendable, Identifiable {
+public struct Excerpt: Equatable, Sendable, Identifiable {
     public static let cueGroupContentSeparator = "\u{001F}"
 
     public let id: Int64
@@ -174,8 +174,8 @@ public struct Shiori: Equatable, Sendable, Identifiable {
     public let content: String
     public let cueGroupContent: String
     public let isValid: Bool
-    public let unavailableReason: ShioriUnavailableReason?
-    public let contentChange: ShioriCueContentChange?
+    public let unavailableReason: ExcerptUnavailableReason?
+    public let contentChange: ExcerptCueContentChange?
     public let createdAt: String
 
     public init(
@@ -194,8 +194,8 @@ public struct Shiori: Equatable, Sendable, Identifiable {
         content: String,
         cueGroupContent: String? = nil,
         isValid: Bool,
-        unavailableReason: ShioriUnavailableReason? = nil,
-        contentChange: ShioriCueContentChange? = nil,
+        unavailableReason: ExcerptUnavailableReason? = nil,
+        contentChange: ExcerptCueContentChange? = nil,
         createdAt: String
     ) {
         self.id = id
@@ -227,7 +227,7 @@ public struct Shiori: Equatable, Sendable, Identifiable {
         self.createdAt = createdAt
     }
 
-    public init(relation: ShioriRelation, cueContent: CueContent) {
+    public init(relation: ExcerptRelation, cueContent: CueContent) {
         self.init(
             id: relation.id,
             subtitleFileID: cueContent.subtitleFileID,
@@ -269,7 +269,7 @@ public struct Shiori: Equatable, Sendable, Identifiable {
     }
 }
 
-public struct ShioriCuePresentation: Equatable, Sendable {
+public struct ExcerptCuePresentation: Equatable, Sendable {
     public let cueID: Int64?
     public let cueGroupID: Int64?
     public let primaryGroupIndex: Int?
@@ -301,7 +301,7 @@ public struct ShioriCuePresentation: Equatable, Sendable {
     }
 }
 
-public enum ShioriNavigationDirection: Equatable, Sendable {
+public enum ExcerptNavigationDirection: Equatable, Sendable {
     case previous
     case next
 }

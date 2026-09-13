@@ -28,7 +28,7 @@ func urlSchemeCueDeepLinkBuildsOneItemPlaylistAndReturnsToSearch() async throws 
     #expect(resolvedResult.entryID == cueID)
     #expect(try searchDatabase.cuePlaybackResult(cueID: Int64.max) == nil)
 
-    fixture.app.workbenchLayout.navigate(to: .shiori)
+    fixture.app.workbenchLayout.navigate(to: .excerpt)
     var presentationReadyCount = 0
     fixture.app.handleURLSchemeCommand(.cue(id: cueID)) {
         presentationReadyCount += 1
@@ -40,7 +40,7 @@ func urlSchemeCueDeepLinkBuildsOneItemPlaylistAndReturnsToSearch() async throws 
     #expect(fixture.app.pendingURLSchemeCuePlaybackIntent == nil)
     #expect(fixture.app.search.selectedSearchResult?.entryID == cueID)
     #expect(fixture.app.playback.isPlaybackSurfaceExpanded)
-    #expect(fixture.app.workbenchLayout.panelMode == .shiori)
+    #expect(fixture.app.workbenchLayout.panelMode == .excerpt)
 
     let source = try #require(fixture.app.playback.playlistSource)
     let position = try #require(fixture.app.playback.playlistPosition)
@@ -74,7 +74,7 @@ func urlSchemeCueDeepLinkBuildsOneItemPlaylistAndReturnsToSearch() async throws 
     #expect(overlaySession.playlistWindow?.item(at: 0)?.primaryCueIdentity == .cue(cueID))
 
     fixture.app.stopPlayback()
-    #expect(fixture.app.workbenchLayout.panelMode == .shiori)
+    #expect(fixture.app.workbenchLayout.panelMode == .excerpt)
     #expect(!fixture.app.playback.isPlaybackSurfaceExpanded)
 }
 
@@ -83,7 +83,7 @@ func urlSchemeCueDeepLinkBuildsOneItemPlaylistAndReturnsToSearch() async throws 
 func urlSchemeUnavailableCueDoesNotReplaceCurrentPresentation() async throws {
     let fixture = try makeURLSchemeCuePlaybackFixture("Unavailable")
     defer { fixture.cleanup() }
-    fixture.app.workbenchLayout.navigate(to: .shiori)
+    fixture.app.workbenchLayout.navigate(to: .excerpt)
     fixture.app.search.updateQuery("keep me")
 
     var presentationReadyCount = 0
@@ -95,7 +95,7 @@ func urlSchemeUnavailableCueDoesNotReplaceCurrentPresentation() async throws {
 
     #expect(presentationReadyCount == 1)
     #expect(fixture.app.pendingURLSchemeCuePlaybackIntent == nil)
-    #expect(fixture.app.workbenchLayout.panelMode == .shiori)
+    #expect(fixture.app.workbenchLayout.panelMode == .excerpt)
     #expect(fixture.app.search.searchQuery == "keep me")
     #expect(!fixture.app.isPlaybackPageVisible)
     #expect(fixture.app.playback.playlistSource == nil)

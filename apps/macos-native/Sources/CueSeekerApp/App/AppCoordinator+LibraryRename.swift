@@ -87,6 +87,6 @@ extension AppCoordinator {
 
         var result = SubtitleIndexingResult()
         result.affectedFolderPaths = plan.affectedFolderPaths
-        applyPublishedIndexMutation(result, shioriFallbackFolders: [])
+        applyPublishedIndexMutation(result, excerptFallbackFolders: [])
     }
 }

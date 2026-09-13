@@ -5,16 +5,16 @@ import Testing
 
 @MainActor
 @Test
-func shioriDescriptionBoxEndsOnTheCoverBottom() {
+func excerptDescriptionBoxEndsOnTheCoverBottom() {
     let formView = NSHostingView(
-        rootView: ShioriFormHeightProbe()
-            .frame(width: WorkbenchControlMetrics.redesignShioriListEditorWideFormWidth)
+        rootView: ExcerptFormHeightProbe()
+            .frame(width: WorkbenchControlMetrics.redesignExcerptListEditorWideFormWidth)
     )
     let coverView = NSHostingView(
         rootView: LibraryCoverFrame {
             Color.clear
         }
-        .frame(width: WorkbenchControlMetrics.redesignShioriListEditorCoverWidth)
+        .frame(width: WorkbenchControlMetrics.redesignExcerptListEditorCoverWidth)
     )
     // The Description's reserved message line hangs below the box.
     let messageLineView = NSHostingView(
@@ -44,7 +44,7 @@ func textAreaUsesOneContentInsetWithoutNativeScrollbars() {
             x: 0,
             y: 0,
             width: 340,
-            height: WorkbenchControlMetrics.redesignShioriListEditorDescriptionHeight
+            height: WorkbenchControlMetrics.redesignExcerptListEditorDescriptionHeight
         )
     )
     view.configure(placeholder: "Description", isEnabled: true)
@@ -69,7 +69,7 @@ func textAreaReportsFirstResponderChanges() {
             x: 0,
             y: 0,
             width: 340,
-            height: WorkbenchControlMetrics.redesignShioriListEditorDescriptionHeight
+            height: WorkbenchControlMetrics.redesignExcerptListEditorDescriptionHeight
         )
     )
     let window = NSWindow(
@@ -96,7 +96,7 @@ func textAreaScrollbarPersistsOnlyWhileContentOverflows() {
             x: 0,
             y: 0,
             width: 340,
-            height: WorkbenchControlMetrics.redesignShioriListEditorDescriptionHeight
+            height: WorkbenchControlMetrics.redesignExcerptListEditorDescriptionHeight
         )
     )
     view.layout()
@@ -117,7 +117,7 @@ func textAreaScrollbarPersistsOnlyWhileContentOverflows() {
     #expect(!view.isScrollbarVisibleForTesting)
 }
 
-private struct ShioriFormHeightProbe: View {
+private struct ExcerptFormHeightProbe: View {
     @State private var name = ""
     @State private var description = ""
     @FocusState private var isNameFocused: Bool
@@ -142,7 +142,7 @@ private struct ShioriFormHeightProbe: View {
                 text: $description,
                 validationMessage: nil,
                 focus: $isDescriptionFocused,
-                height: WorkbenchControlMetrics.redesignShioriListEditorDescriptionHeight
+                height: WorkbenchControlMetrics.redesignExcerptListEditorDescriptionHeight
             )
         }
     }

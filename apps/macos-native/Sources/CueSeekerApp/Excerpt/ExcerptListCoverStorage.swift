@@ -1,7 +1,7 @@
 import CoreGraphics
 import Foundation
 
-actor ShioriListCoverStorage {
+actor ExcerptListCoverStorage {
     private let displayDirectory: URL
     private let imagePipeline: LibraryCoverImagePipeline
     private let fileManager: FileManager

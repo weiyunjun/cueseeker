@@ -142,7 +142,7 @@ func settingsStoreKeepsEmptyAndCompleteFacetSelectionsDistinct() {
 
 @MainActor
 @Test
-func settingsStoreKeepsSearchAndShioriFacetSelectionsIndependent() {
+func settingsStoreKeepsSearchAndExcerptFacetSelectionsIndependent() {
     withTemporarySearchSettingsUserDefaults { userDefaults in
         let firstStore = SettingsStore(userDefaults: userDefaults)
         let searchFilter = CueFacetFilter(languages: [.japanese])
@@ -156,14 +156,14 @@ func settingsStoreKeepsSearchAndShioriFacetSelectionsIndependent() {
         )
 
         firstStore.searchFacetFilter = searchFilter
-        firstStore.setShioriFacetFilter(firstListFilter, forListID: 1)
-        firstStore.setShioriFacetFilter(secondListFilter, forListID: 2)
+        firstStore.setExcerptFacetFilter(firstListFilter, forListID: 1)
+        firstStore.setExcerptFacetFilter(secondListFilter, forListID: 2)
 
         let restoredStore = SettingsStore(userDefaults: userDefaults)
         #expect(restoredStore.searchFacetFilter == searchFilter)
-        #expect(restoredStore.shioriFacetFilter(forListID: 1) == firstListFilter)
-        #expect(restoredStore.shioriFacetFilter(forListID: 2) == secondListFilter)
-        #expect(restoredStore.shioriFacetFilter(forListID: 3) == CueFacetFilter())
+        #expect(restoredStore.excerptFacetFilter(forListID: 1) == firstListFilter)
+        #expect(restoredStore.excerptFacetFilter(forListID: 2) == secondListFilter)
+        #expect(restoredStore.excerptFacetFilter(forListID: 3) == CueFacetFilter())
     }
 }
 
@@ -178,7 +178,7 @@ func searchFacetPersistenceDoesNotInvalidateGlobalSettingsObservers() {
         }
 
         store.searchFacetFilter = CueFacetFilter(languages: [.japanese])
-        store.setShioriFacetFilter(
+        store.setExcerptFacetFilter(
             CueFacetFilter(watchStates: [.finished]),
             forListID: 1
         )
@@ -238,16 +238,16 @@ func settingsStorePreservesKnownSelectionsBesideUnrecognizedExclusions() {
 
 @MainActor
 @Test
-func settingsStoreIgnoresUnrecognizedShioriFacetExclusions() {
+func settingsStoreIgnoresUnrecognizedExcerptFacetExclusions() {
     withTemporarySearchSettingsUserDefaults { userDefaults in
         userDefaults.set([
             "7": [
                 "language": ["en", "future-language"],
             ],
-        ], forKey: "shioriFacetExclusionsByListID")
+        ], forKey: "excerptFacetExclusionsByListID")
 
         let store = SettingsStore(userDefaults: userDefaults)
-        let filter = store.shioriFacetFilter(forListID: 7)
+        let filter = store.excerptFacetFilter(forListID: 7)
 
         #expect(!filter.languages.contains(.english))
         #expect(filter.languages.contains(.japanese))

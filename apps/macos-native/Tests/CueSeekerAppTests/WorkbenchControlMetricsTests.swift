@@ -88,7 +88,7 @@ func dialogWidthTiersAndTheListEditorsDerivedSizes() {
     #expect(WorkbenchControlMetrics.redesignDialogWidthXLarge == 720)
     #expect(WorkbenchControlMetrics.redesignDialogWindowMargin == 24)
     #expect(WorkbenchControlMetrics.redesignTaskPanelHeight == 500)
-    #expect(WorkbenchControlMetrics.redesignShioriListEditorCoverWidth == 312)
-    #expect(WorkbenchControlMetrics.redesignShioriListEditorWideFormWidth == 336)
-    #expect(WorkbenchControlMetrics.redesignShioriListEditorDescriptionHeight == 58.5)
+    #expect(WorkbenchControlMetrics.redesignExcerptListEditorCoverWidth == 312)
+    #expect(WorkbenchControlMetrics.redesignExcerptListEditorWideFormWidth == 336)
+    #expect(WorkbenchControlMetrics.redesignExcerptListEditorDescriptionHeight == 58.5)
 }

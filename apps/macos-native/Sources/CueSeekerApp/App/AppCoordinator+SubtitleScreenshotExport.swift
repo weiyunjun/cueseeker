@@ -73,18 +73,18 @@ extension AppCoordinator {
         )
     }
 
-    func subtitleScreenshotItem(for shiori: Shiori, displayTitle: String) -> SubtitleScreenshotExportItem {
+    func subtitleScreenshotItem(for excerpt: Excerpt, displayTitle: String) -> SubtitleScreenshotExportItem {
         SubtitleScreenshotExportItem(
             displayTitle: displayTitle,
-            videoPath: shiori.videoPath,
-            subtitlePath: shiori.subtitlePath,
-            subtitleFormat: shiori.subtitleFormat,
-            startMilliseconds: shiori.startMilliseconds,
-            endMilliseconds: shiori.endMilliseconds,
-            cueDisplayOrder: shiori.cueDisplayOrder,
-            cueEventIndex: shiori.cueEventIndex,
-            textLines: subtitleDisplayLines(content: shiori.content, cueLines: shiori.cueLines),
-            subtitleSource: playbackSubtitleSource(for: shiori)
+            videoPath: excerpt.videoPath,
+            subtitlePath: excerpt.subtitlePath,
+            subtitleFormat: excerpt.subtitleFormat,
+            startMilliseconds: excerpt.startMilliseconds,
+            endMilliseconds: excerpt.endMilliseconds,
+            cueDisplayOrder: excerpt.cueDisplayOrder,
+            cueEventIndex: excerpt.cueEventIndex,
+            textLines: subtitleDisplayLines(content: excerpt.content, cueLines: excerpt.cueLines),
+            subtitleSource: playbackSubtitleSource(for: excerpt)
         )
     }
 

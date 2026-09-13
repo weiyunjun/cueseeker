@@ -1,6 +1,6 @@
 import AppKit
 
-/// Presentation-only data for one Playlist, Search, or Shiori reel result.
+/// Presentation-only data for one Playlist, Search, or Excerpt reel result.
 /// Module action payloads intentionally remain outside this renderer model.
 struct PlaybackCueResult: Equatable {
     /// Stable identity of this occurrence in its owning module data source.

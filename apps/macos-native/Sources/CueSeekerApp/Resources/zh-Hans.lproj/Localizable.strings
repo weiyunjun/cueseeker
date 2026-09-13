@@ -32,10 +32,10 @@
 "sidebar.search" = "搜索";
 "sidebar.recent" = "最近";
 "sidebar.recent_videos" = "最近视频";
-"sidebar.recent_shioris" = "最近摘录集";
+"sidebar.recent_excerpts" = "最近摘录集";
 "sidebar.library" = "媒体库";
 "sidebar.file" = "文件";
-"sidebar.shiori" = "摘录";
+"sidebar.excerpt" = "摘录";
 "page.unknown.title" = "未知页面";
 "page.unknown.message" = "该页面已不存在";
 
@@ -79,14 +79,14 @@
 /* Row action menu */
 "row_menu.play" = "播放";
 "row_menu.open_subtitle_folder" = "打开字幕文件夹";
-"row_menu.save_to_shiori" = "保存到摘录集";
+"row_menu.save_to_excerpt" = "保存到摘录集";
 "row_menu.copy_cue_text" = "复制台词文本";
 "row_menu.copy_deep_link" = "复制 Deep Link";
 "row_menu.copy_cue_group_text" = "复制台词组文本";
 "row_menu.copy_time_range" = "复制时间范围";
 "row_menu.move_to" = "移动到…";
 "row_menu.duplicate_to" = "复制到…";
-"row_menu.remove_shiori" = "移除摘录";
+"row_menu.remove_excerpt" = "移除摘录";
 
 /* Facet filter */
 "facet.duration" = "时长";
@@ -110,10 +110,10 @@
 "facet.watch_status.watching" = "观看中";
 "facet.watch_status.unwatched" = "未观看";
 
-/* Shiori table */
-"shiori.table.empty_hint" = "从搜索结果中或在播放时保存台词，即可收集摘录。";
-"shiori.remove.title" = "移除摘录";
-"shiori.remove.message" = "该台词将从当前摘录集中移除。原始台词不会被删除。";
+/* Excerpt table */
+"excerpt.table.empty_hint" = "从搜索结果中或在播放时保存台词，即可收集摘录。";
+"excerpt.remove.title" = "移除摘录";
+"excerpt.remove.message" = "该台词将从当前摘录集中移除。原始台词不会被删除。";
 
 /* Library */
 "library.play" = "播放";
@@ -134,7 +134,7 @@
 "library.video_subtitle_count" = "%1$d 个视频 %2$d 个字幕";
 "library.empty" = "还没有媒体库视频。";
 "library.recent_watching_empty" = "还没有最近观看。";
-"library.recent_shioris_empty" = "还没有最近的摘录集。";
+"library.recent_excerpts_empty" = "还没有最近的摘录集。";
 "library.episodes_empty" = "还没有剧集。";
 "library.activate" = "激活";
 
@@ -146,37 +146,37 @@
 "cover.crop_editor" = "封面裁剪编辑器";
 "cover.save" = "保存";
 
-/* Shiori */
-"shiori.overview.summary" = "%1$@ · %2$@";
-"shiori.list_count.one" = "1 个摘录集";
-"shiori.list_count.other" = "%d 个摘录集";
-"shiori.cue_count.one" = "1 条台词";
-"shiori.cue_count.other" = "%d 条台词";
-"shiori.new_list" = "新建摘录集";
-"shiori.edit_list" = "编辑摘录集";
-"shiori.delete_list" = "删除摘录集";
-"shiori.delete_list.message" = "摘录集“%@”及其中的摘录将被删除。原始台词不会被删除。";
-"shiori.delete" = "删除";
-"shiori.create" = "创建";
-"shiori.save" = "保存";
-"shiori.list_name" = "摘录集名称";
-"shiori.list_name.placeholder" = "输入摘录集名称";
-"shiori.description" = "描述";
-"shiori.description.placeholder" = "添加描述（可选）";
-"shiori.validation.name_required" = "请输入摘录集名称。";
-"shiori.validation.name_too_long" = "摘录集名称不能超过 30 个字符。";
-"shiori.validation.description_too_long" = "描述不能超过 100 个字符。";
-"shiori.validation.name_taken" = "已存在同名摘录集。";
+/* Excerpt */
+"excerpt.overview.summary" = "%1$@ · %2$@";
+"excerpt.list_count.one" = "1 个摘录集";
+"excerpt.list_count.other" = "%d 个摘录集";
+"excerpt.cue_count.one" = "1 条台词";
+"excerpt.cue_count.other" = "%d 条台词";
+"excerpt.new_list" = "新建摘录集";
+"excerpt.edit_list" = "编辑摘录集";
+"excerpt.delete_list" = "删除摘录集";
+"excerpt.delete_list.message" = "摘录集“%@”及其中的摘录将被删除。原始台词不会被删除。";
+"excerpt.delete" = "删除";
+"excerpt.create" = "创建";
+"excerpt.save" = "保存";
+"excerpt.list_name" = "摘录集名称";
+"excerpt.list_name.placeholder" = "输入摘录集名称";
+"excerpt.description" = "描述";
+"excerpt.description.placeholder" = "添加描述（可选）";
+"excerpt.validation.name_required" = "请输入摘录集名称。";
+"excerpt.validation.name_too_long" = "摘录集名称不能超过 30 个字符。";
+"excerpt.validation.description_too_long" = "描述不能超过 100 个字符。";
+"excerpt.validation.name_taken" = "已存在同名摘录集。";
 
 /* Toast */
-"toast.shiori.moved" = "已移动到“%@”";
-"toast.shiori.saved" = "已保存到“%@”";
-"toast.shiori.duplicated" = "已复制到“%@”";
-"toast.shiori.destination_unavailable" = "“%@”已不存在";
-"toast.shiori.move_failed" = "移动摘录出错。";
-"toast.shiori.save_failed" = "保存到“%@”出错。";
-"toast.shiori.duplicate_failed" = "复制摘录出错。";
-"toast.shiori.already_exists" = "“%@”中已存在该摘录";
+"toast.excerpt.moved" = "已移动到“%@”";
+"toast.excerpt.saved" = "已保存到“%@”";
+"toast.excerpt.duplicated" = "已复制到“%@”";
+"toast.excerpt.destination_unavailable" = "“%@”已不存在";
+"toast.excerpt.move_failed" = "移动摘录出错。";
+"toast.excerpt.save_failed" = "保存到“%@”出错。";
+"toast.excerpt.duplicate_failed" = "复制摘录出错。";
+"toast.excerpt.already_exists" = "“%@”中已存在该摘录";
 
 /* Playback chrome */
 "playback.play" = "播放";
@@ -202,7 +202,7 @@
 "playback.hud.collage_not_ready" = "长截图未就绪";
 "playback.hud.no_subtitle" = "无字幕";
 "playback.hud.auto_pause" = "自动暂停";
-"playback.hud.shiori_removed" = "已移除摘录";
+"playback.hud.excerpt_removed" = "已移除摘录";
 "playback.hud.previous_result" = "上一条结果";
 "playback.hud.next_result" = "下一条结果";
 "playback.hud.first_result" = "已经是第一个结果";
@@ -238,7 +238,7 @@
 "playback.result_count.one" = "1 条结果";
 "playback.result_count.other" = "%d 条结果";
 "playback.result_preview_note" = "（仅显示前 %d 条结果）";
-"playback.save_to_shiori" = "保存到摘录集";
+"playback.save_to_excerpt" = "保存到摘录集";
 "playback.open" = "打开";
 "playback.back" = "返回";
 "playback.episodes_empty" = "还没有剧集。";
@@ -317,7 +317,7 @@
 "settings.shortcuts.action.copyScreenshot" = "复制截图";
 "settings.shortcuts.action.toggleFullscreen" = "开关全屏";
 "settings.shortcuts.action.openPlaybackOverlay" = "打开播放覆盖层";
-"settings.shortcuts.action.saveToShiori" = "保存到摘录集";
+"settings.shortcuts.action.saveToExcerpt" = "保存到摘录集";
 "settings.shortcuts.action.copyCueText" = "复制台词文本";
 "settings.shortcuts.action.copyDeepLink" = "复制 Deep Link";
 "settings.shortcuts.action.editCollage" = "编辑长截图";

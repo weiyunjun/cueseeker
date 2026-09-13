@@ -16,7 +16,7 @@ func playbackLeavesTheWorkbenchOnThePageItWasEnteredFrom() throws {
 
     let routes: [WorkbenchRoute] = [
         .search,
-        .shiori,
+        .excerpt,
         .recent,
         .file,
         .libraryFolder(folderPath: folder.folderPath),

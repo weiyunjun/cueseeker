@@ -130,7 +130,7 @@ func coverSummaryBackdropKeepsTheAcceptedLeftToRightScrim() {
 }
 
 @Test
-func shioriDetailPageScrollPinsControlsAfterCoverLeavesViewport() {
+func excerptDetailPageScrollPinsControlsAfterCoverLeavesViewport() {
     let geometry = SubtitleTablePageScrollGeometry(
         scrollableHeaderHeight: 294,
         pinnedHeaderHeight: 52,
@@ -146,7 +146,7 @@ func shioriDetailPageScrollPinsControlsAfterCoverLeavesViewport() {
 }
 
 @Test
-func shioriDetailPageScrollKeepsRowsBelowPinnedChrome() {
+func excerptDetailPageScrollKeepsRowsBelowPinnedChrome() {
     let geometry = SubtitleTablePageScrollGeometry(
         scrollableHeaderHeight: 294,
         pinnedHeaderHeight: 52,

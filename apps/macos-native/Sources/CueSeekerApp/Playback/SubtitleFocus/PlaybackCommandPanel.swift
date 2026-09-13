@@ -10,7 +10,7 @@ struct PlaybackCommandPanel: View {
     @ObservedObject var playback: PlaybackStore
     @ObservedObject var searchStore: SearchStore
     @ObservedObject var libraryStore: LibraryStore
-    @ObservedObject var shioriStore: ShioriStore
+    @ObservedObject var excerptStore: ExcerptStore
 
     var body: some View {
         GeometryReader { geometry in
@@ -103,10 +103,10 @@ struct PlaybackCommandPanel: View {
                                 },
                                 onOpenSelectedItem: openSelectedItem
                             )
-                        case .recentShioris:
-                            PlaybackCommandPanelRecentShioris(
+                        case .recentExcerpts:
+                            PlaybackCommandPanelRecentExcerpts(
                                 presentation: presentation,
-                                shioriStore: shioriStore,
+                                excerptStore: excerptStore,
                                 onBack: {
                                     appState.returnPlaybackCommandPanelToRoot()
                                 },
@@ -126,7 +126,7 @@ struct PlaybackCommandPanel: View {
                                         .selectPlaybackCommandPanelItem(at: $0)
                                 },
                                 onOpen: {
-                                    appState.openPlaybackCommandPanelRecentShiori(
+                                    appState.openPlaybackCommandPanelRecentExcerpt(
                                         at: $0
                                     )
                                 },
@@ -255,16 +255,16 @@ private struct PlaybackCommandPanelRoot: View {
 
                 PlaybackCommandPanelRootRow(
                     icon: .bookmarkSimple,
-                    title: L("sidebar.recent_shioris"),
+                    title: L("sidebar.recent_excerpts"),
                     detail: nil,
                     isSelected: presentation.selectedOrdinal
-                        == recentShiorisOrdinal,
+                        == recentExcerptsOrdinal,
                     allowsHover: allowsHover,
                     onHoverChange: {
-                        hoverChanged($0, ordinal: recentShiorisOrdinal)
+                        hoverChanged($0, ordinal: recentExcerptsOrdinal)
                     }
                 ) {
-                    _ = onOpenPage(.recentShioris)
+                    _ = onOpenPage(.recentExcerpts)
                 }
             }
             .padding(.horizontal, PlaybackCommandPanelMetrics.contentInset)
@@ -286,7 +286,7 @@ private struct PlaybackCommandPanelRoot: View {
         trimmedQuery.isEmpty ? 0 : 1
     }
 
-    private var recentShiorisOrdinal: Int {
+    private var recentExcerptsOrdinal: Int {
         trimmedQuery.isEmpty ? 1 : 2
     }
 
@@ -757,9 +757,9 @@ private struct PlaybackCommandPanelRecentVideos: View {
     }
 }
 
-private struct PlaybackCommandPanelRecentShioris: View {
+private struct PlaybackCommandPanelRecentExcerpts: View {
     let presentation: PlaybackCommandPanelPresentation
-    @ObservedObject var shioriStore: ShioriStore
+    @ObservedObject var excerptStore: ExcerptStore
     let onBack: () -> Bool
     let onSynchronize: () -> Void
     let onGridLayoutChange: (Int, [String: CGRect]) -> Void
@@ -767,13 +767,13 @@ private struct PlaybackCommandPanelRecentShioris: View {
     let onOpen: (Int) -> Void
     let onOpenSelectedItem: () -> Void
 
-    private var summaries: [ShioriListSummary] {
-        shioriStore.recentListSummaries
+    private var summaries: [ExcerptListSummary] {
+        excerptStore.recentListSummaries
     }
 
     var body: some View {
         PlaybackCommandPanelRecentCards(
-            title: L("sidebar.recent_shioris"),
+            title: L("sidebar.recent_excerpts"),
             presentation: presentation,
             itemIDs: summaries.map { String($0.id) },
             footerStatus: PlaybackCueFooterStatus.excerptLists(totalCount: summaries.count),
@@ -783,7 +783,7 @@ private struct PlaybackCommandPanelRecentShioris: View {
             onSelect: onSelect,
             onOpenSelectedItem: onOpenSelectedItem
         ) { highlight, coordinateSpaceName, onItemFramesChange in
-            ShioriListCardGrid(
+            ExcerptListCardGrid(
                 summaries: summaries,
                 highlight: highlight,
                 itemFrameCoordinateSpace: coordinateSpaceName,

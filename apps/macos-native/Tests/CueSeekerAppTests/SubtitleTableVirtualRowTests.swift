@@ -12,7 +12,7 @@ private let subtitleTableForbiddenRefreshScopeCounters = SubtitleTableProbeSurfa
     ]
 } + [
     "UI.SearchPresentation.rebuilt",
-    "UI.ShioriPresentation.rebuilt",
+    "UI.ExcerptPresentation.rebuilt",
     "UI.Workbench.body",
     "UI.ContentView.body",
     "UI.AppTopBar.body",
@@ -123,7 +123,7 @@ func subtitleTableViewUsesExplicitColumnOrderForTextColumns() {
         ]
     )
     let coordinator = SubtitleTableView.Coordinator(
-        tableName: "shiori",
+        tableName: "excerpt",
         rowCount: 1,
         rowProvider: { _ in loadedRow },
         rowsVersion: 1,
@@ -158,7 +158,7 @@ func subtitleTableColumnLayoutUsesDocumentedMinimumWidths() {
         showsLanguageColumn: false,
         cuesMinimumWidth: SubtitleTableMetrics.cuesColumnMinimumWidth
     )
-    let shioriMinimumWidth = SubtitleTableColumnLayout.minimumContentWidth(
+    let excerptMinimumWidth = SubtitleTableColumnLayout.minimumContentWidth(
         showsDateAddedColumn: true,
         showsDisplayTitleColumn: true,
         showsTimeColumn: true,
@@ -174,7 +174,7 @@ func subtitleTableColumnLayoutUsesDocumentedMinimumWidths() {
     )
 
     #expect(searchMinimumWidth == 610)
-    #expect(shioriMinimumWidth == 730)
+    #expect(excerptMinimumWidth == 730)
     #expect(allOptionalColumnsMinimumWidth == 850)
 }
 
@@ -523,8 +523,8 @@ func subtitleTablePageChromePinsAgainstTheFullViewportScrollbar() throws {
         primaryGroupIndex: 0
     )
     let coordinator = SubtitleTableView.Coordinator(
-        tableName: "shiori",
-        probeSurface: .shiori,
+        tableName: "excerpt",
+        probeSurface: .excerpt,
         rowCount: 100,
         rowProvider: { _ in loadedRow },
         rowsVersion: 1,
@@ -617,8 +617,8 @@ func subtitleTablePageChromeClipsPartialRowsBelowPinnedHeader() throws {
         primaryGroupIndex: 0
     )
     let coordinator = SubtitleTableView.Coordinator(
-        tableName: "shiori",
-        probeSurface: .shiori,
+        tableName: "excerpt",
+        probeSurface: .excerpt,
         rowCount: 100,
         rowProvider: { _ in row },
         rowsVersion: 1,
@@ -1308,16 +1308,16 @@ func subtitleTableViewUnifiedRowMenuDispatchesActionsToTheTargetRow() {
     let fixture = makeAttachedVirtualTableCoordinator(
         showsTimeColumn: true,
         showsCueGroup: true,
-        rowActionMenuStyle: .shiori,
+        rowActionMenuStyle: .excerpt,
         onPlay: { playedRowID = $0.id },
         onOpenSubtitleFile: { openedPath = $0 },
-        onRemoveShiori: { removedRowID = $0.id }
+        onRemoveExcerpt: { removedRowID = $0.id }
     )
     let pasteboard = NSPasteboard.general
 
     fixture.coordinator.performRowActionForTesting(.play, row: 0)
     fixture.coordinator.performRowActionForTesting(.openSubtitleFolder, row: 0)
-    fixture.coordinator.performRowActionForTesting(.removeShiori, row: 0)
+    fixture.coordinator.performRowActionForTesting(.removeExcerpt, row: 0)
 
     #expect(playedRowID == 1)
     #expect(openedPath == "/tmp/CueSeeker/Episode 01.srt")
@@ -1376,15 +1376,15 @@ func subtitleTableViewRowMenuActionsKeepTheOriginalTargetAfterItsIndexChanges() 
         rowCount: 1,
         rowProvider: { _ in currentRow },
         showsCueGroup: true,
-        rowActionMenuStyle: .shiori,
+        rowActionMenuStyle: .excerpt,
         onPlay: { playedRowIDs.append($0.id) },
         onOpenSubtitleFile: { openedPaths.append($0) },
         rowActionDestinations: [
             SubtitleTableRowActionDestination(id: 90, title: "Destination"),
         ],
-        onMoveShiori: { movedRows.append(($0.id, $1)) },
-        onDuplicateShiori: { duplicatedRows.append(($0.id, $1)) },
-        onRemoveShiori: { removedRowIDs.append($0.id) }
+        onMoveExcerpt: { movedRows.append(($0.id, $1)) },
+        onDuplicateExcerpt: { duplicatedRows.append(($0.id, $1)) },
+        onRemoveExcerpt: { removedRowIDs.append($0.id) }
     )
     let anchorFrame = try #require(
         fixture.coordinator.dataCellRectForTesting(row: 0, columnID: "cues")
@@ -1424,7 +1424,7 @@ func subtitleTableViewRowMenuActionsKeepTheOriginalTargetAfterItsIndexChanges() 
     performAfterReplacingRow(.copyTimeRange)
     #expect(pasteboard.string(forType: .string) == original.timeRange)
 
-    performAfterReplacingRow(.removeShiori)
+    performAfterReplacingRow(.removeExcerpt)
     #expect(removedRowIDs == [original.id])
 
     currentRow = original
@@ -2680,7 +2680,7 @@ func subtitleTableViewCueDragSuppressesPlayAfterThresholdAndClickStillPlays() th
 
 @MainActor
 @Test
-func subtitleTableUnavailableShioriBlocksInteractiveActionsButKeepsAllowedMenuActions() throws {
+func subtitleTableUnavailableExcerptBlocksInteractiveActionsButKeepsAllowedMenuActions() throws {
     let row = SubtitleTableRow(
         id: 7,
         primaryCueID: 42,
@@ -2700,10 +2700,10 @@ func subtitleTableUnavailableShioriBlocksInteractiveActionsButKeepsAllowedMenuAc
         width: 1_400,
         rowCount: 1,
         row: row,
-        rowActionMenuStyle: .shiori,
+        rowActionMenuStyle: .excerpt,
         onPlay: { _ in playCount += 1 },
         onOpenSubtitleFile: { _ in openFolderCount += 1 },
-        onRemoveShiori: { _ in removeCount += 1 }
+        onRemoveExcerpt: { _ in removeCount += 1 }
     )
 
     let cueFragment = try #require(
@@ -2724,7 +2724,7 @@ func subtitleTableUnavailableShioriBlocksInteractiveActionsButKeepsAllowedMenuAc
 
     fixture.coordinator.performRowActionForTesting(.play, row: 0)
     fixture.coordinator.performRowActionForTesting(.openSubtitleFolder, row: 0)
-    fixture.coordinator.performRowActionForTesting(.removeShiori, row: 0)
+    fixture.coordinator.performRowActionForTesting(.removeExcerpt, row: 0)
     #expect(playCount == 0)
     #expect(openFolderCount == 1)
     #expect(removeCount == 1)
@@ -2838,7 +2838,7 @@ func subtitleTableViewUnifiedRowMenuAndClipboardKeepPrimaryAndGroupSemantics() {
         rowCount: 1,
         row: row,
         showsCueGroup: true,
-        rowActionMenuStyle: .shiori
+        rowActionMenuStyle: .excerpt
     )
 
     #expect(offFixture.coordinator.rowMenuItemsForTesting().map(\.title) == [
@@ -2869,14 +2869,14 @@ func subtitleTableViewUnifiedRowMenuAndClipboardKeepPrimaryAndGroupSemantics() {
 
 @MainActor
 @Test
-func subtitleTableShioriSubmenuStopsAtTheMenuHeightCap() async throws {
+func subtitleTableExcerptSubmenuStopsAtTheMenuHeightCap() async throws {
     let destinations = (2...31).map {
         SubtitleTableRowActionDestination(id: Int64($0), title: "List \($0)")
     }
     let fixture = makeAttachedVirtualTableCoordinator(
         width: 1_200,
         showsCueGroup: true,
-        rowActionMenuStyle: .shiori,
+        rowActionMenuStyle: .excerpt,
         rowActionDestinations: destinations
     )
     fixture.container.frame.size.height = 900
@@ -2909,14 +2909,14 @@ func subtitleTableShioriSubmenuStopsAtTheMenuHeightCap() async throws {
 
 @MainActor
 @Test
-func subtitleTableShioriSubmenuReachesNewListWithoutOtherLists() async throws {
+func subtitleTableExcerptSubmenuReachesNewListWithoutOtherLists() async throws {
     var createRequests: [(rowID: Int, action: SubtitleTableRowAction)] = []
     let fixture = makeAttachedVirtualTableCoordinator(
         width: 1_200,
         showsCueGroup: true,
-        rowActionMenuStyle: .shiori,
+        rowActionMenuStyle: .excerpt,
         rowActionDestinations: [],
-        onCreateShioriList: { createRequests.append(($0.id, $1)) }
+        onCreateExcerptList: { createRequests.append(($0.id, $1)) }
     )
     let anchorFrame = try #require(
         fixture.coordinator.dataCellRectForTesting(row: 0, columnID: "cues")
@@ -2938,11 +2938,11 @@ func subtitleTableShioriSubmenuReachesNewListWithoutOtherLists() async throws {
 
 @MainActor
 @Test
-func subtitleTableShioriSubmenuTouchesAndAlignsWithItsParentItem() async throws {
+func subtitleTableExcerptSubmenuTouchesAndAlignsWithItsParentItem() async throws {
     let fixture = makeAttachedVirtualTableCoordinator(
         width: 1_200,
         showsCueGroup: true,
-        rowActionMenuStyle: .shiori,
+        rowActionMenuStyle: .excerpt,
         rowActionDestinations: [
             SubtitleTableRowActionDestination(id: 2, title: "Second List"),
             SubtitleTableRowActionDestination(id: 3, title: "Third List"),
@@ -3414,12 +3414,12 @@ private func makeAttachedVirtualTableCoordinator(
     onToggleRowSelection: @escaping (Int) -> Void = { _ in },
     onOpenSubtitleFile: @escaping (String) -> Void = { _ in },
     rowActionDestinations: [SubtitleTableRowActionDestination] = [],
-    onMoveShiori: @escaping (SubtitleTableRow, Int64) -> Void = { _, _ in },
-    onDuplicateShiori: @escaping (SubtitleTableRow, Int64) -> Void = { _, _ in },
-    onCreateShioriList: @escaping (
+    onMoveExcerpt: @escaping (SubtitleTableRow, Int64) -> Void = { _, _ in },
+    onDuplicateExcerpt: @escaping (SubtitleTableRow, Int64) -> Void = { _, _ in },
+    onCreateExcerptList: @escaping (
         SubtitleTableRow, SubtitleTableRowAction
     ) -> Void = { _, _ in },
-    onRemoveShiori: @escaping (SubtitleTableRow) -> Void = { _ in }
+    onRemoveExcerpt: @escaping (SubtitleTableRow) -> Void = { _ in }
 ) -> (
     coordinator: SubtitleTableView.Coordinator,
     container: SubtitleTableContainerView,
@@ -3462,10 +3462,10 @@ private func makeAttachedVirtualTableCoordinator(
         onOpenSubtitleFile: onOpenSubtitleFile,
         rowActionMenuStyle: rowActionMenuStyle,
         rowActionDestinations: rowActionDestinations,
-        onMoveShiori: onMoveShiori,
-        onDuplicateShiori: onDuplicateShiori,
-        onCreateShioriList: onCreateShioriList,
-        onRemoveShiori: onRemoveShiori
+        onMoveExcerpt: onMoveExcerpt,
+        onDuplicateExcerpt: onDuplicateExcerpt,
+        onCreateExcerptList: onCreateExcerptList,
+        onRemoveExcerpt: onRemoveExcerpt
     )
     coordinator.isRedesign = true
 

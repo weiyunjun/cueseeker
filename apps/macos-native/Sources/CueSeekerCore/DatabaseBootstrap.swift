@@ -175,7 +175,7 @@ private extension DatabaseBootstrap {
                 """
             )
 
-            let shioriSchemaSQL = """
+            let excerptSchemaSQL = """
                 CREATE TABLE IF NOT EXISTS excerpt_lists (
                     id INTEGER PRIMARY KEY,
                     name TEXT NOT NULL,
@@ -598,7 +598,7 @@ private extension DatabaseBootstrap {
                 PRIMARY KEY(facet, value)
             );
 
-            \(shioriSchemaSQL)
+            \(excerptSchemaSQL)
 
             \(taskRecordSchemaSQL)
 

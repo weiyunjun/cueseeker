@@ -9,7 +9,7 @@ func subtitleTableSearchRowActionMenuUsesUnifiedOrderAndDivider() {
     #expect(model.elements == [
         .action(.play),
         .action(.openSubtitleFolder),
-        .action(.saveToShiori),
+        .action(.saveToExcerpt),
         .divider,
         .action(.copyCueText),
         .action(.copyDeepLink),
@@ -31,7 +31,7 @@ func subtitleTableSearchRowActionMenuUsesUnifiedOrderAndDivider() {
 func subtitleTableRowActionMenuSelectablePositionsSkipDividersAndDisabledItems() {
     let model = SubtitleTableRowActionMenuModel(style: .search, showsCueGroup: false)
 
-    // Elements are play, openSubtitleFolder, saveToShiori, divider,
+    // Elements are play, openSubtitleFolder, saveToExcerpt, divider,
     // copyCueText, copyDeepLink, copyTimeRange.
     #expect(
         model.selectablePositions(
@@ -57,7 +57,7 @@ func subtitleTableRowActionMenuSelectablePositionsSkipDividersAndDisabledItems()
 
 @Test
 func subtitleTableRowActionMenuSubmenuParentsStayEnabledWithoutOtherLists() {
-    let model = SubtitleTableRowActionMenuModel(style: .shiori, showsCueGroup: false)
+    let model = SubtitleTableRowActionMenuModel(style: .excerpt, showsCueGroup: false)
 
     // The submenu always offers New List, so the only list is not a dead end.
     #expect(
@@ -75,7 +75,7 @@ func subtitleTableRowActionMenuSubmenuParentsStayEnabledWithoutOtherLists() {
         )
     )
 
-    // An unavailable Shiori still disables both.
+    // An unavailable Excerpt still disables both.
     #expect(
         !model.isEnabled(
             .moveToList,
@@ -99,7 +99,7 @@ func subtitleTableRowActionMenuHidesCueGroupCopyWhenCueGroupIsHidden() {
     #expect(model.actions == [
         .play,
         .openSubtitleFolder,
-        .saveToShiori,
+        .saveToExcerpt,
         .copyCueText,
         .copyDeepLink,
         .copyTimeRange,
@@ -107,8 +107,8 @@ func subtitleTableRowActionMenuHidesCueGroupCopyWhenCueGroupIsHidden() {
 }
 
 @Test
-func subtitleTableShioriRowActionMenuAddsTransferSubmenusAndDividers() {
-    let model = SubtitleTableRowActionMenuModel(style: .shiori, showsCueGroup: true)
+func subtitleTableExcerptRowActionMenuAddsTransferSubmenusAndDividers() {
+    let model = SubtitleTableRowActionMenuModel(style: .excerpt, showsCueGroup: true)
 
     #expect(model.elements == [
         .action(.play),
@@ -122,18 +122,18 @@ func subtitleTableShioriRowActionMenuAddsTransferSubmenusAndDividers() {
         .action(.moveToList),
         .action(.duplicateToList),
         .divider,
-        .action(.removeShiori),
+        .action(.removeExcerpt),
     ])
 }
 
 @Test
-func subtitleTableUnavailableShioriActionsFollowResourceAvailability() {
+func subtitleTableUnavailableExcerptActionsFollowResourceAvailability() {
     let videoMissing = SubtitleTableCueState.unavailable(.videoMissing)
     #expect(videoMissing.icon == .question)
     #expect(videoMissing.subtitleFileIsAvailable)
     #expect(videoMissing.disabledRowActions == [
         .play,
-        .saveToShiori,
+        .saveToExcerpt,
         .moveToList,
         .duplicateToList,
     ])
@@ -153,11 +153,11 @@ func subtitleTableUnavailableShioriActionsFollowResourceAvailability() {
     #expect(!subtitleMissing.disabledRowActions.contains(.copyDeepLink))
     #expect(!subtitleMissing.disabledRowActions.contains(.copyCueGroupText))
     #expect(!subtitleMissing.disabledRowActions.contains(.copyTimeRange))
-    #expect(!subtitleMissing.disabledRowActions.contains(.removeShiori))
+    #expect(!subtitleMissing.disabledRowActions.contains(.removeExcerpt))
 }
 
 @Test
-func subtitleTableChangedShioriRemainsAvailable() {
+func subtitleTableChangedExcerptRemainsAvailable() {
     let state = SubtitleTableCueState.contentChanged(
         previous: "Previous",
         current: "Current"
@@ -192,7 +192,7 @@ func cueStateTipUsesRightSideThenFallsBackToLeft() {
 
 @MainActor
 @Test
-func subtitleTableShioriSubmenuOpensOnHoverWithoutDelay() {
+func subtitleTableExcerptSubmenuOpensOnHoverWithoutDelay() {
     let state = SubtitleTableRowActionSubmenuState()
 
     state.open(.moveToList)
@@ -248,7 +248,7 @@ private enum SubmenuPointerFixture {
 
 @MainActor
 @Test
-func subtitleTableShioriSubmenuStaysOpenWhileThePointerCrossesToIt() {
+func subtitleTableExcerptSubmenuStaysOpenWhileThePointerCrossesToIt() {
     let f = SubmenuPointerFixture.self
     let state = SubtitleTableRowActionSubmenuState()
     state.open(.moveToList)
@@ -291,7 +291,7 @@ func subtitleTableShioriSubmenuStaysOpenWhileThePointerCrossesToIt() {
 
 @MainActor
 @Test
-func subtitleTableShioriSubmenuClosesOnceThePointerLeavesTheSafeArea() {
+func subtitleTableExcerptSubmenuClosesOnceThePointerLeavesTheSafeArea() {
     let f = SubmenuPointerFixture.self
     let state = SubtitleTableRowActionSubmenuState()
     state.open(.moveToList)
@@ -332,7 +332,7 @@ func subtitleTableShioriSubmenuClosesOnceThePointerLeavesTheSafeArea() {
 
 @MainActor
 @Test
-func subtitleTableShioriSubmenuStaysOpenOverTheParentMenuOutsideTheSafeArea() {
+func subtitleTableExcerptSubmenuStaysOpenOverTheParentMenuOutsideTheSafeArea() {
     let f = SubmenuPointerFixture.self
     let state = SubtitleTableRowActionSubmenuState()
     state.open(.moveToList)
@@ -358,7 +358,7 @@ func subtitleTableShioriSubmenuStaysOpenOverTheParentMenuOutsideTheSafeArea() {
 }
 
 @Test
-func subtitleTableShioriSubmenuSafeAreaSpansTheTriangleAndTheGap() {
+func subtitleTableExcerptSubmenuSafeAreaSpansTheTriangleAndTheGap() {
     let f = SubmenuPointerFixture.self
     let anchor = CGPoint(x: 330, y: 266)
 
@@ -403,7 +403,7 @@ func subtitleTableShioriSubmenuSafeAreaSpansTheTriangleAndTheGap() {
 }
 
 @Test
-func subtitleTableShioriSubmenuAlignsWithItsParentItemTop() {
+func subtitleTableExcerptSubmenuAlignsWithItsParentItemTop() {
     let parentMenuFrame = CGRect(x: 100, y: 100, width: 240, height: 400)
     let parentItemFrame = CGRect(x: 4, y: 246, width: 232, height: 40)
     let submenuFrame = SubtitleTableRowActionSubmenuGeometry.frame(
@@ -422,7 +422,7 @@ func subtitleTableShioriSubmenuAlignsWithItsParentItemTop() {
 }
 
 @Test
-func subtitleTableShioriSubmenuGivesUpHeightTheBoundaryCannotHold() {
+func subtitleTableExcerptSubmenuGivesUpHeightTheBoundaryCannotHold() {
     // A boundary shorter than the submenu. It does not flip and it does not
     // hang over the edge: it takes the boundary's height and scrolls the rest.
     let visibleRect = CGRect(x: 0, y: 0, width: 1_000, height: 300)
@@ -453,8 +453,8 @@ func subtitleTableRowActionMetadataUsesAcceptedLabelsAndSymbols() {
     #expect(SubtitleTableRowAction.copyDeepLink.icon == .linkSimple)
     #expect(SubtitleTableRowAction.copyCueGroupText.icon == .copy)
     #expect(SubtitleTableRowAction.copyTimeRange.icon == .copy)
-    #expect(SubtitleTableRowAction.removeShiori.icon == .bookmarkSimple)
-    #expect(SubtitleTableRowAction.removeShiori.isDestructive)
+    #expect(SubtitleTableRowAction.removeExcerpt.icon == .bookmarkSimple)
+    #expect(SubtitleTableRowAction.removeExcerpt.isDestructive)
     #expect(!SubtitleTableRowAction.play.isDestructive)
     #expect(!SubtitleTableRowAction.duplicateToList.isDestructive)
 }

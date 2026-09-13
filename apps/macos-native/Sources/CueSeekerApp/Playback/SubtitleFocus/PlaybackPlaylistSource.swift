@@ -4,10 +4,10 @@ import Foundation
 
 enum PlaybackPlaylistSourceKind: Hashable, Sendable {
     case search
-    case shiori
+    case excerpt
 }
 
-struct PlaybackPlaylistShioriTableContext: Hashable, Sendable {
+struct PlaybackPlaylistExcerptTableContext: Hashable, Sendable {
     let runID: UUID
     let searchText: String
     let totalCount: Int
@@ -25,10 +25,10 @@ struct PlaybackPlaylistShioriTableContext: Hashable, Sendable {
     }
 }
 
-enum PlaybackPlaylistShioriScope: Hashable, Sendable {
+enum PlaybackPlaylistExcerptScope: Hashable, Sendable {
     case explicitIDs([Int64])
     case databaseOrder
-    case table(PlaybackPlaylistShioriTableContext)
+    case table(PlaybackPlaylistExcerptTableContext)
 }
 
 struct PlaybackSearchPromotion: Equatable, Sendable {
@@ -49,15 +49,15 @@ enum PlaybackPlaylistSourceOrigin: Hashable, Sendable {
         usesFacetProjection: Bool
     )
     case cue(cueID: Int64)
-    case shiori(scope: PlaybackPlaylistShioriScope)
+    case excerpt(scope: PlaybackPlaylistExcerptScope)
     case unspecified(PlaybackPlaylistSourceKind)
 
     var kind: PlaybackPlaylistSourceKind {
         switch self {
         case .search, .cue:
             .search
-        case .shiori:
-            .shiori
+        case .excerpt:
+            .excerpt
         case .unspecified(let kind):
             kind
         }
@@ -66,17 +66,17 @@ enum PlaybackPlaylistSourceOrigin: Hashable, Sendable {
 
 enum PlaybackPlaylistItemIdentity: Hashable, Sendable {
     case search(Int64)
-    case shiori(Int64)
+    case excerpt(Int64)
 }
 
 enum PlaybackPlaylistPrimaryCueIdentity: Hashable, Sendable {
     case cue(Int64)
-    case legacyShiori(Int64)
+    case legacyExcerpt(Int64)
 }
 
 enum PlaybackPlaylistItemTarget: Equatable, Sendable {
     case search(SubtitleSearchResult)
-    case shiori(Shiori)
+    case excerpt(Excerpt)
 }
 
 struct PlaybackPlaylistItem: Equatable, Sendable {
@@ -92,8 +92,8 @@ struct PlaybackPlaylistItem: Equatable, Sendable {
         switch target {
         case .search(let result):
             result.videoPath
-        case .shiori(let shiori):
-            shiori.videoPath
+        case .excerpt(let excerpt):
+            excerpt.videoPath
         }
     }
 
@@ -101,8 +101,8 @@ struct PlaybackPlaylistItem: Equatable, Sendable {
         switch target {
         case .search(let result):
             result.displayTitle
-        case .shiori(let shiori):
-            shiori.displayTitle
+        case .excerpt(let excerpt):
+            excerpt.displayTitle
         }
     }
 
@@ -110,8 +110,8 @@ struct PlaybackPlaylistItem: Equatable, Sendable {
         switch target {
         case .search(let result):
             result.timeRange
-        case .shiori(let shiori):
-            shiori.timeRange
+        case .excerpt(let excerpt):
+            excerpt.timeRange
         }
     }
 
@@ -147,42 +147,42 @@ struct PlaybackPlaylistItem: Equatable, Sendable {
     }
 
     init(
-        shiori: Shiori,
-        cuePresentation: ShioriCuePresentation?,
+        excerpt: Excerpt,
+        cuePresentation: ExcerptCuePresentation?,
         ordinal: Int
     ) {
         let resolvedOrdinal = max(0, ordinal)
-        identity = .shiori(shiori.id)
+        identity = .excerpt(excerpt.id)
         primaryCueIdentity = cuePresentation?.cueID.map {
             .cue($0)
-        } ?? .legacyShiori(shiori.id)
+        } ?? .legacyExcerpt(excerpt.id)
         self.ordinal = resolvedOrdinal
-        primaryCueText = shiori.content
+        primaryCueText = excerpt.content
         additionalCueTexts = Self.additionalCueTexts(
             cueGroupTexts: cuePresentation?.cueGroupTexts ?? [],
             primaryGroupIndex: cuePresentation?.primaryGroupIndex
         )
-        target = .shiori(shiori)
+        target = .excerpt(excerpt)
 
         if let cueID = cuePresentation?.cueID,
            let cueGroupID = cuePresentation?.cueGroupID,
-           let eventIndex = shiori.cueEventIndex {
+           let eventIndex = excerpt.cueEventIndex {
             actionContext = PlaybackSubtitleFocusActionContext(
                 source: SubtitleFocusSourceIdentity(
-                    subtitleFileID: shiori.subtitleFileID,
-                    videoPath: shiori.videoPath,
-                    subtitlePath: shiori.subtitlePath,
-                    subtitleFormat: shiori.subtitleFormat
+                    subtitleFileID: excerpt.subtitleFileID,
+                    videoPath: excerpt.videoPath,
+                    subtitlePath: excerpt.subtitlePath,
+                    subtitleFormat: excerpt.subtitleFormat
                 ),
                 cue: SubtitleFocusCue(
                     id: cueID,
                     cueGroupID: cueGroupID,
                     ordinal: resolvedOrdinal,
                     eventIndex: eventIndex,
-                    displayOrder: shiori.cueDisplayOrder ?? 0,
-                    startMilliseconds: shiori.startMilliseconds,
-                    endMilliseconds: shiori.endMilliseconds,
-                    content: shiori.content
+                    displayOrder: excerpt.cueDisplayOrder ?? 0,
+                    startMilliseconds: excerpt.startMilliseconds,
+                    endMilliseconds: excerpt.endMilliseconds,
+                    content: excerpt.content
                 )
             )
         } else {
@@ -519,7 +519,7 @@ final class PlaybackPlaylistSessionWindowStore: ObservableObject {
 }
 
 // Playlist was the first playback module to consume this result transport.
-// The neutral names let Playlist, Search, and Shiori retain their complete
+// The neutral names let Playlist, Search, and Excerpt retain their complete
 // session dataset while sharing one viewport-virtualized Reel.
 typealias PlaybackCueResultItemIdentity = PlaybackPlaylistItemIdentity
 typealias PlaybackCueResultItem = PlaybackPlaylistItem

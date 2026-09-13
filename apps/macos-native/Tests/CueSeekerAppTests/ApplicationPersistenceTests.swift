@@ -15,7 +15,7 @@ func sharedPersistenceMigrationCopiesLegacyValuesWithoutOverwritingSharedValues(
         [
             [
                 "existing": "packaged",
-                "workbenchPanelMode": "shiori"
+                "workbenchPanelMode": "excerpt"
             ],
             [
                 "existing": "debug",
@@ -26,7 +26,7 @@ func sharedPersistenceMigrationCopiesLegacyValuesWithoutOverwritingSharedValues(
     )
 
     #expect(sharedDefaults.string(forKey: "existing") == "shared")
-    #expect(sharedDefaults.string(forKey: "workbenchPanelMode") == "shiori")
+    #expect(sharedDefaults.string(forKey: "workbenchPanelMode") == "excerpt")
     #expect(sharedDefaults.stringArray(forKey: "selectedFolderPaths") == ["/tmp/Library"])
 
     ApplicationPersistence.migrateLegacyDefaultsIfNeeded(

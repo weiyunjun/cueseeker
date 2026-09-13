@@ -4,7 +4,7 @@ import CueSeekerCore
 enum SubtitleTableCueState: Equatable {
     case normal
     case contentChanged(previous: String, current: String)
-    case unavailable(ShioriUnavailableReason)
+    case unavailable(ExcerptUnavailableReason)
 
     var isUnavailable: Bool {
         if case .unavailable = self {
@@ -55,7 +55,7 @@ enum SubtitleTableCueState: Equatable {
         }
         var actions: Set<SubtitleTableRowAction> = [
             .play,
-            .saveToShiori,
+            .saveToExcerpt,
             .moveToList,
             .duplicateToList,
         ]
@@ -66,11 +66,11 @@ enum SubtitleTableCueState: Equatable {
     }
 }
 
-/// Row view-model shared by the Search and Shiori table surfaces.
+/// Row view-model shared by the Search and Excerpt table surfaces.
 struct SubtitleTableRow: Identifiable, Equatable {
     let id: Int
-    /// Stable identity of the primary Cue. Shiori row identity remains the
-    /// Shiori ID, so scroll anchoring cannot safely substitute `id` here.
+    /// Stable identity of the primary Cue. Excerpt row identity remains the
+    /// Excerpt ID, so scroll anchoring cannot safely substitute `id` here.
     let primaryCueID: Int64?
     let subtitlePath: String
     let dateAdded: String
@@ -83,7 +83,7 @@ struct SubtitleTableRow: Identifiable, Equatable {
     /// Exact Cue texts in stable source display order for the owning Cue Group.
     let cueGroupTexts: [String]
     /// Position of the primary Cue in `cueGroupTexts`, or `nil` for unresolved
-    /// legacy Shiori snapshots that have no durable Cue identity.
+    /// legacy Excerpt snapshots that have no durable Cue identity.
     let primaryGroupIndex: Int?
     let tags: [WorkbenchTag]
     let cueState: SubtitleTableCueState
@@ -158,7 +158,7 @@ struct SubtitleTableRow: Identifiable, Equatable {
     }
 
     /// Compatibility initializer for fixtures and call sites that model only a
-    /// single Cue. Production Search/Shiori mappings use the explicit group form.
+    /// single Cue. Production Search/Excerpt mappings use the explicit group form.
     init(
         id: Int,
         subtitlePath: String = "",

@@ -5,7 +5,7 @@ import CueSeekerCore
 /// The Task panel.
 ///
 /// Presented by the dialog layer at the window root, beside Edit Cover, the
-/// Shiori List Editor and Confirmation, so the dimming and the input barrier
+/// Excerpt List Editor and Confirmation, so the dimming and the input barrier
 /// come from the App's one modal presentation rather than from a second one
 /// written here.
 ///
@@ -128,7 +128,7 @@ struct TaskPanel: View {
         confirmation.session = WorkbenchConfirmationSession(
             title: L("task.confirm.delete.title"),
             message: L("task.confirm.delete.message", record.fileName),
-            destructiveTitle: L("shiori.delete"),
+            destructiveTitle: L("excerpt.delete"),
             cancelTitle: L("common.cancel"),
             onDestructive: {
                 tasks.deleteRecord(id: record.id)
@@ -317,7 +317,7 @@ private struct TaskHistoryCard: View {
                 Spacer(minLength: 0)
 
                 TaskCardDetailText(
-                    tableSandboxShioriDateAddedDisplayText(for: record.stateChangedAt)
+                    tableSandboxExcerptDateAddedDisplayText(for: record.stateChangedAt)
                 )
             }
 

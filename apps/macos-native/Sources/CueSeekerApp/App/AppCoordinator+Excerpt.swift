@@ -3,95 +3,95 @@ import Foundation
 import CueSeekerCore
 import CueSeekerPlayback
 
-/// Where a `Save to Shiori` result is reported. The sentence is the same either
+/// Where a `Save to Excerpt` result is reported. The sentence is the same either
 /// way; the Workbench shows it in a Toast and the playback surfaces show it in
 /// the playback feedback, which is the only thing visible there.
-enum ShioriSaveReport {
+enum ExcerptSaveReport {
     case toast
     case playbackFeedback
 }
 
 @MainActor
 extension AppCoordinator {
-    func loadShioriListOverviewIfNeeded() {
-        guard !shiori.hasLoadedListOverview, shioriListOverviewTask == nil else {
+    func loadExcerptListOverviewIfNeeded() {
+        guard !excerpt.hasLoadedListOverview, excerptListOverviewTask == nil else {
             return
         }
-        reloadShioriListOverview()
+        reloadExcerptListOverview()
     }
 
-    func reloadShioriListOverview() {
-        shioriListOverviewTask?.cancel()
+    func reloadExcerptListOverview() {
+        excerptListOverviewTask?.cancel()
         let databaseURL = databaseURL
-        shioriListOverviewTask = Task { @MainActor [weak self] in
+        excerptListOverviewTask = Task { @MainActor [weak self] in
             guard let self else {
                 return
             }
             defer {
-                self.shioriListOverviewTask = nil
+                self.excerptListOverviewTask = nil
             }
             do {
                 let snapshot = try await Self.runCancellableDetached(
                     priority: .userInitiated
                 ) {
-                    let database = try ShioriDatabase(path: databaseURL)
+                    let database = try ExcerptDatabase(path: databaseURL)
                     return (
-                        try database.shioriListOverview(),
-                        try database.recentShioriListSummaries()
+                        try database.excerptListOverview(),
+                        try database.recentExcerptListSummaries()
                     )
                 }
                 try Task.checkCancellation()
-                self.shiori.installListOverview(snapshot.0)
-                self.shiori.installRecentListSummaries(snapshot.1)
+                self.excerpt.installListOverview(snapshot.0)
+                self.excerpt.installRecentListSummaries(snapshot.1)
             } catch is CancellationError {
                 return
             } catch {
                 guard !Task.isCancelled else {
                     return
                 }
-                print("Failed to load Shiori list overview: \(error)")
-                if !self.shiori.hasLoadedListOverview {
-                    self.shiori.installListOverview(
-                        ShioriListOverview(lists: [], uniqueCueCount: 0)
+                print("Failed to load Excerpt list overview: \(error)")
+                if !self.excerpt.hasLoadedListOverview {
+                    self.excerpt.installListOverview(
+                        ExcerptListOverview(lists: [], uniqueCueCount: 0)
                     )
-                    self.shiori.installRecentListSummaries([])
+                    self.excerpt.installRecentListSummaries([])
                 }
             }
         }
     }
 
-    func openShioriList(id: Int64) {
-        navigateWorkbench(to: .shioriList(id: id))
+    func openExcerptList(id: Int64) {
+        navigateWorkbench(to: .excerptList(id: id))
     }
 
-    func showShioriListOverview() {
-        navigateWorkbench(to: .shiori)
+    func showExcerptListOverview() {
+        navigateWorkbench(to: .excerpt)
     }
 
-    func openRecentShiori(_ summary: ShioriListSummary) {
-        guard let item = summary.resumeShiori else { return }
-        openShioriListPlayback(summary, preferredShioriID: item.id)
+    func openRecentExcerpt(_ summary: ExcerptListSummary) {
+        guard let item = summary.resumeExcerpt else { return }
+        openExcerptListPlayback(summary, preferredExcerptID: item.id)
     }
 
-    func openShioriListPlayback(_ summary: ShioriListSummary) {
-        openShioriListPlayback(
+    func openExcerptListPlayback(_ summary: ExcerptListSummary) {
+        openExcerptListPlayback(
             summary,
-            preferredShioriID: summary.resumeShiori?.id
+            preferredExcerptID: summary.resumeExcerpt?.id
         )
     }
 
-    private func openShioriListPlayback(
-        _ summary: ShioriListSummary,
-        preferredShioriID: Int64?
+    private func openExcerptListPlayback(
+        _ summary: ExcerptListSummary,
+        preferredExcerptID: Int64?
     ) {
-        guard let database = shioriDatabase else { return }
+        guard let database = excerptDatabase else { return }
         do {
             let resolvedByID = Dictionary(
-                uniqueKeysWithValues: try database.shioris(
+                uniqueKeysWithValues: try database.excerpts(
                     listID: summary.list.id
                 ).map { ($0.id, $0) }
             )
-            let navigationScopeIDs = try database.shioriRelations(
+            let navigationScopeIDs = try database.excerptRelations(
                 listID: summary.list.id
             ).compactMap { relation -> Int64? in
                 guard resolvedByID[relation.id]?.isValid == true else {
@@ -99,17 +99,17 @@ extension AppCoordinator {
                 }
                 return relation.id
             }
-            let preferredTargetID = preferredShioriID.flatMap { candidate in
+            let preferredTargetID = preferredExcerptID.flatMap { candidate in
                 navigationScopeIDs.contains(candidate) ? candidate : nil
             }
             guard let targetID = preferredTargetID ?? navigationScopeIDs.first,
                   let target = resolvedByID[targetID],
                   let ordinal = navigationScopeIDs.firstIndex(of: targetID)
             else {
-                reloadShioriListOverview()
+                reloadExcerptListOverview()
                 return
             }
-            openShiori(
+            openExcerpt(
                 target,
                 navigationScopeIDs: navigationScopeIDs,
                 playlistScope: .explicitIDs(navigationScopeIDs),
@@ -117,57 +117,57 @@ extension AppCoordinator {
                 displayTitle: target.displayTitle
             )
         } catch {
-            print("Failed to open Shiori list playback: \(error)")
+            print("Failed to open Excerpt list playback: \(error)")
         }
     }
 
-    func beginCreatingShioriList(
-        pendingTransfer: ShioriListEditorPendingTransfer? = nil
+    func beginCreatingExcerptList(
+        pendingTransfer: ExcerptListEditorPendingTransfer? = nil
     ) {
-        guard shiori.listEditorSession == nil else {
+        guard excerpt.listEditorSession == nil else {
             return
         }
-        shiori.listEditorSession = ShioriListEditorSession(
+        excerpt.listEditorSession = ExcerptListEditorSession(
             mode: .newList,
             pendingTransfer: pendingTransfer
         )
     }
 
-    func beginEditingShioriList(_ list: ShioriList) {
-        guard shiori.listEditorSession == nil else {
+    func beginEditingExcerptList(_ list: ExcerptList) {
+        guard excerpt.listEditorSession == nil else {
             return
         }
-        shiori.listEditorSession = ShioriListEditorSession(mode: .edit(list))
+        excerpt.listEditorSession = ExcerptListEditorSession(mode: .edit(list))
     }
 
-    func closeShioriListEditor() {
-        guard shiori.listEditorSession?.isSaving != true else {
+    func closeExcerptListEditor() {
+        guard excerpt.listEditorSession?.isSaving != true else {
             return
         }
-        shioriListCoverImportTask?.cancel()
-        shioriListCoverImportTask = nil
-        shiori.listEditorSession = nil
+        excerptListCoverImportTask?.cancel()
+        excerptListCoverImportTask = nil
+        excerpt.listEditorSession = nil
     }
 
-    func validateShioriListEditor(_ session: ShioriListEditorSession) {
-        guard shiori.listEditorSession?.id == session.id,
-              let database = shioriDatabase
+    func validateExcerptListEditor(_ session: ExcerptListEditorSession) {
+        guard excerpt.listEditorSession?.id == session.id,
+              let database = excerptDatabase
         else {
             return
         }
         do {
-            session.apply(validation: try database.validateShioriList(
+            session.apply(validation: try database.validateExcerptList(
                 name: session.name,
                 description: session.listDescription,
                 excludingListID: session.mode.editedList?.id
             ))
         } catch {
-            print("Failed to validate Shiori list: \(error)")
+            print("Failed to validate Excerpt list: \(error)")
         }
     }
 
-    func beginChoosingShioriListCover(_ session: ShioriListEditorSession) {
-        guard shiori.listEditorSession?.id == session.id,
+    func beginChoosingExcerptListCover(_ session: ExcerptListEditorSession) {
+        guard excerpt.listEditorSession?.id == session.id,
               !session.isSaving
         else {
             return
@@ -192,13 +192,13 @@ extension AppCoordinator {
                   let session,
                   response == .OK,
                   let sourceURL = panel.url,
-                  self.shiori.listEditorSession?.id == session.id
+                  self.excerpt.listEditorSession?.id == session.id
             else {
                 return
             }
 
-            self.shioriListCoverImportTask?.cancel()
-            self.shioriListCoverImportTask = Task { @MainActor [weak self, weak session] in
+            self.excerptListCoverImportTask?.cancel()
+            self.excerptListCoverImportTask = Task { @MainActor [weak self, weak session] in
                 guard let self, let session else {
                     return
                 }
@@ -207,14 +207,14 @@ extension AppCoordinator {
                         try LibraryUserCoverProcessor.loadSource(at: sourceURL)
                     }.value
                     try Task.checkCancellation()
-                    guard self.shiori.listEditorSession?.id == session.id else {
+                    guard self.excerpt.listEditorSession?.id == session.id else {
                         return
                     }
                     session.selectCoverSource(source)
                 } catch is CancellationError {
                     return
                 } catch {
-                    print("Failed to load Shiori list cover: \(error)")
+                    print("Failed to load Excerpt list cover: \(error)")
                 }
             }
         }
@@ -226,14 +226,14 @@ extension AppCoordinator {
         }
     }
 
-    func saveShioriListEditor(_ session: ShioriListEditorSession) {
-        guard shiori.listEditorSession?.id == session.id,
+    func saveExcerptListEditor(_ session: ExcerptListEditorSession) {
+        guard excerpt.listEditorSession?.id == session.id,
               !session.isSaving,
-              let database = shioriDatabase
+              let database = excerptDatabase
         else {
             return
         }
-        validateShioriListEditor(session)
+        validateExcerptListEditor(session)
         guard session.nameValidationMessage == nil,
               session.descriptionValidationMessage == nil
         else {
@@ -247,30 +247,30 @@ extension AppCoordinator {
         let mode = session.mode
         let name = session.name
         let description = session.listDescription
-        shioriListSaveTask?.cancel()
-        shioriListSaveTask = Task { @MainActor [weak self, weak session] in
+        excerptListSaveTask?.cancel()
+        excerptListSaveTask = Task { @MainActor [weak self, weak session] in
             guard let self, let session else {
                 return
             }
             var publishedCoverPath: String?
             do {
                 if let source {
-                    publishedCoverPath = try await self.shioriListCoverStorage.publish(
+                    publishedCoverPath = try await self.excerptListCoverStorage.publish(
                         source: source,
                         cropRect: cropRect
                     )
                 }
                 let coverPath = publishedCoverPath ?? oldCoverPath
-                let savedList: ShioriList
+                let savedList: ExcerptList
                 switch mode {
                 case .newList:
-                    savedList = try database.createShioriList(
+                    savedList = try database.createExcerptList(
                         name: name,
                         description: description,
                         coverPath: coverPath
                     )
                 case .edit(let list):
-                    savedList = try database.updateShioriList(
+                    savedList = try database.updateExcerptList(
                         id: list.id,
                         name: name,
                         description: description,
@@ -280,21 +280,21 @@ extension AppCoordinator {
 
                 if publishedCoverPath != nil, oldCoverPath != nil {
                     do {
-                        try await self.shioriListCoverStorage.remove(path: oldCoverPath)
+                        try await self.excerptListCoverStorage.remove(path: oldCoverPath)
                     } catch {
-                        print("Failed to remove replaced Shiori list cover: \(error)")
+                        print("Failed to remove replaced Excerpt list cover: \(error)")
                     }
                 }
-                guard self.shiori.listEditorSession?.id == session.id else {
+                guard self.excerpt.listEditorSession?.id == session.id else {
                     return
                 }
                 session.isSaving = false
-                self.shiori.listEditorSession = nil
-                if !self.shiori.upsertListSummary(savedList) {
-                    self.reloadShioriListOverview()
+                self.excerpt.listEditorSession = nil
+                if !self.excerpt.upsertListSummary(savedList) {
+                    self.reloadExcerptListOverview()
                 }
                 if let pendingTransfer = session.pendingTransfer {
-                    self.runShioriListEditorPendingTransfer(
+                    self.runExcerptListEditorPendingTransfer(
                         pendingTransfer,
                         toListID: savedList.id,
                         listName: savedList.name
@@ -302,21 +302,21 @@ extension AppCoordinator {
                 }
             } catch is CancellationError {
                 if let publishedCoverPath {
-                    try? await self.shioriListCoverStorage.remove(path: publishedCoverPath)
+                    try? await self.excerptListCoverStorage.remove(path: publishedCoverPath)
                 }
-                if self.shiori.listEditorSession?.id == session.id {
+                if self.excerpt.listEditorSession?.id == session.id {
                     session.isSaving = false
                 }
             } catch {
                 if let publishedCoverPath {
-                    try? await self.shioriListCoverStorage.remove(path: publishedCoverPath)
+                    try? await self.excerptListCoverStorage.remove(path: publishedCoverPath)
                 }
-                guard self.shiori.listEditorSession?.id == session.id else {
+                guard self.excerpt.listEditorSession?.id == session.id else {
                     return
                 }
                 session.isSaving = false
-                if let validationError = error as? ShioriListValidationError {
-                    let validation = try? database.validateShioriList(
+                if let validationError = error as? ExcerptListValidationError {
+                    let validation = try? database.validateExcerptList(
                         name: session.name,
                         description: session.listDescription,
                         excludingListID: session.mode.editedList?.id
@@ -324,109 +324,109 @@ extension AppCoordinator {
                     if let validation {
                         session.apply(validation: validation)
                     } else {
-                        print("Failed to revalidate Shiori list after \(validationError)")
+                        print("Failed to revalidate Excerpt list after \(validationError)")
                     }
                 } else {
-                    print("Failed to save Shiori list: \(error)")
+                    print("Failed to save Excerpt list: \(error)")
                 }
             }
-            self.shioriListSaveTask = nil
+            self.excerptListSaveTask = nil
         }
     }
 
     @discardableResult
-    func deleteShioriList(id: Int64) -> Bool {
-        guard let database = shioriDatabase else {
+    func deleteExcerptList(id: Int64) -> Bool {
+        guard let database = excerptDatabase else {
             return false
         }
         do {
-            let deleted = try database.deleteShioriList(id: id)
-            if workbenchLayout.selectedShioriListID == id {
+            let deleted = try database.deleteExcerptList(id: id)
+            if workbenchLayout.selectedExcerptListID == id {
                 // The page being looked at is gone: going back to the overview
                 // is a step of its own, like any other page change.
-                navigateWorkbench(to: .shiori)
+                navigateWorkbench(to: .excerpt)
             }
-            if shiori.activeListID == id {
-                let nextListID = try database.firstShioriListID()
+            if excerpt.activeListID == id {
+                let nextListID = try database.firstExcerptListID()
                 if let nextListID {
-                    shiori.updateTableFacetFilter(
-                        settings.shioriFacetFilter(forListID: nextListID)
+                    excerpt.updateTableFacetFilter(
+                        settings.excerptFacetFilter(forListID: nextListID)
                     )
                 }
-                shiori.setActiveListID(nextListID)
+                excerpt.setActiveListID(nextListID)
             }
-            let didUpdateOverview = (try? database.uniqueShioriCueCount())
+            let didUpdateOverview = (try? database.uniqueExcerptCueCount())
                 .map {
-                    shiori.removeListSummary(id: id, uniqueCueCount: $0)
+                    excerpt.removeListSummary(id: id, uniqueCueCount: $0)
                 } ?? false
             if !didUpdateOverview {
-                reloadShioriListOverview()
+                reloadExcerptListOverview()
             }
             if let coverPath = deleted.coverPath {
                 Task {
                     do {
-                        try await shioriListCoverStorage.remove(path: coverPath)
+                        try await excerptListCoverStorage.remove(path: coverPath)
                     } catch {
-                        print("Failed to remove deleted Shiori list cover: \(error)")
+                        print("Failed to remove deleted Excerpt list cover: \(error)")
                     }
                 }
             }
             return true
         } catch {
-            print("Failed to delete Shiori list: \(error)")
+            print("Failed to delete Excerpt list: \(error)")
             return false
         }
     }
 
-    func loadShioriTableRowsIfNeeded() {
+    func loadExcerptTableRowsIfNeeded() {
         guard !indexing.indexingStatus.isIndexing,
               !indexing.folderRemovalStatus.isRemoving
         else {
             return
         }
-        guard shioriTableRowsTask == nil else {
+        guard excerptTableRowsTask == nil else {
             return
         }
-        let snapshot = shiori.tableRowStore.snapshot
-        guard !shiori.tableHasLoadedInitialPage
-                || snapshot.totalRowCount != shiori.tableResultRowCount
-                || shiori.tableRowsNeedReload
+        let snapshot = excerpt.tableRowStore.snapshot
+        guard !excerpt.tableHasLoadedInitialPage
+                || snapshot.totalRowCount != excerpt.tableResultRowCount
+                || excerpt.tableRowsNeedReload
         else {
             return
         }
-        reloadShioriTableRows()
+        reloadExcerptTableRows()
     }
 
-    func reloadShioriTableRows() {
+    func reloadExcerptTableRows() {
         guard !indexing.indexingStatus.isIndexing,
               !indexing.folderRemovalStatus.isRemoving
         else {
             return
         }
-        guard let listID = shiori.activeListID
-                ?? (try? shioriDatabase?.firstShioriListID())
+        guard let listID = excerpt.activeListID
+                ?? (try? excerptDatabase?.firstExcerptListID())
         else {
-            shiori.clearTableRowsForReload()
-            shiori.markTableRowsLoaded(totalSavedRowCount: 0)
+            excerpt.clearTableRowsForReload()
+            excerpt.markTableRowsLoaded(totalSavedRowCount: 0)
             return
         }
 
-        shioriTableRowsTask?.cancel()
-        if shiori.activeListID == nil {
-            shiori.updateTableFacetFilter(
-                settings.shioriFacetFilter(forListID: listID)
+        excerptTableRowsTask?.cancel()
+        if excerpt.activeListID == nil {
+            excerpt.updateTableFacetFilter(
+                settings.excerptFacetFilter(forListID: listID)
             )
         }
-        shiori.setActiveListID(listID)
-        shiori.clearTableRowsForReload()
+        excerpt.setActiveListID(listID)
+        excerpt.clearTableRowsForReload()
 
-        let resultSnapshotID = shiori.tableResultSnapshotID
-        let searchText = shiori.tableSearchDraft
-        let facetFilter = shiori.tableFacetFilter
-        let dataRevision = shiori.tableDataRevision
-        if shiori.residentDataRevision == dataRevision,
-           shiori.residentListID == listID {
-            applyResidentShioriTableProjection(
+        let resultSnapshotID = excerpt.tableResultSnapshotID
+        let searchText = excerpt.tableSearchDraft
+        let facetFilter = excerpt.tableFacetFilter
+        let dataRevision = excerpt.tableDataRevision
+        if excerpt.residentDataRevision == dataRevision,
+           excerpt.residentListID == listID {
+            applyResidentExcerptTableProjection(
                 resultSnapshotID: resultSnapshotID,
                 searchText: searchText,
                 facetFilter: facetFilter,
@@ -436,13 +436,13 @@ extension AppCoordinator {
             return
         }
 
-        shioriTableRowsTask = Task { @MainActor [weak self] in
+        excerptTableRowsTask = Task { @MainActor [weak self] in
             guard let self else {
                 return
             }
             defer {
-                if self.shiori.tableResultSnapshotID == resultSnapshotID {
-                    self.shioriTableRowsTask = nil
+                if self.excerpt.tableResultSnapshotID == resultSnapshotID {
+                    self.excerptTableRowsTask = nil
                 }
             }
 
@@ -451,12 +451,12 @@ extension AppCoordinator {
                 let residentSnapshot = try await Self.runCancellableDetached(
                     priority: .userInitiated
                 ) {
-                    try ShioriDatabase(
+                    try ExcerptDatabase(
                         path: databaseURL,
                         access: .readOnly
-                    ).shioriResidentSnapshot(listID: listID)
+                    ).excerptResidentSnapshot(listID: listID)
                 }
-                guard self.shioriTableRequestMatches(
+                guard self.excerptTableRequestMatches(
                     resultSnapshotID: resultSnapshotID,
                     searchText: searchText,
                     facetFilter: facetFilter,
@@ -466,12 +466,12 @@ extension AppCoordinator {
                     return
                 }
                 self.cueContent.install(residentSnapshot.cueContents)
-                self.shiori.installResidentSnapshot(
+                self.excerpt.installResidentSnapshot(
                     residentSnapshot,
                     listID: listID,
                     dataRevision: dataRevision
                 )
-                self.applyResidentShioriTableProjection(
+                self.applyResidentExcerptTableProjection(
                     resultSnapshotID: resultSnapshotID,
                     searchText: searchText,
                     facetFilter: facetFilter,
@@ -482,120 +482,120 @@ extension AppCoordinator {
                 return
             } catch {
                 guard !Task.isCancelled else { return }
-                print("Failed to load resident Shiori data: \(error)")
-                if self.shioriTableRequestMatches(
+                print("Failed to load resident Excerpt data: \(error)")
+                if self.excerptTableRequestMatches(
                     resultSnapshotID: resultSnapshotID,
                     searchText: searchText,
                     facetFilter: facetFilter,
                     listID: listID,
                     dataRevision: dataRevision
                 ) {
-                    self.shiori.markTableRowsLoaded(totalSavedRowCount: 0)
+                    self.excerpt.markTableRowsLoaded(totalSavedRowCount: 0)
                 }
             }
         }
     }
 
-    func prepareShioriForIndexedContentMutation(under folders: [URL]) {
-        shioriNeedsReloadAfterIndexedContentMutation =
-            shioriNeedsReloadAfterIndexedContentMutation
-            || shiori.residentDataRevision != nil
-            || shiori.tableHasLoadedInitialPage
-            || shioriTableRowsTask != nil
-        shioriTableRowsTask?.cancel()
-        shioriTableRowsTask = nil
+    func prepareExcerptForIndexedContentMutation(under folders: [URL]) {
+        excerptNeedsReloadAfterIndexedContentMutation =
+            excerptNeedsReloadAfterIndexedContentMutation
+            || excerpt.residentDataRevision != nil
+            || excerpt.tableHasLoadedInitialPage
+            || excerptTableRowsTask != nil
+        excerptTableRowsTask?.cancel()
+        excerptTableRowsTask = nil
         cueContent.remove { content in
             folders.contains { folder in
                 Self.path(content.subtitlePath, isUnder: folder)
             }
         }
-        shiori.invalidateTableRows()
-        shiori.clearListOverviewForReload()
-        shioriPlaybackNavigationScopeIDs = nil
-        shioriPlaybackNavigationSnapshot = nil
+        excerpt.invalidateTableRows()
+        excerpt.clearListOverviewForReload()
+        excerptPlaybackNavigationScopeIDs = nil
+        excerptPlaybackNavigationSnapshot = nil
     }
 
-    func reloadShioriAfterIndexedContentMutation() {
-        shioriTableRowsTask?.cancel()
-        shioriTableRowsTask = nil
-        guard shioriNeedsReloadAfterIndexedContentMutation else {
+    func reloadExcerptAfterIndexedContentMutation() {
+        excerptTableRowsTask?.cancel()
+        excerptTableRowsTask = nil
+        guard excerptNeedsReloadAfterIndexedContentMutation else {
             return
         }
-        shioriNeedsReloadAfterIndexedContentMutation = false
-        reloadShioriListOverview()
-        reloadShioriTableRows()
+        excerptNeedsReloadAfterIndexedContentMutation = false
+        reloadExcerptListOverview()
+        reloadExcerptTableRows()
     }
 
-    func refreshShioriForLibraryWatchStateChange() {
-        guard shiori.residentDataRevision != nil else { return }
-        shiori.markTableRowsStale()
-        reloadShioriTableRows()
+    func refreshExcerptForLibraryWatchStateChange() {
+        guard excerpt.residentDataRevision != nil else { return }
+        excerpt.markTableRowsStale()
+        reloadExcerptTableRows()
     }
 
-    func updateShioriFacetFilter(_ filter: CueFacetFilter) {
-        guard shiori.updateTableFacetFilter(filter),
-              let listID = shiori.activeListID
+    func updateExcerptFacetFilter(_ filter: CueFacetFilter) {
+        guard excerpt.updateTableFacetFilter(filter),
+              let listID = excerpt.activeListID
         else {
             return
         }
-        let dataRevision = shiori.tableDataRevision
-        guard shiori.residentDataRevision == dataRevision,
-              shiori.residentListID == listID
+        let dataRevision = excerpt.tableDataRevision
+        guard excerpt.residentDataRevision == dataRevision,
+              excerpt.residentListID == listID
         else {
-            reloadShioriTableRows()
+            reloadExcerptTableRows()
             return
         }
 
-        shiori.beginTableResultProjection()
-        applyResidentShioriTableProjection(
-            resultSnapshotID: shiori.tableResultSnapshotID,
-            searchText: shiori.tableSearchDraft,
+        excerpt.beginTableResultProjection()
+        applyResidentExcerptTableProjection(
+            resultSnapshotID: excerpt.tableResultSnapshotID,
+            searchText: excerpt.tableSearchDraft,
             facetFilter: filter,
             listID: listID,
             dataRevision: dataRevision
         )
     }
 
-    func updateShioriSearchQuery(_ searchText: String) {
-        guard shiori.updateTableSearchDraft(searchText) else {
+    func updateExcerptSearchQuery(_ searchText: String) {
+        guard excerpt.updateTableSearchDraft(searchText) else {
             return
         }
-        let normalizedSearchText = shiori.tableSearchDraft
+        let normalizedSearchText = excerpt.tableSearchDraft
         UIInvalidationProbe.mark(
-            "ACTION UI.ShioriSearchQuery.changed",
+            "ACTION UI.ExcerptSearchQuery.changed",
             scope: uiProbeScope,
             details: "length=\(normalizedSearchText.count)"
         )
-        guard let listID = shiori.activeListID else {
-            reloadShioriTableRows()
+        guard let listID = excerpt.activeListID else {
+            reloadExcerptTableRows()
             return
         }
-        let dataRevision = shiori.tableDataRevision
-        guard shiori.residentDataRevision == dataRevision,
-              shiori.residentListID == listID
+        let dataRevision = excerpt.tableDataRevision
+        guard excerpt.residentDataRevision == dataRevision,
+              excerpt.residentListID == listID
         else {
-            reloadShioriTableRows()
+            reloadExcerptTableRows()
             return
         }
 
-        shiori.beginTableResultProjection()
-        applyResidentShioriTableProjection(
-            resultSnapshotID: shiori.tableResultSnapshotID,
+        excerpt.beginTableResultProjection()
+        applyResidentExcerptTableProjection(
+            resultSnapshotID: excerpt.tableResultSnapshotID,
             searchText: normalizedSearchText,
-            facetFilter: shiori.tableFacetFilter,
+            facetFilter: excerpt.tableFacetFilter,
             listID: listID,
             dataRevision: dataRevision
         )
     }
 
-    private func applyResidentShioriTableProjection(
+    private func applyResidentExcerptTableProjection(
         resultSnapshotID: UUID,
         searchText: String,
         facetFilter: CueFacetFilter,
         listID: Int64,
         dataRevision: Int
     ) {
-        guard shioriTableRequestMatches(
+        guard excerptTableRequestMatches(
             resultSnapshotID: resultSnapshotID,
             searchText: searchText,
             facetFilter: facetFilter,
@@ -608,14 +608,14 @@ extension AppCoordinator {
         let trimmedSearchText = searchText.trimmingCharacters(
             in: .whitespacesAndNewlines
         )
-        let facetProjection = shiori.residentFacetProjection(using: facetFilter)
-        let matchingShioriIDs = Set(facetProjection.shioriIDs)
-        let relations = shiori.residentRelations.filter { relation in
-            guard matchingShioriIDs.contains(relation.id) else {
+        let facetProjection = excerpt.residentFacetProjection(using: facetFilter)
+        let matchingExcerptIDs = Set(facetProjection.excerptIDs)
+        let relations = excerpt.residentRelations.filter { relation in
+            guard matchingExcerptIDs.contains(relation.id) else {
                 return false
             }
             let content = cueContent.content(for: relation.cueID)
-            guard let resolved = shiori.residentShiorisByID[relation.id] else {
+            guard let resolved = excerpt.residentExcerptsByID[relation.id] else {
                 return false
             }
             let cueText = content?.content ?? resolved.content
@@ -625,26 +625,26 @@ extension AppCoordinator {
                     query: trimmedSearchText
                 )
         }
-        shiori.installTableFacetDistribution(facetProjection.distribution)
-        shiori.installTableResultShioriIDs(relations.map(\.id))
-        shiori.markTableRowsLoaded(
-            totalSavedRowCount: shiori.residentRelations.count
+        excerpt.installTableFacetDistribution(facetProjection.distribution)
+        excerpt.installTableResultExcerptIDs(relations.map(\.id))
+        excerpt.markTableRowsLoaded(
+            totalSavedRowCount: excerpt.residentRelations.count
         )
-        shiori.tableRowStore.updateResidentShioriRelations(
+        excerpt.tableRowStore.updateResidentExcerptRelations(
             relations,
-            resolvedShiorisByID: shiori.residentShiorisByID,
+            resolvedExcerptsByID: excerpt.residentExcerptsByID,
             cueContentProvider: { [cueContent] cueID in
                 cueContent.content(for: cueID)
             },
             cueContentRevision: cueContent.revision,
-            tableName: "shiori",
-            probeSurface: .shiori,
+            tableName: "excerpt",
+            probeSurface: .excerpt,
             probeScope: uiProbeScope
         )
-        refreshShioriPlaybackPlaylistSource()
+        refreshExcerptPlaybackPlaylistSource()
     }
 
-    private func shioriTableRequestMatches(
+    private func excerptTableRequestMatches(
         resultSnapshotID: UUID,
         searchText: String,
         facetFilter: CueFacetFilter,
@@ -652,34 +652,34 @@ extension AppCoordinator {
         dataRevision: Int
     ) -> Bool {
         !Task.isCancelled
-            && shiori.tableResultSnapshotID == resultSnapshotID
-            && shiori.tableSearchDraft == searchText
-            && shiori.tableFacetFilter == facetFilter
-            && shiori.activeListID == listID
-            && shiori.tableDataRevision == dataRevision
+            && excerpt.tableResultSnapshotID == resultSnapshotID
+            && excerpt.tableSearchDraft == searchText
+            && excerpt.tableFacetFilter == facetFilter
+            && excerpt.activeListID == listID
+            && excerpt.tableDataRevision == dataRevision
     }
 
-    private func runShioriListEditorPendingTransfer(
-        _ transfer: ShioriListEditorPendingTransfer,
+    private func runExcerptListEditorPendingTransfer(
+        _ transfer: ExcerptListEditorPendingTransfer,
         toListID destinationListID: Int64,
         listName: String
     ) {
         switch (transfer.action, transfer.target) {
-        case (.saveToShiori, .cue(let cueID)):
-            saveShiori(
+        case (.saveToExcerpt, .cue(let cueID)):
+            saveExcerpt(
                 cueID: cueID,
                 toListID: destinationListID,
                 listName: listName,
                 report: transfer.report
             )
-        case (.moveToList, .shiori(let item)):
-            _ = moveShiori(
+        case (.moveToList, .excerpt(let item)):
+            _ = moveExcerpt(
                 item,
                 toListID: destinationListID,
                 listName: listName
             )
-        case (.duplicateToList, .shiori(let item)):
-            _ = duplicateShiori(
+        case (.duplicateToList, .excerpt(let item)):
+            _ = duplicateExcerpt(
                 item,
                 toListID: destinationListID,
                 listName: listName
@@ -689,15 +689,15 @@ extension AppCoordinator {
         }
     }
 
-    private func reportShioriSave(
+    private func reportExcerptSave(
         _ request: ToastRequest,
-        _ report: ShioriSaveReport
+        _ report: ExcerptSaveReport
     ) {
         switch report {
         case .toast:
             toast.show(request)
         case .playbackFeedback:
-            playback.playbackViewModel?.showShioriSaveFeedback(
+            playback.playbackViewModel?.showExcerptSaveFeedback(
                 message: request.message
             )
         }
@@ -707,26 +707,26 @@ extension AppCoordinator {
     /// names the list, and a list that is gone by the time the save runs can
     /// only be named by what the menu showed.
     @discardableResult
-    func saveShiori(
+    func saveExcerpt(
         cueID: Int64,
         toListID destinationListID: Int64,
         listName: String,
-        report: ShioriSaveReport
+        report: ExcerptSaveReport
     ) -> Bool {
-        guard let database = shioriDatabase else {
-            reportShioriSave(
-                ShioriToastRequest.saveFailed(listName: listName),
+        guard let database = excerptDatabase else {
+            reportExcerptSave(
+                ExcerptToastRequest.saveFailed(listName: listName),
                 report
             )
             return false
         }
-        let destination: ShioriList
+        let destination: ExcerptList
         do {
-            guard let availableDestination = try database.shioriList(
+            guard let availableDestination = try database.excerptList(
                 id: destinationListID
             ) else {
-                reportShioriSave(
-                    ShioriToastRequest.destinationUnavailable(
+                reportExcerptSave(
+                    ExcerptToastRequest.destinationUnavailable(
                         listName: listName
                     ),
                     report
@@ -735,70 +735,70 @@ extension AppCoordinator {
             }
             destination = availableDestination
         } catch {
-            print("Failed to resolve Shiori save destination: \(error)")
-            reportShioriSave(
-                ShioriToastRequest.saveFailed(listName: listName),
+            print("Failed to resolve Excerpt save destination: \(error)")
+            reportExcerptSave(
+                ExcerptToastRequest.saveFailed(listName: listName),
                 report
             )
             return false
         }
 
         do {
-            guard try database.shiori(
+            guard try database.excerpt(
                 cueID: cueID,
                 listID: destinationListID
             ) == nil else {
-                reportShioriSave(
-                    ShioriToastRequest.destinationAlreadyContainsCue(
+                reportExcerptSave(
+                    ExcerptToastRequest.destinationAlreadyContainsCue(
                         listName: destination.name
                     ),
                     report
                 )
                 return false
             }
-            _ = try database.upsertShiori(
+            _ = try database.upsertExcerpt(
                 cueID: cueID,
                 listID: destinationListID
             )
-            shiori.markTableRowsStale()
-            if !shiori.adjustListCueCounts(
+            excerpt.markTableRowsStale()
+            if !excerpt.adjustListCueCounts(
                 [destinationListID: 1],
-                uniqueCueCount: try? database.uniqueShioriCueCount()
+                uniqueCueCount: try? database.uniqueExcerptCueCount()
             ) {
-                reloadShioriListOverview()
+                reloadExcerptListOverview()
             }
-            shiori.setRecentSaveListID(destinationListID)
-            reportShioriSave(
-                ShioriToastRequest.saveSucceeded(listName: destination.name),
+            excerpt.setRecentSaveListID(destinationListID)
+            reportExcerptSave(
+                ExcerptToastRequest.saveSucceeded(listName: destination.name),
                 report
             )
             return true
         } catch {
-            print("Failed to save Shiori: \(error)")
-            reportShioriSave(
-                ShioriToastRequest.saveFailed(listName: destination.name),
+            print("Failed to save Excerpt: \(error)")
+            reportExcerptSave(
+                ExcerptToastRequest.saveFailed(listName: destination.name),
                 report
             )
         }
         return false
     }
 
-    func moveShiori(
-        _ item: Shiori,
+    func moveExcerpt(
+        _ item: Excerpt,
         toListID destinationListID: Int64,
         listName: String
     ) -> Bool {
-        guard let database = shioriDatabase else {
-            toast.show(ShioriToastRequest.moveFailed)
+        guard let database = excerptDatabase else {
+            toast.show(ExcerptToastRequest.moveFailed)
             return false
         }
-        let destination: ShioriList
+        let destination: ExcerptList
         do {
-            guard let availableDestination = try database.shioriList(
+            guard let availableDestination = try database.excerptList(
                 id: destinationListID
             ) else {
                 toast.show(
-                    ShioriToastRequest.destinationUnavailable(
+                    ExcerptToastRequest.destinationUnavailable(
                         listName: listName
                     )
                 )
@@ -806,67 +806,67 @@ extension AppCoordinator {
             }
             destination = availableDestination
         } catch {
-            print("Failed to resolve Shiori move destination: \(error)")
-            toast.show(ShioriToastRequest.moveFailed)
+            print("Failed to resolve Excerpt move destination: \(error)")
+            toast.show(ExcerptToastRequest.moveFailed)
             return false
         }
 
         do {
-            _ = try database.moveShiori(
+            _ = try database.moveExcerpt(
                 id: item.id,
                 toListID: destinationListID
             )
-            let sourceListID = shiori.activeListID
-            handleShioriRemovedFromCurrentList(item)
+            let sourceListID = excerpt.activeListID
+            handleExcerptRemovedFromCurrentList(item)
             let didUpdateOverview = sourceListID.map {
-                shiori.adjustListCueCounts([
+                excerpt.adjustListCueCounts([
                     $0: -1,
                     destinationListID: 1,
                 ])
             } ?? false
             if !didUpdateOverview {
-                reloadShioriListOverview()
+                reloadExcerptListOverview()
             }
             toast.show(
-                ShioriToastRequest.moveSucceeded(listName: destination.name)
+                ExcerptToastRequest.moveSucceeded(listName: destination.name)
             )
             return true
-        } catch ShioriTransferError.destinationUnavailable {
+        } catch ExcerptTransferError.destinationUnavailable {
             toast.show(
-                ShioriToastRequest.destinationUnavailable(
+                ExcerptToastRequest.destinationUnavailable(
                     listName: destination.name
                 )
             )
-        } catch ShioriTransferError.destinationAlreadyContainsCue {
+        } catch ExcerptTransferError.destinationAlreadyContainsCue {
             toast.show(
-                ShioriToastRequest.destinationAlreadyContainsCue(
+                ExcerptToastRequest.destinationAlreadyContainsCue(
                     listName: destination.name
                 )
             )
         } catch {
-            print("Failed to move Shiori: \(error)")
-            toast.show(ShioriToastRequest.moveFailed)
+            print("Failed to move Excerpt: \(error)")
+            toast.show(ExcerptToastRequest.moveFailed)
         }
         return false
     }
 
     @discardableResult
-    func duplicateShiori(
-        _ item: Shiori,
+    func duplicateExcerpt(
+        _ item: Excerpt,
         toListID destinationListID: Int64,
         listName: String
     ) -> Bool {
-        guard let database = shioriDatabase else {
-            toast.show(ShioriToastRequest.duplicateFailed)
+        guard let database = excerptDatabase else {
+            toast.show(ExcerptToastRequest.duplicateFailed)
             return false
         }
-        let destination: ShioriList
+        let destination: ExcerptList
         do {
-            guard let availableDestination = try database.shioriList(
+            guard let availableDestination = try database.excerptList(
                 id: destinationListID
             ) else {
                 toast.show(
-                    ShioriToastRequest.destinationUnavailable(
+                    ExcerptToastRequest.destinationUnavailable(
                         listName: listName
                     )
                 )
@@ -874,133 +874,133 @@ extension AppCoordinator {
             }
             destination = availableDestination
         } catch {
-            print("Failed to resolve Shiori duplicate destination: \(error)")
-            toast.show(ShioriToastRequest.duplicateFailed)
+            print("Failed to resolve Excerpt duplicate destination: \(error)")
+            toast.show(ExcerptToastRequest.duplicateFailed)
             return false
         }
 
         do {
-            _ = try database.duplicateShiori(
+            _ = try database.duplicateExcerpt(
                 id: item.id,
                 toListID: destinationListID
             )
-            if !shiori.adjustListCueCounts([destinationListID: 1]) {
-                reloadShioriListOverview()
+            if !excerpt.adjustListCueCounts([destinationListID: 1]) {
+                reloadExcerptListOverview()
             }
             toast.show(
-                ShioriToastRequest.duplicateSucceeded(listName: destination.name)
+                ExcerptToastRequest.duplicateSucceeded(listName: destination.name)
             )
             return true
-        } catch ShioriTransferError.destinationUnavailable {
+        } catch ExcerptTransferError.destinationUnavailable {
             toast.show(
-                ShioriToastRequest.destinationUnavailable(
+                ExcerptToastRequest.destinationUnavailable(
                     listName: destination.name
                 )
             )
-        } catch ShioriTransferError.destinationAlreadyContainsCue {
+        } catch ExcerptTransferError.destinationAlreadyContainsCue {
             toast.show(
-                ShioriToastRequest.destinationAlreadyContainsCue(
+                ExcerptToastRequest.destinationAlreadyContainsCue(
                     listName: destination.name
                 )
             )
         } catch {
-            print("Failed to duplicate Shiori: \(error)")
-            toast.show(ShioriToastRequest.duplicateFailed)
+            print("Failed to duplicate Excerpt: \(error)")
+            toast.show(ExcerptToastRequest.duplicateFailed)
         }
         return false
     }
 
     @discardableResult
-    func removeShiori(_ item: Shiori, reloadPresentation: Bool = true) -> Bool {
-        guard let database = shioriDatabase else {
-            playback.playbackViewModel?.showShioriFeedback(.unavailable)
+    func removeExcerpt(_ item: Excerpt, reloadPresentation: Bool = true) -> Bool {
+        guard let database = excerptDatabase else {
+            playback.playbackViewModel?.showExcerptFeedback(.unavailable)
             return false
         }
 
         do {
-            try database.removeShiori(id: item.id)
+            try database.removeExcerpt(id: item.id)
             _ = reloadPresentation
-            let sourceListID = shiori.activeListID
-            handleShioriRemovedFromCurrentList(item)
-            let uniqueCueCount = try? database.uniqueShioriCueCount()
+            let sourceListID = excerpt.activeListID
+            handleExcerptRemovedFromCurrentList(item)
+            let uniqueCueCount = try? database.uniqueExcerptCueCount()
             let didUpdateOverview = sourceListID.flatMap { sourceListID in
                 uniqueCueCount.map {
-                    shiori.adjustListCueCounts(
+                    excerpt.adjustListCueCounts(
                         [sourceListID: -1],
                         uniqueCueCount: $0
                     )
                 }
             } ?? false
             if !didUpdateOverview {
-                reloadShioriListOverview()
+                reloadExcerptListOverview()
             }
-            playback.playbackViewModel?.showShioriFeedback(.removed)
+            playback.playbackViewModel?.showExcerptFeedback(.removed)
             return true
         } catch {
-            print("Failed to remove Shiori: \(error)")
-            playback.playbackViewModel?.showShioriFeedback(.unavailable)
+            print("Failed to remove Excerpt: \(error)")
+            playback.playbackViewModel?.showExcerptFeedback(.unavailable)
             return false
         }
     }
 
-    private func handleShioriRemovedFromCurrentList(_ item: Shiori) {
-        shiori.removeShioriFromCurrentProjection(id: item.id)
-        removeShioriFromPlaybackNavigationScope(item.id)
-        if shiori.selectedShiori?.id == item.id {
-            shiori.selectedShiori = nil
-            shioriPlaybackNavigationSnapshot = nil
+    private func handleExcerptRemovedFromCurrentList(_ item: Excerpt) {
+        excerpt.removeExcerptFromCurrentProjection(id: item.id)
+        removeExcerptFromPlaybackNavigationScope(item.id)
+        if excerpt.selectedExcerpt?.id == item.id {
+            excerpt.selectedExcerpt = nil
+            excerptPlaybackNavigationSnapshot = nil
             clearPlaybackChromeSnapshot()
-        } else if let selectedShiori = shiori.selectedShiori {
-            _ = refreshShioriPlaybackNavigationSnapshot(for: selectedShiori)
+        } else if let selectedExcerpt = excerpt.selectedExcerpt {
+            _ = refreshExcerptPlaybackNavigationSnapshot(for: selectedExcerpt)
             refreshPlaybackChromeSnapshot(
                 displayTitle: playback.chromeSnapshot.displayTitle
             )
         }
     }
 
-    func openShiori(
-        _ shiori: Shiori,
+    func openExcerpt(
+        _ excerpt: Excerpt,
         navigationScopeIDs: [Int64]? = nil,
-        playlistScope: PlaybackPlaylistShioriScope? = nil,
+        playlistScope: PlaybackPlaylistExcerptScope? = nil,
         playlistSelectedOrdinal: Int? = nil,
         displayTitle: String? = nil
     ) {
-        guard shiori.isValid else {
+        guard excerpt.isValid else {
             return
         }
         clearCueAutoStopPlayback()
         invalidatePlaybackSubtitleFocusForSourceReplacement()
         playback.playbackStatus = .opening
         UIInvalidationProbe.mark(
-            "ACTION UI.Shiori.opened",
-            details: "time=\(String(format: "%.2f", Double(shiori.startMilliseconds) / 1000.0))"
+            "ACTION UI.Excerpt.opened",
+            details: "time=\(String(format: "%.2f", Double(excerpt.startMilliseconds) / 1000.0))"
         )
         preparePlaybackKeyboardFocus()
         let keepsExistingPlaylistSnapshot = playlistScope.map { scope in
-            playback.playlistSource?.origin == .shiori(scope: scope)
-                && shioriPlaybackNavigationScopeIDs != nil
+            playback.playlistSource?.origin == .excerpt(scope: scope)
+                && excerptPlaybackNavigationScopeIDs != nil
         } ?? false
         if !keepsExistingPlaylistSnapshot {
             if case .table(let context)? = playlistScope,
                let navigationScopeIDs,
                navigationScopeIDs.count == context.totalCount {
                 // Core table snapshots are already ordered and unique by the
-                // Shiori primary key. Keep their copy-on-write ID buffer.
-                shioriPlaybackNavigationScopeIDs = navigationScopeIDs
+                // Excerpt primary key. Keep their copy-on-write ID buffer.
+                excerptPlaybackNavigationScopeIDs = navigationScopeIDs
             } else {
-                shioriPlaybackNavigationScopeIDs = normalizedShioriPlaybackNavigationScopeIDs(
+                excerptPlaybackNavigationScopeIDs = normalizedExcerptPlaybackNavigationScopeIDs(
                     navigationScopeIDs
                 )
             }
         }
-        installShioriPlaybackPlaylistSource(scope: playlistScope)
-        let resolvedPlaylistOrdinal = refreshShioriPlaybackNavigationSnapshot(
-            for: shiori,
+        installExcerptPlaybackPlaylistSource(scope: playlistScope)
+        let resolvedPlaylistOrdinal = refreshExcerptPlaybackNavigationSnapshot(
+            for: excerpt,
             preferredOrdinal: playlistSelectedOrdinal
         )
         if let resolvedPlaylistOrdinal {
             _ = playback.setPlaylistPosition(
-                itemIdentity: .shiori(shiori.id),
+                itemIdentity: .excerpt(excerpt.id),
                 ordinal: resolvedPlaylistOrdinal
             )
         } else {
@@ -1008,46 +1008,46 @@ extension AppCoordinator {
         }
         saveCurrentLibraryPlaybackHistory()
         stopLibraryPlaybackHistoryTracking()
-        activePlaybackSource = .shiori
-        self.shiori.selectedShiori = shiori
+        activePlaybackSource = .excerpt
+        self.excerpt.selectedExcerpt = excerpt
         search.selectResult(nil)
         library.selectedLibraryVideo = nil
         refreshPlaybackChromeSnapshot(
             displayTitle: playbackDisplayTitle(
-                for: shiori,
+                for: excerpt,
                 providedDisplayTitle: displayTitle
             )
         )
         playback.isPlaybackSurfaceExpanded = true
         Task { @MainActor in
             await Task.yield()
-            _ = play(shiori)
+            _ = play(excerpt)
         }
     }
 
     @discardableResult
-    func play(_ shiori: Shiori) -> Bool {
+    func play(_ excerpt: Excerpt) -> Bool {
         ensurePlayerInitialized()
         beginCueAutoStopPlayback()
         saveCurrentLibraryPlaybackHistory()
         stopLibraryPlaybackHistoryTracking()
-        activePlaybackSource = .shiori
+        activePlaybackSource = .excerpt
         playback.playbackStatus = .opening
         playback.playbackViewModel?.preparePresentationTransition(
-            to: Double(shiori.startMilliseconds) / 1_000,
+            to: Double(excerpt.startMilliseconds) / 1_000,
             subtitleCues: []
         )
 
         do {
             let autoStopBoundary = configureCueAutoStopBoundary(
-                startMilliseconds: shiori.startMilliseconds,
-                endMilliseconds: shiori.endMilliseconds
+                startMilliseconds: excerpt.startMilliseconds,
+                endMilliseconds: excerpt.endMilliseconds
             )
             let request = try PlaybackRequest(
-                videoURL: URL(fileURLWithPath: shiori.videoPath),
-                startMilliseconds: shiori.startMilliseconds,
+                videoURL: URL(fileURLWithPath: excerpt.videoPath),
+                startMilliseconds: excerpt.startMilliseconds,
                 autoStopAtMilliseconds: autoStopBoundary?.endMilliseconds,
-                subtitleSource: playbackSubtitleSource(for: shiori)
+                subtitleSource: playbackSubtitleSource(for: excerpt)
             )
 
             guard let player else {
@@ -1063,7 +1063,7 @@ extension AppCoordinator {
                     )
                 } else {
                     generation = try player.seek(
-                        toMilliseconds: shiori.startMilliseconds,
+                        toMilliseconds: excerpt.startMilliseconds,
                         subtitleSource: request.subtitleSource
                     )
                 }
@@ -1072,7 +1072,7 @@ extension AppCoordinator {
             }
 
             playback.playbackViewModel?.bindPendingPresentation(to: generation)
-            recordRecentShioriPlayback(for: shiori)
+            recordRecentExcerptPlayback(for: excerpt)
             return true
         } catch {
             playback.playbackViewModel?.cancelPendingPresentation()
@@ -1083,95 +1083,95 @@ extension AppCoordinator {
         }
     }
 
-    func recordRecentShioriPlayback(for item: Shiori) {
-        guard let shioriDatabase else {
+    func recordRecentExcerptPlayback(for item: Excerpt) {
+        guard let excerptDatabase else {
             return
         }
         do {
-            try shioriDatabase.recordRecentShioriPlayback(shioriID: item.id)
-            shioriListOverviewTask?.cancel()
-            shiori.installRecentListSummaries(
-                try shioriDatabase.recentShioriListSummaries()
+            try excerptDatabase.recordRecentExcerptPlayback(excerptID: item.id)
+            excerptListOverviewTask?.cancel()
+            excerpt.installRecentListSummaries(
+                try excerptDatabase.recentExcerptListSummaries()
             )
         } catch {
-            print("Failed to record recent Shiori playback: \(error)")
+            print("Failed to record recent Excerpt playback: \(error)")
         }
     }
 
-    var canOpenPreviousShiori: Bool {
-        guard activePlaybackSource == .shiori,
-              let selectedShiori = shiori.selectedShiori,
-              shioriPlaybackNavigationSnapshot?.currentID == selectedShiori.id
+    var canOpenPreviousExcerpt: Bool {
+        guard activePlaybackSource == .excerpt,
+              let selectedExcerpt = excerpt.selectedExcerpt,
+              excerptPlaybackNavigationSnapshot?.currentID == selectedExcerpt.id
         else {
             return false
         }
-        return shioriPlaybackNavigationSnapshot?.previousID != nil
+        return excerptPlaybackNavigationSnapshot?.previousID != nil
     }
 
-    var canOpenNextShiori: Bool {
-        guard activePlaybackSource == .shiori,
-              let selectedShiori = shiori.selectedShiori,
-              shioriPlaybackNavigationSnapshot?.currentID == selectedShiori.id
+    var canOpenNextExcerpt: Bool {
+        guard activePlaybackSource == .excerpt,
+              let selectedExcerpt = excerpt.selectedExcerpt,
+              excerptPlaybackNavigationSnapshot?.currentID == selectedExcerpt.id
         else {
             return false
         }
-        return shioriPlaybackNavigationSnapshot?.nextID != nil
+        return excerptPlaybackNavigationSnapshot?.nextID != nil
     }
 
-    func openPreviousShiori() {
-        let target = shioriPlaybackNavigationTarget(direction: .previous)
+    func openPreviousExcerpt() {
+        let target = excerptPlaybackNavigationTarget(direction: .previous)
         let hasResult = target != nil
-        playback.playbackViewModel?.showShioriNavigationFeedback(direction: .previous, hasResult: hasResult)
+        playback.playbackViewModel?.showExcerptNavigationFeedback(direction: .previous, hasResult: hasResult)
         if let target {
-            let targetOrdinal = shiori.selectedShiori.flatMap {
-                currentShioriPlaylistAdjacentOrdinal(
+            let targetOrdinal = excerpt.selectedExcerpt.flatMap {
+                currentExcerptPlaylistAdjacentOrdinal(
                     for: $0,
                     direction: .previous
                 )
             }
-            openShiori(
+            openExcerpt(
                 target,
-                navigationScopeIDs: shioriPlaybackNavigationScopeIDs,
-                playlistScope: activeShioriPlaybackPlaylistScope,
+                navigationScopeIDs: excerptPlaybackNavigationScopeIDs,
+                playlistScope: activeExcerptPlaybackPlaylistScope,
                 playlistSelectedOrdinal: targetOrdinal
             )
         }
     }
 
-    func openNextShiori() {
-        let target = shioriPlaybackNavigationTarget(direction: .next)
+    func openNextExcerpt() {
+        let target = excerptPlaybackNavigationTarget(direction: .next)
         let hasResult = target != nil
-        playback.playbackViewModel?.showShioriNavigationFeedback(direction: .next, hasResult: hasResult)
+        playback.playbackViewModel?.showExcerptNavigationFeedback(direction: .next, hasResult: hasResult)
         if let target {
-            let targetOrdinal = shiori.selectedShiori.flatMap {
-                currentShioriPlaylistAdjacentOrdinal(
+            let targetOrdinal = excerpt.selectedExcerpt.flatMap {
+                currentExcerptPlaylistAdjacentOrdinal(
                     for: $0,
                     direction: .next
                 )
             }
-            openShiori(
+            openExcerpt(
                 target,
-                navigationScopeIDs: shioriPlaybackNavigationScopeIDs,
-                playlistScope: activeShioriPlaybackPlaylistScope,
+                navigationScopeIDs: excerptPlaybackNavigationScopeIDs,
+                playlistScope: activeExcerptPlaybackPlaylistScope,
                 playlistSelectedOrdinal: targetOrdinal
             )
         }
     }
 
-    private var activeShioriPlaybackPlaylistScope: PlaybackPlaylistShioriScope? {
+    private var activeExcerptPlaybackPlaylistScope: PlaybackPlaylistExcerptScope? {
         guard let source = playback.playlistSource,
-              case .shiori(let scope) = source.origin
+              case .excerpt(let scope) = source.origin
         else {
             return nil
         }
         return scope
     }
 
-    private func shioriPlaybackNavigationTarget(direction: ShioriNavigationDirection) -> Shiori? {
-        guard activePlaybackSource == .shiori,
-              let selectedShiori = shiori.selectedShiori,
-              let snapshot = shioriPlaybackNavigationSnapshot,
-              snapshot.currentID == selectedShiori.id
+    private func excerptPlaybackNavigationTarget(direction: ExcerptNavigationDirection) -> Excerpt? {
+        guard activePlaybackSource == .excerpt,
+              let selectedExcerpt = excerpt.selectedExcerpt,
+              let snapshot = excerptPlaybackNavigationSnapshot,
+              snapshot.currentID == selectedExcerpt.id
         else {
             return nil
         }
@@ -1183,39 +1183,39 @@ extension AppCoordinator {
         case .next:
             targetID = snapshot.nextID
         }
-        return targetID.flatMap(shiori(withID:))
+        return targetID.flatMap(excerpt(withID:))
     }
 
-    private func refreshShioriPlaybackNavigationSnapshot(
-        for selectedShiori: Shiori,
+    private func refreshExcerptPlaybackNavigationSnapshot(
+        for selectedExcerpt: Excerpt,
         preferredOrdinal: Int? = nil
     ) -> Int? {
-        let selectedID = selectedShiori.id
+        let selectedID = selectedExcerpt.id
         let validatedPreferredOrdinal: Int?
         if let preferredOrdinal,
            playback.playlistSource?.itemIdentity(at: preferredOrdinal)
-            == .shiori(selectedID) {
+            == .excerpt(selectedID) {
             validatedPreferredOrdinal = preferredOrdinal
         } else {
             validatedPreferredOrdinal = nil
         }
 
         if let source = playback.playlistSource,
-           case .shiori(.table) = source.origin {
-            let scopeIDs = shioriPlaybackNavigationScopeIDs
-                ?? shiori.playbackTableResultShioriIDs
+           case .excerpt(.table) = source.origin {
+            let scopeIDs = excerptPlaybackNavigationScopeIDs
+                ?? excerpt.playbackTableResultExcerptIDs
             guard let scopeIDs,
                   let index = validatedPreferredOrdinal
                     ?? scopeIDs.firstIndex(of: selectedID)
             else {
-                shioriPlaybackNavigationSnapshot = (
+                excerptPlaybackNavigationSnapshot = (
                     currentID: selectedID,
                     previousID: nil,
                     nextID: nil
                 )
                 return nil
             }
-            shioriPlaybackNavigationSnapshot = (
+            excerptPlaybackNavigationSnapshot = (
                 currentID: selectedID,
                 previousID: index > 0 ? scopeIDs[index - 1] : nil,
                 nextID: index + 1 < scopeIDs.count
@@ -1225,10 +1225,10 @@ extension AppCoordinator {
             return index
         }
 
-        if let scopeIDs = shioriPlaybackNavigationScopeIDs,
+        if let scopeIDs = excerptPlaybackNavigationScopeIDs,
            let index = validatedPreferredOrdinal
                 ?? scopeIDs.firstIndex(of: selectedID) {
-            shioriPlaybackNavigationSnapshot = (
+            excerptPlaybackNavigationSnapshot = (
                 currentID: selectedID,
                 previousID: index > 0 ? scopeIDs[index - 1] : nil,
                 nextID: index + 1 < scopeIDs.count ? scopeIDs[index + 1] : nil
@@ -1236,14 +1236,14 @@ extension AppCoordinator {
             return index
         }
 
-        let residentRelations = shiori.residentRelations.filter {
-            shiori.residentShiorisByID[$0.id]?.isValid == true
+        let residentRelations = excerpt.residentRelations.filter {
+            excerpt.residentExcerptsByID[$0.id]?.isValid == true
         }
         let residentOrdinal = validatedPreferredOrdinal
             ?? residentRelations.firstIndex(where: { $0.id == selectedID })
 
         if let index = residentOrdinal {
-            shioriPlaybackNavigationSnapshot = (
+            excerptPlaybackNavigationSnapshot = (
                 currentID: selectedID,
                 previousID: index > 0 ? residentRelations[index - 1].id : nil,
                 nextID: index + 1 < residentRelations.count
@@ -1253,20 +1253,20 @@ extension AppCoordinator {
             return index
         }
 
-        if let database = shioriDatabase {
+        if let database = excerptDatabase {
             do {
-                shioriPlaybackNavigationSnapshot = (
+                excerptPlaybackNavigationSnapshot = (
                     currentID: selectedID,
-                    previousID: try database.adjacentShiori(to: selectedShiori, direction: .previous)?.id,
-                    nextID: try database.adjacentShiori(to: selectedShiori, direction: .next)?.id
+                    previousID: try database.adjacentExcerpt(to: selectedExcerpt, direction: .previous)?.id,
+                    nextID: try database.adjacentExcerpt(to: selectedExcerpt, direction: .next)?.id
                 )
                 return nil
             } catch {
-                print("Failed to load adjacent Shiori: \(error)")
+                print("Failed to load adjacent Excerpt: \(error)")
             }
         }
 
-        shioriPlaybackNavigationSnapshot = (
+        excerptPlaybackNavigationSnapshot = (
             currentID: selectedID,
             previousID: nil,
             nextID: nil
@@ -1274,21 +1274,21 @@ extension AppCoordinator {
         return nil
     }
 
-    func shiori(withID id: Int64) -> Shiori? {
+    func excerpt(withID id: Int64) -> Excerpt? {
         if let entryID = Int(exactly: id),
-           let tableItem = shiori.tableRowStore.snapshot.shiori(entryID: entryID) {
+           let tableItem = excerpt.tableRowStore.snapshot.excerpt(entryID: entryID) {
             return tableItem
         }
-        if let relation = shiori.residentRelations.first(where: { $0.id == id }),
+        if let relation = excerpt.residentRelations.first(where: { $0.id == id }),
            let content = cueContent.content(for: relation.cueID) {
-            return Shiori(relation: relation, cueContent: content)
+            return Excerpt(relation: relation, cueContent: content)
         }
-        guard let shioriDatabase else {
+        guard let excerptDatabase else {
             return nil
         }
 
         do {
-            guard let relation = try shioriDatabase.shioriRelation(id: id),
+            guard let relation = try excerptDatabase.excerptRelation(id: id),
                   let content = try CueContentDatabase(path: databaseURL).cueContents(
                     forCueIDs: [relation.cueID]
                   ).first
@@ -1296,14 +1296,14 @@ extension AppCoordinator {
                 return nil
             }
             cueContent.install([content])
-            return Shiori(relation: relation, cueContent: content)
+            return Excerpt(relation: relation, cueContent: content)
         } catch {
-            print("Failed to load scoped Shiori: \(error)")
+            print("Failed to load scoped Excerpt: \(error)")
             return nil
         }
     }
 
-    private func normalizedShioriPlaybackNavigationScopeIDs(_ ids: [Int64]?) -> [Int64]? {
+    private func normalizedExcerptPlaybackNavigationScopeIDs(_ ids: [Int64]?) -> [Int64]? {
         guard let ids else {
             return nil
         }
@@ -1313,12 +1313,12 @@ extension AppCoordinator {
         return normalizedIDs.isEmpty ? nil : normalizedIDs
     }
 
-    private func removeShioriFromPlaybackNavigationScope(_ id: Int64) {
-        guard var scopeIDs = shioriPlaybackNavigationScopeIDs else {
+    private func removeExcerptFromPlaybackNavigationScope(_ id: Int64) {
+        guard var scopeIDs = excerptPlaybackNavigationScopeIDs else {
             return
         }
 
         scopeIDs.removeAll { $0 == id }
-        shioriPlaybackNavigationScopeIDs = scopeIDs.isEmpty ? nil : scopeIDs
+        excerptPlaybackNavigationScopeIDs = scopeIDs.isEmpty ? nil : scopeIDs
     }
 }

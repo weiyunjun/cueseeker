@@ -7,14 +7,14 @@ import CueSeekerCore
 
 @MainActor
 @Test
-func shioriListEditorTracksDirtyStateAndExactValidationMessages() {
-    let session = ShioriListEditorSession(mode: .newList)
+func excerptListEditorTracksDirtyStateAndExactValidationMessages() {
+    let session = ExcerptListEditorSession(mode: .newList)
     #expect(!session.hasUnsavedChanges)
 
     session.name = String(repeating: "N", count: 31)
     session.listDescription = String(repeating: "D", count: 101)
     #expect(session.hasUnsavedChanges)
-    session.apply(validation: ShioriListValidation(
+    session.apply(validation: ExcerptListValidation(
         nameError: .nameTooLong(maximumCharacters: 30, currentCharacters: 31),
         descriptionError: .descriptionTooLong(
             maximumCharacters: 100,
@@ -30,7 +30,7 @@ func shioriListEditorTracksDirtyStateAndExactValidationMessages() {
             == "Description must be 100 characters or fewer."
     )
 
-    session.apply(validation: ShioriListValidation(
+    session.apply(validation: ExcerptListValidation(
         nameError: .duplicateName,
         descriptionError: nil
     ))
@@ -40,7 +40,7 @@ func shioriListEditorTracksDirtyStateAndExactValidationMessages() {
     )
     #expect(session.descriptionValidationMessage == nil)
 
-    session.apply(validation: ShioriListValidation(
+    session.apply(validation: ExcerptListValidation(
         nameError: .emptyName,
         descriptionError: nil
     ))
@@ -49,12 +49,12 @@ func shioriListEditorTracksDirtyStateAndExactValidationMessages() {
 
 @MainActor
 @Test
-func appCoordinatorCreatesEditsAndDeletesShioriListsFromEditorSessions() async throws {
-    let suiteName = "CueSeekerShioriListEditorTests-\(UUID().uuidString)"
+func appCoordinatorCreatesEditsAndDeletesExcerptListsFromEditorSessions() async throws {
+    let suiteName = "CueSeekerExcerptListEditorTests-\(UUID().uuidString)"
     let userDefaults = try #require(UserDefaults(suiteName: suiteName))
     let directory = FileManager.default.temporaryDirectory
         .appendingPathComponent(
-            "CueSeekerShioriListEditorTests-\(UUID().uuidString)",
+            "CueSeekerExcerptListEditorTests-\(UUID().uuidString)",
             isDirectory: true
         )
     let databaseURL = directory.appendingPathComponent("CueSeeker.sqlite")
@@ -69,59 +69,59 @@ func appCoordinatorCreatesEditsAndDeletesShioriListsFromEditorSessions() async t
 
     _ = NSApplication.shared
     let app = AppCoordinator(userDefaults: userDefaults, databaseURL: databaseURL)
-    let database = try #require(app.shioriDatabase)
-    app.reloadShioriListOverview()
-    try await waitForShioriListEditorTasks(app)
-    #expect(app.shiori.hasLoadedListOverview)
+    let database = try #require(app.excerptDatabase)
+    app.reloadExcerptListOverview()
+    try await waitForExcerptListEditorTasks(app)
+    #expect(app.excerpt.hasLoadedListOverview)
 
     var loadedStates: [Bool] = []
-    let loadedStateCancellable = app.shiori.$hasLoadedListOverview
+    let loadedStateCancellable = app.excerpt.$hasLoadedListOverview
         .dropFirst()
         .sink { loadedStates.append($0) }
     defer { loadedStateCancellable.cancel() }
 
-    app.beginCreatingShioriList()
-    let newSession = try #require(app.shiori.listEditorSession)
+    app.beginCreatingExcerptList()
+    let newSession = try #require(app.excerpt.listEditorSession)
     newSession.name = "Study"
     newSession.listDescription = "Review later"
-    app.saveShioriListEditor(newSession)
-    try await waitForShioriListEditorTasks(app)
+    app.saveExcerptListEditor(newSession)
+    try await waitForExcerptListEditorTasks(app)
 
-    let created = try #require(try database.shioriLists().first {
+    let created = try #require(try database.excerptLists().first {
         $0.name == "Study"
     })
     #expect(created.description == "Review later")
-    #expect(app.shiori.listEditorSession == nil)
-    #expect(app.shiori.listOverview.lists.last?.id == created.id)
+    #expect(app.excerpt.listEditorSession == nil)
+    #expect(app.excerpt.listOverview.lists.last?.id == created.id)
     #expect(!loadedStates.contains(false))
 
-    app.beginEditingShioriList(created)
-    let editSession = try #require(app.shiori.listEditorSession)
+    app.beginEditingExcerptList(created)
+    let editSession = try #require(app.excerpt.listEditorSession)
     #expect(!editSession.hasUnsavedChanges)
     editSession.name = "Study Queue"
     editSession.listDescription = ""
-    app.saveShioriListEditor(editSession)
-    try await waitForShioriListEditorTasks(app)
+    app.saveExcerptListEditor(editSession)
+    try await waitForExcerptListEditorTasks(app)
 
-    let updated = try #require(try database.shioriList(id: created.id))
+    let updated = try #require(try database.excerptList(id: created.id))
     #expect(updated.name == "Study Queue")
     #expect(updated.description.isEmpty)
-    #expect(app.shiori.listOverview.lists.last?.list == updated)
+    #expect(app.excerpt.listOverview.lists.last?.list == updated)
     #expect(!loadedStates.contains(false))
-    #expect(app.deleteShioriList(id: ShioriListIdentity.defaultListID))
-    try await waitForShioriListEditorTasks(app)
-    #expect(try database.shioriLists().map(\.id) == [updated.id])
-    #expect(app.shiori.listOverview.lists.map(\.id) == [updated.id])
+    #expect(app.deleteExcerptList(id: ExcerptListIdentity.defaultListID))
+    try await waitForExcerptListEditorTasks(app)
+    #expect(try database.excerptLists().map(\.id) == [updated.id])
+    #expect(app.excerpt.listOverview.lists.map(\.id) == [updated.id])
     #expect(!loadedStates.contains(false))
 }
 
 @MainActor
-private func waitForShioriListEditorTasks(_ app: AppCoordinator) async throws {
+private func waitForExcerptListEditorTasks(_ app: AppCoordinator) async throws {
     for _ in 0..<200 {
-        if app.shioriListSaveTask == nil, app.shioriListOverviewTask == nil {
+        if app.excerptListSaveTask == nil, app.excerptListOverviewTask == nil {
             return
         }
         try await Task.sleep(nanoseconds: 10_000_000)
     }
-    Issue.record("Timed out waiting for Shiori list editor tasks")
+    Issue.record("Timed out waiting for Excerpt list editor tasks")
 }

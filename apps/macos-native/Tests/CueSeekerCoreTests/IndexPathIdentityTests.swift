@@ -235,7 +235,7 @@ func samePathKeepsPermanentIDsAcrossContentChange() throws {
     )
 }
 
-/// A Cue a Shiori points at must never simply vanish.
+/// A Cue a Excerpt points at must never simply vanish.
 @Test
 func referencedCueIsTombstonedWhenItsLibraryIsRemoved() throws {
     let fixture = try PathIdentityFixture()
@@ -255,12 +255,12 @@ func referencedCueIsTombstonedWhenItsLibraryIsRemoved() throws {
             .cueLineRecords(forSubtitleFile: episode.subtitle)
             .first
     )
-    let shioriDatabase = try ShioriDatabase(path: fixture.databaseURL)
-    let saved = try shioriDatabase.upsertShiori(selection: shioriSelection(cue))
+    let excerptDatabase = try ExcerptDatabase(path: fixture.databaseURL)
+    let saved = try excerptDatabase.upsertExcerpt(selection: excerptSelection(cue))
 
     try database.removeIndexedFolder(fixture.root)
 
-    let unavailable = try #require(try shioriDatabase.shiori(id: saved.id))
+    let unavailable = try #require(try excerptDatabase.excerpt(id: saved.id))
     #expect(!unavailable.isValid)
     #expect(try sqliteRowCount(in: "cue_tombstones", databaseURL: fixture.databaseURL) == 1)
 }

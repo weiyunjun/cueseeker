@@ -40,7 +40,7 @@ func workbenchTagRedesignColorsMapLanguageTokens() {
 }
 
 @Test
-func workbenchTagRedesignColorsMapShioriGrayTokens() {
+func workbenchTagRedesignColorsMapExcerptGrayTokens() {
     #expect(hexString(WorkbenchTagColorID.gray.redesignFillColor()) == "#F3F4F6")
     #expect(hexString(WorkbenchTagColorID.gray.redesignForegroundColor()) == "#494949")
 }

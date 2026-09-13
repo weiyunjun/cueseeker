@@ -139,19 +139,19 @@ func workbenchLayoutStateIgnoresNonPositiveCompactWindowWidth() {
 
 @MainActor
 @Test
-func workbenchLayoutStateTracksShioriListDetailWithoutPersistingIt() {
+func workbenchLayoutStateTracksExcerptListDetailWithoutPersistingIt() {
     withTemporaryWorkbenchLayoutUserDefaults { userDefaults in
         let layoutState = WorkbenchLayoutState(userDefaults: userDefaults)
 
-        layoutState.navigate(to: .shioriList(id: 42))
-        #expect(layoutState.selectedShioriListID == 42)
-        #expect(layoutState.route.selectedShioriListID == 42)
+        layoutState.navigate(to: .excerptList(id: 42))
+        #expect(layoutState.selectedExcerptListID == 42)
+        #expect(layoutState.route.selectedExcerptListID == 42)
 
-        layoutState.navigate(to: .shiori)
-        #expect(layoutState.selectedShioriListID == nil)
+        layoutState.navigate(to: .excerpt)
+        #expect(layoutState.selectedExcerptListID == nil)
 
         let reloadedLayoutState = WorkbenchLayoutState(userDefaults: userDefaults)
-        #expect(reloadedLayoutState.selectedShioriListID == nil)
+        #expect(reloadedLayoutState.selectedExcerptListID == nil)
     }
 }
 
@@ -162,12 +162,12 @@ func workbenchLayoutStateTracksRecentSectionWithoutPersistingIt() {
         let layoutState = WorkbenchLayoutState(userDefaults: userDefaults)
         #expect(layoutState.selectedRecentSection == .videos)
 
-        layoutState.selectRecentSection(.shioris)
-        #expect(layoutState.selectedRecentSection == .shioris)
-        #expect(layoutState.route.selectedRecentSection == .shioris)
+        layoutState.selectRecentSection(.excerpts)
+        #expect(layoutState.selectedRecentSection == .excerpts)
+        #expect(layoutState.route.selectedRecentSection == .excerpts)
 
         layoutState.navigate(to: .file)
-        #expect(layoutState.selectedRecentSection == .shioris)
+        #expect(layoutState.selectedRecentSection == .excerpts)
 
         let reloadedLayoutState = WorkbenchLayoutState(userDefaults: userDefaults)
         #expect(reloadedLayoutState.selectedRecentSection == .videos)
@@ -212,19 +212,19 @@ func workbenchHistoryStepsThroughPagesAndDropsForwardOnNewNavigation() {
         #expect(layoutState.currentRoute == .libraryFolder(folderPath: "/Media/Show"))
 
         layoutState.goBack()
-        layoutState.navigate(to: .shiori)
-        #expect(layoutState.currentRoute == .shiori)
+        layoutState.navigate(to: .excerpt)
+        #expect(layoutState.currentRoute == .excerpt)
         #expect(!layoutState.route.canGoForward)
-        #expect(layoutState.route.history == [.search, .recent, .library, .shiori])
+        #expect(layoutState.route.history == [.search, .recent, .library, .excerpt])
 
-        layoutState.navigate(to: .shiori)
+        layoutState.navigate(to: .excerpt)
         #expect(layoutState.route.history.count == 4)
 
-        layoutState.navigate(to: .shioriList(id: 42))
-        #expect(layoutState.selectedShioriListID == 42)
+        layoutState.navigate(to: .excerptList(id: 42))
+        #expect(layoutState.selectedExcerptListID == 42)
         layoutState.goBack()
-        #expect(layoutState.selectedShioriListID == nil)
-        #expect(layoutState.panelMode == .shiori)
+        #expect(layoutState.selectedExcerptListID == nil)
+        #expect(layoutState.panelMode == .excerpt)
     }
 }
 

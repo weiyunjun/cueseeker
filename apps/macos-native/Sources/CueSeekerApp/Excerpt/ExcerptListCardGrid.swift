@@ -2,21 +2,21 @@ import CoreGraphics
 import CueSeekerCore
 import SwiftUI
 
-/// The one Shiori list card grid. The Shiori page, both Recent interfaces and
+/// The one Excerpt list card grid. The Excerpt page, both Recent interfaces and
 /// the Command Panel show the same card with the same menu, so they all come
 /// through here instead of each building their own.
-struct ShioriListCardGrid: View {
+struct ExcerptListCardGrid: View {
     @EnvironmentObject private var appState: AppCoordinator
-    @EnvironmentObject private var shioriStore: ShioriStore
+    @EnvironmentObject private var excerptStore: ExcerptStore
     /// Set when the page already hosts the menu at its own root. The grid then
     /// uses that host, so the menu covers the whole page instead of only the
     /// grid it was opened from.
     @Environment(\.libraryCardContextMenuOpen) private var pageContextMenuOpen
-    let summaries: [ShioriListSummary]
+    let summaries: [ExcerptListSummary]
     @ObservedObject var highlight: CardHighlightModel
     var itemFrameCoordinateSpace: String? = nil
     var onItemFramesChange: ([String: CGRect]) -> Void = { _ in }
-    let onOpen: (ShioriListSummary) -> Void
+    let onOpen: (ExcerptListSummary) -> Void
 
     var body: some View {
         if let pageContextMenuOpen {
@@ -31,13 +31,13 @@ struct ShioriListCardGrid: View {
     ) -> some View {
         LibraryOverviewGrid {
             ForEach(summaries) { summary in
-                ShioriListCard(
+                ExcerptListCard(
                     summary: summary,
                     highlight: highlight,
                     isCurrent: highlight.currentID == String(summary.id),
-                    canDelete: shioriStore.listOverview.lists.count > 1,
+                    canDelete: excerptStore.listOverview.lists.count > 1,
                     onOpen: { onOpen(summary) },
-                    onEdit: { appState.beginEditingShioriList(summary.list) },
+                    onEdit: { appState.beginEditingExcerptList(summary.list) },
                     onDelete: { requestDeletion(of: summary) },
                     openContextMenu: openContextMenu
                 )
@@ -66,14 +66,14 @@ struct ShioriListCardGrid: View {
         }
     }
 
-    private func requestDeletion(of summary: ShioriListSummary) {
+    private func requestDeletion(of summary: ExcerptListSummary) {
         appState.confirmation.session = WorkbenchConfirmationSession(
-            title: L("shiori.delete_list"),
-            message: L("shiori.delete_list.message", summary.list.name),
-            destructiveTitle: L("shiori.delete"),
+            title: L("excerpt.delete_list"),
+            message: L("excerpt.delete_list.message", summary.list.name),
+            destructiveTitle: L("excerpt.delete"),
             cancelTitle: L("common.cancel"),
             onDestructive: {
-                if appState.deleteShioriList(id: summary.id) {
+                if appState.deleteExcerptList(id: summary.id) {
                     appState.confirmation.session = nil
                 }
             },
@@ -84,8 +84,8 @@ struct ShioriListCardGrid: View {
     }
 }
 
-private struct ShioriListCard: View {
-    let summary: ShioriListSummary
+private struct ExcerptListCard: View {
+    let summary: ExcerptListSummary
     let highlight: CardHighlightModel
     let isCurrent: Bool
     let canDelete: Bool
@@ -130,9 +130,9 @@ private struct ShioriListCard: View {
     private var cover: some View {
         LibraryCoverFrame {
             ZStack(alignment: .bottomTrailing) {
-                ShioriListCoverView(coverPath: summary.list.coverPath)
+                ExcerptListCoverView(coverPath: summary.list.coverPath)
 
-                Text(summary.cueCount == 1 ? L("shiori.cue_count.one") : L("shiori.cue_count.other", summary.cueCount))
+                Text(summary.cueCount == 1 ? L("excerpt.cue_count.one") : L("excerpt.cue_count.other", summary.cueCount))
                     .font(.system(
                         size: WorkbenchControlMetrics.redesignFontSizeLibraryTimeBadge,
                         weight: .semibold
@@ -169,12 +169,12 @@ private struct ShioriListCard: View {
     private var contextMenuItems: [LibraryCardContextMenuItem] {
         [
             LibraryCardContextMenuItem(
-                title: L("shiori.edit_list"),
+                title: L("excerpt.edit_list"),
                 icon: .notePencil,
                 action: onEdit
             ),
             LibraryCardContextMenuItem(
-                title: L("shiori.delete_list"),
+                title: L("excerpt.delete_list"),
                 icon: .trash,
                 isEnabled: canDelete,
                 action: onDelete

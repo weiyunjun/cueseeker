@@ -116,7 +116,7 @@ func libraryFolderRemovalExecutorCommitsTargetedDatabaseDeletion() async throws 
 
 @MainActor
 @Test
-func libraryFolderRemovalKeepsUnavailableShioriAndClearsCanonicalCueContent() async throws {
+func libraryFolderRemovalKeepsUnavailableExcerptAndClearsCanonicalCueContent() async throws {
     let fixture = try LibraryFolderRemovalTestFixture()
     defer { fixture.cleanUp() }
 
@@ -135,7 +135,7 @@ func libraryFolderRemovalKeepsUnavailableShioriAndClearsCanonicalCueContent() as
                 endTimecode: "00:00:02,000",
                 startMilliseconds: 1_000,
                 endMilliseconds: 2_000,
-                text: "Resident Shiori must remain unavailable"
+                text: "Resident Excerpt must remain unavailable"
             ),
         ]
     )
@@ -144,7 +144,7 @@ func libraryFolderRemovalKeepsUnavailableShioriAndClearsCanonicalCueContent() as
         atMilliseconds: 1_500
     ))
     let cueID = try #require(selection.cueLineID)
-    _ = try ShioriDatabase(path: database.path).upsertShiori(
+    _ = try ExcerptDatabase(path: database.path).upsertExcerpt(
         selection: selection
     )
 
@@ -153,20 +153,20 @@ func libraryFolderRemovalKeepsUnavailableShioriAndClearsCanonicalCueContent() as
         userDefaults: fixture.userDefaults,
         databaseURL: fixture.databaseURL
     )
-    app.reloadShioriTableRows()
-    await app.shioriTableRowsTask?.value
-    #expect(app.shiori.residentRelations.map(\.cueID) == [cueID])
-    #expect(app.shiori.tableRowStore.snapshot.totalRowCount == 1)
+    app.reloadExcerptTableRows()
+    await app.excerptTableRowsTask?.value
+    #expect(app.excerpt.residentRelations.map(\.cueID) == [cueID])
+    #expect(app.excerpt.tableRowStore.snapshot.totalRowCount == 1)
     #expect(app.cueContent.content(for: cueID) != nil)
 
     app.removeFolder(fixture.folder)
     await app.folderRemovalTask?.value
-    await app.shioriTableRowsTask?.value
+    await app.excerptTableRowsTask?.value
 
-    #expect(app.shiori.residentRelations.map(\.cueID) == [cueID])
-    #expect(app.shiori.tableRowStore.snapshot.totalRowCount == 1)
+    #expect(app.excerpt.residentRelations.map(\.cueID) == [cueID])
+    #expect(app.excerpt.tableRowStore.snapshot.totalRowCount == 1)
     #expect(
-        app.shiori.tableRowStore.snapshot.row(at: 0)?.cueState
+        app.excerpt.tableRowStore.snapshot.row(at: 0)?.cueState
             == .unavailable(.libraryUnavailable)
     )
     #expect(app.cueContent.content(for: cueID) == nil)

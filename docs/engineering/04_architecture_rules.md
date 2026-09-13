@@ -292,7 +292,7 @@ Rules:
 - The workbench observable graph is split into an `AppCoordinator`
   (`apps/macos-native/Sources/CueSeekerApp/App/AppCoordinator.swift`) plus seven
   per-domain stores under their respective feature folders: `SettingsStore`,
-  `IndexingStore`, `WorkbenchLayoutState`, `ShioriStore`, `LibraryStore`,
+  `IndexingStore`, `WorkbenchLayoutState`, `ExcerptStore`, `LibraryStore`,
   `SearchStore`, `PlaybackStore`. Per-domain `@Published` state lives on the
   store for that domain; AppCoordinator holds orchestration methods that span
   multiple domains and a minimal app-level `@Published` surface (currently only
@@ -457,7 +457,7 @@ no Playlist is available.
 
 Data ownership rules:
 
-- `SearchStore`, `ShioriStore`, and `LibraryStore` are the authoritative owners
+- `SearchStore`, `ExcerptStore`, and `LibraryStore` are the authoritative owners
   of their feature state, database access, paging tasks, loaded result
   collections, refresh rules, and product actions. Recent is a Library
   projection and follows `LibraryStore` ownership.

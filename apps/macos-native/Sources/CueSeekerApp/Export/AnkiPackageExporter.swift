@@ -13,7 +13,7 @@ struct AnkiExportItem: Sendable {
     let timeRange: String
     /// The Cue Group's other lines in subtitle order, without the Cue itself.
     let cueGroupOtherTexts: [String]
-    /// Nil for a Shiori without a Cue identity, which has no Deep Link.
+    /// Nil for a Excerpt without a Cue identity, which has no Deep Link.
     let cueID: Int64?
     let subtitlePath: String
 }

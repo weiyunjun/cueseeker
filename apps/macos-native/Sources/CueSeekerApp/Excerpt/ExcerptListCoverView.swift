@@ -1,7 +1,7 @@
 import CoreGraphics
 import SwiftUI
 
-struct ShioriListCoverView: View {
+struct ExcerptListCoverView: View {
     let coverPath: String?
     var imageVerticalAlignment: LibraryCoverImageFillLayout.VerticalAlignment = .top
     @State private var loadedImage: CGImage?

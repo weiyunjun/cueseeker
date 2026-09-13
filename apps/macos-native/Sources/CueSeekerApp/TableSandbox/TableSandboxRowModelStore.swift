@@ -10,10 +10,10 @@ struct TableSandboxRowsSnapshot {
     fileprivate var searchRankByCueID: [Int64: Int] = [:]
     fileprivate var searchCueContentProvider: ((Int64) -> CueContent?)?
     fileprivate var searchSourceRevision: UInt64?
-    var shiorisByEntryID: [Int: Shiori] = [:]
-    var shioriCuePresentationsByEntryID: [Int: ShioriCuePresentation] = [:]
-    fileprivate var shioriRelations: [ShioriRelation] = []
-    fileprivate var shioriRelationIndexByEntryID: [Int: Int] = [:]
+    var excerptsByEntryID: [Int: Excerpt] = [:]
+    var excerptCuePresentationsByEntryID: [Int: ExcerptCuePresentation] = [:]
+    fileprivate var excerptRelations: [ExcerptRelation] = []
+    fileprivate var excerptRelationIndexByEntryID: [Int: Int] = [:]
     fileprivate var cueContentProvider: ((Int64) -> CueContent?)?
     fileprivate var cueContentRevision: UInt64 = 0
     var version = 0
@@ -27,9 +27,9 @@ struct TableSandboxRowsSnapshot {
         searchRankByCueID: [Int64: Int] = [:],
         searchCueContentProvider: ((Int64) -> CueContent?)? = nil,
         searchSourceRevision: UInt64? = nil,
-        shiorisByEntryID: [Int: Shiori] = [:],
-        shioriCuePresentationsByEntryID: [Int: ShioriCuePresentation] = [:],
-        shioriRelations: [ShioriRelation] = [],
+        excerptsByEntryID: [Int: Excerpt] = [:],
+        excerptCuePresentationsByEntryID: [Int: ExcerptCuePresentation] = [:],
+        excerptRelations: [ExcerptRelation] = [],
         cueContentProvider: ((Int64) -> CueContent?)? = nil,
         cueContentRevision: UInt64 = 0,
         version: Int = 0,
@@ -47,11 +47,11 @@ struct TableSandboxRowsSnapshot {
         self.searchRankByCueID = searchRankByCueID
         self.searchCueContentProvider = searchCueContentProvider
         self.searchSourceRevision = searchSourceRevision
-        self.shiorisByEntryID = shiorisByEntryID
-        self.shioriCuePresentationsByEntryID = shioriCuePresentationsByEntryID
-        self.shioriRelations = shioriRelations
-        self.shioriRelationIndexByEntryID = Dictionary(
-            uniqueKeysWithValues: shioriRelations.enumerated().map { index, relation in
+        self.excerptsByEntryID = excerptsByEntryID
+        self.excerptCuePresentationsByEntryID = excerptCuePresentationsByEntryID
+        self.excerptRelations = excerptRelations
+        self.excerptRelationIndexByEntryID = Dictionary(
+            uniqueKeysWithValues: excerptRelations.enumerated().map { index, relation in
                 (Int(relation.id), index)
             }
         )
@@ -63,8 +63,8 @@ struct TableSandboxRowsSnapshot {
     }
 
     var rows: [SubtitleTableRow] {
-        if !shioriRelations.isEmpty {
-            return shioriRelations.indices.compactMap { row(at: $0) }
+        if !excerptRelations.isEmpty {
+            return excerptRelations.indices.compactMap { row(at: $0) }
         }
         if !searchCueIDs.isEmpty {
             return searchCueIDs.indices.compactMap { row(at: $0) }
@@ -73,7 +73,7 @@ struct TableSandboxRowsSnapshot {
     }
 
     var loadedReferenceCount: Int {
-        if !shioriRelations.isEmpty { return shioriRelations.count }
+        if !excerptRelations.isEmpty { return excerptRelations.count }
         if !searchCueIDs.isEmpty { return searchCueIDs.count }
         return materializedRows.count
     }
@@ -83,8 +83,8 @@ struct TableSandboxRowsSnapshot {
     }
 
     var orderedEntryIDs: [Int] {
-        if !shioriRelations.isEmpty {
-            return shioriRelations.map { Int($0.id) }
+        if !excerptRelations.isEmpty {
+            return excerptRelations.map { Int($0.id) }
         }
         if !searchCueIDs.isEmpty {
             return searchCueIDs.map(Int.init)
@@ -94,22 +94,22 @@ struct TableSandboxRowsSnapshot {
 
     func row(at index: Int) -> SubtitleTableRow? {
         guard index >= 0 else { return nil }
-        if shioriRelations.indices.contains(index) {
-            let relation = shioriRelations[index]
-            let resolvedShiori = shiorisByEntryID[Int(relation.id)]
+        if excerptRelations.indices.contains(index) {
+            let relation = excerptRelations[index]
+            let resolvedExcerpt = excerptsByEntryID[Int(relation.id)]
             if let cueContent = cueContentProvider?(relation.cueID) {
-                return tableSandboxShioriRow(
+                return tableSandboxExcerptRow(
                     relation: relation,
                     cueContent: cueContent,
-                    resolvedShiori: resolvedShiori
+                    resolvedExcerpt: resolvedExcerpt
                 )
             }
-            guard let resolvedShiori else {
+            guard let resolvedExcerpt else {
                 return nil
             }
-            return tableSandboxUnavailableShioriRow(
+            return tableSandboxUnavailableExcerptRow(
                 relation: relation,
-                shiori: resolvedShiori
+                excerpt: resolvedExcerpt
             )
         }
         if searchCueIDs.indices.contains(index) {
@@ -129,7 +129,7 @@ struct TableSandboxRowsSnapshot {
     }
 
     func rowIndex(entryID: Int) -> Int? {
-        shioriRelationIndexByEntryID[entryID]
+        excerptRelationIndexByEntryID[entryID]
             ?? searchCueIndexByEntryID[entryID]
             ?? materializedRows.firstIndex(where: { $0.id == entryID })
     }
@@ -149,65 +149,65 @@ struct TableSandboxRowsSnapshot {
         )
     }
 
-    func shiori(entryID: Int) -> Shiori? {
-        if let shiori = shiorisByEntryID[entryID] {
-            return shiori
+    func excerpt(entryID: Int) -> Excerpt? {
+        if let excerpt = excerptsByEntryID[entryID] {
+            return excerpt
         }
-        guard let index = shioriRelationIndexByEntryID[entryID],
+        guard let index = excerptRelationIndexByEntryID[entryID],
               let cueContentProvider
         else {
             return nil
         }
-        let relation = shioriRelations[index]
-        if let resolved = shiorisByEntryID[entryID] {
+        let relation = excerptRelations[index]
+        if let resolved = excerptsByEntryID[entryID] {
             return resolved
         }
         guard let cueContent = cueContentProvider(relation.cueID) else {
             return nil
         }
-        return Shiori(relation: relation, cueContent: cueContent)
+        return Excerpt(relation: relation, cueContent: cueContent)
     }
 
-    func shioriCuePresentation(entryID: Int) -> ShioriCuePresentation? {
-        if let presentation = shioriCuePresentationsByEntryID[entryID] {
+    func excerptCuePresentation(entryID: Int) -> ExcerptCuePresentation? {
+        if let presentation = excerptCuePresentationsByEntryID[entryID] {
             return presentation
         }
-        guard let index = shioriRelationIndexByEntryID[entryID] else {
+        guard let index = excerptRelationIndexByEntryID[entryID] else {
             return nil
         }
-        let relation = shioriRelations[index]
+        let relation = excerptRelations[index]
         if let cueContent = cueContentProvider?(relation.cueID) {
-            return ShioriCuePresentation(cueContent: cueContent)
+            return ExcerptCuePresentation(cueContent: cueContent)
         }
-        guard let shiori = shiorisByEntryID[entryID] else {
+        guard let excerpt = excerptsByEntryID[entryID] else {
             return nil
         }
-        let groupTexts = tableSandboxCueGroupSnapshotTexts(shiori.cueGroupContent)
-        return ShioriCuePresentation(
+        let groupTexts = tableSandboxCueGroupSnapshotTexts(excerpt.cueGroupContent)
+        return ExcerptCuePresentation(
             cueID: relation.cueID,
             cueGroupID: nil,
-            primaryGroupIndex: groupTexts.firstIndex(of: shiori.content),
-            cueGroupTexts: groupTexts.isEmpty ? [shiori.content] : groupTexts,
+            primaryGroupIndex: groupTexts.firstIndex(of: excerpt.content),
+            cueGroupTexts: groupTexts.isEmpty ? [excerpt.content] : groupTexts,
             languages: [.unknown]
         )
     }
 }
 
-struct TableSandboxShioriRowSource: Equatable, Sendable {
-    let shiori: Shiori
+struct TableSandboxExcerptRowSource: Equatable, Sendable {
+    let excerpt: Excerpt
     let displayTitle: String
     let dateAddedText: String
     let languages: Set<SubtitleLanguageCode>
-    let cuePresentation: ShioriCuePresentation?
+    let cuePresentation: ExcerptCuePresentation?
 
     init(
-        shiori: Shiori,
+        excerpt: Excerpt,
         displayTitle: String,
         dateAddedText: String,
         languages: Set<SubtitleLanguageCode>,
-        cuePresentation: ShioriCuePresentation? = nil
+        cuePresentation: ExcerptCuePresentation? = nil
     ) {
-        self.shiori = shiori
+        self.excerpt = excerpt
         self.displayTitle = displayTitle
         self.dateAddedText = dateAddedText
         self.languages = languages
@@ -245,10 +245,10 @@ final class TableSandboxRowModelStore: ObservableObject {
         let affectsSearch = snapshot.searchCueIDs.contains {
             change.cueIDs.contains($0)
         }
-        let affectsShiori = snapshot.shioriRelations.contains {
+        let affectsExcerpt = snapshot.excerptRelations.contains {
             change.cueIDs.contains($0.cueID)
         }
-        guard affectsSearch || affectsShiori else {
+        guard affectsSearch || affectsExcerpt else {
             return
         }
 
@@ -307,7 +307,7 @@ final class TableSandboxRowModelStore: ObservableObject {
            snapshot.searchSourceRevision == sourceRevision,
            snapshot.cueContentRevision == referencedCueContentRevision,
            snapshot.materializedRows.isEmpty,
-           snapshot.shioriRelations.isEmpty {
+           snapshot.excerptRelations.isEmpty {
             return
         }
         let update: TableSandboxRowsUpdate
@@ -315,7 +315,7 @@ final class TableSandboxRowModelStore: ObservableObject {
             update = .append(0..<cueIDs.count)
         } else if snapshot.searchCueIDs == cueIDs,
                   snapshot.materializedRows.isEmpty,
-                  snapshot.shioriRelations.isEmpty,
+                  snapshot.excerptRelations.isEmpty,
                   snapshot.searchRankByCueID == ranks,
                   snapshot.cueContentRevision == referencedCueContentRevision {
             return
@@ -462,7 +462,7 @@ final class TableSandboxRowModelStore: ObservableObject {
         apply(
             rows,
             searchResultsByEntryID: [:],
-            shiorisByEntryID: [:],
+            excerptsByEntryID: [:],
             totalRowCount: rows.count,
             prefixUnchanged: prefixUnchanged,
             tableName: tableName,
@@ -526,7 +526,7 @@ final class TableSandboxRowModelStore: ObservableObject {
         publishSnapshot(TableSandboxRowsSnapshot(
             rows: nextRows,
             searchResultsByEntryID: nextSearchResultsByEntryID,
-            shiorisByEntryID: snapshot.shiorisByEntryID,
+            excerptsByEntryID: snapshot.excerptsByEntryID,
             version: snapshot.version + 1,
             update: update,
             totalRowCount: nextRows.count
@@ -537,45 +537,45 @@ final class TableSandboxRowModelStore: ObservableObject {
            isHydration: true)
     }
 
-    func updateShioriRows(
-        _ shioris: [TableSandboxShioriRowSource],
+    func updateExcerptRows(
+        _ excerpts: [TableSandboxExcerptRowSource],
         tableName: String,
         probeSurface: SubtitleTableProbeSurface? = nil,
         probeScope: String? = nil
     ) {
-        var prefixUnchanged = shioris.count >= snapshot.materializedRows.count
-        let rows = shioris.enumerated().map { index, item in
-            let row = shioriRow(for: item)
+        var prefixUnchanged = excerpts.count >= snapshot.materializedRows.count
+        let rows = excerpts.enumerated().map { index, item in
+            let row = excerptRow(for: item)
             if index < snapshot.materializedRows.count,
                row != snapshot.materializedRows[index] {
                 prefixUnchanged = false
             }
             return row
         }
-        let shiorisByEntryID = Dictionary(uniqueKeysWithValues: shioris.map { item in
-            (Int(item.shiori.id), item.shiori)
+        let excerptsByEntryID = Dictionary(uniqueKeysWithValues: excerpts.map { item in
+            (Int(item.excerpt.id), item.excerpt)
         })
-        let cuePresentationsByEntryID = Dictionary(uniqueKeysWithValues: shioris.compactMap { item in
-            item.cuePresentation.map { (Int(item.shiori.id), $0) }
+        let cuePresentationsByEntryID = Dictionary(uniqueKeysWithValues: excerpts.compactMap { item in
+            item.cuePresentation.map { (Int(item.excerpt.id), $0) }
         })
 
         apply(
             rows,
             searchResultsByEntryID: [:],
-            shiorisByEntryID: shiorisByEntryID,
-            shioriCuePresentationsByEntryID: cuePresentationsByEntryID,
-            totalRowCount: shioris.count,
+            excerptsByEntryID: excerptsByEntryID,
+            excerptCuePresentationsByEntryID: cuePresentationsByEntryID,
+            totalRowCount: excerpts.count,
             prefixUnchanged: prefixUnchanged,
             tableName: tableName,
             probeSurface: probeSurface ?? SubtitleTableProbeSurface(tableName: tableName),
             probeScope: probeScope,
-            reason: "shiori_update"
+            reason: "excerpt_update"
         )
     }
 
-    func updateResidentShioriRelations(
-        _ relations: [ShioriRelation],
-        resolvedShiorisByID: [Int64: Shiori] = [:],
+    func updateResidentExcerptRelations(
+        _ relations: [ExcerptRelation],
+        resolvedExcerptsByID: [Int64: Excerpt] = [:],
         cueContentProvider: @escaping (Int64) -> CueContent?,
         cueContentRevision: UInt64 = 0,
         tableName: String,
@@ -583,13 +583,13 @@ final class TableSandboxRowModelStore: ObservableObject {
         probeScope: String? = nil
     ) {
         acknowledgeCueContentRevision(cueContentRevision)
-        let normalizedShioris = Dictionary(
-            uniqueKeysWithValues: resolvedShiorisByID.map { key, value in
+        let normalizedExcerpts = Dictionary(
+            uniqueKeysWithValues: resolvedExcerptsByID.map { key, value in
                 (Int(key), value)
             }
         )
-        let contentChanged = relations != snapshot.shioriRelations
-            || normalizedShioris != snapshot.shiorisByEntryID
+        let contentChanged = relations != snapshot.excerptRelations
+            || normalizedExcerpts != snapshot.excerptsByEntryID
             || !snapshot.materializedRows.isEmpty
             || snapshot.cueContentRevision != referencedCueContentRevision
         guard contentChanged || snapshot.totalRowCount != relations.count else {
@@ -603,8 +603,8 @@ final class TableSandboxRowModelStore: ObservableObject {
             .reload
         }
         publishSnapshot(TableSandboxRowsSnapshot(
-            shiorisByEntryID: normalizedShioris,
-            shioriRelations: relations,
+            excerptsByEntryID: normalizedExcerpts,
+            excerptRelations: relations,
             cueContentProvider: cueContentProvider,
             cueContentRevision: referencedCueContentRevision,
             version: snapshot.version + 1,
@@ -613,22 +613,22 @@ final class TableSandboxRowModelStore: ObservableObject {
         ), tableName: tableName,
            probeSurface: probeSurface ?? SubtitleTableProbeSurface(tableName: tableName),
            probeScope: probeScope,
-           reason: "shiori_resident_projection")
+           reason: "excerpt_resident_projection")
     }
 
-    func removeResidentShiori(
+    func removeResidentExcerpt(
         id: Int64,
         tableName: String,
         probeSurface: SubtitleTableProbeSurface? = nil,
         probeScope: String? = nil
     ) {
-        guard snapshot.shioriRelations.contains(where: { $0.id == id }) else {
+        guard snapshot.excerptRelations.contains(where: { $0.id == id }) else {
             return
         }
-        let relations = snapshot.shioriRelations.filter { $0.id != id }
+        let relations = snapshot.excerptRelations.filter { $0.id != id }
         publishSnapshot(TableSandboxRowsSnapshot(
-            shiorisByEntryID: snapshot.shiorisByEntryID.filter { $0.key != Int(id) },
-            shioriRelations: relations,
+            excerptsByEntryID: snapshot.excerptsByEntryID.filter { $0.key != Int(id) },
+            excerptRelations: relations,
             cueContentProvider: snapshot.cueContentProvider,
             cueContentRevision: snapshot.cueContentRevision,
             version: snapshot.version + 1,
@@ -637,7 +637,7 @@ final class TableSandboxRowModelStore: ObservableObject {
         ), tableName: tableName,
            probeSurface: probeSurface ?? SubtitleTableProbeSurface(tableName: tableName),
            probeScope: probeScope,
-           reason: "shiori_remove")
+           reason: "excerpt_remove")
     }
 
     private func acknowledgeCueContentRevision(_ revision: UInt64) {
@@ -648,8 +648,8 @@ final class TableSandboxRowModelStore: ObservableObject {
         referencedCueContentRevision &+= 1
     }
 
-    func hydrateShioriRows(
-        _ shioris: [TableSandboxShioriRowSource],
+    func hydrateExcerptRows(
+        _ excerpts: [TableSandboxExcerptRowSource],
         startIndex: Int,
         totalRowCount: Int,
         tableName: String,
@@ -659,12 +659,12 @@ final class TableSandboxRowModelStore: ObservableObject {
         guard startIndex >= 0 else { return }
         guard startIndex <= snapshot.materializedRows.count else { return }
 
-        if shioris.isEmpty {
+        if excerpts.isEmpty {
             guard totalRowCount == 0 else { return }
             let previousVersion = snapshot.version
             let resolvedProbeSurface = probeSurface
                 ?? SubtitleTableProbeSurface(tableName: tableName)
-            updateShioriRows(
+            updateExcerptRows(
                 [],
                 tableName: tableName,
                 probeSurface: resolvedProbeSurface,
@@ -674,23 +674,23 @@ final class TableSandboxRowModelStore: ObservableObject {
                 UIInvalidationProbe.count(
                     resolvedProbeSurface.counterName("row_hydration_applied"),
                     scope: probeScope,
-                    details: "table=\(tableName) reason=shiori_empty"
+                    details: "table=\(tableName) reason=excerpt_empty"
                 )
             }
             return
         }
 
         var nextRows = snapshot.materializedRows
-        var nextShiorisByEntryID = snapshot.shiorisByEntryID
-        var nextCuePresentationsByEntryID = snapshot.shioriCuePresentationsByEntryID
+        var nextExcerptsByEntryID = snapshot.excerptsByEntryID
+        var nextCuePresentationsByEntryID = snapshot.excerptCuePresentationsByEntryID
         let oldRowCount = nextRows.count
         var lowerChangedIndex: Int?
         var upperChangedIndex: Int?
         var actionCacheChanged = false
 
-        for (offset, item) in shioris.enumerated() {
+        for (offset, item) in excerpts.enumerated() {
             let sourceIndex = startIndex + offset
-            let row = shioriRow(for: item)
+            let row = excerptRow(for: item)
             if sourceIndex < nextRows.count {
                 if nextRows[sourceIndex] != row {
                     lowerChangedIndex = min(lowerChangedIndex ?? sourceIndex, sourceIndex)
@@ -702,13 +702,13 @@ final class TableSandboxRowModelStore: ObservableObject {
                 upperChangedIndex = max(upperChangedIndex ?? sourceIndex + 1, sourceIndex + 1)
                 nextRows.append(row)
             }
-            if nextShiorisByEntryID[Int(item.shiori.id)] != item.shiori {
+            if nextExcerptsByEntryID[Int(item.excerpt.id)] != item.excerpt {
                 actionCacheChanged = true
-                nextShiorisByEntryID[Int(item.shiori.id)] = item.shiori
+                nextExcerptsByEntryID[Int(item.excerpt.id)] = item.excerpt
             }
-            if nextCuePresentationsByEntryID[Int(item.shiori.id)] != item.cuePresentation {
+            if nextCuePresentationsByEntryID[Int(item.excerpt.id)] != item.cuePresentation {
                 actionCacheChanged = true
-                nextCuePresentationsByEntryID[Int(item.shiori.id)] = item.cuePresentation
+                nextCuePresentationsByEntryID[Int(item.excerpt.id)] = item.cuePresentation
             }
         }
 
@@ -726,23 +726,23 @@ final class TableSandboxRowModelStore: ObservableObject {
         publishSnapshot(TableSandboxRowsSnapshot(
             rows: nextRows,
             searchResultsByEntryID: [:],
-            shiorisByEntryID: nextShiorisByEntryID,
-            shioriCuePresentationsByEntryID: nextCuePresentationsByEntryID,
+            excerptsByEntryID: nextExcerptsByEntryID,
+            excerptCuePresentationsByEntryID: nextCuePresentationsByEntryID,
             version: snapshot.version + 1,
             update: update,
             totalRowCount: nextRows.count
         ), tableName: tableName,
            probeSurface: probeSurface ?? SubtitleTableProbeSurface(tableName: tableName),
            probeScope: probeScope,
-           reason: "shiori_hydration",
+           reason: "excerpt_hydration",
            isHydration: true)
     }
 
     private func apply(
         _ rows: [SubtitleTableRow],
         searchResultsByEntryID: [Int: SubtitleSearchResult],
-        shiorisByEntryID: [Int: Shiori],
-        shioriCuePresentationsByEntryID: [Int: ShioriCuePresentation] = [:],
+        excerptsByEntryID: [Int: Excerpt],
+        excerptCuePresentationsByEntryID: [Int: ExcerptCuePresentation] = [:],
         totalRowCount: Int,
         prefixUnchanged: Bool,
         tableName: String,
@@ -754,9 +754,9 @@ final class TableSandboxRowModelStore: ObservableObject {
         let rowsUpdate = rowsUpdate(for: rows, prefixUnchanged: prefixUnchanged)
         let metadataChanged = totalRowCount != snapshot.totalRowCount
         let actionCacheChanged = searchResultsByEntryID != snapshot.searchResultsByEntryID
-            || shiorisByEntryID != snapshot.shiorisByEntryID
-            || shioriCuePresentationsByEntryID
-                != snapshot.shioriCuePresentationsByEntryID
+            || excerptsByEntryID != snapshot.excerptsByEntryID
+            || excerptCuePresentationsByEntryID
+                != snapshot.excerptCuePresentationsByEntryID
         let update = rowsUpdate == .none && metadataChanged ? .reload : rowsUpdate
         let changed = update != .none || metadataChanged || actionCacheChanged
 
@@ -767,8 +767,8 @@ final class TableSandboxRowModelStore: ObservableObject {
         publishSnapshot(TableSandboxRowsSnapshot(
             rows: rows,
             searchResultsByEntryID: searchResultsByEntryID,
-            shiorisByEntryID: shiorisByEntryID,
-            shioriCuePresentationsByEntryID: shioriCuePresentationsByEntryID,
+            excerptsByEntryID: excerptsByEntryID,
+            excerptCuePresentationsByEntryID: excerptCuePresentationsByEntryID,
             version: snapshot.version + 1,
             update: update,
             totalRowCount: totalRowCount
@@ -831,24 +831,24 @@ final class TableSandboxRowModelStore: ObservableObject {
         )
     }
 
-    private func shioriRow(for item: TableSandboxShioriRowSource) -> SubtitleTableRow {
+    private func excerptRow(for item: TableSandboxExcerptRowSource) -> SubtitleTableRow {
         let cuePresentation = item.cuePresentation
         return SubtitleTableRow(
-            id: Int(item.shiori.id),
+            id: Int(item.excerpt.id),
             primaryCueID: cuePresentation?.cueID,
-            subtitlePath: item.shiori.subtitlePath,
+            subtitlePath: item.excerpt.subtitlePath,
             dateAdded: item.dateAddedText,
             displayTitle: item.displayTitle,
-            startTime: tableSandboxCueTimeText(milliseconds: item.shiori.startMilliseconds),
-            endTime: tableSandboxCueTimeText(milliseconds: item.shiori.endMilliseconds),
-            timeRange: item.shiori.timeRange,
-            primaryCueText: item.shiori.content,
-            cueGroupTexts: cuePresentation?.cueGroupTexts ?? [item.shiori.content],
+            startTime: tableSandboxCueTimeText(milliseconds: item.excerpt.startMilliseconds),
+            endTime: tableSandboxCueTimeText(milliseconds: item.excerpt.endMilliseconds),
+            timeRange: item.excerpt.timeRange,
+            primaryCueText: item.excerpt.content,
+            cueGroupTexts: cuePresentation?.cueGroupTexts ?? [item.excerpt.content],
             primaryGroupIndex: cuePresentation?.primaryGroupIndex,
             tags: SubtitleLanguageWorkbenchTags.tags(
                 for: cuePresentation?.languages ?? item.languages
             ),
-            cueState: tableSandboxCueState(for: item.shiori)
+            cueState: tableSandboxCueState(for: item.excerpt)
         )
     }
 
@@ -890,37 +890,37 @@ func tableSandboxSearchRow(for result: SubtitleSearchResult) -> SubtitleTableRow
     )
 }
 
-func tableSandboxShioriRow(for item: TableSandboxShioriRowSource) -> SubtitleTableRow {
+func tableSandboxExcerptRow(for item: TableSandboxExcerptRowSource) -> SubtitleTableRow {
     let cuePresentation = item.cuePresentation
     return SubtitleTableRow(
-        id: Int(item.shiori.id),
+        id: Int(item.excerpt.id),
         primaryCueID: cuePresentation?.cueID,
-        subtitlePath: item.shiori.subtitlePath,
+        subtitlePath: item.excerpt.subtitlePath,
         dateAdded: item.dateAddedText,
         displayTitle: item.displayTitle,
-        startTime: tableSandboxCueTimeText(milliseconds: item.shiori.startMilliseconds),
-        endTime: tableSandboxCueTimeText(milliseconds: item.shiori.endMilliseconds),
-        timeRange: item.shiori.timeRange,
-        primaryCueText: item.shiori.content,
-        cueGroupTexts: cuePresentation?.cueGroupTexts ?? [item.shiori.content],
+        startTime: tableSandboxCueTimeText(milliseconds: item.excerpt.startMilliseconds),
+        endTime: tableSandboxCueTimeText(milliseconds: item.excerpt.endMilliseconds),
+        timeRange: item.excerpt.timeRange,
+        primaryCueText: item.excerpt.content,
+        cueGroupTexts: cuePresentation?.cueGroupTexts ?? [item.excerpt.content],
         primaryGroupIndex: cuePresentation?.primaryGroupIndex,
         tags: SubtitleLanguageWorkbenchTags.tags(
             for: cuePresentation?.languages ?? item.languages
         ),
-        cueState: tableSandboxCueState(for: item.shiori)
+        cueState: tableSandboxCueState(for: item.excerpt)
     )
 }
 
-private func tableSandboxShioriRow(
-    relation: ShioriRelation,
+private func tableSandboxExcerptRow(
+    relation: ExcerptRelation,
     cueContent: CueContent,
-    resolvedShiori: Shiori?
+    resolvedExcerpt: Excerpt?
 ) -> SubtitleTableRow {
     SubtitleTableRow(
         id: Int(relation.id),
         primaryCueID: cueContent.cueID,
         subtitlePath: cueContent.subtitlePath,
-        dateAdded: tableSandboxShioriDateAddedDisplayText(for: relation.createdAt),
+        dateAdded: tableSandboxExcerptDateAddedDisplayText(for: relation.createdAt),
         displayTitle: cueContent.displayTitle,
         startTime: tableSandboxCueTimeText(milliseconds: cueContent.startMilliseconds),
         endTime: tableSandboxCueTimeText(milliseconds: cueContent.endMilliseconds),
@@ -929,36 +929,36 @@ private func tableSandboxShioriRow(
         cueGroupTexts: cueContent.cueGroupLines,
         primaryGroupIndex: cueContent.primaryGroupIndex,
         tags: SubtitleLanguageWorkbenchTags.tags(for: cueContent.languages),
-        cueState: resolvedShiori.map(tableSandboxCueState(for:)) ?? .normal
+        cueState: resolvedExcerpt.map(tableSandboxCueState(for:)) ?? .normal
     )
 }
 
-private func tableSandboxUnavailableShioriRow(
-    relation: ShioriRelation,
-    shiori: Shiori
+private func tableSandboxUnavailableExcerptRow(
+    relation: ExcerptRelation,
+    excerpt: Excerpt
 ) -> SubtitleTableRow {
-    let cueGroupTexts = tableSandboxCueGroupSnapshotTexts(shiori.cueGroupContent)
+    let cueGroupTexts = tableSandboxCueGroupSnapshotTexts(excerpt.cueGroupContent)
     return SubtitleTableRow(
         id: Int(relation.id),
         primaryCueID: relation.cueID,
-        subtitlePath: shiori.subtitlePath,
-        dateAdded: tableSandboxShioriDateAddedDisplayText(for: relation.createdAt),
-        displayTitle: shiori.displayTitle,
-        startTime: tableSandboxCueTimeText(milliseconds: shiori.startMilliseconds),
-        endTime: tableSandboxCueTimeText(milliseconds: shiori.endMilliseconds),
-        timeRange: shiori.timeRange,
-        primaryCueText: shiori.content,
-        cueGroupTexts: cueGroupTexts.isEmpty ? [shiori.content] : cueGroupTexts,
-        primaryGroupIndex: cueGroupTexts.firstIndex(of: shiori.content) ?? 0,
-        cueState: tableSandboxCueState(for: shiori)
+        subtitlePath: excerpt.subtitlePath,
+        dateAdded: tableSandboxExcerptDateAddedDisplayText(for: relation.createdAt),
+        displayTitle: excerpt.displayTitle,
+        startTime: tableSandboxCueTimeText(milliseconds: excerpt.startMilliseconds),
+        endTime: tableSandboxCueTimeText(milliseconds: excerpt.endMilliseconds),
+        timeRange: excerpt.timeRange,
+        primaryCueText: excerpt.content,
+        cueGroupTexts: cueGroupTexts.isEmpty ? [excerpt.content] : cueGroupTexts,
+        primaryGroupIndex: cueGroupTexts.firstIndex(of: excerpt.content) ?? 0,
+        cueState: tableSandboxCueState(for: excerpt)
     )
 }
 
-private func tableSandboxCueState(for shiori: Shiori) -> SubtitleTableCueState {
-    if let unavailableReason = shiori.unavailableReason {
+private func tableSandboxCueState(for excerpt: Excerpt) -> SubtitleTableCueState {
+    if let unavailableReason = excerpt.unavailableReason {
         return .unavailable(unavailableReason)
     }
-    if let change = shiori.contentChange {
+    if let change = excerpt.contentChange {
         return .contentChanged(
             previous: change.previousContent,
             current: change.currentContent
@@ -968,7 +968,7 @@ private func tableSandboxCueState(for shiori: Shiori) -> SubtitleTableCueState {
 }
 
 private func tableSandboxCueGroupSnapshotTexts(_ content: String) -> [String] {
-    let separator = Shiori.cueGroupContentSeparator
+    let separator = Excerpt.cueGroupContentSeparator
     guard content.contains(separator) else {
         return content.isEmpty ? [] : [content]
     }
@@ -977,7 +977,7 @@ private func tableSandboxCueGroupSnapshotTexts(_ content: String) -> [String] {
         .filter { !$0.isEmpty }
 }
 
-func tableSandboxShioriDateAddedDisplayText(
+func tableSandboxExcerptDateAddedDisplayText(
     for value: String,
     timeZone: TimeZone = .current
 ) -> String {
@@ -986,12 +986,12 @@ func tableSandboxShioriDateAddedDisplayText(
         return value
     }
 
-    return tableSandboxShioriDateAddedDisplayText(for: date, timeZone: timeZone)
+    return tableSandboxExcerptDateAddedDisplayText(for: date, timeZone: timeZone)
 }
 
-/// The one date shape the App shows a reader. The Shiori table's Date Added
+/// The one date shape the App shows a reader. The Excerpt table's Date Added
 /// column and the Task panel's history both read it, so they cannot drift.
-func tableSandboxShioriDateAddedDisplayText(
+func tableSandboxExcerptDateAddedDisplayText(
     for date: Date,
     timeZone: TimeZone = .current
 ) -> String {

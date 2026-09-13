@@ -259,7 +259,7 @@ extension AppCoordinator {
         } else {
             search.updateNavigationSnapshot(nil)
         }
-        shiori.selectedShiori = nil
+        excerpt.selectedExcerpt = nil
         library.selectedLibraryVideo = nil
         refreshPlaybackChromeSnapshot(
             displayTitle: playbackDisplayTitle(
@@ -511,12 +511,12 @@ extension AppCoordinator {
             }
             startMilliseconds = result.startMilliseconds
             endMilliseconds = result.endMilliseconds
-        case .shiori:
-            guard let selectedShiori = shiori.selectedShiori else {
+        case .excerpt:
+            guard let selectedExcerpt = excerpt.selectedExcerpt else {
                 return nil
             }
-            startMilliseconds = selectedShiori.startMilliseconds
-            endMilliseconds = selectedShiori.endMilliseconds
+            startMilliseconds = selectedExcerpt.startMilliseconds
+            endMilliseconds = selectedExcerpt.endMilliseconds
         case .library, .none:
             return nil
         }
@@ -624,7 +624,7 @@ extension AppCoordinator {
               playback.playlistPosition == playlistPosition,
               playback.subtitleFocusSession == nil,
               playback.commandPanelPresentation == nil,
-              source == .search || source == .shiori
+              source == .search || source == .excerpt
         else {
             return
         }
@@ -662,8 +662,8 @@ extension AppCoordinator {
                 switch source {
                 case .search:
                     self.openAdjacentSearchResult(.next)
-                case .shiori:
-                    self.openNextShiori()
+                case .excerpt:
+                    self.openNextExcerpt()
                 case .library, .none:
                     break
                 }
@@ -684,8 +684,8 @@ extension AppCoordinator {
                 play(selectedSearchResult)
             } else if let selectedLibraryVideo = library.selectedLibraryVideo {
                 play(selectedLibraryVideo)
-            } else if let selectedShiori = shiori.selectedShiori {
-                play(selectedShiori)
+            } else if let selectedExcerpt = excerpt.selectedExcerpt {
+                play(selectedExcerpt)
             }
         case .opening, .failed:
             break
@@ -763,7 +763,7 @@ extension AppCoordinator {
             shortcutKey != nil && shortcuts.effectiveKey(for: action) == shortcutKey
         }
         // The cue action the press runs where the Playback Overlay and the
-        // Command Panel's search results offer Save to Shiori, Copy Cue Text
+        // Command Panel's search results offer Save to Excerpt, Copy Cue Text
         // and Copy Deep Link.
         let cueShortcutAction: PlaybackSubtitleFocusAction? = shortcutKey
             .flatMap { shortcuts.action(for: $0, in: .overlay) }
@@ -1142,7 +1142,7 @@ extension AppCoordinator {
         case .speedUp:
             viewModel.adjustSpeed(by: 0.25)
             return true
-        case .openCommandPanel, .saveToShiori, .copyCueText, .copyDeepLink,
+        case .openCommandPanel, .saveToExcerpt, .copyCueText, .copyDeepLink,
              .editCollage, nil:
             return false
         }
@@ -1169,8 +1169,8 @@ extension AppCoordinator {
         for shortcut: PlaybackShortcutAction
     ) -> PlaybackSubtitleFocusAction? {
         switch shortcut {
-        case .saveToShiori:
-            .shiori
+        case .saveToExcerpt:
+            .excerpt
         case .copyCueText:
             .copyCueText
         case .copyDeepLink:
@@ -1195,7 +1195,7 @@ extension AppCoordinator {
             activePlaybackSource = .none
             search.selectResult(nil)
             library.selectedLibraryVideo = nil
-            shiori.selectedShiori = nil
+            excerpt.selectedExcerpt = nil
             clearPlaybackChromeSnapshot()
             playback.isPlaybackSurfaceExpanded = false
             playback.playbackStatus = .idle
@@ -1249,13 +1249,13 @@ extension AppCoordinator {
         )
     }
 
-    func playbackSubtitleSource(for shiori: Shiori) -> PlaybackSubtitleSource? {
+    func playbackSubtitleSource(for excerpt: Excerpt) -> PlaybackSubtitleSource? {
         playbackSubtitleSource(
-            forSubtitleFile: URL(fileURLWithPath: shiori.subtitlePath),
-            format: shiori.subtitleFormat,
-            videoPath: shiori.videoPath,
-            startingAtMilliseconds: shiori.startMilliseconds,
-            fallbackEndMilliseconds: shiori.endMilliseconds
+            forSubtitleFile: URL(fileURLWithPath: excerpt.subtitlePath),
+            format: excerpt.subtitleFormat,
+            videoPath: excerpt.videoPath,
+            startingAtMilliseconds: excerpt.startMilliseconds,
+            fallbackEndMilliseconds: excerpt.endMilliseconds
         )
     }
 

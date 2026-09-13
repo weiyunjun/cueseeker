@@ -826,7 +826,7 @@ The relevant scoped counters use these families:
 
 ```text
 table.search.*
-table.shiori.*
+table.excerpt.*
 playback.render_host_*
 ```
 
@@ -1874,7 +1874,7 @@ swift test --filter 'PlaybackSubtitleFocus|PlaybackCommandPanel|PlaybackPlaylist
 
 1. Open a Library folder, click its first Video Card, and press Enter to open
    the Overlay on Current. Capture `footer-overlay-current`. The footer must
-   read the cue count on the left and `Save to Shiori S`, `Copy Cue Text C`,
+   read the cue count on the left and `Save to Excerpt List S`, `Copy Cue Text C`,
    `Copy Deep Link X`, `Play` Return on the right, with no Navigate hint and no
    arrow keycaps.
 2. Click the `Copy Cue Text` button and read the clipboard; it must hold the
@@ -1897,7 +1897,7 @@ swift test --filter 'PlaybackSubtitleFocus|PlaybackCommandPanel|PlaybackPlaylist
   darkens. `mouseMove` cannot drive SwiftUI `.onHover`, so this stays manual.
 - Repeat the Current and Command Panel captures in Dark Appearance and confirm
   the keycap is still separable from the surface behind it.
-- Click `Save to Shiori`; it writes a Shiori row, so automation leaves it out.
+- Click `Save to Excerpt List`; it writes an Excerpt row, so automation leaves it out.
 
 ### Cleanup
 

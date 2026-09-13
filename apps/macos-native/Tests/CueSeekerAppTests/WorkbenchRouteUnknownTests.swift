@@ -38,14 +38,14 @@ func historyEntriesReadAsUnknownOnlyOnceTheirStoreKnowsThePageIsGone() throws {
     #expect(app.isWorkbenchRouteUnknown(goneFolder))
     #expect(!app.isWorkbenchRouteUnknown(keptFolder))
 
-    let goneList = WorkbenchRoute.shioriList(id: 99)
+    let goneList = WorkbenchRoute.excerptList(id: 99)
     #expect(!app.isWorkbenchRouteUnknown(goneList))
-    app.shiori.installListOverview(
-        ShioriListOverview(lists: [], uniqueCueCount: 0)
+    app.excerpt.installListOverview(
+        ExcerptListOverview(lists: [], uniqueCueCount: 0)
     )
     #expect(app.isWorkbenchRouteUnknown(goneList))
 
-    for route in [WorkbenchRoute.search, .recent, .library, .file, .shiori] {
+    for route in [WorkbenchRoute.search, .recent, .library, .file, .excerpt] {
         #expect(!app.isWorkbenchRouteUnknown(route))
     }
 }

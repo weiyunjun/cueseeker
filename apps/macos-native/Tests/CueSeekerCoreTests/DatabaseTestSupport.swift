@@ -20,7 +20,7 @@ final class SearchProgressCollector: @unchecked Sendable {
     }
 }
 
-func shioriSelection(
+func excerptSelection(
     _ record: SubtitleCueLineRecord
 ) -> SubtitleCueTextSelection {
     SubtitleCueTextSelection(

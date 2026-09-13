@@ -6,9 +6,9 @@ import CueSeekerCore
 struct SearchView: View {
     @EnvironmentObject private var appState: AppCoordinator
     @EnvironmentObject private var routeState: WorkbenchRouteState
-    // Observed so a Shiori detail turns into the unknown page when its list
+    // Observed so a Excerpt detail turns into the unknown page when its list
     // leaves the overview.
-    @EnvironmentObject private var shioriStore: ShioriStore
+    @EnvironmentObject private var excerptStore: ExcerptStore
     @EnvironmentObject private var playback: PlaybackStore
     @Environment(\.colorScheme) private var colorScheme
 
@@ -71,8 +71,8 @@ struct SearchView: View {
 
             return Group {
                 switch routeState.panelMode {
-                case .shiori:
-                    workbenchShioriSurface
+                case .excerpt:
+                    workbenchExcerptSurface
                 case .recentWatching:
                     WorkbenchRecentView()
                 case .testLibrary:
@@ -111,21 +111,21 @@ struct SearchView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    private var workbenchShioriSurface: some View {
+    private var workbenchExcerptSurface: some View {
         ZStack {
             Color(nsColor: .textBackgroundColor)
                 .ignoresSafeArea()
 
-            if let listID = routeState.selectedShioriListID {
-                if appState.isWorkbenchRouteUnknown(.shioriList(id: listID)) {
+            if let listID = routeState.selectedExcerptListID {
+                if appState.isWorkbenchRouteUnknown(.excerptList(id: listID)) {
                     WorkbenchUnknownPage()
                 } else {
-                    WorkbenchShioriTableView(
+                    WorkbenchExcerptTableView(
                         isTableResponseActive: !appState.isPlaybackPageVisible
                     )
                 }
             } else {
-                ShioriListOverviewView()
+                ExcerptListOverviewView()
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

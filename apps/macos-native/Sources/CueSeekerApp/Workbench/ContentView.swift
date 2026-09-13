@@ -29,7 +29,7 @@ private struct ContentRootView: View {
     @EnvironmentObject private var settingsStore: SettingsStore
     @EnvironmentObject private var layoutState: WorkbenchLayoutState
     @EnvironmentObject private var libraryStore: LibraryStore
-    @EnvironmentObject private var shioriStore: ShioriStore
+    @EnvironmentObject private var excerptStore: ExcerptStore
     @EnvironmentObject private var playback: PlaybackStore
 
     private let windowBackground = Color(
@@ -139,19 +139,19 @@ private struct ContentRootView: View {
                 .workbenchDialog()
             }
 
-            if let session = shioriStore.listEditorSession {
-                ShioriListEditorDialog(
+            if let session = excerptStore.listEditorSession {
+                ExcerptListEditorDialog(
                     session: session,
                     onChooseImage: {
-                        appState.beginChoosingShioriListCover(session)
+                        appState.beginChoosingExcerptListCover(session)
                     },
                     onValidate: {
-                        appState.validateShioriListEditor(session)
+                        appState.validateExcerptListEditor(session)
                     },
                     onSave: {
-                        appState.saveShioriListEditor(session)
+                        appState.saveExcerptListEditor(session)
                     },
-                    onClose: appState.closeShioriListEditor
+                    onClose: appState.closeExcerptListEditor
                 )
                 .workbenchDialog()
             }
@@ -201,7 +201,7 @@ private struct ContentRootView: View {
         if let session = libraryStore.coverEditingSession {
             ids.append(session.id)
         }
-        if let session = shioriStore.listEditorSession {
+        if let session = excerptStore.listEditorSession {
             ids.append(session.id)
         }
         if let session = libraryStore.renameSession {
@@ -246,10 +246,10 @@ private struct AppTopBar: View {
     @EnvironmentObject private var appState: AppCoordinator
     @EnvironmentObject private var layoutState: WorkbenchLayoutState
     @EnvironmentObject private var routeState: WorkbenchRouteState
-    // Observed so the title turns into the unknown page's when the Shiori
+    // Observed so the title turns into the unknown page's when the Excerpt
     // list or Library folder a history entry points to disappears.
     @EnvironmentObject private var library: LibraryStore
-    @EnvironmentObject private var shioriStore: ShioriStore
+    @EnvironmentObject private var excerptStore: ExcerptStore
     @State private var isSidebarToggleHovered = false
     // Observed so the labels below are re-read when the language changes.
     @EnvironmentObject private var localization: AppLocalizationStore
@@ -316,9 +316,9 @@ private struct AppTopBar: View {
             L("sidebar.library")
         case .file:
             L("sidebar.file")
-        case .shiori:
-            L("sidebar.shiori")
-        case .libraryFolder, .shioriList:
+        case .excerpt:
+            L("sidebar.excerpt")
+        case .libraryFolder, .excerptList:
             appState.isWorkbenchRouteUnknown(routeState.currentRoute)
                 ? L("page.unknown.title")
                 : nil
@@ -448,12 +448,12 @@ private struct AppSidebar: View {
             }
 
             AppSidebarNavigationItem(
-                mode: .shiori,
-                isSelected: routeState.panelMode == .shiori,
+                mode: .excerpt,
+                isSelected: routeState.panelMode == .excerpt,
                 isEnabled: !layoutState.isVideoSizeTransitionInProgress
             ) {
                 appState.performUserInitiatedAppCommand {
-                    appState.activateWorkbenchPanelMode(.shiori)
+                    appState.activateWorkbenchPanelMode(.excerpt)
                 }
             }
         }
@@ -465,11 +465,11 @@ private struct AppSidebar: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(WorkbenchRedesignColors.appSidebarBg)
         .background(LayoutPerformanceProbe(name: "AppSidebar.layout"))
-        // The Sidebar no longer lists the Shiori lists, but this is still the
-        // earliest place the overview is loaded, and the Shiori table's
+        // The Sidebar no longer lists the Excerpt lists, but this is still the
+        // earliest place the overview is loaded, and the Excerpt table's
         // move-to-list destinations read it without loading it themselves.
         .task {
-            appState.loadShioriListOverviewIfNeeded()
+            appState.loadExcerptListOverviewIfNeeded()
         }
     }
 }

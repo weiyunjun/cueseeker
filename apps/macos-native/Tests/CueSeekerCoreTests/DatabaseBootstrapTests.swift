@@ -55,7 +55,7 @@ func currentSchemaValidationDoesNotMutateStoredData() throws {
 }
 
 @Test
-func migratesSchema41DanglingShioriToProtectedTombstone() throws {
+func migratesSchema41DanglingExcerptToProtectedTombstone() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
         try? FileManager.default.removeItem(at: databaseURL)
@@ -75,7 +75,7 @@ func migratesSchema41DanglingShioriToProtectedTombstone() throws {
     try DatabaseBootstrap.prepare(at: databaseURL)
 
     let repaired = try #require(
-        try ShioriDatabase(path: databaseURL).shiori(id: 780)
+        try ExcerptDatabase(path: databaseURL).excerpt(id: 780)
     )
     #expect(repaired.unavailableReason == .cueMissing)
     #expect(repaired.content.isEmpty)
@@ -143,7 +143,7 @@ func migratesSchema46ByRenamingShioriTablesToExcerptTables() throws {
     ] {
         #expect(try sqliteIndexExists(index, databaseURL: databaseURL) == false)
     }
-    let list = try #require(try ShioriDatabase(path: databaseURL).shioriList(id: 2))
+    let list = try #require(try ExcerptDatabase(path: databaseURL).excerptList(id: 2))
     #expect(list.description == "Kept description")
     #expect(list.coverPath == "/Covers/Shiori/Display/v1/kept.jpg")
     #expect(
@@ -165,7 +165,7 @@ func migratesSchema46ByRenamingShioriTablesToExcerptTables() throws {
 }
 
 @Test
-func migratesSchema33ShioriListMetadataWithoutDroppingTheList() throws {
+func migratesSchema33ExcerptListMetadataWithoutDroppingTheList() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
         try? FileManager.default.removeItem(at: databaseURL)
@@ -272,7 +272,7 @@ func migratesSchema33ShioriListMetadataWithoutDroppingTheList() throws {
         "idx_excerpt_lists_normalized_name",
         databaseURL: databaseURL
     ))
-    let list = try #require(try ShioriDatabase(path: databaseURL).shioriLists().first)
+    let list = try #require(try ExcerptDatabase(path: databaseURL).excerptLists().first)
     #expect(list.name == "Default")
     #expect(list.description.isEmpty)
     #expect(list.coverPath == nil)
@@ -493,7 +493,7 @@ func permanentIdentitySchemaIncludesLibraryRelativePathsAndIDReferences() throws
 }
 
 @Test
-func migratesSchema37RecentShioriStateWithoutDroppingLists() throws {
+func migratesSchema37RecentExcerptStateWithoutDroppingLists() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
         try? FileManager.default.removeItem(at: databaseURL)
@@ -534,7 +534,7 @@ func migratesSchema37RecentShioriStateWithoutDroppingLists() throws {
         "id", "name", "normalized_name", "description", "cover_path", "created_at",
         "recent_cue_id", "recent_sort_order", "recent_played_at"
     ]))
-    let list = try #require(try ShioriDatabase(path: databaseURL).shioriList(id: 1))
+    let list = try #require(try ExcerptDatabase(path: databaseURL).excerptList(id: 1))
     #expect(list.name == "Default")
     #expect(list.recentCueID == nil)
     #expect(list.recentSortOrder == nil)
@@ -644,7 +644,7 @@ func migratesSchema36AuxiliaryRetryStateAndUnavailableReasons()
 }
 
 @Test
-func migratesSchema34IdentityFoundationWithoutLosingShioriAndRemovesTags() throws {
+func migratesSchema34IdentityFoundationWithoutLosingExcerptsAndRemovesTags() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
         try? FileManager.default.removeItem(at: databaseURL)
@@ -794,7 +794,7 @@ func sqliteConnectionsUseBusyTimeoutAndWALMode() throws {
 }
 
 @Test
-func freshSchemaCreatesShioriTablePerformanceIndexes() throws {
+func freshSchemaCreatesExcerptTablePerformanceIndexes() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
         try? FileManager.default.removeItem(at: databaseURL)

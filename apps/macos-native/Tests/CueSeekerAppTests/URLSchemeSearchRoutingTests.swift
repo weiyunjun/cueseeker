@@ -22,7 +22,7 @@ func urlSchemeSearchPreservesFacetFilterAndForcesSearchRoute() throws {
     let app = AppCoordinator(userDefaults: userDefaults, databaseURL: databaseURL)
     let facetFilter = CueFacetFilter(languages: [.japanese])
     app.settings.searchFacetFilter = facetFilter
-    app.workbenchLayout.navigate(to: .shiori)
+    app.workbenchLayout.navigate(to: .excerpt)
     app.search.updateActiveFilterSet(SubtitleSearchFilterSet(rules: [
         SubtitleSearchFilterRule(
             field: .display,
@@ -77,7 +77,7 @@ func urlSchemeDirectPlayFallsBackToCommandPanelWhenPlaybackIsActive() throws {
     let fixture = try makeURLSchemeRoutingFixture("DirectPlayFallback")
     defer { fixture.cleanup() }
     fixture.app.settings.urlSchemePlayFirstSearchResultEnabled = true
-    fixture.app.workbenchLayout.navigate(to: .shiori)
+    fixture.app.workbenchLayout.navigate(to: .excerpt)
     fixture.app.search.selectResult(makeURLSchemeSearchResult(
         id: 1,
         content: "existing playback"
@@ -105,7 +105,7 @@ func urlSchemeDirectPlayFallsBackToCommandPanelWhenPlaybackIsActive() throws {
         fixture.app.playback.commandPanelPresentation?.query == "missing"
     )
     #expect(session.selectedModule == .current)
-    #expect(fixture.app.workbenchLayout.panelMode == .shiori)
+    #expect(fixture.app.workbenchLayout.panelMode == .excerpt)
     #expect(fixture.app.search.searchQuery == "missing")
     #expect(fixture.app.pendingURLSchemeDirectPlayIntent == nil)
     #expect(fixture.app.playback.isPlaybackSurfaceExpanded)
@@ -118,7 +118,7 @@ func urlSchemeDirectPlayFallsBackToWorkbenchSearchWithoutPlayback() throws {
     let fixture = try makeURLSchemeRoutingFixture("DirectPlayWorkbenchFallback")
     defer { fixture.cleanup() }
     fixture.app.settings.urlSchemePlayFirstSearchResultEnabled = true
-    fixture.app.workbenchLayout.navigate(to: .shiori)
+    fixture.app.workbenchLayout.navigate(to: .excerpt)
 
     var presentationReadyCount = 0
     fixture.app.handleURLSchemeCommand(.search(keyword: "missing")) {
@@ -218,18 +218,18 @@ func urlSchemeDirectPlayUsesFirstResultFromExistingCompleteFirstPage() async thr
     )
     app.settings.searchFacetFilter = longCueFilter
     app.search.updateSearchFacetFilter(longCueFilter)
-    app.workbenchLayout.navigate(to: .shiori)
+    app.workbenchLayout.navigate(to: .excerpt)
 
     var presentationReadyCount = 0
     var presentedPlayback = false
     app.handleURLSchemeCommand(.search(keyword: "shared pipeline")) {
         presentationReadyCount += 1
         presentedPlayback = app.isPlaybackPageVisible
-            && app.workbenchLayout.panelMode == .shiori
+            && app.workbenchLayout.panelMode == .excerpt
     }
 
     #expect(presentationReadyCount == 0)
-    #expect(app.workbenchLayout.panelMode == .shiori)
+    #expect(app.workbenchLayout.panelMode == .excerpt)
     await app.search.searchTask?.value
     await app.search.exactCompletionTask?.value
 
@@ -247,7 +247,7 @@ func urlSchemeDirectPlayUsesFirstResultFromExistingCompleteFirstPage() async thr
     )
     #expect(app.search.searchFacetFilter == longCueFilter)
     #expect(app.settings.searchFacetFilter == longCueFilter)
-    #expect(app.workbenchLayout.panelMode == .shiori)
+    #expect(app.workbenchLayout.panelMode == .excerpt)
     #expect(app.playback.isPlaybackSurfaceExpanded)
     #expect(app.pendingURLSchemeDirectPlayIntent == nil)
 
@@ -284,7 +284,7 @@ func urlSchemeDirectPlayUsesFirstResultFromExistingCompleteFirstPage() async thr
     #expect(app.playback.isPlaybackSurfaceExpanded)
 
     app.stopPlayback()
-    #expect(app.workbenchLayout.panelMode == .shiori)
+    #expect(app.workbenchLayout.panelMode == .excerpt)
     #expect(app.search.searchQuery == "alternate source")
     #expect(!app.playback.isPlaybackSurfaceExpanded)
 
@@ -327,7 +327,7 @@ func newURLSchemeCommandCancelsOldIntentAndOpensCommandPanelSearch() throws {
         app: fixture.app,
         result: playbackResult
     )
-    fixture.app.workbenchLayout.navigate(to: .shiori)
+    fixture.app.workbenchLayout.navigate(to: .excerpt)
 
     let staleIntent = URLSchemeDirectPlayIntent(id: UUID(), keyword: "stale")
     fixture.app.pendingURLSchemeDirectPlayIntent = staleIntent
@@ -349,7 +349,7 @@ func newURLSchemeCommandCancelsOldIntentAndOpensCommandPanelSearch() throws {
     #expect(fixture.app.playback.isPlaybackSurfaceExpanded)
     #expect(fixture.app.search.selectedSearchResult == playbackResult)
     #expect(fixture.app.search.searchQuery == "replacement")
-    #expect(fixture.app.workbenchLayout.panelMode == .shiori)
+    #expect(fixture.app.workbenchLayout.panelMode == .excerpt)
     #expect(session.selectedModule == .current)
     #expect(
         fixture.app.playback.commandPanelPresentation?.page

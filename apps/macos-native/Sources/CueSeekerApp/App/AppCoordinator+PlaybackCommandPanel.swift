@@ -118,7 +118,7 @@ extension AppCoordinator {
     ) -> Bool {
         guard var presentation = playback.commandPanelPresentation,
               presentation.page == .root,
-              page == .recentVideos || page == .recentShioris
+              page == .recentVideos || page == .recentExcerpts
         else {
             return false
         }
@@ -126,8 +126,8 @@ extension AppCoordinator {
         switch page {
         case .recentVideos:
             hydrateTestRecentWatchingAsync()
-        case .recentShioris:
-            reloadShioriListOverview()
+        case .recentExcerpts:
+            reloadExcerptListOverview()
         case .root, .searchResults:
             return false
         }
@@ -230,8 +230,8 @@ extension AppCoordinator {
         switch page {
         case .recentVideos:
             return library.testRecentWatchingItems.map(\.id)
-        case .recentShioris:
-            return shiori.recentListSummaries.map { String($0.id) }
+        case .recentExcerpts:
+            return excerpt.recentListSummaries.map { String($0.id) }
         case .root, .searchResults:
             return []
         }
@@ -277,7 +277,7 @@ extension AppCoordinator {
                 return presentPlaybackCommandPanelPage(.recentVideos)
             }
             if recentOrdinal == 1 {
-                return presentPlaybackCommandPanelPage(.recentShioris)
+                return presentPlaybackCommandPanelPage(.recentExcerpts)
             }
             return false
         case .searchResults:
@@ -297,11 +297,11 @@ extension AppCoordinator {
             return openPlaybackCommandPanelRecentVideo(
                 at: selectedOrdinal
             )
-        case .recentShioris:
+        case .recentExcerpts:
             guard let selectedOrdinal = presentation.selectedOrdinal else {
                 return false
             }
-            return openPlaybackCommandPanelRecentShiori(
+            return openPlaybackCommandPanelRecentExcerpt(
                 at: selectedOrdinal
             )
         }
@@ -366,8 +366,8 @@ extension AppCoordinator {
 
         let result = search.projectedSearchResults[ordinal]
         switch action {
-        case .shiori:
-            togglePlaybackShioriDestinationMenu(
+        case .excerpt:
+            togglePlaybackExcerptDestinationMenu(
                 surface: .commandPanel,
                 context: PlaybackPlaylistItem(
                     searchResult: result,
@@ -432,17 +432,17 @@ extension AppCoordinator {
     }
 
     @discardableResult
-    func openPlaybackCommandPanelRecentShiori(at ordinal: Int) -> Bool {
-        guard playback.commandPanelPresentation?.page == .recentShioris,
-              shiori.recentListSummaries.indices.contains(ordinal)
+    func openPlaybackCommandPanelRecentExcerpt(at ordinal: Int) -> Bool {
+        guard playback.commandPanelPresentation?.page == .recentExcerpts,
+              excerpt.recentListSummaries.indices.contains(ordinal)
         else {
             return false
         }
-        let summary = shiori.recentListSummaries[ordinal]
+        let summary = excerpt.recentListSummaries[ordinal]
         guard dismissPlaybackCommandPanelForAction() else {
             return false
         }
-        openRecentShiori(summary)
+        openRecentExcerpt(summary)
         return true
     }
 
@@ -498,8 +498,8 @@ extension AppCoordinator {
             )
         case .recentVideos:
             return library.testRecentWatchingItems.count
-        case .recentShioris:
-            return shiori.recentListSummaries.count
+        case .recentExcerpts:
+            return excerpt.recentListSummaries.count
         }
     }
 

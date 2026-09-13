@@ -83,20 +83,20 @@ enum WorkbenchControlMetrics {
     /// --gap-cover-dialog-region: 20px. The gap between the header, the main
     /// region and the footer of the two dialogs that carry a cover.
     static let redesignCoverDialogRegionGap: CGFloat = 20
-    /// The Shiori List Editor's cover: the small dialog's content width, which
+    /// The Excerpt List Editor's cover: the small dialog's content width, which
     /// its one-column layout is, so the cover keeps one size in both layouts.
-    static let redesignShioriListEditorCoverWidth =
+    static let redesignExcerptListEditorCoverWidth =
         redesignDialogWidthSmall - 2 * redesignDialogInset
     /// The two-column layout's form column: what the x-large dialog leaves
     /// beside the cover.
-    static let redesignShioriListEditorWideFormWidth =
+    static let redesignExcerptListEditorWideFormWidth =
         redesignDialogWidthXLarge - 2 * redesignDialogInset
-        - redesignSpacing6 - redesignShioriListEditorCoverWidth
+        - redesignSpacing6 - redesignExcerptListEditorCoverWidth
     /// The Description box ends on the cover's bottom edge. Above the box the
     /// form column holds the List Name field — label, field and its reserved
     /// message line — and the Description's own label, so the box is the
     /// cover's height less those. Both layouts keep this height.
-    static let redesignShioriListEditorDescriptionHeight: CGFloat = {
+    static let redesignExcerptListEditorDescriptionHeight: CGFloat = {
         func lineHeight(size: CGFloat, weight: NSFont.Weight) -> CGFloat {
             NSLayoutManager().defaultLineHeight(
                 for: NSFont.systemFont(ofSize: size, weight: weight)
@@ -104,7 +104,7 @@ enum WorkbenchControlMetrics {
         }
         let label = lineHeight(size: redesignFontSizeControl, weight: .medium)
         let message = lineHeight(size: redesignFontSizeCaption, weight: .regular)
-        let coverHeight = redesignShioriListEditorCoverWidth / redesignLibraryCoverAspectRatio
+        let coverHeight = redesignExcerptListEditorCoverWidth / redesignLibraryCoverAspectRatio
         return coverHeight
             - (label + redesignSpacing2 + redesignFieldHeight + redesignSpacing1 + message)
             - redesignSpacing2
@@ -1205,7 +1205,7 @@ struct WorkbenchPopoverPanel<Content: View>: View {
                 cornerRadius: cornerRadius
             )
             // The item highlighted when the menu opens can already be out of
-            // reach — `Save to Shiori` opens on the list saved to most
+            // reach — `Save to Excerpt` opens on the list saved to most
             // recently — so opening reveals it the same way a keyboard move
             // does. The wheel and the scrollbar bump neither signal, so they
             // never pull the menu back to the highlight.

@@ -11,7 +11,7 @@ func playbackMultiModuleOverlayPreservesOneSessionThenReopensFresh() async throw
     let featureLibrary = playbackMultiModuleFeatureLibrary(fixture)
     let searchStore = SearchStore()
     searchStore.replaceResidentResults(fixture.searchResults)
-    let shioriStore = playbackMultiModuleShioriStore(fixture.shiori)
+    let excerptStore = playbackMultiModuleExcerptStore(fixture.excerpt)
     let libraryStore = PlaybackLibrarySessionStore(
         libraryStore: featureLibrary,
         folderPath: fixture.detail.folderPath,
@@ -28,7 +28,7 @@ func playbackMultiModuleOverlayPreservesOneSessionThenReopensFresh() async throw
         playlistSource: playlistSource,
         searchStore: searchStore,
         libraryStore: libraryStore,
-        shioriStore: shioriStore
+        excerptStore: excerptStore
     )
 
     #expect(session.publishInitialSnapshot(
@@ -50,8 +50,8 @@ func playbackMultiModuleOverlayPreservesOneSessionThenReopensFresh() async throw
     libraryStore.selection.recordScrollOffsetY(82.75)
     let selectedEpisodeID = libraryStore.selection.selectedItemID
 
-    #expect(session.selectModule(.shiori))
-    let shioriWindow = try #require(session.shioriWindow)
+    #expect(session.selectModule(.excerpt))
+    let excerptWindow = try #require(session.excerptWindow)
     #expect(session.selectModule(.current))
     #expect(session.commitNativeReelSelection(ordinal: 2))
 
@@ -59,7 +59,7 @@ func playbackMultiModuleOverlayPreservesOneSessionThenReopensFresh() async throw
         PlaybackOverlayModule.playlist,
         .search,
         .library,
-        .shiori,
+        .excerpt,
         .current,
     ] {
         #expect(session.selectNextModule())
@@ -72,7 +72,7 @@ func playbackMultiModuleOverlayPreservesOneSessionThenReopensFresh() async throw
     #expect(searchWindow.selectedOrdinal == 1)
     #expect(libraryStore.selection.selectedItemID == selectedEpisodeID)
     #expect(libraryStore.selection.scrollOffsetY == 82.75)
-    #expect(shioriWindow.selectedOrdinal == 0)
+    #expect(excerptWindow.selectedOrdinal == 0)
 
     #expect(session.dismissByUser() == false)
     #expect(!session.isActive)
@@ -82,7 +82,7 @@ func playbackMultiModuleOverlayPreservesOneSessionThenReopensFresh() async throw
     #expect(searchStore.searchResults == fixture.searchResults)
     #expect(featureLibrary.testRecentWatchingItems == fixture.recentItems)
     #expect(featureLibrary.completeLibraryFolderSummaries == fixture.folders)
-    #expect(shioriStore.tableRowStore.snapshot.totalRowCount == 1)
+    #expect(excerptStore.tableRowStore.snapshot.totalRowCount == 1)
 
     let freshLibraryStore = PlaybackLibrarySessionStore(
         libraryStore: featureLibrary,
@@ -96,7 +96,7 @@ func playbackMultiModuleOverlayPreservesOneSessionThenReopensFresh() async throw
         playlistSource: playlistSource,
         searchStore: searchStore,
         libraryStore: freshLibraryStore,
-        shioriStore: shioriStore
+        excerptStore: excerptStore
     )
 
     #expect(freshSession.selectedModule == .current)
@@ -135,9 +135,9 @@ func playbackMultiModuleStopCancelsSessionWorkButPreservesFeatureStores() async 
         fixture.detail.folderPath: .completed,
     ]
     app.search.replaceResidentResults(fixture.searchResults)
-    app.shiori.tableRowStore.updateShioriRows(
-        [playbackMultiModuleShioriRow(fixture.shiori)],
-        tableName: "shiori"
+    app.excerpt.tableRowStore.updateExcerptRows(
+        [playbackMultiModuleExcerptRow(fixture.excerpt)],
+        tableName: "excerpt"
     )
 
     let probe = PlaybackMultiModuleCancellationProbe()
@@ -156,7 +156,7 @@ func playbackMultiModuleStopCancelsSessionWorkButPreservesFeatureStores() async 
         availableModules: PlaybackOverlayModule.allCases,
         searchStore: app.search,
         libraryStore: libraryStore,
-        shioriStore: app.shiori
+        excerptStore: app.excerpt
     ))
     app.startPlaybackSubtitleFocusInitialLoad(
         for: session,
@@ -189,7 +189,7 @@ func playbackMultiModuleStopCancelsSessionWorkButPreservesFeatureStores() async 
     #expect(featureLibrary.testRecentWatchingItems == fixture.recentItems)
     #expect(featureLibrary.completeLibraryFolderSummaries == fixture.folders)
     #expect(featureLibrary.completeLibraryFolderDetailsByPath[fixture.detail.folderPath] == fixture.detail)
-    #expect(app.shiori.tableRowStore.snapshot.totalRowCount == 1)
+    #expect(app.excerpt.tableRowStore.snapshot.totalRowCount == 1)
 }
 
 private struct PlaybackMultiModuleFixture {
@@ -198,7 +198,7 @@ private struct PlaybackMultiModuleFixture {
     let recentItems: [RecentLibraryWatchingPresentation]
     let folders: [CompleteLibraryFolderSummaryPresentation]
     let detail: CompleteLibraryFolderDetailPresentation
-    let shiori: Shiori
+    let excerpt: Excerpt
 }
 
 private func playbackMultiModuleFixture() -> PlaybackMultiModuleFixture {
@@ -256,7 +256,7 @@ private func playbackMultiModuleFixture() -> PlaybackMultiModuleFixture {
             coverRevision: nil
         )
     }
-    let shiori = Shiori(
+    let excerpt = Excerpt(
         id: 9,
         subtitleFileID: searchResults[0].subtitleFileID,
         subtitlePath: searchResults[0].subtitlePath,
@@ -284,7 +284,7 @@ private func playbackMultiModuleFixture() -> PlaybackMultiModuleFixture {
         recentItems: recentItems,
         folders: [folder],
         detail: detail,
-        shiori: shiori
+        excerpt: excerpt
     )
 }
 
@@ -336,24 +336,24 @@ private func playbackMultiModuleFeatureLibrary(
 }
 
 @MainActor
-private func playbackMultiModuleShioriStore(_ shiori: Shiori) -> ShioriStore {
-    let store = ShioriStore()
-    store.tableRowStore.updateShioriRows(
-        [playbackMultiModuleShioriRow(shiori)],
-        tableName: "shiori"
+private func playbackMultiModuleExcerptStore(_ excerpt: Excerpt) -> ExcerptStore {
+    let store = ExcerptStore()
+    store.tableRowStore.updateExcerptRows(
+        [playbackMultiModuleExcerptRow(excerpt)],
+        tableName: "excerpt"
     )
-    store.installTableResultShioriIDs([shiori.id])
+    store.installTableResultExcerptIDs([excerpt.id])
     store.markTableRowsLoaded(totalSavedRowCount: 1)
     return store
 }
 
-private func playbackMultiModuleShioriRow(
-    _ shiori: Shiori
-) -> TableSandboxShioriRowSource {
-    TableSandboxShioriRowSource(
-        shiori: shiori,
-        displayTitle: shiori.videoName,
-        dateAddedText: shiori.createdAt,
+private func playbackMultiModuleExcerptRow(
+    _ excerpt: Excerpt
+) -> TableSandboxExcerptRowSource {
+    TableSandboxExcerptRowSource(
+        excerpt: excerpt,
+        displayTitle: excerpt.videoName,
+        dateAddedText: excerpt.createdAt,
         languages: [.unknown],
     )
 }

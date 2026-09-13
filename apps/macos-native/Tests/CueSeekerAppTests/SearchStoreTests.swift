@@ -22,9 +22,9 @@ func searchStoresPersistOnlyNormalizedSingleLineQueries() {
     search.updateQuery("one\r\ntwo\nthree")
     #expect(search.searchQuery == "one two three")
 
-    let shiori = ShioriStore()
-    #expect(shiori.updateTableSearchDraft("one\r\ntwo\nthree"))
-    #expect(shiori.tableSearchDraft == "one two three")
+    let excerpt = ExcerptStore()
+    #expect(excerpt.updateTableSearchDraft("one\r\ntwo\nthree"))
+    #expect(excerpt.tableSearchDraft == "one two three")
 }
 
 @MainActor
@@ -43,8 +43,8 @@ func emptySearchDisplaysZeroFacetCounts() {
 
 @MainActor
 @Test
-func shioriFilterMenuDefaultsToClosed() {
-    #expect(!WorkbenchShioriTableView.defaultFilterMenuOpen)
+func excerptFilterMenuDefaultsToClosed() {
+    #expect(!WorkbenchExcerptTableView.defaultFilterMenuOpen)
 }
 
 @MainActor

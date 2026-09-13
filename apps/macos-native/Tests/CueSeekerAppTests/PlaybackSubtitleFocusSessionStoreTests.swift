@@ -46,12 +46,12 @@ func playbackOverlaySessionUsesCanonicalModuleOrderWithOptionalPlaylist() throws
     let reorderedAndDuplicated = PlaybackSubtitleFocusSessionStore(
         openSnapshot: focusOpenSnapshot(wasPlaying: false),
         sessionGeneration: 3,
-        availableModules: [.shiori, .playlist, .shiori]
+        availableModules: [.excerpt, .playlist, .excerpt]
     )
     #expect(reorderedAndDuplicated.availableModules == [
         .current,
         .playlist,
-        .shiori,
+        .excerpt,
     ])
 }
 
@@ -97,7 +97,7 @@ func playbackOverlaySessionCyclesModulesAndPreservesCurrentSelection() throws {
         PlaybackOverlayModule.playlist,
         .search,
         .library,
-        .shiori,
+        .excerpt,
         .current,
     ] {
         #expect(session.selectNextModule())
@@ -289,7 +289,7 @@ func subtitleFocusCompleteBatchPreservesPendingNavigationAndKeyboardAction() thr
     #expect(session.requestKeyboardNavigation(.forward))
     let request = try #require(session.keyboardNavigationRequest)
     session.noteCueReelMotion(true)
-    #expect(session.requestKeyboardAction(.shiori) == .deferred)
+    #expect(session.requestKeyboardAction(.excerpt) == .deferred)
 
     #expect(session.publishCompleteCueBatch(
         SubtitleFocusCueBatch(totalCount: 20, cues: focusCues(0..<20)),
@@ -298,14 +298,14 @@ func subtitleFocusCompleteBatchPreservesPendingNavigationAndKeyboardAction() thr
 
     #expect(session.currentSnapshot?.selectedOrdinal == 12)
     #expect(session.keyboardNavigationRequest == request)
-    #expect(session.pendingKeyboardAction == .shiori)
+    #expect(session.pendingKeyboardAction == .excerpt)
     #expect(!session.allowsNativeWheelInput())
     #expect(session.commitKeyboardNavigation(request))
     #expect(session.currentSnapshot?.selectedOrdinal == 13)
     #expect(session.consumeDeferredKeyboardActionIfReady() == nil)
     session.noteCueReelMotion(false)
     let execution = try #require(session.consumeDeferredKeyboardActionIfReady())
-    #expect(execution.action == .shiori)
+    #expect(execution.action == .excerpt)
     #expect(execution.context.cue.ordinal == 13)
     #expect(execution.context.cue == session.currentSnapshot?.selectedCue)
     #expect(session.pendingKeyboardAction == nil)
@@ -679,11 +679,11 @@ func subtitleFocusImmediateKeyboardActionFreezesNavigationUntilFinished() throws
         token: session.token
     ))
 
-    guard case .ready(let execution) = session.requestKeyboardAction(.shiori) else {
+    guard case .ready(let execution) = session.requestKeyboardAction(.excerpt) else {
         Issue.record("Expected the idle keyboard action to be ready")
         return
     }
-    #expect(execution.action == .shiori)
+    #expect(execution.action == .excerpt)
     #expect(execution.context.cue.ordinal == 12)
     #expect(execution.generation == 1)
     #expect(session.activeKeyboardAction == execution)

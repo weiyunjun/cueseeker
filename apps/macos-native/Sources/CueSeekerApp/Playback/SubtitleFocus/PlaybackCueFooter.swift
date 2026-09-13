@@ -70,10 +70,10 @@ struct PlaybackCueFooterAction: Identifiable {
     let id: String
     let title: String
     let keys: PlaybackCueFooterKeys
-    /// Whether the action hangs the Shiori destination menu off its button
+    /// Whether the action hangs the Excerpt destination menu off its button
     /// rather than finishing on its own. The button then takes its Open
     /// appearance while the menu is up.
-    var opensShioriDestinationMenu = false
+    var opensExcerptDestinationMenu = false
     let perform: () -> Void
 
     /// The four cue actions shared by Current, the subtitle Playlist and the
@@ -84,11 +84,11 @@ struct PlaybackCueFooterAction: Identifiable {
     ) -> [Self] {
         [
             Self(
-                id: "shiori",
-                title: L("playback.save_to_shiori"),
-                keys: .shortcut(.saveToShiori),
-                opensShioriDestinationMenu: true,
-                perform: { request(.shiori) }
+                id: "excerpt",
+                title: L("playback.save_to_excerpt"),
+                keys: .shortcut(.saveToExcerpt),
+                opensExcerptDestinationMenu: true,
+                perform: { request(.excerpt) }
             ),
             Self(
                 id: "copy-cue-text",
@@ -165,16 +165,16 @@ struct PlaybackCueFooterHeightKey: PreferenceKey {
     }
 }
 
-/// The open `Save to Shiori` menu: the footer it hangs off, the cue it saves,
+/// The open `Save to Excerpt` menu: the footer it hangs off, the cue it saves,
 /// and the lists it offers. The lists are read once, when the menu opens;
 /// creating one closes the menu, so the snapshot cannot go stale while it is up.
-struct PlaybackShioriDestinationMenu: Equatable {
+struct PlaybackExcerptDestinationMenu: Equatable {
     let surface: PlaybackCueFooterSurface
     let cueID: Int64
     let destinations: [SubtitleTableRowActionDestination]
 }
 
-private struct PlaybackShioriMenuAnchorKey: PreferenceKey {
+private struct PlaybackExcerptMenuAnchorKey: PreferenceKey {
     static let defaultValue: Anchor<CGRect>? = nil
 
     static func reduce(
@@ -222,7 +222,7 @@ struct PlaybackCueFooter: View {
                         surface: surface,
                         action: action,
                         shortcuts: appState.settings.playbackShortcuts,
-                        isOpen: action.opensShioriDestinationMenu
+                        isOpen: action.opensExcerptDestinationMenu
                             && openMenu != nil
                     )
                 }
@@ -241,7 +241,7 @@ struct PlaybackCueFooter: View {
             }
         }
         .background(MenuAnchorProbe(handle: hostAnchor))
-        .overlayPreferenceValue(PlaybackShioriMenuAnchorKey.self) { anchor in
+        .overlayPreferenceValue(PlaybackExcerptMenuAnchorKey.self) { anchor in
             destinationMenuOverlay(anchor: anchor)
         }
         .onChange(of: openMenu) { menu in
@@ -252,7 +252,7 @@ struct PlaybackCueFooter: View {
             // or closing the surface takes the footer away, and the menu with
             // it.
             if openMenu != nil {
-                playback.closeShioriDestinationMenu()
+                playback.closeExcerptDestinationMenu()
             }
         }
         .interfaceLayer(surface.interfaceLayer)
@@ -262,8 +262,8 @@ struct PlaybackCueFooter: View {
     /// The destination menu, but only while it belongs to this footer: the
     /// Command Panel's footer and the Overlay's are both mounted when the panel
     /// is stacked above the Overlay.
-    private var openMenu: PlaybackShioriDestinationMenu? {
-        guard let menu = playback.shioriDestinationMenu,
+    private var openMenu: PlaybackExcerptDestinationMenu? {
+        guard let menu = playback.excerptDestinationMenu,
               menu.surface == surface
         else {
             return nil
@@ -293,7 +293,7 @@ struct PlaybackCueFooter: View {
                     MenuGateClientView(
                         gate: playback.interfaceLayers.menuGate,
                         owner: surface.interfaceLayer,
-                        kind: .shioriDestinationMenu,
+                        kind: .excerptDestinationMenu,
                         menuFrame: menuFrame,
                         // A press on the button is left to the button, which
                         // closes the menu it opened.
@@ -307,17 +307,17 @@ struct PlaybackCueFooter: View {
                         },
                         dismiss: { _ in
                             DispatchQueue.main.async {
-                                playback.closeShioriDestinationMenu()
+                                playback.closeExcerptDestinationMenu()
                             }
                         }
                     )
                     .frame(width: proxy.size.width, height: proxy.size.height)
                     .allowsHitTesting(false)
 
-                    ShioriDestinationMenuSurfaceHost(
-                        menu: ShioriDestinationMenu(
+                    ExcerptDestinationMenuSurfaceHost(
+                        menu: ExcerptDestinationMenu(
                             destinations: menu.destinations,
-                            highlight: playback.shioriDestinationMenuHighlight,
+                            highlight: playback.excerptDestinationMenuHighlight,
                             maximumHeight: placement.maximumHeight,
                             onSelect: { destination in
                                 saveToDestination(destination, menu: menu)
@@ -385,7 +385,7 @@ struct PlaybackCueFooter: View {
     }
 
     private func measureDestinationMenu(
-        _ menu: PlaybackShioriDestinationMenu?
+        _ menu: PlaybackExcerptDestinationMenu?
     ) {
         guard let menu else {
             menuSize = nil
@@ -405,13 +405,13 @@ struct PlaybackCueFooter: View {
     }
 
     private func measuredDestinationMenuSize(
-        _ menu: PlaybackShioriDestinationMenu,
+        _ menu: PlaybackExcerptDestinationMenu,
         maximumHeight: CGFloat
     ) -> CGSize {
         let host = NSHostingView(
-            rootView: ShioriDestinationMenu(
+            rootView: ExcerptDestinationMenu(
                 destinations: menu.destinations,
-                highlight: playback.shioriDestinationMenuHighlight,
+                highlight: playback.excerptDestinationMenuHighlight,
                 maximumHeight: maximumHeight,
                 onSelect: { _ in },
                 onCreateList: {}
@@ -422,35 +422,35 @@ struct PlaybackCueFooter: View {
     }
 
     /// Arrows, Enter and Esc belong to the open menu; the surface under it must
-    /// not respond to any of them. The Save to Shiori key belongs to it too: a
+    /// not respond to any of them. The Save to Excerpt key belongs to it too: a
     /// plain key stops at an open menu, so the key that opened this one has to
     /// close it from here rather than by reaching the footer again.
     private func handleDestinationMenuKey(
         _ keyCode: UInt16,
         isRepeat: Bool,
-        menu: PlaybackShioriDestinationMenu
+        menu: PlaybackExcerptDestinationMenu
     ) -> Bool {
-        let saveToShioriKeyCode = appState.settings.playbackShortcuts.keymap
-            .effectiveKey(for: .saveToShiori)?
+        let saveToExcerptKeyCode = appState.settings.playbackShortcuts.keymap
+            .effectiveKey(for: .saveToExcerpt)?
             .keyCode
-        if keyCode == 53 || keyCode == saveToShioriKeyCode {
+        if keyCode == 53 || keyCode == saveToExcerptKeyCode {
             if !isRepeat {
-                playback.closeShioriDestinationMenu()
+                playback.closeExcerptDestinationMenu()
             }
             return true
         }
         switch keyCode {
         case 126:
-            playback.shioriDestinationMenuHighlight.moveHighlight(by: -1)
+            playback.excerptDestinationMenuHighlight.moveHighlight(by: -1)
             return true
         case 125:
-            playback.shioriDestinationMenuHighlight.moveHighlight(by: 1)
+            playback.excerptDestinationMenuHighlight.moveHighlight(by: 1)
             return true
         case 123, 124:
             return true
         case 36, 76:
             if !isRepeat,
-               let position = playback.shioriDestinationMenuHighlight
+               let position = playback.excerptDestinationMenuHighlight
                    .highlightedPosition {
                 activateDestination(at: position, menu: menu)
             }
@@ -462,7 +462,7 @@ struct PlaybackCueFooter: View {
 
     private func activateDestination(
         at position: Int,
-        menu: PlaybackShioriDestinationMenu
+        menu: PlaybackExcerptDestinationMenu
     ) {
         if menu.destinations.indices.contains(position) {
             saveToDestination(menu.destinations[position], menu: menu)
@@ -473,10 +473,10 @@ struct PlaybackCueFooter: View {
 
     private func saveToDestination(
         _ destination: SubtitleTableRowActionDestination,
-        menu: PlaybackShioriDestinationMenu
+        menu: PlaybackExcerptDestinationMenu
     ) {
-        playback.closeShioriDestinationMenu()
-        appState.saveShiori(
+        playback.closeExcerptDestinationMenu()
+        appState.saveExcerpt(
             cueID: menu.cueID,
             toListID: destination.id,
             listName: destination.title,
@@ -484,11 +484,11 @@ struct PlaybackCueFooter: View {
         )
     }
 
-    private func createDestinationList(menu: PlaybackShioriDestinationMenu) {
-        playback.closeShioriDestinationMenu()
-        appState.beginCreatingShioriList(
-            pendingTransfer: ShioriListEditorPendingTransfer(
-                action: .saveToShiori,
+    private func createDestinationList(menu: PlaybackExcerptDestinationMenu) {
+        playback.closeExcerptDestinationMenu()
+        appState.beginCreatingExcerptList(
+            pendingTransfer: ExcerptListEditorPendingTransfer(
+                action: .saveToExcerpt,
                 target: .cue(menu.cueID),
                 report: .playbackFeedback
             )
@@ -560,10 +560,10 @@ private struct PlaybackCueFooterActionButton: View {
         .focusable(false)
         .onPointerHover { isHovered = $0 }
         .anchorPreference(
-            key: PlaybackShioriMenuAnchorKey.self,
+            key: PlaybackExcerptMenuAnchorKey.self,
             value: .bounds
         ) { anchor in
-            action.opensShioriDestinationMenu ? anchor : nil
+            action.opensExcerptDestinationMenu ? anchor : nil
         }
         .accessibilityIdentifier("playback-cue-footer-action-\(action.id)")
     }
@@ -685,8 +685,8 @@ private struct PlaybackCueFooterActionFlow: Layout {
 /// cue list underneath — a surface drawn straight into the footer's overlay has
 /// no view of its own at the place it is drawn, so the list below owned that
 /// wheel.
-private struct ShioriDestinationMenuSurfaceHost: NSViewRepresentable {
-    let menu: ShioriDestinationMenu
+private struct ExcerptDestinationMenuSurfaceHost: NSViewRepresentable {
+    let menu: ExcerptDestinationMenu
 
     func makeNSView(context _: Context) -> MenuHostingView {
         MenuHostingView(rootView: AnyView(menu))

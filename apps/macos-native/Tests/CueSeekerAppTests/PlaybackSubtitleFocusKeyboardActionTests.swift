@@ -187,11 +187,11 @@ func playbackOverlayEditCollageAndCommandPanelFollowTheirReboundKeys() async thr
         #expect(app.handlePlaybackKeyDown(keyCode: editKey.keyCode, modifierFlagsRawValue: 0))
         #expect(!session.isEditingCollage)
 
-        // Save to Shiori on the same key: the two conflict and it runs neither.
-        app.settings.playbackShortcuts.set(editKey, for: .saveToShiori)
+        // Save to Excerpt on the same key: the two conflict and it runs neither.
+        app.settings.playbackShortcuts.set(editKey, for: .saveToExcerpt)
         #expect(app.handlePlaybackKeyDown(keyCode: editKey.keyCode, modifierFlagsRawValue: 0))
         #expect(!session.isEditingCollage)
-        #expect(app.playback.shioriDestinationMenu == nil)
+        #expect(app.playback.excerptDestinationMenu == nil)
 
         app.playback.isPlaybackSurfaceExpanded = true
         #expect(app.handlePlaybackKeyDown(keyCode: 40, modifierFlagsRawValue: 0))
@@ -672,7 +672,7 @@ func playbackCommandPanelRootNavigatesAndOpensRecentPages() async throws {
             modifierFlagsRawValue: 0,
             textInputState: editableInput
         ))
-        #expect(app.playback.commandPanelPresentation?.page == .recentShioris)
+        #expect(app.playback.commandPanelPresentation?.page == .recentExcerpts)
 
         #expect(app.handlePlaybackKeyDown(
             keyCode: 53,
@@ -994,16 +994,16 @@ func playbackCommandPanelSearchSavesSelectedCue() async throws {
 
         #expect(app.handlePlaybackKeyDown(keyCode: 1, modifierFlagsRawValue: 0))
 
-        let menu = try #require(app.playback.shioriDestinationMenu)
+        let menu = try #require(app.playback.excerptDestinationMenu)
         #expect(menu.surface == .commandPanel)
         #expect(menu.cueID == 1)
-        #expect(try saveThroughShioriDestinationMenu(app))
+        #expect(try saveThroughExcerptDestinationMenu(app))
 
-        let savedShiori = try? app.shioriDatabase?.shiori(
+        let savedExcerpt = try? app.excerptDatabase?.excerpt(
             cueID: 1,
-            listID: ShioriListIdentity.defaultListID
+            listID: ExcerptListIdentity.defaultListID
         )
-        #expect(savedShiori != nil)
+        #expect(savedExcerpt != nil)
         #expect(app.playback.commandPanelPresentation?.page == .searchResults)
     }
 }
@@ -1050,9 +1050,9 @@ func subtitleFocusCopyKeyCopiesExactCueAndKeepsPausedSession() async throws {
 
 @MainActor
 @Test
-func subtitleFocusShioriKeySavesIdempotentlyAndKeepsPausedSession() async throws {
+func subtitleFocusExcerptKeySavesIdempotentlyAndKeepsPausedSession() async throws {
     try await withKeyboardActionApp { app, database in
-        let shioriDatabase = try #require(app.shioriDatabase)
+        let excerptDatabase = try #require(app.excerptDatabase)
         let session = try #require(app.playback.beginSubtitleFocusSession(
             openSnapshot: keyboardActionOpenSnapshot(wasPlaying: true)
         ))
@@ -1060,30 +1060,30 @@ func subtitleFocusShioriKeySavesIdempotentlyAndKeepsPausedSession() async throws
             lines: ["  exact first  ", "", "exact third"]
         )
         #expect(session.publishInitialSnapshot(snapshot, token: session.token))
-        let tableRevisionBefore = app.shiori.tableDataRevision
+        let tableRevisionBefore = app.excerpt.tableDataRevision
 
         #expect(app.handlePlaybackKeyDown(keyCode: 1, modifierFlagsRawValue: 0))
         #expect(session.activeKeyboardAction == nil)
-        #expect(try saveThroughShioriDestinationMenu(app))
+        #expect(try saveThroughExcerptDestinationMenu(app))
 
-        let saved = try #require(try shioriDatabase.shiori(
+        let saved = try #require(try excerptDatabase.excerpt(
             subtitleFile: URL(fileURLWithPath: keyboardActionSource().subtitlePath),
             startMilliseconds: 12_000,
             endMilliseconds: 12_900
         ))
         #expect(saved.content == "keyboard action cue 12")
-        #expect(try shioriDatabase.shioriCount() == 1)
-        #expect(app.shiori.tableDataRevision == tableRevisionBefore + 1)
+        #expect(try excerptDatabase.excerptCount() == 1)
+        #expect(app.excerpt.tableDataRevision == tableRevisionBefore + 1)
         #expect(app.playback.subtitleFocusSession === session)
         #expect(session.currentSnapshot?.selectedOrdinal == 12)
         #expect(app.playback.playbackStatus == .paused)
 
         // The same cue and the same list a second time writes nothing more.
         #expect(app.handlePlaybackKeyDown(keyCode: 1, modifierFlagsRawValue: 0))
-        #expect(!(try saveThroughShioriDestinationMenu(app)))
+        #expect(!(try saveThroughExcerptDestinationMenu(app)))
 
-        #expect(try shioriDatabase.shioriCount() == 1)
-        #expect(app.shiori.tableDataRevision == tableRevisionBefore + 1)
+        #expect(try excerptDatabase.excerptCount() == 1)
+        #expect(app.excerpt.tableDataRevision == tableRevisionBefore + 1)
         #expect(app.playback.subtitleFocusSession === session)
         #expect(app.playback.playbackStatus == .paused)
     }
@@ -1091,9 +1091,9 @@ func subtitleFocusShioriKeySavesIdempotentlyAndKeepsPausedSession() async throws
 
 @MainActor
 @Test
-func subtitleFocusShioriIdentityDistinguishesSameTimeSiblingCues() async throws {
+func subtitleFocusExcerptIdentityDistinguishesSameTimeSiblingCues() async throws {
     try await withKeyboardActionApp { app, database in
-        let shioriDatabase = try #require(app.shioriDatabase)
+        let excerptDatabase = try #require(app.excerptDatabase)
         let session = try #require(app.playback.beginSubtitleFocusSession(
             openSnapshot: keyboardActionOpenSnapshot(wasPlaying: false)
         ))
@@ -1120,28 +1120,28 @@ func subtitleFocusShioriIdentityDistinguishesSameTimeSiblingCues() async throws 
             cues: cues
         )
         #expect(session.publishInitialSnapshot(snapshot, token: session.token))
-        let tableRevisionBefore = app.shiori.tableDataRevision
+        let tableRevisionBefore = app.excerpt.tableDataRevision
 
         #expect(app.handlePlaybackKeyDown(keyCode: 1, modifierFlagsRawValue: 0))
-        #expect(try saveThroughShioriDestinationMenu(app))
-        #expect(app.shiori.tableDataRevision == tableRevisionBefore + 1)
+        #expect(try saveThroughExcerptDestinationMenu(app))
+        #expect(app.excerpt.tableDataRevision == tableRevisionBefore + 1)
         #expect(session.commitNativeReelSelection(ordinal: 13))
 
         #expect(app.handlePlaybackKeyDown(keyCode: 1, modifierFlagsRawValue: 0))
-        #expect(try saveThroughShioriDestinationMenu(app))
-        #expect(app.shiori.tableDataRevision == tableRevisionBefore + 2)
+        #expect(try saveThroughExcerptDestinationMenu(app))
+        #expect(app.excerpt.tableDataRevision == tableRevisionBefore + 2)
 
-        let savedFirst = try #require(try shioriDatabase.shiori(cueID: firstCue.id))
-        let savedSecond = try #require(try shioriDatabase.shiori(cueID: secondCue.id))
+        let savedFirst = try #require(try excerptDatabase.excerpt(cueID: firstCue.id))
+        let savedSecond = try #require(try excerptDatabase.excerpt(cueID: secondCue.id))
         #expect(savedFirst.id != savedSecond.id)
         #expect(savedFirst.content == "keyboard action cue 12")
         #expect(savedSecond.content == "keyboard action cue 13")
-        #expect(try shioriDatabase.shioriCount() == 2)
+        #expect(try excerptDatabase.excerptCount() == 2)
 
         #expect(app.handlePlaybackKeyDown(keyCode: 1, modifierFlagsRawValue: 0))
-        #expect(!(try saveThroughShioriDestinationMenu(app)))
-        #expect(try shioriDatabase.shioriCount() == 2)
-        #expect(app.shiori.tableDataRevision == tableRevisionBefore + 2)
+        #expect(!(try saveThroughExcerptDestinationMenu(app)))
+        #expect(try excerptDatabase.excerptCount() == 2)
+        #expect(app.excerpt.tableDataRevision == tableRevisionBefore + 2)
         #expect(session.currentSnapshot?.selectedCue == secondCue)
         #expect(app.playback.playbackStatus == .paused)
     }
@@ -1149,9 +1149,9 @@ func subtitleFocusShioriIdentityDistinguishesSameTimeSiblingCues() async throws 
 
 @MainActor
 @Test
-func subtitleFocusDownThenShioriSavesTheFinalSettledCue() async throws {
+func subtitleFocusDownThenExcerptSavesTheFinalSettledCue() async throws {
     try await withKeyboardActionApp { app, database in
-        let shioriDatabase = try #require(app.shioriDatabase)
+        let excerptDatabase = try #require(app.excerptDatabase)
         let session = try #require(app.playback.beginSubtitleFocusSession(
             openSnapshot: keyboardActionOpenSnapshot(wasPlaying: false)
         ))
@@ -1162,7 +1162,7 @@ func subtitleFocusDownThenShioriSavesTheFinalSettledCue() async throws {
 
         #expect(session.requestKeyboardNavigation(.forward))
         let navigation = try #require(session.keyboardNavigationRequest)
-        #expect(session.requestKeyboardAction(.shiori) == .deferred)
+        #expect(session.requestKeyboardAction(.excerpt) == .deferred)
         session.noteCueReelMotion(true)
         #expect(session.commitKeyboardNavigation(navigation))
         session.noteCueReelMotion(false)
@@ -1173,10 +1173,10 @@ func subtitleFocusDownThenShioriSavesTheFinalSettledCue() async throws {
         #expect(execution.context.cue.ordinal == 13)
         #expect(app.executePlaybackSubtitleFocusAction(execution))
         #expect(session.activeKeyboardAction == nil)
-        #expect(try saveThroughShioriDestinationMenu(app))
+        #expect(try saveThroughExcerptDestinationMenu(app))
 
-        #expect(try shioriDatabase.shiori(cueID: 13) == nil)
-        let saved = try #require(try shioriDatabase.shiori(cueID: 14))
+        #expect(try excerptDatabase.excerpt(cueID: 13) == nil)
+        let saved = try #require(try excerptDatabase.excerpt(cueID: 14))
         #expect(saved.content == "keyboard action cue 13")
         #expect(app.playback.subtitleFocusSession === session)
         #expect(session.currentSnapshot?.selectedOrdinal == 13)
@@ -1186,9 +1186,9 @@ func subtitleFocusDownThenShioriSavesTheFinalSettledCue() async throws {
 
 @MainActor
 @Test
-func playbackPlaylistCopyAndShioriTargetTheSettledPrimaryCue() async throws {
+func playbackPlaylistCopyAndExcerptTargetTheSettledPrimaryCue() async throws {
     try await withKeyboardActionApp { app, database in
-        let shioriDatabase = try #require(app.shioriDatabase)
+        let excerptDatabase = try #require(app.excerptDatabase)
         let result = keyboardActionPlaylistSearchResult(
             id: 22,
             videoPath: keyboardActionSource().videoPath,
@@ -1224,8 +1224,8 @@ func playbackPlaylistCopyAndShioriTargetTheSettledPrimaryCue() async throws {
 
         #expect(app.handlePlaybackKeyDown(keyCode: 1, modifierFlagsRawValue: 0))
         #expect(session.activeKeyboardAction == nil)
-        #expect(try saveThroughShioriDestinationMenu(app))
-        let saved = try #require(try shioriDatabase.shiori(
+        #expect(try saveThroughExcerptDestinationMenu(app))
+        let saved = try #require(try excerptDatabase.excerpt(
             subtitleFile: URL(fileURLWithPath: result.subtitlePath),
             startMilliseconds: result.startMilliseconds,
             endMilliseconds: result.endMilliseconds
@@ -1245,23 +1245,23 @@ func playbackPlaylistCopyAndShioriTargetTheSettledPrimaryCue() async throws {
 
 @MainActor
 @Test
-func playbackPlaylistShioriItemWithoutACueIdentityOpensNoDestinationMenu() async throws {
+func playbackPlaylistExcerptItemWithoutACueIdentityOpensNoDestinationMenu() async throws {
     try await withKeyboardActionApp { app, database in
-        let shioriDatabase = try #require(app.shioriDatabase)
-        let shiori = Shiori(
+        let excerptDatabase = try #require(app.excerptDatabase)
+        let excerpt = Excerpt(
             id: 801,
-            subtitlePath: "/subtitle/playlist-shiori.ass",
+            subtitlePath: "/subtitle/playlist-excerpt.ass",
             subtitleFormat: .ass,
-            videoPath: "/video/playlist-shiori.mkv",
-            videoName: "playlist-shiori.mkv",
+            videoPath: "/video/playlist-excerpt.mkv",
+            videoName: "playlist-excerpt.mkv",
             startMilliseconds: 31_000,
             endMilliseconds: 31_900,
-            content: "existing playlist shiori",
+            content: "existing playlist excerpt",
             isValid: true,
             createdAt: "2026-07-15T00:00:00Z"
         )
         let item = PlaybackPlaylistItem(
-            shiori: shiori,
+            excerpt: excerpt,
             cuePresentation: nil,
             ordinal: 0
         )
@@ -1274,9 +1274,9 @@ func playbackPlaylistShioriItemWithoutACueIdentityOpensNoDestinationMenu() async
 
         // Nothing identifies the cue, so there is no destination to offer and
         // nothing to write.
-        #expect(app.playback.shioriDestinationMenu == nil)
+        #expect(app.playback.excerptDestinationMenu == nil)
         #expect(app.playback.playbackViewModel?.feedback?.text == "No Subtitle")
-        #expect(try shioriDatabase.shioriCount() == 0)
+        #expect(try excerptDatabase.excerptCount() == 0)
         #expect(session.activeKeyboardAction == nil)
         #expect(app.playback.subtitleFocusSession === session)
         #expect(window.selectedOrdinal == 0)
@@ -1382,7 +1382,7 @@ func playbackOverlayPlayActionUsesExactCueThenDestroysSession() async throws {
 
 @MainActor
 @Test
-func subtitleFocusShioriOpensTheDestinationMenuAndSavingRemembersTheList() async throws {
+func subtitleFocusExcerptOpensTheDestinationMenuAndSavingRemembersTheList() async throws {
     try await withKeyboardActionApp { app, _ in
         let session = try #require(app.playback.beginSubtitleFocusSession(
             openSnapshot: keyboardActionOpenSnapshot(wasPlaying: false)
@@ -1392,17 +1392,17 @@ func subtitleFocusShioriOpensTheDestinationMenuAndSavingRemembersTheList() async
             token: session.token
         ))
         let execution: PlaybackSubtitleFocusActionExecution
-        switch session.requestKeyboardAction(.shiori) {
+        switch session.requestKeyboardAction(.excerpt) {
         case .ready(let readyExecution):
             execution = readyExecution
         case .deferred, .rejected:
-            Issue.record("Expected an immediately ready Shiori action")
+            Issue.record("Expected an immediately ready Excerpt action")
             return
         }
 
         #expect(app.executePlaybackSubtitleFocusAction(execution))
 
-        let menu = try #require(app.playback.shioriDestinationMenu)
+        let menu = try #require(app.playback.excerptDestinationMenu)
         #expect(menu.surface == .playbackOverlay)
         #expect(menu.cueID == execution.context.cue.id)
         // Nothing is written by opening the menu, and the player says nothing
@@ -1410,30 +1410,30 @@ func subtitleFocusShioriOpensTheDestinationMenuAndSavingRemembersTheList() async
         #expect(app.playback.playbackViewModel?.feedback == nil)
 
         // The same key again closes the menu it opened.
-        switch session.requestKeyboardAction(.shiori) {
+        switch session.requestKeyboardAction(.excerpt) {
         case .ready(let readyExecution):
             #expect(app.executePlaybackSubtitleFocusAction(readyExecution))
         case .deferred, .rejected:
-            Issue.record("Expected the second Shiori action to be ready")
+            Issue.record("Expected the second Excerpt action to be ready")
             return
         }
-        #expect(app.playback.shioriDestinationMenu == nil)
+        #expect(app.playback.excerptDestinationMenu == nil)
 
-        let tableRevisionBefore = app.shiori.tableDataRevision
-        app.shiori.markTableRowsLoaded(totalSavedRowCount: 7)
+        let tableRevisionBefore = app.excerpt.tableDataRevision
+        app.excerpt.markTableRowsLoaded(totalSavedRowCount: 7)
 
-        #expect(app.saveShiori(
+        #expect(app.saveExcerpt(
             cueID: execution.context.cue.id,
-            toListID: ShioriListIdentity.defaultListID,
-            listName: app.shiori.listName(id: ShioriListIdentity.defaultListID),
+            toListID: ExcerptListIdentity.defaultListID,
+            listName: app.excerpt.listName(id: ExcerptListIdentity.defaultListID),
             report: .playbackFeedback
         ))
 
-        #expect(app.shiori.tableDataRevision == tableRevisionBefore + 1)
-        #expect(app.shiori.tableRowsNeedReload)
-        #expect(app.shiori.tableTotalSavedRowCount == 7)
-        #expect(app.shiori.recentSaveListID == ShioriListIdentity.defaultListID)
-        #expect(app.settings.recentShioriSaveListID == ShioriListIdentity.defaultListID)
+        #expect(app.excerpt.tableDataRevision == tableRevisionBefore + 1)
+        #expect(app.excerpt.tableRowsNeedReload)
+        #expect(app.excerpt.tableTotalSavedRowCount == 7)
+        #expect(app.excerpt.recentSaveListID == ExcerptListIdentity.defaultListID)
+        #expect(app.settings.recentExcerptSaveListID == ExcerptListIdentity.defaultListID)
     }
 }
 
@@ -1441,18 +1441,18 @@ func subtitleFocusShioriOpensTheDestinationMenuAndSavingRemembersTheList() async
 /// carries is written to that list through the one saver every surface shares.
 @MainActor
 @discardableResult
-private func saveThroughShioriDestinationMenu(
+private func saveThroughExcerptDestinationMenu(
     _ app: AppCoordinator,
-    toListID listID: Int64 = ShioriListIdentity.defaultListID
+    toListID listID: Int64 = ExcerptListIdentity.defaultListID
 ) throws -> Bool {
-    let menu = try #require(app.playback.shioriDestinationMenu)
-    let saved = app.saveShiori(
+    let menu = try #require(app.playback.excerptDestinationMenu)
+    let saved = app.saveExcerpt(
         cueID: menu.cueID,
         toListID: listID,
-        listName: app.shiori.listName(id: listID),
+        listName: app.excerpt.listName(id: listID),
         report: .playbackFeedback
     )
-    app.playback.closeShioriDestinationMenu()
+    app.playback.closeExcerptDestinationMenu()
     return saved
 }
 
@@ -1600,8 +1600,8 @@ private extension PlaybackPlaylistItemTarget {
         switch self {
         case .search:
             .search
-        case .shiori:
-            .shiori
+        case .excerpt:
+            .excerpt
         }
     }
 }

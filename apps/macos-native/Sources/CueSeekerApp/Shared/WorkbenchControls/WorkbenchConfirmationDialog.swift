@@ -16,7 +16,7 @@ struct WorkbenchConfirmationAction: Identifiable {
     let action: () -> Void
 }
 
-/// One open Confirmation. It is a session like the Edit Cover and Shiori List
+/// One open Confirmation. It is a session like the Edit Cover and Excerpt List
 /// Editor sessions so all three dialogs are presented the same way: the layer
 /// that raises the confirmation writes the session, and the layer that
 /// presents it owns the dimming and the input barrier.

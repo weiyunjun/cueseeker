@@ -6,7 +6,7 @@ import CueSeekerCore
 import CueSeekerPlayback
 
 /// Workflow coordinator. Holds references to the per-domain stores (settings,
-/// indexing, workbenchLayout, shiori, library, search, playback) and owns the
+/// indexing, workbenchLayout, excerpt, library, search, playback) and owns the
 /// orchestration methods that span multiple domains. Per-domain @Published
 /// state and derived display properties live on the respective stores;
 /// AppCoordinator's own @Published surface is intentionally minimal
@@ -27,7 +27,7 @@ final class AppCoordinator: ObservableObject {
     let uiProbeScope: String
     let settings: SettingsStore
     let indexing: IndexingStore
-    let shiori: ShioriStore
+    let excerpt: ExcerptStore
     let library: LibraryStore
     let search: SearchStore
     let cueContent: CueContentStore
@@ -47,10 +47,10 @@ final class AppCoordinator: ObservableObject {
     let libraryDatabase: LibraryDatabase?
     let indexedContentDatabase: IndexedContentDatabase?
     let libraryCoverDatabase: LibraryCoverDatabase?
-    let shioriDatabase: ShioriDatabase?
+    let excerptDatabase: ExcerptDatabase?
     let taskRecordDatabase: TaskRecordDatabase?
     let libraryUserCoverService: LibraryUserCoverService?
-    let shioriListCoverStorage: ShioriListCoverStorage
+    let excerptListCoverStorage: ExcerptListCoverStorage
     let workbenchLayout: WorkbenchLayoutState
     let playbackFullscreenManager = PlaybackFullscreenManager()
     var playbackPlayer: PlaybackPlayer? {
@@ -76,13 +76,13 @@ final class AppCoordinator: ObservableObject {
         }
     }
 
-    static func makeShioriFileGroups(
-        from shioris: [Shiori],
+    static func makeExcerptFileGroups(
+        from excerpts: [Excerpt],
         collapsedGroupPaths: Set<String>
-    ) -> [ShioriFileGroup] {
-        let shiorisByPath = Dictionary(grouping: shioris, by: \.subtitlePath)
+    ) -> [ExcerptFileGroup] {
+        let excerptsByPath = Dictionary(grouping: excerpts, by: \.subtitlePath)
         let displayTitlesByPath = Dictionary(
-            uniqueKeysWithValues: shiorisByPath.keys.map { path in
+            uniqueKeysWithValues: excerptsByPath.keys.map { path in
                 (
                     path,
                     SubtitleDisplayTitleResolver.displayTitle(forSubtitlePath: path)
@@ -90,7 +90,7 @@ final class AppCoordinator: ObservableObject {
             }
         )
 
-        return shiorisByPath.keys.sorted { lhs, rhs in
+        return excerptsByPath.keys.sorted { lhs, rhs in
             let lhsDisplayTitle = displayTitlesByPath[lhs] ?? URL(fileURLWithPath: lhs).lastPathComponent
             let rhsDisplayTitle = displayTitlesByPath[rhs] ?? URL(fileURLWithPath: rhs).lastPathComponent
             let displayTitleComparison = SubtitleDisplayTitleResolver.compareDisplayTitles(lhsDisplayTitle, rhsDisplayTitle)
@@ -101,10 +101,10 @@ final class AppCoordinator: ObservableObject {
             return lhs.localizedStandardCompare(rhs) == .orderedAscending
         }
         .map { path in
-            ShioriFileGroup(
+            ExcerptFileGroup(
                 subtitlePath: path,
                 subtitleDisplayTitle: displayTitlesByPath[path] ?? URL(fileURLWithPath: path).lastPathComponent,
-                shioris: (shiorisByPath[path] ?? []).sorted(by: Self.shioriSort),
+                excerpts: (excerptsByPath[path] ?? []).sorted(by: Self.excerptSort),
                 isCollapsed: collapsedGroupPaths.contains(path)
             )
         }
@@ -123,27 +123,27 @@ final class AppCoordinator: ObservableObject {
     }
 
     var currentPlaybackVideoPath: String? {
-        library.selectedLibraryVideo?.videoPath ?? search.selectedSearchResult?.videoPath ?? shiori.selectedShiori?.videoPath
+        library.selectedLibraryVideo?.videoPath ?? search.selectedSearchResult?.videoPath ?? excerpt.selectedExcerpt?.videoPath
     }
 
     var currentPlaybackSubtitlePath: String? {
-        library.selectedLibraryVideo?.subtitlePath ?? search.selectedSearchResult?.subtitlePath ?? shiori.selectedShiori?.subtitlePath
+        library.selectedLibraryVideo?.subtitlePath ?? search.selectedSearchResult?.subtitlePath ?? excerpt.selectedExcerpt?.subtitlePath
     }
 
     var currentPlaybackSubtitleFileID: Int64? {
         library.selectedLibraryVideo?.subtitleFileID
             ?? search.selectedSearchResult?.subtitleFileID
-            ?? shiori.selectedShiori?.subtitleFileID
+            ?? excerpt.selectedExcerpt?.subtitleFileID
     }
 
     var currentPlaybackSubtitleFormat: SubtitleFormat? {
-        library.selectedLibraryVideo?.subtitleFormat ?? search.selectedSearchResult?.subtitleFormat ?? shiori.selectedShiori?.subtitleFormat
+        library.selectedLibraryVideo?.subtitleFormat ?? search.selectedSearchResult?.subtitleFormat ?? excerpt.selectedExcerpt?.subtitleFormat
     }
 
     var currentPlaybackTitle: String {
         library.selectedLibraryVideo?.videoName
             ?? search.selectedSearchResult?.videoName
-            ?? shiori.selectedShiori?.videoName
+            ?? excerpt.selectedExcerpt?.videoName
             ?? L("playback.no_video_selected")
     }
 
@@ -194,16 +194,16 @@ final class AppCoordinator: ObservableObject {
     }
 
     func playbackDisplayTitle(
-        for selectedShiori: Shiori,
+        for selectedExcerpt: Excerpt,
         providedDisplayTitle: String? = nil
     ) -> String {
-        let residentDisplayTitle = shiori.residentRelations
-            .first { $0.id == selectedShiori.id }
+        let residentDisplayTitle = excerpt.residentRelations
+            .first { $0.id == selectedExcerpt.id }
             .flatMap { cueContent.content(for: $0.cueID)?.displayTitle }
         return playbackDisplayTitle(
             providedDisplayTitle: providedDisplayTitle,
             fallback: residentDisplayTitle
-            ?? SubtitleDisplayTitleResolver.displayTitle(forSubtitlePath: selectedShiori.subtitlePath)
+            ?? SubtitleDisplayTitleResolver.displayTitle(forSubtitlePath: selectedExcerpt.subtitlePath)
         )
     }
 
@@ -305,8 +305,8 @@ final class AppCoordinator: ObservableObject {
             return canOpenPreviousSearchResult
         case .library:
             return canOpenPreviousLibraryVideo
-        case .shiori:
-            return canOpenPreviousShiori
+        case .excerpt:
+            return canOpenPreviousExcerpt
         case .none:
             return false
         }
@@ -318,8 +318,8 @@ final class AppCoordinator: ObservableObject {
             openAdjacentSearchResult(.previous)
         case .library:
             openPreviousLibraryVideo()
-        case .shiori:
-            openPreviousShiori()
+        case .excerpt:
+            openPreviousExcerpt()
         case .none:
             break
         }
@@ -331,8 +331,8 @@ final class AppCoordinator: ObservableObject {
             return canOpenNextSearchResult
         case .library:
             return canOpenNextLibraryVideo
-        case .shiori:
-            return canOpenNextShiori
+        case .excerpt:
+            return canOpenNextExcerpt
         case .none:
             return false
         }
@@ -344,8 +344,8 @@ final class AppCoordinator: ObservableObject {
             openAdjacentSearchResult(.next)
         case .library:
             openNextLibraryVideo()
-        case .shiori:
-            openNextShiori()
+        case .excerpt:
+            openNextExcerpt()
         case .none:
             break
         }
@@ -385,7 +385,7 @@ final class AppCoordinator: ObservableObject {
     var startupDatabaseTask: Task<Void, Never>?
     var indexingTask: Task<Void, Never>?
     var folderRemovalTask: Task<Void, Never>?
-    var shioriNeedsReloadAfterIndexedContentMutation = false
+    var excerptNeedsReloadAfterIndexedContentMutation = false
     var libraryTask: Task<Void, Never>?
     var recentWatchingTask: Task<Void, Never>?
     var testRecentWatchingTask: Task<Void, Never>?
@@ -399,10 +399,10 @@ final class AppCoordinator: ObservableObject {
     var libraryDisplayRenditionGeneration = 0
     var libraryCoverImportTask: Task<Void, Never>?
     var libraryCoverSaveTask: Task<Void, Never>?
-    var shioriListCoverImportTask: Task<Void, Never>?
-    var shioriListSaveTask: Task<Void, Never>?
-    var shioriListOverviewTask: Task<Void, Never>?
-    var shioriTableRowsTask: Task<Void, Never>?
+    var excerptListCoverImportTask: Task<Void, Never>?
+    var excerptListSaveTask: Task<Void, Never>?
+    var excerptListOverviewTask: Task<Void, Never>?
+    var excerptTableRowsTask: Task<Void, Never>?
     var libraryPlaybackHistoryTask: Task<Void, Never>?
     var playbackSubtitleFocusInitialLoadTask: Task<Void, Never>?
     var playbackSubtitleFocusCompleteLoadTask: Task<Void, Never>?
@@ -412,8 +412,8 @@ final class AppCoordinator: ObservableObject {
     var databaseCompactionTask: Task<Void, Never>?
     var videoSizeTransitionTask: Task<Void, Never>?
     var windowFrameBeforeUserZoom: NSRect?
-    var shioriPlaybackNavigationScopeIDs: [Int64]?
-    var shioriPlaybackNavigationSnapshot: (currentID: Int64, previousID: Int64?, nextID: Int64?)?
+    var excerptPlaybackNavigationScopeIDs: [Int64]?
+    var excerptPlaybackNavigationSnapshot: (currentID: Int64, previousID: Int64?, nextID: Int64?)?
     var activePlaybackSource: ActivePlaybackSource = .none
     var currentCueAutoStopReached = false
     var cuePlaybackGeneration = 0
@@ -446,7 +446,7 @@ final class AppCoordinator: ObservableObject {
             .appendingPathComponent("Covers", isDirectory: true)
         self.databaseURL = resolvedDatabaseURL
         self.libraryCoverDirectory = resolvedLibraryCoverDirectory
-        self.shioriListCoverStorage = ShioriListCoverStorage(
+        self.excerptListCoverStorage = ExcerptListCoverStorage(
             coverDirectory: resolvedLibraryCoverDirectory
         )
         self.libraryFolderRemovalExecutor = libraryFolderRemovalExecutor
@@ -471,7 +471,7 @@ final class AppCoordinator: ObservableObject {
         library = LibraryStore()
         let cueContentStore = CueContentStore()
         cueContent = cueContentStore
-        shiori = ShioriStore(
+        excerpt = ExcerptStore(
             cueContentStore: cueContentStore,
             uiProbeScope: uiProbeScope
         )
@@ -486,7 +486,7 @@ final class AppCoordinator: ObservableObject {
         var openedLibraryDatabase: LibraryDatabase?
         var openedIndexedContentDatabase: IndexedContentDatabase?
         var openedLibraryCoverDatabase: LibraryCoverDatabase?
-        var openedShioriDatabase: ShioriDatabase?
+        var openedExcerptDatabase: ExcerptDatabase?
         var openedTaskRecordDatabase: TaskRecordDatabase?
         var initialError: Error?
         do {
@@ -499,7 +499,7 @@ final class AppCoordinator: ObservableObject {
             openedLibraryDatabase = try LibraryDatabase(path: self.databaseURL)
             openedIndexedContentDatabase = try IndexedContentDatabase(path: self.databaseURL)
             openedLibraryCoverDatabase = try LibraryCoverDatabase(path: self.databaseURL)
-            openedShioriDatabase = try ShioriDatabase(path: self.databaseURL)
+            openedExcerptDatabase = try ExcerptDatabase(path: self.databaseURL)
             openedTaskRecordDatabase = try TaskRecordDatabase(path: self.databaseURL)
             initialError = nil
         } catch {
@@ -509,7 +509,7 @@ final class AppCoordinator: ObservableObject {
             openedLibraryDatabase = nil
             openedIndexedContentDatabase = nil
             openedLibraryCoverDatabase = nil
-            openedShioriDatabase = nil
+            openedExcerptDatabase = nil
             openedTaskRecordDatabase = nil
             initialError = error
         }
@@ -527,7 +527,7 @@ final class AppCoordinator: ObservableObject {
         self.libraryDatabase = openedLibraryDatabase
         self.indexedContentDatabase = openedIndexedContentDatabase
         self.libraryCoverDatabase = openedLibraryCoverDatabase
-        self.shioriDatabase = openedShioriDatabase
+        self.excerptDatabase = openedExcerptDatabase
         self.taskRecordDatabase = openedTaskRecordDatabase
         self.tasks = TaskQueueStore(database: openedTaskRecordDatabase)
         self.libraryUserCoverService = openedLibraryCoverDatabase.map { database in
@@ -548,27 +548,27 @@ final class AppCoordinator: ObservableObject {
             return
         }
 
-        let initialShioriListID = try? openedShioriDatabase?.firstShioriListID()
-        if let initialShioriListID {
-            shiori.updateTableFacetFilter(
-                settings.shioriFacetFilter(forListID: initialShioriListID)
+        let initialExcerptListID = try? openedExcerptDatabase?.firstExcerptListID()
+        if let initialExcerptListID {
+            excerpt.updateTableFacetFilter(
+                settings.excerptFacetFilter(forListID: initialExcerptListID)
             )
         }
-        shiori.setActiveListID(initialShioriListID)
-        shiori.setRecentSaveListID(settings.recentShioriSaveListID)
+        excerpt.setActiveListID(initialExcerptListID)
+        excerpt.setRecentSaveListID(settings.recentExcerptSaveListID)
         tasks.loadPersistedRecords()
         setupSettingsObservers()
         setupInterfaceLayerObservers()
     }
 
-    /// Edit Cover, the Shiori List Editor, Rename, the Task panel and
+    /// Edit Cover, the Excerpt List Editor, Rename, the Task panel and
     /// Confirmation are the dialog layer. Their open state lives on the
     /// stores, so the registry follows them.
     private func setupInterfaceLayerObservers() {
         Publishers.CombineLatest(
             Publishers.CombineLatest4(
                 library.$coverEditingSession,
-                shiori.$listEditorSession,
+                excerpt.$listEditorSession,
                 confirmation.$session,
                 tasks.$isPanelOpen
             ),
@@ -621,10 +621,10 @@ final class AppCoordinator: ObservableObject {
         // The remembered save target is answered from the store, and settings
         // keep whatever it currently is — both the list a save just went to and
         // the nil left behind when that list is deleted.
-        shiori.$recentSaveListID
+        excerpt.$recentSaveListID
             .removeDuplicates()
             .sink { [settings] listID in
-                settings.setRecentShioriSaveListID(listID)
+                settings.setRecentExcerptSaveListID(listID)
             }
             .store(in: &settingsCancellables)
 
@@ -635,10 +635,10 @@ final class AppCoordinator: ObservableObject {
                     return
                 }
                 guard let source,
-                      case .shiori = source.origin
+                      case .excerpt = source.origin
                 else {
-                    self.shioriPlaybackNavigationScopeIDs = nil
-                    self.shioriPlaybackNavigationSnapshot = nil
+                    self.excerptPlaybackNavigationScopeIDs = nil
+                    self.excerptPlaybackNavigationSnapshot = nil
                     return
                 }
             }
@@ -748,27 +748,27 @@ final class AppCoordinator: ObservableObject {
         prepareWorkbenchRoute(workbenchLayout.currentRoute)
     }
 
-    /// The data a page needs that its own view does not load: the Shiori
-    /// overview, and the list a Shiori detail shows in its table.
+    /// The data a page needs that its own view does not load: the Excerpt
+    /// overview, and the list a Excerpt detail shows in its table.
     private func prepareWorkbenchRoute(_ route: WorkbenchRoute) {
         switch route {
-        case .shiori:
-            loadShioriListOverviewIfNeeded()
-        case .shioriList(let id):
+        case .excerpt:
+            loadExcerptListOverviewIfNeeded()
+        case .excerptList(let id):
             guard !isWorkbenchRouteUnknown(route) else {
                 return
             }
-            shiori.updateTableFacetFilter(
-                settings.shioriFacetFilter(forListID: id)
+            excerpt.updateTableFacetFilter(
+                settings.excerptFacetFilter(forListID: id)
             )
-            shiori.setActiveListID(id)
-            reloadShioriTableRows()
+            excerpt.setActiveListID(id)
+            reloadExcerptTableRows()
         case .search, .recent, .library, .libraryFolder, .file:
             break
         }
     }
 
-    /// Whether the page a history entry points to is gone: a Shiori list that
+    /// Whether the page a history entry points to is gone: a Excerpt list that
     /// was deleted, or a Library folder that is no longer indexed. Unknown is
     /// never claimed before the store that would know has loaded.
     func isWorkbenchRouteUnknown(_ route: WorkbenchRoute) -> Bool {
@@ -780,10 +780,10 @@ final class AppCoordinator: ObservableObject {
             return !library.completeLibraryFolderSummaries.contains {
                 $0.folderPath == folderPath
             }
-        case .shioriList(let id):
-            return shiori.hasLoadedListOverview
-                && !shiori.listOverview.lists.contains { $0.id == id }
-        case .search, .recent, .library, .file, .shiori:
+        case .excerptList(let id):
+            return excerpt.hasLoadedListOverview
+                && !excerpt.listOverview.lists.contains { $0.id == id }
+        case .search, .recent, .library, .file, .excerpt:
             return false
         }
     }
@@ -831,14 +831,14 @@ final class AppCoordinator: ObservableObject {
         let selectedLibraryVideoIsUnderFolder = library.selectedLibraryVideo.map {
             Self.path($0.videoPath, isUnder: folder)
         } ?? false
-        let selectedShioriIsUnderFolder = shiori.selectedShiori.map {
+        let selectedExcerptIsUnderFolder = excerpt.selectedExcerpt.map {
             Self.path($0.videoPath, isUnder: folder)
         } ?? false
 
-        if selectedSearchResultIsUnderFolder || selectedLibraryVideoIsUnderFolder || selectedShioriIsUnderFolder {
+        if selectedSearchResultIsUnderFolder || selectedLibraryVideoIsUnderFolder || selectedExcerptIsUnderFolder {
             search.selectResult(nil)
             library.selectedLibraryVideo = nil
-            shiori.selectedShiori = nil
+            excerpt.selectedExcerpt = nil
             stopPlayback()
         }
     }
@@ -874,7 +874,7 @@ final class AppCoordinator: ObservableObject {
         return path
     }
 
-    static func shioriSort(_ lhs: Shiori, _ rhs: Shiori) -> Bool {
+    static func excerptSort(_ lhs: Excerpt, _ rhs: Excerpt) -> Bool {
         if lhs.createdAt != rhs.createdAt {
             return lhs.createdAt > rhs.createdAt
         }

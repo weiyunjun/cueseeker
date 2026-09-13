@@ -7,41 +7,41 @@ import Testing
 
 @MainActor
 @Test
-func playbackShioriUsesWorkbenchRowsWithoutRetainingAnotherDataset() throws {
-    let fixtures = (0..<40).map(playbackSharedShioriFixture)
-    let store = playbackSharedShioriStore(fixtures)
+func playbackExcerptUsesWorkbenchRowsWithoutRetainingAnotherDataset() throws {
+    let fixtures = (0..<40).map(playbackSharedExcerptFixture)
+    let store = playbackSharedExcerptStore(fixtures)
     let session = PlaybackSubtitleFocusSessionStore(
-        openSnapshot: playbackSharedShioriOpenSnapshot(),
+        openSnapshot: playbackSharedExcerptOpenSnapshot(),
         sessionGeneration: 1,
         availableModules: PlaybackOverlayModule.allCases,
-        shioriStore: store
+        excerptStore: store
     )
-    let window = try #require(session.shioriWindow)
+    let window = try #require(session.excerptWindow)
 
-    #expect(session.shioriStore === store)
+    #expect(session.excerptStore === store)
     #expect(window.snapshot.totalCount == 40)
     #expect(window.snapshot.loadedOrdinalRange == 0..<40)
     #expect(window.snapshot.isComplete)
-    #expect(window.item(at: 39)?.identity == .shiori(10_039))
-    #expect(window.item(at: 39)?.primaryCueText == "shiori-39")
+    #expect(window.item(at: 39)?.identity == .excerpt(10_039))
+    #expect(window.item(at: 39)?.primaryCueText == "excerpt-39")
 
     _ = session.dismissByUser()
 
     #expect(store.tableRowStore.snapshot.totalRowCount == 40)
-    #expect(store.tableRowStore.snapshot.row(at: 39)?.primaryCueText == "shiori-39")
+    #expect(store.tableRowStore.snapshot.row(at: 39)?.primaryCueText == "excerpt-39")
 }
 
 @MainActor
 @Test
-func playbackShioriEmptyWorkbenchCollectionKeepsAnEmptyModuleWindow() throws {
-    let store = ShioriStore()
+func playbackExcerptEmptyWorkbenchCollectionKeepsAnEmptyModuleWindow() throws {
+    let store = ExcerptStore()
     let session = PlaybackSubtitleFocusSessionStore(
-        openSnapshot: playbackSharedShioriOpenSnapshot(),
+        openSnapshot: playbackSharedExcerptOpenSnapshot(),
         sessionGeneration: 1,
         availableModules: PlaybackOverlayModule.allCases,
-        shioriStore: store
+        excerptStore: store
     )
-    let window = try #require(session.shioriWindow)
+    let window = try #require(session.excerptWindow)
 
     #expect(window.snapshot.totalCount == 0)
     #expect(window.snapshot.isComplete)
@@ -51,13 +51,13 @@ func playbackShioriEmptyWorkbenchCollectionKeepsAnEmptyModuleWindow() throws {
 
 @MainActor
 @Test
-func playbackShioriUsesWorkbenchCuePresentationForActions() throws {
-    let store = playbackSharedShioriStore([playbackSharedShioriFixture(0)])
+func playbackExcerptUsesWorkbenchCuePresentationForActions() throws {
+    let store = playbackSharedExcerptStore([playbackSharedExcerptFixture(0)])
     let session = PlaybackSubtitleFocusSessionStore(
-        openSnapshot: playbackSharedShioriOpenSnapshot(),
+        openSnapshot: playbackSharedExcerptOpenSnapshot(),
         sessionGeneration: 1,
         availableModules: PlaybackOverlayModule.allCases,
-        shioriStore: store
+        excerptStore: store
     )
     #expect(session.publishInitialSnapshot(
         SubtitleFocusSnapshot(
@@ -76,18 +76,18 @@ func playbackShioriUsesWorkbenchCuePresentationForActions() throws {
         ),
         token: session.token
     ))
-    #expect(session.selectModule(.shiori))
+    #expect(session.selectModule(.excerpt))
 
     guard case .ready(let execution) = session.requestKeyboardAction(
         .copyCueText
     ) else {
-        Issue.record("Expected the shared Shiori row to be actionable")
+        Issue.record("Expected the shared Excerpt row to be actionable")
         return
     }
 
-    #expect(execution.target.primaryCueText == "shiori-0")
-    guard case .shiori(let targetItem) = execution.target else {
-        Issue.record("Expected a Shiori action target")
+    #expect(execution.target.primaryCueText == "excerpt-0")
+    guard case .excerpt(let targetItem) = execution.target else {
+        Issue.record("Expected a Excerpt action target")
         return
     }
     #expect(targetItem.additionalCueTexts == ["before-0", "after-0"])
@@ -96,18 +96,18 @@ func playbackShioriUsesWorkbenchCuePresentationForActions() throws {
 
 @MainActor
 @Test
-func playbackShioriCopiesSettledPrimaryCueAsMarkdownLink() throws {
+func playbackExcerptCopiesSettledPrimaryCueAsMarkdownLink() throws {
     _ = NSApplication.shared
     let databaseURL = FileManager.default.temporaryDirectory
-        .appendingPathComponent("playback-shiori-markdown-\(UUID().uuidString).sqlite")
+        .appendingPathComponent("playback-excerpt-markdown-\(UUID().uuidString).sqlite")
     defer { try? FileManager.default.removeItem(at: databaseURL) }
     let app = AppCoordinator(databaseURL: databaseURL)
     app.playback.playbackViewModel = PlaybackViewModel(player: PlaybackPlayer())
-    let store = playbackSharedShioriStore([playbackSharedShioriFixture(0)])
+    let store = playbackSharedExcerptStore([playbackSharedExcerptFixture(0)])
     let session = try #require(app.playback.beginSubtitleFocusSession(
-        openSnapshot: playbackSharedShioriOpenSnapshot(),
+        openSnapshot: playbackSharedExcerptOpenSnapshot(),
         availableModules: PlaybackOverlayModule.allCases,
-        shioriStore: store
+        excerptStore: store
     ))
     #expect(session.publishInitialSnapshot(
         SubtitleFocusSnapshot(
@@ -126,20 +126,20 @@ func playbackShioriCopiesSettledPrimaryCueAsMarkdownLink() throws {
         ),
         token: session.token
     ))
-    #expect(session.selectModule(.shiori))
+    #expect(session.selectModule(.excerpt))
     NSPasteboard.general.clearContents()
 
     guard case .ready(let execution) = session.requestKeyboardAction(
         .copyCueMarkdownLink
     ) else {
-        Issue.record("Expected the settled Shiori Cue to be actionable")
+        Issue.record("Expected the settled Excerpt Cue to be actionable")
         return
     }
     #expect(app.executePlaybackSubtitleFocusAction(execution))
 
     #expect(
         NSPasteboard.general.string(forType: .string)
-            == "[shiori-0](cueseeker://cue?id=20000)"
+            == "[excerpt-0](cueseeker://cue?id=20000)"
     )
     #expect(
         app.playback.playbackViewModel?.feedback?.text
@@ -150,41 +150,41 @@ func playbackShioriCopiesSettledPrimaryCueAsMarkdownLink() throws {
 
 @MainActor
 @Test
-func playbackShioriDispatchUsesCurrentWorkbenchResultOrder() throws {
+func playbackExcerptDispatchUsesCurrentWorkbenchResultOrder() throws {
     _ = NSApplication.shared
     let databaseURL = FileManager.default.temporaryDirectory
-        .appendingPathComponent("playback-shared-shiori-dispatch-\(UUID().uuidString).sqlite")
+        .appendingPathComponent("playback-shared-excerpt-dispatch-\(UUID().uuidString).sqlite")
     defer { try? FileManager.default.removeItem(at: databaseURL) }
     let app = AppCoordinator(databaseURL: databaseURL)
-    let fixtures = (0..<3).map(playbackSharedShioriFixture)
-    let store = playbackSharedShioriStore(fixtures)
-    app.shiori.tableRowStore.updateShioriRows(
-        fixtures.map(playbackSharedShioriRowSource),
-        tableName: "shiori"
+    let fixtures = (0..<3).map(playbackSharedExcerptFixture)
+    let store = playbackSharedExcerptStore(fixtures)
+    app.excerpt.tableRowStore.updateExcerptRows(
+        fixtures.map(playbackSharedExcerptRowSource),
+        tableName: "excerpt"
     )
-    app.shiori.installTableResultShioriIDs(fixtures.map(\.shiori.id))
+    app.excerpt.installTableResultExcerptIDs(fixtures.map(\.excerpt.id))
     let item = PlaybackCueResultItem(
-        shiori: fixtures[1].shiori,
+        excerpt: fixtures[1].excerpt,
         cuePresentation: fixtures[1].presentation,
         ordinal: 1
     )
     var receivedScope: [Int64]?
 
-    let dispatched = app.dispatchPlaybackShioriOverlayItem(item) { _, scope in
+    let dispatched = app.dispatchPlaybackExcerptOverlayItem(item) { _, scope in
         receivedScope = scope
     }
 
     #expect(dispatched)
-    #expect(receivedScope == store.tableResultShioriIDs)
+    #expect(receivedScope == store.tableResultExcerptIDs)
 }
 
 @MainActor
 @Test
-func sharedShioriPipelineAppliesLivePrimaryCueSearchBeforePlaybackProjection() async throws {
-    let suiteName = "PlaybackSharedShioriPipeline-\(UUID().uuidString)"
+func sharedExcerptPipelineAppliesLivePrimaryCueSearchBeforePlaybackProjection() async throws {
+    let suiteName = "PlaybackSharedExcerptPipeline-\(UUID().uuidString)"
     let userDefaults = try #require(UserDefaults(suiteName: suiteName))
     let databaseURL = FileManager.default.temporaryDirectory
-        .appendingPathComponent("PlaybackSharedShioriPipeline-\(UUID().uuidString).sqlite")
+        .appendingPathComponent("PlaybackSharedExcerptPipeline-\(UUID().uuidString).sqlite")
     defer {
         userDefaults.removePersistentDomain(forName: suiteName)
         try? FileManager.default.removeItem(at: databaseURL)
@@ -198,57 +198,57 @@ func sharedShioriPipelineAppliesLivePrimaryCueSearchBeforePlaybackProjection() a
     )
     await app.startupDatabaseTask?.value
     let database = try #require(app.indexingDatabase)
-    _ = try playbackDatabaseShiori(
+    _ = try playbackDatabaseExcerpt(
         database: database,
-        content: "alpha shared shiori",
+        content: "alpha shared excerpt",
         timestamp: 1_000
     )
-    _ = try playbackDatabaseShiori(
+    _ = try playbackDatabaseExcerpt(
         database: database,
-        content: "beta shared shiori",
+        content: "beta shared excerpt",
         timestamp: 2_000
     )
-    app.reloadShioriTableRows()
-    await app.shioriTableRowsTask?.value
+    app.reloadExcerptTableRows()
+    await app.excerptTableRowsTask?.value
 
     #expect(
-        (0..<app.shiori.tableRowStore.snapshot.totalRowCount)
-            .compactMap { app.shiori.tableRowStore.snapshot.row(at: $0)?.displayTitle }
-            .contains { $0.localizedCaseInsensitiveContains("Shiori-1000") }
+        (0..<app.excerpt.tableRowStore.snapshot.totalRowCount)
+            .compactMap { app.excerpt.tableRowStore.snapshot.row(at: $0)?.displayTitle }
+            .contains { $0.localizedCaseInsensitiveContains("Excerpt-1000") }
     )
 
-    app.updateShioriSearchQuery("alp")
+    app.updateExcerptSearchQuery("alp")
 
-    #expect(app.shiori.tableResultRowCount == 1)
-    #expect(app.shiori.tableRowStore.snapshot.totalRowCount == 1)
+    #expect(app.excerpt.tableResultRowCount == 1)
+    #expect(app.excerpt.tableRowStore.snapshot.totalRowCount == 1)
     #expect(
-        app.shiori.tableRowStore.snapshot.row(at: 0)?.primaryCueText
-            == "alpha shared shiori"
+        app.excerpt.tableRowStore.snapshot.row(at: 0)?.primaryCueText
+            == "alpha shared excerpt"
     )
 
-    app.updateShioriSearchQuery("Shiori-1000")
-    #expect(app.shiori.tableResultRowCount == 0)
-    #expect(app.shiori.tableRowStore.snapshot.totalRowCount == 0)
+    app.updateExcerptSearchQuery("Excerpt-1000")
+    #expect(app.excerpt.tableResultRowCount == 0)
+    #expect(app.excerpt.tableRowStore.snapshot.totalRowCount == 0)
 
-    app.updateShioriSearchQuery("alp")
+    app.updateExcerptSearchQuery("alp")
 
     let session = PlaybackSubtitleFocusSessionStore(
-        openSnapshot: playbackSharedShioriOpenSnapshot(),
+        openSnapshot: playbackSharedExcerptOpenSnapshot(),
         sessionGeneration: 1,
-        shioriStore: app.shiori
+        excerptStore: app.excerpt
     )
-    let window = try #require(session.shioriWindow)
+    let window = try #require(session.excerptWindow)
     #expect(window.snapshot.totalCount == 1)
-    #expect(window.item(at: 0)?.primaryCueText == "alpha shared shiori")
+    #expect(window.item(at: 0)?.primaryCueText == "alpha shared excerpt")
 }
 
 @MainActor
 @Test
-func sharedShioriFacetSelectionRestoresAndProjectsWithoutDatabaseReload() async throws {
-    let suiteName = "PlaybackSharedShioriFacet-\(UUID().uuidString)"
+func sharedExcerptFacetSelectionRestoresAndProjectsWithoutDatabaseReload() async throws {
+    let suiteName = "PlaybackSharedExcerptFacet-\(UUID().uuidString)"
     let userDefaults = try #require(UserDefaults(suiteName: suiteName))
     let databaseURL = FileManager.default.temporaryDirectory
-        .appendingPathComponent("PlaybackSharedShioriFacet-\(UUID().uuidString).sqlite")
+        .appendingPathComponent("PlaybackSharedExcerptFacet-\(UUID().uuidString).sqlite")
     defer {
         userDefaults.removePersistentDomain(forName: suiteName)
         try? FileManager.default.removeItem(at: databaseURL)
@@ -262,97 +262,97 @@ func sharedShioriFacetSelectionRestoresAndProjectsWithoutDatabaseReload() async 
     )
     await app.startupDatabaseTask?.value
     let database = try #require(app.indexingDatabase)
-    let shortShiori = try playbackDatabaseShiori(
+    let shortExcerpt = try playbackDatabaseExcerpt(
         database: database,
-        content: "short shared shiori",
+        content: "short shared excerpt",
         timestamp: 1_000
     )
-    let longShiori = try playbackDatabaseShiori(
+    let longExcerpt = try playbackDatabaseExcerpt(
         database: database,
-        content: "long shared shiori",
+        content: "long shared excerpt",
         timestamp: 2_000,
         durationMilliseconds: 4_000
     )
-    let listID = try #require(app.shiori.activeListID)
+    let listID = try #require(app.excerpt.activeListID)
     let persistedFilter = CueFacetFilter(durations: [.underOneSecond])
-    app.settings.setShioriFacetFilter(persistedFilter, forListID: listID)
+    app.settings.setExcerptFacetFilter(persistedFilter, forListID: listID)
 
-    app.openShioriList(id: listID)
-    await app.shioriTableRowsTask?.value
+    app.openExcerptList(id: listID)
+    await app.excerptTableRowsTask?.value
 
-    let initialSnapshotID = app.shiori.tableResultSnapshotID
-    #expect(app.shiori.tableFacetFilter == persistedFilter)
-    #expect(app.shiori.residentFacetSnapshot?.distribution.totalCount == 2)
-    #expect(app.shiori.tableFacetDistribution?.totalCount == 1)
-    #expect(app.shiori.tableFacetDistribution?.durationCounts == [
+    let initialSnapshotID = app.excerpt.tableResultSnapshotID
+    #expect(app.excerpt.tableFacetFilter == persistedFilter)
+    #expect(app.excerpt.residentFacetSnapshot?.distribution.totalCount == 2)
+    #expect(app.excerpt.tableFacetDistribution?.totalCount == 1)
+    #expect(app.excerpt.tableFacetDistribution?.durationCounts == [
         .underOneSecond: 1,
         .threeToUnderFiveSeconds: 1,
     ])
-    #expect(app.shiori.tableResultRowCount == 1)
-    #expect(app.shiori.playbackTableResultShioriIDs == [shortShiori.id])
+    #expect(app.excerpt.tableResultRowCount == 1)
+    #expect(app.excerpt.playbackTableResultExcerptIDs == [shortExcerpt.id])
 
-    app.updateShioriFacetFilter(CueFacetFilter())
+    app.updateExcerptFacetFilter(CueFacetFilter())
 
-    #expect(app.shioriTableRowsTask == nil)
-    #expect(app.shiori.tableResultSnapshotID != initialSnapshotID)
-    #expect(app.shiori.tableFacetDistribution?.totalCount == 2)
-    #expect(app.shiori.tableResultRowCount == 2)
-    #expect(app.shiori.tableRowStore.snapshot.totalRowCount == 2)
-    #expect(Set(app.shiori.playbackTableResultShioriIDs ?? []) == [
-        shortShiori.id,
-        longShiori.id,
+    #expect(app.excerptTableRowsTask == nil)
+    #expect(app.excerpt.tableResultSnapshotID != initialSnapshotID)
+    #expect(app.excerpt.tableFacetDistribution?.totalCount == 2)
+    #expect(app.excerpt.tableResultRowCount == 2)
+    #expect(app.excerpt.tableRowStore.snapshot.totalRowCount == 2)
+    #expect(Set(app.excerpt.playbackTableResultExcerptIDs ?? []) == [
+        shortExcerpt.id,
+        longExcerpt.id,
     ])
 
-    app.updateShioriFacetFilter(CueFacetFilter(languages: [.unknown]))
+    app.updateExcerptFacetFilter(CueFacetFilter(languages: [.unknown]))
 
-    #expect(app.shioriTableRowsTask == nil)
-    #expect(app.shiori.tableResultRowCount == 2)
-    #expect(app.shiori.tableRowStore.snapshot.totalRowCount == 2)
-    #expect(Set(app.shiori.playbackTableResultShioriIDs ?? []) == [
-        shortShiori.id,
-        longShiori.id,
+    #expect(app.excerptTableRowsTask == nil)
+    #expect(app.excerpt.tableResultRowCount == 2)
+    #expect(app.excerpt.tableRowStore.snapshot.totalRowCount == 2)
+    #expect(Set(app.excerpt.playbackTableResultExcerptIDs ?? []) == [
+        shortExcerpt.id,
+        longExcerpt.id,
     ])
 
     let session = PlaybackSubtitleFocusSessionStore(
-        openSnapshot: playbackSharedShioriOpenSnapshot(),
+        openSnapshot: playbackSharedExcerptOpenSnapshot(),
         sessionGeneration: 1,
-        shioriStore: app.shiori
+        excerptStore: app.excerpt
     )
-    let window = try #require(session.shioriWindow)
+    let window = try #require(session.excerptWindow)
     #expect(window.snapshot.totalCount == 2)
 }
 
-private struct PlaybackSharedShioriFixture {
-    let shiori: Shiori
-    let presentation: ShioriCuePresentation
+private struct PlaybackSharedExcerptFixture {
+    let excerpt: Excerpt
+    let presentation: ExcerptCuePresentation
 }
 
-private func playbackSharedShioriFixture(
+private func playbackSharedExcerptFixture(
     _ ordinal: Int
-) -> PlaybackSharedShioriFixture {
-    let shioriID = Int64(10_000 + ordinal)
-    return PlaybackSharedShioriFixture(
-        shiori: Shiori(
-            id: shioriID,
-            subtitlePath: "/subtitle/shiori-\(ordinal).ass",
+) -> PlaybackSharedExcerptFixture {
+    let excerptID = Int64(10_000 + ordinal)
+    return PlaybackSharedExcerptFixture(
+        excerpt: Excerpt(
+            id: excerptID,
+            subtitlePath: "/subtitle/excerpt-\(ordinal).ass",
             subtitleFormat: .ass,
-            videoPath: "/video/shiori-\(ordinal).mkv",
-            videoName: "shiori-\(ordinal).mkv",
+            videoPath: "/video/excerpt-\(ordinal).mkv",
+            videoName: "excerpt-\(ordinal).mkv",
             startMilliseconds: ordinal * 1_000,
             endMilliseconds: ordinal * 1_000 + 900,
             cueEventIndex: ordinal,
             cueDisplayOrder: 1,
-            content: "shiori-\(ordinal)",
+            content: "excerpt-\(ordinal)",
             isValid: true,
             createdAt: "2026-07-15T00:00:00Z"
         ),
-        presentation: ShioriCuePresentation(
+        presentation: ExcerptCuePresentation(
             cueID: Int64(20_000 + ordinal),
             cueGroupID: Int64(30_000 + ordinal),
             primaryGroupIndex: 1,
             cueGroupTexts: [
                 "before-\(ordinal)",
-                "shiori-\(ordinal)",
+                "excerpt-\(ordinal)",
                 "after-\(ordinal)",
             ],
             languages: [.japanese],
@@ -361,39 +361,39 @@ private func playbackSharedShioriFixture(
 }
 
 @MainActor
-private func playbackSharedShioriStore(
-    _ fixtures: [PlaybackSharedShioriFixture]
-) -> ShioriStore {
-    let store = ShioriStore()
-    store.tableRowStore.updateShioriRows(
-        fixtures.map(playbackSharedShioriRowSource),
-        tableName: "shiori"
+private func playbackSharedExcerptStore(
+    _ fixtures: [PlaybackSharedExcerptFixture]
+) -> ExcerptStore {
+    let store = ExcerptStore()
+    store.tableRowStore.updateExcerptRows(
+        fixtures.map(playbackSharedExcerptRowSource),
+        tableName: "excerpt"
     )
-    store.installTableResultShioriIDs(fixtures.map(\.shiori.id))
+    store.installTableResultExcerptIDs(fixtures.map(\.excerpt.id))
     store.markTableRowsLoaded(totalSavedRowCount: fixtures.count)
     return store
 }
 
-private func playbackSharedShioriRowSource(
-    _ fixture: PlaybackSharedShioriFixture
-) -> TableSandboxShioriRowSource {
-    TableSandboxShioriRowSource(
-        shiori: fixture.shiori,
-        displayTitle: fixture.shiori.videoName,
-        dateAddedText: fixture.shiori.createdAt,
+private func playbackSharedExcerptRowSource(
+    _ fixture: PlaybackSharedExcerptFixture
+) -> TableSandboxExcerptRowSource {
+    TableSandboxExcerptRowSource(
+        excerpt: fixture.excerpt,
+        displayTitle: fixture.excerpt.videoName,
+        dateAddedText: fixture.excerpt.createdAt,
         languages: [.japanese],
         cuePresentation: fixture.presentation
     )
 }
 
-private func playbackDatabaseShiori(
+private func playbackDatabaseExcerpt(
     database: IndexingDatabase,
     content: String,
     timestamp: Int,
     durationMilliseconds: Int = 500
-) throws -> Shiori {
-    let subtitleFile = URL(fileURLWithPath: "/Media/Shiori-\(timestamp).srt")
-    let videoFile = URL(fileURLWithPath: "/Media/Shiori-\(timestamp).mkv")
+) throws -> Excerpt {
+    let subtitleFile = URL(fileURLWithPath: "/Media/Excerpt-\(timestamp).srt")
+    let videoFile = URL(fileURLWithPath: "/Media/Excerpt-\(timestamp).mkv")
     try database.replaceEntries(
         subtitleFile: subtitleFile,
         videoFile: videoFile,
@@ -412,13 +412,13 @@ private func playbackDatabaseShiori(
         forSubtitleFile: subtitleFile,
         atMilliseconds: timestamp
     ))
-    return try ShioriDatabase(path: database.path).upsertShiori(
+    return try ExcerptDatabase(path: database.path).upsertExcerpt(
         selection: selection,
         createdAt: Date(timeIntervalSince1970: TimeInterval(timestamp))
     )
 }
 
-private func playbackSharedShioriOpenSnapshot()
+private func playbackSharedExcerptOpenSnapshot()
     -> PlaybackSubtitleFocusOpenSnapshot {
     PlaybackSubtitleFocusOpenSnapshot(
         source: SubtitleFocusSourceIdentity(

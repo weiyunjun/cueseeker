@@ -4,7 +4,7 @@ import CueSeekerCore
 
 @MainActor
 enum WorkbenchPanelMode: String, CaseIterable {
-    case shiori
+    case excerpt
     case recentWatching
     case testLibrary
     case file
@@ -12,8 +12,8 @@ enum WorkbenchPanelMode: String, CaseIterable {
 
     var sidebarLabel: String {
         switch self {
-        case .shiori:
-            return L("sidebar.shiori")
+        case .excerpt:
+            return L("sidebar.excerpt")
         case .recentWatching:
             return L("sidebar.recent")
         case .testLibrary:
@@ -27,7 +27,7 @@ enum WorkbenchPanelMode: String, CaseIterable {
 
     var icon: AppIcon {
         switch self {
-        case .shiori:
+        case .excerpt:
             return .bookmarkSimple
         case .recentWatching:
             return .clock
@@ -46,14 +46,14 @@ enum WorkbenchPanelMode: String, CaseIterable {
 /// The two Tabs of the Recent page.
 enum WorkbenchRecentSection: String, CaseIterable {
     case videos
-    case shioris
+    case excerpts
 
     var label: String {
         switch self {
         case .videos:
             L("sidebar.recent_videos")
-        case .shioris:
-            L("sidebar.recent_shioris")
+        case .excerpts:
+            L("sidebar.recent_excerpts")
         }
     }
 }
@@ -83,8 +83,8 @@ enum WorkbenchRoute: Equatable {
     case library
     case libraryFolder(folderPath: String)
     case file
-    case shiori
-    case shioriList(id: Int64)
+    case excerpt
+    case excerptList(id: Int64)
 
     /// The first level of the section a Sidebar item opens.
     static func firstLevel(of mode: WorkbenchPanelMode) -> WorkbenchRoute {
@@ -97,8 +97,8 @@ enum WorkbenchRoute: Equatable {
             .library
         case .file:
             .file
-        case .shiori:
-            .shiori
+        case .excerpt:
+            .excerpt
         }
     }
 
@@ -112,8 +112,8 @@ enum WorkbenchRoute: Equatable {
             .testLibrary
         case .file:
             .file
-        case .shiori, .shioriList:
-            .shiori
+        case .excerpt, .excerptList:
+            .excerpt
         }
     }
 }
@@ -137,9 +137,9 @@ final class WorkbenchRouteState: ObservableObject {
             }
         }
     }
-    @Published fileprivate(set) var selectedShioriListID: Int64? {
+    @Published fileprivate(set) var selectedExcerptListID: Int64? {
         didSet {
-            if selectedShioriListID != oldValue {
+            if selectedExcerptListID != oldValue {
                 AppPointerShape.reset()
             }
         }
@@ -191,10 +191,10 @@ final class WorkbenchRouteState: ObservableObject {
         } else {
             selectedLibraryFolderPath = nil
         }
-        if case .shioriList(let id) = route {
-            selectedShioriListID = id
+        if case .excerptList(let id) = route {
+            selectedExcerptListID = id
         } else {
-            selectedShioriListID = nil
+            selectedExcerptListID = nil
         }
     }
 }
@@ -247,8 +247,8 @@ final class WorkbenchLayoutState: ObservableObject {
         route.selectedLibraryFolderPath
     }
 
-    var selectedShioriListID: Int64? {
-        route.selectedShioriListID
+    var selectedExcerptListID: Int64? {
+        route.selectedExcerptListID
     }
 
     var selectedRecentSection: WorkbenchRecentSection {

@@ -110,7 +110,7 @@ enum ActivePlaybackSource: Equatable {
     case none
     case library(videoPath: String)
     case search
-    case shiori
+    case excerpt
 }
 
 struct PlaylistCueEffectiveSettings: Equatable {
@@ -165,14 +165,14 @@ enum AppAppearanceMode: String, CaseIterable, Identifiable {
     }
 }
 
-struct ShioriFileGroup: Identifiable, Equatable {
+struct ExcerptFileGroup: Identifiable, Equatable {
     let subtitlePath: String
     let subtitleDisplayTitle: String
-    let shioris: [Shiori]
+    let excerpts: [Excerpt]
     let isCollapsed: Bool
 
     var id: String { subtitlePath }
-    var totalCount: Int { shioris.count }
+    var totalCount: Int { excerpts.count }
 }
 
 struct LibraryVideoRow: Identifiable {

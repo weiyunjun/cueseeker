@@ -30,7 +30,7 @@ public struct SubtitleIndexingResult: Equatable, Sendable {
             || !affectedFolderPaths.isEmpty
     }
 
-    public var requiresShioriRefresh: Bool {
+    public var requiresExcerptRefresh: Bool {
         hasIndexedContentChanges || clearedCueChangeNotices
     }
 }

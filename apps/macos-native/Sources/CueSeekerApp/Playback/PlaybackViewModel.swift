@@ -2,7 +2,7 @@ import Foundation
 import SwiftUI
 import CueSeekerPlayback
 
-enum ShioriFeedbackState {
+enum ExcerptFeedbackState {
     case removed
     case unavailable
 }
@@ -595,11 +595,11 @@ public final class PlaybackViewModel: ObservableObject {
         )
     }
 
-    /// A `Save to Shiori` result on the playback page and in the Command Panel.
+    /// A `Save to Excerpt` result on the playback page and in the Command Panel.
     /// The sentence is the registry's, the same one the Workbench shows in a
     /// Toast; only the container differs, and every outcome wears the same
     /// bookmark.
-    func showShioriSaveFeedback(message: String) {
+    func showExcerptSaveFeedback(message: String) {
         showFeedback(
             PlaybackFeedback(
                 icon: .bookmarkSimple,
@@ -610,12 +610,12 @@ public final class PlaybackViewModel: ObservableObject {
         )
     }
 
-    func showShioriFeedback(_ state: ShioriFeedbackState) {
+    func showExcerptFeedback(_ state: ExcerptFeedbackState) {
         let feedback: PlaybackFeedback = switch state {
         case .removed:
             PlaybackFeedback(
                 icon: .bookmarkSimple,
-                text: L("playback.hud.shiori_removed")
+                text: L("playback.hud.excerpt_removed")
             )
         case .unavailable:
             PlaybackFeedback(
@@ -667,7 +667,7 @@ public final class PlaybackViewModel: ObservableObject {
         )
     }
 
-    func showShioriNavigationFeedback(
+    func showExcerptNavigationFeedback(
         direction: SearchResultNavigationDirection,
         hasResult: Bool
     ) {

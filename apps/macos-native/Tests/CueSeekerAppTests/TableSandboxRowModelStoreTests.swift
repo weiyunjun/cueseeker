@@ -4,11 +4,11 @@ import Testing
 @testable import CueSeekerApp
 
 @Test
-func tableSandboxShioriDateAddedDisplayConvertsUTCToLocalTime() throws {
+func tableSandboxExcerptDateAddedDisplayConvertsUTCToLocalTime() throws {
     let shanghaiTimeZone = try #require(TimeZone(identifier: "Asia/Shanghai"))
 
     #expect(
-        tableSandboxShioriDateAddedDisplayText(
+        tableSandboxExcerptDateAddedDisplayText(
             for: "2026-07-23T18:20:49Z",
             timeZone: shanghaiTimeZone
         ) == "26-07-24 02:20"
@@ -169,13 +169,13 @@ func tableSandboxRowModelStoreCarriesSubtitlePathsIntoRows() {
 
     #expect(store.snapshot.rows[0].subtitlePath == searchPath)
 
-    store.hydrateShioriRows(
+    store.hydrateExcerptRows(
         [
-            shioriSource(id: 2, content: "saved line", languages: [.japanese]),
+            excerptSource(id: 2, content: "saved line", languages: [.japanese]),
         ],
         startIndex: 0,
         totalRowCount: 1,
-        tableName: "shiori"
+        tableName: "excerpt"
     )
 
     #expect(store.snapshot.rows[0].subtitlePath == "/tmp/CueSeeker/Series/episode-2.ass")
@@ -354,17 +354,17 @@ func tableSandboxRowModelStoreCachesOnlyContiguouslyHydratedSearchResultsForActi
 
 @MainActor
 @Test
-func tableSandboxRowModelStoreRejectsSparseShioriRowsForVirtualTableActions() {
+func tableSandboxRowModelStoreRejectsSparseExcerptRowsForVirtualTableActions() {
     let store = TableSandboxRowModelStore { _ in "Resolved" }
 
-    store.hydrateShioriRows(
+    store.hydrateExcerptRows(
         [
-            shioriSource(id: 301, content: "visible shiori one", languages: [.japanese]),
-            shioriSource(id: 302, content: "visible shiori two", languages: [.simplifiedChinese]),
+            excerptSource(id: 301, content: "visible excerpt one", languages: [.japanese]),
+            excerptSource(id: 302, content: "visible excerpt two", languages: [.simplifiedChinese]),
         ],
         startIndex: 300,
         totalRowCount: 1_000,
-        tableName: "shiori"
+        tableName: "excerpt"
     )
 
     #expect(store.snapshot.totalRowCount == 0)
@@ -372,33 +372,33 @@ func tableSandboxRowModelStoreRejectsSparseShioriRowsForVirtualTableActions() {
     #expect(store.snapshot.rows.isEmpty)
     #expect(store.snapshot.row(at: 299) == nil)
     #expect(store.snapshot.row(at: 300) == nil)
-    #expect(store.snapshot.shiori(entryID: 301) == nil)
+    #expect(store.snapshot.excerpt(entryID: 301) == nil)
     #expect(store.snapshot.update == .none)
 }
 
 @MainActor
 @Test
-func tableSandboxRowModelStoreAppendsContiguousShioriRows() {
+func tableSandboxRowModelStoreAppendsContiguousExcerptRows() {
     let store = TableSandboxRowModelStore { _ in "Resolved" }
 
-    store.hydrateShioriRows(
+    store.hydrateExcerptRows(
         [
-            shioriSource(id: 1, content: "prefix one", languages: [.japanese]),
-            shioriSource(id: 2, content: "prefix two", languages: [.japanese]),
-            shioriSource(id: 3, content: "prefix three", languages: [.japanese]),
+            excerptSource(id: 1, content: "prefix one", languages: [.japanese]),
+            excerptSource(id: 2, content: "prefix two", languages: [.japanese]),
+            excerptSource(id: 3, content: "prefix three", languages: [.japanese]),
         ],
         startIndex: 0,
         totalRowCount: 100,
-        tableName: "shiori"
+        tableName: "excerpt"
     )
-    store.hydrateShioriRows(
+    store.hydrateExcerptRows(
         [
-            shioriSource(id: 4, content: "visible one", languages: [.japanese]),
-            shioriSource(id: 5, content: "visible two", languages: [.japanese]),
+            excerptSource(id: 4, content: "visible one", languages: [.japanese]),
+            excerptSource(id: 5, content: "visible two", languages: [.japanese]),
         ],
         startIndex: 3,
         totalRowCount: 100,
-        tableName: "shiori"
+        tableName: "excerpt"
     )
 
     #expect(store.snapshot.totalRowCount == 5)
@@ -408,8 +408,8 @@ func tableSandboxRowModelStoreAppendsContiguousShioriRows() {
     #expect(store.snapshot.row(at: 2)?.cues == "prefix three")
     #expect(store.snapshot.row(at: 3)?.cues == "visible one")
     #expect(store.snapshot.row(at: 4)?.cues == "visible two")
-    #expect(store.snapshot.shiori(entryID: 1)?.content == "prefix one")
-    #expect(store.snapshot.shiori(entryID: 4)?.content == "visible one")
+    #expect(store.snapshot.excerpt(entryID: 1)?.content == "prefix one")
+    #expect(store.snapshot.excerpt(entryID: 4)?.content == "visible one")
 }
 
 @MainActor
@@ -578,10 +578,10 @@ func tableSandboxRowModelStoreMapsSearchLanguagesToDefaultBlueTags() {
 
 @MainActor
 @Test
-func tableSandboxRowModelStoreUsesShioriCuePresentationAndKeepsShioriRowIdentity() {
+func tableSandboxRowModelStoreUsesExcerptCuePresentationAndKeepsExcerptRowIdentity() {
     let store = TableSandboxRowModelStore { _ in "Resolved" }
     let repeatedText = "same subtitle"
-    let cuePresentation = ShioriCuePresentation(
+    let cuePresentation = ExcerptCuePresentation(
         cueID: 901,
         cueGroupID: 77,
         primaryGroupIndex: 1,
@@ -589,9 +589,9 @@ func tableSandboxRowModelStoreUsesShioriCuePresentationAndKeepsShioriRowIdentity
         languages: [.japanese],
     )
 
-    store.hydrateShioriRows(
+    store.hydrateExcerptRows(
         [
-            shioriSource(
+            excerptSource(
                 id: 41,
                 content: repeatedText,
                 languages: [.unknown],
@@ -600,7 +600,7 @@ func tableSandboxRowModelStoreUsesShioriCuePresentationAndKeepsShioriRowIdentity
         ],
         startIndex: 0,
         totalRowCount: 1,
-        tableName: "shiori"
+        tableName: "excerpt"
     )
 
     let row = store.snapshot.row(at: 0)
@@ -616,10 +616,10 @@ func tableSandboxRowModelStoreUsesShioriCuePresentationAndKeepsShioriRowIdentity
 
 @MainActor
 @Test
-func tableSandboxRowModelStoreFallsBackToExactOrphanShioriSnapshot() {
+func tableSandboxRowModelStoreFallsBackToExactOrphanExcerptSnapshot() {
     let store = TableSandboxRowModelStore { _ in "Resolved" }
     let content = "orphan line one\n\norphan line three"
-    let cuePresentation = ShioriCuePresentation(
+    let cuePresentation = ExcerptCuePresentation(
         cueID: nil,
         cueGroupID: nil,
         primaryGroupIndex: nil,
@@ -627,9 +627,9 @@ func tableSandboxRowModelStoreFallsBackToExactOrphanShioriSnapshot() {
         languages: [.unknown],
     )
 
-    store.hydrateShioriRows(
+    store.hydrateExcerptRows(
         [
-            shioriSource(
+            excerptSource(
                 id: 42,
                 content: content,
                 languages: [.unknown],
@@ -638,7 +638,7 @@ func tableSandboxRowModelStoreFallsBackToExactOrphanShioriSnapshot() {
         ],
         startIndex: 0,
         totalRowCount: 1,
-        tableName: "shiori"
+        tableName: "excerpt"
     )
 
     let row = store.snapshot.row(at: 0)
@@ -654,18 +654,18 @@ func tableSandboxRowModelStoreFallsBackToExactOrphanShioriSnapshot() {
 
 @MainActor
 @Test
-func tableSandboxRowModelStoreProjectsResidentShioriRowsWithoutMaterializingCollection() {
+func tableSandboxRowModelStoreProjectsResidentExcerptRowsWithoutMaterializingCollection() {
     let store = TableSandboxRowModelStore { _ in "unused" }
     let relations = (1...10_000).map { value in
-        ShioriRelation(
+        ExcerptRelation(
             id: Int64(value),
-            listID: ShioriListIdentity.defaultListID,
+            listID: ExcerptListIdentity.defaultListID,
             cueID: Int64(value),
             createdAt: "2026-07-21T12:00:00Z"
         )
     }
     let selectedCue = residentCueContent(cueID: 10_000, content: "Last resident Cue")
-    store.updateResidentShioriRelations(
+    store.updateResidentExcerptRelations(
         relations,
         cueContentProvider: { cueID in
             cueID == selectedCue.cueID ? selectedCue : residentCueContent(
@@ -673,34 +673,34 @@ func tableSandboxRowModelStoreProjectsResidentShioriRowsWithoutMaterializingColl
                 content: "Cue \(cueID)"
             )
         },
-        tableName: "shiori"
+        tableName: "excerpt"
     )
 
     #expect(store.snapshot.totalRowCount == 10_000)
     #expect(store.snapshot.loadedReferenceCount == 10_000)
     #expect(store.snapshot.materializedRowCount == 0)
     #expect(store.snapshot.row(at: 9_999)?.primaryCueText == "Last resident Cue")
-    #expect(store.snapshot.shiori(entryID: 10_000)?.content == "Last resident Cue")
+    #expect(store.snapshot.excerpt(entryID: 10_000)?.content == "Last resident Cue")
     #expect(store.snapshot.rowIndex(entryID: 10_000) == 9_999)
 }
 
 @MainActor
 @Test
-func tableSandboxRowModelStoreProjectsShioriLifecycleStatesAndExactSnapshot() {
+func tableSandboxRowModelStoreProjectsExcerptLifecycleStatesAndExactSnapshot() {
     let store = TableSandboxRowModelStore { _ in "unused" }
-    let unavailableRelation = ShioriRelation(
+    let unavailableRelation = ExcerptRelation(
         id: 7,
-        listID: ShioriListIdentity.defaultListID,
+        listID: ExcerptListIdentity.defaultListID,
         cueID: 42,
         createdAt: "2026-07-21T12:00:00Z"
     )
-    let changedRelation = ShioriRelation(
+    let changedRelation = ExcerptRelation(
         id: 8,
-        listID: ShioriListIdentity.defaultListID,
+        listID: ExcerptListIdentity.defaultListID,
         cueID: 43,
         createdAt: "2026-07-21T12:01:00Z"
     )
-    let unavailable = Shiori(
+    let unavailable = Excerpt(
         id: unavailableRelation.id,
         subtitlePath: "/tmp/CueSeeker/Series/episode.ass",
         subtitleFormat: .ass,
@@ -713,12 +713,12 @@ func tableSandboxRowModelStoreProjectsShioriLifecycleStatesAndExactSnapshot() {
         cueGroupContent: [
             "Primary\nmultiline",
             "Sibling",
-        ].joined(separator: Shiori.cueGroupContentSeparator),
+        ].joined(separator: Excerpt.cueGroupContentSeparator),
         isValid: false,
         unavailableReason: .cueMissing,
         createdAt: unavailableRelation.createdAt
     )
-    let changed = Shiori(
+    let changed = Excerpt(
         id: changedRelation.id,
         subtitlePath: "/tmp/CueSeeker/Series/episode.ass",
         subtitleFormat: .ass,
@@ -728,16 +728,16 @@ func tableSandboxRowModelStoreProjectsShioriLifecycleStatesAndExactSnapshot() {
         endMilliseconds: 4_000,
         content: "Current",
         isValid: true,
-        contentChange: ShioriCueContentChange(
+        contentChange: ExcerptCueContentChange(
             previousContent: "Previous",
             currentContent: "Current"
         ),
         createdAt: changedRelation.createdAt
     )
 
-    store.updateResidentShioriRelations(
+    store.updateResidentExcerptRelations(
         [unavailableRelation, changedRelation],
-        resolvedShiorisByID: [
+        resolvedExcerptsByID: [
             unavailable.id: unavailable,
             changed.id: changed,
         ],
@@ -746,7 +746,7 @@ func tableSandboxRowModelStoreProjectsShioriLifecycleStatesAndExactSnapshot() {
                 ? residentCueContent(cueID: cueID, content: "Current")
                 : nil
         },
-        tableName: "shiori"
+        tableName: "excerpt"
     )
 
     let unavailableRow = store.snapshot.row(at: 0)
@@ -824,66 +824,66 @@ func tableSandboxSearchProjectionReloadsWhenCanonicalCueContentChanges() {
 
 @MainActor
 @Test
-func tableSandboxShioriProjectionReloadsWhenCanonicalCueContentChanges() {
+func tableSandboxExcerptProjectionReloadsWhenCanonicalCueContentChanges() {
     let cueStore = CueContentStore()
-    let original = residentCueContent(cueID: 42, content: "Original Shiori Cue")
-    let changed = residentCueContent(cueID: 42, content: "Changed Shiori Cue")
+    let original = residentCueContent(cueID: 42, content: "Original Excerpt Cue")
+    let changed = residentCueContent(cueID: 42, content: "Changed Excerpt Cue")
     cueStore.install([original])
     let store = TableSandboxRowModelStore { _ in "unused" }
     let relations = [
-        ShioriRelation(
+        ExcerptRelation(
             id: 7,
-            listID: ShioriListIdentity.defaultListID,
+            listID: ExcerptListIdentity.defaultListID,
             cueID: 42,
             createdAt: "2026-07-21T12:00:00Z"
         ),
     ]
 
-    store.updateResidentShioriRelations(
+    store.updateResidentExcerptRelations(
         relations,
         cueContentProvider: { cueStore.content(for: $0) },
         cueContentRevision: cueStore.revision,
-        tableName: "shiori"
+        tableName: "excerpt"
     )
     let originalVersion = store.snapshot.version
     cueStore.install([changed])
-    store.updateResidentShioriRelations(
+    store.updateResidentExcerptRelations(
         relations,
         cueContentProvider: { cueStore.content(for: $0) },
         cueContentRevision: cueStore.revision,
-        tableName: "shiori"
+        tableName: "excerpt"
     )
 
     #expect(store.snapshot.version == originalVersion + 1)
     #expect(store.snapshot.update == .reload)
-    #expect(store.snapshot.row(at: 0)?.primaryCueText == "Changed Shiori Cue")
+    #expect(store.snapshot.row(at: 0)?.primaryCueText == "Changed Excerpt Cue")
 }
 
 @MainActor
 @Test
-func shioriStoreExcludesUnavailableRowsOnlyFromPlaybackScope() {
-    let store = ShioriStore()
-    store.setActiveListID(ShioriListIdentity.defaultListID)
+func excerptStoreExcludesUnavailableRowsOnlyFromPlaybackScope() {
+    let store = ExcerptStore()
+    store.setActiveListID(ExcerptListIdentity.defaultListID)
     let relations = [
-        ShioriRelation(
+        ExcerptRelation(
             id: 1,
-            listID: ShioriListIdentity.defaultListID,
+            listID: ExcerptListIdentity.defaultListID,
             cueID: 101,
             createdAt: "2026-07-21T12:00:00Z"
         ),
-        ShioriRelation(
+        ExcerptRelation(
             id: 2,
-            listID: ShioriListIdentity.defaultListID,
+            listID: ExcerptListIdentity.defaultListID,
             cueID: 102,
             createdAt: "2026-07-21T12:01:00Z"
         ),
     ]
-    let available = shioriSource(
+    let available = excerptSource(
         id: 1,
         content: "Available",
         languages: [.japanese]
-    ).shiori
-    let unavailable = Shiori(
+    ).excerpt
+    let unavailable = Excerpt(
         id: 2,
         subtitlePath: "/tmp/CueSeeker/Series/missing.ass",
         subtitleFormat: .ass,
@@ -898,9 +898,9 @@ func shioriStoreExcludesUnavailableRowsOnlyFromPlaybackScope() {
     )
 
     store.installResidentSnapshot(
-        ShioriResidentSnapshot(
+        ExcerptResidentSnapshot(
             relations: relations,
-            resolvedShioris: [available, unavailable],
+            resolvedExcerpts: [available, unavailable],
             cueContents: [],
             facetSnapshot: CueFacetSnapshot(
                 cueIDs: [101, 102],
@@ -912,33 +912,33 @@ func shioriStoreExcludesUnavailableRowsOnlyFromPlaybackScope() {
         ),
         dataRevision: 1
     )
-    store.installTableResultShioriIDs([1, 2])
+    store.installTableResultExcerptIDs([1, 2])
 
     #expect(store.tableResultRowCount == 2)
-    #expect(store.tableResultShioriIDs == [1, 2])
-    #expect(store.playbackTableResultShioriIDs == [1])
+    #expect(store.tableResultExcerptIDs == [1, 2])
+    #expect(store.playbackTableResultExcerptIDs == [1])
     #expect(store.residentFacetProjection(
         using: CueFacetFilter(languages: [.japanese])
-    ).shioriIDs == [1])
+    ).excerptIDs == [1])
 
-    store.removeShioriFromCurrentProjection(id: 1)
+    store.removeExcerptFromCurrentProjection(id: 1)
 
     #expect(store.residentFacetSnapshot?.distribution.totalCount == 1)
-    #expect(store.residentFacetProjection(using: CueFacetFilter()).shioriIDs == [2])
+    #expect(store.residentFacetProjection(using: CueFacetFilter()).excerptIDs == [2])
 }
 
 @MainActor
 @Test
-func shioriStoreKeepsTableStateAndRowsForViewRemounts() {
-    let store = ShioriStore()
+func excerptStoreKeepsTableStateAndRowsForViewRemounts() {
+    let store = ExcerptStore()
     store.tableSearchDraft = "tomori"
-    store.tableRowStore.hydrateShioriRows(
+    store.tableRowStore.hydrateExcerptRows(
         [
-            shioriSource(id: 1, content: "cached shiori", languages: [.japanese]),
+            excerptSource(id: 1, content: "cached excerpt", languages: [.japanese]),
         ],
         startIndex: 0,
         totalRowCount: 1,
-        tableName: "shiori"
+        tableName: "excerpt"
     )
     store.tableResultRowCount = 37
     store.tableViewportAnchor = TableViewportAnchor(entryID: 1, rowIndex: 0)
@@ -955,21 +955,21 @@ func shioriStoreKeepsTableStateAndRowsForViewRemounts() {
     #expect(store.tableViewportAnchor == TableViewportAnchor(entryID: 1, rowIndex: 0))
     #expect(store.tableSelectionState.headerState(rowCount: 1) == .checked)
     #expect(store.tableSelectionEntryIDs == [1])
-    #expect(store.tableRowStore.snapshot.row(at: 0)?.cues == "cached shiori")
+    #expect(store.tableRowStore.snapshot.row(at: 0)?.cues == "cached excerpt")
 }
 
 @MainActor
 @Test
-func shioriStoreInvalidatesTableRowsWithoutResettingControls() {
-    let store = ShioriStore()
+func excerptStoreInvalidatesTableRowsWithoutResettingControls() {
+    let store = ExcerptStore()
     store.tableSearchDraft = "soyo"
-    store.tableRowStore.hydrateShioriRows(
+    store.tableRowStore.hydrateExcerptRows(
         [
-            shioriSource(id: 1, content: "old shiori", languages: [.japanese]),
+            excerptSource(id: 1, content: "old excerpt", languages: [.japanese]),
         ],
         startIndex: 0,
         totalRowCount: 1,
-        tableName: "shiori"
+        tableName: "excerpt"
     )
     store.tableResultRowCount = 12
     store.markTableRowsLoaded(totalSavedRowCount: 1)
@@ -1017,16 +1017,16 @@ private func searchResult(
     )
 }
 
-private func shioriSource(
+private func excerptSource(
     id: Int64,
     content: String,
     languages: Set<SubtitleLanguageCode>,
-    cuePresentation: ShioriCuePresentation? = nil,
+    cuePresentation: ExcerptCuePresentation? = nil,
     startMilliseconds: Int = 1_000,
     endMilliseconds: Int = 2_000
-) -> TableSandboxShioriRowSource {
-    TableSandboxShioriRowSource(
-        shiori: Shiori(
+) -> TableSandboxExcerptRowSource {
+    TableSandboxExcerptRowSource(
+        excerpt: Excerpt(
             id: id,
             subtitlePath: "/tmp/CueSeeker/Series/episode-\(id).ass",
             subtitleFormat: .ass,

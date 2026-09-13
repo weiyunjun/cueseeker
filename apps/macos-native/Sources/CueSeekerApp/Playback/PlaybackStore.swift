@@ -7,12 +7,12 @@ enum PlaybackCommandPanelPage: Equatable {
     case root
     case searchResults
     case recentVideos
-    case recentShioris
+    case recentExcerpts
 
     /// The pages laid out as a card grid. They are walked with all four arrow
     /// keys and report where their cards sit; the other pages are lists.
     var showsRecentCardGrid: Bool {
-        self == .recentVideos || self == .recentShioris
+        self == .recentVideos || self == .recentExcerpts
     }
 }
 
@@ -181,31 +181,31 @@ final class PlaybackStore: ObservableObject {
             return false
         }
     }
-    /// The open `Save to Shiori` destination menu, and which footer it hangs
+    /// The open `Save to Excerpt` destination menu, and which footer it hangs
     /// off. It lives beside the speed menu for the same reason: the App's single
     /// owner of playback-page keys is the only thing that can hand a menu its
     /// arrows, Enter and Esc before seeking and cue navigation see them.
-    @Published private(set) var shioriDestinationMenu: PlaybackShioriDestinationMenu?
-    let shioriDestinationMenuHighlight = MenuHighlightModel()
+    @Published private(set) var excerptDestinationMenu: PlaybackExcerptDestinationMenu?
+    let excerptDestinationMenuHighlight = MenuHighlightModel()
 
-    func openShioriDestinationMenu(_ menu: PlaybackShioriDestinationMenu) {
-        shioriDestinationMenuHighlight.open(
-            selectablePositions: ShioriDestinationMenu.selectablePositions(
+    func openExcerptDestinationMenu(_ menu: PlaybackExcerptDestinationMenu) {
+        excerptDestinationMenuHighlight.open(
+            selectablePositions: ExcerptDestinationMenu.selectablePositions(
                 destinationCount: menu.destinations.count
             ),
-            defaultPosition: ShioriDestinationMenu.defaultPosition(
+            defaultPosition: ExcerptDestinationMenu.defaultPosition(
                 destinations: menu.destinations
             )
         )
-        shioriDestinationMenu = menu
+        excerptDestinationMenu = menu
     }
 
-    func closeShioriDestinationMenu() {
-        guard shioriDestinationMenu != nil else {
+    func closeExcerptDestinationMenu() {
+        guard excerptDestinationMenu != nil else {
             return
         }
-        shioriDestinationMenuHighlight.close()
-        shioriDestinationMenu = nil
+        excerptDestinationMenuHighlight.close()
+        excerptDestinationMenu = nil
     }
 
     private(set) var pointerHideRequestGeneration: UInt64 = 0
@@ -233,7 +233,7 @@ final class PlaybackStore: ObservableObject {
         availableModules: [PlaybackOverlayModule]? = nil,
         searchStore: SearchStore? = nil,
         libraryStore: PlaybackLibrarySessionStore? = nil,
-        shioriStore: ShioriStore? = nil
+        excerptStore: ExcerptStore? = nil
     ) -> PlaybackSubtitleFocusSessionStore? {
         guard subtitleFocusSession == nil else {
             return nil
@@ -252,7 +252,7 @@ final class PlaybackStore: ObservableObject {
             playlistPosition: playlistPosition,
             searchStore: searchStore,
             libraryStore: libraryStore,
-            shioriStore: shioriStore,
+            excerptStore: excerptStore,
             interfaceLayers: interfaceLayers
         )
         if libraryStore == nil,

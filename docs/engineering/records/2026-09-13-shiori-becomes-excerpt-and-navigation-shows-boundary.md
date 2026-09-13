@@ -85,3 +85,21 @@ Not verified in the App: the Last variants, which are the other branch of the sa
 ## Outcome
 
 The database and the copy steps matched expectations. The naming step in code is held for the owner: renaming what is persisted by name would also reset a rebound Save to Excerpt List shortcut and a remembered Excerpt page selection, and would stop old covers from being removed when they are replaced, none of which the requirement lists.
+
+The owner then updated requirement 2.5 (`582dc5bb`): existing covers are copied into the new cover folder and the lists use the new location, the old folder stays for the owner to delete, and the rebound shortcut and the remembered Sidebar page join the preferences that reset once.
+
+## Naming in code
+
+A mechanical rename, kept apart from any change in behaviour:
+
+- Every `Shiori` and `shiori` in the macOS sources, tests and string tables became `Excerpt` and `excerpt`: types, members, the `Excerpt` source folder and the sixteen files named after it, localization keys and their comments, log and probe names such as `UI.ExcerptPresentation.rebuilt` and `table.excerpt.*`, the table name `excerpt`, and the toast scenario IDs `excerpt.*`.
+- Names that are stored therefore change and reset once, as 2.5 now lists: the preference keys `excerptFacetExclusionsByListID` and `recentExcerptSaveListID`, the shortcut action `saveToExcerpt` inside the stored overrides, and the panel mode `excerpt` behind the remembered Sidebar page.
+- Kept on purpose: every table, index, column and data value in the migrations before 47 and in the fixtures that stand for an old database, the comments that explain them, and the cover folder literal `Shiori` with the one test that checks it, which the cover step below changes.
+- The first pass ran the replacement over the three bootstrap files as well, despite the exclusion meant to skip them, and turned the pre-47 migrations' table names into the new ones. It still built. The damage was caught by counting the old table names left in those files, which had dropped to zero; the three files were restored from `582dc5bb` and only their Swift names renamed.
+- Documents: the `table.excerpt.*` counter family and the footer's `Save to Excerpt List S` in `08_end_to_end_testing.md`, and `ExcerptStore` in `04_architecture_rules.md`. The narrative uses of Shiori in product documents, records and proposals describe history and stay as written.
+
+Verification:
+
+- `swift build`: clean.
+- `swift test`: 1208 tests, 15 failing. Thirteen are the baseline set — the seven native playback cases, the two Debug E2E cases, the four refresh-scope integration cases now named `excerptTableStartsAtTopAfterPanelRemount`, `showCueGroupInvalidationIsScopedToMountedExcerpt`, `progressiveSearchProjectionRefreshesOnlyMountedTable` and `searchFacetSelectionDoesNotRefreshGlobalOrInactiveSurfaces` — and `libraryFolderRemovalAndIndexingRejectEachOther`; the last three of those pass when run on their own.
+- `playbackExcerptCopiesSettledPrimaryCueAsMarkdownLink` fails on its own too, and not because of the rename: it builds its App on the shared preferences, whose App language was set to Simplified Chinese at 20:34 today outside this work, so the feedback it reads is 已复制 Deep Link. The same test passed in the earlier full run. The preference was left as it is.

@@ -33,7 +33,7 @@ func playbackCueResultReelRapidScrollbarDragUsesResidentDataset() async throws {
     _ = NSApplication.shared
     let totalCount = 50_000
     let source = playbackPlaylistReelSource(
-        kind: .shiori,
+        kind: .excerpt,
         totalCount: totalCount
     )
     let dataset = try #require(source.makeSessionWindowStore())

@@ -123,60 +123,60 @@ func coveredResidentSearchCoalescesRelevantAndUnrelatedCueChangesIntoOneReload()
 
 @MainActor
 @Test
-func canonicalCueChangeAutomaticallyReloadsResidentShioriTableProjection() {
+func canonicalCueChangeAutomaticallyReloadsResidentExcerptTableProjection() {
     let cueStore = CueContentStore()
-    let shioriStore = ShioriStore(cueContentStore: cueStore)
-    let original = cueContent(cueID: 7, content: "Original Shiori")
-    let updated = cueContent(cueID: 7, content: "Updated Shiori")
-    let relation = ShioriRelation(
+    let excerptStore = ExcerptStore(cueContentStore: cueStore)
+    let original = cueContent(cueID: 7, content: "Original Excerpt")
+    let updated = cueContent(cueID: 7, content: "Updated Excerpt")
+    let relation = ExcerptRelation(
         id: 70,
-        listID: ShioriListIdentity.defaultListID,
+        listID: ExcerptListIdentity.defaultListID,
         cueID: 7,
         createdAt: "2026-07-22T00:00:00Z"
     )
     cueStore.install([original])
-    shioriStore.tableRowStore.updateResidentShioriRelations(
+    excerptStore.tableRowStore.updateResidentExcerptRelations(
         [relation],
         cueContentProvider: { cueStore.content(for: $0) },
         cueContentRevision: cueStore.revision,
-        tableName: "shiori"
+        tableName: "excerpt"
     )
-    let originalSnapshotVersion = shioriStore.tableRowStore.snapshot.version
+    let originalSnapshotVersion = excerptStore.tableRowStore.snapshot.version
 
     cueStore.install([updated])
 
-    #expect(shioriStore.tableRowStore.snapshot.version == originalSnapshotVersion + 1)
-    #expect(shioriStore.tableRowStore.snapshot.update == .reload)
-    #expect(shioriStore.tableRowStore.snapshot.row(at: 0)?.primaryCueText == "Updated Shiori")
+    #expect(excerptStore.tableRowStore.snapshot.version == originalSnapshotVersion + 1)
+    #expect(excerptStore.tableRowStore.snapshot.update == .reload)
+    #expect(excerptStore.tableRowStore.snapshot.row(at: 0)?.primaryCueText == "Updated Excerpt")
 }
 
 @MainActor
 @Test
-func unrelatedCanonicalCueChangeDoesNotReloadCoveredResidentShiori() {
+func unrelatedCanonicalCueChangeDoesNotReloadCoveredResidentExcerpt() {
     let cueStore = CueContentStore()
-    let shioriStore = ShioriStore(cueContentStore: cueStore)
-    let resident = cueContent(cueID: 7, content: "Resident Shiori")
-    let relation = ShioriRelation(
+    let excerptStore = ExcerptStore(cueContentStore: cueStore)
+    let resident = cueContent(cueID: 7, content: "Resident Excerpt")
+    let relation = ExcerptRelation(
         id: 70,
-        listID: ShioriListIdentity.defaultListID,
+        listID: ExcerptListIdentity.defaultListID,
         cueID: 7,
         createdAt: "2026-07-22T00:00:00Z"
     )
     cueStore.install([resident])
-    shioriStore.tableRowStore.updateResidentShioriRelations(
+    excerptStore.tableRowStore.updateResidentExcerptRelations(
         [relation],
         cueContentProvider: { cueStore.content(for: $0) },
         cueContentRevision: cueStore.revision,
-        tableName: "shiori"
+        tableName: "excerpt"
     )
-    let originalSnapshotVersion = shioriStore.tableRowStore.snapshot.version
+    let originalSnapshotVersion = excerptStore.tableRowStore.snapshot.version
 
-    shioriStore.setTableProjectionResponseActive(false)
+    excerptStore.setTableProjectionResponseActive(false)
     cueStore.install([cueContent(cueID: 99, content: "Unrelated")])
-    shioriStore.setTableProjectionResponseActive(true)
+    excerptStore.setTableProjectionResponseActive(true)
 
-    #expect(shioriStore.tableRowStore.snapshot.version == originalSnapshotVersion)
-    #expect(shioriStore.tableRowStore.snapshot.row(at: 0)?.primaryCueText == "Resident Shiori")
+    #expect(excerptStore.tableRowStore.snapshot.version == originalSnapshotVersion)
+    #expect(excerptStore.tableRowStore.snapshot.row(at: 0)?.primaryCueText == "Resident Excerpt")
 }
 
 private func cueContent(cueID: Int64, content: String) -> CueContent {

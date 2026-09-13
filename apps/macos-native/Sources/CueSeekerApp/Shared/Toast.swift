@@ -38,10 +38,10 @@ struct ToastRequest: Equatable {
     }
 }
 
-enum ShioriToastRequest {
+enum ExcerptToastRequest {
     /// The Workbench and the playback surfaces report the same event, so they
     /// carry the same icon.
-    private static func shiori(_ scenarioID: String, _ message: String) -> ToastRequest {
+    private static func excerpt(_ scenarioID: String, _ message: String) -> ToastRequest {
         ToastRequest(
             scenarioID: scenarioID,
             message: message,
@@ -51,40 +51,40 @@ enum ShioriToastRequest {
     }
 
     static func moveSucceeded(listName: String) -> ToastRequest {
-        shiori("shiori.move.succeeded", L("toast.shiori.moved", listName))
+        excerpt("excerpt.move.succeeded", L("toast.excerpt.moved", listName))
     }
 
     static func saveSucceeded(listName: String) -> ToastRequest {
-        shiori("shiori.save.succeeded", L("toast.shiori.saved", listName))
+        excerpt("excerpt.save.succeeded", L("toast.excerpt.saved", listName))
     }
 
     static func duplicateSucceeded(listName: String) -> ToastRequest {
-        shiori("shiori.duplicate.succeeded", L("toast.shiori.duplicated", listName))
+        excerpt("excerpt.duplicate.succeeded", L("toast.excerpt.duplicated", listName))
     }
 
     static func destinationUnavailable(listName: String) -> ToastRequest {
-        shiori(
-            "shiori.destination.unavailable",
-            L("toast.shiori.destination_unavailable", listName)
+        excerpt(
+            "excerpt.destination.unavailable",
+            L("toast.excerpt.destination_unavailable", listName)
         )
     }
 
     static var moveFailed: ToastRequest {
-        shiori("shiori.move.failed", L("toast.shiori.move_failed"))
+        excerpt("excerpt.move.failed", L("toast.excerpt.move_failed"))
     }
 
     static func saveFailed(listName: String) -> ToastRequest {
-        shiori("shiori.save.failed", L("toast.shiori.save_failed", listName))
+        excerpt("excerpt.save.failed", L("toast.excerpt.save_failed", listName))
     }
 
     static var duplicateFailed: ToastRequest {
-        shiori("shiori.duplicate.failed", L("toast.shiori.duplicate_failed"))
+        excerpt("excerpt.duplicate.failed", L("toast.excerpt.duplicate_failed"))
     }
 
     static func destinationAlreadyContainsCue(listName: String) -> ToastRequest {
-        shiori(
-            "shiori.destination.cue.already_exists",
-            L("toast.shiori.already_exists", listName)
+        excerpt(
+            "excerpt.destination.cue.already_exists",
+            L("toast.excerpt.already_exists", listName)
         )
     }
 }

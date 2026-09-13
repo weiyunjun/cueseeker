@@ -213,7 +213,7 @@ extension AppCoordinator {
             indexing.databaseMaintenanceStatus = .idle
         }
         cancelDatabaseReadTasksBeforeIndexing()
-        prepareShioriForIndexedContentMutation(under: [folder])
+        prepareExcerptForIndexedContentMutation(under: [folder])
 
         let databaseURL = self.databaseURL
         let removalExecutor = libraryFolderRemovalExecutor
@@ -227,7 +227,7 @@ extension AppCoordinator {
                 self.indexing.removeFolder(folder)
                 self.clearSearchAndPlaybackState(under: folder)
                 self.indexing.folderRemovalStatus = .idle
-                self.reloadShioriAfterIndexedContentMutation()
+                self.reloadExcerptAfterIndexedContentMutation()
                 self.search.completeIndexedCueDataMutation(searchMutationToken)
                 self.indexing.removedFolderNotice = folder
                 self.refreshLibrary()
@@ -243,7 +243,7 @@ extension AppCoordinator {
                 }
 
                 self.indexing.folderRemovalStatus = .idle
-                self.reloadShioriAfterIndexedContentMutation()
+                self.reloadExcerptAfterIndexedContentMutation()
                 self.search.completeIndexedCueDataMutation(searchMutationToken)
                 self.restoreCurrentSearchAfterIndexedCueMutationFailure(
                     reloadFromDatabase: false
@@ -311,7 +311,7 @@ extension AppCoordinator {
                     completed.auxiliaryFailures
                 applyPublishedIndexMutation(
                     completed.result,
-                    shioriFallbackFolders: [folder]
+                    excerptFallbackFolders: [folder]
                 )
                 applyAuxiliaryDataRefreshIfNeeded(
                     completed,
@@ -423,7 +423,7 @@ extension AppCoordinator {
                     if let aggregateResult {
                         applyPublishedIndexMutation(
                             aggregateResult,
-                            shioriFallbackFolders: folders
+                            excerptFallbackFolders: folders
                         )
                         if refreshedAuxiliaryData
                             && !aggregateResult
@@ -451,7 +451,7 @@ extension AppCoordinator {
             indexing.auxiliaryFailures = auxiliaryFailures
             applyPublishedIndexMutation(
                 aggregateResult,
-                shioriFallbackFolders: folders
+                excerptFallbackFolders: folders
             )
             if refreshedAuxiliaryData
                 && !aggregateResult.hasIndexedContentChanges
@@ -463,18 +463,18 @@ extension AppCoordinator {
 
     func applyPublishedIndexMutation(
         _ result: SubtitleIndexingResult,
-        shioriFallbackFolders: [URL]
+        excerptFallbackFolders: [URL]
     ) {
-        if result.requiresShioriRefresh {
+        if result.requiresExcerptRefresh {
             let affectedFolders = result.affectedFolderPaths.isEmpty
-                ? shioriFallbackFolders
+                ? excerptFallbackFolders
                 : result.affectedFolderPaths.map(
                     URL.init(fileURLWithPath:)
                 )
-            prepareShioriForIndexedContentMutation(
+            prepareExcerptForIndexedContentMutation(
                 under: affectedFolders
             )
-            reloadShioriAfterIndexedContentMutation()
+            reloadExcerptAfterIndexedContentMutation()
         }
 
         guard result.hasIndexedContentChanges else {

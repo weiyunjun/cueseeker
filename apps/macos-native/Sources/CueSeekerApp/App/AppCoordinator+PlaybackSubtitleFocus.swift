@@ -187,7 +187,7 @@ extension AppCoordinator {
                 session: session,
                 playCurrentCue: playPlaybackSubtitleFocusCurrentCue,
                 openPlaylistItem: openPlaybackPlaylistItem,
-                openShioriItem: openPlaybackShioriItem
+                openExcerptItem: openPlaybackExcerptItem
             )
         }
     }
@@ -220,7 +220,7 @@ extension AppCoordinator {
             session: session,
             playCurrentCue: playPlaybackSubtitleFocusCurrentCue,
             openPlaylistItem: openPlaybackPlaylistItem,
-            openShioriItem: openPlaybackShioriItem
+            openExcerptItem: openPlaybackExcerptItem
         )
     }
 
@@ -237,7 +237,7 @@ extension AppCoordinator {
             session: session,
             playCurrentCue: playCurrentCue,
             openPlaylistItem: openPlaybackPlaylistItem,
-            openShioriItem: openPlaybackShioriItem
+            openExcerptItem: openPlaybackExcerptItem
         )
     }
 
@@ -255,7 +255,7 @@ extension AppCoordinator {
             session: session,
             playCurrentCue: playCurrentCue,
             openPlaylistItem: openPlaylistItem,
-            openShioriItem: openPlaybackShioriItem
+            openExcerptItem: openPlaybackExcerptItem
         )
     }
 
@@ -264,7 +264,7 @@ extension AppCoordinator {
         _ execution: PlaybackSubtitleFocusActionExecution,
         playCurrentCue: (PlaybackSubtitleFocusActionContext) -> Bool,
         openPlaylistItem: (PlaybackPlaylistItem) -> Void,
-        openShioriItem: (PlaybackCueResultItem) -> Void
+        openExcerptItem: (PlaybackCueResultItem) -> Void
     ) -> Bool {
         guard let session = playback.subtitleFocusSession else {
             return false
@@ -274,7 +274,7 @@ extension AppCoordinator {
             session: session,
             playCurrentCue: playCurrentCue,
             openPlaylistItem: openPlaylistItem,
-            openShioriItem: openShioriItem
+            openExcerptItem: openExcerptItem
         )
     }
 
@@ -283,7 +283,7 @@ extension AppCoordinator {
         session: PlaybackSubtitleFocusSessionStore,
         playCurrentCue: (PlaybackSubtitleFocusActionContext) -> Bool,
         openPlaylistItem: (PlaybackPlaylistItem) -> Void,
-        openShioriItem: (PlaybackCueResultItem) -> Void
+        openExcerptItem: (PlaybackCueResultItem) -> Void
     ) -> Bool {
         guard playback.subtitleFocusSession === session,
               session.activeKeyboardAction == execution
@@ -292,10 +292,10 @@ extension AppCoordinator {
         }
 
         switch execution.action {
-        case .shiori:
+        case .excerpt:
             // A cue already saved somewhere still opens the menu: the point of
             // choosing a destination is that it can go to another list too.
-            togglePlaybackShioriDestinationMenu(
+            togglePlaybackExcerptDestinationMenu(
                 surface: .playbackOverlay,
                 context: execution.target.actionContext
             )
@@ -356,34 +356,34 @@ extension AppCoordinator {
                     playbackSearchPromotion: promotion
                 )
                 playback.playbackViewModel?.showPlayPauseFeedback(isPlaying: true)
-            case .shiori(let item):
+            case .excerpt(let item):
                 invalidatePlaybackSubtitleFocusForSourceReplacement()
-                openShioriItem(item)
+                openExcerptItem(item)
                 playback.playbackViewModel?.showPlayPauseFeedback(isPlaying: true)
             }
         }
         return true
     }
 
-    /// Opens the destination menu the `Save to Shiori` button hangs off, or
+    /// Opens the destination menu the `Save to Excerpt` button hangs off, or
     /// closes it when it is already up: the key and the button both toggle it.
-    func togglePlaybackShioriDestinationMenu(
+    func togglePlaybackExcerptDestinationMenu(
         surface: PlaybackCueFooterSurface,
         context: PlaybackSubtitleFocusActionContext?
     ) {
-        guard playback.shioriDestinationMenu?.surface != surface else {
-            playback.closeShioriDestinationMenu()
+        guard playback.excerptDestinationMenu?.surface != surface else {
+            playback.closeExcerptDestinationMenu()
             return
         }
         guard let context, !context.cue.text.isEmpty else {
-            playback.playbackViewModel?.showShioriFeedback(.unavailable)
+            playback.playbackViewModel?.showExcerptFeedback(.unavailable)
             return
         }
-        playback.openShioriDestinationMenu(
-            PlaybackShioriDestinationMenu(
+        playback.openExcerptDestinationMenu(
+            PlaybackExcerptDestinationMenu(
                 surface: surface,
                 cueID: context.cue.id,
-                destinations: shiori.saveDestinations
+                destinations: excerpt.saveDestinations
             )
         )
     }
@@ -445,36 +445,36 @@ extension AppCoordinator {
                 playbackSearchPromotion: playbackSearchPromotion,
                 playlistSourceOverride: playlistSourceOverride
             )
-        case .shiori(let shiori):
-            let playlistScope: PlaybackPlaylistShioriScope?
+        case .excerpt(let excerpt):
+            let playlistScope: PlaybackPlaylistExcerptScope?
             if let source = playback.playlistSource,
-               case .shiori(let scope) = source.origin {
+               case .excerpt(let scope) = source.origin {
                 playlistScope = scope
             } else {
                 playlistScope = nil
             }
-            openShiori(
-                shiori,
-                navigationScopeIDs: shioriPlaybackNavigationScopeIDs,
+            openExcerpt(
+                excerpt,
+                navigationScopeIDs: excerptPlaybackNavigationScopeIDs,
                 playlistScope: playlistScope,
                 playlistSelectedOrdinal: item.ordinal
             )
         }
     }
 
-    private func openPlaybackShioriItem(_ item: PlaybackCueResultItem) {
-        _ = dispatchPlaybackShioriOverlayItem(item) { shiori, scope in
+    private func openPlaybackExcerptItem(_ item: PlaybackCueResultItem) {
+        _ = dispatchPlaybackExcerptOverlayItem(item) { excerpt, scope in
             let playlistScope = scope.map {
-                PlaybackPlaylistShioriScope.table(
-                    PlaybackPlaylistShioriTableContext(
-                        runID: self.shiori.tableResultSnapshotID,
-                        searchText: self.shiori.tableSearchDraft,
+                PlaybackPlaylistExcerptScope.table(
+                    PlaybackPlaylistExcerptTableContext(
+                        runID: self.excerpt.tableResultSnapshotID,
+                        searchText: self.excerpt.tableSearchDraft,
                         totalCount: $0.count
                     )
                 )
             }
-            openShiori(
-                shiori,
+            openExcerpt(
+                excerpt,
                 navigationScopeIDs: scope,
                 playlistScope: playlistScope,
                 playlistSelectedOrdinal: item.ordinal
@@ -483,15 +483,15 @@ extension AppCoordinator {
     }
 
     @discardableResult
-    func dispatchPlaybackShioriOverlayItem(
+    func dispatchPlaybackExcerptOverlayItem(
         _ item: PlaybackCueResultItem,
-        open: (Shiori, [Int64]?) -> Void
+        open: (Excerpt, [Int64]?) -> Void
     ) -> Bool {
-        guard case .shiori(let shiori) = item.target else {
+        guard case .excerpt(let excerpt) = item.target else {
             return false
         }
-        let resultIDs = self.shiori.playbackTableResultShioriIDs
-        open(shiori, resultIDs)
+        let resultIDs = self.excerpt.playbackTableResultExcerptIDs
+        open(excerpt, resultIDs)
         return true
     }
 

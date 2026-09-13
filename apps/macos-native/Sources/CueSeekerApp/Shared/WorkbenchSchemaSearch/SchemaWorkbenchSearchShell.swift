@@ -53,7 +53,7 @@ enum SchemaWorkbenchSearchDefaults {
         ]
     }
 
-    static var shioriColumns: [WorkbenchTableColumn] {
+    static var excerptColumns: [WorkbenchTableColumn] {
         [
         WorkbenchTableColumn(
             id: "rowNumber",
@@ -113,7 +113,7 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
     let isFilterMenuOpen: Bool
     let onToggleFilterMenu: () -> Void
     let onDismissFilterMenu: () -> Void
-    /// Supplied when the caller hosts the toolbar itself (the Shiori detail
+    /// Supplied when the caller hosts the toolbar itself (the Excerpt detail
     /// pins it inside the table); the shell's own toolbar registers into the
     /// shell-owned handle instead.
     let externalFilterMenuAnchor: MenuAnchorHandle?

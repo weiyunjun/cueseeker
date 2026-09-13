@@ -1192,7 +1192,7 @@ public final class IndexingDatabase: @unchecked Sendable {
         keeping subtitleFiles: Set<String>,
         removeSearchPath: Bool,
         rebuildSearchDerivedIndex: Bool,
-        unavailableReason: ShioriUnavailableReason
+        unavailableReason: ExcerptUnavailableReason
     ) throws {
         try database.withImmediateTransaction {
             let affectedFolderPaths = try removeIndexedDataInCurrentTransaction(
@@ -1213,7 +1213,7 @@ public final class IndexingDatabase: @unchecked Sendable {
         keeping subtitleFiles: Set<String>,
         removeSearchPath: Bool,
         rebuildSearchDerivedIndex: Bool,
-        unavailableReason: ShioriUnavailableReason
+        unavailableReason: ExcerptUnavailableReason
     ) throws -> Set<String> {
         let folderPathPrefixes = Self.folderPathPrefixes(for: folder)
         let prefixCondition = folderPathPrefixes
@@ -1888,7 +1888,7 @@ public final class IndexingDatabase: @unchecked Sendable {
 
     private func snapshotReferencedCues(
         subtitleFileID: Int64,
-        unavailableReason: ShioriUnavailableReason
+        unavailableReason: ExcerptUnavailableReason
     ) throws {
         let now = ISO8601DateFormatter().string(from: Date())
         let statement = try database.prepare(
@@ -2696,7 +2696,7 @@ public final class IndexingDatabase: @unchecked Sendable {
     private func deleteIndexedSubtitlePath(
         _ subtitlePath: String,
         preserveFileIdentity: Bool = false,
-        unavailableReason: ShioriUnavailableReason
+        unavailableReason: ExcerptUnavailableReason
     ) throws {
         if let subtitleFile = try subtitleFileRecord(path: subtitlePath) {
             try snapshotReferencedCues(

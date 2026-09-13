@@ -22,7 +22,7 @@ func selectedTextCopyUsesRequiredPlaybackFeedback() {
 @Test
 func normalPlaybackQToggleSubtitlesWhileSAndCDoNothing() throws {
     try withNormalPlaybackApp { app, database in
-        let shioriDatabase = try #require(app.shioriDatabase)
+        let excerptDatabase = try #require(app.excerptDatabase)
         let viewModel = try #require(app.playback.playbackViewModel)
 
         #expect(viewModel.areSubtitlesVisible)
@@ -46,7 +46,7 @@ func normalPlaybackQToggleSubtitlesWhileSAndCDoNothing() throws {
 
         #expect(!viewModel.areSubtitlesVisible)
         #expect(viewModel.feedback == feedbackAfterQ)
-        #expect(try shioriDatabase.shioriCount() == 0)
+        #expect(try excerptDatabase.excerptCount() == 0)
     }
 }
 
@@ -479,7 +479,7 @@ func openSpeedMenuSpendsEveryKeyItDoesNotTake() throws {
 @Test
 func openOverlayMenuSpendsTabAndTheFooterShortcuts() throws {
     try withNormalPlaybackApp { app, _ in
-        let shioriDatabase = try #require(app.shioriDatabase)
+        let excerptDatabase = try #require(app.excerptDatabase)
         app.playback.isPlaybackSurfaceExpanded = true
         let session = try #require(app.playback.beginSubtitleFocusSession(
             openSnapshot: PlaybackSubtitleFocusOpenSnapshot(
@@ -510,8 +510,8 @@ func openOverlayMenuSpendsTabAndTheFooterShortcuts() throws {
             ))
         }
         #expect(session.selectedModule == module)
-        #expect(app.playback.shioriDestinationMenu == nil)
-        #expect(try shioriDatabase.shioriCount() == 0)
+        #expect(app.playback.excerptDestinationMenu == nil)
+        #expect(try excerptDatabase.excerptCount() == 0)
         #expect(!session.isEditingCollage)
         #expect(app.playback.commandPanelPresentation == nil)
 

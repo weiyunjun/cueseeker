@@ -1,13 +1,13 @@
 import SwiftUI
 
-/// The destination list menu: every Shiori list, then a divider and `New List`.
+/// The destination list menu: every Excerpt list, then a divider and `New List`.
 ///
 /// One surface draws it for all three callers — the table row menu's
-/// `Save to Shiori ...`, `Move to ...` and `Duplicate to ...` submenus, and the
-/// playback footer's `Save to Shiori` button. Which lists appear, and in which
+/// `Save to Excerpt ...`, `Move to ...` and `Duplicate to ...` submenus, and the
+/// playback footer's `Save to Excerpt` button. Which lists appear, and in which
 /// order, stays with the caller: `Move to ...` leaves out the list the row is
-/// already in, `Save to Shiori` leaves out nothing.
-struct ShioriDestinationMenu: View {
+/// already in, `Save to Excerpt` leaves out nothing.
+struct ExcerptDestinationMenu: View {
     let destinations: [SubtitleTableRowActionDestination]
     @ObservedObject var highlight: MenuHighlightModel
     var maximumHeight: CGFloat = MenuMetrics.maximumHeight
@@ -59,7 +59,7 @@ struct ShioriDestinationMenu: View {
                     WorkbenchMenuDivider()
                 }
                 WorkbenchPopoverRow(
-                    title: L("shiori.new_list"),
+                    title: L("excerpt.new_list"),
                     isHighlighted: highlight.highlightedPosition
                         == destinations.count,
                     isRedesign: true,
@@ -75,8 +75,8 @@ struct ShioriDestinationMenu: View {
     }
 }
 
-extension ShioriStore {
-    /// Every list, in creation order, as a `Save to Shiori` destination. Saving
+extension ExcerptStore {
+    /// Every list, in creation order, as a `Save to Excerpt` destination. Saving
     /// has no current list to leave out, and the list saved to most recently
     /// carries the flag the menu opens its highlight on.
     /// What the destination menu calls this list. Empty when the overview does

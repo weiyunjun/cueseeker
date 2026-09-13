@@ -142,7 +142,7 @@ struct MenuGateKindTests {
             .cardMenu,
             .selectedTextMenu,
             .playerSpeedMenu,
-            .shioriDestinationMenu,
+            .excerptDestinationMenu,
         ] {
             #expect(kind.receivesKeysFromRouter)
         }

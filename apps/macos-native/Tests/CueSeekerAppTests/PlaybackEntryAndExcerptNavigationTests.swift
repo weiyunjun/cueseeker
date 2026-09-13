@@ -40,25 +40,25 @@ func playbackChromeSnapshotUsesEntryMetadataAcrossSources() async throws {
         #expect(app.playback.chromeSnapshot.canGoPrevious)
         #expect(app.playback.chromeSnapshot.canGoNext)
 
-        let older = try insertNavigationShiori(
+        let older = try insertNavigationExcerpt(
             in: database,
-            content: "older shiori cue",
+            content: "older excerpt cue",
             startMilliseconds: 3_000,
             createdAt: Date(timeIntervalSince1970: 1_800_000_000)
         )
-        let newer = try insertNavigationShiori(
+        let newer = try insertNavigationExcerpt(
             in: database,
-            content: "newer shiori cue",
+            content: "newer excerpt cue",
             startMilliseconds: 5_000,
             createdAt: Date(timeIntervalSince1970: 1_900_000_000)
         )
 
-        app.openShiori(
+        app.openExcerpt(
             older,
             navigationScopeIDs: [newer.id, older.id],
-            displayTitle: "Shiori Row Title"
+            displayTitle: "Excerpt Row Title"
         )
-        #expect(app.playback.chromeSnapshot.displayTitle == "Shiori Row Title")
+        #expect(app.playback.chromeSnapshot.displayTitle == "Excerpt Row Title")
         #expect(app.playback.chromeSnapshot.canGoPrevious)
         #expect(!app.playback.chromeSnapshot.canGoNext)
     }
@@ -97,7 +97,7 @@ func playbackEntryClearsWorkbenchFocusAcrossSources() async throws {
         app.openLibraryVideo(libraryVideo)
         #expect(!app.workbenchLayout.isSearchFocused)
 
-        let shiori = try insertNavigationShiori(
+        let excerpt = try insertNavigationExcerpt(
             in: database,
             content: "saved cue",
             startMilliseconds: 3_000,
@@ -105,151 +105,151 @@ func playbackEntryClearsWorkbenchFocusAcrossSources() async throws {
         )
 
         app.workbenchLayout.isSearchFocused = true
-        app.openShiori(shiori)
+        app.openExcerpt(excerpt)
         #expect(!app.workbenchLayout.isSearchFocused)
     }
 }
 
 @MainActor
 @Test
-func shioriPlaybackNavigationUsesDatabaseWhenStoreIsNotHydrated() async throws {
+func excerptPlaybackNavigationUsesDatabaseWhenStoreIsNotHydrated() async throws {
     try await withTemporaryNavigationApp { app, database in
-        let old = try insertNavigationShiori(
+        let old = try insertNavigationExcerpt(
             in: database,
             content: "old saved cue",
             startMilliseconds: 1_000,
             createdAt: Date(timeIntervalSince1970: 1_700_000_000)
         )
-        let middle = try insertNavigationShiori(
+        let middle = try insertNavigationExcerpt(
             in: database,
             content: "middle saved cue",
             startMilliseconds: 3_000,
             createdAt: Date(timeIntervalSince1970: 1_800_000_000)
         )
-        let newest = try insertNavigationShiori(
+        let newest = try insertNavigationExcerpt(
             in: database,
             content: "newest saved cue",
             startMilliseconds: 5_000,
             createdAt: Date(timeIntervalSince1970: 1_900_000_000)
         )
 
-        #expect(app.shiori.residentRelations.isEmpty)
+        #expect(app.excerpt.residentRelations.isEmpty)
 
-        app.openShiori(middle)
-        #expect(app.canOpenPreviousShiori)
-        #expect(app.canOpenNextShiori)
+        app.openExcerpt(middle)
+        #expect(app.canOpenPreviousExcerpt)
+        #expect(app.canOpenNextExcerpt)
 
-        app.openPreviousShiori()
-        #expect(app.shiori.selectedShiori?.id == old.id)
-        #expect(!app.canOpenPreviousShiori)
+        app.openPreviousExcerpt()
+        #expect(app.excerpt.selectedExcerpt?.id == old.id)
+        #expect(!app.canOpenPreviousExcerpt)
 
-        app.openNextShiori()
-        #expect(app.shiori.selectedShiori?.id == middle.id)
+        app.openNextExcerpt()
+        #expect(app.excerpt.selectedExcerpt?.id == middle.id)
 
-        app.openNextShiori()
-        #expect(app.shiori.selectedShiori?.id == newest.id)
-        #expect(!app.canOpenNextShiori)
+        app.openNextExcerpt()
+        #expect(app.excerpt.selectedExcerpt?.id == newest.id)
+        #expect(!app.canOpenNextExcerpt)
     }
 }
 
 @MainActor
 @Test
-func shioriPlaybackNavigationUsesProvidedTableScope() async throws {
+func excerptPlaybackNavigationUsesProvidedTableScope() async throws {
     try await withTemporaryNavigationApp { app, database in
-        let outsideScope = try insertNavigationShiori(
+        let outsideScope = try insertNavigationExcerpt(
             in: database,
-            content: "outside filtered shiori",
+            content: "outside filtered excerpt",
             startMilliseconds: 1_000,
             createdAt: Date(timeIntervalSince1970: 1_700_000_000)
         )
-        let filteredMiddle = try insertNavigationShiori(
+        let filteredMiddle = try insertNavigationExcerpt(
             in: database,
-            content: "filtered middle shiori",
+            content: "filtered middle excerpt",
             startMilliseconds: 3_000,
             createdAt: Date(timeIntervalSince1970: 1_800_000_000)
         )
-        let filteredNewest = try insertNavigationShiori(
+        let filteredNewest = try insertNavigationExcerpt(
             in: database,
-            content: "filtered newest shiori",
+            content: "filtered newest excerpt",
             startMilliseconds: 5_000,
             createdAt: Date(timeIntervalSince1970: 1_900_000_000)
         )
 
-        #expect(app.shiori.residentRelations.isEmpty)
-        app.openShiori(
+        #expect(app.excerpt.residentRelations.isEmpty)
+        app.openExcerpt(
             filteredMiddle,
             navigationScopeIDs: [filteredNewest.id, filteredMiddle.id]
         )
-        #expect(app.canOpenPreviousShiori)
-        #expect(!app.canOpenNextShiori)
+        #expect(app.canOpenPreviousExcerpt)
+        #expect(!app.canOpenNextExcerpt)
 
-        app.openPreviousShiori()
-        #expect(app.shiori.selectedShiori?.id == filteredNewest.id)
-        #expect(!app.canOpenPreviousShiori)
+        app.openPreviousExcerpt()
+        #expect(app.excerpt.selectedExcerpt?.id == filteredNewest.id)
+        #expect(!app.canOpenPreviousExcerpt)
 
-        app.openNextShiori()
-        #expect(app.shiori.selectedShiori?.id == filteredMiddle.id)
-        #expect(!app.canOpenNextShiori)
-        #expect(app.shiori.selectedShiori?.id != outsideScope.id)
+        app.openNextExcerpt()
+        #expect(app.excerpt.selectedExcerpt?.id == filteredMiddle.id)
+        #expect(!app.canOpenNextExcerpt)
+        #expect(app.excerpt.selectedExcerpt?.id != outsideScope.id)
     }
 }
 
 @MainActor
 @Test
-func shioriPlaybackNavigationAvailabilityUsesCachedScope() async throws {
+func excerptPlaybackNavigationAvailabilityUsesCachedScope() async throws {
     try await withTemporaryNavigationApp { app, database in
-        let filteredMiddle = try insertNavigationShiori(
+        let filteredMiddle = try insertNavigationExcerpt(
             in: database,
-            content: "filtered middle shiori",
+            content: "filtered middle excerpt",
             startMilliseconds: 3_000,
             createdAt: Date(timeIntervalSince1970: 1_800_000_000)
         )
-        let filteredNewest = try insertNavigationShiori(
+        let filteredNewest = try insertNavigationExcerpt(
             in: database,
-            content: "filtered newest shiori",
+            content: "filtered newest excerpt",
             startMilliseconds: 5_000,
             createdAt: Date(timeIntervalSince1970: 1_900_000_000)
         )
 
-        app.openShiori(
+        app.openExcerpt(
             filteredMiddle,
             navigationScopeIDs: [filteredNewest.id, filteredMiddle.id]
         )
         app.indexingDatabase = nil
 
-        #expect(app.canOpenPreviousShiori)
-        #expect(!app.canOpenNextShiori)
+        #expect(app.canOpenPreviousExcerpt)
+        #expect(!app.canOpenNextExcerpt)
     }
 }
 
 @MainActor
 @Test
-func shioriPlaybackNavigationAvailabilityUsesCachedDatabaseSnapshot() async throws {
+func excerptPlaybackNavigationAvailabilityUsesCachedDatabaseSnapshot() async throws {
     try await withTemporaryNavigationApp { app, database in
-        _ = try insertNavigationShiori(
+        _ = try insertNavigationExcerpt(
             in: database,
             content: "old saved cue",
             startMilliseconds: 1_000,
             createdAt: Date(timeIntervalSince1970: 1_700_000_000)
         )
-        let middle = try insertNavigationShiori(
+        let middle = try insertNavigationExcerpt(
             in: database,
             content: "middle saved cue",
             startMilliseconds: 3_000,
             createdAt: Date(timeIntervalSince1970: 1_800_000_000)
         )
-        _ = try insertNavigationShiori(
+        _ = try insertNavigationExcerpt(
             in: database,
             content: "newest saved cue",
             startMilliseconds: 5_000,
             createdAt: Date(timeIntervalSince1970: 1_900_000_000)
         )
 
-        app.openShiori(middle)
+        app.openExcerpt(middle)
         app.indexingDatabase = nil
 
-        #expect(app.canOpenPreviousShiori)
-        #expect(app.canOpenNextShiori)
+        #expect(app.canOpenPreviousExcerpt)
+        #expect(app.canOpenNextExcerpt)
     }
 }
 
@@ -271,17 +271,17 @@ private func indexFakeLibraryVideo(in database: IndexingDatabase, basename: Stri
     )
 }
 
-private func insertNavigationShiori(
+private func insertNavigationExcerpt(
     in database: IndexingDatabase,
     content: String,
     startMilliseconds: Int,
     createdAt: Date
-) throws -> Shiori {
+) throws -> Excerpt {
     let subtitleFile = URL(
-        fileURLWithPath: "/Media/ShioriNavigation-\(startMilliseconds).srt"
+        fileURLWithPath: "/Media/ExcerptNavigation-\(startMilliseconds).srt"
     )
     let videoFile = URL(
-        fileURLWithPath: "/Media/ShioriNavigation-\(startMilliseconds).mkv"
+        fileURLWithPath: "/Media/ExcerptNavigation-\(startMilliseconds).mkv"
     )
     try database.replaceEntries(
         subtitleFile: subtitleFile,
@@ -301,7 +301,7 @@ private func insertNavigationShiori(
         forSubtitleFile: subtitleFile,
         atMilliseconds: startMilliseconds
     ))
-    return try ShioriDatabase(path: database.path).upsertShiori(
+    return try ExcerptDatabase(path: database.path).upsertExcerpt(
         selection: selection,
         createdAt: createdAt
     )

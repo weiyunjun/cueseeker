@@ -33,7 +33,7 @@ struct WorkbenchTestSearchView: View {
     @EnvironmentObject private var settingsStore: SettingsStore
     // Observed so the copy below is re-read when the language changes.
     @EnvironmentObject private var localization: AppLocalizationStore
-    @EnvironmentObject private var shioriStore: ShioriStore
+    @EnvironmentObject private var excerptStore: ExcerptStore
     private let rowStore: TableSandboxRowModelStore
     @State private var appliedShowCueGroup: Bool?
     @State private var searchDraft: String
@@ -127,8 +127,8 @@ struct WorkbenchTestSearchView: View {
                         },
                         onPlay: play,
                         rowActionDestinations: rowActionDestinations,
-                        onSaveShiori: saveShiori,
-                        onCreateShioriList: createShioriList,
+                        onSaveExcerpt: saveExcerpt,
+                        onCreateExcerptList: createExcerptList,
                         isRedesign: true
                     )
 
@@ -454,26 +454,26 @@ struct WorkbenchTestSearchView: View {
 
     /// Search has no current list, so every list is a destination.
     private var rowActionDestinations: [SubtitleTableRowActionDestination] {
-        shioriStore.saveDestinations
+        excerptStore.saveDestinations
     }
 
-    private func saveShiori(_ row: SubtitleTableRow, toListID listID: Int64) {
+    private func saveExcerpt(_ row: SubtitleTableRow, toListID listID: Int64) {
         guard let cueID = row.primaryCueID else { return }
-        appState.saveShiori(
+        appState.saveExcerpt(
             cueID: cueID,
             toListID: listID,
-            listName: shioriStore.listName(id: listID),
+            listName: excerptStore.listName(id: listID),
             report: .toast
         )
     }
 
-    private func createShioriList(
+    private func createExcerptList(
         _ row: SubtitleTableRow,
         for action: SubtitleTableRowAction
     ) {
         guard let cueID = row.primaryCueID else { return }
-        appState.beginCreatingShioriList(
-            pendingTransfer: ShioriListEditorPendingTransfer(
+        appState.beginCreatingExcerptList(
+            pendingTransfer: ExcerptListEditorPendingTransfer(
                 action: action,
                 target: .cue(cueID)
             )

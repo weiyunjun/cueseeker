@@ -9,7 +9,7 @@ struct WorkbenchRecentView: View {
     @EnvironmentObject private var appState: AppCoordinator
     @EnvironmentObject private var routeState: WorkbenchRouteState
     @EnvironmentObject private var library: LibraryStore
-    @EnvironmentObject private var shiori: ShioriStore
+    @EnvironmentObject private var excerpt: ExcerptStore
     /// One highlight for the page: only one card may be lit at a time.
     @StateObject private var highlight = CardHighlightModel(
         keepsCurrentWhenPointerLeaves: false
@@ -32,8 +32,8 @@ struct WorkbenchRecentView: View {
                         status: library.testRecentWatchingStatus,
                         items: library.testRecentWatchingItems
                     )
-                case .shioris:
-                    recentShiorisContent(shiori.recentListSummaries)
+                case .excerpts:
+                    recentExcerptsContent(excerpt.recentListSummaries)
                 }
             }
                 .workbenchPageInlinePadding()
@@ -60,11 +60,11 @@ struct WorkbenchRecentView: View {
         }
         .task {
             appState.hydrateTestRecentWatchingAsync()
-            appState.reloadShioriListOverview()
+            appState.reloadExcerptListOverview()
         }
         .onChange(of: appState.isPlaybackPageVisible) { isVisible in
             if !isVisible {
-                appState.reloadShioriListOverview()
+                appState.reloadExcerptListOverview()
             }
         }
     }
@@ -114,22 +114,22 @@ struct WorkbenchRecentView: View {
     }
 
     @ViewBuilder
-    private func recentShiorisContent(
-        _ summaries: [ShioriListSummary]
+    private func recentExcerptsContent(
+        _ summaries: [ExcerptListSummary]
     ) -> some View {
-        if !shiori.hasLoadedListOverview, summaries.isEmpty {
+        if !excerpt.hasLoadedListOverview, summaries.isEmpty {
             LibraryEmptyHint {
                 ProgressView()
                     .controlSize(.small)
             }
         } else if summaries.isEmpty {
-            LibraryEmptyHint(L("library.recent_shioris_empty"))
+            LibraryEmptyHint(L("library.recent_excerpts_empty"))
         } else {
-            ShioriListCardGrid(
+            ExcerptListCardGrid(
                 summaries: summaries,
                 highlight: highlight
             ) { summary in
-                appState.openRecentShiori(summary)
+                appState.openRecentExcerpt(summary)
             }
         }
     }
@@ -661,7 +661,7 @@ where Item.ID == String {
     }
 }
 
-/// Shared by the video card grid and the Shiori card grid: both report where
+/// Shared by the video card grid and the Excerpt card grid: both report where
 /// their cards sit so the Command Panel can walk them with the arrow keys.
 struct LibraryItemFramePreferenceKey: PreferenceKey {
     static let defaultValue: [String: CGRect] = [:]

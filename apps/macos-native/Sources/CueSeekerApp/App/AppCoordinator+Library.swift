@@ -844,7 +844,7 @@ extension AppCoordinator {
         refreshRecentWatching()
         refreshLoadedTestRecentWatching()
         refreshSearchForLibraryWatchStateChange()
-        refreshShioriForLibraryWatchStateChange()
+        refreshExcerptForLibraryWatchStateChange()
     }
 
     func applyLibraryPresentation(_ snapshot: [LibraryFolderPresentation]) {
@@ -965,7 +965,7 @@ extension AppCoordinator {
         }
         library.selectedLibraryVideo = video
         search.selectResult(nil)
-        shiori.selectedShiori = nil
+        excerpt.selectedExcerpt = nil
         let navigationAvailability = libraryNavigationAvailability(for: video)
         setPlaybackChromeSnapshot(
             displayTitle: playbackDisplayTitle(

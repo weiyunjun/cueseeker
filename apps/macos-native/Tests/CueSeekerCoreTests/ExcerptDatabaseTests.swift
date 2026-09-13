@@ -3,21 +3,21 @@ import Testing
 @testable import CueSeekerCore
 
 @Test
-func shioriListsSupportMetadataValidationSortingAndDeletion() throws {
+func excerptListsSupportMetadataValidationSortingAndDeletion() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
         try? FileManager.default.removeItem(at: databaseURL)
     }
 
     try DatabaseBootstrap.prepare(at: databaseURL)
-    let database = try ShioriDatabase(path: databaseURL)
-    let initial = try #require(try database.shioriLists().first)
-    #expect(initial.id == ShioriListIdentity.defaultListID)
+    let database = try ExcerptDatabase(path: databaseURL)
+    let initial = try #require(try database.excerptLists().first)
+    #expect(initial.id == ExcerptListIdentity.defaultListID)
     #expect(initial.name == "Default")
     #expect(initial.description.isEmpty)
     #expect(initial.coverPath == nil)
 
-    let simultaneousErrors = try database.validateShioriList(
+    let simultaneousErrors = try database.validateExcerptList(
         name: String(repeating: "N", count: 31),
         description: String(repeating: "D", count: 101)
     )
@@ -30,31 +30,31 @@ func shioriListsSupportMetadataValidationSortingAndDeletion() throws {
         currentCharacters: 101
     ))
 
-    let older = try database.createShioriList(
+    let older = try database.createExcerptList(
         name: "  Favorites  ",
         description: "First line\nSecond line",
         coverPath: "/tmp/favorites.jpg",
         createdAt: Date(timeIntervalSince1970: 100)
     )
-    let newer = try database.createShioriList(
+    let newer = try database.createExcerptList(
         name: "Study",
         createdAt: Date(timeIntervalSince1970: 200)
     )
     #expect(older.name == "Favorites")
     #expect(older.description == "First line\nSecond line")
     #expect(older.coverPath == "/tmp/favorites.jpg")
-    #expect(try database.shioriLists().map(\.id) == [initial.id, older.id, newer.id])
+    #expect(try database.excerptLists().map(\.id) == [initial.id, older.id, newer.id])
 
-    let duplicate = try database.validateShioriList(
+    let duplicate = try database.validateExcerptList(
         name: "favorites",
         description: ""
     )
     #expect(duplicate.nameError == .duplicateName)
-    #expect(throws: ShioriListValidationError.duplicateName) {
-        _ = try database.createShioriList(name: "FAVORITES")
+    #expect(throws: ExcerptListValidationError.duplicateName) {
+        _ = try database.createExcerptList(name: "FAVORITES")
     }
 
-    let updated = try database.updateShioriList(
+    let updated = try database.updateExcerptList(
         id: older.id,
         name: "Favorites Updated",
         description: "",
@@ -65,15 +65,15 @@ func shioriListsSupportMetadataValidationSortingAndDeletion() throws {
     #expect(updated.coverPath == nil)
     #expect(updated.createdAt == older.createdAt)
 
-    #expect(try database.deleteShioriList(id: newer.id) == newer)
-    #expect(try database.deleteShioriList(id: older.id).id == older.id)
-    #expect(throws: ShioriListMutationError.cannotDeleteOnlyList) {
-        _ = try database.deleteShioriList(id: initial.id)
+    #expect(try database.deleteExcerptList(id: newer.id) == newer)
+    #expect(try database.deleteExcerptList(id: older.id).id == older.id)
+    #expect(throws: ExcerptListMutationError.cannotDeleteOnlyList) {
+        _ = try database.deleteExcerptList(id: initial.id)
     }
 }
 
 @Test
-func shioriListOverviewCountsPerListAndDeduplicatesCueIDs() throws {
+func excerptListOverviewCountsPerListAndDeduplicatesCueIDs() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
         try? FileManager.default.removeItem(at: databaseURL)
@@ -81,7 +81,7 @@ func shioriListOverviewCountsPerListAndDeduplicatesCueIDs() throws {
 
     let indexingDatabase = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
-    let shioriDatabase = try ShioriDatabase(path: databaseURL)
+    let excerptDatabase = try ExcerptDatabase(path: databaseURL)
     let subtitleFile = URL(fileURLWithPath: "/Media/Show/List Overview.srt")
     try indexingDatabase.replaceEntries(
         subtitleFile: subtitleFile,
@@ -102,8 +102,8 @@ func shioriListOverviewCountsPerListAndDeduplicatesCueIDs() throws {
         atMilliseconds: 1_500
     ))
     let cueID = try #require(selection.cueLineID)
-    _ = try shioriDatabase.upsertShiori(selection: selection)
-    let secondList = try shioriDatabase.createShioriList(name: "Second")
+    _ = try excerptDatabase.upsertExcerpt(selection: selection)
+    let secondList = try excerptDatabase.createExcerptList(name: "Second")
     try executeDatabaseTestSQLite(
         at: databaseURL,
         """
@@ -112,13 +112,13 @@ func shioriListOverviewCountsPerListAndDeduplicatesCueIDs() throws {
         """
     )
 
-    let overview = try shioriDatabase.shioriListOverview()
+    let overview = try excerptDatabase.excerptListOverview()
     #expect(overview.lists.map(\.cueCount) == [1, 1])
     #expect(overview.uniqueCueCount == 1)
 }
 
 @Test
-func recentShioriPlaybackResumesAnchorAndFallsBackWithinOriginalList() throws {
+func recentExcerptPlaybackResumesAnchorAndFallsBackWithinOriginalList() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
         try? FileManager.default.removeItem(at: databaseURL)
@@ -126,11 +126,11 @@ func recentShioriPlaybackResumesAnchorAndFallsBackWithinOriginalList() throws {
 
     let indexingDatabase = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
-    let database = try ShioriDatabase(path: databaseURL)
-    let subtitleFile = URL(fileURLWithPath: "/Media/Show/Recent Shiori.srt")
+    let database = try ExcerptDatabase(path: databaseURL)
+    let subtitleFile = URL(fileURLWithPath: "/Media/Show/Recent Excerpt.srt")
     try indexingDatabase.replaceEntries(
         subtitleFile: subtitleFile,
-        videoFile: URL(fileURLWithPath: "/Media/Show/Recent Shiori.mkv"),
+        videoFile: URL(fileURLWithPath: "/Media/Show/Recent Excerpt.mkv"),
         entries: [
             SubtitleEntry(
                 sequenceNumber: 1,
@@ -159,45 +159,45 @@ func recentShioriPlaybackResumesAnchorAndFallsBackWithinOriginalList() throws {
         forSubtitleFile: subtitleFile,
         atMilliseconds: 3_500
     ))
-    let older = try database.upsertShiori(
+    let older = try database.upsertExcerpt(
         selection: olderSelection,
-        listID: ShioriListIdentity.defaultListID,
+        listID: ExcerptListIdentity.defaultListID,
         createdAt: Date(timeIntervalSince1970: 100)
     )
-    let newer = try database.upsertShiori(
+    let newer = try database.upsertExcerpt(
         selection: newerSelection,
-        listID: ShioriListIdentity.defaultListID,
+        listID: ExcerptListIdentity.defaultListID,
         createdAt: Date(timeIntervalSince1970: 200)
     )
 
-    try database.recordRecentShioriPlayback(
-        shioriID: older.id,
+    try database.recordRecentExcerptPlayback(
+        excerptID: older.id,
         playedAt: Date(timeIntervalSince1970: 300)
     )
 
-    var summary = try #require(try database.recentShioriListSummaries().first)
-    #expect(summary.list.id == ShioriListIdentity.defaultListID)
+    var summary = try #require(try database.recentExcerptListSummaries().first)
+    #expect(summary.list.id == ExcerptListIdentity.defaultListID)
     #expect(summary.list.recentSortOrder == "created_at_desc")
     #expect(summary.cueCount == 2)
-    #expect(summary.resumeShiori?.id == older.id)
+    #expect(summary.resumeExcerpt?.id == older.id)
     #expect(summary.resumePosition == 1)
 
-    _ = try database.removeShiori(id: older.id)
-    summary = try #require(try database.recentShioriListSummaries().first)
+    _ = try database.removeExcerpt(id: older.id)
+    summary = try #require(try database.recentExcerptListSummaries().first)
     #expect(summary.cueCount == 1)
-    #expect(summary.resumeShiori?.id == newer.id)
+    #expect(summary.resumeExcerpt?.id == newer.id)
     #expect(summary.resumePosition == 1)
 
-    _ = try database.removeShiori(id: newer.id)
-    #expect(try database.recentShioriListSummaries().isEmpty)
-    let list = try #require(try database.shioriList(id: ShioriListIdentity.defaultListID))
+    _ = try database.removeExcerpt(id: newer.id)
+    #expect(try database.recentExcerptListSummaries().isEmpty)
+    let list = try #require(try database.excerptList(id: ExcerptListIdentity.defaultListID))
     #expect(list.recentCueID == nil)
     #expect(list.recentSortOrder == nil)
     #expect(list.recentPlayedAt == nil)
 }
 
 @Test
-func shioriSaveMoveAndDuplicateUseListScopeAndPreserveMetadata() throws {
+func excerptSaveMoveAndDuplicateUseListScopeAndPreserveMetadata() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
         try? FileManager.default.removeItem(at: databaseURL)
@@ -205,7 +205,7 @@ func shioriSaveMoveAndDuplicateUseListScopeAndPreserveMetadata() throws {
 
     let indexingDatabase = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
-    let database = try ShioriDatabase(path: databaseURL)
+    let database = try ExcerptDatabase(path: databaseURL)
     let subtitleFile = URL(fileURLWithPath: "/Media/Show/List Transfer.srt")
     try indexingDatabase.replaceEntries(
         subtitleFile: subtitleFile,
@@ -229,10 +229,10 @@ func shioriSaveMoveAndDuplicateUseListScopeAndPreserveMetadata() throws {
             ),
         ]
     )
-    let defaultList = try #require(try database.shioriList(
-        id: ShioriListIdentity.defaultListID
+    let defaultList = try #require(try database.excerptList(
+        id: ExcerptListIdentity.defaultListID
     ))
-    let destinationList = try database.createShioriList(
+    let destinationList = try database.createExcerptList(
         name: "Destination",
         createdAt: Date(timeIntervalSince1970: 200)
     )
@@ -250,65 +250,65 @@ func shioriSaveMoveAndDuplicateUseListScopeAndPreserveMetadata() throws {
     )
     let firstCueID = try #require(firstSelection.cueLineID)
 
-    let transitionalSave = try database.upsertShiori(selection: firstSelection)
-    #expect(try database.shioriRelation(id: transitionalSave.id)?.listID == defaultList.id)
-    #expect(try database.shiori(cueID: firstCueID)?.id == transitionalSave.id)
-    #expect(try database.shiori(
+    let transitionalSave = try database.upsertExcerpt(selection: firstSelection)
+    #expect(try database.excerptRelation(id: transitionalSave.id)?.listID == defaultList.id)
+    #expect(try database.excerpt(cueID: firstCueID)?.id == transitionalSave.id)
+    #expect(try database.excerpt(
         cueID: firstCueID,
         listID: destinationList.id
     ) == nil)
-    _ = try database.removeShiori(id: transitionalSave.id)
+    _ = try database.removeExcerpt(id: transitionalSave.id)
 
     let createdAt = Date(timeIntervalSince1970: 1_700_000_000)
-    let sourceToDuplicate = try database.upsertShiori(
+    let sourceToDuplicate = try database.upsertExcerpt(
         selection: firstSelection,
         listID: defaultList.id,
         createdAt: createdAt
     )
-    let duplicate = try database.duplicateShiori(
+    let duplicate = try database.duplicateExcerpt(
         id: sourceToDuplicate.id,
         toListID: destinationList.id
     )
     #expect(duplicate.id != sourceToDuplicate.id)
     #expect(duplicate.listID == destinationList.id)
     #expect(duplicate.createdAt == sourceToDuplicate.createdAt)
-    #expect(try database.shioriRelation(id: sourceToDuplicate.id) != nil)
-    #expect(throws: ShioriTransferError.destinationAlreadyContainsCue(
+    #expect(try database.excerptRelation(id: sourceToDuplicate.id) != nil)
+    #expect(throws: ExcerptTransferError.destinationAlreadyContainsCue(
         listID: destinationList.id
     )) {
-        _ = try database.duplicateShiori(
+        _ = try database.duplicateExcerpt(
             id: sourceToDuplicate.id,
             toListID: destinationList.id
         )
     }
 
-    let sourceToMove = try database.upsertShiori(
+    let sourceToMove = try database.upsertExcerpt(
         selection: secondSelection,
         listID: defaultList.id,
         createdAt: createdAt
     )
-    #expect(throws: ShioriTransferError.destinationUnavailable) {
-        _ = try database.moveShiori(id: sourceToMove.id, toListID: 99_999)
+    #expect(throws: ExcerptTransferError.destinationUnavailable) {
+        _ = try database.moveExcerpt(id: sourceToMove.id, toListID: 99_999)
     }
-    #expect(try database.shioriRelation(id: sourceToMove.id) != nil)
+    #expect(try database.excerptRelation(id: sourceToMove.id) != nil)
 
-    let moved = try database.moveShiori(
+    let moved = try database.moveExcerpt(
         id: sourceToMove.id,
         toListID: destinationList.id
     )
     #expect(moved.id != sourceToMove.id)
     #expect(moved.createdAt == sourceToMove.createdAt)
-    #expect(try database.shioriRelation(id: sourceToMove.id) == nil)
-    #expect(try database.shioriRelations(listID: defaultList.id).map(\.id) == [
+    #expect(try database.excerptRelation(id: sourceToMove.id) == nil)
+    #expect(try database.excerptRelations(listID: defaultList.id).map(\.id) == [
         sourceToDuplicate.id
     ])
-    #expect(Set(try database.shioriRelations(listID: destinationList.id).map(\.id)) == Set([
+    #expect(Set(try database.excerptRelations(listID: destinationList.id).map(\.id)) == Set([
         duplicate.id, moved.id
     ]))
 }
 
 @Test
-func shioriPersistsCueIdentityAndCreatedAt() throws {
+func excerptPersistsCueIdentityAndCreatedAt() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
         try? FileManager.default.removeItem(at: databaseURL)
@@ -340,27 +340,27 @@ func shioriPersistsCueIdentityAndCreatedAt() throws {
     ))
     let createdAt = Date(timeIntervalSince1970: 1_700_000_000)
 
-    let shiori = try ShioriDatabase(path: database.path).upsertShiori(
+    let excerpt = try ExcerptDatabase(path: database.path).upsertExcerpt(
         selection: selection,
         createdAt: createdAt
     )
-    let duplicate = try ShioriDatabase(path: database.path).upsertShiori(
+    let duplicate = try ExcerptDatabase(path: database.path).upsertExcerpt(
         selection: selection,
         createdAt: Date(timeIntervalSince1970: 1_800_000_000)
     )
 
-    #expect(shiori.id == duplicate.id)
-    #expect(shiori.subtitlePath == subtitleFile.path)
-    #expect(shiori.subtitleFormat == .srt)
-    #expect(shiori.videoPath == videoFile.path)
-    #expect(shiori.videoName == "Episode 1.mkv")
-    #expect(shiori.startMilliseconds == 1_000)
-    #expect(shiori.endMilliseconds == 3_000)
-    #expect(shiori.cueLines == ["First saved line.", "Second saved line."])
-    #expect(shiori.isValid)
-    #expect(shiori.createdAt == ISO8601DateFormatter().string(from: createdAt))
-    #expect(duplicate.createdAt == shiori.createdAt)
-    #expect(try ShioriDatabase(path: database.path).shioris().count == 1)
+    #expect(excerpt.id == duplicate.id)
+    #expect(excerpt.subtitlePath == subtitleFile.path)
+    #expect(excerpt.subtitleFormat == .srt)
+    #expect(excerpt.videoPath == videoFile.path)
+    #expect(excerpt.videoName == "Episode 1.mkv")
+    #expect(excerpt.startMilliseconds == 1_000)
+    #expect(excerpt.endMilliseconds == 3_000)
+    #expect(excerpt.cueLines == ["First saved line.", "Second saved line."])
+    #expect(excerpt.isValid)
+    #expect(excerpt.createdAt == ISO8601DateFormatter().string(from: createdAt))
+    #expect(duplicate.createdAt == excerpt.createdAt)
+    #expect(try ExcerptDatabase(path: database.path).excerpts().count == 1)
 }
 
 @Test
@@ -417,7 +417,7 @@ func cueContentsResolveCurrentCueDataInRequestedOrder() throws {
 }
 
 @Test
-func shioriResidentSnapshotLoadsRelationsCurrentCueContentAndFacetsTogether() throws {
+func excerptResidentSnapshotLoadsRelationsCurrentCueContentAndFacetsTogether() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
         try? FileManager.default.removeItem(at: databaseURL)
@@ -425,8 +425,8 @@ func shioriResidentSnapshotLoadsRelationsCurrentCueContentAndFacetsTogether() th
 
     let database = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
-    let subtitleFile = URL(fileURLWithPath: "/Media/Show/Resident Shiori.srt")
-    let videoFile = URL(fileURLWithPath: "/Media/Show/Resident Shiori.mkv")
+    let subtitleFile = URL(fileURLWithPath: "/Media/Show/Resident Excerpt.srt")
+    let videoFile = URL(fileURLWithPath: "/Media/Show/Resident Excerpt.mkv")
     try database.replaceEntries(
         subtitleFile: subtitleFile,
         videoFile: videoFile,
@@ -446,7 +446,7 @@ func shioriResidentSnapshotLoadsRelationsCurrentCueContentAndFacetsTogether() th
         atMilliseconds: 1_500
     ))
     let cueID = try #require(selection.cueLineID)
-    let saved = try ShioriDatabase(path: database.path).upsertShiori(
+    let saved = try ExcerptDatabase(path: database.path).upsertExcerpt(
         selection: selection,
         createdAt: Date(timeIntervalSince1970: 1_700_000_000)
     )
@@ -456,7 +456,7 @@ func shioriResidentSnapshotLoadsRelationsCurrentCueContentAndFacetsTogether() th
         state: .finished
     )
 
-    let snapshot = try ShioriDatabase(path: database.path).shioriResidentSnapshot()
+    let snapshot = try ExcerptDatabase(path: database.path).excerptResidentSnapshot()
 
     #expect(snapshot.relations.map(\.id) == [saved.id])
     #expect(snapshot.relations.map(\.cueID) == snapshot.cueContents.map(\.cueID))
@@ -477,7 +477,7 @@ func shioriResidentSnapshotLoadsRelationsCurrentCueContentAndFacetsTogether() th
 }
 
 @Test
-func shioriResidentSnapshotKeepsAvailableCueContentBesideUnavailableCue() throws {
+func excerptResidentSnapshotKeepsAvailableCueContentBesideUnavailableCue() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
         try? FileManager.default.removeItem(at: databaseURL)
@@ -536,12 +536,12 @@ func shioriResidentSnapshotKeepsAvailableCueContentBesideUnavailableCue() throws
         )
     )
     let availableCueID = try #require(availableSelection.cueLineID)
-    let shioriDatabase = try ShioriDatabase(path: database.path)
-    let availableShiori = try shioriDatabase.upsertShiori(
+    let excerptDatabase = try ExcerptDatabase(path: database.path)
+    let availableExcerpt = try excerptDatabase.upsertExcerpt(
         selection: availableSelection,
         createdAt: Date(timeIntervalSince1970: 1_700_000_000)
     )
-    let unavailableShiori = try shioriDatabase.upsertShiori(
+    let unavailableExcerpt = try excerptDatabase.upsertExcerpt(
         selection: unavailableSelection,
         createdAt: Date(timeIntervalSince1970: 1_700_000_100)
     )
@@ -552,12 +552,12 @@ func shioriResidentSnapshotKeepsAvailableCueContentBesideUnavailableCue() throws
         entries: []
     )
 
-    let snapshot = try shioriDatabase.shioriResidentSnapshot()
+    let snapshot = try excerptDatabase.excerptResidentSnapshot()
     let resolvedByID = Dictionary(
-        uniqueKeysWithValues: snapshot.resolvedShioris.map { ($0.id, $0) }
+        uniqueKeysWithValues: snapshot.resolvedExcerpts.map { ($0.id, $0) }
     )
-    let resolvedAvailable = try #require(resolvedByID[availableShiori.id])
-    let resolvedUnavailable = try #require(resolvedByID[unavailableShiori.id])
+    let resolvedAvailable = try #require(resolvedByID[availableExcerpt.id])
+    let resolvedUnavailable = try #require(resolvedByID[unavailableExcerpt.id])
 
     #expect(snapshot.relations.count == 2)
     #expect(snapshot.cueContents.map(\.cueID) == [availableCueID])
@@ -572,7 +572,7 @@ func shioriResidentSnapshotKeepsAvailableCueContentBesideUnavailableCue() throws
 }
 
 @Test
-func shioriRelationSchemaAllowsOneCueInDifferentListsOnly() throws {
+func excerptRelationSchemaAllowsOneCueInDifferentListsOnly() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
         try? FileManager.default.removeItem(at: databaseURL)
@@ -610,7 +610,7 @@ func shioriRelationSchemaAllowsOneCueInDifferentListsOnly() throws {
         atMilliseconds: 1_500
     ))
     let cueID = try #require(selection.cueLineID)
-    let defaultShiori = try ShioriDatabase(path: database.path).upsertShiori(
+    let defaultExcerpt = try ExcerptDatabase(path: database.path).upsertExcerpt(
         selection: selection,
         createdAt: Date(timeIntervalSince1970: 100)
     )
@@ -621,7 +621,7 @@ func shioriRelationSchemaAllowsOneCueInDifferentListsOnly() throws {
         )
     )
     let defaultOnlyCueID = try #require(defaultOnlySelection.cueLineID)
-    let defaultOnlyShiori = try ShioriDatabase(path: database.path).upsertShiori(
+    let defaultOnlyExcerpt = try ExcerptDatabase(path: database.path).upsertExcerpt(
         selection: defaultOnlySelection,
         createdAt: Date(timeIntervalSince1970: 200)
     )
@@ -651,18 +651,18 @@ func shioriRelationSchemaAllowsOneCueInDifferentListsOnly() throws {
     )
 
     #expect(
-        try ShioriDatabase(path: database.path).shioriRelations(
-            listID: ShioriListIdentity.defaultListID
-        ).map(\.id) == [defaultShiori.id, defaultOnlyShiori.id]
+        try ExcerptDatabase(path: database.path).excerptRelations(
+            listID: ExcerptListIdentity.defaultListID
+        ).map(\.id) == [defaultExcerpt.id, defaultOnlyExcerpt.id]
     )
-    let futureRelation = try #require(try ShioriDatabase(path: database.path).shioriRelations(listID: 2).first)
+    let futureRelation = try #require(try ExcerptDatabase(path: database.path).excerptRelations(listID: 2).first)
     #expect(futureRelation.cueID == cueID)
     #expect(futureRelation.listID == 2)
 
-    let defaultSnapshot = try ShioriDatabase(path: database.path)
-        .shioriResidentSnapshot(listID: ShioriListIdentity.defaultListID)
-    let futureSnapshot = try ShioriDatabase(path: database.path)
-        .shioriResidentSnapshot(listID: 2)
+    let defaultSnapshot = try ExcerptDatabase(path: database.path)
+        .excerptResidentSnapshot(listID: ExcerptListIdentity.defaultListID)
+    let futureSnapshot = try ExcerptDatabase(path: database.path)
+        .excerptResidentSnapshot(listID: 2)
     #expect(defaultSnapshot.facetSnapshot.distribution.totalCount == 2)
     #expect(Set(defaultSnapshot.facetSnapshot.cueIDs) == [cueID, defaultOnlyCueID])
     #expect(futureSnapshot.facetSnapshot.distribution.totalCount == 1)
@@ -676,14 +676,14 @@ func shioriRelationSchemaAllowsOneCueInDifferentListsOnly() throws {
             VALUES (2, \(cueID), '2026-07-21T00:00:02Z');
             """
         )
-        Issue.record("Expected one Shiori relation per Cue inside one list")
+        Issue.record("Expected one Excerpt relation per Cue inside one list")
     } catch {
         // Expected unique(list_id, cue_id) enforcement.
     }
 }
 
 @Test
-func shioriPersistsAndResolvesCueID() throws {
+func excerptPersistsAndResolvesCueID() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
         try? FileManager.default.removeItem(at: databaseURL)
@@ -703,7 +703,7 @@ func shioriPersistsAndResolvesCueID() throws {
                 endTimecode: "00:00:03,000",
                 startMilliseconds: 1_000,
                 endMilliseconds: 3_000,
-                text: "CueID is the Shiori relationship."
+                text: "CueID is the Excerpt relationship."
             )
         ]
     )
@@ -713,14 +713,14 @@ func shioriPersistsAndResolvesCueID() throws {
         atMilliseconds: 1_500
     ))
     let cueID = try #require(selection.cueLineID)
-    let shiori = try ShioriDatabase(path: database.path).upsertShiori(
+    let excerpt = try ExcerptDatabase(path: database.path).upsertExcerpt(
         selection: selection
     )
 
-    let relation = try #require(try ShioriDatabase(path: database.path).shioriRelation(id: shiori.id))
+    let relation = try #require(try ExcerptDatabase(path: database.path).excerptRelation(id: excerpt.id))
     #expect(relation.cueID == cueID)
-    #expect(relation.listID == ShioriListIdentity.defaultListID)
-    #expect(try ShioriDatabase(path: database.path).shioriLists().map(\.id) == [ShioriListIdentity.defaultListID])
+    #expect(relation.listID == ExcerptListIdentity.defaultListID)
+    #expect(try ExcerptDatabase(path: database.path).excerptLists().map(\.id) == [ExcerptListIdentity.defaultListID])
 
     let cueContent = try CueContentDatabase(path: database.path).cueContents(forCueIDs: [cueID])
     #expect(cueContent.first?.cueID == cueID)
@@ -728,7 +728,7 @@ func shioriPersistsAndResolvesCueID() throws {
 }
 
 @Test
-func rebuildingSubtitlePreservesCueIDAndShioriWhenContentChanges() throws {
+func rebuildingSubtitlePreservesCueIDAndExcerptWhenContentChanges() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
         try? FileManager.default.removeItem(at: databaseURL)
@@ -737,8 +737,8 @@ func rebuildingSubtitlePreservesCueIDAndShioriWhenContentChanges() throws {
     let database = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
 
-    let subtitleFile = URL(fileURLWithPath: "/Media/Show/Reindexed Shiori.srt")
-    let videoFile = URL(fileURLWithPath: "/Media/Show/Reindexed Shiori.mkv")
+    let subtitleFile = URL(fileURLWithPath: "/Media/Show/Reindexed Excerpt.srt")
+    let videoFile = URL(fileURLWithPath: "/Media/Show/Reindexed Excerpt.mkv")
     let originalEntry = SubtitleEntry(
         sequenceNumber: 1,
         startTimecode: "00:00:01,000",
@@ -756,8 +756,8 @@ func rebuildingSubtitlePreservesCueIDAndShioriWhenContentChanges() throws {
     let originalCue = try #require(
         try PlaybackSubtitleDatabase(path: database.path).cueLineRecords(forSubtitleFile: subtitleFile).first
     )
-    let originalShiori = try ShioriDatabase(path: database.path).upsertShiori(
-        selection: shioriSelection(originalCue),
+    let originalExcerpt = try ExcerptDatabase(path: database.path).upsertExcerpt(
+        selection: excerptSelection(originalCue),
         createdAt: Date(timeIntervalSince1970: 1_700_000_000)
     )
 
@@ -780,25 +780,25 @@ func rebuildingSubtitlePreservesCueIDAndShioriWhenContentChanges() throws {
         try PlaybackSubtitleDatabase(path: database.path).cueLineRecords(forSubtitleFile: subtitleFile).first
     )
     let rebuiltRelation = try #require(
-        try ShioriDatabase(path: database.path).shioriRelation(id: originalShiori.id)
+        try ExcerptDatabase(path: database.path).excerptRelation(id: originalExcerpt.id)
     )
-    let rebuiltShiori = try #require(try ShioriDatabase(path: database.path).shiori(id: originalShiori.id))
+    let rebuiltExcerpt = try #require(try ExcerptDatabase(path: database.path).excerpt(id: originalExcerpt.id))
 
     #expect(rebuiltCue.id == originalCue.id)
-    #expect(rebuiltRelation.id == originalShiori.id)
+    #expect(rebuiltRelation.id == originalExcerpt.id)
     #expect(rebuiltRelation.cueID == rebuiltCue.id)
-    #expect(rebuiltShiori.content == "Updated saved cue.")
+    #expect(rebuiltExcerpt.content == "Updated saved cue.")
     #expect(
-        rebuiltShiori.contentChange == ShioriCueContentChange(
+        rebuiltExcerpt.contentChange == ExcerptCueContentChange(
             previousContent: "Original saved cue.",
             currentContent: "Updated saved cue."
         )
     )
-    #expect(rebuiltShiori.createdAt == originalShiori.createdAt)
+    #expect(rebuiltExcerpt.createdAt == originalExcerpt.createdAt)
 }
 
 @Test
-func shioriStoresSameTimeSiblingCuesSeparatelyAndDeduplicatesOneIdentity() throws {
+func excerptStoresSameTimeSiblingCuesSeparatelyAndDeduplicatesOneIdentity() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
         try? FileManager.default.removeItem(at: databaseURL)
@@ -841,18 +841,18 @@ func shioriStoresSameTimeSiblingCuesSeparatelyAndDeduplicatesOneIdentity() throw
         ]
     )
     let cueRecords = try PlaybackSubtitleDatabase(path: database.path).cueLineRecords(forSubtitleFile: subtitleFile)
-    let topSelection = shioriSelection(cueRecords[0])
-    let bottomSelection = shioriSelection(cueRecords[1])
+    let topSelection = excerptSelection(cueRecords[0])
+    let bottomSelection = excerptSelection(cueRecords[1])
 
-    let top = try ShioriDatabase(path: database.path).upsertShiori(
+    let top = try ExcerptDatabase(path: database.path).upsertExcerpt(
         selection: topSelection,
         createdAt: Date(timeIntervalSince1970: 1_700_000_000)
     )
-    let bottom = try ShioriDatabase(path: database.path).upsertShiori(
+    let bottom = try ExcerptDatabase(path: database.path).upsertExcerpt(
         selection: bottomSelection,
         createdAt: Date(timeIntervalSince1970: 1_800_000_000)
     )
-    let duplicateBottom = try ShioriDatabase(path: database.path).upsertShiori(
+    let duplicateBottom = try ExcerptDatabase(path: database.path).upsertExcerpt(
         selection: bottomSelection,
         createdAt: Date(timeIntervalSince1970: 1_900_000_000)
     )
@@ -862,14 +862,14 @@ func shioriStoresSameTimeSiblingCuesSeparatelyAndDeduplicatesOneIdentity() throw
     #expect(top.cueIdentity == topSelection.cueIdentity)
     #expect(bottom.cueIdentity == bottomSelection.cueIdentity)
     #expect(duplicateBottom.createdAt == bottom.createdAt)
-    #expect(try ShioriDatabase(path: database.path).shioriCount() == 2)
-    #expect(try ShioriDatabase(path: database.path).removeShiori(id: bottom.id))
-    #expect(try ShioriDatabase(path: database.path).shiori(id: top.id) != nil)
-    #expect(try ShioriDatabase(path: database.path).shiori(id: bottom.id) == nil)
+    #expect(try ExcerptDatabase(path: database.path).excerptCount() == 2)
+    #expect(try ExcerptDatabase(path: database.path).removeExcerpt(id: bottom.id))
+    #expect(try ExcerptDatabase(path: database.path).excerpt(id: top.id) != nil)
+    #expect(try ExcerptDatabase(path: database.path).excerpt(id: bottom.id) == nil)
 }
 
 @Test
-func removingIndexedFolderPreservesCueBoundShioriRelation() throws {
+func removingIndexedFolderPreservesCueBoundExcerptRelation() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
         try? FileManager.default.removeItem(at: databaseURL)
@@ -891,7 +891,7 @@ func removingIndexedFolderPreservesCueBoundShioriRelation() throws {
                 endTimecode: "00:00:03,000",
                 startMilliseconds: 1_000,
                 endMilliseconds: 3_000,
-                text: "Shiori should survive index removal."
+                text: "Excerpt should survive index removal."
             )
         ]
     )
@@ -899,29 +899,29 @@ func removingIndexedFolderPreservesCueBoundShioriRelation() throws {
         forSubtitleFile: subtitleFile,
         atMilliseconds: 1_500
     ))
-    let savedShiori = try ShioriDatabase(path: database.path).upsertShiori(
+    let savedExcerpt = try ExcerptDatabase(path: database.path).upsertExcerpt(
         selection: selection
     )
 
     try database.removeIndexedFolder(folder)
 
-    #expect(try SearchDatabase(path: database.path).search("Shiori").isEmpty)
-    let unavailableShiori = try #require(
-        try ShioriDatabase(path: database.path).shioris().first
+    #expect(try SearchDatabase(path: database.path).search("Excerpt").isEmpty)
+    let unavailableExcerpt = try #require(
+        try ExcerptDatabase(path: database.path).excerpts().first
     )
-    #expect(unavailableShiori.id == savedShiori.id)
-    #expect(!unavailableShiori.isValid)
-    #expect(unavailableShiori.unavailableReason == .libraryUnavailable)
-    #expect(unavailableShiori.content == "Shiori should survive index removal.")
-    #expect(unavailableShiori.cueGroupContent == "Shiori should survive index removal.")
+    #expect(unavailableExcerpt.id == savedExcerpt.id)
+    #expect(!unavailableExcerpt.isValid)
+    #expect(unavailableExcerpt.unavailableReason == .libraryUnavailable)
+    #expect(unavailableExcerpt.content == "Excerpt should survive index removal.")
+    #expect(unavailableExcerpt.cueGroupContent == "Excerpt should survive index removal.")
     #expect(
-        try ShioriDatabase(path: database.path).shioriRelations()
-            .map(\.id) == [savedShiori.id]
+        try ExcerptDatabase(path: database.path).excerptRelations()
+            .map(\.id) == [savedExcerpt.id]
     )
 }
 
 @Test
-func shioriSavesByCueIDIntoEachListWithoutDuplicatingWithinOne() throws {
+func excerptSavesByCueIDIntoEachListWithoutDuplicatingWithinOne() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
         try? FileManager.default.removeItem(at: databaseURL)
@@ -929,7 +929,7 @@ func shioriSavesByCueIDIntoEachListWithoutDuplicatingWithinOne() throws {
 
     let indexingDatabase = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
-    let shioriDatabase = try ShioriDatabase(path: databaseURL)
+    let excerptDatabase = try ExcerptDatabase(path: databaseURL)
     let subtitleFile = URL(fileURLWithPath: "/Media/Show/Save By CueID.srt")
     try indexingDatabase.replaceEntries(
         subtitleFile: subtitleFile,
@@ -950,26 +950,26 @@ func shioriSavesByCueIDIntoEachListWithoutDuplicatingWithinOne() throws {
         atMilliseconds: 1_500
     ))
     let cueID = try #require(selection.cueLineID)
-    let defaultListID = try #require(try shioriDatabase.firstShioriListID())
-    let secondList = try shioriDatabase.createShioriList(name: "Second")
+    let defaultListID = try #require(try excerptDatabase.firstExcerptListID())
+    let secondList = try excerptDatabase.createExcerptList(name: "Second")
 
     // The Search table has only the Cue, so the save goes in by CueID.
-    let saved = try shioriDatabase.upsertShiori(
+    let saved = try excerptDatabase.upsertExcerpt(
         cueID: cueID,
         listID: defaultListID
     )
-    #expect(try shioriDatabase.shiori(cueID: cueID, listID: defaultListID)?.id == saved.id)
+    #expect(try excerptDatabase.excerpt(cueID: cueID, listID: defaultListID)?.id == saved.id)
 
     // The same Cue still reaches another list.
-    _ = try shioriDatabase.upsertShiori(cueID: cueID, listID: secondList.id)
-    #expect(try shioriDatabase.shioriCount(listID: secondList.id) == 1)
+    _ = try excerptDatabase.upsertExcerpt(cueID: cueID, listID: secondList.id)
+    #expect(try excerptDatabase.excerptCount(listID: secondList.id) == 1)
 
     // Saving again into a list that already holds the Cue adds nothing.
-    let repeated = try shioriDatabase.upsertShiori(
+    let repeated = try excerptDatabase.upsertExcerpt(
         cueID: cueID,
         listID: defaultListID
     )
     #expect(repeated.id == saved.id)
-    #expect(try shioriDatabase.shioriCount(listID: defaultListID) == 1)
-    #expect(try shioriDatabase.uniqueShioriCueCount() == 1)
+    #expect(try excerptDatabase.excerptCount(listID: defaultListID) == 1)
+    #expect(try excerptDatabase.uniqueExcerptCueCount() == 1)
 }

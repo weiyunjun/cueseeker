@@ -1,10 +1,10 @@
 import Foundation
 
-public final class ShioriDatabase: @unchecked Sendable {
+public final class ExcerptDatabase: @unchecked Sendable {
     public static let maximumListNameCharacters = 30
     public static let maximumListDescriptionCharacters = 100
 
-    private static let resolvedShioriSelectSQL = """
+    private static let resolvedExcerptSelectSQL = """
         SELECT s.id,
                COALESCE(sf.subtitle_path, t.subtitle_path, ''),
                COALESCE(sf.format, t.source_format, 'srt'),
@@ -77,28 +77,28 @@ public final class ShioriDatabase: @unchecked Sendable {
         database = try SQLiteDatabase(path: path, access: access)
     }
 
-    public func upsertShiori(
+    public func upsertExcerpt(
         selection: SubtitleCueTextSelection,
         listID requestedListID: Int64? = nil,
         createdAt: Date = Date()
-    ) throws -> Shiori {
+    ) throws -> Excerpt {
         guard let cueID = selection.cueLineID else {
-            throw SQLiteDatabaseError.stepFailed("Shiori requires a CueID")
+            throw SQLiteDatabaseError.stepFailed("Excerpt requires a CueID")
         }
-        return try upsertShiori(
+        return try upsertExcerpt(
             cueID: cueID,
             listID: requestedListID,
             createdAt: createdAt
         )
     }
 
-    public func upsertShiori(
+    public func upsertExcerpt(
         cueID: Int64,
         listID requestedListID: Int64? = nil,
         createdAt: Date = Date()
-    ) throws -> Shiori {
-        guard let listID = try requestedListID ?? firstShioriListID() else {
-            throw SQLiteDatabaseError.stepFailed("Shiori requires a destination list")
+    ) throws -> Excerpt {
+        guard let listID = try requestedListID ?? firstExcerptListID() else {
+            throw SQLiteDatabaseError.stepFailed("Excerpt requires a destination list")
         }
 
         let statement = try database.prepare(
@@ -113,44 +113,44 @@ public final class ShioriDatabase: @unchecked Sendable {
         try statement.bind(ISO8601DateFormatter().string(from: createdAt), at: 3)
         try statement.run()
 
-        guard let savedShiori = try shiori(cueID: cueID, listID: listID) else {
-            throw SQLiteDatabaseError.stepFailed("Inserted Shiori could not be loaded")
+        guard let savedExcerpt = try excerpt(cueID: cueID, listID: listID) else {
+            throw SQLiteDatabaseError.stepFailed("Inserted Excerpt could not be loaded")
         }
-        return savedShiori
+        return savedExcerpt
     }
 
-    public func shiori(
+    public func excerpt(
         cueID: Int64,
         listID requestedListID: Int64? = nil
-    ) throws -> Shiori? {
-        guard let listID = try requestedListID ?? firstShioriListID() else {
+    ) throws -> Excerpt? {
+        guard let listID = try requestedListID ?? firstExcerptListID() else {
             return nil
         }
         let statement = try database.prepare(
             """
-            \(Self.resolvedShioriSelectSQL)
+            \(Self.resolvedExcerptSelectSQL)
             WHERE s.list_id = ? AND s.cue_id = ?;
             """
         )
         try statement.bind(listID, at: 1)
         try statement.bind(cueID, at: 2)
-        return try statement.step() ? shiori(from: statement) : nil
+        return try statement.step() ? excerpt(from: statement) : nil
     }
 
-    public func shiori(id: Int64) throws -> Shiori? {
+    public func excerpt(id: Int64) throws -> Excerpt? {
         let statement = try database.prepare(
             """
-            \(Self.resolvedShioriSelectSQL)
+            \(Self.resolvedExcerptSelectSQL)
             WHERE s.id = ?;
             """
         )
         try statement.bind(id, at: 1)
-        return try statement.step() ? shiori(from: statement) : nil
+        return try statement.step() ? excerpt(from: statement) : nil
     }
 
     @discardableResult
-    public func removeShiori(id: Int64) throws -> Bool {
-        guard let relation = try shioriRelation(id: id) else {
+    public func removeExcerpt(id: Int64) throws -> Bool {
+        guard let relation = try excerptRelation(id: id) else {
             return false
         }
         return try database.withImmediateTransaction {
@@ -163,11 +163,11 @@ public final class ShioriDatabase: @unchecked Sendable {
     }
 
     @discardableResult
-    public func moveShiori(
+    public func moveExcerpt(
         id: Int64,
         toListID destinationListID: Int64
-    ) throws -> ShioriRelation {
-        try transferShiori(
+    ) throws -> ExcerptRelation {
+        try transferExcerpt(
             id: id,
             toListID: destinationListID,
             removesSource: true
@@ -175,18 +175,18 @@ public final class ShioriDatabase: @unchecked Sendable {
     }
 
     @discardableResult
-    public func duplicateShiori(
+    public func duplicateExcerpt(
         id: Int64,
         toListID destinationListID: Int64
-    ) throws -> ShioriRelation {
-        try transferShiori(
+    ) throws -> ExcerptRelation {
+        try transferExcerpt(
             id: id,
             toListID: destinationListID,
             removesSource: false
         )
     }
 
-    public func shioriLists() throws -> [ShioriList] {
+    public func excerptLists() throws -> [ExcerptList] {
         let statement = try database.prepare(
             """
             SELECT id, name, description, cover_path, created_at,
@@ -195,14 +195,14 @@ public final class ShioriDatabase: @unchecked Sendable {
             ORDER BY created_at ASC, id ASC;
             """
         )
-        var lists: [ShioriList] = []
+        var lists: [ExcerptList] = []
         while try statement.step() {
-            lists.append(shioriList(from: statement))
+            lists.append(excerptList(from: statement))
         }
         return lists
     }
 
-    public func shioriList(id: Int64) throws -> ShioriList? {
+    public func excerptList(id: Int64) throws -> ExcerptList? {
         let statement = try database.prepare(
             """
             SELECT id, name, description, cover_path, created_at,
@@ -212,10 +212,10 @@ public final class ShioriDatabase: @unchecked Sendable {
             """
         )
         try statement.bind(id, at: 1)
-        return try statement.step() ? shioriList(from: statement) : nil
+        return try statement.step() ? excerptList(from: statement) : nil
     }
 
-    public func firstShioriListID() throws -> Int64? {
+    public func firstExcerptListID() throws -> Int64? {
         let statement = try database.prepare(
             """
             SELECT id
@@ -227,7 +227,7 @@ public final class ShioriDatabase: @unchecked Sendable {
         return try statement.step() ? statement.int64Column(0) : nil
     }
 
-    public func shioriListOverview() throws -> ShioriListOverview {
+    public func excerptListOverview() throws -> ExcerptListOverview {
         let statement = try database.prepare(
             """
             SELECT l.id, l.name, l.description, l.cover_path, l.created_at,
@@ -239,25 +239,25 @@ public final class ShioriDatabase: @unchecked Sendable {
             ORDER BY l.created_at ASC, l.id ASC;
             """
         )
-        var lists: [ShioriListSummary] = []
+        var lists: [ExcerptListSummary] = []
         while try statement.step() {
-            lists.append(ShioriListSummary(
-                list: shioriList(from: statement),
+            lists.append(ExcerptListSummary(
+                list: excerptList(from: statement),
                 cueCount: statement.intColumn(8)
             ))
         }
 
-        return ShioriListOverview(
+        return ExcerptListOverview(
             lists: lists,
-            uniqueCueCount: try uniqueShioriCueCount()
+            uniqueCueCount: try uniqueExcerptCueCount()
         )
     }
 
-    public func recordRecentShioriPlayback(
-        shioriID: Int64,
+    public func recordRecentExcerptPlayback(
+        excerptID: Int64,
         playedAt: Date = Date()
     ) throws {
-        guard let relation = try shioriRelation(id: shioriID) else {
+        guard let relation = try excerptRelation(id: excerptID) else {
             return
         }
         let statement = try database.prepare(
@@ -275,7 +275,7 @@ public final class ShioriDatabase: @unchecked Sendable {
         try statement.run()
     }
 
-    public func recentShioriListSummaries() throws -> [ShioriListSummary] {
+    public func recentExcerptListSummaries() throws -> [ExcerptListSummary] {
         let statement = try database.prepare(
             """
             SELECT id, name, description, cover_path, created_at,
@@ -285,25 +285,25 @@ public final class ShioriDatabase: @unchecked Sendable {
             ORDER BY recent_played_at DESC, id DESC;
             """
         )
-        var recentLists: [ShioriList] = []
+        var recentLists: [ExcerptList] = []
         while try statement.step() {
-            recentLists.append(shioriList(from: statement))
+            recentLists.append(excerptList(from: statement))
         }
 
-        var summaries: [ShioriListSummary] = []
+        var summaries: [ExcerptListSummary] = []
         for list in recentLists {
-            let relations = try shioriRelations(listID: list.id)
+            let relations = try excerptRelations(listID: list.id)
             let resolvedByID = Dictionary(
-                uniqueKeysWithValues: try shioris(listID: list.id).map { ($0.id, $0) }
+                uniqueKeysWithValues: try excerpts(listID: list.id).map { ($0.id, $0) }
             )
-            let playable = relations.compactMap { relation -> Shiori? in
-                guard let shiori = resolvedByID[relation.id], shiori.isValid else {
+            let playable = relations.compactMap { relation -> Excerpt? in
+                guard let excerpt = resolvedByID[relation.id], excerpt.isValid else {
                     return nil
                 }
-                return shiori
+                return excerpt
             }
             guard !playable.isEmpty else {
-                try clearRecentShioriPlayback(listID: list.id)
+                try clearRecentExcerptPlayback(listID: list.id)
                 continue
             }
 
@@ -314,30 +314,30 @@ public final class ShioriDatabase: @unchecked Sendable {
             let position = anchoredID.flatMap { id in
                 playable.firstIndex { $0.id == id }
             } ?? 0
-            summaries.append(ShioriListSummary(
+            summaries.append(ExcerptListSummary(
                 list: list,
                 cueCount: playable.count,
-                resumeShiori: playable[position],
+                resumeExcerpt: playable[position],
                 resumePosition: position + 1
             ))
         }
         return summaries
     }
 
-    public func uniqueShioriCueCount() throws -> Int {
+    public func uniqueExcerptCueCount() throws -> Int {
         let statement = try database.prepare(
             "SELECT COUNT(DISTINCT cue_id) FROM excerpts;"
         )
         return try statement.step() ? statement.intColumn(0) : 0
     }
 
-    public func validateShioriList(
+    public func validateExcerptList(
         name rawName: String,
         description: String,
         excludingListID: Int64? = nil
-    ) throws -> ShioriListValidation {
+    ) throws -> ExcerptListValidation {
         let name = Self.trimmedListName(rawName)
-        let nameError: ShioriListValidationError?
+        let nameError: ExcerptListValidationError?
         if name.isEmpty {
             nameError = .emptyName
         } else if name.count > Self.maximumListNameCharacters {
@@ -345,7 +345,7 @@ public final class ShioriDatabase: @unchecked Sendable {
                 maximumCharacters: Self.maximumListNameCharacters,
                 currentCharacters: name.count
             )
-        } else if try shioriListNameExists(
+        } else if try excerptListNameExists(
             normalizedName: Self.normalizedListName(name),
             excludingListID: excludingListID
         ) {
@@ -354,28 +354,28 @@ public final class ShioriDatabase: @unchecked Sendable {
             nameError = nil
         }
 
-        let descriptionError: ShioriListValidationError? =
+        let descriptionError: ExcerptListValidationError? =
             description.count > Self.maximumListDescriptionCharacters
                 ? .descriptionTooLong(
                     maximumCharacters: Self.maximumListDescriptionCharacters,
                     currentCharacters: description.count
                 )
                 : nil
-        return ShioriListValidation(
+        return ExcerptListValidation(
             nameError: nameError,
             descriptionError: descriptionError
         )
     }
 
     @discardableResult
-    public func createShioriList(
+    public func createExcerptList(
         name rawName: String,
         description: String = "",
         coverPath: String? = nil,
         createdAt: Date = Date()
-    ) throws -> ShioriList {
+    ) throws -> ExcerptList {
         try database.withImmediateTransaction {
-            let validation = try validateShioriList(
+            let validation = try validateExcerptList(
                 name: rawName,
                 description: description
             )
@@ -401,25 +401,25 @@ public final class ShioriDatabase: @unchecked Sendable {
             try statement.bind(ISO8601DateFormatter().string(from: createdAt), at: 5)
             try statement.run()
 
-            guard let list = try shioriList(id: database.lastInsertRowID()) else {
-                throw SQLiteDatabaseError.stepFailed("Created Shiori list could not be loaded")
+            guard let list = try excerptList(id: database.lastInsertRowID()) else {
+                throw SQLiteDatabaseError.stepFailed("Created Excerpt list could not be loaded")
             }
             return list
         }
     }
 
     @discardableResult
-    public func updateShioriList(
+    public func updateExcerptList(
         id: Int64,
         name rawName: String,
         description: String,
         coverPath: String?
-    ) throws -> ShioriList {
+    ) throws -> ExcerptList {
         try database.withImmediateTransaction {
-            guard try shioriList(id: id) != nil else {
-                throw ShioriListMutationError.listNotFound
+            guard try excerptList(id: id) != nil else {
+                throw ExcerptListMutationError.listNotFound
             }
-            let validation = try validateShioriList(
+            let validation = try validateExcerptList(
                 name: rawName,
                 description: description,
                 excludingListID: id
@@ -441,23 +441,23 @@ public final class ShioriDatabase: @unchecked Sendable {
             try statement.bind(id, at: 5)
             try statement.run()
 
-            guard let list = try shioriList(id: id) else {
-                throw SQLiteDatabaseError.stepFailed("Updated Shiori list could not be loaded")
+            guard let list = try excerptList(id: id) else {
+                throw SQLiteDatabaseError.stepFailed("Updated Excerpt list could not be loaded")
             }
             return list
         }
     }
 
     @discardableResult
-    public func deleteShioriList(id: Int64) throws -> ShioriList {
+    public func deleteExcerptList(id: Int64) throws -> ExcerptList {
         try database.withImmediateTransaction {
-            guard let list = try shioriList(id: id) else {
-                throw ShioriListMutationError.listNotFound
+            guard let list = try excerptList(id: id) else {
+                throw ExcerptListMutationError.listNotFound
             }
             let countStatement = try database.prepare("SELECT COUNT(*) FROM excerpt_lists;")
             let listCount = try countStatement.step() ? countStatement.intColumn(0) : 0
             guard listCount > 1 else {
-                throw ShioriListMutationError.cannotDeleteOnlyList
+                throw ExcerptListMutationError.cannotDeleteOnlyList
             }
 
             let cueStatement = try database.prepare(
@@ -479,10 +479,10 @@ public final class ShioriDatabase: @unchecked Sendable {
         }
     }
 
-    public func shioriRelations(
+    public func excerptRelations(
         listID requestedListID: Int64? = nil
-    ) throws -> [ShioriRelation] {
-        guard let listID = try requestedListID ?? firstShioriListID() else {
+    ) throws -> [ExcerptRelation] {
+        guard let listID = try requestedListID ?? firstExcerptListID() else {
             return []
         }
         let statement = try database.prepare(
@@ -494,52 +494,52 @@ public final class ShioriDatabase: @unchecked Sendable {
             """
         )
         try statement.bind(listID, at: 1)
-        var relations: [ShioriRelation] = []
+        var relations: [ExcerptRelation] = []
         while try statement.step() {
-            relations.append(shioriRelation(from: statement))
+            relations.append(excerptRelation(from: statement))
         }
         return relations
     }
 
-    public func shioriResidentSnapshot(
+    public func excerptResidentSnapshot(
         listID: Int64? = nil
-    ) throws -> ShioriResidentSnapshot {
-        let relations = try shioriRelations(listID: listID)
-        let resolvedShioris = try shioris(listID: listID)
-        let availableShioriIDs = Set(
-            resolvedShioris.lazy.filter(\.isValid).map(\.id)
+    ) throws -> ExcerptResidentSnapshot {
+        let relations = try excerptRelations(listID: listID)
+        let resolvedExcerpts = try excerpts(listID: listID)
+        let availableExcerptIDs = Set(
+            resolvedExcerpts.lazy.filter(\.isValid).map(\.id)
         )
         let cueContents = try CueContentDatabase(path: path).cueContents(
             forCueIDs: relations.compactMap { relation in
-                availableShioriIDs.contains(relation.id)
+                availableExcerptIDs.contains(relation.id)
                     ? relation.cueID
                     : nil
             }
         )
-        let watchStatesByShioriID = try relations.first.map {
-            try shioriWatchStatesByID(listID: $0.listID)
+        let watchStatesByExcerptID = try relations.first.map {
+            try excerptWatchStatesByID(listID: $0.listID)
         } ?? [:]
-        return ShioriResidentSnapshot(
+        return ExcerptResidentSnapshot(
             relations: relations,
-            resolvedShioris: resolvedShioris,
+            resolvedExcerpts: resolvedExcerpts,
             cueContents: cueContents,
-            facetSnapshot: shioriFacetSnapshot(
+            facetSnapshot: excerptFacetSnapshot(
                 relations: relations,
-                resolvedShioris: resolvedShioris,
+                resolvedExcerpts: resolvedExcerpts,
                 cueContents: cueContents,
-                watchStatesByShioriID: watchStatesByShioriID
+                watchStatesByExcerptID: watchStatesByExcerptID
             )
         )
     }
 
-    private func shioriFacetSnapshot(
-        relations: [ShioriRelation],
-        resolvedShioris: [Shiori],
+    private func excerptFacetSnapshot(
+        relations: [ExcerptRelation],
+        resolvedExcerpts: [Excerpt],
         cueContents: [CueContent],
-        watchStatesByShioriID: [Int64: LibraryWatchState]
+        watchStatesByExcerptID: [Int64: LibraryWatchState]
     ) -> CueFacetSnapshot {
-        let resolvedShiorisByID = Dictionary(
-            uniqueKeysWithValues: resolvedShioris.map { ($0.id, $0) }
+        let resolvedExcerptsByID = Dictionary(
+            uniqueKeysWithValues: resolvedExcerpts.map { ($0.id, $0) }
         )
         let cueContentsByID = Dictionary(
             uniqueKeysWithValues: cueContents.map { ($0.cueID, $0) }
@@ -556,7 +556,7 @@ public final class ShioriDatabase: @unchecked Sendable {
         watchStateFacets.reserveCapacity(relations.count)
 
         for relation in relations {
-            guard let shiori = resolvedShiorisByID[relation.id] else {
+            guard let excerpt = resolvedExcerptsByID[relation.id] else {
                 continue
             }
             let content = cueContentsByID[relation.cueID]
@@ -564,17 +564,17 @@ public final class ShioriDatabase: @unchecked Sendable {
             durationFacets.append(CueDurationFacet(
                 durationMilliseconds: max(
                     0,
-                    (content?.endMilliseconds ?? shiori.endMilliseconds)
-                        - (content?.startMilliseconds ?? shiori.startMilliseconds)
+                    (content?.endMilliseconds ?? excerpt.endMilliseconds)
+                        - (content?.startMilliseconds ?? excerpt.startMilliseconds)
                 )
             ))
             characterFacets.append(CueCharacterFacet(
-                characterCount: (content?.content ?? shiori.content)
+                characterCount: (content?.content ?? excerpt.content)
                     .unicodeScalars.count
             ))
             languageFacets.append(content?.languages ?? [.unknown])
             watchStateFacets.append(
-                watchStatesByShioriID[relation.id] ?? .unwatched
+                watchStatesByExcerptID[relation.id] ?? .unwatched
             )
         }
 
@@ -587,7 +587,7 @@ public final class ShioriDatabase: @unchecked Sendable {
         )
     }
 
-    private func shioriWatchStatesByID(
+    private func excerptWatchStatesByID(
         listID: Int64
     ) throws -> [Int64: LibraryWatchState] {
         let statement = try database.prepare(
@@ -613,7 +613,7 @@ public final class ShioriDatabase: @unchecked Sendable {
         return states
     }
 
-    public func shioriRelation(id: Int64) throws -> ShioriRelation? {
+    public func excerptRelation(id: Int64) throws -> ExcerptRelation? {
         let statement = try database.prepare(
             """
             SELECT id, list_id, cue_id, created_at
@@ -622,27 +622,27 @@ public final class ShioriDatabase: @unchecked Sendable {
             """
         )
         try statement.bind(id, at: 1)
-        return try statement.step() ? shioriRelation(from: statement) : nil
+        return try statement.step() ? excerptRelation(from: statement) : nil
     }
 
-    public func cueID(forShioriID shioriID: Int64) throws -> Int64? {
+    public func cueID(forExcerptID excerptID: Int64) throws -> Int64? {
         let statement = try database.prepare("SELECT cue_id FROM excerpts WHERE id = ?;")
-        try statement.bind(shioriID, at: 1)
+        try statement.bind(excerptID, at: 1)
         return try statement.step() ? statement.nullableInt64Column(0) : nil
     }
 
-    public func shiori(
+    public func excerpt(
         subtitleFile: URL,
         startMilliseconds: Int,
         endMilliseconds: Int,
         listID requestedListID: Int64? = nil
-    ) throws -> Shiori? {
-        guard let listID = try requestedListID ?? firstShioriListID() else {
+    ) throws -> Excerpt? {
+        guard let listID = try requestedListID ?? firstExcerptListID() else {
             return nil
         }
         let statement = try database.prepare(
             """
-            \(Self.resolvedShioriSelectSQL)
+            \(Self.resolvedExcerptSelectSQL)
             WHERE s.list_id = ?
               AND sf.subtitle_path = ?
               AND l.start_ms = ?
@@ -655,14 +655,14 @@ public final class ShioriDatabase: @unchecked Sendable {
         try statement.bind(subtitleFile.path, at: 2)
         try statement.bind(max(0, startMilliseconds), at: 3)
         try statement.bind(max(startMilliseconds, endMilliseconds), at: 4)
-        return try statement.step() ? shiori(from: statement) : nil
+        return try statement.step() ? excerpt(from: statement) : nil
     }
 
-    public func adjacentShiori(
-        to item: Shiori,
-        direction: ShioriNavigationDirection
-    ) throws -> Shiori? {
-        guard let relation = try shioriRelation(id: item.id) else {
+    public func adjacentExcerpt(
+        to item: Excerpt,
+        direction: ExcerptNavigationDirection
+    ) throws -> Excerpt? {
+        guard let relation = try excerptRelation(id: item.id) else {
             return nil
         }
         let orderingPredicate: String
@@ -678,7 +678,7 @@ public final class ShioriDatabase: @unchecked Sendable {
 
         let statement = try database.prepare(
             """
-            \(Self.resolvedShioriSelectSQL)
+            \(Self.resolvedExcerptSelectSQL)
             WHERE s.list_id = ?
               AND \(orderingPredicate)
               AND l.id IS NOT NULL
@@ -690,30 +690,30 @@ public final class ShioriDatabase: @unchecked Sendable {
         try statement.bind(item.createdAt, at: 2)
         try statement.bind(item.createdAt, at: 3)
         try statement.bind(item.id, at: 4)
-        return try statement.step() ? shiori(from: statement) : nil
+        return try statement.step() ? excerpt(from: statement) : nil
     }
 
-    public func shioris(listID requestedListID: Int64? = nil) throws -> [Shiori] {
-        guard let listID = try requestedListID ?? firstShioriListID() else {
+    public func excerpts(listID requestedListID: Int64? = nil) throws -> [Excerpt] {
+        guard let listID = try requestedListID ?? firstExcerptListID() else {
             return []
         }
         let statement = try database.prepare(
             """
-            \(Self.resolvedShioriSelectSQL)
+            \(Self.resolvedExcerptSelectSQL)
             WHERE s.list_id = ?
             ORDER BY sf.subtitle_path ASC, l.start_ms ASC, l.end_ms ASC, s.id ASC;
             """
         )
         try statement.bind(listID, at: 1)
-        var shioris: [Shiori] = []
+        var excerpts: [Excerpt] = []
         while try statement.step() {
-            shioris.append(shiori(from: statement))
+            excerpts.append(excerpt(from: statement))
         }
-        return shioris
+        return excerpts
     }
 
-    public func shioriCount(listID requestedListID: Int64? = nil) throws -> Int {
-        guard let listID = try requestedListID ?? firstShioriListID() else {
+    public func excerptCount(listID requestedListID: Int64? = nil) throws -> Int {
+        guard let listID = try requestedListID ?? firstExcerptListID() else {
             return 0
         }
         let statement = try database.prepare(
@@ -723,26 +723,26 @@ public final class ShioriDatabase: @unchecked Sendable {
         return try statement.step() ? statement.intColumn(0) : 0
     }
 
-    private func transferShiori(
+    private func transferExcerpt(
         id: Int64,
         toListID destinationListID: Int64,
         removesSource: Bool
-    ) throws -> ShioriRelation {
+    ) throws -> ExcerptRelation {
         try database.withImmediateTransaction {
-            guard let source = try shioriRelation(id: id) else {
-                throw ShioriTransferError.sourceUnavailable
+            guard let source = try excerptRelation(id: id) else {
+                throw ExcerptTransferError.sourceUnavailable
             }
-            guard try shiori(id: id)?.isValid == true else {
-                throw ShioriTransferError.sourceUnavailable
+            guard try excerpt(id: id)?.isValid == true else {
+                throw ExcerptTransferError.sourceUnavailable
             }
-            guard try shioriList(id: destinationListID) != nil else {
-                throw ShioriTransferError.destinationUnavailable
+            guard try excerptList(id: destinationListID) != nil else {
+                throw ExcerptTransferError.destinationUnavailable
             }
-            guard try !shioriRelationExists(
+            guard try !excerptRelationExists(
                 cueID: source.cueID,
                 listID: destinationListID
             ) else {
-                throw ShioriTransferError.destinationAlreadyContainsCue(
+                throw ExcerptTransferError.destinationAlreadyContainsCue(
                     listID: destinationListID
                 )
             }
@@ -757,7 +757,7 @@ public final class ShioriDatabase: @unchecked Sendable {
             try insert.bind(source.cueID, at: 2)
             try insert.bind(source.createdAt, at: 3)
             try insert.run()
-            let destinationShioriID = database.lastInsertRowID()
+            let destinationExcerptID = database.lastInsertRowID()
 
             if removesSource {
                 let delete = try database.prepare("DELETE FROM excerpts WHERE id = ?;")
@@ -765,16 +765,16 @@ public final class ShioriDatabase: @unchecked Sendable {
                 try delete.run()
             }
 
-            guard let destination = try shioriRelation(id: destinationShioriID) else {
+            guard let destination = try excerptRelation(id: destinationExcerptID) else {
                 throw SQLiteDatabaseError.stepFailed(
-                    "Transferred Shiori relation could not be loaded"
+                    "Transferred Excerpt relation could not be loaded"
                 )
             }
             return destination
         }
     }
 
-    private func shioriRelationExists(cueID: Int64, listID: Int64) throws -> Bool {
+    private func excerptRelationExists(cueID: Int64, listID: Int64) throws -> Bool {
         let statement = try database.prepare(
             """
             SELECT 1
@@ -788,20 +788,20 @@ public final class ShioriDatabase: @unchecked Sendable {
         return try statement.step()
     }
 
-    private func shiori(from statement: SQLiteStatement) -> Shiori {
+    private func excerpt(from statement: SQLiteStatement) -> Excerpt {
         let unavailableReason = statement.nullableStringColumn(11)
-            .flatMap(ShioriUnavailableReason.init(rawValue:))
+            .flatMap(ExcerptUnavailableReason.init(rawValue:))
         let previousContent = statement.nullableStringColumn(13)
         let currentContent = statement.nullableStringColumn(14)
-        let contentChange: ShioriCueContentChange? = if let previousContent, let currentContent {
-            ShioriCueContentChange(
+        let contentChange: ExcerptCueContentChange? = if let previousContent, let currentContent {
+            ExcerptCueContentChange(
                 previousContent: previousContent,
                 currentContent: currentContent
             )
         } else {
             nil
         }
-        return Shiori(
+        return Excerpt(
             id: statement.int64Column(0),
             subtitleFileID: statement.nullableInt64Column(16),
             subtitlePath: statement.stringColumn(1),
@@ -838,8 +838,8 @@ public final class ShioriDatabase: @unchecked Sendable {
         try statement.run()
     }
 
-    private func shioriRelation(from statement: SQLiteStatement) -> ShioriRelation {
-        ShioriRelation(
+    private func excerptRelation(from statement: SQLiteStatement) -> ExcerptRelation {
+        ExcerptRelation(
             id: statement.int64Column(0),
             listID: statement.int64Column(1),
             cueID: statement.int64Column(2),
@@ -847,8 +847,8 @@ public final class ShioriDatabase: @unchecked Sendable {
         )
     }
 
-    private func shioriList(from statement: SQLiteStatement) -> ShioriList {
-        ShioriList(
+    private func excerptList(from statement: SQLiteStatement) -> ExcerptList {
+        ExcerptList(
             id: statement.int64Column(0),
             name: statement.stringColumn(1),
             description: statement.stringColumn(2),
@@ -860,7 +860,7 @@ public final class ShioriDatabase: @unchecked Sendable {
         )
     }
 
-    private func clearRecentShioriPlayback(listID: Int64) throws {
+    private func clearRecentExcerptPlayback(listID: Int64) throws {
         let statement = try database.prepare(
             """
             UPDATE excerpt_lists
@@ -874,7 +874,7 @@ public final class ShioriDatabase: @unchecked Sendable {
         try statement.run()
     }
 
-    private func shioriListNameExists(
+    private func excerptListNameExists(
         normalizedName: String,
         excludingListID: Int64?
     ) throws -> Bool {
@@ -927,7 +927,7 @@ public final class ShioriDatabase: @unchecked Sendable {
     }
 
     private static func throwFirstValidationError(
-        in validation: ShioriListValidation
+        in validation: ExcerptListValidation
     ) throws {
         if let nameError = validation.nameError {
             throw nameError

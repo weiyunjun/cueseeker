@@ -53,14 +53,14 @@ extension AppCoordinator {
         )
     }
 
-    func currentShioriPlaylistAdjacentOrdinal(
-        for shiori: Shiori,
-        direction: ShioriNavigationDirection
+    func currentExcerptPlaylistAdjacentOrdinal(
+        for excerpt: Excerpt,
+        direction: ExcerptNavigationDirection
     ) -> Int? {
         guard let source = playback.playlistSource,
               let position = playback.playlistPosition,
               position.datasetID == source.boundary.datasetID,
-              position.itemIdentity == .shiori(shiori.id)
+              position.itemIdentity == .excerpt(excerpt.id)
         else {
             return nil
         }
@@ -222,19 +222,19 @@ extension AppCoordinator {
         }
     }
 
-    func installShioriPlaybackPlaylistSource(
-        scope requestedScope: PlaybackPlaylistShioriScope? = nil
+    func installExcerptPlaybackPlaylistSource(
+        scope requestedScope: PlaybackPlaylistExcerptScope? = nil
     ) {
-        let scope: PlaybackPlaylistShioriScope
+        let scope: PlaybackPlaylistExcerptScope
         if let requestedScope {
             scope = requestedScope
-        } else if let scopeIDs = shioriPlaybackNavigationScopeIDs {
+        } else if let scopeIDs = excerptPlaybackNavigationScopeIDs {
             scope = .explicitIDs(scopeIDs)
         } else {
             scope = .databaseOrder
         }
-        let totalCount = shioriPlaybackPlaylistCount(scope: scope)
-        let origin = PlaybackPlaylistSourceOrigin.shiori(scope: scope)
+        let totalCount = excerptPlaybackPlaylistCount(scope: scope)
+        let origin = PlaybackPlaylistSourceOrigin.excerpt(scope: scope)
         if let source = playback.playlistSource,
            source.origin == origin {
             _ = source.updateBoundary(totalCount: totalCount)
@@ -245,7 +245,7 @@ extension AppCoordinator {
             origin: origin,
             totalCount: totalCount
         ) { @MainActor [weak self] ordinal in
-            self?.shioriPlaybackPlaylistItem(
+            self?.excerptPlaybackPlaylistItem(
                 scope: scope,
                 ordinal: ordinal
             )
@@ -253,119 +253,119 @@ extension AppCoordinator {
         playback.setPlaylistSource(source)
     }
 
-    func refreshShioriPlaybackPlaylistSource() {
+    func refreshExcerptPlaybackPlaylistSource() {
         guard let source = playback.playlistSource,
-              case .shiori(let scope) = source.origin
+              case .excerpt(let scope) = source.origin
         else {
             return
         }
         _ = source.updateBoundary(
-            totalCount: shioriPlaybackPlaylistCount(scope: scope)
+            totalCount: excerptPlaybackPlaylistCount(scope: scope)
         )
     }
 
-    private func shioriPlaybackPlaylistCount(
-        scope: PlaybackPlaylistShioriScope
+    private func excerptPlaybackPlaylistCount(
+        scope: PlaybackPlaylistExcerptScope
     ) -> Int {
         switch scope {
-        case .explicitIDs(let shioriIDs):
-            shioriIDs.count
+        case .explicitIDs(let excerptIDs):
+            excerptIDs.count
         case .databaseOrder:
-            if shiori.residentDataRevision != nil {
-                shiori.residentShiorisByID.values.filter(\.isValid).count
+            if excerpt.residentDataRevision != nil {
+                excerpt.residentExcerptsByID.values.filter(\.isValid).count
             } else {
-                (try? shioriDatabase?.shioris().filter(\.isValid).count) ?? 0
+                (try? excerptDatabase?.excerpts().filter(\.isValid).count) ?? 0
             }
         case .table(let context):
-            min(context.totalCount, shiori.playbackTableResultShioriIDs?.count ?? 0)
+            min(context.totalCount, excerpt.playbackTableResultExcerptIDs?.count ?? 0)
         }
     }
 
-    private func shioriPlaybackPlaylistItem(
-        scope: PlaybackPlaylistShioriScope,
+    private func excerptPlaybackPlaylistItem(
+        scope: PlaybackPlaylistExcerptScope,
         ordinal: Int
     ) -> PlaybackPlaylistItem? {
         switch scope {
         case .table:
-            guard let shioriIDs = shiori.playbackTableResultShioriIDs,
-                  shioriIDs.indices.contains(ordinal)
+            guard let excerptIDs = excerpt.playbackTableResultExcerptIDs,
+                  excerptIDs.indices.contains(ordinal)
             else {
                 return nil
             }
-            return shioriTablePlaybackItem(
-                shioriID: shioriIDs[ordinal],
+            return excerptTablePlaybackItem(
+                excerptID: excerptIDs[ordinal],
                 itemOrdinal: ordinal
             )
         case .databaseOrder:
-            let items: [Shiori]
-            if shiori.residentDataRevision != nil {
-                items = shiori.residentRelations.compactMap {
-                    shiori.residentShiorisByID[$0.id]
+            let items: [Excerpt]
+            if excerpt.residentDataRevision != nil {
+                items = excerpt.residentRelations.compactMap {
+                    excerpt.residentExcerptsByID[$0.id]
                 }.filter(\.isValid)
             } else {
-                items = (try? shioriDatabase?.shioris())?.filter(\.isValid) ?? []
+                items = (try? excerptDatabase?.excerpts())?.filter(\.isValid) ?? []
             }
             guard items.indices.contains(ordinal) else {
                 return nil
             }
             let item = items[ordinal]
             return PlaybackPlaylistItem(
-                shiori: item,
-                cuePresentation: shioriPlaybackCuePresentation(
-                    shioriID: item.id
+                excerpt: item,
+                cuePresentation: excerptPlaybackCuePresentation(
+                    excerptID: item.id
                 ),
                 ordinal: ordinal
             )
-        case .explicitIDs(let shioriIDs):
-            guard shioriIDs.indices.contains(ordinal) else {
+        case .explicitIDs(let excerptIDs):
+            guard excerptIDs.indices.contains(ordinal) else {
                 return nil
             }
-            let shioriID = shioriIDs[ordinal]
-            let snapshot = shiori.tableRowStore.snapshot
-            if snapshot.rowIndex(entryID: Int(shioriID)) != nil {
-                return shioriTablePlaybackItem(
-                    shioriID: shioriID,
+            let excerptID = excerptIDs[ordinal]
+            let snapshot = excerpt.tableRowStore.snapshot
+            if snapshot.rowIndex(entryID: Int(excerptID)) != nil {
+                return excerptTablePlaybackItem(
+                    excerptID: excerptID,
                     itemOrdinal: ordinal
                 )
             }
-            guard let item = shiori(withID: shioriID), item.isValid else {
+            guard let item = excerpt(withID: excerptID), item.isValid else {
                 return nil
             }
             return PlaybackPlaylistItem(
-                shiori: item,
-                cuePresentation: shioriPlaybackCuePresentation(
-                    shioriID: shioriID
+                excerpt: item,
+                cuePresentation: excerptPlaybackCuePresentation(
+                    excerptID: excerptID
                 ),
                 ordinal: ordinal
             )
         }
     }
 
-    /// The cue a saved Shiori stands for, as the playlist item needs it.
+    /// The cue a saved Excerpt stands for, as the playlist item needs it.
     ///
-    /// The cue content store is filled when a Shiori list's table page loads,
+    /// The cue content store is filled when a Excerpt list's table page loads,
     /// and this lookup used to read nothing else. Playback started from Recent
     /// never opens that page, so every item arrived carrying the line of text
     /// saved with it and no cue identity at all — and the cue is what
-    /// `Save to Shiori` and `Copy Deep Link` are addressed by, so both answered
+    /// `Save to Excerpt` and `Copy Deep Link` are addressed by, so both answered
     /// that there was no subtitle, while the rows showed one line where the cue
     /// has two.
     ///
     /// So the store is a cache here rather than the only source: what it does
-    /// not hold is read from the database and kept, the way `shiori(withID:)`
-    /// already does for the Shiori itself. A list whose page has been opened
+    /// not hold is read from the database and kept, the way `excerpt(withID:)`
+    /// already does for the Excerpt itself. A list whose page has been opened
     /// answers from memory as before and reads nothing.
-    private func shioriPlaybackCuePresentation(
-        shioriID: Int64
-    ) -> ShioriCuePresentation? {
-        let cueID = shiori.residentRelations.first {
-            $0.id == shioriID
-        }?.cueID ?? (try? shioriDatabase?.cueID(forShioriID: shioriID)) ?? nil
+    private func excerptPlaybackCuePresentation(
+        excerptID: Int64
+    ) -> ExcerptCuePresentation? {
+        let cueID = excerpt.residentRelations.first {
+            $0.id == excerptID
+        }?.cueID ?? (try? excerptDatabase?.cueID(forExcerptID: excerptID)) ?? nil
         guard let cueID else {
             return nil
         }
         if let content = cueContent.content(for: cueID) {
-            return ShioriCuePresentation(cueContent: content)
+            return ExcerptCuePresentation(cueContent: content)
         }
         guard let content = try? CueContentDatabase(path: databaseURL)
             .cueContents(forCueIDs: [cueID])
@@ -374,25 +374,25 @@ extension AppCoordinator {
             return nil
         }
         cueContent.install([content])
-        return ShioriCuePresentation(cueContent: content)
+        return ExcerptCuePresentation(cueContent: content)
     }
 
-    private func shioriTablePlaybackItem(
-        shioriID: Int64,
+    private func excerptTablePlaybackItem(
+        excerptID: Int64,
         itemOrdinal: Int? = nil
     ) -> PlaybackPlaylistItem? {
-        let snapshot = shiori.tableRowStore.snapshot
-        guard let entryID = Int(exactly: shioriID),
+        let snapshot = excerpt.tableRowStore.snapshot
+        guard let entryID = Int(exactly: excerptID),
               let rowOrdinal = snapshot.rowIndex(entryID: entryID),
               let row = snapshot.row(at: rowOrdinal),
-              let item = snapshot.shiori(entryID: row.id),
+              let item = snapshot.excerpt(entryID: row.id),
               item.isValid
         else {
             return nil
         }
         return PlaybackPlaylistItem(
-            shiori: item,
-            cuePresentation: snapshot.shioriCuePresentation(entryID: row.id),
+            excerpt: item,
+            cuePresentation: snapshot.excerptCuePresentation(entryID: row.id),
             ordinal: itemOrdinal ?? rowOrdinal
         )
     }

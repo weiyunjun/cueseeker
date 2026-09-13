@@ -49,7 +49,7 @@ struct LibraryEditCoverDialog: View {
     }
 
     /// The cover across the content width; a chosen image is cropped in the
-    /// same frame, as in the Shiori List Editor.
+    /// same frame, as in the Excerpt List Editor.
     @ViewBuilder
     private var coverEditor: some View {
         if let source = session.selectedSource {

@@ -28,7 +28,7 @@ final class MenuGate {
         case cardMenu
         case selectedTextMenu
         case playerSpeedMenu
-        case shioriDestinationMenu
+        case excerptDestinationMenu
 
         /// Whether the menu surface spends the wheel itself. When it does not,
         /// the gate spends a wheel over the menu so nothing moves underneath
@@ -36,7 +36,7 @@ final class MenuGate {
         var takesWheel: Bool {
             switch self {
             case .tableRowMenu, .filterMenu, .selectedTextMenu,
-                 .shioriDestinationMenu:
+                 .excerptDestinationMenu:
                 true
             case .cardMenu, .playerSpeedMenu:
                 false

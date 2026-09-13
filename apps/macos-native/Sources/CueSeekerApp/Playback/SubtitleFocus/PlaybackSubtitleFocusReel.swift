@@ -3004,7 +3004,7 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
             // reel must not spend the wheel first: this monitor was installed
             // before the gate's, so it sees the event first. Every menu the
             // gate holds counts, not only this reel's own: the footer's
-            // `Save to Shiori` menu is opened by another surface, and a reel
+            // `Save to Excerpt` menu is opened by another surface, and a reel
             // that recognised only its own selected-text menu went on scrolling
             // under it. A menu the gate reports as covered bans nothing — the
             // surface above it decides.

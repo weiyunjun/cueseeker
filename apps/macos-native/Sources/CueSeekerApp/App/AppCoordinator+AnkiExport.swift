@@ -14,13 +14,13 @@ extension AppCoordinator {
         })
     }
 
-    func exportShiorisToAnki(_ selection: [(shiori: Shiori, row: SubtitleTableRow)]) {
-        openAnkiExportDialog(selection.map { shiori, row in
+    func exportExcerptsToAnki(_ selection: [(excerpt: Excerpt, row: SubtitleTableRow)]) {
+        openAnkiExportDialog(selection.map { excerpt, row in
             Self.ankiExportItem(
-                for: shiori,
+                for: excerpt,
                 row: row,
                 deckDisplayTitle: SubtitleDisplayTitleResolver.displayTitle(
-                    forSubtitlePath: shiori.subtitlePath
+                    forSubtitlePath: excerpt.subtitlePath
                 )
             )
         })
@@ -48,21 +48,21 @@ extension AppCoordinator {
     }
 
     nonisolated static func ankiExportItem(
-        for shiori: Shiori,
+        for excerpt: Excerpt,
         row: SubtitleTableRow,
         deckDisplayTitle: String
     ) -> AnkiExportItem {
         AnkiExportItem(
             deckDisplayTitle: deckDisplayTitle,
-            videoPath: shiori.videoPath,
-            startMilliseconds: shiori.startMilliseconds,
-            endMilliseconds: shiori.endMilliseconds,
-            text: shiori.content,
+            videoPath: excerpt.videoPath,
+            startMilliseconds: excerpt.startMilliseconds,
+            endMilliseconds: excerpt.endMilliseconds,
+            text: excerpt.content,
             displayTitle: row.displayTitle,
             timeRange: row.timeRange,
             cueGroupOtherTexts: row.additionalCueTexts,
             cueID: row.primaryCueID,
-            subtitlePath: shiori.subtitlePath
+            subtitlePath: excerpt.subtitlePath
         )
     }
 

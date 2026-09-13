@@ -68,7 +68,7 @@ struct CueGroupRefreshScopeIntegrationTests {
             #expect(recording.count("UI.Workbench.body") == 0)
             #expect(recording.count("UI.WorkbenchMainContent.body") == 0)
             #expect(recording.count("UI.AppSidebar.body") == 0)
-            #expect(recording.count("table.shiori.surface_body") == 0)
+            #expect(recording.count("table.excerpt.surface_body") == 0)
         }
     }
 
@@ -111,7 +111,7 @@ struct CueGroupRefreshScopeIntegrationTests {
             #expect(recording.count("UI.Workbench.body") == 0)
             #expect(recording.count("UI.WorkbenchMainContent.body") == 0)
             #expect(recording.count("UI.AppSidebar.body") == 0)
-            #expect(recording.count("table.shiori.surface_body") == 0)
+            #expect(recording.count("table.excerpt.surface_body") == 0)
         }
     }
 
@@ -123,8 +123,8 @@ struct CueGroupRefreshScopeIntegrationTests {
 
     @MainActor
     @Test
-    func showCueGroupInvalidationIsScopedToMountedShiori() async throws {
-        try await verifyShowCueGroupInvalidation(surface: .shiori)
+    func showCueGroupInvalidationIsScopedToMountedExcerpt() async throws {
+        try await verifyShowCueGroupInvalidation(surface: .excerpt)
     }
 
     @MainActor
@@ -193,19 +193,19 @@ struct CueGroupRefreshScopeIntegrationTests {
             }
             try #require(didScrollSearch)
 
-            app.shiori.setActiveListID(ShioriListIdentity.defaultListID)
+            app.excerpt.setActiveListID(ExcerptListIdentity.defaultListID)
             app.workbenchLayout.navigate(
-                to: .shioriList(id: ShioriListIdentity.defaultListID)
+                to: .excerptList(id: ExcerptListIdentity.defaultListID)
             )
-            app.activateWorkbenchPanelMode(.shiori)
-            let didMountShiori = await waitUntil(timeout: 2) {
+            app.activateWorkbenchPanelMode(.excerpt)
+            let didMountExcerpt = await waitUntil(timeout: 2) {
                 window.contentView?.layoutSubtreeIfNeeded()
                 return findSubtitleTableCoordinator(
                     in: window.contentView,
-                    surface: .shiori
+                    surface: .excerpt
                 ) != nil
             }
-            try #require(didMountShiori)
+            try #require(didMountExcerpt)
 
             app.activateWorkbenchPanelMode(.search)
             var remountedCoordinator: SubtitleTableView.Coordinator?
@@ -229,20 +229,20 @@ struct CueGroupRefreshScopeIntegrationTests {
 
     @MainActor
     @Test
-    func shioriTableStartsAtTopAfterPanelRemount() async throws {
+    func excerptTableStartsAtTopAfterPanelRemount() async throws {
         let uiProbeScope = UUID().uuidString
 
         try await withMountedCueTable(
-            surface: .shiori,
+            surface: .excerpt,
             uiProbeScope: uiProbeScope
         ) { app, window, coordinator in
             coordinator.scrollToRow(100)
-            let didScrollShiori = await waitUntil(timeout: 1) {
+            let didScrollExcerpt = await waitUntil(timeout: 1) {
                 window.contentView?.layoutSubtreeIfNeeded()
                 return coordinator.verticalScrollOffsetForTesting() > 0
-                    && (app.shiori.tableViewportAnchor?.rowIndex ?? 0) > 0
+                    && (app.excerpt.tableViewportAnchor?.rowIndex ?? 0) > 0
             }
-            try #require(didScrollShiori)
+            try #require(didScrollExcerpt)
 
             app.activateWorkbenchPanelMode(.search)
             let didMountSearch = await waitUntil(timeout: 2) {
@@ -254,17 +254,17 @@ struct CueGroupRefreshScopeIntegrationTests {
             }
             try #require(didMountSearch)
 
-            app.activateWorkbenchPanelMode(.shiori)
+            app.activateWorkbenchPanelMode(.excerpt)
             var remountedCoordinator: SubtitleTableView.Coordinator?
-            let didRemountShioriAtTop = await waitUntil(timeout: 2) {
+            let didRemountExcerptAtTop = await waitUntil(timeout: 2) {
                 window.contentView?.layoutSubtreeIfNeeded()
                 remountedCoordinator = findSubtitleTableCoordinator(
                     in: window.contentView,
-                    surface: .shiori
+                    surface: .excerpt
                 )
                 return remountedCoordinator?.verticalScrollOffsetForTesting() == 0
             }
-            try #require(didRemountShioriAtTop)
+            try #require(didRemountExcerptAtTop)
         }
     }
 
@@ -883,29 +883,29 @@ private final class CueGroupRefreshScopeMountedHarness {
                 hasMore: false
             )
             app.activateWorkbenchPanelMode(.search)
-        case .shiori:
-            let sources = cueGroupRefreshScopeShioriSources(
+        case .excerpt:
+            let sources = cueGroupRefreshScopeExcerptSources(
                 subtitlePath: subtitleURL.path,
                 videoPath: videoURL.path,
                 rowCount: 200
             )
-            app.shiori.setActiveListID(ShioriListIdentity.defaultListID)
+            app.excerpt.setActiveListID(ExcerptListIdentity.defaultListID)
             app.workbenchLayout.navigate(
-                to: .shioriList(id: ShioriListIdentity.defaultListID)
+                to: .excerptList(id: ExcerptListIdentity.defaultListID)
             )
-            app.shiori.tableRowStore.hydrateShioriRows(
+            app.excerpt.tableRowStore.hydrateExcerptRows(
                 sources,
                 startIndex: 0,
                 totalRowCount: sources.count,
-                tableName: "shiori",
-                probeSurface: .shiori,
+                tableName: "excerpt",
+                probeSurface: .excerpt,
                 probeScope: uiProbeScope
             )
-            app.shiori.installTableResultShioriIDs(
-                sources.map { $0.shiori.id }
+            app.excerpt.installTableResultExcerptIDs(
+                sources.map { $0.excerpt.id }
             )
-            app.shiori.markTableRowsLoaded(totalSavedRowCount: sources.count)
-            app.activateWorkbenchPanelMode(.shiori)
+            app.excerpt.markTableRowsLoaded(totalSavedRowCount: sources.count)
+            app.activateWorkbenchPanelMode(.excerpt)
         }
 
         let contentView = AnyView(ContentView()
@@ -916,7 +916,7 @@ private final class CueGroupRefreshScopeMountedHarness {
             .environmentObject(app.settings.cueGroupPresentation)
             .environmentObject(app.settings.localization)
             .environmentObject(app.indexing)
-            .environmentObject(app.shiori)
+            .environmentObject(app.excerpt)
             .environmentObject(app.library)
             .environmentObject(app.search)
             .environmentObject(app.playback))
@@ -1057,7 +1057,7 @@ private func forbiddenRefreshScopeCounters(
     return allSurfaceDataCounters + inactiveSurfaceCounters + [
         "search.query_requested",
         "UI.SearchPresentation.rebuilt",
-        "UI.ShioriPresentation.rebuilt",
+        "UI.ExcerptPresentation.rebuilt",
         "UI.Workbench.body",
         "UI.WorkbenchMainContent.body",
         "UI.ContentView.body",
@@ -1184,19 +1184,19 @@ private func cueGroupRefreshScopeSearchResults(
     }
 }
 
-private func cueGroupRefreshScopeShioriSources(
+private func cueGroupRefreshScopeExcerptSources(
     subtitlePath: String,
     videoPath: String,
     rowCount: Int
-) -> [TableSandboxShioriRowSource] {
+) -> [TableSandboxExcerptRowSource] {
     (0..<rowCount).map { index in
         let group = [
             "context 0 for \(index)",
             "context 1 for \(index)",
             "primary \(index)",
         ]
-        return TableSandboxShioriRowSource(
-            shiori: Shiori(
+        return TableSandboxExcerptRowSource(
+            excerpt: Excerpt(
                 id: Int64(index + 1),
                 subtitlePath: subtitlePath,
                 subtitleFormat: .ass,
@@ -1213,7 +1213,7 @@ private func cueGroupRefreshScopeShioriSources(
             displayTitle: "Episode",
             dateAddedText: "26-07-12 00:00",
             languages: [.japanese],
-            cuePresentation: ShioriCuePresentation(
+            cuePresentation: ExcerptCuePresentation(
                 cueID: Int64(index + 1_000),
                 cueGroupID: Int64(index + 1),
                 primaryGroupIndex: 2,

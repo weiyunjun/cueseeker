@@ -569,12 +569,12 @@ func autoPauseHoldsCurrentCueAtAdjacentBoundaryWhenSelectionDiffers() async thro
 
 @MainActor
 @Test
-func appCoordinatorKeepsStoppedShioriSubtitleWithoutAutoSwitch() async throws {
+func appCoordinatorKeepsStoppedExcerptSubtitleWithoutAutoSwitch() async throws {
     try await withTemporarySegmentCompletionApp { app, _ in
         app.ensurePlayerInitialized()
         app.settings.autoPauseAfterCueFinishesEnabled = true
         app.settings.autoSwitchToNextCuesInPlaylistEnabled = false
-        let selectedShiori = Shiori(
+        let selectedExcerpt = Excerpt(
             id: 1,
             subtitlePath: "/Media/Segment.srt",
             subtitleFormat: .srt,
@@ -586,23 +586,23 @@ func appCoordinatorKeepsStoppedShioriSubtitleWithoutAutoSwitch() async throws {
             isValid: true,
             createdAt: "2026-07-18T00:00:00Z"
         )
-        app.activePlaybackSource = .shiori
+        app.activePlaybackSource = .excerpt
         app.playback.playbackStatus = .playing
-        app.shiori.selectedShiori = selectedShiori
+        app.excerpt.selectedExcerpt = selectedExcerpt
         app.beginCueAutoStopPlayback()
         let boundary = app.configureCueAutoStopBoundary(
-            startMilliseconds: selectedShiori.startMilliseconds,
-            endMilliseconds: selectedShiori.endMilliseconds
+            startMilliseconds: selectedExcerpt.startMilliseconds,
+            endMilliseconds: selectedExcerpt.endMilliseconds
         )
         app.playback.playbackViewModel?.setSubtitleCues(
             [
                 PlaybackSubtitleCue(
-                    startMilliseconds: selectedShiori.startMilliseconds,
-                    endMilliseconds: selectedShiori.endMilliseconds,
-                    text: selectedShiori.content
+                    startMilliseconds: selectedExcerpt.startMilliseconds,
+                    endMilliseconds: selectedExcerpt.endMilliseconds,
+                    text: selectedExcerpt.content
                 )
             ],
-            currentTimeMilliseconds: selectedShiori.endMilliseconds
+            currentTimeMilliseconds: selectedExcerpt.endMilliseconds
         )
 
         app.handleCueAutoStopBoundaryReached(

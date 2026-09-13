@@ -33,18 +33,18 @@ func ankiEntryMappingUsesExactPrimaryCueContent() {
         content: searchContent,
         cueLines: ["not the exact content"]
     )
-    let shioriContent = " shiori first \n\nshiori third "
-    let shiori = Shiori(
+    let excerptContent = " excerpt first \n\nexcerpt third "
+    let excerpt = Excerpt(
         id: 40,
-        subtitlePath: "/Media/Shiori.srt",
+        subtitlePath: "/Media/Excerpt.srt",
         subtitleFormat: .srt,
-        videoPath: "/Media/Shiori.mkv",
-        videoName: "Shiori",
+        videoPath: "/Media/Excerpt.mkv",
+        videoName: "Excerpt",
         startMilliseconds: 3_000,
         endMilliseconds: 4_000,
         cueEventIndex: 50,
         cueDisplayOrder: 0,
-        content: shioriContent,
+        content: excerptContent,
         isValid: true,
         createdAt: "2026-07-12T00:00:00Z"
     )
@@ -59,14 +59,14 @@ func ankiEntryMappingUsesExactPrimaryCueContent() {
         cueGroupTexts: ["search before", searchContent, "search after"],
         primaryGroupIndex: 1
     )
-    let shioriRow = SubtitleTableRow(
+    let excerptRow = SubtitleTableRow(
         id: 40,
         primaryCueID: nil,
-        subtitlePath: "/Media/Shiori.srt",
-        displayTitle: "Shiori Title",
+        subtitlePath: "/Media/Excerpt.srt",
+        displayTitle: "Excerpt Title",
         timeRange: "00:03 - 00:04",
-        primaryCueText: shioriContent,
-        cueGroupTexts: [shioriContent],
+        primaryCueText: excerptContent,
+        cueGroupTexts: [excerptContent],
         primaryGroupIndex: 0
     )
 
@@ -75,26 +75,26 @@ func ankiEntryMappingUsesExactPrimaryCueContent() {
         row: searchRow,
         deckDisplayTitle: "Search Deck"
     )
-    let shioriItem = AppCoordinator.ankiExportItem(
-        for: shiori,
-        row: shioriRow,
-        deckDisplayTitle: "Shiori Deck"
+    let excerptItem = AppCoordinator.ankiExportItem(
+        for: excerpt,
+        row: excerptRow,
+        deckDisplayTitle: "Excerpt Deck"
     )
 
     #expect(searchItem.text == searchContent)
-    #expect(shioriItem.text == shioriContent)
+    #expect(excerptItem.text == excerptContent)
     #expect(searchItem.deckDisplayTitle == "Search Deck")
-    #expect(shioriItem.deckDisplayTitle == "Shiori Deck")
+    #expect(excerptItem.deckDisplayTitle == "Excerpt Deck")
     // The card shows what the table row shows.
     #expect(searchItem.displayTitle == "Search Title")
     #expect(searchItem.timeRange == "00:01 - 00:02")
     #expect(searchItem.cueGroupOtherTexts == ["search before", "search after"])
     #expect(searchItem.cueID == 10)
     #expect(searchItem.subtitlePath == "/Media/Search.ass")
-    #expect(shioriItem.displayTitle == "Shiori Title")
-    #expect(shioriItem.cueGroupOtherTexts.isEmpty)
-    #expect(shioriItem.cueID == nil)
-    #expect(shioriItem.videoPath == "/Media/Shiori.mkv")
+    #expect(excerptItem.displayTitle == "Excerpt Title")
+    #expect(excerptItem.cueGroupOtherTexts.isEmpty)
+    #expect(excerptItem.cueID == nil)
+    #expect(excerptItem.videoPath == "/Media/Excerpt.mkv")
 }
 
 private func ankiCardItem(
@@ -287,29 +287,29 @@ func subtitleScreenshotEntryMappingCarriesCueOrderingIdentity() throws {
         content: "Search Cue",
         cueLines: ["Search Cue"]
     )
-    let shiori = Shiori(
+    let excerpt = Excerpt(
         id: 40,
-        subtitlePath: "/Media/Shiori.srt",
+        subtitlePath: "/Media/Excerpt.srt",
         subtitleFormat: .srt,
-        videoPath: "/Media/Shiori.mkv",
-        videoName: "Shiori",
+        videoPath: "/Media/Excerpt.mkv",
+        videoName: "Excerpt",
         startMilliseconds: 3_000,
         endMilliseconds: 4_000,
         cueEventIndex: 50,
         cueDisplayOrder: 3,
-        content: "Shiori Cue",
+        content: "Excerpt Cue",
         isValid: true,
         createdAt: "2026-07-12T00:00:00Z"
     )
 
     let searchItem = app.subtitleScreenshotItem(for: result)
-    let shioriItem = app.subtitleScreenshotItem(
-        for: shiori,
-        displayTitle: "Shiori"
+    let excerptItem = app.subtitleScreenshotItem(
+        for: excerpt,
+        displayTitle: "Excerpt"
     )
 
     #expect(searchItem.cueEventIndex == 30)
     #expect(searchItem.cueDisplayOrder == 2)
-    #expect(shioriItem.cueEventIndex == 50)
-    #expect(shioriItem.cueDisplayOrder == 3)
+    #expect(excerptItem.cueEventIndex == 50)
+    #expect(excerptItem.cueDisplayOrder == 3)
 }

@@ -67,7 +67,7 @@ struct PlaybackPageView: View {
                         playback: playback,
                         searchStore: appState.search,
                         libraryStore: appState.library,
-                        shioriStore: appState.shiori
+                        excerptStore: appState.excerpt
                     )
                     .environmentObject(playback.pointerVisibility)
                     .frame(

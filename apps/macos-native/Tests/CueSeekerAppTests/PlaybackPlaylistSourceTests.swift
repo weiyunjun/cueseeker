@@ -40,14 +40,14 @@ func playbackPlaylistSearchItemMapsPrimaryCueAndRemovesOnlyPrimaryGroupIndex() t
 
 @MainActor
 @Test
-func playbackPlaylistShioriItemMapsPrimaryCueAndRemovesOnlyPrimaryGroupIndex() throws {
-    let shiori = makePlaybackPlaylistShiori(
+func playbackPlaylistExcerptItemMapsPrimaryCueAndRemovesOnlyPrimaryGroupIndex() throws {
+    let excerpt = makePlaybackPlaylistExcerpt(
         id: 9,
         content: "same",
         cueEventIndex: 19,
         cueDisplayOrder: 2
     )
-    let presentation = ShioriCuePresentation(
+    let presentation = ExcerptCuePresentation(
         cueID: 209,
         cueGroupID: 309,
         primaryGroupIndex: 1,
@@ -56,18 +56,18 @@ func playbackPlaylistShioriItemMapsPrimaryCueAndRemovesOnlyPrimaryGroupIndex() t
     )
 
     let item = PlaybackPlaylistItem(
-        shiori: shiori,
+        excerpt: excerpt,
         cuePresentation: presentation,
         ordinal: 4
     )
     let actionContext = try #require(item.actionContext)
 
-    #expect(item.identity == .shiori(9))
+    #expect(item.identity == .excerpt(9))
     #expect(item.primaryCueIdentity == .cue(209))
     #expect(item.ordinal == 4)
     #expect(item.primaryCueText == "same")
     #expect(item.additionalCueTexts == ["same", "tail"])
-    #expect(item.target == .shiori(shiori))
+    #expect(item.target == .excerpt(excerpt))
     #expect(actionContext.cue.id == 209)
     #expect(actionContext.cue.cueGroupID == 309)
     #expect(actionContext.cue.eventIndex == 19)
@@ -387,51 +387,51 @@ func searchPlaybackPlaylistUsesActiveFacetProjection() throws {
 
 @MainActor
 @Test
-func shioriPlaybackPlaylistReadsWorkbenchScopeOrderDirectly() throws {
+func excerptPlaybackPlaylistReadsWorkbenchScopeOrderDirectly() throws {
     _ = NSApplication.shared
     let databaseURL = FileManager.default.temporaryDirectory
-        .appendingPathComponent("playback-playlist-shiori-\(UUID().uuidString).sqlite")
+        .appendingPathComponent("playback-playlist-excerpt-\(UUID().uuidString).sqlite")
     defer { try? FileManager.default.removeItem(at: databaseURL) }
     let app = AppCoordinator(databaseURL: databaseURL)
-    app.shioriPlaybackNavigationScopeIDs = [9, 3, 7]
+    app.excerptPlaybackNavigationScopeIDs = [9, 3, 7]
     let relations = [9, 3, 7].map {
-        ShioriRelation(
+        ExcerptRelation(
             id: $0,
-            listID: ShioriListIdentity.defaultListID,
+            listID: ExcerptListIdentity.defaultListID,
             cueID: $0,
             createdAt: "2026-07-15T00:00:00Z"
         )
     }
     let contents = [9, 3, 7].map(makePlaybackPlaylistCueContent)
     app.cueContent.install(contents)
-    app.shiori.installResidentSnapshot(
-        ShioriResidentSnapshot(
+    app.excerpt.installResidentSnapshot(
+        ExcerptResidentSnapshot(
             relations: relations,
             cueContents: contents
         ),
-        dataRevision: app.shiori.tableDataRevision
+        dataRevision: app.excerpt.tableDataRevision
     )
 
-    app.installShioriPlaybackPlaylistSource()
+    app.installExcerptPlaybackPlaylistSource()
 
     let source = try #require(app.playback.playlistSource)
     let window = try #require(source.makeSessionWindowStore())
-    #expect(source.origin == .shiori(scope: .explicitIDs([9, 3, 7])))
+    #expect(source.origin == .excerpt(scope: .explicitIDs([9, 3, 7])))
     #expect(window.snapshot.loadedOrdinalRange == (0..<3))
     #expect(window.snapshot.isComplete)
-    #expect(window.item(at: 0)?.identity == .shiori(9))
-    #expect(window.item(at: 1)?.identity == .shiori(3))
-    #expect(window.item(at: 2)?.identity == .shiori(7))
+    #expect(window.item(at: 0)?.identity == .excerpt(9))
+    #expect(window.item(at: 1)?.identity == .excerpt(3))
+    #expect(window.item(at: 2)?.identity == .excerpt(7))
 
-    app.openShiori(
-        Shiori(relation: relations[1], cueContent: contents[1]),
+    app.openExcerpt(
+        Excerpt(relation: relations[1], cueContent: contents[1]),
         navigationScopeIDs: [9, 3, 7],
         playlistScope: .explicitIDs([9, 3, 7]),
         playlistSelectedOrdinal: 1
     )
     let position = try #require(app.playback.playlistPosition)
     #expect(position.datasetID == source.boundary.datasetID)
-    #expect(position.itemIdentity == .shiori(3))
+    #expect(position.itemIdentity == .excerpt(3))
     #expect(position.ordinal == 1)
     let focusedWindow = try #require(source.makeSessionWindowStore(
         initialPosition: position
@@ -481,47 +481,47 @@ private func makePlaybackPlaylistSearchItems(
     }
 }
 
-private func makePlaybackPlaylistShiori(
+private func makePlaybackPlaylistExcerpt(
     id: Int64,
     content: String? = nil,
     cueEventIndex: Int? = nil,
     cueDisplayOrder: Int? = nil
-) -> Shiori {
-    Shiori(
+) -> Excerpt {
+    Excerpt(
         id: id,
-        subtitlePath: "/subtitle/shiori-\(id).ass",
+        subtitlePath: "/subtitle/excerpt-\(id).ass",
         subtitleFormat: .ass,
-        videoPath: "/video/shiori-\(id).mkv",
-        videoName: "shiori-\(id).mkv",
+        videoPath: "/video/excerpt-\(id).mkv",
+        videoName: "excerpt-\(id).mkv",
         startMilliseconds: Int(id * 1_000),
         endMilliseconds: Int(id * 1_000 + 500),
         cueEventIndex: cueEventIndex,
         cueDisplayOrder: cueDisplayOrder,
-        content: content ?? "shiori-\(id)",
+        content: content ?? "excerpt-\(id)",
         isValid: true,
         createdAt: "2026-07-15T00:00:00Z"
     )
 }
 
 private func makePlaybackPlaylistCueContent(id: Int64) -> CueContent {
-    let shiori = makePlaybackPlaylistShiori(id: id)
+    let excerpt = makePlaybackPlaylistExcerpt(id: id)
     return CueContent(
         cueID: id,
         cueGroupID: id + 100,
-        cueEventIndex: shiori.cueEventIndex ?? Int(id),
-        cueDisplayOrder: shiori.cueDisplayOrder ?? 0,
+        cueEventIndex: excerpt.cueEventIndex ?? Int(id),
+        cueDisplayOrder: excerpt.cueDisplayOrder ?? 0,
         primaryGroupIndex: 0,
-        subtitlePath: shiori.subtitlePath,
-        subtitleFormat: shiori.subtitleFormat,
-        videoPath: shiori.videoPath,
-        videoName: shiori.videoName,
-        displayTitle: "Shiori \(id)",
-        timeRange: shiori.timeRange,
-        startMilliseconds: shiori.startMilliseconds,
-        endMilliseconds: shiori.endMilliseconds,
-        content: shiori.content,
-        cueLines: shiori.cueLines,
-        cueGroupLines: shiori.cueLines,
+        subtitlePath: excerpt.subtitlePath,
+        subtitleFormat: excerpt.subtitleFormat,
+        videoPath: excerpt.videoPath,
+        videoName: excerpt.videoName,
+        displayTitle: "Excerpt \(id)",
+        timeRange: excerpt.timeRange,
+        startMilliseconds: excerpt.startMilliseconds,
+        endMilliseconds: excerpt.endMilliseconds,
+        content: excerpt.content,
+        cueLines: excerpt.cueLines,
+        cueGroupLines: excerpt.cueLines,
         languages: [.unknown],
     )
 }

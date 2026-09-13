@@ -27,7 +27,7 @@ func toastCenterEvictsTheOldestInsteadOfQueueing() {
 func toastCenterKeepsOneToastPerResultAndRestartsItsStay() {
     let center = ToastCenter()
     let start = Date()
-    let repeated = ShioriToastRequest.saveSucceeded(listName: "Study")
+    let repeated = ExcerptToastRequest.saveSucceeded(listName: "Study")
 
     center.show(repeated, now: start)
     let firstID = center.visibleItems[0].id
@@ -71,27 +71,27 @@ func feedbackIconsDrawAtTheirDocumentedSizes() {
 }
 
 @Test
-func shioriToastRequestsMatchTheUsageRegistry() {
-    #expect(ShioriToastRequest.moveSucceeded(listName: "Study").message == "Moved to “Study”")
-    #expect(ShioriToastRequest.duplicateSucceeded(listName: "Study").message == "Duplicated to “Study”")
+func excerptToastRequestsMatchTheUsageRegistry() {
+    #expect(ExcerptToastRequest.moveSucceeded(listName: "Study").message == "Moved to “Study”")
+    #expect(ExcerptToastRequest.duplicateSucceeded(listName: "Study").message == "Duplicated to “Study”")
     #expect(
-        ShioriToastRequest.destinationUnavailable(listName: "Study").message
+        ExcerptToastRequest.destinationUnavailable(listName: "Study").message
             == "“Study” is no longer available"
     )
-    #expect(ShioriToastRequest.moveFailed.message == "Couldn’t move the excerpt.")
-    #expect(ShioriToastRequest.duplicateFailed.message == "Couldn’t duplicate the excerpt.")
-    #expect(ShioriToastRequest.saveSucceeded(listName: "Study").message == "Saved to “Study”")
+    #expect(ExcerptToastRequest.moveFailed.message == "Couldn’t move the excerpt.")
+    #expect(ExcerptToastRequest.duplicateFailed.message == "Couldn’t duplicate the excerpt.")
+    #expect(ExcerptToastRequest.saveSucceeded(listName: "Study").message == "Saved to “Study”")
     #expect(
-        ShioriToastRequest.saveFailed(listName: "Study").message
+        ExcerptToastRequest.saveFailed(listName: "Study").message
             == "Couldn’t save to “Study”."
     )
     #expect(
-        ShioriToastRequest.destinationAlreadyContainsCue(listName: "Study").message
+        ExcerptToastRequest.destinationAlreadyContainsCue(listName: "Study").message
             == "This excerpt already exists in “Study”"
     )
-    #expect(ShioriToastRequest.moveSucceeded(listName: "Study").duration == 5)
-    #expect(ShioriToastRequest.moveSucceeded(listName: "Study").position == .appCenter)
-    #expect(ShioriToastRequest.moveSucceeded(listName: "Study").animation == .default)
-    #expect(ShioriToastRequest.moveSucceeded(listName: "Study").icon == .bookmarkSimple)
-    #expect(ShioriToastRequest.moveSucceeded(listName: "Study").iconWeight == .fill)
+    #expect(ExcerptToastRequest.moveSucceeded(listName: "Study").duration == 5)
+    #expect(ExcerptToastRequest.moveSucceeded(listName: "Study").position == .appCenter)
+    #expect(ExcerptToastRequest.moveSucceeded(listName: "Study").animation == .default)
+    #expect(ExcerptToastRequest.moveSucceeded(listName: "Study").icon == .bookmarkSimple)
+    #expect(ExcerptToastRequest.moveSucceeded(listName: "Study").iconWeight == .fill)
 }

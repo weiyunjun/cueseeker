@@ -1,7 +1,7 @@
 import CueSeekerCore
 
 enum PlaybackSubtitleFocusAction: Equatable, Sendable {
-    case shiori
+    case excerpt
     case copyCueText
     case copyCueMarkdownLink
     case playFromThisCue
@@ -11,13 +11,13 @@ enum PlaybackSubtitleFocusActionTarget: Equatable, Sendable {
     case current(PlaybackSubtitleFocusActionContext)
     case playlist(PlaybackPlaylistItem)
     case search(PlaybackCueResultItem)
-    case shiori(PlaybackCueResultItem)
+    case excerpt(PlaybackCueResultItem)
 
     var primaryCueText: String {
         switch self {
         case .current(let context):
             context.cue.text
-        case .playlist(let item), .search(let item), .shiori(let item):
+        case .playlist(let item), .search(let item), .excerpt(let item):
             item.primaryCueText
         }
     }
@@ -26,7 +26,7 @@ enum PlaybackSubtitleFocusActionTarget: Equatable, Sendable {
         switch self {
         case .current(let context):
             context
-        case .playlist(let item), .search(let item), .shiori(let item):
+        case .playlist(let item), .search(let item), .excerpt(let item):
             item.actionContext
         }
     }
@@ -44,14 +44,14 @@ enum PlaybackSubtitleFocusActionTarget: Equatable, Sendable {
             item = playlistItem
         case .search(let searchItem):
             item = searchItem
-        case .shiori(let shioriItem):
-            item = shioriItem
+        case .excerpt(let excerptItem):
+            item = excerptItem
         }
         switch item.target {
         case .search(let result):
             return result.videoName
-        case .shiori(let shiori):
-            return shiori.videoName
+        case .excerpt(let excerpt):
+            return excerpt.videoName
         }
     }
 }
@@ -109,11 +109,11 @@ struct PlaybackSubtitleFocusActionExecution: Equatable, Sendable {
 
     init(
         action: PlaybackSubtitleFocusAction,
-        shioriItem: PlaybackCueResultItem,
+        excerptItem: PlaybackCueResultItem,
         generation: Int
     ) {
         self.action = action
-        target = .shiori(shioriItem)
+        target = .excerpt(excerptItem)
         self.generation = generation
     }
 

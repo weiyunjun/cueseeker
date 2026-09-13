@@ -233,10 +233,10 @@ func libraryUserCoverServiceRestoresOldCoverWhenOldFileCannotBeSafelyRemoved() a
 }
 
 @Test
-func shioriListCoverStoragePublishesAndSafelyRemovesCroppedCovers() async throws {
+func excerptListCoverStoragePublishesAndSafelyRemovesCroppedCovers() async throws {
     let directory = libraryUserCoverTemporaryDirectory()
     defer { try? FileManager.default.removeItem(at: directory) }
-    let service = ShioriListCoverStorage(coverDirectory: directory)
+    let service = ExcerptListCoverStorage(coverDirectory: directory)
     let source = LibraryUserCoverSource(
         image: try makeLibraryUserCoverTestImage(
             width: 1_600,

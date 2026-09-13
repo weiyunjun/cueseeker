@@ -200,7 +200,7 @@ func commandPanelPointerSelectionMovesTheRootHighlightWithinBounds() throws {
     #expect(app.presentPlaybackCommandPanel())
     #expect(app.playback.commandPanelPresentation?.selectedOrdinal == 0)
 
-    // An empty query leaves two rows: Recent Videos and Recent Shioris.
+    // An empty query leaves two rows: Recent Videos and Recent Excerpts.
     app.selectPlaybackCommandPanelItem(at: 1)
     #expect(app.playback.commandPanelPresentation?.selectedOrdinal == 1)
 

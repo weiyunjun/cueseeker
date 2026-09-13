@@ -41,7 +41,7 @@ enum PlaybackOverlayModule: String, CaseIterable, Equatable, Sendable {
     case playlist
     case search
     case library
-    case shiori
+    case excerpt
 
     static let standardModules: [Self] = [
         .current,
@@ -61,14 +61,14 @@ enum PlaybackOverlayModule: String, CaseIterable, Equatable, Sendable {
             L("sidebar.search")
         case .library:
             L("sidebar.library")
-        case .shiori:
-            L("sidebar.shiori")
+        case .excerpt:
+            L("sidebar.excerpt")
         }
     }
 
     var usesSharedCueShortcuts: Bool {
         switch self {
-        case .current, .playlist, .shiori:
+        case .current, .playlist, .excerpt:
             true
         case .search, .library:
             false
@@ -138,8 +138,8 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
     @Published private(set) var searchStore: SearchStore?
     @Published private(set) var searchWindow: PlaybackCueResultSessionWindowStore?
     @Published private(set) var libraryStore: PlaybackLibrarySessionStore?
-    @Published private(set) var shioriStore: ShioriStore?
-    @Published private(set) var shioriWindow: PlaybackCueResultSessionWindowStore?
+    @Published private(set) var excerptStore: ExcerptStore?
+    @Published private(set) var excerptWindow: PlaybackCueResultSessionWindowStore?
 
     private var keyboardActionGeneration = 0
     private var isSessionActive = true
@@ -153,8 +153,8 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
     private var keyboardNavigationSequence = 0
     private var pendingKeyboardNavigationTargetOrdinal: Int?
     private var pendingKeyboardNavigationTargetIdentity: PlaybackCueResultItemIdentity?
-    private var shioriPresentationSource: PlaybackCueResultSource?
-    private var shioriResultsCancellable: AnyCancellable?
+    private var excerptPresentationSource: PlaybackCueResultSource?
+    private var excerptResultsCancellable: AnyCancellable?
     private var searchSource: PlaybackCueResultSource?
     private var searchResultsCancellable: AnyCancellable?
     private var cueResultWindowSnapshotCancellables: [
@@ -172,7 +172,7 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
         playlistPosition: PlaybackPlaylistPosition? = nil,
         searchStore: SearchStore? = nil,
         libraryStore: PlaybackLibrarySessionStore? = nil,
-        shioriStore: ShioriStore? = nil,
+        excerptStore: ExcerptStore? = nil,
         interfaceLayers: InterfaceLayerRegistry = InterfaceLayerRegistry()
     ) {
         self.interfaceLayers = interfaceLayers
@@ -191,7 +191,7 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
         self.playlistWindow = playlistWindow
         self.searchStore = searchStore
         self.libraryStore = libraryStore
-        self.shioriStore = shioriStore
+        self.excerptStore = excerptStore
         token = PlaybackSubtitleFocusSessionToken(
             source: openSnapshot.source,
             sessionGeneration: sessionGeneration
@@ -245,49 +245,49 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
                     }
                 }
         }
-        if let shioriStore {
-            let shioriPresentationSource = PlaybackCueResultSource(
-                origin: .unspecified(.shiori),
-                totalCount: shioriStore.tableRowStore.snapshot.totalRowCount
-            ) { [weak shioriStore] ordinal in
-                guard let shioriStore else {
+        if let excerptStore {
+            let excerptPresentationSource = PlaybackCueResultSource(
+                origin: .unspecified(.excerpt),
+                totalCount: excerptStore.tableRowStore.snapshot.totalRowCount
+            ) { [weak excerptStore] ordinal in
+                guard let excerptStore else {
                     return nil
                 }
-                let snapshot = shioriStore.tableRowStore.snapshot
+                let snapshot = excerptStore.tableRowStore.snapshot
                 guard let row = snapshot.row(at: ordinal),
-                      let shiori = snapshot.shiori(entryID: row.id)
+                      let excerpt = snapshot.excerpt(entryID: row.id)
                 else {
                     return nil
                 }
                 return PlaybackCueResultItem(
-                    shiori: shiori,
-                    cuePresentation: snapshot.shioriCuePresentation(
+                    excerpt: excerpt,
+                    cuePresentation: snapshot.excerptCuePresentation(
                         entryID: row.id
                     ),
                     ordinal: ordinal
                 )
             }
-            self.shioriPresentationSource = shioriPresentationSource
-            let shioriWindow = shioriPresentationSource.makeSessionWindowStore(
+            self.excerptPresentationSource = excerptPresentationSource
+            let excerptWindow = excerptPresentationSource.makeSessionWindowStore(
                 includingEmpty: true
             )
-            self.shioriWindow = shioriWindow
-            if let shioriWindow {
-                observeCueResultWindow(shioriWindow, module: .shiori)
+            self.excerptWindow = excerptWindow
+            if let excerptWindow {
+                observeCueResultWindow(excerptWindow, module: .excerpt)
             }
-            shioriResultsCancellable = shioriStore.tableRowStore.$snapshot
+            excerptResultsCancellable = excerptStore.tableRowStore.$snapshot
                 .dropFirst()
-                .sink { [weak self, weak shioriStore, weak shioriPresentationSource] _ in
-                    Task { @MainActor [weak self, weak shioriStore, weak shioriPresentationSource] in
-                        guard let self, let shioriStore, let shioriPresentationSource else {
+                .sink { [weak self, weak excerptStore, weak excerptPresentationSource] _ in
+                    Task { @MainActor [weak self, weak excerptStore, weak excerptPresentationSource] in
+                        guard let self, let excerptStore, let excerptPresentationSource else {
                             return
                         }
-                        _ = shioriPresentationSource.updateBoundary(
-                            totalCount: shioriStore.tableRowStore.snapshot.totalRowCount
+                        _ = excerptPresentationSource.updateBoundary(
+                            totalCount: excerptStore.tableRowStore.snapshot.totalRowCount
                         )
-                        if shioriPresentationSource.boundary.totalCount > 0,
-                           self.shioriWindow?.selectedOrdinal == nil {
-                            self.shioriWindow?.resetSelectionToFirst()
+                        if excerptPresentationSource.boundary.totalCount > 0,
+                           self.excerptWindow?.selectedOrdinal == nil {
+                            self.excerptWindow?.resetSelectionToFirst()
                         }
                     }
                 }
@@ -319,7 +319,7 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
                 return nil
             }
             return playlistWindow.item(at: selectedOrdinal)?.primaryCueText
-        case .search, .library, .shiori, .none:
+        case .search, .library, .excerpt, .none:
             return nil
         }
     }
@@ -647,7 +647,7 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
             contentDatasetID = nil
             contentGeneration = nil
             targetIdentity = nil
-        case .playlist, .search, .shiori:
+        case .playlist, .search, .excerpt:
             guard let window = cueResultWindow(for: selectedModule),
                   let selectedOrdinal = window.selectedOrdinal,
                   let reelDatasetID = window.reelDatasetID
@@ -957,10 +957,10 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
                 searchItem: item,
                 generation: keyboardActionGeneration
             )
-        case .shiori(let item):
+        case .excerpt(let item):
             execution = PlaybackSubtitleFocusActionExecution(
                 action: action,
-                shioriItem: item,
+                excerptItem: item,
                 generation: keyboardActionGeneration
             )
         }
@@ -975,7 +975,7 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
         switch selectedModule {
         case .current:
             return currentSnapshot?.selectedCue != nil
-        case .playlist, .search, .shiori:
+        case .playlist, .search, .excerpt:
             let window = cueResultWindow(for: selectedModule)
             return window?.selectedOrdinal.flatMap {
                 window?.item(at: $0)
@@ -1014,14 +1014,14 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
                 return nil
             }
             return .search(item)
-        case .shiori:
-            guard let shioriWindow,
-                  let selectedOrdinal = shioriWindow.selectedOrdinal,
-                  let item = shioriWindow.item(at: selectedOrdinal)
+        case .excerpt:
+            guard let excerptWindow,
+                  let selectedOrdinal = excerptWindow.selectedOrdinal,
+                  let item = excerptWindow.item(at: selectedOrdinal)
             else {
                 return nil
             }
-            return .shiori(item)
+            return .excerpt(item)
         default:
             return nil
         }
@@ -1035,8 +1035,8 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
             playlistWindow
         case .search:
             searchWindow
-        case .shiori:
-            shioriWindow
+        case .excerpt:
+            excerptWindow
         default:
             nil
         }
@@ -1185,13 +1185,13 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
         searchStore = nil
         libraryStore?.invalidate()
         libraryStore = nil
-        shioriResultsCancellable?.cancel()
-        shioriResultsCancellable = nil
-        shioriWindow?.invalidate()
-        shioriWindow = nil
-        shioriPresentationSource?.invalidate()
-        shioriPresentationSource = nil
-        shioriStore = nil
+        excerptResultsCancellable?.cancel()
+        excerptResultsCancellable = nil
+        excerptWindow?.invalidate()
+        excerptWindow = nil
+        excerptPresentationSource?.invalidate()
+        excerptPresentationSource = nil
+        excerptStore = nil
         cancelKeyboardNavigationIntent()
         selectedModule = nil
         availableModules = []

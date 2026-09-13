@@ -1,21 +1,21 @@
 import SwiftUI
 import CueSeekerCore
 
-private struct WorkbenchShioriTableTextCopySource {
+private struct WorkbenchExcerptTableTextCopySource {
     let searchText: String
     let resultRowCount: Int
     let resultSnapshotID: UUID
-    let resultShioriIDs: [Int64]
+    let resultExcerptIDs: [Int64]
     let dataRevision: Int
 }
 
-struct WorkbenchShioriTableView: View {
+struct WorkbenchExcerptTableView: View {
     /// The filter menu starts closed on every entry to the page.
     static let defaultFilterMenuOpen = false
     // Observed so the copy below is re-read when the language changes.
     @EnvironmentObject private var localization: AppLocalizationStore
 
-    @EnvironmentObject private var shioriStore: ShioriStore
+    @EnvironmentObject private var excerptStore: ExcerptStore
     let isTableResponseActive: Bool
 
     init(isTableResponseActive: Bool = true) {
@@ -23,17 +23,17 @@ struct WorkbenchShioriTableView: View {
     }
 
     var body: some View {
-        WorkbenchShioriTableContent(
+        WorkbenchExcerptTableContent(
             isTableResponseActive: isTableResponseActive,
-            rowStore: shioriStore.tableRowStore
+            rowStore: excerptStore.tableRowStore
         )
     }
 }
 
-private struct WorkbenchShioriTableContent: View {
+private struct WorkbenchExcerptTableContent: View {
     let isTableResponseActive: Bool
     @EnvironmentObject private var appState: AppCoordinator
-    @EnvironmentObject private var shioriStore: ShioriStore
+    @EnvironmentObject private var excerptStore: ExcerptStore
     @EnvironmentObject private var settingsStore: SettingsStore
     @ObservedObject var rowStore: TableSandboxRowModelStore
     @State private var appliedShowCueGroup: Bool?
@@ -46,8 +46,8 @@ private struct WorkbenchShioriTableContent: View {
     @State private var isSelectionMode = false
     @State private var hasDeferredReloadWhileCovered = false
     @State private var isFilterMenuOpen =
-        WorkbenchShioriTableView.defaultFilterMenuOpen
-    @State private var shioriFacetFilter = CueFacetFilter()
+        WorkbenchExcerptTableView.defaultFilterMenuOpen
+    @State private var excerptFacetFilter = CueFacetFilter()
     /// The filter button lives in the table's pinned chrome, a separate
     /// hosting hierarchy; this handle is how the shell's menu host finds it.
     @State private var filterMenuAnchor = MenuAnchorHandle()
@@ -55,13 +55,13 @@ private struct WorkbenchShioriTableContent: View {
 
     var body: some View {
         let _ = UIInvalidationProbe.count(
-            SubtitleTableProbeSurface.shiori.counterName("surface_body"),
+            SubtitleTableProbeSurface.excerpt.counterName("surface_body"),
             scope: appState.uiProbeScope
         )
         let textCopySource = tableTextCopySource
         SchemaWorkbenchSearchShell(
             searchDraft: searchInputBinding,
-            columns: SchemaWorkbenchSearchDefaults.shioriColumns,
+            columns: SchemaWorkbenchSearchDefaults.excerptColumns,
             isRedesign: true,
             summaryContent: coverSummary,
             hostsPageChromeInTable: true,
@@ -73,11 +73,11 @@ private struct WorkbenchShioriTableContent: View {
             onToggleSelectionMode: toggleSelectionMode,
             filterMenu: CueFacetFilterMenuModel(
                 distribution:
-                    shioriStore.tableFacetDistribution
-                        ?? shioriStore.residentFacetSnapshot?.distribution,
+                    excerptStore.tableFacetDistribution
+                        ?? excerptStore.residentFacetSnapshot?.distribution,
                 availableLanguages: availableFacetLanguages,
-                isCalculating: shioriStore.residentFacetSnapshot == nil,
-                filter: shioriFacetFilterBinding
+                isCalculating: excerptStore.residentFacetSnapshot == nil,
+                filter: excerptFacetFilterBinding
             ),
             isFilterMenuOpen: isFilterMenuOpen,
             onToggleFilterMenu: toggleFilterMenu,
@@ -89,8 +89,8 @@ private struct WorkbenchShioriTableContent: View {
         ) { tableColumns in
             ZStack {
                 SubtitleTableView(
-                    tableName: "shiori",
-                    probeSurface: .shiori,
+                    tableName: "excerpt",
+                    probeSurface: .excerpt,
                     probeScope: appState.uiProbeScope,
                     rowCount: rowStore.snapshot.totalRowCount,
                     rowProvider: { rowStore.snapshot.row(at: $0) },
@@ -122,25 +122,25 @@ private struct WorkbenchShioriTableContent: View {
                     loadRowsForTextCopy: { range in
                         await loadRowsForTextCopy(range: range, source: textCopySource)
                     },
-                    onPlay: openShiori,
-                    rowActionMenuStyle: .shiori,
+                    onPlay: openExcerpt,
+                    rowActionMenuStyle: .excerpt,
                     rowActionDestinations: rowActionDestinations,
-                    onMoveShiori: moveShiori,
-                    onDuplicateShiori: duplicateShiori,
-                    onCreateShioriList: createShioriList,
-                    onRemoveShiori: requestRemoveShiori,
+                    onMoveExcerpt: moveExcerpt,
+                    onDuplicateExcerpt: duplicateExcerpt,
+                    onCreateExcerptList: createExcerptList,
+                    onRemoveExcerpt: requestRemoveExcerpt,
                     isRedesign: true,
-                    pageChrome: shioriDetailPageChrome
+                    pageChrome: excerptDetailPageChrome
                 )
 
-                if shioriStore.tableHasLoadedInitialPage && shioriStore.tableTotalSavedRowCount == 0 {
-                    WorkbenchEmptyHint(message: L("shiori.table.empty_hint"))
+                if excerptStore.tableHasLoadedInitialPage && excerptStore.tableTotalSavedRowCount == 0 {
+                    WorkbenchEmptyHint(message: L("excerpt.table.empty_hint"))
                 }
             }
         }
         .onAppear {
-            restoreShioriFacetFilter()
-            shioriStore.setTableProjectionResponseActive(allowsTableResponse)
+            restoreExcerptFacetFilter()
+            excerptStore.setTableProjectionResponseActive(allowsTableResponse)
             prepareViewportRestoration()
             restoreSelectionIfPossible()
             restoreViewportIfPossible()
@@ -152,19 +152,19 @@ private struct WorkbenchShioriTableContent: View {
             restoreSelectionIfPossible()
             restoreViewportIfPossible()
         }
-        .onChange(of: shioriStore.tableDataRevision) { _ in
+        .onChange(of: excerptStore.tableDataRevision) { _ in
             exitSelectionMode()
             reloadRows(resetScroll: false)
         }
-        .onChange(of: shioriStore.activeListID) { _ in
-            shioriStore.tableViewportAnchor = nil
+        .onChange(of: excerptStore.activeListID) { _ in
+            excerptStore.tableViewportAnchor = nil
             viewportAnchorToRestore = nil
             tableScrollTargetRow = nil
             didRestoreViewport = true
             tableScrollResetToken += 1
             // Another list is another interface for the menu: it closes.
             isFilterMenuOpen = false
-            restoreShioriFacetFilter()
+            restoreExcerptFacetFilter()
         }
         .onChange(of: canEnterSelectionMode) { canEnter in
             if !canEnter {
@@ -177,7 +177,7 @@ private struct WorkbenchShioriTableContent: View {
                 // The menu belongs to this page: switching away closes it.
                 isFilterMenuOpen = false
             }
-            shioriStore.setTableProjectionResponseActive(isActive)
+            excerptStore.setTableProjectionResponseActive(isActive)
             if isActive {
                 resumeDeferredTableResponse()
             }
@@ -185,9 +185,9 @@ private struct WorkbenchShioriTableContent: View {
         .onDisappear {
             exitSelectionMode()
             isFilterMenuOpen = false
-            shioriStore.setTableProjectionResponseActive(false)
+            excerptStore.setTableProjectionResponseActive(false)
             persistSelection()
-            shioriStore.tableViewportAnchor = nil
+            excerptStore.tableViewportAnchor = nil
         }
         .background(
             CueGroupPresentationGate(
@@ -201,7 +201,7 @@ private struct WorkbenchShioriTableContent: View {
     private var tableSummary: SchemaWorkbenchTableSummary {
         SchemaWorkbenchTableSummary(
             totalRowCount: max(
-                shioriStore.tableResultRowCount,
+                excerptStore.tableResultRowCount,
                 rowStore.snapshot.totalRowCount
             ),
             selectedRowCount: isSelectionMode
@@ -211,18 +211,18 @@ private struct WorkbenchShioriTableContent: View {
     }
 
     private var coverSummary: AnyView? {
-        guard let summary = shioriStore.activeListSummary else { return nil }
+        guard let summary = excerptStore.activeListSummary else { return nil }
         return AnyView(
             CoverSummaryCard(
                 title: summary.list.name,
                 supportingContent: .description(summary.list.description),
-                actionKind: summary.resumeShiori == nil ? .play : .resume,
-                isActionEnabled: shioriStore.activeListHasPlayableContent,
+                actionKind: summary.resumeExcerpt == nil ? .play : .resume,
+                isActionEnabled: excerptStore.activeListHasPlayableContent,
                 action: {
-                    appState.openShioriListPlayback(summary)
+                    appState.openExcerptListPlayback(summary)
                 }
             ) {
-                ShioriListCoverView(
+                ExcerptListCoverView(
                     coverPath: summary.list.coverPath,
                     imageVerticalAlignment: .center
                 )
@@ -230,7 +230,7 @@ private struct WorkbenchShioriTableContent: View {
         )
     }
 
-    private var shioriDetailPageChrome: SubtitleTablePageChrome? {
+    private var excerptDetailPageChrome: SubtitleTablePageChrome? {
         guard let coverSummary else { return nil }
         let pinnedContent = AnyView(
             VStack(spacing: 0) {
@@ -281,11 +281,11 @@ private struct WorkbenchShioriTableContent: View {
 
     private var hasExactTableResult: Bool {
         let resultRowCount = max(
-            shioriStore.tableResultRowCount,
+            excerptStore.tableResultRowCount,
             rowStore.snapshot.totalRowCount
         )
-        return shioriStore.tableHasLoadedInitialPage
-            && shioriStore.tableResultShioriIDs?.count == resultRowCount
+        return excerptStore.tableHasLoadedInitialPage
+            && excerptStore.tableResultExcerptIDs?.count == resultRowCount
     }
 
     private var exactSearchResultCountText: String? {
@@ -301,7 +301,7 @@ private struct WorkbenchShioriTableContent: View {
 
     private var searchInputBinding: Binding<String> {
         Binding(
-            get: { shioriStore.tableSearchDraft },
+            get: { excerptStore.tableSearchDraft },
             set: { searchText in
                 updateSearchDraft(searchText)
             }
@@ -331,48 +331,48 @@ private struct WorkbenchShioriTableContent: View {
         isTableResponseActive
     }
 
-    private var shioriFacetFilterBinding: Binding<CueFacetFilter> {
+    private var excerptFacetFilterBinding: Binding<CueFacetFilter> {
         Binding(
-            get: { shioriFacetFilter },
+            get: { excerptFacetFilter },
             set: { newValue in
                 guard !isSelectionMode,
-                      shioriStore.residentFacetSnapshot != nil,
-                      shioriFacetFilter != newValue,
-                      let listID = shioriStore.activeListID
+                      excerptStore.residentFacetSnapshot != nil,
+                      excerptFacetFilter != newValue,
+                      let listID = excerptStore.activeListID
                 else {
                     return
                 }
-                shioriFacetFilter = newValue
-                settingsStore.setShioriFacetFilter(
+                excerptFacetFilter = newValue
+                settingsStore.setExcerptFacetFilter(
                     newValue,
                     forListID: listID
                 )
-                applyShioriFacetFilter(newValue)
+                applyExcerptFacetFilter(newValue)
             }
         )
     }
 
     private var availableFacetLanguages: [SubtitleLanguageCode] {
         var available = Set<SubtitleLanguageCode>()
-        if let snapshot = shioriStore.residentFacetSnapshot {
+        if let snapshot = excerptStore.residentFacetSnapshot {
             available.formUnion(snapshot.distribution.languageCounts.keys)
         }
         return SubtitleLanguageCode.allCases.filter(available.contains)
     }
 
-    private var tableTextCopySource: WorkbenchShioriTableTextCopySource {
-        return WorkbenchShioriTableTextCopySource(
-            searchText: shioriStore.tableSearchDraft,
-            resultRowCount: max(shioriStore.tableResultRowCount, rowStore.snapshot.totalRowCount),
-            resultSnapshotID: shioriStore.tableResultSnapshotID,
-            resultShioriIDs: shioriStore.tableResultShioriIDs ?? [],
-            dataRevision: shioriStore.tableDataRevision
+    private var tableTextCopySource: WorkbenchExcerptTableTextCopySource {
+        return WorkbenchExcerptTableTextCopySource(
+            searchText: excerptStore.tableSearchDraft,
+            resultRowCount: max(excerptStore.tableResultRowCount, rowStore.snapshot.totalRowCount),
+            resultSnapshotID: excerptStore.tableResultSnapshotID,
+            resultExcerptIDs: excerptStore.tableResultExcerptIDs ?? [],
+            dataRevision: excerptStore.tableDataRevision
         )
     }
 
     private func loadRowsForTextCopy(
         range: Range<Int>,
-        source: WorkbenchShioriTableTextCopySource
+        source: WorkbenchExcerptTableTextCopySource
     ) async -> [SubtitleTableRow]? {
         guard range.lowerBound >= 0,
               range.upperBound <= source.resultRowCount,
@@ -389,70 +389,70 @@ private struct WorkbenchShioriTableContent: View {
     }
 
     private func textCopySourceStillMatches(
-        _ source: WorkbenchShioriTableTextCopySource
+        _ source: WorkbenchExcerptTableTextCopySource
     ) -> Bool {
         allowsTableResponse
-            && shioriStore.tableDataRevision == source.dataRevision
-            && shioriStore.tableSearchDraft == source.searchText
-            && shioriStore.tableResultSnapshotID == source.resultSnapshotID
-            && max(shioriStore.tableResultRowCount, rowStore.snapshot.totalRowCount)
+            && excerptStore.tableDataRevision == source.dataRevision
+            && excerptStore.tableSearchDraft == source.searchText
+            && excerptStore.tableResultSnapshotID == source.resultSnapshotID
+            && max(excerptStore.tableResultRowCount, rowStore.snapshot.totalRowCount)
                 == source.resultRowCount
     }
 
     private func loadInitialRowsIfNeeded() {
         guard allowsTableResponse else {
-            if !shioriStore.tableHasLoadedInitialPage {
+            if !excerptStore.tableHasLoadedInitialPage {
                 hasDeferredReloadWhileCovered = true
             }
             return
         }
-        appState.loadShioriTableRowsIfNeeded()
+        appState.loadExcerptTableRowsIfNeeded()
     }
 
     private func updateSearchDraft(_ searchText: String) {
-        guard shioriStore.tableSearchDraft != searchText else { return }
+        guard excerptStore.tableSearchDraft != searchText else { return }
         exitSelectionMode()
         rowSelection.reset()
         persistSelection()
-        shioriStore.tableViewportAnchor = nil
+        excerptStore.tableViewportAnchor = nil
         viewportAnchorToRestore = nil
         tableScrollTargetRow = nil
         didRestoreViewport = true
         tableScrollResetToken += 1
-        appState.updateShioriSearchQuery(searchText)
+        appState.updateExcerptSearchQuery(searchText)
     }
 
     private func toggleFilterMenu() {
         if !isFilterMenuOpen {
-            restoreShioriFacetFilter()
+            restoreExcerptFacetFilter()
         }
         isFilterMenuOpen.toggle()
     }
 
-    private func restoreShioriFacetFilter() {
-        guard let listID = shioriStore.activeListID else {
-            shioriFacetFilter = CueFacetFilter()
+    private func restoreExcerptFacetFilter() {
+        guard let listID = excerptStore.activeListID else {
+            excerptFacetFilter = CueFacetFilter()
             return
         }
-        let filter = settingsStore.shioriFacetFilter(forListID: listID)
-        shioriFacetFilter = filter
-        appState.updateShioriFacetFilter(filter)
+        let filter = settingsStore.excerptFacetFilter(forListID: listID)
+        excerptFacetFilter = filter
+        appState.updateExcerptFacetFilter(filter)
     }
 
-    private func applyShioriFacetFilter(_ filter: CueFacetFilter) {
+    private func applyExcerptFacetFilter(_ filter: CueFacetFilter) {
         UIInvalidationProbe.mark(
-            "ACTION UI.ShioriFacetFilter.changed",
+            "ACTION UI.ExcerptFacetFilter.changed",
             scope: appState.uiProbeScope
         )
         exitSelectionMode()
         rowSelection.reset()
         persistSelection()
-        shioriStore.tableViewportAnchor = nil
+        excerptStore.tableViewportAnchor = nil
         viewportAnchorToRestore = nil
         tableScrollTargetRow = nil
         didRestoreViewport = true
         tableScrollResetToken += 1
-        appState.updateShioriFacetFilter(filter)
+        appState.updateExcerptFacetFilter(filter)
     }
 
     private func reloadRows(resetScroll: Bool) {
@@ -463,13 +463,13 @@ private struct WorkbenchShioriTableContent: View {
         rowSelection.reset()
         persistSelection()
         if resetScroll {
-            shioriStore.tableViewportAnchor = nil
+            excerptStore.tableViewportAnchor = nil
             viewportAnchorToRestore = nil
             tableScrollTargetRow = nil
             didRestoreViewport = true
             tableScrollResetToken += 1
         }
-        appState.reloadShioriTableRows()
+        appState.reloadExcerptTableRows()
     }
 
     private func resumeDeferredTableResponse() {
@@ -482,23 +482,23 @@ private struct WorkbenchShioriTableContent: View {
         }
     }
 
-    private func openShiori(_ row: SubtitleTableRow) {
-        guard let item = rowStore.snapshot.shiori(entryID: row.id) else {
+    private func openExcerpt(_ row: SubtitleTableRow) {
+        guard let item = rowStore.snapshot.excerpt(entryID: row.id) else {
             return
         }
         guard item.isValid,
-              let navigationScopeIDs = shioriStore.playbackTableResultShioriIDs
+              let navigationScopeIDs = excerptStore.playbackTableResultExcerptIDs
         else {
             return
         }
-        let playlistScope = PlaybackPlaylistShioriScope.table(
-            PlaybackPlaylistShioriTableContext(
-                runID: shioriStore.tableResultSnapshotID,
-                searchText: shioriStore.tableSearchDraft,
+        let playlistScope = PlaybackPlaylistExcerptScope.table(
+            PlaybackPlaylistExcerptTableContext(
+                runID: excerptStore.tableResultSnapshotID,
+                searchText: excerptStore.tableSearchDraft,
                 totalCount: navigationScopeIDs.count
             )
         )
-        appState.openShiori(
+        appState.openExcerpt(
             item,
             navigationScopeIDs: navigationScopeIDs,
             playlistScope: playlistScope,
@@ -509,17 +509,17 @@ private struct WorkbenchShioriTableContent: View {
         )
     }
 
-    private func requestRemoveShiori(_ row: SubtitleTableRow) {
-        guard let item = rowStore.snapshot.shiori(entryID: row.id) else {
+    private func requestRemoveExcerpt(_ row: SubtitleTableRow) {
+        guard let item = rowStore.snapshot.excerpt(entryID: row.id) else {
             return
         }
         appState.confirmation.session = WorkbenchConfirmationSession(
-            title: L("shiori.remove.title"),
-            message: L("shiori.remove.message"),
+            title: L("excerpt.remove.title"),
+            message: L("excerpt.remove.message"),
             destructiveTitle: L("common.remove"),
             cancelTitle: L("common.cancel"),
             onDestructive: {
-                confirmRemoveShiori(item)
+                confirmRemoveExcerpt(item)
             },
             onCancel: {
                 appState.confirmation.session = nil
@@ -528,8 +528,8 @@ private struct WorkbenchShioriTableContent: View {
     }
 
     private var rowActionDestinations: [SubtitleTableRowActionDestination] {
-        shioriStore.listOverview.lists.compactMap { summary in
-            guard summary.id != shioriStore.activeListID else {
+        excerptStore.listOverview.lists.compactMap { summary in
+            guard summary.id != excerptStore.activeListID else {
                 return nil
             }
             return SubtitleTableRowActionDestination(
@@ -539,46 +539,46 @@ private struct WorkbenchShioriTableContent: View {
         }
     }
 
-    private func moveShiori(_ row: SubtitleTableRow, toListID listID: Int64) {
-        guard let item = rowStore.snapshot.shiori(entryID: row.id) else {
+    private func moveExcerpt(_ row: SubtitleTableRow, toListID listID: Int64) {
+        guard let item = rowStore.snapshot.excerpt(entryID: row.id) else {
             return
         }
-        appState.moveShiori(
+        appState.moveExcerpt(
             item,
             toListID: listID,
-            listName: shioriStore.listName(id: listID)
+            listName: excerptStore.listName(id: listID)
         )
     }
 
-    private func createShioriList(
+    private func createExcerptList(
         _ row: SubtitleTableRow,
         for action: SubtitleTableRowAction
     ) {
-        guard let item = rowStore.snapshot.shiori(entryID: row.id) else {
+        guard let item = rowStore.snapshot.excerpt(entryID: row.id) else {
             return
         }
-        appState.beginCreatingShioriList(
-            pendingTransfer: ShioriListEditorPendingTransfer(
+        appState.beginCreatingExcerptList(
+            pendingTransfer: ExcerptListEditorPendingTransfer(
                 action: action,
-                target: .shiori(item)
+                target: .excerpt(item)
             )
         )
     }
 
-    private func duplicateShiori(_ row: SubtitleTableRow, toListID listID: Int64) {
-        guard let item = rowStore.snapshot.shiori(entryID: row.id) else {
+    private func duplicateExcerpt(_ row: SubtitleTableRow, toListID listID: Int64) {
+        guard let item = rowStore.snapshot.excerpt(entryID: row.id) else {
             return
         }
-        appState.duplicateShiori(
+        appState.duplicateExcerpt(
             item,
             toListID: listID,
-            listName: shioriStore.listName(id: listID)
+            listName: excerptStore.listName(id: listID)
         )
     }
 
-    private func confirmRemoveShiori(_ item: Shiori) {
+    private func confirmRemoveExcerpt(_ item: Excerpt) {
         appState.confirmation.session = nil
-        guard appState.removeShiori(item, reloadPresentation: false) else {
+        guard appState.removeExcerpt(item, reloadPresentation: false) else {
             return
         }
     }
@@ -590,8 +590,8 @@ private struct WorkbenchShioriTableContent: View {
         }
 
         Task { @MainActor in
-            let selection = await selectedShioris(for: selectedRows)
-            appState.exportShiorisToAnki(selection)
+            let selection = await selectedExcerpts(for: selectedRows)
+            appState.exportExcerptsToAnki(selection)
         }
     }
 
@@ -603,7 +603,7 @@ private struct WorkbenchShioriTableContent: View {
         }
 
         let columns = SubtitleTableClipboard.columns(
-            from: SchemaWorkbenchSearchDefaults.shioriColumns
+            from: SchemaWorkbenchSearchDefaults.excerptColumns
         )
         let selectedRows = selection.selectedRows(rowCount: rowCount)
         guard !selectedRows.isEmpty else {
@@ -625,17 +625,17 @@ private struct WorkbenchShioriTableContent: View {
         SubtitleTableClipboard.copyDeepLinks(rows: rows)
     }
 
-    private func selectedShioris(
+    private func selectedExcerpts(
         for selectedRows: [Int]
-    ) async -> [(shiori: Shiori, row: SubtitleTableRow)] {
+    ) async -> [(excerpt: Excerpt, row: SubtitleTableRow)] {
         await hydrateRowsForExport(selectedRows)
         return selectedRows.compactMap { row in
             guard let tableRow = rowStore.snapshot.row(at: row),
-                  let shiori = rowStore.snapshot.shiori(entryID: tableRow.id)
+                  let excerpt = rowStore.snapshot.excerpt(entryID: tableRow.id)
             else {
                 return nil
             }
-            return (shiori, tableRow)
+            return (excerpt, tableRow)
         }
     }
 
@@ -666,7 +666,7 @@ private struct WorkbenchShioriTableContent: View {
             visibleRows.lowerBound + SubtitleTableCueGeometry.measurementOverscan
         )
         guard let row = rowStore.snapshot.row(at: anchorRow) else { return }
-        shioriStore.tableViewportAnchor = TableViewportAnchor(
+        excerptStore.tableViewportAnchor = TableViewportAnchor(
             entryID: row.id,
             rowIndex: anchorRow
         )
@@ -694,13 +694,13 @@ private struct WorkbenchShioriTableContent: View {
     private func prepareViewportRestoration() {
         guard !hasPreparedViewportRestoration else { return }
         hasPreparedViewportRestoration = true
-        viewportAnchorToRestore = shioriStore.tableViewportAnchor
+        viewportAnchorToRestore = excerptStore.tableViewportAnchor
         didRestoreViewport = viewportAnchorToRestore == nil
     }
 
     private func persistSelection() {
-        shioriStore.tableSelectionState = rowSelection
-        shioriStore.tableSelectionEntryIDs = rowStore.snapshot.orderedEntryIDs
+        excerptStore.tableSelectionState = rowSelection
+        excerptStore.tableSelectionEntryIDs = rowStore.snapshot.orderedEntryIDs
     }
 
     private func toggleSelectionMode() {
@@ -725,8 +725,8 @@ private struct WorkbenchShioriTableContent: View {
 
     private func restoreSelectionIfPossible() {
         let entryIDs = rowStore.snapshot.orderedEntryIDs
-        guard entryIDs == shioriStore.tableSelectionEntryIDs else { return }
-        rowSelection = shioriStore.tableSelectionState
+        guard entryIDs == excerptStore.tableSelectionEntryIDs else { return }
+        rowSelection = excerptStore.tableSelectionState
         rowSelection.clamp(rowCount: rowStore.snapshot.totalRowCount)
     }
 }

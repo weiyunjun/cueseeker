@@ -49,11 +49,11 @@ func groupsMayShareKeysButOpenCommandPanelSharesWithNone() {
     keymap.set(key(kVK_ANSI_S), for: .copyScreenshot)
     #expect(keymap.conflicts(for: .copyScreenshot).isEmpty)
     #expect(keymap.action(for: key(kVK_ANSI_S), in: .playback) == .copyScreenshot)
-    #expect(keymap.action(for: key(kVK_ANSI_S), in: .overlay) == .saveToShiori)
+    #expect(keymap.action(for: key(kVK_ANSI_S), in: .overlay) == .saveToExcerpt)
 
     keymap.set(key(kVK_ANSI_S), for: .openCommandPanel)
-    #expect(keymap.conflicts(for: .openCommandPanel) == [.copyScreenshot, .saveToShiori])
-    #expect(keymap.conflicts(for: .saveToShiori) == [.openCommandPanel])
+    #expect(keymap.conflicts(for: .openCommandPanel) == [.copyScreenshot, .saveToExcerpt])
+    #expect(keymap.conflicts(for: .saveToExcerpt) == [.openCommandPanel])
     #expect(keymap.action(for: key(kVK_ANSI_S), in: .global) == nil)
     #expect(keymap.action(for: key(kVK_ANSI_S), in: .overlay) == nil)
 }
@@ -125,7 +125,7 @@ func recordingAcceptsOneKeyOrShiftAndRefusesTheRest() {
 @Test
 func returnAndArrowsAreReservedWhereTheyConfirmAndMove() {
     for keyCode in [kVK_Return, kVK_ANSI_KeypadEnter, kVK_UpArrow, kVK_LeftArrow] {
-        for action in [PlaybackShortcutAction.saveToShiori, .editCollage, .openCommandPanel] {
+        for action in [PlaybackShortcutAction.saveToExcerpt, .editCollage, .openCommandPanel] {
             #expect(
                 action.recordedKey(keyCode: UInt16(keyCode), modifierFlags: .function)
                     == .failure(.reserved)

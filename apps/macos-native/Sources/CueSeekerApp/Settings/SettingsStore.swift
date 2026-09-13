@@ -80,8 +80,8 @@ final class SettingsStore: ObservableObject {
     private static let appAppearanceModeKey = "appAppearanceMode"
     private static let appLanguageKey = "appLanguage"
     private static let searchFacetExclusionsKey = "searchFacetExclusions"
-    private static let shioriFacetExclusionsKey = "shioriFacetExclusionsByListID"
-    private static let recentShioriSaveListKey = "recentShioriSaveListID"
+    private static let excerptFacetExclusionsKey = "excerptFacetExclusionsByListID"
+    private static let recentExcerptSaveListKey = "recentExcerptSaveListID"
     private static let ankiExportCueTextSideKey = "ankiExportCueTextSide"
     private static let ankiExportOptionalItemsKey = "ankiExportOptionalItems"
     private static let ankiExportFolderPathKey = "ankiExportFolderPath"
@@ -309,9 +309,9 @@ final class SettingsStore: ObservableObject {
         )
     }
 
-    func shioriFacetFilter(forListID listID: Int64) -> CueFacetFilter {
+    func excerptFacetFilter(forListID listID: Int64) -> CueFacetFilter {
         let exclusionsByListID = userDefaults.dictionary(
-            forKey: Self.shioriFacetExclusionsKey
+            forKey: Self.excerptFacetExclusionsKey
         ) ?? [:]
         guard let exclusions = exclusionsByListID[String(listID)]
                 as? [String: Any]
@@ -321,23 +321,23 @@ final class SettingsStore: ObservableObject {
         return Self.loadFacetFilter(exclusions: exclusions)
     }
 
-    /// The list the last successful `Save to Shiori` went to. Kept across
+    /// The list the last successful `Save to Excerpt` went to. Kept across
     /// launches so the destination menu opens on it again.
-    var recentShioriSaveListID: Int64? {
-        (userDefaults.object(forKey: Self.recentShioriSaveListKey) as? Int)
+    var recentExcerptSaveListID: Int64? {
+        (userDefaults.object(forKey: Self.recentExcerptSaveListKey) as? Int)
             .map(Int64.init)
     }
 
-    func setRecentShioriSaveListID(_ listID: Int64?) {
+    func setRecentExcerptSaveListID(_ listID: Int64?) {
         guard let listID else {
-            userDefaults.removeObject(forKey: Self.recentShioriSaveListKey)
+            userDefaults.removeObject(forKey: Self.recentExcerptSaveListKey)
             return
         }
-        userDefaults.set(Int(listID), forKey: Self.recentShioriSaveListKey)
+        userDefaults.set(Int(listID), forKey: Self.recentExcerptSaveListKey)
     }
 
     /// The Export to Anki dialog's Cue Text Side and Optional checkboxes, as
-    /// the reader last left them. Search and Shiori share them.
+    /// the reader last left them. Search and Excerpt share them.
     var ankiExportOptions: AnkiExportOptions {
         get {
             var options = AnkiExportOptions()
@@ -365,17 +365,17 @@ final class SettingsStore: ObservableObject {
         set { userDefaults.set(newValue, forKey: Self.ankiExportFolderPathKey) }
     }
 
-    func setShioriFacetFilter(
+    func setExcerptFacetFilter(
         _ filter: CueFacetFilter,
         forListID listID: Int64
     ) {
         var exclusionsByListID = userDefaults.dictionary(
-            forKey: Self.shioriFacetExclusionsKey
+            forKey: Self.excerptFacetExclusionsKey
         ) ?? [:]
         exclusionsByListID[String(listID)] = Self.facetExclusions(for: filter)
         userDefaults.set(
             exclusionsByListID,
-            forKey: Self.shioriFacetExclusionsKey
+            forKey: Self.excerptFacetExclusionsKey
         )
     }
 

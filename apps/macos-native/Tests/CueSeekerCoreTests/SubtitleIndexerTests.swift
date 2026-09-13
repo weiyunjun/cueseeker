@@ -1646,7 +1646,7 @@ func assRenderSegmenterUsesComplexityBudgetForDenseEffects() throws {
 }
 
 @Test
-func samePathAtomicSavePreservesSubtitleCueAndShioriIDs() throws {
+func samePathAtomicSavePreservesSubtitleCueAndExcerptIDs() throws {
     let fixture = try IndexingFixture()
     defer {
         fixture.cleanUp()
@@ -1677,9 +1677,9 @@ func samePathAtomicSavePreservesSubtitleCueAndShioriIDs() throws {
             .first
     )
     let originalCueID = originalCue.id
-    let shioriDatabase = try ShioriDatabase(path: fixture.databaseURL)
-    let saved = try shioriDatabase.upsertShiori(
-        selection: shioriSelection(originalCue)
+    let excerptDatabase = try ExcerptDatabase(path: fixture.databaseURL)
+    let saved = try excerptDatabase.upsertExcerpt(
+        selection: excerptSelection(originalCue)
     )
     #expect(throws: (any Error).self) {
         try executeSQLite(
@@ -1709,14 +1709,14 @@ func samePathAtomicSavePreservesSubtitleCueAndShioriIDs() throws {
             .cueLineRecords(forSubtitleFile: indexedSubtitle)
             .first?.id
     )
-    let currentShiori = try #require(try shioriDatabase.shiori(id: saved.id))
+    let currentExcerpt = try #require(try excerptDatabase.excerpt(id: saved.id))
 
     #expect(newSubtitleID == originalSubtitleID)
     #expect(currentCueID == originalCueID)
-    #expect(try shioriDatabase.cueID(forShioriID: saved.id) == originalCueID)
-    #expect(currentShiori.isValid)
-    #expect(currentShiori.unavailableReason == nil)
-    #expect(currentShiori.content == "Edited saved Cue.")
+    #expect(try excerptDatabase.cueID(forExcerptID: saved.id) == originalCueID)
+    #expect(currentExcerpt.isValid)
+    #expect(currentExcerpt.unavailableReason == nil)
+    #expect(currentExcerpt.content == "Edited saved Cue.")
     #expect(
         try queryInt(
             at: fixture.databaseURL,
@@ -1738,7 +1738,7 @@ func samePathAtomicSavePreservesSubtitleCueAndShioriIDs() throws {
 }
 
 @Test
-func samePathASSJapaneseTextEditKeepsShioriAvailable() throws {
+func samePathASSJapaneseTextEditKeepsExcerptAvailable() throws {
     let fixture = try IndexingFixture()
     defer {
         fixture.cleanUp()
@@ -1771,9 +1771,9 @@ func samePathASSJapaneseTextEditKeepsShioriAvailable() throws {
             .cueLineRecords(forSubtitleFile: indexedSubtitleFile)
             .first
     )
-    let shioriDatabase = try ShioriDatabase(path: fixture.databaseURL)
-    let saved = try shioriDatabase.upsertShiori(
-        selection: shioriSelection(originalCue)
+    let excerptDatabase = try ExcerptDatabase(path: fixture.databaseURL)
+    let saved = try excerptDatabase.upsertExcerpt(
+        selection: excerptSelection(originalCue)
     )
 
     _ = try fixture.writeSubtitle(
@@ -1787,7 +1787,7 @@ func samePathASSJapaneseTextEditKeepsShioriAvailable() throws {
             .cueLineRecords(forSubtitleFile: indexedSubtitleFile)
             .first
     )
-    let currentShiori = try #require(try shioriDatabase.shiori(id: saved.id))
+    let currentExcerpt = try #require(try excerptDatabase.excerpt(id: saved.id))
     #expect(
         try sqliteRowID(
             table: "subtitle_files",
@@ -1797,9 +1797,9 @@ func samePathASSJapaneseTextEditKeepsShioriAvailable() throws {
         ) == originalSubtitleID
     )
     #expect(currentCue.id == originalCue.id)
-    #expect(try shioriDatabase.cueID(forShioriID: saved.id) == originalCue.id)
-    #expect(currentShiori.isValid)
-    #expect(currentShiori.content == "生き残ったのは私たち…")
+    #expect(try excerptDatabase.cueID(forExcerptID: saved.id) == originalCue.id)
+    #expect(currentExcerpt.isValid)
+    #expect(currentExcerpt.content == "生き残ったのは私たち…")
     #expect(
         try queryInt(
             at: fixture.databaseURL,
@@ -1826,7 +1826,7 @@ func referencedCueTombstoneSurvivesMissingResourcesAndReturningFiles() throws {
 
     [Events]
     Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
-    Dialogue: 0,0:00:01.00,0:00:03.00,Default,,0,0,0,,Persisted Shiori Cue.\\NSecond line.
+    Dialogue: 0,0:00:01.00,0:00:03.00,Default,,0,0,0,,Persisted Excerpt Cue.\\NSecond line.
     Dialogue: 0,0:00:01.00,0:00:03.00,Default,,0,0,0,,Sibling Cue.
     Dialogue: 0,0:00:04.00,0:00:06.00,Default,,0,0,0,,Unreferenced Cue.
     """
@@ -1846,7 +1846,7 @@ func referencedCueTombstoneSurvivesMissingResourcesAndReturningFiles() throws {
         fileURLWithPath: try #require(indexedMetadata.videoPath)
     )
 
-    let selection = shioriSelection(
+    let selection = excerptSelection(
         try #require(
             try PlaybackSubtitleDatabase(path: fixture.databaseURL)
                 .cueLineRecords(forSubtitleFile: indexedSubtitleFile)
@@ -1854,8 +1854,8 @@ func referencedCueTombstoneSurvivesMissingResourcesAndReturningFiles() throws {
         )
     )
     let originalCueID = try #require(selection.cueLineID)
-    let shioriDatabase = try ShioriDatabase(path: fixture.databaseURL)
-    let saved = try shioriDatabase.upsertShiori(selection: selection)
+    let excerptDatabase = try ExcerptDatabase(path: fixture.databaseURL)
+    let saved = try excerptDatabase.upsertExcerpt(selection: selection)
     let libraryDatabase = try LibraryDatabase(path: fixture.databaseURL)
     try libraryDatabase.refreshPresentationAfterIndexedContentChange()
     try libraryDatabase.upsertLibraryPlaybackHistory(
@@ -1865,7 +1865,7 @@ func referencedCueTombstoneSurvivesMissingResourcesAndReturningFiles() throws {
     )
     #expect(try libraryDatabase.libraryPresentation(under: [fixture.root]).count == 1)
     #expect(try libraryDatabase.recentLibraryWatching(under: [fixture.root]).count == 1)
-    let destination = try shioriDatabase.createShioriList(
+    let destination = try excerptDatabase.createExcerptList(
         name: "Destination",
         description: "",
         coverPath: nil
@@ -1874,7 +1874,7 @@ func referencedCueTombstoneSurvivesMissingResourcesAndReturningFiles() throws {
     try FileManager.default.removeItem(at: videoFile)
     _ = try indexer.index(folder: fixture.root, into: database)
 
-    let videoUnavailable = try #require(try shioriDatabase.shiori(id: saved.id))
+    let videoUnavailable = try #require(try excerptDatabase.excerpt(id: saved.id))
     #expect(videoUnavailable.unavailableReason == .videoMissing)
     #expect(
         URL(fileURLWithPath: videoUnavailable.subtitlePath).resolvingSymlinksInPath()
@@ -1894,19 +1894,19 @@ func referencedCueTombstoneSurvivesMissingResourcesAndReturningFiles() throws {
 
     _ = try fixture.writeVideo(name: "Lifecycle.mkv")
     _ = try indexer.index(folder: fixture.root, into: database)
-    #expect(try shioriDatabase.shiori(id: saved.id)?.isValid == true)
+    #expect(try excerptDatabase.excerpt(id: saved.id)?.isValid == true)
 
     try FileManager.default.removeItem(at: subtitleFile)
     _ = try indexer.index(folder: fixture.root, into: database)
 
-    let subtitleUnavailable = try #require(try shioriDatabase.shiori(id: saved.id))
+    let subtitleUnavailable = try #require(try excerptDatabase.excerpt(id: saved.id))
     #expect(subtitleUnavailable.unavailableReason == .subtitleMissing)
-    #expect(subtitleUnavailable.content == "Persisted Shiori Cue.\nSecond line.")
+    #expect(subtitleUnavailable.content == "Persisted Excerpt Cue.\nSecond line.")
     #expect(
         subtitleUnavailable.cueGroupContent.components(
-            separatedBy: Shiori.cueGroupContentSeparator
+            separatedBy: Excerpt.cueGroupContentSeparator
         ) == [
-            "Persisted Shiori Cue.\nSecond line.",
+            "Persisted Excerpt Cue.\nSecond line.",
             "Sibling Cue.",
         ]
     )
@@ -1922,36 +1922,36 @@ func referencedCueTombstoneSurvivesMissingResourcesAndReturningFiles() throws {
     try FileManager.default.moveItem(at: videoFile, to: detachedVideo)
     _ = try indexer.index(folder: fixture.root, into: database)
     #expect(
-        try shioriDatabase.shiori(id: saved.id)?.unavailableReason
+        try excerptDatabase.excerpt(id: saved.id)?.unavailableReason
             == .subtitleMissing
     )
 
     try FileManager.default.moveItem(at: detachedVideo, to: videoFile)
     _ = try indexer.index(folder: fixture.root, into: database)
     #expect(
-        try shioriDatabase.shiori(id: saved.id)?.unavailableReason
+        try excerptDatabase.excerpt(id: saved.id)?.unavailableReason
             == .subtitleMissing
     )
 
-    #expect(throws: ShioriTransferError.sourceUnavailable) {
-        _ = try shioriDatabase.duplicateShiori(
+    #expect(throws: ExcerptTransferError.sourceUnavailable) {
+        _ = try excerptDatabase.duplicateExcerpt(
             id: saved.id,
             toListID: destination.id
         )
     }
 
     // A subtitle that left the index and comes back is a new resource: the
-    // Shiori is kept and stays unavailable against its Tombstone.
+    // Excerpt is kept and stays unavailable against its Tombstone.
     _ = try fixture.writeSubtitle(name: "Lifecycle.ass", contents: contents)
     _ = try indexer.index(folder: fixture.root, into: database)
 
-    let returned = try #require(try shioriDatabase.shiori(id: saved.id))
+    let returned = try #require(try excerptDatabase.excerpt(id: saved.id))
     #expect(!returned.isValid)
     #expect(returned.unavailableReason == .subtitleMissing)
-    #expect(try shioriDatabase.cueID(forShioriID: saved.id) == originalCueID)
+    #expect(try excerptDatabase.cueID(forExcerptID: saved.id) == originalCueID)
     #expect(try sqliteRowCount(in: "cue_tombstones", databaseURL: fixture.databaseURL) == 1)
 
-    #expect(try shioriDatabase.removeShiori(id: saved.id))
+    #expect(try excerptDatabase.removeExcerpt(id: saved.id))
     #expect(try sqliteRowCount(in: "cue_tombstones", databaseURL: fixture.databaseURL) == 0)
 }
 
@@ -1996,8 +1996,8 @@ func missingCueRemainsThePriorityWhenVideoLaterDisappears()
             $0.line.content == "Second Cue"
         }.first
     )
-    let saved = try ShioriDatabase(path: fixture.databaseURL)
-        .upsertShiori(selection: shioriSelection(secondCue))
+    let saved = try ExcerptDatabase(path: fixture.databaseURL)
+        .upsertExcerpt(selection: excerptSelection(secondCue))
     let originalModificationDate = try #require(
         try FileManager.default.attributesOfItem(
             atPath: subtitleURL.path
@@ -2021,11 +2021,11 @@ func missingCueRemainsThePriorityWhenVideoLaterDisappears()
         ofItemAtPath: subtitleURL.path
     )
     _ = try indexer.index(folder: fixture.root, into: database)
-    let shioriDatabase = try ShioriDatabase(
+    let excerptDatabase = try ExcerptDatabase(
         path: fixture.databaseURL
     )
     #expect(
-        try shioriDatabase.shiori(id: saved.id)?
+        try excerptDatabase.excerpt(id: saved.id)?
             .unavailableReason == .cueMissing
     )
 
@@ -2033,7 +2033,7 @@ func missingCueRemainsThePriorityWhenVideoLaterDisappears()
     _ = try indexer.index(folder: fixture.root, into: database)
 
     #expect(
-        try shioriDatabase.shiori(id: saved.id)?
+        try excerptDatabase.excerpt(id: saved.id)?
             .unavailableReason == .cueMissing
     )
 }
