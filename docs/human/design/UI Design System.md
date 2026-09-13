@@ -767,6 +767,7 @@
 ##### Table Selection Checkbox
 
 - Hit Area：Containing Row
+- Disabled：所在行为 Unavailable
 
 ##### Playback Selection Checkbox
 
@@ -1536,6 +1537,7 @@
 - Selected
   - Background：`--color-row-selected`
   - Select Mode 下 Shift 加左键点击按区间选中：无选中时从第 1 行选到点击行；点击行已选中时只取消该行；点击行未选中时选中它到最近选中行之间的全部行
+  - Unavailable 行不可选中：点击不改变勾选，全选与 Shift 区间选中跳过它，表头的全选状态不计入它
   - 最近选中行是最近一次产生选中的操作所选中的最高行；取消选中不改变它，选中清空时它一并清空
 - Disabled
 
@@ -1619,6 +1621,7 @@
   - Radius：`--radius-control`
   - Shadow：`--shadow-popover`
 - Selected Count
+  - Content：已选行数 / 可选行数，可选行数不含 Unavailable 行
   - Color：`--color-text-muted`
   - Leading Inset：`--spacing-3`，与相邻按钮的透明内边距等宽
 - Action Slots
@@ -1628,13 +1631,15 @@
 
 ##### Layout
 
-- Selected Count 在左，Action Slots 在右，同一行居中对齐
-- 不做两端对齐，容器宽度由内容决定
+- Selected Count 在上，Action Slots 在下，左对齐
+- Action Slots 宽度不足时换行，文字不截断
+- 容器宽度由内容决定，不超过 Table 可见宽度
 
 ##### Sizes
 
-- Group Gap：`--spacing-4`
+- Group Gap：`--spacing-2`
 - Action Gap：`--spacing-2`
+- Line Gap：`--spacing-2`
 - Padding Inline：`--spacing-3`
 - Padding Block：`--spacing-2`
 
@@ -3547,6 +3552,7 @@
 - Filter Menu Open
 - Select Mode
 - Calculating
+- Select Unavailable：结果计算中，或当前结果没有可选行时，Select Mode Action 为 Disabled
 
 ### Selection Action Overlay Layout
 
@@ -3571,13 +3577,14 @@
 
 #### Layout
 
-- 第 1 项在左，第 2 至 5 项在右，同一行
+- 第 1 项在上，第 2 至 5 项在下；第 2 至 5 项宽度不足时换行
 - Exit 位于末位，退出 Select Mode，与工具栏 Select Mode Action 关闭时行为一致
 
 #### Spacing
 
-- Group Gap：`--spacing-4`
+- Group Gap：`--spacing-2`
 - Action Gap：`--spacing-2`
+- Line Gap：`--spacing-2`
 - Padding Inline：`--spacing-3`
 - Padding Block：`--spacing-2`
 
