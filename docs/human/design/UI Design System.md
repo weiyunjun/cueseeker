@@ -177,6 +177,7 @@
 - `--font-size-player-speed-menu-check`: `14px`
 - `--font-size-player-speed-menu-item`: `13px`
 - `--font-size-playback-feedback`: `18px`
+- `--font-size-toast`: `16px`
 - `--font-size-subtitle-focus-cue`: `24px`
 - `--line-height-subtitle-focus-cue`: `32px`
 - `--font-weight-subtitle-focus-cue`: `600`
@@ -267,6 +268,9 @@
 - `--size-player-progress-thumb`: `12px`
 - `--width-player-topbar-title-max`: `520px`
 - `--size-playback-feedback-icon`: `31px`
+- `--width-playback-feedback-max`: `520px`
+- `--size-toast-icon`: `23px`
+- `--width-toast-max`: `400px`
 - `--width-playback-cue-timeline-connector`: `1px`
 - `--width-subtitle-focus-content-max`: `960px`
 - `--aspect-library-cover`: `16 / 9`
@@ -1952,14 +1956,20 @@
 ##### Anatomy
 
 - Container
-  - Background：`--color-bg-popover`
-  - Border Color：`--color-border-muted`
-  - Radius：`--radius-control`
-  - Shadow：`--shadow-popover`
+  - Background：`--color-player-menu-bg`
+  - Border Color：`--color-player-text-tertiary`（30%）
+  - Radius：`--radius-playback-feedback`
+  - Shadow：None
+- Icon
+  - Presence：Optional
+  - Color：`--color-player-text-primary`
+  - 与 Message 第一行垂直居中
 - Message
   - Font Family：`--font-family-base`
-  - Font Size：`--font-size-body`
-  - Color：`--color-text-primary`
+  - Font Size：`--font-size-toast`
+  - Font Weight：`--font-weight-control`
+  - Color：`--color-player-text-primary`
+  - 超出最大宽度换行，各行左对齐，不进入 Icon 所占宽度
 
 ##### Motion
 
@@ -1977,16 +1987,17 @@
 
 ##### Sizes
 
+- Icon Size：`--size-toast-icon`
 - Padding Inline：`--spacing-4`
 - Padding Block：`--spacing-3`
+- Icon to Message Gap：`--spacing-3`
+- Maximum Width：`--width-toast-max`
 - Viewport Margin Inline：`--spacing-6`
 
 ##### States
 
-- Queued
 - Entering
 - Visible
-- Timer Paused
 - Exiting
 
 ### Empty State
@@ -2066,12 +2077,13 @@
 - Icon
   - Presence：Optional
   - Color：`--color-player-text-primary`
+  - 与 Label 第一行垂直居中
 - Label
   - Presence：Optional
   - Font Size：`--font-size-playback-feedback`
   - Font Weight：`--font-weight-control`
   - Color：`--color-player-text-primary`
-  - 数字等宽；单行，超出最大宽度尾部截断
+  - 数字等宽；超出最大宽度换行，各行左对齐，不进入 Icon 所占宽度
 
 ##### Motion
 
@@ -2086,11 +2098,13 @@
 
 ##### Sizes
 
-- Height：`--height-playback-feedback`
+- Minimum Height：`--height-playback-feedback`
 - Icon Size：`--size-playback-feedback-icon`
 - Padding Inline：`--spacing-4`
+- Padding Block：`--spacing-2`
 - Icon to Label Gap：`--spacing-3`
-- Label Maximum Width：`--width-player-topbar-title-max`
+- Maximum Width：`--width-playback-feedback-max`
+- Viewport Margin Inline：`--spacing-6`
 
 ##### States
 
@@ -2911,6 +2925,34 @@
   - Presence：Page Viewport Width < Page Content Minimum Width
   - Position：Page Viewport Bottom Edge
 - 与 Table Horizontal Scrollbar 同时存在时，Page Horizontal Scrollbar 占据底部，Table Horizontal Scrollbar 上移一个 Scrollbar 高度。
+
+### Toast Layout
+
+#### Position
+
+- Anchor：App Center，即 App 窗口中心，含 Sidebar 与顶栏
+- 最新一条 Toast 的中心与 Anchor 重合；较早的依次向上堆叠，最新一条的位置不随数量变化
+- Layer：Above Pages, Page Overlays and Command Panel; Below Dialogs
+
+#### Stacking
+
+- Item Gap：`--spacing-4`
+- Maximum Items：4；新的一条出现时，超出的最早一条立即消失
+- 新的一条与已显示的某条 Scenario ID 与文案都相同时，不新增，该条移到最新位置并重新计时
+
+#### Timing
+
+- Duration：Toast / Duration，自出现起计时，到时消失；焦点、指针悬停与窗口是否可见都不影响计时
+
+#### Components
+
+- Toast
+
+#### States
+
+- Entering
+- Visible
+- Exiting
 
 ## 3.2 Settings
 
@@ -3964,7 +4006,7 @@
 #### Position
 
 - Anchor：Player Stage Center
-- 水平与垂直双向居中，内容变长时以中心为基准向两侧延伸
+- 水平与垂直双向居中，内容变长时以中心为基准向两侧延伸，达到最大宽度后换行并向上下延伸
 - Layer：Above Video, Playback Overlay and Command Panel
 
 #### Timing
