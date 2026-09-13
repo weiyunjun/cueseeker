@@ -134,6 +134,23 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
     }
     @Published private(set) var collageSelectionPlan = SubtitleCollageSelectionPlan()
     @Published private(set) var collagePreviewStore: PlaybackCollagePreviewStore?
+    /// A new style renders the collage preview again from scratch; ASS keeps
+    /// its own styles and is left alone.
+    var srtSubtitleStyle = SRTSubtitleStyle() {
+        didSet {
+            guard srtSubtitleStyle != oldValue,
+                  isEditingCollage,
+                  collagePreviewStore != nil,
+                  collageSubtitleSource.format == .srt
+            else {
+                return
+            }
+            let previewStore = makeCollagePreviewStore()
+            previewStore.update(plan: collageSelectionPlan)
+            collagePreviewStore?.invalidate()
+            collagePreviewStore = previewStore
+        }
+    }
     @Published private(set) var playlistWindow: PlaybackPlaylistSessionWindowStore?
     @Published private(set) var searchStore: SearchStore?
     @Published private(set) var searchWindow: PlaybackCueResultSessionWindowStore?
@@ -1206,9 +1223,9 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
                 .lastPathComponent
     }
 
-    private func makeCollagePreviewStore() -> PlaybackCollagePreviewStore {
+    private var collageSubtitleSource: PlaybackSubtitleSource {
         let source = openSnapshot.source
-        let subtitleSource = openSnapshot.subtitleRenderSource
+        return openSnapshot.subtitleRenderSource
             ?? PlaybackSubtitleSource(
                 url: URL(fileURLWithPath: source.subtitlePath),
                 format: source.subtitleFormat == .ass ? .ass : .srt,
@@ -1216,9 +1233,13 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
                 initialTimestampMilliseconds:
                     openSnapshot.timestampMilliseconds
             )
-        return PlaybackCollagePreviewStore(
-            videoURL: URL(fileURLWithPath: source.videoPath),
-            subtitleSource: subtitleSource
+    }
+
+    private func makeCollagePreviewStore() -> PlaybackCollagePreviewStore {
+        PlaybackCollagePreviewStore(
+            videoURL: URL(fileURLWithPath: openSnapshot.source.videoPath),
+            subtitleSource: collageSubtitleSource,
+            srtSubtitleStyle: srtSubtitleStyle
         )
     }
 

@@ -226,21 +226,24 @@ public enum SubtitleScreenshotExporter {
 
     public static func exportScreenshot(
         item: SubtitleScreenshotExportItem,
-        to destinationURL: URL
+        to destinationURL: URL,
+        srtSubtitleStyle: SRTSubtitleStyle
     ) async throws {
-        try await exportScreenshots(items: [item], toDirectory: destinationURL.deletingLastPathComponent(), explicitSingleDestinationURL: destinationURL)
+        try await exportScreenshots(items: [item], toDirectory: destinationURL.deletingLastPathComponent(), explicitSingleDestinationURL: destinationURL, srtSubtitleStyle: srtSubtitleStyle)
     }
 
     public static func exportScreenshots(
         items: [SubtitleScreenshotExportItem],
-        toDirectory directoryURL: URL
+        toDirectory directoryURL: URL,
+        srtSubtitleStyle: SRTSubtitleStyle
     ) async throws {
-        try await exportScreenshots(items: items, toDirectory: directoryURL, explicitSingleDestinationURL: nil)
+        try await exportScreenshots(items: items, toDirectory: directoryURL, explicitSingleDestinationURL: nil, srtSubtitleStyle: srtSubtitleStyle)
     }
 
     public static func exportCollage(
         items: [SubtitleScreenshotExportItem],
-        to destinationURL: URL
+        to destinationURL: URL,
+        srtSubtitleStyle: SRTSubtitleStyle
     ) async throws {
         guard canExportCollage(items) else {
             throw SubtitleScreenshotExportError.invalidCollageItems
@@ -262,7 +265,8 @@ public enum SubtitleScreenshotExporter {
             renderedFrames.append(try await renderedSubtitleFrame(
                 item: item,
                 ffmpegURL: ffmpegURL,
-                preparedSRTSources: preparedSRTSources
+                preparedSRTSources: preparedSRTSources,
+                srtSubtitleStyle: srtSubtitleStyle
             ))
         }
 
@@ -282,7 +286,8 @@ public enum SubtitleScreenshotExporter {
     public static func renderCollage(
         plan: SubtitleCollageSelectionPlan,
         videoURL: URL,
-        subtitleSource: PlaybackSubtitleSource
+        subtitleSource: PlaybackSubtitleSource,
+        srtSubtitleStyle: SRTSubtitleStyle
     ) async throws -> CGImage {
         guard plan.selectedCueCount > 0, !plan.groups.isEmpty else {
             throw SubtitleScreenshotExportError.emptyItems
@@ -291,7 +296,8 @@ public enum SubtitleScreenshotExporter {
         let renderedGroups = try await renderCollageGroups(
             plan.groups,
             videoURL: videoURL,
-            subtitleSource: subtitleSource
+            subtitleSource: subtitleSource,
+            srtSubtitleStyle: srtSubtitleStyle
         )
         return try composeCollage(renderedGroups).image
     }
@@ -299,7 +305,8 @@ public enum SubtitleScreenshotExporter {
     public static func renderCollageGroups(
         _ groups: [SubtitleCollageGroup],
         videoURL: URL,
-        subtitleSource: PlaybackSubtitleSource
+        subtitleSource: PlaybackSubtitleSource,
+        srtSubtitleStyle: SRTSubtitleStyle
     ) async throws -> [SubtitleCollageRenderedGroup] {
         guard !groups.isEmpty else {
             return []
@@ -331,7 +338,8 @@ public enum SubtitleScreenshotExporter {
                 source: subtitleSource,
                 sourceScript: assSourceScript,
                 timestampMilliseconds: timestampMilliseconds,
-                frameImage: frameImage
+                frameImage: frameImage,
+                srtSubtitleStyle: srtSubtitleStyle
             )
             renderedGroups.append(SubtitleCollageRenderedGroup(
                 image: renderedFrame.image,
@@ -364,7 +372,8 @@ public enum SubtitleScreenshotExporter {
     private static func exportScreenshots(
         items: [SubtitleScreenshotExportItem],
         toDirectory directoryURL: URL,
-        explicitSingleDestinationURL: URL?
+        explicitSingleDestinationURL: URL?,
+        srtSubtitleStyle: SRTSubtitleStyle
     ) async throws {
         guard !items.isEmpty else {
             throw SubtitleScreenshotExportError.emptyItems
@@ -380,7 +389,8 @@ public enum SubtitleScreenshotExporter {
             let renderedFrame = try await renderedSubtitleFrame(
                 item: item,
                 ffmpegURL: ffmpegURL,
-                preparedSRTSources: preparedSRTSources
+                preparedSRTSources: preparedSRTSources,
+                srtSubtitleStyle: srtSubtitleStyle
             )
             let destinationURL = explicitSingleDestinationURL
                 ?? directoryURL.appendingPathComponent(defaultFileNames[index])
@@ -413,7 +423,8 @@ public enum SubtitleScreenshotExporter {
     private static func renderedSubtitleFrame(
         item: SubtitleScreenshotExportItem,
         ffmpegURL: URL,
-        preparedSRTSources: [PreparedSRTSource]
+        preparedSRTSources: [PreparedSRTSource],
+        srtSubtitleStyle: SRTSubtitleStyle
     ) async throws -> RenderedSubtitleFrame {
         let timestampMilliseconds = midpointMilliseconds(for: item)
         let frameImage = try await videoFrame(
@@ -425,7 +436,8 @@ public enum SubtitleScreenshotExporter {
             item: item,
             timestampMilliseconds: timestampMilliseconds,
             frameImage: frameImage,
-            preparedSRTSources: preparedSRTSources
+            preparedSRTSources: preparedSRTSources,
+            srtSubtitleStyle: srtSubtitleStyle
         )
     }
 
@@ -488,7 +500,8 @@ public enum SubtitleScreenshotExporter {
         item: SubtitleScreenshotExportItem,
         timestampMilliseconds: Int,
         frameImage: CGImage,
-        preparedSRTSources: [PreparedSRTSource]
+        preparedSRTSources: [PreparedSRTSource],
+        srtSubtitleStyle: SRTSubtitleStyle
     ) throws -> RenderedSubtitleFrame {
         let width = frameImage.width
         let height = frameImage.height
@@ -504,7 +517,8 @@ public enum SubtitleScreenshotExporter {
             return try renderSRTFrame(
                 cues: preparedSource.cues,
                 timestampMilliseconds: timestampMilliseconds,
-                frameImage: frameImage
+                frameImage: frameImage,
+                style: srtSubtitleStyle
             )
         }
 
@@ -545,13 +559,15 @@ public enum SubtitleScreenshotExporter {
     private static func renderSRTFrame(
         cues: [PlaybackSubtitleCue],
         timestampMilliseconds: Int,
-        frameImage: CGImage
+        frameImage: CGImage,
+        style: SRTSubtitleStyle
     ) throws -> RenderedSubtitleFrame {
         let width = frameImage.width
         let height = frameImage.height
         guard let layout = SRTSubtitleRenderer.makeLayout(
             cues: cues,
-            canvasSize: CGSize(width: width, height: height)
+            canvasSize: CGSize(width: width, height: height),
+            style: style
         ) else {
             throw SubtitleScreenshotExportError.imageContextFailed
         }
@@ -592,7 +608,8 @@ public enum SubtitleScreenshotExporter {
         source: PlaybackSubtitleSource,
         sourceScript: String?,
         timestampMilliseconds: Int,
-        frameImage: CGImage
+        frameImage: CGImage,
+        srtSubtitleStyle: SRTSubtitleStyle
     ) throws -> RenderedSubtitleFrame {
         if source.format == .srt {
             let cues = group.cues.enumerated().map { sourceOrdinal, cue in
@@ -606,7 +623,8 @@ public enum SubtitleScreenshotExporter {
             return try renderSRTFrame(
                 cues: cues,
                 timestampMilliseconds: timestampMilliseconds,
-                frameImage: frameImage
+                frameImage: frameImage,
+                style: srtSubtitleStyle
             )
         }
 
@@ -672,12 +690,14 @@ public enum SubtitleScreenshotExporter {
     static func _renderSRTFrameForTesting(
         cues: [PlaybackSubtitleCue],
         timestampMilliseconds: Int,
-        frameImage: CGImage
+        frameImage: CGImage,
+        style: SRTSubtitleStyle = SRTSubtitleStyle()
     ) throws -> CGImage {
         try renderSRTFrame(
             cues: cues,
             timestampMilliseconds: timestampMilliseconds,
-            frameImage: frameImage
+            frameImage: frameImage,
+            style: style
         ).image
     }
 

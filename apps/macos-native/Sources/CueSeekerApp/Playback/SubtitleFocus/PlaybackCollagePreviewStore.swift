@@ -56,13 +56,15 @@ final class PlaybackCollagePreviewStore: ObservableObject {
 
     init(
         videoURL: URL,
-        subtitleSource: PlaybackSubtitleSource
+        subtitleSource: PlaybackSubtitleSource,
+        srtSubtitleStyle: SRTSubtitleStyle
     ) {
         renderGroup = { group in
             let rendered = try await SubtitleScreenshotExporter.renderCollageGroups(
                 [group],
                 videoURL: videoURL,
-                subtitleSource: subtitleSource
+                subtitleSource: subtitleSource,
+                srtSubtitleStyle: srtSubtitleStyle
             )
             guard let renderedGroup = rendered.first, rendered.count == 1 else {
                 throw PlaybackCollagePreviewError.renderedGroupCountMismatch

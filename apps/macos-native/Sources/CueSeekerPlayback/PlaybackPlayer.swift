@@ -77,6 +77,18 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
         }
     }
 
+    public var srtSubtitleStyle = SRTSubtitleStyle() {
+        didSet {
+            guard oldValue != srtSubtitleStyle else {
+                return
+            }
+            let style = srtSubtitleStyle
+            Task { @MainActor in
+                (self.renderView as? PlaybackRenderContainerView)?.setSRTSubtitleStyle(style)
+            }
+        }
+    }
+
     @MainActor public lazy var renderView: NSView = PlaybackRenderContainerView()
 
     public override init() {
@@ -967,6 +979,7 @@ public final class PlaybackRenderContainerView: NSView {
     private var currentASSSubtitleTimeMilliseconds = 0
     private var currentSubtitlesVisible = true
     private var currentVideoSize: CGSize?
+    private var currentSRTSubtitleStyle = SRTSubtitleStyle()
 
     var assRenderingFailureHandler: ((String) -> Void)?
 
@@ -1087,6 +1100,11 @@ public final class PlaybackRenderContainerView: NSView {
         srtSubtitleOverlayView?.videoSize = videoSize
     }
 
+    func setSRTSubtitleStyle(_ style: SRTSubtitleStyle) {
+        currentSRTSubtitleStyle = style
+        srtSubtitleOverlayView?.style = style
+    }
+
     func currentASSSubtitleFrame() -> ASSSparseFrame? {
         guard currentSubtitlesVisible else {
             return nil
@@ -1137,6 +1155,7 @@ public final class PlaybackRenderContainerView: NSView {
             }
         }
         guard let srtSubtitleOverlayView else { return }
+        srtSubtitleOverlayView.style = currentSRTSubtitleStyle
         if srtSubtitleOverlayView.superview !== self {
             srtSubtitleOverlayView.autoresizingMask = [.width, .height]
             addSubview(srtSubtitleOverlayView)

@@ -3,6 +3,7 @@ import SwiftUI
 private enum SettingsCategory: String, CaseIterable, Identifiable {
     case play
     case shortcuts
+    case subtitle
     case appearance
     case search
     case language
@@ -19,6 +20,8 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
             L("settings.category.play")
         case .shortcuts:
             L("settings.category.shortcuts")
+        case .subtitle:
+            L("settings.category.subtitle")
         case .appearance:
             L("settings.category.appearance")
         case .search:
@@ -42,6 +45,8 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
             .play
         case .shortcuts:
             .keyboard
+        case .subtitle:
+            .subtitles
         case .appearance:
             .circleHalf
         case .search:
@@ -173,6 +178,8 @@ struct SettingsView: View {
             SettingsPlayCategory()
         case .shortcuts:
             SettingsShortcutsCategory()
+        case .subtitle:
+            SettingsSubtitleCategory()
         case .appearance:
             SettingsAppearanceCategory()
         case .search:

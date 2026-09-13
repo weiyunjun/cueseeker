@@ -249,8 +249,12 @@ enum WorkbenchControlMetrics {
     static let redesignSettingsWindowDefaultWidth: CGFloat = 760
     /// Provisional --height-settings-window-default: 520px
     static let redesignSettingsWindowDefaultHeight: CGFloat = 520
-    /// Provisional --width-settings-window-min: 680px
-    static let redesignSettingsWindowMinimumWidth: CGFloat = 680
+    /// Provisional --width-settings-window-min: 760px, wide enough for every
+    /// row of Settings / Subtitle
+    static let redesignSettingsWindowMinimumWidth: CGFloat = 760
+    /// Provisional --width-settings-number-field: 114px, as Settings / Play's
+    /// Auto Switch Gap field
+    static let redesignSettingsNumberFieldWidth: CGFloat = 114
     /// Provisional --height-settings-window-min: 420px
     static let redesignSettingsWindowMinimumHeight: CGFloat = 420
     /// --height-segmented-control: 32px

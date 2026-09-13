@@ -1,4 +1,5 @@
 import AppKit
+import CueSeekerPlayback
 import Foundation
 import Testing
 @testable import CueSeekerApp
@@ -128,6 +129,23 @@ func settingsStoreClampsCueSequenceAutoSwitchGap() {
         let reloadedStore = SettingsStore(userDefaults: userDefaults)
 
         #expect(reloadedStore.autoSwitchCueSequenceGapMilliseconds == 10_000)
+    }
+}
+
+@MainActor
+@Test
+func settingsStoreKeepsTheSRTSubtitleStyleAcrossLaunches() {
+    withTemporaryPlaybackSettingsUserDefaults { userDefaults in
+        let store = SettingsStore(userDefaults: userDefaults)
+        #expect(store.srtSubtitleStyle == SRTSubtitleStyle())
+
+        store.srtSubtitleStyle.size = 42
+        store.srtSubtitleStyle.borderType = .opaqueBox
+        store.srtSubtitleStyle.horizontalAlignment = .left
+
+        let reloadedStore = SettingsStore(userDefaults: userDefaults)
+
+        #expect(reloadedStore.srtSubtitleStyle == store.srtSubtitleStyle)
     }
 }
 

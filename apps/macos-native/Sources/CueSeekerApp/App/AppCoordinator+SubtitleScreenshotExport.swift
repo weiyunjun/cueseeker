@@ -10,6 +10,7 @@ extension AppCoordinator {
         guard !items.isEmpty else {
             return
         }
+        let srtSubtitleStyle = settings.srtSubtitleStyle
 
         if items.count == 1 {
             guard let item = items.first,
@@ -20,7 +21,7 @@ extension AppCoordinator {
 
             Task {
                 do {
-                    try await SubtitleScreenshotExporter.exportScreenshot(item: item, to: destinationURL)
+                    try await SubtitleScreenshotExporter.exportScreenshot(item: item, to: destinationURL, srtSubtitleStyle: srtSubtitleStyle)
                 } catch {
                     print("Failed to export subtitle screenshot: \(error)")
                 }
@@ -35,7 +36,7 @@ extension AppCoordinator {
         Task {
             do {
                 try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
-                try await SubtitleScreenshotExporter.exportScreenshots(items: items, toDirectory: directoryURL)
+                try await SubtitleScreenshotExporter.exportScreenshots(items: items, toDirectory: directoryURL, srtSubtitleStyle: srtSubtitleStyle)
             } catch {
                 print("Failed to export subtitle screenshots: \(error)")
             }
@@ -48,10 +49,11 @@ extension AppCoordinator {
         else {
             return
         }
+        let srtSubtitleStyle = settings.srtSubtitleStyle
 
         Task {
             do {
-                try await SubtitleScreenshotExporter.exportCollage(items: items, to: destinationURL)
+                try await SubtitleScreenshotExporter.exportCollage(items: items, to: destinationURL, srtSubtitleStyle: srtSubtitleStyle)
             } catch {
                 print("Failed to export subtitle collage: \(error)")
             }

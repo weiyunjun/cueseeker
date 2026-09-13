@@ -676,6 +676,13 @@ final class AppCoordinator: ObservableObject {
             }
             .store(in: &settingsCancellables)
 
+        settings.$srtSubtitleStyle
+            .sink { [weak self] style in
+                self?.player?.srtSubtitleStyle = style
+                self?.playback.srtSubtitleStyle = style
+            }
+            .store(in: &settingsCancellables)
+
     }
 
     nonisolated static func runCancellableDetached<T: Sendable>(

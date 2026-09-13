@@ -6,6 +6,16 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Added a Subtitle page to Settings, below Shortcuts, that styles and places
+  SRT subtitles: font, size, bold, italic, color, letter and line spacing; an
+  Outline, Opaque Box or Background Box border with its colors, width and
+  blur; a shadow offset down and right; and left, center or right, top,
+  center or bottom alignment with their margins. Lengths are in pixels of a
+  720-high picture, and the size is the line height as in ASS and mpv. The
+  video, the P screenshot, subtitle screenshots and the Collage preview and
+  export follow a change at once; ASS subtitles keep their own styles. Faces
+  without italic or bold are slanted or widened as libass does, which also
+  makes SRT's own italic tags slant Japanese and Chinese text.
 - Renamed Shiori to Excerpt and Shiori List to Excerpt List (摘录 and 摘录集
   in Chinese) in the App's copy and in the database, whose two tables migrate
   in place with every list, excerpt and cover kept. English counts in the

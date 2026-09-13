@@ -1,6 +1,7 @@
 import Combine
 import CoreGraphics
 import CueSeekerCore
+import CueSeekerPlayback
 import Foundation
 
 enum PlaybackCommandPanelPage: Equatable {
@@ -91,6 +92,14 @@ final class PlaybackStore: ObservableObject {
                 .playbackOverlay,
                 subtitleFocusSession != nil
             )
+        }
+    }
+
+    /// Settings / Subtitle's SRT style, handed to the open session's collage
+    /// preview.
+    var srtSubtitleStyle = SRTSubtitleStyle() {
+        didSet {
+            subtitleFocusSession?.srtSubtitleStyle = srtSubtitleStyle
         }
     }
     @Published private(set) var commandPanelPresentation:
@@ -259,6 +268,7 @@ final class PlaybackStore: ObservableObject {
            playlistSource?.hasItems == true {
             _ = session.presentModule(.playlist)
         }
+        session.srtSubtitleStyle = srtSubtitleStyle
         session.presentCollageNotReady = { [weak self] icon in
             self?.playbackViewModel?.showCollageNotReadyFeedback(
                 icon: icon

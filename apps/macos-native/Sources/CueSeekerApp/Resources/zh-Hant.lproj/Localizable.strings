@@ -322,6 +322,43 @@
 "settings.shortcuts.action.copyDeepLink" = "拷貝 Deep Link";
 "settings.shortcuts.action.editCollage" = "編輯長截圖";
 
+/* Settings: Subtitle */
+"settings.category.subtitle" = "字幕";
+"settings.subtitle.section.text" = "文字";
+"settings.subtitle.section.border" = "邊框";
+"settings.subtitle.section.shadow" = "陰影";
+"settings.subtitle.section.position" = "位置";
+"settings.subtitle.font" = "字體";
+"settings.subtitle.system_font" = "系統字體";
+"settings.subtitle.choose_font" = "選擇…";
+"settings.subtitle.size" = "字級";
+"settings.subtitle.style" = "樣式";
+"settings.subtitle.bold" = "粗體";
+"settings.subtitle.italic" = "斜體";
+"settings.subtitle.color" = "顏色";
+"settings.subtitle.letter_spacing" = "字距";
+"settings.subtitle.line_spacing" = "行距";
+"settings.subtitle.border_type" = "類型";
+"settings.subtitle.border_type.outline" = "描邊";
+"settings.subtitle.border_type.opaque_box" = "逐行底框";
+"settings.subtitle.border_type.background_box" = "整體背景框";
+"settings.subtitle.outline_color" = "描邊顏色";
+"settings.subtitle.outline_width" = "描邊粗細";
+"settings.subtitle.background_color" = "背景顏色";
+"settings.subtitle.blur" = "模糊";
+"settings.subtitle.shadow_color" = "陰影顏色";
+"settings.subtitle.shadow_offset" = "陰影偏移";
+"settings.subtitle.horizontal" = "水平";
+"settings.subtitle.vertical" = "垂直";
+"settings.subtitle.left" = "靠左";
+"settings.subtitle.center" = "置中";
+"settings.subtitle.right" = "靠右";
+"settings.subtitle.top" = "頂部";
+"settings.subtitle.bottom" = "底部";
+"settings.subtitle.margin_x" = "水平邊距";
+"settings.subtitle.margin_y" = "垂直邊距";
+"settings.subtitle.restore_defaults" = "恢復預設";
+
 /* Settings: Appearance */
 "settings.appearance.description" = "選擇字幕求索如何跟隨淺色與深色模式。";
 "settings.appearance.mode" = "外觀模式";

@@ -78,7 +78,8 @@ func currentFrameScreenshotRendererComposesSharedSRTImage() throws {
                     text: "（ミコト）はい"
                 )
             ],
-            canvasSize: CGSize(width: 640, height: 360)
+            canvasSize: CGSize(width: 640, height: 360),
+            style: SRTSubtitleStyle()
         )
     )
     let subtitleImage = try #require(

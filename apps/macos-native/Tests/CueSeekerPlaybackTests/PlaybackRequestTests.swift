@@ -1129,13 +1129,15 @@ func srtRendererScalesAndStacksWithoutExtraCueGap() throws {
     let layout720 = try #require(
         SRTSubtitleRenderer.makeLayout(
             cues: cues,
-            canvasSize: CGSize(width: 1_280, height: 720)
+            canvasSize: CGSize(width: 1_280, height: 720),
+            style: SRTSubtitleStyle()
         )
     )
     let layout1080 = try #require(
         SRTSubtitleRenderer.makeLayout(
             cues: cues,
-            canvasSize: CGSize(width: 1_920, height: 1_080)
+            canvasSize: CGSize(width: 1_920, height: 1_080),
+            style: SRTSubtitleStyle()
         )
     )
     let first720 = try #require(layout720.placements[0])
@@ -1180,7 +1182,8 @@ func srtRendererMeasuresOptInRealFilePerformance() throws {
     let layout = try #require(
         SRTSubtitleRenderer.makeLayout(
             cues: cues,
-            canvasSize: CGSize(width: 1_920, height: 1_080)
+            canvasSize: CGSize(width: 1_920, height: 1_080),
+            style: SRTSubtitleStyle()
         )
     )
     let layoutMilliseconds = elapsedMilliseconds(since: startedAt)
@@ -1221,6 +1224,7 @@ func srtRendererStopsLayoutWhenCancelled() {
     let layout = SRTSubtitleRenderer.makeLayout(
         cues: cues,
         canvasSize: CGSize(width: 1_920, height: 1_080),
+        style: SRTSubtitleStyle(),
         isCancelled: {
             cancellationChecks += 1
             return cancellationChecks > 5

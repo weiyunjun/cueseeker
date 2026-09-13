@@ -161,6 +161,7 @@ extension AppCoordinator {
         guard player == nil else { return }
         let player = PlaybackPlayer()
         player.decodeMode = settings.playbackDecodeMode
+        player.srtSubtitleStyle = settings.srtSubtitleStyle
         self.player = player
         playback.playbackViewModel = PlaybackViewModel(
             player: player,

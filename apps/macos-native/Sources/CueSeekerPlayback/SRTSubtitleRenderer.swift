@@ -1,4 +1,5 @@
 import AppKit
+import CoreImage
 import CoreText
 import CueSeekerCore
 import Foundation
@@ -6,18 +7,18 @@ import QuartzCore
 
 final class SRTSubtitleLayout: @unchecked Sendable {
     fileprivate let canvasSize: CGSize
-    fileprivate let borderSize: CGFloat
+    fileprivate let metrics: SRTSubtitleMetrics
     fileprivate let track: PlaybackSubtitleTrack
     fileprivate let items: [Int: SRTSubtitleItem]
 
     fileprivate init(
         canvasSize: CGSize,
-        borderSize: CGFloat,
+        metrics: SRTSubtitleMetrics,
         track: PlaybackSubtitleTrack,
         items: [Int: SRTSubtitleItem]
     ) {
         self.canvasSize = canvasSize
-        self.borderSize = borderSize
+        self.metrics = metrics
         self.track = track
         self.items = items
     }
@@ -39,8 +40,84 @@ final class SRTSubtitleLayout: @unchecked Sendable {
 private struct SRTSubtitleItem {
     let cue: PlaybackSubtitleCue
     let frame: CTFrame
+    /// Where the text frame's origin sits in the item, measured up from the
+    /// item's bottom-left corner.
+    let textOrigin: CGPoint
+    /// Each line's box, padding included, in text frame coordinates.
+    let lineBoxes: [CGRect]
     let visualBounds: CGRect
     let isDrawable: Bool
+}
+
+/// A cue's text laid out, and the extent of everything drawn for it.
+private struct SRTMeasuredText {
+    let frame: CTFrame
+    let lineBoxes: [CGRect]
+    /// The text with its outline or boxes, in text frame coordinates. Margins
+    /// and alignment place this rectangle.
+    let content: CGRect
+    /// The content with its shadow and blur, in text frame coordinates.
+    let visual: CGRect
+}
+
+/// The style in the pixels of one canvas.
+private struct SRTSubtitleMetrics {
+    let style: SRTSubtitleStyle
+    let baseFont: CTFont
+    let lineHeight: CGFloat
+    let letterSpacing: CGFloat
+    let lineSpacing: CGFloat
+    /// Zero for Opaque Box, which draws no outline.
+    let outlineWidth: CGFloat
+    /// Zero for Outline, which draws no box.
+    let boxPadding: CGFloat
+    let blurSigma: CGFloat
+    /// Zero for Background Box, which draws no shadow.
+    let shadowOffset: CGFloat
+    let marginX: CGFloat
+    let marginY: CGFloat
+
+    init(style: SRTSubtitleStyle, canvasHeight: CGFloat) {
+        let scale = canvasHeight / CGFloat(SRTSubtitleStyle.referenceHeight)
+        self.style = style
+        baseFont = Self.baseFont(named: style.fontName)
+        lineHeight = CGFloat(style.size) * scale
+        letterSpacing = CGFloat(style.letterSpacing) * scale
+        lineSpacing = CGFloat(style.lineSpacing) * scale
+        outlineWidth = style.borderType == .opaqueBox
+            ? 0
+            : CGFloat(style.outlineWidth) * scale
+        boxPadding = style.borderType == .outline
+            ? 0
+            : CGFloat(SRTSubtitleStyle.boxPadding) * scale
+        // libass takes its blur value to a Gaussian deviation this way.
+        blurSigma = CGFloat(style.blur) * scale * 2 / sqrt(log(256))
+        shadowOffset = style.borderType == .backgroundBox
+            ? 0
+            : CGFloat(style.shadowOffset) * scale
+        marginX = CGFloat(style.marginX) * scale
+        marginY = CGFloat(style.marginY) * scale
+    }
+
+    var blurExtent: CGFloat {
+        ceil(3 * blurSigma)
+    }
+
+    /// Blur softens the outline when there is one and the text otherwise.
+    var blursOutline: Bool {
+        outlineWidth > 0
+    }
+
+    private static func baseFont(named name: String?) -> CTFont {
+        let systemFont = CTFontCreateUIFontForLanguage(.system, 12, nil)
+            ?? CTFontCreateWithName("Helvetica" as CFString, 12, nil)
+        guard let name, !name.isEmpty else {
+            return systemFont
+        }
+        let font = CTFontCreateWithName(name as CFString, 12, nil)
+        // A name no installed font carries comes back as some other font.
+        return CTFontCopyPostScriptName(font) as String == name ? font : systemFont
+    }
 }
 
 private struct SRTSubtitleRenderingError: Error, LocalizedError {
@@ -48,24 +125,23 @@ private struct SRTSubtitleRenderingError: Error, LocalizedError {
 }
 
 enum SRTSubtitleRenderer {
-    static let baseFontSize: CGFloat = 44
-    private static let referenceHeight: CGFloat = 720
-
     static func makeLayout(
         cues: [PlaybackSubtitleCue],
         canvasSize: CGSize,
+        style: SRTSubtitleStyle,
         isCancelled: () -> Bool = { false }
     ) -> SRTSubtitleLayout? {
         guard canvasSize.width > 1, canvasSize.height > 1 else {
             return nil
         }
 
-        let scale = canvasSize.height / referenceHeight
-        let fontSize = baseFontSize * scale
-        let borderSize = 3 * scale
-        let marginX = 25 * scale
-        let marginY = 22 * scale
-        let maximumTextWidth = max(1, canvasSize.width - (2 * (marginX + borderSize)))
+        let metrics = SRTSubtitleMetrics(style: style, canvasHeight: canvasSize.height)
+        let decoration = max(metrics.outlineWidth, metrics.boxPadding) + metrics.blurExtent
+        let maximumTextWidth = max(
+            1,
+            canvasSize.width - 2 * (metrics.marginX + decoration) - metrics.shadowOffset
+        )
+        var fonts = SRTFontCache(lineHeight: metrics.lineHeight)
         let track = PlaybackSubtitleTrack(cues: cues)
         var items: [Int: SRTSubtitleItem] = [:]
         var activeItems: [SRTSubtitleItem] = []
@@ -75,27 +151,33 @@ enum SRTSubtitleRenderer {
                 return nil
             }
             activeItems.removeAll { $0.cue.endMilliseconds <= cue.startMilliseconds }
-            guard let measured = measuredFrame(
+            guard let measured = measure(
                 text: cue.text,
-                fontSize: fontSize,
-                maximumWidth: maximumTextWidth,
-                borderSize: borderSize
+                metrics: metrics,
+                fonts: &fonts,
+                maximumWidth: maximumTextWidth
             ) else {
                 continue
             }
 
-            let bottom = activeItems.map(\.visualBounds.minY).min()
-                ?? (canvasSize.height - marginY)
-            let bounds = CGRect(
-                x: (canvasSize.width - measured.size.width) / 2,
-                y: bottom - measured.size.height,
-                width: measured.size.width,
-                height: measured.size.height
+            let bounds = placement(
+                of: measured,
+                below: activeItems,
+                canvasSize: canvasSize,
+                metrics: metrics
             )
-            let drawable = bounds.minY >= 0 || measured.size.height > canvasSize.height
+            let drawable: Bool
+            switch style.verticalAlignment {
+            case .top:
+                drawable = bounds.maxY <= canvasSize.height || bounds.height > canvasSize.height
+            case .center, .bottom:
+                drawable = bounds.minY >= 0 || bounds.height > canvasSize.height
+            }
             let item = SRTSubtitleItem(
                 cue: cue,
                 frame: measured.frame,
+                textOrigin: CGPoint(x: -measured.visual.minX, y: -measured.visual.minY),
+                lineBoxes: measured.lineBoxes,
                 visualBounds: bounds,
                 isDrawable: drawable
             )
@@ -107,10 +189,51 @@ enum SRTSubtitleRenderer {
 
         return SRTSubtitleLayout(
             canvasSize: canvasSize,
-            borderSize: borderSize,
+            metrics: metrics,
             track: track,
             items: items
         )
+    }
+
+    /// The first cue sits at its margins, or in the middle for Center; each
+    /// later cue stacks on the cues still showing, upward for Bottom and
+    /// Center and downward for Top.
+    private static func placement(
+        of measured: SRTMeasuredText,
+        below activeItems: [SRTSubtitleItem],
+        canvasSize: CGSize,
+        metrics: SRTSubtitleMetrics
+    ) -> CGRect {
+        let visual = measured.visual
+        let content = measured.content
+        // The content's edges inside the item, x rightward and y downward.
+        let contentLeft = content.minX - visual.minX
+        let contentTop = visual.maxY - content.maxY
+
+        let x: CGFloat
+        switch metrics.style.horizontalAlignment {
+        case .left:
+            x = metrics.marginX - contentLeft
+        case .center:
+            x = (canvasSize.width - content.width) / 2 - contentLeft
+        case .right:
+            x = canvasSize.width - metrics.marginX - content.width - contentLeft
+        }
+
+        let y: CGFloat
+        switch metrics.style.verticalAlignment {
+        case .top:
+            y = activeItems.map(\.visualBounds.maxY).max()
+                ?? metrics.marginY - contentTop
+        case .center:
+            y = activeItems.map(\.visualBounds.minY).min().map { $0 - visual.height }
+                ?? (canvasSize.height - content.height) / 2 - contentTop
+        case .bottom:
+            y = activeItems.map(\.visualBounds.minY).min().map { $0 - visual.height }
+                ?? canvasSize.height - metrics.marginY - content.height - contentTop
+        }
+
+        return CGRect(x: x, y: y, width: visual.width, height: visual.height)
     }
 
     static func loadPlaybackCues(
@@ -170,8 +293,6 @@ enum SRTSubtitleRenderer {
             return nil
         }
 
-        context.setShouldAntialias(true)
-        context.setShouldSmoothFonts(true)
         context.clip(to: CGRect(origin: .zero, size: layout.canvasSize))
 
         for item in activeItems {
@@ -181,115 +302,343 @@ enum SRTSubtitleRenderer {
                 x: bounds.minX,
                 y: layout.canvasSize.height - bounds.maxY
             )
-            context.textMatrix = .identity
-            context.setLineJoin(.round)
-            context.setStrokeColor(NSColor.black.cgColor)
-            context.setLineWidth(2 * layout.borderSize)
-            context.addPath(
-                glyphPath(
-                    frame: item.frame,
-                    pathOrigin: CGPoint(
-                        x: layout.borderSize,
-                        y: layout.borderSize
-                    )
-                )
-            )
-            context.strokePath()
-
-            context.saveGState()
-            context.setTextDrawingMode(.fill)
-            CTFrameDraw(item.frame, context)
-            context.restoreGState()
+            draw(item, metrics: layout.metrics, in: context)
             context.restoreGState()
         }
 
         return context.makeImage()
     }
 
-    private static func measuredFrame(
+    /// Shadow, then box or outline, then the text, as libass stacks them.
+    private static func draw(
+        _ item: SRTSubtitleItem,
+        metrics: SRTSubtitleMetrics,
+        in context: CGContext
+    ) {
+        let style = metrics.style
+        let size = item.visualBounds.size
+        let origin = item.textOrigin
+        let glyphs = glyphPath(frame: item.frame)
+        let boxes = boxPath(item.lineBoxes, borderType: style.borderType)
+
+        if metrics.shadowOffset > 0 {
+            drawLayer(
+                in: context,
+                size: size,
+                origin: CGPoint(
+                    x: origin.x + metrics.shadowOffset,
+                    y: origin.y - metrics.shadowOffset
+                ),
+                opacity: style.shadowColor.alpha,
+                blurSigma: metrics.blurSigma
+            ) { layer in
+                layer.setFillColor(style.shadowColor.opaqueCGColor)
+                layer.setStrokeColor(style.shadowColor.opaqueCGColor)
+                if style.borderType == .opaqueBox {
+                    layer.addPath(boxes)
+                    layer.fillPath()
+                    return
+                }
+                layer.addPath(glyphs)
+                layer.fillPath()
+                if metrics.outlineWidth > 0 {
+                    strokeOutline(glyphs, width: metrics.outlineWidth, in: layer)
+                }
+            }
+        }
+
+        if style.borderType != .outline {
+            drawLayer(
+                in: context,
+                size: size,
+                origin: origin,
+                opacity: style.backgroundColor.alpha,
+                blurSigma: 0
+            ) { layer in
+                layer.setFillColor(style.backgroundColor.opaqueCGColor)
+                layer.addPath(boxes)
+                layer.fillPath()
+            }
+        }
+
+        if metrics.outlineWidth > 0 {
+            drawLayer(
+                in: context,
+                size: size,
+                origin: origin,
+                opacity: style.outlineColor.alpha,
+                blurSigma: metrics.blurSigma
+            ) { layer in
+                layer.setStrokeColor(style.outlineColor.opaqueCGColor)
+                strokeOutline(glyphs, width: metrics.outlineWidth, in: layer)
+            }
+        }
+
+        drawLayer(
+            in: context,
+            size: size,
+            origin: origin,
+            opacity: 1,
+            blurSigma: metrics.blursOutline ? 0 : metrics.blurSigma
+        ) { layer in
+            layer.textMatrix = .identity
+            CTFrameDraw(item.frame, layer)
+            strokeSyntheticBold(frame: item.frame, in: layer)
+        }
+    }
+
+    /// Draws one part of a cue on its own so its opacity applies once to the
+    /// whole part, blurring it first when asked. `origin` places the text
+    /// frame inside the item.
+    private static func drawLayer(
+        in context: CGContext,
+        size: CGSize,
+        origin: CGPoint,
+        opacity: Double,
+        blurSigma: CGFloat,
+        _ draw: (CGContext) -> Void
+    ) {
+        guard opacity > 0 else {
+            return
+        }
+        context.saveGState()
+        defer {
+            context.restoreGState()
+        }
+        context.setAlpha(CGFloat(opacity))
+
+        if blurSigma > 0,
+           let layer = bitmapContext(size: CGSize(
+               width: ceil(size.width),
+               height: ceil(size.height)
+           )) {
+            layer.translateBy(x: origin.x, y: origin.y)
+            draw(layer)
+            guard let image = layer.makeImage(),
+                  let blurred = blurredImage(image, sigma: blurSigma)
+            else {
+                return
+            }
+            context.draw(
+                blurred,
+                in: CGRect(x: 0, y: 0, width: blurred.width, height: blurred.height)
+            )
+            return
+        }
+
+        context.beginTransparencyLayer(auxiliaryInfo: nil)
+        context.translateBy(x: origin.x, y: origin.y)
+        draw(context)
+        context.endTransparencyLayer()
+    }
+
+    // A Core Image context is safe to share between threads.
+    nonisolated(unsafe) private static let blurContext = CIContext(
+        options: [.cacheIntermediates: false]
+    )
+
+    private static func blurredImage(_ image: CGImage, sigma: CGFloat) -> CGImage? {
+        let input = CIImage(cgImage: image)
+        let output = input
+            .clampedToExtent()
+            .applyingGaussianBlur(sigma: Double(sigma))
+            .cropped(to: input.extent)
+        return blurContext.createCGImage(
+            output,
+            from: input.extent,
+            format: .RGBA8,
+            colorSpace: CGColorSpace(name: CGColorSpace.sRGB)
+        )
+    }
+
+    private static func strokeOutline(
+        _ glyphs: CGPath,
+        width: CGFloat,
+        in context: CGContext
+    ) {
+        context.setLineJoin(.round)
+        context.setLineWidth(2 * width)
+        context.addPath(glyphs)
+        context.strokePath()
+    }
+
+    /// Widens the runs whose font has no bold face, as libass does.
+    private static func strokeSyntheticBold(frame: CTFrame, in context: CGContext) {
+        forEachRun(of: frame) { run, lineOrigin in
+            let attributes = CTRunGetAttributes(run) as NSDictionary
+            guard let width = attributes[SRTInlineText.syntheticBoldWidthKey] as? CGFloat,
+                  let color = attributes[NSAttributedString.Key.foregroundColor] as? NSColor
+            else {
+                return
+            }
+            let path = CGMutablePath()
+            addGlyphs(of: run, lineOrigin: lineOrigin, to: path)
+            context.setStrokeColor(color.cgColor)
+            context.setLineJoin(.round)
+            context.setLineWidth(width)
+            context.addPath(path)
+            context.strokePath()
+        }
+    }
+
+    private static func boxPath(
+        _ lineBoxes: [CGRect],
+        borderType: SRTSubtitleStyle.BorderType
+    ) -> CGPath {
+        let path = CGMutablePath()
+        switch borderType {
+        case .outline:
+            break
+        case .opaqueBox:
+            path.addRects(lineBoxes)
+        case .backgroundBox:
+            if let first = lineBoxes.first {
+                path.addRect(lineBoxes.dropFirst().reduce(first) { $0.union($1) })
+            }
+        }
+        return path
+    }
+
+    private static func measure(
         text: String,
-        fontSize: CGFloat,
-        maximumWidth: CGFloat,
-        borderSize: CGFloat
-    ) -> (frame: CTFrame, size: CGSize)? {
+        metrics: SRTSubtitleMetrics,
+        fonts: inout SRTFontCache,
+        maximumWidth: CGFloat
+    ) -> SRTMeasuredText? {
         let attributedText = SRTInlineText.attributedString(
             from: text,
-            fontSize: fontSize
+            metrics: metrics,
+            fonts: &fonts
         )
         guard attributedText.length > 0 else {
             return nil
         }
 
+        let range = CFRange(location: 0, length: attributedText.length)
         let framesetter = CTFramesetterCreateWithAttributedString(attributedText)
-        let constraint = CGSize(width: maximumWidth, height: 1_000_000)
         let suggested = CTFramesetterSuggestFrameSizeWithConstraints(
             framesetter,
-            CFRange(location: 0, length: attributedText.length),
+            range,
             nil,
-            constraint,
+            CGSize(width: maximumWidth, height: 1_000_000),
             nil
         )
-        let textSize = CGSize(
+        let textRect = CGRect(
+            x: 0,
+            y: 0,
             width: min(maximumWidth, max(1, ceil(suggested.width))),
             height: max(1, ceil(suggested.height))
         )
-        let path = CGPath(
-            rect: CGRect(
-                x: borderSize,
-                y: borderSize,
-                width: textSize.width,
-                height: textSize.height
-            ),
-            transform: nil
-        )
         let frame = CTFramesetterCreateFrame(
             framesetter,
-            CFRange(location: 0, length: attributedText.length),
-            path,
+            range,
+            CGPath(rect: textRect, transform: nil),
             nil
         )
-        return (
-            frame,
-            CGSize(
-                width: textSize.width + (2 * borderSize),
-                height: textSize.height + (2 * borderSize)
-            )
-        )
-    }
 
-    private static func glyphPath(
-        frame: CTFrame,
-        pathOrigin: CGPoint
-    ) -> CGPath {
-        let result = CGMutablePath()
+        // The text spans each line's ascent and descent: some faces make
+        // CoreText's frame taller than that, and the size is only ascent plus
+        // descent. Glyphs can reach past those lines, a slanted face most of
+        // all, so the ink counts too.
+        var ink = CGRect.null
+        var lineBoxes: [CGRect] = []
         let lines = CTFrameGetLines(frame) as! [CTLine]
         var origins = Array(repeating: CGPoint.zero, count: lines.count)
         CTFrameGetLineOrigins(frame, CFRange(location: 0, length: 0), &origins)
+        for (line, origin) in zip(lines, origins) {
+            var ascent: CGFloat = 0
+            var descent: CGFloat = 0
+            let width = CGFloat(CTLineGetTypographicBounds(line, &ascent, &descent, nil))
+                - CGFloat(CTLineGetTrailingWhitespaceWidth(line))
+            let lineRect = CGRect(
+                x: origin.x,
+                y: origin.y - descent,
+                width: max(0, width),
+                height: ascent + descent
+            )
+            ink = ink.union(lineRect)
+            let imageBounds = CTLineGetImageBounds(line, nil)
+            if !imageBounds.isNull, !imageBounds.isEmpty {
+                ink = ink.union(imageBounds.offsetBy(dx: origin.x, dy: origin.y))
+            }
+            guard width > 0 else {
+                continue
+            }
+            lineBoxes.append(
+                lineRect.insetBy(dx: -metrics.boxPadding, dy: -metrics.boxPadding)
+            )
+        }
+        if ink.isNull {
+            ink = textRect
+        }
 
+        var content = ink.insetBy(dx: -metrics.outlineWidth, dy: -metrics.outlineWidth)
+        switch metrics.style.borderType {
+        case .outline:
+            break
+        case .opaqueBox, .backgroundBox:
+            content = lineBoxes.reduce(content) { $0.union($1) }
+        }
+        let visual = content
+            .union(content.offsetBy(dx: metrics.shadowOffset, dy: -metrics.shadowOffset))
+            .insetBy(dx: -metrics.blurExtent, dy: -metrics.blurExtent)
+
+        return SRTMeasuredText(
+            frame: frame,
+            lineBoxes: lineBoxes,
+            content: content,
+            visual: visual
+        )
+    }
+
+    private static func glyphPath(frame: CTFrame) -> CGPath {
+        let path = CGMutablePath()
+        forEachRun(of: frame) { run, lineOrigin in
+            addGlyphs(of: run, lineOrigin: lineOrigin, to: path)
+        }
+        return path
+    }
+
+    private static func forEachRun(
+        of frame: CTFrame,
+        _ body: (CTRun, CGPoint) -> Void
+    ) {
+        let lines = CTFrameGetLines(frame) as! [CTLine]
+        var origins = Array(repeating: CGPoint.zero, count: lines.count)
+        CTFrameGetLineOrigins(frame, CFRange(location: 0, length: 0), &origins)
         for (line, origin) in zip(lines, origins) {
             for run in CTLineGetGlyphRuns(line) as! [CTRun] {
-                let attributes = CTRunGetAttributes(run) as NSDictionary
-                guard let fontValue = attributes[kCTFontAttributeName] else {
-                    continue
-                }
-                let font = fontValue as! CTFont
-                let count = CTRunGetGlyphCount(run)
-                var glyphs = Array(repeating: CGGlyph(), count: count)
-                var positions = Array(repeating: CGPoint.zero, count: count)
-                CTRunGetGlyphs(run, CFRange(location: 0, length: 0), &glyphs)
-                CTRunGetPositions(run, CFRange(location: 0, length: 0), &positions)
-                for (glyph, position) in zip(glyphs, positions) {
-                    var transform = CGAffineTransform(
-                        translationX: pathOrigin.x + origin.x + position.x,
-                        y: pathOrigin.y + origin.y + position.y
-                    )
-                    if let path = CTFontCreatePathForGlyph(font, glyph, &transform) {
-                        result.addPath(path)
-                    }
-                }
+                body(run, origin)
             }
         }
-        return result
+    }
+
+    private static func addGlyphs(
+        of run: CTRun,
+        lineOrigin: CGPoint,
+        to path: CGMutablePath
+    ) {
+        let attributes = CTRunGetAttributes(run) as NSDictionary
+        guard let fontValue = attributes[kCTFontAttributeName] else {
+            return
+        }
+        let font = fontValue as! CTFont
+        let count = CTRunGetGlyphCount(run)
+        var glyphs = Array(repeating: CGGlyph(), count: count)
+        var positions = Array(repeating: CGPoint.zero, count: count)
+        CTRunGetGlyphs(run, CFRange(location: 0, length: 0), &glyphs)
+        CTRunGetPositions(run, CFRange(location: 0, length: 0), &positions)
+        for (glyph, position) in zip(glyphs, positions) {
+            // The font's own matrix, a synthetic slant included, is applied by
+            // the glyph path itself.
+            var transform = CGAffineTransform(
+                translationX: lineOrigin.x + position.x,
+                y: lineOrigin.y + position.y
+            )
+            if let glyphPath = CTFontCreatePathForGlyph(font, glyph, &transform) {
+                path.addPath(glyphPath)
+            }
+        }
     }
 
     private static func checkCancellation(
@@ -306,7 +655,7 @@ enum SRTSubtitleRenderer {
         guard width > 1, height > 1 else {
             return nil
         }
-        return CGContext(
+        let context = CGContext(
             data: nil,
             width: width,
             height: height,
@@ -318,44 +667,149 @@ enum SRTSubtitleRenderer {
                     | CGBitmapInfo.byteOrder32Big.rawValue
             ).rawValue
         )
+        context?.setShouldAntialias(true)
+        context?.setShouldSmoothFonts(true)
+        return context
     }
 
 }
 
+private extension SRTSubtitleStyle.Color {
+    var nsColor: NSColor {
+        NSColor(
+            srgbRed: CGFloat(red),
+            green: CGFloat(green),
+            blue: CGFloat(blue),
+            alpha: CGFloat(alpha)
+        )
+    }
+
+    /// The color at full opacity; the layer it is drawn in carries the alpha.
+    var opaqueCGColor: CGColor {
+        CGColor(
+            srgbRed: CGFloat(red),
+            green: CGFloat(green),
+            blue: CGFloat(blue),
+            alpha: 1
+        )
+    }
+}
+
+/// Fonts for one layout, each sized so its ascent plus descent is the line
+/// height, as libass sizes every face it uses.
+private struct SRTFontCache {
+    let lineHeight: CGFloat
+    private var fonts: [String: (font: CTFont, syntheticBoldWidth: CGFloat)] = [:]
+
+    init(lineHeight: CGFloat) {
+        self.lineHeight = lineHeight
+    }
+
+    /// The face in the wanted bold and italic, falling back to libass's
+    /// synthetic slant and widening when the family has no such face.
+    mutating func font(
+        for face: CTFont,
+        bold: Bool,
+        italic: Bool
+    ) -> (font: CTFont, syntheticBoldWidth: CGFloat) {
+        let key = "\(CTFontCopyPostScriptName(face))|\(bold)|\(italic)"
+        if let cached = fonts[key] {
+            return cached
+        }
+
+        var font = face
+        var needsSyntheticBold = bold
+        var needsSyntheticItalic = italic
+        if bold, let boldFont = CTFontCreateCopyWithSymbolicTraits(
+            font, 0, nil, .traitBold, .traitBold
+        ) {
+            font = boldFont
+            needsSyntheticBold = false
+        }
+        if italic, let italicFont = CTFontCreateCopyWithSymbolicTraits(
+            font, 0, nil, .traitItalic, .traitItalic
+        ) {
+            font = italicFont
+            needsSyntheticItalic = false
+        }
+
+        let unitHeight = (CTFontGetAscent(font) + CTFontGetDescent(font)) / CTFontGetSize(font)
+        let pointSize = unitHeight > 0 ? lineHeight / unitHeight : lineHeight
+        if needsSyntheticItalic {
+            var slant = CGAffineTransform(
+                a: 1,
+                b: 0,
+                c: Self.syntheticSlant(for: font),
+                d: 1,
+                tx: 0,
+                ty: 0
+            )
+            font = CTFontCreateCopyWithAttributes(font, pointSize, &slant, nil)
+        } else {
+            font = CTFontCreateCopyWithAttributes(font, pointSize, nil, nil)
+        }
+
+        // libass widens a synthetic bold outline by a 64th of the size.
+        let resolved = (
+            font: font,
+            syntheticBoldWidth: needsSyntheticBold ? pointSize / 64 : 0
+        )
+        fonts[key] = resolved
+        return resolved
+    }
+
+    /// libass slants PostScript outlines by 10° and TrueType ones by GDI's
+    /// 18.77°.
+    private static func syntheticSlant(for font: CTFont) -> CGFloat {
+        let format = (CTFontCopyAttribute(font, kCTFontFormatAttribute) as? NSNumber)?
+            .uint32Value
+        let isPostScript = format == CTFontFormat.openTypePostScript.rawValue
+            || format == CTFontFormat.postScript.rawValue
+        return isPostScript ? 0x2D24 / 65536 : 0x5700 / 65536
+    }
+}
+
 private enum SRTInlineText {
+    static let syntheticBoldWidthKey = NSAttributedString.Key("CueSeekerSRTSyntheticBoldWidth")
+
     private struct Style {
         var bold = 0
         var italic = 0
         var underline = 0
-        var colors: [NSColor] = [.white]
+        var colors: [NSColor]
     }
 
     static func attributedString(
         from source: String,
-        fontSize: CGFloat
+        metrics: SRTSubtitleMetrics,
+        fonts: inout SRTFontCache
     ) -> NSAttributedString {
         let output = NSMutableAttributedString()
         let paragraph = NSMutableParagraphStyle()
-        paragraph.alignment = .center
+        switch metrics.style.horizontalAlignment {
+        case .left:
+            paragraph.alignment = .left
+        case .center:
+            paragraph.alignment = .center
+        case .right:
+            paragraph.alignment = .right
+        }
         paragraph.lineBreakMode = .byWordWrapping
-        let baseFont = CTFontCreateUIFontForLanguage(.system, fontSize, nil)
-            ?? CTFontCreateWithName("Helvetica" as CFString, fontSize, nil)
-        var style = Style()
+        paragraph.lineSpacing = metrics.lineSpacing
+        let textColor = metrics.style.textColor.nsColor
+        var style = Style(colors: [textColor])
         var index = source.startIndex
         var bufferedText = ""
 
         func flushBufferedText() {
             guard !bufferedText.isEmpty else { return }
-            output.append(
-                NSAttributedString(
-                    string: bufferedText,
-                    attributes: attributes(
-                        style: style,
-                        fontSize: fontSize,
-                        paragraph: paragraph,
-                        baseFont: baseFont
-                    )
-                )
+            append(
+                bufferedText,
+                style: style,
+                paragraph: paragraph,
+                metrics: metrics,
+                fonts: &fonts,
+                to: output
             )
             bufferedText.removeAll(keepingCapacity: true)
         }
@@ -365,7 +819,7 @@ private enum SRTInlineText {
                let close = source[index...].firstIndex(of: ">") {
                 let token = String(source[index...close])
                 flushBufferedText()
-                if apply(tag: token, to: &style) {
+                if apply(tag: token, to: &style, textColor: textColor) {
                     index = source.index(after: close)
                     continue
                 }
@@ -403,7 +857,11 @@ private enum SRTInlineText {
         return output
     }
 
-    private static func apply(tag: String, to style: inout Style) -> Bool {
+    private static func apply(
+        tag: String,
+        to style: inout Style,
+        textColor: NSColor
+    ) -> Bool {
         let token = tag.lowercased()
         switch token {
         case "<b>": style.bold += 1
@@ -425,42 +883,97 @@ private enum SRTInlineText {
             }
             let value = token[token.index(after: equals)...]
                 .trimmingCharacters(in: CharacterSet(charactersIn: " \t\"'>"))
-            style.colors.append(color(String(value)) ?? style.colors.last ?? .white)
+            style.colors.append(color(String(value)) ?? style.colors.last ?? textColor)
         }
         return true
     }
 
-    private static func attributes(
+    /// Appends the text run by run, each run in the face that has its
+    /// characters.
+    private static func append(
+        _ text: String,
         style: Style,
-        fontSize: CGFloat,
         paragraph: NSParagraphStyle,
+        metrics: SRTSubtitleMetrics,
+        fonts: inout SRTFontCache,
+        to output: NSMutableAttributedString
+    ) {
+        let bold = metrics.style.isBold || style.bold > 0
+        let italic = metrics.style.isItalic || style.italic > 0
+        let characters = text as NSString
+        for (range, face) in faceRuns(in: characters, baseFont: metrics.baseFont) {
+            let resolved = fonts.font(for: face, bold: bold, italic: italic)
+            var attributes: [NSAttributedString.Key: Any] = [
+                .font: resolved.font,
+                .foregroundColor: style.colors.last ?? metrics.style.textColor.nsColor,
+                .paragraphStyle: paragraph
+            ]
+            if metrics.letterSpacing != 0 {
+                attributes[.kern] = metrics.letterSpacing
+            }
+            if style.underline > 0 {
+                attributes[.underlineStyle] = NSUnderlineStyle.single.rawValue
+            }
+            if resolved.syntheticBoldWidth > 0 {
+                attributes[syntheticBoldWidthKey] = resolved.syntheticBoldWidth
+            }
+            output.append(NSAttributedString(
+                string: characters.substring(with: range),
+                attributes: attributes
+            ))
+        }
+    }
+
+    /// Splits the text where the covering face changes: the base font where
+    /// it has the characters, the system's fallback otherwise. Spaces and line
+    /// breaks stay with the run before them.
+    private static func faceRuns(
+        in characters: NSString,
         baseFont: CTFont
-    ) -> [NSAttributedString.Key: Any] {
-        var traits: CTFontSymbolicTraits = []
-        if style.bold > 0 {
-            traits.insert(.boldTrait)
+    ) -> [(NSRange, CTFont)] {
+        var runs: [(NSRange, CTFont)] = []
+        var fallbackFont: CTFont?
+        var index = 0
+        while index < characters.length {
+            let range = characters.rangeOfComposedCharacterSequence(at: index)
+            let face: CTFont
+            if let current = runs.last?.1,
+               let scalar = UnicodeScalar(characters.character(at: range.location)),
+               CharacterSet.whitespacesAndNewlines.contains(scalar) {
+                face = current
+            } else if covers(baseFont, characters, range) {
+                face = baseFont
+            } else if let fallbackFont, covers(fallbackFont, characters, range) {
+                face = fallbackFont
+            } else {
+                let found = CTFontCreateForString(
+                    baseFont,
+                    characters,
+                    CFRange(location: range.location, length: range.length)
+                )
+                fallbackFont = found
+                face = found
+            }
+
+            if let last = runs.last, CFEqual(last.1, face) {
+                runs[runs.count - 1].0.length += range.length
+            } else {
+                runs.append((range, face))
+            }
+            index = NSMaxRange(range)
         }
-        if style.italic > 0 {
-            traits.insert(.italicTrait)
-        }
-        let font = traits.isEmpty
-            ? baseFont
-            : CTFontCreateCopyWithSymbolicTraits(
-                baseFont,
-                fontSize,
-                nil,
-                traits,
-                traits
-            ) ?? baseFont
-        var result: [NSAttributedString.Key: Any] = [
-            .font: font,
-            .foregroundColor: style.colors.last ?? NSColor.white,
-            .paragraphStyle: paragraph
-        ]
-        if style.underline > 0 {
-            result[.underlineStyle] = NSUnderlineStyle.single.rawValue
-        }
-        return result
+        return runs
+    }
+
+    private static func covers(
+        _ font: CTFont,
+        _ characters: NSString,
+        _ range: NSRange
+    ) -> Bool {
+        var units = Array(repeating: UniChar(), count: range.length)
+        characters.getCharacters(&units, range: range)
+        var glyphs = Array(repeating: CGGlyph(), count: range.length)
+        return CTFontGetGlyphsForCharacters(font, units, &glyphs, range.length)
     }
 
     private static func decodeEntity(
@@ -534,6 +1047,12 @@ final class SRTSubtitleOverlayView: NSView {
             guard !isApplyingPresentation, oldValue != videoSize else { return }
             rebuildLayout()
             needsLayout = true
+        }
+    }
+    var style = SRTSubtitleStyle() {
+        didSet {
+            guard oldValue != style else { return }
+            rebuildLayout()
         }
     }
     var onRenderingFailure: ((String) -> Void)?
@@ -723,6 +1242,7 @@ final class SRTSubtitleOverlayView: NSView {
         activeOrdinals = []
         imageLayer.contents = nil
         let cues = self.cues
+        let style = self.style
         layoutBuildCountForTesting += 1
         layoutTask = Task.detached(priority: .userInitiated) { [weak self] in
             let layout = PlaybackPerformanceProbe.measure(
@@ -732,6 +1252,7 @@ final class SRTSubtitleOverlayView: NSView {
                 SRTSubtitleRenderer.makeLayout(
                     cues: cues,
                     canvasSize: videoSize,
+                    style: style,
                     isCancelled: { Task.isCancelled }
                 )
             }
@@ -741,6 +1262,7 @@ final class SRTSubtitleOverlayView: NSView {
                 layout,
                 sourceIdentity: sourceIdentity,
                 videoSize: videoSize,
+                style: style,
                 scheduledAt: scheduledAt
             )
         }
@@ -750,6 +1272,7 @@ final class SRTSubtitleOverlayView: NSView {
         _ layout: SRTSubtitleLayout?,
         sourceIdentity expectedSourceIdentity: URL,
         videoSize expectedVideoSize: CGSize,
+        style expectedStyle: SRTSubtitleStyle,
         scheduledAt: UInt64
     ) {
         PlaybackPerformanceProbe.logElapsed(
@@ -759,7 +1282,8 @@ final class SRTSubtitleOverlayView: NSView {
         )
         guard source.map(Self.identity(for:)) == expectedSourceIdentity,
               loadedSourceIdentity == expectedSourceIdentity,
-              videoSize == expectedVideoSize
+              videoSize == expectedVideoSize,
+              style == expectedStyle
         else {
             return
         }

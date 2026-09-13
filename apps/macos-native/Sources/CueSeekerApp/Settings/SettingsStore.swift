@@ -98,6 +98,7 @@ final class SettingsStore: ObservableObject {
     private static let searchE2ELoggingEnabledKey = "searchE2ELoggingEnabled"
     private static let searchFTSVocabularyDiagnosticsEnabledKey = "searchFTSVocabularyDiagnosticsEnabled"
     private static let urlSchemePlayFirstSearchResultEnabledKey = "urlSchemePlayFirstSearchResultEnabled"
+    private static let srtSubtitleStyleKey = "srtSubtitleStyle"
     static let autoSwitchCueSequenceGapDefaultMilliseconds = 500
     static let autoSwitchCueSequenceGapMinimumMilliseconds = 0
     static let autoSwitchCueSequenceGapMaximumMilliseconds = 10_000
@@ -168,6 +169,15 @@ final class SettingsStore: ObservableObject {
     }
 
     @Published private(set) var autoSwitchCueSequenceGapMilliseconds: Int
+
+    @Published var srtSubtitleStyle: SRTSubtitleStyle {
+        didSet {
+            userDefaults.set(
+                try? JSONEncoder().encode(srtSubtitleStyle),
+                forKey: Self.srtSubtitleStyleKey
+            )
+        }
+    }
 
     @Published var searchE2ELoggingEnabled: Bool {
         didSet {
@@ -273,6 +283,9 @@ final class SettingsStore: ObservableObject {
         self.autoSwitchCueSequenceGapMilliseconds = Self.loadAutoSwitchCueSequenceGapMilliseconds(
             from: userDefaults
         )
+        self.srtSubtitleStyle = userDefaults.data(forKey: Self.srtSubtitleStyleKey)
+            .flatMap { try? JSONDecoder().decode(SRTSubtitleStyle.self, from: $0) }
+            ?? SRTSubtitleStyle()
         self.searchE2ELoggingEnabled = userDefaults.bool(forKey: Self.searchE2ELoggingEnabledKey)
         self.searchFTSVocabularyDiagnosticsEnabled = userDefaults.bool(
             forKey: Self.searchFTSVocabularyDiagnosticsEnabledKey
