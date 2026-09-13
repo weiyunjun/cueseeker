@@ -38,9 +38,50 @@ Files:
 - `apps/macos-native/Tests/CueSeekerCoreTests/ShioriDatabaseTests.swift`
 - `apps/macos-native/Tests/CueSeekerCoreTests/SubtitleIndexerTests.swift`
 
+## Copy, counts and boundary feedback
+
+- The three `Localizable.strings` files carry the requirement's copy word for word: Excerpt / 摘录 / 摘錄 for the page and the playback source, Recent Excerpt Lists, Save to Excerpt List without an ellipsis in the row menu, the footer and Settings, Remove Excerpt, 摘录集 / 摘錄集 wherever Chinese said 列表 for a list, and the failure toasts with their full stop. Keys stay as they were apart from the ones below; renaming them belongs to the naming step.
+- English counts that need a singular are split into `.one` and `.other` keys, the form the table result count already used: the footer's cues, videos, results and excerpt lists, the card's cue badge and the Excerpt page summary. The summary became a `%1$@ · %2$@` format over two counts so each count is chosen on its own. Chinese carries both keys with the same text.
+- `PlaybackCueFooterStatus` chooses the key through one private helper. The Command Panel's Recent Videos and Recent Excerpt Lists footers now go through it instead of formatting their own count.
+- Previous and next: when nothing further can be opened, the feedback reads Already at First or Last Result, Video or Excerpt by the direction pressed, in place of No Result, No Library Video and No Bookmark. The three feedback functions already received the direction. Every path that used to report "no result" — the real boundary, a single cue opened from a Deep Link, an empty or failed search snapshot, a playlist out of step — now shows the boundary for its direction, as the requirement asks. Excerpt navigation's own success text changes from Bookmark to Excerpt; the video and result success texts are unchanged.
+- Tests: the footer test adds the singular cases and the excerpt list count, and the row menu and toast registry tests expect the new copy. The toast registry test now pins the copy that `Toast Usage Registry.md` will carry once the owner updates it.
+
+Files:
+
+- `apps/macos-native/Sources/CueSeekerApp/Resources/en.lproj/Localizable.strings`
+- `apps/macos-native/Sources/CueSeekerApp/Resources/zh-Hans.lproj/Localizable.strings`
+- `apps/macos-native/Sources/CueSeekerApp/Resources/zh-Hant.lproj/Localizable.strings`
+- `apps/macos-native/Sources/CueSeekerApp/Playback/PlaybackViewModel.swift`
+- `apps/macos-native/Sources/CueSeekerApp/Playback/SubtitleFocus/PlaybackCueFooter.swift`
+- `apps/macos-native/Sources/CueSeekerApp/Playback/SubtitleFocus/PlaybackCommandPanel.swift`
+- `apps/macos-native/Sources/CueSeekerApp/Shiori/ShioriListCardGrid.swift`
+- `apps/macos-native/Sources/CueSeekerApp/Shiori/ShioriListOverviewView.swift`
+- `apps/macos-native/Tests/CueSeekerAppTests/PlaybackSubtitleFocusLayoutTests.swift`
+- `apps/macos-native/Tests/CueSeekerAppTests/SubtitleTableRowActionMenuTests.swift`
+- `apps/macos-native/Tests/CueSeekerAppTests/SubtitleTableVirtualRowTests.swift`
+- `apps/macos-native/Tests/CueSeekerAppTests/ToastTests.swift`
+
 ## Verification
 
 - `swift build`: clean.
 - `swift test` on the working tree, with the copy and feedback step below also applied: 1208 tests, 15 failing. Thirteen are the set earlier records list as failing on the baseline as well — the seven native playback timeline, audio and presentation cases, the two Debug E2E scene and window-width cases, `shioriTableStartsAtTopAfterPanelRemount` and `showCueGroupInvalidationIsScopedToMountedShiori`, and the two library-folder-removal cases, which both pass when run on their own. `showCueGroupInvalidationIsScopedToMountedShiori` was checked rather than assumed: with this change stashed it fails at the same line on `656ec7c9`. The other two were copy assertions, updated in the next step.
 - The database step's own tests — migration, fresh schema, the Excerpt database, the indexer and the facet count cache — pass.
 - Before the App first opened the owner's real database, it was copied next to the live file as `CueSeeker.sqlite.backup-20260913-before-schema-47-excerpt-rename`: schema 46, 8 lists, 700 excerpts.
+- After the copy step, `swift test --filter` over the toast registry, the row menu, the footer counts and the localization key set passes, and a key-by-key comparison of the three string files finds the same 432 keys in the same order.
+
+In the App: Debug E2E controller, `.build/debug/CueSeeker --cueseeker-debug-e2e` under a PTY, main window 1445×821 at 2×, Light, English, the owner's real library. No E2E command or facility was added; the FIFO that fed the PTY is a session-local convenience equivalent to typing at the terminal. Card and row coordinates were read off captures, the deviation earlier records already note for the grids and tables.
+
+1. The first launch migrated the real database: schema 47, `excerpt_lists` with 8 rows and 6 cover paths, `excerpts` with 700 rows, the four new indexes, no Shiori table or index left, and both Cue reference triggers naming `excerpts`.
+2. The Excerpt page: Sidebar item and title `Excerpt`, summary `8 Lists · 695 Cues`, each card's badge in the form `397 Cues`, covers drawn.
+3. Recent: tabs `Recent Videos` and `Recent Excerpt Lists`.
+4. The first list's row menu: `Play`, `Open Subtitle Folder`, the four copy items, `Move to ...`, `Duplicate to ...` and `Remove Excerpt`.
+5. Its first row played. That cue lasts two seconds, so auto switch had already moved on with `Next Excerpt` before the first key arrived. From the third excerpt, `A` twice showed `Previous Excerpt` and reached the first, and `A` once more showed `Already at First Excerpt` over the same cue.
+6. The Playback Overlay's Playlist footer: `396 cues` and `Save to Excerpt List` with its `S` keycap.
+7. The first Recent Videos card, *It's MyGO!!!!!* EP01: `A` showed `Already at First Video`.
+8. The Command Panel searched `ok`: footer `170 results (Showing first 50 results)` beside `Save to Excerpt List`. Enter played the first result and `A` showed `Already at First Result`.
+
+Not verified in the App: the Last variants, which are the other branch of the same expression; the Chinese copy, since the language setting is outside the captured scene, as earlier records note; the singular counts, which no list at hand has, and which the footer test covers; the toasts, which are reached through the destination submenu the controller cannot open, as the toast record notes; and a Deep Link's single cue. The run played several cues and videos, which updated their recent-playback times and resume positions; nothing was saved, moved or removed.
+
+## Outcome
+
+The database and the copy steps matched expectations. The naming step in code is held for the owner: renaming what is persisted by name would also reset a rebound Save to Excerpt List shortcut and a remembered Excerpt page selection, and would stop old covers from being removed when they are replaced, none of which the requirement lists.

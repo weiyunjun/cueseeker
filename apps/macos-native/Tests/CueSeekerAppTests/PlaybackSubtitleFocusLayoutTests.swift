@@ -42,6 +42,15 @@ func playbackCueFooterFormatsCompleteAndPreviewLimitedCounts() {
     #expect(PlaybackCueFooterStatus.cues(totalCount: -1) == "0 cues")
     #expect(PlaybackCueFooterStatus.videos(totalCount: 4) == "4 videos")
     #expect(PlaybackCueFooterStatus.videos(totalCount: -1) == "0 videos")
+    #expect(PlaybackCueFooterStatus.cues(totalCount: 1) == "1 cue")
+    #expect(PlaybackCueFooterStatus.videos(totalCount: 1) == "1 video")
+    #expect(PlaybackCueFooterStatus.excerptLists(totalCount: 1) == "1 excerpt list")
+    #expect(PlaybackCueFooterStatus.excerptLists(totalCount: 0) == "0 excerpt lists")
+    #expect(PlaybackCueFooterStatus.searchResults(
+        totalCount: 1,
+        previewLimit: 50,
+        hasMoreResults: false
+    ) == "1 result")
     #expect(PlaybackCueFooterStatus.searchResults(
         totalCount: 6,
         previewLimit: 50,

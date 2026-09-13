@@ -123,11 +123,15 @@ struct PlaybackCueFooterAction: Identifiable {
 
 enum PlaybackCueFooterStatus {
     static func cues(totalCount: Int) -> String {
-        L("playback.cue_count", max(0, totalCount))
+        count(max(0, totalCount), key: "playback.cue_count")
     }
 
     static func videos(totalCount: Int) -> String {
-        L("playback.video_count", max(0, totalCount))
+        count(max(0, totalCount), key: "playback.video_count")
+    }
+
+    static func excerptLists(totalCount: Int) -> String {
+        count(max(0, totalCount), key: "playback.excerpt_list_count")
     }
 
     static func searchResults(
@@ -137,11 +141,17 @@ enum PlaybackCueFooterStatus {
     ) -> String {
         let resolvedTotalCount = max(0, totalCount)
         let resolvedPreviewLimit = max(0, previewLimit)
+        let resultCount = count(resolvedTotalCount, key: "playback.result_count")
         guard resolvedTotalCount > resolvedPreviewLimit || hasMoreResults else {
-            return L("playback.result_count", resolvedTotalCount)
+            return resultCount
         }
-        return L("playback.result_count", resolvedTotalCount) + " "
+        return resultCount + " "
             + L("playback.result_preview_note", resolvedPreviewLimit)
+    }
+
+    /// English takes the singular only for exactly one; zero is plural.
+    private static func count(_ count: Int, key: String) -> String {
+        count == 1 ? L("\(key).one") : L("\(key).other", count)
     }
 }
 

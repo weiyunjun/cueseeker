@@ -132,7 +132,7 @@ private struct ShioriListCard: View {
             ZStack(alignment: .bottomTrailing) {
                 ShioriListCoverView(coverPath: summary.list.coverPath)
 
-                Text(L("shiori.cue_count", summary.cueCount))
+                Text(summary.cueCount == 1 ? L("shiori.cue_count.one") : L("shiori.cue_count.other", summary.cueCount))
                     .font(.system(
                         size: WorkbenchControlMetrics.redesignFontSizeLibraryTimeBadge,
                         weight: .semibold

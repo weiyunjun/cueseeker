@@ -32,10 +32,10 @@
 "sidebar.search" = "Search";
 "sidebar.recent" = "Recent";
 "sidebar.recent_videos" = "Recent Videos";
-"sidebar.recent_shioris" = "Recent Shioris";
+"sidebar.recent_shioris" = "Recent Excerpt Lists";
 "sidebar.library" = "Library";
 "sidebar.file" = "File";
-"sidebar.shiori" = "Shiori";
+"sidebar.shiori" = "Excerpt";
 "page.unknown.title" = "Unknown Page";
 "page.unknown.message" = "This page no longer exists.";
 
@@ -79,14 +79,14 @@
 /* Row action menu */
 "row_menu.play" = "Play";
 "row_menu.open_subtitle_folder" = "Open Subtitle Folder";
-"row_menu.save_to_shiori" = "Save to Shiori ...";
+"row_menu.save_to_shiori" = "Save to Excerpt List";
 "row_menu.copy_cue_text" = "Copy Cue Text";
 "row_menu.copy_deep_link" = "Copy Deep Link";
 "row_menu.copy_cue_group_text" = "Copy Cue Group Text";
 "row_menu.copy_time_range" = "Copy Time Range";
 "row_menu.move_to" = "Move to ...";
 "row_menu.duplicate_to" = "Duplicate to ...";
-"row_menu.remove_shiori" = "Remove Shiori";
+"row_menu.remove_shiori" = "Remove Excerpt";
 
 /* Facet filter */
 "facet.duration" = "Duration";
@@ -111,9 +111,9 @@
 "facet.watch_status.unwatched" = "Unwatched";
 
 /* Shiori table */
-"shiori.table.empty_hint" = "Save cues from playback to collect Shiori.";
-"shiori.remove.title" = "Remove Shiori";
-"shiori.remove.message" = "This cue will be removed from your Shiori. The original subtitle and video files will not be deleted.";
+"shiori.table.empty_hint" = "Save cues from search results or playback to collect excerpts.";
+"shiori.remove.title" = "Remove Excerpt";
+"shiori.remove.message" = "This cue will be removed from this list. The original cue will not be deleted.";
 
 /* Library */
 "library.play" = "Play";
@@ -134,7 +134,7 @@
 "library.video_subtitle_count" = "%1$d videos %2$d subtitles";
 "library.empty" = "No library videos yet.";
 "library.recent_watching_empty" = "No recent watching yet.";
-"library.recent_shioris_empty" = "No recent Shioris yet.";
+"library.recent_shioris_empty" = "No recent excerpt lists yet.";
 "library.episodes_empty" = "No episodes yet.";
 "library.activate" = "Activate";
 
@@ -147,12 +147,15 @@
 "cover.save" = "Save";
 
 /* Shiori */
-"shiori.overview.summary" = "%1$d Lists · %2$d Cues";
-"shiori.cue_count" = "%d Cues";
+"shiori.overview.summary" = "%1$@ · %2$@";
+"shiori.list_count.one" = "1 List";
+"shiori.list_count.other" = "%d Lists";
+"shiori.cue_count.one" = "1 Cue";
+"shiori.cue_count.other" = "%d Cues";
 "shiori.new_list" = "New List";
 "shiori.edit_list" = "Edit List";
 "shiori.delete_list" = "Delete List";
-"shiori.delete_list.message" = "The list “%@” and its Shiori entries will be deleted. The original subtitle and video files will not be deleted.";
+"shiori.delete_list.message" = "The list “%@” and its excerpts will be deleted. The original cues will not be deleted.";
 "shiori.delete" = "Delete";
 "shiori.create" = "Create";
 "shiori.save" = "Save";
@@ -170,10 +173,10 @@
 "toast.shiori.saved" = "Saved to “%@”";
 "toast.shiori.duplicated" = "Duplicated to “%@”";
 "toast.shiori.destination_unavailable" = "“%@” is no longer available";
-"toast.shiori.move_failed" = "Couldn’t move Shiori. Try again";
-"toast.shiori.save_failed" = "Couldn’t save to “%@”. Try again";
-"toast.shiori.duplicate_failed" = "Couldn’t duplicate Shiori. Try again";
-"toast.shiori.already_exists" = "Shiori already exists in “%@”";
+"toast.shiori.move_failed" = "Couldn’t move the excerpt.";
+"toast.shiori.save_failed" = "Couldn’t save to “%@”.";
+"toast.shiori.duplicate_failed" = "Couldn’t duplicate the excerpt.";
+"toast.shiori.already_exists" = "This excerpt already exists in “%@”";
 
 /* Playback chrome */
 "playback.play" = "Play";
@@ -199,16 +202,19 @@
 "playback.hud.collage_not_ready" = "Collage Not Ready";
 "playback.hud.no_subtitle" = "No Subtitle";
 "playback.hud.auto_pause" = "Auto Pause";
-"playback.hud.shiori_removed" = "Shiori Removed";
+"playback.hud.shiori_removed" = "Excerpt Removed";
 "playback.hud.previous_result" = "Previous Result";
 "playback.hud.next_result" = "Next Result";
-"playback.hud.no_result" = "No Result";
+"playback.hud.first_result" = "Already at First Result";
+"playback.hud.last_result" = "Already at Last Result";
 "playback.hud.previous_library_video" = "Previous Library Video";
 "playback.hud.next_library_video" = "Next Library Video";
-"playback.hud.no_library_video" = "No Library Video";
-"playback.hud.previous_bookmark" = "Previous Bookmark";
-"playback.hud.next_bookmark" = "Next Bookmark";
-"playback.hud.no_bookmark" = "No Bookmark";
+"playback.hud.first_video" = "Already at First Video";
+"playback.hud.last_video" = "Already at Last Video";
+"playback.hud.previous_excerpt" = "Previous Excerpt";
+"playback.hud.next_excerpt" = "Next Excerpt";
+"playback.hud.first_excerpt" = "Already at First Excerpt";
+"playback.hud.last_excerpt" = "Already at Last Excerpt";
 "playback.hud.enter_fullscreen" = "Enter Fullscreen";
 "playback.hud.exit_fullscreen" = "Exit Fullscreen";
 "playback.hud.subtitles_on" = "Subtitles On";
@@ -227,15 +233,19 @@
 "playback.select" = "Select";
 "playback.source.current" = "Current";
 "playback.source.playlist" = "Playlist";
-"playback.cue_count" = "%d cues";
-"playback.result_count" = "%d results";
+"playback.cue_count.one" = "1 cue";
+"playback.cue_count.other" = "%d cues";
+"playback.result_count.one" = "1 result";
+"playback.result_count.other" = "%d results";
 "playback.result_preview_note" = "(Showing first %d results)";
-"playback.save_to_shiori" = "Save to Shiori";
+"playback.save_to_shiori" = "Save to Excerpt List";
 "playback.open" = "Open";
 "playback.back" = "Back";
 "playback.episodes_empty" = "No episodes yet.";
-"playback.video_count" = "%d videos";
-"playback.shiori_count" = "%d shioris";
+"playback.video_count.one" = "1 video";
+"playback.video_count.other" = "%d videos";
+"playback.excerpt_list_count.one" = "1 excerpt list";
+"playback.excerpt_list_count.other" = "%d excerpt lists";
 
 /* Settings window */
 "settings.window.title" = "Settings";
@@ -307,7 +317,7 @@
 "settings.shortcuts.action.copyScreenshot" = "Copy Screenshot";
 "settings.shortcuts.action.toggleFullscreen" = "Toggle Fullscreen";
 "settings.shortcuts.action.openPlaybackOverlay" = "Open Playback Overlay";
-"settings.shortcuts.action.saveToShiori" = "Save to Shiori";
+"settings.shortcuts.action.saveToShiori" = "Save to Excerpt List";
 "settings.shortcuts.action.copyCueText" = "Copy Cue Text";
 "settings.shortcuts.action.copyDeepLink" = "Copy Deep Link";
 "settings.shortcuts.action.editCollage" = "Edit Collage";

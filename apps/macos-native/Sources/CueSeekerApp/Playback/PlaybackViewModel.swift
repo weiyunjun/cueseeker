@@ -646,7 +646,7 @@ public final class PlaybackViewModel: ObservableObject {
                 icon: direction == .previous ? .caretLeft : .caretRight,
                 text: hasResult
                     ? (direction == .previous ? L("playback.hud.previous_result") : L("playback.hud.next_result"))
-                    : L("playback.hud.no_result")
+                    : (direction == .previous ? L("playback.hud.first_result") : L("playback.hud.last_result"))
             ),
             durationMilliseconds: 1_000
         )
@@ -661,7 +661,7 @@ public final class PlaybackViewModel: ObservableObject {
                 icon: direction == .previous ? .caretLeft : .caretRight,
                 text: hasResult
                     ? (direction == .previous ? L("playback.hud.previous_library_video") : L("playback.hud.next_library_video"))
-                    : L("playback.hud.no_library_video")
+                    : (direction == .previous ? L("playback.hud.first_video") : L("playback.hud.last_video"))
             ),
             durationMilliseconds: 1_000
         )
@@ -675,8 +675,8 @@ public final class PlaybackViewModel: ObservableObject {
             PlaybackFeedback(
                 icon: direction == .previous ? .caretLeft : .caretRight,
                 text: hasResult
-                    ? (direction == .previous ? L("playback.hud.previous_bookmark") : L("playback.hud.next_bookmark"))
-                    : L("playback.hud.no_bookmark")
+                    ? (direction == .previous ? L("playback.hud.previous_excerpt") : L("playback.hud.next_excerpt"))
+                    : (direction == .previous ? L("playback.hud.first_excerpt") : L("playback.hud.last_excerpt"))
             ),
             durationMilliseconds: 1_000
         )

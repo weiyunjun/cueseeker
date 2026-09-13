@@ -32,10 +32,10 @@
 "sidebar.search" = "搜尋";
 "sidebar.recent" = "最近";
 "sidebar.recent_videos" = "最近影片";
-"sidebar.recent_shioris" = "最近 Shiori";
+"sidebar.recent_shioris" = "最近摘錄集";
 "sidebar.library" = "媒體庫";
 "sidebar.file" = "檔案";
-"sidebar.shiori" = "Shiori";
+"sidebar.shiori" = "摘錄";
 "page.unknown.title" = "未知頁面";
 "page.unknown.message" = "該頁面已不存在";
 
@@ -79,14 +79,14 @@
 /* Row action menu */
 "row_menu.play" = "播放";
 "row_menu.open_subtitle_folder" = "打開字幕資料夾";
-"row_menu.save_to_shiori" = "儲存到 Shiori⋯";
+"row_menu.save_to_shiori" = "儲存到摘錄集";
 "row_menu.copy_cue_text" = "拷貝台詞文字";
 "row_menu.copy_deep_link" = "拷貝 Deep Link";
 "row_menu.copy_cue_group_text" = "拷貝台詞組文字";
 "row_menu.copy_time_range" = "拷貝時間範圍";
 "row_menu.move_to" = "移動至⋯";
 "row_menu.duplicate_to" = "複製至⋯";
-"row_menu.remove_shiori" = "移除 Shiori";
+"row_menu.remove_shiori" = "移除摘錄";
 
 /* Facet filter */
 "facet.duration" = "時間長度";
@@ -111,9 +111,9 @@
 "facet.watch_status.unwatched" = "未觀看";
 
 /* Shiori table */
-"shiori.table.empty_hint" = "在播放時儲存台詞即可收集 Shiori。";
-"shiori.remove.title" = "移除 Shiori";
-"shiori.remove.message" = "此台詞將從你的 Shiori 中移除。原始字幕與影片檔案不會被刪除。";
+"shiori.table.empty_hint" = "從搜尋結果中或在播放時儲存台詞，即可收集摘錄。";
+"shiori.remove.title" = "移除摘錄";
+"shiori.remove.message" = "此台詞將從目前的摘錄集中移除。原始台詞不會被刪除。";
 
 /* Library */
 "library.play" = "播放";
@@ -134,7 +134,7 @@
 "library.video_subtitle_count" = "%1$d 部影片 %2$d 個字幕";
 "library.empty" = "尚無媒體庫影片。";
 "library.recent_watching_empty" = "尚無最近觀看。";
-"library.recent_shioris_empty" = "尚無最近的 Shiori。";
+"library.recent_shioris_empty" = "尚無最近的摘錄集。";
 "library.episodes_empty" = "尚無單集。";
 "library.activate" = "啟用";
 
@@ -147,33 +147,36 @@
 "cover.save" = "儲存";
 
 /* Shiori */
-"shiori.overview.summary" = "%1$d 個列表 · %2$d 條台詞";
-"shiori.cue_count" = "%d 條台詞";
-"shiori.new_list" = "新增列表";
-"shiori.edit_list" = "編輯列表";
-"shiori.delete_list" = "刪除列表";
-"shiori.delete_list.message" = "列表「%@」及其中的 Shiori 項目將被刪除。原始字幕與影片檔案不會被刪除。";
+"shiori.overview.summary" = "%1$@ · %2$@";
+"shiori.list_count.one" = "1 個摘錄集";
+"shiori.list_count.other" = "%d 個摘錄集";
+"shiori.cue_count.one" = "1 條台詞";
+"shiori.cue_count.other" = "%d 條台詞";
+"shiori.new_list" = "新增摘錄集";
+"shiori.edit_list" = "編輯摘錄集";
+"shiori.delete_list" = "刪除摘錄集";
+"shiori.delete_list.message" = "摘錄集「%@」及其中的摘錄將被刪除。原始台詞不會被刪除。";
 "shiori.delete" = "刪除";
 "shiori.create" = "建立";
 "shiori.save" = "儲存";
-"shiori.list_name" = "列表名稱";
-"shiori.list_name.placeholder" = "輸入列表名稱";
+"shiori.list_name" = "摘錄集名稱";
+"shiori.list_name.placeholder" = "輸入摘錄集名稱";
 "shiori.description" = "描述";
 "shiori.description.placeholder" = "加入描述（選填）";
-"shiori.validation.name_required" = "請輸入列表名稱。";
-"shiori.validation.name_too_long" = "列表名稱不能超過 30 個字元。";
+"shiori.validation.name_required" = "請輸入摘錄集名稱。";
+"shiori.validation.name_too_long" = "摘錄集名稱不能超過 30 個字元。";
 "shiori.validation.description_too_long" = "描述不能超過 100 個字元。";
-"shiori.validation.name_taken" = "已有同名的列表。";
+"shiori.validation.name_taken" = "已有同名的摘錄集。";
 
 /* Toast */
 "toast.shiori.moved" = "已移動至「%@」";
 "toast.shiori.saved" = "已儲存至「%@」";
 "toast.shiori.duplicated" = "已複製至「%@」";
 "toast.shiori.destination_unavailable" = "「%@」已不存在";
-"toast.shiori.move_failed" = "無法移動 Shiori，請重試";
-"toast.shiori.save_failed" = "無法儲存至「%@」，請重試";
-"toast.shiori.duplicate_failed" = "無法複製 Shiori，請重試";
-"toast.shiori.already_exists" = "「%@」中已有此 Shiori";
+"toast.shiori.move_failed" = "移動摘錄時發生錯誤。";
+"toast.shiori.save_failed" = "儲存至「%@」時發生錯誤。";
+"toast.shiori.duplicate_failed" = "複製摘錄時發生錯誤。";
+"toast.shiori.already_exists" = "「%@」中已有此摘錄";
 
 /* Playback chrome */
 "playback.play" = "播放";
@@ -199,16 +202,19 @@
 "playback.hud.collage_not_ready" = "長截圖未就緒";
 "playback.hud.no_subtitle" = "沒有字幕";
 "playback.hud.auto_pause" = "自動暫停";
-"playback.hud.shiori_removed" = "已移除 Shiori";
+"playback.hud.shiori_removed" = "已移除摘錄";
 "playback.hud.previous_result" = "上一筆結果";
 "playback.hud.next_result" = "下一筆結果";
-"playback.hud.no_result" = "沒有結果";
+"playback.hud.first_result" = "已經是第一筆結果";
+"playback.hud.last_result" = "已經是最後一筆結果";
 "playback.hud.previous_library_video" = "上一部媒體庫影片";
 "playback.hud.next_library_video" = "下一部媒體庫影片";
-"playback.hud.no_library_video" = "沒有媒體庫影片";
-"playback.hud.previous_bookmark" = "上一個書籤";
-"playback.hud.next_bookmark" = "下一個書籤";
-"playback.hud.no_bookmark" = "沒有書籤";
+"playback.hud.first_video" = "已經是第一部影片";
+"playback.hud.last_video" = "已經是最後一部影片";
+"playback.hud.previous_excerpt" = "上一條摘錄";
+"playback.hud.next_excerpt" = "下一條摘錄";
+"playback.hud.first_excerpt" = "已經是第一條摘錄";
+"playback.hud.last_excerpt" = "已經是最後一條摘錄";
 "playback.hud.enter_fullscreen" = "進入全螢幕";
 "playback.hud.exit_fullscreen" = "結束全螢幕";
 "playback.hud.subtitles_on" = "字幕已開";
@@ -227,15 +233,19 @@
 "playback.select" = "選取";
 "playback.source.current" = "目前";
 "playback.source.playlist" = "播放列表";
-"playback.cue_count" = "%d 條台詞";
-"playback.result_count" = "%d 筆結果";
+"playback.cue_count.one" = "1 條台詞";
+"playback.cue_count.other" = "%d 條台詞";
+"playback.result_count.one" = "1 筆結果";
+"playback.result_count.other" = "%d 筆結果";
 "playback.result_preview_note" = "（僅顯示前 %d 筆結果）";
-"playback.save_to_shiori" = "儲存到 Shiori";
+"playback.save_to_shiori" = "儲存到摘錄集";
 "playback.open" = "打開";
 "playback.back" = "返回";
 "playback.episodes_empty" = "尚無單集。";
-"playback.video_count" = "%d 部影片";
-"playback.shiori_count" = "%d 個 Shiori";
+"playback.video_count.one" = "1 部影片";
+"playback.video_count.other" = "%d 部影片";
+"playback.excerpt_list_count.one" = "1 個摘錄集";
+"playback.excerpt_list_count.other" = "%d 個摘錄集";
 
 /* Settings window */
 "settings.window.title" = "設定";
@@ -307,7 +317,7 @@
 "settings.shortcuts.action.copyScreenshot" = "拷貝截圖";
 "settings.shortcuts.action.toggleFullscreen" = "開關全螢幕";
 "settings.shortcuts.action.openPlaybackOverlay" = "開啟播放覆蓋層";
-"settings.shortcuts.action.saveToShiori" = "儲存到 Shiori";
+"settings.shortcuts.action.saveToShiori" = "儲存到摘錄集";
 "settings.shortcuts.action.copyCueText" = "拷貝台詞文字";
 "settings.shortcuts.action.copyDeepLink" = "拷貝 Deep Link";
 "settings.shortcuts.action.editCollage" = "編輯長截圖";

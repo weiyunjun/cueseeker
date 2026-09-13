@@ -19,7 +19,7 @@ func subtitleTableSearchRowActionMenuUsesUnifiedOrderAndDivider() {
     #expect(model.actions.map(\.title) == [
         "Play",
         "Open Subtitle Folder",
-        "Save to Shiori ...",
+        "Save to Excerpt List",
         "Copy Cue Text",
         "Copy Deep Link",
         "Copy Cue Group Text",

@@ -15,8 +15,12 @@ struct ShioriListOverviewView: View {
             LibraryOverviewLayout(
                 summaryText: L(
                     "shiori.overview.summary",
-                    shioriStore.listOverview.lists.count,
-                    shioriStore.listOverview.uniqueCueCount
+                    shioriStore.listOverview.lists.count == 1
+                        ? L("shiori.list_count.one")
+                        : L("shiori.list_count.other", shioriStore.listOverview.lists.count),
+                    shioriStore.listOverview.uniqueCueCount == 1
+                        ? L("shiori.cue_count.one")
+                        : L("shiori.cue_count.other", shioriStore.listOverview.uniqueCueCount)
                 ),
                 actionTitle: L("shiori.new_list"),
                 action: { appState.beginCreatingShioriList() }

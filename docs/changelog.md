@@ -6,6 +6,12 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Renamed Shiori to Excerpt and Shiori List to Excerpt List (摘录 and 摘录集
+  in Chinese) in the App's copy and in the database, whose two tables migrate
+  in place with every list, excerpt and cover kept. English counts in the
+  footers and on the Excerpt page take the singular for one. Previous and next
+  now say Already at First or Last Result, Video or Excerpt when there is
+  nothing further, in place of No Result, No Library Video and No Bookmark.
 - An open menu now takes the keyboard: the arrows, Enter, Esc and the key that
   opened it go to the menu, and every other in-app shortcut, and Tab, does
   nothing until it closes; ⌘ shortcuts are unaffected. The speed menu follows
