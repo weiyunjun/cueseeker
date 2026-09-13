@@ -37,5 +37,5 @@
 1. 先对同一SubtitleID下，旧版本的经过# 非ASS字幕处理得到的Cue+Tombstone中的Cue，和新版本的经过# 非ASS字幕处理得到的Cue做两部分完全匹配。完全匹配的Cue立即锁定并复用原CueID。
 2. 同一SubtitleID下，旧版本剩余的Cue+Tombstone中的Cue，和新版本剩余的Cue，进行匹配。匹配规则是，考察时间戳，文字内容，是否在2个部分有且只有1个部分存在不同，且在同一个SubtitleID下，如果是，则匹配成功。
 3. 如果某个旧版本剩余的Cue或Tombstone中的Cue，只有唯一的匹配关系，且它匹配的对象，新版本剩余的Cue，也只有唯一的匹配关系。那么，新版本的Cue继承旧版本剩余的Cue或Tombstone中的Cue的CueID，以及CueID的关联关系。
-4. 不满足第3点条件的新版本剩余的Cue，会自动获得新的CueID。不满足第3点的旧版本剩余的且位于至少一个Shiori List中的Cue，进入Tombstone。不满足第3点的旧版本剩余的且不位于Shiori List中的Cue，直接删除。不满足第3点的Tombstone中的Cue，留在Tombstone中。满足第1点或第3点的Cue，离开Tombstone。
-5. 对于不满足第3步条件的旧版本的Cue，如果位于至少一个Shiori List中，会标记为失效。失效后的重新绑定，后续再做。
+4. 不满足第3点条件的新版本剩余的Cue，会自动获得新的CueID。不满足第3点的旧版本剩余的且位于至少一个Excerpt List中的Cue，进入Tombstone。不满足第3点的旧版本剩余的且不位于Excerpt List中的Cue，直接删除。不满足第3点的Tombstone中的Cue，留在Tombstone中。满足第1点或第3点的Cue，离开Tombstone。
+5. 对于不满足第3步条件的旧版本的Cue，如果位于至少一个Excerpt List中，会标记为失效。失效后的重新绑定，后续再做。
