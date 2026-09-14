@@ -17,7 +17,11 @@ This changelog does not replace Git history. Git records concrete file changes. 
   and every later row are already filtered, nothing is swapped in once the
   count completes, a changed selection searches again at once even while the
   counts are still calculating, and each option's count keeps ignoring its own
-  card while applying the other three.
+  card while applying the other three. A checked duration, length or watch
+  state is applied while the rows are read, so the filtered count arrives
+  first and the counts for the unchecked options follow from a second scan in
+  the background; with Character `31+` checked, `の` now shows its 2,766 results
+  after about 0.8 s instead of 2 s.
 - Settings now has six categories: General, which gathers Appearance,
   Search, Language and Deep Link; Play, which gathers Play and Decode;
   Shortcuts; Subtitle; Maintenance; and Developer. Settings opens on General.

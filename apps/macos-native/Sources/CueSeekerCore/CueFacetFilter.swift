@@ -56,6 +56,10 @@ public struct CueFacetFilter: Equatable, Sendable {
         self.watchStates = watchStates
     }
 
+    public var isEmpty: Bool {
+        durations.isEmpty && characters.isEmpty && languages.isEmpty && watchStates.isEmpty
+    }
+
     public func matches(
         durationMilliseconds: Int,
         characterCount: Int,

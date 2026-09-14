@@ -19,6 +19,9 @@ final class SearchStore: ObservableObject {
     let database: SearchDatabase?
     private(set) var searchTask: Task<Void, Never>?
     private(set) var exactCompletionTask: Task<Void, Never>?
+    /// The unfiltered scan that supplies the option counts after a filtered
+    /// search has completed; it lives as long as the query and scope.
+    private(set) var facetSnapshotTask: Task<Void, Never>?
     private(set) var navigationTask: Task<Void, Never>?
     private(set) var activePerformanceRun: SearchPerformanceRun?
     private(set) var resultListGeneration: UInt64 = 0
@@ -229,7 +232,7 @@ final class SearchStore: ObservableObject {
         ).distribution
     }
 
-    private func setSearchFacetSnapshot(_ snapshot: CueFacetSnapshot?) {
+    func setSearchFacetSnapshot(_ snapshot: CueFacetSnapshot?) {
         searchFacetSnapshot = snapshot
         refreshSearchFacetDistribution()
     }
@@ -295,6 +298,8 @@ final class SearchStore: ObservableObject {
             generation: indexedCueMutationGeneration
         )
         activeIndexedCueMutationGeneration = token.generation
+        facetSnapshotTask?.cancel()
+        facetSnapshotTask = nil
         setSearchFacetSnapshot(nil)
         if case .residentSearch = tableProjectionSource {
             return token
@@ -346,6 +351,8 @@ final class SearchStore: ObservableObject {
         let normalizedQuery = SearchInputNormalizer.singleLine(query)
         guard normalizedQuery != searchQuery else { return }
         searchQuery = normalizedQuery
+        facetSnapshotTask?.cancel()
+        facetSnapshotTask = nil
         setSearchFacetSnapshot(nil)
     }
 
@@ -418,6 +425,10 @@ final class SearchStore: ObservableObject {
         exactCompletionTask = task
     }
 
+    func replaceFacetSnapshotTask(_ task: Task<Void, Never>?) {
+        facetSnapshotTask = task
+    }
+
     func replaceNavigationTask(_ task: Task<Void, Never>?) {
         navigationTask = task
     }
@@ -427,6 +438,8 @@ final class SearchStore: ObservableObject {
         searchTask = nil
         exactCompletionTask?.cancel()
         exactCompletionTask = nil
+        facetSnapshotTask?.cancel()
+        facetSnapshotTask = nil
     }
 
     func cancelAllSearchTasks() {
@@ -563,9 +576,7 @@ final class SearchStore: ObservableObject {
         _ page: SubtitleSearchPage,
         generation: UInt64
     ) -> Bool {
-        guard generation == resultListGeneration,
-              let facetSnapshot = page.facetSnapshot
-        else {
+        guard generation == resultListGeneration else {
             return false
         }
         commitResultMutation {
@@ -593,7 +604,9 @@ final class SearchStore: ObservableObject {
                 ? (nextGlobalCursor
                     ?? SubtitleSearchCursor(offset: loadedResultCount))
                 : nil
-            setSearchFacetSnapshot(facetSnapshot)
+            if let facetSnapshot = page.facetSnapshot {
+                setSearchFacetSnapshot(facetSnapshot)
+            }
             searchStatus = .completed
         }
         return true

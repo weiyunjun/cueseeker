@@ -2291,18 +2291,56 @@ func searchPageAppliesTheFacetFilterToResultsWhileTheSnapshotKeepsEveryMatch() t
     #expect(exactPage.totalCount == 3)
     #expect(exactPage.cueIDs == exactPage.results.map(\.entryID))
     #expect(exactPage.fileSummaries.map(\.matchCount) == [3])
+    // A filtered scan reads only the matching rows, so it carries no snapshot.
+    #expect(exactPage.facetSnapshot == nil)
 
-    let snapshot = try #require(exactPage.facetSnapshot)
-    #expect(snapshot.cueIDs.count == 6)
+    // A two-line group whose lines fall on both sides of a character filter still
+    // returns the whole group as context for the matching line.
+    try database.replaceCueGroups(
+        subtitleFile: URL(fileURLWithPath: "/Media/FacetGroup.ass"),
+        videoFile: URL(fileURLWithPath: "/Media/FacetGroup.mkv"),
+        format: .ass,
+        cueGroups: [
+            SubtitleCueGroup(
+                sequenceNumber: nil,
+                startTimecode: "10000",
+                endTimecode: "10500",
+                startMilliseconds: 10_000,
+                endMilliseconds: 10_500,
+                searchContent: "facet short\nfacet long line that runs past thirty characters",
+                cueLines: [
+                    testCueLine(eventIndex: 0, startMilliseconds: 10_000, endMilliseconds: 10_500, content: "facet short", displayOrder: 0),
+                    testCueLine(eventIndex: 1, startMilliseconds: 10_000, endMilliseconds: 10_500, content: "facet long line that runs past thirty characters", displayOrder: 1)
+                ]
+            )
+        ]
+    )
+    let longLines = try search.searchPage(
+        "facet",
+        limit: 10,
+        facetFilter: CueFacetFilter(characters: [.thirtyOneOrMore])
+    )
+    #expect(longLines.totalCount == 1)
+    #expect(longLines.results.first?.content == "facet long line that runs past thirty characters")
+    #expect(longLines.results.first?.cueGroupLines.count == 2)
+    #expect(longLines.results.first?.primaryGroupIndex == 1)
+
+    let snapshot = try #require(try search.searchPage("facet", limit: 10).facetSnapshot)
+    #expect(snapshot.cueIDs.count == 8)
     #expect(snapshot.distribution.durationCounts == [
-        .underOneSecond: 3,
+        .underOneSecond: 5,
         .oneToUnderThreeSeconds: 3,
     ])
-    #expect(snapshot.filteredCueIDs(using: shortCues, limit: 6).distribution.durationCounts == [
-        .underOneSecond: 3,
+    #expect(snapshot.filteredCueIDs(using: shortCues, limit: 8).distribution.durationCounts == [
+        .underOneSecond: 5,
         .oneToUnderThreeSeconds: 3,
     ])
-
-    let unfilteredPage = try search.searchPage("facet", limit: 10)
-    #expect(unfilteredPage.totalCount == 6)
+    // Character counts apply the duration selection: the three short SRT lines
+    // (21 characters), the short ASS line (11) and the long ASS line (48).
+    #expect(snapshot.filteredCueIDs(using: shortCues, limit: 8).distribution.characterCounts == [
+        .elevenToTwenty: 1,
+        .twentyOneToThirty: 3,
+        .thirtyOneOrMore: 1,
+    ])
+    #expect(snapshot.distribution.totalCount == 8)
 }

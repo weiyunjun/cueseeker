@@ -1401,3 +1401,76 @@ func searchCountProgressAppendsIncrementsAfterTheLoadedPrefix() throws {
     #expect(app.search.searchResultCueIDs == allCueIDs)
     #expect(app.search.searchStatus == .completed)
 }
+
+@MainActor
+@Test
+func filteredSearchCompletesFirstAndTheOptionCountsFollowFromASecondScan() async throws {
+    let databaseURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent("search-store-facet-counts-\(UUID().uuidString).sqlite")
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+    try DatabaseBootstrap.prepare(at: databaseURL)
+    let indexing = try IndexingDatabase(path: databaseURL)
+    try indexing.replaceEntries(
+        subtitleFile: URL(fileURLWithPath: "/Media/Counts/Episode.srt"),
+        videoFile: URL(fileURLWithPath: "/Media/Counts/Episode.mkv"),
+        entries: (0..<150).map { index in
+            SubtitleEntry(
+                sequenceNumber: index + 1,
+                startTimecode: "00:00:00,000",
+                endTimecode: "00:00:00,500",
+                startMilliseconds: index * 1_000,
+                endMilliseconds: index * 1_000 + (index.isMultiple(of: 3) ? 500 : 2_000),
+                text: "Counted line \(index)"
+            )
+        }
+    )
+    let folder = URL(fileURLWithPath: "/Media/Counts")
+    let search = SearchStore(
+        databaseURL: databaseURL,
+        database: try SearchDatabase(path: databaseURL)
+    )
+    _ = search.updateFolderScope([folder])
+    search.updateSearchFacetFilter(CueFacetFilter(durations: [.underOneSecond]))
+    search.updateQuery("counted")
+    search.startSearch(
+        query: "counted",
+        cursor: .start,
+        appending: false,
+        debounce: false,
+        folders: [folder],
+        languageFilter: .all,
+        watchStateFilter: .all,
+        databaseIsCompacting: false,
+        e2eLoggingEnabled: false,
+        shouldClearSelectionWhenUnavailable: false,
+        isContextCurrent: { true },
+        onResultsChanged: { _ in },
+        onFirstPageResolved: { _ in false }
+    )
+    await search.searchTask?.value
+    await search.exactCompletionTask?.value
+
+    // The filtered result is complete before any option count exists.
+    #expect(search.searchStatus == .completed)
+    #expect(search.searchCountState == .exact)
+    #expect(search.searchResultTotalCount == 50)
+    #expect(search.searchResultCueIDs.count == 50)
+    #expect(search.searchResults.allSatisfy { $0.endMilliseconds - $0.startMilliseconds < 1_000 })
+    #expect(search.searchFacetSnapshot == nil)
+    #expect(search.isFacetSnapshotCalculating)
+    #expect(search.facetSnapshotTask != nil)
+
+    await search.facetSnapshotTask?.value
+
+    #expect(search.facetSnapshotTask == nil)
+    #expect(!search.isFacetSnapshotCalculating)
+    #expect(search.searchFacetSnapshot?.cueIDs.count == 150)
+    #expect(search.searchFacetDistribution?.totalCount == 50)
+    #expect(search.searchFacetDistribution?.durationCounts == [
+        .underOneSecond: 50,
+        .oneToUnderThreeSeconds: 100,
+    ])
+    #expect(search.searchResultTotalCount == 50)
+}

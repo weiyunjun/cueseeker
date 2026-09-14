@@ -246,6 +246,17 @@ extension SearchStore {
                 )
 
                 let consumedFirstPage = onFirstPageResolved(page.results.first)
+                if !appending && pageCompletesSearch {
+                    self.ensureFacetSnapshot(
+                        query: trimmedQuery,
+                        folders: folders,
+                        languageFilter: languageFilter,
+                        watchStateFilter: watchStateFilter,
+                        filterSet: filterSet,
+                        folderScopeGeneration: scopeGeneration,
+                        run: run
+                    )
+                }
                 if !appending && !pageCompletesSearch {
                     self.startExactCompletion(
                         query: trimmedQuery,
@@ -415,6 +426,15 @@ extension SearchStore {
                 }
                 self.replaceExactCompletionTask(nil)
                 onResultsChanged(generation)
+                self.ensureFacetSnapshot(
+                    query: query,
+                    folders: folders,
+                    languageFilter: languageFilter,
+                    watchStateFilter: watchStateFilter,
+                    filterSet: filterSet,
+                    folderScopeGeneration: folderScopeGeneration,
+                    run: run
+                )
 
                 let stateAssignMilliseconds =
                     SearchPerformanceLogger.elapsedMilliseconds(since: stateAssignStart)
@@ -466,6 +486,81 @@ extension SearchStore {
                     status: "failed",
                     error: message
                 )
+            }
+        })
+    }
+
+    /// Runs the unfiltered scan for the option counts once a filtered search has
+    /// completed without a facet snapshot. The snapshot belongs to the query and
+    /// scope, so a filter change while it runs neither cancels nor repeats it.
+    private func ensureFacetSnapshot(
+        query: String,
+        folders: [URL],
+        languageFilter: SubtitleSearchLanguageFilter,
+        watchStateFilter: SubtitleSearchWatchStateFilter,
+        filterSet: SubtitleSearchFilterSet,
+        folderScopeGeneration: UInt64,
+        run: SearchPerformanceRun?
+    ) {
+        guard searchFacetSnapshot == nil,
+              facetSnapshotTask == nil,
+              let database
+        else {
+            return
+        }
+        SearchPerformanceLogger.mark(run, "search_facet_counts_started")
+        replaceFacetSnapshotTask(Task { [weak self] in
+            guard let self else { return }
+            do {
+                let pageLoad = try await Self.runCancellableDetached(
+                    priority: .utility
+                ) {
+                    let started = SearchPerformanceLogger.now()
+                    let page = try database.searchPage(
+                        query,
+                        limit: 0,
+                        cursor: .start,
+                        under: folders,
+                        languageFilter: languageFilter,
+                        watchStateFilter: watchStateFilter,
+                        filterSet: filterSet
+                    )
+                    return SearchStorePageLoad(
+                        page: page,
+                        databaseSearchMilliseconds:
+                            SearchPerformanceLogger.elapsedMilliseconds(since: started)
+                    )
+                }
+                guard !Task.isCancelled,
+                      self.searchQuery.trimmingCharacters(
+                        in: .whitespacesAndNewlines
+                      ) == query,
+                      self.acceptsFolderScope(
+                        folders,
+                        generation: folderScopeGeneration
+                      ),
+                      let facetSnapshot = pageLoad.page.facetSnapshot
+                else {
+                    self.replaceFacetSnapshotTask(nil)
+                    return
+                }
+                self.setSearchFacetSnapshot(facetSnapshot)
+                self.replaceFacetSnapshotTask(nil)
+                SearchPerformanceLogger.mark(
+                    run,
+                    "search_facet_counts_completed",
+                    totalCount: facetSnapshot.cueIDs.count,
+                    status: "completed"
+                )
+                SearchPerformanceLogger.writeE2ESearchPage(
+                    run,
+                    event: "search_facet_counts_completed",
+                    page: nil,
+                    databaseSearchMilliseconds: pageLoad.databaseSearchMilliseconds,
+                    status: "completed"
+                )
+            } catch {
+                self.replaceFacetSnapshotTask(nil)
             }
         })
     }
