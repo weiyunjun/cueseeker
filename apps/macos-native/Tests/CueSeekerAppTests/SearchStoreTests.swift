@@ -1280,3 +1280,121 @@ private func makeTableSandboxSearchResult(
         searchRank: searchRank
     )
 }
+
+@MainActor
+@Test
+func searchCountProgressAppendsIncrementsAfterTheLoadedPrefix() throws {
+    let suiteName = "CueSeekerSearchCountProgressIncrementTests-\(UUID().uuidString)"
+    let userDefaults = try #require(UserDefaults(suiteName: suiteName))
+    let fixtureRoot = FileManager.default.temporaryDirectory
+        .appendingPathComponent("CueSeekerSearchCountProgressIncrementTests-\(UUID().uuidString)", isDirectory: true)
+    let databaseURL = fixtureRoot
+        .appendingPathComponent("CueSeekerSearchCountProgressIncrementTests.sqlite")
+    defer {
+        userDefaults.removePersistentDomain(forName: suiteName)
+        try? FileManager.default.removeItem(at: fixtureRoot)
+    }
+
+    try FileManager.default.createDirectory(
+        at: fixtureRoot,
+        withIntermediateDirectories: true
+    )
+
+    _ = NSApplication.shared
+    let app = AppCoordinator(userDefaults: userDefaults, databaseURL: databaseURL)
+    let orderedResults = (0..<6).map { index in
+        makeTableSandboxSearchResult(
+            id: Int64(200 + index),
+            content: "Ordered result \(index)",
+            searchRank: index
+        )
+    }
+    let summary = SubtitleSearchFileSummary(
+        subtitlePath: "/Media/Episode.srt",
+        subtitleFileName: "Episode.srt",
+        subtitleDisplayTitle: "Episode",
+        matchCount: 6
+    )
+
+    app.indexing.selectedFolders = [fixtureRoot]
+    app.search.updateQuery("shared")
+    // The visible page already holds the first two rows of the same order.
+    app.search.replaceResultState(
+        results: Array(orderedResults.prefix(2)),
+        status: .searching,
+        totalCount: 2,
+        fileSummaries: [],
+        countState: .exactProgress,
+        knownResultCount: 2,
+        knownFileCount: 0,
+        hasMore: true,
+        loadedResultCount: 2,
+        nextCursor: SubtitleSearchCursor(offset: 2)
+    )
+
+    // First increment starts at rank 0 and overlaps the loaded rows.
+    app.search.commitSearchCountProgress(
+        SubtitleSearchProgressSnapshot(
+            countSnapshot: .exactProgress(knownResultCount: 4, knownFileCount: 1),
+            fileSummaries: [summary],
+            results: Array(orderedResults.prefix(4)),
+            cueIDs: orderedResults.prefix(4).map(\.entryID),
+            resultOffset: 0
+        )
+    )
+    #expect(app.search.searchResults == Array(orderedResults.prefix(4)))
+    #expect(app.search.searchResultCueIDs == orderedResults.prefix(4).map(\.entryID))
+    #expect(app.search.loadedGlobalResultCount == 4)
+
+    // Second increment continues after the loaded rows.
+    app.search.commitSearchCountProgress(
+        SubtitleSearchProgressSnapshot(
+            countSnapshot: .exactProgress(knownResultCount: 5, knownFileCount: 1),
+            fileSummaries: [summary],
+            results: [orderedResults[4]],
+            cueIDs: [orderedResults[4].entryID],
+            resultOffset: 4
+        )
+    )
+    #expect(app.search.searchResults == Array(orderedResults.prefix(5)))
+    #expect(app.search.searchResultCueIDs == orderedResults.prefix(5).map(\.entryID))
+
+    // An increment that would leave a gap keeps the rows and applies only the counts.
+    app.search.commitSearchCountProgress(
+        SubtitleSearchProgressSnapshot(
+            countSnapshot: .exactProgress(knownResultCount: 9, knownFileCount: 1),
+            fileSummaries: [summary],
+            results: [orderedResults[5]],
+            cueIDs: [orderedResults[5].entryID],
+            resultOffset: 8
+        )
+    )
+    #expect(app.search.searchResults == Array(orderedResults.prefix(5)))
+    #expect(app.search.searchKnownResultCount == 9)
+
+    // The final exact page carries only the tail and the complete cue id list.
+    let allCueIDs = orderedResults.map(\.entryID)
+    let facetSnapshot = CueFacetSnapshot(
+        cueIDs: allCueIDs,
+        durationFacets: allCueIDs.map { _ in .underOneSecond },
+        characterFacets: allCueIDs.map { _ in .oneToTen },
+        languageFacets: allCueIDs.map { _ in [] },
+        watchStateFacets: allCueIDs.map { _ in .unwatched }
+    )
+    #expect(app.search.commitExactSearchPage(
+        SubtitleSearchPage(
+            results: [],
+            renderableResults: [orderedResults[5]],
+            renderableResultsOffset: 5,
+            cueIDs: allCueIDs,
+            totalCount: 6,
+            fileSummaries: [summary],
+            countSnapshot: .exact(totalCount: 6, fileSummaryCount: 1),
+            facetSnapshot: facetSnapshot
+        ),
+        generation: app.search.resultListGeneration
+    ))
+    #expect(app.search.searchResults == orderedResults)
+    #expect(app.search.searchResultCueIDs == allCueIDs)
+    #expect(app.search.searchStatus == .completed)
+}

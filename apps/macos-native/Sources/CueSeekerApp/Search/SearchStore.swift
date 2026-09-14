@@ -26,7 +26,6 @@ final class SearchStore: ObservableObject {
     private(set) var folderScopeGeneration: UInt64 = 0
     private var folderScopePaths: [String] = []
     private(set) var loadedGlobalResultCount = 0
-    private(set) var lastCountProgressUpdate: UInt64 = 0
     private(set) var nextGlobalCursor: SubtitleSearchCursor?
     private var isTableProjectionResponseActive = true
     private var pendingCueContentChange: CueContentStoreChange?
@@ -160,6 +159,56 @@ final class SearchStore: ObservableObject {
             searchResultCueIDs = loadedSearchResultCueIDs
         }
 
+        if case .residentSearch = tableProjectionSource {
+            activateResidentSearchTableProjection()
+        }
+    }
+
+    /// Adds results whose first rank is `offset`. Rows already loaded at those
+    /// ranks are kept when they are the same cues and only the rest is appended;
+    /// otherwise the loaded rows from `offset` on are replaced. A snapshot that
+    /// leaves a gap after the loaded rows is ignored apart from its counts.
+    private func mergeLoadedSearchResults(
+        _ results: [SubtitleSearchResult],
+        cueIDs: [Int64],
+        startingAt offset: Int
+    ) {
+        let loadedCount = loadedSearchResultCueIDs.count
+        guard offset <= loadedCount else {
+            return
+        }
+        let overlap = loadedCount - offset
+        let overlapMatches = overlap <= results.count
+            && results.prefix(overlap).map(\.entryID)
+                .elementsEqual(loadedSearchResultCueIDs[offset...])
+        if offset == 0 && !overlapMatches {
+            setLoadedSearchResults(results, orderedCueIDs: cueIDs.isEmpty ? nil : cueIDs)
+            return
+        }
+        let skip = overlapMatches ? overlap : 0
+        if !overlapMatches {
+            for cueID in loadedSearchResultCueIDs[offset...] {
+                searchRankByCueID.removeValue(forKey: cueID)
+            }
+            loadedSearchResultCueIDs.removeSubrange(offset...)
+        }
+        let newResults = results.dropFirst(skip)
+        guard !newResults.isEmpty else {
+            return
+        }
+        cueContentStore.install(newResults.map(\.cueContent))
+        loadedSearchResultCueIDs.append(contentsOf: newResults.map(\.entryID))
+        for result in newResults {
+            searchRankByCueID[result.entryID] = result.searchRank
+        }
+        if !cueIDs.isEmpty {
+            if searchResultCueIDs.count == offset + skip {
+                searchResultCueIDs.append(contentsOf: cueIDs.dropFirst(skip))
+            } else {
+                searchResultCueIDs = loadedSearchResultCueIDs
+            }
+        }
+        tableProjectionRevision &+= 1
         if case .residentSearch = tableProjectionSource {
             activateResidentSearchTableProjection()
         }
@@ -635,15 +684,16 @@ final class SearchStore: ObservableObject {
         commitResultMutation {
             let loadedResultCount: Int
             if !page.renderableResults.isEmpty {
-                setLoadedSearchResults(
+                mergeLoadedSearchResults(
                     page.renderableResults,
-                    orderedCueIDs: page.cueIDs
+                    cueIDs: [],
+                    startingAt: page.renderableResultsOffset
                 )
-                loadedResultCount = page.renderableResults.count
+                loadedResultCount = loadedSearchResultCueIDs.count
             } else {
-                searchResultCueIDs = page.cueIDs
                 loadedResultCount = loadedGlobalResultCount
             }
+            searchResultCueIDs = page.cueIDs
             let hasMore = loadedResultCount < page.totalCount
             searchResultTotalCount = page.totalCount
             searchFileSummaries = page.fileSummaries
@@ -667,11 +717,12 @@ final class SearchStore: ObservableObject {
         commitResultMutation {
             let loadedResultCount: Int
             if !progress.results.isEmpty {
-                setLoadedSearchResults(
+                mergeLoadedSearchResults(
                     progress.results,
-                    orderedCueIDs: progress.cueIDs
+                    cueIDs: progress.cueIDs,
+                    startingAt: progress.resultOffset
                 )
-                loadedResultCount = progress.results.count
+                loadedResultCount = loadedSearchResultCueIDs.count
             } else {
                 loadedResultCount = loadedGlobalResultCount
             }
@@ -688,18 +739,6 @@ final class SearchStore: ObservableObject {
                     ?? SubtitleSearchCursor(offset: loadedResultCount))
                 : nil
         }
-    }
-
-    func acceptsCountProgress(
-        at update: UInt64,
-        minimumInterval: UInt64
-    ) -> Bool {
-        if lastCountProgressUpdate != 0,
-           update - lastCountProgressUpdate < minimumInterval {
-            return false
-        }
-        lastCountProgressUpdate = update
-        return true
     }
 
     @discardableResult
@@ -728,7 +767,6 @@ final class SearchStore: ObservableObject {
             searchKnownFileCount = 0
             hasMoreSearchResults = false
             loadedGlobalResultCount = 0
-            lastCountProgressUpdate = 0
             nextGlobalCursor = nil
             searchFacetSnapshot = nil
             filteredSearchFacetDistribution = nil

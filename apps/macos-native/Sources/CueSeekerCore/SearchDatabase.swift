@@ -133,7 +133,6 @@ public final class SearchDatabase: @unchecked Sendable {
         filterSet: SubtitleSearchFilterSet = SubtitleSearchFilterSet(),
         diagnostics: SubtitleSearchDiagnosticSink? = nil,
         progress: SubtitleSearchProgressSink? = nil,
-        progressResultLimit: Int? = nil,
         mode: SubtitleSearchPageMode = .exact
     ) throws -> SubtitleSearchPage {
         try searchPage(
@@ -147,7 +146,6 @@ public final class SearchDatabase: @unchecked Sendable {
             filterSet: filterSet,
             diagnostics: diagnostics,
             progress: progress,
-            progressResultLimit: progressResultLimit,
             mode: mode
         )
     }
@@ -480,7 +478,6 @@ public final class SearchDatabase: @unchecked Sendable {
         filterSet: SubtitleSearchFilterSet = SubtitleSearchFilterSet(),
         diagnostics: SubtitleSearchDiagnosticSink? = nil,
         progress: SubtitleSearchProgressSink? = nil,
-        progressResultLimit: Int? = nil,
         mode: SubtitleSearchPageMode = .exact
     ) throws -> SubtitleSearchPage {
         try Task.checkCancellation()
@@ -577,10 +574,8 @@ public final class SearchDatabase: @unchecked Sendable {
             var matchedLanguageFacets: [Set<SubtitleLanguageCode>] = []
             var matchedWatchStateFacets: [LibraryWatchState] = []
             var exactPageResults: [OrderedSearchResult] = []
-            var exactRenderableResults: [OrderedSearchResult] = []
-            let resolvedProgressResultLimit = progressResultLimit.map {
-                max(0, $0)
-            }
+            var pendingProgressResults: [OrderedSearchResult] = []
+            var publishedProgressResultCount = 0
             var visiblePrefixResults: [OrderedSearchResult] = []
             var visibleWindowResults: [OrderedSearchResult] = []
             var progressFileSummaries = SearchFileSummaryAccumulator()
@@ -763,11 +758,8 @@ public final class SearchDatabase: @unchecked Sendable {
                         switch mode {
                         case .exact:
                             progressFileSummaries.add(result)
-                            if progress != nil,
-                               resolvedProgressResultLimit.map({
-                                   exactRenderableResults.count < $0
-                               }) ?? true {
-                                exactRenderableResults.append(result)
+                            if progress != nil {
+                                pendingProgressResults.append(result)
                             }
                             if acceptedSearchResultCount >= offset && exactPageResults.count < limit {
                                 exactPageResults.append(result)
@@ -809,10 +801,16 @@ public final class SearchDatabase: @unchecked Sendable {
                         SubtitleSearchProgressSnapshot(
                             countSnapshot: countSnapshot,
                             fileSummaries: progressSummaries,
-                            results: rankedResults(from: exactRenderableResults),
-                            cueIDs: matchedCueIDs
+                            results: rankedResults(
+                                from: pendingProgressResults,
+                                startingAt: publishedProgressResultCount
+                            ),
+                            cueIDs: Array(matchedCueIDs[publishedProgressResultCount...]),
+                            resultOffset: publishedProgressResultCount
                         )
                     )
+                    publishedProgressResultCount = matchedCueIDs.count
+                    pendingProgressResults.removeAll(keepingCapacity: true)
                     emit(
                         "count_progress",
                         since: searchPageStart,
@@ -945,7 +943,11 @@ public final class SearchDatabase: @unchecked Sendable {
             let pageResults = rankedResults(from: exactPageResults, startingAt: offset)
             let renderableResults = progress == nil
                 ? pageResults
-                : rankedResults(from: exactRenderableResults)
+                : rankedResults(
+                    from: pendingProgressResults,
+                    startingAt: publishedProgressResultCount
+                )
+            let renderableResultsOffset = progress == nil ? offset : publishedProgressResultCount
             let nextCursor = limit > 0 && offset + pageResults.count < totalExactResultCount
                 ? SubtitleSearchCursor(offset: offset + pageResults.count)
                 : nil
@@ -1002,6 +1004,7 @@ public final class SearchDatabase: @unchecked Sendable {
             let page = SubtitleSearchPage(
                 results: pageResults,
                 renderableResults: renderableResults,
+                renderableResultsOffset: renderableResultsOffset,
                 cueIDs: matchedCueIDs,
                 totalCount: totalExactResultCount,
                 fileSummaries: fileSummaries,

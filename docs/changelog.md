@@ -9,9 +9,10 @@ This changelog does not replace Git history. Git records concrete file changes. 
 - Search returns its first page without reading or sorting every hit again:
   FTS rows now carry a rowid that encodes the subtitle file and the cue's
   time position, so hits are ordered by file display rank from the index
-  alone and the exact count walks them once. Schema 48 rewrites the FTS
+  alone and the exact count walks them once, publishing only the rows it has
+  newly accepted instead of everything so far. Schema 48 rewrites the FTS
   rowids in place. On the live library the first page for `の` dropped from
-  about 0.75 s to 0.17 s and its full count from 6.5 s to 4.7 s.
+  about 0.75 s to 0.17 s and its full count from 6.5 s to 3.4 s.
 - Settings now has six categories: General, which gathers Appearance,
   Search, Language and Deep Link; Play, which gathers Play and Decode;
   Shortcuts; Subtitle; Maintenance; and Developer. Settings opens on General.

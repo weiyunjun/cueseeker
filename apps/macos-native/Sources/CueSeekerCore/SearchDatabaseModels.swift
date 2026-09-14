@@ -291,8 +291,11 @@ public struct SubtitleSearchCountSnapshot: Equatable, Sendable, Codable {
 public struct SubtitleSearchProgressSnapshot: Equatable, Sendable {
     public let countSnapshot: SubtitleSearchCountSnapshot
     public let fileSummaries: [SubtitleSearchFileSummary]
+    /// Results accepted since the previous snapshot; `resultOffset` is the
+    /// rank of the first one.
     public let results: [SubtitleSearchResult]
     public let cueIDs: [Int64]
+    public let resultOffset: Int
 
     public var countState: SubtitleSearchCountState {
         countSnapshot.state
@@ -310,12 +313,14 @@ public struct SubtitleSearchProgressSnapshot: Equatable, Sendable {
         countSnapshot: SubtitleSearchCountSnapshot,
         fileSummaries: [SubtitleSearchFileSummary],
         results: [SubtitleSearchResult] = [],
-        cueIDs: [Int64] = []
+        cueIDs: [Int64] = [],
+        resultOffset: Int = 0
     ) {
         self.countSnapshot = countSnapshot
         self.fileSummaries = fileSummaries
         self.results = results
         self.cueIDs = cueIDs
+        self.resultOffset = resultOffset
     }
 }
 
@@ -370,7 +375,10 @@ public struct SubtitleFTSVocabularyDiagnostics: Equatable, Sendable {
 
 public struct SubtitleSearchPage: Equatable, Sendable {
     public let results: [SubtitleSearchResult]
+    /// Results not yet delivered through progress snapshots; `renderableResultsOffset`
+    /// is the rank of the first one.
     public let renderableResults: [SubtitleSearchResult]
+    public let renderableResultsOffset: Int
     public let cueIDs: [Int64]
     public let totalCount: Int
     public let fileSummaries: [SubtitleSearchFileSummary]
@@ -409,6 +417,7 @@ public struct SubtitleSearchPage: Equatable, Sendable {
     public init(
         results: [SubtitleSearchResult],
         renderableResults: [SubtitleSearchResult]? = nil,
+        renderableResultsOffset: Int? = nil,
         cueIDs: [Int64]? = nil,
         totalCount: Int,
         fileSummaries: [SubtitleSearchFileSummary],
@@ -422,6 +431,7 @@ public struct SubtitleSearchPage: Equatable, Sendable {
     ) {
         self.results = results
         self.renderableResults = renderableResults ?? results
+        self.renderableResultsOffset = renderableResultsOffset ?? appliedCursor.offset
         self.cueIDs = cueIDs ?? results.map(\.entryID)
         self.totalCount = totalCount
         self.fileSummaries = fileSummaries

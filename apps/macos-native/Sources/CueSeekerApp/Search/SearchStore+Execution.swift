@@ -11,7 +11,6 @@ extension SearchStore {
     static let searchPageSize = 100
     static let searchPrefetchThreshold = 10
     static let searchInputDebounceNanoseconds: UInt64 = 100_000_000
-    static let searchCountProgressMinimumIntervalNanoseconds: UInt64 = 200_000_000
 
     func startSearch(
         query: String,
@@ -493,13 +492,6 @@ extension SearchStore {
             return
         }
 
-        let now = SearchPerformanceLogger.now()
-        guard acceptsCountProgress(
-            at: now,
-            minimumInterval: Self.searchCountProgressMinimumIntervalNanoseconds
-        ) else {
-            return
-        }
         commitSearchCountProgress(progress)
         onResultsChanged(generation)
 

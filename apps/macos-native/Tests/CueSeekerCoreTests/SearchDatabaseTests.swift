@@ -757,55 +757,33 @@ func searchPageEmitsExactProgressCountSnapshotsBeforeFinalExactCounts() throws {
         }
     )
     let progress = collector.values()
+    let streamedResults = progress.flatMap(\.results)
+    let streamedCueIDs = progress.flatMap(\.cueIDs)
 
     #expect(!progress.isEmpty)
     #expect(progress.allSatisfy { $0.countState == .exactProgress })
     #expect(progress.map(\.knownResultCount) == progress.map(\.knownResultCount).sorted())
-    #expect(progress.allSatisfy { $0.results.count == $0.knownResultCount })
-    #expect(progress.allSatisfy { $0.cueIDs.count == $0.knownResultCount })
+    #expect(progress.allSatisfy { $0.resultOffset + $0.results.count == $0.knownResultCount })
+    #expect(progress.allSatisfy { $0.results.count == $0.cueIDs.count })
+    #expect(progress.first?.resultOffset == 0)
     #expect(progress.last?.knownResultCount == 5_000)
     #expect(progress.last?.knownFileCount == 1)
     #expect(progress.last?.fileSummaries.map(\.matchCount) == [5_000])
-    #expect(progress.last?.results.first?.content == "Progress count stream line 0")
-    #expect(progress.last?.results.last?.content == "Progress count stream line 4999")
-    #expect(Array(progress.last?.results.suffix(3).map(\.searchRank) ?? []) == [4_997, 4_998, 4_999])
+    #expect(streamedResults.count == 5_000)
+    #expect(streamedResults.first?.content == "Progress count stream line 0")
+    #expect(streamedResults.last?.content == "Progress count stream line 4999")
+    #expect(streamedResults.map(\.searchRank) == Array(0..<5_000))
+    #expect(streamedCueIDs == streamedResults.map(\.entryID))
     #expect(page.countState == .exact)
     #expect(page.results.count == 50)
-    #expect(page.renderableResults.count == 5_100)
-    #expect(page.renderableResults.count == page.cueIDs.count)
+    #expect(page.renderableResultsOffset == 5_000)
+    #expect(page.renderableResults.count == 100)
+    #expect(page.renderableResults.map(\.searchRank) == Array(5_000..<5_100))
+    #expect(page.renderableResults.last?.content == "Progress count stream line 5099")
+    #expect(page.cueIDs == streamedCueIDs + page.renderableResults.map(\.entryID))
     #expect(page.totalCount == 5_100)
     #expect(page.knownResultCount == 5_100)
     #expect(page.fileSummaries.map(\.matchCount) == [5_100])
-    #expect(page.renderableResults.last?.content == "Progress count stream line 5099")
-
-    let boundedCollector = SearchProgressCollector()
-    let boundedPage = try SearchDatabase(path: database.path).searchPage(
-        "progress",
-        limit: 0,
-        cursor: .start,
-        progress: { snapshot in
-            boundedCollector.append(snapshot)
-        },
-        progressResultLimit: 32
-    )
-    let boundedProgress = boundedCollector.values()
-    let finalBoundedProgress = try #require(boundedProgress.last)
-
-    #expect(!boundedProgress.isEmpty)
-    #expect(boundedProgress.allSatisfy { $0.results.count <= 32 })
-    #expect(boundedProgress.allSatisfy {
-        $0.cueIDs.count == $0.knownResultCount
-    })
-    #expect(boundedPage.results.isEmpty)
-    #expect(boundedPage.renderableResults.count == 32)
-    #expect(boundedPage.renderableResults.map(\.searchRank) == Array(0..<32))
-    #expect(boundedPage.cueIDs.count == 5_100)
-    #expect(boundedPage.totalCount == 5_100)
-    #expect(finalBoundedProgress.results.count == 32)
-    #expect(finalBoundedProgress.results.map(\.searchRank) == Array(0..<32))
-    #expect(finalBoundedProgress.cueIDs == Array(
-        boundedPage.cueIDs.prefix(finalBoundedProgress.knownResultCount)
-    ))
 }
 
 @Test
