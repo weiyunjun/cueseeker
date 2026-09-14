@@ -108,7 +108,8 @@ public final class SearchDatabase: @unchecked Sendable {
         inSubtitlePath subtitlePath: String? = nil,
         languageFilter: SubtitleSearchLanguageFilter = .all,
         watchStateFilter: SubtitleSearchWatchStateFilter = .all,
-        filterSet: SubtitleSearchFilterSet = SubtitleSearchFilterSet()
+        filterSet: SubtitleSearchFilterSet = SubtitleSearchFilterSet(),
+        facetFilter: CueFacetFilter = CueFacetFilter()
     ) throws -> [SubtitleSearchResult] {
         try searchPage(
             query,
@@ -118,7 +119,8 @@ public final class SearchDatabase: @unchecked Sendable {
             inSubtitlePath: subtitlePath,
             languageFilter: languageFilter,
             watchStateFilter: watchStateFilter,
-            filterSet: filterSet
+            filterSet: filterSet,
+            facetFilter: facetFilter
         ).results
     }
 
@@ -131,6 +133,7 @@ public final class SearchDatabase: @unchecked Sendable {
         languageFilter: SubtitleSearchLanguageFilter = .all,
         watchStateFilter: SubtitleSearchWatchStateFilter = .all,
         filterSet: SubtitleSearchFilterSet = SubtitleSearchFilterSet(),
+        facetFilter: CueFacetFilter = CueFacetFilter(),
         diagnostics: SubtitleSearchDiagnosticSink? = nil,
         progress: SubtitleSearchProgressSink? = nil,
         mode: SubtitleSearchPageMode = .exact
@@ -144,6 +147,7 @@ public final class SearchDatabase: @unchecked Sendable {
             languageFilter: languageFilter,
             watchStateFilter: watchStateFilter,
             filterSet: filterSet,
+            facetFilter: facetFilter,
             diagnostics: diagnostics,
             progress: progress,
             mode: mode
@@ -159,6 +163,7 @@ public final class SearchDatabase: @unchecked Sendable {
         languageFilter: SubtitleSearchLanguageFilter = .all,
         watchStateFilter: SubtitleSearchWatchStateFilter = .all,
         filterSet: SubtitleSearchFilterSet = SubtitleSearchFilterSet(),
+        facetFilter: CueFacetFilter = CueFacetFilter(),
         diagnostics: SubtitleSearchDiagnosticSink? = nil,
         progress: SubtitleSearchProgressSink? = nil
     ) throws -> SubtitleSearchPage {
@@ -171,6 +176,7 @@ public final class SearchDatabase: @unchecked Sendable {
             languageFilter: languageFilter,
             watchStateFilter: watchStateFilter,
             filterSet: filterSet,
+            facetFilter: facetFilter,
             diagnostics: diagnostics,
             progress: progress,
             mode: .visibleWindow
@@ -476,6 +482,7 @@ public final class SearchDatabase: @unchecked Sendable {
         languageFilter: SubtitleSearchLanguageFilter = .all,
         watchStateFilter: SubtitleSearchWatchStateFilter = .all,
         filterSet: SubtitleSearchFilterSet = SubtitleSearchFilterSet(),
+        facetFilter: CueFacetFilter = CueFacetFilter(),
         diagnostics: SubtitleSearchDiagnosticSink? = nil,
         progress: SubtitleSearchProgressSink? = nil,
         mode: SubtitleSearchPageMode = .exact
@@ -569,6 +576,7 @@ public final class SearchDatabase: @unchecked Sendable {
             let setupStart = Self.diagnosticNow()
             let candidateBatchLimit = Self.searchCandidateBatchLimit(for: limit, mode: mode)
             var matchedCueIDs: [Int64] = []
+            var acceptedCueIDs: [Int64] = []
             var matchedDurationFacets: [CueDurationFacet] = []
             var matchedCharacterFacets: [CueCharacterFacet] = []
             var matchedLanguageFacets: [Set<SubtitleLanguageCode>] = []
@@ -740,21 +748,30 @@ public final class SearchDatabase: @unchecked Sendable {
                         matchedCandidateCount += 1
                     }
                     for result in orderedMatches {
+                        let durationFacet = CueDurationFacet(
+                            durationMilliseconds:
+                                result.result.endMilliseconds
+                                - result.result.startMilliseconds
+                        )
+                        let characterFacet = CueCharacterFacet(
+                            characterCount: result.result.content.unicodeScalars.count
+                        )
                         matchedCueIDs.append(result.result.entryID)
-                        matchedDurationFacets.append(
-                            CueDurationFacet(
-                                durationMilliseconds:
-                                    result.result.endMilliseconds
-                                    - result.result.startMilliseconds
-                            )
-                        )
-                        matchedCharacterFacets.append(
-                            CueCharacterFacet(
-                                characterCount: result.result.content.unicodeScalars.count
-                            )
-                        )
+                        matchedDurationFacets.append(durationFacet)
+                        matchedCharacterFacets.append(characterFacet)
                         matchedLanguageFacets.append(result.result.languages)
                         matchedWatchStateFacets.append(candidate.watchState)
+                        guard facetFilter.matches(
+                            duration: durationFacet,
+                            characters: characterFacet,
+                            languages: result.result.languages.isEmpty
+                                ? [.unknown]
+                                : result.result.languages,
+                            watchState: candidate.watchState
+                        ) else {
+                            continue
+                        }
+                        acceptedCueIDs.append(result.result.entryID)
                         switch mode {
                         case .exact:
                             progressFileSummaries.add(result)
@@ -805,11 +822,11 @@ public final class SearchDatabase: @unchecked Sendable {
                                 from: pendingProgressResults,
                                 startingAt: publishedProgressResultCount
                             ),
-                            cueIDs: Array(matchedCueIDs[publishedProgressResultCount...]),
+                            cueIDs: Array(acceptedCueIDs[publishedProgressResultCount...]),
                             resultOffset: publishedProgressResultCount
                         )
                     )
-                    publishedProgressResultCount = matchedCueIDs.count
+                    publishedProgressResultCount = acceptedCueIDs.count
                     pendingProgressResults.removeAll(keepingCapacity: true)
                     emit(
                         "count_progress",
@@ -924,7 +941,7 @@ public final class SearchDatabase: @unchecked Sendable {
 
             let sortStart = Self.diagnosticNow()
             try Task.checkCancellation()
-            let totalExactResultCount = matchedCueIDs.count
+            let totalExactResultCount = acceptedCueIDs.count
             let orderSource = totalExactResultCount > 0 ? "ftsRowid" : "none"
             let materializedOrderRows = exactPageResults.count
             emit(
@@ -933,7 +950,7 @@ public final class SearchDatabase: @unchecked Sendable {
                 fields: [
                     .init("results", totalExactResultCount),
                     .init("materializedResults", exactPageResults.count),
-                    .init("resultIDs", matchedCueIDs.count),
+                    .init("resultIDs", acceptedCueIDs.count),
                     .init("orderSource", orderSource),
                     .init("materializedOrderRows", materializedOrderRows)
                 ]
@@ -1005,7 +1022,7 @@ public final class SearchDatabase: @unchecked Sendable {
                 results: pageResults,
                 renderableResults: renderableResults,
                 renderableResultsOffset: renderableResultsOffset,
-                cueIDs: matchedCueIDs,
+                cueIDs: acceptedCueIDs,
                 totalCount: totalExactResultCount,
                 fileSummaries: fileSummaries,
                 countSnapshot: countSnapshot,

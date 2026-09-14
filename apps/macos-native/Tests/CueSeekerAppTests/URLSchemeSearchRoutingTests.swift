@@ -235,11 +235,10 @@ func urlSchemeDirectPlayUsesFirstResultFromExistingCompleteFirstPage() async thr
 
     #expect(presentationReadyCount == 1)
     #expect(presentedPlayback)
-    #expect(app.search.searchResults.count == 2)
-    #expect(app.search.projectedSearchResults.count == 1)
+    #expect(app.search.searchResults.count == 1)
     #expect(
         app.search.selectedSearchResult
-            == app.search.projectedSearchResults.first
+            == app.search.searchResults.first
     )
     #expect(
         app.search.selectedSearchResult?.content
@@ -299,8 +298,7 @@ func urlSchemeDirectPlayUsesFirstResultFromExistingCompleteFirstPage() async thr
 
     #expect(filteredEmptyPresentationReadyCount == 1)
     #expect(app.workbenchLayout.panelMode == .search)
-    #expect(app.search.searchResults.count == 1)
-    #expect(app.search.projectedSearchResults.isEmpty)
+    #expect(app.search.searchResults.isEmpty)
     #expect(app.search.selectedSearchResult == nil)
     #expect(app.search.searchFacetFilter == longCueFilter)
     #expect(!app.playback.isPlaybackSurfaceExpanded)

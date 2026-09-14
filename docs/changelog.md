@@ -13,6 +13,11 @@ This changelog does not replace Git history. Git records concrete file changes. 
   newly accepted instead of everything so far. Schema 48 rewrites the FTS
   rowids in place. On the live library the first page for `の` dropped from
   about 0.75 s to 0.17 s and its full count from 6.5 s to 3.4 s.
+- The Filter Menu selection is now part of the search itself: the first page
+  and every later row are already filtered, nothing is swapped in once the
+  count completes, a changed selection searches again at once even while the
+  counts are still calculating, and each option's count keeps ignoring its own
+  card while applying the other three.
 - Settings now has six categories: General, which gathers Appearance,
   Search, Language and Deep Link; Play, which gathers Play and Decode;
   Shortcuts; Subtitle; Maintenance; and Developer. Settings opens on General.

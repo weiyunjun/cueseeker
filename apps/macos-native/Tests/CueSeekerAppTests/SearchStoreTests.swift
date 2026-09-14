@@ -468,7 +468,7 @@ func exactFacetSnapshotRejectsStaleResultGeneration() throws {
 
 @MainActor
 @Test
-func facetFilterProjectsTableIDsWithoutChangingExactSearchBoundary() async {
+func facetFilterRecomputesOptionCountsFromTheSnapshotWithoutChangingRows() {
     let search = SearchStore()
     search.updateQuery("query")
     let generation = search.prepareSearch(
@@ -499,45 +499,41 @@ func facetFilterProjectsTableIDsWithoutChangingExactSearchBoundary() async {
         facetSnapshot: snapshot
     )
     #expect(search.commitExactSearchPage(page, generation: generation))
+    search.activateResidentSearchTableProjection()
+    #expect(search.searchFacetDistribution?.totalCount == 120)
 
-    search.updateSearchFacetFilter(CueFacetFilter(
+    #expect(search.updateSearchFacetFilter(CueFacetFilter(
         durations: [.underOneSecond],
         characters: Set(CueCharacterFacet.allCases),
         languages: Set(SubtitleLanguageCode.allCases),
         watchStates: [.unwatched, .watching, .finished]
-    ))
-    #expect(search.filteredSearchResultCueIDs.count == 50)
-    #expect(search.filteredSearchResultTotalCount == nil)
+    )))
+    #expect(!search.updateSearchFacetFilter(search.searchFacetFilter))
 
-    for _ in 0..<20 where search.filteredSearchResultTotalCount == nil {
-        await Task.yield()
-    }
-
-    #expect(search.filteredSearchResultCueIDs == results.enumerated().compactMap {
-        $0.offset.isMultiple(of: 2) ? $0.element.entryID : nil
-    })
-    #expect(search.filteredSearchResultTotalCount == 60)
-    #expect(search.filteredSearchFacetDistribution?.durationCounts == [
+    // Each card ignores its own selection and applies the other three.
+    #expect(search.searchFacetDistribution?.totalCount == 60)
+    #expect(search.searchFacetDistribution?.durationCounts == [
         .underOneSecond: 60,
         .fiveSecondsOrMore: 60,
     ])
-    #expect(search.filteredSearchFacetDistribution?.characterCounts == [
+    #expect(search.searchFacetDistribution?.characterCounts == [
         .oneToTen: 60,
     ])
-    #expect(search.filteredSearchFacetDistribution?.languageCounts == [
+    #expect(search.searchFacetDistribution?.languageCounts == [
         .english: 60,
     ])
-    #expect(search.filteredSearchFacetDistribution?.watchStateCounts == [
+    #expect(search.searchFacetDistribution?.watchStateCounts == [
         .unwatched: 60,
     ])
+    // The rows themselves come from the next search, not from a projection.
     #expect(search.searchResultCueIDs == results.map(\.entryID))
     #expect(search.searchResultTotalCount == 120)
-    #expect(search.tableRowStore.snapshot.totalRowCount == 60)
+    #expect(search.tableRowStore.snapshot.totalRowCount == 120)
 }
 
 @MainActor
 @Test
-func clearingLastFacetSelectionRestoresAllRows() {
+func facetSnapshotSurvivesAFilterOnlyRestartAndCountsFollowTheFilter() {
     let search = SearchStore()
     search.updateQuery("query")
     let generation = search.prepareSearch(
@@ -566,17 +562,24 @@ func clearingLastFacetSelectionRestoresAllRows() {
     #expect(search.commitExactSearchPage(page, generation: generation))
 
     search.updateSearchFacetFilter(CueFacetFilter(languages: [.japanese]))
+    #expect(search.searchFacetDistribution?.totalCount == 0)
+    #expect(search.searchFacetDistribution?.languageCounts == [.english: 1])
+    #expect(!search.isFacetSnapshotCalculating)
 
-    #expect(search.filteredSearchResultCueIDs.isEmpty)
-    #expect(search.filteredSearchResultTotalCount == 0)
-    #expect(search.tableRowStore.snapshot.totalRowCount == 0)
+    // A new search for the same query keeps the snapshot, so the counts stay.
+    _ = search.prepareSearch(appending: false, filterSet: SubtitleSearchFilterSet())
+    #expect(search.resultFacetFilter == CueFacetFilter(languages: [.japanese]))
+    #expect(search.searchFacetSnapshot == snapshot)
+    #expect(!search.isFacetSnapshotCalculating)
 
     search.updateSearchFacetFilter(CueFacetFilter(languages: []))
+    #expect(search.searchFacetDistribution?.totalCount == 1)
 
-    #expect(search.filteredSearchResultCueIDs == [result.entryID])
-    #expect(search.filteredSearchResultTotalCount == 1)
-    #expect(search.searchResultCueIDs == [result.entryID])
-    #expect(search.tableRowStore.snapshot.totalRowCount == 1)
+    // A new query drops the snapshot until its own scan completes.
+    search.updateQuery("other")
+    #expect(search.searchFacetSnapshot == nil)
+    #expect(search.searchFacetDistribution == nil)
+    #expect(search.isFacetSnapshotCalculating)
 }
 
 @MainActor

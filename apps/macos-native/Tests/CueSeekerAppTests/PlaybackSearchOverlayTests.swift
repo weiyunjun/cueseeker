@@ -116,11 +116,12 @@ func playbackCommandPanelSearchPersistsWorkbenchFacetResultsAfterDismissal()
         languageFacets: [[], []],
         watchStateFacets: [.unwatched, .unwatched]
     )
+    // The scan matched both cues; the filter kept only the first as a result.
     #expect(app.search.commitExactSearchPage(
         SubtitleSearchPage(
-            results: [included, excluded],
-            cueIDs: snapshot.cueIDs,
-            totalCount: 2,
+            results: [included],
+            cueIDs: [included.entryID],
+            totalCount: 1,
             fileSummaries: [],
             facetSnapshot: snapshot
         ),
@@ -130,13 +131,13 @@ func playbackCommandPanelSearchPersistsWorkbenchFacetResultsAfterDismissal()
 
     #expect(app.search.searchQuery == "shared")
     #expect(app.search.searchFacetFilter == facetFilter)
-    #expect(app.search.projectedSearchResults.map(\.entryID) == [8_001])
+    #expect(app.search.searchResults.map(\.entryID) == [8_001])
     #expect(app.playback.commandPanelSearchWindow?.snapshot.totalCount == 1)
 
     #expect(app.dismissPlaybackCommandPanelFromUser())
     #expect(app.search.searchQuery == "shared")
     #expect(app.search.searchFacetFilter == facetFilter)
-    #expect(app.search.projectedSearchResults.map(\.entryID) == [8_001])
+    #expect(app.search.searchResults.map(\.entryID) == [8_001])
 }
 
 private func playbackSharedSearchOpenSnapshot()

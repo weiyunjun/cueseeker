@@ -44,10 +44,7 @@ struct PlaybackSearchPromotion: Equatable, Sendable {
 }
 
 enum PlaybackPlaylistSourceOrigin: Hashable, Sendable {
-    case search(
-        resultListGeneration: UInt64,
-        usesFacetProjection: Bool
-    )
+    case search(resultListGeneration: UInt64)
     case cue(cueID: Int64)
     case excerpt(scope: PlaybackPlaylistExcerptScope)
     case unspecified(PlaybackPlaylistSourceKind)

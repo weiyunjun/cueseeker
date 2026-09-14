@@ -314,7 +314,7 @@ extension AppCoordinator {
             return
         }
 
-        let results = search.projectedSearchResults
+        let results = search.searchResults
         let previewCount = min(
             results.count,
             PlaybackCommandPanelPresentation.previewLimit
@@ -359,12 +359,12 @@ extension AppCoordinator {
                 ?? playback.commandPanelSearchWindow?.selectedOrdinal,
               ordinal >= 0,
               ordinal < PlaybackCommandPanelPresentation.previewLimit,
-              search.projectedSearchResults.indices.contains(ordinal)
+              search.searchResults.indices.contains(ordinal)
         else {
             return false
         }
 
-        let result = search.projectedSearchResults[ordinal]
+        let result = search.searchResults[ordinal]
         switch action {
         case .excerpt:
             togglePlaybackExcerptDestinationMenu(
@@ -493,7 +493,7 @@ extension AppCoordinator {
             ).isEmpty ? 2 : 3
         case .searchResults:
             return min(
-                search.projectedSearchResults.count,
+                search.searchResults.count,
                 PlaybackCommandPanelPresentation.previewLimit
             )
         case .recentVideos:

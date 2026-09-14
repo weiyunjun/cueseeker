@@ -41,6 +41,7 @@ extension SearchStore {
             appending: appending,
             filterSet: filterSet
         )
+        let facetFilter = resultFacetFilter
 
         if let activePerformanceRun {
             SearchPerformanceLogger.mark(
@@ -162,6 +163,7 @@ extension SearchStore {
                         languageFilter: languageFilter,
                         watchStateFilter: watchStateFilter,
                         filterSet: filterSet,
+                        facetFilter: facetFilter,
                         diagnostics: diagnostics
                     )
                     return SearchStorePageLoad(
@@ -251,6 +253,7 @@ extension SearchStore {
                         languageFilter: languageFilter,
                         watchStateFilter: watchStateFilter,
                         filterSet: filterSet,
+                        facetFilter: facetFilter,
                         generation: generation,
                         folderScopeGeneration: scopeGeneration,
                         run: run,
@@ -321,6 +324,7 @@ extension SearchStore {
         languageFilter: SubtitleSearchLanguageFilter,
         watchStateFilter: SubtitleSearchWatchStateFilter,
         filterSet: SubtitleSearchFilterSet,
+        facetFilter: CueFacetFilter,
         generation: UInt64,
         folderScopeGeneration: UInt64,
         run: SearchPerformanceRun?,
@@ -363,6 +367,7 @@ extension SearchStore {
                         languageFilter: languageFilter,
                         watchStateFilter: watchStateFilter,
                         filterSet: filterSet,
+                        facetFilter: facetFilter,
                         diagnostics: diagnostics,
                         progress: progressSink
                     )
@@ -604,6 +609,7 @@ extension SearchStore {
             return nil
         }
 
+        let facetFilter = resultFacetFilter
         let sourceCueIDs = orderedCueIDs ?? searchResultCueIDs
         let totalCount = orderedCueIDs?.count ?? searchResultTotalCount
         guard totalCount > 0 else { return nil }
@@ -683,7 +689,8 @@ extension SearchStore {
                     under: folders,
                     languageFilter: languageFilter,
                     watchStateFilter: watchStateFilter,
-                    filterSet: filterSet
+                    filterSet: filterSet,
+                    facetFilter: facetFilter
                 )
             }
             guard !Task.isCancelled,

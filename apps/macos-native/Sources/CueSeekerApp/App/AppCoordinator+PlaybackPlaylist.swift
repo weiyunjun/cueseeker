@@ -135,10 +135,9 @@ extension AppCoordinator {
     ) {
         let resultListGeneration = search.resultListGeneration
         let origin = PlaybackPlaylistSourceOrigin.search(
-            resultListGeneration: resultListGeneration,
-            usesFacetProjection: true
+            resultListGeneration: resultListGeneration
         )
-        let playlistResults = search.projectedSearchResults
+        let playlistResults = search.searchResults
         let selectedOrdinal = playlistResults.firstIndex {
             $0.entryID == result.entryID
         }
@@ -188,18 +187,13 @@ extension AppCoordinator {
         resultListGeneration: UInt64
     ) {
         guard let source = playback.playlistSource,
-              case .search(
-                let sourceGeneration,
-                let usesFacetProjection
-              ) = source.origin,
+              case .search(let sourceGeneration) = source.origin,
               sourceGeneration == resultListGeneration
         else {
             return
         }
 
-        let playlistResults = usesFacetProjection
-            ? search.projectedSearchResults
-            : search.searchResults
+        let playlistResults = search.searchResults
         _ = source.replaceResidentItems(
             totalCount: playlistResults.count,
             itemProvider: Self.searchPlaylistItemProvider(

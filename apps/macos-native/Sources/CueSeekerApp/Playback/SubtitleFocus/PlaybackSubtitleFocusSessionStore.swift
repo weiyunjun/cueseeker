@@ -218,10 +218,7 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
         }
         if let searchStore {
             let searchSource = PlaybackCueResultSource(
-                origin: .search(
-                    resultListGeneration: 0,
-                    usesFacetProjection: false
-                ),
+                origin: .search(resultListGeneration: 0),
                 totalCount: searchStore.searchResults.count
             ) { [weak searchStore] ordinal in
                 guard let searchStore else {

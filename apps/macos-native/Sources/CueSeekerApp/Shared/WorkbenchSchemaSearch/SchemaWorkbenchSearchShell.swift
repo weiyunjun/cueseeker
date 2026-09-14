@@ -421,8 +421,7 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
     /// Enter checks whatever the highlight sits on and leaves the menu open,
     /// the same commitment the pointer makes with a click.
     private func toggleHighlightedFilterOption() {
-        guard !filterMenu.isCalculating,
-              let position = filterMenuHighlight.highlightedPosition,
+        guard let position = filterMenuHighlight.highlightedPosition,
               let option = filterMenu.option(at: position)
         else {
             return

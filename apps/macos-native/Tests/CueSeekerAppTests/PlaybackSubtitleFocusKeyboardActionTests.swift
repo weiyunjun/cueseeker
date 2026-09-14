@@ -924,9 +924,9 @@ func playbackCommandPanelDatabaseSearchOpensCompletePlaylistOverlay() async thro
         app.synchronizePlaybackCommandPanelSearchResults()
 
         #expect(app.search.searchResults.count == 30)
-        #expect(app.search.projectedSearchResults.count == 30)
+        #expect(app.search.searchResults.count == 30)
         let selectedResult = try #require(
-            app.search.projectedSearchResults.dropFirst().first
+            app.search.searchResults.dropFirst().first
         )
         #expect(app.requestPlaybackCommandPanelSearchAction(
             .playFromThisCue,

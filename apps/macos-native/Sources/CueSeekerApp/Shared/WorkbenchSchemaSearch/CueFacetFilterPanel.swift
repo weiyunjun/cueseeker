@@ -236,7 +236,6 @@ struct CueFacetFilterMenu: View {
         at position: Int
     ) -> some View {
         Button {
-            guard !model.isCalculating else { return }
             option.toggle()
         } label: {
             HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {

@@ -19,6 +19,24 @@ extension AppCoordinator {
         )
     }
 
+    /// A changed Filter Menu selection searches again with the new filter, so
+    /// the first page and every later row are already filtered.
+    func applySearchFacetFilter(_ filter: CueFacetFilter) {
+        guard search.updateSearchFacetFilter(filter) else {
+            return
+        }
+        let query = search.searchQuery
+        guard !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return
+        }
+        startSearch(
+            query: query,
+            cursor: .start,
+            appending: false,
+            debounce: false
+        )
+    }
+
     func updateSearchFilterSet(_ filterSet: SubtitleSearchFilterSet) {
         let previousSignature = search.activeFilterSetSignature
         search.updateActiveFilterSet(filterSet)

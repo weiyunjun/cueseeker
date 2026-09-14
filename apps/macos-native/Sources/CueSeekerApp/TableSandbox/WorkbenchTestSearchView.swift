@@ -149,7 +149,7 @@ struct WorkbenchTestSearchView: View {
             search.setTableProjectionResponseActive(allowsTableResponse)
             let persistedFacetFilter = settingsStore.searchFacetFilter
             searchFacetFilter = persistedFacetFilter
-            search.updateSearchFacetFilter(persistedFacetFilter)
+            appState.applySearchFacetFilter(persistedFacetFilter)
             prepareViewportRestoration()
             searchDraft = search.tableSearchDraft.isEmpty
                 ? search.searchQuery
@@ -240,7 +240,6 @@ struct WorkbenchTestSearchView: View {
             get: { searchFacetFilter },
             set: { newValue in
                 guard !isSelectionMode,
-                      !search.isFacetSnapshotCalculating,
                       searchFacetFilter != newValue
                 else {
                     return
@@ -285,8 +284,8 @@ struct WorkbenchTestSearchView: View {
 
     private var tableTextCopySource: WorkbenchSearchTableTextCopySource? {
         let query = search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
-        let cueIDs = search.filteredSearchResultCueIDs
-        let resultRowCount = search.filteredSearchResultTotalCount ?? -1
+        let cueIDs = search.searchResultCueIDs
+        let resultRowCount = exactSearchResultRowCount
         guard !query.isEmpty,
               workbenchSearchHasCompleteTextCopyBoundary(
                   searchStatus: search.searchStatus,
@@ -354,15 +353,20 @@ struct WorkbenchTestSearchView: View {
               workbenchSearchHasCompleteTextCopyBoundary(
                   searchStatus: search.searchStatus,
                   countState: search.searchCountState,
-                  cueIDs: search.filteredSearchResultCueIDs,
-                  resultRowCount: search.filteredSearchResultTotalCount ?? -1
+                  cueIDs: search.searchResultCueIDs,
+                  resultRowCount: exactSearchResultRowCount
               ),
-              search.filteredSearchResultTotalCount == source.resultRowCount,
-              search.filteredSearchResultCueIDs == source.cueIDs
+              exactSearchResultRowCount == source.resultRowCount,
+              search.searchResultCueIDs == source.cueIDs
         else {
             return false
         }
         return true
+    }
+
+    /// The exact filtered result count, or -1 while the count is still being calculated.
+    private var exactSearchResultRowCount: Int {
+        search.searchCountState == .exact ? search.searchResultTotalCount : -1
     }
 
     private var tableSummary: SchemaWorkbenchTableSummary {
@@ -425,7 +429,7 @@ struct WorkbenchTestSearchView: View {
             hasDeferredRefreshWhileCovered = true
             return
         }
-        search.activateCurrentSearchTableProjection()
+        search.activateResidentSearchTableProjection()
         rowSelection.clamp(rowCount: rowStore.snapshot.totalRowCount)
     }
 
@@ -530,7 +534,7 @@ struct WorkbenchTestSearchView: View {
         tableScrollTargetRow = nil
         didRestoreViewport = true
         tableScrollResetToken += 1
-        search.updateSearchFacetFilter(filter)
+        appState.applySearchFacetFilter(filter)
     }
 
     private func exportSelectedRowsToAnki() {

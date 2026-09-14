@@ -2246,3 +2246,63 @@ func visibleSearchContinuesPastFilteredFTSCandidates() throws {
     #expect(secondPage.totalCount == 3)
     #expect(secondPage.nextCursor == nil)
 }
+
+@Test
+func searchPageAppliesTheFacetFilterToResultsWhileTheSnapshotKeepsEveryMatch() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try IndexingDatabase(path: databaseURL)
+    try DatabaseBootstrap.prepare(at: databaseURL)
+    try database.replaceEntries(
+        subtitleFile: URL(fileURLWithPath: "/Media/Facet.srt"),
+        videoFile: URL(fileURLWithPath: "/Media/Facet.mkv"),
+        entries: (0..<6).map { index in
+            SubtitleEntry(
+                sequenceNumber: index + 1,
+                startTimecode: "00:00:0\(index),000",
+                endTimecode: index.isMultiple(of: 2) ? "00:00:0\(index),500" : "00:00:0\(index),999",
+                startMilliseconds: index * 1_000,
+                endMilliseconds: index * 1_000 + (index.isMultiple(of: 2) ? 500 : 2_500),
+                text: "Facet filtered line \(index)"
+            )
+        }
+    )
+
+    let shortCues = CueFacetFilter(durations: [.underOneSecond])
+    let search = try SearchDatabase(path: databaseURL)
+
+    let visiblePage = try search.searchVisiblePage(
+        "facet",
+        limit: 2,
+        cursor: .start,
+        facetFilter: shortCues
+    )
+    #expect(visiblePage.results.map(\.content) == ["Facet filtered line 0", "Facet filtered line 2"])
+    #expect(visiblePage.nextCursor?.offset == 2)
+
+    let exactPage = try search.searchPage("facet", limit: 10, facetFilter: shortCues)
+    #expect(exactPage.results.map(\.content) == [
+        "Facet filtered line 0", "Facet filtered line 2", "Facet filtered line 4"
+    ])
+    #expect(exactPage.results.map(\.searchRank) == [0, 1, 2])
+    #expect(exactPage.totalCount == 3)
+    #expect(exactPage.cueIDs == exactPage.results.map(\.entryID))
+    #expect(exactPage.fileSummaries.map(\.matchCount) == [3])
+
+    let snapshot = try #require(exactPage.facetSnapshot)
+    #expect(snapshot.cueIDs.count == 6)
+    #expect(snapshot.distribution.durationCounts == [
+        .underOneSecond: 3,
+        .oneToUnderThreeSeconds: 3,
+    ])
+    #expect(snapshot.filteredCueIDs(using: shortCues, limit: 6).distribution.durationCounts == [
+        .underOneSecond: 3,
+        .oneToUnderThreeSeconds: 3,
+    ])
+
+    let unfilteredPage = try search.searchPage("facet", limit: 10)
+    #expect(unfilteredPage.totalCount == 6)
+}

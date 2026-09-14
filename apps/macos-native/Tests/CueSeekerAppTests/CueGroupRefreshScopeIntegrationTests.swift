@@ -302,7 +302,7 @@ struct CueGroupRefreshScopeIntegrationTests {
             await executor.waitUntilStarted()
 
             switch app.search.tableProjectionSource {
-            case .residentSearch, .facetSearch:
+            case .residentSearch:
                 #expect(app.search.tableRowStore.snapshot.orderedEntryIDs
                     == originalEntryIDs)
             default:

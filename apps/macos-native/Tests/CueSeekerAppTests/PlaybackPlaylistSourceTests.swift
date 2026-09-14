@@ -334,45 +334,47 @@ func searchPlaybackPlaylistTracksAndRetainsItsWorkbenchResultRun() throws {
 
 @MainActor
 @Test
-func searchPlaybackPlaylistUsesActiveFacetProjection() throws {
+func searchPlaybackPlaylistUsesTheFilteredResults() throws {
     _ = NSApplication.shared
     let databaseURL = FileManager.default.temporaryDirectory
         .appendingPathComponent("playback-playlist-search-facet-\(UUID().uuidString).sqlite")
     defer { try? FileManager.default.removeItem(at: databaseURL) }
     let app = AppCoordinator(databaseURL: databaseURL)
     app.search.updateQuery("query")
+    app.search.updateSearchFacetFilter(CueFacetFilter(
+        durations: [.underOneSecond]
+    ))
     let generation = app.search.prepareSearch(
         appending: false,
         filterSet: SubtitleSearchFilterSet()
     )
-    let results = (0..<120).map { ordinal in
+    // The scan matched 120 cues; the filter kept the 60 even ones as the results.
+    let matchedCueIDs = (0..<120).map { Int64(100 + $0) }
+    let results = (0..<60).map { ordinal in
         makePlaybackPlaylistSearchResult(
-            id: Int64(100 + ordinal),
+            id: Int64(100 + ordinal * 2),
             searchRank: ordinal
         )
     }
     let facetSnapshot = CueFacetSnapshot(
-        cueIDs: results.map(\.entryID),
-        durationFacets: results.indices.map {
+        cueIDs: matchedCueIDs,
+        durationFacets: matchedCueIDs.indices.map {
             $0.isMultiple(of: 2) ? .underOneSecond : .fiveSecondsOrMore
         },
-        characterFacets: Array(repeating: .oneToTen, count: results.count),
-        languageFacets: Array(repeating: [.english], count: results.count),
-        watchStateFacets: Array(repeating: .unwatched, count: results.count)
+        characterFacets: Array(repeating: .oneToTen, count: matchedCueIDs.count),
+        languageFacets: Array(repeating: [.english], count: matchedCueIDs.count),
+        watchStateFacets: Array(repeating: .unwatched, count: matchedCueIDs.count)
     )
     let page = SubtitleSearchPage(
         results: results,
-        cueIDs: facetSnapshot.cueIDs,
+        cueIDs: results.map(\.entryID),
         totalCount: results.count,
         fileSummaries: [],
         facetSnapshot: facetSnapshot
     )
     #expect(app.search.commitExactSearchPage(page, generation: generation))
-    app.search.updateSearchFacetFilter(CueFacetFilter(
-        durations: [.underOneSecond]
-    ))
 
-    app.installSearchPlaybackPlaylistSource(seed: results[118])
+    app.installSearchPlaybackPlaylistSource(seed: results[59])
 
     let source = try #require(app.playback.playlistSource)
     let position = try #require(app.playback.playlistPosition)
