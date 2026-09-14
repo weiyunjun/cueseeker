@@ -334,6 +334,13 @@ public final class SearchDatabase: @unchecked Sendable {
         )
     }
 
+    /// Reads a `searchCandidateColumnsSQL` row, whose column 15 is the watch state.
+    private func searchCandidateWithWatchState(from statement: SQLiteStatement) -> SearchCandidate {
+        var candidate = searchCandidate(from: statement)
+        candidate.watchState = LibraryWatchState(rawValue: statement.stringColumn(15)) ?? .unwatched
+        return candidate
+    }
+
     private func searchCandidate(from statement: SQLiteStatement) -> SearchCandidate {
         SearchCandidate(
             cueGroupID: statement.int64Column(0),
@@ -564,7 +571,6 @@ public final class SearchDatabase: @unchecked Sendable {
         do {
             let setupStart = Self.diagnosticNow()
             let candidateBatchLimit = Self.searchCandidateBatchLimit(for: limit, mode: mode)
-            var candidateOffset = 0
             var matchedCueIDs: [Int64] = []
             var matchedDurationFacets: [CueDurationFacet] = []
             var matchedCharacterFacets: [CueCharacterFacet] = []
@@ -604,54 +610,17 @@ public final class SearchDatabase: @unchecked Sendable {
                     watchStateFacets: matchedWatchStateFacets
                 )
             }
-            let scopeCondition = pathPrefixes.map {
-                let conditions = $0.map { _ in "(sf.subtitle_path >= ? AND sf.subtitle_path < ?)" }
-                    .joined(separator: " OR ")
-                return "AND (\(conditions))"
-            } ?? ""
-            let subtitlePathCondition = subtitlePathFilter.map { _ in "AND sf.subtitle_path = ?" } ?? ""
             let languageFilterCodes = Self.languageCodesForSearchFilter(languageFilter)
             let languageFilterCodeSet = Set(languageFilterCodes)
             let filtersByMatchingLineLanguage = !languageFilterCodeSet.isEmpty
             let languageConditionCodes = languageFilterCodes.contains(.unknown) ? [] : languageFilterCodes
-            let languageCondition: String
-            if languageConditionCodes.isEmpty {
-                languageCondition = ""
-            } else {
-                let placeholders = Array(repeating: "?", count: languageConditionCodes.count)
-                    .joined(separator: ", ")
-                languageCondition = """
-                AND (
-                    EXISTS (
-                        SELECT 1
-                        FROM subtitle_cue_group_languages cgl
-                        WHERE cgl.cue_group_id = g.id
-                          AND cgl.language_code IN (\(placeholders))
-                    )
-                    OR NOT EXISTS (
-                        SELECT 1
-                        FROM subtitle_cue_group_languages cgl_missing
-                        WHERE cgl_missing.cue_group_id = g.id
-                    )
-                )
-                """
-            }
             let watchStateValues = watchStateFilter.states.map(\.rawValue)
-            let watchStateJoin = "LEFT JOIN library_watch_states ws ON ws.video_file_id = vf.id"
-            let watchStateCondition: String
-            if watchStateValues.isEmpty {
-                watchStateCondition = ""
-            } else {
-                let placeholders = Array(repeating: "?", count: watchStateValues.count)
-                    .joined(separator: ", ")
-                watchStateCondition = "AND ws.state IN (\(placeholders))"
-            }
             emit(
                 "setup",
                 since: setupStart,
                 fields: [
                     .init("candidateBatchLimit", candidateBatchLimit),
-                    .init("scopeCondition", scopeCondition.isEmpty ? "none" : "path"),
+                    .init("scopeCondition", pathPrefixes == nil ? "none" : "path"),
                     .init("subtitlePathFilter", subtitlePathFilter == nil ? "false" : "true"),
                     .init("languageFilter", languageFilter.rawValue),
                     .init("watchStateFilter", watchStateFilter.rawValue),
@@ -668,94 +637,34 @@ public final class SearchDatabase: @unchecked Sendable {
             )
             emit("search_order_rows_validated", since: searchOrderRowsStart)
 
-            let prepareStart = Self.diagnosticNow()
-            let statement = try database.prepare(
-                """
-                SELECT g.id, sf.id, sf.subtitle_path, sf.format, vf.path, vf.video_name,
-                       g.start_ms, g.end_ms, g.time_range, g.search_content, g.line_count,
-                       sor.subtitle_file_name, sor.display_title, sor.folder_order, sor.file_order,
-                       COALESCE(ws.state, '\(LibraryWatchState.unwatched.rawValue)')
-                FROM subtitle_cue_groups_fts f
-                JOIN subtitle_cue_groups g ON g.id = f.cue_group_id
-                JOIN subtitle_files sf ON sf.id = g.subtitle_file_id
-                JOIN subtitle_video_matches m ON m.subtitle_file_id = sf.id AND m.is_active = 1
-                JOIN video_files vf ON vf.id = m.video_file_id
-                \(watchStateJoin)
-                JOIN subtitle_search_order_rows sor ON sor.subtitle_file_id = sf.id
-                WHERE subtitle_cue_groups_fts MATCH ?
-                \(scopeCondition)
-                \(subtitlePathCondition)
-                \(languageCondition)
-                \(watchStateCondition)
-                ORDER BY sor.display_title COLLATE NOCASE ASC,
-                         sf.subtitle_path COLLATE NOCASE ASC,
-                         g.start_ms ASC, g.end_ms ASC, g.id ASC
-                LIMIT ? OFFSET ?;
-                """
+            let fileRanksStart = Self.diagnosticNow()
+            let fileRanks = try searchFileRanks(
+                pathPrefixes: pathPrefixes,
+                subtitlePath: subtitlePathFilter
             )
-            emit("statement_prepare", since: prepareStart)
+            emit("file_ranks", since: fileRanksStart, fields: [.init("files", fileRanks.count)])
 
-            while true {
+            let hitsStart = Self.diagnosticNow()
+            let orderedHitRowIDs = try orderedFTSHitRowIDs(
+                matching: plan.ftsQuery,
+                fileRanks: fileRanks
+            )
+            emit("fts_hits", since: hitsStart, fields: [.init("hits", orderedHitRowIDs.count)])
+
+            var nextHitIndex = 0
+            while nextHitIndex < orderedHitRowIDs.count {
                 try Task.checkCancellation()
                 batchIndex += 1
                 let queryStart = Self.diagnosticNow()
-                try statement.reset()
-                try statement.clearBindings()
-
-                try statement.bind(plan.ftsQuery, at: 1)
-                var bindIndex: Int32 = 2
-                if let pathPrefixes {
-                    for prefix in pathPrefixes {
-                        try statement.bind(prefix, at: bindIndex)
-                        bindIndex += 1
-                        try statement.bind(Self.pathPrefixUpperBound(for: prefix), at: bindIndex)
-                        bindIndex += 1
-                    }
-                }
-                if let subtitlePathFilter {
-                    try statement.bind(subtitlePathFilter, at: bindIndex)
-                    bindIndex += 1
-                }
-                for languageCode in languageConditionCodes {
-                    try statement.bind(languageCode.rawValue, at: bindIndex)
-                    bindIndex += 1
-                }
-                for watchStateValue in watchStateValues {
-                    try statement.bind(watchStateValue, at: bindIndex)
-                    bindIndex += 1
-                }
-                try statement.bind(candidateBatchLimit, at: bindIndex)
-                bindIndex += 1
-                try statement.bind(candidateOffset, at: bindIndex)
-
-                var candidates: [SearchCandidate] = []
-                while try statement.step() {
-                    try Task.checkCancellation()
-                    candidates.append(
-                        SearchCandidate(
-                            cueGroupID: statement.int64Column(0),
-                            subtitleFileID: statement.int64Column(1),
-                            subtitlePath: statement.stringColumn(2),
-                            subtitleFormat: SubtitleFormat(rawValue: statement.stringColumn(3)) ?? .srt,
-                            videoPath: statement.stringColumn(4),
-                            videoName: statement.stringColumn(5),
-                            startMilliseconds: statement.intColumn(6),
-                            endMilliseconds: statement.intColumn(7),
-                            timeRange: statement.stringColumn(8),
-                            searchContent: statement.stringColumn(9),
-                            lineCount: statement.intColumn(10),
-                            order: SearchResultOrder(
-                                subtitleFileName: statement.stringColumn(11),
-                                displayTitle: statement.stringColumn(12),
-                                folderOrder: statement.intColumn(13),
-                                fileOrder: statement.intColumn(14)
-                            ),
-                            watchState: LibraryWatchState(
-                                rawValue: statement.stringColumn(15)
-                            ) ?? .unwatched
-                        )
-                    )
-                }
+                let chunkEnd = min(nextHitIndex + candidateBatchLimit, orderedHitRowIDs.count)
+                let chunkRowIDs = Array(orderedHitRowIDs[nextHitIndex..<chunkEnd])
+                let candidateOffset = nextHitIndex
+                nextHitIndex = chunkEnd
+                let candidates = try searchCandidates(
+                    forFTSRowIDs: chunkRowIDs,
+                    languageConditionCodes: languageConditionCodes,
+                    watchStateValues: watchStateValues
+                )
                 emit(
                     "fts_batch",
                     since: queryStart,
@@ -766,12 +675,15 @@ public final class SearchDatabase: @unchecked Sendable {
                         .init("candidates", candidates.count)
                     ]
                 )
+                let isLastCandidateBatch = nextHitIndex >= orderedHitRowIDs.count
 
                 guard !candidates.isEmpty else {
-                    break
+                    if isLastCandidateBatch {
+                        break
+                    }
+                    continue
                 }
 
-                candidateOffset += candidates.count
                 totalCandidates += candidates.count
 
                 let candidateCueGroupIDs = candidates.map(\.cueGroupID)
@@ -885,7 +797,6 @@ public final class SearchDatabase: @unchecked Sendable {
                     ]
                 )
 
-                let isLastCandidateBatch = candidates.count < candidateBatchLimit
                 if mode == .exact,
                    !isLastCandidateBatch,
                    acceptedSearchResultCount > 0 {
@@ -1833,6 +1744,183 @@ public final class SearchDatabase: @unchecked Sendable {
         return recordsByCueID
     }
 
+    private static let searchCandidateColumnsSQL = """
+        SELECT g.id, sf.id, sf.subtitle_path, sf.format, vf.path, vf.video_name,
+               g.start_ms, g.end_ms, g.time_range, g.search_content, g.line_count,
+               sor.subtitle_file_name, sor.display_title, sor.folder_order, sor.file_order,
+               COALESCE(ws.state, '\(LibraryWatchState.unwatched.rawValue)')
+        """
+
+    private static let searchCandidateJoinsSQL = """
+        JOIN subtitle_files sf ON sf.id = g.subtitle_file_id
+        JOIN subtitle_video_matches m ON m.subtitle_file_id = sf.id AND m.is_active = 1
+        JOIN video_files vf ON vf.id = m.video_file_id
+        LEFT JOIN library_watch_states ws ON ws.video_file_id = vf.id
+        JOIN subtitle_search_order_rows sor ON sor.subtitle_file_id = sf.id
+        """
+
+    /// Display rank of every searchable subtitle file inside the scope, in the
+    /// Search order: display title, then subtitle path.
+    private func searchFileRanks(
+        pathPrefixes: [String]?,
+        subtitlePath: String?
+    ) throws -> [Int64: Int] {
+        let scopeCondition = pathPrefixes.map {
+            let conditions = $0.map { _ in "(sf.subtitle_path >= ? AND sf.subtitle_path < ?)" }
+                .joined(separator: " OR ")
+            return "AND (\(conditions))"
+        } ?? ""
+        let subtitlePathCondition = subtitlePath.map { _ in "AND sf.subtitle_path = ?" } ?? ""
+        let statement = try database.prepare(
+            """
+            SELECT sf.id
+            FROM subtitle_search_order_rows sor
+            JOIN subtitle_files sf ON sf.id = sor.subtitle_file_id
+            WHERE EXISTS (
+                SELECT 1
+                FROM subtitle_video_matches m
+                WHERE m.subtitle_file_id = sf.id AND m.is_active = 1
+            )
+            \(scopeCondition)
+            \(subtitlePathCondition)
+            ORDER BY sor.display_title COLLATE NOCASE ASC,
+                     sf.subtitle_path COLLATE NOCASE ASC;
+            """
+        )
+        var bindIndex = try bindPathPrefixes(pathPrefixes, to: statement, startingAt: 1)
+        if let subtitlePath {
+            try statement.bind(subtitlePath, at: bindIndex)
+            bindIndex += 1
+        }
+
+        var ranks: [Int64: Int] = [:]
+        while try statement.step() {
+            ranks[statement.int64Column(0)] = ranks.count
+        }
+        return ranks
+    }
+
+    /// FTS hit rowids inside the scope, ordered by file display rank and then
+    /// by time inside the file. Reads only the FTS index, never a content row.
+    private func orderedFTSHitRowIDs(
+        matching ftsQuery: String,
+        fileRanks: [Int64: Int]
+    ) throws -> [Int64] {
+        guard !fileRanks.isEmpty else {
+            return []
+        }
+        let singleFileRange = fileRanks.count == 1
+            ? fileRanks.keys.first.map(SearchFTSRows.rowIDRange(forSubtitleFileID:))
+            : nil
+        let rangeCondition = singleFileRange == nil ? "" : "AND rowid >= ? AND rowid <= ?"
+        let statement = try database.prepare(
+            """
+            SELECT rowid
+            FROM subtitle_cue_groups_fts
+            WHERE subtitle_cue_groups_fts MATCH ?
+            \(rangeCondition);
+            """
+        )
+        try statement.bind(ftsQuery, at: 1)
+        if let singleFileRange {
+            try statement.bind(singleFileRange.lowerBound, at: 2)
+            try statement.bind(singleFileRange.upperBound, at: 3)
+        }
+
+        var hits: [(rank: Int, rowID: Int64)] = []
+        var stepped = 0
+        while try statement.step() {
+            stepped += 1
+            if stepped % 4096 == 0 {
+                try Task.checkCancellation()
+            }
+            let rowID = statement.int64Column(0)
+            guard let rank = fileRanks[SearchFTSRows.subtitleFileID(ofRowID: rowID)] else {
+                continue
+            }
+            hits.append((rank, rowID))
+        }
+        hits.sort { lhs, rhs in
+            lhs.rank != rhs.rank ? lhs.rank < rhs.rank : lhs.rowID < rhs.rowID
+        }
+        return hits.map(\.rowID)
+    }
+
+    /// Candidates for the given FTS rowids, returned in the rowids' order and
+    /// without the rows the language or watch-state filter rejects.
+    private func searchCandidates(
+        forFTSRowIDs rowIDs: [Int64],
+        languageConditionCodes: [SubtitleLanguageCode],
+        watchStateValues: [String]
+    ) throws -> [SearchCandidate] {
+        guard !rowIDs.isEmpty else {
+            return []
+        }
+
+        let languageCondition: String
+        if languageConditionCodes.isEmpty {
+            languageCondition = ""
+        } else {
+            let placeholders = Array(repeating: "?", count: languageConditionCodes.count)
+                .joined(separator: ", ")
+            languageCondition = """
+            AND (
+                EXISTS (
+                    SELECT 1
+                    FROM subtitle_cue_group_languages cgl
+                    WHERE cgl.cue_group_id = g.id
+                      AND cgl.language_code IN (\(placeholders))
+                )
+                OR NOT EXISTS (
+                    SELECT 1
+                    FROM subtitle_cue_group_languages cgl_missing
+                    WHERE cgl_missing.cue_group_id = g.id
+                )
+            )
+            """
+        }
+        let watchStateCondition: String
+        if watchStateValues.isEmpty {
+            watchStateCondition = ""
+        } else {
+            let placeholders = Array(repeating: "?", count: watchStateValues.count)
+                .joined(separator: ", ")
+            watchStateCondition = "AND ws.state IN (\(placeholders))"
+        }
+        let rowIDPlaceholders = rowIDs.map { _ in "?" }.joined(separator: ", ")
+        let statement = try database.prepare(
+            """
+            \(Self.searchCandidateColumnsSQL), f.rowid
+            FROM subtitle_cue_groups_fts f
+            JOIN subtitle_cue_groups g ON g.id = f.cue_group_id
+            \(Self.searchCandidateJoinsSQL)
+            WHERE f.rowid IN (\(rowIDPlaceholders))
+            \(languageCondition)
+            \(watchStateCondition);
+            """
+        )
+        var bindIndex: Int32 = 1
+        for rowID in rowIDs {
+            try statement.bind(rowID, at: bindIndex)
+            bindIndex += 1
+        }
+        for languageCode in languageConditionCodes {
+            try statement.bind(languageCode.rawValue, at: bindIndex)
+            bindIndex += 1
+        }
+        for watchStateValue in watchStateValues {
+            try statement.bind(watchStateValue, at: bindIndex)
+            bindIndex += 1
+        }
+
+        var candidatesByRowID: [Int64: SearchCandidate] = [:]
+        candidatesByRowID.reserveCapacity(rowIDs.count)
+        while try statement.step() {
+            candidatesByRowID[statement.int64Column(16)] = searchCandidateWithWatchState(from: statement)
+        }
+        return rowIDs.compactMap { candidatesByRowID[$0] }
+    }
+
     private func searchCandidates(forCueGroupIDs cueGroupIDs: [Int64]) throws -> [Int64: SearchCandidate] {
         guard !cueGroupIDs.isEmpty else {
             return [:]
@@ -1841,14 +1929,9 @@ public final class SearchDatabase: @unchecked Sendable {
         let placeholders = cueGroupIDs.map { _ in "?" }.joined(separator: ", ")
         let statement = try database.prepare(
             """
-            SELECT g.id, sf.id, sf.subtitle_path, sf.format, vf.path, vf.video_name,
-                   g.start_ms, g.end_ms, g.time_range, g.search_content, g.line_count,
-                   sor.subtitle_file_name, sor.display_title, sor.folder_order, sor.file_order
+            \(Self.searchCandidateColumnsSQL)
             FROM subtitle_cue_groups g
-            JOIN subtitle_files sf ON sf.id = g.subtitle_file_id
-            JOIN subtitle_video_matches m ON m.subtitle_file_id = sf.id AND m.is_active = 1
-            JOIN video_files vf ON vf.id = m.video_file_id
-            JOIN subtitle_search_order_rows sor ON sor.subtitle_file_id = sf.id
+            \(Self.searchCandidateJoinsSQL)
             WHERE g.id IN (\(placeholders));
             """
         )
@@ -1860,26 +1943,8 @@ public final class SearchDatabase: @unchecked Sendable {
         var candidates: [Int64: SearchCandidate] = [:]
         candidates.reserveCapacity(cueGroupIDs.count)
         while try statement.step() {
-            let cueGroupID = statement.int64Column(0)
-            candidates[cueGroupID] = SearchCandidate(
-                cueGroupID: cueGroupID,
-                subtitleFileID: statement.int64Column(1),
-                subtitlePath: statement.stringColumn(2),
-                subtitleFormat: SubtitleFormat(rawValue: statement.stringColumn(3)) ?? .srt,
-                videoPath: statement.stringColumn(4),
-                videoName: statement.stringColumn(5),
-                startMilliseconds: statement.intColumn(6),
-                endMilliseconds: statement.intColumn(7),
-                timeRange: statement.stringColumn(8),
-                searchContent: statement.stringColumn(9),
-                lineCount: statement.intColumn(10),
-                order: SearchResultOrder(
-                    subtitleFileName: statement.stringColumn(11),
-                    displayTitle: statement.stringColumn(12),
-                    folderOrder: statement.intColumn(13),
-                    fileOrder: statement.intColumn(14)
-                )
-            )
+            let candidate = searchCandidateWithWatchState(from: statement)
+            candidates[candidate.cueGroupID] = candidate
         }
 
         return candidates

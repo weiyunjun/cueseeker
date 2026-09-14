@@ -873,3 +873,90 @@ let identityEraFixtureSchemaSQL = """
         language_code TEXT NOT NULL
     );
     """
+
+@Test
+func migratesSchema47ByEncodingFTSRowIDsByFileAndTime() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    try DatabaseBootstrap.prepare(at: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
+    try database.replaceEntries(
+        subtitleFile: URL(fileURLWithPath: "/Media/Alpha.srt"),
+        videoFile: URL(fileURLWithPath: "/Media/Alpha.mkv"),
+        entries: [
+            SubtitleEntry(
+                sequenceNumber: 1,
+                startTimecode: "00:00:05,000",
+                endTimecode: "00:00:06,000",
+                startMilliseconds: 5_000,
+                endMilliseconds: 6_000,
+                text: "Later alpha"
+            ),
+            SubtitleEntry(
+                sequenceNumber: 2,
+                startTimecode: "00:00:01,000",
+                endTimecode: "00:00:02,000",
+                startMilliseconds: 1_000,
+                endMilliseconds: 2_000,
+                text: "Earlier alpha"
+            )
+        ]
+    )
+    try database.replaceEntries(
+        subtitleFile: URL(fileURLWithPath: "/Media/Beta.srt"),
+        videoFile: URL(fileURLWithPath: "/Media/Beta.mkv"),
+        entries: [
+            SubtitleEntry(
+                sequenceNumber: 1,
+                startTimecode: "00:00:03,000",
+                endTimecode: "00:00:04,000",
+                startMilliseconds: 3_000,
+                endMilliseconds: 4_000,
+                text: "Only beta"
+            )
+        ]
+    )
+    // Give the rows the appended rowids schema 47 left behind, then migrate again.
+    try executeDatabaseTestSQLite(
+        at: databaseURL,
+        """
+        CREATE TEMP TABLE scrambled AS
+            SELECT rowid AS old_rowid, content, cue_group_id FROM subtitle_cue_groups_fts;
+        DELETE FROM subtitle_cue_groups_fts;
+        INSERT INTO subtitle_cue_groups_fts(rowid, content, cue_group_id)
+            SELECT old_rowid + 100000, content, cue_group_id FROM scrambled;
+        PRAGMA user_version = 47;
+        """
+    )
+
+    try DatabaseBootstrap.prepare(at: databaseURL)
+
+    #expect(try sqliteSchemaVersion(at: databaseURL) == DatabaseBootstrap.currentSchemaVersion)
+    #expect(try sqliteRowCount(in: "subtitle_cue_groups_fts", databaseURL: databaseURL) == 3)
+    #expect(
+        try sqliteStringValue(
+            at: databaseURL,
+            sql: """
+            SELECT COUNT(*)
+            FROM subtitle_cue_groups_fts f
+            JOIN (
+                SELECT id,
+                       (subtitle_file_id << 24)
+                           | ROW_NUMBER() OVER (
+                               PARTITION BY subtitle_file_id
+                               ORDER BY start_ms ASC, end_ms ASC, id ASC
+                           ) AS expected_rowid
+                FROM subtitle_cue_groups
+            ) g ON g.id = f.cue_group_id
+            WHERE f.rowid = g.expected_rowid;
+            """
+        ) == "3"
+    )
+    #expect(
+        try SearchDatabase(path: databaseURL).searchPage("alpha", limit: 10).results.map(\.content)
+            == ["Earlier alpha", "Later alpha"]
+    )
+}

@@ -542,6 +542,7 @@ public final class IndexingDatabase: @unchecked Sendable {
         }
 
         var newCueIndex = 0
+        let ftsSequences = SearchFTSRows.sequences(for: cueGroups)
         for (index, group) in cueGroups.enumerated() {
             let cueGroupID = try insertCueGroup(
                 subtitleFileID: subtitleFileID,
@@ -568,7 +569,15 @@ public final class IndexingDatabase: @unchecked Sendable {
                 }
                 newCueIndex += 1
             }
-            try insertFTSRow(cueGroupID: cueGroupID, content: group.searchContent)
+            try SearchFTSRows.insert(
+                on: database,
+                rowID: SearchFTSRows.rowID(
+                    subtitleFileID: subtitleFileID,
+                    sequence: ftsSequences[index]
+                ),
+                cueGroupID: cueGroupID,
+                content: group.searchContent
+            )
             if let languages = languageAnalysis?.cueGroupLanguages[index] {
                 try insertCueGroupLanguages(cueGroupID: cueGroupID, languages: languages)
             }
@@ -822,7 +831,6 @@ public final class IndexingDatabase: @unchecked Sendable {
 
     private func rebuildSearchDerivedIndexInCurrentTransaction() throws {
         try rebuildSearchOrderRows()
-        try rebuildFTSRowsInProductOrder()
     }
 
     func refreshSearchOrderRows(
@@ -901,49 +909,6 @@ public final class IndexingDatabase: @unchecked Sendable {
         }
         try insertSearchOrderRows(for: files)
     }
-
-    private func requireCompleteSearchOrderRows(
-        pathPrefixes: [String]?,
-        subtitlePath: String?
-    ) throws {
-        let scopeCondition = pathPrefixes.map {
-            let conditions = $0.map { _ in "(sf.subtitle_path >= ? AND sf.subtitle_path < ?)" }
-                .joined(separator: " OR ")
-            return "AND (\(conditions))"
-        } ?? ""
-        let subtitlePathCondition = subtitlePath.map { _ in "AND sf.subtitle_path = ?" } ?? ""
-        let statement = try database.prepare(
-            """
-            SELECT sf.subtitle_path
-            FROM subtitle_files sf
-            LEFT JOIN subtitle_search_order_rows sor ON sor.subtitle_file_id = sf.id
-            WHERE sor.subtitle_file_id IS NULL
-            \(scopeCondition)
-            \(subtitlePathCondition)
-            LIMIT 1;
-            """
-        )
-
-        var bindIndex: Int32 = 1
-        if let pathPrefixes {
-            for prefix in pathPrefixes {
-                try statement.bind(prefix, at: bindIndex)
-                bindIndex += 1
-                try statement.bind(Self.pathPrefixUpperBound(for: prefix), at: bindIndex)
-                bindIndex += 1
-            }
-        }
-        if let subtitlePath {
-            try statement.bind(subtitlePath, at: bindIndex)
-        }
-
-        guard try !statement.step() else {
-            throw SQLiteDatabaseError.stepFailed(
-                "Search order rows are missing for \(statement.stringColumn(0)). Rebuild derived Search order rows before searching."
-            )
-        }
-    }
-
 
     private func indexedSearchOrderFiles(inFolderPath folderPath: String?) throws -> [SearchOrderFile] {
         let statement: SQLiteStatement
@@ -2541,68 +2506,6 @@ public final class IndexingDatabase: @unchecked Sendable {
         try statement.bind(reference.firstOccurrenceOrder, at: 5)
         try statement.bind(ASSFontIntentExtractor.cacheAlgorithmVersion, at: 6)
         try statement.run()
-    }
-
-    private func insertFTSRow(
-        rowID: Int64? = nil,
-        cueGroupID: Int64,
-        content: String
-    ) throws {
-        let statement: SQLiteStatement
-        if let rowID {
-            statement = try database.prepare(
-                """
-                INSERT INTO subtitle_cue_groups_fts(rowid, content, cue_group_id)
-                VALUES (?, ?, ?);
-                """
-            )
-            try statement.bind(rowID, at: 1)
-            try statement.bind(SearchQueryPlanner.segmentForFTS(content), at: 2)
-            try statement.bind(cueGroupID, at: 3)
-        } else {
-            statement = try database.prepare(
-                """
-                INSERT INTO subtitle_cue_groups_fts(content, cue_group_id)
-                VALUES (?, ?);
-                """
-            )
-            try statement.bind(SearchQueryPlanner.segmentForFTS(content), at: 1)
-            try statement.bind(cueGroupID, at: 2)
-        }
-        try statement.run()
-    }
-
-
-    private func rebuildFTSRowsInProductOrder() throws {
-        try requireCompleteSearchOrderRows(pathPrefixes: nil, subtitlePath: nil)
-        try database.execute("DELETE FROM subtitle_cue_groups_fts;")
-
-        var rows: [(cueGroupID: Int64, content: String)] = []
-        let statement = try database.prepare(
-            """
-            SELECT g.id, g.search_content
-            FROM subtitle_cue_groups g
-            JOIN subtitle_files sf ON sf.id = g.subtitle_file_id
-            JOIN subtitle_search_order_rows sor ON sor.subtitle_file_id = sf.id
-            ORDER BY sor.display_title COLLATE NOCASE ASC,
-                     sf.subtitle_path COLLATE NOCASE ASC,
-                     g.start_ms ASC,
-                     g.end_ms ASC,
-                     g.id ASC;
-            """
-        )
-
-        while try statement.step() {
-            rows.append((statement.int64Column(0), statement.stringColumn(1)))
-        }
-
-        for (index, row) in rows.enumerated() {
-            try insertFTSRow(
-                rowID: Int64(index + 1),
-                cueGroupID: row.cueGroupID,
-                content: row.content
-            )
-        }
     }
 
     private func cueLines(forCueGroupID cueGroupID: Int64) throws -> [SubtitleCueLine] {

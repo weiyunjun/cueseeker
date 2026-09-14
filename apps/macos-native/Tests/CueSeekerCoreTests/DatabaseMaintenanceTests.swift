@@ -33,6 +33,9 @@ func reportsStorageStatsAndCompactsFreelistPages() throws {
         entries: entries
     )
     try database.reconcileIndexedContent(activeFolders: [])
+    // Move the cleared pages into the main file so the size comparison below does
+    // not depend on whether the writes so far happened to trigger a checkpoint.
+    try executeDatabaseTestSQLite(at: databaseURL, "PRAGMA wal_checkpoint(TRUNCATE);")
 
     let maintenance = try DatabaseMaintenanceDatabase(path: databaseURL)
     let statsAfterClear = try maintenance.storageStats()

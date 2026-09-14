@@ -12,7 +12,7 @@ public enum DatabaseBootstrapError: Error, Equatable, CustomStringConvertible {
 }
 
 public enum DatabaseBootstrap {
-    public static let currentSchemaVersion = 47
+    public static let currentSchemaVersion = 48
 
     public static func prepare(at path: URL) throws {
         let database = try SQLiteDatabase(path: path, access: .readWrite)
@@ -59,6 +59,7 @@ private extension DatabaseBootstrap {
                 || previousVersion == 44
                 || previousVersion == 45
                 || previousVersion == 46
+                || previousVersion == 47
                 || previousVersion == DatabaseBootstrap.currentSchemaVersion
         else {
             throw DatabaseBootstrapError.unsupportedSchemaVersion(
@@ -146,6 +147,9 @@ private extension DatabaseBootstrap {
         }
         if previousVersion >= 33, previousVersion <= 46 {
             try migrateSchema46To47(on: database)
+        }
+        if previousVersion >= 33, previousVersion <= 47 {
+            try migrateSchema47To48(on: database)
             return
         }
         guard previousVersion == 0 else {
@@ -700,6 +704,21 @@ private extension DatabaseBootstrap {
                 PRAGMA user_version = 47;
                 """
             )
+        }
+    }
+
+    /// Schema 48 rewrites every FTS row so its rowid encodes the subtitle file
+    /// and the cue group's time position inside that file. Search reads hit
+    /// rowids alone and orders them by file display rank, which keeps the first
+    /// page cheap no matter in which order files were indexed.
+    static func migrateSchema47To48(on database: SQLiteDatabase) throws {
+        try database.withImmediateTransaction {
+            let hasSearchTables = try !columnNames(of: "subtitle_cue_groups_fts", in: database).isEmpty
+                && !columnNames(of: "subtitle_cue_groups", in: database).isEmpty
+            if hasSearchTables {
+                try SearchFTSRows.rebuild(on: database)
+            }
+            try database.execute("PRAGMA user_version = 48;")
         }
     }
 
