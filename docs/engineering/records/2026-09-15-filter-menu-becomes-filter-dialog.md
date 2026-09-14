@@ -27,7 +27,7 @@ Classified as platform UI and UX. The count rules in `CueSeekerCore` are unchang
 - The filter menu is gone: its surface, measuring, keyboard highlight and the Menu Gate's `filterMenu` kind. The Excerpt store's table facet distribution, read only by that menu, is removed.
 - The dialog view kept the file name `CueFacetFilterPanel.swift`; a rename would remove the old path, which is left to the owner.
 
-Values introduced, pending the design document: `--height-filter-chip` 32px, `--size-filter-chip-count-placeholder` 24px × 12px, `--color-filter-chip-selected-content` macOS accent colour, `--color-filter-chip-selected-bg` same as `--color-library-media-card-hover-bg`; capsule radius; from the requirement, `--size-spinner` 16px, `--width-spinner-stroke` 2px, `--color-spinner-track` Light `#E5E7EB` / Dark `#3F3F46`, `--color-spinner-indicator` Light `#717171` / Dark `#878787`. Everything else references existing tokens: section gap `--spacing-4`, header to options and option gaps `--spacing-2`, section header as the former Menu Section Header, count `--font-size-caption` / `--color-text-secondary`, placeholder `--color-border-control`, Spinner motion `--duration-spinner-motion` / `--easing-spinner-motion`.
+Values introduced, pending the design document: `--height-filter-chip` 32px, `--width-filter-chip-count-placeholder` 24px, `--height-filter-chip-count-placeholder` 12px, `--color-filter-chip-selected-content` macOS accent colour, `--color-filter-chip-selected-bg` same as `--color-library-media-card-hover-bg`; capsule radius; from the requirement, `--size-spinner` 16px, `--width-spinner-stroke` 2px, `--color-spinner-track` Light `#E5E7EB` / Dark `#3F3F46`, `--color-spinner-indicator` Light `#717171` / Dark `#878787`. Everything else references existing tokens: section gap `--spacing-4`, header to options and option gaps `--spacing-2`, section header as the former Menu Section Header, count `--font-size-caption` / `--color-text-secondary`, placeholder `--color-border-control`, Spinner motion `--duration-spinner-motion` / `--easing-spinner-motion`.
 
 Files:
 
@@ -70,4 +70,4 @@ Files:
 
 ## Outcome
 
-Implemented and verified as above; awaiting the owner's acceptance in the app. The design documents are updated by the owner after acceptance.
+Implemented and verified as above. The owner accepted it and recorded it in both design documents (`f0ea6e13`); the placeholder's token names in the code comments were then aligned with the two tokens the design document records.

@@ -185,9 +185,10 @@ enum WorkbenchControlMetrics {
     static let redesignIconButtonSize: CGFloat = 32
     /// --height-filter-chip: 32px
     static let redesignFilterChipHeight: CGFloat = 32
-    /// --size-filter-chip-count-placeholder: 24px × 12px, the still block in
-    /// place of a count that is not known yet.
+    /// --width-filter-chip-count-placeholder: 24px, the still block in place
+    /// of a count that is not known yet.
     static let redesignFilterChipCountPlaceholderWidth: CGFloat = 24
+    /// --height-filter-chip-count-placeholder: 12px
     static let redesignFilterChipCountPlaceholderHeight: CGFloat = 12
     /// --size-spinner: 16px
     static let redesignSpinnerSize: CGFloat = 16
