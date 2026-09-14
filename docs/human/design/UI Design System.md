@@ -3664,6 +3664,7 @@
 
 #### Ordering
 
+- Search：按 Display Title、字幕路径、Cue 时间的顺序排列；首屏、后续加载页与精确完成后的顺序一致
 - Excerpt：按收藏时间正序排列，最新收藏的在最下方
 
 #### Sizes
