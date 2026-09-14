@@ -72,6 +72,10 @@
 - `--color-checkbox-icon`: Light `#FFFFFF`; Dark `#18181B`
 - `--color-segmented-control-selected-bg`: macOS accent color
 - `--color-segmented-control-selected-content`: Light `#FFFFFF`; Dark `#FFFFFF`
+- `--color-filter-chip-selected-content`: macOS accent color
+- `--color-filter-chip-selected-bg`: Same as `--color-library-media-card-hover-bg`
+- `--color-spinner-track`: Light `#E5E7EB`; Dark `#3F3F46`
+- `--color-spinner-indicator`: Light `#717171`; Dark `#878787`
 - `--color-danger-text`: Light `#B42318`; Dark `#FCA5A5`
 - `--color-danger-bg-hover`: Light `#FEF3F2`; Dark `#3A1717`
 - `--color-success-text`: Light `#047857`; Dark `#6EE7B7`
@@ -213,6 +217,8 @@
 - `--height-filter-bar-control`: `40px`
 - `--height-control`: `40px`
 - `--height-segmented-control`: `32px`
+- `--height-filter-chip`: `32px`
+- `--height-filter-chip-count-placeholder`: `12px`
 - `--height-field`: `40px`
 - `--height-table-header`: `40px`
 - `--min-height-table-row`: `40px`
@@ -247,6 +253,9 @@
 ### Size
 
 - `--size-checkbox`: `21px`
+- `--size-spinner`: `16px`
+- `--width-spinner-stroke`: `2px`
+- `--width-filter-chip-count-placeholder`: `24px`
 - `--size-playback-collage-checkbox`: `31px`
 - `--size-playback-cue-timeline-dot`: `8px`
 - `--size-inline-clear-button`: `24px`
@@ -380,6 +389,7 @@
 - `--radius-search`: `9999px`
 - `--radius-inline-clear-button`: `9999px`
 - `--radius-checkbox`: `9999px`
+- `--radius-filter-chip`: `9999px`
 - `--radius-menu`: `12px`
 - `--radius-dialog`: `10px`
 - `--radius-select-menu-item`: `6px`
@@ -769,12 +779,6 @@
 
 #### Variants
 
-##### Filter Checkbox
-
-- Hit Area：Option Row
-- Hover：None
-- Focus Ring：None
-
 ##### Table Selection Checkbox
 
 - Hit Area：Containing Row
@@ -864,6 +868,50 @@
   - Radius：`--radius-control` 减 `--padding-segmented-control`
   - Label Color：`--color-segmented-control-selected-content`
 - Hover：None
+
+### Filter Chip
+
+#### Shared
+
+##### Anatomy
+
+- Container
+  - Radius：`--radius-filter-chip`
+  - Border Width：`--border-width-control`
+- Label
+  - Font Family：`--font-family-base`
+  - Font Size：`--font-size-body`
+- Count
+  - Font Size：`--font-size-caption`
+  - Placeholder：计数未知时为静止的圆角块，Width `--width-filter-chip-count-placeholder`，Height `--height-filter-chip-count-placeholder`，Color `--color-border-control`
+- Content Gap：`--spacing-2`
+
+##### Sizes
+
+- Height：`--height-filter-chip`
+- Padding Inline：`--padding-control-x`
+
+##### Interaction
+
+- 点击切换选中
+- 不获得焦点
+
+##### States
+
+- Default
+  - Background：`--color-bg-surface`
+  - Border Color：`--color-border-control`
+  - Label Color：`--color-text-primary`
+  - Count Color：`--color-text-secondary`
+- Hover
+  - 仅未选中时
+  - Background：`--color-bg-hover`
+  - Border Color：`--color-border-control-hover`
+- Selected
+  - Background：`--color-filter-chip-selected-bg`
+  - Border Color：`--color-filter-chip-selected-content`
+  - Label Color：`--color-filter-chip-selected-content`
+  - Count Color：`--color-filter-chip-selected-content`
 
 ## 2.3 Buttons
 
@@ -1142,13 +1190,6 @@
 - Item：Menu Item / Radio Menu Item
 - Highlight On Open：当前生效倍速
 
-##### Filter Menu
-
-- Anchor：工具栏的筛选按钮
-- Boundary：以页面内容列为边界，右边界与表格行分隔线右端一致
-- Structure：Menu Title 起头；随后 Duration、Character、Language、Watch Status 四个分节，每节依次为 Menu Divider、Menu Section Header 与该节的 Menu Item / Filter Option Menu Item
-- 勾选即时生效，勾选后菜单保持打开；计数与 calculating 提示在打开期间实时更新
-
 ### Submenu
 
 #### Shared
@@ -1230,19 +1271,6 @@
 - Height：`--height-select-menu-item`
 - Radius：`--radius-select-menu-item`
 
-##### Filter Option Menu Item
-
-- Leading Slot：Checkbox / Filter Checkbox
-- Label
-  - Font Size：`--font-size-body`
-  - Color：`--color-text-primary`
-- Trailing Slot：计数或 calculating 提示
-  - Font Size：`--font-size-caption`
-  - Color：`--color-text-secondary`
-- 点击或回车勾选/取消勾选，菜单保持打开；勾选区域与 Hover 区域一致，为整行
-- Height：`--height-select-menu-item`
-- Radius：`--radius-select-menu-item`
-
 ##### Destructive Menu Item
 
 - Leading Slot：Icon / Empty
@@ -1276,54 +1304,6 @@
 - Margin Block：`--gap-menu-divider`
 
 ##### States
-
-### Menu Title
-
-#### Shared
-
-##### Anatomy
-
-- Label
-  - Font Family：`--font-family-base`
-  - Font Size：`--font-size-control`
-  - Font Weight：Semibold
-  - Color：`--color-text-primary`
-
-##### Sizes
-
-- Height：`--height-select-menu-item`
-- Padding Inline：`--padding-menu-item`
-
-##### Interaction
-
-- Highlight：None
-- 键盘导航自动跳过
-
-### Menu Section Header
-
-#### Shared
-
-##### Anatomy
-
-- Leading Icon
-  - Size：`--size-control-icon`
-  - Color：`--color-text-secondary`
-- Label
-  - Font Family：`--font-family-base`
-  - Font Size：`--font-size-control`
-  - Font Weight：Medium
-  - Color：`--color-text-secondary`
-- Content Gap：`--spacing-2`
-
-##### Sizes
-
-- Height：`--height-select-menu-item`
-- Padding Inline：`--padding-menu-item`
-
-##### Interaction
-
-- Highlight：None
-- 键盘导航自动跳过
 
 ## 2.5 Navigation
 
@@ -2096,6 +2076,34 @@
 - Radius：Capsule
 - States
   - Determinate
+
+### Spinner
+
+#### Shared
+
+##### Anatomy
+
+- Track
+  - Shape：Ring
+  - Color：`--color-spinner-track`
+- Indicator
+  - Shape：四分之一圆弧
+  - Color：`--color-spinner-indicator`
+
+##### Sizes
+
+- Size：`--size-spinner`
+- Stroke Width：`--width-spinner-stroke`
+
+##### Motion
+
+- Type：Indicator Continuous Rotation；Track 静止
+- Duration：`--duration-spinner-motion`
+- Easing：`--easing-spinner-motion`
+
+##### States
+
+- Indeterminate
 
 ### Playback Feedback
 
@@ -3594,7 +3602,7 @@
 #### States
 
 - Default
-- Filter Menu Open
+- Filter Dialog Open
 - Select Mode
 - Calculating
 - Select Unavailable：结果计算中，或当前结果没有可选行时，Select Mode Action 为 Disabled
@@ -3889,6 +3897,55 @@
 
 - Default
 - Validation Error
+
+### Filter Dialog Layout
+
+#### Structure
+
+1. Header
+   1. Title：`Filter`
+   2. Close Button
+2. Sections：Duration、Character、Language、Watch Status，从上到下
+   1. Section Header：图标与名称
+   2. Filter Chip：每个选项一个
+3. Footer
+   1. Calculating Status：Spinner 与 `Calculating`
+   2. Reset
+   3. Cancel
+   4. Show：Search 为 `Show N results`，Excerpt 为 `Show N excerpts`；总数未知时为 `Show results`、`Show excerpts`
+
+#### Components
+
+- Dialog
+- Filter Chip
+- Spinner
+- Button / Neutral
+- Button / Primary
+
+#### Layout
+
+- Width：`--width-dialog-x-large`
+- Section Header：图标 `--size-control-icon`；名称 `--font-size-control`、Medium；颜色 `--color-text-secondary`
+- Filter Chip 从左到右排列，宽度不足时换行
+- Calculating Status 靠左，只在有未知计数时显示；文字 `--font-size-body`、`--color-text-secondary`
+- Reset、Cancel、Show 靠右；对话框内没有选中时 Reset 为 Disabled
+
+#### Spacing
+
+- Region Gap：`--spacing-4`
+- Section Gap：`--spacing-4`
+- Section Header Content Gap：`--spacing-2`
+- Section Header to Chips Gap：`--spacing-2`
+- Chip Gap：`--spacing-2`
+- Chip Line Gap：`--spacing-2`
+- Calculating Status Content Gap：`--spacing-2`
+- Reset to Cancel Gap：`--spacing-3`
+- Footer Action Gap：`--spacing-2`
+
+#### States
+
+- Default
+- Calculating
 
 ### Confirmation Dialog Layout
 
