@@ -27,7 +27,8 @@ Search 与 Excerpt 二级界面的筛选按钮，两个界面共用同一实现�
 
 1. 从上到下为 Duration、Character、Language、Watch Status 四组，组名沿用现有图标。
 2. 每组的选项为胶囊按钮，显示选项名与数字；一行可放多个，按宽度自动换行。
-3. 底部左侧为计算状态（见第 6 节），右侧为 Cancel 与 Show。Show 在 Search 为 `Show N results`，在 Excerpt 为 `Show N excerpts`；N 为 1 时为 `Show 1 result`、`Show 1 excerpt`。
+3. 底部左侧为计算状态（见第 6 节），右侧依次为 Reset、Cancel 与 Show。Show 在 Search 为 `Show N results`，在 Excerpt 为 `Show N excerpts`；N 为 1 时为 `Show 1 result`、`Show 1 excerpt`。
+4. Reset 与 Cancel 相距 `--spacing-3`，Cancel 与 Show 相距 `--spacing-2`。
 
 ## 4. 胶囊按钮
 
@@ -42,12 +43,13 @@ Search 与 Excerpt 二级界面的筛选按钮，两个界面共用同一实现�
 2. 点击 Show：勾选与表格当前使用的不同时，按新勾选更新表格并关闭对话框；相同时只关闭。
 3. Cancel 放弃对话框内的改动；每次打开都从表格当前的勾选开始。
 4. 数字的计算语义不变：每组的数字忽略本组的勾选，叠加其他三组。
+5. Reset 为 Button / Neutral，点击取消对话框内的全部勾选，表格不变；对话框内没有勾选时为 Disabled。
 
 ## 6. 计算中
 
 1. 数字未知的胶囊，数字位置显示静止的灰色圆角小块，不转圈；已知的数字照常显示。
 2. 总数未知时，Show 的文字为 `Show results` 或 `Show excerpts`，按钮仍可点击。
-3. 有未知数字时，底部左侧显示 Progress Indicator 与 `Calculating`；全部数字已知后消失。
+3. 有未知数字时，底部左侧显示 Spinner（见第 9 节）与 `Calculating`；全部数字已知后消失。
 4. 在对话框内改勾选：计数已全部完成时，数字与总数立即由已有结果得出；未完成时不发起搜索，新勾选下的数字显示灰色小块，当前搜索的计数完成后补上。
 5. 计数未完成时点击 Show，按新勾选重新搜索并更新表格。
 
@@ -58,7 +60,13 @@ Search 与 Excerpt 二级界面的筛选按钮，两个界面共用同一实现�
 
 ## 8. 设计文档同步
 
-验收通过后更新 `UI Design System.md` 与 `UI Application Rules.md`：新增胶囊按钮组件与 Filter Dialog Layout，删除 Filter Menu 及仅被它使用的组件，Toolbar 状态改为对话框打开，界面层级的对话框清单加入 Filter。
+验收通过后更新 `UI Design System.md` 与 `UI Application Rules.md`：新增胶囊按钮组件、Spinner 组件与 Filter Dialog Layout，删除 Filter Menu 及仅被它使用的组件，Toolbar 状态改为对话框打开，界面层级的对话框清单加入 Filter。
+
+## 9. Spinner
+
+1. 新组件，本需求只用于第 6 节的计算状态，其它界面现有的系统 spinner 不变。
+2. 圆环轨道静止，四分之一圆弧匀速旋转。
+3. Token：`--size-spinner` 16px；`--width-spinner-stroke` 2px；`--color-spinner-track` Light `#E5E7EB`、Dark `#3F3F46`；`--color-spinner-indicator` Light `#717171`、Dark `#878787`；动效沿用 `--duration-spinner-motion` 与 `--easing-spinner-motion`。
 
 # 验收
 
@@ -68,3 +76,4 @@ Search 与 Excerpt 二级界面的筛选按钮，两个界面共用同一实现�
 4. 搜索高频词后立即打开对话框：未知数字为灰色小块，底部左侧显示 spinner 与 Calculating，Show 可点击；计数完成后数字同时出现，按钮显示总数，spinner 消失。
 5. 计数完成前在对话框内改勾选不刷新表格，计数完成后数字补上；点击 Show 后表格按新勾选更新。
 6. 现有自动化端到端与单元用例全部通过。
+7. 对话框内有勾选时 Reset 可点，点击后全部取消勾选、数字随之变化、表格不变；无勾选时 Reset 为 Disabled；Reset 与 Cancel 的间距大于 Cancel 与 Show。
