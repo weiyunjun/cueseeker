@@ -468,7 +468,7 @@ func exactFacetSnapshotRejectsStaleResultGeneration() throws {
 
 @MainActor
 @Test
-func facetFilterRecomputesOptionCountsFromTheSnapshotWithoutChangingRows() {
+func facetFilterChangeDropsTheCountsUntilTheNextSearchAndKeepsTheRows() {
     let search = SearchStore()
     search.updateQuery("query")
     let generation = search.prepareSearch(
@@ -500,32 +500,23 @@ func facetFilterRecomputesOptionCountsFromTheSnapshotWithoutChangingRows() {
     )
     #expect(search.commitExactSearchPage(page, generation: generation))
     search.activateResidentSearchTableProjection()
+    // An unfiltered result needs no count scan: every card is counted from its rows.
     #expect(search.searchFacetDistribution?.totalCount == 120)
-
-    #expect(search.updateSearchFacetFilter(CueFacetFilter(
-        durations: [.underOneSecond],
-        characters: Set(CueCharacterFacet.allCases),
-        languages: Set(SubtitleLanguageCode.allCases),
-        watchStates: [.unwatched, .watching, .finished]
-    )))
-    #expect(!search.updateSearchFacetFilter(search.searchFacetFilter))
-
-    // Each card ignores its own selection and applies the other three.
-    #expect(search.searchFacetDistribution?.totalCount == 60)
     #expect(search.searchFacetDistribution?.durationCounts == [
         .underOneSecond: 60,
         .fiveSecondsOrMore: 60,
     ])
-    #expect(search.searchFacetDistribution?.characterCounts == [
-        .oneToTen: 60,
-    ])
-    #expect(search.searchFacetDistribution?.languageCounts == [
-        .english: 60,
-    ])
-    #expect(search.searchFacetDistribution?.watchStateCounts == [
-        .unwatched: 60,
-    ])
-    // The rows themselves come from the next search, not from a projection.
+    #expect(search.searchFacetCountsPendingKinds.isEmpty)
+    #expect(!search.isFacetSnapshotCalculating)
+
+    #expect(search.updateSearchFacetFilter(CueFacetFilter(durations: [.underOneSecond])))
+    #expect(!search.updateSearchFacetFilter(search.searchFacetFilter))
+
+    // The counts belong to the result list: a new selection drops them until
+    // the next search brings its own filtered rows, while the rows stay until then.
+    #expect(search.searchFacetSnapshot == nil)
+    #expect(search.searchFacetDistribution == nil)
+    #expect(search.isFacetSnapshotCalculating)
     #expect(search.searchResultCueIDs == results.map(\.entryID))
     #expect(search.searchResultTotalCount == 120)
     #expect(search.tableRowStore.snapshot.totalRowCount == 120)
@@ -533,52 +524,67 @@ func facetFilterRecomputesOptionCountsFromTheSnapshotWithoutChangingRows() {
 
 @MainActor
 @Test
-func facetSnapshotSurvivesAFilterOnlyRestartAndCountsFollowTheFilter() {
+func filteredResultCountsItsOwnCardsAtOnceAndTheUncheckedOptionsAfterTheirScan() {
     let search = SearchStore()
     search.updateQuery("query")
+    search.updateSearchFacetFilter(CueFacetFilter(languages: [.japanese]))
     let generation = search.prepareSearch(
         appending: false,
         filterSet: SubtitleSearchFilterSet()
     )
+    #expect(search.resultFacetFilter == CueFacetFilter(languages: [.japanese]))
     let result = makeTableSandboxSearchResult(
         id: 1,
         content: "result",
         searchRank: 0
     )
-    let snapshot = CueFacetSnapshot(
+    let filteredRows = CueFacetSnapshot(
         cueIDs: [result.entryID],
         durationFacets: [.underOneSecond],
         characterFacets: [.oneToTen],
-        languageFacets: [[.english]],
+        languageFacets: [[.japanese]],
         watchStateFacets: [.unwatched]
     )
     let page = SubtitleSearchPage(
         results: [result],
-        cueIDs: snapshot.cueIDs,
+        cueIDs: filteredRows.cueIDs,
         totalCount: 1,
         fileSummaries: [],
-        facetSnapshot: snapshot
+        facetSnapshot: filteredRows
     )
     #expect(search.commitExactSearchPage(page, generation: generation))
 
-    search.updateSearchFacetFilter(CueFacetFilter(languages: [.japanese]))
-    #expect(search.searchFacetDistribution?.totalCount == 0)
-    #expect(search.searchFacetDistribution?.languageCounts == [.english: 1])
+    // The cards without a selection and the checked option are counted from the
+    // filtered rows at once; only the Language card's unchecked options wait.
+    #expect(search.searchFacetSnapshot == filteredRows)
+    #expect(search.searchFacetCountsPendingKinds == [.languages])
     #expect(!search.isFacetSnapshotCalculating)
-
-    // A new search for the same query keeps the snapshot, so the counts stay.
-    _ = search.prepareSearch(appending: false, filterSet: SubtitleSearchFilterSet())
-    #expect(search.resultFacetFilter == CueFacetFilter(languages: [.japanese]))
-    #expect(search.searchFacetSnapshot == snapshot)
-    #expect(!search.isFacetSnapshotCalculating)
-
-    search.updateSearchFacetFilter(CueFacetFilter(languages: []))
     #expect(search.searchFacetDistribution?.totalCount == 1)
+    #expect(search.searchFacetDistribution?.durationCounts == [.underOneSecond: 1])
+    #expect(search.searchFacetDistribution?.characterCounts == [.oneToTen: 1])
+    #expect(search.searchFacetDistribution?.languageCounts == [.japanese: 1])
+    #expect(search.searchFacetDistribution?.watchStateCounts == [.unwatched: 1])
 
-    // A new query drops the snapshot until its own scan completes.
-    search.updateQuery("other")
+    // The Language scan's rows fail the language selection and satisfy the
+    // other cards; joined with the filtered rows they complete the counts.
+    let otherLanguageRows = CueFacetSnapshot(
+        cueIDs: [2],
+        durationFacets: [.fiveSecondsOrMore],
+        characterFacets: [.oneToTen],
+        languageFacets: [[.english]],
+        watchStateFacets: [.unwatched]
+    )
+    search.appendSearchFacetCounts(otherLanguageRows, for: .languages)
+    #expect(search.searchFacetCountsPendingKinds.isEmpty)
+    #expect(search.searchFacetDistribution?.totalCount == 1)
+    #expect(search.searchFacetDistribution?.durationCounts == [.underOneSecond: 1])
+    #expect(search.searchFacetDistribution?.languageCounts == [.japanese: 1, .english: 1])
+
+    // A new search for the same query drops the counts until its own rows arrive.
+    _ = search.prepareSearch(appending: false, filterSet: SubtitleSearchFilterSet())
     #expect(search.searchFacetSnapshot == nil)
     #expect(search.searchFacetDistribution == nil)
+    #expect(search.searchFacetCountsPendingKinds.isEmpty)
     #expect(search.isFacetSnapshotCalculating)
 }
 
@@ -1452,20 +1458,24 @@ func filteredSearchCompletesFirstAndTheOptionCountsFollowFromASecondScan() async
     await search.searchTask?.value
     await search.exactCompletionTask?.value
 
-    // The filtered result is complete before any option count exists.
+    // The filtered result is complete and its own rows already count the
+    // other cards; the Duration card's unchecked options are still being scanned.
     #expect(search.searchStatus == .completed)
     #expect(search.searchCountState == .exact)
     #expect(search.searchResultTotalCount == 50)
     #expect(search.searchResultCueIDs.count == 50)
     #expect(search.searchResults.allSatisfy { $0.endMilliseconds - $0.startMilliseconds < 1_000 })
-    #expect(search.searchFacetSnapshot == nil)
-    #expect(search.isFacetSnapshotCalculating)
-    #expect(search.facetSnapshotTask != nil)
-
-    await search.facetSnapshotTask?.value
-
-    #expect(search.facetSnapshotTask == nil)
+    #expect(search.searchFacetSnapshot?.cueIDs.count == 50)
+    #expect(search.searchFacetDistribution?.characterCounts == [.elevenToTwenty: 50])
+    #expect(search.searchFacetDistribution?.durationCounts == [.underOneSecond: 50])
+    #expect(search.searchFacetCountsPendingKinds == [.duration])
     #expect(!search.isFacetSnapshotCalculating)
+    #expect(search.facetCountsTask != nil)
+
+    await search.facetCountsTask?.value
+
+    #expect(search.facetCountsTask == nil)
+    #expect(search.searchFacetCountsPendingKinds.isEmpty)
     #expect(search.searchFacetSnapshot?.cueIDs.count == 150)
     #expect(search.searchFacetDistribution?.totalCount == 50)
     #expect(search.searchFacetDistribution?.durationCounts == [

@@ -38,6 +38,14 @@ public enum CueCharacterFacet: String, CaseIterable, Hashable, Sendable {
     }
 }
 
+/// The four Filter Menu cards.
+public enum CueFacetKind: CaseIterable, Hashable, Sendable {
+    case duration
+    case characters
+    case languages
+    case watchState
+}
+
 public struct CueFacetFilter: Equatable, Sendable {
     public var durations: Set<CueDurationFacet>
     public var characters: Set<CueCharacterFacet>
@@ -60,6 +68,16 @@ public struct CueFacetFilter: Equatable, Sendable {
         durations.isEmpty && characters.isEmpty && languages.isEmpty && watchStates.isEmpty
     }
 
+    /// The cards with a checked option, in menu order.
+    public var selectedKinds: [CueFacetKind] {
+        var kinds: [CueFacetKind] = []
+        if !durations.isEmpty { kinds.append(.duration) }
+        if !characters.isEmpty { kinds.append(.characters) }
+        if !languages.isEmpty { kinds.append(.languages) }
+        if !watchStates.isEmpty { kinds.append(.watchState) }
+        return kinds
+    }
+
     public func matches(
         durationMilliseconds: Int,
         characterCount: Int,
@@ -78,16 +96,32 @@ public struct CueFacetFilter: Equatable, Sendable {
         )
     }
 
+    /// Whether a line satisfies the selection. With `negatedKind`, that card's
+    /// selection must fail instead while the other three still apply: those
+    /// are exactly the rows the card's unchecked options need for their counts.
     public func matches(
         duration: CueDurationFacet,
         characters cueCharacters: CueCharacterFacet,
         languages cueLanguages: Set<SubtitleLanguageCode>,
-        watchState: LibraryWatchState
+        watchState: LibraryWatchState,
+        negating negatedKind: CueFacetKind? = nil
     ) -> Bool {
-        (durations.isEmpty || durations.contains(duration)) &&
-        (characters.isEmpty || characters.contains(cueCharacters)) &&
-        (languages.isEmpty || !languages.isDisjoint(with: cueLanguages)) &&
-        (watchStates.isEmpty || watchStates.contains(watchState))
+        let matchesDuration = durations.isEmpty || durations.contains(duration)
+        let matchesCharacters = characters.isEmpty || characters.contains(cueCharacters)
+        let matchesLanguages = languages.isEmpty || !languages.isDisjoint(with: cueLanguages)
+        let matchesWatchState = watchStates.isEmpty || watchStates.contains(watchState)
+        switch negatedKind {
+        case nil:
+            return matchesDuration && matchesCharacters && matchesLanguages && matchesWatchState
+        case .duration:
+            return !matchesDuration && matchesCharacters && matchesLanguages && matchesWatchState
+        case .characters:
+            return matchesDuration && !matchesCharacters && matchesLanguages && matchesWatchState
+        case .languages:
+            return matchesDuration && matchesCharacters && !matchesLanguages && matchesWatchState
+        case .watchState:
+            return matchesDuration && matchesCharacters && matchesLanguages && !matchesWatchState
+        }
     }
 }
 
@@ -270,6 +304,18 @@ public struct CueFacetSnapshot: Equatable, Sendable {
                 languageCounts: languageCounts,
                 watchStateCounts: watchStateCounts
             )
+        )
+    }
+
+    /// The rows of both snapshots in order: a filtered result's rows followed by
+    /// the rows a negated scan read for one card's unchecked options.
+    public func appending(_ other: CueFacetSnapshot) -> CueFacetSnapshot {
+        CueFacetSnapshot(
+            cueIDs: cueIDs + other.cueIDs,
+            durationFacets: durationFacets + other.durationFacets,
+            characterFacets: characterFacets + other.characterFacets,
+            languageFacets: languageFacets + other.languageFacets,
+            watchStateFacets: watchStateFacets + other.watchStateFacets
         )
     }
 

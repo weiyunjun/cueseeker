@@ -6,6 +6,9 @@ struct CueFacetOption: Identifiable {
     let title: String
     let count: Int
     let isSelected: Bool
+    /// The count is not known yet: either no count exists for the query, or
+    /// this option is unchecked on a checked card whose scan is still running.
+    let isCalculating: Bool
     let toggle: () -> Void
 }
 
@@ -23,7 +26,6 @@ enum CueFacetFilterMenuElement {
 struct CueFacetFilterMenuModel {
     let elements: [CueFacetFilterMenuElement]
     let selectablePositions: [Int]
-    let isCalculating: Bool
     /// Changes whenever something that affects the menu's measured size
     /// changes — texts, counts, the calculating placeholder — so the menu is
     /// re-measured outside of view updates exactly when it needs to be.
@@ -33,19 +35,27 @@ struct CueFacetFilterMenuModel {
         distribution: CueFacetDistribution?,
         availableLanguages: [SubtitleLanguageCode],
         isCalculating: Bool,
+        pendingKinds: Set<CueFacetKind> = [],
         filter: Binding<CueFacetFilter>
     ) {
+        // Every count is calculating until the result's rows exist; afterwards
+        // only the unchecked options of a card whose count scan is still running.
+        func calculating(_ kind: CueFacetKind, isSelected: Bool) -> Bool {
+            isCalculating || (pendingKinds.contains(kind) && !isSelected)
+        }
         var elements: [CueFacetFilterMenuElement] = [.title(L("table.filter"))]
         Self.appendSection(
             to: &elements,
             title: L("facet.duration"),
             icon: .clock,
             options: CueDurationFacet.allCases.map { facet in
-                CueFacetOption(
+                let isSelected = filter.wrappedValue.durations.contains(facet)
+                return CueFacetOption(
                     id: facet.rawValue,
                     title: facet.title,
                     count: distribution?.durationCounts[facet] ?? 0,
-                    isSelected: filter.wrappedValue.durations.contains(facet),
+                    isSelected: isSelected,
+                    isCalculating: calculating(.duration, isSelected: isSelected),
                     toggle: { Self.toggle(facet, at: \.durations, in: filter) }
                 )
             }
@@ -55,11 +65,13 @@ struct CueFacetFilterMenuModel {
             title: L("facet.character"),
             icon: .textAa,
             options: CueCharacterFacet.allCases.map { facet in
-                CueFacetOption(
+                let isSelected = filter.wrappedValue.characters.contains(facet)
+                return CueFacetOption(
                     id: facet.rawValue,
                     title: facet.title,
                     count: distribution?.characterCounts[facet] ?? 0,
-                    isSelected: filter.wrappedValue.characters.contains(facet),
+                    isSelected: isSelected,
+                    isCalculating: calculating(.characters, isSelected: isSelected),
                     toggle: { Self.toggle(facet, at: \.characters, in: filter) }
                 )
             }
@@ -69,11 +81,13 @@ struct CueFacetFilterMenuModel {
             title: L("facet.language"),
             icon: .globe,
             options: availableLanguages.map { language in
-                CueFacetOption(
+                let isSelected = filter.wrappedValue.languages.contains(language)
+                return CueFacetOption(
                     id: language.rawValue,
                     title: language.title,
                     count: distribution?.languageCounts[language] ?? 0,
-                    isSelected: filter.wrappedValue.languages.contains(language),
+                    isSelected: isSelected,
+                    isCalculating: calculating(.languages, isSelected: isSelected),
                     toggle: { Self.toggle(language, at: \.languages, in: filter) }
                 )
             }
@@ -83,11 +97,13 @@ struct CueFacetFilterMenuModel {
             title: L("facet.watch_status"),
             icon: .eye,
             options: LibraryWatchState.facetCases.map { state in
-                CueFacetOption(
+                let isSelected = filter.wrappedValue.watchStates.contains(state)
+                return CueFacetOption(
                     id: state.rawValue,
                     title: state.title,
                     count: distribution?.watchStateCounts[state] ?? 0,
-                    isSelected: filter.wrappedValue.watchStates.contains(state),
+                    isSelected: isSelected,
+                    isCalculating: calculating(.watchState, isSelected: isSelected),
                     toggle: { Self.toggle(state, at: \.watchStates, in: filter) }
                 )
             }
@@ -99,9 +115,7 @@ struct CueFacetFilterMenuModel {
             }
             return false
         }
-        self.isCalculating = isCalculating
         var hasher = Hasher()
-        hasher.combine(isCalculating)
         for element in elements {
             switch element {
             case .title(let title):
@@ -114,6 +128,7 @@ struct CueFacetFilterMenuModel {
             case .option(let option):
                 hasher.combine(option.title)
                 hasher.combine(option.count)
+                hasher.combine(option.isCalculating)
             }
         }
         self.contentHash = hasher.finalize()
@@ -254,7 +269,7 @@ struct CueFacetFilterMenu: View {
                 Spacer(minLength: WorkbenchControlMetrics.redesignSpacing2)
 
                 Text(
-                    model.isCalculating
+                    option.isCalculating
                         ? L("facet.calculating")
                         : String(option.count)
                 )
@@ -291,7 +306,7 @@ struct CueFacetFilterMenu: View {
         }
         .accessibilityLabel(option.title)
         .accessibilityValue(
-            model.isCalculating
+            option.isCalculating
                 ? L("facet.calculating")
                 : "\(option.count), \(option.isSelected ? L("facet.selected") : L("facet.not_selected"))"
         )

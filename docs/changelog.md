@@ -24,7 +24,12 @@ This changelog does not replace Git history. Git records concrete file changes. 
   after about 0.8 s instead of 2 s. The language of every cue line is settled
   when its file is indexed and stored (schema 49 fills it for existing
   libraries), so a language selection is applied the same way: `の` with only
-  English checked shows its 938 results after about 0.9 s.
+  English checked shows its 938 results after about 0.9 s. The option counts
+  no longer wait for a scan of every hit: the cards without a selection and the
+  checked options are counted from the filtered rows the moment the result is
+  complete, only the unchecked options of a checked card read "calculating"
+  while one scan of just the remaining rows counts them, and a changed
+  selection starts both the search and the counts over.
 - Settings now has six categories: General, which gathers Appearance,
   Search, Language and Deep Link; Play, which gathers Play and Decode;
   Shortcuts; Subtitle; Maintenance; and Developer. Settings opens on General.

@@ -79,6 +79,7 @@ struct WorkbenchTestSearchView: View {
                 distribution: facetDistribution,
                 availableLanguages: availableFacetLanguages,
                 isCalculating: search.isFacetSnapshotCalculating,
+                pendingKinds: search.searchFacetCountsPendingKinds,
                 filter: searchFacetFilterBinding
             ),
             isFilterMenuOpen: isFilterMenuOpen,

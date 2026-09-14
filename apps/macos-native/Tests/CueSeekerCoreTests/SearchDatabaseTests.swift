@@ -2248,7 +2248,7 @@ func visibleSearchContinuesPastFilteredFTSCandidates() throws {
 }
 
 @Test
-func searchPageAppliesTheFacetFilterToResultsWhileTheSnapshotKeepsEveryMatch() throws {
+func searchPageAppliesTheFacetFilterToResultsAndANegatedScanReadsTheRowsForTheUncheckedOptions() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
         try? FileManager.default.removeItem(at: databaseURL)
@@ -2291,8 +2291,10 @@ func searchPageAppliesTheFacetFilterToResultsWhileTheSnapshotKeepsEveryMatch() t
     #expect(exactPage.totalCount == 3)
     #expect(exactPage.cueIDs == exactPage.results.map(\.entryID))
     #expect(exactPage.fileSummaries.map(\.matchCount) == [3])
-    // A filtered scan reads only the matching rows, so it carries no snapshot.
-    #expect(exactPage.facetSnapshot == nil)
+    // A filtered scan reads only the matching rows, and its snapshot holds
+    // exactly those.
+    #expect(exactPage.facetSnapshot?.cueIDs == exactPage.cueIDs)
+    #expect(exactPage.facetSnapshot?.distribution.durationCounts == [.underOneSecond: 3])
 
     // A two-line group whose lines fall on both sides of a character filter still
     // returns the whole group as context for the matching line.
@@ -2343,6 +2345,72 @@ func searchPageAppliesTheFacetFilterToResultsWhileTheSnapshotKeepsEveryMatch() t
         .thirtyOneOrMore: 1,
     ])
     #expect(snapshot.distribution.totalCount == 8)
+
+    // The counts for a checked card's unchecked options come from a scan of the
+    // same query with that card negated: the other cards' selections still
+    // apply, the card's own must fail. Its rows joined with the filtered rows
+    // give the same counts as the unfiltered scan.
+    let shortRows = try #require(
+        try search.searchPage("facet", limit: 0, cursor: .start, facetFilter: shortCues).facetSnapshot
+    )
+    let longRows = try search.searchPage(
+        "facet",
+        limit: 0,
+        cursor: .start,
+        facetFilter: shortCues,
+        negatedFacet: .duration
+    )
+    #expect(shortRows.cueIDs.count == 5)
+    #expect(longRows.totalCount == 3)
+    #expect(longRows.facetSnapshot?.distribution.durationCounts == [.oneToUnderThreeSeconds: 3])
+    #expect(Set(shortRows.cueIDs).isDisjoint(with: longRows.cueIDs))
+    let joined = shortRows.appending(try #require(longRows.facetSnapshot))
+    #expect(
+        joined.filteredCueIDs(using: shortCues, limit: 8).distribution
+            == snapshot.filteredCueIDs(using: shortCues, limit: 8).distribution
+    )
+
+    // Two checked cards: each card's scan negates only itself. Duration `<1s`
+    // with Character `31+` leaves the long ASS line; the duration scan reads the
+    // long-duration rows that are 31+ (none), the character scan the short rows
+    // that are not 31+ (four).
+    let twoCards = CueFacetFilter(durations: [.underOneSecond], characters: [.thirtyOneOrMore])
+    let twoCardRows = try search.searchPage("facet", limit: 0, cursor: .start, facetFilter: twoCards)
+    let durationRest = try search.searchPage(
+        "facet", limit: 0, cursor: .start, facetFilter: twoCards, negatedFacet: .duration
+    )
+    let characterRest = try search.searchPage(
+        "facet", limit: 0, cursor: .start, facetFilter: twoCards, negatedFacet: .characters
+    )
+    #expect(twoCardRows.totalCount == 1)
+    #expect(durationRest.totalCount == 0)
+    #expect(characterRest.totalCount == 4)
+    let twoCardJoined = try #require(twoCardRows.facetSnapshot)
+        .appending(try #require(durationRest.facetSnapshot))
+        .appending(try #require(characterRest.facetSnapshot))
+    let twoCardCounts = twoCardJoined.filteredCueIDs(using: twoCards, limit: 8).distribution
+    #expect(twoCardCounts == snapshot.filteredCueIDs(using: twoCards, limit: 8).distribution)
+    #expect(twoCardCounts.durationCounts == [.underOneSecond: 1])
+    #expect(twoCardCounts.characterCounts == [
+        .elevenToTwenty: 1,
+        .twentyOneToThirty: 3,
+        .thirtyOneOrMore: 1,
+    ])
+
+    // Watch state is negated on the file: with `finished` checked the SRT file
+    // is the result and the ASS file's two rows are read for the unchecked options.
+    try LibraryDatabase(path: databaseURL).setLibraryWatchState(
+        videoFile: URL(fileURLWithPath: "/Media/Facet.mkv"),
+        duration: nil,
+        state: .finished
+    )
+    let finished = CueFacetFilter(watchStates: [.finished])
+    #expect(try search.searchPage("facet", limit: 0, cursor: .start, facetFilter: finished).totalCount == 6)
+    let watchRest = try search.searchPage(
+        "facet", limit: 0, cursor: .start, facetFilter: finished, negatedFacet: .watchState
+    )
+    #expect(watchRest.totalCount == 2)
+    #expect(watchRest.facetSnapshot?.distribution.watchStateCounts == [.unwatched: 2])
 }
 
 @Test
@@ -2398,7 +2466,16 @@ func searchPageFiltersLanguagesInTheRowReadsAndCountsThemFromTheStoredTable() th
     #expect(englishOnly.results.map(\.content) == ["shared english line"])
     #expect(englishOnly.results.map(\.languages) == [[.english]])
     #expect(englishOnly.totalCount == 1)
-    #expect(englishOnly.facetSnapshot == nil)
+    #expect(englishOnly.facetSnapshot?.distribution.languageCounts == [.english: 1])
+    let otherLanguages = try search.searchPage(
+        "shared",
+        limit: 0,
+        cursor: .start,
+        facetFilter: CueFacetFilter(languages: [.english]),
+        negatedFacet: .languages
+    )
+    #expect(otherLanguages.totalCount == 2)
+    #expect(otherLanguages.facetSnapshot?.distribution.languageCounts == [.japanese: 2])
 
     let legacyEnglish = try search.searchPage(
         "shared",

@@ -417,6 +417,7 @@ public final class SearchDatabase: @unchecked Sendable {
         watchStateFilter: SubtitleSearchWatchStateFilter = .all,
         filterSet: SubtitleSearchFilterSet = SubtitleSearchFilterSet(),
         facetFilter: CueFacetFilter = CueFacetFilter(),
+        negatedFacet: CueFacetKind? = nil,
         diagnostics: SubtitleSearchDiagnosticSink? = nil,
         progress: SubtitleSearchProgressSink? = nil,
         mode: SubtitleSearchPageMode = .exact
@@ -509,16 +510,15 @@ public final class SearchDatabase: @unchecked Sendable {
         do {
             let setupStart = Self.diagnosticNow()
             let candidateBatchLimit = Self.searchCandidateBatchLimit(for: limit, mode: mode)
-            // A checked filter is pushed into the row reads and the page carries no
-            // facet snapshot; the counts for the unchecked options come from a later
-            // unfiltered scan.
-            let pushesFacetFilter = !facetFilter.isEmpty
-            var matchedCueIDs: [Int64] = []
+            // A checked filter is pushed into the row reads, so the scan accepts only
+            // the filtered rows and the page's facet snapshot holds exactly those. The
+            // counts for a checked card's unchecked options come from a later scan of
+            // the same query with that one card negated.
             var acceptedCueIDs: [Int64] = []
-            var matchedDurationFacets: [CueDurationFacet] = []
-            var matchedCharacterFacets: [CueCharacterFacet] = []
-            var matchedLanguageFacets: [Set<SubtitleLanguageCode>] = []
-            var matchedWatchStateFacets: [LibraryWatchState] = []
+            var acceptedDurationFacets: [CueDurationFacet] = []
+            var acceptedCharacterFacets: [CueCharacterFacet] = []
+            var acceptedLanguageFacets: [Set<SubtitleLanguageCode>] = []
+            var acceptedWatchStateFacets: [LibraryWatchState] = []
             var exactPageResults: [OrderedSearchResult] = []
             var pendingProgressResults: [OrderedSearchResult] = []
             var publishedProgressResultCount = 0
@@ -543,11 +543,11 @@ public final class SearchDatabase: @unchecked Sendable {
             }
             func facetSnapshot() -> CueFacetSnapshot {
                 CueFacetSnapshot(
-                    cueIDs: matchedCueIDs,
-                    durationFacets: matchedDurationFacets,
-                    characterFacets: matchedCharacterFacets,
-                    languageFacets: matchedLanguageFacets,
-                    watchStateFacets: matchedWatchStateFacets
+                    cueIDs: acceptedCueIDs,
+                    durationFacets: acceptedDurationFacets,
+                    characterFacets: acceptedCharacterFacets,
+                    languageFacets: acceptedLanguageFacets,
+                    watchStateFacets: acceptedWatchStateFacets
                 )
             }
             let languageFilterCodes = Self.languageCodesForSearchFilter(languageFilter)
@@ -605,7 +605,8 @@ public final class SearchDatabase: @unchecked Sendable {
                 let candidates = try searchCandidates(
                     forFTSRowIDs: chunkRowIDs,
                     watchStateValues: watchStateValues,
-                    facetWatchStates: facetFilter.watchStates
+                    facetWatchStates: facetFilter.watchStates,
+                    negatesFacetWatchStates: negatedFacet == .watchState
                 )
                 emit(
                     "fts_batch",
@@ -640,7 +641,8 @@ public final class SearchDatabase: @unchecked Sendable {
                         durations: facetFilter.durations,
                         characters: facetFilter.characters,
                         languages: facetFilter.languages,
-                        requiredLanguages: languageFilterCodeSet
+                        requiredLanguages: languageFilterCodeSet,
+                        negatedFacet: negatedFacet
                     )
                     : nil
                 let lineCueGroupIDs = facetLineIDsByCueGroupID.map { Array($0.keys) }
@@ -691,24 +693,22 @@ public final class SearchDatabase: @unchecked Sendable {
                         let characterFacet = CueCharacterFacet(
                             characterCount: result.result.content.unicodeScalars.count
                         )
-                        if !pushesFacetFilter {
-                            matchedCueIDs.append(result.result.entryID)
-                            matchedDurationFacets.append(durationFacet)
-                            matchedCharacterFacets.append(characterFacet)
-                            matchedLanguageFacets.append(result.result.languages)
-                            matchedWatchStateFacets.append(candidate.watchState)
-                        }
                         guard facetFilter.matches(
                             duration: durationFacet,
                             characters: characterFacet,
                             languages: result.result.languages.isEmpty
                                 ? [.unknown]
                                 : result.result.languages,
-                            watchState: candidate.watchState
+                            watchState: candidate.watchState,
+                            negating: negatedFacet
                         ) else {
                             continue
                         }
                         acceptedCueIDs.append(result.result.entryID)
+                        acceptedDurationFacets.append(durationFacet)
+                        acceptedCharacterFacets.append(characterFacet)
+                        acceptedLanguageFacets.append(result.result.languages)
+                        acceptedWatchStateFacets.append(candidate.watchState)
                         switch mode {
                         case .exact:
                             progressFileSummaries.add(result)
@@ -869,9 +869,7 @@ public final class SearchDatabase: @unchecked Sendable {
                     pageMode: mode,
                     orderSource: orderSource,
                     materializedOrderRows: materializedOrderRows,
-                    facetSnapshot: countSnapshot.state == .exact && !pushesFacetFilter
-                        ? facetSnapshot()
-                        : nil
+                    facetSnapshot: countSnapshot.state == .exact ? facetSnapshot() : nil
                 )
                 return page
             }
@@ -968,7 +966,7 @@ public final class SearchDatabase: @unchecked Sendable {
                 pageMode: mode,
                 orderSource: orderSource,
                 materializedOrderRows: materializedOrderRows,
-                facetSnapshot: pushesFacetFilter ? nil : facetSnapshot()
+                facetSnapshot: facetSnapshot()
             )
             return page
         } catch {
@@ -1575,10 +1573,20 @@ public final class SearchDatabase: @unchecked Sendable {
         durations: Set<CueDurationFacet>,
         characters: Set<CueCharacterFacet>,
         languages: Set<SubtitleLanguageCode>,
-        requiredLanguages: Set<SubtitleLanguageCode>
+        requiredLanguages: Set<SubtitleLanguageCode>,
+        negatedFacet: CueFacetKind? = nil
     ) throws -> [Int64: Set<Int64>] {
         guard !cueGroupIDs.isEmpty else {
             return [:]
+        }
+        // The negated card keeps its checked buckets but must fail them, which
+        // reads the rows its unchecked options are counted from.
+        func bucketCondition(_ conditions: [String], negated: Bool) -> String {
+            guard !conditions.isEmpty else {
+                return ""
+            }
+            let anyBucket = conditions.map { "(\($0))" }.joined(separator: " OR ")
+            return negated ? "AND NOT (\(anyBucket))" : "AND (\(anyBucket))"
         }
         let durationConditions = durations.map { facet -> String in
             switch facet {
@@ -1596,19 +1604,22 @@ public final class SearchDatabase: @unchecked Sendable {
             case .thirtyOneOrMore: "LENGTH(l.content) > 30"
             }
         }
-        let durationCondition = durationConditions.isEmpty
-            ? ""
-            : "AND (" + durationConditions.map { "(\($0))" }.joined(separator: " OR ") + ")"
-        let characterCondition = characterConditions.isEmpty
-            ? ""
-            : "AND (" + characterConditions.map { "(\($0))" }.joined(separator: " OR ") + ")"
-        let languageSets = [languages, requiredLanguages]
-            .filter { !$0.isEmpty }
-            .map { $0.map(\.rawValue).sorted() }
-        let languageConditions = languageSets.map { codes in
-            let placeholders = Array(repeating: "?", count: codes.count).joined(separator: ", ")
+        let durationCondition = bucketCondition(
+            durationConditions,
+            negated: negatedFacet == .duration
+        )
+        let characterCondition = bucketCondition(
+            characterConditions,
+            negated: negatedFacet == .characters
+        )
+        let languageSets: [(codes: [String], negated: Bool)] = [
+            (languages.map(\.rawValue).sorted(), negatedFacet == .languages),
+            (requiredLanguages.map(\.rawValue).sorted(), false)
+        ].filter { !$0.codes.isEmpty }
+        let languageConditions = languageSets.map { languageSet in
+            let placeholders = Array(repeating: "?", count: languageSet.codes.count).joined(separator: ", ")
             return """
-            AND EXISTS (
+            AND \(languageSet.negated ? "NOT " : "")EXISTS (
                 SELECT 1
                 FROM subtitle_cue_line_languages cll
                 WHERE cll.cue_id = l.id
@@ -1632,7 +1643,7 @@ public final class SearchDatabase: @unchecked Sendable {
             try statement.bind(cueGroupID, at: bindIndex)
             bindIndex += 1
         }
-        for code in languageSets.flatMap({ $0 }) {
+        for code in languageSets.flatMap(\.codes) {
             try statement.bind(code, at: bindIndex)
             bindIndex += 1
         }
@@ -1814,7 +1825,8 @@ public final class SearchDatabase: @unchecked Sendable {
     private func searchCandidates(
         forFTSRowIDs rowIDs: [Int64],
         watchStateValues: [String],
-        facetWatchStates: Set<LibraryWatchState> = []
+        facetWatchStates: Set<LibraryWatchState> = [],
+        negatesFacetWatchStates: Bool = false
     ) throws -> [SearchCandidate] {
         guard !rowIDs.isEmpty else {
             return []
@@ -1827,7 +1839,9 @@ public final class SearchDatabase: @unchecked Sendable {
             let placeholders = Array(repeating: "?", count: facetWatchStateValues.count)
                 .joined(separator: ", ")
             facetWatchStateCondition =
-                "AND COALESCE(ws.state, '\(LibraryWatchState.unwatched.rawValue)') IN (\(placeholders))"
+                "AND COALESCE(ws.state, '\(LibraryWatchState.unwatched.rawValue)') "
+                + (negatesFacetWatchStates ? "NOT IN" : "IN")
+                + " (\(placeholders))"
         }
 
         let watchStateCondition: String

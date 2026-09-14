@@ -247,12 +247,14 @@ extension SearchStore {
 
                 let consumedFirstPage = onFirstPageResolved(page.results.first)
                 if !appending && pageCompletesSearch {
-                    self.ensureFacetSnapshot(
+                    self.startFacetCounts(
                         query: trimmedQuery,
                         folders: folders,
                         languageFilter: languageFilter,
                         watchStateFilter: watchStateFilter,
                         filterSet: filterSet,
+                        facetFilter: facetFilter,
+                        generation: generation,
                         folderScopeGeneration: scopeGeneration,
                         run: run
                     )
@@ -426,12 +428,14 @@ extension SearchStore {
                 }
                 self.replaceExactCompletionTask(nil)
                 onResultsChanged(generation)
-                self.ensureFacetSnapshot(
+                self.startFacetCounts(
                     query: query,
                     folders: folders,
                     languageFilter: languageFilter,
                     watchStateFilter: watchStateFilter,
                     filterSet: filterSet,
+                    facetFilter: facetFilter,
+                    generation: generation,
                     folderScopeGeneration: folderScopeGeneration,
                     run: run
                 )
@@ -493,74 +497,93 @@ extension SearchStore {
     /// Runs the unfiltered scan for the option counts once a filtered search has
     /// completed without a facet snapshot. The snapshot belongs to the query and
     /// scope, so a filter change while it runs neither cancels nor repeats it.
-    private func ensureFacetSnapshot(
+    /// After a filtered result has completed: for each checked card, one scan of
+    /// the same query with that card negated reads the rows its unchecked options
+    /// are counted from, and the rows join the result's snapshot as each scan
+    /// lands. The scans belong to the result list, so a new selection, query or
+    /// scope cancels them with it and nothing old is published.
+    private func startFacetCounts(
         query: String,
         folders: [URL],
         languageFilter: SubtitleSearchLanguageFilter,
         watchStateFilter: SubtitleSearchWatchStateFilter,
         filterSet: SubtitleSearchFilterSet,
+        facetFilter: CueFacetFilter,
+        generation: UInt64,
         folderScopeGeneration: UInt64,
         run: SearchPerformanceRun?
     ) {
-        guard searchFacetSnapshot == nil,
-              facetSnapshotTask == nil,
+        cancelFacetCountsTask()
+        let kinds = facetFilter.selectedKinds
+        guard !kinds.isEmpty,
+              searchFacetSnapshot != nil,
               let database
         else {
             return
         }
         SearchPerformanceLogger.mark(run, "search_facet_counts_started")
-        replaceFacetSnapshotTask(Task { [weak self] in
+        replaceFacetCountsTask(Task { [weak self] in
             guard let self else { return }
+            var databaseMilliseconds = 0.0
+            var rowCount = 0
             do {
-                let pageLoad = try await Self.runCancellableDetached(
-                    priority: .utility
-                ) {
-                    let started = SearchPerformanceLogger.now()
-                    let page = try database.searchPage(
-                        query,
-                        limit: 0,
-                        cursor: .start,
-                        under: folders,
-                        languageFilter: languageFilter,
-                        watchStateFilter: watchStateFilter,
-                        filterSet: filterSet
-                    )
-                    return SearchStorePageLoad(
-                        page: page,
-                        databaseSearchMilliseconds:
-                            SearchPerformanceLogger.elapsedMilliseconds(since: started)
-                    )
+                for kind in kinds {
+                    let pageLoad = try await Self.runCancellableDetached(
+                        priority: .utility
+                    ) {
+                        let started = SearchPerformanceLogger.now()
+                        let page = try database.searchPage(
+                            query,
+                            limit: 0,
+                            cursor: .start,
+                            under: folders,
+                            languageFilter: languageFilter,
+                            watchStateFilter: watchStateFilter,
+                            filterSet: filterSet,
+                            facetFilter: facetFilter,
+                            negatedFacet: kind
+                        )
+                        return SearchStorePageLoad(
+                            page: page,
+                            databaseSearchMilliseconds:
+                                SearchPerformanceLogger.elapsedMilliseconds(since: started)
+                        )
+                    }
+                    guard !Task.isCancelled,
+                          generation == self.resultListGeneration,
+                          self.acceptsFolderScope(
+                            folders,
+                            generation: folderScopeGeneration
+                          ),
+                          let rows = pageLoad.page.facetSnapshot
+                    else {
+                        if generation == self.resultListGeneration {
+                            self.replaceFacetCountsTask(nil)
+                        }
+                        return
+                    }
+                    self.appendSearchFacetCounts(rows, for: kind)
+                    databaseMilliseconds += pageLoad.databaseSearchMilliseconds
+                    rowCount += rows.cueIDs.count
                 }
-                guard !Task.isCancelled,
-                      self.searchQuery.trimmingCharacters(
-                        in: .whitespacesAndNewlines
-                      ) == query,
-                      self.acceptsFolderScope(
-                        folders,
-                        generation: folderScopeGeneration
-                      ),
-                      let facetSnapshot = pageLoad.page.facetSnapshot
-                else {
-                    self.replaceFacetSnapshotTask(nil)
-                    return
-                }
-                self.setSearchFacetSnapshot(facetSnapshot)
-                self.replaceFacetSnapshotTask(nil)
+                self.replaceFacetCountsTask(nil)
                 SearchPerformanceLogger.mark(
                     run,
                     "search_facet_counts_completed",
-                    totalCount: facetSnapshot.cueIDs.count,
+                    totalCount: rowCount,
                     status: "completed"
                 )
                 SearchPerformanceLogger.writeE2ESearchPage(
                     run,
                     event: "search_facet_counts_completed",
                     page: nil,
-                    databaseSearchMilliseconds: pageLoad.databaseSearchMilliseconds,
+                    databaseSearchMilliseconds: databaseMilliseconds,
                     status: "completed"
                 )
             } catch {
-                self.replaceFacetSnapshotTask(nil)
+                if generation == self.resultListGeneration {
+                    self.replaceFacetCountsTask(nil)
+                }
             }
         })
     }
