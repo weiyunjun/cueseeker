@@ -595,12 +595,25 @@ final class AppCoordinator: ObservableObject {
         .removeDuplicates()
         .sink { [interfaceLayers] isDialogOpen in
             interfaceLayers.setOpen(.dialog, isDialogOpen)
+            guard isDialogOpen,
+                  let window = NSApplication.shared.keyWindow,
+                  let pageFocus = Self.focusOwner(in: window)
+            else {
+                return
+            }
             // The page gives its focus up as the dialog opens, the way it does
             // for a menu, so nothing it had focused comes back when the dialog
-            // closes. The dialog is not drawn yet, so nothing of its own is
-            // focused either.
-            if isDialogOpen {
-                NSApplication.shared.keyWindow?.makeFirstResponder(nil)
+            // closes. This runs before the store keeps the open state, and a
+            // field giving its focus up redraws the window at once: given up
+            // here, that redraw reads the dialog as closed and nothing draws
+            // it until something else changes. So the focus is given up once
+            // the state is kept, and only while the page still holds it: a
+            // dialog that focused its own field on appearing keeps it.
+            Task { @MainActor in
+                guard Self.focusOwner(in: window) === pageFocus else {
+                    return
+                }
+                window.makeFirstResponder(nil)
             }
         }
         .store(in: &interfaceLayerCancellables)
@@ -614,6 +627,21 @@ final class AppCoordinator: ObservableObject {
                 AppWindowControls.setCloseEnabled(isClosable)
             }
             .store(in: &interfaceLayerCancellables)
+    }
+
+    /// The control that holds the window's keyboard, or nil when nothing does.
+    /// Every text field in a window edits through the one field editor, so
+    /// the field it is editing answers for it.
+    private static func focusOwner(in window: NSWindow) -> NSResponder? {
+        guard let responder = window.firstResponder, responder !== window else {
+            return nil
+        }
+        if let editor = responder as? NSTextView,
+           editor.isFieldEditor,
+           let field = editor.delegate as? NSResponder {
+            return field
+        }
+        return responder
     }
 
     func setupSettingsObservers() {

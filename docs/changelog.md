@@ -38,8 +38,11 @@ This changelog does not replace Git history. Git records concrete file changes. 
   takes 45 ms; widening it back reads 74,379 rows and takes 1.6 s. A search
   now hands the table its rows twice, the first page and then the rest when
   the result is complete, and the Filter dialog redraws only when a count,
-  the total or the calculating state changes, so the dialog opens at once and
-  its spinner keeps turning while a search runs.
+  the total or the calculating state changes, so its spinner keeps turning
+  while a search runs. Every in-window dialog, the Filter dialog and the Task
+  panel included, now appears on the first click while a text field has the
+  focus; the field used to give its focus up before the dialog counted as
+  open, and the dialog showed only once another view opened.
 - Settings now has six categories: General, which gathers Appearance,
   Search, Language and Deep Link; Play, which gathers Play and Decode;
   Shortcuts; Subtitle; Maintenance; and Developer. Settings opens on General.

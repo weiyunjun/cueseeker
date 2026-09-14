@@ -18,7 +18,7 @@ Observed in the App through the Debug E2E controller, live library, no filter se
 - Requirement 4.1: the exact scan still reports its rows batch by batch, but on its own thread into a holder that is read only when the scan returns; the completed result installs those rows and its page's tail in one change. A search therefore hands the table two updates, the first page and the rest. The progress path that published each batch (`applyCountProgress`, `commitSearchCountProgress`, `writeE2ECountProgress`, the `search_count_progress` log event) is removed, and merging loaded rows no longer takes cue IDs.
 - Requirement 4.2 and 4.3: after every count is complete, a changed selection sets the selection and a new result list generation at once, reads by cue ID only the rows whose contents are not in memory (5,000 per read), then installs every row, the total and the counts in one change. The table keeps the previous list until then. While counts are incomplete, Show still searches again.
 - Requirement 3: the Filter dialog over Search no longer observes the Search store. It holds what it shows (counts, total, calculating state, the complete snapshot once every count is known, available languages) and replaces it only when a store change alters that value, so the search's rows do not redraw it. Checking an option still redraws it at once. The dialog body counts `UI.FilterDialog.body` for the UI probe.
-- Requirement 2 needed no separate change: once the main thread is no longer taken by per-batch publishing, the first click draws the dialog at once.
+- Requirement 2 (corrected, see Follow-up below): the first version claimed no separate change was needed once per-batch publishing stopped. That was wrong: the E2E run did not reproduce the bug, and the owner still did.
 
 The Core scan and its progress API are unchanged; the App was their only user of per-batch rows.
 
@@ -47,3 +47,31 @@ Files:
 ## Outcome
 
 Implemented and verified as above. The saved Search selection was left empty.
+
+## Follow-up: a dialog opened while a text field has the focus (`eefd8894`)
+
+The owner reported that one click on the filter button still drew nothing, whether or not the search had completed, while a second click, or opening the Task panel or Settings, brought the dialog up. The requirement was extended (section 1 item 4, section 2 item 2, acceptance 7 and 8) to cover the Task panel and every in-window dialog.
+
+Cause, confirmed by the owner's three manual checks (focus without a new search fails; results without focus open at once; the Task button with the search field focused fails):
+
+- Every in-window dialog's open state is followed by one listener, which marks the dialog layer open and gives the page's focus up. It is fed by the stores' published values, which are sent before the new value is stored.
+- A text field giving its focus up redraws the window at once. That redraw ran inside the listener, read the dialog as still closed and spent the pending update, so once the value was stored nothing redrew the window: the dialog and the button's Open state stayed undrawn until another change, such as the Task panel opening, redrew it.
+- A second click, or a dialog opened while another one is open, does not change the combined open state, so the listener does not run and the dialog draws normally.
+- The Task entry's clearing of search focus sets a route flag that no field follows, so it did not protect the Task panel.
+
+What changed:
+
+- The listener still marks the dialog layer open at once, but gives the focus up on the next main-actor turn, after the open state is stored, and only while the control that held the focus when the dialog opened still holds it. A dialog that focuses its own field on appearing, as Rename does, keeps that focus. The field editor answers for the field it is editing, since every text field in the window shares it.
+- No button changed, so any dialog that joins the dialog layer's listener is covered.
+
+Files:
+
+- `apps/macos-native/Sources/CueSeekerApp/App/AppCoordinator.swift`
+- `docs/changelog.md`
+
+Verification:
+
+- `swift build`: no errors or warnings in the changed file.
+- Full `swift test`: 1230 tests, 32 issues in 15 tests: native playback (7), Debug E2E scene and width (2), Excerpt scroll anchor (2), Library folder removal (2), `progressiveSearchProjectionRefreshesOnlyMountedTable` and `searchFacetSelectionDoesNotRefreshGlobalOrInactiveSurfaces`.
+- Run alone in the working tree, the Library folder removal suite (5 tests), the progressive projection test and `playbackPlayerKeepsAutoPauseBoundaryAcrossUserSeeks` pass; `searchFacetSelectionDoesNotRefreshGlobalOrInactiveSurfaces` still counts one `UI.ContentView.body`, `UI.Workbench.body` and `UI.WorkbenchMainContent.body`. The test changes the Search selection without opening a dialog. In a `git archive` copy of `eefd8894` in the scratchpad it passed three runs of three, and passed three runs of three again with only this change's `AppCoordinator.swift` copied in, so its failure belongs to the working tree's environment, not to this change.
+- No automated E2E: the Debug E2E controller did not reproduce the bug before (see above), so acceptance 1, 7 and 8 are left to the owner's manual check.
