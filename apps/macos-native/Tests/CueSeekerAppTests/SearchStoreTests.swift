@@ -590,6 +590,77 @@ func filteredResultCountsItsOwnCardsAtOnceAndTheUncheckedOptionsAfterTheirScan()
 
 @MainActor
 @Test
+func filterChangeAfterEveryCountIsCompleteProjectsRowsAndCountsWithoutSearching() {
+    let search = SearchStore()
+    search.updateQuery("query")
+    search.updateSearchFacetFilter(CueFacetFilter(languages: [.japanese]))
+    let generation = search.prepareSearch(
+        appending: false,
+        filterSet: SubtitleSearchFilterSet()
+    )
+    let result = makeTableSandboxSearchResult(id: 1, content: "result", searchRank: 0)
+    let filteredRows = CueFacetSnapshot(
+        cueIDs: [1],
+        durationFacets: [.underOneSecond],
+        characterFacets: [.oneToTen],
+        languageFacets: [[.japanese]],
+        watchStateFacets: [.unwatched],
+        orderKeys: [20]
+    )
+    #expect(search.commitExactSearchPage(
+        SubtitleSearchPage(results: [result], cueIDs: [1], totalCount: 1, fileSummaries: [], facetSnapshot: filteredRows),
+        generation: generation
+    ))
+    // While a count scan is pending, a selection change needs a search.
+    #expect(!search.isSearchFacetSnapshotComplete)
+    #expect(search.projectSearchFacetFilter(CueFacetFilter()) == nil)
+    #expect(search.searchFacetFilter == CueFacetFilter(languages: [.japanese]))
+
+    let otherLanguageRows = CueFacetSnapshot(
+        cueIDs: [2],
+        durationFacets: [.fiveSecondsOrMore],
+        characterFacets: [.oneToTen],
+        languageFacets: [[.english]],
+        watchStateFacets: [.unwatched],
+        orderKeys: [10]
+    )
+    search.appendSearchFacetCounts(otherLanguageRows, for: .languages)
+    #expect(search.isSearchFacetSnapshotComplete)
+    // The complete snapshot is in display order: row 2 precedes row 1.
+    #expect(search.searchFacetSnapshot?.cueIDs == [2, 1])
+
+    // Clearing the selection is answered from the snapshot: both rows in
+    // display order and the counts by the usual rule, without a search.
+    #expect(search.projectSearchFacetFilter(CueFacetFilter()) == [2, 1])
+    #expect(search.resultFacetFilter == CueFacetFilter())
+    #expect(search.searchResultCueIDs == [2, 1])
+    #expect(search.searchResultTotalCount == 2)
+    #expect(search.searchStatus == .completed)
+    #expect(search.searchCountState == .exact)
+    #expect(search.resultListGeneration != generation)
+    #expect(search.searchFacetDistribution?.totalCount == 2)
+    #expect(search.searchFacetDistribution?.languageCounts == [.japanese: 1, .english: 1])
+    #expect(search.searchFacetDistribution?.durationCounts == [.underOneSecond: 1, .fiveSecondsOrMore: 1])
+
+    // The first page's row contents arrive by cue ID and become the loaded rows.
+    let loaded = [
+        makeTableSandboxSearchResult(id: 2, content: "other", searchRank: 0),
+        makeTableSandboxSearchResult(id: 1, content: "result", searchRank: 1),
+    ]
+    #expect(search.commitProjectedSearchRows(loaded, generation: search.resultListGeneration))
+    #expect(search.searchResults.map(\.entryID) == [2, 1])
+    #expect(!search.hasMoreSearchResults)
+
+    // A narrower selection is projected again; the same selection is no change.
+    #expect(search.projectSearchFacetFilter(CueFacetFilter(languages: [.english])) == [2])
+    #expect(search.searchResultTotalCount == 1)
+    #expect(search.searchFacetDistribution?.totalCount == 1)
+    #expect(search.searchFacetDistribution?.languageCounts == [.japanese: 1, .english: 1])
+    #expect(search.projectSearchFacetFilter(CueFacetFilter(languages: [.english])) == nil)
+}
+
+@MainActor
+@Test
 func searchFacetWatchDistributionRefreshesAfterLibraryHistoryPublication() async throws {
     let suiteName = "CueSeekerWatchStateSearchRefreshTests-\(UUID().uuidString)"
     let userDefaults = try #require(UserDefaults(suiteName: suiteName))
@@ -1483,4 +1554,42 @@ func filteredSearchCompletesFirstAndTheOptionCountsFollowFromASecondScan() async
         .oneToUnderThreeSeconds: 100,
     ])
     #expect(search.searchResultTotalCount == 50)
+
+    // Requirement 4.4: with every count complete, a new selection is answered
+    // from the snapshot, and only the first page's rows are read by cue ID.
+    let didProjectAll = search.applyProjectedFacetFilter(
+        CueFacetFilter(),
+        folders: [folder],
+        languageFilter: .all,
+        watchStateFilter: .all,
+        e2eLoggingEnabled: false,
+        onResultsChanged: { _ in }
+    )
+    #expect(didProjectAll)
+    #expect(search.searchResultTotalCount == 150)
+    #expect(search.searchResultCueIDs.count == 150)
+    #expect(search.searchStatus == .completed)
+    #expect(search.searchFacetDistribution?.durationCounts == [
+        .underOneSecond: 50,
+        .oneToUnderThreeSeconds: 100,
+    ])
+    await search.searchTask?.value
+    #expect(search.searchResults.count == 100)
+    #expect(search.searchResults.map(\.startMilliseconds) == (0..<100).map { $0 * 1_000 })
+    #expect(search.hasMoreSearchResults)
+
+    let didProjectLong = search.applyProjectedFacetFilter(
+        CueFacetFilter(durations: [.oneToUnderThreeSeconds]),
+        folders: [folder],
+        languageFilter: .all,
+        watchStateFilter: .all,
+        e2eLoggingEnabled: false,
+        onResultsChanged: { _ in }
+    )
+    #expect(didProjectLong)
+    #expect(search.searchResultTotalCount == 100)
+    await search.searchTask?.value
+    #expect(search.searchResults.count == 100)
+    #expect(search.searchResults.allSatisfy { $0.endMilliseconds - $0.startMilliseconds >= 1_000 })
+    #expect(search.facetCountsTask == nil)
 }

@@ -519,6 +519,7 @@ public final class SearchDatabase: @unchecked Sendable {
             var acceptedCharacterFacets: [CueCharacterFacet] = []
             var acceptedLanguageFacets: [Set<SubtitleLanguageCode>] = []
             var acceptedWatchStateFacets: [LibraryWatchState] = []
+            var acceptedOrderKeys: [Int64] = []
             var exactPageResults: [OrderedSearchResult] = []
             var pendingProgressResults: [OrderedSearchResult] = []
             var publishedProgressResultCount = 0
@@ -547,7 +548,8 @@ public final class SearchDatabase: @unchecked Sendable {
                     durationFacets: acceptedDurationFacets,
                     characterFacets: acceptedCharacterFacets,
                     languageFacets: acceptedLanguageFacets,
-                    watchStateFacets: acceptedWatchStateFacets
+                    watchStateFacets: acceptedWatchStateFacets,
+                    orderKeys: acceptedOrderKeys
                 )
             }
             let languageFilterCodes = Self.languageCodesForSearchFilter(languageFilter)
@@ -709,6 +711,11 @@ public final class SearchDatabase: @unchecked Sendable {
                         acceptedCharacterFacets.append(characterFacet)
                         acceptedLanguageFacets.append(result.result.languages)
                         acceptedWatchStateFacets.append(candidate.watchState)
+                        acceptedOrderKeys.append(SearchFTSRows.displayOrderKey(
+                            fileRank: fileRanks[candidate.subtitleFileID] ?? 0,
+                            rowID: candidate.ftsRowID,
+                            lineIndex: result.result.primaryGroupIndex
+                        ))
                         switch mode {
                         case .exact:
                             progressFileSummaries.add(result)
@@ -1145,6 +1152,7 @@ public final class SearchDatabase: @unchecked Sendable {
         let lineCount: Int
         let order: SearchResultOrder
         var watchState: LibraryWatchState = .unwatched
+        var ftsRowID: Int64 = 0
     }
 
     private struct SearchResultOrder {
@@ -1881,7 +1889,9 @@ public final class SearchDatabase: @unchecked Sendable {
         var candidatesByRowID: [Int64: SearchCandidate] = [:]
         candidatesByRowID.reserveCapacity(rowIDs.count)
         while try statement.step() {
-            candidatesByRowID[statement.int64Column(16)] = searchCandidateWithWatchState(from: statement)
+            var candidate = searchCandidateWithWatchState(from: statement)
+            candidate.ftsRowID = statement.int64Column(16)
+            candidatesByRowID[candidate.ftsRowID] = candidate
         }
         return rowIDs.compactMap { candidatesByRowID[$0] }
     }

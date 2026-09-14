@@ -19,9 +19,24 @@ extension AppCoordinator {
         )
     }
 
-    /// A changed Filter Menu selection searches again with the new filter, so
-    /// the first page and every later row are already filtered.
+    /// A changed Filter Menu selection is answered from the complete counts
+    /// when they exist (requirement 4.4); otherwise it searches again with the
+    /// new filter, so the first page and every later row are already filtered.
     func applySearchFacetFilter(_ filter: CueFacetFilter) {
+        if search.applyProjectedFacetFilter(
+            filter,
+            folders: indexing.selectedFolders,
+            languageFilter: .all,
+            watchStateFilter: .all,
+            e2eLoggingEnabled: settings.searchE2ELoggingEnabled,
+            onResultsChanged: { [weak self] generation in
+                self?.refreshSearchPlaybackPlaylistSource(
+                    resultListGeneration: generation
+                )
+            }
+        ) {
+            return
+        }
         guard search.updateSearchFacetFilter(filter) else {
             return
         }

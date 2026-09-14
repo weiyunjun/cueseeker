@@ -191,6 +191,10 @@ public struct CueFacetSnapshot: Equatable, Sendable {
     public let characterFacets: [CueCharacterFacet]
     public let languageFacets: [Set<SubtitleLanguageCode>]
     public let watchStateFacets: [LibraryWatchState]
+    /// Each row's position in the Search display order (file rank, time
+    /// position, line), so rows gathered by several scans can be put back into
+    /// that order. Rows built without keys keep their array order.
+    public let orderKeys: [Int64]
     public let distribution: CueFacetDistribution
 
     init(
@@ -198,13 +202,15 @@ public struct CueFacetSnapshot: Equatable, Sendable {
         durationFacets: [CueDurationFacet],
         characterFacets: [CueCharacterFacet],
         languageFacets: [Set<SubtitleLanguageCode>],
-        watchStateFacets: [LibraryWatchState]
+        watchStateFacets: [LibraryWatchState],
+        orderKeys: [Int64]? = nil
     ) {
         precondition(
             durationFacets.count == cueIDs.count
                 && characterFacets.count == cueIDs.count
                 && languageFacets.count == cueIDs.count
                 && watchStateFacets.count == cueIDs.count
+                && (orderKeys == nil || orderKeys?.count == cueIDs.count)
         )
 
         let resolvedLanguageFacets = languageFacets.map {
@@ -222,6 +228,7 @@ public struct CueFacetSnapshot: Equatable, Sendable {
         self.characterFacets = characterFacets
         self.languageFacets = resolvedLanguageFacets
         self.watchStateFacets = watchStateFacets
+        self.orderKeys = orderKeys ?? cueIDs.indices.map { Int64($0) }
         distribution = CueFacetDistribution(
             totalCount: cueIDs.count,
             durationCounts: Dictionary(grouping: durationFacets, by: { $0 })
@@ -315,7 +322,25 @@ public struct CueFacetSnapshot: Equatable, Sendable {
             durationFacets: durationFacets + other.durationFacets,
             characterFacets: characterFacets + other.characterFacets,
             languageFacets: languageFacets + other.languageFacets,
-            watchStateFacets: watchStateFacets + other.watchStateFacets
+            watchStateFacets: watchStateFacets + other.watchStateFacets,
+            orderKeys: orderKeys + other.orderKeys
+        )
+    }
+
+    /// The same rows in Search display order, so that filtering the snapshot
+    /// yields a result list in the order a search would return.
+    public func sortedByDisplayOrder() -> CueFacetSnapshot {
+        guard zip(orderKeys, orderKeys.dropFirst()).contains(where: { $0 > $1 }) else {
+            return self
+        }
+        let order = cueIDs.indices.sorted { orderKeys[$0] < orderKeys[$1] }
+        return CueFacetSnapshot(
+            cueIDs: order.map { cueIDs[$0] },
+            durationFacets: order.map { durationFacets[$0] },
+            characterFacets: order.map { characterFacets[$0] },
+            languageFacets: order.map { languageFacets[$0] },
+            watchStateFacets: order.map { watchStateFacets[$0] },
+            orderKeys: order.map { orderKeys[$0] }
         )
     }
 
@@ -330,7 +355,8 @@ public struct CueFacetSnapshot: Equatable, Sendable {
             durationFacets: retainedIndices.map { durationFacets[$0] },
             characterFacets: retainedIndices.map { characterFacets[$0] },
             languageFacets: retainedIndices.map { languageFacets[$0] },
-            watchStateFacets: retainedIndices.map { watchStateFacets[$0] }
+            watchStateFacets: retainedIndices.map { watchStateFacets[$0] },
+            orderKeys: retainedIndices.map { orderKeys[$0] }
         )
     }
 }

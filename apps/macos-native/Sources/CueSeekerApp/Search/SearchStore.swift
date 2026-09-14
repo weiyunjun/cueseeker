@@ -248,12 +248,76 @@ final class SearchStore: ObservableObject {
     }
 
     /// Adds the rows a count scan read for one checked card, which completes
-    /// that card's unchecked option counts.
+    /// that card's unchecked option counts. Once the last scan has landed the
+    /// snapshot holds every match of the query, and it is put into display
+    /// order so a later selection can be answered from it.
     func appendSearchFacetCounts(_ rows: CueFacetSnapshot, for kind: CueFacetKind) {
         guard let searchFacetSnapshot else { return }
-        self.searchFacetSnapshot = searchFacetSnapshot.appending(rows)
         searchFacetCountsPendingKinds.remove(kind)
+        let joined = searchFacetSnapshot.appending(rows)
+        self.searchFacetSnapshot = searchFacetCountsPendingKinds.isEmpty
+            ? joined.sortedByDisplayOrder()
+            : joined
         refreshSearchFacetDistribution()
+    }
+
+    /// Whether every count is complete, so the snapshot holds every match of
+    /// the query with its facet values in display order.
+    var isSearchFacetSnapshotComplete: Bool {
+        searchFacetSnapshot != nil && searchFacetCountsPendingKinds.isEmpty
+    }
+
+    /// Requirement 4.4: with every count complete, a changed selection is
+    /// answered from the snapshot instead of a new search. The result becomes
+    /// the snapshot's matching rows in display order with the counts by the
+    /// usual rule; the caller loads the first page's row contents by cue ID.
+    /// Returns the projected cue IDs, or nil when a search is needed instead.
+    func projectSearchFacetFilter(_ filter: CueFacetFilter) -> [Int64]? {
+        guard searchFacetFilter != filter,
+              isSearchFacetSnapshotComplete,
+              let snapshot = searchFacetSnapshot
+        else {
+            return nil
+        }
+        searchFacetFilter = filter
+        resultFacetFilter = filter
+        cancelQueryTasks()
+        advanceResultListGeneration()
+        let projection = snapshot.filteredCueIDs(using: filter, limit: snapshot.cueIDs.count)
+        replaceResultState(
+            results: [],
+            orderedCueIDs: projection.cueIDs,
+            status: .completed,
+            totalCount: projection.cueIDs.count,
+            fileSummaries: searchFileSummaries,
+            countState: .exact,
+            knownResultCount: projection.cueIDs.count,
+            knownFileCount: searchKnownFileCount,
+            hasMore: !projection.cueIDs.isEmpty,
+            loadedResultCount: 0,
+            nextCursor: projection.cueIDs.isEmpty ? nil : .start
+        )
+        searchFacetDistribution = projection.distribution
+        return projection.cueIDs
+    }
+
+    /// Installs the first page of a projected result once its row contents
+    /// have been read by cue ID.
+    @discardableResult
+    func commitProjectedSearchRows(_ results: [SubtitleSearchResult], generation: UInt64) -> Bool {
+        guard generation == resultListGeneration, searchStatus == .completed else {
+            return false
+        }
+        commitResultMutation {
+            mergeLoadedSearchResults(results, cueIDs: [], startingAt: 0)
+            let loadedResultCount = loadedSearchResultCueIDs.count
+            loadedGlobalResultCount = loadedResultCount
+            hasMoreSearchResults = loadedResultCount < searchResultTotalCount
+            nextGlobalCursor = loadedResultCount < searchResultTotalCount
+                ? SubtitleSearchCursor(offset: loadedResultCount)
+                : nil
+        }
+        return true
     }
 
     func cancelFacetCountsTask() {

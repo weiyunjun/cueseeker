@@ -2369,6 +2369,10 @@ func searchPageAppliesTheFacetFilterToResultsAndANegatedScanReadsTheRowsForTheUn
         joined.filteredCueIDs(using: shortCues, limit: 8).distribution
             == snapshot.filteredCueIDs(using: shortCues, limit: 8).distribution
     )
+    // Every row carries its display-order key, so the joined rows sorted are
+    // the unfiltered scan's rows in the unfiltered scan's order.
+    #expect(joined.cueIDs != snapshot.cueIDs)
+    #expect(joined.sortedByDisplayOrder().cueIDs == snapshot.cueIDs)
 
     // Two checked cards: each card's scan negates only itself. Duration `<1s`
     // with Character `31+` leaves the long ASS line; the duration scan reads the
@@ -2396,6 +2400,11 @@ func searchPageAppliesTheFacetFilterToResultsAndANegatedScanReadsTheRowsForTheUn
         .twentyOneToThirty: 3,
         .thirtyOneOrMore: 1,
     ])
+    let twoCardRowSet = Set(twoCardJoined.cueIDs)
+    #expect(
+        twoCardJoined.sortedByDisplayOrder().cueIDs
+            == snapshot.cueIDs.filter { twoCardRowSet.contains($0) }
+    )
 
     // Watch state is negated on the file: with `finished` checked the SRT file
     // is the result and the ASS file's two rows are read for the unchecked options.

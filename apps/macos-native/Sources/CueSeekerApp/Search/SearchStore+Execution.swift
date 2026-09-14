@@ -588,6 +588,86 @@ extension SearchStore {
         })
     }
 
+    /// Requirement 4.4: answers a changed selection from the complete snapshot
+    /// and reads only the first page's row contents, by cue ID. Returns false
+    /// when the counts are not complete, in which case a search must run.
+    func applyProjectedFacetFilter(
+        _ filter: CueFacetFilter,
+        folders: [URL],
+        languageFilter: SubtitleSearchLanguageFilter,
+        watchStateFilter: SubtitleSearchWatchStateFilter,
+        e2eLoggingEnabled: Bool,
+        onResultsChanged: @escaping @MainActor (UInt64) -> Void
+    ) -> Bool {
+        guard searchFacetFilter != filter, isSearchFacetSnapshotComplete else {
+            return false
+        }
+        let trimmedQuery = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        let run = SearchPerformanceLogger.startRun(
+            query: trimmedQuery,
+            queryLength: trimmedQuery.count,
+            offset: 0,
+            cursor: .start,
+            limit: Self.searchPageSize,
+            appending: false,
+            debounce: false,
+            folderPaths: folders.map(\.path),
+            e2eLoggingEnabled: e2eLoggingEnabled
+        )
+        updateActivePerformanceRun(run)
+        guard let cueIDs = projectSearchFacetFilter(filter) else {
+            return false
+        }
+        let generation = resultListGeneration
+        SearchPerformanceLogger.mark(
+            run,
+            "search_facet_projection_applied",
+            resultCount: 0,
+            totalCount: cueIDs.count,
+            status: "completed"
+        )
+        onResultsChanged(generation)
+        guard !cueIDs.isEmpty else {
+            return true
+        }
+        let pageRange = 0..<min(Self.searchPageSize, cueIDs.count)
+        replaceSearchTask(Task { [weak self] in
+            guard let self else { return }
+            let started = SearchPerformanceLogger.now()
+            let page = await self.loadSearchRows(
+                range: pageRange,
+                folders: folders,
+                languageFilter: languageFilter,
+                watchStateFilter: watchStateFilter,
+                orderedCueIDs: cueIDs
+            )
+            guard let page,
+                  !Task.isCancelled,
+                  self.commitProjectedSearchRows(page.results, generation: generation)
+            else {
+                return
+            }
+            onResultsChanged(generation)
+            SearchPerformanceLogger.mark(
+                run,
+                "search_facet_projection_rows_loaded",
+                phaseStart: started,
+                resultCount: self.searchResults.count,
+                totalCount: self.searchResultTotalCount,
+                status: "completed"
+            )
+            SearchPerformanceLogger.writeE2ESearchPage(
+                run,
+                event: "search_facet_projection_rows_loaded",
+                page: nil,
+                databaseSearchMilliseconds: SearchPerformanceLogger.elapsedMilliseconds(since: started),
+                renderedRowCount: self.searchResults.count,
+                status: "completed"
+            )
+        })
+        return true
+    }
+
     func applyCountProgress(
         _ progress: SubtitleSearchProgressSnapshot,
         query: String,
