@@ -30,10 +30,12 @@ This changelog does not replace Git history. Git records concrete file changes. 
   complete, only the unchecked options of a checked card read "calculating"
   while one scan of just the remaining rows counts them, and a changed
   selection starts both the search and the counts over. Once every count is
-  complete, a changed selection is answered from memory: the rows and counts
-  come from the completed result in display order and only the first page's
-  row contents are read, so the new list appears in under 0.1 s instead of
-  0.5–3.4 s.
+  complete after an unfiltered search or one with a single checked card, a
+  changed selection is answered from memory: the rows and counts come from
+  the completed result in display order and only the first page's row
+  contents are read, so the new list appears in under 0.1 s instead of
+  0.5–3.4 s; after a search with two or more checked cards the scans have not
+  read every match, so a changed selection searches again.
 - Settings now has six categories: General, which gathers Appearance,
   Search, Language and Deep Link; Play, which gathers Play and Decode;
   Shortcuts; Subtitle; Maintenance; and Developer. Settings opens on General.

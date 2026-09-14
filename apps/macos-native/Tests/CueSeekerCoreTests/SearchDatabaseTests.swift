@@ -2400,7 +2400,12 @@ func searchPageAppliesTheFacetFilterToResultsAndANegatedScanReadsTheRowsForTheUn
         .twentyOneToThirty: 3,
         .thirtyOneOrMore: 1,
     ])
+    // With two checked cards the joined rows are not every match: the three
+    // long SRT lines fail both cards and no scan reads them. Sorting only puts
+    // the rows that were read into the unfiltered order.
     let twoCardRowSet = Set(twoCardJoined.cueIDs)
+    #expect(twoCardJoined.cueIDs.count == 5)
+    #expect(snapshot.cueIDs.count == 8)
     #expect(
         twoCardJoined.sortedByDisplayOrder().cueIDs
             == snapshot.cueIDs.filter { twoCardRowSet.contains($0) }
