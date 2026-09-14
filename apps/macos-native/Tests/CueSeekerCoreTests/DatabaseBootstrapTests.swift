@@ -960,3 +960,77 @@ func migratesSchema47ByEncodingFTSRowIDsByFileAndTime() throws {
             == ["Earlier alpha", "Later alpha"]
     )
 }
+
+@Test
+func migratesSchema48ByStoringTheLanguageOfEveryCueLine() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    try DatabaseBootstrap.prepare(at: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
+    try database.replaceCueGroups(
+        subtitleFile: URL(fileURLWithPath: "/Media/Styled.ass"),
+        videoFile: URL(fileURLWithPath: "/Media/Styled.mkv"),
+        format: .ass,
+        cueGroups: [
+            languageFilterASSCueGroup(
+                startMilliseconds: 1_000,
+                lines: [(style: "CN", content: "中文上方"), (style: "JP", content: "日本語の下側")]
+            ),
+            languageFilterASSCueGroup(
+                startMilliseconds: 3_000,
+                lines: [(style: nil, content: "12345")]
+            )
+        ],
+        languageAnalysis: SubtitleLanguageAnalysis(
+            format: .ass,
+            fileDetection: nil,
+            styleDetections: [
+                "CN": SubtitleLanguageDetectionResult(
+                    languages: [.simplifiedChinese],
+                    confidence: 1,
+                    segmentCount: 1,
+                    effectiveCharacterCount: 4,
+                    distribution: [SubtitleLanguageDistribution(language: .simplifiedChinese, share: 1)]
+                ),
+                "JP": SubtitleLanguageDetectionResult(
+                    languages: [.japanese],
+                    confidence: 1,
+                    segmentCount: 1,
+                    effectiveCharacterCount: 6,
+                    distribution: [SubtitleLanguageDistribution(language: .japanese, share: 1)]
+                ),
+            ],
+            cueGroupLanguages: [[.simplifiedChinese, .japanese], []]
+        )
+    )
+    let rowsSQL = """
+        SELECT GROUP_CONCAT(cue_id || ':' || language_code, ',')
+        FROM (SELECT cue_id, language_code FROM subtitle_cue_line_languages ORDER BY cue_id, language_code);
+        """
+    let indexedRows = try #require(try sqliteStringValue(at: databaseURL, sql: rowsSQL))
+    #expect(indexedRows.split(separator: ",").count == 3)
+    #expect(indexedRows.hasSuffix(":unknown"))
+
+    try executeDatabaseTestSQLite(
+        at: databaseURL,
+        """
+        DELETE FROM subtitle_cue_line_languages;
+        DELETE FROM cue_facet_counts WHERE facet = 'language';
+        PRAGMA user_version = 48;
+        """
+    )
+
+    try DatabaseBootstrap.prepare(at: databaseURL)
+
+    #expect(try sqliteSchemaVersion(at: databaseURL) == DatabaseBootstrap.currentSchemaVersion)
+    #expect(try sqliteStringValue(at: databaseURL, sql: rowsSQL) == indexedRows)
+    #expect(
+        try sqliteStringValue(
+            at: databaseURL,
+            sql: "SELECT GROUP_CONCAT(value || '=' || cue_count, ',') FROM (SELECT value, cue_count FROM cue_facet_counts WHERE facet = 'language' ORDER BY value);"
+        ) == "ja=1,unknown=1,zh-Hans=1"
+    )
+}

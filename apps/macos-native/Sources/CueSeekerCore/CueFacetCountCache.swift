@@ -143,63 +143,19 @@ enum CueFacetCountCache {
     private static func rebuildLanguage(on database: SQLiteDatabase) throws {
         try database.execute(
             """
-            WITH searchable_cues AS (
-                SELECT l.id AS cue_id,
-                       l.subtitle_file_id,
-                       l.cue_group_id,
-                       l.source_format,
-                       CASE
-                           WHEN SUBSTR(TRIM(COALESCE(l.source_style, '')), 1, 1) = '*'
-                               THEN SUBSTR(TRIM(COALESCE(l.source_style, '')), 2)
-                           ELSE TRIM(COALESCE(l.source_style, ''))
-                       END AS style_key
-                FROM subtitle_cue_lines l
-                JOIN subtitle_files sf ON sf.id = l.subtitle_file_id
-                WHERE EXISTS (
-                      SELECT 1
-                      FROM subtitle_video_matches m
-                      JOIN video_files vf ON vf.id = m.video_file_id
-                      WHERE m.subtitle_file_id = sf.id
-                        AND m.is_active = 1
-                  )
-            ),
-            files_with_detections AS (
-                SELECT DISTINCT d.subtitle_file_id
-                FROM subtitle_language_detections d
-                JOIN subtitle_language_detection_codes c ON c.detection_id = d.id
-            ),
-            detected_cue_languages AS (
-                SELECT sc.cue_id, c.language_code
-                FROM searchable_cues sc
-                JOIN subtitle_language_detections d
-                  ON d.subtitle_file_id = sc.subtitle_file_id
-                JOIN subtitle_language_detection_codes c ON c.detection_id = d.id
-                WHERE (sc.source_format = 'srt' AND d.scope = 'file')
-                   OR (sc.source_format = 'ass' AND d.scope = 'style' AND d.scope_key = sc.style_key)
-            ),
-            resolved_languages AS (
-                SELECT sc.cue_id,
-                       COALESCE(dcl.language_code, '\(SubtitleLanguageCode.unknown.rawValue)') AS language_code
-                FROM searchable_cues sc
-                JOIN files_with_detections f ON f.subtitle_file_id = sc.subtitle_file_id
-                LEFT JOIN detected_cue_languages dcl ON dcl.cue_id = sc.cue_id
-
-                UNION ALL
-
-                SELECT sc.cue_id,
-                       COALESCE(cgl.language_code, '\(SubtitleLanguageCode.unknown.rawValue)') AS language_code
-                FROM searchable_cues sc
-                LEFT JOIN subtitle_cue_group_languages cgl ON cgl.cue_group_id = sc.cue_group_id
-                WHERE NOT EXISTS (
-                    SELECT 1
-                    FROM files_with_detections f
-                    WHERE f.subtitle_file_id = sc.subtitle_file_id
-                )
-            )
             INSERT INTO cue_facet_counts(facet, value, cue_count)
-            SELECT '\(languageFacet)', language_code, COUNT(DISTINCT cue_id)
-            FROM resolved_languages
-            GROUP BY language_code;
+            SELECT '\(languageFacet)', cll.language_code, COUNT(DISTINCT cll.cue_id)
+            FROM subtitle_cue_line_languages cll
+            JOIN subtitle_cue_lines l ON l.id = cll.cue_id
+            JOIN subtitle_files sf ON sf.id = l.subtitle_file_id
+            WHERE EXISTS (
+                  SELECT 1
+                  FROM subtitle_video_matches m
+                  JOIN video_files vf ON vf.id = m.video_file_id
+                  WHERE m.subtitle_file_id = sf.id
+                    AND m.is_active = 1
+              )
+            GROUP BY cll.language_code;
             """
         )
     }

@@ -67,39 +67,6 @@ public final class SearchDatabase: @unchecked Sendable {
         return bindIndex
     }
 
-    private func cueGroupLanguages(
-        forCueGroupIDs cueGroupIDs: [Int64]
-    ) throws -> [Int64: Set<SubtitleLanguageCode>] {
-        guard !cueGroupIDs.isEmpty else {
-            return [:]
-        }
-
-        let placeholders = cueGroupIDs.map { _ in "?" }.joined(separator: ", ")
-        let statement = try database.prepare(
-            """
-            SELECT cue_group_id, language_code
-            FROM subtitle_cue_group_languages
-            WHERE cue_group_id IN (\(placeholders))
-            ORDER BY cue_group_id ASC, language_code ASC;
-            """
-        )
-
-        for (offset, cueGroupID) in cueGroupIDs.enumerated() {
-            try statement.bind(cueGroupID, at: Int32(offset + 1))
-        }
-
-        var languagesByCueGroupID: [Int64: Set<SubtitleLanguageCode>] = [:]
-        languagesByCueGroupID.reserveCapacity(cueGroupIDs.count)
-        while try statement.step() {
-            guard let language = SubtitleLanguageCode(rawValue: statement.stringColumn(1)) else {
-                continue
-            }
-            languagesByCueGroupID[statement.int64Column(0), default: []].insert(language)
-        }
-
-        return languagesByCueGroupID
-    }
-
     public func search(
         _ query: String,
         limit: Int = 50,
@@ -233,9 +200,9 @@ public final class SearchDatabase: @unchecked Sendable {
                    l.start_ms, l.end_ms, l.content, l.display_x, l.display_y,
                    l.display_order,
                    (
-                       SELECT GROUP_CONCAT(cgl.language_code)
-                       FROM subtitle_cue_group_languages cgl
-                       WHERE cgl.cue_group_id = g.id
+                       SELECT GROUP_CONCAT(cll.language_code)
+                       FROM subtitle_cue_line_languages cll
+                       WHERE cll.cue_id = l.id
                    ) AS language_values
             FROM subtitle_cue_groups g
             JOIN subtitle_files sf ON sf.id = g.subtitle_file_id
@@ -254,30 +221,13 @@ public final class SearchDatabase: @unchecked Sendable {
 
         var accepted: [AllCuePageCandidate] = []
         var fileSummaryAccumulator = SearchFileSummaryAccumulator()
-        var languageDetectionsBySubtitleFileID: [Int64: SearchLanguageDetections] = [:]
         var acceptedCount = 0
         while try statement.step() {
             try Task.checkCancellation()
             let candidate = searchCandidate(from: statement)
             let cueLineRecord = cueLineRecord(from: statement, startingAt: 15)
-            let languageDetections: SearchLanguageDetections
-            if let cached = languageDetectionsBySubtitleFileID[candidate.subtitleFileID] {
-                languageDetections = cached
-            } else {
-                let loaded = try searchLanguageDetections(
-                    forSubtitleFileID: candidate.subtitleFileID
-                )
-                languageDetectionsBySubtitleFileID[candidate.subtitleFileID] = loaded
-                languageDetections = loaded
-            }
-            let cueGroupLanguages = Self.languageValues(
+            let displayLanguages = Self.languageValues(
                 from: statement.nullableStringColumn(29)
-            )
-            let displayLanguages = Self.displayLanguages(
-                for: cueLineRecord.line,
-                candidate: candidate,
-                detections: languageDetections,
-                cueGroupLanguages: cueGroupLanguages
             )
             guard filterSet.isEffectivelyEmpty || filterSet.matches(
                 display: candidate.order.displayTitle,
@@ -407,8 +357,7 @@ public final class SearchDatabase: @unchecked Sendable {
             return nil
         }
         let cueRecordsByCueGroupID = try cueLineRecords(forCueGroupIDs: cueGroupIDs)
-        let languagesByCueGroupID = try cueGroupLanguages(forCueGroupIDs: cueGroupIDs)
-        var languageDetectionsBySubtitleFileID: [Int64: SearchLanguageDetections] = [:]
+        let languagesByCueID = try CueLineLanguages.languages(forCueIDs: indexWindow.cueIDs, on: database)
         try Task.checkCancellation()
 
         var results: [SubtitleSearchResult] = []
@@ -421,22 +370,7 @@ public final class SearchDatabase: @unchecked Sendable {
                 return nil
             }
             let groupRecords = cueRecordsByCueGroupID[cueRecord.cueGroupID] ?? [cueRecord]
-            let languageDetections: SearchLanguageDetections
-            if let cached = languageDetectionsBySubtitleFileID[candidate.subtitleFileID] {
-                languageDetections = cached
-            } else {
-                let loaded = try searchLanguageDetections(
-                    forSubtitleFileID: candidate.subtitleFileID
-                )
-                languageDetectionsBySubtitleFileID[candidate.subtitleFileID] = loaded
-                languageDetections = loaded
-            }
-            let languages = Self.displayLanguages(
-                for: cueRecord.line,
-                candidate: candidate,
-                detections: languageDetections,
-                cueGroupLanguages: languagesByCueGroupID[cueRecord.cueGroupID] ?? [.unknown]
-            )
+            let languages = languagesByCueID[cueID] ?? [.unknown]
             var result = orderedSearchResult(
                 for: candidate,
                 match: SearchResultMatch(
@@ -579,7 +513,6 @@ public final class SearchDatabase: @unchecked Sendable {
             // facet snapshot; the counts for the unchecked options come from a later
             // unfiltered scan.
             let pushesFacetFilter = !facetFilter.isEmpty
-            let pushesLineFacets = !facetFilter.durations.isEmpty || !facetFilter.characters.isEmpty
             var matchedCueIDs: [Int64] = []
             var acceptedCueIDs: [Int64] = []
             var matchedDurationFacets: [CueDurationFacet] = []
@@ -598,7 +531,6 @@ public final class SearchDatabase: @unchecked Sendable {
             var totalCandidates = 0
             var totalMultiLineCandidates = 0
             var totalCueLineRows = 0
-            var languageDetectionsBySubtitleFileID: [Int64: SearchLanguageDetections] = [:]
             func rankedResults(
                 from orderedResults: [OrderedSearchResult],
                 startingAt startIndex: Int = 0
@@ -620,8 +552,10 @@ public final class SearchDatabase: @unchecked Sendable {
             }
             let languageFilterCodes = Self.languageCodesForSearchFilter(languageFilter)
             let languageFilterCodeSet = Set(languageFilterCodes)
-            let filtersByMatchingLineLanguage = !languageFilterCodeSet.isEmpty
-            let languageConditionCodes = languageFilterCodes.contains(.unknown) ? [] : languageFilterCodes
+            let pushesLineFacets = !facetFilter.durations.isEmpty
+                || !facetFilter.characters.isEmpty
+                || !facetFilter.languages.isEmpty
+                || !languageFilterCodeSet.isEmpty
             let watchStateValues = watchStateFilter.states.map(\.rawValue)
             emit(
                 "setup",
@@ -670,7 +604,6 @@ public final class SearchDatabase: @unchecked Sendable {
                 nextHitIndex = chunkEnd
                 let candidates = try searchCandidates(
                     forFTSRowIDs: chunkRowIDs,
-                    languageConditionCodes: languageConditionCodes,
                     watchStateValues: watchStateValues,
                     facetWatchStates: facetFilter.watchStates
                 )
@@ -705,7 +638,9 @@ public final class SearchDatabase: @unchecked Sendable {
                     ? try facetMatchingLineIDs(
                         forCueGroupIDs: candidateCueGroupIDs,
                         durations: facetFilter.durations,
-                        characters: facetFilter.characters
+                        characters: facetFilter.characters,
+                        languages: facetFilter.languages,
+                        requiredLanguages: languageFilterCodeSet
                     )
                     : nil
                 let lineCueGroupIDs = facetLineIDsByCueGroupID.map { Array($0.keys) }
@@ -715,26 +650,9 @@ public final class SearchDatabase: @unchecked Sendable {
                 )
                 let cueLineRows = cueLineRecordsByCueGroupID.values.reduce(0) { $0 + $1.count }
                 totalCueLineRows += cueLineRows
-                var fallbackLanguageCueGroupIDs: [Int64] = []
-                fallbackLanguageCueGroupIDs.reserveCapacity(candidates.count)
-                for candidate in candidates {
-                    guard cueLineRecordsByCueGroupID[candidate.cueGroupID] != nil else {
-                        continue
-                    }
-                    let languageDetections: SearchLanguageDetections
-                    if let cached = languageDetectionsBySubtitleFileID[candidate.subtitleFileID] {
-                        languageDetections = cached
-                    } else {
-                        let loaded = try searchLanguageDetections(forSubtitleFileID: candidate.subtitleFileID)
-                        languageDetectionsBySubtitleFileID[candidate.subtitleFileID] = loaded
-                        languageDetections = loaded
-                    }
-                    if !languageDetections.hasAnyDetection {
-                        fallbackLanguageCueGroupIDs.append(candidate.cueGroupID)
-                    }
-                }
-                let languagesByCueGroupID = try cueGroupLanguages(
-                    forCueGroupIDs: lineCueGroupIDs
+                let languagesByCueID = try CueLineLanguages.languages(
+                    forCueIDs: cueLineRecordsByCueGroupID.values.flatMap { $0.map(\.id) },
+                    on: database
                 )
                 emit(
                     "cue_lines",
@@ -742,8 +660,7 @@ public final class SearchDatabase: @unchecked Sendable {
                     fields: [
                         .init("batch", batchIndex),
                         .init("multiLineCandidates", multiLineCueGroupIDs.count),
-                        .init("lineLanguageFilteredCandidates", filtersByMatchingLineLanguage ? candidates.count : 0),
-                        .init("fallbackLanguageCandidates", fallbackLanguageCueGroupIDs.count),
+                        .init("lineCueGroups", lineCueGroupIDs.count),
                         .init("cueLineRows", cueLineRows)
                     ]
                 )
@@ -758,8 +675,7 @@ public final class SearchDatabase: @unchecked Sendable {
                         cueLineRecords: cueLineRecordsByCueGroupID[candidate.cueGroupID] ?? [],
                         matching: plan,
                         languageFilterCodes: languageFilterCodeSet,
-                        languageDetections: languageDetectionsBySubtitleFileID[candidate.subtitleFileID],
-                        cueGroupLanguages: languagesByCueGroupID[candidate.cueGroupID] ?? [],
+                        languagesByCueID: languagesByCueID,
                         filterSet: filterSet,
                         allowedLineIDs: facetLineIDsByCueGroupID?[candidate.cueGroupID]
                     )
@@ -1258,15 +1174,6 @@ public final class SearchDatabase: @unchecked Sendable {
         let displayLanguages: Set<SubtitleLanguageCode>
     }
 
-    private struct SearchLanguageDetections {
-        let fileLanguages: Set<SubtitleLanguageCode>?
-        let styleLanguagesByName: [String: Set<SubtitleLanguageCode>]
-
-        var hasAnyDetection: Bool {
-            fileLanguages != nil || !styleLanguagesByName.isEmpty
-        }
-    }
-
     private struct SearchFileSummaryAccumulator {
         private var countsByPath: [String: Int] = [:]
         private var pathsInOrder: [String] = []
@@ -1338,8 +1245,7 @@ public final class SearchDatabase: @unchecked Sendable {
         cueLineRecords: [SubtitleCueLineRecord],
         matching plan: SearchQueryPlanner.Plan,
         languageFilterCodes: Set<SubtitleLanguageCode>,
-        languageDetections: SearchLanguageDetections?,
-        cueGroupLanguages: Set<SubtitleLanguageCode>,
+        languagesByCueID: [Int64: Set<SubtitleLanguageCode>],
         filterSet: SubtitleSearchFilterSet,
         allowedLineIDs: Set<Int64>? = nil
     ) -> [OrderedSearchResult] {
@@ -1348,8 +1254,7 @@ public final class SearchDatabase: @unchecked Sendable {
             cueLineRecords: cueLineRecords,
             matching: plan,
             languageFilterCodes: languageFilterCodes,
-            languageDetections: languageDetections,
-            cueGroupLanguages: cueGroupLanguages,
+            languagesByCueID: languagesByCueID,
             filterSet: filterSet,
             allowedLineIDs: allowedLineIDs
         ).map { orderedSearchResult(for: candidate, match: $0) }
@@ -1360,8 +1265,7 @@ public final class SearchDatabase: @unchecked Sendable {
         cueLineRecords: [SubtitleCueLineRecord],
         matching plan: SearchQueryPlanner.Plan,
         languageFilterCodes: Set<SubtitleLanguageCode>,
-        languageDetections: SearchLanguageDetections?,
-        cueGroupLanguages: Set<SubtitleLanguageCode>,
+        languagesByCueID: [Int64: Set<SubtitleLanguageCode>],
         filterSet: SubtitleSearchFilterSet,
         allowedLineIDs: Set<Int64>? = nil
     ) -> [SearchResultMatch] {
@@ -1378,12 +1282,7 @@ public final class SearchDatabase: @unchecked Sendable {
                 continue
             }
 
-            let displayLanguages = Self.displayLanguages(
-                for: record.line,
-                candidate: candidate,
-                detections: languageDetections,
-                cueGroupLanguages: cueGroupLanguages
-            )
+            let displayLanguages = languagesByCueID[record.id] ?? [.unknown]
             guard languageFilterCodes.isEmpty
                     || !displayLanguages.isDisjoint(with: languageFilterCodes)
             else {
@@ -1456,66 +1355,6 @@ public final class SearchDatabase: @unchecked Sendable {
             .split(separator: ",")
             .compactMap { SubtitleLanguageCode(rawValue: String($0)) }
         return values.isEmpty ? [.unknown] : Set(values)
-    }
-
-    private static func languagesForMatchingLine(
-        at index: Int,
-        candidate: SearchCandidate,
-        lines: [SubtitleCueLine],
-        detections: SearchLanguageDetections
-    ) -> Set<SubtitleLanguageCode> {
-        guard index < lines.count else {
-            return fallbackLanguagesForMatchingLine(candidate: candidate, detections: detections)
-        }
-
-        let line = lines[index]
-        switch line.sourceFormat {
-        case .srt:
-            return detections.fileLanguages ?? [.unknown]
-        case .ass:
-            guard let styleName = SubtitleLanguageAnalyzer.canonicalASSStyleName(line.sourceStyle) else {
-                return SubtitleLanguageAnalyzer.languageSegments(from: line.content).isEmpty ? [] : [.unknown]
-            }
-            return detections.styleLanguagesByName[styleName] ?? [.unknown]
-        }
-    }
-
-    private static func displayLanguages(
-        for cueLine: SubtitleCueLine,
-        candidate: SearchCandidate,
-        detections: SearchLanguageDetections?,
-        cueGroupLanguages: Set<SubtitleLanguageCode>
-    ) -> Set<SubtitleLanguageCode> {
-        if let detections, detections.hasAnyDetection {
-            return languagesForMatchingLine(
-                at: 0,
-                candidate: candidate,
-                lines: [cueLine],
-                detections: detections
-            )
-        }
-
-        if candidate.subtitleFormat == .ass, candidate.lineCount > 1 {
-            return SubtitleLanguageRecognizer(minimumEffectiveCharacterCount: 4)
-                .detectLanguages(
-                    in: SubtitleLanguageAnalyzer.languageSegments(from: cueLine.content)
-                )
-                .languages
-        }
-
-        return cueGroupLanguages.isEmpty ? [.unknown] : cueGroupLanguages
-    }
-
-    private static func fallbackLanguagesForMatchingLine(
-        candidate: SearchCandidate,
-        detections: SearchLanguageDetections
-    ) -> Set<SubtitleLanguageCode> {
-        switch candidate.subtitleFormat {
-        case .srt:
-            return detections.fileLanguages ?? [.unknown]
-        case .ass:
-            return [.unknown]
-        }
     }
 
     private static func searchOrderSource(for results: [OrderedSearchResult]) -> String {
@@ -1734,7 +1573,9 @@ public final class SearchDatabase: @unchecked Sendable {
     private func facetMatchingLineIDs(
         forCueGroupIDs cueGroupIDs: [Int64],
         durations: Set<CueDurationFacet>,
-        characters: Set<CueCharacterFacet>
+        characters: Set<CueCharacterFacet>,
+        languages: Set<SubtitleLanguageCode>,
+        requiredLanguages: Set<SubtitleLanguageCode>
     ) throws -> [Int64: Set<Int64>] {
         guard !cueGroupIDs.isEmpty else {
             return [:]
@@ -1761,6 +1602,20 @@ public final class SearchDatabase: @unchecked Sendable {
         let characterCondition = characterConditions.isEmpty
             ? ""
             : "AND (" + characterConditions.map { "(\($0))" }.joined(separator: " OR ") + ")"
+        let languageSets = [languages, requiredLanguages]
+            .filter { !$0.isEmpty }
+            .map { $0.map(\.rawValue).sorted() }
+        let languageConditions = languageSets.map { codes in
+            let placeholders = Array(repeating: "?", count: codes.count).joined(separator: ", ")
+            return """
+            AND EXISTS (
+                SELECT 1
+                FROM subtitle_cue_line_languages cll
+                WHERE cll.cue_id = l.id
+                  AND cll.language_code IN (\(placeholders))
+            )
+            """
+        }.joined(separator: "\n")
         let placeholders = cueGroupIDs.map { _ in "?" }.joined(separator: ", ")
         let statement = try database.prepare(
             """
@@ -1768,11 +1623,18 @@ public final class SearchDatabase: @unchecked Sendable {
             FROM subtitle_cue_lines l
             WHERE l.cue_group_id IN (\(placeholders))
             \(durationCondition)
-            \(characterCondition);
+            \(characterCondition)
+            \(languageConditions);
             """
         )
-        for (offset, cueGroupID) in cueGroupIDs.enumerated() {
-            try statement.bind(cueGroupID, at: Int32(offset + 1))
+        var bindIndex: Int32 = 1
+        for cueGroupID in cueGroupIDs {
+            try statement.bind(cueGroupID, at: bindIndex)
+            bindIndex += 1
+        }
+        for code in languageSets.flatMap({ $0 }) {
+            try statement.bind(code, at: bindIndex)
+            bindIndex += 1
         }
 
         var lineIDsByCueGroupID: [Int64: Set<Int64>] = [:]
@@ -1951,7 +1813,6 @@ public final class SearchDatabase: @unchecked Sendable {
     /// without the rows the language or watch-state filter rejects.
     private func searchCandidates(
         forFTSRowIDs rowIDs: [Int64],
-        languageConditionCodes: [SubtitleLanguageCode],
         watchStateValues: [String],
         facetWatchStates: Set<LibraryWatchState> = []
     ) throws -> [SearchCandidate] {
@@ -1969,28 +1830,6 @@ public final class SearchDatabase: @unchecked Sendable {
                 "AND COALESCE(ws.state, '\(LibraryWatchState.unwatched.rawValue)') IN (\(placeholders))"
         }
 
-        let languageCondition: String
-        if languageConditionCodes.isEmpty {
-            languageCondition = ""
-        } else {
-            let placeholders = Array(repeating: "?", count: languageConditionCodes.count)
-                .joined(separator: ", ")
-            languageCondition = """
-            AND (
-                EXISTS (
-                    SELECT 1
-                    FROM subtitle_cue_group_languages cgl
-                    WHERE cgl.cue_group_id = g.id
-                      AND cgl.language_code IN (\(placeholders))
-                )
-                OR NOT EXISTS (
-                    SELECT 1
-                    FROM subtitle_cue_group_languages cgl_missing
-                    WHERE cgl_missing.cue_group_id = g.id
-                )
-            )
-            """
-        }
         let watchStateCondition: String
         if watchStateValues.isEmpty {
             watchStateCondition = ""
@@ -2007,7 +1846,6 @@ public final class SearchDatabase: @unchecked Sendable {
             JOIN subtitle_cue_groups g ON g.id = f.cue_group_id
             \(Self.searchCandidateJoinsSQL)
             WHERE f.rowid IN (\(rowIDPlaceholders))
-            \(languageCondition)
             \(watchStateCondition)
             \(facetWatchStateCondition);
             """
@@ -2015,10 +1853,6 @@ public final class SearchDatabase: @unchecked Sendable {
         var bindIndex: Int32 = 1
         for rowID in rowIDs {
             try statement.bind(rowID, at: bindIndex)
-            bindIndex += 1
-        }
-        for languageCode in languageConditionCodes {
-            try statement.bind(languageCode.rawValue, at: bindIndex)
             bindIndex += 1
         }
         for watchStateValue in watchStateValues {
@@ -2065,49 +1899,6 @@ public final class SearchDatabase: @unchecked Sendable {
         }
 
         return candidates
-    }
-
-    private func searchLanguageDetections(
-        forSubtitleFileID subtitleFileID: Int64
-    ) throws -> SearchLanguageDetections {
-        let statement = try database.prepare(
-            """
-            SELECT d.scope, d.scope_key, c.language_code
-            FROM subtitle_language_detections d
-            JOIN subtitle_language_detection_codes c ON c.detection_id = d.id
-            WHERE d.subtitle_file_id = ?
-            ORDER BY d.scope ASC, d.scope_key ASC, c.language_code ASC;
-            """
-        )
-        try statement.bind(subtitleFileID, at: 1)
-
-        var fileLanguages: Set<SubtitleLanguageCode>?
-        var styleLanguagesByName: [String: Set<SubtitleLanguageCode>] = [:]
-        while try statement.step() {
-            guard let language = SubtitleLanguageCode(rawValue: statement.stringColumn(2)) else {
-                continue
-            }
-
-            switch SubtitleLanguageDetectionScope(rawValue: statement.stringColumn(0)) {
-            case .file:
-                var languages = fileLanguages ?? Set<SubtitleLanguageCode>()
-                languages.insert(language)
-                fileLanguages = languages
-            case .style:
-                let styleName = statement.stringColumn(1)
-                guard !styleName.isEmpty else {
-                    continue
-                }
-                styleLanguagesByName[styleName, default: []].insert(language)
-            case nil:
-                continue
-            }
-        }
-
-        return SearchLanguageDetections(
-            fileLanguages: fileLanguages,
-            styleLanguagesByName: styleLanguagesByName
-        )
     }
 
     private func cueLineRecord(

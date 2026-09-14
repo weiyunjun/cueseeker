@@ -21,7 +21,10 @@ This changelog does not replace Git history. Git records concrete file changes. 
   state is applied while the rows are read, so the filtered count arrives
   first and the counts for the unchecked options follow from a second scan in
   the background; with Character `31+` checked, `の` now shows its 2,766 results
-  after about 0.8 s instead of 2 s.
+  after about 0.8 s instead of 2 s. The language of every cue line is settled
+  when its file is indexed and stored (schema 49 fills it for existing
+  libraries), so a language selection is applied the same way: `の` with only
+  English checked shows its 938 results after about 0.9 s.
 - Settings now has six categories: General, which gathers Appearance,
   Search, Language and Deep Link; Play, which gathers Play and Decode;
   Shortcuts; Subtitle; Maintenance; and Developer. Settings opens on General.

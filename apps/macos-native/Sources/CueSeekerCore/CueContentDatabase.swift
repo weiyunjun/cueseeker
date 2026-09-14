@@ -12,14 +12,6 @@ public final class CueContentDatabase: @unchecked Sendable {
         let lineCount: Int
     }
 
-    private struct LanguageDetections {
-        let fileLanguages: Set<SubtitleLanguageCode>?
-        let styleLanguagesByName: [String: Set<SubtitleLanguageCode>]
-
-        var hasAnyDetection: Bool {
-            fileLanguages != nil || !styleLanguagesByName.isEmpty
-        }
-    }
 
     private let database: SQLiteDatabase
 
@@ -39,8 +31,7 @@ public final class CueContentDatabase: @unchecked Sendable {
         guard cueGroupIDs.allSatisfy({ candidatesByGroupID[$0] != nil }) else { return [] }
 
         let groupRecordsByID = try cueLineRecords(forCueGroupIDs: cueGroupIDs)
-        let languagesByGroupID = try cueGroupLanguages(forCueGroupIDs: cueGroupIDs)
-        var detectionsByFileID: [Int64: LanguageDetections] = [:]
+        let languagesByCueID = try CueLineLanguages.languages(forCueIDs: orderedCueIDs, on: database)
         var contents: [CueContent] = []
         contents.reserveCapacity(orderedCueIDs.count)
 
@@ -49,14 +40,6 @@ public final class CueContentDatabase: @unchecked Sendable {
                   let candidate = candidatesByGroupID[cueRecord.cueGroupID]
             else { return [] }
             let groupRecords = groupRecordsByID[cueRecord.cueGroupID] ?? [cueRecord]
-            let detections: LanguageDetections
-            if let cached = detectionsByFileID[candidate.subtitleFileID] {
-                detections = cached
-            } else {
-                let loaded = try languageDetections(forSubtitleFileID: candidate.subtitleFileID)
-                detectionsByFileID[candidate.subtitleFileID] = loaded
-                detections = loaded
-            }
             contents.append(CueContent(
                 cueID: cueID,
                 cueGroupID: cueRecord.cueGroupID,
@@ -75,12 +58,7 @@ public final class CueContentDatabase: @unchecked Sendable {
                 content: cueRecord.line.content,
                 cueLines: [cueRecord.line.content],
                 cueGroupLines: groupRecords.map(\.line.content),
-                languages: Self.displayLanguages(
-                    for: cueRecord.line,
-                    candidate: candidate,
-                    detections: detections,
-                    cueGroupLanguages: languagesByGroupID[cueRecord.cueGroupID] ?? [.unknown]
-                )
+                languages: languagesByCueID[cueID] ?? [.unknown]
             ))
         }
         return contents
@@ -175,67 +153,4 @@ public final class CueContentDatabase: @unchecked Sendable {
         return result
     }
 
-    private func cueGroupLanguages(forCueGroupIDs ids: [Int64]) throws -> [Int64: Set<SubtitleLanguageCode>] {
-        let placeholders = ids.map { _ in "?" }.joined(separator: ", ")
-        let statement = try database.prepare(
-            "SELECT cue_group_id, language_code FROM subtitle_cue_group_languages WHERE cue_group_id IN (\(placeholders));"
-        )
-        for (offset, id) in ids.enumerated() { try statement.bind(id, at: Int32(offset + 1)) }
-        var result: [Int64: Set<SubtitleLanguageCode>] = [:]
-        while try statement.step() {
-            if let language = SubtitleLanguageCode(rawValue: statement.stringColumn(1)) {
-                result[statement.int64Column(0), default: []].insert(language)
-            }
-        }
-        return result
-    }
-
-    private func languageDetections(forSubtitleFileID id: Int64) throws -> LanguageDetections {
-        let statement = try database.prepare(
-            """
-            SELECT d.scope, d.scope_key, c.language_code
-            FROM subtitle_language_detections d
-            JOIN subtitle_language_detection_codes c ON c.detection_id = d.id
-            WHERE d.subtitle_file_id = ?;
-            """
-        )
-        try statement.bind(id, at: 1)
-        var fileLanguages: Set<SubtitleLanguageCode>?
-        var styles: [String: Set<SubtitleLanguageCode>] = [:]
-        while try statement.step() {
-            guard let language = SubtitleLanguageCode(rawValue: statement.stringColumn(2)) else { continue }
-            if SubtitleLanguageDetectionScope(rawValue: statement.stringColumn(0)) == .file {
-                fileLanguages = (fileLanguages ?? []).union([language])
-            } else {
-                let style = statement.stringColumn(1)
-                if !style.isEmpty { styles[style, default: []].insert(language) }
-            }
-        }
-        return LanguageDetections(fileLanguages: fileLanguages, styleLanguagesByName: styles)
-    }
-
-    private static func displayLanguages(
-        for line: SubtitleCueLine,
-        candidate: Candidate,
-        detections: LanguageDetections,
-        cueGroupLanguages: Set<SubtitleLanguageCode>
-    ) -> Set<SubtitleLanguageCode> {
-        if detections.hasAnyDetection {
-            switch line.sourceFormat {
-            case .srt:
-                return detections.fileLanguages ?? [.unknown]
-            case .ass:
-                guard let style = SubtitleLanguageAnalyzer.canonicalASSStyleName(line.sourceStyle) else {
-                    return SubtitleLanguageAnalyzer.languageSegments(from: line.content).isEmpty ? [] : [.unknown]
-                }
-                return detections.styleLanguagesByName[style] ?? [.unknown]
-            }
-        }
-        if candidate.subtitleFormat == .ass, candidate.lineCount > 1 {
-            return SubtitleLanguageRecognizer(minimumEffectiveCharacterCount: 4)
-                .detectLanguages(in: SubtitleLanguageAnalyzer.languageSegments(from: line.content))
-                .languages
-        }
-        return cueGroupLanguages.isEmpty ? [.unknown] : cueGroupLanguages
-    }
 }

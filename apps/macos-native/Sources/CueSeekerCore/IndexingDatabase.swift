@@ -543,6 +543,7 @@ public final class IndexingDatabase: @unchecked Sendable {
 
         var newCueIndex = 0
         let ftsSequences = SearchFTSRows.sequences(for: cueGroups)
+        let lineLanguageDetections = CueLineLanguages.detections(from: languageAnalysis)
         for (index, group) in cueGroups.enumerated() {
             let cueGroupID = try insertCueGroup(
                 subtitleFileID: subtitleFileID,
@@ -556,6 +557,19 @@ public final class IndexingDatabase: @unchecked Sendable {
                     cueGroupID: cueGroupID,
                     line: line,
                     cueID: assignment?.cueID
+                )
+                try CueLineLanguages.insert(
+                    on: database,
+                    cueID: cueLineID,
+                    languages: CueLineLanguages.resolve(
+                        sourceFormat: line.sourceFormat,
+                        sourceStyle: line.sourceStyle,
+                        content: line.content,
+                        fileFormat: format,
+                        groupLineCount: group.cueLines.count,
+                        detections: lineLanguageDetections,
+                        cueGroupLanguages: languageAnalysis?.cueGroupLanguages[index] ?? []
+                    )
                 )
                 try deleteCueTombstone(cueID: cueLineID)
                 if let assignment,

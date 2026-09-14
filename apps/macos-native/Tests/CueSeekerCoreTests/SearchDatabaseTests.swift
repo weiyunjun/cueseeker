@@ -2344,3 +2344,72 @@ func searchPageAppliesTheFacetFilterToResultsWhileTheSnapshotKeepsEveryMatch() t
     ])
     #expect(snapshot.distribution.totalCount == 8)
 }
+
+@Test
+func searchPageFiltersLanguagesInTheRowReadsAndCountsThemFromTheStoredTable() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try IndexingDatabase(path: databaseURL)
+    try DatabaseBootstrap.prepare(at: databaseURL)
+    func detection(_ language: SubtitleLanguageCode) -> SubtitleLanguageDetectionResult {
+        SubtitleLanguageDetectionResult(
+            languages: [language],
+            confidence: 1,
+            segmentCount: 1,
+            effectiveCharacterCount: 12,
+            distribution: [SubtitleLanguageDistribution(language: language, share: 1)]
+        )
+    }
+    try database.replaceEntries(
+        subtitleFile: URL(fileURLWithPath: "/Media/Japanese.srt"),
+        videoFile: URL(fileURLWithPath: "/Media/Japanese.mkv"),
+        entries: [
+            languageFilterTestEntry(sequenceNumber: 1, text: "shared 日本語の一行目"),
+            languageFilterTestEntry(sequenceNumber: 2, text: "shared 日本語の二行目")
+        ],
+        languageAnalysis: SubtitleLanguageAnalysis(
+            format: .srt,
+            fileDetection: detection(.japanese),
+            styleDetections: [:],
+            cueGroupLanguages: [[.japanese], [.japanese]]
+        )
+    )
+    try database.replaceEntries(
+        subtitleFile: URL(fileURLWithPath: "/Media/English.srt"),
+        videoFile: URL(fileURLWithPath: "/Media/English.mkv"),
+        entries: [languageFilterTestEntry(sequenceNumber: 1, text: "shared english line")],
+        languageAnalysis: SubtitleLanguageAnalysis(
+            format: .srt,
+            fileDetection: detection(.english),
+            styleDetections: [:],
+            cueGroupLanguages: [[.english]]
+        )
+    )
+
+    let search = try SearchDatabase(path: databaseURL)
+    let englishOnly = try search.searchPage(
+        "shared",
+        limit: 10,
+        facetFilter: CueFacetFilter(languages: [.english])
+    )
+    #expect(englishOnly.results.map(\.content) == ["shared english line"])
+    #expect(englishOnly.results.map(\.languages) == [[.english]])
+    #expect(englishOnly.totalCount == 1)
+    #expect(englishOnly.facetSnapshot == nil)
+
+    let legacyEnglish = try search.searchPage(
+        "shared",
+        limit: 10,
+        languageFilter: try #require(SubtitleSearchLanguageFilter(rawValue: "en"))
+    )
+    #expect(legacyEnglish.results.map(\.content) == ["shared english line"])
+
+    let everything = try search.searchPage("shared", limit: 10)
+    #expect(everything.totalCount == 3)
+    #expect(everything.results.map(\.languages) == [[.english], [.japanese], [.japanese]])
+    #expect(everything.facetSnapshot?.distribution.languageCounts == [.japanese: 2, .english: 1])
+    #expect(try search.cueFacetDistribution().languageCounts == [.japanese: 2, .english: 1])
+}

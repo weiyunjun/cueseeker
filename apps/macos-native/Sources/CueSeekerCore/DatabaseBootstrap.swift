@@ -12,7 +12,7 @@ public enum DatabaseBootstrapError: Error, Equatable, CustomStringConvertible {
 }
 
 public enum DatabaseBootstrap {
-    public static let currentSchemaVersion = 48
+    public static let currentSchemaVersion = 49
 
     public static func prepare(at path: URL) throws {
         let database = try SQLiteDatabase(path: path, access: .readWrite)
@@ -60,6 +60,7 @@ private extension DatabaseBootstrap {
                 || previousVersion == 45
                 || previousVersion == 46
                 || previousVersion == 47
+                || previousVersion == 48
                 || previousVersion == DatabaseBootstrap.currentSchemaVersion
         else {
             throw DatabaseBootstrapError.unsupportedSchemaVersion(
@@ -75,6 +76,12 @@ private extension DatabaseBootstrap {
         }
         if previousVersion == 33 || previousVersion == 34 || previousVersion == 35 {
             try migrateSchema35To36(on: database)
+        }
+        // Earlier migrations rebuild the facet counts, which read the cue line
+        // language table from schema 49 on, so the table exists before any of
+        // them runs; schema 49 fills it.
+        if previousVersion >= 33, previousVersion <= 48 {
+            try database.execute(cueLineLanguagesTableSQL)
         }
         if previousVersion == 33
             || previousVersion == 34
@@ -150,6 +157,9 @@ private extension DatabaseBootstrap {
         }
         if previousVersion >= 33, previousVersion <= 47 {
             try migrateSchema47To48(on: database)
+        }
+        if previousVersion >= 33, previousVersion <= 48 {
+            try migrateSchema48To49(on: database)
             return
         }
         guard previousVersion == 0 else {
@@ -423,6 +433,8 @@ private extension DatabaseBootstrap {
                 PRIMARY KEY(cue_group_id, language_code),
                 FOREIGN KEY(cue_group_id) REFERENCES subtitle_cue_groups(id) ON DELETE CASCADE
             );
+
+            \(cueLineLanguagesTableSQL)
 
             CREATE INDEX IF NOT EXISTS idx_subtitle_language_detections_lookup
                 ON subtitle_language_detections(subtitle_file_id, scope, scope_key);
@@ -721,6 +733,36 @@ private extension DatabaseBootstrap {
             try database.execute("PRAGMA user_version = 48;")
         }
     }
+
+    /// Schema 49 stores the settled language of every cue line. Search, cue
+    /// content and the facet counts read it instead of deriving a language from
+    /// detections and cue group languages at query time.
+    static func migrateSchema48To49(on database: SQLiteDatabase) throws {
+        try database.withImmediateTransaction {
+            try database.execute(cueLineLanguagesTableSQL)
+            let hasSearchTables = try !columnNames(of: "subtitle_cue_lines", in: database).isEmpty
+                && !columnNames(of: "subtitle_cue_groups", in: database).isEmpty
+            if hasSearchTables {
+                try CueLineLanguages.rebuild(on: database)
+                let indexedContent = try database.prepare(
+                    "SELECT 1 FROM sqlite_schema WHERE type = 'table' AND name = 'subtitle_video_matches';"
+                )
+                if try indexedContent.step() {
+                    try CueFacetCountCache.rebuildAll(on: database)
+                }
+            }
+            try database.execute("PRAGMA user_version = 49;")
+        }
+    }
+
+    static let cueLineLanguagesTableSQL = """
+        CREATE TABLE IF NOT EXISTS subtitle_cue_line_languages (
+            cue_id INTEGER NOT NULL,
+            language_code TEXT NOT NULL,
+            PRIMARY KEY(cue_id, language_code),
+            FOREIGN KEY(cue_id) REFERENCES subtitle_cue_lines(id) ON DELETE CASCADE
+        );
+        """
 
     static func migrateSchema33To34(on database: SQLiteDatabase) throws {
         try database.withImmediateTransaction {
