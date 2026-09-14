@@ -189,6 +189,13 @@ enum WorkbenchControlMetrics {
     /// place of a count that is not known yet.
     static let redesignFilterChipCountPlaceholderWidth: CGFloat = 24
     static let redesignFilterChipCountPlaceholderHeight: CGFloat = 12
+    /// --size-spinner: 16px
+    static let redesignSpinnerSize: CGFloat = 16
+    /// --width-spinner-stroke: 2px
+    static let redesignSpinnerStrokeWidth: CGFloat = 2
+    /// --duration-spinner-motion: 1s, one turn at --easing-spinner-motion
+    /// (linear).
+    static let redesignSpinnerMotionDuration: Double = 1
     /// --height-table-header: 40px
     static let redesignTableHeaderHeight: CGFloat = 40
     /// --spacing-1: 4px

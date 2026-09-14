@@ -317,8 +317,7 @@ struct CueFacetFilterDialog: View {
         HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
             if hasUnknownCount {
                 HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
-                    ProgressView()
-                        .controlSize(.small)
+                    WorkbenchSpinner()
 
                     Text(L("facet.calculating"))
                         .font(.system(size: WorkbenchControlMetrics.redesignFontSizeBody))
@@ -330,23 +329,37 @@ struct CueFacetFilterDialog: View {
 
             Spacer(minLength: 0)
 
-            WorkbenchButton(
-                title: L("common.cancel"),
-                isRedesign: true,
-                action: onClose
-            )
-            .keyboardShortcut(.cancelAction)
+            // Reset keeps a wider gap to Cancel than Cancel keeps to Show.
+            HStack(spacing: WorkbenchControlMetrics.redesignSpacing3) {
+                // Reset clears the dialog's selection only; the table waits
+                // for Show like any other change.
+                WorkbenchButton(
+                    title: L("common.reset"),
+                    isRedesign: true,
+                    action: { session.filter = CueFacetFilter() }
+                )
+                .disabled(session.filter.isEmpty)
 
-            // Show stays available while counts are unknown; only its title
-            // waits for the total.
-            WorkbenchPrimaryButton(
-                title: session.source.showTitle(totalCount: counts.totalCount),
-                action: {
-                    session.show()
-                    onClose()
+                HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
+                    WorkbenchButton(
+                        title: L("common.cancel"),
+                        isRedesign: true,
+                        action: onClose
+                    )
+                    .keyboardShortcut(.cancelAction)
+
+                    // Show stays available while counts are unknown; only its
+                    // title waits for the total.
+                    WorkbenchPrimaryButton(
+                        title: session.source.showTitle(totalCount: counts.totalCount),
+                        action: {
+                            session.show()
+                            onClose()
+                        }
+                    )
+                    .keyboardShortcut(.defaultAction)
                 }
-            )
-            .keyboardShortcut(.defaultAction)
+            }
         }
     }
 }

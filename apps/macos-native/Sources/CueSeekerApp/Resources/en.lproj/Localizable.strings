@@ -44,6 +44,7 @@
 /* Common */
 "common.remove" = "Remove";
 "common.cancel" = "Cancel";
+"common.reset" = "Reset";
 "common.close" = "Close";
 
 /* Table */

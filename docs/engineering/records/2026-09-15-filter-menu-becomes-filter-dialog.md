@@ -21,11 +21,13 @@ Classified as platform UI and UX. The count rules in `CueSeekerCore` are unchang
   - Search, the selection the search runs with: the search's own counts, calculating and pending cards as before; the total once the result is exact.
   - Search, any other selection: answered from the complete rows once every count is complete, otherwise unknown. The dialog never starts a search; Show does, as a changed selection always did.
   - Excerpt: the list is in memory, so every selection is answered at once. The table's row projection (facet selection plus search text) moved into one coordinator function that the table and the dialog both call.
-- An unknown count shows a still grey capsule. While any count is unknown the footer shows the small native spinner and `Calculating` on the left. Show stays available; without a total its title is `Show results` / `Show excerpts`.
+- An unknown count shows a still grey capsule. While any count is unknown the footer shows the Spinner and `Calculating` on the left. Show stays available; without a total its title is `Show results` / `Show excerpts`.
+- The Spinner is a new component (requirement section 9) instead of the system spinner: a still ring with a quarter arc turning once per `--duration-spinner-motion`, drawn from the animation timeline so it needs no state. Only the Filter dialog uses it; the system spinners elsewhere are unchanged.
+- Reset, a Button / Neutral left of Cancel, clears the dialog's selection; the table waits for Show as for any other change. It is disabled while the dialog's selection is empty. Reset keeps `--spacing-3` to Cancel, Cancel keeps `--spacing-2` to Show.
 - The filter menu is gone: its surface, measuring, keyboard highlight and the Menu Gate's `filterMenu` kind. The Excerpt store's table facet distribution, read only by that menu, is removed.
 - The dialog view kept the file name `CueFacetFilterPanel.swift`; a rename would remove the old path, which is left to the owner.
 
-Values introduced, pending the design document: `--height-filter-chip` 32px, `--size-filter-chip-count-placeholder` 24px × 12px, `--color-filter-chip-selected-content` macOS accent colour, `--color-filter-chip-selected-bg` same as `--color-library-media-card-hover-bg`; capsule radius. Everything else references existing tokens: section gap `--spacing-4`, header to options and option gaps `--spacing-2`, section header as the former Menu Section Header, count `--font-size-caption` / `--color-text-secondary`, placeholder `--color-border-control`, Progress Indicator 16px.
+Values introduced, pending the design document: `--height-filter-chip` 32px, `--size-filter-chip-count-placeholder` 24px × 12px, `--color-filter-chip-selected-content` macOS accent colour, `--color-filter-chip-selected-bg` same as `--color-library-media-card-hover-bg`; capsule radius; from the requirement, `--size-spinner` 16px, `--width-spinner-stroke` 2px, `--color-spinner-track` Light `#E5E7EB` / Dark `#3F3F46`, `--color-spinner-indicator` Light `#717171` / Dark `#878787`. Everything else references existing tokens: section gap `--spacing-4`, header to options and option gaps `--spacing-2`, section header as the former Menu Section Header, count `--font-size-caption` / `--color-text-secondary`, placeholder `--color-border-control`, Spinner motion `--duration-spinner-motion` / `--easing-spinner-motion`.
 
 Files:
 
@@ -41,6 +43,7 @@ Files:
 - `apps/macos-native/Sources/CueSeekerApp/Shared/MenuGate.swift`
 - `apps/macos-native/Sources/CueSeekerApp/Shared/WorkbenchRedesignTokens.swift`
 - `apps/macos-native/Sources/CueSeekerApp/Shared/WorkbenchControls/WorkbenchControls.swift`
+- `apps/macos-native/Sources/CueSeekerApp/Shared/WorkbenchControls/WorkbenchSpinner.swift`
 - `apps/macos-native/Sources/CueSeekerApp/Resources/{en,zh-Hans,zh-Hant}.lproj/Localizable.strings`
 - `apps/macos-native/Tests/CueSeekerAppTests/SettingsStoreSearchTests.swift`
 - `apps/macos-native/Tests/CueSeekerAppTests/SearchStoreTests.swift`
@@ -59,6 +62,10 @@ Files:
   - Checking `31+`: counts changed at once and Show read `Show 1214 results` while the table kept 28724. Cancel closed it with the table unchanged; reopening showed `31+` unchecked.
   - Checking `31+` and Show: the table became 1214 results. Reopen and Esc: closed, still 1214. Reopen, uncheck `31+`, Enter: the table returned to 28724, the saved selection restored.
   - Excerpt list `列表 6`: `Show 11 excerpts`; checking Watching gave `Show 2 excerpts` with the table at 11; × closed it unchanged.
+- Reset and the Spinner (after the requirement added them):
+  - `swift test --filter 'SettingsStoreSearch|Locali|filterDialog|WorkbenchPageScrollbar'`: 26 tests pass.
+  - Full `swift test`: 1232 tests, 31 issues in 16 tests, exactly the environment-sensitive set of the 2026-09-15 Step 9 record (native playback, Debug E2E scene and width, Library folder removal, Excerpt scroll anchor, refresh-scope counters, the shared persistence migration).
+  - App, sidebar collapsed, saved selection empty: `の` pasted and the dialog opened at once showed the ring Spinner turning beside `Calculating`, with Reset disabled, `--spacing-3` to Cancel and `--spacing-2` between Cancel and Show. With the counts complete (77145 results) Reset stayed disabled; checking `31+` enabled it and Show read `Show 2766 results` while the table kept 77145. Reset unchecked everything, Show returned to `Show 77145 results` and Reset was disabled again; × closed the dialog with the table unchanged.
 - Hover on the capsules is not verifiable through the controller (SwiftUI hover follows the real pointer) and is left to manual acceptance.
 
 ## Outcome

@@ -44,6 +44,7 @@
 /* Common */
 "common.remove" = "移除";
 "common.cancel" = "取消";
+"common.reset" = "重設";
 "common.close" = "關閉";
 
 /* Table */

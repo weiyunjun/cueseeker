@@ -155,6 +155,10 @@ enum WorkbenchRedesignColors {
         static let libraryCoverEditOverlayContent = iconOnDark
         static let libraryMediaCardHoverBg = NSColor.controlAccent(lightAlpha: 0.08, darkAlpha: 0.12)
 
+        // Spinner
+        static let spinnerTrack = NSColor.dynamic(lightHex: "#E5E7EB", darkHex: "#3F3F46")
+        static let spinnerIndicator = NSColor.dynamic(lightHex: "#717171", darkHex: "#878787")
+
         // Cover Summary
         static let coverSummaryScrim = NSColor.black
         static let coverSummaryText = NSColor.white
@@ -318,6 +322,12 @@ enum WorkbenchRedesignColors {
     static let filterChipSelectedContent = Color.accentColor
     // --color-filter-chip-selected-bg: Same as --color-library-media-card-hover-bg
     static let filterChipSelectedBg = libraryMediaCardHoverBg
+
+    // Spinner
+    // --color-spinner-track
+    static let spinnerTrack = Color(nsColor: NS.spinnerTrack)
+    // --color-spinner-indicator
+    static let spinnerIndicator = Color(nsColor: NS.spinnerIndicator)
 
     // Task
     static let taskCountBadgeBg = Color(nsColor: NS.taskCountBadgeBg)
