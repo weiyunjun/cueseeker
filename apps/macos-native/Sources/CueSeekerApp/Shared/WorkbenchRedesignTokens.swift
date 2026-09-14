@@ -313,6 +313,12 @@ enum WorkbenchRedesignColors {
     static let libraryCoverEditOverlayContent = Color(nsColor: NS.libraryCoverEditOverlayContent)
     static let libraryMediaCardHoverBg = Color(nsColor: NS.libraryMediaCardHoverBg)
 
+    // Filter Chip
+    // --color-filter-chip-selected-content: macOS accent color
+    static let filterChipSelectedContent = Color.accentColor
+    // --color-filter-chip-selected-bg: Same as --color-library-media-card-hover-bg
+    static let filterChipSelectedBg = libraryMediaCardHoverBg
+
     // Task
     static let taskCountBadgeBg = Color(nsColor: NS.taskCountBadgeBg)
     static let taskCountBadgeText = Color(nsColor: NS.taskCountBadgeText)

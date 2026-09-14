@@ -190,34 +190,141 @@ func searchFacetPersistenceDoesNotInvalidateGlobalSettingsObservers() {
 
 @MainActor
 @Test
-func filterMenuFlattensTitleSectionsAndOptionsInOrder() {
+func filterDialogListsTheFourCardsAndTogglesTheDialogSelection() {
     var filter = CueFacetFilter()
-    let model = CueFacetFilterMenuModel(
-        distribution: nil,
+    let sections = CueFacetSection.sections(
+        counts: CueFacetFilterCounts(
+            distribution: nil,
+            isCalculating: false,
+            pendingKinds: [],
+            totalCount: nil
+        ),
         availableLanguages: [.english, .japanese],
-        isCalculating: false,
-        filter: Binding(get: { filter }, set: { filter = $0 })
+        selection: filter,
+        update: { change in change(&filter) }
     )
 
-    // The title, then four sections of divider + header + options
-    // (4 durations, 4 character ranges, 2 languages, 3 watch states).
-    #expect(model.elements.count == 22)
-    guard case .title = model.elements[0] else {
-        Issue.record("the menu must lead with its title")
-        return
-    }
+    // Duration, Character, Language and Watch Status, with 4 durations,
+    // 4 character ranges, the 2 languages and 3 watch states.
+    #expect(sections.map(\.id) == [.duration, .characters, .languages, .watchState])
+    #expect(sections.map(\.options.count) == [4, 4, 2, 3])
+    #expect(sections[0].options[0].id == CueDurationFacet.underOneSecond.rawValue)
+    #expect(sections.allSatisfy { $0.options.allSatisfy { $0.count == 0 } })
 
-    // Only option rows can take the highlight; the first selectable position
-    // is Duration's <1s, which the menu highlights on open.
-    #expect(model.selectablePositions.count == 13)
-    #expect(model.selectablePositions.first == 3)
-    #expect(
-        model.option(at: 3)?.id == CueDurationFacet.underOneSecond.rawValue
+    // A toggle reads the selection as it is now, so a second one undoes the
+    // first even without a new render in between.
+    sections[0].options[0].toggle()
+    #expect(filter.durations == [.underOneSecond])
+    sections[0].options[0].toggle()
+    #expect(filter.durations.isEmpty)
+}
+
+@MainActor
+@Test
+func filterDialogLeavesOnlyTheUnknownCountsBlank() {
+    var filter = CueFacetFilter()
+    filter.languages = [.english]
+    let sections = CueFacetSection.sections(
+        counts: CueFacetFilterCounts(
+            distribution: CueFacetDistribution(
+                totalCount: 2,
+                durationCounts: [.underOneSecond: 2],
+                characterCounts: [:],
+                languageCounts: [.english: 2],
+                watchStateCounts: [:]
+            ),
+            isCalculating: false,
+            pendingKinds: [.languages],
+            totalCount: 2
+        ),
+        availableLanguages: [.english, .japanese],
+        selection: filter,
+        update: { _ in }
     )
 
-    // Checking through the model applies straight to the filter.
-    model.option(at: 3)?.toggle()
-    #expect(filter.durations.contains(.underOneSecond))
+    // Only the unchecked options of the card still being counted are unknown.
+    #expect(sections[0].options[0].count == 2)
+    #expect(sections[2].options.map(\.count) == [2, nil])
+}
+
+@MainActor
+@Test
+func filterDialogCountsNeverSearchAndWaitForTheCompleteRows() {
+    let searchFilter = CueFacetFilter()
+    let other = CueFacetFilter(durations: [.underOneSecond])
+    let running = CueFacetFilterCounts(
+        distribution: nil,
+        isCalculating: true,
+        pendingKinds: [],
+        totalCount: nil
+    )
+    let complete = CueFacetDistribution(
+        totalCount: 3,
+        durationCounts: [.underOneSecond: 3],
+        characterCounts: [:],
+        languageCounts: [:],
+        watchStateCounts: [:]
+    )
+
+    // The selection the search runs with keeps the search's own counts.
+    let own = CueFacetFilterCounts.search(
+        selection: searchFilter,
+        searchFilter: searchFilter,
+        isQueryEmpty: false,
+        searchCounts: running,
+        completeDistribution: { _ in complete }
+    )
+    #expect(own.isCalculating && own.totalCount == nil)
+
+    // Another selection before the rows are complete knows nothing yet.
+    let waiting = CueFacetFilterCounts.search(
+        selection: other,
+        searchFilter: searchFilter,
+        isQueryEmpty: false,
+        searchCounts: running,
+        completeDistribution: { _ in nil }
+    )
+    #expect(waiting.isCalculating && waiting.totalCount == nil)
+
+    // Once they are, it is answered from them.
+    let answered = CueFacetFilterCounts.search(
+        selection: other,
+        searchFilter: searchFilter,
+        isQueryEmpty: false,
+        searchCounts: running,
+        completeDistribution: { $0 == other ? complete : nil }
+    )
+    #expect(!answered.isCalculating)
+    #expect(answered.distribution == complete)
+    #expect(answered.totalCount == 3)
+
+    // With no query there is nothing to count or wait for.
+    let empty = CueFacetFilterCounts.search(
+        selection: other,
+        searchFilter: searchFilter,
+        isQueryEmpty: true,
+        searchCounts: running,
+        completeDistribution: { _ in nil }
+    )
+    #expect(!empty.isCalculating && empty.totalCount == 0)
+}
+
+@MainActor
+@Test
+func filterDialogShowHandsOverOnlyAChangedSelection() {
+    var applied: [CueFacetFilter] = []
+    let session = CueFacetFilterDialogSession(
+        source: .search,
+        filter: CueFacetFilter(),
+        apply: { applied.append($0) }
+    )
+
+    session.show()
+    #expect(applied.isEmpty)
+
+    session.filter.durations = [.underOneSecond]
+    session.show()
+    #expect(applied == [CueFacetFilter(durations: [.underOneSecond])])
 }
 
 @MainActor

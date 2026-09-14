@@ -31,6 +31,7 @@ private struct ContentRootView: View {
     @EnvironmentObject private var libraryStore: LibraryStore
     @EnvironmentObject private var excerptStore: ExcerptStore
     @EnvironmentObject private var playback: PlaybackStore
+    @EnvironmentObject private var filterDialog: CueFacetFilterDialogCenter
 
     private let windowBackground = Color(
         red: 0.955,
@@ -167,6 +168,27 @@ private struct ContentRootView: View {
                 .workbenchDialog()
             }
 
+            if let session = filterDialog.session {
+                Group {
+                    switch session.source {
+                    case .search:
+                        SearchFacetFilterDialog(
+                            session: session,
+                            search: appState.search,
+                            onClose: closeFilterDialog
+                        )
+                    case .excerpt:
+                        ExcerptFacetFilterDialog(
+                            session: session,
+                            excerptStore: excerptStore,
+                            appState: appState,
+                            onClose: closeFilterDialog
+                        )
+                    }
+                }
+                .workbenchDialog()
+            }
+
             if let session = tasks.ankiExportSession {
                 AnkiExportDialog(
                     session: session,
@@ -207,6 +229,9 @@ private struct ContentRootView: View {
         if let session = libraryStore.renameSession {
             ids.append(session.id)
         }
+        if let session = filterDialog.session {
+            ids.append(session.id)
+        }
         if let session = tasks.ankiExportSession {
             ids.append(session.id)
         }
@@ -217,6 +242,10 @@ private struct ContentRootView: View {
             ids.append(session.id)
         }
         return ids
+    }
+
+    private func closeFilterDialog() {
+        filterDialog.session = nil
     }
 
     @ViewBuilder

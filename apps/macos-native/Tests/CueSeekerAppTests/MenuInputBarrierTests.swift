@@ -138,8 +138,7 @@ struct MenuGateKindTests {
     func thePlaybackRouterOffersKeysToEveryMenuButTheTableRowMenu() {
         #expect(MenuGate.Kind.tableRowMenu.receivesKeysFromRouter == false)
         for kind in [
-            MenuGate.Kind.filterMenu,
-            .cardMenu,
+            MenuGate.Kind.cardMenu,
             .selectedTextMenu,
             .playerSpeedMenu,
             .excerptDestinationMenu,
@@ -153,7 +152,6 @@ struct MenuGateKindTests {
         #expect(MenuGate.Kind.selectedTextMenu.clearsTextSelection == false)
         for kind in [
             MenuGate.Kind.tableRowMenu,
-            .filterMenu,
             .cardMenu,
             .playerSpeedMenu,
         ] {

@@ -184,6 +184,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             .environmentObject(appState.library)
             .environmentObject(appState.search)
             .environmentObject(appState.playback)
+            .environmentObject(appState.filterDialog)
 
         let window = CueSeekerMainWindow(
             contentRect: NSRect(x: 0, y: 0, width: AppShellLayout.defaultWindowWidth, height: 720),

@@ -1,233 +1,298 @@
 import SwiftUI
 import CueSeekerCore
 
+/// The open Filter dialog, if any. Search and the Excerpt detail each open it
+/// over their own table, and the window's dialog layer presents it.
+///
+/// See `docs/human/requirements/20260915-UI-Filter Menu Becomes Filter
+/// Dialog.md`.
+final class CueFacetFilterDialogCenter: ObservableObject {
+    @Published var session: CueFacetFilterDialogSession?
+}
+
+/// One opening of the Filter dialog. Checking an option changes only the
+/// dialog's own selection; the table keeps the selection it had when the
+/// dialog opened until Show hands it a different one.
+@MainActor
+final class CueFacetFilterDialogSession: ObservableObject, Identifiable {
+    enum Source {
+        case search
+        case excerpt
+    }
+
+    let id = UUID()
+    let source: Source
+    /// The table's selection when the dialog opened.
+    let appliedFilter: CueFacetFilter
+    @Published var filter: CueFacetFilter
+    private let apply: (CueFacetFilter) -> Void
+
+    init(
+        source: Source,
+        filter: CueFacetFilter,
+        apply: @escaping (CueFacetFilter) -> Void
+    ) {
+        self.source = source
+        appliedFilter = filter
+        self.filter = filter
+        self.apply = apply
+    }
+
+    /// Show: the table takes the dialog's selection only when it differs from
+    /// the one the table already has.
+    func show() {
+        guard filter != appliedFilter else { return }
+        apply(filter)
+    }
+}
+
+extension CueFacetFilterDialogSession.Source {
+    func showTitle(totalCount: Int?) -> String {
+        switch (self, totalCount) {
+        case (.search, nil):
+            L("filter_dialog.show_results")
+        case (.search, 1?):
+            L("filter_dialog.show_results.one")
+        case (.search, let count?):
+            L("filter_dialog.show_results.other", count)
+        case (.excerpt, nil):
+            L("filter_dialog.show_excerpts")
+        case (.excerpt, 1?):
+            L("filter_dialog.show_excerpts.one")
+        case (.excerpt, let count?):
+            L("filter_dialog.show_excerpts.other", count)
+        }
+    }
+}
+
+/// What the dialog knows for its selection: the counts, which of them are not
+/// known yet, and the total, nil while it is not known.
+struct CueFacetFilterCounts {
+    static let unknown = CueFacetFilterCounts(
+        distribution: nil,
+        isCalculating: true,
+        pendingKinds: [],
+        totalCount: nil
+    )
+
+    let distribution: CueFacetDistribution?
+    /// No count is known yet.
+    let isCalculating: Bool
+    /// The unchecked options of these cards are not known yet.
+    let pendingKinds: Set<CueFacetKind>
+    let totalCount: Int?
+
+    /// Search never runs for the dialog's selection (requirement 6.4). The
+    /// selection the search runs with has the search's own counts; once every
+    /// count is complete, any other selection is answered from the complete
+    /// rows; before that it waits for them.
+    static func search(
+        selection: CueFacetFilter,
+        searchFilter: CueFacetFilter,
+        isQueryEmpty: Bool,
+        searchCounts: CueFacetFilterCounts,
+        completeDistribution: (CueFacetFilter) -> CueFacetDistribution?
+    ) -> CueFacetFilterCounts {
+        if isQueryEmpty {
+            return CueFacetFilterCounts(
+                distribution: .zero,
+                isCalculating: false,
+                pendingKinds: [],
+                totalCount: 0
+            )
+        }
+        if selection == searchFilter {
+            return searchCounts
+        }
+        guard let distribution = completeDistribution(selection) else {
+            return .unknown
+        }
+        return CueFacetFilterCounts(
+            distribution: distribution,
+            isCalculating: false,
+            pendingKinds: [],
+            totalCount: distribution.totalCount
+        )
+    }
+
+    /// Every count is unknown while nothing is known; afterwards only the
+    /// unchecked options of a card whose count is still running.
+    func isUnknown(_ kind: CueFacetKind, isSelected: Bool) -> Bool {
+        isCalculating || (pendingKinds.contains(kind) && !isSelected)
+    }
+}
+
 struct CueFacetOption: Identifiable {
     let id: String
     let title: String
-    let count: Int
+    /// Nil while the count is not known.
+    let count: Int?
     let isSelected: Bool
-    /// The count is not known yet: either no count exists for the query, or
-    /// this option is unchecked on a checked card whose scan is still running.
-    let isCalculating: Bool
     let toggle: () -> Void
 }
 
-/// What the filter menu shows, flattened into render order: the title, then
-/// each facet group as a divider, a header and its option rows. The flat
-/// positions are what the keyboard highlight indexes, and only option rows
-/// appear among the selectable ones.
-enum CueFacetFilterMenuElement {
-    case title(String)
-    case divider
-    case sectionHeader(title: String, icon: AppIcon)
-    case option(CueFacetOption)
-}
+struct CueFacetSection: Identifiable {
+    let id: CueFacetKind
+    let title: String
+    let icon: AppIcon
+    let options: [CueFacetOption]
 
-struct CueFacetFilterMenuModel {
-    let elements: [CueFacetFilterMenuElement]
-    let selectablePositions: [Int]
-    /// Changes whenever something that affects the menu's measured size
-    /// changes — texts, counts, the calculating placeholder — so the menu is
-    /// re-measured outside of view updates exactly when it needs to be.
-    let contentHash: Int
-
-    init(
-        distribution: CueFacetDistribution?,
+    /// The four cards in dialog order. Each option carries its count for the
+    /// dialog's selection, and toggles itself in that selection.
+    static func sections(
+        counts: CueFacetFilterCounts,
         availableLanguages: [SubtitleLanguageCode],
-        isCalculating: Bool,
-        pendingKinds: Set<CueFacetKind> = [],
-        filter: Binding<CueFacetFilter>
-    ) {
-        // Every count is calculating until the result's rows exist; afterwards
-        // only the unchecked options of a card whose count scan is still running.
-        func calculating(_ kind: CueFacetKind, isSelected: Bool) -> Bool {
-            isCalculating || (pendingKinds.contains(kind) && !isSelected)
-        }
-        var elements: [CueFacetFilterMenuElement] = [.title(L("table.filter"))]
-        Self.appendSection(
-            to: &elements,
-            title: L("facet.duration"),
-            icon: .clock,
-            options: CueDurationFacet.allCases.map { facet in
-                let isSelected = filter.wrappedValue.durations.contains(facet)
+        selection: CueFacetFilter,
+        update: @escaping ((inout CueFacetFilter) -> Void) -> Void
+    ) -> [CueFacetSection] {
+        func options<Value: Hashable>(
+            _ kind: CueFacetKind,
+            _ values: [Value],
+            at keyPath: WritableKeyPath<CueFacetFilter, Set<Value>>,
+            id: (Value) -> String,
+            title: (Value) -> String,
+            count: (CueFacetDistribution, Value) -> Int?
+        ) -> [CueFacetOption] {
+            values.map { value in
+                let isSelected = selection[keyPath: keyPath].contains(value)
                 return CueFacetOption(
-                    id: facet.rawValue,
-                    title: facet.title,
-                    count: distribution?.durationCounts[facet] ?? 0,
+                    id: id(value),
+                    title: title(value),
+                    count: counts.isUnknown(kind, isSelected: isSelected)
+                        ? nil
+                        : counts.distribution.flatMap { count($0, value) } ?? 0,
                     isSelected: isSelected,
-                    isCalculating: calculating(.duration, isSelected: isSelected),
-                    toggle: { Self.toggle(facet, at: \.durations, in: filter) }
+                    toggle: {
+                        update { filter in
+                            if filter[keyPath: keyPath].contains(value) {
+                                filter[keyPath: keyPath].remove(value)
+                            } else {
+                                filter[keyPath: keyPath].insert(value)
+                            }
+                        }
+                    }
                 )
-            }
-        )
-        Self.appendSection(
-            to: &elements,
-            title: L("facet.character"),
-            icon: .textAa,
-            options: CueCharacterFacet.allCases.map { facet in
-                let isSelected = filter.wrappedValue.characters.contains(facet)
-                return CueFacetOption(
-                    id: facet.rawValue,
-                    title: facet.title,
-                    count: distribution?.characterCounts[facet] ?? 0,
-                    isSelected: isSelected,
-                    isCalculating: calculating(.characters, isSelected: isSelected),
-                    toggle: { Self.toggle(facet, at: \.characters, in: filter) }
-                )
-            }
-        )
-        Self.appendSection(
-            to: &elements,
-            title: L("facet.language"),
-            icon: .globe,
-            options: availableLanguages.map { language in
-                let isSelected = filter.wrappedValue.languages.contains(language)
-                return CueFacetOption(
-                    id: language.rawValue,
-                    title: language.title,
-                    count: distribution?.languageCounts[language] ?? 0,
-                    isSelected: isSelected,
-                    isCalculating: calculating(.languages, isSelected: isSelected),
-                    toggle: { Self.toggle(language, at: \.languages, in: filter) }
-                )
-            }
-        )
-        Self.appendSection(
-            to: &elements,
-            title: L("facet.watch_status"),
-            icon: .eye,
-            options: LibraryWatchState.facetCases.map { state in
-                let isSelected = filter.wrappedValue.watchStates.contains(state)
-                return CueFacetOption(
-                    id: state.rawValue,
-                    title: state.title,
-                    count: distribution?.watchStateCounts[state] ?? 0,
-                    isSelected: isSelected,
-                    isCalculating: calculating(.watchState, isSelected: isSelected),
-                    toggle: { Self.toggle(state, at: \.watchStates, in: filter) }
-                )
-            }
-        )
-        self.elements = elements
-        self.selectablePositions = elements.indices.filter {
-            if case .option = elements[$0] {
-                return true
-            }
-            return false
-        }
-        var hasher = Hasher()
-        for element in elements {
-            switch element {
-            case .title(let title):
-                hasher.combine(title)
-            case .divider:
-                hasher.combine(0)
-            case .sectionHeader(let title, let icon):
-                hasher.combine(title)
-                hasher.combine(icon)
-            case .option(let option):
-                hasher.combine(option.title)
-                hasher.combine(option.count)
-                hasher.combine(option.isCalculating)
             }
         }
-        self.contentHash = hasher.finalize()
-    }
 
-    func option(at position: Int) -> CueFacetOption? {
-        guard elements.indices.contains(position),
-              case .option(let option) = elements[position]
-        else {
-            return nil
-        }
-        return option
-    }
-
-    private static func appendSection(
-        to elements: inout [CueFacetFilterMenuElement],
-        title: String,
-        icon: AppIcon,
-        options: [CueFacetOption]
-    ) {
-        elements.append(.divider)
-        elements.append(.sectionHeader(title: title, icon: icon))
-        elements.append(contentsOf: options.map { .option($0) })
-    }
-
-    private static func toggle<Value: Hashable>(
-        _ value: Value,
-        at keyPath: WritableKeyPath<CueFacetFilter, Set<Value>>,
-        in filter: Binding<CueFacetFilter>
-    ) {
-        var nextFilter = filter.wrappedValue
-        var selection = nextFilter[keyPath: keyPath]
-        if selection.contains(value) {
-            selection.remove(value)
-        } else {
-            selection.insert(value)
-        }
-        nextFilter[keyPath: keyPath] = selection
-        filter.wrappedValue = nextFilter
+        return [
+            CueFacetSection(
+                id: .duration,
+                title: L("facet.duration"),
+                icon: .clock,
+                options: options(
+                    .duration,
+                    CueDurationFacet.allCases,
+                    at: \.durations,
+                    id: { $0.rawValue },
+                    title: { $0.title },
+                    count: { $0.durationCounts[$1] }
+                )
+            ),
+            CueFacetSection(
+                id: .characters,
+                title: L("facet.character"),
+                icon: .textAa,
+                options: options(
+                    .characters,
+                    CueCharacterFacet.allCases,
+                    at: \.characters,
+                    id: { $0.rawValue },
+                    title: { $0.title },
+                    count: { $0.characterCounts[$1] }
+                )
+            ),
+            CueFacetSection(
+                id: .languages,
+                title: L("facet.language"),
+                icon: .globe,
+                options: options(
+                    .languages,
+                    availableLanguages,
+                    at: \.languages,
+                    id: { $0.rawValue },
+                    title: { $0.title },
+                    count: { $0.languageCounts[$1] }
+                )
+            ),
+            CueFacetSection(
+                id: .watchState,
+                title: L("facet.watch_status"),
+                icon: .eye,
+                options: options(
+                    .watchState,
+                    LibraryWatchState.facetCases,
+                    at: \.watchStates,
+                    id: { $0.rawValue },
+                    title: { $0.title },
+                    count: { $0.watchStateCounts[$1] }
+                )
+            ),
+        ]
     }
 }
 
-/// The filter menu surface. Checking an option applies it right away and the
-/// menu stays open; the counts and the calculating placeholder keep updating
-/// in place. Taller content than the menu cap scrolls inside the panel.
-struct CueFacetFilterMenu: View {
-    let model: CueFacetFilterMenuModel
-    @ObservedObject var highlight: MenuHighlightModel
-    var maximumHeight: CGFloat = MenuMetrics.maximumHeight
+/// The Filter dialog: the four cards as rows of capsule options, the
+/// calculating status, and Show, which hands the dialog's selection to the
+/// table.
+struct CueFacetFilterDialog: View {
+    @ObservedObject var session: CueFacetFilterDialogSession
+    let counts: CueFacetFilterCounts
+    let availableLanguages: [SubtitleLanguageCode]
+    let onClose: () -> Void
+
+    @Environment(\.workbenchDialogAvailableSize) private var availableSize
 
     var body: some View {
-        WorkbenchPopoverPanel(
-            isRedesign: true,
-            maximumHeight: maximumHeight,
-            highlight: highlight
+        let sections = CueFacetSection.sections(
+            counts: counts,
+            availableLanguages: availableLanguages,
+            selection: session.filter,
+            update: { change in change(&session.filter) }
+        )
+        WorkbenchDialogColumn(
+            spacing: WorkbenchControlMetrics.redesignSpacing4,
+            maxHeight: availableSize.height
+                - WorkbenchControlMetrics.redesignDialogTopPadding
+                - WorkbenchControlMetrics.redesignDialogInset
         ) {
-            VStack(alignment: .leading, spacing: 0) {
-                ForEach(model.elements.indices, id: \.self) { position in
-                    elementView(model.elements[position], at: position)
-                        .id(position)
+            WorkbenchDialogHeader(title: L("table.filter"))
+                .padding(.horizontal, WorkbenchControlMetrics.redesignDialogInset)
+
+            // The scroll view reaches the dialog's sides, so its scrollbar runs
+            // in the inset rather than over the options.
+            WorkbenchScrollView {
+                VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing4) {
+                    ForEach(sections) { section in
+                        sectionView(section)
+                    }
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, WorkbenchControlMetrics.redesignDialogInset)
             }
+
+            footer(
+                hasUnknownCount: sections.contains { section in
+                    section.options.contains { $0.count == nil }
+                }
+            )
+            .padding(.horizontal, WorkbenchControlMetrics.redesignDialogInset)
         }
-        .fixedSize(horizontal: true, vertical: false)
+        .padding(.top, WorkbenchControlMetrics.redesignDialogTopPadding)
+        .padding(.bottom, WorkbenchControlMetrics.redesignDialogInset)
+        .workbenchDialogWidth(WorkbenchControlMetrics.redesignDialogWidthXLarge)
+        .background(WorkbenchRedesignColors.bgSurface)
+        .workbenchDialogCloseButton(onClose: onClose)
+        .subtitleTableTextSelectionNonInteractiveRegion()
     }
 
-    @ViewBuilder
-    private func elementView(
-        _ element: CueFacetFilterMenuElement,
-        at position: Int
-    ) -> some View {
-        switch element {
-        case .title(let title):
-            Text(title)
-                .font(.system(
-                    size: WorkbenchControlMetrics.redesignFontSizeControl,
-                    weight: .semibold
-                ))
-                .foregroundStyle(WorkbenchRedesignColors.textPrimary)
-                .fixedSize(horizontal: true, vertical: false)
-                .padding(
-                    .horizontal,
-                    WorkbenchControlMetrics.redesignMenuItemHorizontalPadding
-                )
-                .frame(height: WorkbenchControlMetrics.redesignMenuItemHeight)
-
-        case .divider:
-            WorkbenchMenuDivider()
-
-        case .sectionHeader(let title, let icon):
+    private func sectionView(_ section: CueFacetSection) -> some View {
+        VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing2) {
             HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
-                AppIconImage(icon, size: WorkbenchControlMetrics.redesignCheckboxSize)
+                AppIconImage(section.icon, size: WorkbenchControlMetrics.redesignControlIconSize)
                     .foregroundStyle(WorkbenchRedesignColors.textSecondary)
-                    .frame(
-                        width: WorkbenchControlMetrics.redesignCheckboxSize,
-                        height: WorkbenchControlMetrics.redesignCheckboxSize
-                    )
 
-                Text(title)
+                Text(section.title)
                     .font(.system(
                         size: WorkbenchControlMetrics.redesignFontSizeControl,
                         weight: .medium
@@ -235,81 +300,247 @@ struct CueFacetFilterMenu: View {
                     .foregroundStyle(WorkbenchRedesignColors.textSecondary)
                     .fixedSize(horizontal: true, vertical: false)
             }
-            .padding(
-                .horizontal,
-                WorkbenchControlMetrics.redesignMenuItemHorizontalPadding
-            )
-            .frame(height: WorkbenchControlMetrics.redesignMenuItemHeight)
 
-        case .option(let option):
-            optionRow(option, at: position)
+            WrappingFlowLayout(
+                alignment: .leading,
+                horizontalSpacing: WorkbenchControlMetrics.redesignSpacing2,
+                verticalSpacing: WorkbenchControlMetrics.redesignSpacing2
+            ) {
+                ForEach(section.options) { option in
+                    CueFacetFilterChip(option: option)
+                }
+            }
         }
     }
 
-    private func optionRow(
-        _ option: CueFacetOption,
-        at position: Int
-    ) -> some View {
-        Button {
-            option.toggle()
-        } label: {
-            HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
-                WorkbenchCheckboxGlyph(
-                    state: option.isSelected ? .checked : .unchecked,
-                    isEnabled: true,
-                    size: WorkbenchControlMetrics.redesignCheckboxSize
-                )
+    private func footer(hasUnknownCount: Bool) -> some View {
+        HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
+            if hasUnknownCount {
+                HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
+                    ProgressView()
+                        .controlSize(.small)
 
-                Text(option.title)
-                    .font(.system(size: WorkbenchControlMetrics.redesignFontSizeBody))
-                    .foregroundStyle(WorkbenchRedesignColors.textPrimary)
-                    .lineLimit(1)
-                    .fixedSize(horizontal: true, vertical: false)
-
-                Spacer(minLength: WorkbenchControlMetrics.redesignSpacing2)
-
-                Text(
-                    option.isCalculating
-                        ? L("facet.calculating")
-                        : String(option.count)
-                )
-                .font(.system(size: WorkbenchControlMetrics.redesignFontSizeCaption))
-                .foregroundStyle(WorkbenchRedesignColors.textSecondary)
-                .lineLimit(1)
+                    Text(L("facet.calculating"))
+                        .font(.system(size: WorkbenchControlMetrics.redesignFontSizeBody))
+                        .foregroundStyle(WorkbenchRedesignColors.textSecondary)
+                        .lineLimit(1)
+                        .fixedSize(horizontal: true, vertical: false)
+                }
             }
-            .padding(
-                .horizontal,
-                WorkbenchControlMetrics.redesignMenuItemHorizontalPadding
+
+            Spacer(minLength: 0)
+
+            WorkbenchButton(
+                title: L("common.cancel"),
+                isRedesign: true,
+                action: onClose
             )
-            .frame(height: WorkbenchControlMetrics.redesignMenuItemHeight)
-            .background(
-                RoundedRectangle(
-                    cornerRadius: WorkbenchControlMetrics.redesignMenuItemRadius,
-                    style: .continuous
-                )
-                .fill(
-                    highlight.highlightedPosition == position
-                        ? WorkbenchRedesignColors.bgHover
-                        : Color.clear
-                )
+            .keyboardShortcut(.cancelAction)
+
+            // Show stays available while counts are unknown; only its title
+            // waits for the total.
+            WorkbenchPrimaryButton(
+                title: session.source.showTitle(totalCount: counts.totalCount),
+                action: {
+                    session.show()
+                    onClose()
+                }
             )
-            .contentShape(Rectangle())
+            .keyboardShortcut(.defaultAction)
+        }
+    }
+}
+
+/// A capsule option: its title and count, or a still placeholder in place of
+/// a count that is not known yet.
+private struct CueFacetFilterChip: View {
+    let option: CueFacetOption
+
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: option.toggle) {
+            label
         }
         .buttonStyle(StaticButtonStyle())
         .focusable(false)
-        .id(position)
-        // Menu rows read the pointer directly: the layer freeze applies to
-        // everything under the menu, not to the menu itself, and the highlight
-        // model decides whether the hover may move the highlight.
-        .onHover { isHovered in
-            highlight.noteHover(isHovered, at: position)
-        }
+        .onPointerHover { isHovered = $0 }
         .accessibilityLabel(option.title)
-        .accessibilityValue(
-            option.isCalculating
-                ? L("facet.calculating")
-                : "\(option.count), \(option.isSelected ? L("facet.selected") : L("facet.not_selected"))"
+        .accessibilityValue(accessibilityValue)
+    }
+
+    private var label: some View {
+        HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
+            Text(option.title)
+                .font(.system(size: WorkbenchControlMetrics.redesignFontSizeBody))
+                .foregroundStyle(titleColor)
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
+
+            countView
+        }
+        .padding(.horizontal, WorkbenchControlMetrics.redesignControlPaddingX)
+        .frame(height: WorkbenchControlMetrics.redesignFilterChipHeight)
+        .background(Capsule().fill(backgroundColor))
+        .overlay(Capsule().strokeBorder(borderColor, lineWidth: 1))
+        .contentShape(Capsule())
+    }
+
+    @ViewBuilder
+    private var countView: some View {
+        if let count = option.count {
+            Text(String(count))
+                .font(.system(size: WorkbenchControlMetrics.redesignFontSizeCaption))
+                .foregroundStyle(countColor)
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
+        } else {
+            Capsule()
+                .fill(WorkbenchRedesignColors.borderControl)
+                .frame(
+                    width: WorkbenchControlMetrics.redesignFilterChipCountPlaceholderWidth,
+                    height: WorkbenchControlMetrics.redesignFilterChipCountPlaceholderHeight
+                )
+        }
+    }
+
+    private var accessibilityValue: String {
+        guard let count = option.count else {
+            return L("facet.calculating")
+        }
+        let state = option.isSelected ? L("facet.selected") : L("facet.not_selected")
+        return "\(count), \(state)"
+    }
+
+    private var titleColor: Color {
+        option.isSelected
+            ? WorkbenchRedesignColors.filterChipSelectedContent
+            : WorkbenchRedesignColors.textPrimary
+    }
+
+    private var countColor: Color {
+        option.isSelected
+            ? WorkbenchRedesignColors.filterChipSelectedContent
+            : WorkbenchRedesignColors.textSecondary
+    }
+
+    private var backgroundColor: Color {
+        if option.isSelected {
+            return WorkbenchRedesignColors.filterChipSelectedBg
+        }
+        return isHovered ? WorkbenchRedesignColors.bgHover : WorkbenchRedesignColors.bgSurface
+    }
+
+    private var borderColor: Color {
+        if option.isSelected {
+            return WorkbenchRedesignColors.filterChipSelectedContent
+        }
+        return isHovered
+            ? WorkbenchRedesignColors.borderControlHover
+            : WorkbenchRedesignColors.borderControl
+    }
+}
+
+/// The Filter dialog over Search. It observes the search, so counts fill in
+/// as the search's own counting completes.
+struct SearchFacetFilterDialog: View {
+    @ObservedObject var session: CueFacetFilterDialogSession
+    @ObservedObject var search: SearchStore
+    let onClose: () -> Void
+
+    var body: some View {
+        CueFacetFilterDialog(
+            session: session,
+            counts: counts,
+            availableLanguages: availableLanguages,
+            onClose: onClose
         )
+    }
+
+    private var counts: CueFacetFilterCounts {
+        CueFacetFilterCounts.search(
+            selection: session.filter,
+            searchFilter: search.searchFacetFilter,
+            isQueryEmpty: search.searchQuery
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .isEmpty,
+            searchCounts: CueFacetFilterCounts(
+                distribution: search.displayedSearchFacetDistribution,
+                isCalculating: search.isFacetSnapshotCalculating,
+                pendingKinds: search.searchFacetCountsPendingKinds,
+                totalCount: search.searchStatus == .completed
+                    && search.searchCountState == .exact
+                    ? search.searchResultTotalCount
+                    : nil
+            ),
+            completeDistribution: { selection in
+                guard search.isSearchFacetSnapshotComplete,
+                      let snapshot = search.searchFacetSnapshot
+                else {
+                    return nil
+                }
+                return snapshot.filteredCueIDs(
+                    using: selection,
+                    limit: snapshot.cueIDs.count
+                ).distribution
+            }
+        )
+    }
+
+    private var availableLanguages: [SubtitleLanguageCode] {
+        var available = Set(
+            search.emptySearchFacetDistribution?.languageCounts.compactMap {
+                $0.value > 0 ? $0.key : nil
+            } ?? []
+        )
+        if let snapshot = search.searchFacetSnapshot {
+            available.formUnion(snapshot.distribution.languageCounts.keys)
+        }
+        available.insert(.unknown)
+        return SubtitleLanguageCode.allCases.filter(available.contains)
+    }
+}
+
+/// The Filter dialog over an Excerpt list. The list is in memory, so every
+/// selection is answered at once.
+struct ExcerptFacetFilterDialog: View {
+    @ObservedObject var session: CueFacetFilterDialogSession
+    @ObservedObject var excerptStore: ExcerptStore
+    let appState: AppCoordinator
+    let onClose: () -> Void
+
+    var body: some View {
+        CueFacetFilterDialog(
+            session: session,
+            counts: counts,
+            availableLanguages: availableLanguages,
+            onClose: onClose
+        )
+    }
+
+    private var counts: CueFacetFilterCounts {
+        guard excerptStore.residentFacetSnapshot != nil else {
+            return .unknown
+        }
+        let projection = appState.residentExcerptTableProjection(
+            searchText: excerptStore.tableSearchDraft,
+            facetFilter: session.filter
+        )
+        return CueFacetFilterCounts(
+            distribution: projection.distribution,
+            isCalculating: false,
+            pendingKinds: [],
+            totalCount: projection.relations.count
+        )
+    }
+
+    private var availableLanguages: [SubtitleLanguageCode] {
+        guard let snapshot = excerptStore.residentFacetSnapshot else {
+            return []
+        }
+        return SubtitleLanguageCode.allCases.filter {
+            snapshot.distribution.languageCounts.keys.contains($0)
+        }
     }
 }
 

@@ -66,6 +66,12 @@
 "table.result_count.other" = "%d 条结果";
 "table.selected_count" = "已选取 %d / %d 行";
 "table.filter" = "筛选";
+"filter_dialog.show_results" = "显示结果";
+"filter_dialog.show_results.one" = "显示 1 条结果";
+"filter_dialog.show_results.other" = "显示 %d 条结果";
+"filter_dialog.show_excerpts" = "显示摘录";
+"filter_dialog.show_excerpts.one" = "显示 1 条摘录";
+"filter_dialog.show_excerpts.other" = "显示 %d 条摘录";
 "table.select" = "选择";
 "table.exit_select" = "退出选择";
 "table.search_placeholder" = "按名称、台词或关键词搜索…";

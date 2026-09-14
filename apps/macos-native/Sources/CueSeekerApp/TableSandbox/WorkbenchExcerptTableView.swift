@@ -10,8 +10,6 @@ private struct WorkbenchExcerptTableTextCopySource {
 }
 
 struct WorkbenchExcerptTableView: View {
-    /// The filter menu starts closed on every entry to the page.
-    static let defaultFilterMenuOpen = false
     // Observed so the copy below is re-read when the language changes.
     @EnvironmentObject private var localization: AppLocalizationStore
 
@@ -35,6 +33,7 @@ private struct WorkbenchExcerptTableContent: View {
     @EnvironmentObject private var appState: AppCoordinator
     @EnvironmentObject private var excerptStore: ExcerptStore
     @EnvironmentObject private var settingsStore: SettingsStore
+    @EnvironmentObject private var filterDialog: CueFacetFilterDialogCenter
     @ObservedObject var rowStore: TableSandboxRowModelStore
     @State private var appliedShowCueGroup: Bool?
     @State private var tableScrollResetToken = 0
@@ -45,12 +44,7 @@ private struct WorkbenchExcerptTableContent: View {
     @State private var rowSelection = TableSandboxRowSelectionState()
     @State private var isSelectionMode = false
     @State private var hasDeferredReloadWhileCovered = false
-    @State private var isFilterMenuOpen =
-        WorkbenchExcerptTableView.defaultFilterMenuOpen
     @State private var excerptFacetFilter = CueFacetFilter()
-    /// The filter button lives in the table's pinned chrome, a separate
-    /// hosting hierarchy; this handle is how the shell's menu host finds it.
-    @State private var filterMenuAnchor = MenuAnchorHandle()
     @State private var selectionOverlayAnchor = MenuAnchorHandle()
 
     var body: some View {
@@ -71,20 +65,8 @@ private struct WorkbenchExcerptTableContent: View {
             isSelectionMode: isSelectionMode,
             canEnterSelectionMode: canEnterSelectionMode,
             onToggleSelectionMode: toggleSelectionMode,
-            filterMenu: CueFacetFilterMenuModel(
-                distribution:
-                    excerptStore.tableFacetDistribution
-                        ?? excerptStore.residentFacetSnapshot?.distribution,
-                availableLanguages: availableFacetLanguages,
-                isCalculating: excerptStore.residentFacetSnapshot == nil,
-                filter: excerptFacetFilterBinding
-            ),
-            isFilterMenuOpen: isFilterMenuOpen,
-            onToggleFilterMenu: toggleFilterMenu,
-            onDismissFilterMenu: {
-                isFilterMenuOpen = false
-            },
-            externalFilterMenuAnchor: filterMenuAnchor,
+            isFilterDialogOpen: isFilterDialogOpen,
+            onOpenFilterDialog: openFilterDialog,
             selectionOverlayAnchor: selectionOverlayAnchor
         ) { tableColumns in
             ZStack {
@@ -165,8 +147,8 @@ private struct WorkbenchExcerptTableContent: View {
             tableScrollTargetRow = nil
             didRestoreViewport = true
             tableScrollResetToken += 1
-            // Another list is another interface for the menu: it closes.
-            isFilterMenuOpen = false
+            // Another list is another interface for the dialog: it closes.
+            closeFilterDialog()
             restoreExcerptFacetFilter()
         }
         .onChange(of: canEnterSelectionMode) { canEnter in
@@ -177,8 +159,8 @@ private struct WorkbenchExcerptTableContent: View {
         .onChange(of: isTableResponseActive) { isActive in
             if !isActive {
                 exitSelectionMode()
-                // The menu belongs to this page: switching away closes it.
-                isFilterMenuOpen = false
+                // The dialog belongs to this page: switching away closes it.
+                closeFilterDialog()
             }
             excerptStore.setTableProjectionResponseActive(isActive)
             if isActive {
@@ -187,7 +169,7 @@ private struct WorkbenchExcerptTableContent: View {
         }
         .onDisappear {
             exitSelectionMode()
-            isFilterMenuOpen = false
+            closeFilterDialog()
             excerptStore.setTableProjectionResponseActive(false)
             persistSelection()
             excerptStore.tableViewportAnchor = nil
@@ -247,10 +229,9 @@ private struct WorkbenchExcerptTableContent: View {
                     searchDraft: searchInputBinding,
                     searchResultCountText: exactSearchResultCountText,
                     isSelectionMode: isSelectionMode,
-                    isFilterMenuOpen: isFilterMenuOpen,
+                    isFilterDialogOpen: isFilterDialogOpen,
                     canEnterSelectionMode: canEnterSelectionMode,
-                    filterMenuAnchor: filterMenuAnchor,
-                    onFilter: toggleFilterMenu,
+                    onFilter: openFilterDialog,
                     onToggleSelectionMode: toggleSelectionMode
                 )
                 .padding(.bottom, WorkbenchControlMetrics.redesignSpacing3)
@@ -361,12 +342,8 @@ private struct WorkbenchExcerptTableContent: View {
         )
     }
 
-    private var availableFacetLanguages: [SubtitleLanguageCode] {
-        var available = Set<SubtitleLanguageCode>()
-        if let snapshot = excerptStore.residentFacetSnapshot {
-            available.formUnion(snapshot.distribution.languageCounts.keys)
-        }
-        return SubtitleLanguageCode.allCases.filter(available.contains)
+    private var isFilterDialogOpen: Bool {
+        filterDialog.session?.source == .excerpt
     }
 
     private var tableTextCopySource: WorkbenchExcerptTableTextCopySource {
@@ -431,11 +408,24 @@ private struct WorkbenchExcerptTableContent: View {
         appState.updateExcerptSearchQuery(searchText)
     }
 
-    private func toggleFilterMenu() {
-        if !isFilterMenuOpen {
-            restoreExcerptFacetFilter()
-        }
-        isFilterMenuOpen.toggle()
+    /// The dialog starts from the list's saved selection, and Show hands its
+    /// selection back through the same path a changed selection always took.
+    private func openFilterDialog() {
+        restoreExcerptFacetFilter()
+        let filter = excerptStore.activeListID.map {
+            settingsStore.excerptFacetFilter(forListID: $0)
+        } ?? CueFacetFilter()
+        let binding = excerptFacetFilterBinding
+        filterDialog.session = CueFacetFilterDialogSession(
+            source: .excerpt,
+            filter: filter,
+            apply: { binding.wrappedValue = $0 }
+        )
+    }
+
+    private func closeFilterDialog() {
+        guard isFilterDialogOpen else { return }
+        filterDialog.session = nil
     }
 
     private func restoreExcerptFacetFilter() {

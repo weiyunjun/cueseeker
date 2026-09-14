@@ -66,6 +66,12 @@
 "table.result_count.other" = "%d results";
 "table.selected_count" = "%d / %d rows selected";
 "table.filter" = "Filter";
+"filter_dialog.show_results" = "Show results";
+"filter_dialog.show_results.one" = "Show 1 result";
+"filter_dialog.show_results.other" = "Show %d results";
+"filter_dialog.show_excerpts" = "Show excerpts";
+"filter_dialog.show_excerpts.one" = "Show 1 excerpt";
+"filter_dialog.show_excerpts.other" = "Show %d excerpts";
 "table.select" = "Select";
 "table.exit_select" = "Exit Select";
 "table.search_placeholder" = "Search cues by name, lyrics, or keywords...";

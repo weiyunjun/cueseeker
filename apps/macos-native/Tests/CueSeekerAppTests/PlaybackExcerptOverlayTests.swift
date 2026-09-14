@@ -283,8 +283,12 @@ func sharedExcerptFacetSelectionRestoresAndProjectsWithoutDatabaseReload() async
     let initialSnapshotID = app.excerpt.tableResultSnapshotID
     #expect(app.excerpt.tableFacetFilter == persistedFilter)
     #expect(app.excerpt.residentFacetSnapshot?.distribution.totalCount == 2)
-    #expect(app.excerpt.tableFacetDistribution?.totalCount == 1)
-    #expect(app.excerpt.tableFacetDistribution?.durationCounts == [
+    let persistedProjection = app.residentExcerptTableProjection(
+        searchText: app.excerpt.tableSearchDraft,
+        facetFilter: persistedFilter
+    )
+    #expect(persistedProjection.distribution.totalCount == 1)
+    #expect(persistedProjection.distribution.durationCounts == [
         .underOneSecond: 1,
         .threeToUnderFiveSeconds: 1,
     ])
@@ -295,7 +299,10 @@ func sharedExcerptFacetSelectionRestoresAndProjectsWithoutDatabaseReload() async
 
     #expect(app.excerptTableRowsTask == nil)
     #expect(app.excerpt.tableResultSnapshotID != initialSnapshotID)
-    #expect(app.excerpt.tableFacetDistribution?.totalCount == 2)
+    #expect(app.residentExcerptTableProjection(
+        searchText: app.excerpt.tableSearchDraft,
+        facetFilter: CueFacetFilter()
+    ).distribution.totalCount == 2)
     #expect(app.excerpt.tableResultRowCount == 2)
     #expect(app.excerpt.tableRowStore.snapshot.totalRowCount == 2)
     #expect(Set(app.excerpt.playbackTableResultExcerptIDs ?? []) == [

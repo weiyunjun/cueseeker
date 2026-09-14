@@ -919,7 +919,8 @@ private final class CueGroupRefreshScopeMountedHarness {
             .environmentObject(app.excerpt)
             .environmentObject(app.library)
             .environmentObject(app.search)
-            .environmentObject(app.playback))
+            .environmentObject(app.playback)
+            .environmentObject(app.filterDialog))
         let hostingView = NSHostingView(rootView: contentView)
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 1_440, height: 900),

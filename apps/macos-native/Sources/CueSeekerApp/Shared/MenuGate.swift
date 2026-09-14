@@ -24,7 +24,6 @@ final class MenuGate {
     /// quietly invent a modality of its own.
     enum Kind {
         case tableRowMenu
-        case filterMenu
         case cardMenu
         case selectedTextMenu
         case playerSpeedMenu
@@ -35,8 +34,7 @@ final class MenuGate {
         /// it.
         var takesWheel: Bool {
             switch self {
-            case .tableRowMenu, .filterMenu, .selectedTextMenu,
-                 .excerptDestinationMenu:
+            case .tableRowMenu, .selectedTextMenu, .excerptDestinationMenu:
                 true
             case .cardMenu, .playerSpeedMenu:
                 false

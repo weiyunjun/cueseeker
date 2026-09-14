@@ -27,7 +27,6 @@ final class ExcerptStore: ObservableObject {
     @Published var tableHasLoadedInitialPage = false
     @Published var tableDataRevision = 0
     @Published private(set) var residentFacetSnapshot: CueFacetSnapshot?
-    @Published private(set) var tableFacetDistribution: CueFacetDistribution?
     private(set) var tableFacetFilter = CueFacetFilter()
     private(set) var tableResultSnapshotID = UUID()
     private(set) var tableResultExcerptIDs: [Int64]?
@@ -285,10 +284,6 @@ final class ExcerptStore: ObservableObject {
         tableResultRowCount = excerptIDs.count
     }
 
-    func installTableFacetDistribution(_ distribution: CueFacetDistribution) {
-        tableFacetDistribution = distribution
-    }
-
     @discardableResult
     func updateTableSearchDraft(_ searchText: String) -> Bool {
         let normalizedSearchText = SearchInputNormalizer.singleLine(searchText)
@@ -319,7 +314,6 @@ final class ExcerptStore: ObservableObject {
             uniqueKeysWithValues: snapshot.resolvedExcerpts.map { ($0.id, $0) }
         )
         residentFacetSnapshot = snapshot.facetSnapshot
-        tableFacetDistribution = snapshot.facetSnapshot.distribution
         residentListID = listID
         residentDataRevision = dataRevision
     }
@@ -349,7 +343,6 @@ final class ExcerptStore: ObservableObject {
         residentRelations = []
         residentExcerptsByID = [:]
         residentFacetSnapshot = nil
-        tableFacetDistribution = nil
         residentListID = nil
         residentDataRevision = nil
     }
@@ -369,9 +362,6 @@ final class ExcerptStore: ObservableObject {
         residentFacetSnapshot = residentFacetSnapshot?.removingCueIDs(
             removedCueIDs
         )
-        tableFacetDistribution = residentFacetProjection(
-            using: tableFacetFilter
-        ).distribution
         tableTotalSavedRowCount = residentRelations.count
         if let tableResultExcerptIDs {
             let remainingIDs = tableResultExcerptIDs.filter { $0 != id }
@@ -398,7 +388,6 @@ final class ExcerptStore: ObservableObject {
     func markTableRowsStale() {
         tableRowsNeedReload = true
         residentFacetSnapshot = nil
-        tableFacetDistribution = nil
         tableDataRevision += 1
     }
 }

@@ -24,9 +24,6 @@ private struct WorkbenchSearchTableTextCopySource {
 }
 
 struct WorkbenchTestSearchView: View {
-    /// The filter menu starts closed on every entry to the page.
-    static let defaultFilterMenuOpen = false
-
     let isTableResponseActive: Bool
     @EnvironmentObject private var appState: AppCoordinator
     @EnvironmentObject private var search: SearchStore
@@ -34,6 +31,7 @@ struct WorkbenchTestSearchView: View {
     // Observed so the copy below is re-read when the language changes.
     @EnvironmentObject private var localization: AppLocalizationStore
     @EnvironmentObject private var excerptStore: ExcerptStore
+    @EnvironmentObject private var filterDialog: CueFacetFilterDialogCenter
     private let rowStore: TableSandboxRowModelStore
     @State private var appliedShowCueGroup: Bool?
     @State private var searchDraft: String
@@ -45,7 +43,6 @@ struct WorkbenchTestSearchView: View {
     @State private var rowSelection = TableSandboxRowSelectionState()
     @State private var isSelectionMode = false
     @State private var hasDeferredRefreshWhileCovered = false
-    @State private var isFilterMenuOpen: Bool
     @State private var searchFacetFilter = CueFacetFilter()
     @State private var selectionOverlayAnchor = MenuAnchorHandle()
 
@@ -56,7 +53,6 @@ struct WorkbenchTestSearchView: View {
         self.rowStore = rowStore
         self.isTableResponseActive = isTableResponseActive
         _searchDraft = State(initialValue: "")
-        _isFilterMenuOpen = State(initialValue: Self.defaultFilterMenuOpen)
     }
 
     var body: some View {
@@ -75,20 +71,8 @@ struct WorkbenchTestSearchView: View {
             isSelectionMode: isSelectionMode,
             canEnterSelectionMode: canEnterSelectionMode,
             onToggleSelectionMode: toggleSelectionMode,
-            filterMenu: CueFacetFilterMenuModel(
-                distribution: facetDistribution,
-                availableLanguages: availableFacetLanguages,
-                isCalculating: search.isFacetSnapshotCalculating,
-                pendingKinds: search.searchFacetCountsPendingKinds,
-                filter: searchFacetFilterBinding
-            ),
-            isFilterMenuOpen: isFilterMenuOpen,
-            onToggleFilterMenu: {
-                isFilterMenuOpen.toggle()
-            },
-            onDismissFilterMenu: {
-                isFilterMenuOpen = false
-            },
+            isFilterDialogOpen: filterDialog.session?.source == .search,
+            onOpenFilterDialog: openFilterDialog,
             selectionOverlayAnchor: selectionOverlayAnchor
         ) { tableColumns in
             WorkbenchSearchTableRowsObserver(rowStore: rowStore) { snapshot in
@@ -193,8 +177,8 @@ struct WorkbenchTestSearchView: View {
         .onChange(of: isTableResponseActive) { isActive in
             if !isActive {
                 exitSelectionMode()
-                // The menu belongs to this page: switching away closes it.
-                isFilterMenuOpen = false
+                // The dialog belongs to this page: switching away closes it.
+                closeFilterDialog()
             }
             search.setTableProjectionResponseActive(isActive)
             if isActive {
@@ -208,7 +192,7 @@ struct WorkbenchTestSearchView: View {
         }
         .onDisappear {
             exitSelectionMode()
-            isFilterMenuOpen = false
+            closeFilterDialog()
             search.setTableProjectionResponseActive(false)
             persistSearchDraft()
             persistSelection()
@@ -252,21 +236,20 @@ struct WorkbenchTestSearchView: View {
         )
     }
 
-    private var facetDistribution: CueFacetDistribution? {
-        search.displayedSearchFacetDistribution
+    /// The dialog starts from the table's selection, and Show hands its
+    /// selection back through the same path a changed selection always took.
+    private func openFilterDialog() {
+        let binding = searchFacetFilterBinding
+        filterDialog.session = CueFacetFilterDialogSession(
+            source: .search,
+            filter: searchFacetFilter,
+            apply: { binding.wrappedValue = $0 }
+        )
     }
 
-    private var availableFacetLanguages: [SubtitleLanguageCode] {
-        var available = Set(
-            search.emptySearchFacetDistribution?.languageCounts.compactMap {
-                $0.value > 0 ? $0.key : nil
-            } ?? []
-        )
-        if let snapshot = search.searchFacetSnapshot {
-            available.formUnion(snapshot.distribution.languageCounts.keys)
-        }
-        available.insert(.unknown)
-        return SubtitleLanguageCode.allCases.filter(available.contains)
+    private func closeFilterDialog() {
+        guard filterDialog.session?.source == .search else { return }
+        filterDialog.session = nil
     }
 
     private var searchInputBinding: Binding<String> {

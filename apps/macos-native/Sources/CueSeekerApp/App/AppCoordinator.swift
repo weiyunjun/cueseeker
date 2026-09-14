@@ -34,6 +34,7 @@ final class AppCoordinator: ObservableObject {
     let playback: PlaybackStore
     let toast = ToastCenter()
     let confirmation = ConfirmationCenter()
+    let filterDialog = CueFacetFilterDialogCenter()
     let tasks: TaskQueueStore
     let interfaceLayers = InterfaceLayerRegistry()
     var settingsCancellables: Set<AnyCancellable> = []
@@ -571,23 +572,26 @@ final class AppCoordinator: ObservableObject {
         setupInterfaceLayerObservers()
     }
 
-    /// Edit Cover, the Excerpt List Editor, Rename, the Task panel and
+    /// Edit Cover, the Excerpt List Editor, Rename, Filter, the Task panel and
     /// Confirmation are the dialog layer. Their open state lives on the
     /// stores, so the registry follows them.
     private func setupInterfaceLayerObservers() {
-        Publishers.CombineLatest(
-            Publishers.CombineLatest4(
-                library.$coverEditingSession,
-                excerpt.$listEditorSession,
-                confirmation.$session,
-                tasks.$isPanelOpen
-            ),
-            library.$renameSession
+        let isEditorOrPanelOpen = Publishers.CombineLatest4(
+            library.$coverEditingSession,
+            excerpt.$listEditorSession,
+            confirmation.$session,
+            tasks.$isPanelOpen
         )
-        .map { dialogs, renameSession in
-            dialogs.0 != nil || dialogs.1 != nil || dialogs.2 != nil || dialogs.3
-                || renameSession != nil
+        .map { coverEditing, listEditor, confirmation, isTaskPanelOpen in
+            coverEditing != nil || listEditor != nil || confirmation != nil
+                || isTaskPanelOpen
         }
+        Publishers.CombineLatest3(
+            isEditorOrPanelOpen,
+            library.$renameSession.map { $0 != nil },
+            filterDialog.$session.map { $0 != nil }
+        )
+        .map { $0 || $1 || $2 }
         .removeDuplicates()
         .sink { [interfaceLayers] isDialogOpen in
             interfaceLayers.setOpen(.dialog, isDialogOpen)

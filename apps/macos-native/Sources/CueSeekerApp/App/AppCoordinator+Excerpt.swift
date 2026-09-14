@@ -588,23 +588,13 @@ extension AppCoordinator {
         )
     }
 
-    private func applyResidentExcerptTableProjection(
-        resultSnapshotID: UUID,
+    /// The Excerpt table's rows for a search text and a selection, with the
+    /// counts by the usual rule. The table installs them; the Filter dialog
+    /// reads them for a selection it has not handed to the table yet.
+    func residentExcerptTableProjection(
         searchText: String,
-        facetFilter: CueFacetFilter,
-        listID: Int64,
-        dataRevision: Int
-    ) {
-        guard excerptTableRequestMatches(
-            resultSnapshotID: resultSnapshotID,
-            searchText: searchText,
-            facetFilter: facetFilter,
-            listID: listID,
-            dataRevision: dataRevision
-        ) else {
-            return
-        }
-
+        facetFilter: CueFacetFilter
+    ) -> (relations: [ExcerptRelation], distribution: CueFacetDistribution) {
         let trimmedSearchText = searchText.trimmingCharacters(
             in: .whitespacesAndNewlines
         )
@@ -625,7 +615,30 @@ extension AppCoordinator {
                     query: trimmedSearchText
                 )
         }
-        excerpt.installTableFacetDistribution(facetProjection.distribution)
+        return (relations, facetProjection.distribution)
+    }
+
+    private func applyResidentExcerptTableProjection(
+        resultSnapshotID: UUID,
+        searchText: String,
+        facetFilter: CueFacetFilter,
+        listID: Int64,
+        dataRevision: Int
+    ) {
+        guard excerptTableRequestMatches(
+            resultSnapshotID: resultSnapshotID,
+            searchText: searchText,
+            facetFilter: facetFilter,
+            listID: listID,
+            dataRevision: dataRevision
+        ) else {
+            return
+        }
+
+        let relations = residentExcerptTableProjection(
+            searchText: searchText,
+            facetFilter: facetFilter
+        ).relations
         excerpt.installTableResultExcerptIDs(relations.map(\.id))
         excerpt.markTableRowsLoaded(
             totalSavedRowCount: excerpt.residentRelations.count

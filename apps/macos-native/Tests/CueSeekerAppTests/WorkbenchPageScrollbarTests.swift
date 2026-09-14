@@ -250,14 +250,7 @@ private struct WorkbenchPageScrollbarFixture: View {
             searchDraft: $searchDraft,
             columns: SchemaWorkbenchSearchDefaults.columns,
             isRedesign: true,
-            filterMenu: CueFacetFilterMenuModel(
-                distribution: nil,
-                availableLanguages: [],
-                isCalculating: false,
-                filter: .constant(CueFacetFilter())
-            ),
-            onToggleFilterMenu: {},
-            onDismissFilterMenu: {}
+            onOpenFilterDialog: {}
         ) { _ in
             SubtitleTableView(
                 tableName: "page-scrollbar",

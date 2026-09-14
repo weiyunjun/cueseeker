@@ -29,22 +29,10 @@ func searchStoresPersistOnlyNormalizedSingleLineQueries() {
 
 @MainActor
 @Test
-func searchFilterMenuDefaultsToClosed() {
-    #expect(!WorkbenchTestSearchView.defaultFilterMenuOpen)
-}
-
-@MainActor
-@Test
 func emptySearchDisplaysZeroFacetCounts() {
     let search = SearchStore()
 
     #expect(search.displayedSearchFacetDistribution == .zero)
-}
-
-@MainActor
-@Test
-func excerptFilterMenuDefaultsToClosed() {
-    #expect(!WorkbenchExcerptTableView.defaultFilterMenuOpen)
 }
 
 @MainActor

@@ -183,6 +183,12 @@ enum WorkbenchControlMetrics {
     static let redesignMenuDividerGap: CGFloat = 4
     /// --size-icon-button: 32px
     static let redesignIconButtonSize: CGFloat = 32
+    /// --height-filter-chip: 32px
+    static let redesignFilterChipHeight: CGFloat = 32
+    /// --size-filter-chip-count-placeholder: 24px × 12px, the still block in
+    /// place of a count that is not known yet.
+    static let redesignFilterChipCountPlaceholderWidth: CGFloat = 24
+    static let redesignFilterChipCountPlaceholderHeight: CGFloat = 12
     /// --height-table-header: 40px
     static let redesignTableHeaderHeight: CGFloat = 40
     /// --spacing-1: 4px
