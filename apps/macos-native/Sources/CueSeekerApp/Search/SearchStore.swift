@@ -148,11 +148,10 @@ final class SearchStore: ObservableObject {
 
     /// Adds results whose first rank is `offset`. Rows already loaded at those
     /// ranks are kept when they are the same cues and only the rest is appended;
-    /// otherwise the loaded rows from `offset` on are replaced. A snapshot that
-    /// leaves a gap after the loaded rows is ignored apart from its counts.
+    /// otherwise the loaded rows from `offset` on are replaced. Results that
+    /// would leave a gap after the loaded rows are ignored.
     private func mergeLoadedSearchResults(
         _ results: [SubtitleSearchResult],
-        cueIDs: [Int64],
         startingAt offset: Int
     ) {
         let loadedCount = loadedSearchResultCueIDs.count
@@ -164,7 +163,7 @@ final class SearchStore: ObservableObject {
             && results.prefix(overlap).map(\.entryID)
                 .elementsEqual(loadedSearchResultCueIDs[offset...])
         if offset == 0 && !overlapMatches {
-            setLoadedSearchResults(results, orderedCueIDs: cueIDs.isEmpty ? nil : cueIDs)
+            setLoadedSearchResults(results)
             return
         }
         let skip = overlapMatches ? overlap : 0
@@ -182,13 +181,6 @@ final class SearchStore: ObservableObject {
         loadedSearchResultCueIDs.append(contentsOf: newResults.map(\.entryID))
         for result in newResults {
             searchRankByCueID[result.entryID] = result.searchRank
-        }
-        if !cueIDs.isEmpty {
-            if searchResultCueIDs.count == offset + skip {
-                searchResultCueIDs.append(contentsOf: cueIDs.dropFirst(skip))
-            } else {
-                searchResultCueIDs = loadedSearchResultCueIDs
-            }
         }
         tableProjectionRevision &+= 1
         if case .residentSearch = tableProjectionSource {
@@ -264,11 +256,14 @@ final class SearchStore: ObservableObject {
     }
 
     /// Requirement 4.4: with every count complete, a changed selection is
-    /// answered from the snapshot instead of a new search. The result becomes
-    /// the snapshot's matching rows in display order with the counts by the
-    /// usual rule; the caller loads the first page's row contents by cue ID.
-    /// Returns the projected cue IDs, or nil when a search is needed instead.
-    func projectSearchFacetFilter(_ filter: CueFacetFilter) -> [Int64]? {
+    /// answered from the snapshot instead of a new search. The selection and a
+    /// new result list generation take effect at once; the result, the
+    /// snapshot's matching rows in display order with the counts by the usual
+    /// rule, is installed whole once every row's contents are in memory.
+    /// Returns the projection, or nil when a search is needed instead.
+    func projectSearchFacetFilter(
+        _ filter: CueFacetFilter
+    ) -> (cueIDs: [Int64], distribution: CueFacetDistribution)? {
         guard searchFacetFilter != filter,
               isSearchFacetSnapshotComplete,
               let snapshot = searchFacetSnapshot
@@ -280,39 +275,37 @@ final class SearchStore: ObservableObject {
         cancelQueryTasks()
         advanceResultListGeneration()
         let projection = snapshot.filteredCueIDs(using: filter, limit: snapshot.cueIDs.count)
-        replaceResultState(
-            results: [],
-            orderedCueIDs: projection.cueIDs,
-            status: .completed,
-            totalCount: projection.cueIDs.count,
-            fileSummaries: searchFileSummaries,
-            countState: .exact,
-            knownResultCount: projection.cueIDs.count,
-            knownFileCount: searchKnownFileCount,
-            hasMore: !projection.cueIDs.isEmpty,
-            loadedResultCount: 0,
-            nextCursor: projection.cueIDs.isEmpty ? nil : .start
-        )
-        searchFacetDistribution = projection.distribution
-        return projection.cueIDs
+        return (projection.cueIDs, projection.distribution)
     }
 
-    /// Installs the first page of a projected result once its row contents
-    /// have been read by cue ID.
+    /// Installs a projected result whole: every row, the total and the counts.
+    /// Returns false when the result list has moved on or a row's contents are
+    /// not in memory.
     @discardableResult
-    func commitProjectedSearchRows(_ results: [SubtitleSearchResult], generation: UInt64) -> Bool {
-        guard generation == resultListGeneration, searchStatus == .completed else {
+    func commitProjectedSearchResult(
+        cueIDs: [Int64],
+        distribution: CueFacetDistribution,
+        generation: UInt64
+    ) -> Bool {
+        guard generation == resultListGeneration,
+              let contents = cueContentStore.contents(for: cueIDs)
+        else {
             return false
         }
-        commitResultMutation {
-            mergeLoadedSearchResults(results, cueIDs: [], startingAt: 0)
-            let loadedResultCount = loadedSearchResultCueIDs.count
-            loadedGlobalResultCount = loadedResultCount
-            hasMoreSearchResults = loadedResultCount < searchResultTotalCount
-            nextGlobalCursor = loadedResultCount < searchResultTotalCount
-                ? SubtitleSearchCursor(offset: loadedResultCount)
-                : nil
-        }
+        searchFacetDistribution = distribution
+        replaceResultState(
+            results: contents.enumerated().map { rank, content in
+                SubtitleSearchResult(cueContent: content, searchRank: rank)
+            },
+            orderedCueIDs: cueIDs,
+            status: .completed,
+            totalCount: cueIDs.count,
+            fileSummaries: searchFileSummaries,
+            countState: .exact,
+            knownResultCount: cueIDs.count,
+            knownFileCount: searchKnownFileCount,
+            hasMore: false
+        )
         return true
     }
 
@@ -656,9 +649,12 @@ final class SearchStore: ObservableObject {
         return completesSearch
     }
 
+    /// Installs the completed result in one change: the rows the scan reported
+    /// while it ran, followed by the rows of its page.
     @discardableResult
     func commitExactSearchPage(
         _ page: SubtitleSearchPage,
+        reportedResults: [SubtitleSearchResult] = [],
         generation: UInt64
     ) -> Bool {
         guard generation == resultListGeneration else {
@@ -666,11 +662,11 @@ final class SearchStore: ObservableObject {
         }
         commitResultMutation {
             let loadedResultCount: Int
-            if !page.renderableResults.isEmpty {
+            let results = reportedResults + page.renderableResults
+            if !results.isEmpty {
                 mergeLoadedSearchResults(
-                    page.renderableResults,
-                    cueIDs: [],
-                    startingAt: page.renderableResultsOffset
+                    results,
+                    startingAt: page.renderableResultsOffset - reportedResults.count
                 )
                 loadedResultCount = loadedSearchResultCueIDs.count
             } else {
@@ -695,34 +691,6 @@ final class SearchStore: ObservableObject {
             searchStatus = .completed
         }
         return true
-    }
-
-    func commitSearchCountProgress(_ progress: SubtitleSearchProgressSnapshot) {
-        commitResultMutation {
-            let loadedResultCount: Int
-            if !progress.results.isEmpty {
-                mergeLoadedSearchResults(
-                    progress.results,
-                    cueIDs: progress.cueIDs,
-                    startingAt: progress.resultOffset
-                )
-                loadedResultCount = loadedSearchResultCueIDs.count
-            } else {
-                loadedResultCount = loadedGlobalResultCount
-            }
-            let hasMore = loadedResultCount < progress.knownResultCount
-            searchResultTotalCount = progress.knownResultCount
-            searchFileSummaries = progress.fileSummaries
-            searchCountState = progress.countState
-            searchKnownResultCount = progress.knownResultCount
-            searchKnownFileCount = progress.knownFileCount
-            hasMoreSearchResults = hasMore
-            loadedGlobalResultCount = loadedResultCount
-            nextGlobalCursor = hasMore
-                ? (nextGlobalCursor
-                    ?? SubtitleSearchCursor(offset: loadedResultCount))
-                : nil
-        }
     }
 
     @discardableResult

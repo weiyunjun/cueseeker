@@ -32,9 +32,14 @@ This changelog does not replace Git history. Git records concrete file changes. 
   selection starts both the search and the counts over. That scan reads every
   match outside the selection, so once every count is complete the result
   holds every match of the query and a changed selection is answered from
-  memory: the rows and counts come from it in display order and only the
-  first page's row contents are read, so the new list appears in under 0.1 s
-  instead of 0.5–3.4 s.
+  memory: the rows and counts come from it in display order, and the table
+  receives the whole new list at once, reading first only the rows whose
+  contents are not yet in memory. Narrowing `の` from 77,145 to 2,766 results
+  takes 45 ms; widening it back reads 74,379 rows and takes 1.6 s. A search
+  now hands the table its rows twice, the first page and then the rest when
+  the result is complete, and the Filter dialog redraws only when a count,
+  the total or the calculating state changes, so the dialog opens at once and
+  its spinner keeps turning while a search runs.
 - Settings now has six categories: General, which gathers Appearance,
   Search, Language and Deep Link; Play, which gathers Play and Decode;
   Shortcuts; Subtitle; Maintenance; and Developer. Settings opens on General.

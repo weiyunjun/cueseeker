@@ -34,3 +34,5 @@ The owner pointed out a regression: before Step 4, changing the Filter Menu sele
 ## Outcome
 
 Matched requirement 4.4: after the counts are complete, a selection change shows its rows and counts in well under 0.1 s instead of 0.5–3.4 s, while a change during calculation still starts over. The E2E run also exposed two harness pitfalls, recorded for later work: a leftover FIFO reader from a quit App swallows the next launch's first command, and BSD `seq 1 0` counts down.
+
+Correction (2026-09-15): "Later pages load as before" was wrong. The Search table has no later-page loading; a normal search reaches every row through the exact completion, so a projected result showed only its first 100 rows. `2026-09-15-bug-filter-dialog-opening-lag-and-100-row-result.md` installs the whole projected result instead.

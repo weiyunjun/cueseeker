@@ -1,3 +1,4 @@
+import Combine
 import SwiftUI
 import CueSeekerCore
 
@@ -67,7 +68,7 @@ extension CueFacetFilterDialogSession.Source {
 
 /// What the dialog knows for its selection: the counts, which of them are not
 /// known yet, and the total, nil while it is not known.
-struct CueFacetFilterCounts {
+struct CueFacetFilterCounts: Equatable {
     static let unknown = CueFacetFilterCounts(
         distribution: nil,
         isCalculating: true,
@@ -244,6 +245,7 @@ struct CueFacetFilterDialog: View {
     @Environment(\.workbenchDialogAvailableSize) private var availableSize
 
     var body: some View {
+        let _ = UIInvalidationProbe.count("UI.FilterDialog.body")
         let sections = CueFacetSection.sections(
             counts: counts,
             availableLanguages: availableLanguages,
@@ -454,53 +456,36 @@ private struct CueFacetFilterChip: View {
     }
 }
 
-/// The Filter dialog over Search. It observes the search, so counts fill in
-/// as the search's own counting completes.
-struct SearchFacetFilterDialog: View {
-    @ObservedObject var session: CueFacetFilterDialogSession
-    @ObservedObject var search: SearchStore
-    let onClose: () -> Void
+/// What the Filter dialog shows of Search. The search changes on every row it
+/// adds; this changes only when a count, the total or the calculating state
+/// does.
+struct SearchFacetDialogSearchState: Equatable {
+    let isQueryEmpty: Bool
+    let searchFilter: CueFacetFilter
+    let searchCounts: CueFacetFilterCounts
+    /// Every match of the query with its facet values, once every count is
+    /// complete.
+    let completeSnapshot: CueFacetSnapshot?
+    let availableLanguages: [SubtitleLanguageCode]
 
-    var body: some View {
-        CueFacetFilterDialog(
-            session: session,
-            counts: counts,
-            availableLanguages: availableLanguages,
-            onClose: onClose
+    @MainActor
+    init(_ search: SearchStore) {
+        isQueryEmpty = search.searchQuery
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .isEmpty
+        searchFilter = search.searchFacetFilter
+        searchCounts = CueFacetFilterCounts(
+            distribution: search.displayedSearchFacetDistribution,
+            isCalculating: search.isFacetSnapshotCalculating,
+            pendingKinds: search.searchFacetCountsPendingKinds,
+            totalCount: search.searchStatus == .completed
+                && search.searchCountState == .exact
+                ? search.searchResultTotalCount
+                : nil
         )
-    }
-
-    private var counts: CueFacetFilterCounts {
-        CueFacetFilterCounts.search(
-            selection: session.filter,
-            searchFilter: search.searchFacetFilter,
-            isQueryEmpty: search.searchQuery
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-                .isEmpty,
-            searchCounts: CueFacetFilterCounts(
-                distribution: search.displayedSearchFacetDistribution,
-                isCalculating: search.isFacetSnapshotCalculating,
-                pendingKinds: search.searchFacetCountsPendingKinds,
-                totalCount: search.searchStatus == .completed
-                    && search.searchCountState == .exact
-                    ? search.searchResultTotalCount
-                    : nil
-            ),
-            completeDistribution: { selection in
-                guard search.isSearchFacetSnapshotComplete,
-                      let snapshot = search.searchFacetSnapshot
-                else {
-                    return nil
-                }
-                return snapshot.filteredCueIDs(
-                    using: selection,
-                    limit: snapshot.cueIDs.count
-                ).distribution
-            }
-        )
-    }
-
-    private var availableLanguages: [SubtitleLanguageCode] {
+        completeSnapshot = search.isSearchFacetSnapshotComplete
+            ? search.searchFacetSnapshot
+            : nil
         var available = Set(
             search.emptySearchFacetDistribution?.languageCounts.compactMap {
                 $0.value > 0 ? $0.key : nil
@@ -510,7 +495,61 @@ struct SearchFacetFilterDialog: View {
             available.formUnion(snapshot.distribution.languageCounts.keys)
         }
         available.insert(.unknown)
-        return SubtitleLanguageCode.allCases.filter(available.contains)
+        availableLanguages = SubtitleLanguageCode.allCases.filter(available.contains)
+    }
+
+    func counts(for selection: CueFacetFilter) -> CueFacetFilterCounts {
+        CueFacetFilterCounts.search(
+            selection: selection,
+            searchFilter: searchFilter,
+            isQueryEmpty: isQueryEmpty,
+            searchCounts: searchCounts,
+            completeDistribution: { selection in
+                completeSnapshot.map { snapshot in
+                    snapshot.filteredCueIDs(
+                        using: selection,
+                        limit: snapshot.cueIDs.count
+                    ).distribution
+                }
+            }
+        )
+    }
+}
+
+/// The Filter dialog over Search. It follows only what it shows of the
+/// search, so it redraws when a count, the total or the calculating state
+/// changes, not on every row the search adds.
+struct SearchFacetFilterDialog: View {
+    @ObservedObject var session: CueFacetFilterDialogSession
+    let search: SearchStore
+    let onClose: () -> Void
+
+    @State private var searchState: SearchFacetDialogSearchState
+
+    init(
+        session: CueFacetFilterDialogSession,
+        search: SearchStore,
+        onClose: @escaping () -> Void
+    ) {
+        self.session = session
+        self.search = search
+        self.onClose = onClose
+        _searchState = State(initialValue: SearchFacetDialogSearchState(search))
+    }
+
+    var body: some View {
+        CueFacetFilterDialog(
+            session: session,
+            counts: searchState.counts(for: session.filter),
+            availableLanguages: searchState.availableLanguages,
+            onClose: onClose
+        )
+        .onReceive(search.objectWillChange.receive(on: DispatchQueue.main)) { _ in
+            let next = SearchFacetDialogSearchState(search)
+            if next != searchState {
+                searchState = next
+            }
+        }
     }
 }
 

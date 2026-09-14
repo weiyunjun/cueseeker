@@ -578,7 +578,7 @@ func filteredResultCountsItsOwnCardsAtOnceAndTheUncheckedOptionsAfterTheirScan()
 
 @MainActor
 @Test
-func filterChangeAfterEveryCountIsCompleteProjectsRowsAndCountsWithoutSearching() {
+func filterChangeAfterEveryCountIsCompleteProjectsRowsAndCountsWithoutSearching() throws {
     let search = SearchStore()
     search.updateQuery("query")
     search.updateSearchFacetFilter(CueFacetFilter(languages: [.japanese]))
@@ -618,40 +618,51 @@ func filterChangeAfterEveryCountIsCompleteProjectsRowsAndCountsWithoutSearching(
     #expect(search.searchFacetSnapshot?.cueIDs == [2, 1])
 
     // Clearing the selection is answered from the snapshot: both rows in
-    // display order and the counts by the usual rule, without a search.
-    #expect(search.projectSearchFacetFilter(CueFacetFilter()) == [2, 1])
+    // display order and the counts by the usual rule, without a search. The
+    // selection and a new result list generation apply at once.
+    let cleared = try #require(search.projectSearchFacetFilter(CueFacetFilter()))
+    #expect(cleared.cueIDs == [2, 1])
     #expect(search.resultFacetFilter == CueFacetFilter())
+    #expect(search.resultListGeneration != generation)
+    #expect(cleared.distribution.totalCount == 2)
+    #expect(cleared.distribution.languageCounts == [.japanese: 1, .english: 1])
+    #expect(cleared.distribution.durationCounts == [.underOneSecond: 1, .fiveSecondsOrMore: 1])
+
+    // Row 2's contents are not in memory, so nothing is installed until they
+    // are; then every row, the total and the counts are installed in one change.
+    #expect(!search.commitProjectedSearchResult(
+        cueIDs: cleared.cueIDs,
+        distribution: cleared.distribution,
+        generation: search.resultListGeneration
+    ))
+    search.cacheHydratedResults([makeTableSandboxSearchResult(id: 2, content: "other", searchRank: 0)])
+    #expect(search.commitProjectedSearchResult(
+        cueIDs: cleared.cueIDs,
+        distribution: cleared.distribution,
+        generation: search.resultListGeneration
+    ))
+    #expect(search.searchResults.map(\.entryID) == [2, 1])
+    #expect(search.searchResults.map(\.searchRank) == [0, 1])
     #expect(search.searchResultCueIDs == [2, 1])
     #expect(search.searchResultTotalCount == 2)
     #expect(search.searchStatus == .completed)
     #expect(search.searchCountState == .exact)
-    #expect(search.resultListGeneration != generation)
-    #expect(search.searchFacetDistribution?.totalCount == 2)
-    #expect(search.searchFacetDistribution?.languageCounts == [.japanese: 1, .english: 1])
-    #expect(search.searchFacetDistribution?.durationCounts == [.underOneSecond: 1, .fiveSecondsOrMore: 1])
-
-    // The first page's row contents arrive by cue ID and become the loaded rows.
-    let loaded = [
-        makeTableSandboxSearchResult(id: 2, content: "other", searchRank: 0),
-        makeTableSandboxSearchResult(id: 1, content: "result", searchRank: 1),
-    ]
-    #expect(search.commitProjectedSearchRows(loaded, generation: search.resultListGeneration))
-    #expect(search.searchResults.map(\.entryID) == [2, 1])
+    #expect(search.searchFacetDistribution == cleared.distribution)
     #expect(!search.hasMoreSearchResults)
 
     // A narrower selection is projected again; the same selection is no change.
-    #expect(search.projectSearchFacetFilter(CueFacetFilter(languages: [.english])) == [2])
-    #expect(search.searchResultTotalCount == 1)
-    #expect(search.searchFacetDistribution?.totalCount == 1)
-    #expect(search.searchFacetDistribution?.languageCounts == [.japanese: 1, .english: 1])
+    let english = try #require(search.projectSearchFacetFilter(CueFacetFilter(languages: [.english])))
+    #expect(english.cueIDs == [2])
+    #expect(english.distribution.totalCount == 1)
+    #expect(english.distribution.languageCounts == [.japanese: 1, .english: 1])
     #expect(search.projectSearchFacetFilter(CueFacetFilter(languages: [.english])) == nil)
 
     // The complete snapshot keeps answering: a projection to two cards and back.
     #expect(search.projectSearchFacetFilter(
         CueFacetFilter(durations: [.fiveSecondsOrMore], languages: [.english])
-    ) == [2])
+    )?.cueIDs == [2])
     #expect(search.isSearchFacetSnapshotComplete)
-    #expect(search.projectSearchFacetFilter(CueFacetFilter()) == [2, 1])
+    #expect(search.projectSearchFacetFilter(CueFacetFilter())?.cueIDs == [2, 1])
 }
 
 @MainActor
@@ -699,11 +710,11 @@ func filterChangeAfterATwoCardSearchIsProjectedBecauseTheCountScanReadEveryMatch
 
     // Clearing the selection is projected over every match, including the row
     // that fails both cards.
-    #expect(search.projectSearchFacetFilter(CueFacetFilter()) == [1, 2, 3, 4])
-    #expect(search.searchResultTotalCount == 4)
-    #expect(search.searchFacetDistribution?.totalCount == 4)
-    #expect(search.searchFacetDistribution?.durationCounts == [.underOneSecond: 2, .fiveSecondsOrMore: 2])
-    #expect(search.searchFacetDistribution?.languageCounts == [.japanese: 2, .english: 2])
+    let cleared = search.projectSearchFacetFilter(CueFacetFilter())
+    #expect(cleared?.cueIDs == [1, 2, 3, 4])
+    #expect(cleared?.distribution.totalCount == 4)
+    #expect(cleared?.distribution.durationCounts == [.underOneSecond: 2, .fiveSecondsOrMore: 2])
+    #expect(cleared?.distribution.languageCounts == [.japanese: 2, .english: 2])
 }
 
 @MainActor
@@ -774,78 +785,6 @@ func searchFacetWatchDistributionRefreshesAfterLibraryHistoryPublication() async
 
 @MainActor
 @Test
-func staleExactProgressCannotPublishIntoRepeatedQueryText() throws {
-    let suiteName = "CueSeekerRepeatedLiveSearchGenerationTests-\(UUID().uuidString)"
-    let userDefaults = try #require(UserDefaults(suiteName: suiteName))
-    let fixtureRoot = FileManager.default.temporaryDirectory
-        .appendingPathComponent("CueSeekerRepeatedLiveSearchGenerationTests-\(UUID().uuidString)", isDirectory: true)
-    let databaseURL = fixtureRoot.appendingPathComponent("CueSeeker.sqlite")
-    defer {
-        userDefaults.removePersistentDomain(forName: suiteName)
-        try? FileManager.default.removeItem(at: fixtureRoot)
-    }
-    try FileManager.default.createDirectory(
-        at: fixtureRoot,
-        withIntermediateDirectories: true
-    )
-
-    _ = NSApplication.shared
-    let app = AppCoordinator(userDefaults: userDefaults, databaseURL: databaseURL)
-    let currentResult = makeTableSandboxSearchResult(
-        id: 42,
-        content: "current foo result",
-        searchRank: 0
-    )
-    let staleResult = makeTableSandboxSearchResult(
-        id: 7,
-        content: "stale first foo result",
-        searchRank: 0
-    )
-    app.indexing.selectedFolders = [fixtureRoot]
-    for _ in 0..<3 {
-        app.search.advanceResultListGeneration()
-    }
-    app.search.updateQuery("foo")
-    app.search.replaceResultState(
-        results: [currentResult],
-        orderedCueIDs: [currentResult.entryID],
-        status: .searching,
-        totalCount: 1,
-        fileSummaries: [],
-        countState: .exactProgress,
-        knownResultCount: 1,
-        knownFileCount: 1,
-        hasMore: false
-    )
-
-    app.search.applyCountProgress(
-        SubtitleSearchProgressSnapshot(
-            countSnapshot: .exactProgress(
-                knownResultCount: 2,
-                knownFileCount: 1
-            ),
-            fileSummaries: [],
-            results: [staleResult],
-            cueIDs: [staleResult.entryID]
-        ),
-        query: "foo",
-        filterSignature: app.search.activeFilterSetSignature,
-        generation: 1,
-        folders: app.indexing.selectedFolders,
-        folderScopeGeneration: app.search.folderScopeGeneration,
-        run: nil,
-        isContextCurrent: { true },
-        onResultsChanged: { _ in }
-    )
-
-    #expect(app.search.searchResults == [currentResult])
-    #expect(app.search.searchResultCueIDs == [currentResult.entryID])
-    #expect(app.search.searchResultTotalCount == 1)
-    #expect(app.search.searchKnownResultCount == 1)
-}
-
-@MainActor
-@Test
 func allCuePageUpdatesSearchNavigationState() throws {
     let suiteName = "CueSeekerTableSandboxSearchContextTests-\(UUID().uuidString)"
     let userDefaults = try #require(UserDefaults(suiteName: suiteName))
@@ -879,83 +818,6 @@ func allCuePageUpdatesSearchNavigationState() throws {
     #expect(app.search.searchKnownResultCount == 42)
     #expect(app.search.hasMoreSearchResults)
     #expect(app.search.nextGlobalCursor?.offset == 11)
-}
-
-@MainActor
-@Test
-func searchCountProgressPublishesRenderableRowsAsCurrentResultRange() throws {
-    let suiteName = "CueSeekerSearchCountProgressRowsTests-\(UUID().uuidString)"
-    let userDefaults = try #require(UserDefaults(suiteName: suiteName))
-    let fixtureRoot = FileManager.default.temporaryDirectory
-        .appendingPathComponent("CueSeekerSearchCountProgressRowsTests-\(UUID().uuidString)", isDirectory: true)
-    let databaseURL = fixtureRoot
-        .appendingPathComponent("CueSeekerSearchCountProgressRowsTests.sqlite")
-    defer {
-        userDefaults.removePersistentDomain(forName: suiteName)
-        try? FileManager.default.removeItem(at: fixtureRoot)
-    }
-
-    try FileManager.default.createDirectory(
-        at: fixtureRoot,
-        withIntermediateDirectories: true
-    )
-
-    _ = NSApplication.shared
-    let app = AppCoordinator(userDefaults: userDefaults, databaseURL: databaseURL)
-    let existingResult = makeTableSandboxSearchResult(
-        id: 41,
-        content: "Existing visible result",
-        searchRank: 0
-    )
-    let progressResults = (0..<3).map { index in
-        makeTableSandboxSearchResult(
-            id: Int64(100 + index),
-            content: "Renderable progress result \(index)",
-            searchRank: index
-        )
-    }
-    let progressSummary = SubtitleSearchFileSummary(
-        subtitlePath: "/Media/Episode.srt",
-        subtitleFileName: "Episode.srt",
-        subtitleDisplayTitle: "Episode",
-        matchCount: progressResults.count
-    )
-
-    app.indexing.selectedFolders = [fixtureRoot]
-    app.search.updateQuery("shared")
-    app.search.replaceResultState(
-        results: [existingResult],
-        orderedCueIDs: [existingResult.entryID],
-        status: .searching,
-        totalCount: 100,
-        fileSummaries: [],
-        countState: .exactProgress,
-        knownResultCount: 1,
-        knownFileCount: 0,
-        hasMore: true,
-        loadedResultCount: 1,
-        nextCursor: SubtitleSearchCursor(offset: 1)
-    )
-
-    app.search.commitSearchCountProgress(
-        SubtitleSearchProgressSnapshot(
-            countSnapshot: .exactProgress(
-                knownResultCount: progressResults.count,
-                knownFileCount: 1
-            ),
-            fileSummaries: [progressSummary],
-            results: progressResults,
-            cueIDs: progressResults.map(\.entryID)
-        )
-    )
-
-    #expect(app.search.searchResults == progressResults)
-    #expect(app.search.searchResultCueIDs == progressResults.map(\.entryID))
-    #expect(app.search.searchResultTotalCount == progressResults.count)
-    #expect(app.search.searchKnownResultCount == progressResults.count)
-    #expect(app.search.loadedGlobalResultCount == progressResults.count)
-    #expect(!app.search.hasMoreSearchResults)
-    #expect(app.search.nextGlobalCursor == nil)
 }
 
 @Test
@@ -1410,7 +1272,7 @@ private func makeTableSandboxSearchResult(
 
 @MainActor
 @Test
-func searchCountProgressAppendsIncrementsAfterTheLoadedPrefix() throws {
+func exactCompletionInstallsTheReportedRowsAndThePageTailInOneChange() throws {
     let suiteName = "CueSeekerSearchCountProgressIncrementTests-\(UUID().uuidString)"
     let userDefaults = try #require(UserDefaults(suiteName: suiteName))
     let fixtureRoot = FileManager.default.temporaryDirectory
@@ -1459,47 +1321,9 @@ func searchCountProgressAppendsIncrementsAfterTheLoadedPrefix() throws {
         nextCursor: SubtitleSearchCursor(offset: 2)
     )
 
-    // First increment starts at rank 0 and overlaps the loaded rows.
-    app.search.commitSearchCountProgress(
-        SubtitleSearchProgressSnapshot(
-            countSnapshot: .exactProgress(knownResultCount: 4, knownFileCount: 1),
-            fileSummaries: [summary],
-            results: Array(orderedResults.prefix(4)),
-            cueIDs: orderedResults.prefix(4).map(\.entryID),
-            resultOffset: 0
-        )
-    )
-    #expect(app.search.searchResults == Array(orderedResults.prefix(4)))
-    #expect(app.search.searchResultCueIDs == orderedResults.prefix(4).map(\.entryID))
-    #expect(app.search.loadedGlobalResultCount == 4)
-
-    // Second increment continues after the loaded rows.
-    app.search.commitSearchCountProgress(
-        SubtitleSearchProgressSnapshot(
-            countSnapshot: .exactProgress(knownResultCount: 5, knownFileCount: 1),
-            fileSummaries: [summary],
-            results: [orderedResults[4]],
-            cueIDs: [orderedResults[4].entryID],
-            resultOffset: 4
-        )
-    )
-    #expect(app.search.searchResults == Array(orderedResults.prefix(5)))
-    #expect(app.search.searchResultCueIDs == orderedResults.prefix(5).map(\.entryID))
-
-    // An increment that would leave a gap keeps the rows and applies only the counts.
-    app.search.commitSearchCountProgress(
-        SubtitleSearchProgressSnapshot(
-            countSnapshot: .exactProgress(knownResultCount: 9, knownFileCount: 1),
-            fileSummaries: [summary],
-            results: [orderedResults[5]],
-            cueIDs: [orderedResults[5].entryID],
-            resultOffset: 8
-        )
-    )
-    #expect(app.search.searchResults == Array(orderedResults.prefix(5)))
-    #expect(app.search.searchKnownResultCount == 9)
-
-    // The final exact page carries only the tail and the complete cue id list.
+    // The completed result carries the rows the scan reported while it ran,
+    // from rank 0 over the loaded rows, and the tail of its page: the loaded
+    // rows are kept and the rest is appended in one change.
     let allCueIDs = orderedResults.map(\.entryID)
     let facetSnapshot = CueFacetSnapshot(
         cueIDs: allCueIDs,
@@ -1508,6 +1332,7 @@ func searchCountProgressAppendsIncrementsAfterTheLoadedPrefix() throws {
         languageFacets: allCueIDs.map { _ in [] },
         watchStateFacets: allCueIDs.map { _ in .unwatched }
     )
+    let revisionBefore = app.search.resultRevision
     #expect(app.search.commitExactSearchPage(
         SubtitleSearchPage(
             results: [],
@@ -1519,8 +1344,10 @@ func searchCountProgressAppendsIncrementsAfterTheLoadedPrefix() throws {
             countSnapshot: .exact(totalCount: 6, fileSummaryCount: 1),
             facetSnapshot: facetSnapshot
         ),
+        reportedResults: Array(orderedResults.prefix(5)),
         generation: app.search.resultListGeneration
     ))
+    #expect(app.search.resultRevision == revisionBefore &+ 1)
     #expect(app.search.searchResults == orderedResults)
     #expect(app.search.searchResultCueIDs == allCueIDs)
     #expect(app.search.searchStatus == .completed)
@@ -1603,7 +1430,8 @@ func filteredSearchCompletesFirstAndTheOptionCountsFollowFromASecondScan() async
     #expect(search.searchResultTotalCount == 50)
 
     // Requirement 4.4: with every count complete, a new selection is answered
-    // from the snapshot, and only the first page's rows are read by cue ID.
+    // from the snapshot. The 100 rows outside the old selection are read by
+    // cue ID, and then all 150 rows are installed at once.
     let didProjectAll = search.applyProjectedFacetFilter(
         CueFacetFilter(),
         folders: [folder],
@@ -1613,6 +1441,7 @@ func filteredSearchCompletesFirstAndTheOptionCountsFollowFromASecondScan() async
         onResultsChanged: { _ in }
     )
     #expect(didProjectAll)
+    await search.searchTask?.value
     #expect(search.searchResultTotalCount == 150)
     #expect(search.searchResultCueIDs.count == 150)
     #expect(search.searchStatus == .completed)
@@ -1620,10 +1449,9 @@ func filteredSearchCompletesFirstAndTheOptionCountsFollowFromASecondScan() async
         .underOneSecond: 50,
         .oneToUnderThreeSeconds: 100,
     ])
-    await search.searchTask?.value
-    #expect(search.searchResults.count == 100)
-    #expect(search.searchResults.map(\.startMilliseconds) == (0..<100).map { $0 * 1_000 })
-    #expect(search.hasMoreSearchResults)
+    #expect(search.searchResults.count == 150)
+    #expect(search.searchResults.map(\.startMilliseconds) == (0..<150).map { $0 * 1_000 })
+    #expect(!search.hasMoreSearchResults)
 
     let didProjectLong = search.applyProjectedFacetFilter(
         CueFacetFilter(durations: [.oneToUnderThreeSeconds]),
@@ -1674,12 +1502,12 @@ func filteredSearchCompletesFirstAndTheOptionCountsFollowFromASecondScan() async
         onResultsChanged: { _ in }
     )
     #expect(didProjectTwoCards)
+    await search.searchTask?.value
     #expect(search.searchResultTotalCount == 150)
     #expect(search.searchFacetDistribution?.durationCounts == [
         .underOneSecond: 50,
         .oneToUnderThreeSeconds: 100,
     ])
-    await search.searchTask?.value
-    #expect(search.searchResults.count == 100)
-    #expect(search.searchResults.map(\.startMilliseconds) == (0..<100).map { $0 * 1_000 })
+    #expect(search.searchResults.count == 150)
+    #expect(search.searchResults.map(\.startMilliseconds) == (0..<150).map { $0 * 1_000 })
 }

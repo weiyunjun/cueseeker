@@ -3,12 +3,23 @@ import CueSeekerCore
 
 private struct SearchStorePageLoad: Sendable {
     let page: SubtitleSearchPage
+    /// The rows the scan reported batch by batch before its page.
+    var reportedResults: [SubtitleSearchResult] = []
     let databaseSearchMilliseconds: Double
+}
+
+/// The rows an exact scan reports while it runs. The scan reports them on its
+/// own thread and they are read only after it returns, so the table receives
+/// them once, with the completed result.
+private final class SearchReportedRows: @unchecked Sendable {
+    var results: [SubtitleSearchResult] = []
 }
 
 @MainActor
 extension SearchStore {
     static let searchPageSize = 100
+    /// The most rows one read by cue ID asks for, as many as a scan batch.
+    static let searchRowReadBatchSize = 5_000
     static let searchPrefetchThreshold = 10
     static let searchInputDebounceNanoseconds: UInt64 = 100_000_000
 
@@ -348,21 +359,6 @@ extension SearchStore {
         guard let database else { return }
 
         let filterSignature = filterSet.cacheSignature
-        let progressSink: SubtitleSearchProgressSink = { [weak self] snapshot in
-            Task { @MainActor [weak self] in
-                self?.applyCountProgress(
-                    snapshot,
-                    query: query,
-                    filterSignature: filterSignature,
-                    generation: generation,
-                    folders: folders,
-                    folderScopeGeneration: folderScopeGeneration,
-                    run: run,
-                    isContextCurrent: isContextCurrent,
-                    onResultsChanged: onResultsChanged
-                )
-            }
-        }
         replaceExactCompletionTask(Task { [weak self] in
             guard let self else { return }
             do {
@@ -372,6 +368,9 @@ extension SearchStore {
                     priority: .utility
                 ) {
                     let started = SearchPerformanceLogger.now()
+                    // After the first page the table receives the rest once,
+                    // when the result is complete, instead of batch by batch.
+                    let reportedRows = SearchReportedRows()
                     let page = try database.searchPage(
                         query,
                         limit: 0,
@@ -382,10 +381,11 @@ extension SearchStore {
                         filterSet: filterSet,
                         facetFilter: facetFilter,
                         diagnostics: diagnostics,
-                        progress: progressSink
+                        progress: { reportedRows.results += $0.results }
                     )
                     return SearchStorePageLoad(
                         page: page,
+                        reportedResults: reportedRows.results,
                         databaseSearchMilliseconds:
                             SearchPerformanceLogger.elapsedMilliseconds(since: started)
                     )
@@ -416,6 +416,7 @@ extension SearchStore {
                 let stateAssignStart = SearchPerformanceLogger.now()
                 guard self.commitExactSearchPage(
                     page,
+                    reportedResults: pageLoad.reportedResults,
                     generation: generation
                 ) else {
                     self.logCancelledPage(
@@ -579,8 +580,10 @@ extension SearchStore {
     }
 
     /// Requirement 4.4: answers a changed selection from the complete snapshot
-    /// and reads only the first page's row contents, by cue ID. Returns false
-    /// when the counts are not complete, in which case a search must run.
+    /// and hands the table the whole result at once. The rows whose contents
+    /// are not in memory, the matches the count scan read outside the old
+    /// selection, are read by cue ID first. Returns false when the counts are
+    /// not complete, in which case a search must run.
     func applyProjectedFacetFilter(
         _ filter: CueFacetFilter,
         folders: [URL],
@@ -605,7 +608,7 @@ extension SearchStore {
             e2eLoggingEnabled: e2eLoggingEnabled
         )
         updateActivePerformanceRun(run)
-        guard let cueIDs = projectSearchFacetFilter(filter) else {
+        guard let projection = projectSearchFacetFilter(filter) else {
             return false
         }
         let generation = resultListGeneration
@@ -613,28 +616,18 @@ extension SearchStore {
             run,
             "search_facet_projection_applied",
             resultCount: 0,
-            totalCount: cueIDs.count,
+            totalCount: projection.cueIDs.count,
             status: "completed"
         )
-        onResultsChanged(generation)
-        guard !cueIDs.isEmpty else {
-            return true
-        }
-        let pageRange = 0..<min(Self.searchPageSize, cueIDs.count)
-        replaceSearchTask(Task { [weak self] in
-            guard let self else { return }
-            let started = SearchPerformanceLogger.now()
-            let page = await self.loadSearchRows(
-                range: pageRange,
-                folders: folders,
-                languageFilter: languageFilter,
-                watchStateFilter: watchStateFilter,
-                orderedCueIDs: cueIDs
-            )
-            guard let page,
-                  !Task.isCancelled,
-                  self.commitProjectedSearchRows(page.results, generation: generation)
-            else {
+        let started = SearchPerformanceLogger.now()
+        let missingCueIDs = projection.cueIDs.filter { cachedCueContent(for: $0) == nil }
+
+        func commit() {
+            guard commitProjectedSearchResult(
+                cueIDs: projection.cueIDs,
+                distribution: projection.distribution,
+                generation: generation
+            ) else {
                 return
             }
             onResultsChanged(generation)
@@ -642,8 +635,8 @@ extension SearchStore {
                 run,
                 "search_facet_projection_rows_loaded",
                 phaseStart: started,
-                resultCount: self.searchResults.count,
-                totalCount: self.searchResultTotalCount,
+                resultCount: loadedSearchResultCueIDs.count,
+                totalCount: searchResultTotalCount,
                 status: "completed"
             )
             SearchPerformanceLogger.writeE2ESearchPage(
@@ -651,60 +644,34 @@ extension SearchStore {
                 event: "search_facet_projection_rows_loaded",
                 page: nil,
                 databaseSearchMilliseconds: SearchPerformanceLogger.elapsedMilliseconds(since: started),
-                renderedRowCount: self.searchResults.count,
+                renderedRowCount: loadedSearchResultCueIDs.count,
                 status: "completed"
             )
-        })
-        return true
-    }
-
-    func applyCountProgress(
-        _ progress: SubtitleSearchProgressSnapshot,
-        query: String,
-        filterSignature: String,
-        generation: UInt64,
-        folders: [URL],
-        folderScopeGeneration: UInt64,
-        run: SearchPerformanceRun?,
-        isContextCurrent: @escaping @MainActor () -> Bool,
-        onResultsChanged: @escaping @MainActor (UInt64) -> Void
-    ) {
-        guard generation == resultListGeneration,
-              acceptsFolderScope(
-                folders,
-                generation: folderScopeGeneration
-              ),
-              progress.countState == .exactProgress,
-              searchQuery.trimmingCharacters(in: .whitespacesAndNewlines) == query,
-              resultFilterSetSignature == filterSignature,
-              searchCountState != .exact,
-              progress.knownResultCount >= searchKnownResultCount,
-              progress.knownFileCount >= searchKnownFileCount,
-              isContextCurrent()
-        else {
-            return
         }
 
-        commitSearchCountProgress(progress)
-        onResultsChanged(generation)
-
-        SearchPerformanceLogger.mark(
-            run,
-            "search_count_progress",
-            resultCount: searchResults.count,
-            totalCount: searchResultTotalCount,
-            fileSummaryCount: searchFileSummaries.count,
-            groupCount: searchFileSummaries.count,
-            renderedRowCount: searchResults.count,
-            status: "searching"
-        )
-        SearchPerformanceLogger.writeE2ECountProgress(
-            run,
-            progress: progress,
-            resultCount: searchResults.count,
-            groupCount: searchFileSummaries.count,
-            renderedRowCount: searchResults.count
-        )
+        guard !missingCueIDs.isEmpty else {
+            commit()
+            return true
+        }
+        replaceSearchTask(Task { [weak self] in
+            guard let self else { return }
+            for lowerBound in stride(from: 0, to: missingCueIDs.count, by: Self.searchRowReadBatchSize) {
+                let range = lowerBound..<min(lowerBound + Self.searchRowReadBatchSize, missingCueIDs.count)
+                guard await self.loadSearchRows(
+                    range: range,
+                    folders: folders,
+                    languageFilter: languageFilter,
+                    watchStateFilter: watchStateFilter,
+                    orderedCueIDs: missingCueIDs
+                ) != nil,
+                    !Task.isCancelled
+                else {
+                    return
+                }
+            }
+            commit()
+        })
+        return true
     }
 
     private func finishSkippedSearch(
