@@ -27,6 +27,7 @@
 - `--color-app-sidebar-item-selected-bg`: macOS accent color
 - `--color-app-sidebar-item-selected-content`: Light `#FFFFFF`; Dark `#FFFFFF`
 - `--color-app-topbar-bg`: Light `#FFFFFF`; Dark `#18181B`
+- `--color-settings-group-bg`: Light `#F6F7F9`; Dark `#202024`
 - `--color-overlay-surface-shortcut-button-bg-hover`: Light `#EDEEF2`; Dark `#2C2C30`
 - `--color-overlay-surface-keycap-bg`: Light `#E1E4E9`; Dark `#35353A`
 - `--color-overlay-surface-keycap-bg-hover`: Light `#D2D6DE`; Dark `#414147`
@@ -74,6 +75,7 @@
 - `--color-danger-text`: Light `#B42318`; Dark `#FCA5A5`
 - `--color-danger-bg-hover`: Light `#FEF3F2`; Dark `#3A1717`
 - `--color-success-text`: Light `#047857`; Dark `#6EE7B7`
+- `--color-warning-text`: Light `#B45309`; Dark `#FCD34D`
 
 ### Tab
 
@@ -237,6 +239,10 @@
 - `--height-cover-summary-backdrop`: `225px`
 - `--height-keycap`: `22px`
 - `--min-height-playback-footer`: `48px`
+- `--height-settings-window`: `640px`
+- `--min-height-settings-window`: `420px`
+- `--height-settings-titlebar`: `36px`
+- `--min-height-settings-row`: `52px`
 
 ### Size
 
@@ -293,6 +299,9 @@
 - `--width-dialog-x-large`: `720px`
 - `--width-shortcut-field`: `144px`
 - `--width-settings-number-field`: `114px`
+- `--width-settings-window`: `880px`
+- `--width-settings-sidebar`: `184px`
+- `--width-settings-popup`: `180px`
 - `--border-width-control`: `1px`
 
 ## 1.4 间距
@@ -347,6 +356,7 @@
 - `--padding-app-sidebar-x`: `12px`
 - `--padding-app-sidebar-y`: `12px`
 - `--padding-app-sidebar-item-x`: `10px`
+- `--padding-settings-row-y`: `6px`
 - `--padding-player-chrome-x`: `24px`
 - `--padding-player-chrome-bottom`: `12px`
 - `--padding-player-progress-top`: `16px`
@@ -380,6 +390,7 @@
 - `--radius-keycap`: `4px`
 - `--scrollbar-radius`: `9999px`
 - `--radius-app-sidebar-item`: `8px`
+- `--radius-settings-group`: `10px`
 - `--radius-player-capsule`: `9999px`
 - `--radius-player-speed-menu`: `14px`
 - `--radius-playback-feedback`: `16px`
@@ -693,7 +704,7 @@
   - Component：Icon Button / Inline Clear
   - Presence：仅 Recording
   - Placement：Trailing
-- Validation Message：同 Text Field
+- Validation Message：同 Text Field；只在有提示时出现，不预留行
 
 ##### Sizes
 
@@ -2997,8 +3008,16 @@
 #### Visual Rules
 
 - Sidebar Extends To Window Top
-- Category Content Starts Below Titlebar Region
+- Category List 与 Category Content 都从 Titlebar Region 下方开始
 - Visible Window Title：None
+
+#### Sizes
+
+- Default Width 与 Minimum Width：`--width-settings-window`
+- Default Height：`--height-settings-window`
+- Minimum Height：`--min-height-settings-window`
+- Titlebar Region Height：`--height-settings-titlebar`
+- Sidebar Width：`--width-settings-sidebar`
 
 #### States
 
@@ -3009,12 +3028,18 @@
 
 #### Structure
 
-1. Category List
+1. Category List：General、Play、Shortcuts、Subtitle、Maintenance、Developer；打开时选中 General
 
 #### Components
 
 - Sidebar Item / Primary
 - Scrollbar / Vertical
+
+#### Spacing
+
+- Padding Inline：`--padding-app-sidebar-x`
+- Padding Bottom：`--padding-app-sidebar-y`
+- Item Gap：`--spacing-1`
 
 #### States
 
@@ -3025,13 +3050,29 @@
 
 #### Structure
 
-1. Page Title
-2. Page Description
-3. Settings Group Stack
+1. Page Title：`--font-size-page-title`，`--font-weight-page-title`，`--color-text-primary`
+2. Group Stack
+   1. Group Title：`--font-size-body`，Semibold，`--color-text-primary`
+   2. Group Description：可选；`--font-size-caption`，`--color-text-muted`
+   3. Card：背景 `--color-settings-group-bg`；边框 `--color-border-divider`，宽度 `--border-width-control`；圆角 `--radius-settings-group`；宽度跟随窗口，不设上限
+
+#### Groups
+
+- General：Appearance、Search、Language、Deep Link
+- Play：Play、Decode
+- Maintenance：Maintenance
+- Developer：Developer、FTS Vocabulary Data
+- 没有原标题的 Group 使用原分类名；原分类的说明作为 Group Description
+
+#### Row
+
+1. 名称：`--font-size-body`，`--color-text-primary`；说明可选，位于名称下方，`--font-size-caption`，`--color-text-muted`
+2. 控件：靠右
+- 行与行之间：分隔线 `--color-border-divider`，宽度 `--border-width-control`，左右各内缩 `--spacing-4`
+- Min Height：`--min-height-settings-row`
 
 #### Components
 
-- Section Title
 - Text Field
 - Text Area
 - Number Field
@@ -3043,22 +3084,35 @@
 
 #### Spacing
 
-- Region Gap：`--spacing-6`
-- Group Gap：`--spacing-4`
-- Control Gap：`--spacing-3`
+- Page Padding：Leading `--spacing-6`；Trailing `--spacing-6` 加 `--width-page-scrollbar-channel`；Bottom `--spacing-6`
+- Page Title 与第一个 Group：`--spacing-4`
+- Group 之间：`--spacing-6`
+- Group Title 与 Group Description：`--spacing-1`
+- Group Title 水平缩进：`--spacing-4`
+- Group Title 区与 Card：`--spacing-2`
+- Row Padding：水平 `--spacing-4`；垂直 `--padding-settings-row-y`
+- 名称与说明：`--spacing-1`
+- 名称与控件：至少 `--spacing-4`
+
+#### Layout
+
+- Language 下拉框宽度：`--width-settings-popup`
+- Number Field 宽度：`--width-settings-number-field`
+- Maintenance 状态颜色：正常 `--color-text-secondary`；建议压缩 `--color-warning-text`；完成 `--color-success-text`；失败 `--color-danger-text`
+- Maintenance 的 Refresh、Compact Database 与 Developer 的 Refresh：Button / Neutral，位于所在行右侧
+- Maintenance 数据库路径：`--font-size-caption`，`--color-text-muted`，单行，中间省略
 
 ### Settings Shortcuts Layout
 
 #### Structure
 
 1. Page Title
-2. Open Command Panel
-3. Section Title `Playback` 及其功能
-4. Section Title `Playback Overlay & Command Panel` 及其功能
+2. Group `Shortcuts`：Open Command Panel
+3. Group `Playback` 及其功能
+4. Group `Playback Overlay & Command Panel` 及其功能
 
 #### Components
 
-- Section Title
 - Shortcut Field
 - Icon Button / Default：Restore Default
 
@@ -3070,30 +3124,26 @@
 
 #### Layout
 
-- 功能名称列宽取全页最长的功能名称，Shortcut Field 与 Restore Default 紧随其后
+- Shortcut Field 与 Restore Default 靠右
+- Validation Message 位于 Shortcut Field 下方，左侧与 Shortcut Field 对齐，较长时向功能名称一侧延伸；有提示时行随之变高，功能名称与 Shortcut Field 保持垂直居中对齐
 
 #### Spacing
 
-- Page Title 与第一行：`--spacing-6`
-- 功能名称与 Shortcut Field：`--spacing-6`
 - Shortcut Field 与 Restore Default：`--spacing-1`
-- 行与行：Shortcut Field 的 Validation Message 行兼作行距，不另加间距
-- Section Title 上方：`--spacing-4`；下方：`--spacing-3`
 
 ### Settings Subtitle Layout
 
 #### Structure
 
 1. Page Title
-2. Section Title `Text`：Font、Size、Style、Color、Letter Spacing、Line Spacing
-3. Section Title `Border`：Type、Outline Color、Outline Width、Background Color、Blur
-4. Section Title `Shadow`：Shadow Color、Shadow Offset
-5. Section Title `Position`：Horizontal、Margin X、Vertical、Margin Y
+2. Group `Text`：Font、Size、Style、Color、Letter Spacing、Line Spacing
+3. Group `Border`：Type、Outline Color、Outline Width、Background Color、Blur
+4. Group `Shadow`：Shadow Color、Shadow Offset
+5. Group `Position`：Horizontal、Margin X、Vertical、Margin Y
 6. Restore Defaults
 
 #### Components
 
-- Section Title
 - Number Field：Size、Letter Spacing、Line Spacing、Outline Width、Blur、Shadow Offset、Margin X、Margin Y
 - Checkbox / Form Checkbox：Bold、Italic
 - Color Well：Color、Outline Color、Background Color、Shadow Color
@@ -3107,20 +3157,15 @@
 
 #### Layout
 
-- 设置项名称列宽取全页最长的名称，控件紧随其后
 - Number Field 宽度：`--width-settings-number-field`
 - 当前 Type 用不到的行，控件为 Disabled：Outline 时 Background Color；Opaque Box 时 Outline Color、Outline Width；Background Box 时 Shadow Color、Shadow Offset
-- Restore Defaults：Leading Icon `arrow-counter-clockwise`；全部为默认值时 Disabled
+- Restore Defaults：位于最后一个 Card 下方，靠右；Leading Icon `arrow-counter-clockwise`；全部为默认值时 Disabled
 
 #### Spacing
 
-- Page Title 与第一个 Section Title：`--spacing-6`
-- 设置项名称与控件：`--spacing-6`
-- 行与行：`--spacing-3`
-- Section Title 上方：`--spacing-4`；下方：`--spacing-3`
 - Font 名称与 Choose…：`--spacing-3`
 - Bold 与 Italic：`--spacing-6`
-- 最后一行与 Restore Defaults：`--spacing-6`
+- 最后一个 Card 与 Restore Defaults：`--spacing-6`
 
 ## 3.3 Recent
 ### Recent Layout

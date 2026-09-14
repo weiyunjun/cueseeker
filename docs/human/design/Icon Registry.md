@@ -45,7 +45,7 @@
 | `arrow-right` | Regular | 送往列表 | 表格行菜单 / Save to Excerpt List、Move to ...、Duplicate to ... |
 | `x` | Regular | 关闭、清除、移除 | Icon Button / Inline Clear；Icon Button / Dialog Close；Task Card / Remove Action |
 | `check` | Regular | 已选 | Radio Menu Item |
-| `magnifying-glass` | Regular | 搜索 | Search Field；Sidebar Item / Search；Settings / Search；Command Panel Root / Search Action；Playback Overlay 选中文字菜单 / Search Selected Text |
+| `magnifying-glass` | Regular | 搜索 | Search Field；Sidebar Item / Search；Command Panel Root / Search Action；Playback Overlay 选中文字菜单 / Search Selected Text |
 | `funnel` | Regular | 筛选 | Search / Excerpt Toolbar / Filter Trigger |
 | `arrow-elbow-down-left` | Regular | 回车键 | Keycap / `Return`，16px |
 
@@ -70,7 +70,7 @@
 | `minus-circle` | Regular | 移除 | File Page / Root Folder Row / Remove |
 | `minus-circle` | Fill | 半选 | Checkbox / Indeterminate |
 | `stack` | Regular | 剧集 | Library File Tree / Display Title |
-| `video` | Regular | 视频 | Library File Tree / Video；Command Panel Root / Recent Videos；Settings / Decode；Library 封面占位，57px；Anki 卡片 / Video File Path，20px |
+| `video` | Regular | 视频 | Library File Tree / Video；Command Panel Root / Recent Videos；Library 封面占位，57px；Anki 卡片 / Video File Path，20px |
 | `subtitles` | Regular | 字幕 | Library File Tree / Subtitle；播放控制条 / 字幕；Playback Feedback（字幕开关）；Anki 卡片 / Subtitle File Path，20px；Settings / Subtitle |
 
 ## 3.4 状态与提示
@@ -95,7 +95,7 @@
 | `trash` | Regular | 删除 | Excerpt List 卡片菜单 / Delete List；Task Card / Delete Action |
 | `copy` | Regular | 复制 | 表格行菜单 / Copy Cue Text、Copy Cue Group Text、Copy Time Range；Collage Editor / Copy；Playback Overlay 选中文字菜单 / Copy Selected Text |
 | `export` | Regular | 导出、更换封面 | Collage Editor / Export；Library 卡片菜单 / Change Cover |
-| `link-simple` | Regular | 链接 | 表格行菜单 / Copy Deep Link；Settings / URL Scheme；Anki 卡片 / Deep Link，20px |
+| `link-simple` | Regular | 链接 | 表格行菜单 / Copy Deep Link；Anki 卡片 / Deep Link，20px |
 
 ## 3.6 播放控制
 
@@ -119,9 +119,9 @@
 | 图标 | 字重 | 含义 | 使用位置 |
 | --- | --- | --- | --- |
 | `text-aa` | Regular | 字符数 | Filter Menu / Character |
-| `globe` | Regular | 语言 | Filter Menu / Language；Settings / Language |
+| `globe` | Regular | 语言 | Filter Menu / Language |
 | `eye` | Regular | 观看状态 | Filter Menu / Watch Status |
-| `circle-half` | Regular | 外观 | Settings / Appearance |
+| `gear-fine` | Regular | 通用 | Settings / General |
 | `hard-drives` | Regular | 维护 | Settings / Maintenance |
 | `hammer` | Regular | 开发者 | Settings / Developer |
 | `file-arrow-down` | Regular | 压缩数据库 | Settings / Maintenance / Compact |
