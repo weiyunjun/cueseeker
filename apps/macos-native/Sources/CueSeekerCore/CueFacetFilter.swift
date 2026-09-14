@@ -96,32 +96,18 @@ public struct CueFacetFilter: Equatable, Sendable {
         )
     }
 
-    /// Whether a line satisfies the selection. With `negatedKind`, that card's
-    /// selection must fail instead while the other three still apply: those
-    /// are exactly the rows the card's unchecked options need for their counts.
+    /// Whether a line satisfies the selection: every card with a checked
+    /// option must hold.
     public func matches(
         duration: CueDurationFacet,
         characters cueCharacters: CueCharacterFacet,
         languages cueLanguages: Set<SubtitleLanguageCode>,
-        watchState: LibraryWatchState,
-        negating negatedKind: CueFacetKind? = nil
+        watchState: LibraryWatchState
     ) -> Bool {
-        let matchesDuration = durations.isEmpty || durations.contains(duration)
-        let matchesCharacters = characters.isEmpty || characters.contains(cueCharacters)
-        let matchesLanguages = languages.isEmpty || !languages.isDisjoint(with: cueLanguages)
-        let matchesWatchState = watchStates.isEmpty || watchStates.contains(watchState)
-        switch negatedKind {
-        case nil:
-            return matchesDuration && matchesCharacters && matchesLanguages && matchesWatchState
-        case .duration:
-            return !matchesDuration && matchesCharacters && matchesLanguages && matchesWatchState
-        case .characters:
-            return matchesDuration && !matchesCharacters && matchesLanguages && matchesWatchState
-        case .languages:
-            return matchesDuration && matchesCharacters && !matchesLanguages && matchesWatchState
-        case .watchState:
-            return matchesDuration && matchesCharacters && matchesLanguages && !matchesWatchState
-        }
+        (durations.isEmpty || durations.contains(duration))
+            && (characters.isEmpty || characters.contains(cueCharacters))
+            && (languages.isEmpty || !languages.isDisjoint(with: cueLanguages))
+            && (watchStates.isEmpty || watchStates.contains(watchState))
     }
 }
 
@@ -315,7 +301,7 @@ public struct CueFacetSnapshot: Equatable, Sendable {
     }
 
     /// The rows of both snapshots in order: a filtered result's rows followed by
-    /// the rows a negated scan read for one card's unchecked options.
+    /// the rows the negated scan read outside the selection.
     public func appending(_ other: CueFacetSnapshot) -> CueFacetSnapshot {
         CueFacetSnapshot(
             cueIDs: cueIDs + other.cueIDs,

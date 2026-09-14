@@ -19,8 +19,8 @@ final class SearchStore: ObservableObject {
     let database: SearchDatabase?
     private(set) var searchTask: Task<Void, Never>?
     private(set) var exactCompletionTask: Task<Void, Never>?
-    /// The scans that count the unchecked options of each checked card after a
-    /// filtered search has completed; they belong to that result list and are
+    /// The scan that counts the checked cards' unchecked options after a
+    /// filtered search has completed; it belongs to that result list and is
     /// cancelled with it.
     private(set) var facetCountsTask: Task<Void, Never>?
     private(set) var navigationTask: Task<Void, Never>?
@@ -52,19 +52,13 @@ final class SearchStore: ObservableObject {
     private(set) var hasMoreSearchResults = false
     @Published private(set) var resultRevision: UInt64 = 0
     @Published private(set) var activeFilterSet = SubtitleSearchFilterSet()
-    /// The facet values of the current result's rows, followed by the rows the
-    /// completed count scans read for the checked cards' unchecked options. The
-    /// option counts are derived from it with the usual rule; it is dropped with
-    /// the result list.
+    /// The facet values of the current result's rows, followed once the count
+    /// scan has landed by every match outside the selection, so that it then
+    /// holds every match of the query. The option counts are derived from it
+    /// with the usual rule; it is dropped with the result list.
     @Published private(set) var searchFacetSnapshot: CueFacetSnapshot?
     /// The checked cards whose unchecked options are still being counted.
     @Published private(set) var searchFacetCountsPendingKinds: Set<CueFacetKind> = []
-    /// Whether the snapshot can grow to every match of the query. The count
-    /// scans negate one card at a time, so a search with two or more checked
-    /// cards never reads the rows that fail two of them; only an unfiltered
-    /// search or one with a single checked card ends with every match. Fixed
-    /// when the snapshot is built and kept across projections.
-    private(set) var searchFacetSnapshotCoversEveryMatch = false
     @Published private(set) var emptySearchFacetDistribution: CueFacetDistribution?
     private(set) var searchFacetFilter = CueFacetFilter()
     /// The four option-count cards for the current filter: each card ignores its
@@ -247,34 +241,26 @@ final class SearchStore: ObservableObject {
 
     func setSearchFacetSnapshot(_ snapshot: CueFacetSnapshot?) {
         searchFacetSnapshot = snapshot
-        let selectedKinds = resultFacetFilter.selectedKinds
-        searchFacetCountsPendingKinds = snapshot == nil ? [] : Set(selectedKinds)
-        searchFacetSnapshotCoversEveryMatch = snapshot != nil && selectedKinds.count <= 1
+        searchFacetCountsPendingKinds = snapshot == nil
+            ? []
+            : Set(resultFacetFilter.selectedKinds)
         refreshSearchFacetDistribution()
     }
 
-    /// Adds the rows a count scan read for one checked card, which completes
-    /// that card's unchecked option counts. Once the last scan has landed the
-    /// snapshot holds every match of the query, and it is put into display
-    /// order so a later selection can be answered from it.
-    func appendSearchFacetCounts(_ rows: CueFacetSnapshot, for kind: CueFacetKind) {
+    /// Adds the rows the count scan read outside the selection, which completes
+    /// every count: the snapshot then holds every match of the query, and it is
+    /// put into display order so a later selection can be answered from it.
+    func appendSearchFacetCounts(_ rows: CueFacetSnapshot) {
         guard let searchFacetSnapshot else { return }
-        searchFacetCountsPendingKinds.remove(kind)
-        let joined = searchFacetSnapshot.appending(rows)
-        self.searchFacetSnapshot = searchFacetCountsPendingKinds.isEmpty
-            && searchFacetSnapshotCoversEveryMatch
-            ? joined.sortedByDisplayOrder()
-            : joined
+        searchFacetCountsPendingKinds = []
+        self.searchFacetSnapshot = searchFacetSnapshot.appending(rows).sortedByDisplayOrder()
         refreshSearchFacetDistribution()
     }
 
-    /// Whether the snapshot holds every match of the query with its facet
-    /// values in display order: every count is complete and the search read
-    /// every match (at most one card was checked when it ran).
+    /// Whether every count is complete, so the snapshot holds every match of
+    /// the query with its facet values in display order.
     var isSearchFacetSnapshotComplete: Bool {
-        searchFacetSnapshot != nil
-            && searchFacetCountsPendingKinds.isEmpty
-            && searchFacetSnapshotCoversEveryMatch
+        searchFacetSnapshot != nil && searchFacetCountsPendingKinds.isEmpty
     }
 
     /// Requirement 4.4: with every count complete, a changed selection is

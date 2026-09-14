@@ -26,3 +26,5 @@ Step 7's record also overstated its own test: the two-card assertion compared th
 ## Outcome
 
 Requirement 4.4 now holds only where the data supports it: after an unfiltered or single-card search a selection change is answered from memory; after a search with two or more checked cards it searches again, which is section 4.3's path and gives the right rows and counts.
+
+Superseded by Step 9 (2026-09-15): the owner rejected the restriction, since section 4.4 is unconditional. The count pass now reads every match outside the selection in one scan, the snapshot is complete after any search, and the flag added here is removed.

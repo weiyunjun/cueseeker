@@ -417,7 +417,7 @@ public final class SearchDatabase: @unchecked Sendable {
         watchStateFilter: SubtitleSearchWatchStateFilter = .all,
         filterSet: SubtitleSearchFilterSet = SubtitleSearchFilterSet(),
         facetFilter: CueFacetFilter = CueFacetFilter(),
-        negatedFacet: CueFacetKind? = nil,
+        facetFilterNegated: Bool = false,
         diagnostics: SubtitleSearchDiagnosticSink? = nil,
         progress: SubtitleSearchProgressSink? = nil,
         mode: SubtitleSearchPageMode = .exact
@@ -512,8 +512,9 @@ public final class SearchDatabase: @unchecked Sendable {
             let candidateBatchLimit = Self.searchCandidateBatchLimit(for: limit, mode: mode)
             // A checked filter is pushed into the row reads, so the scan accepts only
             // the filtered rows and the page's facet snapshot holds exactly those. The
-            // counts for a checked card's unchecked options come from a later scan of
-            // the same query with that one card negated.
+            // counts for the checked cards' unchecked options come from a later scan
+            // of the same query with the filter negated, which reads every match
+            // outside the selection; the two snapshots together are every match.
             var acceptedCueIDs: [Int64] = []
             var acceptedDurationFacets: [CueDurationFacet] = []
             var acceptedCharacterFacets: [CueCharacterFacet] = []
@@ -554,10 +555,17 @@ public final class SearchDatabase: @unchecked Sendable {
             }
             let languageFilterCodes = Self.languageCodesForSearchFilter(languageFilter)
             let languageFilterCodeSet = Set(languageFilterCodes)
-            let pushesLineFacets = !facetFilter.durations.isEmpty
+            let selectsLines = !facetFilter.durations.isEmpty
                 || !facetFilter.characters.isEmpty
                 || !facetFilter.languages.isEmpty
-                || !languageFilterCodeSet.isEmpty
+            let pushesLineFacets = selectsLines || !languageFilterCodeSet.isEmpty
+            // Outside the selection, a file that fails the checked watch states
+            // contributes every matching line, so when line cards are checked as
+            // well the candidate query cannot prune by watch state; such files'
+            // groups are read whole below instead.
+            let candidateWatchStates = facetFilterNegated && selectsLines
+                ? []
+                : facetFilter.watchStates
             let watchStateValues = watchStateFilter.states.map(\.rawValue)
             emit(
                 "setup",
@@ -607,8 +615,8 @@ public final class SearchDatabase: @unchecked Sendable {
                 let candidates = try searchCandidates(
                     forFTSRowIDs: chunkRowIDs,
                     watchStateValues: watchStateValues,
-                    facetWatchStates: facetFilter.watchStates,
-                    negatesFacetWatchStates: negatedFacet == .watchState
+                    facetWatchStates: candidateWatchStates,
+                    negatesFacetWatchStates: facetFilterNegated
                 )
                 emit(
                     "fts_batch",
@@ -637,17 +645,30 @@ public final class SearchDatabase: @unchecked Sendable {
                     .map(\.cueGroupID)
                 totalMultiLineCandidates += multiLineCueGroupIDs.count
                 let cueLinesStart = Self.diagnosticNow()
+                // Outside the selection, the groups of a file that fails the checked
+                // watch states are read whole, since every matching line of such a
+                // file is outside; the other groups go through the negated line
+                // conditions.
+                let wholeCueGroupIDs = facetFilterNegated && selectsLines
+                    ? candidates
+                        .filter {
+                            !facetFilter.watchStates.isEmpty
+                                && !facetFilter.watchStates.contains($0.watchState)
+                        }
+                        .map(\.cueGroupID)
+                    : []
+                let wholeCueGroupIDSet = Set(wholeCueGroupIDs)
                 let facetLineIDsByCueGroupID = pushesLineFacets
                     ? try facetMatchingLineIDs(
-                        forCueGroupIDs: candidateCueGroupIDs,
+                        forCueGroupIDs: candidateCueGroupIDs.filter { !wholeCueGroupIDSet.contains($0) },
                         durations: facetFilter.durations,
                         characters: facetFilter.characters,
                         languages: facetFilter.languages,
                         requiredLanguages: languageFilterCodeSet,
-                        negatedFacet: negatedFacet
+                        negated: facetFilterNegated
                     )
                     : nil
-                let lineCueGroupIDs = facetLineIDsByCueGroupID.map { Array($0.keys) }
+                let lineCueGroupIDs = facetLineIDsByCueGroupID.map { wholeCueGroupIDs + Array($0.keys) }
                     ?? candidateCueGroupIDs
                 let cueLineRecordsByCueGroupID = try cueLineRecords(
                     forCueGroupIDs: lineCueGroupIDs
@@ -695,15 +716,15 @@ public final class SearchDatabase: @unchecked Sendable {
                         let characterFacet = CueCharacterFacet(
                             characterCount: result.result.content.unicodeScalars.count
                         )
-                        guard facetFilter.matches(
+                        let insideSelection = facetFilter.matches(
                             duration: durationFacet,
                             characters: characterFacet,
                             languages: result.result.languages.isEmpty
                                 ? [.unknown]
                                 : result.result.languages,
-                            watchState: candidate.watchState,
-                            negating: negatedFacet
-                        ) else {
+                            watchState: candidate.watchState
+                        )
+                        guard insideSelection != facetFilterNegated else {
                             continue
                         }
                         acceptedCueIDs.append(result.result.entryID)
@@ -1573,8 +1594,10 @@ public final class SearchDatabase: @unchecked Sendable {
     }
 
 
-    /// Line ids inside the given cue groups whose duration and length fall into
-    /// the checked facets, keyed by cue group. Groups without such a line are
+    /// Line ids inside the given cue groups that satisfy the checked line cards
+    /// (duration, length, language) and the required languages, keyed by cue
+    /// group; with `negated`, the lines that fail the checked cards instead,
+    /// which are the rows outside the selection. Groups without such a line are
     /// absent, so their rows need not be read at all.
     private func facetMatchingLineIDs(
         forCueGroupIDs cueGroupIDs: [Int64],
@@ -1582,19 +1605,26 @@ public final class SearchDatabase: @unchecked Sendable {
         characters: Set<CueCharacterFacet>,
         languages: Set<SubtitleLanguageCode>,
         requiredLanguages: Set<SubtitleLanguageCode>,
-        negatedFacet: CueFacetKind? = nil
+        negated: Bool = false
     ) throws -> [Int64: Set<Int64>] {
         guard !cueGroupIDs.isEmpty else {
             return [:]
         }
-        // The negated card keeps its checked buckets but must fail them, which
-        // reads the rows its unchecked options are counted from.
-        func bucketCondition(_ conditions: [String], negated: Bool) -> String {
-            guard !conditions.isEmpty else {
-                return ""
-            }
-            let anyBucket = conditions.map { "(\($0))" }.joined(separator: " OR ")
-            return negated ? "AND NOT (\(anyBucket))" : "AND (\(anyBucket))"
+        func anyBucket(_ conditions: [String]) -> String? {
+            conditions.isEmpty
+                ? nil
+                : "(" + conditions.map { "(\($0))" }.joined(separator: " OR ") + ")"
+        }
+        func hasLanguage(_ codes: [String]) -> String {
+            let placeholders = Array(repeating: "?", count: codes.count).joined(separator: ", ")
+            return """
+            EXISTS (
+                SELECT 1
+                FROM subtitle_cue_line_languages cll
+                WHERE cll.cue_id = l.id
+                  AND cll.language_code IN (\(placeholders))
+            )
+            """
         }
         let durationConditions = durations.map { facet -> String in
             switch facet {
@@ -1612,38 +1642,27 @@ public final class SearchDatabase: @unchecked Sendable {
             case .thirtyOneOrMore: "LENGTH(l.content) > 30"
             }
         }
-        let durationCondition = bucketCondition(
-            durationConditions,
-            negated: negatedFacet == .duration
-        )
-        let characterCondition = bucketCondition(
-            characterConditions,
-            negated: negatedFacet == .characters
-        )
-        let languageSets: [(codes: [String], negated: Bool)] = [
-            (languages.map(\.rawValue).sorted(), negatedFacet == .languages),
-            (requiredLanguages.map(\.rawValue).sorted(), false)
-        ].filter { !$0.codes.isEmpty }
-        let languageConditions = languageSets.map { languageSet in
-            let placeholders = Array(repeating: "?", count: languageSet.codes.count).joined(separator: ", ")
-            return """
-            AND \(languageSet.negated ? "NOT " : "")EXISTS (
-                SELECT 1
-                FROM subtitle_cue_line_languages cll
-                WHERE cll.cue_id = l.id
-                  AND cll.language_code IN (\(placeholders))
-            )
-            """
-        }.joined(separator: "\n")
+        let languageCodes = languages.map(\.rawValue).sorted()
+        let requiredLanguageCodes = requiredLanguages.map(\.rawValue).sorted()
+        let selection = [
+            anyBucket(durationConditions),
+            anyBucket(characterConditions),
+            languageCodes.isEmpty ? nil : hasLanguage(languageCodes)
+        ].compactMap { $0 }.joined(separator: " AND ")
+        let selectionCondition = selection.isEmpty
+            ? ""
+            : "AND \(negated ? "NOT " : "")(\(selection))"
+        let requiredLanguageCondition = requiredLanguageCodes.isEmpty
+            ? ""
+            : "AND \(hasLanguage(requiredLanguageCodes))"
         let placeholders = cueGroupIDs.map { _ in "?" }.joined(separator: ", ")
         let statement = try database.prepare(
             """
             SELECT l.id, l.cue_group_id
             FROM subtitle_cue_lines l
             WHERE l.cue_group_id IN (\(placeholders))
-            \(durationCondition)
-            \(characterCondition)
-            \(languageConditions);
+            \(selectionCondition)
+            \(requiredLanguageCondition);
             """
         )
         var bindIndex: Int32 = 1
@@ -1651,7 +1670,7 @@ public final class SearchDatabase: @unchecked Sendable {
             try statement.bind(cueGroupID, at: bindIndex)
             bindIndex += 1
         }
-        for code in languageSets.flatMap(\.codes) {
+        for code in languageCodes + requiredLanguageCodes {
             try statement.bind(code, at: bindIndex)
             bindIndex += 1
         }

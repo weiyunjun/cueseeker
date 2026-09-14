@@ -494,14 +494,11 @@ extension SearchStore {
         })
     }
 
-    /// Runs the unfiltered scan for the option counts once a filtered search has
-    /// completed without a facet snapshot. The snapshot belongs to the query and
-    /// scope, so a filter change while it runs neither cancels nor repeats it.
-    /// After a filtered result has completed: for each checked card, one scan of
-    /// the same query with that card negated reads the rows its unchecked options
-    /// are counted from, and the rows join the result's snapshot as each scan
-    /// lands. The scans belong to the result list, so a new selection, query or
-    /// scope cancels them with it and nothing old is published.
+    /// After a filtered result has completed: one scan of the same query with the
+    /// filter negated reads every match outside the selection, and its rows join
+    /// the result's snapshot, which then holds every match of the query. The scan
+    /// belongs to the result list, so a new selection, query or scope cancels it
+    /// with it and nothing old is published.
     private func startFacetCounts(
         query: String,
         folders: [URL],
@@ -514,8 +511,7 @@ extension SearchStore {
         run: SearchPerformanceRun?
     ) {
         cancelFacetCountsTask()
-        let kinds = facetFilter.selectedKinds
-        guard !kinds.isEmpty,
+        guard !facetFilter.isEmpty,
               searchFacetSnapshot != nil,
               let database
         else {
@@ -524,60 +520,54 @@ extension SearchStore {
         SearchPerformanceLogger.mark(run, "search_facet_counts_started")
         replaceFacetCountsTask(Task { [weak self] in
             guard let self else { return }
-            var databaseMilliseconds = 0.0
-            var rowCount = 0
             do {
-                for kind in kinds {
-                    let pageLoad = try await Self.runCancellableDetached(
-                        priority: .utility
-                    ) {
-                        let started = SearchPerformanceLogger.now()
-                        let page = try database.searchPage(
-                            query,
-                            limit: 0,
-                            cursor: .start,
-                            under: folders,
-                            languageFilter: languageFilter,
-                            watchStateFilter: watchStateFilter,
-                            filterSet: filterSet,
-                            facetFilter: facetFilter,
-                            negatedFacet: kind
-                        )
-                        return SearchStorePageLoad(
-                            page: page,
-                            databaseSearchMilliseconds:
-                                SearchPerformanceLogger.elapsedMilliseconds(since: started)
-                        )
-                    }
-                    guard !Task.isCancelled,
-                          generation == self.resultListGeneration,
-                          self.acceptsFolderScope(
-                            folders,
-                            generation: folderScopeGeneration
-                          ),
-                          let rows = pageLoad.page.facetSnapshot
-                    else {
-                        if generation == self.resultListGeneration {
-                            self.replaceFacetCountsTask(nil)
-                        }
-                        return
-                    }
-                    self.appendSearchFacetCounts(rows, for: kind)
-                    databaseMilliseconds += pageLoad.databaseSearchMilliseconds
-                    rowCount += rows.cueIDs.count
+                let pageLoad = try await Self.runCancellableDetached(
+                    priority: .utility
+                ) {
+                    let started = SearchPerformanceLogger.now()
+                    let page = try database.searchPage(
+                        query,
+                        limit: 0,
+                        cursor: .start,
+                        under: folders,
+                        languageFilter: languageFilter,
+                        watchStateFilter: watchStateFilter,
+                        filterSet: filterSet,
+                        facetFilter: facetFilter,
+                        facetFilterNegated: true
+                    )
+                    return SearchStorePageLoad(
+                        page: page,
+                        databaseSearchMilliseconds:
+                            SearchPerformanceLogger.elapsedMilliseconds(since: started)
+                    )
                 }
+                guard !Task.isCancelled,
+                      generation == self.resultListGeneration,
+                      self.acceptsFolderScope(
+                        folders,
+                        generation: folderScopeGeneration
+                      ),
+                      let rows = pageLoad.page.facetSnapshot
+                else {
+                    if generation == self.resultListGeneration {
+                        self.replaceFacetCountsTask(nil)
+                    }
+                    return
+                }
+                self.appendSearchFacetCounts(rows)
                 self.replaceFacetCountsTask(nil)
                 SearchPerformanceLogger.mark(
                     run,
                     "search_facet_counts_completed",
-                    totalCount: rowCount,
+                    totalCount: rows.cueIDs.count,
                     status: "completed"
                 )
                 SearchPerformanceLogger.writeE2ESearchPage(
                     run,
                     event: "search_facet_counts_completed",
                     page: nil,
-                    databaseSearchMilliseconds: databaseMilliseconds,
+                    databaseSearchMilliseconds: pageLoad.databaseSearchMilliseconds,
                     status: "completed"
                 )
             } catch {

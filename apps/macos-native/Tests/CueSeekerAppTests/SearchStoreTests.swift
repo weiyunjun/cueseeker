@@ -565,8 +565,8 @@ func filteredResultCountsItsOwnCardsAtOnceAndTheUncheckedOptionsAfterTheirScan()
     #expect(search.searchFacetDistribution?.languageCounts == [.japanese: 1])
     #expect(search.searchFacetDistribution?.watchStateCounts == [.unwatched: 1])
 
-    // The Language scan's rows fail the language selection and satisfy the
-    // other cards; joined with the filtered rows they complete the counts.
+    // The count scan's rows are every match outside the selection; joined with
+    // the filtered rows they complete the counts.
     let otherLanguageRows = CueFacetSnapshot(
         cueIDs: [2],
         durationFacets: [.fiveSecondsOrMore],
@@ -574,7 +574,7 @@ func filteredResultCountsItsOwnCardsAtOnceAndTheUncheckedOptionsAfterTheirScan()
         languageFacets: [[.english]],
         watchStateFacets: [.unwatched]
     )
-    search.appendSearchFacetCounts(otherLanguageRows, for: .languages)
+    search.appendSearchFacetCounts(otherLanguageRows)
     #expect(search.searchFacetCountsPendingKinds.isEmpty)
     #expect(search.searchFacetDistribution?.totalCount == 1)
     #expect(search.searchFacetDistribution?.durationCounts == [.underOneSecond: 1])
@@ -624,7 +624,7 @@ func filterChangeAfterEveryCountIsCompleteProjectsRowsAndCountsWithoutSearching(
         watchStateFacets: [.unwatched],
         orderKeys: [10]
     )
-    search.appendSearchFacetCounts(otherLanguageRows, for: .languages)
+    search.appendSearchFacetCounts(otherLanguageRows)
     #expect(search.isSearchFacetSnapshotComplete)
     // The complete snapshot is in display order: row 2 precedes row 1.
     #expect(search.searchFacetSnapshot?.cueIDs == [2, 1])
@@ -658,8 +658,7 @@ func filterChangeAfterEveryCountIsCompleteProjectsRowsAndCountsWithoutSearching(
     #expect(search.searchFacetDistribution?.languageCounts == [.japanese: 1, .english: 1])
     #expect(search.projectSearchFacetFilter(CueFacetFilter(languages: [.english])) == nil)
 
-    // The snapshot came from a single-card search, so it stays complete through
-    // a projection to two cards and the next change is projected as well.
+    // The complete snapshot keeps answering: a projection to two cards and back.
     #expect(search.projectSearchFacetFilter(
         CueFacetFilter(durations: [.fiveSecondsOrMore], languages: [.english])
     ) == [2])
@@ -669,7 +668,7 @@ func filterChangeAfterEveryCountIsCompleteProjectsRowsAndCountsWithoutSearching(
 
 @MainActor
 @Test
-func filterChangeAfterATwoCardSearchStillSearchesBecauseRowsFailingBothCardsWereNeverRead() {
+func filterChangeAfterATwoCardSearchIsProjectedBecauseTheCountScanReadEveryMatchOutsideTheSelection() {
     let search = SearchStore()
     search.updateQuery("query")
     search.updateSearchFacetFilter(CueFacetFilter(durations: [.underOneSecond], languages: [.japanese]))
@@ -691,28 +690,32 @@ func filterChangeAfterATwoCardSearchStillSearchesBecauseRowsFailingBothCardsWere
         generation: generation
     ))
     #expect(search.searchFacetCountsPendingKinds == [.duration, .languages])
+    #expect(!search.isSearchFacetSnapshotComplete)
 
-    // One scan per checked card: long Japanese rows and short non-Japanese rows.
-    // Rows that are neither short nor Japanese are read by neither scan.
+    // One scan reads every match outside the selection: a long Japanese row, a
+    // short English row and a long English row that fails both cards.
     search.appendSearchFacetCounts(CueFacetSnapshot(
-        cueIDs: [2], durationFacets: [.fiveSecondsOrMore], characterFacets: [.oneToTen],
-        languageFacets: [[.japanese]], watchStateFacets: [.unwatched], orderKeys: [20]
-    ), for: .duration)
-    search.appendSearchFacetCounts(CueFacetSnapshot(
-        cueIDs: [3], durationFacets: [.underOneSecond], characterFacets: [.oneToTen],
-        languageFacets: [[.english]], watchStateFacets: [.unwatched], orderKeys: [30]
-    ), for: .languages)
+        cueIDs: [4, 2, 3],
+        durationFacets: [.fiveSecondsOrMore, .fiveSecondsOrMore, .underOneSecond],
+        characterFacets: [.oneToTen, .oneToTen, .oneToTen],
+        languageFacets: [[.english], [.japanese], [.english]],
+        watchStateFacets: [.unwatched, .unwatched, .unwatched],
+        orderKeys: [40, 20, 30]
+    ))
     #expect(search.searchFacetCountsPendingKinds.isEmpty)
-    // The counts for the current selection are right, but the snapshot does
-    // not hold every match, so a changed selection must search again.
+    #expect(search.isSearchFacetSnapshotComplete)
+    #expect(search.searchFacetSnapshot?.cueIDs == [1, 2, 3, 4])
     #expect(search.searchFacetDistribution?.totalCount == 1)
     #expect(search.searchFacetDistribution?.durationCounts == [.underOneSecond: 1, .fiveSecondsOrMore: 1])
     #expect(search.searchFacetDistribution?.languageCounts == [.japanese: 1, .english: 1])
-    #expect(!search.isSearchFacetSnapshotComplete)
-    #expect(search.projectSearchFacetFilter(CueFacetFilter()) == nil)
-    #expect(search.searchFacetFilter == CueFacetFilter(durations: [.underOneSecond], languages: [.japanese]))
-    #expect(search.updateSearchFacetFilter(CueFacetFilter()))
-    #expect(search.searchFacetSnapshot == nil)
+
+    // Clearing the selection is projected over every match, including the row
+    // that fails both cards.
+    #expect(search.projectSearchFacetFilter(CueFacetFilter()) == [1, 2, 3, 4])
+    #expect(search.searchResultTotalCount == 4)
+    #expect(search.searchFacetDistribution?.totalCount == 4)
+    #expect(search.searchFacetDistribution?.durationCounts == [.underOneSecond: 2, .fiveSecondsOrMore: 2])
+    #expect(search.searchFacetDistribution?.languageCounts == [.japanese: 2, .english: 2])
 }
 
 @MainActor
@@ -1649,8 +1652,8 @@ func filteredSearchCompletesFirstAndTheOptionCountsFollowFromASecondScan() async
     #expect(search.searchResults.allSatisfy { $0.endMilliseconds - $0.startMilliseconds >= 1_000 })
     #expect(search.facetCountsTask == nil)
 
-    // A search that runs with two checked cards never reads the rows failing
-    // both, so even with every count complete a selection change searches again.
+    // A search that runs with two checked cards: the count scan reads every
+    // match outside the selection, so a selection change is projected again.
     search.updateSearchFacetFilter(CueFacetFilter(durations: [.underOneSecond], characters: [.elevenToTwenty]))
     search.startSearch(
         query: "counted",
@@ -1672,7 +1675,8 @@ func filteredSearchCompletesFirstAndTheOptionCountsFollowFromASecondScan() async
     await search.facetCountsTask?.value
     #expect(search.searchResultTotalCount == 50)
     #expect(search.searchFacetCountsPendingKinds.isEmpty)
-    #expect(!search.isSearchFacetSnapshotComplete)
+    #expect(search.searchFacetSnapshot?.cueIDs.count == 150)
+    #expect(search.isSearchFacetSnapshotComplete)
     let didProjectTwoCards = search.applyProjectedFacetFilter(
         CueFacetFilter(),
         folders: [folder],
@@ -1681,6 +1685,13 @@ func filteredSearchCompletesFirstAndTheOptionCountsFollowFromASecondScan() async
         e2eLoggingEnabled: false,
         onResultsChanged: { _ in }
     )
-    #expect(!didProjectTwoCards)
-    #expect(search.searchFacetFilter == CueFacetFilter(durations: [.underOneSecond], characters: [.elevenToTwenty]))
+    #expect(didProjectTwoCards)
+    #expect(search.searchResultTotalCount == 150)
+    #expect(search.searchFacetDistribution?.durationCounts == [
+        .underOneSecond: 50,
+        .oneToUnderThreeSeconds: 100,
+    ])
+    await search.searchTask?.value
+    #expect(search.searchResults.count == 100)
+    #expect(search.searchResults.map(\.startMilliseconds) == (0..<100).map { $0 * 1_000 })
 }
