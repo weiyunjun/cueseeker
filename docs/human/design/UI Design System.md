@@ -3672,7 +3672,7 @@
 
 #### Ordering
 
-- Search：按 Display Title、字幕路径、Cue 时间的顺序排列；首屏、后续加载页与精确完成后的顺序一致
+- Search：按 Display Title、字幕路径、Cue 时间的顺序排列；首屏与搜索完成后的顺序一致
 - Excerpt：按收藏时间正序排列，最新收藏的在最下方
 
 #### Sizes
@@ -3928,7 +3928,7 @@
 - Section Header：图标 `--size-control-icon`；名称 `--font-size-control`、Medium；颜色 `--color-text-secondary`
 - Filter Chip 从左到右排列，宽度不足时换行
 - Calculating Status 靠左，只在有未知计数时显示；文字 `--font-size-body`、`--color-text-secondary`
-- Reset、Cancel、Show 靠右；对话框内没有选中时 Reset 为 Disabled
+- Reset、Cancel、Show 靠右；对话框内没有选中时 Reset 为 Disabled；总数未知时 Show 为 Disabled
 
 #### Spacing
 
