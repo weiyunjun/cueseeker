@@ -920,7 +920,6 @@ func playbackCommandPanelDatabaseSearchOpensCompletePlaylistOverlay() async thro
             startsSearch: true
         ))
         await app.search.searchTask?.value
-        await app.search.exactCompletionTask?.value
         app.synchronizePlaybackCommandPanelSearchResults()
 
         #expect(app.search.searchResults.count == 30)

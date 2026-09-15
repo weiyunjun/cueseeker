@@ -196,7 +196,6 @@ func filterDialogListsTheFourCardsAndTogglesTheDialogSelection() {
         counts: CueFacetFilterCounts(
             distribution: nil,
             isCalculating: false,
-            pendingKinds: [],
             totalCount: nil
         ),
         availableLanguages: [.english, .japanese],
@@ -221,30 +220,34 @@ func filterDialogListsTheFourCardsAndTogglesTheDialogSelection() {
 
 @MainActor
 @Test
-func filterDialogLeavesOnlyTheUnknownCountsBlank() {
+func filterDialogLeavesEveryCountBlankUntilTheCountsAreKnown() {
     var filter = CueFacetFilter()
     filter.languages = [.english]
-    let sections = CueFacetSection.sections(
-        counts: CueFacetFilterCounts(
-            distribution: CueFacetDistribution(
-                totalCount: 2,
-                durationCounts: [.underOneSecond: 2],
-                characterCounts: [:],
-                languageCounts: [.english: 2],
-                watchStateCounts: [:]
-            ),
-            isCalculating: false,
-            pendingKinds: [.languages],
-            totalCount: 2
-        ),
-        availableLanguages: [.english, .japanese],
-        selection: filter,
-        update: { _ in }
+    let distribution = CueFacetDistribution(
+        totalCount: 2,
+        durationCounts: [.underOneSecond: 2],
+        characterCounts: [:],
+        languageCounts: [.english: 2],
+        watchStateCounts: [:]
     )
+    func sections(isCalculating: Bool) -> [CueFacetSection] {
+        CueFacetSection.sections(
+            counts: CueFacetFilterCounts(
+                distribution: isCalculating ? nil : distribution,
+                isCalculating: isCalculating,
+                totalCount: isCalculating ? nil : 2
+            ),
+            availableLanguages: [.english, .japanese],
+            selection: filter,
+            update: { _ in }
+        )
+    }
 
-    // Only the unchecked options of the card still being counted are unknown.
-    #expect(sections[0].options[0].count == 2)
-    #expect(sections[2].options.map(\.count) == [2, nil])
+    // While the search runs every count is unknown; once it completes every
+    // option has its number, zero included.
+    #expect(sections(isCalculating: true).allSatisfy { $0.options.allSatisfy { $0.count == nil } })
+    #expect(sections(isCalculating: false)[0].options[0].count == 2)
+    #expect(sections(isCalculating: false)[2].options.map(\.count) == [2, 0])
 }
 
 @MainActor
@@ -255,7 +258,6 @@ func filterDialogCountsNeverSearchAndWaitForTheCompleteRows() {
     let running = CueFacetFilterCounts(
         distribution: nil,
         isCalculating: true,
-        pendingKinds: [],
         totalCount: nil
     )
     let complete = CueFacetDistribution(

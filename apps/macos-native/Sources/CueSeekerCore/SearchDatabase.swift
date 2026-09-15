@@ -417,7 +417,6 @@ public final class SearchDatabase: @unchecked Sendable {
         watchStateFilter: SubtitleSearchWatchStateFilter = .all,
         filterSet: SubtitleSearchFilterSet = SubtitleSearchFilterSet(),
         facetFilter: CueFacetFilter = CueFacetFilter(),
-        facetFilterNegated: Bool = false,
         diagnostics: SubtitleSearchDiagnosticSink? = nil,
         progress: SubtitleSearchProgressSink? = nil,
         mode: SubtitleSearchPageMode = .exact
@@ -510,17 +509,18 @@ public final class SearchDatabase: @unchecked Sendable {
         do {
             let setupStart = Self.diagnosticNow()
             let candidateBatchLimit = Self.searchCandidateBatchLimit(for: limit, mode: mode)
-            // A checked filter is pushed into the row reads, so the scan accepts only
-            // the filtered rows and the page's facet snapshot holds exactly those. The
-            // counts for the checked cards' unchecked options come from a later scan
-            // of the same query with the filter negated, which reads every match
-            // outside the selection; the two snapshots together are every match.
+            // The first batch is no larger than a visible window's, so an exact
+            // scan reaches its first page as early as a visible window does.
+            let firstCandidateBatchLimit = Self.searchCandidateBatchLimit(for: limit, mode: .visibleWindow)
+            // The checked filter does not narrow the row reads: every match of the
+            // query goes into the page's facet snapshot, so it counts every option,
+            // and only the matches inside the selection become results.
             var acceptedCueIDs: [Int64] = []
             var acceptedDurationFacets: [CueDurationFacet] = []
             var acceptedCharacterFacets: [CueCharacterFacet] = []
             var acceptedLanguageFacets: [Set<SubtitleLanguageCode>] = []
             var acceptedWatchStateFacets: [LibraryWatchState] = []
-            var acceptedOrderKeys: [Int64] = []
+            var resultCueIDs: [Int64] = []
             var exactPageResults: [OrderedSearchResult] = []
             var pendingProgressResults: [OrderedSearchResult] = []
             var publishedProgressResultCount = 0
@@ -549,23 +549,11 @@ public final class SearchDatabase: @unchecked Sendable {
                     durationFacets: acceptedDurationFacets,
                     characterFacets: acceptedCharacterFacets,
                     languageFacets: acceptedLanguageFacets,
-                    watchStateFacets: acceptedWatchStateFacets,
-                    orderKeys: acceptedOrderKeys
+                    watchStateFacets: acceptedWatchStateFacets
                 )
             }
             let languageFilterCodes = Self.languageCodesForSearchFilter(languageFilter)
             let languageFilterCodeSet = Set(languageFilterCodes)
-            let selectsLines = !facetFilter.durations.isEmpty
-                || !facetFilter.characters.isEmpty
-                || !facetFilter.languages.isEmpty
-            let pushesLineFacets = selectsLines || !languageFilterCodeSet.isEmpty
-            // Outside the selection, a file that fails the checked watch states
-            // contributes every matching line, so when line cards are checked as
-            // well the candidate query cannot prune by watch state; such files'
-            // groups are read whole below instead.
-            let candidateWatchStates = facetFilterNegated && selectsLines
-                ? []
-                : facetFilter.watchStates
             let watchStateValues = watchStateFilter.states.map(\.rawValue)
             emit(
                 "setup",
@@ -608,15 +596,14 @@ public final class SearchDatabase: @unchecked Sendable {
                 try Task.checkCancellation()
                 batchIndex += 1
                 let queryStart = Self.diagnosticNow()
-                let chunkEnd = min(nextHitIndex + candidateBatchLimit, orderedHitRowIDs.count)
+                let batchLimit = batchIndex == 1 ? firstCandidateBatchLimit : candidateBatchLimit
+                let chunkEnd = min(nextHitIndex + batchLimit, orderedHitRowIDs.count)
                 let chunkRowIDs = Array(orderedHitRowIDs[nextHitIndex..<chunkEnd])
                 let candidateOffset = nextHitIndex
                 nextHitIndex = chunkEnd
                 let candidates = try searchCandidates(
                     forFTSRowIDs: chunkRowIDs,
-                    watchStateValues: watchStateValues,
-                    facetWatchStates: candidateWatchStates,
-                    negatesFacetWatchStates: facetFilterNegated
+                    watchStateValues: watchStateValues
                 )
                 emit(
                     "fts_batch",
@@ -624,7 +611,7 @@ public final class SearchDatabase: @unchecked Sendable {
                     fields: [
                         .init("batch", batchIndex),
                         .init("candidateOffset", candidateOffset),
-                        .init("candidateBatchLimit", candidateBatchLimit),
+                        .init("candidateBatchLimit", batchLimit),
                         .init("candidates", candidates.count)
                     ]
                 )
@@ -645,30 +632,13 @@ public final class SearchDatabase: @unchecked Sendable {
                     .map(\.cueGroupID)
                 totalMultiLineCandidates += multiLineCueGroupIDs.count
                 let cueLinesStart = Self.diagnosticNow()
-                // Outside the selection, the groups of a file that fails the checked
-                // watch states are read whole, since every matching line of such a
-                // file is outside; the other groups go through the negated line
-                // conditions.
-                let wholeCueGroupIDs = facetFilterNegated && selectsLines
-                    ? candidates
-                        .filter {
-                            !facetFilter.watchStates.isEmpty
-                                && !facetFilter.watchStates.contains($0.watchState)
-                        }
-                        .map(\.cueGroupID)
-                    : []
-                let wholeCueGroupIDSet = Set(wholeCueGroupIDs)
-                let facetLineIDsByCueGroupID = pushesLineFacets
-                    ? try facetMatchingLineIDs(
-                        forCueGroupIDs: candidateCueGroupIDs.filter { !wholeCueGroupIDSet.contains($0) },
-                        durations: facetFilter.durations,
-                        characters: facetFilter.characters,
-                        languages: facetFilter.languages,
-                        requiredLanguages: languageFilterCodeSet,
-                        negated: facetFilterNegated
+                let languageLineIDsByCueGroupID = languageFilterCodeSet.isEmpty
+                    ? nil
+                    : try languageMatchingLineIDs(
+                        forCueGroupIDs: candidateCueGroupIDs,
+                        requiredLanguages: languageFilterCodeSet
                     )
-                    : nil
-                let lineCueGroupIDs = facetLineIDsByCueGroupID.map { wholeCueGroupIDs + Array($0.keys) }
+                let lineCueGroupIDs = languageLineIDsByCueGroupID.map { Array($0.keys) }
                     ?? candidateCueGroupIDs
                 let cueLineRecordsByCueGroupID = try cueLineRecords(
                     forCueGroupIDs: lineCueGroupIDs
@@ -702,7 +672,7 @@ public final class SearchDatabase: @unchecked Sendable {
                         languageFilterCodes: languageFilterCodeSet,
                         languagesByCueID: languagesByCueID,
                         filterSet: filterSet,
-                        allowedLineIDs: facetLineIDsByCueGroupID?[candidate.cueGroupID]
+                        allowedLineIDs: languageLineIDsByCueGroupID?[candidate.cueGroupID]
                     )
                     if !orderedMatches.isEmpty {
                         matchedCandidateCount += 1
@@ -716,27 +686,22 @@ public final class SearchDatabase: @unchecked Sendable {
                         let characterFacet = CueCharacterFacet(
                             characterCount: result.result.content.unicodeScalars.count
                         )
-                        let insideSelection = facetFilter.matches(
+                        acceptedCueIDs.append(result.result.entryID)
+                        acceptedDurationFacets.append(durationFacet)
+                        acceptedCharacterFacets.append(characterFacet)
+                        acceptedLanguageFacets.append(result.result.languages)
+                        acceptedWatchStateFacets.append(candidate.watchState)
+                        guard facetFilter.matches(
                             duration: durationFacet,
                             characters: characterFacet,
                             languages: result.result.languages.isEmpty
                                 ? [.unknown]
                                 : result.result.languages,
                             watchState: candidate.watchState
-                        )
-                        guard insideSelection != facetFilterNegated else {
+                        ) else {
                             continue
                         }
-                        acceptedCueIDs.append(result.result.entryID)
-                        acceptedDurationFacets.append(durationFacet)
-                        acceptedCharacterFacets.append(characterFacet)
-                        acceptedLanguageFacets.append(result.result.languages)
-                        acceptedWatchStateFacets.append(candidate.watchState)
-                        acceptedOrderKeys.append(SearchFTSRows.displayOrderKey(
-                            fileRank: fileRanks[candidate.subtitleFileID] ?? 0,
-                            rowID: candidate.ftsRowID,
-                            lineIndex: result.result.primaryGroupIndex
-                        ))
+                        resultCueIDs.append(result.result.entryID)
                         switch mode {
                         case .exact:
                             progressFileSummaries.add(result)
@@ -787,11 +752,11 @@ public final class SearchDatabase: @unchecked Sendable {
                                 from: pendingProgressResults,
                                 startingAt: publishedProgressResultCount
                             ),
-                            cueIDs: Array(acceptedCueIDs[publishedProgressResultCount...]),
+                            cueIDs: Array(resultCueIDs[publishedProgressResultCount...]),
                             resultOffset: publishedProgressResultCount
                         )
                     )
-                    publishedProgressResultCount = acceptedCueIDs.count
+                    publishedProgressResultCount = resultCueIDs.count
                     pendingProgressResults.removeAll(keepingCapacity: true)
                     emit(
                         "count_progress",
@@ -904,7 +869,7 @@ public final class SearchDatabase: @unchecked Sendable {
 
             let sortStart = Self.diagnosticNow()
             try Task.checkCancellation()
-            let totalExactResultCount = acceptedCueIDs.count
+            let totalExactResultCount = resultCueIDs.count
             let orderSource = totalExactResultCount > 0 ? "ftsRowid" : "none"
             let materializedOrderRows = exactPageResults.count
             emit(
@@ -913,7 +878,7 @@ public final class SearchDatabase: @unchecked Sendable {
                 fields: [
                     .init("results", totalExactResultCount),
                     .init("materializedResults", exactPageResults.count),
-                    .init("resultIDs", acceptedCueIDs.count),
+                    .init("resultIDs", resultCueIDs.count),
                     .init("orderSource", orderSource),
                     .init("materializedOrderRows", materializedOrderRows)
                 ]
@@ -985,7 +950,7 @@ public final class SearchDatabase: @unchecked Sendable {
                 results: pageResults,
                 renderableResults: renderableResults,
                 renderableResultsOffset: renderableResultsOffset,
-                cueIDs: acceptedCueIDs,
+                cueIDs: resultCueIDs,
                 totalCount: totalExactResultCount,
                 fileSummaries: fileSummaries,
                 countSnapshot: countSnapshot,
@@ -1594,75 +1559,31 @@ public final class SearchDatabase: @unchecked Sendable {
     }
 
 
-    /// Line ids inside the given cue groups that satisfy the checked line cards
-    /// (duration, length, language) and the required languages, keyed by cue
-    /// group; with `negated`, the lines that fail the checked cards instead,
-    /// which are the rows outside the selection. Groups without such a line are
-    /// absent, so their rows need not be read at all.
-    private func facetMatchingLineIDs(
+    /// Line ids inside the given cue groups that have one of the required
+    /// languages, keyed by cue group. Groups without such a line are absent, so
+    /// their rows need not be read at all.
+    private func languageMatchingLineIDs(
         forCueGroupIDs cueGroupIDs: [Int64],
-        durations: Set<CueDurationFacet>,
-        characters: Set<CueCharacterFacet>,
-        languages: Set<SubtitleLanguageCode>,
-        requiredLanguages: Set<SubtitleLanguageCode>,
-        negated: Bool = false
+        requiredLanguages: Set<SubtitleLanguageCode>
     ) throws -> [Int64: Set<Int64>] {
         guard !cueGroupIDs.isEmpty else {
             return [:]
         }
-        func anyBucket(_ conditions: [String]) -> String? {
-            conditions.isEmpty
-                ? nil
-                : "(" + conditions.map { "(\($0))" }.joined(separator: " OR ") + ")"
-        }
-        func hasLanguage(_ codes: [String]) -> String {
-            let placeholders = Array(repeating: "?", count: codes.count).joined(separator: ", ")
-            return """
-            EXISTS (
-                SELECT 1
-                FROM subtitle_cue_line_languages cll
-                WHERE cll.cue_id = l.id
-                  AND cll.language_code IN (\(placeholders))
-            )
-            """
-        }
-        let durationConditions = durations.map { facet -> String in
-            switch facet {
-            case .underOneSecond: "(l.end_ms - l.start_ms) < 1000"
-            case .oneToUnderThreeSeconds: "(l.end_ms - l.start_ms) >= 1000 AND (l.end_ms - l.start_ms) < 3000"
-            case .threeToUnderFiveSeconds: "(l.end_ms - l.start_ms) >= 3000 AND (l.end_ms - l.start_ms) < 5000"
-            case .fiveSecondsOrMore: "(l.end_ms - l.start_ms) >= 5000"
-            }
-        }
-        let characterConditions = characters.map { facet -> String in
-            switch facet {
-            case .oneToTen: "LENGTH(l.content) <= 10"
-            case .elevenToTwenty: "LENGTH(l.content) > 10 AND LENGTH(l.content) <= 20"
-            case .twentyOneToThirty: "LENGTH(l.content) > 20 AND LENGTH(l.content) <= 30"
-            case .thirtyOneOrMore: "LENGTH(l.content) > 30"
-            }
-        }
-        let languageCodes = languages.map(\.rawValue).sorted()
         let requiredLanguageCodes = requiredLanguages.map(\.rawValue).sorted()
-        let selection = [
-            anyBucket(durationConditions),
-            anyBucket(characterConditions),
-            languageCodes.isEmpty ? nil : hasLanguage(languageCodes)
-        ].compactMap { $0 }.joined(separator: " AND ")
-        let selectionCondition = selection.isEmpty
-            ? ""
-            : "AND \(negated ? "NOT " : "")(\(selection))"
-        let requiredLanguageCondition = requiredLanguageCodes.isEmpty
-            ? ""
-            : "AND \(hasLanguage(requiredLanguageCodes))"
         let placeholders = cueGroupIDs.map { _ in "?" }.joined(separator: ", ")
+        let languagePlaceholders = Array(repeating: "?", count: requiredLanguageCodes.count)
+            .joined(separator: ", ")
         let statement = try database.prepare(
             """
             SELECT l.id, l.cue_group_id
             FROM subtitle_cue_lines l
             WHERE l.cue_group_id IN (\(placeholders))
-            \(selectionCondition)
-            \(requiredLanguageCondition);
+              AND EXISTS (
+                SELECT 1
+                FROM subtitle_cue_line_languages cll
+                WHERE cll.cue_id = l.id
+                  AND cll.language_code IN (\(languagePlaceholders))
+              );
             """
         )
         var bindIndex: Int32 = 1
@@ -1670,7 +1591,7 @@ public final class SearchDatabase: @unchecked Sendable {
             try statement.bind(cueGroupID, at: bindIndex)
             bindIndex += 1
         }
-        for code in languageCodes + requiredLanguageCodes {
+        for code in requiredLanguageCodes {
             try statement.bind(code, at: bindIndex)
             bindIndex += 1
         }

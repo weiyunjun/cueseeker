@@ -66,21 +66,18 @@ extension CueFacetFilterDialogSession.Source {
     }
 }
 
-/// What the dialog knows for its selection: the counts, which of them are not
+/// What the dialog knows for its selection: the counts, whether they are
 /// known yet, and the total, nil while it is not known.
 struct CueFacetFilterCounts: Equatable {
     static let unknown = CueFacetFilterCounts(
         distribution: nil,
         isCalculating: true,
-        pendingKinds: [],
         totalCount: nil
     )
 
     let distribution: CueFacetDistribution?
     /// No count is known yet.
     let isCalculating: Bool
-    /// The unchecked options of these cards are not known yet.
-    let pendingKinds: Set<CueFacetKind>
     let totalCount: Int?
 
     /// Search never runs for the dialog's selection (requirement 6.4). The
@@ -98,7 +95,6 @@ struct CueFacetFilterCounts: Equatable {
             return CueFacetFilterCounts(
                 distribution: .zero,
                 isCalculating: false,
-                pendingKinds: [],
                 totalCount: 0
             )
         }
@@ -111,15 +107,8 @@ struct CueFacetFilterCounts: Equatable {
         return CueFacetFilterCounts(
             distribution: distribution,
             isCalculating: false,
-            pendingKinds: [],
             totalCount: distribution.totalCount
         )
-    }
-
-    /// Every count is unknown while nothing is known; afterwards only the
-    /// unchecked options of a card whose count is still running.
-    func isUnknown(_ kind: CueFacetKind, isSelected: Bool) -> Bool {
-        isCalculating || (pendingKinds.contains(kind) && !isSelected)
     }
 }
 
@@ -147,7 +136,6 @@ struct CueFacetSection: Identifiable {
         update: @escaping ((inout CueFacetFilter) -> Void) -> Void
     ) -> [CueFacetSection] {
         func options<Value: Hashable>(
-            _ kind: CueFacetKind,
             _ values: [Value],
             at keyPath: WritableKeyPath<CueFacetFilter, Set<Value>>,
             id: (Value) -> String,
@@ -159,7 +147,7 @@ struct CueFacetSection: Identifiable {
                 return CueFacetOption(
                     id: id(value),
                     title: title(value),
-                    count: counts.isUnknown(kind, isSelected: isSelected)
+                    count: counts.isCalculating
                         ? nil
                         : counts.distribution.flatMap { count($0, value) } ?? 0,
                     isSelected: isSelected,
@@ -182,7 +170,6 @@ struct CueFacetSection: Identifiable {
                 title: L("facet.duration"),
                 icon: .clock,
                 options: options(
-                    .duration,
                     CueDurationFacet.allCases,
                     at: \.durations,
                     id: { $0.rawValue },
@@ -195,7 +182,6 @@ struct CueFacetSection: Identifiable {
                 title: L("facet.character"),
                 icon: .textAa,
                 options: options(
-                    .characters,
                     CueCharacterFacet.allCases,
                     at: \.characters,
                     id: { $0.rawValue },
@@ -208,7 +194,6 @@ struct CueFacetSection: Identifiable {
                 title: L("facet.language"),
                 icon: .globe,
                 options: options(
-                    .languages,
                     availableLanguages,
                     at: \.languages,
                     id: { $0.rawValue },
@@ -221,7 +206,6 @@ struct CueFacetSection: Identifiable {
                 title: L("facet.watch_status"),
                 icon: .eye,
                 options: options(
-                    .watchState,
                     LibraryWatchState.facetCases,
                     at: \.watchStates,
                     id: { $0.rawValue },
@@ -463,8 +447,8 @@ struct SearchFacetDialogSearchState: Equatable {
     let isQueryEmpty: Bool
     let searchFilter: CueFacetFilter
     let searchCounts: CueFacetFilterCounts
-    /// Every match of the query with its facet values, once every count is
-    /// complete.
+    /// Every match of the query with its facet values, once the search has
+    /// completed.
     let completeSnapshot: CueFacetSnapshot?
     let availableLanguages: [SubtitleLanguageCode]
 
@@ -477,15 +461,12 @@ struct SearchFacetDialogSearchState: Equatable {
         searchCounts = CueFacetFilterCounts(
             distribution: search.displayedSearchFacetDistribution,
             isCalculating: search.isFacetSnapshotCalculating,
-            pendingKinds: search.searchFacetCountsPendingKinds,
             totalCount: search.searchStatus == .completed
                 && search.searchCountState == .exact
                 ? search.searchResultTotalCount
                 : nil
         )
-        completeSnapshot = search.isSearchFacetSnapshotComplete
-            ? search.searchFacetSnapshot
-            : nil
+        completeSnapshot = search.searchFacetSnapshot
         var available = Set(
             search.emptySearchFacetDistribution?.languageCounts.compactMap {
                 $0.value > 0 ? $0.key : nil
@@ -581,7 +562,6 @@ struct ExcerptFacetFilterDialog: View {
         return CueFacetFilterCounts(
             distribution: projection.distribution,
             isCalculating: false,
-            pendingKinds: [],
             totalCount: projection.relations.count
         )
     }

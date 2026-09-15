@@ -16,14 +16,6 @@ enum SearchFTSRows {
         rowID >> sequenceBits
     }
 
-    /// A line's position in the Search display order as one comparable key:
-    /// the file's display rank, then the cue group's time position (the rowid
-    /// sequence), then the line's place inside its group.
-    static func displayOrderKey(fileRank: Int, rowID: Int64, lineIndex: Int) -> Int64 {
-        let sequence = rowID & ((1 << sequenceBits) - 1)
-        return (Int64(fileRank) << (sequenceBits + 12)) | (sequence << 12) | Int64(min(lineIndex, 4095))
-    }
-
     static func rowIDRange(forSubtitleFileID subtitleFileID: Int64) -> ClosedRange<Int64> {
         let lowerBound = rowID(subtitleFileID: subtitleFileID, sequence: 0)
         let upperBound = rowID(subtitleFileID: subtitleFileID, sequence: Int((1 << sequenceBits) - 1))

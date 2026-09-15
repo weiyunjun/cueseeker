@@ -18,11 +18,6 @@ final class SearchStore: ObservableObject {
     let databaseURL: URL?
     let database: SearchDatabase?
     private(set) var searchTask: Task<Void, Never>?
-    private(set) var exactCompletionTask: Task<Void, Never>?
-    /// The scan that counts the checked cards' unchecked options after a
-    /// filtered search has completed; it belongs to that result list and is
-    /// cancelled with it.
-    private(set) var facetCountsTask: Task<Void, Never>?
     private(set) var navigationTask: Task<Void, Never>?
     private(set) var activePerformanceRun: SearchPerformanceRun?
     private(set) var resultListGeneration: UInt64 = 0
@@ -52,13 +47,10 @@ final class SearchStore: ObservableObject {
     private(set) var hasMoreSearchResults = false
     @Published private(set) var resultRevision: UInt64 = 0
     @Published private(set) var activeFilterSet = SubtitleSearchFilterSet()
-    /// The facet values of the current result's rows, followed once the count
-    /// scan has landed by every match outside the selection, so that it then
-    /// holds every match of the query. The option counts are derived from it
-    /// with the usual rule; it is dropped with the result list.
+    /// Every match of the query with its facet values, in display order, once
+    /// the search has completed. The option counts are derived from it with
+    /// the usual rule; it is dropped with the result list.
     @Published private(set) var searchFacetSnapshot: CueFacetSnapshot?
-    /// The checked cards whose unchecked options are still being counted.
-    @Published private(set) var searchFacetCountsPendingKinds: Set<CueFacetKind> = []
     @Published private(set) var emptySearchFacetDistribution: CueFacetDistribution?
     private(set) var searchFacetFilter = CueFacetFilter()
     /// The four option-count cards for the current filter: each card ignores its
@@ -209,13 +201,12 @@ final class SearchStore: ObservableObject {
     }
 
     /// Stores the filter the next search runs with. Returns whether it changed;
-    /// a changed selection drops the counts and their scans, and the next search
-    /// produces both again.
+    /// a changed selection drops the counts, and the next search produces them
+    /// again.
     @discardableResult
     func updateSearchFacetFilter(_ filter: CueFacetFilter) -> Bool {
         guard searchFacetFilter != filter else { return false }
         searchFacetFilter = filter
-        cancelFacetCountsTask()
         setSearchFacetSnapshot(nil)
         return true
     }
@@ -233,29 +224,10 @@ final class SearchStore: ObservableObject {
 
     func setSearchFacetSnapshot(_ snapshot: CueFacetSnapshot?) {
         searchFacetSnapshot = snapshot
-        searchFacetCountsPendingKinds = snapshot == nil
-            ? []
-            : Set(resultFacetFilter.selectedKinds)
         refreshSearchFacetDistribution()
     }
 
-    /// Adds the rows the count scan read outside the selection, which completes
-    /// every count: the snapshot then holds every match of the query, and it is
-    /// put into display order so a later selection can be answered from it.
-    func appendSearchFacetCounts(_ rows: CueFacetSnapshot) {
-        guard let searchFacetSnapshot else { return }
-        searchFacetCountsPendingKinds = []
-        self.searchFacetSnapshot = searchFacetSnapshot.appending(rows).sortedByDisplayOrder()
-        refreshSearchFacetDistribution()
-    }
-
-    /// Whether every count is complete, so the snapshot holds every match of
-    /// the query with its facet values in display order.
-    var isSearchFacetSnapshotComplete: Bool {
-        searchFacetSnapshot != nil && searchFacetCountsPendingKinds.isEmpty
-    }
-
-    /// Requirement 4.4: with every count complete, a changed selection is
+    /// Requirement 4.4: once the search has completed, a changed selection is
     /// answered from the snapshot instead of a new search. The selection and a
     /// new result list generation take effect at once; the result, the
     /// snapshot's matching rows in display order with the counts by the usual
@@ -265,7 +237,6 @@ final class SearchStore: ObservableObject {
         _ filter: CueFacetFilter
     ) -> (cueIDs: [Int64], distribution: CueFacetDistribution)? {
         guard searchFacetFilter != filter,
-              isSearchFacetSnapshotComplete,
               let snapshot = searchFacetSnapshot
         else {
             return nil
@@ -307,11 +278,6 @@ final class SearchStore: ObservableObject {
             hasMore: false
         )
         return true
-    }
-
-    func cancelFacetCountsTask() {
-        facetCountsTask?.cancel()
-        facetCountsTask = nil
     }
 
     func setTableProjectionResponseActive(_ isActive: Bool) {
@@ -375,7 +341,6 @@ final class SearchStore: ObservableObject {
             generation: indexedCueMutationGeneration
         )
         activeIndexedCueMutationGeneration = token.generation
-        cancelFacetCountsTask()
         setSearchFacetSnapshot(nil)
         if case .residentSearch = tableProjectionSource {
             return token
@@ -427,7 +392,6 @@ final class SearchStore: ObservableObject {
         let normalizedQuery = SearchInputNormalizer.singleLine(query)
         guard normalizedQuery != searchQuery else { return }
         searchQuery = normalizedQuery
-        cancelFacetCountsTask()
         setSearchFacetSnapshot(nil)
     }
 
@@ -477,13 +441,10 @@ final class SearchStore: ObservableObject {
     ) -> UInt64 {
         if !appending {
             resultListGeneration &+= 1
-            exactCompletionTask?.cancel()
-            exactCompletionTask = nil
             resultFilterSet = filterSet
             resultFacetFilter = searchFacetFilter
             // The counts belong to the result list: the new search carries its
-            // own rows and starts its own count scans.
-            cancelFacetCountsTask()
+            // own rows and counts.
             setSearchFacetSnapshot(nil)
         }
         searchTask?.cancel()
@@ -500,14 +461,6 @@ final class SearchStore: ObservableObject {
         searchTask = task
     }
 
-    func replaceExactCompletionTask(_ task: Task<Void, Never>?) {
-        exactCompletionTask = task
-    }
-
-    func replaceFacetCountsTask(_ task: Task<Void, Never>?) {
-        facetCountsTask = task
-    }
-
     func replaceNavigationTask(_ task: Task<Void, Never>?) {
         navigationTask = task
     }
@@ -515,20 +468,10 @@ final class SearchStore: ObservableObject {
     func cancelQueryTasks() {
         searchTask?.cancel()
         searchTask = nil
-        exactCompletionTask?.cancel()
-        exactCompletionTask = nil
-        cancelFacetCountsTask()
     }
 
     func cancelAllSearchTasks() {
         cancelQueryTasks()
-        navigationTask?.cancel()
-        navigationTask = nil
-    }
-
-    func cancelCompletionAndNavigationTasks() {
-        exactCompletionTask?.cancel()
-        exactCompletionTask = nil
         navigationTask?.cancel()
         navigationTask = nil
     }

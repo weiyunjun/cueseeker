@@ -766,19 +766,21 @@ func searchPageEmitsExactProgressCountSnapshotsBeforeFinalExactCounts() throws {
     #expect(progress.allSatisfy { $0.resultOffset + $0.results.count == $0.knownResultCount })
     #expect(progress.allSatisfy { $0.results.count == $0.cueIDs.count })
     #expect(progress.first?.resultOffset == 0)
-    #expect(progress.last?.knownResultCount == 5_000)
+    // The first batch is a visible window's, 100 candidates for a page of 50;
+    // the next batch reaches the last row.
+    #expect(progress.last?.knownResultCount == 100)
     #expect(progress.last?.knownFileCount == 1)
-    #expect(progress.last?.fileSummaries.map(\.matchCount) == [5_000])
-    #expect(streamedResults.count == 5_000)
+    #expect(progress.last?.fileSummaries.map(\.matchCount) == [100])
+    #expect(streamedResults.count == 100)
     #expect(streamedResults.first?.content == "Progress count stream line 0")
-    #expect(streamedResults.last?.content == "Progress count stream line 4999")
-    #expect(streamedResults.map(\.searchRank) == Array(0..<5_000))
+    #expect(streamedResults.last?.content == "Progress count stream line 99")
+    #expect(streamedResults.map(\.searchRank) == Array(0..<100))
     #expect(streamedCueIDs == streamedResults.map(\.entryID))
     #expect(page.countState == .exact)
     #expect(page.results.count == 50)
-    #expect(page.renderableResultsOffset == 5_000)
-    #expect(page.renderableResults.count == 100)
-    #expect(page.renderableResults.map(\.searchRank) == Array(5_000..<5_100))
+    #expect(page.renderableResultsOffset == 100)
+    #expect(page.renderableResults.count == 5_000)
+    #expect(page.renderableResults.map(\.searchRank) == Array(100..<5_100))
     #expect(page.renderableResults.last?.content == "Progress count stream line 5099")
     #expect(page.cueIDs == streamedCueIDs + page.renderableResults.map(\.entryID))
     #expect(page.totalCount == 5_100)
@@ -2248,7 +2250,7 @@ func visibleSearchContinuesPastFilteredFTSCandidates() throws {
 }
 
 @Test
-func searchPageAppliesTheFacetFilterToResultsAndANegatedScanReadsTheRowsForTheUncheckedOptions() throws {
+func searchPageAppliesTheFacetFilterToResultsWhileTheSnapshotHoldsEveryMatch() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
         try? FileManager.default.removeItem(at: databaseURL)
@@ -2291,10 +2293,13 @@ func searchPageAppliesTheFacetFilterToResultsAndANegatedScanReadsTheRowsForTheUn
     #expect(exactPage.totalCount == 3)
     #expect(exactPage.cueIDs == exactPage.results.map(\.entryID))
     #expect(exactPage.fileSummaries.map(\.matchCount) == [3])
-    // A filtered scan reads only the matching rows, and its snapshot holds
-    // exactly those.
-    #expect(exactPage.facetSnapshot?.cueIDs == exactPage.cueIDs)
-    #expect(exactPage.facetSnapshot?.distribution.durationCounts == [.underOneSecond: 3])
+    // The filter narrows only the results: the snapshot holds every match of
+    // the query, the same as an unfiltered scan's.
+    #expect(exactPage.facetSnapshot == (try search.searchPage("facet", limit: 10).facetSnapshot))
+    #expect(exactPage.facetSnapshot?.distribution.durationCounts == [
+        .underOneSecond: 3,
+        .oneToUnderThreeSeconds: 3,
+    ])
 
     // A two-line group whose lines fall on both sides of a character filter still
     // returns the whole group as context for the matching line.
@@ -2346,91 +2351,35 @@ func searchPageAppliesTheFacetFilterToResultsAndANegatedScanReadsTheRowsForTheUn
     ])
     #expect(snapshot.distribution.totalCount == 8)
 
-    // The counts for the checked cards' unchecked options come from one scan of
-    // the same query with the filter negated: it reads every match outside the
-    // selection, so joined with the filtered rows it is every match, and the
-    // usual rule gives the same counts as the unfiltered scan.
-    let shortRows = try #require(
-        try search.searchPage("facet", limit: 0, cursor: .start, facetFilter: shortCues).facetSnapshot
-    )
-    let longRows = try search.searchPage(
-        "facet",
-        limit: 0,
-        cursor: .start,
-        facetFilter: shortCues,
-        facetFilterNegated: true
-    )
-    #expect(shortRows.cueIDs.count == 5)
-    #expect(longRows.totalCount == 3)
-    #expect(longRows.facetSnapshot?.distribution.durationCounts == [.oneToUnderThreeSeconds: 3])
-    #expect(Set(shortRows.cueIDs).isDisjoint(with: longRows.cueIDs))
-    let joined = shortRows.appending(try #require(longRows.facetSnapshot))
-    #expect(
-        joined.filteredCueIDs(using: shortCues, limit: 8).distribution
-            == snapshot.filteredCueIDs(using: shortCues, limit: 8).distribution
-    )
-    // Every row carries its display-order key, so the joined rows sorted are
-    // the unfiltered scan's rows in the unfiltered scan's order.
-    #expect(joined.cueIDs != snapshot.cueIDs)
-    #expect(joined.sortedByDisplayOrder().cueIDs == snapshot.cueIDs)
-
-    // Two checked cards: Duration `<1s` with Character `31+` leaves the long ASS
-    // line, and the negated scan reads the other seven, including the three
-    // long SRT lines that fail both cards, so the joined rows are every match.
+    // Every filtered scan carries the unfiltered scan's snapshot, so its
+    // results are exactly the snapshot's rows under the same selection. Two
+    // checked cards: Duration `<1s` with Character `31+` leaves the long ASS
+    // line, while the snapshot still counts all eight matches.
     let twoCards = CueFacetFilter(durations: [.underOneSecond], characters: [.thirtyOneOrMore])
-    let twoCardRows = try search.searchPage("facet", limit: 0, cursor: .start, facetFilter: twoCards)
-    let twoCardRest = try search.searchPage(
-        "facet", limit: 0, cursor: .start, facetFilter: twoCards, facetFilterNegated: true
-    )
+    let twoCardRows = try search.searchPage("facet", limit: 10, facetFilter: twoCards)
     #expect(twoCardRows.totalCount == 1)
-    #expect(twoCardRest.totalCount == 7)
-    let twoCardJoined = try #require(twoCardRows.facetSnapshot)
-        .appending(try #require(twoCardRest.facetSnapshot))
-    let twoCardCounts = twoCardJoined.filteredCueIDs(using: twoCards, limit: 8).distribution
-    #expect(twoCardCounts == snapshot.filteredCueIDs(using: twoCards, limit: 8).distribution)
-    #expect(twoCardCounts.durationCounts == [.underOneSecond: 1])
-    #expect(twoCardCounts.characterCounts == [
-        .elevenToTwenty: 1,
-        .twentyOneToThirty: 3,
-        .thirtyOneOrMore: 1,
-    ])
-    #expect(twoCardJoined.sortedByDisplayOrder().cueIDs == snapshot.cueIDs)
+    #expect(twoCardRows.facetSnapshot == snapshot)
+    #expect(twoCardRows.cueIDs == snapshot.filteredCueIDs(using: twoCards, limit: 8).cueIDs)
 
-    // Watch state is negated on the file: with `finished` checked the SRT file
-    // is the result and the ASS file's two rows are outside the selection.
+    // Watch state: with `finished` checked the SRT file is the result, and the
+    // snapshot still holds the ASS file's two rows.
     try LibraryDatabase(path: databaseURL).setLibraryWatchState(
         videoFile: URL(fileURLWithPath: "/Media/Facet.mkv"),
         duration: nil,
         state: .finished
     )
     let finished = CueFacetFilter(watchStates: [.finished])
-    #expect(try search.searchPage("facet", limit: 0, cursor: .start, facetFilter: finished).totalCount == 6)
-    let watchRest = try search.searchPage(
-        "facet", limit: 0, cursor: .start, facetFilter: finished, facetFilterNegated: true
-    )
-    #expect(watchRest.totalCount == 2)
-    #expect(watchRest.facetSnapshot?.distribution.watchStateCounts == [.unwatched: 2])
+    let finishedRows = try search.searchPage("facet", limit: 10, facetFilter: finished)
+    #expect(finishedRows.totalCount == 6)
+    let watchedSnapshot = try #require(finishedRows.facetSnapshot)
+    #expect(watchedSnapshot.cueIDs.count == 8)
+    #expect(watchedSnapshot.distribution.watchStateCounts == [.finished: 6, .unwatched: 2])
 
-    // A watch state checked together with a line card: outside the selection are
-    // the whole ASS file, which fails the watch state, and the SRT lines that
-    // fail the duration; joined with the three short SRT lines they are every
-    // match again, with the same counts as the unfiltered scan.
-    let watchedSnapshot = try #require(try search.searchPage("facet", limit: 10).facetSnapshot)
     let finishedShort = CueFacetFilter(durations: [.underOneSecond], watchStates: [.finished])
-    let finishedShortRows = try search.searchPage("facet", limit: 0, cursor: .start, facetFilter: finishedShort)
-    let finishedShortRest = try search.searchPage(
-        "facet", limit: 0, cursor: .start, facetFilter: finishedShort, facetFilterNegated: true
-    )
+    let finishedShortRows = try search.searchPage("facet", limit: 10, facetFilter: finishedShort)
     #expect(finishedShortRows.totalCount == 3)
-    #expect(finishedShortRest.totalCount == 5)
-    #expect(finishedShortRest.facetSnapshot?.distribution.watchStateCounts == [.finished: 3, .unwatched: 2])
-    let finishedShortJoined = try #require(finishedShortRows.facetSnapshot)
-        .appending(try #require(finishedShortRest.facetSnapshot))
-    #expect(finishedShortJoined.sortedByDisplayOrder().cueIDs == watchedSnapshot.cueIDs)
-    #expect(
-        finishedShortJoined.filteredCueIDs(using: finishedShort, limit: 8).distribution
-            == watchedSnapshot.filteredCueIDs(using: finishedShort, limit: 8).distribution
-    )
+    #expect(finishedShortRows.facetSnapshot == watchedSnapshot)
+    #expect(finishedShortRows.cueIDs == watchedSnapshot.filteredCueIDs(using: finishedShort, limit: 8).cueIDs)
 }
 
 @Test
@@ -2486,16 +2435,8 @@ func searchPageFiltersLanguagesInTheRowReadsAndCountsThemFromTheStoredTable() th
     #expect(englishOnly.results.map(\.content) == ["shared english line"])
     #expect(englishOnly.results.map(\.languages) == [[.english]])
     #expect(englishOnly.totalCount == 1)
-    #expect(englishOnly.facetSnapshot?.distribution.languageCounts == [.english: 1])
-    let otherLanguages = try search.searchPage(
-        "shared",
-        limit: 0,
-        cursor: .start,
-        facetFilter: CueFacetFilter(languages: [.english]),
-        facetFilterNegated: true
-    )
-    #expect(otherLanguages.totalCount == 2)
-    #expect(otherLanguages.facetSnapshot?.distribution.languageCounts == [.japanese: 2])
+    // The snapshot still counts the rows in the other languages.
+    #expect(englishOnly.facetSnapshot?.distribution.languageCounts == [.japanese: 2, .english: 1])
 
     let legacyEnglish = try search.searchPage(
         "shared",

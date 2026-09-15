@@ -42,7 +42,13 @@ This changelog does not replace Git history. Git records concrete file changes. 
   while a search runs. Every in-window dialog, the Filter dialog and the Task
   panel included, now appears on the first click while a text field has the
   focus; the field used to give its focus up before the dialog counted as
-  open, and the dialog showed only once another view opened.
+  open, and the dialog showed only once another view opened. A search now
+  reads every match in one scan and filters the rows in memory: the first
+  page appears as soon as the scan has found it, and the result, its total
+  and every option's count arrive together when the scan completes, so a
+  checked filter no longer waits for a second scan to count the unchecked
+  options. With Character `11–20` checked, `の` shows every count after
+  2.4 s instead of 3.8 s; unfiltered it still completes in about 2.7 s.
 - Settings now has six categories: General, which gathers Appearance,
   Search, Language and Deep Link; Play, which gathers Play and Decode;
   Shortcuts; Subtitle; Maintenance; and Developer. Settings opens on General.

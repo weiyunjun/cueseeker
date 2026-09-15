@@ -8,9 +8,9 @@ private struct SearchStorePageLoad: Sendable {
     let databaseSearchMilliseconds: Double
 }
 
-/// The rows an exact scan reports while it runs. The scan reports them on its
-/// own thread and they are read only after it returns, so the table receives
-/// them once, with the completed result.
+/// The rows the scan reports while it runs, collected on its own thread. The
+/// first page is taken from them as soon as it is complete; the rest reach the
+/// table once, with the completed result.
 private final class SearchReportedRows: @unchecked Sendable {
     var results: [SubtitleSearchResult] = []
 }
@@ -162,27 +162,115 @@ extension SearchStore {
 
                 SearchPerformanceLogger.mark(run, "database_search_started")
                 let diagnostics = SearchPerformanceLogger.coreDiagnosticsSink(for: run)
-                let pageLoad = try await Self.runCancellableDetached(
+                let (firstPages, firstPageContinuation) = AsyncStream.makeStream(
+                    of: SearchStorePageLoad.self
+                )
+                async let scan = Self.runCancellableDetached(
                     priority: .userInitiated
                 ) {
+                    defer { firstPageContinuation.finish() }
                     let started = SearchPerformanceLogger.now()
-                    let page = try database.searchVisiblePage(
+                    guard !appending else {
+                        let page = try database.searchVisiblePage(
+                            trimmedQuery,
+                            limit: pageSize,
+                            cursor: cursor,
+                            under: folders,
+                            languageFilter: languageFilter,
+                            watchStateFilter: watchStateFilter,
+                            filterSet: filterSet,
+                            facetFilter: facetFilter,
+                            diagnostics: diagnostics
+                        )
+                        return SearchStorePageLoad(
+                            page: page,
+                            databaseSearchMilliseconds:
+                                SearchPerformanceLogger.elapsedMilliseconds(since: started)
+                        )
+                    }
+                    // One scan reads every match. Its first page reaches the table
+                    // as soon as the scan has found it, and the rest once, with the
+                    // completed result.
+                    let reportedRows = SearchReportedRows()
+                    let page = try database.searchPage(
                         trimmedQuery,
                         limit: pageSize,
-                        cursor: cursor,
+                        cursor: .start,
                         under: folders,
                         languageFilter: languageFilter,
                         watchStateFilter: watchStateFilter,
                         filterSet: filterSet,
                         facetFilter: facetFilter,
-                        diagnostics: diagnostics
+                        diagnostics: diagnostics,
+                        progress: { progress in
+                            let hadFirstPage = reportedRows.results.count >= pageSize
+                            reportedRows.results += progress.results
+                            guard !hadFirstPage, reportedRows.results.count >= pageSize else {
+                                return
+                            }
+                            firstPageContinuation.yield(SearchStorePageLoad(
+                                page: SubtitleSearchPage(
+                                    results: Array(reportedRows.results.prefix(pageSize)),
+                                    totalCount: pageSize,
+                                    fileSummaries: progress.fileSummaries,
+                                    countSnapshot: .exactProgress(
+                                        knownResultCount: pageSize,
+                                        knownFileCount: progress.knownFileCount
+                                    ),
+                                    nextCursor: SubtitleSearchCursor(offset: pageSize),
+                                    pageMode: .visibleWindow
+                                ),
+                                databaseSearchMilliseconds:
+                                    SearchPerformanceLogger.elapsedMilliseconds(since: started)
+                            ))
+                        }
                     )
                     return SearchStorePageLoad(
                         page: page,
+                        reportedResults: reportedRows.results,
                         databaseSearchMilliseconds:
                             SearchPerformanceLogger.elapsedMilliseconds(since: started)
                     )
                 }
+
+                @MainActor func isCurrent() -> Bool {
+                    generation == self.resultListGeneration
+                        && self.acceptsFolderScope(folders, generation: scopeGeneration)
+                        && self.searchQuery.trimmingCharacters(
+                            in: .whitespacesAndNewlines
+                        ) == trimmedQuery
+                        && self.resultFilterSetSignature == filterSignature
+                        && isContextCurrent()
+                }
+
+                var publishedFirstPage = false
+                var consumedFirstPage = false
+                for await firstPage in firstPages where isCurrent() {
+                    self.commitVisibleSearchPage(firstPage.page, appending: false, offset: 0)
+                    onResultsChanged(generation)
+                    publishedFirstPage = true
+                    SearchPerformanceLogger.mark(
+                        run,
+                        "search_visible_page_loaded",
+                        resultCount: self.searchResults.count,
+                        totalCount: self.searchResultTotalCount,
+                        fileSummaryCount: self.searchFileSummaries.count,
+                        groupCount: self.searchFileSummaries.count,
+                        renderedRowCount: self.searchResults.count,
+                        status: "searching"
+                    )
+                    SearchPerformanceLogger.writeE2ESearchPage(
+                        run,
+                        event: "search_visible_page_loaded",
+                        page: firstPage.page,
+                        databaseSearchMilliseconds: firstPage.databaseSearchMilliseconds,
+                        groupCount: self.searchFileSummaries.count,
+                        renderedRowCount: self.searchResults.count,
+                        status: "searching"
+                    )
+                    consumedFirstPage = onFirstPageResolved(firstPage.page.results.first)
+                }
+                let pageLoad = try await scan
                 let page = pageLoad.page
 
                 guard !Task.isCancelled else {
@@ -194,17 +282,7 @@ extension SearchStore {
                     )
                     return
                 }
-                guard generation == self.resultListGeneration,
-                      self.acceptsFolderScope(
-                        folders,
-                        generation: scopeGeneration
-                      ),
-                      self.searchQuery.trimmingCharacters(
-                        in: .whitespacesAndNewlines
-                      ) == trimmedQuery,
-                      self.resultFilterSetSignature == filterSignature,
-                      isContextCurrent()
-                else {
+                guard isCurrent() else {
                     self.logCancelledPage(
                         run: run,
                         event: "search_stale_after_database",
@@ -215,11 +293,15 @@ extension SearchStore {
                 }
 
                 let stateAssignStart = SearchPerformanceLogger.now()
-                let pageCompletesSearch = self.commitVisibleSearchPage(
-                    page,
-                    appending: appending,
-                    offset: offset
-                )
+                if appending {
+                    self.commitVisibleSearchPage(page, appending: true, offset: offset)
+                } else {
+                    self.commitExactSearchPage(
+                        page,
+                        reportedResults: pageLoad.reportedResults,
+                        generation: generation
+                    )
+                }
                 onResultsChanged(generation)
                 let stateAssignMilliseconds =
                     SearchPerformanceLogger.elapsedMilliseconds(since: stateAssignStart)
@@ -256,34 +338,8 @@ extension SearchStore {
                     status: statusText
                 )
 
-                let consumedFirstPage = onFirstPageResolved(page.results.first)
-                if !appending && pageCompletesSearch {
-                    self.startFacetCounts(
-                        query: trimmedQuery,
-                        folders: folders,
-                        languageFilter: languageFilter,
-                        watchStateFilter: watchStateFilter,
-                        filterSet: filterSet,
-                        facetFilter: facetFilter,
-                        generation: generation,
-                        folderScopeGeneration: scopeGeneration,
-                        run: run
-                    )
-                }
-                if !appending && !pageCompletesSearch {
-                    self.startExactCompletion(
-                        query: trimmedQuery,
-                        folders: folders,
-                        languageFilter: languageFilter,
-                        watchStateFilter: watchStateFilter,
-                        filterSet: filterSet,
-                        facetFilter: facetFilter,
-                        generation: generation,
-                        folderScopeGeneration: scopeGeneration,
-                        run: run,
-                        isContextCurrent: isContextCurrent,
-                        onResultsChanged: onResultsChanged
-                    )
+                if !publishedFirstPage {
+                    consumedFirstPage = onFirstPageResolved(page.results.first)
                 }
                 if page.results.isEmpty {
                     SearchPerformanceLogger.mark(
@@ -342,248 +398,11 @@ extension SearchStore {
         })
     }
 
-    private func startExactCompletion(
-        query: String,
-        folders: [URL],
-        languageFilter: SubtitleSearchLanguageFilter,
-        watchStateFilter: SubtitleSearchWatchStateFilter,
-        filterSet: SubtitleSearchFilterSet,
-        facetFilter: CueFacetFilter,
-        generation: UInt64,
-        folderScopeGeneration: UInt64,
-        run: SearchPerformanceRun?,
-        isContextCurrent: @escaping @MainActor () -> Bool,
-        onResultsChanged: @escaping @MainActor (UInt64) -> Void
-    ) {
-        replaceExactCompletionTask(nil)
-        guard let database else { return }
-
-        let filterSignature = filterSet.cacheSignature
-        replaceExactCompletionTask(Task { [weak self] in
-            guard let self else { return }
-            do {
-                SearchPerformanceLogger.mark(run, "database_exact_completion_started")
-                let diagnostics = SearchPerformanceLogger.coreDiagnosticsSink(for: run)
-                let pageLoad = try await Self.runCancellableDetached(
-                    priority: .utility
-                ) {
-                    let started = SearchPerformanceLogger.now()
-                    // After the first page the table receives the rest once,
-                    // when the result is complete, instead of batch by batch.
-                    let reportedRows = SearchReportedRows()
-                    let page = try database.searchPage(
-                        query,
-                        limit: 0,
-                        cursor: .start,
-                        under: folders,
-                        languageFilter: languageFilter,
-                        watchStateFilter: watchStateFilter,
-                        filterSet: filterSet,
-                        facetFilter: facetFilter,
-                        diagnostics: diagnostics,
-                        progress: { reportedRows.results += $0.results }
-                    )
-                    return SearchStorePageLoad(
-                        page: page,
-                        reportedResults: reportedRows.results,
-                        databaseSearchMilliseconds:
-                            SearchPerformanceLogger.elapsedMilliseconds(since: started)
-                    )
-                }
-                let page = pageLoad.page
-
-                guard !Task.isCancelled,
-                      generation == self.resultListGeneration,
-                      self.acceptsFolderScope(
-                        folders,
-                        generation: folderScopeGeneration
-                      ),
-                      self.searchQuery.trimmingCharacters(
-                        in: .whitespacesAndNewlines
-                      ) == query,
-                      self.resultFilterSetSignature == filterSignature,
-                      isContextCurrent()
-                else {
-                    self.logCancelledPage(
-                        run: run,
-                        event: "search_exact_completion_stale",
-                        page: page,
-                        databaseSearchMilliseconds: pageLoad.databaseSearchMilliseconds
-                    )
-                    return
-                }
-
-                let stateAssignStart = SearchPerformanceLogger.now()
-                guard self.commitExactSearchPage(
-                    page,
-                    reportedResults: pageLoad.reportedResults,
-                    generation: generation
-                ) else {
-                    self.logCancelledPage(
-                        run: run,
-                        event: "search_exact_completion_stale",
-                        page: page,
-                        databaseSearchMilliseconds: pageLoad.databaseSearchMilliseconds
-                    )
-                    return
-                }
-                self.replaceExactCompletionTask(nil)
-                onResultsChanged(generation)
-                self.startFacetCounts(
-                    query: query,
-                    folders: folders,
-                    languageFilter: languageFilter,
-                    watchStateFilter: watchStateFilter,
-                    filterSet: filterSet,
-                    facetFilter: facetFilter,
-                    generation: generation,
-                    folderScopeGeneration: folderScopeGeneration,
-                    run: run
-                )
-
-                let stateAssignMilliseconds =
-                    SearchPerformanceLogger.elapsedMilliseconds(since: stateAssignStart)
-                SearchPerformanceLogger.mark(
-                    run,
-                    "search_status_completed",
-                    resultCount: self.searchResults.count,
-                    totalCount: self.searchResultTotalCount,
-                    fileSummaryCount: self.searchFileSummaries.count,
-                    groupCount: self.searchFileSummaries.count,
-                    renderedRowCount: self.searchResults.count,
-                    status: "completed"
-                )
-                SearchPerformanceLogger.writeE2ESearchPage(
-                    run,
-                    event: "search_status_completed",
-                    page: page,
-                    databaseSearchMilliseconds: pageLoad.databaseSearchMilliseconds,
-                    stateAssignMilliseconds: stateAssignMilliseconds,
-                    groupCount: self.searchFileSummaries.count,
-                    renderedRowCount: self.searchResults.count,
-                    status: "completed"
-                )
-            } catch is CancellationError {
-                self.logCancelledPage(
-                    run: run,
-                    event: "search_exact_completion_cancelled",
-                    page: nil,
-                    databaseSearchMilliseconds: nil
-                )
-            } catch {
-                guard !Task.isCancelled,
-                      generation == self.resultListGeneration,
-                      self.acceptsFolderScope(
-                        folders,
-                        generation: folderScopeGeneration
-                      ),
-                      self.resultFilterSetSignature == filterSignature,
-                      isContextCurrent()
-                else {
-                    return
-                }
-                let message = String(describing: error)
-                self.markSearchFailed(message)
-                self.replaceExactCompletionTask(nil)
-                SearchPerformanceLogger.mark(
-                    run,
-                    "search_exact_completion_failed",
-                    status: "failed",
-                    error: message
-                )
-            }
-        })
-    }
-
-    /// After a filtered result has completed: one scan of the same query with the
-    /// filter negated reads every match outside the selection, and its rows join
-    /// the result's snapshot, which then holds every match of the query. The scan
-    /// belongs to the result list, so a new selection, query or scope cancels it
-    /// with it and nothing old is published.
-    private func startFacetCounts(
-        query: String,
-        folders: [URL],
-        languageFilter: SubtitleSearchLanguageFilter,
-        watchStateFilter: SubtitleSearchWatchStateFilter,
-        filterSet: SubtitleSearchFilterSet,
-        facetFilter: CueFacetFilter,
-        generation: UInt64,
-        folderScopeGeneration: UInt64,
-        run: SearchPerformanceRun?
-    ) {
-        cancelFacetCountsTask()
-        guard !facetFilter.isEmpty,
-              searchFacetSnapshot != nil,
-              let database
-        else {
-            return
-        }
-        SearchPerformanceLogger.mark(run, "search_facet_counts_started")
-        replaceFacetCountsTask(Task { [weak self] in
-            guard let self else { return }
-            do {
-                let pageLoad = try await Self.runCancellableDetached(
-                    priority: .utility
-                ) {
-                    let started = SearchPerformanceLogger.now()
-                    let page = try database.searchPage(
-                        query,
-                        limit: 0,
-                        cursor: .start,
-                        under: folders,
-                        languageFilter: languageFilter,
-                        watchStateFilter: watchStateFilter,
-                        filterSet: filterSet,
-                        facetFilter: facetFilter,
-                        facetFilterNegated: true
-                    )
-                    return SearchStorePageLoad(
-                        page: page,
-                        databaseSearchMilliseconds:
-                            SearchPerformanceLogger.elapsedMilliseconds(since: started)
-                    )
-                }
-                guard !Task.isCancelled,
-                      generation == self.resultListGeneration,
-                      self.acceptsFolderScope(
-                        folders,
-                        generation: folderScopeGeneration
-                      ),
-                      let rows = pageLoad.page.facetSnapshot
-                else {
-                    if generation == self.resultListGeneration {
-                        self.replaceFacetCountsTask(nil)
-                    }
-                    return
-                }
-                self.appendSearchFacetCounts(rows)
-                self.replaceFacetCountsTask(nil)
-                SearchPerformanceLogger.mark(
-                    run,
-                    "search_facet_counts_completed",
-                    totalCount: rows.cueIDs.count,
-                    status: "completed"
-                )
-                SearchPerformanceLogger.writeE2ESearchPage(
-                    run,
-                    event: "search_facet_counts_completed",
-                    page: nil,
-                    databaseSearchMilliseconds: pageLoad.databaseSearchMilliseconds,
-                    status: "completed"
-                )
-            } catch {
-                if generation == self.resultListGeneration {
-                    self.replaceFacetCountsTask(nil)
-                }
-            }
-        })
-    }
-
-    /// Requirement 4.4: answers a changed selection from the complete snapshot
-    /// and hands the table the whole result at once. The rows whose contents
-    /// are not in memory, the matches the count scan read outside the old
-    /// selection, are read by cue ID first. Returns false when the counts are
-    /// not complete, in which case a search must run.
+    /// Requirement 4.4: answers a changed selection from the completed result's
+    /// snapshot and hands the table the whole result at once. The rows whose
+    /// contents are not in memory, the matches outside the old selection, are
+    /// read by cue ID first. Returns false when the search has not completed,
+    /// in which case a search must run.
     func applyProjectedFacetFilter(
         _ filter: CueFacetFilter,
         folders: [URL],
@@ -592,7 +411,7 @@ extension SearchStore {
         e2eLoggingEnabled: Bool,
         onResultsChanged: @escaping @MainActor (UInt64) -> Void
     ) -> Bool {
-        guard searchFacetFilter != filter, isSearchFacetSnapshotComplete else {
+        guard searchFacetFilter != filter, searchFacetSnapshot != nil else {
             return false
         }
         let trimmedQuery = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -737,7 +556,7 @@ extension SearchStore {
     }
 
     private func resetResultLoadingState() {
-        cancelCompletionAndNavigationTasks()
+        cancelNavigationTask()
         let releasedRows = clearResults()
         AppMemoryPressureRelief.relieveAfterLargeResultRelease(
             estimatedReleasedRows: releasedRows

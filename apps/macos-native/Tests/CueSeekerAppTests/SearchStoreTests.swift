@@ -139,7 +139,6 @@ func addingEmptyFolderRestartsInvalidatedActiveSearch() async throws {
     await app.completeLibraryTask?.value
     await app.databaseStorageStatsTask?.value
     await replacementTask.value
-    await app.search.exactCompletionTask?.value
 
     #expect(staleTask.isCancelled)
     guard case let .completed(_, result) = app.indexing.indexingStatus else {
@@ -179,7 +178,6 @@ func failedFolderIndexRestartsInvalidatedActiveSearch() async throws {
     let replacementTask = try #require(app.search.searchTask)
     await app.indexingTask?.value
     await replacementTask.value
-    await app.search.exactCompletionTask?.value
 
     #expect(staleTask.isCancelled)
     guard case let .failed(folder, _) = app.indexing.indexingStatus else {
@@ -292,7 +290,6 @@ func liveSearchUsesLatestInputAndClearsWithoutSubmit() async throws {
     let app = AppCoordinator(userDefaults: userDefaults, databaseURL: databaseURL)
     defer {
         app.search.searchTask?.cancel()
-        app.search.exactCompletionTask?.cancel()
         userDefaults.removePersistentDomain(forName: suiteName)
         try? FileManager.default.removeItem(at: fixtureRoot)
     }
@@ -324,16 +321,11 @@ func liveSearchUsesLatestInputAndClearsWithoutSubmit() async throws {
 
     app.updateSearchQuery("alpha")
     let alphaTask = try #require(app.search.searchTask)
-    let staleExactTask = Task<Void, Never> {
-        try? await Task.sleep(nanoseconds: 10_000_000_000)
-    }
-    app.search.replaceExactCompletionTask(staleExactTask)
 
     app.updateSearchQuery("beta")
     let betaTask = try #require(app.search.searchTask)
 
     #expect(alphaTask.isCancelled)
-    #expect(staleExactTask.isCancelled)
     #expect(app.search.searchQuery == "beta")
     #expect(app.search.activePerformanceRun?.query == "beta")
     #expect(app.search.activePerformanceRun?.debounce == true)
@@ -488,13 +480,12 @@ func facetFilterChangeDropsTheCountsUntilTheNextSearchAndKeepsTheRows() {
     )
     #expect(search.commitExactSearchPage(page, generation: generation))
     search.activateResidentSearchTableProjection()
-    // An unfiltered result needs no count scan: every card is counted from its rows.
+    // Every card is counted from the result's snapshot.
     #expect(search.searchFacetDistribution?.totalCount == 120)
     #expect(search.searchFacetDistribution?.durationCounts == [
         .underOneSecond: 60,
         .fiveSecondsOrMore: 60,
     ])
-    #expect(search.searchFacetCountsPendingKinds.isEmpty)
     #expect(!search.isFacetSnapshotCalculating)
 
     #expect(search.updateSearchFacetFilter(CueFacetFilter(durations: [.underOneSecond])))
@@ -512,7 +503,7 @@ func facetFilterChangeDropsTheCountsUntilTheNextSearchAndKeepsTheRows() {
 
 @MainActor
 @Test
-func filteredResultCountsItsOwnCardsAtOnceAndTheUncheckedOptionsAfterTheirScan() {
+func filteredResultCountsEveryOptionFromItsSnapshotOfEveryMatch() {
     let search = SearchStore()
     search.updateQuery("query")
     search.updateSearchFacetFilter(CueFacetFilter(languages: [.japanese]))
@@ -526,59 +517,45 @@ func filteredResultCountsItsOwnCardsAtOnceAndTheUncheckedOptionsAfterTheirScan()
         content: "result",
         searchRank: 0
     )
-    let filteredRows = CueFacetSnapshot(
-        cueIDs: [result.entryID],
-        durationFacets: [.underOneSecond],
-        characterFacets: [.oneToTen],
-        languageFacets: [[.japanese]],
-        watchStateFacets: [.unwatched]
+    // The filtered result's snapshot holds every match: the Japanese row that
+    // is the result and the English row outside the selection.
+    let everyMatch = CueFacetSnapshot(
+        cueIDs: [result.entryID, 2],
+        durationFacets: [.underOneSecond, .fiveSecondsOrMore],
+        characterFacets: [.oneToTen, .oneToTen],
+        languageFacets: [[.japanese], [.english]],
+        watchStateFacets: [.unwatched, .unwatched]
     )
     let page = SubtitleSearchPage(
         results: [result],
-        cueIDs: filteredRows.cueIDs,
+        cueIDs: [result.entryID],
         totalCount: 1,
         fileSummaries: [],
-        facetSnapshot: filteredRows
+        facetSnapshot: everyMatch
     )
+    #expect(search.isFacetSnapshotCalculating)
     #expect(search.commitExactSearchPage(page, generation: generation))
 
-    // The cards without a selection and the checked option are counted from the
-    // filtered rows at once; only the Language card's unchecked options wait.
-    #expect(search.searchFacetSnapshot == filteredRows)
-    #expect(search.searchFacetCountsPendingKinds == [.languages])
+    // Every option is counted at once, each card ignoring its own selection.
+    #expect(search.searchFacetSnapshot == everyMatch)
     #expect(!search.isFacetSnapshotCalculating)
+    #expect(search.searchResultCueIDs == [1])
     #expect(search.searchFacetDistribution?.totalCount == 1)
     #expect(search.searchFacetDistribution?.durationCounts == [.underOneSecond: 1])
     #expect(search.searchFacetDistribution?.characterCounts == [.oneToTen: 1])
-    #expect(search.searchFacetDistribution?.languageCounts == [.japanese: 1])
-    #expect(search.searchFacetDistribution?.watchStateCounts == [.unwatched: 1])
-
-    // The count scan's rows are every match outside the selection; joined with
-    // the filtered rows they complete the counts.
-    let otherLanguageRows = CueFacetSnapshot(
-        cueIDs: [2],
-        durationFacets: [.fiveSecondsOrMore],
-        characterFacets: [.oneToTen],
-        languageFacets: [[.english]],
-        watchStateFacets: [.unwatched]
-    )
-    search.appendSearchFacetCounts(otherLanguageRows)
-    #expect(search.searchFacetCountsPendingKinds.isEmpty)
-    #expect(search.searchFacetDistribution?.totalCount == 1)
-    #expect(search.searchFacetDistribution?.durationCounts == [.underOneSecond: 1])
     #expect(search.searchFacetDistribution?.languageCounts == [.japanese: 1, .english: 1])
+    #expect(search.searchFacetDistribution?.watchStateCounts == [.unwatched: 1])
 
     // A new search for the same query drops the counts until its own rows arrive.
     _ = search.prepareSearch(appending: false, filterSet: SubtitleSearchFilterSet())
     #expect(search.searchFacetSnapshot == nil)
     #expect(search.searchFacetDistribution == nil)
-    #expect(search.searchFacetCountsPendingKinds.isEmpty)
     #expect(search.isFacetSnapshotCalculating)
 }
 
 @MainActor
 @Test
-func filterChangeAfterEveryCountIsCompleteProjectsRowsAndCountsWithoutSearching() throws {
+func filterChangeAfterTheSearchCompletesProjectsRowsAndCountsWithoutSearching() throws {
     let search = SearchStore()
     search.updateQuery("query")
     search.updateSearchFacetFilter(CueFacetFilter(languages: [.japanese]))
@@ -586,36 +563,24 @@ func filterChangeAfterEveryCountIsCompleteProjectsRowsAndCountsWithoutSearching(
         appending: false,
         filterSet: SubtitleSearchFilterSet()
     )
-    let result = makeTableSandboxSearchResult(id: 1, content: "result", searchRank: 0)
-    let filteredRows = CueFacetSnapshot(
-        cueIDs: [1],
-        durationFacets: [.underOneSecond],
-        characterFacets: [.oneToTen],
-        languageFacets: [[.japanese]],
-        watchStateFacets: [.unwatched],
-        orderKeys: [20]
-    )
-    #expect(search.commitExactSearchPage(
-        SubtitleSearchPage(results: [result], cueIDs: [1], totalCount: 1, fileSummaries: [], facetSnapshot: filteredRows),
-        generation: generation
-    ))
-    // While a count scan is pending, a selection change needs a search.
-    #expect(!search.isSearchFacetSnapshotComplete)
+    // Before the search completes there is no snapshot, so a selection change
+    // needs a search.
     #expect(search.projectSearchFacetFilter(CueFacetFilter()) == nil)
     #expect(search.searchFacetFilter == CueFacetFilter(languages: [.japanese]))
 
-    let otherLanguageRows = CueFacetSnapshot(
-        cueIDs: [2],
-        durationFacets: [.fiveSecondsOrMore],
-        characterFacets: [.oneToTen],
-        languageFacets: [[.english]],
-        watchStateFacets: [.unwatched],
-        orderKeys: [10]
+    let result = makeTableSandboxSearchResult(id: 1, content: "result", searchRank: 0)
+    // Every match in display order: the English row 2 precedes the Japanese row 1.
+    let everyMatch = CueFacetSnapshot(
+        cueIDs: [2, 1],
+        durationFacets: [.fiveSecondsOrMore, .underOneSecond],
+        characterFacets: [.oneToTen, .oneToTen],
+        languageFacets: [[.english], [.japanese]],
+        watchStateFacets: [.unwatched, .unwatched]
     )
-    search.appendSearchFacetCounts(otherLanguageRows)
-    #expect(search.isSearchFacetSnapshotComplete)
-    // The complete snapshot is in display order: row 2 precedes row 1.
-    #expect(search.searchFacetSnapshot?.cueIDs == [2, 1])
+    #expect(search.commitExactSearchPage(
+        SubtitleSearchPage(results: [result], cueIDs: [1], totalCount: 1, fileSummaries: [], facetSnapshot: everyMatch),
+        generation: generation
+    ))
 
     // Clearing the selection is answered from the snapshot: both rows in
     // display order and the counts by the usual rule, without a search. The
@@ -661,13 +626,13 @@ func filterChangeAfterEveryCountIsCompleteProjectsRowsAndCountsWithoutSearching(
     #expect(search.projectSearchFacetFilter(
         CueFacetFilter(durations: [.fiveSecondsOrMore], languages: [.english])
     )?.cueIDs == [2])
-    #expect(search.isSearchFacetSnapshotComplete)
+    #expect(search.searchFacetSnapshot != nil)
     #expect(search.projectSearchFacetFilter(CueFacetFilter())?.cueIDs == [2, 1])
 }
 
 @MainActor
 @Test
-func filterChangeAfterATwoCardSearchIsProjectedBecauseTheCountScanReadEveryMatchOutsideTheSelection() {
+func filterChangeAfterATwoCardSearchIsProjectedOverEveryMatch() {
     let search = SearchStore()
     search.updateQuery("query")
     search.updateSearchFacetFilter(CueFacetFilter(durations: [.underOneSecond], languages: [.japanese]))
@@ -676,33 +641,19 @@ func filterChangeAfterATwoCardSearchIsProjectedBecauseTheCountScanReadEveryMatch
         filterSet: SubtitleSearchFilterSet()
     )
     let result = makeTableSandboxSearchResult(id: 1, content: "result", searchRank: 0)
-    let filteredRows = CueFacetSnapshot(
-        cueIDs: [1],
-        durationFacets: [.underOneSecond],
-        characterFacets: [.oneToTen],
-        languageFacets: [[.japanese]],
-        watchStateFacets: [.unwatched],
-        orderKeys: [10]
+    // Every match: the short Japanese result, a long Japanese row, a short
+    // English row and a long English row that fails both cards.
+    let everyMatch = CueFacetSnapshot(
+        cueIDs: [1, 2, 3, 4],
+        durationFacets: [.underOneSecond, .fiveSecondsOrMore, .underOneSecond, .fiveSecondsOrMore],
+        characterFacets: [.oneToTen, .oneToTen, .oneToTen, .oneToTen],
+        languageFacets: [[.japanese], [.japanese], [.english], [.english]],
+        watchStateFacets: [.unwatched, .unwatched, .unwatched, .unwatched]
     )
     #expect(search.commitExactSearchPage(
-        SubtitleSearchPage(results: [result], cueIDs: [1], totalCount: 1, fileSummaries: [], facetSnapshot: filteredRows),
+        SubtitleSearchPage(results: [result], cueIDs: [1], totalCount: 1, fileSummaries: [], facetSnapshot: everyMatch),
         generation: generation
     ))
-    #expect(search.searchFacetCountsPendingKinds == [.duration, .languages])
-    #expect(!search.isSearchFacetSnapshotComplete)
-
-    // One scan reads every match outside the selection: a long Japanese row, a
-    // short English row and a long English row that fails both cards.
-    search.appendSearchFacetCounts(CueFacetSnapshot(
-        cueIDs: [4, 2, 3],
-        durationFacets: [.fiveSecondsOrMore, .fiveSecondsOrMore, .underOneSecond],
-        characterFacets: [.oneToTen, .oneToTen, .oneToTen],
-        languageFacets: [[.english], [.japanese], [.english]],
-        watchStateFacets: [.unwatched, .unwatched, .unwatched],
-        orderKeys: [40, 20, 30]
-    ))
-    #expect(search.searchFacetCountsPendingKinds.isEmpty)
-    #expect(search.isSearchFacetSnapshotComplete)
     #expect(search.searchFacetSnapshot?.cueIDs == [1, 2, 3, 4])
     #expect(search.searchFacetDistribution?.totalCount == 1)
     #expect(search.searchFacetDistribution?.durationCounts == [.underOneSecond: 1, .fiveSecondsOrMore: 1])
@@ -737,7 +688,6 @@ func searchFacetWatchDistributionRefreshesAfterLibraryHistoryPublication() async
     let app = AppCoordinator(userDefaults: userDefaults, databaseURL: databaseURL)
     defer {
         app.search.searchTask?.cancel()
-        app.search.exactCompletionTask?.cancel()
         userDefaults.removePersistentDomain(forName: suiteName)
         try? FileManager.default.removeItem(at: fixtureRoot)
     }
@@ -769,14 +719,12 @@ func searchFacetWatchDistributionRefreshesAfterLibraryHistoryPublication() async
 
     app.updateSearchQuery("shared watch state")
     await app.search.searchTask?.value
-    await app.search.exactCompletionTask?.value
     #expect(app.search.searchResults.count == 1)
     #expect(app.search.searchFacetSnapshot?.distribution.watchStateCounts[.unwatched] == 1)
 
     app.recordRecentLibraryWatching(for: video, refreshPresentation: false)
     app.flushPendingLibraryPlaybackHistoryPresentations()
     await app.search.searchTask?.value
-    await app.search.exactCompletionTask?.value
 
     #expect(app.search.searchResults.count == 1)
     #expect(app.search.searchResults.first?.videoPath == videoURL.path)
@@ -1355,7 +1303,7 @@ func exactCompletionInstallsTheReportedRowsAndThePageTailInOneChange() throws {
 
 @MainActor
 @Test
-func filteredSearchCompletesFirstAndTheOptionCountsFollowFromASecondScan() async throws {
+func filteredSearchCompletesItsResultAndEveryOptionCountFromOneScan() async throws {
     let databaseURL = FileManager.default.temporaryDirectory
         .appendingPathComponent("search-store-facet-counts-\(UUID().uuidString).sqlite")
     defer {
@@ -1401,33 +1349,22 @@ func filteredSearchCompletesFirstAndTheOptionCountsFollowFromASecondScan() async
         onFirstPageResolved: { _ in false }
     )
     await search.searchTask?.value
-    await search.exactCompletionTask?.value
 
-    // The filtered result is complete and its own rows already count the
-    // other cards; the Duration card's unchecked options are still being scanned.
+    // One scan completes the filtered result and every count together: the
+    // snapshot holds all 150 matches.
     #expect(search.searchStatus == .completed)
     #expect(search.searchCountState == .exact)
     #expect(search.searchResultTotalCount == 50)
     #expect(search.searchResultCueIDs.count == 50)
     #expect(search.searchResults.allSatisfy { $0.endMilliseconds - $0.startMilliseconds < 1_000 })
-    #expect(search.searchFacetSnapshot?.cueIDs.count == 50)
-    #expect(search.searchFacetDistribution?.characterCounts == [.elevenToTwenty: 50])
-    #expect(search.searchFacetDistribution?.durationCounts == [.underOneSecond: 50])
-    #expect(search.searchFacetCountsPendingKinds == [.duration])
     #expect(!search.isFacetSnapshotCalculating)
-    #expect(search.facetCountsTask != nil)
-
-    await search.facetCountsTask?.value
-
-    #expect(search.facetCountsTask == nil)
-    #expect(search.searchFacetCountsPendingKinds.isEmpty)
     #expect(search.searchFacetSnapshot?.cueIDs.count == 150)
     #expect(search.searchFacetDistribution?.totalCount == 50)
+    #expect(search.searchFacetDistribution?.characterCounts == [.elevenToTwenty: 50])
     #expect(search.searchFacetDistribution?.durationCounts == [
         .underOneSecond: 50,
         .oneToUnderThreeSeconds: 100,
     ])
-    #expect(search.searchResultTotalCount == 50)
 
     // Requirement 4.4: with every count complete, a new selection is answered
     // from the snapshot. The 100 rows outside the old selection are read by
@@ -1466,10 +1403,9 @@ func filteredSearchCompletesFirstAndTheOptionCountsFollowFromASecondScan() async
     await search.searchTask?.value
     #expect(search.searchResults.count == 100)
     #expect(search.searchResults.allSatisfy { $0.endMilliseconds - $0.startMilliseconds >= 1_000 })
-    #expect(search.facetCountsTask == nil)
 
-    // A search that runs with two checked cards: the count scan reads every
-    // match outside the selection, so a selection change is projected again.
+    // A search that runs with two checked cards also reads every match, so a
+    // selection change is projected again.
     search.updateSearchFacetFilter(CueFacetFilter(durations: [.underOneSecond], characters: [.elevenToTwenty]))
     search.startSearch(
         query: "counted",
@@ -1487,12 +1423,8 @@ func filteredSearchCompletesFirstAndTheOptionCountsFollowFromASecondScan() async
         onFirstPageResolved: { _ in false }
     )
     await search.searchTask?.value
-    await search.exactCompletionTask?.value
-    await search.facetCountsTask?.value
     #expect(search.searchResultTotalCount == 50)
-    #expect(search.searchFacetCountsPendingKinds.isEmpty)
     #expect(search.searchFacetSnapshot?.cueIDs.count == 150)
-    #expect(search.isSearchFacetSnapshotComplete)
     let didProjectTwoCards = search.applyProjectedFacetFilter(
         CueFacetFilter(),
         folders: [folder],
@@ -1510,4 +1442,65 @@ func filteredSearchCompletesFirstAndTheOptionCountsFollowFromASecondScan() async
     ])
     #expect(search.searchResults.count == 150)
     #expect(search.searchResults.map(\.startMilliseconds) == (0..<150).map { $0 * 1_000 })
+}
+
+@MainActor
+@Test
+func searchHandsTheTableItsFirstPageAndThenTheRestFromOneScan() async throws {
+    let databaseURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent("search-store-first-page-\(UUID().uuidString).sqlite")
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+    try DatabaseBootstrap.prepare(at: databaseURL)
+    let indexing = try IndexingDatabase(path: databaseURL)
+    try indexing.replaceEntries(
+        subtitleFile: URL(fileURLWithPath: "/Media/Pages/Episode.srt"),
+        videoFile: URL(fileURLWithPath: "/Media/Pages/Episode.mkv"),
+        entries: (0..<250).map { index in
+            SubtitleEntry(
+                sequenceNumber: index + 1,
+                startTimecode: "00:00:00,000",
+                endTimecode: "00:00:00,500",
+                startMilliseconds: index * 1_000,
+                endMilliseconds: index * 1_000 + 500,
+                text: "Paged line \(index)"
+            )
+        }
+    )
+    let folder = URL(fileURLWithPath: "/Media/Pages")
+    let search = SearchStore(
+        databaseURL: databaseURL,
+        database: try SearchDatabase(path: databaseURL)
+    )
+    _ = search.updateFolderScope([folder])
+    search.updateQuery("paged")
+    var loadedRowCounts: [Int] = []
+    let cancellable = search.$resultRevision.dropFirst().sink { _ in
+        loadedRowCounts.append(search.searchResults.count)
+    }
+    defer { cancellable.cancel() }
+    search.startSearch(
+        query: "paged",
+        cursor: .start,
+        appending: false,
+        debounce: false,
+        folders: [folder],
+        languageFilter: .all,
+        watchStateFilter: .all,
+        databaseIsCompacting: false,
+        e2eLoggingEnabled: false,
+        shouldClearSelectionWhenUnavailable: false,
+        isContextCurrent: { true },
+        onResultsChanged: { _ in },
+        onFirstPageResolved: { _ in false }
+    )
+    await search.searchTask?.value
+
+    // The table gets the first 100 rows while the scan runs, then the other
+    // 150 at once when it completes.
+    #expect(loadedRowCounts.filter { $0 > 0 } == [100, 250])
+    #expect(search.searchResults.map(\.searchRank) == Array(0..<250))
+    #expect(search.searchResultTotalCount == 250)
+    #expect(search.searchStatus == .completed)
 }

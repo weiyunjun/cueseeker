@@ -231,7 +231,6 @@ func urlSchemeDirectPlayUsesFirstResultFromExistingCompleteFirstPage() async thr
     #expect(presentationReadyCount == 0)
     #expect(app.workbenchLayout.panelMode == .excerpt)
     await app.search.searchTask?.value
-    await app.search.exactCompletionTask?.value
 
     #expect(presentationReadyCount == 1)
     #expect(presentedPlayback)
@@ -294,7 +293,6 @@ func urlSchemeDirectPlayUsesFirstResultFromExistingCompleteFirstPage() async thr
         filteredEmptyPresentationReadyCount += 1
     }
     await app.search.searchTask?.value
-    await app.search.exactCompletionTask?.value
 
     #expect(filteredEmptyPresentationReadyCount == 1)
     #expect(app.workbenchLayout.panelMode == .search)
@@ -332,17 +330,12 @@ func newURLSchemeCommandCancelsOldIntentAndOpensCommandPanelSearch() throws {
     let oldSearchTask = Task<Void, Never> {
         try? await Task.sleep(nanoseconds: 10_000_000_000)
     }
-    let oldExactTask = Task<Void, Never> {
-        try? await Task.sleep(nanoseconds: 10_000_000_000)
-    }
     fixture.app.search.replaceSearchTask(oldSearchTask)
-    fixture.app.search.replaceExactCompletionTask(oldExactTask)
     fixture.app.settings.urlSchemePlayFirstSearchResultEnabled = false
 
     fixture.app.handleURLSchemeCommand(.search(keyword: "replacement"))
 
     #expect(oldSearchTask.isCancelled)
-    #expect(oldExactTask.isCancelled)
     #expect(fixture.app.pendingURLSchemeDirectPlayIntent == nil)
     #expect(fixture.app.playback.isPlaybackSurfaceExpanded)
     #expect(fixture.app.search.selectedSearchResult == playbackResult)
