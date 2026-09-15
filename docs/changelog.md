@@ -49,6 +49,9 @@ This changelog does not replace Git history. Git records concrete file changes. 
   checked filter no longer waits for a second scan to count the unchecked
   options. With Character `11–20` checked, `の` shows every count after
   2.4 s instead of 3.8 s; unfiltered it still completes in about 2.7 s.
+  While the total is unknown the dialog's Show button, and Return with it,
+  is disabled; options can still be checked, and Show comes back with the
+  total once the search completes.
 - Settings now has six categories: General, which gathers Appearance,
   Search, Language and Deep Link; Play, which gathers Play and Decode;
   Shortcuts; Subtitle; Maintenance; and Developer. Settings opens on General.

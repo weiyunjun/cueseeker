@@ -334,8 +334,8 @@ struct CueFacetFilterDialog: View {
                     )
                     .keyboardShortcut(.cancelAction)
 
-                    // Show stays available while counts are unknown; only its
-                    // title waits for the total.
+                    // Show, and Return with it, waits for the total: a
+                    // selection is handed to the table only once it is known.
                     WorkbenchPrimaryButton(
                         title: session.source.showTitle(totalCount: counts.totalCount),
                         action: {
@@ -344,6 +344,7 @@ struct CueFacetFilterDialog: View {
                         }
                     )
                     .keyboardShortcut(.defaultAction)
+                    .disabled(counts.totalCount == nil)
                 }
             }
         }
