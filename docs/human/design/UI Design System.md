@@ -101,8 +101,6 @@
 - `--color-watch-status-watching-text`: Light `#0040FF`; Dark `#93C5FD`
 - `--color-watch-status-finished-bg`: Light `#D1FAE5`; Dark `#123A2A`
 - `--color-watch-status-finished-text`: Light `#047857`; Dark `#6EE7B7`
-- `--color-task-count-badge-bg`: macOS accent color
-- `--color-task-count-badge-text`: Light `#FFFFFF`; Dark `#FFFFFF`
 
 ### Scrollbar
 
@@ -141,6 +139,8 @@
 - `--color-player-stage-bg`: Light `#000000`; Dark `#000000`
 - `--color-player-control-bg`: Light `rgba(0,0,0,0.30)`; Dark `rgba(0,0,0,0.30)`
 - `--color-player-control-bg-hover`: Light `rgba(255,255,255,0.16)`; Dark `rgba(255,255,255,0.16)`
+- `--color-player-task-count-badge-bg`: Light `rgba(255,255,255,0.16)`; Dark `rgba(255,255,255,0.16)`
+- `--color-player-task-count-badge-bg-hover`: Light `rgba(255,255,255,0.28)`; Dark `rgba(255,255,255,0.28)`
 - `--color-player-menu-bg`: Light `rgba(0,0,0,0.55)`; Dark `rgba(0,0,0,0.55)`
 - `--color-player-menu-item-hover-bg`: Light `rgba(255,255,255,0.12)`; Dark `rgba(255,255,255,0.12)`
 - `--color-player-text-primary`: Light `rgba(255,255,255,0.94)`; Dark `rgba(255,255,255,0.94)`
@@ -198,7 +198,8 @@
 - `--font-size-library-title`: `14px`
 - `--font-size-library-meta`: `12px`
 - `--font-size-library-time-badge`: `10px`
-- `--font-size-task-count-badge`: `10px`
+- `--font-size-task-count-badge`: `13px`
+- `--font-weight-task-count-badge`: `600`
 - `--font-size-library-list-title`: `15px`
 - `--font-size-library-list-subtitle`: `13px`
 - `--font-size-library-list-meta`: `12px`
@@ -275,7 +276,6 @@
 - `--width-page-scrollbar-channel`: `16px`
 - `--width-app-sidebar`: `240px`
 - `--size-app-sidebar-item-icon`: `23px`
-- `--size-task-count-badge`: `16px`
 - `--size-player-circle-button`: `40px`
 - `--size-player-circle-button-icon`: `23px`
 - `--width-player-speed-button`: `54px`
@@ -1069,8 +1069,7 @@
   - Background：Surface Hover
 - Open
   - 触发：挂靠的菜单、面板或窗口打开，或按钮所控的模式开启
-  - Background：`--color-text-muted`
-  - Icon Color：`--color-icon-on-dark`
+  - 外观与 Hover 相同
 - Focused
   - Ring Color：`--color-focus-ring`
   - Ring Width：`--focus-ring-width`
@@ -1781,13 +1780,18 @@
 
 ##### Task Count Badge
 
+- Placement：Task Entry 内图标右侧，按钮随之变宽；与图标字形墨迹的间距为 `--spacing-1`，右侧留白与图标上方留白相同
 - Shape：1 位数为圆形，2 位及以上为胶囊形
-- Size：`--size-task-count-badge`
+- Size：`--size-control-icon`
 - Padding Inline：`--spacing-1`
-- Background：`--color-task-count-badge-bg`
+- Background
+  - 在 `--color-bg-surface` 上：`--color-popover-surface-keycap-bg`；按钮 Hover 或 Open 时 `--color-popover-surface-keycap-bg-hover`
+  - 在 `--color-subtitle-focus-overlay-bg` 上：`--color-overlay-surface-keycap-bg`；按钮 Hover 或 Open 时 `--color-overlay-surface-keycap-bg-hover`
+  - 在 `--color-player-topbar-gradient-start` 上：`--color-player-task-count-badge-bg`；按钮 Hover 或 Open 时 `--color-player-task-count-badge-bg-hover`
 - Font Family：`--font-family-base`
 - Font Size：`--font-size-task-count-badge`
-- Text Color：`--color-task-count-badge-text`
+- Font Weight：`--font-weight-task-count-badge`
+- Text Color：与所在 Icon Button 的 Icon Color 相同
 - States
   - Count
   - Hidden：数量为 0
