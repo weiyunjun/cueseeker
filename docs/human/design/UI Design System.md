@@ -242,6 +242,7 @@
 - `--height-library-progress-bar`: `4px`
 - `--height-task-progress-bar`: `4px`
 - `--height-task-panel`: `500px`
+- `--height-filter-dialog`: `600px`
 - `--height-library-list-cover`: `115px`
 - `--height-cover-summary-backdrop`: `225px`
 - `--height-keycap`: `22px`
@@ -257,6 +258,7 @@
 - `--size-spinner`: `16px`
 - `--width-spinner-stroke`: `2px`
 - `--width-filter-chip-count-placeholder`: `24px`
+- `--max-width-filter-chip`: `332px`
 - `--size-playback-collage-checkbox`: `31px`
 - `--size-playback-cue-timeline-dot`: `8px`
 - `--size-inline-clear-button`: `24px`
@@ -881,6 +883,7 @@
 - Label
   - Font Family：`--font-family-base`
   - Font Size：`--font-size-body`
+  - 单行，超出时尾部省略号
 - Count
   - Font Size：`--font-size-caption`
   - Placeholder：计数未知时为静止的圆角块，Width `--width-filter-chip-count-placeholder`，Height `--height-filter-chip-count-placeholder`，Color `--color-border-control`
@@ -889,6 +892,7 @@
 ##### Sizes
 
 - Height：`--height-filter-chip`
+- Max Width：`--max-width-filter-chip`
 - Padding Inline：`--padding-control-x`
 
 ##### Interaction
@@ -3909,7 +3913,7 @@
 1. Header
    1. Title：`Filter`
    2. Close Button
-2. Sections：Duration、Character、Language、Watch Status，从上到下
+2. Sections：Duration、Character、Language、Watch Status、Folder，从上到下
    1. Section Header：图标与名称
    2. Filter Chip：每个选项一个
 3. Footer
@@ -3929,8 +3933,10 @@
 #### Layout
 
 - Width：`--width-dialog-x-large`
+- Height：`--height-filter-dialog`；Header 与 Footer 不动，Sections 滚动，内容不足时下方留空
 - Section Header：图标 `--size-control-icon`；名称 `--font-size-control`、Medium；颜色 `--color-text-secondary`
 - Filter Chip 从左到右排列，宽度不足时换行
+- Folder 的 Filter Chip：每个已索引文件夹一个，名称与顺序同 Library Overview Layout 的 Video 标签页，Search 与 Excerpt 相同
 - Calculating Status 靠左，只在有未知计数时显示；文字 `--font-size-body`、`--color-text-secondary`
 - Reset、Cancel、Show 靠右；对话框内没有选中时 Reset 为 Disabled；总数未知时 Show 为 Disabled
 
