@@ -52,8 +52,7 @@ func stateVariantIconsResolveFilled() {
 }
 
 /// Drawing swaps the master's one line width for the documented one, so a
-/// line drawn at any other width would stay fixed while the rest follow. A
-/// master drawn only in fills, such as the three dots, has no line to swap.
+/// line drawn at any other width would stay fixed while the rest follow.
 @Test
 func everyStrokeMasterDrawsAllItsLinesAtTheMasterWidth() throws {
     let icons = URL(fileURLWithPath: #filePath)
@@ -68,7 +67,7 @@ func everyStrokeMasterDrawsAllItsLinesAtTheMasterWidth() throws {
             encoding: .utf8
         )
         let widths = Set(master.matches(of: #/stroke-width="([^"]*)"/#).map { String($0.1) })
-        #expect(widths.isSubset(of: ["16"]), "\(icon.rawValue) draws lines at \(widths)")
+        #expect(widths == ["16"], "\(icon.rawValue) draws lines at \(widths)")
     }
 }
 

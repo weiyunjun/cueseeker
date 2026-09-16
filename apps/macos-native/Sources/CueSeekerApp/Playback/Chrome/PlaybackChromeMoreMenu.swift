@@ -385,7 +385,7 @@ private struct PlaybackAudioTrackMenuItem: View {
                 Text(name)
                     .font(.system(
                         size: PlaybackChromeMetrics.speedMenuItemFontSize,
-                        weight: isChecked ? .bold : .medium
+                        weight: .medium
                     ))
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, alignment: .leading)

@@ -26,7 +26,7 @@ struct PlaybackChromeSpeedMenu: View {
                         Text(PlaybackViewModel.formatSpeed(speed))
                             .font(.system(
                                 size: PlaybackChromeMetrics.speedMenuItemFontSize,
-                                weight: abs(selectedSpeed - speed) < 0.01 ? .bold : .medium
+                                weight: .medium
                             ))
                             .monospacedDigit()
 
