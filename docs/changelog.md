@@ -105,7 +105,12 @@ This changelog does not replace Git history. Git records concrete file changes. 
   package's name and folder; the choices are remembered, and an existing
   package is replaced only after the system's warning. Cards can now show the
   Cue Group's other lines, the Display Title with the Time Range, and icons
-  that open the Deep Link, the subtitle file and the video file.
+  that open the Deep Link, the subtitle file and the video file. The dialog
+  now counts as one of the App's dialogs: while it is open the page under it
+  takes no input, and once it closes the page takes input again. It used to
+  leave the window refusing the keyboard to everything outside where the
+  dialog had been, so the results and the search field stopped answering
+  clicks until another dialog was opened and closed.
 - Moved every Workbench page title into a taller topbar beside new Back and
   Forward buttons that walk a browser-style history of the pages shown since
   launch. Recent is one page with Recent Videos and Recent Shioris tabs, a

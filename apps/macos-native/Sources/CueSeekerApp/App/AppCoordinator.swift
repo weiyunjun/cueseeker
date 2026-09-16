@@ -572,9 +572,9 @@ final class AppCoordinator: ObservableObject {
         setupInterfaceLayerObservers()
     }
 
-    /// Edit Cover, the Excerpt List Editor, Rename, Filter, the Task panel and
-    /// Confirmation are the dialog layer. Their open state lives on the
-    /// stores, so the registry follows them.
+    /// Edit Cover, the Excerpt List Editor, Rename, Filter, Export to Anki,
+    /// the Task panel and Confirmation are the dialog layer. Their open state
+    /// lives on the stores, so the registry follows them.
     private func setupInterfaceLayerObservers() {
         let isEditorOrPanelOpen = Publishers.CombineLatest4(
             library.$coverEditingSession,
@@ -586,12 +586,13 @@ final class AppCoordinator: ObservableObject {
             coverEditing != nil || listEditor != nil || confirmation != nil
                 || isTaskPanelOpen
         }
-        Publishers.CombineLatest3(
+        Publishers.CombineLatest4(
             isEditorOrPanelOpen,
             library.$renameSession.map { $0 != nil },
-            filterDialog.$session.map { $0 != nil }
+            filterDialog.$session.map { $0 != nil },
+            tasks.$ankiExportSession.map { $0 != nil }
         )
-        .map { $0 || $1 || $2 }
+        .map { $0 || $1 || $2 || $3 }
         .removeDuplicates()
         .sink { [interfaceLayers] isDialogOpen in
             interfaceLayers.setOpen(.dialog, isDialogOpen)

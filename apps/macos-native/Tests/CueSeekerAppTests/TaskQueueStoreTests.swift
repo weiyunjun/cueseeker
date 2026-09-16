@@ -290,6 +290,37 @@ func openingTheTaskPanelOpensTheDialogLayer() throws {
     #expect(!app.interfaceLayers.isCovered(.workbenchPage))
 }
 
+/// Export to Anki is a dialog too: while it is open the page under it is
+/// covered, and once it closes the page takes input again.
+@MainActor
+@Test
+func openingTheExportToAnkiDialogOpensTheDialogLayer() throws {
+    _ = NSApplication.shared
+    let suiteName = "CueSeekerAnkiDialogLayerTests-\(UUID().uuidString)"
+    let userDefaults = try #require(UserDefaults(suiteName: suiteName))
+    let databaseURL = taskQueueTestDatabaseURL()
+    defer {
+        userDefaults.removePersistentDomain(forName: suiteName)
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let app = AppCoordinator(userDefaults: userDefaults, databaseURL: databaseURL)
+    #expect(!app.interfaceLayers.isOpen(.dialog))
+
+    app.tasks.ankiExportSession = AnkiExportSession(
+        items: exportItems(1),
+        options: AnkiExportOptions(),
+        folderURL: URL(fileURLWithPath: "/Exports", isDirectory: true),
+        onOptionsChange: { _ in }
+    )
+    #expect(app.interfaceLayers.isOpen(.dialog))
+    #expect(app.interfaceLayers.isCovered(.workbenchPage))
+
+    app.tasks.ankiExportSession = nil
+    #expect(!app.interfaceLayers.isOpen(.dialog))
+    #expect(!app.interfaceLayers.isCovered(.workbenchPage))
+}
+
 @MainActor
 @Test
 func aFinishedExportMovesToCompletedAndLetsTheNextOneStart() async throws {
