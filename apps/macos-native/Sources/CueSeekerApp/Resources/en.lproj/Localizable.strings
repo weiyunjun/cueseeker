@@ -67,10 +67,8 @@
 "table.result_count.other" = "%d results";
 "table.selected_count" = "%d / %d rows selected";
 "table.filter" = "Filter";
-"filter_dialog.show_results" = "Show results";
 "filter_dialog.show_results.one" = "Show 1 result";
 "filter_dialog.show_results.other" = "Show %d results";
-"filter_dialog.show_excerpts" = "Show excerpts";
 "filter_dialog.show_excerpts.one" = "Show 1 excerpt";
 "filter_dialog.show_excerpts.other" = "Show %d excerpts";
 "table.select" = "Select";
@@ -101,6 +99,9 @@
 "facet.watch_status" = "Watch Status";
 "facet.folder" = "Folder";
 "facet.calculating" = "Calculating";
+"facet.select_all" = "Select All";
+"facet.deselect_all" = "Deselect All";
+"facet.invert_selection" = "Invert Selection";
 "facet.selected" = "Selected";
 "facet.not_selected" = "Not selected";
 "facet.duration.under_1s" = "<1s";

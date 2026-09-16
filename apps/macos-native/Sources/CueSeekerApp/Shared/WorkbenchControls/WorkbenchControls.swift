@@ -716,6 +716,9 @@ struct WorkbenchButton: View {
     /// Buttons never take the keyboard focus, so the one that opens focused -
     /// Confirmation's Cancel - is told to draw its Focused state.
     var isFocused: Bool = false
+    /// The Filter dialog's group actions are as tall as an option; every other
+    /// button keeps the shared control height.
+    var height: CGFloat? = nil
     var action: () -> Void
 
     @State private var isHovered = false
@@ -736,7 +739,7 @@ struct WorkbenchButton: View {
                     .fixedSize(horizontal: true, vertical: false)
             }
             .padding(.horizontal, isRedesign ? WorkbenchControlMetrics.redesignControlPaddingX : 14)
-            .frame(height: isRedesign ? WorkbenchControlMetrics.redesignHeight : 36)
+            .frame(height: isRedesign ? (height ?? WorkbenchControlMetrics.redesignHeight) : 36)
             .background(
                 Group {
                     if isRedesign {
@@ -778,6 +781,9 @@ struct WorkbenchPrimaryButton: View {
     let title: String
     var icon: AppIcon? = nil
     var iconWeight: AppIconWeight? = nil
+    /// A spinner in the icon's place, while the button waits for what its
+    /// title needs.
+    var showsSpinner: Bool = false
     var action: () -> Void
 
     @State private var isHovered = false
@@ -786,7 +792,9 @@ struct WorkbenchPrimaryButton: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
-                if let icon {
+                if showsSpinner {
+                    WorkbenchSpinner()
+                } else if let icon {
                     AppIconImage(
                         icon,
                         size: WorkbenchControlMetrics.redesignButtonIconSize,
@@ -1082,9 +1090,9 @@ struct WorkbenchIconButton: View {
     /// Dialog close buttons also carry a smaller box, so their hover block stays
     /// in proportion to the smaller glyph; everything else keeps the shared one.
     var boxSize: CGFloat? = nil
-    /// The Task entry's count, drawn beside the glyph inside the button, so
-    /// hover and Open cover it and a click on it is a click on the button. At
-    /// zero nothing is drawn and the box stays square.
+    /// The Task entry's or the Filter trigger's count, drawn beside the glyph
+    /// inside the button, so hover and Open cover it and a click on it is a
+    /// click on the button. At zero nothing is drawn and the box stays square.
     var count: Int = 0
     /// The count's circle is one step off the surface, and one step deeper
     /// while the button is lit, like a keycap in its shortcut button. The

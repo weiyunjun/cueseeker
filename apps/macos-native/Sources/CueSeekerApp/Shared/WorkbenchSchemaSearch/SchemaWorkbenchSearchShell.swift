@@ -114,6 +114,7 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
     let canEnterSelectionMode: Bool
     let onToggleSelectionMode: () -> Void
     let isFilterDialogOpen: Bool
+    let filterSelectionCount: Int
     let onOpenFilterDialog: () -> Void
     /// Registered with the Selection Action Overlay's own area, so the table
     /// can tell when the pointer is over it.
@@ -138,6 +139,7 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
         canEnterSelectionMode: Bool = false,
         onToggleSelectionMode: @escaping () -> Void = {},
         isFilterDialogOpen: Bool = false,
+        filterSelectionCount: Int = 0,
         onOpenFilterDialog: @escaping () -> Void,
         selectionOverlayAnchor: MenuAnchorHandle? = nil,
         onSearchSubmit: (() -> Void)? = nil,
@@ -156,6 +158,7 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
         self.canEnterSelectionMode = canEnterSelectionMode
         self.onToggleSelectionMode = onToggleSelectionMode
         self.isFilterDialogOpen = isFilterDialogOpen
+        self.filterSelectionCount = filterSelectionCount
         self.onOpenFilterDialog = onOpenFilterDialog
         self.selectionOverlayAnchor = selectionOverlayAnchor
         self.onSearchSubmit = onSearchSubmit
@@ -322,6 +325,7 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
             searchResultCountText: searchResultCountText,
             isSelectionMode: isSelectionMode,
             isFilterDialogOpen: isFilterDialogOpen,
+            filterSelectionCount: filterSelectionCount,
             canEnterSelectionMode: canEnterSelectionMode,
             onSubmit: onSearchSubmit,
             onFilter: onOpenFilterDialog,
@@ -342,6 +346,8 @@ struct SchemaWorkbenchSearchToolbar: View {
     let searchResultCountText: String?
     var isSelectionMode: Bool = false
     var isFilterDialogOpen: Bool = false
+    /// The options the table's selection holds; nothing is drawn at zero.
+    var filterSelectionCount: Int = 0
     var canEnterSelectionMode: Bool = false
     var onSubmit: (() -> Void)?
     var onFilter: () -> Void
@@ -363,6 +369,7 @@ struct SchemaWorkbenchSearchToolbar: View {
                 icon: .funnel,
                 isRedesign: true,
                 isOpen: isFilterDialogOpen,
+                count: filterSelectionCount,
                 action: onFilter
             )
             .accessibilityLabel(L("table.filter"))

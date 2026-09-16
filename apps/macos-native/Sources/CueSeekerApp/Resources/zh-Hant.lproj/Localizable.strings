@@ -67,10 +67,8 @@
 "table.result_count.other" = "%d 筆結果";
 "table.selected_count" = "已選取 %d / %d 行";
 "table.filter" = "篩選";
-"filter_dialog.show_results" = "顯示結果";
 "filter_dialog.show_results.one" = "顯示 1 筆結果";
 "filter_dialog.show_results.other" = "顯示 %d 筆結果";
-"filter_dialog.show_excerpts" = "顯示摘錄";
 "filter_dialog.show_excerpts.one" = "顯示 1 條摘錄";
 "filter_dialog.show_excerpts.other" = "顯示 %d 條摘錄";
 "table.select" = "選取";
@@ -101,6 +99,9 @@
 "facet.watch_status" = "觀看狀態";
 "facet.folder" = "資料夾";
 "facet.calculating" = "計算中";
+"facet.select_all" = "全選";
+"facet.deselect_all" = "全不選";
+"facet.invert_selection" = "反選";
 "facet.selected" = "已選取";
 "facet.not_selected" = "未選取";
 "facet.duration.under_1s" = "<1 秒";

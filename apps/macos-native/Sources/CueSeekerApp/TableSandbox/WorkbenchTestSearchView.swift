@@ -72,6 +72,10 @@ struct WorkbenchTestSearchView: View {
             canEnterSelectionMode: canEnterSelectionMode,
             onToggleSelectionMode: toggleSelectionMode,
             isFilterDialogOpen: filterDialog.session?.source == .search,
+            filterSelectionCount: searchFacetFilter.selectedOptionCount(
+                emptyDistribution: search.emptySearchFacetDistribution,
+                snapshot: search.searchFacetSnapshot
+            ),
             onOpenFilterDialog: openFilterDialog,
             selectionOverlayAnchor: selectionOverlayAnchor
         ) { tableColumns in

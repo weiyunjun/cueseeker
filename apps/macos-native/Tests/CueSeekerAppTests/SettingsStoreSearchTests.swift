@@ -263,6 +263,101 @@ func filterDialogListsFoldersLastInLibraryOrderAndTogglesThemInTheSelection() {
 
 @MainActor
 @Test
+func filterDialogGroupActionsChangeOnlyTheirGroupInOneChange() {
+    var filter = CueFacetFilter(durations: [.underOneSecond], languages: [.english])
+    var changeCount = 0
+    func durationSection() -> CueFacetSection {
+        CueFacetSection.sections(
+            counts: .unknown,
+            availableLanguages: [.english, .japanese],
+            availableFolders: [],
+            selection: filter,
+            update: { change in
+                changeCount += 1
+                change(&filter)
+            }
+        )[0]
+    }
+
+    #expect(durationSection().selectedCount == 1)
+    durationSection().invertSelection()
+    #expect(filter.durations == Set(CueDurationFacet.allCases).subtracting([.underOneSecond]))
+    #expect(durationSection().selectedCount == 3)
+    durationSection().selectAll()
+    #expect(filter.durations == Set(CueDurationFacet.allCases))
+    durationSection().deselectAll()
+    #expect(filter.durations.isEmpty)
+    #expect(durationSection().selectedCount == 0)
+
+    // Each action is one change of the selection, and the other groups keep
+    // theirs.
+    #expect(changeCount == 3)
+    #expect(filter.languages == [.english])
+}
+
+@MainActor
+@Test
+func filterDialogFolderGroupActionsKeepTheFolderSelectionRules() {
+    let folders = ["/Media/A", "/Media/B", "/Media/C"].map {
+        CueFacetFolderOption(path: $0, title: URL(fileURLWithPath: $0).lastPathComponent)
+    }
+    var filter = CueFacetFilter()
+    func folderSection() -> CueFacetSection {
+        CueFacetSection.sections(
+            counts: .unknown,
+            availableLanguages: [],
+            availableFolders: folders,
+            selection: filter,
+            update: { change in change(&filter) }
+        )[4]
+    }
+
+    // Inverting no selection selects every folder, a folder indexed later
+    // included; inverting that leaves no selection.
+    folderSection().invertSelection()
+    #expect(filter.excludedFolders == [])
+    folderSection().invertSelection()
+    #expect(filter.excludedFolders == nil)
+
+    // Inverting one selected folder selects the other two.
+    folderSection().options[0].toggle()
+    folderSection().invertSelection()
+    #expect(filter.excludedFolders == ["/Media/A"])
+    #expect(folderSection().selectedCount == 2)
+
+    folderSection().selectAll()
+    #expect(filter.excludedFolders == [])
+    #expect(folderSection().selectedCount == 3)
+    folderSection().deselectAll()
+    #expect(filter.excludedFolders == nil)
+}
+
+@MainActor
+@Test
+func filterTriggerCountsTheOptionsTheSelectionHoldsAmongTheListedOnes() {
+    let distribution = CueFacetDistribution(
+        totalCount: 3,
+        durationCounts: [:],
+        characterCounts: [:],
+        languageCounts: [.japanese: 3],
+        watchStateCounts: [:],
+        folderCounts: ["/Media/A": 1, "/Media/B": 1, "/Media/C": 1]
+    )
+    #expect(CueFacetFilter().selectedOptionCount(emptyDistribution: distribution, snapshot: nil) == 0)
+
+    // Two durations, one language, one watch state and the two listed folders
+    // the selection keeps.
+    let filter = CueFacetFilter(
+        durations: [.underOneSecond, .fiveSecondsOrMore],
+        languages: [.japanese],
+        watchStates: [.finished],
+        excludedFolders: ["/Media/B"]
+    )
+    #expect(filter.selectedOptionCount(emptyDistribution: distribution, snapshot: nil) == 6)
+}
+
+@MainActor
+@Test
 func settingsStoreRestoresFolderSelectionsAndKeepsNoSelectionApart() {
     withTemporarySearchSettingsUserDefaults { userDefaults in
         let store = SettingsStore(userDefaults: userDefaults)

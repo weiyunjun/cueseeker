@@ -67,10 +67,8 @@
 "table.result_count.other" = "%d 条结果";
 "table.selected_count" = "已选取 %d / %d 行";
 "table.filter" = "筛选";
-"filter_dialog.show_results" = "显示结果";
 "filter_dialog.show_results.one" = "显示 1 条结果";
 "filter_dialog.show_results.other" = "显示 %d 条结果";
-"filter_dialog.show_excerpts" = "显示摘录";
 "filter_dialog.show_excerpts.one" = "显示 1 条摘录";
 "filter_dialog.show_excerpts.other" = "显示 %d 条摘录";
 "table.select" = "选择";
@@ -101,6 +99,9 @@
 "facet.watch_status" = "观看状态";
 "facet.folder" = "文件夹";
 "facet.calculating" = "计算中";
+"facet.select_all" = "全选";
+"facet.deselect_all" = "全不选";
+"facet.invert_selection" = "反选";
 "facet.selected" = "已选中";
 "facet.not_selected" = "未选中";
 "facet.duration.under_1s" = "<1 秒";

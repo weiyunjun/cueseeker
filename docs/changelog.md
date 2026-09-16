@@ -65,7 +65,15 @@ This changelog does not replace Git history. Git records concrete file changes. 
   ending in an ellipsis so two fit a line beside five-digit counts, and the
   dialog keeps a height of 600 with the groups scrolling between the title
   and the buttons. Schema 50 counts the folders of a library indexed before
-  it.
+  it. The dialog's options are rounded rectangles like the other controls
+  instead of capsules. While the total is unknown, Show itself reads
+  `Calculating` beside a spinner and stays disabled, in place of the status
+  at the dialog's bottom left, where Reset now sits. Every group shows how
+  many of its options are selected beside its name, and ends its title row
+  with `Select All`, `Deselect All` and `Invert Selection`, which change only
+  that group in the dialog; the Filter button of Search and of every Excerpt
+  list shows how many options the table's selection holds, as the Task
+  button shows its tasks.
 - Settings now has six categories: General, which gathers Appearance,
   Search, Language and Deep Link; Play, which gathers Play and Decode;
   Shortcuts; Subtitle; Maintenance; and Developer. Settings opens on General.

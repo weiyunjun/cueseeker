@@ -230,6 +230,10 @@ private struct WorkbenchExcerptTableContent: View {
                     searchResultCountText: exactSearchResultCountText,
                     isSelectionMode: isSelectionMode,
                     isFilterDialogOpen: isFilterDialogOpen,
+                    filterSelectionCount: excerptFacetFilter.selectedOptionCount(
+                        emptyDistribution: appState.search.emptySearchFacetDistribution,
+                        snapshot: excerptStore.residentFacetSnapshot
+                    ),
                     canEnterSelectionMode: canEnterSelectionMode,
                     onFilter: openFilterDialog,
                     onToggleSelectionMode: toggleSelectionMode
