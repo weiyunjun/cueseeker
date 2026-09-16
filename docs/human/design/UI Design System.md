@@ -5,11 +5,15 @@
 
 ## 1.1 颜色
 
+Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 < 菜单；播放页为视频 < Playback Overlay < Command Panel < 菜单。菜单始终最亮，包括在对话框与 Command Panel 内打开的菜单。
+
+控件底色、Hover、Disabled、分隔线、Disabled 边框与 Keycap 在 Dark 下为半透明白色，在任何表面上都比该表面亮。
+
 ### Text
 
-- `--color-text-primary`: Light `#1F1F1F`; Dark `#F7F7F7`
+- `--color-text-primary`: Light `#1F1F1F`; Dark `#E4E4E4`
 - `--color-text-secondary`: Light `#494949`; Dark `#B9B9B9`
-- `--color-text-muted`: Light `#717171`; Dark `#878787`
+- `--color-text-muted`: Light `#717171`; Dark `#979797`
 - `--color-text-placeholder`: Light `#9A9A9A`; Dark `#606060`
 - `--color-text-disabled`: Light `#9A9A9A`; Dark `#606060`
 
@@ -19,30 +23,32 @@
 
 ### Background
 
-- `--color-bg-surface`: Light `#FFFFFF`; Dark `#18181B`
-- `--color-bg-hover`: Light `#F3F4F6`; Dark `#27272A`
-- `--color-bg-disabled`: Light `#F3F4F6`; Dark `#202024`
-- `--color-bg-popover`: Light `#FFFFFF`; Dark `#1C1C1F`
-- `--color-app-sidebar-bg`: Light `#F6F7F9`; Dark `#202024`
+- `--color-bg-surface`: Light `#FFFFFF`; Dark `#1C1C1F`
+- `--color-bg-hover`: Light `#F3F4F6`; Dark `rgba(255,255,255,0.12)`
+- `--color-bg-disabled`: Light `#F3F4F6`; Dark `rgba(255,255,255,0.04)`
+- `--color-bg-control`: Light `#FFFFFF`; Dark `rgba(255,255,255,0.08)`
+- `--color-bg-dialog`: Light `#FFFFFF`; Dark `#2F2F34`
+- `--color-bg-popover`: Light `#FFFFFF`; Dark `#36363B`
+- `--color-app-sidebar-bg`: Light `#F6F7F9`; Dark `#111113`
 - `--color-app-sidebar-item-selected-bg`: macOS accent color
 - `--color-app-sidebar-item-selected-content`: Light `#FFFFFF`; Dark `#FFFFFF`
-- `--color-app-topbar-bg`: Light `#FFFFFF`; Dark `#18181B`
-- `--color-settings-group-bg`: Light `#F6F7F9`; Dark `#202024`
-- `--color-overlay-surface-shortcut-button-bg-hover`: Light `#EDEEF2`; Dark `#2C2C30`
-- `--color-overlay-surface-keycap-bg`: Light `#E1E4E9`; Dark `#35353A`
-- `--color-overlay-surface-keycap-bg-hover`: Light `#D2D6DE`; Dark `#414147`
-- `--color-popover-surface-shortcut-button-bg-hover`: Light `#F7F8FA`; Dark `#252529`
-- `--color-popover-surface-keycap-bg`: Light `#EDEFF2`; Dark `#2E2E33`
-- `--color-popover-surface-keycap-bg-hover`: Light `#E0E3E8`; Dark `#3A3A40`
+- `--color-app-topbar-bg`: Light `#FFFFFF`; Dark `#1C1C1F`
+- `--color-settings-group-bg`: Light `#F6F7F9`; Dark `#26262A`
+- `--color-overlay-surface-shortcut-button-bg-hover`: Light `#EDEEF2`; Dark `rgba(255,255,255,0.06)`
+- `--color-overlay-surface-keycap-bg`: Light `#E1E4E9`; Dark `rgba(255,255,255,0.10)`
+- `--color-overlay-surface-keycap-bg-hover`: Light `#D2D6DE`; Dark `rgba(255,255,255,0.16)`
+- `--color-popover-surface-shortcut-button-bg-hover`: Light `#F7F8FA`; Dark `rgba(255,255,255,0.06)`
+- `--color-popover-surface-keycap-bg`: Light `#EDEFF2`; Dark `rgba(255,255,255,0.10)`
+- `--color-popover-surface-keycap-bg-hover`: Light `#E0E3E8`; Dark `rgba(255,255,255,0.16)`
 
 ### Border
 
-- `--color-border-control`: Light `#E5E7EB`; Dark `#3F3F46`
+- `--color-border-control`: Light `#E5E7EB`; Dark `#4A4A52`
 - `--color-border-control-hover`: Light `#D1D5DB`; Dark `#52525B`
-- `--color-border-muted`: Light `#E5E7EB`; Dark `#3F3F46`
-- `--color-border-divider`: Light `#E5E7EB`; Dark `#303036`
-- `--color-border-disabled`: Light `#E5E7EB`; Dark `#303036`
-- `--color-border-checkbox`: Light `#D0D5DD`; Dark `#52525B`
+- `--color-border-muted`: Light `#E5E7EB`; Dark `#4A4A52`
+- `--color-border-divider`: Light `#E5E7EB`; Dark `rgba(255,255,255,0.10)`
+- `--color-border-disabled`: Light `#E5E7EB`; Dark `rgba(255,255,255,0.10)`
+- `--color-border-checkbox`: Light `#D0D5DD`; Dark `#5A5A62`
 
 ### Accent
 
@@ -67,7 +73,7 @@
 - `--color-primary-button-bg`: macOS accent color
 - `--color-primary-button-bg-hover`: macOS accent color with native hover emphasis
 - `--color-primary-button-text`: Light `#FFFFFF`; Dark `#FFFFFF`
-- `--color-bg-checkbox-unchecked`: Light `#FFFFFF`; Dark `#18181B`
+- `--color-bg-checkbox-unchecked`: Light `#FFFFFF`; Dark `rgba(255,255,255,0.08)`
 - `--color-bg-checkbox-checked`: Light `#667085`; Dark `#A1A1AA`
 - `--color-checkbox-icon`: Light `#FFFFFF`; Dark `#18181B`
 - `--color-segmented-control-selected-bg`: macOS accent color
@@ -88,8 +94,9 @@
 
 ### Table
 
-- `--color-row-hover`: Light `#F9FAFB`; Dark `#202024`
-- `--color-row-selected`: Light `#F3F4F6`; Dark `#27272A`
+- `--color-table-bg`: Light `#FFFFFF`; Dark `#26262A`
+- `--color-row-hover`: Light `#F9FAFB`; Dark `#2E2E33`
+- `--color-row-selected`: Light `#F3F4F6`; Dark `#36363C`
 
 ### Status
 
@@ -130,7 +137,8 @@
 
 ### Dialog
 
-- `--color-dialog-scrim`: Light `rgba(170,170,170,0.60)`; Dark `rgba(22,24,25,0.60)`
+- `--color-dialog-scrim`: Light `rgba(170,170,170,0.60)`; Dark `rgba(0,0,0,0.50)`
+- `--color-command-panel-scrim`: Light `rgba(0,0,0,0.32)`; Dark `rgba(0,0,0,0.32)`
 - `--color-dialog-outline`: Light `rgba(0,0,0,0.19)`; Dark `rgba(0,0,0,0.94)`
 - `--color-dialog-edge-highlight`: Light `transparent`; Dark `rgba(255,255,255,0.20)`
 
@@ -154,7 +162,7 @@
 ### Subtitle Focus
 
 - `--color-subtitle-focus-overlay-bg`: Light `#F6F7F9`; Dark `#242426`
-- `--color-subtitle-focus-cue-selected`: Light `#111827`; Dark `rgba(255,255,255,0.94)`
+- `--color-subtitle-focus-cue-selected`: Light `#111827`; Dark `rgba(255,255,255,0.88)`
 - `--color-subtitle-focus-cue-group-selected`: Light `#475467`; Dark `rgba(255,255,255,0.62)`
 - `--color-subtitle-focus-cue-unselected`: Light `#858B95`; Dark `rgba(255,255,255,0.34)`
 - `--color-playback-cue-timeline-focused`: Light `#667085`; Dark `#71717A`
@@ -515,7 +523,7 @@
   - Reserved Lines：`1`
   - Maximum Lines：`1`
 - Container
-  - Background：`--color-bg-surface`
+  - Background：`--color-bg-control`
   - Border Color：`--color-border-control`
   - Radius：`--radius-field`
 - Input
@@ -560,7 +568,7 @@
   - Reserved Lines：`1`
   - Maximum Lines：`1`
 - Container
-  - Background：`--color-bg-surface`
+  - Background：`--color-bg-control`
   - Border Color：`--color-border-control`
   - Radius：`--radius-field`
 - Multiline Input
@@ -608,7 +616,7 @@
 ##### Anatomy
 
 - Container
-  - Background：`--color-bg-surface`
+  - Background：`--color-bg-control`
   - Border Color：`--color-border-control`
   - Border Width：`--border-width-control`
   - Radius：`--radius-search`
@@ -656,7 +664,7 @@
 ##### Anatomy
 
 - Container
-  - Background：`--color-bg-surface`
+  - Background：`--color-bg-control`
   - Border Color：`--color-border-control`
   - Radius：`--radius-field`
 - Numeric Input
@@ -844,7 +852,7 @@
 ##### Anatomy
 
 - Container
-  - Background：`--color-bg-surface`
+  - Background：`--color-bg-control`
   - Border Color：`--color-border-control`
   - Border Width：`--border-width-control`
   - Radius：`--radius-control`
@@ -902,7 +910,7 @@
 ##### States
 
 - Default
-  - Background：`--color-bg-surface`
+  - Background：`--color-bg-control`
   - Border Color：`--color-border-control`
   - Label Color：`--color-text-primary`
   - Count Color：`--color-text-secondary`
@@ -955,7 +963,7 @@
 ##### Neutral
 
 - Default
-  - Background：`--color-bg-surface`
+  - Background：`--color-bg-control`
   - Border Color：`--color-border-control`
   - Label Color：`--color-text-secondary`
   - Icon Color：`--color-text-secondary`
@@ -1004,7 +1012,7 @@
 ##### Destructive
 
 - Default
-  - Background：`--color-bg-surface`
+  - Background：`--color-bg-control`
   - Border Color：`--color-border-control`
   - Label Color：`--color-danger-text`
   - Icon Color：`--color-danger-text`
@@ -1059,6 +1067,9 @@
 | 所在表面 | Surface Hover |
 | --- | --- |
 | `--color-bg-surface` | `--color-bg-hover` |
+| `--color-table-bg` | `--color-bg-hover` |
+| `--color-settings-group-bg` | `--color-bg-hover` |
+| `--color-bg-dialog` | `--color-bg-hover` |
 | `--color-subtitle-focus-overlay-bg` | `--color-overlay-surface-shortcut-button-bg-hover` |
 | `--color-bg-popover` | `--color-popover-surface-shortcut-button-bg-hover` |
 | `--color-player-topbar-gradient-start` | `--color-player-control-bg-hover` |
@@ -1128,7 +1139,7 @@
 
 ##### Popover Surface
 
-- Surface：`--color-bg-popover`
+- Surface：`--color-bg-popover`；Command Panel 为 `--color-bg-dialog`
 - Keycap：Keycap / Popover Surface
 - Hover
   - Background：`--color-popover-surface-shortcut-button-bg-hover`
@@ -1441,6 +1452,8 @@
 
 ##### Anatomy
 
+- Surface
+  - Background：`--color-table-bg`，铺满 Header 与 Body Viewport
 - Header
 - Body Viewport
 - Rows
@@ -2172,7 +2185,7 @@
   - 覆盖整个窗口，红绿灯除外；系统文件选择框与系统警告框打开期间改由系统压暗
 - Container
   - Placement：窗口正中
-  - Background：`--color-bg-surface`
+  - Background：`--color-bg-dialog`
   - Radius：`--radius-dialog`
   - Shadow：`--shadow-dialog`
   - Outline：`--color-dialog-outline`，容器外侧 1 物理像素
@@ -4054,7 +4067,7 @@
 - Padding：`--spacing-3`
 - Row Gap：`--spacing-1`
 - Radius：`--radius-control`
-- Background：`--color-bg-surface`
+- Background：`--color-bg-dialog`
 - Border Color：`--color-border-control`
 
 #### Text
@@ -4481,6 +4494,11 @@
 - Menu Item / Action Menu Item
 - Playback Footer Layout
 - Scrollbar / Vertical
+
+#### Surface
+
+- Background：`--color-bg-dialog`
+- Scrim：`--color-command-panel-scrim`
 
 #### Layer
 
