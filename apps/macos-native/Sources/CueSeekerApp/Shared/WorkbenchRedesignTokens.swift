@@ -113,9 +113,9 @@ enum WorkbenchRedesignColors {
         static let rowSelected = NSColor.dynamic(lightHex: "#F3F4F6", darkHex: "#36363C")
 
         // Checkbox
-        static let bgCheckboxUnchecked = NSColor.dynamic(lightHex: "#FFFFFF", darkHex: "#FFFFFF", darkAlpha: 0.08)
+        // A monochrome glyph: the outline circle unchecked, the filled circle
+        // with a cut-out mark when checked or mixed. No background of its own.
         static let bgCheckboxChecked = NSColor.dynamic(lightHex: "#667085", darkHex: "#A1A1AA")
-        static let checkboxIcon = NSColor.dynamic(lightHex: "#FFFFFF", darkHex: "#18181B")
 
         // Segmented Control
         static let segmentedControlSelectedBg = NSColor.controlAccentColor
@@ -283,9 +283,7 @@ enum WorkbenchRedesignColors {
     static let rowSelected = Color(nsColor: NS.rowSelected)
 
     // Checkbox
-    static let bgCheckboxUnchecked = Color(nsColor: NS.bgCheckboxUnchecked)
     static let bgCheckboxChecked = Color(nsColor: NS.bgCheckboxChecked)
-    static let checkboxIcon = Color(nsColor: NS.checkboxIcon)
 
     // Segmented Control
     static let segmentedControlSelectedBg = Color(nsColor: NS.segmentedControlSelectedBg)
