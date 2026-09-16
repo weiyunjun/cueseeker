@@ -99,6 +99,7 @@
 "facet.character" = "Character";
 "facet.language" = "Language";
 "facet.watch_status" = "Watch Status";
+"facet.folder" = "Folder";
 "facet.calculating" = "Calculating";
 "facet.selected" = "Selected";
 "facet.not_selected" = "Not selected";

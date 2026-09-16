@@ -38,12 +38,13 @@ public enum CueCharacterFacet: String, CaseIterable, Hashable, Sendable {
     }
 }
 
-/// The four Filter Menu cards.
+/// The five Filter dialog groups.
 public enum CueFacetKind: CaseIterable, Hashable, Sendable {
     case duration
     case characters
     case languages
     case watchState
+    case folder
 }
 
 public struct CueFacetFilter: Equatable, Sendable {
@@ -51,28 +52,65 @@ public struct CueFacetFilter: Equatable, Sendable {
     public var characters: Set<CueCharacterFacet>
     public var languages: Set<SubtitleLanguageCode>
     public var watchStates: Set<LibraryWatchState>
+    /// The Folder group remembers the listed folders that are not selected,
+    /// so a folder indexed later is selected with the rest; nil when the
+    /// group has no selection.
+    public var excludedFolders: Set<String>?
 
     public init(
         durations: Set<CueDurationFacet> = [],
         characters: Set<CueCharacterFacet> = [],
         languages: Set<SubtitleLanguageCode> = [],
-        watchStates: Set<LibraryWatchState> = []
+        watchStates: Set<LibraryWatchState> = [],
+        excludedFolders: Set<String>? = nil
     ) {
         self.durations = durations
         self.characters = characters
         self.languages = languages
         self.watchStates = watchStates
+        self.excludedFolders = excludedFolders
     }
 
     public var isEmpty: Bool {
         durations.isEmpty && characters.isEmpty && languages.isEmpty && watchStates.isEmpty
+            && excludedFolders == nil
+    }
+
+    public func isFolderSelected(_ folder: String) -> Bool {
+        excludedFolders.map { !$0.contains(folder) } ?? false
+    }
+
+    /// Selecting the first folder leaves every other listed folder out;
+    /// deselecting the last one leaves the group without a selection.
+    public mutating func toggleFolder(_ folder: String, listed: [String]) {
+        var excluded = excludedFolders ?? Set(listed)
+        if excluded.contains(folder) {
+            excluded.remove(folder)
+        } else {
+            excluded.insert(folder)
+        }
+        excludedFolders = excluded
+        self = normalizingFolders(listed: listed)
+    }
+
+    /// A selection that leaves out every listed folder is no selection.
+    public func normalizingFolders<Folders: Collection>(
+        listed: Folders
+    ) -> CueFacetFilter where Folders.Element == String {
+        guard let excludedFolders, excludedFolders.isSuperset(of: listed) else {
+            return self
+        }
+        var filter = self
+        filter.excludedFolders = nil
+        return filter
     }
 
     public func matches(
         durationMilliseconds: Int,
         characterCount: Int,
         languages cueLanguages: Set<SubtitleLanguageCode>,
-        watchState: LibraryWatchState
+        watchState: LibraryWatchState,
+        folder: String
     ) -> Bool {
         matches(
             duration: CueDurationFacet(
@@ -82,22 +120,25 @@ public struct CueFacetFilter: Equatable, Sendable {
                 characterCount: characterCount
             ),
             languages: cueLanguages,
-            watchState: watchState
+            watchState: watchState,
+            folder: folder
         )
     }
 
-    /// Whether a line satisfies the selection: every card with a checked
+    /// Whether a line satisfies the selection: every group with a selected
     /// option must hold.
     public func matches(
         duration: CueDurationFacet,
         characters cueCharacters: CueCharacterFacet,
         languages cueLanguages: Set<SubtitleLanguageCode>,
-        watchState: LibraryWatchState
+        watchState: LibraryWatchState,
+        folder: String
     ) -> Bool {
         (durations.isEmpty || durations.contains(duration))
             && (characters.isEmpty || characters.contains(cueCharacters))
             && (languages.isEmpty || !languages.isDisjoint(with: cueLanguages))
             && (watchStates.isEmpty || watchStates.contains(watchState))
+            && (excludedFolders?.contains(folder) != true)
     }
 }
 
@@ -107,7 +148,8 @@ public struct CueFacetDistribution: Equatable, Sendable {
         durationCounts: [:],
         characterCounts: [:],
         languageCounts: [:],
-        watchStateCounts: [:]
+        watchStateCounts: [:],
+        folderCounts: [:]
     )
 
     public let totalCount: Int
@@ -115,19 +157,22 @@ public struct CueFacetDistribution: Equatable, Sendable {
     public let characterCounts: [CueCharacterFacet: Int]
     public let languageCounts: [SubtitleLanguageCode: Int]
     public let watchStateCounts: [LibraryWatchState: Int]
+    public let folderCounts: [String: Int]
 
     public init(
         totalCount: Int,
         durationCounts: [CueDurationFacet: Int],
         characterCounts: [CueCharacterFacet: Int],
         languageCounts: [SubtitleLanguageCode: Int],
-        watchStateCounts: [LibraryWatchState: Int]
+        watchStateCounts: [LibraryWatchState: Int],
+        folderCounts: [String: Int]
     ) {
         self.totalCount = totalCount
         self.durationCounts = durationCounts
         self.characterCounts = characterCounts
         self.languageCounts = languageCounts
         self.watchStateCounts = watchStateCounts
+        self.folderCounts = folderCounts
     }
 
     public func adding(_ other: CueFacetDistribution) -> CueFacetDistribution {
@@ -148,6 +193,10 @@ public struct CueFacetDistribution: Equatable, Sendable {
             watchStateCounts: watchStateCounts.merging(
                 other.watchStateCounts,
                 uniquingKeysWith: +
+            ),
+            folderCounts: folderCounts.merging(
+                other.folderCounts,
+                uniquingKeysWith: +
             )
         )
     }
@@ -159,7 +208,8 @@ public struct CueFacetSnapshot: Equatable, Sendable {
         durationFacets: [],
         characterFacets: [],
         languageFacets: [],
-        watchStateFacets: []
+        watchStateFacets: [],
+        folderFacets: []
     )
 
     public let cueIDs: [Int64]
@@ -167,6 +217,7 @@ public struct CueFacetSnapshot: Equatable, Sendable {
     public let characterFacets: [CueCharacterFacet]
     public let languageFacets: [Set<SubtitleLanguageCode>]
     public let watchStateFacets: [LibraryWatchState]
+    public let folderFacets: [String]
     public let distribution: CueFacetDistribution
 
     init(
@@ -174,13 +225,15 @@ public struct CueFacetSnapshot: Equatable, Sendable {
         durationFacets: [CueDurationFacet],
         characterFacets: [CueCharacterFacet],
         languageFacets: [Set<SubtitleLanguageCode>],
-        watchStateFacets: [LibraryWatchState]
+        watchStateFacets: [LibraryWatchState],
+        folderFacets: [String]
     ) {
         precondition(
             durationFacets.count == cueIDs.count
                 && characterFacets.count == cueIDs.count
                 && languageFacets.count == cueIDs.count
                 && watchStateFacets.count == cueIDs.count
+                && folderFacets.count == cueIDs.count
         )
 
         let resolvedLanguageFacets = languageFacets.map {
@@ -192,12 +245,17 @@ public struct CueFacetSnapshot: Equatable, Sendable {
                 languageCounts[language, default: 0] += 1
             }
         }
+        var folderCounts: [String: Int] = [:]
+        for folder in folderFacets {
+            folderCounts[folder, default: 0] += 1
+        }
 
         self.cueIDs = cueIDs
         self.durationFacets = durationFacets
         self.characterFacets = characterFacets
         self.languageFacets = resolvedLanguageFacets
         self.watchStateFacets = watchStateFacets
+        self.folderFacets = folderFacets
         distribution = CueFacetDistribution(
             totalCount: cueIDs.count,
             durationCounts: Dictionary(grouping: durationFacets, by: { $0 })
@@ -206,7 +264,8 @@ public struct CueFacetSnapshot: Equatable, Sendable {
                 .mapValues { $0.count },
             languageCounts: languageCounts,
             watchStateCounts: Dictionary(grouping: watchStateFacets, by: { $0 })
-                .mapValues { $0.count }
+                .mapValues { $0.count },
+            folderCounts: folderCounts
         )
     }
 
@@ -232,12 +291,14 @@ public struct CueFacetSnapshot: Equatable, Sendable {
         var characterCounts: [CueCharacterFacet: Int] = [:]
         var languageCounts: [SubtitleLanguageCode: Int] = [:]
         var watchStateCounts: [LibraryWatchState: Int] = [:]
+        var folderCounts: [String: Int] = [:]
         var index = start
         while index < cueIDs.count, matches.count < pageLimit {
             let duration = durationFacets[index]
             let characters = characterFacets[index]
             let languages = languageFacets[index]
             let watchState = watchStateFacets[index]
+            let folder = folderFacets[index]
             let matchesDuration = filter.durations.isEmpty
                 || filter.durations.contains(duration)
             let matchesCharacters = filter.characters.isEmpty
@@ -246,25 +307,30 @@ public struct CueFacetSnapshot: Equatable, Sendable {
                 || !filter.languages.isDisjoint(with: languages)
             let matchesWatchState = filter.watchStates.isEmpty
                 || filter.watchStates.contains(watchState)
+            let matchesFolder = filter.excludedFolders?.contains(folder) != true
 
-            if matchesCharacters && matchesLanguages && matchesWatchState {
+            if matchesCharacters && matchesLanguages && matchesWatchState && matchesFolder {
                 durationCounts[duration, default: 0] += 1
             }
-            if matchesDuration && matchesLanguages && matchesWatchState {
+            if matchesDuration && matchesLanguages && matchesWatchState && matchesFolder {
                 characterCounts[characters, default: 0] += 1
             }
-            if matchesDuration && matchesCharacters && matchesWatchState {
+            if matchesDuration && matchesCharacters && matchesWatchState && matchesFolder {
                 for language in languages {
                     languageCounts[language, default: 0] += 1
                 }
             }
-            if matchesDuration && matchesCharacters && matchesLanguages {
+            if matchesDuration && matchesCharacters && matchesLanguages && matchesFolder {
                 watchStateCounts[watchState, default: 0] += 1
+            }
+            if matchesDuration && matchesCharacters && matchesLanguages && matchesWatchState {
+                folderCounts[folder, default: 0] += 1
             }
             if matchesDuration
                 && matchesCharacters
                 && matchesLanguages
-                && matchesWatchState {
+                && matchesWatchState
+                && matchesFolder {
                 matches.append(cueIDs[index])
             }
             index += 1
@@ -278,7 +344,8 @@ public struct CueFacetSnapshot: Equatable, Sendable {
                 durationCounts: durationCounts,
                 characterCounts: characterCounts,
                 languageCounts: languageCounts,
-                watchStateCounts: watchStateCounts
+                watchStateCounts: watchStateCounts,
+                folderCounts: folderCounts
             )
         )
     }
@@ -294,7 +361,8 @@ public struct CueFacetSnapshot: Equatable, Sendable {
             durationFacets: retainedIndices.map { durationFacets[$0] },
             characterFacets: retainedIndices.map { characterFacets[$0] },
             languageFacets: retainedIndices.map { languageFacets[$0] },
-            watchStateFacets: retainedIndices.map { watchStateFacets[$0] }
+            watchStateFacets: retainedIndices.map { watchStateFacets[$0] },
+            folderFacets: retainedIndices.map { folderFacets[$0] }
         )
     }
 }

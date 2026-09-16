@@ -121,17 +121,48 @@ struct CueFacetOption: Identifiable {
     let toggle: () -> Void
 }
 
+/// A listed folder: the dialog shows its name, the selection keeps its path.
+struct CueFacetFolderOption: Equatable {
+    let path: String
+    let title: String
+
+    /// Every folder the library lists, in the Library Video tab's order: name,
+    /// then path, both without regard to case.
+    static func listed(
+        emptyDistribution: CueFacetDistribution?,
+        snapshot: CueFacetSnapshot?
+    ) -> [CueFacetFolderOption] {
+        var paths = Set<String>()
+        if let emptyDistribution {
+            paths.formUnion(emptyDistribution.folderCounts.keys)
+        }
+        if let snapshot {
+            paths.formUnion(snapshot.distribution.folderCounts.keys)
+        }
+        return paths
+            .map { CueFacetFolderOption(path: $0, title: URL(fileURLWithPath: $0).lastPathComponent) }
+            .sorted { lhs, rhs in
+                let titles = lhs.title.caseInsensitiveCompare(rhs.title)
+                if titles != .orderedSame {
+                    return titles == .orderedAscending
+                }
+                return lhs.path.caseInsensitiveCompare(rhs.path) == .orderedAscending
+            }
+    }
+}
+
 struct CueFacetSection: Identifiable {
     let id: CueFacetKind
     let title: String
     let icon: AppIcon
     let options: [CueFacetOption]
 
-    /// The four cards in dialog order. Each option carries its count for the
+    /// The five groups in dialog order. Each option carries its count for the
     /// dialog's selection, and toggles itself in that selection.
     static func sections(
         counts: CueFacetFilterCounts,
         availableLanguages: [SubtitleLanguageCode],
+        availableFolders: [CueFacetFolderOption],
         selection: CueFacetFilter,
         update: @escaping ((inout CueFacetFilter) -> Void) -> Void
     ) -> [CueFacetSection] {
@@ -213,17 +244,38 @@ struct CueFacetSection: Identifiable {
                     count: { $0.watchStateCounts[$1] }
                 )
             ),
+            CueFacetSection(
+                id: .folder,
+                title: L("facet.folder"),
+                icon: .folder,
+                options: availableFolders.map { folder in
+                    CueFacetOption(
+                        id: folder.path,
+                        title: folder.title,
+                        count: counts.isCalculating
+                            ? nil
+                            : counts.distribution.flatMap { $0.folderCounts[folder.path] } ?? 0,
+                        isSelected: selection.isFolderSelected(folder.path),
+                        toggle: {
+                            update { filter in
+                                filter.toggleFolder(folder.path, listed: availableFolders.map(\.path))
+                            }
+                        }
+                    )
+                }
+            ),
         ]
     }
 }
 
-/// The Filter dialog: the four cards as rows of capsule options, the
+/// The Filter dialog: the five groups as rows of capsule options, the
 /// calculating status, and Show, which hands the dialog's selection to the
 /// table.
 struct CueFacetFilterDialog: View {
     @ObservedObject var session: CueFacetFilterDialogSession
     let counts: CueFacetFilterCounts
     let availableLanguages: [SubtitleLanguageCode]
+    let availableFolders: [CueFacetFolderOption]
     let onClose: () -> Void
 
     @Environment(\.workbenchDialogAvailableSize) private var availableSize
@@ -233,20 +285,18 @@ struct CueFacetFilterDialog: View {
         let sections = CueFacetSection.sections(
             counts: counts,
             availableLanguages: availableLanguages,
+            availableFolders: availableFolders,
             selection: session.filter,
             update: { change in change(&session.filter) }
         )
-        WorkbenchDialogColumn(
-            spacing: WorkbenchControlMetrics.redesignSpacing4,
-            maxHeight: availableSize.height
-                - WorkbenchControlMetrics.redesignDialogTopPadding
-                - WorkbenchControlMetrics.redesignDialogInset
-        ) {
+        VStack(spacing: WorkbenchControlMetrics.redesignSpacing4) {
             WorkbenchDialogHeader(title: L("table.filter"))
                 .padding(.horizontal, WorkbenchControlMetrics.redesignDialogInset)
 
             // The scroll view reaches the dialog's sides, so its scrollbar runs
-            // in the inset rather than over the options.
+            // in the inset rather than over the options. It takes the height
+            // the header and footer leave, so the footer keeps the bottom and
+            // short content leaves room below itself.
             WorkbenchScrollView {
                 VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing4) {
                     ForEach(sections) { section in
@@ -267,6 +317,9 @@ struct CueFacetFilterDialog: View {
         .padding(.top, WorkbenchControlMetrics.redesignDialogTopPadding)
         .padding(.bottom, WorkbenchControlMetrics.redesignDialogInset)
         .workbenchDialogWidth(WorkbenchControlMetrics.redesignDialogWidthXLarge)
+        // The dialog keeps one height whatever it lists, or what the window
+        // leaves when that is less.
+        .frame(height: min(WorkbenchControlMetrics.redesignFilterDialogHeight, availableSize.height))
         .background(WorkbenchRedesignColors.bgSurface)
         .workbenchDialogCloseButton(onClose: onClose)
         .subtitleTableTextSelectionNonInteractiveRegion()
@@ -324,7 +377,11 @@ struct CueFacetFilterDialog: View {
                     isRedesign: true,
                     action: { session.filter = CueFacetFilter() }
                 )
-                .disabled(session.filter.isEmpty)
+                // A Folder selection that leaves out every listed folder is
+                // no selection, even before the dialog rewrites it.
+                .disabled(
+                    session.filter.normalizingFolders(listed: availableFolders.map(\.path)).isEmpty
+                )
 
                 HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
                     WorkbenchButton(
@@ -371,15 +428,17 @@ private struct CueFacetFilterChip: View {
 
     private var label: some View {
         HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
+            // The name gives way to the chip's width; the count never does.
             Text(option.title)
                 .font(.system(size: WorkbenchControlMetrics.redesignFontSizeBody))
                 .foregroundStyle(titleColor)
                 .lineLimit(1)
-                .fixedSize(horizontal: true, vertical: false)
+                .truncationMode(.tail)
 
             countView
         }
         .padding(.horizontal, WorkbenchControlMetrics.redesignControlPaddingX)
+        .frame(maxWidth: WorkbenchControlMetrics.redesignFilterChipMaxWidth)
         .frame(height: WorkbenchControlMetrics.redesignFilterChipHeight)
         .background(Capsule().fill(backgroundColor))
         .overlay(Capsule().strokeBorder(borderColor, lineWidth: 1))
@@ -452,6 +511,7 @@ struct SearchFacetDialogSearchState: Equatable {
     /// completed.
     let completeSnapshot: CueFacetSnapshot?
     let availableLanguages: [SubtitleLanguageCode]
+    let availableFolders: [CueFacetFolderOption]
 
     @MainActor
     init(_ search: SearchStore) {
@@ -468,16 +528,14 @@ struct SearchFacetDialogSearchState: Equatable {
                 : nil
         )
         completeSnapshot = search.searchFacetSnapshot
-        var available = Set(
-            search.emptySearchFacetDistribution?.languageCounts.compactMap {
-                $0.value > 0 ? $0.key : nil
-            } ?? []
+        availableLanguages = SubtitleLanguageCode.listed(
+            emptyDistribution: search.emptySearchFacetDistribution,
+            snapshot: search.searchFacetSnapshot
         )
-        if let snapshot = search.searchFacetSnapshot {
-            available.formUnion(snapshot.distribution.languageCounts.keys)
-        }
-        available.insert(.unknown)
-        availableLanguages = SubtitleLanguageCode.allCases.filter(available.contains)
+        availableFolders = CueFacetFolderOption.listed(
+            emptyDistribution: search.emptySearchFacetDistribution,
+            snapshot: search.searchFacetSnapshot
+        )
     }
 
     func counts(for selection: CueFacetFilter) -> CueFacetFilterCounts {
@@ -524,6 +582,7 @@ struct SearchFacetFilterDialog: View {
             session: session,
             counts: searchState.counts(for: session.filter),
             availableLanguages: searchState.availableLanguages,
+            availableFolders: searchState.availableFolders,
             onClose: onClose
         )
         .onReceive(search.objectWillChange.receive(on: DispatchQueue.main)) { _ in
@@ -536,7 +595,8 @@ struct SearchFacetFilterDialog: View {
 }
 
 /// The Filter dialog over an Excerpt list. The list is in memory, so every
-/// selection is answered at once.
+/// selection is answered at once. It lists the same languages and folders as
+/// Search: the library's, not only the list's.
 struct ExcerptFacetFilterDialog: View {
     @ObservedObject var session: CueFacetFilterDialogSession
     @ObservedObject var excerptStore: ExcerptStore
@@ -547,7 +607,14 @@ struct ExcerptFacetFilterDialog: View {
         CueFacetFilterDialog(
             session: session,
             counts: counts,
-            availableLanguages: availableLanguages,
+            availableLanguages: SubtitleLanguageCode.listed(
+                emptyDistribution: appState.search.emptySearchFacetDistribution,
+                snapshot: excerptStore.residentFacetSnapshot
+            ),
+            availableFolders: CueFacetFolderOption.listed(
+                emptyDistribution: appState.search.emptySearchFacetDistribution,
+                snapshot: excerptStore.residentFacetSnapshot
+            ),
             onClose: onClose
         )
     }
@@ -565,15 +632,6 @@ struct ExcerptFacetFilterDialog: View {
             isCalculating: false,
             totalCount: projection.relations.count
         )
-    }
-
-    private var availableLanguages: [SubtitleLanguageCode] {
-        guard let snapshot = excerptStore.residentFacetSnapshot else {
-            return []
-        }
-        return SubtitleLanguageCode.allCases.filter {
-            snapshot.distribution.languageCounts.keys.contains($0)
-        }
     }
 }
 
@@ -608,6 +666,23 @@ private extension CueCharacterFacet {
 }
 
 private extension SubtitleLanguageCode {
+    /// Every language the library has a cue in, and Unknown, in this order.
+    static func listed(
+        emptyDistribution: CueFacetDistribution?,
+        snapshot: CueFacetSnapshot?
+    ) -> [SubtitleLanguageCode] {
+        var available = Set(
+            emptyDistribution?.languageCounts.compactMap {
+                $0.value > 0 ? $0.key : nil
+            } ?? []
+        )
+        if let snapshot {
+            available.formUnion(snapshot.distribution.languageCounts.keys)
+        }
+        available.insert(.unknown)
+        return allCases.filter(available.contains)
+    }
+
     var title: String {
         switch self {
         case .english:

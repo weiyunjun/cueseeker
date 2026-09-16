@@ -3,6 +3,7 @@ enum CueFacetCountCache {
     static let characterFacet = "character"
     static let languageFacet = "language"
     static let watchStatusFacet = "watchStatus"
+    static let folderFacet = "folder"
 
     static func load(from database: SQLiteDatabase) throws -> CueFacetDistribution {
         let statement = try database.prepare(
@@ -16,6 +17,7 @@ enum CueFacetCountCache {
         var characterCounts: [CueCharacterFacet: Int] = [:]
         var languageCounts: [SubtitleLanguageCode: Int] = [:]
         var watchStateCounts: [LibraryWatchState: Int] = [:]
+        var folderCounts: [String: Int] = [:]
 
         while try statement.step() {
             let facet = statement.stringColumn(0)
@@ -38,6 +40,8 @@ enum CueFacetCountCache {
                 if let value = LibraryWatchState(rawValue: value) {
                     watchStateCounts[value] = count
                 }
+            case folderFacet:
+                folderCounts[value] = count
             default:
                 continue
             }
@@ -48,7 +52,8 @@ enum CueFacetCountCache {
             durationCounts: durationCounts,
             characterCounts: characterCounts,
             languageCounts: languageCounts,
-            watchStateCounts: watchStateCounts
+            watchStateCounts: watchStateCounts,
+            folderCounts: folderCounts
         )
     }
 
@@ -58,6 +63,39 @@ enum CueFacetCountCache {
         try rebuildCharacter(on: database)
         try rebuildLanguage(on: database)
         try rebuildWatchStates(on: database)
+        try rebuildFolders(on: database)
+    }
+
+    /// The folder of every searchable cue, read from the search order rows
+    /// the scan itself orders by; they are refreshed before the counts.
+    /// Migrations from schemas whose order rows have no folder yet skip the
+    /// group; schema 50 counts it once they do.
+    private static func rebuildFolders(on database: SQLiteDatabase) throws {
+        let columns = try database.prepare("PRAGMA table_info(subtitle_search_order_rows);")
+        var hasFolderPath = false
+        while try columns.step() {
+            hasFolderPath = hasFolderPath || columns.stringColumn(1) == "folder_path"
+        }
+        guard hasFolderPath else {
+            return
+        }
+        try database.execute(
+            """
+            INSERT INTO cue_facet_counts(facet, value, cue_count)
+            SELECT '\(folderFacet)', sor.folder_path, COUNT(*)
+            FROM subtitle_cue_lines l
+            JOIN subtitle_files sf ON sf.id = l.subtitle_file_id
+            JOIN subtitle_search_order_rows sor ON sor.subtitle_file_id = sf.id
+            WHERE EXISTS (
+                  SELECT 1
+                  FROM subtitle_video_matches m
+                  JOIN video_files vf ON vf.id = m.video_file_id
+                  WHERE m.subtitle_file_id = sf.id
+                    AND m.is_active = 1
+              )
+            GROUP BY sor.folder_path;
+            """
+        )
     }
 
     static func rebuildWatchStates(on database: SQLiteDatabase) throws {

@@ -199,14 +199,16 @@ func filterDialogListsTheFourCardsAndTogglesTheDialogSelection() {
             totalCount: nil
         ),
         availableLanguages: [.english, .japanese],
+        availableFolders: [],
         selection: filter,
         update: { change in change(&filter) }
     )
 
-    // Duration, Character, Language and Watch Status, with 4 durations,
-    // 4 character ranges, the 2 languages and 3 watch states.
-    #expect(sections.map(\.id) == [.duration, .characters, .languages, .watchState])
-    #expect(sections.map(\.options.count) == [4, 4, 2, 3])
+    // Duration, Character, Language, Watch Status and Folder, with 4
+    // durations, 4 character ranges, the 2 languages, 3 watch states and no
+    // folder listed.
+    #expect(sections.map(\.id) == [.duration, .characters, .languages, .watchState, .folder])
+    #expect(sections.map(\.options.count) == [4, 4, 2, 3, 0])
     #expect(sections[0].options[0].id == CueDurationFacet.underOneSecond.rawValue)
     #expect(sections.allSatisfy { $0.options.allSatisfy { $0.count == 0 } })
 
@@ -220,6 +222,63 @@ func filterDialogListsTheFourCardsAndTogglesTheDialogSelection() {
 
 @MainActor
 @Test
+func filterDialogListsFoldersLastInLibraryOrderAndTogglesThemInTheSelection() {
+    var filter = CueFacetFilter()
+    let distribution = CueFacetDistribution(
+        totalCount: 3,
+        durationCounts: [:],
+        characterCounts: [:],
+        languageCounts: [:],
+        watchStateCounts: [:],
+        folderCounts: ["/Media/beta": 2, "/Media/Alpha": 1, "/Other/alpha": 0]
+    )
+    // The library's folders by name, then path, without regard to case.
+    let folders = CueFacetFolderOption.listed(emptyDistribution: distribution, snapshot: nil)
+    #expect(folders.map(\.path) == ["/Media/Alpha", "/Other/alpha", "/Media/beta"])
+    #expect(folders.map(\.title) == ["Alpha", "alpha", "beta"])
+
+    let sections = CueFacetSection.sections(
+        counts: CueFacetFilterCounts(
+            distribution: distribution,
+            isCalculating: false,
+            totalCount: 3
+        ),
+        availableLanguages: [],
+        availableFolders: folders,
+        selection: filter,
+        update: { change in change(&filter) }
+    )
+    let folderSection = try! #require(sections.last)
+    #expect(folderSection.id == .folder)
+    #expect(folderSection.options.map(\.title) == ["Alpha", "alpha", "beta"])
+    #expect(folderSection.options.map(\.count) == [1, 0, 2])
+    #expect(folderSection.options.allSatisfy { !$0.isSelected })
+
+    // Selecting one folder leaves the other listed folders out.
+    folderSection.options[2].toggle()
+    #expect(filter.excludedFolders == ["/Media/Alpha", "/Other/alpha"])
+    #expect(filter.isFolderSelected("/Media/beta"))
+    #expect(!filter.isFolderSelected("/Media/Alpha"))
+}
+
+@MainActor
+@Test
+func settingsStoreRestoresFolderSelectionsAndKeepsNoSelectionApart() {
+    withTemporarySearchSettingsUserDefaults { userDefaults in
+        let store = SettingsStore(userDefaults: userDefaults)
+        store.searchFacetFilter = CueFacetFilter(excludedFolders: ["/Media/B", "/Media/C"])
+        #expect(SettingsStore(userDefaults: userDefaults).searchFacetFilter.excludedFolders == ["/Media/B", "/Media/C"])
+
+        // Every listed folder selected is still a selection; none is none.
+        store.searchFacetFilter = CueFacetFilter(excludedFolders: [])
+        #expect(SettingsStore(userDefaults: userDefaults).searchFacetFilter.excludedFolders == [])
+        store.searchFacetFilter = CueFacetFilter()
+        #expect(SettingsStore(userDefaults: userDefaults).searchFacetFilter.excludedFolders == nil)
+    }
+}
+
+@MainActor
+@Test
 func filterDialogLeavesEveryCountBlankUntilTheCountsAreKnown() {
     var filter = CueFacetFilter()
     filter.languages = [.english]
@@ -228,7 +287,8 @@ func filterDialogLeavesEveryCountBlankUntilTheCountsAreKnown() {
         durationCounts: [.underOneSecond: 2],
         characterCounts: [:],
         languageCounts: [.english: 2],
-        watchStateCounts: [:]
+        watchStateCounts: [:],
+        folderCounts: [:]
     )
     func sections(isCalculating: Bool) -> [CueFacetSection] {
         CueFacetSection.sections(
@@ -238,6 +298,7 @@ func filterDialogLeavesEveryCountBlankUntilTheCountsAreKnown() {
                 totalCount: isCalculating ? nil : 2
             ),
             availableLanguages: [.english, .japanese],
+            availableFolders: [],
             selection: filter,
             update: { _ in }
         )
@@ -265,7 +326,8 @@ func filterDialogCountsNeverSearchAndWaitForTheCompleteRows() {
         durationCounts: [.underOneSecond: 3],
         characterCounts: [:],
         languageCounts: [:],
-        watchStateCounts: [:]
+        watchStateCounts: [:],
+        folderCounts: [:]
     )
 
     // The selection the search runs with keeps the search's own counts.

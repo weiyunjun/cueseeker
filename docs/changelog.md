@@ -51,7 +51,21 @@ This changelog does not replace Git history. Git records concrete file changes. 
   2.4 s instead of 3.8 s; unfiltered it still completes in about 2.7 s.
   While the total is unknown the dialog's Show button, and Return with it,
   is disabled; options can still be checked, and Show comes back with the
-  total once the search completes.
+  total once the search completes. The Filter dialog now ends with a Folder
+  group: one option for every folder the library lists, named and ordered as
+  on the Library Video tab, in Search and in every Excerpt list alike, with
+  a count of 0 where a folder gives nothing. The group remembers the folders
+  left out rather than the ones selected, so a folder indexed later joins a
+  selection and stays out of none, and a selection that leaves out every
+  listed folder counts as none. With folders selected the scan reads their
+  files first, so the first page no longer waits behind folders that give no
+  result, and the completed result still answers a changed selection in
+  display order. The Excerpt dialog's Language group lists the library's
+  languages as Search's does. An option is at most 332 wide, a longer name
+  ending in an ellipsis so two fit a line beside five-digit counts, and the
+  dialog keeps a height of 600 with the groups scrolling between the title
+  and the buttons. Schema 50 counts the folders of a library indexed before
+  it.
 - Settings now has six categories: General, which gathers Appearance,
   Search, Language and Deep Link; Play, which gathers Play and Decode;
   Shortcuts; Subtitle; Maintenance; and Developer. Settings opens on General.

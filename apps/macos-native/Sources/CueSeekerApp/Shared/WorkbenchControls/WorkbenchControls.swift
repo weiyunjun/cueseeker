@@ -190,6 +190,9 @@ enum WorkbenchControlMetrics {
     static let redesignFilterChipCountPlaceholderWidth: CGFloat = 24
     /// --height-filter-chip-count-placeholder: 12px
     static let redesignFilterChipCountPlaceholderHeight: CGFloat = 12
+    /// --max-width-filter-chip: 332px, two chips to a line with five-digit
+    /// counts; a longer name ends in an ellipsis.
+    static let redesignFilterChipMaxWidth: CGFloat = 332
     /// --size-spinner: 16px
     static let redesignSpinnerSize: CGFloat = 16
     /// --width-spinner-stroke: 2px
@@ -331,6 +334,8 @@ enum WorkbenchControlMetrics {
     }()
     /// --height-task-panel: 500px
     static let redesignTaskPanelHeight: CGFloat = 500
+    /// --height-filter-dialog: 600px
+    static let redesignFilterDialogHeight: CGFloat = 600
     /// --height-task-progress-bar: 4px
     static let redesignTaskProgressBarHeight = redesignLibraryProgressBarHeight
 

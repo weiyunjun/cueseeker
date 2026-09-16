@@ -466,6 +466,7 @@ func excerptResidentSnapshotLoadsRelationsCurrentCueContentAndFacetsTogether() t
     #expect(snapshot.facetSnapshot.distribution.durationCounts[.oneToUnderThreeSeconds] == 1)
     #expect(snapshot.facetSnapshot.distribution.characterCounts[.elevenToTwenty] == 1)
     #expect(snapshot.facetSnapshot.distribution.watchStateCounts[.finished] == 1)
+    #expect(snapshot.facetSnapshot.distribution.folderCounts == ["/Media/Show": 1])
     #expect(snapshot.facetSnapshot.filteredCueIDs(
         using: CueFacetFilter(watchStates: [.finished]),
         limit: 1

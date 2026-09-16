@@ -439,7 +439,10 @@ final class SettingsStore: ObservableObject {
             durations: durations,
             characters: characters,
             languages: languages,
-            watchStates: watchStates
+            watchStates: watchStates,
+            // Folders are listed by the library, so the group keeps its own
+            // "no selection": no key at all.
+            excludedFolders: (exclusions["folder"] as? [String]).map(Set.init)
         )
     }
 
@@ -457,7 +460,7 @@ final class SettingsStore: ObservableObject {
         for filter: CueFacetFilter
     ) -> [String: [String]] {
         let allWatchStates: Set<LibraryWatchState> = [.finished, .watching, .unwatched]
-        return [
+        var exclusions = [
             "duration": Set(CueDurationFacet.allCases)
                 .subtracting(filter.durations)
                 .map(\.rawValue)
@@ -475,6 +478,10 @@ final class SettingsStore: ObservableObject {
                 .map(\.rawValue)
                 .sorted(),
         ]
+        if let excludedFolders = filter.excludedFolders {
+            exclusions["folder"] = excludedFolders.sorted()
+        }
+        return exclusions
     }
 
     private static func rawValues(

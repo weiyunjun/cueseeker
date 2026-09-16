@@ -549,11 +549,13 @@ public final class ExcerptDatabase: @unchecked Sendable {
         var characterFacets: [CueCharacterFacet] = []
         var languageFacets: [Set<SubtitleLanguageCode>] = []
         var watchStateFacets: [LibraryWatchState] = []
+        var folderFacets: [String] = []
         cueIDs.reserveCapacity(relations.count)
         durationFacets.reserveCapacity(relations.count)
         characterFacets.reserveCapacity(relations.count)
         languageFacets.reserveCapacity(relations.count)
         watchStateFacets.reserveCapacity(relations.count)
+        folderFacets.reserveCapacity(relations.count)
 
         for relation in relations {
             guard let excerpt = resolvedExcerptsByID[relation.id] else {
@@ -576,6 +578,13 @@ public final class ExcerptDatabase: @unchecked Sendable {
             watchStateFacets.append(
                 watchStatesByExcerptID[relation.id] ?? .unwatched
             )
+            // The same folder the search order rows give the cue.
+            folderFacets.append(
+                URL(fileURLWithPath: content?.subtitlePath ?? excerpt.subtitlePath)
+                    .deletingLastPathComponent()
+                    .standardizedFileURL
+                    .path
+            )
         }
 
         return CueFacetSnapshot(
@@ -583,7 +592,8 @@ public final class ExcerptDatabase: @unchecked Sendable {
             durationFacets: durationFacets,
             characterFacets: characterFacets,
             languageFacets: languageFacets,
-            watchStateFacets: watchStateFacets
+            watchStateFacets: watchStateFacets,
+            folderFacets: folderFacets
         )
     }
 

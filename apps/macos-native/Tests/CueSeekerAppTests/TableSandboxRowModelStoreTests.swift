@@ -909,7 +909,8 @@ func excerptStoreExcludesUnavailableRowsOnlyFromPlaybackScope() {
                 durationFacets: [.oneToUnderThreeSeconds, .oneToUnderThreeSeconds],
                 characterFacets: [.oneToTen, .elevenToTwenty],
                 languageFacets: [[.japanese], [.unknown]],
-                watchStateFacets: [.watching, .unwatched]
+                watchStateFacets: [.watching, .unwatched],
+                folderFacets: Array(repeating: "/Media", count: ([101, 102]).count)
             )
         ),
         dataRevision: 1

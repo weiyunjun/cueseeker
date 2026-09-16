@@ -205,10 +205,19 @@ final class SearchStore: ObservableObject {
     /// again.
     @discardableResult
     func updateSearchFacetFilter(_ filter: CueFacetFilter) -> Bool {
+        let filter = normalizedFacetFilter(filter)
         guard searchFacetFilter != filter else { return false }
         searchFacetFilter = filter
         setSearchFacetSnapshot(nil)
         return true
+    }
+
+    /// A Folder selection that leaves out every listed folder is no
+    /// selection. The listed folders are the library's, known once the
+    /// database is; Search and every Excerpt list share them.
+    func normalizedFacetFilter(_ filter: CueFacetFilter) -> CueFacetFilter {
+        guard let distribution = emptySearchFacetDistribution else { return filter }
+        return filter.normalizingFolders(listed: distribution.folderCounts.keys)
     }
 
     private func refreshSearchFacetDistribution() {
@@ -236,6 +245,7 @@ final class SearchStore: ObservableObject {
     func projectSearchFacetFilter(
         _ filter: CueFacetFilter
     ) -> (cueIDs: [Int64], distribution: CueFacetDistribution)? {
+        let filter = normalizedFacetFilter(filter)
         guard searchFacetFilter != filter,
               let snapshot = searchFacetSnapshot
         else {
@@ -375,6 +385,8 @@ final class SearchStore: ObservableObject {
 
     func reloadEmptySearchFacetDistribution() {
         emptySearchFacetDistribution = try? database?.cueFacetDistribution()
+        // Folders may have gone with the indexed content.
+        searchFacetFilter = normalizedFacetFilter(searchFacetFilter)
     }
 
     private func setTableProjectionSource(_ source: SearchTableProjectionSource?) {

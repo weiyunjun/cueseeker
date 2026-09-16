@@ -1034,3 +1034,46 @@ func migratesSchema48ByStoringTheLanguageOfEveryCueLine() throws {
         ) == "ja=1,unknown=1,zh-Hans=1"
     )
 }
+
+@Test
+func migratesSchema49ByCountingTheCuesOfEveryFolder() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    try DatabaseBootstrap.prepare(at: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
+    for (folder, lineCount) in [("Alpha", 2), ("Beta", 1)] {
+        try database.replaceEntries(
+            subtitleFile: URL(fileURLWithPath: "/Media/\(folder)/Folder.srt"),
+            videoFile: URL(fileURLWithPath: "/Media/\(folder)/Folder.mkv"),
+            entries: (0..<lineCount).map { index in
+                SubtitleEntry(
+                    sequenceNumber: index + 1,
+                    startTimecode: "00:00:0\(index),000",
+                    endTimecode: "00:00:0\(index),500",
+                    startMilliseconds: index * 1_000,
+                    endMilliseconds: index * 1_000 + 500,
+                    text: "Folder line \(index)"
+                )
+            }
+        )
+    }
+    let folderCountsSQL = "SELECT GROUP_CONCAT(value || '=' || cue_count, ',') FROM (SELECT value, cue_count FROM cue_facet_counts WHERE facet = 'folder' ORDER BY value);"
+    #expect(try sqliteStringValue(at: databaseURL, sql: folderCountsSQL) == "/Media/Alpha=2,/Media/Beta=1")
+
+    // A library indexed before schema 50 has every other count but no folder.
+    try executeDatabaseTestSQLite(
+        at: databaseURL,
+        """
+        DELETE FROM cue_facet_counts WHERE facet = 'folder';
+        PRAGMA user_version = 49;
+        """
+    )
+
+    try DatabaseBootstrap.prepare(at: databaseURL)
+
+    #expect(try sqliteSchemaVersion(at: databaseURL) == DatabaseBootstrap.currentSchemaVersion)
+    #expect(try sqliteStringValue(at: databaseURL, sql: folderCountsSQL) == "/Media/Alpha=2,/Media/Beta=1")
+}

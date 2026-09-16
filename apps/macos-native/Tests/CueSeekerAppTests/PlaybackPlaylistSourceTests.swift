@@ -363,7 +363,8 @@ func searchPlaybackPlaylistUsesTheFilteredResults() throws {
         },
         characterFacets: Array(repeating: .oneToTen, count: matchedCueIDs.count),
         languageFacets: Array(repeating: [.english], count: matchedCueIDs.count),
-        watchStateFacets: Array(repeating: .unwatched, count: matchedCueIDs.count)
+        watchStateFacets: Array(repeating: .unwatched, count: matchedCueIDs.count),
+        folderFacets: Array(repeating: "/Media", count: (matchedCueIDs).count)
     )
     let page = SubtitleSearchPage(
         results: results,

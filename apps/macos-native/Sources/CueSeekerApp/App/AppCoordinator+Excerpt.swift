@@ -598,7 +598,9 @@ extension AppCoordinator {
         let trimmedSearchText = searchText.trimmingCharacters(
             in: .whitespacesAndNewlines
         )
-        let facetProjection = excerpt.residentFacetProjection(using: facetFilter)
+        let facetProjection = excerpt.residentFacetProjection(
+            using: search.normalizedFacetFilter(facetFilter)
+        )
         let matchingExcerptIDs = Set(facetProjection.excerptIDs)
         let relations = excerpt.residentRelations.filter { relation in
             guard matchingExcerptIDs.contains(relation.id) else {

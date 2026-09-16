@@ -322,12 +322,8 @@ final class ExcerptStore: ObservableObject {
         using filter: CueFacetFilter
     ) -> (excerptIDs: [Int64], distribution: CueFacetDistribution) {
         guard let residentFacetSnapshot else { return ([], .zero) }
-        var availableFilter = filter
-        availableFilter.languages.formIntersection(
-            residentFacetSnapshot.distribution.languageCounts.keys
-        )
         let projection = residentFacetSnapshot.filteredCueIDs(
-            using: availableFilter,
+            using: filter,
             limit: residentFacetSnapshot.cueIDs.count
         )
         let excerptIDByCueID = Dictionary(

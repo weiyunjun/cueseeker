@@ -99,6 +99,7 @@
 "facet.character" = "字符数";
 "facet.language" = "语言";
 "facet.watch_status" = "观看状态";
+"facet.folder" = "文件夹";
 "facet.calculating" = "计算中";
 "facet.selected" = "已选中";
 "facet.not_selected" = "未选中";

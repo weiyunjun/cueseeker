@@ -114,7 +114,8 @@ func playbackCommandPanelSearchPersistsWorkbenchFacetResultsAfterDismissal()
         durationFacets: [.underOneSecond, .fiveSecondsOrMore],
         characterFacets: [.oneToTen, .oneToTen],
         languageFacets: [[], []],
-        watchStateFacets: [.unwatched, .unwatched]
+        watchStateFacets: [.unwatched, .unwatched],
+        folderFacets: Array(repeating: "/Media", count: ([included.entryID, excluded.entryID]).count)
     )
     // The scan matched both cues; the filter kept only the first as a result.
     #expect(app.search.commitExactSearchPage(

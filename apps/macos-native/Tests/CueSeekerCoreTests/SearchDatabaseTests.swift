@@ -2383,6 +2383,54 @@ func searchPageAppliesTheFacetFilterToResultsWhileTheSnapshotHoldsEveryMatch() t
 }
 
 @Test
+func searchPageReadsTheSelectedFoldersFirstAndKeepsTheSnapshotInDisplayOrder() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try IndexingDatabase(path: databaseURL)
+    try DatabaseBootstrap.prepare(at: databaseURL)
+    for folder in ["Alpha", "Beta"] {
+        try database.replaceEntries(
+            subtitleFile: URL(fileURLWithPath: "/Media/\(folder)/Folder.srt"),
+            videoFile: URL(fileURLWithPath: "/Media/\(folder)/Folder.mkv"),
+            entries: (0..<3).map { index in
+                SubtitleEntry(
+                    sequenceNumber: index + 1,
+                    startTimecode: "00:00:0\(index),000",
+                    endTimecode: "00:00:0\(index),500",
+                    startMilliseconds: index * 1_000,
+                    endMilliseconds: index * 1_000 + 500,
+                    text: "Folder line \(index)"
+                )
+            }
+        )
+    }
+    let search = try SearchDatabase(path: databaseURL)
+
+    let unfiltered = try search.searchPage("folder", limit: 10)
+    let snapshot = try #require(unfiltered.facetSnapshot)
+    #expect(snapshot.distribution.folderCounts == ["/Media/Alpha": 3, "/Media/Beta": 3])
+    #expect(try search.cueFacetDistribution().folderCounts == ["/Media/Alpha": 3, "/Media/Beta": 3])
+
+    // Only the folder that comes last in display order is selected: the scan
+    // reads it first, its rows are the results in their own order, and the
+    // snapshot is back in display order, the same as the unfiltered scan's.
+    let lastFolder = URL(fileURLWithPath: try #require(unfiltered.results.last).subtitlePath)
+        .deletingLastPathComponent()
+        .path
+    let otherFolder = lastFolder == "/Media/Beta" ? "/Media/Alpha" : "/Media/Beta"
+    let selected = CueFacetFilter(excludedFolders: [otherFolder])
+    let selectedRows = try search.searchPage("folder", limit: 10, facetFilter: selected)
+    #expect(selectedRows.totalCount == 3)
+    #expect(selectedRows.results.map(\.content) == ["Folder line 0", "Folder line 1", "Folder line 2"])
+    #expect(selectedRows.results.allSatisfy { $0.subtitlePath.hasPrefix(lastFolder + "/") })
+    #expect(selectedRows.facetSnapshot == snapshot)
+    #expect(selectedRows.cueIDs == snapshot.filteredCueIDs(using: selected, limit: 6).cueIDs)
+}
+
+@Test
 func searchPageFiltersLanguagesInTheRowReadsAndCountsThemFromTheStoredTable() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {

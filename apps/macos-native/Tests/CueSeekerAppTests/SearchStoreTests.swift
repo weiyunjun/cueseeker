@@ -388,7 +388,8 @@ func exactFacetSnapshotRejectsStaleResultGeneration() throws {
         durationFacets: [.oneToUnderThreeSeconds],
         characterFacets: [.oneToTen],
         languageFacets: [[.english]],
-        watchStateFacets: [.unwatched]
+        watchStateFacets: [.unwatched],
+        folderFacets: Array(repeating: "/Media", count: ([firstResult.entryID]).count)
     )
     let firstPage = SubtitleSearchPage(
         results: [firstResult],
@@ -428,7 +429,8 @@ func exactFacetSnapshotRejectsStaleResultGeneration() throws {
         durationFacets: [.underOneSecond],
         characterFacets: [.oneToTen],
         languageFacets: [[.japanese]],
-        watchStateFacets: [.watching]
+        watchStateFacets: [.watching],
+        folderFacets: Array(repeating: "/Media", count: ([secondResult.entryID]).count)
     )
     let secondPage = SubtitleSearchPage(
         results: [secondResult],
@@ -469,7 +471,8 @@ func facetFilterChangeDropsTheCountsUntilTheNextSearchAndKeepsTheRows() {
         },
         characterFacets: Array(repeating: .oneToTen, count: 120),
         languageFacets: Array(repeating: [.english], count: 120),
-        watchStateFacets: Array(repeating: .unwatched, count: 120)
+        watchStateFacets: Array(repeating: .unwatched, count: 120),
+        folderFacets: Array(repeating: "/Media", count: (results.map(\.entryID)).count)
     )
     let page = SubtitleSearchPage(
         results: results,
@@ -524,7 +527,8 @@ func filteredResultCountsEveryOptionFromItsSnapshotOfEveryMatch() {
         durationFacets: [.underOneSecond, .fiveSecondsOrMore],
         characterFacets: [.oneToTen, .oneToTen],
         languageFacets: [[.japanese], [.english]],
-        watchStateFacets: [.unwatched, .unwatched]
+        watchStateFacets: [.unwatched, .unwatched],
+        folderFacets: Array(repeating: "/Media", count: ([result.entryID, 2]).count)
     )
     let page = SubtitleSearchPage(
         results: [result],
@@ -575,7 +579,8 @@ func filterChangeAfterTheSearchCompletesProjectsRowsAndCountsWithoutSearching() 
         durationFacets: [.fiveSecondsOrMore, .underOneSecond],
         characterFacets: [.oneToTen, .oneToTen],
         languageFacets: [[.english], [.japanese]],
-        watchStateFacets: [.unwatched, .unwatched]
+        watchStateFacets: [.unwatched, .unwatched],
+        folderFacets: Array(repeating: "/Media", count: ([2, 1]).count)
     )
     #expect(search.commitExactSearchPage(
         SubtitleSearchPage(results: [result], cueIDs: [1], totalCount: 1, fileSummaries: [], facetSnapshot: everyMatch),
@@ -648,7 +653,8 @@ func filterChangeAfterATwoCardSearchIsProjectedOverEveryMatch() {
         durationFacets: [.underOneSecond, .fiveSecondsOrMore, .underOneSecond, .fiveSecondsOrMore],
         characterFacets: [.oneToTen, .oneToTen, .oneToTen, .oneToTen],
         languageFacets: [[.japanese], [.japanese], [.english], [.english]],
-        watchStateFacets: [.unwatched, .unwatched, .unwatched, .unwatched]
+        watchStateFacets: [.unwatched, .unwatched, .unwatched, .unwatched],
+        folderFacets: Array(repeating: "/Media", count: ([1, 2, 3, 4]).count)
     )
     #expect(search.commitExactSearchPage(
         SubtitleSearchPage(results: [result], cueIDs: [1], totalCount: 1, fileSummaries: [], facetSnapshot: everyMatch),
@@ -1278,7 +1284,8 @@ func exactCompletionInstallsTheReportedRowsAndThePageTailInOneChange() throws {
         durationFacets: allCueIDs.map { _ in .underOneSecond },
         characterFacets: allCueIDs.map { _ in .oneToTen },
         languageFacets: allCueIDs.map { _ in [] },
-        watchStateFacets: allCueIDs.map { _ in .unwatched }
+        watchStateFacets: allCueIDs.map { _ in .unwatched },
+        folderFacets: Array(repeating: "/Media", count: (allCueIDs).count)
     )
     let revisionBefore = app.search.resultRevision
     #expect(app.search.commitExactSearchPage(

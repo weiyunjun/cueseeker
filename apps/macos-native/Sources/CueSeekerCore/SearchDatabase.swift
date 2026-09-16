@@ -520,6 +520,11 @@ public final class SearchDatabase: @unchecked Sendable {
             var acceptedCharacterFacets: [CueCharacterFacet] = []
             var acceptedLanguageFacets: [Set<SubtitleLanguageCode>] = []
             var acceptedWatchStateFacets: [LibraryWatchState] = []
+            var acceptedFolderFacets: [String] = []
+            // Only while the selected folders are read first: each match's
+            // file rank, and how many matches the first run holds.
+            var acceptedFileRanks: [Int] = []
+            var acceptedFirstRunCount = 0
             var resultCueIDs: [Int64] = []
             var exactPageResults: [OrderedSearchResult] = []
             var pendingProgressResults: [OrderedSearchResult] = []
@@ -544,12 +549,27 @@ public final class SearchDatabase: @unchecked Sendable {
                 return results
             }
             func facetSnapshot() -> CueFacetSnapshot {
-                CueFacetSnapshot(
-                    cueIDs: acceptedCueIDs,
-                    durationFacets: acceptedDurationFacets,
-                    characterFacets: acceptedCharacterFacets,
-                    languageFacets: acceptedLanguageFacets,
-                    watchStateFacets: acceptedWatchStateFacets
+                guard !acceptedFileRanks.isEmpty else {
+                    return CueFacetSnapshot(
+                        cueIDs: acceptedCueIDs,
+                        durationFacets: acceptedDurationFacets,
+                        characterFacets: acceptedCharacterFacets,
+                        languageFacets: acceptedLanguageFacets,
+                        watchStateFacets: acceptedWatchStateFacets,
+                        folderFacets: acceptedFolderFacets
+                    )
+                }
+                let order = Self.displayOrder(
+                    fileRanks: acceptedFileRanks,
+                    firstRunCount: acceptedFirstRunCount
+                )
+                return CueFacetSnapshot(
+                    cueIDs: order.map { acceptedCueIDs[$0] },
+                    durationFacets: order.map { acceptedDurationFacets[$0] },
+                    characterFacets: order.map { acceptedCharacterFacets[$0] },
+                    languageFacets: order.map { acceptedLanguageFacets[$0] },
+                    watchStateFacets: order.map { acceptedWatchStateFacets[$0] },
+                    folderFacets: order.map { acceptedFolderFacets[$0] }
                 )
             }
             let languageFilterCodes = Self.languageCodesForSearchFilter(languageFilter)
@@ -578,16 +598,23 @@ public final class SearchDatabase: @unchecked Sendable {
             emit("search_order_rows_validated", since: searchOrderRowsStart)
 
             let fileRanksStart = Self.diagnosticNow()
-            let fileRanks = try searchFileRanks(
+            // With a Folder selection the selected folders' files are read
+            // first, so the first page does not wait behind folders that give
+            // no result; the snapshot goes back to display order at the end.
+            let fileOrder = try searchFileRanks(
                 pathPrefixes: pathPrefixes,
-                subtitlePath: subtitlePathFilter
+                subtitlePath: subtitlePathFilter,
+                excludedFolders: facetFilter.excludedFolders
             )
+            let fileRanks = fileOrder.ranks
+            let firstFileIDs = fileOrder.firstFileIDs
             emit("file_ranks", since: fileRanksStart, fields: [.init("files", fileRanks.count)])
 
             let hitsStart = Self.diagnosticNow()
             let orderedHitRowIDs = try orderedFTSHitRowIDs(
                 matching: plan.ftsQuery,
-                fileRanks: fileRanks
+                fileRanks: fileRanks,
+                firstFileIDs: firstFileIDs
             )
             emit("fts_hits", since: hitsStart, fields: [.init("hits", orderedHitRowIDs.count)])
 
@@ -677,6 +704,8 @@ public final class SearchDatabase: @unchecked Sendable {
                     if !orderedMatches.isEmpty {
                         matchedCandidateCount += 1
                     }
+                    let isFirstFile = firstFileIDs?.contains(candidate.subtitleFileID) ?? false
+                    let folderPath = fileOrder.folderPaths[candidate.subtitleFileID] ?? ""
                     for result in orderedMatches {
                         let durationFacet = CueDurationFacet(
                             durationMilliseconds:
@@ -691,13 +720,21 @@ public final class SearchDatabase: @unchecked Sendable {
                         acceptedCharacterFacets.append(characterFacet)
                         acceptedLanguageFacets.append(result.result.languages)
                         acceptedWatchStateFacets.append(candidate.watchState)
+                        acceptedFolderFacets.append(folderPath)
+                        if firstFileIDs != nil {
+                            acceptedFileRanks.append(fileRanks[candidate.subtitleFileID] ?? 0)
+                            if isFirstFile {
+                                acceptedFirstRunCount += 1
+                            }
+                        }
                         guard facetFilter.matches(
                             duration: durationFacet,
                             characters: characterFacet,
                             languages: result.result.languages.isEmpty
                                 ? [.unknown]
                                 : result.result.languages,
-                            watchState: candidate.watchState
+                            watchState: candidate.watchState,
+                            folder: folderPath
                         ) else {
                             continue
                         }
@@ -1139,6 +1176,18 @@ public final class SearchDatabase: @unchecked Sendable {
         let order: SearchResultOrder
         var watchState: LibraryWatchState = .unwatched
         var ftsRowID: Int64 = 0
+    }
+
+    /// The searchable subtitle files inside a scope, as the scan reads them.
+    private struct SearchFileOrder {
+        /// Display rank of every file, in the Search order: display title,
+        /// then subtitle path.
+        var ranks: [Int64: Int] = [:]
+        /// Each file's folder, one string shared by every match of the file.
+        var folderPaths: [Int64: String] = [:]
+        /// With a Folder selection, the files of the selected folders, which
+        /// the scan reads first.
+        var firstFileIDs: Set<Int64>?
     }
 
     private struct SearchResultOrder {
@@ -1681,12 +1730,13 @@ public final class SearchDatabase: @unchecked Sendable {
         JOIN subtitle_search_order_rows sor ON sor.subtitle_file_id = sf.id
         """
 
-    /// Display rank of every searchable subtitle file inside the scope, in the
-    /// Search order: display title, then subtitle path.
+    /// Every searchable subtitle file inside the scope with its display rank
+    /// and folder, and with a Folder selection the files the scan reads first.
     private func searchFileRanks(
         pathPrefixes: [String]?,
-        subtitlePath: String?
-    ) throws -> [Int64: Int] {
+        subtitlePath: String?,
+        excludedFolders: Set<String>?
+    ) throws -> SearchFileOrder {
         let scopeCondition = pathPrefixes.map {
             let conditions = $0.map { _ in "(sf.subtitle_path >= ? AND sf.subtitle_path < ?)" }
                 .joined(separator: " OR ")
@@ -1695,7 +1745,7 @@ public final class SearchDatabase: @unchecked Sendable {
         let subtitlePathCondition = subtitlePath.map { _ in "AND sf.subtitle_path = ?" } ?? ""
         let statement = try database.prepare(
             """
-            SELECT sf.id
+            SELECT sf.id, sor.folder_path
             FROM subtitle_search_order_rows sor
             JOIN subtitle_files sf ON sf.id = sor.subtitle_file_id
             WHERE EXISTS (
@@ -1715,18 +1765,26 @@ public final class SearchDatabase: @unchecked Sendable {
             bindIndex += 1
         }
 
-        var ranks: [Int64: Int] = [:]
+        var order = SearchFileOrder(firstFileIDs: excludedFolders == nil ? nil : [])
         while try statement.step() {
-            ranks[statement.int64Column(0)] = ranks.count
+            let fileID = statement.int64Column(0)
+            let folderPath = statement.stringColumn(1)
+            order.ranks[fileID] = order.ranks.count
+            order.folderPaths[fileID] = folderPath
+            if let excludedFolders, !excludedFolders.contains(folderPath) {
+                order.firstFileIDs?.insert(fileID)
+            }
         }
-        return ranks
+        return order
     }
 
     /// FTS hit rowids inside the scope, ordered by file display rank and then
-    /// by time inside the file. Reads only the FTS index, never a content row.
+    /// by time inside the file; the files read first, when there are any,
+    /// come before the rest. Reads only the FTS index, never a content row.
     private func orderedFTSHitRowIDs(
         matching ftsQuery: String,
-        fileRanks: [Int64: Int]
+        fileRanks: [Int64: Int],
+        firstFileIDs: Set<Int64>?
     ) throws -> [Int64] {
         guard !fileRanks.isEmpty else {
             return []
@@ -1749,7 +1807,7 @@ public final class SearchDatabase: @unchecked Sendable {
             try statement.bind(singleFileRange.upperBound, at: 3)
         }
 
-        var hits: [(rank: Int, rowID: Int64)] = []
+        var hits: [(later: Bool, rank: Int, rowID: Int64)] = []
         var stepped = 0
         while try statement.step() {
             stepped += 1
@@ -1757,15 +1815,41 @@ public final class SearchDatabase: @unchecked Sendable {
                 try Task.checkCancellation()
             }
             let rowID = statement.int64Column(0)
-            guard let rank = fileRanks[SearchFTSRows.subtitleFileID(ofRowID: rowID)] else {
+            let fileID = SearchFTSRows.subtitleFileID(ofRowID: rowID)
+            guard let rank = fileRanks[fileID] else {
                 continue
             }
-            hits.append((rank, rowID))
+            hits.append((firstFileIDs.map { !$0.contains(fileID) } ?? false, rank, rowID))
         }
         hits.sort { lhs, rhs in
-            lhs.rank != rhs.rank ? lhs.rank < rhs.rank : lhs.rowID < rhs.rowID
+            if lhs.later != rhs.later {
+                return !lhs.later
+            }
+            return lhs.rank != rhs.rank ? lhs.rank < rhs.rank : lhs.rowID < rhs.rowID
         }
         return hits.map(\.rowID)
+    }
+
+    /// The order that puts a scan which read the selected folders first back
+    /// in display order: the rows of that first run and then the rest, each
+    /// run already in display order, merged by file rank.
+    private static func displayOrder(fileRanks: [Int], firstRunCount: Int) -> [Int] {
+        var order: [Int] = []
+        order.reserveCapacity(fileRanks.count)
+        var first = 0
+        var rest = firstRunCount
+        while first < firstRunCount, rest < fileRanks.count {
+            if fileRanks[first] <= fileRanks[rest] {
+                order.append(first)
+                first += 1
+            } else {
+                order.append(rest)
+                rest += 1
+            }
+        }
+        order.append(contentsOf: first..<firstRunCount)
+        order.append(contentsOf: rest..<fileRanks.count)
+        return order
     }
 
     /// Candidates for the given FTS rowids, returned in the rowids' order and

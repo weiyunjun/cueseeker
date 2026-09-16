@@ -12,7 +12,7 @@ public enum DatabaseBootstrapError: Error, Equatable, CustomStringConvertible {
 }
 
 public enum DatabaseBootstrap {
-    public static let currentSchemaVersion = 49
+    public static let currentSchemaVersion = 50
 
     public static func prepare(at path: URL) throws {
         let database = try SQLiteDatabase(path: path, access: .readWrite)
@@ -61,6 +61,7 @@ private extension DatabaseBootstrap {
                 || previousVersion == 46
                 || previousVersion == 47
                 || previousVersion == 48
+                || previousVersion == 49
                 || previousVersion == DatabaseBootstrap.currentSchemaVersion
         else {
             throw DatabaseBootstrapError.unsupportedSchemaVersion(
@@ -160,6 +161,9 @@ private extension DatabaseBootstrap {
         }
         if previousVersion >= 33, previousVersion <= 48 {
             try migrateSchema48To49(on: database)
+        }
+        if previousVersion >= 33, previousVersion <= 49 {
+            try migrateSchema49To50(on: database)
             return
         }
         guard previousVersion == 0 else {
@@ -752,6 +756,20 @@ private extension DatabaseBootstrap {
                 }
             }
             try database.execute("PRAGMA user_version = 49;")
+        }
+    }
+
+    /// Schema 50 counts the cues of every folder for the Filter dialog's
+    /// Folder group; a library indexed before it has no folder counts yet.
+    static func migrateSchema49To50(on database: SQLiteDatabase) throws {
+        try database.withImmediateTransaction {
+            let indexedContent = try database.prepare(
+                "SELECT 1 FROM sqlite_schema WHERE type = 'table' AND name = 'subtitle_video_matches';"
+            )
+            if try indexedContent.step() {
+                try CueFacetCountCache.rebuildAll(on: database)
+            }
+            try database.execute("PRAGMA user_version = 50;")
         }
     }
 

@@ -6,14 +6,75 @@ private func matches(
     durationMilliseconds: Int = 1_500,
     characterCount: Int = 12,
     languages: Set<SubtitleLanguageCode> = [.japanese],
-    watchState: LibraryWatchState = .watching
+    watchState: LibraryWatchState = .watching,
+    folder: String = "/Media"
 ) -> Bool {
     filter.matches(
         durationMilliseconds: durationMilliseconds,
         characterCount: characterCount,
         languages: languages,
-        watchState: watchState
+        watchState: watchState,
+        folder: folder
     )
+}
+
+@Test
+func cueFacetFilterFolderSelectionRemembersTheFoldersLeftOut() {
+    let listed = ["/Media/A", "/Media/B", "/Media/C"]
+    var filter = CueFacetFilter()
+    #expect(!filter.isFolderSelected("/Media/A"))
+    #expect(matches(filter, folder: "/Media/A"))
+
+    // Selecting the first folder leaves the others out; a folder indexed
+    // later is not left out, so it is selected with it.
+    filter.toggleFolder("/Media/A", listed: listed)
+    #expect(filter.excludedFolders == ["/Media/B", "/Media/C"])
+    #expect(filter.isFolderSelected("/Media/A"))
+    #expect(!filter.isFolderSelected("/Media/B"))
+    #expect(matches(filter, folder: "/Media/A"))
+    #expect(!matches(filter, folder: "/Media/B"))
+    #expect(matches(filter, folder: "/Media/D"))
+    #expect(!filter.isEmpty)
+
+    // Every listed folder selected is still a selection; deselecting the
+    // last one leaves none.
+    filter.toggleFolder("/Media/B", listed: listed)
+    filter.toggleFolder("/Media/C", listed: listed)
+    #expect(filter.excludedFolders == [])
+    #expect(!filter.isEmpty)
+    filter.toggleFolder("/Media/A", listed: listed)
+    filter.toggleFolder("/Media/B", listed: listed)
+    filter.toggleFolder("/Media/C", listed: listed)
+    #expect(filter.excludedFolders == nil)
+    #expect(filter.isEmpty)
+
+    // A selection that leaves out every listed folder, as after the selected
+    // folders' root is removed, is no selection.
+    let stale = CueFacetFilter(excludedFolders: ["/Media/A", "/Media/B"])
+    #expect(stale.normalizingFolders(listed: ["/Media/A", "/Media/B"]).excludedFolders == nil)
+    #expect(stale.normalizingFolders(listed: listed).excludedFolders == ["/Media/A", "/Media/B"])
+}
+
+@Test
+func cueFacetSnapshotCountsFoldersLikeEveryOtherGroup() {
+    let snapshot = CueFacetSnapshot(
+        cueIDs: [1, 2, 3, 4],
+        durationFacets: [.underOneSecond, .fiveSecondsOrMore, .underOneSecond, .underOneSecond],
+        characterFacets: Array(repeating: .oneToTen, count: 4),
+        languageFacets: Array(repeating: [.japanese], count: 4),
+        watchStateFacets: Array(repeating: .unwatched, count: 4),
+        folderFacets: ["/Media/A", "/Media/A", "/Media/B", "/Media/B"]
+    )
+    #expect(snapshot.distribution.folderCounts == ["/Media/A": 2, "/Media/B": 2])
+
+    // Folder A with short cues: the rows are A's short cue; the Folder counts
+    // ignore the Folder selection and apply Duration, while the Duration
+    // counts apply the Folder selection.
+    let filter = CueFacetFilter(durations: [.underOneSecond], excludedFolders: ["/Media/B"])
+    let page = snapshot.filteredCueIDs(using: filter, limit: 4)
+    #expect(page.cueIDs == [1])
+    #expect(page.distribution.folderCounts == ["/Media/A": 1, "/Media/B": 2])
+    #expect(page.distribution.durationCounts == [.underOneSecond: 1, .fiveSecondsOrMore: 1])
 }
 
 @Test
@@ -186,7 +247,8 @@ func cueFacetSnapshotProjectsMatchingIDsInSourceOrder() {
             .watching,
             .watching,
             .finished,
-        ]
+        ],
+        folderFacets: Array(repeating: "/Media", count: ([10, 20, 30, 40, 50]).count)
     )
     let filter = CueFacetFilter(
         durations: [.oneToUnderThreeSeconds, .threeToUnderFiveSeconds],
@@ -215,7 +277,8 @@ func cueFacetSnapshotStopsAfterRequestedPageAndContinuesWithoutDuplicates() {
         durationFacets: Array(repeating: .underOneSecond, count: 4),
         characterFacets: Array(repeating: .oneToTen, count: 4),
         languageFacets: Array(repeating: [.english], count: 4),
-        watchStateFacets: Array(repeating: .unwatched, count: 4)
+        watchStateFacets: Array(repeating: .unwatched, count: 4),
+        folderFacets: Array(repeating: "/Media", count: ([1, 2, 3, 4]).count)
     )
 
     let firstPage = snapshot.filteredCueIDs(using: CueFacetFilter(), limit: 2)
@@ -239,7 +302,8 @@ func cueFacetSnapshotTreatsEmptyCardSelectionAsAll() {
         durationFacets: [.underOneSecond, .fiveSecondsOrMore],
         characterFacets: [.oneToTen, .thirtyOneOrMore],
         languageFacets: [[.english], [.japanese]],
-        watchStateFacets: [.unwatched, .finished]
+        watchStateFacets: [.unwatched, .finished],
+        folderFacets: Array(repeating: "/Media", count: ([1, 2]).count)
     )
 
     let page = snapshot.filteredCueIDs(
@@ -287,7 +351,8 @@ func cueFacetSnapshotBuildsDisjunctiveCountsDuringPagedProjection() {
             .finished,
             .watching,
             .finished,
-        ]
+        ],
+        folderFacets: Array(repeating: "/Media", count: ([1, 2, 3, 4, 5, 6]).count)
     )
     let filter = CueFacetFilter(
         durations: [.oneToUnderThreeSeconds],
