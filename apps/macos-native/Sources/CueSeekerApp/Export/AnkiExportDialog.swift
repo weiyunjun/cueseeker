@@ -147,7 +147,7 @@ struct AnkiExportDialog: View {
         .padding(.top, WorkbenchControlMetrics.redesignDialogTopPadding)
         .padding(.bottom, WorkbenchControlMetrics.redesignDialogInset)
         .workbenchDialogWidth(WorkbenchControlMetrics.redesignDialogWidthLarge)
-        .background(WorkbenchRedesignColors.bgSurface)
+        .background(WorkbenchRedesignColors.bgDialog)
         .workbenchDialogCloseButton(onClose: onClose)
         .onChange(of: session.fileName) { _ in
             if session.hasAttemptedValidation {

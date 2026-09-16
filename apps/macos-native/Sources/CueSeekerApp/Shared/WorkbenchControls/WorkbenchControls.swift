@@ -679,7 +679,7 @@ struct WorkbenchSearchField: View {
         .frame(height: isRedesign ? WorkbenchControlMetrics.redesignSearchHeight : WorkbenchControlMetrics.searchFieldHeight)
         .background(
             RoundedRectangle(cornerRadius: isRedesign ? WorkbenchControlMetrics.redesignSearchRadius : WorkbenchControlMetrics.cornerRadius, style: .continuous)
-                .fill(isRedesign ? (isEnabled ? WorkbenchRedesignColors.bgSurface : WorkbenchRedesignColors.bgDisabled) : WorkbenchControlColors.surfaceFill)
+                .fill(isRedesign ? (isEnabled ? WorkbenchRedesignColors.bgControl : WorkbenchRedesignColors.bgDisabled) : WorkbenchControlColors.surfaceFill)
         )
         .overlay(
             RoundedRectangle(cornerRadius: isRedesign ? WorkbenchControlMetrics.redesignSearchRadius : WorkbenchControlMetrics.cornerRadius, style: .continuous)
@@ -747,7 +747,7 @@ struct WorkbenchButton: View {
                 Group {
                     if isRedesign {
                         RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignCornerRadius, style: .continuous)
-                            .fill(isEnabled ? (isHovered ? WorkbenchRedesignColors.bgHover : WorkbenchRedesignColors.bgSurface) : WorkbenchRedesignColors.bgDisabled)
+                            .fill(isEnabled ? (isHovered ? WorkbenchRedesignColors.bgHover : WorkbenchRedesignColors.bgControl) : WorkbenchRedesignColors.bgDisabled)
                     } else {
                         WorkbenchControlBackground()
                     }
@@ -871,7 +871,7 @@ struct WorkbenchDestructiveButton: View {
             .frame(height: WorkbenchControlMetrics.redesignHeight)
             .background(
                 RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignCornerRadius, style: .continuous)
-                    .fill(isEnabled ? (isHovered ? WorkbenchRedesignColors.dangerBgHover : WorkbenchRedesignColors.bgSurface) : WorkbenchRedesignColors.bgDisabled)
+                    .fill(isEnabled ? (isHovered ? WorkbenchRedesignColors.dangerBgHover : WorkbenchRedesignColors.bgControl) : WorkbenchRedesignColors.bgDisabled)
             )
             .overlay(
                 RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignCornerRadius, style: .continuous)

@@ -113,7 +113,7 @@ struct WorkbenchConfirmationDialog: View {
         .padding(.horizontal, WorkbenchControlMetrics.redesignDialogInset)
         .padding(.bottom, WorkbenchControlMetrics.redesignDialogInset)
         .workbenchDialogWidth(WorkbenchControlMetrics.redesignDialogWidthSmall)
-        .background(WorkbenchRedesignColors.bgSurface)
+        .background(WorkbenchRedesignColors.bgDialog)
         .workbenchDialogCloseButton(onClose: onClose)
         .subtitleTableTextSelectionNonInteractiveRegion()
         .background(WindowKeyDownMonitor(handle: handleKey))

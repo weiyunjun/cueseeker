@@ -15,7 +15,7 @@ struct PlaybackCommandPanel: View {
     var body: some View {
         GeometryReader { geometry in
             ZStack {
-                Color.black.opacity(0.32)
+                WorkbenchRedesignColors.commandPanelScrim
 
                 if let presentation = playback.commandPanelPresentation {
                     Group {
@@ -171,7 +171,7 @@ struct PlaybackCommandPanel: View {
                             cornerRadius: PlaybackCommandPanelMetrics.cornerRadius,
                             style: .continuous
                         )
-                        .fill(WorkbenchRedesignColors.bgPopover)
+                        .fill(WorkbenchRedesignColors.bgDialog)
                         .shadowToken(
                             WorkbenchRedesignColors.shadowPopover,
                             cornerRadius: PlaybackCommandPanelMetrics.cornerRadius

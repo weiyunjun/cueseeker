@@ -43,7 +43,7 @@ struct LibraryEditCoverDialog: View {
         .padding(.horizontal, WorkbenchControlMetrics.redesignDialogInset)
         .padding(.bottom, WorkbenchControlMetrics.redesignDialogInset)
         .workbenchDialogWidth(WorkbenchControlMetrics.redesignDialogWidthSmall)
-        .background(WorkbenchRedesignColors.bgSurface)
+        .background(WorkbenchRedesignColors.bgDialog)
         .workbenchDialogCloseButton(isDisabled: session.isSaving, onClose: onCancel)
         .subtitleTableTextSelectionNonInteractiveRegion()
     }

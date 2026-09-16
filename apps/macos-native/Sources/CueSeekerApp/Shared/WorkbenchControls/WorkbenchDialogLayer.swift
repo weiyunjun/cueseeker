@@ -219,7 +219,7 @@ private struct WorkbenchDialogChrome: ViewModifier {
         }
             // What shows of the sheet itself where its whole points outgrow
             // the dialog.
-            .background(WorkbenchRedesignColors.bgSurface)
+            .background(WorkbenchRedesignColors.bgDialog)
             .clipShape(shape)
             .overlay(
                 shape.strokeBorder(WorkbenchRedesignColors.dialogEdgeHighlight, lineWidth: 1)

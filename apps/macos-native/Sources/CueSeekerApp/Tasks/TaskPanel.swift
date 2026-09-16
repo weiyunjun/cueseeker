@@ -49,7 +49,7 @@ struct TaskPanel: View {
         .padding(.top, WorkbenchControlMetrics.redesignDialogTopPadding)
         .workbenchDialogWidth(WorkbenchControlMetrics.redesignDialogWidthXLarge)
         .frame(height: WorkbenchControlMetrics.redesignTaskPanelHeight)
-        .background(WorkbenchRedesignColors.bgSurface)
+        .background(WorkbenchRedesignColors.bgDialog)
         // Escape closes the panel through its close button, unless a
         // confirmation stands above the panel, which owns it.
         .workbenchDialogCloseButton(
@@ -377,7 +377,7 @@ private struct TaskCardContainer<Content: View>: View {
                 cornerRadius: WorkbenchControlMetrics.redesignCornerRadius,
                 style: .continuous
             )
-            .fill(WorkbenchRedesignColors.bgSurface)
+            .fill(WorkbenchRedesignColors.bgDialog)
         )
         .overlay(
             RoundedRectangle(

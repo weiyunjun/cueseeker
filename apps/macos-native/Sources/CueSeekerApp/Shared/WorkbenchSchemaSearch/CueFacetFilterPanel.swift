@@ -340,7 +340,7 @@ struct CueFacetFilterDialog: View {
         // The dialog keeps one height whatever it lists, or what the window
         // leaves when that is less.
         .frame(height: min(WorkbenchControlMetrics.redesignFilterDialogHeight, availableSize.height))
-        .background(WorkbenchRedesignColors.bgSurface)
+        .background(WorkbenchRedesignColors.bgDialog)
         .workbenchDialogCloseButton(onClose: onClose)
         .subtitleTableTextSelectionNonInteractiveRegion()
     }
@@ -509,7 +509,7 @@ private struct CueFacetFilterChip: View {
         if option.isSelected {
             return WorkbenchRedesignColors.filterChipSelectedBg
         }
-        return isHovered ? WorkbenchRedesignColors.bgHover : WorkbenchRedesignColors.bgSurface
+        return isHovered ? WorkbenchRedesignColors.bgHover : WorkbenchRedesignColors.bgControl
     }
 
     private var borderColor: Color {

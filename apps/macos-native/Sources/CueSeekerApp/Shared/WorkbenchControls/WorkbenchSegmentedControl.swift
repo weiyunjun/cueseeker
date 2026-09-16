@@ -16,7 +16,7 @@ struct WorkbenchSegmentedControl<Option: Hashable>: View {
         .padding(WorkbenchControlMetrics.redesignSegmentedControlPadding)
         .background(
             RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignCornerRadius, style: .continuous)
-                .fill(WorkbenchRedesignColors.bgSurface)
+                .fill(WorkbenchRedesignColors.bgControl)
         )
         .overlay(
             RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignCornerRadius, style: .continuous)

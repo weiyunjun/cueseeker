@@ -22,7 +22,7 @@ func playbackCueResultMetricsMatchCompactIteration() {
     #expect(
         playbackCueResultAlpha(
             PlaybackTheme.subtitleFocusCueSelectedNative
-        ) == 0.94
+        ) == 0.88
     )
     #expect(
         playbackCueResultAlpha(
@@ -102,7 +102,7 @@ func playbackSubtitleFocusColorsResolveDocumentedLightAndDarkTokens() {
         playbackCueResultAlpha(
             PlaybackTheme.subtitleFocusCueSelectedNative,
             appearanceName: .darkAqua
-        ) == 0.94
+        ) == 0.88
     )
     #expect(
         playbackCueResultAlpha(
@@ -141,7 +141,7 @@ func playbackSubtitleFocusColorsResolveDocumentedLightAndDarkTokens() {
 func editingCollageCheckboxMatchesSearchColorsAndFlatRendering() throws {
     for (isSelected, isEnabled, lightHex, darkHex) in [
         (true, true, "#667085", "#A1A1AA"),
-        (false, true, "#D0D5DD", "#52525B"),
+        (false, true, "#D0D5DD", "#5A5A62"),
         (true, false, "#9A9A9A", "#606060"),
         (false, false, "#9A9A9A", "#606060"),
     ] {
@@ -370,7 +370,7 @@ func playbackCueResultUsesMixedResolvedFontRunsAndDocumentedColors() throws {
                 + PlaybackSubtitleFocusMetrics.cueLineHeight / 2
     )
     #expect(selectedPrimary.style.font.pointSize == 24)
-    #expect(playbackCueResultAlpha(selectedPrimary.color) == 0.94)
+    #expect(playbackCueResultAlpha(selectedPrimary.color) == 0.88)
     #expect(selectedGroup.line.typographicHeight > 0)
     #expect(selectedPrimary.line.typographicHeight > 0)
     #expect(

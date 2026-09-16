@@ -148,7 +148,7 @@ struct WorkbenchNumberField: View {
             )
             .fill(
                 isEnabled
-                    ? WorkbenchRedesignColors.bgSurface
+                    ? WorkbenchRedesignColors.bgControl
                     : WorkbenchRedesignColors.bgDisabled
             )
         )
@@ -231,7 +231,7 @@ extension View {
                 cornerRadius: WorkbenchControlMetrics.redesignFieldRadius,
                 style: .continuous
             )
-            .fill(WorkbenchRedesignColors.bgSurface)
+            .fill(WorkbenchRedesignColors.bgControl)
         )
         .overlay(
             RoundedRectangle(

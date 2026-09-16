@@ -7,7 +7,8 @@ public enum PlaybackTheme {
 
     // MARK: - Subtitle Focus Colors
 
-    private static let subtitleFocusCueSelectedOpacity = 0.94
+    private static let subtitleFocusCueSelectedOpacity = 0.88
+    private static let playbackModuleSidebarSelectedOpacity = 0.94
     private static let subtitleFocusCueGroupSelectedOpacity = 0.62
     private static let subtitleFocusCueUnselectedOpacity = 0.34
 
@@ -127,7 +128,7 @@ public enum PlaybackTheme {
             alpha: 1
         ),
         dark: NSColor.white.withAlphaComponent(
-            CGFloat(subtitleFocusCueSelectedOpacity)
+            CGFloat(playbackModuleSidebarSelectedOpacity)
         )
     )
     static let playbackModuleSidebarUnselectedNative = subtitleFocusDynamicColor(

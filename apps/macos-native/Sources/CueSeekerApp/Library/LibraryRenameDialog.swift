@@ -173,7 +173,7 @@ struct LibraryRenameDialog: View {
         // One column across the content width, so the field's right edge is
         // the last button's right edge.
         .workbenchDialogWidth(WorkbenchControlMetrics.redesignDialogWidthMedium)
-        .background(WorkbenchRedesignColors.bgSurface)
+        .background(WorkbenchRedesignColors.bgDialog)
         .workbenchDialogCloseButton(onClose: onClose)
         .onAppear {
             isNameFocused = true

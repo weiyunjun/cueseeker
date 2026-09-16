@@ -1747,6 +1747,8 @@ final class SubtitleVirtualTableHeaderView: NSView {
             super.draw(dirtyRect)
             
             if isRedesign {
+                WorkbenchRedesignColors.NS.tableBg.setFill()
+                dirtyRect.intersection(bounds).fill()
                 coordinator?.drawHeaderTextSelectionBackground(in: dirtyRect)
                 WorkbenchRedesignColors.NS.borderDivider.setStroke()
                 let path = NSBezierPath()
@@ -4746,6 +4748,13 @@ struct SubtitleTableView: NSViewRepresentable {
 
         private func drawRowsNow(in dirtyRect: CGRect) {
             let viewportDirtyRect = dirtyRect.intersection(currentTableBodyVisibleRect)
+            // The table is a surface of its own, one step above the page. The
+            // container stays the page: on a detail page it also holds the
+            // page chrome, so the body paints its own background.
+            if isRedesign, !viewportDirtyRect.isNull {
+                WorkbenchRedesignColors.NS.tableBg.setFill()
+                viewportDirtyRect.fill()
+            }
             guard rowCount > 0,
                   let documentView,
                   !viewportDirtyRect.isNull,

@@ -45,9 +45,9 @@ enum WorkbenchRedesignColors {
     // AppKit Custom Drawing Layer Dynamic Tokens
     enum NS {
         // Text
-        static let textPrimary = NSColor.dynamic(lightHex: "#1F1F1F", darkHex: "#F7F7F7")
+        static let textPrimary = NSColor.dynamic(lightHex: "#1F1F1F", darkHex: "#E4E4E4")
         static let textSecondary = NSColor.dynamic(lightHex: "#494949", darkHex: "#B9B9B9")
-        static let textMuted = NSColor.dynamic(lightHex: "#717171", darkHex: "#878787")
+        static let textMuted = NSColor.dynamic(lightHex: "#717171", darkHex: "#979797")
         static let textPlaceholder = NSColor.dynamic(lightHex: "#9A9A9A", darkHex: "#606060")
         static let textDisabled = NSColor.dynamic(lightHex: "#9A9A9A", darkHex: "#606060")
 
@@ -55,33 +55,41 @@ enum WorkbenchRedesignColors {
         static let iconOnDark = NSColor.dynamic(lightHex: "#FFFFFF", darkHex: "#FFFFFF")
 
         // Background
-        static let bgSurface = NSColor.dynamic(lightHex: "#FFFFFF", darkHex: "#18181B")
-        static let bgHover = NSColor.dynamic(lightHex: "#F3F4F6", darkHex: "#27272A")
-        static let bgDisabled = NSColor.dynamic(lightHex: "#F3F4F6", darkHex: "#202024")
-        static let bgPopover = NSColor.dynamic(lightHex: "#FFFFFF", darkHex: "#1C1C1F")
-        static let appSidebarBg = NSColor.dynamic(lightHex: "#F6F7F9", darkHex: "#202024")
+        // Dark gets lighter toward the top: Sidebar, page, table and Settings
+        // cards, dialogs, menus. Fills that sit on several of those surfaces
+        // are translucent white in dark, so they always read lighter than the
+        // surface under them.
+        static let bgSurface = NSColor.dynamic(lightHex: "#FFFFFF", darkHex: "#1C1C1F")
+        static let bgHover = NSColor.dynamic(lightHex: "#F3F4F6", darkHex: "#FFFFFF", darkAlpha: 0.12)
+        static let bgDisabled = NSColor.dynamic(lightHex: "#F3F4F6", darkHex: "#FFFFFF", darkAlpha: 0.04)
+        static let bgControl = NSColor.dynamic(lightHex: "#FFFFFF", darkHex: "#FFFFFF", darkAlpha: 0.08)
+        static let bgDialog = NSColor.dynamic(lightHex: "#FFFFFF", darkHex: "#2F2F34")
+        static let bgPopover = NSColor.dynamic(lightHex: "#FFFFFF", darkHex: "#36363B")
+        static let tableBg = NSColor.dynamic(lightHex: "#FFFFFF", darkHex: "#26262A")
+        static let appSidebarBg = NSColor.dynamic(lightHex: "#F6F7F9", darkHex: "#111113")
         static let appSidebarItemSelectedBg = NSColor.controlAccentColor
         static let appSidebarItemSelectedContent = iconOnDark
-        static let appTopbarBg = NSColor.dynamic(lightHex: "#FFFFFF", darkHex: "#18181B")
+        static let appTopbarBg = NSColor.dynamic(lightHex: "#FFFFFF", darkHex: "#1C1C1F")
         // Shortcut action buttons and their keycaps. Named after the surface
         // they sit on rather than the interface that uses them: the Command
         // Panel and the workbench Selection Action Overlay are both popover
-        // surfaces and share one set. Each surface carries its own so the
-        // keycap always reads one step deeper than the background under it.
-        static let overlaySurfaceShortcutButtonHoverBg = NSColor.dynamic(lightHex: "#EDEEF2", darkHex: "#2C2C30")
-        static let overlaySurfaceKeycapBg = NSColor.dynamic(lightHex: "#E1E4E9", darkHex: "#35353A")
-        static let overlaySurfaceKeycapHoverBg = NSColor.dynamic(lightHex: "#D2D6DE", darkHex: "#414147")
-        static let popoverSurfaceShortcutButtonHoverBg = NSColor.dynamic(lightHex: "#F7F8FA", darkHex: "#252529")
-        static let popoverSurfaceKeycapBg = NSColor.dynamic(lightHex: "#EDEFF2", darkHex: "#2E2E33")
-        static let popoverSurfaceKeycapHoverBg = NSColor.dynamic(lightHex: "#E0E3E8", darkHex: "#3A3A40")
+        // surfaces and share one set. Each surface carries its own light
+        // values so the keycap always reads one step apart from the background
+        // under it; dark is translucent and follows the surface by itself.
+        static let overlaySurfaceShortcutButtonHoverBg = NSColor.dynamic(lightHex: "#EDEEF2", darkHex: "#FFFFFF", darkAlpha: 0.06)
+        static let overlaySurfaceKeycapBg = NSColor.dynamic(lightHex: "#E1E4E9", darkHex: "#FFFFFF", darkAlpha: 0.10)
+        static let overlaySurfaceKeycapHoverBg = NSColor.dynamic(lightHex: "#D2D6DE", darkHex: "#FFFFFF", darkAlpha: 0.16)
+        static let popoverSurfaceShortcutButtonHoverBg = NSColor.dynamic(lightHex: "#F7F8FA", darkHex: "#FFFFFF", darkAlpha: 0.06)
+        static let popoverSurfaceKeycapBg = NSColor.dynamic(lightHex: "#EDEFF2", darkHex: "#FFFFFF", darkAlpha: 0.10)
+        static let popoverSurfaceKeycapHoverBg = NSColor.dynamic(lightHex: "#E0E3E8", darkHex: "#FFFFFF", darkAlpha: 0.16)
 
         // Border
-        static let borderControl = NSColor.dynamic(lightHex: "#E5E7EB", darkHex: "#3F3F46")
+        static let borderControl = NSColor.dynamic(lightHex: "#E5E7EB", darkHex: "#4A4A52")
         static let borderControlHover = NSColor.dynamic(lightHex: "#D1D5DB", darkHex: "#52525B")
-        static let borderMuted = NSColor.dynamic(lightHex: "#E5E7EB", darkHex: "#3F3F46")
-        static let borderDivider = NSColor.dynamic(lightHex: "#E5E7EB", darkHex: "#303036")
+        static let borderMuted = NSColor.dynamic(lightHex: "#E5E7EB", darkHex: "#4A4A52")
+        static let borderDivider = NSColor.dynamic(lightHex: "#E5E7EB", darkHex: "#FFFFFF", darkAlpha: 0.10)
         static let borderDisabled = NSColor.dynamic(lightHex: "#E5E7EB", darkHex: "#303036")
-        static let borderCheckbox = NSColor.dynamic(lightHex: "#D0D5DD", darkHex: "#52525B")
+        static let borderCheckbox = NSColor.dynamic(lightHex: "#D0D5DD", darkHex: "#5A5A62")
 
         // Active Blue
         static let accent = NSColor.dynamic(lightHex: "#0040FF", darkHex: "#7AA2FF")
@@ -101,11 +109,11 @@ enum WorkbenchRedesignColors {
         static let focusRing = NSColor.controlAccent(lightAlpha: 0.22, darkAlpha: 0.30)
 
         // Table Row
-        static let rowHover = NSColor.dynamic(lightHex: "#F9FAFB", darkHex: "#202024")
-        static let rowSelected = NSColor.dynamic(lightHex: "#F3F4F6", darkHex: "#27272A")
+        static let rowHover = NSColor.dynamic(lightHex: "#F9FAFB", darkHex: "#2E2E33")
+        static let rowSelected = NSColor.dynamic(lightHex: "#F3F4F6", darkHex: "#36363C")
 
         // Checkbox
-        static let bgCheckboxUnchecked = NSColor.dynamic(lightHex: "#FFFFFF", darkHex: "#18181B")
+        static let bgCheckboxUnchecked = NSColor.dynamic(lightHex: "#FFFFFF", darkHex: "#FFFFFF", darkAlpha: 0.08)
         static let bgCheckboxChecked = NSColor.dynamic(lightHex: "#667085", darkHex: "#A1A1AA")
         static let checkboxIcon = NSColor.dynamic(lightHex: "#FFFFFF", darkHex: "#18181B")
 
@@ -124,7 +132,7 @@ enum WorkbenchRedesignColors {
         static let warningText = NSColor.dynamic(lightHex: "#B45309", darkHex: "#FCD34D")
 
         // Settings Group
-        static let settingsGroupBg = NSColor.dynamic(lightHex: "#F6F7F9", darkHex: "#202024")
+        static let settingsGroupBg = NSColor.dynamic(lightHex: "#F6F7F9", darkHex: "#26262A")
 
         // Scrollbar
         static let scrollbarThumbDefault = NSColor.dynamic(lightHex: "#CBD5E1", darkHex: "#52525B")
@@ -175,12 +183,21 @@ enum WorkbenchRedesignColors {
         // What the system sheet drew around a dialog, measured from it on
         // macOS 15.5: the veil over what the dialog covers, the shadow, the
         // hairline just outside the edge and the highlight just inside it.
+        // The dark veil is the exception: the measured one barely darkened a
+        // dark page, so it is black at half strength.
         // --color-dialog-scrim
         static let dialogScrim = NSColor.dynamic(
             lightHex: "#AAAAAA",
             lightAlpha: 0.60,
-            darkHex: "#161819",
-            darkAlpha: 0.60
+            darkHex: "#000000",
+            darkAlpha: 0.50
+        )
+        // --color-command-panel-scrim
+        static let commandPanelScrim = NSColor.dynamic(
+            lightHex: "#000000",
+            lightAlpha: 0.32,
+            darkHex: "#000000",
+            darkAlpha: 0.32
         )
         static let dialogShadow = NSColor.dynamic(
             lightHex: "#000000",
@@ -217,7 +234,10 @@ enum WorkbenchRedesignColors {
     static let bgSurface = Color(nsColor: NS.bgSurface)
     static let bgHover = Color(nsColor: NS.bgHover)
     static let bgDisabled = Color(nsColor: NS.bgDisabled)
+    static let bgControl = Color(nsColor: NS.bgControl)
+    static let bgDialog = Color(nsColor: NS.bgDialog)
     static let bgPopover = Color(nsColor: NS.bgPopover)
+    static let tableBg = Color(nsColor: NS.tableBg)
     static let appSidebarBg = Color(nsColor: NS.appSidebarBg)
     static let appSidebarItemSelectedBg = Color(nsColor: NS.appSidebarItemSelectedBg)
     static let appSidebarItemSelectedContent = Color(nsColor: NS.appSidebarItemSelectedContent)
@@ -327,6 +347,7 @@ enum WorkbenchRedesignColors {
 
     // Dialog
     static let dialogScrim = Color(nsColor: NS.dialogScrim)
+    static let commandPanelScrim = Color(nsColor: NS.commandPanelScrim)
     static let dialogOutline = Color(nsColor: NS.dialogOutline)
     static let dialogEdgeHighlight = Color(nsColor: NS.dialogEdgeHighlight)
 
