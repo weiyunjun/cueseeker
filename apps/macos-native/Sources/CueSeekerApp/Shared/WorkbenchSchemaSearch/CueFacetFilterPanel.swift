@@ -363,7 +363,8 @@ struct CueFacetFilterDialog: View {
                     TaskCountBadge(
                         count: section.selectedCount,
                         background: WorkbenchRedesignColors.textMuted,
-                        textColor: WorkbenchRedesignColors.bgSurface
+                        textColor: WorkbenchRedesignColors.bgSurface,
+                        isCompact: true
                     )
                 }
             }

@@ -321,6 +321,11 @@ enum WorkbenchControlMetrics {
     static let redesignTaskCountBadgeHorizontalPadding = redesignSpacing2
     /// --font-size-task-count-badge: 13px
     static let redesignFontSizeTaskCountBadge: CGFloat = 13
+    /// The compact count beside a Filter dialog group name: 18px tall, with
+    /// 6px of inline padding once it has two digits or more, and
+    /// --font-size-caption.
+    static let redesignTaskCountBadgeCompactHeight: CGFloat = 18
+    static let redesignTaskCountBadgeCompactHorizontalPadding: CGFloat = 6
     /// --font-weight-task-count-badge: 600
     static let redesignFontWeightTaskCountBadge: Font.Weight = .semibold
     /// The count keeps --spacing-1 from the Task glyph's ink rather than its

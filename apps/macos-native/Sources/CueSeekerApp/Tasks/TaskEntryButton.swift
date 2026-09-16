@@ -34,27 +34,35 @@ struct TaskEntryButton: View {
     }
 }
 
-/// A count beside an icon or a group name. As tall as the glyph beside it: a
-/// circle as wide as it is tall at one digit, and a capsule with padding on
-/// either side once there are more, with half-circle ends either way. The
-/// holder picks the fill and the number's color.
+/// A count beside an icon or a group name. A circle as wide as it is tall at
+/// one digit, and a capsule with padding on either side once there are more,
+/// with half-circle ends either way. The holder picks the fill and the
+/// number's color.
 struct TaskCountBadge: View {
     let count: Int
     let background: Color
     let textColor: Color
+    /// Inside a button the count is as tall as the glyph beside it. Beside a
+    /// Filter dialog group name it sits next to 14px text rather than in a
+    /// button box, and the full size reads larger than the name, so it is
+    /// drawn smaller.
+    var isCompact: Bool = false
 
     var body: some View {
-        let height = WorkbenchControlMetrics.redesignControlIconSize
+        let metrics = WorkbenchControlMetrics.self
+        let height = isCompact
+            ? metrics.redesignTaskCountBadgeCompactHeight
+            : metrics.redesignControlIconSize
+        let padding = isCompact
+            ? metrics.redesignTaskCountBadgeCompactHorizontalPadding
+            : metrics.redesignTaskCountBadgeHorizontalPadding
         Text("\(count)")
             .font(.system(
-                size: WorkbenchControlMetrics.redesignFontSizeTaskCountBadge,
-                weight: WorkbenchControlMetrics.redesignFontWeightTaskCountBadge
+                size: isCompact ? metrics.redesignFontSizeCaption : metrics.redesignFontSizeTaskCountBadge,
+                weight: metrics.redesignFontWeightTaskCountBadge
             ))
             .foregroundStyle(textColor)
-            .padding(
-                .horizontal,
-                count < 10 ? 0 : WorkbenchControlMetrics.redesignTaskCountBadgeHorizontalPadding
-            )
+            .padding(.horizontal, count < 10 ? 0 : padding)
             .frame(minWidth: height)
             .frame(height: height)
             .background(Capsule().fill(background))

@@ -19,6 +19,7 @@ Classified as platform UI.
   - A disabled button draws the fill in `--color-text-disabled`, with its glyph.
   - Hover and Open leave the badge unchanged. The per-surface keycap fills and `--color-player-task-count-badge-bg` / `-hover` are gone from code.
 - Shape: height `--size-control-icon`; one digit is a circle as wide as it is tall, two or more digits pad `--spacing-2` on each side; `Capsule()` with circular ends; proportional digits.
+- Filter dialog group headers take a compact badge: 18px tall, `--font-size-caption`, 6px inline padding at two digits or more (the proportions of GitHub Primer's CounterLabel beside a tab label). Beside 14px text the full 21px badge read larger than the name; the icon beside it is already `--size-control-icon`, the same as in the buttons.
 
 Owner tuning during the session, not written back to the requirement at the owner's instruction: the requirement's fill "the icon colour" (`#494949` / `#B9B9B9`) read too heavy in Light and too bright in Dark, so the fill is `--color-text-muted` (`#717171` / `#878787`).
 
@@ -36,4 +37,5 @@ Files:
 
 - `swift build`: passes.
 - Full `swift test`: 1238 tests, 29 issues in 15 tests, all in the environment-sensitive set of the 2026-09-15 and 2026-09-16 records: native playback (6), Debug E2E scene and width (2), Excerpt scroll anchor (2), Library folder removal (1), `progressiveSearchProjectionRefreshesOnlyMountedTable`, `searchFacetSelectionDoesNotRefreshGlobalOrInactiveSurfaces`, `playbackPlayerKeepsAutoPauseBoundaryAcrossUserSeeks` and `sharedPersistenceMigrationCopiesLegacyValuesWithoutOverwritingSharedValues`. None reads the badge.
+- After the compact header badge: `swift build` passes; `swift test --filter 'filterDialog|FilterDialog|CueFacet|SettingsStoreSearch'`: 37 tests pass.
 - Visual acceptance is the owner's, in the App.
