@@ -684,7 +684,7 @@ struct WorkbenchSearchField: View {
         .overlay(
             RoundedRectangle(cornerRadius: isRedesign ? WorkbenchControlMetrics.redesignSearchRadius : WorkbenchControlMetrics.cornerRadius, style: .continuous)
                 .strokeBorder(
-                    isRedesign ? (isFocused ? WorkbenchRedesignColors.borderFocus : WorkbenchRedesignColors.borderControl) : WorkbenchControlColors.border,
+                    isRedesign ? (isFocused ? WorkbenchRedesignColors.borderFocus : (isEnabled ? WorkbenchRedesignColors.borderControl : WorkbenchRedesignColors.borderDisabled)) : WorkbenchControlColors.border,
                     lineWidth: isRedesign ? WorkbenchControlMetrics.redesignControlBorderWidth : WorkbenchControlMetrics.hairlineWidth
                 )
         )
