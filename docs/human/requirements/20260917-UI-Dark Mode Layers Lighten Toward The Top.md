@@ -64,6 +64,7 @@ main
 
 2. Icon Button 的 Surface Hover：在 `--color-table-bg`、`--color-bg-dialog`、`--color-settings-group-bg` 上也为 `--color-bg-hover`。
 3. Command Panel 内的 Shortcut Action Button 与 Keycap 继续使用 Popover Surface 变体。
+4. Search Field 的 Disabled 边框由 `--color-border-control` 改为 `--color-border-disabled`，与设计文档一致；Select Mode 下的搜索框即此状态。
 
 ### 3.3 文字
 
