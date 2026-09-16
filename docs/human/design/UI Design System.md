@@ -139,8 +139,6 @@
 - `--color-player-stage-bg`: Light `#000000`; Dark `#000000`
 - `--color-player-control-bg`: Light `rgba(0,0,0,0.30)`; Dark `rgba(0,0,0,0.30)`
 - `--color-player-control-bg-hover`: Light `rgba(255,255,255,0.16)`; Dark `rgba(255,255,255,0.16)`
-- `--color-player-task-count-badge-bg`: Light `rgba(255,255,255,0.16)`; Dark `rgba(255,255,255,0.16)`
-- `--color-player-task-count-badge-bg-hover`: Light `rgba(255,255,255,0.28)`; Dark `rgba(255,255,255,0.28)`
 - `--color-player-menu-bg`: Light `rgba(0,0,0,0.55)`; Dark `rgba(0,0,0,0.55)`
 - `--color-player-menu-item-hover-bg`: Light `rgba(255,255,255,0.12)`; Dark `rgba(255,255,255,0.12)`
 - `--color-player-text-primary`: Light `rgba(255,255,255,0.94)`; Dark `rgba(255,255,255,0.94)`
@@ -278,6 +276,7 @@
 - `--width-page-scrollbar-channel`: `16px`
 - `--width-app-sidebar`: `240px`
 - `--size-app-sidebar-item-icon`: `23px`
+- `--size-task-count-badge-compact`: `18px`
 - `--size-player-circle-button`: `40px`
 - `--size-player-circle-button-icon`: `23px`
 - `--width-player-speed-button`: `54px`
@@ -377,6 +376,7 @@
 - `--padding-player-topbar-x`: `16px`
 - `--padding-library-folder-card`: `12px 16px`
 - `--padding-library-time-badge`: `2px 6px`
+- `--padding-task-count-badge-compact-x`: `6px`
 - `--padding-library-media-card-hover`: `12px`
 - `--padding-library-list-card`: `12px 16px`
 - `--padding-cover-summary-backdrop-inline`: `40px`
@@ -1784,17 +1784,14 @@
 ##### Task Count Badge
 
 - Placement：Task Entry 与 Filter Trigger 内图标右侧，按钮随之变宽；与图标字形墨迹的间距为 `--spacing-1`，右侧留白与图标上方留白相同；Filter Dialog 的 Section Header 内名称右侧
-- Shape：1 位数为圆形，2 位及以上为胶囊形
-- Size：`--size-control-icon`
-- Padding Inline：`--spacing-1`
-- Background
-  - 在 `--color-bg-surface` 上：`--color-popover-surface-keycap-bg`；按钮 Hover 或 Open 时 `--color-popover-surface-keycap-bg-hover`
-  - 在 `--color-subtitle-focus-overlay-bg` 上：`--color-overlay-surface-keycap-bg`；按钮 Hover 或 Open 时 `--color-overlay-surface-keycap-bg-hover`
-  - 在 `--color-player-topbar-gradient-start` 上：`--color-player-task-count-badge-bg`；按钮 Hover 或 Open 时 `--color-player-task-count-badge-bg-hover`
+- Shape：1 位数为圆形，宽与高相等；2 位及以上为胶囊形，两端为正半圆
+- Size：`--size-control-icon`；在 Section Header 内为 `--size-task-count-badge-compact`
+- Padding Inline：1 位数为 0；2 位及以上为 `--spacing-2`，在 Section Header 内为 `--padding-task-count-badge-compact-x`
+- Background：`--color-text-muted`；在 `--color-player-topbar-gradient-start` 上为 `--color-player-text-primary`；按钮 Disabled 时为 `--color-text-disabled`；按钮 Hover 或 Open 时不变
 - Font Family：`--font-family-base`
-- Font Size：`--font-size-task-count-badge`
+- Font Size：`--font-size-task-count-badge`；在 Section Header 内为 `--font-size-caption`
 - Font Weight：`--font-weight-task-count-badge`
-- Text Color：与所在 Icon Button 的 Icon Color 相同；在 Section Header 内与名称颜色相同
+- Text Color：`--color-bg-surface`；在 `--color-player-topbar-gradient-start` 上为 `--color-player-icon-selected`
 - States
   - Count
   - Hidden：数量为 0
