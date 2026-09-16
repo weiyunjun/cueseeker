@@ -152,11 +152,6 @@ struct CueFacetSection: Identifiable {
     let title: String
     let icon: AppIcon
     let options: [CueFacetOption]
-    /// Select All, Deselect All and Invert Selection toggle the group's
-    /// options that need it, in one change of the selection.
-    let selectAll: () -> Void
-    let deselectAll: () -> Void
-    let invertSelection: () -> Void
 
     var selectedCount: Int {
         options.filter(\.isSelected).count
@@ -171,131 +166,103 @@ struct CueFacetSection: Identifiable {
         selection: CueFacetFilter,
         update: @escaping ((inout CueFacetFilter) -> Void) -> Void
     ) -> [CueFacetSection] {
-        func section<Value>(
-            _ id: CueFacetKind,
-            title: String,
-            icon: AppIcon,
-            values: [Value],
-            optionID: (Value) -> String,
-            optionTitle: (Value) -> String,
-            count: (CueFacetDistribution, Value) -> Int?,
-            isSelected: @escaping (CueFacetFilter, Value) -> Bool,
-            toggle: @escaping (inout CueFacetFilter, Value) -> Void
-        ) -> CueFacetSection {
-            // Each toggle reads the selection as it is by then, so toggling
-            // one option leaves the others' state for the next to read.
-            func toggleEach(where shouldToggle: @escaping (CueFacetFilter, Value) -> Bool) -> () -> Void {
-                {
-                    update { filter in
-                        for value in values where shouldToggle(filter, value) {
-                            toggle(&filter, value)
+        func options<Value: Hashable>(
+            _ values: [Value],
+            at keyPath: WritableKeyPath<CueFacetFilter, Set<Value>>,
+            id: (Value) -> String,
+            title: (Value) -> String,
+            count: (CueFacetDistribution, Value) -> Int?
+        ) -> [CueFacetOption] {
+            values.map { value in
+                let isSelected = selection[keyPath: keyPath].contains(value)
+                return CueFacetOption(
+                    id: id(value),
+                    title: title(value),
+                    count: counts.isCalculating
+                        ? nil
+                        : counts.distribution.flatMap { count($0, value) } ?? 0,
+                    isSelected: isSelected,
+                    toggle: {
+                        update { filter in
+                            if filter[keyPath: keyPath].contains(value) {
+                                filter[keyPath: keyPath].remove(value)
+                            } else {
+                                filter[keyPath: keyPath].insert(value)
+                            }
                         }
                     }
-                }
+                )
             }
-
-            return CueFacetSection(
-                id: id,
-                title: title,
-                icon: icon,
-                options: values.map { value in
-                    CueFacetOption(
-                        id: optionID(value),
-                        title: optionTitle(value),
-                        count: counts.isCalculating
-                            ? nil
-                            : counts.distribution.flatMap { count($0, value) } ?? 0,
-                        isSelected: isSelected(selection, value),
-                        toggle: { update { toggle(&$0, value) } }
-                    )
-                },
-                selectAll: toggleEach { !isSelected($0, $1) },
-                deselectAll: toggleEach { isSelected($0, $1) },
-                invertSelection: toggleEach { _, _ in true }
-            )
         }
 
-        func setSection<Value: Hashable>(
-            _ id: CueFacetKind,
-            title: String,
-            icon: AppIcon,
-            values: [Value],
-            at keyPath: WritableKeyPath<CueFacetFilter, Set<Value>>,
-            optionID: (Value) -> String,
-            optionTitle: (Value) -> String,
-            count: (CueFacetDistribution, Value) -> Int?
-        ) -> CueFacetSection {
-            section(
-                id,
-                title: title,
-                icon: icon,
-                values: values,
-                optionID: optionID,
-                optionTitle: optionTitle,
-                count: count,
-                isSelected: { $0[keyPath: keyPath].contains($1) },
-                toggle: { filter, value in
-                    if filter[keyPath: keyPath].contains(value) {
-                        filter[keyPath: keyPath].remove(value)
-                    } else {
-                        filter[keyPath: keyPath].insert(value)
-                    }
-                }
-            )
-        }
-
-        let listedFolders = availableFolders.map(\.path)
         return [
-            setSection(
-                .duration,
+            CueFacetSection(
+                id: .duration,
                 title: L("facet.duration"),
                 icon: .clock,
-                values: CueDurationFacet.allCases,
-                at: \.durations,
-                optionID: { $0.rawValue },
-                optionTitle: { $0.title },
-                count: { $0.durationCounts[$1] }
+                options: options(
+                    CueDurationFacet.allCases,
+                    at: \.durations,
+                    id: { $0.rawValue },
+                    title: { $0.title },
+                    count: { $0.durationCounts[$1] }
+                )
             ),
-            setSection(
-                .characters,
+            CueFacetSection(
+                id: .characters,
                 title: L("facet.character"),
                 icon: .textAa,
-                values: CueCharacterFacet.allCases,
-                at: \.characters,
-                optionID: { $0.rawValue },
-                optionTitle: { $0.title },
-                count: { $0.characterCounts[$1] }
+                options: options(
+                    CueCharacterFacet.allCases,
+                    at: \.characters,
+                    id: { $0.rawValue },
+                    title: { $0.title },
+                    count: { $0.characterCounts[$1] }
+                )
             ),
-            setSection(
-                .languages,
+            CueFacetSection(
+                id: .languages,
                 title: L("facet.language"),
                 icon: .globe,
-                values: availableLanguages,
-                at: \.languages,
-                optionID: { $0.rawValue },
-                optionTitle: { $0.title },
-                count: { $0.languageCounts[$1] }
+                options: options(
+                    availableLanguages,
+                    at: \.languages,
+                    id: { $0.rawValue },
+                    title: { $0.title },
+                    count: { $0.languageCounts[$1] }
+                )
             ),
-            setSection(
-                .watchState,
+            CueFacetSection(
+                id: .watchState,
                 title: L("facet.watch_status"),
                 icon: .eye,
-                values: LibraryWatchState.facetCases,
-                at: \.watchStates,
-                optionID: { $0.rawValue },
-                optionTitle: { $0.title },
-                count: { $0.watchStateCounts[$1] }
+                options: options(
+                    LibraryWatchState.facetCases,
+                    at: \.watchStates,
+                    id: { $0.rawValue },
+                    title: { $0.title },
+                    count: { $0.watchStateCounts[$1] }
+                )
             ),
-            section(
-                .folder,
+            CueFacetSection(
+                id: .folder,
                 title: L("facet.folder"),
                 icon: .folder,
-                values: availableFolders,
-                optionID: { $0.path },
-                optionTitle: { $0.title },
-                count: { $0.folderCounts[$1.path] },
-                isSelected: { $0.isFolderSelected($1.path) },
-                toggle: { $0.toggleFolder($1.path, listed: listedFolders) }
+                options: availableFolders.map { folder in
+                    CueFacetOption(
+                        id: folder.path,
+                        title: folder.title,
+                        count: counts.isCalculating
+                            ? nil
+                            : counts.distribution.flatMap { $0.folderCounts[folder.path] } ?? 0,
+                        isSelected: selection.isFolderSelected(folder.path),
+                        toggle: {
+                            update { filter in
+                                filter.toggleFolder(folder.path, listed: availableFolders.map(\.path))
+                            }
+                        }
+                    )
+                }
             ),
         ]
     }
@@ -326,8 +293,8 @@ extension CueFacetFilter {
 }
 
 /// The Filter dialog: the five groups as rows of options, each with its
-/// selected number and group actions, and Show, which hands the dialog's
-/// selection to the table.
+/// selected number, and Show, which hands the dialog's selection to the
+/// table.
 struct CueFacetFilterDialog: View {
     @ObservedObject var session: CueFacetFilterDialogSession
     let counts: CueFacetFilterCounts
@@ -399,16 +366,6 @@ struct CueFacetFilterDialog: View {
                         textColor: WorkbenchRedesignColors.textSecondary
                     )
                 }
-
-                Spacer(minLength: 0)
-
-                // At the row's end, so the number coming and going never
-                // moves them under the pointer.
-                HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
-                    groupButton(L("facet.select_all"), action: section.selectAll)
-                    groupButton(L("facet.deselect_all"), action: section.deselectAll)
-                    groupButton(L("facet.invert_selection"), action: section.invertSelection)
-                }
             }
 
             WrappingFlowLayout(
@@ -421,17 +378,6 @@ struct CueFacetFilterDialog: View {
                 }
             }
         }
-    }
-
-    /// A group's Select All, Deselect All or Invert Selection: always enabled,
-    /// and as tall as an option.
-    private func groupButton(_ title: String, action: @escaping () -> Void) -> some View {
-        WorkbenchButton(
-            title: title,
-            isRedesign: true,
-            height: WorkbenchControlMetrics.redesignFilterChipHeight,
-            action: action
-        )
     }
 
     private var footer: some View {

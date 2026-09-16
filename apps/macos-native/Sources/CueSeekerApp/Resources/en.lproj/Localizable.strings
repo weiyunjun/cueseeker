@@ -99,9 +99,6 @@
 "facet.watch_status" = "Watch Status";
 "facet.folder" = "Folder";
 "facet.calculating" = "Calculating";
-"facet.select_all" = "Select All";
-"facet.deselect_all" = "Deselect All";
-"facet.invert_selection" = "Invert Selection";
 "facet.selected" = "Selected";
 "facet.not_selected" = "Not selected";
 "facet.duration.under_1s" = "<1s";

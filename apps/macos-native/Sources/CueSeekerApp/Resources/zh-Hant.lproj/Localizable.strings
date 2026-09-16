@@ -99,9 +99,6 @@
 "facet.watch_status" = "觀看狀態";
 "facet.folder" = "資料夾";
 "facet.calculating" = "計算中";
-"facet.select_all" = "全選";
-"facet.deselect_all" = "全不選";
-"facet.invert_selection" = "反選";
 "facet.selected" = "已選取";
 "facet.not_selected" = "未選取";
 "facet.duration.under_1s" = "<1 秒";

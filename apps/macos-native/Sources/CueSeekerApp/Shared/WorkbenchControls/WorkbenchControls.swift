@@ -716,9 +716,6 @@ struct WorkbenchButton: View {
     /// Buttons never take the keyboard focus, so the one that opens focused -
     /// Confirmation's Cancel - is told to draw its Focused state.
     var isFocused: Bool = false
-    /// The Filter dialog's group actions are as tall as an option; every other
-    /// button keeps the shared control height.
-    var height: CGFloat? = nil
     var action: () -> Void
 
     @State private var isHovered = false
@@ -739,7 +736,7 @@ struct WorkbenchButton: View {
                     .fixedSize(horizontal: true, vertical: false)
             }
             .padding(.horizontal, isRedesign ? WorkbenchControlMetrics.redesignControlPaddingX : 14)
-            .frame(height: isRedesign ? (height ?? WorkbenchControlMetrics.redesignHeight) : 36)
+            .frame(height: isRedesign ? WorkbenchControlMetrics.redesignHeight : 36)
             .background(
                 Group {
                     if isRedesign {
