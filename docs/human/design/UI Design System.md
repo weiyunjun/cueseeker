@@ -73,9 +73,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--color-primary-button-bg`: macOS accent color
 - `--color-primary-button-bg-hover`: macOS accent color with native hover emphasis
 - `--color-primary-button-text`: Light `#FFFFFF`; Dark `#FFFFFF`
-- `--color-bg-checkbox-unchecked`: Light `#FFFFFF`; Dark `rgba(255,255,255,0.08)`
 - `--color-bg-checkbox-checked`: Light `#667085`; Dark `#A1A1AA`
-- `--color-checkbox-icon`: Light `#FFFFFF`; Dark `#18181B`
 - `--color-segmented-control-selected-bg`: macOS accent color
 - `--color-segmented-control-selected-content`: Light `#FFFFFF`; Dark `#FFFFFF`
 - `--color-filter-chip-selected-content`: macOS accent color
@@ -755,7 +753,6 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
   - Shape：Circle
   - Rendering：Phosphor / Monochrome
   - Size：`--size-checkbox`
-- Indicator
 - Label
   - Presence：Optional
 
@@ -768,16 +765,16 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 
 - Unchecked
   - Icon：`circle`
-  - Background：`--color-bg-checkbox-unchecked`
-  - Border Color：`--color-border-checkbox`
+  - Control Color：`--color-border-checkbox`
+  - 圆圈内部透明，透出所在表面
 - Checked
   - Icon：`check-circle`（Fill）
-  - Background：`--color-bg-checkbox-checked`
-  - Indicator Color：`--color-checkbox-icon`
+  - Control Color：`--color-bg-checkbox-checked`
+  - 勾为镂空，透出所在表面
 - Indeterminate
   - Icon：`minus-circle`（Fill）
-  - Background：`--color-bg-checkbox-checked`
-  - Indicator Color：`--color-checkbox-icon`
+  - Control Color：`--color-bg-checkbox-checked`
+  - 横线为镂空，透出所在表面
 - Focused
   - Ring Color：`--color-focus-ring`
   - Ring Width：`--focus-ring-width`
