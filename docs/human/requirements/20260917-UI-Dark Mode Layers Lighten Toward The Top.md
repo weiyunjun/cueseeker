@@ -55,6 +55,7 @@ main
 | `--color-border-muted` | `#4A4A52` |
 | `--color-border-checkbox` | `#5A5A62` |
 | `--color-border-divider` | `rgba(255,255,255,0.10)` |
+| `--color-border-disabled` | `rgba(255,255,255,0.10)` |
 | `--color-row-hover` | `#2E2E33` |
 | `--color-row-selected` | `#36363C` |
 | `--color-overlay-surface-keycap-bg`、`--color-popover-surface-keycap-bg` | `rgba(255,255,255,0.10)` |
@@ -77,12 +78,13 @@ main
 1. Light 下全部颜色不变；新增 Token 的 Light 值与改动前相同。
 2. 强调色相关颜色、Player Chrome、Playback Overlay 背景、状态色与语言标签颜色不变。
 3. 尺寸、圆角、阴影与布局不变。
+4. Checkbox 的绘制方式不变：未勾选只画圆圈，内部透明。
 
 # 验收
 
 1. Light 下各界面外观与改动前一致。
 2. Dark 下主窗口、设置窗口与播放页的明暗顺序符合第 2 节；对话框与 Command Panel 内打开的菜单比所在表面亮。
-3. Dark 下按钮、输入框、搜索框、分段控件、复选框、Filter Chip 在页面、表格、设置卡片、对话框与 Command Panel 上都比所在表面亮；Hover 比 Default 亮，Disabled 比 Default 暗。
+3. Dark 下按钮、输入框、搜索框、分段控件、Filter Chip 在页面、表格、设置卡片、对话框与 Command Panel 上都比所在表面亮；Hover 比 Default 亮，Disabled 比 Default 暗，Disabled 的边框在所在表面上可见。
 4. Dark 下表格行、菜单项、图标按钮与快捷键按钮的 Hover 在所在表面上可见。
 5. Dark 下 `--color-text-muted` 在页面、表格与对话框上的对比度不低于 4.5:1。
 6. 本次改动不新增任何自动化端到端或单元用例的失败。
