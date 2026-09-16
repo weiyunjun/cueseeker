@@ -11,8 +11,8 @@ struct TopbarAppEntries: View {
     @EnvironmentObject private var localization: AppLocalizationStore
     var iconColor: Color? = nil
     var hoverBackground: Color = WorkbenchRedesignColors.bgHover
-    var countBackground: Color = WorkbenchRedesignColors.popoverSurfaceKeycapBg
-    var countHoverBackground: Color = WorkbenchRedesignColors.popoverSurfaceKeycapHoverBg
+    var countBackground: Color = WorkbenchRedesignColors.textMuted
+    var countTextColor: Color = WorkbenchRedesignColors.bgSurface
 
     var body: some View {
         HStack(spacing: WorkbenchControlMetrics.redesignSpacing1) {
@@ -21,7 +21,7 @@ struct TopbarAppEntries: View {
                 iconColor: iconColor,
                 hoverBackground: hoverBackground,
                 countBackground: countBackground,
-                countHoverBackground: countHoverBackground
+                countTextColor: countTextColor
             ) {
                 appState.performUserInitiatedAppCommand {
                     appState.tasks.openPanel()

@@ -316,8 +316,9 @@ enum WorkbenchControlMetrics {
     /// --font-size-app-sidebar-item: 13px
     static let redesignFontSizeAppSidebarItem: CGFloat = 13
 
-    /// --padding-task-count-badge-x
-    static let redesignTaskCountBadgeHorizontalPadding = redesignSpacing1
+    /// --spacing-2: the inline padding of a count of two digits or more. One
+    /// digit takes none and stays a circle.
+    static let redesignTaskCountBadgeHorizontalPadding = redesignSpacing2
     /// --font-size-task-count-badge: 13px
     static let redesignFontSizeTaskCountBadge: CGFloat = 13
     /// --font-weight-task-count-badge: 600
@@ -1091,11 +1092,13 @@ struct WorkbenchIconButton: View {
     /// inside the button, so hover and Open cover it and a click on it is a
     /// click on the button. At zero nothing is drawn and the box stays square.
     var count: Int = 0
-    /// The count's circle is one step off the surface, and one step deeper
-    /// while the button is lit, like a keycap in its shortcut button. The
-    /// Workbench surface takes the popover surface's pair by default.
-    var countBackground: Color = WorkbenchRedesignColors.popoverSurfaceKeycapBg
-    var countHoverBackground: Color = WorkbenchRedesignColors.popoverSurfaceKeycapHoverBg
+    /// The count keeps its look while the button is lit. It is filled with the
+    /// muted text color, one step lighter than the glyph, and its number takes
+    /// the surface's color; the player's bar, which has no surface of its own,
+    /// passes its own light fill and the dark it draws on white. A disabled
+    /// button greys the count with its glyph.
+    var countBackground: Color = WorkbenchRedesignColors.textMuted
+    var countTextColor: Color = WorkbenchRedesignColors.bgSurface
     var action: (() -> Void)? = nil
 
     @Environment(\.isEnabled) private var isEnabled
@@ -1125,8 +1128,8 @@ struct WorkbenchIconButton: View {
                     glyph
                     TaskCountBadge(
                         count: count,
-                        background: isLit ? countHoverBackground : countBackground,
-                        textColor: redesignIconColor
+                        background: isEnabled ? countBackground : WorkbenchRedesignColors.textDisabled,
+                        textColor: countTextColor
                     )
                 }
                 // The count ends as far from the button's edge as the glyph

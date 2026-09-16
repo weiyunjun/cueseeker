@@ -158,16 +158,6 @@ public enum PlaybackTheme {
         Color.white.opacity(0.16)
     }
 
-    /// --color-player-task-count-badge-bg
-    public static var taskCountBadgeBackground: Color {
-        Color.white.opacity(0.16)
-    }
-
-    /// --color-player-task-count-badge-bg-hover
-    public static var taskCountBadgeHoverBackground: Color {
-        Color.white.opacity(0.28)
-    }
-
     /// --color-player-menu-bg
     public static var menuBackground: Color {
         Color.black.opacity(0.55)

@@ -12,8 +12,8 @@ struct TaskEntryButton: View {
     /// default.
     var iconColor: Color? = nil
     var hoverBackground: Color = WorkbenchRedesignColors.bgHover
-    var countBackground: Color = WorkbenchRedesignColors.popoverSurfaceKeycapBg
-    var countHoverBackground: Color = WorkbenchRedesignColors.popoverSurfaceKeycapHoverBg
+    var countBackground: Color = WorkbenchRedesignColors.textMuted
+    var countTextColor: Color = WorkbenchRedesignColors.bgSurface
     let onOpen: () -> Void
 
     var body: some View {
@@ -25,7 +25,7 @@ struct TaskEntryButton: View {
             iconColor: iconColor,
             count: tasks.remainingTaskCount,
             countBackground: countBackground,
-            countHoverBackground: countHoverBackground,
+            countTextColor: countTextColor,
             action: onOpen
         )
         .help(L("task.entry"))
@@ -34,35 +34,30 @@ struct TaskEntryButton: View {
     }
 }
 
-/// How much is left to do: running plus queued. As tall as the glyph beside
-/// it, a circle at one digit and a capsule once the number needs the width.
-/// The number takes the glyph's color; the button holding it picks the
-/// circle's, from its surface and whether it is lit.
+/// A count beside an icon or a group name. As tall as the glyph beside it: a
+/// circle as wide as it is tall at one digit, and a capsule with padding on
+/// either side once there are more, with half-circle ends either way. The
+/// holder picks the fill and the number's color.
 struct TaskCountBadge: View {
     let count: Int
     let background: Color
     let textColor: Color
 
     var body: some View {
+        let height = WorkbenchControlMetrics.redesignControlIconSize
         Text("\(count)")
             .font(.system(
                 size: WorkbenchControlMetrics.redesignFontSizeTaskCountBadge,
                 weight: WorkbenchControlMetrics.redesignFontWeightTaskCountBadge
             ))
             .foregroundStyle(textColor)
-            .monospacedDigit()
             .padding(
                 .horizontal,
-                WorkbenchControlMetrics.redesignTaskCountBadgeHorizontalPadding
+                count < 10 ? 0 : WorkbenchControlMetrics.redesignTaskCountBadgeHorizontalPadding
             )
-            .frame(
-                minWidth: WorkbenchControlMetrics.redesignControlIconSize,
-                minHeight: WorkbenchControlMetrics.redesignControlIconSize
-            )
-            .background(
-                Capsule(style: .continuous)
-                    .fill(background)
-            )
+            .frame(minWidth: height)
+            .frame(height: height)
+            .background(Capsule().fill(background))
             .accessibilityIdentifier("task-count-badge")
     }
 }
