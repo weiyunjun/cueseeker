@@ -391,7 +391,6 @@
 - `--radius-search`: `9999px`
 - `--radius-inline-clear-button`: `9999px`
 - `--radius-checkbox`: `9999px`
-- `--radius-filter-chip`: `9999px`
 - `--radius-menu`: `12px`
 - `--radius-dialog`: `10px`
 - `--radius-select-menu-item`: `6px`
@@ -878,7 +877,7 @@
 ##### Anatomy
 
 - Container
-  - Radius：`--radius-filter-chip`
+  - Radius：`--radius-control`
   - Border Width：`--border-width-control`
 - Label
   - Font Family：`--font-family-base`
@@ -1784,7 +1783,7 @@
 
 ##### Task Count Badge
 
-- Placement：Task Entry 内图标右侧，按钮随之变宽；与图标字形墨迹的间距为 `--spacing-1`，右侧留白与图标上方留白相同
+- Placement：Task Entry 与 Filter Trigger 内图标右侧，按钮随之变宽；与图标字形墨迹的间距为 `--spacing-1`，右侧留白与图标上方留白相同；Filter Dialog 的 Section Header 内名称右侧
 - Shape：1 位数为圆形，2 位及以上为胶囊形
 - Size：`--size-control-icon`
 - Padding Inline：`--spacing-1`
@@ -1795,7 +1794,7 @@
 - Font Family：`--font-family-base`
 - Font Size：`--font-size-task-count-badge`
 - Font Weight：`--font-weight-task-count-badge`
-- Text Color：与所在 Icon Button 的 Icon Color 相同
+- Text Color：与所在 Icon Button 的 Icon Color 相同；在 Section Header 内与名称颜色相同
 - States
   - Count
   - Hidden：数量为 0
@@ -3600,6 +3599,7 @@
 
 - Search Field
 - Icon Button
+- Information Badge / Task Count Badge
 
 #### Sizes
 
@@ -3914,18 +3914,18 @@
    1. Title：`Filter`
    2. Close Button
 2. Sections：Duration、Character、Language、Watch Status、Folder，从上到下
-   1. Section Header：图标与名称
+   1. Section Header：图标、名称与选中数量
    2. Filter Chip：每个选项一个
 3. Footer
-   1. Calculating Status：Spinner 与 `Calculating`
-   2. Reset
-   3. Cancel
-   4. Show：Search 为 `Show N results`，Excerpt 为 `Show N excerpts`；总数未知时为 `Show results`、`Show excerpts`
+   1. Reset
+   2. Cancel
+   3. Show：Search 为 `Show N results`，Excerpt 为 `Show N excerpts`；总数未知时为 Spinner 与 `Calculating`
 
 #### Components
 
 - Dialog
 - Filter Chip
+- Information Badge / Task Count Badge
 - Spinner
 - Button / Neutral
 - Button / Primary
@@ -3937,8 +3937,7 @@
 - Section Header：图标 `--size-control-icon`；名称 `--font-size-control`、Medium；颜色 `--color-text-secondary`
 - Filter Chip 从左到右排列，宽度不足时换行
 - Folder 的 Filter Chip：每个已索引文件夹一个，名称与顺序同 Library Overview Layout 的 Video 标签页，Search 与 Excerpt 相同
-- Calculating Status 靠左，只在有未知计数时显示；文字 `--font-size-body`、`--color-text-secondary`
-- Reset、Cancel、Show 靠右；对话框内没有选中时 Reset 为 Disabled；总数未知时 Show 为 Disabled
+- Reset 靠左，Cancel、Show 靠右；对话框内没有选中时 Reset 为 Disabled；总数未知时 Show 为 Disabled
 
 #### Spacing
 
@@ -3948,8 +3947,6 @@
 - Section Header to Chips Gap：`--spacing-2`
 - Chip Gap：`--spacing-2`
 - Chip Line Gap：`--spacing-2`
-- Calculating Status Content Gap：`--spacing-2`
-- Reset to Cancel Gap：`--spacing-3`
 - Footer Action Gap：`--spacing-2`
 
 #### States
