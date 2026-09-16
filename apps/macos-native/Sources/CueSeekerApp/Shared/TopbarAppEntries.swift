@@ -11,13 +11,17 @@ struct TopbarAppEntries: View {
     @EnvironmentObject private var localization: AppLocalizationStore
     var iconColor: Color? = nil
     var hoverBackground: Color = WorkbenchRedesignColors.bgHover
+    var countBackground: Color = WorkbenchRedesignColors.popoverSurfaceKeycapBg
+    var countHoverBackground: Color = WorkbenchRedesignColors.popoverSurfaceKeycapHoverBg
 
     var body: some View {
         HStack(spacing: WorkbenchControlMetrics.redesignSpacing1) {
             TaskEntryButton(
                 tasks: appState.tasks,
                 iconColor: iconColor,
-                hoverBackground: hoverBackground
+                hoverBackground: hoverBackground,
+                countBackground: countBackground,
+                countHoverBackground: countHoverBackground
             ) {
                 appState.performUserInitiatedAppCommand {
                     appState.tasks.openPanel()

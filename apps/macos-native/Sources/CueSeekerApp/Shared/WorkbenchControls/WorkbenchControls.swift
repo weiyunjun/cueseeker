@@ -313,12 +313,22 @@ enum WorkbenchControlMetrics {
     /// --font-size-app-sidebar-item: 13px
     static let redesignFontSizeAppSidebarItem: CGFloat = 13
 
-    /// --size-task-count-badge: 16px
-    static let redesignTaskCountBadgeHeight: CGFloat = 16
     /// --padding-task-count-badge-x
     static let redesignTaskCountBadgeHorizontalPadding = redesignSpacing1
-    /// --font-size-task-count-badge: 10px
-    static let redesignFontSizeTaskCountBadge: CGFloat = 10
+    /// --font-size-task-count-badge: 13px
+    static let redesignFontSizeTaskCountBadge: CGFloat = 13
+    /// --font-weight-task-count-badge: 600
+    static let redesignFontWeightTaskCountBadge: Font.Weight = .semibold
+    /// The count keeps --spacing-1 from the Task glyph's ink rather than its
+    /// box. Phosphor's `list-checks` draws its lines out to 216 of its
+    /// 256-unit grid and the round cap adds half the line width, so the box's
+    /// slack past that is given back.
+    static let redesignTaskCountBadgeGap: CGFloat = {
+        let iconSize = redesignControlIconSize
+        let lineWidth = AppIconLineWidth.bySize[iconSize] ?? 0
+        let inkTrailingEdge = iconSize * 216 / 256 + lineWidth / 2
+        return redesignSpacing1 - (iconSize - inkTrailingEdge)
+    }()
     /// --height-task-panel: 500px
     static let redesignTaskPanelHeight: CGFloat = 500
     /// --height-task-progress-bar: 4px
@@ -1046,12 +1056,12 @@ struct WorkbenchIconButton: View {
     let icon: AppIcon
     var isRedesign: Bool = false
     /// The button stays lit for as long as the menu or panel it hangs off is
-    /// open, and for as long as the mode it switches on is on.
+    /// open, and for as long as the mode it switches on is on. Lit looks the
+    /// same as hover, the way a shortcut button does.
     var isOpen: Bool = false
     /// Hover is read against the surface the button sits on, so a button drawn
     /// on another surface passes that surface's own step; the Workbench
-    /// surface's is the default. Open does not take a surface step - it is the
-    /// same solid block everywhere.
+    /// surface's is the default. Open takes the same step.
     var hoverBackground: Color = WorkbenchRedesignColors.bgHover
     /// The icon is read against the surface too: on the video page it takes
     /// the player's text color, because the Workbench's secondary text is dark
@@ -1067,6 +1077,15 @@ struct WorkbenchIconButton: View {
     /// Dialog close buttons also carry a smaller box, so their hover block stays
     /// in proportion to the smaller glyph; everything else keeps the shared one.
     var boxSize: CGFloat? = nil
+    /// The Task entry's count, drawn beside the glyph inside the button, so
+    /// hover and Open cover it and a click on it is a click on the button. At
+    /// zero nothing is drawn and the box stays square.
+    var count: Int = 0
+    /// The count's circle is one step off the surface, and one step deeper
+    /// while the button is lit, like a keycap in its shortcut button. The
+    /// Workbench surface takes the popover surface's pair by default.
+    var countBackground: Color = WorkbenchRedesignColors.popoverSurfaceKeycapBg
+    var countHoverBackground: Color = WorkbenchRedesignColors.popoverSurfaceKeycapHoverBg
     var action: (() -> Void)? = nil
 
     @Environment(\.isEnabled) private var isEnabled
@@ -1090,49 +1109,69 @@ struct WorkbenchIconButton: View {
     }
 
     private var label: some View {
-        AppIconImage(icon, size: isRedesign ? (iconSize ?? WorkbenchControlMetrics.redesignControlIconSize) : WorkbenchControlMetrics.iconSize)
-            .foregroundStyle(isRedesign ? redesignIconColor : WorkbenchControlColors.primaryText)
-            .frame(
-                width: isRedesign ? (boxSize ?? WorkbenchControlMetrics.redesignIconButtonSize) : WorkbenchControlMetrics.controlHeight,
-                height: isRedesign ? (boxSize ?? WorkbenchControlMetrics.redesignIconButtonSize) : WorkbenchControlMetrics.controlHeight
-            )
-            .background(
-                Group {
-                    if isRedesign {
-                        RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignCornerRadius, style: .continuous)
-                            .fill(redesignBackgroundColor)
-                    } else {
-                        Color.clear
-                    }
+        Group {
+            if isRedesign && count > 0 {
+                HStack(spacing: WorkbenchControlMetrics.redesignTaskCountBadgeGap) {
+                    glyph
+                    TaskCountBadge(
+                        count: count,
+                        background: isLit ? countHoverBackground : countBackground,
+                        textColor: redesignIconColor
+                    )
                 }
-            )
-            .contentShape(Rectangle())
+                // The count ends as far from the button's edge as the glyph
+                // sits from its top.
+                .padding(.horizontal, (boxLength - glyphLength) / 2)
+                .frame(height: boxLength)
+            } else {
+                glyph
+                    .frame(width: boxLength, height: boxLength)
+            }
+        }
+        .background(
+            Group {
+                if isRedesign {
+                    RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignCornerRadius, style: .continuous)
+                        .fill(redesignBackgroundColor)
+                } else {
+                    Color.clear
+                }
+            }
+        )
+        .contentShape(Rectangle())
+    }
+
+    private var glyph: some View {
+        AppIconImage(icon, size: glyphLength)
+            .foregroundStyle(isRedesign ? redesignIconColor : WorkbenchControlColors.primaryText)
+    }
+
+    private var glyphLength: CGFloat {
+        isRedesign ? (iconSize ?? WorkbenchControlMetrics.redesignControlIconSize) : WorkbenchControlMetrics.iconSize
+    }
+
+    private var boxLength: CGFloat {
+        isRedesign ? (boxSize ?? WorkbenchControlMetrics.redesignIconButtonSize) : WorkbenchControlMetrics.controlHeight
+    }
+
+    private var isLit: Bool {
+        isOpen || isHovered
     }
 
     private var redesignIconColor: Color {
         guard isEnabled else {
             return WorkbenchRedesignColors.textDisabled
         }
-        // Open reverses the button rather than tinting it, so the glyph is the
-        // one that reads on the filled block, not the surface's own icon color.
-        if isOpen {
-            return WorkbenchRedesignColors.iconOnDark
-        }
         return iconColor ?? WorkbenchRedesignColors.textSecondary
     }
 
-    /// Hover takes the step belonging to the surface the button sits on. Open
-    /// is a solid block instead: one opaque fill and a white glyph, the same on
-    /// every surface, so a button that is lit is never mistaken for one the
-    /// pointer happens to rest on.
+    /// Hover and Open take the step belonging to the surface the button sits
+    /// on.
     private var redesignBackgroundColor: Color {
         guard isEnabled else {
             return Color.clear
         }
-        if isOpen {
-            return WorkbenchRedesignColors.textMuted
-        }
-        return isHovered ? hoverBackground : Color.clear
+        return isLit ? hoverBackground : Color.clear
     }
 }
 

@@ -163,10 +163,6 @@ enum WorkbenchRedesignColors {
         static let coverSummaryScrim = NSColor.black
         static let coverSummaryText = NSColor.white
 
-        // Task
-        static let taskCountBadgeBg = NSColor.controlAccentColor
-        static let taskCountBadgeText = iconOnDark
-
         // Shadow Color
         // One colour for both themes. On a dark page a shadow this light
         // changes the pixels under it by about a tenth of what it changes on a
@@ -328,10 +324,6 @@ enum WorkbenchRedesignColors {
     static let spinnerTrack = Color(nsColor: NS.spinnerTrack)
     // --color-spinner-indicator
     static let spinnerIndicator = Color(nsColor: NS.spinnerIndicator)
-
-    // Task
-    static let taskCountBadgeBg = Color(nsColor: NS.taskCountBadgeBg)
-    static let taskCountBadgeText = Color(nsColor: NS.taskCountBadgeText)
 
     // Dialog
     static let dialogScrim = Color(nsColor: NS.dialogScrim)

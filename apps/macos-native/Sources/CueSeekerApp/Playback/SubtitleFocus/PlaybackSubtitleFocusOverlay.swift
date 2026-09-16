@@ -335,7 +335,11 @@ private struct PlaybackOverlayTopBar: View {
 
                 TopbarAppEntries(
                     hoverBackground: WorkbenchRedesignColors
-                        .overlaySurfaceShortcutButtonHoverBg
+                        .overlaySurfaceShortcutButtonHoverBg,
+                    countBackground: WorkbenchRedesignColors
+                        .overlaySurfaceKeycapBg,
+                    countHoverBackground: WorkbenchRedesignColors
+                        .overlaySurfaceKeycapHoverBg
                 )
             }
             .frame(maxWidth: .infinity, alignment: .trailing)

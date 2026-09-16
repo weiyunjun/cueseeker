@@ -67,7 +67,9 @@ struct LiquidGlassVideoTopBar: View {
         .overlay(alignment: .trailing) {
             TopbarAppEntries(
                 iconColor: PlaybackTheme.textPrimary,
-                hoverBackground: PlaybackTheme.controlHoverBackground
+                hoverBackground: PlaybackTheme.controlHoverBackground,
+                countBackground: PlaybackTheme.taskCountBadgeBackground,
+                countHoverBackground: PlaybackTheme.taskCountBadgeHoverBackground
             )
             .padding(.trailing, PlaybackChromeMetrics.topbarHorizontalPadding)
         }
