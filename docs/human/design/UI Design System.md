@@ -287,6 +287,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--size-player-circle-button-icon`: `23px`
 - `--width-player-speed-button`: `54px`
 - `--width-player-speed-menu`: `184px`
+- `--width-player-audio-track-menu`: `300px`
 - `--size-player-progress-thumb`: `12px`
 - `--width-player-topbar-title-max`: `520px`
 - `--size-playback-feedback-icon`: `31px`
@@ -1200,6 +1201,13 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - Item：Menu Item / Radio Menu Item
 - Highlight On Open：当前生效倍速
 
+##### Player More Menu
+
+- Surface：Player Chrome
+- 宽度、圆角、Padding 与 Menu Item 尺寸与 Player Speed Menu 相同
+- Item：Menu Item / Submenu Trigger：Audio Track、Default Audio Track
+- 视频没有音轨时两项为 Disabled
+
 ### Submenu
 
 #### Shared
@@ -1230,6 +1238,17 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - 也由 Playback Footer 的 Save to Excerpt List 按钮直接弹出，挂靠该按钮，内容与表格行菜单的 Save to Excerpt List 相同
 - Highlight On Open：由 Save to Excerpt List 打开时为最近保存的列表，没有则首项；由 Move to ... 与 Duplicate to ... 展开时为首项
 - Item：Menu Item / Action Menu Item，均不带 Leading Icon
+
+##### Audio Track Submenu
+
+- Surface：Player Chrome
+- Width：`--width-player-audio-track-menu`
+- 由 Player More Menu 的 Audio Track 与 Default Audio Track 展开
+- Structure：视频的音轨按文件中的顺序排列
+- Item：Menu Item / Radio Menu Item，Trailing Slot 为 Tag / Player Chrome；名称完整显示，超出宽度时换行，Selection Indicator 与 Tag 对齐名称首行
+- 名称：`#序号 语言, 标题, 编码, 声道`，缺少的部分省略
+- 由 Audio Track 展开：勾选当前音频源，默认音频源所在项带 Tag「Default」
+- 由 Default Audio Track 展开：勾选默认音频源，当前音频源所在项带 Tag「Current」
 
 ### Menu Item
 
@@ -1831,6 +1850,13 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - Disabled
   - Background：`--color-bg-disabled`
   - Text Color：`--color-text-disabled`
+
+#### Variants
+
+##### Player Chrome
+
+- Background：`--color-player-control-bg-hover`
+- Text Color：`--color-player-text-secondary`
 
 ### Status Indicator
 
@@ -2470,6 +2496,9 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
   - Background：`--color-player-control-bg-hover`
 - Selected
   - Icon Color：`--color-player-icon-selected`
+- Open
+  - 触发：挂靠的菜单打开
+  - 外观与 Hover 相同
 - Disabled
   - Icon Color：`--color-player-text-tertiary`
 - Interaction Suppressed

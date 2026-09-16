@@ -110,6 +110,7 @@
 | `speedometer` | Regular | 倍速 | Playback Feedback（倍速） |
 | `corners-out` | Regular | 进入全屏 | 播放控制条 / 全屏 |
 | `corners-in` | Regular | 退出全屏 | 播放控制条 / 全屏 |
+| `dots-three-vertical` | Regular | 更多 | 播放控制条 / More |
 | `speaker-x` | Regular | 静音 | Player Volume Control；Playback Feedback |
 | `speaker-low` | Regular | 音量降低 | Playback Feedback |
 | `speaker-high` | Regular | 有声、音量升高 | Player Volume Control；Playback Feedback |
