@@ -88,7 +88,7 @@ enum WorkbenchRedesignColors {
         static let borderControlHover = NSColor.dynamic(lightHex: "#D1D5DB", darkHex: "#52525B")
         static let borderMuted = NSColor.dynamic(lightHex: "#E5E7EB", darkHex: "#4A4A52")
         static let borderDivider = NSColor.dynamic(lightHex: "#E5E7EB", darkHex: "#FFFFFF", darkAlpha: 0.10)
-        static let borderDisabled = NSColor.dynamic(lightHex: "#E5E7EB", darkHex: "#303036")
+        static let borderDisabled = NSColor.dynamic(lightHex: "#E5E7EB", darkHex: "#FFFFFF", darkAlpha: 0.10)
         static let borderCheckbox = NSColor.dynamic(lightHex: "#D0D5DD", darkHex: "#5A5A62")
 
         // Active Blue
