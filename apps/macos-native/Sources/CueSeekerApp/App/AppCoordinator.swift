@@ -572,55 +572,11 @@ final class AppCoordinator: ObservableObject {
         setupInterfaceLayerObservers()
     }
 
-    /// Edit Cover, the Excerpt List Editor, Rename, Filter, Export to Anki,
-    /// the Task panel and Confirmation are the dialog layer. Their open state
-    /// lives on the stores, so the registry follows them.
+    /// The dialog layer registers itself from the dialogs it draws. What is
+    /// left here is the one rule a store decides: a Confirmation is the one
+    /// dialog that keeps the App open, and it is always the top one. The quit
+    /// half of the rule is the App delegate's.
     private func setupInterfaceLayerObservers() {
-        let isEditorOrPanelOpen = Publishers.CombineLatest4(
-            library.$coverEditingSession,
-            excerpt.$listEditorSession,
-            confirmation.$session,
-            tasks.$isPanelOpen
-        )
-        .map { coverEditing, listEditor, confirmation, isTaskPanelOpen in
-            coverEditing != nil || listEditor != nil || confirmation != nil
-                || isTaskPanelOpen
-        }
-        Publishers.CombineLatest4(
-            isEditorOrPanelOpen,
-            library.$renameSession.map { $0 != nil },
-            filterDialog.$session.map { $0 != nil },
-            tasks.$ankiExportSession.map { $0 != nil }
-        )
-        .map { $0 || $1 || $2 || $3 }
-        .removeDuplicates()
-        .sink { [interfaceLayers] isDialogOpen in
-            interfaceLayers.setOpen(.dialog, isDialogOpen)
-            guard isDialogOpen,
-                  let window = NSApplication.shared.keyWindow,
-                  let pageFocus = Self.focusOwner(in: window)
-            else {
-                return
-            }
-            // The page gives its focus up as the dialog opens, the way it does
-            // for a menu, so nothing it had focused comes back when the dialog
-            // closes. This runs before the store keeps the open state, and a
-            // field giving its focus up redraws the window at once: given up
-            // here, that redraw reads the dialog as closed and nothing draws
-            // it until something else changes. So the focus is given up once
-            // the state is kept, and only while the page still holds it: a
-            // dialog that focused its own field on appearing keeps it.
-            Task { @MainActor in
-                guard Self.focusOwner(in: window) === pageFocus else {
-                    return
-                }
-                window.makeFirstResponder(nil)
-            }
-        }
-        .store(in: &interfaceLayerCancellables)
-
-        // A Confirmation is the one dialog that keeps the App open, and it is
-        // always the top one. The quit half of the rule is the App delegate's.
         confirmation.$session
             .map { $0 == nil }
             .removeDuplicates()
@@ -628,21 +584,6 @@ final class AppCoordinator: ObservableObject {
                 AppWindowControls.setCloseEnabled(isClosable)
             }
             .store(in: &interfaceLayerCancellables)
-    }
-
-    /// The control that holds the window's keyboard, or nil when nothing does.
-    /// Every text field in a window edits through the one field editor, so
-    /// the field it is editing answers for it.
-    private static func focusOwner(in window: NSWindow) -> NSResponder? {
-        guard let responder = window.firstResponder, responder !== window else {
-            return nil
-        }
-        if let editor = responder as? NSTextView,
-           editor.isFieldEditor,
-           let field = editor.delegate as? NSResponder {
-            return field
-        }
-        return responder
     }
 
     func setupSettingsObservers() {

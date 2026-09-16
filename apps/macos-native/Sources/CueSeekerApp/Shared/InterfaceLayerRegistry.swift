@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 /// The main window's stacked interface layers, lowest first, following the
@@ -26,10 +27,12 @@ enum InterfaceLayer: Int, CaseIterable, Comparable {
     case playbackOverlay
     /// Command Panel, above the Playback Overlay.
     case commandPanel
-    /// Edit Cover, the Excerpt List Editor, Rename, the Task panel and
-    /// Confirmation, drawn by the dialog layer inside the main window. A
-    /// Confirmation may stack on another dialog, and the layer stays open until
-    /// the last of them closes.
+    /// Whatever the dialog layer inside the main window is drawing: Edit
+    /// Cover, the Excerpt List Editor, Rename, Filter, Export to Anki, the
+    /// Task panel and Confirmation. The layer registers itself from its own
+    /// list of open dialogs, so a dialog added to the layer is registered with
+    /// it. A Confirmation may stack on another dialog, and the layer stays open
+    /// until the last of them closes.
     case dialog
 
     static func < (lhs: InterfaceLayer, rhs: InterfaceLayer) -> Bool {
@@ -76,6 +79,9 @@ final class InterfaceLayerRegistry: ObservableObject {
         }
         if isOpen {
             openLayers.insert(layer)
+            if layer == .dialog {
+                givePageFocusUp()
+            }
         } else {
             openLayers.remove(layer)
             if layer == .dialog {
@@ -85,6 +91,42 @@ final class InterfaceLayerRegistry: ObservableObject {
         // Entering or leaving a layer is an interface switch: the pointer goes
         // back to the arrow until it moves again.
         AppPointerShape.reset()
+    }
+
+    /// The page gives its focus up as a dialog opens, the way it does for a
+    /// menu, so nothing it had focused comes back when the dialog closes. A
+    /// field giving its focus up redraws the window at once, and this runs
+    /// while the window is still drawing the dialog in: given up here, that
+    /// redraw could read a stale state. So the focus is given up on the next
+    /// turn, and only while the page still holds it: a dialog that focused its
+    /// own field on appearing keeps it.
+    private func givePageFocusUp() {
+        guard let window = NSApplication.shared.keyWindow,
+              let pageFocus = Self.focusOwner(in: window)
+        else {
+            return
+        }
+        Task { @MainActor in
+            guard Self.focusOwner(in: window) === pageFocus else {
+                return
+            }
+            window.makeFirstResponder(nil)
+        }
+    }
+
+    /// The control that holds the window's keyboard, or nil when nothing does.
+    /// Every text field in a window edits through the one field editor, so
+    /// the field it is editing answers for it.
+    private static func focusOwner(in window: NSWindow) -> NSResponder? {
+        guard let responder = window.firstResponder, responder !== window else {
+            return nil
+        }
+        if let editor = responder as? NSTextView,
+           editor.isFieldEditor,
+           let field = editor.delegate as? NSResponder {
+            return field
+        }
+        return responder
     }
 
     /// Registers an open menu. The owner holds the token while its menu is

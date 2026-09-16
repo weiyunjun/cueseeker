@@ -28,6 +28,7 @@ struct WorkbenchDialogLayer<Dialogs: View>: View {
     /// A file panel dims the whole window itself, as the sheet over a sheet
     /// did, so the veil steps aside for it and the page is dimmed once.
     @Environment(\.isSystemSheetAttached) private var isSystemSheetAttached
+    @Environment(\.interfaceLayers) private var interfaceLayers
 
     var body: some View {
         GeometryReader { proxy in
@@ -67,6 +68,16 @@ struct WorkbenchDialogLayer<Dialogs: View>: View {
         }
         .animation(WorkbenchDialogMotion.animation, value: dialogIDs)
         .animation(WorkbenchDialogMotion.animation, value: isSystemSheetAttached)
+        // This is where the dialogs are drawn over the page, so this is where
+        // the dialog layer is registered: open while the list has a dialog in
+        // it, closed once it is empty. A dialog added to the list needs
+        // nothing else to be registered.
+        .onAppear {
+            interfaceLayers?.setOpen(.dialog, !dialogIDs.isEmpty)
+        }
+        .onChange(of: dialogIDs.isEmpty) { isEmpty in
+            interfaceLayers?.setOpen(.dialog, !isEmpty)
+        }
     }
 }
 
