@@ -1213,8 +1213,16 @@ struct WorkbenchMenuDivider: View {
     }
 }
 
+/// The surface a menu is drawn on. Player Chrome menus sit over the video and
+/// keep the Player Speed Menu's look.
+enum MenuSurface {
+    case workbench
+    case playerChrome
+}
+
 struct WorkbenchPopoverPanel<Content: View>: View {
     var isRedesign: Bool = false
+    var surface = MenuSurface.workbench
     /// How tall the panel may grow. It is the menu's own cap by default; a menu
     /// that opened on a side with less room than that is given the room it has,
     /// and scrolls whatever no longer fits.
@@ -1228,9 +1236,10 @@ struct WorkbenchPopoverPanel<Content: View>: View {
     @ViewBuilder var content: () -> Content
 
     var body: some View {
-        let cornerRadius: CGFloat = isRedesign
-            ? WorkbenchControlMetrics.redesignMenuRadius
-            : 10
+        let isPlayerChrome = surface == .playerChrome
+        let cornerRadius: CGFloat = isPlayerChrome
+            ? PlaybackChromeMetrics.speedMenuRadius
+            : isRedesign ? WorkbenchControlMetrics.redesignMenuRadius : 10
         // The scroll view spans the whole panel, and the item stack inside it
         // both applies the menu's padding and reserves the strip the scrollbar
         // needs — but only once the items outgrow the cap, so a menu that does
@@ -1240,13 +1249,15 @@ struct WorkbenchPopoverPanel<Content: View>: View {
         ScrollViewReader { proxy in
             MenuHeightCap(height: maximumHeight) {
                 WorkbenchScrollView(
-                    scrollbarInset: isRedesign
+                    scrollbarInset: isRedesign || isPlayerChrome
                         ? MenuMetrics.scrollbarOuterGap
                         : TableScrollbarPrimitiveMetrics.inset
                 ) {
-                    if isRedesign {
+                    if isRedesign || isPlayerChrome {
                         MenuItemStack(
-                            padding: MenuMetrics.padding,
+                            padding: isPlayerChrome
+                                ? PlaybackChromeMetrics.speedMenuPadding
+                                : MenuMetrics.padding,
                             strip: MenuMetrics.scrollbarStrip,
                             cap: maximumHeight
                         ) {
@@ -1261,7 +1272,15 @@ struct WorkbenchPopoverPanel<Content: View>: View {
             .fixedSize(horizontal: true, vertical: false)
             .background(
                 Group {
-                    if isRedesign {
+                    if isPlayerChrome {
+                        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                            .fill(PlaybackTheme.menuBackground)
+                            .shadow(
+                                color: PlaybackTheme.overlayShadowColor,
+                                radius: PlaybackTheme.overlayShadowRadius,
+                                y: PlaybackTheme.overlayShadowYOffset
+                            )
+                    } else if isRedesign {
                         RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                             .fill(WorkbenchRedesignColors.bgPopover)
                             .shadowToken(
@@ -1282,7 +1301,12 @@ struct WorkbenchPopoverPanel<Content: View>: View {
             )
             .overlay(
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .strokeBorder(isRedesign ? WorkbenchRedesignColors.borderControl : WorkbenchControlColors.border.opacity(0.75), lineWidth: isRedesign ? 1.0 : 0.5)
+                    .strokeBorder(
+                        isPlayerChrome
+                            ? PlaybackTheme.textTertiary.opacity(0.3)
+                            : isRedesign ? WorkbenchRedesignColors.borderControl : WorkbenchControlColors.border.opacity(0.75),
+                        lineWidth: isRedesign ? 1.0 : 0.5
+                    )
             )
             .subtitleTableTextSelectionNonInteractiveRegion(
                 cornerRadius: cornerRadius

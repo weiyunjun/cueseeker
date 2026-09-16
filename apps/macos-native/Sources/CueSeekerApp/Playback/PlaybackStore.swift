@@ -217,6 +217,86 @@ final class PlaybackStore: ObservableObject {
         excerptDestinationMenu = nil
     }
 
+    /// The open More menu and what it lists; nil while closed. Its keys arrive
+    /// the same two ways as the speed menu's.
+    @Published private(set) var moreMenu: PlaybackAudioTrackMenu?
+    let moreMenuHighlight = MenuHighlightModel()
+    let moreSubmenuHighlight = MenuHighlightModel()
+    let moreSubmenuState = MenuSubmenuState<PlaybackMoreSubmenu>()
+
+    func openMoreMenu(_ menu: PlaybackAudioTrackMenu) {
+        moreMenu = menu
+        moreSubmenuState.reset()
+        // Without a recorded track both items are disabled, so nothing takes
+        // the highlight.
+        moreMenuHighlight.open(
+            selectablePositions: menu.trackNames.isEmpty
+                ? []
+                : PlaybackMoreSubmenu.allCases.map(\.rawValue)
+        )
+    }
+
+    func closeMoreMenu() {
+        guard moreMenu != nil else {
+            return
+        }
+        moreSubmenuState.reset()
+        moreMenuHighlight.close()
+        moreMenu = nil
+    }
+
+    /// Arrows, Enter and Esc for the open More menu, offered by the menu gate
+    /// and through the playback key owner. Up and down move in the open
+    /// submenu, or in the menu while none is open; right and Enter open the
+    /// highlighted submenu, left closes it, and Enter in a submenu picks.
+    func handleMoreMenuKey(
+        _ keyCode: UInt16,
+        isRepeat: Bool,
+        onSelect: (PlaybackMoreSubmenu, Int) -> Void
+    ) -> Bool {
+        guard moreMenu != nil else {
+            return false
+        }
+        let openSubmenu = moreSubmenuState.openParent
+        let highlight = openSubmenu == nil ? moreMenuHighlight : moreSubmenuHighlight
+        switch keyCode {
+        case 53:
+            closeMoreMenu()
+        case 126:
+            highlight.moveHighlight(by: -1)
+        case 125:
+            highlight.moveHighlight(by: 1)
+        case 124:
+            openHighlightedMoreSubmenu()
+        case 123:
+            moreSubmenuState.closeSubmenu()
+        case 36, 76:
+            guard !isRepeat else {
+                break
+            }
+            if let openSubmenu {
+                if let index = moreSubmenuHighlight.highlightedPosition {
+                    onSelect(openSubmenu, index)
+                    closeMoreMenu()
+                }
+            } else {
+                openHighlightedMoreSubmenu()
+            }
+        default:
+            return false
+        }
+        return true
+    }
+
+    private func openHighlightedMoreSubmenu() {
+        guard let position = moreMenuHighlight.highlightedPosition,
+              let submenu = PlaybackMoreSubmenu(rawValue: position)
+        else {
+            return
+        }
+        moreSubmenuState.open(submenu)
+    }
+
     private(set) var pointerHideRequestGeneration: UInt64 = 0
     private var subtitleFocusSessionGeneration = 0
 
@@ -225,6 +305,21 @@ final class PlaybackStore: ObservableObject {
         interfaceLayers: InterfaceLayerRegistry = InterfaceLayerRegistry()
     ) {
         self.interfaceLayers = interfaceLayers
+        // A submenu opens on its first track. Its trigger reports the same
+        // submenu again when its frame moves, which must not reset the
+        // highlight a key has since moved.
+        moreSubmenuState.onOpenParentChange = { [weak self] submenu in
+            guard let self else {
+                return
+            }
+            if submenu == nil {
+                moreSubmenuHighlight.close()
+            } else if !moreSubmenuHighlight.isOpen, let moreMenu {
+                moreSubmenuHighlight.open(
+                    selectablePositions: Array(moreMenu.trackNames.indices)
+                )
+            }
+        }
     }
 
     var isTimelineScrubbing: Bool {

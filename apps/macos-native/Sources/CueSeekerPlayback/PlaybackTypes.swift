@@ -190,13 +190,17 @@ public struct PlaybackRequest: Equatable, Sendable {
     public let segmentEndMilliseconds: Int?
     public let autoStopAtMilliseconds: Int?
     public let subtitleSource: PlaybackSubtitleSource?
+    /// Counted from 0 among the file's audio streams; a file without it plays
+    /// its first audio track.
+    public let audioTrackIndex: Int
 
     public init(
         videoURL: URL,
         startMilliseconds: Int,
         segmentEndMilliseconds: Int? = nil,
         autoStopAtMilliseconds: Int? = nil,
-        subtitleSource: PlaybackSubtitleSource? = nil
+        subtitleSource: PlaybackSubtitleSource? = nil,
+        audioTrackIndex: Int = 0
     ) throws {
         guard videoURL.isFileURL else {
             throw PlaybackError.invalidVideoURL(videoURL.absoluteString)
@@ -219,6 +223,7 @@ public struct PlaybackRequest: Equatable, Sendable {
             fallbackVideoURL: videoURL.standardizedFileURL,
             startMilliseconds: safeStartMilliseconds
         )
+        self.audioTrackIndex = max(0, audioTrackIndex)
     }
 }
 

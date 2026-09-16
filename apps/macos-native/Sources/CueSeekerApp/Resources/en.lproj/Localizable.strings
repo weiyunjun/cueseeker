@@ -193,6 +193,11 @@
 "playback.subtitles" = "Subtitles";
 "playback.speed" = "Playback speed";
 "playback.fullscreen" = "Fullscreen";
+"playback.more" = "More";
+"playback.more.audio_track" = "Audio Track";
+"playback.more.default_audio_track" = "Default Audio Track";
+"playback.more.default_tag" = "Default";
+"playback.more.current_tag" = "Current";
 "playback.mute" = "Mute";
 "playback.close_and_return" = "Close video and return to results";
 "playback.minimize" = "Minimize playback";

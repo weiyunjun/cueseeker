@@ -481,7 +481,8 @@ func pendingAuxiliaryIndexWorkRetriesAfterUnchangedScan() throws {
         videoWidth: 1920,
         videoHeight: 1080,
         frameRate: 24,
-        videoCodec: "h264"
+        videoCodec: "h264",
+        audioTracks: []
     )
     try libraryDatabase
         .refreshPresentationAfterIndexedContentChange(
@@ -494,6 +495,18 @@ func pendingAuxiliaryIndexWorkRetriesAfterUnchangedScan() throws {
     )
     #expect(completed.pendingVideoMetadataPaths.isEmpty)
     #expect(completed.presentationRefreshRequest == .none)
+
+    // A video recorded before audio tracks were has no track list, which the
+    // next Index treats as missing and inspects again.
+    try executeDatabaseTestSQLite(
+        at: fixture.databaseURL,
+        "UPDATE video_files SET audio_tracks = NULL;"
+    )
+    let missingTracks = try indexer.index(
+        folder: fixture.root,
+        into: database
+    )
+    #expect(missingTracks.pendingVideoMetadataPaths == [indexedVideoPath])
 }
 
 @Test

@@ -102,9 +102,14 @@ public final class LibraryDatabase: @unchecked Sendable {
         videoWidth: Int?,
         videoHeight: Int?,
         frameRate: Double?,
-        videoCodec: String?
+        videoCodec: String?,
+        audioTracks: [VideoAudioTrack]
     ) throws {
         let normalizedDuration = Self.normalizedDuration(duration)
+        let encodedAudioTracks = String(
+            decoding: try JSONEncoder().encode(audioTracks),
+            as: UTF8.self
+        )
         try database.withImmediateTransaction {
             let statement = try database.prepare(
                 """
@@ -114,6 +119,7 @@ public final class LibraryDatabase: @unchecked Sendable {
                     video_height = ?,
                     frame_rate = ?,
                     video_codec = ?,
+                    audio_tracks = ?,
                     duration_retry_pending = 0
                 WHERE path = ?;
                 """
@@ -145,7 +151,8 @@ public final class LibraryDatabase: @unchecked Sendable {
                 to: statement,
                 at: 5
             )
-            try statement.bind(videoFile.path, at: 6)
+            try statement.bind(encodedAudioTracks, at: 6)
+            try statement.bind(videoFile.path, at: 7)
             try statement.run()
 
             try updatePresentationDuration(
@@ -153,6 +160,39 @@ public final class LibraryDatabase: @unchecked Sendable {
                 duration: normalizedDuration
             )
         }
+    }
+
+    /// Nil when the video is not in the library. A video Index has not
+    /// inspected yet has no tracks.
+    public func videoAudioTracks(forVideoFile videoFile: URL) throws -> VideoAudioTracks? {
+        let statement = try database.prepare(
+            """
+            SELECT audio_tracks, default_audio_track_index
+            FROM video_files
+            WHERE path = ?;
+            """
+        )
+        try statement.bind(videoFile.path, at: 1)
+        guard try statement.step() else {
+            return nil
+        }
+        let tracks = statement.nullableStringColumn(0)
+            .flatMap { try? JSONDecoder().decode([VideoAudioTrack].self, from: Data($0.utf8)) }
+            ?? []
+        return VideoAudioTracks(tracks: tracks, defaultIndex: statement.intColumn(1))
+    }
+
+    public func setDefaultAudioTrackIndex(_ index: Int, forVideoFile videoFile: URL) throws {
+        let statement = try database.prepare(
+            """
+            UPDATE video_files
+            SET default_audio_track_index = ?
+            WHERE path = ?;
+            """
+        )
+        try statement.bind(max(0, index), at: 1)
+        try statement.bind(videoFile.path, at: 2)
+        try statement.run()
     }
 
     private func updatePresentationDuration(videoFile: URL, duration: Double?) throws {

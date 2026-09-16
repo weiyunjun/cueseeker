@@ -897,7 +897,8 @@ func completeLibraryFolderSummariesAndDetailSplitFolderAndEpisodeData() throws {
         videoWidth: 1920,
         videoHeight: 1080,
         frameRate: 23.976,
-        videoCodec: "hevc"
+        videoCodec: "hevc",
+        audioTracks: []
     )
     try LibraryDatabase(path: database.path).refreshPresentationAfterIndexedContentChange()
 
@@ -1112,5 +1113,65 @@ func removingIndexedFolderForgetsLibraryPlaybackHistory() throws {
     #expect(
         try LibraryDatabase(path: databaseURL)
             .libraryPlaybackHistory(forVideoFile: videoFile) == nil
+    )
+}
+
+@Test
+func videoAudioTracksKeepTheRecordedListAndTheDefaultTrackAsSet() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try IndexingDatabase(path: databaseURL)
+    try DatabaseBootstrap.prepare(at: databaseURL)
+    let videoFile = URL(fileURLWithPath: "/Media/Show/Episode.mkv")
+    try database.replaceEntries(
+        subtitleFile: URL(fileURLWithPath: "/Media/Show/Episode.srt"),
+        videoFile: videoFile,
+        entries: [databaseTestEntry(text: "Audio tracks")]
+    )
+    let library = try LibraryDatabase(path: databaseURL)
+    let tracks = [
+        VideoAudioTrack(language: "jpn", title: nil, codec: "opus", channels: 2),
+        VideoAudioTrack(language: "eng", title: "Commentary", codec: "aac", channels: 6),
+        VideoAudioTrack(language: nil, title: nil, codec: nil, channels: nil),
+    ]
+    try library.updateVideoMetadata(
+        videoFile: videoFile,
+        duration: 120,
+        videoWidth: 1920,
+        videoHeight: 1080,
+        frameRate: 24,
+        videoCodec: "h264",
+        audioTracks: tracks
+    )
+
+    try library.setDefaultAudioTrackIndex(2, forVideoFile: videoFile)
+    #expect(
+        try library.videoAudioTracks(forVideoFile: videoFile)
+            == VideoAudioTracks(tracks: tracks, defaultIndex: 2)
+    )
+
+    // Index records a shorter list; the default stays as set and the first
+    // track takes effect.
+    try library.updateVideoMetadata(
+        videoFile: videoFile,
+        duration: 120,
+        videoWidth: 1920,
+        videoHeight: 1080,
+        frameRate: 24,
+        videoCodec: "h264",
+        audioTracks: Array(tracks.prefix(2))
+    )
+    let shortened = try #require(try library.videoAudioTracks(forVideoFile: videoFile))
+    #expect(shortened.tracks == Array(tracks.prefix(2)))
+    #expect(shortened.defaultIndex == 2)
+    #expect(shortened.effectiveDefaultIndex == 0)
+
+    #expect(
+        try library.videoAudioTracks(
+            forVideoFile: URL(fileURLWithPath: "/Media/Show/Missing.mkv")
+        ) == nil
     )
 }

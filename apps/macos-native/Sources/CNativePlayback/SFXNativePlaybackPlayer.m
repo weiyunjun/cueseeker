@@ -830,6 +830,7 @@ presentationGeneration:(NSUInteger)presentationGeneration;
 	                      volume:(float)volume
 	                playbackRate:(float)playbackRate
 	                   decodeMode:(SFXNativePlaybackDecodeMode)decodeMode
+	              audioTrackIndex:(NSInteger)audioTrackIndex
 	      presentationGeneration:(NSUInteger)presentationGeneration
 	          pauseAfterFirstFrame:(BOOL)pauseAfterFirstFrame
  allowAutomaticSoftwareRecycle:(BOOL)allowAutomaticSoftwareRecycle
@@ -874,6 +875,9 @@ presentationGeneration:(NSUInteger)presentationGeneration;
 @property (nonatomic, readonly) NSUInteger audioOutputRecoveryCount;
 @property (nonatomic, readonly) BOOL audioOutputDrained;
 @property (nonatomic, readonly, getter=isFinished) BOOL finished;
+/// Paused, or opened to pause on its first frame and not yet resumed.
+@property (nonatomic, readonly, getter=isPaused) BOOL paused;
+@property (nonatomic, readonly) NSInteger audioTrackIndex;
 @end
 
 @implementation SFXNativePlaybackSession {
@@ -919,6 +923,8 @@ presentationGeneration:(NSUInteger)presentationGeneration;
 
     int _videoStreamIndex;
     int _audioStreamIndex;
+    NSInteger _requestedAudioTrackIndex;
+    NSInteger _audioTrackIndex;
     int _audioOutputSampleRate;
     int _audioOutputChannels;
     int _resamplerInputSampleRate;
@@ -1031,6 +1037,7 @@ presentationGeneration:(NSUInteger)presentationGeneration;
 	                      volume:(float)volume
 	                playbackRate:(float)playbackRate
 	                  decodeMode:(SFXNativePlaybackDecodeMode)decodeMode
+	             audioTrackIndex:(NSInteger)audioTrackIndex
 	      presentationGeneration:(NSUInteger)presentationGeneration
 	         pauseAfterFirstFrame:(BOOL)pauseAfterFirstFrame
  allowAutomaticSoftwareRecycle:(BOOL)allowAutomaticSoftwareRecycle
@@ -1060,6 +1067,8 @@ presentationGeneration:(NSUInteger)presentationGeneration;
 	    _currentTime = _seekSeconds;
     _videoStreamIndex = -1;
     _audioStreamIndex = -1;
+    _requestedAudioTrackIndex = audioTrackIndex;
+    _audioTrackIndex = -1;
     _decodeQueue = dispatch_queue_create("CueSeeker.NativePlayback.Decode", DISPATCH_QUEUE_SERIAL);
     _demuxQueue = dispatch_queue_create("CueSeeker.NativePlayback.Demux", DISPATCH_QUEUE_SERIAL);
     _audioDecodeQueue = dispatch_queue_create("CueSeeker.NativePlayback.AudioDecode", DISPATCH_QUEUE_SERIAL);
@@ -1220,6 +1229,15 @@ presentationGeneration:(NSUInteger)presentationGeneration;
 
 - (BOOL)isFinished {
     return atomic_load(&_decodeLoopFinished);
+}
+
+- (BOOL)isPaused {
+    return atomic_load(&_paused)
+        || (atomic_load(&_pauseAfterFirstFrame) && !atomic_load(&_didPauseAfterFirstFrame));
+}
+
+- (NSInteger)audioTrackIndex {
+    return _audioTrackIndex;
 }
 
 - (BOOL)hasActiveSegmentEnd {
@@ -1646,13 +1664,29 @@ presentationGeneration:(NSUInteger)presentationGeneration;
     }
     _timelineOriginSeconds = SFXMediaTimelineOriginSeconds(_formatContext);
 
+    // Audio tracks are counted among the audio streams alone, in file order,
+    // the way Index lists them. A track the file does not have falls back to
+    // the first.
+    int firstAudioStreamIndex = -1;
+    NSInteger audioTrackCount = 0;
     for (unsigned int index = 0; index < _formatContext->nb_streams; index++) {
         AVStream *stream = _formatContext->streams[index];
         if (_videoStreamIndex < 0 && stream->codecpar->codec_type == AVMEDIA_TYPE_VIDEO) {
             _videoStreamIndex = (int)index;
-        } else if (_audioStreamIndex < 0 && stream->codecpar->codec_type == AVMEDIA_TYPE_AUDIO) {
-            _audioStreamIndex = (int)index;
+        } else if (stream->codecpar->codec_type == AVMEDIA_TYPE_AUDIO) {
+            if (firstAudioStreamIndex < 0) {
+                firstAudioStreamIndex = (int)index;
+            }
+            if (audioTrackCount == _requestedAudioTrackIndex) {
+                _audioStreamIndex = (int)index;
+                _audioTrackIndex = audioTrackCount;
+            }
+            audioTrackCount += 1;
         }
+    }
+    if (_audioStreamIndex < 0 && firstAudioStreamIndex >= 0) {
+        _audioStreamIndex = firstAudioStreamIndex;
+        _audioTrackIndex = 0;
     }
 
     if (_videoStreamIndex < 0) {
@@ -2116,8 +2150,7 @@ presentationGeneration:(NSUInteger)presentationGeneration;
     NSInteger currentMilliseconds = MAX(0, (NSInteger)llround(self.currentTime * 1000.0));
     NSInteger endMilliseconds = self.segmentEndMilliseconds;
     BOOL pausesAtSegmentEnd = self.pausesAtSegmentEnd;
-    BOOL pauseAfterFirstFrame = atomic_load(&_paused)
-        || (atomic_load(&_pauseAfterFirstFrame) && !atomic_load(&_didPauseAfterFirstFrame));
+    BOOL pauseAfterFirstFrame = self.isPaused;
 
     return [self requestSeekToMilliseconds:currentMilliseconds
                            endMilliseconds:endMilliseconds
@@ -4331,6 +4364,7 @@ automaticRecycleMilliseconds:(NSInteger)automaticRecycleMilliseconds {
     float _volume;
     float _playbackRate;
     SFXNativePlaybackDecodeMode _decodeMode;
+    NSInteger _audioTrackIndex;
     BOOL _didRecycleInitialSoftwareSession;
     NSUInteger _nativeSessionOpenCount;
     NSUInteger _nativeInSessionSeekCount;
@@ -4480,6 +4514,19 @@ automaticRecycleMilliseconds:(NSInteger)automaticRecycleMilliseconds {
 
 - (SFXNativePlaybackDecodeMode)decodeMode {
     return _decodeMode;
+}
+
+- (NSInteger)audioTrackIndex {
+    return _audioTrackIndex;
+}
+
+- (void)setAudioTrackIndex:(NSInteger)audioTrackIndex {
+    _audioTrackIndex = MAX(0, audioTrackIndex);
+}
+
+- (NSInteger)currentAudioTrackIndex {
+    SFXNativePlaybackSession *session = _session;
+    return session != nil ? session.audioTrackIndex : -1;
 }
 
 - (void)setVolume:(float)volume {
@@ -4647,6 +4694,7 @@ allowAutomaticSoftwareRecycle:(BOOL)allowAutomaticSoftwareRecycle
         volume:_volume
         playbackRate:_playbackRate
         decodeMode:_decodeMode
+        audioTrackIndex:_audioTrackIndex
         presentationGeneration:presentationGeneration
         pauseAfterFirstFrame:pauseAfterFirstFrame
         allowAutomaticSoftwareRecycle:allowAutomaticSoftwareRecycle
@@ -4995,6 +5043,32 @@ allowAutomaticSoftwareRecycle:(BOOL)allowAutomaticSoftwareRecycle
 
     [_session setPaused:paused];
     return YES;
+}
+
+- (BOOL)selectAudioTrackIndex:(NSInteger)audioTrackIndex error:(NSError **)error {
+    self.audioTrackIndex = audioTrackIndex;
+    SFXNativePlaybackSession *session = _session;
+    NSString *path = [_currentPath copy];
+    if (session == nil || path == nil) {
+        if (error != NULL) {
+            *error = SFXNativePlaybackError(43, @"Native playback has no current file to switch audio tracks.");
+        }
+        return NO;
+    }
+
+    // The session is reopened where it stands, as the automatic software
+    // recycle does, under the same presentation so nothing above sees a new
+    // one. A finished session stays paused rather than finishing again.
+    NSInteger milliseconds = MAX(0, (NSInteger)llround(session.currentTime * 1000.0));
+    return [self openPath:path
+        startMilliseconds:milliseconds
+          endMilliseconds:session.segmentEndMilliseconds
+       pausesAtSegmentEnd:session.pausesAtSegmentEnd
+       presentationGeneration:session.presentationGeneration
+       flushDisplayBeforeStart:NO
+      pauseAfterFirstFrame:session.isPaused || session.isFinished
+ allowAutomaticSoftwareRecycle:!_didRecycleInitialSoftwareSession
+                    error:error];
 }
 
 - (void)stop {

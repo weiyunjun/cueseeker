@@ -37,12 +37,20 @@ enum AppLocalization {
     static let availableLocalizations = ["en", "zh-Hans", "zh-Hant"]
 
     nonisolated(unsafe) private static var activeBundle = fallbackBundle
+    nonisolated(unsafe) private static var activeLocalization = "en"
 
     static var bundle: Bundle {
         activeBundle
     }
 
+    /// The interface language, for names the system localizes, such as
+    /// language names.
+    static var locale: Locale {
+        Locale(identifier: activeLocalization)
+    }
+
     static func apply(_ language: AppLanguage) {
+        activeLocalization = resolvedLocalization(for: language)
         activeBundle = resolvedBundle(for: language)
     }
 
@@ -55,16 +63,18 @@ enum AppLocalization {
     }
 
     private static func resolvedBundle(for language: AppLanguage) -> Bundle {
-        let localization: String
+        bundle(forLocalization: resolvedLocalization(for: language)) ?? fallbackBundle
+    }
+
+    private static func resolvedLocalization(for language: AppLanguage) -> String {
         switch language {
         case .followSystem:
-            localization = Bundle.preferredLocalizations(
+            Bundle.preferredLocalizations(
                 from: availableLocalizations
             ).first ?? "en"
         case .english, .simplifiedChinese, .traditionalChinese:
-            localization = language.rawValue
+            language.rawValue
         }
-        return bundle(forLocalization: localization) ?? fallbackBundle
     }
 
     /// SwiftPM lowercases `.lproj` directory names when it builds the resource

@@ -193,7 +193,7 @@ func cueStateTipUsesRightSideThenFallsBackToLeft() {
 @MainActor
 @Test
 func subtitleTableExcerptSubmenuOpensOnHoverWithoutDelay() {
-    let state = SubtitleTableRowActionSubmenuState()
+    let state = MenuSubmenuState<SubtitleTableRowAction>()
 
     state.open(.moveToList)
     #expect(state.highlightedParent == .moveToList)
@@ -207,7 +207,7 @@ func subtitleTableExcerptSubmenuOpensOnHoverWithoutDelay() {
     #expect(state.highlightedParent == nil)
     #expect(state.openParent == nil)
 
-    let hoverState = SubtitleTableRowActionSubmenuState()
+    let hoverState = MenuSubmenuState<SubtitleTableRowAction>()
     let openParents = OpenParentRecorder()
     hoverState.onOpenParentChange = { openParents.record($0) }
 
@@ -250,7 +250,7 @@ private enum SubmenuPointerFixture {
 @Test
 func subtitleTableExcerptSubmenuStaysOpenWhileThePointerCrossesToIt() {
     let f = SubmenuPointerFixture.self
-    let state = SubtitleTableRowActionSubmenuState()
+    let state = MenuSubmenuState<SubtitleTableRowAction>()
     state.open(.moveToList)
 
     // On the trigger, about to leave it.
@@ -293,7 +293,7 @@ func subtitleTableExcerptSubmenuStaysOpenWhileThePointerCrossesToIt() {
 @Test
 func subtitleTableExcerptSubmenuClosesOnceThePointerLeavesTheSafeArea() {
     let f = SubmenuPointerFixture.self
-    let state = SubtitleTableRowActionSubmenuState()
+    let state = MenuSubmenuState<SubtitleTableRowAction>()
     state.open(.moveToList)
     state.notePointer(
         CGPoint(x: 330, y: 266),
@@ -313,7 +313,7 @@ func subtitleTableExcerptSubmenuClosesOnceThePointerLeavesTheSafeArea() {
     #expect(!state.isPointerInSafeArea)
 
     // Out to the right of the submenu closes it just the same.
-    let rightward = SubtitleTableRowActionSubmenuState()
+    let rightward = MenuSubmenuState<SubtitleTableRowAction>()
     rightward.open(.moveToList)
     rightward.notePointer(
         CGPoint(x: 400, y: 300),
@@ -334,7 +334,7 @@ func subtitleTableExcerptSubmenuClosesOnceThePointerLeavesTheSafeArea() {
 @Test
 func subtitleTableExcerptSubmenuStaysOpenOverTheParentMenuOutsideTheSafeArea() {
     let f = SubmenuPointerFixture.self
-    let state = SubtitleTableRowActionSubmenuState()
+    let state = MenuSubmenuState<SubtitleTableRowAction>()
     state.open(.moveToList)
     state.notePointer(
         CGPoint(x: 330, y: 266),
@@ -362,13 +362,13 @@ func subtitleTableExcerptSubmenuSafeAreaSpansTheTriangleAndTheGap() {
     let f = SubmenuPointerFixture.self
     let anchor = CGPoint(x: 330, y: 266)
 
-    #expect(SubtitleTableRowActionSubmenuSafeArea.contains(
+    #expect(MenuSubmenuSafeArea.contains(
         CGPoint(x: 336, y: 300),
         anchor: anchor,
         parentMenuFrame: f.parentMenu,
         submenuFrame: f.submenu
     ))
-    #expect(!SubtitleTableRowActionSubmenuSafeArea.contains(
+    #expect(!MenuSubmenuSafeArea.contains(
         CGPoint(x: 336, y: 420),
         anchor: anchor,
         parentMenuFrame: f.parentMenu,
@@ -376,7 +376,7 @@ func subtitleTableExcerptSubmenuSafeAreaSpansTheTriangleAndTheGap() {
     ))
     // No anchor means the pointer never came off the trigger, so nothing is
     // being crossed and nothing is safe.
-    #expect(!SubtitleTableRowActionSubmenuSafeArea.contains(
+    #expect(!MenuSubmenuSafeArea.contains(
         CGPoint(x: 336, y: 300),
         anchor: nil,
         parentMenuFrame: f.parentMenu,
@@ -385,7 +385,7 @@ func subtitleTableExcerptSubmenuSafeAreaSpansTheTriangleAndTheGap() {
 
     // A submenu pushed to the left side turns the triangle around with it.
     let leftSubmenu = CGRect(x: -60, y: 246, width: 160, height: 120)
-    #expect(SubtitleTableRowActionSubmenuSafeArea.contains(
+    #expect(MenuSubmenuSafeArea.contains(
         CGPoint(x: 104, y: 300),
         anchor: CGPoint(x: 110, y: 266),
         parentMenuFrame: f.parentMenu,
@@ -394,7 +394,7 @@ func subtitleTableExcerptSubmenuSafeAreaSpansTheTriangleAndTheGap() {
 
     // Parted menus: the strip between them is safe on its own.
     let partedSubmenu = CGRect(x: 380, y: 246, width: 160, height: 120)
-    #expect(SubtitleTableRowActionSubmenuSafeArea.contains(
+    #expect(MenuSubmenuSafeArea.contains(
         CGPoint(x: 360, y: 360),
         anchor: anchor,
         parentMenuFrame: f.parentMenu,
@@ -406,14 +406,14 @@ func subtitleTableExcerptSubmenuSafeAreaSpansTheTriangleAndTheGap() {
 func subtitleTableExcerptSubmenuAlignsWithItsParentItemTop() {
     let parentMenuFrame = CGRect(x: 100, y: 100, width: 240, height: 400)
     let parentItemFrame = CGRect(x: 4, y: 246, width: 232, height: 40)
-    let submenuFrame = SubtitleTableRowActionSubmenuGeometry.frame(
+    let submenuFrame = MenuSubmenuGeometry.frame(
         parentMenuFrame: parentMenuFrame,
         parentItemFrame: parentItemFrame,
         submenuSize: CGSize(width: 160, height: 100),
         visibleRect: CGRect(x: 0, y: 0, width: 1_000, height: 800)
     )
 
-    #expect(SubtitleTableRowActionSubmenuGeometry.horizontalGap == 0)
+    #expect(MenuSubmenuGeometry.horizontalGap == 0)
     #expect(submenuFrame.minX == parentMenuFrame.maxX)
     #expect(
         submenuFrame.minY
@@ -428,7 +428,7 @@ func subtitleTableExcerptSubmenuGivesUpHeightTheBoundaryCannotHold() {
     let visibleRect = CGRect(x: 0, y: 0, width: 1_000, height: 300)
     let parentMenuFrame = CGRect(x: 100, y: 0, width: 240, height: 300)
     let parentItemFrame = CGRect(x: 4, y: 200, width: 232, height: 40)
-    let submenuFrame = SubtitleTableRowActionSubmenuGeometry.frame(
+    let submenuFrame = MenuSubmenuGeometry.frame(
         parentMenuFrame: parentMenuFrame,
         parentItemFrame: parentItemFrame,
         submenuSize: CGSize(width: 160, height: 480),

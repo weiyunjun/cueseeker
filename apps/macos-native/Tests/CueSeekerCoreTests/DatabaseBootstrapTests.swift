@@ -1077,3 +1077,38 @@ func migratesSchema49ByCountingTheCuesOfEveryFolder() throws {
     #expect(try sqliteSchemaVersion(at: databaseURL) == DatabaseBootstrap.currentSchemaVersion)
     #expect(try sqliteStringValue(at: databaseURL, sql: folderCountsSQL) == "/Media/Alpha=2,/Media/Beta=1")
 }
+
+@Test
+func migratesSchema50ByAddingAudioTrackColumnsWithoutTouchingVideos() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    try DatabaseBootstrap.prepare(at: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
+    let videoFile = URL(fileURLWithPath: "/Media/Show/Episode.mkv")
+    try database.replaceEntries(
+        subtitleFile: URL(fileURLWithPath: "/Media/Show/Episode.srt"),
+        videoFile: videoFile,
+        entries: [databaseTestEntry(text: "Audio tracks")]
+    )
+    try executeDatabaseTestSQLite(
+        at: databaseURL,
+        """
+        ALTER TABLE video_files DROP COLUMN audio_tracks;
+        ALTER TABLE video_files DROP COLUMN default_audio_track_index;
+        PRAGMA user_version = 50;
+        """
+    )
+
+    try DatabaseBootstrap.prepare(at: databaseURL)
+
+    #expect(try sqliteSchemaVersion(at: databaseURL) == DatabaseBootstrap.currentSchemaVersion)
+    #expect(try sqliteRowCount(in: "video_files", databaseURL: databaseURL) == 1)
+    // Not inspected yet: no tracks, and the first track is the default.
+    #expect(
+        try LibraryDatabase(path: databaseURL).videoAudioTracks(forVideoFile: videoFile)
+            == VideoAudioTracks(tracks: [], defaultIndex: 0)
+    )
+}

@@ -54,6 +54,7 @@ enum AppIcon: String, CaseIterable, Sendable {
     case speedometer = "speedometer"
     case cornersOut = "corners-out"
     case cornersIn = "corners-in"
+    case dotsThreeVertical = "dots-three-vertical"
     case speakerX = "speaker-x"
     case speakerLow = "speaker-low"
     case speakerHigh = "speaker-high"

@@ -132,6 +132,8 @@ Expected fields:
 - `frame_rate`
 - `video_codec`
 - `audio_codec`
+- `audio_tracks`
+- `default_audio_track_index`
 - `native_video_candidate`
 - `native_audio_candidate`
 - `native_compatibility_reason`
@@ -161,6 +163,14 @@ Notes:
 - If native playback fails for a media file, the app may preserve the native
   failure reason for diagnostics and later compatibility work.
 - Future audio-only playback should use the same media-file identity model.
+- `audio_tracks` is the video's audio stream list in file order (language,
+  title, codec, channel count), recorded by media inspection. `NULL` means the
+  video was never inspected for it, which the next Index treats as missing
+  data; an inspected video without audio records an empty list.
+- `default_audio_track_index` is user state bound to the video identity,
+  counted from 0 among the audio streams. Index never changes it. Playback and
+  Anki export use it and fall back to the first audio track when the file does
+  not have it.
 
 ## 6. Subtitle File
 

@@ -104,6 +104,11 @@ struct PlaybackVideoStage: View {
             }
             .frame(width: stageSize.width, height: stageSize.height)
             .clipped()
+            // Laid over the whole stage, ahead of the clickable controls'
+            // report below, so its items report among them.
+            .overlayPreferenceValue(PlaybackMoreButtonAnchorKey.self) { anchor in
+                moreMenuOverlay(anchor: anchor)
+            }
             // The clickable controls report their frames: the pointer resting
             // on one keeps the Player UI.
             .overlayPreferenceValue(PlayerInteractiveRegionKey.self) { anchors in
@@ -122,7 +127,15 @@ struct PlaybackVideoStage: View {
                 AppWindowControls.place(.playback(isVisible: areWindowControlsVisible))
                 appState.playbackPageDidAppear()
             }
+            .onChange(of: playback.playbackStatus) { status in
+                // The More menu lists the open video's tracks; another video
+                // opening takes the menu with it.
+                if status.isOpening {
+                    playback.closeMoreMenu()
+                }
+            }
             .onDisappear {
+                playback.closeMoreMenu()
                 chrome.leaveVideoPage()
                 playback.pointerVisibility.setVisible(false)
                 AppWindowControls.place(.workbench)
@@ -143,6 +156,7 @@ struct PlaybackVideoStage: View {
                 // A hidden Player UI takes its menus with it.
                 if !isVisible {
                     playback.closeSpeedMenu()
+                    playback.closeMoreMenu()
                 }
             }
             .onReceive(playback.pointerHideRequests) {
@@ -155,6 +169,30 @@ struct PlaybackVideoStage: View {
                 if newState == .enteringSystemFullscreen || newState == .activeFullscreen {
                     chrome.enteringFullscreen()
                 }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func moreMenuOverlay(anchor: Anchor<CGRect>?) -> some View {
+        if let menu = playback.moreMenu, let anchor {
+            GeometryReader { proxy in
+                PlaybackChromeMoreMenuOverlay(
+                    playback: playback,
+                    submenuState: playback.moreSubmenuState,
+                    menu: menu,
+                    buttonFrame: proxy[anchor],
+                    suppressesInteraction: playback.timeline.isScrubbing
+                        || playback.interfaceLayers.isOpen(.commandPanel),
+                    onSelect: { submenu, index in
+                        switch submenu {
+                        case .audioTrack:
+                            appState.selectPlaybackAudioTrack(index)
+                        case .defaultAudioTrack:
+                            appState.setPlaybackDefaultAudioTrack(index)
+                        }
+                    }
+                )
             }
         }
     }

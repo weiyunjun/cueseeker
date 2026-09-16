@@ -29,13 +29,51 @@ static int SFXOpenMediaInputForMetadata(AVFormatContext **formatContext, const c
     return result;
 }
 
+static NSString *SFXMetadataTagValue(AVDictionary *metadata, const char *key) {
+    AVDictionaryEntry *entry = av_dict_get(metadata, key, NULL, 0);
+    if (entry == NULL || entry->value == NULL) {
+        return nil;
+    }
+    NSString *value = [[NSString stringWithUTF8String:entry->value]
+        stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
+    return value.length > 0 ? value : nil;
+}
+
+@interface SFXMediaAudioTrack ()
+
+- (instancetype)initWithLanguage:(NSString *)language
+                           title:(NSString *)title
+                           codec:(NSString *)codec
+                        channels:(NSNumber *)channels NS_DESIGNATED_INITIALIZER;
+
+@end
+
+@implementation SFXMediaAudioTrack
+
+- (instancetype)initWithLanguage:(NSString *)language
+                           title:(NSString *)title
+                           codec:(NSString *)codec
+                        channels:(NSNumber *)channels {
+    self = [super init];
+    if (self != nil) {
+        _language = [language copy];
+        _title = [title copy];
+        _codec = [codec copy];
+        _channels = channels;
+    }
+    return self;
+}
+
+@end
+
 @interface SFXMediaMetadata ()
 
 - (instancetype)initWithDurationSeconds:(NSNumber *)durationSeconds
                              videoWidth:(NSNumber *)videoWidth
                             videoHeight:(NSNumber *)videoHeight
                               frameRate:(NSNumber *)frameRate
-                             videoCodec:(NSString *)videoCodec NS_DESIGNATED_INITIALIZER;
+                             videoCodec:(NSString *)videoCodec
+                            audioTracks:(NSArray<SFXMediaAudioTrack *> *)audioTracks NS_DESIGNATED_INITIALIZER;
 
 @end
 
@@ -45,7 +83,8 @@ static int SFXOpenMediaInputForMetadata(AVFormatContext **formatContext, const c
                              videoWidth:(NSNumber *)videoWidth
                             videoHeight:(NSNumber *)videoHeight
                               frameRate:(NSNumber *)frameRate
-                             videoCodec:(NSString *)videoCodec {
+                             videoCodec:(NSString *)videoCodec
+                            audioTracks:(NSArray<SFXMediaAudioTrack *> *)audioTracks {
     self = [super init];
     if (self != nil) {
         _durationSeconds = durationSeconds;
@@ -53,6 +92,7 @@ static int SFXOpenMediaInputForMetadata(AVFormatContext **formatContext, const c
         _videoHeight = videoHeight;
         _frameRate = frameRate;
         _videoCodec = [videoCodec copy];
+        _audioTracks = [audioTracks copy];
     }
     return self;
 }
@@ -155,13 +195,37 @@ static int SFXOpenMediaInputForMetadata(AVFormatContext **formatContext, const c
         }
     }
 
+    NSMutableArray<SFXMediaAudioTrack *> *audioTracks = [NSMutableArray array];
+    for (unsigned int index = 0; index < formatContext->nb_streams; index++) {
+        AVStream *stream = formatContext->streams[index];
+        if (stream == NULL || stream->codecpar == NULL || stream->codecpar->codec_type != AVMEDIA_TYPE_AUDIO) {
+            continue;
+        }
+
+        NSString *language = SFXMetadataTagValue(stream->metadata, "language");
+        if ([language caseInsensitiveCompare:@"und"] == NSOrderedSame) {
+            language = nil;
+        }
+        const char *codecName = avcodec_get_name(stream->codecpar->codec_id);
+        NSString *codec = codecName != NULL && codecName[0] != '\0'
+            ? [NSString stringWithUTF8String:codecName]
+            : nil;
+        int channelCount = stream->codecpar->ch_layout.nb_channels;
+        [audioTracks addObject:[[SFXMediaAudioTrack alloc]
+            initWithLanguage:language
+                       title:SFXMetadataTagValue(stream->metadata, "title")
+                       codec:codec
+                    channels:channelCount > 0 ? @(channelCount) : nil]];
+    }
+
     avformat_close_input(&formatContext);
 
     return [[SFXMediaMetadata alloc] initWithDurationSeconds:durationNumber
                                                  videoWidth:videoWidth
                                                 videoHeight:videoHeight
                                                   frameRate:frameRate
-                                                 videoCodec:videoCodec];
+                                                 videoCodec:videoCodec
+                                                audioTracks:audioTracks];
 }
 
 @end

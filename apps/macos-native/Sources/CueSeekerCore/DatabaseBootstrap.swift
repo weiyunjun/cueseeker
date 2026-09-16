@@ -12,7 +12,7 @@ public enum DatabaseBootstrapError: Error, Equatable, CustomStringConvertible {
 }
 
 public enum DatabaseBootstrap {
-    public static let currentSchemaVersion = 50
+    public static let currentSchemaVersion = 51
 
     public static func prepare(at path: URL) throws {
         let database = try SQLiteDatabase(path: path, access: .readWrite)
@@ -62,6 +62,7 @@ private extension DatabaseBootstrap {
                 || previousVersion == 47
                 || previousVersion == 48
                 || previousVersion == 49
+                || previousVersion == 50
                 || previousVersion == DatabaseBootstrap.currentSchemaVersion
         else {
             throw DatabaseBootstrapError.unsupportedSchemaVersion(
@@ -164,6 +165,9 @@ private extension DatabaseBootstrap {
         }
         if previousVersion >= 33, previousVersion <= 49 {
             try migrateSchema49To50(on: database)
+        }
+        if previousVersion >= 33, previousVersion <= 50 {
+            try migrateSchema50To51(on: database)
             return
         }
         guard previousVersion == 0 else {
@@ -271,6 +275,8 @@ private extension DatabaseBootstrap {
                 frame_rate REAL,
                 video_codec TEXT,
                 audio_codec TEXT,
+                audio_tracks TEXT,
+                default_audio_track_index INTEGER NOT NULL DEFAULT 0,
                 native_video_candidate INTEGER,
                 native_audio_candidate INTEGER,
                 native_compatibility_reason TEXT,
@@ -770,6 +776,24 @@ private extension DatabaseBootstrap {
                 try CueFacetCountCache.rebuildAll(on: database)
             }
             try database.execute("PRAGMA user_version = 50;")
+        }
+    }
+
+    /// Schema 51 records each video's audio tracks and keeps its default
+    /// audio track. A video indexed before it has no track list, which the
+    /// next Index reads as missing data and fills in.
+    static func migrateSchema50To51(on database: SQLiteDatabase) throws {
+        try database.withImmediateTransaction {
+            let columns = try columnNames(of: "video_files", in: database)
+            if !columns.isEmpty, !columns.contains("audio_tracks") {
+                try database.execute("ALTER TABLE video_files ADD COLUMN audio_tracks TEXT;")
+            }
+            if !columns.isEmpty, !columns.contains("default_audio_track_index") {
+                try database.execute(
+                    "ALTER TABLE video_files ADD COLUMN default_audio_track_index INTEGER NOT NULL DEFAULT 0;"
+                )
+            }
+            try database.execute("PRAGMA user_version = 51;")
         }
     }
 

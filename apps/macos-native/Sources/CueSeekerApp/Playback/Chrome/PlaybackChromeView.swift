@@ -13,6 +13,7 @@ struct PlaybackChromeControls {
     let isFullscreen: Bool
     let isFullscreenToggleDisabled: Bool
     let toggleFullscreen: () -> Void
+    let toggleMoreMenu: () -> Void
 }
 
 @MainActor
@@ -36,8 +37,19 @@ extension PlaybackChromeControls {
             isFullscreenToggleDisabled: isFullscreenToggleDisabled,
             toggleFullscreen: fullscreenAction ?? {
                 appState.togglePlaybackFullscreenFromUser()
-            }
+            },
+            toggleMoreMenu: { appState.togglePlaybackMoreMenu() }
         )
+    }
+}
+
+/// The More button's bounds, read by the stage, which lays the More menu over
+/// the whole video rather than inside the bottom chrome.
+struct PlaybackMoreButtonAnchorKey: PreferenceKey {
+    static let defaultValue: Anchor<CGRect>? = nil
+
+    static func reduce(value: inout Anchor<CGRect>?, nextValue: () -> Anchor<CGRect>?) {
+        value = nextValue() ?? value
     }
 }
 
@@ -280,6 +292,16 @@ struct PlaybackChromeView: View {
                 accessibilityLabel: L("playback.fullscreen"),
                 action: controls.toggleFullscreen
             )
+
+            PlaybackTimelineChromeIconButton(
+                timeline: timeline,
+                icon: .dotsThreeVertical,
+                kind: .transport,
+                isOpen: playback.moreMenu != nil,
+                accessibilityLabel: L("playback.more"),
+                action: controls.toggleMoreMenu
+            )
+            .anchorPreference(key: PlaybackMoreButtonAnchorKey.self, value: .bounds) { $0 }
         }
     }
 
@@ -319,6 +341,7 @@ private struct PlaybackTimelineChromeIconButton: View {
     var iconWeight: AppIconWeight?
     var kind: PlaybackChromeButtonKind = .circle
     var isSelected = false
+    var isOpen = false
     var isDisabled = false
     var hasPersistentBase = true
     let accessibilityLabel: String
@@ -330,6 +353,7 @@ private struct PlaybackTimelineChromeIconButton: View {
         iconWeight: AppIconWeight? = nil,
         kind: PlaybackChromeButtonKind = .circle,
         isSelected: Bool = false,
+        isOpen: Bool = false,
         isDisabled: Bool = false,
         hasPersistentBase: Bool = true,
         accessibilityLabel: String,
@@ -340,6 +364,7 @@ private struct PlaybackTimelineChromeIconButton: View {
         self.iconWeight = iconWeight
         self.kind = kind
         self.isSelected = isSelected
+        self.isOpen = isOpen
         self.isDisabled = isDisabled
         self.hasPersistentBase = hasPersistentBase
         self.accessibilityLabel = accessibilityLabel
@@ -352,6 +377,7 @@ private struct PlaybackTimelineChromeIconButton: View {
             iconWeight: iconWeight,
             kind: kind,
             isSelected: isSelected,
+            isOpen: isOpen,
             isDisabled: isDisabled,
             suppressesInteraction: timeline.isScrubbing,
             hasPersistentBase: hasPersistentBase,

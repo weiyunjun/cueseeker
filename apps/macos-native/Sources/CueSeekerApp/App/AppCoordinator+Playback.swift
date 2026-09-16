@@ -330,7 +330,8 @@ extension AppCoordinator {
                 videoURL: URL(fileURLWithPath: result.videoPath),
                 startMilliseconds: result.startMilliseconds,
                 autoStopAtMilliseconds: autoStopBoundary?.endMilliseconds,
-                subtitleSource: playbackSubtitleSource(for: result)
+                subtitleSource: playbackSubtitleSource(for: result),
+                audioTrackIndex: defaultAudioTrackIndex(forVideoPath: result.videoPath)
             )
 
             guard let player else {

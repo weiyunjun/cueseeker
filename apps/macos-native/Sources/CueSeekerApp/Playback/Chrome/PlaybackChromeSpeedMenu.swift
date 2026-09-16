@@ -70,7 +70,8 @@ struct PlaybackChromeSpeedMenu: View {
     }
 }
 
-private struct PlaybackChromeMenuButtonStyle: ButtonStyle {
+/// A Player Chrome menu item: only the menu's highlight paints a background.
+struct PlaybackChromeMenuButtonStyle: ButtonStyle {
     let isHighlighted: Bool
     let suppressesInteraction: Bool
     let onHoverChange: (Bool) -> Void

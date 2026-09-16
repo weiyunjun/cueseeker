@@ -55,7 +55,8 @@ private final class VideoMetadataPersistenceStub:
         videoWidth: Int?,
         videoHeight: Int?,
         frameRate: Double?,
-        videoCodec: String?
+        videoCodec: String?,
+        audioTracks: [VideoAudioTrack]
     ) throws {
         lock.lock()
         storedUpdateCallCount += 1

@@ -1,3 +1,4 @@
+import CNativePlayback
 import CryptoKit
 import Foundation
 import SQLite3
@@ -16,6 +17,8 @@ struct AnkiExportItem: Sendable {
     /// Nil for a Excerpt without a Cue identity, which has no Deep Link.
     let cueID: Int64?
     let subtitlePath: String
+    /// The video's default audio track, counted from 0 among its audio streams.
+    var audioTrackIndex = 0
 }
 
 /// The side of the card that carries the Cue Text. The other side carries the
@@ -115,6 +118,7 @@ enum AnkiPackageExporter {
         var notes: [AnkiPackageNote] = []
         var mediaMap: [String: String] = [:]
         var mediaIndex = 0
+        var audioTrackIndexes: [String: Int] = [:]
 
         for (index, item) in items.enumerated() {
             try Task.checkCancellation()
@@ -127,7 +131,14 @@ enum AnkiPackageExporter {
             mediaMap[audioMediaKey] = audioName
             mediaIndex += 1
 
-            try await exportAudio(item: item, ffmpegURL: ffmpegURL, outputURL: audioExportURL)
+            let audioTrackIndex = audioTrackIndexes[item.videoPath] ?? audioTrackIndex(for: item)
+            audioTrackIndexes[item.videoPath] = audioTrackIndex
+            try await exportAudio(
+                item: item,
+                audioTrackIndex: audioTrackIndex,
+                ffmpegURL: ffmpegURL,
+                outputURL: audioExportURL
+            )
             try FileManager.default.moveItem(at: audioExportURL, to: audioURL)
 
             var imageField = ""
@@ -189,8 +200,21 @@ enum AnkiPackageExporter {
         return "CueSeeker-\(formatter.string(from: exportedAt)).apkg"
     }
 
+    /// The item's default audio track when the file has it, otherwise the
+    /// first. Only a track past the first needs the file inspected.
+    private static func audioTrackIndex(for item: AnkiExportItem) -> Int {
+        guard item.audioTrackIndex > 0,
+              let metadata = try? SFXMediaMetadataInspector.metadata(atMediaPath: item.videoPath),
+              metadata.audioTracks.indices.contains(item.audioTrackIndex)
+        else {
+            return 0
+        }
+        return item.audioTrackIndex
+    }
+
     private static func exportAudio(
         item: AnkiExportItem,
+        audioTrackIndex: Int,
         ffmpegURL: URL,
         outputURL: URL
     ) async throws {
@@ -207,6 +231,7 @@ enum AnkiPackageExporter {
                 "-ss", String(format: "%.3f", startSeconds),
                 "-to", String(format: "%.3f", endSeconds),
                 "-i", item.videoPath,
+                "-map", "0:a:\(audioTrackIndex)",
                 "-vn",
                 "-ac", "1",
                 "-ar", "44100",

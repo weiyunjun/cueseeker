@@ -27,6 +27,7 @@ final class MenuGate {
         case cardMenu
         case selectedTextMenu
         case playerSpeedMenu
+        case playerMoreMenu
         case excerptDestinationMenu
 
         /// Whether the menu surface spends the wheel itself. When it does not,
@@ -34,7 +35,7 @@ final class MenuGate {
         /// it.
         var takesWheel: Bool {
             switch self {
-            case .tableRowMenu, .selectedTextMenu, .excerptDestinationMenu:
+            case .tableRowMenu, .selectedTextMenu, .excerptDestinationMenu, .playerMoreMenu:
                 true
             case .cardMenu, .playerSpeedMenu:
                 false
@@ -378,7 +379,11 @@ struct MenuGateClientView: NSViewRepresentable {
     let owner: InterfaceLayer
     let kind: MenuGate.Kind
     let menuFrame: CGRect
+    /// The open submenu, which counts as part of the menu.
+    var submenuFrame: CGRect?
     var anchorFrame: CGRect?
+    /// Where the pointer is, in this view's space, on every move.
+    var notePointer: ((CGPoint) -> Void)?
     var handleKey: (_ keyCode: UInt16, _ isRepeat: Bool) -> Bool = { _, _ in
         false
     }
@@ -399,7 +404,9 @@ struct MenuGateClientView: NSViewRepresentable {
     final class ClientView: NSView {
         private var session: MenuGate.Session?
         private(set) var menuFrame = CGRect.zero
+        private var submenuFrame: CGRect?
         private var anchorFrame: CGRect?
+        private var notePointer: ((CGPoint) -> Void)?
         private var handleKey: (UInt16, Bool) -> Bool = { _, _ in false }
         private var dismiss: (Bool) -> Void = { _ in }
 
@@ -416,7 +423,9 @@ struct MenuGateClientView: NSViewRepresentable {
             representable: MenuGateClientView
         ) {
             menuFrame = representable.menuFrame
+            submenuFrame = representable.submenuFrame
             anchorFrame = representable.anchorFrame
+            notePointer = representable.notePointer
             handleKey = representable.handleKey
             dismiss = representable.dismiss
             guard session == nil else {
@@ -431,9 +440,9 @@ struct MenuGateClientView: NSViewRepresentable {
                         guard let self else {
                             return false
                         }
-                        return self.menuFrame.contains(
-                            self.convert(event.locationInWindow, from: nil)
-                        )
+                        let point = self.convert(event.locationInWindow, from: nil)
+                        return self.menuFrame.contains(point)
+                            || self.submenuFrame?.contains(point) == true
                     },
                     isPointerOnAnchorControl: { [weak self] event in
                         guard let self, let anchorFrame = self.anchorFrame
@@ -441,6 +450,14 @@ struct MenuGateClientView: NSViewRepresentable {
                             return false
                         }
                         return anchorFrame.contains(
+                            self.convert(event.locationInWindow, from: nil)
+                        )
+                    },
+                    notePointer: { [weak self] event in
+                        guard let self else {
+                            return
+                        }
+                        self.notePointer?(
                             self.convert(event.locationInWindow, from: nil)
                         )
                     },

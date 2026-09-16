@@ -1062,7 +1062,8 @@ extension AppCoordinator {
                 videoURL: URL(fileURLWithPath: excerpt.videoPath),
                 startMilliseconds: excerpt.startMilliseconds,
                 autoStopAtMilliseconds: autoStopBoundary?.endMilliseconds,
-                subtitleSource: playbackSubtitleSource(for: excerpt)
+                subtitleSource: playbackSubtitleSource(for: excerpt),
+                audioTrackIndex: defaultAudioTrackIndex(forVideoPath: excerpt.videoPath)
             )
 
             guard let player else {

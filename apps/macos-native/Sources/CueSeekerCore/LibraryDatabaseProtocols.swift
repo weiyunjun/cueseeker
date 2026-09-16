@@ -9,7 +9,8 @@ public protocol PlaybackVideoMetadataPersistence: Sendable {
         videoWidth: Int?,
         videoHeight: Int?,
         frameRate: Double?,
-        videoCodec: String?
+        videoCodec: String?,
+        audioTracks: [VideoAudioTrack]
     ) throws
 }
 

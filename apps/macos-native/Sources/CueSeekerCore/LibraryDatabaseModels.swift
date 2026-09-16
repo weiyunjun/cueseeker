@@ -32,6 +32,46 @@ public struct LibraryVideo: Equatable, Sendable, Identifiable {
     }
 }
 
+/// One audio stream of a video as Index recorded it. A track is counted from 0
+/// among the file's audio streams in file order, the same way playback and
+/// Anki export count it.
+public struct VideoAudioTrack: Codable, Equatable, Sendable {
+    public let language: String?
+    public let title: String?
+    public let codec: String?
+    public let channels: Int?
+
+    public init(
+        language: String?,
+        title: String?,
+        codec: String?,
+        channels: Int?
+    ) {
+        self.language = language
+        self.title = title
+        self.codec = codec
+        self.channels = channels
+    }
+}
+
+/// A video's recorded audio tracks and its default audio track.
+public struct VideoAudioTracks: Equatable, Sendable {
+    public let tracks: [VideoAudioTrack]
+    /// Kept as set, even when the recorded tracks no longer reach it.
+    public let defaultIndex: Int
+
+    public init(tracks: [VideoAudioTrack], defaultIndex: Int) {
+        self.tracks = tracks
+        self.defaultIndex = defaultIndex
+    }
+
+    /// The default audio track that takes effect: the first track when the
+    /// recorded tracks do not reach the one set.
+    public var effectiveDefaultIndex: Int {
+        tracks.indices.contains(defaultIndex) ? defaultIndex : 0
+    }
+}
+
 public enum LibraryCoverStatus: String, Sendable {
     case generated
     case failed

@@ -1027,7 +1027,8 @@ extension AppCoordinator {
                 subtitleSource: playbackSubtitleSource(
                     for: video,
                     startingAtMilliseconds: startMilliseconds
-                )
+                ),
+                audioTrackIndex: defaultAudioTrackIndex(forVideoPath: video.videoPath)
             )
 
             guard let player else {

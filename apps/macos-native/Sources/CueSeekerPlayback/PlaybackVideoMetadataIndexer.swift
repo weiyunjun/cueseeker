@@ -68,7 +68,15 @@ public struct PlaybackVideoMetadataIndexer {
                     videoWidth: metadata.videoWidth?.intValue,
                     videoHeight: metadata.videoHeight?.intValue,
                     frameRate: metadata.frameRate?.doubleValue,
-                    videoCodec: metadata.videoCodec
+                    videoCodec: metadata.videoCodec,
+                    audioTracks: metadata.audioTracks.map {
+                        VideoAudioTrack(
+                            language: $0.language,
+                            title: $0.title,
+                            codec: $0.codec,
+                            channels: $0.channels?.intValue
+                        )
+                    }
                 )
                 updatedVideoPaths.insert(videoFile.path)
             } catch {

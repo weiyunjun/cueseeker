@@ -672,3 +672,75 @@ private func waitUntil(timeoutSeconds: TimeInterval, condition: @escaping () -> 
     }
     return condition()
 }
+
+@Test
+@MainActor
+func nativePlaybackOpensAndSwitchesAudioTracksCountedAmongAudioStreams() async throws {
+    guard let ffmpegURL = executableURL(named: "ffmpeg") else {
+        print("Skipping audio track test because ffmpeg is unavailable.")
+        return
+    }
+
+    let directory = temporaryMediaTimelineTestDirectory()
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    defer {
+        try? FileManager.default.removeItem(at: directory)
+    }
+
+    let mediaURL = directory.appendingPathComponent("audio-tracks.mkv")
+    try runProcess(
+        ffmpegURL,
+        arguments: [
+            "-hide_banner", "-loglevel", "error",
+            "-f", "lavfi", "-i", "testsrc2=duration=6:size=160x90:rate=24",
+            "-f", "lavfi", "-i", "sine=frequency=440:duration=6",
+            "-f", "lavfi", "-i", "sine=frequency=880:duration=6",
+            "-map", "0:v", "-map", "1:a", "-map", "2:a",
+            "-c:v", "libx264", "-preset", "ultrafast", "-g", "12", "-pix_fmt", "yuv420p",
+            "-c:a", "aac", "-ac:a:1", "2",
+            "-metadata:s:a:0", "language=jpn",
+            "-metadata:s:a:1", "language=eng",
+            "-metadata:s:a:1", "title=Commentary",
+            "-shortest", "-y", mediaURL.path
+        ]
+    )
+
+    let metadata = try SFXMediaMetadataInspector.metadata(atMediaPath: mediaURL.path)
+    #expect(metadata.audioTracks.map(\.language) == ["jpn", "eng"])
+    #expect(metadata.audioTracks.map(\.title) == [nil, "Commentary"])
+    #expect(metadata.audioTracks.map(\.codec) == ["aac", "aac"])
+    #expect(metadata.audioTracks.map { $0.channels?.intValue } == [1, 2])
+
+    // Hardware decode: a software session reopens itself once after its first
+    // frame, which would drop the pause this test checks.
+    let player = SFXNativePlaybackPlayer()
+    player.decodeMode = SFXNativePlaybackDecodeMode(rawValue: 0)!
+    defer {
+        player.stop()
+    }
+
+    player.audioTrackIndex = 1
+    try player.openPath(mediaURL.path, startMilliseconds: 0)
+    #expect(player.currentAudioTrackIndex == 1)
+
+    // A track the file does not have plays the first one.
+    player.audioTrackIndex = 5
+    try player.openPath(mediaURL.path, startMilliseconds: 0)
+    #expect(player.currentAudioTrackIndex == 0)
+
+    // Switching keeps the position and the pause.
+    try player.seek(toMilliseconds: 2_000, pauseAfterFirstFrame: true)
+    let pausedAtTarget = await waitUntil(timeoutSeconds: 5) {
+        player.nativePresentedVideoFrameCount > 0
+            && !player.isPlaying
+            && abs(player.currentTime - 2) < 0.5
+    }
+    #expect(pausedAtTarget)
+
+    try player.selectAudioTrackIndex(1)
+    #expect(player.currentAudioTrackIndex == 1)
+    #expect(player.audioTrackIndex == 1)
+    try await Task.sleep(nanoseconds: 500_000_000)
+    #expect(!player.isPlaying)
+    #expect(abs(player.currentTime - 2) < 0.5)
+}

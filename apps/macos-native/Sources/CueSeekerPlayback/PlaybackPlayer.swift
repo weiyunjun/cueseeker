@@ -119,6 +119,7 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
         )
         currentRequest = request
         nativePlayer.playbackRate = Float(storedSpeed)
+        nativePlayer.audioTrackIndex = request.audioTrackIndex
         do {
             if let autoStopAtMilliseconds = request.autoStopAtMilliseconds {
                 try nativePlayer.openPath(
@@ -379,6 +380,18 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
             return
         }
         try nativePlayer.setPaused(isPaused)
+    }
+
+    /// The audio track the open video is playing, counted from 0 among its
+    /// audio streams; nil when nothing is open or the video has no audio.
+    public var currentAudioTrackIndex: Int? {
+        let index = nativePlayer.currentAudioTrackIndex
+        return index >= 0 ? index : nil
+    }
+
+    /// Plays another audio track of the open video from where it stands.
+    public func selectAudioTrack(at index: Int) throws {
+        try nativePlayer.selectAudioTrackIndex(index)
     }
 
     public func setAutoPauseBoundary(_ boundary: PlaybackAutoStopBoundary?) {

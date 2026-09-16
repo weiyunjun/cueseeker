@@ -6,6 +6,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 @class SFXNativePlaybackPlayer;
 @class SFXMediaMetadata;
+@class SFXMediaAudioTrack;
 
 @interface SFXNativePlaybackFrameSnapshot : NSObject
 
@@ -82,6 +83,12 @@ didReachAutoStopBoundaryAtMilliseconds:(NSInteger)endMilliseconds;
 @property (nonatomic) float volume;
 @property (nonatomic) float playbackRate;
 @property (nonatomic) SFXNativePlaybackDecodeMode decodeMode;
+/// The audio track an open plays, counted from 0 among the file's audio
+/// streams in file order. A file without that track plays its first one.
+@property (nonatomic) NSInteger audioTrackIndex;
+/// The audio track the open file is playing, counted the same way; -1 when
+/// nothing is open or the file has no audio.
+@property (nonatomic, readonly) NSInteger currentAudioTrackIndex;
 
 - (BOOL)openPath:(NSString *)path
 startMilliseconds:(NSInteger)startMilliseconds
@@ -113,6 +120,9 @@ autoStopAtMilliseconds:(NSInteger)endMilliseconds
       pauseAfterFirstFrame:(BOOL)pauseAfterFirstFrame
                      error:(NSError **)error;
 - (BOOL)setPaused:(BOOL)paused error:(NSError **)error;
+/// Reopens the current file at the current position on another audio track,
+/// keeping the position, the pause and the segment end.
+- (BOOL)selectAudioTrackIndex:(NSInteger)audioTrackIndex error:(NSError **)error;
 - (BOOL)setTimelineScrubbing:(BOOL)active error:(NSError **)error;
 - (void)requestTimelineScrubPreviewAtMilliseconds:(NSInteger)milliseconds;
 - (void)requestAudioOutputRecoveryForTesting;
@@ -139,6 +149,19 @@ autoStopAtMilliseconds:(NSInteger)endMilliseconds
 @property (nonatomic, strong, readonly, nullable) NSNumber *videoHeight;
 @property (nonatomic, strong, readonly, nullable) NSNumber *frameRate;
 @property (nonatomic, copy, readonly, nullable) NSString *videoCodec;
+/// Every audio stream, in file order.
+@property (nonatomic, copy, readonly) NSArray<SFXMediaAudioTrack *> *audioTracks;
+
+- (instancetype)init NS_UNAVAILABLE;
+
+@end
+
+@interface SFXMediaAudioTrack : NSObject
+
+@property (nonatomic, copy, readonly, nullable) NSString *language;
+@property (nonatomic, copy, readonly, nullable) NSString *title;
+@property (nonatomic, copy, readonly, nullable) NSString *codec;
+@property (nonatomic, strong, readonly, nullable) NSNumber *channels;
 
 - (instancetype)init NS_UNAVAILABLE;
 

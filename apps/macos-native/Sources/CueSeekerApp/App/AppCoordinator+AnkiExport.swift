@@ -72,6 +72,17 @@ extension AppCoordinator {
             return
         }
 
+        // Each card's audio comes from its video's default audio track.
+        var audioTrackIndexes: [String: Int] = [:]
+        let items = items.map { item in
+            var item = item
+            let index = audioTrackIndexes[item.videoPath]
+                ?? defaultAudioTrackIndex(forVideoPath: item.videoPath)
+            audioTrackIndexes[item.videoPath] = index
+            item.audioTrackIndex = index
+            return item
+        }
+
         tasks.ankiExportSession = AnkiExportSession(
             items: items,
             options: settings.ankiExportOptions,

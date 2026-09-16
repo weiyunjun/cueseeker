@@ -28,6 +28,8 @@ struct PlaybackChromeIconButton: View {
     var iconWeight: AppIconWeight?
     var kind: PlaybackChromeButtonKind = .circle
     var isSelected = false
+    /// The menu it opens is open; it looks hovered for as long.
+    var isOpen = false
     var isDisabled = false
     var suppressesInteraction = false
     var hasPersistentBase = true
@@ -39,6 +41,7 @@ struct PlaybackChromeIconButton: View {
         iconWeight: AppIconWeight? = nil,
         kind: PlaybackChromeButtonKind = .circle,
         isSelected: Bool = false,
+        isOpen: Bool = false,
         isDisabled: Bool = false,
         suppressesInteraction: Bool = false,
         hasPersistentBase: Bool = true,
@@ -49,6 +52,7 @@ struct PlaybackChromeIconButton: View {
         self.iconWeight = iconWeight
         self.kind = kind
         self.isSelected = isSelected
+        self.isOpen = isOpen
         self.isDisabled = isDisabled
         self.suppressesInteraction = suppressesInteraction
         self.hasPersistentBase = hasPersistentBase
@@ -71,6 +75,7 @@ struct PlaybackChromeIconButton: View {
             PlaybackChromeIconButtonStyle(
                 kind: kind,
                 isSelected: isSelected,
+                isOpen: isOpen,
                 suppressesInteraction: suppressesInteraction,
                 hasPersistentBase: hasPersistentBase
             )
@@ -85,6 +90,7 @@ struct PlaybackChromeIconButton: View {
 private struct PlaybackChromeIconButtonStyle: ButtonStyle {
     let kind: PlaybackChromeButtonKind
     let isSelected: Bool
+    let isOpen: Bool
     let suppressesInteraction: Bool
     let hasPersistentBase: Bool
     @Environment(\.isEnabled) private var isEnabled
@@ -106,7 +112,7 @@ private struct PlaybackChromeIconButtonStyle: ButtonStyle {
                     }
 
                     // Concentric inner hover circle
-                    if isInteractive && !isSelected && isHovered {
+                    if isInteractive && !isSelected && (isHovered || isOpen) {
                         Circle()
                             .fill(PlaybackTheme.controlHoverBackground)
                             .scaleEffect(0.85)
