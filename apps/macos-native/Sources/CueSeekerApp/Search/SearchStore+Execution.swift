@@ -165,9 +165,10 @@ extension SearchStore {
                 let (firstPages, firstPageContinuation) = AsyncStream.makeStream(
                     of: SearchStorePageLoad.self
                 )
-                async let scan = Self.runCancellableDetached(
-                    priority: .userInitiated
-                ) {
+                // Not `async let`: in release builds Swift 6.1 frees an async let
+                // with a result this large out of order, and the runtime aborts
+                // the App as the search finishes.
+                let scan = Task.detached(priority: .userInitiated) {
                     defer { firstPageContinuation.finish() }
                     let started = SearchPerformanceLogger.now()
                     guard !appending else {
@@ -270,7 +271,11 @@ extension SearchStore {
                     )
                     consumedFirstPage = onFirstPageResolved(firstPage.page.results.first)
                 }
-                let pageLoad = try await scan
+                let pageLoad = try await withTaskCancellationHandler {
+                    try await scan.value
+                } onCancel: {
+                    scan.cancel()
+                }
                 let page = pageLoad.page
 
                 guard !Task.isCancelled else {
