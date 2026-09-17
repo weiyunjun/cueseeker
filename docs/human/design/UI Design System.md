@@ -4381,7 +4381,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 | Command Panel / Recent Excerpt Lists | 摘录集数 | Open `Return` |
 | Command Panel / Search Results | 结果数 | Save to Excerpt List `S`、Copy Cue Text `C`、Copy Deep Link `X`、Play `Return` |
 
-- Save to Excerpt List 打开 Excerpt Destination Submenu 选择目标列表，不直接保存；结果由 Playback Feedback 呈现，Icon 为实心心形
+- Save to Excerpt List 打开 Excerpt Destination Submenu 选择目标列表，不直接保存；结果由 Playback Feedback 呈现，Icon 为实心书签
 - `S`、`C`、`X` 为默认键位，Keycap 显示 Settings / Shortcuts 中的当前键位，⇧ 与主键各占一个 Keycap；快捷键已清空或冲突时不显示 Keycap
 
 #### States

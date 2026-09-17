@@ -55,8 +55,8 @@
 | --- | --- | --- | --- |
 | `squares-four` | Regular | Library | Sidebar Item / Library |
 | `folder` | Regular | 文件夹 | Sidebar Item / File；表格行菜单 / Open Subtitle Folder；Library 卡片菜单 / Open Folder；Library File Tree / Root Path、Object Folder；Export to Anki Dialog / Location；File Page 空状态，47px |
-| `heart` | Regular | Excerpt | Sidebar Item / Excerpt；Command Panel Root / Recent Excerpt Lists；表格行菜单 / Remove Excerpt；Playback Feedback（移出 Excerpt）；Excerpt List 封面占位，57px |
-| `heart` | Fill | 已存入 Excerpt | Playback Feedback（Save to Excerpt List） |
+| `bookmark-simple` | Regular | Excerpt | Sidebar Item / Excerpt；Command Panel Root / Recent Excerpt Lists；表格行菜单 / Remove Excerpt；Playback Feedback（移出 Excerpt）；Excerpt List 封面占位，57px |
+| `bookmark-simple` | Fill | 已存入 Excerpt | Playback Feedback（Save to Excerpt List） |
 | `clock` | Regular | 最近、时长 | Sidebar Item / Recent；Filter Menu / Duration |
 | `gear` | Regular | 设置 | Settings Entry |
 | `tray` | Regular | 任务 | Task Entry |
