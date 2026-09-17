@@ -1173,7 +1173,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - Direction：默认朝下；下方空间不足时朝上；两侧都不足时取空间较大的一侧
 - 方向与高度在弹出瞬间确定一次，之后随挂靠对象平移，不再重新计算
 - Workbench 表格行菜单以表格正文区域为边界；跟随挂靠对象移动而越过边界的部分被裁剪
-- Player More Menu 及其 Audio Track Submenu 以播放页顶栏与底栏按钮之间的区域为边界
+- Player More Menu 及其二级菜单以播放页顶栏与底栏按钮之间的区域为边界
 
 ##### States
 
@@ -1206,8 +1206,8 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 
 - Surface：Player Chrome
 - 圆角、Padding 与 Menu Item 高度与 Player Speed Menu 相同；宽度随菜单项内容
-- Item：Menu Item / Submenu Trigger：Audio Track、Default Audio Track
-- 视频没有音轨时两项为 Disabled
+- Item：Menu Item / Submenu Trigger：Audio Track、Subtitle、Default Audio Track、Default Subtitle
+- 视频没有音轨时 Audio Track 与 Default Audio Track 为 Disabled
 
 ### Submenu
 
@@ -1252,6 +1252,16 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - 名称：`#序号 语言, 标题, 编码, 声道`，缺少的部分省略
 - 由 Audio Track 展开：勾选当前音频源，默认音频源所在项带 Tag「Default」
 - 由 Default Audio Track 展开：勾选默认音频源，当前音频源所在项带 Tag「Current」
+
+##### Subtitle Submenu
+
+- Surface：Player Chrome
+- Width、Direction 与 Item 同 Audio Track Submenu
+- 由 Player More Menu 的 Subtitle 与 Default Subtitle 展开
+- Structure：视频匹配的字幕按 Data 中的字幕顺序排列
+- 名称：字幕文件名最后最多 2 级后缀名，只有 1 级后缀名时显示 1 级，例如 `.sc.ass`、`.srt`
+- 由 Subtitle 展开：勾选当前字幕，默认字幕所在项带 Tag「Default」
+- 由 Default Subtitle 展开：勾选默认字幕，当前字幕所在项带 Tag「Current」
 
 ### Menu Item
 
