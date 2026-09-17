@@ -101,7 +101,7 @@ func screenshotCopiedFeedbackUsesRequiredIconAndText() {
 
     viewModel.showScreenshotCopiedFeedback()
 
-    #expect(viewModel.feedback?.icon == .image)
+    #expect(viewModel.feedback?.icon == .camera)
     #expect(viewModel.feedback?.text == "Screenshot Copied")
 }
 

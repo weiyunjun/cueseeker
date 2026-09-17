@@ -28,7 +28,7 @@ enum WorkbenchPanelMode: String, CaseIterable {
     var icon: AppIcon {
         switch self {
         case .excerpt:
-            return .bookmarkSimple
+            return .heart
         case .recentWatching:
             return .clock
         case .testLibrary:

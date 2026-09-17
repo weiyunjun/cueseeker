@@ -52,7 +52,7 @@ enum SubtitleTableRowAction: Hashable, Sendable {
         case .duplicateToList:
             return .arrowRight
         case .removeExcerpt:
-            return .bookmarkSimple
+            return .heart
         }
     }
 

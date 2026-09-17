@@ -18,7 +18,7 @@ struct TaskEntryButton: View {
 
     var body: some View {
         WorkbenchIconButton(
-            icon: .listChecks,
+            icon: .tray,
             isRedesign: true,
             isOpen: tasks.isPanelOpen,
             hoverBackground: hoverBackground,

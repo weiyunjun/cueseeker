@@ -271,7 +271,7 @@ struct PlaybackChromeView: View {
 
             PlaybackTimelineChromeIconButton(
                 timeline: timeline,
-                icon: .image,
+                icon: .camera,
                 kind: .transport,
                 accessibilityLabel: L("playback.copy_screenshot"),
                 action: viewModel.copyCurrentFrameScreenshot

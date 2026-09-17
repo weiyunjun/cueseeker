@@ -4,8 +4,9 @@ import SwiftUI
 /// Every icon the interface can draw.
 ///
 /// Views name a case here rather than a graphic, so the drawing can change
-/// without touching the interface. Each raw value is the Phosphor asset that
-/// backs the case; the assets live under `Resources/Icons`.
+/// without touching the interface. Each raw value is the asset that backs the
+/// case — Phosphor's, or one drawn to the same spec; the assets live under
+/// `Resources/Icons`.
 enum AppIcon: String, CaseIterable, Sendable {
     case caretLeft = "caret-left"
     case caretRight = "caret-right"
@@ -20,10 +21,11 @@ enum AppIcon: String, CaseIterable, Sendable {
     case arrowElbowDownLeft = "arrow-elbow-down-left"
     case squaresFour = "squares-four"
     case folder = "folder"
-    case bookmarkSimple = "bookmark-simple"
+    case heart = "heart"
     case clock = "clock"
     case gear = "gear"
     case gearFine = "gear-fine"
+    case tray = "tray"
     case listChecks = "list-checks"
     case folderPlus = "folder-plus"
     case arrowClockwise = "arrow-clockwise"
@@ -50,7 +52,8 @@ enum AppIcon: String, CaseIterable, Sendable {
     case skipBack = "skip-back"
     case skipForward = "skip-forward"
     case repeatIcon = "repeat"
-    case image = "image"
+    case camera = "camera"
+    case imagesSquare = "images-square"
     case speedometer = "speedometer"
     case cornersOut = "corners-out"
     case cornersIn = "corners-in"
@@ -65,6 +68,9 @@ enum AppIcon: String, CaseIterable, Sendable {
     case hammer = "hammer"
     case keyboard = "keyboard"
     case fileArrowDown = "file-arrow-down"
+
+    /// Reserved by `docs/human/design/Icon Registry.md`; no view draws it yet.
+    case ankiStar = "anki-star"
 }
 
 /// Which cut of an icon to draw.

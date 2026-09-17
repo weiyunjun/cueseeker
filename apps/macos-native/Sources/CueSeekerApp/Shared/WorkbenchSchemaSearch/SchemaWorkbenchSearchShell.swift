@@ -376,7 +376,7 @@ struct SchemaWorkbenchSearchToolbar: View {
             .disabled(isSelectionMode)
 
             WorkbenchIconButton(
-                icon: .notePencil,
+                icon: .listChecks,
                 isRedesign: true,
                 isOpen: isSelectionMode,
                 action: onToggleSelectionMode

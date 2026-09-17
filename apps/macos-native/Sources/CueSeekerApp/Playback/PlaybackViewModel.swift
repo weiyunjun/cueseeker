@@ -559,7 +559,7 @@ public final class PlaybackViewModel: ObservableObject {
     func showScreenshotCopiedFeedback() {
         showFeedback(
             PlaybackFeedback(
-                icon: .image,
+                icon: .camera,
                 text: L("playback.hud.screenshot_copied")
             ),
             durationMilliseconds: 1_000
@@ -598,11 +598,11 @@ public final class PlaybackViewModel: ObservableObject {
     /// A `Save to Excerpt` result on the playback page and in the Command Panel.
     /// The sentence is the registry's, the same one the Workbench shows in a
     /// Toast; only the container differs, and every outcome wears the same
-    /// bookmark.
+    /// heart.
     func showExcerptSaveFeedback(message: String) {
         showFeedback(
             PlaybackFeedback(
-                icon: .bookmarkSimple,
+                icon: .heart,
                 iconWeight: .fill,
                 text: message
             ),
@@ -614,7 +614,7 @@ public final class PlaybackViewModel: ObservableObject {
         let feedback: PlaybackFeedback = switch state {
         case .removed:
             PlaybackFeedback(
-                icon: .bookmarkSimple,
+                icon: .heart,
                 text: L("playback.hud.excerpt_removed")
             )
         case .unavailable:

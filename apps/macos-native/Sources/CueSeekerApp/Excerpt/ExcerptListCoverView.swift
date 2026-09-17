@@ -17,7 +17,7 @@ struct ExcerptListCoverView: View {
                     verticalAlignment: imageVerticalAlignment
                 )
             } else {
-                AppIconImage(.bookmarkSimple, size: WorkbenchControlMetrics.redesignCoverPlaceholderIconSize)
+                AppIconImage(.heart, size: WorkbenchControlMetrics.redesignCoverPlaceholderIconSize)
                     .foregroundStyle(WorkbenchRedesignColors.textMuted)
                     .accessibilityHidden(true)
             }
