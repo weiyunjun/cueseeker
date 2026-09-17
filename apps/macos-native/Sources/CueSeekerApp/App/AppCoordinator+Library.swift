@@ -1013,6 +1013,7 @@ extension AppCoordinator {
         clearCueAutoStopPlayback()
         stopLibraryPlaybackHistoryTracking()
         activePlaybackSource = .none
+        playbackSubtitle = defaultPlaybackSubtitle(forVideoPath: video.videoPath)
         playback.playbackStatus = .opening
         let startMilliseconds = libraryResumePositionMilliseconds(for: video)
         playback.playbackViewModel?.preparePresentationTransition(
@@ -1025,8 +1026,11 @@ extension AppCoordinator {
                 videoURL: URL(fileURLWithPath: video.videoPath),
                 startMilliseconds: startMilliseconds,
                 subtitleSource: playbackSubtitleSource(
-                    for: video,
-                    startingAtMilliseconds: startMilliseconds
+                    forSubtitleFile: URL(fileURLWithPath: playbackSubtitle?.subtitlePath ?? video.subtitlePath),
+                    format: playbackSubtitle?.format ?? video.subtitleFormat,
+                    videoPath: video.videoPath,
+                    startingAtMilliseconds: startMilliseconds,
+                    fallbackEndMilliseconds: startMilliseconds
                 ),
                 audioTrackIndex: defaultAudioTrackIndex(forVideoPath: video.videoPath)
             )

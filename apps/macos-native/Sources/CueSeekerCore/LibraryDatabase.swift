@@ -195,6 +195,57 @@ public final class LibraryDatabase: @unchecked Sendable {
         try statement.run()
     }
 
+    public func videoSubtitles(forVideoFile videoFile: URL) throws -> VideoSubtitles? {
+        let statement = try database.prepare(
+            """
+            SELECT vf.default_subtitle_file_id, sf.id, sf.subtitle_path, sf.format
+            FROM video_files vf
+            LEFT JOIN subtitle_video_matches m
+              ON m.video_file_id = vf.id AND m.is_active = 1
+            LEFT JOIN subtitle_files sf ON sf.id = m.subtitle_file_id
+            WHERE vf.path = ?;
+            """
+        )
+        try statement.bind(videoFile.path, at: 1)
+        var found = false
+        var defaultSubtitleFileID: Int64?
+        var subtitles: [VideoSubtitle] = []
+        while try statement.step() {
+            found = true
+            defaultSubtitleFileID = statement.nullableInt64Column(0)
+            if let subtitleFileID = statement.nullableInt64Column(1) {
+                subtitles.append(
+                    VideoSubtitle(
+                        subtitleFileID: subtitleFileID,
+                        subtitlePath: statement.stringColumn(2),
+                        format: SubtitleFormat(rawValue: statement.stringColumn(3)) ?? .srt
+                    )
+                )
+            }
+        }
+        guard found else {
+            return nil
+        }
+        return VideoSubtitles(
+            videoPath: videoFile.path,
+            subtitles: subtitles,
+            defaultSubtitleFileID: defaultSubtitleFileID
+        )
+    }
+
+    public func setDefaultSubtitleFileID(_ subtitleFileID: Int64, forVideoFile videoFile: URL) throws {
+        let statement = try database.prepare(
+            """
+            UPDATE video_files
+            SET default_subtitle_file_id = ?
+            WHERE path = ?;
+            """
+        )
+        try statement.bind(subtitleFileID, at: 1)
+        try statement.bind(videoFile.path, at: 2)
+        try statement.run()
+    }
+
     private func updatePresentationDuration(videoFile: URL, duration: Double?) throws {
         let statement = try database.prepare(
             """

@@ -134,6 +134,7 @@ Expected fields:
 - `audio_codec`
 - `audio_tracks`
 - `default_audio_track_index`
+- `default_subtitle_file_id`
 - `native_video_candidate`
 - `native_audio_candidate`
 - `native_compatibility_reason`
@@ -171,6 +172,12 @@ Notes:
   counted from 0 among the audio streams. Index never changes it. Playback and
   Anki export use it and fall back to the first audio track when the file does
   not have it.
+- `default_subtitle_file_id` is user state bound to the video identity: the
+  subtitle file a Library, Recent Videos or Videos Playlist open plays. Index
+  never changes it, and an in-App rename keeps it. `NULL`, or a subtitle no
+  longer matched to the video, means the first subtitle in order: those named
+  like the video once each drops its last extension, ass before srt, then the
+  rest in Finder file name order.
 
 ## 6. Subtitle File
 

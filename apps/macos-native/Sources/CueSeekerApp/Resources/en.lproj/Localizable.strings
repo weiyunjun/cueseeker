@@ -195,7 +195,9 @@
 "playback.fullscreen" = "Fullscreen";
 "playback.more" = "More";
 "playback.more.audio_track" = "Audio Track";
+"playback.more.subtitle" = "Subtitle";
 "playback.more.default_audio_track" = "Default Audio Track";
+"playback.more.default_subtitle" = "Default Subtitle";
 "playback.more.default_tag" = "Default";
 "playback.more.current_tag" = "Current";
 "playback.mute" = "Mute";

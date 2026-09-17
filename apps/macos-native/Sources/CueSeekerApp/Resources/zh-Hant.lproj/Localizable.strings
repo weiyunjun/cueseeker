@@ -195,7 +195,9 @@
 "playback.fullscreen" = "全螢幕";
 "playback.more" = "更多";
 "playback.more.audio_track" = "音訊來源";
+"playback.more.subtitle" = "字幕";
 "playback.more.default_audio_track" = "預設音訊來源";
+"playback.more.default_subtitle" = "預設字幕";
 "playback.more.default_tag" = "預設";
 "playback.more.current_tag" = "目前";
 "playback.mute" = "靜音";

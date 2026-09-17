@@ -5,41 +5,71 @@ import SwiftUI
 /// The More menu's submenus, in the order the menu lists them.
 enum PlaybackMoreSubmenu: Int, CaseIterable, Hashable {
     case audioTrack
+    case subtitle
     case defaultAudioTrack
+    case defaultSubtitle
 
     var title: String {
         switch self {
         case .audioTrack:
             L("playback.more.audio_track")
+        case .subtitle:
+            L("playback.more.subtitle")
         case .defaultAudioTrack:
             L("playback.more.default_audio_track")
+        case .defaultSubtitle:
+            L("playback.more.default_subtitle")
         }
+    }
+
+    /// Whether the submenu sets the default rather than what plays now.
+    var setsDefault: Bool {
+        self == .defaultAudioTrack || self == .defaultSubtitle
     }
 }
 
-/// What the More menu lists for the open video: the audio tracks Index
-/// recorded, the one playing and the default audio track. Both indexes are the
-/// tracks that take effect, so a track the list does not reach shows as the
-/// first.
-struct PlaybackAudioTrackMenu: Equatable {
-    let trackNames: [String]
+/// One list the More menu offers for the open video: the names in order, the
+/// one playing and the default. Both indexes are the items that take effect,
+/// so one the list does not reach shows as the first.
+struct PlaybackMoreMenuList: Equatable {
+    let names: [String]
     let currentIndex: Int
     let defaultIndex: Int
+}
 
-    /// The submenu checks one track and tags the other the submenu does not
-    /// set: Audio Track checks the one playing and tags the default, Default
-    /// Audio Track the reverse.
+/// What the More menu lists for the open video: the audio tracks Index
+/// recorded and the subtitles matched to it.
+struct PlaybackMoreMenu: Equatable {
+    let audioTracks: PlaybackMoreMenuList
+    let subtitles: PlaybackMoreMenuList
+
+    func list(in submenu: PlaybackMoreSubmenu) -> PlaybackMoreMenuList {
+        switch submenu {
+        case .audioTrack, .defaultAudioTrack:
+            audioTracks
+        case .subtitle, .defaultSubtitle:
+            subtitles
+        }
+    }
+
+    /// The submenu checks one item and tags the other the submenu does not
+    /// set: Audio Track and Subtitle check the one playing and tag the
+    /// default, their Default submenus the reverse.
     func checkedIndex(in submenu: PlaybackMoreSubmenu) -> Int {
-        submenu == .audioTrack ? currentIndex : defaultIndex
+        let list = list(in: submenu)
+        return submenu.setsDefault ? list.defaultIndex : list.currentIndex
     }
 
     func tag(in submenu: PlaybackMoreSubmenu) -> (index: Int, title: String) {
-        switch submenu {
-        case .audioTrack:
-            (defaultIndex, L("playback.more.default_tag"))
-        case .defaultAudioTrack:
-            (currentIndex, L("playback.more.current_tag"))
-        }
+        let list = list(in: submenu)
+        return submenu.setsDefault
+            ? (list.currentIndex, L("playback.more.current_tag"))
+            : (list.defaultIndex, L("playback.more.default_tag"))
+    }
+
+    /// The triggers that open a submenu: those whose list is not empty.
+    var enabledSubmenus: [PlaybackMoreSubmenu] {
+        PlaybackMoreSubmenu.allCases.filter { !list(in: $0).names.isEmpty }
     }
 }
 
@@ -63,12 +93,23 @@ enum PlaybackAudioTrackName {
     }
 }
 
+enum PlaybackSubtitleName {
+    /// The last two extensions of the file name at most: `.sc.ass`, or `.srt`
+    /// when the name has only one.
+    static func name(forSubtitlePath path: String) -> String {
+        let fileName = URL(fileURLWithPath: path).lastPathComponent as NSString
+        let last = fileName.pathExtension
+        let secondLast = (fileName.deletingPathExtension as NSString).pathExtension
+        return secondLast.isEmpty ? ".\(last)" : ".\(secondLast).\(last)"
+    }
+}
+
 /// The More menu and its open submenu, laid over the playback stage so a long
-/// track list has the stage's height to open into.
+/// list has the stage's height to open into.
 struct PlaybackChromeMoreMenuOverlay: View {
     @ObservedObject var playback: PlaybackStore
     @ObservedObject var submenuState: MenuSubmenuState<PlaybackMoreSubmenu>
-    let menu: PlaybackAudioTrackMenu
+    let menu: PlaybackMoreMenu
     let buttonFrame: CGRect
     let suppressesInteraction: Bool
     let onSelect: (PlaybackMoreSubmenu, Int) -> Void
@@ -82,7 +123,7 @@ struct PlaybackChromeMoreMenuOverlay: View {
     private struct LayoutInput: Equatable {
         let stageSize: CGSize
         let buttonFrame: CGRect
-        let menu: PlaybackAudioTrackMenu
+        let menu: PlaybackMoreMenu
     }
 
     var body: some View {
@@ -135,7 +176,7 @@ struct PlaybackChromeMoreMenuOverlay: View {
                 if let openSubmenu, let submenu {
                     PlaybackMoreMenuHost(
                         content: AnyView(
-                            audioTrackMenu(
+                            submenuPanel(
                                 openSubmenu,
                                 itemWidth: submenu.itemWidth,
                                 maximumHeight: submenu.maximumHeight
@@ -167,7 +208,7 @@ struct PlaybackChromeMoreMenuOverlay: View {
                 ForEach(PlaybackMoreSubmenu.allCases, id: \.self) { submenu in
                     PlaybackMoreMenuTrigger(
                         submenu: submenu,
-                        isEnabled: !menu.trackNames.isEmpty,
+                        isEnabled: menu.enabledSubmenus.contains(submenu),
                         suppressesInteraction: suppressesInteraction,
                         highlight: playback.moreMenuHighlight,
                         submenuState: submenuState
@@ -178,7 +219,7 @@ struct PlaybackChromeMoreMenuOverlay: View {
         }
     }
 
-    private func audioTrackMenu(
+    private func submenuPanel(
         _ submenu: PlaybackMoreSubmenu,
         itemWidth: CGFloat,
         maximumHeight: CGFloat
@@ -188,17 +229,17 @@ struct PlaybackChromeMoreMenuOverlay: View {
             maximumHeight: maximumHeight,
             highlight: playback.moreSubmenuHighlight
         ) {
-            tracks(submenu, itemWidth: itemWidth)
+            items(submenu, itemWidth: itemWidth)
         }
     }
 
-    /// The submenu's tracks, laid out at the given width, or each name on one
+    /// The submenu's items, laid out at the given width, or each name on one
     /// line when there is none.
-    private func tracks(_ submenu: PlaybackMoreSubmenu, itemWidth: CGFloat?) -> some View {
+    private func items(_ submenu: PlaybackMoreSubmenu, itemWidth: CGFloat?) -> some View {
         let tag = menu.tag(in: submenu)
         return VStack(spacing: Self.itemGap) {
-            ForEach(Array(menu.trackNames.enumerated()), id: \.offset) { index, name in
-                PlaybackAudioTrackMenuItem(
+            ForEach(Array(menu.list(in: submenu).names.enumerated()), id: \.offset) { index, name in
+                PlaybackMoreSubmenuItem(
                     name: name,
                     isChecked: menu.checkedIndex(in: submenu) == index,
                     tag: tag.index == index ? tag.title : nil,
@@ -251,19 +292,19 @@ struct PlaybackChromeMoreMenuOverlay: View {
         )
     }
 
-    /// Where an audio track submenu sits and the width its tracks are laid out
-    /// at. It is as wide as its names on one line, held to the cap and to the
-    /// room on the side it opens to: the right when it fits there, else the
-    /// left, else the wider side. When the room cannot hold its height it
-    /// scrolls, and the scrollbar's strip comes out of the tracks' width
-    /// where the room has nothing more to give.
+    /// Where a submenu sits and the width its items are laid out at. It is as
+    /// wide as its names on one line, held to the cap and to the room on the
+    /// side it opens to: the right when it fits there, else the left, else the
+    /// wider side. When the room cannot hold its height it scrolls, and the
+    /// scrollbar's strip comes out of the items' width where the room has
+    /// nothing more to give.
     static func submenuLayout(
         naturalItemWidth: CGFloat,
         itemStackHeight: (CGFloat) -> CGFloat,
         menuFrame: CGRect,
         triggerFrame: CGRect,
         bounds: CGRect
-    ) -> PlaybackAudioTrackSubmenuLayout {
+    ) -> PlaybackMoreSubmenuLayout {
         let padding = Self.padding * 2
         let wanted = min(naturalItemWidth + padding, PlaybackChromeMetrics.audioTrackMenuMaxWidth)
         let roomRight = bounds.maxX - menuFrame.maxX
@@ -281,7 +322,7 @@ struct PlaybackChromeMoreMenuOverlay: View {
                 height: maximumHeight
             )
         }
-        return PlaybackAudioTrackSubmenuLayout(
+        return PlaybackMoreSubmenuLayout(
             frame: MenuSubmenuGeometry.frame(
                 parentMenuFrame: menuFrame,
                 parentItemFrame: triggerFrame,
@@ -293,9 +334,9 @@ struct PlaybackChromeMoreMenuOverlay: View {
         )
     }
 
-    /// Measures the menus as they lay out and places them on the stage. The
-    /// two submenus tag different tracks, and a tag narrows the name beside
-    /// it, so each is measured on its own.
+    /// Measures the menus as they lay out and places them on the stage. A
+    /// submenu and its Default submenu tag different items, and a tag narrows
+    /// the name beside it, so each is measured on its own.
     func measuredLayout(stageSize: CGSize) -> PlaybackMoreMenuLayout {
         let bounds = Self.bounds(stageSize: stageSize, buttonFrame: buttonFrame)
         let menuFrame = MenuPlacement.openingFrame(
@@ -308,10 +349,10 @@ struct PlaybackChromeMoreMenuOverlay: View {
             menuFrame: menuFrame,
             submenus: Dictionary(uniqueKeysWithValues: PlaybackMoreSubmenu.allCases.map { submenu in
                 let layout = Self.submenuLayout(
-                    naturalItemWidth: NSHostingView(rootView: tracks(submenu, itemWidth: nil))
+                    naturalItemWidth: NSHostingView(rootView: items(submenu, itemWidth: nil))
                         .fittingSize.width,
                     itemStackHeight: { width in
-                        NSHostingView(rootView: tracks(submenu, itemWidth: width)).fittingSize.height
+                        NSHostingView(rootView: items(submenu, itemWidth: width)).fittingSize.height
                     },
                     menuFrame: menuFrame,
                     triggerFrame: Self.triggerFrame(submenu, menuWidth: menuFrame.width),
@@ -326,10 +367,10 @@ struct PlaybackChromeMoreMenuOverlay: View {
 /// Where the More menu and its submenus sit on the stage.
 struct PlaybackMoreMenuLayout {
     let menuFrame: CGRect
-    let submenus: [PlaybackMoreSubmenu: PlaybackAudioTrackSubmenuLayout]
+    let submenus: [PlaybackMoreSubmenu: PlaybackMoreSubmenuLayout]
 }
 
-struct PlaybackAudioTrackSubmenuLayout {
+struct PlaybackMoreSubmenuLayout {
     let frame: CGRect
     /// The width the tracks are laid out at; names wrap inside it.
     let itemWidth: CGFloat
@@ -403,8 +444,8 @@ private struct PlaybackMoreMenuTrigger: View {
     }
 }
 
-/// One track: the check, the whole name, which wraps, and the tag.
-private struct PlaybackAudioTrackMenuItem: View {
+/// One item: the check, the whole name, which wraps, and the tag.
+private struct PlaybackMoreSubmenuItem: View {
     let name: String
     let isChecked: Bool
     let tag: String?

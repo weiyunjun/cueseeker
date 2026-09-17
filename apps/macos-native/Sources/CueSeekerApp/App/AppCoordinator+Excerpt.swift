@@ -1047,6 +1047,7 @@ extension AppCoordinator {
         saveCurrentLibraryPlaybackHistory()
         stopLibraryPlaybackHistoryTracking()
         activePlaybackSource = .excerpt
+        playbackSubtitle = nil
         playback.playbackStatus = .opening
         playback.playbackViewModel?.preparePresentationTransition(
             to: Double(excerpt.startMilliseconds) / 1_000,

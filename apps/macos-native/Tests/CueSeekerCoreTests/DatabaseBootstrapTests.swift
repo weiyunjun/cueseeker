@@ -1112,3 +1112,36 @@ func migratesSchema50ByAddingAudioTrackColumnsWithoutTouchingVideos() throws {
             == VideoAudioTracks(tracks: [], defaultIndex: 0)
     )
 }
+
+@Test
+func migratesSchema51ByAddingTheDefaultSubtitleColumnWithoutTouchingVideos() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    try DatabaseBootstrap.prepare(at: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
+    let videoFile = URL(fileURLWithPath: "/Media/Show/Episode.mkv")
+    try database.replaceEntries(
+        subtitleFile: URL(fileURLWithPath: "/Media/Show/Episode.srt"),
+        videoFile: videoFile,
+        entries: [databaseTestEntry(text: "Subtitles")]
+    )
+    try executeDatabaseTestSQLite(
+        at: databaseURL,
+        """
+        ALTER TABLE video_files DROP COLUMN default_subtitle_file_id;
+        PRAGMA user_version = 51;
+        """
+    )
+
+    try DatabaseBootstrap.prepare(at: databaseURL)
+
+    #expect(try sqliteSchemaVersion(at: databaseURL) == DatabaseBootstrap.currentSchemaVersion)
+    #expect(try sqliteRowCount(in: "video_files", databaseURL: databaseURL) == 1)
+    // No default set: the only subtitle takes effect.
+    let subtitles = try #require(try LibraryDatabase(path: databaseURL).videoSubtitles(forVideoFile: videoFile))
+    #expect(subtitles.defaultSubtitleFileID == nil)
+    #expect(subtitles.effectiveDefault?.subtitlePath == "/Media/Show/Episode.srt")
+}

@@ -315,6 +315,7 @@ extension AppCoordinator {
         saveCurrentLibraryPlaybackHistory()
         stopLibraryPlaybackHistoryTracking()
         activePlaybackSource = .search
+        playbackSubtitle = nil
         playback.playbackStatus = .opening
         playback.playbackViewModel?.preparePresentationTransition(
             to: Double(result.startMilliseconds) / 1_000,
@@ -1258,19 +1259,6 @@ extension AppCoordinator {
             videoPath: excerpt.videoPath,
             startingAtMilliseconds: excerpt.startMilliseconds,
             fallbackEndMilliseconds: excerpt.endMilliseconds
-        )
-    }
-
-    func playbackSubtitleSource(
-        for video: LibraryVideo,
-        startingAtMilliseconds startMilliseconds: Int
-    ) -> PlaybackSubtitleSource? {
-        playbackSubtitleSource(
-            forSubtitleFile: URL(fileURLWithPath: video.subtitlePath),
-            format: video.subtitleFormat,
-            videoPath: video.videoPath,
-            startingAtMilliseconds: startMilliseconds,
-            fallbackEndMilliseconds: startMilliseconds
         )
     }
 

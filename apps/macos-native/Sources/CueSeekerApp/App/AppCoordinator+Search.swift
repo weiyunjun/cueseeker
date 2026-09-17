@@ -390,7 +390,9 @@ extension AppCoordinator {
             selectedEntryID: search.selectedSearchResult?.entryID,
             selectedSearchRank: search.selectedSearchResult?.searchRank,
             videoPath: currentPlaybackVideoPath,
-            subtitlePath: currentPlaybackSubtitlePath,
+            // The result's own subtitle, so picking another one in the More
+            // menu leaves previous and next where they were.
+            subtitlePath: search.selectedSearchResult?.subtitlePath,
             currentMilliseconds: milliseconds
         )
     }

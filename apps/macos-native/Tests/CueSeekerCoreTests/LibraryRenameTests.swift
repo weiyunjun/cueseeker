@@ -122,6 +122,29 @@ func folderRenameKeepsEveryIDAndRewritesEveryStoredPath() throws {
 }
 
 @Test
+func folderRenameKeepsTheDefaultSubtitle() throws {
+    let fixture = try RenameFixture()
+    defer { fixture.cleanUp() }
+    try RenameFixture.writeSubtitle(name: "EP01.srt", in: fixture.show)
+    try fixture.index()
+    let library = try LibraryDatabase(path: fixture.databaseURL)
+    let oldVideo = URL(fileURLWithPath: try fixture.storedVideoPath("EP01.mkv"))
+    let chinese = try #require(
+        try library.videoSubtitles(forVideoFile: oldVideo)?.subtitles.first { $0.subtitlePath.hasSuffix("/EP01.zh.srt") }
+    )
+    try library.setDefaultSubtitleFileID(chinese.subtitleFileID, forVideoFile: oldVideo)
+
+    let renamer = LibraryRenamer(database: fixture.database)
+    try renamer.perform(try renamer.checkConflicts(.folder(path: fixture.show.path, newName: "Show Renamed")))
+
+    let newVideo = URL(fileURLWithPath: oldVideo.path.replacingOccurrences(of: "/Show/", with: "/Show Renamed/"))
+    let subtitles = try #require(try library.videoSubtitles(forVideoFile: newVideo))
+    #expect(subtitles.subtitles.count == 2)
+    #expect(subtitles.effectiveDefault?.subtitleFileID == chinese.subtitleFileID)
+    #expect(subtitles.effectiveDefault?.subtitlePath.hasSuffix("/Show Renamed/EP01.zh.srt") == true)
+}
+
+@Test
 func renamingTheRootMovesTheLibraryRowAndKeepsRelativePaths() throws {
     let fixture = try RenameFixture()
     defer { fixture.cleanUp() }

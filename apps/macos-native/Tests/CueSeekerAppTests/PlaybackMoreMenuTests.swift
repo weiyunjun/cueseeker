@@ -41,17 +41,27 @@ func audioTrackNamesListWhatTheFileRecordsSeparatedByCommas() {
 }
 
 @Test
-func audioTrackSubmenusCheckAndTagTheOppositeTracks() {
-    let menu = PlaybackAudioTrackMenu(
-        trackNames: ["#1", "#2", "#3"],
-        currentIndex: 1,
-        defaultIndex: 0
+func subtitleNamesKeepTheLastTwoExtensionsAtMost() {
+    #expect(PlaybackSubtitleName.name(forSubtitlePath: "/Media/Show/a.sc.ass") == ".sc.ass")
+    #expect(PlaybackSubtitleName.name(forSubtitlePath: "/Media/Show/a.srt") == ".srt")
+    #expect(PlaybackSubtitleName.name(forSubtitlePath: "/Media/Show/Show.S01E01.1080p.ass") == ".1080p.ass")
+}
+
+@Test
+func moreSubmenusCheckAndTagTheOppositeItems() {
+    let menu = PlaybackMoreMenu(
+        audioTracks: PlaybackMoreMenuList(names: ["#1", "#2", "#3"], currentIndex: 1, defaultIndex: 0),
+        subtitles: PlaybackMoreMenuList(names: [".ass", ".srt", ".en.ass"], currentIndex: 2, defaultIndex: 1)
     )
 
     #expect(menu.checkedIndex(in: .audioTrack) == 1)
     #expect(menu.tag(in: .audioTrack).index == 0)
     #expect(menu.checkedIndex(in: .defaultAudioTrack) == 0)
     #expect(menu.tag(in: .defaultAudioTrack).index == 1)
+    #expect(menu.checkedIndex(in: .subtitle) == 2)
+    #expect(menu.tag(in: .subtitle).index == 1)
+    #expect(menu.checkedIndex(in: .defaultSubtitle) == 1)
+    #expect(menu.tag(in: .defaultSubtitle).index == 2)
 }
 
 @MainActor
@@ -62,28 +72,34 @@ func moreMenuKeysOpenSubmenusOnTheirFirstTrackAndPickWithEnter() {
     var picks: [(PlaybackMoreSubmenu, Int)] = []
     let pick: (PlaybackMoreSubmenu, Int) -> Void = { picks.append(($0, $1)) }
     store.openMoreMenu(
-        PlaybackAudioTrackMenu(
-            trackNames: ["#1", "#2", "#3"],
-            currentIndex: 2,
-            defaultIndex: 2
+        PlaybackMoreMenu(
+            audioTracks: PlaybackMoreMenuList(names: ["#1", "#2", "#3"], currentIndex: 2, defaultIndex: 2),
+            subtitles: PlaybackMoreMenuList(names: [".ass", ".srt"], currentIndex: 0, defaultIndex: 0)
         )
     )
     #expect(store.moreMenuHighlight.highlightedPosition == PlaybackMoreSubmenu.audioTrack.rawValue)
 
-    // Down, then right opens Default Audio Track on its first track.
+    // Down, then right opens Subtitle on its first subtitle.
     #expect(store.handleMoreMenuKey(125, isRepeat: false, onSelect: pick))
     #expect(store.handleMoreMenuKey(124, isRepeat: false, onSelect: pick))
-    #expect(store.moreSubmenuState.openParent == .defaultAudioTrack)
+    #expect(store.moreSubmenuState.openParent == .subtitle)
     #expect(store.moreSubmenuHighlight.highlightedPosition == 0)
 
-    // Up and down now move in the submenu; left closes it.
+    // Up and down now move in the submenu, as far as its own list; left
+    // closes it.
+    #expect(store.handleMoreMenuKey(125, isRepeat: false, onSelect: pick))
+    #expect(store.moreSubmenuHighlight.highlightedPosition == 1)
     #expect(store.handleMoreMenuKey(125, isRepeat: false, onSelect: pick))
     #expect(store.moreSubmenuHighlight.highlightedPosition == 1)
     #expect(store.handleMoreMenuKey(123, isRepeat: false, onSelect: pick))
     #expect(store.moreSubmenuState.openParent == nil)
+    #expect(store.moreMenuHighlight.highlightedPosition == PlaybackMoreSubmenu.subtitle.rawValue)
+
+    // Down reaches Default Audio Track.
+    #expect(store.handleMoreMenuKey(125, isRepeat: false, onSelect: pick))
     #expect(store.moreMenuHighlight.highlightedPosition == PlaybackMoreSubmenu.defaultAudioTrack.rawValue)
 
-    // Enter opens the submenu again, at its first track, and picks there.
+    // Enter opens it at its first track and picks there.
     #expect(store.handleMoreMenuKey(36, isRepeat: false, onSelect: pick))
     #expect(store.moreSubmenuHighlight.highlightedPosition == 0)
     #expect(store.handleMoreMenuKey(125, isRepeat: false, onSelect: pick))
@@ -100,14 +116,29 @@ func moreMenuKeysOpenSubmenusOnTheirFirstTrackAndPickWithEnter() {
 func moreMenuWithoutRecordedTracksHighlightsNothing() {
     // The store ignores its defaults.
     let store = PlaybackStore(userDefaults: .standard)
-    store.openMoreMenu(
-        PlaybackAudioTrackMenu(trackNames: [], currentIndex: 0, defaultIndex: 0)
-    )
+    let empty = PlaybackMoreMenuList(names: [], currentIndex: 0, defaultIndex: 0)
+    store.openMoreMenu(PlaybackMoreMenu(audioTracks: empty, subtitles: empty))
     #expect(store.moreMenuHighlight.highlightedPosition == nil)
     #expect(store.handleMoreMenuKey(124, isRepeat: false, onSelect: { _, _ in }))
     #expect(store.moreSubmenuState.openParent == nil)
     #expect(store.handleMoreMenuKey(53, isRepeat: false, onSelect: { _, _ in }))
     #expect(store.moreMenu == nil)
+}
+
+@MainActor
+@Test
+func moreMenuWithOnlySubtitlesSkipsTheAudioTrackTriggers() {
+    // The store ignores its defaults.
+    let store = PlaybackStore(userDefaults: .standard)
+    let menu = PlaybackMoreMenu(
+        audioTracks: PlaybackMoreMenuList(names: [], currentIndex: 0, defaultIndex: 0),
+        subtitles: PlaybackMoreMenuList(names: [".srt"], currentIndex: 0, defaultIndex: 0)
+    )
+    #expect(menu.enabledSubmenus == [.subtitle, .defaultSubtitle])
+    store.openMoreMenu(menu)
+    #expect(store.moreMenuHighlight.highlightedPosition == PlaybackMoreSubmenu.subtitle.rawValue)
+    #expect(store.handleMoreMenuKey(125, isRepeat: false, onSelect: { _, _ in }))
+    #expect(store.moreMenuHighlight.highlightedPosition == PlaybackMoreSubmenu.defaultSubtitle.rawValue)
 }
 
 @MainActor
@@ -213,10 +244,17 @@ func audioTrackSubmenuScrollsBetweenTheTopBarAndTheButtons() {
 func moreMenuFitsItsTriggersAndSubmenusStayInTheirRoom() {
     // The store ignores its defaults.
     let store = PlaybackStore(userDefaults: .standard)
-    let menu = PlaybackAudioTrackMenu(
-        trackNames: (1...40).map { "#\($0) Japanese, オーディオコメンタリー, flac, 2ch" },
-        currentIndex: 0,
-        defaultIndex: 1
+    let menu = PlaybackMoreMenu(
+        audioTracks: PlaybackMoreMenuList(
+            names: (1...40).map { "#\($0) Japanese, オーディオコメンタリー, flac, 2ch" },
+            currentIndex: 0,
+            defaultIndex: 1
+        ),
+        subtitles: PlaybackMoreMenuList(
+            names: (1...40).map { ".s\($0).ass" },
+            currentIndex: 1,
+            defaultIndex: 0
+        )
     )
     store.openMoreMenu(menu)
     // The narrowest window, the More button left of the fullscreen button.

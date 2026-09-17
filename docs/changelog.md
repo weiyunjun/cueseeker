@@ -6,6 +6,15 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- A video with several subtitles can now switch between them on the playback
+  page: the More menu lists Audio Track, Subtitle, Default Audio Track and
+  Default Subtitle, naming each subtitle by its last two extensions at most.
+  Subtitles named like the video come first, ass before srt, then the rest in
+  Finder file name order. Opening a video from Library, Recent Videos or the
+  Videos Playlist plays its default subtitle, the first one unless set; Search,
+  Excerpt and Deep Link opens keep the subtitle of their cue. Switching keeps
+  the time, the pause and the Playlist, and lasts until another item opens.
+  Schema 52 stores the default subtitle.
 - Opening an item of the video already playing now also comes back to its
   default audio track, from Command Panel, the Playlist, previous and next,
   the automatic switch to the next cue and Deep Links; Repeat keeps the

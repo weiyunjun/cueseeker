@@ -219,20 +219,18 @@ final class PlaybackStore: ObservableObject {
 
     /// The open More menu and what it lists; nil while closed. Its keys arrive
     /// the same two ways as the speed menu's.
-    @Published private(set) var moreMenu: PlaybackAudioTrackMenu?
+    @Published private(set) var moreMenu: PlaybackMoreMenu?
     let moreMenuHighlight = MenuHighlightModel()
     let moreSubmenuHighlight = MenuHighlightModel()
     let moreSubmenuState = MenuSubmenuState<PlaybackMoreSubmenu>()
 
-    func openMoreMenu(_ menu: PlaybackAudioTrackMenu) {
+    func openMoreMenu(_ menu: PlaybackMoreMenu) {
         moreMenu = menu
         moreSubmenuState.reset()
-        // Without a recorded track both items are disabled, so nothing takes
-        // the highlight.
+        // A trigger with an empty list is disabled and does not take the
+        // highlight.
         moreMenuHighlight.open(
-            selectablePositions: menu.trackNames.isEmpty
-                ? []
-                : PlaybackMoreSubmenu.allCases.map(\.rawValue)
+            selectablePositions: menu.enabledSubmenus.map(\.rawValue)
         )
     }
 
@@ -305,19 +303,21 @@ final class PlaybackStore: ObservableObject {
         interfaceLayers: InterfaceLayerRegistry = InterfaceLayerRegistry()
     ) {
         self.interfaceLayers = interfaceLayers
-        // A submenu opens on its first track. Its trigger reports the same
+        // A submenu opens on its first item. Its trigger reports the same
         // submenu again when its frame moves, which must not reset the
         // highlight a key has since moved.
         moreSubmenuState.onOpenParentChange = { [weak self] submenu in
             guard let self else {
                 return
             }
-            if submenu == nil {
+            if let submenu {
+                if !moreSubmenuHighlight.isOpen, let moreMenu {
+                    moreSubmenuHighlight.open(
+                        selectablePositions: Array(moreMenu.list(in: submenu).names.indices)
+                    )
+                }
+            } else {
                 moreSubmenuHighlight.close()
-            } else if !moreSubmenuHighlight.isOpen, let moreMenu {
-                moreSubmenuHighlight.open(
-                    selectablePositions: Array(moreMenu.trackNames.indices)
-                )
             }
         }
     }

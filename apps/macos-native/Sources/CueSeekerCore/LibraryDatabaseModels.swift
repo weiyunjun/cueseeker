@@ -72,6 +72,66 @@ public struct VideoAudioTracks: Equatable, Sendable {
     }
 }
 
+/// One subtitle file matched to a video.
+public struct VideoSubtitle: Equatable, Sendable {
+    public let subtitleFileID: Int64
+    public let subtitlePath: String
+    public let format: SubtitleFormat
+
+    public init(subtitleFileID: Int64, subtitlePath: String, format: SubtitleFormat) {
+        self.subtitleFileID = subtitleFileID
+        self.subtitlePath = subtitlePath
+        self.format = format
+    }
+}
+
+/// A video's subtitles in order and its default subtitle. See
+/// `docs/human/requirements/20260918-Feature-In-Video Subtitle Switching And
+/// Default Subtitle.md`.
+public struct VideoSubtitles: Equatable, Sendable {
+    public let subtitles: [VideoSubtitle]
+    /// Kept as set, even when that subtitle no longer belongs to the video.
+    public let defaultSubtitleFileID: Int64?
+
+    /// Orders the subtitles: those named like the video once each drops its
+    /// last extension come first, ass before srt; the rest follow in Finder's
+    /// file name order. Names compare the way matching compares them.
+    public init(videoPath: String, subtitles: [VideoSubtitle], defaultSubtitleFileID: Int64?) {
+        let videoName = Self.nameWithoutLastExtension(videoPath)
+        let sharesVideoName = { (subtitle: VideoSubtitle) in
+            Self.nameWithoutLastExtension(subtitle.subtitlePath) == videoName
+        }
+        self.subtitles = subtitles.sorted { lhs, rhs in
+            let lhsShares = sharesVideoName(lhs)
+            if lhsShares != sharesVideoName(rhs) {
+                return lhsShares
+            }
+            if lhsShares, lhs.format != rhs.format {
+                return lhs.format == .ass
+            }
+            let lhsName = URL(fileURLWithPath: lhs.subtitlePath).lastPathComponent
+            let rhsName = URL(fileURLWithPath: rhs.subtitlePath).lastPathComponent
+            let nameComparison = lhsName.localizedStandardCompare(rhsName)
+            if nameComparison != .orderedSame {
+                return nameComparison == .orderedAscending
+            }
+            return lhs.subtitlePath < rhs.subtitlePath
+        }
+        self.defaultSubtitleFileID = defaultSubtitleFileID
+    }
+
+    /// The default subtitle that takes effect: the first subtitle when none is
+    /// set or the one set no longer belongs to the video.
+    public var effectiveDefault: VideoSubtitle? {
+        subtitles.first { $0.subtitleFileID == defaultSubtitleFileID } ?? subtitles.first
+    }
+
+    private static func nameWithoutLastExtension(_ path: String) -> String {
+        URL(fileURLWithPath: path).deletingPathExtension().lastPathComponent
+            .precomposedStringWithCanonicalMapping
+    }
+}
+
 public enum LibraryCoverStatus: String, Sendable {
     case generated
     case failed

@@ -188,8 +188,12 @@ struct PlaybackVideoStage: View {
                         switch submenu {
                         case .audioTrack:
                             appState.selectPlaybackAudioTrack(index)
+                        case .subtitle:
+                            appState.selectPlaybackSubtitle(index)
                         case .defaultAudioTrack:
                             appState.setPlaybackDefaultAudioTrack(index)
+                        case .defaultSubtitle:
+                            appState.setPlaybackDefaultSubtitle(index)
                         }
                     }
                 )

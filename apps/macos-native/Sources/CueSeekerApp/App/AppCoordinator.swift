@@ -128,17 +128,24 @@ final class AppCoordinator: ObservableObject {
     }
 
     var currentPlaybackSubtitlePath: String? {
-        library.selectedLibraryVideo?.subtitlePath ?? search.selectedSearchResult?.subtitlePath ?? excerpt.selectedExcerpt?.subtitlePath
+        playbackSubtitle?.subtitlePath
+            ?? library.selectedLibraryVideo?.subtitlePath
+            ?? search.selectedSearchResult?.subtitlePath
+            ?? excerpt.selectedExcerpt?.subtitlePath
     }
 
     var currentPlaybackSubtitleFileID: Int64? {
-        library.selectedLibraryVideo?.subtitleFileID
+        playbackSubtitle?.subtitleFileID
+            ?? library.selectedLibraryVideo?.subtitleFileID
             ?? search.selectedSearchResult?.subtitleFileID
             ?? excerpt.selectedExcerpt?.subtitleFileID
     }
 
     var currentPlaybackSubtitleFormat: SubtitleFormat? {
-        library.selectedLibraryVideo?.subtitleFormat ?? search.selectedSearchResult?.subtitleFormat ?? excerpt.selectedExcerpt?.subtitleFormat
+        playbackSubtitle?.format
+            ?? library.selectedLibraryVideo?.subtitleFormat
+            ?? search.selectedSearchResult?.subtitleFormat
+            ?? excerpt.selectedExcerpt?.subtitleFormat
     }
 
     var currentPlaybackTitle: String {
@@ -416,6 +423,10 @@ final class AppCoordinator: ObservableObject {
     var excerptPlaybackNavigationScopeIDs: [Int64]?
     var excerptPlaybackNavigationSnapshot: (currentID: Int64, previousID: Int64?, nextID: Int64?)?
     var activePlaybackSource: ActivePlaybackSource = .none
+    /// The subtitle playing when it is not the one the opened item names: the
+    /// video's default subtitle after a Library open, or the subtitle picked
+    /// in the More menu. Every open sets or clears it; Repeat leaves it.
+    var playbackSubtitle: VideoSubtitle?
     var currentCueAutoStopReached = false
     var cuePlaybackGeneration = 0
     var activeCueAutoPauseBoundary: PlaybackAutoStopBoundary?

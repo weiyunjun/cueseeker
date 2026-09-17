@@ -12,7 +12,7 @@ public enum DatabaseBootstrapError: Error, Equatable, CustomStringConvertible {
 }
 
 public enum DatabaseBootstrap {
-    public static let currentSchemaVersion = 51
+    public static let currentSchemaVersion = 52
 
     public static func prepare(at path: URL) throws {
         let database = try SQLiteDatabase(path: path, access: .readWrite)
@@ -63,6 +63,7 @@ private extension DatabaseBootstrap {
                 || previousVersion == 48
                 || previousVersion == 49
                 || previousVersion == 50
+                || previousVersion == 51
                 || previousVersion == DatabaseBootstrap.currentSchemaVersion
         else {
             throw DatabaseBootstrapError.unsupportedSchemaVersion(
@@ -168,6 +169,9 @@ private extension DatabaseBootstrap {
         }
         if previousVersion >= 33, previousVersion <= 50 {
             try migrateSchema50To51(on: database)
+        }
+        if previousVersion >= 33, previousVersion <= 51 {
+            try migrateSchema51To52(on: database)
             return
         }
         guard previousVersion == 0 else {
@@ -277,6 +281,7 @@ private extension DatabaseBootstrap {
                 audio_codec TEXT,
                 audio_tracks TEXT,
                 default_audio_track_index INTEGER NOT NULL DEFAULT 0,
+                default_subtitle_file_id INTEGER,
                 native_video_candidate INTEGER,
                 native_audio_candidate INTEGER,
                 native_compatibility_reason TEXT,
@@ -794,6 +799,18 @@ private extension DatabaseBootstrap {
                 )
             }
             try database.execute("PRAGMA user_version = 51;")
+        }
+    }
+
+    /// Schema 52 keeps each video's default subtitle. A video without one
+    /// opens on its first subtitle.
+    static func migrateSchema51To52(on database: SQLiteDatabase) throws {
+        try database.withImmediateTransaction {
+            let columns = try columnNames(of: "video_files", in: database)
+            if !columns.isEmpty, !columns.contains("default_subtitle_file_id") {
+                try database.execute("ALTER TABLE video_files ADD COLUMN default_subtitle_file_id INTEGER;")
+            }
+            try database.execute("PRAGMA user_version = 52;")
         }
     }
 

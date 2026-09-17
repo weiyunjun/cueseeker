@@ -39,12 +39,15 @@ extension AppCoordinator {
         let currentIndex = player?.currentAudioTrackIndex
             .flatMap { tracks.indices.contains($0) ? $0 : nil } ?? 0
         playback.openMoreMenu(
-            PlaybackAudioTrackMenu(
-                trackNames: tracks.enumerated().map { index, track in
-                    PlaybackAudioTrackName.name(for: track, at: index)
-                },
-                currentIndex: currentIndex,
-                defaultIndex: recorded?.effectiveDefaultIndex ?? 0
+            PlaybackMoreMenu(
+                audioTracks: PlaybackMoreMenuList(
+                    names: tracks.enumerated().map { index, track in
+                        PlaybackAudioTrackName.name(for: track, at: index)
+                    },
+                    currentIndex: currentIndex,
+                    defaultIndex: recorded?.effectiveDefaultIndex ?? 0
+                ),
+                subtitles: playbackSubtitleMenuList(forVideoPath: videoPath)
             )
         )
     }

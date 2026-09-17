@@ -1175,3 +1175,88 @@ func videoAudioTracksKeepTheRecordedListAndTheDefaultTrackAsSet() throws {
         ) == nil
     )
 }
+
+@Test
+func videoSubtitlesListSameNamedOnesFirstAssBeforeSrtThenFinderOrder() {
+    let names = ["a.sc.ass", "a.srt", "a.tc.ass", "a.ass", "a.jp.ass", "a.en.ass", "a.EN.srt"]
+    let subtitles = VideoSubtitles(
+        videoPath: "/Media/Show/a.mp4",
+        subtitles: names.enumerated().map { id, name in
+            VideoSubtitle(
+                subtitleFileID: Int64(id),
+                subtitlePath: "/Media/Show/\(name)",
+                format: name.hasSuffix(".ass") ? .ass : .srt
+            )
+        },
+        defaultSubtitleFileID: nil
+    )
+
+    #expect(
+        subtitles.subtitles.map { URL(fileURLWithPath: $0.subtitlePath).lastPathComponent }
+            == ["a.ass", "a.srt", "a.en.ass", "a.EN.srt", "a.jp.ass", "a.sc.ass", "a.tc.ass"]
+    )
+    // None set: the first takes effect.
+    #expect(subtitles.effectiveDefault?.subtitlePath == "/Media/Show/a.ass")
+
+    // Set: it takes effect wherever it sorts.
+    let set = VideoSubtitles(videoPath: "/Media/Show/a.mp4", subtitles: subtitles.subtitles, defaultSubtitleFileID: 0)
+    #expect(set.effectiveDefault?.subtitlePath == "/Media/Show/a.sc.ass")
+
+    // Set to a subtitle that no longer belongs to the video: the first takes
+    // effect and the setting is kept.
+    let gone = VideoSubtitles(videoPath: "/Media/Show/a.mp4", subtitles: subtitles.subtitles, defaultSubtitleFileID: 99)
+    #expect(gone.defaultSubtitleFileID == 99)
+    #expect(gone.effectiveDefault?.subtitlePath == "/Media/Show/a.ass")
+}
+
+@Test
+func videoSubtitlesKeepTheDefaultAsSetThroughIndex() throws {
+    let root = FileManager.default.temporaryDirectory
+        .appendingPathComponent("CueSeekerVideoSubtitlesTests-\(UUID().uuidString)")
+    defer {
+        try? FileManager.default.removeItem(at: root)
+    }
+    let show = root.appendingPathComponent("Show")
+    try FileManager.default.createDirectory(at: show, withIntermediateDirectories: true)
+    let databaseURL = root.appendingPathComponent("index.sqlite")
+    try DatabaseBootstrap.prepare(at: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
+    try Data("video".utf8).write(to: show.appendingPathComponent("Episode.mkv"))
+    for name in ["Episode.en.srt", "Episode.srt", "Episode.jp.srt"] {
+        try """
+        1
+        00:00:01,000 --> 00:00:03,000
+        \(name)
+
+        """.write(to: show.appendingPathComponent(name), atomically: true, encoding: .utf8)
+    }
+    _ = try SubtitleIndexer().index(folder: root, into: database)
+    let library = try LibraryDatabase(path: databaseURL)
+    let videoPath = try #require(try database.subtitleFiles().first?.videoPath)
+    let videoFile = URL(fileURLWithPath: videoPath)
+    let recorded = try #require(try library.videoSubtitles(forVideoFile: videoFile))
+    #expect(recorded.subtitles.map { URL(fileURLWithPath: $0.subtitlePath).lastPathComponent } == [
+        "Episode.srt", "Episode.en.srt", "Episode.jp.srt",
+    ])
+    #expect(recorded.defaultSubtitleFileID == nil)
+
+    let japanese = recorded.subtitles[2]
+    try library.setDefaultSubtitleFileID(japanese.subtitleFileID, forVideoFile: videoFile)
+    #expect(try library.videoSubtitles(forVideoFile: videoFile)?.effectiveDefault == japanese)
+
+    // Index again after another subtitle changed: the default stays as set.
+    try """
+    1
+    00:00:02,000 --> 00:00:04,000
+    Changed
+
+    """.write(to: show.appendingPathComponent("Episode.en.srt"), atomically: true, encoding: .utf8)
+    _ = try SubtitleIndexer().index(folder: root, into: database)
+    #expect(try library.videoSubtitles(forVideoFile: videoFile)?.effectiveDefault == japanese)
+
+    #expect(
+        try library.videoSubtitles(
+            forVideoFile: show.appendingPathComponent("Missing.mkv")
+        ) == nil
+    )
+}
