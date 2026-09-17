@@ -254,7 +254,7 @@ private struct PlaybackCommandPanelRoot: View {
                 }
 
                 PlaybackCommandPanelRootRow(
-                    icon: .heart,
+                    icon: .bookmarkSimple,
                     title: L("sidebar.recent_excerpts"),
                     detail: nil,
                     isSelected: presentation.selectedOrdinal

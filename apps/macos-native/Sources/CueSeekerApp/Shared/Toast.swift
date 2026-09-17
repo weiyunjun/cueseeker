@@ -45,7 +45,7 @@ enum ExcerptToastRequest {
         ToastRequest(
             scenarioID: scenarioID,
             message: message,
-            icon: .heart,
+            icon: .bookmarkSimple,
             iconWeight: .fill
         )
     }

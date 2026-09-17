@@ -66,7 +66,7 @@ func feedbackIconsDrawAtTheirDocumentedSizes() {
         PlaybackChromeMetrics.feedbackIconSize,
     ] {
         #expect(AppIconLineWidth.bySize[size] != nil, "\(size)pt is not in the registry")
-        #expect(AppIconStore.image(.heart, size: size, weight: .fill) != nil)
+        #expect(AppIconStore.image(.bookmarkSimple, size: size, weight: .fill) != nil)
     }
 }
 
@@ -92,6 +92,6 @@ func excerptToastRequestsMatchTheUsageRegistry() {
     #expect(ExcerptToastRequest.moveSucceeded(listName: "Study").duration == 5)
     #expect(ExcerptToastRequest.moveSucceeded(listName: "Study").position == .appCenter)
     #expect(ExcerptToastRequest.moveSucceeded(listName: "Study").animation == .default)
-    #expect(ExcerptToastRequest.moveSucceeded(listName: "Study").icon == .heart)
+    #expect(ExcerptToastRequest.moveSucceeded(listName: "Study").icon == .bookmarkSimple)
     #expect(ExcerptToastRequest.moveSucceeded(listName: "Study").iconWeight == .fill)
 }

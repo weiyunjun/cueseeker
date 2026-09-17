@@ -53,3 +53,13 @@ Matched expectations, with one thing decided along the way rather than beforehan
 The requirement asks for a solid star and the registry defines Fill as a state variant. The two do not meet: a solid-only icon is neither a stroke master nor a state of one. Drawing it as a filled path that strokes its own outline satisfies both readings and leaves the assembly and the tests untouched. The alternative — a Fill-only asset with no regular cut — would have needed a new rule in the registry for fill-only icons and a matching change to the two asset tests, which is more machinery than one star is worth. The registry should record which of the two it means when the owner backfills it.
 
 Awaiting owner acceptance before `docs/human/design/Icon Registry.md` and `docs/human/design/UI Design System.md` are backfilled.
+
+## Follow-up: Excerpt goes back to the bookmark
+
+Seen in the running app, the heart read wrong for what Excerpt is. A heart says "I like this"; an Excerpt list is a place the owner files a line to come back to, which is what a bookmark says. The owner asked for it back before accepting the batch.
+
+`heart` and `heart-fill` are out of `AppIcon`, out of the seven call sites, and out of the four test assertions; `bookmarkSimple` and its filled cut are back in the same places, unchanged from before this record's first pass. Nothing else in the batch moved — the camera, images-square, list-checks, tray and anki-star changes stand.
+
+The requirement dropped its heart clause, its mapping row and the acceptance line about the 57px cover; the registry and the design document went back to `bookmark-simple` and "实心书签". The owner removed `heart.svg`, `heart-fill.svg` and `image.svg`, and kept `bookmark-simple.svg` and `bookmark-simple-fill.svg` in use.
+
+Verification: `swift build` clean, no warnings. `swift test`: 1258 tests; the parallel failures are the same known set, each passing when re-run alone except the two Excerpt table tests recorded above as failing on a clean `HEAD`.

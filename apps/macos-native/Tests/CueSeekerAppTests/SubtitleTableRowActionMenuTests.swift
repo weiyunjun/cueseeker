@@ -582,7 +582,7 @@ func subtitleTableRowActionMetadataUsesAcceptedLabelsAndSymbols() {
     #expect(SubtitleTableRowAction.copyDeepLink.icon == .linkSimple)
     #expect(SubtitleTableRowAction.copyCueGroupText.icon == .copy)
     #expect(SubtitleTableRowAction.copyTimeRange.icon == .copy)
-    #expect(SubtitleTableRowAction.removeExcerpt.icon == .heart)
+    #expect(SubtitleTableRowAction.removeExcerpt.icon == .bookmarkSimple)
     #expect(SubtitleTableRowAction.removeExcerpt.isDestructive)
     #expect(!SubtitleTableRowAction.play.isDestructive)
     #expect(!SubtitleTableRowAction.duplicateToList.isDestructive)
