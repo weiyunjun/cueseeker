@@ -10,7 +10,7 @@
 - 线端与拐角：圆线端、圆拐角
 - 实心圆点：半径 4 的圆，加同宽描边，随线宽变化
 - Fill：实心状态变体，不含线条，不参与线宽表
-- 自制图标遵循同一规格
+- 自制图标遵循同一规格；本身即实心的自制图标以填充加同宽描边绘制，随线宽变化
 
 # 2. 尺寸与线宽
 
@@ -31,7 +31,7 @@
 
 # 3. 图标名录
 
-字重：Regular 为描边图标，线宽按尺寸取值；Fill 为实心状态变体。
+字重：Regular 为描边图标，线宽按尺寸取值；Fill 为实心状态变体；实心为没有描边字重的实心图标。
 
 ## 3.1 结构与导航
 
@@ -55,11 +55,11 @@
 | --- | --- | --- | --- |
 | `squares-four` | Regular | Library | Sidebar Item / Library |
 | `folder` | Regular | 文件夹 | Sidebar Item / File；表格行菜单 / Open Subtitle Folder；Library 卡片菜单 / Open Folder；Library File Tree / Root Path、Object Folder；Export to Anki Dialog / Location；File Page 空状态，47px |
-| `bookmark-simple` | Regular | Excerpt | Sidebar Item / Excerpt；Command Panel Root / Recent Excerpt Lists；表格行菜单 / Remove Excerpt；Playback Feedback（移出 Excerpt）；Excerpt List 封面占位，57px |
-| `bookmark-simple` | Fill | 已存入 Excerpt | Playback Feedback（Save to Excerpt List） |
+| `heart` | Regular | Excerpt | Sidebar Item / Excerpt；Command Panel Root / Recent Excerpt Lists；表格行菜单 / Remove Excerpt；Playback Feedback（移出 Excerpt）；Excerpt List 封面占位，57px |
+| `heart` | Fill | 已存入 Excerpt | Playback Feedback（Save to Excerpt List） |
 | `clock` | Regular | 最近、时长 | Sidebar Item / Recent；Filter Menu / Duration |
 | `gear` | Regular | 设置 | Settings Entry |
-| `list-checks` | Regular | 任务 | Task Entry |
+| `tray` | Regular | 任务 | Task Entry |
 
 ## 3.3 文件与索引
 
@@ -91,11 +91,14 @@
 | 图标 | 字重 | 含义 | 使用位置 |
 | --- | --- | --- | --- |
 | `pencil-simple` | Regular | 重命名、编辑封面 | Library File Tree 菜单 / Rename Folder、Rename Files；Cover / Editor Action |
-| `note-pencil` | Regular | 编辑、选择模式 | Search / Excerpt Toolbar / Select Mode Action；Excerpt List 卡片菜单 / Edit List；Playback Topbar / Collage Action |
+| `note-pencil` | Regular | 编辑 | Excerpt List 卡片菜单 / Edit List |
+| `list-checks` | Regular | 选择模式 | Search / Excerpt Toolbar / Select Mode Action |
+| `images-square` | Regular | 截图组 | Playback Topbar / Collage Action |
 | `trash` | Regular | 删除 | Excerpt List 卡片菜单 / Delete List；Task Card / Delete Action |
 | `copy` | Regular | 复制 | 表格行菜单 / Copy Cue Text、Copy Cue Group Text、Copy Time Range；Collage Editor / Copy；Playback Overlay 选中文字菜单 / Copy Selected Text |
 | `export` | Regular | 导出、更换封面 | Collage Editor / Export；Library 卡片菜单 / Change Cover |
 | `link-simple` | Regular | 链接 | 表格行菜单 / Copy Deep Link；Anki 卡片 / Deep Link，20px |
+| `anki-star` | 实心 | Anki | 预留，暂无使用位置 |
 
 ## 3.6 播放控制
 
@@ -106,7 +109,7 @@
 | `skip-back` | Fill | 上一个 | 播放控制条 / 上一个 |
 | `skip-forward` | Fill | 下一个 | 播放控制条 / 下一个 |
 | `repeat` | Regular | 循环 | 播放控制条 / 循环；Playback Feedback |
-| `image` | Regular | 截图 | 播放控制条 / 截图；Playback Feedback（截图已复制） |
+| `camera` | Regular | 截图 | 播放控制条 / 截图；Playback Feedback（截图已复制） |
 | `speedometer` | Regular | 倍速 | Playback Feedback（倍速） |
 | `corners-out` | Regular | 进入全屏 | 播放控制条 / 全屏 |
 | `corners-in` | Regular | 退出全屏 | 播放控制条 / 全屏 |
