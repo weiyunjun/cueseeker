@@ -287,7 +287,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--size-player-circle-button-icon`: `23px`
 - `--width-player-speed-button`: `54px`
 - `--width-player-speed-menu`: `184px`
-- `--width-player-audio-track-menu`: `300px`
+- `--max-width-player-audio-track-menu`: `300px`
 - `--size-player-progress-thumb`: `12px`
 - `--width-player-topbar-title-max`: `520px`
 - `--size-playback-feedback-icon`: `31px`
@@ -1173,6 +1173,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - Direction：默认朝下；下方空间不足时朝上；两侧都不足时取空间较大的一侧
 - 方向与高度在弹出瞬间确定一次，之后随挂靠对象平移，不再重新计算
 - Workbench 表格行菜单以表格正文区域为边界；跟随挂靠对象移动而越过边界的部分被裁剪
+- Player More Menu 及其 Audio Track Submenu 以播放页顶栏与底栏按钮之间的区域为边界
 
 ##### States
 
@@ -1204,7 +1205,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 ##### Player More Menu
 
 - Surface：Player Chrome
-- 宽度、圆角、Padding 与 Menu Item 尺寸与 Player Speed Menu 相同
+- 圆角、Padding 与 Menu Item 高度与 Player Speed Menu 相同；宽度随菜单项内容
 - Item：Menu Item / Submenu Trigger：Audio Track、Default Audio Track
 - 视频没有音轨时两项为 Disabled
 
@@ -1243,7 +1244,8 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 ##### Audio Track Submenu
 
 - Surface：Player Chrome
-- Width：`--width-player-audio-track-menu`
+- Width：自然宽度、`--max-width-player-audio-track-menu`、展开一侧的可用空间，三者取小；出现 Vertical Scrollbar 时总宽仍不超出展开一侧的可用空间，空间不足时 Item Stack 变窄
+- Direction：默认朝右；右侧空间不足时朝左；两侧都不足时取空间较大的一侧
 - 由 Player More Menu 的 Audio Track 与 Default Audio Track 展开
 - Structure：视频的音轨按文件中的顺序排列
 - Item：Menu Item / Radio Menu Item，Trailing Slot 为 Tag / Player Chrome；名称完整显示，超出宽度时换行，Selection Indicator 与 Tag 对齐名称首行
