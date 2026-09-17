@@ -341,14 +341,12 @@ private struct PlaybackMoreMenuTrigger: View {
                 isHighlighted: highlight.highlightedPosition == submenu.rawValue,
                 suppressesInteraction: suppressesInteraction,
                 onHoverChange: { isHovered in
-                    // Crossing to the open submenu over this item means nothing.
-                    guard !submenuState.isPointerInSafeArea else {
-                        return
-                    }
-                    highlight.noteHover(isHovered, at: submenu.rawValue)
-                    if isEnabled {
-                        submenuState.setParentHovered(submenu, isHovered: isHovered)
-                    }
+                    submenuState.noteItemHover(
+                        isHovered,
+                        at: submenu.rawValue,
+                        trigger: isEnabled ? submenu : nil,
+                        highlight: highlight
+                    )
                 }
             )
         )

@@ -203,26 +203,27 @@ func subtitleTableExcerptSubmenuOpensOnHoverWithoutDelay() {
     state.open(.moveToList)
     #expect(state.openParent == .moveToList)
 
-    state.setOtherItemHovered(true)
-    #expect(state.highlightedParent == nil)
-    #expect(state.openParent == nil)
-
     let hoverState = MenuSubmenuState<SubtitleTableRowAction>()
     let openParents = OpenParentRecorder()
     hoverState.onOpenParentChange = { openParents.record($0) }
 
-    hoverState.setParentHovered(.moveToList, isHovered: true)
+    hoverState.noteItemHover(true, at: 8, trigger: .moveToList, highlight: nil)
     #expect(hoverState.highlightedParent == .moveToList)
     #expect(hoverState.openParent == .moveToList)
 
-    hoverState.setParentHovered(.moveToList, isHovered: false)
+    hoverState.noteItemHover(false, at: 8, trigger: .moveToList, highlight: nil)
     #expect(hoverState.openParent == .moveToList)
 
-    hoverState.setParentHovered(.duplicateToList, isHovered: true)
+    hoverState.noteItemHover(true, at: 9, trigger: .duplicateToList, highlight: nil)
     #expect(hoverState.highlightedParent == .duplicateToList)
     #expect(hoverState.openParent == .duplicateToList)
     // The trigger the pointer left closes before the one it reached opens.
     #expect(openParents.recorded == [.moveToList, nil, .duplicateToList])
+
+    // Any other item closes it.
+    hoverState.noteItemHover(true, at: 11, trigger: nil, highlight: nil)
+    #expect(hoverState.highlightedParent == nil)
+    #expect(hoverState.openParent == nil)
 
     hoverState.reset()
     #expect(hoverState.highlightedParent == nil)
@@ -238,8 +239,10 @@ private final class OpenParentRecorder {
     }
 }
 
-// The menu sits at x 100...340, its Move to... item at y 246...286, and the
-// submenu hangs off that item's top edge, flush against the menu's right side.
+// The menu sits at x 100...340, its Move to... item at y 246...286 with
+// Duplicate to... below it, and the submenu hangs off Move to...'s top edge,
+// flush against the menu's right side. Positions follow the Excerpt row menu:
+// Move to... 8, Duplicate to... 9, Remove Excerpt 11.
 private enum SubmenuPointerFixture {
     static let parentMenu = CGRect(x: 100, y: 100, width: 240, height: 400)
     static let trigger = CGRect(x: 104, y: 246, width: 232, height: 40)
@@ -273,8 +276,8 @@ func subtitleTableExcerptSubmenuStaysOpenWhileThePointerCrossesToIt() {
     )
     #expect(state.openParent == .moveToList)
     #expect(state.isPointerInSafeArea)
-    state.setOtherItemHovered(true)
-    state.setParentHovered(.duplicateToList, isHovered: true)
+    state.noteItemHover(true, at: 11, trigger: nil, highlight: nil)
+    state.noteItemHover(true, at: 9, trigger: .duplicateToList, highlight: nil)
     #expect(state.openParent == .moveToList)
     #expect(state.highlightedParent == .moveToList)
 
@@ -353,8 +356,134 @@ func subtitleTableExcerptSubmenuStaysOpenOverTheParentMenuOutsideTheSafeArea() {
     )
     #expect(state.openParent == .moveToList)
     #expect(!state.isPointerInSafeArea)
-    state.setOtherItemHovered(true)
+    state.noteItemHover(true, at: 11, trigger: nil, highlight: nil)
     #expect(state.openParent == nil)
+}
+
+@MainActor
+@Test
+func subtitleTableKeyboardOpenedSubmenuWaitsForThePointerToMove() {
+    let f = SubmenuPointerFixture.self
+    let state = MenuSubmenuState<SubtitleTableRowAction>()
+    let highlight = MenuHighlightModel()
+    highlight.open(selectablePositions: [0, 8, 9, 11])
+
+    // The pointer rests on Play while the keys walk down to Move to... and
+    // open its submenu.
+    state.noteItemHover(true, at: 0, trigger: nil, highlight: highlight)
+    highlight.moveHighlight(by: 1)
+    state.open(.moveToList)
+
+    // The submenu appearing makes Play report its hover again. The pointer
+    // has not moved, so the submenu stays and so does the highlight.
+    state.noteItemHover(false, at: 0, trigger: nil, highlight: highlight)
+    state.noteItemHover(true, at: 0, trigger: nil, highlight: highlight)
+    #expect(state.openParent == .moveToList)
+    #expect(highlight.highlightedPosition == 8)
+
+    // The first real move puts the pointer's rules back: it rests on Play.
+    highlight.notePointerMoved()
+    state.notePointer(
+        CGPoint(x: 150, y: 120),
+        parentMenuFrame: f.parentMenu,
+        triggerFrame: f.trigger,
+        submenuFrame: f.submenu
+    )
+    #expect(state.openParent == nil)
+    #expect(highlight.highlightedPosition == 0)
+}
+
+@MainActor
+@Test
+func subtitleTableSubmenuSafeAreaEndsWhenThePointerTurnsAway() {
+    let f = SubmenuPointerFixture.self
+    let state = MenuSubmenuState<SubtitleTableRowAction>()
+    let highlight = MenuHighlightModel()
+    highlight.open(selectablePositions: [8, 9, 11])
+    state.open(.moveToList)
+    highlight.notePointerMoved()
+    state.notePointer(
+        CGPoint(x: 330, y: 266),
+        parentMenuFrame: f.parentMenu,
+        triggerFrame: f.trigger,
+        submenuFrame: f.submenu
+    )
+    state.notePointer(
+        CGPoint(x: 336, y: 300),
+        parentMenuFrame: f.parentMenu,
+        triggerFrame: f.trigger,
+        submenuFrame: f.submenu
+    )
+    state.noteItemHover(true, at: 9, trigger: .duplicateToList, highlight: highlight)
+
+    // Straight down keeps the direction the pointer was going.
+    state.notePointer(
+        CGPoint(x: 336, y: 305),
+        parentMenuFrame: f.parentMenu,
+        triggerFrame: f.trigger,
+        submenuFrame: f.submenu
+    )
+    #expect(state.isPointerInSafeArea)
+    #expect(state.openParent == .moveToList)
+    #expect(highlight.highlightedPosition == 8)
+
+    // Back toward the trigger, still inside the triangle: the crossing is
+    // over, and Duplicate to..., which the pointer is on, takes effect.
+    state.notePointer(
+        CGPoint(x: 333, y: 290),
+        parentMenuFrame: f.parentMenu,
+        triggerFrame: f.trigger,
+        submenuFrame: f.submenu
+    )
+    #expect(!state.isPointerInSafeArea)
+    #expect(state.openParent == .duplicateToList)
+    #expect(highlight.highlightedPosition == 9)
+    highlight.close()
+
+    // Turning away over no item closes the submenu.
+    let bare = MenuSubmenuState<SubtitleTableRowAction>()
+    bare.open(.moveToList)
+    for point in [CGPoint(x: 330, y: 266), CGPoint(x: 336, y: 300), CGPoint(x: 333, y: 290)] {
+        bare.notePointer(
+            point,
+            parentMenuFrame: f.parentMenu,
+            triggerFrame: f.trigger,
+            submenuFrame: f.submenu
+        )
+    }
+    #expect(bare.openParent == nil)
+}
+
+@MainActor
+@Test
+func subtitleTableSubmenuSafeAreaEndsWhenThePointerStops() async throws {
+    let f = SubmenuPointerFixture.self
+    let state = MenuSubmenuState<SubtitleTableRowAction>()
+    state.open(.moveToList)
+    state.notePointer(
+        CGPoint(x: 330, y: 266),
+        parentMenuFrame: f.parentMenu,
+        triggerFrame: f.trigger,
+        submenuFrame: f.submenu
+    )
+    state.notePointer(
+        CGPoint(x: 336, y: 300),
+        parentMenuFrame: f.parentMenu,
+        triggerFrame: f.trigger,
+        submenuFrame: f.submenu
+    )
+    state.noteItemHover(true, at: 9, trigger: .duplicateToList, highlight: nil)
+    #expect(state.isPointerInSafeArea)
+    #expect(state.openParent == .moveToList)
+
+    // The pointer stops over Duplicate to... and never moves again. The wait
+    // is generous because other tests can hold the main actor for seconds.
+    let deadline = ContinuousClock.now + .seconds(20)
+    while state.isPointerInSafeArea, ContinuousClock.now < deadline {
+        try await Task.sleep(nanoseconds: 25_000_000)
+    }
+    #expect(!state.isPointerInSafeArea)
+    #expect(state.openParent == .duplicateToList)
 }
 
 @Test

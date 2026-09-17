@@ -6,6 +6,12 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Submenus no longer close the moment the right arrow or Enter opens them:
+  until the pointer really moves, nothing it rests on can close or switch a
+  submenu. On its way to a submenu the pointer now keeps it open only while it
+  moves toward the submenu. When it stops for 300 ms or turns back, the item
+  under it takes the highlight and closes or switches the submenu at once,
+  without another move. Applies to the table row menus and the Player More Menu.
 - Search returns its first page without reading or sorting every hit again:
   FTS rows now carry a rowid that encodes the subtitle file and the cue's
   time position, so hits are ordered by file display rank from the index

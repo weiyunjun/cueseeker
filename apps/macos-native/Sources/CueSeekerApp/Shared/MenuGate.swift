@@ -77,7 +77,9 @@ final class MenuGate {
         /// out that a pointer left a tracking area while it is delivering
         /// them — so a menu that waits to be told it was left is never told.
         /// The gate already has the answer for its own decision; this hands
-        /// it over.
+        /// it over. Tracking-area crossings and cursor updates are not moves:
+        /// AppKit also sends them when a view appears under a pointer that
+        /// stands still, and they would say the pointer went somewhere.
         var notePointer: ((NSEvent) -> Void)?
         /// Returns whether the key was spent on the menu.
         let handleKey: (_ keyCode: UInt16, _ isRepeat: Bool) -> Bool
@@ -349,7 +351,8 @@ final class MenuGate {
             // Pointer motion, tracking area crossings, cursor updates and
             // drags.
             let isPointerOnMenu = client.isPointerOnMenu(event)
-            if !isFromAnotherWindow {
+            if !isFromAnotherWindow, event.type != .mouseEntered,
+               event.type != .mouseExited, event.type != .cursorUpdate {
                 // Another window's event carries that window's coordinates,
                 // which say nothing about where this menu is.
                 client.notePointer?(event)

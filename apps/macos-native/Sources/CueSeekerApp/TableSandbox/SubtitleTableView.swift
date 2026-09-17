@@ -813,7 +813,14 @@ private struct RowActionMenu: View {
                     switch element {
                     case .divider:
                         WorkbenchMenuDivider()
-                            .onHover(perform: submenuState.setOtherItemHovered)
+                            .onHover { isHovered in
+                                submenuState.noteItemHover(
+                                    isHovered,
+                                    at: position,
+                                    trigger: nil,
+                                    highlight: nil
+                                )
+                            }
                     case .action(let action):
                         actionRow(action, at: position)
                     }
@@ -859,15 +866,12 @@ private struct RowActionMenu: View {
             },
             trailingIcon: isSubmenuParent ? .caretRight : nil,
             onHoverChange: { isHovered in
-                guard !submenuState.isPointerInSafeArea else {
-                    return
-                }
-                highlight.noteHover(isHovered, at: position)
-                if isSubmenuParent, isEnabled {
-                    submenuState.setParentHovered(action, isHovered: isHovered)
-                } else {
-                    submenuState.setOtherItemHovered(isHovered)
-                }
+                submenuState.noteItemHover(
+                    isHovered,
+                    at: position,
+                    trigger: isSubmenuParent && isEnabled ? action : nil,
+                    highlight: highlight
+                )
             }
         )
         .background(

@@ -2,51 +2,70 @@ import CoreGraphics
 import SwiftUI
 
 /// Which trigger's submenu is open and how the pointer may cross to it, for
-/// any menu whose items open submenus. `Parent` names the triggers; callers
-/// only hand it the items that do open a submenu.
+/// any menu whose items open submenus. `Parent` names the triggers.
 @MainActor
 final class MenuSubmenuState<Parent: Hashable>: ObservableObject {
     @Published private(set) var highlightedParent: Parent?
     @Published private(set) var openParent: Parent?
     var onOpenParentChange: ((Parent?) -> Void)?
-    /// Set while the pointer is crossing to the open submenu. The menu's own
-    /// rows ask before reacting, so a row the pointer merely passes over on
-    /// the way does not take the highlight or close anything.
+    /// Set while the pointer is crossing to the open submenu. The items it
+    /// merely passes over on the way do not take the highlight or close
+    /// anything until the crossing ends.
     private(set) var isPointerInSafeArea = false
     private var parentItemFrames: [Parent: CGRect] = [:]
     private var safeAreaAnchor: CGPoint?
+    /// Whether the pointer's last sideways step went toward the submenu. A
+    /// step straight up or down keeps what the one before it said.
+    private var isMovingTowardSubmenu = true
+    private var lastPointerX: CGFloat?
+    private var safeAreaTimeout: Task<Void, Never>?
+    /// Set when a click or a key opens the submenu. Until the pointer really
+    /// moves, what the items report is the submenu appearing under a pointer
+    /// that stands still, not the pointer going anywhere.
+    private var waitsForPointerMove = false
+    /// The item under the pointer as the items last reported it, whether or
+    /// not that report has taken effect yet.
+    private var hoveredItem: HoveredItem?
 
-    /// The pointer reaching a trigger opens its submenu there and then. Moving
-    /// between the two triggers closes the one it left before opening the one
-    /// it reached, so the destination highlight starts at the first item again.
-    func setParentHovered(_ action: Parent, isHovered: Bool) {
-        guard !isPointerInSafeArea else {
-            return
-        }
-        guard isHovered else {
-            if openParent != action, highlightedParent == action {
-                highlightedParent = nil
-            }
-            return
-        }
-        highlightedParent = action
-        if openParent != action {
-            updateOpenParent(nil)
-        }
-        updateOpenParent(action)
+    private struct HoveredItem {
+        let position: Int
+        let trigger: Parent?
+        let highlight: MenuHighlightModel?
     }
 
-    func setOtherItemHovered(_ isHovered: Bool) {
-        guard isHovered, !isPointerInSafeArea else {
+    /// Every item of the menu reports its hover here. `trigger` is the submenu
+    /// an enabled trigger opens and nil for every other item; `highlight` is
+    /// the menu's highlight, nil for items that never take it.
+    ///
+    /// While the pointer is crossing to the submenu, or has not moved since a
+    /// click or a key opened it, the report is only remembered. It takes
+    /// effect once the pointer's own rules apply again.
+    func noteItemHover(
+        _ isHovered: Bool,
+        at position: Int,
+        trigger: Parent?,
+        highlight: MenuHighlightModel?
+    ) {
+        let item = HoveredItem(
+            position: position,
+            trigger: trigger,
+            highlight: highlight
+        )
+        if isHovered {
+            hoveredItem = item
+        } else if hoveredItem?.position == position {
+            hoveredItem = nil
+        }
+        guard !isPointerInSafeArea, !waitsForPointerMove else {
             return
         }
-        highlightedParent = nil
-        updateOpenParent(nil)
+        apply(item, isHovered: isHovered)
     }
 
     func open(_ action: Parent) {
         highlightedParent = action
         updateOpenParent(action)
+        waitsForPointerMove = true
     }
 
     @discardableResult
@@ -54,7 +73,6 @@ final class MenuSubmenuState<Parent: Hashable>: ObservableObject {
         guard openParent != nil else {
             return false
         }
-        clearSafeArea()
         updateOpenParent(nil)
         return true
     }
@@ -77,25 +95,43 @@ final class MenuSubmenuState<Parent: Hashable>: ObservableObject {
         parentItemFrames[action]
     }
 
-    /// Where the pointer is, told by the menu gate rather than waited for from
-    /// the menu's own views: an open menu's barrier spends the moves that land
-    /// outside it, and those moves are what AppKit needs to notice a pointer
-    /// leaving. Every frame is in the container's space.
+    /// Where the pointer moved to, told by the menu gate rather than waited
+    /// for from the menu's own views: an open menu's barrier spends the moves
+    /// that land outside it, and those moves are what AppKit needs to notice a
+    /// pointer leaving. Only real moves are told. Every frame is in the
+    /// container's space.
     func notePointer(
         _ point: CGPoint,
         parentMenuFrame: CGRect,
         triggerFrame: CGRect,
         submenuFrame: CGRect
     ) {
-        guard openParent != nil else {
+        guard let parent = openParent else {
             clearSafeArea()
             return
+        }
+        if let lastPointerX, point.x != lastPointerX {
+            isMovingTowardSubmenu = (submenuFrame.midX >= parentMenuFrame.midX)
+                == (point.x > lastPointerX)
+        }
+        lastPointerX = point.x
+        if waitsForPointerMove {
+            // The first real move since a click or a key opened the submenu:
+            // whatever the pointer rests on takes effect now.
+            waitsForPointerMove = false
+            if let hoveredItem {
+                apply(hoveredItem, isHovered: true)
+            }
+            guard openParent == parent else {
+                // The frames describe the submenu that just closed.
+                return
+            }
         }
         if triggerFrame.contains(point) {
             // The crossing starts wherever the pointer last stood on the
             // trigger, so the safe area follows it along that item.
+            clearSafeArea()
             safeAreaAnchor = point
-            isPointerInSafeArea = false
             return
         }
         if submenuFrame.contains(point) {
@@ -103,26 +139,92 @@ final class MenuSubmenuState<Parent: Hashable>: ObservableObject {
             clearSafeArea()
             return
         }
-        isPointerInSafeArea = MenuSubmenuSafeArea.contains(
-            point,
-            anchor: safeAreaAnchor,
-            parentMenuFrame: parentMenuFrame,
-            submenuFrame: submenuFrame
-        )
-        if !isPointerInSafeArea, !parentMenuFrame.contains(point) {
+        let wasInSafeArea = isPointerInSafeArea
+        if isMovingTowardSubmenu,
+           MenuSubmenuSafeArea.contains(
+               point,
+               anchor: safeAreaAnchor,
+               parentMenuFrame: parentMenuFrame,
+               submenuFrame: submenuFrame
+           ) {
+            isPointerInSafeArea = true
+            restartSafeAreaTimeout()
+            return
+        }
+        // Out of the area or turned away: the crossing is over until the
+        // pointer comes back to the trigger.
+        clearSafeArea()
+        if !parentMenuFrame.contains(point) {
             closeSubmenu()
+        } else if wasInSafeArea {
+            settleCrossing()
         }
     }
 
     func reset() {
-        clearSafeArea()
+        hoveredItem = nil
         highlightedParent = nil
         updateOpenParent(nil)
+        clearSafeArea()
+    }
+
+    /// The pointer reaching a trigger opens its submenu there and then. Moving
+    /// between the two triggers closes the one it left before opening the one
+    /// it reached, so the destination highlight starts at the first item again.
+    /// Any other item closes the submenu.
+    private func apply(_ item: HoveredItem, isHovered: Bool) {
+        item.highlight?.noteHover(isHovered, at: item.position)
+        guard let trigger = item.trigger else {
+            if isHovered {
+                highlightedParent = nil
+                updateOpenParent(nil)
+            }
+            return
+        }
+        guard isHovered else {
+            if openParent != trigger, highlightedParent == trigger {
+                highlightedParent = nil
+            }
+            return
+        }
+        highlightedParent = trigger
+        if openParent != trigger {
+            updateOpenParent(nil)
+        }
+        updateOpenParent(trigger)
+    }
+
+    /// The crossing ended over the menu: the item the pointer rests on takes
+    /// effect as if the pointer had just reached it, and resting on no item
+    /// closes the submenu.
+    private func settleCrossing() {
+        if let hoveredItem {
+            apply(hoveredItem, isHovered: true)
+        } else {
+            closeSubmenu()
+        }
+    }
+
+    private func restartSafeAreaTimeout() {
+        safeAreaTimeout?.cancel()
+        safeAreaTimeout = Task { [weak self] in
+            try? await Task.sleep(
+                nanoseconds: MenuSubmenuSafeArea.pointerRestLimitNanoseconds
+            )
+            guard !Task.isCancelled, let self, self.isPointerInSafeArea else {
+                return
+            }
+            // The pointer stopped inside the area instead of crossing it.
+            self.clearSafeArea()
+            self.settleCrossing()
+        }
     }
 
     private func clearSafeArea() {
         safeAreaAnchor = nil
         isPointerInSafeArea = false
+        safeAreaTimeout?.cancel()
+        safeAreaTimeout = nil
     }
 
     private func updateOpenParent(_ action: Parent?) {
@@ -130,15 +232,27 @@ final class MenuSubmenuState<Parent: Hashable>: ObservableObject {
             return
         }
         openParent = action
+        if action == nil {
+            waitsForPointerMove = false
+            clearSafeArea()
+        } else {
+            lastPointerX = nil
+            isMovingTowardSubmenu = true
+        }
         onOpenParentChange?(action)
     }
 }
 
 /// The area the pointer may cross without the open submenu closing: the
 /// triangle from where it left the trigger to the submenu's near edge, plus
-/// whatever gap separates the two menus. Inside it the pointer is on its way
-/// to the submenu, so the rows it passes over are not what it means.
+/// whatever gap separates the two menus. Inside it, moving toward the submenu,
+/// the pointer is on its way there, so the rows it passes over are not what it
+/// means.
 enum MenuSubmenuSafeArea {
+    /// How long the pointer may stand still inside the area before it counts
+    /// as having stopped there rather than crossing it.
+    static let pointerRestLimitNanoseconds: UInt64 = 300_000_000
+
     static func contains(
         _ point: CGPoint,
         anchor: CGPoint?,
