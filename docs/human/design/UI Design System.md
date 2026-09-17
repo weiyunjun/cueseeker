@@ -1222,9 +1222,10 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - Closed
 - Open
   - 指针进入 Trigger 即展开，不等待；指针移到另一个 Trigger 时，前一个收起，后一个展开
-  - 点击 Trigger 与键盘右方向键同样立即展开
-  - Safe Area：指针位置与二级菜单靠 Menu 那条边的两端围成的区域，连同两个菜单之间的间隙。指针位于其中时保持展开，途经的 Menu Item 不取得高亮，也不展开自己的二级菜单
+  - 点击 Trigger、键盘右方向键与回车同样立即展开；展开后指针移动之前，二级菜单不因指针关闭或切换
+  - Safe Area：指针离开 Trigger 时的位置与二级菜单靠 Menu 那条边的两端围成的区域，连同两个菜单之间的间隙。指针位于其中并朝二级菜单移动时保持展开，途经的 Menu Item 不取得高亮，也不展开自己的二级菜单
   - 指针离开 Safe Area，且不在 Menu 与二级菜单之上时关闭
+  - 指针在 Safe Area 中转向或停下 300 毫秒，或离开 Safe Area 回到 Menu 上时，所在的 Menu Item 立即取得高亮，是 Trigger 时展开它的二级菜单，否则关闭；不在任何 Menu Item 上时同样关闭
 - Highlighted
 - Disabled
 
