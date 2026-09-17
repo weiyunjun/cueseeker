@@ -286,15 +286,6 @@ struct PlaybackChromeView: View {
 
             PlaybackTimelineChromeIconButton(
                 timeline: timeline,
-                icon: controls.isFullscreen ? .cornersIn : .cornersOut,
-                kind: .transport,
-                isDisabled: controls.isFullscreenToggleDisabled,
-                accessibilityLabel: L("playback.fullscreen"),
-                action: controls.toggleFullscreen
-            )
-
-            PlaybackTimelineChromeIconButton(
-                timeline: timeline,
                 icon: .dotsThreeVertical,
                 kind: .transport,
                 isOpen: playback.moreMenu != nil,
@@ -302,6 +293,15 @@ struct PlaybackChromeView: View {
                 action: controls.toggleMoreMenu
             )
             .anchorPreference(key: PlaybackMoreButtonAnchorKey.self, value: .bounds) { $0 }
+
+            PlaybackTimelineChromeIconButton(
+                timeline: timeline,
+                icon: controls.isFullscreen ? .cornersIn : .cornersOut,
+                kind: .transport,
+                isDisabled: controls.isFullscreenToggleDisabled,
+                accessibilityLabel: L("playback.fullscreen"),
+                action: controls.toggleFullscreen
+            )
         }
     }
 

@@ -1036,7 +1036,7 @@ extension AppCoordinator {
             }
 
             let generation: UInt
-            if player.currentVideoURL?.standardizedFileURL.path == request.videoURL.standardizedFileURL.path {
+            if canSeekInOpenVideo(for: request) {
                 generation = try player.seek(
                     toMilliseconds: request.startMilliseconds,
                     subtitleSource: request.subtitleSource

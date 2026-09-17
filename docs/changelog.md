@@ -6,6 +6,14 @@ This changelog does not replace Git history. Git records concrete file changes. 
 
 ## Unreleased
 
+- Opening an item of the video already playing now also comes back to its
+  default audio track, from Command Panel, the Playlist, previous and next,
+  the automatic switch to the next cue and Deep Links; Repeat keeps the
+  current track. The More button moved left of the fullscreen button. The More
+  menu is as wide as its labels, and the audio track submenus as wide as their
+  names up to a cap and the room beside the More menu, wrapping beyond it.
+  Player menus no longer cover the top bar, the control buttons or the More
+  menu, and scroll when the room is too short.
 - Submenus no longer close the moment the right arrow or Enter opens them:
   until the pointer really moves, nothing it rests on can close or switch a
   submenu. On its way to a submenu the pointer now keeps it open only while it

@@ -1071,7 +1071,7 @@ extension AppCoordinator {
             }
 
             let generation: UInt
-            if player.currentVideoURL?.standardizedFileURL.path == request.videoURL.standardizedFileURL.path {
+            if canSeekInOpenVideo(for: request) {
                 if let autoStopBoundary {
                     generation = try player.seek(
                         to: autoStopBoundary,

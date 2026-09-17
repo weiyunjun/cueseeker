@@ -13,6 +13,19 @@ extension AppCoordinator {
         recordedAudioTracks(forVideoPath: videoPath)?.defaultIndex ?? 0
     }
 
+    /// Whether opening an item can stay in the video already open and only
+    /// seek: it is the same video, already playing the audio track the item
+    /// opens on. Any other track reopens the video, so every item opened comes
+    /// back to the default audio track.
+    func canSeekInOpenVideo(for request: PlaybackRequest) -> Bool {
+        guard let player,
+              player.currentVideoURL?.standardizedFileURL.path == request.videoURL.standardizedFileURL.path
+        else {
+            return false
+        }
+        return player.currentAudioTrackIndex.map { $0 == request.audioTrackIndex } ?? true
+    }
+
     func togglePlaybackMoreMenu() {
         guard playback.moreMenu == nil else {
             playback.closeMoreMenu()

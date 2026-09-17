@@ -1,5 +1,7 @@
+import AppKit
 import CueSeekerCore
 import Foundation
+import SwiftUI
 import Testing
 @testable import CueSeekerApp
 
@@ -106,4 +108,151 @@ func moreMenuWithoutRecordedTracksHighlightsNothing() {
     #expect(store.moreSubmenuState.openParent == nil)
     #expect(store.handleMoreMenuKey(53, isRepeat: false, onSelect: { _, _ in }))
     #expect(store.moreMenu == nil)
+}
+
+@MainActor
+@Test
+func audioTrackSubmenuTakesItsNamesWidthUpToTheCapOnTheSideWithRoom() {
+    let padding = PlaybackChromeMetrics.speedMenuPadding * 2
+    let bounds = CGRect(x: 24, y: 45, width: 1000, height: 600)
+    let trigger = CGRect(x: 12, y: 12, width: 100, height: 30)
+
+    // Room on the right: it opens there, as wide as its names.
+    let rightMenu = CGRect(x: 100, y: 300, width: 124, height: 84)
+    let right = PlaybackChromeMoreMenuOverlay.submenuLayout(
+        naturalItemWidth: 150,
+        itemStackHeight: { _ in 62 },
+        menuFrame: rightMenu,
+        triggerFrame: trigger,
+        bounds: bounds
+    )
+    #expect(right.frame.minX == rightMenu.maxX)
+    #expect(right.frame.width == 150 + padding)
+    #expect(right.itemWidth == 150)
+
+    // Against the right edge it opens to the left, and long names stop at the
+    // cap.
+    let leftMenu = CGRect(x: bounds.maxX - 124, y: 300, width: 124, height: 84)
+    let left = PlaybackChromeMoreMenuOverlay.submenuLayout(
+        naturalItemWidth: 600,
+        itemStackHeight: { _ in 62 },
+        menuFrame: leftMenu,
+        triggerFrame: trigger,
+        bounds: bounds
+    )
+    #expect(left.frame.maxX == leftMenu.minX)
+    #expect(left.frame.width == PlaybackChromeMetrics.audioTrackMenuMaxWidth)
+    #expect(left.itemWidth == PlaybackChromeMetrics.audioTrackMenuMaxWidth - padding)
+}
+
+@MainActor
+@Test
+func audioTrackSubmenuNarrowsToTheWiderSideWithoutCoveringTheMenu() {
+    let padding = PlaybackChromeMetrics.speedMenuPadding * 2
+    let trigger = CGRect(x: 12, y: 12, width: 166, height: 30)
+    // The narrowest window: neither side holds the cap.
+    let bounds = CGRect(x: 24, y: 45, width: 432, height: 400)
+    let menu = CGRect(x: bounds.maxX - 190, y: 300, width: 190, height: 84)
+    let roomLeft = menu.minX - bounds.minX
+
+    let layout = PlaybackChromeMoreMenuOverlay.submenuLayout(
+        naturalItemWidth: 600,
+        itemStackHeight: { _ in 62 },
+        menuFrame: menu,
+        triggerFrame: trigger,
+        bounds: bounds
+    )
+    #expect(layout.frame.width == roomLeft)
+    #expect(layout.frame.minX == bounds.minX)
+    #expect(layout.frame.maxX == menu.minX)
+
+    // Too tall for the room as well: the scrollbar's strip comes out of the
+    // tracks, not out of the menu beside it.
+    let scrolling = PlaybackChromeMoreMenuOverlay.submenuLayout(
+        naturalItemWidth: 600,
+        itemStackHeight: { _ in 2_000 },
+        menuFrame: menu,
+        triggerFrame: trigger,
+        bounds: bounds
+    )
+    #expect(scrolling.frame.width == roomLeft)
+    #expect(scrolling.itemWidth == roomLeft - padding - MenuMetrics.scrollbarStrip)
+    #expect(scrolling.frame.maxX == menu.minX)
+}
+
+@MainActor
+@Test
+func audioTrackSubmenuScrollsBetweenTheTopBarAndTheButtons() {
+    let padding = PlaybackChromeMetrics.speedMenuPadding * 2
+    let button = CGRect(x: 900, y: 500, width: 40, height: 40)
+    let bounds = PlaybackChromeMoreMenuOverlay.bounds(
+        stageSize: CGSize(width: 1_000, height: 558),
+        buttonFrame: button
+    )
+    #expect(bounds.minY == WorkbenchControlMetrics.redesignAppTopbarHeight)
+    #expect(bounds.maxY == button.minY - PlaybackChromeMetrics.speedMenuGap)
+
+    let menu = CGRect(x: bounds.maxX - 124, y: bounds.maxY - 84, width: 124, height: 84)
+    let layout = PlaybackChromeMoreMenuOverlay.submenuLayout(
+        naturalItemWidth: 200,
+        itemStackHeight: { _ in 2_000 },
+        menuFrame: menu,
+        triggerFrame: CGRect(x: 12, y: 12, width: 100, height: 30),
+        bounds: bounds
+    )
+    #expect(layout.maximumHeight == bounds.height)
+    #expect(layout.frame.minY == bounds.minY)
+    #expect(layout.frame.maxY == bounds.maxY)
+    // With room to spare the scrollbar widens the menu.
+    #expect(layout.itemWidth == 200)
+    #expect(layout.frame.width == 200 + padding + MenuMetrics.scrollbarStrip)
+}
+
+@MainActor
+@Test
+func moreMenuFitsItsTriggersAndSubmenusStayInTheirRoom() {
+    // The store ignores its defaults.
+    let store = PlaybackStore(userDefaults: .standard)
+    let menu = PlaybackAudioTrackMenu(
+        trackNames: (1...40).map { "#\($0) Japanese, オーディオコメンタリー, flac, 2ch" },
+        currentIndex: 0,
+        defaultIndex: 1
+    )
+    store.openMoreMenu(menu)
+    // The narrowest window, the More button left of the fullscreen button.
+    let stage = CGSize(width: 480, height: 560)
+    let button = CGRect(x: 480 - 24 - 40 - 6 - 40, y: 560 - 58, width: 40, height: 40)
+    let overlay = PlaybackChromeMoreMenuOverlay(
+        playback: store,
+        submenuState: store.moreSubmenuState,
+        menu: menu,
+        buttonFrame: button,
+        suppressesInteraction: false,
+        onSelect: { _, _ in }
+    )
+    let layout = overlay.measuredLayout(stageSize: stage)
+    let bounds = PlaybackChromeMoreMenuOverlay.bounds(stageSize: stage, buttonFrame: button)
+
+    // The trigger's label, the gap, the caret and both paddings all fit.
+    let label = PlaybackMoreSubmenu.allCases.map { submenu in
+        NSHostingView(
+            rootView: Text(submenu.title)
+                .font(.system(size: PlaybackChromeMetrics.speedMenuItemFontSize, weight: .medium))
+        ).fittingSize.width
+    }.max() ?? 0
+    let trigger = label
+        + PlaybackChromeMetrics.speedMenuItemHorizontalPadding * 2 - 2
+        + PlaybackChromeMetrics.speedMenuItemContentGap
+        + PlaybackChromeMetrics.speedMenuCheckFontSize
+    #expect(layout.menuFrame.width >= trigger + PlaybackChromeMetrics.speedMenuPadding * 2)
+    #expect(bounds.contains(layout.menuFrame))
+
+    for submenu in PlaybackMoreSubmenu.allCases {
+        guard let frame = layout.submenus[submenu]?.frame else {
+            Issue.record("No layout for \(submenu)")
+            continue
+        }
+        #expect(bounds.contains(frame))
+        #expect(frame.maxX <= layout.menuFrame.minX || frame.minX >= layout.menuFrame.maxX)
+    }
 }

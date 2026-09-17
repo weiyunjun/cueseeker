@@ -415,12 +415,9 @@ enum PlaybackChromeMetrics {
     static let capsuleRadius: CGFloat = 9999
     static let speedMenuRadius: CGFloat = 14
     static let speedMenuItemRadius: CGFloat = 8
-    /// Provisional --width-player-more-menu: the More menu, as wide as the
-    /// speed menu.
-    static let moreMenuWidth: CGFloat = speedMenuWidth
-    /// Provisional --width-player-audio-track-menu: the audio track submenus,
-    /// whose names wrap inside it.
-    static let audioTrackMenuWidth: CGFloat = 300
+    /// Provisional --max-width-player-audio-track-menu: the widest the audio
+    /// track submenus grow to; longer names wrap inside it.
+    static let audioTrackMenuMaxWidth: CGFloat = 300
 
     static let timeFontSize: CGFloat = 12
     static let progressTimeFontSize: CGFloat = 10
