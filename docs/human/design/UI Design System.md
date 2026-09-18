@@ -1194,7 +1194,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - Copy Cue Group Text 只在显示 Cue Group 时出现
 - File Edit 树 Object Folder 行菜单：Rename Folder
 - File Edit 树 Display Title、Video、Subtitle 行菜单：Rename Files
-- Index、移除根目录、数据库压缩进行中时，两个 Rename 项为 Disabled
+- 存在 Index、Add Folder、Remove Folder、Rename Folder 或 Rename Files 任务期间，以及数据库压缩进行中时，两个 Rename 项为 Disabled
 
 ##### Player Speed Menu
 
@@ -3501,12 +3501,13 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - Page Layout：Workbench Titled Page Layout
 - Tabs 左对齐，首个标签与页面内容左边界对齐。
 - 默认 Tab：Index。Tab 选择在 App 运行期间保留，重新启动后回到默认。
-- Edit 列出全部 Object Folder，含自身有配对的根目录，不显示 Root Path 层级；展开状态离开页面后回到默认；没有任何配对时显示 Empty State / Empty Hint，文案 `No indexed content.`
+- Edit 列出全部 Object Folder，含自身有配对的根目录，不显示 Root Path 层级；有包含关系的根目录归为一组，以最外层根目录为准，组的顺序取组内最早添加的根目录在 Root Folder List 中的位置；展开状态离开页面后回到默认；没有任何配对时显示 Empty State / Empty Hint，文案 `No indexed content.`
 - Page Description、Action Row 与 Root Folder List 均左对齐。
 - Index Status 只在有状态时出现，没有状态时不占高度。
 - 没有根目录时，Root Folder List 的位置显示 Empty State。
+- Root Folder List 按添加顺序列出全部根目录，含被其它根目录包含的根目录。
 - 移除根目录前弹出 Confirmation Dialog。
-- Rename 任务运行或排队期间，Add Folder、Index Now 与 Remove 为 Disabled。
+- 存在 Index、Add Folder、Remove Folder、Rename Folder 或 Rename Files 任务期间，以及数据库压缩进行中时，Add Folder、Index Now 与 Remove 为 Disabled。
 
 #### Spacing
 
@@ -4094,6 +4095,17 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - Rename Folder：Package Name 与 Destination Folder 换为旧名与新名两行
 - Rename Files：Package Name 与 Destination Folder 换为全部文件的旧完整路径与新完整路径，一行一个，超长时中间截断
 - 不显示 Card Count；Current 的 Progress Text 为阶段文字 `Checking for conflicts`、`Renaming`，Progress Bar 每阶段占一半；In Progress 时无 Remove Action
+
+#### Structure / Index
+
+- Index 与 Add Folder：Package Name 与 Destination Folder 换为文件夹完整路径，一行一个，超长时中间截断；Index 为全部代表文件夹，Add Folder 为新增的文件夹
+- Current 的 Progress Text 为阶段文字、当前文件夹名与阶段内计数，以 ` · ` 分隔，例如 `Generating covers · Anime · 12 / 40`，`Scanning files` 不显示计数；Progress Bar 按 `Scanning files` 20%、`Indexing subtitles` 40%、`Reading video info` 20%、`Generating covers` 20% 分段，多个文件夹时按文件夹数均分
+- History 的 Card Count 换为结果摘要 `{count} subtitles indexed`
+
+#### Structure / Remove Folder
+
+- Package Name 与 Destination Folder 换为根目录完整路径
+- 不显示 Card Count、Progress Text 与 Progress Bar；In Progress 时无 Remove Action
 
 #### Components
 

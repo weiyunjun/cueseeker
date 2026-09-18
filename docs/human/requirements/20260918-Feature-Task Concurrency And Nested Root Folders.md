@@ -46,6 +46,7 @@ main
 5. 被移除的任务转 Incomplete，错误信息为 `Cancelled by user`。
 6. 执行中退出 App，重新启动后任务转 Incomplete，错误信息为 `Interrupted before the task finished`；Add Folder 同时按第 2 条清除它新增的数据。
 7. File 页的 Index 状态区保持不变，与任务卡片显示同一次任务的状态。
+8. Index 类任务只在正在播放的视频被本次任务移出库时停止播放，例如 Remove Folder 删除了它所在的部分，或 Index Now、Add Folder 发现它已不再构成配对而将它移出库。其余情况一律不影响播放，包括字幕内容变化、视频元数据变化、移除父文件夹时正在播放的视频位于保留的子文件夹内、Rename Files 改的是同一文件夹中的其他视频。其它边界情况由已有规则判定。
 
 ## 5. Index 进度
 
@@ -142,3 +143,4 @@ Index、Add Folder、Remove Folder 的 Completed 与 Incomplete 卡片自上而�
 14. 各确认对话框按第 9 节显示，不出现空引号。
 15. File 页 Index 状态区的行为与改动前一致。
 16. 现有自动化端到端与单元用例全部通过，调度判定与根目录分组有单元用例覆盖。
+17. 播放中执行 Index 类任务，只有正在播放的视频被移出库时停止播放；字幕内容变化、视频元数据变化、移除父文件夹而正在播放的视频位于保留的子文件夹内、Rename Files 改同一文件夹中的其他视频时，播放不中断。
