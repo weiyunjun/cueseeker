@@ -826,22 +826,42 @@ final class AppCoordinator: ObservableObject {
         removeLibraryPresentation(under: folder)
         removeCompleteLibraryPresentation(under: folder)
 
-        let selectedSearchResultIsUnderFolder = search.selectedSearchResult.map {
+        // A selection goes, and what it plays stops, only once its video has
+        // left the library. A video whose subtitles or metadata changed is
+        // still there and keeps playing.
+        let selectedSearchResultHasLeft = search.selectedSearchResult.map {
             Self.path($0.subtitlePath, isUnder: folder)
+                && libraryHasLost(videoPath: $0.videoPath)
         } ?? false
-        let selectedLibraryVideoIsUnderFolder = library.selectedLibraryVideo.map {
+        let selectedLibraryVideoHasLeft = library.selectedLibraryVideo.map {
             Self.path($0.videoPath, isUnder: folder)
+                && libraryHasLost(videoPath: $0.videoPath)
         } ?? false
-        let selectedExcerptIsUnderFolder = excerpt.selectedExcerpt.map {
+        let selectedExcerptHasLeft = excerpt.selectedExcerpt.map {
             Self.path($0.videoPath, isUnder: folder)
+                && libraryHasLost(videoPath: $0.videoPath)
         } ?? false
 
-        if selectedSearchResultIsUnderFolder || selectedLibraryVideoIsUnderFolder || selectedExcerptIsUnderFolder {
+        if selectedSearchResultHasLeft || selectedLibraryVideoHasLeft || selectedExcerptHasLeft {
             search.selectResult(nil)
             library.selectedLibraryVideo = nil
             excerpt.selectedExcerpt = nil
             stopPlayback()
         }
+    }
+
+    /// Whether a video is no longer in the library: outside every root, or
+    /// without an active subtitle match in the database. A video whose
+    /// database row cannot be read counts as gone.
+    private func libraryHasLost(videoPath: String) -> Bool {
+        guard indexing.selectedFolders.contains(where: { Self.path(videoPath, isUnder: $0) }),
+              let subtitles = try? libraryDatabase?.videoSubtitles(
+                forVideoFile: URL(fileURLWithPath: videoPath)
+              )
+        else {
+            return true
+        }
+        return subtitles.subtitles.isEmpty
     }
 
     static func path(_ path: String, isUnder folder: URL) -> Bool {

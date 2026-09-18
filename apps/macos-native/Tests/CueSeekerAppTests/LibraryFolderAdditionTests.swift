@@ -126,6 +126,76 @@ func indexNowIndexesEachGroupOnceInGroupOrder() async throws {
     await app.tasks.waitUntilIdle()
 }
 
+/// A library task stops what is playing only once the playing video has left
+/// the library. Removing a parent keeps a root inside it, and with it the
+/// video playing there; a video that was only in the removed part stops.
+@MainActor
+@Test
+func removingAParentStopsOnlyTheVideosThatLeaveTheLibrary() async throws {
+    let fixture = try LibraryFolderAdditionFixture()
+    defer { fixture.cleanUp() }
+    fixture.userDefaults.set(
+        [fixture.seasonOne.path, fixture.show.path],
+        forKey: "selectedFolderPaths"
+    )
+    let app = fixture.makeApp()
+    app.indexAllFolders()
+    await app.tasks.waitUntilIdle()
+    let keptVideo = try fixture.indexedVideo(named: "Episode 1")
+    let removedVideo = try fixture.indexedVideo(named: "Episode 2")
+
+    app.library.selectedLibraryVideo = keptVideo
+    app.search.selectResult(nil)
+    app.removeFolder(fixture.show)
+    await app.tasks.waitUntilIdle()
+
+    #expect(app.indexing.selectedFolders == [fixture.seasonOne])
+    #expect(app.library.selectedLibraryVideo == keptVideo)
+
+    app.library.selectedLibraryVideo = removedVideo
+    app.clearSearchAndPlaybackState(under: fixture.show)
+
+    #expect(app.library.selectedLibraryVideo == nil)
+}
+
+/// New subtitles for a video that stays in the library leave it playing;
+/// an Index that takes the video out of the library stops it.
+@MainActor
+@Test
+func indexStopsOnlyAVideoItTakesOutOfTheLibrary() async throws {
+    let fixture = try LibraryFolderAdditionFixture()
+    defer { fixture.cleanUp() }
+    fixture.userDefaults.set([fixture.show.path], forKey: "selectedFolderPaths")
+    let app = fixture.makeApp()
+    app.indexAllFolders()
+    await app.tasks.waitUntilIdle()
+    let video = try fixture.indexedVideo(named: "Episode 2")
+    let subtitle = URL(fileURLWithPath: video.subtitlePath)
+
+    app.library.selectedLibraryVideo = video
+    try """
+    1
+    00:00:01,000 --> 00:00:03,000
+    Episode 2 line, rewritten
+
+    """.write(to: subtitle, atomically: true, encoding: .utf8)
+    app.indexAllFolders()
+    await app.tasks.waitUntilIdle()
+
+    guard case let .completedAll(_, result) = app.indexing.indexingStatus else {
+        Issue.record("Expected Index Now to complete, got \(app.indexing.indexingStatus)")
+        return
+    }
+    #expect(result.hasIndexedContentChanges)
+    #expect(app.library.selectedLibraryVideo == video)
+
+    try FileManager.default.removeItem(at: subtitle)
+    app.indexAllFolders()
+    await app.tasks.waitUntilIdle()
+
+    #expect(app.library.selectedLibraryVideo == nil)
+}
+
 private struct LibraryFolderAdditionFixture {
     let suiteName: String
     let userDefaults: UserDefaults
@@ -145,6 +215,22 @@ private struct LibraryFolderAdditionFixture {
         seasonOne = show.appendingPathComponent("Season 1", isDirectory: true).standardizedFileURL
         try Self.writeEpisode(named: "Episode 1", in: seasonOne)
         try Self.writeEpisode(named: "Episode 2", in: show.appendingPathComponent("Season 2"))
+    }
+
+    /// The video the index wrote for an episode, as the Library selects it.
+    func indexedVideo(named name: String) throws -> LibraryVideo {
+        let metadata = try #require(
+            try IndexingDatabase(path: databaseURL).subtitleFiles().first {
+                URL(fileURLWithPath: $0.subtitlePath).lastPathComponent == "\(name).srt"
+            }
+        )
+        return LibraryVideo(
+            videoPath: try #require(metadata.videoPath),
+            videoName: "\(name).mkv",
+            duration: nil,
+            subtitlePath: metadata.subtitlePath,
+            subtitleFormat: .srt
+        )
     }
 
     @MainActor
