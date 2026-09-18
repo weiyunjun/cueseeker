@@ -338,6 +338,19 @@ extension AppCoordinator {
     /// groups inside it that stay. The `await` on the executor leaves the main
     /// actor free while the deletion runs.
     private func performFolderRemoval(_ folder: URL) async throws {
+        #if DEBUG
+        // Temporary, so the running removal can be accepted in the App; goes
+        // once that acceptance is done (20260919-Engineering-Debug Remove
+        // Folder Delay For Acceptance).
+        if let seconds = ProcessInfo.processInfo
+            .environment["CUESEEKER_DEBUG_REMOVE_FOLDER_DELAY_SECONDS"]
+            .flatMap({ Double($0.trimmingCharacters(in: .whitespaces)) }),
+           seconds.isFinite,
+           seconds > 0 {
+            try? await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
+        }
+        #endif
+
         let remainingRoots = indexing.selectedFolders.filter { $0 != folder }
         guard LibraryRootGroups.coveringRoot(of: folder, in: remainingRoots) == nil else {
             indexing.removeFolder(folder)
