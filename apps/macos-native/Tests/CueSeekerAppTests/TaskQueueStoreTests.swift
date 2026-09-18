@@ -20,19 +20,40 @@ private let neverFinishingRename: TaskRenameRunner = { _, _ in
     try await Task.sleep(nanoseconds: .max)
 }
 
+private let neverFinishingIndex: TaskIndexRunner = { _, _ in
+    try await Task.sleep(nanoseconds: .max)
+    return 0
+}
+
+private let neverFinishingRemoveFolder: TaskRemoveFolderRunner = { _ in
+    try await Task.sleep(nanoseconds: .max)
+}
+
 @MainActor
 private func makeTaskQueueStore(
     runExport: @escaping TaskExportRunner = neverFinishingExport,
-    runRename: @escaping TaskRenameRunner = neverFinishingRename
+    runRename: @escaping TaskRenameRunner = neverFinishingRename,
+    runIndex: @escaping TaskIndexRunner = neverFinishingIndex,
+    runAddFolder: @escaping TaskIndexRunner = neverFinishingIndex,
+    runRemoveFolder: @escaping TaskRemoveFolderRunner = neverFinishingRemoveFolder
 ) throws -> (TaskQueueStore, URL) {
     let databaseURL = taskQueueTestDatabaseURL()
     try DatabaseBootstrap.prepare(at: databaseURL)
     let database = try TaskRecordDatabase(path: databaseURL)
     return (
-        TaskQueueStore(database: database, runExport: runExport, runRename: runRename),
+        TaskQueueStore(
+            database: database,
+            runExport: runExport,
+            runRename: runRename,
+            runIndex: runIndex,
+            runAddFolder: runAddFolder,
+            runRemoveFolder: runRemoveFolder
+        ),
         databaseURL
     )
 }
+
+private let showRootFolder = URL(fileURLWithPath: "/Videos/Show")
 
 private let showFolderRename = LibraryRenameRequest.folder(
     path: "/Videos/Show",
@@ -49,6 +70,24 @@ private func waitUntil(
     for _ in 0..<iterations where !condition() {
         await Task.yield()
     }
+}
+
+/// An export of a file the folder rename above would move.
+private func showEpisodeExportItems() -> [AnkiExportItem] {
+    [
+        AnkiExportItem(
+            deckDisplayTitle: "Show",
+            videoPath: "/Videos/Show/EP01.mkv",
+            startMilliseconds: 0,
+            endMilliseconds: 500,
+            text: "line",
+            displayTitle: "Show",
+            timeRange: "",
+            cueGroupOtherTexts: [],
+            cueID: nil,
+            subtitlePath: ""
+        )
+    ]
 }
 
 private func exportItems(_ count: Int) -> [AnkiExportItem] {
@@ -423,15 +462,33 @@ func aRefusedRenameCarriesTheConflictItHit() async throws {
     #expect(store.incomplete.first?.errorMessage == L("rename.error.exists", "Show Renamed"))
 }
 
-/// An export queued behind the rename holds the paths it was given; renaming
-/// them first would only make it fail, so the rename gives way.
+/// An export holding these files — running now, or queued and holding the
+/// paths it was given — would only fail if the rename moved them first, so the
+/// rename gives way.
+@MainActor
+@Test
+func aRenameGivesWayToARunningExportOfItsFiles() async throws {
+    let (store, databaseURL) = try makeTaskQueueStore(runRename: { _, _ in })
+    defer { try? FileManager.default.removeItem(at: databaseURL) }
+
+    store.enqueueAnkiExport(
+        items: showEpisodeExportItems(),
+        options: AnkiExportOptions(),
+        destinationURL: URL(fileURLWithPath: "/Exports/Show.apkg")
+    )
+    store.enqueueRename(showFolderRename, oldPaths: ["/Videos/Show"], newPaths: ["/Videos/Show Renamed"])
+
+    await waitUntil { !store.incomplete.isEmpty }
+
+    #expect(store.incomplete.map(\.kind) == [.renameFolder])
+    #expect(store.incomplete.first?.errorMessage == L("rename.error.export_queued"))
+    #expect(store.current.map(\.record.fileName) == ["Show.apkg"])
+}
+
 @MainActor
 @Test
 func aRenameGivesWayToAQueuedExportOfItsFiles() async throws {
-    let (store, databaseURL) = try makeTaskQueueStore(
-        runExport: { _, _, _, _ in },
-        runRename: { _, _ in }
-    )
+    let (store, databaseURL) = try makeTaskQueueStore(runRename: { _, _ in })
     defer { try? FileManager.default.removeItem(at: databaseURL) }
 
     store.enqueueAnkiExport(
@@ -439,31 +496,238 @@ func aRenameGivesWayToAQueuedExportOfItsFiles() async throws {
         options: AnkiExportOptions(),
         destinationURL: URL(fileURLWithPath: "/Exports/First.apkg")
     )
-    store.enqueueRename(showFolderRename, oldPaths: ["/Videos/Show"], newPaths: ["/Videos/Show Renamed"])
     store.enqueueAnkiExport(
-        items: [
-            AnkiExportItem(
-                deckDisplayTitle: "Show",
-                videoPath: "/Videos/Show/EP01.mkv",
-                startMilliseconds: 0,
-                endMilliseconds: 500,
-                text: "line",
-                displayTitle: "Show",
-                timeRange: "",
-                cueGroupOtherTexts: [],
-                cueID: nil,
-                subtitlePath: ""
-            )
-        ],
+        items: showEpisodeExportItems(),
         options: AnkiExportOptions(),
-        destinationURL: URL(fileURLWithPath: "/Exports/Second.apkg")
+        destinationURL: URL(fileURLWithPath: "/Exports/Show.apkg")
     )
+    store.enqueueRename(showFolderRename, oldPaths: ["/Videos/Show"], newPaths: ["/Videos/Show Renamed"])
 
-    await waitUntil { store.current.isEmpty }
+    await waitUntil { !store.incomplete.isEmpty }
 
-    #expect(store.completed.map(\.fileName) == ["First.apkg", "Second.apkg"])
     #expect(store.incomplete.map(\.kind) == [.renameFolder])
     #expect(store.incomplete.first?.errorMessage == L("rename.error.export_queued"))
+    #expect(store.current.map(\.record.state) == [.running, .queued])
+}
+
+/// The other way round: an export that comes to start while a rename is
+/// moving its files gives way.
+@MainActor
+@Test
+func anExportGivesWayToARunningRenameOfItsFiles() async throws {
+    let (store, databaseURL) = try makeTaskQueueStore()
+    defer { try? FileManager.default.removeItem(at: databaseURL) }
+
+    store.enqueueRename(showFolderRename, oldPaths: ["/Videos/Show"], newPaths: ["/Videos/Show Renamed"])
+    store.enqueueAnkiExport(
+        items: showEpisodeExportItems(),
+        options: AnkiExportOptions(),
+        destinationURL: URL(fileURLWithPath: "/Exports/Show.apkg")
+    )
+
+    await waitUntil { !store.incomplete.isEmpty }
+
+    #expect(store.incomplete.map(\.fileName) == ["Show.apkg"])
+    #expect(store.incomplete.first?.errorMessage == L("anki_export.error.rename_running"))
+    #expect(store.current.map(\.record.kind) == [.renameFolder])
+}
+
+/// The two categories do not wait for each other: an export writes its own
+/// package while an Index writes the library.
+@MainActor
+@Test
+func anExportAndAnIndexRunTogether() throws {
+    let (store, databaseURL) = try makeTaskQueueStore()
+    defer { try? FileManager.default.removeItem(at: databaseURL) }
+
+    store.enqueueAnkiExport(
+        items: exportItems(1),
+        options: AnkiExportOptions(),
+        destinationURL: URL(fileURLWithPath: "/Exports/First.apkg")
+    )
+    store.enqueueIndex(folders: [showRootFolder])
+
+    #expect(store.current.map(\.record.state) == [.running, .running])
+    #expect(store.current.map(\.record.kind) == [.ankiExport, .index])
+}
+
+/// While one library task exists no other is taken, and nothing queues; the
+/// queue itself refuses, whatever the pages show.
+@MainActor
+@Test
+func aLibraryTaskRefusesEveryOtherWhileItExists() throws {
+    let (store, databaseURL) = try makeTaskQueueStore()
+    defer { try? FileManager.default.removeItem(at: databaseURL) }
+
+    #expect(store.enqueueIndex(folders: [showRootFolder]))
+    #expect(store.hasLibraryTask)
+
+    #expect(!store.enqueueIndex(folders: [showRootFolder]))
+    #expect(!store.enqueueAddFolder(URL(fileURLWithPath: "/Videos/Other")))
+    #expect(!store.enqueueRemoveFolder(showRootFolder))
+    #expect(!store.enqueueRename(
+        showFolderRename,
+        oldPaths: ["/Videos/Show"],
+        newPaths: ["/Videos/Show Renamed"]
+    ))
+
+    store.enqueueAnkiExport(
+        items: exportItems(1),
+        options: AnkiExportOptions(),
+        destinationURL: URL(fileURLWithPath: "/Exports/First.apkg")
+    )
+    #expect(store.current.map(\.record.kind) == [.index, .ankiExport])
+    #expect(store.current.map(\.record.state) == [.running, .running])
+}
+
+@MainActor
+@Test
+func aLibraryTaskCanStartOnceTheLastOneEnds() async throws {
+    let (store, databaseURL) = try makeTaskQueueStore(
+        runIndex: { _, _ in 0 },
+        runRemoveFolder: { _ in }
+    )
+    defer { try? FileManager.default.removeItem(at: databaseURL) }
+
+    store.enqueueIndex(folders: [showRootFolder])
+    await waitUntil { store.current.isEmpty }
+    #expect(store.enqueueRemoveFolder(showRootFolder))
+    await waitUntil { store.current.isEmpty }
+
+    #expect(store.completed.map(\.kind) == [.index, .removeFolder])
+    #expect(store.completed.last?.oldPaths == ["/Videos/Show"])
+    #expect(!store.hasLibraryTask)
+}
+
+/// Index and Add Folder can be removed while they run; the record says the
+/// reader removed them.
+@MainActor
+@Test
+func aRunningIndexOrAddFolderCanBeRemoved() async throws {
+    let (store, databaseURL) = try makeTaskQueueStore()
+    defer { try? FileManager.default.removeItem(at: databaseURL) }
+
+    store.enqueueIndex(folders: [showRootFolder])
+    let index = try #require(store.current.first)
+    #expect(index.record.state == .running)
+    store.removeCurrentTask(id: index.id)
+    await waitUntil { store.current.isEmpty }
+
+    store.enqueueAddFolder(URL(fileURLWithPath: "/Videos/Other"))
+    let addition = try #require(store.current.first)
+    #expect(addition.record.state == .running)
+    store.removeCurrentTask(id: addition.id)
+    await waitUntil { store.current.isEmpty }
+
+    #expect(store.incomplete.map(\.kind) == [.index, .addFolder])
+    #expect(store.incomplete.allSatisfy { $0.errorMessage == L("task.error.cancelled") })
+}
+
+/// A folder removal is one transaction: once it runs it cannot be stopped.
+@MainActor
+@Test
+func aRunningFolderRemovalCannotBeRemoved() throws {
+    let (store, databaseURL) = try makeTaskQueueStore()
+    defer { try? FileManager.default.removeItem(at: databaseURL) }
+
+    store.enqueueRemoveFolder(showRootFolder)
+    let running = try #require(store.current.first)
+    #expect(running.record.state == .running)
+    #expect(!running.canBeRemovedWhileRunning)
+
+    store.removeCurrentTask(id: running.id)
+
+    #expect(store.current.map(\.id) == [running.id])
+    #expect(store.incomplete.isEmpty)
+}
+
+/// Index and Add Folder only know how much they indexed once they have run,
+/// so the count reaches the record at the end.
+@MainActor
+@Test
+func aFinishedIndexRecordsWhatItIndexed() async throws {
+    let (store, databaseURL) = try makeTaskQueueStore(
+        runIndex: { _, _ in 42 },
+        runAddFolder: { _, _ in 7 }
+    )
+    defer { try? FileManager.default.removeItem(at: databaseURL) }
+
+    store.enqueueIndex(folders: [showRootFolder])
+    #expect(store.current.first?.record.oldPaths == ["/Videos/Show"])
+    await waitUntil { store.current.isEmpty }
+    store.enqueueAddFolder(URL(fileURLWithPath: "/Videos/Other"))
+    await waitUntil { store.current.isEmpty }
+
+    #expect(store.completed.map(\.itemCount) == [42, 7])
+    let database = try TaskRecordDatabase(path: databaseURL)
+    #expect(try database.records().map(\.itemCount).sorted() == [7, 42])
+}
+
+/// An Add Folder the previous launch left unfinished is handed back, so the
+/// coordinator can take back what it indexed.
+@MainActor
+@Test
+func relaunchAnswersTheFolderAdditionsItClosedOut() throws {
+    let databaseURL = taskQueueTestDatabaseURL()
+    defer { try? FileManager.default.removeItem(at: databaseURL) }
+    try DatabaseBootstrap.prepare(at: databaseURL)
+
+    let firstLaunch = TaskQueueStore(
+        database: try TaskRecordDatabase(path: databaseURL),
+        runAddFolder: neverFinishingIndex
+    )
+    firstLaunch.enqueueAddFolder(URL(fileURLWithPath: "/Videos/Added"))
+
+    let secondLaunch = TaskQueueStore(database: try TaskRecordDatabase(path: databaseURL))
+    let unfinished = secondLaunch.loadPersistedRecords()
+
+    #expect(unfinished == [URL(fileURLWithPath: "/Videos/Added")])
+    #expect(secondLaunch.incomplete.map(\.kind) == [.addFolder])
+    #expect(secondLaunch.incomplete.first?.errorMessage == L("task.error.interrupted"))
+    #expect(secondLaunch.loadPersistedRecords().isEmpty)
+}
+
+/// The bar gives each stage its fixed share of the folder it is on, and each
+/// folder an equal share of the run.
+@MainActor
+@Test
+func theIndexBarDividesFoldersThenStages() {
+    #expect(TaskIndexProgress(stage: .scanningFiles).fraction == 0)
+    #expect(
+        TaskIndexProgress(
+            stage: .indexingSubtitles,
+            stageCompleted: 1,
+            stageTotal: 2
+        ).fraction == 0.4
+    )
+    // A stage with nothing to do sits at its own start and is stepped over.
+    #expect(TaskIndexProgress(stage: .readingVideoInfo).fraction == 0.6)
+    #expect(
+        TaskIndexProgress(
+            stage: .generatingCovers,
+            stageCompleted: 4,
+            stageTotal: 4
+        ).fraction == 1
+    )
+    #expect(
+        TaskIndexProgress(
+            stage: .scanningFiles,
+            completedFolders: 1,
+            totalFolders: 2
+        ).fraction == 0.5
+    )
+    #expect(
+        TaskIndexProgress(
+            stage: .generatingCovers,
+            folderName: "Anime",
+            stageCompleted: 12,
+            stageTotal: 40
+        ).label == "\(L("index.stage.covers")) · Anime · 12 / 40"
+    )
+    #expect(
+        TaskIndexProgress(stage: .scanningFiles, folderName: "Anime").label
+            == "\(L("index.stage.scanning")) · Anime"
+    )
 }
 
 @MainActor

@@ -78,7 +78,94 @@ public final class IndexingDatabase: @unchecked Sendable {
         }
 
         try backfillMediaPathIdentities(libraryID: libraryID, rootURL: standardizedFolder)
+        try adoptNestedLibraries(into: libraryID, rootURL: standardizedFolder)
         return libraryID
+    }
+
+    /// A root that holds other roots speaks for them, so the Libraries nested
+    /// inside this one fold into it. Their files, folders and folder covers
+    /// keep their rows and only change hands; nothing is parsed again. The way
+    /// back is `separateNestedLibrary`.
+    private func adoptNestedLibraries(into libraryID: Int64, rootURL: URL) throws {
+        for nested in try libraryPathRecords() where nested.id != libraryID {
+            guard let prefix = Self.relativeMediaPath(for: nested.rootURL, under: rootURL) else {
+                continue
+            }
+            try moveLibraryContent(from: nested.id, to: libraryID) { relativePath in
+                relativePath.isEmpty ? prefix : prefix + "/" + relativePath
+            }
+            if try libraryPresentationRetryPending(libraryID: nested.id) {
+                try markLibraryPresentationRetryPending(libraryID: libraryID)
+            }
+            let statement = try database.prepare("DELETE FROM search_paths WHERE id = ?;")
+            try statement.bind(nested.id, at: 1)
+            try statement.run()
+        }
+    }
+
+    /// Gives a root that another root held its own Library back, for when the
+    /// root that held it goes and it stays. Its files and folders leave the
+    /// holder with their rows and covers intact. Answers the subtitle files it
+    /// now holds.
+    private func separateNestedLibrary(_ root: URL) throws -> Set<String> {
+        let libraryID = try bindSearchPathInCurrentTransaction(root)
+        let rootURL = root.standardizedFileURL
+        for holder in try libraryPathRecords() where holder.id != libraryID {
+            guard let prefix = Self.relativeMediaPath(for: rootURL, under: holder.rootURL) else {
+                continue
+            }
+            try moveLibraryContent(from: holder.id, to: libraryID) { relativePath in
+                if relativePath == prefix {
+                    return ""
+                }
+                guard relativePath.hasPrefix(prefix + "/") else {
+                    return nil
+                }
+                return String(relativePath.dropFirst(prefix.count + 1))
+            }
+        }
+
+        let statement = try database.prepare(
+            "SELECT subtitle_path FROM subtitle_files WHERE library_id = ?;"
+        )
+        try statement.bind(libraryID, at: 1)
+        var subtitlePaths = Set<String>()
+        while try statement.step() {
+            subtitlePaths.insert(statement.stringColumn(0))
+        }
+        return subtitlePaths
+    }
+
+    /// Hands rows from one Library to another under the relative path
+    /// `relativePath` gives each; a row it answers nil for stays.
+    private func moveLibraryContent(
+        from sourceID: Int64,
+        to targetID: Int64,
+        relativePath: (String) -> String?
+    ) throws {
+        for table in ["subtitle_files", "video_files", "library_folders"] {
+            let select = try database.prepare(
+                "SELECT id, relative_path FROM \(table) WHERE library_id = ?;"
+            )
+            try select.bind(sourceID, at: 1)
+            var moves: [(id: Int64, relativePath: String)] = []
+            while try select.step() {
+                if let moved = relativePath(select.stringColumn(1)) {
+                    moves.append((select.int64Column(0), moved))
+                }
+            }
+
+            let update = try database.prepare(
+                "UPDATE \(table) SET library_id = ?, relative_path = ? WHERE id = ?;"
+            )
+            for move in moves {
+                try update.bind(targetID, at: 1)
+                try update.bind(move.relativePath, at: 2)
+                try update.bind(move.id, at: 3)
+                try update.run()
+                try update.reset()
+            }
+        }
     }
 
     func publishLibraryIndex(
@@ -1039,14 +1126,30 @@ public final class IndexingDatabase: @unchecked Sendable {
         )
     }
 
-    public func removeIndexedFolder(_ folder: URL) throws {
-        try removeIndexedData(
-            under: folder,
-            keeping: [],
-            removeSearchPath: true,
-            rebuildSearchDerivedIndex: false,
-            unavailableReason: .libraryUnavailable
-        )
+    /// Removes a root and what it holds, except what lies inside the roots
+    /// that stay: each of those becomes a Library of its own again, keeping
+    /// its indexed content. One transaction, so either all of it happens or
+    /// none of it.
+    public func removeIndexedFolder(
+        _ folder: URL,
+        keepingNestedRoots nestedRoots: [URL] = []
+    ) throws {
+        try database.withImmediateTransaction {
+            var keptSubtitlePaths = Set<String>()
+            for nestedRoot in nestedRoots {
+                keptSubtitlePaths.formUnion(try separateNestedLibrary(nestedRoot))
+            }
+            let affectedFolderPaths = try removeIndexedDataInCurrentTransaction(
+                under: folder,
+                keeping: keptSubtitlePaths,
+                removeSearchPath: true,
+                rebuildSearchDerivedIndex: false,
+                unavailableReason: .libraryUnavailable
+            )
+            if !affectedFolderPaths.isEmpty {
+                try CueFacetCountCache.rebuildAll(on: database)
+            }
+        }
     }
 
     private struct SearchOrderFile {

@@ -126,7 +126,19 @@ public struct SubtitleIndexer {
         self.loadSubtitleData = loadSubtitleData
     }
 
-    public func index(folder: URL, into database: IndexingDatabase) throws -> SubtitleIndexingResult {
+    /// `onProgress` reports how many subtitle files have been gone through and
+    /// how many there are. The first report comes once the folder has been
+    /// scanned and its videos matched, which is what tells a caller drawing a
+    /// progress bar that the scan is over.
+    ///
+    /// A cancelled task stops between files, and nothing is published until
+    /// every file has been gone through, so a stopped Index leaves this folder
+    /// as it was.
+    public func index(
+        folder: URL,
+        into database: IndexingDatabase,
+        onProgress: (@Sendable (Int, Int) -> Void)? = nil
+    ) throws -> SubtitleIndexingResult {
         try scanner.validateReadableDirectory(folder)
         let playbackDatabase = try PlaybackSubtitleDatabase(path: database.path)
 
@@ -134,6 +146,8 @@ public struct SubtitleIndexer {
         let subtitleFiles: [URL]
         do {
             subtitleFiles = try scanner.scanSubtitleFilesSafely(in: folder)
+        } catch is CancellationError {
+            throw CancellationError()
         } catch {
             throw SubtitleIndexingError.incomplete(
                 path: folder.path,
@@ -144,12 +158,16 @@ public struct SubtitleIndexer {
         let matchingVideos: [URL: URL]
         do {
             matchingVideos = try matcher.matchingVideos(for: subtitleFiles)
+        } catch is CancellationError {
+            throw CancellationError()
         } catch {
             throw SubtitleIndexingError.incomplete(
                 path: folder.path,
                 reason: "Video matching scan did not complete: \(error)"
             )
         }
+
+        onProgress?(0, subtitleFiles.count)
 
         let existingFiles = Dictionary(
             uniqueKeysWithValues: try database.subtitleFiles().map { ($0.subtitlePath, $0) }
@@ -168,7 +186,10 @@ public struct SubtitleIndexer {
         var bindingRefreshes: [PreparedSubtitleBindingRefresh] = []
         var missingVideoSubtitleFiles: [URL] = []
 
-        for subtitleFile in subtitleFiles {
+        for (offset, subtitleFile) in subtitleFiles.enumerated() {
+            try Task.checkCancellation()
+            defer { onProgress?(offset + 1, subtitleFiles.count) }
+
             guard let videoFile = matchingVideos[subtitleFile] else {
                 keptSubtitlePaths.insert(subtitleFile.path)
                 missingVideoSubtitleFiles.append(subtitleFile)

@@ -35,12 +35,18 @@ public struct PlaybackVideoMetadataIndexer {
     @discardableResult
     public func indexDurations(
         videoFiles: [URL],
-        into database: any PlaybackVideoMetadataPersistence
+        into database: any PlaybackVideoMetadataPersistence,
+        onProgress: (@Sendable (Int, Int) -> Void)? = nil
     ) throws -> PlaybackVideoMetadataIndexResult {
         var updatedVideoPaths = Set<String>()
         var failures: [PlaybackVideoMetadataIndexFailure] = []
 
-        for videoFile in videoFiles {
+        onProgress?(0, videoFiles.count)
+
+        for (offset, videoFile) in videoFiles.enumerated() {
+            try Task.checkCancellation()
+            defer { onProgress?(offset + 1, videoFiles.count) }
+
             guard !updatedVideoPaths.contains(videoFile.path),
                   !failures.contains(where: {
                       $0.videoPath == videoFile.path

@@ -14,6 +14,9 @@ public enum TaskRecordKind: String, Sendable {
     case ankiExport = "anki_export"
     case renameFolder = "rename_folder"
     case renameFiles = "rename_files"
+    case index
+    case addFolder = "add_folder"
+    case removeFolder = "remove_folder"
 }
 
 public struct TaskRecord: Identifiable, Equatable, Sendable {
@@ -27,8 +30,9 @@ public struct TaskRecord: Identifiable, Equatable, Sendable {
     public let createdAt: Date
     /// When the task entered the state it is in. The history tabs show it.
     public let stateChangedAt: Date
-    /// What a rename task moves, as absolute paths before and after. Empty
-    /// for an export.
+    /// What a rename task moves, as absolute paths before and after; the
+    /// folders an Index, Add Folder or Remove Folder works on. Empty for an
+    /// export.
     public let oldPaths: [String]
     public let newPaths: [String]
 
@@ -56,6 +60,24 @@ public struct TaskRecord: Identifiable, Equatable, Sendable {
         self.stateChangedAt = stateChangedAt
         self.oldPaths = oldPaths
         self.newPaths = newPaths
+    }
+
+    /// An Index only knows how much it indexed once it has run, so its count
+    /// is written when it ends rather than when it is queued.
+    public func withItemCount(_ itemCount: Int) -> TaskRecord {
+        TaskRecord(
+            id: id,
+            kind: kind,
+            fileName: fileName,
+            folderPath: folderPath,
+            itemCount: itemCount,
+            state: state,
+            errorMessage: errorMessage,
+            createdAt: createdAt,
+            stateChangedAt: stateChangedAt,
+            oldPaths: oldPaths,
+            newPaths: newPaths
+        )
     }
 
     public func withState(
@@ -211,6 +233,15 @@ public final class TaskRecordDatabase: @unchecked Sendable {
         }
         try statement.bind(Self.timestamp(from: changedAt), at: 3)
         try statement.bind(id, at: 4)
+        try statement.run()
+    }
+
+    public func updateItemCount(id: Int64, to itemCount: Int) throws {
+        let statement = try database.prepare(
+            "UPDATE task_records SET item_count = ? WHERE id = ?;"
+        )
+        try statement.bind(itemCount, at: 1)
+        try statement.bind(id, at: 2)
         try statement.run()
     }
 

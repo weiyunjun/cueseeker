@@ -503,6 +503,17 @@
 "task.empty.current" = "沒有正在進行或等待中的任務。";
 "task.empty.completed" = "還沒有已完成的任務。";
 "task.empty.incomplete" = "沒有未完成的任務。";
+"task.name.index" = "索引";
+"task.name.add_folder" = "加入資料夾";
+"task.name.remove_folder" = "移除資料夾";
+"task.confirm.remove.index" = "索引將停止並移入未完成。已完成索引的資料夾會保留資料。";
+"task.confirm.remove.add_folder" = "加入「%@」將停止並移入未完成。該資料夾不會被加入，已索引的內容會被清除。";
+"task.confirm.delete.other" = "只刪除這筆記錄，不會復原任務的結果。";
+"index.stage.scanning" = "正在掃描檔案";
+"index.stage.subtitles" = "正在解析字幕";
+"index.stage.video_info" = "正在讀取影片資訊";
+"index.stage.covers" = "正在產生封面";
+"index.result_count" = "已索引 %d 個字幕";
 
 /* File page tabs and in-App rename */
 "file.section.index" = "索引";
@@ -521,10 +532,11 @@
 "rename.error.exists" = "資料夾中已存在「%@」";
 "rename.error.pairing" = "改為「%@」會改變影片與字幕的配對關係";
 "rename.error.playing" = "該影片正在播放";
-"rename.error.export_queued" = "排隊中的匯出任務正在使用這些檔案";
+"rename.error.export_queued" = "匯出任務正在使用這些檔案";
 "rename.error.rename_failed" = "無法重新命名「%@」，檔案已還原";
 "rename.error.database_failed" = "無法更新資料庫，檔案已還原";
 "anki_export.title" = "匯出至 Anki";
+"anki_export.error.rename_running" = "重新命名任務正在移動這些檔案";
 "anki_export.cue_text_side" = "台詞文字所在面";
 "anki_export.cue_text_side.accessibility" = "台詞文字所在面 %@";
 "anki_export.side.front" = "正面";

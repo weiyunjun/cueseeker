@@ -87,7 +87,7 @@ func explicitIndexFolderKeepsSearchAndLibraryReady() async throws {
     #expect(app.startupDatabaseTask == nil)
 
     app.addFolder(fixtureRoot)
-    await app.indexingTask?.value
+    await app.tasks.waitUntilIdle()
     await app.libraryTask?.value
     await app.databaseStorageStatsTask?.value
 
@@ -227,7 +227,7 @@ func libraryRouteBackfillsLegacyDisplayCoverWithoutStartupMaintenance() async th
     #expect(FileManager.default.fileExists(atPath: displayPath))
     #expect(try Data(contentsOf: masterURL) == masterDataBefore)
     #expect(app.library.testRecentWatchingItems.first?.coverPath == displayPath)
-    #expect(app.indexingTask == nil)
+    #expect(app.tasks.current.isEmpty)
     #expect(app.libraryDisplayRenditionAttemptedScopeKey != nil)
     #expect(
         try app.libraryCoverDatabase?.libraryVideoCover(

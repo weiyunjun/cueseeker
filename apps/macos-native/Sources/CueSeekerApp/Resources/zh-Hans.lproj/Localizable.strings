@@ -503,6 +503,17 @@
 "task.empty.current" = "没有正在进行或等待中的任务。";
 "task.empty.completed" = "还没有已完成的任务。";
 "task.empty.incomplete" = "没有未完成的任务。";
+"task.name.index" = "索引";
+"task.name.add_folder" = "添加文件夹";
+"task.name.remove_folder" = "移除文件夹";
+"task.confirm.remove.index" = "索引将停止并移入未完成。已完成索引的文件夹会保留数据。";
+"task.confirm.remove.add_folder" = "添加“%@”将停止并移入未完成。该文件夹不会被添加，已索引的内容会被清除。";
+"task.confirm.delete.other" = "只删除这条记录，不会撤销任务的结果。";
+"index.stage.scanning" = "正在扫描文件";
+"index.stage.subtitles" = "正在解析字幕";
+"index.stage.video_info" = "正在读取视频信息";
+"index.stage.covers" = "正在生成封面";
+"index.result_count" = "已索引 %d 个字幕";
 
 /* File page tabs and in-App rename */
 "file.section.index" = "索引";
@@ -521,10 +532,11 @@
 "rename.error.exists" = "文件夹中已存在“%@”";
 "rename.error.pairing" = "改为“%@”会改变视频与字幕的匹配关系";
 "rename.error.playing" = "该视频正在播放";
-"rename.error.export_queued" = "排队中的导出任务正在使用这些文件";
+"rename.error.export_queued" = "导出任务正在使用这些文件";
 "rename.error.rename_failed" = "无法重命名“%@”，文件已恢复";
 "rename.error.database_failed" = "无法更新数据库，文件已恢复";
 "anki_export.title" = "导出到 Anki";
+"anki_export.error.rename_running" = "重命名任务正在移动这些文件";
 "anki_export.cue_text_side" = "台词文本所在面";
 "anki_export.cue_text_side.accessibility" = "台词文本所在面 %@";
 "anki_export.side.front" = "正面";

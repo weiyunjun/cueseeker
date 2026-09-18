@@ -229,6 +229,63 @@ func unchangedAutomaticCoverRemainsFreshDuringFallbackRetryScan() async throws {
     #expect(result.failedCoverCount == 0)
 }
 
+/// A removed Index starts no further cover once the one in hand is done, and
+/// keeps the covers it already made.
+@Test
+func cancelledCoverIndexStartsNoFurtherCover() async throws {
+    let fixture = try makeAutomaticCoverFixture()
+    defer { try? FileManager.default.removeItem(at: fixture.root) }
+    let databaseURL = fixture.root.appendingPathComponent("CueSeeker.sqlite")
+    let indexingDatabase = try IndexingDatabase(path: databaseURL)
+    for episode in ["Episode 2", "Episode 3"] {
+        let videoURL = fixture.mediaDirectory.appendingPathComponent("\(episode).mkv")
+        try Data("video".utf8).write(to: videoURL)
+        try indexingDatabase.replaceEntries(
+            subtitleFile: fixture.mediaDirectory.appendingPathComponent("\(episode).srt"),
+            videoFile: videoURL,
+            entries: [
+                SubtitleEntry(
+                    sequenceNumber: 1,
+                    startTimecode: "00:00:01,000",
+                    endTimecode: "00:00:02,000",
+                    startMilliseconds: 1_000,
+                    endMilliseconds: 2_000,
+                    text: episode
+                )
+            ]
+        )
+        try LibraryDatabase(path: databaseURL).updateVideoDuration(
+            videoFile: videoURL,
+            duration: 100
+        )
+    }
+    let sourceJPEG = fixture.root.appendingPathComponent("source.jpg")
+    try writeAutomaticCoverTestJPEG(to: sourceJPEG)
+    let ffmpeg = try writeAutomaticCoverFFmpeg(
+        in: fixture.root,
+        sourceJPEG: sourceJPEG
+    )
+
+    await #expect(throws: CancellationError.self) {
+        try await makeAutomaticCoverIndexer(
+            coverDirectory: fixture.coverDirectory,
+            ffmpeg: ffmpeg
+        ).indexCovers(
+            under: fixture.mediaDirectory,
+            into: fixture.coverDatabase
+        ) { generated, _ in
+            if generated == 1 {
+                withUnsafeCurrentTask { $0?.cancel() }
+            }
+        }
+    }
+
+    let storedCovers = try fixture.coverDatabase
+        .libraryCoverEligibleVideos(under: [fixture.mediaDirectory])
+        .compactMap { try fixture.coverDatabase.libraryVideoCover(forVideoFileID: $0.videoFileID) }
+    #expect(storedCovers.map(\.status) == [.generated])
+}
+
 private struct AutomaticCoverFixture {
     let root: URL
     let mediaDirectory: URL

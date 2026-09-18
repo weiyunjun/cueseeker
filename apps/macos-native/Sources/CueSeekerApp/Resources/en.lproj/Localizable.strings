@@ -503,6 +503,17 @@
 "task.empty.current" = "No task is running or waiting.";
 "task.empty.completed" = "No completed task yet.";
 "task.empty.incomplete" = "No incomplete task.";
+"task.name.index" = "Index";
+"task.name.add_folder" = "Add Folder";
+"task.name.remove_folder" = "Remove Folder";
+"task.confirm.remove.index" = "Index will stop and move to Incomplete. Folders already indexed keep their data.";
+"task.confirm.remove.add_folder" = "Adding “%@” will stop and move to Incomplete. The folder is not added, and what it already indexed is removed.";
+"task.confirm.delete.other" = "Only the record is deleted. What the task did is not undone.";
+"index.stage.scanning" = "Scanning files";
+"index.stage.subtitles" = "Indexing subtitles";
+"index.stage.video_info" = "Reading video info";
+"index.stage.covers" = "Generating covers";
+"index.result_count" = "%d subtitles indexed";
 
 /* File page tabs and in-App rename */
 "file.section.index" = "Index";
@@ -521,10 +532,11 @@
 "rename.error.exists" = "“%@” already exists in this folder";
 "rename.error.pairing" = "Renaming to “%@” would change how videos and subtitles are paired";
 "rename.error.playing" = "The video is playing";
-"rename.error.export_queued" = "A queued export uses these files";
+"rename.error.export_queued" = "An export task is using these files";
 "rename.error.rename_failed" = "Couldn’t rename “%@”. Files were restored";
 "rename.error.database_failed" = "Couldn’t update the database. Files were restored";
 "anki_export.title" = "Export to Anki";
+"anki_export.error.rename_running" = "A rename task is moving these files";
 "anki_export.cue_text_side" = "Cue Text Side";
 "anki_export.cue_text_side.accessibility" = "Cue Text Side %@";
 "anki_export.side.front" = "Front";

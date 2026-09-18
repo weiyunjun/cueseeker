@@ -376,7 +376,7 @@ final class AppCoordinator: ObservableObject {
 
     var canCompactDatabase: Bool {
         indexingDatabase != nil
-            && !indexing.indexingStatus.isIndexing
+            && !tasks.hasLibraryTask
             && !indexing.folderRemovalStatus.isRemoving
             && !indexing.databaseMaintenanceStatus.isCompacting
             && !search.isSearching
@@ -391,8 +391,6 @@ final class AppCoordinator: ObservableObject {
     var player: PlaybackPlayer?
     let libraryPlaybackHistoryWriter: LibraryPlaybackHistoryWriter
     var startupDatabaseTask: Task<Void, Never>?
-    var indexingTask: Task<Void, Never>?
-    var folderRemovalTask: Task<Void, Never>?
     var excerptNeedsReloadAfterIndexedContentMutation = false
     var libraryTask: Task<Void, Never>?
     var recentWatchingTask: Task<Void, Never>?
@@ -560,6 +558,7 @@ final class AppCoordinator: ObservableObject {
         }
         libraryPlaybackHistoryWriter = LibraryPlaybackHistoryWriter(database: openedLibraryDatabase)
         configureRenameRunner()
+        configureLibraryTaskRunners()
 
         if let initialError {
             startupError = Self.errorMessage(for: initialError)
@@ -578,7 +577,7 @@ final class AppCoordinator: ObservableObject {
         }
         excerpt.setActiveListID(initialExcerptListID)
         excerpt.setRecentSaveListID(settings.recentExcerptSaveListID)
-        tasks.loadPersistedRecords()
+        discardUnfinishedFolderAdditions(tasks.loadPersistedRecords())
         setupSettingsObservers()
         setupInterfaceLayerObservers()
     }
@@ -884,7 +883,7 @@ final class AppCoordinator: ObservableObject {
         return lhs.id > rhs.id
     }
 
-    func aggregate(
+    nonisolated func aggregate(
         _ result: SubtitleIndexingResult,
         into aggregateResult: inout SubtitleIndexingResult
     ) {
@@ -943,7 +942,7 @@ final class AppCoordinator: ObservableObject {
         return formatter.string(fromByteCount: bytes)
     }
 
-    static func errorMessage(for error: Error) -> String {
+    nonisolated static func errorMessage(for error: Error) -> String {
         String(describing: error)
     }
 }

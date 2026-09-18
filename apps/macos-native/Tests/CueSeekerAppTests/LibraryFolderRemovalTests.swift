@@ -8,6 +8,11 @@ private enum LibraryFolderRemovalTestError: Error {
     case expected
 }
 
+/// A removal the test releases by hand.
+///
+/// Starting is an event rather than a flag a test polls against a clock, and a
+/// `finish()` that arrives before the removal does is remembered instead of
+/// lost — otherwise the removal would wait for it forever.
 private actor ControlledLibraryFolderRemovalExecutor: LibraryFolderRemovalExecuting {
     enum Outcome {
         case success
@@ -16,16 +21,24 @@ private actor ControlledLibraryFolderRemovalExecutor: LibraryFolderRemovalExecut
 
     private let outcome: Outcome
     private var started = false
+    private var finished = false
+    private var startWaiters: [CheckedContinuation<Void, Never>] = []
     private var continuation: CheckedContinuation<Void, Never>?
+    private(set) var removals: [(folder: URL, nestedRoots: [URL])] = []
 
     init(outcome: Outcome = .success) {
         self.outcome = outcome
     }
 
-    func removeFolder(_ folder: URL, databaseURL: URL) async throws {
+    func removeFolder(_ folder: URL, keepingNestedRoots nestedRoots: [URL], databaseURL: URL) async throws {
         started = true
-        await withCheckedContinuation { continuation in
-            self.continuation = continuation
+        removals.append((folder, nestedRoots))
+        startWaiters.forEach { $0.resume() }
+        startWaiters = []
+        if !finished {
+            await withCheckedContinuation { continuation in
+                self.continuation = continuation
+            }
         }
 
         if outcome == .failure {
@@ -37,7 +50,15 @@ private actor ControlledLibraryFolderRemovalExecutor: LibraryFolderRemovalExecut
         started
     }
 
+    func waitUntilStarted() async {
+        guard !started else {
+            return
+        }
+        await withCheckedContinuation { startWaiters.append($0) }
+    }
+
     func finish() {
+        finished = true
         continuation?.resume()
         continuation = nil
     }
@@ -53,25 +74,25 @@ func libraryFolderRemovalPublishesProgressWithoutBlockingMainActor() async throw
     let app = fixture.makeApp(executor: executor)
 
     app.removeFolder(fixture.folder)
-    let removalTask = try #require(app.folderRemovalTask)
+    try await waitUntilLibraryFolderRemovalStarts(executor)
 
     #expect(app.indexing.folderRemovalStatus == .removing(fixture.folder))
     #expect(app.indexing.removedFolderNotice == nil)
     #expect(app.indexing.selectedFolders == [fixture.folder])
-    #expect(app.indexing.isLibraryFolderOperationActive)
+    #expect(app.tasks.hasLibraryTask)
     #expect(!app.canCompactDatabase)
-    try await waitUntilLibraryFolderRemovalStarts(executor)
 
     let mainActorProbe = Task { @MainActor in true }
     #expect(await mainActorProbe.value)
 
     await executor.finish()
-    await removalTask.value
+    await app.tasks.waitUntilIdle()
 
     #expect(app.indexing.folderRemovalStatus == .idle)
     #expect(app.indexing.removedFolderNotice == fixture.folder)
     #expect(app.indexing.selectedFolders.isEmpty)
-    #expect(app.folderRemovalTask == nil)
+    #expect(app.tasks.current.isEmpty)
+    #expect(app.tasks.completed.map(\.kind) == [.removeFolder])
 }
 
 @MainActor
@@ -104,8 +125,7 @@ func libraryFolderRemovalExecutorCommitsTargetedDatabaseDeletion() async throws 
         databaseURL: fixture.databaseURL
     )
     app.removeFolder(fixture.folder)
-    let removalTask = try #require(app.folderRemovalTask)
-    await removalTask.value
+    await app.tasks.waitUntilIdle()
     await app.databaseStorageStatsTask?.value
 
     #expect(app.indexing.folderRemovalStatus == .idle)
@@ -160,7 +180,7 @@ func libraryFolderRemovalKeepsUnavailableExcerptAndClearsCanonicalCueContent() a
     #expect(app.cueContent.content(for: cueID) != nil)
 
     app.removeFolder(fixture.folder)
-    await app.folderRemovalTask?.value
+    await app.tasks.waitUntilIdle()
     await app.excerptTableRowsTask?.value
 
     #expect(app.excerpt.residentRelations.map(\.cueID) == [cueID])
@@ -172,37 +192,83 @@ func libraryFolderRemovalKeepsUnavailableExcerptAndClearsCanonicalCueContent() a
     #expect(app.cueContent.content(for: cueID) == nil)
 }
 
+/// Only one library task exists at a time: while a removal runs, Index Now,
+/// Add Folder and another removal are not taken, and none of them queues.
 @MainActor
 @Test
-func libraryFolderRemovalAndIndexingRejectEachOther() async throws {
+func aRunningFolderRemovalRefusesOtherLibraryTasks() async throws {
     let fixture = try LibraryFolderRemovalTestFixture()
     defer { fixture.cleanUp() }
 
     let executor = ControlledLibraryFolderRemovalExecutor()
     let app = fixture.makeApp(executor: executor)
 
-    app.indexing.indexingStatus = .indexing(fixture.folder)
     app.removeFolder(fixture.folder)
-    #expect(app.folderRemovalTask == nil)
-    #expect(app.indexing.folderRemovalStatus == .idle)
-    #expect(app.indexing.selectedFolders == [fixture.folder])
-    #expect(app.startupError == "Indexing is running")
-
-    app.indexing.indexingStatus = .idle
-    app.removeFolder(fixture.folder)
-    let removalTask = try #require(app.folderRemovalTask)
     try await waitUntilLibraryFolderRemovalStarts(executor)
 
     app.indexAllFolders()
+    app.addFolder(URL(fileURLWithPath: "/Media/Other Folder"))
+    app.removeFolder(fixture.folder)
+    #expect(app.tasks.current.map(\.record.kind) == [.removeFolder])
     #expect(app.indexing.indexingStatus == .idle)
-    #expect(app.startupError == "Folder removal is running")
 
-    let otherFolder = URL(fileURLWithPath: "/Media/Other Folder")
-    app.addFolder(otherFolder)
-    #expect(app.indexing.selectedFolders == [fixture.folder])
+    // One transaction: it cannot be stopped once it has begun.
+    let running = try #require(app.tasks.current.first)
+    app.tasks.removeCurrentTask(id: running.id)
+    #expect(app.tasks.current.map(\.id) == [running.id])
 
     await executor.finish()
-    await removalTask.value
+    await app.tasks.waitUntilIdle()
+    #expect(app.tasks.completed.map(\.kind) == [.removeFolder])
+    #expect(app.indexing.selectedFolders.isEmpty)
+}
+
+/// A root that another root still holds leaves the list and nothing else: the
+/// root holding it keeps indexing what it holds.
+@MainActor
+@Test
+func removingARootAnotherRootHoldsChangesNothingIndexed() async throws {
+    let fixture = try LibraryFolderRemovalTestFixture()
+    defer { fixture.cleanUp() }
+
+    let child = fixture.folder.appendingPathComponent("Season 1")
+    fixture.userDefaults.set([child.path, fixture.folder.path], forKey: "selectedFolderPaths")
+    let executor = ControlledLibraryFolderRemovalExecutor()
+    let app = fixture.makeApp(executor: executor)
+
+    app.removeFolder(child)
+    await app.tasks.waitUntilIdle()
+
+    #expect(await !executor.hasStarted())
+    #expect(app.indexing.selectedFolders == [fixture.folder])
+    #expect(app.indexing.removedFolderNotice == child)
+    #expect(app.tasks.completed.map(\.kind) == [.removeFolder])
+}
+
+/// Removing a root that holds other roots keeps what lies inside them.
+@MainActor
+@Test
+func removingARootKeepsTheRootsItHolds() async throws {
+    let fixture = try LibraryFolderRemovalTestFixture()
+    defer { fixture.cleanUp() }
+
+    let child = fixture.folder.appendingPathComponent("Season 1").standardizedFileURL
+    let grandchild = child.appendingPathComponent("Extras").standardizedFileURL
+    fixture.userDefaults.set(
+        [grandchild.path, fixture.folder.path, child.path],
+        forKey: "selectedFolderPaths"
+    )
+    let executor = ControlledLibraryFolderRemovalExecutor()
+    let app = fixture.makeApp(executor: executor)
+
+    app.removeFolder(fixture.folder)
+    await executor.finish()
+    await app.tasks.waitUntilIdle()
+
+    let removals = await executor.removals
+    #expect(removals.map(\.folder) == [fixture.folder])
+    #expect(removals.first?.nestedRoots == [child])
+    #expect(app.indexing.selectedFolders == [grandchild, child])
 }
 
 @MainActor
@@ -224,14 +290,13 @@ func failedLibraryFolderRemovalPreservesFolderAndPresentationState() async throw
     app.library.selectedLibraryVideo = existingVideo
 
     app.removeFolder(fixture.folder)
-    let removalTask = try #require(app.folderRemovalTask)
     try await waitUntilLibraryFolderRemovalStarts(executor)
 
     #expect(app.indexing.selectedFolders == [fixture.folder])
     #expect(app.library.libraryVideos == [existingVideo])
     #expect(app.library.selectedLibraryVideo == existingVideo)
     await executor.finish()
-    await removalTask.value
+    await app.tasks.waitUntilIdle()
 
     #expect(app.indexing.folderRemovalStatus == .idle)
     #expect(app.indexing.removedFolderNotice == nil)
@@ -239,7 +304,12 @@ func failedLibraryFolderRemovalPreservesFolderAndPresentationState() async throw
     #expect(app.library.libraryVideos == [existingVideo])
     #expect(app.library.selectedLibraryVideo == existingVideo)
     #expect(app.startupError?.contains("Failed to remove folder index") == true)
-    #expect(app.folderRemovalTask == nil)
+    #expect(app.tasks.current.isEmpty)
+    #expect(app.tasks.incomplete.map(\.kind) == [.removeFolder])
+    #expect(
+        app.tasks.incomplete.first?.errorMessage?
+            .contains("Failed to remove folder index") == true
+    )
 }
 
 @MainActor
@@ -296,11 +366,10 @@ func libraryFolderRemovalNoticeClearsWhenIndexingStarts() async throws {
     let app = fixture.makeApp(executor: ControlledLibraryFolderRemovalExecutor())
     app.indexing.removedFolderNotice = fixture.folder
 
-    app.indexFolder(fixture.folder)
+    app.indexAllFolders()
 
     #expect(app.indexing.removedFolderNotice == nil)
-    app.indexingTask?.cancel()
-    await app.indexingTask?.value
+    await app.tasks.waitUntilIdle()
 }
 
 @MainActor
@@ -350,10 +419,10 @@ func unchangedFolderIndexPreservesLoadedSearchState() async throws {
     let revisionBefore = app.search.indexedCueDataRevision
     try #require(!cueIDsBefore.isEmpty)
 
-    app.indexFolder(root)
-    await app.indexingTask?.value
+    app.indexAllFolders()
+    await app.tasks.waitUntilIdle()
 
-    guard case let .completed(_, result) = app.indexing.indexingStatus else {
+    guard case let .completedAll(_, result) = app.indexing.indexingStatus else {
         Issue.record(
             "Expected completed unchanged Index, got \(app.indexing.indexingStatus)"
         )
@@ -404,13 +473,5 @@ private struct LibraryFolderRemovalTestFixture {
 private func waitUntilLibraryFolderRemovalStarts(
     _ executor: ControlledLibraryFolderRemovalExecutor
 ) async throws {
-    let clock = ContinuousClock()
-    let deadline = clock.now.advanced(by: .seconds(3))
-    while !(await executor.hasStarted()) {
-        guard clock.now < deadline else {
-            Issue.record("Timed out waiting for Library folder removal")
-            return
-        }
-        try await Task.sleep(for: .milliseconds(5))
-    }
+    await executor.waitUntilStarted()
 }

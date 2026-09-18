@@ -210,7 +210,7 @@ func urlSchemeDirectPlayUsesFirstResultFromExistingCompleteFirstPage() async thr
     _ = NSApplication.shared
     let app = AppCoordinator(userDefaults: userDefaults, databaseURL: databaseURL)
     app.addFolder(fixtureRoot)
-    await app.indexingTask?.value
+    await app.tasks.waitUntilIdle()
     await app.libraryTask?.value
     app.settings.urlSchemePlayFirstSearchResultEnabled = true
     let longCueFilter = CueFacetFilter(

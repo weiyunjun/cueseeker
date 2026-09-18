@@ -92,12 +92,15 @@ public struct LibraryCoverIndexer: Sendable {
         self.ffmpegCommand = Self.resolveFFmpegCommand(configuredPath: configuration.ffmpegPath)
     }
 
+    /// `onProgress` reports how many covers have been generated and how many
+    /// were found to need generating.
     @discardableResult
     public func indexCovers(
         under folder: URL,
         affectedVideoPaths: Set<String> = [],
         affectedFolderPaths: Set<String> = [],
-        into database: any LibraryCoverPersistence
+        into database: any LibraryCoverPersistence,
+        onProgress: (@Sendable (Int, Int) -> Void)? = nil
     ) async throws -> LibraryCoverIndexingResult {
         let videos = try database.libraryCoverEligibleVideos(under: [folder])
         return try await indexCovers(
@@ -105,7 +108,8 @@ public struct LibraryCoverIndexer: Sendable {
             folderReferenceVideos: videos,
             affectedVideoPaths: affectedVideoPaths,
             affectedFolderPaths: affectedFolderPaths,
-            into: database
+            into: database,
+            onProgress: onProgress
         )
     }
 
@@ -114,7 +118,8 @@ public struct LibraryCoverIndexer: Sendable {
         folderReferenceVideos: [LibraryCoverEligibleVideo],
         affectedVideoPaths: Set<String>,
         affectedFolderPaths: Set<String>,
-        into database: any LibraryCoverPersistence
+        into database: any LibraryCoverPersistence,
+        onProgress: (@Sendable (Int, Int) -> Void)? = nil
     ) async throws -> LibraryCoverIndexingResult {
         let startedAt = Date()
         let videoCoverDirectory = configuration.coverDirectory
@@ -160,7 +165,7 @@ public struct LibraryCoverIndexer: Sendable {
             }
         }
 
-        let results = await generateCovers(for: jobs)
+        let results = await generateCovers(for: jobs, onProgress: onProgress)
         for result in results.sorted(by: { $0.order < $1.order }) {
             switch result.status {
             case .generated:
@@ -259,7 +264,13 @@ public struct LibraryCoverIndexer: Sendable {
         )
     }
 
-    private func generateCovers(for jobs: [GenerationJob]) async -> [GenerationResult] {
+    /// A cancelled task starts no further cover once the ones already being
+    /// generated finish. What they produced is kept like any other result.
+    private func generateCovers(
+        for jobs: [GenerationJob],
+        onProgress: (@Sendable (Int, Int) -> Void)? = nil
+    ) async -> [GenerationResult] {
+        onProgress?(0, jobs.count)
         guard !jobs.isEmpty else {
             return []
         }
@@ -280,7 +291,8 @@ public struct LibraryCoverIndexer: Sendable {
 
             while let result = await group.next() {
                 results.append(result)
-                guard nextIndex < jobs.count else {
+                onProgress?(results.count, jobs.count)
+                guard nextIndex < jobs.count, !Task.isCancelled else {
                     continue
                 }
 

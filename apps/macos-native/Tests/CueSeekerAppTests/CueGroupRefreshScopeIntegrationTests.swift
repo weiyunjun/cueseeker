@@ -15,7 +15,7 @@ private actor MountedFailingLibraryFolderRemovalExecutor:
     private var started = false
     private var continuation: CheckedContinuation<Void, Never>?
 
-    func removeFolder(_ folder: URL, databaseURL: URL) async throws {
+    func removeFolder(_ folder: URL, keepingNestedRoots nestedRoots: [URL], databaseURL: URL) async throws {
         started = true
         await withCheckedContinuation { continuation in
             self.continuation = continuation
@@ -298,7 +298,6 @@ struct CueGroupRefreshScopeIntegrationTests {
             let folder = try #require(app.indexing.selectedFolders.first)
 
             app.removeFolder(folder)
-            let removalTask = try #require(app.folderRemovalTask)
             await executor.waitUntilStarted()
 
             switch app.search.tableProjectionSource {
@@ -310,7 +309,7 @@ struct CueGroupRefreshScopeIntegrationTests {
             }
 
             await executor.finish()
-            await removalTask.value
+            await app.tasks.waitUntilIdle()
             await app.search.searchTask?.value
             let didRestoreSearch = await waitUntil(timeout: 2) {
                 window.contentView?.layoutSubtreeIfNeeded()

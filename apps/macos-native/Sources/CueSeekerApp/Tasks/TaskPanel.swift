@@ -111,7 +111,7 @@ struct TaskPanel: View {
     private func confirmRemove(_ record: TaskRecord) {
         confirmation.session = WorkbenchConfirmationSession(
             title: L("task.confirm.remove.title"),
-            message: L("task.confirm.remove.message", record.fileName),
+            message: removeMessage(for: record),
             destructiveTitle: L("common.remove"),
             cancelTitle: L("common.cancel"),
             onDestructive: {
@@ -124,10 +124,28 @@ struct TaskPanel: View {
         )
     }
 
+    /// Only an export, an Index or an Add Folder can be removed: the other
+    /// library tasks never wait, and cannot be stopped once they run.
+    private func removeMessage(for record: TaskRecord) -> String {
+        switch record.kind {
+        case .index:
+            L("task.confirm.remove.index")
+        case .addFolder:
+            L(
+                "task.confirm.remove.add_folder",
+                URL(fileURLWithPath: record.oldPaths.first ?? "").lastPathComponent
+            )
+        case .ankiExport, .renameFolder, .renameFiles, .removeFolder:
+            L("task.confirm.remove.message", record.fileName)
+        }
+    }
+
     private func confirmDelete(_ record: TaskRecord) {
         confirmation.session = WorkbenchConfirmationSession(
             title: L("task.confirm.delete.title"),
-            message: L("task.confirm.delete.message", record.fileName),
+            message: record.kind == .ankiExport
+                ? L("task.confirm.delete.message", record.fileName)
+                : L("task.confirm.delete.other"),
             destructiveTitle: L("excerpt.delete"),
             cancelTitle: L("common.cancel"),
             onDestructive: {
@@ -164,9 +182,10 @@ private struct TaskCurrentCard: View {
 
                 Spacer(minLength: 0)
 
-                // A running rename has no point at which stopping leaves the
-                // disk and the database agreeing, so it cannot be removed.
-                if !(entry.isRename && entry.record.state == .running) {
+                // A running rename or folder removal has no point at which
+                // stopping leaves the disk and the database agreeing, so it
+                // cannot be removed.
+                if entry.record.state != .running || entry.canBeRemovedWhileRunning {
                     WorkbenchIconButton(
                         icon: .x,
                         isRedesign: true,
@@ -194,6 +213,13 @@ private struct TaskCurrentCard: View {
                 if entry.record.state == .running {
                     TaskRenameProgressRow(progress: entry.progress)
                 }
+            case .index, .addFolder:
+                if entry.record.state == .running {
+                    TaskIndexProgressRow(progress: entry.progress)
+                }
+            case .removeFolder:
+                // One database transaction, so there is no share of it to draw.
+                EmptyView()
             }
         }
     }
@@ -238,6 +264,19 @@ private struct TaskProgressRow: View {
             return 0
         }
         return min(1, Double(progress.exportedCount) / Double(itemCount))
+    }
+}
+
+/// The stage and the bar for the running Index: which folder, which stage,
+/// and how far through it.
+private struct TaskIndexProgressRow: View {
+    @ObservedObject var progress: TaskProgressModel
+
+    var body: some View {
+        TaskProgressBarRow(
+            text: progress.indexProgress.label,
+            fraction: progress.indexProgress.fraction
+        )
     }
 }
 
@@ -310,8 +349,13 @@ private struct TaskHistoryCard: View {
             TaskCardPathLines(record: record)
 
             HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
-                if record.kind == .ankiExport {
+                switch record.kind {
+                case .ankiExport:
                     TaskCardDetailText(L("task.card_count", record.itemCount))
+                case .index, .addFolder:
+                    TaskCardDetailText(L("index.result_count", record.itemCount))
+                case .renameFolder, .renameFiles, .removeFolder:
+                    EmptyView()
                 }
 
                 Spacer(minLength: 0)
@@ -335,7 +379,8 @@ private struct TaskHistoryCard: View {
 
 /// What the task wrote or moved: the package and its folder for an export;
 /// the old and the new name for a folder rename; every file's old path and
-/// then every file's new path for a group rename, one per line.
+/// then every file's new path for a group rename; the folders an Index, Add
+/// Folder or Remove Folder works on. One per line.
 private struct TaskCardPathLines: View {
     let record: TaskRecord
 
@@ -346,6 +391,10 @@ private struct TaskCardPathLines: View {
             TaskCardDetailText(record.folderPath)
         case .renameFolder, .renameFiles:
             ForEach(Array(renameLines.enumerated()), id: \.offset) {
+                TaskCardDetailText($0.element)
+            }
+        case .index, .addFolder, .removeFolder:
+            ForEach(Array(record.oldPaths.enumerated()), id: \.offset) {
                 TaskCardDetailText($0.element)
             }
         }
@@ -418,6 +467,12 @@ extension TaskRecordKind {
             L("rename.folder")
         case .renameFiles:
             L("rename.files")
+        case .index:
+            L("task.name.index")
+        case .addFolder:
+            L("task.name.add_folder")
+        case .removeFolder:
+            L("task.name.remove_folder")
         }
     }
 }

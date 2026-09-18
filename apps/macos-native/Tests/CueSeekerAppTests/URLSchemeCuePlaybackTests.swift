@@ -10,7 +10,7 @@ func urlSchemeCueDeepLinkBuildsOneItemPlaylistAndReturnsToSearch() async throws 
     let fixture = try makeURLSchemeCuePlaybackFixture("OneItemPlaylist")
     defer { fixture.cleanup() }
     fixture.app.addFolder(fixture.root)
-    await fixture.app.indexingTask?.value
+    await fixture.app.tasks.waitUntilIdle()
     await fixture.app.libraryTask?.value
     guard case .completed = fixture.app.indexing.indexingStatus else {
         Issue.record("Fixture indexing did not complete: \(fixture.app.indexing.indexingStatus)")

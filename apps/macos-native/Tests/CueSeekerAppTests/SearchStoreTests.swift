@@ -120,8 +120,6 @@ func addingEmptyFolderRestartsInvalidatedActiveSearch() async throws {
         userDefaults: userDefaults,
         testRoot: testRoot
     )
-    app.updateSearchQuery("scope lifecycle")
-    let staleTask = try #require(app.search.searchTask)
     let emptyFolder = testRoot.appendingPathComponent(
         "Empty",
         isDirectory: true
@@ -131,16 +129,33 @@ func addingEmptyFolderRestartsInvalidatedActiveSearch() async throws {
         withIntermediateDirectories: true
     )
 
+    // The folder joins the list once its task completes, which is when the
+    // search scope changes. A search started as the index finishes is still
+    // waiting out its debounce at that moment, so it is the one invalidated.
+    var staleTask: Task<Void, Never>?
+    let completion = app.indexing.$indexingStatus.sink { status in
+        guard case .completed = status, staleTask == nil else {
+            return
+        }
+        app.updateSearchQuery("scope lifecycle")
+        staleTask = app.search.searchTask
+    }
+    defer { completion.cancel() }
+
     app.addFolder(emptyFolder)
+    #expect(!app.indexing.selectedFolders.contains(emptyFolder))
+    await app.tasks.waitUntilIdle()
+    #expect(app.indexing.selectedFolders.contains(emptyFolder))
+    let invalidatedTask = try #require(staleTask)
     let replacementTask = try #require(app.search.searchTask)
-    await app.indexingTask?.value
+    #expect(replacementTask != invalidatedTask)
     await app.libraryTask?.value
     await app.recentWatchingTask?.value
     await app.completeLibraryTask?.value
     await app.databaseStorageStatsTask?.value
     await replacementTask.value
 
-    #expect(staleTask.isCancelled)
+    #expect(invalidatedTask.isCancelled)
     guard case let .completed(_, result) = app.indexing.indexingStatus else {
         Issue.record("Expected empty folder indexing to complete")
         return
@@ -153,9 +168,11 @@ func addingEmptyFolderRestartsInvalidatedActiveSearch() async throws {
     ])
 }
 
+/// A folder whose Add Folder fails never joins the list, so the scope and the
+/// search running in it are left as they were.
 @MainActor
 @Test
-func failedFolderIndexRestartsInvalidatedActiveSearch() async throws {
+func failedFolderAdditionLeavesActiveSearchAlone() async throws {
     let suiteName = "CueSeekerFailedFolderSearchLifecycleTests-\(UUID().uuidString)"
     let userDefaults = try #require(UserDefaults(suiteName: suiteName))
     let testRoot = FileManager.default.temporaryDirectory
@@ -175,16 +192,17 @@ func failedFolderIndexRestartsInvalidatedActiveSearch() async throws {
     try Data("file root".utf8).write(to: invalidFolder)
 
     app.addFolder(invalidFolder)
-    let replacementTask = try #require(app.search.searchTask)
-    await app.indexingTask?.value
-    await replacementTask.value
+    await app.tasks.waitUntilIdle()
+    await staleTask.value
 
-    #expect(staleTask.isCancelled)
+    #expect(!staleTask.isCancelled)
     guard case let .failed(folder, _) = app.indexing.indexingStatus else {
         Issue.record("Expected file root indexing to fail")
         return
     }
     #expect(folder == invalidFolder)
+    #expect(!app.indexing.selectedFolders.contains(invalidFolder))
+    #expect(app.tasks.incomplete.map(\.kind) == [.addFolder])
     #expect(!app.search.isSearching)
     #expect(app.search.searchStatus == .completed)
     #expect(app.search.searchResults.map(\.content) == [
@@ -225,7 +243,7 @@ private func makeFolderScopeLifecycleApp(
         databaseURL: testRoot.appendingPathComponent("CueSeeker.sqlite")
     )
     app.addFolder(libraryRoot)
-    await app.indexingTask?.value
+    await app.tasks.waitUntilIdle()
     await app.libraryTask?.value
     await app.recentWatchingTask?.value
     await app.completeLibraryTask?.value

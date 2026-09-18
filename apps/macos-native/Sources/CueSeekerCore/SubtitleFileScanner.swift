@@ -59,6 +59,9 @@ public struct SubtitleFileScanner {
         var subtitleFiles: [URL] = []
 
         for case let fileURL as URL in enumerator {
+            // A removed Index task stops between files. Returning what was
+            // found so far would read as a complete scan and drop the rest.
+            try Task.checkCancellation()
             let values: URLResourceValues
             do {
                 values = try fileURL.resourceValues(forKeys: Set(resourceKeys))

@@ -12,8 +12,8 @@ struct WorkbenchFileView: View {
     @EnvironmentObject private var indexing: IndexingStore
     @EnvironmentObject private var routeState: WorkbenchRouteState
     @EnvironmentObject private var library: LibraryStore
-    /// Observed because a rename that is running or waiting disables the
-    /// Index tab's folder controls.
+    /// Observed because any library task disables the folder controls and the
+    /// rename menus.
     @ObservedObject var tasks: TaskQueueStore
     @State private var isChoosingFolder = false
 
@@ -92,10 +92,11 @@ struct WorkbenchFileView: View {
         }
     }
 
-    /// The folder controls wait for an Index, a removal, a compaction, and for
-    /// any rename that is running or waiting.
+    /// Only one library task exists at a time, so every control that would
+    /// start one waits while one does. The developer-only compaction writes
+    /// the same rows without being a task, so they wait for it too.
     private var isFolderOperationBlocked: Bool {
-        indexing.isLibraryFolderOperationActive || tasks.hasRenameTasks
+        tasks.hasLibraryTask || indexing.databaseMaintenanceStatus.isCompacting
     }
 
     private var pageDescription: some View {
@@ -432,9 +433,20 @@ struct WorkbenchFileView: View {
 
     /// Every indexed folder at its full path, in the order the Metadata tree
     /// lists them with the root level removed. A root that holds pairs of its
-    /// own is a folder like any other here.
+    /// own is a folder like any other here. The roots are the outermost root
+    /// of each group, and a group stands where its earliest-added root stands
+    /// in the list.
     private var editFolders: [IndexedContentFolder] {
-        library.fileTreeRoots.flatMap(\.folders)
+        let groupOrder = LibraryRootGroups.representatives(of: indexing.selectedFolders)
+            .map(\.standardizedFileURL.path)
+        return library.fileTreeRoots
+            .enumerated()
+            .sorted { lhs, rhs in
+                let lhsOrder = groupOrder.firstIndex(of: lhs.element.path) ?? groupOrder.count
+                let rhsOrder = groupOrder.firstIndex(of: rhs.element.path) ?? groupOrder.count
+                return (lhsOrder, lhs.offset) < (rhsOrder, rhs.offset)
+            }
+            .flatMap(\.element.folders)
     }
 
     @ViewBuilder
@@ -452,7 +464,7 @@ struct WorkbenchFileView: View {
                 LibraryFileTree(
                     scope: .editFolders(editFolders),
                     renameActions: LibraryFileTreeRenameActions(
-                        isEnabled: !indexing.isLibraryFolderOperationActive,
+                        isEnabled: !isFolderOperationBlocked,
                         renameFolder: appState.requestFolderRename,
                         renameFiles: appState.requestFileGroupRename
                     )

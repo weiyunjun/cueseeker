@@ -44,6 +44,7 @@ public struct VideoMatcher {
         }
         var matches: [URL: URL] = [:]
         for files in filesByDirectory.values {
+            try Task.checkCancellation()
             guard let first = files.first else {
                 continue
             }

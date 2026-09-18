@@ -66,12 +66,6 @@ final class IndexingStore: ObservableObject {
         persistSelectedFolders()
     }
 
-    var isLibraryFolderOperationActive: Bool {
-        indexingStatus.isIndexing
-            || folderRemovalStatus.isRemoving
-            || databaseMaintenanceStatus.isCompacting
-    }
-
     private func persistSelectedFolders() {
         userDefaults.set(
             selectedFolders.map(\.path),
