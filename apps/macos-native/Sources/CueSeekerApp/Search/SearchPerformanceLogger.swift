@@ -456,7 +456,7 @@ private struct SearchE2EResultSnapshot: Encodable, Sendable {
     init(result: SubtitleSearchResult) {
         entryID = result.entryID
         subtitlePath = result.subtitlePath
-        subtitleDisplayTitle = SubtitleDisplayTitleResolver.displayTitle(forSubtitlePath: result.subtitlePath)
+        subtitleDisplayTitle = result.displayTitle
         subtitleFormat = result.subtitleFormat.rawValue
         videoPath = result.videoPath
         videoName = result.videoName

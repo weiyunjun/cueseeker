@@ -1,73 +1,56 @@
 import Foundation
 
+/// A subtitle has no Display Title of its own. Display Title belongs to the
+/// video, which Index names once in the Library rows, and a subtitle takes the
+/// one of the video it matches, so a cue, an excerpt and its video always read
+/// the same title and nothing looks at the disk to find it. See
+/// `docs/human/requirements/20260921-Bug-Missing Files Treated As Missing
+/// Database Records.md`.
 public enum SubtitleDisplayTitleResolver {
-    public static func displayTitle(
-        forSubtitlePath subtitlePath: String,
-        fileManager: FileManager = .default
-    ) -> String {
-        let subtitleURL = URL(fileURLWithPath: subtitlePath)
-        let fallbackTitle = subtitleURL.lastPathComponent
-        let parentURL = subtitleURL.deletingLastPathComponent()
-        let parentTitle = parentURL.lastPathComponent
-        let subtitleExtension = subtitleURL.pathExtension.lowercased()
+    /// The Display Title of the subtitle whose id `subtitleFileID` names, as a
+    /// SQL expression: its matched video's Library title, or the video's name
+    /// while that video's Library row is still being built.
+    static func matchedVideoDisplayTitleSQL(subtitleFileID: String) -> String {
+        """
+        COALESCE(
+            (
+                SELECT lvr.display_title
+                FROM subtitle_video_matches title_match
+                JOIN video_files title_video ON title_video.id = title_match.video_file_id
+                JOIN library_video_rows lvr ON lvr.video_path = title_video.path
+                WHERE title_match.subtitle_file_id = \(subtitleFileID)
+                  AND title_match.is_active = 1
+                LIMIT 1
+            ),
+            (
+                SELECT title_video.video_name
+                FROM subtitle_video_matches title_match
+                JOIN video_files title_video ON title_video.id = title_match.video_file_id
+                WHERE title_match.subtitle_file_id = \(subtitleFileID)
+                  AND title_match.is_active = 1
+                LIMIT 1
+            ),
+            ''
+        )
+        """
+    }
 
-        guard !parentTitle.isEmpty,
-              SubtitleFileScanner.supportedSubtitleExtensions.contains(subtitleExtension)
-        else {
-            return fallbackTitle
-        }
-
-        let resourceKeys: [URLResourceKey] = [
-            .isRegularFileKey,
-            .isSymbolicLinkKey
-        ]
-
-        let siblings: [URL]
-        do {
-            siblings = try fileManager.contentsOfDirectory(
-                at: parentURL,
-                includingPropertiesForKeys: resourceKeys,
-                options: [.skipsHiddenFiles]
-            )
-        } catch {
-            return fallbackTitle
-        }
-
-        let sameExtensionSubtitleFiles = siblings.filter { sibling in
-            guard sibling.pathExtension.lowercased() == subtitleExtension,
-                  let values = try? sibling.resourceValues(forKeys: Set(resourceKeys)),
-                  values.isRegularFile == true,
-                  values.isSymbolicLink != true
-            else {
-                return false
-            }
-
-            return true
-        }
-        .sorted(by: finderLikeFilenameSort)
-
-        guard let rankIndex = sameExtensionSubtitleFiles.firstIndex(where: {
-            $0.standardizedFileURL.path == subtitleURL.standardizedFileURL.path
-        }) else {
-            return fallbackTitle
-        }
-
-        let rank = rankIndex + 1
-        let width = max(2, String(sameExtensionSubtitleFiles.count).count)
-        let sequence = String(format: "%0*d", width, rank)
-        return "\(parentTitle) - \(sequence)"
+    /// Brings every subtitle's search title back in line with its video's
+    /// Library title, after the Library rows were rebuilt or on upgrade.
+    static func refreshSearchOrderDisplayTitles(on database: SQLiteDatabase) throws {
+        let title = matchedVideoDisplayTitleSQL(
+            subtitleFileID: "subtitle_search_order_rows.subtitle_file_id"
+        )
+        try database.execute(
+            """
+            UPDATE subtitle_search_order_rows
+            SET display_title = \(title)
+            WHERE display_title IS NOT \(title);
+            """
+        )
     }
 
     public static func compareDisplayTitles(_ lhs: String, _ rhs: String) -> ComparisonResult {
         lhs.localizedStandardCompare(rhs)
-    }
-
-    private static func finderLikeFilenameSort(_ lhs: URL, _ rhs: URL) -> Bool {
-        let filenameComparison = lhs.lastPathComponent.localizedStandardCompare(rhs.lastPathComponent)
-        if filenameComparison != .orderedSame {
-            return filenameComparison == .orderedAscending
-        }
-
-        return lhs.path.localizedStandardCompare(rhs.path) == .orderedAscending
     }
 }

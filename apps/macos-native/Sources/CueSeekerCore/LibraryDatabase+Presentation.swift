@@ -798,6 +798,8 @@ extension LibraryDatabase {
                 try insert.clearBindings()
             }
         }
+        // The videos' titles just changed, so their subtitles' titles follow.
+        try SubtitleDisplayTitleResolver.refreshSearchOrderDisplayTitles(on: database)
     }
 
     private func indexedLibraryVideos(

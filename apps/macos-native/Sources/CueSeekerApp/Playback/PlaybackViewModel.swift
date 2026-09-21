@@ -80,6 +80,7 @@ public final class PlaybackViewModel: ObservableObject {
     private let onSeekInteractionBegan: () -> Void
     private let onSeekCommitted: (Int) -> Void
     private let onPresentationCommitted: (Bool) -> Void
+    private let onSubtitleSourceLoadFailure: (URL) -> Void
     private let uiProbeScope: String?
     private var pendingPresentation: PendingPresentation?
     private var screenshotRequestGeneration: UInt = 0
@@ -101,7 +102,8 @@ public final class PlaybackViewModel: ObservableObject {
         onAutoStopBoundaryReached: @escaping (Int) -> Void = { _ in },
         onSeekInteractionBegan: @escaping () -> Void = {},
         onSeekCommitted: @escaping (Int) -> Void = { _ in },
-        onPresentationCommitted: @escaping (Bool) -> Void = { _ in }
+        onPresentationCommitted: @escaping (Bool) -> Void = { _ in },
+        onSubtitleSourceLoadFailure: @escaping (URL) -> Void = { _ in }
     ) {
         self.player = player
         self.onVolumeChanged = onVolumeChanged
@@ -114,6 +116,7 @@ public final class PlaybackViewModel: ObservableObject {
         self.onSeekInteractionBegan = onSeekInteractionBegan
         self.onSeekCommitted = onSeekCommitted
         self.onPresentationCommitted = onPresentationCommitted
+        self.onSubtitleSourceLoadFailure = onSubtitleSourceLoadFailure
         self.uiProbeScope = uiProbeScope
 
         volume = Self.clampedVolume(initialVolume)
@@ -160,6 +163,8 @@ public final class PlaybackViewModel: ObservableObject {
     }
 
     func bindPendingPresentation(to generation: UInt) {
+        // A video opened, so the player holds one again.
+        isPlayerEmpty = false
         guard pendingPresentation != nil else {
             return
         }
@@ -172,11 +177,34 @@ public final class PlaybackViewModel: ObservableObject {
         player.cancelPendingPresentation()
     }
 
+    /// A video that failed to load leaves the player empty until another one
+    /// opens. Its controls stay usable but have nothing to act on, so they
+    /// neither move the picture nor show Playback Feedback. See
+    /// `docs/human/requirements/20260921-Bug-Missing Files Treated As Missing
+    /// Database Records.md`.
+    private(set) var isPlayerEmpty = false
+
+    /// Returns the chrome to an empty player after a video that failed to load
+    /// stopped the one before it: no time, no duration, nothing playing. The
+    /// native player reports nothing once it is stopped, so the last video's
+    /// numbers would otherwise stay on screen.
+    func resetPresentationForStoppedPlayback() {
+        cancelPendingPresentation()
+        clearSubtitleCues()
+        duration = 0
+        isPlaying = false
+        updatePlaybackTime(0, publishesControlsImmediately: true)
+        isPlayerEmpty = true
+    }
+
     @discardableResult
     public func playFromCue(
         at seconds: Double,
         autoPauseBoundary: PlaybackAutoStopBoundary?
     ) -> Bool {
+        guard !isPlayerEmpty else {
+            return false
+        }
         let targetTime = clampedPlaybackTime(seconds)
         onSeekInteractionBegan()
         preparePresentationTransition(
@@ -284,6 +312,9 @@ public final class PlaybackViewModel: ObservableObject {
     }
 
     private func performSeek(to seconds: Double, resetsAccumulatedFeedback: Bool) {
+        guard !isPlayerEmpty else {
+            return
+        }
         let targetTime = clampedPlaybackTime(seconds)
         onSeekInteractionBegan()
         let shouldResumePlayback = isPlaying
@@ -348,6 +379,9 @@ public final class PlaybackViewModel: ObservableObject {
     }
 
     public func seekRelative(by seconds: Double) {
+        guard !isPlayerEmpty else {
+            return
+        }
         let targetTime: Double
         let baseTime = pendingPresentation?.targetTime ?? currentTime
 
@@ -387,7 +421,7 @@ public final class PlaybackViewModel: ObservableObject {
         do {
             try player.setDoubleProperty("volume", value: clampedValue)
             applyVolumePreference(clampedValue)
-            if showsFeedback {
+            if showsFeedback, !isPlayerEmpty {
                 showVolumeFeedback(clampedValue, isIncrease: isIncrease)
             }
         } catch {
@@ -406,7 +440,9 @@ public final class PlaybackViewModel: ObservableObject {
         do {
             try player.setDoubleProperty("volume", value: clampedValue)
             applyVolumePreference(clampedValue)
-            showVolumeFeedback(clampedValue, isIncrease: isIncrease)
+            if !isPlayerEmpty {
+                showVolumeFeedback(clampedValue, isIncrease: isIncrease)
+            }
         } catch {
             print("Failed to set volume: \(error)")
         }
@@ -418,7 +454,7 @@ public final class PlaybackViewModel: ObservableObject {
         do {
             try player.setDoubleProperty("speed", value: clampedValue)
             applyPlaybackSpeedPreference(clampedValue)
-            if showsFeedback {
+            if showsFeedback, !isPlayerEmpty {
                 showSpeedFeedback(clampedValue)
             }
         } catch {
@@ -953,6 +989,15 @@ extension PlaybackViewModel: PlaybackPlayerDelegate {
 
     nonisolated public func player(_ player: PlaybackPlayer, didFailWithMessage message: String) {
         print("Native playback failed: \(message)")
+    }
+
+    nonisolated public func player(
+        _ player: PlaybackPlayer,
+        didFailToLoadSubtitleSource url: URL
+    ) {
+        Task { @MainActor in
+            self.onSubtitleSourceLoadFailure(url)
+        }
     }
 
     nonisolated public func playerDidFinishPlayback(_ player: PlaybackPlayer) {

@@ -1015,6 +1015,7 @@ extension AppCoordinator {
         activePlaybackSource = .none
         playbackSubtitle = defaultPlaybackSubtitle(forVideoPath: video.videoPath)
         playback.playbackStatus = .opening
+        playback.clearError(on: .video)
         let startMilliseconds = libraryResumePositionMilliseconds(for: video)
         playback.playbackViewModel?.preparePresentationTransition(
             to: Double(startMilliseconds) / 1_000,
@@ -1025,12 +1026,14 @@ extension AppCoordinator {
             let request = try PlaybackRequest(
                 videoURL: URL(fileURLWithPath: video.videoPath),
                 startMilliseconds: startMilliseconds,
-                subtitleSource: playbackSubtitleSource(
-                    forSubtitleFile: URL(fileURLWithPath: playbackSubtitle?.subtitlePath ?? video.subtitlePath),
-                    format: playbackSubtitle?.format ?? video.subtitleFormat,
-                    videoPath: video.videoPath,
-                    startingAtMilliseconds: startMilliseconds,
-                    fallbackEndMilliseconds: startMilliseconds
+                subtitleSource: loadablePlaybackSubtitleSource(
+                    playbackSubtitleSource(
+                        forSubtitleFile: URL(fileURLWithPath: playbackSubtitle?.subtitlePath ?? video.subtitlePath),
+                        format: playbackSubtitle?.format ?? video.subtitleFormat,
+                        videoPath: video.videoPath,
+                        startingAtMilliseconds: startMilliseconds,
+                        fallbackEndMilliseconds: startMilliseconds
+                    )
                 ),
                 audioTrackIndex: defaultAudioTrackIndex(forVideoPath: video.videoPath)
             )
@@ -1053,9 +1056,10 @@ extension AppCoordinator {
             startLibraryPlaybackHistoryTracking(videoPath: video.videoPath)
             return true
         } catch {
-            playback.playbackViewModel?.cancelPendingPresentation()
-            playback.playbackViewModel?.clearSubtitleCues()
-            playback.playbackStatus = .failed(Self.errorMessage(for: error))
+            handlePlaybackOpenFailure(error, videoPath: video.videoPath)
+            // Still the Library's video, so its neighbours and the Library
+            // Playlist stay reachable.
+            activePlaybackSource = .library(videoPath: video.videoPath)
             return false
         }
     }
@@ -1120,8 +1124,11 @@ extension AppCoordinator {
 
     @discardableResult
     func saveCurrentLibraryPlaybackHistory(waitUntilFinished: Bool) -> Bool {
+        // A video that failed to load was never played, so its history keeps
+        // what it had, also while the next video is opening.
         guard case .library(let videoPath) = activePlaybackSource,
-              let playbackViewModel = playback.playbackViewModel
+              let playbackViewModel = playback.playbackViewModel,
+              !playbackViewModel.isPlayerEmpty
         else {
             return false
         }

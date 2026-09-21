@@ -10,7 +10,6 @@ final class PlaybackLibrarySessionStore: ObservableObject {
 
     private let initialVideoPath: String?
     private let requestFolderDetail: @MainActor (String) -> Void
-    private let isVideoAvailable: @MainActor (String) -> Bool
     private var detailsCancellable: AnyCancellable?
     private var didActivate = false
     private var isActive = true
@@ -19,10 +18,7 @@ final class PlaybackLibrarySessionStore: ObservableObject {
         libraryStore: LibraryStore,
         folderPath: String,
         initialVideoPath: String? = nil,
-        requestFolderDetail: @escaping @MainActor (String) -> Void = { _ in },
-        isVideoAvailable: @escaping @MainActor (String) -> Bool = {
-            FileManager.default.fileExists(atPath: $0)
-        }
+        requestFolderDetail: @escaping @MainActor (String) -> Void = { _ in }
     ) {
         self.libraryStore = libraryStore
         self.folderPath = folderPath
@@ -30,7 +26,6 @@ final class PlaybackLibrarySessionStore: ObservableObject {
             URL(fileURLWithPath: $0).standardizedFileURL.path
         }
         self.requestFolderDetail = requestFolderDetail
-        self.isVideoAvailable = isVideoAvailable
         detailsCancellable = libraryStore.$completeLibraryFolderDetailsByPath
             .dropFirst()
             .sink { [weak self] detailsByPath in
@@ -86,8 +81,7 @@ final class PlaybackLibrarySessionStore: ObservableObject {
               let resolvedItemID = itemID ?? selection.selectedItemID,
               let video = detail.videos.first(where: {
                   $0.id == resolvedItemID
-              }),
-              isVideoAvailable(video.videoPath)
+              })
         else {
             return nil
         }
@@ -127,9 +121,9 @@ final class PlaybackLibrarySessionStore: ObservableObject {
         }
         selection.replaceItems(
             orderedItemIDs: detail.videos.map(\.id),
-            availableItemIDs: Set(detail.videos.compactMap { video in
-                isVideoAvailable(video.videoPath) ? video.id : nil
-            }),
+            // Every video the database holds can be opened; one whose file
+            // is missing fails to load in the player instead.
+            availableItemIDs: Set(detail.videos.map(\.id)),
             resetsSelection: resetsSelection,
             preferredSelectionID: resetsSelection
                 ? preferredInitialVideoID(in: detail)

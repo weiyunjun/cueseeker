@@ -95,7 +95,9 @@ enum PlaybackStatus: Equatable {
     case opening
     case playing
     case paused
-    case failed(String)
+    /// The current video, as the database names it, could not be loaded: the
+    /// player is empty while everything the database holds stays usable.
+    case loadFailed
 
     var isOpening: Bool {
         if case .opening = self {
@@ -104,6 +106,12 @@ enum PlaybackStatus: Equatable {
 
         return false
     }
+}
+
+/// The two lines of the player's error banner, video above subtitle.
+enum PlaybackErrorLine: CaseIterable {
+    case video
+    case subtitle
 }
 
 enum ActivePlaybackSource: Equatable {

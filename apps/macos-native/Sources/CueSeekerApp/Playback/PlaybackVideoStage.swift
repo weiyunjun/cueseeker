@@ -55,15 +55,6 @@ struct PlaybackVideoStage: View {
                 .allowsHitTesting(isTopBarVisible)
                 .accessibilityHidden(!isTopBarVisible)
 
-                if case .failed(let message) = playback.playbackStatus {
-                    Label { Text(message) } icon: { AppIconImage(.warning, size: WorkbenchControlMetrics.redesignControlIconSize) }
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(.red)
-                        .padding(10)
-                        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
-                        .offset(x: frame.minX + 18, y: frame.minY + 72)
-                }
-
                 if let viewModel = playback.playbackViewModel {
                     PlaybackChromeView(
                         playback: playback,

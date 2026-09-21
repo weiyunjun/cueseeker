@@ -205,7 +205,79 @@ extension AppCoordinator {
                     return
                 }
                 self.playback.playbackStatus = isPlaying ? .playing : .paused
+            },
+            onSubtitleSourceLoadFailure: { [weak self] url in
+                self?.handleSubtitleSourceLoadFailure(url)
             }
+        )
+    }
+
+    /// Loads the subtitle as its own step, apart from the video: a file that
+    /// cannot be read is not shown, nothing stands in for it (the ASS segment
+    /// cache included), and it becomes the banner's subtitle line. Loading a
+    /// subtitle replaces the one before, so the old line goes first. See
+    /// `docs/human/requirements/20260921-Bug-Missing Files Treated As Missing
+    /// Database Records.md`.
+    func loadablePlaybackSubtitleSource(
+        _ source: PlaybackSubtitleSource?
+    ) -> PlaybackSubtitleSource? {
+        playback.clearError(on: .subtitle)
+        guard let source else {
+            return nil
+        }
+        guard FileManager.default.isReadableFile(atPath: source.url.path) else {
+            showSubtitleLoadError(path: source.url.path)
+            return nil
+        }
+        return source
+    }
+
+    /// A subtitle the renderer could not read after all. A failure that arrives
+    /// once the subtitle has been replaced belongs to nothing on screen.
+    func handleSubtitleSourceLoadFailure(_ url: URL) {
+        let failedPath = url.standardizedFileURL.path
+        guard let currentPath = currentPlaybackSubtitlePath,
+              URL(fileURLWithPath: currentPath).standardizedFileURL.path == failedPath
+        else {
+            return
+        }
+        showSubtitleLoadError(path: failedPath)
+    }
+
+    private func showSubtitleLoadError(path: String) {
+        playback.showError(L("playback.error.subtitle_load_failed", path), on: .subtitle)
+    }
+
+    /// A video that cannot be opened is still the current video: the title,
+    /// the Playback Overlay, the playlist and the neighbouring videos follow
+    /// the database as before. Only the player is emptied, so the previous
+    /// video does not play on, and every control stays usable with nothing to
+    /// act on. `cueStartMilliseconds` keeps Repeat available for a cue.
+    func handlePlaybackOpenFailure(
+        _ error: Error,
+        videoPath: String,
+        cueStartMilliseconds: Int? = nil
+    ) {
+        print("Failed to open the video: \(error)")
+        stopLibraryPlaybackHistoryTracking()
+        try? player?.stop()
+        playback.playbackViewModel?.resetPresentationForStoppedPlayback()
+        playback.playbackStatus = .loadFailed
+        if let cueStartMilliseconds {
+            playback.setCanRepeatCurrentCue(
+                cueRepeatStartMilliseconds(at: Double(cueStartMilliseconds) / 1_000) != nil
+            )
+        }
+        playback.showError(L("playback.error.video_load_failed", videoPath), on: .video)
+    }
+
+    /// A player failure other than loading a file shows on the video line and
+    /// blocks nothing.
+    func showPlaybackError(_ error: Error) {
+        print("Playback failed: \(error)")
+        playback.showError(
+            L("playback.error.playback_failed", Self.errorMessage(for: error)),
+            on: .video
         )
     }
 
@@ -317,6 +389,7 @@ extension AppCoordinator {
         activePlaybackSource = .search
         playbackSubtitle = nil
         playback.playbackStatus = .opening
+        playback.clearError(on: .video)
         playback.playbackViewModel?.preparePresentationTransition(
             to: Double(result.startMilliseconds) / 1_000,
             subtitleCues: []
@@ -331,7 +404,7 @@ extension AppCoordinator {
                 videoURL: URL(fileURLWithPath: result.videoPath),
                 startMilliseconds: result.startMilliseconds,
                 autoStopAtMilliseconds: autoStopBoundary?.endMilliseconds,
-                subtitleSource: playbackSubtitleSource(for: result),
+                subtitleSource: loadablePlaybackSubtitleSource(playbackSubtitleSource(for: result)),
                 audioTrackIndex: defaultAudioTrackIndex(forVideoPath: result.videoPath)
             )
 
@@ -359,10 +432,11 @@ extension AppCoordinator {
             playback.playbackViewModel?.bindPendingPresentation(to: generation)
             return true
         } catch {
-            playback.playbackViewModel?.cancelPendingPresentation()
-            clearCueAutoStopPlayback()
-            playback.playbackViewModel?.clearSubtitleCues()
-            playback.playbackStatus = .failed(Self.errorMessage(for: error))
+            handlePlaybackOpenFailure(
+                error,
+                videoPath: result.videoPath,
+                cueStartMilliseconds: result.startMilliseconds
+            )
             return false
         }
     }
@@ -399,8 +473,12 @@ extension AppCoordinator {
 
     @discardableResult
     func pausePlayback() -> Bool {
+        // A video that failed to load has nothing to pause.
+        guard playback.playbackStatus != .loadFailed else {
+            return true
+        }
         guard let player else {
-            playback.playbackStatus = .failed(Self.errorMessage(for: PlaybackError.playbackPlayerUnavailable))
+            showPlaybackError(PlaybackError.playbackPlayerUnavailable)
             return false
         }
 
@@ -414,7 +492,7 @@ extension AppCoordinator {
             saveCurrentLibraryPlaybackHistory()
             return true
         } catch {
-            playback.playbackStatus = .failed(Self.errorMessage(for: error))
+            showPlaybackError(error)
             return false
         }
     }
@@ -432,6 +510,9 @@ extension AppCoordinator {
     }
 
     func resumePlayback() {
+        guard playback.playbackStatus != .loadFailed else {
+            return
+        }
         do {
             cancelAutoSwitchCueSequenceTask()
             clearCueSubtitlePresentationHold()
@@ -441,7 +522,7 @@ extension AppCoordinator {
                 playback.playbackStatus = .playing
             }
         } catch {
-            playback.playbackStatus = .failed(Self.errorMessage(for: error))
+            showPlaybackError(error)
         }
     }
 
@@ -690,12 +771,16 @@ extension AppCoordinator {
             } else if let selectedExcerpt = excerpt.selectedExcerpt {
                 play(selectedExcerpt)
             }
-        case .opening, .failed:
+        case .opening, .loadFailed:
             break
         }
     }
 
     func togglePlaybackFromUser() {
+        // Nothing plays or pauses, so nothing is reported either.
+        guard playback.playbackStatus != .loadFailed else {
+            return
+        }
         let willPlay = !(playback.playbackViewModel?.isPlaying ?? false)
         togglePlayback()
         playback.playbackViewModel?.showPlayPauseFeedback(isPlaying: willPlay)
@@ -1202,8 +1287,11 @@ extension AppCoordinator {
             clearPlaybackChromeSnapshot()
             playback.isPlaybackSurfaceExpanded = false
             playback.playbackStatus = .idle
+            for line in PlaybackErrorLine.allCases {
+                playback.clearError(on: line)
+            }
         } catch {
-            playback.playbackStatus = .failed(Self.errorMessage(for: error))
+            showPlaybackError(error)
         }
     }
 

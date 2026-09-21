@@ -7,6 +7,7 @@ import QuartzCore
 public protocol PlaybackPlayerDelegate: AnyObject {
     func player(_ player: PlaybackPlayer, didChangeProperty name: String, value: PlaybackPropertyValue?)
     func player(_ player: PlaybackPlayer, didFailWithMessage message: String)
+    func player(_ player: PlaybackPlayer, didFailToLoadSubtitleSource url: URL)
     func player(_ player: PlaybackPlayer, didFinishSegmentAtMilliseconds endMilliseconds: Int)
     func playerDidFinishPlayback(_ player: PlaybackPlayer)
     func player(_ player: PlaybackPlayer, didReachAutoStopBoundaryAtMilliseconds endMilliseconds: Int)
@@ -20,6 +21,7 @@ public protocol PlaybackPlayerDelegate: AnyObject {
 }
 
 public extension PlaybackPlayerDelegate {
+    func player(_ player: PlaybackPlayer, didFailToLoadSubtitleSource url: URL) {}
     func player(_ player: PlaybackPlayer, didFinishSegmentAtMilliseconds endMilliseconds: Int) {}
     func playerDidFinishPlayback(_ player: PlaybackPlayer) {}
     func player(_ player: PlaybackPlayer, didReachAutoStopBoundaryAtMilliseconds endMilliseconds: Int) {}
@@ -516,6 +518,10 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
                 guard let self else { return }
                 self.delegate?.player(self, didFailWithMessage: message)
             }
+            container.subtitleSourceLoadFailureHandler = { [weak self] url in
+                guard let self else { return }
+                self.delegate?.player(self, didFailToLoadSubtitleSource: url)
+            }
             container.setVideoSize(self.currentNativeVideoSize())
             container.setSubtitleTime(milliseconds: initialMilliseconds)
             container.setSubtitleSource(source)
@@ -852,6 +858,10 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
             guard let self else { return }
             self.delegate?.player(self, didFailWithMessage: message)
         }
+        container.subtitleSourceLoadFailureHandler = { [weak self] url in
+            guard let self else { return }
+            self.delegate?.player(self, didFailToLoadSubtitleSource: url)
+        }
         container.commitSubtitlePresentation(
             source: source,
             videoSize: videoSize,
@@ -995,6 +1005,7 @@ public final class PlaybackRenderContainerView: NSView {
     private var currentSRTSubtitleStyle = SRTSubtitleStyle()
 
     var assRenderingFailureHandler: ((String) -> Void)?
+    var subtitleSourceLoadFailureHandler: ((URL) -> Void)?
 
     init() {
         super.init(frame: .zero)
@@ -1138,6 +1149,9 @@ public final class PlaybackRenderContainerView: NSView {
             sourceFaithfulASSOverlayView?.onRenderingFailure = { [weak self] message in
                 self?.assRenderingFailureHandler?(message)
             }
+            sourceFaithfulASSOverlayView?.onSourceLoadFailure = { [weak self] url in
+                self?.subtitleSourceLoadFailureHandler?(url)
+            }
         }
 
         guard let sourceFaithfulASSOverlayView else {
@@ -1165,6 +1179,9 @@ public final class PlaybackRenderContainerView: NSView {
             srtSubtitleOverlayView = SRTSubtitleOverlayView(frame: bounds)
             srtSubtitleOverlayView?.onRenderingFailure = { [weak self] message in
                 self?.assRenderingFailureHandler?(message)
+            }
+            srtSubtitleOverlayView?.onSourceLoadFailure = { [weak self] url in
+                self?.subtitleSourceLoadFailureHandler?(url)
             }
         }
         guard let srtSubtitleOverlayView else { return }

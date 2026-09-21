@@ -522,6 +522,8 @@ func excerptResidentSnapshotKeepsAvailableCueContentBesideUnavailableCue() throw
             ),
         ]
     )
+    // Display Title is the video's, so the Library rows name both excerpts.
+    try LibraryDatabase(path: database.path).refreshPresentationAfterIndexedContentChange()
 
     let playbackDatabase = try PlaybackSubtitleDatabase(path: database.path)
     let availableSelection = try #require(
@@ -552,6 +554,7 @@ func excerptResidentSnapshotKeepsAvailableCueContentBesideUnavailableCue() throw
         videoFile: unavailableVideo,
         entries: []
     )
+    try LibraryDatabase(path: database.path).refreshPresentationAfterIndexedContentChange()
 
     let snapshot = try excerptDatabase.excerptResidentSnapshot()
     let resolvedByID = Dictionary(
@@ -565,10 +568,10 @@ func excerptResidentSnapshotKeepsAvailableCueContentBesideUnavailableCue() throw
     #expect(snapshot.cueContents.map(\.content) == ["Available Cue"])
     #expect(resolvedAvailable.subtitleFileID != nil)
     #expect(resolvedAvailable.isValid)
-    #expect(resolvedAvailable.displayTitle == "Episode 1.srt")
+    #expect(resolvedAvailable.displayTitle == "Available - 01")
     #expect(!resolvedUnavailable.isValid)
     #expect(resolvedUnavailable.unavailableReason == .cueMissing)
-    #expect(resolvedUnavailable.displayTitle == "Episode 2.srt")
+    #expect(resolvedUnavailable.displayTitle == "Unavailable - 01")
     #expect(resolvedUnavailable.displayTitle != resolvedUnavailable.videoName)
 }
 

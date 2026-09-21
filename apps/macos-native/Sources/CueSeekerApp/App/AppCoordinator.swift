@@ -82,14 +82,8 @@ final class AppCoordinator: ObservableObject {
         collapsedGroupPaths: Set<String>
     ) -> [ExcerptFileGroup] {
         let excerptsByPath = Dictionary(grouping: excerpts, by: \.subtitlePath)
-        let displayTitlesByPath = Dictionary(
-            uniqueKeysWithValues: excerptsByPath.keys.map { path in
-                (
-                    path,
-                    SubtitleDisplayTitleResolver.displayTitle(forSubtitlePath: path)
-                )
-            }
-        )
+        // Every excerpt of one subtitle carries its video's Display Title.
+        let displayTitlesByPath = excerptsByPath.compactMapValues { $0.first?.displayTitle }
 
         return excerptsByPath.keys.sorted { lhs, rhs in
             let lhsDisplayTitle = displayTitlesByPath[lhs] ?? URL(fileURLWithPath: lhs).lastPathComponent
@@ -155,29 +149,33 @@ final class AppCoordinator: ObservableObject {
             ?? L("playback.no_video_selected")
     }
 
+    /// The player's title is the video's Display Title as the database holds
+    /// it. Nothing here looks at the disk, so a video or subtitle renamed or
+    /// moved outside the App keeps its title. See
+    /// `docs/human/requirements/20260921-Bug-Missing Files Treated As Missing
+    /// Database Records.md`.
     func playbackDisplayTitle(
-        providedDisplayTitle: String?,
-        fallback: @autoclosure () -> String
+        forVideoPath videoPath: String,
+        videoName: String,
+        knownDisplayTitles: [String?]
     ) -> String {
-        let trimmedDisplayTitle = providedDisplayTitle?.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let trimmedDisplayTitle, !trimmedDisplayTitle.isEmpty else {
-            return fallback()
-        }
-        return trimmedDisplayTitle
+        let storedDisplayTitle = try? libraryDatabase?.displayTitle(
+            forVideoFile: URL(fileURLWithPath: videoPath)
+        )
+        return ([storedDisplayTitle] + knownDisplayTitles)
+            .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .first { !$0.isEmpty }
+            ?? videoName
     }
 
     func playbackDisplayTitle(
         for selectedLibraryVideo: LibraryVideo,
         providedDisplayTitle: String? = nil
     ) -> String {
-        return playbackDisplayTitle(
-            providedDisplayTitle: providedDisplayTitle,
-            fallback: library.libraryFolderGroups
-                .lazy
-                .flatMap(\.videos)
-                .first { $0.video.videoPath == selectedLibraryVideo.videoPath }?
-                .displayTitle
-            ?? SubtitleDisplayTitleResolver.displayTitle(forSubtitlePath: selectedLibraryVideo.subtitlePath)
+        playbackDisplayTitle(
+            forVideoPath: selectedLibraryVideo.videoPath,
+            videoName: selectedLibraryVideo.videoName,
+            knownDisplayTitles: [providedDisplayTitle]
         )
     }
 
@@ -185,19 +183,10 @@ final class AppCoordinator: ObservableObject {
         for selectedSearchResult: SubtitleSearchResult,
         providedDisplayTitle: String? = nil
     ) -> String {
-        let resolvedDisplayTitle = [
-            providedDisplayTitle,
-            selectedSearchResult.displayTitle
-        ]
-            .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .first { !$0.isEmpty }
-
-        return playbackDisplayTitle(
-            providedDisplayTitle: resolvedDisplayTitle,
-            fallback: search.searchFileSummaries
-                .first { $0.subtitlePath == selectedSearchResult.subtitlePath }?
-                .subtitleDisplayTitle
-            ?? SubtitleDisplayTitleResolver.displayTitle(forSubtitlePath: selectedSearchResult.subtitlePath)
+        playbackDisplayTitle(
+            forVideoPath: selectedSearchResult.videoPath,
+            videoName: selectedSearchResult.videoName,
+            knownDisplayTitles: [providedDisplayTitle, selectedSearchResult.displayTitle]
         )
     }
 
@@ -205,13 +194,10 @@ final class AppCoordinator: ObservableObject {
         for selectedExcerpt: Excerpt,
         providedDisplayTitle: String? = nil
     ) -> String {
-        let residentDisplayTitle = excerpt.residentRelations
-            .first { $0.id == selectedExcerpt.id }
-            .flatMap { cueContent.content(for: $0.cueID)?.displayTitle }
-        return playbackDisplayTitle(
-            providedDisplayTitle: providedDisplayTitle,
-            fallback: residentDisplayTitle
-            ?? SubtitleDisplayTitleResolver.displayTitle(forSubtitlePath: selectedExcerpt.subtitlePath)
+        playbackDisplayTitle(
+            forVideoPath: selectedExcerpt.videoPath,
+            videoName: selectedExcerpt.videoName,
+            knownDisplayTitles: [providedDisplayTitle, selectedExcerpt.displayTitle]
         )
     }
 

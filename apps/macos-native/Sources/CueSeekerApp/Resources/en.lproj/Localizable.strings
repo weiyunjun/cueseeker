@@ -211,6 +211,9 @@
 "playback.hud.screenshot_copied" = "Screenshot Copied";
 "playback.hud.deep_link_copied" = "Deep Link Copied";
 "playback.hud.copy_failed" = "Copy Failed";
+"playback.error.video_load_failed" = "Couldn’t load the video file: %@";
+"playback.error.subtitle_load_failed" = "Couldn’t load the subtitle file: %@";
+"playback.error.playback_failed" = "Playback error: %@";
 "playback.hud.collage_not_ready" = "Collage Not Ready";
 "playback.hud.no_subtitle" = "No Subtitle";
 "playback.hud.auto_pause" = "Auto Pause";

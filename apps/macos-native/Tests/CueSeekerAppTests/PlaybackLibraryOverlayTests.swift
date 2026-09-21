@@ -17,8 +17,7 @@ func playbackLibraryUsesOnlyTheCurrentFolderEpisodes() throws {
     )
     let store = PlaybackLibrarySessionStore(
         libraryStore: library,
-        folderPath: folder.folderPath,
-        isVideoAvailable: { _ in true }
+        folderPath: folder.folderPath
     )
 
     store.activate()
@@ -44,8 +43,7 @@ func playbackLibraryAsyncDetailStillSelectsTheCurrentVideo() throws {
         requestFolderDetail: { requestedFolderPath in
             library.completeLibraryFolderDetailsByPath[requestedFolderPath]
                 = detail
-        },
-        isVideoAvailable: { _ in true }
+        }
     )
 
     store.activate()
@@ -65,8 +63,7 @@ func playbackLibraryModuleSwitchPreservesSessionButDismissalKeepsWorkbenchData()
     let store = PlaybackLibrarySessionStore(
         libraryStore: library,
         folderPath: folderPath,
-        initialVideoPath: initialVideo.videoPath,
-        isVideoAvailable: { _ in true }
+        initialVideoPath: initialVideo.videoPath
     )
     let session = PlaybackSubtitleFocusSessionStore(
         openSnapshot: playbackLibraryOpenSnapshot(),
@@ -102,8 +99,7 @@ func playbackLibrarySharedDetailRefreshPreservesEpisodeSelection() throws {
     let folderPath = fixture.folders[0].folderPath
     let store = PlaybackLibrarySessionStore(
         libraryStore: library,
-        folderPath: folderPath,
-        isVideoAvailable: { _ in true }
+        folderPath: folderPath
     )
     store.activate()
     #expect(store.selection.move(.down))
@@ -194,8 +190,7 @@ func playbackPageProvidesPointerVisibilityToLibraryPlaylist() async throws {
             fixture.detailsByFolderPath
         let store = PlaybackLibrarySessionStore(
             libraryStore: app.library,
-            folderPath: fixture.folders[0].folderPath,
-            isVideoAvailable: { _ in true }
+            folderPath: fixture.folders[0].folderPath
         )
         let session = try #require(app.playback.beginSubtitleFocusSession(
             openSnapshot: playbackLibraryOpenSnapshot(),
@@ -244,8 +239,7 @@ func playbackLibraryKeyboardRoutesTheCurrentFolderEpisodes() async throws {
         let folderPath = fixture.folders[0].folderPath
         let store = PlaybackLibrarySessionStore(
             libraryStore: library,
-            folderPath: folderPath,
-            isVideoAvailable: { _ in true }
+            folderPath: folderPath
         )
         let session = try #require(app.playback.beginSubtitleFocusSession(
             openSnapshot: playbackLibraryOpenSnapshot(),
@@ -288,8 +282,7 @@ func playbackLibraryEpisodeOpenUsesSharedFolderDetailOrder() async throws {
         let folder = fixture.folders[0]
         let store = PlaybackLibrarySessionStore(
             libraryStore: library,
-            folderPath: folder.folderPath,
-            isVideoAvailable: { _ in true }
+            folderPath: folder.folderPath
         )
         let session = try #require(app.playback.beginSubtitleFocusSession(
             openSnapshot: playbackLibraryOpenSnapshot(),

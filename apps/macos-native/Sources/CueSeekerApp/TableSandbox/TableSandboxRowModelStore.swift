@@ -228,18 +228,8 @@ struct TableSandboxExcerptRowSource: Equatable, Sendable {
 final class TableSandboxRowModelStore: ObservableObject {
     @Published private(set) var snapshot = TableSandboxRowsSnapshot()
 
-    private var displayTitlesBySubtitlePath: [String: String] = [:]
     private var observedCueContentRevision: UInt64 = 0
     private var referencedCueContentRevision: UInt64 = 0
-    private let displayTitleResolver: (String) -> String
-
-    init(
-        displayTitleResolver: @escaping (String) -> String = {
-            SubtitleDisplayTitleResolver.displayTitle(forSubtitlePath: $0)
-        }
-    ) {
-        self.displayTitleResolver = displayTitleResolver
-    }
 
     func refreshReferencedCueContent(
         _ change: CueContentStoreChange,
@@ -824,7 +814,7 @@ final class TableSandboxRowModelStore: ObservableObject {
     }
 
     private func searchRow(for result: SubtitleSearchResult) -> SubtitleTableRow {
-        let displayTitle = searchDisplayTitle(for: result)
+        let displayTitle = result.displayTitle
         return SubtitleTableRow(
             id: Int(result.entryID),
             primaryCueID: result.entryID,
@@ -861,29 +851,10 @@ final class TableSandboxRowModelStore: ObservableObject {
         )
     }
 
-    private func searchDisplayTitle(for result: SubtitleSearchResult) -> String {
-        guard !result.displayTitle.isEmpty else {
-            return displayTitle(forSubtitlePath: result.subtitlePath)
-        }
-
-        return result.displayTitle
-    }
-
-    private func displayTitle(forSubtitlePath subtitlePath: String) -> String {
-        if let cached = displayTitlesBySubtitlePath[subtitlePath] {
-            return cached
-        }
-
-        let title = displayTitleResolver(subtitlePath)
-        displayTitlesBySubtitlePath[subtitlePath] = title
-        return title
-    }
 }
 
 func tableSandboxSearchRow(for result: SubtitleSearchResult) -> SubtitleTableRow {
-    let displayTitle = result.displayTitle.isEmpty
-        ? SubtitleDisplayTitleResolver.displayTitle(forSubtitlePath: result.subtitlePath)
-        : result.displayTitle
+    let displayTitle = result.displayTitle
     return SubtitleTableRow(
         id: Int(result.entryID),
         primaryCueID: result.entryID,

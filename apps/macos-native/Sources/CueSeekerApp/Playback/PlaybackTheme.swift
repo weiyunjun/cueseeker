@@ -270,6 +270,17 @@ public enum PlaybackTheme {
         progressFill
     }
 
+    /// --color-player-error-bg: the error banner reads over any picture, so
+    /// the fill is opaque rather than a scrim.
+    public static var errorBackground: Color {
+        Color(red: 180 / 255, green: 35 / 255, blue: 24 / 255)
+    }
+
+    /// --color-player-error-content
+    public static var errorContent: Color {
+        Color.white
+    }
+
     /// Semi-translucent gray for timeline hovered track extension.
     public static var scrubberHoverTrack: Color {
         progressHoverTrack
@@ -378,6 +389,29 @@ enum PlaybackChromeMetrics {
     static let topbarTitleMaxWidth: CGFloat = 520
     /// --duration-player-ui-idle-hide: 3s
     static let idleHideDuration: TimeInterval = 3
+
+    /// How long each line of the error banner stays: 5s. See
+    /// `docs/human/requirements/20260921-Bug-Missing Files Treated As Missing
+    /// Database Records.md`.
+    static let errorDuration: TimeInterval = 5
+    /// --radius-player-error: 10px
+    static let errorRadius: CGFloat = 10
+    /// --font-size-player-error: 13px
+    static let errorFontSize: CGFloat = 13
+    /// --line-height-player-error: 20px
+    static let errorLineHeight: CGFloat = 20
+    /// --size-player-error-icon: 16px
+    static let errorIconSize: CGFloat = 16
+    /// --padding-player-error-x: 12px
+    static let errorHorizontalPadding: CGFloat = 12
+    /// --padding-player-error-y: 10px
+    static let errorVerticalPadding: CGFloat = 10
+    /// What the documented line height adds to the font's own line, set half
+    /// above and half below each line as CSS line-height does.
+    static let errorLeading: CGFloat = {
+        let font = NSFont.systemFont(ofSize: errorFontSize, weight: .medium)
+        return max(0, errorLineHeight - (font.ascender - font.descender + font.leading))
+    }()
 
     /// --height-playback-feedback: 52px, a floor rather than a fixed height so
     /// a wrapped message can grow past it.

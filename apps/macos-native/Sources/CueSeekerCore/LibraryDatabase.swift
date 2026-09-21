@@ -195,6 +195,19 @@ public final class LibraryDatabase: @unchecked Sendable {
         try statement.run()
     }
 
+    /// The Display Title Index gave the video, read from the database only, so
+    /// a file renamed or moved outside the App keeps the title it had.
+    public func displayTitle(forVideoFile videoFile: URL) throws -> String? {
+        let statement = try database.prepare(
+            "SELECT display_title FROM library_video_rows WHERE video_path = ?;"
+        )
+        try statement.bind(videoFile.path, at: 1)
+        guard try statement.step() else {
+            return nil
+        }
+        return statement.stringColumn(0)
+    }
+
     public func videoSubtitles(forVideoFile videoFile: URL) throws -> VideoSubtitles? {
         let statement = try database.prepare(
             """

@@ -413,11 +413,9 @@ struct WorkbenchTestLibraryView: View {
         detail: CompleteLibraryFolderDetailPresentation,
         recentItem: RecentLibraryWatchingPresentation?
     ) -> Bool {
-        let videoPath = recentItem?.videoPath ?? detail.videos.first?.videoPath
-        guard let videoPath else {
-            return false
-        }
-        return FileManager.default.fileExists(atPath: videoPath)
+        // A video the database holds can always be opened; a file missing on
+        // disk is the player's load failure, not a reason to refuse entry.
+        recentItem != nil || !detail.videos.isEmpty
     }
 
     private func recentWatchingItem(
@@ -746,10 +744,6 @@ private struct LibraryVideoCard: View {
     let openContextMenu: ([LibraryCardContextMenuItem], CGPoint, String) -> Void
     let onOpen: () -> Void
 
-    private var isAvailable: Bool {
-        FileManager.default.fileExists(atPath: content.videoPath)
-    }
-
     private var cardID: String {
         content.videoPath
     }
@@ -781,26 +775,22 @@ private struct LibraryVideoCard: View {
                 style: .continuous
             )
             .fill(
-                isCurrent && isAvailable
+                isCurrent
                     ? WorkbenchRedesignColors.libraryMediaCardHoverBg
                     : Color.clear
             )
         )
-        .opacity(isAvailable ? 1 : 0.55)
         // The card answers the pointer over its whole rectangle, corners
         // included, so the tap, the hand and Hover share one area. The rounded
         // background is appearance only and does not narrow it.
         .contentShape(Rectangle())
         .onTapGesture {
-            guard isAvailable else {
-                return
-            }
             highlight.notePress(id: cardID)
             onOpen()
         }
-        .onHover { highlight.noteHover($0, id: cardID, showsHand: isAvailable) }
+        .onHover { highlight.noteHover($0, id: cardID, showsHand: true) }
         .libraryCardContextMenuTrigger(
-            isEnabled: isAvailable,
+            isEnabled: true,
             ownerID: cardID,
             items: contextMenuItems,
             openContextMenu: { items, point, ownerID in
@@ -825,7 +815,7 @@ private struct LibraryVideoCard: View {
             duration: content.duration
         )
         .libraryCoverHoverEffect(
-            isActive: isCurrent && isAvailable
+            isActive: isCurrent
         )
     }
 

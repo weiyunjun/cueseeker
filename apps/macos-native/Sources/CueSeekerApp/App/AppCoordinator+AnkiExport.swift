@@ -9,7 +9,7 @@ extension AppCoordinator {
             Self.ankiExportItem(
                 for: result,
                 row: row,
-                deckDisplayTitle: displayTitle(for: result)
+                deckDisplayTitle: result.displayTitle
             )
         })
     }
@@ -19,9 +19,7 @@ extension AppCoordinator {
             Self.ankiExportItem(
                 for: excerpt,
                 row: row,
-                deckDisplayTitle: SubtitleDisplayTitleResolver.displayTitle(
-                    forSubtitlePath: excerpt.subtitlePath
-                )
+                deckDisplayTitle: excerpt.displayTitle
             )
         })
     }
@@ -197,10 +195,4 @@ extension AppCoordinator {
         )
     }
 
-    private func displayTitle(for result: SubtitleSearchResult) -> String {
-        guard !result.displayTitle.isEmpty else {
-            return SubtitleDisplayTitleResolver.displayTitle(forSubtitlePath: result.subtitlePath)
-        }
-        return result.displayTitle
-    }
 }

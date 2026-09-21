@@ -20,7 +20,9 @@ extension AppCoordinator {
             return true
         }
         guard !playback.isTimelineScrubbing,
-              playback.playbackStatus == .playing || playback.playbackStatus == .paused,
+              // Its content is the database's, so a video that failed to
+              // load opens it too.
+              [.playing, .paused, .loadFailed].contains(playback.playbackStatus),
               let playbackViewModel = playback.playbackViewModel,
               player != nil,
               let videoPath = currentPlaybackVideoPath,

@@ -31,13 +31,17 @@ extension AppCoordinator {
             playback.closeMoreMenu()
             return
         }
-        guard let videoPath = player?.currentVideoURL?.path else {
+        // The lists are the database's for the current video, which a video
+        // that failed to load still is; with nothing playing, the track it
+        // would open on stands as the current one.
+        guard let videoPath = currentPlaybackVideoPath else {
             return
         }
         let recorded = recordedAudioTracks(forVideoPath: videoPath)
         let tracks = recorded?.tracks ?? []
         let currentIndex = player?.currentAudioTrackIndex
-            .flatMap { tracks.indices.contains($0) ? $0 : nil } ?? 0
+            .flatMap { tracks.indices.contains($0) ? $0 : nil }
+            ?? recorded?.effectiveDefaultIndex ?? 0
         playback.openMoreMenu(
             PlaybackMoreMenu(
                 audioTracks: PlaybackMoreMenuList(
@@ -55,19 +59,23 @@ extension AppCoordinator {
     /// Switches this playback's audio track. The track already playing is
     /// left alone.
     func selectPlaybackAudioTrack(_ index: Int) {
-        guard let player, player.currentAudioTrackIndex != index else {
+        // A video that failed to load has no track to switch.
+        guard let player,
+              playback.playbackStatus != .loadFailed,
+              player.currentAudioTrackIndex != index
+        else {
             return
         }
         do {
             try player.selectAudioTrack(at: index)
         } catch {
-            playback.playbackStatus = .failed(Self.errorMessage(for: error))
+            showPlaybackError(error)
         }
     }
 
     func setPlaybackDefaultAudioTrack(_ index: Int) {
         guard let database = libraryDatabase,
-              let videoPath = player?.currentVideoURL?.path,
+              let videoPath = currentPlaybackVideoPath,
               recordedAudioTracks(forVideoPath: videoPath)?.effectiveDefaultIndex != index
         else {
             return

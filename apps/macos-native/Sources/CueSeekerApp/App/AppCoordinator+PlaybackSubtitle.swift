@@ -26,10 +26,10 @@ extension AppCoordinator {
 
     /// Switches this playback's subtitle where it stands: the time, playing or
     /// paused, and the Playlist stay as they are. The subtitle already playing
-    /// is left alone.
+    /// is left alone. The subtitle loads on its own, so a video that failed to
+    /// load still switches it and the Playback Overlay follows.
     func selectPlaybackSubtitle(_ index: Int) {
-        guard let player,
-              let videoPath = player.currentVideoURL?.path,
+        guard let videoPath = currentPlaybackVideoPath,
               let subtitles = recordedSubtitles(forVideoPath: videoPath)?.subtitles,
               subtitles.indices.contains(index),
               subtitles[index].subtitleFileID != currentPlaybackSubtitleFileID
@@ -39,7 +39,7 @@ extension AppCoordinator {
         let subtitle = subtitles[index]
         let seconds = playback.playbackViewModel?.currentTime ?? 0
         let milliseconds = seconds.isFinite ? Int(max(0, seconds * 1_000).rounded(.down)) : 0
-        player.loadSubtitleSource(
+        let source = loadablePlaybackSubtitleSource(
             playbackSubtitleSource(
                 forSubtitleFile: URL(fileURLWithPath: subtitle.subtitlePath),
                 format: subtitle.format,
@@ -48,12 +48,15 @@ extension AppCoordinator {
                 fallbackEndMilliseconds: milliseconds
             )
         )
+        if let player, playback.playbackStatus != .loadFailed {
+            player.loadSubtitleSource(source)
+        }
         playbackSubtitle = subtitle
     }
 
     func setPlaybackDefaultSubtitle(_ index: Int) {
         guard let database = libraryDatabase,
-              let videoPath = player?.currentVideoURL?.path,
+              let videoPath = currentPlaybackVideoPath,
               let recorded = recordedSubtitles(forVideoPath: videoPath),
               recorded.subtitles.indices.contains(index),
               recorded.effectiveDefault != recorded.subtitles[index]

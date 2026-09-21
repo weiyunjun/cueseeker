@@ -510,18 +510,20 @@ func searchFilterSetMatchesDisplayTitleInDatabaseResults() throws {
             languageFilterTestEntry(sequenceNumber: 1, text: "Shared display beta")
         ]
     )
+    // Display Title is the video's, so the Library rows name the subtitles.
+    try LibraryDatabase(path: databaseURL).refreshPresentationAfterIndexedContentChange()
 
     let filterSet = SubtitleSearchFilterSet(rules: [
         SubtitleSearchFilterRule(
             field: .display,
             operatorID: .contains,
-            value: "Beta"
+            value: "02"
         )
     ])
     let page = try SearchDatabase(path: database.path).searchPage("shared", limit: 10, filterSet: filterSet)
 
     #expect(page.totalCount == 1)
-    #expect(page.fileSummaries.map(\.subtitleDisplayTitle) == ["Beta.srt"])
+    #expect(page.fileSummaries.map(\.subtitleDisplayTitle) == ["Media - 02"])
     #expect(page.results.map(\.content) == ["Shared display beta"])
 }
 
@@ -1325,7 +1327,10 @@ func searchPageReturnsFriendlyFileSummaryDisplayTitles() throws {
             )
         ]
     )
+    try LibraryDatabase(path: databaseURL).refreshPresentationAfterIndexedContentChange()
 
+    // The titles are the videos' as Index stored them: neither the files
+    // gone from disk nor aa1.ass, which has no video, change them.
     try FileManager.default.removeItem(at: series)
 
     let diagnostics = SearchDiagnosticRecorder()
@@ -1334,8 +1339,8 @@ func searchPageReturnsFriendlyFileSummaryDisplayTitles() throws {
     let sortFields = Dictionary(uniqueKeysWithValues: sortEvent.fields.map { ($0.name, $0.value) })
 
     #expect(page.fileSummaries.map(\.subtitleFileName) == ["aa2.ass", "aa11.ass"])
-    #expect(page.fileSummaries.map(\.subtitleDisplayTitle) == ["葬送的芙莉莲 - 02", "葬送的芙莉莲 - 03"])
-    #expect(page.results.map(\.displayTitle) == ["葬送的芙莉莲 - 02", "葬送的芙莉莲 - 03"])
+    #expect(page.fileSummaries.map(\.subtitleDisplayTitle) == ["葬送的芙莉莲 - 01", "葬送的芙莉莲 - 02"])
+    #expect(page.results.map(\.displayTitle) == ["葬送的芙莉莲 - 01", "葬送的芙莉莲 - 02"])
     #expect(page.results.map(\.content) == ["Shared second", "Shared eleventh"])
     #expect(sortFields["orderSource"] == "ftsRowid")
     #expect(sortFields["materializedOrderRows"] == "2")

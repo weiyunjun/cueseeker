@@ -3,6 +3,7 @@ import CoreGraphics
 import CueSeekerCore
 import CueSeekerPlayback
 import Foundation
+import SwiftUI
 
 enum PlaybackCommandPanelPage: Equatable {
     case root
@@ -134,6 +135,11 @@ final class PlaybackStore: ObservableObject {
     @Published var playbackViewModel: PlaybackViewModel?
     @Published private(set) var chromeSnapshot = PlaybackChromeSnapshot.empty
     @Published private(set) var canRepeatCurrentCue = false
+    /// The player's error banner, one line for the video and one for the
+    /// subtitle. See `docs/human/requirements/20260921-Bug-Missing Files
+    /// Treated As Missing Database Records.md`.
+    @Published private(set) var errorMessages: [PlaybackErrorLine: String] = [:]
+    private var errorExpiryTasks: [PlaybackErrorLine: Task<Void, Never>] = [:]
 
     /// The player speed menu lives here rather than in the chrome view because
     /// The menu's keys arrive two ways: from the menu gate's monitor, which
@@ -603,6 +609,36 @@ final class PlaybackStore: ObservableObject {
             return
         }
         canRepeatCurrentCue = canRepeat
+    }
+
+    /// Shows `message` on `line`, replacing what was there, for the banner's
+    /// duration measured on the wall clock; nothing the user does holds it.
+    func showError(_ message: String, on line: PlaybackErrorLine) {
+        errorExpiryTasks[line]?.cancel()
+        withAnimation(ToastCenter.motion) {
+            errorMessages[line] = message
+        }
+        errorExpiryTasks[line] = Task { [weak self] in
+            try? await Task.sleep(
+                nanoseconds: UInt64(PlaybackChromeMetrics.errorDuration * 1_000_000_000)
+            )
+            guard !Task.isCancelled else {
+                return
+            }
+            self?.clearError(on: line)
+        }
+    }
+
+    /// Takes `line` away early, when what it names is replaced.
+    func clearError(on line: PlaybackErrorLine) {
+        errorExpiryTasks[line]?.cancel()
+        errorExpiryTasks[line] = nil
+        guard errorMessages[line] != nil else {
+            return
+        }
+        withAnimation(ToastCenter.motion) {
+            errorMessages[line] = nil
+        }
     }
 
     func requestPointerHide() {

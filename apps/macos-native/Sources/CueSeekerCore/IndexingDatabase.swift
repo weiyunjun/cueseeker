@@ -1083,7 +1083,11 @@ public final class IndexingDatabase: @unchecked Sendable {
                 file_order,
                 updated_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+            VALUES (
+                ?1, ?2, ?3, ?4, ?5,
+                \(SubtitleDisplayTitleResolver.matchedVideoDisplayTitleSQL(subtitleFileID: "?2")),
+                ?6, ?7, ?8
+            );
             """
         )
 
@@ -1103,10 +1107,9 @@ public final class IndexingDatabase: @unchecked Sendable {
                 try insert.bind(file.folderPath, at: 3)
                 try insert.bind(file.folderTitle, at: 4)
                 try insert.bind(file.subtitleFileName, at: 5)
-                try insert.bind(SubtitleDisplayTitleResolver.displayTitle(forSubtitlePath: file.subtitlePath), at: 6)
-                try insert.bind(folderOrder, at: 7)
-                try insert.bind(fileOrder, at: 8)
-                try insert.bind(updatedAt, at: 9)
+                try insert.bind(folderOrder, at: 6)
+                try insert.bind(fileOrder, at: 7)
+                try insert.bind(updatedAt, at: 8)
                 try insert.run()
                 try insert.reset()
                 try insert.clearBindings()
@@ -2018,16 +2021,7 @@ public final class IndexingDatabase: @unchecked Sendable {
                      ),
                      l.content
                    ),
-                   COALESCE(
-                     (
-                       SELECT lvr.display_title
-                       FROM library_video_rows lvr
-                       WHERE lvr.subtitle_file_id = sf.id
-                       LIMIT 1
-                     ),
-                     vf.video_name,
-                     ''
-                   ),
+                   \(SubtitleDisplayTitleResolver.matchedVideoDisplayTitleSQL(subtitleFileID: "sf.id")),
                    sf.subtitle_path,
                    vf.path,
                    ?,

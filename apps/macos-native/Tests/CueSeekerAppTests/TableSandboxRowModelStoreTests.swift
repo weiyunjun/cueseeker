@@ -17,17 +17,13 @@ func tableSandboxExcerptDateAddedDisplayConvertsUTCToLocalTime() throws {
 
 @MainActor
 @Test
-func tableSandboxRowModelStoreCachesTitlesAndKeepsStableVersionForSameRows() {
-    var resolvedPaths: [String] = []
-    let store = TableSandboxRowModelStore { path in
-        resolvedPaths.append(path)
-        return "Resolved \(URL(fileURLWithPath: path).lastPathComponent)"
-    }
+func tableSandboxRowModelStoreShowsStoredTitlesAndKeepsStableVersionForSameRows() {
+    let store = TableSandboxRowModelStore()
 
     let path = "/tmp/CueSeeker/Series/episode-01.ass"
     let results = [
-        searchResult(id: 1, path: path, content: "line one\nline two", cueLines: ["line one", "line two"]),
-        searchResult(id: 2, path: path, content: "line three", cueLines: ["line three"]),
+        searchResult(id: 1, path: path, displayTitle: "Series - 01", content: "line one\nline two", cueLines: ["line one", "line two"]),
+        searchResult(id: 2, path: path, displayTitle: "Series - 01", content: "line three", cueLines: ["line three"]),
     ]
 
     store.updateSearchRows(results, tableName: "test-search")
@@ -35,23 +31,21 @@ func tableSandboxRowModelStoreCachesTitlesAndKeepsStableVersionForSameRows() {
     #expect(store.snapshot.version == 1)
     #expect(store.snapshot.update == .append(0..<2))
     #expect(store.snapshot.rows.count == 2)
-    #expect(store.snapshot.rows[0].displayTitle == "Resolved episode-01.ass")
+    #expect(store.snapshot.rows[0].displayTitle == "Series - 01")
     #expect(store.snapshot.rows[0].startTime == "00:01")
     #expect(store.snapshot.rows[0].endTime == "00:02")
     #expect(store.snapshot.rows[0].cues == "line one\nline two")
-    #expect(resolvedPaths == [path])
 
     store.updateSearchRows(results, tableName: "test-search")
 
     #expect(store.snapshot.version == 1)
     #expect(store.snapshot.update == .append(0..<2))
-    #expect(resolvedPaths == [path])
 }
 
 @MainActor
 @Test
 func tableSandboxRowModelStoreRecordsSnapshotAndHydrationProbeOwners() {
-    let store = TableSandboxRowModelStore { _ in "Resolved" }
+    let store = TableSandboxRowModelStore()
     let path = "/tmp/CueSeeker/Series/episode-01.ass"
 
     let recording = UIInvalidationProbe.recordForTesting {
@@ -74,7 +68,7 @@ func tableSandboxRowModelStoreRecordsSnapshotAndHydrationProbeOwners() {
 @MainActor
 @Test
 func tableSandboxRowModelStoreFormatsCueTimeColumns() {
-    let store = TableSandboxRowModelStore { _ in "Resolved" }
+    let store = TableSandboxRowModelStore()
     let path = "/tmp/CueSeeker/Series/episode-01.ass"
 
     store.updateSearchRows(
@@ -99,7 +93,7 @@ func tableSandboxRowModelStoreFormatsCueTimeColumns() {
 @MainActor
 @Test
 func tableSandboxRowModelStoreUsesPrecomputedSearchTimeRange() {
-    let store = TableSandboxRowModelStore { _ in "Resolved" }
+    let store = TableSandboxRowModelStore()
     let path = "/tmp/CueSeeker/Series/episode-01.ass"
 
     store.updateSearchRows(
@@ -125,11 +119,7 @@ func tableSandboxRowModelStoreUsesPrecomputedSearchTimeRange() {
 @MainActor
 @Test
 func tableSandboxRowModelStoreUsesSearchDisplayTitleWithoutResolvingPath() {
-    var resolvedPaths: [String] = []
-    let store = TableSandboxRowModelStore { path in
-        resolvedPaths.append(path)
-        return "Resolved \(URL(fileURLWithPath: path).lastPathComponent)"
-    }
+    let store = TableSandboxRowModelStore()
 
     let path = "/tmp/CueSeeker/Ave Mujica/episode-01.ass"
     store.updateSearchRows(
@@ -146,13 +136,12 @@ func tableSandboxRowModelStoreUsesSearchDisplayTitleWithoutResolvingPath() {
     )
 
     #expect(store.snapshot.rows[0].displayTitle == "Ave Mujica - 01")
-    #expect(resolvedPaths.isEmpty)
 }
 
 @MainActor
 @Test
 func tableSandboxRowModelStoreCarriesSubtitlePathsIntoRows() {
-    let store = TableSandboxRowModelStore { _ in "Resolved" }
+    let store = TableSandboxRowModelStore()
     let searchPath = "/tmp/CueSeeker/Search/episode-01.ass"
 
     store.updateSearchRows(
@@ -184,11 +173,7 @@ func tableSandboxRowModelStoreCarriesSubtitlePathsIntoRows() {
 @MainActor
 @Test
 func tableSandboxRowModelStoreUpdatesVersionWhenRowContentChangesWithoutReResolvingTitle() {
-    var resolvedPaths: [String] = []
-    let store = TableSandboxRowModelStore { path in
-        resolvedPaths.append(path)
-        return "Resolved \(URL(fileURLWithPath: path).lastPathComponent)"
-    }
+    let store = TableSandboxRowModelStore()
 
     let path = "/tmp/CueSeeker/Series/episode-01.ass"
     store.updateSearchRows([
@@ -202,13 +187,12 @@ func tableSandboxRowModelStoreUpdatesVersionWhenRowContentChangesWithoutReResolv
     #expect(store.snapshot.version == 2)
     #expect(store.snapshot.update == .reload)
     #expect(store.snapshot.rows.map(\.cues) == ["new"])
-    #expect(resolvedPaths == [path])
 }
 
 @MainActor
 @Test
 func tableSandboxRowModelStoreMarksAppendedSearchRows() {
-    let store = TableSandboxRowModelStore { _ in "Resolved" }
+    let store = TableSandboxRowModelStore()
     let path = "/tmp/CueSeeker/Series/episode-01.ass"
 
     store.updateSearchRows([
@@ -231,7 +215,7 @@ func tableSandboxRowModelStoreMarksAppendedSearchRows() {
 @MainActor
 @Test
 func tableSandboxRowModelStoreIgnoresVirtualSearchTotalForRenderedRows() {
-    let store = TableSandboxRowModelStore { _ in "Resolved" }
+    let store = TableSandboxRowModelStore()
     let path = "/tmp/CueSeeker/Series/episode-01.ass"
     let loadedResults = (0..<100).map { index in
         searchResult(
@@ -258,7 +242,7 @@ func tableSandboxRowModelStoreIgnoresVirtualSearchTotalForRenderedRows() {
 @MainActor
 @Test
 func tableSandboxRowModelStoreRejectsSparseVisibleSearchRows() {
-    let store = TableSandboxRowModelStore { _ in "Resolved" }
+    let store = TableSandboxRowModelStore()
     let path = "/tmp/CueSeeker/Series/episode-01.ass"
     let loadedResults = (0..<100).map { index in
         searchResult(
@@ -297,7 +281,7 @@ func tableSandboxRowModelStoreRejectsSparseVisibleSearchRows() {
 @MainActor
 @Test
 func tableSandboxRowModelStoreAppendsContiguousSearchRowsWithRenderableTotal() {
-    let store = TableSandboxRowModelStore { _ in "Resolved" }
+    let store = TableSandboxRowModelStore()
     let path = "/tmp/CueSeeker/Series/episode-01.ass"
     let loadedResults = (0..<111).map { index in
         searchResult(
@@ -329,7 +313,7 @@ func tableSandboxRowModelStoreAppendsContiguousSearchRowsWithRenderableTotal() {
 @MainActor
 @Test
 func tableSandboxRowModelStoreCachesOnlyContiguouslyHydratedSearchResultsForActions() {
-    let store = TableSandboxRowModelStore { _ in "Resolved" }
+    let store = TableSandboxRowModelStore()
     let path = "/tmp/CueSeeker/Series/episode-01.ass"
 
     store.updateSearchRows(
@@ -355,7 +339,7 @@ func tableSandboxRowModelStoreCachesOnlyContiguouslyHydratedSearchResultsForActi
 @MainActor
 @Test
 func tableSandboxRowModelStoreRejectsSparseExcerptRowsForVirtualTableActions() {
-    let store = TableSandboxRowModelStore { _ in "Resolved" }
+    let store = TableSandboxRowModelStore()
 
     store.hydrateExcerptRows(
         [
@@ -379,7 +363,7 @@ func tableSandboxRowModelStoreRejectsSparseExcerptRowsForVirtualTableActions() {
 @MainActor
 @Test
 func tableSandboxRowModelStoreAppendsContiguousExcerptRows() {
-    let store = TableSandboxRowModelStore { _ in "Resolved" }
+    let store = TableSandboxRowModelStore()
 
     store.hydrateExcerptRows(
         [
@@ -415,7 +399,7 @@ func tableSandboxRowModelStoreAppendsContiguousExcerptRows() {
 @MainActor
 @Test
 func tableSandboxRowModelStoreRejectsNonContiguousSearchRows() {
-    let store = TableSandboxRowModelStore { _ in "Resolved" }
+    let store = TableSandboxRowModelStore()
     let path = "/tmp/CueSeeker/Series/episode-01.ass"
 
     store.updateSearchRows(
@@ -453,7 +437,7 @@ func tableSandboxRowModelStoreRejectsNonContiguousSearchRows() {
 @MainActor
 @Test
 func tableSandboxRowModelStorePreservesCompletePrimaryCueText() {
-    let store = TableSandboxRowModelStore { _ in "Resolved" }
+    let store = TableSandboxRowModelStore()
     let path = "/tmp/CueSeeker/Series/effects.ass"
     let longLine = String(repeating: "x", count: 520)
     let sourceLines = [
@@ -494,7 +478,7 @@ func tableSandboxRowModelStorePreservesCompletePrimaryCueText() {
 @MainActor
 @Test
 func tableSandboxRowModelStoreSeparatesDuplicateSiblingByPrimaryIndex() {
-    let store = TableSandboxRowModelStore { _ in "Resolved" }
+    let store = TableSandboxRowModelStore()
     let path = "/tmp/CueSeeker/Series/duplicates.ass"
     let repeatedText = "same subtitle"
     let trailingText = "tail line one\n\ntail line three"
@@ -526,7 +510,7 @@ func tableSandboxRowModelStoreSeparatesDuplicateSiblingByPrimaryIndex() {
 @MainActor
 @Test
 func tableSandboxRowModelStoreTrustsResolvedPrimaryIndexWhenSnapshotTextDiffers() {
-    let store = TableSandboxRowModelStore { _ in "Resolved" }
+    let store = TableSandboxRowModelStore()
     let primarySnapshot = "persisted primary snapshot"
 
     store.updateSearchRows(
@@ -554,7 +538,7 @@ func tableSandboxRowModelStoreTrustsResolvedPrimaryIndexWhenSnapshotTextDiffers(
 @MainActor
 @Test
 func tableSandboxRowModelStoreMapsSearchLanguagesToDefaultBlueTags() {
-    let store = TableSandboxRowModelStore { _ in "Resolved" }
+    let store = TableSandboxRowModelStore()
     let path = "/tmp/CueSeeker/Series/episode-01.ass"
 
     store.updateSearchRows(
@@ -579,7 +563,7 @@ func tableSandboxRowModelStoreMapsSearchLanguagesToDefaultBlueTags() {
 @MainActor
 @Test
 func tableSandboxRowModelStoreUsesExcerptCuePresentationAndKeepsExcerptRowIdentity() {
-    let store = TableSandboxRowModelStore { _ in "Resolved" }
+    let store = TableSandboxRowModelStore()
     let repeatedText = "same subtitle"
     let cuePresentation = ExcerptCuePresentation(
         cueID: 901,
@@ -617,7 +601,7 @@ func tableSandboxRowModelStoreUsesExcerptCuePresentationAndKeepsExcerptRowIdenti
 @MainActor
 @Test
 func tableSandboxRowModelStoreFallsBackToExactOrphanExcerptSnapshot() {
-    let store = TableSandboxRowModelStore { _ in "Resolved" }
+    let store = TableSandboxRowModelStore()
     let content = "orphan line one\n\norphan line three"
     let cuePresentation = ExcerptCuePresentation(
         cueID: nil,
@@ -655,7 +639,7 @@ func tableSandboxRowModelStoreFallsBackToExactOrphanExcerptSnapshot() {
 @MainActor
 @Test
 func tableSandboxRowModelStoreProjectsResidentExcerptRowsWithoutMaterializingCollection() {
-    let store = TableSandboxRowModelStore { _ in "unused" }
+    let store = TableSandboxRowModelStore()
     let relations = (1...10_000).map { value in
         ExcerptRelation(
             id: Int64(value),
@@ -687,7 +671,7 @@ func tableSandboxRowModelStoreProjectsResidentExcerptRowsWithoutMaterializingCol
 @MainActor
 @Test
 func tableSandboxRowModelStoreProjectsExcerptLifecycleStatesAndExactSnapshot() {
-    let store = TableSandboxRowModelStore { _ in "unused" }
+    let store = TableSandboxRowModelStore()
     let unavailableRelation = ExcerptRelation(
         id: 7,
         listID: ExcerptListIdentity.defaultListID,
@@ -776,7 +760,7 @@ func tableSandboxRowModelStoreProjectsSearchCueIDsWithoutMaterializingRows() {
         )
     }
     cueStore.install(results.map(\.cueContent))
-    let store = TableSandboxRowModelStore { _ in "unused" }
+    let store = TableSandboxRowModelStore()
 
     store.updateResidentSearchResults(
         results,
@@ -799,7 +783,7 @@ func tableSandboxSearchProjectionReloadsWhenCanonicalCueContentChanges() {
     let original = residentCueContent(cueID: 42, content: "Original Cue")
     let changed = residentCueContent(cueID: 42, content: "Changed Cue")
     cueStore.install([original])
-    let store = TableSandboxRowModelStore { _ in "unused" }
+    let store = TableSandboxRowModelStore()
     store.updateResidentSearchReferences(
         cueIDs: [original.cueID],
         ranksByCueID: [original.cueID: 0],
@@ -831,7 +815,7 @@ func tableSandboxExcerptProjectionReloadsWhenCanonicalCueContentChanges() {
     let original = residentCueContent(cueID: 42, content: "Original Excerpt Cue")
     let changed = residentCueContent(cueID: 42, content: "Changed Excerpt Cue")
     cueStore.install([original])
-    let store = TableSandboxRowModelStore { _ in "unused" }
+    let store = TableSandboxRowModelStore()
     let relations = [
         ExcerptRelation(
             id: 7,

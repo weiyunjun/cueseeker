@@ -211,6 +211,9 @@
 "playback.hud.screenshot_copied" = "已复制截图";
 "playback.hud.deep_link_copied" = "已复制 Deep Link";
 "playback.hud.copy_failed" = "复制失败";
+"playback.error.video_load_failed" = "无法加载视频文件：%@";
+"playback.error.subtitle_load_failed" = "无法加载字幕文件：%@";
+"playback.error.playback_failed" = "播放出错：%@";
 "playback.hud.collage_not_ready" = "长截图未就绪";
 "playback.hud.no_subtitle" = "无字幕";
 "playback.hud.auto_pause" = "自动暂停";

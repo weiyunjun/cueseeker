@@ -377,6 +377,10 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
     }
 
     var onRenderingFailure: ((String) -> Void)?
+    /// The subtitle file itself could not be read. Unlike the renderer's own
+    /// in-flight failures this one is the user's to see, so it travels to the
+    /// App and is shown in the player's error banner.
+    var onSourceLoadFailure: ((URL) -> Void)?
 
     private var source: PlaybackSubtitleSource?
     private var generation: UUID?
@@ -516,14 +520,6 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
         needsDisplay = true
     }
 
-    override func draw(_ dirtyRect: NSRect) {
-        super.draw(dirtyRect)
-
-        if let failureMessage {
-            drawFailure(message: failureMessage)
-        }
-    }
-
     private func reloadRendererIfPossible() {
         PlaybackPerformanceProbe.measure("SourceFaithfulASSSubtitleOverlayView.reloadRendererIfPossible", thresholdMilliseconds: 8) {
             guard let source else {
@@ -569,6 +565,7 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
                         self.renderedFrame = nil
                         self.failureMessage = error.message
                         self.onRenderingFailure?(error.message)
+                        self.onSourceLoadFailure?(source.url)
                         self.needsDisplay = true
                     }
                 })
@@ -807,16 +804,4 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
         return (width, height)
     }
 
-    private func drawFailure(message: String) {
-        let attributes: [NSAttributedString.Key: Any] = [
-            .font: NSFont.monospacedSystemFont(ofSize: 12, weight: .semibold),
-            .foregroundColor: NSColor.white,
-            .backgroundColor: NSColor.systemRed.withAlphaComponent(0.82)
-        ]
-        let text = NSAttributedString(string: "ASS renderer failure: \(message)", attributes: attributes)
-        text.draw(
-            with: bounds.insetBy(dx: 16, dy: 16),
-            options: [.usesLineFragmentOrigin, .usesFontLeading]
-        )
-    }
 }

@@ -62,7 +62,7 @@ extension AppCoordinator {
 
     func subtitleScreenshotItem(for result: SubtitleSearchResult) -> SubtitleScreenshotExportItem {
         SubtitleScreenshotExportItem(
-            displayTitle: subtitleScreenshotDisplayTitle(for: result),
+            displayTitle: result.displayTitle,
             videoPath: result.videoPath,
             subtitlePath: result.subtitlePath,
             subtitleFormat: result.subtitleFormat,
@@ -126,12 +126,6 @@ extension AppCoordinator {
         )
     }
 
-    private func subtitleScreenshotDisplayTitle(for result: SubtitleSearchResult) -> String {
-        guard !result.displayTitle.isEmpty else {
-            return SubtitleDisplayTitleResolver.displayTitle(forSubtitlePath: result.subtitlePath)
-        }
-        return result.displayTitle
-    }
 }
 
 @MainActor

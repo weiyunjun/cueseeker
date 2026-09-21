@@ -1049,6 +1049,7 @@ extension AppCoordinator {
         activePlaybackSource = .excerpt
         playbackSubtitle = nil
         playback.playbackStatus = .opening
+        playback.clearError(on: .video)
         playback.playbackViewModel?.preparePresentationTransition(
             to: Double(excerpt.startMilliseconds) / 1_000,
             subtitleCues: []
@@ -1063,7 +1064,7 @@ extension AppCoordinator {
                 videoURL: URL(fileURLWithPath: excerpt.videoPath),
                 startMilliseconds: excerpt.startMilliseconds,
                 autoStopAtMilliseconds: autoStopBoundary?.endMilliseconds,
-                subtitleSource: playbackSubtitleSource(for: excerpt),
+                subtitleSource: loadablePlaybackSubtitleSource(playbackSubtitleSource(for: excerpt)),
                 audioTrackIndex: defaultAudioTrackIndex(forVideoPath: excerpt.videoPath)
             )
 
@@ -1092,10 +1093,11 @@ extension AppCoordinator {
             recordRecentExcerptPlayback(for: excerpt)
             return true
         } catch {
-            playback.playbackViewModel?.cancelPendingPresentation()
-            clearCueAutoStopPlayback()
-            playback.playbackViewModel?.clearSubtitleCues()
-            playback.playbackStatus = .failed(Self.errorMessage(for: error))
+            handlePlaybackOpenFailure(
+                error,
+                videoPath: excerpt.videoPath,
+                cueStartMilliseconds: excerpt.startMilliseconds
+            )
             return false
         }
     }

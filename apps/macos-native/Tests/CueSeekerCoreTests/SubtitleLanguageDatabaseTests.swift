@@ -233,11 +233,12 @@ func searchResultsExposeCueGroupLanguages() throws {
         entries: entries,
         languageAnalysis: analysis
     )
+    try LibraryDatabase(path: databaseURL).refreshPresentationAfterIndexedContentChange()
 
     let exactPage = try SearchDatabase(path: database.path).searchPage("shared", limit: 10)
     #expect(exactPage.results.map(\.displayTitle) == [
-        "LanguageResultTags.srt",
-        "LanguageResultTags.srt"
+        "Media - 01",
+        "Media - 01"
     ])
     #expect(exactPage.results.map(\.languages) == [
         [.japanese],
@@ -246,8 +247,8 @@ func searchResultsExposeCueGroupLanguages() throws {
 
     let visiblePage = try SearchDatabase(path: database.path).searchVisiblePage("shared", limit: 2, cursor: .start)
     #expect(visiblePage.results.map(\.displayTitle) == [
-        "LanguageResultTags.srt",
-        "LanguageResultTags.srt"
+        "Media - 01",
+        "Media - 01"
     ])
     #expect(visiblePage.results.map(\.languages) == [
         [.japanese],

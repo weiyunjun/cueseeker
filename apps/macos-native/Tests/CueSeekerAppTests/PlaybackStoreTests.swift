@@ -118,8 +118,7 @@ func playbackStoreUsesTheLibrarySessionStoreAsTheMediaPlaylistSource() throws {
 
     let libraryStore = PlaybackLibrarySessionStore(
         libraryStore: library,
-        folderPath: "/video",
-        isVideoAvailable: { _ in true }
+        folderPath: "/video"
     )
     let librarySession = try #require(store.beginSubtitleFocusSession(
         openSnapshot: openSnapshot,

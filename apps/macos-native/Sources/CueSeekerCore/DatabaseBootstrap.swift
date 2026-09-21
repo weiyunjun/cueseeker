@@ -12,7 +12,7 @@ public enum DatabaseBootstrapError: Error, Equatable, CustomStringConvertible {
 }
 
 public enum DatabaseBootstrap {
-    public static let currentSchemaVersion = 52
+    public static let currentSchemaVersion = 53
 
     public static func prepare(at path: URL) throws {
         let database = try SQLiteDatabase(path: path, access: .readWrite)
@@ -64,6 +64,7 @@ private extension DatabaseBootstrap {
                 || previousVersion == 49
                 || previousVersion == 50
                 || previousVersion == 51
+                || previousVersion == 52
                 || previousVersion == DatabaseBootstrap.currentSchemaVersion
         else {
             throw DatabaseBootstrapError.unsupportedSchemaVersion(
@@ -172,6 +173,9 @@ private extension DatabaseBootstrap {
         }
         if previousVersion >= 33, previousVersion <= 51 {
             try migrateSchema51To52(on: database)
+        }
+        if previousVersion >= 33, previousVersion <= 52 {
+            try migrateSchema52To53(on: database)
             return
         }
         guard previousVersion == 0 else {
@@ -811,6 +815,27 @@ private extension DatabaseBootstrap {
                 try database.execute("ALTER TABLE video_files ADD COLUMN default_subtitle_file_id INTEGER;")
             }
             try database.execute("PRAGMA user_version = 52;")
+        }
+    }
+
+    /// Search and Excerpt used to title a subtitle by ranking its file among
+    /// the same-extension files on disk; a subtitle now takes its video's
+    /// Library title, so the stored search titles are recomputed once.
+    static func migrateSchema52To53(on database: SQLiteDatabase) throws {
+        try database.withImmediateTransaction {
+            let readColumns: [String: Set<String>] = [
+                "subtitle_search_order_rows": ["subtitle_file_id", "display_title"],
+                "subtitle_video_matches": ["subtitle_file_id", "video_file_id", "is_active"],
+                "video_files": ["id", "path", "video_name"],
+                "library_video_rows": ["video_path", "display_title"]
+            ]
+            let hasTitleTables = try readColumns.allSatisfy { table, columns in
+                try columnNames(of: table, in: database).isSuperset(of: columns)
+            }
+            if hasTitleTables {
+                try SubtitleDisplayTitleResolver.refreshSearchOrderDisplayTitles(on: database)
+            }
+            try database.execute("PRAGMA user_version = 53;")
         }
     }
 

@@ -1056,6 +1056,10 @@ final class SRTSubtitleOverlayView: NSView {
         }
     }
     var onRenderingFailure: ((String) -> Void)?
+    /// The subtitle file itself could not be read. Unlike the renderer's own
+    /// in-flight failures this one is the user's to see, so it travels to the
+    /// App and is shown in the player's error banner.
+    var onSourceLoadFailure: ((URL) -> Void)?
 
     private var source: PlaybackSubtitleSource?
     private var loadTask: Task<Void, Never>?
@@ -1218,6 +1222,9 @@ final class SRTSubtitleOverlayView: NSView {
         if let errorMessage {
             loadedSourceIdentity = nil
             onRenderingFailure?(errorMessage)
+            if let sourceURL = source?.url {
+                onSourceLoadFailure?(sourceURL)
+            }
             return
         }
         loadedSourceIdentity = expectedSourceIdentity

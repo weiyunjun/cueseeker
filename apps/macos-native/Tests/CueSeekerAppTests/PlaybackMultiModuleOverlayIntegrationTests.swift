@@ -14,8 +14,7 @@ func playbackMultiModuleOverlayPreservesOneSessionThenReopensFresh() async throw
     let excerptStore = playbackMultiModuleExcerptStore(fixture.excerpt)
     let libraryStore = PlaybackLibrarySessionStore(
         libraryStore: featureLibrary,
-        folderPath: fixture.detail.folderPath,
-        isVideoAvailable: { _ in true }
+        folderPath: fixture.detail.folderPath
     )
     let playlistItems = fixture.searchResults.enumerated().map {
         PlaybackCueResultItem(searchResult: $1, ordinal: $0)
@@ -86,8 +85,7 @@ func playbackMultiModuleOverlayPreservesOneSessionThenReopensFresh() async throw
 
     let freshLibraryStore = PlaybackLibrarySessionStore(
         libraryStore: featureLibrary,
-        folderPath: fixture.detail.folderPath,
-        isVideoAvailable: { _ in true }
+        folderPath: fixture.detail.folderPath
     )
     let freshSession = PlaybackSubtitleFocusSessionStore(
         openSnapshot: fixture.openSnapshot,
@@ -147,8 +145,7 @@ func playbackMultiModuleStopCancelsSessionWorkButPreservesFeatureStores() async 
     let playlistSource = playbackMultiModuleSource(items: playlistItems)
     let libraryStore = PlaybackLibrarySessionStore(
         libraryStore: featureLibrary,
-        folderPath: fixture.detail.folderPath,
-        isVideoAvailable: { _ in true }
+        folderPath: fixture.detail.folderPath
     )
     app.playback.setPlaylistSource(playlistSource)
     let session = try #require(app.playback.beginSubtitleFocusSession(
