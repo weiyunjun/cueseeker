@@ -214,7 +214,7 @@ func sharedExcerptPipelineAppliesLivePrimaryCueSearchBeforePlaybackProjection() 
     #expect(
         (0..<app.excerpt.tableRowStore.snapshot.totalRowCount)
             .compactMap { app.excerpt.tableRowStore.snapshot.row(at: $0)?.displayTitle }
-            .contains { $0.localizedCaseInsensitiveContains("Excerpt-1000") }
+            .contains { $0.localizedCaseInsensitiveContains("Media - 01") }
     )
 
     app.updateExcerptSearchQuery("alp")
@@ -226,7 +226,7 @@ func sharedExcerptPipelineAppliesLivePrimaryCueSearchBeforePlaybackProjection() 
             == "alpha shared excerpt"
     )
 
-    app.updateExcerptSearchQuery("Excerpt-1000")
+    app.updateExcerptSearchQuery("Media - 01")
     #expect(app.excerpt.tableResultRowCount == 0)
     #expect(app.excerpt.tableRowStore.snapshot.totalRowCount == 0)
 

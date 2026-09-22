@@ -874,10 +874,10 @@ func searchVisiblePageUsesProductOrderedFTSRowIDsForEarlyTermination() throws {
     let database = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
 
-    let betaSubtitle = URL(fileURLWithPath: "/Media/AFolder/Beta.srt")
-    let betaVideo = URL(fileURLWithPath: "/Media/AFolder/Beta.mkv")
-    let alphaSubtitle = URL(fileURLWithPath: "/Media/ZFolder/Alpha.srt")
-    let alphaVideo = URL(fileURLWithPath: "/Media/ZFolder/Alpha.mkv")
+    let betaSubtitle = URL(fileURLWithPath: "/Media/ZFolder/Beta.srt")
+    let betaVideo = URL(fileURLWithPath: "/Media/ZFolder/Beta.mkv")
+    let alphaSubtitle = URL(fileURLWithPath: "/Media/AFolder/Alpha.srt")
+    let alphaVideo = URL(fileURLWithPath: "/Media/AFolder/Alpha.mkv")
 
     try database.replaceEntries(
         subtitleFile: betaSubtitle,
@@ -927,10 +927,10 @@ func searchPageReturnsTotalCountsAndFileSummaries() throws {
     let database = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
 
-    let alphaSubtitle = URL(fileURLWithPath: "/Media/ZFolder/Alpha.srt")
-    let alphaVideo = URL(fileURLWithPath: "/Media/ZFolder/Alpha.mkv")
-    let betaSubtitle = URL(fileURLWithPath: "/Media/AFolder/Beta.srt")
-    let betaVideo = URL(fileURLWithPath: "/Media/AFolder/Beta.mkv")
+    let alphaSubtitle = URL(fileURLWithPath: "/Media/AFolder/Alpha.srt")
+    let alphaVideo = URL(fileURLWithPath: "/Media/AFolder/Alpha.mkv")
+    let betaSubtitle = URL(fileURLWithPath: "/Media/ZFolder/Beta.srt")
+    let betaVideo = URL(fileURLWithPath: "/Media/ZFolder/Beta.mkv")
 
     try database.replaceEntries(
         subtitleFile: alphaSubtitle,

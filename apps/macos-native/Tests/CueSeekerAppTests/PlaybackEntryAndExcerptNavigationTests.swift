@@ -35,8 +35,10 @@ func playbackChromeSnapshotUsesEntryMetadataAcrossSources() async throws {
             $0.videoPath == "/Media/B.mkv"
         })
 
+        // A video the database holds reads its own Display Title, whatever
+        // title the entry passes.
         app.openLibraryVideo(videoB, displayTitle: "Library Row Title")
-        #expect(app.playback.chromeSnapshot.displayTitle == "Library Row Title")
+        #expect(app.playback.chromeSnapshot.displayTitle == "Media - 02")
         #expect(app.playback.chromeSnapshot.canGoPrevious)
         #expect(app.playback.chromeSnapshot.canGoNext)
 
@@ -58,7 +60,7 @@ func playbackChromeSnapshotUsesEntryMetadataAcrossSources() async throws {
             navigationScopeIDs: [newer.id, older.id],
             displayTitle: "Excerpt Row Title"
         )
-        #expect(app.playback.chromeSnapshot.displayTitle == "Excerpt Row Title")
+        #expect(app.playback.chromeSnapshot.displayTitle == "Media - 04")
         #expect(app.playback.chromeSnapshot.canGoPrevious)
         #expect(!app.playback.chromeSnapshot.canGoNext)
     }

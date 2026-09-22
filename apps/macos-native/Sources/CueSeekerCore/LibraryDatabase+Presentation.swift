@@ -749,7 +749,11 @@ extension LibraryDatabase {
                 video_order,
                 updated_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+            VALUES (
+                ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9,
+                COALESCE((SELECT display_title FROM video_files WHERE id = ?2), ''),
+                ?10, ?11, ?12, ?13
+            );
             """
         )
 
@@ -757,14 +761,8 @@ extension LibraryDatabase {
             let folderTitle = URL(fileURLWithPath: folderPath).lastPathComponent
             let videos = (videosByFolderPath[folderPath] ?? [])
                 .sorted(by: Self.libraryVideoSort)
-            let rankWidth = max(2, String(videos.count).count)
 
             for (videoOrder, video) in videos.enumerated() {
-                let sequence = String(
-                    format: "%0*d",
-                    rankWidth,
-                    videoOrder + 1
-                )
                 let fileExtension = URL(fileURLWithPath: video.videoPath)
                     .pathExtension.lowercased()
                 try insert.bind(video.videoPath, at: 1)
@@ -788,18 +786,56 @@ extension LibraryDatabase {
                 try insert.bind(video.subtitleFormat.rawValue, at: 7)
                 try insert.bind(folderPath, at: 8)
                 try insert.bind(folderTitle, at: 9)
-                try insert.bind("\(folderTitle) - \(sequence)", at: 10)
-                try insert.bind(fileExtension, at: 11)
-                try insert.bind(folderOrder, at: 12)
-                try insert.bind(videoOrder, at: 13)
-                try insert.bind(updatedAt, at: 14)
+                try insert.bind(fileExtension, at: 10)
+                try insert.bind(folderOrder, at: 11)
+                try insert.bind(videoOrder, at: 12)
+                try insert.bind(updatedAt, at: 13)
                 try insert.run()
                 try insert.reset()
                 try insert.clearBindings()
             }
         }
-        // The videos' titles just changed, so their subtitles' titles follow.
-        try SubtitleDisplayTitleResolver.refreshSearchOrderDisplayTitles(on: database)
+    }
+
+    /// Names the videos of the given folders, or of every folder when nil,
+    /// inside the caller's transaction. Display Title belongs to the video:
+    /// its folder's name and its place among the folder's videos, as the
+    /// Library orders them, padded to the digits of the folder's video count
+    /// and at least two. Index names them when it publishes its core data,
+    /// so Search, Excerpt, the player and the Library rows read one title
+    /// from then on. See `docs/human/requirements/20260923-Bug-Display Title
+    /// Computed When Index Publishes Core Data.md`.
+    func refreshVideoDisplayTitles(inFolderPaths folderPaths: Set<String>?) throws {
+        let videos: [LibraryVideo]
+        if let folderPaths {
+            videos = try indexedLibraryVideos(inFolderPaths: folderPaths)
+        } else {
+            videos = try indexedLibraryVideos(scopedTo: nil)
+        }
+        let videosByFolderPath = Dictionary(grouping: videos) {
+            URL(fileURLWithPath: $0.videoPath)
+                .deletingLastPathComponent()
+                .standardizedFileURL
+                .path
+        }
+        let update = try database.prepare(
+            "UPDATE video_files SET display_title = ? WHERE id = ?;"
+        )
+        for (folderPath, videos) in videosByFolderPath {
+            let folderTitle = URL(fileURLWithPath: folderPath).lastPathComponent
+            let rankWidth = max(2, String(videos.count).count)
+            for (videoOrder, video) in videos.sorted(by: Self.libraryVideoSort).enumerated() {
+                guard let videoFileID = video.videoFileID else {
+                    continue
+                }
+                let sequence = String(format: "%0*d", rankWidth, videoOrder + 1)
+                try update.bind("\(folderTitle) - \(sequence)", at: 1)
+                try update.bind(videoFileID, at: 2)
+                try update.run()
+                try update.reset()
+                try update.clearBindings()
+            }
+        }
     }
 
     private func indexedLibraryVideos(

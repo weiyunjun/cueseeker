@@ -196,16 +196,26 @@ public final class LibraryDatabase: @unchecked Sendable {
     }
 
     /// The Display Title Index gave the video, read from the database only, so
-    /// a file renamed or moved outside the App keeps the title it had.
+    /// a file renamed or moved outside the App keeps the title it had. A video
+    /// no subtitle matches any more has none.
     public func displayTitle(forVideoFile videoFile: URL) throws -> String? {
         let statement = try database.prepare(
-            "SELECT display_title FROM library_video_rows WHERE video_path = ?;"
+            """
+            SELECT vf.display_title
+            FROM video_files vf
+            WHERE vf.path = ?
+              AND EXISTS (
+                  SELECT 1
+                  FROM subtitle_video_matches m
+                  WHERE m.video_file_id = vf.id AND m.is_active = 1
+              );
+            """
         )
         try statement.bind(videoFile.path, at: 1)
         guard try statement.step() else {
             return nil
         }
-        return statement.stringColumn(0)
+        return statement.nullableStringColumn(0)
     }
 
     public func videoSubtitles(forVideoFile videoFile: URL) throws -> VideoSubtitles? {

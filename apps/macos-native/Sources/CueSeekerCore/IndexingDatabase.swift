@@ -926,6 +926,7 @@ public final class IndexingDatabase: @unchecked Sendable {
     }
 
     private func rebuildSearchOrderRows() throws {
+        try LibraryDatabase(sharing: database).refreshVideoDisplayTitles(inFolderPaths: nil)
         try database.execute("DELETE FROM subtitle_search_order_rows;")
         try insertSearchOrderRows(for: try indexedSearchOrderFiles(inFolderPath: nil))
     }
@@ -940,6 +941,11 @@ public final class IndexingDatabase: @unchecked Sendable {
         guard !affectedFolderPaths.isEmpty else {
             return
         }
+        // The rows carry their videos' Display Title, so the videos are named
+        // first and Search never waits for the Library rows to be rebuilt.
+        try LibraryDatabase(sharing: database).refreshVideoDisplayTitles(
+            inFolderPaths: affectedFolderPaths
+        )
         let folderPaths = Set(
             affectedFolderPaths.flatMap {
                 Self.folderPathVariants(
