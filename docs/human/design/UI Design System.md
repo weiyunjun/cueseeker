@@ -156,6 +156,8 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--color-player-progress-hover-track`: Light `rgba(255,255,255,0.35)`; Dark `rgba(255,255,255,0.35)`
 - `--color-player-topbar-gradient-start`: Light `rgba(18,18,24,0.66)`; Dark `rgba(18,18,24,0.66)`
 - `--color-player-topbar-gradient-end`: Light `rgba(18,18,24,0)`; Dark `rgba(18,18,24,0)`
+- `--color-player-error-bg`: Light `#B42318`; Dark `#B42318`
+- `--color-player-error-content`: Light `#FFFFFF`; Dark `#FFFFFF`
 
 ### Subtitle Focus
 
@@ -186,6 +188,8 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--font-size-player-progress-time`: `10px`
 - `--font-size-player-speed-menu-check`: `14px`
 - `--font-size-player-speed-menu-item`: `13px`
+- `--font-size-player-error`: `13px`
+- `--line-height-player-error`: `20px`
 - `--font-size-playback-feedback`: `18px`
 - `--font-size-toast`: `16px`
 - `--font-size-subtitle-focus-cue`: `24px`
@@ -290,6 +294,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--max-width-player-audio-track-menu`: `300px`
 - `--size-player-progress-thumb`: `12px`
 - `--width-player-topbar-title-max`: `520px`
+- `--size-player-error-icon`: `16px`
 - `--size-playback-feedback-icon`: `31px`
 - `--width-playback-feedback-max`: `520px`
 - `--size-toast-icon`: `23px`
@@ -381,6 +386,8 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--padding-player-speed-menu-item-x`: `8px`
 - `--padding-player-progress-time-capsule-x`: `8px`
 - `--padding-player-topbar-x`: `16px`
+- `--padding-player-error-x`: `12px`
+- `--padding-player-error-y`: `10px`
 - `--padding-library-folder-card`: `12px 16px`
 - `--padding-library-time-badge`: `2px 6px`
 - `--padding-task-count-badge-compact-x`: `6px`
@@ -412,6 +419,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--radius-player-capsule`: `9999px`
 - `--radius-player-speed-menu`: `14px`
 - `--radius-playback-feedback`: `16px`
+- `--radius-player-error`: `10px`
 - `--radius-player-speed-menu-item`: `8px`
 - `--radius-library-cover`: `8px`
 - `--radius-library-time-badge`: `4px`
@@ -2208,6 +2216,61 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - Visible
 - Exiting
 
+### Player Error Banner
+
+#### Shared
+
+##### Anatomy
+
+- Container
+  - Background：`--color-player-error-bg`
+  - Border：None
+  - Radius：`--radius-player-error`
+  - Shadow：None
+- Line Stack
+  - 视频那一行在上，字幕那一行在下；只有一条时框内只有一行
+- Line
+  - Icon
+    - Icon：`warning`
+    - Size：`--size-player-error-icon`
+    - Color：`--color-player-error-content`
+    - 与 Message 第一行垂直居中
+  - Message
+    - Font Family：`--font-family-base`
+    - Font Size：`--font-size-player-error`
+    - Line Height：`--line-height-player-error`
+    - Font Weight：`--font-weight-control`
+    - Color：`--color-player-error-content`
+    - 完整绝对路径不截断，超出最大宽度换行，各行左对齐，不进入 Icon 所占宽度
+
+##### Motion
+
+- Duration：`--duration-toast-motion`
+- Easing：`--easing-toast-motion`
+
+##### Presentation Inputs
+
+- Duration
+  - Default：`5s`
+- Motion
+  - Default：Toast Motion
+
+##### Sizes
+
+- Width：随内容，不超过 Maximum Width
+- Maximum Width：窗口宽度减两侧各一个 `--spacing-6`
+- Padding Inline：`--padding-player-error-x`
+- Padding Block：`--padding-player-error-y`
+- Icon to Message Gap：`--spacing-2`
+- Line Gap：`--spacing-2`
+
+##### States
+
+- Hidden
+- Entering
+- Visible
+- Exiting
+
 ## 2.10 Dialogs
 
 ### Dialog
@@ -3289,7 +3352,6 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 
 - Default
 - Selected
-- Disabled
 
 ## 3.4 Library and File
 
@@ -4255,6 +4317,45 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 #### Components
 
 - Playback Feedback
+
+#### States
+
+- Hidden
+- Entering
+- Visible
+- Exiting
+
+### Player Error Banner Layout
+
+#### Position
+
+- Anchor：App 窗口左上角，不锚定视频画面
+- Padding Top：`--height-app-topbar` 与 `--spacing-3` 之和
+- Padding Leading：`--spacing-6`
+- 窗口变窄使视频出现黑边时仍在顶栏之下，可落在黑边上；全屏同此规则
+- Layer：Above Video, Playback Overlay and Command Panel
+- 不随 Player UI 隐藏
+
+#### Lines
+
+| 行 | 出现条件 | 文案 |
+| --- | --- | --- |
+| 视频 | 视频文件无法加载 | `Couldn’t load the video file: <绝对路径>` |
+| 视频 | 播放器的其它错误 | `Playback error: <播放器给出的原因>` |
+| 字幕 | 字幕文件无法读取 | `Couldn’t load the subtitle file: <绝对路径>` |
+
+- 文案不区分 ASS 与 SRT，也不出现渲染器等内部名称
+
+#### Timing
+
+- Duration：Player Error Banner / Duration，自出现起计时；对应的视频或字幕被替换时提前消失，两者以先到者为准。视频那一行的来源是当前视频，字幕那一行的来源是当前字幕，切换视频同样视为替换
+- 同一行出现新的报错时替换旧的并重新计时
+- 焦点、指针与窗口是否可见都不影响计时；暂停、播放、拖动进度、开关 Playback Overlay 同样不影响
+- 两行都消失时框消失
+
+#### Components
+
+- Player Error Banner
 
 #### States
 
