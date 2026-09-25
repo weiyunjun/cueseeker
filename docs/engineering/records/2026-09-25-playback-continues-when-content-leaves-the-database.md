@@ -78,6 +78,7 @@ Files: `AppCoordinator+PlaybackLibraryChange.swift` (new), `AppCoordinator.swift
   - Save to Excerpt List and Copy Deep Link show a one-second Playback Feedback with the warning icon, `Not in Library`. An item with no cue identity keeps its old answer, `No Subtitle`.
   - Copy Cue Text and Collage are unchanged.
 - Opening an episode from a Library Playlist kept through a change leaves the videos that left out of previous and next.
+- A Save to Excerpt List destination menu opened before the cue left the library and used after it says `Not in Library` and writes nothing, instead of saving an Excerpt of a cue that is gone. This holds for the menus of the playback page, the overlay and the Command Panel; the Workbench saves as before.
 
 Files: `AppCoordinator+PlaybackLibraryChange.swift`, `AppCoordinator+PlaybackSubtitleFocus.swift`, `AppTypes.swift`, `PlaybackErrorBanner.swift`, `PlaybackStore.swift`, `PlaybackViewModel.swift`, `PlaybackLibraryOverlay.swift`, `PlaybackLibrarySessionStore.swift`, `PlaybackSubtitleFocusOverlay.swift`, `PlaybackSubtitleFocusSessionStore.swift`, the three `Localizable.strings`.
 

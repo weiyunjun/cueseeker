@@ -728,6 +728,11 @@ extension AppCoordinator {
         listName: String,
         report: ExcerptSaveReport
     ) -> Bool {
+        // A destination menu opened before the cue left the library.
+        if case .playbackFeedback = report, !isCueInLibrary(cueID) {
+            playback.playbackViewModel?.showNotInLibraryFeedback()
+            return false
+        }
         guard let database = excerptDatabase else {
             reportExcerptSave(
                 ExcerptToastRequest.saveFailed(listName: listName),
