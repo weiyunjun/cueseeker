@@ -271,7 +271,8 @@ extension AppCoordinator {
     /// the indexed content has moved. The queue only orders and records.
     func configureLibraryTaskRunners() {
         tasks.runIndex = { [weak self] folders, onProgress in
-            try await AppCoordinator.runIndex(
+            await AppCoordinator.waitForDebugTaskDelay()
+            return try await AppCoordinator.runIndex(
                 folders: folders,
                 isAllFolders: true,
                 onProgress: onProgress,
@@ -279,17 +280,37 @@ extension AppCoordinator {
             )
         }
         tasks.runAddFolder = { [weak self] folders, onProgress in
+            await AppCoordinator.waitForDebugTaskDelay()
             guard let self, let folder = folders.first else {
                 throw CancellationError()
             }
             return try await self.performFolderAddition(folder, onProgress: onProgress)
         }
         tasks.runRemoveFolder = { [weak self] folder in
+            await AppCoordinator.waitForDebugTaskDelay()
             guard let self else {
                 throw CancellationError()
             }
             try await self.performFolderRemoval(folder)
         }
+    }
+
+    /// A Debug build waits the seconds in `CUESEEKER_DEBUG_TASK_DELAY_SECONDS`
+    /// before an Add Folder, Index or Remove Folder starts its work, so what
+    /// the database change does to an open page can be accepted in the App.
+    /// The take-backs of an unfinished Add Folder call the removal directly and
+    /// never wait (20260925-Feature-Playback Continues When Content Leaves The
+    /// Database, 5).
+    nonisolated private static func waitForDebugTaskDelay() async {
+        #if DEBUG
+        if let seconds = ProcessInfo.processInfo
+            .environment["CUESEEKER_DEBUG_TASK_DELAY_SECONDS"]
+            .flatMap({ Double($0.trimmingCharacters(in: .whitespaces)) }),
+           seconds.isFinite,
+           seconds > 0 {
+            try? await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
+        }
+        #endif
     }
 
     /// Indexes a new root and then adds it to the list. A folder a root
@@ -343,19 +364,6 @@ extension AppCoordinator {
     /// groups inside it that stay. The `await` on the executor leaves the main
     /// actor free while the deletion runs.
     private func performFolderRemoval(_ folder: URL) async throws {
-        #if DEBUG
-        // Temporary, so the running removal can be accepted in the App; goes
-        // once that acceptance is done (20260919-Engineering-Debug Remove
-        // Folder Delay For Acceptance).
-        if let seconds = ProcessInfo.processInfo
-            .environment["CUESEEKER_DEBUG_REMOVE_FOLDER_DELAY_SECONDS"]
-            .flatMap({ Double($0.trimmingCharacters(in: .whitespaces)) }),
-           seconds.isFinite,
-           seconds > 0 {
-            try? await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
-        }
-        #endif
-
         let remainingRoots = indexing.selectedFolders.filter { $0 != folder }
         guard LibraryRootGroups.coveringRoot(of: folder, in: remainingRoots) == nil else {
             indexing.removeFolder(folder)
