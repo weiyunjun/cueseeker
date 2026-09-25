@@ -23,7 +23,7 @@ File: `apps/macos-native/Sources/CueSeekerApp/App/AppCoordinator+Indexing.swift`
 
 ### Verification
 
-- `swift build` compiles.
+- `swift build` and `swift build -c release --product CueSeeker` both compile. After all the steps below, the Debug binary holds `CUESEEKER_DEBUG_TASK_DELAY_SECONDS` and no longer the old name; the Release binary holds neither.
 - No automated test sets the variable, for the reason the 2026-09-19 record gives: it is process-wide and would slow every other task test in the parallel run. The wait itself is left to the owner's in-App check.
 
 ## Step 2: which cues and Excerpts are still in the library
