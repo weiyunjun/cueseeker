@@ -296,15 +296,16 @@ extension AppCoordinator {
     }
 
     /// A Debug build waits the seconds in `CUESEEKER_DEBUG_TASK_DELAY_SECONDS`
-    /// before an Add Folder, Index or Remove Folder starts its work, so what
-    /// the database change does to an open page can be accepted in the App.
+    /// before an Add Folder, Index, Remove Folder, Export to Anki or Rename starts
+    /// its work, so what the task does to an open page can be accepted in the App.
     /// The take-backs of an unfinished Add Folder call the removal directly and
     /// never wait (20260925-Feature-Playback Continues When Content Leaves The
-    /// Database, 5).
-    nonisolated private static func waitForDebugTaskDelay() async {
+    /// Database, 5; 20260926-Engineering-Debug Delay For Anki Export And Rename).
+    nonisolated static func waitForDebugTaskDelay(
+        environment: [String: String] = ProcessInfo.processInfo.environment
+    ) async {
         #if DEBUG
-        if let seconds = ProcessInfo.processInfo
-            .environment["CUESEEKER_DEBUG_TASK_DELAY_SECONDS"]
+        if let seconds = environment["CUESEEKER_DEBUG_TASK_DELAY_SECONDS"]
             .flatMap({ Double($0.trimmingCharacters(in: .whitespaces)) }),
            seconds.isFinite,
            seconds > 0 {

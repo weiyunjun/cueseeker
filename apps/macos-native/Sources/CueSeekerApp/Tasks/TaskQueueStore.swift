@@ -287,7 +287,7 @@ final class TaskQueueStore: ObservableObject {
     var hasLibraryTask: Bool { current.contains { $0.category == .library } }
 
     private let database: TaskRecordDatabase?
-    private let runExport: TaskExportRunner
+    var runExport: TaskExportRunner
     var runRename: TaskRenameRunner
     var runIndex: TaskIndexRunner
     var runAddFolder: TaskIndexRunner

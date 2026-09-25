@@ -42,6 +42,7 @@ extension AppCoordinator {
     /// and the page refresh once the paths have moved.
     func configureRenameRunner() {
         tasks.runRename = { [weak self] request, onStage in
+            await AppCoordinator.waitForDebugTaskDelay()
             try await AppCoordinator.runRename(request, onStage: onStage, coordinator: self)
         }
     }

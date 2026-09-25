@@ -195,4 +195,18 @@ extension AppCoordinator {
         )
     }
 
+    // MARK: - The task
+
+    /// Hands the queue the export runner configured with the debug task delay.
+    func configureAnkiExportRunner() {
+        tasks.runExport = { items, options, destinationURL, onItemExported in
+            await AppCoordinator.waitForDebugTaskDelay()
+            try await TaskQueueStore.ankiExportRunner(
+                items,
+                options,
+                destinationURL,
+                onItemExported
+            )
+        }
+    }
 }

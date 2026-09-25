@@ -556,6 +556,7 @@ final class AppCoordinator: ObservableObject {
             )
         }
         libraryPlaybackHistoryWriter = LibraryPlaybackHistoryWriter(database: openedLibraryDatabase)
+        configureAnkiExportRunner()
         configureRenameRunner()
         configureLibraryTaskRunners()
 
