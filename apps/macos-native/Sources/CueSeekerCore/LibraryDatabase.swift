@@ -421,7 +421,9 @@ extension LibraryDatabase {
         markStarted: Bool = true,
         markCompleted: Bool = false
     ) throws {
-        let videoFileID = try upsertVideoFile(videoFile)
+        guard let videoFileID = try upsertVideoFile(videoFile) else {
+            return
+        }
         let updatedAtString = Self.playbackHistoryTimestamp(from: updatedAt)
         let normalizedDuration = duration.flatMap { value in
             value.isFinite && value > 0 ? value : nil
@@ -483,7 +485,9 @@ extension LibraryDatabase {
         updatedAt: Date
     ) throws {
         try database.withImmediateTransaction {
-            let videoFileID = try upsertVideoFile(videoFile)
+            guard let videoFileID = try upsertVideoFile(videoFile) else {
+                return
+            }
             let previousState = try database.prepare(
                 "SELECT state FROM library_watch_states WHERE video_file_id = ?;"
             )
@@ -512,11 +516,15 @@ extension LibraryDatabase {
         }
     }
 
-    private func upsertVideoFile(_ videoFile: URL) throws -> Int64 {
+    private func upsertVideoFile(_ videoFile: URL) throws -> Int64? {
+        let existingVideoFileID = try videoFileID(for: videoFile)
+        let pathIdentity = try mediaPathIdentity(for: videoFile)
+        if existingVideoFileID == nil, pathIdentity == nil, try hasSearchPaths() {
+            return nil
+        }
         let attributes = try? FileManager.default.attributesOfItem(atPath: videoFile.path)
         let fileSize = (attributes?[.size] as? NSNumber)?.int64Value
         let modifiedAt = attributes?[.modificationDate] as? Date
-        let pathIdentity = try mediaPathIdentity(for: videoFile)
         let statement = try database.prepare(
             """
             INSERT INTO video_files(
@@ -550,6 +558,11 @@ extension LibraryDatabase {
             return database.lastInsertRowID()
         }
         return statement.int64Column(0)
+    }
+
+    private func hasSearchPaths() throws -> Bool {
+        let statement = try database.prepare("SELECT 1 FROM search_paths LIMIT 1;")
+        return try statement.step()
     }
 
     private func videoFileID(for videoFile: URL) throws -> Int64? {

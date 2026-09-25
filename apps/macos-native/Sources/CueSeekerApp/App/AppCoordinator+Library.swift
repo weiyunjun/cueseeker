@@ -998,6 +998,9 @@ extension AppCoordinator {
         for video: LibraryVideo,
         refreshPresentation: Bool = true
     ) {
+        guard !currentPlaybackItemLeftLibrary else {
+            return
+        }
         let existingHistory = libraryPlaybackHistory(for: video)
         let snapshot = LibraryPlaybackHistorySnapshot(
             videoPath: video.videoPath,

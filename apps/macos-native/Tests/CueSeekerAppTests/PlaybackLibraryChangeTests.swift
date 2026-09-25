@@ -538,6 +538,59 @@ func aRecentExcerptListWithNothingLeftInTheLibrarySaysSoAndStaysOpen() async thr
     }
 }
 
+@MainActor
+@Test
+func exitingPlaybackOfVideoThatLeftLibraryDoesNotSaveHistoryOrPolluteDatabase() async throws {
+    try await withLibraryChangeApp { app, database in
+        app.ensurePlayerInitialized()
+        try indexLibraryChangeVideo("A", in: database)
+        try LibraryDatabase(path: database.path)
+            .refreshPresentationAfterIndexedContentChange()
+        let media = URL(fileURLWithPath: "/Media")
+        app.indexing.appendFolder(media)
+        let videos = try #require(app.libraryDatabase).libraryVideos(under: [media])
+        let videoA = try #require(videos.first { $0.videoPath == "/Media/A.mkv" })
+        app.library.libraryVideos = videos
+        app.openLibraryVideo(videoA)
+        app.activePlaybackSource = .library(videoPath: videoA.videoPath)
+
+        let playbackViewModel = try #require(app.playback.playbackViewModel)
+        let player = try #require(app.player)
+        playbackViewModel.player(player, didChangeProperty: "time-pos", value: .double(45.0))
+        playbackViewModel.player(player, didChangeProperty: "duration", value: .double(100.0))
+        await Task.yield()
+
+        // Video leaves the library while playing.
+        try database.removeStaleEntries(under: media, keeping: [])
+        try LibraryDatabase(path: database.path)
+            .refreshPresentationAfterIndexedContentChange()
+        app.reconcilePlaybackAfterIndexedContentChange()
+        #expect(app.currentPlaybackItemLeftLibrary)
+
+        // User exits playback.
+        app.stopPlayback()
+        app.libraryPlaybackHistoryWriter.flush()
+
+        // Verify that database does not retain history or orphan records.
+        let videoURL = URL(fileURLWithPath: videoA.videoPath)
+        #expect(try app.libraryDatabase?.libraryPlaybackHistory(forVideoFile: videoURL) == nil)
+
+        // Re-adding the folder should initialize the video with 0 progress and unwatched status.
+        try indexLibraryChangeVideo("A", in: database)
+        try LibraryDatabase(path: database.path)
+            .refreshPresentationAfterIndexedContentChange()
+        let readdedVideos = try #require(app.libraryDatabase).libraryVideos(under: [media])
+        let readdedVideoA = try #require(readdedVideos.first { $0.videoPath == "/Media/A.mkv" })
+        #expect(try app.libraryDatabase?.libraryPlaybackHistory(forVideoFile: videoURL) == nil)
+        #expect(app.libraryResumePositionMilliseconds(for: readdedVideoA) == 0)
+        let detail = try #require(
+            try LibraryDatabase(path: database.path)
+                .completeLibraryFolderDetail(folderPath: media.path)
+        )
+        #expect(detail.videos.first?.watchState == .unwatched)
+    }
+}
+
 private func libraryChangeRecentVideo(_ name: String) -> RecentLibraryWatchingPresentation {
     RecentLibraryWatchingPresentation(
         videoFileID: 1,

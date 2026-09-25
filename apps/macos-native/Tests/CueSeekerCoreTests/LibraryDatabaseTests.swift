@@ -1117,6 +1117,34 @@ func removingIndexedFolderForgetsLibraryPlaybackHistory() throws {
 }
 
 @Test
+func upsertLibraryPlaybackHistoryRefusesToInsertOrphanRecordForVideoOutsideSearchPaths() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try IndexingDatabase(path: databaseURL)
+    try DatabaseBootstrap.prepare(at: databaseURL)
+
+    let folder = URL(fileURLWithPath: "/Media/Show")
+    _ = try database.addSearchPath(folder)
+
+    let outsideVideo = URL(fileURLWithPath: "/Outside/Show/Episode 1.mkv")
+    let libraryDatabase = try LibraryDatabase(path: databaseURL)
+    try libraryDatabase.upsertLibraryPlaybackHistory(
+        videoFile: outsideVideo,
+        positionMilliseconds: 42_000,
+        duration: 1_200.0
+    )
+
+    #expect(try libraryDatabase.libraryPlaybackHistory(forVideoFile: outsideVideo) == nil)
+    let statement = try database.database.prepare("SELECT id FROM video_files WHERE path = ?;")
+    try statement.bind(outsideVideo.path, at: 1)
+    let hasRow = try statement.step()
+    #expect(!hasRow)
+}
+
+@Test
 func videoAudioTracksKeepTheRecordedListAndTheDefaultTrackAsSet() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {

@@ -1274,7 +1274,6 @@ extension AppCoordinator {
     }
 
     func stopPlayback() {
-        currentPlaybackItemLeftLibrary = false
         playbackAwaitsLibraryReconcile = false
         _ = playback.dismissCommandPanel()
         invalidatePlaybackSubtitleFocusForSourceReplacement()
@@ -1288,6 +1287,7 @@ extension AppCoordinator {
             try player?.stop()
             playback.playbackViewModel?.clearSubtitleCues()
             activePlaybackSource = .none
+            currentPlaybackItemLeftLibrary = false
             search.selectResult(nil)
             library.selectedLibraryVideo = nil
             excerpt.selectedExcerpt = nil
