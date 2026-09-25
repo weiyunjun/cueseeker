@@ -77,7 +77,7 @@
 
 | 图标 | 字重 | 含义 | 使用位置 |
 | --- | --- | --- | --- |
-| `warning` | Regular | 警告、失败 | File Page / Index Status（失败）；Settings / Maintenance（失败）；Player Error Banner（视频加载失败、字幕加载失败、播放器其它错误）；Playback Feedback（无字幕） |
+| `warning` | Regular | 警告、失败 | File Page / Index Status（失败）；Settings / Maintenance（失败）；Player Error Banner（视频加载失败、字幕加载失败、播放器其它错误、播放或打开不在数据库中的项）；Playback Feedback（无字幕、不在数据库中） |
 | `warning-circle` | Regular | 建议压缩数据库 | Settings / Maintenance |
 | `check-circle` | Regular | 成功、已看完 | File Page / Index Status（成功）；Settings / Maintenance（成功）；Library 卡片菜单 / Mark as Finished |
 | `check-circle` | Fill | 已选 | Checkbox / Checked |

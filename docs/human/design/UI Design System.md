@@ -2228,7 +2228,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
   - Radius：`--radius-player-error`
   - Shadow：None
 - Line Stack
-  - 视频那一行在上，字幕那一行在下；只有一条时框内只有一行
+  - 视频那一行在上，字幕那一行在中间，无效项那一行在最下；只有一条时框内只有一行
 - Line
   - Icon
     - Icon：`warning`
@@ -4313,6 +4313,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 #### Timing
 
 - Duration：Playback Feedback / Duration
+- 列表中没有有效项时导航（上一个、下一个、Auto Switch、视频播完自动播放下一个）：由 Playback Feedback 呈现（持续 1 秒），文案按来源为 `No Available Results`、`No Available Excerpts`、`No Available Videos`
 
 #### Components
 
@@ -4343,6 +4344,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 | 视频 | 视频文件无法加载 | `Couldn’t load the video file: <绝对路径>` |
 | 视频 | 播放器的其它错误 | `Playback error: <播放器给出的原因>` |
 | 字幕 | 字幕文件无法读取 | `Couldn’t load the subtitle file: <绝对路径>` |
+| 无效项 | 播放或打开不在数据库中的项 | `This item is no longer in the library` |
 
 - 文案不区分 ASS 与 SRT，也不出现渲染器等内部名称
 
@@ -4351,7 +4353,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - Duration：Player Error Banner / Duration，自出现起计时；对应的视频或字幕被替换时提前消失，两者以先到者为准。视频那一行的来源是当前视频，字幕那一行的来源是当前字幕，切换视频同样视为替换
 - 同一行出现新的报错时替换旧的并重新计时
 - 焦点、指针与窗口是否可见都不影响计时；暂停、播放、拖动进度、开关 Playback Overlay 同样不影响
-- 两行都消失时框消失
+- 各行均消失时框消失
 
 #### Components
 
@@ -4495,6 +4497,8 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 | Command Panel / Search Results | 结果数 | Save to Excerpt List `S`、Copy Cue Text `C`、Copy Deep Link `X`、Play `Return` |
 
 - Save to Excerpt List 打开 Excerpt Destination Submenu 选择目标列表，不直接保存；结果由 Playback Feedback 呈现，Icon 为实心书签
+- 对不在数据库中的项执行 Save to Excerpt List 或 Copy Deep Link 时拦截，由 Playback Feedback 呈现（持续 1 秒），Icon 为 warning，文案 `Not in Library`；执行 Play 时由 Player Error Banner 报错；操作被拦截时 Playback Overlay 与 Command Panel 保持打开
+- 在 Command Panel 的 Recent Excerpt Lists 中打开没有有效项的列表时拦截，由 Playback Feedback 呈现（持续 1 秒），文案 `No Available Excerpts`，面板保持打开
 - `S`、`C`、`X` 为默认键位，Keycap 显示 Settings / Shortcuts 中的当前键位，⇧ 与主键各占一个 Keycap；快捷键已清空或冲突时不显示 Keycap
 
 #### States
@@ -4530,7 +4534,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 
 - Loading
 - Ready
-- Empty
+- Empty：当前字幕不在数据库中时，显示 Empty State / Empty Hint，文案 `This subtitle is no longer in the library.`
 - Scrolling
 - Settling
 
@@ -4566,7 +4570,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - Video Playlist
 - Loading
 - Ready
-- Empty
+- Empty：播放列表中没有仍在数据库中的项时，显示 Empty State / Empty Hint，文案 `No items in this playlist are in the library.`
 
 ### Playback Collage Editor Layout
 
