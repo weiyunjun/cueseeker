@@ -24,11 +24,14 @@ public struct LibraryCoverIndexer: Sendable {
         public let ffmpegPath: String?
         public let displayRenditionCommitToken: LibraryCoverDisplayRenditionCommitToken?
 
+        /// `maxConcurrentVideos` defaults to the core count, about as many
+        /// covers as ever ran at once: the 32 it used to be were held to that
+        /// by the threads the covers then shared with the rest of the App.
         public init(
             candidatePercentages: [Double] = [0.20, 0.30, 0.40, 0.50, 0.60],
             scoringWidth: Int = 320,
             scoringHeight: Int = 180,
-            maxConcurrentVideos: Int = 32,
+            maxConcurrentVideos: Int = ProcessInfo.processInfo.activeProcessorCount,
             coverDirectory: URL,
             ffmpegPath: String? = nil,
             displayRenditionCommitToken: LibraryCoverDisplayRenditionCommitToken? = nil
@@ -83,6 +86,15 @@ public struct LibraryCoverIndexer: Sendable {
         let qualityScore: Double
         let histogram: [Double]
     }
+
+    /// A cover waits on ffmpeg for most of its time. It waits here, never on
+    /// the threads Search, the pages and the cover images run on, which would
+    /// otherwise stay taken until the last cover is done.
+    private static let generationQueue = DispatchQueue(
+        label: "app.cueseeker.library-cover-generation",
+        qos: .utility,
+        attributes: .concurrent
+    )
 
     private let configuration: Configuration
     private let ffmpegCommand: FFmpegCommand
@@ -285,7 +297,7 @@ public struct LibraryCoverIndexer: Sendable {
                 let job = jobs[nextIndex]
                 nextIndex += 1
                 group.addTask(priority: .utility) {
-                    self.generateCover(for: job)
+                    await self.generateCoverOnGenerationQueue(for: job)
                 }
             }
 
@@ -299,12 +311,22 @@ public struct LibraryCoverIndexer: Sendable {
                 let job = jobs[nextIndex]
                 nextIndex += 1
                 group.addTask(priority: .utility) {
-                    self.generateCover(for: job)
+                    await self.generateCoverOnGenerationQueue(for: job)
                 }
             }
         }
 
         return results
+    }
+
+    private func generateCoverOnGenerationQueue(
+        for job: GenerationJob
+    ) async -> GenerationResult {
+        await withCheckedContinuation { continuation in
+            Self.generationQueue.async {
+                continuation.resume(returning: self.generateCover(for: job))
+            }
+        }
     }
 
     private func generateCover(for job: GenerationJob) -> GenerationResult {

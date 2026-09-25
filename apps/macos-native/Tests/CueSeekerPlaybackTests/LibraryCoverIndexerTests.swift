@@ -235,30 +235,7 @@ func unchangedAutomaticCoverRemainsFreshDuringFallbackRetryScan() async throws {
 func cancelledCoverIndexStartsNoFurtherCover() async throws {
     let fixture = try makeAutomaticCoverFixture()
     defer { try? FileManager.default.removeItem(at: fixture.root) }
-    let databaseURL = fixture.root.appendingPathComponent("CueSeeker.sqlite")
-    let indexingDatabase = try IndexingDatabase(path: databaseURL)
-    for episode in ["Episode 2", "Episode 3"] {
-        let videoURL = fixture.mediaDirectory.appendingPathComponent("\(episode).mkv")
-        try Data("video".utf8).write(to: videoURL)
-        try indexingDatabase.replaceEntries(
-            subtitleFile: fixture.mediaDirectory.appendingPathComponent("\(episode).srt"),
-            videoFile: videoURL,
-            entries: [
-                SubtitleEntry(
-                    sequenceNumber: 1,
-                    startTimecode: "00:00:01,000",
-                    endTimecode: "00:00:02,000",
-                    startMilliseconds: 1_000,
-                    endMilliseconds: 2_000,
-                    text: episode
-                )
-            ]
-        )
-        try LibraryDatabase(path: databaseURL).updateVideoDuration(
-            videoFile: videoURL,
-            duration: 100
-        )
-    }
+    try addAutomaticCoverVideos(["Episode 2", "Episode 3"], to: fixture)
     let sourceJPEG = fixture.root.appendingPathComponent("source.jpg")
     try writeAutomaticCoverTestJPEG(to: sourceJPEG)
     let ffmpeg = try writeAutomaticCoverFFmpeg(
@@ -284,6 +261,65 @@ func cancelledCoverIndexStartsNoFurtherCover() async throws {
         .libraryCoverEligibleVideos(under: [fixture.mediaDirectory])
         .compactMap { try fixture.coverDatabase.libraryVideoCover(forVideoFileID: $0.videoFileID) }
     #expect(storedCovers.map(\.status) == [.generated])
+}
+
+/// Every cover waits on ffmpeg. While they are generated, work at the priority
+/// Search, the pages and the cover images run at still starts at once instead
+/// of waiting for the stage to end.
+@Test
+func coverGenerationLeavesSearchAndPageWorkRunning() async throws {
+    let fixture = try makeAutomaticCoverFixture()
+    defer { try? FileManager.default.removeItem(at: fixture.root) }
+    let videoCount = max(32, 2 * ProcessInfo.processInfo.activeProcessorCount)
+    try addAutomaticCoverVideos(
+        (2...videoCount).map { "Episode \($0)" },
+        to: fixture
+    )
+    let sourceJPEG = fixture.root.appendingPathComponent("source.jpg")
+    try writeAutomaticCoverTestJPEG(to: sourceJPEG)
+    let ffmpeg = try writeAutomaticCoverFFmpeg(
+        in: fixture.root,
+        sourceJPEG: sourceJPEG,
+        frameDelaySeconds: 2
+    )
+    let indexer = LibraryCoverIndexer(
+        configuration: .init(
+            candidatePercentages: [0.5],
+            scoringWidth: 64,
+            scoringHeight: 36,
+            coverDirectory: fixture.coverDirectory,
+            ffmpegPath: ffmpeg.path
+        )
+    )
+
+    // Asked for from a thread of its own once the covers are under way: a
+    // dispatch queue would wait for the stage as well, and the probe would
+    // only be timed after it.
+    let (probeDelays, probeDelay) = AsyncStream.makeStream(of: TimeInterval.self)
+    let indexing = Task(priority: .userInitiated) {
+        try await indexer.indexCovers(
+            under: fixture.mediaDirectory,
+            into: fixture.coverDatabase
+        ) { generated, total in
+            guard generated == 0, total > 0 else {
+                return
+            }
+            Thread {
+                Thread.sleep(forTimeInterval: 0.3)
+                let requestedAt = Date()
+                Task.detached(priority: .userInitiated) {
+                    probeDelay.yield(Date().timeIntervalSince(requestedAt))
+                    probeDelay.finish()
+                }
+            }.start()
+        }
+    }
+    var delays = probeDelays.makeAsyncIterator()
+    let delay = try #require(await delays.next())
+    indexing.cancel()
+    _ = try? await indexing.value
+
+    #expect(delay < 0.5)
 }
 
 private struct AutomaticCoverFixture {
@@ -343,6 +379,38 @@ private func makeAutomaticCoverFixture() throws -> AutomaticCoverFixture {
     )
 }
 
+/// Adds one matched video of 100 seconds per episode beside the fixture's.
+private func addAutomaticCoverVideos(
+    _ episodes: [String],
+    to fixture: AutomaticCoverFixture
+) throws {
+    let databaseURL = fixture.root.appendingPathComponent("CueSeeker.sqlite")
+    let indexingDatabase = try IndexingDatabase(path: databaseURL)
+    let libraryDatabase = try LibraryDatabase(path: databaseURL)
+    for episode in episodes {
+        let videoURL = fixture.mediaDirectory.appendingPathComponent("\(episode).mkv")
+        try Data("video".utf8).write(to: videoURL)
+        try indexingDatabase.replaceEntries(
+            subtitleFile: fixture.mediaDirectory.appendingPathComponent("\(episode).srt"),
+            videoFile: videoURL,
+            entries: [
+                SubtitleEntry(
+                    sequenceNumber: 1,
+                    startTimecode: "00:00:01,000",
+                    endTimecode: "00:00:02,000",
+                    startMilliseconds: 1_000,
+                    endMilliseconds: 2_000,
+                    text: episode
+                )
+            ]
+        )
+        try libraryDatabase.updateVideoDuration(
+            videoFile: videoURL,
+            duration: 100
+        )
+    }
+}
+
 private func makeAutomaticCoverIndexer(
     coverDirectory: URL,
     ffmpeg: URL
@@ -359,9 +427,12 @@ private func makeAutomaticCoverIndexer(
     )
 }
 
+/// `frameDelaySeconds` holds each scoring frame back, as reading a real video
+/// does.
 private func writeAutomaticCoverFFmpeg(
     in directory: URL,
-    sourceJPEG: URL
+    sourceJPEG: URL,
+    frameDelaySeconds: Int = 0
 ) throws -> URL {
     let url = directory.appendingPathComponent("ffmpeg-success")
     let script = """
@@ -371,6 +442,7 @@ private func writeAutomaticCoverFFmpeg(
             last_argument="$argument"
         done
         if [ "$last_argument" = "pipe:1" ]; then
+            sleep \(frameDelaySeconds)
             dd if=/dev/zero bs=6912 count=1 2>/dev/null
         else
             cp "\(sourceJPEG.path)" "$last_argument"
