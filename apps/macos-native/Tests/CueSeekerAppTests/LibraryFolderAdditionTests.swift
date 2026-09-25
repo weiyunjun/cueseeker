@@ -154,12 +154,12 @@ func indexNowIndexesEachGroupOnceInGroupOrder() async throws {
     await app.tasks.waitUntilIdle()
 }
 
-/// A library task stops what is playing only once the playing video has left
-/// the library. Removing a parent keeps a root inside it, and with it the
-/// video playing there; a video that was only in the removed part stops.
+/// A library task never stops what is playing. Removing a parent keeps a root
+/// inside it, and with it the video playing there; a video that was only in
+/// the removed part plays on as one the library no longer holds.
 @MainActor
 @Test
-func removingAParentStopsOnlyTheVideosThatLeaveTheLibrary() async throws {
+func removingAParentKeepsPlayingAndMarksOnlyTheVideosThatLeaveTheLibrary() async throws {
     let fixture = try LibraryFolderAdditionFixture()
     defer { fixture.cleanUp() }
     fixture.userDefaults.set(
@@ -179,18 +179,21 @@ func removingAParentStopsOnlyTheVideosThatLeaveTheLibrary() async throws {
 
     #expect(app.indexing.selectedFolders == [fixture.seasonOne])
     #expect(app.library.selectedLibraryVideo == keptVideo)
+    #expect(!app.currentPlaybackItemLeftLibrary)
 
     app.library.selectedLibraryVideo = removedVideo
-    app.clearSearchAndPlaybackState(under: fixture.show)
+    app.reconcilePlaybackAfterIndexedContentChange()
 
-    #expect(app.library.selectedLibraryVideo == nil)
+    #expect(app.library.selectedLibraryVideo == removedVideo)
+    #expect(app.currentPlaybackItemLeftLibrary)
 }
 
-/// New subtitles for a video that stays in the library leave it playing;
-/// an Index that takes the video out of the library stops it.
+/// New subtitles for a video that stays in the library leave it playing as
+/// before; an Index that takes the video out of the library leaves it playing
+/// as one the library no longer holds.
 @MainActor
 @Test
-func indexStopsOnlyAVideoItTakesOutOfTheLibrary() async throws {
+func indexKeepsPlayingAVideoItTakesOutOfTheLibrary() async throws {
     let fixture = try LibraryFolderAdditionFixture()
     defer { fixture.cleanUp() }
     fixture.userDefaults.set([fixture.show.path], forKey: "selectedFolderPaths")
@@ -216,12 +219,14 @@ func indexStopsOnlyAVideoItTakesOutOfTheLibrary() async throws {
     }
     #expect(result.hasIndexedContentChanges)
     #expect(app.library.selectedLibraryVideo == video)
+    #expect(!app.currentPlaybackItemLeftLibrary)
 
     try FileManager.default.removeItem(at: subtitle)
     app.indexAllFolders()
     await app.tasks.waitUntilIdle()
 
-    #expect(app.library.selectedLibraryVideo == nil)
+    #expect(app.library.selectedLibraryVideo == video)
+    #expect(app.currentPlaybackItemLeftLibrary)
 }
 
 /// The folders the Search and Excerpt Filter Dialogs list.

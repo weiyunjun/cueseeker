@@ -181,6 +181,10 @@ extension AppCoordinator {
     }
 
     func openAdjacentSearchResult(_ direction: SearchResultNavigationDirection) {
+        guard !currentPlaybackItemLeftLibrary else {
+            openFirstAvailablePlaybackItem(direction: direction)
+            return
+        }
         guard !isCueDeepLinkPlaybackSource else {
             playback.playbackViewModel?.showSearchNavigationFeedback(
                 direction: direction,

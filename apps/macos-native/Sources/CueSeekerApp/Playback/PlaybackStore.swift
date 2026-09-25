@@ -586,6 +586,32 @@ final class PlaybackStore: ObservableObject {
         playlistPosition = nil
     }
 
+    /// Makes the playlist hold `items` and puts the position on `current`
+    /// there, or on nothing when it is not among them. The position moves
+    /// first, so the boundary change that follows finds it in place.
+    func holdPlaylistItems(
+        _ items: [PlaybackPlaylistItem],
+        current: PlaybackPlaylistItemIdentity?
+    ) {
+        guard let source = playlistSource else {
+            return
+        }
+        let ordinal = current.flatMap { current in
+            items.firstIndex { $0.identity == current }
+        }
+        playlistPosition = ordinal.map {
+            PlaybackPlaylistPosition(
+                datasetID: source.boundary.datasetID,
+                itemIdentity: items[$0].identity,
+                ordinal: $0
+            )
+        }
+        if case .search = source.origin {
+            playbackSearchPlaylistOrdinal = ordinal
+        }
+        source.holdItems(items)
+    }
+
     func clearPlaylistSource() {
         playbackSearchPlaylistOrdinal = nil
         playlistPosition = nil

@@ -703,6 +703,21 @@ public final class PlaybackViewModel: ObservableObject {
         )
     }
 
+    /// Previous, next or Auto Switch from an item the library no longer holds,
+    /// with nothing the library still holds to go to.
+    func showNoAvailableNavigationFeedback(
+        direction: SearchResultNavigationDirection,
+        text: String
+    ) {
+        showFeedback(
+            PlaybackFeedback(
+                icon: direction == .previous ? .caretLeft : .caretRight,
+                text: text
+            ),
+            durationMilliseconds: 1_000
+        )
+    }
+
     func showExcerptNavigationFeedback(
         direction: SearchResultNavigationDirection,
         hasResult: Bool

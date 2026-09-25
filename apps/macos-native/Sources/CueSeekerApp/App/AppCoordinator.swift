@@ -294,6 +294,9 @@ final class AppCoordinator: ObservableObject {
     // MARK: - Unified Navigation
 
     var canGoPrevious: Bool {
+        if currentPlaybackItemLeftLibrary {
+            return hasAvailablePlaybackItem
+        }
         switch activePlaybackSource {
         case .search:
             return canOpenPreviousSearchResult
@@ -320,6 +323,9 @@ final class AppCoordinator: ObservableObject {
     }
 
     var canGoNext: Bool {
+        if currentPlaybackItemLeftLibrary {
+            return hasAvailablePlaybackItem
+        }
         switch activePlaybackSource {
         case .search:
             return canOpenNextSearchResult
@@ -407,6 +413,13 @@ final class AppCoordinator: ObservableObject {
     var excerptPlaybackNavigationScopeIDs: [Int64]?
     var excerptPlaybackNavigationSnapshot: (currentID: Int64, previousID: Int64?, nextID: Int64?)?
     var activePlaybackSource: ActivePlaybackSource = .none
+    /// An Add Folder, Index or Remove Folder took the item playing out of the
+    /// library. It plays on; previous, next and Auto Switch go to the first
+    /// item the library still holds. Every open clears it.
+    var currentPlaybackItemLeftLibrary = false
+    /// A database change came while the Playback Overlay or the Command Panel
+    /// was open, and the playlist keeps what they showed until both close.
+    var playbackAwaitsLibraryReconcile = false
     /// The subtitle playing when it is not the one the opened item names: the
     /// video's default subtitle after a Library open, or the subtitle picked
     /// in the More menu. Every open sets or clears it; Repeat leaves it.
@@ -624,6 +637,21 @@ final class AppCoordinator: ObservableObject {
             }
             .store(in: &settingsCancellables)
 
+        // A playlist the Playback Overlay or the Command Panel kept showing
+        // through a database change drops what left the library once both are
+        // closed: on the next turn, after whatever closed them has opened its
+        // item.
+        playback.$subtitleFocusSession
+            .map { $0 == nil }
+            .combineLatest(playback.$commandPanelPresentation.map { $0 == nil })
+            .filter { $0 && $1 }
+            .sink { [weak self] _ in
+                Task { @MainActor [weak self] in
+                    self?.reconcilePlaybackPlaylistIfAwaiting()
+                }
+            }
+            .store(in: &settingsCancellables)
+
         playback.$playlistSource
             .map { source -> AnyPublisher<PlaybackPlaylistSourceBoundary?, Never> in
                 guard let source else {
@@ -811,35 +839,13 @@ final class AppCoordinator: ObservableObject {
         )
         removeLibraryPresentation(under: folder)
         removeCompleteLibraryPresentation(under: folder)
-
-        // A selection goes, and what it plays stops, only once its video has
-        // left the library. A video whose subtitles or metadata changed is
-        // still there and keeps playing.
-        let selectedSearchResultHasLeft = search.selectedSearchResult.map {
-            Self.path($0.subtitlePath, isUnder: folder)
-                && libraryHasLost(videoPath: $0.videoPath)
-        } ?? false
-        let selectedLibraryVideoHasLeft = library.selectedLibraryVideo.map {
-            Self.path($0.videoPath, isUnder: folder)
-                && libraryHasLost(videoPath: $0.videoPath)
-        } ?? false
-        let selectedExcerptHasLeft = excerpt.selectedExcerpt.map {
-            Self.path($0.videoPath, isUnder: folder)
-                && libraryHasLost(videoPath: $0.videoPath)
-        } ?? false
-
-        if selectedSearchResultHasLeft || selectedLibraryVideoHasLeft || selectedExcerptHasLeft {
-            search.selectResult(nil)
-            library.selectedLibraryVideo = nil
-            excerpt.selectedExcerpt = nil
-            stopPlayback()
-        }
+        // What plays keeps playing, also once its video has left the library.
     }
 
     /// Whether a video is no longer in the library: outside every root, or
     /// without an active subtitle match in the database. A video whose
     /// database row cannot be read counts as gone.
-    private func libraryHasLost(videoPath: String) -> Bool {
+    func libraryHasLost(videoPath: String) -> Bool {
         guard indexing.selectedFolders.contains(where: { Self.path(videoPath, isUnder: $0) }),
               let subtitles = try? libraryDatabase?.videoSubtitles(
                 forVideoFile: URL(fileURLWithPath: videoPath)

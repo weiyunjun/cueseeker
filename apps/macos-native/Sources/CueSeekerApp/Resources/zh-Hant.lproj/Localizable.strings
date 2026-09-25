@@ -230,6 +230,9 @@
 "playback.hud.next_excerpt" = "下一條摘錄";
 "playback.hud.first_excerpt" = "已經是第一條摘錄";
 "playback.hud.last_excerpt" = "已經是最後一條摘錄";
+"playback.hud.no_available_results" = "沒有可用的結果";
+"playback.hud.no_available_excerpts" = "沒有可用的摘錄";
+"playback.hud.no_available_videos" = "沒有可用的影片";
 "playback.hud.enter_fullscreen" = "進入全螢幕";
 "playback.hud.exit_fullscreen" = "結束全螢幕";
 "playback.hud.subtitles_on" = "字幕已開";

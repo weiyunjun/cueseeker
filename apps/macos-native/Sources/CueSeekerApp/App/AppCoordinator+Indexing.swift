@@ -385,6 +385,7 @@ extension AppCoordinator {
             indexing.databaseMaintenanceStatus = .idle
         }
         cancelDatabaseReadTasksBeforeIndexing()
+        holdPlaybackBeforeIndexedContentChange()
         prepareExcerptForIndexedContentMutation(under: [folder])
 
         do {
@@ -413,6 +414,7 @@ extension AppCoordinator {
 
         indexing.removeFolder(folder)
         clearSearchAndPlaybackState(under: folder)
+        reconcilePlaybackAfterIndexedContentChange()
         indexing.folderRemovalStatus = .idle
         reloadExcerptAfterIndexedContentMutation()
         search.completeIndexedCueDataMutation(searchMutationToken)
@@ -608,10 +610,18 @@ extension AppCoordinator {
             return
         }
 
+        let changesIndexedContent = aggregateResult.hasIndexedContentChanges
+            || aggregateResult.requiresExcerptRefresh
+        if changesIndexedContent {
+            holdPlaybackBeforeIndexedContentChange()
+        }
         applyPublishedIndexMutation(
             aggregateResult,
             excerptFallbackFolders: folders
         )
+        if changesIndexedContent {
+            reconcilePlaybackAfterIndexedContentChange()
+        }
         if refreshedAuxiliaryData && !aggregateResult.hasIndexedContentChanges {
             refreshLibraryAfterAuxiliaryDataMutation()
         }

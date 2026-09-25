@@ -326,6 +326,7 @@ extension AppCoordinator {
         saveCurrentLibraryPlaybackHistory()
         stopLibraryPlaybackHistoryTracking()
         activePlaybackSource = .search
+        currentPlaybackItemLeftLibrary = false
         search.selectResult(result)
         if playbackSearchPromotion == nil {
             updateSearchNavigationSnapshotForOpenedResult(result)
@@ -1269,6 +1270,8 @@ extension AppCoordinator {
     }
 
     func stopPlayback() {
+        currentPlaybackItemLeftLibrary = false
+        playbackAwaitsLibraryReconcile = false
         _ = playback.dismissCommandPanel()
         invalidatePlaybackSubtitleFocusForSourceReplacement()
         playback.clearPlaylistSource()

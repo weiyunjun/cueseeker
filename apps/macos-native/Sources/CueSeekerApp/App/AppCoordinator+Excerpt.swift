@@ -1024,6 +1024,7 @@ extension AppCoordinator {
         saveCurrentLibraryPlaybackHistory()
         stopLibraryPlaybackHistoryTracking()
         activePlaybackSource = .excerpt
+        currentPlaybackItemLeftLibrary = false
         self.excerpt.selectedExcerpt = excerpt
         search.selectResult(nil)
         library.selectedLibraryVideo = nil
@@ -1138,6 +1139,10 @@ extension AppCoordinator {
     }
 
     func openPreviousExcerpt() {
+        guard !currentPlaybackItemLeftLibrary else {
+            openFirstAvailablePlaybackItem(direction: .previous)
+            return
+        }
         let target = excerptPlaybackNavigationTarget(direction: .previous)
         let hasResult = target != nil
         playback.playbackViewModel?.showExcerptNavigationFeedback(direction: .previous, hasResult: hasResult)
@@ -1158,6 +1163,10 @@ extension AppCoordinator {
     }
 
     func openNextExcerpt() {
+        guard !currentPlaybackItemLeftLibrary else {
+            openFirstAvailablePlaybackItem(direction: .next)
+            return
+        }
         let target = excerptPlaybackNavigationTarget(direction: .next)
         let hasResult = target != nil
         playback.playbackViewModel?.showExcerptNavigationFeedback(direction: .next, hasResult: hasResult)
@@ -1205,7 +1214,7 @@ extension AppCoordinator {
         return targetID.flatMap(excerpt(withID:))
     }
 
-    private func refreshExcerptPlaybackNavigationSnapshot(
+    func refreshExcerptPlaybackNavigationSnapshot(
         for selectedExcerpt: Excerpt,
         preferredOrdinal: Int? = nil
     ) -> Int? {

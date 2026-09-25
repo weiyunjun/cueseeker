@@ -238,6 +238,10 @@ extension AppCoordinator {
     }
 
     func openPreviousLibraryVideo() {
+        guard !currentPlaybackItemLeftLibrary else {
+            openFirstAvailablePlaybackItem(direction: .previous)
+            return
+        }
         let hasResult = canOpenPreviousLibraryVideo
         playback.playbackViewModel?.showLibraryNavigationFeedback(direction: .previous, hasResult: hasResult)
         if hasResult {
@@ -246,6 +250,10 @@ extension AppCoordinator {
     }
 
     func openNextLibraryVideo() {
+        guard !currentPlaybackItemLeftLibrary else {
+            openFirstAvailablePlaybackItem(direction: .next)
+            return
+        }
         let hasResult = canOpenNextLibraryVideo
         playback.playbackViewModel?.showLibraryNavigationFeedback(direction: .next, hasResult: hasResult)
         if hasResult {
@@ -963,6 +971,7 @@ extension AppCoordinator {
         if savesCurrentPlaybackHistory, case .library = activePlaybackSource {
             saveCurrentLibraryPlaybackHistory()
         }
+        currentPlaybackItemLeftLibrary = false
         library.selectedLibraryVideo = video
         search.selectResult(nil)
         excerpt.selectedExcerpt = nil
@@ -1079,6 +1088,7 @@ extension AppCoordinator {
         duration: Double
     ) {
         guard case .library(let videoPath) = activePlaybackSource,
+              !currentPlaybackItemLeftLibrary,
               libraryPlaybackCompletedMilestoneVideoPath != videoPath,
               duration.isFinite,
               duration > 0
@@ -1125,8 +1135,10 @@ extension AppCoordinator {
     @discardableResult
     func saveCurrentLibraryPlaybackHistory(waitUntilFinished: Bool) -> Bool {
         // A video that failed to load was never played, so its history keeps
-        // what it had, also while the next video is opening.
+        // what it had, also while the next video is opening. One the library
+        // no longer holds has no history to keep.
         guard case .library(let videoPath) = activePlaybackSource,
+              !currentPlaybackItemLeftLibrary,
               let playbackViewModel = playback.playbackViewModel,
               !playbackViewModel.isPlayerEmpty
         else {
@@ -1210,8 +1222,12 @@ extension AppCoordinator {
             return
         }
 
-        persistNaturallyCompletedLibraryPlayback(videoPath: videoPath)
         playback.playbackStatus = .paused
+        guard !currentPlaybackItemLeftLibrary else {
+            openFirstAvailablePlaybackItem(direction: .next)
+            return
+        }
+        persistNaturallyCompletedLibraryPlayback(videoPath: videoPath)
 
         let nextVideo = libraryAdjacentVideo(offset: 1)
         let action = LibraryPlaybackIntentResolver.completionAction(

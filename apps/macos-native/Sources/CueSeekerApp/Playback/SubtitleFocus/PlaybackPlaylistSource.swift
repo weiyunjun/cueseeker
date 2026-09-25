@@ -187,6 +187,51 @@ struct PlaybackPlaylistItem: Equatable, Sendable {
         }
     }
 
+    /// The same item at another place in its playlist.
+    func moved(to ordinal: Int) -> PlaybackPlaylistItem {
+        PlaybackPlaylistItem(
+            identity: identity,
+            primaryCueIdentity: primaryCueIdentity,
+            ordinal: ordinal,
+            primaryCueText: primaryCueText,
+            additionalCueTexts: additionalCueTexts,
+            target: target,
+            actionContext: actionContext.map {
+                PlaybackSubtitleFocusActionContext(
+                    source: $0.source,
+                    cue: SubtitleFocusCue(
+                        id: $0.cue.id,
+                        cueGroupID: $0.cue.cueGroupID,
+                        ordinal: ordinal,
+                        eventIndex: $0.cue.eventIndex,
+                        displayOrder: $0.cue.displayOrder,
+                        startMilliseconds: $0.cue.startMilliseconds,
+                        endMilliseconds: $0.cue.endMilliseconds,
+                        content: $0.cue.text
+                    )
+                )
+            }
+        )
+    }
+
+    private init(
+        identity: PlaybackPlaylistItemIdentity,
+        primaryCueIdentity: PlaybackPlaylistPrimaryCueIdentity,
+        ordinal: Int,
+        primaryCueText: String,
+        additionalCueTexts: [String],
+        target: PlaybackPlaylistItemTarget,
+        actionContext: PlaybackSubtitleFocusActionContext?
+    ) {
+        self.identity = identity
+        self.primaryCueIdentity = primaryCueIdentity
+        self.ordinal = ordinal
+        self.primaryCueText = primaryCueText
+        self.additionalCueTexts = additionalCueTexts
+        self.target = target
+        self.actionContext = actionContext
+    }
+
     func cueResult() -> PlaybackCueResult {
         PlaybackCueResult(
             itemID: AnyHashable(identity),
@@ -246,6 +291,9 @@ final class PlaybackPlaylistSource: ObservableObject {
 
     private var itemProvider: PlaybackPlaylistSharedItemProvider?
     private var isActive = true
+    /// Set once the playlist holds its own items: the stores it was read from
+    /// no longer reach it.
+    private(set) var isHeld = false
 
     convenience init(
         kind: PlaybackPlaylistSourceKind,
@@ -293,7 +341,7 @@ final class PlaybackPlaylistSource: ObservableObject {
 
     @discardableResult
     func updateBoundary(totalCount: Int) -> Bool {
-        guard isActive else {
+        guard isActive, !isHeld else {
             return false
         }
 
@@ -306,13 +354,36 @@ final class PlaybackPlaylistSource: ObservableObject {
         totalCount: Int,
         itemProvider: @escaping PlaybackPlaylistSharedItemProvider
     ) -> Bool {
-        guard isActive else {
+        guard isActive, !isHeld else {
             return false
         }
 
         self.itemProvider = itemProvider
         publishBoundary(totalCount: totalCount)
         return true
+    }
+
+    /// Every item it has now, in order.
+    func currentItems() -> [PlaybackPlaylistItem] {
+        (0..<boundary.totalCount).compactMap { item(at: $0) }
+    }
+
+    /// Keeps `items`, renumbered in order, from now on. What the stores it was
+    /// read from do next no longer reaches it: a database change must not move
+    /// a playlist the Playback Overlay is showing, and once the change is in,
+    /// the playlist keeps what is still in the library.
+    func holdItems(_ items: [PlaybackPlaylistItem]) {
+        guard isActive else {
+            return
+        }
+        let heldItems = items.enumerated().map { ordinal, item in
+            item.ordinal == ordinal ? item : item.moved(to: ordinal)
+        }
+        isHeld = true
+        itemProvider = { ordinal in
+            heldItems.indices.contains(ordinal) ? heldItems[ordinal] : nil
+        }
+        publishBoundary(totalCount: heldItems.count)
     }
 
     private func publishBoundary(totalCount: Int) {

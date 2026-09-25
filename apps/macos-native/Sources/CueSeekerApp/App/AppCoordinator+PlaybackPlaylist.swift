@@ -35,7 +35,11 @@ extension AppCoordinator {
             clearCueAutoStopPlayback()
             return
         }
-        guard playback.validatePlaylistPosition() else {
+        // The item playing left the library and so the playlist; it plays on
+        // with its Auto Pause and Auto Switch.
+        guard playback.validatePlaylistPosition()
+                || currentPlaybackItemLeftLibrary
+        else {
             clearCueAutoStopPlayback()
             return
         }

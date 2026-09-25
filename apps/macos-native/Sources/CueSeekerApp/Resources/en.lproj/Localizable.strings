@@ -230,6 +230,9 @@
 "playback.hud.next_excerpt" = "Next Excerpt";
 "playback.hud.first_excerpt" = "Already at First Excerpt";
 "playback.hud.last_excerpt" = "Already at Last Excerpt";
+"playback.hud.no_available_results" = "No Available Results";
+"playback.hud.no_available_excerpts" = "No Available Excerpts";
+"playback.hud.no_available_videos" = "No Available Videos";
 "playback.hud.enter_fullscreen" = "Enter Fullscreen";
 "playback.hud.exit_fullscreen" = "Exit Fullscreen";
 "playback.hud.subtitles_on" = "Subtitles On";
