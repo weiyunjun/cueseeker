@@ -380,6 +380,144 @@ func aHeldLibraryPlaylistKeepsTheFolderItShowed() async throws {
     }
 }
 
+@MainActor
+@Test
+func anOpenCommandPanelPageKeepsWhatItListedUntilItIsLeft() async throws {
+    try await withLibraryChangeApp { app, database in
+        app.ensurePlayerInitialized()
+        _ = try playLibraryChangeSearch(["B"], selecting: 0, app: app, database: database)
+        // A was never indexed: the library does not hold it.
+        app.library.testRecentWatchingItems = [libraryChangeRecentVideo("A")]
+        app.playback.presentCommandPanel(
+            PlaybackCommandPanelPresentation(
+                page: .recentVideos,
+                query: "",
+                selectedOrdinal: 0,
+                resumesPlaybackOnDismiss: false
+            )
+        )
+
+        app.holdPlaybackBeforeIndexedContentChange()
+        app.library.testRecentWatchingItems = []
+
+        #expect(app.playbackCommandPanelRecentVideos.map(\.videoPath) == ["/Media/A.mkv"])
+        #expect(app.openPlaybackCommandPanelRecentVideo(at: 0))
+        #expect(app.playback.commandPanelPresentation?.page == .recentVideos)
+        #expect(
+            app.playback.errorMessages[.notInLibrary]
+                == "This item is no longer in the library"
+        )
+
+        #expect(app.returnPlaybackCommandPanelToRoot())
+        #expect(app.playbackCommandPanelRecentVideos.isEmpty)
+    }
+}
+
+@MainActor
+@Test
+func commandPanelSearchResultsKeepTheirRowsAndRefuseWhatLeftTheLibrary() async throws {
+    try await withLibraryChangeApp { app, database in
+        app.ensurePlayerInitialized()
+        let results = try playLibraryChangeSearch(["A", "B"], selecting: 0, app: app, database: database)
+        #expect(app.presentPlaybackCommandPanelSearch(query: "placeholder", startsSearch: false))
+        #expect(app.playback.commandPanelSearchWindow?.snapshot.totalCount == 2)
+
+        // B leaves the library; the search behind the page moves on.
+        app.holdPlaybackBeforeIndexedContentChange()
+        try database.removeStaleEntries(
+            under: URL(fileURLWithPath: "/Media"),
+            keeping: ["/Media/A.srt"]
+        )
+        app.reconcilePlaybackAfterIndexedContentChange()
+        app.search.replaceResultState(
+            results: [results[0]],
+            status: app.search.searchStatus,
+            totalCount: 1,
+            fileSummaries: [],
+            countState: .exact,
+            knownResultCount: 1,
+            knownFileCount: 1,
+            hasMore: false
+        )
+        app.synchronizePlaybackCommandPanelSearchResults()
+        #expect(app.playback.commandPanelSearchWindow?.snapshot.totalCount == 2)
+
+        #expect(app.requestPlaybackCommandPanelSearchAction(.copyCueMarkdownLink, ordinal: 1))
+        #expect(app.playback.playbackViewModel?.feedback?.text == "Not in Library")
+        #expect(app.requestPlaybackCommandPanelSearchAction(.playFromThisCue, ordinal: 1))
+        #expect(app.playback.commandPanelPresentation?.page == .searchResults)
+        #expect(app.search.selectedSearchResult?.entryID == results[0].entryID)
+        #expect(
+            app.playback.errorMessages[.notInLibrary]
+                == "This item is no longer in the library"
+        )
+    }
+}
+
+@MainActor
+@Test
+func aRecentExcerptListWithNothingLeftInTheLibrarySaysSoAndStaysOpen() async throws {
+    try await withLibraryChangeApp { app, database in
+        app.ensurePlayerInitialized()
+        _ = try playLibraryChangeSearch(["A", "B"], selecting: 1, app: app, database: database)
+        let excerptDatabase = try #require(app.excerptDatabase)
+        let selection = try #require(
+            try PlaybackSubtitleDatabase(path: database.path).cueTextSelection(
+                forSubtitleFile: URL(fileURLWithPath: "/Media/A.srt"),
+                atMilliseconds: 1_500
+            )
+        )
+        let saved = try excerptDatabase.upsertExcerpt(selection: selection)
+        try excerptDatabase.recordRecentExcerptPlayback(excerptID: saved.id)
+        app.excerpt.installRecentListSummaries(
+            try excerptDatabase.recentExcerptListSummaries()
+        )
+        try database.removeStaleEntries(
+            under: URL(fileURLWithPath: "/Media"),
+            keeping: ["/Media/B.srt"]
+        )
+        app.playback.presentCommandPanel(
+            PlaybackCommandPanelPresentation(
+                page: .recentExcerpts,
+                query: "",
+                selectedOrdinal: 0,
+                resumesPlaybackOnDismiss: false
+            )
+        )
+
+        #expect(app.openPlaybackCommandPanelRecentExcerpt(at: 0))
+        #expect(app.playback.commandPanelPresentation?.page == .recentExcerpts)
+        #expect(
+            app.playback.playbackViewModel?.feedback?.text
+                == "No Available Excerpts"
+        )
+    }
+}
+
+private func libraryChangeRecentVideo(_ name: String) -> RecentLibraryWatchingPresentation {
+    RecentLibraryWatchingPresentation(
+        videoFileID: 1,
+        subtitleFileID: 1,
+        videoPath: "/Media/\(name).mkv",
+        videoName: "\(name).mkv",
+        duration: 100,
+        subtitlePath: "/Media/\(name).srt",
+        subtitleFormat: .srt,
+        displayTitle: name,
+        fileExtension: "mkv",
+        folderPath: "/Media",
+        folderTitle: "Media",
+        episodeNumber: 1,
+        positionMilliseconds: 0,
+        playbackDuration: 100,
+        startedAt: nil,
+        completedAt: nil,
+        updatedAt: "2026-09-25T00:00:00Z",
+        coverPath: nil,
+        coverRevision: nil
+    )
+}
+
 /// Indexes one video per name, makes them the search results, and plays the
 /// one at `selecting` as a Search playlist.
 @MainActor

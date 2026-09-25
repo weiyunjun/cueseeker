@@ -27,6 +27,15 @@ struct PlaybackCommandPanelPresentation: Equatable {
     let resumesPlaybackOnDismiss: Bool
 }
 
+/// What the open Command Panel page listed when the database changed under
+/// it. The page keeps it until it is left: back to the root, or closed.
+enum PlaybackCommandPanelHeldPage: Equatable {
+    case recentVideos([RecentLibraryWatchingPresentation])
+    case recentExcerpts([ExcerptListSummary])
+    /// The results themselves are already the preview's own copy.
+    case searchResults(totalCount: Int, hasMoreResults: Bool)
+}
+
 struct PlaybackChromeSnapshot: Equatable {
     let displayTitle: String
     let canGoPrevious: Bool
@@ -121,6 +130,7 @@ final class PlaybackStore: ObservableObject {
             )
         }
     }
+    @Published private(set) var commandPanelHeldPage: PlaybackCommandPanelHeldPage?
     @Published private(set) var commandPanelSearchWindow:
         PlaybackCueResultSessionWindowStore?
     private var commandPanelSearchSource: PlaybackCueResultSource?
@@ -393,6 +403,9 @@ final class PlaybackStore: ObservableObject {
     }
 
     func presentCommandPanel(_ presentation: PlaybackCommandPanelPresentation) {
+        if presentation.page != commandPanelPresentation?.page {
+            commandPanelHeldPage = nil
+        }
         if !presentation.page.showsRecentCardGrid {
             resetCommandPanelRecentCardGridLayout()
         }
@@ -485,9 +498,17 @@ final class PlaybackStore: ObservableObject {
         commandPanelRecentCardItemFramesByID = itemFramesByID
     }
 
+    func holdCommandPanelPage(_ page: PlaybackCommandPanelHeldPage) {
+        guard commandPanelPresentation != nil, commandPanelHeldPage == nil else {
+            return
+        }
+        commandPanelHeldPage = page
+    }
+
     @discardableResult
     func dismissCommandPanel() -> PlaybackCommandPanelPresentation? {
         defer {
+            commandPanelHeldPage = nil
             commandPanelPresentation = nil
             resetCommandPanelRecentCardGridLayout()
             releaseCommandPanelSearchPreview()

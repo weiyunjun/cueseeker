@@ -229,9 +229,9 @@ extension AppCoordinator {
     ) -> [String] {
         switch page {
         case .recentVideos:
-            return library.testRecentWatchingItems.map(\.id)
+            return playbackCommandPanelRecentVideos.map(\.id)
         case .recentExcerpts:
-            return excerpt.recentListSummaries.map { String($0.id) }
+            return playbackCommandPanelRecentExcerpts.map { String($0.id) }
         case .root, .searchResults:
             return []
         }
@@ -309,7 +309,8 @@ extension AppCoordinator {
 
     func synchronizePlaybackCommandPanelSearchResults() {
         guard let presentation = playback.commandPanelPresentation,
-              presentation.page == .searchResults
+              presentation.page == .searchResults,
+              playback.commandPanelHeldPage == nil
         else {
             return
         }
@@ -353,26 +354,31 @@ extension AppCoordinator {
         _ action: PlaybackSubtitleFocusAction,
         ordinal requestedOrdinal: Int? = nil
     ) -> Bool {
+        // The result is the one the page shows, which a database change may
+        // have left behind the search results.
         guard let presentation = playback.commandPanelPresentation,
               presentation.page == .searchResults,
               let ordinal = requestedOrdinal
                 ?? playback.commandPanelSearchWindow?.selectedOrdinal,
               ordinal >= 0,
               ordinal < PlaybackCommandPanelPresentation.previewLimit,
-              search.searchResults.indices.contains(ordinal)
+              let item = playback.commandPanelSearchWindow?.item(at: ordinal),
+              case .search(let result) = item.target
         else {
             return false
         }
 
-        let result = search.searchResults[ordinal]
+        let isInLibrary = isCueInLibrary(result.entryID)
         switch action {
         case .excerpt:
+            if playback.excerptDestinationMenu?.surface != .commandPanel,
+               !isInLibrary {
+                playback.playbackViewModel?.showNotInLibraryFeedback()
+                return true
+            }
             togglePlaybackExcerptDestinationMenu(
                 surface: .commandPanel,
-                context: PlaybackPlaylistItem(
-                    searchResult: result,
-                    ordinal: ordinal
-                ).actionContext
+                context: item.actionContext
             )
         case .copyCueText:
             let copied = CueClipboard.copy(
@@ -382,6 +388,10 @@ extension AppCoordinator {
             playback.playbackViewModel?
                 .showSubtitleCopyFeedback(copied: copied)
         case .copyCueMarkdownLink:
+            guard isInLibrary else {
+                playback.playbackViewModel?.showNotInLibraryFeedback()
+                return true
+            }
             let copied = CueClipboard.copyDeepLink(
                 cueText: result.content,
                 cueID: result.entryID,
@@ -390,6 +400,10 @@ extension AppCoordinator {
             playback.playbackViewModel?
                 .showSubtitleMarkdownLinkCopyFeedback(copied: copied)
         case .playFromThisCue:
+            guard isInLibrary else {
+                showPlaybackItemNotInLibrary()
+                return true
+            }
             guard dismissPlaybackCommandPanelForAction() else {
                 return false
             }
@@ -409,12 +423,17 @@ extension AppCoordinator {
 
     @discardableResult
     func openPlaybackCommandPanelRecentVideo(at ordinal: Int) -> Bool {
+        let items = playbackCommandPanelRecentVideos
         guard playback.commandPanelPresentation?.page == .recentVideos,
-              library.testRecentWatchingItems.indices.contains(ordinal)
+              items.indices.contains(ordinal)
         else {
             return false
         }
-        let item = library.testRecentWatchingItems[ordinal]
+        let item = items[ordinal]
+        guard !libraryHasLost(videoPath: item.libraryVideo.videoPath) else {
+            showPlaybackItemNotInLibrary()
+            return true
+        }
         guard dismissPlaybackCommandPanelForAction() else {
             return false
         }
@@ -433,12 +452,22 @@ extension AppCoordinator {
 
     @discardableResult
     func openPlaybackCommandPanelRecentExcerpt(at ordinal: Int) -> Bool {
+        let summaries = playbackCommandPanelRecentExcerpts
         guard playback.commandPanelPresentation?.page == .recentExcerpts,
-              excerpt.recentListSummaries.indices.contains(ordinal)
+              summaries.indices.contains(ordinal)
         else {
             return false
         }
-        let summary = excerpt.recentListSummaries[ordinal]
+        let summary = summaries[ordinal]
+        guard (try? excerptDatabase?.excerpts(listID: summary.list.id))?
+            .contains(where: \.isValid) == true
+        else {
+            playback.playbackViewModel?.showNoAvailableNavigationFeedback(
+                direction: nil,
+                text: L("playback.hud.no_available_excerpts")
+            )
+            return true
+        }
         guard dismissPlaybackCommandPanelForAction() else {
             return false
         }
@@ -492,15 +521,28 @@ extension AppCoordinator {
                 in: .whitespacesAndNewlines
             ).isEmpty ? 2 : 3
         case .searchResults:
-            return min(
-                search.searchResults.count,
-                PlaybackCommandPanelPresentation.previewLimit
-            )
+            return playback.commandPanelSearchWindow?.snapshot.totalCount ?? 0
         case .recentVideos:
-            return library.testRecentWatchingItems.count
+            return playbackCommandPanelRecentVideos.count
         case .recentExcerpts:
-            return excerpt.recentListSummaries.count
+            return playbackCommandPanelRecentExcerpts.count
         }
+    }
+
+    /// What the Recent pages list: what the page kept through a database
+    /// change, or what the library has now.
+    var playbackCommandPanelRecentVideos: [RecentLibraryWatchingPresentation] {
+        if case .recentVideos(let items) = playback.commandPanelHeldPage {
+            return items
+        }
+        return library.testRecentWatchingItems
+    }
+
+    var playbackCommandPanelRecentExcerpts: [ExcerptListSummary] {
+        if case .recentExcerpts(let summaries) = playback.commandPanelHeldPage {
+            return summaries
+        }
+        return excerpt.recentListSummaries
     }
 
     private func preparePlaybackCommandPanelPresentation() -> Bool {

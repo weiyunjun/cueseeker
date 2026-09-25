@@ -13,6 +13,28 @@ extension AppCoordinator {
     /// it and an open Playback Overlay keeps showing them.
     func holdPlaybackBeforeIndexedContentChange() {
         playback.subtitleFocusSession?.libraryStore?.holdDetail()
+        switch playback.commandPanelPresentation?.page {
+        case .recentVideos:
+            playback.holdCommandPanelPage(
+                .recentVideos(library.testRecentWatchingItems)
+            )
+        case .recentExcerpts:
+            playback.holdCommandPanelPage(
+                .recentExcerpts(excerpt.recentListSummaries)
+            )
+        case .searchResults:
+            playback.holdCommandPanelPage(
+                .searchResults(
+                    totalCount: max(
+                        search.searchResultTotalCount,
+                        search.searchResults.count
+                    ),
+                    hasMoreResults: search.hasMoreSearchResults
+                )
+            )
+        case .root, nil:
+            break
+        }
         guard let source = playback.playlistSource, !source.isHeld else {
             return
         }

@@ -91,3 +91,20 @@ Files: `AppCoordinator+PlaybackLibraryChange.swift`, `AppCoordinator+PlaybackSub
 - New tests in `PlaybackLibraryChangeTests`: the overlay opens on a subtitle that left the library with Current saying so and the Playlist still offered; an open overlay keeps its playlist through a change, refuses Copy Deep Link, Save to Excerpt List and Play on an item that left (the overlay stays, the banner line shows) and still plays one that stayed, after which the playlist drops the other; a held Library Playlist keeps its folder. All pass.
 - Three tests played or linked items that were never in the database, which now counts as out of the library: `playbackPlaylistEnterDispatchesSelectedTargetAndDestroysOverlaySession` now plays an indexed cue, and `playbackLibraryEpisodeOpenUsesSharedFolderDetailOrder` indexes the clicked episode under a root; their assertions are unchanged. `playbackExcerptCopiesSettledPrimaryCueAsMarkdownLink` goes through the overlay's Excerpt module, which the playback page does not show, so the check does not apply to it and it passes unchanged.
 - `swift test` (full, parallel): 1289 tests; the failures are the environment-sensitive set earlier records name (native playback timing, the two Debug E2E scene and width tests, `progressiveSearchProjectionRefreshesOnlyMountedTable`, `excerptTableStartsAtTopAfterPanelRemount`, `showCueGroupInvalidationIsScopedToMountedExcerpt`, `searchFacetSelectionDoesNotRefreshGlobalOrInactiveSurfaces`). `addingEmptyFolderRestartsInvalidatedActiveSearch` failed once in one full run on a 10-second wait and passed three times out of three on its own.
+
+## Step 5: the Command Panel through a database change
+
+### What changed
+
+- A Command Panel open on Recent Videos, Recent Excerpt Lists or Search Results when the database changes keeps the rows and the footer count it showed. Going back to the root clears that, and so does closing the panel; a new search starts from the root. Then the pages read the library again (requirement 4.1, 4.2).
+- The Search Results actions act on the row the page shows, the preview's own copy of the results, instead of on the search results at the same place, which a change may have moved.
+- A row the library no longer holds is refused the way the overlay refuses it, and the panel stays open: Play and a Recent Video's Open show the banner line; Save to Excerpt List and Copy Deep Link show `Not in Library` (requirement 4.3, 4.4, 4.7).
+- Opening a Recent Excerpt List with no valid Excerpt says `No Available Excerpts`, with the warning icon, and leaves the panel open. Before, the panel closed and nothing played (requirement 4.6).
+- A result played from a page that kept its rows lands on its own place in the new playlist: the place counted in the page's rows is used only when the playlist has the same result there. A held playlist is never refilled from the search results.
+
+Files: `AppCoordinator+PlaybackCommandPanel.swift`, `AppCoordinator+PlaybackLibraryChange.swift`, `AppCoordinator+Playback.swift`, `AppCoordinator+PlaybackPlaylist.swift`, `PlaybackStore.swift`, `PlaybackViewModel.swift`, `PlaybackCommandPanel.swift`.
+
+### Verification
+
+- New tests in `PlaybackLibraryChangeTests`: an open Recent Videos page keeps what it listed and refuses a video that left, until it returns to the root; Search Results keep their rows through a change, refuse Copy Deep Link and Play on a result that left and stay open; a Recent Excerpt List whose only Excerpt left says `No Available Excerpts` and stays open. All pass.
+- `swift test` (full, parallel): 1292 tests; the failures are the environment-sensitive set earlier records name (native playback timing, the two Debug E2E scene and width tests, `progressiveSearchProjectionRefreshesOnlyMountedTable`, `excerptTableStartsAtTopAfterPanelRemount`, `showCueGroupInvalidationIsScopedToMountedExcerpt`, `searchFacetSelectionDoesNotRefreshGlobalOrInactiveSurfaces`). No new failure.

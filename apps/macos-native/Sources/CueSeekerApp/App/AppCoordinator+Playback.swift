@@ -310,8 +310,12 @@ extension AppCoordinator {
         } else {
             installSearchPlaybackPlaylistSource(seed: result)
         }
+        // The ordinal counts in the list the result was chosen from, which a
+        // database change may have left apart from the playlist.
         if let playbackSearchPromotion,
-           let source = playback.playlistSource {
+           let source = playback.playlistSource,
+           source.itemIdentity(at: playbackSearchPromotion.selectedOrdinal)
+               == .search(result.entryID) {
             playback.setPlaylistSource(
                 source,
                 playbackSearchSelectedOrdinal: playbackSearchPromotion.selectedOrdinal

@@ -48,6 +48,7 @@ struct PlaybackCommandPanel: View {
                             PlaybackCommandPanelSearchResults(
                                 presentation: presentation,
                                 searchStore: searchStore,
+                                heldPage: playback.commandPanelHeldPage,
                                 windowStore:
                                     playback.commandPanelSearchWindow,
                                 onBack: {
@@ -77,7 +78,7 @@ struct PlaybackCommandPanel: View {
                         case .recentVideos:
                             PlaybackCommandPanelRecentVideos(
                                 presentation: presentation,
-                                libraryStore: libraryStore,
+                                items: appState.playbackCommandPanelRecentVideos,
                                 onBack: {
                                     appState.returnPlaybackCommandPanelToRoot()
                                 },
@@ -106,7 +107,7 @@ struct PlaybackCommandPanel: View {
                         case .recentExcerpts:
                             PlaybackCommandPanelRecentExcerpts(
                                 presentation: presentation,
-                                excerptStore: excerptStore,
+                                summaries: appState.playbackCommandPanelRecentExcerpts,
                                 onBack: {
                                     appState.returnPlaybackCommandPanelToRoot()
                                 },
@@ -432,6 +433,7 @@ private struct PlaybackCommandPanelSecondaryHeader: View {
 private struct PlaybackCommandPanelSearchResults: View {
     let presentation: PlaybackCommandPanelPresentation
     @ObservedObject var searchStore: SearchStore
+    let heldPage: PlaybackCommandPanelHeldPage?
     let windowStore: PlaybackCueResultSessionWindowStore?
     let onBack: () -> Bool
     let onSynchronize: () -> Void
@@ -485,7 +487,14 @@ private struct PlaybackCommandPanelSearchResults: View {
     }
 
     private var resultStatus: String {
-        PlaybackCueFooterStatus.searchResults(
+        if case .searchResults(let totalCount, let hasMoreResults) = heldPage {
+            return PlaybackCueFooterStatus.searchResults(
+                totalCount: totalCount,
+                previewLimit: PlaybackCommandPanelPresentation.previewLimit,
+                hasMoreResults: hasMoreResults
+            )
+        }
+        return PlaybackCueFooterStatus.searchResults(
             totalCount: resultTotalCount,
             previewLimit: PlaybackCommandPanelPresentation.previewLimit,
             hasMoreResults: searchStore.hasMoreSearchResults
@@ -716,17 +725,13 @@ enum PlaybackCommandPanelCardGrid {
 
 private struct PlaybackCommandPanelRecentVideos: View {
     let presentation: PlaybackCommandPanelPresentation
-    @ObservedObject var libraryStore: LibraryStore
+    let items: [RecentLibraryWatchingPresentation]
     let onBack: () -> Bool
     let onSynchronize: () -> Void
     let onGridLayoutChange: (Int, [String: CGRect]) -> Void
     let onSelect: (Int) -> Void
     let onOpen: (Int) -> Void
     let onOpenSelectedItem: () -> Void
-
-    private var items: [RecentLibraryWatchingPresentation] {
-        libraryStore.testRecentWatchingItems
-    }
 
     var body: some View {
         PlaybackCommandPanelRecentCards(
@@ -756,17 +761,13 @@ private struct PlaybackCommandPanelRecentVideos: View {
 
 private struct PlaybackCommandPanelRecentExcerpts: View {
     let presentation: PlaybackCommandPanelPresentation
-    @ObservedObject var excerptStore: ExcerptStore
+    let summaries: [ExcerptListSummary]
     let onBack: () -> Bool
     let onSynchronize: () -> Void
     let onGridLayoutChange: (Int, [String: CGRect]) -> Void
     let onSelect: (Int) -> Void
     let onOpen: (Int) -> Void
     let onOpenSelectedItem: () -> Void
-
-    private var summaries: [ExcerptListSummary] {
-        excerptStore.recentListSummaries
-    }
 
     var body: some View {
         PlaybackCommandPanelRecentCards(

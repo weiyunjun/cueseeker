@@ -146,7 +146,8 @@ extension AppCoordinator {
             $0.entryID == result.entryID
         }
         if let source = playback.playlistSource,
-           source.origin == origin {
+           source.origin == origin,
+           !source.isHeld {
             _ = source.replaceResidentItems(
                 totalCount: playlistResults.count,
                 itemProvider: Self.searchPlaylistItemProvider(

@@ -716,14 +716,20 @@ public final class PlaybackViewModel: ObservableObject {
     }
 
     /// Previous, next or Auto Switch from an item the library no longer holds,
-    /// with nothing the library still holds to go to.
+    /// or a Recent Excerpt List opened, with nothing the library still holds
+    /// to go to.
     func showNoAvailableNavigationFeedback(
-        direction: SearchResultNavigationDirection,
+        direction: SearchResultNavigationDirection?,
         text: String
     ) {
+        let icon: AppIcon = switch direction {
+        case .previous: .caretLeft
+        case .next: .caretRight
+        case nil: .warning
+        }
         showFeedback(
             PlaybackFeedback(
-                icon: direction == .previous ? .caretLeft : .caretRight,
+                icon: icon,
                 text: text
             ),
             durationMilliseconds: 1_000
