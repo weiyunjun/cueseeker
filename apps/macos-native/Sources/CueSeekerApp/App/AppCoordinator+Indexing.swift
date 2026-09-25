@@ -239,10 +239,11 @@ extension AppCoordinator {
     }
 
     /// Takes back what the Add Folder tasks the previous launch left
-    /// unfinished had indexed. Runs before anything reads the library, so the
-    /// pages never see it.
+    /// unfinished had indexed. Runs before any page is shown, so none sees
+    /// it; the Filter Dialog's options, read when Search was set up, are read
+    /// again.
     func discardUnfinishedFolderAdditions(_ folders: [URL]) {
-        guard let indexingDatabase else {
+        guard let indexingDatabase, !folders.isEmpty else {
             return
         }
 
@@ -260,6 +261,7 @@ extension AppCoordinator {
                 print("Failed to take back an unfinished folder addition: \(error)")
             }
         }
+        search.reloadEmptySearchFacetDistribution()
     }
 
     // MARK: - The tasks
@@ -292,7 +294,9 @@ extension AppCoordinator {
 
     /// Indexes a new root and then adds it to the list. A folder a root
     /// already holds has nothing new to index. One that does not finish —
-    /// removed or failed — takes back what it indexed.
+    /// removed or failed — takes back what it indexed, also from the Filter
+    /// Dialog's options, which were read again when its subtitles were
+    /// published.
     private func performFolderAddition(
         _ folder: URL,
         onProgress: @escaping @Sendable (TaskIndexProgress) -> Void
@@ -329,6 +333,7 @@ extension AppCoordinator {
             } catch {
                 print("Failed to take back an unfinished folder addition: \(error)")
             }
+            search.reloadEmptySearchFacetDistribution()
             throw error
         }
     }

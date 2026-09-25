@@ -66,8 +66,35 @@ func aRemovedFolderAdditionLeavesNothingBehind() async throws {
     #expect(try IndexingDatabase(path: fixture.databaseURL).subtitleFiles().isEmpty)
 }
 
+/// An Add Folder removed once its subtitles are published, in a later stage,
+/// is taken back from the Filter Dialog too: its folders are no longer listed.
+@MainActor
+@Test
+func aFolderAdditionRemovedAfterPublishingLeavesNoFolderInTheFilter() async throws {
+    let fixture = try LibraryFolderAdditionFixture()
+    defer { fixture.cleanUp() }
+    let app = fixture.makeApp()
+    let addFolder = app.tasks.runAddFolder
+    app.tasks.runAddFolder = { folders, onProgress in
+        try await addFolder(folders) { progress in
+            if progress.stage == .readingVideoInfo {
+                withUnsafeCurrentTask { $0?.cancel() }
+            }
+            onProgress(progress)
+        }
+    }
+
+    app.addFolder(fixture.show)
+    await app.tasks.waitUntilIdle()
+
+    #expect(app.indexing.selectedFolders.isEmpty)
+    #expect(try IndexingDatabase(path: fixture.databaseURL).subtitleFiles().isEmpty)
+    #expect(filterFolderPaths(of: app).isEmpty)
+}
+
 /// An Add Folder cut short by quitting is taken back at the next launch, and
-/// the roots already in the list keep what they indexed.
+/// the roots already in the list keep what they indexed. The Filter Dialog
+/// lists only what is kept.
 @MainActor
 @Test
 func anUnfinishedFolderAdditionIsTakenBackAtLaunch() async throws {
@@ -98,6 +125,7 @@ func anUnfinishedFolderAdditionIsTakenBackAtLaunch() async throws {
     #expect(try database.libraryPathRecords().map(\.rootURL.path) == [
         fixture.seasonOne.standardizedFileURL.path
     ])
+    #expect(filterFolderPaths(of: app) == [fixture.seasonOne.path])
 }
 
 /// Index Now indexes the outermost root of every group once, in group order.
@@ -194,6 +222,15 @@ func indexStopsOnlyAVideoItTakesOutOfTheLibrary() async throws {
     await app.tasks.waitUntilIdle()
 
     #expect(app.library.selectedLibraryVideo == nil)
+}
+
+/// The folders the Search and Excerpt Filter Dialogs list.
+@MainActor
+private func filterFolderPaths(of app: AppCoordinator) -> [String] {
+    CueFacetFolderOption.listed(
+        emptyDistribution: app.search.emptySearchFacetDistribution,
+        snapshot: app.search.searchFacetSnapshot
+    ).map(\.path)
 }
 
 private struct LibraryFolderAdditionFixture {
