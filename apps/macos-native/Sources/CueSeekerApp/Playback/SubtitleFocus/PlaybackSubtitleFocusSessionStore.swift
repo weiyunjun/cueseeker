@@ -369,9 +369,9 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
         prepareReelForModuleTransition()
         selectedModule = module
         if module == .library {
-            libraryStore?.activate(refreshesExistingSnapshot: true)
+            libraryStore?.activate()
         } else if module == .playlist {
-            libraryStore?.activate(refreshesExistingSnapshot: true)
+            libraryStore?.activate()
         }
         return true
     }

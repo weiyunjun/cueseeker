@@ -11,7 +11,9 @@ final class PlaybackLibrarySessionStore: ObservableObject {
     private let initialVideoPath: String?
     private let requestFolderDetail: @MainActor (String) -> Void
     private var detailsCancellable: AnyCancellable?
+    private var statusesCancellable: AnyCancellable?
     private var didActivate = false
+    private var didRequestDetail = false
     private var isActive = true
     /// The folder as it was shown when the database changed under it.
     private var heldDetail: CompleteLibraryFolderDetailPresentation?
@@ -32,6 +34,11 @@ final class PlaybackLibrarySessionStore: ObservableObject {
             .dropFirst()
             .sink { [weak self] detailsByPath in
                 self?.applyCurrentDetail(from: detailsByPath)
+            }
+        statusesCancellable = libraryStore.$completeLibraryFolderDetailStatusesByPath
+            .dropFirst()
+            .sink { [weak self] _ in
+                self?.objectWillChange.send()
             }
     }
 
@@ -72,8 +79,12 @@ final class PlaybackLibrarySessionStore: ObservableObject {
                 applyDetail(detail, resetsSelection: true)
             }
         }
-        if heldDetail == nil, refreshesExistingSnapshot || detail == nil {
-            requestFolderDetail(folderPath)
+        if heldDetail == nil {
+            let needsInitialRequest = !didRequestDetail && detail == nil && detailStatus != .completed
+            if needsInitialRequest || refreshesExistingSnapshot {
+                didRequestDetail = true
+                requestFolderDetail(folderPath)
+            }
         }
     }
 
@@ -114,6 +125,8 @@ final class PlaybackLibrarySessionStore: ObservableObject {
         isActive = false
         detailsCancellable?.cancel()
         detailsCancellable = nil
+        statusesCancellable?.cancel()
+        statusesCancellable = nil
         selection.invalidate()
     }
 
@@ -121,9 +134,12 @@ final class PlaybackLibrarySessionStore: ObservableObject {
         from detailsByPath: [String: CompleteLibraryFolderDetailPresentation]
     ) {
         guard isActive,
-              heldDetail == nil,
-              let detail = detailsByPath[folderPath]
+              heldDetail == nil
         else {
+            return
+        }
+        guard let detail = detailsByPath[folderPath] else {
+            objectWillChange.send()
             return
         }
         applyDetail(

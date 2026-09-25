@@ -382,6 +382,50 @@ func aHeldLibraryPlaylistKeepsTheFolderItShowed() async throws {
 
 @MainActor
 @Test
+func libraryOverlayOpenedAfterFolderLeavesDatabaseShowsPlaylistEmptyHintAndDoesNotHang() async throws {
+    try await withLibraryChangeApp { app, database in
+        app.ensurePlayerInitialized()
+        try indexLibraryChangeVideo("A", in: database)
+        try LibraryDatabase(path: database.path)
+            .refreshPresentationAfterIndexedContentChange()
+        let libraryDatabase = try #require(app.libraryDatabase)
+        let detail = try #require(
+            try libraryDatabase.completeLibraryFolderDetail(folderPath: "/Media")
+        )
+        let video = detail.videos[0].libraryVideo
+        app.openLibraryVideo(video)
+        app.activePlaybackSource = .library(videoPath: video.videoPath)
+        app.playback.playbackStatus = .paused
+
+        app.holdPlaybackBeforeIndexedContentChange()
+        try database.removeStaleEntries(
+            under: URL(fileURLWithPath: "/Media"),
+            keeping: []
+        )
+        app.reconcilePlaybackAfterIndexedContentChange()
+        app.removeCompleteLibraryPresentation(under: URL(fileURLWithPath: "/Media"))
+
+        #expect(app.currentPlaybackItemLeftLibrary)
+
+        #expect(app.openPlaybackSubtitleFocusFromUser())
+        let session = try #require(app.playback.subtitleFocusSession)
+        #expect(session.selectModule(.playlist))
+        let libraryStore = try #require(session.libraryStore)
+        await app.completeLibraryFolderDetailTasks["/Media"]?.value
+
+        #expect(libraryStore.detail == nil)
+        #expect(libraryStore.detailStatus != .loading)
+
+        #expect(session.selectModule(.current))
+        #expect(session.selectModule(.playlist))
+        #expect(libraryStore.detailStatus != .loading)
+
+        app.invalidatePlaybackSubtitleFocusForSourceReplacement()
+    }
+}
+
+@MainActor
+@Test
 func anOpenCommandPanelPageKeepsWhatItListedUntilItIsLeft() async throws {
     try await withLibraryChangeApp { app, database in
         app.ensurePlayerInitialized()
@@ -602,7 +646,7 @@ private func emptyLibraryChangeSubtitle(
 
 @MainActor
 private func withLibraryChangeApp(
-    _ body: @MainActor (AppCoordinator, IndexingDatabase) throws -> Void
+    _ body: @MainActor (AppCoordinator, IndexingDatabase) async throws -> Void
 ) async throws {
     let suiteName = "CueSeekerLibraryChangeTests-\(UUID().uuidString)"
     let userDefaults = try #require(UserDefaults(suiteName: suiteName))
@@ -620,5 +664,5 @@ private func withLibraryChangeApp(
     let app = AppCoordinator(userDefaults: userDefaults, databaseURL: databaseURL)
     await app.startupDatabaseTask?.value
     let database = try #require(app.indexingDatabase)
-    try body(app, database)
+    try await body(app, database)
 }

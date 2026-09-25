@@ -60,10 +60,22 @@ struct PlaybackLibraryOverlay: View {
 private struct PlaybackLibraryEpisodeList: View {
     @ObservedObject var store: PlaybackLibrarySessionStore
     @ObservedObject var selection: PlaybackMediaSelectionStore
+    @ObservedObject private var library: LibraryStore
     let onOpenEpisode: (CompleteLibraryVideoPresentation) -> Bool
 
     private let coordinateSpaceName = "playback-library-episodes-scroll"
     @State private var scrollTask: Task<Void, Never>?
+
+    init(
+        store: PlaybackLibrarySessionStore,
+        selection: PlaybackMediaSelectionStore,
+        onOpenEpisode: @escaping (CompleteLibraryVideoPresentation) -> Bool
+    ) {
+        self.store = store
+        self.selection = selection
+        _library = ObservedObject(wrappedValue: store.libraryStore)
+        self.onOpenEpisode = onOpenEpisode
+    }
 
     var body: some View {
         GeometryReader { geometry in
@@ -115,8 +127,6 @@ private struct PlaybackLibraryEpisodeList: View {
                 ProgressView()
                     .controlSize(.small)
             }
-        } else if case .failed(let message) = store.detailStatus {
-            PlaybackEmptyHint(message)
         } else if let detail = store.detail, !detail.videos.isEmpty {
             CompleteLibraryEpisodeGrid(
                 folderTitle: detail.folderTitle,
