@@ -641,6 +641,36 @@ public final class ExcerptDatabase: @unchecked Sendable {
         return try statement.step() ? statement.nullableInt64Column(0) : nil
     }
 
+    /// The Excerpts among `excerptIDs` that are valid now: the same test the
+    /// resolved Excerpt's `isValid` makes, a cue that is indexed and not in the
+    /// tombstone, on a subtitle matched to a video.
+    public func validExcerptIDs(among excerptIDs: [Int64]) throws -> Set<Int64> {
+        let uniqueExcerptIDs = Array(Set(excerptIDs))
+        var validExcerptIDs = Set<Int64>()
+        for start in stride(from: 0, to: uniqueExcerptIDs.count, by: 500) {
+            let batch = uniqueExcerptIDs[start..<min(start + 500, uniqueExcerptIDs.count)]
+            let placeholders = batch.map { _ in "?" }.joined(separator: ", ")
+            let statement = try database.prepare(
+                """
+                SELECT s.id
+                FROM excerpts s
+                JOIN subtitle_cue_lines l ON l.id = s.cue_id
+                JOIN subtitle_files sf ON sf.id = l.subtitle_file_id
+                JOIN subtitle_video_matches m ON m.subtitle_file_id = sf.id AND m.is_active = 1
+                JOIN video_files vf ON vf.id = m.video_file_id
+                WHERE s.id IN (\(placeholders));
+                """
+            )
+            for (offset, id) in batch.enumerated() {
+                try statement.bind(id, at: Int32(offset + 1))
+            }
+            while try statement.step() {
+                validExcerptIDs.insert(statement.int64Column(0))
+            }
+        }
+        return validExcerptIDs
+    }
+
     public func excerpt(
         subtitleFile: URL,
         startMilliseconds: Int,

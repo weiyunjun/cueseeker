@@ -64,6 +64,36 @@ public final class CueContentDatabase: @unchecked Sendable {
         return contents
     }
 
+    /// The cues among `cueIDs` that are still in the library: indexed, not in
+    /// the tombstone, on a subtitle matched to a video. The others left the
+    /// database with an Index, Add Folder or Remove Folder, whether or not
+    /// their files are still on disk.
+    public func liveCueIDs(among cueIDs: [Int64]) throws -> Set<Int64> {
+        let uniqueCueIDs = Array(Set(cueIDs.filter { $0 > 0 }))
+        var liveCueIDs = Set<Int64>()
+        for start in stride(from: 0, to: uniqueCueIDs.count, by: 500) {
+            let batch = uniqueCueIDs[start..<min(start + 500, uniqueCueIDs.count)]
+            let placeholders = batch.map { _ in "?" }.joined(separator: ", ")
+            let statement = try database.prepare(
+                """
+                SELECT l.id
+                FROM subtitle_cue_lines l
+                JOIN subtitle_files sf ON sf.id = l.subtitle_file_id
+                JOIN subtitle_video_matches m ON m.subtitle_file_id = sf.id AND m.is_active = 1
+                JOIN video_files vf ON vf.id = m.video_file_id
+                WHERE l.id IN (\(placeholders));
+                """
+            )
+            for (offset, id) in batch.enumerated() {
+                try statement.bind(id, at: Int32(offset + 1))
+            }
+            while try statement.step() {
+                liveCueIDs.insert(statement.int64Column(0))
+            }
+        }
+        return liveCueIDs
+    }
+
     private func cueLineRecords(forCueIDs cueIDs: [Int64]) throws -> [Int64: SubtitleCueLineRecord] {
         let records = try cueLineRecords(whereColumn: "l.id", ids: cueIDs)
         return Dictionary(uniqueKeysWithValues: records.map { ($0.id, $0) })

@@ -25,3 +25,17 @@ File: `apps/macos-native/Sources/CueSeekerApp/App/AppCoordinator+Indexing.swift`
 
 - `swift build` compiles.
 - No automated test sets the variable, for the reason the 2026-09-19 record gives: it is process-wide and would slow every other task test in the parallel run. The wait itself is left to the owner's in-App check.
+
+## Step 2: which cues and Excerpts are still in the library
+
+### What changed
+
+- `CueContentDatabase.liveCueIDs(among:)` answers which of the given cues are still in the library: indexed, not in the tombstone, on a subtitle matched to a video.
+- `ExcerptDatabase.validExcerptIDs(among:)` answers the same for Excerpts, with the test the resolved Excerpt's `isValid` makes, so a tombstoned cue counts as gone (requirement 2).
+- Both read in batches of 500 ids, so a long playlist is checked in a few statements.
+
+Files: `apps/macos-native/Sources/CueSeekerCore/CueContentDatabase.swift`, `apps/macos-native/Sources/CueSeekerCore/ExcerptDatabase.swift`, `apps/macos-native/Tests/CueSeekerCoreTests/ExcerptDatabaseTests.swift`
+
+### Verification
+
+- `cuesAndExcerptsLeaveTheLibraryWithTheTombstoneOrTheirFolder` saves three cues as Excerpts, then empties one subtitle (its cue goes to the tombstone) and removes another folder: only the cue and Excerpt that stayed are answered. Passes.

@@ -977,3 +977,62 @@ func excerptSavesByCueIDIntoEachListWithoutDuplicatingWithinOne() throws {
     #expect(try excerptDatabase.excerptCount(listID: defaultListID) == 1)
     #expect(try excerptDatabase.uniqueExcerptCueCount() == 1)
 }
+
+@Test
+func cuesAndExcerptsLeaveTheLibraryWithTheTombstoneOrTheirFolder() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    let database = try IndexingDatabase(path: databaseURL)
+    try DatabaseBootstrap.prepare(at: databaseURL)
+    let staying = URL(fileURLWithPath: "/Media/Stays/Episode 1.srt")
+    let tombstoned = URL(fileURLWithPath: "/Media/Stays/Episode 2.srt")
+    let removed = URL(fileURLWithPath: "/Media/Goes/Episode 1.srt")
+    for (subtitleFile, text) in [
+        (staying, "Stays in the library"),
+        (tombstoned, "Goes to the tombstone"),
+        (removed, "Leaves with its folder"),
+    ] {
+        try database.replaceEntries(
+            subtitleFile: subtitleFile,
+            videoFile: subtitleFile.deletingPathExtension().appendingPathExtension("mkv"),
+            entries: [
+                SubtitleEntry(
+                    sequenceNumber: 1,
+                    startTimecode: "00:00:01,000",
+                    endTimecode: "00:00:03,000",
+                    startMilliseconds: 1_000,
+                    endMilliseconds: 3_000,
+                    text: text
+                )
+            ]
+        )
+    }
+    let playbackDatabase = try PlaybackSubtitleDatabase(path: databaseURL)
+    let excerptDatabase = try ExcerptDatabase(path: databaseURL)
+    var cueIDs: [Int64] = []
+    var excerptIDs: [Int64] = []
+    for subtitleFile in [staying, tombstoned, removed] {
+        let selection = try #require(try playbackDatabase.cueTextSelection(
+            forSubtitleFile: subtitleFile,
+            atMilliseconds: 1_500
+        ))
+        cueIDs.append(try #require(selection.cueLineID))
+        excerptIDs.append(try excerptDatabase.upsertExcerpt(selection: selection).id)
+    }
+    let cueContentDatabase = try CueContentDatabase(path: databaseURL)
+    #expect(try cueContentDatabase.liveCueIDs(among: cueIDs) == Set(cueIDs))
+    #expect(try excerptDatabase.validExcerptIDs(among: excerptIDs) == Set(excerptIDs))
+
+    try database.replaceEntries(
+        subtitleFile: tombstoned,
+        videoFile: tombstoned.deletingPathExtension().appendingPathExtension("mkv"),
+        entries: []
+    )
+    try database.removeIndexedFolder(URL(fileURLWithPath: "/Media/Goes"))
+
+    #expect(try cueContentDatabase.liveCueIDs(among: cueIDs + [9_999]) == [cueIDs[0]])
+    #expect(try excerptDatabase.validExcerptIDs(among: excerptIDs + [9_999]) == [excerptIDs[0]])
+}
