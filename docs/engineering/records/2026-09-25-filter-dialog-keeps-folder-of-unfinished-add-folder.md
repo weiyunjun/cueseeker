@@ -31,7 +31,3 @@ Files:
 - `aFolderAdditionRemovedAfterPublishingLeavesNoFolderInTheFilter` cancels an Add Folder as it enters Reading video info, after its subtitles are published, and expects no subtitle and no listed folder left. Before the change the dialogs listed both of its folders and the test failed.
 - `swift test` (full, parallel): 1280 tests, 13 failing, none from this change: the same environment-sensitive set as the cover generation record of the same day (the eight native playback tests including `playbackPlayerKeepsAutoPauseBoundaryAcrossUserSeeks`, the two Debug E2E scene and width tests, `progressiveSearchProjectionRefreshesOnlyMountedTable`, `excerptTableStartsAtTopAfterPanelRemount`, `showCueGroupInvalidationIsScopedToMountedExcerpt`); all eight `LibraryFolderAdditionTests` pass.
 - In-App: acceptance items 1 and 2 are the owner's.
-
-## Known limits
-
-- In the same run, the pages an unfinished Add Folder refreshed when its subtitles were published are not refreshed again after the take-back. The pages that read the root list never showed the folder; an Excerpt that the publishing had matched to the folder's subtitles again would keep showing as available until the Excerpt page reloads. The requirement covers only the Filter Dialog; not changed here.
