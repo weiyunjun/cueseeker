@@ -13,6 +13,8 @@ final class PlaybackLibrarySessionStore: ObservableObject {
     private var detailsCancellable: AnyCancellable?
     private var didActivate = false
     private var isActive = true
+    /// The folder as it was shown when the database changed under it.
+    private var heldDetail: CompleteLibraryFolderDetailPresentation?
 
     init(
         libraryStore: LibraryStore,
@@ -34,13 +36,30 @@ final class PlaybackLibrarySessionStore: ObservableObject {
     }
 
     var detailStatus: LibraryStatus {
-        libraryStore.completeLibraryFolderDetailStatusesByPath[
+        guard heldDetail == nil else {
+            return .completed
+        }
+        return libraryStore.completeLibraryFolderDetailStatusesByPath[
             folderPath
         ] ?? .idle
     }
 
     var detail: CompleteLibraryFolderDetailPresentation? {
-        libraryStore.completeLibraryFolderDetailsByPath[folderPath]
+        heldDetail ?? libraryStore.completeLibraryFolderDetailsByPath[folderPath]
+    }
+
+    var isHoldingDetail: Bool {
+        heldDetail != nil
+    }
+
+    /// Keeps the folder as it is shown now: a database change must not move
+    /// what the open Playback Overlay shows. A folder still loading has
+    /// nothing shown to keep and goes on loading.
+    func holdDetail() {
+        guard isActive, heldDetail == nil else {
+            return
+        }
+        heldDetail = libraryStore.completeLibraryFolderDetailsByPath[folderPath]
     }
 
     func activate(refreshesExistingSnapshot: Bool = false) {
@@ -53,13 +72,13 @@ final class PlaybackLibrarySessionStore: ObservableObject {
                 applyDetail(detail, resetsSelection: true)
             }
         }
-        if refreshesExistingSnapshot || detail == nil {
+        if heldDetail == nil, refreshesExistingSnapshot || detail == nil {
             requestFolderDetail(folderPath)
         }
     }
 
     func refreshForSourceRevision() {
-        guard isActive, didActivate else {
+        guard isActive, didActivate, heldDetail == nil else {
             return
         }
         requestFolderDetail(folderPath)
@@ -102,6 +121,7 @@ final class PlaybackLibrarySessionStore: ObservableObject {
         from detailsByPath: [String: CompleteLibraryFolderDetailPresentation]
     ) {
         guard isActive,
+              heldDetail == nil,
               let detail = detailsByPath[folderPath]
         else {
             return

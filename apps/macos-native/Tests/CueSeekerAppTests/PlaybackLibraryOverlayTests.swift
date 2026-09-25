@@ -292,6 +292,20 @@ func playbackLibraryEpisodeOpenUsesSharedFolderDetailOrder() async throws {
         #expect(session.selectModule(.playlist))
         let detail = try #require(store.detail)
         let clickedVideo = detail.videos[1]
+        // A video the library holds: one it no longer holds does not open.
+        try #require(app.indexingDatabase).replaceEntries(
+            subtitleFile: URL(fileURLWithPath: clickedVideo.libraryVideo.subtitlePath),
+            videoFile: URL(fileURLWithPath: clickedVideo.videoPath),
+            entries: [SubtitleEntry(
+                sequenceNumber: 1,
+                startTimecode: "00:00:01,000",
+                endTimecode: "00:00:02,000",
+                startMilliseconds: 1_000,
+                endMilliseconds: 2_000,
+                text: "clicked episode"
+            )]
+        )
+        app.indexing.appendFolder(URL(fileURLWithPath: folder.folderPath))
         app.playback.isPlaybackSurfaceExpanded = true
         app.workbenchLayout.navigate(to: .recent)
 

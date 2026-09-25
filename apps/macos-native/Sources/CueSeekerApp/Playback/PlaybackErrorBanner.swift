@@ -1,7 +1,8 @@
 import SwiftUI
 
 /// The player's one error surface: the video line above the subtitle line in a
-/// single box, as wide as its text up to the width it is given. It is anchored
+/// single box, then the line refusing an item the library no longer holds, as
+/// wide as its text up to the width it is given. It is anchored
 /// to the window rather than to the picture, so a window too narrow for the
 /// video leaves it on the letterbox, and it stays while the Player UI hides.
 /// See `docs/human/requirements/20260921-Bug-Missing Files Treated As Missing

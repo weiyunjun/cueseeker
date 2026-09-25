@@ -65,3 +65,29 @@ Files: `AppCoordinator+PlaybackLibraryChange.swift` (new), `AppCoordinator.swift
 - New `PlaybackLibraryChangeTests`: a held playlist ignores the stores and renumbers what it keeps; from a search result, an Excerpt whose cue went to the tombstone, and a Library video that left the library, previous and next go to the first item still in the library, and say `No Available …` when there is none; a playlist shown through a change drops what left only once the Command Panel closes. All pass.
 - `removingAParentStopsOnlyTheVideosThatLeaveTheLibrary` and `indexStopsOnlyAVideoItTakesOutOfTheLibrary` asserted the old rule, playback stopping; they now assert the new one under new names: the video stays selected and is marked as out of the library only when it left. Both pass.
 - `swift test` (full, parallel): 1281 tests, 12 failing, all in the environment-sensitive set earlier records name (the native playback timing tests including `playbackPlayerKeepsAutoPauseBoundaryAcrossUserSeeks`, `sceneUsesVisibleWindowUnionAndTopLeftCoordinates`, `progressiveSearchProjectionRefreshesOnlyMountedTable`, `excerptTableStartsAtTopAfterPanelRemount`, `searchFacetSelectionDoesNotRefreshGlobalOrInactiveSurfaces`). No new failure.
+
+## Step 4: the Playback Overlay through a database change
+
+### What changed
+
+- Opened on a subtitle that is no longer matched to the video playing, the overlay no longer fails to open. Current shows `This subtitle is no longer in the library.`; Playlist opens as usual (requirement 3.4).
+- A playlist that kept nothing the library still holds still has its Playlist tab, which shows `No items in this playlist are in the library.`; a Library Playlist whose folder kept no video says the same. Both messages use the Empty Hint the Library Playlist already used, now shared as `PlaybackEmptyHint`. Its old text, `playback.episodes_empty`, only showed for a folder with no video, which now means the folder left the library, so it is gone.
+- An open overlay keeps what it shows: the cue playlist is held by Step 3, the Library Playlist now keeps its folder too, and Current and Collage already held what they loaded (requirement 4.1, 4.2).
+- In Current and Playlist, an item the library no longer holds, whether or not its file is still on disk, is refused (requirement 4.3–4.5, 4.7):
+  - Play, from the key, the footer or an episode card, leaves the overlay open and shows a third line on the Player Error Banner, `This item is no longer in the library`, below the video and subtitle lines. It lasts 5 seconds and a new refusal replaces it.
+  - Save to Excerpt List and Copy Deep Link show a one-second Playback Feedback with the warning icon, `Not in Library`. An item with no cue identity keeps its old answer, `No Subtitle`.
+  - Copy Cue Text and Collage are unchanged.
+- Opening an episode from a Library Playlist kept through a change leaves the videos that left out of previous and next.
+
+Files: `AppCoordinator+PlaybackLibraryChange.swift`, `AppCoordinator+PlaybackSubtitleFocus.swift`, `AppTypes.swift`, `PlaybackErrorBanner.swift`, `PlaybackStore.swift`, `PlaybackViewModel.swift`, `PlaybackLibraryOverlay.swift`, `PlaybackLibrarySessionStore.swift`, `PlaybackSubtitleFocusOverlay.swift`, `PlaybackSubtitleFocusSessionStore.swift`, the three `Localizable.strings`.
+
+### Open for the owner's in-App review
+
+- Current with no subtitle still shows the Collage button, which does nothing there.
+- The two new messages sit where the Library Playlist's message already sat, near the top, without a footer.
+
+### Verification
+
+- New tests in `PlaybackLibraryChangeTests`: the overlay opens on a subtitle that left the library with Current saying so and the Playlist still offered; an open overlay keeps its playlist through a change, refuses Copy Deep Link, Save to Excerpt List and Play on an item that left (the overlay stays, the banner line shows) and still plays one that stayed, after which the playlist drops the other; a held Library Playlist keeps its folder. All pass.
+- Three tests played or linked items that were never in the database, which now counts as out of the library: `playbackPlaylistEnterDispatchesSelectedTargetAndDestroysOverlaySession` now plays an indexed cue, and `playbackLibraryEpisodeOpenUsesSharedFolderDetailOrder` indexes the clicked episode under a root; their assertions are unchanged. `playbackExcerptCopiesSettledPrimaryCueAsMarkdownLink` goes through the overlay's Excerpt module, which the playback page does not show, so the check does not apply to it and it passes unchanged.
+- `swift test` (full, parallel): 1289 tests; the failures are the environment-sensitive set earlier records name (native playback timing, the two Debug E2E scene and width tests, `progressiveSearchProjectionRefreshesOnlyMountedTable`, `excerptTableStartsAtTopAfterPanelRemount`, `showCueGroupInvalidationIsScopedToMountedExcerpt`, `searchFacetSelectionDoesNotRefreshGlobalOrInactiveSurfaces`). `addingEmptyFolderRestartsInvalidatedActiveSearch` failed once in one full run on a 10-second wait and passed three times out of three on its own.

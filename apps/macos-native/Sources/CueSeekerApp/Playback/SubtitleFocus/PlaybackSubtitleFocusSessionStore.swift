@@ -34,6 +34,9 @@ enum PlaybackSubtitleFocusState: Equatable, Sendable {
     case closed
     case opening
     case cueSelection(SubtitleFocusSnapshot)
+    /// The subtitle it opened on is no longer in the library: Current has
+    /// nothing to show but says so, and Playlist opens as usual.
+    case subtitleLeftLibrary
 }
 
 enum PlaybackOverlayModule: String, CaseIterable, Equatable, Sendable {
@@ -356,7 +359,7 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
     func selectModule(_ module: PlaybackOverlayModule) -> Bool {
         guard isSessionActive,
               !isEditingCollage,
-              case .cueSelection = state,
+              currentSnapshot != nil || state == .subtitleLeftLibrary,
               availableModules.contains(module),
               selectedModule != module
         else {
@@ -909,6 +912,13 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
         }
         _ = closeSession()
         return true
+    }
+
+    func showSubtitleLeftLibrary() {
+        guard isSessionActive, state == .opening else {
+            return
+        }
+        state = .subtitleLeftLibrary
     }
 
     @discardableResult

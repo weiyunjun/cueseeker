@@ -355,7 +355,9 @@ final class PlaybackStore: ObservableObject {
             sessionGeneration: subtitleFocusSessionGeneration,
             availableModules: availableModules
                 ?? PlaybackOverlayModule.modules(
-                    hasPlaylist: playlistSource?.hasItems == true
+                    // A playlist that kept nothing the library still holds
+                    // still opens, to say so.
+                    hasPlaylist: playlistSource != nil
                         || libraryStore != nil
                 ),
             playlistSource: playlistSource,

@@ -214,6 +214,7 @@
 "playback.error.video_load_failed" = "无法加载视频文件：%@";
 "playback.error.subtitle_load_failed" = "无法加载字幕文件：%@";
 "playback.error.playback_failed" = "播放出错：%@";
+"playback.error.not_in_library" = "此项目已不在媒体库中";
 "playback.hud.collage_not_ready" = "长截图未就绪";
 "playback.hud.no_subtitle" = "无字幕";
 "playback.hud.auto_pause" = "自动暂停";
@@ -233,6 +234,7 @@
 "playback.hud.no_available_results" = "没有可用的结果";
 "playback.hud.no_available_excerpts" = "没有可用的摘录";
 "playback.hud.no_available_videos" = "没有可用的视频";
+"playback.hud.not_in_library" = "不在媒体库中";
 "playback.hud.enter_fullscreen" = "进入全屏";
 "playback.hud.exit_fullscreen" = "退出全屏";
 "playback.hud.subtitles_on" = "字幕已开";
@@ -259,7 +261,8 @@
 "playback.save_to_excerpt" = "保存到摘录集";
 "playback.open" = "打开";
 "playback.back" = "返回";
-"playback.episodes_empty" = "还没有剧集。";
+"playback.current.left_library" = "此字幕已不在媒体库中。";
+"playback.playlist.left_library" = "此播放列表中没有仍在媒体库中的项目。";
 "playback.video_count.one" = "1 个视频";
 "playback.video_count.other" = "%d 个视频";
 "playback.excerpt_list_count.one" = "1 个摘录集";

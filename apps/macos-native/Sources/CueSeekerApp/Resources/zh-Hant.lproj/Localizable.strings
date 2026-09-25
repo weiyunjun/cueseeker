@@ -214,6 +214,7 @@
 "playback.error.video_load_failed" = "無法載入影片檔案：%@";
 "playback.error.subtitle_load_failed" = "無法載入字幕檔案：%@";
 "playback.error.playback_failed" = "播放出錯：%@";
+"playback.error.not_in_library" = "此項目已不在媒體庫中";
 "playback.hud.collage_not_ready" = "長截圖未就緒";
 "playback.hud.no_subtitle" = "沒有字幕";
 "playback.hud.auto_pause" = "自動暫停";
@@ -233,6 +234,7 @@
 "playback.hud.no_available_results" = "沒有可用的結果";
 "playback.hud.no_available_excerpts" = "沒有可用的摘錄";
 "playback.hud.no_available_videos" = "沒有可用的影片";
+"playback.hud.not_in_library" = "不在媒體庫中";
 "playback.hud.enter_fullscreen" = "進入全螢幕";
 "playback.hud.exit_fullscreen" = "結束全螢幕";
 "playback.hud.subtitles_on" = "字幕已開";
@@ -259,7 +261,8 @@
 "playback.save_to_excerpt" = "儲存到摘錄集";
 "playback.open" = "打開";
 "playback.back" = "返回";
-"playback.episodes_empty" = "尚無單集。";
+"playback.current.left_library" = "此字幕已不在媒體庫中。";
+"playback.playlist.left_library" = "此播放列表中沒有仍在媒體庫中的項目。";
 "playback.video_count.one" = "1 部影片";
 "playback.video_count.other" = "%d 部影片";
 "playback.excerpt_list_count.one" = "1 個摘錄集";

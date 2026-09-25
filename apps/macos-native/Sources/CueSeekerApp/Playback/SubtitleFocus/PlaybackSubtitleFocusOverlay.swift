@@ -45,19 +45,31 @@ struct PlaybackSubtitleFocusLayer: View {
         case .closed, .opening:
             EmptyView()
         case .cueSelection(let snapshot):
-            PlaybackOverlay(
-                session: session,
+            overlay(
                 snapshot: snapshot,
-                cues: session.completeCueBatch?.cues ?? snapshot.cues,
-                uiProbeScope: uiProbeScope,
-                onExecuteAction: onExecuteAction,
-                onRequestAction: onRequestAction,
-                onCopySelectedText: onCopySelectedText,
-                onSearchSelectedText: onSearchSelectedText,
-                onOpenLibraryEpisode: onOpenLibraryEpisode,
-                onReturn: onReturn
+                cues: session.completeCueBatch?.cues ?? snapshot.cues
             )
+        case .subtitleLeftLibrary:
+            overlay(snapshot: nil, cues: [])
         }
+    }
+
+    private func overlay(
+        snapshot: SubtitleFocusSnapshot?,
+        cues: [SubtitleFocusCue]
+    ) -> PlaybackOverlay {
+        PlaybackOverlay(
+            session: session,
+            snapshot: snapshot,
+            cues: cues,
+            uiProbeScope: uiProbeScope,
+            onExecuteAction: onExecuteAction,
+            onRequestAction: onRequestAction,
+            onCopySelectedText: onCopySelectedText,
+            onSearchSelectedText: onSearchSelectedText,
+            onOpenLibraryEpisode: onOpenLibraryEpisode,
+            onReturn: onReturn
+        )
     }
 }
 
@@ -66,7 +78,8 @@ struct PlaybackOverlay: View {
     @EnvironmentObject private var localization: AppLocalizationStore
     @Environment(\.isPlaybackOverlayCovered) private var isCoveredByHigherLayer
     @ObservedObject var session: PlaybackSubtitleFocusSessionStore
-    let snapshot: SubtitleFocusSnapshot
+    /// Nil when the subtitle Current opened on is no longer in the library.
+    let snapshot: SubtitleFocusSnapshot?
     let cues: [SubtitleFocusCue]
     let uiProbeScope: String?
     let onExecuteAction: (PlaybackSubtitleFocusActionExecution) -> Bool
@@ -137,8 +150,10 @@ struct PlaybackOverlay: View {
                     onSearchSelectedText: onSearchSelectedText
                 )
             } else {
-                PlaybackTheme.subtitleFocusOverlayBackground
-                    .contentShape(Rectangle())
+                // The playlist kept nothing the library still holds.
+                PlaybackEmptyHint(L("playback.playlist.left_library"))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                    .background(PlaybackTheme.subtitleFocusOverlayBackground)
             }
         } else {
             PlaybackTheme.subtitleFocusOverlayBackground
@@ -146,7 +161,20 @@ struct PlaybackOverlay: View {
         }
     }
 
+    @ViewBuilder
     private var currentSubtitleOverlay: some View {
+        if let snapshot {
+            currentSubtitleOverlay(snapshot: snapshot)
+        } else {
+            PlaybackEmptyHint(L("playback.current.left_library"))
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                .background(PlaybackTheme.subtitleFocusOverlayBackground)
+        }
+    }
+
+    private func currentSubtitleOverlay(
+        snapshot: SubtitleFocusSnapshot
+    ) -> some View {
         PlaybackSubtitleFocusOverlay(
             snapshot: snapshot,
             cues: cues,

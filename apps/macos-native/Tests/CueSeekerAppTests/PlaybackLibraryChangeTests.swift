@@ -252,6 +252,170 @@ func nextFromALibraryVideoTheLibraryDroppedGoesToTheFirstVideoOfItsFolder() asyn
     }
 }
 
+@MainActor
+@Test
+func theOverlayOpensOnASubtitleTheLibraryDroppedAndStillOffersThePlaylist() async throws {
+    try await withLibraryChangeApp { app, database in
+        app.ensurePlayerInitialized()
+        let results = try playLibraryChangeSearch(["A", "B"], selecting: 0, app: app, database: database)
+        app.playback.playbackStatus = .paused
+
+        // A leaves the library with its subtitle; B stays.
+        app.holdPlaybackBeforeIndexedContentChange()
+        try database.removeStaleEntries(
+            under: URL(fileURLWithPath: "/Media"),
+            keeping: ["/Media/B.srt"]
+        )
+        app.reconcilePlaybackAfterIndexedContentChange()
+        #expect(app.currentPlaybackItemLeftLibrary)
+
+        #expect(app.openPlaybackSubtitleFocusFromUser())
+        let session = try #require(app.playback.subtitleFocusSession)
+        #expect(session.state == .subtitleLeftLibrary)
+        #expect(session.availableModules == [.current, .playlist])
+        #expect(session.playlistWindow?.snapshot.totalCount == 1)
+        #expect(session.playlistWindow?.item(at: 0)?.identity == .search(results[1].entryID))
+        #expect(session.selectModule(.current))
+        #expect(session.selectModule(.playlist))
+        app.invalidatePlaybackSubtitleFocusForSourceReplacement()
+    }
+}
+
+@MainActor
+@Test
+func anOpenOverlayKeepsItsPlaylistAndRefusesWhatLeftTheLibrary() async throws {
+    try await withLibraryChangeApp { app, database in
+        app.ensurePlayerInitialized()
+        let results = try playLibraryChangeSearch(["A", "B"], selecting: 0, app: app, database: database)
+        let session = try #require(app.playback.beginSubtitleFocusSession(
+            openSnapshot: PlaybackSubtitleFocusOpenSnapshot(
+                source: SubtitleFocusSourceIdentity(
+                    subtitleFileID: results[0].subtitleFileID,
+                    videoPath: results[0].videoPath,
+                    subtitlePath: results[0].subtitlePath,
+                    subtitleFormat: results[0].subtitleFormat
+                ),
+                timestampMilliseconds: 1_500,
+                wasPlaying: false
+            )
+        ))
+        let window = try #require(session.playlistWindow)
+
+        // B leaves the library while the overlay shows it.
+        app.holdPlaybackBeforeIndexedContentChange()
+        try database.removeStaleEntries(
+            under: URL(fileURLWithPath: "/Media"),
+            keeping: ["/Media/A.srt"]
+        )
+        app.reconcilePlaybackAfterIndexedContentChange()
+
+        #expect(app.playbackAwaitsLibraryReconcile)
+        #expect(window.snapshot.totalCount == 2)
+        #expect(window.restoreSelection(
+            itemIdentity: .search(results[1].entryID),
+            at: 1
+        ))
+
+        for action in [PlaybackSubtitleFocusAction.copyCueMarkdownLink, .excerpt] {
+            guard case .ready(let execution) = session.requestKeyboardAction(action) else {
+                Issue.record("Expected \(action) to be ready")
+                return
+            }
+            #expect(app.executePlaybackSubtitleFocusAction(execution))
+            #expect(app.playback.playbackViewModel?.feedback?.text == "Not in Library")
+            #expect(app.playback.excerptDestinationMenu == nil)
+        }
+
+        guard case .ready(let play) = session.requestKeyboardAction(.playFromThisCue) else {
+            Issue.record("Expected Play to be ready")
+            return
+        }
+        #expect(app.executePlaybackSubtitleFocusAction(play))
+        #expect(app.playback.subtitleFocusSession === session)
+        #expect(app.search.selectedSearchResult?.entryID == results[0].entryID)
+        #expect(
+            app.playback.errorMessages[.notInLibrary]
+                == "This item is no longer in the library"
+        )
+
+        // What is still in the library plays, and the playlist then drops B.
+        #expect(window.restoreSelection(
+            itemIdentity: .search(results[0].entryID),
+            at: 0
+        ))
+        guard case .ready(let playA) = session.requestKeyboardAction(.playFromThisCue) else {
+            Issue.record("Expected Play to be ready")
+            return
+        }
+        #expect(app.executePlaybackSubtitleFocusAction(playA))
+        #expect(app.playback.subtitleFocusSession == nil)
+        app.reconcilePlaybackPlaylistIfAwaiting()
+        #expect(app.playback.playlistSource?.boundary.totalCount == 1)
+    }
+}
+
+@MainActor
+@Test
+func aHeldLibraryPlaylistKeepsTheFolderItShowed() async throws {
+    try await withLibraryChangeApp { app, database in
+        for name in ["A", "B"] {
+            try indexLibraryChangeVideo(name, in: database)
+        }
+        try LibraryDatabase(path: database.path)
+            .refreshPresentationAfterIndexedContentChange()
+        let libraryDatabase = try #require(app.libraryDatabase)
+        let detail = try #require(
+            try libraryDatabase.completeLibraryFolderDetail(folderPath: "/Media")
+        )
+        let library = LibraryStore()
+        library.completeLibraryFolderDetailsByPath = ["/Media": detail]
+        let store = PlaybackLibrarySessionStore(libraryStore: library, folderPath: "/Media")
+
+        store.holdDetail()
+        library.completeLibraryFolderDetailsByPath = [:]
+
+        #expect(store.isHoldingDetail)
+        #expect(store.detail == detail)
+        #expect(store.detailStatus == .completed)
+    }
+}
+
+/// Indexes one video per name, makes them the search results, and plays the
+/// one at `selecting` as a Search playlist.
+@MainActor
+private func playLibraryChangeSearch(
+    _ names: [String],
+    selecting ordinal: Int,
+    app: AppCoordinator,
+    database: IndexingDatabase
+) throws -> [SubtitleSearchResult] {
+    for name in names {
+        try indexLibraryChangeVideo(name, in: database)
+    }
+    let results = try SearchDatabase(path: database.path)
+        .search("placeholder")
+        .sorted { $0.videoPath < $1.videoPath }
+    app.search.replaceResultState(
+        results: results,
+        status: app.search.searchStatus,
+        totalCount: results.count,
+        fileSummaries: [],
+        countState: .exact,
+        knownResultCount: results.count,
+        knownFileCount: results.count,
+        hasMore: false
+    )
+    app.openSearchResult(
+        results[ordinal],
+        playbackSearchPromotion: PlaybackSearchPromotion(
+            query: "placeholder",
+            scopePaths: [],
+            selectedOrdinal: ordinal
+        )
+    )
+    return results
+}
+
 private func libraryChangeSearchResult(entryID: Int64) -> SubtitleSearchResult {
     SubtitleSearchResult(
         entryID: entryID,

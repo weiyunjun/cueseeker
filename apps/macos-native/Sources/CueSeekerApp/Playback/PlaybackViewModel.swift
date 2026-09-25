@@ -703,6 +703,18 @@ public final class PlaybackViewModel: ObservableObject {
         )
     }
 
+    /// Save to Excerpt List or Copy Deep Link on a cue the library no longer
+    /// holds.
+    func showNotInLibraryFeedback() {
+        showFeedback(
+            PlaybackFeedback(
+                icon: .warning,
+                text: L("playback.hud.not_in_library")
+            ),
+            durationMilliseconds: 1_000
+        )
+    }
+
     /// Previous, next or Auto Switch from an item the library no longer holds,
     /// with nothing the library still holds to go to.
     func showNoAvailableNavigationFeedback(

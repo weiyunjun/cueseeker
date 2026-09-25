@@ -111,13 +111,13 @@ private struct PlaybackLibraryEpisodeList: View {
     @ViewBuilder
     private func contentBody(viewportHeight: CGFloat) -> some View {
         if case .loading = store.detailStatus, store.detail == nil {
-            PlaybackLibraryEmptyHint {
+            PlaybackEmptyHint {
                 ProgressView()
                     .controlSize(.small)
             }
         } else if case .failed(let message) = store.detailStatus {
-            PlaybackLibraryEmptyHint(message)
-        } else if let detail = store.detail {
+            PlaybackEmptyHint(message)
+        } else if let detail = store.detail, !detail.videos.isEmpty {
             CompleteLibraryEpisodeGrid(
                 folderTitle: detail.folderTitle,
                 videos: detail.videos,
@@ -142,7 +142,8 @@ private struct PlaybackLibraryEpisodeList: View {
                 .frame(width: 0, height: 0)
             }
         } else {
-            PlaybackLibraryEmptyHint(L("playback.episodes_empty"))
+            // The folder kept no video the library still holds.
+            PlaybackEmptyHint(L("playback.playlist.left_library"))
         }
     }
 
@@ -179,7 +180,8 @@ private struct PlaybackLibraryEpisodeList: View {
     }
 }
 
-private struct PlaybackLibraryEmptyHint<Content: View>: View {
+/// Empty State / Empty Hint on the Playback Overlay.
+struct PlaybackEmptyHint<Content: View>: View {
     private let content: Content
 
     init(_ message: String) where Content == Text {

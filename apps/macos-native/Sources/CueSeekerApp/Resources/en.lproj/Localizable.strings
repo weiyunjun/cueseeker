@@ -214,6 +214,7 @@
 "playback.error.video_load_failed" = "Couldn’t load the video file: %@";
 "playback.error.subtitle_load_failed" = "Couldn’t load the subtitle file: %@";
 "playback.error.playback_failed" = "Playback error: %@";
+"playback.error.not_in_library" = "This item is no longer in the library";
 "playback.hud.collage_not_ready" = "Collage Not Ready";
 "playback.hud.no_subtitle" = "No Subtitle";
 "playback.hud.auto_pause" = "Auto Pause";
@@ -233,6 +234,7 @@
 "playback.hud.no_available_results" = "No Available Results";
 "playback.hud.no_available_excerpts" = "No Available Excerpts";
 "playback.hud.no_available_videos" = "No Available Videos";
+"playback.hud.not_in_library" = "Not in Library";
 "playback.hud.enter_fullscreen" = "Enter Fullscreen";
 "playback.hud.exit_fullscreen" = "Exit Fullscreen";
 "playback.hud.subtitles_on" = "Subtitles On";
@@ -259,7 +261,8 @@
 "playback.save_to_excerpt" = "Save to Excerpt List";
 "playback.open" = "Open";
 "playback.back" = "Back";
-"playback.episodes_empty" = "No episodes yet.";
+"playback.current.left_library" = "This subtitle is no longer in the library.";
+"playback.playlist.left_library" = "No items in this playlist are in the library.";
 "playback.video_count.one" = "1 video";
 "playback.video_count.other" = "%d videos";
 "playback.excerpt_list_count.one" = "1 excerpt list";

@@ -12,6 +12,7 @@ extension AppCoordinator {
     /// items it has now, so the stores reloading underneath no longer reach
     /// it and an open Playback Overlay keeps showing them.
     func holdPlaybackBeforeIndexedContentChange() {
+        playback.subtitleFocusSession?.libraryStore?.holdDetail()
         guard let source = playback.playlistSource, !source.isHeld else {
             return
         }
@@ -164,6 +165,44 @@ extension AppCoordinator {
             return false
         }
         return firstPlaylistItemInLibrary(in: source) != nil
+    }
+
+    /// Playing an item the library no longer holds is refused on the
+    /// banner's own line.
+    func showPlaybackItemNotInLibrary() {
+        playback.showError(L("playback.error.not_in_library"), on: .notInLibrary)
+    }
+
+    func isCueInLibrary(_ cueID: Int64) -> Bool {
+        cueIDsInLibrary(among: [cueID]).contains(cueID)
+    }
+
+    /// Whether a Current or Playlist item of the Playback Overlay is one the
+    /// library no longer holds. The playback page shows no other module.
+    func overlayTargetLeftLibrary(
+        _ target: PlaybackSubtitleFocusActionTarget
+    ) -> Bool {
+        switch target {
+        case .current(let context):
+            !isCueInLibrary(context.cue.id)
+        case .playlist(let item):
+            playlistItemsInLibrary([item]).isEmpty
+        case .search, .excerpt:
+            false
+        }
+    }
+
+    /// Whether the subtitle the Playback Overlay opens on is still matched to
+    /// the video playing.
+    func isPlaybackSubtitleInLibrary(_ source: SubtitleFocusSourceIdentity) -> Bool {
+        guard let subtitleFileID = source.subtitleFileID,
+              let subtitles = try? libraryDatabase?.videoSubtitles(
+                  forVideoFile: URL(fileURLWithPath: source.videoPath)
+              )
+        else {
+            return false
+        }
+        return subtitles.subtitles.contains { $0.subtitleFileID == subtitleFileID }
     }
 
     func isCurrentPlaybackItemInLibrary() -> Bool {

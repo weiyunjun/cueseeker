@@ -1286,8 +1286,9 @@ func playbackPlaylistExcerptItemWithoutACueIdentityOpensNoDestinationMenu() asyn
 @Test
 func playbackPlaylistEnterDispatchesSelectedTargetAndDestroysOverlaySession() async throws {
     try await withKeyboardActionApp { app, _ in
+        // A cue the library holds: one it no longer holds does not play.
         let result = keyboardActionPlaylistSearchResult(
-            id: 901,
+            id: 14,
             videoPath: "/video/playlist-target.mkv",
             subtitlePath: "/subtitle/playlist-target.ass",
             startMilliseconds: 41_000,

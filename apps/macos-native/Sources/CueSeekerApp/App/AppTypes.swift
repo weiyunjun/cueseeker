@@ -112,6 +112,8 @@ enum PlaybackStatus: Equatable {
 enum PlaybackErrorLine: CaseIterable {
     case video
     case subtitle
+    /// An item the library no longer holds was asked to play.
+    case notInLibrary
 }
 
 enum ActivePlaybackSource: Equatable {

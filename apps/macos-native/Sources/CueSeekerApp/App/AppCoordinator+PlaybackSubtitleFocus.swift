@@ -90,6 +90,10 @@ extension AppCoordinator {
             return false
         }
 
+        guard isPlaybackSubtitleInLibrary(source) else {
+            session.showSubtitleLeftLibrary()
+            return true
+        }
         startPlaybackSubtitleFocusInitialLoad(for: session)
         return true
     }
@@ -160,8 +164,17 @@ extension AppCoordinator {
         else {
             return false
         }
+        guard !libraryHasLost(videoPath: video.videoPath) else {
+            showPlaybackItemNotInLibrary()
+            return true
+        }
 
-        prepareLibraryNavigationVideos(detail.videos)
+        // A folder kept through a database change still lists what left it.
+        prepareLibraryNavigationVideos(
+            libraryStore.isHoldingDetail
+                ? detail.videos.filter { !libraryHasLost(videoPath: $0.videoPath) }
+                : detail.videos
+        )
         invalidatePlaybackSubtitleFocusForSourceReplacement()
         openLibraryVideo(
             video.libraryVideo,
@@ -297,10 +310,17 @@ extension AppCoordinator {
         case .excerpt:
             // A cue already saved somewhere still opens the menu: the point of
             // choosing a destination is that it can go to another list too.
-            togglePlaybackExcerptDestinationMenu(
-                surface: .playbackOverlay,
-                context: execution.target.actionContext
-            )
+            // A cue the library no longer holds cannot be saved.
+            if playback.excerptDestinationMenu?.surface != .playbackOverlay,
+               execution.target.cueID != nil,
+               overlayTargetLeftLibrary(execution.target) {
+                playback.playbackViewModel?.showNotInLibraryFeedback()
+            } else {
+                togglePlaybackExcerptDestinationMenu(
+                    surface: .playbackOverlay,
+                    context: execution.target.actionContext
+                )
+            }
             _ = session.finishKeyboardAction(execution)
         case .copyCueText:
             let copied = copyPlaybackSubtitleFocusCueText(
@@ -310,7 +330,13 @@ extension AppCoordinator {
             _ = session.finishKeyboardAction(execution)
         case .copyCueMarkdownLink:
             let copied: Bool
-            if let cueID = execution.target.cueID {
+            if execution.target.cueID != nil,
+               overlayTargetLeftLibrary(execution.target) {
+                // A link to a cue the library no longer holds leads nowhere.
+                playback.playbackViewModel?.showNotInLibraryFeedback()
+                _ = session.finishKeyboardAction(execution)
+                return true
+            } else if let cueID = execution.target.cueID {
                 copied = CueClipboard.copyDeepLink(
                     cueText: execution.target.primaryCueText,
                     cueID: cueID,
@@ -324,6 +350,13 @@ extension AppCoordinator {
             )
             _ = session.finishKeyboardAction(execution)
         case .playFromThisCue:
+            // What the library no longer holds does not play, even when its
+            // files are still on disk; the overlay stays open.
+            guard !overlayTargetLeftLibrary(execution.target) else {
+                showPlaybackItemNotInLibrary()
+                _ = session.finishKeyboardAction(execution)
+                return true
+            }
             switch execution.target {
             case .current(let context):
                 cancelPlaybackSubtitleFocusActionTask()
