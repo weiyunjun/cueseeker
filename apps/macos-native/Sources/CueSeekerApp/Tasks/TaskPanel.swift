@@ -112,10 +112,7 @@ private struct TaskCurrentCard: View {
             .foregroundStyle(WorkbenchRedesignColors.textSecondary)
 
             VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing1) {
-                TaskCardTitleView(
-                    actionPrefix: entry.record.titleActionPrefix,
-                    targetName: entry.record.titleTargetName
-                )
+                TaskCardTitleView(title: entry.record.displayTitle)
 
                 if entry.record.state == .running {
                     TaskCurrentRunningContent(entry: entry)
@@ -250,67 +247,54 @@ private struct TaskHistoryCard: View {
             .foregroundStyle(WorkbenchRedesignColors.textSecondary)
 
             VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing1) {
-                TaskCardTitleView(
-                    actionPrefix: record.titleActionPrefix,
-                    targetName: record.titleTargetName
-                )
-
-                Text(subtitleText)
-                    .font(.system(size: WorkbenchControlMetrics.redesignFontSizeCaption, weight: .regular))
-                    .foregroundStyle(WorkbenchRedesignColors.textMuted)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-
-                if record.state == .incomplete, let errorMessage = record.errorMessage {
-                    Text(errorMessage)
-                        .font(.system(size: WorkbenchControlMetrics.redesignFontSizeCaption, weight: .regular))
-                        .foregroundStyle(WorkbenchRedesignColors.dangerText)
-                        .lineLimit(1)
-                        .truncationMode(.tail)
-                        .frame(height: WorkbenchControlMetrics.redesignTaskCardLine3Height, alignment: .leading)
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-        }
-    }
-
-    private var subtitleText: String {
-        let time = tableSandboxExcerptDateAddedDisplayText(for: record.stateChangedAt)
-        switch record.kind {
-        case .ankiExport:
-            return "\(L("task.card_count", record.itemCount))  \(time)"
-        case .renameFolder, .index, .addFolder, .removeFolder:
-            return time
-        case .renameFiles:
-            return "\(L("task.files_count", record.itemCount))  \(time)"
-        }
-    }
-}
-
-private struct TaskCardTitleView: View {
-    let actionPrefix: String
-    let targetName: String
-
-    var body: some View {
-        (
-            Text(actionPrefix)
-                .font(.system(
-                    size: WorkbenchControlMetrics.redesignFontSizeBody,
-                    weight: WorkbenchControlMetrics.redesignFontWeightControl
-                ))
-                .foregroundColor(WorkbenchRedesignColors.textPrimary)
-            +
-            Text(targetName)
-                .font(.system(
-                    size: WorkbenchControlMetrics.redesignFontSizeBody,
-                    weight: .regular
-                ))
-                .foregroundColor(WorkbenchRedesignColors.textSecondary)
-        )
-        .lineLimit(1)
-        .truncationMode(.middle)
-    }
-}
+                TaskCardTitleView(title: record.displayTitle)
+ 
+                 Text(subtitleText)
+                     .font(.system(size: WorkbenchControlMetrics.redesignFontSizeCaption, weight: .regular))
+                     .foregroundStyle(WorkbenchRedesignColors.textMuted)
+                     .lineLimit(1)
+                     .truncationMode(.middle)
+ 
+                 if record.state == .incomplete, let errorMessage = record.errorMessage {
+                     Text(errorMessage)
+                         .font(.system(size: WorkbenchControlMetrics.redesignFontSizeCaption, weight: .regular))
+                         .foregroundStyle(WorkbenchRedesignColors.dangerText)
+                         .lineLimit(1)
+                         .truncationMode(.tail)
+                         .frame(height: WorkbenchControlMetrics.redesignTaskCardLine3Height, alignment: .leading)
+                 }
+             }
+             .frame(maxWidth: .infinity, alignment: .leading)
+         }
+     }
+ 
+     private var subtitleText: String {
+         let time = tableSandboxExcerptDateAddedDisplayText(for: record.stateChangedAt)
+         switch record.kind {
+         case .ankiExport:
+             return "\(L("task.card_count", record.itemCount))  \(time)"
+         case .renameFolder, .index, .addFolder, .removeFolder:
+             return time
+         case .renameFiles:
+             return "\(L("task.files_count", record.itemCount))  \(time)"
+         }
+     }
+ }
+ 
+ private struct TaskCardTitleView: View {
+     let title: String
+ 
+     var body: some View {
+         Text(title)
+             .font(.system(
+                 size: WorkbenchControlMetrics.redesignFontSizeBody,
+                 weight: WorkbenchControlMetrics.redesignFontWeightControl
+             ))
+             .foregroundStyle(WorkbenchRedesignColors.textPrimary)
+             .lineLimit(1)
+             .truncationMode(.middle)
+     }
+ }
 
 private struct TaskCardContainer<Content: View>: View {
     @ViewBuilder let content: () -> Content
@@ -355,6 +339,10 @@ extension TaskRecord {
         case .removeFolder:
             return .minusCircle
         }
+    }
+
+    var displayTitle: String {
+        "\(titleActionPrefix)\(titleTargetName)"
     }
 
     var titleActionPrefix: String {

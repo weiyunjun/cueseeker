@@ -763,6 +763,7 @@ func taskRecordTitlesAndIconsFollowRedesignSpecification() throws {
     #expect(ankiRecord.icon == .ankiStar)
     #expect(ankiRecord.titleActionPrefix == "Export to Anki: ")
     #expect(ankiRecord.titleTargetName == "japanese_core_2k.apkg")
+    #expect(ankiRecord.displayTitle == "Export to Anki: japanese_core_2k.apkg")
 
     let renameFolderRecord = TaskRecord(
         id: 2,
@@ -780,6 +781,7 @@ func taskRecordTitlesAndIconsFollowRedesignSpecification() throws {
     #expect(renameFolderRecord.icon == .pencilSimple)
     #expect(renameFolderRecord.titleActionPrefix == "Renaming Folder: ")
     #expect(renameFolderRecord.titleTargetName == "Season 01 [FLAC]")
+    #expect(renameFolderRecord.displayTitle == "Renaming Folder: Season 01 [FLAC]")
 
     let renameFilesRecord = TaskRecord(
         id: 3,
@@ -797,6 +799,7 @@ func taskRecordTitlesAndIconsFollowRedesignSpecification() throws {
     #expect(renameFilesRecord.icon == .pencilSimple)
     #expect(renameFilesRecord.titleActionPrefix == "Renaming Files: ")
     #expect(renameFilesRecord.titleTargetName == "ep01-remastered")
+    #expect(renameFilesRecord.displayTitle == "Renaming Files: ep01-remastered")
 
     let indexRecord = TaskRecord(
         id: 4,
@@ -813,6 +816,7 @@ func taskRecordTitlesAndIconsFollowRedesignSpecification() throws {
     #expect(indexRecord.icon == .arrowClockwise)
     #expect(indexRecord.titleActionPrefix == "Index")
     #expect(indexRecord.titleTargetName == "")
+    #expect(indexRecord.displayTitle == "Index")
 
     let addFolderRecord = TaskRecord(
         id: 5,
@@ -829,6 +833,7 @@ func taskRecordTitlesAndIconsFollowRedesignSpecification() throws {
     #expect(addFolderRecord.icon == .folderPlus)
     #expect(addFolderRecord.titleActionPrefix == "Add Folder: ")
     #expect(addFolderRecord.titleTargetName == "Documentary 2026")
+    #expect(addFolderRecord.displayTitle == "Add Folder: Documentary 2026")
 
     let removeFolderRecord = TaskRecord(
         id: 6,
@@ -845,6 +850,7 @@ func taskRecordTitlesAndIconsFollowRedesignSpecification() throws {
     #expect(removeFolderRecord.icon == .minusCircle)
     #expect(removeFolderRecord.titleActionPrefix == "Remove: ")
     #expect(removeFolderRecord.titleTargetName == "OldArchiveFolder")
+    #expect(removeFolderRecord.displayTitle == "Remove: OldArchiveFolder")
 }
 
 @MainActor
