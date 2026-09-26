@@ -17,17 +17,39 @@ struct WorkbenchFileView: View {
     @State private var isChoosingFolder = false
 
     var body: some View {
+        Group {
+            switch routeState.currentRoute {
+            case .fileFolder(let rootPath):
+                fileScrollSurface(id: rootPath) {
+                    subfolderContent(rootPath: rootPath)
+                }
+            case .fileFiles(let rootPath, let folderPath):
+                fileScrollSurface(id: "\(rootPath)/\(folderPath)") {
+                    filesContent(rootPath: rootPath, folderPath: folderPath)
+                }
+            default:
+                fileScrollSurface(id: "root") {
+                    rootContent
+                }
+            }
+        }
+        .background(WorkbenchRedesignColors.bgSurface)
+        .task {
+            appState.hydrateCompleteLibraryAsync()
+        }
+        .task(id: library.completeLibraryRevision) {
+            appState.hydrateLibraryFileTreeAsync()
+        }
+    }
+
+    private func fileScrollSurface<Content: View>(
+        id: AnyHashable,
+        @ViewBuilder content: @escaping () -> Content
+    ) -> some View {
         GeometryReader { geometry in
             WorkbenchScrollView([.vertical, .horizontal]) {
                 VStack(alignment: .leading, spacing: 0) {
-                    switch routeState.currentRoute {
-                    case .fileFolder(let rootPath):
-                        subfolderContent(rootPath: rootPath)
-                    case .fileFiles(let rootPath, let folderPath):
-                        filesContent(rootPath: rootPath, folderPath: folderPath)
-                    default:
-                        rootContent
-                    }
+                    content()
                 }
                 .workbenchPageInlinePadding()
                 .padding(.top, WorkbenchControlMetrics.redesignWorkbenchPageTopPadding)
@@ -41,13 +63,7 @@ struct WorkbenchFileView: View {
                 )
                 .frame(minHeight: geometry.size.height, alignment: .topLeading)
             }
-        }
-        .background(WorkbenchRedesignColors.bgSurface)
-        .task {
-            appState.hydrateCompleteLibraryAsync()
-        }
-        .task(id: library.completeLibraryRevision) {
-            appState.hydrateLibraryFileTreeAsync()
+            .id(id)
         }
     }
 
