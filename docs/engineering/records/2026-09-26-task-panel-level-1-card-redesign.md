@@ -14,7 +14,7 @@ The task panel's level 1 card layout previously included state badges, delete/re
 ## What changed
 
 - **Card metrics & container**: Updated `TaskCardContainer` to use `--spacing-4` (16px) uniform padding, 8px border radius, 1px border (`--color-border-control`), dialog background (`--color-bg-dialog`), and `--spacing-4` (16px) gap between the icon and text column. Card gap in the list is 12px (`--spacing-3`).
-- **Icons & Y-anchor rule**: Added `--size-task-card-icon` (31px) token in `WorkbenchControlMetrics` matching `Icon Registry.md`. Icons are top-anchored at 16px (`alignment: .top`) and styled as naked vectors using `--color-text-secondary`:
+- **Icons & alignment rule**: Added `--size-task-card-icon` (31px) token in `WorkbenchControlMetrics` matching `Icon Registry.md`. Card contents use vertical center alignment (`HStack(alignment: .center)`). Under the 1-line baseline, the 31px icon has equal 16px margins on all 4 sides (top, bottom, left, right gap to text); multi-line cards expand symmetrically around the vertical center. Icons are styled as naked vectors using `--color-text-secondary`:
   - Anki export: `ankiStar` (`anki-star`)
   - Folder & file rename: `pencilSimple` (`pencil-simple`)
   - Index: `arrowClockwise` (`arrow-clockwise`)

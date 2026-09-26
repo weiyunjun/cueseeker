@@ -4139,14 +4139,14 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 
 #### Structure / Current
 
-1. Icon（Leading，31×31px，Top 16px 对齐）
+1. Icon（Leading，31×31px，垂直居中对齐）
 2. Line 1: Title（动作前缀 + 目标名称，统一字重与字色，单行截断，无路径）
 3. Line 2: Progress Text（In Progress 阶段文字 / 导出张数；Queued 状态与数量）
 4. Line 3: Progress Bar（仅 In Progress，16px 高度容器居中展示 4px Capsule 进度条）
 
 #### Structure / History
 
-1. Icon（Leading，31×31px，Top 16px 对齐）
+1. Icon（Leading，31×31px，垂直居中对齐）
 2. Line 1: Title（动作前缀 + 目标名称，统一字重与字色，单行截断，无路径）
 3. Line 2: 数量与时间（Completed 与 Incomplete 格式一致）
 4. Line 3: Error Message（仅 Incomplete，16px 高度容器内单行尾部截断展示）

@@ -300,7 +300,7 @@ private struct TaskCardContainer<Content: View>: View {
     @ViewBuilder let content: () -> Content
 
     var body: some View {
-        HStack(alignment: .top, spacing: WorkbenchControlMetrics.redesignSpacing4) {
+        HStack(alignment: .center, spacing: WorkbenchControlMetrics.redesignSpacing4) {
             content()
         }
         .padding(WorkbenchControlMetrics.redesignSpacing4)
