@@ -503,6 +503,14 @@
 "task.name.anki_export" = "导出到 Anki";
 "task.progress.exported" = "已导出 %1$d / %2$d 张卡片";
 "task.card_count" = "%d 张卡片";
+"task.files_count" = "%d 个文件";
+"task.progress.removing" = "正在移除文件夹";
+"task.title.anki_export" = "Export to Anki: ";
+"task.title.rename_folder" = "Renaming Folder: ";
+"task.title.rename_files" = "Renaming Files: ";
+"task.title.index" = "Index";
+"task.title.add_folder" = "Add Folder: ";
+"task.title.remove" = "Remove: ";
 "task.error.cancelled" = "已被用户取消";
 "task.error.interrupted" = "任务未完成即被中断";
 "task.confirm.remove.title" = "移除任务";

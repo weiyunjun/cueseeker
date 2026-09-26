@@ -65,28 +65,19 @@ struct TaskPanel: View {
         case .current:
             cardList(isEmpty: tasks.current.isEmpty, emptyMessage: L("task.empty.current")) {
                 ForEach(tasks.current) { entry in
-                    TaskCurrentCard(
-                        entry: entry,
-                        onRemove: { confirmRemove(entry.record) }
-                    )
+                    TaskCurrentCard(entry: entry)
                 }
             }
         case .completed:
             cardList(isEmpty: tasks.completed.isEmpty, emptyMessage: L("task.empty.completed")) {
                 ForEach(tasks.completed) { record in
-                    TaskHistoryCard(
-                        record: record,
-                        onDelete: { confirmDelete(record) }
-                    )
+                    TaskHistoryCard(record: record)
                 }
             }
         case .incomplete:
             cardList(isEmpty: tasks.incomplete.isEmpty, emptyMessage: L("task.empty.incomplete")) {
                 ForEach(tasks.incomplete) { record in
-                    TaskHistoryCard(
-                        record: record,
-                        onDelete: { confirmDelete(record) }
-                    )
+                    TaskHistoryCard(record: record)
                 }
             }
         }
@@ -107,305 +98,217 @@ struct TaskPanel: View {
             }
         }
     }
-
-    private func confirmRemove(_ record: TaskRecord) {
-        confirmation.session = WorkbenchConfirmationSession(
-            title: L("task.confirm.remove.title"),
-            message: removeMessage(for: record),
-            destructiveTitle: L("common.remove"),
-            cancelTitle: L("common.cancel"),
-            onDestructive: {
-                tasks.removeCurrentTask(id: record.id)
-                confirmation.session = nil
-            },
-            onCancel: {
-                confirmation.session = nil
-            }
-        )
-    }
-
-    /// Only an export, an Index or an Add Folder can be removed: the other
-    /// library tasks never wait, and cannot be stopped once they run.
-    private func removeMessage(for record: TaskRecord) -> String {
-        switch record.kind {
-        case .index:
-            L("task.confirm.remove.index")
-        case .addFolder:
-            L(
-                "task.confirm.remove.add_folder",
-                URL(fileURLWithPath: record.oldPaths.first ?? "").lastPathComponent
-            )
-        case .ankiExport, .renameFolder, .renameFiles, .removeFolder:
-            L("task.confirm.remove.message", record.fileName)
-        }
-    }
-
-    private func confirmDelete(_ record: TaskRecord) {
-        confirmation.session = WorkbenchConfirmationSession(
-            title: L("task.confirm.delete.title"),
-            message: record.kind == .ankiExport
-                ? L("task.confirm.delete.message", record.fileName)
-                : L("task.confirm.delete.other"),
-            destructiveTitle: L("excerpt.delete"),
-            cancelTitle: L("common.cancel"),
-            onDestructive: {
-                tasks.deleteRecord(id: record.id)
-                confirmation.session = nil
-            },
-            onCancel: {
-                confirmation.session = nil
-            }
-        )
-    }
 }
 
 private struct TaskCurrentCard: View {
     let entry: TaskQueueEntry
-    let onRemove: () -> Void
 
     var body: some View {
         TaskCardContainer {
-            HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
-                WorkbenchBadge(
-                    title: statusTitle,
-                    foregroundColor: statusForeground,
-                    fillColor: statusFill
+            AppIconImage(
+                entry.record.icon,
+                size: WorkbenchControlMetrics.redesignSizeTaskCardIcon
+            )
+            .foregroundStyle(WorkbenchRedesignColors.textSecondary)
+
+            VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing1) {
+                TaskCardTitleView(
+                    actionPrefix: entry.record.titleActionPrefix,
+                    targetName: entry.record.titleTargetName
                 )
 
-                Text(entry.record.kind.taskName)
-                    .font(.system(
-                        size: WorkbenchControlMetrics.redesignFontSizeBody,
-                        weight: .semibold
-                    ))
-                    .foregroundStyle(WorkbenchRedesignColors.textPrimary)
-                    .lineLimit(1)
-
-                Spacer(minLength: 0)
-
-                // A running rename or folder removal has no point at which
-                // stopping leaves the disk and the database agreeing, so it
-                // cannot be removed.
-                if entry.record.state != .running || entry.canBeRemovedWhileRunning {
-                    WorkbenchIconButton(
-                        icon: .x,
-                        isRedesign: true,
-                        action: onRemove
-                    )
-                    .help(L("task.confirm.remove.title"))
-                    .accessibilityLabel(L("task.confirm.remove.title"))
-                    .accessibilityIdentifier("task-remove-\(entry.id)")
-                }
-            }
-
-            TaskCardPathLines(record: entry.record)
-
-            switch entry.record.kind {
-            case .ankiExport:
                 if entry.record.state == .running {
-                    TaskProgressRow(
-                        progress: entry.progress,
-                        itemCount: entry.record.itemCount
-                    )
+                    TaskCurrentRunningContent(entry: entry)
                 } else {
-                    TaskCardDetailText(L("task.card_count", entry.record.itemCount))
+                    TaskCurrentQueuedContent(entry: entry)
                 }
-            case .renameFolder, .renameFiles:
-                if entry.record.state == .running {
-                    TaskRenameProgressRow(progress: entry.progress)
-                }
-            case .index, .addFolder:
-                if entry.record.state == .running {
-                    TaskIndexProgressRow(progress: entry.progress)
-                }
-            case .removeFolder:
-                // One database transaction, so there is no share of it to draw.
-                EmptyView()
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-    }
-
-    private var statusTitle: String {
-        entry.record.state == .running
-            ? L("task.status.in_progress")
-            : L("task.status.queued")
-    }
-
-    private var statusForeground: Color {
-        entry.record.state == .running
-            ? WorkbenchRedesignColors.watchStatusWatchingText
-            : WorkbenchRedesignColors.watchStatusUnwatchedText
-    }
-
-    private var statusFill: Color {
-        entry.record.state == .running
-            ? WorkbenchRedesignColors.watchStatusWatchingBg
-            : WorkbenchRedesignColors.watchStatusUnwatchedBg
     }
 }
 
-/// The count and the bar for the running task.
-///
-/// It is the only thing that observes the progress object, so a card moving
-/// from its ninth cue to its tenth re-reads these two lines and nothing else —
-/// not the card around it, not the other cards, not the tabs.
-private struct TaskProgressRow: View {
+private struct TaskCurrentQueuedContent: View {
+    let entry: TaskQueueEntry
+
+    var body: some View {
+        Text(queuedText)
+            .font(.system(size: WorkbenchControlMetrics.redesignFontSizeCaption, weight: .regular))
+            .foregroundStyle(WorkbenchRedesignColors.textMuted)
+            .lineLimit(1)
+            .truncationMode(.middle)
+    }
+
+    private var queuedText: String {
+        switch entry.record.kind {
+        case .ankiExport:
+            return "\(L("task.status.queued"))  \(L("task.card_count", entry.record.itemCount))"
+        case .renameFolder, .renameFiles, .index, .addFolder, .removeFolder:
+            return L("task.status.queued")
+        }
+    }
+}
+
+private struct TaskCurrentRunningContent: View {
+    let entry: TaskQueueEntry
+
+    var body: some View {
+        switch entry.record.kind {
+        case .ankiExport:
+            TaskRunningAnkiContent(progress: entry.progress, itemCount: entry.record.itemCount)
+        case .renameFolder, .renameFiles:
+            TaskRunningRenameContent(progress: entry.progress)
+        case .index, .addFolder:
+            TaskRunningIndexContent(progress: entry.progress)
+        case .removeFolder:
+            Text(L("task.progress.removing"))
+                .font(.system(size: WorkbenchControlMetrics.redesignFontSizeCaption, weight: .regular))
+                .foregroundStyle(WorkbenchRedesignColors.textMuted)
+                .lineLimit(1)
+        }
+    }
+}
+
+private struct TaskRunningAnkiContent: View {
     @ObservedObject var progress: TaskProgressModel
     let itemCount: Int
 
     var body: some View {
-        TaskProgressBarRow(
-            text: L("task.progress.exported", progress.exportedCount, itemCount),
-            fraction: fraction
-        )
+        Text(L("task.progress.exported", progress.exportedCount, itemCount))
+            .font(.system(size: WorkbenchControlMetrics.redesignFontSizeCaption, weight: .regular))
+            .foregroundStyle(WorkbenchRedesignColors.textMuted)
+            .lineLimit(1)
+            .truncationMode(.middle)
+
+        TaskProgressBarRow(fraction: fraction)
     }
 
     private var fraction: Double {
-        guard itemCount > 0 else {
-            return 0
-        }
+        guard itemCount > 0 else { return 0 }
         return min(1, Double(progress.exportedCount) / Double(itemCount))
     }
 }
 
-/// The stage and the bar for the running Index: which folder, which stage,
-/// and how far through it.
-private struct TaskIndexProgressRow: View {
+private struct TaskRunningRenameContent: View {
     @ObservedObject var progress: TaskProgressModel
 
     var body: some View {
-        TaskProgressBarRow(
-            text: progress.indexProgress.label,
-            fraction: progress.indexProgress.fraction
-        )
+        Text(progress.renameStage.label)
+            .font(.system(size: WorkbenchControlMetrics.redesignFontSizeCaption, weight: .regular))
+            .foregroundStyle(WorkbenchRedesignColors.textMuted)
+            .lineLimit(1)
+            .truncationMode(.middle)
+
+        TaskProgressBarRow(fraction: progress.renameStage.fraction)
     }
 }
 
-/// The stage and the bar for the running rename: each stage is half.
-private struct TaskRenameProgressRow: View {
+private struct TaskRunningIndexContent: View {
     @ObservedObject var progress: TaskProgressModel
 
     var body: some View {
-        TaskProgressBarRow(
-            text: progress.renameStage.label,
-            fraction: progress.renameStage.fraction
-        )
+        Text(progress.indexProgress.label)
+            .font(.system(size: WorkbenchControlMetrics.redesignFontSizeCaption, weight: .regular))
+            .foregroundStyle(WorkbenchRedesignColors.textMuted)
+            .lineLimit(1)
+            .truncationMode(.middle)
+
+        TaskProgressBarRow(fraction: progress.indexProgress.fraction)
     }
 }
 
 private struct TaskProgressBarRow: View {
-    let text: String
     let fraction: Double
 
     var body: some View {
-        VStack(
-            alignment: .leading,
-            spacing: WorkbenchControlMetrics.redesignSpacing1
-        ) {
-            TaskCardDetailText(text)
+        GeometryReader { proxy in
+            ZStack(alignment: .leading) {
+                Capsule()
+                    .fill(WorkbenchRedesignColors.libraryProgressTrack)
 
-            GeometryReader { proxy in
-                ZStack(alignment: .leading) {
-                    Capsule()
-                        .fill(WorkbenchRedesignColors.libraryProgressTrack)
-
-                    Capsule()
-                        .fill(WorkbenchRedesignColors.libraryProgressFill)
-                        .frame(width: proxy.size.width * fraction)
-                }
+                Capsule()
+                    .fill(WorkbenchRedesignColors.libraryProgressFill)
+                    .frame(width: max(0, min(proxy.size.width, proxy.size.width * fraction)))
             }
             .frame(height: WorkbenchControlMetrics.redesignTaskProgressBarHeight)
-            .accessibilityIdentifier("task-progress-bar")
+            .frame(maxHeight: .infinity, alignment: .center)
         }
+        .frame(height: WorkbenchControlMetrics.redesignTaskCardLine3Height)
+        .accessibilityIdentifier("task-progress-bar")
     }
 }
 
 private struct TaskHistoryCard: View {
     let record: TaskRecord
-    let onDelete: () -> Void
 
     var body: some View {
         TaskCardContainer {
-            HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
-                Text(record.kind.taskName)
-                    .font(.system(
-                        size: WorkbenchControlMetrics.redesignFontSizeBody,
-                        weight: .semibold
-                    ))
-                    .foregroundStyle(WorkbenchRedesignColors.textPrimary)
+            AppIconImage(
+                record.icon,
+                size: WorkbenchControlMetrics.redesignSizeTaskCardIcon
+            )
+            .foregroundStyle(WorkbenchRedesignColors.textSecondary)
+
+            VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing1) {
+                TaskCardTitleView(
+                    actionPrefix: record.titleActionPrefix,
+                    targetName: record.titleTargetName
+                )
+
+                Text(subtitleText)
+                    .font(.system(size: WorkbenchControlMetrics.redesignFontSizeCaption, weight: .regular))
+                    .foregroundStyle(WorkbenchRedesignColors.textMuted)
                     .lineLimit(1)
+                    .truncationMode(.middle)
 
-                Spacer(minLength: 0)
-
-                WorkbenchIconButton(
-                    icon: .trash,
-                    isRedesign: true,
-                    action: onDelete
-                )
-                .help(L("task.confirm.delete.title"))
-                .accessibilityLabel(L("task.confirm.delete.title"))
-                .accessibilityIdentifier("task-delete-\(record.id)")
-            }
-
-            TaskCardPathLines(record: record)
-
-            HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
-                switch record.kind {
-                case .ankiExport:
-                    TaskCardDetailText(L("task.card_count", record.itemCount))
-                case .index, .addFolder:
-                    TaskCardDetailText(L("index.result_count", record.itemCount))
-                case .renameFolder, .renameFiles, .removeFolder:
-                    EmptyView()
+                if record.state == .incomplete, let errorMessage = record.errorMessage {
+                    Text(errorMessage)
+                        .font(.system(size: WorkbenchControlMetrics.redesignFontSizeCaption, weight: .regular))
+                        .foregroundStyle(WorkbenchRedesignColors.dangerText)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                        .frame(height: WorkbenchControlMetrics.redesignTaskCardLine3Height, alignment: .leading)
                 }
-
-                Spacer(minLength: 0)
-
-                TaskCardDetailText(
-                    tableSandboxExcerptDateAddedDisplayText(for: record.stateChangedAt)
-                )
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
 
-            if let errorMessage = record.errorMessage {
-                Text(errorMessage)
-                    .font(.system(size: WorkbenchControlMetrics.redesignFontSizeCaption))
-                    .foregroundStyle(WorkbenchRedesignColors.dangerText)
-                    .lineLimit(nil)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
+    private var subtitleText: String {
+        let time = tableSandboxExcerptDateAddedDisplayText(for: record.stateChangedAt)
+        switch record.kind {
+        case .ankiExport:
+            return "\(L("task.card_count", record.itemCount))  \(time)"
+        case .renameFolder, .index, .addFolder, .removeFolder:
+            return time
+        case .renameFiles:
+            return "\(L("task.files_count", record.itemCount))  \(time)"
         }
     }
 }
 
-/// What the task wrote or moved: the package and its folder for an export;
-/// the old and the new name for a folder rename; every file's old path and
-/// then every file's new path for a group rename; the folders an Index, Add
-/// Folder or Remove Folder works on. One per line.
-private struct TaskCardPathLines: View {
-    let record: TaskRecord
+private struct TaskCardTitleView: View {
+    let actionPrefix: String
+    let targetName: String
 
     var body: some View {
-        switch record.kind {
-        case .ankiExport:
-            TaskCardDetailText(record.fileName)
-            TaskCardDetailText(record.folderPath)
-        case .renameFolder, .renameFiles:
-            ForEach(Array(renameLines.enumerated()), id: \.offset) {
-                TaskCardDetailText($0.element)
-            }
-        case .index, .addFolder, .removeFolder:
-            ForEach(Array(record.oldPaths.enumerated()), id: \.offset) {
-                TaskCardDetailText($0.element)
-            }
-        }
-    }
-
-    private var renameLines: [String] {
-        let paths = record.oldPaths + record.newPaths
-        guard record.kind == .renameFolder else {
-            return paths
-        }
-        return paths.map { URL(fileURLWithPath: $0).lastPathComponent }
+        (
+            Text(actionPrefix)
+                .font(.system(
+                    size: WorkbenchControlMetrics.redesignFontSizeBody,
+                    weight: WorkbenchControlMetrics.redesignFontWeightControl
+                ))
+                .foregroundColor(WorkbenchRedesignColors.textPrimary)
+            +
+            Text(targetName)
+                .font(.system(
+                    size: WorkbenchControlMetrics.redesignFontSizeBody,
+                    weight: .regular
+                ))
+                .foregroundColor(WorkbenchRedesignColors.textSecondary)
+        )
+        .lineLimit(1)
+        .truncationMode(.middle)
     }
 }
 
@@ -413,13 +316,10 @@ private struct TaskCardContainer<Content: View>: View {
     @ViewBuilder let content: () -> Content
 
     var body: some View {
-        VStack(
-            alignment: .leading,
-            spacing: WorkbenchControlMetrics.redesignSpacing1
-        ) {
+        HStack(alignment: .top, spacing: WorkbenchControlMetrics.redesignSpacing4) {
             content()
         }
-        .padding(WorkbenchControlMetrics.redesignSpacing3)
+        .padding(WorkbenchControlMetrics.redesignSpacing4)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(
@@ -433,46 +333,68 @@ private struct TaskCardContainer<Content: View>: View {
                 cornerRadius: WorkbenchControlMetrics.redesignCornerRadius,
                 style: .continuous
             )
-            .strokeBorder(WorkbenchRedesignColors.borderControl, lineWidth: 1)
+            .strokeBorder(
+                WorkbenchRedesignColors.borderControl,
+                lineWidth: WorkbenchControlMetrics.redesignControlBorderWidth
+            )
         )
     }
 }
 
-/// A card's secondary line. It sizes to its own text and does not claim the
-/// row: a detail that decided to fill would take half the width from the
-/// detail beside it and leave the spacer between them nothing to push with,
-/// which is what kept the completion time off the card's trailing edge.
-private struct TaskCardDetailText: View {
-    let text: String
-
-    init(_ text: String) {
-        self.text = text
-    }
-
-    var body: some View {
-        Text(text)
-            .font(.system(size: WorkbenchControlMetrics.redesignFontSizeCaption))
-            .foregroundStyle(WorkbenchRedesignColors.textMuted)
-            .lineLimit(1)
-            .truncationMode(.middle)
-    }
-}
-
-extension TaskRecordKind {
-    var taskName: String {
-        switch self {
+extension TaskRecord {
+    var icon: AppIcon {
+        switch kind {
         case .ankiExport:
-            L("task.name.anki_export")
-        case .renameFolder:
-            L("rename.folder")
-        case .renameFiles:
-            L("rename.files")
+            return .ankiStar
+        case .renameFolder, .renameFiles:
+            return .pencilSimple
         case .index:
-            L("task.name.index")
+            return .arrowClockwise
         case .addFolder:
-            L("task.name.add_folder")
+            return .folderPlus
         case .removeFolder:
-            L("task.name.remove_folder")
+            return .minusCircle
+        }
+    }
+
+    var titleActionPrefix: String {
+        switch kind {
+        case .ankiExport:
+            return L("task.title.anki_export")
+        case .renameFolder:
+            return L("task.title.rename_folder")
+        case .renameFiles:
+            return L("task.title.rename_files")
+        case .index:
+            return L("task.title.index")
+        case .addFolder:
+            return L("task.title.add_folder")
+        case .removeFolder:
+            return L("task.title.remove")
+        }
+    }
+
+    var titleTargetName: String {
+        switch kind {
+        case .ankiExport:
+            return fileName
+        case .renameFolder:
+            if !fileName.isEmpty {
+                return fileName
+            }
+            return URL(fileURLWithPath: newPaths.first ?? "").lastPathComponent
+        case .renameFiles:
+            if !fileName.isEmpty {
+                return fileName
+            }
+            return URL(fileURLWithPath: newPaths.first ?? "").deletingPathExtension().lastPathComponent
+        case .index:
+            return ""
+        case .addFolder, .removeFolder:
+            if !fileName.isEmpty {
+                return fileName
+            }
+            return URL(fileURLWithPath: oldPaths.first ?? "").lastPathComponent
         }
     }
 }

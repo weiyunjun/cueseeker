@@ -503,6 +503,14 @@
 "task.name.anki_export" = "Export to Anki";
 "task.progress.exported" = "%1$d / %2$d cards exported";
 "task.card_count" = "%d cards";
+"task.files_count" = "%d files";
+"task.progress.removing" = "Removing folder";
+"task.title.anki_export" = "Export to Anki: ";
+"task.title.rename_folder" = "Renaming Folder: ";
+"task.title.rename_files" = "Renaming Files: ";
+"task.title.index" = "Index";
+"task.title.add_folder" = "Add Folder: ";
+"task.title.remove" = "Remove: ";
 "task.error.cancelled" = "Cancelled by user";
 "task.error.interrupted" = "Interrupted before the task finished";
 "task.confirm.remove.title" = "Remove Task";

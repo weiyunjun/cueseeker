@@ -745,3 +745,120 @@ func aRunningRenameCannotBeRemoved() throws {
     #expect(store.current.map(\.id) == [running.id])
     #expect(store.incomplete.isEmpty)
 }
+
+@MainActor
+@Test
+func taskRecordTitlesAndIconsFollowRedesignSpecification() throws {
+    let ankiRecord = TaskRecord(
+        id: 1,
+        kind: .ankiExport,
+        fileName: "japanese_core_2k.apkg",
+        folderPath: "/Exports",
+        itemCount: 500,
+        state: .queued,
+        errorMessage: nil,
+        createdAt: Date(),
+        stateChangedAt: Date()
+    )
+    #expect(ankiRecord.icon == .ankiStar)
+    #expect(ankiRecord.titleActionPrefix == "Export to Anki: ")
+    #expect(ankiRecord.titleTargetName == "japanese_core_2k.apkg")
+
+    let renameFolderRecord = TaskRecord(
+        id: 2,
+        kind: .renameFolder,
+        fileName: "Season 01 [FLAC]",
+        folderPath: "",
+        itemCount: 1,
+        state: .queued,
+        errorMessage: nil,
+        createdAt: Date(),
+        stateChangedAt: Date(),
+        oldPaths: ["/Videos/Season 01"],
+        newPaths: ["/Videos/Season 01 [FLAC]"]
+    )
+    #expect(renameFolderRecord.icon == .pencilSimple)
+    #expect(renameFolderRecord.titleActionPrefix == "Renaming Folder: ")
+    #expect(renameFolderRecord.titleTargetName == "Season 01 [FLAC]")
+
+    let renameFilesRecord = TaskRecord(
+        id: 3,
+        kind: .renameFiles,
+        fileName: "ep01-remastered",
+        folderPath: "",
+        itemCount: 2,
+        state: .queued,
+        errorMessage: nil,
+        createdAt: Date(),
+        stateChangedAt: Date(),
+        oldPaths: ["/Videos/ep01.mkv", "/Videos/ep01.srt"],
+        newPaths: ["/Videos/ep01-remastered.mkv", "/Videos/ep01-remastered.srt"]
+    )
+    #expect(renameFilesRecord.icon == .pencilSimple)
+    #expect(renameFilesRecord.titleActionPrefix == "Renaming Files: ")
+    #expect(renameFilesRecord.titleTargetName == "ep01-remastered")
+
+    let indexRecord = TaskRecord(
+        id: 4,
+        kind: .index,
+        fileName: "",
+        folderPath: "",
+        itemCount: 0,
+        state: .running,
+        errorMessage: nil,
+        createdAt: Date(),
+        stateChangedAt: Date(),
+        oldPaths: ["/Videos/Anime"]
+    )
+    #expect(indexRecord.icon == .arrowClockwise)
+    #expect(indexRecord.titleActionPrefix == "Index")
+    #expect(indexRecord.titleTargetName == "")
+
+    let addFolderRecord = TaskRecord(
+        id: 5,
+        kind: .addFolder,
+        fileName: "Documentary 2026",
+        folderPath: "",
+        itemCount: 0,
+        state: .queued,
+        errorMessage: nil,
+        createdAt: Date(),
+        stateChangedAt: Date(),
+        oldPaths: ["/Videos/Documentary 2026"]
+    )
+    #expect(addFolderRecord.icon == .folderPlus)
+    #expect(addFolderRecord.titleActionPrefix == "Add Folder: ")
+    #expect(addFolderRecord.titleTargetName == "Documentary 2026")
+
+    let removeFolderRecord = TaskRecord(
+        id: 6,
+        kind: .removeFolder,
+        fileName: "OldArchiveFolder",
+        folderPath: "",
+        itemCount: 0,
+        state: .completed,
+        errorMessage: nil,
+        createdAt: Date(),
+        stateChangedAt: Date(),
+        oldPaths: ["/Videos/OldArchiveFolder"]
+    )
+    #expect(removeFolderRecord.icon == .minusCircle)
+    #expect(removeFolderRecord.titleActionPrefix == "Remove: ")
+    #expect(removeFolderRecord.titleTargetName == "OldArchiveFolder")
+}
+
+@MainActor
+@Test
+func enqueueingLibraryTasksPopulatesFileNameForTitles() throws {
+    let (store, databaseURL) = try makeTaskQueueStore()
+    defer { try? FileManager.default.removeItem(at: databaseURL) }
+
+    store.enqueueRename(
+        .folder(path: "/Videos/Original", newName: "RenamedFolder"),
+        oldPaths: ["/Videos/Original"],
+        newPaths: ["/Videos/RenamedFolder"]
+    )
+    let folderTask = try #require(store.current.first)
+    #expect(folderTask.record.fileName == "RenamedFolder")
+    #expect(folderTask.record.titleTargetName == "RenamedFolder")
+}

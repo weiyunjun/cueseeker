@@ -344,6 +344,10 @@ enum WorkbenchControlMetrics {
     static let redesignFilterDialogHeight: CGFloat = 600
     /// --height-task-progress-bar: 4px
     static let redesignTaskProgressBarHeight = redesignLibraryProgressBarHeight
+    /// --size-task-card-icon: 31px
+    static let redesignSizeTaskCardIcon: CGFloat = 31
+    /// Line 3 row height for task card (16px)
+    static let redesignTaskCardLine3Height: CGFloat = 16
 
     /// --aspect-library-cover: 16 / 9
     static let redesignLibraryCoverAspectRatio: CGFloat = 16.0 / 9.0

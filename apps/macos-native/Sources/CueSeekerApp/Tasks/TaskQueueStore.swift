@@ -400,14 +400,18 @@ final class TaskQueueStore: ObservableObject {
         newPaths: [String]
     ) -> Bool {
         let kind: TaskRecordKind
+        let fileName: String
         switch request {
-        case .folder:
+        case .folder(_, let newName):
             kind = .renameFolder
-        case .fileGroup:
+            fileName = newName
+        case .fileGroup(_, let newBaseName):
             kind = .renameFiles
+            fileName = newBaseName
         }
         return enqueueLibraryTask(
             kind: kind,
+            fileName: fileName,
             itemCount: oldPaths.count,
             oldPaths: oldPaths,
             newPaths: newPaths,
@@ -424,6 +428,7 @@ final class TaskQueueStore: ObservableObject {
         }
         return enqueueLibraryTask(
             kind: .index,
+            fileName: "",
             itemCount: 0,
             oldPaths: folders.map(\.path),
             work: .index(folders: folders)
@@ -434,6 +439,7 @@ final class TaskQueueStore: ObservableObject {
     func enqueueAddFolder(_ folder: URL) -> Bool {
         enqueueLibraryTask(
             kind: .addFolder,
+            fileName: folder.lastPathComponent,
             itemCount: 0,
             oldPaths: [folder.path],
             work: .addFolder(folder)
@@ -444,6 +450,7 @@ final class TaskQueueStore: ObservableObject {
     func enqueueRemoveFolder(_ folder: URL) -> Bool {
         enqueueLibraryTask(
             kind: .removeFolder,
+            fileName: folder.lastPathComponent,
             itemCount: 0,
             oldPaths: [folder.path],
             work: .removeFolder(folder)
@@ -454,6 +461,7 @@ final class TaskQueueStore: ObservableObject {
     /// once. This is the rule; the File page's disabled controls only show it.
     private func enqueueLibraryTask(
         kind: TaskRecordKind,
+        fileName: String = "",
         itemCount: Int,
         oldPaths: [String],
         newPaths: [String] = [],
@@ -466,7 +474,7 @@ final class TaskQueueStore: ObservableObject {
         do {
             let record = try database.insertQueuedTask(
                 kind: kind,
-                fileName: "",
+                fileName: fileName,
                 folderPath: "",
                 itemCount: itemCount,
                 oldPaths: oldPaths,
