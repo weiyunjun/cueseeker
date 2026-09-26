@@ -1201,9 +1201,6 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - Workbench Search 表格行菜单：Play、Open Subtitle Folder、Save to Excerpt List；Menu Divider；Copy Cue Text、Copy Deep Link、Copy Cue Group Text、Copy Time Range
 - Workbench Excerpt 表格行菜单：Play、Open Subtitle Folder；Menu Divider；Copy Cue Text、Copy Deep Link、Copy Cue Group Text、Copy Time Range；Menu Divider；Move to ...、Duplicate to ...；Menu Divider；Remove Excerpt
 - Copy Cue Group Text 只在显示 Cue Group 时出现
-- File Edit 树 Object Folder 行菜单：Rename Folder
-- File Edit 树 Display Title、Video、Subtitle 行菜单：Rename Files
-- 存在 Index、Add Folder、Remove Folder、Rename Folder 或 Rename Files 任务期间，以及数据库压缩进行中时，两个 Rename 项为 Disabled
 
 ##### Player Speed Menu
 
@@ -3491,18 +3488,10 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
       1. Video File
       2. Subtitle Files
 
-#### Structure / Edit
-
-1. Object Folder
-   1. Display Title Object
-      1. Video File
-      2. Subtitle Files
-
 #### Labels
 
 - Root Path：Complete Path Without Leading or Trailing `/`
 - Object Folder：Path Relative to Root Without Leading `/`
-- Object Folder / Edit：Complete Path
 - All Labels：Complete Display / Character Wrapping / No Truncation
 
 #### Rows
@@ -3528,57 +3517,50 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 
 - Default / Roots：Root Paths Expanded / Object Folders Collapsed
 - Default / Folder：Object Folder Expanded / Display Title Objects Collapsed
-- Default / Edit：Object Folders Collapsed / Display Title Objects Collapsed
 - Display Title / Video / Subtitle：Independent Row Hover using `--color-row-hover`
-- Root Path / Object Folder Hover：None；Edit 的 Object Folder 与 Display Title 相同
+- Root Path / Object Folder Hover：None
 - Object Divider：Between Display Title Objects / Starts At File Icon Column / `--color-border-divider`
 - Inside Object Divider：None
-- 展开状态与 Tab 选择不跨界面保留：进入或离开 Library Folder Detail Layout、离开 Library 页面后都回到默认。
+- 展开状态不跨界面保留：进入或离开 Library Folder Detail Layout、离开 Library 页面后都回到默认。
 
 ### File Page Layout
 
 #### Structure
 
-1. Tabs：`Index`、`Edit`
-2. Index
+1. Level 1: Root Folder Card List
    1. Page Description
    2. Action Row：`Add Folder`、`Index Now`
    3. Index Status
-   4. Root Folder List
-3. Edit：Library File Tree Layout / Edit
+   4. Root Folder Card List
+2. Level 2: Subfolder Card List
+3. Level 3: File Card List
 
 #### Components
 
-- Tabs
-- Tab
 - Button / Neutral
 - Button / Destructive
 - Empty State
 - Confirmation Dialog
-- Library File Tree Layout
-- Menu / Context Menu
+- File Card Layout
 - Rename Dialog Layout
 
 #### Layout
 
 - Page Layout：Workbench Titled Page Layout
-- Tabs 左对齐，首个标签与页面内容左边界对齐。
-- 默认 Tab：Index。Tab 选择在 App 运行期间保留，重新启动后回到默认。
-- Edit 列出全部 Object Folder，含自身有配对的根目录，不显示 Root Path 层级；有包含关系的根目录归为一组，以最外层根目录为准，组的顺序取组内最早添加的根目录在 Root Folder List 中的位置；展开状态离开页面后回到默认；没有任何配对时显示 Empty State / Empty Hint，文案 `No indexed content.`
-- Page Description、Action Row 与 Root Folder List 均左对齐。
+- 顶栏后退与前进按钮响应三级界面的下钻与返回，顶栏标题恒定为 `File`。
+- Page Description、Action Row 与各级 Card List 均左对齐。
 - Index Status 只在有状态时出现，没有状态时不占高度。
-- 没有根目录时，Root Folder List 的位置显示 Empty State。
-- Root Folder List 按添加顺序列出全部根目录，含被其它根目录包含的根目录。
+- 没有根目录时显示 Empty State；三级文件流无内容时显示 Empty State。
 - 移除根目录前弹出 Confirmation Dialog。
-- 存在 Index、Add Folder、Remove Folder、Rename Folder 或 Rename Files 任务期间，以及数据库压缩进行中时，Add Folder、Index Now 与 Remove 为 Disabled。
+- 存在 Index、Add Folder、Remove Folder、Rename Folder 或 Rename Files 任务期间，以及数据库压缩进行中时，全部操作按钮为 Disabled。
 
 #### Spacing
 
-- Tabs to Content Gap：`--spacing-4`
 - Page Description to Action Row：`--spacing-4`
 - Action Row to Index Status：`--spacing-4`
-- Index Status to Root Folder List：`--spacing-6`
+- Index Status to Root Folder Card List：`--spacing-6`
 - Action Row Gap：`--spacing-2`
+- Card Gap：`--spacing-3`
 
 #### Index Status
 
@@ -3587,14 +3569,28 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - Detail Line：`--font-size-caption` / Regular / `--color-text-muted`
 - Line Gap：`--spacing-1`
 
-#### Root Folder Row
+#### File Card Layout
 
-- Anatomy：Folder Name 与 Path 上下两行，尾部为 Button / Destructive
-- Folder Name：`--font-size-body` / `--font-weight-control` / `--color-text-primary`
-- Path：`--font-size-caption` / Regular / `--color-text-muted`
-- Padding Block：`--spacing-3`
-- Line Gap：`--spacing-1`
-- Divider：`--color-border-divider`
+- Card Container：
+  - Padding：`--spacing-4`
+  - Radius：`--radius-control`
+  - Border Color：`--color-border-control`
+  - Background：`--color-bg-dialog`
+- Anatomy：Icon + `--spacing-4` + Text Column + Spacer + Trailing Actions
+- Alignment：Icon、Text Column 与 Trailing Actions 统一垂直居中对齐；多行文本时沿垂直中心对称展开
+- Icon：
+  - Size：`--size-task-card-icon`
+  - Color：`--color-text-secondary`
+  - Mapping：文件夹为 `folder`，视频为 `video`，字幕为 `subtitles`
+- Text Column：
+  - Line 1：Title（`--font-size-body` / `--font-weight-control` / `--color-text-primary`）
+  - Line 2：Subtitle（`--font-size-caption` / Regular / `--color-text-muted`）
+  - Line Gap：`--spacing-1`
+  - Wrapping：所有文本完整展示，字符折行，不截断
+- Trailing Actions：
+  - Level 1：Button / Neutral `Rename Folder` + `--spacing-2` + Button / Destructive `Remove`
+  - Level 2：Button / Neutral `Rename Folder`
+  - Level 3：Button / Neutral `Rename Files`
 
 ## 3.5 Search and Excerpt
 
