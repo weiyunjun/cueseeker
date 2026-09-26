@@ -287,6 +287,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--width-app-sidebar`: `240px`
 - `--size-app-sidebar-item-icon`: `23px`
 - `--size-task-count-badge-compact`: `18px`
+- `--size-task-card-icon`: `31px`
 - `--size-player-circle-button`: `40px`
 - `--size-player-circle-button-icon`: `23px`
 - `--width-player-speed-button`: `54px`
@@ -4138,53 +4139,46 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 
 #### Structure / Current
 
-1. Task Status Badge、Task Name、Remove Action
-2. Package Name
-3. Destination Folder
-4. Progress Text 或 Card Count
-5. Progress Bar：仅 In Progress
+1. Icon（Leading，31×31px，Top 16px 对齐）
+2. Line 1: Title（动作前缀 + 目标名称，统一字重与字色，单行截断，无路径）
+3. Line 2: Progress Text（In Progress 阶段文字 / 导出张数；Queued 状态与数量）
+4. Line 3: Progress Bar（仅 In Progress，16px 高度容器居中展示 4px Capsule 进度条）
 
 #### Structure / History
 
-1. Task Name、Delete Action
-2. Package Name
-3. Destination Folder
-4. Card Count（Leading）、Time（Trailing）
-5. Error Message：仅 Incomplete
+1. Icon（Leading，31×31px，Top 16px 对齐）
+2. Line 1: Title（动作前缀 + 目标名称，统一字重与字色，单行截断，无路径）
+3. Line 2: 数量与时间（Completed 与 Incomplete 格式一致）
+4. Line 3: Error Message（仅 Incomplete，16px 高度容器内单行尾部截断展示）
 
-#### Structure / Rename
+#### Icon Mapping
 
-- Rename Folder：Package Name 与 Destination Folder 换为旧名与新名两行
-- Rename Files：Package Name 与 Destination Folder 换为全部文件的旧完整路径与新完整路径，一行一个，超长时中间截断
-- 不显示 Card Count；Current 的 Progress Text 为阶段文字 `Checking for conflicts`、`Renaming`，Progress Bar 每阶段占一半；In Progress 时无 Remove Action
-
-#### Structure / Index
-
-- Index 与 Add Folder：Package Name 与 Destination Folder 换为文件夹完整路径，一行一个，超长时中间截断；Index 为全部代表文件夹，Add Folder 为新增的文件夹
-- Current 的 Progress Text 为阶段文字、当前文件夹名与阶段内计数，以 ` · ` 分隔，例如 `Generating covers · Anime · 12 / 40`，`Scanning files` 不显示计数；Progress Bar 按 `Scanning files` 20%、`Indexing subtitles` 40%、`Reading video info` 20%、`Generating covers` 20% 分段，多个文件夹时按文件夹数均分
-- History 的 Card Count 换为结果摘要 `{count} subtitles indexed`
-
-#### Structure / Remove Folder
-
-- Package Name 与 Destination Folder 换为根目录完整路径
-- 不显示 Card Count、Progress Text 与 Progress Bar；In Progress 时无 Remove Action
+- 导出为 Anki：`anki-star`（实心）
+- 修改文件夹或文件名称：`pencil-simple`
+- Index：`arrow-clockwise`
+- Add Folder：`folder-plus`
+- Remove Folder：`minus-circle`
 
 #### Components
 
-- Task Status Badge
-- Icon Button / Default
 - Progress Indicator / Bar
 
 #### Sizes
 
-- Padding：`--spacing-3`
+- Padding：`--spacing-4`
+- Icon Size：`--size-task-card-icon`
+- Icon to Content Gap：`--spacing-4`
 - Row Gap：`--spacing-1`
+- Dynamic Row Height：`16px`
 - Radius：`--radius-control`
 - Background：`--color-bg-dialog`
 - Border Color：`--color-border-control`
 
 #### Text
 
+- Title Font Size：`--font-size-body`
+- Title Font Weight：`--font-weight-control`
+- Title Color：`--color-text-primary`
 - Detail Font Size：`--font-size-caption`
 - Detail Color：`--color-text-muted`
 - Error Color：`--color-danger-text`
