@@ -139,7 +139,7 @@ struct WorkbenchFileView: View {
                     ) {
                         HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
                             WorkbenchButton(
-                                title: L("common.rename"),
+                                title: L("rename.folder"),
                                 icon: .pencilSimple,
                                 isRedesign: true
                             ) {
@@ -199,7 +199,7 @@ struct WorkbenchFileView: View {
                         }
                     ) {
                         WorkbenchButton(
-                            title: L("common.rename"),
+                            title: L("rename.folder"),
                             icon: .pencilSimple,
                             isRedesign: true
                         ) {
@@ -246,7 +246,7 @@ struct WorkbenchFileView: View {
                             onTap: nil
                         ) {
                             WorkbenchButton(
-                                title: L("common.rename"),
+                                title: L("rename.files"),
                                 icon: .pencilSimple,
                                 isRedesign: true
                             ) {
@@ -264,7 +264,7 @@ struct WorkbenchFileView: View {
                             onTap: nil
                         ) {
                             WorkbenchButton(
-                                title: L("common.rename"),
+                                title: L("rename.files"),
                                 icon: .pencilSimple,
                                 isRedesign: true
                             ) {
@@ -562,7 +562,7 @@ private struct WorkbenchFileCard<Trailing: View>: View {
                 cornerRadius: WorkbenchControlMetrics.redesignCornerRadius,
                 style: .continuous
             )
-            .fill(WorkbenchRedesignColors.settingsGroupBg)
+            .fill(WorkbenchRedesignColors.bgDialog)
         )
         .overlay(
             RoundedRectangle(

@@ -17,7 +17,9 @@ All cards use unified card metrics, vertical-centered alignment, and integrate w
 
 ## What changed
 
-- **Card layout & tokens**: Created `WorkbenchFileCard` with 16px (`--spacing-4`) uniform padding, 8px corner radius (`--radius-control`), 1px border (`--color-border-control`), and `--color-settings-group-bg` background. Cards are spaced 12px (`--spacing-3`) apart without dividing lines. Left icon (31×31px), text stack, and trailing buttons are vertically centered (`HStack(alignment: .center)`). Text lines use `fixedSize` to force full multi-line wrap without truncation.
+- **Card layout & tokens**: Created `WorkbenchFileCard` with 16px (`--spacing-4`) uniform padding, 8px corner radius (`--radius-control`), 1px border (`--color-border-control`), and `--color-bg-dialog` background (light #FFFFFF, dark #2F2F34, avoiding gray box in light mode). Cards are spaced 12px (`--spacing-3`) apart without dividing lines. Left icon (31×31px), text stack, and trailing buttons are vertically centered (`HStack(alignment: .center)`). Text lines use `fixedSize` to force full multi-line wrap without truncation.
+- **Renaming buttons & localization**:
+  - Restored specialized localization keys: `rename.folder` for level 1 root and level 2 subfolder cards, and `rename.files` for level 3 media file cards, matching existing localized tokens.
 - **Three-level navigation & route state**:
   - Extended `WorkbenchRoute` with `.fileFolder(rootPath: String)` and `.fileFiles(rootPath: String, folderPath: String)`.
   - Updated `WorkbenchRouteState` and `WorkbenchLayoutState` to manage `selectedFileRootPath` and `selectedFileFolderPath` and navigate history steps.
