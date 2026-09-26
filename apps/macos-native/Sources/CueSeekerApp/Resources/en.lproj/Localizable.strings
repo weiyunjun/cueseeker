@@ -283,6 +283,8 @@
 
 /* File page */
 "file.description" = "A subtitle file is paired with the video that shares its file name. Videos and subtitles in the same folder form one group, named after that folder; subfolders are not included.";
+"file.empty_folder_items" = "No items in this folder are in the library.";
+"file.direct_content_suffix" = " (Direct Content)";
 
 /* Settings: Library */
 "settings.library.description" = "Manage subtitle folders used for indexing and search.";

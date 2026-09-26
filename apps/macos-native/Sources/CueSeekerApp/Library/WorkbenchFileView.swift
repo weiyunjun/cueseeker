@@ -2,9 +2,8 @@ import AppKit
 import CueSeekerCore
 import SwiftUI
 
-/// The File primary page: the Index tab owns the indexed root folders and the
-/// indexing controls; the Edit tab shows every indexed folder and renames
-/// folders and file groups in place.
+/// The File page: a three-level card flow visualizing indexed roots, folders,
+/// and video/subtitle file groups.
 struct WorkbenchFileView: View {
     // Observed so the copy below is re-read when the language changes.
     @EnvironmentObject private var localization: AppLocalizationStore
@@ -18,23 +17,16 @@ struct WorkbenchFileView: View {
     @State private var isChoosingFolder = false
 
     var body: some View {
-        // The menu belongs to the page, not to one tab of it, so the page
-        // hosts it; switching tabs closes it.
-        LibraryCardContextMenuHost(
-            interfaceID: routeState.selectedFileSection.rawValue
-        ) { _ in
         GeometryReader { geometry in
             WorkbenchScrollView([.vertical, .horizontal]) {
                 VStack(alignment: .leading, spacing: 0) {
-                    sectionTabs
-
-                    switch routeState.selectedFileSection {
-                    case .index:
-                        indexContent
-                            .padding(.top, WorkbenchControlMetrics.redesignSpacing4)
-                    case .edit:
-                        editContent
-                            .padding(.top, WorkbenchControlMetrics.redesignSpacing4)
+                    switch routeState.currentRoute {
+                    case .fileFolder(let rootPath):
+                        subfolderContent(rootPath: rootPath)
+                    case .fileFiles(let rootPath, let folderPath):
+                        filesContent(rootPath: rootPath, folderPath: folderPath)
+                    default:
+                        rootContent
                     }
                 }
                 .workbenchPageInlinePadding()
@@ -50,30 +42,18 @@ struct WorkbenchFileView: View {
                 .frame(minHeight: geometry.size.height, alignment: .topLeading)
             }
         }
-        }
         .background(WorkbenchRedesignColors.bgSurface)
-    }
-
-    /// The same Tabs as the Recent page, flush with the content's left edge.
-    private var sectionTabs: some View {
-        WorkbenchTabs(
-            items: WorkbenchFileSection.allCases.map {
-                .init(
-                    value: $0,
-                    label: $0.label,
-                    accessibilityIdentifier: "file-segment-\($0.rawValue)"
-                )
-            },
-            selection: routeState.selectedFileSection,
-            isLeadingEdgeAligned: true
-        ) { section in
-            appState.workbenchLayout.selectFileSection(section)
+        .task {
+            appState.hydrateCompleteLibraryAsync()
+        }
+        .task(id: library.completeLibraryRevision) {
+            appState.hydrateLibraryFileTreeAsync()
         }
     }
 
-    // MARK: - Index
+    // MARK: - Level 1: Roots
 
-    private var indexContent: some View {
+    private var rootContent: some View {
         VStack(alignment: .leading, spacing: 0) {
             pageDescription
 
@@ -145,54 +125,161 @@ struct WorkbenchFileView: View {
             )
             .frame(maxWidth: .infinity, alignment: .top)
         } else {
-            LazyVStack(spacing: 0) {
+            LazyVStack(spacing: WorkbenchControlMetrics.redesignSpacing3) {
                 ForEach(indexing.selectedFolders, id: \.self) { folder in
-                    folderRow(folder)
+                    WorkbenchFileCard(
+                        icon: .folder,
+                        title: folder.lastPathComponent,
+                        subtitle: folder.path,
+                        onTap: {
+                            appState.workbenchLayout.navigate(
+                                to: .fileFolder(rootPath: folder.standardizedFileURL.path)
+                            )
+                        }
+                    ) {
+                        HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
+                            WorkbenchButton(
+                                title: L("common.rename"),
+                                icon: .pencilSimple,
+                                isRedesign: true
+                            ) {
+                                appState.requestRootFolderRename(folder)
+                            }
+                            .disabled(isFolderOperationBlocked)
 
-                    Rectangle()
-                        .fill(WorkbenchRedesignColors.borderDivider)
-                        .frame(height: WorkbenchControlMetrics.hairlineWidth)
+                            WorkbenchDestructiveButton(
+                                title: L("common.remove"),
+                                icon: .minusCircle
+                            ) {
+                                requestRemoval(of: folder)
+                            }
+                            .disabled(isFolderOperationBlocked)
+                        }
+                    }
                 }
             }
             .frame(maxWidth: .infinity, alignment: .topLeading)
         }
     }
 
-    private func folderRow(_ folder: URL) -> some View {
-        HStack(spacing: WorkbenchControlMetrics.redesignSpacing3) {
-            VStack(
-                alignment: .leading,
-                spacing: WorkbenchControlMetrics.redesignSpacing1
-            ) {
-                Text(folder.lastPathComponent)
-                    .font(.system(
-                        size: WorkbenchControlMetrics.redesignFontSizeBody,
-                        weight: WorkbenchControlMetrics.redesignFontWeightControl
-                    ))
-                    .foregroundStyle(WorkbenchRedesignColors.textPrimary)
+    // MARK: - Level 2: Subfolders
 
-                Text(folder.path)
-                    .font(.system(
-                        size: WorkbenchControlMetrics.redesignFontSizeCaption,
-                        weight: .regular
-                    ))
-                    .foregroundStyle(WorkbenchRedesignColors.textMuted)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-            }
-
-            Spacer(minLength: 0)
-
-            WorkbenchDestructiveButton(
-                title: L("common.remove"),
-                icon: .minusCircle
-            ) {
-                requestRemoval(of: folder)
-            }
-            .disabled(isFolderOperationBlocked)
+    @ViewBuilder
+    private func subfolderContent(rootPath: String) -> some View {
+        let root = library.fileTreeRoots.first {
+            $0.path == rootPath || URL(fileURLWithPath: $0.path).standardizedFileURL.path == URL(fileURLWithPath: rootPath).standardizedFileURL.path
         }
-        .padding(.vertical, WorkbenchControlMetrics.redesignSpacing3)
+        let folders = root?.folders ?? []
+
+        if folders.isEmpty {
+            if case .loading = library.fileTreeStatus, library.fileTreeRoots.isEmpty {
+                ProgressView()
+                    .controlSize(.small)
+                    .frame(maxWidth: .infinity, minHeight: 120, alignment: .center)
+            } else {
+                WorkbenchEmptyHint(message: L("file.empty_folder_items"))
+                    .frame(maxWidth: .infinity, alignment: .top)
+            }
+        } else {
+            LazyVStack(spacing: WorkbenchControlMetrics.redesignSpacing3) {
+                ForEach(folders) { folder in
+                    let isDirectContent = folder.relativePath.isEmpty || folder.folderPath == rootPath
+                    let title = isDirectContent
+                        ? (URL(fileURLWithPath: rootPath).lastPathComponent + L("file.direct_content_suffix"))
+                        : URL(fileURLWithPath: folder.folderPath).lastPathComponent
+
+                    WorkbenchFileCard(
+                        icon: .folder,
+                        title: title,
+                        subtitle: folder.folderPath,
+                        onTap: {
+                            appState.workbenchLayout.navigate(
+                                to: .fileFiles(rootPath: rootPath, folderPath: folder.folderPath)
+                            )
+                        }
+                    ) {
+                        WorkbenchButton(
+                            title: L("common.rename"),
+                            icon: .pencilSimple,
+                            isRedesign: true
+                        ) {
+                            appState.requestFolderRename(folder)
+                        }
+                        .disabled(isFolderOperationBlocked)
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+        }
     }
+
+    // MARK: - Level 3: Files
+
+    @ViewBuilder
+    private func filesContent(rootPath: String, folderPath: String) -> some View {
+        let folder = library.fileTreeRoots
+            .first {
+                $0.path == rootPath || URL(fileURLWithPath: $0.path).standardizedFileURL.path == URL(fileURLWithPath: rootPath).standardizedFileURL.path
+            }?
+            .folders
+            .first { $0.folderPath == folderPath }
+
+        let objects = folder?.objects ?? []
+
+        if objects.isEmpty {
+            if case .loading = library.fileTreeStatus, library.fileTreeRoots.isEmpty {
+                ProgressView()
+                    .controlSize(.small)
+                    .frame(maxWidth: .infinity, minHeight: 120, alignment: .center)
+            } else {
+                WorkbenchEmptyHint(message: L("file.empty_folder_items"))
+                    .frame(maxWidth: .infinity, alignment: .top)
+            }
+        } else {
+            LazyVStack(spacing: WorkbenchControlMetrics.redesignSpacing3) {
+                ForEach(objects) { object in
+                    if !object.videoPath.isEmpty {
+                        WorkbenchFileCard(
+                            icon: .video,
+                            title: object.videoName,
+                            subtitle: FileSizeFormatter.format(bytes: object.fileSize),
+                            onTap: nil
+                        ) {
+                            WorkbenchButton(
+                                title: L("common.rename"),
+                                icon: .pencilSimple,
+                                isRedesign: true
+                            ) {
+                                appState.requestFileGroupRename(object)
+                            }
+                            .disabled(isFolderOperationBlocked)
+                        }
+                    }
+
+                    ForEach(object.subtitles) { subtitle in
+                        WorkbenchFileCard(
+                            icon: .subtitles,
+                            title: subtitle.name,
+                            subtitle: FileSizeFormatter.format(bytes: subtitle.fileSize),
+                            onTap: nil
+                        ) {
+                            WorkbenchButton(
+                                title: L("common.rename"),
+                                icon: .pencilSimple,
+                                isRedesign: true
+                            ) {
+                                appState.requestFileGroupRename(object)
+                            }
+                            .disabled(isFolderOperationBlocked)
+                        }
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+        }
+    }
+
+    // MARK: - Removal & Selection
 
     private func requestRemoval(of folder: URL) {
         appState.confirmation.session = WorkbenchConfirmationSession(
@@ -242,6 +329,8 @@ struct WorkbenchFileView: View {
 
         completion(panel.runModal())
     }
+
+    // MARK: - Status
 
     private var hasStatus: Bool {
         if appState.startupError != nil {
@@ -428,54 +517,69 @@ struct WorkbenchFileView: View {
             L("settings.library.unreadable", result.skippedUnreadableSubtitle)
         ].joined(separator: " · ")
     }
+}
 
-    // MARK: - Edit
+private struct WorkbenchFileCard<Trailing: View>: View {
+    let icon: AppIcon
+    let title: String
+    let subtitle: String
+    let onTap: (() -> Void)?
+    @ViewBuilder let trailing: () -> Trailing
 
-    /// Every indexed folder at its full path, in the order the Metadata tree
-    /// lists them with the root level removed. A root that holds pairs of its
-    /// own is a folder like any other here. The roots are the outermost root
-    /// of each group, and a group stands where its earliest-added root stands
-    /// in the list.
-    private var editFolders: [IndexedContentFolder] {
-        let groupOrder = LibraryRootGroups.representatives(of: indexing.selectedFolders)
-            .map(\.standardizedFileURL.path)
-        return library.fileTreeRoots
-            .enumerated()
-            .sorted { lhs, rhs in
-                let lhsOrder = groupOrder.firstIndex(of: lhs.element.path) ?? groupOrder.count
-                let rhsOrder = groupOrder.firstIndex(of: rhs.element.path) ?? groupOrder.count
-                return (lhsOrder, lhs.offset) < (rhsOrder, rhs.offset)
+    var body: some View {
+        HStack(alignment: .center, spacing: WorkbenchControlMetrics.redesignSpacing4) {
+            AppIconImage(icon, size: WorkbenchControlMetrics.redesignSizeTaskCardIcon)
+                .foregroundStyle(WorkbenchRedesignColors.textSecondary)
+
+            VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing1) {
+                Text(title)
+                    .font(.system(
+                        size: WorkbenchControlMetrics.redesignFontSizeBody,
+                        weight: WorkbenchControlMetrics.redesignFontWeightControl
+                    ))
+                    .foregroundStyle(WorkbenchRedesignColors.textPrimary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                Text(subtitle)
+                    .font(.system(
+                        size: WorkbenchControlMetrics.redesignFontSizeCaption,
+                        weight: .regular
+                    ))
+                    .foregroundStyle(WorkbenchRedesignColors.textMuted)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .flatMap(\.element.folders)
-    }
 
-    @ViewBuilder
-    private var editContent: some View {
-        Group {
-            if case .loading = library.fileTreeStatus, library.fileTreeRoots.isEmpty {
-                ProgressView()
-                    .controlSize(.small)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-            } else if case .failed(let message) = library.fileTreeStatus {
-                WorkbenchEmptyHint(message: message)
-            } else if editFolders.isEmpty {
-                WorkbenchEmptyHint(message: L("library.file.empty"))
-            } else {
-                LibraryFileTree(
-                    scope: .editFolders(editFolders),
-                    renameActions: LibraryFileTreeRenameActions(
-                        isEnabled: !isFolderOperationBlocked,
-                        renameFolder: appState.requestFolderRename,
-                        renameFiles: appState.requestFileGroupRename
-                    )
-                )
-            }
+            Spacer(minLength: 0)
+
+            trailing()
         }
-        .task {
-            appState.hydrateCompleteLibraryAsync()
-        }
-        .task(id: library.completeLibraryRevision) {
-            appState.hydrateLibraryFileTreeAsync()
+        .padding(WorkbenchControlMetrics.redesignSpacing4)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(
+                cornerRadius: WorkbenchControlMetrics.redesignCornerRadius,
+                style: .continuous
+            )
+            .fill(WorkbenchRedesignColors.settingsGroupBg)
+        )
+        .overlay(
+            RoundedRectangle(
+                cornerRadius: WorkbenchControlMetrics.redesignCornerRadius,
+                style: .continuous
+            )
+            .strokeBorder(
+                WorkbenchRedesignColors.borderControl,
+                lineWidth: WorkbenchControlMetrics.redesignControlBorderWidth
+            )
+        )
+        .contentShape(RoundedRectangle(
+            cornerRadius: WorkbenchControlMetrics.redesignCornerRadius,
+            style: .continuous
+        ))
+        .onTapGesture {
+            onTap?()
         }
     }
 }

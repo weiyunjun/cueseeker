@@ -8,6 +8,7 @@ import CueSeekerCore
 final class LibraryRenameSession: ObservableObject, Identifiable {
     enum Target {
         case folder(IndexedContentFolder)
+        case rootFolder(URL)
         case files(IndexedContentObject, baseName: String)
     }
 
@@ -20,6 +21,11 @@ final class LibraryRenameSession: ObservableObject, Identifiable {
     init(folder: IndexedContentFolder) {
         target = .folder(folder)
         newName = URL(fileURLWithPath: folder.folderPath).lastPathComponent
+    }
+
+    init(rootFolder: URL) {
+        target = .rootFolder(rootFolder)
+        newName = rootFolder.lastPathComponent
     }
 
     /// Nil when the video and its subtitles share no base name, which the
@@ -37,7 +43,7 @@ final class LibraryRenameSession: ObservableObject, Identifiable {
 
     var title: String {
         switch target {
-        case .folder:
+        case .folder, .rootFolder:
             L("rename.folder")
         case .files:
             L("rename.files")
@@ -50,6 +56,8 @@ final class LibraryRenameSession: ObservableObject, Identifiable {
         switch target {
         case .folder(let folder):
             folder.folderPath
+        case .rootFolder(let url):
+            url.path
         case .files(_, let baseName):
             baseName
         }
@@ -59,6 +67,8 @@ final class LibraryRenameSession: ObservableObject, Identifiable {
         switch target {
         case .folder(let folder):
             URL(fileURLWithPath: folder.folderPath).lastPathComponent
+        case .rootFolder(let url):
+            url.lastPathComponent
         case .files(_, let baseName):
             baseName
         }
@@ -68,6 +78,8 @@ final class LibraryRenameSession: ObservableObject, Identifiable {
         switch target {
         case .folder(let folder):
             .folder(path: folder.folderPath, newName: newName)
+        case .rootFolder(let url):
+            .folder(path: url.standardizedFileURL.path, newName: newName)
         case .files(let object, _):
             .fileGroup(videoPath: object.videoPath, newBaseName: newName)
         }
@@ -77,6 +89,8 @@ final class LibraryRenameSession: ObservableObject, Identifiable {
         switch target {
         case .folder(let folder):
             [folder.folderPath]
+        case .rootFolder(let url):
+            [url.standardizedFileURL.path]
         case .files(let object, _):
             [object.videoPath] + object.subtitles.map(\.path)
         }
@@ -89,6 +103,13 @@ final class LibraryRenameSession: ObservableObject, Identifiable {
                 URL(fileURLWithPath: folder.folderPath)
                     .deletingLastPathComponent()
                     .appendingPathComponent(newName)
+                    .path
+            ]
+        case .rootFolder(let url):
+            [
+                url.deletingLastPathComponent()
+                    .appendingPathComponent(newName)
+                    .standardizedFileURL
                     .path
             ]
         case .files(_, let baseName):

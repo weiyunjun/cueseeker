@@ -779,7 +779,7 @@ final class AppCoordinator: ObservableObject {
             )
             excerpt.setActiveListID(id)
             reloadExcerptTableRows()
-        case .search, .recent, .library, .libraryFolder, .file:
+        case .search, .recent, .library, .libraryFolder, .file, .fileFolder, .fileFiles:
             break
         }
     }
@@ -799,7 +799,7 @@ final class AppCoordinator: ObservableObject {
         case .excerptList(let id):
             return excerpt.hasLoadedListOverview
                 && !excerpt.listOverview.lists.contains { $0.id == id }
-        case .search, .recent, .library, .file, .excerpt:
+        case .search, .recent, .library, .file, .fileFolder, .fileFiles, .excerpt:
             return false
         }
     }

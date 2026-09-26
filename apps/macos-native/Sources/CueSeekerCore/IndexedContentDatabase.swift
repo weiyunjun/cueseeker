@@ -47,6 +47,7 @@ public final class IndexedContentDatabase: @unchecked Sendable {
                         displayTitle: video.displayTitle,
                         videoPath: video.videoPath,
                         videoName: video.videoName,
+                        fileSize: videoLocations[video.videoFileID]?.fileSize ?? 0,
                         subtitles: []
                     )
                 }
@@ -92,7 +93,8 @@ public final class IndexedContentDatabase: @unchecked Sendable {
             SELECT vf.id,
                    vf.library_id,
                    vf.folder_id,
-                   lf.relative_path
+                   lf.relative_path,
+                   COALESCE(vf.file_size, 0)
             FROM search_paths sp
             JOIN video_files vf
               ON vf.library_id = sp.id
@@ -106,7 +108,8 @@ public final class IndexedContentDatabase: @unchecked Sendable {
             locations[statement.int64Column(0)] = VideoLocation(
                 rootID: statement.int64Column(1),
                 folderID: statement.int64Column(2),
-                relativePath: statement.stringColumn(3)
+                relativePath: statement.stringColumn(3),
+                fileSize: statement.int64Column(4)
             )
         }
         return locations
@@ -120,7 +123,8 @@ public final class IndexedContentDatabase: @unchecked Sendable {
             """
             SELECT match.video_file_id,
                    sf.id,
-                   sf.subtitle_path
+                   sf.subtitle_path,
+                   COALESCE(sf.file_size, 0)
             FROM subtitle_video_matches match
             JOIN subtitle_files sf
               ON sf.id = match.subtitle_file_id
@@ -144,7 +148,8 @@ public final class IndexedContentDatabase: @unchecked Sendable {
                 .subtitles.append(IndexedContentSubtitle(
                     id: statement.int64Column(1),
                     path: subtitlePath,
-                    name: URL(fileURLWithPath: subtitlePath).lastPathComponent
+                    name: URL(fileURLWithPath: subtitlePath).lastPathComponent,
+                    fileSize: statement.int64Column(3)
                 ))
         }
     }
@@ -185,6 +190,7 @@ private struct ObjectBuilder {
     let displayTitle: String
     let videoPath: String
     let videoName: String
+    let fileSize: Int64
     var subtitles: [IndexedContentSubtitle]
 
     var snapshot: IndexedContentObject {
@@ -193,6 +199,7 @@ private struct ObjectBuilder {
             displayTitle: displayTitle,
             videoPath: videoPath,
             videoName: videoName,
+            fileSize: fileSize,
             subtitles: subtitles
         )
     }
@@ -202,6 +209,7 @@ private struct VideoLocation {
     let rootID: Int64
     let folderID: Int64
     let relativePath: String
+    let fileSize: Int64
 }
 
 private struct ObjectLocation {

@@ -83,6 +83,8 @@ enum WorkbenchRoute: Equatable {
     case library
     case libraryFolder(folderPath: String)
     case file
+    case fileFolder(rootPath: String)
+    case fileFiles(rootPath: String, folderPath: String)
     case excerpt
     case excerptList(id: Int64)
 
@@ -110,7 +112,7 @@ enum WorkbenchRoute: Equatable {
             .recentWatching
         case .library, .libraryFolder:
             .testLibrary
-        case .file:
+        case .file, .fileFolder, .fileFiles:
             .file
         case .excerpt, .excerptList:
             .excerpt
@@ -160,6 +162,20 @@ final class WorkbenchRouteState: ObservableObject {
             }
         }
     }
+    @Published fileprivate(set) var selectedFileRootPath: String? {
+        didSet {
+            if selectedFileRootPath != oldValue {
+                AppPointerShape.reset()
+            }
+        }
+    }
+    @Published fileprivate(set) var selectedFileFolderPath: String? {
+        didSet {
+            if selectedFileFolderPath != oldValue {
+                AppPointerShape.reset()
+            }
+        }
+    }
     /// Browser-style history of the pages shown since launch. It lives only
     /// as long as the App runs; the launch page is its first entry.
     @Published fileprivate(set) var history: [WorkbenchRoute]
@@ -195,6 +211,20 @@ final class WorkbenchRouteState: ObservableObject {
             selectedExcerptListID = id
         } else {
             selectedExcerptListID = nil
+        }
+        switch route {
+        case .file:
+            selectedFileRootPath = nil
+            selectedFileFolderPath = nil
+        case .fileFolder(let rootPath):
+            selectedFileRootPath = rootPath
+            selectedFileFolderPath = nil
+        case .fileFiles(let rootPath, let folderPath):
+            selectedFileRootPath = rootPath
+            selectedFileFolderPath = folderPath
+        default:
+            selectedFileRootPath = nil
+            selectedFileFolderPath = nil
         }
     }
 }
@@ -257,6 +287,14 @@ final class WorkbenchLayoutState: ObservableObject {
 
     var selectedFileSection: WorkbenchFileSection {
         route.selectedFileSection
+    }
+
+    var selectedFileRootPath: String? {
+        route.selectedFileRootPath
+    }
+
+    var selectedFileFolderPath: String? {
+        route.selectedFileFolderPath
     }
 
     /// Shows a page as one new step of the history, dropping whatever could

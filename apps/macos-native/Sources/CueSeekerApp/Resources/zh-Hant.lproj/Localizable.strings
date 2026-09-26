@@ -283,6 +283,8 @@
 
 /* File page */
 "file.description" = "字幕檔案與同名的影片檔案配對。同一個資料夾下的影片與字幕算作一組，並以該資料夾的名稱作為組名，子資料夾不計入其中。";
+"file.empty_folder_items" = "此資料夾中沒有仍在媒體庫中的項目。";
+"file.direct_content_suffix" = "（根目錄直屬內容）";
 
 /* Settings: Library */
 "settings.library.description" = "管理用於索引與搜尋的字幕資料夾。";

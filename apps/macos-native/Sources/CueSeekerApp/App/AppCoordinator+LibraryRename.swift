@@ -9,6 +9,10 @@ extension AppCoordinator {
         library.renameSession = LibraryRenameSession(folder: folder)
     }
 
+    func requestRootFolderRename(_ url: URL) {
+        library.renameSession = LibraryRenameSession(rootFolder: url)
+    }
+
     func requestFileGroupRename(_ object: IndexedContentObject) {
         guard let session = LibraryRenameSession(object: object) else {
             return

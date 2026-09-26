@@ -343,7 +343,7 @@ private struct AppTopBar: View {
             L("sidebar.recent")
         case .library:
             L("sidebar.library")
-        case .file:
+        case .file, .fileFolder, .fileFiles:
             L("sidebar.file")
         case .excerpt:
             L("sidebar.excerpt")
