@@ -4173,6 +4173,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - Radius：`--radius-control`
 - Background：`--color-bg-dialog`
 - Border Color：`--color-border-control`
+- Alignment：以单行文字（无进度条）为设计基准，图标四边等边距（16px）；多行时垂直居中对称展开
 
 #### Text
 
