@@ -236,7 +236,6 @@ extension SearchStore {
 
                 @MainActor func isCurrent() -> Bool {
                     generation == self.resultListGeneration
-                        && self.acceptsFolderScope(folders, generation: scopeGeneration)
                         && self.searchQuery.trimmingCharacters(
                             in: .whitespacesAndNewlines
                         ) == trimmedQuery

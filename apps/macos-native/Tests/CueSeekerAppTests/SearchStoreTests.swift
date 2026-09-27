@@ -106,7 +106,7 @@ func folderScopeChangeRejectsStaleNavigationAcrossABA() async {
 
 @MainActor
 @Test
-func addingEmptyFolderRestartsInvalidatedActiveSearch() async throws {
+func addingEmptyFolderLeavesActiveSearchAlone() async throws {
     let suiteName = "CueSeekerEmptyFolderSearchLifecycleTests-\(UUID().uuidString)"
     let userDefaults = try #require(UserDefaults(suiteName: suiteName))
     let testRoot = FileManager.default.temporaryDirectory
@@ -129,16 +129,15 @@ func addingEmptyFolderRestartsInvalidatedActiveSearch() async throws {
         withIntermediateDirectories: true
     )
 
-    // The folder joins the list once its task completes, which is when the
-    // search scope changes. A search started as the index finishes is still
-    // waiting out its debounce at that moment, so it is the one invalidated.
-    var staleTask: Task<Void, Never>?
+    // The folder joins the list once its task completes.
+    // An active search is not cancelled or invalidated by the folder addition.
+    var activeTask: Task<Void, Never>?
     let completion = app.indexing.$indexingStatus.sink { status in
-        guard case .completed = status, staleTask == nil else {
+        guard case .completed = status, activeTask == nil else {
             return
         }
         app.updateSearchQuery("scope lifecycle")
-        staleTask = app.search.searchTask
+        activeTask = app.search.searchTask
     }
     defer { completion.cancel() }
 
@@ -146,16 +145,14 @@ func addingEmptyFolderRestartsInvalidatedActiveSearch() async throws {
     #expect(!app.indexing.selectedFolders.contains(emptyFolder))
     await app.tasks.waitUntilIdle()
     #expect(app.indexing.selectedFolders.contains(emptyFolder))
-    let invalidatedTask = try #require(staleTask)
-    let replacementTask = try #require(app.search.searchTask)
-    #expect(replacementTask != invalidatedTask)
+    let runningTask = try #require(activeTask)
     await app.libraryTask?.value
     await app.recentWatchingTask?.value
     await app.completeLibraryTask?.value
     await app.databaseStorageStatsTask?.value
-    await replacementTask.value
+    await runningTask.value
 
-    #expect(invalidatedTask.isCancelled)
+    #expect(!runningTask.isCancelled)
     guard case let .completed(_, result) = app.indexing.indexingStatus else {
         Issue.record("Expected empty folder indexing to complete")
         return

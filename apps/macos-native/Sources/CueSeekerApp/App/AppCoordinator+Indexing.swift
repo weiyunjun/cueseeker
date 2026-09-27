@@ -424,7 +424,6 @@ extension AppCoordinator {
         refreshRecentWatching()
         refreshLoadedTestRecentWatching()
         refreshCompleteLibrary()
-        refreshCurrentSearch(clearExistingResults: true)
         refreshDatabaseStorageStats()
     }
 
@@ -659,7 +658,6 @@ extension AppCoordinator {
         refreshRecentWatching()
         refreshLoadedTestRecentWatching()
         refreshCompleteLibrary()
-        refreshCurrentSearch()
         refreshDatabaseStorageStats()
     }
 
@@ -881,7 +879,6 @@ extension AppCoordinator {
         testRecentWatchingTask = nil
         completeLibraryTask?.cancel()
         completeLibraryTask = nil
-        search.cancelAllSearchTasks()
         indexing.searchFTSVocabularyDiagnosticsTask?.cancel()
         indexing.searchFTSVocabularyDiagnosticsTask = nil
 
@@ -896,9 +893,6 @@ extension AppCoordinator {
         }
         if case .loading = library.completeLibraryStatus {
             library.completeLibraryStatus = library.completeLibraryFolderSummaries.isEmpty ? .idle : .completed
-        }
-        if case .searching = search.searchStatus {
-            search.markSearchCompleted()
         }
     }
 }

@@ -152,8 +152,7 @@ extension AppCoordinator {
             filterSetOverride: filterSetOverride,
             probeScope: uiProbeScope,
             isContextCurrent: { [weak self] in
-                guard let self else { return false }
-                return self.indexing.selectedFolders == folders
+                self != nil
             },
             onResultsChanged: { [weak self] generation in
                 guard let self else {

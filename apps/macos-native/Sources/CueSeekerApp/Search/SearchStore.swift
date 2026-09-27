@@ -351,7 +351,6 @@ final class SearchStore: ObservableObject {
             generation: indexedCueMutationGeneration
         )
         activeIndexedCueMutationGeneration = token.generation
-        setSearchFacetSnapshot(nil)
         if case .residentSearch = tableProjectionSource {
             return token
         }
@@ -498,13 +497,10 @@ final class SearchStore: ObservableObject {
         guard paths != folderScopePaths else {
             return false
         }
-        let didInvalidateActiveSearch = isSearching
         folderScopePaths = paths
         folderScopeGeneration &+= 1
-        resultListGeneration &+= 1
-        setSearchFacetSnapshot(nil)
-        cancelAllSearchTasks()
-        return didInvalidateActiveSearch
+        cancelNavigationTask()
+        return false
     }
 
     func acceptsFolderScope(

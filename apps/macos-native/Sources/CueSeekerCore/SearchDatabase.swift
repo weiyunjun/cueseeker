@@ -156,10 +156,11 @@ public final class SearchDatabase: @unchecked Sendable {
         under folders: [URL]? = nil,
         filterSet: SubtitleSearchFilterSet = SubtitleSearchFilterSet()
     ) throws -> SubtitleSearchPage {
-        try Task.checkCancellation()
-        let appliedCursor = cursor ?? .start
-        let requestedLimit = max(0, limit)
-        let offset = appliedCursor.offset
+        try database.withReadTransaction {
+            try Task.checkCancellation()
+            let appliedCursor = cursor ?? .start
+            let requestedLimit = max(0, limit)
+            let offset = appliedCursor.offset
 
         let pathPrefixes: [String]?
         if let folders {
@@ -286,6 +287,7 @@ public final class SearchDatabase: @unchecked Sendable {
             orderSource: "defaultCueOrder",
             materializedOrderRows: results.count
         )
+        }
     }
 
     /// Reads a `searchCandidateColumnsSQL` row, whose column 15 is the watch state.
@@ -507,8 +509,9 @@ public final class SearchDatabase: @unchecked Sendable {
         )
 
         do {
-            let setupStart = Self.diagnosticNow()
-            let candidateBatchLimit = Self.searchCandidateBatchLimit(for: limit, mode: mode)
+            return try database.withReadTransaction {
+                let setupStart = Self.diagnosticNow()
+                let candidateBatchLimit = Self.searchCandidateBatchLimit(for: limit, mode: mode)
             // The first batch is no larger than a visible window's, so an exact
             // scan reaches its first page as early as a visible window does.
             let firstCandidateBatchLimit = Self.searchCandidateBatchLimit(for: limit, mode: .visibleWindow)
@@ -999,6 +1002,7 @@ public final class SearchDatabase: @unchecked Sendable {
                 facetSnapshot: facetSnapshot()
             )
             return page
+            }
         } catch {
             emit(
                 "failed",

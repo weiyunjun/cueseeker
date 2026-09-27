@@ -344,11 +344,10 @@ func indexedCueMutationFailureRecoveryReloadsPrunedResidentSearch() async throws
     try #require(originalCueIDs.count == 1)
 
     app.clearSearchAndPlaybackState(under: fixture.folder)
-    #expect(app.search.searchResultCueIDs.isEmpty)
-    #expect(app.search.tableRowStore.snapshot.totalRowCount == 0)
+    #expect(app.search.searchResultCueIDs == originalCueIDs)
+    #expect(app.search.tableRowStore.snapshot.totalRowCount == 1)
 
-    app.restoreCurrentSearchAfterIndexedCueMutationFailure()
-    await app.search.searchTask?.value
+    app.restoreCurrentSearchAfterIndexedCueMutationFailure(reloadFromDatabase: false)
 
     #expect(app.search.searchResultCueIDs == originalCueIDs)
     #expect(app.search.tableRowStore.snapshot.orderedEntryIDs

@@ -600,15 +600,8 @@ final class AppCoordinator: ObservableObject {
         indexing.$selectedFolders
             .dropFirst()
             .sink { [weak self] folders in
-                guard let self,
-                      search.updateFolderScope(folders)
-                else {
-                    return
-                }
-                refreshCurrentSearch(
-                    clearExistingResults: true,
-                    folderScopeOverride: folders
-                )
+                guard let self else { return }
+                _ = search.updateFolderScope(folders)
             }
             .store(in: &settingsCancellables)
 
@@ -818,26 +811,6 @@ final class AppCoordinator: ObservableObject {
 
 
     func clearSearchAndPlaybackState(under folder: URL) {
-        let remainingSearchResults = search.searchResults.filter {
-            !Self.path($0.subtitlePath, isUnder: folder)
-        }
-        let remainingFileSummaries = search.searchFileSummaries.filter {
-            !Self.path($0.subtitlePath, isUnder: folder)
-        }
-        let remainingResultCount = remainingFileSummaries.reduce(0) { $0 + $1.matchCount }
-        search.replaceResultState(
-            results: remainingSearchResults,
-            orderedCueIDs: remainingSearchResults.map(\.entryID),
-            status: search.searchStatus,
-            totalCount: remainingResultCount,
-            fileSummaries: remainingFileSummaries,
-            countState: .exact,
-            knownResultCount: remainingResultCount,
-            knownFileCount: remainingFileSummaries.count,
-            hasMore: false,
-            loadedResultCount: remainingSearchResults.count,
-            nextCursor: nil
-        )
         removeLibraryPresentation(under: folder)
         removeCompleteLibraryPresentation(under: folder)
         // What plays keeps playing, also once its video has left the library.

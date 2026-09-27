@@ -116,6 +116,34 @@ final class SQLiteDatabase: @unchecked Sendable {
         }
     }
 
+    func withReadTransaction<T>(_ body: () throws -> T) throws -> T {
+        try withConnectionLock {
+            let alreadyInTransaction = isInTransaction()
+            if !alreadyInTransaction {
+                try execute("BEGIN DEFERRED TRANSACTION")
+            }
+            do {
+                let result = try body()
+                if !alreadyInTransaction {
+                    try execute("COMMIT")
+                }
+                return result
+            } catch {
+                if !alreadyInTransaction {
+                    try? execute("ROLLBACK")
+                }
+                throw error
+            }
+        }
+    }
+
+    func isInTransaction() -> Bool {
+        withConnectionLock {
+            guard let handle else { return false }
+            return sqlite3_get_autocommit(handle) == 0
+        }
+    }
+
     func intPragma(_ name: String) throws -> Int {
         let statement = try prepare("PRAGMA \(name);")
         guard try statement.step() else {
