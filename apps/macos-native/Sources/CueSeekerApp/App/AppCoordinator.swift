@@ -535,7 +535,6 @@ final class AppCoordinator: ObservableObject {
 
         self.indexingDatabase = openedDatabase
         search = SearchStore(
-            cueContentStore: cueContentStore,
             databaseURL: resolvedDatabaseURL,
             database: openedSearchDatabase,
             uiProbeScope: uiProbeScope

@@ -422,8 +422,7 @@ struct WorkbenchTestSearchView: View {
     }
 
     private var searchCueContentProvider: (Int64) -> CueContent? {
-        let store = appState.cueContent
-        return { cueID in store.content(for: cueID) }
+        { [search] cueID in search.cachedCueContent(for: cueID) }
     }
 
     private func clearTableRows(resetScroll: Bool) {
@@ -437,7 +436,7 @@ struct WorkbenchTestSearchView: View {
         rowStore.updateResidentSearchResults(
             [],
             cueContentProvider: searchCueContentProvider,
-            cueContentRevision: appState.cueContent.revision,
+            cueContentRevision: search.cachedCueContentRevision,
             tableName: "test-search",
             probeSurface: .search,
             probeScope: appState.uiProbeScope

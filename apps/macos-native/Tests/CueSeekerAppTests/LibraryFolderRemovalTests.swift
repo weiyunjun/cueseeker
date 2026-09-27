@@ -432,6 +432,59 @@ func unchangedFolderIndexPreservesLoadedSearchState() async throws {
     #expect(app.search.searchResultCueIDs == cueIDsBefore)
 }
 
+@MainActor
+@Test
+func libraryFolderRemovalPreservesSearchStoreResultsAndCueContent() async throws {
+    let fixture = try LibraryFolderRemovalTestFixture()
+    defer { fixture.cleanUp() }
+
+    try DatabaseBootstrap.prepare(at: fixture.databaseURL)
+    let database = try IndexingDatabase(path: fixture.databaseURL)
+    _ = try database.addSearchPath(fixture.folder)
+    let subtitleFile = fixture.folder.appendingPathComponent("Search Preserved Episode.srt")
+    let videoFile = fixture.folder.appendingPathComponent("Search Preserved Episode.mkv")
+    try database.replaceEntries(
+        subtitleFile: subtitleFile,
+        videoFile: videoFile,
+        entries: [
+            SubtitleEntry(
+                sequenceNumber: 1,
+                startTimecode: "00:00:01,000",
+                endTimecode: "00:00:02,000",
+                startMilliseconds: 1_000,
+                endMilliseconds: 2_000,
+                text: "Retained search result across folder removal"
+            ),
+        ]
+    )
+
+    _ = NSApplication.shared
+    let app = AppCoordinator(
+        userDefaults: fixture.userDefaults,
+        databaseURL: fixture.databaseURL
+    )
+    app.submitSearch("Retained")
+    await app.search.searchTask?.value
+    app.search.activateResidentSearchTableProjection()
+
+    #expect(!app.search.searchResults.isEmpty)
+    let cueID = try #require(app.search.searchResults.first?.entryID)
+    #expect(app.search.cachedCueContent(for: cueID) != nil)
+    #expect(app.search.tableRowStore.snapshot.totalRowCount == 1)
+    #expect(app.search.tableRowStore.snapshot.row(at: 0)?.primaryCueText == "Retained search result across folder removal")
+
+    app.removeFolder(fixture.folder)
+    await app.tasks.waitUntilIdle()
+
+    // Excerpt cue content store was purged of the removed folder's content
+    #expect(app.cueContent.content(for: cueID) == nil)
+    // Search store's isolated cue content cache and table rows remain fully populated
+    #expect(!app.search.searchResults.isEmpty)
+    #expect(app.search.cachedCueContent(for: cueID) != nil)
+    #expect(app.search.tableRowStore.snapshot.totalRowCount == 1)
+    #expect(app.search.tableRowStore.snapshot.row(at: 0)?.primaryCueText == "Retained search result across folder removal")
+}
+
 private struct LibraryFolderRemovalTestFixture {
     let suiteName: String
     let userDefaults: UserDefaults
