@@ -4488,7 +4488,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 | Command Panel / Search Results | 结果数 | Save to Excerpt List `S`、Copy Cue Text `C`、Copy Deep Link `X`、Play `Return` |
 
 - Save to Excerpt List 打开 Excerpt Destination Submenu 选择目标列表，不直接保存；结果由 Playback Feedback 呈现，Icon 为实心书签
-- 对不在数据库中的项执行 Save to Excerpt List 或 Copy Deep Link 时拦截，由 Playback Feedback 呈现（持续 1 秒），Icon 为 warning，文案 `Not in Library`；执行 Play 时由 Player Error Banner 报错；操作被拦截时 Playback Overlay 与 Command Panel 保持打开
+- 对不在数据库中的项执行 Save to Excerpt List 或 Copy Deep Link 时拦截，由 Playback Feedback 呈现（持续 1 秒），Icon 为 warning，文案 `Not in Library`，面板保持打开；执行 Play 时关闭 Playback Overlay，进入黑屏播放界面并由 Player Error Banner 报错
 - 在 Command Panel 的 Recent Excerpt Lists 中打开没有有效项的列表时拦截，由 Playback Feedback 呈现（持续 1 秒），文案 `No Available Excerpts`，面板保持打开
 - `S`、`C`、`X` 为默认键位，Keycap 显示 Settings / Shortcuts 中的当前键位，⇧ 与主键各占一个 Keycap；快捷键已清空或冲突时不显示 Keycap
 
