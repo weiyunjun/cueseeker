@@ -331,26 +331,50 @@ func anOpenOverlayKeepsItsPlaylistAndRefusesWhatLeftTheLibrary() async throws {
             return
         }
         #expect(app.executePlaybackSubtitleFocusAction(play))
-        #expect(app.playback.subtitleFocusSession === session)
-        #expect(app.search.selectedSearchResult?.entryID == results[0].entryID)
+        #expect(app.playback.subtitleFocusSession == nil)
         #expect(
             app.playback.errorMessages[.notInLibrary]
                 == "This item is no longer in the library"
         )
+        #expect(app.currentPlaybackItemLeftLibrary == true)
 
-        // What is still in the library plays, and the playlist then drops B.
-        #expect(window.restoreSelection(
-            itemIdentity: .search(results[0].entryID),
-            at: 0
-        ))
-        guard case .ready(let playA) = session.requestKeyboardAction(.playFromThisCue) else {
-            Issue.record("Expected Play to be ready")
-            return
-        }
-        #expect(app.executePlaybackSubtitleFocusAction(playA))
-        #expect(app.playback.subtitleFocusSession == nil)
+        // Previous and Next find the first item still in the library
+        app.goNext()
+        #expect(app.search.selectedSearchResult?.entryID == results[0].entryID)
         app.reconcilePlaybackPlaylistIfAwaiting()
         #expect(app.playback.playlistSource?.boundary.totalCount == 1)
+    }
+}
+
+@MainActor
+@Test
+func openingInvalidSearchResultEntersPlaybackWithStoppedPlayerAndNotInLibraryError() async throws {
+    try await withLibraryChangeApp { app, database in
+        app.ensurePlayerInitialized()
+        let results = try playLibraryChangeSearch(["A", "B"], selecting: 0, app: app, database: database)
+        // B leaves the library
+        try database.removeStaleEntries(
+            under: URL(fileURLWithPath: "/Media"),
+            keeping: ["/Media/A.srt"]
+        )
+
+        // Try to open B directly (which is now invalid / out of library)
+        app.openSearchResult(results[1])
+
+        #expect(app.playback.isPlaybackSurfaceExpanded == true)
+        #expect(app.currentPlaybackItemLeftLibrary == true)
+        #expect(app.playback.playbackStatus == .loadFailed)
+        #expect(
+            app.playback.errorMessages[.notInLibrary]
+                == "This item is no longer in the library"
+        )
+        // Playlist must only contain A (valid item)
+        #expect(app.playback.playlistSource?.boundary.totalCount == 1)
+
+        // Next / Previous navigates to the first valid result (A)
+        app.goNext()
+        #expect(app.search.selectedSearchResult?.entryID == results[0].entryID)
+        #expect(app.currentPlaybackItemLeftLibrary == false)
     }
 }
 

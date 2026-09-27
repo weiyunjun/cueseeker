@@ -141,7 +141,8 @@ extension AppCoordinator {
         let origin = PlaybackPlaylistSourceOrigin.search(
             resultListGeneration: resultListGeneration
         )
-        let playlistResults = search.searchResults
+        let liveCueIDs = cueIDsInLibrary(among: search.searchResults.map(\.entryID))
+        let playlistResults = search.searchResults.filter { liveCueIDs.contains($0.entryID) }
         let selectedOrdinal = playlistResults.firstIndex {
             $0.entryID == result.entryID
         }
@@ -198,7 +199,8 @@ extension AppCoordinator {
             return
         }
 
-        let playlistResults = search.searchResults
+        let liveCueIDs = cueIDsInLibrary(among: search.searchResults.map(\.entryID))
+        let playlistResults = search.searchResults.filter { liveCueIDs.contains($0.entryID) }
         _ = source.replaceResidentItems(
             totalCount: playlistResults.count,
             itemProvider: Self.searchPlaylistItemProvider(

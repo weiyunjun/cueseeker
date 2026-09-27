@@ -330,9 +330,10 @@ extension AppCoordinator {
         saveCurrentLibraryPlaybackHistory()
         stopLibraryPlaybackHistoryTracking()
         activePlaybackSource = .search
-        currentPlaybackItemLeftLibrary = false
+        let itemInLibrary = isCueInLibrary(result.entryID)
+        currentPlaybackItemLeftLibrary = !itemInLibrary
         search.selectResult(result)
-        if playbackSearchPromotion == nil {
+        if itemInLibrary, playbackSearchPromotion == nil {
             updateSearchNavigationSnapshotForOpenedResult(result)
         } else {
             search.updateNavigationSnapshot(nil)
@@ -346,9 +347,17 @@ extension AppCoordinator {
             )
         )
         playback.isPlaybackSurfaceExpanded = true
-        Task { @MainActor in
-            await Task.yield()
-            _ = play(result)
+        if !itemInLibrary {
+            playback.clearPlaylistPosition()
+            playback.playbackStatus = .loadFailed
+            try? player?.stop()
+            playback.playbackViewModel?.resetPresentationForStoppedPlayback()
+            showPlaybackItemNotInLibrary()
+        } else {
+            Task { @MainActor in
+                await Task.yield()
+                _ = play(result)
+            }
         }
     }
 

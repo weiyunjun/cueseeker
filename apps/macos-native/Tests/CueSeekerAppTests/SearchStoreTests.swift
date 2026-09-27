@@ -1026,6 +1026,37 @@ func openingSearchResultUpdatesNavigationStateImmediately() throws {
 
     _ = NSApplication.shared
     let app = AppCoordinator(userDefaults: userDefaults, databaseURL: databaseURL)
+    let indexing = try IndexingDatabase(path: databaseURL)
+    try indexing.replaceEntries(
+        subtitleFile: URL(fileURLWithPath: "/Media/Episode.srt"),
+        videoFile: URL(fileURLWithPath: "/Media/Episode.mkv"),
+        entries: [
+            SubtitleEntry(
+                sequenceNumber: 1,
+                startTimecode: "00:00:01,000",
+                endTimecode: "00:00:01,500",
+                startMilliseconds: 1_000,
+                endMilliseconds: 1_500,
+                text: "first result"
+            ),
+            SubtitleEntry(
+                sequenceNumber: 2,
+                startTimecode: "00:00:02,000",
+                endTimecode: "00:00:02,500",
+                startMilliseconds: 2_000,
+                endMilliseconds: 2_500,
+                text: "second result"
+            ),
+            SubtitleEntry(
+                sequenceNumber: 3,
+                startTimecode: "00:00:03,000",
+                endTimecode: "00:00:03,500",
+                startMilliseconds: 3_000,
+                endMilliseconds: 3_500,
+                text: "third result"
+            )
+        ]
+    )
     let first = makeTableSandboxSearchResult(
         id: 1,
         content: "first result",

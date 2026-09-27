@@ -404,9 +404,12 @@ extension AppCoordinator {
         anchor: SearchNavigationAnchor,
         radius: Int
     ) -> SearchNavigationSnapshot? {
-        let loadedResults = search.searchResults.sorted { lhs, rhs in
-            lhs.searchRank < rhs.searchRank
-        }
+        let liveCueIDs = cueIDsInLibrary(among: search.searchResults.map(\.entryID))
+        let loadedResults = search.searchResults
+            .filter { liveCueIDs.contains($0.entryID) }
+            .sorted { lhs, rhs in
+                lhs.searchRank < rhs.searchRank
+            }
         guard !loadedResults.isEmpty else {
             return nil
         }

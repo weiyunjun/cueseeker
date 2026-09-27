@@ -350,11 +350,31 @@ extension AppCoordinator {
             )
             _ = session.finishKeyboardAction(execution)
         case .playFromThisCue:
-            // What the library no longer holds does not play, even when its
-            // files are still on disk; the overlay stays open.
-            guard !overlayTargetLeftLibrary(execution.target) else {
-                showPlaybackItemNotInLibrary()
-                _ = session.finishKeyboardAction(execution)
+            if overlayTargetLeftLibrary(execution.target) {
+                cancelPlaybackSubtitleFocusActionTask()
+                cancelPlaybackSubtitleFocusCueLoadTasks()
+                _ = session.closeAfterPlay(execution)
+                playback.releaseSubtitleFocusSession(session)
+                switch execution.target {
+                case .current:
+                    currentPlaybackItemLeftLibrary = true
+                    playback.clearPlaylistPosition()
+                    playback.playbackStatus = .loadFailed
+                    try? player?.stop()
+                    playback.playbackViewModel?.resetPresentationForStoppedPlayback()
+                    showPlaybackItemNotInLibrary()
+                case .playlist(let item):
+                    invalidatePlaybackSubtitleFocusForSourceReplacement()
+                    openPlaylistItem(item)
+                case .search(let item):
+                    guard case .search(let result) = item.target else {
+                        return true
+                    }
+                    openSearchResult(result)
+                case .excerpt(let item):
+                    invalidatePlaybackSubtitleFocusForSourceReplacement()
+                    openExcerptItem(item)
+                }
                 return true
             }
             switch execution.target {
