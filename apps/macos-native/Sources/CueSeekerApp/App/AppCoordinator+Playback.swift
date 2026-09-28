@@ -847,6 +847,16 @@ extension AppCoordinator {
             )
         }
 
+        // If a covered view somehow holds first responder, drop the orphaned focus
+        // so covered fields cannot receive keystrokes.
+        let activeWindow = NSApplication.shared.keyWindow
+            ?? NSApplication.shared.windows.first { $0 is CueSeekerMainWindow }
+        if let window = activeWindow as? CueSeekerMainWindow,
+           let view = window.firstResponder as? NSView,
+           !window.isUncovered(view) {
+            _ = window.makeFirstResponder(nil)
+        }
+
         let modifierFlags = NSEvent.ModifierFlags(
             rawValue: modifierFlagsRawValue
         )
@@ -1020,7 +1030,6 @@ extension AppCoordinator {
                 .command,
                 .control,
                 .option,
-                .shift,
             ]
 
             if isShortcut(.editCollage) {
@@ -1034,7 +1043,11 @@ extension AppCoordinator {
             if keyCode == 48,
                modifierFlags.intersection(moduleSwitchModifiers).isEmpty {
                 if !isRepeat {
-                    _ = subtitleFocusSession.selectNextModule()
+                    if modifierFlags.contains(.shift) {
+                        _ = subtitleFocusSession.selectPreviousModule()
+                    } else {
+                        _ = subtitleFocusSession.selectNextModule()
+                    }
                 }
                 return true
             }
@@ -1312,8 +1325,17 @@ extension AppCoordinator {
     }
 
     static func isEditableTextInputFocused() -> Bool {
-        guard let firstResponder = NSApplication.shared.keyWindow?.firstResponder else {
+        let activeWindow = NSApplication.shared.keyWindow
+            ?? NSApplication.shared.windows.first { $0 is CueSeekerMainWindow }
+        guard let firstResponder = activeWindow?.firstResponder else {
             return false
+        }
+
+        if let view = firstResponder as? NSView {
+            if let window = view.window as? CueSeekerMainWindow,
+               !window.isUncovered(view) {
+                return false
+            }
         }
 
         if let textView = firstResponder as? NSTextView {
@@ -1332,9 +1354,15 @@ extension AppCoordinator {
     }
 
     static func hasMarkedTextInFocusedEditor() -> Bool {
-        guard let textView = NSApplication.shared.keyWindow?.firstResponder
+        let activeWindow = NSApplication.shared.keyWindow
+            ?? NSApplication.shared.windows.first { $0 is CueSeekerMainWindow }
+        guard let textView = activeWindow?.firstResponder
             as? NSTextView
         else {
+            return false
+        }
+        if let window = textView.window as? CueSeekerMainWindow,
+           !window.isUncovered(textView) {
             return false
         }
         return textView.hasMarkedText()

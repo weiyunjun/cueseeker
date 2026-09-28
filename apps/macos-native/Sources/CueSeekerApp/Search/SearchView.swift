@@ -28,6 +28,8 @@ struct SearchView: View {
                         .frame(maxHeight: .infinity, alignment: .top)
                         .clipped()
                         .allowsHitTesting(!showsPlaybackRoute)
+                        .disabled(showsPlaybackRoute)
+                        .accessibilityHidden(showsPlaybackRoute)
 
                     if showsPlaybackRoute {
                         PlaybackPageView(

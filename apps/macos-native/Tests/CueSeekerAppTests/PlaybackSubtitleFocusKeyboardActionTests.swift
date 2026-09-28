@@ -228,6 +228,17 @@ func playbackOverlayTabCyclesModulesAndIgnoresKeyRepeat() async throws {
 
         #expect(app.handlePlaybackKeyDown(keyCode: 48, modifierFlagsRawValue: 0))
         #expect(session.selectedModule == .current)
+
+        #expect(app.handlePlaybackKeyDown(
+            keyCode: 48,
+            modifierFlagsRawValue: NSEvent.ModifierFlags.shift.rawValue
+        ))
+        #expect(session.selectedModule == .playlist)
+        #expect(app.handlePlaybackKeyDown(
+            keyCode: 48,
+            modifierFlagsRawValue: NSEvent.ModifierFlags.shift.rawValue
+        ))
+        #expect(session.selectedModule == .current)
     }
 }
 

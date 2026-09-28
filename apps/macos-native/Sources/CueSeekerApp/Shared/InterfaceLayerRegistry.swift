@@ -79,7 +79,7 @@ final class InterfaceLayerRegistry: ObservableObject {
         }
         if isOpen {
             openLayers.insert(layer)
-            if layer == .dialog {
+            if layer == .dialog || layer == .playbackPage {
                 givePageFocusUp()
             }
         } else {

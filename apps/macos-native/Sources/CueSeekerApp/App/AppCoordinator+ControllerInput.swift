@@ -137,6 +137,12 @@ extension AppCoordinator {
             }
             return playback.subtitleFocusSession?.selectPreviousModule() == true
         case .rightShoulder:
+            guard !isRepeat else {
+                return false
+            }
+            if let session = playback.subtitleFocusSession {
+                return session.selectNextModule()
+            }
             return keyboardEquivalent(48, isRepeat: isRepeat)
         case .leftTrigger:
             return keyboardEquivalent(0, isRepeat: isRepeat)

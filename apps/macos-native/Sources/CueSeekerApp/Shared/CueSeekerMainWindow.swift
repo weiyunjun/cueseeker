@@ -61,26 +61,26 @@ final class CueSeekerMainWindow: NSWindow {
         guard !isFocusLocked(), !isBehindDialog(responder) else {
             return false
         }
+        if let view = responder as? NSView {
+            guard isUncovered(view) else {
+                return false
+            }
+        }
         return super.makeFirstResponder(responder)
     }
 
-    /// Tab and Shift-Tab go round the dialog's own fields, as they went round
-    /// the dialog's window, passing over everything the veil covers.
+    /// Tab and Shift-Tab cycle only among visible, uncovered fields in this
+    /// window, passing over everything that a higher layer (like a dialog or
+    /// the playback page) covers.
     override func selectKeyView(following view: NSView) {
-        guard dialogSize() != nil else {
-            return super.selectKeyView(following: view)
-        }
-        selectDialogKeyView(from: view, step: \.nextValidKeyView)
+        selectUncoveredKeyView(from: view, step: \.nextValidKeyView)
     }
 
     override func selectKeyView(preceding view: NSView) {
-        guard dialogSize() != nil else {
-            return super.selectKeyView(preceding: view)
-        }
-        selectDialogKeyView(from: view, step: \.previousValidKeyView)
+        selectUncoveredKeyView(from: view, step: \.previousValidKeyView)
     }
 
-    private func selectDialogKeyView(from view: NSView, step: (NSView) -> NSView?) {
+    private func selectUncoveredKeyView(from view: NSView, step: (NSView) -> NSView?) {
         var visited: Set<ObjectIdentifier> = []
         var candidate = step(view)
         while let next = candidate, visited.insert(ObjectIdentifier(next)).inserted {
@@ -112,8 +112,14 @@ final class CueSeekerMainWindow: NSWindow {
     }
 
     /// Whether nothing is drawn over the middle of `view`, so a field that lies
-    /// within the dialog's frame but behind it is passed over too.
-    private func isUncovered(_ view: NSView) -> Bool {
+    /// within a covered layer or behind a dialog is passed over too.
+    func isUncovered(_ view: NSView) -> Bool {
+        guard view.window === self else {
+            return false
+        }
+        guard !view.isHiddenOrHasHiddenAncestor else {
+            return false
+        }
         guard let content = contentView, let frame = content.superview else {
             return true
         }
