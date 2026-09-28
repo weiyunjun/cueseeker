@@ -587,3 +587,49 @@ func subtitleTableRowActionMetadataUsesAcceptedLabelsAndSymbols() {
     #expect(!SubtitleTableRowAction.play.isDestructive)
     #expect(!SubtitleTableRowAction.duplicateToList.isDestructive)
 }
+
+@MainActor
+@Test
+func subtitleTableRowActionCopyTriggersExpectedToasts() {
+    var reportedToasts: [ToastRequest] = []
+    var isCueInLib = true
+    let row = SubtitleTableRow(
+        id: 101,
+        displayTitle: "Test Video",
+        startTime: "00:01:00",
+        endTime: "00:01:05",
+        cues: "Test line"
+    )
+    let coordinator = SubtitleTableView.Coordinator(
+        tableName: "test",
+        rowCount: 1,
+        rowProvider: { _ in row },
+        rowsVersion: 1,
+        displayTitleHeader: "Title",
+        showsTimeColumn: true,
+        showsLanguageColumn: true,
+        showsCueGroup: true,
+        onVisibleRowsChange: { _ in },
+        onPlay: { _ in },
+        isCueInLibrary: { _ in isCueInLib },
+        onToast: { reportedToasts.append($0) }
+    )
+
+    coordinator.performRowActionForTesting(.copyCueText, row: 0)
+    #expect(reportedToasts.last == TableToastRequest.copyCueText)
+
+    coordinator.performRowActionForTesting(.copyCueGroupText, row: 0)
+    #expect(reportedToasts.last == TableToastRequest.copyCueGroupText)
+
+    coordinator.performRowActionForTesting(.copyTimeRange, row: 0)
+    #expect(reportedToasts.last == TableToastRequest.copyTimeRange)
+
+    coordinator.performRowActionForTesting(.copyDeepLink, row: 0)
+    #expect(reportedToasts.last == TableToastRequest.copyDeepLink)
+
+    isCueInLib = false
+    coordinator.performRowActionForTesting(.copyDeepLink, row: 0)
+    #expect(reportedToasts.last == TableToastRequest.cueNotInLibrary)
+    #expect(reportedToasts.last?.icon == .warning)
+    #expect(reportedToasts.last?.duration == 3.0)
+}

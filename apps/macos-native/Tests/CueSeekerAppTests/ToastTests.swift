@@ -32,13 +32,16 @@ func toastCenterKeepsOneToastPerResultAndRestartsItsStay() {
     center.show(repeated, now: start)
     let firstID = center.visibleItems[0].id
     center.show(ToastRequest(scenarioID: "scenario.other", message: "Other"), now: start)
-    center.show(repeated, now: start.addingTimeInterval(3))
+    center.show(repeated, now: start.addingTimeInterval(1.0))
 
     #expect(center.visibleItems.count == 2)
     #expect(center.visibleItems.last?.id == firstID)
 
-    center.removeExpired(at: start.addingTimeInterval(5.1))
+    center.removeExpired(at: start.addingTimeInterval(1.6))
     #expect(center.visibleItems.map(\.request.message) == [repeated.message])
+
+    center.removeExpired(at: start.addingTimeInterval(2.6))
+    #expect(center.visibleItems.isEmpty)
 }
 
 @MainActor
@@ -48,10 +51,10 @@ func toastDurationsRunOnTheWallClock() {
     let start = Date()
     center.show(ToastRequest(message: "Away"), now: start)
 
-    center.removeExpired(at: start.addingTimeInterval(4.9))
+    center.removeExpired(at: start.addingTimeInterval(1.4))
     #expect(center.visibleItems.count == 1)
 
-    center.removeExpired(at: start.addingTimeInterval(5))
+    center.removeExpired(at: start.addingTimeInterval(1.5))
     #expect(center.visibleItems.isEmpty)
 }
 
@@ -78,20 +81,62 @@ func excerptToastRequestsMatchTheUsageRegistry() {
         ExcerptToastRequest.destinationUnavailable(listName: "Study").message
             == "“Study” is no longer available"
     )
-    #expect(ExcerptToastRequest.moveFailed.message == "Couldn’t move the excerpt.")
-    #expect(ExcerptToastRequest.duplicateFailed.message == "Couldn’t duplicate the excerpt.")
+    #expect(ExcerptToastRequest.moveFailed.message == "Couldn’t move the excerpt")
+    #expect(ExcerptToastRequest.duplicateFailed.message == "Couldn’t duplicate the excerpt")
     #expect(ExcerptToastRequest.saveSucceeded(listName: "Study").message == "Saved to “Study”")
     #expect(
         ExcerptToastRequest.saveFailed(listName: "Study").message
-            == "Couldn’t save to “Study”."
+            == "Couldn’t save to “Study”"
     )
     #expect(
         ExcerptToastRequest.destinationAlreadyContainsCue(listName: "Study").message
             == "This excerpt already exists in “Study”"
     )
-    #expect(ExcerptToastRequest.moveSucceeded(listName: "Study").duration == 5)
+    #expect(ExcerptToastRequest.moveSucceeded(listName: "Study").duration == 1.5)
     #expect(ExcerptToastRequest.moveSucceeded(listName: "Study").position == .appCenter)
     #expect(ExcerptToastRequest.moveSucceeded(listName: "Study").animation == .default)
     #expect(ExcerptToastRequest.moveSucceeded(listName: "Study").icon == .bookmarkSimple)
     #expect(ExcerptToastRequest.moveSucceeded(listName: "Study").iconWeight == .fill)
+
+    #expect(ExcerptToastRequest.destinationUnavailable(listName: "Study").icon == .warning)
+    #expect(ExcerptToastRequest.destinationUnavailable(listName: "Study").duration == 3.0)
+    #expect(ExcerptToastRequest.moveFailed.icon == .warning)
+    #expect(ExcerptToastRequest.moveFailed.duration == 3.0)
+    #expect(ExcerptToastRequest.duplicateFailed.icon == .warning)
+    #expect(ExcerptToastRequest.duplicateFailed.duration == 3.0)
+    #expect(ExcerptToastRequest.saveFailed(listName: "Study").icon == .warning)
+    #expect(ExcerptToastRequest.saveFailed(listName: "Study").duration == 3.0)
+    #expect(ExcerptToastRequest.destinationAlreadyContainsCue(listName: "Study").icon == .warning)
+    #expect(ExcerptToastRequest.destinationAlreadyContainsCue(listName: "Study").duration == 3.0)
+}
+
+@Test
+func tableToastRequestsMatchTheUsageRegistry() {
+    #expect(TableToastRequest.copyCueText.message == "Cue Text Copied")
+    #expect(TableToastRequest.copyCueText.icon == .copy)
+    #expect(TableToastRequest.copyCueText.duration == 1.5)
+
+    #expect(TableToastRequest.copyDeepLink.message == "Deep Link Copied")
+    #expect(TableToastRequest.copyDeepLink.icon == .copy)
+    #expect(TableToastRequest.copyDeepLink.duration == 1.5)
+
+    #expect(TableToastRequest.copyCueGroupText.message == "Cue Group Text Copied")
+    #expect(TableToastRequest.copyCueGroupText.icon == .copy)
+    #expect(TableToastRequest.copyCueGroupText.duration == 1.5)
+
+    #expect(TableToastRequest.copyTimeRange.message == "Time Range Copied")
+    #expect(TableToastRequest.copyTimeRange.icon == .copy)
+    #expect(TableToastRequest.copyTimeRange.duration == 1.5)
+
+    #expect(TableToastRequest.copyDeepLinks.message == "Deep Links Copied")
+    #expect(TableToastRequest.copyDeepLinks.icon == .copy)
+    #expect(TableToastRequest.copyDeepLinks.duration == 1.5)
+
+    #expect(TableToastRequest.copyTable.message == "Table Copied")
+    #expect(TableToastRequest.copyTable.icon == .copy)
+    #expect(TableToastRequest.copyTable.duration == 1.5)
+
+    #expect(TableToastRequest.cueNotInLibrary.message == "Cue Not in Library")
+    #expect(TableToastRequest.cueNotInLibrary.icon == .warning)
+    #expect(TableToastRequest.cueNotInLibrary.duration == 3.0)
 }

@@ -713,7 +713,10 @@ extension AppCoordinator {
             toast.show(request)
         case .playbackFeedback:
             playback.playbackViewModel?.showExcerptSaveFeedback(
-                message: request.message
+                message: request.message,
+                icon: request.icon,
+                iconWeight: request.iconWeight,
+                durationMilliseconds: UInt64(request.duration * 1_000)
             )
         }
     }
@@ -729,8 +732,13 @@ extension AppCoordinator {
         report: ExcerptSaveReport
     ) -> Bool {
         // A destination menu opened before the cue left the library.
-        if case .playbackFeedback = report, !isCueInLibrary(cueID) {
-            playback.playbackViewModel?.showNotInLibraryFeedback()
+        if !isCueInLibrary(cueID) {
+            switch report {
+            case .toast:
+                toast.show(TableToastRequest.cueNotInLibrary)
+            case .playbackFeedback:
+                playback.playbackViewModel?.showNotInLibraryFeedback()
+            }
             return false
         }
         guard let database = excerptDatabase else {

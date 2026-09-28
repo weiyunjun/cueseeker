@@ -2153,6 +2153,8 @@ struct SubtitleTableView: NSViewRepresentable {
     var onCreateExcerptList: (SubtitleTableRow, SubtitleTableRowAction) -> Void
         = { _, _ in }
     var onRemoveExcerpt: (SubtitleTableRow) -> Void = { _ in }
+    var isCueInLibrary: ((Int64) -> Bool)? = nil
+    var onToast: ((ToastRequest) -> Void)? = nil
     var isRedesign: Bool = false
     var pageChrome: SubtitleTablePageChrome?
     @Environment(\.workbenchPageScrollbar) private var pageScrollbar
@@ -2196,7 +2198,9 @@ struct SubtitleTableView: NSViewRepresentable {
             onMoveExcerpt: onMoveExcerpt,
             onDuplicateExcerpt: onDuplicateExcerpt,
             onCreateExcerptList: onCreateExcerptList,
-            onRemoveExcerpt: onRemoveExcerpt
+            onRemoveExcerpt: onRemoveExcerpt,
+            isCueInLibrary: isCueInLibrary,
+            onToast: onToast
         )
         coordinator.isRedesign = isRedesign
         return coordinator
@@ -2367,7 +2371,9 @@ struct SubtitleTableView: NSViewRepresentable {
             onMoveExcerpt: onMoveExcerpt,
             onDuplicateExcerpt: onDuplicateExcerpt,
             onCreateExcerptList: onCreateExcerptList,
-            onRemoveExcerpt: onRemoveExcerpt
+            onRemoveExcerpt: onRemoveExcerpt,
+            isCueInLibrary: isCueInLibrary,
+            onToast: onToast
         )
     }
 
@@ -2423,6 +2429,8 @@ struct SubtitleTableView: NSViewRepresentable {
         private var onCreateExcerptList:
             (SubtitleTableRow, SubtitleTableRowAction) -> Void
         private var onRemoveExcerpt: (SubtitleTableRow) -> Void
+        var isCueInLibrary: ((Int64) -> Bool)?
+        var onToast: ((ToastRequest) -> Void)?
 
         var isRedesign: Bool = false {
             didSet {
@@ -2649,7 +2657,9 @@ struct SubtitleTableView: NSViewRepresentable {
             onCreateExcerptList: @escaping (
                 SubtitleTableRow, SubtitleTableRowAction
             ) -> Void = { _, _ in },
-            onRemoveExcerpt: @escaping (SubtitleTableRow) -> Void = { _ in }
+            onRemoveExcerpt: @escaping (SubtitleTableRow) -> Void = { _ in },
+            isCueInLibrary: ((Int64) -> Bool)? = nil,
+            onToast: ((ToastRequest) -> Void)? = nil
         ) {
             self.tableName = tableName
             self.probeSurface = probeSurface
@@ -2689,6 +2699,8 @@ struct SubtitleTableView: NSViewRepresentable {
             self.onDuplicateExcerpt = onDuplicateExcerpt
             self.onCreateExcerptList = onCreateExcerptList
             self.onRemoveExcerpt = onRemoveExcerpt
+            self.isCueInLibrary = isCueInLibrary
+            self.onToast = onToast
         }
 
         deinit {
@@ -2976,7 +2988,9 @@ struct SubtitleTableView: NSViewRepresentable {
             onCreateExcerptList: @escaping (
                 SubtitleTableRow, SubtitleTableRowAction
             ) -> Void = { _, _ in },
-            onRemoveExcerpt: @escaping (SubtitleTableRow) -> Void = { _ in }
+            onRemoveExcerpt: @escaping (SubtitleTableRow) -> Void = { _ in },
+            isCueInLibrary: ((Int64) -> Bool)? = nil,
+            onToast: ((ToastRequest) -> Void)? = nil
         ) {
             let tableChanged = tableName != self.tableName
             self.probeSurface = probeSurface
@@ -3057,6 +3071,8 @@ struct SubtitleTableView: NSViewRepresentable {
             self.onDuplicateExcerpt = onDuplicateExcerpt
             self.onCreateExcerptList = onCreateExcerptList
             self.onRemoveExcerpt = onRemoveExcerpt
+            self.isCueInLibrary = isCueInLibrary
+            self.onToast = onToast
 
             self.rowCount = nextRowCount
             self.rowsVersion = rowsVersion
@@ -7467,15 +7483,21 @@ struct SubtitleTableView: NSViewRepresentable {
             let pasteboard = NSPasteboard.general
             pasteboard.clearContents()
             pasteboard.setString(target.primaryCueText, forType: .string)
+            onToast?(TableToastRequest.copyCueText)
         }
 
         private func copyDeepLink(target: SubtitleTableRow) {
             guard let cueID = target.primaryCueID else { return }
+            if let isCueInLibrary, !isCueInLibrary(cueID) {
+                onToast?(TableToastRequest.cueNotInLibrary)
+                return
+            }
             _ = CueClipboard.copyDeepLink(
                 cueText: target.primaryCueText,
                 cueID: cueID,
                 to: .general
             )
+            onToast?(TableToastRequest.copyDeepLink)
         }
 
         private func copyCueGroup(_ row: Int) {
@@ -7487,6 +7509,7 @@ struct SubtitleTableView: NSViewRepresentable {
             let pasteboard = NSPasteboard.general
             pasteboard.clearContents()
             pasteboard.setString(target.cueGroupCopyText, forType: .string)
+            onToast?(TableToastRequest.copyCueGroupText)
         }
 
         private func copyCellText(row: Int, columnID: String) {
@@ -7498,6 +7521,9 @@ struct SubtitleTableView: NSViewRepresentable {
             let pasteboard = NSPasteboard.general
             pasteboard.clearContents()
             pasteboard.setString(text(for: columnID, model: target), forType: .string)
+            if columnID == "time" {
+                onToast?(TableToastRequest.copyTimeRange)
+            }
         }
 
         private func canOpenSubtitleFile(target: SubtitleTableRow) -> Bool {

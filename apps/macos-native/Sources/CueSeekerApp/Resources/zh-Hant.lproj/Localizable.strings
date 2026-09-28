@@ -178,10 +178,17 @@
 "toast.excerpt.saved" = "已儲存至「%@」";
 "toast.excerpt.duplicated" = "已複製至「%@」";
 "toast.excerpt.destination_unavailable" = "「%@」已不存在";
-"toast.excerpt.move_failed" = "移動摘錄時發生錯誤。";
-"toast.excerpt.save_failed" = "儲存至「%@」時發生錯誤。";
-"toast.excerpt.duplicate_failed" = "複製摘錄時發生錯誤。";
+"toast.excerpt.move_failed" = "移動摘錄時發生錯誤";
+"toast.excerpt.save_failed" = "儲存至「%@」時發生錯誤";
+"toast.excerpt.duplicate_failed" = "複製摘錄時發生錯誤";
 "toast.excerpt.already_exists" = "「%@」中已有此摘錄";
+"toast.table.cue_text_copied" = "已拷貝台詞";
+"toast.table.deep_link_copied" = "已拷貝 Deep Link";
+"toast.table.cue_group_text_copied" = "已拷貝台詞組文字";
+"toast.table.time_range_copied" = "已拷貝時間範圍";
+"toast.table.deep_links_copied" = "已拷貝 Deep Link";
+"toast.table.table_copied" = "已拷貝表格";
+"toast.cue_not_in_library" = "台詞不在資料庫中";
 
 /* Playback chrome */
 "playback.play" = "播放";
@@ -234,7 +241,7 @@
 "playback.hud.no_available_results" = "沒有可用的結果";
 "playback.hud.no_available_excerpts" = "沒有可用的摘錄";
 "playback.hud.no_available_videos" = "沒有可用的影片";
-"playback.hud.not_in_library" = "不在媒體庫中";
+"playback.hud.not_in_library" = "台詞不在資料庫中";
 "playback.hud.enter_fullscreen" = "進入全螢幕";
 "playback.hud.exit_fullscreen" = "結束全螢幕";
 "playback.hud.subtitles_on" = "字幕已開";

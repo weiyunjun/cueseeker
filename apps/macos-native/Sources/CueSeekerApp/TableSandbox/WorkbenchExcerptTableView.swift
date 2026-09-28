@@ -114,6 +114,8 @@ private struct WorkbenchExcerptTableContent: View {
                     onDuplicateExcerpt: duplicateExcerpt,
                     onCreateExcerptList: createExcerptList,
                     onRemoveExcerpt: requestRemoveExcerpt,
+                    isCueInLibrary: { appState.isCueInLibrary($0) },
+                    onToast: { appState.toast.show($0) },
                     isRedesign: true,
                     pageChrome: excerptDetailPageChrome
                 )
@@ -616,6 +618,7 @@ private struct WorkbenchExcerptTableContent: View {
         var builder = SubtitleTableClipboard.TSVBuilder(columns: columns)
         builder.append(rows: selectedRows.compactMap { rowStore.snapshot.row(at: $0) })
         SubtitleTableClipboard.copy(representations: builder.representations)
+        appState.toast.show(TableToastRequest.copyTable)
     }
 
     private func copySelectedRowsAsDeepLinks() {
@@ -626,6 +629,7 @@ private struct WorkbenchExcerptTableContent: View {
         let rows = selectedRows.compactMap { rowStore.snapshot.row(at: $0) }
         guard rows.count == selectedRows.count else { return }
         SubtitleTableClipboard.copyDeepLinks(rows: rows)
+        appState.toast.show(TableToastRequest.copyDeepLinks)
     }
 
     private func selectedExcerpts(

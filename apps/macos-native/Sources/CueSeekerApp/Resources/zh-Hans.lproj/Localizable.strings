@@ -178,10 +178,17 @@
 "toast.excerpt.saved" = "已保存到“%@”";
 "toast.excerpt.duplicated" = "已复制到“%@”";
 "toast.excerpt.destination_unavailable" = "“%@”已不存在";
-"toast.excerpt.move_failed" = "移动摘录出错。";
-"toast.excerpt.save_failed" = "保存到“%@”出错。";
-"toast.excerpt.duplicate_failed" = "复制摘录出错。";
+"toast.excerpt.move_failed" = "移动摘录出错";
+"toast.excerpt.save_failed" = "保存到“%@”出错";
+"toast.excerpt.duplicate_failed" = "复制摘录出错";
 "toast.excerpt.already_exists" = "“%@”中已存在该摘录";
+"toast.table.cue_text_copied" = "已复制台词";
+"toast.table.deep_link_copied" = "已复制 Deep Link";
+"toast.table.cue_group_text_copied" = "已复制台词组文本";
+"toast.table.time_range_copied" = "已复制时间范围";
+"toast.table.deep_links_copied" = "已复制 Deep Link";
+"toast.table.table_copied" = "已复制表格";
+"toast.cue_not_in_library" = "台词不在媒体库中";
 
 /* Playback chrome */
 "playback.play" = "播放";
@@ -234,7 +241,7 @@
 "playback.hud.no_available_results" = "没有可用的结果";
 "playback.hud.no_available_excerpts" = "没有可用的摘录";
 "playback.hud.no_available_videos" = "没有可用的视频";
-"playback.hud.not_in_library" = "不在媒体库中";
+"playback.hud.not_in_library" = "台词不在媒体库中";
 "playback.hud.enter_fullscreen" = "进入全屏";
 "playback.hud.exit_fullscreen" = "退出全屏";
 "playback.hud.subtitles_on" = "字幕已开";

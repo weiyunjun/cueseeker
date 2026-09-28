@@ -10,6 +10,12 @@ enum ToastAnimationStyle: Equatable {
     case `default`
 }
 
+enum ToastDuration {
+    static let light: TimeInterval = 1.5
+    static let alert: TimeInterval = 3.0
+    static let playerHud: TimeInterval = 1.0
+}
+
 struct ToastRequest: Equatable {
     let scenarioID: String?
     let message: String
@@ -24,7 +30,7 @@ struct ToastRequest: Equatable {
         message: String,
         icon: AppIcon? = nil,
         iconWeight: AppIconWeight? = nil,
-        duration: TimeInterval = 5,
+        duration: TimeInterval = ToastDuration.light,
         position: ToastPosition = .appCenter,
         animation: ToastAnimationStyle = .default
     ) {
@@ -39,52 +45,104 @@ struct ToastRequest: Equatable {
 }
 
 enum ExcerptToastRequest {
-    /// The Workbench and the playback surfaces report the same event, so they
-    /// carry the same icon.
-    private static func excerpt(_ scenarioID: String, _ message: String) -> ToastRequest {
+    private static func succeeded(_ scenarioID: String, _ message: String) -> ToastRequest {
         ToastRequest(
             scenarioID: scenarioID,
             message: message,
             icon: .bookmarkSimple,
-            iconWeight: .fill
+            iconWeight: .fill,
+            duration: ToastDuration.light
+        )
+    }
+
+    private static func alert(_ scenarioID: String, _ message: String) -> ToastRequest {
+        ToastRequest(
+            scenarioID: scenarioID,
+            message: message,
+            icon: .warning,
+            duration: ToastDuration.alert
         )
     }
 
     static func moveSucceeded(listName: String) -> ToastRequest {
-        excerpt("excerpt.move.succeeded", L("toast.excerpt.moved", listName))
+        succeeded("excerpt.move.succeeded", L("toast.excerpt.moved", listName))
     }
 
     static func saveSucceeded(listName: String) -> ToastRequest {
-        excerpt("excerpt.save.succeeded", L("toast.excerpt.saved", listName))
+        succeeded("excerpt.save.succeeded", L("toast.excerpt.saved", listName))
     }
 
     static func duplicateSucceeded(listName: String) -> ToastRequest {
-        excerpt("excerpt.duplicate.succeeded", L("toast.excerpt.duplicated", listName))
+        succeeded("excerpt.duplicate.succeeded", L("toast.excerpt.duplicated", listName))
     }
 
     static func destinationUnavailable(listName: String) -> ToastRequest {
-        excerpt(
+        alert(
             "excerpt.destination.unavailable",
             L("toast.excerpt.destination_unavailable", listName)
         )
     }
 
     static var moveFailed: ToastRequest {
-        excerpt("excerpt.move.failed", L("toast.excerpt.move_failed"))
+        alert("excerpt.move.failed", L("toast.excerpt.move_failed"))
     }
 
     static func saveFailed(listName: String) -> ToastRequest {
-        excerpt("excerpt.save.failed", L("toast.excerpt.save_failed", listName))
+        alert("excerpt.save.failed", L("toast.excerpt.save_failed", listName))
     }
 
     static var duplicateFailed: ToastRequest {
-        excerpt("excerpt.duplicate.failed", L("toast.excerpt.duplicate_failed"))
+        alert("excerpt.duplicate.failed", L("toast.excerpt.duplicate_failed"))
     }
 
     static func destinationAlreadyContainsCue(listName: String) -> ToastRequest {
-        excerpt(
+        alert(
             "excerpt.destination.cue.already_exists",
             L("toast.excerpt.already_exists", listName)
+        )
+    }
+}
+
+enum TableToastRequest {
+    private static func copy(_ scenarioID: String, _ message: String) -> ToastRequest {
+        ToastRequest(
+            scenarioID: scenarioID,
+            message: message,
+            icon: .copy,
+            duration: ToastDuration.light
+        )
+    }
+
+    static var copyCueText: ToastRequest {
+        copy("table.row.copy_cue_text", L("toast.table.cue_text_copied"))
+    }
+
+    static var copyDeepLink: ToastRequest {
+        copy("table.row.copy_deep_link", L("toast.table.deep_link_copied"))
+    }
+
+    static var copyCueGroupText: ToastRequest {
+        copy("table.row.copy_cue_group_text", L("toast.table.cue_group_text_copied"))
+    }
+
+    static var copyTimeRange: ToastRequest {
+        copy("table.row.copy_time_range", L("toast.table.time_range_copied"))
+    }
+
+    static var copyDeepLinks: ToastRequest {
+        copy("table.selection.copy_deep_links", L("toast.table.deep_links_copied"))
+    }
+
+    static var copyTable: ToastRequest {
+        copy("table.selection.copy_table", L("toast.table.table_copied"))
+    }
+
+    static var cueNotInLibrary: ToastRequest {
+        ToastRequest(
+            scenarioID: "cue_not_in_library",
+            message: L("toast.cue_not_in_library"),
+            icon: .warning,
+            duration: ToastDuration.alert
         )
     }
 }

@@ -464,7 +464,7 @@ extension AppCoordinator {
         else {
             playback.playbackViewModel?.showNoAvailableNavigationFeedback(
                 direction: nil,
-                text: L("playback.hud.no_available_excerpts")
+                text: L("playback.hud.no_available_results")
             )
             return true
         }

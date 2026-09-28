@@ -178,10 +178,17 @@
 "toast.excerpt.saved" = "Saved to “%@”";
 "toast.excerpt.duplicated" = "Duplicated to “%@”";
 "toast.excerpt.destination_unavailable" = "“%@” is no longer available";
-"toast.excerpt.move_failed" = "Couldn’t move the excerpt.";
-"toast.excerpt.save_failed" = "Couldn’t save to “%@”.";
-"toast.excerpt.duplicate_failed" = "Couldn’t duplicate the excerpt.";
+"toast.excerpt.move_failed" = "Couldn’t move the excerpt";
+"toast.excerpt.save_failed" = "Couldn’t save to “%@”";
+"toast.excerpt.duplicate_failed" = "Couldn’t duplicate the excerpt";
 "toast.excerpt.already_exists" = "This excerpt already exists in “%@”";
+"toast.table.cue_text_copied" = "Cue Text Copied";
+"toast.table.deep_link_copied" = "Deep Link Copied";
+"toast.table.cue_group_text_copied" = "Cue Group Text Copied";
+"toast.table.time_range_copied" = "Time Range Copied";
+"toast.table.deep_links_copied" = "Deep Links Copied";
+"toast.table.table_copied" = "Table Copied";
+"toast.cue_not_in_library" = "Cue Not in Library";
 
 /* Playback chrome */
 "playback.play" = "Play";
@@ -234,7 +241,7 @@
 "playback.hud.no_available_results" = "No Available Results";
 "playback.hud.no_available_excerpts" = "No Available Excerpts";
 "playback.hud.no_available_videos" = "No Available Videos";
-"playback.hud.not_in_library" = "Not in Library";
+"playback.hud.not_in_library" = "Cue Not in Library";
 "playback.hud.enter_fullscreen" = "Enter Fullscreen";
 "playback.hud.exit_fullscreen" = "Exit Fullscreen";
 "playback.hud.subtitles_on" = "Subtitles On";

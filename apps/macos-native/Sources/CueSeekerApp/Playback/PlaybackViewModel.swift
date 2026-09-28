@@ -400,7 +400,8 @@ public final class PlaybackViewModel: ObservableObject {
                 PlaybackFeedback(
                     icon: .caretRight,
                     text: "+ \(accumulatedForwardSeconds)s"
-                )
+                ),
+                durationMilliseconds: 1_000
             )
         } else {
             accumulatedForwardSeconds = 0
@@ -409,7 +410,8 @@ public final class PlaybackViewModel: ObservableObject {
                 PlaybackFeedback(
                     icon: .caretLeft,
                     text: "- \(accumulatedRewindSeconds)s"
-                )
+                ),
+                durationMilliseconds: 1_000
             )
         }
     }
@@ -537,17 +539,17 @@ public final class PlaybackViewModel: ObservableObject {
                 icon: copied ? .copy : .warning,
                 text: copied ? L("playback.hud.cue_text_copied") : L("playback.hud.no_subtitle")
             ),
-            durationMilliseconds: 1_000
+            durationMilliseconds: copied ? 1_500 : 3_000
         )
     }
 
     func showCollageNotReadyFeedback(icon: AppIcon) {
         showFeedback(
             PlaybackFeedback(
-                icon: icon,
+                icon: .warning,
                 text: L("playback.hud.collage_not_ready")
             ),
-            durationMilliseconds: 1_000
+            durationMilliseconds: 3_000
         )
     }
 
@@ -557,7 +559,7 @@ public final class PlaybackViewModel: ObservableObject {
                 icon: copied ? .copy : .warning,
                 text: copied ? L("playback.hud.selected_text_copied") : L("playback.hud.copy_failed")
             ),
-            durationMilliseconds: 1_000
+            durationMilliseconds: copied ? 1_500 : 3_000
         )
     }
 
@@ -598,7 +600,7 @@ public final class PlaybackViewModel: ObservableObject {
                 icon: .camera,
                 text: L("playback.hud.screenshot_copied")
             ),
-            durationMilliseconds: 1_000
+            durationMilliseconds: 1_500
         )
     }
 
@@ -627,7 +629,7 @@ public final class PlaybackViewModel: ObservableObject {
                 icon: copied ? .copy : .warning,
                 text: copied ? L("playback.hud.deep_link_copied") : L("playback.hud.no_subtitle")
             ),
-            durationMilliseconds: 1_000
+            durationMilliseconds: copied ? 1_500 : 3_000
         )
     }
 
@@ -635,14 +637,19 @@ public final class PlaybackViewModel: ObservableObject {
     /// The sentence is the registry's, the same one the Workbench shows in a
     /// Toast; only the container differs, and every outcome wears the same
     /// bookmark.
-    func showExcerptSaveFeedback(message: String) {
+    func showExcerptSaveFeedback(
+        message: String,
+        icon: AppIcon? = .bookmarkSimple,
+        iconWeight: AppIconWeight? = .fill,
+        durationMilliseconds: UInt64 = 1_500
+    ) {
         showFeedback(
             PlaybackFeedback(
-                icon: .bookmarkSimple,
-                iconWeight: .fill,
+                icon: icon,
+                iconWeight: iconWeight,
                 text: message
             ),
-            durationMilliseconds: 1_000
+            durationMilliseconds: durationMilliseconds
         )
     }
 
@@ -660,7 +667,12 @@ public final class PlaybackViewModel: ObservableObject {
             )
         }
 
-        showFeedback(feedback, durationMilliseconds: 1_000)
+        let duration: UInt64 = switch state {
+        case .removed: 1_500
+        case .unavailable: 3_000
+        }
+
+        showFeedback(feedback, durationMilliseconds: duration)
     }
 
     func showPlayPauseFeedback(isPlaying: Bool) {
@@ -711,7 +723,7 @@ public final class PlaybackViewModel: ObservableObject {
                 icon: .warning,
                 text: L("playback.hud.not_in_library")
             ),
-            durationMilliseconds: 1_000
+            durationMilliseconds: 3_000
         )
     }
 
@@ -914,7 +926,7 @@ public final class PlaybackViewModel: ObservableObject {
 
     private func showFeedback(
         _ nextFeedback: PlaybackFeedback,
-        durationMilliseconds: UInt64 = 800
+        durationMilliseconds: UInt64 = 1_000
     ) {
         feedback = nextFeedback
         feedbackClearTask?.cancel()
