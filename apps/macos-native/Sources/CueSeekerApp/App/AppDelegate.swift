@@ -203,6 +203,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 appState.interfaceLayers.topDialogSize
             }
         }
+        window.isWorkbenchCovered = { [appState] in
+            MainActor.assumeIsolated {
+                appState.interfaceLayers.isCovered(.workbenchPage)
+            }
+        }
         window.handlesFullscreenRequest = { [appState] in
             MainActor.assumeIsolated {
                 guard appState.isPlaybackPageVisible,

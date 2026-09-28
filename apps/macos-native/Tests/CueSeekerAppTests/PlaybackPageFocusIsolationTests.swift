@@ -31,6 +31,7 @@ struct PlaybackPageFocusIsolationTests {
         // Overlay view covering the background field (e.g. Playback page)
         let overlayView = NSView(frame: NSRect(x: 0, y: 0, width: 800, height: 600))
         container.addSubview(overlayView)
+        window.isWorkbenchCovered = { true }
 
         // Foreground text field in the overlay (e.g. Command Panel search field)
         let foregroundField = NSTextField(frame: NSRect(x: 100, y: 300, width: 200, height: 30))
@@ -49,6 +50,29 @@ struct PlaybackPageFocusIsolationTests {
         #expect(window.isUncovered(foregroundField))
         #expect(window.makeFirstResponder(foregroundField))
         #expect(window.firstResponder === foregroundField || window.firstResponder is NSTextView)
+    }
+
+    @Test
+    func workbenchViewsAlwaysAcceptedWhenWorkbenchNotCovered() {
+        let window = CueSeekerMainWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 800, height: 600),
+            styleMask: [.titled, .closable, .resizable],
+            backing: .buffered,
+            defer: false
+        )
+        let container = NSView(frame: NSRect(x: 0, y: 0, width: 800, height: 600))
+        window.contentView = container
+        window.isWorkbenchCovered = { false }
+
+        // Large scrolled document view (e.g. SubtitleVirtualTableDocumentView with 50+ rows)
+        let scrollView = NSScrollView(frame: NSRect(x: 0, y: 0, width: 800, height: 500))
+        let documentView = NSView(frame: NSRect(x: 0, y: 0, width: 800, height: 3000))
+        scrollView.documentView = documentView
+        container.addSubview(scrollView)
+
+        // When workbench is not covered, makeFirstResponder must never be blocked by coverage logic
+        #expect(window.makeFirstResponder(documentView))
+        #expect(window.firstResponder === documentView)
     }
 
     @Test
@@ -75,6 +99,7 @@ struct PlaybackPageFocusIsolationTests {
         // Overlay covering everything
         let overlay = NSView(frame: NSRect(x: 0, y: 0, width: 800, height: 600))
         container.addSubview(overlay)
+        window.isWorkbenchCovered = { true }
 
         _ = window.makeFirstResponder(nil)
 
@@ -118,6 +143,7 @@ struct PlaybackPageFocusIsolationTests {
         // Cover the field with overlay
         let overlay = NSView(frame: NSRect(x: 0, y: 0, width: 800, height: 600))
         container.addSubview(overlay)
+        window.isWorkbenchCovered = { true }
 
         // Even if backgroundField was left as firstResponder, isEditableTextInputFocused must return false
         #expect(!window.isUncovered(backgroundField))
@@ -158,6 +184,7 @@ struct PlaybackPageFocusIsolationTests {
 
             let overlay = NSView(frame: NSRect(x: 0, y: 0, width: 800, height: 600))
             container.addSubview(overlay)
+            window.isWorkbenchCovered = { true }
 
             app.playback.isPlaybackSurfaceExpanded = true
 

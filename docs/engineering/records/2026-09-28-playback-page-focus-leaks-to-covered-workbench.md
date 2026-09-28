@@ -16,14 +16,15 @@ When the Playback page was displayed:
 ## What changed
 
 - **Window Focus and Key View Layer Isolation (`CueSeekerMainWindow.swift`)**:
-  - Enforced `isUncovered(view)` on all `makeFirstResponder` calls, rejecting any view that is covered by a higher interface layer.
-  - Replaced dialog-only key view cycling with universal `selectUncoveredKeyView(from:step:)` for both `selectKeyView(following:)` and `selectKeyView(preceding:)`, guaranteeing that Tab and Shift-Tab pass over any views covered by higher layers.
+  - Gated `isUncovered(view)` in `makeFirstResponder` behind `isWorkbenchCovered()`. When Workbench is the sole active layer (`isWorkbenchCovered() == false`), Workbench views bypass coverage checks entirely, ensuring large/scrolled document views (e.g. search results table) are never rejected.
+  - When a higher layer covers Workbench (`isWorkbenchCovered() == true`), `makeFirstResponder` rejects covered views to prevent background focus leaks.
+  - Gated `selectUncoveredKeyView(from:step:)` in `selectKeyView(following:)` and `selectKeyView(preceding:)` behind `dialogSize() != nil || isWorkbenchCovered()`, falling back to native `super.selectKeyView` when Workbench is uncovered.
   - Made `isUncovered(_ view: NSView)` internal so other coordinator modules can query view coverage.
 - **SwiftUI Container-Level Isolation (`SearchView.swift`)**:
   - Added `.disabled(showsPlaybackRoute)` and `.accessibilityHidden(showsPlaybackRoute)` to `mainContent`, completely deactivating underlying Workbench controls and removing them from accessibility navigation while playback is active.
 - **Layer-Scoped Text Input Detection and Focus Cleansing (`AppCoordinator+Playback.swift`)**:
-  - Updated `isEditableTextInputFocused()` and `hasMarkedTextInFocusedEditor()` to verify that the active first responder is `isUncovered`. Orphaned or covered focus returns `false` so playback shortcuts are never suppressed.
-  - In `handlePlaybackKeyDown`, if the first responder is found to be covered, it immediately drops the orphaned focus (`makeFirstResponder(nil)`).
+  - Updated `isEditableTextInputFocused()` and `hasMarkedTextInFocusedEditor()` to verify that the active first responder is `isUncovered` only when `window.isWorkbenchCovered()`. Orphaned or covered focus returns `false` so playback shortcuts are never suppressed.
+  - In `handlePlaybackKeyDown`, if Workbench is covered and the first responder is covered, it immediately drops the orphaned focus (`makeFirstResponder(nil)`).
   - In `handlePlaybackKeyDown`, updated keyCode 48 (Tab) handling in `subtitleFocusSession` to support Shift-Tab to select the previous module (`selectPreviousModule()`), while bare Tab selects the next module (`selectNextModule()`).
 - **Controller Shoulder Alignment (`AppCoordinator+ControllerInput.swift`)**:
   - Updated `rightShoulder` in `handlePlaybackControllerInput` to symmetrically invoke `subtitleFocusSession.selectNextModule()` when in an overlay session.
@@ -32,6 +33,7 @@ When the Playback page was displayed:
 - **Tests**:
   - Added `PlaybackPageFocusIsolationTests.swift` covering:
     - `windowMakeFirstResponderRefusesCoveredViewAndAcceptsUncoveredView`
+    - `workbenchViewsAlwaysAcceptedWhenWorkbenchNotCovered`
     - `windowKeyViewSelectionSkipsCoveredViews`
     - `coveredTextInputDoesNotSuppressPlaybackShortcuts`
     - `openingPlaybackPageCoversWorkbenchPage`

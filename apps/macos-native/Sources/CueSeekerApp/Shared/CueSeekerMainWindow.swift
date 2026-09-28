@@ -52,6 +52,11 @@ final class CueSeekerMainWindow: NSWindow {
         }
     }
 
+    /// Whether a higher layer (such as the playback page or a dialog) covers
+    /// the workbench page. When false, the workbench page is the base active
+    /// layer and its views are never blocked by layer coverage.
+    var isWorkbenchCovered: () -> Bool = { false }
+
     override func makeFirstResponder(_ responder: NSResponder?) -> Bool {
         // Giving the focus up is always allowed; that is how the menu cancels
         // it in the first place.
@@ -61,7 +66,7 @@ final class CueSeekerMainWindow: NSWindow {
         guard !isFocusLocked(), !isBehindDialog(responder) else {
             return false
         }
-        if let view = responder as? NSView {
+        if isWorkbenchCovered(), let view = responder as? NSView {
             guard isUncovered(view) else {
                 return false
             }
@@ -73,10 +78,16 @@ final class CueSeekerMainWindow: NSWindow {
     /// window, passing over everything that a higher layer (like a dialog or
     /// the playback page) covers.
     override func selectKeyView(following view: NSView) {
+        guard dialogSize() != nil || isWorkbenchCovered() else {
+            return super.selectKeyView(following: view)
+        }
         selectUncoveredKeyView(from: view, step: \.nextValidKeyView)
     }
 
     override func selectKeyView(preceding view: NSView) {
+        guard dialogSize() != nil || isWorkbenchCovered() else {
+            return super.selectKeyView(preceding: view)
+        }
         selectUncoveredKeyView(from: view, step: \.previousValidKeyView)
     }
 

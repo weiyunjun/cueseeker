@@ -853,6 +853,7 @@ extension AppCoordinator {
             ?? NSApplication.shared.windows.first { $0 is CueSeekerMainWindow }
         if let window = activeWindow as? CueSeekerMainWindow,
            let view = window.firstResponder as? NSView,
+           window.isWorkbenchCovered(),
            !window.isUncovered(view) {
             _ = window.makeFirstResponder(nil)
         }
@@ -1333,6 +1334,7 @@ extension AppCoordinator {
 
         if let view = firstResponder as? NSView {
             if let window = view.window as? CueSeekerMainWindow,
+               window.isWorkbenchCovered(),
                !window.isUncovered(view) {
                 return false
             }
@@ -1362,6 +1364,7 @@ extension AppCoordinator {
             return false
         }
         if let window = textView.window as? CueSeekerMainWindow,
+           window.isWorkbenchCovered(),
            !window.isUncovered(textView) {
             return false
         }
