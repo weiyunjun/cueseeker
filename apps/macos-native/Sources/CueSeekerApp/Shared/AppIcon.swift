@@ -132,7 +132,7 @@ enum AppIconStore {
             return cached
         }
 
-        guard let url = Bundle.module.url(forResource: name, withExtension: "svg"),
+        guard let url = Bundle.appResources.url(forResource: name, withExtension: "svg"),
               let master = try? String(contentsOf: url, encoding: .utf8),
               let image = NSImage(data: Data(settingLineWidth(of: master, forSize: size).utf8))
         else {

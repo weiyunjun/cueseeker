@@ -55,7 +55,7 @@ enum AppLocalization {
     }
 
     private static var fallbackBundle: Bundle {
-        bundle(forLocalization: "en") ?? .module
+        bundle(forLocalization: "en") ?? .appResources
     }
 
     static func _bundleForTesting(_ language: AppLanguage) -> Bundle {
@@ -81,10 +81,10 @@ enum AppLocalization {
     /// bundle, so the on-disk name is matched case-insensitively against the
     /// canonical BCP-47 identifier.
     private static func bundle(forLocalization localization: String) -> Bundle? {
-        guard let resourceName = Bundle.module.localizations.first(where: {
+        guard let resourceName = Bundle.appResources.localizations.first(where: {
             $0.caseInsensitiveCompare(localization) == .orderedSame
         }),
-        let path = Bundle.module.path(forResource: resourceName, ofType: "lproj")
+        let path = Bundle.appResources.path(forResource: resourceName, ofType: "lproj")
         else {
             return nil
         }

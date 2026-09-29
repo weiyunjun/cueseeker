@@ -839,7 +839,7 @@ enum AnkiPackageExporter {
     /// The card's link icons, drawn from the App's own icon assets.
     private static let linkIconMarkup: [AppIcon: String] = Dictionary(
         uniqueKeysWithValues: [AppIcon.linkSimple, .subtitles, .video].map { icon in
-            let markup = Bundle.module.url(forResource: icon.rawValue, withExtension: "svg")
+            let markup = Bundle.appResources.url(forResource: icon.rawValue, withExtension: "svg")
                 .flatMap { try? String(contentsOf: $0, encoding: .utf8) }
             return (icon, markup ?? "")
         }
