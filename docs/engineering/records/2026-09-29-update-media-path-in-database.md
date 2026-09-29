@@ -24,6 +24,7 @@ Migrate media storage path references in `CueSeeker.sqlite` from `/Volumes/Samsu
   - `user_folder_covers.folder_path`: 10 rows
   - `task_records.old_paths`: 13 rows
   - `cue_facet_counts.value` (`facet = 'folder'`): 40 rows
+- Updated `selectedFolderPaths` in `UserDefaults` (`com.cueseeker.shared` and `CueSeeker`) from `/Volumes/Samsung/影视` to `/Volumes/Seagate/影视`.
 
 ## Verification
 
@@ -31,3 +32,4 @@ Migrate media storage path references in `CueSeeker.sqlite` from `/Volumes/Samsu
 - `PRAGMA quick_check` and `PRAGMA integrity_check` verified healthy (`ok`).
 - FTS matching on `subtitle_cue_groups_fts` verified working.
 - Confirmed sample target video paths exist on `/Volumes/Seagate/影视`.
+- Verified `defaults read com.cueseeker.shared selectedFolderPaths` returns `("/Volumes/Seagate/影视")`.
