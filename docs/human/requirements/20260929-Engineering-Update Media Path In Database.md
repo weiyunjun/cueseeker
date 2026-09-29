@@ -21,6 +21,7 @@ main
    - `folder_covers`: `folder_path`
    - `user_folder_covers`: `folder_path`
    - `task_records`: `folder_path`, `old_paths`, `new_paths`
+   - `cue_facet_counts`: `value`
 3. 安全保障：执行修改前自动对当前数据库创建带时间戳的备份文件。
 4. 完整性：保持原有主键、外键约束、索引及关联关系不变。
 
