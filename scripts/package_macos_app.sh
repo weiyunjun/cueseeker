@@ -84,16 +84,22 @@ cp "$MEDIA_ROOT/lame-cueseeker.patch" \
 cp "$MEDIA_ROOT/build-info.txt" \
     "$APP_PATH/Contents/Resources/ThirdPartyLicenses/media-runtime-build-info.txt"
 
-if otool -l "$APP_PATH/Contents/MacOS/CueSeeker" | \
-    awk '/LC_RPATH/{getline; getline; print $2}' | \
-    grep -Fx "$MEDIA_ROOT/lib" >/dev/null; then
-    install_name_tool -delete_rpath "$MEDIA_ROOT/lib" "$APP_PATH/Contents/MacOS/CueSeeker"
-fi
-if otool -l "$APP_PATH/Contents/Helpers/ffmpeg" | \
-    awk '/LC_RPATH/{getline; getline; print $2}' | \
-    grep -Fx "$MEDIA_ROOT/lib" >/dev/null; then
-    install_name_tool -delete_rpath "$MEDIA_ROOT/lib" "$APP_PATH/Contents/Helpers/ffmpeg"
-fi
+for rpath in $(otool -l "$APP_PATH/Contents/MacOS/CueSeeker" | awk '/LC_RPATH/{getline; getline; print $2}'); do
+    case "$rpath" in
+        @loader_path|@executable_path/../Frameworks) ;;
+        *)
+            install_name_tool -delete_rpath "$rpath" "$APP_PATH/Contents/MacOS/CueSeeker"
+            ;;
+    esac
+done
+for rpath in $(otool -l "$APP_PATH/Contents/Helpers/ffmpeg" | awk '/LC_RPATH/{getline; getline; print $2}'); do
+    case "$rpath" in
+        @loader_path|@executable_path/../Frameworks) ;;
+        *)
+            install_name_tool -delete_rpath "$rpath" "$APP_PATH/Contents/Helpers/ffmpeg"
+            ;;
+    esac
+done
 
 find "$APP_PATH/Contents/Frameworks" -type f -name '*.dylib' -print | sort | while read -r dylib; do
     if [ "$SIGNING_IDENTITY" = "-" ]; then

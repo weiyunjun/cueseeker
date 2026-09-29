@@ -64,18 +64,19 @@ final class SearchStore: ObservableObject {
     var tableSelectionEntryIDs: [Int] = []
 
     init(
-        cueContentStore: CueContentStore = CueContentStore(),
+        cueContentStore: CueContentStore? = nil,
         databaseURL: URL? = nil,
         database: SearchDatabase? = nil,
         uiProbeScope: String? = nil
     ) {
-        self.cueContentStore = cueContentStore
+        let resolvedCueContentStore = cueContentStore ?? CueContentStore()
+        self.cueContentStore = resolvedCueContentStore
         self.databaseURL = databaseURL
         self.database = database
         self.uiProbeScope = uiProbeScope
         emptySearchFacetDistribution = try? database?.cueFacetDistribution()
         tableRowStore = TableSandboxRowModelStore()
-        cueContentChangesCancellable = cueContentStore.changes.sink {
+        cueContentChangesCancellable = resolvedCueContentStore.changes.sink {
             [weak self] change in
             self?.receiveCueContentChange(change)
         }

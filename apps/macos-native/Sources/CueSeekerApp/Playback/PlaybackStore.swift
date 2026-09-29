@@ -314,11 +314,12 @@ final class PlaybackStore: ObservableObject {
     private(set) var pointerHideRequestGeneration: UInt64 = 0
     private var subtitleFocusSessionGeneration = 0
 
+    @MainActor
     init(
         userDefaults _: UserDefaults,
-        interfaceLayers: InterfaceLayerRegistry = InterfaceLayerRegistry()
+        interfaceLayers: InterfaceLayerRegistry? = nil
     ) {
-        self.interfaceLayers = interfaceLayers
+        self.interfaceLayers = interfaceLayers ?? InterfaceLayerRegistry()
         // A submenu opens on its first item. Its trigger reports the same
         // submenu again when its frame moves, which must not reset the
         // highlight a key has since moved.

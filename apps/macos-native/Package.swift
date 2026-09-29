@@ -223,5 +223,6 @@ let package = Package(
                 .process("Fixtures")
             ]
         )
-    ]
+    ],
+    swiftLanguageModes: [.v5]
 )

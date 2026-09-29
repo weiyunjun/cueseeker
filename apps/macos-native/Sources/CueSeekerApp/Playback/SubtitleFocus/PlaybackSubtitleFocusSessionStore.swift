@@ -184,6 +184,7 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
         PlaybackOverlayModule: PlaybackCueResultObservedSnapshot
     ] = [:]
 
+    @MainActor
     init(
         openSnapshot: PlaybackSubtitleFocusOpenSnapshot,
         sessionGeneration: Int,
@@ -193,9 +194,9 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
         searchStore: SearchStore? = nil,
         libraryStore: PlaybackLibrarySessionStore? = nil,
         excerptStore: ExcerptStore? = nil,
-        interfaceLayers: InterfaceLayerRegistry = InterfaceLayerRegistry()
+        interfaceLayers: InterfaceLayerRegistry? = nil
     ) {
-        self.interfaceLayers = interfaceLayers
+        self.interfaceLayers = interfaceLayers ?? InterfaceLayerRegistry()
         self.openSnapshot = openSnapshot
         let requestedModules = Set(availableModules)
         var normalizedModules = PlaybackOverlayModule.allCases.filter {
