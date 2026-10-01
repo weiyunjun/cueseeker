@@ -691,6 +691,13 @@ final class PlaybackStore: ObservableObject {
         }
     }
 
+    /// Takes all error lines away immediately.
+    func clearAllErrors() {
+        for line in PlaybackErrorLine.allCases {
+            clearError(on: line)
+        }
+    }
+
     func requestPointerHide() {
         pointerHideRequestGeneration &+= 1
         pointerHideRequests.send()

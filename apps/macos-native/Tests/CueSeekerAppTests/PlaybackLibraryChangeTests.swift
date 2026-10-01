@@ -322,7 +322,7 @@ func anOpenOverlayKeepsItsPlaylistAndRefusesWhatLeftTheLibrary() async throws {
                 return
             }
             #expect(app.executePlaybackSubtitleFocusAction(execution))
-            #expect(app.playback.playbackViewModel?.feedback?.text == "Not in Library")
+            #expect(app.playback.playbackViewModel?.feedback?.text == "Cue Not in Library")
             #expect(app.playback.excerptDestinationMenu == nil)
         }
 
@@ -511,7 +511,7 @@ func commandPanelSearchResultsKeepTheirRowsAndRefuseWhatLeftTheLibrary() async t
         #expect(app.playback.commandPanelSearchWindow?.snapshot.totalCount == 2)
 
         #expect(app.requestPlaybackCommandPanelSearchAction(.copyCueMarkdownLink, ordinal: 1))
-        #expect(app.playback.playbackViewModel?.feedback?.text == "Not in Library")
+        #expect(app.playback.playbackViewModel?.feedback?.text == "Cue Not in Library")
         #expect(app.requestPlaybackCommandPanelSearchAction(.playFromThisCue, ordinal: 1))
         #expect(app.playback.commandPanelPresentation?.page == .searchResults)
         #expect(app.search.selectedSearchResult?.entryID == results[0].entryID)
@@ -557,7 +557,7 @@ func aRecentExcerptListWithNothingLeftInTheLibrarySaysSoAndStaysOpen() async thr
         #expect(app.playback.commandPanelPresentation?.page == .recentExcerpts)
         #expect(
             app.playback.playbackViewModel?.feedback?.text
-                == "No Available Excerpts"
+                == "No Available Results"
         )
     }
 }

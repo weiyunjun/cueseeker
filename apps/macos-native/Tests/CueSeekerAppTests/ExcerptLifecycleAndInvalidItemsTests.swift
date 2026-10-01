@@ -65,9 +65,15 @@ struct ExcerptLifecycleAndInvalidItemsTests {
 
             #expect(app.currentPlaybackItemLeftLibrary == true)
             #expect(app.playback.playbackStatus == .loadFailed)
-            #expect(app.playback.errorMessages[.notInLibrary] != nil)
+            #expect(app.playback.errorMessages[.notInLibrary] == "This item is no longer in the library")
             #expect(app.playback.isPlaybackSurfaceExpanded == true)
             #expect(app.playback.playlistPosition == nil)
+            #expect(app.playback.playbackViewModel?.feedback?.text == "No Available Results")
+            #expect(app.playback.playbackViewModel?.feedback?.icon == .warning)
+
+            // Exiting playback dismisses error banner
+            app.stopPlayback()
+            #expect(app.playback.errorMessages[.notInLibrary] == nil)
         }
     }
 
@@ -164,7 +170,7 @@ struct ExcerptLifecycleAndInvalidItemsTests {
             #expect(app.playback.playlistSource != nil)
             #expect(app.playback.playlistSource?.boundary.totalCount == 1)
             #expect(app.playback.playlistSource?.item(at: 0)?.identity == .excerpt(saved2.id))
-            #expect(app.canGoNext == true)
+            #expect(app.playback.errorMessages[.notInLibrary] == "This item is no longer in the library")
 
             // Navigate to next available excerpt (Episode2)
             app.goNext()
@@ -173,6 +179,7 @@ struct ExcerptLifecycleAndInvalidItemsTests {
             #expect(app.excerpt.selectedExcerpt?.id == saved2.id)
             #expect(app.canGoPrevious == false)
             #expect(app.canGoNext == false)
+            #expect(app.playback.errorMessages[.notInLibrary] == nil)
         }
     }
 }

@@ -975,6 +975,7 @@ extension AppCoordinator {
             saveCurrentLibraryPlaybackHistory()
         }
         currentPlaybackItemLeftLibrary = false
+        playback.clearError(on: .notInLibrary)
         library.selectedLibraryVideo = video
         search.selectResult(nil)
         excerpt.selectedExcerpt = nil
@@ -1031,6 +1032,7 @@ extension AppCoordinator {
         playbackSubtitle = defaultPlaybackSubtitle(forVideoPath: video.videoPath)
         playback.playbackStatus = .opening
         playback.clearError(on: .video)
+        playback.clearError(on: .notInLibrary)
         let startMilliseconds = libraryResumePositionMilliseconds(for: video)
         playback.playbackViewModel?.preparePresentationTransition(
             to: Double(startMilliseconds) / 1_000,

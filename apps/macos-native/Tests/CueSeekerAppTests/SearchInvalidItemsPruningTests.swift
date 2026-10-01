@@ -126,6 +126,87 @@ struct SearchInvalidItemsPruningTests {
             #expect(app.search.searchResultTotalCount == 2)
         }
     }
+
+    @Test
+    func invalidSearchResultShowsErrorBannerAndNavigatesToSurvivingResultClearingError() async throws {
+        try await withPruningTestApp { app, database in
+            app.ensurePlayerInitialized()
+            for name in ["A", "B", "C"] {
+                try indexPruningVideo(name, in: database)
+            }
+            let results = try SearchDatabase(path: database.path)
+                .search("placeholder")
+                .sorted { $0.videoPath < $1.videoPath }
+
+            app.search.replaceResultState(
+                results: results,
+                status: .completed,
+                totalCount: 3,
+                fileSummaries: [],
+                countState: .exact,
+                knownResultCount: 3,
+                knownFileCount: 3,
+                hasMore: false
+            )
+
+            // Remove B's cue
+            try emptyPruningSubtitle("B", in: database)
+
+            // Open invalid result B
+            app.openSearchResult(results[1])
+
+            #expect(app.currentPlaybackItemLeftLibrary == true)
+            #expect(app.playback.playbackStatus == .loadFailed)
+            #expect(app.playback.errorMessages[.notInLibrary] == "This item is no longer in the library")
+            #expect(app.playback.isPlaybackSurfaceExpanded == true)
+            #expect(app.playback.playlistPosition == nil)
+            #expect(app.playback.playlistSource?.boundary.totalCount == 2)
+
+            // Navigate to surviving item
+            app.goNext()
+
+            #expect(app.currentPlaybackItemLeftLibrary == false)
+            #expect(app.search.selectedSearchResult?.entryID != results[1].entryID)
+            #expect(app.playback.errorMessages[.notInLibrary] == nil)
+        }
+    }
+
+    @Test
+    func openingInvalidSearchResultWithEmptyPlaylistShowsErrorBannerAndNoAvailableResultsFeedback() async throws {
+        try await withPruningTestApp { app, database in
+            app.ensurePlayerInitialized()
+            try indexPruningVideo("A", in: database)
+            let results = try SearchDatabase(path: database.path).search("placeholder")
+
+            app.search.replaceResultState(
+                results: results,
+                status: .completed,
+                totalCount: 1,
+                fileSummaries: [],
+                countState: .exact,
+                knownResultCount: 1,
+                knownFileCount: 1,
+                hasMore: false
+            )
+
+            // Remove A's cue
+            try emptyPruningSubtitle("A", in: database)
+
+            // Open invalid result A
+            app.openSearchResult(results[0])
+
+            #expect(app.currentPlaybackItemLeftLibrary == true)
+            #expect(app.playback.playbackStatus == .loadFailed)
+            #expect(app.playback.errorMessages[.notInLibrary] == "This item is no longer in the library")
+            #expect(app.playback.playlistSource?.boundary.totalCount == 0)
+            #expect(app.playback.playbackViewModel?.feedback?.text == "No Available Results")
+            #expect(app.playback.playbackViewModel?.feedback?.icon == .warning)
+
+            // Stop playback dismisses error banner
+            app.stopPlayback()
+            #expect(app.playback.errorMessages[.notInLibrary] == nil)
+        }
+    }
 }
 
 // MARK: - Test Fixture

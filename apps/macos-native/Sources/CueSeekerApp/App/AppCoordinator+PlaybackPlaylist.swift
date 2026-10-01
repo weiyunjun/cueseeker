@@ -162,7 +162,7 @@ extension AppCoordinator {
             resultListGeneration: resultListGeneration
         )
         let liveCueIDs: Set<Int64>
-        if search.hasMutatedSinceSearchSnapshot {
+        if search.hasMutatedSinceSearchSnapshot || !isCueInLibrary(result.entryID) {
             liveCueIDs = cueIDsInLibrary(among: search.searchResults.map(\.entryID))
         } else {
             liveCueIDs = Set(search.searchResults.map(\.entryID))

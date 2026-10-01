@@ -354,7 +354,14 @@ extension AppCoordinator {
             try? player?.stop()
             playback.playbackViewModel?.resetPresentationForStoppedPlayback()
             showPlaybackItemNotInLibrary()
+            if (playback.playlistSource?.boundary.totalCount ?? 0) == 0 {
+                playback.playbackViewModel?.showNoAvailableNavigationFeedback(
+                    direction: nil,
+                    text: L("playback.hud.no_available_results")
+                )
+            }
         } else {
+            playback.clearError(on: .notInLibrary)
             Task { @MainActor in
                 await Task.yield()
                 _ = play(result)
@@ -405,6 +412,7 @@ extension AppCoordinator {
         playbackSubtitle = nil
         playback.playbackStatus = .opening
         playback.clearError(on: .video)
+        playback.clearError(on: .notInLibrary)
         playback.playbackViewModel?.preparePresentationTransition(
             to: Double(result.startMilliseconds) / 1_000,
             subtitleCues: []
@@ -1325,9 +1333,7 @@ extension AppCoordinator {
             case .search, .library, .libraryFolder, .file, .fileFolder, .fileFiles:
                 break
             }
-            for line in PlaybackErrorLine.allCases {
-                playback.clearError(on: line)
-            }
+            playback.clearAllErrors()
         } catch {
             showPlaybackError(error)
         }
