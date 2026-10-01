@@ -39,6 +39,7 @@ final class SQLiteDatabase: @unchecked Sendable {
     private var handle: OpaquePointer?
 
     init(path: URL, access: DatabaseConnectionAccess = .readWrite) throws {
+        let start = DispatchTime.now().uptimeNanoseconds
         var database: OpaquePointer?
         let flags = switch access {
         case .readOnly:
@@ -61,10 +62,21 @@ final class SQLiteDatabase: @unchecked Sendable {
             handle = nil
             throw error
         }
+        let duration = Double(DispatchTime.now().uptimeNanoseconds - start) / 1_000_000
+        if duration >= Self.slowOperationThresholdMilliseconds {
+            fputs(String(format: "[SQLITE_SLOW_OPEN] isMain=%d duration=%.2fms path=%@\n", Thread.isMainThread ? 1 : 0, duration, path.path), stderr)
+            fflush(stderr)
+        }
     }
 
     deinit {
+        let start = DispatchTime.now().uptimeNanoseconds
         sqlite3_close(handle)
+        let duration = Double(DispatchTime.now().uptimeNanoseconds - start) / 1_000_000
+        if duration >= Self.slowOperationThresholdMilliseconds {
+            fputs(String(format: "[SQLITE_SLOW_CLOSE] isMain=%d duration=%.2fms\n", Thread.isMainThread ? 1 : 0, duration), stderr)
+            fflush(stderr)
+        }
     }
 
     func execute(_ sql: String) throws {
@@ -85,7 +97,8 @@ final class SQLiteDatabase: @unchecked Sendable {
     }
 
     func prepare(_ sql: String) throws -> SQLiteStatement {
-        try withConnectionLock {
+        let start = DispatchTime.now().uptimeNanoseconds
+        let statement = try withConnectionLock {
             var statement: OpaquePointer?
             guard sqlite3_prepare_v2(handle, sql, -1, &statement, nil) == SQLITE_OK,
                   let statement
@@ -95,6 +108,12 @@ final class SQLiteDatabase: @unchecked Sendable {
 
             return SQLiteStatement(database: self, statement: statement)
         }
+        let duration = Double(DispatchTime.now().uptimeNanoseconds - start) / 1_000_000
+        if duration >= Self.slowOperationThresholdMilliseconds {
+            fputs(String(format: "[SQLITE_SLOW_PREPARE] isMain=%d duration=%.2fms sql=%@\n", Thread.isMainThread ? 1 : 0, duration, sql), stderr)
+            fflush(stderr)
+        }
+        return statement
     }
 
     func lastInsertRowID() -> Int64 {

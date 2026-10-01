@@ -816,8 +816,14 @@ final class AppCoordinator: ObservableObject {
 
 
     func clearSearchAndPlaybackState(under folder: URL) {
+        AppPerformanceProbe.breadcrumb("clearSearchAndPlaybackState.begin folder=\(folder.path)")
+        AppPerformanceProbe.breadcrumb("clearSearchAndPlaybackState.removeLibraryPresentation.begin")
         removeLibraryPresentation(under: folder)
+        AppPerformanceProbe.breadcrumb("clearSearchAndPlaybackState.removeLibraryPresentation.end")
+        AppPerformanceProbe.breadcrumb("clearSearchAndPlaybackState.removeCompleteLibraryPresentation.begin")
         removeCompleteLibraryPresentation(under: folder)
+        AppPerformanceProbe.breadcrumb("clearSearchAndPlaybackState.removeCompleteLibraryPresentation.end")
+        AppPerformanceProbe.breadcrumb("clearSearchAndPlaybackState.end")
         // What plays keeps playing, also once its video has left the library.
     }
 
