@@ -197,6 +197,25 @@ func recentExcerptPlaybackResumesAnchorAndFallsBackWithinOriginalList() throws {
 }
 
 @Test
+func readOnlyExcerptDatabaseLoadsRecentSummariesWithoutWriteAttemptWhenNoPlayableExcerpts() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: databaseURL)
+    }
+
+    try DatabaseBootstrap.prepare(at: databaseURL)
+    let rwDatabase = try ExcerptDatabase(path: databaseURL)
+    _ = try #require(try rwDatabase.excerptList(id: ExcerptListIdentity.defaultListID))
+
+    let readOnlyDB = try ExcerptDatabase(path: databaseURL, access: .readOnly)
+    let summaries = try readOnlyDB.recentExcerptListSummaries()
+    #expect(summaries.isEmpty)
+
+    let overview = try readOnlyDB.excerptListOverview()
+    #expect(!overview.lists.isEmpty)
+}
+
+@Test
 func excerptSaveMoveAndDuplicateUseListScopeAndPreserveMetadata() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {

@@ -43,9 +43,12 @@ During long-running database operations (such as Subtitle Indexing, Add Folder, 
 - **Excerpt List Loading During Library Tasks**:
   - Removed early defensive guards (`indexingStatus.isIndexing` and `folderRemovalStatus.isRemoving`) from `loadExcerptTableRowsIfNeeded()` and `reloadExcerptTableRows()` in `AppCoordinator+Excerpt.swift`, allowing Excerpt list rows to load without blocking during background indexing or folder removals.
   - Ensured `reloadExcerptListOverview()` opens `ExcerptDatabase` with explicit `access: .readOnly`, avoiding write lock contention while retrieving list overview metadata.
+  - Guarded `clearRecentExcerptPlayback` in `ExcerptDatabase.recentExcerptListSummaries()` to execute write statements only on `.readWrite` connections, ensuring read-only queries never trigger `attempt to write a readonly database` when encountering unplayable lists.
 
 ## Tests
 
+- Added `readOnlyExcerptDatabaseLoadsRecentSummariesWithoutWriteAttemptWhenNoPlayableExcerpts` in `ExcerptDatabaseTests.swift` to verify read-only queries succeed without writing when unplayable lists are encountered.
 - Added `excerptTableRowsAndOverviewLoadDuringIndexing` in `ExcerptPresentationTests.swift` to verify list overview and row projection load successfully while indexing is active.
-- Verified with unit and integration tests across `ExcerptPresentationTests`, `ExcerptLifecycleAndInvalidItemsTests`, `LibraryFolderRemovalTests`, `PlaybackLibraryChangeTests`, `RecentPlaybackSessionRegressionTests`, `TaskQueueStoreTests`, `LibraryFolderAdditionTests`, `SearchStoreTests`, and `PlaybackSegmentCompletionTests`.
+- Verified with unit and integration tests across `ExcerptDatabaseTests`, `ExcerptPresentationTests`, `ExcerptLifecycleAndInvalidItemsTests`, `LibraryFolderRemovalTests`, `PlaybackLibraryChangeTests`, `RecentPlaybackSessionRegressionTests`, `TaskQueueStoreTests`, `LibraryFolderAdditionTests`, `SearchStoreTests`, and `PlaybackSegmentCompletionTests`.
+
 

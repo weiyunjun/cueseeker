@@ -67,6 +67,7 @@ public final class ExcerptDatabase: @unchecked Sendable {
         """
 
     private let path: URL
+    public let access: DatabaseConnectionAccess
     private let database: SQLiteDatabase
 
     public init(
@@ -74,6 +75,7 @@ public final class ExcerptDatabase: @unchecked Sendable {
         access: DatabaseConnectionAccess = .readWrite
     ) throws {
         self.path = path
+        self.access = access
         database = try SQLiteDatabase(path: path, access: access)
     }
 
@@ -303,7 +305,9 @@ public final class ExcerptDatabase: @unchecked Sendable {
                 return excerpt
             }
             guard !playable.isEmpty else {
-                try clearRecentExcerptPlayback(listID: list.id)
+                if access == .readWrite {
+                    try? clearRecentExcerptPlayback(listID: list.id)
+                }
                 continue
             }
 
