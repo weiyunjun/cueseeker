@@ -1085,35 +1085,54 @@ extension AppCoordinator {
             details: "time=\(String(format: "%.2f", Double(excerpt.startMilliseconds) / 1000.0))"
         )
         preparePlaybackKeyboardFocus()
-        let keepsExistingPlaylistSnapshot = playlistScope.map { scope in
+
+        // Filter navigationScopeIDs to items that remain in the library
+        let validScopeIDs: [Int64]?
+        let resolvedPlaylistScope: PlaybackPlaylistExcerptScope?
+        if let navigationScopeIDs {
+            let validSet = excerptIDsInLibrary(among: navigationScopeIDs)
+            let filtered = navigationScopeIDs.filter { validSet.contains($0) }
+            validScopeIDs = filtered
+            if filtered.count < navigationScopeIDs.count {
+                resolvedPlaylistScope = .explicitIDs(filtered)
+            } else {
+                resolvedPlaylistScope = playlistScope
+            }
+        } else {
+            validScopeIDs = nil
+            resolvedPlaylistScope = playlistScope
+        }
+
+        let keepsExistingPlaylistSnapshot = resolvedPlaylistScope.map { scope in
             playback.playlistSource?.origin == .excerpt(scope: scope)
                 && excerptPlaybackNavigationScopeIDs != nil
         } ?? false
         if !keepsExistingPlaylistSnapshot {
-            if case .table(let context)? = playlistScope,
-               let navigationScopeIDs,
-               navigationScopeIDs.count == context.totalCount {
-                // Core table snapshots are already ordered and unique by the
-                // Excerpt primary key. Keep their copy-on-write ID buffer.
-                excerptPlaybackNavigationScopeIDs = navigationScopeIDs
-            } else {
-                excerptPlaybackNavigationScopeIDs = normalizedExcerptPlaybackNavigationScopeIDs(
-                    navigationScopeIDs
-                )
-            }
+            excerptPlaybackNavigationScopeIDs = validScopeIDs
         }
-        installExcerptPlaybackPlaylistSource(scope: playlistScope)
-        let resolvedPlaylistOrdinal = refreshExcerptPlaybackNavigationSnapshot(
-            for: excerpt,
-            preferredOrdinal: playlistSelectedOrdinal
-        )
-        if let resolvedPlaylistOrdinal, itemInLibrary {
-            _ = playback.setPlaylistPosition(
-                itemIdentity: .excerpt(excerpt.id),
-                ordinal: resolvedPlaylistOrdinal
+        installExcerptPlaybackPlaylistSource(scope: resolvedPlaylistScope)
+        let resolvedPlaylistOrdinal: Int?
+        if itemInLibrary {
+            resolvedPlaylistOrdinal = refreshExcerptPlaybackNavigationSnapshot(
+                for: excerpt,
+                preferredOrdinal: playlistSelectedOrdinal
             )
+            if let resolvedPlaylistOrdinal {
+                _ = playback.setPlaylistPosition(
+                    itemIdentity: .excerpt(excerpt.id),
+                    ordinal: resolvedPlaylistOrdinal
+                )
+            } else {
+                playback.clearPlaylistPosition()
+            }
         } else {
+            excerptPlaybackNavigationSnapshot = (
+                currentID: excerpt.id,
+                previousID: nil,
+                nextID: nil
+            )
             playback.clearPlaylistPosition()
+            resolvedPlaylistOrdinal = nil
         }
         saveCurrentLibraryPlaybackHistory()
         stopLibraryPlaybackHistoryTracking()

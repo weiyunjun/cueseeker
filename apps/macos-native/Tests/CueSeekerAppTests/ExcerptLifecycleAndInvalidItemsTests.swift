@@ -162,6 +162,8 @@ struct ExcerptLifecycleAndInvalidItemsTests {
             #expect(app.currentPlaybackItemLeftLibrary == true)
             #expect(app.playback.playbackStatus == .loadFailed)
             #expect(app.playback.playlistSource != nil)
+            #expect(app.playback.playlistSource?.boundary.totalCount == 1)
+            #expect(app.playback.playlistSource?.item(at: 0)?.identity == .excerpt(saved2.id))
             #expect(app.canGoNext == true)
 
             // Navigate to next available excerpt (Episode2)
@@ -169,6 +171,8 @@ struct ExcerptLifecycleAndInvalidItemsTests {
 
             #expect(app.currentPlaybackItemLeftLibrary == false)
             #expect(app.excerpt.selectedExcerpt?.id == saved2.id)
+            #expect(app.canGoPrevious == false)
+            #expect(app.canGoNext == false)
         }
     }
 }
