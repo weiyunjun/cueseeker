@@ -12,20 +12,23 @@ struct PlaybackErrorBanner: View {
 
     var body: some View {
         let shownLines = PlaybackErrorLine.allCases.filter { messages[$0] != nil }
-        if !shownLines.isEmpty {
-            VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing2) {
-                ForEach(shownLines, id: \.self) { shownLine in
-                    line(messages[shownLine] ?? "")
+        ZStack(alignment: .topLeading) {
+            if !shownLines.isEmpty {
+                VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing2) {
+                    ForEach(shownLines, id: \.self) { shownLine in
+                        line(messages[shownLine] ?? "")
+                    }
                 }
+                .padding(.horizontal, PlaybackChromeMetrics.errorHorizontalPadding)
+                .padding(.vertical, PlaybackChromeMetrics.errorVerticalPadding)
+                .background(
+                    RoundedRectangle(cornerRadius: PlaybackChromeMetrics.errorRadius)
+                        .fill(PlaybackTheme.errorBackground)
+                )
+                .transition(.opacity)
             }
-            .padding(.horizontal, PlaybackChromeMetrics.errorHorizontalPadding)
-            .padding(.vertical, PlaybackChromeMetrics.errorVerticalPadding)
-            .background(
-                RoundedRectangle(cornerRadius: PlaybackChromeMetrics.errorRadius)
-                    .fill(PlaybackTheme.errorBackground)
-            )
-            .transition(.opacity)
         }
+        .animation(ToastCenter.motion, value: shownLines)
     }
 
     private func line(_ message: String) -> some View {

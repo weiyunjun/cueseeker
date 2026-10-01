@@ -7,6 +7,7 @@ Human-owned documents:
 ## Why
 
 1. When clicking an invalid search result or excerpt item that is no longer in the library, playback enters a black screen state with the red error banner (`This item is no longer in the library`). Previously, the error banner presentation lifecycle had omissions:
+   - On the initial click into an invalid item, the red error banner failed to display on the black screen because mutating `errorMessages` inside `withAnimation` poisoned the initial parent view (`PlaybackPageView`) mounting transaction, causing the child `.transition(.opacity)` to freeze at initial opacity 0 until a subsequent playback switch triggered a re-render.
    - When switching from an invalid item to a valid item, the red error banner lingered for up to 5 seconds instead of immediately disappearing.
    - When entering the Playback Overlay interface (Subtitle Focus), the red error banner remained visible on top of the overlay instead of immediately disappearing.
    - When triggering playback from Command Panel (e.g. Recent Videos), asynchronous navigation preparation created a timing window where the banner lingered after closing the panel.
@@ -15,10 +16,13 @@ Human-owned documents:
 
 ## What changed
 
-- **Error Banner Immediate Dismissal**:
+- **Error Banner Initial Mount & Immediate Dismissal**:
   - `PlaybackStore`:
+    - Removed `withAnimation` from `showError` and `clearError`, keeping store mutations clean and unentangled with view-tree mounting transactions.
     - Added `clearAllErrors()` to dismiss all error banner lines immediately.
     - In `beginSubtitleFocusSession`, immediately calls `clearError(on: .notInLibrary)` so entering the Playback Overlay dismisses the error banner without waiting for the 5-second countdown.
+  - `PlaybackErrorBanner`:
+    - Wrapped the banner in a stable `ZStack(alignment: .topLeading)` with explicit `.animation(ToastCenter.motion, value: shownLines)` modifier, ensuring immediate 100% opacity presentation upon initial mount and smooth transitions during dynamic line updates.
   - `AppCoordinator+PlaybackSubtitleFocus`:
     - In `openPlaybackSubtitleFocusFromUser()`, calls `playback.clearError(on: .notInLibrary)` upon successful overlay session creation.
   - `AppCoordinator+PlaybackCommandPanel`:
@@ -37,6 +41,8 @@ Human-owned documents:
 
 ## Tests
 
+- `PlaybackStoreTests`:
+  - `playbackStoreErrorBannerLifecycleUpdatesImmediately`: Asserts `showError`, `clearError`, and `clearAllErrors` update error banner state immediately.
 - `ExcerptLifecycleAndInvalidItemsTests`:
   - `openingInvalidExcerptShowsNotInLibraryErrorAndStopsPlayer`: Asserts red error banner is shown on black screen, 1-second `No Available Results` center HUD is displayed when playlist is empty, and `stopPlayback()` immediately clears the banner.
   - `openingInvalidExcerptWithTableScopeAndNonZeroOrdinalDoesNotCrash`: Asserts entering Playback Overlay (`openPlaybackSubtitleFocusFromUser()`) immediately dismisses the `.notInLibrary` error banner.
@@ -46,4 +52,4 @@ Human-owned documents:
   - `openingInvalidSearchResultWithEmptyPlaylistShowsErrorBannerAndNoAvailableResultsFeedback`: Asserts opening an invalid search result with empty playlist displays red error banner and 1-second centered `No Available Results` feedback.
   - `commandPanelPlaybackDismissesErrorBanner`: Asserts triggering playback of a valid item from Command Panel search immediately dismisses the error banner.
 - `PlaybackLibraryChangeTests`: Updated assertions to match unified toast strings (`Cue Not in Library`, `No Available Results`).
-- All 14 tests in `PlaybackLibraryChangeTests`, all 6 tests in `SearchInvalidItemsPruningTests`, and all 4 tests in `ExcerptLifecycleAndInvalidItemsTests` pass.
+- All 4 tests in `PlaybackStoreTests`, all 14 tests in `PlaybackLibraryChangeTests`, all 6 tests in `SearchInvalidItemsPruningTests`, and all 4 tests in `ExcerptLifecycleAndInvalidItemsTests` pass.

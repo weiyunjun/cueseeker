@@ -130,6 +130,29 @@ func playbackStoreUsesTheLibrarySessionStoreAsTheMediaPlaylistSource() throws {
     store.releaseSubtitleFocusSession(librarySession)
 }
 
+@MainActor
+@Test
+func playbackStoreErrorBannerLifecycleUpdatesImmediately() {
+    withTemporaryUserDefaults { userDefaults in
+        let store = PlaybackStore(userDefaults: userDefaults)
+        #expect(store.errorMessages.isEmpty)
+
+        store.showError("Not in library", on: .notInLibrary)
+        #expect(store.errorMessages[.notInLibrary] == "Not in library")
+
+        store.showError("Video load failed", on: .video)
+        #expect(store.errorMessages[.video] == "Video load failed")
+        #expect(store.errorMessages[.notInLibrary] == "Not in library")
+
+        store.clearError(on: .notInLibrary)
+        #expect(store.errorMessages[.notInLibrary] == nil)
+        #expect(store.errorMessages[.video] == "Video load failed")
+
+        store.clearAllErrors()
+        #expect(store.errorMessages.isEmpty)
+    }
+}
+
 private func withTemporaryUserDefaults(_ body: (UserDefaults) -> Void) {
     let suiteName = "CueSeekerAppTests-\(UUID().uuidString)"
     let userDefaults = UserDefaults(suiteName: suiteName)!

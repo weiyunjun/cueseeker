@@ -666,9 +666,7 @@ final class PlaybackStore: ObservableObject {
     /// duration measured on the wall clock; nothing the user does holds it.
     func showError(_ message: String, on line: PlaybackErrorLine) {
         errorExpiryTasks[line]?.cancel()
-        withAnimation(ToastCenter.motion) {
-            errorMessages[line] = message
-        }
+        errorMessages[line] = message
         errorExpiryTasks[line] = Task { [weak self] in
             try? await Task.sleep(
                 nanoseconds: UInt64(PlaybackChromeMetrics.errorDuration * 1_000_000_000)
@@ -687,9 +685,7 @@ final class PlaybackStore: ObservableObject {
         guard errorMessages[line] != nil else {
             return
         }
-        withAnimation(ToastCenter.motion) {
-            errorMessages[line] = nil
-        }
+        errorMessages[line] = nil
     }
 
     /// Takes all error lines away immediately.
