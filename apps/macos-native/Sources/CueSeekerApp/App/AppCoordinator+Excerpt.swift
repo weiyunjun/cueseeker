@@ -261,21 +261,26 @@ extension AppCoordinator {
                     )
                 }
                 let coverPath = publishedCoverPath ?? oldCoverPath
-                let savedList: ExcerptList
-                switch mode {
-                case .newList:
-                    savedList = try database.createExcerptList(
-                        name: name,
-                        description: description,
-                        coverPath: coverPath
-                    )
-                case .edit(let list):
-                    savedList = try database.updateExcerptList(
-                        id: list.id,
-                        name: name,
-                        description: description,
-                        coverPath: coverPath
-                    )
+                let databaseURL = self.databaseURL
+                let savedList: ExcerptList = try await Self.runCancellableDetached(
+                    priority: .userInitiated
+                ) {
+                    let db = try ExcerptDatabase(path: databaseURL)
+                    switch mode {
+                    case .newList:
+                        return try db.createExcerptList(
+                            name: name,
+                            description: description,
+                            coverPath: coverPath
+                        )
+                    case .edit(let list):
+                        return try db.updateExcerptList(
+                            id: list.id,
+                            name: name,
+                            description: description,
+                            coverPath: coverPath
+                        )
+                    }
                 }
 
                 if publishedCoverPath != nil, oldCoverPath != nil {
@@ -336,46 +341,56 @@ extension AppCoordinator {
 
     @discardableResult
     func deleteExcerptList(id: Int64) -> Bool {
-        guard let database = excerptDatabase else {
+        guard excerptDatabase != nil else {
             return false
         }
-        do {
-            let deleted = try database.deleteExcerptList(id: id)
-            if workbenchLayout.selectedExcerptListID == id {
-                // The page being looked at is gone: going back to the overview
-                // is a step of its own, like any other page change.
-                navigateWorkbench(to: .excerpt)
+        if workbenchLayout.selectedExcerptListID == id {
+            // The page being looked at is gone: going back to the overview
+            // is a step of its own, like any other page change.
+            navigateWorkbench(to: .excerpt)
+        }
+        if excerpt.activeListID == id {
+            let nextListID = excerpt.listOverview.lists.first(where: { $0.id != id })?.id
+            if let nextListID {
+                excerpt.updateTableFacetFilter(
+                    settings.excerptFacetFilter(forListID: nextListID)
+                )
             }
-            if excerpt.activeListID == id {
-                let nextListID = try database.firstExcerptListID()
-                if let nextListID {
-                    excerpt.updateTableFacetFilter(
-                        settings.excerptFacetFilter(forListID: nextListID)
-                    )
+            excerpt.setActiveListID(nextListID)
+        }
+        let currentUniqueCount = excerpt.listOverview.uniqueCueCount
+        let removedCueCount = excerpt.listOverview.lists.first(where: { $0.id == id })?.cueCount ?? 0
+        let estimatedUniqueCount = max(0, currentUniqueCount - removedCueCount)
+        excerpt.removeListSummary(id: id, uniqueCueCount: estimatedUniqueCount)
+
+        let databaseURL = databaseURL
+        excerptListSaveTask?.cancel()
+        excerptListSaveTask = Task { @MainActor [weak self] in
+            defer { self?.excerptListSaveTask = nil }
+            do {
+                let (deleted, uniqueCueCount) = try await Self.runCancellableDetached(
+                    priority: .userInitiated
+                ) {
+                    let db = try ExcerptDatabase(path: databaseURL)
+                    let list = try db.deleteExcerptList(id: id)
+                    let count = try db.uniqueExcerptCueCount()
+                    return (list, count)
                 }
-                excerpt.setActiveListID(nextListID)
-            }
-            let didUpdateOverview = (try? database.uniqueExcerptCueCount())
-                .map {
-                    excerpt.removeListSummary(id: id, uniqueCueCount: $0)
-                } ?? false
-            if !didUpdateOverview {
-                reloadExcerptListOverview()
-            }
-            if let coverPath = deleted.coverPath {
-                Task {
+                guard let self else { return }
+                self.excerpt.removeListSummary(id: id, uniqueCueCount: uniqueCueCount)
+                if let coverPath = deleted.coverPath {
                     do {
-                        try await excerptListCoverStorage.remove(path: coverPath)
+                        try await self.excerptListCoverStorage.remove(path: coverPath)
                     } catch {
                         print("Failed to remove deleted Excerpt list cover: \(error)")
                     }
                 }
+            } catch {
+                print("Failed to delete Excerpt list in background: \(error)")
+                self?.reloadExcerptListOverview()
             }
-            return true
-        } catch {
-            print("Failed to delete Excerpt list: \(error)")
-            return false
         }
+        return true
     }
 
     func loadExcerptTableRowsIfNeeded() {
@@ -784,15 +799,8 @@ extension AppCoordinator {
                 )
                 return false
             }
-            _ = try database.upsertExcerpt(
-                cueID: cueID,
-                listID: destinationListID
-            )
             excerpt.markTableRowsStale()
-            if !excerpt.adjustListCueCounts(
-                [destinationListID: 1],
-                uniqueCueCount: try? database.uniqueExcerptCueCount()
-            ) {
+            if !excerpt.adjustListCueCounts([destinationListID: 1]) {
                 reloadExcerptListOverview()
             }
             excerpt.setRecentSaveListID(destinationListID)
@@ -800,6 +808,29 @@ extension AppCoordinator {
                 ExcerptToastRequest.saveSucceeded(listName: destination.name),
                 report
             )
+
+            let databaseURL = databaseURL
+            excerptMutationTask?.cancel()
+            excerptMutationTask = Task { @MainActor [weak self] in
+                defer { self?.excerptMutationTask = nil }
+                do {
+                    let uniqueCueCount = try await Self.runCancellableDetached(priority: .userInitiated) {
+                        let db = try ExcerptDatabase(path: databaseURL)
+                        _ = try db.upsertExcerpt(cueID: cueID, listID: destinationListID)
+                        return try db.uniqueExcerptCueCount()
+                    }
+                    guard let self else { return }
+                    _ = self.excerpt.adjustListCueCounts([destinationListID: 0], uniqueCueCount: uniqueCueCount)
+                } catch {
+                    print("Failed to save Excerpt in background: \(error)")
+                    guard let self else { return }
+                    self.reportExcerptSave(
+                        ExcerptToastRequest.saveFailed(listName: destination.name),
+                        report
+                    )
+                    self.reloadExcerptListOverview()
+                }
+            }
             return true
         } catch {
             print("Failed to save Excerpt: \(error)")
@@ -839,43 +870,59 @@ extension AppCoordinator {
             return false
         }
 
-        do {
-            _ = try database.moveExcerpt(
-                id: item.id,
-                toListID: destinationListID
-            )
-            let sourceListID = excerpt.activeListID
-            handleExcerptRemovedFromCurrentList(item)
-            let didUpdateOverview = sourceListID.map {
-                excerpt.adjustListCueCounts([
-                    $0: -1,
-                    destinationListID: 1,
-                ])
-            } ?? false
-            if !didUpdateOverview {
-                reloadExcerptListOverview()
-            }
-            toast.show(
-                ExcerptToastRequest.moveSucceeded(listName: destination.name)
-            )
-            return true
-        } catch ExcerptTransferError.destinationUnavailable {
-            toast.show(
-                ExcerptToastRequest.destinationUnavailable(
-                    listName: destination.name
-                )
-            )
-        } catch ExcerptTransferError.destinationAlreadyContainsCue {
+        if let relation = try? database.excerptRelation(id: item.id),
+           let exists = try? database.excerptRelationExists(cueID: relation.cueID, listID: destinationListID),
+           exists {
             toast.show(
                 ExcerptToastRequest.destinationAlreadyContainsCue(
                     listName: destination.name
                 )
             )
-        } catch {
-            print("Failed to move Excerpt: \(error)")
-            toast.show(ExcerptToastRequest.moveFailed)
+            return false
         }
-        return false
+
+        let sourceListID = excerpt.activeListID
+        handleExcerptRemovedFromCurrentList(item)
+        let didUpdateOverview = sourceListID.map {
+            excerpt.adjustListCueCounts([
+                $0: -1,
+                destinationListID: 1,
+            ])
+        } ?? false
+        if !didUpdateOverview {
+            reloadExcerptListOverview()
+        }
+        toast.show(
+            ExcerptToastRequest.moveSucceeded(listName: destination.name)
+        )
+
+        let databaseURL = databaseURL
+        let itemID = item.id
+        let destinationName = destination.name
+        excerptMutationTask?.cancel()
+        excerptMutationTask = Task { @MainActor [weak self] in
+            defer { self?.excerptMutationTask = nil }
+            do {
+                _ = try await Self.runCancellableDetached(priority: .userInitiated) {
+                    let db = try ExcerptDatabase(path: databaseURL)
+                    return try db.moveExcerpt(id: itemID, toListID: destinationListID)
+                }
+            } catch ExcerptTransferError.destinationUnavailable {
+                self?.toast.show(ExcerptToastRequest.destinationUnavailable(listName: destinationName))
+                self?.reloadExcerptListOverview()
+                self?.reloadExcerptTableRows()
+            } catch ExcerptTransferError.destinationAlreadyContainsCue {
+                self?.toast.show(ExcerptToastRequest.destinationAlreadyContainsCue(listName: destinationName))
+                self?.reloadExcerptListOverview()
+                self?.reloadExcerptTableRows()
+            } catch {
+                print("Failed to move Excerpt in background: \(error)")
+                self?.toast.show(ExcerptToastRequest.moveFailed)
+                self?.reloadExcerptListOverview()
+                self?.reloadExcerptTableRows()
+            }
+        }
+        return true
     }
 
     @discardableResult
@@ -907,68 +954,91 @@ extension AppCoordinator {
             return false
         }
 
-        do {
-            _ = try database.duplicateExcerpt(
-                id: item.id,
-                toListID: destinationListID
-            )
-            if !excerpt.adjustListCueCounts([destinationListID: 1]) {
-                reloadExcerptListOverview()
-            }
-            toast.show(
-                ExcerptToastRequest.duplicateSucceeded(listName: destination.name)
-            )
-            return true
-        } catch ExcerptTransferError.destinationUnavailable {
-            toast.show(
-                ExcerptToastRequest.destinationUnavailable(
-                    listName: destination.name
-                )
-            )
-        } catch ExcerptTransferError.destinationAlreadyContainsCue {
+        if let relation = try? database.excerptRelation(id: item.id),
+           let exists = try? database.excerptRelationExists(cueID: relation.cueID, listID: destinationListID),
+           exists {
             toast.show(
                 ExcerptToastRequest.destinationAlreadyContainsCue(
                     listName: destination.name
                 )
             )
-        } catch {
-            print("Failed to duplicate Excerpt: \(error)")
-            toast.show(ExcerptToastRequest.duplicateFailed)
+            return false
         }
-        return false
+
+        if !excerpt.adjustListCueCounts([destinationListID: 1]) {
+            reloadExcerptListOverview()
+        }
+        toast.show(
+            ExcerptToastRequest.duplicateSucceeded(listName: destination.name)
+        )
+
+        let databaseURL = databaseURL
+        let itemID = item.id
+        let destinationName = destination.name
+        excerptMutationTask?.cancel()
+        excerptMutationTask = Task { @MainActor [weak self] in
+            defer { self?.excerptMutationTask = nil }
+            do {
+                _ = try await Self.runCancellableDetached(priority: .userInitiated) {
+                    let db = try ExcerptDatabase(path: databaseURL)
+                    return try db.duplicateExcerpt(id: itemID, toListID: destinationListID)
+                }
+            } catch ExcerptTransferError.destinationUnavailable {
+                self?.toast.show(ExcerptToastRequest.destinationUnavailable(listName: destinationName))
+                self?.reloadExcerptListOverview()
+            } catch ExcerptTransferError.destinationAlreadyContainsCue {
+                self?.toast.show(ExcerptToastRequest.destinationAlreadyContainsCue(listName: destinationName))
+                self?.reloadExcerptListOverview()
+            } catch {
+                print("Failed to duplicate Excerpt in background: \(error)")
+                self?.toast.show(ExcerptToastRequest.duplicateFailed)
+                self?.reloadExcerptListOverview()
+            }
+        }
+        return true
     }
 
     @discardableResult
     func removeExcerpt(_ item: Excerpt, reloadPresentation: Bool = true) -> Bool {
-        guard let database = excerptDatabase else {
+        guard excerptDatabase != nil else {
             playback.playbackViewModel?.showExcerptFeedback(.unavailable)
             return false
         }
 
-        do {
-            try database.removeExcerpt(id: item.id)
-            _ = reloadPresentation
-            let sourceListID = excerpt.activeListID
-            handleExcerptRemovedFromCurrentList(item)
-            let uniqueCueCount = try? database.uniqueExcerptCueCount()
-            let didUpdateOverview = sourceListID.flatMap { sourceListID in
-                uniqueCueCount.map {
-                    excerpt.adjustListCueCounts(
-                        [sourceListID: -1],
-                        uniqueCueCount: $0
-                    )
-                }
-            } ?? false
-            if !didUpdateOverview {
-                reloadExcerptListOverview()
-            }
-            playback.playbackViewModel?.showExcerptFeedback(.removed)
-            return true
-        } catch {
-            print("Failed to remove Excerpt: \(error)")
-            playback.playbackViewModel?.showExcerptFeedback(.unavailable)
-            return false
+        _ = reloadPresentation
+        let sourceListID = excerpt.activeListID
+        handleExcerptRemovedFromCurrentList(item)
+        if let sourceListID {
+            _ = excerpt.adjustListCueCounts([sourceListID: -1])
+        } else {
+            reloadExcerptListOverview()
         }
+        playback.playbackViewModel?.showExcerptFeedback(.removed)
+
+        let databaseURL = databaseURL
+        let itemID = item.id
+        excerptMutationTask?.cancel()
+        excerptMutationTask = Task { @MainActor [weak self] in
+            defer { self?.excerptMutationTask = nil }
+            do {
+                let uniqueCueCount = try await Self.runCancellableDetached(priority: .userInitiated) {
+                    let database = try ExcerptDatabase(path: databaseURL)
+                    _ = try database.removeExcerpt(id: itemID)
+                    return try database.uniqueExcerptCueCount()
+                }
+                guard let self else { return }
+                if let sourceListID {
+                    _ = self.excerpt.adjustListCueCounts([sourceListID: 0], uniqueCueCount: uniqueCueCount)
+                }
+            } catch {
+                print("Failed to remove Excerpt in background: \(error)")
+                guard let self else { return }
+                self.playback.playbackViewModel?.showExcerptFeedback(.unavailable)
+                self.reloadExcerptListOverview()
+                self.reloadExcerptTableRows()
+            }
+        }
+        return true
     }
 
     private func handleExcerptRemovedFromCurrentList(_ item: Excerpt) {
@@ -1117,17 +1187,39 @@ extension AppCoordinator {
     }
 
     func recordRecentExcerptPlayback(for item: Excerpt) {
-        guard let excerptDatabase else {
+        guard let database = excerptDatabase else {
             return
         }
-        do {
-            try excerptDatabase.recordRecentExcerptPlayback(excerptID: item.id)
-            excerptListOverviewTask?.cancel()
-            excerpt.installRecentListSummaries(
-                try excerptDatabase.recentExcerptListSummaries()
+        if let relation = try? database.excerptRelation(id: item.id),
+           let list = try? database.excerptList(id: relation.listID) {
+            let existingSummary = excerpt.recentListSummaries.first(where: { $0.id == list.id })
+                ?? excerpt.listOverview.lists.first(where: { $0.id == list.id })
+            let cueCount = existingSummary?.cueCount ?? 1
+            let newSummary = ExcerptListSummary(
+                list: list,
+                cueCount: cueCount,
+                resumeExcerpt: item,
+                resumePosition: item.startMilliseconds
             )
-        } catch {
-            print("Failed to record recent Excerpt playback: \(error)")
+            var updated = excerpt.recentListSummaries.filter { $0.id != list.id }
+            updated.insert(newSummary, at: 0)
+            excerpt.installRecentListSummaries(updated)
+        }
+        let databaseURL = databaseURL
+        let itemID = item.id
+        Task { @MainActor [weak self] in
+            do {
+                let summaries = try await Self.runCancellableDetached(priority: .utility) {
+                    let database = try ExcerptDatabase(path: databaseURL)
+                    try database.recordRecentExcerptPlayback(excerptID: itemID)
+                    return try database.recentExcerptListSummaries()
+                }
+                guard let self else { return }
+                self.excerptListOverviewTask?.cancel()
+                self.excerpt.installRecentListSummaries(summaries)
+            } catch {
+                print("Failed to record recent Excerpt playback: \(error)")
+            }
         }
     }
 

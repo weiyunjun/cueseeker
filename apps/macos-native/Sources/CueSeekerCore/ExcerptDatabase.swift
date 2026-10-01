@@ -814,7 +814,7 @@ public final class ExcerptDatabase: @unchecked Sendable {
         }
     }
 
-    private func excerptRelationExists(cueID: Int64, listID: Int64) throws -> Bool {
+    public func excerptRelationExists(cueID: Int64, listID: Int64) throws -> Bool {
         let statement = try database.prepare(
             """
             SELECT 1

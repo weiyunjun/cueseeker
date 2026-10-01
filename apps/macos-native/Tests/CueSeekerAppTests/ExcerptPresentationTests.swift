@@ -6,7 +6,7 @@ import Testing
 
 @MainActor
 @Test
-func removeExcerptDoesNotHydrateLegacyPresentationWhenTableOnly() throws {
+func removeExcerptDoesNotHydrateLegacyPresentationWhenTableOnly() async throws {
     let suiteName = "CueSeekerExcerptPresentationTests-\(UUID().uuidString)"
     let userDefaults = try #require(UserDefaults(suiteName: suiteName))
     let fixtureRoot = FileManager.default.temporaryDirectory
@@ -42,6 +42,7 @@ func removeExcerptDoesNotHydrateLegacyPresentationWhenTableOnly() throws {
     #expect(app.excerpt.residentRelations.isEmpty)
 
     #expect(app.removeExcerpt(first, reloadPresentation: true))
+    try await waitForExcerptTasksToFinish(app)
 
     #expect(try excerptDatabase.excerptCount() == 1)
     #expect(app.excerpt.residentRelations.isEmpty)
@@ -251,6 +252,7 @@ func excerptTransfersRefreshPresentationAndPublishRegisteredToasts() async throw
         toListID: destination.id,
         listName: destination.name
     ))
+    try await waitForExcerptTasksToFinish(app)
     #expect(try excerptDatabase.excerptRelation(id: movedSource.id) == nil)
     #expect(app.toast.visibleItems.last?.request == ExcerptToastRequest.moveSucceeded(
         listName: destination.name
@@ -269,6 +271,7 @@ func excerptTransfersRefreshPresentationAndPublishRegisteredToasts() async throw
         toListID: destination.id,
         listName: destination.name
     ))
+    try await waitForExcerptTasksToFinish(app)
     #expect(try excerptDatabase.excerptRelation(id: duplicatedSource.id) != nil)
     #expect(app.toast.visibleItems.last?.request == ExcerptToastRequest.duplicateSucceeded(
         listName: destination.name
@@ -283,6 +286,7 @@ func excerptTransfersRefreshPresentationAndPublishRegisteredToasts() async throw
         toListID: destination.id,
         listName: destination.name
     ))
+    try await waitForExcerptTasksToFinish(app)
     #expect(
         app.toast.visibleItems.last?.request
             == ExcerptToastRequest.destinationAlreadyContainsCue(
@@ -341,7 +345,7 @@ private func makeExcerpt(
 @MainActor
 private func waitForExcerptTasksToFinish(_ app: AppCoordinator) async throws {
     for _ in 0..<200 {
-        if app.excerptListOverviewTask == nil, app.excerptTableRowsTask == nil {
+        if app.excerptListOverviewTask == nil, app.excerptTableRowsTask == nil, app.excerptMutationTask == nil {
             return
         }
         try await Task.sleep(nanoseconds: 10_000_000)

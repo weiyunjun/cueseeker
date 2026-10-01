@@ -401,6 +401,7 @@ final class AppCoordinator: ObservableObject {
     var excerptListSaveTask: Task<Void, Never>?
     var excerptListOverviewTask: Task<Void, Never>?
     var excerptTableRowsTask: Task<Void, Never>?
+    var excerptMutationTask: Task<Void, Never>?
     var libraryPlaybackHistoryTask: Task<Void, Never>?
     var playbackSubtitleFocusInitialLoadTask: Task<Void, Never>?
     var playbackSubtitleFocusCompleteLoadTask: Task<Void, Never>?
