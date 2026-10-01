@@ -110,7 +110,61 @@ struct ExcerptLifecycleAndInvalidItemsTests {
             #expect(app.playback.errorMessages[.notInLibrary] == "This item is no longer in the library")
             #expect(app.playback.isPlaybackSurfaceExpanded == true)
             #expect(app.playback.playlistPosition == nil)
-            #expect(app.excerptPlaybackNavigationSnapshot == nil)
+            #expect(app.playback.playlistSource != nil)
+        }
+    }
+
+    @Test
+    func invalidExcerptKeepsPlaylistSourceAndAllowsNavigatingToSurvivingExcerpt() async throws {
+        try await withExcerptTestApp { app, database in
+            app.ensurePlayerInitialized()
+            try indexExcerptVideo("Episode1", in: database)
+            try indexExcerptVideo("Episode2", in: database)
+            let excerptDB = try #require(app.excerptDatabase)
+            let list = try excerptDB.createExcerptList(name: "Favorites", description: "")
+            let cue1 = try #require(try SearchDatabase(path: database.path).search("Episode1").first)
+            let cue2 = try #require(try SearchDatabase(path: database.path).search("Episode2").first)
+            let saved1 = try excerptDB.upsertExcerpt(cueID: cue1.entryID, listID: list.id)
+            let saved2 = try excerptDB.upsertExcerpt(cueID: cue2.entryID, listID: list.id)
+
+            app.excerpt.setActiveListID(list.id)
+            app.reloadExcerptTableRows()
+            await app.excerptTableRowsTask?.value
+
+            // Remove only Episode1 from library
+            try database.replaceEntries(
+                subtitleFile: URL(fileURLWithPath: "/Media/Episode1.srt"),
+                videoFile: URL(fileURLWithPath: "/Media/Episode1.mkv"),
+                entries: []
+            )
+
+            let scope = PlaybackPlaylistExcerptScope.table(
+                PlaybackPlaylistExcerptTableContext(
+                    runID: app.excerpt.tableResultSnapshotID,
+                    searchText: "",
+                    totalCount: 2
+                )
+            )
+
+            // Open invalid excerpt 1
+            app.openExcerpt(
+                saved1,
+                navigationScopeIDs: [saved1.id, saved2.id],
+                playlistScope: scope,
+                playlistSelectedOrdinal: 0,
+                displayTitle: "Episode1"
+            )
+
+            #expect(app.currentPlaybackItemLeftLibrary == true)
+            #expect(app.playback.playbackStatus == .loadFailed)
+            #expect(app.playback.playlistSource != nil)
+            #expect(app.canGoNext == true)
+
+            // Navigate to next available excerpt (Episode2)
+            app.goNext()
+
+            #expect(app.currentPlaybackItemLeftLibrary == false)
+            #expect(app.excerpt.selectedExcerpt?.id == saved2.id)
         }
     }
 }

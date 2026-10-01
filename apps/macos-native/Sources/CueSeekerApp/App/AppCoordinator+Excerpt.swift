@@ -1076,27 +1076,6 @@ extension AppCoordinator {
         search.selectResult(nil)
         library.selectedLibraryVideo = nil
 
-        if !itemInLibrary {
-            excerptPlaybackNavigationScopeIDs = nil
-            excerptPlaybackNavigationSnapshot = nil
-            playback.clearPlaylistPosition()
-            playback.playbackStatus = .loadFailed
-            try? player?.stop()
-            playback.playbackViewModel?.resetPresentationForStoppedPlayback()
-            saveCurrentLibraryPlaybackHistory()
-            stopLibraryPlaybackHistoryTracking()
-            activePlaybackSource = .excerpt
-            refreshPlaybackChromeSnapshot(
-                displayTitle: playbackDisplayTitle(
-                    for: excerpt,
-                    providedDisplayTitle: displayTitle
-                )
-            )
-            playback.isPlaybackSurfaceExpanded = true
-            showPlaybackItemNotInLibrary()
-            return
-        }
-
         clearCueAutoStopPlayback()
         invalidatePlaybackSubtitleFocusForSourceReplacement()
         playback.playbackStatus = .opening
@@ -1110,10 +1089,7 @@ extension AppCoordinator {
                 && excerptPlaybackNavigationScopeIDs != nil
         } ?? false
         if !keepsExistingPlaylistSnapshot {
-            if excerptNeedsReloadAfterIndexedContentMutation {
-                let validIDs = excerptIDsInLibrary(among: navigationScopeIDs ?? [])
-                excerptPlaybackNavigationScopeIDs = (navigationScopeIDs ?? []).filter { validIDs.contains($0) }
-            } else if case .table(let context)? = playlistScope,
+            if case .table(let context)? = playlistScope,
                let navigationScopeIDs,
                navigationScopeIDs.count == context.totalCount {
                 // Core table snapshots are already ordered and unique by the
@@ -1130,7 +1106,7 @@ extension AppCoordinator {
             for: excerpt,
             preferredOrdinal: playlistSelectedOrdinal
         )
-        if let resolvedPlaylistOrdinal {
+        if let resolvedPlaylistOrdinal, itemInLibrary {
             _ = playback.setPlaylistPosition(
                 itemIdentity: .excerpt(excerpt.id),
                 ordinal: resolvedPlaylistOrdinal
@@ -1148,9 +1124,17 @@ extension AppCoordinator {
             )
         )
         playback.isPlaybackSurfaceExpanded = true
-        Task { @MainActor in
-            await Task.yield()
-            _ = play(excerpt)
+        if !itemInLibrary {
+            playback.clearPlaylistPosition()
+            playback.playbackStatus = .loadFailed
+            try? player?.stop()
+            playback.playbackViewModel?.resetPresentationForStoppedPlayback()
+            showPlaybackItemNotInLibrary()
+        } else {
+            Task { @MainActor in
+                await Task.yield()
+                _ = play(excerpt)
+            }
         }
     }
 
