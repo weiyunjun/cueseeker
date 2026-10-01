@@ -18,7 +18,8 @@ Human-owned documents:
   - `prepareExcerptForIndexedContentMutation`: Avoids wiping resident excerpt rows or list overview during tasks. Queues folders to `pendingExcerptContentRemovalFolders` and marks `excerptNeedsReloadAfterIndexedContentMutation = true`.
   - `reloadExcerptAfterIndexedContentMutation`: Defers reload to when the user returns to the Excerpt view.
   - `refreshExcerptOnReappearanceIfNeeded`: Performs lazy reload only when Excerpt routes (`.excerpt`, `.excerptList`, `.recent`) reappear or when exiting playback via `stopPlayback`. Removes cached cue contents for removed folders and reloads list overview and table rows.
-  - `openExcerpt`: Handles invalid excerpt playback gracefully by stopping the player, clearing playlist positions, setting `playbackStatus = .loadFailed`, and displaying `showPlaybackItemNotInLibrary()` without synchronous main-thread table freezes.
+  - `openExcerpt`: Handles invalid excerpt playback gracefully by short-circuiting immediately when `itemInLibrary == false`, setting `playbackStatus = .loadFailed`, clearing playlist positions, stopping the player, and displaying `showPlaybackItemNotInLibrary()` with the red error banner.
+  - `refreshExcerptPlaybackNavigationSnapshot`: Hardened with bounds and non-empty checks against `scopeIDs` and `validatedPreferredOrdinal`, preventing `Index out of range` traps when clicking items with non-zero ordinals.
 
 - **Synchronous Pruning for Search Results on Playback Click**:
   - `SearchStore`:

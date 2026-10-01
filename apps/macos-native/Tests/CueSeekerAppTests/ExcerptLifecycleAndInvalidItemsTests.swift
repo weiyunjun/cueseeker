@@ -70,6 +70,49 @@ struct ExcerptLifecycleAndInvalidItemsTests {
             #expect(app.playback.playlistPosition == nil)
         }
     }
+
+    @Test
+    func openingInvalidExcerptWithTableScopeAndNonZeroOrdinalDoesNotCrash() async throws {
+        try await withExcerptTestApp { app, database in
+            app.ensurePlayerInitialized()
+            try indexExcerptVideo("Episode1", in: database)
+            let excerptDB = try #require(app.excerptDatabase)
+            let list = try excerptDB.createExcerptList(name: "Favorites", description: "")
+            let cue = try #require(try SearchDatabase(path: database.path).search("placeholder").first)
+            let saved = try excerptDB.upsertExcerpt(cueID: cue.entryID, listID: list.id)
+
+            // Remove video from library
+            try database.replaceEntries(
+                subtitleFile: URL(fileURLWithPath: "/Media/Episode1.srt"),
+                videoFile: URL(fileURLWithPath: "/Media/Episode1.mkv"),
+                entries: []
+            )
+
+            let scope = PlaybackPlaylistExcerptScope.table(
+                PlaybackPlaylistExcerptTableContext(
+                    runID: UUID(),
+                    searchText: "",
+                    totalCount: 1
+                )
+            )
+
+            // Pass non-zero ordinal like a table click on an item that has left library
+            app.openExcerpt(
+                saved,
+                navigationScopeIDs: [saved.id],
+                playlistScope: scope,
+                playlistSelectedOrdinal: 1,
+                displayTitle: "Episode1"
+            )
+
+            #expect(app.currentPlaybackItemLeftLibrary == true)
+            #expect(app.playback.playbackStatus == .loadFailed)
+            #expect(app.playback.errorMessages[.notInLibrary] == "This item is no longer in the library")
+            #expect(app.playback.isPlaybackSurfaceExpanded == true)
+            #expect(app.playback.playlistPosition == nil)
+            #expect(app.excerptPlaybackNavigationSnapshot == nil)
+        }
+    }
 }
 
 // MARK: - Test Fixture

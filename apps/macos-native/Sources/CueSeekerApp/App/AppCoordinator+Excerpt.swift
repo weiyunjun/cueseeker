@@ -1076,6 +1076,27 @@ extension AppCoordinator {
         search.selectResult(nil)
         library.selectedLibraryVideo = nil
 
+        if !itemInLibrary {
+            excerptPlaybackNavigationScopeIDs = nil
+            excerptPlaybackNavigationSnapshot = nil
+            playback.clearPlaylistPosition()
+            playback.playbackStatus = .loadFailed
+            try? player?.stop()
+            playback.playbackViewModel?.resetPresentationForStoppedPlayback()
+            saveCurrentLibraryPlaybackHistory()
+            stopLibraryPlaybackHistoryTracking()
+            activePlaybackSource = .excerpt
+            refreshPlaybackChromeSnapshot(
+                displayTitle: playbackDisplayTitle(
+                    for: excerpt,
+                    providedDisplayTitle: displayTitle
+                )
+            )
+            playback.isPlaybackSurfaceExpanded = true
+            showPlaybackItemNotInLibrary()
+            return
+        }
+
         clearCueAutoStopPlayback()
         invalidatePlaybackSubtitleFocusForSourceReplacement()
         playback.playbackStatus = .opening
@@ -1089,9 +1110,7 @@ extension AppCoordinator {
                 && excerptPlaybackNavigationScopeIDs != nil
         } ?? false
         if !keepsExistingPlaylistSnapshot {
-            if !itemInLibrary {
-                excerptPlaybackNavigationScopeIDs = []
-            } else if excerptNeedsReloadAfterIndexedContentMutation {
+            if excerptNeedsReloadAfterIndexedContentMutation {
                 let validIDs = excerptIDsInLibrary(among: navigationScopeIDs ?? [])
                 excerptPlaybackNavigationScopeIDs = (navigationScopeIDs ?? []).filter { validIDs.contains($0) }
             } else if case .table(let context)? = playlistScope,
@@ -1111,7 +1130,7 @@ extension AppCoordinator {
             for: excerpt,
             preferredOrdinal: playlistSelectedOrdinal
         )
-        if let resolvedPlaylistOrdinal, itemInLibrary {
+        if let resolvedPlaylistOrdinal {
             _ = playback.setPlaylistPosition(
                 itemIdentity: .excerpt(excerpt.id),
                 ordinal: resolvedPlaylistOrdinal
@@ -1129,17 +1148,9 @@ extension AppCoordinator {
             )
         )
         playback.isPlaybackSurfaceExpanded = true
-        if !itemInLibrary {
-            playback.clearPlaylistPosition()
-            playback.playbackStatus = .loadFailed
-            try? player?.stop()
-            playback.playbackViewModel?.resetPresentationForStoppedPlayback()
-            showPlaybackItemNotInLibrary()
-        } else {
-            Task { @MainActor in
-                await Task.yield()
-                _ = play(excerpt)
-            }
+        Task { @MainActor in
+            await Task.yield()
+            _ = play(excerpt)
         }
     }
 
@@ -1357,7 +1368,8 @@ extension AppCoordinator {
             let scopeIDs = excerptPlaybackNavigationScopeIDs
                 ?? excerpt.playbackTableResultExcerptIDs
             guard let scopeIDs,
-                  let index = validatedPreferredOrdinal
+                  !scopeIDs.isEmpty,
+                  let index = (validatedPreferredOrdinal.flatMap { $0 < scopeIDs.count ? $0 : nil })
                     ?? scopeIDs.firstIndex(of: selectedID)
             else {
                 excerptPlaybackNavigationSnapshot = (
@@ -1369,7 +1381,7 @@ extension AppCoordinator {
             }
             excerptPlaybackNavigationSnapshot = (
                 currentID: selectedID,
-                previousID: index > 0 ? scopeIDs[index - 1] : nil,
+                previousID: index > 0 && index - 1 < scopeIDs.count ? scopeIDs[index - 1] : nil,
                 nextID: index + 1 < scopeIDs.count
                     ? scopeIDs[index + 1]
                     : nil
@@ -1378,11 +1390,12 @@ extension AppCoordinator {
         }
 
         if let scopeIDs = excerptPlaybackNavigationScopeIDs,
-           let index = validatedPreferredOrdinal
+           !scopeIDs.isEmpty,
+           let index = (validatedPreferredOrdinal.flatMap { $0 < scopeIDs.count ? $0 : nil })
                 ?? scopeIDs.firstIndex(of: selectedID) {
             excerptPlaybackNavigationSnapshot = (
                 currentID: selectedID,
-                previousID: index > 0 ? scopeIDs[index - 1] : nil,
+                previousID: index > 0 && index - 1 < scopeIDs.count ? scopeIDs[index - 1] : nil,
                 nextID: index + 1 < scopeIDs.count ? scopeIDs[index + 1] : nil
             )
             return index
