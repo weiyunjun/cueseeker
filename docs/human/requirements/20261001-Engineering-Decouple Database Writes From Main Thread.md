@@ -18,9 +18,14 @@ main
 1. 在 Index、Add Folder、Remove Folder 等耗时资料库任务执行期间，主线程不得发生因 SQLite 忙等待（busy timeout）导致的卡顿或彩虹圈。
 2. 观看正在被移除（Remove Folder）的内容时，画面与音频正常播放，移除操作在后台完成，界面不发生卡死或画面停顿。
 
+## 3. 移除后台任务对 Excerpt 列表的强制拦截
+
+1. 移除 Excerpt 表格行加载流程中对 Index 及资料库移除任务状态的早期防御性拦截，允许在任务执行期间正常通过只读连接加载和呈现 Excerpt 列表内容，界面不得因任务进行而强制空白。
+
 # 验收
 
 1. 在 `CUESEEKER_DEBUG_TASK_DELAY_SECONDS=15` 模拟下：
    - 播放即将被移除的视频并执行 Remove Folder：播放画面保持流畅，鼠标无彩虹圆圈。
+   - 在 Index 执行期间打开或停留在 Excerpt 列表：正常加载与展示已有条目，内容不空白。
    - 在 Index 执行期间删除或修改 Excerpt 条目：界面立即更新，无卡顿与彩虹圆圈。
 2. 单元测试与集成测试全部通过。
