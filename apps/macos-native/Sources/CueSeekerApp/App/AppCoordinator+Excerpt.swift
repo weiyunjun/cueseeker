@@ -1070,6 +1070,7 @@ extension AppCoordinator {
         guard excerpt.isValid else {
             return
         }
+        ensurePlayerInitialized()
         let itemInLibrary = excerptIDsInLibrary(among: [excerpt.id]).contains(excerpt.id)
         currentPlaybackItemLeftLibrary = !itemInLibrary
         self.excerpt.selectedExcerpt = excerpt

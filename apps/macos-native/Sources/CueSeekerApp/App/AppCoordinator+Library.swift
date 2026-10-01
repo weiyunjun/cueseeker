@@ -962,6 +962,7 @@ extension AppCoordinator {
         displayTitle: String? = nil,
         savesCurrentPlaybackHistory: Bool = true
     ) {
+        ensurePlayerInitialized()
         invalidatePlaybackSubtitleFocusForSourceReplacement()
         playback.clearPlaylistSource()
         playback.playbackStatus = .opening

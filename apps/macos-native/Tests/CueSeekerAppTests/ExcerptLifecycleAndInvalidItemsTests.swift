@@ -109,8 +109,12 @@ struct ExcerptLifecycleAndInvalidItemsTests {
             #expect(app.playback.playbackStatus == .loadFailed)
             #expect(app.playback.errorMessages[.notInLibrary] == "This item is no longer in the library")
             #expect(app.playback.isPlaybackSurfaceExpanded == true)
+            #expect(app.player != nil)
+            #expect(app.playback.playbackViewModel != nil)
             #expect(app.playback.playlistPosition == nil)
             #expect(app.playback.playlistSource != nil)
+            #expect(app.openPlaybackSubtitleFocusFromUser() == true)
+            #expect(app.playback.subtitleFocusSession != nil)
         }
     }
 

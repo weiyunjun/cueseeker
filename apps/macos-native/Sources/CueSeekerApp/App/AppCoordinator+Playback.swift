@@ -297,6 +297,7 @@ extension AppCoordinator {
         playbackSearchPromotion: PlaybackSearchPromotion? = nil,
         playlistSourceOverride: PlaybackPlaylistSource? = nil
     ) {
+        ensurePlayerInitialized()
         clearCueAutoStopPlayback()
         invalidatePlaybackSubtitleFocusForSourceReplacement()
         if let playlistSourceOverride {
