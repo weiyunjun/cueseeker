@@ -475,6 +475,7 @@ final class TaskQueueStore: ObservableObject {
         newPaths: [String] = [],
         work: TaskWork
     ) -> Bool {
+        AppPerformanceProbe.breadcrumb("TaskQueue.enqueueLibraryTask kind=\(kind.rawValue)")
         guard let database, !hasLibraryTask else {
             return false
         }
@@ -584,6 +585,7 @@ final class TaskQueueStore: ObservableObject {
         }
 
         let entry = current[index]
+        AppPerformanceProbe.breadcrumb("TaskQueue.start id=\(id) kind=\(entry.record.kind.rawValue)")
         setState(.running, at: index)
 
         switch entry.work {
@@ -694,6 +696,7 @@ final class TaskQueueStore: ObservableObject {
     }
 
     private func finishRunningTask(id: Int64, failure: String?, itemCount: Int? = nil) {
+        AppPerformanceProbe.breadcrumb("TaskQueue.finishRunningTask id=\(id) failure=\(failure ?? "none")")
         defer { runningTasks[id] = nil }
 
         if let itemCount, let index = current.firstIndex(where: { $0.id == id }) {

@@ -64,13 +64,24 @@ static BOOL SFXPerformanceLoggingEnabled(void) {
     static dispatch_once_t onceToken;
     dispatch_once(&onceToken, ^{
         const char *value = getenv("CUESEEKER_PERF_PLAYBACK");
-        enabled = value != NULL
+        if (value != NULL
             && (
                 strcmp(value, "1") == 0
                 || strcasecmp(value, "true") == 0
                 || strcasecmp(value, "yes") == 0
                 || strcasecmp(value, "on") == 0
-            );
+            )) {
+            enabled = YES;
+            return;
+        }
+        if (getenv("CUESEEKER_PERF") != NULL
+            || getenv("CUESEEKER_DEBUG_TASK_DELAY_SECONDS") != NULL) {
+            enabled = YES;
+            return;
+        }
+#if DEBUG
+        enabled = YES;
+#endif
     });
     return enabled;
 }
@@ -99,6 +110,9 @@ static void SFXLogIfSlow(NSString *name, CFTimeInterval start, double thresholdM
     if (elapsedMilliseconds < thresholdMilliseconds) {
         return;
     }
+
+    fprintf(stderr, "[PLAYER_STALL] %s %.2fms\n", [name UTF8String], elapsedMilliseconds);
+    fflush(stderr);
 
     os_log(
         SFXPerformanceLog(),
