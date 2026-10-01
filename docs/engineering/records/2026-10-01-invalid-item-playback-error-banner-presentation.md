@@ -6,15 +6,23 @@ Human-owned documents:
 
 ## Why
 
-1. When clicking an invalid search result or excerpt item that is no longer in the library, playback enters a black screen state. Previously, the error banner presentation lifecycle was incomplete:
-   - When switching from an invalid item to a valid item, the red error banner (`This item is no longer in the library`) lingered for up to 5 seconds instead of immediately disappearing.
+1. When clicking an invalid search result or excerpt item that is no longer in the library, playback enters a black screen state with the red error banner (`This item is no longer in the library`). Previously, the error banner presentation lifecycle had omissions:
+   - When switching from an invalid item to a valid item, the red error banner lingered for up to 5 seconds instead of immediately disappearing.
+   - When entering the Playback Overlay interface (Subtitle Focus), the red error banner remained visible on top of the overlay instead of immediately disappearing.
+   - When triggering playback from Command Panel (e.g. Recent Videos), asynchronous navigation preparation created a timing window where the banner lingered after closing the panel.
    - When opening an invalid item whose resulting playlist was completely empty, the required 1-second centered feedback (`No Available Results`) was not presented.
 2. In `PlaybackLibraryChangeTests`, several older assertions had outdated English strings from before the toast unification requirement.
 
 ## What changed
 
 - **Error Banner Immediate Dismissal**:
-  - `PlaybackStore`: Added `clearAllErrors()` to dismiss all error banner lines immediately.
+  - `PlaybackStore`:
+    - Added `clearAllErrors()` to dismiss all error banner lines immediately.
+    - In `beginSubtitleFocusSession`, immediately calls `clearError(on: .notInLibrary)` so entering the Playback Overlay dismisses the error banner without waiting for the 5-second countdown.
+  - `AppCoordinator+PlaybackSubtitleFocus`:
+    - In `openPlaybackSubtitleFocusFromUser()`, calls `playback.clearError(on: .notInLibrary)` upon successful overlay session creation.
+  - `AppCoordinator+PlaybackCommandPanel`:
+    - In `openPlaybackCommandPanelRecentVideo`, `openPlaybackCommandPanelRecentExcerpt`, and `executePlaybackCommandPanelSearchAction(.playFromThisCue)`, immediately calls `playback.clearError(on: .notInLibrary)` before launching playback or navigation tasks.
   - `AppCoordinator+Excerpt`: In `openExcerpt` (when `itemInLibrary == true`) and `play(_ excerpt:)`, immediately calls `playback.clearError(on: .notInLibrary)`.
   - `AppCoordinator+Playback`: In `openSearchResult` (when `itemInLibrary == true`) and `play(_ result:)`, immediately calls `playback.clearError(on: .notInLibrary)`.
   - `AppCoordinator+Library`: In `openLibraryVideo` and `play(_ video:)`, immediately calls `playback.clearError(on: .notInLibrary)`.
@@ -31,9 +39,11 @@ Human-owned documents:
 
 - `ExcerptLifecycleAndInvalidItemsTests`:
   - `openingInvalidExcerptShowsNotInLibraryErrorAndStopsPlayer`: Asserts red error banner is shown on black screen, 1-second `No Available Results` center HUD is displayed when playlist is empty, and `stopPlayback()` immediately clears the banner.
+  - `openingInvalidExcerptWithTableScopeAndNonZeroOrdinalDoesNotCrash`: Asserts entering Playback Overlay (`openPlaybackSubtitleFocusFromUser()`) immediately dismisses the `.notInLibrary` error banner.
   - `invalidExcerptKeepsPlaylistSourceAndAllowsNavigatingToSurvivingExcerpt`: Asserts red error banner is shown on invalid excerpt, and navigating via `goNext()` to a surviving valid excerpt immediately dismisses the banner.
 - `SearchInvalidItemsPruningTests`:
   - `invalidSearchResultShowsErrorBannerAndNavigatesToSurvivingResultClearingError`: Asserts red error banner is shown on invalid search result, playlist contains surviving items, and navigating via `goNext()` to a valid result immediately clears the banner.
   - `openingInvalidSearchResultWithEmptyPlaylistShowsErrorBannerAndNoAvailableResultsFeedback`: Asserts opening an invalid search result with empty playlist displays red error banner and 1-second centered `No Available Results` feedback.
+  - `commandPanelPlaybackDismissesErrorBanner`: Asserts triggering playback of a valid item from Command Panel search immediately dismisses the error banner.
 - `PlaybackLibraryChangeTests`: Updated assertions to match unified toast strings (`Cue Not in Library`, `No Available Results`).
-- All 14 tests in `PlaybackLibraryChangeTests`, all 5 tests in `SearchInvalidItemsPruningTests`, and all 4 tests in `ExcerptLifecycleAndInvalidItemsTests` pass.
+- All 14 tests in `PlaybackLibraryChangeTests`, all 6 tests in `SearchInvalidItemsPruningTests`, and all 4 tests in `ExcerptLifecycleAndInvalidItemsTests` pass.

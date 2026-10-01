@@ -389,6 +389,7 @@ final class PlaybackStore: ObservableObject {
             )
         }
         subtitleFocusSession = session
+        clearError(on: .notInLibrary)
         return session
     }
 

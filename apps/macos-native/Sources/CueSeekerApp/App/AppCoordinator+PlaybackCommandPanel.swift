@@ -407,6 +407,7 @@ extension AppCoordinator {
             guard dismissPlaybackCommandPanelForAction() else {
                 return false
             }
+            playback.clearError(on: .notInLibrary)
             openSearchResult(
                 result,
                 playbackSearchPromotion: PlaybackSearchPromotion(
@@ -437,6 +438,7 @@ extension AppCoordinator {
         guard dismissPlaybackCommandPanelForAction() else {
             return false
         }
+        playback.clearError(on: .notInLibrary)
         Task { @MainActor [weak self] in
             guard let self else {
                 return
@@ -471,6 +473,7 @@ extension AppCoordinator {
         guard dismissPlaybackCommandPanelForAction() else {
             return false
         }
+        playback.clearError(on: .notInLibrary)
         openRecentExcerpt(summary)
         return true
     }

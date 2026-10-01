@@ -81,6 +81,7 @@ extension AppCoordinator {
             libraryStore?.invalidate()
             return false
         }
+        playback.clearError(on: .notInLibrary)
 
         guard suspendPlaybackForModalPresentation(
             wasPlaying: openSnapshot.wasPlaying

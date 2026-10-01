@@ -121,6 +121,7 @@ struct ExcerptLifecycleAndInvalidItemsTests {
             #expect(app.playback.playlistSource != nil)
             #expect(app.openPlaybackSubtitleFocusFromUser() == true)
             #expect(app.playback.subtitleFocusSession != nil)
+            #expect(app.playback.errorMessages[.notInLibrary] == nil)
         }
     }
 

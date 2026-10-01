@@ -207,6 +207,54 @@ struct SearchInvalidItemsPruningTests {
             #expect(app.playback.errorMessages[.notInLibrary] == nil)
         }
     }
+
+    @Test
+    func commandPanelPlaybackDismissesErrorBanner() async throws {
+        try await withPruningTestApp { app, database in
+            app.ensurePlayerInitialized()
+            for name in ["A", "B"] {
+                try indexPruningVideo(name, in: database)
+            }
+            let results = try SearchDatabase(path: database.path)
+                .search("placeholder")
+                .sorted { $0.videoPath < $1.videoPath }
+
+            app.search.replaceResultState(
+                results: results,
+                status: .completed,
+                totalCount: 2,
+                fileSummaries: [],
+                countState: .exact,
+                knownResultCount: 2,
+                knownFileCount: 2,
+                hasMore: false
+            )
+
+            // Remove A's cue
+            try emptyPruningSubtitle("A", in: database)
+
+            // Open invalid result A
+            app.openSearchResult(results[0])
+            #expect(app.playback.errorMessages[.notInLibrary] == "This item is no longer in the library")
+
+            // Open Command Panel search with valid item B
+            app.playback.presentCommandPanel(
+                PlaybackCommandPanelPresentation(
+                    page: .searchResults,
+                    query: "placeholder",
+                    selectedOrdinal: 0,
+                    resumesPlaybackOnDismiss: false
+                )
+            )
+            app.synchronizePlaybackCommandPanelSearchResults()
+
+            // Trigger playFromThisCue on B via Command Panel
+            #expect(app.requestPlaybackCommandPanelSearchAction(.playFromThisCue, ordinal: 0))
+
+            #expect(app.currentPlaybackItemLeftLibrary == false)
+            #expect(app.playback.errorMessages[.notInLibrary] == nil)
+        }
+    }
 }
 
 // MARK: - Test Fixture
