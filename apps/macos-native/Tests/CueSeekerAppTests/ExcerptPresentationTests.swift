@@ -310,6 +310,56 @@ func excerptTransfersRefreshPresentationAndPublishRegisteredToasts() async throw
     try await waitForExcerptTasksToFinish(app)
 }
 
+@MainActor
+@Test
+func excerptTableRowsAndOverviewLoadDuringIndexing() async throws {
+    let suiteName = "CueSeekerExcerptIndexingTests-\(UUID().uuidString)"
+    let userDefaults = try #require(UserDefaults(suiteName: suiteName))
+    let fixtureRoot = FileManager.default.temporaryDirectory
+        .appendingPathComponent("CueSeekerExcerptIndexingTests-\(UUID().uuidString)", isDirectory: true)
+    let databaseURL = fixtureRoot.appendingPathComponent("CueSeeker.sqlite")
+    defer {
+        userDefaults.removePersistentDomain(forName: suiteName)
+        try? FileManager.default.removeItem(at: fixtureRoot)
+    }
+    try FileManager.default.createDirectory(
+        at: fixtureRoot,
+        withIntermediateDirectories: true
+    )
+
+    _ = NSApplication.shared
+    let app = AppCoordinator(userDefaults: userDefaults, databaseURL: databaseURL)
+    let indexingDatabase = try #require(app.indexingDatabase)
+    let excerptDatabase = try #require(app.excerptDatabase)
+    let defaultList = try #require(try excerptDatabase.excerptList(
+        id: ExcerptListIdentity.defaultListID
+    ))
+    let item = try makeExcerpt(
+        in: indexingDatabase,
+        id: 42,
+        content: "Persisted excerpt during indexing",
+        listID: defaultList.id
+    )
+
+    // Simulate indexing is in progress
+    let indexingFolder = URL(fileURLWithPath: "/Media/ActiveFolder")
+    app.indexing.indexingStatus = .indexing(indexingFolder)
+    #expect(app.indexing.indexingStatus.isIndexing)
+
+    // Verify overview loads during indexing
+    app.reloadExcerptListOverview()
+    try await waitForExcerptTasksToFinish(app)
+    #expect(app.excerpt.hasLoadedListOverview)
+    #expect(app.excerpt.listOverview.lists.map(\.id) == [defaultList.id])
+
+    // Verify excerpt table rows load during indexing
+    app.openExcerptList(id: defaultList.id)
+    try await waitForExcerptTasksToFinish(app)
+    #expect(app.excerpt.tableHasLoadedInitialPage)
+    #expect(app.excerpt.residentRelations.map(\.id) == [item.id])
+    #expect(app.excerpt.tableRowStore.snapshot.totalRowCount == 1)
+}
+
 private func makeExcerpt(
     in database: IndexingDatabase,
     id: Int,

@@ -34,7 +34,10 @@ extension AppCoordinator {
                 let snapshot = try await Self.runCancellableDetached(
                     priority: .userInitiated
                 ) {
-                    let database = try ExcerptDatabase(path: databaseURL)
+                    let database = try ExcerptDatabase(
+                        path: databaseURL,
+                        access: .readOnly
+                    )
                     return (
                         try database.excerptListOverview(),
                         try database.recentExcerptListSummaries()
@@ -394,11 +397,6 @@ extension AppCoordinator {
     }
 
     func loadExcerptTableRowsIfNeeded() {
-        guard !indexing.indexingStatus.isIndexing,
-              !indexing.folderRemovalStatus.isRemoving
-        else {
-            return
-        }
         guard excerptTableRowsTask == nil else {
             return
         }
@@ -413,11 +411,6 @@ extension AppCoordinator {
     }
 
     func reloadExcerptTableRows() {
-        guard !indexing.indexingStatus.isIndexing,
-              !indexing.folderRemovalStatus.isRemoving
-        else {
-            return
-        }
         guard let listID = excerpt.activeListID
                 ?? (try? excerptDatabase?.firstExcerptListID())
         else {

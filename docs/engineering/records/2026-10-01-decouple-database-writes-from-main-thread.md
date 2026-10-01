@@ -40,6 +40,12 @@ During long-running database operations (such as Subtitle Indexing, Add Folder, 
   - `SFXNativePlaybackPlayer`: Enabled performance logging in `DEBUG` and test delay mode, logging `[PLAYER_STALL]` to `stderr` whenever video frame submission or delegate notifications are delayed on the main queue (> 50ms).
   - Breadcrumb logging across `performFolderRemoval`, `tasks.runRemoveFolder`, `LibraryFolderRemovalExecutor`, `TaskQueueStore`, and playback reconciliation.
 
+- **Excerpt List Loading During Library Tasks**:
+  - Removed early defensive guards (`indexingStatus.isIndexing` and `folderRemovalStatus.isRemoving`) from `loadExcerptTableRowsIfNeeded()` and `reloadExcerptTableRows()` in `AppCoordinator+Excerpt.swift`, allowing Excerpt list rows to load without blocking during background indexing or folder removals.
+  - Ensured `reloadExcerptListOverview()` opens `ExcerptDatabase` with explicit `access: .readOnly`, avoiding write lock contention while retrieving list overview metadata.
+
 ## Tests
 
-- Verified with unit and integration tests across `LibraryFolderRemovalTests`, `PlaybackLibraryChangeTests`, `RecentPlaybackSessionRegressionTests`, `TaskQueueStoreTests`, `LibraryFolderAdditionTests`, `SearchStoreTests`, and `PlaybackSegmentCompletionTests`.
+- Added `excerptTableRowsAndOverviewLoadDuringIndexing` in `ExcerptPresentationTests.swift` to verify list overview and row projection load successfully while indexing is active.
+- Verified with unit and integration tests across `ExcerptPresentationTests`, `ExcerptLifecycleAndInvalidItemsTests`, `LibraryFolderRemovalTests`, `PlaybackLibraryChangeTests`, `RecentPlaybackSessionRegressionTests`, `TaskQueueStoreTests`, `LibraryFolderAdditionTests`, `SearchStoreTests`, and `PlaybackSegmentCompletionTests`.
+
