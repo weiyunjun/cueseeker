@@ -80,13 +80,15 @@ extension AppCoordinator {
         else {
             return
         }
-        do {
-            try database.setDefaultAudioTrackIndex(
-                index,
-                forVideoFile: URL(fileURLWithPath: videoPath)
-            )
-        } catch {
-            print("Failed to save the default audio track: \(error)")
+        Task.detached(priority: .utility) {
+            do {
+                try database.setDefaultAudioTrackIndex(
+                    index,
+                    forVideoFile: URL(fileURLWithPath: videoPath)
+                )
+            } catch {
+                print("Failed to save the default audio track: \(error)")
+            }
         }
     }
 

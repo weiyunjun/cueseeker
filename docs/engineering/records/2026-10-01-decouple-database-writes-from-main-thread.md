@@ -24,9 +24,16 @@ During long-running database operations (such as Subtitle Indexing, Add Folder, 
 - **Asynchronous Background Database Writes**:
   - All write transactions for `saveExcerpt`, `moveExcerpt`, `duplicateExcerpt`, `removeExcerpt`, `deleteExcerptList`, and `recordRecentExcerptPlayback` are dispatched to detached background tasks (`Self.runCancellableDetached`) off the main thread.
   - Added `excerptMutationTask: Task<Void, Never>?` to `AppCoordinator` to track in-flight background excerpt mutations and allow cancellation or test completion synchronization.
-  - Added public `excerptRelationExists(cueID:listID:)` on `ExcerptDatabase` for fast non-blocking existence checks before write operations.
-  - In `performFolderRemoval`, proactively stops playback history tracking (`stopLibraryPlaybackHistoryTracking()`) if the currently playing video is within the folder being removed, preventing write contention during deletion.
+- **Playback History Isolation and Non-blocking Writes**:
+  - `LibraryPlaybackHistoryWriter` now opens and uses its own dedicated `LibraryDatabase` connection (`openedLibraryPlaybackHistoryDatabase`), ensuring its background writes never hold or contest `AppCoordinator.libraryDatabase`'s connection lock (`NSRecursiveLock`).
+  - In `performFolderRemoval`, when the active video is under the folder being removed, `currentPlaybackItemLeftLibrary = true` and `stopLibraryPlaybackHistoryTracking()` are triggered immediately, and pending presentation paths under the removed folder are pruned to prevent any write attempts or lock contention during deletion.
+  - Natural playback completion history persisting (`persistNaturallyCompletedLibraryPlayback`) now uses asynchronous `save()` instead of `saveAndWait()`.
+  - Default audio track (`setPlaybackDefaultAudioTrack`) and default subtitle (`setPlaybackDefaultSubtitle`) preferences persist asynchronously via `Task.detached(priority: .utility)`.
 
-- **Tests**:
-  - Updated `waitForExcerptTasksToFinish` in `ExcerptPresentationTests.swift` to also await `excerptMutationTask == nil`.
-  - Updated `removeExcerptDoesNotHydrateLegacyPresentationWhenTableOnly` and `excerptTransfersRefreshPresentationAndPublishRegisteredToasts` to await `waitForExcerptTasksToFinish(app)` to observe asynchronous background write completion.
+- **Task Queue Background Persistence**:
+  - `TaskQueueStore` now dispatches database persistence (`updateState`, `updateItemCount`, `deleteRecord`) to a dedicated serial utility `writeQueue`. In-memory state (`current`, `completed`, `incomplete`) updates immediately on `@MainActor` for instantaneous UI responsiveness.
+  - `waitUntilIdle()` awaits both running tasks and `writeQueue` completion, and `deinit` flushes the queue.
+
+## Tests
+
+- Verified with unit and integration tests across `LibraryFolderRemovalTests`, `PlaybackLibraryChangeTests`, `RecentPlaybackSessionRegressionTests`, `TaskQueueStoreTests`, `LibraryFolderAdditionTests`, `SearchStoreTests`, and `PlaybackSegmentCompletionTests`.

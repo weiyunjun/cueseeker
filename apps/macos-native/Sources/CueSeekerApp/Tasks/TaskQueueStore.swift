@@ -287,6 +287,10 @@ final class TaskQueueStore: ObservableObject {
     var hasLibraryTask: Bool { current.contains { $0.category == .library } }
 
     private let database: TaskRecordDatabase?
+    private let writeQueue = DispatchQueue(
+        label: "app.cueseeker.task-record-writer",
+        qos: .utility
+    )
     var runExport: TaskExportRunner
     var runRename: TaskRenameRunner
     var runIndex: TaskIndexRunner
@@ -330,6 +334,10 @@ final class TaskQueueStore: ObservableObject {
         self.runIndex = runIndex
         self.runAddFolder = runAddFolder
         self.runRemoveFolder = runRemoveFolder
+    }
+
+    deinit {
+        writeQueue.sync {}
     }
 
     /// Reads the history, after closing out whatever the previous launch left
@@ -523,10 +531,13 @@ final class TaskQueueStore: ObservableObject {
     func deleteRecord(id: Int64) {
         completed.removeAll { $0.id == id }
         incomplete.removeAll { $0.id == id }
-        do {
-            try database?.deleteRecord(id: id)
-        } catch {
-            print("Failed to delete task record: \(error)")
+        let database = self.database
+        writeQueue.async {
+            do {
+                try database?.deleteRecord(id: id)
+            } catch {
+                print("Failed to delete task record: \(error)")
+            }
         }
     }
 
@@ -683,14 +694,17 @@ final class TaskQueueStore: ObservableObject {
     }
 
     private func finishRunningTask(id: Int64, failure: String?, itemCount: Int? = nil) {
-        runningTasks[id] = nil
+        defer { runningTasks[id] = nil }
 
         if let itemCount, let index = current.firstIndex(where: { $0.id == id }) {
             current[index].record = current[index].record.withItemCount(itemCount)
-            do {
-                try database?.updateItemCount(id: id, to: itemCount)
-            } catch {
-                print("Failed to update task item count: \(error)")
+            let database = self.database
+            writeQueue.async {
+                do {
+                    try database?.updateItemCount(id: id, to: itemCount)
+                } catch {
+                    print("Failed to update task item count: \(error)")
+                }
             }
         }
 
@@ -716,6 +730,11 @@ final class TaskQueueStore: ObservableObject {
     func waitUntilIdle() async {
         while let task = runningTasks.values.first {
             await task.value
+        }
+        await withCheckedContinuation { continuation in
+            writeQueue.async {
+                continuation.resume()
+            }
         }
     }
 
@@ -772,15 +791,18 @@ final class TaskQueueStore: ObservableObject {
         errorMessage: String?,
         changedAt: Date
     ) {
-        do {
-            try database?.updateState(
-                id: id,
-                to: state,
-                errorMessage: errorMessage,
-                changedAt: changedAt
-            )
-        } catch {
-            print("Failed to update task record: \(error)")
+        let database = self.database
+        writeQueue.async {
+            do {
+                try database?.updateState(
+                    id: id,
+                    to: state,
+                    errorMessage: errorMessage,
+                    changedAt: changedAt
+                )
+            } catch {
+                print("Failed to update task record: \(error)")
+            }
         }
     }
 

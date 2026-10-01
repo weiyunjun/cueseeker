@@ -63,13 +63,16 @@ extension AppCoordinator {
         else {
             return
         }
-        do {
-            try database.setDefaultSubtitleFileID(
-                recorded.subtitles[index].subtitleFileID,
-                forVideoFile: URL(fileURLWithPath: videoPath)
-            )
-        } catch {
-            print("Failed to save the default subtitle: \(error)")
+        let subtitleFileID = recorded.subtitles[index].subtitleFileID
+        Task.detached(priority: .utility) {
+            do {
+                try database.setDefaultSubtitleFileID(
+                    subtitleFileID,
+                    forVideoFile: URL(fileURLWithPath: videoPath)
+                )
+            } catch {
+                print("Failed to save the default subtitle: \(error)")
+            }
         }
     }
 

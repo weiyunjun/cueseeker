@@ -1007,7 +1007,7 @@ extension AppCoordinator {
             positionMilliseconds: existingHistory?.positionMilliseconds ?? 0,
             duration: existingHistory?.duration ?? video.duration
         )
-        libraryPlaybackHistoryWriter.saveAndWait(snapshot)
+        libraryPlaybackHistoryWriter.save(snapshot)
         pendingLibraryPlaybackHistoryPresentationVideoPaths.insert(video.videoPath)
         guard refreshPresentation else {
             UIInvalidationProbe.mark(
@@ -1262,7 +1262,7 @@ extension AppCoordinator {
         )
         libraryPlaybackCompletedMilestoneVideoPath = videoPath
         pendingLibraryPlaybackHistoryPresentationVideoPaths.insert(videoPath)
-        libraryPlaybackHistoryWriter.saveAndWait(
+        libraryPlaybackHistoryWriter.save(
             LibraryPlaybackHistorySnapshot(
                 videoPath: videoPath,
                 positionMilliseconds: positionMilliseconds,

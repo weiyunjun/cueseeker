@@ -498,6 +498,7 @@ final class AppCoordinator: ObservableObject {
         var openedLibraryCoverDatabase: LibraryCoverDatabase?
         var openedExcerptDatabase: ExcerptDatabase?
         var openedTaskRecordDatabase: TaskRecordDatabase?
+        var openedLibraryPlaybackHistoryDatabase: LibraryDatabase?
         var initialError: Error?
         do {
             try Self.prepareDatabaseDirectory(for: self.databaseURL)
@@ -507,6 +508,7 @@ final class AppCoordinator: ObservableObject {
             openedSearchDatabase = try SearchDatabase(path: self.databaseURL)
             openedPlaybackSubtitleDatabase = try PlaybackSubtitleDatabase(path: self.databaseURL)
             openedLibraryDatabase = try LibraryDatabase(path: self.databaseURL)
+            openedLibraryPlaybackHistoryDatabase = try? LibraryDatabase(path: self.databaseURL)
             openedIndexedContentDatabase = try IndexedContentDatabase(path: self.databaseURL)
             openedLibraryCoverDatabase = try LibraryCoverDatabase(path: self.databaseURL)
             openedExcerptDatabase = try ExcerptDatabase(path: self.databaseURL)
@@ -517,6 +519,7 @@ final class AppCoordinator: ObservableObject {
             openedSearchDatabase = nil
             openedPlaybackSubtitleDatabase = nil
             openedLibraryDatabase = nil
+            openedLibraryPlaybackHistoryDatabase = nil
             openedIndexedContentDatabase = nil
             openedLibraryCoverDatabase = nil
             openedExcerptDatabase = nil
@@ -555,7 +558,9 @@ final class AppCoordinator: ObservableObject {
                 coverDirectory: resolvedLibraryCoverDirectory
             )
         }
-        libraryPlaybackHistoryWriter = LibraryPlaybackHistoryWriter(database: openedLibraryDatabase)
+        libraryPlaybackHistoryWriter = LibraryPlaybackHistoryWriter(
+            database: openedLibraryPlaybackHistoryDatabase ?? openedLibraryDatabase
+        )
         configureAnkiExportRunner()
         configureRenameRunner()
         configureLibraryTaskRunners()

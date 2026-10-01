@@ -388,7 +388,11 @@ extension AppCoordinator {
         cancelDatabaseReadTasksBeforeIndexing()
         if let currentPath = currentPlaybackVideoPath,
            Self.path(currentPath, isUnder: folder) {
+            currentPlaybackItemLeftLibrary = true
             stopLibraryPlaybackHistoryTracking()
+        }
+        pendingLibraryPlaybackHistoryPresentationVideoPaths = pendingLibraryPlaybackHistoryPresentationVideoPaths.filter {
+            !Self.path($0, isUnder: folder)
         }
         holdPlaybackBeforeIndexedContentChange()
         prepareExcerptForIndexedContentMutation(under: [folder])
