@@ -384,6 +384,7 @@ final class AppCoordinator: ObservableObject {
     let libraryPlaybackHistoryWriter: LibraryPlaybackHistoryWriter
     var startupDatabaseTask: Task<Void, Never>?
     var excerptNeedsReloadAfterIndexedContentMutation = false
+    var pendingExcerptContentRemovalFolders: [URL] = []
     var libraryTask: Task<Void, Never>?
     var recentWatchingTask: Task<Void, Never>?
     var testRecentWatchingTask: Task<Void, Never>?
@@ -767,17 +768,21 @@ final class AppCoordinator: ObservableObject {
     private func prepareWorkbenchRoute(_ route: WorkbenchRoute) {
         switch route {
         case .excerpt:
+            refreshExcerptOnReappearanceIfNeeded()
             loadExcerptListOverviewIfNeeded()
         case .excerptList(let id):
             guard !isWorkbenchRouteUnknown(route) else {
                 return
             }
+            refreshExcerptOnReappearanceIfNeeded()
             excerpt.updateTableFacetFilter(
                 settings.excerptFacetFilter(forListID: id)
             )
             excerpt.setActiveListID(id)
             reloadExcerptTableRows()
-        case .search, .recent, .library, .libraryFolder, .file, .fileFolder, .fileFiles:
+        case .recent:
+            refreshExcerptOnReappearanceIfNeeded()
+        case .search, .library, .libraryFolder, .file, .fileFolder, .fileFiles:
             break
         }
     }

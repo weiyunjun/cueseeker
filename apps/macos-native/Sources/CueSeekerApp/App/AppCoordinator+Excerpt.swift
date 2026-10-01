@@ -512,33 +512,37 @@ extension AppCoordinator {
     }
 
     func prepareExcerptForIndexedContentMutation(under folders: [URL]) {
-        excerptNeedsReloadAfterIndexedContentMutation =
-            excerptNeedsReloadAfterIndexedContentMutation
-            || excerpt.residentDataRevision != nil
-            || excerpt.tableHasLoadedInitialPage
-            || excerptTableRowsTask != nil
-        excerptTableRowsTask?.cancel()
-        excerptTableRowsTask = nil
-        cueContent.remove { content in
-            folders.contains { folder in
-                Self.path(content.subtitlePath, isUnder: folder)
-            }
-        }
-        excerpt.invalidateTableRows()
-        excerpt.clearListOverviewForReload()
+        excerptNeedsReloadAfterIndexedContentMutation = true
+        pendingExcerptContentRemovalFolders.append(contentsOf: folders)
         excerptPlaybackNavigationScopeIDs = nil
         excerptPlaybackNavigationSnapshot = nil
     }
 
     func reloadExcerptAfterIndexedContentMutation() {
-        excerptTableRowsTask?.cancel()
-        excerptTableRowsTask = nil
+        excerptNeedsReloadAfterIndexedContentMutation = true
+    }
+
+    func refreshExcerptOnReappearanceIfNeeded() {
         guard excerptNeedsReloadAfterIndexedContentMutation else {
             return
         }
+        let start = DispatchTime.now().uptimeNanoseconds
         excerptNeedsReloadAfterIndexedContentMutation = false
+        let folders = pendingExcerptContentRemovalFolders
+        pendingExcerptContentRemovalFolders.removeAll()
+        if !folders.isEmpty {
+            cueContent.remove { content in
+                folders.contains { folder in
+                    Self.path(content.subtitlePath, isUnder: folder)
+                }
+            }
+        }
+        excerpt.markTableRowsStale()
         reloadExcerptListOverview()
         reloadExcerptTableRows()
+        refreshRecentWatching()
+        let duration = Double(DispatchTime.now().uptimeNanoseconds - start) / 1_000_000
+        AppPerformanceProbe.breadcrumb("refreshExcerptOnReappearanceIfNeeded duration=\(String(format: "%.2f", duration))ms")
     }
 
     func refreshExcerptForLibraryWatchStateChange() {
@@ -1066,6 +1070,12 @@ extension AppCoordinator {
         guard excerpt.isValid else {
             return
         }
+        let itemInLibrary = excerptIDsInLibrary(among: [excerpt.id]).contains(excerpt.id)
+        currentPlaybackItemLeftLibrary = !itemInLibrary
+        self.excerpt.selectedExcerpt = excerpt
+        search.selectResult(nil)
+        library.selectedLibraryVideo = nil
+
         clearCueAutoStopPlayback()
         invalidatePlaybackSubtitleFocusForSourceReplacement()
         playback.playbackStatus = .opening
@@ -1079,7 +1089,12 @@ extension AppCoordinator {
                 && excerptPlaybackNavigationScopeIDs != nil
         } ?? false
         if !keepsExistingPlaylistSnapshot {
-            if case .table(let context)? = playlistScope,
+            if !itemInLibrary {
+                excerptPlaybackNavigationScopeIDs = []
+            } else if excerptNeedsReloadAfterIndexedContentMutation {
+                let validIDs = excerptIDsInLibrary(among: navigationScopeIDs ?? [])
+                excerptPlaybackNavigationScopeIDs = (navigationScopeIDs ?? []).filter { validIDs.contains($0) }
+            } else if case .table(let context)? = playlistScope,
                let navigationScopeIDs,
                navigationScopeIDs.count == context.totalCount {
                 // Core table snapshots are already ordered and unique by the
@@ -1096,7 +1111,7 @@ extension AppCoordinator {
             for: excerpt,
             preferredOrdinal: playlistSelectedOrdinal
         )
-        if let resolvedPlaylistOrdinal {
+        if let resolvedPlaylistOrdinal, itemInLibrary {
             _ = playback.setPlaylistPosition(
                 itemIdentity: .excerpt(excerpt.id),
                 ordinal: resolvedPlaylistOrdinal
@@ -1107,10 +1122,6 @@ extension AppCoordinator {
         saveCurrentLibraryPlaybackHistory()
         stopLibraryPlaybackHistoryTracking()
         activePlaybackSource = .excerpt
-        currentPlaybackItemLeftLibrary = false
-        self.excerpt.selectedExcerpt = excerpt
-        search.selectResult(nil)
-        library.selectedLibraryVideo = nil
         refreshPlaybackChromeSnapshot(
             displayTitle: playbackDisplayTitle(
                 for: excerpt,
@@ -1118,9 +1129,17 @@ extension AppCoordinator {
             )
         )
         playback.isPlaybackSurfaceExpanded = true
-        Task { @MainActor in
-            await Task.yield()
-            _ = play(excerpt)
+        if !itemInLibrary {
+            playback.clearPlaylistPosition()
+            playback.playbackStatus = .loadFailed
+            try? player?.stop()
+            playback.playbackViewModel?.resetPresentationForStoppedPlayback()
+            showPlaybackItemNotInLibrary()
+        } else {
+            Task { @MainActor in
+                await Task.yield()
+                _ = play(excerpt)
+            }
         }
     }
 

@@ -158,6 +158,13 @@ extension AppCoordinator {
                 guard let self else {
                     return
                 }
+                if self.search.isPlaybackPruningActive {
+                    let candidateCueIDs = self.search.searchResultCueIDs.isEmpty
+                        ? self.search.searchResults.map(\.entryID)
+                        : self.search.searchResultCueIDs
+                    let liveCueIDs = self.cueIDsInLibrary(among: candidateCueIDs)
+                    self.search.pruneInvalidSearchResults(liveCueIDs: liveCueIDs)
+                }
                 self.refreshSearchPlaybackPlaylistSource(
                     resultListGeneration: generation
                 )

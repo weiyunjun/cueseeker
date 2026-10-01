@@ -269,6 +269,38 @@ public struct CueFacetSnapshot: Equatable, Sendable {
         )
     }
 
+    public func keeping(cueIDs keptIDs: Set<Int64>) -> CueFacetSnapshot {
+        guard !keptIDs.isEmpty else {
+            return .empty
+        }
+        var nextCueIDs: [Int64] = []
+        var nextDurations: [CueDurationFacet] = []
+        var nextCharacters: [CueCharacterFacet] = []
+        var nextLanguages: [Set<SubtitleLanguageCode>] = []
+        var nextWatchStates: [LibraryWatchState] = []
+        var nextFolders: [String] = []
+
+        for index in 0..<cueIDs.count {
+            let id = cueIDs[index]
+            guard keptIDs.contains(id) else { continue }
+            nextCueIDs.append(id)
+            nextDurations.append(durationFacets[index])
+            nextCharacters.append(characterFacets[index])
+            nextLanguages.append(languageFacets[index])
+            nextWatchStates.append(watchStateFacets[index])
+            nextFolders.append(folderFacets[index])
+        }
+
+        return CueFacetSnapshot(
+            cueIDs: nextCueIDs,
+            durationFacets: nextDurations,
+            characterFacets: nextCharacters,
+            languageFacets: nextLanguages,
+            watchStateFacets: nextWatchStates,
+            folderFacets: nextFolders
+        )
+    }
+
     public func filteredCueIDs(
         using filter: CueFacetFilter,
         startingAt sourceIndex: Int = 0,

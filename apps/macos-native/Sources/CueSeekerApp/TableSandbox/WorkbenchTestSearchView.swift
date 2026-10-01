@@ -499,7 +499,10 @@ struct WorkbenchTestSearchView: View {
         guard allowsTableResponse else { return }
         guard hasDeferredRefreshWhileCovered else { return }
         hasDeferredRefreshWhileCovered = false
+        let start = DispatchTime.now().uptimeNanoseconds
         refreshTableForCurrentState()
+        let duration = Double(DispatchTime.now().uptimeNanoseconds - start) / 1_000_000
+        AppPerformanceProbe.breadcrumb("WorkbenchTestSearchView.resumeDeferredTableResponse duration=\(String(format: "%.2f", duration))ms")
     }
 
     private func refreshTableForCurrentState() {

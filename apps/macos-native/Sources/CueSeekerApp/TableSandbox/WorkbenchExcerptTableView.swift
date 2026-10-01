@@ -479,12 +479,15 @@ private struct WorkbenchExcerptTableContent: View {
 
     private func resumeDeferredTableResponse() {
         guard allowsTableResponse else { return }
+        let start = DispatchTime.now().uptimeNanoseconds
         if hasDeferredReloadWhileCovered {
             hasDeferredReloadWhileCovered = false
             reloadRows(resetScroll: false)
         } else {
             loadInitialRowsIfNeeded()
         }
+        let duration = Double(DispatchTime.now().uptimeNanoseconds - start) / 1_000_000
+        AppPerformanceProbe.breadcrumb("WorkbenchExcerptTableView.resumeDeferredTableResponse duration=\(String(format: "%.2f", duration))ms")
     }
 
     private func openExcerpt(_ row: SubtitleTableRow) {

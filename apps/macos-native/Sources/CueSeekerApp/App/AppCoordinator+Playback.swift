@@ -308,7 +308,7 @@ extension AppCoordinator {
                 )
             }
         } else {
-            installSearchPlaybackPlaylistSource(seed: result)
+            synchronizeSearchAndPlaylistOnPlayback(seed: result)
         }
         // The ordinal counts in the list the result was chosen from, which a
         // database change may have left apart from the playlist.
@@ -1297,6 +1297,7 @@ extension AppCoordinator {
     }
 
     func stopPlayback() {
+        let stopPlaybackStart = DispatchTime.now().uptimeNanoseconds
         playbackAwaitsLibraryReconcile = false
         _ = playback.dismissCommandPanel()
         invalidatePlaybackSubtitleFocusForSourceReplacement()
@@ -1317,12 +1318,20 @@ extension AppCoordinator {
             clearPlaybackChromeSnapshot()
             playback.isPlaybackSurfaceExpanded = false
             playback.playbackStatus = .idle
+            switch workbenchLayout.currentRoute {
+            case .excerpt, .excerptList, .recent:
+                refreshExcerptOnReappearanceIfNeeded()
+            case .search, .library, .libraryFolder, .file, .fileFolder, .fileFiles:
+                break
+            }
             for line in PlaybackErrorLine.allCases {
                 playback.clearError(on: line)
             }
         } catch {
             showPlaybackError(error)
         }
+        let stopPlaybackDuration = Double(DispatchTime.now().uptimeNanoseconds - stopPlaybackStart) / 1_000_000
+        AppPerformanceProbe.breadcrumb("stopPlayback duration=\(String(format: "%.2f", stopPlaybackDuration))ms")
     }
 
     static func isEditableTextInputFocused() -> Bool {

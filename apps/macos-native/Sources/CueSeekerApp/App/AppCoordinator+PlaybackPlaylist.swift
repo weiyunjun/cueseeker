@@ -134,6 +134,26 @@ extension AppCoordinator {
         )
     }
 
+    func synchronizeSearchAndPlaylistOnPlayback(
+        seed result: SubtitleSearchResult
+    ) {
+        let start = DispatchTime.now().uptimeNanoseconds
+        search.activatePlaybackPruning()
+        let candidateCueIDs = search.searchResultCueIDs.isEmpty
+            ? search.searchResults.map(\.entryID)
+            : search.searchResultCueIDs
+        let liveCueIDs: Set<Int64>
+        if search.hasMutatedSinceSearchSnapshot || !isCueInLibrary(result.entryID) {
+            liveCueIDs = cueIDsInLibrary(among: candidateCueIDs)
+        } else {
+            liveCueIDs = Set(candidateCueIDs)
+        }
+        search.pruneInvalidSearchResults(liveCueIDs: liveCueIDs)
+        installSearchPlaybackPlaylistSource(seed: result)
+        let duration = Double(DispatchTime.now().uptimeNanoseconds - start) / 1_000_000
+        AppPerformanceProbe.breadcrumb("Search.synchronizeSearchAndPlaylistOnPlayback candidates=\(candidateCueIDs.count) live=\(liveCueIDs.count) duration=\(String(format: "%.2f", duration))ms")
+    }
+
     func installSearchPlaybackPlaylistSource(
         seed result: SubtitleSearchResult
     ) {
@@ -141,7 +161,12 @@ extension AppCoordinator {
         let origin = PlaybackPlaylistSourceOrigin.search(
             resultListGeneration: resultListGeneration
         )
-        let liveCueIDs = cueIDsInLibrary(among: search.searchResults.map(\.entryID))
+        let liveCueIDs: Set<Int64>
+        if search.hasMutatedSinceSearchSnapshot {
+            liveCueIDs = cueIDsInLibrary(among: search.searchResults.map(\.entryID))
+        } else {
+            liveCueIDs = Set(search.searchResults.map(\.entryID))
+        }
         let playlistResults = search.searchResults.filter { liveCueIDs.contains($0.entryID) }
         let selectedOrdinal = playlistResults.firstIndex {
             $0.entryID == result.entryID
@@ -199,8 +224,13 @@ extension AppCoordinator {
             return
         }
 
-        let liveCueIDs = cueIDsInLibrary(among: search.searchResults.map(\.entryID))
-        let playlistResults = search.searchResults.filter { liveCueIDs.contains($0.entryID) }
+        let playlistResults: [SubtitleSearchResult]
+        if search.hasMutatedSinceSearchSnapshot {
+            let liveCueIDs = cueIDsInLibrary(among: search.searchResults.map(\.entryID))
+            playlistResults = search.searchResults.filter { liveCueIDs.contains($0.entryID) }
+        } else {
+            playlistResults = search.searchResults
+        }
         _ = source.replaceResidentItems(
             totalCount: playlistResults.count,
             itemProvider: Self.searchPlaylistItemProvider(

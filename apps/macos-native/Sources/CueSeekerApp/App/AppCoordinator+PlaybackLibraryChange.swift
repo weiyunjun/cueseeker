@@ -98,6 +98,13 @@ extension AppCoordinator {
                 }
             }
         }
+        if search.isPlaybackPruningActive || activePlaybackSource == .search {
+            let candidateCueIDs = search.searchResultCueIDs.isEmpty
+                ? search.searchResults.map(\.entryID)
+                : search.searchResultCueIDs
+            let liveCueIDs = cueIDsInLibrary(among: candidateCueIDs)
+            search.pruneInvalidSearchResults(liveCueIDs: liveCueIDs)
+        }
         refreshPlaybackChromeSnapshot(
             displayTitle: playback.chromeSnapshot.displayTitle
         )
@@ -271,20 +278,26 @@ extension AppCoordinator {
     }
 
     func cueIDsInLibrary(among cueIDs: [Int64]) -> Set<Int64> {
-        AppPerformanceProbe.breadcrumb("cueIDsInLibrary count=\(cueIDs.count)")
+        let start = DispatchTime.now().uptimeNanoseconds
         guard !cueIDs.isEmpty else {
             return []
         }
-        return (try? CueContentDatabase(path: databaseURL)
+        let result = (try? CueContentDatabase(path: databaseURL)
             .liveCueIDs(among: cueIDs)) ?? []
+        let duration = Double(DispatchTime.now().uptimeNanoseconds - start) / 1_000_000
+        AppPerformanceProbe.breadcrumb("cueIDsInLibrary count=\(cueIDs.count) liveCount=\(result.count) duration=\(String(format: "%.2f", duration))ms")
+        return result
     }
 
     func excerptIDsInLibrary(among excerptIDs: [Int64]) -> Set<Int64> {
-        AppPerformanceProbe.breadcrumb("excerptIDsInLibrary count=\(excerptIDs.count)")
+        let start = DispatchTime.now().uptimeNanoseconds
         guard !excerptIDs.isEmpty else {
             return []
         }
-        return (try? excerptDatabase?.validExcerptIDs(among: excerptIDs)) ?? []
+        let result = (try? excerptDatabase?.validExcerptIDs(among: excerptIDs)) ?? []
+        let duration = Double(DispatchTime.now().uptimeNanoseconds - start) / 1_000_000
+        AppPerformanceProbe.breadcrumb("excerptIDsInLibrary count=\(excerptIDs.count) validCount=\(result.count) duration=\(String(format: "%.2f", duration))ms")
+        return result
     }
 
     /// The Library Playlist a video belongs to, its folder, as the database

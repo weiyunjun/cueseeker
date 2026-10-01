@@ -46,6 +46,8 @@ final class SearchStore: ObservableObject {
     private(set) var searchKnownFileCount = 0
     private(set) var hasMoreSearchResults = false
     @Published private(set) var resultRevision: UInt64 = 0
+    @Published private(set) var isPlaybackPruningActive = false
+    private(set) var searchSnapshotMutationRevision: UInt64 = 0
     @Published private(set) var activeFilterSet = SubtitleSearchFilterSet()
     /// Every match of the query with its facet values, in display order, once
     /// the search has completed. The option counts are derived from it with
@@ -641,12 +643,64 @@ final class SearchStore: ObservableObject {
                 setSearchFacetSnapshot(facetSnapshot)
             }
             searchStatus = .completed
+            updateSearchSnapshotMutationRevision()
+        }
+        return true
+    }
+
+    func activatePlaybackPruning() {
+        isPlaybackPruningActive = true
+    }
+
+    func resetPlaybackPruning() {
+        isPlaybackPruningActive = false
+    }
+
+    func updateSearchSnapshotMutationRevision() {
+        searchSnapshotMutationRevision = indexedCueDataRevision
+    }
+
+    var hasMutatedSinceSearchSnapshot: Bool {
+        indexedCueDataRevision != searchSnapshotMutationRevision
+    }
+
+    @discardableResult
+    func pruneInvalidSearchResults(liveCueIDs: Set<Int64>) -> Bool {
+        activatePlaybackPruning()
+        let previousLoaded = loadedSearchResultCueIDs
+        let newLoaded = previousLoaded.filter { liveCueIDs.contains($0) }
+        let previousAll = searchResultCueIDs
+        let newAll = previousAll.filter { liveCueIDs.contains($0) }
+
+        guard newLoaded.count != previousLoaded.count || newAll.count != previousAll.count else {
+            return false
+        }
+
+        commitResultMutation {
+            loadedSearchResultCueIDs = newLoaded
+            for cueID in previousLoaded where !liveCueIDs.contains(cueID) {
+                searchRankByCueID.removeValue(forKey: cueID)
+            }
+            searchResultCueIDs = newAll
+            searchResultTotalCount = newAll.count
+            searchKnownResultCount = newAll.count
+            tableProjectionRevision &+= 1
+
+            if let snapshot = searchFacetSnapshot {
+                setSearchFacetSnapshot(snapshot.keeping(cueIDs: liveCueIDs))
+            }
+
+            if case .residentSearch = tableProjectionSource {
+                activateResidentSearchTableProjection()
+            }
         }
         return true
     }
 
     @discardableResult
     func clearResults() -> Int {
+        resetPlaybackPruning()
+        updateSearchSnapshotMutationRevision()
         let releasedRows = max(
             searchResults.count,
             searchResultCueIDs.count,
