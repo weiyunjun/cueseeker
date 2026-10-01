@@ -918,20 +918,16 @@ extension AppCoordinator {
     }
 
     func removeLibraryPresentation(under folder: URL) {
-        AppPerformanceProbe.breadcrumb("removeLibraryPresentation.begin")
-        AppPerformanceProbe.breadcrumb("removeLibraryPresentation.filter.begin")
+        let prefixes = Self.folderPathPrefixes(for: folder)
         let groups = library.libraryFolderGroups.filter { group in
-            !group.videos.contains { Self.path($0.video.videoPath, isUnder: folder) }
+            !group.videos.contains { Self.pathMatchesPrefixes($0.video.videoPath, prefixes: prefixes) }
         }
-        AppPerformanceProbe.breadcrumb("removeLibraryPresentation.filter.end")
         library.libraryFolderGroups = groups
         library.libraryVideos = groups.flatMap { group in
             group.videos.map(\.video)
         }
         library.libraryPlaybackNavigationVideos = library.libraryVideos
-        AppPerformanceProbe.breadcrumb("removeLibraryPresentation.revision.begin")
         library.libraryPresentationRevision += 1
-        AppPerformanceProbe.breadcrumb("removeLibraryPresentation.revision.end")
         UIInvalidationProbe.count(
             "UI.LibraryPresentationSnapshot.rebuilt",
             details: "groups=\(groups.count) rows=\(library.libraryVideos.count) reason=remove"
@@ -941,22 +937,15 @@ extension AppCoordinator {
             scope: uiProbeScope,
             details: "surface=library reason=remove"
         )
-        AppPerformanceProbe.breadcrumb("removeLibraryPresentation.end")
     }
 
     func removeCompleteLibraryPresentation(under folder: URL) {
-        AppPerformanceProbe.breadcrumb("removeCompleteLibraryPresentation.begin")
-        AppPerformanceProbe.breadcrumb("removeCompleteLibraryPresentation.invalidate.begin")
         invalidateCompleteLibraryFolderDetails()
-        AppPerformanceProbe.breadcrumb("removeCompleteLibraryPresentation.invalidate.end")
-        AppPerformanceProbe.breadcrumb("removeCompleteLibraryPresentation.filter.begin")
+        let prefixes = Self.folderPathPrefixes(for: folder)
         library.completeLibraryFolderSummaries = library.completeLibraryFolderSummaries.filter { group in
-            !Self.path(group.folderPath, isUnder: folder)
+            !Self.pathMatchesPrefixes(group.folderPath, prefixes: prefixes)
         }
-        AppPerformanceProbe.breadcrumb("removeCompleteLibraryPresentation.filter.end")
-        AppPerformanceProbe.breadcrumb("removeCompleteLibraryPresentation.revision.begin")
         library.completeLibraryRevision += 1
-        AppPerformanceProbe.breadcrumb("removeCompleteLibraryPresentation.revision.end")
         UIInvalidationProbe.count(
             "UI.CompleteLibrarySnapshot.rebuilt",
             details: "folders=\(library.completeLibraryFolderSummaries.count) reason=remove"
@@ -966,7 +955,6 @@ extension AppCoordinator {
             scope: uiProbeScope,
             details: "surface=complete_library reason=remove"
         )
-        AppPerformanceProbe.breadcrumb("removeCompleteLibraryPresentation.end")
     }
 
     func openLibraryVideo(

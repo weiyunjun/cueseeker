@@ -816,14 +816,8 @@ final class AppCoordinator: ObservableObject {
 
 
     func clearSearchAndPlaybackState(under folder: URL) {
-        AppPerformanceProbe.breadcrumb("clearSearchAndPlaybackState.begin folder=\(folder.path)")
-        AppPerformanceProbe.breadcrumb("clearSearchAndPlaybackState.removeLibraryPresentation.begin")
         removeLibraryPresentation(under: folder)
-        AppPerformanceProbe.breadcrumb("clearSearchAndPlaybackState.removeLibraryPresentation.end")
-        AppPerformanceProbe.breadcrumb("clearSearchAndPlaybackState.removeCompleteLibraryPresentation.begin")
         removeCompleteLibraryPresentation(under: folder)
-        AppPerformanceProbe.breadcrumb("clearSearchAndPlaybackState.removeCompleteLibraryPresentation.end")
-        AppPerformanceProbe.breadcrumb("clearSearchAndPlaybackState.end")
         // What plays keeps playing, also once its video has left the library.
     }
 
@@ -842,14 +836,34 @@ final class AppCoordinator: ObservableObject {
     }
 
     static func path(_ path: String, isUnder folder: URL) -> Bool {
-        let standardizedPath = URL(fileURLWithPath: path).standardizedFileURL.path
-        return folderPathPrefixes(for: folder).contains { prefix in
-            standardizedPath.hasPrefix(prefix)
+        pathMatchesPrefixes(path, prefixes: folderPathPrefixes(for: folder))
+    }
+
+    static func pathMatchesPrefixes(_ path: String, prefixes: [String]) -> Bool {
+        let normalizedPath = normalizedFolderPath(path)
+        for prefix in prefixes {
+            let normalizedPrefix = normalizedFolderPath(prefix)
+            if normalizedPath == normalizedPrefix {
+                return true
+            }
+            if path.hasPrefix(prefix) {
+                return true
+            }
+            if path.hasPrefix("/var/"), prefix.hasPrefix("/private/var/") {
+                if ("/private" + path).hasPrefix(prefix) {
+                    return true
+                }
+            } else if path.hasPrefix("/private/var/"), prefix.hasPrefix("/var/") {
+                if String(path.dropFirst("/private".count)).hasPrefix(prefix) {
+                    return true
+                }
+            }
         }
+        return false
     }
 
     static func folderPathPrefixes(for folder: URL) -> [String] {
-        var path = normalizedFolderPath(folder.standardizedFileURL.path)
+        var path = normalizedFolderPath(folder.path)
         if !path.hasSuffix("/") {
             path.append("/")
         }

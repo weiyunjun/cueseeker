@@ -390,13 +390,14 @@ extension AppCoordinator {
             indexing.databaseMaintenanceStatus = .idle
         }
         cancelDatabaseReadTasksBeforeIndexing()
+        let prefixes = Self.folderPathPrefixes(for: folder)
         if let currentPath = currentPlaybackVideoPath,
-           Self.path(currentPath, isUnder: folder) {
+           Self.pathMatchesPrefixes(currentPath, prefixes: prefixes) {
             currentPlaybackItemLeftLibrary = true
             stopLibraryPlaybackHistoryTracking()
         }
         pendingLibraryPlaybackHistoryPresentationVideoPaths = pendingLibraryPlaybackHistoryPresentationVideoPaths.filter {
-            !Self.path($0, isUnder: folder)
+            !Self.pathMatchesPrefixes($0, prefixes: prefixes)
         }
         AppPerformanceProbe.breadcrumb("performFolderRemoval.holdPlaybackBeforeIndexedContentChange")
         holdPlaybackBeforeIndexedContentChange()
