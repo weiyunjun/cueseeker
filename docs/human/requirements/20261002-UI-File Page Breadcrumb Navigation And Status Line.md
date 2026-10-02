@@ -46,22 +46,22 @@ main
    - 左右两端对齐：左侧为状态指示器，中间弹性占位，右侧为操作按钮组；外边缘与下方卡片对齐。
 
 3. **左侧极简状态指示器（Status Indicator）**：
-   - **极简文字**：移除所有冗长流水进度，详细耗时与任务进度统一由 Task 界面承载，File 界面仅展示当前操作核心状态。
+   - **极简文字**：移除所有冗长流水进度，详细耗时与任务进度统一由 Task 界面承载，File 界面仅展示当前操作核心状态（包含 Add Folder、Remove、Index Now 等所有数据库操作）。
    - **字重与排版规范**：字号 14px，字重 500 Medium（`--font-weight-control`），与右侧按钮文字字重完全一致，保证左右视觉重心平衡。
     - **4 种状态映射**：
       1. **已完成（Completed）**：
          - 图标：Phosphor 轮廓 `checkCircle`（18px，线宽 1.30px），颜色 `--color-success-text`。
-         - 文案：单目录索引完成展示 `Indexed [Folder]`（多语言：`已完成索引: [Folder]` / `已完成索引: [Folder]`）；全量索引完成展示 `Indexed All Folders`（多语言：`已完成全部索引` / `已完成全部索引`），颜色 `--color-success-text`（浅色 `#047857` / 深色 `#6EE7B7`）。
-      2. **进行中（Indexing）**：
+         - 文案：单目录添加/索引完成展示 `Indexed [Folder]`（多语言：`已完成索引: [Folder]` / `已完成索引: [Folder]`）；全量索引完成展示 `Indexed All Folders`（多语言：`已完成全部索引` / `已完成全部索引`）；移除目录完成展示 `Removed [Folder]`（多语言：`已移除: [Folder]` / `已移除: [Folder]`），颜色 `--color-success-text`（浅色 `#047857` / 深色 `#6EE7B7`）。完成后同步更新数据库最后操作时间戳。
+      2. **进行中（In Progress）**：
          - 图标：原生控件 `WorkbenchSpinner`（Filter Calculating 按钮同款，尺寸 18px），颜色 `--color-text-secondary`。
-         - 文案：单目录索引中展示 `Indexing [Folder]`（多语言：`正在索引: [Folder]` / `正在索引: [Folder]`）；全量索引中展示 `Indexing All Folders`（多语言：`正在索引全部文件夹` / `正在索引全部資料夾`），颜色 `--color-text-secondary`（浅色 `#494949` / 深色 `#B9B9B9`）。
+         - 文案：单目录添加/索引中展示 `Indexing [Folder]`（多语言：`正在索引: [Folder]` / `正在索引: [Folder]`）；全量索引中展示 `Indexing All Folders`（多语言：`正在索引全部文件夹` / `正在索引全部資料夾`）；移除目录进行中展示 `Removing [Folder]`（多语言：`正在移除: [Folder]` / `正在移除: [Folder]`），颜色 `--color-text-secondary`（浅色 `#494949` / 深色 `#B9B9B9`）。
       3. **失败（Failed）**：
          - 图标：Phosphor 三角警告轮廓 `warning`（18px，线宽 1.30px），颜色 `--color-danger-text`。
-         - 文案：`Index Failed: [Folder]`（多语言：`索引失败: [Folder]` / `索引失敗: [Folder]`），颜色 `--color-danger-text`（浅色 `#B42318` / 深色 `#FCA5A5`）。
-      4. **非 Index 状态 / 闲置（Idle）**：
-         - 触发场景：离开首页切换到其它页面切回，或当前无进行中的索引任务。
+         - 文案：索引失败展示 `Index Failed: [Folder]`（多语言：`索引失败: [Folder]` / `索引失敗: [Folder]`）；移除失败展示 `Removal Failed: [Folder]`（多语言：`移除失败: [Folder]` / `移除失敗: [Folder]`），颜色 `--color-danger-text`（浅色 `#B42318` / 深色 `#FCA5A5`）。
+      4. **闲置（Idle）**：
+         - 触发场景：离开首页切换到其它页面切回，或当前无进行中的数据库任务。
          - 图标：Phosphor 轮廓 `arrowClockwise`（18px，线宽 1.30px），颜色 `--color-text-secondary`。
-         - 文案：有索引记录时展示 `Last Indexed: yyyy-MM-dd HH:mm`（多语言：`上次索引: yyyy-MM-dd HH:mm` / `上次索引: yyyy-MM-dd HH:mm`）；首次打开且从未索引过时展示 `Last Indexed: --`（多语言：`上次索引: --` / `上次索引: --`），颜色 `--color-text-secondary`。
+         - 文案：有数据库操作记录时展示 `Last Updated: yy-MM-dd HH:mm`（多语言：`上次更新: yy-MM-dd HH:mm` / `上次更新: yy-MM-dd HH:mm`）；首次打开且从未操作过展示 `Last Updated: --`（多语言：`上次更新: --` / `上次更新: --`），颜色 `--color-text-secondary`。
 
 4. **右侧操作按钮组**：
    - `[Add Folder]`：图标 `folderPlus`（18px，线宽 1.30px），Neutral 按钮规范。
@@ -134,10 +134,10 @@ main
 2. **状态行与操作按钮（Level 1 独占性）**：
    - 状态指示行与右侧 `[Add Folder]`、`[Index Now]` 按钮**仅在一级（Home）展示**；下钻到二级、三级时整行彻底隐藏。
    - 极简状态文字验证：
-     - 已完成：绿色 `checkCircle` + 绿色 `Indexed [Folder]`；全量索引完成为 `Indexed All Folders` / `已完成全部索引`。
-     - 进行中：次要色 `WorkbenchSpinner` + 次要色 `Indexing [Folder]`；全量索引中为 `Indexing All Folders` / `正在索引全部文件夹`。
-     - 失败：红色三角警告 `warning` + 红色 `Index Failed: [Folder]`。
-     - 非索引/闲置：次要色 `arrowClockwise` + 次要色 `Last Indexed: yyyy-MM-dd HH:mm`；初次未索引展示 `Last Indexed: --`（多语言同步支持）。
+     - 已完成：绿色 `checkCircle` + 绿色 `Indexed [Folder]`、`Indexed All Folders` 或 `Removed [Folder]`。
+     - 进行中：次要色 `WorkbenchSpinner` + 次要色 `Indexing [Folder]`、`Indexing All Folders` 或 `Removing [Folder]`。
+     - 失败：红色三角警告 `warning` + 红色 `Index Failed: [Folder]` 或 `Removal Failed: [Folder]`。
+     - 闲置生命周期：离开一级界面（进入二三级或切去其它标签）再切回时，若当前无任务正在进行，统一恢复展示次要色 `arrowClockwise` + `Last Updated: yy-MM-dd HH:mm`；初次未操作展示 `Last Updated: --`。
    - 状态文字字重与右侧按钮文字字重均为 500 Medium，高度均为 40px，视觉完全对称平衡。
 
 3. **三级卡片规范**：
