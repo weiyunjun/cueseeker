@@ -12,9 +12,15 @@ struct WorkbenchFileView: View {
     @EnvironmentObject private var routeState: WorkbenchRouteState
     @EnvironmentObject private var library: LibraryStore
     /// Observed because any library task disables the folder controls and the
+    static let fileCardCoordinateSpaceName = "WorkbenchFileViewCoordinateSpace"
+
+    /// Observed because any library task disables the folder controls and the
     /// rename menus.
     @ObservedObject var tasks: TaskQueueStore
     @State private var isChoosingFolder = false
+    @State private var activeMenu: FileCardMenuState?
+    @StateObject private var highlight = MenuHighlightModel()
+    @State private var viewportSize: CGSize = .zero
 
     var body: some View {
         Group {
@@ -35,11 +41,16 @@ struct WorkbenchFileView: View {
         }
         .background(WorkbenchRedesignColors.bgSurface)
         .onChange(of: routeState.currentRoute) { newRoute in
+            dismissMenu()
             if newRoute != .file {
                 indexing.clearTransientNotice()
             } else if !indexing.isDatabaseOperationActive {
                 indexing.clearTransientNotice()
             }
+        }
+        .onDisappear {
+            dismissMenu()
+            indexing.clearTransientNotice()
         }
         .task {
             appState.hydrateCompleteLibraryAsync()
@@ -74,7 +85,125 @@ struct WorkbenchFileView: View {
                 .frame(minHeight: geometry.size.height, alignment: .topLeading)
             }
             .id(id)
+            .coordinateSpace(name: Self.fileCardCoordinateSpaceName)
+            .onAppear {
+                viewportSize = geometry.size
+            }
+            .onChange(of: geometry.size) { newSize in
+                viewportSize = newSize
+            }
+            .overlay(alignment: .topLeading) {
+                if let activeMenu {
+                    let menuFrame = activeMenu.menuFrame
+                    ZStack(alignment: .topLeading) {
+                        MenuGateClientView(
+                            gate: appState.interfaceLayers.menuGate,
+                            owner: .workbenchPage,
+                            kind: .cardMenu,
+                            menuFrame: menuFrame,
+                            anchorFrame: activeMenu.anchorFrame,
+                            handleKey: { keyCode, _ in
+                                switch keyCode {
+                                case 53:
+                                    dismissMenu()
+                                    return true
+                                case 126:
+                                    _ = highlight.moveHighlight(by: -1)
+                                    return true
+                                case 125:
+                                    _ = highlight.moveHighlight(by: 1)
+                                    return true
+                                case 123, 124:
+                                    return true
+                                case 36, 76:
+                                    return activateHighlightedItem(in: activeMenu)
+                                default:
+                                    return false
+                                }
+                            },
+                            dismiss: { _ in
+                                dismissMenu()
+                            }
+                        )
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .allowsHitTesting(false)
+
+                        FileCardMenuPopover(
+                            items: activeMenu.items,
+                            highlight: highlight,
+                            onDismiss: { dismissMenu() }
+                        )
+                        .offset(x: menuFrame.minX, y: menuFrame.minY)
+                    }
+                    .zIndex(1000)
+                }
+            }
         }
+    }
+
+    private func toggleMenu(for cardID: String, anchorFrame: CGRect, items: [FileCardMenuItem]) {
+        if activeMenu?.cardID == cardID {
+            dismissMenu()
+        } else {
+            openMenu(for: cardID, anchorFrame: anchorFrame, items: items)
+        }
+    }
+
+    private func openMenu(for cardID: String, anchorFrame: CGRect, items: [FileCardMenuItem]) {
+        let naturalSize = measuredMenuSize(for: items)
+        let container = CGRect(origin: .zero, size: viewportSize)
+        let anchorForPlacement = CGRect(
+            x: anchorFrame.maxX - naturalSize.width,
+            y: anchorFrame.minY,
+            width: naturalSize.width,
+            height: anchorFrame.height
+        )
+        let openingFrame = MenuPlacement.openingFrame(
+            anchor: anchorForPlacement,
+            menuSize: naturalSize,
+            in: container,
+            gap: WorkbenchControlMetrics.redesignSpacing1,
+            shrinksToFit: false
+        )
+        activeMenu = FileCardMenuState(
+            cardID: cardID,
+            anchorFrame: anchorFrame,
+            menuFrame: openingFrame,
+            items: items
+        )
+        highlight.open(
+            selectablePositions: items.indices.filter { items[$0].isEnabled }
+        )
+    }
+
+    private func dismissMenu() {
+        activeMenu = nil
+        highlight.close()
+    }
+
+    private func activateHighlightedItem(in menu: FileCardMenuState) -> Bool {
+        guard let position = highlight.highlightedPosition,
+              menu.items.indices.contains(position),
+              menu.items[position].isEnabled
+        else {
+            return false
+        }
+        let item = menu.items[position]
+        dismissMenu()
+        item.action()
+        return true
+    }
+
+    private func measuredMenuSize(for items: [FileCardMenuItem]) -> CGSize {
+        let host = NSHostingView(
+            rootView: FileCardMenuPopover(
+                items: items,
+                highlight: highlight,
+                onDismiss: {}
+            )
+        )
+        host.layoutSubtreeIfNeeded()
+        return host.fittingSize
     }
 
     // MARK: - Level 1: Roots
@@ -140,6 +269,27 @@ struct WorkbenchFileView: View {
         } else {
             LazyVStack(spacing: WorkbenchControlMetrics.redesignSpacing3) {
                 ForEach(indexing.selectedFolders, id: \.self) { folder in
+                    let items = [
+                        FileCardMenuItem(
+                            title: L("rename.folder"),
+                            icon: .pencilSimple,
+                            isEnabled: !isFolderOperationBlocked,
+                            isDestructive: false,
+                            action: {
+                                appState.requestRootFolderRename(folder)
+                            }
+                        ),
+                        FileCardMenuItem(
+                            title: L("common.remove"),
+                            icon: .minusCircle,
+                            isEnabled: !isFolderOperationBlocked,
+                            isDestructive: true,
+                            action: {
+                                requestRemoval(of: folder)
+                            }
+                        )
+                    ]
+
                     WorkbenchFileCard(
                         icon: .folder,
                         title: folder.lastPathComponent,
@@ -148,27 +298,13 @@ struct WorkbenchFileView: View {
                             appState.workbenchLayout.navigate(
                                 to: .fileFolder(rootPath: folder.standardizedFileURL.path)
                             )
+                        },
+                        menuItems: items,
+                        isMenuOpen: activeMenu?.cardID == folder.path,
+                        onOpenMenu: { anchorFrame in
+                            toggleMenu(for: folder.path, anchorFrame: anchorFrame, items: items)
                         }
-                    ) {
-                        HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
-                            WorkbenchButton(
-                                title: L("rename.folder"),
-                                icon: .pencilSimple,
-                                isRedesign: true
-                            ) {
-                                appState.requestRootFolderRename(folder)
-                            }
-                            .disabled(isFolderOperationBlocked)
-
-                            WorkbenchDestructiveButton(
-                                title: L("common.remove"),
-                                icon: .minusCircle
-                            ) {
-                                requestRemoval(of: folder)
-                            }
-                            .disabled(isFolderOperationBlocked)
-                        }
-                    }
+                    )
                 }
             }
             .frame(maxWidth: .infinity, alignment: .topLeading)
@@ -199,6 +335,17 @@ struct WorkbenchFileView: View {
                     let title = isDirectContent
                         ? (URL(fileURLWithPath: rootPath).lastPathComponent + L("file.direct_content_suffix"))
                         : URL(fileURLWithPath: folder.folderPath).lastPathComponent
+                    let items = [
+                        FileCardMenuItem(
+                            title: L("rename.folder"),
+                            icon: .pencilSimple,
+                            isEnabled: !isFolderOperationBlocked,
+                            isDestructive: false,
+                            action: {
+                                appState.requestFolderRename(folder)
+                            }
+                        )
+                    ]
 
                     WorkbenchFileCard(
                         icon: .folder,
@@ -208,17 +355,13 @@ struct WorkbenchFileView: View {
                             appState.workbenchLayout.navigate(
                                 to: .fileFiles(rootPath: rootPath, folderPath: folder.folderPath)
                             )
+                        },
+                        menuItems: items,
+                        isMenuOpen: activeMenu?.cardID == folder.folderPath,
+                        onOpenMenu: { anchorFrame in
+                            toggleMenu(for: folder.folderPath, anchorFrame: anchorFrame, items: items)
                         }
-                    ) {
-                        WorkbenchButton(
-                            title: L("rename.folder"),
-                            icon: .pencilSimple,
-                            isRedesign: true
-                        ) {
-                            appState.requestFolderRename(folder)
-                        }
-                        .disabled(isFolderOperationBlocked)
-                    }
+                    )
                 }
             }
             .frame(maxWidth: .infinity, alignment: .topLeading)
@@ -253,39 +396,55 @@ struct WorkbenchFileView: View {
             LazyVStack(spacing: WorkbenchControlMetrics.redesignSpacing3) {
                 ForEach(objects) { object in
                     if !object.videoPath.isEmpty {
+                        let videoItems = [
+                            FileCardMenuItem(
+                                title: L("rename.files"),
+                                icon: .pencilSimple,
+                                isEnabled: !isFolderOperationBlocked,
+                                isDestructive: false,
+                                action: {
+                                    appState.requestFileGroupRename(object)
+                                }
+                            )
+                        ]
+
                         WorkbenchFileCard(
                             icon: .video,
                             title: object.videoName,
                             subtitle: FileSizeFormatter.format(bytes: object.fileSize),
-                            onTap: nil
-                        ) {
-                            WorkbenchButton(
-                                title: L("rename.files"),
-                                icon: .pencilSimple,
-                                isRedesign: true
-                            ) {
-                                appState.requestFileGroupRename(object)
+                            onTap: nil,
+                            menuItems: videoItems,
+                            isMenuOpen: activeMenu?.cardID == object.videoPath,
+                            onOpenMenu: { anchorFrame in
+                                toggleMenu(for: object.videoPath, anchorFrame: anchorFrame, items: videoItems)
                             }
-                            .disabled(isFolderOperationBlocked)
-                        }
+                        )
                     }
 
                     ForEach(object.subtitles) { subtitle in
+                        let subtitleItems = [
+                            FileCardMenuItem(
+                                title: L("rename.files"),
+                                icon: .pencilSimple,
+                                isEnabled: !isFolderOperationBlocked,
+                                isDestructive: false,
+                                action: {
+                                    appState.requestFileGroupRename(object)
+                                }
+                            )
+                        ]
+
                         WorkbenchFileCard(
                             icon: .subtitles,
                             title: subtitle.name,
                             subtitle: FileSizeFormatter.format(bytes: subtitle.fileSize),
-                            onTap: nil
-                        ) {
-                            WorkbenchButton(
-                                title: L("rename.files"),
-                                icon: .pencilSimple,
-                                isRedesign: true
-                            ) {
-                                appState.requestFileGroupRename(object)
+                            onTap: nil,
+                            menuItems: subtitleItems,
+                            isMenuOpen: activeMenu?.cardID == subtitle.path,
+                            onOpenMenu: { anchorFrame in
+                                toggleMenu(for: subtitle.path, anchorFrame: anchorFrame, items: subtitleItems)
                             }
-                            .disabled(isFolderOperationBlocked)
-                        }
+                        )
                     }
                 }
             }
@@ -468,12 +627,74 @@ private struct BreadcrumbLink: View {
     }
 }
 
-private struct WorkbenchFileCard<Trailing: View>: View {
+struct FileCardMenuItem: Identifiable, Sendable {
+    let title: String
+    let icon: AppIcon
+    var isEnabled: Bool = true
+    var isDestructive: Bool = false
+    let action: @MainActor () -> Void
+
+    var id: String {
+        title
+    }
+}
+
+private struct FileCardMenuState: Identifiable {
+    let id = UUID()
+    let cardID: String
+    let anchorFrame: CGRect
+    let menuFrame: CGRect
+    let items: [FileCardMenuItem]
+}
+
+struct FileCardMenuPopover: View {
+    let items: [FileCardMenuItem]
+    @ObservedObject var highlight: MenuHighlightModel
+    let onDismiss: () -> Void
+
+    var body: some View {
+        WorkbenchPopoverPanel(
+            isRedesign: true,
+            maximumHeight: MenuMetrics.maximumHeight,
+            highlight: highlight
+        ) {
+            VStack(alignment: .leading, spacing: 0) {
+                ForEach(Array(items.enumerated()), id: \.element.id) { position, item in
+                    WorkbenchPopoverRow(
+                        title: item.title,
+                        isHighlighted: highlight.highlightedPosition == position,
+                        icon: item.icon,
+                        isRedesign: true,
+                        showsCheckmarkSlot: false,
+                        isEnabled: item.isEnabled,
+                        isDestructive: item.isDestructive,
+                        action: {
+                            onDismiss()
+                            item.action()
+                        },
+                        onHoverChange: { isHovered in
+                            highlight.noteHover(isHovered, at: position)
+                        }
+                    )
+                    .id(position)
+                }
+            }
+            .frame(minWidth: 160, alignment: .leading)
+        }
+        .fixedSize(horizontal: true, vertical: false)
+    }
+}
+
+private struct WorkbenchFileCard: View {
     let icon: AppIcon
     let title: String
     let subtitle: String
     let onTap: (() -> Void)?
-    @ViewBuilder let trailing: () -> Trailing
+    let menuItems: [FileCardMenuItem]
+    let isMenuOpen: Bool
+    let onOpenMenu: (CGRect) -> Void
+
+    @State private var isHovered = false
 
     var body: some View {
         HStack(alignment: .top, spacing: WorkbenchControlMetrics.redesignSpacing4) {
@@ -501,10 +722,26 @@ private struct WorkbenchFileCard<Trailing: View>: View {
 
             Spacer(minLength: 0)
 
-            trailing()
-                .alignmentGuide(.top) { _ in
-                    WorkbenchControlMetrics.redesignCardTrailingButtonTopAlignmentOffset
-                }
+            GeometryReader { buttonProxy in
+                WorkbenchIconButton(
+                    icon: .dotsThree,
+                    isRedesign: true,
+                    isOpen: isMenuOpen,
+                    hoverBackground: WorkbenchRedesignColors.rowSelected,
+                    action: {
+                        let frame = buttonProxy.frame(in: .named(WorkbenchFileView.fileCardCoordinateSpaceName))
+                        onOpenMenu(frame)
+                    }
+                )
+                .disabled(menuItems.isEmpty || menuItems.allSatisfy { !$0.isEnabled })
+            }
+            .frame(
+                width: WorkbenchControlMetrics.redesignIconButtonSize,
+                height: WorkbenchControlMetrics.redesignIconButtonSize
+            )
+            .alignmentGuide(.top) { _ in
+                WorkbenchControlMetrics.redesignCardTrailingButtonTopAlignmentOffset
+            }
         }
         .padding(WorkbenchControlMetrics.redesignSpacing4)
         .frame(
@@ -517,7 +754,7 @@ private struct WorkbenchFileCard<Trailing: View>: View {
                 cornerRadius: WorkbenchControlMetrics.redesignCornerRadius,
                 style: .continuous
             )
-            .fill(WorkbenchRedesignColors.bgDialog)
+            .fill(isHovered ? WorkbenchRedesignColors.rowHover : WorkbenchRedesignColors.tableBg)
         )
         .overlay(
             RoundedRectangle(
@@ -533,6 +770,7 @@ private struct WorkbenchFileCard<Trailing: View>: View {
             cornerRadius: WorkbenchControlMetrics.redesignCornerRadius,
             style: .continuous
         ))
+        .onPointerHover { isHovered = $0 }
         .onTapGesture {
             onTap?()
         }
