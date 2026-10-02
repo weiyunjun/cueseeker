@@ -7,10 +7,9 @@ Human-owned documents:
 
 ## Why
 
-1. When multiple items are selected in Search or Excerpt views, users can trigger batch actions (`Export to Anki`, `Copy Deep Links`, `Copy Table`) via the Selection Action Overlay. If some or all selected items have been removed from the library (invalid):
-   - Previously, batch actions attempted to process invalid items, which either failed or caused unintended side-effects.
-   - Per requirement, if all selected items are invalid, the action must be intercepted with a warning toast (`Cue Not in Library` for 1 item, `Cues Not in Library` for >1 items, 3.0s, `.warning`), and the table selection state (checkboxes) must remain unchanged.
-   - If only a portion of the selected items are invalid, the action should execute normally on the valid items, presenting standard success feedback, while keeping the selection checkboxes unchanged.
+1. When multiple items are selected in Search or Excerpt views, users can trigger batch actions (`Export to Anki`, `Copy Deep Links`, `Copy Table`) via the Selection Action Overlay:
+   - For `Export to Anki` and `Copy Deep Links`: if all selected items are invalid, the action is intercepted with a warning toast (`Cue Not in Library` for 1 item, `Cues Not in Library` for >1 items, 3.0s, `.warning`), and the table selection state (checkboxes) remains unchanged. If partially invalid, the action executes only on the valid items with standard success feedback.
+   - For `Copy Table`: table text remains copyable as TSV regardless of media library presence and is not intercepted.
 2. In the Excerpt table row menu, clicking `Move to List` or `Duplicate to List` (including selecting a destination list or creating a new list) for an excerpt whose backing cue is no longer in the library must be intercepted with a warning toast (`Cue Not in Library`, 3.0s, `.warning`).
 
 ## What changed
@@ -21,12 +20,13 @@ Human-owned documents:
 - **Search Selection Action Overlay**:
   - In `WorkbenchTestSearchView`:
     - Updated `exportSelectedRowsToAnki()`: filters selected rows by `appState.cueIDsInLibrary(among:)`. If all invalid, intercepts and displays `cueNotInLibrary(count:)` toast without opening export dialog. If partially valid, opens export dialog with only valid items. Selection checkboxes remain unchanged in both cases.
-    - Updated `copySelectedRowsAsTable()`: filters selected rows by library presence. If all invalid, intercepts with `cueNotInLibrary(count:)` toast. If partially valid, copies valid rows to clipboard and displays standard `copyTable` toast.
+    - `copySelectedRowsAsTable()`: copies all selected rows directly to clipboard without library interception.
     - Updated `copySelectedRowsAsDeepLinks()`: filters selected rows by library presence. If all invalid, intercepts with `cueNotInLibrary(count:)` toast. If partially valid, copies valid rows to clipboard and displays standard `copyDeepLinks` toast.
 - **Excerpt Selection Action Overlay**:
   - In `WorkbenchExcerptTableView`:
     - Added `isExcerptValid(_:row:)` checking `item.isValid`, `!row.cueState.isUnavailable`, and `appState.excerptIDsInLibrary(among:)`.
-    - Updated `exportSelectedRowsToAnki()`, `copySelectedRowsAsTable()`, and `copySelectedRowsAsDeepLinks()` to validate rows against library availability. If all invalid, displays `cueNotInLibrary(count:)` toast. If partially valid, filters to valid rows only and preserves selection checkboxes.
+    - Updated `exportSelectedRowsToAnki()` and `copySelectedRowsAsDeepLinks()` to validate rows against library availability. If all invalid, displays `cueNotInLibrary(count:)` toast. If partially valid, filters to valid rows only and preserves selection checkboxes.
+    - `copySelectedRowsAsTable()`: copies all selected rows directly to clipboard without library interception.
 - **Excerpt Row Menu & Lifecycle Guards**:
   - In `SubtitleTableView`:
     - In `performActiveRowMenuDestinationAction` and `performActiveRowMenuCreateListAction`, guarded `.moveToList` and `.duplicateToList` actions against `isCueInLibrary(cueID)`. If invalid, displays `TableToastRequest.cueNotInLibrary` toast and cancels the transfer.

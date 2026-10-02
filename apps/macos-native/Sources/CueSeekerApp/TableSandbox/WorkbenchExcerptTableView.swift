@@ -646,27 +646,8 @@ private struct WorkbenchExcerptTableContent: View {
             return
         }
 
-        let rows = selectedRows.compactMap { rowStore.snapshot.row(at: $0) }
-        let excerptIDs = rows.map { Int64($0.id) }
-        let validExcerptIDs = appState.excerptIDsInLibrary(among: excerptIDs)
-        let validRows = rows.filter { row in
-            guard !row.cueState.isUnavailable,
-                  let excerpt = rowStore.snapshot.excerpt(entryID: row.id),
-                  excerpt.isValid,
-                  validExcerptIDs.contains(Int64(row.id))
-            else {
-                return false
-            }
-            return true
-        }
-
-        guard !validRows.isEmpty else {
-            appState.toast.show(TableToastRequest.cueNotInLibrary(count: selectedRows.count))
-            return
-        }
-
         var builder = SubtitleTableClipboard.TSVBuilder(columns: columns)
-        builder.append(rows: validRows)
+        builder.append(rows: selectedRows.compactMap { rowStore.snapshot.row(at: $0) })
         SubtitleTableClipboard.copy(representations: builder.representations)
         appState.toast.show(TableToastRequest.copyTable)
     }

@@ -181,4 +181,43 @@ struct SelectionActionOverlayInvalidItemsTests {
         #expect(validRows.first?.id == 52)
         #expect(selectedRows == [0, 1])
     }
+
+    @Test
+    func searchCopyTableCopiesAllSelectedRowsRegardlessOfValidity() {
+        let toastCenter = ToastCenter()
+        let selectedRows = [0, 1]
+        let row1 = makeRow(id: 10, cueID: 100)
+        let row2 = makeRow(id: 11, cueID: 101)
+        let rows = [row1, row2]
+
+        // Copy Table does not filter by library presence
+        let columns = SubtitleTableClipboard.columns(from: SchemaWorkbenchSearchDefaults.columns)
+        var builder = SubtitleTableClipboard.TSVBuilder(columns: columns)
+        builder.append(rows: rows)
+        toastCenter.show(TableToastRequest.copyTable)
+
+        #expect(!builder.representations.isEmpty)
+        #expect(toastCenter.visibleItems.last?.request == TableToastRequest.copyTable)
+        #expect(selectedRows == [0, 1])
+    }
+
+    @Test
+    func excerptCopyTableCopiesAllSelectedRowsRegardlessOfValidity() {
+        let toastCenter = ToastCenter()
+        let selectedRows = [0, 1]
+        let row1 = makeRow(id: 20, cueID: 200, isUnavailable: true)
+        let row2 = makeRow(id: 21, cueID: 201)
+        let rows = [row1, row2]
+
+        // Copy Table does not filter by validity/library presence
+        let columns = SubtitleTableClipboard.columns(from: SchemaWorkbenchSearchDefaults.excerptColumns)
+        var builder = SubtitleTableClipboard.TSVBuilder(columns: columns)
+        builder.append(rows: rows)
+        toastCenter.show(TableToastRequest.copyTable)
+
+        #expect(!builder.representations.isEmpty)
+        #expect(toastCenter.visibleItems.last?.request == TableToastRequest.copyTable)
+        #expect(selectedRows == [0, 1])
+    }
 }
+

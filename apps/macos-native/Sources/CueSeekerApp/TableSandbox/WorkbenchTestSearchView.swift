@@ -563,20 +563,8 @@ struct WorkbenchTestSearchView: View {
             return
         }
 
-        let rows = selectedRows.compactMap { rowStore.snapshot.row(at: $0) }
-        let cueIDs = rows.compactMap(\.primaryCueID)
-        let validCueIDs = appState.cueIDsInLibrary(among: cueIDs)
-        let validRows = rows.filter { row in
-            guard let cueID = row.primaryCueID else { return false }
-            return validCueIDs.contains(cueID)
-        }
-        guard !validRows.isEmpty else {
-            appState.toast.show(TableToastRequest.cueNotInLibrary(count: selectedRows.count))
-            return
-        }
-
         var builder = SubtitleTableClipboard.TSVBuilder(columns: columns)
-        builder.append(rows: validRows)
+        builder.append(rows: selectedRows.compactMap { rowStore.snapshot.row(at: $0) })
         SubtitleTableClipboard.copy(representations: builder.representations)
         appState.toast.show(TableToastRequest.copyTable)
     }
