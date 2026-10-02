@@ -739,9 +739,7 @@ private struct WorkbenchFileCard: View {
                 width: WorkbenchControlMetrics.redesignIconButtonSize,
                 height: WorkbenchControlMetrics.redesignIconButtonSize
             )
-            .alignmentGuide(.top) { _ in
-                WorkbenchControlMetrics.redesignCardTrailingButtonTopAlignmentOffset
-            }
+            .padding(.top, WorkbenchControlMetrics.redesignCardTrailingIconButtonTopOffset)
         }
         .padding(WorkbenchControlMetrics.redesignSpacing4)
         .frame(

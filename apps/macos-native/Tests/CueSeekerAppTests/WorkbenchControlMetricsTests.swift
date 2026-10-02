@@ -98,6 +98,6 @@ func cardIconContainerMetricsMatchDesignSpecification() {
     #expect(WorkbenchControlMetrics.redesignCardIconContainerSize == 36)
     #expect(WorkbenchControlMetrics.redesignCardIconGlyphSize == 20)
     #expect(WorkbenchControlMetrics.redesignCardBaselineHeight == 68)
-    #expect(WorkbenchControlMetrics.redesignCardTrailingButtonTopAlignmentOffset == 2)
+    #expect(WorkbenchControlMetrics.redesignCardTrailingIconButtonTopOffset == 2)
 }
 

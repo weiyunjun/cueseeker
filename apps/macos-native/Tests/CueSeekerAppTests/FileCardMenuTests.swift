@@ -142,6 +142,31 @@ struct FileCardMenuTests {
         #expect(fittingSize.height > 60)
         #expect(fittingSize.height < 120)
     }
+
+    @Test
+    func fileCardTrailingIconButtonCenteringAndTopPinnedMetrics() {
+        let baselineCardHeight = WorkbenchControlMetrics.redesignCardBaselineHeight
+        let cardPadding = WorkbenchControlMetrics.redesignSpacing4
+        let buttonSize = WorkbenchControlMetrics.redesignIconButtonSize
+        let buttonTopOffset = WorkbenchControlMetrics.redesignCardTrailingIconButtonTopOffset
+
+        // Top margin in baseline state
+        let baselineTopMargin = cardPadding + buttonTopOffset
+        // Bottom margin in baseline state
+        let baselineBottomMargin = baselineCardHeight - (baselineTopMargin + buttonSize)
+
+        // Baseline card must vertically center the 32px button (18px top, 18px bottom)
+        #expect(baselineCardHeight == 68)
+        #expect(buttonSize == 32)
+        #expect(baselineTopMargin == 18)
+        #expect(baselineBottomMargin == 18)
+        #expect(baselineTopMargin == baselineBottomMargin)
+
+        // Multi-line expanded card (e.g. text expands card height to 100px)
+        let multiLineTopMargin = cardPadding + buttonTopOffset
+        #expect(multiLineTopMargin == baselineTopMargin)
+        #expect(multiLineTopMargin == 18)
+    }
 }
 
 private func hexString(_ color: NSColor, appearance: NSAppearance.Name = .aqua) -> String {

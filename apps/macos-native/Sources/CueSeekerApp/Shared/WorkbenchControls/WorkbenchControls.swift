@@ -352,8 +352,8 @@ enum WorkbenchControlMetrics {
     static let redesignCardIconGlyphSize: CGFloat = 20
     /// Baseline card height: 68px (16px top + 36px text/icon + 16px bottom)
     static let redesignCardBaselineHeight: CGFloat = 68
-    /// Trailing button (40px) top offset adjustment to vertically center within 68px baseline card (14px top offset vs 16px padding = 2px)
-    static let redesignCardTrailingButtonTopAlignmentOffset: CGFloat = 2
+    /// Trailing icon button (32px) top offset to vertically center within 68px baseline card (18px top margin vs 16px padding = 2px)
+    static let redesignCardTrailingIconButtonTopOffset: CGFloat = 2
     /// Line 3 row height for task card (16px)
     static let redesignTaskCardLine3Height: CGFloat = 16
 

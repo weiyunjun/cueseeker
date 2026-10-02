@@ -23,11 +23,14 @@ Human-owned documents:
 - **Icon Asset & Registry**:
    - Added stroke master SVG asset `apps/macos-native/Sources/CueSeekerApp/Resources/Icons/dots-three.svg` (256×256 viewBox, stroke-width 16).
    - Registered `case dotsThree = "dots-three"` in `AppIcon.swift`.
-- **WorkbenchFileView**:
+- **WorkbenchFileView & Control Metrics**:
    - Defined `FileCardMenuItem`, `FileCardMenuState`, and `FileCardMenuPopover`.
+   - Updated `WorkbenchControlMetrics`:
+     - Added `redesignCardTrailingIconButtonTopOffset: 2px` (`cardPadding 16px + 2px = 18px` top margin, perfectly centering 32px button in 68px baseline card with 18px top and 18px bottom margins).
    - Updated `WorkbenchFileCard`:
      - Applied `--color-table-bg` as normal background and `--color-row-hover` on pointer hover, preserving `--color-border-control`.
      - Replaced trailing action buttons with a 32×32px `WorkbenchIconButton(icon: .dotsThree, isOpen: isMenuOpen, hoverBackground: rowSelected)` that triggers menu presentation.
+     - Positioned trailing icon button with `.padding(.top, redesignCardTrailingIconButtonTopOffset)` within top-aligned `HStack`, ensuring vertical centering in baseline card and constant 18px top distance in multi-line cards.
      - Handled disabled state during running background operations (`isFolderOperationBlocked`).
    - Integrated `MenuGateClientView` and popover overlay on `fileScrollSurface`:
      - Pinned coordinate space `fileCardCoordinateSpaceName`.
@@ -43,6 +46,9 @@ Human-owned documents:
      - Verified `MenuPlacement` opening frame calculation for normal downward and space-constrained upward placement.
      - Verified color token resolutions in Light and Dark modes (`tableBg`, `rowHover`, `rowSelected`) and `dotsThree` asset resolution.
      - Verified `FileCardMenuPopover` layout and fitting size constraints without overflow.
+     - Verified `fileCardTrailingIconButtonCenteringAndTopPinnedMetrics` confirming 18px equal top/bottom margin in baseline card and 18px pinned top margin in multi-line card.
+   - Updated `WorkbenchControlMetricsTests.swift`:
+     - Verified `redesignCardTrailingIconButtonTopOffset == 2`.
 
 ## Verification
 
