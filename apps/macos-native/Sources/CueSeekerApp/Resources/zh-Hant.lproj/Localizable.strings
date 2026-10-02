@@ -549,6 +549,9 @@
 "task.confirm.remove.index" = "索引將停止並移入未完成。已完成索引的資料夾會保留資料。";
 "task.confirm.remove.add_folder" = "加入「%@」將停止並移入未完成。該資料夾不會被加入，已索引的內容會被清除。";
 "task.confirm.delete.other" = "只刪除這筆記錄，不會復原任務的結果。";
+"task.menu.cancel" = "取消任務";
+"task.menu.delete" = "刪除記錄";
+"toast.task_status_changed" = "任務狀態已經改變";
 "index.stage.scanning" = "正在掃描檔案";
 "index.stage.subtitles" = "正在解析字幕";
 "index.stage.video_info" = "正在讀取影片資訊";

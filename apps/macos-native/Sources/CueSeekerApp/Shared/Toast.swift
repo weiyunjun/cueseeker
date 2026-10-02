@@ -160,6 +160,23 @@ enum TableToastRequest {
     }
 }
 
+enum TaskToastRequest {
+    static var taskStatusChanged: ToastRequest {
+        ToastRequest(
+            scenarioID: "task.action.status_changed",
+            message: L("toast.task_status_changed"),
+            icon: .warning,
+            duration: ToastDuration.alert
+        )
+    }
+}
+
+extension ToastRequest {
+    static var taskStatusChanged: ToastRequest {
+        TaskToastRequest.taskStatusChanged
+    }
+}
+
 struct ToastItem: Identifiable, Equatable {
     let id: UUID
     let request: ToastRequest

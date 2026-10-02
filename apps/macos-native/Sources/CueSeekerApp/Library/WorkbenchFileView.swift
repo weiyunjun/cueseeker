@@ -627,63 +627,10 @@ private struct BreadcrumbLink: View {
     }
 }
 
-struct FileCardMenuItem: Identifiable, Sendable {
-    let title: String
-    let icon: AppIcon
-    var isEnabled: Bool = true
-    var isDestructive: Bool = false
-    let action: @MainActor () -> Void
+typealias FileCardMenuItem = WorkbenchCardMenuItem
+typealias FileCardMenuState = WorkbenchCardMenuState
+typealias FileCardMenuPopover = WorkbenchCardMenuPopover
 
-    var id: String {
-        title
-    }
-}
-
-private struct FileCardMenuState: Identifiable {
-    let id = UUID()
-    let cardID: String
-    let anchorFrame: CGRect
-    let menuFrame: CGRect
-    let items: [FileCardMenuItem]
-}
-
-struct FileCardMenuPopover: View {
-    let items: [FileCardMenuItem]
-    @ObservedObject var highlight: MenuHighlightModel
-    let onDismiss: () -> Void
-
-    var body: some View {
-        WorkbenchPopoverPanel(
-            isRedesign: true,
-            maximumHeight: MenuMetrics.maximumHeight,
-            highlight: highlight
-        ) {
-            VStack(alignment: .leading, spacing: 0) {
-                ForEach(Array(items.enumerated()), id: \.element.id) { position, item in
-                    WorkbenchPopoverRow(
-                        title: item.title,
-                        isHighlighted: highlight.highlightedPosition == position,
-                        icon: item.icon,
-                        isRedesign: true,
-                        showsCheckmarkSlot: false,
-                        isEnabled: item.isEnabled,
-                        isDestructive: item.isDestructive,
-                        action: {
-                            onDismiss()
-                            item.action()
-                        },
-                        onHoverChange: { isHovered in
-                            highlight.noteHover(isHovered, at: position)
-                        }
-                    )
-                    .id(position)
-                }
-            }
-            .frame(minWidth: 160, alignment: .leading)
-        }
-        .fixedSize(horizontal: true, vertical: false)
-    }
-}
 
 private struct WorkbenchFileCard: View {
     let icon: AppIcon
@@ -733,7 +680,6 @@ private struct WorkbenchFileCard: View {
                         onOpenMenu(frame)
                     }
                 )
-                .disabled(menuItems.isEmpty || menuItems.allSatisfy { !$0.isEnabled })
             }
             .frame(
                 width: WorkbenchControlMetrics.redesignIconButtonSize,

@@ -12,12 +12,18 @@ import CueSeekerCore
 /// Its confirmations go to the app-level holder like every page's: the dialog
 /// layer stacks them on the panel.
 struct TaskPanel: View {
+    static let taskCardCoordinateSpaceName = "TaskPanel.cardCoordinateSpace"
 
     @ObservedObject var tasks: TaskQueueStore
     /// Observed because a confirmation open above the panel takes its Escape.
     @ObservedObject var confirmation: ConfirmationCenter
     // Observed so the labels below are re-read when the language changes.
     @EnvironmentObject private var localization: AppLocalizationStore
+    @EnvironmentObject private var appState: AppCoordinator
+
+    @State private var activeMenu: WorkbenchCardMenuState?
+    @StateObject private var menuHighlight = MenuHighlightModel()
+    @State private var viewportSize: CGSize = .zero
 
     var body: some View {
         VStack(spacing: WorkbenchControlMetrics.redesignSpacing4) {
@@ -34,16 +40,71 @@ struct TaskPanel: View {
                 },
                 selection: tasks.selectedTab
             ) { tab in
+                dismissMenu()
                 tasks.selectedTab = tab
             }
 
             // The list reaches the dialog's sides and bottom: the scrollbar
             // runs in the inset, and the last card ends one inset above the
             // bottom edge.
-            WorkbenchScrollView {
-                tabContent
-                    .padding(.horizontal, WorkbenchControlMetrics.redesignDialogInset)
-                    .padding(.bottom, WorkbenchControlMetrics.redesignDialogInset)
+            GeometryReader { geometry in
+                WorkbenchScrollView {
+                    tabContent
+                        .padding(.horizontal, WorkbenchControlMetrics.redesignDialogInset)
+                        .padding(.bottom, WorkbenchControlMetrics.redesignDialogInset)
+                }
+                .coordinateSpace(name: Self.taskCardCoordinateSpaceName)
+                .onAppear {
+                    viewportSize = geometry.size
+                }
+                .onChange(of: geometry.size) { newSize in
+                    viewportSize = newSize
+                }
+                .overlay(alignment: .topLeading) {
+                    if let activeMenu {
+                        let menuFrame = activeMenu.menuFrame
+                        ZStack(alignment: .topLeading) {
+                            MenuGateClientView(
+                                gate: appState.interfaceLayers.menuGate,
+                                owner: .workbenchPage,
+                                kind: .cardMenu,
+                                menuFrame: menuFrame,
+                                anchorFrame: activeMenu.anchorFrame,
+                                handleKey: { keyCode, _ in
+                                    switch keyCode {
+                                    case 53:
+                                        dismissMenu()
+                                        return true
+                                    case 126:
+                                        _ = menuHighlight.moveHighlight(by: -1)
+                                        return true
+                                    case 125:
+                                        _ = menuHighlight.moveHighlight(by: 1)
+                                        return true
+                                    case 123, 124:
+                                        return true
+                                    case 36, 76:
+                                        return activateHighlightedItem(in: activeMenu)
+                                    default:
+                                        return false
+                                    }
+                                },
+                                dismiss: { _ in
+                                    dismissMenu()
+                                }
+                            )
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .allowsHitTesting(false)
+
+                            WorkbenchCardMenuPopover(
+                                items: activeMenu.items,
+                                highlight: menuHighlight,
+                                onDismiss: { dismissMenu() }
+                            )
+                            .offset(x: menuFrame.minX, y: menuFrame.minY)
+                        }
+                    }
+                }
             }
         }
         .padding(.top, WorkbenchControlMetrics.redesignDialogTopPadding)
@@ -54,7 +115,10 @@ struct TaskPanel: View {
         // confirmation stands above the panel, which owns it.
         .workbenchDialogCloseButton(
             closesOnEscape: confirmation.session == nil,
-            onClose: tasks.closePanel
+            onClose: {
+                dismissMenu()
+                tasks.closePanel()
+            }
         )
         .subtitleTableTextSelectionNonInteractiveRegion()
     }
@@ -65,22 +129,209 @@ struct TaskPanel: View {
         case .current:
             cardList(isEmpty: tasks.current.isEmpty, emptyMessage: L("task.empty.current")) {
                 ForEach(tasks.current) { entry in
-                    TaskCurrentCard(entry: entry)
+                    let items = currentMenuItems(for: entry)
+                    TaskCurrentCard(
+                        entry: entry,
+                        isMenuOpen: activeMenu?.cardID == "current-\(entry.id)",
+                        onOpenMenu: { anchorFrame in
+                            toggleMenu(for: "current-\(entry.id)", anchorFrame: anchorFrame, items: items)
+                        }
+                    )
                 }
             }
         case .completed:
             cardList(isEmpty: tasks.completed.isEmpty, emptyMessage: L("task.empty.completed")) {
                 ForEach(tasks.completed) { record in
-                    TaskHistoryCard(record: record)
+                    let items = historyMenuItems(for: record)
+                    TaskHistoryCard(
+                        record: record,
+                        isMenuOpen: activeMenu?.cardID == "history-\(record.id)",
+                        onOpenMenu: { anchorFrame in
+                            toggleMenu(for: "history-\(record.id)", anchorFrame: anchorFrame, items: items)
+                        }
+                    )
                 }
             }
         case .incomplete:
             cardList(isEmpty: tasks.incomplete.isEmpty, emptyMessage: L("task.empty.incomplete")) {
                 ForEach(tasks.incomplete) { record in
-                    TaskHistoryCard(record: record)
+                    let items = historyMenuItems(for: record)
+                    TaskHistoryCard(
+                        record: record,
+                        isMenuOpen: activeMenu?.cardID == "history-\(record.id)",
+                        onOpenMenu: { anchorFrame in
+                            toggleMenu(for: "history-\(record.id)", anchorFrame: anchorFrame, items: items)
+                        }
+                    )
                 }
             }
         }
+    }
+
+    private func currentMenuItems(for entry: TaskQueueEntry) -> [WorkbenchCardMenuItem] {
+        let isCancellable = entry.record.state != .running || entry.canBeRemovedWhileRunning
+        return [
+            WorkbenchCardMenuItem(
+                title: L("task.menu.cancel"),
+                icon: .minusCircle,
+                isEnabled: isCancellable,
+                isDestructive: true,
+                action: {
+                    handleCancelTask(entry: entry)
+                }
+            )
+        ]
+    }
+
+    private func historyMenuItems(for record: TaskRecord) -> [WorkbenchCardMenuItem] {
+        [
+            WorkbenchCardMenuItem(
+                title: L("task.menu.delete"),
+                icon: .trash,
+                isEnabled: true,
+                isDestructive: true,
+                action: {
+                    handleDeleteRecord(record: record)
+                }
+            )
+        ]
+    }
+
+    private func handleCancelTask(entry: TaskQueueEntry) {
+        guard let liveEntry = tasks.current.first(where: { $0.id == entry.id }) else {
+            appState.toast.show(TaskToastRequest.taskStatusChanged)
+            return
+        }
+
+        guard liveEntry.record.state != .running || liveEntry.canBeRemovedWhileRunning else {
+            appState.toast.show(TaskToastRequest.taskStatusChanged)
+            return
+        }
+
+        confirmRemove(liveEntry.record)
+    }
+
+    private func handleDeleteRecord(record: TaskRecord) {
+        let exists = tasks.completed.contains(where: { $0.id == record.id }) ||
+                     tasks.incomplete.contains(where: { $0.id == record.id })
+        guard exists else {
+            appState.toast.show(TaskToastRequest.taskStatusChanged)
+            return
+        }
+
+        confirmDelete(record)
+    }
+
+    private func confirmRemove(_ record: TaskRecord) {
+        confirmation.session = WorkbenchConfirmationSession(
+            title: L("task.confirm.remove.title"),
+            message: removeMessage(for: record),
+            destructiveTitle: L("common.remove"),
+            cancelTitle: L("common.cancel"),
+            onDestructive: {
+                tasks.removeCurrentTask(id: record.id)
+                confirmation.session = nil
+            },
+            onCancel: {
+                confirmation.session = nil
+            }
+        )
+    }
+
+    private func removeMessage(for record: TaskRecord) -> String {
+        switch record.kind {
+        case .ankiExport:
+            return L("task.confirm.remove.message", record.fileName)
+        case .index:
+            return L("task.confirm.remove.index")
+        case .addFolder:
+            return L("task.confirm.remove.add_folder", record.fileName)
+        case .renameFolder, .renameFiles, .removeFolder:
+            return ""
+        }
+    }
+
+    private func confirmDelete(_ record: TaskRecord) {
+        confirmation.session = WorkbenchConfirmationSession(
+            title: L("task.confirm.delete.title"),
+            message: record.kind == .ankiExport
+                ? L("task.confirm.delete.message", record.fileName)
+                : L("task.confirm.delete.other"),
+            destructiveTitle: L("excerpt.delete"),
+            cancelTitle: L("common.cancel"),
+            onDestructive: {
+                tasks.deleteRecord(id: record.id)
+                confirmation.session = nil
+            },
+            onCancel: {
+                confirmation.session = nil
+            }
+        )
+    }
+
+    private func toggleMenu(for cardID: String, anchorFrame: CGRect, items: [WorkbenchCardMenuItem]) {
+        if activeMenu?.cardID == cardID {
+            dismissMenu()
+        } else {
+            openMenu(for: cardID, anchorFrame: anchorFrame, items: items)
+        }
+    }
+
+    private func openMenu(for cardID: String, anchorFrame: CGRect, items: [WorkbenchCardMenuItem]) {
+        let naturalSize = measuredMenuSize(for: items)
+        let container = CGRect(origin: .zero, size: viewportSize)
+        let anchorForPlacement = CGRect(
+            x: anchorFrame.maxX - naturalSize.width,
+            y: anchorFrame.minY,
+            width: naturalSize.width,
+            height: anchorFrame.height
+        )
+        let openingFrame = MenuPlacement.openingFrame(
+            anchor: anchorForPlacement,
+            menuSize: naturalSize,
+            in: container,
+            gap: WorkbenchControlMetrics.redesignSpacing1,
+            shrinksToFit: false
+        )
+        activeMenu = WorkbenchCardMenuState(
+            cardID: cardID,
+            anchorFrame: anchorFrame,
+            menuFrame: openingFrame,
+            items: items
+        )
+        menuHighlight.open(
+            selectablePositions: items.indices.filter { items[$0].isEnabled }
+        )
+    }
+
+    private func dismissMenu() {
+        activeMenu = nil
+        menuHighlight.close()
+    }
+
+    private func activateHighlightedItem(in menu: WorkbenchCardMenuState) -> Bool {
+        guard let position = menuHighlight.highlightedPosition,
+              menu.items.indices.contains(position),
+              menu.items[position].isEnabled
+        else {
+            return false
+        }
+        let item = menu.items[position]
+        dismissMenu()
+        item.action()
+        return true
+    }
+
+    private func measuredMenuSize(for items: [WorkbenchCardMenuItem]) -> CGSize {
+        let host = NSHostingView(
+            rootView: WorkbenchCardMenuPopover(
+                items: items,
+                highlight: menuHighlight,
+                onDismiss: {}
+            )
+        )
+        host.layoutSubtreeIfNeeded()
+        return host.fittingSize
     }
 
     @ViewBuilder
@@ -102,6 +353,8 @@ struct TaskPanel: View {
 
 private struct TaskCurrentCard: View {
     let entry: TaskQueueEntry
+    let isMenuOpen: Bool
+    let onOpenMenu: (CGRect) -> Void
 
     var body: some View {
         TaskCardContainer {
@@ -117,6 +370,26 @@ private struct TaskCurrentCard: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+
+            Spacer(minLength: 0)
+
+            GeometryReader { buttonProxy in
+                WorkbenchIconButton(
+                    icon: .dotsThree,
+                    isRedesign: true,
+                    isOpen: isMenuOpen,
+                    hoverBackground: WorkbenchRedesignColors.rowSelected,
+                    action: {
+                        let frame = buttonProxy.frame(in: .named(TaskPanel.taskCardCoordinateSpaceName))
+                        onOpenMenu(frame)
+                    }
+                )
+            }
+            .frame(
+                width: WorkbenchControlMetrics.redesignIconButtonSize,
+                height: WorkbenchControlMetrics.redesignIconButtonSize
+            )
+            .padding(.top, WorkbenchControlMetrics.redesignCardTrailingIconButtonTopOffset)
         }
     }
 }
@@ -233,6 +506,8 @@ private struct TaskProgressBarRow: View {
 
 private struct TaskHistoryCard: View {
     let record: TaskRecord
+    let isMenuOpen: Bool
+    let onOpenMenu: (CGRect) -> Void
 
     var body: some View {
         TaskCardContainer {
@@ -257,6 +532,26 @@ private struct TaskHistoryCard: View {
                  }
              }
              .frame(maxWidth: .infinity, alignment: .leading)
+
+            Spacer(minLength: 0)
+
+            GeometryReader { buttonProxy in
+                WorkbenchIconButton(
+                    icon: .dotsThree,
+                    isRedesign: true,
+                    isOpen: isMenuOpen,
+                    hoverBackground: WorkbenchRedesignColors.rowSelected,
+                    action: {
+                        let frame = buttonProxy.frame(in: .named(TaskPanel.taskCardCoordinateSpaceName))
+                        onOpenMenu(frame)
+                    }
+                )
+            }
+            .frame(
+                width: WorkbenchControlMetrics.redesignIconButtonSize,
+                height: WorkbenchControlMetrics.redesignIconButtonSize
+            )
+            .padding(.top, WorkbenchControlMetrics.redesignCardTrailingIconButtonTopOffset)
          }
      }
  
@@ -291,6 +586,8 @@ private struct TaskHistoryCard: View {
 private struct TaskCardContainer<Content: View>: View {
     @ViewBuilder let content: () -> Content
 
+    @State private var isHovered = false
+
     var body: some View {
         HStack(alignment: .top, spacing: WorkbenchControlMetrics.redesignSpacing4) {
             content()
@@ -306,7 +603,7 @@ private struct TaskCardContainer<Content: View>: View {
                 cornerRadius: WorkbenchControlMetrics.redesignCornerRadius,
                 style: .continuous
             )
-            .fill(WorkbenchRedesignColors.bgDialog)
+            .fill(isHovered ? WorkbenchRedesignColors.rowHover : WorkbenchRedesignColors.tableBg)
         )
         .overlay(
             RoundedRectangle(
@@ -318,6 +615,11 @@ private struct TaskCardContainer<Content: View>: View {
                 lineWidth: WorkbenchControlMetrics.redesignControlBorderWidth
             )
         )
+        .clipShape(RoundedRectangle(
+            cornerRadius: WorkbenchControlMetrics.redesignCornerRadius,
+            style: .continuous
+        ))
+        .onPointerHover { isHovered = $0 }
     }
 }
 
