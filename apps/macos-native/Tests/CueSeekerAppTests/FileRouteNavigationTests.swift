@@ -148,27 +148,164 @@ struct FileRouteNavigationTests {
     }
 
     @Test
-    func indexingStoreLastIndexedDatePersistence() {
+    func indexingStoreLastUpdatedDatePersistence() {
         _ = NSApplication.shared
         let suiteName = "IndexingStoreTests-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
         let settings = SettingsStore(userDefaults: defaults)
 
         let store = IndexingStore(userDefaults: defaults, settings: settings)
+        #expect(store.lastUpdatedDate == nil)
         #expect(store.lastIndexedDate == nil)
 
         let now = Date(timeIntervalSince1970: 1727856000) // Fixed timestamp for determinism
-        store.recordLastIndexedDate(now)
+        store.recordLastUpdatedDate(now)
+        #expect(store.lastUpdatedDate == now)
         #expect(store.lastIndexedDate == now)
 
         // Rehydration test
         let restoredStore = IndexingStore(userDefaults: defaults, settings: settings)
+        #expect(restoredStore.lastUpdatedDate == now)
         #expect(restoredStore.lastIndexedDate == now)
 
         // Status transition test
         let newStore = IndexingStore(userDefaults: UserDefaults(suiteName: "IndexingStatusTest-\(UUID().uuidString)")!, settings: settings)
-        #expect(newStore.lastIndexedDate == nil)
+        #expect(newStore.lastUpdatedDate == nil)
         newStore.indexingStatus = .completedAll(folderCount: 1, SubtitleIndexingResult())
-        #expect(newStore.lastIndexedDate != nil)
+        #expect(newStore.lastUpdatedDate != nil)
+    }
+
+    @Test
+    func databaseOperationNoticesAndLifecycle() {
+        let defaults = UserDefaults(suiteName: "DatabaseOperationNotices-\(UUID().uuidString)")!
+        let settings = SettingsStore(userDefaults: defaults)
+        let store = IndexingStore(userDefaults: defaults, settings: settings)
+
+        let testFolder = URL(fileURLWithPath: "/Volumes/Media/Anime")
+
+        // 1. Indexing completion sets operationNotice and lastUpdatedDate
+        store.indexingStatus = .completed(testFolder, SubtitleIndexingResult())
+        #expect(store.operationNotice == .indexed(folderName: "Anime"))
+        #expect(store.lastUpdatedDate != nil)
+
+        // 2. Clear transient notice resets operationNotice
+        store.clearTransientNotice()
+        #expect(store.operationNotice == nil)
+
+        // 3. Indexing all completion sets operationNotice
+        store.indexingStatus = .completedAll(folderCount: 3, SubtitleIndexingResult())
+        #expect(store.operationNotice == .indexedAll)
+
+        // 4. Index failure sets operationNotice
+        store.indexingStatus = .failed(testFolder, "disk error")
+        #expect(store.operationNotice == .indexFailed(folderName: "Anime"))
+
+        // 5. Folder removal sets operationNotice
+        store.removedFolderNotice = testFolder
+        #expect(store.operationNotice == .removed(folderName: "Anime"))
+
+        // 6. Clearing notice
+        store.clearTransientNotice()
+        #expect(store.operationNotice == nil)
+        #expect(store.removedFolderNotice == nil)
+    }
+
+    @Test
+    func fileStatusResolverAllDatabaseOperationsAndTransitions() {
+        let testFolder = URL(fileURLWithPath: "/Volumes/Media/Movies")
+        let now = Date(timeIntervalSince1970: 1727856000)
+
+        // 1. In Progress: Folder removal
+        let removalProgress = FileStatusResolver.resolve(
+            indexingStatus: .idle,
+            folderRemovalStatus: .removing(testFolder),
+            operationNotice: nil,
+            lastUpdatedDate: now
+        )
+        if case .inProgress(let text) = removalProgress {
+            #expect(text.contains("Movies"))
+        } else {
+            Issue.record("Expected inProgress for removal, got \(removalProgress)")
+        }
+
+        // 2. In Progress: Indexing single folder
+        let indexingProgress = FileStatusResolver.resolve(
+            indexingStatus: .indexing(testFolder),
+            folderRemovalStatus: .idle,
+            operationNotice: nil,
+            lastUpdatedDate: now
+        )
+        if case .inProgress(let text) = indexingProgress {
+            #expect(text.contains("Movies"))
+        } else {
+            Issue.record("Expected inProgress for indexing, got \(indexingProgress)")
+        }
+
+        // 3. Completed: Indexed folder
+        let indexedCompleted = FileStatusResolver.resolve(
+            indexingStatus: .idle,
+            folderRemovalStatus: .idle,
+            operationNotice: .indexed(folderName: "Movies"),
+            lastUpdatedDate: now
+        )
+        if case .completed(let text) = indexedCompleted {
+            #expect(text.contains("Movies"))
+        } else {
+            Issue.record("Expected completed for indexed notice, got \(indexedCompleted)")
+        }
+
+        // 4. Completed: Removed folder
+        let removedCompleted = FileStatusResolver.resolve(
+            indexingStatus: .idle,
+            folderRemovalStatus: .idle,
+            operationNotice: .removed(folderName: "Movies"),
+            lastUpdatedDate: now
+        )
+        if case .completed(let text) = removedCompleted {
+            #expect(text.contains("Movies"))
+        } else {
+            Issue.record("Expected completed for removed notice, got \(removedCompleted)")
+        }
+
+        // 5. Failed: Removal failed
+        let removalFailed = FileStatusResolver.resolve(
+            indexingStatus: .idle,
+            folderRemovalStatus: .idle,
+            operationNotice: .removalFailed(folderName: "Movies"),
+            lastUpdatedDate: now
+        )
+        if case .failed(let text) = removalFailed {
+            #expect(text.contains("Movies"))
+        } else {
+            Issue.record("Expected failed for removalFailed notice, got \(removalFailed)")
+        }
+
+        // 6. Idle: With last updated timestamp formatted as yy-MM-dd HH:mm
+        let idleWithDate = FileStatusResolver.resolve(
+            indexingStatus: .idle,
+            folderRemovalStatus: .idle,
+            operationNotice: nil,
+            lastUpdatedDate: now
+        )
+        if case .idle(let text) = idleWithDate {
+            let formattedExpected = FileStatusResolver.dateFormatter.string(from: now)
+            #expect(text.contains(formattedExpected))
+            #expect(FileStatusResolver.dateFormatter.dateFormat == "yy-MM-dd HH:mm")
+        } else {
+            Issue.record("Expected idle with date, got \(idleWithDate)")
+        }
+
+        // 7. Idle: Never updated
+        let idleNever = FileStatusResolver.resolve(
+            indexingStatus: .idle,
+            folderRemovalStatus: .idle,
+            operationNotice: nil,
+            lastUpdatedDate: nil
+        )
+        if case .idle(let text) = idleNever {
+            #expect(text.contains("--"))
+        } else {
+            Issue.record("Expected idle never with '--', got \(idleNever)")
+        }
     }
 }

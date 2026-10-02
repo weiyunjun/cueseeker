@@ -296,8 +296,13 @@
 "file.status.indexing" = "正在索引: %@";
 "file.status.indexing_all" = "正在索引全部資料夾";
 "file.status.failed" = "索引失敗: %@";
+"file.status.removing" = "正在移除: %@";
+"file.status.removed" = "已移除: %@";
+"file.status.removal_failed" = "移除失敗: %@";
 "file.status.last_indexed" = "上次索引: %@";
 "file.status.last_indexed_never" = "上次索引: --";
+"file.status.last_updated" = "上次更新: %@";
+"file.status.last_updated_never" = "上次更新: --";
 "file.description" = "字幕檔案與同名的影片檔案配對。同一個資料夾下的影片與字幕算作一組，並以該資料夾的名稱作為組名，子資料夾不計入其中。";
 "file.empty_folder_items" = "此資料夾中沒有仍在媒體庫中的項目。";
 "file.direct_content_suffix" = "（根目錄直屬內容）";

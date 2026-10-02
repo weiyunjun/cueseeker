@@ -200,7 +200,7 @@ extension AppCoordinator {
             return
         }
 
-        indexing.removedFolderNotice = nil
+        indexing.clearTransientNotice()
         tasks.enqueueAddFolder(folder.standardizedFileURL)
     }
 
@@ -219,7 +219,7 @@ extension AppCoordinator {
         }
 
         startupError = nil
-        indexing.removedFolderNotice = nil
+        indexing.clearTransientNotice()
         tasks.enqueueRemoveFolder(folder.standardizedFileURL)
     }
 
@@ -235,7 +235,7 @@ extension AppCoordinator {
             return
         }
 
-        indexing.removedFolderNotice = nil
+        indexing.clearTransientNotice()
         tasks.enqueueIndex(folders: folders)
     }
 
@@ -427,6 +427,7 @@ extension AppCoordinator {
                 Self.errorMessage(for: error)
             )
             startupError = message
+            indexing.operationNotice = .removalFailed(folderName: folder.lastPathComponent)
             throw LibraryTaskFailure(message: message)
         }
         AppPerformanceProbe.breadcrumb("performFolderRemoval.removeFolderOnExecutor.end")

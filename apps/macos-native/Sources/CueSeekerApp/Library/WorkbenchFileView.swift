@@ -34,6 +34,13 @@ struct WorkbenchFileView: View {
             }
         }
         .background(WorkbenchRedesignColors.bgSurface)
+        .onChange(of: routeState.currentRoute) { newRoute in
+            if newRoute != .file {
+                indexing.clearTransientNotice()
+            } else if !indexing.isDatabaseOperationActive {
+                indexing.clearTransientNotice()
+            }
+        }
         .task {
             appState.hydrateCompleteLibraryAsync()
         }
@@ -78,6 +85,14 @@ struct WorkbenchFileView: View {
                 .padding(.bottom, WorkbenchControlMetrics.redesignSpacing4)
 
             folderRegion
+        }
+        .onAppear {
+            if !indexing.isDatabaseOperationActive {
+                indexing.clearTransientNotice()
+            }
+        }
+        .onDisappear {
+            indexing.clearTransientNotice()
         }
     }
 
@@ -364,34 +379,13 @@ struct WorkbenchFileView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private enum FileStatusInfo {
-        case completed(String)
-        case indexing(String)
-        case failed(String)
-        case idle(String)
-    }
-
     private var currentStatusInfo: FileStatusInfo {
-        switch indexing.indexingStatus {
-        case .indexing(let folder):
-            return .indexing(L("file.status.indexing", folder.lastPathComponent))
-        case .indexingAll:
-            return .indexing(L("file.status.indexing_all"))
-        case .completed(let folder, _):
-            return .completed(L("file.status.indexed", folder.lastPathComponent))
-        case .completedAll:
-            return .completed(L("file.status.indexed_all"))
-        case .failed(let folder, _):
-            return .failed(L("file.status.failed", folder.lastPathComponent))
-        case .idle:
-            if let date = indexing.lastIndexedDate {
-                let formatter = DateFormatter()
-                formatter.dateFormat = "yyyy-MM-dd HH:mm"
-                return .idle(L("file.status.last_indexed", formatter.string(from: date)))
-            } else {
-                return .idle(L("file.status.last_indexed_never"))
-            }
-        }
+        FileStatusResolver.resolve(
+            indexingStatus: indexing.indexingStatus,
+            folderRemovalStatus: indexing.folderRemovalStatus,
+            operationNotice: indexing.operationNotice,
+            lastUpdatedDate: indexing.lastUpdatedDate
+        )
     }
 
     @ViewBuilder
@@ -407,7 +401,7 @@ struct WorkbenchFileView: View {
                         weight: WorkbenchControlMetrics.redesignFontWeightControl
                     ))
                     .foregroundStyle(WorkbenchRedesignColors.successText)
-            case .indexing(let text):
+            case .inProgress(let text):
                 WorkbenchSpinner(size: WorkbenchControlMetrics.redesignButtonIconSize)
                     .foregroundStyle(WorkbenchRedesignColors.textSecondary)
                 Text(text)
@@ -591,3 +585,60 @@ enum FileBreadcrumbResolver {
         }
     }
 }
+
+enum FileStatusInfo: Equatable {
+    case completed(String)
+    case inProgress(String)
+    case failed(String)
+    case idle(String)
+}
+
+enum FileStatusResolver {
+    static let dateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yy-MM-dd HH:mm"
+        return formatter
+    }()
+
+    static func resolve(
+        indexingStatus: IndexingStatus,
+        folderRemovalStatus: LibraryFolderRemovalStatus,
+        operationNotice: DatabaseOperationNotice?,
+        lastUpdatedDate: Date?
+    ) -> FileStatusInfo {
+        if case .removing(let folder) = folderRemovalStatus {
+            return .inProgress(L("file.status.removing", folder.lastPathComponent))
+        }
+
+        switch indexingStatus {
+        case .indexing(let folder):
+            return .inProgress(L("file.status.indexing", folder.lastPathComponent))
+        case .indexingAll:
+            return .inProgress(L("file.status.indexing_all"))
+        default:
+            break
+        }
+
+        if let notice = operationNotice {
+            switch notice {
+            case .indexed(let folderName):
+                return .completed(L("file.status.indexed", folderName))
+            case .indexedAll:
+                return .completed(L("file.status.indexed_all"))
+            case .removed(let folderName):
+                return .completed(L("file.status.removed", folderName))
+            case .indexFailed(let folderName):
+                return .failed(L("file.status.failed", folderName))
+            case .removalFailed(let folderName):
+                return .failed(L("file.status.removal_failed", folderName))
+            }
+        }
+
+        if let date = lastUpdatedDate {
+            return .idle(L("file.status.last_updated", dateFormatter.string(from: date)))
+        } else {
+            return .idle(L("file.status.last_updated_never"))
+        }
+    }
+}
+

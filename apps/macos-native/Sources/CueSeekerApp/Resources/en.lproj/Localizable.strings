@@ -296,8 +296,13 @@
 "file.status.indexing" = "Indexing %@";
 "file.status.indexing_all" = "Indexing All Folders";
 "file.status.failed" = "Index Failed: %@";
+"file.status.removing" = "Removing %@";
+"file.status.removed" = "Removed %@";
+"file.status.removal_failed" = "Removal Failed: %@";
 "file.status.last_indexed" = "Last Indexed: %@";
 "file.status.last_indexed_never" = "Last Indexed: --";
+"file.status.last_updated" = "Last Updated: %@";
+"file.status.last_updated_never" = "Last Updated: --";
 "file.description" = "A subtitle file is paired with the video that shares its file name. Videos and subtitles in the same folder form one group, named after that folder; subfolders are not included.";
 "file.empty_folder_items" = "No items in this folder are in the library.";
 "file.direct_content_suffix" = " (Direct Content)";

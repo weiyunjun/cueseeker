@@ -296,8 +296,13 @@
 "file.status.indexing" = "正在索引: %@";
 "file.status.indexing_all" = "正在索引全部文件夹";
 "file.status.failed" = "索引失败: %@";
+"file.status.removing" = "正在移除: %@";
+"file.status.removed" = "已移除: %@";
+"file.status.removal_failed" = "移除失败: %@";
 "file.status.last_indexed" = "上次索引: %@";
 "file.status.last_indexed_never" = "上次索引: --";
+"file.status.last_updated" = "上次更新: %@";
+"file.status.last_updated_never" = "上次更新: --";
 "file.description" = "字幕文件与同名的视频文件配对。同一个文件夹下的视频和字幕算作一组，并以该文件夹的名称作为组名，子文件夹不计入其中。";
 "file.empty_folder_items" = "此文件夹中没有仍在媒体库中的项目。";
 "file.direct_content_suffix" = "（根目录直属内容）";

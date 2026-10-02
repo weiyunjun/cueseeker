@@ -35,19 +35,25 @@ Human-owned documents:
     - `file.status.failed`: "Index Failed: %@" / "索引失败: %@" / "索引失敗: %@"
     - `file.status.last_indexed`: "Last Indexed: %@" / "上次索引: %@" / "上次索引: %@"
     - `file.status.last_indexed_never`: "Last Indexed: --" / "上次索引: --" / "上次索引: --"
-- **IndexingStore Timestamp Tracking**:
-  - Added `lastIndexedDate: Date?` to `IndexingStore` with persistence to `UserDefaults` (key: `"lastIndexedTimestamp"`).
-  - Automatically records timestamp whenever indexing transitions to `.completed` or `.completedAll`.
+- **IndexingStore & Database Operations**:
+  - Added `DatabaseOperationNotice` enum (`indexed`, `indexedAll`, `removed`, `indexFailed`, `removalFailed`) and `operationNotice: DatabaseOperationNotice?` published property.
+  - Added `lastUpdatedDate: Date?` (with `lastIndexedDate` compatibility alias) persisting to `"lastUpdatedTimestamp"` and `"lastIndexedTimestamp"`.
+  - Added `isDatabaseOperationActive: Bool` (`indexingStatus.isIndexing || folderRemovalStatus.isRemoving`).
+  - Added `clearTransientNotice()` to reset `operationNotice` and `removedFolderNotice` when navigating away from Level 1.
+  - Integrated `didSet` hooks on `indexingStatus` and `removedFolderNotice` to automatically record the timestamp and set the appropriate operation notice upon task completion or failure.
 - **WorkbenchFileView**:
   - Removed top `pageDescription` text block.
   - Implemented `breadcrumbRow` with `FileBreadcrumbResolver` at the top of `fileScrollSurface`:
     - Level 1: `Home` (active, 14px Semibold, `--color-text-primary`).
     - Level 2: `Home` (clickable link, 14px Medium `--color-text-secondary`, hover `--color-text-primary`) > `caretRight` (12px 1.15px muted) > `rootName` (active).
     - Level 3: `Home` (link) > `rootName` (link) > `folderName` (or `folderName (Direct Content)` if direct content) (active).
-  - Replaced legacy multi-line status with `statusAndActionRow` (40px height):
-    - Displayed only on Level 1 (Home).
-    - Left side: 4-state indicator (Completed, Indexing with `WorkbenchSpinner`, Failed, Idle with last indexed timestamp or `--`).
-    - Right side: `[Add Folder]` and `[Index Now]` action buttons.
+  - Implemented `FileStatusResolver` and `FileStatusInfo`:
+    - In progress: `WorkbenchSpinner(18px)` + `Indexing [Folder]` / `Indexing All Folders` / `Removing [Folder]`.
+    - Completed: `checkCircle` + `Indexed [Folder]` / `Indexed All Folders` / `Removed [Folder]`.
+    - Failed: `warning` + `Index Failed: [Folder]` / `Removal Failed: [Folder]`.
+    - Idle: `arrowClockwise` + `Last Updated: yy-MM-dd HH:mm` (using project-wide standard date format) or `Last Updated: --`.
+  - Lifecycle management:
+    - Added `.onAppear` and `.onDisappear` on `rootContent`, plus `.onChange(of: routeState.currentRoute)`: when leaving Level 1 or returning to Level 1 while idle, transient notices are cleared, cleanly restoring the Idle status.
   - Updated empty state and loading views:
     - In Level 2 and Level 3, loading states render `WorkbenchSpinner(size: 18)`.
     - Empty hints are only shown after loading completes and displayable item count is verified to be 0.
@@ -58,4 +64,6 @@ Human-owned documents:
   - `fileThreeLevelNavigationAndHistoryFlow`: verified 3-level forward/backward route navigation.
   - `fileSidebarSwitchingBehavior`: verified that navigating from File Level 2/3 to other sidebar tabs and clicking File returns to Level 1 (`.file`), and clicking File while already on File does not trigger navigation.
   - `fileBreadcrumbResolution`: verified breadcrumb resolution for Level 1, Level 2, Level 3 (standard and direct content), ensuring destinations and active states match requirements.
-  - `indexingStoreLastIndexedDatePersistence`: verified initial nil state, persistence and rehydration across `UserDefaults`, and automatic timestamp recording on `.completedAll`.
+  - `indexingStoreLastUpdatedDatePersistence`: verified initial nil state, persistence and rehydration across `UserDefaults`, and automatic timestamp recording on `.completedAll`.
+  - `databaseOperationNoticesAndLifecycle`: verified operation notice assignment on indexing/removal completion and failure, and transient clearing.
+  - `fileStatusResolverAllDatabaseOperationsAndTransitions`: verified state mapping across all database operations (in progress, completed, failed, idle with `yy-MM-dd HH:mm`, and idle never).
