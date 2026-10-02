@@ -145,6 +145,19 @@ enum TableToastRequest {
             duration: ToastDuration.alert
         )
     }
+
+    static var cuesNotInLibrary: ToastRequest {
+        ToastRequest(
+            scenarioID: "cues_not_in_library",
+            message: L("toast.cues_not_in_library"),
+            icon: .warning,
+            duration: ToastDuration.alert
+        )
+    }
+
+    static func cueNotInLibrary(count: Int) -> ToastRequest {
+        count > 1 ? cuesNotInLibrary : cueNotInLibrary
+    }
 }
 
 struct ToastItem: Identifiable, Equatable {

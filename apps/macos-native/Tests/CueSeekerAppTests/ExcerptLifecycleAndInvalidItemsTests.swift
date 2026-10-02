@@ -183,6 +183,45 @@ struct ExcerptLifecycleAndInvalidItemsTests {
             #expect(app.playback.errorMessages[.notInLibrary] == nil)
         }
     }
+
+    @Test
+    func invalidExcerptMoveAndDuplicateAreIntercepted() async throws {
+        try await withExcerptTestApp { app, database in
+            try indexExcerptVideo("Episode1", in: database)
+            let excerptDB = try #require(app.excerptDatabase)
+            let list1 = try excerptDB.createExcerptList(name: "List1", description: "")
+            let list2 = try excerptDB.createExcerptList(name: "List2", description: "")
+            let cue = try #require(try SearchDatabase(path: database.path).search("placeholder").first)
+            let saved = try excerptDB.upsertExcerpt(cueID: cue.entryID, listID: list1.id)
+
+            // Remove video from library so cue becomes invalid
+            try database.replaceEntries(
+                subtitleFile: URL(fileURLWithPath: "/Media/Episode1.srt"),
+                videoFile: URL(fileURLWithPath: "/Media/Episode1.mkv"),
+                entries: []
+            )
+
+            // Attempt to move
+            let moveSuccess = app.moveExcerpt(saved, toListID: list2.id, listName: list2.name)
+            #expect(moveSuccess == false)
+            #expect(app.toast.visibleItems.last?.request == TableToastRequest.cueNotInLibrary)
+
+            // Attempt to duplicate
+            let dupSuccess = app.duplicateExcerpt(saved, toListID: list2.id, listName: list2.name)
+            #expect(dupSuccess == false)
+            #expect(app.toast.visibleItems.last?.request == TableToastRequest.cueNotInLibrary)
+
+            // Attempt beginCreatingExcerptList with pending transfer
+            app.beginCreatingExcerptList(
+                pendingTransfer: ExcerptListEditorPendingTransfer(
+                    action: .moveToList,
+                    target: .excerpt(saved)
+                )
+            )
+            #expect(app.excerpt.listEditorSession == nil)
+            #expect(app.toast.visibleItems.last?.request == TableToastRequest.cueNotInLibrary)
+        }
+    }
 }
 
 // MARK: - Test Fixture

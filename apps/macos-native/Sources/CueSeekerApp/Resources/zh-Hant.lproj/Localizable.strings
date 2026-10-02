@@ -189,6 +189,7 @@
 "toast.table.deep_links_copied" = "已拷貝 Deep Link";
 "toast.table.table_copied" = "已拷貝表格";
 "toast.cue_not_in_library" = "台詞不在資料庫中";
+"toast.cues_not_in_library" = "台詞不在資料庫中";
 
 /* Playback chrome */
 "playback.play" = "播放";

@@ -547,8 +547,19 @@ private struct WorkbenchExcerptTableContent: View {
         }
     }
 
+    private func isExcerptValid(_ item: Excerpt, row: SubtitleTableRow) -> Bool {
+        guard item.isValid, !row.cueState.isUnavailable else {
+            return false
+        }
+        return appState.excerptIDsInLibrary(among: [item.id]).contains(item.id)
+    }
+
     private func moveExcerpt(_ row: SubtitleTableRow, toListID listID: Int64) {
         guard let item = rowStore.snapshot.excerpt(entryID: row.id) else {
+            return
+        }
+        guard isExcerptValid(item, row: row) else {
+            appState.toast.show(TableToastRequest.cueNotInLibrary)
             return
         }
         appState.moveExcerpt(
@@ -565,6 +576,10 @@ private struct WorkbenchExcerptTableContent: View {
         guard let item = rowStore.snapshot.excerpt(entryID: row.id) else {
             return
         }
+        guard isExcerptValid(item, row: row) else {
+            appState.toast.show(TableToastRequest.cueNotInLibrary)
+            return
+        }
         appState.beginCreatingExcerptList(
             pendingTransfer: ExcerptListEditorPendingTransfer(
                 action: action,
@@ -575,6 +590,10 @@ private struct WorkbenchExcerptTableContent: View {
 
     private func duplicateExcerpt(_ row: SubtitleTableRow, toListID listID: Int64) {
         guard let item = rowStore.snapshot.excerpt(entryID: row.id) else {
+            return
+        }
+        guard isExcerptValid(item, row: row) else {
+            appState.toast.show(TableToastRequest.cueNotInLibrary)
             return
         }
         appState.duplicateExcerpt(
@@ -599,7 +618,16 @@ private struct WorkbenchExcerptTableContent: View {
 
         Task { @MainActor in
             let selection = await selectedExcerpts(for: selectedRows)
-            appState.exportExcerptsToAnki(selection)
+            let excerptIDs = selection.map(\.excerpt.id)
+            let validExcerptIDs = appState.excerptIDsInLibrary(among: excerptIDs)
+            let validSelection = selection.filter { pair in
+                pair.excerpt.isValid && !pair.row.cueState.isUnavailable && validExcerptIDs.contains(pair.excerpt.id)
+            }
+            guard !validSelection.isEmpty else {
+                appState.toast.show(TableToastRequest.cueNotInLibrary(count: selectedRows.count))
+                return
+            }
+            appState.exportExcerptsToAnki(validSelection)
         }
     }
 
@@ -618,8 +646,27 @@ private struct WorkbenchExcerptTableContent: View {
             return
         }
 
+        let rows = selectedRows.compactMap { rowStore.snapshot.row(at: $0) }
+        let excerptIDs = rows.map { Int64($0.id) }
+        let validExcerptIDs = appState.excerptIDsInLibrary(among: excerptIDs)
+        let validRows = rows.filter { row in
+            guard !row.cueState.isUnavailable,
+                  let excerpt = rowStore.snapshot.excerpt(entryID: row.id),
+                  excerpt.isValid,
+                  validExcerptIDs.contains(Int64(row.id))
+            else {
+                return false
+            }
+            return true
+        }
+
+        guard !validRows.isEmpty else {
+            appState.toast.show(TableToastRequest.cueNotInLibrary(count: selectedRows.count))
+            return
+        }
+
         var builder = SubtitleTableClipboard.TSVBuilder(columns: columns)
-        builder.append(rows: selectedRows.compactMap { rowStore.snapshot.row(at: $0) })
+        builder.append(rows: validRows)
         SubtitleTableClipboard.copy(representations: builder.representations)
         appState.toast.show(TableToastRequest.copyTable)
     }
@@ -631,7 +678,26 @@ private struct WorkbenchExcerptTableContent: View {
         guard !selectedRows.isEmpty else { return }
         let rows = selectedRows.compactMap { rowStore.snapshot.row(at: $0) }
         guard rows.count == selectedRows.count else { return }
-        SubtitleTableClipboard.copyDeepLinks(rows: rows)
+
+        let excerptIDs = rows.map { Int64($0.id) }
+        let validExcerptIDs = appState.excerptIDsInLibrary(among: excerptIDs)
+        let validRows = rows.filter { row in
+            guard !row.cueState.isUnavailable,
+                  let excerpt = rowStore.snapshot.excerpt(entryID: row.id),
+                  excerpt.isValid,
+                  validExcerptIDs.contains(Int64(row.id))
+            else {
+                return false
+            }
+            return true
+        }
+
+        guard !validRows.isEmpty else {
+            appState.toast.show(TableToastRequest.cueNotInLibrary(count: selectedRows.count))
+            return
+        }
+
+        SubtitleTableClipboard.copyDeepLinks(rows: validRows)
         appState.toast.show(TableToastRequest.copyDeepLinks)
     }
 

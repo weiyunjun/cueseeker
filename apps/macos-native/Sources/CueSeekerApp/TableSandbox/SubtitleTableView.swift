@@ -3790,6 +3790,10 @@ struct SubtitleTableView: NSViewRepresentable {
             activeRowMenuTarget
         }
 
+        func setActiveRowMenuTargetForTesting(_ target: SubtitleTableRow?) {
+            activeRowMenuTarget = target
+        }
+
         func rowHeightForTesting(_ row: Int) -> CGFloat {
             rowHeightCache.height(for: row)
         }
@@ -7410,8 +7414,16 @@ struct SubtitleTableView: NSViewRepresentable {
             case .saveToExcerpt:
                 onSaveExcerpt(target, destinationID)
             case .moveToList:
+                if let cueID = target.primaryCueID, let isCueInLibrary, !isCueInLibrary(cueID) {
+                    onToast?(TableToastRequest.cueNotInLibrary)
+                    return
+                }
                 onMoveExcerpt(target, destinationID)
             case .duplicateToList:
+                if let cueID = target.primaryCueID, let isCueInLibrary, !isCueInLibrary(cueID) {
+                    onToast?(TableToastRequest.cueNotInLibrary)
+                    return
+                }
                 onDuplicateExcerpt(target, destinationID)
             default:
                 break
@@ -7428,6 +7440,12 @@ struct SubtitleTableView: NSViewRepresentable {
                 return
             }
             dismissMenu()
+            if action == .moveToList || action == .duplicateToList {
+                if let cueID = target.primaryCueID, let isCueInLibrary, !isCueInLibrary(cueID) {
+                    onToast?(TableToastRequest.cueNotInLibrary)
+                    return
+                }
+            }
             onCreateExcerptList(target, action)
         }
 

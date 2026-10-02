@@ -127,6 +127,12 @@ extension AppCoordinator {
     func beginCreatingExcerptList(
         pendingTransfer: ExcerptListEditorPendingTransfer? = nil
     ) {
+        if let pendingTransfer, case .excerpt(let item) = pendingTransfer.target {
+            guard item.isValid, excerptIDsInLibrary(among: [item.id]).contains(item.id) else {
+                toast.show(TableToastRequest.cueNotInLibrary)
+                return
+            }
+        }
         guard excerpt.listEditorSession == nil else {
             return
         }
@@ -844,6 +850,10 @@ extension AppCoordinator {
         toListID destinationListID: Int64,
         listName: String
     ) -> Bool {
+        guard item.isValid, excerptIDsInLibrary(among: [item.id]).contains(item.id) else {
+            toast.show(TableToastRequest.cueNotInLibrary)
+            return false
+        }
         guard let database = excerptDatabase else {
             toast.show(ExcerptToastRequest.moveFailed)
             return false
@@ -928,6 +938,10 @@ extension AppCoordinator {
         toListID destinationListID: Int64,
         listName: String
     ) -> Bool {
+        guard item.isValid, excerptIDsInLibrary(among: [item.id]).contains(item.id) else {
+            toast.show(TableToastRequest.cueNotInLibrary)
+            return false
+        }
         guard let database = excerptDatabase else {
             toast.show(ExcerptToastRequest.duplicateFailed)
             return false

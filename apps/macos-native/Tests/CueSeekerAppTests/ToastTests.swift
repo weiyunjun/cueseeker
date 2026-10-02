@@ -139,4 +139,11 @@ func tableToastRequestsMatchTheUsageRegistry() {
     #expect(TableToastRequest.cueNotInLibrary.message == "Cue Not in Library")
     #expect(TableToastRequest.cueNotInLibrary.icon == .warning)
     #expect(TableToastRequest.cueNotInLibrary.duration == 3.0)
+
+    #expect(TableToastRequest.cuesNotInLibrary.message == "Cues Not in Library")
+    #expect(TableToastRequest.cuesNotInLibrary.icon == .warning)
+    #expect(TableToastRequest.cuesNotInLibrary.duration == 3.0)
+
+    #expect(TableToastRequest.cueNotInLibrary(count: 1) == TableToastRequest.cueNotInLibrary)
+    #expect(TableToastRequest.cueNotInLibrary(count: 2) == TableToastRequest.cuesNotInLibrary)
 }

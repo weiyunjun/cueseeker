@@ -189,6 +189,7 @@
 "toast.table.deep_links_copied" = "Deep Links Copied";
 "toast.table.table_copied" = "Table Copied";
 "toast.cue_not_in_library" = "Cue Not in Library";
+"toast.cues_not_in_library" = "Cues Not in Library";
 
 /* Playback chrome */
 "playback.play" = "Play";

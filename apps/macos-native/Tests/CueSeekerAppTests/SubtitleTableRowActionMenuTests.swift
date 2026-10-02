@@ -633,3 +633,59 @@ func subtitleTableRowActionCopyTriggersExpectedToasts() {
     #expect(reportedToasts.last?.icon == .warning)
     #expect(reportedToasts.last?.duration == 3.0)
 }
+
+@MainActor
+@Test
+func subtitleTableRowActionMoveAndDuplicateInterceptInvalidItems() {
+    var reportedToasts: [ToastRequest] = []
+    var isCueInLib = false
+    var movedTarget: SubtitleTableRow?
+    var duplicatedTarget: SubtitleTableRow?
+
+    let row = SubtitleTableRow(
+        id: 202,
+        primaryCueID: 505,
+        displayTitle: "Test Excerpt",
+        startTime: "00:01:00",
+        endTime: "00:01:05",
+        primaryCueText: "Excerpt line",
+        cueGroupTexts: ["Excerpt line"],
+        primaryGroupIndex: 0
+    )
+
+    let coordinator = SubtitleTableView.Coordinator(
+        tableName: "test",
+        rowCount: 1,
+        rowProvider: { _ in row },
+        rowsVersion: 1,
+        displayTitleHeader: "Title",
+        showsTimeColumn: true,
+        showsLanguageColumn: true,
+        showsCueGroup: true,
+        onVisibleRowsChange: { _ in },
+        onPlay: { _ in },
+        onMoveExcerpt: { target, _ in movedTarget = target },
+        onDuplicateExcerpt: { target, _ in duplicatedTarget = target },
+        isCueInLibrary: { _ in isCueInLib },
+        onToast: { reportedToasts.append($0) }
+    )
+
+    coordinator.setActiveRowMenuTargetForTesting(row)
+    coordinator.performActiveRowMenuDestinationActionForTesting(.moveToList, destinationID: 10)
+    #expect(reportedToasts.last == TableToastRequest.cueNotInLibrary)
+    #expect(movedTarget == nil)
+
+    coordinator.setActiveRowMenuTargetForTesting(row)
+    coordinator.performActiveRowMenuDestinationActionForTesting(.duplicateToList, destinationID: 10)
+    #expect(reportedToasts.last == TableToastRequest.cueNotInLibrary)
+    #expect(duplicatedTarget == nil)
+
+    isCueInLib = true
+    coordinator.setActiveRowMenuTargetForTesting(row)
+    coordinator.performActiveRowMenuDestinationActionForTesting(.moveToList, destinationID: 10)
+    #expect(movedTarget == row)
+
+    coordinator.setActiveRowMenuTargetForTesting(row)
+    coordinator.performActiveRowMenuDestinationActionForTesting(.duplicateToList, destinationID: 10)
+    #expect(duplicatedTarget == row)
+}

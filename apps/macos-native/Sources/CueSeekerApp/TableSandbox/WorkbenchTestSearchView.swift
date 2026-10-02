@@ -537,7 +537,14 @@ struct WorkbenchTestSearchView: View {
 
         Task { @MainActor in
             let selection = await selectedSearchResults(for: selectedRows)
-            appState.exportSearchResultsToAnki(selection)
+            let cueIDs = selection.map(\.result.entryID)
+            let validCueIDs = appState.cueIDsInLibrary(among: cueIDs)
+            let validSelection = selection.filter { validCueIDs.contains($0.result.entryID) }
+            guard !validSelection.isEmpty else {
+                appState.toast.show(TableToastRequest.cueNotInLibrary(count: selectedRows.count))
+                return
+            }
+            appState.exportSearchResultsToAnki(validSelection)
         }
     }
 
@@ -556,8 +563,20 @@ struct WorkbenchTestSearchView: View {
             return
         }
 
+        let rows = selectedRows.compactMap { rowStore.snapshot.row(at: $0) }
+        let cueIDs = rows.compactMap(\.primaryCueID)
+        let validCueIDs = appState.cueIDsInLibrary(among: cueIDs)
+        let validRows = rows.filter { row in
+            guard let cueID = row.primaryCueID else { return false }
+            return validCueIDs.contains(cueID)
+        }
+        guard !validRows.isEmpty else {
+            appState.toast.show(TableToastRequest.cueNotInLibrary(count: selectedRows.count))
+            return
+        }
+
         var builder = SubtitleTableClipboard.TSVBuilder(columns: columns)
-        builder.append(rows: selectedRows.compactMap { rowStore.snapshot.row(at: $0) })
+        builder.append(rows: validRows)
         SubtitleTableClipboard.copy(representations: builder.representations)
         appState.toast.show(TableToastRequest.copyTable)
     }
@@ -569,7 +588,19 @@ struct WorkbenchTestSearchView: View {
         guard !selectedRows.isEmpty else { return }
         let rows = selectedRows.compactMap { rowStore.snapshot.row(at: $0) }
         guard rows.count == selectedRows.count else { return }
-        SubtitleTableClipboard.copyDeepLinks(rows: rows)
+
+        let cueIDs = rows.compactMap(\.primaryCueID)
+        let validCueIDs = appState.cueIDsInLibrary(among: cueIDs)
+        let validRows = rows.filter { row in
+            guard let cueID = row.primaryCueID else { return false }
+            return validCueIDs.contains(cueID)
+        }
+        guard !validRows.isEmpty else {
+            appState.toast.show(TableToastRequest.cueNotInLibrary(count: selectedRows.count))
+            return
+        }
+
+        SubtitleTableClipboard.copyDeepLinks(rows: validRows)
         appState.toast.show(TableToastRequest.copyDeepLinks)
     }
 

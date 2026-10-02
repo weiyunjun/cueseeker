@@ -189,6 +189,7 @@
 "toast.table.deep_links_copied" = "已复制 Deep Link";
 "toast.table.table_copied" = "已复制表格";
 "toast.cue_not_in_library" = "台词不在媒体库中";
+"toast.cues_not_in_library" = "台词不在媒体库中";
 
 /* Playback chrome */
 "playback.play" = "播放";
