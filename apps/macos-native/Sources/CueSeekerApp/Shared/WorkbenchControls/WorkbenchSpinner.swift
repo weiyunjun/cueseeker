@@ -7,6 +7,12 @@ import SwiftUI
 /// See `docs/human/requirements/20260915-UI-Filter Menu Becomes Filter
 /// Dialog.md`, section 9.
 struct WorkbenchSpinner: View {
+    var size: CGFloat = WorkbenchControlMetrics.redesignSpinnerSize
+
+    init(size: CGFloat = WorkbenchControlMetrics.redesignSpinnerSize) {
+        self.size = size
+    }
+
     var body: some View {
         let strokeWidth = WorkbenchControlMetrics.redesignSpinnerStrokeWidth
         TimelineView(.animation) { context in
@@ -25,8 +31,8 @@ struct WorkbenchSpinner: View {
             }
         }
         .frame(
-            width: WorkbenchControlMetrics.redesignSpinnerSize,
-            height: WorkbenchControlMetrics.redesignSpinnerSize
+            width: size,
+            height: size
         )
         .accessibilityHidden(true)
     }

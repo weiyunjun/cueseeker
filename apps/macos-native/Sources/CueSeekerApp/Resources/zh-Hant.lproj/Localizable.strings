@@ -290,6 +290,14 @@
 "settings.category.developer" = "開發者選項";
 
 /* File page */
+"file.breadcrumb.home" = "首頁";
+"file.status.indexed" = "已完成索引: %@";
+"file.status.indexed_all" = "已完成全部索引";
+"file.status.indexing" = "正在索引: %@";
+"file.status.indexing_all" = "正在索引全部資料夾";
+"file.status.failed" = "索引失敗: %@";
+"file.status.last_indexed" = "上次索引: %@";
+"file.status.last_indexed_never" = "上次索引: --";
 "file.description" = "字幕檔案與同名的影片檔案配對。同一個資料夾下的影片與字幕算作一組，並以該資料夾的名稱作為組名，子資料夾不計入其中。";
 "file.empty_folder_items" = "此資料夾中沒有仍在媒體庫中的項目。";
 "file.direct_content_suffix" = "（根目錄直屬內容）";

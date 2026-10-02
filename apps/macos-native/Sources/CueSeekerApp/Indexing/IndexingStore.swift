@@ -5,9 +5,20 @@ import CueSeekerCore
 @MainActor
 final class IndexingStore: ObservableObject {
     private static let selectedFolderPathsKey = "selectedFolderPaths"
+    private static let lastIndexedTimestampKey = "lastIndexedTimestamp"
 
     @Published var selectedFolders: [URL]
-    @Published var indexingStatus: IndexingStatus = .idle
+    @Published var indexingStatus: IndexingStatus = .idle {
+        didSet {
+            switch indexingStatus {
+            case .completed, .completedAll:
+                recordLastIndexedDate(Date())
+            default:
+                break
+            }
+        }
+    }
+    @Published var lastIndexedDate: Date?
     @Published var auxiliaryFailures: [IndexingAuxiliaryFailure] = []
     @Published var folderRemovalStatus: LibraryFolderRemovalStatus = .idle
     @Published var removedFolderNotice: URL?
@@ -24,6 +35,8 @@ final class IndexingStore: ObservableObject {
     init(userDefaults: UserDefaults, settings: SettingsStore) {
         self.userDefaults = userDefaults
         self.selectedFolders = Self.loadSelectedFolders(from: userDefaults)
+        let timestamp = userDefaults.double(forKey: Self.lastIndexedTimestampKey)
+        self.lastIndexedDate = timestamp > 0 ? Date(timeIntervalSince1970: timestamp) : nil
 
         settings.$searchFTSVocabularyDiagnosticsEnabled
             .dropFirst()
@@ -36,6 +49,11 @@ final class IndexingStore: ObservableObject {
                 }
             }
             .store(in: &settingsCancellables)
+    }
+
+    func recordLastIndexedDate(_ date: Date) {
+        lastIndexedDate = date
+        userDefaults.set(date.timeIntervalSince1970, forKey: Self.lastIndexedTimestampKey)
     }
 
     func appendFolder(_ folder: URL) {

@@ -90,6 +90,7 @@ enum AppIconWeight: String, Sendable {
 /// an icon is drawn at it.
 enum AppIconLineWidth {
     static let bySize: [CGFloat: CGFloat] = [
+        12: 1.15,
         14: 1.15,
         16: 1.20,
         18: 1.30,

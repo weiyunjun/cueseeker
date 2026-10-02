@@ -49,6 +49,9 @@ struct WorkbenchFileView: View {
         GeometryReader { geometry in
             WorkbenchScrollView([.vertical, .horizontal]) {
                 VStack(alignment: .leading, spacing: 0) {
+                    breadcrumbRow
+                        .padding(.bottom, WorkbenchControlMetrics.redesignSpacing4)
+
                     content()
                 }
                 .workbenchPageInlinePadding()
@@ -71,20 +74,10 @@ struct WorkbenchFileView: View {
 
     private var rootContent: some View {
         VStack(alignment: .leading, spacing: 0) {
-            pageDescription
-
-            actionRow
-                .padding(.top, WorkbenchControlMetrics.redesignSpacing4)
-
-            // Nothing has been indexed yet: the status region takes no
-            // room at all rather than reserving an empty band.
-            if hasStatus {
-                statusView
-                    .padding(.top, WorkbenchControlMetrics.redesignSpacing4)
-            }
+            statusAndActionRow
+                .padding(.bottom, WorkbenchControlMetrics.redesignSpacing4)
 
             folderRegion
-                .padding(.top, WorkbenchControlMetrics.redesignSpacing6)
         }
     }
 
@@ -93,17 +86,6 @@ struct WorkbenchFileView: View {
     /// the same rows without being a task, so they wait for it too.
     private var isFolderOperationBlocked: Bool {
         tasks.hasLibraryTask || indexing.databaseMaintenanceStatus.isCompacting
-    }
-
-    private var pageDescription: some View {
-        Text(L("file.description"))
-            .font(.system(
-                size: WorkbenchControlMetrics.redesignFontSizeBody,
-                weight: .regular
-            ))
-            .foregroundStyle(WorkbenchRedesignColors.textSecondary)
-            .fixedSize(horizontal: false, vertical: true)
-            .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var actionRow: some View {
@@ -188,9 +170,8 @@ struct WorkbenchFileView: View {
         let folders = root?.folders ?? []
 
         if folders.isEmpty {
-            if case .loading = library.fileTreeStatus, library.fileTreeRoots.isEmpty {
-                ProgressView()
-                    .controlSize(.small)
+            if case .loading = library.fileTreeStatus {
+                WorkbenchSpinner(size: 18)
                     .frame(maxWidth: .infinity, minHeight: 120, alignment: .center)
             } else {
                 WorkbenchEmptyHint(message: L("file.empty_folder_items"))
@@ -241,11 +222,13 @@ struct WorkbenchFileView: View {
             .first { $0.folderPath == folderPath }
 
         let objects = folder?.objects ?? []
+        let displayableItemsCount = objects.reduce(0) { count, object in
+            count + (object.videoPath.isEmpty ? 0 : 1) + object.subtitles.count
+        }
 
-        if objects.isEmpty {
-            if case .loading = library.fileTreeStatus, library.fileTreeRoots.isEmpty {
-                ProgressView()
-                    .controlSize(.small)
+        if displayableItemsCount == 0 {
+            if case .loading = library.fileTreeStatus {
+                WorkbenchSpinner(size: 18)
                     .frame(maxWidth: .infinity, minHeight: 120, alignment: .center)
             } else {
                 WorkbenchEmptyHint(message: L("file.empty_folder_items"))
@@ -346,192 +329,148 @@ struct WorkbenchFileView: View {
         completion(panel.runModal())
     }
 
-    // MARK: - Status
+    // MARK: - Breadcrumb & Status
 
-    private var hasStatus: Bool {
-        if appState.startupError != nil {
-            return true
-        }
-
-        if indexing.folderRemovalStatus != .idle {
-            return true
-        }
-
-        if indexing.removedFolderNotice != nil {
-            return true
-        }
-
-        if indexing.indexingStatus != .idle {
-            return true
-        }
-
-        return !indexing.auxiliaryFailures.isEmpty
+    private var breadcrumbNodes: [FileBreadcrumbNode] {
+        FileBreadcrumbResolver.nodes(
+            for: routeState.currentRoute,
+            homeTitle: L("file.breadcrumb.home"),
+            directContentSuffix: L("file.direct_content_suffix")
+        )
     }
 
-    @ViewBuilder
-    private var statusView: some View {
-        VStack(
-            alignment: .leading,
-            spacing: WorkbenchControlMetrics.redesignSpacing2
-        ) {
-            if let startupError = appState.startupError {
-                statusLine(
-                    startupError,
-                    icon: .warning,
-                    color: WorkbenchRedesignColors.dangerText
-                )
-            }
-
-            if case .removing(let folder) = indexing.folderRemovalStatus {
-                progressLine(
-                    L("settings.library.removing", folder.lastPathComponent)
-                )
-            } else if let removedFolder = indexing.removedFolderNotice {
-                statusLine(
-                    L("settings.library.removed", removedFolder.lastPathComponent),
-                    icon: .checkCircle,
-                    color: WorkbenchRedesignColors.successText
-                )
-            } else {
-                switch indexing.indexingStatus {
-                case .idle:
-                    EmptyView()
-                case .indexing(let folder):
-                    progressLine(
-                        L("settings.library.indexing", folder.lastPathComponent)
-                    )
-                case .indexingAll(let folder, let completedFolders, let totalFolders):
-                    progressLine(
-                        L(
-                            "settings.library.indexing_folder",
-                            completedFolders + 1,
-                            totalFolders,
-                            folder.lastPathComponent
-                        )
-                    )
-                case .completed(let folder, let result):
-                    completionBlock(
-                        title: L("settings.library.indexed", folder.lastPathComponent),
-                        result: result
-                    )
-                case .completedAll(let folderCount, let result):
-                    completionBlock(
-                        title: L("settings.library.indexed_folders", folderCount),
-                        result: result
-                    )
-                case .failed(let folder, let message):
-                    VStack(
-                        alignment: .leading,
-                        spacing: WorkbenchControlMetrics.redesignSpacing1
-                    ) {
-                        statusLine(
-                            L("settings.library.index_failed", folder.lastPathComponent),
-                            icon: .warning,
-                            color: WorkbenchRedesignColors.dangerText
-                        )
-                        detailLine(message)
-                    }
+    private var breadcrumbRow: some View {
+        HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
+            ForEach(Array(breadcrumbNodes.enumerated()), id: \.element.id) { index, node in
+                if index > 0 {
+                    AppIconImage(.caretRight, size: 12)
+                        .foregroundStyle(WorkbenchRedesignColors.textMuted)
                 }
-            }
 
-            ForEach(
-                Array(indexing.auxiliaryFailures.enumerated()),
-                id: \.offset
-            ) { _, failure in
-                statusLine(
-                    failure.message,
-                    icon: .warning,
-                    color: WorkbenchRedesignColors.dangerText
-                )
+                if let destination = node.destination {
+                    BreadcrumbLink(title: node.title) {
+                        appState.workbenchLayout.navigate(to: destination)
+                    }
+                } else {
+                    Text(node.title)
+                        .font(.system(
+                            size: WorkbenchControlMetrics.redesignFontSizeBody,
+                            weight: .semibold
+                        ))
+                        .foregroundStyle(WorkbenchRedesignColors.textPrimary)
+                }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private func completionBlock(
-        title: String,
-        result: SubtitleIndexingResult
-    ) -> some View {
-        VStack(
-            alignment: .leading,
-            spacing: WorkbenchControlMetrics.redesignSpacing1
-        ) {
-            statusLine(
-                title,
-                icon: .checkCircle,
-                color: WorkbenchRedesignColors.successText
-            )
+    private enum FileStatusInfo {
+        case completed(String)
+        case indexing(String)
+        case failed(String)
+        case idle(String)
+    }
 
-            detailLine(indexingSummary(result))
-
-            if !result.failedFiles.isEmpty {
-                detailLine(
-                    L(
-                        "settings.library.files_failed",
-                        result.failedFiles.count,
-                        result.failedFiles[0].reason
-                    )
-                )
+    private var currentStatusInfo: FileStatusInfo {
+        switch indexing.indexingStatus {
+        case .indexing(let folder):
+            return .indexing(L("file.status.indexing", folder.lastPathComponent))
+        case .indexingAll:
+            return .indexing(L("file.status.indexing_all"))
+        case .completed(let folder, _):
+            return .completed(L("file.status.indexed", folder.lastPathComponent))
+        case .completedAll:
+            return .completed(L("file.status.indexed_all"))
+        case .failed(let folder, _):
+            return .failed(L("file.status.failed", folder.lastPathComponent))
+        case .idle:
+            if let date = indexing.lastIndexedDate {
+                let formatter = DateFormatter()
+                formatter.dateFormat = "yyyy-MM-dd HH:mm"
+                return .idle(L("file.status.last_indexed", formatter.string(from: date)))
+            } else {
+                return .idle(L("file.status.last_indexed_never"))
             }
         }
     }
 
-    private func statusLine(
-        _ text: String,
-        icon: AppIcon,
-        color: Color
-    ) -> some View {
+    @ViewBuilder
+    private var statusIndicator: some View {
         HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
-            AppIconImage(icon, size: WorkbenchControlMetrics.redesignControlIconSize)
+            switch currentStatusInfo {
+            case .completed(let text):
+                AppIconImage(.checkCircle, size: WorkbenchControlMetrics.redesignButtonIconSize)
+                    .foregroundStyle(WorkbenchRedesignColors.successText)
+                Text(text)
+                    .font(.system(
+                        size: WorkbenchControlMetrics.redesignFontSizeBody,
+                        weight: WorkbenchControlMetrics.redesignFontWeightControl
+                    ))
+                    .foregroundStyle(WorkbenchRedesignColors.successText)
+            case .indexing(let text):
+                WorkbenchSpinner(size: WorkbenchControlMetrics.redesignButtonIconSize)
+                    .foregroundStyle(WorkbenchRedesignColors.textSecondary)
+                Text(text)
+                    .font(.system(
+                        size: WorkbenchControlMetrics.redesignFontSizeBody,
+                        weight: WorkbenchControlMetrics.redesignFontWeightControl
+                    ))
+                    .foregroundStyle(WorkbenchRedesignColors.textSecondary)
+            case .failed(let text):
+                AppIconImage(.warning, size: WorkbenchControlMetrics.redesignButtonIconSize)
+                    .foregroundStyle(WorkbenchRedesignColors.dangerText)
+                Text(text)
+                    .font(.system(
+                        size: WorkbenchControlMetrics.redesignFontSizeBody,
+                        weight: WorkbenchControlMetrics.redesignFontWeightControl
+                    ))
+                    .foregroundStyle(WorkbenchRedesignColors.dangerText)
+            case .idle(let text):
+                AppIconImage(.arrowClockwise, size: WorkbenchControlMetrics.redesignButtonIconSize)
+                    .foregroundStyle(WorkbenchRedesignColors.textSecondary)
+                Text(text)
+                    .font(.system(
+                        size: WorkbenchControlMetrics.redesignFontSizeBody,
+                        weight: WorkbenchControlMetrics.redesignFontWeightControl
+                    ))
+                    .foregroundStyle(WorkbenchRedesignColors.textSecondary)
+            }
+        }
+        .frame(height: WorkbenchControlMetrics.redesignHeight)
+    }
 
-            Text(text)
+    private var statusAndActionRow: some View {
+        HStack(alignment: .center, spacing: 0) {
+            statusIndicator
+
+            Spacer(minLength: WorkbenchControlMetrics.redesignSpacing4)
+
+            actionRow
+        }
+        .frame(height: WorkbenchControlMetrics.redesignHeight)
+    }
+}
+
+private struct BreadcrumbLink: View {
+    let title: String
+    let action: () -> Void
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: action) {
+            Text(title)
                 .font(.system(
                     size: WorkbenchControlMetrics.redesignFontSizeBody,
-                    weight: .regular
+                    weight: WorkbenchControlMetrics.redesignFontWeightControl
                 ))
-                .fixedSize(horizontal: false, vertical: true)
+                .foregroundStyle(
+                    isHovered
+                        ? WorkbenchRedesignColors.textPrimary
+                        : WorkbenchRedesignColors.textSecondary
+                )
         }
-        .foregroundStyle(color)
-    }
-
-    private func progressLine(_ text: String) -> some View {
-        HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
-            ProgressView()
-                .controlSize(.small)
-
-            Text(text)
-                .font(.system(
-                    size: WorkbenchControlMetrics.redesignFontSizeBody,
-                    weight: .regular
-                ))
-                .foregroundStyle(WorkbenchRedesignColors.textSecondary)
-        }
-    }
-
-    private func detailLine(_ text: String) -> some View {
-        Text(text)
-            .font(.system(
-                size: WorkbenchControlMetrics.redesignFontSizeCaption,
-                weight: .regular
-            ))
-            .foregroundStyle(WorkbenchRedesignColors.textMuted)
-            .fixedSize(horizontal: false, vertical: true)
-            .padding(
-                .leading,
-                WorkbenchControlMetrics.redesignControlIconSize
-                    + WorkbenchControlMetrics.redesignSpacing2
-            )
-    }
-
-    private func indexingSummary(_ result: SubtitleIndexingResult) -> String {
-        [
-            L("settings.library.scanned", result.scannedSubtitleFiles),
-            L("settings.library.indexed_files", result.indexedSubtitleFiles),
-            L("settings.library.entries", result.indexedSubtitleEntries),
-            L("settings.library.unchanged", result.skippedUnchangedSubtitleFiles),
-            L("settings.library.missing_videos", result.skippedMissingVideo),
-            L("settings.library.unreadable", result.skippedUnreadableSubtitle)
-        ].joined(separator: " · ")
+        .buttonStyle(.plain)
+        .onHover { isHovered = $0 }
     }
 }
 
@@ -596,6 +535,59 @@ private struct WorkbenchFileCard<Trailing: View>: View {
         ))
         .onTapGesture {
             onTap?()
+        }
+    }
+}
+
+struct FileBreadcrumbNode: Identifiable, Equatable, Sendable {
+    let id: String
+    let title: String
+    let destination: WorkbenchRoute?
+}
+
+enum FileBreadcrumbResolver {
+    static func nodes(
+        for route: WorkbenchRoute,
+        homeTitle: String,
+        directContentSuffix: String
+    ) -> [FileBreadcrumbNode] {
+        let homeNode = FileBreadcrumbNode(
+            id: "home",
+            title: homeTitle,
+            destination: route == .file ? nil : .file
+        )
+
+        switch route {
+        case .fileFolder(let rootPath):
+            let rootName = URL(fileURLWithPath: rootPath).lastPathComponent
+            let rootNode = FileBreadcrumbNode(
+                id: "root",
+                title: rootName,
+                destination: nil
+            )
+            return [homeNode, rootNode]
+
+        case .fileFiles(let rootPath, let folderPath):
+            let rootName = URL(fileURLWithPath: rootPath).lastPathComponent
+            let rootNode = FileBreadcrumbNode(
+                id: "root",
+                title: rootName,
+                destination: .fileFolder(rootPath: rootPath)
+            )
+
+            let isDirectContent = folderPath == rootPath || folderPath.isEmpty
+            let folderName = isDirectContent
+                ? (rootName + directContentSuffix)
+                : URL(fileURLWithPath: folderPath).lastPathComponent
+            let folderNode = FileBreadcrumbNode(
+                id: "folder",
+                title: folderName,
+                destination: nil
+            )
+            return [homeNode, rootNode, folderNode]
+
+        default:
+            return [homeNode]
         }
     }
 }
