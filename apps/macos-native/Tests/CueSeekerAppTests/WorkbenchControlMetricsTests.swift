@@ -95,8 +95,9 @@ func dialogWidthTiersAndTheListEditorsDerivedSizes() {
 
 @Test
 func cardIconContainerMetricsMatchDesignSpecification() {
-    #expect(WorkbenchControlMetrics.redesignCardIconContainerSize == 40)
-    #expect(WorkbenchControlMetrics.redesignCardIconGlyphSize == 24)
-    #expect(WorkbenchControlMetrics.redesignTextCapOpticalOffset == 2.5)
+    #expect(WorkbenchControlMetrics.redesignCardIconContainerSize == 36)
+    #expect(WorkbenchControlMetrics.redesignCardIconGlyphSize == 20)
+    #expect(WorkbenchControlMetrics.redesignCardBaselineHeight == 68)
+    #expect(WorkbenchControlMetrics.redesignCardTrailingButtonTopAlignmentOffset == 2)
 }
 

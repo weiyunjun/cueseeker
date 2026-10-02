@@ -116,9 +116,6 @@ private struct TaskCurrentCard: View {
                     TaskCurrentQueuedContent(entry: entry)
                 }
             }
-            .alignmentGuide(.top) { d in
-                d[.top] + WorkbenchControlMetrics.redesignTextCapOpticalOffset
-            }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
@@ -259,9 +256,6 @@ private struct TaskHistoryCard: View {
                          .frame(height: WorkbenchControlMetrics.redesignTaskCardLine3Height, alignment: .leading)
                  }
              }
-             .alignmentGuide(.top) { d in
-                 d[.top] + WorkbenchControlMetrics.redesignTextCapOpticalOffset
-             }
              .frame(maxWidth: .infinity, alignment: .leading)
          }
      }
@@ -302,7 +296,11 @@ private struct TaskCardContainer<Content: View>: View {
             content()
         }
         .padding(WorkbenchControlMetrics.redesignSpacing4)
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(
+            maxWidth: .infinity,
+            minHeight: WorkbenchControlMetrics.redesignCardBaselineHeight,
+            alignment: .topLeading
+        )
         .background(
             RoundedRectangle(
                 cornerRadius: WorkbenchControlMetrics.redesignCornerRadius,

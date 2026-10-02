@@ -498,16 +498,20 @@ private struct WorkbenchFileCard<Trailing: View>: View {
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .alignmentGuide(.top) { d in
-                d[.top] + WorkbenchControlMetrics.redesignTextCapOpticalOffset
-            }
 
             Spacer(minLength: 0)
 
             trailing()
+                .alignmentGuide(.top) { _ in
+                    WorkbenchControlMetrics.redesignCardTrailingButtonTopAlignmentOffset
+                }
         }
         .padding(WorkbenchControlMetrics.redesignSpacing4)
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(
+            maxWidth: .infinity,
+            minHeight: WorkbenchControlMetrics.redesignCardBaselineHeight,
+            alignment: .topLeading
+        )
         .background(
             RoundedRectangle(
                 cornerRadius: WorkbenchControlMetrics.redesignCornerRadius,

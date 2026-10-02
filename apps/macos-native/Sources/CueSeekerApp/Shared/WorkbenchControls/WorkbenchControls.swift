@@ -346,12 +346,14 @@ enum WorkbenchControlMetrics {
     static let redesignTaskProgressBarHeight = redesignLibraryProgressBarHeight
     /// --size-task-card-icon: 31px
     static let redesignSizeTaskCardIcon: CGFloat = 31
-    /// --size-card-icon-container: 40px (matches --height-control)
-    static let redesignCardIconContainerSize: CGFloat = redesignHeight
-    /// --size-card-icon-glyph: 24px
-    static let redesignCardIconGlyphSize: CGFloat = 24
-    /// Optical offset from font line-top to cap-top for 14px body text (approx. 2.5pt)
-    static let redesignTextCapOpticalOffset: CGFloat = 2.5
+    /// --size-card-icon-container: 36px (matches 36px 2-line text height)
+    static let redesignCardIconContainerSize: CGFloat = 36
+    /// --size-card-icon-glyph: 20px
+    static let redesignCardIconGlyphSize: CGFloat = 20
+    /// Baseline card height: 68px (16px top + 36px text/icon + 16px bottom)
+    static let redesignCardBaselineHeight: CGFloat = 68
+    /// Trailing button (40px) top offset adjustment to vertically center within 68px baseline card (14px top offset vs 16px padding = 2px)
+    static let redesignCardTrailingButtonTopAlignmentOffset: CGFloat = 2
     /// Line 3 row height for task card (16px)
     static let redesignTaskCardLine3Height: CGFloat = 16
 
