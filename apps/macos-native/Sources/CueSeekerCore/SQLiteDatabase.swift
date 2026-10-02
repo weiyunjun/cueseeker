@@ -33,13 +33,11 @@ final class SQLiteDatabase: @unchecked Sendable {
     static let busyTimeoutMilliseconds: Int32 = 5_000
     static let cacheSizeKibibytes: Int = 20_000
     static let mmapSizeBytes: Int = 256 * 1024 * 1024
-    static let slowOperationThresholdMilliseconds: Double = 20.0
 
     private let lock = NSRecursiveLock()
     private var handle: OpaquePointer?
 
     init(path: URL, access: DatabaseConnectionAccess = .readWrite) throws {
-        let start = DispatchTime.now().uptimeNanoseconds
         var database: OpaquePointer?
         let flags = switch access {
         case .readOnly:
@@ -62,25 +60,13 @@ final class SQLiteDatabase: @unchecked Sendable {
             handle = nil
             throw error
         }
-        let duration = Double(DispatchTime.now().uptimeNanoseconds - start) / 1_000_000
-        if duration >= Self.slowOperationThresholdMilliseconds {
-            fputs(String(format: "[SQLITE_SLOW_OPEN] isMain=%d duration=%.2fms path=%@\n", Thread.isMainThread ? 1 : 0, duration, path.path), stderr)
-            fflush(stderr)
-        }
     }
 
     deinit {
-        let start = DispatchTime.now().uptimeNanoseconds
         sqlite3_close(handle)
-        let duration = Double(DispatchTime.now().uptimeNanoseconds - start) / 1_000_000
-        if duration >= Self.slowOperationThresholdMilliseconds {
-            fputs(String(format: "[SQLITE_SLOW_CLOSE] isMain=%d duration=%.2fms\n", Thread.isMainThread ? 1 : 0, duration), stderr)
-            fflush(stderr)
-        }
     }
 
     func execute(_ sql: String) throws {
-        let start = DispatchTime.now().uptimeNanoseconds
         try withConnectionLock {
             var errorMessage: UnsafeMutablePointer<CChar>?
             guard sqlite3_exec(handle, sql, nil, nil, &errorMessage) == SQLITE_OK else {
@@ -89,16 +75,10 @@ final class SQLiteDatabase: @unchecked Sendable {
                 throw SQLiteDatabaseError.executeFailed(message)
             }
         }
-        let duration = Double(DispatchTime.now().uptimeNanoseconds - start) / 1_000_000
-        if duration >= Self.slowOperationThresholdMilliseconds {
-            fputs(String(format: "[SQLITE_SLOW_EXEC] isMain=%d duration=%.2fms sql=%@\n", Thread.isMainThread ? 1 : 0, duration, sql), stderr)
-            fflush(stderr)
-        }
     }
 
     func prepare(_ sql: String) throws -> SQLiteStatement {
-        let start = DispatchTime.now().uptimeNanoseconds
-        let statement = try withConnectionLock {
+        try withConnectionLock {
             var statement: OpaquePointer?
             guard sqlite3_prepare_v2(handle, sql, -1, &statement, nil) == SQLITE_OK,
                   let statement
@@ -108,12 +88,6 @@ final class SQLiteDatabase: @unchecked Sendable {
 
             return SQLiteStatement(database: self, statement: statement)
         }
-        let duration = Double(DispatchTime.now().uptimeNanoseconds - start) / 1_000_000
-        if duration >= Self.slowOperationThresholdMilliseconds {
-            fputs(String(format: "[SQLITE_SLOW_PREPARE] isMain=%d duration=%.2fms sql=%@\n", Thread.isMainThread ? 1 : 0, duration, sql), stderr)
-            fflush(stderr)
-        }
-        return statement
     }
 
     func lastInsertRowID() -> Int64 {
@@ -129,23 +103,14 @@ final class SQLiteDatabase: @unchecked Sendable {
     }
 
     func withImmediateTransaction<T>(_ body: () throws -> T) throws -> T {
-        let start = DispatchTime.now().uptimeNanoseconds
-        fputs(String(format: "[SQLITE_TX_BEGIN] isMain=%d\n", Thread.isMainThread ? 1 : 0), stderr)
-        fflush(stderr)
-        return try withConnectionLock {
+        try withConnectionLock {
             try execute("BEGIN IMMEDIATE TRANSACTION")
             do {
                 let result = try body()
                 try execute("COMMIT")
-                let duration = Double(DispatchTime.now().uptimeNanoseconds - start) / 1_000_000
-                fputs(String(format: "[SQLITE_TX_COMMIT] isMain=%d duration=%.2fms\n", Thread.isMainThread ? 1 : 0, duration), stderr)
-                fflush(stderr)
                 return result
             } catch {
                 try? execute("ROLLBACK")
-                let duration = Double(DispatchTime.now().uptimeNanoseconds - start) / 1_000_000
-                fputs(String(format: "[SQLITE_TX_ROLLBACK] isMain=%d duration=%.2fms error=%@\n", Thread.isMainThread ? 1 : 0, duration, error.localizedDescription), stderr)
-                fflush(stderr)
                 throw error
             }
         }
@@ -208,14 +173,8 @@ final class SQLiteDatabase: @unchecked Sendable {
     }
 
     func withConnectionLock<T>(_ body: () throws -> T) rethrows -> T {
-        let lockWaitStart = DispatchTime.now().uptimeNanoseconds
         lock.lock()
         defer { lock.unlock() }
-        let lockWaitDuration = Double(DispatchTime.now().uptimeNanoseconds - lockWaitStart) / 1_000_000
-        if lockWaitDuration >= Self.slowOperationThresholdMilliseconds {
-            fputs(String(format: "[SQLITE_LOCK_WAIT] isMain=%d wait=%.2fms\n", Thread.isMainThread ? 1 : 0, lockWaitDuration), stderr)
-            fflush(stderr)
-        }
         return try body()
     }
 
@@ -297,10 +256,9 @@ final class SQLiteStatement {
     }
 
     func step() throws -> Bool {
-        let start = DispatchTime.now().uptimeNanoseconds
-        let result = try database.withConnectionLock {
-            let res = sqlite3_step(statement)
-            switch res {
+        try database.withConnectionLock {
+            let result = sqlite3_step(statement)
+            switch result {
             case SQLITE_ROW:
                 return true
             case SQLITE_DONE:
@@ -309,12 +267,6 @@ final class SQLiteStatement {
                 throw SQLiteDatabaseError.stepFailed(database.lastErrorMessage)
             }
         }
-        let duration = Double(DispatchTime.now().uptimeNanoseconds - start) / 1_000_000
-        if duration >= SQLiteDatabase.slowOperationThresholdMilliseconds {
-            fputs(String(format: "[SQLITE_SLOW_STEP] isMain=%d duration=%.2fms\n", Thread.isMainThread ? 1 : 0, duration), stderr)
-            fflush(stderr)
-        }
-        return result
     }
 
     func run() throws {

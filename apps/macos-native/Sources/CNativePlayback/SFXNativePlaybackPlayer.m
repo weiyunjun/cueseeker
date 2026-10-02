@@ -111,9 +111,6 @@ static void SFXLogIfSlow(NSString *name, CFTimeInterval start, double thresholdM
         return;
     }
 
-    fprintf(stderr, "[PLAYER_STALL] %s %.2fms\n", [name UTF8String], elapsedMilliseconds);
-    fflush(stderr);
-
     os_log(
         SFXPerformanceLog(),
         "SLOW %{public}@ %.2fms",

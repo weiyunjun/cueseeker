@@ -169,17 +169,6 @@ private final class AppPerformanceProbeState: @unchecked Sendable {
         lock.unlock()
     }
 
-    func snapshotPendingPingAge(now: UInt64) -> (elapsedMs: Double, lastAction: String)? {
-        lock.lock()
-        defer { lock.unlock() }
-        guard let ping = pendingMainThreadPing else {
-            return nil
-        }
-        let elapsedMilliseconds = Double(now - ping.scheduledAt) / 1_000_000
-        let lastAction = snapshotLastActionLocked(now: now)
-        return (elapsedMilliseconds, lastAction)
-    }
-
     private func snapshotLastActionLocked(now: UInt64) -> String {
         guard let startedAt = lastActionStartedAt else {
             return lastActionName
@@ -195,36 +184,15 @@ enum AppPerformanceProbe {
     private static let state = AppPerformanceProbeState()
     private static let isExplicitLoggingEnabled = diagnosticFlag("CUESEEKER_PERF")
     static let isAutomaticSampleEnabled = diagnosticFlag("CUESEEKER_PERF_AUTOSAMPLE")
-    static var isMainThreadWatchdogEnabled: Bool {
-        #if DEBUG
-        return true
-        #else
-        return diagnosticFlag("CUESEEKER_PERF_WATCHDOG")
-            || diagnosticFlag("CUESEEKER_PERF")
-            || diagnosticFlag("CUESEEKER_DEBUG_TASK_DELAY_SECONDS")
-            || isAutomaticSampleEnabled
-        #endif
-    }
-    static var isMainRunLoopObserverEnabled: Bool {
-        #if DEBUG
-        return true
-        #else
-        return diagnosticFlag("CUESEEKER_PERF_RUNLOOP")
-            || diagnosticFlag("CUESEEKER_PERF")
-        #endif
-    }
+    static let isMainThreadWatchdogEnabled = diagnosticFlag("CUESEEKER_PERF_WATCHDOG")
+        || isAutomaticSampleEnabled
+    static let isMainRunLoopObserverEnabled = diagnosticFlag("CUESEEKER_PERF_RUNLOOP")
     static let isLayoutProbeEnabled = diagnosticFlag("CUESEEKER_PERF_LAYOUT")
-    static var isEnabled: Bool {
-        #if DEBUG
-        return true
-        #else
-        return isExplicitLoggingEnabled
-            || isMainThreadWatchdogEnabled
-            || isMainRunLoopObserverEnabled
-            || isAutomaticSampleEnabled
-            || isLayoutProbeEnabled
-        #endif
-    }
+    static let isEnabled = isExplicitLoggingEnabled
+        || isMainThreadWatchdogEnabled
+        || isMainRunLoopObserverEnabled
+        || isAutomaticSampleEnabled
+        || isLayoutProbeEnabled
     private static let watchdogQueue = DispatchQueue(
         label: "app.cueseeker.performance-watchdog",
         qos: .utility
@@ -277,7 +245,7 @@ enum AppPerformanceProbe {
 
     static func startMainThreadWatchdog(
         thresholdMilliseconds: Double = 250,
-        intervalMilliseconds: Int = 100,
+        intervalMilliseconds: Int = 250,
         sampleThresholdMilliseconds: Double = 1_000
     ) {
         guard isMainThreadWatchdogEnabled else {
@@ -293,7 +261,6 @@ enum AppPerformanceProbe {
             repeating: .milliseconds(intervalMilliseconds),
             leeway: .milliseconds(25)
         )
-        var lastStallReportedStep: Int = 0
         timer.setEventHandler {
             let timestamp = now()
             if isAutomaticSampleEnabled,
@@ -301,8 +268,6 @@ enum AppPerformanceProbe {
                    now: timestamp,
                    thresholdMilliseconds: sampleThresholdMilliseconds
                ) {
-                fputs(String(format: "[MAIN_THREAD_STALL] Main thread blocked for %.0fms! Last action: %@\n", sampleTrigger.elapsedMilliseconds, sampleTrigger.lastAction), stderr)
-                fflush(stderr)
                 startAutomaticSample(
                     pingID: sampleTrigger.id,
                     stalledMilliseconds: sampleTrigger.elapsedMilliseconds,
@@ -311,27 +276,12 @@ enum AppPerformanceProbe {
             }
 
             guard let ping = state.beginMainThreadPing(at: timestamp) else {
-                let pendingSnapshot = state.snapshotPendingPingAge(now: timestamp)
-                if let (elapsedMs, lastAction) = pendingSnapshot, elapsedMs >= 500 {
-                    let currentStep = Int(elapsedMs / 500)
-                    if currentStep > lastStallReportedStep {
-                        lastStallReportedStep = currentStep
-                        fputs(String(format: "[MAIN_THREAD_STALL] Main thread blocked for %.0fms... Last action: %@\n", elapsedMs, lastAction), stderr)
-                        fflush(stderr)
-                    }
-                }
                 return
             }
 
             DispatchQueue.main.async {
                 guard let scheduledAt = state.completeMainThreadPing(id: ping.id) else {
                     return
-                }
-
-                let elapsedMilliseconds = Double(now() - scheduledAt) / 1_000_000
-                if elapsedMilliseconds >= thresholdMilliseconds {
-                    fputs(String(format: "[MAIN_THREAD_RESUMED] Main thread unblocked after %.0fms! Last action: %@\n", elapsedMilliseconds, state.snapshotLastAction(now: now())), stderr)
-                    fflush(stderr)
                 }
 
                 logElapsed(
@@ -410,8 +360,6 @@ enum AppPerformanceProbe {
 
     static func breadcrumb(_ name: String) {
         recordLastAction(name)
-        fputs(String(format: "[BREADCRUMB] isMain=%d %@\n", Thread.isMainThread ? 1 : 0, name), stderr)
-        fflush(stderr)
     }
 
     static func logElapsed(
@@ -429,8 +377,6 @@ enum AppPerformanceProbe {
         }
 
         let msg = message(name: name, elapsedMilliseconds: elapsedMilliseconds)
-        fputs("[PERF] \(msg)\n", stderr)
-        fflush(stderr)
         logger.warning("\(msg, privacy: .public)")
     }
 
@@ -439,8 +385,6 @@ enum AppPerformanceProbe {
             return
         }
 
-        fputs("[PERF_MARK] \(name)\n", stderr)
-        fflush(stderr)
         logger.warning("\(name, privacy: .public)")
     }
 

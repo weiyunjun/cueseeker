@@ -35,10 +35,7 @@ During long-running database operations (such as Subtitle Indexing, Add Folder, 
   - `waitUntilIdle()` awaits both running tasks and `writeQueue` completion, and `deinit` flushes the queue.
 
 - **Diagnostic Performance Probes and Breadcrumbs**:
-  - `AppPerformanceProbe`: Enabled main thread watchdog to automatically run in `DEBUG` and test-delay modes with a 100ms interval, logging real-time `[MAIN_THREAD_STALL]` notifications with elapsed time and last breadcrumb to `stderr`, and `[MAIN_THREAD_RESUMED]` upon unblocking.
-  - `SQLiteDatabase`: Instrumented connection lock wait times (`[SQLITE_LOCK_WAIT]`), slow statements (`[SQLITE_SLOW_EXEC]`, `[SQLITE_SLOW_STEP]`), and transaction boundaries (`[SQLITE_TX_BEGIN]`, `[SQLITE_TX_COMMIT]`, `[SQLITE_TX_ROLLBACK]`) with thread info (`isMain=1/0`).
-  - `SFXNativePlaybackPlayer`: Enabled performance logging in `DEBUG` and test delay mode, logging `[PLAYER_STALL]` to `stderr` whenever video frame submission or delegate notifications are delayed on the main queue (> 50ms).
-  - Breadcrumb logging across `performFolderRemoval`, `tasks.runRemoveFolder`, `LibraryFolderRemovalExecutor`, `TaskQueueStore`, and playback reconciliation.
+  - Temporary diagnostic instrumentation (`[MAIN_THREAD_STALL]`, `[MAIN_THREAD_RESUMED]`, `[SQLITE_LOCK_WAIT]`, `[SQLITE_SLOW_*]`, `[SQLITE_TX_*]`, `[PLAYER_STALL]`, and folder removal/task queue breadcrumbs) added during troubleshooting to identify lock waits and stalls was cleaned up and removed after decoupling verification.
 
 - **Excerpt List Loading During Library Tasks**:
   - Removed early defensive guards (`indexingStatus.isIndexing` and `folderRemovalStatus.isRemoving`) from `loadExcerptTableRowsIfNeeded()` and `reloadExcerptTableRows()` in `AppCoordinator+Excerpt.swift`, allowing Excerpt list rows to load without blocking during background indexing or folder removals.

@@ -207,7 +207,6 @@ extension AppCoordinator {
     /// Starts a Remove Folder. The confirmation came before this; the root
     /// leaves the list only once its task completes.
     func removeFolder(_ folder: URL) {
-        AppPerformanceProbe.breadcrumb("AppCoordinator.removeFolder folder=\(folder.path)")
         guard !indexing.databaseMaintenanceStatus.isCompacting else {
             startupError = L("status.compaction_running")
             return
@@ -288,9 +287,7 @@ extension AppCoordinator {
             return try await self.performFolderAddition(folder, onProgress: onProgress)
         }
         tasks.runRemoveFolder = { [weak self] folder in
-            AppPerformanceProbe.breadcrumb("tasks.runRemoveFolder.beforeDelay folder=\(folder.path)")
             await AppCoordinator.waitForDebugTaskDelay()
-            AppPerformanceProbe.breadcrumb("tasks.runRemoveFolder.afterDelay folder=\(folder.path)")
             guard let self else {
                 throw CancellationError()
             }
@@ -368,7 +365,6 @@ extension AppCoordinator {
     /// groups inside it that stay. The `await` on the executor leaves the main
     /// actor free while the deletion runs.
     private func performFolderRemoval(_ folder: URL) async throws {
-        AppPerformanceProbe.breadcrumb("performFolderRemoval.begin folder=\(folder.path)")
         let remainingRoots = indexing.selectedFolders.filter { $0 != folder }
         guard LibraryRootGroups.coveringRoot(of: folder, in: remainingRoots) == nil else {
             indexing.removeFolder(folder)
@@ -399,12 +395,9 @@ extension AppCoordinator {
         pendingLibraryPlaybackHistoryPresentationVideoPaths = pendingLibraryPlaybackHistoryPresentationVideoPaths.filter {
             !Self.pathMatchesPrefixes($0, prefixes: prefixes)
         }
-        AppPerformanceProbe.breadcrumb("performFolderRemoval.holdPlaybackBeforeIndexedContentChange")
         holdPlaybackBeforeIndexedContentChange()
-        AppPerformanceProbe.breadcrumb("performFolderRemoval.prepareExcerptForIndexedContentMutation")
         prepareExcerptForIndexedContentMutation(under: [folder])
 
-        AppPerformanceProbe.breadcrumb("performFolderRemoval.removeFolderOnExecutor.begin")
         do {
             try await libraryFolderRemovalExecutor.removeFolder(
                 folder,
@@ -415,7 +408,6 @@ extension AppCoordinator {
                 databaseURL: databaseURL
             )
         } catch {
-            AppPerformanceProbe.breadcrumb("performFolderRemoval.removeFolderOnExecutor.failed error=\(error)")
             indexing.folderRemovalStatus = .idle
             reloadExcerptAfterIndexedContentMutation()
             search.completeIndexedCueDataMutation(searchMutationToken)
@@ -430,31 +422,19 @@ extension AppCoordinator {
             indexing.operationNotice = .removalFailed(folderName: folder.lastPathComponent)
             throw LibraryTaskFailure(message: message)
         }
-        AppPerformanceProbe.breadcrumb("performFolderRemoval.removeFolderOnExecutor.end")
 
-        AppPerformanceProbe.breadcrumb("performFolderRemoval.indexing.removeFolder")
         indexing.removeFolder(folder)
-        AppPerformanceProbe.breadcrumb("performFolderRemoval.clearSearchAndPlaybackState")
         clearSearchAndPlaybackState(under: folder)
-        AppPerformanceProbe.breadcrumb("performFolderRemoval.reconcilePlaybackAfterIndexedContentChange")
         reconcilePlaybackAfterIndexedContentChange()
         indexing.folderRemovalStatus = .idle
-        AppPerformanceProbe.breadcrumb("performFolderRemoval.reloadExcerptAfterIndexedContentMutation")
         reloadExcerptAfterIndexedContentMutation()
-        AppPerformanceProbe.breadcrumb("performFolderRemoval.search.completeIndexedCueDataMutation")
         search.completeIndexedCueDataMutation(searchMutationToken)
         indexing.removedFolderNotice = folder
-        AppPerformanceProbe.breadcrumb("performFolderRemoval.refreshLibrary")
         refreshLibrary()
-        AppPerformanceProbe.breadcrumb("performFolderRemoval.refreshRecentWatching")
         refreshRecentWatching()
-        AppPerformanceProbe.breadcrumb("performFolderRemoval.refreshLoadedTestRecentWatching")
         refreshLoadedTestRecentWatching()
-        AppPerformanceProbe.breadcrumb("performFolderRemoval.refreshCompleteLibrary")
         refreshCompleteLibrary()
-        AppPerformanceProbe.breadcrumb("performFolderRemoval.refreshDatabaseStorageStats")
         refreshDatabaseStorageStats()
-        AppPerformanceProbe.breadcrumb("performFolderRemoval.end")
     }
 
     /// Indexes the folders one after another and answers how many subtitle

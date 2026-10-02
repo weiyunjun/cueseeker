@@ -51,8 +51,6 @@ extension AppCoordinator {
     /// Playback Overlay and the Command Panel are both closed, since until
     /// then they keep showing what they had.
     func reconcilePlaybackAfterIndexedContentChange() {
-        AppPerformanceProbe.breadcrumb("reconcilePlaybackAfterIndexedContentChange.begin")
-        defer { AppPerformanceProbe.breadcrumb("reconcilePlaybackAfterIndexedContentChange.end") }
         guard hasPlaybackSelection else {
             return
         }
@@ -235,8 +233,6 @@ extension AppCoordinator {
     }
 
     func isCurrentPlaybackItemInLibrary() -> Bool {
-        AppPerformanceProbe.breadcrumb("isCurrentPlaybackItemInLibrary.begin")
-        defer { AppPerformanceProbe.breadcrumb("isCurrentPlaybackItemInLibrary.end") }
         if let video = library.selectedLibraryVideo {
             return !libraryHasLost(videoPath: video.videoPath)
         }
