@@ -24,11 +24,11 @@ main
 
 ## 3. 卡片弹出菜单内容与二次确认
 1. 菜单项内容：
-   - Current 卡片：`Cancel Task`（Destructive 警告项，图标 `minus-circle`）。正在运行的重命名与移除文件夹任务不可取消，菜单项置灰禁用（Disabled）。
+   - Current 卡片：`Remove Task`（Destructive 警告项，图标 `minus-circle`）。正在运行的重命名与移除文件夹任务不可取消，菜单项置灰禁用（Disabled）。
    - Completed / Incomplete 历史卡片：`Delete Record`（Destructive 警告项，图标 `trash`）。
 2. 二次确认弹窗：
    - 点击可用菜单项关闭菜单，并弹出二次确认弹窗（Confirmation Dialog）：
-     - 取消任务弹窗：确认后任务中止并移至 Incomplete。
+     - 移除任务弹窗：确认后任务中止并移至 Incomplete。
      - 删除记录弹窗：确认后从数据库完全移除记录。
 3. 交互与模态规范：
    - 菜单挂靠在 `dots-three` 按钮上，优先朝下展开，空间不足时朝上展开，紧凑包裹无多余滚动条。
@@ -37,14 +37,14 @@ main
 ## 4. 菜单打开期间状态变更拦截
 1. 菜单打开后展示静态快照，不随底层卡片或队列变动实时更新。
 2. 敏感操作执行校验：
-   - Current 任务在菜单打开期间由进行中变为已完成或已终止（`In Progress → Completed/Incomplete`），用户点击 `Cancel Task` 时予以拦截：不弹出确认弹窗，弹出 Toast 警示。
-   - Toast 规范：持续 3 秒，图标 `warning`，文案“任务状态已经改变”（英文：`Task status has changed`），无句号。
+   - Current 任务在菜单打开期间由进行中变为已完成或已终止（`In Progress → Completed/Incomplete`），用户点击 `Remove Task` 时予以拦截：不弹出确认弹窗，弹出 Toast 警示。
+   - Toast 规范：持续 3 秒，图标 `warning`，文案“任务状态已经改变”（英文：`Task status has changed`），无句号；Toast 需浮动展示于包括 TaskPanel 在内的所有弹窗与遮罩层最上方。
    - `Queued → In Progress` 状态流转不视为失效，正常允许调起确认弹窗。
 
 # 验收
 
 1. **卡片 Hover 与底色**：Light 和 Dark 模式下鼠标悬停 Task 卡片平滑展示浅灰底（`rowHover`），Dark 模式下底色与阶梯表现正常，边框稳定。
 2. **dots-three 按钮表现**：按钮尺寸 32×32px，基准态垂直居中（上下边距各 18px），第 3 行展开时保持距顶 18px；悬停与打开底色为 `rowSelected`；按钮恒定可点。
-3. **菜单功能与确认弹窗**：Current 卡片点击 `Cancel Task` 唤起移除任务确认弹窗，确认后移至 Incomplete；不可取消的进行中任务该项置灰；History 卡片点击 `Delete Record` 唤起删除记录确认弹窗，确认后记录被移除。
-4. **状态变更拦截**：Current 任务在菜单打开期间已结束时，点击取消被拦截并弹出 Toast 报错（“任务状态已经改变”）。
+3. **菜单功能与确认弹窗**：Current 卡片点击 `Remove Task` 唤起移除任务确认弹窗，确认后移至 Incomplete；不可取消的进行中任务该项置灰；History 卡片点击 `Delete Record` 唤起删除记录确认弹窗，确认后记录被移除。
+4. **状态变更拦截**：Current 任务在菜单打开期间已结束时，点击移除任务被拦截并弹出 Toast 报错（“任务状态已经改变”），Toast 正常浮动展示于 Task 弹窗上方。
 5. **File 卡片联动**：File 卡片在有任务进行中时，`dots-three` 按钮保持可点，点开后重命名和移除选项置灰。
