@@ -105,11 +105,7 @@ private struct TaskCurrentCard: View {
 
     var body: some View {
         TaskCardContainer {
-            AppIconImage(
-                entry.record.icon,
-                size: WorkbenchControlMetrics.redesignSizeTaskCardIcon
-            )
-            .foregroundStyle(WorkbenchRedesignColors.textSecondary)
+            WorkbenchCardIcon(icon: entry.record.icon)
 
             VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing1) {
                 TaskCardTitleView(title: entry.record.displayTitle)
@@ -119,6 +115,9 @@ private struct TaskCurrentCard: View {
                 } else {
                     TaskCurrentQueuedContent(entry: entry)
                 }
+            }
+            .alignmentGuide(.top) { d in
+                d[.top] + WorkbenchControlMetrics.redesignTextCapOpticalOffset
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
@@ -240,11 +239,7 @@ private struct TaskHistoryCard: View {
 
     var body: some View {
         TaskCardContainer {
-            AppIconImage(
-                record.icon,
-                size: WorkbenchControlMetrics.redesignSizeTaskCardIcon
-            )
-            .foregroundStyle(WorkbenchRedesignColors.textSecondary)
+            WorkbenchCardIcon(icon: record.icon)
 
             VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing1) {
                 TaskCardTitleView(title: record.displayTitle)
@@ -263,6 +258,9 @@ private struct TaskHistoryCard: View {
                          .truncationMode(.tail)
                          .frame(height: WorkbenchControlMetrics.redesignTaskCardLine3Height, alignment: .leading)
                  }
+             }
+             .alignmentGuide(.top) { d in
+                 d[.top] + WorkbenchControlMetrics.redesignTextCapOpticalOffset
              }
              .frame(maxWidth: .infinity, alignment: .leading)
          }
@@ -300,7 +298,7 @@ private struct TaskCardContainer<Content: View>: View {
     @ViewBuilder let content: () -> Content
 
     var body: some View {
-        HStack(alignment: .center, spacing: WorkbenchControlMetrics.redesignSpacing4) {
+        HStack(alignment: .top, spacing: WorkbenchControlMetrics.redesignSpacing4) {
             content()
         }
         .padding(WorkbenchControlMetrics.redesignSpacing4)

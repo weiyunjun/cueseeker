@@ -476,9 +476,8 @@ private struct WorkbenchFileCard<Trailing: View>: View {
     @ViewBuilder let trailing: () -> Trailing
 
     var body: some View {
-        HStack(alignment: .center, spacing: WorkbenchControlMetrics.redesignSpacing4) {
-            AppIconImage(icon, size: WorkbenchControlMetrics.redesignSizeTaskCardIcon)
-                .foregroundStyle(WorkbenchRedesignColors.textSecondary)
+        HStack(alignment: .top, spacing: WorkbenchControlMetrics.redesignSpacing4) {
+            WorkbenchCardIcon(icon: icon)
 
             VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing1) {
                 Text(title)
@@ -498,6 +497,9 @@ private struct WorkbenchFileCard<Trailing: View>: View {
                     .foregroundStyle(WorkbenchRedesignColors.textMuted)
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .alignmentGuide(.top) { d in
+                d[.top] + WorkbenchControlMetrics.redesignTextCapOpticalOffset
             }
 
             Spacer(minLength: 0)

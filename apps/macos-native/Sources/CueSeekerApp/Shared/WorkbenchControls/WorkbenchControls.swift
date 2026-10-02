@@ -346,6 +346,12 @@ enum WorkbenchControlMetrics {
     static let redesignTaskProgressBarHeight = redesignLibraryProgressBarHeight
     /// --size-task-card-icon: 31px
     static let redesignSizeTaskCardIcon: CGFloat = 31
+    /// --size-card-icon-container: 40px (matches --height-control)
+    static let redesignCardIconContainerSize: CGFloat = redesignHeight
+    /// --size-card-icon-glyph: 24px
+    static let redesignCardIconGlyphSize: CGFloat = 24
+    /// Optical offset from font line-top to cap-top for 14px body text (approx. 2.5pt)
+    static let redesignTextCapOpticalOffset: CGFloat = 2.5
     /// Line 3 row height for task card (16px)
     static let redesignTaskCardLine3Height: CGFloat = 16
 
@@ -1394,3 +1400,24 @@ extension VerticalAlignment {
 
     static let feedbackFirstLineCenter = VerticalAlignment(FeedbackFirstLineCenter.self)
 }
+
+struct WorkbenchCardIcon: View {
+    let icon: AppIcon
+
+    var body: some View {
+        RoundedRectangle(
+            cornerRadius: WorkbenchControlMetrics.redesignCornerRadius,
+            style: .continuous
+        )
+        .fill(WorkbenchRedesignColors.bgHover)
+        .frame(
+            width: WorkbenchControlMetrics.redesignCardIconContainerSize,
+            height: WorkbenchControlMetrics.redesignCardIconContainerSize
+        )
+        .overlay(
+            AppIconImage(icon, size: WorkbenchControlMetrics.redesignCardIconGlyphSize)
+                .foregroundStyle(WorkbenchRedesignColors.textSecondary)
+        )
+    }
+}
+

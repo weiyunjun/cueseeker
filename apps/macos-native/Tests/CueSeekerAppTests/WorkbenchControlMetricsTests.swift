@@ -92,3 +92,11 @@ func dialogWidthTiersAndTheListEditorsDerivedSizes() {
     #expect(WorkbenchControlMetrics.redesignExcerptListEditorWideFormWidth == 336)
     #expect(WorkbenchControlMetrics.redesignExcerptListEditorDescriptionHeight == 58.5)
 }
+
+@Test
+func cardIconContainerMetricsMatchDesignSpecification() {
+    #expect(WorkbenchControlMetrics.redesignCardIconContainerSize == 40)
+    #expect(WorkbenchControlMetrics.redesignCardIconGlyphSize == 24)
+    #expect(WorkbenchControlMetrics.redesignTextCapOpticalOffset == 2.5)
+}
+
