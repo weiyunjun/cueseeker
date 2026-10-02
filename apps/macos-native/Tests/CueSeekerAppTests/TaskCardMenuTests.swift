@@ -9,17 +9,17 @@ import CueSeekerCore
 struct TaskCardMenuTests {
     @Test
     func taskCardMenuItemProperties() {
-        let cancelItem = WorkbenchCardMenuItem(
-            title: L("task.menu.cancel"),
+        let removeItem = WorkbenchCardMenuItem(
+            title: L("task.menu.remove"),
             icon: .minusCircle,
             isEnabled: true,
             isDestructive: true,
             action: {}
         )
-        #expect(cancelItem.title == "Cancel Task")
-        #expect(cancelItem.icon == .minusCircle)
-        #expect(cancelItem.isEnabled == true)
-        #expect(cancelItem.isDestructive == true)
+        #expect(removeItem.title == "Remove Task")
+        #expect(removeItem.icon == .minusCircle)
+        #expect(removeItem.isEnabled == true)
+        #expect(removeItem.isDestructive == true)
 
         let deleteItem = WorkbenchCardMenuItem(
             title: L("task.menu.delete"),
@@ -48,7 +48,7 @@ struct TaskCardMenuTests {
         let fakeTasksCurrent: [Int64] = [] // Empty, simulating task already finished
         let targetTaskID: Int64 = 999
 
-        let handleCancel = {
+        let handleRemove = {
             guard fakeTasksCurrent.contains(targetTaskID) else {
                 toastShown = true
                 return
@@ -56,7 +56,7 @@ struct TaskCardMenuTests {
             confirmationShown = true
         }
 
-        handleCancel()
+        handleRemove()
         #expect(toastShown == true)
         #expect(confirmationShown == false)
     }
@@ -100,7 +100,7 @@ struct TaskCardMenuTests {
         let highlight = MenuHighlightModel()
         let items = [
             WorkbenchCardMenuItem(
-                title: "Cancel Task",
+                title: "Remove Task",
                 icon: .minusCircle,
                 isEnabled: true,
                 isDestructive: true,

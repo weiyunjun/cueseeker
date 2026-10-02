@@ -549,7 +549,7 @@
 "task.confirm.remove.index" = "索引将停止并移入未完成。已完成索引的文件夹会保留数据。";
 "task.confirm.remove.add_folder" = "添加“%@”将停止并移入未完成。该文件夹不会被添加，已索引的内容会被清除。";
 "task.confirm.delete.other" = "只删除这条记录，不会撤销任务的结果。";
-"task.menu.cancel" = "取消任务";
+"task.menu.remove" = "移除任务";
 "task.menu.delete" = "删除记录";
 "toast.task_status_changed" = "任务状态已经改变";
 "index.stage.scanning" = "正在扫描文件";

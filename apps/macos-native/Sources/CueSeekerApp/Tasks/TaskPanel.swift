@@ -172,12 +172,12 @@ struct TaskPanel: View {
         let isCancellable = entry.record.state != .running || entry.canBeRemovedWhileRunning
         return [
             WorkbenchCardMenuItem(
-                title: L("task.menu.cancel"),
+                title: L("task.menu.remove"),
                 icon: .minusCircle,
                 isEnabled: isCancellable,
                 isDestructive: true,
                 action: {
-                    handleCancelTask(entry: entry)
+                    handleRemoveTask(entry: entry)
                 }
             )
         ]
@@ -197,7 +197,7 @@ struct TaskPanel: View {
         ]
     }
 
-    private func handleCancelTask(entry: TaskQueueEntry) {
+    private func handleRemoveTask(entry: TaskQueueEntry) {
         guard let liveEntry = tasks.current.first(where: { $0.id == entry.id }) else {
             appState.toast.show(TaskToastRequest.taskStatusChanged)
             return

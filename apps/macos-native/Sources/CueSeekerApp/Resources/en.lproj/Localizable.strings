@@ -549,7 +549,7 @@
 "task.confirm.remove.index" = "Index will stop and move to Incomplete. Folders already indexed keep their data.";
 "task.confirm.remove.add_folder" = "Adding “%@” will stop and move to Incomplete. The folder is not added, and what it already indexed is removed.";
 "task.confirm.delete.other" = "Only the record is deleted. What the task did is not undone.";
-"task.menu.cancel" = "Cancel Task";
+"task.menu.remove" = "Remove Task";
 "task.menu.delete" = "Delete Record";
 "toast.task_status_changed" = "Task status has changed";
 "index.stage.scanning" = "Scanning files";

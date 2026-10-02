@@ -72,12 +72,12 @@ private struct ContentRootView: View {
                             .zIndex(3)
                     }
 
-                    ToastStackView(center: appState.toast)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .zIndex(100)
-
                     dialogLayer(isPlaybackPageVisible: hidesWorkbenchChrome)
                         .zIndex(200)
+
+                    ToastStackView(center: appState.toast)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .zIndex(300)
 
                     TitlebarCommandBridge()
                         .frame(width: 0, height: 0)
