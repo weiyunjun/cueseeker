@@ -66,7 +66,7 @@ struct TaskPanel: View {
                         ZStack(alignment: .topLeading) {
                             MenuGateClientView(
                                 gate: appState.interfaceLayers.menuGate,
-                                owner: .workbenchPage,
+                                owner: .dialog,
                                 kind: .cardMenu,
                                 menuFrame: menuFrame,
                                 anchorFrame: activeMenu.anchorFrame,
@@ -103,6 +103,7 @@ struct TaskPanel: View {
                             )
                             .offset(x: menuFrame.minX, y: menuFrame.minY)
                         }
+                        .zIndex(1000)
                     }
                 }
             }
@@ -615,7 +616,7 @@ private struct TaskCardContainer<Content: View>: View {
                 lineWidth: WorkbenchControlMetrics.redesignControlBorderWidth
             )
         )
-        .clipShape(RoundedRectangle(
+        .contentShape(RoundedRectangle(
             cornerRadius: WorkbenchControlMetrics.redesignCornerRadius,
             style: .continuous
         ))

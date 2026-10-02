@@ -122,6 +122,18 @@ struct TaskCardMenuTests {
         #expect(fittingSize.height > 30)
         #expect(fittingSize.height < 80)
     }
+
+    @Test
+    func taskPanelMenuLayerIsNotCoveredInDialog() {
+        let registry = InterfaceLayerRegistry()
+        registry.setOpen(.dialog, true)
+
+        // When TaskPanel is open, .dialog is active.
+        // A menu registered with owner: .workbenchPage would be erroneously treated as covered by the dialog.
+        #expect(registry.isMenuCovered(ownedBy: .workbenchPage) == true)
+        // A menu registered with owner: .dialog must NOT be treated as covered.
+        #expect(registry.isMenuCovered(ownedBy: .dialog) == false)
+    }
 }
 
 private func hexString(_ color: NSColor, appearance: NSAppearance.Name = .aqua) -> String {

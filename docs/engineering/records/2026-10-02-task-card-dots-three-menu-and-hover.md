@@ -31,7 +31,7 @@ Human-owned documents:
 - **TaskPanel**:
    - Updated `TaskCardContainer`: Added hover detection with `--color-row-hover` and default `--color-table-bg`.
    - Updated `TaskCurrentCard` and `TaskHistoryCard`: Added trailing 32×32px `dots-three` `WorkbenchIconButton` (`isOpen: isMenuOpen`, `hoverBackground: rowSelected`) with `redesignCardTrailingIconButtonTopOffset` (18px top margin).
-   - Added coordinate space `TaskPanel.cardCoordinateSpace` and `MenuGateClientView(kind: .cardMenu)` overlay supporting keyboard navigation, Esc/outside click dismissal, and auto-flipping placement.
+    - Added coordinate space `TaskPanel.cardCoordinateSpace` and `MenuGateClientView(owner: .dialog, kind: .cardMenu)` overlay supporting keyboard navigation (arrows, Enter, Esc), outside click dismissal and consumption without penetration, and auto-flipping placement. Explicitly assigned `owner: .dialog` so `MenuGate` recognizes the menu as active and uncovered while `TaskPanel` is presented in `InterfaceLayer.dialog`, and added `.zIndex(1000)` to the popover overlay.
    - Connected secondary confirmation dialogs for `Cancel Task` and `Delete Record`.
    - Implemented real-time task state verification in `handleCancelTask`, intercepting ended tasks with `TaskToastRequest.taskStatusChanged`.
 - **Toast & Localization**:
@@ -44,10 +44,11 @@ Human-owned documents:
      - Verified state change interception and Toast parameters.
      - Verified card geometry (68px baseline, 18px top and bottom margins, pinned top upon Line 3 expansion) and color tokens in Light and Dark modes.
      - Verified popover fitting size without overflow.
+     - Verified `InterfaceLayerRegistry` coverage semantics confirming `.dialog` owned menus are active and uncovered during dialog presentation (`taskPanelMenuLayerIsNotCoveredInDialog`).
 
 ## Verification
 
 - Automated tests:
-  - `swift test --package-path apps/macos-native --filter TaskCardMenuTests`
-  - `swift test --package-path apps/macos-native --filter FileCardMenuTests`
+  - `swift test --package-path apps/macos-native --filter TaskCardMenuTests`: 5/5 passed.
+  - `swift test --package-path apps/macos-native --filter FileCardMenuTests`: 5/5 passed.
 - Human owner will perform manual E2E acceptance.
