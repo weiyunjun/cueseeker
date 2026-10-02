@@ -392,3 +392,18 @@
 - Scenario ID：playback.hud.no_available_videos
 - 出现位置：Playback Center
 - 动画：Default
+
+---
+
+## 五、任务队列与卡片操作（Task Toast）
+
+### 36. 任务状态已经改变
+- 英文：Task status has changed
+- 简体中文：任务状态已经改变
+- 繁体中文：任務狀態已經改變
+- 图标：warning
+- 持续时间：3秒
+- Scenario ID：task.action.status_changed
+- 出现位置：App Center
+- 动画：Default
+- 说明：在 Task 卡片弹出菜单打开期间，若任务状态已改变（如进行中转为已结束），用户点击移除任务时触发拦截报错。

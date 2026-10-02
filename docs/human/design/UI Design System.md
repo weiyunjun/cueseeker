@@ -4187,11 +4187,12 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - Row Gap：`--spacing-1`
 - Dynamic Row Height：`16px`
 - Radius：`--radius-control`
-- Background：`--color-bg-dialog`
+- Background：`--color-table-bg`
+- Hover Background：`--color-row-hover`
 - Border Color：`--color-border-control`
 - Alignment：
-  - 基准态：以两行文本（Title 1 行 + Line 2 1 行 = 36px）为设计基准，图标底容器（36×36px）与文本列顶部对齐，卡片四边等边距（16px）
-  - 展开态：当出现第 3 行（进度条或错误信息）时，图标底容器锁定在顶部（距顶 16px），卡片向下延伸并保持底部 16px 边距
+  - 基准态：以两行文本（Title 1 行 + Line 2 1 行 = 36px）为设计基准，图标底容器（36×36px）与文本列顶部对齐（距顶 16px）；右侧操作按钮（32px）垂直居中（上下各 18px，右边距 16px）
+  - 展开态：当出现第 3 行（进度条或错误信息）时，左侧图标底容器（距顶 16px）与右侧按钮（距顶 18px）保持基准位置锁定，卡片向下延伸并保持底部 16px 边距
 
 #### Text
 
@@ -4201,6 +4202,13 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - Detail Font Size：`--font-size-caption`
 - Detail Color：`--color-text-muted`
 - Error Color：`--color-danger-text`
+
+#### Trailing Actions
+
+- 统一使用 `dots-three` 纯图标按钮（32×32px，圆角 8px，图标 21px），Hover 及菜单打开底色为 `--color-row-selected`
+- 弹出菜单：
+  - Current：`Remove Task`（Destructive 警告项，图标 `minus-circle`）
+  - History（Completed / Incomplete）：`Delete Record`（Destructive 警告项，图标 `trash`）
 
 #### States
 
