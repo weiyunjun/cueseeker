@@ -3528,15 +3528,21 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 #### Structure
 
 1. Level 1: Root Folder Card List
-   1. Page Description
-   2. Action Row：`Add Folder`、`Index Now`
-   3. Index Status
-   4. Root Folder Card List
+   1. Breadcrumb Navigation：`Home`
+   2. Status and Action Row：Status Indicator、Action Buttons（`Add Folder`、`Index Now`）
+   3. Root Folder Card List
 2. Level 2: Subfolder Card List
+   1. Breadcrumb Navigation：`Home` > `[Indexed Path]`
+   2. Subfolder Card List
 3. Level 3: File Card List
+   1. Breadcrumb Navigation：`Home` > `[Indexed Path]` > `[Folder]`（直属内容为 `[Folder] (Direct Content)`）
+   2. File Card List
 
 #### Components
 
+- Breadcrumb Navigation
+- Status Indicator
+- WorkbenchSpinner
 - Button / Neutral
 - Button / Destructive
 - Empty State
@@ -3548,26 +3554,29 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 
 - Page Layout：Workbench Titled Page Layout
 - 顶栏后退与前进按钮响应三级界面的下钻与返回，顶栏标题恒定为 `File`。
-- Page Description、Action Row 与各级 Card List 均左对齐。
-- Index Status 只在有状态时出现，没有状态时不占高度。
-- 没有根目录时显示 Empty State；三级文件流无内容时显示 Empty State。
+- 面包屑与各级 Card List 均左边缘对齐。
+- Status and Action Row 仅在 Level 1 展示，高 40px（`--height-control`），两端对齐：左侧为极简状态指示器，右侧为操作按钮组。Level 2 和 Level 3 整行隐藏。
+- 面包屑节点：未激活链接项为 14px Medium `--color-text-secondary`（Hover 变为 `--color-text-primary`）；当前项为 14px Semibold `--color-text-primary`；分隔符为 `caret-right`（12px 1.15px `--color-text-muted`），间距 `--spacing-2`。
+- 没有根目录时显示 Empty State；三级文件流无内容且非加载中时显示 Empty State。异步加载期间展示居中 `WorkbenchSpinner`（18px）。
 - 移除根目录前弹出 Confirmation Dialog。
 - 存在 Index、Add Folder、Remove Folder、Rename Folder 或 Rename Files 任务期间，以及数据库压缩进行中时，全部操作按钮为 Disabled。
 
 #### Spacing
 
-- Page Description to Action Row：`--spacing-4`
-- Action Row to Index Status：`--spacing-4`
-- Index Status to Root Folder Card List：`--spacing-6`
+- Breadcrumb to Status Row / Content：`--spacing-4`
+- Status and Action Row to Card List：`--spacing-4`
 - Action Row Gap：`--spacing-2`
 - Card Gap：`--spacing-3`
 
-#### Index Status
+#### Status Indicator
 
-- Anatomy：Icon + `--spacing-2` + Status Line，Detail Line 与 Status Line 左对齐
-- Status Line：`--font-size-body` / Regular，成功为 `--color-success-text`，失败为 `--color-danger-text`
-- Detail Line：`--font-size-caption` / Regular / `--color-text-muted`
-- Line Gap：`--spacing-1`
+- 高度：`--height-control`（40px），垂直居中
+- 排版规范：字号 14px，字重 500 Medium（`--font-weight-control`），Icon 与文本间距 `--spacing-2`
+- 状态映射：
+  - 已完成（Completed）：`check-circle`（18px 1.30px `--color-success-text`）+ `--color-success-text`（`Indexed [Folder]`、`Indexed All Folders`、`Removed [Folder]`）
+  - 进行中（In Progress）：`WorkbenchSpinner`（18px `--color-text-secondary`）+ `--color-text-secondary`（`Indexing [Folder]`、`Indexing All Folders`、`Removing [Folder]`）
+  - 失败（Failed）：`warning`（18px 1.30px `--color-danger-text`）+ `--color-danger-text`（`Index Failed: [Folder]`、`Removal Failed: [Folder]`）
+  - 闲置（Idle）：`arrow-clockwise`（18px 1.30px `--color-text-secondary`）+ `--color-text-secondary`（`Last Updated: yy-MM-dd HH:mm` / `Last Updated: --`）。切离 Level 1 再切回时恢复闲置状态。
 
 #### File Card Layout
 

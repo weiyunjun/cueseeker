@@ -18,6 +18,7 @@
 
 | 尺寸 | 线宽 |
 | --- | --- |
+| 12px | 1.15px |
 | 14px | 1.15px |
 | 16px | 1.20px |
 | 18px | 1.30px |
@@ -38,7 +39,7 @@
 | 图标 | 字重 | 含义 | 使用位置 |
 | --- | --- | --- | --- |
 | `caret-left` | Regular | 后退、返回、快退 | App Topbar / Back；Player Topbar、Playback Topbar / Return Action；Playback Feedback（快退） |
-| `caret-right` | Regular | 前进、展开、快进 | App Topbar / Forward；Submenu Trigger / Submenu Indicator；Library File Tree 折叠态；Playback Feedback（快进） |
+| `caret-right` | Regular | 前进、展开、快进 | App Topbar / Forward；Submenu Trigger / Submenu Indicator；Library File Tree 折叠态；Playback Feedback（快进）；File Page / Breadcrumb 分隔符，12px |
 | `caret-down` | Regular | 已展开 | Library File Tree 展开态 |
 | `sidebar-simple` | Regular | 折叠、展开 Sidebar | Sidebar Toggle |
 | `arrow-left` | Regular | 返回上一级 | Command Panel Secondary / Back Action |
@@ -66,7 +67,7 @@
 | 图标 | 字重 | 含义 | 使用位置 |
 | --- | --- | --- | --- |
 | `folder-plus` | Regular | 添加文件夹 | File Page / Add Folder |
-| `arrow-clockwise` | Regular | 重新索引、刷新 | File Page / Index Now；Settings / Maintenance、Developer 刷新 |
+| `arrow-clockwise` | Regular | 重新索引、刷新 | File Page / Index Now、闲置状态；Settings / Maintenance、Developer 刷新 |
 | `minus-circle` | Regular | 移除 | File Page / Root Folder Row / Remove |
 | `minus-circle` | Fill | 半选 | Checkbox / Indeterminate |
 | `stack` | Regular | 剧集 | Library File Tree / Display Title |
