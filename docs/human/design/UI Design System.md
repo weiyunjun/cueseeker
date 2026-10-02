@@ -287,7 +287,8 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--width-app-sidebar`: `240px`
 - `--size-app-sidebar-item-icon`: `23px`
 - `--size-task-count-badge-compact`: `18px`
-- `--size-task-card-icon`: `31px`
+- `--size-card-icon-container`: `36px`
+- `--size-card-icon-glyph`: `20px`
 - `--size-player-circle-button`: `40px`
 - `--size-player-circle-button-icon`: `23px`
 - `--width-player-speed-button`: `54px`
@@ -3581,15 +3582,19 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 #### File Card Layout
 
 - Card Container：
+  - Baseline Height：68px（标准双行文本时）
   - Padding：`--spacing-4`
   - Radius：`--radius-control`
   - Border Color：`--color-border-control`
   - Background：`--color-bg-dialog`
-- Anatomy：Icon + `--spacing-4` + Text Column + Spacer + Trailing Actions
-- Alignment：Icon、Text Column 与 Trailing Actions 统一垂直居中对齐；多行文本时沿垂直中心对称展开
+- Anatomy：Icon Container + `--spacing-4` + Text Column + Spacer + Trailing Actions
+- Alignment：
+  - 基准态（双行文本 36px）：图标底容器（36×36px）与文本列顶部对齐（距顶 16px）；右侧操作按钮（40px）垂直居中（上下各 14px，右边距 16px）
+  - 多行展开态：文本折行撑开卡片时，左侧图标底容器（距顶 16px）与右侧按钮（距顶 14px）保持基准位置锁定，卡片向下延伸并保持底部 16px 边距
 - Icon：
-  - Size：`--size-task-card-icon`
-  - Color：`--color-text-secondary`
+  - Container：36×36px，圆角 `--radius-control`，背景 `--color-bg-hover`
+  - Glyph Size：`--size-card-icon-glyph`（20px），居中
+  - Glyph Color：`--color-text-secondary`
   - Mapping：文件夹为 `folder`，视频为 `video`，字幕为 `subtitles`
 - Text Column：
   - Line 1：Title（`--font-size-body` / `--font-weight-control` / `--color-text-primary`）
@@ -4144,14 +4149,14 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 
 #### Structure / Current
 
-1. Icon（Leading，31×31px，垂直居中对齐）
+1. Icon（Leading，36×36px 圆角底容器，内置 20px 图标）
 2. Line 1: Title（动作前缀 + 目标名称，统一字重与字色，单行截断，无路径）
 3. Line 2: Progress Text（In Progress 阶段文字 / 导出张数；Queued 状态与数量）
 4. Line 3: Progress Bar（仅 In Progress，16px 高度容器居中展示 4px Capsule 进度条）
 
 #### Structure / History
 
-1. Icon（Leading，31×31px，垂直居中对齐）
+1. Icon（Leading，36×36px 圆角底容器，内置 20px 图标）
 2. Line 1: Title（动作前缀 + 目标名称，统一字重与字色，单行截断，无路径）
 3. Line 2: 数量与时间（Completed 与 Incomplete 格式一致）
 4. Line 3: Error Message（仅 Incomplete，16px 高度容器内单行尾部截断展示）
@@ -4170,15 +4175,20 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 
 #### Sizes
 
+- Baseline Height：68px（标准双行文本时）
 - Padding：`--spacing-4`
-- Icon Size：`--size-task-card-icon`
+- Icon Container：36×36px，圆角 `--radius-control`，背景 `--color-bg-hover`
+- Icon Glyph Size：`--size-card-icon-glyph`（20px），居中
+- Icon Glyph Color：`--color-text-secondary`
 - Icon to Content Gap：`--spacing-4`
 - Row Gap：`--spacing-1`
 - Dynamic Row Height：`16px`
 - Radius：`--radius-control`
 - Background：`--color-bg-dialog`
 - Border Color：`--color-border-control`
-- Alignment：以单行文字（无进度条）为设计基准，图标四边等边距（16px）；多行时垂直居中对称展开
+- Alignment：
+  - 基准态：以两行文本（Title 1 行 + Line 2 1 行 = 36px）为设计基准，图标底容器（36×36px）与文本列顶部对齐，卡片四边等边距（16px）
+  - 展开态：当出现第 3 行（进度条或错误信息）时，图标底容器锁定在顶部（距顶 16px），卡片向下延伸并保持底部 16px 边距
 
 #### Text
 
