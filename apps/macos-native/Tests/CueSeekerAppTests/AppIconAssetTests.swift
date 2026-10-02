@@ -9,12 +9,14 @@ import Testing
 @Test
 func lineWidthTableMirrorsTheIconRegistry() {
     #expect(AppIconLineWidth.bySize == [
+        12: 1.15,
         14: 1.15,
         16: 1.20,
         18: 1.30,
         20: 1.30,
         21: 1.35,
         23: 1.40,
+        24: 1.40,
         31: 1.50,
         42: 1.90,
         47: 2.10,

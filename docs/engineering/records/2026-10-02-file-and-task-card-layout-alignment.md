@@ -51,6 +51,11 @@ Human-owned documents:
 - **Tests**:
   - In `WorkbenchControlMetricsTests.swift`:
     - Added `cardIconContainerMetricsMatchDesignSpecification` test verifying `redesignCardIconContainerSize == 40`, `redesignCardIconGlyphSize == 24`, and `redesignTextCapOpticalOffset == 2.5`.
+- **AppIconLineWidth Registration**:
+  - In `AppIcon.swift`:
+    - Registered `24: 1.40` in `AppIconLineWidth.bySize` to support 24px card icon glyphs.
+  - In `AppIconAssetTests.swift`:
+    - Updated `lineWidthTableMirrorsTheIconRegistry` test to include 12px and 24px sizes.
 
 ## Verification
 
