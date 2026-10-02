@@ -1306,7 +1306,6 @@ extension AppCoordinator {
     }
 
     func stopPlayback() {
-        let stopPlaybackStart = DispatchTime.now().uptimeNanoseconds
         playbackAwaitsLibraryReconcile = false
         _ = playback.dismissCommandPanel()
         invalidatePlaybackSubtitleFocusForSourceReplacement()
@@ -1337,8 +1336,6 @@ extension AppCoordinator {
         } catch {
             showPlaybackError(error)
         }
-        let stopPlaybackDuration = Double(DispatchTime.now().uptimeNanoseconds - stopPlaybackStart) / 1_000_000
-        AppPerformanceProbe.breadcrumb("stopPlayback duration=\(String(format: "%.2f", stopPlaybackDuration))ms")
     }
 
     static func isEditableTextInputFocused() -> Bool {

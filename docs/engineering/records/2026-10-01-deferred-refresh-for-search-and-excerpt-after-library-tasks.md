@@ -33,7 +33,7 @@ Human-owned documents:
     - In `reconcilePlaybackAfterIndexedContentChange`, when Search is the active playback source, prunes invalid search results synchronously.
 
 - **Diagnostic Performance Probes & Timing Breadcrumbs**:
-  - Added millisecond timing breadcrumbs (`AppPerformanceProbe.breadcrumb`) to monitor critical paths and identify any main-thread hitches:
+  - Used millisecond timing breadcrumbs (`AppPerformanceProbe.breadcrumb`) during performance investigation to monitor critical paths and verify no main-thread hitches occurred (subsequently removed):
     - `Search.synchronizeSearchAndPlaylistOnPlayback candidates=... live=... duration=...ms`
     - `cueIDsInLibrary count=... liveCount=... duration=...ms`
     - `excerptIDsInLibrary count=... validCount=... duration=...ms`

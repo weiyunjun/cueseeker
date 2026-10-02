@@ -525,7 +525,6 @@ extension AppCoordinator {
         guard excerptNeedsReloadAfterIndexedContentMutation else {
             return
         }
-        let start = DispatchTime.now().uptimeNanoseconds
         excerptNeedsReloadAfterIndexedContentMutation = false
         let folders = pendingExcerptContentRemovalFolders
         pendingExcerptContentRemovalFolders.removeAll()
@@ -540,8 +539,6 @@ extension AppCoordinator {
         reloadExcerptListOverview()
         reloadExcerptTableRows()
         refreshRecentWatching()
-        let duration = Double(DispatchTime.now().uptimeNanoseconds - start) / 1_000_000
-        AppPerformanceProbe.breadcrumb("refreshExcerptOnReappearanceIfNeeded duration=\(String(format: "%.2f", duration))ms")
     }
 
     func refreshExcerptForLibraryWatchStateChange() {

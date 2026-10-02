@@ -274,26 +274,18 @@ extension AppCoordinator {
     }
 
     func cueIDsInLibrary(among cueIDs: [Int64]) -> Set<Int64> {
-        let start = DispatchTime.now().uptimeNanoseconds
         guard !cueIDs.isEmpty else {
             return []
         }
-        let result = (try? CueContentDatabase(path: databaseURL)
+        return (try? CueContentDatabase(path: databaseURL)
             .liveCueIDs(among: cueIDs)) ?? []
-        let duration = Double(DispatchTime.now().uptimeNanoseconds - start) / 1_000_000
-        AppPerformanceProbe.breadcrumb("cueIDsInLibrary count=\(cueIDs.count) liveCount=\(result.count) duration=\(String(format: "%.2f", duration))ms")
-        return result
     }
 
     func excerptIDsInLibrary(among excerptIDs: [Int64]) -> Set<Int64> {
-        let start = DispatchTime.now().uptimeNanoseconds
         guard !excerptIDs.isEmpty else {
             return []
         }
-        let result = (try? excerptDatabase?.validExcerptIDs(among: excerptIDs)) ?? []
-        let duration = Double(DispatchTime.now().uptimeNanoseconds - start) / 1_000_000
-        AppPerformanceProbe.breadcrumb("excerptIDsInLibrary count=\(excerptIDs.count) validCount=\(result.count) duration=\(String(format: "%.2f", duration))ms")
-        return result
+        return (try? excerptDatabase?.validExcerptIDs(among: excerptIDs)) ?? []
     }
 
     /// The Library Playlist a video belongs to, its folder, as the database

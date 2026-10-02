@@ -137,7 +137,6 @@ extension AppCoordinator {
     func synchronizeSearchAndPlaylistOnPlayback(
         seed result: SubtitleSearchResult
     ) {
-        let start = DispatchTime.now().uptimeNanoseconds
         search.activatePlaybackPruning()
         let candidateCueIDs = search.searchResultCueIDs.isEmpty
             ? search.searchResults.map(\.entryID)
@@ -150,8 +149,6 @@ extension AppCoordinator {
         }
         search.pruneInvalidSearchResults(liveCueIDs: liveCueIDs)
         installSearchPlaybackPlaylistSource(seed: result)
-        let duration = Double(DispatchTime.now().uptimeNanoseconds - start) / 1_000_000
-        AppPerformanceProbe.breadcrumb("Search.synchronizeSearchAndPlaylistOnPlayback candidates=\(candidateCueIDs.count) live=\(liveCueIDs.count) duration=\(String(format: "%.2f", duration))ms")
     }
 
     func installSearchPlaybackPlaylistSource(
