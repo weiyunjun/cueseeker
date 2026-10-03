@@ -1,8 +1,8 @@
-# Button Height Reduction To 36px
+# Button Height Reduction
 
 Human-owned documents:
 
-- `docs/human/requirements/20261004-UI-Button Height Reduction To 32px.md`
+- `docs/human/requirements/20261004-UI-Button Height Reduction.md`
 - `docs/human/design/UI Design System.md`
 - `docs/human/design/UI Application Rules.md`
 
@@ -10,7 +10,7 @@ Human-owned documents:
 
 1. **Button Proportion Optimization**:
    - Standard buttons (`--height-control`) were originally fixed at 40px height with 14px 500 Medium font and 18px icons, leaving excessive vertical padding (~10-13px on each side) and feeling tall/bloated.
-   - An initial exploration at 32px was reviewed and adjusted to 36px to strike the optimal visual balance on macOS between breathing room and compact alignment.
+   - Reduced to 36px to strike the optimal visual balance on macOS between vertical breathing room and compact alignment.
    - Keeping typography (14px 500 Medium), icon size (18px), horizontal padding (14px), and corner radius (8px) unchanged.
 
 ## What changed

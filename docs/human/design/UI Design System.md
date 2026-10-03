@@ -224,7 +224,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 ### Height
 
 - `--height-filter-bar-control`: `40px`
-- `--height-control`: `40px`
+- `--height-control`: `36px`
 - `--height-segmented-control`: `32px`
 - `--height-filter-chip`: `32px`
 - `--height-filter-chip-count-placeholder`: `12px`
@@ -3480,7 +3480,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - Page Layout：Workbench Titled Page Layout
 - 顶栏后退与前进按钮响应三级界面的下钻与返回，顶栏标题恒定为 `File`。
 - 面包屑与各级 Card List 均左边缘对齐。
-- Status and Action Row 仅在 Level 1 展示，高 40px（`--height-control`），两端对齐：左侧为极简状态指示器，右侧为操作按钮组。Level 2 和 Level 3 整行隐藏。
+- Status and Action Row 仅在 Level 1 展示，高 36px（`--height-control`），两端对齐：左侧为极简状态指示器，右侧为操作按钮组。Level 2 和 Level 3 整行隐藏。
 - 面包屑节点：未激活链接项为 14px Medium `--color-text-secondary`（Hover 变为 `--color-text-primary`）；当前项为 14px Semibold `--color-text-primary`；分隔符为 `caret-right`（12px 1.15px `--color-text-muted`），间距 `--spacing-2`。
 - 没有根目录时显示 Empty State；三级文件流无内容且非加载中时显示 Empty State。异步加载期间展示居中 `WorkbenchSpinner`（18px）。
 - 移除根目录前弹出 Confirmation Dialog。
@@ -3495,7 +3495,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 
 #### Status Indicator
 
-- 高度：`--height-control`（40px），垂直居中
+- 高度：`--height-control`（36px），垂直居中
 - 排版规范：字号 14px，字重 500 Medium（`--font-weight-control`），Icon 与文本间距 `--spacing-2`
 - 状态映射：
   - 已完成（Completed）：`check-circle`（18px 1.30px `--color-success-text`）+ `--color-success-text`（`Indexed [Folder]`、`Indexed All Folders`、`Removed [Folder]`）
