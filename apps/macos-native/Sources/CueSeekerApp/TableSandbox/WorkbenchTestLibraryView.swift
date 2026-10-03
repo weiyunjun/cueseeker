@@ -24,7 +24,11 @@ struct WorkbenchRecentView: View {
         GeometryReader { geometry in
             WorkbenchScrollView([.vertical, .horizontal]) {
                 VStack(alignment: .leading, spacing: WorkbenchTestLibraryMetrics.sectionSpacing) {
-                sectionTabs
+                    HStack {
+                        Spacer(minLength: 0)
+                        sectionTabs
+                        Spacer(minLength: 0)
+                    }
 
                 switch routeState.selectedRecentSection {
                 case .videos:
@@ -69,7 +73,6 @@ struct WorkbenchRecentView: View {
         }
     }
 
-    /// The same Tabs as the Library page, flush with the content's left edge.
     private var sectionTabs: some View {
         WorkbenchTabs(
             items: WorkbenchRecentSection.allCases.map {
@@ -79,8 +82,7 @@ struct WorkbenchRecentView: View {
                     accessibilityIdentifier: "recent-segment-\($0.rawValue)"
                 )
             },
-            selection: routeState.selectedRecentSection,
-            isLeadingEdgeAligned: true
+            selection: routeState.selectedRecentSection
         ) { section in
             appState.workbenchLayout.selectRecentSection(section)
         }
@@ -147,9 +149,6 @@ struct WorkbenchTestLibraryView: View {
     @StateObject private var highlight = CardHighlightModel(
         keepsCurrentWhenPointerLeaves: false
     )
-    /// The two interfaces pick their segment separately: moving between them
-    /// starts again on Video.
-    @State private var segment: LibraryContentSegment = .video
 
     var body: some View {
         Group {
@@ -180,27 +179,29 @@ struct WorkbenchTestLibraryView: View {
                     }
                 }
             } else {
-                LibraryOverviewLayout(
-                    summaryText: completeLibrarySummaryText,
-                    actionTitle: L("settings.library.add_folder"),
-                    action: openFilePage
-                ) {
-                    VStack(
-                        alignment: .leading,
-                        spacing: WorkbenchTestLibraryMetrics.sectionSpacing
-                    ) {
-                        segmentTabs
-
-                        switch segment {
-                        case .video:
-                            completeLibraryContent
-                        case .metadata:
-                            fileTreeContent(
-                                scope: library.fileTreeRoots.isEmpty
-                                    ? nil
-                                    : .roots(library.fileTreeRoots)
+                GeometryReader { geometry in
+                    WorkbenchScrollView([.vertical, .horizontal]) {
+                        completeLibraryContent
+                            .workbenchPageInlinePadding()
+                            .padding(
+                                .top,
+                                WorkbenchControlMetrics.redesignWorkbenchPageTopPadding
                             )
-                        }
+                            .padding(
+                                .bottom,
+                                WorkbenchControlMetrics.redesignWorkbenchPageBottomPadding
+                            )
+                            .frame(
+                                width: max(
+                                    geometry.size.width,
+                                    AppShellLayout.pageContentMinimumWidth
+                                ),
+                                alignment: .topLeading
+                            )
+                            .frame(
+                                minHeight: geometry.size.height,
+                                alignment: .topLeading
+                            )
                     }
                 }
             }
@@ -209,11 +210,6 @@ struct WorkbenchTestLibraryView: View {
         .cardHighlightFreeze(highlight)
         .onChange(of: routeState.selectedLibraryFolderPath) { _ in
             highlight.reset()
-            segment = .video
-        }
-        .onChange(of: segment) { _ in
-            // Video and File are interfaces of their own.
-            AppPointerShape.reset()
         }
         .task {
             appState.hydrateCompleteLibraryAsync()
@@ -268,7 +264,7 @@ struct WorkbenchTestLibraryView: View {
         } else if appState.isWorkbenchRouteUnknown(
             .libraryFolder(folderPath: folderPath)
         ) {
-            WorkbenchUnknownPage()
+            WorkbenchEmptyHint(message: L("library.folder.not_found"))
         } else {
             LibraryEmptyHint {
                 ProgressView()
@@ -289,38 +285,22 @@ struct WorkbenchTestLibraryView: View {
         } else if let folderDetail, folderDetail.folderPath == folder.folderPath {
             VStack(
                 alignment: .leading,
-                spacing: WorkbenchControlMetrics.redesignSpacing6
+                spacing: WorkbenchControlMetrics.redesignCoverSummaryToolbarGap
             ) {
                 folderCoverSummary(folder: folder, detail: folderDetail)
 
-                VStack(
-                    alignment: .leading,
-                    spacing: WorkbenchTestLibraryMetrics.sectionSpacing
-                ) {
-                    segmentTabs
-
-                    switch segment {
-                    case .video:
-                        CompleteLibraryEpisodeGrid(
-                            folderTitle: folderDetail.folderTitle,
-                            videos: folderDetail.videos,
-                            highlight: highlight,
-                            onOpen: { video in
-                                appState.prepareLibraryNavigationVideos(folderDetail.videos)
-                                appState.openLibraryVideo(
-                                    video.libraryVideo,
-                                    displayTitle: video.displayTitle
-                                )
-                            }
-                        )
-                    case .metadata:
-                        fileTreeContent(
-                            scope: fileTreeFolder(
-                                folderPath: folderDetail.folderPath
-                            ).map { .folder($0) }
+                CompleteLibraryEpisodeGrid(
+                    folderTitle: folderDetail.folderTitle,
+                    videos: folderDetail.videos,
+                    highlight: highlight,
+                    onOpen: { video in
+                        appState.prepareLibraryNavigationVideos(folderDetail.videos)
+                        appState.openLibraryVideo(
+                            video.libraryVideo,
+                            displayTitle: video.displayTitle
                         )
                     }
-                }
+                )
             }
         } else {
             LibraryEmptyHint {
@@ -328,52 +308,6 @@ struct WorkbenchTestLibraryView: View {
                     .controlSize(.small)
             }
         }
-    }
-
-    private var segmentTabs: some View {
-        WorkbenchTabs(
-            items: LibraryContentSegment.allCases.map {
-                .init(
-                    value: $0,
-                    label: $0.label,
-                    accessibilityIdentifier: "library-segment-\($0.rawValue)"
-                )
-            },
-            selection: segment,
-            isLeadingEdgeAligned: true
-        ) { selected in
-            segment = selected
-        }
-    }
-
-    @ViewBuilder
-    private func fileTreeContent(scope: LibraryFileTree.Scope?) -> some View {
-        Group {
-            if case .loading = library.fileTreeStatus, library.fileTreeRoots.isEmpty {
-                LibraryEmptyHint {
-                    ProgressView()
-                        .controlSize(.small)
-                }
-            } else if case .failed(let message) = library.fileTreeStatus {
-                LibraryEmptyHint(message)
-            } else if let scope {
-                LibraryFileTree(scope: scope)
-            } else {
-                LibraryEmptyHint(L("library.file.empty"))
-            }
-        }
-        .task(id: library.completeLibraryRevision) {
-            appState.hydrateLibraryFileTreeAsync()
-        }
-    }
-
-    /// The folder cards and the file tree group by the same folder path, so a
-    /// detail can show its own subtree without reading the database again.
-    private func fileTreeFolder(folderPath: String) -> IndexedContentFolder? {
-        library.fileTreeRoots
-            .lazy
-            .flatMap(\.folders)
-            .first { $0.folderPath == folderPath }
     }
 
     private func folderCoverSummary(
@@ -470,22 +404,6 @@ struct WorkbenchTestLibraryView: View {
         closeFolderDetail()
     }
 
-    private var completeLibrarySummaryText: String {
-        let folders = library.completeLibraryFolderSummaries
-        let itemCount = folders.reduce(0) { count, folder in
-            count + folder.episodeCount
-        }
-        return L("library.folder_summary", folders.count, itemCount)
-            + L("library.subtitle_count", itemCount)
-    }
-
-    /// Adding a folder now belongs to the File page, so the Library action is
-    /// a jump to that page rather than a Settings window.
-    private func openFilePage() {
-        appState.performUserInitiatedAppCommand {
-            appState.activateWorkbenchPanelMode(.file)
-        }
-    }
 
 }
 
@@ -516,19 +434,6 @@ private extension WorkbenchTestLibraryView {
     }
 }
 
-enum LibraryContentSegment: String, CaseIterable {
-    case video
-    case metadata
-
-    var label: String {
-        switch self {
-        case .video:
-            L("library.segment.video")
-        case .metadata:
-            L("library.segment.metadata")
-        }
-    }
-}
 
 private enum WorkbenchTestLibraryMetrics {
     static let pageHorizontalPadding =
@@ -1812,16 +1717,6 @@ struct WatchStatusBadge: View {
     }
 }
 
-/// What a history entry shows when the page it points to is gone.
-struct WorkbenchUnknownPage: View {
-    // Observed so the copy below is re-read when the language changes.
-    @EnvironmentObject private var localization: AppLocalizationStore
-
-    var body: some View {
-        LibraryEmptyHint(L("page.unknown.message"))
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-}
 
 private struct LibraryEmptyHint<Content: View>: View {
     private let content: Content

@@ -47,3 +47,25 @@ func historyEntriesReadAsUnknownOnlyOnceTheirStoreKnowsThePageIsGone() throws {
         #expect(!app.isWorkbenchRouteUnknown(route))
     }
 }
+
+@MainActor
+@Test
+func appTopBarPageTitleRemainsFixedForLibraryAndExcerptAcrossLevels() {
+    #expect(AppTopBar.pageTitle(for: .library) == L("sidebar.library"))
+    #expect(AppTopBar.pageTitle(for: .libraryFolder(folderPath: "/Media/Show")) == L("sidebar.library"))
+    #expect(AppTopBar.pageTitle(for: .libraryFolder(folderPath: "/Media/Gone")) == L("sidebar.library"))
+    #expect(AppTopBar.pageTitle(for: .excerpt) == L("sidebar.excerpt"))
+    #expect(AppTopBar.pageTitle(for: .excerptList(id: 1)) == L("sidebar.excerpt"))
+    #expect(AppTopBar.pageTitle(for: .excerptList(id: 99)) == L("sidebar.excerpt"))
+}
+
+@Test
+func missingRouteLocalizationStringsAreAvailable() {
+    let folderNotFound = L("library.folder.not_found")
+    #expect(!folderNotFound.isEmpty)
+    #expect(folderNotFound != "library.folder.not_found")
+
+    let listNotFound = L("excerpt.list.not_found")
+    #expect(!listNotFound.isEmpty)
+    #expect(listNotFound != "excerpt.list.not_found")
+}

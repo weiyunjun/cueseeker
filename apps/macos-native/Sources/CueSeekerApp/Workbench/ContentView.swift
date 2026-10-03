@@ -268,7 +268,7 @@ private struct ContentRootView: View {
     }
 }
 
-private struct AppTopBar: View {
+struct AppTopBar: View {
     /// Observed so the function region follows the page's horizontal scroll;
     /// it is the only view that re-reads it.
     @ObservedObject var pageScroll: WorkbenchPageScrollOffset
@@ -333,24 +333,22 @@ private struct AppTopBar: View {
         .accessibilityIdentifier("topbar-back")
     }
 
-    /// First-level pages carry their name; a second-level page carries none,
-    /// its Cover Summary names it — unless the page it points to is gone.
     private var pageTitle: String? {
-        switch routeState.currentRoute {
+        Self.pageTitle(for: routeState.currentRoute)
+    }
+
+    static func pageTitle(for route: WorkbenchRoute) -> String? {
+        switch route {
         case .search:
             L("sidebar.search")
         case .recent:
             L("sidebar.recent")
-        case .library:
+        case .library, .libraryFolder:
             L("sidebar.library")
         case .file, .fileFolder, .fileFiles:
             L("sidebar.file")
-        case .excerpt:
+        case .excerpt, .excerptList:
             L("sidebar.excerpt")
-        case .libraryFolder, .excerptList:
-            appState.isWorkbenchRouteUnknown(routeState.currentRoute)
-                ? L("page.unknown.title")
-                : nil
         }
     }
 

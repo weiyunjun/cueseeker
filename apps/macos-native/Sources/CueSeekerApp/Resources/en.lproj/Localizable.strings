@@ -600,3 +600,5 @@
 "anki_export.replace.title" = "“%@” already exists. Do you want to replace it?";
 "anki_export.replace.message" = "A file or folder with the same name already exists in the folder “%@”. Replacing it will overwrite its current contents.";
 "anki_export.replace.confirm" = "Replace";
+"library.folder.not_found" = "This folder is not in the library.";
+"excerpt.list.not_found" = "This excerpt list no longer exists.";

@@ -120,7 +120,7 @@ struct SearchView: View {
 
             if let listID = routeState.selectedExcerptListID {
                 if appState.isWorkbenchRouteUnknown(.excerptList(id: listID)) {
-                    WorkbenchUnknownPage()
+                    WorkbenchEmptyHint(message: L("excerpt.list.not_found"))
                 } else {
                     WorkbenchExcerptTableView(
                         isTableResponseActive: !appState.isPlaybackPageVisible
