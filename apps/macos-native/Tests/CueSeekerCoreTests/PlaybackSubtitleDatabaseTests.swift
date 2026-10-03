@@ -6,7 +6,7 @@ import Testing
 func subtitleEntryIndexAndWindowLoadCurrentSubtitleRows() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     let database = try IndexingDatabase(path: databaseURL)
@@ -50,7 +50,7 @@ func subtitleEntryIndexAndWindowLoadCurrentSubtitleRows() throws {
 func storesAndLoadsASSRenderSegmentsByTimestamp() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     let database = try IndexingDatabase(path: databaseURL)
@@ -100,7 +100,7 @@ func storesAndLoadsASSRenderSegmentsByTimestamp() throws {
 func storesAndLoadsASSFontReferences() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     let database = try IndexingDatabase(path: databaseURL)
@@ -155,7 +155,7 @@ func storesAndLoadsASSFontReferences() throws {
 func storesASSPrimaryStylePlaybackFinishMetadata() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     let database = try IndexingDatabase(path: databaseURL)
@@ -290,7 +290,7 @@ func playbackFinishMetadataFallsBackToLastSubtitleOrVideoEnd() throws {
 func returnsCueTimingsForWindowedASSPreparation() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     let database = try IndexingDatabase(path: databaseURL)
@@ -328,7 +328,7 @@ func returnsCueTimingsForWindowedASSPreparation() throws {
 func cueTextSelectionUsesShortestActiveCueAndLatestEndTieBreak() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     let database = try IndexingDatabase(path: databaseURL)
@@ -359,7 +359,7 @@ func cueTextSelectionUsesShortestActiveCueAndLatestEndTieBreak() throws {
 func cueTextSelectionFallsBackToPreviousCueRange() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     let database = try IndexingDatabase(path: databaseURL)
@@ -392,7 +392,7 @@ func cueTextSelectionFallsBackToPreviousCueRange() throws {
 func cueTextSelectionReturnsPhysicallyBottommostCueAsSingleCue() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     let database = try IndexingDatabase(path: databaseURL)
@@ -444,7 +444,7 @@ func cueTextSelectionReturnsPhysicallyBottommostCueAsSingleCue() throws {
 func activeSubtitleEntryLookupKeepsLongRunningCueActivePastShortLaterCues() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     let database = try IndexingDatabase(path: databaseURL)

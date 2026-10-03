@@ -208,8 +208,8 @@ func ankiNoteTypesOfTheTwoSidesCannotBeTakenForEachOther() {
 @Test
 func ankiExportChoicesAreRememberedAcrossLaunches() throws {
     let suiteName = "CueSeekerAnkiExportSettingsTests-\(UUID().uuidString)"
-    let userDefaults = try #require(UserDefaults(suiteName: suiteName))
-    defer { userDefaults.removePersistentDomain(forName: suiteName) }
+    let userDefaults = try #require(UserDefaults.temporary(suiteName: suiteName))
+    defer { userDefaults.removePersistentDomainAndPlist(forName: suiteName) }
 
     let firstLaunch = SettingsStore(userDefaults: userDefaults)
     #expect(firstLaunch.ankiExportOptions == AnkiExportOptions(cueTextSide: .back, optionalItems: [.screenshot]))
@@ -265,12 +265,12 @@ func ankiExportSessionNamesThePackageAndChecksTheName() {
 func subtitleScreenshotEntryMappingCarriesCueOrderingIdentity() throws {
     _ = NSApplication.shared
     let suiteName = "CueSeekerExportMappingTests-\(UUID().uuidString)"
-    let userDefaults = try #require(UserDefaults(suiteName: suiteName))
+    let userDefaults = try #require(UserDefaults.temporary(suiteName: suiteName))
     let databaseURL = FileManager.default.temporaryDirectory
         .appendingPathComponent("CueSeekerExportMappingTests-\(UUID().uuidString).sqlite")
     defer {
-        userDefaults.removePersistentDomain(forName: suiteName)
-        try? FileManager.default.removeItem(at: databaseURL)
+        userDefaults.removePersistentDomainAndPlist(forName: suiteName)
+        removeTemporaryDatabase(at: databaseURL)
     }
     let app = AppCoordinator(userDefaults: userDefaults, databaseURL: databaseURL)
     let result = SubtitleSearchResult(

@@ -8,14 +8,12 @@ import CueSeekerCore
 @Test
 func urlSchemeSearchPreservesFacetFilterAndForcesSearchRoute() throws {
     let suiteName = "URLSchemeSearchRoutingTests-\(UUID().uuidString)"
-    let userDefaults = try #require(UserDefaults(suiteName: suiteName))
+    let userDefaults = try #require(UserDefaults.temporary(suiteName: suiteName))
     let databaseURL = FileManager.default.temporaryDirectory
         .appendingPathComponent("URLSchemeSearchRoutingTests-\(UUID().uuidString).sqlite")
     defer {
-        userDefaults.removePersistentDomain(forName: suiteName)
-        try? FileManager.default.removeItem(at: databaseURL)
-        try? FileManager.default.removeItem(atPath: databaseURL.path + "-wal")
-        try? FileManager.default.removeItem(atPath: databaseURL.path + "-shm")
+        userDefaults.removePersistentDomainAndPlist(forName: suiteName)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     _ = NSApplication.shared
@@ -165,12 +163,12 @@ func urlSchemeDirectPlayConsumesOnlyMatchingFirstPageGeneration() throws {
 @Test
 func urlSchemeDirectPlayUsesFirstResultFromExistingCompleteFirstPage() async throws {
     let suiteName = "URLSchemeDirectPlayFirstPageTests-\(UUID().uuidString)"
-    let userDefaults = try #require(UserDefaults(suiteName: suiteName))
+    let userDefaults = try #require(UserDefaults.temporary(suiteName: suiteName))
     let fixtureRoot = FileManager.default.temporaryDirectory
         .appendingPathComponent("URLSchemeDirectPlayFirstPageTests-\(UUID().uuidString)", isDirectory: true)
     let databaseURL = fixtureRoot.appendingPathComponent("CueSeeker.sqlite")
     defer {
-        userDefaults.removePersistentDomain(forName: suiteName)
+        userDefaults.removePersistentDomainAndPlist(forName: suiteName)
         try? FileManager.default.removeItem(at: fixtureRoot)
     }
     try FileManager.default.createDirectory(at: fixtureRoot, withIntermediateDirectories: true)
@@ -357,7 +355,7 @@ private func makeURLSchemeRoutingFixture(
     _ name: String
 ) throws -> (app: AppCoordinator, cleanup: () -> Void) {
     let suiteName = "URLSchemeSearchRoutingTests-\(name)-\(UUID().uuidString)"
-    let userDefaults = try #require(UserDefaults(suiteName: suiteName))
+    let userDefaults = try #require(UserDefaults.temporary(suiteName: suiteName))
     let databaseURL = FileManager.default.temporaryDirectory
         .appendingPathComponent("URLSchemeSearchRoutingTests-\(name)-\(UUID().uuidString).sqlite")
     _ = NSApplication.shared
@@ -365,10 +363,8 @@ private func makeURLSchemeRoutingFixture(
     return (
         app,
         {
-            userDefaults.removePersistentDomain(forName: suiteName)
-            try? FileManager.default.removeItem(at: databaseURL)
-            try? FileManager.default.removeItem(atPath: databaseURL.path + "-wal")
-            try? FileManager.default.removeItem(atPath: databaseURL.path + "-shm")
+            userDefaults.removePersistentDomainAndPlist(forName: suiteName)
+            removeTemporaryDatabase(at: databaseURL)
         }
     )
 }

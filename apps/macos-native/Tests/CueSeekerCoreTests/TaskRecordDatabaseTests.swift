@@ -11,7 +11,7 @@ private func makeTaskRecordDatabase() throws -> (TaskRecordDatabase, URL) {
 @Test
 func migratedSchemaCarriesTheTaskRecordTable() throws {
     let databaseURL = temporaryDatabaseURL()
-    defer { try? FileManager.default.removeItem(at: databaseURL) }
+    defer { removeTemporaryDatabase(at: databaseURL) }
 
     try DatabaseBootstrap.prepare(at: databaseURL)
 
@@ -28,7 +28,7 @@ func migratedSchemaCarriesTheTaskRecordTable() throws {
 @Test
 func queuedTaskIsReadBackWithWhatItWillWrite() throws {
     let (database, databaseURL) = try makeTaskRecordDatabase()
-    defer { try? FileManager.default.removeItem(at: databaseURL) }
+    defer { removeTemporaryDatabase(at: databaseURL) }
 
     let inserted = try database.insertQueuedTask(
         kind: .ankiExport,
@@ -51,7 +51,7 @@ func queuedTaskIsReadBackWithWhatItWillWrite() throws {
 @Test
 func recordsComeBackOldestFirst() throws {
     let (database, databaseURL) = try makeTaskRecordDatabase()
-    defer { try? FileManager.default.removeItem(at: databaseURL) }
+    defer { removeTemporaryDatabase(at: databaseURL) }
 
     for index in 1...3 {
         _ = try database.insertQueuedTask(
@@ -70,7 +70,7 @@ func recordsComeBackOldestFirst() throws {
 @Test
 func stateAndErrorAreWrittenThrough() throws {
     let (database, databaseURL) = try makeTaskRecordDatabase()
-    defer { try? FileManager.default.removeItem(at: databaseURL) }
+    defer { removeTemporaryDatabase(at: databaseURL) }
 
     let record = try database.insertQueuedTask(
         kind: .ankiExport,
@@ -97,7 +97,7 @@ func stateAndErrorAreWrittenThrough() throws {
 @Test
 func unfinishedTasksFromAPreviousLaunchBecomeIncomplete() throws {
     let (database, databaseURL) = try makeTaskRecordDatabase()
-    defer { try? FileManager.default.removeItem(at: databaseURL) }
+    defer { removeTemporaryDatabase(at: databaseURL) }
 
     let running = try database.insertQueuedTask(
         kind: .ankiExport,
@@ -133,7 +133,7 @@ func unfinishedTasksFromAPreviousLaunchBecomeIncomplete() throws {
 @Test
 func deletedRecordDoesNotComeBack() throws {
     let (database, databaseURL) = try makeTaskRecordDatabase()
-    defer { try? FileManager.default.removeItem(at: databaseURL) }
+    defer { removeTemporaryDatabase(at: databaseURL) }
 
     let record = try database.insertQueuedTask(
         kind: .ankiExport,
@@ -151,7 +151,7 @@ func deletedRecordDoesNotComeBack() throws {
 @Test
 func historySurvivesReopeningTheDatabase() throws {
     let databaseURL = temporaryDatabaseURL()
-    defer { try? FileManager.default.removeItem(at: databaseURL) }
+    defer { removeTemporaryDatabase(at: databaseURL) }
     try DatabaseBootstrap.prepare(at: databaseURL)
 
     let writer = try TaskRecordDatabase(path: databaseURL)
@@ -170,7 +170,7 @@ func historySurvivesReopeningTheDatabase() throws {
 @Test
 func aRenameRecordKeepsItsPathsOnePerLine() throws {
     let (database, databaseURL) = try makeTaskRecordDatabase()
-    defer { try? FileManager.default.removeItem(at: databaseURL) }
+    defer { removeTemporaryDatabase(at: databaseURL) }
 
     let inserted = try database.insertQueuedTask(
         kind: .renameFiles,

@@ -45,7 +45,7 @@ func anOuterRootAdoptsAndReturnsTheRootItHolds() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
         try? FileManager.default.removeItem(at: container)
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
     try writeEpisode(named: "Inner", text: "inner line", in: inner)
     try writeEpisode(named: "Sibling", text: "sibling line", in: sibling)

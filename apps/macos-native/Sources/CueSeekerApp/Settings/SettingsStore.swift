@@ -95,7 +95,6 @@ final class SettingsStore: ObservableObject {
     private static let autoPauseAfterCueFinishesEnabledKey = "autoPauseAfterCueFinishesEnabled"
     private static let autoSwitchToNextCuesInPlaylistEnabledKey = "autoSwitchToNextCuesInPlaylistEnabled"
     private static let autoPlayCueSequenceGapMillisecondsKey = "autoPlayCueSequenceGapMilliseconds"
-    private static let searchE2ELoggingEnabledKey = "searchE2ELoggingEnabled"
     private static let searchFTSVocabularyDiagnosticsEnabledKey = "searchFTSVocabularyDiagnosticsEnabled"
     private static let urlSchemePlayFirstSearchResultEnabledKey = "urlSchemePlayFirstSearchResultEnabled"
     private static let srtSubtitleStyleKey = "srtSubtitleStyle"
@@ -179,12 +178,6 @@ final class SettingsStore: ObservableObject {
         }
     }
 
-    @Published var searchE2ELoggingEnabled: Bool {
-        didSet {
-            userDefaults.set(searchE2ELoggingEnabled, forKey: Self.searchE2ELoggingEnabledKey)
-        }
-    }
-
     @Published var searchFTSVocabularyDiagnosticsEnabled: Bool {
         didSet {
             userDefaults.set(
@@ -255,7 +248,6 @@ final class SettingsStore: ObservableObject {
             Self.prefillCommandPanelWithFocusedCueKey: false,
             Self.playbackDecodeModeKey: PlaybackDecodeMode.auto.rawValue,
             Self.autoPlayCueSequenceGapMillisecondsKey: Self.autoSwitchCueSequenceGapDefaultMilliseconds,
-            Self.searchE2ELoggingEnabledKey: true,
             Self.searchFTSVocabularyDiagnosticsEnabledKey: true,
             Self.urlSchemePlayFirstSearchResultEnabledKey: false
         ])
@@ -286,7 +278,6 @@ final class SettingsStore: ObservableObject {
         self.srtSubtitleStyle = userDefaults.data(forKey: Self.srtSubtitleStyleKey)
             .flatMap { try? JSONDecoder().decode(SRTSubtitleStyle.self, from: $0) }
             ?? SRTSubtitleStyle()
-        self.searchE2ELoggingEnabled = userDefaults.bool(forKey: Self.searchE2ELoggingEnabledKey)
         self.searchFTSVocabularyDiagnosticsEnabled = userDefaults.bool(
             forKey: Self.searchFTSVocabularyDiagnosticsEnabledKey
         )
@@ -514,7 +505,7 @@ final class SettingsStore: ObservableObject {
     }
 
     private static func applyAppAppearanceMode(_ mode: AppAppearanceMode) {
-        NSApp.appearance = mode.nsAppearance
+        NSApp?.appearance = mode.nsAppearance
     }
 
 }

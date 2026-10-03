@@ -5,9 +5,9 @@ import Testing
 @Test
 func sharedPersistenceMigrationCopiesLegacyValuesWithoutOverwritingSharedValues() {
     let suiteName = "ApplicationPersistenceTests-\(UUID().uuidString)"
-    let sharedDefaults = UserDefaults(suiteName: suiteName)!
+    let sharedDefaults = UserDefaults.temporary(suiteName: suiteName)!
     defer {
-        sharedDefaults.removePersistentDomain(forName: suiteName)
+        sharedDefaults.removePersistentDomainAndPlist(forName: suiteName)
     }
 
     sharedDefaults.set("shared", forKey: "existing")
@@ -39,9 +39,9 @@ func sharedPersistenceMigrationCopiesLegacyValuesWithoutOverwritingSharedValues(
 @Test
 func obsoleteFeatureStateCleanupRemovesDefaultsAndDeletesCredential() {
     let suiteName = "ApplicationPersistenceCleanupTests-\(UUID().uuidString)"
-    let userDefaults = UserDefaults(suiteName: suiteName)!
+    let userDefaults = UserDefaults.temporary(suiteName: suiteName)!
     defer {
-        userDefaults.removePersistentDomain(forName: suiteName)
+        userDefaults.removePersistentDomainAndPlist(forName: suiteName)
     }
     let keys = [
         "aiChunkingEnabled",

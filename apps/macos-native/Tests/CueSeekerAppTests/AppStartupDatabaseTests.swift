@@ -10,13 +10,13 @@ import CueSeekerCore
 @Test
 func appStartupDoesNotRunDatabaseMaintenanceWhenIdle() async throws {
     let suiteName = "CueSeekerAppStartupTests-\(UUID().uuidString)"
-    let userDefaults = try #require(UserDefaults(suiteName: suiteName))
+    let userDefaults = try #require(UserDefaults.temporary(suiteName: suiteName))
     let databaseURL = FileManager.default.temporaryDirectory
         .appendingPathComponent("CueSeekerAppStartupTests-\(UUID().uuidString)")
         .appendingPathExtension("sqlite")
     defer {
-        userDefaults.removePersistentDomain(forName: suiteName)
-        try? FileManager.default.removeItem(at: databaseURL)
+        userDefaults.removePersistentDomainAndPlist(forName: suiteName)
+        removeTemporaryDatabase(at: databaseURL)
         try? FileManager.default.removeItem(atPath: databaseURL.path + "-wal")
         try? FileManager.default.removeItem(atPath: databaseURL.path + "-shm")
     }
@@ -52,14 +52,14 @@ func appStartupDoesNotRunDatabaseMaintenanceWhenIdle() async throws {
 @Test
 func explicitIndexFolderKeepsSearchAndLibraryReady() async throws {
     let suiteName = "CueSeekerAppExplicitIndexTests-\(UUID().uuidString)"
-    let userDefaults = try #require(UserDefaults(suiteName: suiteName))
+    let userDefaults = try #require(UserDefaults.temporary(suiteName: suiteName))
     let fixtureRoot = FileManager.default.temporaryDirectory
         .appendingPathComponent("CueSeekerAppExplicitIndexTests-\(UUID().uuidString)", isDirectory: true)
     let databaseURL = fixtureRoot
         .appendingPathComponent("CueSeekerAppExplicitIndexTests")
         .appendingPathExtension("sqlite")
     defer {
-        userDefaults.removePersistentDomain(forName: suiteName)
+        userDefaults.removePersistentDomainAndPlist(forName: suiteName)
         try? FileManager.default.removeItem(at: fixtureRoot)
     }
 
@@ -109,7 +109,7 @@ func explicitIndexFolderKeepsSearchAndLibraryReady() async throws {
 @Test
 func libraryRouteBackfillsLegacyDisplayCoverWithoutStartupMaintenance() async throws {
     let suiteName = "CueSeekerLibraryDisplayBackfillTests-\(UUID().uuidString)"
-    let userDefaults = try #require(UserDefaults(suiteName: suiteName))
+    let userDefaults = try #require(UserDefaults.temporary(suiteName: suiteName))
     let fixtureRoot = FileManager.default.temporaryDirectory
         .appendingPathComponent("CueSeekerLibraryDisplayBackfillTests-\(UUID().uuidString)", isDirectory: true)
     let mediaDirectory = fixtureRoot.appendingPathComponent("Media", isDirectory: true)
@@ -118,7 +118,7 @@ func libraryRouteBackfillsLegacyDisplayCoverWithoutStartupMaintenance() async th
         .appendingPathComponent("Covers/Videos", isDirectory: true)
         .appendingPathComponent("legacy-master.jpg")
     defer {
-        userDefaults.removePersistentDomain(forName: suiteName)
+        userDefaults.removePersistentDomainAndPlist(forName: suiteName)
         try? FileManager.default.removeItem(at: fixtureRoot)
     }
 
@@ -251,13 +251,13 @@ func libraryRouteBackfillsLegacyDisplayCoverWithoutStartupMaintenance() async th
 @Test
 func cancelDatabaseReadsResetsLibraryLoadingStates() throws {
     let suiteName = "CueSeekerLibraryCancelTests-\(UUID().uuidString)"
-    let userDefaults = try #require(UserDefaults(suiteName: suiteName))
+    let userDefaults = try #require(UserDefaults.temporary(suiteName: suiteName))
     let databaseURL = FileManager.default.temporaryDirectory
         .appendingPathComponent("CueSeekerLibraryCancelTests-\(UUID().uuidString)")
         .appendingPathExtension("sqlite")
     defer {
-        userDefaults.removePersistentDomain(forName: suiteName)
-        try? FileManager.default.removeItem(at: databaseURL)
+        userDefaults.removePersistentDomainAndPlist(forName: suiteName)
+        removeTemporaryDatabase(at: databaseURL)
         try? FileManager.default.removeItem(atPath: databaseURL.path + "-wal")
         try? FileManager.default.removeItem(atPath: databaseURL.path + "-shm")
     }

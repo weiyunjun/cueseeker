@@ -72,7 +72,7 @@ private func playbackReturnContextFixture(
 ) {
     _ = NSApplication.shared
     let suiteName = "PlaybackReturnContext-\(suffix)-\(UUID().uuidString)"
-    let userDefaults = try #require(UserDefaults(suiteName: suiteName))
+    let userDefaults = try #require(UserDefaults.temporary(suiteName: suiteName))
     let databaseURL = FileManager.default.temporaryDirectory
         .appendingPathComponent("\(suiteName).sqlite")
     let app = AppCoordinator(
@@ -80,8 +80,8 @@ private func playbackReturnContextFixture(
         databaseURL: databaseURL
     )
     return (app, {
-        userDefaults.removePersistentDomain(forName: suiteName)
-        try? FileManager.default.removeItem(at: databaseURL)
+        userDefaults.removePersistentDomainAndPlist(forName: suiteName)
+        removeTemporaryDatabase(at: databaseURL)
         try? FileManager.default.removeItem(atPath: databaseURL.path + "-wal")
         try? FileManager.default.removeItem(atPath: databaseURL.path + "-shm")
     })

@@ -270,7 +270,7 @@ func referencedCueIsTombstonedWhenItsLibraryIsRemoved() throws {
 @Test
 func migratedSchemaKeepsNoIdentityOrBindingState() throws {
     let databaseURL = temporaryDatabaseURL()
-    defer { try? FileManager.default.removeItem(at: databaseURL) }
+    defer { removeTemporaryDatabase(at: databaseURL) }
 
     try DatabaseBootstrap.prepare(at: databaseURL)
 

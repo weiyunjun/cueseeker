@@ -42,14 +42,14 @@ struct DebugTaskDelayTests {
         let databaseURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("CueSeeker-Delay-Test-\(UUID().uuidString).sqlite")
         defer {
-            try? FileManager.default.removeItem(at: databaseURL)
+            removeTemporaryDatabase(at: databaseURL)
             try? FileManager.default.removeItem(atPath: databaseURL.path + "-wal")
             try? FileManager.default.removeItem(atPath: databaseURL.path + "-shm")
         }
 
         let suiteName = "CueSeeker-Delay-Test-\(UUID().uuidString)"
-        let userDefaults = UserDefaults(suiteName: suiteName)!
-        defer { userDefaults.removePersistentDomain(forName: suiteName) }
+        let userDefaults = UserDefaults.temporary(suiteName: suiteName)!
+        defer { userDefaults.removePersistentDomainAndPlist(forName: suiteName) }
 
         let app = AppCoordinator(userDefaults: userDefaults, databaseURL: databaseURL)
 

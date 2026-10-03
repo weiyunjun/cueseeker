@@ -3376,7 +3376,7 @@ func subtitleFocusOverlayRendersAppearanceBackgroundAtStageSize() throws {
     _ = NSApplication.shared
     let databaseURL = FileManager.default.temporaryDirectory
         .appendingPathComponent("focus-overlay-appearance-\(UUID().uuidString).sqlite")
-    defer { try? FileManager.default.removeItem(at: databaseURL) }
+    defer { removeTemporaryDatabase(at: databaseURL) }
     let app = AppCoordinator(databaseURL: databaseURL)
     let filledLine = String(repeating: "█", count: 80)
     let snapshot = SubtitleFocusSnapshot(
@@ -3480,7 +3480,7 @@ func subtitleFocusOverlayConsumesPointerAcrossItsCompleteSurface() throws {
     _ = NSApplication.shared
     let databaseURL = FileManager.default.temporaryDirectory
         .appendingPathComponent("focus-overlay-pointer-\(UUID().uuidString).sqlite")
-    defer { try? FileManager.default.removeItem(at: databaseURL) }
+    defer { removeTemporaryDatabase(at: databaseURL) }
     let app = AppCoordinator(databaseURL: databaseURL)
     let snapshot = SubtitleFocusSnapshot(
         totalCount: 20,

@@ -113,7 +113,7 @@ private func exportItems(_ count: Int) -> [AnkiExportItem] {
 @Test
 func secondExportWaitsWhileTheFirstRuns() throws {
     let (store, databaseURL) = try makeTaskQueueStore()
-    defer { try? FileManager.default.removeItem(at: databaseURL) }
+    defer { removeTemporaryDatabase(at: databaseURL) }
 
     store.enqueueAnkiExport(
         items: exportItems(2),
@@ -134,7 +134,7 @@ func secondExportWaitsWhileTheFirstRuns() throws {
 @Test
 func currentKeepsTheOrderTasksWereStartedIn() throws {
     let (store, databaseURL) = try makeTaskQueueStore()
-    defer { try? FileManager.default.removeItem(at: databaseURL) }
+    defer { removeTemporaryDatabase(at: databaseURL) }
 
     for index in 1...3 {
         store.enqueueAnkiExport(
@@ -153,7 +153,7 @@ func currentKeepsTheOrderTasksWereStartedIn() throws {
 @Test
 func aQueuedTaskCarriesWhatItWillWrite() throws {
     let (store, databaseURL) = try makeTaskQueueStore()
-    defer { try? FileManager.default.removeItem(at: databaseURL) }
+    defer { removeTemporaryDatabase(at: databaseURL) }
 
     store.enqueueAnkiExport(
         items: exportItems(80),
@@ -173,7 +173,7 @@ func aQueuedTaskCarriesWhatItWillWrite() throws {
 @Test
 func removingAQueuedTaskRecordsItAsCancelled() throws {
     let (store, databaseURL) = try makeTaskQueueStore()
-    defer { try? FileManager.default.removeItem(at: databaseURL) }
+    defer { removeTemporaryDatabase(at: databaseURL) }
 
     store.enqueueAnkiExport(
         items: exportItems(1),
@@ -199,7 +199,7 @@ func removingAQueuedTaskRecordsItAsCancelled() throws {
 @Test
 func deletingARecordRemovesItFromTheHistoryAndTheDatabase() throws {
     let (store, databaseURL) = try makeTaskQueueStore()
-    defer { try? FileManager.default.removeItem(at: databaseURL) }
+    defer { removeTemporaryDatabase(at: databaseURL) }
 
     store.enqueueAnkiExport(
         items: exportItems(1),
@@ -226,7 +226,7 @@ func deletingARecordRemovesItFromTheHistoryAndTheDatabase() throws {
 @Test
 func aLaunchClosesOutWhateverThePreviousOneLeftRunning() throws {
     let databaseURL = taskQueueTestDatabaseURL()
-    defer { try? FileManager.default.removeItem(at: databaseURL) }
+    defer { removeTemporaryDatabase(at: databaseURL) }
     try DatabaseBootstrap.prepare(at: databaseURL)
 
     let firstLaunch = TaskQueueStore(
@@ -266,7 +266,7 @@ func aLaunchClosesOutWhateverThePreviousOneLeftRunning() throws {
 @Test
 func openingThePanelAlwaysStartsOnCurrent() throws {
     let (store, databaseURL) = try makeTaskQueueStore()
-    defer { try? FileManager.default.removeItem(at: databaseURL) }
+    defer { removeTemporaryDatabase(at: databaseURL) }
 
     store.openPanel()
     store.selectedTab = .completed
@@ -282,7 +282,7 @@ func openingThePanelAlwaysStartsOnCurrent() throws {
 @Test
 func theRemainingCountIsRunningPlusQueued() throws {
     let (store, databaseURL) = try makeTaskQueueStore()
-    defer { try? FileManager.default.removeItem(at: databaseURL) }
+    defer { removeTemporaryDatabase(at: databaseURL) }
 
     #expect(store.remainingTaskCount == 0)
 
@@ -306,7 +306,7 @@ func theRemainingCountIsRunningPlusQueued() throws {
 @Test
 func aFinishedExportMovesToCompletedAndLetsTheNextOneStart() async throws {
     let (store, databaseURL) = try makeTaskQueueStore(runExport: { _, _, _, _ in })
-    defer { try? FileManager.default.removeItem(at: databaseURL) }
+    defer { removeTemporaryDatabase(at: databaseURL) }
 
     store.enqueueAnkiExport(
         items: exportItems(1),
@@ -332,7 +332,7 @@ func aFailedExportMovesToIncompleteCarryingItsError() async throws {
     let (store, databaseURL) = try makeTaskQueueStore(runExport: { _, _, _, _ in
         throw AnkiPackageExportError.ffmpegNotFound
     })
-    defer { try? FileManager.default.removeItem(at: databaseURL) }
+    defer { removeTemporaryDatabase(at: databaseURL) }
 
     store.enqueueAnkiExport(
         items: exportItems(1),
@@ -358,7 +358,7 @@ func theRunningTaskReportsHowManyCardsAreDone() async throws {
             onItemExported(index + 1)
         }
     })
-    defer { try? FileManager.default.removeItem(at: databaseURL) }
+    defer { removeTemporaryDatabase(at: databaseURL) }
 
     store.enqueueAnkiExport(
         items: exportItems(4),
@@ -379,7 +379,7 @@ func theRunningTaskReportsHowManyCardsAreDone() async throws {
 @Test
 func removingARunningTaskStopsItAndRecordsTheRemoval() async throws {
     let (store, databaseURL) = try makeTaskQueueStore()
-    defer { try? FileManager.default.removeItem(at: databaseURL) }
+    defer { removeTemporaryDatabase(at: databaseURL) }
 
     store.enqueueAnkiExport(
         items: exportItems(1),
@@ -401,7 +401,7 @@ func removingARunningTaskStopsItAndRecordsTheRemoval() async throws {
 @Test
 func theQueueKeepsGoingAfterTheRunningTaskIsRemoved() async throws {
     let (store, databaseURL) = try makeTaskQueueStore()
-    defer { try? FileManager.default.removeItem(at: databaseURL) }
+    defer { removeTemporaryDatabase(at: databaseURL) }
 
     store.enqueueAnkiExport(
         items: exportItems(1),
@@ -430,7 +430,7 @@ func aRenameReportsItsStagesAndCompletes() async throws {
     let (store, databaseURL) = try makeTaskQueueStore(runRename: { _, onStage in
         onStage(.renaming)
     })
-    defer { try? FileManager.default.removeItem(at: databaseURL) }
+    defer { removeTemporaryDatabase(at: databaseURL) }
 
     store.enqueueRename(
         showFolderRename,
@@ -454,7 +454,7 @@ func aRefusedRenameCarriesTheConflictItHit() async throws {
     let (store, databaseURL) = try makeTaskQueueStore(runRename: { _, _ in
         throw LibraryRenameConflict.destinationExists(name: "Show Renamed")
     })
-    defer { try? FileManager.default.removeItem(at: databaseURL) }
+    defer { removeTemporaryDatabase(at: databaseURL) }
 
     store.enqueueRename(showFolderRename, oldPaths: ["/Videos/Show"], newPaths: ["/Videos/Show Renamed"])
     await waitUntil { store.current.isEmpty }
@@ -469,7 +469,7 @@ func aRefusedRenameCarriesTheConflictItHit() async throws {
 @Test
 func aRenameGivesWayToARunningExportOfItsFiles() async throws {
     let (store, databaseURL) = try makeTaskQueueStore(runRename: { _, _ in })
-    defer { try? FileManager.default.removeItem(at: databaseURL) }
+    defer { removeTemporaryDatabase(at: databaseURL) }
 
     store.enqueueAnkiExport(
         items: showEpisodeExportItems(),
@@ -489,7 +489,7 @@ func aRenameGivesWayToARunningExportOfItsFiles() async throws {
 @Test
 func aRenameGivesWayToAQueuedExportOfItsFiles() async throws {
     let (store, databaseURL) = try makeTaskQueueStore(runRename: { _, _ in })
-    defer { try? FileManager.default.removeItem(at: databaseURL) }
+    defer { removeTemporaryDatabase(at: databaseURL) }
 
     store.enqueueAnkiExport(
         items: exportItems(1),
@@ -516,7 +516,7 @@ func aRenameGivesWayToAQueuedExportOfItsFiles() async throws {
 @Test
 func anExportGivesWayToARunningRenameOfItsFiles() async throws {
     let (store, databaseURL) = try makeTaskQueueStore()
-    defer { try? FileManager.default.removeItem(at: databaseURL) }
+    defer { removeTemporaryDatabase(at: databaseURL) }
 
     store.enqueueRename(showFolderRename, oldPaths: ["/Videos/Show"], newPaths: ["/Videos/Show Renamed"])
     store.enqueueAnkiExport(
@@ -538,7 +538,7 @@ func anExportGivesWayToARunningRenameOfItsFiles() async throws {
 @Test
 func anExportAndAnIndexRunTogether() throws {
     let (store, databaseURL) = try makeTaskQueueStore()
-    defer { try? FileManager.default.removeItem(at: databaseURL) }
+    defer { removeTemporaryDatabase(at: databaseURL) }
 
     store.enqueueAnkiExport(
         items: exportItems(1),
@@ -557,7 +557,7 @@ func anExportAndAnIndexRunTogether() throws {
 @Test
 func aLibraryTaskRefusesEveryOtherWhileItExists() throws {
     let (store, databaseURL) = try makeTaskQueueStore()
-    defer { try? FileManager.default.removeItem(at: databaseURL) }
+    defer { removeTemporaryDatabase(at: databaseURL) }
 
     #expect(store.enqueueIndex(folders: [showRootFolder]))
     #expect(store.hasLibraryTask)
@@ -587,7 +587,7 @@ func aLibraryTaskCanStartOnceTheLastOneEnds() async throws {
         runIndex: { _, _ in 0 },
         runRemoveFolder: { _ in }
     )
-    defer { try? FileManager.default.removeItem(at: databaseURL) }
+    defer { removeTemporaryDatabase(at: databaseURL) }
 
     store.enqueueIndex(folders: [showRootFolder])
     await waitUntil { store.current.isEmpty }
@@ -605,7 +605,7 @@ func aLibraryTaskCanStartOnceTheLastOneEnds() async throws {
 @Test
 func aRunningIndexOrAddFolderCanBeRemoved() async throws {
     let (store, databaseURL) = try makeTaskQueueStore()
-    defer { try? FileManager.default.removeItem(at: databaseURL) }
+    defer { removeTemporaryDatabase(at: databaseURL) }
 
     store.enqueueIndex(folders: [showRootFolder])
     let index = try #require(store.current.first)
@@ -628,7 +628,7 @@ func aRunningIndexOrAddFolderCanBeRemoved() async throws {
 @Test
 func aRunningFolderRemovalCannotBeRemoved() throws {
     let (store, databaseURL) = try makeTaskQueueStore()
-    defer { try? FileManager.default.removeItem(at: databaseURL) }
+    defer { removeTemporaryDatabase(at: databaseURL) }
 
     store.enqueueRemoveFolder(showRootFolder)
     let running = try #require(store.current.first)
@@ -650,7 +650,7 @@ func aFinishedIndexRecordsWhatItIndexed() async throws {
         runIndex: { _, _ in 42 },
         runAddFolder: { _, _ in 7 }
     )
-    defer { try? FileManager.default.removeItem(at: databaseURL) }
+    defer { removeTemporaryDatabase(at: databaseURL) }
 
     store.enqueueIndex(folders: [showRootFolder])
     #expect(store.current.first?.record.oldPaths == ["/Videos/Show"])
@@ -669,7 +669,7 @@ func aFinishedIndexRecordsWhatItIndexed() async throws {
 @Test
 func relaunchAnswersTheFolderAdditionsItClosedOut() throws {
     let databaseURL = taskQueueTestDatabaseURL()
-    defer { try? FileManager.default.removeItem(at: databaseURL) }
+    defer { removeTemporaryDatabase(at: databaseURL) }
     try DatabaseBootstrap.prepare(at: databaseURL)
 
     let firstLaunch = TaskQueueStore(
@@ -734,7 +734,7 @@ func theIndexBarDividesFoldersThenStages() {
 @Test
 func aRunningRenameCannotBeRemoved() throws {
     let (store, databaseURL) = try makeTaskQueueStore()
-    defer { try? FileManager.default.removeItem(at: databaseURL) }
+    defer { removeTemporaryDatabase(at: databaseURL) }
 
     store.enqueueRename(showFolderRename, oldPaths: ["/Videos/Show"], newPaths: ["/Videos/Show Renamed"])
     let running = try #require(store.current.first)
@@ -857,7 +857,7 @@ func taskRecordTitlesAndIconsFollowRedesignSpecification() throws {
 @Test
 func enqueueingLibraryTasksPopulatesFileNameForTitles() throws {
     let (store, databaseURL) = try makeTaskQueueStore()
-    defer { try? FileManager.default.removeItem(at: databaseURL) }
+    defer { removeTemporaryDatabase(at: databaseURL) }
 
     store.enqueueRename(
         .folder(path: "/Videos/Original", newName: "RenamedFolder"),

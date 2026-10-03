@@ -17,18 +17,6 @@ struct SettingsDeveloperCategory: View {
                 description: L("settings.developer.description")
             ) {
                 SettingsRow(
-                    L("settings.developer.e2e_logs"),
-                    note: L("settings.developer.e2e_logs_note")
-                ) {
-                    Toggle("", isOn: $settingsStore.searchE2ELoggingEnabled)
-                        .labelsHidden()
-                        .toggleStyle(.switch)
-                        .focusable(false)
-                }
-
-                SettingsRowDivider()
-
-                SettingsRow(
                     L("settings.developer.fts_diagnostics"),
                     note: L("settings.developer.fts_diagnostics_note")
                 ) {

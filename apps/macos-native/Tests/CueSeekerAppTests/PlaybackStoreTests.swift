@@ -42,9 +42,9 @@ func timelineInteractionStateDoesNotInvalidatePlaybackStore() {
 @Test
 func playbackStoreOpensPlaylistOverlayAtLogicalPlayingItem() throws {
     let suiteName = "CueSeekerPlaylistPositionTests-\(UUID().uuidString)"
-    let userDefaults = try #require(UserDefaults(suiteName: suiteName))
+    let userDefaults = try #require(UserDefaults.temporary(suiteName: suiteName))
     defer {
-        userDefaults.removePersistentDomain(forName: suiteName)
+        userDefaults.removePersistentDomainAndPlist(forName: suiteName)
     }
     let targetOrdinal = 73
     var requestedOrdinals: [Int] = []
@@ -100,9 +100,9 @@ func playbackStoreOpensPlaylistOverlayAtLogicalPlayingItem() throws {
 @Test
 func playbackStoreUsesTheLibrarySessionStoreAsTheMediaPlaylistSource() throws {
     let suiteName = "CueSeekerMediaPlaylistTests-\(UUID().uuidString)"
-    let userDefaults = try #require(UserDefaults(suiteName: suiteName))
+    let userDefaults = try #require(UserDefaults.temporary(suiteName: suiteName))
     defer {
-        userDefaults.removePersistentDomain(forName: suiteName)
+        userDefaults.removePersistentDomainAndPlist(forName: suiteName)
     }
     let store = PlaybackStore(userDefaults: userDefaults)
     let library = LibraryStore()
@@ -155,9 +155,9 @@ func playbackStoreErrorBannerLifecycleUpdatesImmediately() {
 
 private func withTemporaryUserDefaults(_ body: (UserDefaults) -> Void) {
     let suiteName = "CueSeekerAppTests-\(UUID().uuidString)"
-    let userDefaults = UserDefaults(suiteName: suiteName)!
+    let userDefaults = UserDefaults.temporary(suiteName: suiteName)!
     defer {
-        userDefaults.removePersistentDomain(forName: suiteName)
+        userDefaults.removePersistentDomainAndPlist(forName: suiteName)
     }
 
     body(userDefaults)

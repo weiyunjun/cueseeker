@@ -6,7 +6,7 @@ import Testing
 func excerptListsSupportMetadataValidationSortingAndDeletion() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     try DatabaseBootstrap.prepare(at: databaseURL)
@@ -76,7 +76,7 @@ func excerptListsSupportMetadataValidationSortingAndDeletion() throws {
 func excerptListOverviewCountsPerListAndDeduplicatesCueIDs() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     let indexingDatabase = try IndexingDatabase(path: databaseURL)
@@ -121,7 +121,7 @@ func excerptListOverviewCountsPerListAndDeduplicatesCueIDs() throws {
 func recentExcerptPlaybackResumesAnchorAndFallsBackWithinOriginalList() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     let indexingDatabase = try IndexingDatabase(path: databaseURL)
@@ -200,7 +200,7 @@ func recentExcerptPlaybackResumesAnchorAndFallsBackWithinOriginalList() throws {
 func readOnlyExcerptDatabaseLoadsRecentSummariesWithoutWriteAttemptWhenNoPlayableExcerpts() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     try DatabaseBootstrap.prepare(at: databaseURL)
@@ -219,7 +219,7 @@ func readOnlyExcerptDatabaseLoadsRecentSummariesWithoutWriteAttemptWhenNoPlayabl
 func excerptSaveMoveAndDuplicateUseListScopeAndPreserveMetadata() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     let indexingDatabase = try IndexingDatabase(path: databaseURL)
@@ -330,7 +330,7 @@ func excerptSaveMoveAndDuplicateUseListScopeAndPreserveMetadata() throws {
 func excerptPersistsCueIdentityAndCreatedAt() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     let database = try IndexingDatabase(path: databaseURL)
@@ -386,7 +386,7 @@ func excerptPersistsCueIdentityAndCreatedAt() throws {
 func cueContentsResolveCurrentCueDataInRequestedOrder() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     let database = try IndexingDatabase(path: databaseURL)
@@ -439,7 +439,7 @@ func cueContentsResolveCurrentCueDataInRequestedOrder() throws {
 func excerptResidentSnapshotLoadsRelationsCurrentCueContentAndFacetsTogether() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     let database = try IndexingDatabase(path: databaseURL)
@@ -500,7 +500,7 @@ func excerptResidentSnapshotLoadsRelationsCurrentCueContentAndFacetsTogether() t
 func excerptResidentSnapshotKeepsAvailableCueContentBesideUnavailableCue() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     let database = try IndexingDatabase(path: databaseURL)
@@ -598,7 +598,7 @@ func excerptResidentSnapshotKeepsAvailableCueContentBesideUnavailableCue() throw
 func excerptRelationSchemaAllowsOneCueInDifferentListsOnly() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     let database = try IndexingDatabase(path: databaseURL)
@@ -709,7 +709,7 @@ func excerptRelationSchemaAllowsOneCueInDifferentListsOnly() throws {
 func excerptPersistsAndResolvesCueID() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     let database = try IndexingDatabase(path: databaseURL)
@@ -754,7 +754,7 @@ func excerptPersistsAndResolvesCueID() throws {
 func rebuildingSubtitlePreservesCueIDAndExcerptWhenContentChanges() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     let database = try IndexingDatabase(path: databaseURL)
@@ -824,7 +824,7 @@ func rebuildingSubtitlePreservesCueIDAndExcerptWhenContentChanges() throws {
 func excerptStoresSameTimeSiblingCuesSeparatelyAndDeduplicatesOneIdentity() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     let database = try IndexingDatabase(path: databaseURL)
@@ -895,7 +895,7 @@ func excerptStoresSameTimeSiblingCuesSeparatelyAndDeduplicatesOneIdentity() thro
 func removingIndexedFolderPreservesCueBoundExcerptRelation() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     let database = try IndexingDatabase(path: databaseURL)
@@ -947,7 +947,7 @@ func removingIndexedFolderPreservesCueBoundExcerptRelation() throws {
 func excerptSavesByCueIDIntoEachListWithoutDuplicatingWithinOne() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     let indexingDatabase = try IndexingDatabase(path: databaseURL)
@@ -1001,7 +1001,7 @@ func excerptSavesByCueIDIntoEachListWithoutDuplicatingWithinOne() throws {
 func cuesAndExcerptsLeaveTheLibraryWithTheTombstoneOrTheirFolder() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     let database = try IndexingDatabase(path: databaseURL)

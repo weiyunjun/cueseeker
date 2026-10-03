@@ -132,7 +132,7 @@ private func makeURLSchemeCuePlaybackFixture(
     cleanup: () -> Void
 ) {
     let suiteName = "URLSchemeCuePlaybackTests-\(name)-\(UUID().uuidString)"
-    let userDefaults = try #require(UserDefaults(suiteName: suiteName))
+    let userDefaults = try #require(UserDefaults.temporary(suiteName: suiteName))
     let root = FileManager.default.temporaryDirectory
         .appendingPathComponent("URLSchemeCuePlaybackTests-\(name)-\(UUID().uuidString)", isDirectory: true)
     try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
@@ -163,7 +163,7 @@ private func makeURLSchemeCuePlaybackFixture(
         app,
         root,
         {
-            userDefaults.removePersistentDomain(forName: suiteName)
+            userDefaults.removePersistentDomainAndPlist(forName: suiteName)
             try? FileManager.default.removeItem(at: root)
         }
     )

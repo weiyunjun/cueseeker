@@ -51,6 +51,13 @@ func temporaryDatabaseURL() -> URL {
         .appendingPathExtension("sqlite")
 }
 
+func removeTemporaryDatabase(at url: URL) {
+    let fm = FileManager.default
+    try? fm.removeItem(at: url)
+    try? fm.removeItem(atPath: url.path + "-wal")
+    try? fm.removeItem(atPath: url.path + "-shm")
+}
+
 func sqliteColumnNames(in table: String, databaseURL: URL) throws -> Set<String> {
     var database: OpaquePointer?
     guard sqlite3_open_v2(databaseURL.path, &database, SQLITE_OPEN_READONLY, nil) == SQLITE_OK else {
@@ -452,7 +459,7 @@ func executeDatabaseTestSQLite(_ database: OpaquePointer?, _ sql: String) throws
 func expectUnsupportedSchemaVersion(_ version: Int) throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     try executeDatabaseTestSQLite(at: databaseURL, "PRAGMA user_version = \(version);")

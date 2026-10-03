@@ -219,7 +219,7 @@ private func withNormalPlaybackApp(
     _ body: (AppCoordinator, IndexingDatabase) throws -> Void
 ) throws {
     let suiteName = "CueSeekerNormalPlaybackShortcutTests-\(UUID().uuidString)"
-    let userDefaults = try #require(UserDefaults(suiteName: suiteName))
+    let userDefaults = try #require(UserDefaults.temporary(suiteName: suiteName))
     let fixtureRoot = FileManager.default.temporaryDirectory
         .appendingPathComponent(
             "CueSeekerNormalPlaybackShortcutTests-\(UUID().uuidString)",
@@ -227,7 +227,7 @@ private func withNormalPlaybackApp(
         )
     let databaseURL = fixtureRoot.appendingPathComponent("normal-shortcuts.sqlite")
     defer {
-        userDefaults.removePersistentDomain(forName: suiteName)
+        userDefaults.removePersistentDomainAndPlist(forName: suiteName)
         try? FileManager.default.removeItem(at: fixtureRoot)
     }
     try FileManager.default.createDirectory(

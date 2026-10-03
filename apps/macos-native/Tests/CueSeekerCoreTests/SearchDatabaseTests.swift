@@ -6,7 +6,7 @@ import Testing
 func visibleSearchReadersRejectPreCancelledTasks() async throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     let searchTask = Task.detached { () throws -> SubtitleSearchPage in
@@ -47,7 +47,7 @@ func visibleSearchReadersRejectPreCancelledTasks() async throws {
 func allCuesVisiblePageReturnsDefaultOrder() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     let database = try IndexingDatabase(path: databaseURL)
@@ -113,7 +113,7 @@ func allCuesVisiblePageReturnsDefaultOrder() throws {
 func allCuesVisiblePageCountsFiltersAndPaginatesSiblingCuesIndependently() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     let database = try IndexingDatabase(path: databaseURL)
@@ -218,7 +218,7 @@ func allCuesVisiblePageCountsFiltersAndPaginatesSiblingCuesIndependently() throw
 func storesSubtitleEntriesAndSearchesWithFTS5() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     let database = try IndexingDatabase(path: databaseURL)
@@ -268,7 +268,7 @@ func storesSubtitleEntriesAndSearchesWithFTS5() throws {
 func searchFiltersByLibraryWatchState() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     let database = try IndexingDatabase(path: databaseURL)
@@ -344,7 +344,7 @@ func searchFiltersByLibraryWatchState() throws {
 func searchPaginatesBeyondDefaultResultLimit() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     let database = try IndexingDatabase(path: databaseURL)
@@ -384,7 +384,7 @@ func searchPaginatesBeyondDefaultResultLimit() throws {
 func searchPageReturnsContinuationCursorForNextPage() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     let database = try IndexingDatabase(path: databaseURL)
@@ -432,7 +432,7 @@ func searchPageReturnsContinuationCursorForNextPage() throws {
 func searchVisiblePageReturnsExactProgressBeforeCompleteMetadata() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     let database = try IndexingDatabase(path: databaseURL)
@@ -490,7 +490,7 @@ func searchVisiblePageReturnsExactProgressBeforeCompleteMetadata() throws {
 func searchFilterSetMatchesDisplayTitleInDatabaseResults() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     let database = try IndexingDatabase(path: databaseURL)
@@ -531,7 +531,7 @@ func searchFilterSetMatchesDisplayTitleInDatabaseResults() throws {
 func searchExactPageCanReturnOnlyCueIDsForCompletion() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     let database = try IndexingDatabase(path: databaseURL)
@@ -565,7 +565,7 @@ func searchExactPageCanReturnOnlyCueIDsForCompletion() throws {
 func searchFilterSetAppliesToExactAndVisiblePagesWithoutCachedIDIndex() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     let database = try IndexingDatabase(path: databaseURL)
@@ -625,7 +625,7 @@ func searchFilterSetAppliesToExactAndVisiblePagesWithoutCachedIDIndex() throws {
 func searchExactAndVisiblePagesPreserveIndependentPaging() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     let database = try IndexingDatabase(path: databaseURL)
@@ -676,7 +676,7 @@ func searchExactAndVisiblePagesPreserveIndependentPaging() throws {
 func searchNavigationSnapshotUsesCompleteSearchOrder() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     let database = try IndexingDatabase(path: databaseURL)
@@ -724,7 +724,7 @@ func searchNavigationSnapshotUsesCompleteSearchOrder() throws {
 func searchPageEmitsExactProgressCountSnapshotsBeforeFinalExactCounts() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     let database = try IndexingDatabase(path: databaseURL)
@@ -794,7 +794,7 @@ func searchPageEmitsExactProgressCountSnapshotsBeforeFinalExactCounts() throws {
 func repeatedSearchPagesExecuteWithoutHiddenCacheEvents() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     let database = try IndexingDatabase(path: databaseURL)
@@ -826,7 +826,7 @@ func repeatedSearchPagesExecuteWithoutHiddenCacheEvents() throws {
 func searchPageSeesIndexedContentChangesImmediately() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     let database = try IndexingDatabase(path: databaseURL)
@@ -868,7 +868,7 @@ func searchPageSeesIndexedContentChangesImmediately() throws {
 func searchVisiblePageUsesProductOrderedFTSRowIDsForEarlyTermination() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     let database = try IndexingDatabase(path: databaseURL)
@@ -921,7 +921,7 @@ func searchVisiblePageUsesProductOrderedFTSRowIDsForEarlyTermination() throws {
 func searchPageReturnsTotalCountsAndFileSummaries() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     let database = try IndexingDatabase(path: databaseURL)
@@ -986,7 +986,7 @@ func searchPageReturnsTotalCountsAndFileSummaries() throws {
 func cueOccurrenceCountMatchesSearchPageExactTotals() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     let database = try IndexingDatabase(path: databaseURL)
@@ -1037,7 +1037,7 @@ func cueOccurrenceCountMatchesSearchPageExactTotals() throws {
 func searchPageExposesExactCountsWhenRowsContinue() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     let database = try IndexingDatabase(path: databaseURL)
@@ -1102,7 +1102,7 @@ func searchPageExposesExactCountsWhenRowsContinue() throws {
 func searchPageExposesExactCountsWhenAllRowsFitInPage() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     let database = try IndexingDatabase(path: databaseURL)
@@ -1139,7 +1139,7 @@ func searchPageExposesExactCountsWhenAllRowsFitInPage() throws {
 func ftsVocabularyDiagnosticsReportsTopAndQueryTerms() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     let database = try IndexingDatabase(path: databaseURL)
@@ -1198,7 +1198,7 @@ func ftsVocabularyDiagnosticsReportsTopAndQueryTerms() throws {
 func searchNavigationUsesCompleteResultOrderAndPlaybackTimeAnchor() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     let database = try IndexingDatabase(path: databaseURL)
@@ -1283,7 +1283,7 @@ func searchPageReturnsFriendlyFileSummaryDisplayTitles() throws {
     let root = FileManager.default.temporaryDirectory
         .appendingPathComponent("CueSeekerFriendlySummaryTests-\(UUID().uuidString)")
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
         try? FileManager.default.removeItem(at: root)
     }
 
@@ -1350,7 +1350,7 @@ func searchPageReturnsFriendlyFileSummaryDisplayTitles() throws {
 func searchPageFailsWhenSearchOrderRowsAreMissing() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     let database = try IndexingDatabase(path: databaseURL)
@@ -1386,7 +1386,7 @@ func searchPageFailsWhenSearchOrderRowsAreMissing() throws {
 func searchLoadsRowsForSpecificSubtitleFileOutsideGlobalPage() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     let database = try IndexingDatabase(path: databaseURL)
@@ -1448,7 +1448,7 @@ func searchLoadsRowsForSpecificSubtitleFileOutsideGlobalPage() throws {
 func scopedSearchOnlyReturnsEntriesUnderActiveFolders() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     let database = try IndexingDatabase(path: databaseURL)
@@ -1496,7 +1496,7 @@ func scopedSearchOnlyReturnsEntriesUnderActiveFolders() throws {
 func emptySearchQueryReturnsNoResults() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     let database = try IndexingDatabase(path: databaseURL)
@@ -1510,7 +1510,7 @@ func emptySearchQueryReturnsNoResults() throws {
 func searchNormalizesFTSQuerySyntaxCharacters() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     let database = try IndexingDatabase(path: databaseURL)
@@ -1545,7 +1545,7 @@ func searchNormalizesFTSQuerySyntaxCharacters() throws {
 func searchUsesFlutterLikeSingleTokenPrefixMatching() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     let database = try IndexingDatabase(path: databaseURL)
@@ -1576,7 +1576,7 @@ func searchUsesFlutterLikeSingleTokenPrefixMatching() throws {
 func searchFiltersMultipleLatinTokensByWholeTokenOrder() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     let database = try IndexingDatabase(path: databaseURL)
@@ -1622,7 +1622,7 @@ func searchFiltersMultipleLatinTokensByWholeTokenOrder() throws {
 func searchSegmentsCJKContentLikeFlutter() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     let database = try IndexingDatabase(path: databaseURL)
@@ -1660,7 +1660,7 @@ func searchSegmentsCJKContentLikeFlutter() throws {
 func searchSegmentsJapaneseKanaContent() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     let database = try IndexingDatabase(path: databaseURL)
@@ -1699,7 +1699,7 @@ func searchSegmentsJapaneseKanaContent() throws {
 func searchTreatsASCIIAndIdeographicSpacesAsEquivalent() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     let database = try IndexingDatabase(path: databaseURL)
@@ -1737,7 +1737,7 @@ func searchTreatsASCIIAndIdeographicSpacesAsEquivalent() throws {
 func invalidExplicitFTSQueryReturnsNoResults() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     let database = try IndexingDatabase(path: databaseURL)
@@ -1765,7 +1765,7 @@ func invalidExplicitFTSQueryReturnsNoResults() throws {
 func searchesIndividualCuesAndRejectsCrossCueOnlyMatches() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     let database = try IndexingDatabase(path: databaseURL)
@@ -1837,7 +1837,7 @@ func searchesIndividualCuesAndRejectsCrossCueOnlyMatches() throws {
 func searchCountsAndPaginatesMatchingSiblingCuesIndependently() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     let database = try IndexingDatabase(path: databaseURL)
@@ -1945,7 +1945,7 @@ func searchCountsAndPaginatesMatchingSiblingCuesIndependently() throws {
 func searchPrimaryGroupIndexDistinguishesSiblingCuesWithIdenticalText() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     let database = try IndexingDatabase(path: databaseURL)
@@ -1998,7 +1998,7 @@ func searchPrimaryGroupIndexDistinguishesSiblingCuesWithIdenticalText() throws {
 func searchKeepsOneCueWithSourceLineBreaksAsOneResult() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     let database = try IndexingDatabase(path: databaseURL)
@@ -2032,7 +2032,7 @@ func searchKeepsOneCueWithSourceLineBreaksAsOneResult() throws {
 func searchCueFiltersDoNotLeakFromSiblingCue() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     let database = try IndexingDatabase(path: databaseURL)
@@ -2065,7 +2065,7 @@ func searchCueFiltersDoNotLeakFromSiblingCue() throws {
 func searchReadsASSIndexTimePhysicalOrderWithoutRuntimeReordering() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     let database = try IndexingDatabase(path: databaseURL)
@@ -2111,7 +2111,7 @@ func searchReadsASSIndexTimePhysicalOrderWithoutRuntimeReordering() throws {
 func paginatedSearchContinuesPastFilteredFTSCandidates() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     let database = try IndexingDatabase(path: databaseURL)
@@ -2180,7 +2180,7 @@ func paginatedSearchContinuesPastFilteredFTSCandidates() throws {
 func visibleSearchContinuesPastFilteredFTSCandidates() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     let database = try IndexingDatabase(path: databaseURL)
@@ -2258,7 +2258,7 @@ func visibleSearchContinuesPastFilteredFTSCandidates() throws {
 func searchPageAppliesTheFacetFilterToResultsWhileTheSnapshotHoldsEveryMatch() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     let database = try IndexingDatabase(path: databaseURL)
@@ -2391,7 +2391,7 @@ func searchPageAppliesTheFacetFilterToResultsWhileTheSnapshotHoldsEveryMatch() t
 func searchPageReadsTheSelectedFoldersFirstAndKeepsTheSnapshotInDisplayOrder() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     let database = try IndexingDatabase(path: databaseURL)
@@ -2439,7 +2439,7 @@ func searchPageReadsTheSelectedFoldersFirstAndKeepsTheSnapshotInDisplayOrder() t
 func searchPageFiltersLanguagesInTheRowReadsAndCountsThemFromTheStoredTable() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     let database = try IndexingDatabase(path: databaseURL)

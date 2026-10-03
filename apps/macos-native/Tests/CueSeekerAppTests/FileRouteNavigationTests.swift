@@ -9,7 +9,9 @@ import Testing
 struct FileRouteNavigationTests {
     @Test
     func fileThreeLevelNavigationAndHistoryFlow() {
-        let defaults = UserDefaults(suiteName: "FileRouteNavigationTests-\(UUID().uuidString)")!
+        let suiteName = "FileRouteNavigationTests-\(UUID().uuidString)"
+        let defaults = UserDefaults.temporary(suiteName: suiteName)!
+        defer { defaults.removePersistentDomainAndPlist(forName: suiteName) }
         let layoutState = WorkbenchLayoutState(userDefaults: defaults)
 
         // 1. Initial navigation to File (Level 1)
@@ -60,7 +62,9 @@ struct FileRouteNavigationTests {
 
     @Test
     func fileSidebarSwitchingBehavior() {
-        let defaults = UserDefaults(suiteName: "FileRouteNavigationTests-\(UUID().uuidString)")!
+        let suiteName = "FileRouteNavigationTests-\(UUID().uuidString)"
+        let defaults = UserDefaults.temporary(suiteName: suiteName)!
+        defer { defaults.removePersistentDomainAndPlist(forName: suiteName) }
         let layoutState = WorkbenchLayoutState(userDefaults: defaults)
 
         let rootPath = "/Volumes/Media/Anime"
@@ -151,7 +155,13 @@ struct FileRouteNavigationTests {
     func indexingStoreLastUpdatedDatePersistence() {
         _ = NSApplication.shared
         let suiteName = "IndexingStoreTests-\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suiteName)!
+        let defaults = UserDefaults.temporary(suiteName: suiteName)!
+        let statusSuite = "IndexingStatusTest-\(UUID().uuidString)"
+        let statusDefaults = UserDefaults.temporary(suiteName: statusSuite)!
+        defer {
+            defaults.removePersistentDomainAndPlist(forName: suiteName)
+            statusDefaults.removePersistentDomainAndPlist(forName: statusSuite)
+        }
         let settings = SettingsStore(userDefaults: defaults)
 
         let store = IndexingStore(userDefaults: defaults, settings: settings)
@@ -169,7 +179,7 @@ struct FileRouteNavigationTests {
         #expect(restoredStore.lastIndexedDate == now)
 
         // Status transition test
-        let newStore = IndexingStore(userDefaults: UserDefaults(suiteName: "IndexingStatusTest-\(UUID().uuidString)")!, settings: settings)
+        let newStore = IndexingStore(userDefaults: statusDefaults, settings: settings)
         #expect(newStore.lastUpdatedDate == nil)
         newStore.indexingStatus = .completedAll(folderCount: 1, SubtitleIndexingResult())
         #expect(newStore.lastUpdatedDate != nil)
@@ -177,7 +187,9 @@ struct FileRouteNavigationTests {
 
     @Test
     func databaseOperationNoticesAndLifecycle() {
-        let defaults = UserDefaults(suiteName: "DatabaseOperationNotices-\(UUID().uuidString)")!
+        let suiteName = "DatabaseOperationNotices-\(UUID().uuidString)"
+        let defaults = UserDefaults.temporary(suiteName: suiteName)!
+        defer { defaults.removePersistentDomainAndPlist(forName: suiteName) }
         let settings = SettingsStore(userDefaults: defaults)
         let store = IndexingStore(userDefaults: defaults, settings: settings)
 

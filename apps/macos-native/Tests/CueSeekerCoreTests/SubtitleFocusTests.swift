@@ -15,7 +15,7 @@ func subtitleFocusStandardWindowPlacesSelectionSeventhWhenBoundariesAllow() {
 @Test
 func subtitleFocusDatabaseBootstrapLoadsSixBeforeAndThreeAfter() throws {
     let databaseURL = subtitleFocusTemporaryDatabaseURL()
-    defer { try? FileManager.default.removeItem(at: databaseURL) }
+    defer { removeTemporaryDatabase(at: databaseURL) }
 
     let database = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
@@ -54,7 +54,7 @@ func subtitleFocusDatabaseBootstrapLoadsSixBeforeAndThreeAfter() throws {
 @Test
 func subtitleFocusDatabaseUsesPermanentIDAcrossUnicodeNormalizationForms() throws {
     let databaseURL = subtitleFocusTemporaryDatabaseURL()
-    defer { try? FileManager.default.removeItem(at: databaseURL) }
+    defer { removeTemporaryDatabase(at: databaseURL) }
 
     let database = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
@@ -114,7 +114,7 @@ func subtitleFocusDatabaseUsesPermanentIDAcrossUnicodeNormalizationForms() throw
 @Test
 func subtitleFocusDatabaseBootstrapFillsInitialWindowAtDocumentBoundaries() throws {
     let databaseURL = subtitleFocusTemporaryDatabaseURL()
-    defer { try? FileManager.default.removeItem(at: databaseURL) }
+    defer { removeTemporaryDatabase(at: databaseURL) }
 
     let database = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
@@ -160,7 +160,7 @@ func subtitleFocusDatabaseBootstrapFillsInitialWindowAtDocumentBoundaries() thro
 @Test
 func subtitleFocusDatabaseBootstrapUsesPreviousCueAndFallsBackToFirstCue() throws {
     let databaseURL = subtitleFocusTemporaryDatabaseURL()
-    defer { try? FileManager.default.removeItem(at: databaseURL) }
+    defer { removeTemporaryDatabase(at: databaseURL) }
 
     let database = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
@@ -202,7 +202,7 @@ func subtitleFocusDatabaseBootstrapUsesPreviousCueAndFallsBackToFirstCue() throw
 @Test
 func subtitleFocusDatabaseBatchUsesCueLineDisplayOrder() throws {
     let databaseURL = subtitleFocusTemporaryDatabaseURL()
-    defer { try? FileManager.default.removeItem(at: databaseURL) }
+    defer { removeTemporaryDatabase(at: databaseURL) }
 
     let database = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
@@ -267,7 +267,7 @@ func subtitleFocusDatabaseBatchUsesCueLineDisplayOrder() throws {
 @Test
 func subtitleFocusDatabaseBatchReadsCompleteCurrentVideoCollection() throws {
     let databaseURL = subtitleFocusTemporaryDatabaseURL()
-    defer { try? FileManager.default.removeItem(at: databaseURL) }
+    defer { removeTemporaryDatabase(at: databaseURL) }
 
     let database = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)
@@ -301,7 +301,7 @@ func subtitleFocusDatabaseBatchReadsCompleteCurrentVideoCollection() throws {
 @Test
 func subtitleFocusDatabaseBatchRejectsPreCancelledTasks() async throws {
     let databaseURL = subtitleFocusTemporaryDatabaseURL()
-    defer { try? FileManager.default.removeItem(at: databaseURL) }
+    defer { removeTemporaryDatabase(at: databaseURL) }
 
     try DatabaseBootstrap.prepare(at: databaseURL)
     let task = Task.detached { () throws -> SubtitleFocusCueBatch in
@@ -328,7 +328,7 @@ func subtitleFocusDatabaseBatchRejectsPreCancelledTasks() async throws {
 @Test
 func subtitleFocusDatabaseBatchStopsAfterCancellationDuringRowIteration() async throws {
     let databaseURL = subtitleFocusTemporaryDatabaseURL()
-    defer { try? FileManager.default.removeItem(at: databaseURL) }
+    defer { removeTemporaryDatabase(at: databaseURL) }
 
     let subtitleFile = URL(fileURLWithPath: "/Media/Cancellation-Iteration.srt")
     let database = try IndexingDatabase(path: databaseURL)
@@ -375,7 +375,7 @@ func subtitleFocusDatabaseBatchStopsAfterCancellationDuringRowIteration() async 
 @Test
 func subtitleFocusDatabaseUsesOneStableOrderForSelectionAndWindow() throws {
     let databaseURL = subtitleFocusTemporaryDatabaseURL()
-    defer { try? FileManager.default.removeItem(at: databaseURL) }
+    defer { removeTemporaryDatabase(at: databaseURL) }
 
     let database = try IndexingDatabase(path: databaseURL)
     try DatabaseBootstrap.prepare(at: databaseURL)

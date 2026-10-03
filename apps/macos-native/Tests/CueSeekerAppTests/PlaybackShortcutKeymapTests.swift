@@ -163,9 +163,9 @@ func everyShortcutHasATitleInEveryLanguage() {
 @Test
 func changedAndClearedShortcutsSurviveARelaunch() throws {
     let suiteName = "CueSeekerPlaybackShortcutStoreTests-\(UUID().uuidString)"
-    let userDefaults = try #require(UserDefaults(suiteName: suiteName))
+    let userDefaults = try #require(UserDefaults.temporary(suiteName: suiteName))
     defer {
-        userDefaults.removePersistentDomain(forName: suiteName)
+        userDefaults.removePersistentDomainAndPlist(forName: suiteName)
     }
 
     let store = PlaybackShortcutStore(userDefaults: userDefaults)

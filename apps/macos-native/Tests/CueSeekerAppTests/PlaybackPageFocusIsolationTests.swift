@@ -197,12 +197,12 @@ struct PlaybackPageFocusIsolationTests {
 
     private func withTestApp(_ body: (AppCoordinator) async throws -> Void) async throws {
         let suiteName = "PlaybackPageFocusIsolationTests-\(UUID().uuidString)"
-        let userDefaults = try #require(UserDefaults(suiteName: suiteName))
+        let userDefaults = try #require(UserDefaults.temporary(suiteName: suiteName))
         let fixtureRoot = FileManager.default.temporaryDirectory
             .appendingPathComponent("PlaybackPageFocusIsolationTests-\(UUID().uuidString)", isDirectory: true)
         let databaseURL = fixtureRoot.appendingPathComponent("focus.sqlite")
         defer {
-            userDefaults.removePersistentDomain(forName: suiteName)
+            userDefaults.removePersistentDomainAndPlist(forName: suiteName)
             try? FileManager.default.removeItem(at: fixtureRoot)
         }
         try FileManager.default.createDirectory(at: fixtureRoot, withIntermediateDirectories: true)

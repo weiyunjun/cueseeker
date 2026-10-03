@@ -6,7 +6,7 @@ import Testing
 func indexedContentDatabaseReusesLibraryFolderSetAndOrder() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     try DatabaseBootstrap.prepare(at: databaseURL)

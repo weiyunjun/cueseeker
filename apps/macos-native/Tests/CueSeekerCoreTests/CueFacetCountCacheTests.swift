@@ -93,7 +93,7 @@ private func indexFacetFixture(at databaseURL: URL) throws -> (IndexingDatabase,
 @Test
 func cueFacetCountsTrackIndexedDataAndLanguageMembership() throws {
     let databaseURL = temporaryDatabaseURL()
-    defer { try? FileManager.default.removeItem(at: databaseURL) }
+    defer { removeTemporaryDatabase(at: databaseURL) }
     let (database, subtitleFile, videoFile) = try indexFacetFixture(at: databaseURL)
 
     let initial = try SearchDatabase(path: databaseURL).cueFacetDistribution()
@@ -146,7 +146,7 @@ func cueFacetCountsTrackIndexedDataAndLanguageMembership() throws {
 @Test
 func watchStateChangesUpdateOnlyWatchFacetCounts() throws {
     let databaseURL = temporaryDatabaseURL()
-    defer { try? FileManager.default.removeItem(at: databaseURL) }
+    defer { removeTemporaryDatabase(at: databaseURL) }
     let (_, _, videoFile) = try indexFacetFixture(at: databaseURL)
     let durationValue = CueDurationFacet.underOneSecond.rawValue
 
@@ -177,7 +177,7 @@ func watchStateChangesUpdateOnlyWatchFacetCounts() throws {
 @Test
 func schema39MigrationBackfillsFacetCountsWithoutStartupRebuilds() throws {
     let databaseURL = temporaryDatabaseURL()
-    defer { try? FileManager.default.removeItem(at: databaseURL) }
+    defer { removeTemporaryDatabase(at: databaseURL) }
     _ = try indexFacetFixture(at: databaseURL)
 
     try executeDatabaseTestSQLite(
@@ -203,7 +203,7 @@ func schema39MigrationBackfillsFacetCountsWithoutStartupRebuilds() throws {
 @Test
 func exactSearchBuildsCompleteFacetSnapshotWithItsResultIDs() throws {
     let databaseURL = temporaryDatabaseURL()
-    defer { try? FileManager.default.removeItem(at: databaseURL) }
+    defer { removeTemporaryDatabase(at: databaseURL) }
     let (_, _, videoFile) = try indexFacetFixture(at: databaseURL)
     try LibraryDatabase(path: databaseURL).setLibraryWatchState(
         videoFile: videoFile,

@@ -8,13 +8,13 @@ import Testing
 @Test
 func removeExcerptDoesNotHydrateLegacyPresentationWhenTableOnly() async throws {
     let suiteName = "CueSeekerExcerptPresentationTests-\(UUID().uuidString)"
-    let userDefaults = try #require(UserDefaults(suiteName: suiteName))
+    let userDefaults = try #require(UserDefaults.temporary(suiteName: suiteName))
     let fixtureRoot = FileManager.default.temporaryDirectory
         .appendingPathComponent("CueSeekerExcerptPresentationTests-\(UUID().uuidString)", isDirectory: true)
     let databaseURL = fixtureRoot
         .appendingPathComponent("CueSeekerExcerptPresentationTests.sqlite")
     defer {
-        userDefaults.removePersistentDomain(forName: suiteName)
+        userDefaults.removePersistentDomainAndPlist(forName: suiteName)
         try? FileManager.default.removeItem(at: fixtureRoot)
     }
 
@@ -53,7 +53,7 @@ func removeExcerptDoesNotHydrateLegacyPresentationWhenTableOnly() async throws {
 @Test
 func excerptOverviewAndTableLoadingFollowTheSelectedList() async throws {
     let suiteName = "CueSeekerExcerptListRoutingTests-\(UUID().uuidString)"
-    let userDefaults = try #require(UserDefaults(suiteName: suiteName))
+    let userDefaults = try #require(UserDefaults.temporary(suiteName: suiteName))
     let fixtureRoot = FileManager.default.temporaryDirectory
         .appendingPathComponent(
             "CueSeekerExcerptListRoutingTests-\(UUID().uuidString)",
@@ -61,7 +61,7 @@ func excerptOverviewAndTableLoadingFollowTheSelectedList() async throws {
         )
     let databaseURL = fixtureRoot.appendingPathComponent("CueSeeker.sqlite")
     defer {
-        userDefaults.removePersistentDomain(forName: suiteName)
+        userDefaults.removePersistentDomainAndPlist(forName: suiteName)
         try? FileManager.default.removeItem(at: fixtureRoot)
     }
     try FileManager.default.createDirectory(
@@ -147,7 +147,7 @@ func excerptOverviewAndTableLoadingFollowTheSelectedList() async throws {
 @Test
 func recentExcerptPlaybackRefreshesCommandPanelBeforeKeyboardNavigation() async throws {
     let suiteName = "CueSeekerRecentExcerptCommandPanelTests-\(UUID().uuidString)"
-    let userDefaults = try #require(UserDefaults(suiteName: suiteName))
+    let userDefaults = try #require(UserDefaults.temporary(suiteName: suiteName))
     let fixtureRoot = FileManager.default.temporaryDirectory
         .appendingPathComponent(
             "CueSeekerRecentExcerptCommandPanelTests-\(UUID().uuidString)",
@@ -155,7 +155,7 @@ func recentExcerptPlaybackRefreshesCommandPanelBeforeKeyboardNavigation() async 
         )
     let databaseURL = fixtureRoot.appendingPathComponent("CueSeeker.sqlite")
     defer {
-        userDefaults.removePersistentDomain(forName: suiteName)
+        userDefaults.removePersistentDomainAndPlist(forName: suiteName)
         try? FileManager.default.removeItem(at: fixtureRoot)
     }
     try FileManager.default.createDirectory(
@@ -207,7 +207,7 @@ func recentExcerptPlaybackRefreshesCommandPanelBeforeKeyboardNavigation() async 
 @Test
 func excerptTransfersRefreshPresentationAndPublishRegisteredToasts() async throws {
     let suiteName = "CueSeekerExcerptTransferPresentationTests-\(UUID().uuidString)"
-    let userDefaults = try #require(UserDefaults(suiteName: suiteName))
+    let userDefaults = try #require(UserDefaults.temporary(suiteName: suiteName))
     let fixtureRoot = FileManager.default.temporaryDirectory
         .appendingPathComponent(
             "CueSeekerExcerptTransferPresentationTests-\(UUID().uuidString)",
@@ -215,7 +215,7 @@ func excerptTransfersRefreshPresentationAndPublishRegisteredToasts() async throw
         )
     let databaseURL = fixtureRoot.appendingPathComponent("CueSeeker.sqlite")
     defer {
-        userDefaults.removePersistentDomain(forName: suiteName)
+        userDefaults.removePersistentDomainAndPlist(forName: suiteName)
         try? FileManager.default.removeItem(at: fixtureRoot)
     }
     try FileManager.default.createDirectory(
@@ -314,12 +314,12 @@ func excerptTransfersRefreshPresentationAndPublishRegisteredToasts() async throw
 @Test
 func excerptTableRowsAndOverviewLoadDuringIndexing() async throws {
     let suiteName = "CueSeekerExcerptIndexingTests-\(UUID().uuidString)"
-    let userDefaults = try #require(UserDefaults(suiteName: suiteName))
+    let userDefaults = try #require(UserDefaults.temporary(suiteName: suiteName))
     let fixtureRoot = FileManager.default.temporaryDirectory
         .appendingPathComponent("CueSeekerExcerptIndexingTests-\(UUID().uuidString)", isDirectory: true)
     let databaseURL = fixtureRoot.appendingPathComponent("CueSeeker.sqlite")
     defer {
-        userDefaults.removePersistentDomain(forName: suiteName)
+        userDefaults.removePersistentDomainAndPlist(forName: suiteName)
         try? FileManager.default.removeItem(at: fixtureRoot)
     }
     try FileManager.default.createDirectory(

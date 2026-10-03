@@ -376,7 +376,7 @@ func libraryFolderRemovalNoticeClearsWhenIndexingStarts() async throws {
 func unchangedFolderIndexPreservesLoadedSearchState() async throws {
     _ = NSApplication.shared
     let suiteName = "CueSeekerIncrementalIndexTests-\(UUID().uuidString)"
-    let userDefaults = try #require(UserDefaults(suiteName: suiteName))
+    let userDefaults = try #require(UserDefaults.temporary(suiteName: suiteName))
     let root = FileManager.default.temporaryDirectory
         .appendingPathComponent(
             "CueSeekerIncrementalIndexTests-\(UUID().uuidString)",
@@ -397,7 +397,7 @@ func unchangedFolderIndexPreservesLoadedSearchState() async throws {
     """.write(to: subtitleURL, atomically: true, encoding: .utf8)
     try Data([0]).write(to: videoURL)
     defer {
-        userDefaults.removePersistentDomain(forName: suiteName)
+        userDefaults.removePersistentDomainAndPlist(forName: suiteName)
         try? FileManager.default.removeItem(at: root)
     }
 
@@ -494,7 +494,7 @@ private struct LibraryFolderRemovalTestFixture {
     @MainActor
     init() throws {
         suiteName = "CueSeekerLibraryFolderRemovalTests-\(UUID().uuidString)"
-        userDefaults = try #require(UserDefaults(suiteName: suiteName))
+        userDefaults = try #require(UserDefaults.temporary(suiteName: suiteName))
         databaseURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("CueSeekerLibraryFolderRemovalTests-\(UUID().uuidString)")
             .appendingPathExtension("sqlite")
@@ -515,8 +515,8 @@ private struct LibraryFolderRemovalTestFixture {
     }
 
     func cleanUp() {
-        userDefaults.removePersistentDomain(forName: suiteName)
-        try? FileManager.default.removeItem(at: databaseURL)
+        userDefaults.removePersistentDomainAndPlist(forName: suiteName)
+        removeTemporaryDatabase(at: databaseURL)
         try? FileManager.default.removeItem(atPath: databaseURL.path + "-wal")
         try? FileManager.default.removeItem(atPath: databaseURL.path + "-shm")
     }

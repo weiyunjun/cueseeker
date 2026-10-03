@@ -38,14 +38,14 @@ func libraryCoverEditingSessionStartsWithCurrentPreviewAndRequiresNewSource() th
 @MainActor
 func libraryChangeCoverOpensEditorBeforeSourceSelection() throws {
     let suiteName = "CueSeekerLibraryCoverEditorTests-\(UUID().uuidString)"
-    let userDefaults = try #require(UserDefaults(suiteName: suiteName))
+    let userDefaults = try #require(UserDefaults.temporary(suiteName: suiteName))
     let directory = FileManager.default.temporaryDirectory
         .appendingPathComponent(
             "CueSeekerLibraryCoverEditorTests-\(UUID().uuidString)",
             isDirectory: true
         )
     defer {
-        userDefaults.removePersistentDomain(forName: suiteName)
+        userDefaults.removePersistentDomainAndPlist(forName: suiteName)
         try? FileManager.default.removeItem(at: directory)
     }
     try FileManager.default.createDirectory(

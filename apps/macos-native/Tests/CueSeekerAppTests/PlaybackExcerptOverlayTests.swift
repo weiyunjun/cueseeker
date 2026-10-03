@@ -100,7 +100,7 @@ func playbackExcerptCopiesSettledPrimaryCueAsMarkdownLink() throws {
     _ = NSApplication.shared
     let databaseURL = FileManager.default.temporaryDirectory
         .appendingPathComponent("playback-excerpt-markdown-\(UUID().uuidString).sqlite")
-    defer { try? FileManager.default.removeItem(at: databaseURL) }
+    defer { removeTemporaryDatabase(at: databaseURL) }
     let app = AppCoordinator(databaseURL: databaseURL)
     app.playback.playbackViewModel = PlaybackViewModel(player: PlaybackPlayer())
     let store = playbackSharedExcerptStore([playbackSharedExcerptFixture(0)])
@@ -154,7 +154,7 @@ func playbackExcerptDispatchUsesCurrentWorkbenchResultOrder() throws {
     _ = NSApplication.shared
     let databaseURL = FileManager.default.temporaryDirectory
         .appendingPathComponent("playback-shared-excerpt-dispatch-\(UUID().uuidString).sqlite")
-    defer { try? FileManager.default.removeItem(at: databaseURL) }
+    defer { removeTemporaryDatabase(at: databaseURL) }
     let app = AppCoordinator(databaseURL: databaseURL)
     let fixtures = (0..<3).map(playbackSharedExcerptFixture)
     let store = playbackSharedExcerptStore(fixtures)
@@ -182,12 +182,12 @@ func playbackExcerptDispatchUsesCurrentWorkbenchResultOrder() throws {
 @Test
 func sharedExcerptPipelineAppliesLivePrimaryCueSearchBeforePlaybackProjection() async throws {
     let suiteName = "PlaybackSharedExcerptPipeline-\(UUID().uuidString)"
-    let userDefaults = try #require(UserDefaults(suiteName: suiteName))
+    let userDefaults = try #require(UserDefaults.temporary(suiteName: suiteName))
     let databaseURL = FileManager.default.temporaryDirectory
         .appendingPathComponent("PlaybackSharedExcerptPipeline-\(UUID().uuidString).sqlite")
     defer {
-        userDefaults.removePersistentDomain(forName: suiteName)
-        try? FileManager.default.removeItem(at: databaseURL)
+        userDefaults.removePersistentDomainAndPlist(forName: suiteName)
+        removeTemporaryDatabase(at: databaseURL)
         try? FileManager.default.removeItem(atPath: databaseURL.path + "-wal")
         try? FileManager.default.removeItem(atPath: databaseURL.path + "-shm")
     }
@@ -246,12 +246,12 @@ func sharedExcerptPipelineAppliesLivePrimaryCueSearchBeforePlaybackProjection() 
 @Test
 func sharedExcerptFacetSelectionRestoresAndProjectsWithoutDatabaseReload() async throws {
     let suiteName = "PlaybackSharedExcerptFacet-\(UUID().uuidString)"
-    let userDefaults = try #require(UserDefaults(suiteName: suiteName))
+    let userDefaults = try #require(UserDefaults.temporary(suiteName: suiteName))
     let databaseURL = FileManager.default.temporaryDirectory
         .appendingPathComponent("PlaybackSharedExcerptFacet-\(UUID().uuidString).sqlite")
     defer {
-        userDefaults.removePersistentDomain(forName: suiteName)
-        try? FileManager.default.removeItem(at: databaseURL)
+        userDefaults.removePersistentDomainAndPlist(forName: suiteName)
+        removeTemporaryDatabase(at: databaseURL)
         try? FileManager.default.removeItem(atPath: databaseURL.path + "-wal")
         try? FileManager.default.removeItem(atPath: databaseURL.path + "-shm")
     }

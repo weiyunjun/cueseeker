@@ -108,12 +108,12 @@ func playbackMultiModuleOverlayPreservesOneSessionThenReopensFresh() async throw
 func playbackMultiModuleStopCancelsSessionWorkButPreservesFeatureStores() async throws {
     let fixture = playbackMultiModuleFixture()
     let suiteName = "CueSeekerPlaybackMultiModuleStopTests-\(UUID().uuidString)"
-    let userDefaults = try #require(UserDefaults(suiteName: suiteName))
+    let userDefaults = try #require(UserDefaults.temporary(suiteName: suiteName))
     let databaseURL = FileManager.default.temporaryDirectory
         .appendingPathComponent("PlaybackMultiModule-\(UUID().uuidString).sqlite")
     defer {
-        userDefaults.removePersistentDomain(forName: suiteName)
-        try? FileManager.default.removeItem(at: databaseURL)
+        userDefaults.removePersistentDomainAndPlist(forName: suiteName)
+        removeTemporaryDatabase(at: databaseURL)
     }
     _ = NSApplication.shared
     let app = AppCoordinator(

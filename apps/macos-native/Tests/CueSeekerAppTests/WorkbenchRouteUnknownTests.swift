@@ -9,14 +9,12 @@ import Testing
 func historyEntriesReadAsUnknownOnlyOnceTheirStoreKnowsThePageIsGone() throws {
     _ = NSApplication.shared
     let suiteName = "WorkbenchRouteUnknown-\(UUID().uuidString)"
-    let userDefaults = try #require(UserDefaults(suiteName: suiteName))
+    let userDefaults = try #require(UserDefaults.temporary(suiteName: suiteName))
     let databaseURL = FileManager.default.temporaryDirectory
         .appendingPathComponent("\(suiteName).sqlite")
     defer {
-        userDefaults.removePersistentDomain(forName: suiteName)
-        try? FileManager.default.removeItem(at: databaseURL)
-        try? FileManager.default.removeItem(atPath: databaseURL.path + "-wal")
-        try? FileManager.default.removeItem(atPath: databaseURL.path + "-shm")
+        userDefaults.removePersistentDomainAndPlist(forName: suiteName)
+        removeTemporaryDatabase(at: databaseURL)
     }
     let app = AppCoordinator(userDefaults: userDefaults, databaseURL: databaseURL)
 

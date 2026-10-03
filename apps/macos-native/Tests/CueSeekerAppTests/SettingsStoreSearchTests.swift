@@ -456,9 +456,9 @@ private func withTemporarySearchSettingsUserDefaults(
 ) {
     _ = NSApplication.shared
     let suiteName = "CueSeekerSearchSettingsTests-\(UUID().uuidString)"
-    let userDefaults = UserDefaults(suiteName: suiteName)!
+    let userDefaults = UserDefaults.temporary(suiteName: suiteName)!
     defer {
-        userDefaults.removePersistentDomain(forName: suiteName)
+        userDefaults.removePersistentDomainAndPlist(forName: suiteName)
     }
 
     body(userDefaults)

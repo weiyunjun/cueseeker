@@ -11,7 +11,7 @@ func movingLibraryRootGetsNewLibraryIDAndOldPathKeepsTheOriginalID() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
         try? FileManager.default.removeItem(at: container)
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     try FileManager.default.createDirectory(
@@ -40,7 +40,7 @@ func movingLibraryRootGetsNewLibraryIDAndOldPathKeepsTheOriginalID() throws {
 func samePathAlwaysKeepsItsPermanentID() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
     try DatabaseBootstrap.prepare(at: databaseURL)
     let database = try IndexingDatabase(path: databaseURL)
@@ -106,7 +106,7 @@ func movingLibraryFolderCreatesNewVideoSubtitleAndCueIDs() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
         try? FileManager.default.removeItem(at: root)
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     try FileManager.default.createDirectory(
@@ -194,7 +194,7 @@ func userFolderCoverStaysWithItsFolderPath() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
         try? FileManager.default.removeItem(at: root)
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     try FileManager.default.createDirectory(
@@ -273,7 +273,7 @@ func filesReturningToPreviousPathReusePathBoundMediaIDs() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
         try? FileManager.default.removeItem(at: root)
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     try FileManager.default.createDirectory(
@@ -366,7 +366,7 @@ func samePathVideoReplacementKeepsPathBoundPlaybackHistory() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
         try? FileManager.default.removeItem(at: root)
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
@@ -420,7 +420,7 @@ func copiedSubtitleAtDifferentPathReceivesNewSubtitleID() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
         try? FileManager.default.removeItem(at: root)
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
@@ -472,7 +472,7 @@ func sameContentAtDifferentPathGetsNewSubtitleID() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
         try? FileManager.default.removeItem(at: root)
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
@@ -545,7 +545,7 @@ func indexedMediaStoresLibraryIDAndRelativePaths() throws {
     let libraryFolder = FileManager.default.temporaryDirectory
         .appendingPathComponent("CueSeekerIdentityLibrary-\(UUID().uuidString)")
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     let database = try IndexingDatabase(path: databaseURL)
@@ -599,7 +599,7 @@ func reindexPreservesSubtitleIDAndLibraryStateReferencesVideoID() throws {
     let libraryFolder = FileManager.default.temporaryDirectory
         .appendingPathComponent("CueSeekerPermanentState-\(UUID().uuidString)")
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     let database = try IndexingDatabase(path: databaseURL)
@@ -669,7 +669,7 @@ func reindexPreservesSubtitleIDAndLibraryStateReferencesVideoID() throws {
 func upsertsSearchPathAndReturnsStableID() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     let database = try IndexingDatabase(path: databaseURL)
@@ -686,7 +686,7 @@ func upsertsSearchPathAndReturnsStableID() throws {
 func insertingCueGroupsRecordsTheirLineCount() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     let database = try IndexingDatabase(path: databaseURL)
@@ -729,7 +729,7 @@ func insertingCueGroupsRecordsTheirLineCount() throws {
 func replacingEntriesRemovesStaleFTSRows() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     let database = try IndexingDatabase(path: databaseURL)
@@ -779,7 +779,7 @@ func replacingEntriesRemovesStaleFTSRows() throws {
 func removingIndexedFolderDeletesIndexedRowsAndSearchPath() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     let database = try IndexingDatabase(path: databaseURL)
@@ -835,7 +835,7 @@ func removingIndexedFolderDeletesIndexedRowsAndSearchPath() throws {
 func removingIndexedFolderPreservesRetainedDerivedSearchRows() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
         try? FileManager.default.removeItem(atPath: databaseURL.path + "-wal")
         try? FileManager.default.removeItem(atPath: databaseURL.path + "-shm")
     }
@@ -897,7 +897,7 @@ func removingIndexedFolderPreservesRetainedDerivedSearchRows() throws {
 func reconcileIndexedContentClearsAllDataWhenNoFoldersAreActive() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     let database = try IndexingDatabase(path: databaseURL)
@@ -933,7 +933,7 @@ func reconcileIndexedContentClearsAllDataWhenNoFoldersAreActive() throws {
 func reconcileIndexedContentPrunesDataOutsideActiveFolders() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     let database = try IndexingDatabase(path: databaseURL)

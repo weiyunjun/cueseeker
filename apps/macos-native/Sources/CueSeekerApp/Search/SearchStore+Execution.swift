@@ -32,7 +32,6 @@ extension SearchStore {
         languageFilter: SubtitleSearchLanguageFilter,
         watchStateFilter: SubtitleSearchWatchStateFilter,
         databaseIsCompacting: Bool,
-        e2eLoggingEnabled: Bool,
         shouldClearSelectionWhenUnavailable: Bool,
         filterSetOverride: SubtitleSearchFilterSet? = nil,
         probeScope: String? = nil,
@@ -59,12 +58,6 @@ extension SearchStore {
                 activePerformanceRun,
                 "search_superseded_by_new_search"
             )
-            SearchPerformanceLogger.writeE2ESearchPage(
-                activePerformanceRun,
-                event: "search_superseded_by_new_search",
-                page: nil,
-                status: "cancelled"
-            )
         }
         let run = SearchPerformanceLogger.startRun(
             query: trimmedQuery,
@@ -74,8 +67,7 @@ extension SearchStore {
             limit: pageSize,
             appending: appending,
             debounce: debounce,
-            folderPaths: folders.map(\.path),
-            e2eLoggingEnabled: e2eLoggingEnabled
+            folderPaths: folders.map(\.path)
         )
         updateActivePerformanceRun(run)
 
@@ -259,15 +251,6 @@ extension SearchStore {
                         renderedRowCount: self.searchResults.count,
                         status: "searching"
                     )
-                    SearchPerformanceLogger.writeE2ESearchPage(
-                        run,
-                        event: "search_visible_page_loaded",
-                        page: firstPage.page,
-                        databaseSearchMilliseconds: firstPage.databaseSearchMilliseconds,
-                        groupCount: self.searchFileSummaries.count,
-                        renderedRowCount: self.searchResults.count,
-                        status: "searching"
-                    )
                     consumedFirstPage = onFirstPageResolved(firstPage.page.results.first)
                 }
                 let pageLoad = try await withTaskCancellationHandler {
@@ -330,17 +313,6 @@ extension SearchStore {
                     renderedRowCount: self.searchResults.count,
                     status: statusText
                 )
-                SearchPerformanceLogger.writeE2ESearchPage(
-                    run,
-                    event: event,
-                    page: page,
-                    databaseSearchMilliseconds: pageLoad.databaseSearchMilliseconds,
-                    stateAssignMilliseconds: stateAssignMilliseconds,
-                    statusCompletionMilliseconds: statusCompletionMilliseconds,
-                    groupCount: self.searchFileSummaries.count,
-                    renderedRowCount: self.searchResults.count,
-                    status: statusText
-                )
 
                 if !publishedFirstPage {
                     consumedFirstPage = onFirstPageResolved(page.results.first)
@@ -387,15 +359,6 @@ extension SearchStore {
                     status: "failed",
                     error: message
                 )
-                SearchPerformanceLogger.writeE2ESearchPage(
-                    run,
-                    event: "search_failed",
-                    page: nil,
-                    groupCount: self.searchFileSummaries.count,
-                    renderedRowCount: self.searchResults.count,
-                    status: "failed",
-                    error: message
-                )
                 self.clearPerformanceRunIfActive(run)
                 _ = onFirstPageResolved(nil)
             }
@@ -412,7 +375,6 @@ extension SearchStore {
         folders: [URL],
         languageFilter: SubtitleSearchLanguageFilter,
         watchStateFilter: SubtitleSearchWatchStateFilter,
-        e2eLoggingEnabled: Bool,
         onResultsChanged: @escaping @MainActor (UInt64) -> Void
     ) -> Bool {
         guard searchFacetFilter != filter, searchFacetSnapshot != nil else {
@@ -427,8 +389,7 @@ extension SearchStore {
             limit: Self.searchPageSize,
             appending: false,
             debounce: false,
-            folderPaths: folders.map(\.path),
-            e2eLoggingEnabled: e2eLoggingEnabled
+            folderPaths: folders.map(\.path)
         )
         updateActivePerformanceRun(run)
         guard let projection = projectSearchFacetFilter(filter) else {
@@ -460,14 +421,6 @@ extension SearchStore {
                 phaseStart: started,
                 resultCount: loadedSearchResultCueIDs.count,
                 totalCount: searchResultTotalCount,
-                status: "completed"
-            )
-            SearchPerformanceLogger.writeE2ESearchPage(
-                run,
-                event: "search_facet_projection_rows_loaded",
-                page: nil,
-                databaseSearchMilliseconds: SearchPerformanceLogger.elapsedMilliseconds(since: started),
-                renderedRowCount: loadedSearchResultCueIDs.count,
                 status: "completed"
             )
         }
@@ -504,12 +457,6 @@ extension SearchStore {
         onFirstPageResolved: @escaping @MainActor (SubtitleSearchResult?) -> Bool
     ) {
         SearchPerformanceLogger.mark(run, event, status: status)
-        SearchPerformanceLogger.writeE2ESearchPage(
-            run,
-            event: event,
-            page: nil,
-            status: status
-        )
         clearPerformanceRunIfActive(run)
         _ = onFirstPageResolved(nil)
     }
@@ -527,13 +474,6 @@ extension SearchStore {
             status: "failed",
             error: message
         )
-        SearchPerformanceLogger.writeE2ESearchPage(
-            run,
-            event: event,
-            page: nil,
-            status: "failed",
-            error: message
-        )
         clearPerformanceRunIfActive(run)
         _ = onFirstPageResolved(nil)
     }
@@ -545,13 +485,6 @@ extension SearchStore {
         databaseSearchMilliseconds: Double?
     ) {
         SearchPerformanceLogger.mark(run, event)
-        SearchPerformanceLogger.writeE2ESearchPage(
-            run,
-            event: event,
-            page: page,
-            databaseSearchMilliseconds: databaseSearchMilliseconds,
-            status: "cancelled"
-        )
     }
 
     private func clearPerformanceRunIfActive(_ run: SearchPerformanceRun?) {

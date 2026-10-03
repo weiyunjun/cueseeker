@@ -314,13 +314,13 @@ private func withTemporaryNavigationApp(
     _ body: @MainActor (AppCoordinator, IndexingDatabase) throws -> Void
 ) async throws {
     let suiteName = "CueSeekerAppNavigationTests-\(UUID().uuidString)"
-    let userDefaults = try #require(UserDefaults(suiteName: suiteName))
+    let userDefaults = try #require(UserDefaults.temporary(suiteName: suiteName))
     let databaseURL = FileManager.default.temporaryDirectory
         .appendingPathComponent("CueSeekerAppNavigationTests-\(UUID().uuidString)")
         .appendingPathExtension("sqlite")
     defer {
-        userDefaults.removePersistentDomain(forName: suiteName)
-        try? FileManager.default.removeItem(at: databaseURL)
+        userDefaults.removePersistentDomainAndPlist(forName: suiteName)
+        removeTemporaryDatabase(at: databaseURL)
         try? FileManager.default.removeItem(atPath: databaseURL.path + "-wal")
         try? FileManager.default.removeItem(atPath: databaseURL.path + "-shm")
     }

@@ -231,9 +231,9 @@ func workbenchHistoryStepsThroughPagesAndDropsForwardOnNewNavigation() {
 @MainActor
 private func withTemporaryWorkbenchLayoutUserDefaults(_ body: (UserDefaults) -> Void) {
     let suiteName = "CueSeekerWorkbenchLayoutStateTests-\(UUID().uuidString)"
-    let userDefaults = UserDefaults(suiteName: suiteName)!
+    let userDefaults = UserDefaults.temporary(suiteName: suiteName)!
     defer {
-        userDefaults.removePersistentDomain(forName: suiteName)
+        userDefaults.removePersistentDomainAndPlist(forName: suiteName)
     }
 
     body(userDefaults)

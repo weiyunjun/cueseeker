@@ -69,9 +69,9 @@ func changingTheLanguagePublishesOnlyOnTheLocalizationStore() {
 private func withTemporaryLocalizationUserDefaults(_ body: (UserDefaults) -> Void) {
     _ = NSApplication.shared
     let suiteName = "CueSeekerLocalizationTests-\(UUID().uuidString)"
-    let userDefaults = UserDefaults(suiteName: suiteName)!
+    let userDefaults = UserDefaults.temporary(suiteName: suiteName)!
     defer {
-        userDefaults.removePersistentDomain(forName: suiteName)
+        userDefaults.removePersistentDomainAndPlist(forName: suiteName)
     }
 
     body(userDefaults)

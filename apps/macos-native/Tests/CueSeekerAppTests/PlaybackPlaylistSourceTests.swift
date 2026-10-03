@@ -258,7 +258,7 @@ func searchPlaybackPlaylistTracksAndRetainsItsWorkbenchResultRun() throws {
     _ = NSApplication.shared
     let databaseURL = FileManager.default.temporaryDirectory
         .appendingPathComponent("playback-playlist-search-\(UUID().uuidString).sqlite")
-    defer { try? FileManager.default.removeItem(at: databaseURL) }
+    defer { removeTemporaryDatabase(at: databaseURL) }
     let app = AppCoordinator(databaseURL: databaseURL)
     let initialGeneration = app.search.advanceResultListGeneration()
     let initialResults = (0..<2).map { ordinal in
@@ -338,7 +338,7 @@ func searchPlaybackPlaylistUsesTheFilteredResults() throws {
     _ = NSApplication.shared
     let databaseURL = FileManager.default.temporaryDirectory
         .appendingPathComponent("playback-playlist-search-facet-\(UUID().uuidString).sqlite")
-    defer { try? FileManager.default.removeItem(at: databaseURL) }
+    defer { removeTemporaryDatabase(at: databaseURL) }
     let app = AppCoordinator(databaseURL: databaseURL)
     app.search.updateQuery("query")
     app.search.updateSearchFacetFilter(CueFacetFilter(
@@ -394,7 +394,7 @@ func excerptPlaybackPlaylistReadsWorkbenchScopeOrderDirectly() throws {
     _ = NSApplication.shared
     let databaseURL = FileManager.default.temporaryDirectory
         .appendingPathComponent("playback-playlist-excerpt-\(UUID().uuidString).sqlite")
-    defer { try? FileManager.default.removeItem(at: databaseURL) }
+    defer { removeTemporaryDatabase(at: databaseURL) }
     let app = AppCoordinator(databaseURL: databaseURL)
     app.excerptPlaybackNavigationScopeIDs = [9, 3, 7]
     let relations = [9, 3, 7].map {

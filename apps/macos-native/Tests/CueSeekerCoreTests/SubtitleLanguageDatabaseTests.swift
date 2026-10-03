@@ -6,7 +6,7 @@ import Testing
 func persistsSRTLanguageAnalysisWithCueGroupLanguages() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     let database = try IndexingDatabase(path: databaseURL)
@@ -64,7 +64,7 @@ func persistsSRTLanguageAnalysisWithCueGroupLanguages() throws {
 func persistsASSStyleLanguageAnalysisForUsedStylesOnly() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     let database = try IndexingDatabase(path: databaseURL)
@@ -117,7 +117,7 @@ func persistsASSStyleLanguageAnalysisForUsedStylesOnly() throws {
 func searchLanguageFilterMatchesCueGroupLanguagesOrUnknown() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     let database = try IndexingDatabase(path: databaseURL)
@@ -205,7 +205,7 @@ func searchLanguageFilterMatchesCueGroupLanguagesOrUnknown() throws {
 func searchResultsExposeCueGroupLanguages() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     let database = try IndexingDatabase(path: databaseURL)
@@ -260,7 +260,7 @@ func searchResultsExposeCueGroupLanguages() throws {
 func searchLanguageFilterAppliesToMatchingLinesBeforeMergedDisplayGroups() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     let database = try IndexingDatabase(path: databaseURL)
@@ -361,7 +361,7 @@ func searchLanguageFilterAppliesToMatchingLinesBeforeMergedDisplayGroups() throw
 func searchLanguageFilterTreatsMissingLanguageRowsAsUnknown() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     let database = try IndexingDatabase(path: databaseURL)
@@ -386,7 +386,7 @@ func searchLanguageFilterTreatsMissingLanguageRowsAsUnknown() throws {
 func searchFilterSetMatchesLanguageCollectionValues() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     let database = try IndexingDatabase(path: databaseURL)

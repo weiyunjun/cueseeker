@@ -823,7 +823,7 @@ private final class CueGroupRefreshScopeMountedHarness {
         uiProbeScope: String
     ) throws {
         suiteName = "CueGroupRefreshScopeTests-\(UUID().uuidString)"
-        userDefaults = try #require(UserDefaults(suiteName: suiteName))
+        userDefaults = try #require(UserDefaults.temporary(suiteName: suiteName))
         root = FileManager.default.temporaryDirectory
             .appendingPathComponent(
                 "CueGroupRefreshScopeTests-\(UUID().uuidString)",
@@ -941,6 +941,8 @@ private final class CueGroupRefreshScopeMountedHarness {
         app?.stopPlayback()
         coordinator?.quiesceForTesting()
         window?.orderOut(nil)
+        try? FileManager.default.removeItem(at: root)
+        userDefaults.removePersistentDomainAndPlist(forName: suiteName)
         CueGroupRefreshScopeHarnessRetention.retain(self)
     }
 }

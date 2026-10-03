@@ -9,14 +9,14 @@ import Testing
 func selectedTextSearchUsesPersistedFilterAndReusesAnOpenCommandPanel() throws {
     _ = NSApplication.shared
     let suiteName = "PlaybackSelectedTextSearch-\(UUID().uuidString)"
-    let userDefaults = try #require(UserDefaults(suiteName: suiteName))
+    let userDefaults = try #require(UserDefaults.temporary(suiteName: suiteName))
     let databaseURL = FileManager.default.temporaryDirectory
         .appendingPathComponent(
             "playback-selected-text-search-\(UUID().uuidString).sqlite"
         )
     defer {
-        userDefaults.removePersistentDomain(forName: suiteName)
-        try? FileManager.default.removeItem(at: databaseURL)
+        userDefaults.removePersistentDomainAndPlist(forName: suiteName)
+        removeTemporaryDatabase(at: databaseURL)
     }
     let persistedFilter = CueFacetFilter(languages: [.japanese])
     SettingsStore(userDefaults: userDefaults).searchFacetFilter = persistedFilter
@@ -90,7 +90,7 @@ func playbackCommandPanelSearchPersistsWorkbenchFacetResultsAfterDismissal()
         .appendingPathComponent(
             "playback-formal-search-filter-\(UUID().uuidString).sqlite"
         )
-    defer { try? FileManager.default.removeItem(at: databaseURL) }
+    defer { removeTemporaryDatabase(at: databaseURL) }
     let app = AppCoordinator(databaseURL: databaseURL)
     let facetFilter = CueFacetFilter(
         durations: [.underOneSecond]
@@ -182,14 +182,14 @@ private func playbackSharedSearchResult(
 func commandPanelPointerSelectionMovesTheRootHighlightWithinBounds() throws {
     _ = NSApplication.shared
     let suiteName = "PlaybackCommandPanelPointerSelection-\(UUID().uuidString)"
-    let userDefaults = try #require(UserDefaults(suiteName: suiteName))
+    let userDefaults = try #require(UserDefaults.temporary(suiteName: suiteName))
     let databaseURL = FileManager.default.temporaryDirectory
         .appendingPathComponent(
             "playback-command-panel-pointer-\(UUID().uuidString).sqlite"
         )
     defer {
-        userDefaults.removePersistentDomain(forName: suiteName)
-        try? FileManager.default.removeItem(at: databaseURL)
+        userDefaults.removePersistentDomainAndPlist(forName: suiteName)
+        removeTemporaryDatabase(at: databaseURL)
     }
     let app = AppCoordinator(
         userDefaults: userDefaults,

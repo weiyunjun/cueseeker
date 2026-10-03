@@ -1472,7 +1472,7 @@ private func withKeyboardActionApp(
     _ body: (AppCoordinator, IndexingDatabase) async throws -> Void
 ) async throws {
     let suiteName = "CueSeekerSubtitleFocusKeyboardActionTests-\(UUID().uuidString)"
-    let userDefaults = try #require(UserDefaults(suiteName: suiteName))
+    let userDefaults = try #require(UserDefaults.temporary(suiteName: suiteName))
     let fixtureRoot = FileManager.default.temporaryDirectory
         .appendingPathComponent(
             "CueSeekerSubtitleFocusKeyboardActionTests-\(UUID().uuidString)",
@@ -1480,7 +1480,7 @@ private func withKeyboardActionApp(
         )
     let databaseURL = fixtureRoot.appendingPathComponent("keyboard-actions.sqlite")
     defer {
-        userDefaults.removePersistentDomain(forName: suiteName)
+        userDefaults.removePersistentDomainAndPlist(forName: suiteName)
         try? FileManager.default.removeItem(at: fixtureRoot)
     }
     try FileManager.default.createDirectory(

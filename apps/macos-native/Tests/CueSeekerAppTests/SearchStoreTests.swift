@@ -108,11 +108,11 @@ func folderScopeChangeRejectsStaleNavigationAcrossABA() async {
 @Test
 func addingEmptyFolderLeavesActiveSearchAlone() async throws {
     let suiteName = "CueSeekerEmptyFolderSearchLifecycleTests-\(UUID().uuidString)"
-    let userDefaults = try #require(UserDefaults(suiteName: suiteName))
+    let userDefaults = try #require(UserDefaults.temporary(suiteName: suiteName))
     let testRoot = FileManager.default.temporaryDirectory
         .appendingPathComponent(suiteName, isDirectory: true)
     defer {
-        userDefaults.removePersistentDomain(forName: suiteName)
+        userDefaults.removePersistentDomainAndPlist(forName: suiteName)
         try? FileManager.default.removeItem(at: testRoot)
     }
 
@@ -171,11 +171,11 @@ func addingEmptyFolderLeavesActiveSearchAlone() async throws {
 @Test
 func failedFolderAdditionLeavesActiveSearchAlone() async throws {
     let suiteName = "CueSeekerFailedFolderSearchLifecycleTests-\(UUID().uuidString)"
-    let userDefaults = try #require(UserDefaults(suiteName: suiteName))
+    let userDefaults = try #require(UserDefaults.temporary(suiteName: suiteName))
     let testRoot = FileManager.default.temporaryDirectory
         .appendingPathComponent(suiteName, isDirectory: true)
     defer {
-        userDefaults.removePersistentDomain(forName: suiteName)
+        userDefaults.removePersistentDomainAndPlist(forName: suiteName)
         try? FileManager.default.removeItem(at: testRoot)
     }
 
@@ -292,7 +292,7 @@ func resultStateCommitPublishesOneCoherentRevision() {
 @Test
 func liveSearchUsesLatestInputAndClearsWithoutSubmit() async throws {
     let suiteName = "CueSeekerLiveSearchInputTests-\(UUID().uuidString)"
-    let userDefaults = try #require(UserDefaults(suiteName: suiteName))
+    let userDefaults = try #require(UserDefaults.temporary(suiteName: suiteName))
     let fixtureRoot = FileManager.default.temporaryDirectory
         .appendingPathComponent("CueSeekerLiveSearchInputTests-\(UUID().uuidString)", isDirectory: true)
     let databaseURL = fixtureRoot.appendingPathComponent("CueSeeker.sqlite")
@@ -305,7 +305,7 @@ func liveSearchUsesLatestInputAndClearsWithoutSubmit() async throws {
     let app = AppCoordinator(userDefaults: userDefaults, databaseURL: databaseURL)
     defer {
         app.search.searchTask?.cancel()
-        userDefaults.removePersistentDomain(forName: suiteName)
+        userDefaults.removePersistentDomainAndPlist(forName: suiteName)
         try? FileManager.default.removeItem(at: fixtureRoot)
     }
 
@@ -693,7 +693,7 @@ func filterChangeAfterATwoCardSearchIsProjectedOverEveryMatch() {
 @Test
 func searchFacetWatchDistributionRefreshesAfterLibraryHistoryPublication() async throws {
     let suiteName = "CueSeekerWatchStateSearchRefreshTests-\(UUID().uuidString)"
-    let userDefaults = try #require(UserDefaults(suiteName: suiteName))
+    let userDefaults = try #require(UserDefaults.temporary(suiteName: suiteName))
     let fixtureRoot = FileManager.default.temporaryDirectory
         .appendingPathComponent(
             "CueSeekerWatchStateSearchRefreshTests-\(UUID().uuidString)",
@@ -709,7 +709,7 @@ func searchFacetWatchDistributionRefreshesAfterLibraryHistoryPublication() async
     let app = AppCoordinator(userDefaults: userDefaults, databaseURL: databaseURL)
     defer {
         app.search.searchTask?.cancel()
-        userDefaults.removePersistentDomain(forName: suiteName)
+        userDefaults.removePersistentDomainAndPlist(forName: suiteName)
         try? FileManager.default.removeItem(at: fixtureRoot)
     }
 
@@ -756,12 +756,12 @@ func searchFacetWatchDistributionRefreshesAfterLibraryHistoryPublication() async
 @Test
 func allCuePageUpdatesSearchNavigationState() throws {
     let suiteName = "CueSeekerTableSandboxSearchContextTests-\(UUID().uuidString)"
-    let userDefaults = try #require(UserDefaults(suiteName: suiteName))
+    let userDefaults = try #require(UserDefaults.temporary(suiteName: suiteName))
     let databaseURL = FileManager.default.temporaryDirectory
         .appendingPathComponent("CueSeekerTableSandboxSearchContextTests-\(UUID().uuidString).sqlite")
     defer {
-        userDefaults.removePersistentDomain(forName: suiteName)
-        try? FileManager.default.removeItem(at: databaseURL)
+        userDefaults.removePersistentDomainAndPlist(forName: suiteName)
+        removeTemporaryDatabase(at: databaseURL)
         try? FileManager.default.removeItem(atPath: databaseURL.path + "-wal")
         try? FileManager.default.removeItem(atPath: databaseURL.path + "-shm")
     }
@@ -841,13 +841,13 @@ func workbenchSearchTextCopyBoundaryRequiresExactCountAndCompleteCueIDs() {
 @Test
 func tableSandboxSearchRowsUseCurrentCueIDsForDistantRanges() async throws {
     let suiteName = "CueSeekerTableSandboxSearchIDTests-\(UUID().uuidString)"
-    let userDefaults = try #require(UserDefaults(suiteName: suiteName))
+    let userDefaults = try #require(UserDefaults.temporary(suiteName: suiteName))
     let fixtureRoot = FileManager.default.temporaryDirectory
         .appendingPathComponent("CueSeekerTableSandboxSearchIDTests-\(UUID().uuidString)", isDirectory: true)
     let databaseURL = fixtureRoot
         .appendingPathComponent("CueSeekerTableSandboxSearchIDTests.sqlite")
     defer {
-        userDefaults.removePersistentDomain(forName: suiteName)
+        userDefaults.removePersistentDomainAndPlist(forName: suiteName)
         try? FileManager.default.removeItem(at: fixtureRoot)
     }
 
@@ -934,13 +934,13 @@ func tableSandboxSearchRowsUseCurrentCueIDsForDistantRanges() async throws {
 @Test
 func emptyQuerySearchNavigationSnapshotLoadsAllCueWindowForPlayback() async throws {
     let suiteName = "CueSeekerAllCueSearchNavigationTests-\(UUID().uuidString)"
-    let userDefaults = try #require(UserDefaults(suiteName: suiteName))
+    let userDefaults = try #require(UserDefaults.temporary(suiteName: suiteName))
     let fixtureRoot = FileManager.default.temporaryDirectory
         .appendingPathComponent("CueSeekerAllCueSearchNavigationTests-\(UUID().uuidString)", isDirectory: true)
     let databaseURL = fixtureRoot
         .appendingPathComponent("CueSeekerAllCueSearchNavigationTests.sqlite")
     defer {
-        userDefaults.removePersistentDomain(forName: suiteName)
+        userDefaults.removePersistentDomainAndPlist(forName: suiteName)
         try? FileManager.default.removeItem(at: fixtureRoot)
     }
 
@@ -1014,12 +1014,12 @@ func emptyQuerySearchNavigationSnapshotLoadsAllCueWindowForPlayback() async thro
 @Test
 func openingSearchResultUpdatesNavigationStateImmediately() throws {
     let suiteName = "CueSeekerSearchPlaybackNavigationStateTests-\(UUID().uuidString)"
-    let userDefaults = try #require(UserDefaults(suiteName: suiteName))
+    let userDefaults = try #require(UserDefaults.temporary(suiteName: suiteName))
     let databaseURL = FileManager.default.temporaryDirectory
         .appendingPathComponent("CueSeekerSearchPlaybackNavigationStateTests-\(UUID().uuidString).sqlite")
     defer {
-        userDefaults.removePersistentDomain(forName: suiteName)
-        try? FileManager.default.removeItem(at: databaseURL)
+        userDefaults.removePersistentDomainAndPlist(forName: suiteName)
+        removeTemporaryDatabase(at: databaseURL)
         try? FileManager.default.removeItem(atPath: databaseURL.path + "-wal")
         try? FileManager.default.removeItem(atPath: databaseURL.path + "-shm")
     }
@@ -1207,7 +1207,7 @@ private func makeSearchResults() throws -> [SubtitleSearchResult] {
     let databaseURL = FileManager.default.temporaryDirectory
         .appendingPathComponent("CueSeekerSearchStoreTests-\(UUID().uuidString).sqlite")
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     try DatabaseBootstrap.prepare(at: databaseURL)
@@ -1274,13 +1274,13 @@ private func makeTableSandboxSearchResult(
 @Test
 func exactCompletionInstallsTheReportedRowsAndThePageTailInOneChange() throws {
     let suiteName = "CueSeekerSearchCountProgressIncrementTests-\(UUID().uuidString)"
-    let userDefaults = try #require(UserDefaults(suiteName: suiteName))
+    let userDefaults = try #require(UserDefaults.temporary(suiteName: suiteName))
     let fixtureRoot = FileManager.default.temporaryDirectory
         .appendingPathComponent("CueSeekerSearchCountProgressIncrementTests-\(UUID().uuidString)", isDirectory: true)
     let databaseURL = fixtureRoot
         .appendingPathComponent("CueSeekerSearchCountProgressIncrementTests.sqlite")
     defer {
-        userDefaults.removePersistentDomain(forName: suiteName)
+        userDefaults.removePersistentDomainAndPlist(forName: suiteName)
         try? FileManager.default.removeItem(at: fixtureRoot)
     }
 
@@ -1360,7 +1360,7 @@ func filteredSearchCompletesItsResultAndEveryOptionCountFromOneScan() async thro
     let databaseURL = FileManager.default.temporaryDirectory
         .appendingPathComponent("search-store-facet-counts-\(UUID().uuidString).sqlite")
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
     try DatabaseBootstrap.prepare(at: databaseURL)
     let indexing = try IndexingDatabase(path: databaseURL)
@@ -1395,7 +1395,6 @@ func filteredSearchCompletesItsResultAndEveryOptionCountFromOneScan() async thro
         languageFilter: .all,
         watchStateFilter: .all,
         databaseIsCompacting: false,
-        e2eLoggingEnabled: false,
         shouldClearSelectionWhenUnavailable: false,
         isContextCurrent: { true },
         onResultsChanged: { _ in },
@@ -1427,7 +1426,6 @@ func filteredSearchCompletesItsResultAndEveryOptionCountFromOneScan() async thro
         folders: [folder],
         languageFilter: .all,
         watchStateFilter: .all,
-        e2eLoggingEnabled: false,
         onResultsChanged: { _ in }
     )
     #expect(didProjectAll)
@@ -1448,7 +1446,6 @@ func filteredSearchCompletesItsResultAndEveryOptionCountFromOneScan() async thro
         folders: [folder],
         languageFilter: .all,
         watchStateFilter: .all,
-        e2eLoggingEnabled: false,
         onResultsChanged: { _ in }
     )
     #expect(didProjectLong)
@@ -1469,7 +1466,6 @@ func filteredSearchCompletesItsResultAndEveryOptionCountFromOneScan() async thro
         languageFilter: .all,
         watchStateFilter: .all,
         databaseIsCompacting: false,
-        e2eLoggingEnabled: false,
         shouldClearSelectionWhenUnavailable: false,
         isContextCurrent: { true },
         onResultsChanged: { _ in },
@@ -1483,7 +1479,6 @@ func filteredSearchCompletesItsResultAndEveryOptionCountFromOneScan() async thro
         folders: [folder],
         languageFilter: .all,
         watchStateFilter: .all,
-        e2eLoggingEnabled: false,
         onResultsChanged: { _ in }
     )
     #expect(didProjectTwoCards)
@@ -1503,7 +1498,7 @@ func searchHandsTheTableItsFirstPageAndThenTheRestFromOneScan() async throws {
     let databaseURL = FileManager.default.temporaryDirectory
         .appendingPathComponent("search-store-first-page-\(UUID().uuidString).sqlite")
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
     try DatabaseBootstrap.prepare(at: databaseURL)
     let indexing = try IndexingDatabase(path: databaseURL)
@@ -1542,7 +1537,6 @@ func searchHandsTheTableItsFirstPageAndThenTheRestFromOneScan() async throws {
         languageFilter: .all,
         watchStateFilter: .all,
         databaseIsCompacting: false,
-        e2eLoggingEnabled: false,
         shouldClearSelectionWhenUnavailable: false,
         isContextCurrent: { true },
         onResultsChanged: { _ in },

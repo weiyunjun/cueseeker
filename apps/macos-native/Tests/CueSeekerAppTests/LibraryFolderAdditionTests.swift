@@ -249,7 +249,7 @@ private struct LibraryFolderAdditionFixture {
     @MainActor
     init() throws {
         suiteName = "CueSeekerLibraryFolderAdditionTests-\(UUID().uuidString)"
-        userDefaults = try #require(UserDefaults(suiteName: suiteName))
+        userDefaults = try #require(UserDefaults.temporary(suiteName: suiteName))
         container = FileManager.default.temporaryDirectory
             .appendingPathComponent(suiteName, isDirectory: true)
         databaseURL = container.appendingPathComponent("CueSeeker.sqlite")
@@ -282,7 +282,7 @@ private struct LibraryFolderAdditionFixture {
     }
 
     func cleanUp() {
-        userDefaults.removePersistentDomain(forName: suiteName)
+        userDefaults.removePersistentDomainAndPlist(forName: suiteName)
         try? FileManager.default.removeItem(at: container)
     }
 

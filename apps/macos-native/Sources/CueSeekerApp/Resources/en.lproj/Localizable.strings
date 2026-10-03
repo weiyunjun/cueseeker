@@ -453,8 +453,6 @@
 
 /* Settings: Developer */
 "settings.developer.description" = "Configure local diagnostics used during development.";
-"settings.developer.e2e_logs" = "Search E2E JSON Logs";
-"settings.developer.e2e_logs_note" = "Record each Search run as JSONL under logs/search-e2e/.";
 "settings.developer.fts_diagnostics" = "FTS Vocabulary Diagnostics";
 "settings.developer.fts_diagnostics_note" = "Enable fts5vocab diagnostics for local developer tools.";
 "settings.developer.fts_data" = "FTS Vocabulary Data";

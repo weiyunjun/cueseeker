@@ -28,7 +28,7 @@ private let cueTombstoneFixtureSchemaSQL = """
 func migratesFreshDatabaseToCurrentSchemaVersion() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     try DatabaseBootstrap.prepare(at: databaseURL)
@@ -40,7 +40,7 @@ func migratesFreshDatabaseToCurrentSchemaVersion() throws {
 func currentSchemaValidationDoesNotMutateStoredData() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     try DatabaseBootstrap.prepare(at: databaseURL)
@@ -58,7 +58,7 @@ func currentSchemaValidationDoesNotMutateStoredData() throws {
 func migratesSchema41DanglingExcerptToProtectedTombstone() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     try DatabaseBootstrap.prepare(at: databaseURL)
@@ -104,7 +104,7 @@ func migratesSchema41DanglingExcerptToProtectedTombstone() throws {
 func migratesSchema46ByRenamingShioriTablesToExcerptTables() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     try DatabaseBootstrap.prepare(at: databaseURL)
@@ -168,7 +168,7 @@ func migratesSchema46ByRenamingShioriTablesToExcerptTables() throws {
 func migratesSchema33ExcerptListMetadataWithoutDroppingTheList() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     try executeDatabaseTestSQLite(
@@ -293,7 +293,7 @@ func rejectsNewerSchemaWithoutChangingVersion() throws {
 func readOnlyConnectionDoesNotCreateMissingDatabase() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     #expect(throws: (any Error).self) {
@@ -306,7 +306,7 @@ func readOnlyConnectionDoesNotCreateMissingDatabase() throws {
 func readOnlyConnectionRejectsWrites() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     try DatabaseBootstrap.prepare(at: databaseURL)
@@ -322,7 +322,7 @@ func readOnlyConnectionRejectsWrites() throws {
 func freshSchemaOmitsLegacyPlaybackNavigationTables() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     try DatabaseBootstrap.prepare(at: databaseURL)
@@ -349,7 +349,7 @@ func freshSchemaOmitsLegacyPlaybackNavigationTables() throws {
 func migratesSchema38ByDroppingOnlySpeakerAndAICacheStorage() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
     try executeDatabaseTestSQLite(
         at: databaseURL,
@@ -429,7 +429,7 @@ func migratesSchema38ByDroppingOnlySpeakerAndAICacheStorage() throws {
 func permanentIdentitySchemaIncludesLibraryRelativePathsAndIDReferences() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     try DatabaseBootstrap.prepare(at: databaseURL)
@@ -496,7 +496,7 @@ func permanentIdentitySchemaIncludesLibraryRelativePathsAndIDReferences() throws
 func migratesSchema37RecentExcerptStateWithoutDroppingLists() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
     try executeDatabaseTestSQLite(
         at: databaseURL,
@@ -547,7 +547,7 @@ func migratesSchema36AuxiliaryRetryStateAndUnavailableReasons()
 {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
     try executeDatabaseTestSQLite(
         at: databaseURL,
@@ -647,7 +647,7 @@ func migratesSchema36AuxiliaryRetryStateAndUnavailableReasons()
 func migratesSchema34IdentityFoundationWithoutLosingExcerptsAndRemovesTags() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     try executeDatabaseTestSQLite(
@@ -780,7 +780,7 @@ func migratesSchema34IdentityFoundationWithoutLosingExcerptsAndRemovesTags() thr
 func sqliteConnectionsUseBusyTimeoutAndWALMode() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     try DatabaseBootstrap.prepare(at: databaseURL)
@@ -797,7 +797,7 @@ func sqliteConnectionsUseBusyTimeoutAndWALMode() throws {
 func freshSchemaCreatesExcerptTablePerformanceIndexes() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     try DatabaseBootstrap.prepare(at: databaseURL)
@@ -810,7 +810,7 @@ func freshSchemaCreatesExcerptTablePerformanceIndexes() throws {
 func freshSchemaOmitsShioriTagTablesAndIndexes() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     try DatabaseBootstrap.prepare(at: databaseURL)
@@ -878,7 +878,7 @@ let identityEraFixtureSchemaSQL = """
 func migratesSchema47ByEncodingFTSRowIDsByFileAndTime() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     try DatabaseBootstrap.prepare(at: databaseURL)
@@ -965,7 +965,7 @@ func migratesSchema47ByEncodingFTSRowIDsByFileAndTime() throws {
 func migratesSchema48ByStoringTheLanguageOfEveryCueLine() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     try DatabaseBootstrap.prepare(at: databaseURL)
@@ -1039,7 +1039,7 @@ func migratesSchema48ByStoringTheLanguageOfEveryCueLine() throws {
 func migratesSchema49ByCountingTheCuesOfEveryFolder() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     try DatabaseBootstrap.prepare(at: databaseURL)
@@ -1082,7 +1082,7 @@ func migratesSchema49ByCountingTheCuesOfEveryFolder() throws {
 func migratesSchema50ByAddingAudioTrackColumnsWithoutTouchingVideos() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     try DatabaseBootstrap.prepare(at: databaseURL)
@@ -1117,7 +1117,7 @@ func migratesSchema50ByAddingAudioTrackColumnsWithoutTouchingVideos() throws {
 func migratesSchema51ByAddingTheDefaultSubtitleColumnWithoutTouchingVideos() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     try DatabaseBootstrap.prepare(at: databaseURL)

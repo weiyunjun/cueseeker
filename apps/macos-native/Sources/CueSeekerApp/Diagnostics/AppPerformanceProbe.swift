@@ -464,7 +464,9 @@ enum AppPerformanceProbe {
             sequence
         )
 
-        return AppLogDirectory.fileURL(in: "main-thread-samples", filename: filename)
+        return FileManager.default.temporaryDirectory
+            .appendingPathComponent("CueSeeker-main-thread-samples", isDirectory: true)
+            .appendingPathComponent(filename)
     }
 
     private static func sampleTimestamp() -> String {

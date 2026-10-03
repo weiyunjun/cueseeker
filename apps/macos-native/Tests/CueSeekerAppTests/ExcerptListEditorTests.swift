@@ -51,7 +51,7 @@ func excerptListEditorTracksDirtyStateAndExactValidationMessages() {
 @Test
 func appCoordinatorCreatesEditsAndDeletesExcerptListsFromEditorSessions() async throws {
     let suiteName = "CueSeekerExcerptListEditorTests-\(UUID().uuidString)"
-    let userDefaults = try #require(UserDefaults(suiteName: suiteName))
+    let userDefaults = try #require(UserDefaults.temporary(suiteName: suiteName))
     let directory = FileManager.default.temporaryDirectory
         .appendingPathComponent(
             "CueSeekerExcerptListEditorTests-\(UUID().uuidString)",
@@ -59,7 +59,7 @@ func appCoordinatorCreatesEditsAndDeletesExcerptListsFromEditorSessions() async 
         )
     let databaseURL = directory.appendingPathComponent("CueSeeker.sqlite")
     defer {
-        userDefaults.removePersistentDomain(forName: suiteName)
+        userDefaults.removePersistentDomainAndPlist(forName: suiteName)
         try? FileManager.default.removeItem(at: directory)
     }
     try FileManager.default.createDirectory(

@@ -28,7 +28,6 @@ extension AppCoordinator {
             folders: indexing.selectedFolders,
             languageFilter: .all,
             watchStateFilter: .all,
-            e2eLoggingEnabled: settings.searchE2ELoggingEnabled,
             onResultsChanged: { [weak self] generation in
                 self?.refreshSearchPlaybackPlaylistSource(
                     resultListGeneration: generation
@@ -146,7 +145,6 @@ extension AppCoordinator {
             languageFilter: languageFilter,
             watchStateFilter: watchStateFilter,
             databaseIsCompacting: indexing.databaseMaintenanceStatus.isCompacting,
-            e2eLoggingEnabled: settings.searchE2ELoggingEnabled,
             shouldClearSelectionWhenUnavailable:
                 activePlaybackSource != .search || !isPlaybackPageVisible,
             filterSetOverride: filterSetOverride,

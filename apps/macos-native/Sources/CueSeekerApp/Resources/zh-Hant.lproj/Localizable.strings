@@ -453,8 +453,6 @@
 
 /* Settings: Developer */
 "settings.developer.description" = "設定開發期間使用的本機診斷功能。";
-"settings.developer.e2e_logs" = "搜尋 E2E JSON 日誌";
-"settings.developer.e2e_logs_note" = "將每次搜尋執行記錄為 logs/search-e2e/ 下的 JSONL 檔案。";
 "settings.developer.fts_diagnostics" = "FTS 詞表診斷";
 "settings.developer.fts_diagnostics_note" = "為本機開發者工具啟用 fts5vocab 診斷。";
 "settings.developer.fts_data" = "FTS 詞表資料";

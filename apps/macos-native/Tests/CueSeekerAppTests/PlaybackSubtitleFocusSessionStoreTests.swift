@@ -771,7 +771,7 @@ func subtitleFocusOverlayCommitsKeyboardTargetQueuedBeforeMount() throws {
     _ = NSApplication.shared
     let databaseURL = FileManager.default.temporaryDirectory
         .appendingPathComponent("focus-overlay-mount-\(UUID().uuidString).sqlite")
-    defer { try? FileManager.default.removeItem(at: databaseURL) }
+    defer { removeTemporaryDatabase(at: databaseURL) }
     let app = AppCoordinator(databaseURL: databaseURL)
     let session = PlaybackSubtitleFocusSessionStore(
         openSnapshot: focusOpenSnapshot(wasPlaying: false),
@@ -803,13 +803,13 @@ func subtitleFocusOverlayCommitsKeyboardTargetQueuedBeforeMount() throws {
 @Test
 func playbackSourceReplacementReleasesCompleteSubtitleFocusCollection() async throws {
     let suiteName = "CueSeekerSubtitleFocusLifecycleTests-\(UUID().uuidString)"
-    let userDefaults = try #require(UserDefaults(suiteName: suiteName))
+    let userDefaults = try #require(UserDefaults.temporary(suiteName: suiteName))
     let databaseURL = FileManager.default.temporaryDirectory
         .appendingPathComponent("CueSeekerSubtitleFocusLifecycleTests-\(UUID().uuidString)")
         .appendingPathExtension("sqlite")
     defer {
-        userDefaults.removePersistentDomain(forName: suiteName)
-        try? FileManager.default.removeItem(at: databaseURL)
+        userDefaults.removePersistentDomainAndPlist(forName: suiteName)
+        removeTemporaryDatabase(at: databaseURL)
         try? FileManager.default.removeItem(atPath: databaseURL.path + "-wal")
         try? FileManager.default.removeItem(atPath: databaseURL.path + "-shm")
     }

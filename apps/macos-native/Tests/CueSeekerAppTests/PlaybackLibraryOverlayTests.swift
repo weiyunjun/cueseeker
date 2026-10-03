@@ -415,14 +415,14 @@ private func withPlaybackLibraryApp(
     _ body: @MainActor (AppCoordinator) async throws -> Void
 ) async throws {
     let suiteName = "CueSeekerPlaybackLibraryAppTests-\(UUID().uuidString)"
-    let userDefaults = try #require(UserDefaults(suiteName: suiteName))
+    let userDefaults = try #require(UserDefaults.temporary(suiteName: suiteName))
     let directory = FileManager.default.temporaryDirectory.appendingPathComponent(
         "CueSeekerPlaybackLibraryAppTests-\(UUID().uuidString)",
         isDirectory: true
     )
     let databaseURL = directory.appendingPathComponent("library.sqlite")
     defer {
-        userDefaults.removePersistentDomain(forName: suiteName)
+        userDefaults.removePersistentDomainAndPlist(forName: suiteName)
         try? FileManager.default.removeItem(at: directory)
     }
     try FileManager.default.createDirectory(

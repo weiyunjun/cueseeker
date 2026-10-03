@@ -6,7 +6,7 @@ import Testing
 func recentLibraryWatchingRejectsPreCancelledTasks() async throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     try DatabaseBootstrap.prepare(at: databaseURL)
@@ -33,7 +33,7 @@ func recentLibraryWatchingRejectsPreCancelledTasks() async throws {
 func completeLibraryReadersRejectPreCancelledTasks() async throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     try DatabaseBootstrap.prepare(at: databaseURL)
@@ -77,7 +77,7 @@ func completeLibraryReadersRejectPreCancelledTasks() async throws {
 func libraryVideosDeduplicateSortNaturallyAndExposeDuration() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     let database = try IndexingDatabase(path: databaseURL)
@@ -125,7 +125,7 @@ func libraryVideosDeduplicateSortNaturallyAndExposeDuration() throws {
 func libraryCoverEligibleVideosFollowSubtitleMatchesAndLibraryOrder() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     let database = try IndexingDatabase(path: databaseURL)
@@ -188,7 +188,7 @@ func libraryCoverEligibleVideosFollowSubtitleMatchesAndLibraryOrder() throws {
 func libraryCoverRecordsStoreVideoSnapshotAndFolderReference() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     let database = try IndexingDatabase(path: databaseURL)
@@ -264,7 +264,7 @@ func libraryCoverRecordsStoreVideoSnapshotAndFolderReference() throws {
 func userLibraryCoversOverrideIndexCoversWithoutMutatingThem() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     let database = try IndexingDatabase(path: databaseURL)
@@ -396,7 +396,7 @@ func userLibraryCoversOverrideIndexCoversWithoutMutatingThem() throws {
 func libraryPresentationSnapshotStoresReadyDisplayRows() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     let database = try IndexingDatabase(path: databaseURL)
@@ -453,7 +453,7 @@ func libraryPresentationSnapshotStoresReadyDisplayRows() throws {
 func libraryPlaybackHistoryPersistsResumePositionByVideo() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     try DatabaseBootstrap.prepare(at: databaseURL)
@@ -495,7 +495,7 @@ func libraryPlaybackHistoryPersistsResumePositionByVideo() throws {
 func libraryPlaybackHistoryKeepsFinishedStateAfterSeekingBack() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     try DatabaseBootstrap.prepare(at: databaseURL)
@@ -539,7 +539,7 @@ func libraryPlaybackHistoryKeepsFinishedStateAfterSeekingBack() throws {
 func setLibraryWatchStatePreservesPlaybackProgressAndRecentHistory() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     let database = try IndexingDatabase(path: databaseURL)
@@ -618,7 +618,7 @@ func setLibraryWatchStatePreservesPlaybackProgressAndRecentHistory() throws {
 func libraryPlaybackHistoryDoesNotFinishFromResumePositionAlone() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     try DatabaseBootstrap.prepare(at: databaseURL)
@@ -645,7 +645,7 @@ func libraryPlaybackHistoryDoesNotFinishFromResumePositionAlone() throws {
 func recentLibraryWatchingKeepsLatestVideoPerFolderWithinLimit() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     let database = try IndexingDatabase(path: databaseURL)
@@ -721,7 +721,7 @@ func recentLibraryWatchingKeepsLatestVideoPerFolderWithinLimit() throws {
 func recentLibraryWatchingUsesFractionalUpdatedAtWithinSameSecond() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     let database = try IndexingDatabase(path: databaseURL)
@@ -764,7 +764,7 @@ func recentLibraryWatchingUsesFractionalUpdatedAtWithinSameSecond() throws {
 func completeLibraryPresentationBuildsFolderCardsAndContinueTargets() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     let database = try IndexingDatabase(path: databaseURL)
@@ -824,7 +824,7 @@ func completeLibraryPresentationBuildsFolderCardsAndContinueTargets() throws {
 func completeLibraryContinueTargetUsesLatestHistoryThenFallsBackToFirstEpisode() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     let database = try IndexingDatabase(path: databaseURL)
@@ -872,7 +872,7 @@ func completeLibraryContinueTargetUsesLatestHistoryThenFallsBackToFirstEpisode()
 func completeLibraryFolderSummariesAndDetailSplitFolderAndEpisodeData() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     let database = try IndexingDatabase(path: databaseURL)
@@ -955,7 +955,7 @@ func completeLibraryFolderSummariesAndDetailSplitFolderAndEpisodeData() throws {
 func libraryCoverPresentationsNeverFallBackToMasterRendition() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     let database = try IndexingDatabase(path: databaseURL)
@@ -1076,7 +1076,7 @@ func libraryCoverPresentationsNeverFallBackToMasterRendition() throws {
 func removingIndexedFolderForgetsLibraryPlaybackHistory() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     let database = try IndexingDatabase(path: databaseURL)
@@ -1120,7 +1120,7 @@ func removingIndexedFolderForgetsLibraryPlaybackHistory() throws {
 func upsertLibraryPlaybackHistoryRefusesToInsertOrphanRecordForVideoOutsideSearchPaths() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     let database = try IndexingDatabase(path: databaseURL)
@@ -1148,7 +1148,7 @@ func upsertLibraryPlaybackHistoryRefusesToInsertOrphanRecordForVideoOutsideSearc
 func videoAudioTracksKeepTheRecordedListAndTheDefaultTrackAsSet() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {
-        try? FileManager.default.removeItem(at: databaseURL)
+        removeTemporaryDatabase(at: databaseURL)
     }
 
     let database = try IndexingDatabase(path: databaseURL)
