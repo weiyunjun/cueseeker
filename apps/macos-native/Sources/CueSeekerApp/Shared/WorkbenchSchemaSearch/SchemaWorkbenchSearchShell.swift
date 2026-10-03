@@ -384,6 +384,6 @@ struct SchemaWorkbenchSearchToolbar: View {
             .accessibilityLabel(isSelectionMode ? L("table.exit_select") : L("table.select"))
             .disabled(!isSelectionMode && !canEnterSelectionMode)
         }
-        .frame(height: WorkbenchControlMetrics.redesignHeight)
+        .frame(height: WorkbenchControlMetrics.redesignSearchHeight)
     }
 }

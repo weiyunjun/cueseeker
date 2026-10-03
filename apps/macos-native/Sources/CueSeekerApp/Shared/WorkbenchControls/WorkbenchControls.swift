@@ -11,8 +11,8 @@ enum WorkbenchControlMetrics {
     // ==========================================
     // Redesign Tokens (对接新的 Token 规范)
     // ==========================================
-    /// --height-control / --height-filter-bar-control: 40px
-    static let redesignHeight: CGFloat = 40
+    /// --height-control: 32px
+    static let redesignHeight: CGFloat = 32
     /// --radius-control: 8px
     static let redesignCornerRadius: CGFloat = 8
     /// --height-field: 40px

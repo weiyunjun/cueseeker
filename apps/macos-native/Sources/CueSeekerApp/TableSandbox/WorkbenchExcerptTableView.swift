@@ -264,7 +264,7 @@ private struct WorkbenchExcerptTableContent: View {
                     + WorkbenchControlMetrics.redesignCoverSummaryToolbarGap
             },
             pinnedHeaderHeight:
-                WorkbenchControlMetrics.redesignHeight
+                WorkbenchControlMetrics.redesignSearchHeight
                 + WorkbenchControlMetrics.redesignSpacing3,
             leadingInset:
                 WorkbenchControlMetrics.redesignWorkbenchPageHorizontalPadding,

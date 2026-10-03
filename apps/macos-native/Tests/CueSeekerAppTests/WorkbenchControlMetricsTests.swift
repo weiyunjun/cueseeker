@@ -101,3 +101,8 @@ func cardIconContainerMetricsMatchDesignSpecification() {
     #expect(WorkbenchControlMetrics.redesignCardTrailingIconButtonTopOffset == 2)
 }
 
+@Test
+func buttonHeightMatchesDesignSpecification() {
+    #expect(WorkbenchControlMetrics.redesignHeight == 32)
+}
+
