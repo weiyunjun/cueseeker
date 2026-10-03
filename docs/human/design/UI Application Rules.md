@@ -101,7 +101,7 @@ Toast、播放反馈与播放页报错条只有视觉，不接受输入，落在
 ## 规则解释
 1. 规则1和规则2描述了：鼠标移动。这意味着除非其他规则影响，否则鼠标自身位置没有变化的情况下，不会主动改变鼠标样式。之所以这么设置，是出于防止鼠标hover和键盘操作冲突的考虑。注意只是滚动鼠标滚轮或按下鼠标左键不会改变鼠标样式。
 2. 规则优先级：规则5 > 规则4 > 规则3 > 规则2 = 规则1。 下面会描述。注意这些规则，优先级会低于鼠标位置变化。也就是说，当鼠标移动和5条中的若干条规则发生冲突，会优先判断鼠标移动带来的影响。
-3. 规则3界面切换补充说明：Sidebar标签切换；顶栏后退/前进；Recent的Recent Videos/Recent Excerpt Lists之间切换；Library一级界面和Library二级界面的Video/Metadata之间切换；Library一级界面/二级界面切换；File各级界面切换；Excerpt一级界面/二级界面切换；进入/退出播放页；进入/退出Playback Overlay；Playback Overlay界面中切换Current/Playlist/Collage；Command Panel 开关及页面切换。
+3. 规则3界面切换补充说明：Sidebar标签切换；顶栏后退/前进；Recent的Recent Videos/Recent Excerpt Lists之间切换；Library一级界面/二级界面切换；File各级界面切换；Excerpt一级界面/二级界面切换；进入/退出播放页；进入/退出Playback Overlay；Playback Overlay界面中切换Current/Playlist/Collage；Command Panel 开关及页面切换。
 
 ## 具体场景解释
 为了帮助理解，描述几个具体场景：

@@ -3034,8 +3034,8 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 #### Page Title
 
 - 一级页：Search、Recent、Library、File、Excerpt
-- 二级页：None
-- 页面已不存在：`Unknown Page`
+- 二级页：Library 二级页显示 `Library`，Excerpt 二级页显示 `Excerpt`，其它二级页为 None
+- 页面已不存在：顶栏保持所属业务页面标题（如 Library、Excerpt）
 - 宽度：Back、Forward 与 Trailing Function Region 之外的剩余宽度，不足时尾部截断
 
 #### States
@@ -3312,7 +3312,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 #### Layout
 
 - Page Layout：Workbench Titled Page Layout
-- Tabs 左对齐，首个标签与页面内容左边界对齐。
+- Tabs 水平居中显示。
 - 默认 Tab：Recent Videos。Tab 选择在 App 运行期间保留，重新启动后回到默认。
 
 #### Sizes
@@ -3358,33 +3358,18 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 
 #### Structure
 
-1. Summary Row
-2. Tabs：`Video`、`Metadata`
-3. Video：Adaptive Folder Card Grid
-4. Metadata：Library File Tree Layout / Roots
+1. Adaptive Folder Card Grid
 
 #### Components
 
-- Section Title
-- Button / Primary
-- Tabs
-- Tab
 - Library Folder Card Layout
-- Library File Tree Layout
 
 #### Layout
 
 - Page Layout：Workbench Titled Page Layout
-- Tabs 左对齐，首个标签与页面内容左边界对齐。
-- 默认 Tab：Video。
-- Summary Row 与 Button / Primary 在两个 Tab 下都显示。
 
 #### Sizes
 
-- Summary to Tabs Gap：`--spacing-4`
-- Tabs to Content Gap：`--spacing-4`
-- Summary Height：`--height-control`
-- Summary Item Gap：`--spacing-3`
 - Card Width：`--width-library-recent-card-min` to `--width-library-recent-card-max`
 - Grid Gap：`--gap-library-recent-grid`
 
@@ -3417,34 +3402,25 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 #### Structure
 
 1. Cover Summary
-2. Tabs：`Video`、`Metadata`
-3. Video：Episode Grid
-4. Metadata：Library File Tree Layout / Folder
+2. Episode Grid
 
 #### Components
 
 - Cover Summary / Library Variant
-- Tabs
-- Tab
 - Library Episode Grid Layout
-- Library File Tree Layout
 
 #### Layout
 
 - Content Page Padding Inline 与 Excerpt List Detail 相同。
 - Cover Summary 与 Episode Grid 使用相同宽度和水平边界。
 - Cover Summary 宽度跟随页面可用宽度变化，并在 Split Form 与 Backdrop Form 之间切换。
-- Tabs 左对齐，首个标签与页面内容左边界对齐。
-- 默认 Tab：Video。
-- Cover Summary 在两个 Tab 下都显示。
 
 #### Spacing
 
 - Content Page Padding Inline：`--spacing-8`
 - Content Page Padding Top：`--spacing-1`
 - Content Page Padding Bottom：`--spacing-6`
-- Cover Summary to Tabs Gap：`--spacing-6`
-- Tabs to Content Gap：`--spacing-4`
+- Cover Summary to Episode Grid Gap：`--spacing-6`
 
 #### Scrolling
 
@@ -3471,58 +3447,6 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 
 - Card Width：`--width-library-recent-card-min` to `--width-library-recent-card-max`
 - Grid Gap：`--gap-library-recent-grid`
-
-### Library File Tree Layout
-
-#### Structure / Roots
-
-1. Root Path
-   1. Object Folder
-      1. Display Title Object
-         1. Video File
-         2. Subtitle Files
-
-#### Structure / Folder
-
-1. Object Folder
-   1. Display Title Object
-      1. Video File
-      2. Subtitle Files
-
-#### Labels
-
-- Root Path：Complete Path Without Leading or Trailing `/`
-- Object Folder：Path Relative to Root Without Leading `/`
-- All Labels：Complete Display / Character Wrapping / No Truncation
-
-#### Rows
-
-- Minimum Height：`--height-control`
-- Padding Block：`--spacing-2`
-- Hierarchy Indent：`--spacing-6`
-- Anatomy：Disclosure Slot + `--spacing-2` + Icon + `--spacing-2` + Label
-- Disclosure Slot / Icon Size：`--size-control-icon`
-- Disclosure Slot：Reserved For Every Row
-- Root Path / Object Folder / Display Title：`--font-size-body` / `--font-weight-control` / `--color-text-primary`
-- Video / Subtitle：`--font-size-body` / Regular / `--color-text-secondary`
-- Multiline Alignment：Disclosure and Icon align with Label first line
-
-#### Icons
-
-- Root Path / Object Folder：Folder
-- Display Title：`stack`
-- Video：Video
-- Subtitle：Subtitle
-
-#### States
-
-- Default / Roots：Root Paths Expanded / Object Folders Collapsed
-- Default / Folder：Object Folder Expanded / Display Title Objects Collapsed
-- Display Title / Video / Subtitle：Independent Row Hover using `--color-row-hover`
-- Root Path / Object Folder Hover：None
-- Object Divider：Between Display Title Objects / Starts At File Icon Column / `--color-border-divider`
-- Inside Object Divider：None
-- 展开状态不跨界面保留：进入或离开 Library Folder Detail Layout、离开 Library 页面后都回到默认。
 
 ### File Page Layout
 
