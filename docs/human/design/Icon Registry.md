@@ -99,6 +99,7 @@
 | `copy` | Regular | 复制 | 表格行菜单 / Copy Cue Text、Copy Cue Group Text、Copy Time Range；Collage Editor / Copy；Playback Overlay 选中文字菜单 / Copy Selected Text |
 | `export` | Regular | 导出、更换封面 | Collage Editor / Export；Library 卡片菜单 / Change Cover |
 | `link-simple` | Regular | 链接 | 表格行菜单 / Copy Deep Link；Anki 卡片 / Deep Link，20px |
+| `info` | Regular | 简介、详情 | File Page 卡片菜单 / Get Info |
 | `anki-star` | 实心 | Anki | 预留，暂无使用位置 |
 
 ## 3.6 播放控制

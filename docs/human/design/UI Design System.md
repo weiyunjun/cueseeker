@@ -186,6 +186,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--font-size-body`: `14px`
 - `--font-size-control`: `14px`
 - `--font-weight-control`: `500`
+- `--line-height-detail-file-title`: `20px`
 - `--font-size-segmented-control`: `12px`
 - `--font-size-table`: `14px`
 - `--font-size-table-header`: `14px`
@@ -298,6 +299,10 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--size-task-count-badge-compact`: `18px`
 - `--size-card-icon-container`: `36px`
 - `--size-card-icon-glyph`: `20px`
+- `--size-detail-file-icon-container`: `40px`
+- `--size-detail-file-icon-glyph`: `20px`
+- `--min-width-detail-label`: `100px`
+- `--min-width-detail-index-label`: `40px`
 - `--size-player-circle-button`: `40px`
 - `--size-player-circle-button-icon`: `23px`
 - `--width-player-speed-button`: `54px`
@@ -4053,6 +4058,27 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - Destructive
 - Confirm Disabled
 - Submitting
+
+### File Detail Dialog Layout
+
+#### Structure
+
+1. Header
+   1. Title：`File Info`
+   2. Close Button
+2. Content
+   1. File Header Row：文件图标与文件名
+   2. Property Groups：Settings 风格卡片组
+
+#### Sizes
+
+- Width：`--width-dialog-x-large`
+
+#### Spacing
+
+- Inset：`--inset-dialog`
+- Region Gap：`--spacing-4`
+- File Header Spacing：`--inset-dialog`
 
 ### Task Panel Layout
 
