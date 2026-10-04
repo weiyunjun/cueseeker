@@ -1574,6 +1574,8 @@ struct LibraryCachedCoverImage: View {
 
     @State private var loadedImage: LoadedImage?
     @State private var activeRequestID: UUID?
+    @State private var isShimmerVisible = false
+    @State private var delayTask: Task<Void, Never>?
 
     private struct LoadedImage {
         let key: LibraryCoverImageKey
@@ -1581,7 +1583,12 @@ struct LibraryCachedCoverImage: View {
     }
 
     var body: some View {
-        Group {
+        ZStack {
+            if loadedImage?.key != key {
+                CoverSkeletonShimmerView(isShimmering: isShimmerVisible)
+                    .transition(.opacity)
+            }
+
             if let key,
                let loadedImage,
                loadedImage.key == key {
@@ -1589,15 +1596,7 @@ struct LibraryCachedCoverImage: View {
                     image: loadedImage.image,
                     verticalAlignment: imageVerticalAlignment
                 )
-            } else {
-                ZStack {
-                    Rectangle()
-                        .fill(WorkbenchRedesignColors.libraryCoverPlaceholderBg)
-
-                    AppIconImage(.video, size: WorkbenchControlMetrics.redesignCoverPlaceholderIconSize)
-                        .foregroundStyle(WorkbenchRedesignColors.textMuted)
-                        .accessibilityHidden(true)
-                }
+                .transition(.opacity)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -1606,8 +1605,9 @@ struct LibraryCachedCoverImage: View {
             await loadImage(for: key)
         }
         .onDisappear {
+            delayTask?.cancel()
+            delayTask = nil
             activeRequestID = nil
-            loadedImage = nil
         }
     }
 
@@ -1617,31 +1617,60 @@ struct LibraryCachedCoverImage: View {
 
     @MainActor
     private func loadImage(for key: LibraryCoverImageKey?) async {
+        delayTask?.cancel()
+        delayTask = nil
+
         guard let key else {
             activeRequestID = nil
             loadedImage = nil
+            isShimmerVisible = false
             return
         }
+
         let requestID = UUID()
         activeRequestID = requestID
+
         if loadedImage?.key != key {
-            loadedImage = nil
+            isShimmerVisible = false
+
+            // Anti-flicker: only activate shimmer if loading exceeds the delay threshold
+            delayTask = Task {
+                try? await Task.sleep(nanoseconds: WorkbenchControlMetrics.redesignCoverAntiFlickerDelayNanoseconds)
+                guard !Task.isCancelled, activeRequestID == requestID else { return }
+                withAnimation(.easeIn(duration: 0.15)) {
+                    isShimmerVisible = true
+                }
+            }
         }
 
         do {
             let image = try await LibraryCoverImagePipeline.shared.image(for: key)
             try Task.checkCancellation()
+            delayTask?.cancel()
+            delayTask = nil
+
             guard activeRequestID == requestID else {
                 return
             }
-            loadedImage = image.map { LoadedImage(key: key, image: $0) }
+
+            withAnimation(.easeOut(duration: WorkbenchControlMetrics.redesignCoverCrossfadeDuration)) {
+                loadedImage = image.map { LoadedImage(key: key, image: $0) }
+                isShimmerVisible = false
+            }
         } catch is CancellationError {
+            delayTask?.cancel()
+            delayTask = nil
             return
         } catch {
+            delayTask?.cancel()
+            delayTask = nil
             guard activeRequestID == requestID else {
                 return
             }
-            loadedImage = nil
+            withAnimation(.easeOut(duration: WorkbenchControlMetrics.redesignCoverCrossfadeDuration)) {
+                loadedImage = nil
+                isShimmerVisible = false
+            }
         }
     }
 }

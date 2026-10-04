@@ -162,6 +162,8 @@ enum WorkbenchRedesignColors {
         static let libraryCoverEditOverlay = libraryCoverCropMask
         static let libraryCoverEditOverlayContent = iconOnDark
         static let libraryMediaCardHoverBg = NSColor.controlAccent(lightAlpha: 0.08, darkAlpha: 0.12)
+        static let skeletonBase = libraryCoverPlaceholderBg
+        static let skeletonHighlight = NSColor.dynamic(lightHex: "#FFFFFF", lightAlpha: 0.65, darkHex: "#FFFFFF", darkAlpha: 0.08)
 
         // Spinner
         static let spinnerTrack = NSColor.dynamic(lightHex: "#E5E7EB", darkHex: "#3F3F46")
@@ -348,6 +350,8 @@ enum WorkbenchRedesignColors {
     static let libraryCoverEditOverlay = Color(nsColor: NS.libraryCoverEditOverlay)
     static let libraryCoverEditOverlayContent = Color(nsColor: NS.libraryCoverEditOverlayContent)
     static let libraryMediaCardHoverBg = Color(nsColor: NS.libraryMediaCardHoverBg)
+    static let skeletonBase = Color(nsColor: NS.skeletonBase)
+    static let skeletonHighlight = Color(nsColor: NS.skeletonHighlight)
 
     // Filter Chip
     // --color-filter-chip-selected-content: macOS accent color

@@ -140,4 +140,21 @@ func darkModeTokensAndSurfaceUnificationMatchDesignSpecification() {
     #expect(WorkbenchRedesignColors.NS.bgCheckboxChecked == NSColor.controlAccentColor)
 }
 
+@Test
+func coverSkeletonShimmerTokensMatchDesignSpecification() {
+    #expect(WorkbenchControlMetrics.redesignShimmerMotionDuration == 1.5)
+    #expect(WorkbenchControlMetrics.redesignCoverAntiFlickerDelayNanoseconds == 120_000_000)
+    #expect(WorkbenchControlMetrics.redesignCoverCrossfadeDuration == 0.20)
+
+    let darkAppearance = NSAppearance(named: .darkAqua)!
+    darkAppearance.performAsCurrentDrawingAppearance {
+        #expect(WorkbenchRedesignColors.NS.skeletonBase == WorkbenchRedesignColors.NS.libraryCoverPlaceholderBg)
+    }
+
+    let lightAppearance = NSAppearance(named: .aqua)!
+    lightAppearance.performAsCurrentDrawingAppearance {
+        #expect(WorkbenchRedesignColors.NS.skeletonBase == WorkbenchRedesignColors.NS.libraryCoverPlaceholderBg)
+    }
+}
+
 

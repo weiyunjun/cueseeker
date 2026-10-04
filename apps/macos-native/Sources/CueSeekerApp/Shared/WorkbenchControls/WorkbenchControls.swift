@@ -438,6 +438,12 @@ enum WorkbenchControlMetrics {
     static let redesignFontSizeLibraryListTitle: CGFloat = 15
     /// --font-size-library-list-subtitle: 13px
     static let redesignFontSizeLibraryListSubtitle: CGFloat = 13
+    /// --duration-shimmer-motion: 1.5s
+    static let redesignShimmerMotionDuration: Double = 1.5
+    /// Anti-flicker delay threshold before cover skeleton shimmer activates: 120ms
+    static let redesignCoverAntiFlickerDelayNanoseconds: UInt64 = 120_000_000
+    /// Cover crossfade animation duration: 0.20s
+    static let redesignCoverCrossfadeDuration: Double = 0.20
     /// --font-size-library-list-meta: 12px
     static let redesignFontSizeLibraryListMeta: CGFloat = 12
 
