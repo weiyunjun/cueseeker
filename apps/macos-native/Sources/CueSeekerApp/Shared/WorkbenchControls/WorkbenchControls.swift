@@ -1089,8 +1089,12 @@ struct WorkbenchIconButton: View {
     var isOpen: Bool = false
     /// Hover is read against the surface the button sits on, so a button drawn
     /// on another surface passes that surface's own step; the Workbench
-    /// surface's is the default. Open takes the same step.
+    /// surface's is the default.
     var hoverBackground: Color = WorkbenchRedesignColors.bgHover
+    /// Open uses a translucent accent tint background by default, distinguishing
+    /// the active state from hover. Surfaces like the player top bar pass their
+    /// own open background step.
+    var openBackground: Color? = nil
     /// The icon is read against the surface too: on the video page it takes
     /// the player's text color, because the Workbench's secondary text is dark
     /// on a dark video in Light appearance.
@@ -1109,13 +1113,10 @@ struct WorkbenchIconButton: View {
     /// inside the button, so hover and Open cover it and a click on it is a
     /// click on the button. At zero nothing is drawn and the box stays square.
     var count: Int = 0
-    /// The count keeps its look while the button is lit. It is filled with the
-    /// muted text color, one step lighter than the glyph, and its number takes
-    /// the surface's color; the player's bar, which has no surface of its own,
-    /// passes its own light fill and the dark it draws on white. A disabled
-    /// button greys the count with its glyph.
-    var countBackground: Color = WorkbenchRedesignColors.textMuted
-    var countTextColor: Color = WorkbenchRedesignColors.bgSurface
+    /// The count badge is filled with the accent color with white text for clear
+    /// contrast across surfaces. A disabled button greys the count with its glyph.
+    var countBackground: Color = Color.accentColor
+    var countTextColor: Color = WorkbenchRedesignColors.iconOnDark
     var action: (() -> Void)? = nil
 
     @Environment(\.isEnabled) private var isEnabled
@@ -1184,10 +1185,6 @@ struct WorkbenchIconButton: View {
         isRedesign ? (boxSize ?? WorkbenchControlMetrics.redesignIconButtonSize) : WorkbenchControlMetrics.controlHeight
     }
 
-    private var isLit: Bool {
-        isOpen || isHovered
-    }
-
     private var redesignIconColor: Color {
         guard isEnabled else {
             return WorkbenchRedesignColors.textDisabled
@@ -1195,13 +1192,19 @@ struct WorkbenchIconButton: View {
         return iconColor ?? WorkbenchRedesignColors.textSecondary
     }
 
-    /// Hover and Open take the step belonging to the surface the button sits
-    /// on.
+    /// Open displays an accent tint background, while hover takes the step
+    /// belonging to the surface the button sits on.
     private var redesignBackgroundColor: Color {
         guard isEnabled else {
             return Color.clear
         }
-        return isLit ? hoverBackground : Color.clear
+        if isOpen {
+            return openBackground ?? WorkbenchRedesignColors.bgActive
+        }
+        if isHovered {
+            return hoverBackground
+        }
+        return Color.clear
     }
 }
 

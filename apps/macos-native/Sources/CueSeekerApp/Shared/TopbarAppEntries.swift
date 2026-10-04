@@ -11,8 +11,9 @@ struct TopbarAppEntries: View {
     @EnvironmentObject private var localization: AppLocalizationStore
     var iconColor: Color? = nil
     var hoverBackground: Color = WorkbenchRedesignColors.bgHover
-    var countBackground: Color = WorkbenchRedesignColors.textMuted
-    var countTextColor: Color = WorkbenchRedesignColors.bgSurface
+    var openBackground: Color? = nil
+    var countBackground: Color = Color.accentColor
+    var countTextColor: Color = WorkbenchRedesignColors.iconOnDark
 
     var body: some View {
         HStack(spacing: WorkbenchControlMetrics.redesignSpacing1) {
@@ -20,6 +21,7 @@ struct TopbarAppEntries: View {
                 tasks: appState.tasks,
                 iconColor: iconColor,
                 hoverBackground: hoverBackground,
+                openBackground: openBackground,
                 countBackground: countBackground,
                 countTextColor: countTextColor
             ) {
@@ -32,7 +34,8 @@ struct TopbarAppEntries: View {
             SettingsEntryButton(
                 layoutState: appState.workbenchLayout,
                 iconColor: iconColor,
-                hoverBackground: hoverBackground
+                hoverBackground: hoverBackground,
+                openBackground: openBackground
             ) {
                 appState.performUserInitiatedAppCommand {
                     NotificationCenter.default.post(name: .cueSeekerShowSettings, object: nil)
@@ -51,6 +54,7 @@ struct SettingsEntryButton: View {
     @ObservedObject var layoutState: WorkbenchLayoutState
     var iconColor: Color? = nil
     var hoverBackground: Color = WorkbenchRedesignColors.bgHover
+    var openBackground: Color? = nil
     let onOpen: () -> Void
 
     var body: some View {
@@ -59,6 +63,7 @@ struct SettingsEntryButton: View {
             isRedesign: true,
             isOpen: layoutState.isSettingsWindowOpen,
             hoverBackground: hoverBackground,
+            openBackground: openBackground,
             iconColor: iconColor,
             action: onOpen
         )

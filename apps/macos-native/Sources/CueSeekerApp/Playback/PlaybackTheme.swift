@@ -159,6 +159,11 @@ public enum PlaybackTheme {
         Color.white.opacity(0.16)
     }
 
+    /// --color-player-control-bg-active
+    public static var controlActiveBackground: Color {
+        Color.accentColor.opacity(0.26)
+    }
+
     /// --color-player-menu-bg
     public static var menuBackground: Color {
         Color.black.opacity(0.55)

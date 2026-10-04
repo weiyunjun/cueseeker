@@ -1,4 +1,5 @@
 import AppKit
+import SwiftUI
 import Testing
 @testable import CueSeekerApp
 
@@ -104,5 +105,14 @@ func cardIconContainerMetricsMatchDesignSpecification() {
 @Test
 func buttonHeightMatchesDesignSpecification() {
     #expect(WorkbenchControlMetrics.redesignHeight == 36)
+}
+
+@Test
+func iconButtonOpenAndBadgeColorTokensMatchDesignSpecification() {
+    let button = WorkbenchIconButton(icon: .funnel, isRedesign: true)
+    #expect(button.countBackground == Color.accentColor)
+    #expect(button.countTextColor == WorkbenchRedesignColors.iconOnDark)
+    #expect(button.openBackground == nil)
+    #expect(PlaybackTheme.controlActiveBackground == Color.accentColor.opacity(0.26))
 }
 

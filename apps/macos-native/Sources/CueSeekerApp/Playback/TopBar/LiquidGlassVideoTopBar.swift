@@ -68,8 +68,9 @@ struct LiquidGlassVideoTopBar: View {
             TopbarAppEntries(
                 iconColor: PlaybackTheme.textPrimary,
                 hoverBackground: PlaybackTheme.controlHoverBackground,
-                countBackground: PlaybackTheme.textPrimary,
-                countTextColor: PlaybackTheme.iconSelected
+                openBackground: PlaybackTheme.controlActiveBackground,
+                countBackground: Color.accentColor,
+                countTextColor: Color.white
             )
             .padding(.trailing, PlaybackChromeMetrics.topbarHorizontalPadding)
         }

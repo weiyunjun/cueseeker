@@ -12,8 +12,9 @@ struct TaskEntryButton: View {
     /// default.
     var iconColor: Color? = nil
     var hoverBackground: Color = WorkbenchRedesignColors.bgHover
-    var countBackground: Color = WorkbenchRedesignColors.textMuted
-    var countTextColor: Color = WorkbenchRedesignColors.bgSurface
+    var openBackground: Color? = nil
+    var countBackground: Color = Color.accentColor
+    var countTextColor: Color = WorkbenchRedesignColors.iconOnDark
     let onOpen: () -> Void
 
     var body: some View {
@@ -22,6 +23,7 @@ struct TaskEntryButton: View {
             isRedesign: true,
             isOpen: tasks.isPanelOpen,
             hoverBackground: hoverBackground,
+            openBackground: openBackground,
             iconColor: iconColor,
             count: tasks.remainingTaskCount,
             countBackground: countBackground,
