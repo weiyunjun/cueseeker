@@ -142,6 +142,9 @@
 "library.recent_excerpts_empty" = "还没有最近的摘录集。";
 "library.episodes_empty" = "还没有剧集。";
 "library.activate" = "激活";
+"library.sort.default" = "默认排序";
+"library.sort.latest_added" = "最晚入库";
+"library.sort.oldest_added" = "最早入库";
 
 /* Library cover editing */
 "cover.edit_title" = "编辑封面";

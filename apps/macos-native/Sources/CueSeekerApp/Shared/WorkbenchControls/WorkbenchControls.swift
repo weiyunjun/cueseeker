@@ -762,6 +762,7 @@ struct WorkbenchButton: View {
     let title: String
     var icon: AppIcon? = nil
     var isRedesign: Bool = false
+    var isOpen: Bool = false
     /// Buttons never take the keyboard focus, so the one that opens focused -
     /// Confirmation's Cancel - is told to draw its Focused state.
     var isFocused: Bool = false
@@ -790,7 +791,7 @@ struct WorkbenchButton: View {
                 Group {
                     if isRedesign {
                         RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignCornerRadius, style: .continuous)
-                            .fill(isEnabled ? (isHovered ? WorkbenchRedesignColors.bgHover : WorkbenchRedesignColors.bgControl) : WorkbenchRedesignColors.bgDisabled)
+                            .fill(isEnabled ? (isOpen ? WorkbenchRedesignColors.bgActive : (isHovered ? WorkbenchRedesignColors.bgHover : WorkbenchRedesignColors.bgControl)) : WorkbenchRedesignColors.bgDisabled)
                     } else {
                         WorkbenchControlBackground()
                     }
@@ -800,7 +801,7 @@ struct WorkbenchButton: View {
                 Group {
                     if isRedesign {
                         RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignCornerRadius, style: .continuous)
-                            .strokeBorder(isEnabled ? (isHovered ? WorkbenchRedesignColors.borderControlHover : WorkbenchRedesignColors.borderControl) : WorkbenchRedesignColors.borderDisabled, lineWidth: 1)
+                            .strokeBorder(isEnabled ? (isOpen ? WorkbenchRedesignColors.borderControlHover : (isHovered ? WorkbenchRedesignColors.borderControlHover : WorkbenchRedesignColors.borderControl)) : WorkbenchRedesignColors.borderDisabled, lineWidth: 1)
                     }
                 }
             )

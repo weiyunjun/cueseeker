@@ -150,6 +150,12 @@ struct WorkbenchTestLibraryView: View {
         keepsCurrentWhenPointerLeaves: false
     )
 
+    private static let libraryOverviewCoordinateSpaceName = "libraryOverviewCoordinateSpace"
+
+    @State private var activeSortMenu: LibrarySortMenuState?
+    @State private var sortButtonAnchorFrame: CGRect = .zero
+    @StateObject private var sortMenuHighlight = MenuHighlightModel()
+
     var body: some View {
         Group {
             if let folderPath = routeState.selectedLibraryFolderPath {
@@ -181,7 +187,7 @@ struct WorkbenchTestLibraryView: View {
             } else {
                 GeometryReader { geometry in
                     WorkbenchScrollView([.vertical, .horizontal]) {
-                        completeLibraryContent
+                        completeLibraryContent(viewportSize: geometry.size)
                             .workbenchPageInlinePadding()
                             .padding(
                                 .top,
@@ -203,6 +209,60 @@ struct WorkbenchTestLibraryView: View {
                                 alignment: .topLeading
                             )
                     }
+                    .coordinateSpace(name: Self.libraryOverviewCoordinateSpaceName)
+                    .overlay(alignment: .topLeading) {
+                        if let activeSortMenu {
+                            let menuFrame = activeSortMenu.menuFrame
+                            ZStack(alignment: .topLeading) {
+                                MenuGateClientView(
+                                    gate: appState.interfaceLayers.menuGate,
+                                    owner: .workbenchPage,
+                                    kind: .cardMenu,
+                                    menuFrame: menuFrame,
+                                    anchorFrame: activeSortMenu.anchorFrame,
+                                    handleKey: { keyCode, _ in
+                                        switch keyCode {
+                                        case 53:
+                                            dismissSortMenu()
+                                            return true
+                                        case 126:
+                                            _ = sortMenuHighlight.moveHighlight(by: -1)
+                                            return true
+                                        case 125:
+                                            _ = sortMenuHighlight.moveHighlight(by: 1)
+                                            return true
+                                        case 123, 124:
+                                            return true
+                                        case 36, 76:
+                                            activateHighlightedSortItem()
+                                            return true
+                                        default:
+                                            return false
+                                        }
+                                    },
+                                    dismiss: { _ in
+                                        dismissSortMenu()
+                                    }
+                                )
+                                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                .allowsHitTesting(false)
+
+                                LibrarySortMenuPopover(
+                                    selectedOrder: library.sortOrder,
+                                    highlight: sortMenuHighlight,
+                                    onSelect: { order in
+                                        library.sortOrder = order
+                                        dismissSortMenu()
+                                    },
+                                    onDismiss: {
+                                        dismissSortMenu()
+                                    }
+                                )
+                                .offset(x: menuFrame.minX, y: menuFrame.minY)
+                            }
+                            .zIndex(1001)
+                        }
+                    }
                 }
             }
         }
@@ -210,6 +270,7 @@ struct WorkbenchTestLibraryView: View {
         .cardHighlightFreeze(highlight)
         .onChange(of: routeState.selectedLibraryFolderPath) { _ in
             highlight.reset()
+            dismissSortMenu()
         }
         .task {
             appState.hydrateCompleteLibraryAsync()
@@ -232,7 +293,7 @@ struct WorkbenchTestLibraryView: View {
     }
 
     @ViewBuilder
-    private var completeLibraryContent: some View {
+    private func completeLibraryContent(viewportSize: CGSize) -> some View {
         if case .loading = library.completeLibraryStatus, library.completeLibraryFolderSummaries.isEmpty {
             LibraryEmptyHint {
                 ProgressView()
@@ -243,16 +304,108 @@ struct WorkbenchTestLibraryView: View {
         } else if library.completeLibraryFolderSummaries.isEmpty {
             LibraryEmptyHint(L("library.empty"))
         } else {
-            CompleteLibraryFolderGrid(
-                folders: library.completeLibraryFolderSummaries,
-                highlight: highlight,
-                onOpen: { folder in
-                    appState.navigateWorkbench(
-                        to: .libraryFolder(folderPath: folder.folderPath)
-                    )
+            VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing4) {
+                sortBar(viewportSize: viewportSize)
+
+                CompleteLibraryFolderGrid(
+                    folders: library.sortedCompleteLibraryFolderSummaries,
+                    highlight: highlight,
+                    onOpen: { folder in
+                        appState.navigateWorkbench(
+                            to: .libraryFolder(folderPath: folder.folderPath)
+                        )
+                    }
+                )
+            }
+        }
+    }
+
+    private func sortBar(viewportSize: CGSize) -> some View {
+        HStack(spacing: 0) {
+            Spacer()
+
+            WorkbenchButton(
+                title: library.sortOrder.title,
+                icon: .funnelSimple,
+                isRedesign: true,
+                isOpen: activeSortMenu != nil,
+                action: {
+                    if activeSortMenu != nil {
+                        dismissSortMenu()
+                    } else {
+                        openSortMenu(anchorFrame: sortButtonAnchorFrame, viewportSize: viewportSize)
+                    }
                 }
             )
+            .background(
+                GeometryReader { geo in
+                    Color.clear
+                        .preference(
+                            key: LibrarySortAnchorPreferenceKey.self,
+                            value: geo.frame(in: .named(Self.libraryOverviewCoordinateSpaceName))
+                        )
+                }
+            )
+            .onPreferenceChange(LibrarySortAnchorPreferenceKey.self) { frame in
+                sortButtonAnchorFrame = frame
+            }
         }
+        .frame(height: WorkbenchControlMetrics.redesignHeight)
+    }
+
+    private func openSortMenu(anchorFrame: CGRect, viewportSize: CGSize) {
+        let naturalSize = measuredSortMenuSize()
+        let container = CGRect(origin: .zero, size: viewportSize)
+        let anchorForPlacement = CGRect(
+            x: anchorFrame.maxX - naturalSize.width,
+            y: anchorFrame.minY,
+            width: naturalSize.width,
+            height: anchorFrame.height
+        )
+        let openingFrame = MenuPlacement.openingFrame(
+            anchor: anchorForPlacement,
+            menuSize: naturalSize,
+            in: container,
+            gap: WorkbenchControlMetrics.redesignSpacing1,
+            shrinksToFit: false
+        )
+        activeSortMenu = LibrarySortMenuState(
+            anchorFrame: anchorFrame,
+            menuFrame: openingFrame
+        )
+        sortMenuHighlight.open(
+            selectablePositions: Array(LibrarySortOrder.allCases.indices),
+            defaultPosition: 0
+        )
+    }
+
+    private func dismissSortMenu() {
+        activeSortMenu = nil
+        sortMenuHighlight.close()
+    }
+
+    private func activateHighlightedSortItem() {
+        guard let position = sortMenuHighlight.highlightedPosition,
+              LibrarySortOrder.allCases.indices.contains(position)
+        else {
+            return
+        }
+        let order = LibrarySortOrder.allCases[position]
+        library.sortOrder = order
+        dismissSortMenu()
+    }
+
+    private func measuredSortMenuSize() -> CGSize {
+        let host = NSHostingView(
+            rootView: LibrarySortMenuPopover(
+                selectedOrder: library.sortOrder,
+                highlight: sortMenuHighlight,
+                onSelect: { _ in },
+                onDismiss: {}
+            )
+        )
+        host.layoutSubtreeIfNeeded()
+        return host.fittingSize
     }
 
     /// The history can point at a folder that is no longer indexed; the page
@@ -1790,3 +1943,56 @@ private struct LibraryEmptyHint<Content: View>: View {
             .frame(maxWidth: .infinity, minHeight: 120, alignment: .center)
     }
 }
+
+struct LibrarySortMenuState: Identifiable {
+    let id = UUID()
+    let anchorFrame: CGRect
+    let menuFrame: CGRect
+}
+
+private struct LibrarySortAnchorPreferenceKey: PreferenceKey {
+    static var defaultValue: CGRect = .zero
+    static func reduce(value: inout CGRect, nextValue: () -> CGRect) {
+        let next = nextValue()
+        if next != .zero {
+            value = next
+        }
+    }
+}
+
+struct LibrarySortMenuPopover: View {
+    let selectedOrder: LibrarySortOrder
+    @ObservedObject var highlight: MenuHighlightModel
+    let onSelect: (LibrarySortOrder) -> Void
+    let onDismiss: () -> Void
+
+    var body: some View {
+        WorkbenchPopoverPanel(
+            isRedesign: true,
+            maximumHeight: MenuMetrics.maximumHeight,
+            highlight: highlight
+        ) {
+            VStack(alignment: .leading, spacing: 0) {
+                ForEach(Array(LibrarySortOrder.allCases.enumerated()), id: \.element.id) { position, order in
+                    WorkbenchPopoverRow(
+                        title: order.title,
+                        isSelected: selectedOrder == order,
+                        isHighlighted: highlight.highlightedPosition == position,
+                        isRedesign: true,
+                        showsCheckmarkSlot: true,
+                        action: {
+                            onDismiss()
+                            onSelect(order)
+                        },
+                        onHoverChange: { isHovered in
+                            highlight.noteHover(isHovered, at: position)
+                        }
+                    )
+                    .id(position)
+                }
+            }
+            .fixedSize(horizontal: true, vertical: false)
+        }
+    }
+}
+

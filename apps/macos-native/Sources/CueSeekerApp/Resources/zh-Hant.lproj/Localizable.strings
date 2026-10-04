@@ -142,6 +142,9 @@
 "library.recent_excerpts_empty" = "尚無最近的摘錄集。";
 "library.episodes_empty" = "尚無單集。";
 "library.activate" = "啟用";
+"library.sort.default" = "預設排序";
+"library.sort.latest_added" = "最晚入庫";
+"library.sort.oldest_added" = "最早入庫";
 
 /* Library cover editing */
 "cover.edit_title" = "編輯封面";

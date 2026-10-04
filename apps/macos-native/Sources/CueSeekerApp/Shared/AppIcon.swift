@@ -18,6 +18,7 @@ enum AppIcon: String, CaseIterable, Sendable {
     case check = "check"
     case magnifyingGlass = "magnifying-glass"
     case funnel = "funnel"
+    case funnelSimple = "funnel-simple"
     case arrowElbowDownLeft = "arrow-elbow-down-left"
     case squaresFour = "squares-four"
     case folder = "folder"

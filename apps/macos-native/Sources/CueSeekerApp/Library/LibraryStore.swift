@@ -15,6 +15,20 @@ final class LibraryStore: ObservableObject {
     @Published var testRecentWatchingRevision = 0
     @Published var completeLibraryStatus: LibraryStatus = .idle
     @Published var completeLibraryFolderSummaries: [CompleteLibraryFolderSummaryPresentation] = []
+    private static let sortOrderUserDefaultsKey = "library_overview_sort_order"
+
+    @Published var sortOrder: LibrarySortOrder = {
+        let saved = UserDefaults.standard.string(forKey: "library_overview_sort_order")
+        return saved.flatMap(LibrarySortOrder.init(rawValue:)) ?? .default
+    }() {
+        didSet {
+            UserDefaults.standard.set(sortOrder.rawValue, forKey: Self.sortOrderUserDefaultsKey)
+        }
+    }
+
+    var sortedCompleteLibraryFolderSummaries: [CompleteLibraryFolderSummaryPresentation] {
+        completeLibraryFolderSummaries.sorted(by: sortOrder)
+    }
     @Published var completeLibraryFolderDetailsByPath:
         [String: CompleteLibraryFolderDetailPresentation] = [:]
     @Published var completeLibraryFolderDetailStatusesByPath:
@@ -112,6 +126,19 @@ final class LibraryStore: ObservableObject {
             if summaries != completeLibraryFolderSummaries {
                 completeLibraryFolderSummaries = summaries
             }
+        }
+    }
+}
+
+extension LibrarySortOrder {
+    public var title: String {
+        switch self {
+        case .default:
+            return L("library.sort.default")
+        case .latestAdded:
+            return L("library.sort.latest_added")
+        case .oldestAdded:
+            return L("library.sort.oldest_added")
         }
     }
 }

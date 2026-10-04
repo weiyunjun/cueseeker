@@ -506,9 +506,26 @@ public struct CompleteLibraryFolderSummaryPresentation: Equatable, Sendable, Ide
     public let coverPath: String?
     public let coverRevision: String?
     public let episodeCount: Int
+    public let indexedAt: String?
 
     public var id: String {
         folderPath
+    }
+
+    public init(
+        folderPath: String,
+        folderTitle: String,
+        coverPath: String?,
+        coverRevision: String?,
+        episodeCount: Int,
+        indexedAt: String? = nil
+    ) {
+        self.folderPath = folderPath
+        self.folderTitle = folderTitle
+        self.coverPath = coverPath
+        self.coverRevision = coverRevision
+        self.episodeCount = episodeCount
+        self.indexedAt = indexedAt
     }
 
     public func replacingCover(path: String, revision: String) -> Self {
@@ -517,8 +534,60 @@ public struct CompleteLibraryFolderSummaryPresentation: Equatable, Sendable, Ide
             folderTitle: folderTitle,
             coverPath: path,
             coverRevision: revision,
-            episodeCount: episodeCount
+            episodeCount: episodeCount,
+            indexedAt: indexedAt
         )
+    }
+}
+
+public enum LibrarySortOrder: String, CaseIterable, Identifiable, Sendable {
+    case `default` = "default"
+    case latestAdded = "latest_added"
+    case oldestAdded = "oldest_added"
+
+    public var id: String { rawValue }
+}
+
+extension Array where Element == CompleteLibraryFolderSummaryPresentation {
+    public func sorted(by order: LibrarySortOrder) -> [CompleteLibraryFolderSummaryPresentation] {
+        switch order {
+        case .default:
+            return sorted {
+                let titleCompare = $0.folderTitle.localizedStandardCompare($1.folderTitle)
+                if titleCompare != .orderedSame {
+                    return titleCompare == .orderedAscending
+                }
+                return $0.folderPath.localizedStandardCompare($1.folderPath) == .orderedAscending
+            }
+        case .latestAdded:
+            return sorted {
+                let date0 = $0.indexedAt ?? ""
+                let date1 = $1.indexedAt ?? ""
+                if date0 != date1 {
+                    return date0 > date1
+                }
+                let titleCompare = $0.folderTitle.localizedStandardCompare($1.folderTitle)
+                if titleCompare != .orderedSame {
+                    return titleCompare == .orderedAscending
+                }
+                return $0.folderPath.localizedStandardCompare($1.folderPath) == .orderedAscending
+            }
+        case .oldestAdded:
+            return sorted {
+                let date0 = $0.indexedAt ?? ""
+                let date1 = $1.indexedAt ?? ""
+                if date0 != date1 {
+                    if date0.isEmpty { return false }
+                    if date1.isEmpty { return true }
+                    return date0 < date1
+                }
+                let titleCompare = $0.folderTitle.localizedStandardCompare($1.folderTitle)
+                if titleCompare != .orderedSame {
+                    return titleCompare == .orderedAscending
+                }
+                return $0.folderPath.localizedStandardCompare($1.folderPath) == .orderedAscending
+            }
+        }
     }
 }
 

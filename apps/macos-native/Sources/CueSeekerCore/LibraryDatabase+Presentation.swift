@@ -397,7 +397,8 @@ extension LibraryDatabase {
                        WHERE first_lvr.folder_path = lvr.folder_path
                        ORDER BY first_lvr.video_order ASC, first_lvr.video_path ASC
                        LIMIT 1
-                   ) AS first_video_cover_revision
+                   ) AS first_video_cover_revision,
+                   MIN(sf.indexed_at) AS first_indexed_at
             FROM library_video_rows lvr
             JOIN subtitle_files sf ON sf.id = lvr.subtitle_file_id
             JOIN video_files vf ON vf.id = lvr.video_file_id
@@ -447,13 +448,15 @@ extension LibraryDatabase {
                 coverPath = nil
                 coverRevision = nil
             }
+            let firstIndexedAt = statement.nullableStringColumn(7)
             summaries.append(
                 CompleteLibraryFolderSummaryPresentation(
                     folderPath: statement.stringColumn(0),
                     folderTitle: statement.stringColumn(1),
                     coverPath: coverPath,
                     coverRevision: coverRevision,
-                    episodeCount: max(0, statement.intColumn(2))
+                    episodeCount: max(0, statement.intColumn(2)),
+                    indexedAt: firstIndexedAt
                 )
             )
         }

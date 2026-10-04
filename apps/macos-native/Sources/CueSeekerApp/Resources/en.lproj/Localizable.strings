@@ -142,6 +142,9 @@
 "library.recent_excerpts_empty" = "No recent excerpt lists yet.";
 "library.episodes_empty" = "No episodes yet.";
 "library.activate" = "Activate";
+"library.sort.default" = "Default Order";
+"library.sort.latest_added" = "Latest Added";
+"library.sort.oldest_added" = "Oldest Added";
 
 /* Library cover editing */
 "cover.edit_title" = "Edit Cover";
