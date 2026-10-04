@@ -49,6 +49,44 @@ public enum SubtitleTextDecoder {
         return try validated(contents, format: format)
     }
 
+    public static func detectedEncodingName(in data: Data) -> String {
+        if let markedEncoding = byteOrderMarkedEncoding(in: data) {
+            switch markedEncoding.encoding {
+            case .utf8:
+                return "UTF-8 (BOM)"
+            case .utf16BigEndian:
+                return "UTF-16 BE"
+            case .utf16LittleEndian:
+                return "UTF-16 LE"
+            case .utf32BigEndian:
+                return "UTF-32 BE"
+            case .utf32LittleEndian:
+                return "UTF-32 LE"
+            default:
+                return "Unicode"
+            }
+        }
+        if String(data: data, encoding: .utf8) != nil {
+            return "UTF-8"
+        }
+        var convertedString: NSString?
+        var usedLossyConversion = ObjCBool(false)
+        let rawEncoding = NSString.stringEncoding(
+            for: data,
+            encodingOptions: [.allowLossyKey: false],
+            convertedString: &convertedString,
+            usedLossyConversion: &usedLossyConversion
+        )
+        if rawEncoding != 0, !usedLossyConversion.boolValue {
+            let cfEncoding = CFStringConvertNSStringEncodingToEncoding(rawEncoding)
+            if let name = CFStringGetNameOfEncoding(cfEncoding) as String? {
+                return name
+            }
+            return String.localizedName(of: String.Encoding(rawValue: rawEncoding))
+        }
+        return "UTF-8"
+    }
+
     private static func byteOrderMarkedEncoding(
         in data: Data
     ) -> (encoding: String.Encoding, byteCount: Int)? {

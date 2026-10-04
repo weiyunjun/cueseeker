@@ -602,3 +602,29 @@
 "anki_export.replace.confirm" = "Replace";
 "library.folder.not_found" = "This folder is not in the library.";
 "excerpt.list.not_found" = "This excerpt list no longer exists.";
+
+/* Universal File Detail Dialog */
+"file_detail.get_info" = "Get Info";
+"file_detail.title" = "File Info";
+"file_detail.video" = "Video";
+"file_detail.audio" = "Audio";
+"file_detail.subtitles" = "Subtitles";
+"file_detail.file_details" = "File Details";
+"file_detail.subtitle_specs" = "Subtitle Specifications";
+"file_detail.resolution" = "Resolution";
+"file_detail.frame_rate" = "Frame Rate";
+"file_detail.codec" = "Codec";
+"file_detail.bitrate" = "Bitrate";
+"file_detail.duration" = "Duration";
+"file_detail.channels" = "Channels";
+"file_detail.language" = "Language";
+"file_detail.track_title" = "Title";
+"file_detail.encoding" = "Encoding";
+"file_detail.cue_count" = "Cue Count";
+"file_detail.lines_count" = "%lld lines";
+"file_detail.file_size" = "File Size";
+"file_detail.format" = "Format";
+"file_detail.path" = "Path";
+"file_detail.created" = "Created";
+"file_detail.modified" = "Modified";
+"file_detail.none" = "None";

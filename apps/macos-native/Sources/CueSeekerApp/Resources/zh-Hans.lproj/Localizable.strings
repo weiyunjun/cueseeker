@@ -602,3 +602,29 @@
 "anki_export.replace.confirm" = "替换";
 "library.folder.not_found" = "此文件夹不在媒体库中。";
 "excerpt.list.not_found" = "此摘录集已不存在。";
+
+/* Universal File Detail Dialog */
+"file_detail.get_info" = "显示简介";
+"file_detail.title" = "文件详情";
+"file_detail.video" = "视频";
+"file_detail.audio" = "音频";
+"file_detail.subtitles" = "关联字幕";
+"file_detail.file_details" = "详细信息";
+"file_detail.subtitle_specs" = "字幕规格";
+"file_detail.resolution" = "分辨率";
+"file_detail.frame_rate" = "帧率";
+"file_detail.codec" = "编码格式";
+"file_detail.bitrate" = "码率";
+"file_detail.duration" = "时长";
+"file_detail.channels" = "声道";
+"file_detail.language" = "语言";
+"file_detail.track_title" = "音轨名称";
+"file_detail.encoding" = "字符编码";
+"file_detail.cue_count" = "行数";
+"file_detail.lines_count" = "%lld 行";
+"file_detail.file_size" = "文件大小";
+"file_detail.format" = "格式";
+"file_detail.path" = "位置";
+"file_detail.created" = "创建时间";
+"file_detail.modified" = "修改时间";
+"file_detail.none" = "无";

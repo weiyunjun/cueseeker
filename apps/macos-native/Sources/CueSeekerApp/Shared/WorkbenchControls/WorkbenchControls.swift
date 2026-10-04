@@ -129,6 +129,16 @@ enum WorkbenchControlMetrics {
     /// Where the close button's box sits so that its glyph lands on the inset.
     static let redesignDialogCloseAnchorInset: CGFloat =
         redesignDialogInset - redesignDialogCloseBoxSlack
+    /// --size-detail-file-icon-container: 40px
+    static let redesignDetailFileIconContainerSize: CGFloat = 40
+    /// --size-detail-file-icon-glyph: 20px
+    static let redesignDetailFileIconGlyphSize: CGFloat = 20
+    /// --line-height-detail-file-title: 20px
+    static let redesignDetailFileTitleLineHeight: CGFloat = 20
+    /// --min-width-detail-label: 100px
+    static let redesignDetailLabelMinWidth: CGFloat = 100
+    /// --min-width-detail-index-label: 40px
+    static let redesignDetailIndexLabelMinWidth: CGFloat = 40
     /// Provisional --size-checkbox: 21px icon box (document: 16px)
     static let redesignCheckboxSize: CGFloat = 21
     /// Provisional --size-select-indicator: 16px icon box (document: 12pt)

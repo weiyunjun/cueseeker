@@ -168,6 +168,14 @@ private struct ContentRootView: View {
                 .workbenchDialog()
             }
 
+            if let session = libraryStore.fileDetailSession {
+                WorkbenchFileDetailDialog(
+                    session: session,
+                    onClose: appState.closeFileDetailDialog
+                )
+                .workbenchDialog()
+            }
+
             if let session = filterDialog.session {
                 Group {
                     switch session.source {
@@ -227,6 +235,9 @@ private struct ContentRootView: View {
             ids.append(session.id)
         }
         if let session = libraryStore.renameSession {
+            ids.append(session.id)
+        }
+        if let session = libraryStore.fileDetailSession {
             ids.append(session.id)
         }
         if let session = filterDialog.session {

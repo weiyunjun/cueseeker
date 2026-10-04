@@ -393,6 +393,15 @@ struct WorkbenchFileView: View {
                         if !object.videoPath.isEmpty {
                             let videoItems = [
                                 FileCardMenuItem(
+                                    title: L("file_detail.get_info"),
+                                    icon: .info,
+                                    isEnabled: true,
+                                    isDestructive: false,
+                                    action: {
+                                        appState.requestVideoDetail(for: object.videoPath)
+                                    }
+                                ),
+                                FileCardMenuItem(
                                     title: L("rename.files"),
                                     icon: .pencilSimple,
                                     isEnabled: !isFolderOperationBlocked,
@@ -418,6 +427,15 @@ struct WorkbenchFileView: View {
 
                         ForEach(object.subtitles) { subtitle in
                             let subtitleItems = [
+                                FileCardMenuItem(
+                                    title: L("file_detail.get_info"),
+                                    icon: .info,
+                                    isEnabled: true,
+                                    isDestructive: false,
+                                    action: {
+                                        appState.requestSubtitleDetail(for: subtitle.path)
+                                    }
+                                ),
                                 FileCardMenuItem(
                                     title: L("rename.files"),
                                     icon: .pencilSimple,
