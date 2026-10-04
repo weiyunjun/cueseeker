@@ -700,6 +700,21 @@ struct WorkbenchSearchField: View {
                     lineWidth: isRedesign ? WorkbenchControlMetrics.redesignControlBorderWidth : WorkbenchControlMetrics.hairlineWidth
                 )
         )
+        .overlay(
+            Group {
+                if isRedesign && isFocused && isEnabled {
+                    RoundedRectangle(
+                        cornerRadius: WorkbenchControlMetrics.redesignSearchRadius + WorkbenchControlMetrics.redesignFocusRingPathExpansion,
+                        style: .continuous
+                    )
+                    .stroke(
+                        WorkbenchRedesignColors.focusRing,
+                        lineWidth: WorkbenchControlMetrics.redesignFocusRingWidth
+                    )
+                    .padding(-WorkbenchControlMetrics.redesignFocusRingPathExpansion)
+                }
+            }
+        )
         .subtitleTableTextSelectionInteractiveRegion(isActive: isEnabled)
         .task {
             guard autofocus else {

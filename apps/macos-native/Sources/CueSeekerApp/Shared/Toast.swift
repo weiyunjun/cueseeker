@@ -334,7 +334,7 @@ private struct ToastView: View {
                     size: WorkbenchControlMetrics.redesignToastIconSize,
                     weight: item.request.iconWeight
                 )
-                .foregroundColor(PlaybackTheme.textPrimary)
+                .foregroundColor(iconColor(for: item.request))
                 .alignmentGuide(.feedbackFirstLineCenter) { dimensions in
                     dimensions[VerticalAlignment.center]
                 }
@@ -345,7 +345,7 @@ private struct ToastView: View {
                     size: WorkbenchControlMetrics.redesignFontSizeToast,
                     weight: WorkbenchControlMetrics.redesignFontWeightControl
                 ))
-                .foregroundColor(PlaybackTheme.textPrimary)
+                .foregroundColor(WorkbenchRedesignColors.toastText)
                 .multilineTextAlignment(.leading)
                 .fixedSize(horizontal: false, vertical: true)
                 .alignmentGuide(.feedbackFirstLineCenter) { _ in
@@ -361,19 +361,32 @@ private struct ToastView: View {
         .accessibilityLabel(item.request.message)
     }
 
-    /// The Playback Feedback surface. A toast sits over the Workbench in both
-    /// appearances, so it keeps one scrim instead of following the theme, and
-    /// the border and the fill carry the separation without a shadow.
+    private func iconColor(for request: ToastRequest) -> Color {
+        guard let scenarioID = request.scenarioID else {
+            return WorkbenchRedesignColors.accent
+        }
+        if scenarioID.contains("failed") {
+            return WorkbenchRedesignColors.dangerText
+        }
+        if scenarioID.contains("succeeded") || scenarioID.contains("saved") || scenarioID.contains("duplicated") || scenarioID.contains("moved") {
+            return WorkbenchRedesignColors.successText
+        }
+        if scenarioID.contains("warning") || scenarioID.contains("unavailable") || scenarioID.contains("already_exists") || scenarioID.contains("not_in_library") || scenarioID.contains("status_changed") || request.icon == .warning {
+            return WorkbenchRedesignColors.warningText
+        }
+        return WorkbenchRedesignColors.accent
+    }
+
+    /// The Playback Feedback surface. In Dark Mode it uses #2A2A2E with a 1px border.
     private var surface: some View {
         let shape = RoundedRectangle(cornerRadius: PlaybackChromeMetrics.feedbackRadius)
 
         return shape
-            .fill(PlaybackTheme.menuBackground)
-            .background(.ultraThinMaterial, in: shape)
+            .fill(WorkbenchRedesignColors.toastBg)
             .overlay(
                 shape.strokeBorder(
-                    PlaybackTheme.textTertiary.opacity(0.3),
-                    lineWidth: WorkbenchControlMetrics.hairlineWidth
+                    WorkbenchRedesignColors.toastBorder,
+                    lineWidth: 1
                 )
             )
     }

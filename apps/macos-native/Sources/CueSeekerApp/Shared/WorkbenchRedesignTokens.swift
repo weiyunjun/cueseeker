@@ -63,7 +63,7 @@ enum WorkbenchRedesignColors {
         static let bgHover = NSColor.dynamic(lightHex: "#F3F4F6", darkHex: "#FFFFFF", darkAlpha: 0.12)
         static let bgDisabled = NSColor.dynamic(lightHex: "#F3F4F6", darkHex: "#FFFFFF", darkAlpha: 0.04)
         static let bgControl = NSColor.dynamic(lightHex: "#FFFFFF", darkHex: "#FFFFFF", darkAlpha: 0.08)
-        static let bgDialog = NSColor.dynamic(lightHex: "#FFFFFF", darkHex: "#2F2F34")
+        static let bgDialog = NSColor.dynamic(lightHex: "#FFFFFF", darkHex: "#1C1C1F")
         static let bgPopover = NSColor.dynamic(lightHex: "#FFFFFF", darkHex: "#36363B")
         static let tableBg = NSColor.dynamic(lightHex: "#FFFFFF", darkHex: "#26262A")
         static let appSidebarBg = NSColor.dynamic(lightHex: "#F6F7F9", darkHex: "#111113")
@@ -115,7 +115,7 @@ enum WorkbenchRedesignColors {
         // Checkbox
         // A monochrome glyph: the outline circle unchecked, the filled circle
         // with a cut-out mark when checked or mixed. No background of its own.
-        static let bgCheckboxChecked = NSColor.dynamic(lightHex: "#667085", darkHex: "#A1A1AA")
+        static let bgCheckboxChecked = NSColor.controlAccentColor
 
         // Segmented Control
         static let segmentedControlSelectedBg = NSColor.controlAccentColor
@@ -156,7 +156,7 @@ enum WorkbenchRedesignColors {
         static let libraryProgressTrack = NSColor.dynamic(lightHex: "#E5E7EB", darkHex: "#303036")
         static let libraryTimeBadgeBg = NSColor.dynamic(lightHex: "#0F172A", lightAlpha: 0.72, darkHex: "#000000", darkAlpha: 0.58)
         static let libraryTimeBadgeText = NSColor.dynamic(lightHex: "#FFFFFF", darkHex: "#FFFFFF")
-        static let libraryCoverPlaceholderBg = NSColor.dynamic(lightHex: "#E5E7EB", darkHex: "#303036")
+        static let libraryCoverPlaceholderBg = NSColor.dynamic(lightHex: "#E5E7EB", darkHex: "#2E2E33")
         static let libraryCoverCropAccent = NSColor.controlAccentColor
         static let libraryCoverCropMask = NSColor.shadowColor.withAlphaComponent(0.55)
         static let libraryCoverEditOverlay = libraryCoverCropMask
@@ -216,6 +216,24 @@ enum WorkbenchRedesignColors {
             lightAlpha: 0,
             darkHex: "#FFFFFF",
             darkAlpha: 0.20
+        )
+
+        // Toast
+        static let toastBg = NSColor.dynamic(
+            lightHex: "#1F1F1F",
+            lightAlpha: 0.92,
+            darkHex: "#2A2A2E",
+            darkAlpha: 1.0
+        )
+        static let toastBorder = NSColor.dynamic(
+            lightHex: "#FFFFFF",
+            lightAlpha: 0.15,
+            darkHex: "#4A4A52",
+            darkAlpha: 1.0
+        )
+        static let toastText = NSColor.dynamic(
+            lightHex: "#FFFFFF",
+            darkHex: "#E4E4E4"
         )
     }
 
@@ -348,6 +366,11 @@ enum WorkbenchRedesignColors {
     static let commandPanelScrim = Color(nsColor: NS.commandPanelScrim)
     static let dialogOutline = Color(nsColor: NS.dialogOutline)
     static let dialogEdgeHighlight = Color(nsColor: NS.dialogEdgeHighlight)
+
+    // Toast
+    static let toastBg = Color(nsColor: NS.toastBg)
+    static let toastBorder = Color(nsColor: NS.toastBorder)
+    static let toastText = Color(nsColor: NS.toastText)
 
     // Shadow Dialog
     // --shadow-dialog: 0 18px 40px, one layer in both themes; only its

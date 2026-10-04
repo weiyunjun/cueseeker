@@ -78,15 +78,27 @@ enum WorkbenchCheckboxStyle {
         size: CGFloat,
         in controlRect: CGRect
     ) {
+        let drawRect = appKitDrawingRect(
+            imageSize: CGSize(width: size, height: size),
+            centeredIn: controlRect
+        )
+        if state != .unchecked && isEnabled {
+            let innerSize = size * 0.70
+            let innerRect = CGRect(
+                x: drawRect.midX - innerSize / 2,
+                y: drawRect.midY - innerSize / 2,
+                width: innerSize,
+                height: innerSize
+            )
+            NSColor.white.setFill()
+            NSBezierPath(ovalIn: innerRect).fill()
+        }
         guard let image = appKitImage(
             for: state,
             isEnabled: isEnabled,
             size: size
         ) else { return }
-        image.draw(in: appKitDrawingRect(
-            imageSize: image.size,
-            centeredIn: controlRect
-        ))
+        image.draw(in: drawRect)
     }
 }
 
@@ -96,15 +108,22 @@ struct WorkbenchCheckboxGlyph: View {
     let size: CGFloat
 
     var body: some View {
-        AppIconImage(
-            WorkbenchCheckboxStyle.icon(for: state),
-            size: size,
-            weight: WorkbenchCheckboxStyle.iconWeight(for: state)
-        )
+        ZStack {
+            if state != .unchecked && isEnabled {
+                Circle()
+                    .fill(Color.white)
+                    .frame(width: size * 0.70, height: size * 0.70)
+            }
+            AppIconImage(
+                WorkbenchCheckboxStyle.icon(for: state),
+                size: size,
+                weight: WorkbenchCheckboxStyle.iconWeight(for: state)
+            )
             .foregroundStyle(Color(nsColor: WorkbenchCheckboxStyle.controlColor(
                 for: state,
                 isEnabled: isEnabled
             )))
-            .frame(width: size, height: size)
+        }
+        .frame(width: size, height: size)
     }
 }
