@@ -27,7 +27,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--color-bg-hover`: Light `#F3F4F6`; Dark `rgba(255,255,255,0.12)`
 - `--color-bg-disabled`: Light `#F3F4F6`; Dark `rgba(255,255,255,0.04)`
 - `--color-bg-control`: Light `#FFFFFF`; Dark `rgba(255,255,255,0.08)`
-- `--color-bg-dialog`: Light `#FFFFFF`; Dark `#2F2F34`
+- `--color-bg-dialog`: Light `#FFFFFF`; Dark `#1C1C1F`
 - `--color-bg-popover`: Light `#FFFFFF`; Dark `#36363B`
 - `--color-app-sidebar-bg`: Light `#F6F7F9`; Dark `#111113`
 - `--color-app-sidebar-item-selected-bg`: macOS accent color
@@ -77,7 +77,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--color-primary-button-bg`: macOS accent color
 - `--color-primary-button-bg-hover`: macOS accent color with native hover emphasis
 - `--color-primary-button-text`: Light `#FFFFFF`; Dark `#FFFFFF`
-- `--color-bg-checkbox-checked`: Light `#667085`; Dark `#A1A1AA`
+- `--color-bg-checkbox-checked`: macOS accent color
 - `--color-segmented-control-selected-bg`: macOS accent color
 - `--color-segmented-control-selected-content`: Light `#FFFFFF`; Dark `#FFFFFF`
 - `--color-filter-chip-selected-content`: macOS accent color
@@ -123,7 +123,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--color-library-progress-track`: Light `#E5E7EB`; Dark `#303036`
 - `--color-library-time-badge-bg`: Light `rgba(15,23,42,0.72)`; Dark `rgba(0,0,0,0.58)`
 - `--color-library-time-badge-text`: Light `#FFFFFF`; Dark `#FFFFFF`
-- `--color-library-cover-placeholder-bg`: Light `#E5E7EB`; Dark `#303036`
+- `--color-library-cover-placeholder-bg`: Light `#E5E7EB`; Dark `#2E2E33`
 - `--color-library-cover-crop-accent`: macOS accent color
 - `--color-library-cover-crop-mask`: macOS shadow color with Alpha `0.55`
 - `--color-library-cover-edit-overlay`: Same as `--color-library-cover-crop-mask`
@@ -143,6 +143,8 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--color-command-panel-scrim`: Light `rgba(0,0,0,0.32)`; Dark `rgba(0,0,0,0.32)`
 - `--color-dialog-outline`: Light `rgba(0,0,0,0.19)`; Dark `rgba(0,0,0,0.94)`
 - `--color-dialog-edge-highlight`: Light `transparent`; Dark `rgba(255,255,255,0.20)`
+- `--color-toast-bg`: Light `rgba(31,31,31,0.92)`; Dark `#2A2A2E`
+- `--color-toast-border`: Light `rgba(255,255,255,0.15)`; Dark `#4A4A52`
 
 ### Player Chrome
 
@@ -786,11 +788,11 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - Checked
   - Icon：`check-circle`（Fill）
   - Control Color：`--color-bg-checkbox-checked`
-  - 勾为镂空，透出所在表面
+  - 勾为纯白色，外圈为 Control Color
 - Indeterminate
   - Icon：`minus-circle`（Fill）
   - Control Color：`--color-bg-checkbox-checked`
-  - 横线为镂空，透出所在表面
+  - 横线为纯白色，外圈为 Control Color
 - Focused
   - Ring Color：`--color-focus-ring`
   - Ring Width：`--focus-ring-width`
@@ -2035,19 +2037,20 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 ##### Anatomy
 
 - Container
-  - Background：`--color-player-menu-bg`
-  - Border Color：`--color-player-text-tertiary`（30%）
+  - Background：`--color-toast-bg`
+  - Border Color：`--color-toast-border`
+  - Border Width：`1px`
   - Radius：`--radius-playback-feedback`
   - Shadow：None
 - Icon
   - Presence：Optional
-  - Color：`--color-player-text-primary`
+  - Color：语义状态色（成功绿、警告黄、错误红、常规 Accent 蓝）
   - 与 Message 第一行垂直居中
 - Message
   - Font Family：`--font-family-base`
   - Font Size：`--font-size-toast`
   - Font Weight：`--font-weight-control`
-  - Color：`--color-player-text-primary`
+  - Color：`--color-text-primary`
   - 超出最大宽度换行，各行左对齐，不进入 Icon 所占宽度
 
 ##### Motion
