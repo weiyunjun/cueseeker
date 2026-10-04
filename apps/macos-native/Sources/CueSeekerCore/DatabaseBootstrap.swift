@@ -557,6 +557,9 @@ private extension DatabaseBootstrap {
             CREATE INDEX IF NOT EXISTS idx_library_video_rows_order
                 ON library_video_rows(folder_order, video_order);
 
+            CREATE INDEX IF NOT EXISTS idx_library_video_rows_folder_path
+                ON library_video_rows(folder_path);
+
             CREATE TABLE IF NOT EXISTS video_covers (
                 video_file_id INTEGER PRIMARY KEY,
                 cover_path TEXT NOT NULL,

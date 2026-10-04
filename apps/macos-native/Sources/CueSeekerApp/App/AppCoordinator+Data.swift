@@ -56,104 +56,57 @@ extension AppCoordinator {
         }
     }
 
-    /// Pre-hydrates subfolders for all selected root folders so Level 2 displays instantly.
-    func hydrateFileRootsAsync() {
-        let folders = indexing.selectedFolders
-        guard !folders.isEmpty, let database = indexedContentDatabase else {
-            return
-        }
-
-        for rootURL in folders {
-            let rootPath = rootURL.standardizedFileURL.path
-            guard library.fileSubfoldersByRootPath[rootPath] == nil,
-                  library.fileSubfolderStatusByRootPath[rootPath] != .loading
-            else {
-                continue
-            }
-            library.fileSubfolderStatusByRootPath[rootPath] = .loading
-
-            Task { [weak self] in
-                guard let self else { return }
-                do {
-                    let subfolders = try await Self.runCancellableDetached(priority: .userInitiated) {
-                        try database.subfolders(under: rootURL)
-                    }
-                    guard !Task.isCancelled else { return }
-                    self.library.fileSubfoldersByRootPath[rootPath] = subfolders
-                    self.library.fileSubfolderStatusByRootPath[rootPath] = .completed
-                } catch is CancellationError {
-                    self.library.fileSubfolderStatusByRootPath[rootPath] = .idle
-                } catch {
-                    self.library.fileSubfoldersByRootPath[rootPath] = []
-                    self.library.fileSubfolderStatusByRootPath[rootPath] = .failed(Self.errorMessage(for: error))
-                }
-            }
-        }
-    }
-
-    /// Hydrates subfolders under a specific root folder on demand.
-    func hydrateFileSubfoldersAsync(rootPath: String) {
+    /// Loads subfolders under a specific root folder on demand.
+    func loadFileSubfolders(rootPath: String) {
         let standardized = URL(fileURLWithPath: rootPath).standardizedFileURL.path
         guard let database = indexedContentDatabase else {
             library.fileSubfolderStatusByRootPath[standardized] = .failed(L("status.database_not_initialized"))
             return
         }
-        guard library.fileSubfoldersByRootPath[standardized] == nil,
-              library.fileSubfolderStatusByRootPath[standardized] != .loading
-        else {
+        guard library.fileSubfoldersByRootPath[standardized] == nil else {
             return
         }
 
-        library.fileSubfolderStatusByRootPath[standardized] = .loading
         let rootURL = URL(fileURLWithPath: standardized)
-        Task { [weak self] in
-            guard let self else { return }
-            do {
-                let subfolders = try await Self.runCancellableDetached(priority: .userInitiated) {
-                    try database.subfolders(under: rootURL)
-                }
-                guard !Task.isCancelled else { return }
-                self.library.fileSubfoldersByRootPath[standardized] = subfolders
-                self.library.fileSubfolderStatusByRootPath[standardized] = .completed
-            } catch is CancellationError {
-                self.library.fileSubfolderStatusByRootPath[standardized] = .idle
-            } catch {
-                self.library.fileSubfoldersByRootPath[standardized] = []
-                self.library.fileSubfolderStatusByRootPath[standardized] = .failed(Self.errorMessage(for: error))
-            }
+        do {
+            let subfolders = try database.subfolders(under: rootURL)
+            library.fileSubfoldersByRootPath[standardized] = subfolders
+            library.fileSubfolderStatusByRootPath[standardized] = .completed
+        } catch {
+            library.fileSubfoldersByRootPath[standardized] = []
+            library.fileSubfolderStatusByRootPath[standardized] = .failed(Self.errorMessage(for: error))
         }
     }
 
-    /// Hydrates objects (videos and subtitles) in a specific folder on demand.
-    func hydrateFileObjectsAsync(folderPath: String) {
+    /// Loads objects (videos and subtitles) in a specific folder on demand.
+    func loadFileObjects(folderPath: String) {
         let standardized = URL(fileURLWithPath: folderPath).standardizedFileURL.path
         guard let database = indexedContentDatabase else {
             library.fileObjectStatusByFolderPath[standardized] = .failed(L("status.database_not_initialized"))
             return
         }
-        guard library.fileObjectsByFolderPath[standardized] == nil,
-              library.fileObjectStatusByFolderPath[standardized] != .loading
-        else {
+        guard library.fileObjectsByFolderPath[standardized] == nil else {
             return
         }
 
-        library.fileObjectStatusByFolderPath[standardized] = .loading
-        Task { [weak self] in
-            guard let self else { return }
-            do {
-                let objects = try await Self.runCancellableDetached(priority: .userInitiated) {
-                    try database.objects(in: standardized)
-                }
-                guard !Task.isCancelled else { return }
-                self.library.fileObjectsByFolderPath[standardized] = objects
-                self.library.fileObjectStatusByFolderPath[standardized] = .completed
-            } catch is CancellationError {
-                self.library.fileObjectStatusByFolderPath[standardized] = .idle
-            } catch {
-                self.library.fileObjectsByFolderPath[standardized] = []
-                self.library.fileObjectStatusByFolderPath[standardized] = .failed(Self.errorMessage(for: error))
-            }
+        do {
+            let objects = try database.objects(in: standardized)
+            library.fileObjectsByFolderPath[standardized] = objects
+            library.fileObjectStatusByFolderPath[standardized] = .completed
+        } catch {
+            library.fileObjectsByFolderPath[standardized] = []
+            library.fileObjectStatusByFolderPath[standardized] = .failed(Self.errorMessage(for: error))
         }
+    }
+
+    /// Hydrates subfolders under a specific root folder on demand.
+    func hydrateFileSubfoldersAsync(rootPath: String) {
+        loadFileSubfolders(rootPath: rootPath)
+    }
+
+    /// Hydrates objects (videos and subtitles) in a specific folder on demand.
+    func hydrateFileObjectsAsync(folderPath: String) {
+        loadFileObjects(folderPath: folderPath)
     }
 
     /// Invalidates on-demand file subfolders and objects caches when library data mutates.

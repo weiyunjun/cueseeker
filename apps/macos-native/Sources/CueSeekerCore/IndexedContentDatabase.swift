@@ -76,24 +76,28 @@ public final class IndexedContentDatabase: @unchecked Sendable {
             return []
         }
 
-        let videoLocations = try loadVideoLocations(forRootID: root.id)
-        let libraryFolders = try libraryDatabase.libraryPresentation(
-            under: [rootURL]
+        let statement = try database.prepare(
+            """
+            SELECT lf.id,
+                   lf.relative_path,
+                   lvr.folder_path,
+                   lvr.folder_title
+            FROM library_video_rows lvr
+            JOIN video_files vf ON vf.id = lvr.video_file_id
+            JOIN library_folders lf ON lf.id = vf.folder_id
+            WHERE vf.library_id = ?
+            GROUP BY lf.id, lf.relative_path, lvr.folder_path, lvr.folder_title
+            ORDER BY lvr.folder_title COLLATE NOCASE ASC, lvr.folder_path COLLATE NOCASE ASC;
+            """
         )
+        try statement.bind(root.id, at: 1)
+
         var folders: [IndexedContentFolder] = []
-
-        for libraryFolder in libraryFolders {
-            guard
-                let firstVideo = libraryFolder.videos.first,
-                let videoLocation = videoLocations[firstVideo.videoFileID]
-            else {
-                continue
-            }
-
+        while try statement.step() {
             folders.append(IndexedContentFolder(
-                id: videoLocation.folderID,
-                relativePath: videoLocation.relativePath,
-                folderPath: libraryFolder.folderPath,
+                id: statement.int64Column(0),
+                relativePath: statement.stringColumn(1),
+                folderPath: statement.stringColumn(2),
                 objects: []
             ))
         }
@@ -102,34 +106,48 @@ public final class IndexedContentDatabase: @unchecked Sendable {
 
     /// Returns the indexed objects (videos with subtitles) in a specific folder.
     public func objects(in folderPath: String) throws -> [IndexedContentObject] {
-        let folderURL = URL(fileURLWithPath: folderPath)
-        let libraryFolders = try libraryDatabase.libraryPresentation(under: [folderURL])
-        guard let libraryFolder = libraryFolders.first(where: {
-            $0.folderPath == folderPath
-                || URL(fileURLWithPath: $0.folderPath).standardizedFileURL.path == folderURL.standardizedFileURL.path
-        }) else {
-            return []
-        }
+        let standardized = URL(fileURLWithPath: folderPath).standardizedFileURL.path
+        let statement = try database.prepare(
+            """
+            SELECT lvr.video_file_id,
+                   lvr.display_title,
+                   lvr.video_path,
+                   lvr.video_name,
+                   COALESCE(vf.file_size, 0)
+            FROM library_video_rows lvr
+            JOIN video_files vf ON vf.id = lvr.video_file_id
+            WHERE lvr.folder_path = ? OR lvr.folder_path = ?
+            ORDER BY lvr.video_order ASC, lvr.video_path ASC;
+            """
+        )
+        try statement.bind(folderPath, at: 1)
+        try statement.bind(standardized, at: 2)
 
-        let videoIDs = libraryFolder.videos.map(\.videoFileID)
-        guard !videoIDs.isEmpty else {
-            return []
-        }
-
-        let fileSizes = try loadVideoFileSizes(for: videoIDs)
         var objects: [IndexedContentObject] = []
+        var videoIDs: [Int64] = []
         var objectIndices: [Int64: Int] = [:]
 
-        for (index, video) in libraryFolder.videos.enumerated() {
+        var index = 0
+        while try statement.step() {
+            guard let videoFileID = statement.nullableInt64Column(0) else {
+                continue
+            }
+            let displayTitle = statement.stringColumn(1)
+            let videoPath = statement.stringColumn(2)
+            let videoName = statement.stringColumn(3)
+            let fileSize = statement.int64Column(4)
+
             objects.append(IndexedContentObject(
-                id: video.videoFileID,
-                displayTitle: video.displayTitle,
-                videoPath: video.videoPath,
-                videoName: video.videoName,
-                fileSize: fileSizes[video.videoFileID] ?? 0,
+                id: videoFileID,
+                displayTitle: displayTitle,
+                videoPath: videoPath,
+                videoName: videoName,
+                fileSize: fileSize,
                 subtitles: []
             ))
-            objectIndices[video.videoFileID] = index
+            videoIDs.append(videoFileID)
+            objectIndices[videoFileID] = index
+            index += 1
         }
 
         try loadSubtitles(for: videoIDs, into: &objects, objectIndices: objectIndices)
@@ -200,26 +218,6 @@ public final class IndexedContentDatabase: @unchecked Sendable {
             )
         }
         return locations
-    }
-
-    private func loadVideoFileSizes(for videoIDs: [Int64]) throws -> [Int64: Int64] {
-        guard !videoIDs.isEmpty else { return [:] }
-        let placeholders = Array(repeating: "?", count: videoIDs.count).joined(separator: ", ")
-        let statement = try database.prepare(
-            """
-            SELECT id, COALESCE(file_size, 0)
-            FROM video_files
-            WHERE id IN (\(placeholders));
-            """
-        )
-        for (i, id) in videoIDs.enumerated() {
-            try statement.bind(id, at: Int32(i + 1))
-        }
-        var sizes: [Int64: Int64] = [:]
-        while try statement.step() {
-            sizes[statement.int64Column(0)] = statement.int64Column(1)
-        }
-        return sizes
     }
 
     private func loadSubtitles(

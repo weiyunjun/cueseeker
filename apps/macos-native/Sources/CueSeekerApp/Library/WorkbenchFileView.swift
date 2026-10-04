@@ -52,9 +52,6 @@ struct WorkbenchFileView: View {
             dismissMenu()
             indexing.clearTransientNotice()
         }
-        .task(id: "\(indexing.selectedFolders.map(\.path).joined(separator: ","))|\(library.fileTreeRevision)") {
-            appState.hydrateFileRootsAsync()
-        }
     }
 
     private func fileScrollSurface<Content: View>(
@@ -292,8 +289,10 @@ struct WorkbenchFileView: View {
                         title: folder.lastPathComponent,
                         subtitle: folder.path,
                         onTap: {
+                            let rootPath = folder.standardizedFileURL.path
+                            appState.loadFileSubfolders(rootPath: rootPath)
                             appState.workbenchLayout.navigate(
-                                to: .fileFolder(rootPath: folder.standardizedFileURL.path)
+                                to: .fileFolder(rootPath: rootPath)
                             )
                         },
                         menuItems: items,
@@ -348,6 +347,7 @@ struct WorkbenchFileView: View {
                             title: title,
                             subtitle: folder.folderPath,
                             onTap: {
+                                appState.loadFileObjects(folderPath: folder.folderPath)
                                 appState.workbenchLayout.navigate(
                                     to: .fileFiles(rootPath: rootPath, folderPath: folder.folderPath)
                                 )
