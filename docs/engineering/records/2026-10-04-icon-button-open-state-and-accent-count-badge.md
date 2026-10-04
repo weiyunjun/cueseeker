@@ -25,6 +25,7 @@ Human-owned documents:
    - Added `openBackground: Color? = nil`, defaulting open background to `WorkbenchRedesignColors.bgActive`.
    - Updated default `countBackground` to `Color.accentColor` and `countTextColor` to `WorkbenchRedesignColors.iconOnDark`.
    - Updated `redesignBackgroundColor` to return `openBackground ?? WorkbenchRedesignColors.bgActive` when `isOpen`, and `hoverBackground` when hovered.
+   - For disabled buttons (`!isEnabled`), count badge background dims to `countBackground.opacity(0.35)` while maintaining white text, preserving the active filter semantic indication without neutral grey wash-out.
 3. **Topbar App Entries & Task Entry**:
    - In `TaskEntryButton.swift` and `TopbarAppEntries.swift`, added `openBackground: Color? = nil` parameter forwarding to `WorkbenchIconButton` and updated count badge default colors.
    - In `LiquidGlassVideoTopBar.swift`, passed `openBackground: PlaybackTheme.controlActiveBackground` and accent badge colors for cinematic topbar rendering.

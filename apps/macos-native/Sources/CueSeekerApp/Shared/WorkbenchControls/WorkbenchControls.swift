@@ -1146,7 +1146,7 @@ struct WorkbenchIconButton: View {
                     glyph
                     TaskCountBadge(
                         count: count,
-                        background: isEnabled ? countBackground : WorkbenchRedesignColors.textDisabled,
+                        background: isEnabled ? countBackground : countBackground.opacity(0.35),
                         textColor: countTextColor
                     )
                 }

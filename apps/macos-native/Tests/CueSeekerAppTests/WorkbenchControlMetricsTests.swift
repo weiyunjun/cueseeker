@@ -112,6 +112,7 @@ func iconButtonOpenAndBadgeColorTokensMatchDesignSpecification() {
     let button = WorkbenchIconButton(icon: .funnel, isRedesign: true)
     #expect(button.countBackground == Color.accentColor)
     #expect(button.countTextColor == WorkbenchRedesignColors.iconOnDark)
+    #expect(button.countBackground.opacity(0.35) == Color.accentColor.opacity(0.35))
     #expect(button.openBackground == nil)
     #expect(PlaybackTheme.controlActiveBackground == Color.accentColor.opacity(0.26))
 }
