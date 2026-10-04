@@ -56,8 +56,12 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--color-text-active`: Light `#0040FF`; Dark `#8AB4FF`
 - `--color-icon-active`: Light `#0040FF`; Dark `#8AB4FF`
 - `--color-border-active`: Light `#0040FF`; Dark `#7AA2FF`
-- `--color-bg-active`: Light `#EBF5FF`; Dark `#14275A`
-- `--color-bg-active-hover`: Light `#E1EBFF`; Dark `#1B3470`
+- `--color-bg-active`:
+  - Light: macOS accent color with Alpha `0.12`
+  - Dark: macOS accent color with Alpha `0.22`
+- `--color-bg-active-hover`:
+  - Light: macOS accent color with Alpha `0.18`
+  - Dark: macOS accent color with Alpha `0.30`
 
 ### Focus
 
@@ -145,6 +149,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--color-player-stage-bg`: Light `#000000`; Dark `#000000`
 - `--color-player-control-bg`: Light `rgba(0,0,0,0.30)`; Dark `rgba(0,0,0,0.30)`
 - `--color-player-control-bg-hover`: Light `rgba(255,255,255,0.16)`; Dark `rgba(255,255,255,0.16)`
+- `--color-player-control-bg-active`: macOS accent color with Alpha `0.26`
 - `--color-player-menu-bg`: Light `rgba(0,0,0,0.55)`; Dark `rgba(0,0,0,0.55)`
 - `--color-player-menu-item-hover-bg`: Light `rgba(255,255,255,0.12)`; Dark `rgba(255,255,255,0.12)`
 - `--color-player-text-primary`: Light `rgba(255,255,255,0.94)`; Dark `rgba(255,255,255,0.94)`
@@ -1091,7 +1096,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
   - Background：Surface Hover
 - Open
   - 触发：挂靠的菜单、面板或窗口打开，或按钮所控的模式开启
-  - 外观与 Hover 相同
+  - Background：`--color-bg-active`；在 `--color-player-topbar-gradient-start` 上为 `--color-player-control-bg-active`
 - Focused
   - Ring Color：`--color-focus-ring`
   - Ring Width：`--focus-ring-width`
@@ -1836,11 +1841,11 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - Shape：1 位数为圆形，宽与高相等；2 位及以上为胶囊形，两端为正半圆
 - Size：`--size-control-icon`；在 Section Header 内为 `--size-task-count-badge-compact`
 - Padding Inline：1 位数为 0；2 位及以上为 `--spacing-2`，在 Section Header 内为 `--padding-task-count-badge-compact-x`
-- Background：`--color-text-muted`；在 `--color-player-topbar-gradient-start` 上为 `--color-player-text-primary`；按钮 Disabled 时为 `--color-text-disabled`；按钮 Hover 或 Open 时不变
+- Background：macOS accent color；按钮 Disabled 时为 macOS accent color with Alpha `0.35`；按钮 Hover 或 Open 时不变
 - Font Family：`--font-family-base`
 - Font Size：`--font-size-task-count-badge`；在 Section Header 内为 `--font-size-caption`
 - Font Weight：`--font-weight-task-count-badge`
-- Text Color：`--color-bg-surface`；在 `--color-player-topbar-gradient-start` 上为 `--color-player-icon-selected`
+- Text Color：`--color-icon-on-dark`
 - States
   - Count
   - Hidden：数量为 0
