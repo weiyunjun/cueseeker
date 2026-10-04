@@ -8,19 +8,22 @@ struct ExcerptListCoverView: View {
     @State private var activeRequestID: UUID?
     @State private var isShimmerVisible = false
     @State private var delayTask: Task<Void, Never>?
+    @State private var loadFailed = false
 
     private struct LoadedImage {
         let path: String
         let image: CGImage
     }
 
+    private var hasValidPath: Bool {
+        guard let coverPath, !coverPath.isEmpty else {
+            return false
+        }
+        return true
+    }
+
     var body: some View {
         ZStack {
-            if loadedImage?.path != coverPath {
-                CoverSkeletonShimmerView(isShimmering: isShimmerVisible)
-                    .transition(.opacity)
-            }
-
             if let loadedImage,
                loadedImage.path == coverPath {
                 LibraryCoverFillImage(
@@ -28,6 +31,12 @@ struct ExcerptListCoverView: View {
                     verticalAlignment: imageVerticalAlignment
                 )
                 .transition(.opacity)
+            } else if hasValidPath && !loadFailed {
+                CoverSkeletonShimmerView(isShimmering: isShimmerVisible)
+                    .transition(.opacity)
+            } else {
+                defaultCover
+                    .transition(.opacity)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -42,6 +51,17 @@ struct ExcerptListCoverView: View {
         }
     }
 
+    private var defaultCover: some View {
+        ZStack {
+            Rectangle()
+                .fill(WorkbenchRedesignColors.libraryCoverPlaceholderBg)
+
+            AppIconImage(.bookmarkSimple, size: WorkbenchControlMetrics.redesignCoverPlaceholderIconSize)
+                .foregroundStyle(WorkbenchRedesignColors.textMuted)
+                .accessibilityHidden(true)
+        }
+    }
+
     @MainActor
     private func loadCover(for path: String?) async {
         delayTask?.cancel()
@@ -51,6 +71,7 @@ struct ExcerptListCoverView: View {
             activeRequestID = nil
             loadedImage = nil
             isShimmerVisible = false
+            loadFailed = false
             return
         }
 
@@ -59,6 +80,7 @@ struct ExcerptListCoverView: View {
 
         if loadedImage?.path != path {
             isShimmerVisible = false
+            loadFailed = false
 
             delayTask = Task {
                 try? await Task.sleep(nanoseconds: WorkbenchControlMetrics.redesignCoverAntiFlickerDelayNanoseconds)
@@ -84,9 +106,18 @@ struct ExcerptListCoverView: View {
                 return
             }
 
-            withAnimation(.easeOut(duration: WorkbenchControlMetrics.redesignCoverCrossfadeDuration)) {
-                loadedImage = image.map { LoadedImage(path: path, image: $0) }
-                isShimmerVisible = false
+            if let image {
+                withAnimation(.easeOut(duration: WorkbenchControlMetrics.redesignCoverCrossfadeDuration)) {
+                    loadedImage = LoadedImage(path: path, image: image)
+                    isShimmerVisible = false
+                    loadFailed = false
+                }
+            } else {
+                withAnimation(.easeOut(duration: WorkbenchControlMetrics.redesignCoverCrossfadeDuration)) {
+                    loadedImage = nil
+                    isShimmerVisible = false
+                    loadFailed = true
+                }
             }
         } catch is CancellationError {
             delayTask?.cancel()
@@ -101,6 +132,7 @@ struct ExcerptListCoverView: View {
             withAnimation(.easeOut(duration: WorkbenchControlMetrics.redesignCoverCrossfadeDuration)) {
                 loadedImage = nil
                 isShimmerVisible = false
+                loadFailed = true
             }
         }
     }

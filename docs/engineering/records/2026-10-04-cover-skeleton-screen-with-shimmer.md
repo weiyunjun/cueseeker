@@ -32,10 +32,12 @@ Human-owned documents:
 2. **CoverSkeletonShimmerView**:
    - Created `CoverSkeletonShimmerView.swift` implementing a lightweight `TimelineView(.animation)` continuous sweep across the cover card width.
    - Automatically stops execution and stays a still base fill when `isShimmering` is false or when system `accessibilityReduceMotion` is enabled.
-3. **LibraryCachedCoverImage & ExcerptListCoverView**:
-   - Replaced static placeholder views with `CoverSkeletonShimmerView`.
-   - Added anti-flicker delay timers to defer shimmer until loading exceeds the 120ms threshold.
-   - Added smooth 0.20s ease-out crossfade transitions between the skeleton and the decoded image.
+3. **LibraryCachedCoverImage & ExcerptListCoverView (Three-State Architecture)**:
+   - Cleanly separated cover rendering into three unambiguous states:
+     1. **Loaded**: Render real image via `LibraryCoverFillImage` with 0.20s ease-out crossfade transition.
+     2. **Loading (Shimmer)**: When a valid cover path exists and is being decoded, render `CoverSkeletonShimmerView` deferred by the 120ms anti-flicker delay.
+     3. **Default Cover (Static Fallback)**: When no cover path is set or decoding fails, render the canonical default cover (`libraryCoverPlaceholderBg` with `.bookmarkSimple` for Excerpt or `.video` for Media), ensuring non-empty static presentation for uncustomized lists.
+   - Fixed optional comparison bug where `nil == nil` suppressed placeholder rendering on lists without cover art.
 4. **Verification**:
    - In `WorkbenchControlMetricsTests.swift`, added `coverSkeletonShimmerTokensMatchDesignSpecification` asserting motion duration, delay nanoseconds, crossfade duration, and base color token bindings.
 

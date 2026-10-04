@@ -1576,19 +1576,19 @@ struct LibraryCachedCoverImage: View {
     @State private var activeRequestID: UUID?
     @State private var isShimmerVisible = false
     @State private var delayTask: Task<Void, Never>?
+    @State private var loadFailed = false
 
     private struct LoadedImage {
         let key: LibraryCoverImageKey
         let image: CGImage
     }
 
+    private var key: LibraryCoverImageKey? {
+        LibraryCoverImageKey.current(path: coverPath, revision: coverRevision)
+    }
+
     var body: some View {
         ZStack {
-            if loadedImage?.key != key {
-                CoverSkeletonShimmerView(isShimmering: isShimmerVisible)
-                    .transition(.opacity)
-            }
-
             if let key,
                let loadedImage,
                loadedImage.key == key {
@@ -1597,6 +1597,12 @@ struct LibraryCachedCoverImage: View {
                     verticalAlignment: imageVerticalAlignment
                 )
                 .transition(.opacity)
+            } else if key != nil && !loadFailed {
+                CoverSkeletonShimmerView(isShimmering: isShimmerVisible)
+                    .transition(.opacity)
+            } else {
+                defaultCover
+                    .transition(.opacity)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -1611,8 +1617,15 @@ struct LibraryCachedCoverImage: View {
         }
     }
 
-    private var key: LibraryCoverImageKey? {
-        LibraryCoverImageKey.current(path: coverPath, revision: coverRevision)
+    private var defaultCover: some View {
+        ZStack {
+            Rectangle()
+                .fill(WorkbenchRedesignColors.libraryCoverPlaceholderBg)
+
+            AppIconImage(.video, size: WorkbenchControlMetrics.redesignCoverPlaceholderIconSize)
+                .foregroundStyle(WorkbenchRedesignColors.textMuted)
+                .accessibilityHidden(true)
+        }
     }
 
     @MainActor
@@ -1624,6 +1637,7 @@ struct LibraryCachedCoverImage: View {
             activeRequestID = nil
             loadedImage = nil
             isShimmerVisible = false
+            loadFailed = false
             return
         }
 
@@ -1632,6 +1646,7 @@ struct LibraryCachedCoverImage: View {
 
         if loadedImage?.key != key {
             isShimmerVisible = false
+            loadFailed = false
 
             // Anti-flicker: only activate shimmer if loading exceeds the delay threshold
             delayTask = Task {
@@ -1653,9 +1668,18 @@ struct LibraryCachedCoverImage: View {
                 return
             }
 
-            withAnimation(.easeOut(duration: WorkbenchControlMetrics.redesignCoverCrossfadeDuration)) {
-                loadedImage = image.map { LoadedImage(key: key, image: $0) }
-                isShimmerVisible = false
+            if let image {
+                withAnimation(.easeOut(duration: WorkbenchControlMetrics.redesignCoverCrossfadeDuration)) {
+                    loadedImage = LoadedImage(key: key, image: image)
+                    isShimmerVisible = false
+                    loadFailed = false
+                }
+            } else {
+                withAnimation(.easeOut(duration: WorkbenchControlMetrics.redesignCoverCrossfadeDuration)) {
+                    loadedImage = nil
+                    isShimmerVisible = false
+                    loadFailed = true
+                }
             }
         } catch is CancellationError {
             delayTask?.cancel()
@@ -1670,6 +1694,7 @@ struct LibraryCachedCoverImage: View {
             withAnimation(.easeOut(duration: WorkbenchControlMetrics.redesignCoverCrossfadeDuration)) {
                 loadedImage = nil
                 isShimmerVisible = false
+                loadFailed = true
             }
         }
     }
