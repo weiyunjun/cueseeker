@@ -52,11 +52,8 @@ struct WorkbenchFileView: View {
             dismissMenu()
             indexing.clearTransientNotice()
         }
-        .task {
-            appState.hydrateCompleteLibraryAsync()
-        }
-        .task(id: library.completeLibraryRevision) {
-            appState.hydrateLibraryFileTreeAsync()
+        .task(id: "\(indexing.selectedFolders.map(\.path).joined(separator: ","))|\(library.fileTreeRevision)") {
+            appState.hydrateFileRootsAsync()
         }
     }
 
@@ -315,56 +312,59 @@ struct WorkbenchFileView: View {
 
     @ViewBuilder
     private func subfolderContent(rootPath: String) -> some View {
-        let root = library.fileTreeRoots.first {
-            $0.path == rootPath || URL(fileURLWithPath: $0.path).standardizedFileURL.path == URL(fileURLWithPath: rootPath).standardizedFileURL.path
-        }
-        let folders = root?.folders ?? []
+        let folders = library.fileSubfolders(for: rootPath)
+        let status = library.fileSubfolderStatus(for: rootPath)
 
-        if folders.isEmpty {
-            if case .loading = library.fileTreeStatus {
-                WorkbenchSpinner(size: 18)
-                    .frame(maxWidth: .infinity, minHeight: 120, alignment: .center)
+        Group {
+            if folders.isEmpty {
+                if case .loading = status {
+                    WorkbenchSpinner(size: 18)
+                        .frame(maxWidth: .infinity, minHeight: 120, alignment: .center)
+                } else {
+                    WorkbenchEmptyHint(message: L("file.empty_folder_items"))
+                        .frame(maxWidth: .infinity, alignment: .top)
+                }
             } else {
-                WorkbenchEmptyHint(message: L("file.empty_folder_items"))
-                    .frame(maxWidth: .infinity, alignment: .top)
-            }
-        } else {
-            LazyVStack(spacing: WorkbenchControlMetrics.redesignSpacing3) {
-                ForEach(folders) { folder in
-                    let isDirectContent = folder.relativePath.isEmpty || folder.folderPath == rootPath
-                    let title = isDirectContent
-                        ? (URL(fileURLWithPath: rootPath).lastPathComponent + L("file.direct_content_suffix"))
-                        : URL(fileURLWithPath: folder.folderPath).lastPathComponent
-                    let items = [
-                        FileCardMenuItem(
-                            title: L("rename.folder"),
-                            icon: .pencilSimple,
-                            isEnabled: !isFolderOperationBlocked,
-                            isDestructive: false,
-                            action: {
-                                appState.requestFolderRename(folder)
+                LazyVStack(spacing: WorkbenchControlMetrics.redesignSpacing3) {
+                    ForEach(folders) { folder in
+                        let isDirectContent = folder.relativePath.isEmpty || folder.folderPath == rootPath
+                        let title = isDirectContent
+                            ? (URL(fileURLWithPath: rootPath).lastPathComponent + L("file.direct_content_suffix"))
+                            : URL(fileURLWithPath: folder.folderPath).lastPathComponent
+                        let items = [
+                            FileCardMenuItem(
+                                title: L("rename.folder"),
+                                icon: .pencilSimple,
+                                isEnabled: !isFolderOperationBlocked,
+                                isDestructive: false,
+                                action: {
+                                    appState.requestFolderRename(folder)
+                                }
+                            )
+                        ]
+
+                        WorkbenchFileCard(
+                            icon: .folder,
+                            title: title,
+                            subtitle: folder.folderPath,
+                            onTap: {
+                                appState.workbenchLayout.navigate(
+                                    to: .fileFiles(rootPath: rootPath, folderPath: folder.folderPath)
+                                )
+                            },
+                            menuItems: items,
+                            isMenuOpen: activeMenu?.cardID == folder.folderPath,
+                            onOpenMenu: { anchorFrame in
+                                toggleMenu(for: folder.folderPath, anchorFrame: anchorFrame, items: items)
                             }
                         )
-                    ]
-
-                    WorkbenchFileCard(
-                        icon: .folder,
-                        title: title,
-                        subtitle: folder.folderPath,
-                        onTap: {
-                            appState.workbenchLayout.navigate(
-                                to: .fileFiles(rootPath: rootPath, folderPath: folder.folderPath)
-                            )
-                        },
-                        menuItems: items,
-                        isMenuOpen: activeMenu?.cardID == folder.folderPath,
-                        onOpenMenu: { anchorFrame in
-                            toggleMenu(for: folder.folderPath, anchorFrame: anchorFrame, items: items)
-                        }
-                    )
+                    }
                 }
+                .frame(maxWidth: .infinity, alignment: .topLeading)
             }
-            .frame(maxWidth: .infinity, alignment: .topLeading)
+        }
+        .task(id: "\(rootPath)|\(library.fileTreeRevision)") {
+            appState.hydrateFileSubfoldersAsync(rootPath: rootPath)
         }
     }
 
@@ -372,83 +372,82 @@ struct WorkbenchFileView: View {
 
     @ViewBuilder
     private func filesContent(rootPath: String, folderPath: String) -> some View {
-        let folder = library.fileTreeRoots
-            .first {
-                $0.path == rootPath || URL(fileURLWithPath: $0.path).standardizedFileURL.path == URL(fileURLWithPath: rootPath).standardizedFileURL.path
-            }?
-            .folders
-            .first { $0.folderPath == folderPath }
-
-        let objects = folder?.objects ?? []
+        let objects = library.fileObjects(for: folderPath)
+        let status = library.fileObjectStatus(for: folderPath)
         let displayableItemsCount = objects.reduce(0) { count, object in
             count + (object.videoPath.isEmpty ? 0 : 1) + object.subtitles.count
         }
 
-        if displayableItemsCount == 0 {
-            if case .loading = library.fileTreeStatus {
-                WorkbenchSpinner(size: 18)
-                    .frame(maxWidth: .infinity, minHeight: 120, alignment: .center)
+        Group {
+            if displayableItemsCount == 0 {
+                if case .loading = status {
+                    WorkbenchSpinner(size: 18)
+                        .frame(maxWidth: .infinity, minHeight: 120, alignment: .center)
+                } else {
+                    WorkbenchEmptyHint(message: L("file.empty_folder_items"))
+                        .frame(maxWidth: .infinity, alignment: .top)
+                }
             } else {
-                WorkbenchEmptyHint(message: L("file.empty_folder_items"))
-                    .frame(maxWidth: .infinity, alignment: .top)
-            }
-        } else {
-            LazyVStack(spacing: WorkbenchControlMetrics.redesignSpacing3) {
-                ForEach(objects) { object in
-                    if !object.videoPath.isEmpty {
-                        let videoItems = [
-                            FileCardMenuItem(
-                                title: L("rename.files"),
-                                icon: .pencilSimple,
-                                isEnabled: !isFolderOperationBlocked,
-                                isDestructive: false,
-                                action: {
-                                    appState.requestFileGroupRename(object)
+                LazyVStack(spacing: WorkbenchControlMetrics.redesignSpacing3) {
+                    ForEach(objects) { object in
+                        if !object.videoPath.isEmpty {
+                            let videoItems = [
+                                FileCardMenuItem(
+                                    title: L("rename.files"),
+                                    icon: .pencilSimple,
+                                    isEnabled: !isFolderOperationBlocked,
+                                    isDestructive: false,
+                                    action: {
+                                        appState.requestFileGroupRename(object)
+                                    }
+                                )
+                            ]
+
+                            WorkbenchFileCard(
+                                icon: .video,
+                                title: object.videoName,
+                                subtitle: FileSizeFormatter.format(bytes: object.fileSize),
+                                onTap: nil,
+                                menuItems: videoItems,
+                                isMenuOpen: activeMenu?.cardID == object.videoPath,
+                                onOpenMenu: { anchorFrame in
+                                    toggleMenu(for: object.videoPath, anchorFrame: anchorFrame, items: videoItems)
                                 }
                             )
-                        ]
+                        }
 
-                        WorkbenchFileCard(
-                            icon: .video,
-                            title: object.videoName,
-                            subtitle: FileSizeFormatter.format(bytes: object.fileSize),
-                            onTap: nil,
-                            menuItems: videoItems,
-                            isMenuOpen: activeMenu?.cardID == object.videoPath,
-                            onOpenMenu: { anchorFrame in
-                                toggleMenu(for: object.videoPath, anchorFrame: anchorFrame, items: videoItems)
-                            }
-                        )
-                    }
+                        ForEach(object.subtitles) { subtitle in
+                            let subtitleItems = [
+                                FileCardMenuItem(
+                                    title: L("rename.files"),
+                                    icon: .pencilSimple,
+                                    isEnabled: !isFolderOperationBlocked,
+                                    isDestructive: false,
+                                    action: {
+                                        appState.requestFileGroupRename(object)
+                                    }
+                                )
+                            ]
 
-                    ForEach(object.subtitles) { subtitle in
-                        let subtitleItems = [
-                            FileCardMenuItem(
-                                title: L("rename.files"),
-                                icon: .pencilSimple,
-                                isEnabled: !isFolderOperationBlocked,
-                                isDestructive: false,
-                                action: {
-                                    appState.requestFileGroupRename(object)
+                            WorkbenchFileCard(
+                                icon: .subtitles,
+                                title: subtitle.name,
+                                subtitle: FileSizeFormatter.format(bytes: subtitle.fileSize),
+                                onTap: nil,
+                                menuItems: subtitleItems,
+                                isMenuOpen: activeMenu?.cardID == subtitle.path,
+                                onOpenMenu: { anchorFrame in
+                                    toggleMenu(for: subtitle.path, anchorFrame: anchorFrame, items: subtitleItems)
                                 }
                             )
-                        ]
-
-                        WorkbenchFileCard(
-                            icon: .subtitles,
-                            title: subtitle.name,
-                            subtitle: FileSizeFormatter.format(bytes: subtitle.fileSize),
-                            onTap: nil,
-                            menuItems: subtitleItems,
-                            isMenuOpen: activeMenu?.cardID == subtitle.path,
-                            onOpenMenu: { anchorFrame in
-                                toggleMenu(for: subtitle.path, anchorFrame: anchorFrame, items: subtitleItems)
-                            }
-                        )
+                        }
                     }
                 }
+                .frame(maxWidth: .infinity, alignment: .topLeading)
             }
-            .frame(maxWidth: .infinity, alignment: .topLeading)
+        }
+        .task(id: "\(folderPath)|\(library.fileTreeRevision)") {
+            appState.hydrateFileObjectsAsync(folderPath: folderPath)
         }
     }
 

@@ -25,6 +25,31 @@ final class LibraryStore: ObservableObject {
     /// The `completeLibraryRevision` the tree above was read at, so the File
     /// segment can tell a current tree from one the library has outgrown.
     var fileTreeLoadedRevision: Int?
+    @Published var fileSubfoldersByRootPath: [String: [IndexedContentFolder]] = [:]
+    @Published var fileObjectsByFolderPath: [String: [IndexedContentObject]] = [:]
+    @Published var fileSubfolderStatusByRootPath: [String: LibraryStatus] = [:]
+    @Published var fileObjectStatusByFolderPath: [String: LibraryStatus] = [:]
+    @Published var fileTreeRevision = 0
+
+    func fileSubfolders(for rootPath: String) -> [IndexedContentFolder] {
+        let standardized = URL(fileURLWithPath: rootPath).standardizedFileURL.path
+        return fileSubfoldersByRootPath[rootPath] ?? fileSubfoldersByRootPath[standardized] ?? []
+    }
+
+    func fileSubfolderStatus(for rootPath: String) -> LibraryStatus {
+        let standardized = URL(fileURLWithPath: rootPath).standardizedFileURL.path
+        return fileSubfolderStatusByRootPath[rootPath] ?? fileSubfolderStatusByRootPath[standardized] ?? .idle
+    }
+
+    func fileObjects(for folderPath: String) -> [IndexedContentObject] {
+        let standardized = URL(fileURLWithPath: folderPath).standardizedFileURL.path
+        return fileObjectsByFolderPath[folderPath] ?? fileObjectsByFolderPath[standardized] ?? []
+    }
+
+    func fileObjectStatus(for folderPath: String) -> LibraryStatus {
+        let standardized = URL(fileURLWithPath: folderPath).standardizedFileURL.path
+        return fileObjectStatusByFolderPath[folderPath] ?? fileObjectStatusByFolderPath[standardized] ?? .idle
+    }
     @Published var libraryPlaybackHistoryRevision = 0
     @Published var selectedLibraryVideo: LibraryVideo?
     @Published var coverEditingSession: LibraryCoverEditingSession?

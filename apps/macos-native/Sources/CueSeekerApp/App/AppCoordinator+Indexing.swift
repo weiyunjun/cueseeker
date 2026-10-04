@@ -435,6 +435,7 @@ extension AppCoordinator {
         refreshLoadedTestRecentWatching()
         refreshCompleteLibrary()
         refreshDatabaseStorageStats()
+        invalidateFileTreeCache()
     }
 
     /// Indexes the folders one after another and answers how many subtitle
@@ -669,6 +670,7 @@ extension AppCoordinator {
         refreshLoadedTestRecentWatching()
         refreshCompleteLibrary()
         refreshDatabaseStorageStats()
+        invalidateFileTreeCache()
     }
 
     private func refreshLibraryAfterAuxiliaryDataMutation() {

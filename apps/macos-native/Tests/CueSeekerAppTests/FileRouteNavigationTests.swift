@@ -320,4 +320,60 @@ struct FileRouteNavigationTests {
             Issue.record("Expected idle never with '--', got \(idleNever)")
         }
     }
+
+    @Test
+    func fileOnDemandStoreCachingAndInvalidation() {
+        let store = LibraryStore()
+
+        let rootPath = "/Volumes/Media/Anime"
+        let folderPath = "/Volumes/Media/Anime/SeriesA"
+
+        // 1. Initial state is empty and idle
+        #expect(store.fileSubfolders(for: rootPath).isEmpty)
+        #expect(store.fileSubfolderStatus(for: rootPath) == .idle)
+        #expect(store.fileObjects(for: folderPath).isEmpty)
+        #expect(store.fileObjectStatus(for: folderPath) == .idle)
+
+        // 2. Populate cache
+        let dummyFolder = IndexedContentFolder(
+            id: 10,
+            relativePath: "SeriesA",
+            folderPath: folderPath,
+            objects: []
+        )
+        store.fileSubfoldersByRootPath[rootPath] = [dummyFolder]
+        store.fileSubfolderStatusByRootPath[rootPath] = .completed
+
+        let dummyObject = IndexedContentObject(
+            id: 100,
+            displayTitle: "Episode 1",
+            videoPath: "\(folderPath)/EP01.mkv",
+            videoName: "EP01.mkv",
+            fileSize: 1024,
+            subtitles: []
+        )
+        store.fileObjectsByFolderPath[folderPath] = [dummyObject]
+        store.fileObjectStatusByFolderPath[folderPath] = .completed
+
+        // 3. Test standardized path lookup (e.g. with trailing slash)
+        #expect(store.fileSubfolders(for: "\(rootPath)/").count == 1)
+        #expect(store.fileSubfolderStatus(for: "\(rootPath)/") == .completed)
+        #expect(store.fileObjects(for: "\(folderPath)/").count == 1)
+        #expect(store.fileObjectStatus(for: "\(folderPath)/") == .completed)
+
+        // 4. Invalidation clears cache and bumps revision
+        let initialRevision = store.fileTreeRevision
+        store.fileSubfoldersByRootPath.removeAll(keepingCapacity: false)
+        store.fileObjectsByFolderPath.removeAll(keepingCapacity: false)
+        store.fileSubfolderStatusByRootPath.removeAll(keepingCapacity: false)
+        store.fileObjectStatusByFolderPath.removeAll(keepingCapacity: false)
+        store.fileTreeRevision += 1
+
+        #expect(store.fileTreeRevision == initialRevision + 1)
+        #expect(store.fileSubfolders(for: rootPath).isEmpty)
+        #expect(store.fileObjects(for: folderPath).isEmpty)
+        #expect(store.fileSubfolderStatus(for: rootPath) == .idle)
+        #expect(store.fileObjectStatus(for: folderPath) == .idle)
+    }
 }
+

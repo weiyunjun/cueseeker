@@ -5,6 +5,12 @@ public struct IndexedContentRoot: Identifiable, Equatable, Sendable {
     public let path: String
     public let folders: [IndexedContentFolder]
 
+    public init(id: Int64, path: String, folders: [IndexedContentFolder] = []) {
+        self.id = id
+        self.path = path
+        self.folders = folders
+    }
+
     public var displayPath: String {
         path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
     }
@@ -15,6 +21,13 @@ public struct IndexedContentFolder: Identifiable, Equatable, Sendable {
     public let relativePath: String
     public let folderPath: String
     public let objects: [IndexedContentObject]
+
+    public init(id: Int64, relativePath: String, folderPath: String, objects: [IndexedContentObject] = []) {
+        self.id = id
+        self.relativePath = relativePath
+        self.folderPath = folderPath
+        self.objects = objects
+    }
 
     public var displayPath: String {
         String(relativePath.drop(while: { $0 == "/" }))
