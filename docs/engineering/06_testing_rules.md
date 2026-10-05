@@ -218,6 +218,28 @@ Rules:
   sequence. The default follow-up is to revert or disable the change unless the
   user explicitly accepts keeping it with a documented reason.
 
+### Headless Full-Chain Cold Benchmark Standard & Baseline (October 2026)
+
+All search benchmarks must run in headless mode without launching the App window, while fully exercising the end-to-end search pipeline:
+1. **Pipeline Coverage**: Library folder scoping (`selectedFolders`), 100ms input debounce, database FTS5 multi-batch streaming with 100-row progress yield, `CueContentStore` installation, `searchRankByCueID` dictionary indexing, full `CueFacetSnapshot` facet distribution aggregation across all matched cues, and `TableSandboxRowModelStore` snapshot assembly.
+2. **Cold Sampling Protocol**: 5 isolated runs per query with fresh connection instantiation and OS buffer cache eviction (`madvise(MADV_DONTNEED)`).
+3. **Core Metrics**:
+   - `T_first`: Time from search trigger until first screen (100 rows) is committed and ready for UI rendering.
+   - `T_complete`: Time from search trigger until all rows, exact count, file summaries, and facet distributions are finalized.
+4. **Standard Command**:
+   ```bash
+   swift run --package-path apps/macos-native -c release SearchBench "$HOME/Library/Application Support/CueSeeker/CueSeeker.sqlite" --headless-cold
+   ```
+
+#### Baseline (1.0 GB Database, 76,817 Cues, Library Scope: `/Volumes/Seagate/影视`)
+
+| Query | Total Results | Files | 1st Screen Median | 1st Screen Raw (5 runs, ms) | Full Results Median | Full Results Raw (5 runs, ms) |
+| :--- | ---: | ---: | ---: | --- | ---: | --- |
+| `大丈夫` | 1,462 | 498 | **112.43 ms** | 235.24, 107.99, 112.88, 111.26, 112.43 | **143.03 ms** | 830.35, 138.24, 143.03, 141.41, 149.46 |
+| `今日` | 2,300 | 497 | **113.22 ms** | 169.73, 113.22, 113.28, 110.98, 112.60 | **155.79 ms** | 575.54, 154.82, 155.79, 157.96, 152.16 |
+| `の` | 76,817 | 637 | **116.44 ms** | 130.73, 113.17, 118.42, 115.71, 116.44 | **1238.35 ms** | 2949.98, 1238.35, 1256.44, 1235.18, 1235.73 |
+
+
 ## 10. Playback Verification
 
 Playback requires both automated-adjacent verification and manual acceptance.
