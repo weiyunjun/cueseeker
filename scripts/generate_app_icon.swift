@@ -68,6 +68,7 @@ func createMasterIcon() -> NSImage {
 
     ctx.saveGState()
     ctx.setShadow(offset: CGSize(width: 0, height: -6), blur: 16, color: NSColor(white: 0, alpha: 0.3).cgColor)
+    ctx.beginTransparencyLayer(auxiliaryInfo: nil)
 
     // 1. Circle rim (Lens)
     let circleCenter = pt(45, 45)
@@ -76,14 +77,24 @@ func createMasterIcon() -> NSImage {
     ctx.setStrokeColor(NSColor.white.cgColor)
     ctx.strokeEllipse(in: CGRect(x: circleCenter.x - radius, y: circleCenter.y - radius, width: radius * 2, height: radius * 2))
 
-    // 2. Handle
-    let handleStart = pt(67, 67)
+    // 2. Handle (clipped to strictly exclude the inner lens circle)
+    ctx.saveGState()
+    let innerRadius = (30.0 - 3.25) * s
+    let clipPath = CGMutablePath()
+    clipPath.addRect(CGRect(x: 0, y: 0, width: 1024, height: 1024))
+    clipPath.addEllipse(in: CGRect(x: circleCenter.x - innerRadius, y: circleCenter.y - innerRadius, width: innerRadius * 2, height: innerRadius * 2))
+    ctx.addPath(clipPath)
+    ctx.clip(using: .evenOdd)
+
+    let handleStart = pt(67.5, 67.5)
     let handleEnd = pt(85, 85)
     ctx.setLineCap(.round)
     ctx.setLineWidth(9.0 * s)
+    ctx.setStrokeColor(NSColor.white.cgColor)
     ctx.move(to: handleStart)
     ctx.addLine(to: handleEnd)
     ctx.strokePath()
+    ctx.restoreGState()
 
     // 3. Subtitles
     func drawPill(x: CGFloat, y: CGFloat, w: CGFloat, h: CGFloat, rx: CGFloat) {
@@ -103,6 +114,7 @@ func createMasterIcon() -> NSImage {
     drawPill(x: 27, y: 47.5, w: 12, h: 6.5, rx: 3.25)
     drawPill(x: 43, y: 47.5, w: 22, h: 6.5, rx: 3.25)
 
+    ctx.endTransparencyLayer()
     ctx.restoreGState()
 
     image.unlockFocus()

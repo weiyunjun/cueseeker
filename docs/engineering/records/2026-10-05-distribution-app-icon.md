@@ -16,6 +16,8 @@ Human-owned documents:
 
 1. **Icon Vector Generation**:
    - Created `scripts/generate_app_icon.swift`, rendering the vector magnifying glass and subtitle cues onto an 824x824 squircle (1024x1024 canvas) using native AppKit and CoreGraphics.
+   - Enclosed the entire white symbol in a CoreGraphics transparency layer (`beginTransparencyLayer`) so the lens ring, handle, and subtitle bars form a single unified glyph without internal overlapping shadows.
+   - Applied an even-odd clipping path excluding the inner lens circle ($r \le 26.75 \times s$) to prevent the handle round cap from protruding into the lens aperture.
    - Built standard `AppIcon.iconset` across all required macOS retina resolutions (16x16 up to 1024x1024) and invoked `iconutil` to produce `packaging/macos/AppIcon.icns`.
 2. **Packaging Configuration**:
    - In `packaging/macos/Info.plist`, configured `CFBundleIconFile` and `CFBundleIconName` to `AppIcon`.
