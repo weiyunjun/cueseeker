@@ -18,22 +18,28 @@ Human-owned documents:
      - Workbench View Controls: Neutral Buttons (1px control border, control background, 8px corner radius).
    - Ensure `WorkbenchButton` supports icon-only, icon + count badge, and icon + title variants.
 
-3. **Active/Open State Color Linkage**:
-   - Link `isOpen: true` states to `--color-bg-active`, `--color-text-active`, and `--color-icon-active`.
-   - Prevent neutral gray text/glyphs from clashing against light accent backgrounds during open states.
+3. **Active/Open State Color Linkage & Accent Border**:
+   - Link `isOpen: true` states to `--color-bg-active`, `--color-text-active`, `--color-icon-active`, and `--color-border-active`.
+   - On bordered Neutral buttons, switch border color to dynamic Accent color when open, matching Filter Chip selected style.
+   - Remove legacy hardcoded blue (`#0040FF`) so all active tokens dynamically track the system's `macOS accent color`.
 
 ## What changed
 
-1. **Workbench Controls (`WorkbenchControls.swift`)**:
+1. **Tokens (`WorkbenchRedesignTokens.swift`)**:
+   - Updated `accent`, `textActive`, `iconActive`, and `borderActive` to dynamically bind to `NSColor.controlAccentColor` / `Color.accentColor`, eliminating hardcoded blue.
+
+2. **Workbench Controls (`WorkbenchControls.swift`)**:
    - Upgraded `WorkbenchButton` to support optional title (`title: String? = nil`), count badge (`count: Int = 0`, `countBackground`, `countTextColor`), and optional height override.
    - Implemented square sizing and compact slack padding for icon-only and icon+badge Neutral buttons.
+   - Updated `WorkbenchButton`'s `borderColor` in `isOpen` state to use `WorkbenchRedesignColors.borderActive` (Accent color).
    - Linked `isOpen` state to `WorkbenchRedesignColors.textActive` and `WorkbenchRedesignColors.iconActive`.
    - Updated `WorkbenchIconButton` to link `isOpen` state to `WorkbenchRedesignColors.iconActive` when default `iconColor` is used.
 
-2. **Search Shell Toolbar (`SchemaWorkbenchSearchShell.swift`)**:
+3. **Search Shell Toolbar (`SchemaWorkbenchSearchShell.swift`)**:
    - Replaced `WorkbenchIconButton` with `WorkbenchButton` for the Filter Trigger and Select Mode Action controls, establishing consistent Neutral control frames across the search toolbar.
 
-3. **Tests (`WorkbenchControlMetricsTests.swift`)**:
+4. **Tests (`WorkbenchControlMetricsTests.swift`)**:
+   - Added assertions verifying active tokens dynamically match `NSColor.controlAccentColor`.
    - Added `workbenchButtonNeutralVariantsAndOpenColorLinkage` verifying icon-only, icon+badge, and icon+title variants as well as active color token bindings.
    - Added `workbenchIconButtonOpenStateMatchesSpecification` verifying open state configuration.
 

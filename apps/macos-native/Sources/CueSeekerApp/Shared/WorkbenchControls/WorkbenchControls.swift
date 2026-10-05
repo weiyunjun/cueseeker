@@ -927,7 +927,10 @@ struct WorkbenchButton: View {
         guard isEnabled else {
             return WorkbenchRedesignColors.borderDisabled
         }
-        if isOpen || isHovered {
+        if isOpen {
+            return WorkbenchRedesignColors.borderActive
+        }
+        if isHovered {
             return WorkbenchRedesignColors.borderControlHover
         }
         return WorkbenchRedesignColors.borderControl

@@ -174,9 +174,14 @@ func workbenchButtonNeutralVariantsAndOpenColorLinkage() {
     #expect(withTitle.icon == .funnelSimple)
     #expect(withTitle.isOpen == false)
 
-    // Verify Active tokens exist and match specification
+    // Verify Active tokens follow system controlAccentColor dynamically
+    #expect(WorkbenchRedesignColors.NS.iconActive == NSColor.controlAccentColor)
+    #expect(WorkbenchRedesignColors.NS.textActive == NSColor.controlAccentColor)
+    #expect(WorkbenchRedesignColors.NS.borderActive == NSColor.controlAccentColor)
+    #expect(WorkbenchRedesignColors.NS.accent == NSColor.controlAccentColor)
     #expect(WorkbenchRedesignColors.iconActive == Color(nsColor: WorkbenchRedesignColors.NS.iconActive))
     #expect(WorkbenchRedesignColors.textActive == Color(nsColor: WorkbenchRedesignColors.NS.textActive))
+    #expect(WorkbenchRedesignColors.borderActive == Color(nsColor: WorkbenchRedesignColors.NS.borderActive))
     #expect(WorkbenchRedesignColors.bgActive == Color(nsColor: WorkbenchRedesignColors.NS.bgActive))
 }
 

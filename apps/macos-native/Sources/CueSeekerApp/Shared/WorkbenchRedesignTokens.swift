@@ -92,10 +92,10 @@ enum WorkbenchRedesignColors {
         static let borderCheckbox = NSColor.dynamic(lightHex: "#D0D5DD", darkHex: "#5A5A62")
 
         // Active Accent
-        static let accent = NSColor.dynamic(lightHex: "#0040FF", darkHex: "#7AA2FF")
-        static let textActive = NSColor.dynamic(lightHex: "#0040FF", darkHex: "#8AB4FF")
-        static let iconActive = NSColor.dynamic(lightHex: "#0040FF", darkHex: "#8AB4FF")
-        static let borderActive = NSColor.dynamic(lightHex: "#0040FF", darkHex: "#7AA2FF")
+        static let accent = NSColor.controlAccentColor
+        static let textActive = NSColor.controlAccentColor
+        static let iconActive = NSColor.controlAccentColor
+        static let borderActive = NSColor.controlAccentColor
         static let bgActive = NSColor.controlAccent(lightAlpha: 0.12, darkAlpha: 0.22)
         static let bgActiveHover = NSColor.controlAccent(lightAlpha: 0.18, darkAlpha: 0.30)
 
