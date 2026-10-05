@@ -145,8 +145,8 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--color-command-panel-scrim`: Light `rgba(0,0,0,0.32)`; Dark `rgba(0,0,0,0.32)`
 - `--color-dialog-outline`: Light `rgba(0,0,0,0.19)`; Dark `rgba(0,0,0,0.94)`
 - `--color-dialog-edge-highlight`: Light `transparent`; Dark `rgba(255,255,255,0.20)`
-- `--color-toast-bg`: Light `rgba(31,31,31,0.92)`; Dark `#2A2A2E`
-- `--color-toast-border`: Light `rgba(255,255,255,0.15)`; Dark `#4A4A52`
+- `--color-toast-bg`: Light `rgba(31,31,31,0.90)`; Dark `rgba(45,45,50,0.92)`
+- `--color-toast-border`: Light `rgba(255,255,255,0.15)`; Dark `rgba(255,255,255,0.15)`
 
 ### Player Chrome
 
@@ -2065,7 +2065,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
   - Shadow：None
 - Icon
   - Presence：Optional
-  - Color：语义状态色（成功绿、警告黄、错误红、常规 Accent 蓝）
+  - Color：`--color-player-text-primary`（纯白色 `#FFFFFF`）
   - 与 Message 第一行垂直居中
 - Message
   - Font Family：`--font-family-base`
@@ -2201,8 +2201,8 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 ##### Anatomy
 
 - Container
-  - Background：`--color-player-menu-bg`
-  - Border Color：`--color-player-text-tertiary`（30%）
+  - Background：`--color-toast-bg`
+  - Border Color：`--color-toast-border`
   - Radius：`--radius-playback-feedback`
   - Shadow：None
 - Icon
