@@ -27,7 +27,8 @@ main
 ## 3. Open 激活状态与色彩联动
 1. 当按钮挂靠的菜单、弹窗处于打开状态，或对应功能激活时，按钮呈现 **Open 状态**：
    - 背景色呈现浅 Accent 底色（`--color-bg-active`）。
-   - **文字与图标联动高亮**：前景文字转为 `--color-text-active`，图标转为 `--color-icon-active`，消除灰色图标与浅色背景脱节的问题。
+   - **边框颜色切换**：对有边框的 Neutral 按钮，边框颜色切换为系统 Accent 颜色（`--color-border-active`），与 Filter Chip 的激活边框视觉规范保持一致。
+   - **文字与图标联动高亮**：前景文字转为 `--color-text-active`，图标转为 `--color-icon-active`，且必须动态遵循系统 macOS Accent 颜色（严禁硬编码静态蓝色）。
 2. 筛选按钮展开 Filter Dialog 时，进入该 Open 状态，且数字 Badge 正常共存。
 
 # 验收标准
@@ -36,7 +37,8 @@ main
    - 搜索栏右侧的筛选按钮、排序按钮、多选按钮视觉形态统一，均带有标准 Neutral 边框与实体底色，高度与圆角整齐对齐。
    - 顶栏的 Task 按钮与设置按钮保持纯净无框的 Ghost 样式。
 2. **Open 态色彩表现**：
-   - 筛选按钮展开 Filter 浮层、排序按钮展开单选菜单、设置按钮展开窗口时，按钮均呈现浅 Accent 底色，且内部图标与文字高亮为 Accent 色。
+   - 筛选按钮展开 Filter 浮层、排序按钮展开单选菜单、设置按钮展开窗口时，按钮均呈现浅 Accent 底色，内部图标与文字高亮为系统 Accent 色。
+   - 对有边框的 Neutral 按钮，Open 态边框变为高亮 Accent 色。
 3. **多模式与无硬编码**：
    - Light 模式与 Dark 模式下色彩、边框与对比度均正常适配。
-   - 严格绑定现有 Design Token，无硬编码。
+   - 严格绑定系统动态 Accent Color，杜绝静态 Hex 蓝色的硬编码。
