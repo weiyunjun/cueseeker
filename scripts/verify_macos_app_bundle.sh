@@ -15,8 +15,9 @@ FRAMEWORKS="$CONTENTS/Frameworks"
 PLIST="$CONTENTS/Info.plist"
 
 LOCALIZATION_BUNDLE="$CONTENTS/Resources/CueSeekerNative_CueSeekerApp.bundle"
+APP_ICON="$CONTENTS/Resources/AppIcon.icns"
 
-for path in "$EXECUTABLE" "$FFMPEG_EXECUTABLE" "$PLIST" "$FRAMEWORKS" "$LOCALIZATION_BUNDLE"; do
+for path in "$EXECUTABLE" "$FFMPEG_EXECUTABLE" "$PLIST" "$FRAMEWORKS" "$LOCALIZATION_BUNDLE" "$APP_ICON"; do
     if [ ! -e "$path" ]; then
         echo "error: required app item missing: $path" >&2
         exit 1
@@ -43,6 +44,11 @@ done
 if [ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$PLIST")" != \
     "com.cueseeker.app" ]; then
     echo "error: unexpected bundle identifier" >&2
+    exit 1
+fi
+
+if [ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIconFile' "$PLIST")" != "AppIcon" ]; then
+    echo "error: CFBundleIconFile is not configured to AppIcon" >&2
     exit 1
 fi
 

@@ -10,6 +10,7 @@ OUTPUT_ROOT="${CUESEEKER_APP_OUTPUT_ROOT:-$REPO_ROOT/.build/distribution}"
 APP_PATH="$OUTPUT_ROOT/CueSeeker.app"
 SIGNING_IDENTITY="${CUESEEKER_SIGNING_IDENTITY:--}"
 PLIST_SOURCE="$REPO_ROOT/packaging/macos/Info.plist"
+ICON_SOURCE="$REPO_ROOT/packaging/macos/AppIcon.icns"
 
 usage() {
     echo "Usage: $0 [--output PATH] [--sign IDENTITY]"
@@ -71,6 +72,7 @@ mkdir -p \
 cp "$EXECUTABLE" "$APP_PATH/Contents/MacOS/CueSeeker"
 cp "$MEDIA_ROOT/bin/ffmpeg" "$APP_PATH/Contents/Helpers/ffmpeg"
 cp "$PLIST_SOURCE" "$APP_PATH/Contents/Info.plist"
+cp "$ICON_SOURCE" "$APP_PATH/Contents/Resources/AppIcon.icns"
 cp -R "$RESOURCE_BUNDLE" "$APP_PATH/Contents/Resources/"
 find "$MEDIA_ROOT/lib" -maxdepth 1 -type f -name '*.dylib' -print | sort | while read -r dylib; do
     cp "$dylib" "$APP_PATH/Contents/Frameworks/$(basename "$dylib")"
