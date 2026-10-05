@@ -52,10 +52,10 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 
 ### Accent
 
-- `--color-accent`: Light `#0040FF`; Dark `#7AA2FF`
-- `--color-text-active`: Light `#0040FF`; Dark `#8AB4FF`
-- `--color-icon-active`: Light `#0040FF`; Dark `#8AB4FF`
-- `--color-border-active`: Light `#0040FF`; Dark `#7AA2FF`
+- `--color-accent`: macOS accent color
+- `--color-text-active`: macOS accent color
+- `--color-icon-active`: macOS accent color
+- `--color-border-active`: macOS accent color
 - `--color-bg-active`:
   - Light: macOS accent color with Alpha `0.12`
   - Dark: macOS accent color with Alpha `0.22`
@@ -1000,8 +1000,11 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
   - Background：`--color-bg-hover`
   - Border Color：`--color-border-control-hover`
 - Open
-  - 触发：挂靠的菜单打开
+  - 触发：挂靠的菜单或面板打开，或按钮所控的模式开启
   - Background：`--color-bg-active`
+  - Border Color：`--color-border-active`
+  - Label Color：`--color-text-active`
+  - Icon Color：`--color-icon-active`
 - Focused
   - Border Color：`--color-border-focus`
 - Disabled
@@ -1116,6 +1119,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - Open
   - 触发：挂靠的菜单、面板或窗口打开，或按钮所控的模式开启
   - Background：`--color-bg-active`；在 `--color-player-topbar-gradient-start` 上为 `--color-player-control-bg-active`
+  - Icon Color：`--color-icon-active`
 - Focused
   - Ring Color：`--color-focus-ring`
   - Ring Width：`--focus-ring-width`
@@ -3681,7 +3685,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 #### Components
 
 - Search Field
-- Icon Button
+- Button / Neutral
 - Information Badge / Task Count Badge
 
 #### Sizes
