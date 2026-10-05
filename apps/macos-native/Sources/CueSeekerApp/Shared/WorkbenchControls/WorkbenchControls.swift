@@ -759,13 +759,17 @@ struct WorkbenchSearchField: View {
 }
 
 struct WorkbenchButton: View {
-    let title: String
+    var title: String? = nil
     var icon: AppIcon? = nil
+    var count: Int = 0
+    var countBackground: Color = Color.accentColor
+    var countTextColor: Color = WorkbenchRedesignColors.iconOnDark
     var isRedesign: Bool = false
     var isOpen: Bool = false
     /// Buttons never take the keyboard focus, so the one that opens focused -
     /// Confirmation's Cancel - is told to draw its Focused state.
     var isFocused: Bool = false
+    var height: CGFloat? = nil
     var action: () -> Void
 
     @State private var isHovered = false
@@ -773,54 +777,160 @@ struct WorkbenchButton: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: isRedesign ? WorkbenchControlMetrics.redesignSpacing2 : 8) {
-                if let icon {
-                    AppIconImage(icon, size: isRedesign ? WorkbenchControlMetrics.redesignButtonIconSize : WorkbenchControlMetrics.iconSize)
-                        .foregroundStyle(isRedesign ? (isEnabled ? WorkbenchRedesignColors.textSecondary : WorkbenchRedesignColors.textDisabled) : WorkbenchControlColors.primaryText)
-                }
-
-                Text(title)
-                    .font(.system(size: isRedesign ? WorkbenchControlMetrics.redesignFontSizeControl : 14, weight: isRedesign ? WorkbenchControlMetrics.redesignFontWeightControl : .medium))
-                    .foregroundStyle(isRedesign ? (isEnabled ? WorkbenchRedesignColors.textSecondary : WorkbenchRedesignColors.textDisabled) : WorkbenchControlColors.primaryText)
-                    .lineLimit(1)
-                    .fixedSize(horizontal: true, vertical: false)
-            }
-            .padding(.horizontal, isRedesign ? WorkbenchControlMetrics.redesignControlPaddingX : 14)
-            .frame(height: isRedesign ? WorkbenchControlMetrics.redesignHeight : 36)
-            .background(
-                Group {
-                    if isRedesign {
-                        RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignCornerRadius, style: .continuous)
-                            .fill(isEnabled ? (isOpen ? WorkbenchRedesignColors.bgActive : (isHovered ? WorkbenchRedesignColors.bgHover : WorkbenchRedesignColors.bgControl)) : WorkbenchRedesignColors.bgDisabled)
-                    } else {
-                        WorkbenchControlBackground()
+            content
+                .padding(.horizontal, horizontalPadding)
+                .frame(width: boxWidth, height: boxHeight)
+                .background(
+                    Group {
+                        if isRedesign {
+                            RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignCornerRadius, style: .continuous)
+                                .fill(backgroundColor)
+                        } else {
+                            WorkbenchControlBackground()
+                        }
                     }
-                }
-            )
-            .overlay(
-                Group {
-                    if isRedesign {
-                        RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignCornerRadius, style: .continuous)
-                            .strokeBorder(isEnabled ? (isOpen ? WorkbenchRedesignColors.borderControlHover : (isHovered ? WorkbenchRedesignColors.borderControlHover : WorkbenchRedesignColors.borderControl)) : WorkbenchRedesignColors.borderDisabled, lineWidth: 1)
+                )
+                .overlay(
+                    Group {
+                        if isRedesign {
+                            RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignCornerRadius, style: .continuous)
+                                .strokeBorder(borderColor, lineWidth: 1)
+                        }
                     }
-                }
-            )
-            .overlay(
-                Group {
-                    if isRedesign && isFocused && isEnabled {
-                        RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignCornerRadius + WorkbenchControlMetrics.redesignFocusRingPathExpansion, style: .continuous)
-                            .stroke(WorkbenchRedesignColors.focusRing, lineWidth: WorkbenchControlMetrics.redesignFocusRingWidth)
-                            .padding(-WorkbenchControlMetrics.redesignFocusRingPathExpansion)
+                )
+                .overlay(
+                    Group {
+                        if isRedesign && isFocused && isEnabled {
+                            RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignCornerRadius + WorkbenchControlMetrics.redesignFocusRingPathExpansion, style: .continuous)
+                                .stroke(WorkbenchRedesignColors.focusRing, lineWidth: WorkbenchControlMetrics.redesignFocusRingWidth)
+                                .padding(-WorkbenchControlMetrics.redesignFocusRingPathExpansion)
+                        }
                     }
-                }
-            )
-            .fixedSize(horizontal: true, vertical: false)
-            .contentShape(Rectangle())
+                )
+                .fixedSize(horizontal: true, vertical: false)
+                .contentShape(Rectangle())
         }
         .buttonStyle(StaticButtonStyle())
         .subtitleTableTextSelectionInteractiveRegion(isActive: isEnabled)
         .focusable(false)
         .onPointerHover { isHovered = $0 }
+    }
+
+    private var content: some View {
+        HStack(spacing: contentSpacing) {
+            if let icon {
+                AppIconImage(icon, size: iconSize)
+                    .foregroundStyle(iconForegroundColor)
+            }
+
+            if let title, !title.isEmpty {
+                Text(title)
+                    .font(.system(
+                        size: isRedesign ? WorkbenchControlMetrics.redesignFontSizeControl : 14,
+                        weight: isRedesign ? WorkbenchControlMetrics.redesignFontWeightControl : .medium
+                    ))
+                    .foregroundStyle(textForegroundColor)
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
+            }
+
+            if isRedesign && count > 0 {
+                TaskCountBadge(
+                    count: count,
+                    background: isEnabled ? countBackground : countBackground.opacity(0.35),
+                    textColor: countTextColor
+                )
+            }
+        }
+    }
+
+    private var hasTitle: Bool {
+        guard let title else { return false }
+        return !title.isEmpty
+    }
+
+    private var boxHeight: CGFloat {
+        height ?? (isRedesign ? WorkbenchControlMetrics.redesignHeight : 36)
+    }
+
+    private var boxWidth: CGFloat? {
+        if !hasTitle && count == 0 {
+            return boxHeight
+        }
+        return nil
+    }
+
+    private var horizontalPadding: CGFloat {
+        if !hasTitle && count == 0 {
+            return 0
+        }
+        if !hasTitle && count > 0 {
+            return (boxHeight - WorkbenchControlMetrics.redesignControlIconSize) / 2
+        }
+        return isRedesign ? WorkbenchControlMetrics.redesignControlPaddingX : 14
+    }
+
+    private var contentSpacing: CGFloat {
+        if isRedesign && !hasTitle && count > 0 {
+            return WorkbenchControlMetrics.redesignTaskCountBadgeGap
+        }
+        return isRedesign ? WorkbenchControlMetrics.redesignSpacing2 : 8
+    }
+
+    private var iconSize: CGFloat {
+        if isRedesign {
+            return hasTitle ? WorkbenchControlMetrics.redesignButtonIconSize : WorkbenchControlMetrics.redesignControlIconSize
+        }
+        return WorkbenchControlMetrics.iconSize
+    }
+
+    private var iconForegroundColor: Color {
+        guard isEnabled else {
+            return isRedesign ? WorkbenchRedesignColors.textDisabled : WorkbenchControlColors.primaryText
+        }
+        if isRedesign {
+            if isOpen {
+                return WorkbenchRedesignColors.iconActive
+            }
+            return WorkbenchRedesignColors.textSecondary
+        }
+        return WorkbenchControlColors.primaryText
+    }
+
+    private var textForegroundColor: Color {
+        guard isEnabled else {
+            return isRedesign ? WorkbenchRedesignColors.textDisabled : WorkbenchControlColors.primaryText
+        }
+        if isRedesign {
+            if isOpen {
+                return WorkbenchRedesignColors.textActive
+            }
+            return WorkbenchRedesignColors.textSecondary
+        }
+        return WorkbenchControlColors.primaryText
+    }
+
+    private var backgroundColor: Color {
+        guard isEnabled else {
+            return WorkbenchRedesignColors.bgDisabled
+        }
+        if isOpen {
+            return WorkbenchRedesignColors.bgActive
+        }
+        if isHovered {
+            return WorkbenchRedesignColors.bgHover
+        }
+        return WorkbenchRedesignColors.bgControl
+    }
+
+    private var borderColor: Color {
+        guard isEnabled else {
+            return WorkbenchRedesignColors.borderDisabled
+        }
+        if isOpen || isHovered {
+            return WorkbenchRedesignColors.borderControlHover
+        }
+        return WorkbenchRedesignColors.borderControl
     }
 }
 
@@ -1220,6 +1330,9 @@ struct WorkbenchIconButton: View {
     private var redesignIconColor: Color {
         guard isEnabled else {
             return WorkbenchRedesignColors.textDisabled
+        }
+        if isOpen {
+            return iconColor ?? WorkbenchRedesignColors.iconActive
         }
         return iconColor ?? WorkbenchRedesignColors.textSecondary
     }

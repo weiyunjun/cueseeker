@@ -365,17 +365,17 @@ struct SchemaWorkbenchSearchToolbar: View {
             .frame(maxWidth: .infinity)
             .disabled(isSelectionMode)
 
-            WorkbenchIconButton(
+            WorkbenchButton(
                 icon: .funnel,
+                count: filterSelectionCount,
                 isRedesign: true,
                 isOpen: isFilterDialogOpen,
-                count: filterSelectionCount,
                 action: onFilter
             )
             .accessibilityLabel(L("table.filter"))
             .disabled(isSelectionMode)
 
-            WorkbenchIconButton(
+            WorkbenchButton(
                 icon: .listChecks,
                 isRedesign: true,
                 isOpen: isSelectionMode,

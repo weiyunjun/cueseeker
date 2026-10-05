@@ -157,4 +157,35 @@ func coverSkeletonShimmerTokensMatchDesignSpecification() {
     }
 }
 
+@Test
+func workbenchButtonNeutralVariantsAndOpenColorLinkage() {
+    let iconOnly = WorkbenchButton(icon: .listChecks, isRedesign: true) {}
+    #expect(iconOnly.icon == .listChecks)
+    #expect(iconOnly.title == nil)
+    #expect(iconOnly.count == 0)
+
+    let withBadge = WorkbenchButton(icon: .funnel, count: 4, isRedesign: true, isOpen: true) {}
+    #expect(withBadge.icon == .funnel)
+    #expect(withBadge.count == 4)
+    #expect(withBadge.isOpen == true)
+
+    let withTitle = WorkbenchButton(title: "默认排序", icon: .funnelSimple, isRedesign: true, isOpen: false) {}
+    #expect(withTitle.title == "默认排序")
+    #expect(withTitle.icon == .funnelSimple)
+    #expect(withTitle.isOpen == false)
+
+    // Verify Active tokens exist and match specification
+    #expect(WorkbenchRedesignColors.iconActive == Color(nsColor: WorkbenchRedesignColors.NS.iconActive))
+    #expect(WorkbenchRedesignColors.textActive == Color(nsColor: WorkbenchRedesignColors.NS.textActive))
+    #expect(WorkbenchRedesignColors.bgActive == Color(nsColor: WorkbenchRedesignColors.NS.bgActive))
+}
+
+@Test
+func workbenchIconButtonOpenStateMatchesSpecification() {
+    let openIconButton = WorkbenchIconButton(icon: .gear, isRedesign: true, isOpen: true)
+    #expect(openIconButton.isOpen == true)
+    #expect(openIconButton.icon == .gear)
+}
+
+
 
