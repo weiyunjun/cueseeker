@@ -129,6 +129,7 @@ func runSingleHeadlessColdSearch(
     }
 
     let database = try SearchDatabase(path: dbPath)
+    applyDirectIO(for: dbPath)
     let collector = HeadlessSearchCollector()
 
     let page = try database.searchPage(
@@ -212,66 +213,17 @@ func runSingleHeadlessColdSearch(
     )
 }
 
-func evictFilePageCache(at url: URL) {
-    let fd = open(url.path, O_RDONLY)
-    guard fd >= 0 else { return }
-    defer { close(fd) }
-    var statBuf = stat()
-    guard fstat(fd, &statBuf) == 0, statBuf.st_size > 0 else { return }
-    let size = Int(statBuf.st_size)
-    guard let addr = mmap(nil, size, PROT_READ, MAP_SHARED, fd, 0), addr != MAP_FAILED else {
-        return
-    }
-    madvise(addr, size, MADV_DONTNEED)
-    munmap(addr, size)
-
-    for ext in ["-wal", "-shm"] {
-        let walPath = url.path + ext
-        let walFd = open(walPath, O_RDONLY)
-        if walFd >= 0 {
-            var walStat = stat()
-            if fstat(walFd, &walStat) == 0 && walStat.st_size > 0 {
-                let walSize = Int(walStat.st_size)
-                if let walAddr = mmap(nil, walSize, PROT_READ, MAP_SHARED, walFd, 0), walAddr != MAP_FAILED {
-                    madvise(walAddr, walSize, MADV_DONTNEED)
-                    munmap(walAddr, walSize)
-                }
+func applyDirectIO(for dbPath: URL) {
+    var pathBuffer = [CChar](repeating: 0, count: Int(MAXPATHLEN))
+    for testFd: Int32 in 3..<128 {
+        if fcntl(testFd, F_GETPATH, &pathBuffer) >= 0 {
+            let name = String(cString: pathBuffer)
+            if name.hasPrefix(dbPath.path) {
+                _ = fcntl(testFd, F_NOCACHE, 1)
+                _ = fcntl(testFd, F_RDAHEAD, 0)
             }
-            close(walFd)
         }
     }
-}
-
-func runHeadlessColdBenchmark(
-    dbPath: URL,
-    query: String,
-    limit: Int = 100,
-    runs: Int = 5,
-    folders: [URL]?,
-    languageFilter: SubtitleSearchLanguageFilter = .all
-) throws -> HeadlessColdSummary {
-    var samples: [HeadlessColdSample] = []
-    for runIndex in 1...runs {
-        evictFilePageCache(at: dbPath)
-        let sample = try runSingleHeadlessColdSearch(
-            dbPath: dbPath,
-            query: query,
-            limit: limit,
-            folders: folders,
-            languageFilter: languageFilter
-        )
-        samples.append(sample)
-        if runIndex < runs {
-            Thread.sleep(forTimeInterval: 0.1)
-        }
-    }
-    return HeadlessColdSummary(
-        query: query,
-        runs: runs,
-        samples: samples,
-        totalCount: samples.first?.totalCount ?? 0,
-        fileSummariesCount: samples.first?.fileSummariesCount ?? 0
-    )
 }
 
 guard CommandLine.arguments.count >= 3 else {
@@ -300,25 +252,44 @@ if isHeadlessCold {
     print("DB:              \(dbPath.path)")
     print("Selected folders: \(folders?.map(\.path).joined(separator: ", ") ?? "all (no folder scope)")")
     print("Limit:           100 (UI 1st page)")
-    print("Mode:            Cold search (5 isolated full-chain runs per query)")
+    print("Mode:            Cold search (5 round-robin cycles with Direct I/O)")
     print("")
+
+    var samplesByQuery: [String: [HeadlessColdSample]] = [:]
+    for q in standardQueries {
+        samplesByQuery[q] = []
+    }
+
+    for round in 1...5 {
+        print("--- Round \(round) of 5 ---")
+        for q in standardQueries {
+            let sample = try runSingleHeadlessColdSearch(
+                dbPath: dbPath,
+                query: q,
+                limit: 100,
+                folders: folders,
+                languageFilter: languageFilter
+            )
+            samplesByQuery[q]?.append(sample)
+            print("  [\(q)] 1st: \(formatMs(sample.firstScreenMs)) ms | full: \(formatMs(sample.fullResultMs)) ms")
+            Thread.sleep(forTimeInterval: 0.1)
+        }
+    }
 
     var summaries: [HeadlessColdSummary] = []
     for q in standardQueries {
-        print("Testing \"\(q)\" (5 cold runs)...")
-        let summary = try runHeadlessColdBenchmark(
-            dbPath: dbPath,
+        let samples = samplesByQuery[q] ?? []
+        summaries.append(HeadlessColdSummary(
             query: q,
-            limit: 100,
-            runs: 5,
-            folders: folders,
-            languageFilter: languageFilter
-        )
-        summaries.append(summary)
+            runs: samples.count,
+            samples: samples,
+            totalCount: samples.first?.totalCount ?? 0,
+            fileSummariesCount: samples.first?.fileSummariesCount ?? 0
+        ))
     }
 
     print("")
-    print("### Headless Full Chain Cold Benchmark Results (5 Runs)")
+    print("### Headless Full Chain Cold Benchmark Results (5 Rounds Round-Robin)")
     print("")
     print("| Query | Total Results | Files | 1st Screen Median | 1st Screen Raw (ms) | Full Results Median | Full Results Raw (ms) |")
     print("| --- | ---: | ---: | ---: | --- | ---: | --- |")

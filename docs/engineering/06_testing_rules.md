@@ -222,7 +222,7 @@ Rules:
 
 All search benchmarks must run in headless mode without launching the App window, while fully exercising the end-to-end search pipeline:
 1. **Pipeline Coverage**: Library folder scoping (`selectedFolders`), 100ms input debounce, database FTS5 multi-batch streaming with 100-row progress yield, `CueContentStore` installation, `searchRankByCueID` dictionary indexing, full `CueFacetSnapshot` facet distribution aggregation across all matched cues, and `TableSandboxRowModelStore` snapshot assembly.
-2. **Cold Sampling Protocol**: 5 isolated runs per query with fresh connection instantiation and OS buffer cache eviction (`madvise(MADV_DONTNEED)`).
+2. **Cold Sampling Protocol**: 5 round-robin cycles across the 3 queries (`大丈夫` -> `今日` -> `の`), each using fresh connection instantiation and Direct I/O (`fcntl(F_NOCACHE, 1)` and `fcntl(F_RDAHEAD, 0)`) to bypass OS disk and Unified Buffer Cache without requiring root permissions.
 3. **Core Metrics**:
    - `T_first`: Time from search trigger until first screen (100 rows) is committed and ready for UI rendering.
    - `T_complete`: Time from search trigger until all rows, exact count, file summaries, and facet distributions are finalized.
@@ -233,11 +233,11 @@ All search benchmarks must run in headless mode without launching the App window
 
 #### Baseline (1.0 GB Database, 76,817 Cues, Library Scope: `/Volumes/Seagate/影视`)
 
-| Query | Total Results | Files | 1st Screen Median | 1st Screen Raw (5 runs, ms) | Full Results Median | Full Results Raw (5 runs, ms) |
+| Query | Total Results | Files | 1st Screen Median | 1st Screen Raw (5 rounds, ms) | Full Results Median | Full Results Raw (5 rounds, ms) |
 | :--- | ---: | ---: | ---: | --- | ---: | --- |
-| `大丈夫` | 1,462 | 498 | **112.43 ms** | 235.24, 107.99, 112.88, 111.26, 112.43 | **143.03 ms** | 830.35, 138.24, 143.03, 141.41, 149.46 |
-| `今日` | 2,300 | 497 | **113.22 ms** | 169.73, 113.22, 113.28, 110.98, 112.60 | **155.79 ms** | 575.54, 154.82, 155.79, 157.96, 152.16 |
-| `の` | 76,817 | 637 | **116.44 ms** | 130.73, 113.17, 118.42, 115.71, 116.44 | **1238.35 ms** | 2949.98, 1238.35, 1256.44, 1235.18, 1235.73 |
+| `大丈夫` | 1,462 | 498 | **179.27 ms** | 205.50, 175.94, 172.28, 179.27, 180.06 | **253.84 ms** | 333.39, 248.66, 251.61, 253.84, 257.93 |
+| `今日` | 2,300 | 497 | **179.55 ms** | 193.75, 179.55, 177.69, 179.83, 177.48 | **283.86 ms** | 330.88, 283.86, 283.58, 284.79, 282.32 |
+| `の` | 76,817 | 637 | **115.99 ms** | 114.64, 115.99, 111.91, 120.70, 117.68 | **2116.15 ms** | 2142.75, 2030.33, 2047.58, 2116.15, 2229.50 |
 
 
 ## 10. Playback Verification
