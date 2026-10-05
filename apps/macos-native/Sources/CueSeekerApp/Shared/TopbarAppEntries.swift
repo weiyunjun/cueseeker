@@ -10,6 +10,7 @@ struct TopbarAppEntries: View {
     // Observed so the entries' labels are re-read when the language changes.
     @EnvironmentObject private var localization: AppLocalizationStore
     var iconColor: Color? = nil
+    var openIconColor: Color? = nil
     var hoverBackground: Color = WorkbenchRedesignColors.bgHover
     var openBackground: Color? = nil
     var countBackground: Color = Color.accentColor
@@ -20,6 +21,7 @@ struct TopbarAppEntries: View {
             TaskEntryButton(
                 tasks: appState.tasks,
                 iconColor: iconColor,
+                openIconColor: openIconColor,
                 hoverBackground: hoverBackground,
                 openBackground: openBackground,
                 countBackground: countBackground,
@@ -34,6 +36,7 @@ struct TopbarAppEntries: View {
             SettingsEntryButton(
                 layoutState: appState.workbenchLayout,
                 iconColor: iconColor,
+                openIconColor: openIconColor,
                 hoverBackground: hoverBackground,
                 openBackground: openBackground
             ) {
@@ -53,6 +56,7 @@ struct TopbarAppEntries: View {
 struct SettingsEntryButton: View {
     @ObservedObject var layoutState: WorkbenchLayoutState
     var iconColor: Color? = nil
+    var openIconColor: Color? = nil
     var hoverBackground: Color = WorkbenchRedesignColors.bgHover
     var openBackground: Color? = nil
     let onOpen: () -> Void
@@ -65,6 +69,7 @@ struct SettingsEntryButton: View {
             hoverBackground: hoverBackground,
             openBackground: openBackground,
             iconColor: iconColor,
+            openIconColor: openIconColor,
             action: onOpen
         )
         .help(L("topbar.settings"))

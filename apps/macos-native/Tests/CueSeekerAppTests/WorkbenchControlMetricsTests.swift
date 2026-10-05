@@ -190,6 +190,38 @@ func workbenchIconButtonOpenStateMatchesSpecification() {
     let openIconButton = WorkbenchIconButton(icon: .gear, isRedesign: true, isOpen: true)
     #expect(openIconButton.isOpen == true)
     #expect(openIconButton.icon == .gear)
+    #expect(openIconButton.redesignIconColor == WorkbenchRedesignColors.iconActive)
+
+    let idleIconButton = WorkbenchIconButton(icon: .gear, isRedesign: true, isOpen: false)
+    #expect(idleIconButton.redesignIconColor == WorkbenchRedesignColors.textSecondary)
+
+    // Verify custom surface iconColor (e.g. player topbar white textPrimary)
+    // applies in idle state but does NOT shadow the active accent color in open state.
+    let playerIdle = WorkbenchIconButton(
+        icon: .tray,
+        isRedesign: true,
+        isOpen: false,
+        iconColor: .white
+    )
+    #expect(playerIdle.redesignIconColor == .white)
+
+    let playerOpen = WorkbenchIconButton(
+        icon: .tray,
+        isRedesign: true,
+        isOpen: true,
+        iconColor: .white
+    )
+    #expect(playerOpen.redesignIconColor == WorkbenchRedesignColors.iconActive)
+
+    // Verify explicit openIconColor override if specified
+    let customOpen = WorkbenchIconButton(
+        icon: .tray,
+        isRedesign: true,
+        isOpen: true,
+        iconColor: .white,
+        openIconColor: .yellow
+    )
+    #expect(customOpen.redesignIconColor == .yellow)
 }
 
 

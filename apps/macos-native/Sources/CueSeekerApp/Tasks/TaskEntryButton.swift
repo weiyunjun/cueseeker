@@ -11,6 +11,7 @@ struct TaskEntryButton: View {
     /// The colors of the surface the button is drawn on; the Workbench's by
     /// default.
     var iconColor: Color? = nil
+    var openIconColor: Color? = nil
     var hoverBackground: Color = WorkbenchRedesignColors.bgHover
     var openBackground: Color? = nil
     var countBackground: Color = Color.accentColor
@@ -25,6 +26,7 @@ struct TaskEntryButton: View {
             hoverBackground: hoverBackground,
             openBackground: openBackground,
             iconColor: iconColor,
+            openIconColor: openIconColor,
             count: tasks.remainingTaskCount,
             countBackground: countBackground,
             countTextColor: countTextColor,

@@ -28,12 +28,12 @@ Human-owned documents:
 1. **Tokens (`WorkbenchRedesignTokens.swift`)**:
    - Updated `accent`, `textActive`, `iconActive`, and `borderActive` to dynamically bind to `NSColor.controlAccentColor` / `Color.accentColor`, eliminating hardcoded blue.
 
-2. **Workbench Controls (`WorkbenchControls.swift`)**:
+2. **Workbench Controls (`WorkbenchControls.swift`, `TopbarAppEntries.swift`, `TaskEntryButton.swift`)**:
    - Upgraded `WorkbenchButton` to support optional title (`title: String? = nil`), count badge (`count: Int = 0`, `countBackground`, `countTextColor`), and optional height override.
    - Implemented square sizing and compact slack padding for icon-only and icon+badge Neutral buttons.
    - Updated `WorkbenchButton`'s `borderColor` in `isOpen` state to use `WorkbenchRedesignColors.borderActive` (Accent color).
    - Linked `isOpen` state to `WorkbenchRedesignColors.textActive` and `WorkbenchRedesignColors.iconActive`.
-   - Updated `WorkbenchIconButton` to link `isOpen` state to `WorkbenchRedesignColors.iconActive` when default `iconColor` is used.
+   - Decoupled `iconColor` (surface-specific idle/hover icon color, e.g. player topbar white textPrimary) from `openIconColor` (defaulting to dynamic `iconActive`) in `WorkbenchIconButton`, `TopbarAppEntries`, and `TaskEntryButton`. This ensures that on custom surfaces like the video topbar, open state icon properly switches to the system accent color instead of staying masked by the idle surface color.
 
 3. **Search Shell Toolbar (`SchemaWorkbenchSearchShell.swift`)**:
    - Replaced `WorkbenchIconButton` with `WorkbenchButton` for the Filter Trigger and Select Mode Action controls, establishing consistent Neutral control frames across the search toolbar.
@@ -41,7 +41,7 @@ Human-owned documents:
 4. **Tests (`WorkbenchControlMetricsTests.swift`)**:
    - Added assertions verifying active tokens dynamically match `NSColor.controlAccentColor`.
    - Added `workbenchButtonNeutralVariantsAndOpenColorLinkage` verifying icon-only, icon+badge, and icon+title variants as well as active color token bindings.
-   - Added `workbenchIconButtonOpenStateMatchesSpecification` verifying open state configuration.
+   - Added `workbenchIconButtonOpenStateMatchesSpecification` verifying open state configuration, active accent color linkage, and custom surface idle color decoupling without masking active state.
 
 ## Verification
 

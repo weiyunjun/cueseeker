@@ -1244,6 +1244,10 @@ struct WorkbenchIconButton: View {
     /// the player's text color, because the Workbench's secondary text is dark
     /// on a dark video in Light appearance.
     var iconColor: Color? = nil
+    /// Open uses the dynamic accent icon color by default, distinguishing
+    /// the active state from hover. Surfaces like the player top bar can pass
+    /// their own open icon color step if needed.
+    var openIconColor: Color? = nil
     /// Input is blocked while a window or video size transition runs. The
     /// freeze is not a disabled state, so the button keeps the look it had
     /// before the transition started and nothing about it changes on screen.
@@ -1330,12 +1334,12 @@ struct WorkbenchIconButton: View {
         isRedesign ? (boxSize ?? WorkbenchControlMetrics.redesignIconButtonSize) : WorkbenchControlMetrics.controlHeight
     }
 
-    private var redesignIconColor: Color {
+    var redesignIconColor: Color {
         guard isEnabled else {
             return WorkbenchRedesignColors.textDisabled
         }
         if isOpen {
-            return iconColor ?? WorkbenchRedesignColors.iconActive
+            return openIconColor ?? WorkbenchRedesignColors.iconActive
         }
         return iconColor ?? WorkbenchRedesignColors.textSecondary
     }
