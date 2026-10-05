@@ -51,7 +51,7 @@ struct PlaybackFeedbackOverlay: View {
                 size: PlaybackChromeMetrics.feedbackIconSize,
                 weight: weight
             )
-                .foregroundColor(icon == .warning ? WorkbenchRedesignColors.warningText : .white)
+                .foregroundColor(.white)
                 .alignmentGuide(.feedbackFirstLineCenter) { dimensions in
                     dimensions[VerticalAlignment.center]
                 }

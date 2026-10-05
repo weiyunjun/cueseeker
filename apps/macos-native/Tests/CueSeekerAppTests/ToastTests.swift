@@ -151,14 +151,15 @@ func tableToastRequestsMatchTheUsageRegistry() {
 
 @MainActor
 @Test
-func toastCopyIconColorsAreWhiteInsteadOfAccent() {
+func toastIconsAreAlwaysPureWhiteAcrossAllScenarios() {
     #expect(ToastView.iconColor(for: TableToastRequest.copyCueText) == .white)
     #expect(ToastView.iconColor(for: TableToastRequest.copyDeepLink) == .white)
     #expect(ToastView.iconColor(for: TableToastRequest.copyCueGroupText) == .white)
     #expect(ToastView.iconColor(for: TableToastRequest.copyTimeRange) == .white)
     #expect(ToastView.iconColor(for: TableToastRequest.copyDeepLinks) == .white)
     #expect(ToastView.iconColor(for: TableToastRequest.copyTable) == .white)
-    #expect(ToastView.iconColor(for: TableToastRequest.cueNotInLibrary) == WorkbenchRedesignColors.warningText)
-    #expect(ToastView.iconColor(for: ExcerptToastRequest.moveFailed) == WorkbenchRedesignColors.dangerText)
-    #expect(ToastView.iconColor(for: ExcerptToastRequest.saveSucceeded(listName: "Study")) == WorkbenchRedesignColors.successText)
+    #expect(ToastView.iconColor(for: TableToastRequest.cueNotInLibrary) == .white)
+    #expect(ToastView.iconColor(for: ExcerptToastRequest.destinationAlreadyContainsCue(listName: "test2")) == .white)
+    #expect(ToastView.iconColor(for: ExcerptToastRequest.moveFailed) == .white)
+    #expect(ToastView.iconColor(for: ExcerptToastRequest.saveSucceeded(listName: "Study")) == .white)
 }

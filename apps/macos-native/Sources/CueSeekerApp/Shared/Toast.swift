@@ -362,19 +362,7 @@ struct ToastView: View {
     }
 
     static func iconColor(for request: ToastRequest) -> Color {
-        guard let scenarioID = request.scenarioID else {
-            return .white
-        }
-        if scenarioID.contains("failed") {
-            return WorkbenchRedesignColors.dangerText
-        }
-        if scenarioID.contains("succeeded") || scenarioID.contains("saved") || scenarioID.contains("duplicated") || scenarioID.contains("moved") {
-            return WorkbenchRedesignColors.successText
-        }
-        if scenarioID.contains("warning") || scenarioID.contains("unavailable") || scenarioID.contains("already_exists") || scenarioID.contains("not_in_library") || scenarioID.contains("status_changed") || request.icon == .warning {
-            return WorkbenchRedesignColors.warningText
-        }
-        return .white
+        .white
     }
 
     /// The unified Toast & Playback Feedback surface: dark translucent base with frosted glass and 1px border.

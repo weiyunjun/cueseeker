@@ -24,16 +24,16 @@ Human-owned documents:
    - Updated `toastBorder`: 1px outline with `rgba(255, 255, 255, 0.15)` across both Light and Dark modes.
 
 2. **Toast Component (`Toast.swift`)**:
-   - Updated `ToastView.iconColor(for:)` to return `.white` for neutral/copy actions instead of falling back to `accent`.
+   - Updated `ToastView.iconColor(for:)` to return `.white` unconditionally across all scenarios, removing status color branches and returning to the pure white monochrome HUD specification.
    - Updated `ToastView.surface` to combine `WorkbenchRedesignColors.toastBg` with `.ultraThinMaterial` forced to `.dark` color scheme, preserving frosted glass HUD texture and ensuring upward layer illumination in Dark Mode.
 
 3. **Playback Feedback Component (`PlaybackFeedbackOverlay.swift`)**:
    - Unified `feedbackBackground` to use the same surface recipe (`toastBg` + `.dark` `.ultraThinMaterial` + `toastBorder`).
    - Unified `feedbackText` to use `WorkbenchRedesignColors.toastText`.
-   - Unified `feedbackIcon` to render `.white` for neutral icons and `warningText` for warnings.
+   - Unified `feedbackIcon` to render `.white` unconditionally across all scenarios.
 
 4. **Automated Tests (`ToastTests.swift`)**:
-   - Added `toastCopyIconColorsAreWhiteInsteadOfAccent` verifying copy actions produce `.white` icon color while warning, failure, and success retain semantic colors.
+   - Added `toastIconsAreAlwaysPureWhiteAcrossAllScenarios` verifying that copy, warning, failure, and success scenarios all produce `.white` icon color without any color deviation.
 
 ## Verification
 
