@@ -223,15 +223,15 @@ enum WorkbenchRedesignColors {
         // Toast
         static let toastBg = NSColor.dynamic(
             lightHex: "#1F1F1F",
-            lightAlpha: 0.92,
-            darkHex: "#2A2A2E",
-            darkAlpha: 1.0
+            lightAlpha: 0.90,
+            darkHex: "#2D2D32",
+            darkAlpha: 0.92
         )
         static let toastBorder = NSColor.dynamic(
             lightHex: "#FFFFFF",
             lightAlpha: 0.15,
-            darkHex: "#4A4A52",
-            darkAlpha: 1.0
+            darkHex: "#FFFFFF",
+            darkAlpha: 0.15
         )
         static let toastText = NSColor.dynamic(
             lightHex: "#FFFFFF",

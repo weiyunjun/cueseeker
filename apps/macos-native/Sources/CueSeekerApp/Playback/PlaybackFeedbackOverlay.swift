@@ -51,7 +51,7 @@ struct PlaybackFeedbackOverlay: View {
                 size: PlaybackChromeMetrics.feedbackIconSize,
                 weight: weight
             )
-                .foregroundColor(PlaybackTheme.textPrimary)
+                .foregroundColor(icon == .warning ? WorkbenchRedesignColors.warningText : .white)
                 .alignmentGuide(.feedbackFirstLineCenter) { dimensions in
                     dimensions[VerticalAlignment.center]
                 }
@@ -72,7 +72,7 @@ struct PlaybackFeedbackOverlay: View {
                     // breathing while they do.
                     .monospacedDigit()
                 )
-                .foregroundColor(PlaybackTheme.textPrimary)
+                .foregroundColor(WorkbenchRedesignColors.toastText)
                 .multilineTextAlignment(.leading)
                 .fixedSize(horizontal: false, vertical: true)
                 .alignmentGuide(.feedbackFirstLineCenter) { _ in
@@ -83,22 +83,23 @@ struct PlaybackFeedbackOverlay: View {
         }
     }
 
-    /// The speed menu's surface without its shadow. The capsule appears over
-    /// the picture and over the light Subtitle Focus panel alike, and a scrim
-    /// heavy enough to read on video casts a grey cloud on the panel, so the
-    /// border and the fill carry the separation on their own.
+    /// The unified Toast & Playback Feedback surface: dark translucent base with frosted glass and 1px border.
     private var feedbackBackground: some View {
         let shape = RoundedRectangle(
             cornerRadius: PlaybackChromeMetrics.feedbackRadius
         )
 
         return shape
-            .fill(PlaybackTheme.menuBackground)
-            .background(.ultraThinMaterial, in: shape)
+            .fill(WorkbenchRedesignColors.toastBg)
+            .background(
+                shape
+                    .fill(.ultraThinMaterial)
+                    .environment(\.colorScheme, .dark)
+            )
             .overlay(
                 shape.strokeBorder(
-                    PlaybackTheme.textTertiary.opacity(0.3),
-                    lineWidth: WorkbenchControlMetrics.hairlineWidth
+                    WorkbenchRedesignColors.toastBorder,
+                    lineWidth: 1
                 )
             )
     }

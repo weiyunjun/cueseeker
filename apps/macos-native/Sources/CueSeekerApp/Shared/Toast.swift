@@ -320,7 +320,7 @@ struct ToastStackView: View {
     }
 }
 
-private struct ToastView: View {
+struct ToastView: View {
     let item: ToastItem
 
     var body: some View {
@@ -334,7 +334,7 @@ private struct ToastView: View {
                     size: WorkbenchControlMetrics.redesignToastIconSize,
                     weight: item.request.iconWeight
                 )
-                .foregroundColor(iconColor(for: item.request))
+                .foregroundColor(Self.iconColor(for: item.request))
                 .alignmentGuide(.feedbackFirstLineCenter) { dimensions in
                     dimensions[VerticalAlignment.center]
                 }
@@ -361,9 +361,9 @@ private struct ToastView: View {
         .accessibilityLabel(item.request.message)
     }
 
-    private func iconColor(for request: ToastRequest) -> Color {
+    static func iconColor(for request: ToastRequest) -> Color {
         guard let scenarioID = request.scenarioID else {
-            return WorkbenchRedesignColors.accent
+            return .white
         }
         if scenarioID.contains("failed") {
             return WorkbenchRedesignColors.dangerText
@@ -374,15 +374,20 @@ private struct ToastView: View {
         if scenarioID.contains("warning") || scenarioID.contains("unavailable") || scenarioID.contains("already_exists") || scenarioID.contains("not_in_library") || scenarioID.contains("status_changed") || request.icon == .warning {
             return WorkbenchRedesignColors.warningText
         }
-        return WorkbenchRedesignColors.accent
+        return .white
     }
 
-    /// The Playback Feedback surface. In Dark Mode it uses #2A2A2E with a 1px border.
+    /// The unified Toast & Playback Feedback surface: dark translucent base with frosted glass and 1px border.
     private var surface: some View {
         let shape = RoundedRectangle(cornerRadius: PlaybackChromeMetrics.feedbackRadius)
 
         return shape
             .fill(WorkbenchRedesignColors.toastBg)
+            .background(
+                shape
+                    .fill(.ultraThinMaterial)
+                    .environment(\.colorScheme, .dark)
+            )
             .overlay(
                 shape.strokeBorder(
                     WorkbenchRedesignColors.toastBorder,

@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 import Testing
 @testable import CueSeekerApp
 
@@ -146,4 +147,18 @@ func tableToastRequestsMatchTheUsageRegistry() {
 
     #expect(TableToastRequest.cueNotInLibrary(count: 1) == TableToastRequest.cueNotInLibrary)
     #expect(TableToastRequest.cueNotInLibrary(count: 2) == TableToastRequest.cuesNotInLibrary)
+}
+
+@MainActor
+@Test
+func toastCopyIconColorsAreWhiteInsteadOfAccent() {
+    #expect(ToastView.iconColor(for: TableToastRequest.copyCueText) == .white)
+    #expect(ToastView.iconColor(for: TableToastRequest.copyDeepLink) == .white)
+    #expect(ToastView.iconColor(for: TableToastRequest.copyCueGroupText) == .white)
+    #expect(ToastView.iconColor(for: TableToastRequest.copyTimeRange) == .white)
+    #expect(ToastView.iconColor(for: TableToastRequest.copyDeepLinks) == .white)
+    #expect(ToastView.iconColor(for: TableToastRequest.copyTable) == .white)
+    #expect(ToastView.iconColor(for: TableToastRequest.cueNotInLibrary) == WorkbenchRedesignColors.warningText)
+    #expect(ToastView.iconColor(for: ExcerptToastRequest.moveFailed) == WorkbenchRedesignColors.dangerText)
+    #expect(ToastView.iconColor(for: ExcerptToastRequest.saveSucceeded(listName: "Study")) == WorkbenchRedesignColors.successText)
 }
