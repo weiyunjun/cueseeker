@@ -999,6 +999,9 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - Hover
   - Background：`--color-bg-hover`
   - Border Color：`--color-border-control-hover`
+- Open
+  - 触发：挂靠的菜单打开
+  - Background：`--color-bg-active`
 - Focused
   - Border Color：`--color-border-focus`
 - Disabled
@@ -3381,18 +3384,25 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 
 #### Structure
 
-1. Adaptive Folder Card Grid
+1. Action Bar
+2. Adaptive Folder Card Grid
 
 #### Components
 
+- Button / Neutral
+- Menu
 - Library Folder Card Layout
 
 #### Layout
 
 - Page Layout：Workbench Titled Page Layout
+- 排序按钮：位于网格上方右上角，与卡片网格右边缘对齐；图标为 `funnel-simple`，文字为当前选中的排序方式。
+- 排序菜单：Radio Menu，选项为默认排序、最晚入库、最早入库；打开时默认高亮首项。
+- 排序规则：默认按文件夹名称升序；最晚入库/最早入库按首次入库时间（最早被索引文件的时间）排序，相同时间按文件夹名称升序。排序选择持久化保存。
 
 #### Sizes
 
+- Action Bar to Grid Gap：`--spacing-4`
 - Card Width：`--width-library-recent-card-min` to `--width-library-recent-card-max`
 - Grid Gap：`--gap-library-recent-grid`
 
