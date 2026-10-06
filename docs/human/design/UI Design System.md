@@ -666,7 +666,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 
 ##### Sizes
 
-- Height：`--height-filter-bar-control`
+- Height：`--height-control`
 - Padding Inline：`--padding-control-x`
 
 ##### States
@@ -3687,15 +3687,15 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 
 #### Sizes
 
-- Row Height：`--height-filter-bar-control`
+- Row Height：`--height-control`
 - Row Gap：`--spacing-2`
-- Bottom Gap：`--spacing-3`
+- Bottom Gap：`--spacing-2`
 - Width：Fill Parent Content Width
 
 #### States
 
 - Default：Row 1 启用；Row 2 展示 Result Count 与 Filter Trigger
-- Select Mode：Row 1 禁用；Row 2 展示 Selection Banner（底色 `--color-filter-chip-selected-bg`，边框与文字跟随系统 Accent 色）
+- Select Mode：Row 1 禁用；Row 2 展示批量选择提示文案（样式同 Result Count）与「退出选择」按钮，无背景卡片与边框
 - Filter Dialog Open
 - Calculating
 
