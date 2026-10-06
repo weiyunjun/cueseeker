@@ -264,7 +264,8 @@ private struct WorkbenchExcerptTableContent: View {
                     + WorkbenchControlMetrics.redesignCoverSummaryToolbarGap
             },
             pinnedHeaderHeight:
-                WorkbenchControlMetrics.redesignSearchHeight
+                WorkbenchControlMetrics.redesignSearchHeight * 2
+                + WorkbenchControlMetrics.redesignSpacing2
                 + WorkbenchControlMetrics.redesignSpacing3,
             leadingInset:
                 WorkbenchControlMetrics.redesignWorkbenchPageHorizontalPadding,
@@ -703,6 +704,12 @@ private struct WorkbenchExcerptTableContent: View {
             rowCount: rowStore.snapshot.totalRowCount,
             unselectableRows: rowStore.snapshot.unavailableRows
         )
+        let count = rowSelection.selectedCount(rowCount: rowStore.snapshot.totalRowCount)
+        if !isSelectionMode, count > 0 {
+            isSelectionMode = true
+        } else if isSelectionMode, count == 0 {
+            isSelectionMode = false
+        }
         persistSelection()
     }
 
@@ -712,6 +719,12 @@ private struct WorkbenchExcerptTableContent: View {
             rowCount: rowStore.snapshot.totalRowCount,
             unselectableRows: rowStore.snapshot.unavailableRows
         )
+        let count = rowSelection.selectedCount(rowCount: rowStore.snapshot.totalRowCount)
+        if !isSelectionMode, count > 0 {
+            isSelectionMode = true
+        } else if isSelectionMode, count == 0 {
+            isSelectionMode = false
+        }
         persistSelection()
     }
 
@@ -720,6 +733,12 @@ private struct WorkbenchExcerptTableContent: View {
             rowCount: rowStore.snapshot.totalRowCount,
             unselectableRows: rowStore.snapshot.unavailableRows
         )
+        let count = rowSelection.selectedCount(rowCount: rowStore.snapshot.totalRowCount)
+        if !isSelectionMode, count > 0 {
+            isSelectionMode = true
+        } else if isSelectionMode, count == 0 {
+            isSelectionMode = false
+        }
         persistSelection()
     }
 

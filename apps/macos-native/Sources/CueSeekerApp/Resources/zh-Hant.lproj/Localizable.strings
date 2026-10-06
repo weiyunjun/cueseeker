@@ -72,7 +72,8 @@
 "filter_dialog.show_excerpts.one" = "顯示 1 條摘錄";
 "filter_dialog.show_excerpts.other" = "顯示 %d 條摘錄";
 "table.select" = "選取";
-"table.exit_select" = "結束選取";
+"table.exit_select" = "退出選取";
+"table.batch_selection_banner_hint" = "已進入批量選取狀態：點擊任意行即可勾選，支援 Shift 連選";
 "table.search_placeholder" = "依名稱、台詞或關鍵字搜尋⋯";
 "table.search_empty_hint" = "輸入搜尋字詞以顯示台詞。";
 "table.toolbar.anki" = "匯出至 Anki";

@@ -60,3 +60,16 @@ func schemaWorkbenchTablesUseDocumentedColumnWeightsAndMinimums() {
         .weighted(weight: 2, min: 120),
     ])
 }
+
+@Test
+func schemaWorkbenchSelectionActionExportActionsExcludeExitButton() {
+    let actions = SchemaWorkbenchSelectionAction.exportActions(
+        exportToAnki: {},
+        copyDeepLinks: {},
+        copyTable: {}
+    )
+    #expect(actions.count == 3)
+    #expect(actions.map(\.id) == ["anki", "copy-deep-links", "copy-table"])
+    #expect(!actions.contains(where: { $0.id == "exit" }))
+}
+

@@ -73,6 +73,7 @@
 "filter_dialog.show_excerpts.other" = "显示 %d 条摘录";
 "table.select" = "选择";
 "table.exit_select" = "退出选择";
+"table.batch_selection_banner_hint" = "已进入批量选择状态：点击任意行即可勾选，支持 Shift 连选";
 "table.search_placeholder" = "按名称、台词或关键词搜索…";
 "table.search_empty_hint" = "输入搜索词以显示台词。";
 "table.toolbar.anki" = "导出到 Anki";

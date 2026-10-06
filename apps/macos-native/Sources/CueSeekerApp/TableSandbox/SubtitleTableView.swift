@@ -1396,6 +1396,12 @@ final class SubtitleVirtualTableHeaderView: NSView {
             needsDisplay = true
         }
     }
+    private var isIndexHeaderHovered = false {
+        didSet {
+            guard isIndexHeaderHovered != oldValue else { return }
+            refreshIndexHeaderHost()
+        }
+    }
 
     override var isFlipped: Bool { true }
 
@@ -1465,26 +1471,28 @@ final class SubtitleVirtualTableHeaderView: NSView {
 
     override func mouseEntered(with event: NSEvent) {
         super.mouseEntered(with: event)
-        updateHoverState()
+        updateHoverState(windowLocation: event.locationInWindow)
     }
 
     override func mouseExited(with event: NSEvent) {
         super.mouseExited(with: event)
-        updateHoverState()
+        updateHoverState(windowLocation: event.locationInWindow)
     }
 
     override func mouseMoved(with event: NSEvent) {
         super.mouseMoved(with: event)
-        updateHoverState()
+        updateHoverState(windowLocation: event.locationInWindow)
     }
 
-    private func updateHoverState() {
-        guard isRedesign, let window = window else {
+    private func updateHoverState(windowLocation: CGPoint? = nil) {
+        guard isRedesign, window != nil || windowLocation != nil else {
             isHeaderHovered = false
+            isIndexHeaderHovered = false
             return
         }
         if coordinator?.isCoveredByHigherLayer == true {
             isHeaderHovered = false
+            isIndexHeaderHovered = false
             return
         }
         // A frozen header keeps the state it had: it neither follows the
@@ -1492,9 +1500,20 @@ final class SubtitleVirtualTableHeaderView: NSView {
         if coordinator?.isPointerFrozen == true {
             return
         }
-        let mouseLoc = window.mouseLocationOutsideOfEventStream
+        guard let mouseLoc = windowLocation ?? window?.mouseLocationOutsideOfEventStream else {
+            isHeaderHovered = false
+            isIndexHeaderHovered = false
+            return
+        }
         let localLoc = convert(mouseLoc, from: nil)
-        isHeaderHovered = bounds.contains(localLoc)
+        let isInside = bounds.contains(localLoc)
+        isHeaderHovered = isInside
+        let layout = currentHeaderLayout()
+        isIndexHeaderHovered = isInside && layout.indexRect.contains(localLoc)
+    }
+
+    func handleHeaderHoverForTesting(windowPoint: CGPoint) {
+        updateHoverState(windowLocation: windowPoint)
     }
 
     override func draw(_ dirtyRect: NSRect) {
@@ -1624,16 +1643,7 @@ final class SubtitleVirtualTableHeaderView: NSView {
         }
 
         let layout = currentHeaderLayout()
-
-        if coordinator?.isSelectionModeForRendering() == true {
-            updateSelectionHeaderHost(&indexHeaderHost, frame: layout.indexRect)
-        } else {
-            updateHeaderHost(
-                &indexHeaderHost,
-                title: "#",
-                frame: layout.indexRect
-            )
-        }
+        refreshIndexHeaderHost(layout: layout)
         if let dateAddedRect = layout.dateAddedRect {
             updateHeaderHost(&dateAddedHeaderHost, title: coordinator?.dateAddedHeaderForRendering() ?? L("table.column.date_added"), frame: dateAddedRect)
         } else {
@@ -1719,12 +1729,13 @@ final class SubtitleVirtualTableHeaderView: NSView {
     }
 
     func selectionHeaderIsVisibleForTesting() -> Bool {
-        coordinator?.isSelectionModeForRendering() == true
+        (coordinator?.isSelectionModeForRendering() == true || isIndexHeaderHovered)
             && indexHeaderHost?.isHidden == false
     }
 
     func sequenceHeaderIsVisibleForTesting() -> Bool {
         coordinator?.isSelectionModeForRendering() == false
+            && !isIndexHeaderHovered
             && indexHeaderHost?.isHidden == false
     }
 
@@ -1790,6 +1801,20 @@ final class SubtitleVirtualTableHeaderView: NSView {
             showsLanguageColumn: false,
             cuesMinimumWidth: max(0, bounds.width - M.indexColumnWidth)
         )
+    }
+
+    private func refreshIndexHeaderHost(layout: SubtitleTableColumnLayout? = nil) {
+        guard isRedesign else { return }
+        let currentLayout = layout ?? currentHeaderLayout()
+        if coordinator?.isSelectionModeForRendering() == true || isIndexHeaderHovered {
+            updateSelectionHeaderHost(&indexHeaderHost, frame: currentLayout.indexRect)
+        } else {
+            updateHeaderHost(
+                &indexHeaderHost,
+                title: "#",
+                frame: currentLayout.indexRect
+            )
+        }
     }
 
     private func updateHeaderFrame(
@@ -3874,13 +3899,14 @@ struct SubtitleTableView: NSViewRepresentable {
         }
 
         func canToggleSelectionForRendering() -> Bool {
-            isEnabled && isSelectionMode && rowCount > 0
+            isEnabled && rowCount > 0
         }
 
         /// Whether a click anywhere on the header should select or clear every
         /// row. Same guards the row Checkboxes use.
         fileprivate var acceptsSelectModeHeaderClick: Bool {
             isRedesign
+                && isSelectionMode
                 && canToggleSelectionForRendering()
                 && !isMenuOpen
                 && !isCoveredByHigherLayer
@@ -4594,7 +4620,7 @@ struct SubtitleTableView: NSViewRepresentable {
                     extraCueLineCounts: []
                 )
 
-            if isRedesign, isSelectionMode {
+            if isRedesign && (isSelectionMode || hoveredRow == row) {
                 let checkboxState: WorkbenchCheckboxState = isRowSelected(row) ? .checked : .unchecked
                 // An unavailable row cannot be selected, so its checkbox is
                 // drawn disabled.
@@ -6148,7 +6174,6 @@ struct SubtitleTableView: NSViewRepresentable {
         private func isPointInCheckbox(row: Int, point: CGPoint) -> Bool {
             guard isRedesign,
                   isEnabled,
-                  isSelectionMode,
                   !isCoveredByHigherLayer,
                   row >= 0,
                   row < rowCount,
@@ -6426,7 +6451,6 @@ struct SubtitleTableView: NSViewRepresentable {
         private func toggleRowCheckboxFromMouse(row: Int) -> Bool {
             guard isRedesign,
                   isEnabled,
-                  isSelectionMode,
                   !isMenuOpen,
                   !isCoveredByHigherLayer,
                   row >= 0,

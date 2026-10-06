@@ -72,7 +72,8 @@
 "filter_dialog.show_excerpts.one" = "Show 1 excerpt";
 "filter_dialog.show_excerpts.other" = "Show %d excerpts";
 "table.select" = "Select";
-"table.exit_select" = "Exit Select";
+"table.exit_select" = "Exit Selection";
+"table.batch_selection_banner_hint" = "Batch selection active: click any row to select, Shift+click for range";
 "table.search_placeholder" = "Search cues by name, lyrics, or keywords...";
 "table.search_empty_hint" = "Enter a search term to show cues.";
 "table.toolbar.anki" = "Export to Anki";

@@ -354,16 +354,39 @@ struct SchemaWorkbenchSearchToolbar: View {
     var onToggleSelectionMode: () -> Void
 
     var body: some View {
-        HStack(spacing: WorkbenchControlMetrics.redesignSpacing3) {
+        VStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
             WorkbenchSearchField(
                 placeholder: placeholder,
                 text: $searchDraft,
                 isRedesign: true,
-                trailingStatusText: searchResultCountText,
+                trailingStatusText: nil,
                 onSubmit: onSubmit
             )
             .frame(maxWidth: .infinity)
+            .frame(height: WorkbenchControlMetrics.redesignSearchHeight)
             .disabled(isSelectionMode)
+
+            if isSelectionMode {
+                selectionBanner
+            } else {
+                defaultActionRow
+            }
+        }
+    }
+
+    private var defaultActionRow: some View {
+        HStack(spacing: WorkbenchControlMetrics.redesignSpacing3) {
+            if let searchResultCountText, !searchResultCountText.isEmpty {
+                Text(searchResultCountText)
+                    .font(.system(
+                        size: WorkbenchControlMetrics.redesignFontSizeBody,
+                        weight: .regular
+                    ))
+                    .foregroundStyle(WorkbenchRedesignColors.textMuted)
+                    .lineLimit(1)
+            }
+
+            Spacer()
 
             WorkbenchButton(
                 icon: .funnel,
@@ -373,17 +396,46 @@ struct SchemaWorkbenchSearchToolbar: View {
                 action: onFilter
             )
             .accessibilityLabel(L("table.filter"))
-            .disabled(isSelectionMode)
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: WorkbenchControlMetrics.redesignSearchHeight)
+    }
+
+    private var selectionBanner: some View {
+        HStack(spacing: WorkbenchControlMetrics.redesignSpacing3) {
+            Text(L("table.batch_selection_banner_hint"))
+                .font(.system(
+                    size: WorkbenchControlMetrics.redesignFontSizeBody,
+                    weight: .regular
+                ))
+                .foregroundStyle(WorkbenchRedesignColors.filterChipSelectedContent)
+                .lineLimit(1)
+                .padding(.leading, WorkbenchControlMetrics.redesignSpacing3)
+
+            Spacer()
 
             WorkbenchButton(
-                icon: .listChecks,
+                title: L("table.exit_select"),
                 isRedesign: true,
-                isOpen: isSelectionMode,
                 action: onToggleSelectionMode
             )
-            .accessibilityLabel(isSelectionMode ? L("table.exit_select") : L("table.select"))
-            .disabled(!isSelectionMode && !canEnterSelectionMode)
+            .padding(.trailing, WorkbenchControlMetrics.redesignSpacing1)
         }
+        .frame(maxWidth: .infinity)
         .frame(height: WorkbenchControlMetrics.redesignSearchHeight)
+        .background(
+            RoundedRectangle(
+                cornerRadius: WorkbenchControlMetrics.redesignCornerRadius,
+                style: .continuous
+            )
+            .fill(WorkbenchRedesignColors.filterChipSelectedBg)
+        )
+        .overlay(
+            RoundedRectangle(
+                cornerRadius: WorkbenchControlMetrics.redesignCornerRadius,
+                style: .continuous
+            )
+            .strokeBorder(WorkbenchRedesignColors.filterChipSelectedContent, lineWidth: 1)
+        )
     }
 }

@@ -1226,6 +1226,66 @@ func subtitleTableViewSelectModeReservesColumnAndMakesWholeRowSelectable() throw
 
 @MainActor
 @Test
+func subtitleTableViewUnselectedRowClickInCheckboxSelectsRowAndClickOutsidePlaysRow() throws {
+    var toggledRows: [Int] = []
+    var playedRow: SubtitleTableRow?
+    let fixture = makeAttachedVirtualTableCoordinator(
+        isSelectionMode: false,
+        onPlay: { playedRow = $0 },
+        onToggleRowSelection: { row in
+            toggledRows.append(row)
+        }
+    )
+    let checkboxRect = try #require(fixture.coordinator.checkboxRectForTesting(row: 0))
+    let checkboxPoint = CGPoint(x: checkboxRect.midX, y: checkboxRect.midY)
+    let checkboxWindowPoint = fixture.documentView.convert(checkboxPoint, to: nil)
+
+    // Clicking precisely on checkbox rect triggers selection toggle even when not in selection mode
+    #expect(fixture.coordinator.handleMouseDown(windowPoint: checkboxWindowPoint))
+    #expect(toggledRows == [0])
+    #expect(playedRow == nil)
+
+    // Clicking in cues text area triggers play, not selection toggle
+    toggledRows.removeAll()
+    let cueFragment = try #require(
+        fixture.coordinator.textFragmentInfoForTesting(row: 0, columnID: "cues").first
+    )
+    let cuePoint = CGPoint(x: cueFragment.textBounds.midX, y: cueFragment.textBounds.midY)
+    let cuesWindowPoint = fixture.documentView.convert(cuePoint, to: nil)
+    #expect(fixture.coordinator.handleMouseDown(windowPoint: cuesWindowPoint))
+    #expect(fixture.coordinator.handleMouseUp(windowPoint: cuesWindowPoint))
+    #expect(toggledRows.isEmpty)
+    #expect(playedRow != nil)
+}
+
+@MainActor
+@Test
+func subtitleTableViewUnselectedHeaderHoverShowsCheckbox() {
+    let fixture = makeAttachedVirtualTableCoordinator(isSelectionMode: false)
+    let window = NSWindow(
+        contentRect: CGRect(x: 0, y: 0, width: 900, height: 260),
+        styleMask: [.titled],
+        backing: .buffered,
+        defer: false
+    )
+    window.contentView = fixture.container
+    fixture.header.refreshHeaderHosts()
+    #expect(fixture.header.sequenceHeaderIsVisibleForTesting())
+    #expect(fixture.header.selectionHeaderIsVisibleForTesting() == false)
+
+    let layout = fixture.coordinator.headerColumnLayoutForRendering(
+        viewportWidth: fixture.header.bounds.width,
+        height: fixture.header.bounds.height
+    )
+    let indexPoint = CGPoint(x: layout.indexRect.midX, y: layout.indexRect.midY)
+    let windowPoint = fixture.header.convert(indexPoint, to: nil)
+    fixture.header.handleHeaderHoverForTesting(windowPoint: windowPoint)
+    #expect(fixture.header.selectionHeaderIsVisibleForTesting())
+    #expect(fixture.header.sequenceHeaderIsVisibleForTesting() == false)
+}
+
+@MainActor
+@Test
 func subtitleTableViewSelectedRowUsesSelectedColorWithoutHoverStacking() throws {
     let fixture = makeAttachedVirtualTableCoordinator(
         isSelectionMode: true,

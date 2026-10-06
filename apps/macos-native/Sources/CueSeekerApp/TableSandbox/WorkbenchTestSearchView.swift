@@ -614,6 +614,12 @@ struct WorkbenchTestSearchView: View {
             rowCount: rowStore.snapshot.totalRowCount,
             unselectableRows: rowStore.snapshot.unavailableRows
         )
+        let count = rowSelection.selectedCount(rowCount: rowStore.snapshot.totalRowCount)
+        if !isSelectionMode, count > 0 {
+            isSelectionMode = true
+        } else if isSelectionMode, count == 0 {
+            isSelectionMode = false
+        }
         persistSelection()
     }
 
@@ -623,6 +629,12 @@ struct WorkbenchTestSearchView: View {
             rowCount: rowStore.snapshot.totalRowCount,
             unselectableRows: rowStore.snapshot.unavailableRows
         )
+        let count = rowSelection.selectedCount(rowCount: rowStore.snapshot.totalRowCount)
+        if !isSelectionMode, count > 0 {
+            isSelectionMode = true
+        } else if isSelectionMode, count == 0 {
+            isSelectionMode = false
+        }
         persistSelection()
     }
 
@@ -631,6 +643,12 @@ struct WorkbenchTestSearchView: View {
             rowCount: rowStore.snapshot.totalRowCount,
             unselectableRows: rowStore.snapshot.unavailableRows
         )
+        let count = rowSelection.selectedCount(rowCount: rowStore.snapshot.totalRowCount)
+        if !isSelectionMode, count > 0 {
+            isSelectionMode = true
+        } else if isSelectionMode, count == 0 {
+            isSelectionMode = false
+        }
         persistSelection()
     }
 

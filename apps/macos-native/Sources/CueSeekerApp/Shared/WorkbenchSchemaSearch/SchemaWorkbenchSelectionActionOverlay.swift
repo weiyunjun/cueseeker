@@ -55,20 +55,6 @@ struct SchemaWorkbenchSelectionActionOverlay: View {
 
     @Environment(\.interfaceLayerContext) private var layerContext
 
-    /// Exit closes Select Mode, the same thing the toolbar's Select Mode
-    /// Action does when it is switched off.
-    private var allActions: [SchemaWorkbenchSelectionAction] {
-        actions + [
-            SchemaWorkbenchSelectionAction(
-                id: "exit",
-                title: L("table.toolbar.exit"),
-                keyLabel: "Esc",
-                keyCode: 53,
-                perform: onExitSelectionMode
-            ),
-        ]
-    }
-
     /// The count sits above the actions, and the actions wrap when the table
     /// is too narrow for one line, so every title stays whole.
     var body: some View {
@@ -97,7 +83,7 @@ struct SchemaWorkbenchSelectionActionOverlay: View {
                 horizontalSpacing: WorkbenchControlMetrics.redesignSpacing2,
                 verticalSpacing: WorkbenchControlMetrics.redesignSpacing2
             ) {
-                ForEach(allActions) { action in
+                ForEach(actions) { action in
                     SchemaWorkbenchSelectionActionButton(action: action)
                 }
             }
@@ -143,9 +129,17 @@ struct SchemaWorkbenchSelectionActionOverlay: View {
               event.modifierFlags
               .intersection([.command, .control, .option, .shift])
               .isEmpty,
-              !AppCoordinator.isEditableTextInputFocused(),
-              let action = allActions.first(where: { $0.keyCode == event.keyCode })
+              !AppCoordinator.isEditableTextInputFocused()
         else {
+            return false
+        }
+        if event.keyCode == 53 {
+            if !event.isARepeat {
+                onExitSelectionMode()
+            }
+            return true
+        }
+        guard let action = actions.first(where: { $0.keyCode == event.keyCode }) else {
             return false
         }
         if !event.isARepeat {
