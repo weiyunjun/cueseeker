@@ -94,6 +94,7 @@
 | `pencil-simple` | Regular | 重命名、编辑封面 | Library File Tree 菜单 / Rename Folder、Rename Files；Cover / Editor Action |
 | `note-pencil` | Regular | 编辑 | Excerpt List 卡片菜单 / Edit List |
 | `list-checks` | Regular | 选择模式 | 预留，暂无使用位置 |
+| `sign-out` | Regular | 退出选择 | Search / Excerpt Toolbar / Exit Selection |
 | `images-square` | Regular | 截图组 | Playback Topbar / Collage Action |
 | `trash` | Regular | 删除 | Excerpt List 卡片菜单 / Delete List；Task Card / Delete Action |
 | `copy` | Regular | 复制 | 表格行菜单 / Copy Cue Text、Copy Cue Group Text、Copy Time Range；Collage Editor / Copy；Playback Overlay 选中文字菜单 / Copy Selected Text |

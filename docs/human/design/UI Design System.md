@@ -25,6 +25,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 
 - `--color-bg-surface`: Light `#FFFFFF`; Dark `#1C1C1F`
 - `--color-bg-hover`: Light `#F3F4F6`; Dark `rgba(255,255,255,0.12)`
+- `--color-badge-neutral-bg`: Light `#E5E7EB`; Dark `rgba(255,255,255,0.20)`
 - `--color-bg-disabled`: Light `#F3F4F6`; Dark `rgba(255,255,255,0.04)`
 - `--color-bg-control`: Light `#FFFFFF`; Dark `rgba(255,255,255,0.08)`
 - `--color-bg-dialog`: Light `#FFFFFF`; Dark `#1C1C1F`
@@ -997,10 +998,10 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
   - Border Color：`--color-border-control-hover`
 - Open
   - 触发：挂靠的菜单或面板打开，或按钮所控的模式开启
-  - Background：`--color-bg-active`
-  - Border Color：`--color-border-active`
-  - Label Color：`--color-text-active`
-  - Icon Color：`--color-icon-active`
+  - Background：`--color-bg-hover`
+  - Border Color：`--color-border-control-hover`
+  - Label Color：`--color-text-secondary`
+  - Icon Color：`--color-text-secondary`
 - Focused
   - Border Color：`--color-border-focus`
 - Disabled
@@ -1114,8 +1115,8 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
   - Background：Surface Hover
 - Open
   - 触发：挂靠的菜单、面板或窗口打开，或按钮所控的模式开启
-  - Background：`--color-bg-active`；在 `--color-player-topbar-gradient-start` 上为 `--color-player-control-bg-active`
-  - Icon Color：`--color-icon-active`
+  - Background：Surface Hover
+  - Icon Color：与 Default 保持一致
 - Focused
   - Ring Color：`--color-focus-ring`
   - Ring Width：`--focus-ring-width`
@@ -1860,11 +1861,11 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - Shape：1 位数为圆形，宽与高相等；2 位及以上为胶囊形，两端为正半圆
 - Size：`--size-control-icon`；在 Section Header 内为 `--size-task-count-badge-compact`
 - Padding Inline：1 位数为 0；2 位及以上为 `--spacing-2`，在 Section Header 内为 `--padding-task-count-badge-compact-x`
-- Background：macOS accent color；按钮 Disabled 时为 macOS accent color with Alpha `0.35`；按钮 Hover 或 Open 时不变
+- Background：`--color-badge-neutral-bg`；按钮 Hover 或 Open 时不变
 - Font Family：`--font-family-base`
 - Font Size：`--font-size-task-count-badge`；在 Section Header 内为 `--font-size-caption`
 - Font Weight：`--font-weight-task-count-badge`
-- Text Color：`--color-icon-on-dark`
+- Text Color：`--color-text-secondary`；按钮 Disabled 时为 `--color-text-disabled`
 - States
   - Count
   - Hidden：数量为 0
@@ -3676,8 +3677,8 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 
 1. Row 1：Search Field
 2. Row 2：
-   - Default：Result Count（Search 为 `xx results`，Excerpt 为 `xx excerpts`）、Filter Trigger
-   - Select Mode：Selection Banner（文案 `已进入批量选择状态：点击任意行即可勾选，支持 Shift 连选`、按钮 `退出选择`）
+   - Default：Result Count（Search 为 `xx results`，Excerpt 为 `xx excerpts`）、Filter Trigger（带 18px 图标与 `Filter` / `筛选` 文本）
+   - Select Mode：Selection Banner（文案 `已进入批量选择状态：点击任意行即可勾选，支持 Shift 连选`、按钮 `退出选择`，带 18px `sign-out` 图标）
 
 #### Components
 
