@@ -65,6 +65,8 @@
 "table.state.cue_missing" = "在当前字幕文件中找不到该台词。";
 "table.result_count.one" = "1 条结果";
 "table.result_count.other" = "%d 条结果";
+"table.excerpt_count.one" = "1 条摘录";
+"table.excerpt_count.other" = "%d 条摘录";
 "table.selected_count" = "已选取 %d / %d 行";
 "table.filter" = "筛选";
 "filter_dialog.show_results.one" = "显示 1 条结果";

@@ -3983,7 +3983,7 @@ struct SubtitleTableView: NSViewRepresentable {
         }
 
         func toggleAllRowSelection() {
-            guard isEnabled, isSelectionMode, rowCount > 0 else { return }
+            guard isEnabled, rowCount > 0 else { return }
             onToggleAllSelection()
             headerView?.refreshHeaderHosts()
             invalidateVisibleDocument()
@@ -4620,11 +4620,9 @@ struct SubtitleTableView: NSViewRepresentable {
                     extraCueLineCounts: []
                 )
 
-            if isRedesign && (isSelectionMode || hoveredRow == row) {
+            if isRedesign && !isUnavailable && (isSelectionMode || hoveredRow == row) {
                 let checkboxState: WorkbenchCheckboxState = isRowSelected(row) ? .checked : .unchecked
-                // An unavailable row cannot be selected, so its checkbox is
-                // drawn disabled.
-                let isCheckboxEnabled = isEnabled && !isUnavailable
+                let isCheckboxEnabled = isEnabled
                 WorkbenchCheckboxDrawing.draw(
                     state: checkboxState,
                     isEnabled: isCheckboxEnabled,
@@ -6177,7 +6175,8 @@ struct SubtitleTableView: NSViewRepresentable {
                   !isCoveredByHigherLayer,
                   row >= 0,
                   row < rowCount,
-                  rowProvider(row) != nil,
+                  let model = rowProvider(row),
+                  !model.cueState.isUnavailable,
                   let documentView
             else {
                 return false
@@ -6271,6 +6270,9 @@ struct SubtitleTableView: NSViewRepresentable {
             let row = rowAtDocumentPoint(point)
             if isSelectionMode {
                 guard let row else { return false }
+                if rowProvider(row)?.cueState.isUnavailable == true {
+                    return true
+                }
                 return isShiftPressed
                     ? shiftSelectRowFromMouse(row: row)
                     : toggleRowCheckboxFromMouse(row: row)
@@ -6454,7 +6456,8 @@ struct SubtitleTableView: NSViewRepresentable {
                   !isMenuOpen,
                   !isCoveredByHigherLayer,
                   row >= 0,
-                  row < rowCount
+                  row < rowCount,
+                  rowProvider(row)?.cueState.isUnavailable != true
             else {
                 return false
             }
@@ -6474,7 +6477,8 @@ struct SubtitleTableView: NSViewRepresentable {
                   !isMenuOpen,
                   !isCoveredByHigherLayer,
                   row >= 0,
-                  row < rowCount
+                  row < rowCount,
+                  rowProvider(row)?.cueState.isUnavailable != true
             else {
                 return false
             }

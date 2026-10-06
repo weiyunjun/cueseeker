@@ -14,6 +14,13 @@ func schemaWorkbenchResultCountText(_ count: Int) -> String {
         : L("table.result_count.other", safeCount)
 }
 
+func schemaWorkbenchExcerptCountText(_ count: Int) -> String {
+    let safeCount = max(0, count)
+    return safeCount == 1
+        ? L("table.excerpt_count.one")
+        : L("table.excerpt_count.other", safeCount)
+}
+
 func schemaWorkbenchSelectedCountText(
     selectedRowCount: Int,
     selectableRowCount: Int

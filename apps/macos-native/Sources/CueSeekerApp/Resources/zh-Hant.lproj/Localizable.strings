@@ -65,6 +65,8 @@
 "table.state.cue_missing" = "在目前的字幕檔案中找不到此台詞。";
 "table.result_count.one" = "1 筆結果";
 "table.result_count.other" = "%d 筆結果";
+"table.excerpt_count.one" = "1 條摘錄";
+"table.excerpt_count.other" = "%d 條摘錄";
 "table.selected_count" = "已選取 %d / %d 行";
 "table.filter" = "篩選";
 "filter_dialog.show_results.one" = "顯示 1 筆結果";

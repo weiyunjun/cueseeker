@@ -286,7 +286,7 @@ private struct WorkbenchExcerptTableContent: View {
 
     private var exactSearchResultCountText: String? {
         guard hasExactTableResult else { return nil }
-        return schemaWorkbenchResultCountText(tableSummary.totalRowCount)
+        return schemaWorkbenchExcerptCountText(tableSummary.totalRowCount)
     }
 
     private var canEnterSelectionMode: Bool {

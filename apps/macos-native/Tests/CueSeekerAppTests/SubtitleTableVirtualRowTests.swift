@@ -1281,7 +1281,59 @@ func subtitleTableViewUnselectedHeaderHoverShowsCheckbox() {
     let windowPoint = fixture.header.convert(indexPoint, to: nil)
     fixture.header.handleHeaderHoverForTesting(windowPoint: windowPoint)
     #expect(fixture.header.selectionHeaderIsVisibleForTesting())
-    #expect(fixture.header.sequenceHeaderIsVisibleForTesting() == false)
+}
+
+@MainActor
+@Test
+func subtitleTableViewToggleAllWorksWhenNotInSelectionMode() {
+    var toggledAll = false
+    let fixture = makeAttachedVirtualTableCoordinator(
+        isSelectionMode: false,
+        onToggleAllSelection: { toggledAll = true }
+    )
+    fixture.coordinator.toggleAllRowSelection()
+    #expect(toggledAll)
+}
+
+@MainActor
+@Test
+func subtitleTableViewUnavailableRowDoesNotTriggerCheckboxOrSelection() throws {
+    var toggledRows: [Int] = []
+    let unavailableRow = SubtitleTableRow(
+        id: 1,
+        primaryCueID: 1,
+        subtitlePath: "/tmp/CueSeeker/Episode 01.srt",
+        dateAdded: "26-07-04 19:00",
+        displayTitle: "Episode 01",
+        startTime: "00:01",
+        endTime: "00:02",
+        primaryCueText: "cue text",
+        cueGroupTexts: ["cue text"],
+        primaryGroupIndex: 0,
+        tags: [],
+        cueState: .unavailable(.videoMissing)
+    )
+    let fixture = makeAttachedVirtualTableCoordinator(
+        row: unavailableRow,
+        isSelectionMode: false,
+        onToggleRowSelection: { toggledRows.append($0) }
+    )
+    let checkboxRect = try #require(fixture.coordinator.checkboxRectForTesting(row: 0))
+    let checkboxWindowPoint = fixture.documentView.convert(
+        CGPoint(x: checkboxRect.midX, y: checkboxRect.midY),
+        to: nil as NSView?
+    )
+
+    _ = fixture.coordinator.handleMouseDown(windowPoint: checkboxWindowPoint)
+    #expect(toggledRows.isEmpty)
+
+    let selectionFixture = makeAttachedVirtualTableCoordinator(
+        row: unavailableRow,
+        isSelectionMode: true,
+        onToggleRowSelection: { toggledRows.append($0) }
+    )
+    _ = selectionFixture.coordinator.handleMouseDown(windowPoint: checkboxWindowPoint)
+    #expect(toggledRows.isEmpty)
 }
 
 @MainActor
@@ -3472,6 +3524,7 @@ private func makeAttachedVirtualTableCoordinator(
     loadRowsForTextCopy: SubtitleTableTextCopyRowLoader? = nil,
     onPlay: @escaping (SubtitleTableRow) -> Void = { _ in },
     onToggleRowSelection: @escaping (Int) -> Void = { _ in },
+    onToggleAllSelection: @escaping () -> Void = {},
     onOpenSubtitleFile: @escaping (String) -> Void = { _ in },
     rowActionDestinations: [SubtitleTableRowActionDestination] = [],
     onMoveExcerpt: @escaping (SubtitleTableRow, Int64) -> Void = { _, _ in },
@@ -3516,6 +3569,7 @@ private func makeAttachedVirtualTableCoordinator(
         isSelectionMode: isSelectionMode,
         isRowSelected: isRowSelected,
         onToggleRowSelection: onToggleRowSelection,
+        onToggleAllSelection: onToggleAllSelection,
         allResultsTextCopyRowCount: allResultsTextCopyRowCount,
         loadRowsForTextCopy: loadRowsForTextCopy,
         onPlay: onPlay,

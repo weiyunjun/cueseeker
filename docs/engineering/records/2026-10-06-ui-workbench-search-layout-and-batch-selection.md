@@ -29,6 +29,7 @@ Human-owned documents:
    - Updated `table.exit_select` translations across languages.
 2. **Search Shell Toolbar (`SchemaWorkbenchSearchShell.swift`)**:
    - Refactored `SchemaWorkbenchSearchToolbar` into a two-row layout with `VStack(spacing: redesignSpacing2)`.
+   - Added `schemaWorkbenchExcerptCountText(_ count: Int)` to format excerpt count with dedicated `table.excerpt_count` localization strings (`1 excerpt` / `%d excerpts`).
    - Search field is disabled when `isSelectionMode` is active.
    - Row 2 switches between default action row (`searchResultCountText` + filter button) and `selectionBanner` (accent background, accent border, hint text + neutral exit button).
 3. **Selection Action Overlay (`SchemaWorkbenchSelectionActionOverlay.swift`)**:
@@ -36,20 +37,21 @@ Human-owned documents:
    - Retained key listener for `keyCode == 53` (`Esc`) to call `onExitSelectionMode()`.
 4. **Excerpt Table View (`WorkbenchExcerptTableView.swift`)**:
    - Updated `pinnedHeaderHeight` to `redesignSearchHeight * 2 + redesignSpacing2 + redesignSpacing3` (100px) to accommodate the two-row toolbar.
+   - Used `schemaWorkbenchExcerptCountText` for `exactSearchResultCountText` so Excerpt lists display `xx excerpts` rather than `xx results`.
    - Updated selection handlers (`toggleRowSelection`, `shiftSelectRow`, `toggleAllRowSelection`) to auto-enter selection mode when count > 0 and auto-exit when count == 0.
 5. **Search Table View (`WorkbenchTestSearchView.swift`)**:
    - Updated selection handlers (`toggleRowSelection`, `shiftSelectRow`, `toggleAllRowSelection`) to auto-enter selection mode when count > 0 and auto-exit when count == 0.
 6. **Table Sandbox (`SubtitleTableView.swift`)**:
-   - `SubtitleTableHeaderView`: Tracks hover on index header column; displays select-all checkbox when hovered in non-selection mode; clicking it toggles selection and enters selection mode.
-   - Cell drawing: Draws circle checkbox on column 1 when `isSelectionMode || hoveredRow == row`.
-   - Checkbox hit-testing and mouse handling: Allows clicking the checkbox rect on unselected rows to toggle selection even when not yet in selection mode.
+   - `SubtitleTableHeaderView`: Tracks hover on index header column; displays select-all checkbox when hovered in non-selection mode; clicking it triggers `toggleAllRowSelection()` and enters selection mode (removed `isSelectionMode` guard from `toggleAllRowSelection()`).
+   - Cell drawing: Draws circle checkbox on column 1 when `isRedesign && !isUnavailable && (isSelectionMode || hoveredRow == row)`. Unavailable/invalid rows do not render checkboxes and retain sequence index numbers.
+   - Checkbox hit-testing and mouse handling: Excludes unavailable rows from checkbox hit testing and selection toggling; clicking unavailable rows in selection mode is safely absorbed without toggling.
 7. **Tests**:
-   - `SubtitleTableVirtualRowTests.swift`: Added tests for unselected row checkbox hit-testing vs cue click playing, and header sequence column hover checkbox display.
-   - `SchemaWorkbenchCountSummaryTests.swift`: Added tests verifying bottom overlay export actions exclude the exit button.
+   - `SubtitleTableVirtualRowTests.swift`: Added tests for unselected row checkbox hit-testing vs cue click playing, header sequence column hover checkbox display, header `toggleAllRowSelection` execution when not in selection mode, and unavailable row checkbox exclusion.
+   - `SchemaWorkbenchCountSummaryTests.swift`: Added tests verifying bottom overlay export actions exclude the exit button, and `schemaWorkbenchExcerptCountText` formatting.
 
 ## Verification
 
 - Automated tests:
-  - `swift test --filter SubtitleTableVirtualRowTests`: 98/98 passed.
+  - `swift test --filter SubtitleTableVirtualRowTests`: 100/100 passed.
   - `swift test --filter SchemaWorkbenchCountSummaryTests`: 4/4 passed.
   - `swift test --filter Workbench`: all workbench layout and metrics tests passed.
