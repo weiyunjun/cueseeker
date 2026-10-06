@@ -381,7 +381,7 @@ struct SchemaWorkbenchSearchToolbar: View {
     }
 
     private var defaultActionRow: some View {
-        HStack(alignment: .bottom, spacing: WorkbenchControlMetrics.redesignSpacing3) {
+        HStack(spacing: WorkbenchControlMetrics.redesignSpacing3) {
             if let searchResultCountText, !searchResultCountText.isEmpty {
                 Text(searchResultCountText)
                     .font(.system(
@@ -408,7 +408,7 @@ struct SchemaWorkbenchSearchToolbar: View {
     }
 
     private var selectionBanner: some View {
-        HStack(alignment: .bottom, spacing: WorkbenchControlMetrics.redesignSpacing3) {
+        HStack(spacing: WorkbenchControlMetrics.redesignSpacing3) {
             Text(L("table.batch_selection_banner_hint"))
                 .font(.system(
                     size: WorkbenchControlMetrics.redesignFontSizeBody,
