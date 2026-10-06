@@ -659,10 +659,6 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
   - Color：`--color-text-primary`
 - Placeholder
   - Color：`--color-text-placeholder`
-- Result Count
-  - Presence：Optional
-  - Font Size：`--font-size-control`
-  - Color：`--color-text-muted`
 - Clear Action
   - Presence：Optional
   - Component：Icon Button
@@ -1590,7 +1586,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - Row Container
 - Cell Stack
 - Selection Slot
-  - Presence：Select Mode
+  - Presence：Select Mode，或未选中行 / 表头 Hover 时显示
 
 ##### Sizes
 
@@ -3678,9 +3674,10 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 
 #### Structure
 
-1. Search Field
-2. Filter Trigger
-3. Select Mode Action
+1. Row 1：Search Field
+2. Row 2：
+   - Default：Result Count、Filter Trigger
+   - Select Mode：Selection Banner（文案 `已进入批量选择状态：点击任意行即可勾选，支持 Shift 连选`、按钮 `退出选择`）
 
 #### Components
 
@@ -3690,17 +3687,17 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 
 #### Sizes
 
-- Height：`--height-filter-bar-control`
-- Item Gap：`--spacing-3`
+- Row Height：`--height-filter-bar-control`
+- Row Gap：`--spacing-2`
+- Bottom Gap：`--spacing-3`
 - Width：Fill Parent Content Width
 
 #### States
 
-- Default
+- Default：Row 1 启用；Row 2 展示 Result Count 与 Filter Trigger
+- Select Mode：Row 1 禁用；Row 2 展示 Selection Banner（底色 `--color-filter-chip-selected-bg`，边框与文字跟随系统 Accent 色）
 - Filter Dialog Open
-- Select Mode
 - Calculating
-- Select Unavailable：结果计算中，或当前结果没有可选行时，Select Mode Action 为 Disabled
 
 ### Selection Action Overlay Layout
 
@@ -3721,12 +3718,10 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 2. Export to Anki `A`
 3. Copy Deep Links `D`
 4. Copy Table `T`
-5. Exit `Esc`
 
 #### Layout
 
-- 第 1 项在上，第 2 至 5 项在下；第 2 至 5 项宽度不足时换行
-- Exit 位于末位，退出 Select Mode，与工具栏 Select Mode Action 关闭时行为一致
+- 第 1 项在上，第 2 至 4 项在下；第 2 至 4 项宽度不足时换行
 
 #### Spacing
 
