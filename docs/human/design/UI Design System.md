@@ -1586,7 +1586,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - Row Container
 - Cell Stack
 - Selection Slot
-  - Presence：Select Mode，或未选中行 / 表头 Hover 时显示
+  - Presence：Select Mode，或未选中行 / 表头 Hover 时显示（已失效条目除外，保持显示行号且不可选中）
 
 ##### Sizes
 
@@ -3676,7 +3676,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 
 1. Row 1：Search Field
 2. Row 2：
-   - Default：Result Count、Filter Trigger
+   - Default：Result Count（Search 为 `xx results`，Excerpt 为 `xx excerpts`）、Filter Trigger
    - Select Mode：Selection Banner（文案 `已进入批量选择状态：点击任意行即可勾选，支持 Shift 连选`、按钮 `退出选择`）
 
 #### Components
