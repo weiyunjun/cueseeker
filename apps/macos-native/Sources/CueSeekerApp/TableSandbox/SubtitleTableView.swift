@@ -2775,6 +2775,12 @@ struct SubtitleTableView: NSViewRepresentable {
                 name: .cueSeekerClearTextSelection,
                 object: nil
             )
+            NotificationCenter.default.addObserver(
+                self,
+                selector: #selector(systemColorsDidChange),
+                name: NSColor.systemColorsDidChangeNotification,
+                object: nil
+            )
             installKeyboardFocusEventMonitor()
         }
 
@@ -4224,6 +4230,18 @@ struct SubtitleTableView: NSViewRepresentable {
         /// A menu opening anywhere in the App takes every selection with it.
         @objc private func appClearTextSelection(_ notification: Notification) {
             clearTextSelection()
+        }
+
+        #if DEBUG
+        var didInvalidateForSystemColorsChangeForTesting = false
+        #endif
+
+        @objc private func systemColorsDidChange(_ notification: Notification) {
+            guard isSelectionMode else { return }
+            #if DEBUG
+            didInvalidateForSystemColorsChangeForTesting = true
+            #endif
+            invalidateVisibleDocument()
         }
 
         func selectAllTableText() {
@@ -6811,7 +6829,12 @@ struct SubtitleTableView: NSViewRepresentable {
 
         private func invalidateVisibleDocument() {
             guard let documentView else { return }
-            documentView.setNeedsDisplay(documentView.visibleRect)
+            let visibleRect = documentView.visibleRect
+            if visibleRect.isEmpty {
+                documentView.needsDisplay = true
+            } else {
+                documentView.setNeedsDisplay(visibleRect)
+            }
         }
 
         private func invalidateColumnLayoutChange(

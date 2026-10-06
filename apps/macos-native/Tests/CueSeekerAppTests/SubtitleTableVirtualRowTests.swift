@@ -3460,6 +3460,30 @@ func subtitleVirtualRowHeightCacheUsesMeasuredHeightForFastScrollMapping() {
 }
 
 @MainActor
+@Test
+func systemColorsDidChangeInvalidatesVisibleDocumentOnlyInSelectionMode() {
+    let selectionFixture = makeAttachedVirtualTableCoordinator(isSelectionMode: true)
+    #expect(selectionFixture.coordinator.didInvalidateForSystemColorsChangeForTesting == false)
+
+    NotificationCenter.default.post(
+        name: NSColor.systemColorsDidChangeNotification,
+        object: nil
+    )
+    #expect(selectionFixture.coordinator.didInvalidateForSystemColorsChangeForTesting == true)
+    selectionFixture.coordinator.quiesceForTesting()
+
+    let normalFixture = makeAttachedVirtualTableCoordinator(isSelectionMode: false)
+    #expect(normalFixture.coordinator.didInvalidateForSystemColorsChangeForTesting == false)
+
+    NotificationCenter.default.post(
+        name: NSColor.systemColorsDidChangeNotification,
+        object: nil
+    )
+    #expect(normalFixture.coordinator.didInvalidateForSystemColorsChangeForTesting == false)
+    normalFixture.coordinator.quiesceForTesting()
+}
+
+@MainActor
 private func makeKeyboardFocusTableCoordinator(
     rowCount: Int = 100_000,
     onToggleRowSelection: @escaping (Int) -> Void = { _ in }

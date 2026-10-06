@@ -1,3 +1,4 @@
+import AppKit
 import CoreGraphics
 import Foundation
 import Testing
@@ -81,4 +82,20 @@ func masterUnitsDrawTheDocumentedWidthAtEverySize() {
         let drawn = AppIconLineWidth.units(forSize: size) * size / 256
         #expect(abs(drawn - points) < 0.0001, "\(size)pt draws \(drawn)pt, not \(points)pt")
     }
+}
+
+@MainActor
+@Test
+func systemColorsDidChangeClearsTintedCache() {
+    AppIconStore.clearTintedCacheForTesting()
+    #expect(AppIconStore.tintedCacheCountForTesting() == 0)
+
+    _ = AppIconStore.tintedImage(.checkCircle, size: 16, color: .controlAccentColor, weight: .fill)
+    #expect(AppIconStore.tintedCacheCountForTesting() == 1)
+
+    NotificationCenter.default.post(
+        name: NSColor.systemColorsDidChangeNotification,
+        object: nil
+    )
+    #expect(AppIconStore.tintedCacheCountForTesting() == 0)
 }

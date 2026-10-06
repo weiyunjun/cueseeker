@@ -169,6 +169,7 @@ enum AppIconStore {
         color: NSColor,
         weight: AppIconWeight = .regular
     ) -> NSImage? {
+        ensureSystemColorObserver()
         let key = "\(assetName(icon, weight: weight))-\(size)-\(color.hashValue)"
 
         if let cached = tintedCache[key] {
@@ -192,6 +193,39 @@ enum AppIconStore {
     }
 
     private static var tintedCache: [String: NSImage] = [:]
+    private static var isObservingSystemColors = false
+
+    private static func ensureSystemColorObserver() {
+        guard !isObservingSystemColors else { return }
+        isObservingSystemColors = true
+        NotificationCenter.default.addObserver(
+            forName: NSColor.systemColorsDidChangeNotification,
+            object: nil,
+            queue: nil
+        ) { _ in
+            if Thread.isMainThread {
+                MainActor.assumeIsolated {
+                    tintedCache.removeAll()
+                }
+            } else {
+                DispatchQueue.main.async {
+                    MainActor.assumeIsolated {
+                        tintedCache.removeAll()
+                    }
+                }
+            }
+        }
+    }
+
+    #if DEBUG
+    static func clearTintedCacheForTesting() {
+        tintedCache.removeAll()
+    }
+
+    static func tintedCacheCountForTesting() -> Int {
+        tintedCache.count
+    }
+    #endif
 
     private static func assetName(_ icon: AppIcon, weight: AppIconWeight) -> String {
         switch weight {
