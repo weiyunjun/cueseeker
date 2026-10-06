@@ -17,8 +17,8 @@ enum WorkbenchControlMetrics {
     static let redesignCornerRadius: CGFloat = 8
     /// --height-field: 40px
     static let redesignFieldHeight: CGFloat = 40
-    /// --height-filter-bar-control (Search box): 40px
-    static let redesignSearchHeight: CGFloat = 40
+    /// --height-control (Search box, unified): 36px
+    static let redesignSearchHeight: CGFloat = redesignHeight
     /// --radius-field: 8px
     static let redesignFieldRadius: CGFloat = 8
     /// --radius-search: 9999px
@@ -715,21 +715,7 @@ struct WorkbenchSearchField: View {
                     isRedesign ? (isFocused ? WorkbenchRedesignColors.borderFocus : (isEnabled ? WorkbenchRedesignColors.borderControl : WorkbenchRedesignColors.borderDisabled)) : WorkbenchControlColors.border,
                     lineWidth: isRedesign ? WorkbenchControlMetrics.redesignControlBorderWidth : WorkbenchControlMetrics.hairlineWidth
                 )
-        )
-        .overlay(
-            Group {
-                if isRedesign && isFocused && isEnabled {
-                    RoundedRectangle(
-                        cornerRadius: WorkbenchControlMetrics.redesignSearchRadius + WorkbenchControlMetrics.redesignFocusRingPathExpansion,
-                        style: .continuous
-                    )
-                    .stroke(
-                        WorkbenchRedesignColors.focusRing,
-                        lineWidth: WorkbenchControlMetrics.redesignFocusRingWidth
-                    )
-                    .padding(-WorkbenchControlMetrics.redesignFocusRingPathExpansion)
-                }
-            }
+                .allowsHitTesting(false)
         )
         .subtitleTableTextSelectionInteractiveRegion(isActive: isEnabled)
         .task {

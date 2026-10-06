@@ -105,6 +105,7 @@ func cardIconContainerMetricsMatchDesignSpecification() {
 @Test
 func buttonHeightMatchesDesignSpecification() {
     #expect(WorkbenchControlMetrics.redesignHeight == 36)
+    #expect(WorkbenchControlMetrics.redesignSearchHeight == 36)
 }
 
 @Test

@@ -240,7 +240,7 @@ private struct WorkbenchExcerptTableContent: View {
                     onFilter: openFilterDialog,
                     onToggleSelectionMode: toggleSelectionMode
                 )
-                .padding(.bottom, WorkbenchControlMetrics.redesignSpacing3)
+                .padding(.bottom, WorkbenchControlMetrics.redesignSpacing2)
             }
             .background(WorkbenchRedesignColors.bgSurface)
         )
@@ -264,9 +264,8 @@ private struct WorkbenchExcerptTableContent: View {
                     + WorkbenchControlMetrics.redesignCoverSummaryToolbarGap
             },
             pinnedHeaderHeight:
-                WorkbenchControlMetrics.redesignSearchHeight * 2
-                + WorkbenchControlMetrics.redesignSpacing2
-                + WorkbenchControlMetrics.redesignSpacing3,
+                WorkbenchControlMetrics.redesignHeight * 2
+                + WorkbenchControlMetrics.redesignSpacing2 * 2,
             leadingInset:
                 WorkbenchControlMetrics.redesignWorkbenchPageHorizontalPadding,
             trailingInset:

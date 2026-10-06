@@ -275,7 +275,7 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
                                 .top,
                                 WorkbenchControlMetrics.redesignWorkbenchPageTopPadding
                             )
-                            .padding(.bottom, WorkbenchControlMetrics.redesignSpacing3)
+                            .padding(.bottom, WorkbenchControlMetrics.redesignSpacing2)
                     }
 
                     tableContent(columns)
@@ -370,7 +370,6 @@ struct SchemaWorkbenchSearchToolbar: View {
                 onSubmit: onSubmit
             )
             .frame(maxWidth: .infinity)
-            .frame(height: WorkbenchControlMetrics.redesignSearchHeight)
             .disabled(isSelectionMode)
 
             if isSelectionMode {
@@ -382,7 +381,7 @@ struct SchemaWorkbenchSearchToolbar: View {
     }
 
     private var defaultActionRow: some View {
-        HStack(spacing: WorkbenchControlMetrics.redesignSpacing3) {
+        HStack(alignment: .bottom, spacing: WorkbenchControlMetrics.redesignSpacing3) {
             if let searchResultCountText, !searchResultCountText.isEmpty {
                 Text(searchResultCountText)
                     .font(.system(
@@ -405,19 +404,18 @@ struct SchemaWorkbenchSearchToolbar: View {
             .accessibilityLabel(L("table.filter"))
         }
         .frame(maxWidth: .infinity)
-        .frame(height: WorkbenchControlMetrics.redesignSearchHeight)
+        .frame(height: WorkbenchControlMetrics.redesignHeight)
     }
 
     private var selectionBanner: some View {
-        HStack(spacing: WorkbenchControlMetrics.redesignSpacing3) {
+        HStack(alignment: .bottom, spacing: WorkbenchControlMetrics.redesignSpacing3) {
             Text(L("table.batch_selection_banner_hint"))
                 .font(.system(
                     size: WorkbenchControlMetrics.redesignFontSizeBody,
                     weight: .regular
                 ))
-                .foregroundStyle(WorkbenchRedesignColors.filterChipSelectedContent)
+                .foregroundStyle(WorkbenchRedesignColors.textMuted)
                 .lineLimit(1)
-                .padding(.leading, WorkbenchControlMetrics.redesignSpacing3)
 
             Spacer()
 
@@ -426,23 +424,8 @@ struct SchemaWorkbenchSearchToolbar: View {
                 isRedesign: true,
                 action: onToggleSelectionMode
             )
-            .padding(.trailing, WorkbenchControlMetrics.redesignSpacing1)
         }
         .frame(maxWidth: .infinity)
-        .frame(height: WorkbenchControlMetrics.redesignSearchHeight)
-        .background(
-            RoundedRectangle(
-                cornerRadius: WorkbenchControlMetrics.redesignCornerRadius,
-                style: .continuous
-            )
-            .fill(WorkbenchRedesignColors.filterChipSelectedBg)
-        )
-        .overlay(
-            RoundedRectangle(
-                cornerRadius: WorkbenchControlMetrics.redesignCornerRadius,
-                style: .continuous
-            )
-            .strokeBorder(WorkbenchRedesignColors.filterChipSelectedContent, lineWidth: 1)
-        )
+        .frame(height: WorkbenchControlMetrics.redesignHeight)
     }
 }
