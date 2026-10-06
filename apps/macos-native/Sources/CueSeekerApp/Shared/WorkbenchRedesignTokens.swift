@@ -82,6 +82,7 @@ enum WorkbenchRedesignColors {
         static let popoverSurfaceShortcutButtonHoverBg = NSColor.dynamic(lightHex: "#F7F8FA", darkHex: "#FFFFFF", darkAlpha: 0.06)
         static let popoverSurfaceKeycapBg = NSColor.dynamic(lightHex: "#EDEFF2", darkHex: "#FFFFFF", darkAlpha: 0.10)
         static let popoverSurfaceKeycapHoverBg = NSColor.dynamic(lightHex: "#E0E3E8", darkHex: "#FFFFFF", darkAlpha: 0.16)
+        static let badgeNeutralBg = NSColor.dynamic(lightHex: "#E5E7EB", darkHex: "#FFFFFF", darkAlpha: 0.20)
 
         // Border
         static let borderControl = NSColor.dynamic(lightHex: "#E5E7EB", darkHex: "#4A4A52")
@@ -268,6 +269,8 @@ enum WorkbenchRedesignColors {
     static let popoverSurfaceShortcutButtonHoverBg = Color(nsColor: NS.popoverSurfaceShortcutButtonHoverBg)
     static let popoverSurfaceKeycapBg = Color(nsColor: NS.popoverSurfaceKeycapBg)
     static let popoverSurfaceKeycapHoverBg = Color(nsColor: NS.popoverSurfaceKeycapHoverBg)
+    static let badgeNeutralBg = Color(nsColor: NS.badgeNeutralBg)
+    static let badgeNeutralText = textSecondary
 
     // Cover Summary
     static let coverSummaryScrim = Color(nsColor: NS.coverSummaryScrim)

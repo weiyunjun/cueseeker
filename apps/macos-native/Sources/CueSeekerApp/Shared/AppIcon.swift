@@ -71,6 +71,7 @@ enum AppIcon: String, CaseIterable, Sendable {
     case hammer = "hammer"
     case keyboard = "keyboard"
     case fileArrowDown = "file-arrow-down"
+    case signOut = "sign-out"
 
     /// Reserved by `docs/human/design/Icon Registry.md`; no view draws it yet.
     case ankiStar = "anki-star"

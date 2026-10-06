@@ -748,8 +748,8 @@ struct WorkbenchButton: View {
     var title: String? = nil
     var icon: AppIcon? = nil
     var count: Int = 0
-    var countBackground: Color = Color.accentColor
-    var countTextColor: Color = WorkbenchRedesignColors.iconOnDark
+    var countBackground: Color = WorkbenchRedesignColors.badgeNeutralBg
+    var countTextColor: Color = WorkbenchRedesignColors.textSecondary
     var isRedesign: Bool = false
     var isOpen: Bool = false
     /// Buttons never take the keyboard focus, so the one that opens focused -
@@ -874,36 +874,21 @@ struct WorkbenchButton: View {
         guard isEnabled else {
             return isRedesign ? WorkbenchRedesignColors.textDisabled : WorkbenchControlColors.primaryText
         }
-        if isRedesign {
-            if isOpen {
-                return WorkbenchRedesignColors.iconActive
-            }
-            return WorkbenchRedesignColors.textSecondary
-        }
-        return WorkbenchControlColors.primaryText
+        return isRedesign ? WorkbenchRedesignColors.textSecondary : WorkbenchControlColors.primaryText
     }
 
     private var textForegroundColor: Color {
         guard isEnabled else {
             return isRedesign ? WorkbenchRedesignColors.textDisabled : WorkbenchControlColors.primaryText
         }
-        if isRedesign {
-            if isOpen {
-                return WorkbenchRedesignColors.textActive
-            }
-            return WorkbenchRedesignColors.textSecondary
-        }
-        return WorkbenchControlColors.primaryText
+        return isRedesign ? WorkbenchRedesignColors.textSecondary : WorkbenchControlColors.primaryText
     }
 
     private var backgroundColor: Color {
         guard isEnabled else {
             return WorkbenchRedesignColors.bgDisabled
         }
-        if isOpen {
-            return WorkbenchRedesignColors.bgActive
-        }
-        if isHovered {
+        if isOpen || isHovered {
             return WorkbenchRedesignColors.bgHover
         }
         return WorkbenchRedesignColors.bgControl
@@ -913,10 +898,7 @@ struct WorkbenchButton: View {
         guard isEnabled else {
             return WorkbenchRedesignColors.borderDisabled
         }
-        if isOpen {
-            return WorkbenchRedesignColors.borderActive
-        }
-        if isHovered {
+        if isOpen || isHovered {
             return WorkbenchRedesignColors.borderControlHover
         }
         return WorkbenchRedesignColors.borderControl
@@ -1250,8 +1232,8 @@ struct WorkbenchIconButton: View {
     var count: Int = 0
     /// The count badge is filled with the accent color with white text for clear
     /// contrast across surfaces. A disabled button greys the count with its glyph.
-    var countBackground: Color = Color.accentColor
-    var countTextColor: Color = WorkbenchRedesignColors.iconOnDark
+    var countBackground: Color = WorkbenchRedesignColors.badgeNeutralBg
+    var countTextColor: Color = WorkbenchRedesignColors.textSecondary
     var action: (() -> Void)? = nil
 
     @Environment(\.isEnabled) private var isEnabled
@@ -1325,19 +1307,17 @@ struct WorkbenchIconButton: View {
             return WorkbenchRedesignColors.textDisabled
         }
         if isOpen {
-            return openIconColor ?? WorkbenchRedesignColors.iconActive
+            return openIconColor ?? iconColor ?? WorkbenchRedesignColors.textSecondary
         }
         return iconColor ?? WorkbenchRedesignColors.textSecondary
     }
 
-    /// Open displays an accent tint background, while hover takes the step
-    /// belonging to the surface the button sits on.
     private var redesignBackgroundColor: Color {
         guard isEnabled else {
             return Color.clear
         }
         if isOpen {
-            return openBackground ?? WorkbenchRedesignColors.bgActive
+            return openBackground ?? hoverBackground
         }
         if isHovered {
             return hoverBackground

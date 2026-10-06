@@ -395,6 +395,7 @@ struct SchemaWorkbenchSearchToolbar: View {
             Spacer()
 
             WorkbenchButton(
+                title: L("table.filter"),
                 icon: .funnel,
                 count: filterSelectionCount,
                 isRedesign: true,
@@ -421,6 +422,7 @@ struct SchemaWorkbenchSearchToolbar: View {
 
             WorkbenchButton(
                 title: L("table.exit_select"),
+                icon: .signOut,
                 isRedesign: true,
                 action: onToggleSelectionMode
             )

@@ -14,8 +14,8 @@ struct TaskEntryButton: View {
     var openIconColor: Color? = nil
     var hoverBackground: Color = WorkbenchRedesignColors.bgHover
     var openBackground: Color? = nil
-    var countBackground: Color = Color.accentColor
-    var countTextColor: Color = WorkbenchRedesignColors.iconOnDark
+    var countBackground: Color = WorkbenchRedesignColors.badgeNeutralBg
+    var countTextColor: Color = WorkbenchRedesignColors.textSecondary
     let onOpen: () -> Void
 
     var body: some View {
@@ -44,8 +44,8 @@ struct TaskEntryButton: View {
 /// number's color.
 struct TaskCountBadge: View {
     let count: Int
-    let background: Color
-    let textColor: Color
+    var background: Color = WorkbenchRedesignColors.badgeNeutralBg
+    var textColor: Color = WorkbenchRedesignColors.textSecondary
     /// Inside a button the count is as tall as the glyph beside it. Beside a
     /// Filter dialog group name it sits next to 14px text rather than in a
     /// button box, and the full size reads larger than the name, so it is

@@ -13,8 +13,8 @@ struct TopbarAppEntries: View {
     var openIconColor: Color? = nil
     var hoverBackground: Color = WorkbenchRedesignColors.bgHover
     var openBackground: Color? = nil
-    var countBackground: Color = Color.accentColor
-    var countTextColor: Color = WorkbenchRedesignColors.iconOnDark
+    var countBackground: Color = WorkbenchRedesignColors.badgeNeutralBg
+    var countTextColor: Color = WorkbenchRedesignColors.textSecondary
 
     var body: some View {
         HStack(spacing: WorkbenchControlMetrics.redesignSpacing1) {

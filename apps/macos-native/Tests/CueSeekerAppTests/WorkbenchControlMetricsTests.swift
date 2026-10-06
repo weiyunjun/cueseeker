@@ -111,11 +111,28 @@ func buttonHeightMatchesDesignSpecification() {
 @Test
 func iconButtonOpenAndBadgeColorTokensMatchDesignSpecification() {
     let button = WorkbenchIconButton(icon: .funnel, isRedesign: true)
-    #expect(button.countBackground == Color.accentColor)
-    #expect(button.countTextColor == WorkbenchRedesignColors.iconOnDark)
-    #expect(button.countBackground.opacity(0.35) == Color.accentColor.opacity(0.35))
+    #expect(button.countBackground == WorkbenchRedesignColors.badgeNeutralBg)
+    #expect(button.countTextColor == WorkbenchRedesignColors.badgeNeutralText)
     #expect(button.openBackground == nil)
-    #expect(PlaybackTheme.controlActiveBackground == Color.accentColor.opacity(0.26))
+
+    let lightAppearance = NSAppearance(named: .aqua)!
+    lightAppearance.performAsCurrentDrawingAppearance {
+        let color = WorkbenchRedesignColors.NS.badgeNeutralBg.usingColorSpace(.sRGB)!
+        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        color.getRed(&r, green: &g, blue: &b, alpha: &a)
+        #expect(abs(r - 229.0 / 255.0) < 0.01)
+        #expect(abs(g - 231.0 / 255.0) < 0.01)
+        #expect(abs(b - 235.0 / 255.0) < 0.01)
+    }
+
+    let darkAppearance = NSAppearance(named: .darkAqua)!
+    darkAppearance.performAsCurrentDrawingAppearance {
+        let color = WorkbenchRedesignColors.NS.badgeNeutralBg.usingColorSpace(.sRGB)!
+        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        color.getRed(&r, green: &g, blue: &b, alpha: &a)
+        #expect(abs(r - 1.0) < 0.01)
+        #expect(abs(a - 0.20) < 0.01)
+    }
 }
 
 @Test
@@ -191,13 +208,13 @@ func workbenchIconButtonOpenStateMatchesSpecification() {
     let openIconButton = WorkbenchIconButton(icon: .gear, isRedesign: true, isOpen: true)
     #expect(openIconButton.isOpen == true)
     #expect(openIconButton.icon == .gear)
-    #expect(openIconButton.redesignIconColor == WorkbenchRedesignColors.iconActive)
+    #expect(openIconButton.redesignIconColor == WorkbenchRedesignColors.textSecondary)
 
     let idleIconButton = WorkbenchIconButton(icon: .gear, isRedesign: true, isOpen: false)
     #expect(idleIconButton.redesignIconColor == WorkbenchRedesignColors.textSecondary)
 
     // Verify custom surface iconColor (e.g. player topbar white textPrimary)
-    // applies in idle state but does NOT shadow the active accent color in open state.
+    // applies in idle state and remains matching in open state.
     let playerIdle = WorkbenchIconButton(
         icon: .tray,
         isRedesign: true,
@@ -212,7 +229,7 @@ func workbenchIconButtonOpenStateMatchesSpecification() {
         isOpen: true,
         iconColor: .white
     )
-    #expect(playerOpen.redesignIconColor == WorkbenchRedesignColors.iconActive)
+    #expect(playerOpen.redesignIconColor == .white)
 
     // Verify explicit openIconColor override if specified
     let customOpen = WorkbenchIconButton(
