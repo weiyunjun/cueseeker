@@ -15,7 +15,7 @@ main
    - 移除原框内挤占的结果数量。
    - 处于批量选择状态时禁用（Disabled）。
 2. **第二行（默认状态）**：
-   - 左侧：展示结果数量（规则与字体保持现状）。
+   - 左侧：展示结果数量（Search 展示 `xx results` / `xx 条结果`，Excerpt 展示 `xx excerpts` / `xx 条摘录`，字体保持现状）。
    - 右侧：放置筛选按钮（Neutral 样式）。
 
 ## 2. 批量选择模式触发
@@ -29,9 +29,9 @@ main
    - 底色采用系统浅 Accent 色，边框采用系统 Accent 色。
    - 左对齐文案：系统 Accent 色文字 `已进入批量选择状态：点击任意行即可勾选，支持 Shift 连选`（英文：`Batch selection active: click any row to select, Shift+click for range`）。
    - 右对齐按钮：中性按钮（Neutral Button）`退出选择`（`Exit Selection`）。
-2. **表格行交互**：
-   - 第一列常驻显示 Checkbox。
-   - 点击整行任意区域均可直接切换该行的勾选状态。
+3. **表格行交互**：
+   - 第一列常驻显示 Checkbox（已失效的条目不显示 Checkbox，保持显示行号，且不可被选中）。
+   - 点击整行任意区域均可直接切换该行的勾选状态（失效行除外）
 
 ## 4. 退出批量选择
 1. 点击第二行右侧中性按钮 `退出选择`。
