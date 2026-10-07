@@ -173,3 +173,18 @@ func emptyStateLocalizationMatchesRequirements() {
         }
     }
 }
+
+@Test
+func workbenchSearchShowsTableHeaderRequiresNonEmptyRowsAndNonEmptyQuery() {
+    // When query is empty (showsSearchEmptyHint is true), header is hidden regardless of rowCount
+    #expect(workbenchSearchShowsTableHeader(showsSearchEmptyHint: true, rowCount: 0) == false)
+    #expect(workbenchSearchShowsTableHeader(showsSearchEmptyHint: true, rowCount: 10) == false)
+
+    // When query is entered but rowCount is 0 (searching / debounce / 0 results), header must NOT show
+    // This prevents the table header from flashing during debounce/search
+    #expect(workbenchSearchShowsTableHeader(showsSearchEmptyHint: false, rowCount: 0) == false)
+
+    // Only when query is non-empty and actual rows exist (> 0), header is shown
+    #expect(workbenchSearchShowsTableHeader(showsSearchEmptyHint: false, rowCount: 1) == true)
+    #expect(workbenchSearchShowsTableHeader(showsSearchEmptyHint: false, rowCount: 50) == true)
+}

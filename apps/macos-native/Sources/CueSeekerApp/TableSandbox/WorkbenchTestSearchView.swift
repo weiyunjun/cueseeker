@@ -13,6 +13,13 @@ func workbenchSearchHasCompleteTextCopyBoundary(
         && cueIDs.count == resultRowCount
 }
 
+func workbenchSearchShowsTableHeader(
+    showsSearchEmptyHint: Bool,
+    rowCount: Int
+) -> Bool {
+    !showsSearchEmptyHint && rowCount > 0
+}
+
 private struct WorkbenchSearchTableTextCopySource {
     let query: String
     let cueIDs: [Int64]
@@ -124,7 +131,10 @@ struct WorkbenchTestSearchView: View {
                         isCueInLibrary: { appState.isCueInLibrary($0) },
                         onToast: { appState.toast.show($0) },
                         isRedesign: true,
-                        showsHeader: showsTableHeader
+                        showsHeader: workbenchSearchShowsTableHeader(
+                            showsSearchEmptyHint: showsSearchEmptyHint,
+                            rowCount: snapshot.totalRowCount
+                        )
                     )
 
                     if showsSearchEmptyHint {
@@ -233,10 +243,6 @@ struct WorkbenchTestSearchView: View {
         !showsSearchEmptyHint
             && search.searchStatus == .completed
             && exactSearchResultRowCount == 0
-    }
-
-    private var showsTableHeader: Bool {
-        !showsSearchEmptyHint && !showsSearchNoResultsHint
     }
 
     private var searchFacetFilterBinding: Binding<CueFacetFilter> {
