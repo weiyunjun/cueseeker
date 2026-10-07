@@ -78,6 +78,7 @@
 "table.batch_selection_banner_hint" = "已进入批量选择状态：点击任意行即可勾选，支持 Shift 连选";
 "table.search_placeholder" = "按名称、台词或关键词搜索…";
 "table.search_empty_hint" = "输入搜索词以显示台词。";
+"table.search_no_results" = "未找到匹配的台词。";
 "table.toolbar.anki" = "导出到 Anki";
 "table.toolbar.copy_deep_links" = "复制 Deep Links";
 "table.toolbar.copy_table" = "复制表格";
@@ -120,6 +121,7 @@
 
 /* Excerpt table */
 "excerpt.table.empty_hint" = "从搜索结果中或在播放时保存台词，即可收集摘录。";
+"excerpt.table.no_results" = "未找到匹配的摘录。";
 "excerpt.remove.title" = "移除摘录";
 "excerpt.remove.message" = "该台词将从当前摘录集中移除。原始台词不会被删除。";
 

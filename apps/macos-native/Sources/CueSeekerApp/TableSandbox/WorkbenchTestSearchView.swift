@@ -123,11 +123,14 @@ struct WorkbenchTestSearchView: View {
                         onCreateExcerptList: createExcerptList,
                         isCueInLibrary: { appState.isCueInLibrary($0) },
                         onToast: { appState.toast.show($0) },
-                        isRedesign: true
+                        isRedesign: true,
+                        showsHeader: showsTableHeader
                     )
 
                     if showsSearchEmptyHint {
                         WorkbenchEmptyHint(message: L("table.search_empty_hint"))
+                    } else if showsSearchNoResultsHint {
+                        WorkbenchEmptyHint(message: L("table.search_no_results"))
                     }
                 }
                 .onChange(of: snapshot.version) { _ in
@@ -224,6 +227,16 @@ struct WorkbenchTestSearchView: View {
     private var showsSearchEmptyHint: Bool {
         search.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && searchDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private var showsSearchNoResultsHint: Bool {
+        !showsSearchEmptyHint
+            && search.searchStatus == .completed
+            && exactSearchResultRowCount == 0
+    }
+
+    private var showsTableHeader: Bool {
+        !showsSearchEmptyHint && !showsSearchNoResultsHint
     }
 
     private var searchFacetFilterBinding: Binding<CueFacetFilter> {

@@ -2194,6 +2194,7 @@ struct SubtitleTableView: NSViewRepresentable {
     var isCueInLibrary: ((Int64) -> Bool)? = nil
     var onToast: ((ToastRequest) -> Void)? = nil
     var isRedesign: Bool = false
+    var showsHeader: Bool = true
     var pageChrome: SubtitleTablePageChrome?
     @Environment(\.workbenchPageScrollbar) private var pageScrollbar
 
@@ -2241,6 +2242,7 @@ struct SubtitleTableView: NSViewRepresentable {
             onToast: onToast
         )
         coordinator.isRedesign = isRedesign
+        coordinator.showsHeader = showsHeader
         return coordinator
     }
 
@@ -2312,6 +2314,7 @@ struct SubtitleTableView: NSViewRepresentable {
 
         container.isRedesign = context.coordinator.isRedesign
         header.isRedesign = context.coordinator.isRedesign
+        header.isHidden = !context.coordinator.showsHeader
         documentView.isRedesign = context.coordinator.isRedesign
 
         if let pageChrome, let pageChromeViewport {
@@ -2364,6 +2367,7 @@ struct SubtitleTableView: NSViewRepresentable {
         )
         context.coordinator.bindPageScrollbar(pageScrollbar)
         context.coordinator.isRedesign = isRedesign
+        context.coordinator.showsHeader = showsHeader
         context.coordinator.isEnabled = isEnabled
         context.coordinator.isCoveredByHigherLayer = isWorkbenchPageCovered
         context.coordinator.interfaceLayers = interfaceLayers
@@ -2509,10 +2513,23 @@ struct SubtitleTableView: NSViewRepresentable {
             }
         }
 
+        var showsHeader: Bool = true {
+            didSet {
+                guard oldValue != showsHeader else { return }
+                headerView?.isHidden = !showsHeader
+                headerHeightConstraint?.constant = currentHeaderHeight
+                container?.layoutSubtreeIfNeeded()
+                if pageChrome != nil {
+                    refreshPageScrollPresentation()
+                }
+            }
+        }
+
         var headerHeightConstraint: NSLayoutConstraint?
 
         var currentHeaderHeight: CGFloat {
-            isRedesign ? WorkbenchControlMetrics.redesignTableHeaderHeight : SubtitleTableMetrics.headerHeight
+            guard showsHeader else { return 0 }
+            return isRedesign ? WorkbenchControlMetrics.redesignTableHeaderHeight : SubtitleTableMetrics.headerHeight
         }
 
         var currentRowHeight: CGFloat {
@@ -2765,6 +2782,7 @@ struct SubtitleTableView: NSViewRepresentable {
             self.pageChromeViewport = pageChromeViewport
             headerView.coordinator = self
             headerView.isRedesign = isRedesign
+            headerView.isHidden = !showsHeader
             documentView.coordinator = self
             documentView.isRedesign = isRedesign
             bindPageScrollbar(pageScrollbar)
@@ -2975,6 +2993,7 @@ struct SubtitleTableView: NSViewRepresentable {
                 width: contentWidth,
                 height: pageChrome.pinnedHeaderHeight
             )
+            headerView.isHidden = !showsHeader
             headerView.frame = CGRect(
                 x: inset,
                 y: pinnedOriginY + pageChrome.pinnedHeaderHeight,

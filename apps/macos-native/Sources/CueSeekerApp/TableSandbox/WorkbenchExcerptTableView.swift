@@ -123,11 +123,14 @@ private struct WorkbenchExcerptTableContent: View {
                     isCueInLibrary: { appState.isCueInLibrary($0) },
                     onToast: { appState.toast.show($0) },
                     isRedesign: true,
+                    showsHeader: showsTableHeader,
                     pageChrome: excerptDetailPageChrome
                 )
 
-                if excerptStore.tableHasLoadedInitialPage && excerptStore.tableTotalSavedRowCount == 0 {
-                    WorkbenchEmptyHint(message: L("excerpt.table.empty_hint"))
+                if showsEmptyListHint {
+                    excerptEmptyHint(message: L("excerpt.table.empty_hint"))
+                } else if showsEmptyResultsHint {
+                    excerptEmptyHint(message: L("excerpt.table.no_results"))
                 }
             }
         }
@@ -278,6 +281,45 @@ private struct WorkbenchExcerptTableContent: View {
                 WorkbenchControlMetrics.redesignWorkbenchPageTrailingPadding,
             bottomInset: 0
         )
+    }
+
+    private var showsEmptyListHint: Bool {
+        excerptStore.tableHasLoadedInitialPage && excerptStore.tableTotalSavedRowCount == 0
+    }
+
+    private var showsEmptyResultsHint: Bool {
+        excerptStore.tableHasLoadedInitialPage
+            && excerptStore.tableTotalSavedRowCount > 0
+            && tableSummary.totalRowCount == 0
+    }
+
+    private var showsTableHeader: Bool {
+        !showsEmptyListHint && !showsEmptyResultsHint
+    }
+
+    @ViewBuilder
+    private func excerptEmptyHint(message: String) -> some View {
+        GeometryReader { geometry in
+            let contentWidth = max(
+                0,
+                geometry.size.width
+                    - WorkbenchControlMetrics.redesignWorkbenchPageHorizontalPadding
+                    - WorkbenchControlMetrics.redesignWorkbenchPageTrailingPadding
+            )
+            let topChromeHeight = WorkbenchControlMetrics.redesignCoverSummaryDetailTopPadding
+                + CoverSummaryCardLayout.height(forCardWidth: contentWidth)
+                + WorkbenchControlMetrics.redesignCoverSummaryToolbarGap
+                + WorkbenchControlMetrics.redesignHeight * 2
+                + WorkbenchControlMetrics.redesignSpacing2 * 2
+
+            VStack(spacing: 0) {
+                Spacer()
+                    .frame(height: topChromeHeight)
+                WorkbenchEmptyHint(message: message)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+            .allowsHitTesting(false)
+        }
     }
 
     private var hasExactTableResult: Bool {

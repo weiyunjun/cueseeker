@@ -78,6 +78,7 @@
 "table.batch_selection_banner_hint" = "已進入批量選取狀態：點擊任意行即可勾選，支援 Shift 連選";
 "table.search_placeholder" = "依名稱、台詞或關鍵字搜尋⋯";
 "table.search_empty_hint" = "輸入搜尋字詞以顯示台詞。";
+"table.search_no_results" = "未找到相符的台詞。";
 "table.toolbar.anki" = "匯出至 Anki";
 "table.toolbar.copy_deep_links" = "拷貝 Deep Links";
 "table.toolbar.copy_table" = "拷貝表格";
@@ -120,6 +121,7 @@
 
 /* Excerpt table */
 "excerpt.table.empty_hint" = "從搜尋結果中或在播放時儲存台詞，即可收集摘錄。";
+"excerpt.table.no_results" = "未找到相符的摘錄。";
 "excerpt.remove.title" = "移除摘錄";
 "excerpt.remove.message" = "此台詞將從目前的摘錄集中移除。原始台詞不會被刪除。";
 

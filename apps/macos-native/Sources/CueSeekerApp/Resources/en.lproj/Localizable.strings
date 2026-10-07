@@ -78,6 +78,7 @@
 "table.batch_selection_banner_hint" = "Batch selection active: click any row to select, Shift+click for range";
 "table.search_placeholder" = "Search cues by name, lyrics, or keywords...";
 "table.search_empty_hint" = "Enter a search term to show cues.";
+"table.search_no_results" = "No matching cues found.";
 "table.toolbar.anki" = "Export to Anki";
 "table.toolbar.copy_deep_links" = "Copy Deep Links";
 "table.toolbar.copy_table" = "Copy Table";
@@ -120,6 +121,7 @@
 
 /* Excerpt table */
 "excerpt.table.empty_hint" = "Save cues from search results or playback to collect excerpts.";
+"excerpt.table.no_results" = "No matching excerpts found.";
 "excerpt.remove.title" = "Remove Excerpt";
 "excerpt.remove.message" = "This cue will be removed from this list. The original cue will not be deleted.";
 
