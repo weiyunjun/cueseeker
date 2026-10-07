@@ -147,3 +147,40 @@ private struct ExcerptFormHeightProbe: View {
         }
     }
 }
+
+@MainActor
+@Test
+func singleLineTextInputUsesNativePrompt() {
+    let hostingView = NSHostingView(rootView: SingleLineInputProbe())
+    hostingView.frame = CGRect(x: 0, y: 0, width: 300, height: 40)
+    hostingView.layoutSubtreeIfNeeded()
+
+    func findTextField(in view: NSView) -> NSTextField? {
+        if let tf = view as? NSTextField { return tf }
+        for subview in view.subviews {
+            if let found = findTextField(in: subview) { return found }
+        }
+        return nil
+    }
+
+    let textField = findTextField(in: hostingView)
+    #expect(textField != nil)
+    #expect(textField?.placeholderString == "Search keywords...")
+}
+
+private struct SingleLineInputProbe: View {
+    @State private var text = ""
+    @FocusState private var isFocused: Bool
+
+    var body: some View {
+        WorkbenchSingleLineTextInput(
+            placeholder: "Search keywords...",
+            text: $text,
+            placeholderColor: .gray,
+            textColor: .black,
+            fontSize: 14,
+            focus: $isFocused,
+            accessibilityLabel: "Search"
+        )
+    }
+}

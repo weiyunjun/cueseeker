@@ -11,24 +11,20 @@ struct WorkbenchSingleLineTextInput: View {
     var onSubmit: (() -> Void)?
 
     var body: some View {
-        ZStack(alignment: .leading) {
-            if text.isEmpty {
-                Text(placeholder)
-                    .foregroundStyle(placeholderColor)
-                    .accessibilityHidden(true)
-                    .allowsHitTesting(false)
-            }
-
-            TextField("", text: $text)
-                .textFieldStyle(.plain)
-                .foregroundStyle(textColor)
-                .focused(focus)
-                .accessibilityLabel(accessibilityLabel)
-                .onSubmit {
-                    onSubmit?()
-                }
-        }
+        TextField(
+            "",
+            text: $text,
+            prompt: Text(placeholder)
+                .foregroundColor(placeholderColor)
+        )
+        .textFieldStyle(.plain)
+        .foregroundStyle(textColor)
         .font(.system(size: fontSize, weight: .regular))
+        .focused(focus)
+        .accessibilityLabel(accessibilityLabel)
+        .onSubmit {
+            onSubmit?()
+        }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
