@@ -3676,6 +3676,8 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 
 #### States
 
+- Default
+- Empty List：列表无内容，正文展示 Empty Hint
 - Unknown：列表已删除，页面正文为 Empty State / Empty Hint，文案 `This page no longer exists.`
 
 ### Search / Excerpt Toolbar Layout
@@ -3684,7 +3686,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 
 1. Row 1：Search Field
 2. Row 2：
-   - Default：Result Count（Search 为 `xx results`，Excerpt 为 `xx excerpts`）、Filter Trigger（带 18px 图标与 `Filter` / `筛选` 文本）
+   - Default：Result Count（Search 为 `xx results`，未输入搜索词时左侧留白不显示；Excerpt 为 `xx excerpts`）、Filter Trigger（带 18px 图标与 `Filter` / `筛选` 文本）
    - Select Mode：Selection Banner（文案 `已进入批量选择状态：点击任意行即可勾选，支持 Shift 连选`、按钮 `退出选择`，带 18px `sign-out` 图标）
 
 #### Components
@@ -3767,6 +3769,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 
 - Fixed Header 与 Scrollable Body 使用相同宽度和水平边界，横向滚动时同步移动。
 - Horizontal Scrollbar：Page Viewport Bottom Edge，长度与 Table 宽度一致。
+- 空状态（无数据）时 Fixed Header 隐藏（高度为 0，不显示列名与分割线），正文展示 Empty Hint 并在剩余可视空白区域居中。
 
 #### Ordering
 
@@ -3808,11 +3811,11 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 
 #### States
 
-- Empty Query
+- Empty Query：未输入搜索词，表头隐藏，正文居中展示 Empty Hint
 - Calculating
-- Results
+- Results：有数据，正常展示表头与数据行
 - Select Mode
-- Empty Results
+- Empty Results：搜索或筛选结果为 0 条，表头隐藏，正文居中展示 Empty Hint
 
 ## 3.6 Dialogs
 
