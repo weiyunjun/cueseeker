@@ -129,3 +129,34 @@ private func attributedForeground(_ attributed: NSAttributedString) throws -> NS
 private func fontWeight(_ font: NSFont) -> Int {
     NSFontManager.shared.weight(of: font)
 }
+
+@MainActor
+@Test
+func subtitleTableIndexTextCentersAndAccommodatesFiveDigitsInRedesign() throws {
+    let index5 = SubtitleTableText.index(76817, isRedesign: true)
+    let font = try attributedFont(index5)
+    #expect(font.pointSize == 12)
+    #expect(font.fontDescriptor == NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .regular).fontDescriptor)
+
+    let paragraphStyle = try #require(index5.attribute(.paragraphStyle, at: 0, effectiveRange: nil) as? NSParagraphStyle)
+    #expect(paragraphStyle.alignment == .center)
+    #expect(paragraphStyle.lineBreakMode == .byClipping)
+
+    let layout = SubtitleTextLayout()
+    let columnWidth: CGFloat = SubtitleTableMetrics.indexColumnWidth
+    #expect(columnWidth == 50)
+
+    // Test single digit (1) and 5 digits (76817, 99999)
+    for number in [1, 76817, 99999] {
+        let attr = SubtitleTableText.index(number, isRedesign: true)
+        layout.update(attributedString: attr, width: columnWidth)
+        let rects = layout.usedRects(at: .zero)
+        #expect(rects.count == 1) // strictly single line
+        let used = try #require(rects.first)
+        let center = used.minX + used.width / 2
+        #expect(abs(center - columnWidth / 2) < 0.5) // centered at 25.0
+        #expect(used.minX > 5) // at least 5px margin on left
+        #expect(columnWidth - used.maxX > 5) // at least 5px margin on right
+    }
+}
+

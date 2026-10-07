@@ -480,10 +480,20 @@ enum SubtitleTableText {
     }
 
     static func index(_ number: Int, isRedesign: Bool = false) -> NSAttributedString {
-        NSAttributedString(string: "\(number)", attributes: [
-            .font: indexFont,
+        let style = NSMutableParagraphStyle()
+        if isRedesign {
+            style.alignment = .center
+            style.lineBreakMode = .byClipping
+        }
+        return NSAttributedString(string: "\(number)", attributes: [
+            .font: isRedesign ? redesignIndexFont : indexFont,
             .foregroundColor: isRedesign ? WorkbenchRedesignColors.NS.textMuted : NSColor.secondaryLabelColor,
+            .paragraphStyle: style,
         ])
+    }
+
+    private static var redesignIndexFont: NSFont {
+        NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .regular)
     }
 
     static func header(_ text: String, isRedesign: Bool = false) -> NSAttributedString {
@@ -1812,7 +1822,8 @@ final class SubtitleVirtualTableHeaderView: NSView {
             updateHeaderHost(
                 &indexHeaderHost,
                 title: "#",
-                frame: currentLayout.indexRect
+                frame: currentLayout.indexRect,
+                alignment: .center
             )
         }
     }
@@ -1865,7 +1876,8 @@ final class SubtitleVirtualTableHeaderView: NSView {
     private func updateHeaderHost(
         _ hostVar: inout NSHostingView<AnyView>?,
         title: String,
-        frame: CGRect
+        frame: CGRect,
+        alignment: Alignment = .leading
     ) {
         guard let coordinator else { return }
         let isEnabled = coordinator.isEnabled
@@ -1873,7 +1885,8 @@ final class SubtitleVirtualTableHeaderView: NSView {
         let cellView = SubtitleTableHeaderCellView(
             title: title,
             isEnabled: isEnabled,
-            columnRect: frame
+            columnRect: frame,
+            alignment: alignment
         )
 
         let anyView = InterfaceLayerHosting.bridgedRootView(
@@ -4772,12 +4785,21 @@ struct SubtitleTableView: NSViewRepresentable {
 
         private func drawIndex(_ number: Int, in rect: CGRect) {
             let M = SubtitleTableMetrics.self
-            textLayout.update(
-                attributedString: SubtitleTableText.index(number, isRedesign: isRedesign),
-                width: max(0, rect.width - M.cellLeading - M.indexTrailingInset)
-            )
-            let yOffset = isRedesign ? rect.minY + (rect.height - textLayout.usedHeight) / 2 : rect.minY + M.rowVerticalInset
-            textLayout.draw(at: CGPoint(x: rect.minX + M.cellLeading, y: yOffset))
+            if isRedesign {
+                textLayout.update(
+                    attributedString: SubtitleTableText.index(number, isRedesign: true),
+                    width: rect.width
+                )
+                let yOffset = rect.minY + (rect.height - textLayout.usedHeight) / 2
+                textLayout.draw(at: CGPoint(x: rect.minX, y: yOffset))
+            } else {
+                textLayout.update(
+                    attributedString: SubtitleTableText.index(number, isRedesign: false),
+                    width: max(0, rect.width - M.cellLeading - M.indexTrailingInset)
+                )
+                let yOffset = rect.minY + M.rowVerticalInset
+                textLayout.draw(at: CGPoint(x: rect.minX + M.cellLeading, y: yOffset))
+            }
         }
 
         private func localSelectionRange(
@@ -7622,17 +7644,28 @@ struct SubtitleTableHeaderCellView: View {
     let title: String
     let isEnabled: Bool
     let columnRect: CGRect
+    var alignment: Alignment = .leading
 
     var body: some View {
-        HStack(spacing: 0) {
-            Text(title)
-                .font(.system(size: WorkbenchControlMetrics.redesignFontSizeTableHeader, weight: .medium))
-                .foregroundStyle(isEnabled ? WorkbenchRedesignColors.textSecondary : WorkbenchRedesignColors.textDisabled)
-                .lineLimit(1)
-                .padding(.horizontal, WorkbenchControlMetrics.redesignPaddingHeaderTriggerX)
-                .frame(maxHeight: .infinity)
-            Spacer(minLength: 0)
+        Group {
+            if alignment == .center {
+                Text(title)
+                    .font(.system(size: WorkbenchControlMetrics.redesignFontSizeTableHeader, weight: .medium))
+                    .foregroundStyle(isEnabled ? WorkbenchRedesignColors.textSecondary : WorkbenchRedesignColors.textDisabled)
+                    .lineLimit(1)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+            } else {
+                HStack(spacing: 0) {
+                    Text(title)
+                        .font(.system(size: WorkbenchControlMetrics.redesignFontSizeTableHeader, weight: .medium))
+                        .foregroundStyle(isEnabled ? WorkbenchRedesignColors.textSecondary : WorkbenchRedesignColors.textDisabled)
+                        .lineLimit(1)
+                        .padding(.horizontal, WorkbenchControlMetrics.redesignPaddingHeaderTriggerX)
+                        .frame(maxHeight: .infinity)
+                    Spacer(minLength: 0)
+                }
+            }
         }
-        .frame(width: columnRect.width, height: columnRect.height, alignment: .leading)
+        .frame(width: columnRect.width, height: columnRect.height, alignment: alignment)
     }
 }
