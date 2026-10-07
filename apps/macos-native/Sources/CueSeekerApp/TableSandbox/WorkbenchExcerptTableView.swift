@@ -92,7 +92,10 @@ private struct WorkbenchExcerptTableContent: View {
                         ?? (allowsTableResponse && settingsStore.showCueGroup),
                     scrollResetToken: tableScrollResetToken,
                     scrollTargetRow: tableScrollTargetRow,
-                    onVisibleRowsChange: captureVisibleRows,
+                    onVisibleRowsChange: { visibleRows in
+                        captureVisibleRows(visibleRows)
+                        ExcerptOpenPerformanceTracker.recordVisibleRowsRendered(visibleRows: visibleRows)
+                    },
                     isSelectionMode: isSelectionMode,
                     isRowSelected: { rowSelection.isSelected($0, rowCount: rowStore.snapshot.totalRowCount) },
                     selectionHeaderState: rowSelection.headerState(

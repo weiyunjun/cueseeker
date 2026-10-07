@@ -360,6 +360,59 @@ func excerptTableRowsAndOverviewLoadDuringIndexing() async throws {
     #expect(app.excerpt.tableRowStore.snapshot.totalRowCount == 1)
 }
 
+@MainActor
+@Test
+func openExcerptListTriggersPerformanceTrackingAndCompletesOnVisibleRows() async throws {
+    let suiteName = "CueSeekerExcerptPerformanceIntegrationTests-\(UUID().uuidString)"
+    let userDefaults = try #require(UserDefaults.temporary(suiteName: suiteName))
+    let fixtureRoot = FileManager.default.temporaryDirectory
+        .appendingPathComponent(
+            "CueSeekerExcerptPerformanceIntegrationTests-\(UUID().uuidString)",
+            isDirectory: true
+        )
+    let databaseURL = fixtureRoot.appendingPathComponent("CueSeeker.sqlite")
+    defer {
+        userDefaults.removePersistentDomainAndPlist(forName: suiteName)
+        try? FileManager.default.removeItem(at: fixtureRoot)
+    }
+    try FileManager.default.createDirectory(
+        at: fixtureRoot,
+        withIntermediateDirectories: true
+    )
+
+    _ = NSApplication.shared
+    let app = AppCoordinator(userDefaults: userDefaults, databaseURL: databaseURL)
+    let indexingDatabase = try #require(app.indexingDatabase)
+    let excerptDatabase = try #require(app.excerptDatabase)
+    let list = try #require(try excerptDatabase.excerptList(
+        id: ExcerptListIdentity.defaultListID
+    ))
+    _ = try makeExcerpt(
+        in: indexingDatabase,
+        id: 101,
+        content: "Tracked cue item",
+        listID: list.id
+    )
+
+    ExcerptOpenPerformanceTracker.reset()
+    app.openExcerptList(id: list.id)
+    try await waitForExcerptTasksToFinish(app)
+
+    #expect(app.excerpt.residentRelations.count == 1)
+
+    // Simulate visible rows rendered by table
+    ExcerptOpenPerformanceTracker.recordVisibleRowsRendered(visibleRows: 0..<1)
+
+    let report = ExcerptOpenPerformanceTracker.lastReport
+    #expect(report?.listID == list.id)
+    #expect(report?.title == list.name)
+    #expect(report?.count == 1)
+    #expect(report?.cacheHit == false)
+    #expect((report?.totalDuration ?? -1) >= 0)
+
+    ExcerptOpenPerformanceTracker.reset()
+}
+
 private func makeExcerpt(
     in database: IndexingDatabase,
     id: Int,

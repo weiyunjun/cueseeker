@@ -447,6 +447,11 @@ extension AppCoordinator {
                 listID: listID,
                 dataRevision: dataRevision
             )
+            ExcerptOpenPerformanceTracker.recordDataReady(
+                listID: listID,
+                count: excerpt.residentRelations.count,
+                cacheHit: true
+            )
             return
         }
 
@@ -477,6 +482,7 @@ extension AppCoordinator {
                     listID: listID,
                     dataRevision: dataRevision
                 ) else {
+                    ExcerptOpenPerformanceTracker.cancelOpen(listID: listID)
                     return
                 }
                 self.cueContent.install(residentSnapshot.cueContents)
@@ -492,11 +498,18 @@ extension AppCoordinator {
                     listID: listID,
                     dataRevision: dataRevision
                 )
+                ExcerptOpenPerformanceTracker.recordDataReady(
+                    listID: listID,
+                    count: residentSnapshot.relations.count,
+                    cacheHit: false
+                )
             } catch is CancellationError {
+                ExcerptOpenPerformanceTracker.cancelOpen(listID: listID)
                 return
             } catch {
                 guard !Task.isCancelled else { return }
                 print("Failed to load resident Excerpt data: \(error)")
+                ExcerptOpenPerformanceTracker.cancelOpen(listID: listID)
                 if self.excerptTableRequestMatches(
                     resultSnapshotID: resultSnapshotID,
                     searchText: searchText,

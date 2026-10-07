@@ -774,6 +774,10 @@ final class AppCoordinator: ObservableObject {
             guard !isWorkbenchRouteUnknown(route) else {
                 return
             }
+            let listTitle = excerpt.listOverview.lists.first(where: { $0.id == id })?.list.name
+                ?? (try? excerptDatabase?.excerptList(id: id))?.name
+                ?? ""
+            ExcerptOpenPerformanceTracker.beginOpen(listID: id, title: listTitle)
             refreshExcerptOnReappearanceIfNeeded()
             excerpt.updateTableFacetFilter(
                 settings.excerptFacetFilter(forListID: id)
