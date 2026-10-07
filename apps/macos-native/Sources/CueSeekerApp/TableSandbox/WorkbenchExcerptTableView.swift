@@ -272,15 +272,18 @@ private struct WorkbenchExcerptTableContent: View {
                     + CoverSummaryCardLayout.height(forCardWidth: contentWidth)
                     + WorkbenchControlMetrics.redesignCoverSummaryToolbarGap
             },
-            pinnedHeaderHeight:
-                WorkbenchControlMetrics.redesignHeight * 2
-                + WorkbenchControlMetrics.redesignSpacing2 * 2,
+            pinnedHeaderHeight: pinnedHeaderHeight,
             leadingInset:
                 WorkbenchControlMetrics.redesignWorkbenchPageHorizontalPadding,
             trailingInset:
                 WorkbenchControlMetrics.redesignWorkbenchPageTrailingPadding,
             bottomInset: 0
         )
+    }
+
+    private var pinnedHeaderHeight: CGFloat {
+        WorkbenchControlMetrics.redesignHeight * 2
+            + WorkbenchControlMetrics.redesignSpacing4 * 2
     }
 
     private var showsEmptyListHint: Bool {
@@ -309,8 +312,7 @@ private struct WorkbenchExcerptTableContent: View {
             let topChromeHeight = WorkbenchControlMetrics.redesignCoverSummaryDetailTopPadding
                 + CoverSummaryCardLayout.height(forCardWidth: contentWidth)
                 + WorkbenchControlMetrics.redesignCoverSummaryToolbarGap
-                + WorkbenchControlMetrics.redesignHeight * 2
-                + WorkbenchControlMetrics.redesignSpacing2 * 2
+                + pinnedHeaderHeight
 
             VStack(spacing: 0) {
                 Spacer()

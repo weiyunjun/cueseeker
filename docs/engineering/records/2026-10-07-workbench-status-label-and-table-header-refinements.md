@@ -37,6 +37,7 @@ Human-owned documents:
    - Configured `SubtitleTableHeaderCellView` and `drawHeader` to top-align column headers and top-align `#` with horizontal centering.
    - Configured `WorkbenchCheckboxButton` to align header select-all checkbox horizontally centered and vertically top-aligned.
    - Adjusted toolbar vertical spacing in `SchemaWorkbenchSearchToolbar` and `WorkbenchExcerptTableContent` to `--spacing-4` (16px).
+   - Fixed `pinnedHeaderHeight` and `excerptEmptyHint.topChromeHeight` in `WorkbenchExcerptTableView.swift` to use `redesignSpacing4 * 2` (104px), preventing the pinned toolbar from overlaying the top of the table header.
    - Updated `SubtitleTableVirtualRowTests.swift` scroll offset expectations for the 27px table header height.
 
 ## Verification
@@ -44,6 +45,7 @@ Human-owned documents:
 - `swift build --product CueSeeker --package-path apps/macos-native`: passed.
 - `swift test --package-path apps/macos-native --filter SubtitleTable`: passed (188/188 tests passed).
 - `swift test --package-path apps/macos-native --filter AppIconAssetTests`: passed (6/6 tests passed).
-- `swift test --package-path apps/macos-native --filter WorkbenchControlMetricsTests`: passed (12/12 tests passed).
+- `swift test --package-path apps/macos-native --filter WorkbenchControlMetricsTests`: passed (13/13 tests passed).
+- `swift test --package-path apps/macos-native --filter CoverSummaryCardTests`: passed (10/10 tests passed).
 - `swift test --package-path apps/macos-native --filter FileRouteNavigationTests`: passed (7/7 tests passed).
 - `swift test --package-path apps/macos-native --filter LibrarySortTests`: passed (3/3 tests passed).

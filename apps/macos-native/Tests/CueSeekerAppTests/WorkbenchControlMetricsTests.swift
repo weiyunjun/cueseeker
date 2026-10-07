@@ -259,5 +259,11 @@ func workbenchIconButtonOpenStateMatchesSpecification() {
     #expect(customOpen.redesignIconColor == .yellow)
 }
 
-
-
+@Test
+func workbenchTablePinnedToolbarHeightMatchesSpecification() {
+    let pinnedToolbarHeight =
+        WorkbenchControlMetrics.redesignHeight * 2
+        + WorkbenchControlMetrics.redesignSpacing4 * 2
+    // 36 (search field) + 16 (spacing-4) + 36 (second row) + 16 (bottom spacing-4) = 104
+    #expect(pinnedToolbarHeight == 104)
+}
