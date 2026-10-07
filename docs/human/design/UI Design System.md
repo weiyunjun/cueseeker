@@ -1571,6 +1571,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 
 ##### Selection
 
+- Label：`#`，与 Checkbox 共享水平居中对齐
 - Checkbox：Checkbox / Table Selection Checkbox
 - Alignment：Horizontal Center / Vertical Center
 - States
@@ -1648,6 +1649,8 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - Font Size：`--font-size-caption`
 - Font Weight：Regular
 - Color：`--color-text-muted`
+- Digits：Monospaced Digits
+- Alignment：Horizontal Center / Vertical Center
 - Selection：Disabled
 
 ##### Interactive Text
@@ -3779,6 +3782,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - Selection
   - Mode：Fixed
   - Width：`50pt`
+  - Alignment：Horizontal Center
 - Display Title
   - Mode：Weighted
   - Weight：`3`
