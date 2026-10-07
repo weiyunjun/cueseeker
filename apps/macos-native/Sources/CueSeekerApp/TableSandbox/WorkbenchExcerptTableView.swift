@@ -249,7 +249,7 @@ private struct WorkbenchExcerptTableContent: View {
                     onFilter: openFilterDialog,
                     onToggleSelectionMode: toggleSelectionMode
                 )
-                .padding(.bottom, WorkbenchControlMetrics.redesignSpacing2)
+                .padding(.bottom, WorkbenchControlMetrics.redesignSpacing4)
             }
             .background(WorkbenchRedesignColors.bgSurface)
         )

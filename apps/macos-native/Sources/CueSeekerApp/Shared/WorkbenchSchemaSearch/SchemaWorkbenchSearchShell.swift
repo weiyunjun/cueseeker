@@ -275,7 +275,7 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
                                 .top,
                                 WorkbenchControlMetrics.redesignWorkbenchPageTopPadding
                             )
-                            .padding(.bottom, WorkbenchControlMetrics.redesignSpacing2)
+                            .padding(.bottom, WorkbenchControlMetrics.redesignSpacing4)
                     }
 
                     tableContent(columns)
@@ -361,7 +361,7 @@ struct SchemaWorkbenchSearchToolbar: View {
     var onToggleSelectionMode: () -> Void
 
     var body: some View {
-        VStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
+        VStack(spacing: WorkbenchControlMetrics.redesignSpacing4) {
             WorkbenchSearchField(
                 placeholder: placeholder,
                 text: $searchDraft,
@@ -383,13 +383,7 @@ struct SchemaWorkbenchSearchToolbar: View {
     private var defaultActionRow: some View {
         HStack(spacing: WorkbenchControlMetrics.redesignSpacing3) {
             if let searchResultCountText, !searchResultCountText.isEmpty {
-                Text(searchResultCountText)
-                    .font(.system(
-                        size: WorkbenchControlMetrics.redesignFontSizeBody,
-                        weight: .regular
-                    ))
-                    .foregroundStyle(WorkbenchRedesignColors.textMuted)
-                    .lineLimit(1)
+                WorkbenchStatusIndicator(searchResultCountText)
             }
 
             Spacer()

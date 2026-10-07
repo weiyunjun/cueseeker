@@ -210,8 +210,8 @@ enum WorkbenchControlMetrics {
     /// --duration-spinner-motion: 1s, one turn at --easing-spinner-motion
     /// (linear).
     static let redesignSpinnerMotionDuration: Double = 1
-    /// --height-table-header: 40px
-    static let redesignTableHeaderHeight: CGFloat = 40
+    /// --height-table-header: 27px
+    static let redesignTableHeaderHeight: CGFloat = 27
     /// --spacing-1: 4px
     static let redesignSpacing1: CGFloat = 4
     /// --spacing-2: 8px

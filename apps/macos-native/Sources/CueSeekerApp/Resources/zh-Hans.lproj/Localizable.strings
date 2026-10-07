@@ -150,6 +150,8 @@
 "library.sort.default" = "默认排序";
 "library.sort.latest_added" = "最晚入库";
 "library.sort.oldest_added" = "最早入库";
+"library.folder_count.one" = "%d 个文件夹";
+"library.folder_count.other" = "%d 个文件夹";
 
 /* Library cover editing */
 "cover.edit_title" = "编辑封面";
@@ -160,11 +162,11 @@
 "cover.save" = "保存";
 
 /* Excerpt */
-"excerpt.overview.summary" = "%1$@ · %2$@";
-"excerpt.list_count.one" = "1 个摘录集";
-"excerpt.list_count.other" = "%d 个摘录集";
-"excerpt.cue_count.one" = "1 条台词";
-"excerpt.cue_count.other" = "%d 条台词";
+"excerpt.overview.summary" = "%1$@  %2$@";
+"excerpt.list_count.one" = "%d 个列表";
+"excerpt.list_count.other" = "%d 个列表";
+"excerpt.cue_count.one" = "%d 条字幕";
+"excerpt.cue_count.other" = "%d 条字幕";
 "excerpt.new_list" = "新建摘录集";
 "excerpt.edit_list" = "编辑摘录集";
 "excerpt.delete_list" = "删除摘录集";

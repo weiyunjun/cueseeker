@@ -578,10 +578,10 @@ func subtitleTablePageChromePinsAgainstTheFullViewportScrollbar() throws {
     #expect(frames?.pinned.minY == 294)
     #expect(frames?.tableHeader.minY == 346)
 
-    scrollView.contentView.scroll(to: CGPoint(x: 0, y: 400))
+    scrollView.contentView.scroll(to: CGPoint(x: 0, y: 387))
     coordinator.scrollContentDidChange()
     frames = coordinator.pageChromeFramesForTesting()
-    #expect(frames?.scrollable.minY == -400)
+    #expect(frames?.scrollable.minY == -387)
     #expect(frames?.pinned.minY == 0)
     #expect(frames?.tableHeader.minY == 52)
     #expect(coordinator.usesOverlayScrollbarsForTesting())

@@ -27,17 +27,14 @@ struct LibraryOverviewLayout<Content: View>: View {
                     spacing: WorkbenchControlMetrics.redesignSpacing4
                 ) {
                 HStack(spacing: WorkbenchControlMetrics.redesignSpacing3) {
-                    Text(summaryText)
-                        .font(.system(
-                            size: WorkbenchControlMetrics.redesignFontSizeBody,
-                            weight: .regular
-                        ))
-                        .foregroundStyle(WorkbenchRedesignColors.textPrimary)
+                    WorkbenchStatusIndicator(summaryText)
 
                     Spacer(minLength: 0)
 
-                    WorkbenchPrimaryButton(
+                    WorkbenchButton(
                         title: actionTitle,
+                        icon: .plus,
+                        isRedesign: true,
                         action: action
                     )
                 }

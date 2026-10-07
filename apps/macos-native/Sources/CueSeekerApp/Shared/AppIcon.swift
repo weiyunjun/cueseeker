@@ -29,6 +29,7 @@ enum AppIcon: String, CaseIterable, Sendable {
     case tray = "tray"
     case listChecks = "list-checks"
     case folderPlus = "folder-plus"
+    case plus = "plus"
     case arrowClockwise = "arrow-clockwise"
     case arrowCounterClockwise = "arrow-counter-clockwise"
     case minusCircle = "minus-circle"

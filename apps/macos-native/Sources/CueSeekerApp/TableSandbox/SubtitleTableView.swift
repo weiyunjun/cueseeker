@@ -1073,7 +1073,7 @@ private struct WorkbenchCheckboxButton: View {
         .disabled(!isEnabled)
         .subtitleTableTextSelectionInteractiveRegion(isActive: isEnabled)
         .focusable(false)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .contentShape(Rectangle())
     }
 }
@@ -1621,7 +1621,7 @@ final class SubtitleVirtualTableHeaderView: NSView {
         let size = attributed.size()
         let origin = CGPoint(
             x: rect.minX + leading,
-            y: rect.minY + max(0, (rect.height - size.height) / 2)
+            y: rect.minY + (isRedesign ? 0 : max(0, (rect.height - size.height) / 2))
         )
         let clipped = CGRect(
             x: origin.x,
@@ -7672,7 +7672,7 @@ struct SubtitleTableHeaderCellView: View {
                     .font(.system(size: WorkbenchControlMetrics.redesignFontSizeTableHeader, weight: .medium))
                     .foregroundStyle(isEnabled ? WorkbenchRedesignColors.textSecondary : WorkbenchRedesignColors.textDisabled)
                     .lineLimit(1)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             } else {
                 HStack(spacing: 0) {
                     Text(title)
@@ -7680,11 +7680,11 @@ struct SubtitleTableHeaderCellView: View {
                         .foregroundStyle(isEnabled ? WorkbenchRedesignColors.textSecondary : WorkbenchRedesignColors.textDisabled)
                         .lineLimit(1)
                         .padding(.horizontal, WorkbenchControlMetrics.redesignPaddingHeaderTriggerX)
-                        .frame(maxHeight: .infinity)
+                        .frame(maxHeight: .infinity, alignment: .top)
                     Spacer(minLength: 0)
                 }
             }
         }
-        .frame(width: columnRect.width, height: columnRect.height, alignment: alignment)
+        .frame(width: columnRect.width, height: columnRect.height, alignment: .top)
     }
 }

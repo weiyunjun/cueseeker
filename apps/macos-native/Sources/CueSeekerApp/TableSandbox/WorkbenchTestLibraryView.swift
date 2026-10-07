@@ -331,7 +331,14 @@ struct WorkbenchTestLibraryView: View {
     }
 
     private func sortBar(viewportSize: CGSize) -> some View {
-        HStack(spacing: 0) {
+        let folderCount = library.sortedCompleteLibraryFolderSummaries.count
+        let countText = folderCount == 1
+            ? L("library.folder_count.one")
+            : L("library.folder_count.other", folderCount)
+
+        return HStack(spacing: 0) {
+            WorkbenchStatusIndicator(countText)
+
             Spacer()
 
             WorkbenchButton(

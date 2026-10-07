@@ -150,6 +150,8 @@
 "library.sort.default" = "Default Order";
 "library.sort.latest_added" = "Latest Added";
 "library.sort.oldest_added" = "Oldest Added";
+"library.folder_count.one" = "1 folder";
+"library.folder_count.other" = "%d folders";
 
 /* Library cover editing */
 "cover.edit_title" = "Edit Cover";
@@ -160,11 +162,11 @@
 "cover.save" = "Save";
 
 /* Excerpt */
-"excerpt.overview.summary" = "%1$@ · %2$@";
-"excerpt.list_count.one" = "1 List";
-"excerpt.list_count.other" = "%d Lists";
-"excerpt.cue_count.one" = "1 Cue";
-"excerpt.cue_count.other" = "%d Cues";
+"excerpt.overview.summary" = "%1$@  %2$@";
+"excerpt.list_count.one" = "1 list";
+"excerpt.list_count.other" = "%d lists";
+"excerpt.cue_count.one" = "1 cue";
+"excerpt.cue_count.other" = "%d cues";
 "excerpt.new_list" = "New List";
 "excerpt.edit_list" = "Edit List";
 "excerpt.delete_list" = "Delete List";

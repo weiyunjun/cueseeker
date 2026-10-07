@@ -566,47 +566,38 @@ struct WorkbenchFileView: View {
 
     @ViewBuilder
     private var statusIndicator: some View {
-        HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
-            switch currentStatusInfo {
-            case .completed(let text):
-                AppIconImage(.checkCircle, size: WorkbenchControlMetrics.redesignButtonIconSize)
-                    .foregroundStyle(WorkbenchRedesignColors.successText)
-                Text(text)
-                    .font(.system(
-                        size: WorkbenchControlMetrics.redesignFontSizeBody,
-                        weight: WorkbenchControlMetrics.redesignFontWeightControl
-                    ))
-                    .foregroundStyle(WorkbenchRedesignColors.successText)
-            case .inProgress(let text):
-                WorkbenchSpinner(size: WorkbenchControlMetrics.redesignButtonIconSize)
-                    .foregroundStyle(WorkbenchRedesignColors.textSecondary)
-                Text(text)
-                    .font(.system(
-                        size: WorkbenchControlMetrics.redesignFontSizeBody,
-                        weight: WorkbenchControlMetrics.redesignFontWeightControl
-                    ))
-                    .foregroundStyle(WorkbenchRedesignColors.textSecondary)
-            case .failed(let text):
-                AppIconImage(.warning, size: WorkbenchControlMetrics.redesignButtonIconSize)
-                    .foregroundStyle(WorkbenchRedesignColors.dangerText)
-                Text(text)
-                    .font(.system(
-                        size: WorkbenchControlMetrics.redesignFontSizeBody,
-                        weight: WorkbenchControlMetrics.redesignFontWeightControl
-                    ))
-                    .foregroundStyle(WorkbenchRedesignColors.dangerText)
-            case .idle(let text):
-                AppIconImage(.arrowClockwise, size: WorkbenchControlMetrics.redesignButtonIconSize)
-                    .foregroundStyle(WorkbenchRedesignColors.textSecondary)
-                Text(text)
-                    .font(.system(
-                        size: WorkbenchControlMetrics.redesignFontSizeBody,
-                        weight: WorkbenchControlMetrics.redesignFontWeightControl
-                    ))
-                    .foregroundStyle(WorkbenchRedesignColors.textSecondary)
-            }
+        switch currentStatusInfo {
+        case .completed(let text):
+            WorkbenchStatusIndicator(
+                text,
+                icon: .checkCircle,
+                textColor: WorkbenchRedesignColors.successText,
+                iconColor: WorkbenchRedesignColors.successText
+            )
+        case .inProgress(let text):
+            WorkbenchStatusIndicator(
+                text,
+                iconCustomView: AnyView(
+                    WorkbenchSpinner(size: WorkbenchControlMetrics.redesignButtonIconSize)
+                        .foregroundStyle(WorkbenchRedesignColors.textSecondary)
+                ),
+                textColor: WorkbenchRedesignColors.textSecondary
+            )
+        case .failed(let text):
+            WorkbenchStatusIndicator(
+                text,
+                icon: .warning,
+                textColor: WorkbenchRedesignColors.dangerText,
+                iconColor: WorkbenchRedesignColors.dangerText
+            )
+        case .idle(let text):
+            WorkbenchStatusIndicator(
+                text,
+                icon: .arrowClockwise,
+                textColor: WorkbenchRedesignColors.textSecondary,
+                iconColor: WorkbenchRedesignColors.textSecondary
+            )
         }
-        .frame(height: WorkbenchControlMetrics.redesignHeight)
     }
 
     private var statusAndActionRow: some View {

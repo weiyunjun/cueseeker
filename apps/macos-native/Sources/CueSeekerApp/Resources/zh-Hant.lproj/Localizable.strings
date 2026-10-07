@@ -150,6 +150,8 @@
 "library.sort.default" = "預設排序";
 "library.sort.latest_added" = "最晚入庫";
 "library.sort.oldest_added" = "最早入庫";
+"library.folder_count.one" = "%d 個資料夾";
+"library.folder_count.other" = "%d 個資料夾";
 
 /* Library cover editing */
 "cover.edit_title" = "編輯封面";
@@ -160,11 +162,11 @@
 "cover.save" = "儲存";
 
 /* Excerpt */
-"excerpt.overview.summary" = "%1$@ · %2$@";
-"excerpt.list_count.one" = "1 個摘錄集";
-"excerpt.list_count.other" = "%d 個摘錄集";
-"excerpt.cue_count.one" = "1 條台詞";
-"excerpt.cue_count.other" = "%d 條台詞";
+"excerpt.overview.summary" = "%1$@  %2$@";
+"excerpt.list_count.one" = "%d 個列表";
+"excerpt.list_count.other" = "%d 個列表";
+"excerpt.cue_count.one" = "%d 條字幕";
+"excerpt.cue_count.other" = "%d 條字幕";
 "excerpt.new_list" = "新增摘錄集";
 "excerpt.edit_list" = "編輯摘錄集";
 "excerpt.delete_list" = "刪除摘錄集";
