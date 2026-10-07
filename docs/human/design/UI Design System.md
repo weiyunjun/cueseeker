@@ -240,7 +240,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--height-filter-chip`: `32px`
 - `--height-filter-chip-count-placeholder`: `12px`
 - `--height-field`: `40px`
-- `--height-table-header`: `40px`
+- `--height-table-header`: `27px`
 - `--min-height-table-row`: `40px`
 - `--height-action-menu-item`: `32px`
 - `--height-select-menu-item`: `32px`
@@ -1552,6 +1552,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
   - Font Size：`--font-size-table-header`
   - Font Weight：Medium
   - Color：`--color-text-secondary`
+  - Alignment：Vertical Top
 - Leading Slot
   - Presence：Optional
 - Trailing Slot
@@ -1575,7 +1576,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 
 - Label：`#`，与 Checkbox 共享水平居中对齐
 - Checkbox：Checkbox / Table Selection Checkbox
-- Alignment：Horizontal Center / Vertical Center
+- Alignment：Horizontal Center / Vertical Top
 - States
   - None Selected
   - Partially Selected
@@ -1924,6 +1925,18 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - Disabled
 
 #### Variants
+
+##### Workbench Status Indicator
+
+- Anatomy：Optional Leading Icon + Label
+- Height：`--height-control`
+- Font Family：`--font-family-base`
+- Font Size：`--font-size-control`
+- Font Weight：`--font-weight-control`
+- Text Color：`--color-text-secondary`
+- Icon Size：`--size-control-icon`
+- Gap：`--spacing-2`
+- Usage：File `Last Updated`、Search `xx results`、Library `xx folders`、Excerpt `xx lists  yy cues`
 
 ##### Cue State Indicator
 
@@ -3395,6 +3408,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 
 #### Components
 
+- Status Indicator / Workbench Status Indicator
 - Button / Neutral
 - Menu
 - Library Folder Card Layout
@@ -3403,6 +3417,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 
 - Page Layout：Workbench Titled Page Layout
 - Action Bar 保持 `--spacing-8` 边距，文件夹网格使用 `--padding-workbench-media-card-grid-inline`。
+- Action Bar：左侧展示文件夹数量（`xx folders`，样式同 Workbench Status Indicator），右侧展示排序按钮。
 - 排序按钮：位于网格上方右上角，与未 Hover 时的封面图右边缘对齐；图标为 `funnel-simple`，文字为当前选中的排序方式。
 - 排序菜单：Radio Menu，选项为默认排序、最晚入库、最早入库；打开时默认高亮首项。
 - 排序规则：默认按文件夹名称升序；最晚入库/最早入库按首次入库时间（最早被索引文件的时间）排序，相同时间按文件夹名称升序。排序选择持久化保存。
@@ -3584,14 +3599,14 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 
 #### Components
 
-- Section Title
-- Button / Primary
+- Status Indicator / Workbench Status Indicator
+- Button / Neutral
 - Excerpt List Card Layout
 
 #### Layout
 
 - Page Layout：Workbench Titled Page Layout
-- Summary 行保持 `--spacing-8` 边距，卡片网格使用 `--padding-workbench-media-card-grid-inline`，使未 Hover 时的卡片封面分别与 Summary 文本和新建按钮齐平。
+- Summary 行保持 `--spacing-8` 边距，卡片网格使用 `--padding-workbench-media-card-grid-inline`，使未 Hover 时的卡片封面分别与 Summary 文本（`xx lists  yy cues`，样式同 Workbench Status Indicator）和新建按钮（Neutral，带 `plus` 图标）齐平。
 
 #### Ordering
 
@@ -3692,14 +3707,15 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 #### Components
 
 - Search Field
+- Status Indicator / Workbench Status Indicator
 - Button / Neutral
 - Information Badge / Task Count Badge
 
 #### Sizes
 
 - Row Height：`--height-control`
-- Row Gap：`--spacing-2`
-- Bottom Gap：`--spacing-2`
+- Row Gap：`--spacing-4`
+- Bottom Gap：`--spacing-4`
 - Width：Fill Parent Content Width
 
 #### States

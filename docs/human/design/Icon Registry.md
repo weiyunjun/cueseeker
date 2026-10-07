@@ -93,6 +93,7 @@
 | --- | --- | --- | --- |
 | `pencil-simple` | Regular | 重命名、编辑封面 | Library File Tree 菜单 / Rename Folder、Rename Files；Cover / Editor Action |
 | `note-pencil` | Regular | 编辑 | Excerpt List 卡片菜单 / Edit List |
+| `plus` | Regular | 新建、添加 | Excerpt List Overview / New List |
 | `list-checks` | Regular | 选择模式 | 预留，暂无使用位置 |
 | `sign-out` | Regular | 退出选择 | Search / Excerpt Toolbar / Exit Selection |
 | `images-square` | Regular | 截图组 | Playback Topbar / Collage Action |
