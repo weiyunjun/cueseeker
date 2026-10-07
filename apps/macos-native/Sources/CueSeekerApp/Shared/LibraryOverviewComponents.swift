@@ -42,10 +42,11 @@ struct LibraryOverviewLayout<Content: View>: View {
                     )
                 }
                 .frame(height: WorkbenchControlMetrics.redesignHeight)
+                .workbenchPageInlinePadding()
 
                 content
+                    .workbenchMediaCardGridInlinePadding()
             }
-            .workbenchPageInlinePadding()
             .padding(
                 .top,
                 WorkbenchControlMetrics.redesignWorkbenchPageTopPadding

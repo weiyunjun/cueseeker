@@ -52,6 +52,23 @@ func workbenchPageTitleAndDetailSpacingMatchTheAcceptedHierarchy() {
         SchemaWorkbenchStyle.pageHorizontalPadding
             == WorkbenchControlMetrics.redesignWorkbenchPageHorizontalPadding
     )
+    #expect(WorkbenchControlMetrics.redesignSpacing5 == 20)
+    #expect(
+        WorkbenchControlMetrics.redesignWorkbenchMediaCardGridHorizontalPadding
+            == WorkbenchControlMetrics.redesignSpacing5
+    )
+    #expect(WorkbenchControlMetrics.redesignWorkbenchMediaCardGridHorizontalPadding == 20)
+    #expect(
+        WorkbenchControlMetrics.redesignWorkbenchMediaCardGridHorizontalPadding
+            == WorkbenchControlMetrics.redesignWorkbenchPageHorizontalPadding
+                - WorkbenchControlMetrics.redesignLibraryMediaCardHoverPadding
+    )
+    #expect(
+        WorkbenchControlMetrics.redesignWorkbenchMediaCardGridTrailingPadding
+            == WorkbenchControlMetrics.redesignWorkbenchMediaCardGridHorizontalPadding
+                + WorkbenchControlMetrics.redesignWorkbenchPageScrollbarChannel
+    )
+    #expect(WorkbenchControlMetrics.redesignWorkbenchMediaCardGridTrailingPadding == 36)
     #expect(
         WorkbenchControlMetrics.redesignSpacing6
             - WorkbenchControlMetrics.redesignCoverSummaryDetailTopPadding

@@ -29,6 +29,7 @@ struct WorkbenchRecentView: View {
                         sectionTabs
                         Spacer(minLength: 0)
                     }
+                    .workbenchPageInlinePadding()
 
                 switch routeState.selectedRecentSection {
                 case .videos:
@@ -40,7 +41,6 @@ struct WorkbenchRecentView: View {
                     recentExcerptsContent(excerpt.recentListSummaries)
                 }
             }
-                .workbenchPageInlinePadding()
                 .padding(.top, WorkbenchTestLibraryMetrics.pageTopPadding)
                 .padding(.bottom, WorkbenchTestLibraryMetrics.pageBottomPadding)
                 .frame(
@@ -98,10 +98,13 @@ struct WorkbenchRecentView: View {
                 ProgressView()
                     .controlSize(.small)
             }
+            .workbenchPageInlinePadding()
         } else if case .failed(let message) = status {
             LibraryEmptyHint(message)
+                .workbenchPageInlinePadding()
         } else if items.isEmpty {
             LibraryEmptyHint(L("library.recent_watching_empty"))
+                .workbenchPageInlinePadding()
         } else {
             RecentWatchingGrid(
                 items: items,
@@ -112,6 +115,7 @@ struct WorkbenchRecentView: View {
                     }
                 }
             )
+            .workbenchMediaCardGridInlinePadding()
         }
     }
 
@@ -124,8 +128,10 @@ struct WorkbenchRecentView: View {
                 ProgressView()
                     .controlSize(.small)
             }
+            .workbenchPageInlinePadding()
         } else if summaries.isEmpty {
             LibraryEmptyHint(L("library.recent_excerpts_empty"))
+                .workbenchPageInlinePadding()
         } else {
             ExcerptListCardGrid(
                 summaries: summaries,
@@ -133,6 +139,7 @@ struct WorkbenchRecentView: View {
             ) { summary in
                 appState.openRecentExcerpt(summary)
             }
+            .workbenchMediaCardGridInlinePadding()
         }
     }
 }
@@ -162,7 +169,6 @@ struct WorkbenchTestLibraryView: View {
                 GeometryReader { geometry in
                     WorkbenchScrollView([.vertical, .horizontal]) {
                         folderPageContent(folderPath: folderPath)
-                            .workbenchPageInlinePadding()
                             .padding(
                                 .top,
                                 WorkbenchControlMetrics.redesignCoverSummaryDetailTopPadding
@@ -188,7 +194,6 @@ struct WorkbenchTestLibraryView: View {
                 GeometryReader { geometry in
                     WorkbenchScrollView([.vertical, .horizontal]) {
                         completeLibraryContent(viewportSize: geometry.size)
-                            .workbenchPageInlinePadding()
                             .padding(
                                 .top,
                                 WorkbenchControlMetrics.redesignWorkbenchPageTopPadding
@@ -299,13 +304,17 @@ struct WorkbenchTestLibraryView: View {
                 ProgressView()
                     .controlSize(.small)
             }
+            .workbenchPageInlinePadding()
         } else if case .failed(let message) = library.completeLibraryStatus {
             LibraryEmptyHint(message)
+                .workbenchPageInlinePadding()
         } else if library.completeLibraryFolderSummaries.isEmpty {
             LibraryEmptyHint(L("library.empty"))
+                .workbenchPageInlinePadding()
         } else {
             VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing4) {
                 sortBar(viewportSize: viewportSize)
+                    .workbenchPageInlinePadding()
 
                 CompleteLibraryFolderGrid(
                     folders: library.sortedCompleteLibraryFolderSummaries,
@@ -316,6 +325,7 @@ struct WorkbenchTestLibraryView: View {
                         )
                     }
                 )
+                .workbenchMediaCardGridInlinePadding()
             }
         }
     }
@@ -418,11 +428,13 @@ struct WorkbenchTestLibraryView: View {
             .libraryFolder(folderPath: folderPath)
         ) {
             WorkbenchEmptyHint(message: L("library.folder.not_found"))
+                .workbenchPageInlinePadding()
         } else {
             LibraryEmptyHint {
                 ProgressView()
                     .controlSize(.small)
             }
+            .workbenchPageInlinePadding()
         }
     }
 
@@ -433,14 +445,17 @@ struct WorkbenchTestLibraryView: View {
                 ProgressView()
                     .controlSize(.small)
             }
+            .workbenchPageInlinePadding()
         } else if case .failed(let message) = folderDetailStatus {
             LibraryEmptyHint(message)
+                .workbenchPageInlinePadding()
         } else if let folderDetail, folderDetail.folderPath == folder.folderPath {
             VStack(
                 alignment: .leading,
                 spacing: WorkbenchControlMetrics.redesignCoverSummaryToolbarGap
             ) {
                 folderCoverSummary(folder: folder, detail: folderDetail)
+                    .workbenchPageInlinePadding()
 
                 CompleteLibraryEpisodeGrid(
                     folderTitle: folderDetail.folderTitle,
@@ -454,12 +469,14 @@ struct WorkbenchTestLibraryView: View {
                         )
                     }
                 )
+                .workbenchMediaCardGridInlinePadding()
             }
         } else {
             LibraryEmptyHint {
                 ProgressView()
                     .controlSize(.small)
             }
+            .workbenchPageInlinePadding()
         }
     }
 

@@ -220,6 +220,8 @@ enum WorkbenchControlMetrics {
     static let redesignSpacing3: CGFloat = 12
     /// --spacing-4: 16px
     static let redesignSpacing4: CGFloat = 16
+    /// --spacing-5: 20px
+    static let redesignSpacing5: CGFloat = 20
     /// --spacing-6: 24px
     static let redesignSpacing6: CGFloat = 24
     /// --spacing-8: 32px
@@ -538,6 +540,13 @@ enum WorkbenchControlMetrics {
     /// the Scrollbar channel, so both visual page margins stay equal.
     static let redesignWorkbenchPageTrailingPadding =
         redesignWorkbenchPageHorizontalPadding + redesignWorkbenchPageScrollbarChannel
+    /// Shared inline padding for Workbench containers hosting media card grids.
+    /// Offsets the 12px card hover padding so unhovered cover images align with standard 32px page margins.
+    static let redesignWorkbenchMediaCardGridHorizontalPadding = redesignSpacing5
+    /// Trailing inline padding for Workbench containers hosting media card grids:
+    /// 20px plus the 16px scrollbar channel (36px).
+    static let redesignWorkbenchMediaCardGridTrailingPadding =
+        redesignWorkbenchMediaCardGridHorizontalPadding + redesignWorkbenchPageScrollbarChannel
     /// Shared top padding for Workbench pages with an explicit page title.
     static let redesignWorkbenchPageTopPadding = redesignSpacing1
     /// Shared bottom padding for Workbench pages with an explicit page title.
@@ -558,6 +567,14 @@ extension View {
     func workbenchPageInlinePadding() -> some View {
         padding(.leading, WorkbenchControlMetrics.redesignWorkbenchPageHorizontalPadding)
             .padding(.trailing, WorkbenchControlMetrics.redesignWorkbenchPageTrailingPadding)
+    }
+
+    /// Applies the Workbench media card grid inline padding (leading 20px, trailing 36px),
+    /// allowing unhovered cover images to align with standard page boundaries while
+    /// reserving space for the card hover background.
+    func workbenchMediaCardGridInlinePadding() -> some View {
+        padding(.leading, WorkbenchControlMetrics.redesignWorkbenchMediaCardGridHorizontalPadding)
+            .padding(.trailing, WorkbenchControlMetrics.redesignWorkbenchMediaCardGridTrailingPadding)
     }
 }
 
