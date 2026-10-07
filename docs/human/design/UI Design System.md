@@ -351,6 +351,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--spacing-2`: `8px`
 - `--spacing-3`: `12px`
 - `--spacing-4`: `16px`
+- `--spacing-5`: `20px`
 - `--spacing-6`: `24px`
 - `--spacing-8`: `32px`
 - `--gap-segmented-control`: `2px`
@@ -409,6 +410,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--padding-library-time-badge`: `2px 6px`
 - `--padding-task-count-badge-compact-x`: `6px`
 - `--padding-library-media-card-hover`: `12px`
+- `--padding-workbench-media-card-grid-inline`: Leading `--spacing-5` (`20px`)，Trailing `--spacing-5` + `--width-page-scrollbar-channel` (`36px`)
 - `--padding-library-list-card`: `12px 16px`
 - `--padding-cover-summary-backdrop-inline`: `40px`
 - `--padding-cover-summary-backdrop-block`: `22.5px`
@@ -3342,7 +3344,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 #### Layout
 
 - Page Layout：Workbench Titled Page Layout
-- Tabs 水平居中显示。
+- Tabs 水平居中显示，卡片网格使用 `--padding-workbench-media-card-grid-inline`。
 - 默认 Tab：Recent Videos。Tab 选择在 App 运行期间保留，重新启动后回到默认。
 
 #### Sizes
@@ -3400,7 +3402,8 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 #### Layout
 
 - Page Layout：Workbench Titled Page Layout
-- 排序按钮：位于网格上方右上角，与卡片网格右边缘对齐；图标为 `funnel-simple`，文字为当前选中的排序方式。
+- Action Bar 保持 `--spacing-8` 边距，文件夹网格使用 `--padding-workbench-media-card-grid-inline`。
+- 排序按钮：位于网格上方右上角，与未 Hover 时的封面图右边缘对齐；图标为 `funnel-simple`，文字为当前选中的排序方式。
 - 排序菜单：Radio Menu，选项为默认排序、最晚入库、最早入库；打开时默认高亮首项。
 - 排序规则：默认按文件夹名称升序；最晚入库/最早入库按首次入库时间（最早被索引文件的时间）排序，相同时间按文件夹名称升序。排序选择持久化保存。
 
@@ -3449,7 +3452,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 #### Layout
 
 - Content Page Padding Inline 与 Excerpt List Detail 相同。
-- Cover Summary 与 Episode Grid 使用相同宽度和水平边界。
+- Cover Summary 使用 `--spacing-8` 边距，Episode Grid 使用 `--padding-workbench-media-card-grid-inline`，使未 Hover 时的剧集封面图与 Cover Summary 水平边界齐平。
 - Cover Summary 宽度跟随页面可用宽度变化，并在 Split Form 与 Backdrop Form 之间切换。
 
 #### Spacing
@@ -3588,6 +3591,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 #### Layout
 
 - Page Layout：Workbench Titled Page Layout
+- Summary 行保持 `--spacing-8` 边距，卡片网格使用 `--padding-workbench-media-card-grid-inline`，使未 Hover 时的卡片封面分别与 Summary 文本和新建按钮齐平。
 
 #### Ordering
 
