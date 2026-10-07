@@ -94,7 +94,10 @@ private struct WorkbenchExcerptTableContent: View {
                     scrollTargetRow: tableScrollTargetRow,
                     onVisibleRowsChange: { visibleRows in
                         captureVisibleRows(visibleRows)
-                        ExcerptOpenPerformanceTracker.recordVisibleRowsRendered(visibleRows: visibleRows)
+                        ExcerptOpenPerformanceTracker.recordVisibleRowsRendered(
+                            listID: excerptStore.activeListID,
+                            visibleRows: visibleRows
+                        )
                     },
                     isSelectionMode: isSelectionMode,
                     isRowSelected: { rowSelection.isSelected($0, rowCount: rowStore.snapshot.totalRowCount) },

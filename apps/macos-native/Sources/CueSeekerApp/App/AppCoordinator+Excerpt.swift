@@ -432,7 +432,6 @@ extension AppCoordinator {
             )
         }
         excerpt.setActiveListID(listID)
-        excerpt.clearTableRowsForReload()
 
         let resultSnapshotID = excerpt.tableResultSnapshotID
         let searchText = excerpt.tableSearchDraft

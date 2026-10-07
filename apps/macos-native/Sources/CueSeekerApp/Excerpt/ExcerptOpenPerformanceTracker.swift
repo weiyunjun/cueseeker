@@ -37,14 +37,19 @@ public enum ExcerptOpenPerformanceTracker {
         var cacheHit: Bool?
     }
 
-    private static var currentSession: PendingSession?
+    private static var pendingSessionsByListID: [Int64: PendingSession] = [:]
+    private static var lastReportsByListID: [Int64: ExcerptOpenPerformanceReport] = [:]
     public private(set) static var lastReport: ExcerptOpenPerformanceReport?
+
+    public static func lastReport(forListID listID: Int64) -> ExcerptOpenPerformanceReport? {
+        lastReportsByListID[listID]
+    }
 
     /// Optional callback hook for automated testing.
     public static var onReportEmitted: ((ExcerptOpenPerformanceReport) -> Void)?
 
     public static func beginOpen(listID: Int64, title: String) {
-        currentSession = PendingSession(
+        pendingSessionsByListID[listID] = PendingSession(
             listID: listID,
             title: title,
             startedAt: DispatchTime.now().uptimeNanoseconds
@@ -56,7 +61,7 @@ public enum ExcerptOpenPerformanceTracker {
         count: Int,
         cacheHit: Bool
     ) {
-        guard var session = currentSession, session.listID == listID else {
+        guard var session = pendingSessionsByListID[listID] else {
             return
         }
 
@@ -79,24 +84,30 @@ public enum ExcerptOpenPerformanceTracker {
                 cacheHit: cacheHit
             )
             emit(report)
-            currentSession = nil
+            pendingSessionsByListID.removeValue(forKey: listID)
             return
         }
 
-        currentSession = session
+        pendingSessionsByListID[listID] = session
     }
 
-    public static func recordVisibleRowsRendered(visibleRows: Range<Int>) {
-        guard let session = currentSession,
+    public static func recordVisibleRowsRendered(
+        listID: Int64? = nil,
+        visibleRows: Range<Int>
+    ) {
+        guard !visibleRows.isEmpty else {
+            return
+        }
+        let resolvedListID = listID ?? (pendingSessionsByListID.count == 1 ? pendingSessionsByListID.keys.first : nil)
+        guard let resolvedListID,
+              let session = pendingSessionsByListID[resolvedListID],
               let dataReadyAt = session.dataReadyAt,
               let count = session.count,
               let cacheHit = session.cacheHit
         else {
             return
         }
-        guard !visibleRows.isEmpty else {
-            return
-        }
+        pendingSessionsByListID.removeValue(forKey: resolvedListID)
 
         let now = DispatchTime.now().uptimeNanoseconds
         let totalDuration = Double(now - session.startedAt) / 1_000_000
@@ -113,27 +124,34 @@ public enum ExcerptOpenPerformanceTracker {
             cacheHit: cacheHit
         )
         emit(report)
-        currentSession = nil
     }
 
     public static func cancelOpen(listID: Int64? = nil) {
         if let listID {
-            if currentSession?.listID == listID {
-                currentSession = nil
-            }
+            pendingSessionsByListID.removeValue(forKey: listID)
         } else {
-            currentSession = nil
+            pendingSessionsByListID.removeAll()
         }
     }
 
-    public static func reset() {
-        currentSession = nil
-        lastReport = nil
-        onReportEmitted = nil
+    public static func reset(listID: Int64? = nil) {
+        if let listID {
+            pendingSessionsByListID.removeValue(forKey: listID)
+            lastReportsByListID.removeValue(forKey: listID)
+            if lastReport?.listID == listID {
+                lastReport = nil
+            }
+        } else {
+            pendingSessionsByListID.removeAll()
+            lastReportsByListID.removeAll()
+            lastReport = nil
+            onReportEmitted = nil
+        }
     }
 
     private static func emit(_ report: ExcerptOpenPerformanceReport) {
         lastReport = report
+        lastReportsByListID[report.listID] = report
         print(report.logMessage)
         logger.notice("\(report.logMessage, privacy: .public)")
         onReportEmitted?(report)

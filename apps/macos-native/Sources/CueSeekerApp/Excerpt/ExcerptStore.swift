@@ -34,6 +34,8 @@ final class ExcerptStore: ObservableObject {
     private(set) var residentExcerptsByID: [Int64: Excerpt] = [:]
     private(set) var residentDataRevision: Int?
     private(set) var residentListID: Int64?
+    private var residentSnapshotsByListID: [Int64: ExcerptResidentSnapshot] = [:]
+    private var residentDataRevisionsByListID: [Int64: Int] = [:]
     private(set) var tableRowsNeedReload = false
     var tableViewportAnchor: TableViewportAnchor?
     var tableSelectionState = TableSandboxRowSelectionState()
@@ -237,7 +239,24 @@ final class ExcerptStore: ObservableObject {
             return
         }
         activeListID = listID
-        invalidateTableRows()
+        guard let listID else {
+            clearResidentSnapshot()
+            clearTableRowsForReload()
+            return
+        }
+        if let cached = residentSnapshotsByListID[listID],
+           residentDataRevisionsByListID[listID] == tableDataRevision {
+            residentRelations = cached.relations
+            residentExcerptsByID = Dictionary(
+                uniqueKeysWithValues: cached.resolvedExcerpts.map { ($0.id, $0) }
+            )
+            residentFacetSnapshot = cached.facetSnapshot
+            residentListID = listID
+            residentDataRevision = tableDataRevision
+        } else {
+            clearResidentSnapshot()
+            clearTableRowsForReload()
+        }
     }
 
     private func receiveCueContentChange(_ change: CueContentStoreChange) {
@@ -309,6 +328,8 @@ final class ExcerptStore: ObservableObject {
         listID: Int64 = ExcerptListIdentity.defaultListID,
         dataRevision: Int
     ) {
+        residentSnapshotsByListID[listID] = snapshot
+        residentDataRevisionsByListID[listID] = dataRevision
         residentRelations = snapshot.relations
         residentExcerptsByID = Dictionary(
             uniqueKeysWithValues: snapshot.resolvedExcerpts.map { ($0.id, $0) }
@@ -358,6 +379,17 @@ final class ExcerptStore: ObservableObject {
         residentFacetSnapshot = residentFacetSnapshot?.removingCueIDs(
             removedCueIDs
         )
+        if let listID = activeListID, let cached = residentSnapshotsByListID[listID] {
+            let updatedRelations = cached.relations.filter { $0.id != id }
+            let updatedResolved = cached.resolvedExcerpts.filter { $0.id != id }
+            let updatedFacet = cached.facetSnapshot.removingCueIDs(removedCueIDs)
+            residentSnapshotsByListID[listID] = ExcerptResidentSnapshot(
+                relations: updatedRelations,
+                resolvedExcerpts: updatedResolved,
+                cueContents: cached.cueContents,
+                facetSnapshot: updatedFacet
+            )
+        }
         tableTotalSavedRowCount = residentRelations.count
         if let tableResultExcerptIDs {
             let remainingIDs = tableResultExcerptIDs.filter { $0 != id }
@@ -376,6 +408,8 @@ final class ExcerptStore: ObservableObject {
     }
 
     func invalidateTableRows(tableName: String = "excerpt") {
+        residentSnapshotsByListID.removeAll()
+        residentDataRevisionsByListID.removeAll()
         clearResidentSnapshot()
         clearTableRowsForReload(tableName: tableName)
         tableDataRevision += 1
@@ -384,6 +418,8 @@ final class ExcerptStore: ObservableObject {
     func markTableRowsStale() {
         tableRowsNeedReload = true
         residentFacetSnapshot = nil
+        residentSnapshotsByListID.removeAll()
+        residentDataRevisionsByListID.removeAll()
         tableDataRevision += 1
     }
 }

@@ -384,9 +384,10 @@ func openExcerptListTriggersPerformanceTrackingAndCompletesOnVisibleRows() async
     let app = AppCoordinator(userDefaults: userDefaults, databaseURL: databaseURL)
     let indexingDatabase = try #require(app.indexingDatabase)
     let excerptDatabase = try #require(app.excerptDatabase)
-    let list = try #require(try excerptDatabase.excerptList(
-        id: ExcerptListIdentity.defaultListID
-    ))
+    let list = try excerptDatabase.createExcerptList(
+        name: "Tracked List",
+        createdAt: Date()
+    )
     _ = try makeExcerpt(
         in: indexingDatabase,
         id: 101,
@@ -394,23 +395,25 @@ func openExcerptListTriggersPerformanceTrackingAndCompletesOnVisibleRows() async
         listID: list.id
     )
 
-    ExcerptOpenPerformanceTracker.reset()
+    ExcerptOpenPerformanceTracker.reset(listID: list.id)
+    defer { ExcerptOpenPerformanceTracker.reset(listID: list.id) }
     app.openExcerptList(id: list.id)
     try await waitForExcerptTasksToFinish(app)
 
     #expect(app.excerpt.residentRelations.count == 1)
 
     // Simulate visible rows rendered by table
-    ExcerptOpenPerformanceTracker.recordVisibleRowsRendered(visibleRows: 0..<1)
+    ExcerptOpenPerformanceTracker.recordVisibleRowsRendered(
+        listID: list.id,
+        visibleRows: 0..<1
+    )
 
-    let report = ExcerptOpenPerformanceTracker.lastReport
+    let report = ExcerptOpenPerformanceTracker.lastReport(forListID: list.id)
     #expect(report?.listID == list.id)
     #expect(report?.title == list.name)
     #expect(report?.count == 1)
     #expect(report?.cacheHit == false)
     #expect((report?.totalDuration ?? -1) >= 0)
-
-    ExcerptOpenPerformanceTracker.reset()
 }
 
 private func makeExcerpt(

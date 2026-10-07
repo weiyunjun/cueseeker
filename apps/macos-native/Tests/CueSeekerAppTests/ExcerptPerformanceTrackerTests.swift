@@ -3,26 +3,33 @@ import Testing
 @testable import CueSeekerApp
 
 @MainActor
+@Suite(.serialized)
 struct ExcerptPerformanceTrackerTests {
     @Test
     func coldOpenRecordsPerformanceReportWhenVisibleRowsRendered() {
-        ExcerptOpenPerformanceTracker.reset()
+        let listID: Int64 = 9001
+        ExcerptOpenPerformanceTracker.reset(listID: listID)
+        defer { ExcerptOpenPerformanceTracker.reset(listID: listID) }
+
         var emittedReports: [ExcerptOpenPerformanceReport] = []
         ExcerptOpenPerformanceTracker.onReportEmitted = { report in
-            emittedReports.append(report)
+            if report.listID == listID {
+                emittedReports.append(report)
+            }
         }
+        defer { ExcerptOpenPerformanceTracker.onReportEmitted = nil }
 
-        ExcerptOpenPerformanceTracker.beginOpen(listID: 1, title: "我喜欢的字幕")
-        #expect(ExcerptOpenPerformanceTracker.lastReport == nil)
+        ExcerptOpenPerformanceTracker.beginOpen(listID: listID, title: "我喜欢的字幕")
+        #expect(ExcerptOpenPerformanceTracker.lastReport(forListID: listID) == nil)
 
-        ExcerptOpenPerformanceTracker.recordDataReady(listID: 1, count: 396, cacheHit: false)
-        #expect(ExcerptOpenPerformanceTracker.lastReport == nil)
+        ExcerptOpenPerformanceTracker.recordDataReady(listID: listID, count: 396, cacheHit: false)
+        #expect(ExcerptOpenPerformanceTracker.lastReport(forListID: listID) == nil)
 
-        ExcerptOpenPerformanceTracker.recordVisibleRowsRendered(visibleRows: 0..<15)
+        ExcerptOpenPerformanceTracker.recordVisibleRowsRendered(listID: listID, visibleRows: 0..<15)
 
         #expect(emittedReports.count == 1)
-        let report = ExcerptOpenPerformanceTracker.lastReport
-        #expect(report?.listID == 1)
+        let report = ExcerptOpenPerformanceTracker.lastReport(forListID: listID)
+        #expect(report?.listID == listID)
         #expect(report?.title == "我喜欢的字幕")
         #expect(report?.count == 396)
         #expect(report?.cacheHit == false)
@@ -32,129 +39,148 @@ struct ExcerptPerformanceTrackerTests {
 
         let log = report?.logMessage ?? ""
         #expect(log.contains("[PERF_EXCERPT_OPEN]"))
-        #expect(log.contains("listID=1"))
+        #expect(log.contains("listID=9001"))
         #expect(log.contains("title=\"我喜欢的字幕\""))
         #expect(log.contains("count=396"))
         #expect(log.contains("cacheHit=false"))
-
-        ExcerptOpenPerformanceTracker.reset()
     }
 
     @Test
     func cacheHitRecordsPerformanceReport() {
-        ExcerptOpenPerformanceTracker.reset()
+        let listID: Int64 = 9002
+        ExcerptOpenPerformanceTracker.reset(listID: listID)
+        defer { ExcerptOpenPerformanceTracker.reset(listID: listID) }
+
         var emittedReports: [ExcerptOpenPerformanceReport] = []
         ExcerptOpenPerformanceTracker.onReportEmitted = { report in
-            emittedReports.append(report)
+            if report.listID == listID {
+                emittedReports.append(report)
+            }
         }
+        defer { ExcerptOpenPerformanceTracker.onReportEmitted = nil }
 
-        ExcerptOpenPerformanceTracker.beginOpen(listID: 2, title: "日常会话")
-        ExcerptOpenPerformanceTracker.recordDataReady(listID: 2, count: 50, cacheHit: true)
-        ExcerptOpenPerformanceTracker.recordVisibleRowsRendered(visibleRows: 0..<10)
+        ExcerptOpenPerformanceTracker.beginOpen(listID: listID, title: "日常会话")
+        ExcerptOpenPerformanceTracker.recordDataReady(listID: listID, count: 50, cacheHit: true)
+        ExcerptOpenPerformanceTracker.recordVisibleRowsRendered(listID: listID, visibleRows: 0..<10)
 
         #expect(emittedReports.count == 1)
-        let report = ExcerptOpenPerformanceTracker.lastReport
-        #expect(report?.listID == 2)
+        let report = ExcerptOpenPerformanceTracker.lastReport(forListID: listID)
+        #expect(report?.listID == listID)
         #expect(report?.title == "日常会话")
         #expect(report?.count == 50)
         #expect(report?.cacheHit == true)
         #expect(report?.logMessage.contains("cacheHit=true") == true)
-
-        ExcerptOpenPerformanceTracker.reset()
     }
 
     @Test
     func emptyListCompletesImmediatelyWithoutWaitingForVisibleRows() {
-        ExcerptOpenPerformanceTracker.reset()
+        let listID: Int64 = 9099
+        ExcerptOpenPerformanceTracker.reset(listID: listID)
+        defer { ExcerptOpenPerformanceTracker.reset(listID: listID) }
+
         var emittedReports: [ExcerptOpenPerformanceReport] = []
         ExcerptOpenPerformanceTracker.onReportEmitted = { report in
-            emittedReports.append(report)
+            if report.listID == listID {
+                emittedReports.append(report)
+            }
         }
+        defer { ExcerptOpenPerformanceTracker.onReportEmitted = nil }
 
-        ExcerptOpenPerformanceTracker.beginOpen(listID: 99, title: "空列表")
-        #expect(ExcerptOpenPerformanceTracker.lastReport == nil)
+        ExcerptOpenPerformanceTracker.beginOpen(listID: listID, title: "空列表")
+        #expect(ExcerptOpenPerformanceTracker.lastReport(forListID: listID) == nil)
 
-        ExcerptOpenPerformanceTracker.recordDataReady(listID: 99, count: 0, cacheHit: false)
+        ExcerptOpenPerformanceTracker.recordDataReady(listID: listID, count: 0, cacheHit: false)
 
         #expect(emittedReports.count == 1)
-        let report = ExcerptOpenPerformanceTracker.lastReport
-        #expect(report?.listID == 99)
+        let report = ExcerptOpenPerformanceTracker.lastReport(forListID: listID)
+        #expect(report?.listID == listID)
         #expect(report?.title == "空列表")
         #expect(report?.count == 0)
         #expect(report?.viewRenderDuration == 0.0)
-
-        ExcerptOpenPerformanceTracker.reset()
     }
 
     @Test
     func scrollingVisibleRowsDoesNotReemitReport() {
-        ExcerptOpenPerformanceTracker.reset()
-        var count = 0
-        ExcerptOpenPerformanceTracker.onReportEmitted = { _ in
-            count += 1
-        }
+        let listID: Int64 = 9003
+        ExcerptOpenPerformanceTracker.reset(listID: listID)
+        defer { ExcerptOpenPerformanceTracker.reset(listID: listID) }
 
-        ExcerptOpenPerformanceTracker.beginOpen(listID: 1, title: "Test")
-        ExcerptOpenPerformanceTracker.recordDataReady(listID: 1, count: 100, cacheHit: false)
-        ExcerptOpenPerformanceTracker.recordVisibleRowsRendered(visibleRows: 0..<15)
+        var count = 0
+        ExcerptOpenPerformanceTracker.onReportEmitted = { report in
+            if report.listID == listID {
+                count += 1
+            }
+        }
+        defer { ExcerptOpenPerformanceTracker.onReportEmitted = nil }
+
+        ExcerptOpenPerformanceTracker.beginOpen(listID: listID, title: "Test")
+        ExcerptOpenPerformanceTracker.recordDataReady(listID: listID, count: 100, cacheHit: false)
+        ExcerptOpenPerformanceTracker.recordVisibleRowsRendered(listID: listID, visibleRows: 0..<15)
         #expect(count == 1)
 
         // Subsequent scroll events
-        ExcerptOpenPerformanceTracker.recordVisibleRowsRendered(visibleRows: 15..<30)
-        ExcerptOpenPerformanceTracker.recordVisibleRowsRendered(visibleRows: 30..<45)
+        ExcerptOpenPerformanceTracker.recordVisibleRowsRendered(listID: listID, visibleRows: 15..<30)
+        ExcerptOpenPerformanceTracker.recordVisibleRowsRendered(listID: listID, visibleRows: 30..<45)
         #expect(count == 1)
-
-        ExcerptOpenPerformanceTracker.reset()
     }
 
     @Test
     func prematureVisibleRowsBeforeDataReadyAreIgnored() {
-        ExcerptOpenPerformanceTracker.reset()
-        ExcerptOpenPerformanceTracker.beginOpen(listID: 1, title: "Test")
+        let listID: Int64 = 9004
+        ExcerptOpenPerformanceTracker.reset(listID: listID)
+        defer { ExcerptOpenPerformanceTracker.reset(listID: listID) }
+
+        ExcerptOpenPerformanceTracker.beginOpen(listID: listID, title: "Test")
 
         // Spurious visible rows notification from old view
-        ExcerptOpenPerformanceTracker.recordVisibleRowsRendered(visibleRows: 0..<15)
-        #expect(ExcerptOpenPerformanceTracker.lastReport == nil)
+        ExcerptOpenPerformanceTracker.recordVisibleRowsRendered(listID: listID, visibleRows: 0..<15)
+        #expect(ExcerptOpenPerformanceTracker.lastReport(forListID: listID) == nil)
 
         // Now data ready
-        ExcerptOpenPerformanceTracker.recordDataReady(listID: 1, count: 10, cacheHit: false)
-        #expect(ExcerptOpenPerformanceTracker.lastReport == nil)
+        ExcerptOpenPerformanceTracker.recordDataReady(listID: listID, count: 10, cacheHit: false)
+        #expect(ExcerptOpenPerformanceTracker.lastReport(forListID: listID) == nil)
 
         // Real visible rows
-        ExcerptOpenPerformanceTracker.recordVisibleRowsRendered(visibleRows: 0..<10)
-        #expect(ExcerptOpenPerformanceTracker.lastReport?.count == 10)
-
-        ExcerptOpenPerformanceTracker.reset()
+        ExcerptOpenPerformanceTracker.recordVisibleRowsRendered(listID: listID, visibleRows: 0..<10)
+        #expect(ExcerptOpenPerformanceTracker.lastReport(forListID: listID)?.count == 10)
     }
 
     @Test
     func newOpenSupersedesPreviousInFlightSession() {
-        ExcerptOpenPerformanceTracker.reset()
-        ExcerptOpenPerformanceTracker.beginOpen(listID: 1, title: "First")
+        let listID1: Int64 = 9005
+        let listID2: Int64 = 9006
+        ExcerptOpenPerformanceTracker.reset(listID: listID1)
+        ExcerptOpenPerformanceTracker.reset(listID: listID2)
+        defer {
+            ExcerptOpenPerformanceTracker.reset(listID: listID1)
+            ExcerptOpenPerformanceTracker.reset(listID: listID2)
+        }
+
+        ExcerptOpenPerformanceTracker.beginOpen(listID: listID1, title: "First")
 
         // Switch list before First finishes
-        ExcerptOpenPerformanceTracker.beginOpen(listID: 2, title: "Second")
+        ExcerptOpenPerformanceTracker.beginOpen(listID: listID2, title: "Second")
 
         // Data ready for Second
-        ExcerptOpenPerformanceTracker.recordDataReady(listID: 2, count: 20, cacheHit: false)
-        ExcerptOpenPerformanceTracker.recordVisibleRowsRendered(visibleRows: 0..<10)
+        ExcerptOpenPerformanceTracker.recordDataReady(listID: listID2, count: 20, cacheHit: false)
+        ExcerptOpenPerformanceTracker.recordVisibleRowsRendered(listID: listID2, visibleRows: 0..<10)
 
-        #expect(ExcerptOpenPerformanceTracker.lastReport?.listID == 2)
-        #expect(ExcerptOpenPerformanceTracker.lastReport?.title == "Second")
-
-        ExcerptOpenPerformanceTracker.reset()
+        #expect(ExcerptOpenPerformanceTracker.lastReport(forListID: listID2)?.listID == listID2)
+        #expect(ExcerptOpenPerformanceTracker.lastReport(forListID: listID2)?.title == "Second")
     }
 
     @Test
     func cancelOpenCleansUpPendingSession() {
-        ExcerptOpenPerformanceTracker.reset()
-        ExcerptOpenPerformanceTracker.beginOpen(listID: 5, title: "Cancelled")
-        ExcerptOpenPerformanceTracker.cancelOpen(listID: 5)
+        let listID: Int64 = 9007
+        ExcerptOpenPerformanceTracker.reset(listID: listID)
+        defer { ExcerptOpenPerformanceTracker.reset(listID: listID) }
 
-        ExcerptOpenPerformanceTracker.recordDataReady(listID: 5, count: 10, cacheHit: false)
-        ExcerptOpenPerformanceTracker.recordVisibleRowsRendered(visibleRows: 0..<10)
+        ExcerptOpenPerformanceTracker.beginOpen(listID: listID, title: "Cancelled")
+        ExcerptOpenPerformanceTracker.cancelOpen(listID: listID)
 
-        #expect(ExcerptOpenPerformanceTracker.lastReport == nil)
-        ExcerptOpenPerformanceTracker.reset()
+        ExcerptOpenPerformanceTracker.recordDataReady(listID: listID, count: 10, cacheHit: false)
+        ExcerptOpenPerformanceTracker.recordVisibleRowsRendered(listID: listID, visibleRows: 0..<10)
+
+        #expect(ExcerptOpenPerformanceTracker.lastReport(forListID: listID) == nil)
     }
 }
