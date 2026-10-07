@@ -13,7 +13,7 @@ usage() {
     cat << EOF
 Usage: $0 [OPTIONS]
 
-One-step notarized release pipeline for macOS distribution.
+One-step notarized DMG release pipeline for macOS distribution.
 
 Options:
   --sign IDENTITY          Developer ID signing identity (e.g. "Developer ID Application: ...")
@@ -73,34 +73,42 @@ if ! xcrun notarytool history --keychain-profile "$NOTARY_PROFILE" >/dev/null 2>
 fi
 
 APP_PATH="$OUTPUT_DIR/CueSeeker.app"
-TEMP_ZIP="$OUTPUT_DIR/CueSeeker-notarize.zip"
-FINAL_ZIP="$OUTPUT_DIR/CueSeeker.zip"
+DMG_PATH="$OUTPUT_DIR/CueSeeker.dmg"
+DMG_STAGING_DIR="$OUTPUT_DIR/dmg-staging"
 
 mkdir -p "$OUTPUT_DIR"
 
-echo "=== Step 1/5: Building and signing CueSeeker.app ==="
+echo "=== Step 1/6: Building and signing CueSeeker.app ==="
 "$SCRIPT_DIR/package_macos_app.sh" --output "$APP_PATH" --sign "$SIGNING_IDENTITY"
 
-echo "=== Step 2/5: Creating temporary archive for notarization ==="
-rm -f "$TEMP_ZIP"
-ditto -c -k --keepParent "$APP_PATH" "$TEMP_ZIP"
+echo "=== Step 2/6: Assembling DMG staging directory ==="
+rm -rf "$DMG_STAGING_DIR" "$DMG_PATH"
+mkdir -p "$DMG_STAGING_DIR"
+cp -R "$APP_PATH" "$DMG_STAGING_DIR/"
+ln -s /Applications "$DMG_STAGING_DIR/Applications"
 
-echo "=== Step 3/5: Submitting archive to Apple Notary Service ==="
-xcrun notarytool submit "$TEMP_ZIP" --keychain-profile "$NOTARY_PROFILE" --wait
-rm -f "$TEMP_ZIP"
+echo "=== Step 3/6: Creating DMG disk image ==="
+hdiutil create \
+    -volname "CueSeeker" \
+    -srcfolder "$DMG_STAGING_DIR" \
+    -ov \
+    -format UDZO \
+    "$DMG_PATH"
+rm -rf "$DMG_STAGING_DIR"
 
-echo "=== Step 4/5: Stapling notarization ticket to CueSeeker.app ==="
-xcrun stapler staple "$APP_PATH"
+echo "=== Step 4/6: Signing DMG disk image ==="
+codesign --force --timestamp --sign "$SIGNING_IDENTITY" "$DMG_PATH"
 
-echo "=== Step 5/5: Verifying Gatekeeper acceptance and packaging release zip ==="
-spctl --assess --type execute --verbose "$APP_PATH"
+echo "=== Step 5/6: Submitting DMG to Apple Notary Service ==="
+xcrun notarytool submit "$DMG_PATH" --keychain-profile "$NOTARY_PROFILE" --wait
 
-rm -f "$FINAL_ZIP"
-ditto -c -k --keepParent "$APP_PATH" "$FINAL_ZIP"
+echo "=== Step 6/6: Stapling and verifying notarization on DMG ==="
+xcrun stapler staple "$DMG_PATH"
+xcrun stapler validate "$DMG_PATH"
+spctl --assess --type open -vv "$DMG_PATH"
 
 echo ""
 echo "============================================================"
-echo "Release build successfully notarized and verified!"
-echo "  App: $APP_PATH"
-echo "  Zip: $FINAL_ZIP"
+echo "Release DMG successfully created, notarized, and stapled!"
+echo "  DMG: $DMG_PATH"
 echo "============================================================"
