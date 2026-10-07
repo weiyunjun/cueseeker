@@ -554,6 +554,7 @@ public final class ExcerptDatabase: @unchecked Sendable {
         var languageFacets: [Set<SubtitleLanguageCode>] = []
         var watchStateFacets: [LibraryWatchState] = []
         var folderFacets: [String] = []
+        var folderPathCache: [String: String] = [:]
         cueIDs.reserveCapacity(relations.count)
         durationFacets.reserveCapacity(relations.count)
         characterFacets.reserveCapacity(relations.count)
@@ -583,14 +584,15 @@ public final class ExcerptDatabase: @unchecked Sendable {
                 watchStatesByExcerptID[relation.id] ?? .unwatched
             )
             // The same folder the search order rows give the cue.
-            folderFacets.append(
-                URL(fileURLWithPath: content?.subtitlePath ?? excerpt.subtitlePath)
-                    .deletingLastPathComponent()
-                    .standardizedFileURL
-                    .path
-            )
+            let subtitlePath = content?.subtitlePath ?? excerpt.subtitlePath
+            if let cachedFolder = folderPathCache[subtitlePath] {
+                folderFacets.append(cachedFolder)
+            } else {
+                let folder = (subtitlePath as NSString).deletingLastPathComponent
+                folderPathCache[subtitlePath] = folder
+                folderFacets.append(folder)
+            }
         }
-
         return CueFacetSnapshot(
             cueIDs: cueIDs,
             durationFacets: durationFacets,

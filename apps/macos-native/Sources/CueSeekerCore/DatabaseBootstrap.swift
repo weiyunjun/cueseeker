@@ -631,6 +631,9 @@ private extension DatabaseBootstrap {
             CREATE INDEX IF NOT EXISTS idx_subtitle_search_order_rows_order
                 ON subtitle_search_order_rows(folder_order, file_order, subtitle_path);
 
+            CREATE INDEX IF NOT EXISTS idx_subtitle_search_order_rows_file_id
+                ON subtitle_search_order_rows(subtitle_file_id);
+
             CREATE TABLE IF NOT EXISTS cue_facet_counts (
                 facet TEXT NOT NULL,
                 value TEXT NOT NULL,
