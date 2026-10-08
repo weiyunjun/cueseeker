@@ -3,6 +3,7 @@
 #import <AVFoundation/AVFoundation.h>
 #import <CoreMedia/CoreMedia.h>
 #import <CoreVideo/CoreVideo.h>
+#import <VideoToolbox/VideoToolbox.h>
 #import <QuartzCore/QuartzCore.h>
 #import <dispatch/dispatch.h>
 #import <os/log.h>
@@ -171,6 +172,53 @@ static NSError *SFXNativePlaybackError(NSInteger code, NSString *message) {
                            userInfo:@{NSLocalizedDescriptionKey: message}];
 }
 
+static BOOL SFXIsHardwareDecodeSupported(enum AVCodecID codecID) {
+    CMVideoCodecType codecType = 0;
+    switch (codecID) {
+    case AV_CODEC_ID_AV1:
+        codecType = kCMVideoCodecType_AV1;
+        break;
+    case AV_CODEC_ID_H264:
+        codecType = kCMVideoCodecType_H264;
+        break;
+    case AV_CODEC_ID_HEVC:
+        codecType = kCMVideoCodecType_HEVC;
+        break;
+    case AV_CODEC_ID_VP9:
+        codecType = kCMVideoCodecType_VP9;
+        break;
+    case AV_CODEC_ID_PRORES:
+        codecType = kCMVideoCodecType_AppleProRes422;
+        break;
+    default:
+        return NO;
+    }
+    return VTIsHardwareDecodeSupported(codecType) != 0;
+}
+
+static BOOL SFXIsHardwareDecodeSupportedForCodecName(NSString *codecName) {
+    if (codecName == nil || codecName.length == 0) {
+        return NO;
+    }
+    NSString *lower = [codecName lowercaseString];
+    if ([lower containsString:@"av1"] || [lower containsString:@"av01"]) {
+        return VTIsHardwareDecodeSupported(kCMVideoCodecType_AV1) != 0;
+    }
+    if ([lower containsString:@"hevc"] || [lower containsString:@"h265"] || [lower containsString:@"hvc1"]) {
+        return VTIsHardwareDecodeSupported(kCMVideoCodecType_HEVC) != 0;
+    }
+    if ([lower containsString:@"h264"] || [lower containsString:@"avc"]) {
+        return VTIsHardwareDecodeSupported(kCMVideoCodecType_H264) != 0;
+    }
+    if ([lower containsString:@"vp9"] || [lower containsString:@"vp09"]) {
+        return VTIsHardwareDecodeSupported(kCMVideoCodecType_VP9) != 0;
+    }
+    if ([lower containsString:@"prores"]) {
+        return VTIsHardwareDecodeSupported(kCMVideoCodecType_AppleProRes422) != 0;
+    }
+    return NO;
+}
+
 static const AVCodecHWConfig *SFXFindVideoToolboxConfig(const AVCodec *decoder) {
     for (int index = 0;; index++) {
         const AVCodecHWConfig *config = avcodec_get_hw_config(decoder, index);
@@ -189,6 +237,13 @@ static const AVCodec *SFXFindVideoToolboxDecoder(
     enum AVCodecID codecID,
     const AVCodecHWConfig **hardwareConfig
 ) {
+    if (!SFXIsHardwareDecodeSupported(codecID)) {
+        if (hardwareConfig != NULL) {
+            *hardwareConfig = NULL;
+        }
+        return NULL;
+    }
+
     const AVCodec *defaultDecoder = avcodec_find_decoder(codecID);
     if (defaultDecoder != NULL) {
         const AVCodecHWConfig *config = SFXFindVideoToolboxConfig(defaultDecoder);
@@ -252,7 +307,7 @@ static enum AVPixelFormat SFXChooseHardwareFormat(
     (void)context;
 
     for (const enum AVPixelFormat *format = pixelFormats; *format != AV_PIX_FMT_NONE; format++) {
-        if (*format == SFXHardwarePixelFormat) {
+        if (*format == AV_PIX_FMT_VIDEOTOOLBOX || *format == SFXHardwarePixelFormat) {
             return *format;
         }
     }
@@ -889,6 +944,7 @@ presentationGeneration:(NSUInteger)presentationGeneration;
 /// Paused, or opened to pause on its first frame and not yet resumed.
 @property (nonatomic, readonly, getter=isPaused) BOOL paused;
 @property (nonatomic, readonly) NSInteger audioTrackIndex;
+@property (nonatomic, readonly) SFXNativePlaybackDecodeMode decodeMode;
 @property (nonatomic, readonly) BOOL usingHardwareDecode;
 @end
 
@@ -1250,6 +1306,10 @@ presentationGeneration:(NSUInteger)presentationGeneration;
 
 - (NSInteger)audioTrackIndex {
     return _audioTrackIndex;
+}
+
+- (SFXNativePlaybackDecodeMode)decodeMode {
+    return _decodeMode;
 }
 
 - (BOOL)usingHardwareDecode {
@@ -1761,12 +1821,10 @@ presentationGeneration:(NSUInteger)presentationGeneration;
     NSString *fallbackReason = nil;
 
     switch (_decodeMode) {
-    case SFXNativePlaybackDecodeModeHardware:
-        prepared = [self prepareHardwareVideoWithError:error];
-        break;
     case SFXNativePlaybackDecodeModeSoftware:
         prepared = [self prepareSoftwareVideoWithError:error];
         break;
+    case SFXNativePlaybackDecodeModeHardware:
     case SFXNativePlaybackDecodeModeAuto: {
         NSError *hardwareError = nil;
         if ([self prepareHardwareVideoWithError:&hardwareError]) {
@@ -1775,6 +1833,7 @@ presentationGeneration:(NSUInteger)presentationGeneration;
         }
 
         fallbackReason = hardwareError.localizedDescription ?: @"Hardware decode unavailable";
+        NSLog(@"[Playback] Gate 2 (Runtime Fallback): %@", fallbackReason);
         [self resetVideoDecoderState];
 
         NSError *softwareError = nil;
@@ -1789,7 +1848,7 @@ presentationGeneration:(NSUInteger)presentationGeneration;
             *error = SFXNativePlaybackError(
                 27,
                 [NSString stringWithFormat:
-                    @"Auto video decoder failed. Hardware: %@ Software: %@",
+                    @"Video decoder failed. Hardware: %@ Software: %@",
                     hardwareMessage,
                     softwareMessage
                 ]
@@ -1833,6 +1892,19 @@ presentationGeneration:(NSUInteger)presentationGeneration;
 - (BOOL)prepareHardwareVideoWithError:(NSError **)error {
     AVStream *videoStream = _formatContext->streams[_videoStreamIndex];
     AVCodecParameters *parameters = videoStream->codecpar;
+    if (!SFXIsHardwareDecodeSupported(parameters->codec_id)) {
+        if (error != NULL) {
+            *error = SFXNativePlaybackError(
+                20,
+                [NSString stringWithFormat:
+                    @"Hardware decode is not supported by current device for %@.",
+                    [NSString stringWithUTF8String:avcodec_get_name(parameters->codec_id)]
+                ]
+            );
+        }
+        return NO;
+    }
+
     const AVCodecHWConfig *hardwareConfig = NULL;
     const AVCodec *decoder = SFXFindVideoToolboxDecoder(parameters->codec_id, &hardwareConfig);
     if (decoder == NULL) {
@@ -3462,7 +3534,7 @@ presentationGeneration:(NSUInteger)presentationGeneration;
             : -1;
         NSInteger automaticRecycleMilliseconds = -1;
         BOOL submittedVideoFrame = NO;
-        if (_videoFrame->format == SFXHardwarePixelFormat) {
+        if (_videoFrame->format == AV_PIX_FMT_VIDEOTOOLBOX || _videoFrame->format == SFXHardwarePixelFormat) {
             if (![self paceVideoFrame:_videoFrame stream:videoStream]) {
                 av_frame_unref(_videoFrame);
                 break;
@@ -4437,6 +4509,10 @@ automaticRecycleMilliseconds:(NSInteger)automaticRecycleMilliseconds {
     SFXNativePlaybackFrameSnapshot *_latestSubmittedVideoFrameSnapshot;
 }
 
++ (BOOL)isHardwareDecodeSupportedForCodecName:(NSString *)codecName {
+    return SFXIsHardwareDecodeSupportedForCodecName(codecName);
+}
+
 - (instancetype)init {
     self = [super init];
     if (self == nil) {
@@ -4572,6 +4648,11 @@ automaticRecycleMilliseconds:(NSInteger)automaticRecycleMilliseconds {
 
 - (SFXNativePlaybackDecodeMode)decodeMode {
     return _decodeMode;
+}
+
+- (SFXNativePlaybackDecodeMode)activeDecodeMode {
+    SFXNativePlaybackSession *session = _session;
+    return session != nil ? session.decodeMode : _decodeMode;
 }
 
 - (NSInteger)audioTrackIndex {

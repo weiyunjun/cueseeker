@@ -402,13 +402,40 @@ extension AppCoordinator {
         revealFile(atPath: currentPlaybackSubtitlePath)
     }
 
+    func resolveInitialDecodeMode(forVideoPath videoPath: String) -> PlaybackDecodeMode {
+        let configuredMode = settings.playbackDecodeMode
+        guard configuredMode != .software else {
+            return .software
+        }
+
+        // Gate 1: Check database indexed metadata for known codec hardware capability
+        if let codec = libraryDatabase?.videoCodec(forVideoPath: videoPath),
+           !PlaybackHardwareCapabilities.isHardwareDecodeSupported(forCodec: codec) {
+            NSLog("[Playback] Gate 1 (Metadata Pre-routing): codec=%@ not supported by hardware on current device, pre-routing to software decode", codec)
+            return .software
+        }
+
+        return configuredMode
+    }
+
+    @discardableResult
+    func prepareDecodeModeForPlayback(videoPath: String) -> PlaybackDecodeMode {
+        let targetMode = resolveInitialDecodeMode(forVideoPath: videoPath)
+        player?.decodeMode = targetMode
+        return targetMode
+    }
+
     @discardableResult
     func play(_ result: SubtitleSearchResult) -> Bool {
-        NSLog("[Playback] AppCoordinator.play: videoPath=%@, startMs=%ld, settingMode=%@",
-              result.videoPath,
-              result.startMilliseconds,
-              settings.playbackDecodeMode.rawValue)
         ensurePlayerInitialized()
+        let targetDecodeMode = prepareDecodeModeForPlayback(videoPath: result.videoPath)
+        let codec = libraryDatabase?.videoCodec(forVideoPath: result.videoPath) ?? "unknown"
+        NSLog("[Playback] AppCoordinator.play: videoPath=%@, codec=%@, startMs=%ld, settingMode=%@, targetMode=%@",
+              result.videoPath,
+              codec,
+              result.startMilliseconds,
+              settings.playbackDecodeMode.rawValue,
+              targetDecodeMode.rawValue)
         beginCueAutoStopPlayback()
         saveCurrentLibraryPlaybackHistory()
         stopLibraryPlaybackHistoryTracking()

@@ -195,6 +195,23 @@ public final class LibraryDatabase: @unchecked Sendable {
         try statement.run()
     }
 
+    public func videoCodec(forVideoPath videoPath: String) -> String? {
+        guard let statement = try? database.prepare(
+            """
+            SELECT vf.video_codec
+            FROM video_files vf
+            WHERE vf.path = ?;
+            """
+        ) else {
+            return nil
+        }
+        try? statement.bind(videoPath, at: 1)
+        guard (try? statement.step()) == true else {
+            return nil
+        }
+        return statement.nullableStringColumn(0)
+    }
+
     /// The Display Title Index gave the video, read from the database only, so
     /// a file renamed or moved outside the App keeps the title it had. A video
     /// no subtitle matches any more has none.

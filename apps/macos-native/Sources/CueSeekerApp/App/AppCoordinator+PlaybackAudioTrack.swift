@@ -23,11 +23,17 @@ extension AppCoordinator {
         else {
             return false
         }
+        guard player.activeDecodeMode == player.decodeMode else {
+            NSLog("[Playback] canSeekInOpenVideo: decodeMode mismatch (active=%@, target=%@), reopening session",
+                  player.activeDecodeMode.rawValue,
+                  player.decodeMode.rawValue)
+            return false
+        }
         let canSeek = player.currentAudioTrackIndex.map { $0 == request.audioTrackIndex } ?? true
-        NSLog("[Playback] canSeekInOpenVideo: %@ -> canSeek=%d, playerDecodeMode=%@, usingHardware=%d",
+        NSLog("[Playback] canSeekInOpenVideo: %@ -> canSeek=%d, activeMode=%@, usingHardware=%d",
               request.videoURL.lastPathComponent,
               canSeek ? 1 : 0,
-              player.decodeMode.rawValue,
+              player.activeDecodeMode.rawValue,
               player.usingHardwareDecode ? 1 : 0)
         return canSeek
     }

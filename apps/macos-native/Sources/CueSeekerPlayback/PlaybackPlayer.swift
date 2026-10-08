@@ -76,6 +76,9 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
     public var usingHardwareDecode: Bool {
         nativePlayer.usingHardwareDecode
     }
+    public var activeDecodeMode: PlaybackDecodeMode {
+        PlaybackDecodeMode(nativeDecodeMode: nativePlayer.activeDecodeMode)
+    }
     public var decodeMode: PlaybackDecodeMode = .auto {
         didSet {
             NSLog("[Playback] PlaybackPlayer.decodeMode: %@ -> %@",
@@ -990,7 +993,27 @@ extension PlaybackPlayer: SFXNativePlaybackPlayerDelegate {
     }
 }
 
-private extension PlaybackDecodeMode {
+public enum PlaybackHardwareCapabilities {
+    public static func isHardwareDecodeSupported(forCodec codec: String?) -> Bool {
+        guard let codec else { return false }
+        return SFXNativePlaybackPlayer.isHardwareDecodeSupported(forCodecName: codec)
+    }
+}
+
+public extension PlaybackDecodeMode {
+    init(nativeDecodeMode: SFXNativePlaybackDecodeMode) {
+        switch nativeDecodeMode {
+        case .hardware:
+            self = .hardware
+        case .software:
+            self = .software
+        case .auto:
+            self = .auto
+        @unknown default:
+            self = .auto
+        }
+    }
+
     var nativeDecodeMode: SFXNativePlaybackDecodeMode {
         SFXNativePlaybackDecodeMode(rawValue: nativeRawValue)!
     }

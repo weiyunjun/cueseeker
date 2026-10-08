@@ -1026,6 +1026,13 @@ extension AppCoordinator {
     @discardableResult
     func play(_ video: LibraryVideo) -> Bool {
         ensurePlayerInitialized()
+        let targetDecodeMode = prepareDecodeModeForPlayback(videoPath: video.videoPath)
+        let codec = libraryDatabase?.videoCodec(forVideoPath: video.videoPath) ?? "unknown"
+        NSLog("[Playback] AppCoordinator.play(library): videoPath=%@, codec=%@, settingMode=%@, targetMode=%@",
+              video.videoPath,
+              codec,
+              settings.playbackDecodeMode.rawValue,
+              targetDecodeMode.rawValue)
         clearCueAutoStopPlayback()
         stopLibraryPlaybackHistoryTracking()
         activePlaybackSource = .none

@@ -1288,3 +1288,43 @@ func videoSubtitlesKeepTheDefaultAsSetThroughIndex() throws {
         ) == nil
     )
 }
+
+@Test
+func videoCodecForVideoPathReturnsIndexedCodec() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        removeTemporaryDatabase(at: databaseURL)
+    }
+
+    try DatabaseBootstrap.prepare(at: databaseURL)
+    let database = try LibraryDatabase(path: databaseURL)
+
+    let testVideoURL = URL(fileURLWithPath: "/Media/Video.mkv")
+    #expect(database.videoCodec(forVideoPath: testVideoURL.path) == nil)
+
+    let insertStatement = try database.database.prepare(
+        """
+        INSERT INTO video_files (path, video_name, file_size, modified_at)
+        VALUES (?, ?, ?, ?);
+        """
+    )
+    try insertStatement.bind(testVideoURL.path, at: 1)
+    try insertStatement.bind("Video.mkv", at: 2)
+    try insertStatement.bind(Int64(1024 * 1024), at: 3)
+    try insertStatement.bind(1000.0, at: 4)
+    try insertStatement.run()
+
+    #expect(database.videoCodec(forVideoPath: testVideoURL.path) == nil)
+
+    try database.updateVideoMetadata(
+        videoFile: testVideoURL,
+        duration: 120.0,
+        videoWidth: 1920,
+        videoHeight: 1080,
+        frameRate: 24.0,
+        videoCodec: "av1",
+        audioTracks: []
+    )
+
+    #expect(database.videoCodec(forVideoPath: testVideoURL.path) == "av1")
+}

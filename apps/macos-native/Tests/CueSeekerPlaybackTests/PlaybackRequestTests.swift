@@ -607,10 +607,20 @@ func playbackPlayerStoresDecodeModeSetting() {
     let player = PlaybackPlayer()
 
     #expect(player.decodeMode == .auto)
+    #expect(player.activeDecodeMode == .auto)
 
     player.decodeMode = .software
 
     #expect(player.decodeMode == .software)
+    #expect(player.activeDecodeMode == .software)
+}
+
+@Test
+func playbackHardwareCapabilitiesDetectsCodecs() {
+    #expect(PlaybackHardwareCapabilities.isHardwareDecodeSupported(forCodec: "h264") == true)
+    #expect(PlaybackHardwareCapabilities.isHardwareDecodeSupported(forCodec: "hevc") == true)
+    #expect(PlaybackHardwareCapabilities.isHardwareDecodeSupported(forCodec: nil) == false)
+    #expect(PlaybackHardwareCapabilities.isHardwareDecodeSupported(forCodec: "unsupported_codec_xyz") == false)
 }
 
 @Test
