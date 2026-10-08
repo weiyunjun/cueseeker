@@ -73,8 +73,14 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
     public weak var delegate: PlaybackPlayerDelegate?
 
     public private(set) var currentVideoURL: URL?
+    public var usingHardwareDecode: Bool {
+        nativePlayer.usingHardwareDecode
+    }
     public var decodeMode: PlaybackDecodeMode = .auto {
         didSet {
+            NSLog("[Playback] PlaybackPlayer.decodeMode: %@ -> %@",
+                  oldValue.rawValue,
+                  decodeMode.rawValue)
             nativePlayer.decodeMode = decodeMode.nativeDecodeMode
         }
     }
@@ -102,6 +108,10 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
 
     @discardableResult
     public func open(_ request: PlaybackRequest) throws -> UInt {
+        NSLog("[Playback] PlaybackPlayer.open: path=%@, startMs=%ld, decodeMode=%@",
+              request.videoURL.path,
+              request.startMilliseconds,
+              decodeMode.rawValue)
         reachedAutoStopBoundaryMilliseconds = nil
         let autoPauseBoundary = request.autoStopAtMilliseconds.map {
             PlaybackAutoStopBoundary(
@@ -242,6 +252,10 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
     ) throws -> UInt {
         reachedAutoStopBoundaryMilliseconds = nil
         let safeMilliseconds = max(0, milliseconds)
+        NSLog("[Playback] PlaybackPlayer.seek: targetMs=%ld, currentVideo=%@, usingHardware=%d",
+              safeMilliseconds,
+              currentVideoURL?.lastPathComponent ?? "none",
+              nativePlayer.usingHardwareDecode ? 1 : 0)
         beginPresentationTransition(
             targetMilliseconds: safeMilliseconds,
             subtitleAction: subtitleAction

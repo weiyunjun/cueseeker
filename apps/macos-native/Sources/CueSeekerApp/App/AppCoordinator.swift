@@ -670,6 +670,7 @@ final class AppCoordinator: ObservableObject {
         settings.$playbackDecodeMode
             .dropFirst()
             .sink { [weak self] mode in
+                NSLog("[Playback] AppCoordinator settings.$playbackDecodeMode changed to: %@", mode.rawValue)
                 self?.player?.decodeMode = mode
             }
             .store(in: &settingsCancellables)

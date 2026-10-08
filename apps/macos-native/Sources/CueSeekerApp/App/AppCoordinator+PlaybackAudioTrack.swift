@@ -23,7 +23,13 @@ extension AppCoordinator {
         else {
             return false
         }
-        return player.currentAudioTrackIndex.map { $0 == request.audioTrackIndex } ?? true
+        let canSeek = player.currentAudioTrackIndex.map { $0 == request.audioTrackIndex } ?? true
+        NSLog("[Playback] canSeekInOpenVideo: %@ -> canSeek=%d, playerDecodeMode=%@, usingHardware=%d",
+              request.videoURL.lastPathComponent,
+              canSeek ? 1 : 0,
+              player.decodeMode.rawValue,
+              player.usingHardwareDecode ? 1 : 0)
+        return canSeek
     }
 
     func togglePlaybackMoreMenu() {

@@ -889,6 +889,7 @@ presentationGeneration:(NSUInteger)presentationGeneration;
 /// Paused, or opened to pause on its first frame and not yet resumed.
 @property (nonatomic, readonly, getter=isPaused) BOOL paused;
 @property (nonatomic, readonly) NSInteger audioTrackIndex;
+@property (nonatomic, readonly) BOOL usingHardwareDecode;
 @end
 
 @implementation SFXNativePlaybackSession {
@@ -1249,6 +1250,10 @@ presentationGeneration:(NSUInteger)presentationGeneration;
 
 - (NSInteger)audioTrackIndex {
     return _audioTrackIndex;
+}
+
+- (BOOL)usingHardwareDecode {
+    return _usingHardwareDecode;
 }
 
 - (BOOL)hasActiveSegmentEnd {
@@ -1739,22 +1744,43 @@ presentationGeneration:(NSUInteger)presentationGeneration;
 }
 
 - (BOOL)prepareVideoWithError:(NSError **)error {
+    AVStream *videoStream = _videoStreamIndex >= 0 ? _formatContext->streams[_videoStreamIndex] : NULL;
+    AVCodecParameters *parameters = videoStream != NULL ? videoStream->codecpar : NULL;
+    const char *codecName = (parameters != NULL && parameters->codec_id != AV_CODEC_ID_NONE)
+        ? avcodec_get_name(parameters->codec_id)
+        : "unknown";
+
+    NSString *settingName = @"Auto";
+    if (_decodeMode == SFXNativePlaybackDecodeModeHardware) {
+        settingName = @"Hardware";
+    } else if (_decodeMode == SFXNativePlaybackDecodeModeSoftware) {
+        settingName = @"Software";
+    }
+
+    BOOL prepared = NO;
+    NSString *fallbackReason = nil;
+
     switch (_decodeMode) {
     case SFXNativePlaybackDecodeModeHardware:
-        return [self prepareHardwareVideoWithError:error];
+        prepared = [self prepareHardwareVideoWithError:error];
+        break;
     case SFXNativePlaybackDecodeModeSoftware:
-        return [self prepareSoftwareVideoWithError:error];
+        prepared = [self prepareSoftwareVideoWithError:error];
+        break;
     case SFXNativePlaybackDecodeModeAuto: {
         NSError *hardwareError = nil;
         if ([self prepareHardwareVideoWithError:&hardwareError]) {
-            return YES;
+            prepared = YES;
+            break;
         }
 
+        fallbackReason = hardwareError.localizedDescription ?: @"Hardware decode unavailable";
         [self resetVideoDecoderState];
 
         NSError *softwareError = nil;
         if ([self prepareSoftwareVideoWithError:&softwareError]) {
-            return YES;
+            prepared = YES;
+            break;
         }
 
         if (error != NULL) {
@@ -1769,11 +1795,32 @@ presentationGeneration:(NSUInteger)presentationGeneration;
                 ]
             );
         }
-        return NO;
+        prepared = NO;
+        break;
     }
     }
 
-    return NO;
+    if (prepared) {
+        const char *decoderName = (_videoCodecContext != NULL && _videoCodecContext->codec != NULL)
+            ? _videoCodecContext->codec->name
+            : "unknown";
+        NSString *activePipeline = _usingHardwareDecode
+            ? [NSString stringWithFormat:@"Hardware (VideoToolbox, %s)", decoderName]
+            : [NSString stringWithFormat:@"Software (%s)", decoderName];
+
+        if (fallbackReason != nil) {
+            NSLog(@"[Playback] Open: path=%@, codec=%s, setting=%@, active=%@, fallbackReason=%@",
+                  _path, codecName, settingName, activePipeline, fallbackReason);
+        } else {
+            NSLog(@"[Playback] Open: path=%@, codec=%s, setting=%@, active=%@",
+                  _path, codecName, settingName, activePipeline);
+        }
+    } else {
+        NSLog(@"[Playback] Open FAILED: path=%@, codec=%s, setting=%@, error=%@",
+              _path, codecName, settingName, (error != NULL && *error != nil) ? [*error localizedDescription] : @"unknown");
+    }
+
+    return prepared;
 }
 
 - (void)resetVideoDecoderState {
@@ -4550,7 +4597,13 @@ automaticRecycleMilliseconds:(NSInteger)automaticRecycleMilliseconds {
     [_session setPlaybackRate:_playbackRate];
 }
 
+- (BOOL)usingHardwareDecode {
+    SFXNativePlaybackSession *session = _session;
+    return session != nil ? session.usingHardwareDecode : NO;
+}
+
 - (void)setDecodeMode:(SFXNativePlaybackDecodeMode)decodeMode {
+    SFXNativePlaybackDecodeMode previous = _decodeMode;
     switch (decodeMode) {
     case SFXNativePlaybackDecodeModeHardware:
     case SFXNativePlaybackDecodeModeSoftware:
@@ -4561,6 +4614,7 @@ automaticRecycleMilliseconds:(NSInteger)automaticRecycleMilliseconds {
         _decodeMode = SFXNativePlaybackDecodeModeAuto;
         break;
     }
+    NSLog(@"[Playback] SFXNativePlaybackPlayer.setDecodeMode: %ld -> %ld", (long)previous, (long)_decodeMode);
 }
 
 - (NSUInteger)beginPresentationTransition {
@@ -4832,6 +4886,10 @@ allowAutomaticSoftwareRecycle:(BOOL)allowAutomaticSoftwareRecycle
     @synchronized (self) {
         _nativeInSessionSeekCount += 1;
     }
+    BOOL usingHW = session.usingHardwareDecode;
+    NSLog(@"[Playback] Seek: path=%@, targetMs=%ld, activeSessionPipeline=%@",
+          _currentPath, (long)milliseconds,
+          usingHW ? @"Hardware (VideoToolbox)" : @"Software");
     return YES;
 }
 

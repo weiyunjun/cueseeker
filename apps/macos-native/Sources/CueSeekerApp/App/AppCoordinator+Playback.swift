@@ -404,6 +404,10 @@ extension AppCoordinator {
 
     @discardableResult
     func play(_ result: SubtitleSearchResult) -> Bool {
+        NSLog("[Playback] AppCoordinator.play: videoPath=%@, startMs=%ld, settingMode=%@",
+              result.videoPath,
+              result.startMilliseconds,
+              settings.playbackDecodeMode.rawValue)
         ensurePlayerInitialized()
         beginCueAutoStopPlayback()
         saveCurrentLibraryPlaybackHistory()

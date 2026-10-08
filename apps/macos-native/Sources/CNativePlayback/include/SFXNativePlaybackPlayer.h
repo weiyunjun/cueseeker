@@ -83,6 +83,7 @@ didReachAutoStopBoundaryAtMilliseconds:(NSInteger)endMilliseconds;
 @property (nonatomic) float volume;
 @property (nonatomic) float playbackRate;
 @property (nonatomic) SFXNativePlaybackDecodeMode decodeMode;
+@property (nonatomic, readonly) BOOL usingHardwareDecode;
 /// The audio track an open plays, counted from 0 among the file's audio
 /// streams in file order. A file without that track plays its first one.
 @property (nonatomic) NSInteger audioTrackIndex;
