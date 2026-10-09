@@ -46,6 +46,9 @@ func libraryCoverImagePipelineUsesDeterministicCostLRU() async throws {
     #expect(diagnostics.totalCostBytes == 20)
     #expect(diagnostics.cachedKeys == [keyA, keyC])
     #expect(probe.snapshot().started == 3)
+    #expect(pipeline.cachedImage(for: keyA) != nil)
+    #expect(pipeline.cachedImage(for: keyB) == nil)
+    #expect(pipeline.cachedImage(for: keyC) != nil)
 }
 
 @Test

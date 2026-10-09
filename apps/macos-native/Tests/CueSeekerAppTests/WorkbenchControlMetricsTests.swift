@@ -176,23 +176,6 @@ func darkModeTokensAndSurfaceUnificationMatchDesignSpecification() {
 }
 
 @Test
-func coverSkeletonShimmerTokensMatchDesignSpecification() {
-    #expect(WorkbenchControlMetrics.redesignShimmerMotionDuration == 1.5)
-    #expect(WorkbenchControlMetrics.redesignCoverAntiFlickerDelayNanoseconds == 120_000_000)
-    #expect(WorkbenchControlMetrics.redesignCoverCrossfadeDuration == 0.20)
-
-    let darkAppearance = NSAppearance(named: .darkAqua)!
-    darkAppearance.performAsCurrentDrawingAppearance {
-        #expect(WorkbenchRedesignColors.NS.skeletonBase == WorkbenchRedesignColors.NS.libraryCoverPlaceholderBg)
-    }
-
-    let lightAppearance = NSAppearance(named: .aqua)!
-    lightAppearance.performAsCurrentDrawingAppearance {
-        #expect(WorkbenchRedesignColors.NS.skeletonBase == WorkbenchRedesignColors.NS.libraryCoverPlaceholderBg)
-    }
-}
-
-@Test
 func workbenchButtonNeutralVariantsAndOpenColorLinkage() {
     let iconOnly = WorkbenchButton(icon: .listChecks, isRedesign: true) {}
     #expect(iconOnly.icon == .listChecks)

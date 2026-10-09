@@ -86,16 +86,117 @@ private final class LibraryCoverImageWaiterCancellation: @unchecked Sendable {
     }
 }
 
-actor LibraryCoverImagePipeline {
-    typealias Decoder = @Sendable (LibraryCoverImageKey) -> LibraryDecodedCoverImage?
-
-    static let shared = LibraryCoverImagePipeline()
-
+final class LibraryCoverImageMemoryCache: @unchecked Sendable {
     private struct CacheEntry {
         let decodedImage: LibraryDecodedCoverImage
         let cost: Int
         var lastAccess: UInt64
     }
+
+    private let lock = NSLock()
+    private let configuration: LibraryCoverImagePipelineConfiguration
+    private var cache: [LibraryCoverImageKey: CacheEntry] = [:]
+    private var totalCostBytes = 0
+    private var accessClock: UInt64 = 0
+
+    init(configuration: LibraryCoverImagePipelineConfiguration) {
+        self.configuration = configuration
+    }
+
+    func cachedImage(for key: LibraryCoverImageKey) -> CGImage? {
+        lock.lock()
+        defer { lock.unlock() }
+        guard var entry = cache[key] else {
+            return nil
+        }
+        accessClock &+= 1
+        entry.lastAccess = accessClock
+        cache[key] = entry
+        return entry.decodedImage.image
+    }
+
+    func cachedDecodedImage(for key: LibraryCoverImageKey) -> LibraryDecodedCoverImage? {
+        lock.lock()
+        defer { lock.unlock() }
+        guard var entry = cache[key] else {
+            return nil
+        }
+        accessClock &+= 1
+        entry.lastAccess = accessClock
+        cache[key] = entry
+        return entry.decodedImage
+    }
+
+    func insert(
+        _ decodedImage: LibraryDecodedCoverImage,
+        for key: LibraryCoverImageKey
+    ) {
+        let cost = max(1, decodedImage.cost)
+        guard configuration.costLimitBytes > 0,
+              configuration.countLimit > 0,
+              cost <= configuration.costLimitBytes
+        else {
+            return
+        }
+
+        lock.lock()
+        defer { lock.unlock() }
+
+        if let existing = cache.removeValue(forKey: key) {
+            totalCostBytes = max(0, totalCostBytes - existing.cost)
+        }
+        accessClock &+= 1
+        cache[key] = CacheEntry(
+            decodedImage: decodedImage,
+            cost: cost,
+            lastAccess: accessClock
+        )
+        totalCostBytes += cost
+
+        while totalCostBytes > configuration.costLimitBytes
+                || cache.count > configuration.countLimit {
+            guard let victim = cache.min(by: { lhs, rhs in
+                if lhs.value.lastAccess != rhs.value.lastAccess {
+                    return lhs.value.lastAccess < rhs.value.lastAccess
+                }
+                return lhs.key.deterministicSortKey < rhs.key.deterministicSortKey
+            }) else {
+                break
+            }
+            cache.removeValue(forKey: victim.key)
+            totalCostBytes = max(0, totalCostBytes - victim.value.cost)
+        }
+    }
+
+    func removeAll() {
+        lock.lock()
+        defer { lock.unlock() }
+        cache.removeAll(keepingCapacity: false)
+        totalCostBytes = 0
+    }
+
+    func remove(path: String) {
+        lock.lock()
+        defer { lock.unlock() }
+        let cachedKeys = cache.keys.filter { $0.path == path }
+        for key in cachedKeys {
+            if let entry = cache.removeValue(forKey: key) {
+                totalCostBytes = max(0, totalCostBytes - entry.cost)
+            }
+        }
+    }
+
+    var diagnosticsData: (totalCostBytes: Int, cachedKeys: Set<LibraryCoverImageKey>) {
+        lock.lock()
+        defer { lock.unlock() }
+        return (totalCostBytes, Set(cache.keys))
+    }
+}
+
+actor LibraryCoverImagePipeline {
+    typealias Decoder = @Sendable (LibraryCoverImageKey) -> LibraryDecodedCoverImage?
+
+    static let shared = LibraryCoverImagePipeline()
 
     private struct InFlightRequest {
         struct Waiter {
@@ -111,9 +212,7 @@ actor LibraryCoverImagePipeline {
 
     private let configuration: LibraryCoverImagePipelineConfiguration
     private let decoder: Decoder
-    private var cache: [LibraryCoverImageKey: CacheEntry] = [:]
-    private var totalCostBytes = 0
-    private var accessClock: UInt64 = 0
+    private let memoryCache: LibraryCoverImageMemoryCache
     private var requestGeneration: UInt64 = 0
     private var inFlight: [LibraryCoverImageKey: InFlightRequest] = [:]
     private var pendingKeys: [LibraryCoverImageKey] = []
@@ -125,6 +224,11 @@ actor LibraryCoverImagePipeline {
     ) {
         self.configuration = configuration
         self.decoder = decoder
+        self.memoryCache = LibraryCoverImageMemoryCache(configuration: configuration)
+    }
+
+    nonisolated func cachedImage(for key: LibraryCoverImageKey) -> CGImage? {
+        memoryCache.cachedImage(for: key)
     }
 
     func image(for key: LibraryCoverImageKey) async throws -> CGImage? {
@@ -156,9 +260,10 @@ actor LibraryCoverImagePipeline {
     }
 
     func diagnostics() -> LibraryCoverImagePipelineDiagnostics {
-        LibraryCoverImagePipelineDiagnostics(
+        let (totalCostBytes, cachedKeys) = memoryCache.diagnosticsData
+        return LibraryCoverImagePipelineDiagnostics(
             totalCostBytes: totalCostBytes,
-            cachedKeys: Set(cache.keys),
+            cachedKeys: cachedKeys,
             inFlightRequestCount: inFlight.count,
             waiterCount: inFlight.values.reduce(0) { total, request in
                 total + request.waiters.values.filter { !$0.cancellation.isCancelled }.count
@@ -169,8 +274,7 @@ actor LibraryCoverImagePipeline {
     }
 
     func removeAll() {
-        cache.removeAll(keepingCapacity: false)
-        totalCostBytes = 0
+        memoryCache.removeAll()
 
         pendingKeys.removeAll(keepingCapacity: false)
         for key in Array(inFlight.keys) {
@@ -193,12 +297,7 @@ actor LibraryCoverImagePipeline {
     }
 
     func remove(path: String) {
-        let cachedKeys = cache.keys.filter { $0.path == path }
-        for key in cachedKeys {
-            if let entry = cache.removeValue(forKey: key) {
-                totalCostBytes = max(0, totalCostBytes - entry.cost)
-            }
-        }
+        memoryCache.remove(path: path)
 
         pendingKeys.removeAll { $0.path == path }
         let requestKeys = inFlight.keys.filter { $0.path == path }
@@ -366,51 +465,14 @@ actor LibraryCoverImagePipeline {
     private func cachedDecodedImage(
         for key: LibraryCoverImageKey
     ) -> LibraryDecodedCoverImage? {
-        guard var entry = cache[key] else {
-            return nil
-        }
-        accessClock &+= 1
-        entry.lastAccess = accessClock
-        cache[key] = entry
-        return entry.decodedImage
+        memoryCache.cachedDecodedImage(for: key)
     }
 
     private func insert(
         _ decodedImage: LibraryDecodedCoverImage,
         for key: LibraryCoverImageKey
     ) {
-        let cost = max(1, decodedImage.cost)
-        guard configuration.costLimitBytes > 0,
-              configuration.countLimit > 0,
-              cost <= configuration.costLimitBytes
-        else {
-            return
-        }
-
-        if let existing = cache.removeValue(forKey: key) {
-            totalCostBytes = max(0, totalCostBytes - existing.cost)
-        }
-        accessClock &+= 1
-        cache[key] = CacheEntry(
-            decodedImage: decodedImage,
-            cost: cost,
-            lastAccess: accessClock
-        )
-        totalCostBytes += cost
-
-        while totalCostBytes > configuration.costLimitBytes
-                || cache.count > configuration.countLimit {
-            guard let victim = cache.min(by: { lhs, rhs in
-                if lhs.value.lastAccess != rhs.value.lastAccess {
-                    return lhs.value.lastAccess < rhs.value.lastAccess
-                }
-                return lhs.key.deterministicSortKey < rhs.key.deterministicSortKey
-            }) else {
-                break
-            }
-            cache.removeValue(forKey: victim.key)
-            totalCostBytes = max(0, totalCostBytes - victim.value.cost)
-        }
+        memoryCache.insert(decodedImage, for: key)
     }
 }
 
