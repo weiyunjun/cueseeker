@@ -6,12 +6,14 @@
 
 ## 1. 原则 1（非干扰性原则 / Non-disruption）
 - **播放中移出资料库**：库变更发生时，若当前正在播放的条目被移出数据库，**继续播放、绝对不退出播放页**；立即切断向数据库写入该视频的播放进度、历史记录与默认轨道（杜绝孤儿数据）。
-- **已展示界面数据冻结（Hold）**：库变更发生时，当前用户停留的界面、已打开的浮层（Playback Overlay、Command Panel、Recent 模块、Library 二级、File 视图、Excerpt 二级）**保持原内容不突变、不强制关闭、不闪烁刷新**。
+- **已展示界面数据冻结（Hold）**：库变更发生时，当前用户停留的界面、已打开的浮层（Playback Overlay、Command Panel、Recent 模块、Library 二级、File 二级与子级视图、Excerpt 二级）**保持原内容不突变、不强制关闭、不闪烁刷新**（唯一例外：File 一级根目录作为文件夹管理入口，发生增删变更时即时刷新）。
 - **内部标签切换不离开**：在同一个模块内部切换视图（如 Playback Overlay 内的 Current ↔ Playlist；Recent 内的 Recent Videos ↔ Recent Excerpt Lists），**维持冻结状态，不触发刷新**。
 
 ## 2. 原则 2（边界刷新与失效拦截原则 / Boundary Reconciliation）
 - **离开又返回触发刷新**：关闭再打开浮层、面包屑回退、从二级返回一级、跨 Sidebar Tab 切换再切回、重新搜索等越界行为，**一律拉取最新数据库状态更新界面**。
-- **未刷新前的失效拦截**：在尚未刷新的冻结界面上点击已移出库的失效项，**严格拦截核心操作**（禁止启动播放、禁止深链接复制、禁止移动等），并在当前上下文中给出清晰提示（播放页内弹出红色报错横幅 / 中央 HUD，工作区弹出 Toast）。
+- **未刷新前的失效拦截**：在尚未刷新的冻结界面上点击已移出库的失效项，**严格拦截核心操作**：
+  - **尝试播放**：统一进入播放页面并拦截播放（黑屏、进度归零），顶栏弹出红色报错横幅 `This item is no longer in the library`（与现有的 Search、Excerpt 失效播放行为完全一致）。
+  - **数据操作**（保存/移动/复制深链接等）：严格拦截操作，在当前工作区弹出对应 Toast 提示。
 
 ## 3. 原则 3（父子层级回退与实体失效展示规则）
 - 当某个父级文件夹或摘录集被移出库，用户处于其子级视图并**触发返回该父级**时（例如 File 三级回退到二级文件夹，或处于已移出库的 Library / Excerpt 二级）：
@@ -77,8 +79,8 @@ flowchart TD
     SurfaceCheck -- "处于浮层或特定模块内<br>(Playback Overlay / Command Panel / Recent 模块)" --> HoldState["原则 1 (数据冻结 Hold):<br>1. 保持当前显示内容不突变、不刷新、不关闭<br>2. 模块内子切换维持冻结:<br>   - Overlay 内 Current ↔ Playlist<br>   - Recent 内 Recent Videos ↔ Recent Excerpts<br>3. 数据库变更在后台待命 (awaiting reconcile)"]
 
     HoldState --> StaleClick{"用户在已冻结界面上点击已失效项"}
-    StaleClick -- "尝试播放" --> InterceptPlay["拦截播放，界面不关闭<br>- 播放页内: 弹出红色报错横幅 This item is no longer in the library<br>- 工作区内: 弹出 Toast 提示条目不在媒体库中"]
-    StaleClick -- "数据操作 (保存/移动/复制链接)" --> InterceptAction["拦截操作，弹出对应提示反馈"]
+    StaleClick -- "尝试播放" --> InterceptPlay["进入播放页面并拦截播放:<br>1. 停止播放解码并置为失败 (黑屏，进度归零)<br>2. 顶栏弹出红色报错横幅: This item is no longer in the library<br>(与 Search / Excerpt 现有失效播放体验完全一致)"]
+    StaleClick -- "数据操作 (保存/移动/复制链接)" --> InterceptAction["拦截操作，在当前界面弹出 Toast 提示条目不在媒体库中"]
 
     HoldState --> CrossBoundary{"原则 2: 发生离开又返回的行为"}
     CrossBoundary -- "Overlay 关闭后重新打开" --> ReconcileOverlay["拉取最新数据刷新:<br>- Current: 提示 This subtitle is no longer in the library<br>- Playlist: 剔除失效项 (全失效展示空提示)"]

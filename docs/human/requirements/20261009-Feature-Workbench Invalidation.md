@@ -18,12 +18,13 @@ Add Folder、Index、Remove Folder 导致内容离开数据库后，Command Pane
 ## 2. 核心规则
 
 1. **界面冻结（Hold）**：
-   - 数据库变更发生时，当前正处于的界面（Command Panel、Recent、Library 二级、File 视图、Excerpt 二级）保持当前内容，不主动刷新、不关闭、不强退。
+   - 数据库变更发生时，当前正处于的界面（Command Panel、Recent、Library 二级、File 二级与子级视图、Excerpt 二级）保持当前内容，不主动刷新、不关闭、不强退（唯一例外：File 一级根目录作为文件夹管理入口，发生增删变更时即时刷新）。
    - 在同一个模块内部切换视图（Recent 内的 Recent Videos ↔ Recent Excerpt Lists），维持冻结状态，不触发刷新。
 2. **离开又返回触发刷新**：
    - 离开当前界面（关闭浮层再打开、跨 Sidebar Tab 切换再切回、从二级返回一级、Command Panel 返回根页或重新搜索），按最新数据库拉取并渲染最新数据。
 3. **未刷新操作拦截**：
-   - 在冻结界面点击已失效条目尝试播放或执行操作，一律拦截，并在当前上下文弹出对应失效提示。
+   - 尝试播放已失效条目：进入播放页面，拦截实际播放（黑屏），顶栏弹出红色报错横幅 `This item is no longer in the library`（与 Search、Excerpt 行为完全一致）。
+   - 执行数据操作（保存、移动、复制链接等）：在当前上下文弹出 Toast 拦截提示。
 
 ## 3. 各界面具体行为
 
@@ -31,7 +32,7 @@ Add Folder、Index、Remove Folder 导致内容离开数据库后，Command Pane
 
 1. 当文件夹或摘录集被移出数据库：
    - 用户处于其子级视图并通过返回按钮或面包屑回退到该父级时；
-   - 或用户在尚未刷新的一级界面点击该失效卡片进入二级时：
+   - 或用户在尚未刷新的一级界面（Library / Excerpt）点击该失效卡片进入二级时：
 2. **面包屑与导航**：保持目标路径名称（例如 `Home > 影视`），不突变跳级。
 3. **主内容区域展示**：
    - **严禁渲染常规详情骨架**（不显示封面图、标题、描述、表格等）。
@@ -44,7 +45,7 @@ Add Folder、Index、Remove Folder 导致内容离开数据库后，Command Pane
 
 1. 停留中以及在 Recent Videos 与 Recent Excerpt Lists 之间切换时保持冻结。
 2. 离开 Recent 模块（切换至其他 Sidebar Tab 或进入播放页）再切回时，重新拉取并剔除失效卡片。
-3. 点击失效卡片尝试播放，拦截操作并弹出提示。
+3. 点击失效卡片尝试播放，进入播放页拦截并弹出红色报错横幅 `This item is no longer in the library`。
 
 ### 3.3 Command Panel 界面
 
