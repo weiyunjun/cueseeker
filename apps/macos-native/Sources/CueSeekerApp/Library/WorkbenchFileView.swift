@@ -315,7 +315,10 @@ struct WorkbenchFileView: View {
         let status = library.fileSubfolderStatus(for: rootPath)
 
         Group {
-            if folders.isEmpty {
+            if appState.isWorkbenchRouteUnknown(.fileFolder(rootPath: rootPath)) {
+                WorkbenchEmptyHint(message: L("library.folder.not_found"))
+                    .frame(maxWidth: .infinity, alignment: .top)
+            } else if folders.isEmpty {
                 if case .loading = status {
                     WorkbenchSpinner(size: 18)
                         .frame(maxWidth: .infinity, minHeight: 120, alignment: .center)
@@ -379,7 +382,10 @@ struct WorkbenchFileView: View {
         }
 
         Group {
-            if displayableItemsCount == 0 {
+            if appState.isWorkbenchRouteUnknown(.fileFiles(rootPath: rootPath, folderPath: folderPath)) {
+                WorkbenchEmptyHint(message: L("library.folder.not_found"))
+                    .frame(maxWidth: .infinity, alignment: .top)
+            } else if displayableItemsCount == 0 {
                 if case .loading = status {
                     WorkbenchSpinner(size: 18)
                         .frame(maxWidth: .infinity, minHeight: 120, alignment: .center)

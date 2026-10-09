@@ -1358,9 +1358,16 @@ extension AppCoordinator {
             playback.isPlaybackSurfaceExpanded = false
             playback.playbackStatus = .idle
             switch workbenchLayout.currentRoute {
-            case .excerpt, .excerptList, .recent:
+            case .excerpt, .excerptList:
                 refreshExcerptOnReappearanceIfNeeded()
-            case .search, .library, .libraryFolder, .file, .fileFolder, .fileFiles:
+            case .recent:
+                refreshExcerptOnReappearanceIfNeeded()
+                refreshRecentOnReappearanceIfNeeded()
+            case .library:
+                refreshLibraryOnReappearanceIfNeeded()
+            case .file:
+                refreshFileOnReappearanceIfNeeded()
+            case .search, .libraryFolder, .fileFolder, .fileFiles:
                 break
             }
             playback.clearAllErrors()

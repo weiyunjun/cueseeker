@@ -110,11 +110,28 @@ extension AppCoordinator {
     }
 
     /// Invalidates on-demand file subfolders and objects caches when library data mutates.
-    func invalidateFileTreeCache() {
+    func invalidateFileTreeCache(force: Bool = false) {
+        if !force, let held = heldWorkbenchRoute {
+            switch held {
+            case .fileFolder, .fileFiles:
+                fileNeedsReloadAfterIndexedMutation = true
+                return
+            default:
+                break
+            }
+        }
         library.fileSubfoldersByRootPath.removeAll(keepingCapacity: false)
         library.fileObjectsByFolderPath.removeAll(keepingCapacity: false)
         library.fileSubfolderStatusByRootPath.removeAll(keepingCapacity: false)
         library.fileObjectStatusByFolderPath.removeAll(keepingCapacity: false)
         library.fileTreeRevision += 1
+    }
+
+    func refreshFileOnReappearanceIfNeeded() {
+        guard fileNeedsReloadAfterIndexedMutation else {
+            return
+        }
+        fileNeedsReloadAfterIndexedMutation = false
+        invalidateFileTreeCache(force: true)
     }
 }

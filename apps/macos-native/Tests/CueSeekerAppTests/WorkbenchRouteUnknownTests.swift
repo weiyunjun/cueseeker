@@ -30,6 +30,7 @@ func historyEntriesReadAsUnknownOnlyOnceTheirStoreKnowsThePageIsGone() throws {
             episodeCount: 1
         ),
     ]
+    app.indexing.selectedFolders = [URL(fileURLWithPath: "/Media/Show")]
     app.library.completeLibraryStatus = .loading
     #expect(!app.isWorkbenchRouteUnknown(goneFolder))
     app.library.completeLibraryStatus = .completed
@@ -42,6 +43,15 @@ func historyEntriesReadAsUnknownOnlyOnceTheirStoreKnowsThePageIsGone() throws {
         ExcerptListOverview(lists: [], uniqueCueCount: 0)
     )
     #expect(app.isWorkbenchRouteUnknown(goneList))
+
+    let goneFileFolder = WorkbenchRoute.fileFolder(rootPath: "/Media/Gone")
+    let keptFileFolder = WorkbenchRoute.fileFolder(rootPath: "/Media/Show")
+    let goneFileFiles = WorkbenchRoute.fileFiles(rootPath: "/Media/Gone", folderPath: "/Media/Gone/Sub")
+    let keptFileFiles = WorkbenchRoute.fileFiles(rootPath: "/Media/Show", folderPath: "/Media/Show/Sub")
+    #expect(app.isWorkbenchRouteUnknown(goneFileFolder))
+    #expect(!app.isWorkbenchRouteUnknown(keptFileFolder))
+    #expect(app.isWorkbenchRouteUnknown(goneFileFiles))
+    #expect(!app.isWorkbenchRouteUnknown(keptFileFiles))
 
     for route in [WorkbenchRoute.search, .recent, .library, .file, .excerpt] {
         #expect(!app.isWorkbenchRouteUnknown(route))

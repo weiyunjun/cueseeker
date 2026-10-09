@@ -610,8 +610,8 @@
 "anki_export.replace.title" = "「%@」已存在。要取代它嗎？";
 "anki_export.replace.message" = "資料夾「%@」中已有同名的檔案或資料夾。取代它將覆寫其目前內容。";
 "anki_export.replace.confirm" = "取代";
-"library.folder.not_found" = "此資料夾不在媒體庫中。";
-"excerpt.list.not_found" = "此摘錄集已不存在。";
+"library.folder.not_found" = "該資料夾已不在媒體庫中。";
+"excerpt.list.not_found" = "該列表已不在媒體庫中。";
 
 /* Universal File Detail Dialog */
 "file_detail.get_info" = "顯示簡介";

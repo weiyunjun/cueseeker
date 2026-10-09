@@ -610,8 +610,8 @@
 "anki_export.replace.title" = "“%@”已存在。要替换它吗？";
 "anki_export.replace.message" = "文件夹“%@”中已存在同名的文件或文件夹。替换将覆盖其当前内容。";
 "anki_export.replace.confirm" = "替换";
-"library.folder.not_found" = "此文件夹不在媒体库中。";
-"excerpt.list.not_found" = "此摘录集已不存在。";
+"library.folder.not_found" = "该文件夹已不在媒体库中。";
+"excerpt.list.not_found" = "该列表已不在媒体库中。";
 
 /* Universal File Detail Dialog */
 "file_detail.get_info" = "显示简介";

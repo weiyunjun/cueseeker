@@ -261,7 +261,11 @@ extension AppCoordinator {
         }
     }
 
-    func refreshLibrary() {
+    func refreshLibrary(force: Bool = false) {
+        if !force && workbenchLayout.panelMode == .testLibrary {
+            libraryNeedsReloadAfterIndexedMutation = true
+            return
+        }
         libraryTask?.cancel()
 
         let folders = indexing.selectedFolders
@@ -488,7 +492,11 @@ extension AppCoordinator {
         return "v\(LibraryCoverDisplayProfile.current.version)\n\(paths)"
     }
 
-    func refreshRecentWatching() {
+    func refreshRecentWatching(force: Bool = false) {
+        if !force && workbenchLayout.panelMode == .recentWatching {
+            recentNeedsReloadAfterIndexedMutation = true
+            return
+        }
         recentWatchingTask?.cancel()
 
         let folders = indexing.selectedFolders
@@ -560,14 +568,32 @@ extension AppCoordinator {
         }
     }
 
-    func refreshLoadedTestRecentWatching() {
+    func refreshLoadedTestRecentWatching(force: Bool = false) {
         guard library.testRecentWatchingStatus != .idle || !library.testRecentWatchingItems.isEmpty else {
+            return
+        }
+        if !force && workbenchLayout.panelMode == .recentWatching {
+            recentNeedsReloadAfterIndexedMutation = true
             return
         }
         refreshTestRecentWatching()
     }
 
-    func refreshCompleteLibrary() {
+    func refreshRecentOnReappearanceIfNeeded() {
+        guard recentNeedsReloadAfterIndexedMutation else {
+            return
+        }
+        recentNeedsReloadAfterIndexedMutation = false
+        refreshTestRecentWatching()
+        refreshRecentWatching(force: true)
+        reloadExcerptListOverview()
+    }
+
+    func refreshCompleteLibrary(force: Bool = false) {
+        if !force && workbenchLayout.panelMode == .testLibrary {
+            libraryNeedsReloadAfterIndexedMutation = true
+            return
+        }
         completeLibraryTask?.cancel()
 
         let folders = indexing.selectedFolders
@@ -601,6 +627,15 @@ extension AppCoordinator {
                 self?.library.completeLibraryStatus = .failed(Self.errorMessage(for: error))
             }
         }
+    }
+
+    func refreshLibraryOnReappearanceIfNeeded() {
+        guard libraryNeedsReloadAfterIndexedMutation else {
+            return
+        }
+        libraryNeedsReloadAfterIndexedMutation = false
+        refreshLibrary(force: true)
+        refreshCompleteLibrary(force: true)
     }
 
     private func loadCompleteLibraryFolderDetail(
@@ -918,6 +953,10 @@ extension AppCoordinator {
     }
 
     func removeLibraryPresentation(under folder: URL) {
+        if workbenchLayout.panelMode == .testLibrary || heldWorkbenchRoute != nil {
+            libraryNeedsReloadAfterIndexedMutation = true
+            return
+        }
         let prefixes = Self.folderPathPrefixes(for: folder)
         let groups = library.libraryFolderGroups.filter { group in
             !group.videos.contains { Self.pathMatchesPrefixes($0.video.videoPath, prefixes: prefixes) }
@@ -940,6 +979,10 @@ extension AppCoordinator {
     }
 
     func removeCompleteLibraryPresentation(under folder: URL) {
+        if workbenchLayout.panelMode == .testLibrary || heldWorkbenchRoute != nil {
+            libraryNeedsReloadAfterIndexedMutation = true
+            return
+        }
         invalidateCompleteLibraryFolderDetails()
         let prefixes = Self.folderPathPrefixes(for: folder)
         library.completeLibraryFolderSummaries = library.completeLibraryFolderSummaries.filter { group in
@@ -974,8 +1017,8 @@ extension AppCoordinator {
         if savesCurrentPlaybackHistory, case .library = activePlaybackSource {
             saveCurrentLibraryPlaybackHistory()
         }
-        currentPlaybackItemLeftLibrary = false
-        playback.clearError(on: .notInLibrary)
+        let itemInLibrary = !libraryHasLost(videoPath: video.videoPath)
+        currentPlaybackItemLeftLibrary = !itemInLibrary
         library.selectedLibraryVideo = video
         search.selectResult(nil)
         excerpt.selectedExcerpt = nil
@@ -989,11 +1032,20 @@ extension AppCoordinator {
             canGoNext: navigationAvailability.next
         )
         playback.isPlaybackSurfaceExpanded = true
-        Task { @MainActor in
-            await Task.yield()
-            let didStartPlayback = play(video)
-            if didStartPlayback {
-                recordRecentLibraryWatching(for: video)
+        if !itemInLibrary {
+            playback.clearPlaylistPosition()
+            playback.playbackStatus = .loadFailed
+            try? player?.stop()
+            playback.playbackViewModel?.resetPresentationForStoppedPlayback()
+            showPlaybackItemNotInLibrary()
+        } else {
+            playback.clearError(on: .notInLibrary)
+            Task { @MainActor in
+                await Task.yield()
+                let didStartPlayback = play(video)
+                if didStartPlayback {
+                    recordRecentLibraryWatching(for: video)
+                }
             }
         }
     }

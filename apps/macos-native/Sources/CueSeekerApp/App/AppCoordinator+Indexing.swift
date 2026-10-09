@@ -338,6 +338,7 @@ extension AppCoordinator {
                 coordinator: self
             )
             indexing.appendFolder(folder)
+            holdActiveWorkbenchRouteBeforeContentMutation()
             // The pages refreshed when the index published, before the folder
             // was in the scope they read.
             refreshLibraryAfterAuxiliaryDataMutation()
@@ -423,6 +424,7 @@ extension AppCoordinator {
             throw LibraryTaskFailure(message: message)
         }
 
+        holdActiveWorkbenchRouteBeforeContentMutation()
         indexing.removeFolder(folder)
         clearSearchAndPlaybackState(under: folder)
         reconcilePlaybackAfterIndexedContentChange()
@@ -665,6 +667,7 @@ extension AppCoordinator {
             )
         }
         search.completeIndexedCueDataMutation(searchMutationToken)
+        holdActiveWorkbenchRouteBeforeContentMutation()
         refreshLibrary()
         refreshRecentWatching()
         refreshLoadedTestRecentWatching()
@@ -674,10 +677,17 @@ extension AppCoordinator {
     }
 
     private func refreshLibraryAfterAuxiliaryDataMutation() {
+        holdActiveWorkbenchRouteBeforeContentMutation()
         refreshLibrary()
         refreshRecentWatching()
         refreshLoadedTestRecentWatching()
         refreshCompleteLibrary()
+    }
+
+    func holdActiveWorkbenchRouteBeforeContentMutation() {
+        if workbenchLayout.currentRoute != .file {
+            heldWorkbenchRoute = workbenchLayout.currentRoute
+        }
     }
 
     func restoreCurrentSearchAfterIndexedCueMutationFailure(

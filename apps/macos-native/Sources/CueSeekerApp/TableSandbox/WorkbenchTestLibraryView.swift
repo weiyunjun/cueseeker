@@ -66,9 +66,13 @@ struct WorkbenchRecentView: View {
             appState.hydrateTestRecentWatchingAsync()
             appState.reloadExcerptListOverview()
         }
+        .onAppear {
+            appState.refreshRecentOnReappearanceIfNeeded()
+        }
         .onChange(of: appState.isPlaybackPageVisible) { isVisible in
             if !isVisible {
                 appState.reloadExcerptListOverview()
+                appState.refreshRecentOnReappearanceIfNeeded()
             }
         }
     }
@@ -289,11 +293,8 @@ struct WorkbenchTestLibraryView: View {
                 folderPath: folderPath
             )
         }
-        .onChange(of: indexing.selectedFolders) { _ in
-            closeFolderDetail()
-        }
-        .onChange(of: library.completeLibraryRevision) { _ in
-            reconcileSelectedFolder()
+        .onAppear {
+            appState.refreshLibraryOnReappearanceIfNeeded()
         }
     }
 
@@ -429,13 +430,11 @@ struct WorkbenchTestLibraryView: View {
     /// then says so instead of waiting for a detail that will never load.
     @ViewBuilder
     private func folderPageContent(folderPath: String) -> some View {
-        if let selectedFolder {
-            folderDetailContent(for: selectedFolder)
-        } else if appState.isWorkbenchRouteUnknown(
-            .libraryFolder(folderPath: folderPath)
-        ) {
+        if appState.isWorkbenchRouteUnknown(.libraryFolder(folderPath: folderPath)) {
             WorkbenchEmptyHint(message: L("library.folder.not_found"))
                 .workbenchPageInlinePadding()
+        } else if let selectedFolder {
+            folderDetailContent(for: selectedFolder)
         } else {
             LibraryEmptyHint {
                 ProgressView()
@@ -564,23 +563,6 @@ struct WorkbenchTestLibraryView: View {
         }
         return "\(selectedFolder.folderPath)|\(library.completeLibraryRevision)"
     }
-
-    /// The folder being looked at is gone: going back to the overview is a
-    /// step of its own, like any other page change.
-    private func closeFolderDetail() {
-        appState.navigateWorkbench(to: .library)
-    }
-
-    private func reconcileSelectedFolder() {
-        guard routeState.selectedLibraryFolderPath != nil,
-              selectedFolder == nil,
-              library.completeLibraryStatus != .loading
-        else {
-            return
-        }
-        closeFolderDetail()
-    }
-
 
 }
 

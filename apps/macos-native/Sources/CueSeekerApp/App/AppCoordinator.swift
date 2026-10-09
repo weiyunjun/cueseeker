@@ -384,6 +384,10 @@ final class AppCoordinator: ObservableObject {
     let libraryPlaybackHistoryWriter: LibraryPlaybackHistoryWriter
     var startupDatabaseTask: Task<Void, Never>?
     var excerptNeedsReloadAfterIndexedContentMutation = false
+    var recentNeedsReloadAfterIndexedMutation = false
+    var libraryNeedsReloadAfterIndexedMutation = false
+    var fileNeedsReloadAfterIndexedMutation = false
+    var heldWorkbenchRoute: WorkbenchRoute?
     var pendingExcerptContentRemovalFolders: [URL] = []
     var libraryTask: Task<Void, Never>?
     var recentWatchingTask: Task<Void, Never>?
@@ -767,6 +771,9 @@ final class AppCoordinator: ObservableObject {
     /// The data a page needs that its own view does not load: the Excerpt
     /// overview, and the list a Excerpt detail shows in its table.
     private func prepareWorkbenchRoute(_ route: WorkbenchRoute) {
+        if let held = heldWorkbenchRoute, held != route {
+            heldWorkbenchRoute = nil
+        }
         switch route {
         case .excerpt:
             refreshExcerptOnReappearanceIfNeeded()
@@ -787,7 +794,12 @@ final class AppCoordinator: ObservableObject {
             reloadExcerptTableRows()
         case .recent:
             refreshExcerptOnReappearanceIfNeeded()
-        case .search, .library, .libraryFolder, .file, .fileFolder, .fileFiles:
+            refreshRecentOnReappearanceIfNeeded()
+        case .library:
+            refreshLibraryOnReappearanceIfNeeded()
+        case .file:
+            refreshFileOnReappearanceIfNeeded()
+        case .search, .libraryFolder, .fileFolder, .fileFiles:
             break
         }
     }
@@ -796,10 +808,18 @@ final class AppCoordinator: ObservableObject {
     /// was deleted, or a Library folder that is no longer indexed. Unknown is
     /// never claimed before the store that would know has loaded.
     func isWorkbenchRouteUnknown(_ route: WorkbenchRoute) -> Bool {
+        if route == heldWorkbenchRoute {
+            return false
+        }
         switch route {
         case .libraryFolder(let folderPath):
-            guard library.completeLibraryStatus == .completed else {
+            guard library.completeLibraryStatus == .completed
+                || (library.completeLibraryRevision > 0 && indexing.selectedFolders.isEmpty)
+            else {
                 return false
+            }
+            if !indexing.selectedFolders.contains(where: { Self.path(folderPath, isUnder: $0) }) {
+                return true
             }
             return !library.completeLibraryFolderSummaries.contains {
                 $0.folderPath == folderPath
@@ -807,7 +827,11 @@ final class AppCoordinator: ObservableObject {
         case .excerptList(let id):
             return excerpt.hasLoadedListOverview
                 && !excerpt.listOverview.lists.contains { $0.id == id }
-        case .search, .recent, .library, .file, .fileFolder, .fileFiles, .excerpt:
+        case .fileFolder(let rootPath):
+            return !indexing.selectedFolders.contains { $0.standardizedFileURL.path == rootPath }
+        case .fileFiles(let rootPath, _):
+            return !indexing.selectedFolders.contains { $0.standardizedFileURL.path == rootPath }
+        case .search, .recent, .library, .file, .excerpt:
             return false
         }
     }
