@@ -588,12 +588,14 @@
 "rename.error.database_failed" = "无法更新数据库，文件已恢复";
 "anki_export.title" = "导出到 Anki";
 "anki_export.error.rename_running" = "重命名任务正在移动这些文件";
-"anki_export.cue_text_side" = "台词文本所在面";
-"anki_export.cue_text_side.accessibility" = "台词文本所在面 %@";
 "anki_export.side.front" = "正面";
 "anki_export.side.back" = "背面";
-"anki_export.required" = "必选";
-"anki_export.optional" = "可选";
+"anki_export.available_items" = "可用项目";
+"anki_export.card_layout" = "卡片布局";
+"anki_export.available.empty" = "全部项目已分配";
+"anki_export.card.empty_hint" = "拖拽项目到此处";
+"anki_export.validation.front_empty" = "正面不能为空";
+"anki_export.validation.back_empty" = "背面不能为空";
 "anki_export.item.cue_text" = "台词文本";
 "anki_export.item.audio" = "音频";
 "anki_export.item.screenshot" = "截图";
@@ -601,8 +603,6 @@
 "anki_export.item.display_title" = "显示标题";
 "anki_export.item.time_range" = "时间范围";
 "anki_export.item.deep_link" = "Deep Link";
-"anki_export.item.subtitle_file_path" = "字幕文件路径";
-"anki_export.item.video_file_path" = "视频文件路径";
 "anki_export.file_name" = "文件名";
 "anki_export.location" = "位置";
 "anki_export.choose_folder" = "选择文件夹";

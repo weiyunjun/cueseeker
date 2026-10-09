@@ -338,6 +338,28 @@ enum WorkbenchControlMetrics {
     /// --font-size-caption.
     static let redesignTaskCountBadgeCompactHeight: CGFloat = 18
     static let redesignTaskCountBadgeCompactHorizontalPadding: CGFloat = 6
+
+    // ==========================================
+    // Export to Anki Tokens
+    // ==========================================
+    /// --height-anki-export-available-pool: 96px
+    static let redesignAnkiExportAvailablePoolHeight: CGFloat = 96
+    /// --min-height-anki-export-card-box: 208px
+    static let redesignAnkiExportCardBoxMinHeight: CGFloat = 208
+    /// --size-anki-export-drag-handle: 12px
+    static let redesignAnkiExportDragHandleSize: CGFloat = 12
+    /// --size-anki-export-badge-remove-button: 14px
+    static let redesignAnkiExportBadgeRemoveButtonSize: CGFloat = 14
+    /// --radius-anki-export-badge-remove-button: 3px
+    static let redesignAnkiExportBadgeRemoveButtonRadius: CGFloat = 3
+    /// --size-anki-export-badge-remove-icon: 12px
+    static let redesignAnkiExportBadgeRemoveIconSize: CGFloat = 12
+    /// --height-anki-export-drop-slot: 6px
+    static let redesignAnkiExportDropSlotHeight: CGFloat = 6
+    /// --height-anki-export-drop-line: 2px
+    static let redesignAnkiExportDropLineHeight: CGFloat = 2
+    /// --opacity-anki-export-dragging: 0.35
+    static let redesignAnkiExportDraggingOpacity: Double = 0.35
     /// --font-weight-task-count-badge: 600
     static let redesignFontWeightTaskCountBadge: Font.Weight = .semibold
     /// The count keeps --spacing-1 from the Task glyph's ink rather than its

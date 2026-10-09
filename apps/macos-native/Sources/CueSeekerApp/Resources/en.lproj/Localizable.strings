@@ -588,12 +588,14 @@
 "rename.error.database_failed" = "Couldn’t update the database. Files were restored";
 "anki_export.title" = "Export to Anki";
 "anki_export.error.rename_running" = "A rename task is moving these files";
-"anki_export.cue_text_side" = "Cue Text Side";
-"anki_export.cue_text_side.accessibility" = "Cue Text Side %@";
 "anki_export.side.front" = "Front";
 "anki_export.side.back" = "Back";
-"anki_export.required" = "Required";
-"anki_export.optional" = "Optional";
+"anki_export.available_items" = "Available Items";
+"anki_export.card_layout" = "Card Layout";
+"anki_export.available.empty" = "All items assigned";
+"anki_export.card.empty_hint" = "Drag items here";
+"anki_export.validation.front_empty" = "Front cannot be empty";
+"anki_export.validation.back_empty" = "Back cannot be empty";
 "anki_export.item.cue_text" = "Cue Text";
 "anki_export.item.audio" = "Audio";
 "anki_export.item.screenshot" = "Screenshot";
@@ -601,8 +603,6 @@
 "anki_export.item.display_title" = "Display Title";
 "anki_export.item.time_range" = "Time Range";
 "anki_export.item.deep_link" = "Deep Link";
-"anki_export.item.subtitle_file_path" = "Subtitle File Path";
-"anki_export.item.video_file_path" = "Video File Path";
 "anki_export.file_name" = "File Name";
 "anki_export.location" = "Location";
 "anki_export.choose_folder" = "Choose Folder";

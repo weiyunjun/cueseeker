@@ -21,37 +21,52 @@ struct AnkiExportItem: Sendable {
     var audioTrackIndex = 0
 }
 
-/// The side of the card that carries the Cue Text. The other side carries the
-/// audio and the screenshot.
-enum AnkiExportCueTextSide: String, CaseIterable, Sendable {
-    case front
-    case back
-}
-
-/// The dialog's Optional checkboxes, in the order the dialog lists them.
-enum AnkiExportOptionalItem: String, CaseIterable, Sendable {
+/// An item that can be placed on an Anki card.
+enum AnkiCardItem: String, CaseIterable, Codable, Sendable, Identifiable {
     case screenshot
+    case audio
+    case cueText
     case cueGroupText
     case displayTitle
     case timeRange
     case deepLink
-    case subtitleFilePath
-    case videoFilePath
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .screenshot:
+            L("anki_export.item.screenshot")
+        case .audio:
+            L("anki_export.item.audio")
+        case .cueText:
+            L("anki_export.item.cue_text")
+        case .cueGroupText:
+            L("anki_export.item.cue_group_text")
+        case .displayTitle:
+            L("anki_export.item.display_title")
+        case .timeRange:
+            L("anki_export.item.time_range")
+        case .deepLink:
+            L("anki_export.item.deep_link")
+        }
+    }
 }
 
-/// What one export puts on its cards. Cue Text and Audio are always there.
-struct AnkiExportOptions: Equatable, Sendable {
-    var cueTextSide = AnkiExportCueTextSide.back
-    var optionalItems: Set<AnkiExportOptionalItem> = [.screenshot]
+/// What one export puts on its cards and their placement on Front and Back.
+struct AnkiExportOptions: Equatable, Codable, Sendable {
+    var frontItems: [AnkiCardItem] = [.audio]
+    var backItems: [AnkiCardItem] = [.cueText]
 
-    func includes(_ item: AnkiExportOptionalItem) -> Bool {
-        optionalItems.contains(item)
+    /// Items remaining in the available pool, preserved in canonical order.
+    var availableItems: [AnkiCardItem] {
+        let assigned = Set(frontItems + backItems)
+        return AnkiCardItem.allCases.filter { !assigned.contains($0) }
     }
 
-    mutating func toggle(_ item: AnkiExportOptionalItem) {
-        if optionalItems.remove(item) == nil {
-            optionalItems.insert(item)
-        }
+    /// Whether a specific item is included on either front or back.
+    func includes(_ item: AnkiCardItem) -> Bool {
+        frontItems.contains(item) || backItems.contains(item)
     }
 }
 
@@ -124,22 +139,26 @@ enum AnkiPackageExporter {
             try Task.checkCancellation()
 
             let baseName = "cueseeker_\(index + 1)_\(stableHash(item.videoPath + "\(item.startMilliseconds)"))"
-            let audioName = "\(baseName).mp3"
-            let audioMediaKey = "\(mediaIndex)"
-            let audioURL = workspaceURL.appendingPathComponent(audioMediaKey)
-            let audioExportURL = workspaceURL.appendingPathComponent("\(audioMediaKey).mp3")
-            mediaMap[audioMediaKey] = audioName
-            mediaIndex += 1
+            var audioField = ""
+            if options.includes(.audio) {
+                let audioName = "\(baseName).mp3"
+                let audioMediaKey = "\(mediaIndex)"
+                let audioURL = workspaceURL.appendingPathComponent(audioMediaKey)
+                let audioExportURL = workspaceURL.appendingPathComponent("\(audioMediaKey).mp3")
+                mediaMap[audioMediaKey] = audioName
+                mediaIndex += 1
 
-            let audioTrackIndex = audioTrackIndexes[item.videoPath] ?? audioTrackIndex(for: item)
-            audioTrackIndexes[item.videoPath] = audioTrackIndex
-            try await exportAudio(
-                item: item,
-                audioTrackIndex: audioTrackIndex,
-                ffmpegURL: ffmpegURL,
-                outputURL: audioExportURL
-            )
-            try FileManager.default.moveItem(at: audioExportURL, to: audioURL)
+                let audioTrackIndex = audioTrackIndexes[item.videoPath] ?? audioTrackIndex(for: item)
+                audioTrackIndexes[item.videoPath] = audioTrackIndex
+                try await exportAudio(
+                    item: item,
+                    audioTrackIndex: audioTrackIndex,
+                    ffmpegURL: ffmpegURL,
+                    outputURL: audioExportURL
+                )
+                try FileManager.default.moveItem(at: audioExportURL, to: audioURL)
+                audioField = "[sound:\(audioName)]"
+            }
 
             var imageField = ""
             if options.includes(.screenshot) {
@@ -159,12 +178,13 @@ enum AnkiPackageExporter {
             notes.append(
                 AnkiPackageNote(
                     deckName: deckPrefix + item.deckDisplayTitle,
-                    audioField: "[sound:\(audioName)]",
+                    audioField: audioField,
                     imageField: imageField,
-                    textField: textHTML(for: item.text),
+                    textField: options.includes(.cueText) ? textHTML(for: item.text) : "",
                     cueGroupField: details.cueGroup,
-                    sourceField: details.source,
-                    linksField: details.links
+                    displayTitleField: details.displayTitle,
+                    timeRangeField: details.timeRange,
+                    deepLinkField: details.deepLink
                 )
             )
 
@@ -175,7 +195,7 @@ enum AnkiPackageExporter {
         try createCollection(
             at: collectionURL,
             notes: notes,
-            cueTextSide: options.cueTextSide
+            options: options
         )
 
         let mediaURL = workspaceURL.appendingPathComponent("media")
@@ -268,7 +288,7 @@ enum AnkiPackageExporter {
     private static func createCollection(
         at url: URL,
         notes: [AnkiPackageNote],
-        cueTextSide: AnkiExportCueTextSide
+        options: AnkiExportOptions
     ) throws {
         var database: OpaquePointer?
         guard sqlite3_open_v2(url.path, &database, SQLITE_OPEN_CREATE | SQLITE_OPEN_READWRITE, nil) == SQLITE_OK,
@@ -286,12 +306,12 @@ enum AnkiPackageExporter {
 
         let now = Int(Date().timeIntervalSince1970)
         let nowMilliseconds = Int64(Date().timeIntervalSince1970 * 1_000)
-        let modelID = noteType(for: cueTextSide).id
+        let modelID = noteType(for: options).id
         let deckNames = orderedDeckNames(from: notes)
         let deckIDs = Dictionary(uniqueKeysWithValues: deckNames.map { ($0, deckID(for: $0)) })
         let defaultDeckID = deckIDs[deckNames.first ?? deckPrefix] ?? deckID(for: deckPrefix)
         let modelsJSON = try jsonString(
-            modelJSON(cueTextSide: cueTextSide, deckID: defaultDeckID, now: now)
+            modelJSON(options: options, deckID: defaultDeckID, now: now)
         )
         let decksJSON = try jsonString(
             Dictionary(uniqueKeysWithValues: deckNames.map { deckName in
@@ -569,44 +589,39 @@ enum AnkiPackageExporter {
         return candidates.first { FileManager.default.isExecutableFile(atPath: $0.path) }
     }
 
-    /// Each side has a note type of its own. Anki takes an incoming note type
-    /// for an existing one with the same id, or the next id up, when their
-    /// field and template names match, so the two sides keep ids far apart and
-    /// templates named apart: one side's cards never land in the other's.
+    /// Stable note type derived from the exact items and order on Front and Back.
     private static func noteType(
-        for cueTextSide: AnkiExportCueTextSide
+        for options: AnkiExportOptions
     ) -> (id: Int64, name: String, templateName: String) {
-        switch cueTextSide {
-        case .back:
-            (1_780_000_001_001, "CueSeeker Media Recall", "Cue Text Back")
-        case .front:
-            (1_780_000_101_001, "CueSeeker Media Recall (Cue Text Front)", "Cue Text Front")
-        }
+        let signature = "front:" + options.frontItems.map(\.rawValue).joined(separator: ",")
+            + "|back:" + options.backItems.map(\.rawValue).joined(separator: ",")
+        let id = 1_780_000_000_000 + abs(checksum(signature)) % 900_000_000
+        return (id, "CueSeeker Media Recall", "Cue Card")
     }
 
     static func _noteTypeForTesting(
-        cueTextSide: AnkiExportCueTextSide
+        options: AnkiExportOptions
     ) -> (id: Int64, name: String, templateName: String) {
-        noteType(for: cueTextSide)
+        noteType(for: options)
     }
 
     static func _cardTemplatesForTesting(
-        cueTextSide: AnkiExportCueTextSide
+        options: AnkiExportOptions
     ) -> (question: String, answer: String) {
-        cardTemplates(cueTextSide: cueTextSide)
+        cardTemplates(options: options)
     }
 
-    /// The Cue Text's side and the media side, one on each face. The answer
-    /// face repeats the question face above its own content.
+    /// Front items sit on the question face in order. Back items sit on the answer
+    /// face below the divider in order.
     private static func cardTemplates(
-        cueTextSide: AnkiExportCueTextSide
+        options: AnkiExportOptions
     ) -> (question: String, answer: String) {
-        let (questionBlock, answerBlock) = switch cueTextSide {
-        case .back:
-            (mediaTemplateBlock, textTemplateBlock)
-        case .front:
-            (textTemplateBlock, mediaTemplateBlock)
-        }
+        let questionBlock = options.frontItems
+            .map { "  " + templateFragment(for: $0) }
+            .joined(separator: "\n")
+        let answerBlock = options.backItems
+            .map { "  " + templateFragment(for: $0) }
+            .joined(separator: "\n")
         return (
             """
             <div class="cue-card front">
@@ -623,34 +638,44 @@ enum AnkiPackageExporter {
         )
     }
 
-    private static let mediaTemplateBlock = """
-      <div class="audio">{{Audio}}</div>
-      <div class="image">{{Image}}</div>
-    """
-
-    /// A line whose field is empty is left out of the card entirely.
-    private static let textTemplateBlock = """
-      <div class="text">{{Text}}</div>
-      {{#CueGroup}}<div class="cue-group">{{CueGroup}}</div>{{/CueGroup}}
-      {{#Source}}<div class="source">{{Source}}</div>{{/Source}}
-      {{#Links}}<div class="links">{{Links}}</div>{{/Links}}
-    """
+    private static func templateFragment(for item: AnkiCardItem) -> String {
+        switch item {
+        case .audio:
+            "{{#Audio}}<div class=\"audio\">{{Audio}}</div>{{/Audio}}"
+        case .screenshot:
+            "{{#Image}}<div class=\"image\">{{Image}}</div>{{/Image}}"
+        case .cueText:
+            "{{#Text}}<div class=\"text\">{{Text}}</div>{{/Text}}"
+        case .cueGroupText:
+            "{{#CueGroup}}<div class=\"cue-group\">{{CueGroup}}</div>{{/CueGroup}}"
+        case .displayTitle:
+            "{{#DisplayTitle}}<div class=\"display-title\">{{DisplayTitle}}</div>{{/DisplayTitle}}"
+        case .timeRange:
+            "{{#TimeRange}}<div class=\"time-range\">{{TimeRange}}</div>{{/TimeRange}}"
+        case .deepLink:
+            "{{#DeepLink}}<div class=\"deep-link\">{{DeepLink}}</div>{{/DeepLink}}"
+        }
+    }
 
     private static func modelJSON(
-        cueTextSide: AnkiExportCueTextSide,
+        options: AnkiExportOptions,
         deckID: Int64,
         now: Int
     ) -> [String: Any] {
-        let noteType = noteType(for: cueTextSide)
-        let templates = cardTemplates(cueTextSide: cueTextSide)
-        // The fields the question face shows: Audio with Image, or Text and
-        // the lines under it.
-        let questionFields = switch cueTextSide {
-        case .back:
-            [0, 1]
-        case .front:
-            [2, 3, 4, 5]
+        let noteType = noteType(for: options)
+        let templates = cardTemplates(options: options)
+        let questionFields = options.frontItems.compactMap { item -> Int? in
+            switch item {
+            case .audio: 0
+            case .screenshot: 1
+            case .cueText: 2
+            case .cueGroupText: 3
+            case .displayTitle: 4
+            case .timeRange: 5
+            case .deepLink: 6
+            }
         }
+        let reqFields = questionFields.isEmpty ? [0] : questionFields
         return [
             String(noteType.id): [
                 "id": noteType.id,
@@ -665,8 +690,9 @@ enum AnkiPackageExporter {
                     fieldJSON(name: "Image", order: 1, size: 20),
                     fieldJSON(name: "Text", order: 2, size: 24),
                     fieldJSON(name: "CueGroup", order: 3, size: 20),
-                    fieldJSON(name: "Source", order: 4, size: 20),
-                    fieldJSON(name: "Links", order: 5, size: 20)
+                    fieldJSON(name: "DisplayTitle", order: 4, size: 20),
+                    fieldJSON(name: "TimeRange", order: 5, size: 20),
+                    fieldJSON(name: "DeepLink", order: 6, size: 20)
                 ],
                 "tmpls": [
                     [
@@ -685,7 +711,7 @@ enum AnkiPackageExporter {
                 "latexPre": "\\documentclass[12pt]{article}\n\\special{papersize=3in,5in}\n\\usepackage[utf8]{inputenc}\n\\usepackage{amssymb,amsmath}\n\\pagestyle{empty}\n\\setlength{\\parindent}{0in}\n\\begin{document}\n",
                 "latexPost": "\\end{document}",
                 "latexsvg": false,
-                "req": [[0, "any", questionFields]]
+                "req": [[0, "any", reqFields]]
             ]
         ]
     }
@@ -792,41 +818,33 @@ enum AnkiPackageExporter {
         textHTML(for: text)
     }
 
-    /// The lines under the Cue Text: the Cue Group's other lines, the Display
-    /// Title with the Time Range, and the link icons. An unchecked item, or one
-    /// with nothing to show, is left out, and a line left with nothing is an
-    /// empty field the card does not draw.
+    /// The item's detail fields. An item not included in options or with nothing
+    /// to show is left empty, and an empty field is not rendered by the card.
     static func detailFields(
         for item: AnkiExportItem,
         options: AnkiExportOptions
-    ) -> (cueGroup: String, source: String, links: String) {
+    ) -> (cueGroup: String, displayTitle: String, timeRange: String, deepLink: String) {
         let cueGroup = options.includes(.cueGroupText)
             ? item.cueGroupOtherTexts.map(textHTML(for:)).joined(separator: "<br>")
             : ""
-
-        var source: [String] = []
-        if options.includes(.displayTitle), !item.displayTitle.isEmpty {
-            source.append(htmlEscaped(item.displayTitle))
-        }
-        if options.includes(.timeRange), !item.timeRange.isEmpty {
-            source.append(htmlEscaped(item.timeRange))
-        }
-
-        var links: [String] = []
+        let displayTitle = (options.includes(.displayTitle) && !item.displayTitle.isEmpty)
+            ? htmlEscaped(item.displayTitle)
+            : ""
+        let timeRange = (options.includes(.timeRange) && !item.timeRange.isEmpty)
+            ? htmlEscaped(item.timeRange)
+            : ""
+        let deepLink: String
         if options.includes(.deepLink), let cueID = item.cueID {
-            links.append(linkHTML(href: "cueseeker://cue?id=\(cueID)", icon: .linkSimple))
-        }
-        if options.includes(.subtitleFilePath), !item.subtitlePath.isEmpty {
-            links.append(linkHTML(href: URL(fileURLWithPath: item.subtitlePath).absoluteString, icon: .subtitles))
-        }
-        if options.includes(.videoFilePath), !item.videoPath.isEmpty {
-            links.append(linkHTML(href: URL(fileURLWithPath: item.videoPath).absoluteString, icon: .video))
+            deepLink = linkHTML(href: "cueseeker://cue?id=\(cueID)", icon: .linkSimple)
+        } else {
+            deepLink = ""
         }
 
         return (
             cueGroup,
-            source.joined(separator: itemSeparator),
-            links.joined(separator: itemSeparator)
+            displayTitle,
+            timeRange,
+            deepLink
         )
     }
 
@@ -838,7 +856,7 @@ enum AnkiPackageExporter {
 
     /// The card's link icons, drawn from the App's own icon assets.
     private static let linkIconMarkup: [AppIcon: String] = Dictionary(
-        uniqueKeysWithValues: [AppIcon.linkSimple, .subtitles, .video].map { icon in
+        uniqueKeysWithValues: [AppIcon.linkSimple].map { icon in
             let markup = Bundle.appResources.url(forResource: icon.rawValue, withExtension: "svg")
                 .flatMap { try? String(contentsOf: $0, encoding: .utf8) }
             return (icon, markup ?? "")
@@ -988,10 +1006,11 @@ enum AnkiPackageExporter {
     .image img { width: 100%; max-width: 900px; height: auto; border-radius: 10px; }
     .text { margin-top: 18px; font-size: 30px; font-weight: 650; letter-spacing: 0; }
     .cue-group { margin-top: 12px; color: #a1a1aa; }
-    .source { margin-top: 16px; font-size: 16px; color: #a1a1aa; }
-    .links { margin-top: 8px; font-size: 16px; }
-    .links a { color: #a1a1aa; text-decoration: none; }
-    .links svg { width: 20px; height: 20px; vertical-align: middle; }
+    .display-title { margin-top: 16px; font-size: 16px; color: #a1a1aa; }
+    .time-range { margin-top: 8px; font-size: 14px; color: #71717a; }
+    .deep-link { margin-top: 8px; font-size: 16px; }
+    .deep-link a { color: #a1a1aa; text-decoration: none; }
+    .deep-link svg { width: 20px; height: 20px; vertical-align: middle; }
     hr#answer { border: 0; border-top: 1px solid #3a3a40; margin: 22px 0; }
     """
 }
@@ -1002,16 +1021,18 @@ private struct AnkiPackageNote {
     let imageField: String
     let textField: String
     let cueGroupField: String
-    let sourceField: String
-    let linksField: String
+    let displayTitleField: String
+    let timeRangeField: String
+    let deepLinkField: String
 
     var fieldsString: String {
-        [audioField, imageField, textField, cueGroupField, sourceField, linksField]
+        [audioField, imageField, textField, cueGroupField, displayTitleField, timeRangeField, deepLinkField]
             .joined(separator: "\u{1f}")
     }
 
     var plainTextSortField: String {
-        textField
+        let candidate = !textField.isEmpty ? textField : (!displayTitleField.isEmpty ? displayTitleField : audioField)
+        return candidate
             .replacingOccurrences(of: "<br>", with: " ")
             .replacingOccurrences(of: "&lt;", with: "<")
             .replacingOccurrences(of: "&gt;", with: ">")

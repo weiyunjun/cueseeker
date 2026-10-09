@@ -62,6 +62,7 @@ enum AppIcon: String, CaseIterable, Sendable {
     case cornersIn = "corners-in"
     case dotsThreeVertical = "dots-three-vertical"
     case dotsThree = "dots-three"
+    case dotsSixVertical = "dots-six-vertical"
     case speakerX = "speaker-x"
     case speakerLow = "speaker-low"
     case speakerHigh = "speaker-high"

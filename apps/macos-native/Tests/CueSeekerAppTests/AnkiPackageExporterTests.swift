@@ -121,25 +121,17 @@ private func ankiCardItem(
 @Test
 func ankiDetailLinesFollowTheCheckedItemsInOrder() {
     let options = AnkiExportOptions(
-        cueTextSide: .back,
-        optionalItems: Set(AnkiExportOptionalItem.allCases)
+        frontItems: [.screenshot, .audio],
+        backItems: [.cueText, .cueGroupText, .displayTitle, .timeRange, .deepLink]
     )
 
     let fields = AnkiPackageExporter.detailFields(for: ankiCardItem(), options: options)
 
     #expect(fields.cueGroup == "Line two<br>Line &lt;three&gt;")
-    #expect(fields.source == "Frieren S01E01&nbsp;&nbsp;01:23 - 01:25")
-    let hrefs = fields.links
-        .components(separatedBy: "<a href=\"")
-        .dropFirst()
-        .map { $0.prefix { $0 != "\"" } }
-    #expect(hrefs == [
-        "cueseeker://cue?id=42",
-        "file:///Videos/Frieren%20S01E01.ja.srt",
-        "file:///Videos/Frieren%20S01E01.mkv",
-    ])
-    #expect(fields.links.components(separatedBy: "</a>&nbsp;&nbsp;<a").count == 3)
-    #expect(fields.links.contains("<svg"))
+    #expect(fields.displayTitle == "Frieren S01E01")
+    #expect(fields.timeRange == "01:23 - 01:25")
+    #expect(fields.deepLink.contains("cueseeker://cue?id=42"))
+    #expect(fields.deepLink.contains("<svg"))
 }
 
 @Test
@@ -149,60 +141,53 @@ func ankiDetailLinesLeaveOutUncheckedAndEmptyItems() {
         options: AnkiExportOptions()
     )
     #expect(defaults.cueGroup.isEmpty)
-    #expect(defaults.source.isEmpty)
-    #expect(defaults.links.isEmpty)
+    #expect(defaults.displayTitle.isEmpty)
+    #expect(defaults.timeRange.isEmpty)
+    #expect(defaults.deepLink.isEmpty)
 
     let everything = AnkiExportOptions(
-        cueTextSide: .back,
-        optionalItems: Set(AnkiExportOptionalItem.allCases)
+        frontItems: AnkiCardItem.allCases,
+        backItems: []
     )
     let sparse = AnkiPackageExporter.detailFields(
         for: ankiCardItem(displayTitle: "", cueGroupOtherTexts: [], cueID: nil),
         options: everything
     )
     #expect(sparse.cueGroup.isEmpty)
-    #expect(sparse.source == "01:23 - 01:25")
-    #expect(!sparse.links.contains("cueseeker://"))
-    #expect(sparse.links.components(separatedBy: "<a href=").count == 3)
+    #expect(sparse.displayTitle.isEmpty)
+    #expect(sparse.timeRange == "01:23 - 01:25")
+    #expect(sparse.deepLink.isEmpty)
 }
 
 @Test
-func ankiCardTemplatesPutTheCueTextOnTheChosenSide() {
-    let back = AnkiPackageExporter._cardTemplatesForTesting(cueTextSide: .back)
-    #expect(back.question.contains("{{Audio}}"))
-    #expect(back.question.contains("{{Image}}"))
-    #expect(!back.question.contains("{{Text}}"))
-    #expect(back.answer.hasPrefix("{{FrontSide}}"))
-    #expect(back.answer.contains("{{Text}}"))
+func ankiCardTemplatesPutItemsOnTheChosenSidesInOrder() {
+    let options = AnkiExportOptions(
+        frontItems: [.displayTitle, .audio],
+        backItems: [.cueText, .screenshot]
+    )
+    let templates = AnkiPackageExporter._cardTemplatesForTesting(options: options)
+    #expect(templates.question.contains("{{DisplayTitle}}"))
+    #expect(templates.question.contains("{{Audio}}"))
+    #expect(!templates.question.contains("{{Text}}"))
+    #expect(!templates.question.contains("{{Image}}"))
+    #expect(templates.answer.hasPrefix("{{FrontSide}}"))
+    #expect(templates.answer.contains("{{Text}}"))
+    #expect(templates.answer.contains("{{Image}}"))
 
-    let front = AnkiPackageExporter._cardTemplatesForTesting(cueTextSide: .front)
-    #expect(front.question.contains("{{Text}}"))
-    #expect(!front.question.contains("{{Audio}}"))
-    #expect(front.answer.hasPrefix("{{FrontSide}}"))
-    #expect(front.answer.contains("{{Audio}}"))
-    #expect(front.answer.contains("{{Image}}"))
-
-    // Top to bottom: Cue Text, Cue Group Text, Display Title with Time Range,
-    // then the links; a line whose field is empty is not drawn.
-    let textSide = front.question
-    let order = ["{{Text}}", "{{#CueGroup}}", "{{#Source}}", "{{#Links}}"].compactMap {
-        textSide.range(of: $0)?.lowerBound
-    }
-    #expect(order.count == 4)
-    #expect(order == order.sorted())
+    let titleRange = templates.question.range(of: "{{DisplayTitle}}")!.lowerBound
+    let audioRange = templates.question.range(of: "{{Audio}}")!.lowerBound
+    #expect(titleRange < audioRange)
 }
 
-/// Anki takes an incoming note type for an existing one with the same id, or
-/// the next id up, when field and template names match; the two sides must
-/// never be taken for each other.
 @Test
-func ankiNoteTypesOfTheTwoSidesCannotBeTakenForEachOther() {
-    let back = AnkiPackageExporter._noteTypeForTesting(cueTextSide: .back)
-    let front = AnkiPackageExporter._noteTypeForTesting(cueTextSide: .front)
+func ankiNoteTypesOfDifferentLayoutsHaveDistinctIDs() {
+    let options1 = AnkiExportOptions(frontItems: [.audio], backItems: [.cueText])
+    let options2 = AnkiExportOptions(frontItems: [.cueText], backItems: [.audio])
 
-    #expect(back.templateName != front.templateName)
-    #expect(back.name != front.name)
-    #expect(abs(back.id - front.id) > 1_000)
+    let type1 = AnkiPackageExporter._noteTypeForTesting(options: options1)
+    let type2 = AnkiPackageExporter._noteTypeForTesting(options: options2)
+
+    #expect(type1.id != type2.id)
 }
 
 @MainActor
@@ -213,23 +198,26 @@ func ankiExportChoicesAreRememberedAcrossLaunches() throws {
     defer { userDefaults.removePersistentDomainAndPlist(forName: suiteName) }
 
     let firstLaunch = SettingsStore(userDefaults: userDefaults)
-    #expect(firstLaunch.ankiExportOptions == AnkiExportOptions(cueTextSide: .back, optionalItems: [.screenshot]))
+    #expect(firstLaunch.ankiExportOptions == AnkiExportOptions(frontItems: [.audio], backItems: [.cueText]))
     #expect(firstLaunch.ankiExportFolderPath == nil)
 
     firstLaunch.ankiExportOptions = AnkiExportOptions(
-        cueTextSide: .front,
-        optionalItems: [.deepLink, .timeRange]
+        frontItems: [.cueText, .displayTitle],
+        backItems: [.audio, .deepLink]
     )
     firstLaunch.ankiExportFolderPath = "/Users/reader/Anki"
 
     let secondLaunch = SettingsStore(userDefaults: userDefaults)
-    #expect(secondLaunch.ankiExportOptions == AnkiExportOptions(cueTextSide: .front, optionalItems: [.deepLink, .timeRange]))
+    #expect(secondLaunch.ankiExportOptions == AnkiExportOptions(
+        frontItems: [.cueText, .displayTitle],
+        backItems: [.audio, .deepLink]
+    ))
     #expect(secondLaunch.ankiExportFolderPath == "/Users/reader/Anki")
 }
 
 @MainActor
 @Test
-func ankiExportSessionNamesThePackageAndChecksTheName() {
+func ankiExportSessionNamesThePackageAndChecksTheNameAndSides() {
     var reportedOptions: [AnkiExportOptions] = []
     let session = AnkiExportSession(
         items: [ankiCardItem()],
@@ -256,9 +244,23 @@ func ankiExportSessionNamesThePackageAndChecksTheName() {
     #expect(session.validate())
     #expect(session.validationMessage == nil)
 
-    session.options.toggle(.deepLink)
-    session.options.cueTextSide = .front
-    #expect(reportedOptions.last == AnkiExportOptions(cueTextSide: .front, optionalItems: [.screenshot, .deepLink]))
+    // Layout validation: empty Front or Back
+    session.options.frontItems = []
+    #expect(!session.validate())
+    #expect(session.frontValidationError == L("anki_export.validation.front_empty"))
+
+    session.moveItem(.audio, to: .front, at: 0)
+    #expect(session.frontValidationError == nil)
+    #expect(session.options.frontItems == [.audio])
+
+    session.options.backItems = []
+    #expect(!session.validate())
+    #expect(session.backValidationError == L("anki_export.validation.back_empty"))
+
+    session.moveItem(.cueText, to: .back, at: 0)
+    #expect(session.backValidationError == nil)
+    #expect(session.options.backItems == [.cueText])
+    #expect(session.validate())
 }
 
 @MainActor

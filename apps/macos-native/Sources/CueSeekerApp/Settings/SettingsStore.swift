@@ -82,8 +82,8 @@ final class SettingsStore: ObservableObject {
     private static let searchFacetExclusionsKey = "searchFacetExclusions"
     private static let excerptFacetExclusionsKey = "excerptFacetExclusionsByListID"
     private static let recentExcerptSaveListKey = "recentExcerptSaveListID"
-    private static let ankiExportCueTextSideKey = "ankiExportCueTextSide"
-    private static let ankiExportOptionalItemsKey = "ankiExportOptionalItems"
+    private static let ankiExportFrontItemsKey = "ankiExportFrontItems"
+    private static let ankiExportBackItemsKey = "ankiExportBackItems"
     private static let ankiExportFolderPathKey = "ankiExportFolderPath"
     private static let showCueGroupKey = "showCueGroup"
     private static let prefillCommandPanelWithFocusedCueKey =
@@ -340,25 +340,28 @@ final class SettingsStore: ObservableObject {
         userDefaults.set(Int(listID), forKey: Self.recentExcerptSaveListKey)
     }
 
-    /// The Export to Anki dialog's Cue Text Side and Optional checkboxes, as
+    /// The Export to Anki dialog's card layout (front and back items), as
     /// the reader last left them. Search and Excerpt share them.
     var ankiExportOptions: AnkiExportOptions {
         get {
-            var options = AnkiExportOptions()
-            if let side = userDefaults.string(forKey: Self.ankiExportCueTextSideKey)
-                .flatMap(AnkiExportCueTextSide.init(rawValue:)) {
-                options.cueTextSide = side
+            guard let frontRaw = userDefaults.stringArray(forKey: Self.ankiExportFrontItemsKey),
+                  let backRaw = userDefaults.stringArray(forKey: Self.ankiExportBackItemsKey)
+            else {
+                return AnkiExportOptions()
             }
-            if let items = userDefaults.stringArray(forKey: Self.ankiExportOptionalItemsKey) {
-                options.optionalItems = Set(items.compactMap(AnkiExportOptionalItem.init(rawValue:)))
-            }
-            return options
+            return AnkiExportOptions(
+                frontItems: frontRaw.compactMap(AnkiCardItem.init(rawValue:)),
+                backItems: backRaw.compactMap(AnkiCardItem.init(rawValue:))
+            )
         }
         set {
-            userDefaults.set(newValue.cueTextSide.rawValue, forKey: Self.ankiExportCueTextSideKey)
             userDefaults.set(
-                AnkiExportOptionalItem.allCases.filter(newValue.includes).map(\.rawValue),
-                forKey: Self.ankiExportOptionalItemsKey
+                newValue.frontItems.map(\.rawValue),
+                forKey: Self.ankiExportFrontItemsKey
+            )
+            userDefaults.set(
+                newValue.backItems.map(\.rawValue),
+                forKey: Self.ankiExportBackItemsKey
             )
         }
     }
