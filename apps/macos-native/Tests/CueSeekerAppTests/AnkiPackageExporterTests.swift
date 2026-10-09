@@ -98,6 +98,7 @@ func ankiEntryMappingUsesExactPrimaryCueContent() {
 }
 
 private func ankiCardItem(
+    videoPath: String = "/Videos/Frieren S01E01.mkv",
     displayTitle: String = "Frieren S01E01",
     timeRange: String = "01:23 - 01:25",
     cueGroupOtherTexts: [String] = ["Line two", "Line <three>"],
@@ -105,7 +106,7 @@ private func ankiCardItem(
 ) -> AnkiExportItem {
     AnkiExportItem(
         deckDisplayTitle: "Frieren",
-        videoPath: "/Videos/Frieren S01E01.mkv",
+        videoPath: videoPath,
         startMilliseconds: 83_000,
         endMilliseconds: 85_000,
         text: "Cue",
@@ -312,4 +313,51 @@ func subtitleScreenshotEntryMappingCarriesCueOrderingIdentity() throws {
     #expect(searchItem.cueDisplayOrder == 2)
     #expect(excerptItem.cueEventIndex == 50)
     #expect(excerptItem.cueDisplayOrder == 3)
+}
+
+@Test
+func ankiExportResolvesDefaultAudioTracksInBackground() throws {
+    let databaseURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent("CueSeekerAnkiAudioTrackTests-\(UUID().uuidString).sqlite")
+    defer {
+        removeTemporaryDatabase(at: databaseURL)
+    }
+
+    try DatabaseBootstrap.prepare(at: databaseURL)
+    let indexing = try IndexingDatabase(path: databaseURL)
+    let videoFile = URL(fileURLWithPath: "/Media/Show/Episode.mkv")
+    try indexing.replaceEntries(
+        subtitleFile: URL(fileURLWithPath: "/Media/Show/Episode.srt"),
+        videoFile: videoFile,
+        entries: [SubtitleEntry(
+            sequenceNumber: 1,
+            startTimecode: "00:00:01,000",
+            endTimecode: "00:00:02,000",
+            startMilliseconds: 1_000,
+            endMilliseconds: 2_000,
+            text: "Audio tracks"
+        )]
+    )
+    let library = try LibraryDatabase(path: databaseURL)
+    let tracks = [
+        VideoAudioTrack(language: "jpn", title: nil, codec: "opus", channels: 2),
+        VideoAudioTrack(language: "eng", title: "Commentary", codec: "aac", channels: 6),
+    ]
+    try library.updateVideoMetadata(
+        videoFile: videoFile,
+        duration: 120,
+        videoWidth: 1920,
+        videoHeight: 1080,
+        frameRate: 24,
+        videoCodec: "h264",
+        audioTracks: tracks
+    )
+    try library.setDefaultAudioTrackIndex(1, forVideoFile: videoFile)
+
+    let item = ankiCardItem(videoPath: videoFile.path)
+    #expect(item.audioTrackIndex == 0)
+
+    let resolved = AppCoordinator.resolveDefaultAudioTracks(in: [item], using: library)
+    #expect(resolved.count == 1)
+    #expect(resolved[0].audioTrackIndex == 1)
 }

@@ -70,21 +70,11 @@ extension AppCoordinator {
             return
         }
 
-        // Each card's audio comes from its video's default audio track.
-        var audioTrackIndexes: [String: Int] = [:]
-        let items = items.map { item in
-            var item = item
-            let index = audioTrackIndexes[item.videoPath]
-                ?? defaultAudioTrackIndex(forVideoPath: item.videoPath)
-            audioTrackIndexes[item.videoPath] = index
-            item.audioTrackIndex = index
-            return item
-        }
-
+        let folderURL = ankiExportFolderURL()
         tasks.ankiExportSession = AnkiExportSession(
             items: items,
             options: settings.ankiExportOptions,
-            folderURL: ankiExportFolderURL(),
+            folderURL: folderURL,
             onOptionsChange: { [weak self] options in
                 self?.settings.ankiExportOptions = options
             }
@@ -199,14 +189,42 @@ extension AppCoordinator {
 
     /// Hands the queue the export runner configured with the debug task delay.
     func configureAnkiExportRunner() {
+        let database = libraryDatabase
         tasks.runExport = { items, options, destinationURL, onItemExported in
             await AppCoordinator.waitForDebugTaskDelay()
+            let resolvedItems = Self.resolveDefaultAudioTracks(in: items, using: database)
             try await TaskQueueStore.ankiExportRunner(
-                items,
+                resolvedItems,
                 options,
                 destinationURL,
                 onItemExported
             )
+        }
+    }
+
+    /// Each card's audio comes from its video's default audio track, resolved
+    /// in the background queue rather than blocking dialog presentation.
+    nonisolated static func resolveDefaultAudioTracks(
+        in items: [AnkiExportItem],
+        using database: LibraryDatabase?
+    ) -> [AnkiExportItem] {
+        guard let database else {
+            return items
+        }
+        var audioTrackIndexes: [String: Int] = [:]
+        return items.map { item in
+            var item = item
+            let index: Int
+            if let cached = audioTrackIndexes[item.videoPath] {
+                index = cached
+            } else {
+                index = (try? database.videoAudioTracks(
+                    forVideoFile: URL(fileURLWithPath: item.videoPath)
+                ))?.defaultIndex ?? 0
+                audioTrackIndexes[item.videoPath] = index
+            }
+            item.audioTrackIndex = index
+            return item
         }
     }
 }
