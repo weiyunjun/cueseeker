@@ -1,6 +1,7 @@
 # Miscellaneous
 *.class
 *.log
+*.report.txt
 logs/**/*.jsonl
 *.pyc
 *.swp
@@ -12,6 +13,7 @@ logs/**/*.jsonl
 .svn/
 .swiftpm/
 migrate_working_dir/
+target/
 
 # IntelliJ related
 *.iml
@@ -31,7 +33,7 @@ migrate_working_dir/
 .flutter-plugins-dependencies
 .pub-cache/
 .pub/
-/build/
+**/build/
 /coverage/
 apps/windows-playback-lab/build/
 apps/windows-playback-lab/out/

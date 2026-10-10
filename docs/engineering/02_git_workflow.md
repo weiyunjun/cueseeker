@@ -71,6 +71,20 @@ Rules:
 - Do not mix unrelated documentation, architecture, database, UI, and playback changes in one large commit.
 - Keep experimental work behind proposals or ADRs before it becomes stable implementation.
 
+## 3.1 Remote Synchronization Rules
+
+Local Git commits and GitHub remote pushes are explicitly decoupled:
+
+Rules:
+
+- Every accepted modification must be committed locally to preserve granular,
+  reviewable history and requirement traceability.
+- Do not push to the remote GitHub repository automatically or on every single local commit.
+- Pushing to GitHub is reserved for meaningful milestones, version releases,
+  or explicit manual synchronization by the repository owner.
+- The AI is strictly prohibited from running `git push` or interacting with remote
+  repositories unless explicitly instructed by the owner.
+
 ## 4. Commit Granularity
 
 Commits should represent understandable project steps.
@@ -273,6 +287,7 @@ Rules:
   change before editing and must use any design document it cites as the stable
   product authority.
 - Unless the user provides an explicit instruction to modify code, all user prompts must be treated as discussion or proposal requests. The AI is strictly prohibited from modifying code without explicit permission.
+- The AI is strictly prohibited from executing `git push` or pushing commits to remote repositories. Pushing to GitHub is reserved for the human repository owner at milestone or release boundaries.
 - Human-owned documentation lives under `docs/human/`. It is the
   authoritative human-maintained documentation area for requirements, design,
   planning, product meaning, and stable human decisions.

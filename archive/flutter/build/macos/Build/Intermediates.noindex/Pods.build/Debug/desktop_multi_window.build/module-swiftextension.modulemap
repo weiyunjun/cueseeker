@@ -1,5 +1,0 @@
-
-module desktop_multi_window.Swift {
-  header "desktop_multi_window-Swift.h"
-  requires objc
-}

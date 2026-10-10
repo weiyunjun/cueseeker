@@ -1,4 +1,0 @@
-
-module desktop_multi_window.__Swift {
-  exclude header "desktop_multi_window-Swift.h"
-}
