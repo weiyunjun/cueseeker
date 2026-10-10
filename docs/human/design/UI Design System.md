@@ -270,6 +270,10 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--min-height-settings-window`: `420px`
 - `--height-settings-titlebar`: `36px`
 - `--min-height-settings-row`: `52px`
+- `--height-anki-export-available-pool`: `96px`
+- `--min-height-anki-export-card-box`: `208px`
+- `--height-anki-export-drop-slot`: `6px`
+- `--height-anki-export-drop-line`: `2px`
 
 ### Size
 
@@ -342,6 +346,9 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--width-settings-sidebar`: `184px`
 - `--width-settings-popup`: `180px`
 - `--border-width-control`: `1px`
+- `--size-anki-export-drag-handle`: `12px`
+- `--size-anki-export-badge-remove-button`: `14px`
+- `--size-anki-export-badge-remove-icon`: `12px`
 
 ## 1.4 间距
 
@@ -446,6 +453,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--radius-library-media-card-hover`: `20px`
 - `--radius-library-list-card`: `16px`
 - `--radius-cover-summary`: `16px`
+- `--radius-anki-export-badge-remove-button`: `3px`
 
 ### Shadow
 
@@ -3975,11 +3983,12 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
    1. Title：`Export to Anki`
    2. Close Button
 2. Form Region
-   1. Cue Text Side：Label 与 Segmented Control（`Front`、`Back`）
-   2. Required：Label 与 Checkbox `Cue Text`、`Audio`
-   3. Optional：Label 与 Checkbox `Screenshot`、`Cue Group Text`、`Display Title`、`Time Range`、`Deep Link`、`Subtitle File Path`、`Video File Path`
-   4. File Name Field
-   5. Location：Label、完整文件夹路径与 Icon Button / Default（`folder`）
+   1. Available Items：Label 与候选徽章池
+   2. Card Layout：Label 与两列卡片放置区（`Front`、`Back`）
+      1. Front：卡片标题与放置区
+      2. Back：卡片标题与放置区
+   3. File Name Field
+   4. Location：Label、完整文件夹路径与 Icon Button / Default（`folder`）
 3. Footer
    1. Cancel
    2. Export
@@ -3987,8 +3996,8 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 #### Components
 
 - Dialog
-- Segmented Control
-- Checkbox / Form Checkbox
+- Card / Settings Group Style
+- Filter Chip（用于候选徽章）
 - Text Field
 - Icon Button / Default
 - Button / Neutral
@@ -3997,24 +4006,32 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 #### Layout
 
 - Width：`--width-dialog-large`
-- Form Region 单列，占满内容宽度；各组 Label 与 Text Field 的 Label 相同。
-- Checkbox 每行两个，两列等宽，按 Structure 的顺序从左到右、从上到下排列；Required 的 Checkbox 始终为 Checked + Disabled。
+- Form Region 单列，占满内容宽度；超出窗口高度时中间表单区域垂直滚动，Header 与 Footer 固定。
+- Available Items：固定高度（`--height-anki-export-available-pool`，96px），流式容纳候选徽章；全部移出时显示占位提示。
+- Card Layout：包含 `Front` 与 `Back` 两列等宽卡片，内部放置区最小容纳 5 个徽章高度（`--min-height-anki-export-card-box`，208px），超过 5 个自适应撑开；为空时显示占位提示。
+- 徽章交互：
+  - Available Items、Front、Back 之间支持自由拖拽。
+  - Front 与 Back 内的徽章带有 6 点拖拽手柄（`dots-six-vertical`）与删除按钮（`✕`）；上下拖拽显示高亮指示线，点击删除按钮移回 Available Items。
+  - 移回 Available Items 的徽章按固定标准顺序归位。
+- 导出排版（所见即所得）：卡片正面与背面内容严格按 Front、Back 区域内自上而下的视觉顺序渲染；未放入卡片的不导出。
 - Location 路径的文字同 Rename 的 Current Name，单行，过长时中间截断；文件夹按钮在路径右侧，字形墨迹右缘与内容右缘对齐。
-- 默认：Cue Text Side 为 `Back`，Optional 只勾 `Screenshot`，Location 为 Downloads。这三项的选择重新启动后保留，Search 与 Excerpt 共用；File Name 每次打开时重新生成。
+- 默认：Front 放置 `Audio`，Back 放置 `Cue Text`，其余 5 项位于 Available Items；Location 为上次选择的文件夹。徽章布局与 Location 重新启动后保留，Search 与 Excerpt 共用；File Name 每次打开时重新生成。
 
 #### Spacing
 
 - Region Gap：`--spacing-4`
 - Group Gap：`--spacing-4`
 - Label to Content Gap：`--spacing-2`
-- Checkbox Row Gap：`--spacing-3`
-- Checkbox Column Gap：`--spacing-4`
+- Card Layout Column Gap：`--spacing-3`
+- Badge Gap：`--spacing-2`
 - Footer Action Gap：`--spacing-2`
 
 #### States
 
 - Default
 - Validation Error
+  - File Name 为空或非法时报错。
+  - 点击 Export 时 Front 或 Back 为空时拦截导出，对应卡片边框变红（`--color-danger-text`）并在卡片内显示红色错误提示。
 
 ### Filter Dialog Layout
 

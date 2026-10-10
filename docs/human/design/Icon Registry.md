@@ -71,8 +71,8 @@
 | `minus-circle` | Regular | 移除 | File Page / Root Folder Row / Remove |
 | `minus-circle` | Fill | 半选 | Checkbox / Indeterminate |
 | `stack` | Regular | 剧集 | Library File Tree / Display Title |
-| `video` | Regular | 视频 | Library File Tree / Video；Command Panel Root / Recent Videos；Library 封面占位，57px；Anki 卡片 / Video File Path，20px |
-| `subtitles` | Regular | 字幕 | Library File Tree / Subtitle；播放控制条 / 字幕；Playback Feedback（字幕开关）；Anki 卡片 / Subtitle File Path，20px；Settings / Subtitle |
+| `video` | Regular | 视频 | Library File Tree / Video；Command Panel Root / Recent Videos；Library 封面占位，57px |
+| `subtitles` | Regular | 字幕 | Library File Tree / Subtitle；播放控制条 / 字幕；Playback Feedback（字幕开关）；Settings / Subtitle |
 
 ## 3.4 状态与提示
 
@@ -95,6 +95,7 @@
 | `note-pencil` | Regular | 编辑 | Excerpt List 卡片菜单 / Edit List |
 | `plus` | Regular | 新建、添加 | Excerpt List Overview / New List |
 | `list-checks` | Regular | 选择模式 | 预留，暂无使用位置 |
+| `dots-six-vertical` | Regular | 拖拽手柄 | Export to Anki Dialog / Card Item Handle，12px |
 | `sign-out` | Regular | 退出选择 | Search / Excerpt Toolbar / Exit Selection |
 | `images-square` | Regular | 截图组 | Playback Topbar / Collage Action |
 | `trash` | Regular | 删除 | Excerpt List 卡片菜单 / Delete List；Task Card / Delete Action |
