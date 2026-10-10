@@ -31,6 +31,25 @@ struct WorkbenchInvalidationTests {
 
     @MainActor
     @Test
+    func initialLibraryHydrationProceedsWhileInLibraryPanelMode() async throws {
+        try await withWorkbenchInvalidationTestApp { app in
+            app.indexing.selectedFolders = [URL(fileURLWithPath: "/Media/Show")]
+            app.activateWorkbenchPanelMode(.testLibrary)
+
+            #expect(app.library.completeLibraryStatus == .idle)
+            #expect(!app.libraryNeedsReloadAfterIndexedMutation)
+
+            app.hydrateCompleteLibraryAsync()
+
+            #expect(!app.libraryNeedsReloadAfterIndexedMutation)
+            #expect(app.library.completeLibraryStatus == .loading || app.library.completeLibraryStatus == .completed)
+            await app.completeLibraryTask?.value
+            #expect(app.library.completeLibraryStatus == .completed)
+        }
+    }
+
+    @MainActor
+    @Test
     func heldWorkbenchRoutePreservesKnownRouteAcrossMutationsUntilDeparture() async throws {
         try await withWorkbenchInvalidationTestApp { app in
             app.indexing.selectedFolders = [URL(fileURLWithPath: "/Media/Show")]

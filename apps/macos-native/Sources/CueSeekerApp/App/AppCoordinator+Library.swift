@@ -386,7 +386,7 @@ extension AppCoordinator {
             if library.completeLibraryStatus != .idle
                 || !library.completeLibraryFolderSummaries.isEmpty
             {
-                refreshCompleteLibrary()
+                refreshCompleteLibrary(force: true)
             }
             return
         }
@@ -396,7 +396,7 @@ extension AppCoordinator {
         if case .loading = library.completeLibraryStatus, completeLibraryTask != nil {
             return
         }
-        refreshCompleteLibrary()
+        refreshCompleteLibrary(force: true)
     }
 
     func ensureLibraryDisplayRenditionsAsync() {
