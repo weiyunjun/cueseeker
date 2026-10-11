@@ -752,7 +752,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
   - Component：Keycap / Popover Surface
   - Placement：Leading
   - Gap：`--spacing-1`
-  - ⇧ 与主键各占一个 Keycap
+  - 修饰键（⌃、⌥、⇧、⌘）与主键各占一个 Keycap
 - Placeholder
   - Presence：仅 Recording
   - Font Size：`--font-size-control`
@@ -778,7 +778,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
   - Border Color：`--color-border-focus`
   - Keycap 换为 Placeholder 与 Inline Clear
 - Error
-  - 触发：快捷键冲突，或 Recording 时按下不可用的键
+  - 触发：快捷键冲突；Recording 时按下排除或保留键静默忽略，不触发 Error
   - Border Color：`--color-danger-text`
 
 ## 2.2 Selection Controls
@@ -4540,7 +4540,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - Save to Excerpt List 打开 Excerpt Destination Submenu 选择目标列表，不直接保存；结果由 Playback Feedback 呈现，Icon 为实心书签
 - 对不在数据库中的项执行 Save to Excerpt List 或 Copy Deep Link 时拦截，由 Playback Feedback 呈现（持续 1 秒），Icon 为 warning，文案 `Not in Library`，面板保持打开；执行 Play 时关闭 Playback Overlay，进入黑屏播放界面并由 Player Error Banner 报错
 - 在 Command Panel 的 Recent Excerpt Lists 中打开没有有效项的列表时拦截，由 Playback Feedback 呈现（持续 1 秒），文案 `No Available Excerpts`，面板保持打开
-- `S`、`C`、`X` 为默认键位，Keycap 显示 Settings / Shortcuts 中的当前键位，⇧ 与主键各占一个 Keycap；快捷键已清空或冲突时不显示 Keycap
+- `S`、`C`、`X` 为默认键位，Keycap 显示 Settings / Shortcuts 中的当前键位，修饰键（⌃、⌥、⇧、⌘）与主键各占一个 Keycap；快捷键已清空或冲突时不显示 Keycap
 
 #### States
 
