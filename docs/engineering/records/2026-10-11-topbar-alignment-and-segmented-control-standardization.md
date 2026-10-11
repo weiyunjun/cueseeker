@@ -27,7 +27,7 @@ Human-owned documents:
    - Defined `redesignAppTopbarContentTrailingPadding = redesignAppTopbarContentHorizontalPadding + redesignWorkbenchPageScrollbarChannel` (40px) across Workbench topbar, Playback topbar, and Playback Overlay topbar.
 2. **Segmented Control Accessibility & Options (`WorkbenchSegmentedControl.swift`, `WorkbenchLayoutState.swift`, `Localizable.strings`)**:
    - Added `accessibilityIdentifier` support to `WorkbenchSegmentedControl`.
-   - Added `shortLabel` to `WorkbenchRecentSection` ("Videos" / "Excerpt Lists"; "视频" / "摘录列表"; "影片" / "摘錄列表").
+   - Added `shortLabel` to `WorkbenchRecentSection` ("Videos" / "Excerpt Lists"; "视频" / "摘录集"; "影片" / "摘錄集").
 3. **Workbench Recent Topbar Integration (`AppTopbarLayout.swift`, `ContentView.swift`, `WorkbenchTestLibraryView.swift`)**:
    - Added `centerContent` slot to `AppTopbarLayout` centered in the content region.
    - Integrated `recentSegmentedControl` into `AppTopBar` for the Recent route.
