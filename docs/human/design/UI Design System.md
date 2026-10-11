@@ -246,7 +246,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--height-select-menu-item`: `32px`
 - `--max-height-menu`: `480px`
 - `--height-app-sidebar-item`: `32px`
-- `--height-app-topbar`: `45px`
+- `--height-app-topbar`: `54px`
 - `--height-workbench-topbar`: `54px`
 - `--height-player-bottom-control-bar`: `98px`
 - `--height-player-bottom-controls-row`: `52px`
@@ -418,6 +418,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--padding-task-count-badge-compact-x`: `6px`
 - `--padding-library-media-card-hover`: `12px`
 - `--padding-workbench-media-card-grid-inline`: Leading `--spacing-5` (`20px`)，Trailing `--spacing-5` + `--width-page-scrollbar-channel` (`36px`)
+- `--padding-app-topbar-trailing`: `--spacing-6` + `--width-page-scrollbar-channel` (`40px`)
 - `--padding-library-list-card`: `12px 16px`
 - `--padding-cover-summary-backdrop-inline`: `40px`
 - `--padding-cover-summary-backdrop-block`: `22.5px`
@@ -3083,6 +3084,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - Function Region Minimum Width：`--min-width-workbench-page-content`，由 Function Region 与 Trailing Function Region 共用
 - Window Controls Inset：`--spacing-6`
 - Collapsed Toggle Gap After Window Controls：`--gap-app-topbar-toggle-after-window-controls`
+- Trailing Padding：`--padding-app-topbar-trailing`
 
 #### Page Title
 
@@ -3351,26 +3353,24 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 
 #### Structure
 
-1. Tabs：`Recent Videos`、`Recent Excerpt Lists`
+1. Topbar Segmented Control：`Videos`、`Excerpt Lists`（左侧保留 Page Title `Recent`）
 2. Recent Videos：Recent Watching Card Grid
 3. Recent Excerpt Lists：Excerpt List Card Grid
 
 #### Components
 
-- Tabs
-- Tab
+- Segmented Control
 - Recent Watching Card Layout
 - Excerpt List Card Layout
 
 #### Layout
 
 - Page Layout：Workbench Titled Page Layout
-- Tabs 水平居中显示，卡片网格使用 `--padding-workbench-media-card-grid-inline`。
-- 默认 Tab：Recent Videos。Tab 选择在 App 运行期间保留，重新启动后回到默认。
+- Segmented Control 位于顶栏内容区水平、垂直居中，卡片网格使用 `--padding-workbench-media-card-grid-inline`。
+- 默认选项：Videos。选择在 App 运行期间保留，重新启动后回到默认。
 
 #### Sizes
 
-- Tabs to Content Gap：`--spacing-4`
 - Card Width：`--width-library-recent-card-min` to `--width-library-recent-card-max`
 - Grid Gap：`--gap-library-recent-grid`
 
@@ -4140,15 +4140,14 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 
 1. Header
    1. Title：`Task`
-   2. Close Button
-2. Tabs：`Current`、`Completed`、`Incomplete`，水平居中
-3. Task Card List
+   2. Segmented Control：`Current`、`Completed`、`Incomplete`，水平居中
+   3. Close Button
+2. Task Card List
 
 #### Components
 
 - Dialog
-- Tabs
-- Tab
+- Segmented Control
 - Icon Button / Dialog Close
 - Scrollbar / Vertical
 
@@ -4266,8 +4265,8 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 
 - Height：`--height-app-topbar`
 - Task to Settings Gap：`--spacing-1`
-- Padding Inline：`--padding-player-topbar-x`
-- Window Controls：与 App Topbar Layout 同一位置，起点 `--spacing-6`，在 `--height-app-topbar` 内垂直居中
+- Padding Inline：Leading `--padding-player-topbar-x`，Trailing `--padding-app-topbar-trailing`
+- Window Controls：与 App Topbar Layout 同一位置，起点 `--spacing-6`，在 45px 控制带内垂直居中
 - Return Action：与 Window Controls 同一水平中线
 - Return Action Gap：`--gap-player-window-controls-return`
 - Fullscreen：Window Controls 由系统标题栏显示，Return Action 起点改为 `--padding-player-topbar-x`
@@ -4478,18 +4477,17 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - Icon Button / Default：返回 Workbench
 - Icon Button / Default
 - Information Badge / Task Count Badge
-- Tabs
-- Tab
+- Segmented Control
 - Editing Title：与 Tab / Selected 的 Label 相同，无 Selection Indicator
 
 #### Sizes
 
 - Height：`--height-app-topbar`
-- Tabs 与 Editing Title 最大宽度：顶栏的居中元素可用宽度
+- Segmented Control 与 Editing Title 最大宽度：顶栏的居中元素可用宽度
 
 #### Spacing
 
-- Trailing Margin：`--spacing-4`
+- Trailing Margin：`--padding-app-topbar-trailing`
 - Trailing Gap：`--spacing-1`
 - Window Controls 与 Return Action：与 Player Topbar Layout 同一位置
 
