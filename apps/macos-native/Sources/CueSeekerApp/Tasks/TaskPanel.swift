@@ -27,22 +27,7 @@ struct TaskPanel: View {
 
     var body: some View {
         VStack(spacing: WorkbenchControlMetrics.redesignSpacing4) {
-            WorkbenchDialogHeader(title: L("task.title"))
-                .padding(.horizontal, WorkbenchControlMetrics.redesignDialogInset)
-
-            WorkbenchTabs(
-                items: TaskQueueTab.allCases.map {
-                    .init(
-                        value: $0,
-                        label: $0.label,
-                        accessibilityIdentifier: "task-tab-\($0.rawValue)"
-                    )
-                },
-                selection: tasks.selectedTab
-            ) { tab in
-                dismissMenu()
-                tasks.selectedTab = tab
-            }
+            headerRow
 
             // The list reaches the dialog's sides and bottom: the scrollbar
             // runs in the inset, and the last card ends one inset above the
@@ -112,16 +97,51 @@ struct TaskPanel: View {
         .workbenchDialogWidth(WorkbenchControlMetrics.redesignDialogWidthXLarge)
         .frame(height: WorkbenchControlMetrics.redesignTaskPanelHeight)
         .background(WorkbenchRedesignColors.bgDialog)
-        // Escape closes the panel through its close button, unless a
-        // confirmation stands above the panel, which owns it.
-        .workbenchDialogCloseButton(
-            closesOnEscape: confirmation.session == nil,
-            onClose: {
-                dismissMenu()
-                tasks.closePanel()
-            }
-        )
         .subtitleTableTextSelectionNonInteractiveRegion()
+    }
+
+    private var headerRow: some View {
+        ZStack {
+            HStack {
+                Text(L("task.title"))
+                    .font(.system(
+                        size: WorkbenchControlMetrics.redesignDialogTitleFontSize,
+                        weight: .semibold
+                    ))
+                    .foregroundStyle(WorkbenchRedesignColors.textPrimary)
+
+                Spacer()
+
+                WorkbenchIconButton(
+                    icon: .x,
+                    isRedesign: true,
+                    iconSize: WorkbenchControlMetrics.redesignDialogCloseIconSize,
+                    boxSize: WorkbenchControlMetrics.redesignDialogCloseButtonSize,
+                    action: {
+                        dismissMenu()
+                        tasks.closePanel()
+                    }
+                )
+                .keyboardShortcut(confirmation.session == nil ? .cancelAction : nil)
+                .accessibilityLabel(L("common.close"))
+            }
+
+            WorkbenchSegmentedControl(
+                options: TaskQueueTab.allCases,
+                selection: Binding(
+                    get: { tasks.selectedTab },
+                    set: { tab in
+                        dismissMenu()
+                        tasks.selectedTab = tab
+                    }
+                ),
+                title: { $0.label },
+                accessibilityLabel: { $0.label },
+                accessibilityIdentifier: { "task-tab-\($0.rawValue)" }
+            )
+        }
+        .frame(height: WorkbenchControlMetrics.redesignSegmentedControlHeight)
+        .padding(.horizontal, WorkbenchControlMetrics.redesignDialogInset)
     }
 
     @ViewBuilder

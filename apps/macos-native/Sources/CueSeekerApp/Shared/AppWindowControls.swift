@@ -120,7 +120,7 @@ enum AppWindowControls {
         }
         set(
             inset: WorkbenchControlMetrics.redesignSpacing6,
-            height: WorkbenchControlMetrics.redesignAppTopbarHeight,
+            height: WorkbenchControlMetrics.redesignWindowControlsBandHeight,
             hidden: placement.isHidden
         )
     }

@@ -95,8 +95,12 @@ func workbenchSearchFieldPlacesInsertionPointAfterCompleteText() {
 @Test
 func workbenchTopbarIsTallerThanTheWindowControlsBand() {
     #expect(WorkbenchControlMetrics.redesignWorkbenchTopbarHeight == 54)
-    #expect(WorkbenchControlMetrics.redesignAppTopbarHeight == 45)
+    #expect(WorkbenchControlMetrics.redesignAppTopbarHeight == 54)
+    #expect(WorkbenchControlMetrics.redesignWindowControlsBandHeight == 45)
     #expect(AppShellLayout.topBarHeight == WorkbenchControlMetrics.redesignWorkbenchTopbarHeight)
+    #expect(WorkbenchControlMetrics.redesignAppTopbarContentHorizontalPadding == 24)
+    #expect(WorkbenchControlMetrics.redesignWorkbenchPageScrollbarChannel == 16)
+    #expect(WorkbenchControlMetrics.redesignAppTopbarContentTrailingPadding == 40)
 }
 
 @Test

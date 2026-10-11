@@ -323,18 +323,16 @@ private struct PlaybackOverlayTopBar: View {
                     .allowsHitTesting(false)
                     .accessibilityIdentifier("playback-collage-editor-title")
             } else {
-                WorkbenchTabs(
-                    items: modules.map {
-                        .init(
-                            value: $0,
-                            label: $0.label,
-                            accessibilityIdentifier: "playback-view-\($0.rawValue)"
-                        )
-                    },
-                    selection: selectedModule
-                ) { module in
-                    _ = onSelect(module)
-                }
+                WorkbenchSegmentedControl(
+                    options: modules,
+                    selection: Binding(
+                        get: { selectedModule ?? modules.first ?? .current },
+                        set: { _ = onSelect($0) }
+                    ),
+                    title: { $0.label },
+                    accessibilityLabel: { $0.label },
+                    accessibilityIdentifier: { "playback-view-\($0.rawValue)" }
+                )
                 .frame(maxWidth: centerMaxWidth)
             }
 
@@ -367,7 +365,7 @@ private struct PlaybackOverlayTopBar: View {
                 )
             }
             .frame(maxWidth: .infinity, alignment: .trailing)
-            .padding(.trailing, WorkbenchControlMetrics.redesignSpacing4)
+            .padding(.trailing, WorkbenchControlMetrics.redesignAppTopbarContentTrailingPadding)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(PlaybackTheme.subtitleFocusOverlayBackground)
@@ -384,7 +382,7 @@ private struct PlaybackOverlayTopBar: View {
             barWidth: barWidth,
             isFullscreen: isAppFullscreen,
             trailingButtonCount: selectedModule == .current ? 3 : 2,
-            trailingPadding: WorkbenchControlMetrics.redesignSpacing4
+            trailingPadding: WorkbenchControlMetrics.redesignAppTopbarContentTrailingPadding
         )
     }
 }

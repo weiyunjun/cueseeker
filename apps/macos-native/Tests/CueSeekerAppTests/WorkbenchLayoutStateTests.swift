@@ -254,3 +254,11 @@ func workbenchSidebarCollapsesBeforeThePageDropsBelowItsMinimumWidth() {
             == AppShellLayout.pageContentMinimumWidth
     )
 }
+
+@Test
+func workbenchRecentSectionLabelsAndShortLabelsMatchSpecification() {
+    #expect(WorkbenchRecentSection.videos.label == "Recent Videos")
+    #expect(WorkbenchRecentSection.excerpts.label == "Recent Excerpt Lists")
+    #expect(WorkbenchRecentSection.videos.shortLabel == "Videos")
+    #expect(WorkbenchRecentSection.excerpts.shortLabel == "Excerpt Lists")
+}

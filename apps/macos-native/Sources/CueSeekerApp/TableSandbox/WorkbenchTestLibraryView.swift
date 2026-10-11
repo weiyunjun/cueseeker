@@ -24,23 +24,16 @@ struct WorkbenchRecentView: View {
         GeometryReader { geometry in
             WorkbenchScrollView([.vertical, .horizontal]) {
                 VStack(alignment: .leading, spacing: WorkbenchTestLibraryMetrics.sectionSpacing) {
-                    HStack {
-                        Spacer(minLength: 0)
-                        sectionTabs
-                        Spacer(minLength: 0)
+                    switch routeState.selectedRecentSection {
+                    case .videos:
+                        recentVideosContent(
+                            status: library.testRecentWatchingStatus,
+                            items: library.testRecentWatchingItems
+                        )
+                    case .excerpts:
+                        recentExcerptsContent(excerpt.recentListSummaries)
                     }
-                    .workbenchPageInlinePadding()
-
-                switch routeState.selectedRecentSection {
-                case .videos:
-                    recentVideosContent(
-                        status: library.testRecentWatchingStatus,
-                        items: library.testRecentWatchingItems
-                    )
-                case .excerpts:
-                    recentExcerptsContent(excerpt.recentListSummaries)
                 }
-            }
                 .padding(.top, WorkbenchTestLibraryMetrics.pageTopPadding)
                 .padding(.bottom, WorkbenchTestLibraryMetrics.pageBottomPadding)
                 .frame(
@@ -74,21 +67,6 @@ struct WorkbenchRecentView: View {
                 appState.reloadExcerptListOverview()
                 appState.refreshRecentOnReappearanceIfNeeded()
             }
-        }
-    }
-
-    private var sectionTabs: some View {
-        WorkbenchTabs(
-            items: WorkbenchRecentSection.allCases.map {
-                .init(
-                    value: $0,
-                    label: $0.label,
-                    accessibilityIdentifier: "recent-segment-\($0.rawValue)"
-                )
-            },
-            selection: routeState.selectedRecentSection
-        ) { section in
-            appState.workbenchLayout.selectRecentSection(section)
         }
     }
 

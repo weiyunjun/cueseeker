@@ -266,8 +266,10 @@ enum WorkbenchControlMetrics {
     static let redesignChipVerticalPadding: CGFloat = 4
     /// --height-app-sidebar-item: 32px
     static let redesignAppSidebarItemHeight: CGFloat = 32
-    /// --height-app-topbar: 45px — the band the window controls sit in.
-    static let redesignAppTopbarHeight: CGFloat = 45
+    /// --height-app-topbar: 54px — unified topbar height across Workbench, Playback, and Playback Overlay.
+    static let redesignAppTopbarHeight: CGFloat = 54
+    /// Window controls band height: 45px — keeps native traffic light buttons centered at their original position.
+    static let redesignWindowControlsBandHeight: CGFloat = 45
     /// --height-workbench-topbar: 54px — the Workbench topbar itself.
     static let redesignWorkbenchTopbarHeight: CGFloat = 54
     /// --width-app-sidebar: 240px
@@ -325,6 +327,10 @@ enum WorkbenchControlMetrics {
     static let redesignAppSidebarItemHorizontalPadding: CGFloat = 10
     /// Provisional --padding-app-topbar-content-x: 24px
     static let redesignAppTopbarContentHorizontalPadding: CGFloat = 24
+    /// Trailing padding for App topbars: leading margin (24px) plus the Scrollbar channel (16px) = 40px,
+    /// so the rightmost button visually aligns with the content boundary below.
+    static let redesignAppTopbarContentTrailingPadding: CGFloat =
+        redesignAppTopbarContentHorizontalPadding + redesignWorkbenchPageScrollbarChannel
     /// --font-size-app-sidebar-item: 13px
     static let redesignFontSizeAppSidebarItem: CGFloat = 13
 

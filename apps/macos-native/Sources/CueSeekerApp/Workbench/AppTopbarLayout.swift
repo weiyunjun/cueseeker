@@ -4,7 +4,8 @@ import SwiftUI
 struct AppTopbarLayout<
     Content: View,
     TrailingContent: View,
-    SidebarToggle: View
+    SidebarToggle: View,
+    CenterContent: View
 >: View {
     let isSidebarVisible: Bool
     let isAppFullscreen: Bool
@@ -16,7 +17,28 @@ struct AppTopbarLayout<
     /// The trailing function region. It holds what belongs to the App rather
     /// than to the page below, so it is the same in every workbench page.
     @ViewBuilder let trailingContent: () -> TrailingContent
+    @ViewBuilder let centerContent: () -> CenterContent
     @ViewBuilder let sidebarToggle: () -> SidebarToggle
+
+    init(
+        isSidebarVisible: Bool,
+        isAppFullscreen: Bool,
+        pageScrollOffset: CGFloat,
+        onDoubleClickZoom: @escaping (NSWindow) -> Bool,
+        @ViewBuilder content: @escaping () -> Content,
+        @ViewBuilder trailingContent: @escaping () -> TrailingContent,
+        @ViewBuilder centerContent: @escaping () -> CenterContent,
+        @ViewBuilder sidebarToggle: @escaping () -> SidebarToggle
+    ) {
+        self.isSidebarVisible = isSidebarVisible
+        self.isAppFullscreen = isAppFullscreen
+        self.pageScrollOffset = pageScrollOffset
+        self.onDoubleClickZoom = onDoubleClickZoom
+        self.content = content
+        self.trailingContent = trailingContent
+        self.centerContent = centerContent
+        self.sidebarToggle = sidebarToggle
+    }
 
     var body: some View {
         TitlebarBackgroundView(
@@ -55,15 +77,19 @@ struct AppTopbarLayout<
             let rowWidth = max(regionWidth, AppShellLayout.pageContentMinimumWidth)
             let offset = min(max(0, pageScrollOffset), rowWidth - regionWidth)
 
-            HStack(spacing: 0) {
-                content()
+            ZStack {
+                HStack(spacing: 0) {
+                    content()
 
-                Spacer(minLength: WorkbenchControlMetrics.redesignAppTopbarContentAfterToggleGap)
+                    Spacer(minLength: WorkbenchControlMetrics.redesignAppTopbarContentAfterToggleGap)
 
-                trailingContent()
+                    trailingContent()
+                }
+                .padding(.leading, rowLeadingInset)
+                .padding(.trailing, WorkbenchControlMetrics.redesignAppTopbarContentTrailingPadding)
+
+                centerContent()
             }
-            .padding(.leading, rowLeadingInset)
-            .padding(.trailing, WorkbenchControlMetrics.redesignAppTopbarContentHorizontalPadding)
             .frame(width: rowWidth, height: proxy.size.height)
             .offset(x: -offset)
             .frame(width: regionWidth, height: proxy.size.height, alignment: .leading)
@@ -82,7 +108,7 @@ struct AppTopbarLayout<
                 // On the window controls' centre line, not the taller bar's.
                 .offset(
                     x: sidebarToggleHandleX,
-                    y: (WorkbenchControlMetrics.redesignAppTopbarHeight - AppShellLayout.sidebarToggleSize) / 2
+                    y: (WorkbenchControlMetrics.redesignWindowControlsBandHeight - AppShellLayout.sidebarToggleSize) / 2
                 )
         }
         .frame(height: WorkbenchControlMetrics.redesignWorkbenchTopbarHeight)

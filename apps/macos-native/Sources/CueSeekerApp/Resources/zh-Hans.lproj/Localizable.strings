@@ -33,6 +33,8 @@
 "sidebar.recent" = "最近";
 "sidebar.recent_videos" = "最近视频";
 "sidebar.recent_excerpts" = "最近摘录集";
+"recent.segment.videos" = "视频";
+"recent.segment.excerpts" = "摘录列表";
 "sidebar.library" = "媒体库";
 "sidebar.file" = "文件";
 "sidebar.excerpt" = "摘录";

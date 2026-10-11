@@ -56,6 +56,15 @@ enum WorkbenchRecentSection: String, CaseIterable {
             L("sidebar.recent_excerpts")
         }
     }
+
+    var shortLabel: String {
+        switch self {
+        case .videos:
+            L("recent.segment.videos")
+        case .excerpts:
+            L("recent.segment.excerpts")
+        }
+    }
 }
 
 /// The two Tabs of the File page.

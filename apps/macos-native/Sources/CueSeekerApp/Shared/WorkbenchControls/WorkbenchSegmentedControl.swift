@@ -6,6 +6,7 @@ struct WorkbenchSegmentedControl<Option: Hashable>: View {
     @Binding var selection: Option
     let title: (Option) -> String
     let accessibilityLabel: (Option) -> String
+    var accessibilityIdentifier: ((Option) -> String)? = nil
 
     var body: some View {
         WorkbenchSegmentedControlLayout(spacing: WorkbenchControlMetrics.redesignSegmentedControlGap) {
@@ -30,7 +31,7 @@ struct WorkbenchSegmentedControl<Option: Hashable>: View {
     private func segment(_ option: Option) -> some View {
         let isSelected = selection == option
 
-        return Button {
+        let button = Button {
             selection = option
         } label: {
             Text(title(option))
@@ -60,6 +61,14 @@ struct WorkbenchSegmentedControl<Option: Hashable>: View {
         .focusable(false)
         .accessibilityLabel(accessibilityLabel(option))
         .accessibilityValue(isSelected ? L("facet.selected") : L("facet.not_selected"))
+
+        return Group {
+            if let accessibilityIdentifier {
+                button.accessibilityIdentifier(accessibilityIdentifier(option))
+            } else {
+                button
+            }
+        }
     }
 }
 

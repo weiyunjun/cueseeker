@@ -323,9 +323,29 @@ struct AppTopBar: View {
             }
         } trailingContent: {
             TopbarAppEntries()
+        } centerContent: {
+            if routeState.currentRoute == .recent {
+                recentSegmentedControl
+            }
         } sidebarToggle: {
             sidebarToggle
         }
+    }
+
+    @ViewBuilder
+    private var recentSegmentedControl: some View {
+        WorkbenchSegmentedControl(
+            options: WorkbenchRecentSection.allCases,
+            selection: Binding(
+                get: { routeState.selectedRecentSection },
+                set: { section in
+                    appState.workbenchLayout.selectRecentSection(section)
+                }
+            ),
+            title: { $0.shortLabel },
+            accessibilityLabel: { $0.shortLabel },
+            accessibilityIdentifier: { "recent-segment-\($0.rawValue)" }
+        )
     }
 
     private var backButton: some View {
@@ -497,7 +517,7 @@ private struct AppSidebar: View {
         }
         // The Sidebar keeps clear of the window controls, not of the topbar,
         // so its items stay put when the topbar is taller than that band.
-        .padding(.top, WorkbenchControlMetrics.redesignAppTopbarHeight + WorkbenchControlMetrics.redesignAppSidebarVerticalPadding)
+        .padding(.top, WorkbenchControlMetrics.redesignWindowControlsBandHeight + WorkbenchControlMetrics.redesignAppSidebarVerticalPadding)
         .padding(.horizontal, WorkbenchControlMetrics.redesignAppSidebarHorizontalPadding)
         .padding(.bottom, WorkbenchControlMetrics.redesignAppSidebarVerticalPadding)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)

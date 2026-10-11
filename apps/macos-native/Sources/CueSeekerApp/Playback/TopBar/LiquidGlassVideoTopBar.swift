@@ -69,7 +69,7 @@ struct LiquidGlassVideoTopBar: View {
                 iconColor: PlaybackTheme.textPrimary,
                 hoverBackground: PlaybackTheme.controlHoverBackground
             )
-            .padding(.trailing, PlaybackChromeMetrics.topbarHorizontalPadding)
+            .padding(.trailing, WorkbenchControlMetrics.redesignAppTopbarContentTrailingPadding)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
@@ -83,7 +83,7 @@ struct LiquidGlassVideoTopBar: View {
                 barWidth: barWidth,
                 isFullscreen: isAppFullscreen,
                 trailingButtonCount: 2,
-                trailingPadding: PlaybackChromeMetrics.topbarHorizontalPadding
+                trailingPadding: WorkbenchControlMetrics.redesignAppTopbarContentTrailingPadding
             )
         )
     }
