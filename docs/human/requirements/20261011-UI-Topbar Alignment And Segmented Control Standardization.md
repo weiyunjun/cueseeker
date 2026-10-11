@@ -27,7 +27,7 @@ main
 2. **三处界面布局调整**：
    - **Workbench - Recent 界面**：
      - 顶栏左侧保留“Recent”（最近）页面标题。
-     - 分段控制器移至顶栏并在内容区（除去侧边栏后的主区域）水平、垂直居中；选项文字精简为 `Videos` / `Excerpt Lists`（中文：`视频` / `摘录列表`）。
+     - 分段控制器移至顶栏并在内容区（除去侧边栏后的主区域）水平、垂直居中；选项文字精简为 `Videos` / `Excerpt Lists`（中文：`视频` / `摘录集`）。
      - 移除原内容区滚动流上方的旧 Tab 组件。
    - **Playback Overlay 界面**：
      - 顶栏居中 Tab 替换为 Segmented Control，在 54px 顶栏中垂直、水平居中；选项为 `Current` / `Playlist`（中文：`当前` / `播放列表`）。
