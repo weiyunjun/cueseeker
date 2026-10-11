@@ -356,9 +356,6 @@
 "settings.shortcuts.conflict" = "與%@衝突";
 "settings.shortcuts.quoted_name" = "「%@」";
 "settings.shortcuts.name_separator" = "，";
-"settings.shortcuts.rejection.modifier" = "不能包含 ⌘、⌃ 或 ⌥";
-"settings.shortcuts.rejection.reserved" = "保留按鍵";
-"settings.shortcuts.rejection.unsupported" = "不支援此按鍵";
 "settings.shortcuts.action.openCommandPanel" = "開啟指令面板";
 "settings.shortcuts.action.playPause" = "播放 / 暫停";
 "settings.shortcuts.action.seekBackward" = "倒轉";

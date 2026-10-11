@@ -10,16 +10,57 @@ import Carbon.HIToolbox
 // Only the keyboard reads these bindings: a game controller keeps pressing the
 // default keys.
 
-/// One key, optionally with ⇧. Return and the keypad's Enter are one key.
+/// One key, optionally with modifiers (⌘, ⌥, ⌃, ⇧). Return and the keypad's Enter are one key.
 struct PlaybackShortcutKey: Codable, Hashable, Sendable {
     let keyCode: UInt16
+    let command: Bool
+    let option: Bool
+    let control: Bool
     let shift: Bool
 
-    init(keyCode: UInt16, shift: Bool = false) {
+    init(
+        keyCode: UInt16,
+        command: Bool = false,
+        option: Bool = false,
+        control: Bool = false,
+        shift: Bool = false
+    ) {
         self.keyCode = keyCode == UInt16(kVK_ANSI_KeypadEnter)
             ? UInt16(kVK_Return)
             : keyCode
+        self.command = command
+        self.option = option
+        self.control = control
         self.shift = shift
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case keyCode
+        case command
+        case option
+        case control
+        case shift
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let rawKeyCode = try container.decode(UInt16.self, forKey: .keyCode)
+        self.keyCode = rawKeyCode == UInt16(kVK_ANSI_KeypadEnter)
+            ? UInt16(kVK_Return)
+            : rawKeyCode
+        self.command = try container.decodeIfPresent(Bool.self, forKey: .command) ?? false
+        self.option = try container.decodeIfPresent(Bool.self, forKey: .option) ?? false
+        self.control = try container.decodeIfPresent(Bool.self, forKey: .control) ?? false
+        self.shift = try container.decodeIfPresent(Bool.self, forKey: .shift) ?? false
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(keyCode, forKey: .keyCode)
+        if command { try container.encode(true, forKey: .command) }
+        if option { try container.encode(true, forKey: .option) }
+        if control { try container.encode(true, forKey: .control) }
+        if shift { try container.encode(true, forKey: .shift) }
     }
 
     /// Return and the arrows, which confirm and move in the Playback Overlay
@@ -33,18 +74,56 @@ struct PlaybackShortcutKey: Codable, Hashable, Sendable {
         }
     }
 
-    /// What the key is drawn as: ⇧ and the key itself, each on its own keycap.
+    static func isModifierKey(keyCode: UInt16) -> Bool {
+        switch Int(keyCode) {
+        case kVK_Command,
+             kVK_Shift,
+             kVK_CapsLock,
+             kVK_Option,
+             kVK_Control,
+             kVK_RightShift,
+             kVK_RightOption,
+             kVK_RightControl,
+             kVK_Function:
+            true
+        default:
+            false
+        }
+    }
+
+    static func isSystemOrWindowKey(
+        keyCode: UInt16,
+        command: Bool,
+        control: Bool,
+        option: Bool
+    ) -> Bool {
+        guard command, !control else {
+            return false
+        }
+        switch Int(keyCode) {
+        case kVK_ANSI_Q, kVK_ANSI_Comma, kVK_ANSI_W, kVK_ANSI_M, kVK_ANSI_H:
+            return true
+        default:
+            return false
+        }
+    }
+
+    /// What the key is drawn as: modifiers in standard Apple order (⌃ ⌥ ⇧ ⌘) and the key itself.
     @MainActor
     var keycaps: [PlaybackCueFooterKeycap] {
         guard let main = Self.keycap(forKeyCode: keyCode) else {
             return []
         }
-        return shift ? [.text("⇧"), main] : [main]
+        var caps: [PlaybackCueFooterKeycap] = []
+        if control { caps.append(.text("⌃")) }
+        if option { caps.append(.text("⌥")) }
+        if shift { caps.append(.text("⇧")) }
+        if command { caps.append(.text("⌘")) }
+        caps.append(main)
+        return caps
     }
 
-    /// The key's own keycap, or nil for a key that is not supported as a
-    /// shortcut: function keys, Home, End, Page Up, Page Down, and any other
-    /// key that types nothing.
+    /// The key's own keycap, or nil for an unmapped or unprintable key.
     @MainActor
     static func keycap(forKeyCode keyCode: UInt16) -> PlaybackCueFooterKeycap? {
         switch Int(keyCode) {
@@ -64,6 +143,38 @@ struct PlaybackShortcutKey: Codable, Hashable, Sendable {
             .text("↑")
         case kVK_DownArrow:
             .text("↓")
+        case kVK_Home:
+            .text("Home")
+        case kVK_End:
+            .text("End")
+        case kVK_PageUp:
+            .text("Page Up")
+        case kVK_PageDown:
+            .text("Page Down")
+        case kVK_F1:
+            .text("F1")
+        case kVK_F2:
+            .text("F2")
+        case kVK_F3:
+            .text("F3")
+        case kVK_F4:
+            .text("F4")
+        case kVK_F5:
+            .text("F5")
+        case kVK_F6:
+            .text("F6")
+        case kVK_F7:
+            .text("F7")
+        case kVK_F8:
+            .text("F8")
+        case kVK_F9:
+            .text("F9")
+        case kVK_F10:
+            .text("F10")
+        case kVK_F11:
+            .text("F11")
+        case kVK_F12:
+            .text("F12")
         default:
             typedCharacter(forKeyCode: keyCode).map { .text($0.uppercased()) }
         }
@@ -220,46 +331,52 @@ enum PlaybackShortcutAction: String, CaseIterable, Identifiable, Sendable {
         }
     }
 
-    /// The key a press records for this shortcut, or why it cannot be one.
-    /// Esc is not asked about: it cancels the recording.
+    /// The key a press records for this shortcut, or nil if the key is excluded or unsupported.
+    /// Esc is not handled here: it cancels the recording.
     @MainActor
     func recordedKey(
         keyCode: UInt16,
         modifierFlags: NSEvent.ModifierFlags
-    ) -> Result<PlaybackShortcutKey, PlaybackShortcutRejection> {
-        let flags = modifierFlags.intersection(.deviceIndependentFlagsMask)
-        guard flags.intersection([.command, .control, .option]).isEmpty else {
-            return .failure(.modifier)
+    ) -> PlaybackShortcutKey? {
+        guard !PlaybackShortcutKey.isModifierKey(keyCode: keyCode) else {
+            return nil
         }
+        let flags = modifierFlags.intersection(.deviceIndependentFlagsMask)
+        let command = flags.contains(.command)
+        let option = flags.contains(.option)
+        let control = flags.contains(.control)
+        let shift = flags.contains(.shift)
+
+        guard !PlaybackShortcutKey.isSystemOrWindowKey(
+            keyCode: keyCode,
+            command: command,
+            control: control,
+            option: option
+        ) else {
+            return nil
+        }
+
+        if Int(keyCode) == kVK_Tab {
+            return nil
+        }
+
         let key = PlaybackShortcutKey(
             keyCode: keyCode,
-            shift: flags.contains(.shift)
+            command: command,
+            option: option,
+            control: control,
+            shift: shift
         )
-        if Int(key.keyCode) == kVK_Tab
-            || (group != .playback && key.isNavigationKey) {
-            return .failure(.reserved)
+
+        if group != .playback && key.isNavigationKey {
+            return nil
         }
+
         guard PlaybackShortcutKey.keycap(forKeyCode: key.keyCode) != nil else {
-            return .failure(.unsupported)
+            return nil
         }
-        return .success(key)
-    }
-}
 
-enum PlaybackShortcutRejection: Error, Equatable {
-    case modifier
-    case reserved
-    case unsupported
-
-    var message: String {
-        switch self {
-        case .modifier:
-            L("settings.shortcuts.rejection.modifier")
-        case .reserved:
-            L("settings.shortcuts.rejection.reserved")
-        case .unsupported:
-            L("settings.shortcuts.rejection.unsupported")
-        }
+        return key
     }
 }
 

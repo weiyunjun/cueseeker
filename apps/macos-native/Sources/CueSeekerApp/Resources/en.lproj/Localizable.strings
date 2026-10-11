@@ -356,9 +356,6 @@
 "settings.shortcuts.conflict" = "Conflicts with %@";
 "settings.shortcuts.quoted_name" = "“%@”";
 "settings.shortcuts.name_separator" = ", ";
-"settings.shortcuts.rejection.modifier" = "Can’t include ⌘, ⌃ or ⌥";
-"settings.shortcuts.rejection.reserved" = "Reserved key";
-"settings.shortcuts.rejection.unsupported" = "Not supported";
 "settings.shortcuts.action.openCommandPanel" = "Open Command Panel";
 "settings.shortcuts.action.playPause" = "Play / Pause";
 "settings.shortcuts.action.seekBackward" = "Seek Backward";

@@ -53,7 +53,7 @@ struct SettingsShortcutsCategory: View {
         let keymap = shortcuts.keymap
         let isRecording = recorder.recordingAction == action
         let message = isRecording
-            ? recorder.rejection?.message
+            ? nil
             : conflictMessage(keymap.conflicts(for: action))
 
         return SettingsRow(action.title) {
@@ -200,7 +200,6 @@ private struct PlaybackShortcutField: View {
 @MainActor
 final class PlaybackShortcutRecorder: ObservableObject {
     @Published private(set) var recordingAction: PlaybackShortcutAction?
-    @Published private(set) var rejection: PlaybackShortcutRejection?
 
     private var anchor: MenuAnchorHandle?
     private var record: ((PlaybackShortcutKey) -> Void)?
@@ -252,13 +251,10 @@ final class PlaybackShortcutRecorder: ObservableObject {
         if recordingAction != nil {
             recordingAction = nil
         }
-        if rejection != nil {
-            rejection = nil
-        }
     }
 
     /// Takes a key pressed in the Settings window while a shortcut records:
-    /// Esc cancels, an allowed key is written, any other key says why not.
+    /// Esc cancels, an allowed key is written, any excluded key is silently ignored.
     /// Returns whether the key was spent.
     func handleKey(_ event: NSEvent) -> Bool {
         guard let action = recordingAction,
@@ -271,15 +267,12 @@ final class PlaybackShortcutRecorder: ObservableObject {
             stop()
             return true
         }
-        switch action.recordedKey(
+        if let key = action.recordedKey(
             keyCode: event.keyCode,
             modifierFlags: event.modifierFlags
         ) {
-        case .success(let key):
             record?(key)
             stop()
-        case .failure(let reason):
-            rejection = reason
         }
         return true
     }

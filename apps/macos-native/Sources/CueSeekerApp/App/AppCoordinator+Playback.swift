@@ -902,39 +902,39 @@ extension AppCoordinator {
             rawValue: modifierFlagsRawValue
         )
         let shortcuts = shortcuts ?? settings.playbackShortcuts.keymap
-        // A shortcut is one key, optionally with ⇧; a press held with ⌘, ⌃ or
-        // ⌥ is never one.
-        let shortcutKey: PlaybackShortcutKey? = modifierFlags
-            .intersection([.command, .control, .option])
-            .isEmpty
-            ? PlaybackShortcutKey(
-                keyCode: keyCode,
-                shift: modifierFlags.contains(.shift)
-            )
-            : nil
+        let flags = modifierFlags.intersection(.deviceIndependentFlagsMask)
+        let shortcutKey = PlaybackShortcutKey(
+            keyCode: keyCode,
+            command: flags.contains(.command),
+            option: flags.contains(.option),
+            control: flags.contains(.control),
+            shift: flags.contains(.shift)
+        )
         func isShortcut(_ action: PlaybackShortcutAction) -> Bool {
-            shortcutKey != nil && shortcuts.effectiveKey(for: action) == shortcutKey
+            shortcuts.effectiveKey(for: action) == shortcutKey
         }
         // The cue action the press runs where the Playback Overlay and the
         // Command Panel's search results offer Save to Excerpt, Copy Cue Text
         // and Copy Deep Link.
-        let cueShortcutAction: PlaybackSubtitleFocusAction? = shortcutKey
-            .flatMap { shortcuts.action(for: $0, in: .overlay) }
+        let cueShortcutAction: PlaybackSubtitleFocusAction? = shortcuts
+            .action(for: shortcutKey, in: .overlay)
             .flatMap(Self.cueAction(for:))
 
         // An open menu owns the keyboard: the arrows, Enter, Esc and the key
         // that opened it go to the menu, and every other in-app function is
         // spent here, so nothing underneath answers a key the menu did not
-        // want. Only a press held with ⌘, ⌃ or ⌥ travels on. The gate skips
+        // want. Only a press held with ⌘ travels on. The gate skips
         // covered menus, so a menu below the Command Panel stays on screen and
         // takes nothing while the panel is open. See
         // `docs/human/requirements/20260912-UI-Open Menu Blocks In-App
         // Shortcuts.md`.
-        if shortcutKey != nil, interfaceLayers.hasUncoveredOpenMenu {
-            if !modifierFlags.contains(.shift) {
-                _ = interfaceLayers.menuGate.routeKey(keyCode, isRepeat: isRepeat)
+        if interfaceLayers.hasUncoveredOpenMenu {
+            guard modifierFlags.contains(.command) else {
+                if !modifierFlags.contains(.shift) {
+                    _ = interfaceLayers.menuGate.routeKey(keyCode, isRepeat: isRepeat)
+                }
+                return true
             }
-            return true
         }
 
         if let subtitleFocusSession = playback.subtitleFocusSession,
@@ -1029,13 +1029,13 @@ extension AppCoordinator {
                     return false
                 }
             }
-            guard modifierFlags.intersection(disallowedModifiers).isEmpty else {
-                return true
-            }
             if let cueShortcutAction {
                 if commandPanel.page == .searchResults, !isRepeat {
                     _ = requestPlaybackCommandPanelSearchAction(cueShortcutAction)
                 }
+                return true
+            }
+            guard modifierFlags.intersection(disallowedModifiers).isEmpty else {
                 return true
             }
             switch keyCode {
@@ -1180,10 +1180,6 @@ extension AppCoordinator {
                 return false
             }
 
-            guard modifierFlags.intersection(disallowedModifiers).isEmpty else {
-                return false
-            }
-
             if let cueShortcutAction {
                 guard !isRepeat else {
                     return true
@@ -1193,6 +1189,10 @@ extension AppCoordinator {
                     _ = requestPlaybackSubtitleFocusAction(cueShortcutAction)
                 }
                 return true
+            }
+
+            guard modifierFlags.intersection(disallowedModifiers).isEmpty else {
+                return false
             }
 
             switch keyCode {
@@ -1237,15 +1237,7 @@ extension AppCoordinator {
             return false
         }
 
-        let disallowedModifiers: NSEvent.ModifierFlags = [.command, .control, .option]
-
-        guard modifierFlags.intersection(disallowedModifiers).isEmpty else {
-            return false
-        }
-
-        let playbackShortcut = shortcutKey.flatMap {
-            shortcuts.action(for: $0, in: .playback)
-        }
+        let playbackShortcut = shortcuts.action(for: shortcutKey, in: .playback)
 
         if playback.isTimelineScrubbing {
             return playbackShortcut != nil

@@ -356,9 +356,6 @@
 "settings.shortcuts.conflict" = "与%@冲突";
 "settings.shortcuts.quoted_name" = "“%@”";
 "settings.shortcuts.name_separator" = "，";
-"settings.shortcuts.rejection.modifier" = "不能包含 ⌘、⌃ 或 ⌥";
-"settings.shortcuts.rejection.reserved" = "保留按键";
-"settings.shortcuts.rejection.unsupported" = "不支持此按键";
 "settings.shortcuts.action.openCommandPanel" = "打开命令面板";
 "settings.shortcuts.action.playPause" = "播放 / 暂停";
 "settings.shortcuts.action.seekBackward" = "快退";

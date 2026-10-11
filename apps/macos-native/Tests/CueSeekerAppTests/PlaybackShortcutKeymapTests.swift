@@ -4,8 +4,20 @@ import Foundation
 import Testing
 @testable import CueSeekerApp
 
-private func key(_ keyCode: Int, shift: Bool = false) -> PlaybackShortcutKey {
-    PlaybackShortcutKey(keyCode: UInt16(keyCode), shift: shift)
+private func key(
+    _ keyCode: Int,
+    command: Bool = false,
+    option: Bool = false,
+    control: Bool = false,
+    shift: Bool = false
+) -> PlaybackShortcutKey {
+    PlaybackShortcutKey(
+        keyCode: UInt16(keyCode),
+        command: command,
+        option: option,
+        control: control,
+        shift: shift
+    )
 }
 
 @Test
@@ -76,49 +88,87 @@ func settingTheDefaultKeyIsTheSameAsRestoringIt() {
 
 @MainActor
 @Test
-func recordingAcceptsOneKeyOrShiftAndRefusesTheRest() {
+func recordingAcceptsModifiersAndFunctionKeysAndSilentlyExcludesReserved() {
     let none: NSEvent.ModifierFlags = []
 
     #expect(
         PlaybackShortcutAction.toggleSubtitles.recordedKey(
             keyCode: UInt16(kVK_Delete),
             modifierFlags: none
-        ) == .success(key(kVK_Delete))
+        ) == key(kVK_Delete)
     )
     #expect(
         PlaybackShortcutAction.toggleSubtitles.recordedKey(
             keyCode: UInt16(kVK_ForwardDelete),
             modifierFlags: .function
-        ) == .success(key(kVK_ForwardDelete))
+        ) == key(kVK_ForwardDelete)
     )
     #expect(
         PlaybackShortcutAction.speedUp.recordedKey(
             keyCode: UInt16(kVK_ANSI_Period),
             modifierFlags: [.shift, .capsLock]
-        ) == .success(key(kVK_ANSI_Period, shift: true))
+        ) == key(kVK_ANSI_Period, shift: true)
     )
-    for modifier: NSEvent.ModifierFlags in [.command, .control, .option, [.shift, .command]] {
-        #expect(
-            PlaybackShortcutAction.toggleSubtitles.recordedKey(
-                keyCode: UInt16(kVK_ANSI_Q),
-                modifierFlags: modifier
-            ) == .failure(.modifier)
-        )
-    }
     #expect(
-        PlaybackShortcutAction.playPause.recordedKey(
-            keyCode: UInt16(kVK_Tab),
-            modifierFlags: none
-        ) == .failure(.reserved)
+        PlaybackShortcutAction.copyCueText.recordedKey(
+            keyCode: UInt16(kVK_ANSI_C),
+            modifierFlags: .command
+        ) == key(kVK_ANSI_C, command: true)
+    )
+    #expect(
+        PlaybackShortcutAction.copyScreenshot.recordedKey(
+            keyCode: UInt16(kVK_ANSI_P),
+            modifierFlags: [.command, .shift]
+        ) == key(kVK_ANSI_P, command: true, shift: true)
+    )
+    #expect(
+        PlaybackShortcutAction.seekForward.recordedKey(
+            keyCode: UInt16(kVK_RightArrow),
+            modifierFlags: .option
+        ) == key(kVK_RightArrow, option: true)
     )
     for keyCode in [kVK_F5, kVK_Home, kVK_End, kVK_PageUp, kVK_PageDown] {
         #expect(
             PlaybackShortcutAction.playPause.recordedKey(
                 keyCode: UInt16(keyCode),
                 modifierFlags: .function
-            ) == .failure(.unsupported)
+            ) == key(keyCode)
         )
     }
+
+    // Excluded: pure modifier keys
+    for modKey in [kVK_Command, kVK_Shift, kVK_Option, kVK_Control] {
+        #expect(
+            PlaybackShortcutAction.toggleSubtitles.recordedKey(
+                keyCode: UInt16(modKey),
+                modifierFlags: none
+            ) == nil
+        )
+    }
+
+    // Excluded: system and window key combinations
+    for sysKey in [kVK_ANSI_Q, kVK_ANSI_Comma, kVK_ANSI_W, kVK_ANSI_M, kVK_ANSI_H] {
+        #expect(
+            PlaybackShortcutAction.toggleSubtitles.recordedKey(
+                keyCode: UInt16(sysKey),
+                modifierFlags: .command
+            ) == nil
+        )
+    }
+    #expect(
+        PlaybackShortcutAction.toggleSubtitles.recordedKey(
+            keyCode: UInt16(kVK_ANSI_H),
+            modifierFlags: [.command, .option]
+        ) == nil
+    )
+
+    // Excluded: Tab
+    #expect(
+        PlaybackShortcutAction.playPause.recordedKey(
+            keyCode: UInt16(kVK_Tab),
+            modifierFlags: none
+        ) == nil
+    )
 }
 
 @MainActor
@@ -128,14 +178,14 @@ func returnAndArrowsAreReservedWhereTheyConfirmAndMove() {
         for action in [PlaybackShortcutAction.saveToExcerpt, .editCollage, .openCommandPanel] {
             #expect(
                 action.recordedKey(keyCode: UInt16(keyCode), modifierFlags: .function)
-                    == .failure(.reserved)
+                    == nil
             )
         }
         #expect(
             PlaybackShortcutAction.playPause.recordedKey(
                 keyCode: UInt16(keyCode),
                 modifierFlags: .function
-            ) == .success(key(keyCode))
+            ) == key(keyCode)
         )
     }
 }
@@ -146,8 +196,15 @@ func shortcutKeycapsDrawShiftAndTheReturnIcon() {
     #expect(key(kVK_Return).keycaps == [.returnKey])
     #expect(key(kVK_Space).keycaps == [.text("Space")])
     #expect(key(kVK_UpArrow, shift: true).keycaps == [.text("⇧"), .text("↑")])
+    #expect(key(kVK_ANSI_C, command: true).keycaps == [.text("⌘"), .text("C")])
+    #expect(
+        key(kVK_ANSI_P, command: true, option: true, control: true, shift: true).keycaps
+            == [.text("⌃"), .text("⌥"), .text("⇧"), .text("⌘"), .text("P")]
+    )
     #expect(key(kVK_Delete).keycaps == [.text("⌫")])
-    #expect(key(kVK_F5).keycaps.isEmpty)
+    #expect(key(kVK_F5).keycaps == [.text("F5")])
+    #expect(key(kVK_Home).keycaps == [.text("Home")])
+    #expect(key(kVK_PageUp).keycaps == [.text("Page Up")])
     #expect(key(kVK_ANSI_S).keycaps.count == 1)
 }
 
