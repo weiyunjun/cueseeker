@@ -125,7 +125,7 @@ extension AppCoordinator {
 
         switch page {
         case .recentVideos:
-            hydrateTestRecentWatchingAsync()
+            refreshTestRecentWatching()
         case .recentExcerpts:
             reloadExcerptListOverview()
         case .root, .searchResults:

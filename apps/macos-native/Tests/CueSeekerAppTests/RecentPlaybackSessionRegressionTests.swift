@@ -260,6 +260,135 @@ func synchronousPlaybackHistorySaveDrainsPendingWriteAfterSourceChange() async t
     }
 }
 
+@MainActor
+@Test
+func markingWatchStateWhileInRecentPanelModeRefreshesImmediately() async throws {
+    try await withTemporaryRecentPlaybackApp { app, database in
+        let root = URL(fileURLWithPath: "/Media")
+        let episode = root.appendingPathComponent("Show/Episode 1.mkv")
+        try indexRecentPlaybackVideos([episode], in: database)
+        try app.libraryDatabase!.refreshPresentationAfterIndexedContentChange()
+        try app.libraryDatabase!.upsertLibraryPlaybackHistory(
+            videoFile: episode,
+            positionMilliseconds: 10_000,
+            duration: 100
+        )
+        app.indexing.selectedFolders = [root]
+        app.refreshTestRecentWatching()
+        await app.testRecentWatchingTask?.value
+        #expect(app.library.testRecentWatchingItems.first?.watchState == .watching)
+
+        app.activateWorkbenchPanelMode(.recentWatching)
+        let video = try #require(
+            try app.libraryDatabase!.libraryVideos(under: [root]).first
+        )
+
+        // 1. Mark as finished (watched)
+        app.testRecentWatchingTask = nil
+        app.markLibraryVideo(video, as: .finished)
+
+        for _ in 0..<30 {
+            if let task = app.testRecentWatchingTask {
+                await task.value
+                break
+            }
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+
+        #expect(!app.recentNeedsReloadAfterIndexedMutation)
+        #expect(app.library.testRecentWatchingItems.first?.watchState == .finished)
+
+        // 2. Mark as unwatched
+        app.testRecentWatchingTask = nil
+        app.markLibraryVideo(video, as: .unwatched)
+
+        for _ in 0..<30 {
+            if let task = app.testRecentWatchingTask {
+                await task.value
+                break
+            }
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+
+        #expect(!app.recentNeedsReloadAfterIndexedMutation)
+        #expect(app.library.testRecentWatchingItems.first?.watchState == .unwatched)
+    }
+}
+
+@MainActor
+@Test
+func startingPlaybackWhileInRecentPanelModeRefreshesWithoutDeferral() async throws {
+    try await withTemporaryRecentPlaybackApp { app, database in
+        let root = URL(fileURLWithPath: "/Media")
+        let episode1 = root.appendingPathComponent("Show/Episode 1.mkv")
+        let episode2 = root.appendingPathComponent("Show/Episode 2.mkv")
+        try indexRecentPlaybackVideos([episode1, episode2], in: database)
+        try app.libraryDatabase!.refreshPresentationAfterIndexedContentChange()
+        try app.libraryDatabase!.upsertLibraryPlaybackHistory(
+            videoFile: episode1,
+            positionMilliseconds: 10_000,
+            duration: 100
+        )
+        app.indexing.selectedFolders = [root]
+        app.refreshTestRecentWatching()
+        await app.testRecentWatchingTask?.value
+        #expect(app.library.testRecentWatchingItems.count == 1)
+        #expect(app.library.testRecentWatchingItems.first?.videoPath == episode1.path)
+
+        app.activateWorkbenchPanelMode(.recentWatching)
+        let video2 = try #require(
+            try app.libraryDatabase!.libraryVideos(under: [root]).first { $0.videoPath == episode2.path }
+        )
+        app.recordRecentLibraryWatching(for: video2)
+        await app.testRecentWatchingTask?.value
+
+        #expect(!app.recentNeedsReloadAfterIndexedMutation)
+        #expect(app.library.testRecentWatchingItems.first?.videoPath == episode2.path)
+    }
+}
+
+@MainActor
+@Test
+func commandPanelRecentVideosRefreshesWhenStatusAlreadyCompleted() async throws {
+    try await withTemporaryRecentPlaybackApp { app, database in
+        let root = URL(fileURLWithPath: "/Media")
+        let episode1 = root.appendingPathComponent("Show/Episode 1.mkv")
+        let episode2 = root.appendingPathComponent("Show/Episode 2.mkv")
+        try indexRecentPlaybackVideos([episode1, episode2], in: database)
+        try app.libraryDatabase!.refreshPresentationAfterIndexedContentChange()
+        try app.libraryDatabase!.upsertLibraryPlaybackHistory(
+            videoFile: episode1,
+            positionMilliseconds: 10_000,
+            duration: 100
+        )
+        app.indexing.selectedFolders = [root]
+        app.refreshTestRecentWatching()
+        await app.testRecentWatchingTask?.value
+        #expect(app.library.testRecentWatchingStatus == .completed)
+        #expect(app.library.testRecentWatchingItems.count == 1)
+
+        let video1 = try #require(
+            try app.libraryDatabase!.libraryVideos(under: [root]).first { $0.videoPath == episode1.path }
+        )
+        app.library.selectedLibraryVideo = video1
+        app.playback.isPlaybackSurfaceExpanded = true
+
+        // Simulate switching to episode 2 in database
+        try app.libraryDatabase!.upsertLibraryPlaybackHistory(
+            videoFile: episode2,
+            positionMilliseconds: 20_000,
+            duration: 100
+        )
+
+        // Open command panel and navigate to recentVideos page
+        #expect(app.presentPlaybackCommandPanel())
+        #expect(app.presentPlaybackCommandPanelPage(.recentVideos))
+        await app.testRecentWatchingTask?.value
+
+        #expect(app.playbackCommandPanelRecentVideos.first?.videoPath == episode2.path)
+    }
+}
+
 private func indexRecentPlaybackVideos(
     _ videoFiles: [URL],
     in database: IndexingDatabase

@@ -350,7 +350,7 @@ extension AppCoordinator {
         ensureLibraryDisplayRenditionsAsync()
         if indexing.selectedFolders.isEmpty {
             if library.recentWatchingStatus != .idle || !library.recentWatchingItems.isEmpty {
-                refreshRecentWatching()
+                refreshRecentWatching(force: true)
             }
             return
         }
@@ -360,7 +360,7 @@ extension AppCoordinator {
         if case .loading = library.recentWatchingStatus, recentWatchingTask != nil {
             return
         }
-        refreshRecentWatching()
+        refreshRecentWatching(force: true)
     }
 
     func hydrateTestRecentWatchingAsync() {
@@ -884,8 +884,8 @@ extension AppCoordinator {
             scope: uiProbeScope,
             details: "surface=playback_history videos=\(affectedVideoPaths.count)"
         )
-        refreshRecentWatching()
-        refreshLoadedTestRecentWatching()
+        refreshRecentWatching(force: true)
+        refreshLoadedTestRecentWatching(force: true)
         refreshSearchForLibraryWatchStateChange()
         refreshExcerptForLibraryWatchStateChange()
     }
