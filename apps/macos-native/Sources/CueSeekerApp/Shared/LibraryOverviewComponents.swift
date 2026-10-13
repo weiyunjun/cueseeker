@@ -81,7 +81,7 @@ struct LibraryOverviewGrid<Content: View>: View {
             GridItem(
                 .adaptive(
                     minimum: WorkbenchControlMetrics.redesignLibraryRecentCardMinWidth,
-                    maximum: WorkbenchControlMetrics.redesignLibraryRecentCardMaxWidth
+                    maximum: .infinity
                 ),
                 spacing: WorkbenchControlMetrics.redesignLibraryRecentGridGap,
                 alignment: .topLeading
@@ -304,7 +304,7 @@ struct LibraryOverviewCardButtonStyle: ButtonStyle {
         configuration.label
             .padding(WorkbenchControlMetrics.redesignLibraryMediaCardHoverPadding)
             .frame(
-                maxWidth: WorkbenchControlMetrics.redesignLibraryRecentCardMaxWidth,
+                maxWidth: .infinity,
                 alignment: .topLeading
             )
             .background(

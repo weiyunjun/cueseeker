@@ -14,20 +14,20 @@ func playbackMediaSelectionUsesVisualGridDirectionsAndScrollTargets() throws {
         resetsSelection: true
     )
     selection.updateAdaptiveGrid(
-        containerWidth: 600,
-        minimumItemWidth: 180,
-        itemGap: 16
+        containerWidth: 916,
+        minimumItemWidth: WorkbenchControlMetrics.redesignLibraryRecentCardMinWidth,
+        itemGap: WorkbenchControlMetrics.redesignLibraryRecentGridGap
     )
     selection.recordVisibleFrames(
         [
-            "0": CGRect(x: 0, y: 0, width: 100, height: 60),
-            "1": CGRect(x: 116, y: 0, width: 100, height: 60),
-            "2": CGRect(x: 232, y: 0, width: 100, height: 60),
-            "3": CGRect(x: 0, y: 76, width: 100, height: 60),
-            "4": CGRect(x: 116, y: 76, width: 100, height: 60),
-            "5": CGRect(x: 232, y: 76, width: 100, height: 60),
+            "0": CGRect(x: 0, y: 0, width: 300, height: 180),
+            "1": CGRect(x: 308, y: 0, width: 300, height: 180),
+            "2": CGRect(x: 616, y: 0, width: 300, height: 180),
+            "3": CGRect(x: 0, y: 188, width: 300, height: 180),
+            "4": CGRect(x: 308, y: 188, width: 300, height: 180),
+            "5": CGRect(x: 616, y: 188, width: 300, height: 180),
         ],
-        viewportHeight: 160
+        viewportHeight: 380
     )
     #expect(selection.columnCount == 3)
 
@@ -57,11 +57,11 @@ func playbackMediaSelectionUsesVisualGridDirectionsAndScrollTargets() throws {
 
     selection.recordVisibleFrames(
         [
-            "0": CGRect(x: 0, y: -20, width: 100, height: 60),
-            "2": CGRect(x: 200, y: -20, width: 100, height: 60),
-            "3": CGRect(x: 0, y: 56, width: 100, height: 60),
+            "0": CGRect(x: 0, y: -20, width: 300, height: 180),
+            "2": CGRect(x: 616, y: -20, width: 300, height: 180),
+            "3": CGRect(x: 0, y: 168, width: 300, height: 180),
         ],
-        viewportHeight: 100
+        viewportHeight: 200
     )
     #expect(selection.scrollAnchorItemID == "0")
     #expect(selection.restorationItemID == "0")
@@ -70,9 +70,9 @@ func playbackMediaSelectionUsesVisualGridDirectionsAndScrollTargets() throws {
 
     let requestBeforeResize = try #require(selection.scrollRequest)
     selection.updateAdaptiveGrid(
-        containerWidth: 380,
-        minimumItemWidth: 180,
-        itemGap: 16
+        containerWidth: 608,
+        minimumItemWidth: WorkbenchControlMetrics.redesignLibraryRecentCardMinWidth,
+        itemGap: WorkbenchControlMetrics.redesignLibraryRecentGridGap
     )
     #expect(selection.columnCount == 2)
     #expect(selection.scrollRequest?.itemID == selection.selectedItemID)

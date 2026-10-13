@@ -254,3 +254,25 @@ func workbenchTablePinnedToolbarHeightMatchesSpecification() {
     // 36 (search field) + 16 (spacing-4) + 36 (second row) + 16 (bottom spacing-4) = 104
     #expect(pinnedToolbarHeight == 104)
 }
+
+@Test
+func mediaCardGridMetricsAndMinimumWindowColumnCountMatchSpecification() {
+    #expect(WorkbenchControlMetrics.redesignLibraryRecentCardMinWidth == 300)
+    #expect(WorkbenchControlMetrics.redesignLibraryRecentGridGap == 8)
+    #expect(WorkbenchControlMetrics.redesignLibraryEpisodeGridGap == 8)
+
+    // At minimum Workbench page content width (480px), subtracting inline grid
+    // padding (20px leading + 36px trailing = 56px) leaves 424px, which fits
+    // strictly 1 card per row (2 cards require 300 * 2 + 8 = 608px).
+    let minimumWorkbenchGridWidth =
+        AppShellLayout.pageContentMinimumWidth
+        - WorkbenchControlMetrics.redesignWorkbenchMediaCardGridHorizontalPadding
+        - WorkbenchControlMetrics.redesignWorkbenchMediaCardGridTrailingPadding
+    #expect(minimumWorkbenchGridWidth == 424)
+    #expect(PlaybackCommandPanelCardGrid.columnCount(containerWidth: minimumWorkbenchGridWidth) == 1)
+    #expect(PlaybackCommandPanelCardGrid.columnCount(containerWidth: 607) == 1)
+    #expect(PlaybackCommandPanelCardGrid.columnCount(containerWidth: 608) == 2)
+    #expect(PlaybackCommandPanelCardGrid.columnCount(containerWidth: 915) == 2)
+    #expect(PlaybackCommandPanelCardGrid.columnCount(containerWidth: 916) == 3)
+}
+

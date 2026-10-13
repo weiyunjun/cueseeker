@@ -401,10 +401,8 @@ enum WorkbenchControlMetrics {
     static let redesignLibraryCoverAspectRatio: CGFloat = 16.0 / 9.0
     /// --height-library-progress-bar: 4px
     static let redesignLibraryProgressBarHeight: CGFloat = 4
-    /// --width-library-recent-card-min: 180px
-    static let redesignLibraryRecentCardMinWidth: CGFloat = 180
-    /// --width-library-recent-card-max: 220px
-    static let redesignLibraryRecentCardMaxWidth: CGFloat = 220
+    /// --width-library-recent-card-min: 300px
+    static let redesignLibraryRecentCardMinWidth: CGFloat = 300
     /// --width-library-episode-row-min: 380px
     static let redesignLibraryEpisodeRowMinWidth: CGFloat = 380
     /// --width-library-list-cover: 204px
@@ -433,10 +431,10 @@ enum WorkbenchControlMetrics {
     static let redesignLibraryMediaCardHoverRadius: CGFloat = 20
     /// --radius-library-list-card: 16px
     static let redesignLibraryListCardRadius: CGFloat = 16
-    /// --gap-library-recent-grid: 16px
-    static let redesignLibraryRecentGridGap: CGFloat = 16
-    /// --gap-library-episode-grid: 16px
-    static let redesignLibraryEpisodeGridGap: CGFloat = 16
+    /// --gap-library-recent-grid: 8px
+    static let redesignLibraryRecentGridGap: CGFloat = 8
+    /// --gap-library-episode-grid: 8px
+    static let redesignLibraryEpisodeGridGap: CGFloat = 8
     /// --gap-library-list-item: 20px
     static let redesignLibraryListItemGap: CGFloat = 20
     /// --gap-library-list-info-vertical: 8px

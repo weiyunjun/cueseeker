@@ -582,9 +582,6 @@ private enum WorkbenchTestLibraryMetrics {
     static let sectionSpacing = WorkbenchControlMetrics.redesignSpacing4
     static let sectionTitleSize = WorkbenchControlMetrics.redesignFontSizeSectionTitle
 
-    static let recentGridGap = WorkbenchControlMetrics.redesignLibraryRecentGridGap
-    static let recentCardMinWidth = WorkbenchControlMetrics.redesignLibraryRecentCardMinWidth
-    static let recentCardMaxWidth = WorkbenchControlMetrics.redesignLibraryRecentCardMaxWidth
     static let recentCardGap = WorkbenchControlMetrics.redesignSpacing2
     static let mediaCardHoverPadding = WorkbenchControlMetrics.redesignLibraryMediaCardHoverPadding
     static let mediaCardHoverRadius = WorkbenchControlMetrics.redesignLibraryMediaCardHoverRadius
@@ -636,19 +633,6 @@ where Item.ID == String {
     let content: (Item) -> LibraryVideoCardContent
     let onOpen: (Item) -> Void
 
-    private var columns: [GridItem] {
-        [
-            GridItem(
-                .adaptive(
-                    minimum: WorkbenchTestLibraryMetrics.recentCardMinWidth,
-                    maximum: WorkbenchTestLibraryMetrics.recentCardMaxWidth
-                ),
-                spacing: WorkbenchTestLibraryMetrics.recentGridGap,
-                alignment: .topLeading
-            )
-        ]
-    }
-
     var body: some View {
         if let pageContextMenuOpen {
             grid(openContextMenu: pageContextMenuOpen)
@@ -660,11 +644,7 @@ where Item.ID == String {
     private func grid(
         openContextMenu: @escaping ([LibraryCardContextMenuItem], CGPoint, String) -> Void
     ) -> some View {
-        LazyVGrid(
-            columns: columns,
-            alignment: .leading,
-            spacing: WorkbenchTestLibraryMetrics.recentGridGap
-        ) {
+        LibraryOverviewGrid {
             ForEach(items) { item in
                 LibraryVideoCard(
                     content: content(item),
@@ -691,7 +671,6 @@ where Item.ID == String {
                 .id(item.id)
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
         .onPreferenceChange(LibraryItemFramePreferenceKey.self) { frames in
             guard itemFrameCoordinateSpace != nil else {
                 return
@@ -810,7 +789,7 @@ private struct LibraryVideoCard: View {
             }
         }
         .padding(WorkbenchTestLibraryMetrics.mediaCardHoverPadding)
-        .frame(maxWidth: WorkbenchTestLibraryMetrics.recentCardMaxWidth, alignment: .topLeading)
+        .frame(maxWidth: .infinity, alignment: .topLeading)
         .background(
             RoundedRectangle(
                 cornerRadius: WorkbenchTestLibraryMetrics.mediaCardHoverRadius,
