@@ -329,9 +329,9 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--width-cover-summary-split-cover`: `320px`
 - `--min-width-cover-summary-split-content`: `320px`
 - `--width-cover-summary-form-switch`: `664px`
-- `--width-library-recent-card-min`: `260px`
-- `--grid-max-columns-library-with-sidebar`: `4`
-- `--grid-max-columns-library-without-sidebar`: `5`
+- `--width-library-recent-card-min`: `220px`
+- `--grid-max-columns-library-with-sidebar`: `5`
+- `--grid-max-columns-library-without-sidebar`: `6`
 - `--width-library-episode-row-min`: `380px`
 - `--width-library-list-cover`: `204px`
 - `--width-library-folder-cover`: `120px`
