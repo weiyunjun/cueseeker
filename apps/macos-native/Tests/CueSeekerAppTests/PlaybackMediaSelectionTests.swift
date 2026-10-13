@@ -14,18 +14,18 @@ func playbackMediaSelectionUsesVisualGridDirectionsAndScrollTargets() throws {
         resetsSelection: true
     )
     selection.updateAdaptiveGrid(
-        containerWidth: 796,
+        containerWidth: 676,
         minimumItemWidth: WorkbenchControlMetrics.redesignLibraryRecentCardMinWidth,
         itemGap: WorkbenchControlMetrics.redesignLibraryRecentGridGap
     )
     selection.recordVisibleFrames(
         [
-            "0": CGRect(x: 0, y: 0, width: 260, height: 156),
-            "1": CGRect(x: 268, y: 0, width: 260, height: 156),
-            "2": CGRect(x: 536, y: 0, width: 260, height: 156),
-            "3": CGRect(x: 0, y: 164, width: 260, height: 156),
-            "4": CGRect(x: 268, y: 164, width: 260, height: 156),
-            "5": CGRect(x: 536, y: 164, width: 260, height: 156),
+            "0": CGRect(x: 0, y: 0, width: 220, height: 156),
+            "1": CGRect(x: 228, y: 0, width: 220, height: 156),
+            "2": CGRect(x: 456, y: 0, width: 220, height: 156),
+            "3": CGRect(x: 0, y: 164, width: 220, height: 156),
+            "4": CGRect(x: 228, y: 164, width: 220, height: 156),
+            "5": CGRect(x: 456, y: 164, width: 220, height: 156),
         ],
         viewportHeight: 340
     )
@@ -57,9 +57,9 @@ func playbackMediaSelectionUsesVisualGridDirectionsAndScrollTargets() throws {
 
     selection.recordVisibleFrames(
         [
-            "0": CGRect(x: 0, y: -20, width: 260, height: 156),
-            "2": CGRect(x: 536, y: -20, width: 260, height: 156),
-            "3": CGRect(x: 0, y: 144, width: 260, height: 156),
+            "0": CGRect(x: 0, y: -20, width: 220, height: 156),
+            "2": CGRect(x: 456, y: -20, width: 220, height: 156),
+            "3": CGRect(x: 0, y: 144, width: 220, height: 156),
         ],
         viewportHeight: 200
     )
@@ -70,7 +70,7 @@ func playbackMediaSelectionUsesVisualGridDirectionsAndScrollTargets() throws {
 
     let requestBeforeResize = try #require(selection.scrollRequest)
     selection.updateAdaptiveGrid(
-        containerWidth: 528,
+        containerWidth: 448,
         minimumItemWidth: WorkbenchControlMetrics.redesignLibraryRecentCardMinWidth,
         itemGap: WorkbenchControlMetrics.redesignLibraryRecentGridGap
     )
@@ -83,7 +83,7 @@ func playbackMediaSelectionUsesVisualGridDirectionsAndScrollTargets() throws {
         minimumItemWidth: WorkbenchControlMetrics.redesignLibraryRecentCardMinWidth,
         itemGap: WorkbenchControlMetrics.redesignLibraryRecentGridGap
     )
-    #expect(selection.columnCount == 5)
+    #expect(selection.columnCount == 6)
 }
 
 @MainActor

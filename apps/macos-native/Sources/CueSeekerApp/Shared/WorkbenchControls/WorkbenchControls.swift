@@ -401,12 +401,12 @@ enum WorkbenchControlMetrics {
     static let redesignLibraryCoverAspectRatio: CGFloat = 16.0 / 9.0
     /// --height-library-progress-bar: 4px
     static let redesignLibraryProgressBarHeight: CGFloat = 4
-    /// --width-library-recent-card-min: 260px
-    static let redesignLibraryRecentCardMinWidth: CGFloat = 260
-    /// --grid-max-columns-library-with-sidebar: 4
-    static let redesignLibraryRecentGridMaxColumnsWithSidebar: Int = 4
-    /// --grid-max-columns-library-without-sidebar: 5
-    static let redesignLibraryRecentGridMaxColumnsWithoutSidebar: Int = 5
+    /// --width-library-recent-card-min: 220px
+    static let redesignLibraryRecentCardMinWidth: CGFloat = 220
+    /// --grid-max-columns-library-with-sidebar: 5
+    static let redesignLibraryRecentGridMaxColumnsWithSidebar: Int = 5
+    /// --grid-max-columns-library-without-sidebar: 6
+    static let redesignLibraryRecentGridMaxColumnsWithoutSidebar: Int = 6
     /// --width-library-episode-row-min: 380px
     static let redesignLibraryEpisodeRowMinWidth: CGFloat = 380
     /// --width-library-list-cover: 204px
