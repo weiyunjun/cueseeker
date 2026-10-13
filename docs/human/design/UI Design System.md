@@ -329,8 +329,9 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--width-cover-summary-split-cover`: `320px`
 - `--min-width-cover-summary-split-content`: `320px`
 - `--width-cover-summary-form-switch`: `664px`
-- `--width-library-recent-card-min`: `180px`
-- `--width-library-recent-card-max`: `220px`
+- `--width-library-recent-card-min`: `260px`
+- `--grid-max-columns-library-with-sidebar`: `4`
+- `--grid-max-columns-library-without-sidebar`: `5`
 - `--width-library-episode-row-min`: `380px`
 - `--width-library-list-cover`: `204px`
 - `--width-library-folder-cover`: `120px`
@@ -374,8 +375,8 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--gap-app-topbar-content`: `12px`
 - `--gap-player-window-controls-return`: `16px`
 - `--gap-player-speed-menu-from-button`: `8px`
-- `--gap-library-recent-grid`: `16px`
-- `--gap-library-episode-grid`: `16px`
+- `--gap-library-recent-grid`: `8px`
+- `--gap-library-episode-grid`: `8px`
 - `--gap-library-list-item`: `20px`
 - `--gap-library-list-info-vertical`: `8px`
 - `--gap-library-folder-card-content`: `12px`
@@ -3371,7 +3372,8 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 
 #### Sizes
 
-- Card Width：`--width-library-recent-card-min` to `--width-library-recent-card-max`
+- Card Minimum Width：`--width-library-recent-card-min`
+- Maximum Columns：有 Sidebar `--grid-max-columns-library-with-sidebar`；无 Sidebar `--grid-max-columns-library-without-sidebar`
 - Grid Gap：`--gap-library-recent-grid`
 
 ### Recent Watching Card Layout
@@ -3397,7 +3399,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 
 #### Sizes
 
-- Width：`--width-library-recent-card-min` to `--width-library-recent-card-max`
+- Minimum Width：`--width-library-recent-card-min`
 - Content Gap：`--spacing-2`
 
 #### States
@@ -3433,7 +3435,8 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 #### Sizes
 
 - Action Bar to Grid Gap：`--spacing-4`
-- Card Width：`--width-library-recent-card-min` to `--width-library-recent-card-max`
+- Card Minimum Width：`--width-library-recent-card-min`
+- Maximum Columns：有 Sidebar `--grid-max-columns-library-with-sidebar`；无 Sidebar `--grid-max-columns-library-without-sidebar`
 - Grid Gap：`--gap-library-recent-grid`
 
 ### Library Folder Card Layout
@@ -3451,7 +3454,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 
 #### Sizes
 
-- Width：`--width-library-recent-card-min` to `--width-library-recent-card-max`
+- Minimum Width：`--width-library-recent-card-min`
 - Minimum Height：`--min-height-library-folder-card`
 - Content Gap：`--spacing-2`
 
@@ -3508,7 +3511,8 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 
 #### Sizes
 
-- Card Width：`--width-library-recent-card-min` to `--width-library-recent-card-max`
+- Card Minimum Width：`--width-library-recent-card-min`
+- Maximum Columns：有 Sidebar `--grid-max-columns-library-with-sidebar`；无 Sidebar `--grid-max-columns-library-without-sidebar`
 - Grid Gap：`--gap-library-recent-grid`
 
 ### File Page Layout
@@ -3625,7 +3629,8 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - Summary to Grid Gap：`--spacing-4`
 - Summary Height：`--height-control`
 - Summary Item Gap：`--spacing-3`
-- Card Width：`--width-library-recent-card-min` to `--width-library-recent-card-max`
+- Card Minimum Width：`--width-library-recent-card-min`
+- Maximum Columns：有 Sidebar `--grid-max-columns-library-with-sidebar`；无 Sidebar `--grid-max-columns-library-without-sidebar`
 - Grid Gap：`--gap-library-recent-grid`
 
 ### Excerpt List Card Layout
@@ -3645,7 +3650,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 
 #### Sizes
 
-- Width：`--width-library-recent-card-min` to `--width-library-recent-card-max`
+- Minimum Width：`--width-library-recent-card-min`
 - Content Gap：`--spacing-2`
 
 #### Context Menu
