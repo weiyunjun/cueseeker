@@ -36,6 +36,12 @@ struct WorkbenchRecentView: View {
                 }
                 .padding(.top, WorkbenchTestLibraryMetrics.pageTopPadding)
                 .padding(.bottom, WorkbenchTestLibraryMetrics.pageBottomPadding)
+                .environment(
+                    \.mediaCardGridContainerWidth,
+                    WorkbenchControlMetrics.workbenchMediaCardGridWidth(
+                        viewportWidth: geometry.size.width
+                    )
+                )
                 .frame(
                     width: max(
                         geometry.size.width,
@@ -159,6 +165,12 @@ struct WorkbenchTestLibraryView: View {
                                 .bottom,
                                 WorkbenchTestLibraryMetrics.pageBottomPadding
                             )
+                            .environment(
+                                \.mediaCardGridContainerWidth,
+                                WorkbenchControlMetrics.workbenchMediaCardGridWidth(
+                                    viewportWidth: geometry.size.width
+                                )
+                            )
                             .frame(
                                 width: max(
                                     geometry.size.width,
@@ -183,6 +195,12 @@ struct WorkbenchTestLibraryView: View {
                             .padding(
                                 .bottom,
                                 WorkbenchControlMetrics.redesignWorkbenchPageBottomPadding
+                            )
+                            .environment(
+                                \.mediaCardGridContainerWidth,
+                                WorkbenchControlMetrics.workbenchMediaCardGridWidth(
+                                    viewportWidth: geometry.size.width
+                                )
                             )
                             .frame(
                                 width: max(

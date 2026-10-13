@@ -14,20 +14,20 @@ func playbackMediaSelectionUsesVisualGridDirectionsAndScrollTargets() throws {
         resetsSelection: true
     )
     selection.updateAdaptiveGrid(
-        containerWidth: 916,
+        containerWidth: 796,
         minimumItemWidth: WorkbenchControlMetrics.redesignLibraryRecentCardMinWidth,
         itemGap: WorkbenchControlMetrics.redesignLibraryRecentGridGap
     )
     selection.recordVisibleFrames(
         [
-            "0": CGRect(x: 0, y: 0, width: 300, height: 180),
-            "1": CGRect(x: 308, y: 0, width: 300, height: 180),
-            "2": CGRect(x: 616, y: 0, width: 300, height: 180),
-            "3": CGRect(x: 0, y: 188, width: 300, height: 180),
-            "4": CGRect(x: 308, y: 188, width: 300, height: 180),
-            "5": CGRect(x: 616, y: 188, width: 300, height: 180),
+            "0": CGRect(x: 0, y: 0, width: 260, height: 156),
+            "1": CGRect(x: 268, y: 0, width: 260, height: 156),
+            "2": CGRect(x: 536, y: 0, width: 260, height: 156),
+            "3": CGRect(x: 0, y: 164, width: 260, height: 156),
+            "4": CGRect(x: 268, y: 164, width: 260, height: 156),
+            "5": CGRect(x: 536, y: 164, width: 260, height: 156),
         ],
-        viewportHeight: 380
+        viewportHeight: 340
     )
     #expect(selection.columnCount == 3)
 
@@ -57,9 +57,9 @@ func playbackMediaSelectionUsesVisualGridDirectionsAndScrollTargets() throws {
 
     selection.recordVisibleFrames(
         [
-            "0": CGRect(x: 0, y: -20, width: 300, height: 180),
-            "2": CGRect(x: 616, y: -20, width: 300, height: 180),
-            "3": CGRect(x: 0, y: 168, width: 300, height: 180),
+            "0": CGRect(x: 0, y: -20, width: 260, height: 156),
+            "2": CGRect(x: 536, y: -20, width: 260, height: 156),
+            "3": CGRect(x: 0, y: 144, width: 260, height: 156),
         ],
         viewportHeight: 200
     )
@@ -70,13 +70,20 @@ func playbackMediaSelectionUsesVisualGridDirectionsAndScrollTargets() throws {
 
     let requestBeforeResize = try #require(selection.scrollRequest)
     selection.updateAdaptiveGrid(
-        containerWidth: 608,
+        containerWidth: 528,
         minimumItemWidth: WorkbenchControlMetrics.redesignLibraryRecentCardMinWidth,
         itemGap: WorkbenchControlMetrics.redesignLibraryRecentGridGap
     )
     #expect(selection.columnCount == 2)
     #expect(selection.scrollRequest?.itemID == selection.selectedItemID)
     #expect(selection.scrollRequest?.sequence ?? 0 > requestBeforeResize.sequence)
+
+    selection.updateAdaptiveGrid(
+        containerWidth: 1_920,
+        minimumItemWidth: WorkbenchControlMetrics.redesignLibraryRecentCardMinWidth,
+        itemGap: WorkbenchControlMetrics.redesignLibraryRecentGridGap
+    )
+    #expect(selection.columnCount == 5)
 }
 
 @MainActor

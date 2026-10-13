@@ -65,6 +65,10 @@ private struct ContentRootView: View {
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                             .padding(.top, hidesWorkbenchChrome ? 0 : AppShellLayout.topBarHeight)
                             .environment(\.workbenchPageScrollOffset, layoutState.pageScroll)
+                            .environment(
+                                \.isWorkbenchSidebarVisible,
+                                !hidesWorkbenchChrome && layoutState.isSidebarVisible
+                            )
                     }
 
                     if !hidesWorkbenchChrome {

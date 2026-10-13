@@ -1,6 +1,26 @@
 import CoreGraphics
 import SwiftUI
 
+private struct IsWorkbenchSidebarVisibleKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
+private struct MediaCardGridContainerWidthKey: EnvironmentKey {
+    static let defaultValue: CGFloat? = nil
+}
+
+extension EnvironmentValues {
+    var isWorkbenchSidebarVisible: Bool {
+        get { self[IsWorkbenchSidebarVisibleKey.self] }
+        set { self[IsWorkbenchSidebarVisibleKey.self] = newValue }
+    }
+
+    var mediaCardGridContainerWidth: CGFloat? {
+        get { self[MediaCardGridContainerWidthKey.self] }
+        set { self[MediaCardGridContainerWidthKey.self] = newValue }
+    }
+}
+
 struct LibraryOverviewLayout<Content: View>: View {
     let summaryText: String
     let actionTitle: String
@@ -43,6 +63,12 @@ struct LibraryOverviewLayout<Content: View>: View {
 
                 content
                     .workbenchMediaCardGridInlinePadding()
+                    .environment(
+                        \.mediaCardGridContainerWidth,
+                        WorkbenchControlMetrics.workbenchMediaCardGridWidth(
+                            viewportWidth: geometry.size.width
+                        )
+                    )
             }
             .padding(
                 .top,
@@ -70,23 +96,65 @@ struct LibraryOverviewLayout<Content: View>: View {
 }
 
 struct LibraryOverviewGrid<Content: View>: View {
+    @Environment(\.interfaceLayerContext) private var layerContext
+    @Environment(\.isWorkbenchSidebarVisible) private var isWorkbenchSidebarVisible
+    @Environment(\.mediaCardGridContainerWidth) private var environmentContainerWidth
+    @State private var measuredContainerWidth: CGFloat = 0
     private let content: Content
 
     init(@ViewBuilder content: () -> Content) {
         self.content = content()
     }
 
+    static func columnCount(
+        containerWidth: CGFloat,
+        minimumItemWidth: CGFloat = WorkbenchControlMetrics.redesignLibraryRecentCardMinWidth,
+        itemGap: CGFloat = WorkbenchControlMetrics.redesignLibraryRecentGridGap,
+        maxColumns: Int = WorkbenchControlMetrics.redesignLibraryRecentGridMaxColumnsWithoutSidebar
+    ) -> Int {
+        WorkbenchControlMetrics.mediaCardGridColumnCount(
+            containerWidth: containerWidth,
+            minimumItemWidth: minimumItemWidth,
+            itemGap: itemGap,
+            maxColumns: maxColumns
+        )
+    }
+
+    private var maxColumns: Int {
+        layerContext.layer == .workbenchPage && isWorkbenchSidebarVisible
+            ? WorkbenchControlMetrics.redesignLibraryRecentGridMaxColumnsWithSidebar
+            : WorkbenchControlMetrics.redesignLibraryRecentGridMaxColumnsWithoutSidebar
+    }
+
     private var columns: [GridItem] {
-        [
-            GridItem(
-                .adaptive(
+        let effectiveWidth = environmentContainerWidth ?? measuredContainerWidth
+        guard effectiveWidth > 0 else {
+            return [
+                GridItem(
+                    .adaptive(
+                        minimum: WorkbenchControlMetrics.redesignLibraryRecentCardMinWidth,
+                        maximum: .infinity
+                    ),
+                    spacing: WorkbenchControlMetrics.redesignLibraryRecentGridGap,
+                    alignment: .topLeading
+                )
+            ]
+        }
+        let resolvedColumnCount = Self.columnCount(
+            containerWidth: effectiveWidth,
+            maxColumns: maxColumns
+        )
+        return Array(
+            repeating: GridItem(
+                .flexible(
                     minimum: WorkbenchControlMetrics.redesignLibraryRecentCardMinWidth,
                     maximum: .infinity
                 ),
                 spacing: WorkbenchControlMetrics.redesignLibraryRecentGridGap,
                 alignment: .topLeading
-            )
-        ]
+            ),
+            count: resolvedColumnCount
+        )
     }
 
     var body: some View {
@@ -98,6 +166,19 @@ struct LibraryOverviewGrid<Content: View>: View {
             content
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .background {
+            if environmentContainerWidth == nil {
+                GeometryReader { proxy in
+                    Color.clear
+                        .onAppear {
+                            measuredContainerWidth = proxy.size.width
+                        }
+                        .onChange(of: proxy.size.width) { width in
+                            measuredContainerWidth = width
+                        }
+                }
+            }
+        }
     }
 }
 

@@ -257,22 +257,47 @@ func workbenchTablePinnedToolbarHeightMatchesSpecification() {
 
 @Test
 func mediaCardGridMetricsAndMinimumWindowColumnCountMatchSpecification() {
-    #expect(WorkbenchControlMetrics.redesignLibraryRecentCardMinWidth == 300)
+    #expect(WorkbenchControlMetrics.redesignLibraryRecentCardMinWidth == 260)
     #expect(WorkbenchControlMetrics.redesignLibraryRecentGridGap == 8)
     #expect(WorkbenchControlMetrics.redesignLibraryEpisodeGridGap == 8)
+    #expect(WorkbenchControlMetrics.redesignLibraryRecentGridMaxColumnsWithSidebar == 4)
+    #expect(WorkbenchControlMetrics.redesignLibraryRecentGridMaxColumnsWithoutSidebar == 5)
 
     // At minimum Workbench page content width (480px), subtracting inline grid
     // padding (20px leading + 36px trailing = 56px) leaves 424px, which fits
-    // strictly 1 card per row (2 cards require 300 * 2 + 8 = 608px).
+    // strictly 1 card per row (2 cards require 260 * 2 + 8 = 528px).
     let minimumWorkbenchGridWidth =
-        AppShellLayout.pageContentMinimumWidth
-        - WorkbenchControlMetrics.redesignWorkbenchMediaCardGridHorizontalPadding
-        - WorkbenchControlMetrics.redesignWorkbenchMediaCardGridTrailingPadding
+        WorkbenchControlMetrics.workbenchMediaCardGridWidth(
+            viewportWidth: AppShellLayout.pageContentMinimumWidth
+        )
     #expect(minimumWorkbenchGridWidth == 424)
     #expect(PlaybackCommandPanelCardGrid.columnCount(containerWidth: minimumWorkbenchGridWidth) == 1)
-    #expect(PlaybackCommandPanelCardGrid.columnCount(containerWidth: 607) == 1)
-    #expect(PlaybackCommandPanelCardGrid.columnCount(containerWidth: 608) == 2)
-    #expect(PlaybackCommandPanelCardGrid.columnCount(containerWidth: 915) == 2)
-    #expect(PlaybackCommandPanelCardGrid.columnCount(containerWidth: 916) == 3)
+    #expect(PlaybackCommandPanelCardGrid.columnCount(containerWidth: 527) == 1)
+    #expect(PlaybackCommandPanelCardGrid.columnCount(containerWidth: 528) == 2)
+    #expect(PlaybackCommandPanelCardGrid.columnCount(containerWidth: 795) == 2)
+    #expect(PlaybackCommandPanelCardGrid.columnCount(containerWidth: 796) == 3)
+    #expect(PlaybackCommandPanelCardGrid.columnCount(containerWidth: 1_063) == 3)
+    #expect(PlaybackCommandPanelCardGrid.columnCount(containerWidth: 1_064) == 4)
+    #expect(PlaybackCommandPanelCardGrid.columnCount(containerWidth: 1_331) == 4)
+    #expect(PlaybackCommandPanelCardGrid.columnCount(containerWidth: 1_332) == 5)
+
+    // Without Sidebar, column count caps at 5 even on wider viewports (e.g. 1920px).
+    #expect(PlaybackCommandPanelCardGrid.columnCount(containerWidth: 1_864) == 5)
+
+    // With Sidebar visible, column count caps at 4 on 1504x846 (left Dock: ~1138px)
+    // and 1920x1080 (1624px).
+    #expect(
+        LibraryOverviewGrid<EmptyView>.columnCount(
+            containerWidth: 1_138,
+            maxColumns: WorkbenchControlMetrics.redesignLibraryRecentGridMaxColumnsWithSidebar
+        ) == 4
+    )
+    #expect(
+        LibraryOverviewGrid<EmptyView>.columnCount(
+            containerWidth: 1_624,
+            maxColumns: WorkbenchControlMetrics.redesignLibraryRecentGridMaxColumnsWithSidebar
+        ) == 4
+    )
 }
+
 

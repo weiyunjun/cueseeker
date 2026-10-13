@@ -108,17 +108,18 @@ final class PlaybackMediaSelectionStore: ObservableObject {
     func updateAdaptiveGrid(
         containerWidth: CGFloat,
         minimumItemWidth: CGFloat,
-        itemGap: CGFloat
+        itemGap: CGFloat,
+        maxColumns: Int = WorkbenchControlMetrics
+            .redesignLibraryRecentGridMaxColumnsWithoutSidebar
     ) {
         guard isActive else {
             return
         }
-        let resolvedWidth = max(0, containerWidth)
-        let resolvedMinimum = max(1, minimumItemWidth)
-        let resolvedGap = max(0, itemGap)
-        let resolvedColumnCount = max(
-            1,
-            Int((resolvedWidth + resolvedGap) / (resolvedMinimum + resolvedGap))
+        let resolvedColumnCount = WorkbenchControlMetrics.mediaCardGridColumnCount(
+            containerWidth: containerWidth,
+            minimumItemWidth: minimumItemWidth,
+            itemGap: itemGap,
+            maxColumns: maxColumns
         )
         guard columnCount != resolvedColumnCount else {
             return

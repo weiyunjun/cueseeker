@@ -606,12 +606,13 @@ private struct PlaybackCommandPanelRecentCards<Grid: View>: View {
             )
 
             GeometryReader { geometry in
+                let gridWidth = max(
+                    0,
+                    geometry.size.width
+                        - PlaybackCommandPanelMetrics.contentInset * 2
+                )
                 let columnCount = PlaybackCommandPanelCardGrid.columnCount(
-                    containerWidth: max(
-                        0,
-                        geometry.size.width
-                            - PlaybackCommandPanelMetrics.contentInset * 2
-                    )
+                    containerWidth: gridWidth
                 )
 
                 ScrollViewReader { proxy in
@@ -620,6 +621,7 @@ private struct PlaybackCommandPanelRecentCards<Grid: View>: View {
                             itemFramesByID = frames
                             onGridLayoutChange(columnCount, frames)
                         }
+                        .environment(\.mediaCardGridContainerWidth, gridWidth)
                         .padding(
                             .horizontal,
                             PlaybackCommandPanelMetrics.contentInset
@@ -680,12 +682,10 @@ private struct PlaybackCommandPanelRecentCards<Grid: View>: View {
 /// the keyboard's card on screen.
 enum PlaybackCommandPanelCardGrid {
     static func columnCount(containerWidth: CGFloat) -> Int {
-        let minimumWidth = WorkbenchControlMetrics
-            .redesignLibraryRecentCardMinWidth
-        let gap = WorkbenchControlMetrics.redesignLibraryRecentGridGap
-        return max(
-            1,
-            Int((containerWidth + gap) / (minimumWidth + gap))
+        WorkbenchControlMetrics.mediaCardGridColumnCount(
+            containerWidth: containerWidth,
+            maxColumns: WorkbenchControlMetrics
+                .redesignLibraryRecentGridMaxColumnsWithoutSidebar
         )
     }
 

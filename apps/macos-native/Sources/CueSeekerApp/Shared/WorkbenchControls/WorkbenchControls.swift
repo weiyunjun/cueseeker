@@ -401,8 +401,12 @@ enum WorkbenchControlMetrics {
     static let redesignLibraryCoverAspectRatio: CGFloat = 16.0 / 9.0
     /// --height-library-progress-bar: 4px
     static let redesignLibraryProgressBarHeight: CGFloat = 4
-    /// --width-library-recent-card-min: 300px
-    static let redesignLibraryRecentCardMinWidth: CGFloat = 300
+    /// --width-library-recent-card-min: 260px
+    static let redesignLibraryRecentCardMinWidth: CGFloat = 260
+    /// --grid-max-columns-library-with-sidebar: 4
+    static let redesignLibraryRecentGridMaxColumnsWithSidebar: Int = 4
+    /// --grid-max-columns-library-without-sidebar: 5
+    static let redesignLibraryRecentGridMaxColumnsWithoutSidebar: Int = 5
     /// --width-library-episode-row-min: 380px
     static let redesignLibraryEpisodeRowMinWidth: CGFloat = 380
     /// --width-library-list-cover: 204px
@@ -571,6 +575,37 @@ enum WorkbenchControlMetrics {
     static let redesignWorkbenchPageTopPadding = redesignSpacing1
     /// Shared bottom padding for Workbench pages with an explicit page title.
     static let redesignWorkbenchPageBottomPadding = redesignSpacing6
+
+    /// Available horizontal width for a media card grid inside a Workbench page
+    /// after applying the page's minimum width floor and media card grid inline padding.
+    static func workbenchMediaCardGridWidth(viewportWidth: CGFloat) -> CGFloat {
+        let pageWidth = max(viewportWidth, AppShellLayout.pageContentMinimumWidth)
+        return max(
+            0,
+            pageWidth
+                - redesignWorkbenchMediaCardGridHorizontalPadding
+                - redesignWorkbenchMediaCardGridTrailingPadding
+        )
+    }
+
+    /// Resolves the number of columns in a media card grid for a given container
+    /// width, minimum card width, inter-card gap, and maximum column cap.
+    static func mediaCardGridColumnCount(
+        containerWidth: CGFloat,
+        minimumItemWidth: CGFloat = redesignLibraryRecentCardMinWidth,
+        itemGap: CGFloat = redesignLibraryRecentGridGap,
+        maxColumns: Int = redesignLibraryRecentGridMaxColumnsWithoutSidebar
+    ) -> Int {
+        let resolvedWidth = max(0, containerWidth)
+        let resolvedMinimum = max(1, minimumItemWidth)
+        let resolvedGap = max(0, itemGap)
+        let resolvedMaxColumns = max(1, maxColumns)
+        let fittingColumns = max(
+            1,
+            Int((resolvedWidth + resolvedGap) / (resolvedMinimum + resolvedGap))
+        )
+        return min(resolvedMaxColumns, fittingColumns)
+    }
 
     /// The centre of a message's first line, measured down from the text's top
     /// edge. Both feedback surfaces set their message in `--font-weight-control`.

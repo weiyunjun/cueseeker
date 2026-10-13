@@ -82,6 +82,14 @@ private struct PlaybackLibraryEpisodeList: View {
             ScrollViewReader { scrollProxy in
                 WorkbenchScrollView {
                     content(viewportHeight: geometry.size.height)
+                        .environment(
+                            \.mediaCardGridContainerWidth,
+                            max(
+                                0,
+                                geometry.size.width
+                                    - PlaybackSubtitleFocusMetrics.contentInset * 2
+                            )
+                        )
                         .padding(.horizontal, PlaybackSubtitleFocusMetrics.contentInset)
                         .padding(.bottom, PlaybackSubtitleFocusMetrics.contentInset)
                         .frame(maxWidth: .infinity, alignment: .topLeading)
