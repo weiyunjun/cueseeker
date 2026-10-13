@@ -55,7 +55,7 @@
 | 图标 | 字重 | 含义 | 使用位置 |
 | --- | --- | --- | --- |
 | `squares-four` | Regular | Library | Sidebar Item / Library |
-| `folder` | Regular | 文件夹 | Sidebar Item / File；表格行菜单 / Open Subtitle Folder；Library 卡片菜单 / Open Folder；Library File Tree / Root Path、Object Folder；Export to Anki Dialog / Location；File Page 空状态，47px |
+| `folder` | Regular | 文件夹 | Sidebar Item / File；File Page / Add Folder 菜单 / Local Folder；表格行菜单 / Open Subtitle Folder；Library 卡片菜单 / Open Folder；Library File Tree / Root Path、Object Folder；Export to Anki Dialog / Location；File Page 空状态，47px |
 | `bookmark-simple` | Regular | Excerpt | Sidebar Item / Excerpt；Command Panel Root / Recent Excerpt Lists；表格行菜单 / Remove Excerpt；Playback Feedback（移出 Excerpt）；Excerpt List 封面占位，57px |
 | `bookmark-simple` | Fill | 已存入 Excerpt | Playback Feedback（Save to Excerpt List） |
 | `clock` | Regular | 最近、时长 | Sidebar Item / Recent；Filter Menu / Duration |
@@ -67,6 +67,7 @@
 | 图标 | 字重 | 含义 | 使用位置 |
 | --- | --- | --- | --- |
 | `folder-plus` | Regular | 添加文件夹 | File Page / Add Folder |
+| `cloud` | Regular | WebDAV 文件夹 | File Page / Add Folder 菜单 / WebDav Folder |
 | `arrow-clockwise` | Regular | 重新索引、刷新 | File Page / Index Now、闲置状态；Settings / Maintenance、Developer 刷新 |
 | `minus-circle` | Regular | 移除 | File Page / Root Folder Row / Remove |
 | `minus-circle` | Fill | 半选 | Checkbox / Indeterminate |

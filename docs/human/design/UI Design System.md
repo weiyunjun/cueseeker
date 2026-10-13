@@ -3148,7 +3148,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 
 - Anchor：App Center，即 App 窗口中心，含 Sidebar 与顶栏
 - 最新一条 Toast 的中心与 Anchor 重合；较早的依次向上堆叠，最新一条的位置不随数量变化
-- Layer：Above Pages, Page Overlays and Command Panel; Below Dialogs
+- Layer：Above Pages, Page Overlays, Command Panel and Dialogs
 
 #### Stacking
 
@@ -3538,9 +3538,11 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - Button / Neutral
 - Button / Destructive
 - Empty State
+- Dropdown Menu
 - Confirmation Dialog
 - File Card Layout
 - Rename Dialog Layout
+- WebDav Folder Dialog Layout
 
 #### Layout
 
@@ -3595,7 +3597,8 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
   - Wrapping：所有文本完整展示，字符折行，不截断
 - Trailing Actions：
   - 统一使用 `dots-three` 纯图标按钮（32×32px，圆角 8px，图标 21px），Hover 及菜单打开底色为 `--color-row-selected`
-  - 弹出菜单：
+  - `Add Folder` 弹出菜单：`Local Folder`（`folder`）+ `WebDav Folder`（`cloud`）
+  - 卡片弹出菜单（WebDAV 条目的 `Rename Folder` 与 `Rename Files` 为 Disabled）：
     - Level 1：`Rename Folder`（Neutral）+ `Remove`（Destructive 警告项）
     - Level 2：`Rename Folder`（Neutral）
     - Level 3：`Rename Files`（Neutral）
@@ -3979,6 +3982,47 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 
 - Default
 - Validation Error
+
+### WebDav Folder Dialog Layout
+
+#### Structure
+
+1. Header
+   1. Title：`WebDav Folder`
+   2. Close Button
+2. Form Region
+   1. Name Field
+   2. Address Field
+   3. Username Field
+   4. Password Field（密文掩码）
+3. Footer
+   1. Cancel
+   2. Add
+
+#### Components
+
+- Dialog
+- Text Field
+- WorkbenchSpinner
+- Button / Neutral
+- Button / Primary
+
+#### Layout
+
+- Width：`--width-dialog-medium`
+- Form Region 单列，占满内容宽度；4 个输入框均不展示行内 Error 边框，也不预留底部报错文字行。
+- 验证失败通过 Toast（`warning`）提示，对话框保持打开。
+
+#### Spacing
+
+- Region Gap：`--spacing-4`
+- Field Gap：`--spacing-4`
+- Footer Action Gap：`--spacing-2`
+
+#### States
+
+- Default
+- Validating（4 个输入框与 `Add` 按钮为 Disabled，`Add` 按钮内左侧展示 `WorkbenchSpinner`）
 
 ### Export to Anki Dialog Layout
 
