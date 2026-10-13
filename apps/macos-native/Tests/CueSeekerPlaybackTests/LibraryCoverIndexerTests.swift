@@ -493,3 +493,86 @@ private func writeAutomaticCoverTestJPEG(to url: URL) throws {
     CGImageDestinationAddImage(destination, image, nil)
     #expect(CGImageDestinationFinalize(destination))
 }
+
+@Test
+func recommendedCoverConcurrencyCapsWebDAVToTwoAndLocalToActiveCores() {
+    let localFolder = URL(fileURLWithPath: "/Users/test/Videos")
+    let webdavFolder = URL.fromMediaPath("http://192.168.1.173:5244/115/云下载/NieR:Automata")
+
+    #expect(
+        LibraryCoverIndexer.recommendedMaxConcurrentVideos(for: localFolder)
+            == ProcessInfo.processInfo.activeProcessorCount
+    )
+    #expect(
+        LibraryCoverIndexer.recommendedMaxConcurrentVideos(for: webdavFolder) == 2
+    )
+}
+
+@Test
+func singleOpenInProcessCoverSamplingGeneratesMasterAndDisplayCovers() async throws {
+    let fixture = try makeAutomaticCoverFixture()
+    defer { try? FileManager.default.removeItem(at: fixture.root) }
+
+    guard let ffmpegPath = ["/opt/homebrew/bin/ffmpeg", "/usr/local/bin/ffmpeg", "/usr/bin/ffmpeg"]
+        .first(where: { FileManager.default.isExecutableFile(atPath: $0) })
+    else {
+        return
+    }
+
+    let process = Process()
+    process.executableURL = URL(fileURLWithPath: ffmpegPath)
+    process.arguments = [
+        "-hide_banner",
+        "-loglevel", "error",
+        "-f", "lavfi",
+        "-i", "testsrc2=duration=5:size=640x360:rate=24",
+        "-c:v", "libx264",
+        "-preset", "ultrafast",
+        "-pix_fmt", "yuv420p",
+        "-y",
+        fixture.videoURL.path
+    ]
+    try process.run()
+    process.waitUntilExit()
+    #expect(process.terminationStatus == 0)
+
+    let libraryDatabase = try LibraryDatabase(
+        path: fixture.root.appendingPathComponent("CueSeeker.sqlite")
+    )
+    try libraryDatabase.updateVideoDuration(videoFile: fixture.videoURL, duration: 5.0)
+
+    let indexer = LibraryCoverIndexer(
+        configuration: .init(
+            candidatePercentages: [0.20, 0.30, 0.40, 0.50, 0.60],
+            scoringWidth: 320,
+            scoringHeight: 180,
+            maxConcurrentVideos: 1,
+            coverDirectory: fixture.coverDirectory,
+            ffmpegPath: nil
+        )
+    )
+
+    let result = try await indexer.indexCovers(
+        under: fixture.mediaDirectory,
+        affectedVideoPaths: [fixture.videoURL.path],
+        affectedFolderPaths: [fixture.mediaDirectory.path],
+        into: fixture.coverDatabase
+    )
+
+    #expect(result.generatedCoverCount == 1)
+    #expect(result.failedCoverCount == 0)
+    #expect(result.generatedDisplayCoverCount == 1)
+
+    let video = try #require(
+        fixture.coverDatabase.libraryCoverEligibleVideos(under: [fixture.mediaDirectory]).first
+    )
+    let stored = try #require(
+        try fixture.coverDatabase.libraryVideoCover(forVideoFileID: video.videoFileID)
+    )
+    #expect(stored.status == .generated)
+    #expect([1000, 1500, 2000, 2500, 3000].contains(stored.sourceTimeMilliseconds))
+    #expect(FileManager.default.fileExists(atPath: stored.masterCoverPath))
+    let displayCoverPath = try #require(stored.displayCoverPath)
+    #expect(FileManager.default.fileExists(atPath: displayCoverPath))
+}
+

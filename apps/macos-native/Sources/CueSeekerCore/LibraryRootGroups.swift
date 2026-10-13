@@ -24,7 +24,7 @@ public enum LibraryRootGroups {
     public static func coveringRoot(of folder: URL, in roots: [URL]) -> URL? {
         roots
             .filter { holds($0, folder) }
-            .min { $0.standardizedFileURL.path.count < $1.standardizedFileURL.path.count }
+            .min { $0.mediaPath.count < $1.mediaPath.count }
     }
 
     /// The groups of `roots` that sit inside `folder` without being it, as
@@ -38,8 +38,11 @@ public enum LibraryRootGroups {
     /// Whether `folder` is `other` or one of its ancestors. Compared by whole
     /// path components, so `/Media/A` does not hold `/Media/AB`.
     public static func holds(_ folder: URL, _ other: URL) -> Bool {
-        let folderPath = folder.standardizedFileURL.path
-        let otherPath = other.standardizedFileURL.path
+        guard folder.isWebDAVURL == other.isWebDAVURL else {
+            return false
+        }
+        let folderPath = folder.mediaPath
+        let otherPath = other.mediaPath
         if folderPath == otherPath {
             return true
         }

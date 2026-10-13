@@ -1416,13 +1416,13 @@ public final class SearchDatabase: @unchecked Sendable {
     ) -> Int? {
         if let videoPath = anchor.videoPath,
            let subtitlePath = anchor.subtitlePath {
-            let normalizedVideoPath = URL(fileURLWithPath: videoPath).standardizedFileURL.path
-            let normalizedSubtitlePath = URL(fileURLWithPath: subtitlePath).standardizedFileURL.path
+            let normalizedVideoPath = URL.fromMediaPath(videoPath).mediaPath
+            let normalizedSubtitlePath = URL.fromMediaPath(subtitlePath).mediaPath
             var timeMatchedIndex: Int?
 
             for (index, result) in results.enumerated() {
-                let resultVideoPath = URL(fileURLWithPath: result.videoPath).standardizedFileURL.path
-                let resultSubtitlePath = URL(fileURLWithPath: result.subtitlePath).standardizedFileURL.path
+                let resultVideoPath = URL.fromMediaPath(result.videoPath).mediaPath
+                let resultSubtitlePath = URL.fromMediaPath(result.subtitlePath).mediaPath
                 guard resultVideoPath == normalizedVideoPath,
                       resultSubtitlePath == normalizedSubtitlePath,
                       result.startMilliseconds <= anchor.currentMilliseconds
@@ -1982,7 +1982,7 @@ public final class SearchDatabase: @unchecked Sendable {
     }
 
     private static func folderPathPrefixes(for folder: URL) -> [String] {
-        var path = normalizedFolderPath(folder.standardizedFileURL.path)
+        var path = normalizedFolderPath(folder.mediaPath)
         if !path.hasSuffix("/") {
             path.append("/")
         }

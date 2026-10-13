@@ -213,7 +213,7 @@ struct PlaybackOverlay: View {
 
     private var currentDisplayTitle: String {
         session.openSnapshot.videoPresentation?.displayTitle
-            ?? URL(fileURLWithPath: session.openSnapshot.source.videoPath)
+            ?? URL.fromMediaPath(session.openSnapshot.source.videoPath)
                 .deletingPathExtension()
                 .lastPathComponent
     }

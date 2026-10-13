@@ -36,8 +36,8 @@ extension AppCoordinator {
 
         let source = SubtitleFocusSourceIdentity(
             subtitleFileID: subtitleFileID,
-            videoPath: URL(fileURLWithPath: videoPath).standardizedFileURL.path,
-            subtitlePath: URL(fileURLWithPath: subtitlePath).standardizedFileURL.path,
+            videoPath: URL.fromMediaPath(videoPath).mediaPath,
+            subtitlePath: URL.fromMediaPath(subtitlePath).mediaPath,
             subtitleFormat: subtitleFormat
         )
         let timestampMilliseconds = Int(
@@ -49,14 +49,14 @@ extension AppCoordinator {
             wasPlaying: playbackViewModel.isPlaying,
             videoPresentation: try? libraryDatabase?
                 .completeLibraryFolderDetail(
-                    folderPath: URL(fileURLWithPath: videoPath)
+                    folderPath: URL.fromMediaPath(videoPath)
                         .deletingLastPathComponent()
-                        .standardizedFileURL.path
+                        .mediaPath
                 )?
                 .videos
                 .first { $0.videoPath == source.videoPath },
             subtitleRenderSource: playbackSubtitleSource(
-                forSubtitleFile: URL(fileURLWithPath: source.subtitlePath),
+                forSubtitleFile: URL.fromMediaPath(source.subtitlePath),
                 format: source.subtitleFormat,
                 videoPath: source.videoPath,
                 startingAtMilliseconds: timestampMilliseconds,
@@ -66,9 +66,9 @@ extension AppCoordinator {
         let libraryStore: PlaybackLibrarySessionStore?
         if case .library = activePlaybackSource {
             libraryStore = makePlaybackLibrarySessionStore(
-                folderPath: URL(fileURLWithPath: source.videoPath)
+                folderPath: URL.fromMediaPath(source.videoPath)
                     .deletingLastPathComponent()
-                    .standardizedFileURL.path,
+                    .mediaPath,
                 initialVideoPath: source.videoPath
             )
         } else {
@@ -402,9 +402,7 @@ extension AppCoordinator {
                 }
                 let promotion = PlaybackSearchPromotion(
                     query: search.searchQuery,
-                    scopePaths: indexing.selectedFolders.map {
-                        $0.standardizedFileURL.path
-                    },
+                    scopePaths: indexing.selectedFolders.map(\.mediaPath),
                     selectedOrdinal: item.ordinal
                 )
                 openSearchResult(
@@ -453,10 +451,10 @@ extension AppCoordinator {
     ) -> Bool {
         guard let playbackViewModel = playback.playbackViewModel,
               currentPlaybackVideoPath.map({
-                  URL(fileURLWithPath: $0).standardizedFileURL.path
+                  URL.fromMediaPath($0).mediaPath
               }) == context.source.videoPath,
               currentPlaybackSubtitlePath.map({
-                  URL(fileURLWithPath: $0).standardizedFileURL.path
+                  URL.fromMediaPath($0).mediaPath
               }) == context.source.subtitlePath,
               currentPlaybackSubtitleFormat == context.source.subtitleFormat
         else {
@@ -482,9 +480,7 @@ extension AppCoordinator {
                activePlaybackSearchPlaylistContext != nil {
                 playbackSearchPromotion = PlaybackSearchPromotion(
                     query: search.searchQuery,
-                    scopePaths: indexing.selectedFolders.map {
-                        $0.standardizedFileURL.path
-                    },
+                    scopePaths: indexing.selectedFolders.map(\.mediaPath),
                     selectedOrdinal: item.ordinal
                 )
                 playlistSourceOverride = nil

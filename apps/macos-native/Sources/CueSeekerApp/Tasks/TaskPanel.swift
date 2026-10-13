@@ -701,7 +701,7 @@ extension TaskRecord {
             if !fileName.isEmpty {
                 return fileName
             }
-            return URL(fileURLWithPath: oldPaths.first ?? "").lastPathComponent
+            return IndexingStore.displayName(for: URL.fromMediaPath(oldPaths.first ?? ""))
         }
     }
 }

@@ -16,18 +16,29 @@ final class IndexingStore: ObservableObject {
     private static let lastUpdatedTimestampKey = "lastUpdatedTimestamp"
     private static let legacyLastIndexedTimestampKey = "lastIndexedTimestamp"
 
+    nonisolated static func displayName(for folder: URL) -> String {
+        if folder.isWebDAVURL,
+           let config = WebDAVConfigurationStore.shared.config(for: folder) {
+            let trimmed = config.name.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty {
+                return trimmed
+            }
+        }
+        return folder.lastPathComponent
+    }
+
     @Published var selectedFolders: [URL]
     @Published var indexingStatus: IndexingStatus = .idle {
         didSet {
             switch indexingStatus {
             case .completed(let folder, _):
                 recordLastUpdatedDate(Date())
-                operationNotice = .indexed(folderName: folder.lastPathComponent)
+                operationNotice = .indexed(folderName: Self.displayName(for: folder))
             case .completedAll:
                 recordLastUpdatedDate(Date())
                 operationNotice = .indexedAll
             case .failed(let folder, _):
-                operationNotice = .indexFailed(folderName: folder.lastPathComponent)
+                operationNotice = .indexFailed(folderName: Self.displayName(for: folder))
             default:
                 break
             }
@@ -44,7 +55,7 @@ final class IndexingStore: ObservableObject {
         didSet {
             if let folder = removedFolderNotice {
                 recordLastUpdatedDate(Date())
-                operationNotice = .removed(folderName: folder.lastPathComponent)
+                operationNotice = .removed(folderName: Self.displayName(for: folder))
             }
         }
     }
@@ -116,6 +127,9 @@ final class IndexingStore: ObservableObject {
     func replaceFolderPathPrefix(_ oldPath: String, with newPath: String) {
         let oldPrefix = oldPath + "/"
         selectedFolders = selectedFolders.map { folder in
+            guard !folder.isWebDAVURL else {
+                return folder
+            }
             let path = folder.path
             if path == oldPath {
                 return URL(fileURLWithPath: newPath).standardizedFileURL
@@ -131,7 +145,7 @@ final class IndexingStore: ObservableObject {
 
     private func persistSelectedFolders() {
         userDefaults.set(
-            selectedFolders.map(\.path),
+            selectedFolders.map(\.mediaPath),
             forKey: Self.selectedFolderPathsKey
         )
     }
@@ -139,6 +153,6 @@ final class IndexingStore: ObservableObject {
     private static func loadSelectedFolders(from userDefaults: UserDefaults) -> [URL] {
         userDefaults
             .stringArray(forKey: selectedFolderPathsKey)?
-            .map { URL(fileURLWithPath: $0).standardizedFileURL } ?? []
+            .map { URL.fromMediaPath($0) } ?? []
     }
 }

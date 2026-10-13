@@ -22,6 +22,7 @@ enum AppIcon: String, CaseIterable, Sendable {
     case arrowElbowDownLeft = "arrow-elbow-down-left"
     case squaresFour = "squares-four"
     case folder = "folder"
+    case cloud = "cloud"
     case bookmarkSimple = "bookmark-simple"
     case clock = "clock"
     case gear = "gear"

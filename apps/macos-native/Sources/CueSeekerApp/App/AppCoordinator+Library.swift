@@ -65,7 +65,7 @@ final class LibraryPlaybackHistoryWriter: @unchecked Sendable {
 
         do {
             try database.upsertLibraryPlaybackHistory(
-                videoFile: URL(fileURLWithPath: snapshot.videoPath),
+                videoFile: URL.fromMediaPath(snapshot.videoPath),
                 positionMilliseconds: snapshot.positionMilliseconds,
                 duration: snapshot.duration,
                 markStarted: snapshot.markStarted,
@@ -90,7 +90,7 @@ final class LibraryPlaybackHistoryWriter: @unchecked Sendable {
         for snapshot in snapshots {
             do {
                 try database.setLibraryWatchState(
-                    videoFile: URL(fileURLWithPath: snapshot.videoPath),
+                    videoFile: URL.fromMediaPath(snapshot.videoPath),
                     duration: snapshot.duration,
                     state: snapshot.state
                 )
@@ -486,7 +486,7 @@ extension AppCoordinator {
 
     private func libraryDisplayRenditionScopeKey(for folders: [URL]) -> String {
         let paths = folders
-            .map { $0.standardizedFileURL.path }
+            .map(\.mediaPath)
             .sorted()
             .joined(separator: "\n")
         return "v\(LibraryCoverDisplayProfile.current.version)\n\(paths)"
@@ -1100,11 +1100,11 @@ extension AppCoordinator {
 
         do {
             let request = try PlaybackRequest(
-                videoURL: URL(fileURLWithPath: video.videoPath),
+                videoURL: URL.fromMediaPath(video.videoPath),
                 startMilliseconds: startMilliseconds,
                 subtitleSource: loadablePlaybackSubtitleSource(
                     playbackSubtitleSource(
-                        forSubtitleFile: URL(fileURLWithPath: playbackSubtitle?.subtitlePath ?? video.subtitlePath),
+                        forSubtitleFile: URL.fromMediaPath(playbackSubtitle?.subtitlePath ?? video.subtitlePath),
                         format: playbackSubtitle?.format ?? video.subtitleFormat,
                         videoPath: video.videoPath,
                         startingAtMilliseconds: startMilliseconds,
@@ -1342,7 +1342,7 @@ extension AppCoordinator {
         }
         do {
             return try database.libraryPlaybackHistory(
-                forVideoFile: URL(fileURLWithPath: video.videoPath)
+                forVideoFile: URL.fromMediaPath(video.videoPath)
             )
         } catch {
             print("Failed to load Library playback history: \(error)")
@@ -1402,7 +1402,7 @@ extension AppCoordinator {
                 canGoNext: navigationAvailability.next
             )
         }
-        let videoFile = URL(fileURLWithPath: videoPath)
+        let videoFile = URL.fromMediaPath(videoPath)
         libraryPlaybackFinishMetadata = try? playbackSubtitleDatabase?
             .playbackFinishMetadata(forVideoFile: videoFile)
         libraryPlaybackCompletedMilestoneVideoPath = nil

@@ -556,15 +556,14 @@ extension LibraryDatabase {
 
     public func refreshPresentationAfterIndexedContentChange() throws {
         let videosByFolderPath = Dictionary(grouping: try indexedLibraryVideos(scopedTo: nil)) {
-            URL(fileURLWithPath: $0.videoPath)
+            URL.fromMediaPath($0.videoPath)
                 .deletingLastPathComponent()
-                .standardizedFileURL
-                .path
+                .mediaPath
         }
 
         let folderPaths = videosByFolderPath.keys.sorted { lhs, rhs in
-            let lhsTitle = URL(fileURLWithPath: lhs).lastPathComponent
-            let rhsTitle = URL(fileURLWithPath: rhs).lastPathComponent
+            let lhsTitle = URL.fromMediaPath(lhs).lastPathComponent
+            let rhsTitle = URL.fromMediaPath(rhs).lastPathComponent
             let titleComparison = lhsTitle.localizedStandardCompare(rhsTitle)
             if titleComparison != .orderedSame {
                 return titleComparison == .orderedAscending
@@ -609,7 +608,7 @@ extension LibraryDatabase {
         let scopedFolderPaths = Set(
             Self.folderPathPrefixes(
                 for: affectedFolderPaths.map(
-                    URL.init(fileURLWithPath:)
+                    URL.fromMediaPath
                 )
             ).map {
                 $0.count > 1 && $0.hasSuffix("/")
@@ -618,8 +617,8 @@ extension LibraryDatabase {
             }
         )
         let folderPaths = scopedFolderPaths.sorted { lhs, rhs in
-            let lhsTitle = URL(fileURLWithPath: lhs).lastPathComponent
-            let rhsTitle = URL(fileURLWithPath: rhs).lastPathComponent
+            let lhsTitle = URL.fromMediaPath(lhs).lastPathComponent
+            let rhsTitle = URL.fromMediaPath(rhs).lastPathComponent
             let titleComparison = lhsTitle.localizedStandardCompare(rhsTitle)
             if titleComparison != .orderedSame {
                 return titleComparison == .orderedAscending
@@ -631,10 +630,9 @@ extension LibraryDatabase {
                 inFolderPaths: scopedFolderPaths
             )
         ) {
-            URL(fileURLWithPath: $0.videoPath)
+            URL.fromMediaPath($0.videoPath)
                 .deletingLastPathComponent()
-                .standardizedFileURL
-                .path
+                .mediaPath
         }
 
         let placeholders = folderPaths.map { _ in "?" }
@@ -660,9 +658,9 @@ extension LibraryDatabase {
     ) throws {
         let videos = try indexedLibraryVideos(libraryID: libraryID)
         let videosByFolderPath = Dictionary(grouping: videos) {
-            URL(fileURLWithPath: $0.videoPath)
+            URL.fromMediaPath($0.videoPath)
                 .deletingLastPathComponent()
-                .standardizedFileURL.path
+                .mediaPath
         }
         var folderPaths = Set(videosByFolderPath.keys)
         let existingFolders = try database.prepare(
@@ -678,8 +676,8 @@ extension LibraryDatabase {
             folderPaths.insert(existingFolders.stringColumn(0))
         }
         let sortedFolderPaths = folderPaths.sorted { lhs, rhs in
-            let lhsTitle = URL(fileURLWithPath: lhs).lastPathComponent
-            let rhsTitle = URL(fileURLWithPath: rhs).lastPathComponent
+            let lhsTitle = URL.fromMediaPath(lhs).lastPathComponent
+            let rhsTitle = URL.fromMediaPath(rhs).lastPathComponent
             let titleComparison =
                 lhsTitle.localizedStandardCompare(rhsTitle)
             if titleComparison != .orderedSame {
@@ -761,12 +759,12 @@ extension LibraryDatabase {
         )
 
         for (folderOrder, folderPath) in folderPaths.enumerated() {
-            let folderTitle = URL(fileURLWithPath: folderPath).lastPathComponent
+            let folderTitle = URL.fromMediaPath(folderPath).lastPathComponent
             let videos = (videosByFolderPath[folderPath] ?? [])
                 .sorted(by: Self.libraryVideoSort)
 
             for (videoOrder, video) in videos.enumerated() {
-                let fileExtension = URL(fileURLWithPath: video.videoPath)
+                let fileExtension = URL.fromMediaPath(video.videoPath)
                     .pathExtension.lowercased()
                 try insert.bind(video.videoPath, at: 1)
                 if let videoFileID = video.videoFileID {
@@ -816,16 +814,15 @@ extension LibraryDatabase {
             videos = try indexedLibraryVideos(scopedTo: nil)
         }
         let videosByFolderPath = Dictionary(grouping: videos) {
-            URL(fileURLWithPath: $0.videoPath)
+            URL.fromMediaPath($0.videoPath)
                 .deletingLastPathComponent()
-                .standardizedFileURL
-                .path
+                .mediaPath
         }
         let update = try database.prepare(
             "UPDATE video_files SET display_title = ? WHERE id = ?;"
         )
         for (folderPath, videos) in videosByFolderPath {
-            let folderTitle = URL(fileURLWithPath: folderPath).lastPathComponent
+            let folderTitle = URL.fromMediaPath(folderPath).lastPathComponent
             let rankWidth = max(2, String(videos.count).count)
             for (videoOrder, video) in videos.sorted(by: Self.libraryVideoSort).enumerated() {
                 guard let videoFileID = video.videoFileID else {
@@ -848,7 +845,7 @@ extension LibraryDatabase {
             return []
         }
         let prefixes = Self.folderPathPrefixes(
-            for: folderPaths.map(URL.init(fileURLWithPath:))
+            for: folderPaths.map(URL.fromMediaPath)
         )
         let exactFolderPaths = Set(prefixes.map {
             $0.count > 1 && $0.hasSuffix("/")
@@ -857,9 +854,9 @@ extension LibraryDatabase {
         })
         return try indexedLibraryVideos(scopedTo: prefixes).filter {
             exactFolderPaths.contains(
-                URL(fileURLWithPath: $0.videoPath)
+                URL.fromMediaPath($0.videoPath)
                     .deletingLastPathComponent()
-                    .standardizedFileURL.path
+                    .mediaPath
             )
         }
     }

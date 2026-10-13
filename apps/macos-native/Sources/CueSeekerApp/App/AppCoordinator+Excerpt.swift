@@ -1211,7 +1211,7 @@ extension AppCoordinator {
                 endMilliseconds: excerpt.endMilliseconds
             )
             let request = try PlaybackRequest(
-                videoURL: URL(fileURLWithPath: excerpt.videoPath),
+                videoURL: URL.fromMediaPath(excerpt.videoPath),
                 startMilliseconds: excerpt.startMilliseconds,
                 autoStopAtMilliseconds: autoStopBoundary?.endMilliseconds,
                 subtitleSource: loadablePlaybackSubtitleSource(playbackSubtitleSource(for: excerpt)),

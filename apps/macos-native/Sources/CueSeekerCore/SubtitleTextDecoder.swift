@@ -21,7 +21,7 @@ public enum SubtitleTextDecoder {
         contentsOf subtitleFile: URL,
         format: SubtitleFormat
     ) throws -> String {
-        let data = try Data(contentsOf: subtitleFile, options: .mappedIfSafe)
+        let data = try WebDAVSubtitleCache.shared.readSubtitleData(from: subtitleFile)
         return try decode(data, format: format)
     }
 

@@ -7,6 +7,7 @@ NS_ASSUME_NONNULL_BEGIN
 @class SFXNativePlaybackPlayer;
 @class SFXMediaMetadata;
 @class SFXMediaAudioTrack;
+@class SFXMediaCoverCandidateFrame;
 
 @interface SFXNativePlaybackFrameSnapshot : NSObject
 
@@ -56,6 +57,7 @@ didReachAutoStopBoundaryAtMilliseconds:(NSInteger)endMilliseconds;
 @property (nonatomic, weak, nullable) id<SFXNativePlaybackPlayerDelegate> delegate;
 @property (nonatomic, strong, readonly) NSView *view;
 @property (nonatomic, copy, readonly, nullable) NSString *currentPath;
+@property (nonatomic, copy, nullable) NSString *httpHeaders;
 @property (nonatomic, readonly) double currentTime;
 @property (nonatomic, readonly) double duration;
 @property (nonatomic, readonly) NSInteger videoWidth;
@@ -138,11 +140,32 @@ autoStopAtMilliseconds:(NSInteger)endMilliseconds
 
 - (instancetype)init NS_UNAVAILABLE;
 + (nullable NSNumber *)durationSecondsAtMediaPath:(NSString *)mediaPath
-                                           error:(NSError **)error
+                                            error:(NSError **)error
     NS_SWIFT_NAME(durationSeconds(atMediaPath:));
 + (nullable SFXMediaMetadata *)metadataAtMediaPath:(NSString *)mediaPath
-                                            error:(NSError **)error
+                                             error:(NSError **)error
     NS_SWIFT_NAME(metadata(atMediaPath:));
++ (nullable SFXMediaMetadata *)metadataAtMediaPath:(NSString *)mediaPath
+                                       httpHeaders:(nullable NSString *)httpHeaders
+                                             error:(NSError **)error
+    NS_SWIFT_NAME(metadata(atMediaPath:httpHeaders:));
++ (nullable NSArray<SFXMediaCoverCandidateFrame *> *)sampleCoverFramesAtMediaPath:(NSString *)mediaPath
+                                                                      httpHeaders:(nullable NSString *)httpHeaders
+                                                           timestampsMilliseconds:(NSArray<NSNumber *> *)timestampsMilliseconds
+                                                                     scoringWidth:(NSInteger)scoringWidth
+                                                                    scoringHeight:(NSInteger)scoringHeight
+                                                                            error:(NSError **)error
+    NS_SWIFT_NAME(sampleCoverFrames(atMediaPath:httpHeaders:timestampsMilliseconds:scoringWidth:scoringHeight:));
+
+@end
+
+@interface SFXMediaCoverCandidateFrame : NSObject
+
+@property (nonatomic, readonly) NSInteger timestampMilliseconds;
+@property (nonatomic, strong, readonly) NSData *scoringRGB24Data;
+@property (nonatomic, readonly) CGImageRef cgImage CF_RETURNS_NOT_RETAINED;
+
+- (instancetype)init NS_UNAVAILABLE;
 
 @end
 

@@ -106,8 +106,10 @@ extension LibraryDatabase {
         let modifiedAtSec = statement.nullableDoubleColumn(9)
         let dbModifiedDate = modifiedAtSec.map { Date(timeIntervalSince1970: $0) }
 
-        let fileURL = URL(fileURLWithPath: path)
-        let attributes = try? FileManager.default.attributesOfItem(atPath: path)
+        let fileURL = URL.fromMediaPath(path)
+        let attributes = path.isWebDAVPath
+            ? nil
+            : (try? FileManager.default.attributesOfItem(atPath: path))
         let createdDate = attributes?[.creationDate] as? Date
         let modifiedDate = (attributes?[.modificationDate] as? Date) ?? dbModifiedDate
         let fileSize = (attributes?[.size] as? NSNumber)?.int64Value ?? dbFileSize
@@ -164,13 +166,16 @@ extension LibraryDatabase {
         try cueStatement.bind(subtitleFileID, at: 1)
         let cueCount = try cueStatement.step() ? cueStatement.intColumn(0) : 0
 
-        let attributes = try? FileManager.default.attributesOfItem(atPath: path)
+        let attributes = path.isWebDAVPath
+            ? nil
+            : (try? FileManager.default.attributesOfItem(atPath: path))
         let createdDate = attributes?[.creationDate] as? Date
         let modifiedDate = (attributes?[.modificationDate] as? Date) ?? dbModifiedDate
         let fileSize = (attributes?[.size] as? NSNumber)?.int64Value ?? dbFileSize
 
+        let subtitleURL = URL.fromMediaPath(path)
         let encoding: String
-        if let data = try? Data(contentsOf: URL(fileURLWithPath: path), options: .mappedIfSafe) {
+        if let data = try? WebDAVSubtitleCache.shared.readSubtitleData(from: subtitleURL) {
             encoding = SubtitleTextDecoder.detectedEncodingName(in: data)
         } else {
             encoding = "UTF-8"
@@ -178,7 +183,7 @@ extension LibraryDatabase {
 
         return FileDetailSubtitleInfo(
             path: path,
-            name: URL(fileURLWithPath: path).lastPathComponent,
+            name: subtitleURL.lastPathComponent,
             fileSize: fileSize,
             format: format,
             encoding: encoding,

@@ -393,7 +393,7 @@ actor LibraryUserCoverService {
     private func storedCover(for target: LibraryUserCoverTarget) throws -> LibraryUserCover? {
         switch target {
         case .video(let path):
-            try database.libraryUserVideoCover(forVideoFile: URL(fileURLWithPath: path))
+            try database.libraryUserVideoCover(forVideoFile: URL.fromMediaPath(path))
         case .folder(let path):
             try database.libraryUserFolderCover(folderPath: path)
         }
@@ -406,7 +406,7 @@ actor LibraryUserCoverService {
         switch target {
         case .video(let path):
             try database.upsertLibraryUserVideoCover(
-                forVideoFile: URL(fileURLWithPath: path),
+                forVideoFile: URL.fromMediaPath(path),
                 displayCoverPath: displayCoverPath
             )
         case .folder(let path):
@@ -428,7 +428,7 @@ actor LibraryUserCoverService {
 
         switch target {
         case .video(let path):
-            try database.deleteLibraryUserVideoCover(forVideoFile: URL(fileURLWithPath: path))
+            try database.deleteLibraryUserVideoCover(forVideoFile: URL.fromMediaPath(path))
         case .folder(let path):
             try database.deleteLibraryUserFolderCover(folderPath: path)
         }

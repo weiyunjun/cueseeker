@@ -1,5 +1,6 @@
 import CryptoKit
 import Foundation
+import CNativePlayback
 import CueSeekerCore
 
 public struct LibraryCoverIndexingResult: Equatable, Sendable {
@@ -14,6 +15,10 @@ public struct LibraryCoverIndexingResult: Equatable, Sendable {
 
 public struct LibraryCoverIndexer: Sendable {
     public static let algorithmVersion = 1
+
+    public static func recommendedMaxConcurrentVideos(for folder: URL) -> Int {
+        folder.isWebDAVURL ? 2 : ProcessInfo.processInfo.activeProcessorCount
+    }
 
     public struct Configuration: Sendable {
         public let candidatePercentages: [Double]
@@ -338,6 +343,26 @@ public struct LibraryCoverIndexer: Sendable {
                 throw LibraryCoverGenerationError.emptyCandidatePercentages
             }
 
+            if configuration.ffmpegPath == nil {
+                let sampled = try sampleAndEncodeCoverInProcess(
+                    videoPath: job.video.videoPath,
+                    duration: duration
+                )
+                return GenerationResult(
+                    order: job.order,
+                    video: job.video,
+                    coverURL: job.coverURL,
+                    displayURL: job.displayURL,
+                    existingCover: job.existingCover,
+                    masterData: sampled.masterData,
+                    displayRendition: sampled.displayRendition,
+                    sourceTimeMilliseconds: sampled.best.timestampMilliseconds,
+                    score: sampled.best.totalScore,
+                    status: .generated,
+                    errorMessage: nil
+                )
+            }
+
             let candidates = try configuration.candidatePercentages.map { percentage in
                 let timestampMilliseconds = max(0, Int((duration * percentage * 1000).rounded()))
                 let rawFrame = try captureScoringFrame(
@@ -388,6 +413,59 @@ public struct LibraryCoverIndexer: Sendable {
                 errorMessage: String(describing: error)
             )
         }
+    }
+
+    private func sampleAndEncodeCoverInProcess(
+        videoPath: String,
+        duration: Double
+    ) throws -> (
+        best: ScoredCandidate,
+        masterData: Data,
+        displayRendition: LibraryCoverEncodedDisplayRendition
+    ) {
+        let timestamps = configuration.candidatePercentages.map { percentage in
+            NSNumber(value: max(0, Int((duration * percentage * 1000).rounded())))
+        }
+        let playableInput = WebDAVClient.shared.resolvePlayableInput(
+            for: URL.fromMediaPath(videoPath)
+        )
+        let sampledFrames = try SFXMediaMetadataInspector.sampleCoverFrames(
+            atMediaPath: playableInput.inputPath,
+            httpHeaders: playableInput.httpHeaders,
+            timestampsMilliseconds: timestamps,
+            scoringWidth: configuration.scoringWidth,
+            scoringHeight: configuration.scoringHeight
+        )
+        var candidates: [ScoredCandidate] = []
+        var frameByTimestamp: [Int: SFXMediaCoverCandidateFrame] = [:]
+        candidates.reserveCapacity(sampledFrames.count)
+        for sampledFrame in sampledFrames {
+            let metrics = try score(rawFrame: sampledFrame.scoringRGB24Data)
+            candidates.append(
+                ScoredCandidate(
+                    timestampMilliseconds: sampledFrame.timestampMilliseconds,
+                    qualityScore: metrics.qualityScore,
+                    histogram: metrics.histogram,
+                    totalScore: metrics.qualityScore
+                )
+            )
+            frameByTimestamp[sampledFrame.timestampMilliseconds] = sampledFrame
+        }
+        let best = bestCandidate(from: candidates)
+        guard let winningFrame = frameByTimestamp[best.timestampMilliseconds] ?? sampledFrames.first else {
+            throw LibraryCoverGenerationError.emptyCandidatePercentages
+        }
+        let masterData = try LibraryCoverDisplayRenditionGenerator.masterJPEGData(
+            from: winningFrame.cgImage
+        )
+        let displayRendition = try LibraryCoverDisplayRenditionGenerator().encode(
+            masterImage: winningFrame.cgImage
+        )
+        return (
+            best: best,
+            masterData: masterData,
+            displayRendition: displayRendition
+        )
     }
 
     private func captureScoringFrame(

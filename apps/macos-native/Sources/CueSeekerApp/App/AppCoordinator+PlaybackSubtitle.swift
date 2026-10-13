@@ -41,7 +41,7 @@ extension AppCoordinator {
         let milliseconds = seconds.isFinite ? Int(max(0, seconds * 1_000).rounded(.down)) : 0
         let source = loadablePlaybackSubtitleSource(
             playbackSubtitleSource(
-                forSubtitleFile: URL(fileURLWithPath: subtitle.subtitlePath),
+                forSubtitleFile: URL.fromMediaPath(subtitle.subtitlePath),
                 format: subtitle.format,
                 videoPath: videoPath,
                 startingAtMilliseconds: milliseconds,
@@ -68,7 +68,7 @@ extension AppCoordinator {
             do {
                 try database.setDefaultSubtitleFileID(
                     subtitleFileID,
-                    forVideoFile: URL(fileURLWithPath: videoPath)
+                    forVideoFile: URL.fromMediaPath(videoPath)
                 )
             } catch {
                 print("Failed to save the default subtitle: \(error)")
@@ -82,7 +82,7 @@ extension AppCoordinator {
         }
         do {
             return try database.videoSubtitles(
-                forVideoFile: URL(fileURLWithPath: videoPath)
+                forVideoFile: URL.fromMediaPath(videoPath)
             )
         } catch {
             print("Failed to load the subtitles: \(error)")

@@ -109,8 +109,8 @@ public struct VideoSubtitles: Equatable, Sendable {
             if lhsShares, lhs.format != rhs.format {
                 return lhs.format == .ass
             }
-            let lhsName = URL(fileURLWithPath: lhs.subtitlePath).lastPathComponent
-            let rhsName = URL(fileURLWithPath: rhs.subtitlePath).lastPathComponent
+            let lhsName = URL.fromMediaPath(lhs.subtitlePath).lastPathComponent
+            let rhsName = URL.fromMediaPath(rhs.subtitlePath).lastPathComponent
             let nameComparison = lhsName.localizedStandardCompare(rhsName)
             if nameComparison != .orderedSame {
                 return nameComparison == .orderedAscending
@@ -127,7 +127,7 @@ public struct VideoSubtitles: Equatable, Sendable {
     }
 
     private static func nameWithoutLastExtension(_ path: String) -> String {
-        URL(fileURLWithPath: path).deletingPathExtension().lastPathComponent
+        URL.fromMediaPath(path).deletingPathExtension().lastPathComponent
             .precomposedStringWithCanonicalMapping
     }
 }

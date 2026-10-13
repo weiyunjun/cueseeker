@@ -191,7 +191,7 @@ struct WorkbenchFileDetailDialog: View {
                     }
                     FileDetailRow(
                         label: "#\(index + 1)",
-                        value: URL(fileURLWithPath: subtitle.subtitlePath).lastPathComponent,
+                        value: URL.fromMediaPath(subtitle.subtitlePath).lastPathComponent,
                         isIndex: true
                     )
                 }
@@ -258,7 +258,7 @@ struct WorkbenchFileDetailDialog: View {
             if let videoPath = info.associatedVideoPath, !videoPath.isEmpty {
                 FileDetailRow(
                     label: "#1",
-                    value: URL(fileURLWithPath: videoPath).lastPathComponent,
+                    value: URL.fromMediaPath(videoPath).lastPathComponent,
                     isIndex: true
                 )
             } else {
@@ -402,7 +402,7 @@ struct WorkbenchFileDetailDialog: View {
     }
 
     private func fileFormatText(path: String) -> String {
-        let ext = URL(fileURLWithPath: path).pathExtension.lowercased()
+        let ext = URL.fromMediaPath(path).pathExtension.lowercased()
         switch ext {
         case "mkv": return "Matroska Video (.mkv)"
         case "mp4": return "MPEG-4 Video (.mp4)"

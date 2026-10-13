@@ -225,8 +225,11 @@ extension AppCoordinator {
         guard let source else {
             return nil
         }
-        guard FileManager.default.isReadableFile(atPath: source.url.path) else {
-            showSubtitleLoadError(path: source.url.path)
+        let isReadable = source.url.isWebDAVURL
+            ? WebDAVSubtitleCache.shared.loadData(for: source.url) != nil
+            : FileManager.default.isReadableFile(atPath: source.url.path)
+        guard isReadable else {
+            showSubtitleLoadError(path: source.url.mediaPath)
             return nil
         }
         return source
@@ -235,9 +238,9 @@ extension AppCoordinator {
     /// A subtitle the renderer could not read after all. A failure that arrives
     /// once the subtitle has been replaced belongs to nothing on screen.
     func handleSubtitleSourceLoadFailure(_ url: URL) {
-        let failedPath = url.standardizedFileURL.path
+        let failedPath = url.mediaPath
         guard let currentPath = currentPlaybackSubtitlePath,
-              URL(fileURLWithPath: currentPath).standardizedFileURL.path == failedPath
+              URL.fromMediaPath(currentPath).mediaPath == failedPath
         else {
             return
         }
@@ -455,7 +458,7 @@ extension AppCoordinator {
                 endMilliseconds: result.endMilliseconds
             )
             let request = try PlaybackRequest(
-                videoURL: URL(fileURLWithPath: result.videoPath),
+                videoURL: URL.fromMediaPath(result.videoPath),
                 startMilliseconds: result.startMilliseconds,
                 autoStopAtMilliseconds: autoStopBoundary?.endMilliseconds,
                 subtitleSource: loadablePlaybackSubtitleSource(playbackSubtitleSource(for: result)),
@@ -1422,7 +1425,7 @@ extension AppCoordinator {
 
     func playbackSubtitleSource(for result: SubtitleSearchResult) -> PlaybackSubtitleSource? {
         playbackSubtitleSource(
-            forSubtitleFile: URL(fileURLWithPath: result.subtitlePath),
+            forSubtitleFile: URL.fromMediaPath(result.subtitlePath),
             format: result.subtitleFormat,
             videoPath: result.videoPath,
             startingAtMilliseconds: result.startMilliseconds,
@@ -1432,7 +1435,7 @@ extension AppCoordinator {
 
     func playbackSubtitleSource(for excerpt: Excerpt) -> PlaybackSubtitleSource? {
         playbackSubtitleSource(
-            forSubtitleFile: URL(fileURLWithPath: excerpt.subtitlePath),
+            forSubtitleFile: URL.fromMediaPath(excerpt.subtitlePath),
             format: excerpt.subtitleFormat,
             videoPath: excerpt.videoPath,
             startingAtMilliseconds: excerpt.startMilliseconds,
@@ -1455,7 +1458,7 @@ extension AppCoordinator {
             playbackFormat = .ass
         }
 
-        let videoURL = URL(fileURLWithPath: videoPath)
+        let videoURL = URL.fromMediaPath(videoPath)
 
         return PlaybackSubtitleSource(
             url: subtitleURL,
@@ -1473,7 +1476,7 @@ extension AppCoordinator {
 
     func playbackSubtitleTimeWindow(for result: SubtitleSearchResult) -> PlaybackSubtitleTimeWindow {
         playbackSubtitleTimeWindow(
-            forSubtitleFile: URL(fileURLWithPath: result.subtitlePath),
+            forSubtitleFile: URL.fromMediaPath(result.subtitlePath),
             startingAtMilliseconds: result.startMilliseconds,
             fallbackEndMilliseconds: result.endMilliseconds
         )

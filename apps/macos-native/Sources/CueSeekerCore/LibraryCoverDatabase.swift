@@ -396,7 +396,7 @@ public final class LibraryCoverDatabase: @unchecked Sendable {
             WHERE vf.path = ?;
             """
         )
-        try statement.bind(videoFile.path, at: 1)
+        try statement.bind(videoFile.mediaPath, at: 1)
         guard try statement.step() else {
             return nil
         }
@@ -419,14 +419,14 @@ public final class LibraryCoverDatabase: @unchecked Sendable {
                 updated_at = excluded.updated_at;
             """
         )
-        try statement.bind(videoFile.path, at: 1)
+        try statement.bind(videoFile.mediaPath, at: 1)
         try statement.bind(displayCoverPath, at: 2)
         try statement.bind(Self.revisionTimestamp(), at: 3)
         do {
             try statement.run()
         } catch {
             if try videoFileID(for: videoFile) == nil {
-                throw SQLiteDatabaseError.stepFailed("Video file is not indexed: \(videoFile.path)")
+                throw SQLiteDatabaseError.stepFailed("Video file is not indexed: \(videoFile.mediaPath)")
             }
             throw error
         }
@@ -439,7 +439,7 @@ public final class LibraryCoverDatabase: @unchecked Sendable {
             WHERE video_file_id = (SELECT id FROM video_files WHERE path = ?);
             """
         )
-        try statement.bind(videoFile.path, at: 1)
+        try statement.bind(videoFile.mediaPath, at: 1)
         try statement.run()
     }
 
@@ -543,7 +543,7 @@ public final class LibraryCoverDatabase: @unchecked Sendable {
         )
         // The Library root is stored standardized, so the lookup must be too.
         try statement.bind(
-            URL(fileURLWithPath: folderPath).standardizedFileURL.path,
+            URL.fromMediaPath(folderPath).mediaPath,
             at: 1
         )
         return try statement.step() ? statement.int64Column(0) : nil
@@ -583,7 +583,7 @@ public final class LibraryCoverDatabase: @unchecked Sendable {
 
     private func videoFileID(for videoFile: URL) throws -> Int64? {
         let statement = try database.prepare("SELECT id FROM video_files WHERE path = ?;")
-        try statement.bind(videoFile.path, at: 1)
+        try statement.bind(videoFile.mediaPath, at: 1)
         return try statement.step() ? statement.int64Column(0) : nil
     }
 
@@ -702,7 +702,7 @@ public final class LibraryCoverDatabase: @unchecked Sendable {
     }
 
     private static func folderPathPrefixes(for folder: URL) -> [String] {
-        var path = normalizedFolderPath(folder.standardizedFileURL.path)
+        var path = normalizedFolderPath(folder.mediaPath)
         if !path.hasSuffix("/") {
             path.append("/")
         }
@@ -728,15 +728,14 @@ public final class LibraryCoverDatabase: @unchecked Sendable {
     }
 
     private static func folderPath(forSubtitlePath subtitlePath: String) -> String {
-        URL(fileURLWithPath: subtitlePath)
+        URL.fromMediaPath(subtitlePath)
             .deletingLastPathComponent()
-            .standardizedFileURL
-            .path
+            .mediaPath
     }
 
     private static func libraryVideoSort(_ lhs: LibraryVideo, _ rhs: LibraryVideo) -> Bool {
-        let lhsFolder = URL(fileURLWithPath: lhs.videoPath).deletingLastPathComponent().lastPathComponent
-        let rhsFolder = URL(fileURLWithPath: rhs.videoPath).deletingLastPathComponent().lastPathComponent
+        let lhsFolder = URL.fromMediaPath(lhs.videoPath).deletingLastPathComponent().lastPathComponent
+        let rhsFolder = URL.fromMediaPath(rhs.videoPath).deletingLastPathComponent().lastPathComponent
         let folderComparison = lhsFolder.localizedStandardCompare(rhsFolder)
         if folderComparison != .orderedSame {
             return folderComparison == .orderedAscending

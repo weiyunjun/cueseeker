@@ -26,7 +26,7 @@ public struct PlaybackVideoMetadataIndexer {
         let videos = try database.libraryVideos(under: [folder])
         return try indexDurations(
             videoFiles: videos.map {
-                URL(fileURLWithPath: $0.videoPath)
+                URL.fromMediaPath($0.videoPath)
             },
             into: database
         )
@@ -46,19 +46,24 @@ public struct PlaybackVideoMetadataIndexer {
         for (offset, videoFile) in videoFiles.enumerated() {
             try Task.checkCancellation()
             defer { onProgress?(offset + 1, videoFiles.count) }
+            let videoPath = videoFile.mediaPath
 
-            guard !updatedVideoPaths.contains(videoFile.path),
+            guard !updatedVideoPaths.contains(videoPath),
                   !failures.contains(where: {
-                      $0.videoPath == videoFile.path
+                      $0.videoPath == videoPath
                   })
             else {
                 continue
             }
 
             do {
+                let playableInput = WebDAVClient.shared.resolvePlayableInput(
+                    for: videoFile
+                )
                 let metadata =
                     try SFXMediaMetadataInspector.metadata(
-                        atMediaPath: videoFile.path
+                        atMediaPath: playableInput.inputPath,
+                        httpHeaders: playableInput.httpHeaders
                     )
                 guard let duration = metadata.durationSeconds?
                         .doubleValue,
@@ -84,11 +89,11 @@ public struct PlaybackVideoMetadataIndexer {
                         )
                     }
                 )
-                updatedVideoPaths.insert(videoFile.path)
+                updatedVideoPaths.insert(videoPath)
             } catch {
                 failures.append(
                     PlaybackVideoMetadataIndexFailure(
-                        videoPath: videoFile.path,
+                        videoPath: videoPath,
                         reason: error.localizedDescription
                     )
                 )

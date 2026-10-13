@@ -112,7 +112,7 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
         let nextGeneration = UUID()
 
         queue.async { [
-            sourcePath = source.url.path,
+            sourcePath = source.url.mediaPath,
             sourceFormat = source.format,
             renderCacheDatabaseURL = source.renderCacheDatabaseURL
         ] in
@@ -295,7 +295,7 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
 
         activeRenderSegmentWindow = nil
         let sourceScript = try SubtitleTextDecoder.decode(
-            contentsOf: URL(fileURLWithPath: sourcePath),
+            contentsOf: URL.fromMediaPath(sourcePath),
             format: .ass
         )
         let renderScript = rewriteFontAliases(in: sourceScript)
@@ -321,7 +321,7 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
 
         let database = try PlaybackSubtitleDatabase(path: renderCacheDatabaseURL)
         return try database.assRenderSegment(
-            forSubtitleFile: URL(fileURLWithPath: sourcePath),
+            forSubtitleFile: URL.fromMediaPath(sourcePath),
             atMilliseconds: timestampMilliseconds
         )
     }
@@ -588,7 +588,7 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
             return false
         }
 
-        return source.url.standardizedFileURL == nextSource.url.standardizedFileURL
+        return source.url.standardizedMediaURL == nextSource.url.standardizedMediaURL
             && source.format == nextSource.format
             && source.renderCacheDatabaseURL?.standardizedFileURL
                 == nextSource.renderCacheDatabaseURL?.standardizedFileURL

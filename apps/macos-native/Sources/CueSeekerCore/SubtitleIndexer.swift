@@ -53,6 +53,8 @@ struct PreparedSubtitleIndexFile: Sendable {
     let assFontReferences: [ASSFontReferenceIntent]
     let fileSize: Int64?
     let modifiedAt: Date?
+    let videoFileSize: Int64?
+    let videoModifiedAt: Date?
     let languageAnalysis: SubtitleLanguageAnalysis
     let refreshVideoMetadata: Bool
 }
@@ -75,6 +77,8 @@ struct SubtitleFileObservation: Equatable, Sendable {
 struct PreparedSubtitleBindingRefresh: Sendable {
     let subtitleFile: URL
     let videoFile: URL
+    let videoFileSize: Int64?
+    let videoModifiedAt: Date?
 }
 
 struct PreparedLibraryIndex: Sendable {
@@ -110,7 +114,14 @@ public struct SubtitleIndexer {
             scanner: scanner,
             matcher: matcher,
             languageAnalyzer: languageAnalyzer,
-            loadSubtitleData: { try Data(contentsOf: $0) }
+            loadSubtitleData: { url in
+                if url.isWebDAVURL {
+                    let data = try WebDAVClient.shared.downloadData(from: url)
+                    _ = try? WebDAVSubtitleCache.shared.storeSubtitleData(data, for: url)
+                    return data
+                }
+                return try Data(contentsOf: url)
+            }
         )
     }
 
@@ -139,32 +150,70 @@ public struct SubtitleIndexer {
         into database: IndexingDatabase,
         onProgress: (@Sendable (Int, Int) -> Void)? = nil
     ) throws -> SubtitleIndexingResult {
-        try scanner.validateReadableDirectory(folder)
+        let isWebDAV = folder.isWebDAVURL
+        if !isWebDAV {
+            try scanner.validateReadableDirectory(folder)
+        }
         let playbackDatabase = try PlaybackSubtitleDatabase(path: database.path)
 
         var result = SubtitleIndexingResult()
         let subtitleFiles: [URL]
-        do {
-            subtitleFiles = try scanner.scanSubtitleFilesSafely(in: folder)
-        } catch is CancellationError {
-            throw CancellationError()
-        } catch {
-            throw SubtitleIndexingError.incomplete(
-                path: folder.path,
-                reason: "Library scan did not complete: \(error)"
-            )
-        }
-        result.scannedSubtitleFiles = subtitleFiles.count
         let matchingVideos: [URL: URL]
-        do {
-            matchingVideos = try matcher.matchingVideos(for: subtitleFiles)
-        } catch is CancellationError {
-            throw CancellationError()
-        } catch {
-            throw SubtitleIndexingError.incomplete(
-                path: folder.path,
-                reason: "Video matching scan did not complete: \(error)"
+        var remoteObservationsByMediaPath: [String: SubtitleFileObservation] = [:]
+
+        if isWebDAV {
+            let remoteFiles: [WebDAVRemoteFile]
+            do {
+                remoteFiles = try WebDAVClient.shared.scanDirectoryTree(rootURL: folder)
+            } catch is CancellationError {
+                throw CancellationError()
+            } catch {
+                throw SubtitleIndexingError.incomplete(
+                    path: folder.mediaPath,
+                    reason: "Library scan did not complete: \(error)"
+                )
+            }
+            for remoteFile in remoteFiles {
+                remoteObservationsByMediaPath[remoteFile.url.mediaPath] = SubtitleFileObservation(
+                    fileSize: remoteFile.fileSize,
+                    modifiedAt: remoteFile.modifiedAt
+                )
+            }
+            let allRemoteURLs = remoteFiles.map(\.url)
+            subtitleFiles = allRemoteURLs
+                .filter {
+                    SubtitleFileScanner.supportedSubtitleExtensions.contains(
+                        $0.pathExtension.lowercased()
+                    )
+                }
+                .sorted { $0.mediaPath < $1.mediaPath }
+            result.scannedSubtitleFiles = subtitleFiles.count
+            matchingVideos = matcher.matchingVideos(
+                for: subtitleFiles,
+                among: allRemoteURLs
             )
+        } else {
+            do {
+                subtitleFiles = try scanner.scanSubtitleFilesSafely(in: folder)
+            } catch is CancellationError {
+                throw CancellationError()
+            } catch {
+                throw SubtitleIndexingError.incomplete(
+                    path: folder.mediaPath,
+                    reason: "Library scan did not complete: \(error)"
+                )
+            }
+            result.scannedSubtitleFiles = subtitleFiles.count
+            do {
+                matchingVideos = try matcher.matchingVideos(for: subtitleFiles)
+            } catch is CancellationError {
+                throw CancellationError()
+            } catch {
+                throw SubtitleIndexingError.incomplete(
+                    path: folder.mediaPath,
+                    reason: "Video matching scan did not complete: \(error)"
+                )
+            }
         }
 
         onProgress?(0, subtitleFiles.count)
@@ -189,28 +238,50 @@ public struct SubtitleIndexer {
         for (offset, subtitleFile) in subtitleFiles.enumerated() {
             try Task.checkCancellation()
             defer { onProgress?(offset + 1, subtitleFiles.count) }
+            let subtitleMediaPath = subtitleFile.mediaPath
 
             guard let videoFile = matchingVideos[subtitleFile] else {
-                keptSubtitlePaths.insert(subtitleFile.path)
+                keptSubtitlePaths.insert(subtitleMediaPath)
                 missingVideoSubtitleFiles.append(subtitleFile)
                 result.skippedMissingVideo += 1
                 continue
             }
 
             let observation: SubtitleFileObservation
-            do {
-                observation = try SubtitleFileObservation.capture(subtitleFile)
-            } catch {
-                recordFileFailure(
-                    subtitleFile,
-                    reason: "Subtitle metadata could not be read.",
-                    result: &result,
-                    keptSubtitlePaths: &keptSubtitlePaths
-                )
-                continue
+            if isWebDAV {
+                if let remoteObservation = remoteObservationsByMediaPath[subtitleMediaPath] {
+                    observation = remoteObservation
+                } else {
+                    recordFileFailure(
+                        subtitleFile,
+                        reason: "Subtitle metadata could not be read.",
+                        result: &result,
+                        keptSubtitlePaths: &keptSubtitlePaths
+                    )
+                    continue
+                }
+            } else {
+                do {
+                    observation = try SubtitleFileObservation.capture(subtitleFile)
+                } catch {
+                    recordFileFailure(
+                        subtitleFile,
+                        reason: "Subtitle metadata could not be read.",
+                        result: &result,
+                        keptSubtitlePaths: &keptSubtitlePaths
+                    )
+                    continue
+                }
             }
 
-            if let metadata = existingFiles[subtitleFile.path],
+            let videoObservation: SubtitleFileObservation?
+            if isWebDAV {
+                videoObservation = remoteObservationsByMediaPath[videoFile.mediaPath]
+            } else {
+                videoObservation = try? SubtitleFileObservation.capture(videoFile)
+            }
+
+            if let metadata = existingFiles[subtitleMediaPath],
                try isSubtitleContentUnchanged(
                     metadata: metadata,
                     subtitleFile: subtitleFile,
@@ -220,15 +291,25 @@ public struct SubtitleIndexer {
                     modifiedAt: observation.modifiedAt
                )
             {
-                keptSubtitlePaths.insert(subtitleFile.path)
+                keptSubtitlePaths.insert(subtitleMediaPath)
+                if isWebDAV {
+                    let cachedURL = WebDAVSubtitleCache.shared.cachedFileURL(for: subtitleFile)
+                    if !FileManager.default.fileExists(atPath: cachedURL.path),
+                       let data = try? loadSubtitleData(subtitleFile) {
+                        _ = try? WebDAVSubtitleCache.shared.storeSubtitleData(data, for: subtitleFile)
+                    }
+                }
                 if videoBindingNeedsRefresh(
                     metadata: metadata,
-                    videoFile: videoFile
+                    videoFile: videoFile,
+                    videoObservation: videoObservation
                 ) {
                     bindingRefreshes.append(
                         PreparedSubtitleBindingRefresh(
                             subtitleFile: subtitleFile,
-                            videoFile: videoFile
+                            videoFile: videoFile,
+                            videoFileSize: videoObservation?.fileSize,
+                            videoModifiedAt: videoObservation?.modifiedAt
                         )
                     )
                 }
@@ -294,18 +375,22 @@ public struct SubtitleIndexer {
             }
 
             let finalObservation: SubtitleFileObservation
-            do {
-                finalObservation = try SubtitleFileObservation.capture(
-                    subtitleFile
-                )
-            } catch {
-                recordFileFailure(
-                    subtitleFile,
-                    reason: "Subtitle metadata could not be revalidated.",
-                    result: &result,
-                    keptSubtitlePaths: &keptSubtitlePaths
-                )
-                continue
+            if isWebDAV {
+                finalObservation = observation
+            } else {
+                do {
+                    finalObservation = try SubtitleFileObservation.capture(
+                        subtitleFile
+                    )
+                } catch {
+                    recordFileFailure(
+                        subtitleFile,
+                        reason: "Subtitle metadata could not be revalidated.",
+                        result: &result,
+                        keptSubtitlePaths: &keptSubtitlePaths
+                    )
+                    continue
+                }
             }
             guard finalObservation == observation else {
                 recordFileFailure(
@@ -328,19 +413,22 @@ public struct SubtitleIndexer {
                     assFontReferences: assFontReferences,
                     fileSize: observation.fileSize,
                     modifiedAt: observation.modifiedAt,
+                    videoFileSize: videoObservation?.fileSize,
+                    videoModifiedAt: videoObservation?.modifiedAt,
                     languageAnalysis: languageAnalysis,
                     refreshVideoMetadata: existingVideoMetadataByPath[
-                        videoFile.path
+                        videoFile.mediaPath
                     ].map {
                         videoBindingNeedsRefresh(
                             metadata: $0,
-                            videoFile: videoFile
+                            videoFile: videoFile,
+                            videoObservation: videoObservation
                         )
                     } ?? true
                 )
             )
 
-            keptSubtitlePaths.insert(subtitleFile.path)
+            keptSubtitlePaths.insert(subtitleMediaPath)
             result.indexedSubtitleFiles += 1
             result.indexedSubtitleEntries += cueGroups.count
         }
@@ -374,11 +462,12 @@ public struct SubtitleIndexer {
         result: inout SubtitleIndexingResult,
         keptSubtitlePaths: inout Set<String>
     ) {
-        keptSubtitlePaths.insert(subtitleFile.path)
+        let subtitleMediaPath = subtitleFile.mediaPath
+        keptSubtitlePaths.insert(subtitleMediaPath)
         result.skippedUnreadableSubtitle += 1
         result.failedFiles.append(
             SubtitleIndexingFailure(
-                path: subtitleFile.path,
+                path: subtitleMediaPath,
                 reason: reason
             )
         )
@@ -426,17 +515,15 @@ public struct SubtitleIndexer {
 
     private func videoBindingNeedsRefresh(
         metadata: SubtitleFileMetadata,
-        videoFile: URL
+        videoFile: URL,
+        videoObservation: SubtitleFileObservation?
     ) -> Bool {
-        guard metadata.videoPath == videoFile.path else {
+        guard metadata.videoPath == videoFile.mediaPath else {
             return true
         }
 
-        let attributes = try? FileManager.default.attributesOfItem(
-            atPath: videoFile.path
-        )
-        let fileSize = (attributes?[.size] as? NSNumber)?.int64Value
-        let modifiedAt = attributes?[.modificationDate] as? Date
+        let fileSize = videoObservation?.fileSize
+        let modifiedAt = videoObservation?.modifiedAt
         return !(
             metadata.videoFileSize == fileSize
                 && metadata.videoModifiedAt.map { storedModifiedAt in

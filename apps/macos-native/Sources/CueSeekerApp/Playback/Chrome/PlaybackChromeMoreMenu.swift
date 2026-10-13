@@ -97,7 +97,7 @@ enum PlaybackSubtitleName {
     /// The last two extensions of the file name at most: `.sc.ass`, or `.srt`
     /// when the name has only one.
     static func name(forSubtitlePath path: String) -> String {
-        let fileName = URL(fileURLWithPath: path).lastPathComponent as NSString
+        let fileName = URL.fromMediaPath(path).lastPathComponent as NSString
         let last = fileName.pathExtension
         let secondLast = (fileName.deletingPathExtension as NSString).pathExtension
         return secondLast.isEmpty ? ".\(last)" : ".\(secondLast).\(last)"

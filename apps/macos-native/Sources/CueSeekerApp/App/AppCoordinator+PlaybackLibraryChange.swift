@@ -152,9 +152,7 @@ extension AppCoordinator {
             if case .search = source.origin {
                 promotion = PlaybackSearchPromotion(
                     query: search.searchQuery,
-                    scopePaths: indexing.selectedFolders.map {
-                        $0.standardizedFileURL.path
-                    },
+                    scopePaths: indexing.selectedFolders.map(\.mediaPath),
                     selectedOrdinal: item.ordinal
                 )
             } else {
@@ -224,7 +222,7 @@ extension AppCoordinator {
     func isPlaybackSubtitleInLibrary(_ source: SubtitleFocusSourceIdentity) -> Bool {
         guard let subtitleFileID = source.subtitleFileID,
               let subtitles = try? libraryDatabase?.videoSubtitles(
-                  forVideoFile: URL(fileURLWithPath: source.videoPath)
+                  forVideoFile: URL.fromMediaPath(source.videoPath)
               )
         else {
             return false
@@ -294,9 +292,9 @@ extension AppCoordinator {
         for video: LibraryVideo
     ) -> CompleteLibraryFolderDetailPresentation? {
         try? libraryDatabase?.completeLibraryFolderDetail(
-            folderPath: URL(fileURLWithPath: video.videoPath)
+            folderPath: URL.fromMediaPath(video.videoPath)
                 .deletingLastPathComponent()
-                .standardizedFileURL.path
+                .mediaPath
         )
     }
 

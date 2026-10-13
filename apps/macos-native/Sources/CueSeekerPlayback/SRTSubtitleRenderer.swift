@@ -250,7 +250,7 @@ enum SRTSubtitleRenderer {
             "SRTSubtitleRenderer.read",
             thresholdMilliseconds: 2
         ) {
-            try Data(contentsOf: source.url, options: .mappedIfSafe)
+            try WebDAVSubtitleCache.shared.readSubtitleData(from: source.url)
         }
         try checkCancellation(isCancelled)
         let entries = try PlaybackPerformanceProbe.measure(
@@ -1329,7 +1329,7 @@ final class SRTSubtitleOverlayView: NSView {
     nonisolated private static func identity(
         for source: PlaybackSubtitleSource
     ) -> URL {
-        source.url.standardizedFileURL
+        source.url.standardizedMediaURL
     }
 
     private func videoRect() -> CGRect {

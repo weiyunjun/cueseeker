@@ -13,12 +13,14 @@ struct WorkbenchFileView: View {
     @EnvironmentObject private var library: LibraryStore
     /// Observed because any library task disables the folder controls and the
     static let fileCardCoordinateSpaceName = "WorkbenchFileViewCoordinateSpace"
+    private static let addFolderMenuID = "__add_folder_menu__"
 
     /// Observed because any library task disables the folder controls and the
     /// rename menus.
     @ObservedObject var tasks: TaskQueueStore
     @State private var isChoosingFolder = false
     @State private var activeMenu: FileCardMenuState?
+    @State private var addFolderButtonAnchorFrame: CGRect = .zero
     @StateObject private var highlight = MenuHighlightModel()
     @State private var viewportSize: CGSize = .zero
 
@@ -146,12 +148,14 @@ struct WorkbenchFileView: View {
     private func openMenu(for cardID: String, anchorFrame: CGRect, items: [FileCardMenuItem]) {
         let naturalSize = measuredMenuSize(for: items)
         let container = CGRect(origin: .zero, size: viewportSize)
-        let anchorForPlacement = CGRect(
-            x: anchorFrame.maxX - naturalSize.width,
-            y: anchorFrame.minY,
-            width: naturalSize.width,
-            height: anchorFrame.height
-        )
+        let anchorForPlacement = cardID == Self.addFolderMenuID
+            ? anchorFrame
+            : CGRect(
+                x: anchorFrame.maxX - naturalSize.width,
+                y: anchorFrame.minY,
+                width: naturalSize.width,
+                height: anchorFrame.height
+            )
         let openingFrame = MenuPlacement.openingFrame(
             anchor: anchorForPlacement,
             menuSize: naturalSize,
@@ -226,16 +230,58 @@ struct WorkbenchFileView: View {
         tasks.hasLibraryTask || indexing.databaseMaintenanceStatus.isCompacting
     }
 
+    private var addFolderMenuItems: [FileCardMenuItem] {
+        [
+            FileCardMenuItem(
+                title: L("file.add_folder.local"),
+                icon: .folder,
+                isEnabled: !isFolderOperationBlocked && !isChoosingFolder,
+                isDestructive: false,
+                action: {
+                    chooseFolder()
+                }
+            ),
+            FileCardMenuItem(
+                title: L("file.add_folder.webdav"),
+                icon: .cloud,
+                isEnabled: !isFolderOperationBlocked,
+                isDestructive: false,
+                action: {
+                    appState.openWebDAVFolderDialog()
+                }
+            )
+        ]
+    }
+
     private var actionRow: some View {
         HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
             WorkbenchButton(
                 title: L("settings.library.add_folder"),
                 icon: .folderPlus,
-                isRedesign: true
+                isRedesign: true,
+                isOpen: activeMenu?.cardID == Self.addFolderMenuID
             ) {
-                chooseFolder()
+                toggleMenu(
+                    for: Self.addFolderMenuID,
+                    anchorFrame: addFolderButtonAnchorFrame,
+                    items: addFolderMenuItems
+                )
             }
             .disabled(isFolderOperationBlocked || isChoosingFolder)
+            .background(
+                GeometryReader { geo in
+                    Color.clear
+                        .preference(
+                            key: WorkbenchDropdownAnchorPreferenceKey.self,
+                            value: [Self.addFolderMenuID: geo.frame(in: .named(Self.fileCardCoordinateSpaceName))]
+                        )
+                }
+            )
+            .onPreferenceChange(WorkbenchDropdownAnchorPreferenceKey.self) { anchors in
+                if let frame = anchors[Self.addFolderMenuID], frame != .zero {
+                    addFolderButtonAnchorFrame = frame
+                }
+            }
 
             WorkbenchButton(
                 title: L("settings.library.index_now"),
@@ -263,11 +309,16 @@ struct WorkbenchFileView: View {
         } else {
             LazyVStack(spacing: WorkbenchControlMetrics.redesignSpacing3) {
                 ForEach(indexing.selectedFolders, id: \.self) { folder in
+                    let rootPath = folder.mediaPath
+                    let title = IndexingStore.displayName(for: folder)
+                    let subtitle = folder.isWebDAVURL
+                        ? (WebDAVConfigurationStore.shared.config(for: folder)?.address ?? rootPath)
+                        : folder.path
                     let items = [
                         FileCardMenuItem(
                             title: L("rename.folder"),
                             icon: .pencilSimple,
-                            isEnabled: !isFolderOperationBlocked,
+                            isEnabled: !isFolderOperationBlocked && !folder.isWebDAVURL,
                             isDestructive: false,
                             action: {
                                 appState.requestRootFolderRename(folder)
@@ -286,19 +337,18 @@ struct WorkbenchFileView: View {
 
                     WorkbenchFileCard(
                         icon: .folder,
-                        title: folder.lastPathComponent,
-                        subtitle: folder.path,
+                        title: title,
+                        subtitle: subtitle,
                         onTap: {
-                            let rootPath = folder.standardizedFileURL.path
                             appState.loadFileSubfolders(rootPath: rootPath)
                             appState.workbenchLayout.navigate(
                                 to: .fileFolder(rootPath: rootPath)
                             )
                         },
                         menuItems: items,
-                        isMenuOpen: activeMenu?.cardID == folder.path,
+                        isMenuOpen: activeMenu?.cardID == rootPath,
                         onOpenMenu: { anchorFrame in
-                            toggleMenu(for: folder.path, anchorFrame: anchorFrame, items: items)
+                            toggleMenu(for: rootPath, anchorFrame: anchorFrame, items: items)
                         }
                     )
                 }
@@ -313,6 +363,7 @@ struct WorkbenchFileView: View {
     private func subfolderContent(rootPath: String) -> some View {
         let folders = library.fileSubfolders(for: rootPath)
         let status = library.fileSubfolderStatus(for: rootPath)
+        let rootName = IndexingStore.displayName(for: URL.fromMediaPath(rootPath))
 
         Group {
             if appState.isWorkbenchRouteUnknown(.fileFolder(rootPath: rootPath)) {
@@ -331,13 +382,13 @@ struct WorkbenchFileView: View {
                     ForEach(folders) { folder in
                         let isDirectContent = folder.relativePath.isEmpty || folder.folderPath == rootPath
                         let title = isDirectContent
-                            ? (URL(fileURLWithPath: rootPath).lastPathComponent + L("file.direct_content_suffix"))
-                            : URL(fileURLWithPath: folder.folderPath).lastPathComponent
+                            ? (rootName + L("file.direct_content_suffix"))
+                            : URL.fromMediaPath(folder.folderPath).lastPathComponent
                         let items = [
                             FileCardMenuItem(
                                 title: L("rename.folder"),
                                 icon: .pencilSimple,
-                                isEnabled: !isFolderOperationBlocked,
+                                isEnabled: !isFolderOperationBlocked && !folder.folderPath.isWebDAVPath,
                                 isDestructive: false,
                                 action: {
                                     appState.requestFolderRename(folder)
@@ -410,7 +461,7 @@ struct WorkbenchFileView: View {
                                 FileCardMenuItem(
                                     title: L("rename.files"),
                                     icon: .pencilSimple,
-                                    isEnabled: !isFolderOperationBlocked,
+                                    isEnabled: !isFolderOperationBlocked && !object.videoPath.isWebDAVPath && !folderPath.isWebDAVPath,
                                     isDestructive: false,
                                     action: {
                                         appState.requestFileGroupRename(object)
@@ -445,7 +496,7 @@ struct WorkbenchFileView: View {
                                 FileCardMenuItem(
                                     title: L("rename.files"),
                                     icon: .pencilSimple,
-                                    isEnabled: !isFolderOperationBlocked,
+                                    isEnabled: !isFolderOperationBlocked && !subtitle.path.isWebDAVPath && !folderPath.isWebDAVPath,
                                     isDestructive: false,
                                     action: {
                                         appState.requestFileGroupRename(object)
@@ -482,7 +533,7 @@ struct WorkbenchFileView: View {
             title: L("settings.library.remove_folder_title"),
             message: L(
                 "settings.library.remove_folder_message",
-                folder.lastPathComponent
+                IndexingStore.displayName(for: folder)
             ),
             destructiveTitle: L("common.remove"),
             cancelTitle: L("common.cancel"),
@@ -755,7 +806,7 @@ enum FileBreadcrumbResolver {
 
         switch route {
         case .fileFolder(let rootPath):
-            let rootName = URL(fileURLWithPath: rootPath).lastPathComponent
+            let rootName = IndexingStore.displayName(for: URL.fromMediaPath(rootPath))
             let rootNode = FileBreadcrumbNode(
                 id: "root",
                 title: rootName,
@@ -764,7 +815,7 @@ enum FileBreadcrumbResolver {
             return [homeNode, rootNode]
 
         case .fileFiles(let rootPath, let folderPath):
-            let rootName = URL(fileURLWithPath: rootPath).lastPathComponent
+            let rootName = IndexingStore.displayName(for: URL.fromMediaPath(rootPath))
             let rootNode = FileBreadcrumbNode(
                 id: "root",
                 title: rootName,
@@ -774,7 +825,7 @@ enum FileBreadcrumbResolver {
             let isDirectContent = folderPath == rootPath || folderPath.isEmpty
             let folderName = isDirectContent
                 ? (rootName + directContentSuffix)
-                : URL(fileURLWithPath: folderPath).lastPathComponent
+                : URL.fromMediaPath(folderPath).lastPathComponent
             let folderNode = FileBreadcrumbNode(
                 id: "folder",
                 title: folderName,

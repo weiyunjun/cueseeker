@@ -1,4 +1,5 @@
 import AppKit
+import CueSeekerCore
 import Foundation
 
 public actor ThumbnailGenerator {
@@ -101,10 +102,15 @@ public actor ThumbnailGenerator {
         let seconds = Double(request.timestampMilliseconds) / 1000.0
         let timeString = String(format: "%.3f", seconds)
         
-        process.arguments = [
+        var arguments = [
             "-nostdin",
             "-y",
-            "-ss", timeString,
+            "-ss", timeString
+        ]
+        if let headers = WebDAVConfigurationStore.shared.httpHeaders(forMediaPath: request.videoPath) {
+            arguments += ["-headers", headers]
+        }
+        arguments += [
             "-i", request.videoPath,
             "-vframes", "1",
             "-vf", "scale=320:180:force_original_aspect_ratio=decrease",
@@ -114,6 +120,7 @@ public actor ThumbnailGenerator {
             "-f", "avif",
             tempURL.path
         ]
+        process.arguments = arguments
         
         process.standardInput = FileHandle.nullDevice
         process.qualityOfService = .utility

@@ -219,7 +219,7 @@ extension AppCoordinator {
                 index = cached
             } else {
                 index = (try? database.videoAudioTracks(
-                    forVideoFile: URL(fileURLWithPath: item.videoPath)
+                    forVideoFile: URL.fromMediaPath(item.videoPath)
                 ))?.defaultIndex ?? 0
                 audioTrackIndexes[item.videoPath] = index
             }

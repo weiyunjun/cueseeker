@@ -136,7 +136,7 @@ struct CueFacetFolderOption: Equatable {
             paths.formUnion(snapshot.distribution.folderCounts.keys)
         }
         return paths
-            .map { CueFacetFolderOption(path: $0, title: URL(fileURLWithPath: $0).lastPathComponent) }
+            .map { CueFacetFolderOption(path: $0, title: IndexingStore.displayName(for: URL.fromMediaPath($0))) }
             .sorted { lhs, rhs in
                 let titles = lhs.title.caseInsensitiveCompare(rhs.title)
                 if titles != .orderedSame {

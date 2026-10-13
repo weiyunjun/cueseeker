@@ -58,7 +58,7 @@ private func performFolderIndex(
             let metadataResult =
                 try PlaybackVideoMetadataIndexer().indexDurations(
                     videoFiles: result.pendingVideoMetadataPaths.map {
-                        URL(fileURLWithPath: $0)
+                        URL.fromMediaPath($0)
                     },
                     into: libraryDatabase
                 ) { read, total in
@@ -100,6 +100,10 @@ private func performFolderIndex(
         do {
             let coverResult = try await LibraryCoverIndexer(
                 configuration: .init(
+                    maxConcurrentVideos:
+                        LibraryCoverIndexer.recommendedMaxConcurrentVideos(
+                            for: folder
+                        ),
                     coverDirectory: coverDirectory,
                     displayRenditionCommitToken:
                         displayRenditionCommitToken
@@ -192,6 +196,125 @@ private func performFolderIndex(
 
 @MainActor
 extension AppCoordinator {
+    func openWebDAVFolderDialog() {
+        guard !tasks.hasLibraryTask, !indexing.databaseMaintenanceStatus.isCompacting else {
+            return
+        }
+        library.webdavDialogSession = WebDAVFolderDialogSession()
+    }
+
+    func closeWebDAVFolderDialog() {
+        library.webdavDialogSession?.cancelValidation()
+        library.webdavDialogSession = nil
+    }
+
+    func confirmWebDAVFolderDialog(_ session: WebDAVFolderDialogSession) {
+        guard library.webdavDialogSession?.id == session.id,
+              !session.isSubmitting,
+              !tasks.hasLibraryTask,
+              !indexing.databaseMaintenanceStatus.isCompacting
+        else {
+            return
+        }
+
+        let trimmedName = session.name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedName.isEmpty else {
+            toast.show(
+                ToastRequest(
+                    scenarioID: "webdav.add.failed",
+                    message: L("webdav.error.name_empty"),
+                    icon: .warning,
+                    duration: ToastDuration.alert
+                )
+            )
+            return
+        }
+
+        guard let targetURL = WebDAVAddress.parseURL(from: session.address) else {
+            toast.show(
+                ToastRequest(
+                    scenarioID: "webdav.add.failed",
+                    message: L("webdav.error.invalid_address"),
+                    icon: .warning,
+                    duration: ToastDuration.alert
+                )
+            )
+            return
+        }
+
+        let trimmedUsername = session.username.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedUsername.isEmpty else {
+            toast.show(
+                ToastRequest(
+                    scenarioID: "webdav.add.failed",
+                    message: L("webdav.error.username_empty"),
+                    icon: .warning,
+                    duration: ToastDuration.alert
+                )
+            )
+            return
+        }
+
+        let password = session.password
+        guard !password.isEmpty else {
+            toast.show(
+                ToastRequest(
+                    scenarioID: "webdav.add.failed",
+                    message: L("webdav.error.password_empty"),
+                    icon: .warning,
+                    duration: ToastDuration.alert
+                )
+            )
+            return
+        }
+
+        let rawAddress = session.address
+
+        session.isSubmitting = true
+        session.validationTask = Task { @MainActor [weak self, weak session] in
+            do {
+                let validatedConfig = try await WebDAVClient.shared.validateDirectory(
+                    name: trimmedName,
+                    address: rawAddress,
+                    username: trimmedUsername,
+                    password: password
+                )
+                guard !Task.isCancelled,
+                      let self,
+                      let session,
+                      self.library.webdavDialogSession?.id == session.id
+                else {
+                    return
+                }
+                WebDAVConfigurationStore.shared.save(validatedConfig)
+                session.isSubmitting = false
+                session.validationTask = nil
+                self.library.webdavDialogSession = nil
+                self.addFolder(targetURL)
+            } catch is CancellationError {
+                return
+            } catch {
+                guard !Task.isCancelled,
+                      let self,
+                      let session,
+                      self.library.webdavDialogSession?.id == session.id
+                else {
+                    return
+                }
+                session.isSubmitting = false
+                session.validationTask = nil
+                self.toast.show(
+                    ToastRequest(
+                        scenarioID: "webdav.add.failed",
+                        message: Self.errorMessage(for: error),
+                        icon: .warning,
+                        duration: ToastDuration.alert
+                    )
+                )
+            }
+        }
+    }
+
     /// Starts an Add Folder. The folder joins the root list only once its task
     /// completes, so one that does not finish leaves the list as it was.
     func addFolder(_ folder: URL) {
@@ -201,7 +324,7 @@ extension AppCoordinator {
         }
 
         indexing.clearTransientNotice()
-        tasks.enqueueAddFolder(folder.standardizedFileURL)
+        tasks.enqueueAddFolder(folder.standardizedMediaURL)
     }
 
     /// Starts a Remove Folder. The confirmation came before this; the root
@@ -219,7 +342,7 @@ extension AppCoordinator {
 
         startupError = nil
         indexing.clearTransientNotice()
-        tasks.enqueueRemoveFolder(folder.standardizedFileURL)
+        tasks.enqueueRemoveFolder(folder.standardizedMediaURL)
     }
 
     /// Starts Index Now over the outermost root of every group, in group order.
@@ -257,6 +380,10 @@ extension AppCoordinator {
                         of: indexing.selectedFolders
                     )
                 )
+                if folder.isWebDAVURL {
+                    WebDAVConfigurationStore.shared.remove(url: folder)
+                    WebDAVSubtitleCache.shared.removeCachedSubtitles(forRootURL: folder)
+                }
             } catch {
                 print("Failed to take back an unfinished folder addition: \(error)")
             }
@@ -356,6 +483,10 @@ extension AppCoordinator {
             } catch {
                 print("Failed to take back an unfinished folder addition: \(error)")
             }
+            if folder.isWebDAVURL && !indexing.selectedFolders.contains(folder) {
+                WebDAVConfigurationStore.shared.remove(url: folder)
+                WebDAVSubtitleCache.shared.removeCachedSubtitles(forRootURL: folder)
+            }
             search.reloadEmptySearchFacetDistribution()
             throw error
         }
@@ -369,6 +500,9 @@ extension AppCoordinator {
         let remainingRoots = indexing.selectedFolders.filter { $0 != folder }
         guard LibraryRootGroups.coveringRoot(of: folder, in: remainingRoots) == nil else {
             indexing.removeFolder(folder)
+            if folder.isWebDAVURL {
+                WebDAVConfigurationStore.shared.remove(url: folder)
+            }
             indexing.removedFolderNotice = folder
             return
         }
@@ -420,12 +554,18 @@ extension AppCoordinator {
                 Self.errorMessage(for: error)
             )
             startupError = message
-            indexing.operationNotice = .removalFailed(folderName: folder.lastPathComponent)
+            indexing.operationNotice = .removalFailed(
+                folderName: IndexingStore.displayName(for: folder)
+            )
             throw LibraryTaskFailure(message: message)
         }
 
         holdActiveWorkbenchRouteBeforeContentMutation()
         indexing.removeFolder(folder)
+        if folder.isWebDAVURL {
+            WebDAVConfigurationStore.shared.remove(url: folder)
+            WebDAVSubtitleCache.shared.removeCachedSubtitles(forRootURL: folder)
+        }
         clearSearchAndPlaybackState(under: folder)
         reconcilePlaybackAfterIndexedContentChange()
         indexing.folderRemovalStatus = .idle
@@ -507,6 +647,8 @@ extension AppCoordinator {
                 )
             }
 
+            let folderName = IndexingStore.displayName(for: folder)
+
             do {
                 let completed = try await performFolderIndex(
                     folder: folder,
@@ -519,7 +661,7 @@ extension AppCoordinator {
                     onProgress(
                         TaskIndexProgress(
                             stage: stage,
-                            folderName: folder.lastPathComponent,
+                            folderName: folderName,
                             completedFolders: offset,
                             totalFolders: folders.count,
                             stageCompleted: stageCompleted,
@@ -647,9 +789,9 @@ extension AppCoordinator {
         if result.requiresExcerptRefresh {
             let affectedFolders = result.affectedFolderPaths.isEmpty
                 ? excerptFallbackFolders
-                : result.affectedFolderPaths.map(
-                    URL.init(fileURLWithPath:)
-                )
+                : result.affectedFolderPaths.map {
+                    URL.fromMediaPath($0)
+                }
             prepareExcerptForIndexedContentMutation(
                 under: affectedFolders
             )
@@ -663,7 +805,7 @@ extension AppCoordinator {
         let searchMutationToken = search.beginIndexedCueDataMutation()
         for folderPath in result.affectedFolderPaths {
             clearSearchAndPlaybackState(
-                under: URL(fileURLWithPath: folderPath)
+                under: URL.fromMediaPath(folderPath)
             )
         }
         search.completeIndexedCueDataMutation(searchMutationToken)

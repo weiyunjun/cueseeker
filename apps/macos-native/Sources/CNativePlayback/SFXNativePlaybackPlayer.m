@@ -150,9 +150,28 @@ static NSString *SFXFFmpegErrorString(int code) {
     return [NSString stringWithUTF8String:buffer];
 }
 
-static int SFXOpenMediaInput(AVFormatContext **formatContext, const char *path) {
+static BOOL SFXIsHTTPMediaPath(const char *path) {
+    if (path == NULL) {
+        return NO;
+    }
+    return strncasecmp(path, "http://", 7) == 0 || strncasecmp(path, "https://", 8) == 0;
+}
+
+static int SFXOpenMediaInput(
+    AVFormatContext **formatContext,
+    const char *path,
+    NSString * _Nullable httpHeaders
+) {
     AVDictionary *options = NULL;
     av_dict_set(&options, "cueseeker_skip_internal_subtitles", "1", 0);
+    if (SFXIsHTTPMediaPath(path)) {
+        av_dict_set(&options, "reconnect", "1", 0);
+        av_dict_set(&options, "reconnect_streamed", "1", 0);
+        av_dict_set(&options, "reconnect_delay_max", "5", 0);
+        if (httpHeaders.length > 0) {
+            av_dict_set(&options, "headers", httpHeaders.UTF8String, 0);
+        }
+    }
     int result = avformat_open_input(formatContext, path, NULL, &options);
     av_dict_free(&options);
     return result;
@@ -492,6 +511,7 @@ static CMSampleBufferRef SFXSampleBufferForPixelBuffer(
 
 static CVPixelBufferRef SFXCopyBGRAKeyframePreviewPixelBuffer(
     NSString *path,
+    NSString * _Nullable httpHeaders,
     NSInteger milliseconds,
     CMTime *presentationTimeOut,
     NSInteger *frameMillisecondsOut
@@ -504,7 +524,10 @@ static CVPixelBufferRef SFXCopyBGRAKeyframePreviewPixelBuffer(
     CVPixelBufferRef pixelBuffer = NULL;
     NSError *seekError = nil;
 
-    int result = SFXOpenMediaInput(&formatContext, path.fileSystemRepresentation);
+    const char *inputPath = ([path hasPrefix:@"http://"] || [path hasPrefix:@"https://"])
+        ? path.UTF8String
+        : path.fileSystemRepresentation;
+    int result = SFXOpenMediaInput(&formatContext, inputPath, httpHeaders);
     if (result < 0) {
         goto cleanup;
     }
@@ -1719,7 +1742,7 @@ presentationGeneration:(NSUInteger)presentationGeneration;
 }
 
 - (BOOL)prepareWithError:(NSError **)error {
-    int result = SFXOpenMediaInput(&_formatContext, _path.UTF8String);
+    int result = SFXOpenMediaInput(&_formatContext, _path.UTF8String, _owner.httpHeaders);
     if (result < 0) {
         if (error != NULL) {
             *error = SFXNativePlaybackError(10, [NSString stringWithFormat:@"avformat_open_input failed: %@", SFXFFmpegErrorString(result)]);
@@ -4491,6 +4514,7 @@ automaticRecycleMilliseconds:(NSInteger)automaticRecycleMilliseconds {
     SFXNativePlaybackView *_nativeView;
     SFXNativePlaybackSession *_session;
     NSString *_currentPath;
+    NSString *_httpHeaders;
     float _volume;
     float _playbackRate;
     SFXNativePlaybackDecodeMode _decodeMode;
@@ -4536,6 +4560,18 @@ automaticRecycleMilliseconds:(NSInteger)automaticRecycleMilliseconds {
 
 - (NSString *)currentPath {
     return _currentPath;
+}
+
+- (NSString *)httpHeaders {
+    @synchronized (self) {
+        return _httpHeaders;
+    }
+}
+
+- (void)setHttpHeaders:(NSString *)httpHeaders {
+    @synchronized (self) {
+        _httpHeaders = [httpHeaders copy];
+    }
 }
 
 - (double)currentTime {
@@ -4995,6 +5031,7 @@ allowAutomaticSoftwareRecycle:(BOOL)allowAutomaticSoftwareRecycle
 
 - (void)requestTimelineScrubPreviewAtMilliseconds:(NSInteger)milliseconds {
     NSString *path = nil;
+    NSString *httpHeaders = nil;
     AVSampleBufferDisplayLayer *displayLayer = nil;
     NSUInteger generation = 0;
     @synchronized (self) {
@@ -5004,6 +5041,7 @@ allowAutomaticSoftwareRecycle:(BOOL)allowAutomaticSoftwareRecycle
         _scrubPreviewGeneration += 1;
         generation = _scrubPreviewGeneration;
         path = [_currentPath copy];
+        httpHeaders = [_httpHeaders copy];
         displayLayer = _nativeView.displayLayer;
     }
 
@@ -5022,6 +5060,7 @@ allowAutomaticSoftwareRecycle:(BOOL)allowAutomaticSoftwareRecycle
             NSInteger frameMilliseconds = -1;
             CVPixelBufferRef pixelBuffer = SFXCopyBGRAKeyframePreviewPixelBuffer(
                 path,
+                httpHeaders,
                 targetMilliseconds,
                 &presentationTime,
                 &frameMilliseconds

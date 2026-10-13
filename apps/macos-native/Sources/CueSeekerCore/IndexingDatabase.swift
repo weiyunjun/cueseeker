@@ -62,17 +62,19 @@ public final class IndexingDatabase: @unchecked Sendable {
         _ folder: URL,
         type: String = "local"
     ) throws -> Int64 {
-        let standardizedFolder = folder.standardizedFileURL
+        let effectiveType = folder.isWebDAVURL ? "webdav" : type
+        let standardizedFolder = folder.standardizedMediaURL
+        let folderMediaPath = standardizedFolder.mediaPath
         let now = ISO8601DateFormatter().string(from: Date())
 
         let libraryID: Int64
-        if let matchingPath = try searchPathRecord(path: standardizedFolder.path) {
-            try touchSearchPath(matchingPath, type: type, updatedAt: now)
+        if let matchingPath = try searchPathRecord(path: folderMediaPath) {
+            try touchSearchPath(matchingPath, type: effectiveType, updatedAt: now)
             libraryID = matchingPath.id
         } else {
             libraryID = try insertSearchPath(
-                path: standardizedFolder.path,
-                type: type,
+                path: folderMediaPath,
+                type: effectiveType,
                 createdAt: now
             )
         }
@@ -109,7 +111,7 @@ public final class IndexingDatabase: @unchecked Sendable {
     /// now holds.
     private func separateNestedLibrary(_ root: URL) throws -> Set<String> {
         let libraryID = try bindSearchPathInCurrentTransaction(root)
-        let rootURL = root.standardizedFileURL
+        let rootURL = root.standardizedMediaURL
         for holder in try libraryPathRecords() where holder.id != libraryID {
             guard let prefix = Self.relativeMediaPath(for: rootURL, under: holder.rootURL) else {
                 continue
@@ -205,6 +207,8 @@ public final class IndexingDatabase: @unchecked Sendable {
                     assFontReferences: file.assFontReferences,
                     fileSize: file.fileSize,
                     modifiedAt: file.modifiedAt,
+                    videoFileSize: file.videoFileSize,
+                    videoModifiedAt: file.videoModifiedAt,
                     languageAnalysis: file.languageAnalysis,
                     playbackFinishMetadata: Self.playbackFinishMetadata(
                         format: file.format,
@@ -228,29 +232,31 @@ public final class IndexingDatabase: @unchecked Sendable {
             }
 
             for file in index.bindingRefreshes {
-                guard let subtitleFile = try subtitleFileRecord(path: file.subtitleFile.path) else {
+                guard let subtitleFile = try subtitleFileRecord(path: file.subtitleFile.mediaPath) else {
                     throw SQLiteDatabaseError.stepFailed(
                         "Subtitle binding disappeared before index publication."
                     )
                 }
                 let videoFileID = try upsertVideoFile(
                     file.videoFile,
+                    fileSize: file.videoFileSize,
+                    modifiedAt: file.videoModifiedAt,
                     libraryID: libraryID
                 )
                 try upsertSubtitleVideoMatch(
                     subtitleFileID: subtitleFile.id,
                     videoFileID: videoFileID
                 )
-                affectedVideoPaths.insert(file.videoFile.path)
+                affectedVideoPaths.insert(file.videoFile.mediaPath)
                 affectedFolderPaths.insert(
-                    file.subtitleFile.deletingLastPathComponent().path
+                    file.subtitleFile.deletingLastPathComponent().mediaPath
                 )
             }
 
             for subtitleFile in index.missingVideoSubtitleFiles {
-                if try removeMatchedVideos(forSubtitlePath: subtitleFile.path) {
+                if try removeMatchedVideos(forSubtitlePath: subtitleFile.mediaPath) {
                     affectedFolderPaths.insert(
-                        subtitleFile.deletingLastPathComponent().path
+                        subtitleFile.deletingLastPathComponent().mediaPath
                     )
                 }
             }
@@ -549,6 +555,8 @@ public final class IndexingDatabase: @unchecked Sendable {
         assFontReferences: [ASSFontReferenceIntent],
         fileSize: Int64?,
         modifiedAt: Date?,
+        videoFileSize: Int64? = nil,
+        videoModifiedAt: Date? = nil,
         languageAnalysis: SubtitleLanguageAnalysis?,
         playbackFinishMetadata: SubtitlePlaybackFinishMetadata,
         libraryID: Int64?,
@@ -574,12 +582,17 @@ public final class IndexingDatabase: @unchecked Sendable {
             newCues: newCueLines
         )
         try deleteIndexedSubtitlePath(
-            subtitleFile.path,
+            subtitleFile.mediaPath,
             preserveFileIdentity: true,
             unavailableReason: .cueMissing
         )
 
-        let videoFileID = try upsertVideoFile(videoFile, libraryID: libraryID)
+        let videoFileID = try upsertVideoFile(
+            videoFile,
+            fileSize: videoFileSize,
+            modifiedAt: videoModifiedAt,
+            libraryID: libraryID
+        )
         try upsertSubtitleVideoMatch(subtitleFileID: subtitleFileID, videoFileID: videoFileID)
         try insertPlaybackFinishMetadata(
             subtitleFileID: subtitleFileID,
@@ -692,9 +705,9 @@ public final class IndexingDatabase: @unchecked Sendable {
         }
         try deleteOrphanedVideoFiles()
         return IndexedFileMutation(
-            subtitlePath: subtitleFile.path,
+            subtitlePath: subtitleFile.mediaPath,
             previousSubtitlePath: upsertedSubtitleFile.previousPath,
-            videoPath: videoFile.path
+            videoPath: videoFile.mediaPath
         )
     }
 
@@ -712,7 +725,7 @@ public final class IndexingDatabase: @unchecked Sendable {
             ORDER BY d.scope ASC, d.scope_key ASC, d.id ASC;
             """
         )
-        try statement.bind(subtitleFile.path, at: 1)
+        try statement.bind(subtitleFile.mediaPath, at: 1)
 
         var records: [StoredSubtitleLanguageDetection] = []
         while try statement.step() {
@@ -750,7 +763,7 @@ public final class IndexingDatabase: @unchecked Sendable {
             ORDER BY g.start_ms ASC, g.end_ms ASC, g.id ASC, cgl.language_code ASC;
             """
         )
-        try statement.bind(subtitleFile.path, at: 1)
+        try statement.bind(subtitleFile.mediaPath, at: 1)
 
         var languagesByCueGroupID: [Int64: Set<SubtitleLanguageCode>] = [:]
         while try statement.step() {
@@ -834,7 +847,7 @@ public final class IndexingDatabase: @unchecked Sendable {
             LIMIT 1;
             """
         )
-        try statement.bind(subtitleFile.path, at: 1)
+        try statement.bind(subtitleFile.mediaPath, at: 1)
 
         guard try statement.step() else {
             return nil
@@ -852,7 +865,7 @@ public final class IndexingDatabase: @unchecked Sendable {
             WHERE sf.subtitle_path = ?;
             """
         )
-        try statement.bind(subtitleFile.path, at: 1)
+        try statement.bind(subtitleFile.mediaPath, at: 1)
 
         guard try statement.step() else {
             return false
@@ -899,14 +912,14 @@ public final class IndexingDatabase: @unchecked Sendable {
     }
 
     public func reconcileIndexedContent(activeFolders folders: [URL]) throws {
-        let folders = folders.map(\.standardizedFileURL)
+        let folders = folders.map(\.standardizedMediaURL)
         try database.withImmediateTransaction {
             var removedIndexedContent = false
             let inactiveSearchPaths = try searchPaths()
                 .filter { !Self.folderPath($0, matchesAny: folders) }
             for searchPath in inactiveSearchPaths {
                 let affectedFolderPaths = try removeIndexedDataInCurrentTransaction(
-                    under: URL(fileURLWithPath: searchPath),
+                    under: URL.fromMediaPath(searchPath),
                     keeping: [],
                     removeSearchPath: true,
                     rebuildSearchDerivedIndex: false,
@@ -949,7 +962,7 @@ public final class IndexingDatabase: @unchecked Sendable {
         let folderPaths = Set(
             affectedFolderPaths.flatMap {
                 Self.folderPathVariants(
-                    for: URL(fileURLWithPath: $0)
+                    for: URL.fromMediaPath($0)
                 )
             }
         ).sorted()
@@ -1005,11 +1018,11 @@ public final class IndexingDatabase: @unchecked Sendable {
                     subtitleFileID: select.int64Column(0),
                     subtitlePath: subtitlePath,
                     folderPath: folderPath,
-                    folderTitle: URL(
-                        fileURLWithPath: folderPath
+                    folderTitle: URL.fromMediaPath(
+                        folderPath
                     ).lastPathComponent,
-                    subtitleFileName: URL(
-                        fileURLWithPath: subtitlePath
+                    subtitleFileName: URL.fromMediaPath(
+                        subtitlePath
                     ).lastPathComponent
                 )
             )
@@ -1051,8 +1064,8 @@ public final class IndexingDatabase: @unchecked Sendable {
                     subtitleFileID: subtitleFileID,
                     subtitlePath: subtitlePath,
                     folderPath: folderPath,
-                    folderTitle: URL(fileURLWithPath: folderPath).lastPathComponent,
-                    subtitleFileName: URL(fileURLWithPath: subtitlePath).lastPathComponent
+                    folderTitle: URL.fromMediaPath(folderPath).lastPathComponent,
+                    subtitleFileName: URL.fromMediaPath(subtitlePath).lastPathComponent
                 )
             )
         }
@@ -1067,8 +1080,8 @@ public final class IndexingDatabase: @unchecked Sendable {
         let updatedAt = ISO8601DateFormatter().string(from: Date())
         let filesByFolderPath = Dictionary(grouping: files, by: \.folderPath)
         let folderPaths = filesByFolderPath.keys.sorted { lhs, rhs in
-            let lhsTitle = URL(fileURLWithPath: lhs).lastPathComponent
-            let rhsTitle = URL(fileURLWithPath: rhs).lastPathComponent
+            let lhsTitle = URL.fromMediaPath(lhs).lastPathComponent
+            let rhsTitle = URL.fromMediaPath(rhs).lastPathComponent
             let titleComparison = lhsTitle.localizedStandardCompare(rhsTitle)
             if titleComparison != .orderedSame {
                 return titleComparison == .orderedAscending
@@ -1591,6 +1604,7 @@ public final class IndexingDatabase: @unchecked Sendable {
         modifiedAt: Date?,
         libraryID: Int64? = nil
     ) throws -> UpsertedSubtitleFile {
+        let subtitleMediaPath = subtitleFile.mediaPath
         let pathIdentity = try mediaPathIdentity(for: subtitleFile, preferredLibraryID: libraryID)
         let folderID = try pathIdentity.flatMap {
             try upsertLibraryFolder(
@@ -1600,7 +1614,7 @@ public final class IndexingDatabase: @unchecked Sendable {
         }
         let now = ISO8601DateFormatter().string(from: Date())
 
-        if let record = try subtitleFileRecord(path: subtitleFile.path) {
+        if let record = try subtitleFileRecord(path: subtitleMediaPath) {
             let statement = try database.prepare(
                 """
                 UPDATE subtitle_files
@@ -1617,7 +1631,7 @@ public final class IndexingDatabase: @unchecked Sendable {
                 """
             )
             try bindMediaPathIdentity(pathIdentity, folderID: folderID, to: statement)
-            try statement.bind(subtitleFile.path, at: 4)
+            try statement.bind(subtitleMediaPath, at: 4)
             try statement.bind(format.rawValue, at: 5)
             try bindOptional(fileSize, to: statement, at: 6)
             try bindOptional(modifiedAt?.timeIntervalSince1970, to: statement, at: 7)
@@ -1647,7 +1661,7 @@ public final class IndexingDatabase: @unchecked Sendable {
         )
 
         try bindMediaPathIdentity(pathIdentity, folderID: folderID, to: statement)
-        try statement.bind(subtitleFile.path, at: 4)
+        try statement.bind(subtitleMediaPath, at: 4)
         try statement.bind(format.rawValue, at: 5)
         try bindOptional(fileSize, to: statement, at: 6)
         try bindOptional(modifiedAt?.timeIntervalSince1970, to: statement, at: 7)
@@ -1660,10 +1674,23 @@ public final class IndexingDatabase: @unchecked Sendable {
         return UpsertedSubtitleFile(id: id, previousPath: nil)
     }
 
-    private func upsertVideoFile(_ videoFile: URL, libraryID: Int64? = nil) throws -> Int64 {
-        let attributes = try? FileManager.default.attributesOfItem(atPath: videoFile.path)
-        let fileSize = (attributes?[.size] as? NSNumber)?.int64Value
-        let modifiedAt = attributes?[.modificationDate] as? Date
+    private func upsertVideoFile(
+        _ videoFile: URL,
+        fileSize explicitFileSize: Int64? = nil,
+        modifiedAt explicitModifiedAt: Date? = nil,
+        libraryID: Int64? = nil
+    ) throws -> Int64 {
+        let videoMediaPath = videoFile.mediaPath
+        let fileSize: Int64?
+        let modifiedAt: Date?
+        if videoFile.isWebDAVURL {
+            fileSize = explicitFileSize
+            modifiedAt = explicitModifiedAt
+        } else {
+            let attributes = try? FileManager.default.attributesOfItem(atPath: videoFile.path)
+            fileSize = explicitFileSize ?? (attributes?[.size] as? NSNumber)?.int64Value
+            modifiedAt = explicitModifiedAt ?? (attributes?[.modificationDate] as? Date)
+        }
         let pathIdentity = try mediaPathIdentity(for: videoFile, preferredLibraryID: libraryID)
         let folderID = try pathIdentity.flatMap {
             try upsertLibraryFolder(
@@ -1672,7 +1699,7 @@ public final class IndexingDatabase: @unchecked Sendable {
             )
         }
 
-        if let record = try videoFileRecord(path: videoFile.path) {
+        if let record = try videoFileRecord(path: videoMediaPath) {
             let statement = try database.prepare(
                 """
                 UPDATE video_files
@@ -1687,7 +1714,7 @@ public final class IndexingDatabase: @unchecked Sendable {
                 """
             )
             try bindMediaPathIdentity(pathIdentity, folderID: folderID, to: statement)
-            try statement.bind(videoFile.path, at: 4)
+            try statement.bind(videoMediaPath, at: 4)
             try statement.bind(videoFile.lastPathComponent, at: 5)
             try bindOptional(fileSize, to: statement, at: 6)
             try bindOptional(modifiedAt?.timeIntervalSince1970, to: statement, at: 7)
@@ -1713,7 +1740,7 @@ public final class IndexingDatabase: @unchecked Sendable {
         )
 
         try bindMediaPathIdentity(pathIdentity, folderID: folderID, to: statement)
-        try statement.bind(videoFile.path, at: 4)
+        try statement.bind(videoMediaPath, at: 4)
         try statement.bind(videoFile.lastPathComponent, at: 5)
         try bindOptional(fileSize, to: statement, at: 6)
         try bindOptional(modifiedAt?.timeIntervalSince1970, to: statement, at: 7)
@@ -2207,7 +2234,7 @@ public final class IndexingDatabase: @unchecked Sendable {
         )
 
         try statement.bind(subtitleFileID, at: 1)
-        try statement.bind(subtitleFile.path, at: 2)
+        try statement.bind(subtitleFile.mediaPath, at: 2)
         if let sequenceNumber = group.sequenceNumber {
             try statement.bind(sequenceNumber, at: 3)
         } else {
@@ -2252,7 +2279,7 @@ public final class IndexingDatabase: @unchecked Sendable {
         )
 
         try statement.bind(subtitleFileID, at: 1)
-        try statement.bind(subtitleFile.path, at: 2)
+        try statement.bind(subtitleFile.mediaPath, at: 2)
         try statement.bind(SubtitleCueIndexingRules.algorithmVersion, at: 3)
         try statement.bind(try Self.encodePrimaryStyles(metadata.primaryStyles), at: 4)
         if let primaryStyleLastEndMilliseconds = metadata.primaryStyleLastEndMilliseconds {
@@ -3056,7 +3083,7 @@ public final class IndexingDatabase: @unchecked Sendable {
             records.append(
                 LibraryPathRecord(
                     id: statement.int64Column(0),
-                    rootURL: URL(fileURLWithPath: statement.stringColumn(1)).standardizedFileURL
+                    rootURL: URL.fromMediaPath(statement.stringColumn(1))
                 )
             )
         }
@@ -3122,9 +3149,10 @@ public final class IndexingDatabase: @unchecked Sendable {
             return nil
         }
 
-        let standardizedFolder = folder.standardizedFileURL
+        let standardizedFolder = folder.standardizedMediaURL
+        let folderMediaPath = standardizedFolder.mediaPath
         let relativePath: String
-        if standardizedFolder.path == library.rootURL.path {
+        if folderMediaPath == library.rootURL.mediaPath {
             relativePath = ""
         } else if let relative = Self.relativeMediaPath(for: standardizedFolder, under: library.rootURL) {
             relativePath = relative
@@ -3139,7 +3167,7 @@ public final class IndexingDatabase: @unchecked Sendable {
             try adoptFolderOwnedPaths(folderID: matchingPath.id)
             try updateFolderOwnedPaths(
                 folderID: matchingPath.id,
-                path: standardizedFolder.path
+                path: folderMediaPath
             )
             return matchingPath.id
         }
@@ -3269,7 +3297,7 @@ public final class IndexingDatabase: @unchecked Sendable {
         )
         var subtitleUpdates: [(id: Int64, relativePath: String)] = []
         while try subtitleStatement.step() {
-            let file = URL(fileURLWithPath: subtitleStatement.stringColumn(1))
+            let file = URL.fromMediaPath(subtitleStatement.stringColumn(1))
             if let relativePath = Self.relativeMediaPath(for: file, under: rootURL) {
                 subtitleUpdates.append((subtitleStatement.int64Column(0), relativePath))
             }
@@ -3284,7 +3312,7 @@ public final class IndexingDatabase: @unchecked Sendable {
         )
         var videoUpdates: [(id: Int64, relativePath: String)] = []
         while try videoStatement.step() {
-            let file = URL(fileURLWithPath: videoStatement.stringColumn(1))
+            let file = URL.fromMediaPath(videoStatement.stringColumn(1))
             if let relativePath = Self.relativeMediaPath(for: file, under: rootURL) {
                 videoUpdates.append((videoStatement.int64Column(0), relativePath))
             }
@@ -3314,8 +3342,11 @@ public final class IndexingDatabase: @unchecked Sendable {
     }
 
     private static func relativeMediaPath(for file: URL, under root: URL) -> String? {
-        let rootPath = normalizedFolderPath(root.standardizedFileURL.path)
-        let filePath = file.standardizedFileURL.path
+        guard file.isWebDAVURL == root.isWebDAVURL else {
+            return nil
+        }
+        let rootPath = normalizedFolderPath(root.mediaPath)
+        let filePath = file.mediaPath
         let prefix = rootPath == "/" ? rootPath : rootPath + "/"
         guard filePath.hasPrefix(prefix) else {
             return nil
@@ -3414,7 +3445,7 @@ public final class IndexingDatabase: @unchecked Sendable {
     }
 
     private static func path(_ path: String, isUnderAny folders: [URL]) -> Bool {
-        let standardizedPath = URL(fileURLWithPath: path).standardizedFileURL.path
+        let standardizedPath = URL.fromMediaPath(path).mediaPath
         return folders.contains { folder in
             folderPathPrefixes(for: folder).contains { prefix in
                 standardizedPath.hasPrefix(prefix)
@@ -3423,7 +3454,7 @@ public final class IndexingDatabase: @unchecked Sendable {
     }
 
     private static func folderPath(_ path: String, matchesAny folders: [URL]) -> Bool {
-        let standardizedPath = normalizedFolderPath(URL(fileURLWithPath: path).standardizedFileURL.path)
+        let standardizedPath = normalizedFolderPath(URL.fromMediaPath(path).mediaPath)
         return folders.contains { folder in
             folderPathVariants(for: folder).contains(standardizedPath)
         }
@@ -3434,7 +3465,7 @@ public final class IndexingDatabase: @unchecked Sendable {
     }
 
     private static func folderPathPrefixes(for folder: URL) -> [String] {
-        var path = normalizedFolderPath(folder.standardizedFileURL.path)
+        var path = normalizedFolderPath(folder.mediaPath)
         if !path.hasSuffix("/") {
             path.append("/")
         }
@@ -3455,10 +3486,9 @@ public final class IndexingDatabase: @unchecked Sendable {
     }
 
     private static func folderPath(forSubtitlePath subtitlePath: String) -> String {
-        URL(fileURLWithPath: subtitlePath)
+        URL.fromMediaPath(subtitlePath)
             .deletingLastPathComponent()
-            .standardizedFileURL
-            .path
+            .mediaPath
     }
 
     static func subtitlePathPrefix(forFolderPath folderPath: String) -> String {
@@ -3466,7 +3496,7 @@ public final class IndexingDatabase: @unchecked Sendable {
     }
 
     static func folderPathVariants(for folder: URL) -> [String] {
-        let path = normalizedFolderPath(folder.standardizedFileURL.path)
+        let path = normalizedFolderPath(folder.mediaPath)
         var paths = Set([path])
 
         if path.hasPrefix("/var/") {

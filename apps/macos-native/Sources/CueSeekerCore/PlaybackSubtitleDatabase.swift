@@ -21,7 +21,7 @@ public final class PlaybackSubtitleDatabase: @unchecked Sendable {
             """
         )
 
-        try statement.bind(subtitleFile.path, at: 1)
+        try statement.bind(subtitleFile.mediaPath, at: 1)
         try statement.bind(SubtitleCueIndexingRules.algorithmVersion, at: 2)
         return try statement.step()
     }
@@ -48,7 +48,7 @@ public final class PlaybackSubtitleDatabase: @unchecked Sendable {
             """
         )
 
-        try statement.bind(subtitleFile.path, at: 1)
+        try statement.bind(subtitleFile.mediaPath, at: 1)
         try statement.bind(max(0, startMilliseconds), at: 2)
         try statement.bind(limit, at: 3)
 
@@ -76,7 +76,7 @@ public final class PlaybackSubtitleDatabase: @unchecked Sendable {
               AND algorithm_version = ?;
             """
         )
-        try statement.bind(subtitleFile.path, at: 1)
+        try statement.bind(subtitleFile.mediaPath, at: 1)
         try statement.bind(SubtitleCueIndexingRules.algorithmVersion, at: 2)
 
         guard try statement.step() else {
@@ -107,7 +107,7 @@ public final class PlaybackSubtitleDatabase: @unchecked Sendable {
             LIMIT 1;
             """
         )
-        try statement.bind(videoFile.path, at: 1)
+        try statement.bind(videoFile.mediaPath, at: 1)
         try statement.bind(SubtitleCueIndexingRules.algorithmVersion, at: 2)
 
         guard try statement.step() else {
@@ -134,7 +134,7 @@ public final class PlaybackSubtitleDatabase: @unchecked Sendable {
             """
         )
 
-        try statement.bind(subtitleFile.path, at: 1)
+        try statement.bind(subtitleFile.mediaPath, at: 1)
         try statement.bind(ASSRenderSegmenter.cacheAlgorithmVersion, at: 2)
         return try statement.step()
     }
@@ -151,7 +151,7 @@ public final class PlaybackSubtitleDatabase: @unchecked Sendable {
             """
         )
 
-        try statement.bind(subtitleFile.path, at: 1)
+        try statement.bind(subtitleFile.mediaPath, at: 1)
         try statement.bind(ASSFontIntentExtractor.cacheAlgorithmVersion, at: 2)
         return try statement.step()
     }
@@ -169,7 +169,7 @@ public final class PlaybackSubtitleDatabase: @unchecked Sendable {
             """
         )
 
-        try statement.bind(subtitleFile.path, at: 1)
+        try statement.bind(subtitleFile.mediaPath, at: 1)
         try statement.bind(ASSFontIntentExtractor.cacheAlgorithmVersion, at: 2)
 
         var references: [ASSFontReference] = []
@@ -208,7 +208,7 @@ public final class PlaybackSubtitleDatabase: @unchecked Sendable {
             """
         )
 
-        try statement.bind(subtitleFile.path, at: 1)
+        try statement.bind(subtitleFile.mediaPath, at: 1)
         try statement.bind(ASSRenderSegmenter.cacheAlgorithmVersion, at: 2)
         try statement.bind(timestamp, at: 3)
         try statement.bind(timestamp, at: 4)
@@ -279,7 +279,7 @@ extension PlaybackSubtitleDatabase {
             """
         )
 
-        try statement.bind(subtitleFile.path, at: 1)
+        try statement.bind(subtitleFile.mediaPath, at: 1)
 
         var index: [PlaybackSubtitleEntryIndexItem] = []
         while try statement.step() {
@@ -319,7 +319,7 @@ extension PlaybackSubtitleDatabase {
             """
         )
 
-        try statement.bind(subtitleFile.path, at: 1)
+        try statement.bind(subtitleFile.mediaPath, at: 1)
         try statement.bind(requestedLimit, at: 2)
         try statement.bind(max(0, offset), at: 3)
 
@@ -346,7 +346,7 @@ extension PlaybackSubtitleDatabase {
             """
         )
 
-        try statement.bind(subtitleFile.path, at: 1)
+        try statement.bind(subtitleFile.mediaPath, at: 1)
 
         var records: [SubtitleCueLineRecord] = []
         while try statement.step() {
@@ -585,7 +585,7 @@ extension PlaybackSubtitleDatabase {
         atMilliseconds milliseconds: Int
     ) throws -> CueGroupSelection? {
         try activeCueGroupSelection(
-            for: .path(subtitleFile.path),
+            for: .path(subtitleFile.mediaPath),
             atMilliseconds: milliseconds
         )
     }
@@ -631,7 +631,7 @@ extension PlaybackSubtitleDatabase {
             LIMIT 1;
             """
         )
-        try statement.bind(subtitleFile.path, at: 1)
+        try statement.bind(subtitleFile.mediaPath, at: 1)
         try statement.bind(milliseconds, at: 2)
         return try statement.step() ? cueGroupSelection(from: statement) : nil
     }

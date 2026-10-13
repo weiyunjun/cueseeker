@@ -27,7 +27,7 @@ final class PlaybackLibrarySessionStore: ObservableObject {
         self.libraryStore = libraryStore
         self.folderPath = folderPath
         self.initialVideoPath = initialVideoPath.map {
-            URL(fileURLWithPath: $0).standardizedFileURL.path
+            URL.fromMediaPath($0).mediaPath
         }
         self.requestFolderDetail = requestFolderDetail
         detailsCancellable = libraryStore.$completeLibraryFolderDetailsByPath
@@ -174,7 +174,7 @@ final class PlaybackLibrarySessionStore: ObservableObject {
             return nil
         }
         return detail.videos.first { video in
-            URL(fileURLWithPath: video.videoPath).standardizedFileURL.path
+            URL.fromMediaPath(video.videoPath).mediaPath
                 == initialVideoPath
         }?.id
     }

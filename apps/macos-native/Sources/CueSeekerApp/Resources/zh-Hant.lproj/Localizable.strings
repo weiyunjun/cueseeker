@@ -637,3 +637,17 @@
 "file_detail.created" = "建立時間";
 "file_detail.modified" = "修改時間";
 "file_detail.none" = "無";
+
+/* WebDAV Folder Support */
+"file.add_folder.local" = "本機資料夾";
+"file.add_folder.webdav" = "WebDav 資料夾";
+"webdav.dialog.title" = "WebDav 資料夾";
+"webdav.field.name" = "名稱";
+"webdav.field.address" = "位址";
+"webdav.field.username" = "使用者名稱";
+"webdav.field.password" = "密碼";
+"webdav.add" = "加入";
+"webdav.error.name_empty" = "請輸入名稱";
+"webdav.error.invalid_address" = "請輸入有效的 WebDAV 位址";
+"webdav.error.username_empty" = "請輸入使用者名稱";
+"webdav.error.password_empty" = "請輸入密碼";

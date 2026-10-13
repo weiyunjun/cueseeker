@@ -219,7 +219,7 @@ public enum SubtitleScreenshotExporter {
         }
 
         let subtitlePaths = Set(items.map {
-            URL(fileURLWithPath: $0.subtitlePath).standardizedFileURL.path
+            URL.fromMediaPath($0.subtitlePath).mediaPath
         })
         return subtitlePaths.count == 1
     }
@@ -328,7 +328,7 @@ public enum SubtitleScreenshotExporter {
             try Task.checkCancellation()
             let timestampMilliseconds = group.renderTimestampMilliseconds
             let frameImage = try await videoFrame(
-                videoPath: videoURL.path,
+                videoPath: videoURL.mediaPath,
                 timestampMilliseconds: timestampMilliseconds,
                 ffmpegURL: ffmpegURL
             )
@@ -450,20 +450,29 @@ public enum SubtitleScreenshotExporter {
         // reach the compositor without a PNG round trip through the file system.
         // The 10-bit sources this reads would otherwise produce a 16-bit
         // intermediate that the 8-bit compositing context discards anyway.
+        let playableInput = WebDAVClient.shared.resolvePlayableInput(
+            for: URL.fromMediaPath(videoPath)
+        )
+        var arguments = [
+            "-nostdin",
+            "-hide_banner",
+            "-loglevel", "error"
+        ]
+        if let httpHeaders = playableInput.httpHeaders, !httpHeaders.isEmpty {
+            arguments += ["-headers", httpHeaders]
+        }
+        arguments += [
+            "-ss", String(format: "%.3f", Double(max(0, timestampMilliseconds)) / 1_000),
+            "-i", playableInput.inputPath,
+            "-frames:v", "1",
+            "-pix_fmt", "bgr24",
+            "-f", "image2pipe",
+            "-vcodec", "bmp",
+            "-"
+        ]
         let frameData = try await runProcessCapturingStandardOutput(
             executableURL: ffmpegURL,
-            arguments: [
-                "-nostdin",
-                "-hide_banner",
-                "-loglevel", "error",
-                "-ss", String(format: "%.3f", Double(max(0, timestampMilliseconds)) / 1_000),
-                "-i", videoPath,
-                "-frames:v", "1",
-                "-pix_fmt", "bgr24",
-                "-f", "image2pipe",
-                "-vcodec", "bmp",
-                "-"
-            ]
+            arguments: arguments
         )
         guard !frameData.isEmpty else {
             throw SubtitleScreenshotExportError.missingFrameImage(videoPath)
@@ -475,9 +484,9 @@ public enum SubtitleScreenshotExporter {
         for item: SubtitleScreenshotExportItem
     ) -> PlaybackSubtitleSource {
         item.subtitleSource ?? PlaybackSubtitleSource(
-            url: URL(fileURLWithPath: item.subtitlePath),
+            url: URL.fromMediaPath(item.subtitlePath),
             format: item.subtitleFormat == .ass ? .ass : .srt,
-            matchedVideoURL: URL(fileURLWithPath: item.videoPath),
+            matchedVideoURL: URL.fromMediaPath(item.videoPath),
             preparationTimeWindow: PlaybackSubtitleTimeWindow(
                 startMilliseconds: item.startMilliseconds,
                 endMilliseconds: item.endMilliseconds
@@ -489,7 +498,7 @@ public enum SubtitleScreenshotExporter {
         _ source: PlaybackSubtitleSource
     ) -> PlaybackSubtitleSource {
         PlaybackSubtitleSource(
-            url: source.url.standardizedFileURL,
+            url: source.url.standardizedMediaURL,
             format: .srt,
             matchedVideoURL: source.matchedVideoURL,
             renderCacheDatabaseURL: source.renderCacheDatabaseURL
@@ -639,7 +648,7 @@ public enum SubtitleScreenshotExporter {
         }
 
         let requestedFontNames = try? ASSPlaybackFontIntentProvider.requestedFontNames(
-            sourcePath: source.url.path,
+            sourcePath: source.url.mediaPath,
             renderCacheDatabaseURL: source.renderCacheDatabaseURL
         )
         let renderScript = ASSFontAliasResolver.shared.rewriteRenderScript(
@@ -652,7 +661,7 @@ public enum SubtitleScreenshotExporter {
             .joined(separator: ",")
         let session = try SFXASSRendererSession(
             assScript: renderScript,
-            sourceIdentifier: "\(source.url.path)#selected=\(selectedEventKey)",
+            sourceIdentifier: "\(source.url.mediaPath)#selected=\(selectedEventKey)",
             frameWidth: frameImage.width,
             frameHeight: frameImage.height
         )
@@ -813,7 +822,7 @@ public enum SubtitleScreenshotExporter {
             )
         }
         let requestedFontNames = try? ASSPlaybackFontIntentProvider.requestedFontNames(
-            sourcePath: source.url.path,
+            sourcePath: source.url.mediaPath,
             renderCacheDatabaseURL: source.renderCacheDatabaseURL
         )
 
@@ -828,7 +837,7 @@ public enum SubtitleScreenshotExporter {
             )
             return try SFXASSRendererSession(
                 assScript: renderScript,
-                sourceIdentifier: "\(source.url.path)#\(segment.startMilliseconds)-\(segment.endMilliseconds)",
+                sourceIdentifier: "\(source.url.mediaPath)#\(segment.startMilliseconds)-\(segment.endMilliseconds)",
                 frameWidth: frameWidth,
                 frameHeight: frameHeight
             )
@@ -844,7 +853,7 @@ public enum SubtitleScreenshotExporter {
         )
         return try SFXASSRendererSession(
             assScript: renderScript,
-            sourceIdentifier: source.url.path,
+            sourceIdentifier: source.url.mediaPath,
             frameWidth: frameWidth,
             frameHeight: frameHeight
         )

@@ -112,7 +112,7 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
     @discardableResult
     public func open(_ request: PlaybackRequest) throws -> UInt {
         NSLog("[Playback] PlaybackPlayer.open: path=%@, startMs=%ld, decodeMode=%@",
-              request.videoURL.path,
+              request.videoURL.mediaPath,
               request.startMilliseconds,
               decodeMode.rawValue)
         reachedAutoStopBoundaryMilliseconds = nil
@@ -135,22 +135,24 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
         currentRequest = request
         nativePlayer.playbackRate = Float(storedSpeed)
         nativePlayer.audioTrackIndex = request.audioTrackIndex
+        let playableInput = WebDAVClient.shared.resolvePlayableInput(for: request.videoURL)
+        nativePlayer.httpHeaders = playableInput.httpHeaders
         do {
             if let autoStopAtMilliseconds = request.autoStopAtMilliseconds {
                 try nativePlayer.openPath(
-                    request.videoURL.path,
+                    playableInput.inputPath,
                     startMilliseconds: request.startMilliseconds,
                     autoStopAtMilliseconds: autoStopAtMilliseconds
                 )
             } else if let segmentEndMilliseconds = request.segmentEndMilliseconds {
                 try nativePlayer.openPath(
-                    request.videoURL.path,
+                    playableInput.inputPath,
                     startMilliseconds: request.startMilliseconds,
                     endMilliseconds: segmentEndMilliseconds
                 )
             } else {
                 try nativePlayer.openPath(
-                    request.videoURL.path,
+                    playableInput.inputPath,
                     startMilliseconds: request.startMilliseconds
                 )
             }
@@ -160,7 +162,7 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
         }
         let generation = bindPendingPresentationToNativeGeneration()
         authorizeAutoPauseBoundary(autoPauseBoundary, generation: generation)
-        currentVideoURL = request.videoURL.standardizedFileURL
+        currentVideoURL = request.videoURL.standardizedMediaURL
         Task { @MainActor in
             self.attachActiveRenderView()
         }

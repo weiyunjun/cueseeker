@@ -58,7 +58,7 @@ extension AppCoordinator {
 
     /// Loads subfolders under a specific root folder on demand.
     func loadFileSubfolders(rootPath: String) {
-        let standardized = URL(fileURLWithPath: rootPath).standardizedFileURL.path
+        let standardized = URL.fromMediaPath(rootPath).mediaPath
         guard let database = indexedContentDatabase else {
             library.fileSubfolderStatusByRootPath[standardized] = .failed(L("status.database_not_initialized"))
             return
@@ -67,7 +67,7 @@ extension AppCoordinator {
             return
         }
 
-        let rootURL = URL(fileURLWithPath: standardized)
+        let rootURL = URL.fromMediaPath(standardized)
         do {
             let subfolders = try database.subfolders(under: rootURL)
             library.fileSubfoldersByRootPath[standardized] = subfolders
@@ -80,7 +80,7 @@ extension AppCoordinator {
 
     /// Loads objects (videos and subtitles) in a specific folder on demand.
     func loadFileObjects(folderPath: String) {
-        let standardized = URL(fileURLWithPath: folderPath).standardizedFileURL.path
+        let standardized = URL.fromMediaPath(folderPath).mediaPath
         guard let database = indexedContentDatabase else {
             library.fileObjectStatusByFolderPath[standardized] = .failed(L("status.database_not_initialized"))
             return

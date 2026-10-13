@@ -95,6 +95,63 @@ struct LibraryCoverDisplayRenditionGenerator: Sendable {
         }
     }
 
+    func encode(masterImage: CGImage) throws -> LibraryCoverEncodedDisplayRendition {
+        try autoreleasepool {
+            guard masterImage.width > 0, masterImage.height > 0 else {
+                throw LibraryCoverDisplayRenditionError.invalidSourceDimensions(
+                    masterImage.width,
+                    masterImage.height
+                )
+            }
+
+            let outputImage = try Self.imageFittedToProfileIfNeeded(masterImage)
+            let encodedData = try Self.jpegData(from: outputImage)
+            try Self.validateJPEGData(encodedData)
+            try Task.checkCancellation()
+
+            return LibraryCoverEncodedDisplayRendition(
+                result: LibraryCoverDisplayRenditionResult(
+                    pixelWidth: outputImage.width,
+                    pixelHeight: outputImage.height,
+                    byteCount: encodedData.count
+                ),
+                data: encodedData
+            )
+        }
+    }
+
+    static func masterJPEGData(
+        from image: CGImage,
+        compressionQuality: Double = 0.92
+    ) throws -> Data {
+        try autoreleasepool {
+            guard image.width > 0, image.height > 0 else {
+                throw LibraryCoverDisplayRenditionError.invalidSourceDimensions(
+                    image.width,
+                    image.height
+                )
+            }
+            let data = NSMutableData()
+            guard let destination = CGImageDestinationCreateWithData(
+                data,
+                UTType.jpeg.identifier as CFString,
+                1,
+                nil
+            ) else {
+                throw LibraryCoverDisplayRenditionError.destinationCreationFailed
+            }
+            let properties: [CFString: Any] = [
+                kCGImageDestinationLossyCompressionQuality: compressionQuality,
+                kCGImagePropertyOrientation: 1
+            ]
+            CGImageDestinationAddImage(destination, image, properties as CFDictionary)
+            guard CGImageDestinationFinalize(destination) else {
+                throw LibraryCoverDisplayRenditionError.encodingFailed
+            }
+            return data as Data
+        }
+    }
+
     static func publish(_ data: Data, to destinationURL: URL) throws {
         try FileManager.default.createDirectory(
             at: destinationURL.deletingLastPathComponent(),

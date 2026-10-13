@@ -1226,7 +1226,7 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
 
     private var collageDisplayTitle: String {
         openSnapshot.videoPresentation?.displayTitle
-            ?? URL(fileURLWithPath: openSnapshot.source.videoPath)
+            ?? URL.fromMediaPath(openSnapshot.source.videoPath)
                 .deletingPathExtension()
                 .lastPathComponent
     }
@@ -1235,9 +1235,9 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
         let source = openSnapshot.source
         return openSnapshot.subtitleRenderSource
             ?? PlaybackSubtitleSource(
-                url: URL(fileURLWithPath: source.subtitlePath),
+                url: URL.fromMediaPath(source.subtitlePath),
                 format: source.subtitleFormat == .ass ? .ass : .srt,
-                matchedVideoURL: URL(fileURLWithPath: source.videoPath),
+                matchedVideoURL: URL.fromMediaPath(source.videoPath),
                 initialTimestampMilliseconds:
                     openSnapshot.timestampMilliseconds
             )
@@ -1245,7 +1245,7 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
 
     private func makeCollagePreviewStore() -> PlaybackCollagePreviewStore {
         PlaybackCollagePreviewStore(
-            videoURL: URL(fileURLWithPath: openSnapshot.source.videoPath),
+            videoURL: URL.fromMediaPath(openSnapshot.source.videoPath),
             subtitleSource: collageSubtitleSource,
             srtSubtitleStyle: srtSubtitleStyle
         )

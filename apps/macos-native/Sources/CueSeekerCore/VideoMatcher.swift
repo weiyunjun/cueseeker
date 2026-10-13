@@ -40,7 +40,7 @@ public struct VideoMatcher {
         let filesByDirectory = Dictionary(
             grouping: subtitleFiles
         ) {
-            $0.deletingLastPathComponent().standardizedFileURL.path
+            $0.deletingLastPathComponent().mediaPath
         }
         var matches: [URL: URL] = [:]
         for files in filesByDirectory.values {
@@ -58,6 +58,33 @@ public struct VideoMatcher {
                 ) {
                     matches[subtitleFile] = video
                 }
+            }
+        }
+        return matches
+    }
+
+    public func matchingVideos(
+        for subtitleFiles: [URL],
+        among allFileURLs: [URL]
+    ) -> [URL: URL] {
+        let candidatesByDirectory: [String: [VideoCandidate]] = Dictionary(
+            grouping: allFileURLs,
+            by: { $0.deletingLastPathComponent().mediaPath }
+        ).mapValues { urls in
+            urls.compactMap { url in
+                videoCandidate(for: url)
+            }
+        }
+
+        var matches: [URL: URL] = [:]
+        for subtitleFile in subtitleFiles {
+            let directoryPath = subtitleFile.deletingLastPathComponent().mediaPath
+            let candidates = candidatesByDirectory[directoryPath] ?? []
+            if let video = matchingVideo(
+                for: subtitleFile,
+                videoCandidates: candidates
+            ) {
+                matches[subtitleFile] = video
             }
         }
         return matches
@@ -169,7 +196,10 @@ public struct VideoMatcher {
     }
 
     private func videoCandidate(fileName: String, in directory: URL) -> VideoCandidate? {
-        let url = directory.appendingPathComponent(fileName)
+        videoCandidate(for: directory.appendingPathComponent(fileName))
+    }
+
+    private func videoCandidate(for url: URL) -> VideoCandidate? {
         guard let extensionPriority = videoExtensions.firstIndex(
             of: url.pathExtension.lowercased()
         ) else {

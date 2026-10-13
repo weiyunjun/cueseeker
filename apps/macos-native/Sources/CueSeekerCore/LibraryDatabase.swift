@@ -86,7 +86,7 @@ public final class LibraryDatabase: @unchecked Sendable {
                 """
             )
             try bind(normalizedDuration, to: statement, at: 1)
-            try statement.bind(videoFile.path, at: 2)
+            try statement.bind(videoFile.mediaPath, at: 2)
             try statement.run()
 
             try updatePresentationDuration(
@@ -152,7 +152,7 @@ public final class LibraryDatabase: @unchecked Sendable {
                 at: 5
             )
             try statement.bind(encodedAudioTracks, at: 6)
-            try statement.bind(videoFile.path, at: 7)
+            try statement.bind(videoFile.mediaPath, at: 7)
             try statement.run()
 
             try updatePresentationDuration(
@@ -172,7 +172,7 @@ public final class LibraryDatabase: @unchecked Sendable {
             WHERE path = ?;
             """
         )
-        try statement.bind(videoFile.path, at: 1)
+        try statement.bind(videoFile.mediaPath, at: 1)
         guard try statement.step() else {
             return nil
         }
@@ -191,7 +191,7 @@ public final class LibraryDatabase: @unchecked Sendable {
             """
         )
         try statement.bind(max(0, index), at: 1)
-        try statement.bind(videoFile.path, at: 2)
+        try statement.bind(videoFile.mediaPath, at: 2)
         try statement.run()
     }
 
@@ -228,7 +228,7 @@ public final class LibraryDatabase: @unchecked Sendable {
               );
             """
         )
-        try statement.bind(videoFile.path, at: 1)
+        try statement.bind(videoFile.mediaPath, at: 1)
         guard try statement.step() else {
             return nil
         }
@@ -246,7 +246,7 @@ public final class LibraryDatabase: @unchecked Sendable {
             WHERE vf.path = ?;
             """
         )
-        try statement.bind(videoFile.path, at: 1)
+        try statement.bind(videoFile.mediaPath, at: 1)
         var found = false
         var defaultSubtitleFileID: Int64?
         var subtitles: [VideoSubtitle] = []
@@ -267,7 +267,7 @@ public final class LibraryDatabase: @unchecked Sendable {
             return nil
         }
         return VideoSubtitles(
-            videoPath: videoFile.path,
+            videoPath: videoFile.mediaPath,
             subtitles: subtitles,
             defaultSubtitleFileID: defaultSubtitleFileID
         )
@@ -282,7 +282,7 @@ public final class LibraryDatabase: @unchecked Sendable {
             """
         )
         try statement.bind(subtitleFileID, at: 1)
-        try statement.bind(videoFile.path, at: 2)
+        try statement.bind(videoFile.mediaPath, at: 2)
         try statement.run()
     }
 
@@ -297,7 +297,7 @@ public final class LibraryDatabase: @unchecked Sendable {
             """
         )
         try bind(duration, to: statement, at: 1)
-        try statement.bind(videoFile.path, at: 2)
+        try statement.bind(videoFile.mediaPath, at: 2)
         try statement.run()
     }
 
@@ -342,7 +342,7 @@ public final class LibraryDatabase: @unchecked Sendable {
     }
 
     private static func folderPathPrefixes(for folder: URL) -> [String] {
-        var path = normalizedFolderPath(folder.standardizedFileURL.path)
+        var path = normalizedFolderPath(folder.mediaPath)
         if !path.hasSuffix("/") {
             path.append("/")
         }
@@ -368,10 +368,10 @@ public final class LibraryDatabase: @unchecked Sendable {
     }
 
     static func libraryVideoSort(_ lhs: LibraryVideo, _ rhs: LibraryVideo) -> Bool {
-        let lhsFolder = URL(fileURLWithPath: lhs.videoPath)
+        let lhsFolder = URL.fromMediaPath(lhs.videoPath)
             .deletingLastPathComponent()
             .lastPathComponent
-        let rhsFolder = URL(fileURLWithPath: rhs.videoPath)
+        let rhsFolder = URL.fromMediaPath(rhs.videoPath)
             .deletingLastPathComponent()
             .lastPathComponent
         let folderComparison = lhsFolder.localizedStandardCompare(rhsFolder)
@@ -539,7 +539,9 @@ extension LibraryDatabase {
         if existingVideoFileID == nil, pathIdentity == nil, try hasSearchPaths() {
             return nil
         }
-        let attributes = try? FileManager.default.attributesOfItem(atPath: videoFile.path)
+        let attributes = videoFile.isWebDAVURL
+            ? nil
+            : (try? FileManager.default.attributesOfItem(atPath: videoFile.path))
         let fileSize = (attributes?[.size] as? NSNumber)?.int64Value
         let modifiedAt = attributes?[.modificationDate] as? Date
         let statement = try database.prepare(
@@ -552,14 +554,14 @@ extension LibraryDatabase {
                 library_id = excluded.library_id,
                 relative_path = excluded.relative_path,
                 video_name = excluded.video_name,
-                file_size = excluded.file_size,
-                modified_at = excluded.modified_at
+                file_size = COALESCE(excluded.file_size, video_files.file_size),
+                modified_at = COALESCE(excluded.modified_at, video_files.modified_at)
             RETURNING id;
             """
         )
         try bind(pathIdentity?.libraryID, to: statement, at: 1)
         try bind(pathIdentity?.relativePath, to: statement, at: 2)
-        try statement.bind(videoFile.path, at: 3)
+        try statement.bind(videoFile.mediaPath, at: 3)
         try statement.bind(videoFile.lastPathComponent, at: 4)
         if let fileSize {
             try statement.bind(fileSize, at: 5)
@@ -590,7 +592,7 @@ extension LibraryDatabase {
             WHERE path = ?;
             """
         )
-        try statement.bind(videoFile.path, at: 1)
+        try statement.bind(videoFile.mediaPath, at: 1)
         return try statement.step() ? statement.int64Column(0) : nil
     }
 
@@ -606,7 +608,7 @@ extension LibraryDatabase {
         )
         while try statement.step() {
             let libraryID = statement.int64Column(0)
-            let root = URL(fileURLWithPath: statement.stringColumn(1)).standardizedFileURL
+            let root = URL.fromMediaPath(statement.stringColumn(1)).standardizedMediaURL
             if let relativePath = Self.relativeMediaPath(for: file, under: root) {
                 return (libraryID, relativePath)
             }
@@ -615,8 +617,11 @@ extension LibraryDatabase {
     }
 
     private static func relativeMediaPath(for file: URL, under root: URL) -> String? {
-        let rootPath = normalizedFolderPath(root.standardizedFileURL.path)
-        let filePath = file.standardizedFileURL.path
+        guard file.isWebDAVURL == root.isWebDAVURL else {
+            return nil
+        }
+        let rootPath = normalizedFolderPath(root.mediaPath)
+        let filePath = file.mediaPath
         let prefix = rootPath == "/" ? rootPath : rootPath + "/"
         guard filePath.hasPrefix(prefix) else {
             return nil

@@ -19,7 +19,7 @@ extension AppCoordinator {
     /// back to the default audio track.
     func canSeekInOpenVideo(for request: PlaybackRequest) -> Bool {
         guard let player,
-              player.currentVideoURL?.standardizedFileURL.path == request.videoURL.standardizedFileURL.path
+              player.currentVideoURL?.mediaPath == request.videoURL.mediaPath
         else {
             return false
         }
@@ -96,7 +96,7 @@ extension AppCoordinator {
             do {
                 try database.setDefaultAudioTrackIndex(
                     index,
-                    forVideoFile: URL(fileURLWithPath: videoPath)
+                    forVideoFile: URL.fromMediaPath(videoPath)
                 )
             } catch {
                 print("Failed to save the default audio track: \(error)")
@@ -110,7 +110,7 @@ extension AppCoordinator {
         }
         do {
             return try database.videoAudioTracks(
-                forVideoFile: URL(fileURLWithPath: videoPath)
+                forVideoFile: URL.fromMediaPath(videoPath)
             )
         } catch {
             print("Failed to load the audio tracks: \(error)")

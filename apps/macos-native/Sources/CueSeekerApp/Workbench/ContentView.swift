@@ -172,6 +172,17 @@ private struct ContentRootView: View {
                 .workbenchDialog()
             }
 
+            if let session = libraryStore.webdavDialogSession {
+                WebDAVFolderDialog(
+                    session: session,
+                    onConfirm: {
+                        appState.confirmWebDAVFolderDialog(session)
+                    },
+                    onClose: appState.closeWebDAVFolderDialog
+                )
+                .workbenchDialog()
+            }
+
             if let session = libraryStore.fileDetailSession {
                 WorkbenchFileDetailDialog(
                     session: session,
@@ -239,6 +250,9 @@ private struct ContentRootView: View {
             ids.append(session.id)
         }
         if let session = libraryStore.renameSession {
+            ids.append(session.id)
+        }
+        if let session = libraryStore.webdavDialogSession {
             ids.append(session.id)
         }
         if let session = libraryStore.fileDetailSession {

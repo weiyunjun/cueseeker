@@ -23,7 +23,7 @@ public final class IndexedContentDatabase: @unchecked Sendable {
         )
         let videoLocations = try loadVideoLocations()
         let libraryFolders = try libraryDatabase.libraryPresentation(
-            under: roots.map { URL(fileURLWithPath: $0.path) }
+            under: roots.map { URL.fromMediaPath($0.path) }
         )
         var objectLocations: [Int64: ObjectLocation] = [:]
 
@@ -70,8 +70,8 @@ public final class IndexedContentDatabase: @unchecked Sendable {
     public func subfolders(under rootURL: URL) throws -> [IndexedContentFolder] {
         let roots = try loadRootBuilders()
         guard let root = roots.first(where: {
-            $0.path == rootURL.path
-                || URL(fileURLWithPath: $0.path).standardizedFileURL.path == rootURL.standardizedFileURL.path
+            $0.path == rootURL.mediaPath
+                || URL.fromMediaPath($0.path).mediaPath == rootURL.mediaPath
         }) else {
             return []
         }
@@ -106,7 +106,7 @@ public final class IndexedContentDatabase: @unchecked Sendable {
 
     /// Returns the indexed objects (videos with subtitles) in a specific folder.
     public func objects(in folderPath: String) throws -> [IndexedContentObject] {
-        let standardized = URL(fileURLWithPath: folderPath).standardizedFileURL.path
+        let standardized = URL.fromMediaPath(folderPath).mediaPath
         let statement = try database.prepare(
             """
             SELECT lvr.video_file_id,
@@ -253,7 +253,7 @@ public final class IndexedContentDatabase: @unchecked Sendable {
             subtitlesByVideoID[videoID, default: []].append(IndexedContentSubtitle(
                 id: statement.int64Column(1),
                 path: subtitlePath,
-                name: URL(fileURLWithPath: subtitlePath).lastPathComponent,
+                name: URL.fromMediaPath(subtitlePath).lastPathComponent,
                 fileSize: statement.int64Column(3)
             ))
         }
@@ -304,7 +304,7 @@ public final class IndexedContentDatabase: @unchecked Sendable {
                 .subtitles.append(IndexedContentSubtitle(
                     id: statement.int64Column(1),
                     path: subtitlePath,
-                    name: URL(fileURLWithPath: subtitlePath).lastPathComponent,
+                    name: URL.fromMediaPath(subtitlePath).lastPathComponent,
                     fileSize: statement.int64Column(3)
                 ))
         }

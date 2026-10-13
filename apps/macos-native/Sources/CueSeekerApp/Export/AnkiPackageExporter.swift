@@ -1,5 +1,6 @@
 import CNativePlayback
 import CryptoKit
+import CueSeekerCore
 import Foundation
 import SQLite3
 
@@ -224,7 +225,10 @@ enum AnkiPackageExporter {
     /// first. Only a track past the first needs the file inspected.
     private static func audioTrackIndex(for item: AnkiExportItem) -> Int {
         guard item.audioTrackIndex > 0,
-              let metadata = try? SFXMediaMetadataInspector.metadata(atMediaPath: item.videoPath),
+              let metadata = try? SFXMediaMetadataInspector.metadata(
+                atMediaPath: item.videoPath,
+                httpHeaders: WebDAVConfigurationStore.shared.httpHeaders(forMediaPath: item.videoPath)
+              ),
               metadata.audioTracks.indices.contains(item.audioTrackIndex)
         else {
             return 0
@@ -241,24 +245,30 @@ enum AnkiPackageExporter {
         let startSeconds = max(0, Double(item.startMilliseconds) / 1_000)
         let endMilliseconds = max(item.endMilliseconds, item.startMilliseconds + 100)
         let endSeconds = max(startSeconds + 0.1, Double(endMilliseconds) / 1_000)
+        var arguments = [
+            "-nostdin",
+            "-y",
+            "-hide_banner",
+            "-loglevel", "error",
+            "-ss", String(format: "%.3f", startSeconds),
+            "-to", String(format: "%.3f", endSeconds)
+        ]
+        if let headers = WebDAVConfigurationStore.shared.httpHeaders(forMediaPath: item.videoPath) {
+            arguments += ["-headers", headers]
+        }
+        arguments += [
+            "-i", item.videoPath,
+            "-map", "0:a:\(audioTrackIndex)",
+            "-vn",
+            "-ac", "1",
+            "-ar", "44100",
+            "-codec:a", "libmp3lame",
+            "-b:a", "96k",
+            outputURL.path
+        ]
         try await runProcess(
             executableURL: ffmpegURL,
-            arguments: [
-                "-nostdin",
-                "-y",
-                "-hide_banner",
-                "-loglevel", "error",
-                "-ss", String(format: "%.3f", startSeconds),
-                "-to", String(format: "%.3f", endSeconds),
-                "-i", item.videoPath,
-                "-map", "0:a:\(audioTrackIndex)",
-                "-vn",
-                "-ac", "1",
-                "-ar", "44100",
-                "-codec:a", "libmp3lame",
-                "-b:a", "96k",
-                outputURL.path
-            ]
+            arguments: arguments
         )
     }
 
@@ -269,19 +279,25 @@ enum AnkiPackageExporter {
     ) async throws {
         let midpointMilliseconds = max(0, (item.startMilliseconds + item.endMilliseconds) / 2)
         let midpointSeconds = Double(midpointMilliseconds) / 1_000
+        var arguments = [
+            "-nostdin",
+            "-y",
+            "-hide_banner",
+            "-loglevel", "error",
+            "-ss", String(format: "%.3f", midpointSeconds)
+        ]
+        if let headers = WebDAVConfigurationStore.shared.httpHeaders(forMediaPath: item.videoPath) {
+            arguments += ["-headers", headers]
+        }
+        arguments += [
+            "-i", item.videoPath,
+            "-frames:v", "1",
+            "-q:v", "2",
+            outputURL.path
+        ]
         try await runProcess(
             executableURL: ffmpegURL,
-            arguments: [
-                "-nostdin",
-                "-y",
-                "-hide_banner",
-                "-loglevel", "error",
-                "-ss", String(format: "%.3f", midpointSeconds),
-                "-i", item.videoPath,
-                "-frames:v", "1",
-                "-q:v", "2",
-                outputURL.path
-            ]
+            arguments: arguments
         )
     }
 

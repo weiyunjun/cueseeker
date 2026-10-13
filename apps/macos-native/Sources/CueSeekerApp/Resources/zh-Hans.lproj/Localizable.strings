@@ -637,3 +637,17 @@
 "file_detail.created" = "创建时间";
 "file_detail.modified" = "修改时间";
 "file_detail.none" = "无";
+
+/* WebDAV Folder Support */
+"file.add_folder.local" = "本地文件夹";
+"file.add_folder.webdav" = "WebDav 文件夹";
+"webdav.dialog.title" = "WebDav 文件夹";
+"webdav.field.name" = "名称";
+"webdav.field.address" = "地址";
+"webdav.field.username" = "用户名";
+"webdav.field.password" = "密码";
+"webdav.add" = "添加";
+"webdav.error.name_empty" = "请输入名称";
+"webdav.error.invalid_address" = "请输入有效的 WebDAV 地址";
+"webdav.error.username_empty" = "请输入用户名";
+"webdav.error.password_empty" = "请输入密码";

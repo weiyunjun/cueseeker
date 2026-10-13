@@ -86,8 +86,8 @@ final class AppCoordinator: ObservableObject {
         let displayTitlesByPath = excerptsByPath.compactMapValues { $0.first?.displayTitle }
 
         return excerptsByPath.keys.sorted { lhs, rhs in
-            let lhsDisplayTitle = displayTitlesByPath[lhs] ?? URL(fileURLWithPath: lhs).lastPathComponent
-            let rhsDisplayTitle = displayTitlesByPath[rhs] ?? URL(fileURLWithPath: rhs).lastPathComponent
+            let lhsDisplayTitle = displayTitlesByPath[lhs] ?? URL.fromMediaPath(lhs).lastPathComponent
+            let rhsDisplayTitle = displayTitlesByPath[rhs] ?? URL.fromMediaPath(rhs).lastPathComponent
             let displayTitleComparison = SubtitleDisplayTitleResolver.compareDisplayTitles(lhsDisplayTitle, rhsDisplayTitle)
             if displayTitleComparison != .orderedSame {
                 return displayTitleComparison == .orderedAscending
@@ -98,7 +98,7 @@ final class AppCoordinator: ObservableObject {
         .map { path in
             ExcerptFileGroup(
                 subtitlePath: path,
-                subtitleDisplayTitle: displayTitlesByPath[path] ?? URL(fileURLWithPath: path).lastPathComponent,
+                subtitleDisplayTitle: displayTitlesByPath[path] ?? URL.fromMediaPath(path).lastPathComponent,
                 excerpts: (excerptsByPath[path] ?? []).sorted(by: Self.excerptSort),
                 isCollapsed: collapsedGroupPaths.contains(path)
             )
@@ -160,7 +160,7 @@ final class AppCoordinator: ObservableObject {
         knownDisplayTitles: [String?]
     ) -> String {
         let storedDisplayTitle = try? libraryDatabase?.displayTitle(
-            forVideoFile: URL(fileURLWithPath: videoPath)
+            forVideoFile: URL.fromMediaPath(videoPath)
         )
         return ([storedDisplayTitle] + knownDisplayTitles)
             .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
@@ -828,9 +828,9 @@ final class AppCoordinator: ObservableObject {
             return excerpt.hasLoadedListOverview
                 && !excerpt.listOverview.lists.contains { $0.id == id }
         case .fileFolder(let rootPath):
-            return !indexing.selectedFolders.contains { $0.standardizedFileURL.path == rootPath }
+            return !indexing.selectedFolders.contains { $0.mediaPath == rootPath }
         case .fileFiles(let rootPath, _):
-            return !indexing.selectedFolders.contains { $0.standardizedFileURL.path == rootPath }
+            return !indexing.selectedFolders.contains { $0.mediaPath == rootPath }
         case .search, .recent, .library, .file, .excerpt:
             return false
         }
@@ -861,7 +861,7 @@ final class AppCoordinator: ObservableObject {
     func libraryHasLost(videoPath: String) -> Bool {
         guard indexing.selectedFolders.contains(where: { Self.path(videoPath, isUnder: $0) }),
               let subtitles = try? libraryDatabase?.videoSubtitles(
-                forVideoFile: URL(fileURLWithPath: videoPath)
+                forVideoFile: URL.fromMediaPath(videoPath)
               )
         else {
             return true
@@ -897,16 +897,18 @@ final class AppCoordinator: ObservableObject {
     }
 
     static func folderPathPrefixes(for folder: URL) -> [String] {
-        var path = normalizedFolderPath(folder.path)
+        var path = normalizedFolderPath(folder.mediaPath)
         if !path.hasSuffix("/") {
             path.append("/")
         }
 
         var prefixes = Set([path])
-        if path.hasPrefix("/var/") {
-            prefixes.insert("/private" + path)
-        } else if path.hasPrefix("/private/var/") {
-            prefixes.insert(String(path.dropFirst("/private".count)))
+        if !folder.isWebDAVURL {
+            if path.hasPrefix("/var/") {
+                prefixes.insert("/private" + path)
+            } else if path.hasPrefix("/private/var/") {
+                prefixes.insert(String(path.dropFirst("/private".count)))
+            }
         }
 
         return prefixes.sorted()

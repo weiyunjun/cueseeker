@@ -21,9 +21,7 @@ extension AppCoordinator {
         }
         return PlaybackSearchPromotion(
             query: search.searchQuery,
-            scopePaths: indexing.selectedFolders.map {
-                $0.standardizedFileURL.path
-            },
+            scopePaths: indexing.selectedFolders.map(\.mediaPath),
             selectedOrdinal: ordinal
         )
     }

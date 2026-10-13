@@ -515,7 +515,7 @@ final class SearchStore: ObservableObject {
     }
 
     private static func normalizedFolderPaths(_ folders: [URL]) -> [String] {
-        folders.map { $0.standardizedFileURL.path }
+        folders.map(\.mediaPath)
     }
 
     func updateActivePerformanceRun(_ run: SearchPerformanceRun?) {

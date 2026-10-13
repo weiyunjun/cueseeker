@@ -353,7 +353,7 @@ final class TaskQueueStore: ObservableObject {
         do {
             let unfinishedFolderAdditions = try database.records()
                 .filter { $0.kind == .addFolder && ($0.state == .running || $0.state == .queued) }
-                .compactMap { $0.oldPaths.first.map { URL(fileURLWithPath: $0) } }
+                .compactMap { $0.oldPaths.first.map { URL.fromMediaPath($0) } }
             try database.markUnfinishedTasksIncomplete(
                 message: L("task.error.interrupted")
             )
@@ -438,7 +438,7 @@ final class TaskQueueStore: ObservableObject {
             kind: .index,
             fileName: "",
             itemCount: 0,
-            oldPaths: folders.map(\.path),
+            oldPaths: folders.map(\.mediaPath),
             work: .index(folders: folders)
         )
     }
@@ -447,9 +447,9 @@ final class TaskQueueStore: ObservableObject {
     func enqueueAddFolder(_ folder: URL) -> Bool {
         enqueueLibraryTask(
             kind: .addFolder,
-            fileName: folder.lastPathComponent,
+            fileName: IndexingStore.displayName(for: folder),
             itemCount: 0,
-            oldPaths: [folder.path],
+            oldPaths: [folder.mediaPath],
             work: .addFolder(folder)
         )
     }
@@ -458,9 +458,9 @@ final class TaskQueueStore: ObservableObject {
     func enqueueRemoveFolder(_ folder: URL) -> Bool {
         enqueueLibraryTask(
             kind: .removeFolder,
-            fileName: folder.lastPathComponent,
+            fileName: IndexingStore.displayName(for: folder),
             itemCount: 0,
-            oldPaths: [folder.path],
+            oldPaths: [folder.mediaPath],
             work: .removeFolder(folder)
         )
     }

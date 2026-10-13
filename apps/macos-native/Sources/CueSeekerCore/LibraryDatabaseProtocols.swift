@@ -63,7 +63,7 @@ public extension LibraryCoverPersistence {
     ) throws -> [LibraryCoverEligibleVideo] {
         let folders = Set(
             videoPaths.map {
-                URL(fileURLWithPath: $0).deletingLastPathComponent()
+                URL.fromMediaPath($0).deletingLastPathComponent()
             }
         )
         return try libraryCoverEligibleVideos(under: Array(folders))
@@ -73,16 +73,16 @@ public extension LibraryCoverPersistence {
     func libraryCoverEligibleVideos(
         inFolderPaths folderPaths: Set<String>
     ) throws -> [LibraryCoverEligibleVideo] {
-        let resolvedFolderPaths = Set(folderPaths.map {
-            URL(fileURLWithPath: $0).resolvingSymlinksInPath().path
+        let resolvedFolderPaths = Set(folderPaths.map { path -> String in
+            let url = URL.fromMediaPath(path)
+            return url.isWebDAVURL ? url.mediaPath : url.resolvingSymlinksInPath().path
         })
         return try libraryCoverEligibleVideos(
-            under: folderPaths.map(URL.init(fileURLWithPath:))
+            under: folderPaths.map(URL.fromMediaPath)
         ).filter {
-            resolvedFolderPaths.contains(
-                URL(fileURLWithPath: $0.folderPath)
-                    .resolvingSymlinksInPath().path
-            )
+            let url = URL.fromMediaPath($0.folderPath)
+            let candidatePath = url.isWebDAVURL ? url.mediaPath : url.resolvingSymlinksInPath().path
+            return resolvedFolderPaths.contains(candidatePath)
         }
     }
 
@@ -91,7 +91,7 @@ public extension LibraryCoverPersistence {
     ) throws -> [LibraryCoverDisplayCandidate] {
         let folders = Set(
             videoPaths.map {
-                URL(fileURLWithPath: $0).deletingLastPathComponent()
+                URL.fromMediaPath($0).deletingLastPathComponent()
             }
         )
         return try libraryCoverDisplayCandidates(under: Array(folders))

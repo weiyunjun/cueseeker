@@ -46,28 +46,29 @@ final class LibraryStore: ObservableObject {
     @Published var fileTreeRevision = 0
 
     func fileSubfolders(for rootPath: String) -> [IndexedContentFolder] {
-        let standardized = URL(fileURLWithPath: rootPath).standardizedFileURL.path
+        let standardized = URL.fromMediaPath(rootPath).mediaPath
         return fileSubfoldersByRootPath[rootPath] ?? fileSubfoldersByRootPath[standardized] ?? []
     }
 
     func fileSubfolderStatus(for rootPath: String) -> LibraryStatus {
-        let standardized = URL(fileURLWithPath: rootPath).standardizedFileURL.path
+        let standardized = URL.fromMediaPath(rootPath).mediaPath
         return fileSubfolderStatusByRootPath[rootPath] ?? fileSubfolderStatusByRootPath[standardized] ?? .idle
     }
 
     func fileObjects(for folderPath: String) -> [IndexedContentObject] {
-        let standardized = URL(fileURLWithPath: folderPath).standardizedFileURL.path
+        let standardized = URL.fromMediaPath(folderPath).mediaPath
         return fileObjectsByFolderPath[folderPath] ?? fileObjectsByFolderPath[standardized] ?? []
     }
 
     func fileObjectStatus(for folderPath: String) -> LibraryStatus {
-        let standardized = URL(fileURLWithPath: folderPath).standardizedFileURL.path
+        let standardized = URL.fromMediaPath(folderPath).mediaPath
         return fileObjectStatusByFolderPath[folderPath] ?? fileObjectStatusByFolderPath[standardized] ?? .idle
     }
     @Published var libraryPlaybackHistoryRevision = 0
     @Published var selectedLibraryVideo: LibraryVideo?
     @Published var coverEditingSession: LibraryCoverEditingSession?
     @Published var renameSession: LibraryRenameSession?
+    @Published var webdavDialogSession: WebDAVFolderDialogSession?
     @Published var fileDetailSession: FileDetailDialogSession?
     var libraryPlaybackNavigationVideos: [LibraryVideo] = []
 
