@@ -142,10 +142,14 @@ struct WebDAVSupportTests {
 
         let directCDNLink = "https://cdn.115.com/d/115/NieR-01.mkv?sign=l4QvJnyqwqihygH5hTzM4peyncH3EwU9AgYrYIABcNg=:0"
         let seenAuthHeaders = LockedBox<[String?]>([])
+        let seenUserAgents = LockedBox<[String?]>([])
 
         let client = WebDAVClient(configurationStore: store) { request in
             seenAuthHeaders.withValue {
                 $0.append(request.value(forHTTPHeaderField: "Authorization"))
+            }
+            seenUserAgents.withValue {
+                $0.append(request.value(forHTTPHeaderField: "User-Agent"))
             }
             let response = HTTPURLResponse(
                 url: request.url!,
@@ -162,8 +166,9 @@ struct WebDAVSupportTests {
         let resolved = client.resolvePlayableInput(for: videoURL)
 
         #expect(resolved.inputPath == directCDNLink)
-        #expect(resolved.httpHeaders == nil)
+        #expect(resolved.httpHeaders == "User-Agent: \(WebDAVClient.defaultUserAgent)\r\n")
         #expect(seenAuthHeaders.withValue { $0 } == [config.basicAuthorizationValue])
+        #expect(seenUserAgents.withValue { $0 } == [WebDAVClient.defaultUserAgent])
     }
 
     @Test

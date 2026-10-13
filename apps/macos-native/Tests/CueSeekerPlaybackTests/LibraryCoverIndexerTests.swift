@@ -509,6 +509,23 @@ func recommendedCoverConcurrencyCapsWebDAVToTwoAndLocalToActiveCores() {
 }
 
 @Test
+func playbackRequestAcceptsWebDAVVideoURL() throws {
+    let videoURL = URL.fromMediaPath(
+        "http://192.168.1.173:5244/dav/115/动漫/紫罗兰永恒花园测试版/[subbers] Violet Evergarden - 01.mkv"
+    )
+    let subtitleURL = URL.fromMediaPath(
+        "http://192.168.1.173:5244/dav/115/动漫/紫罗兰永恒花园测试版/[subbers] Violet Evergarden - 01.ass"
+    )
+    let request = try PlaybackRequest(
+        videoURL: videoURL,
+        startMilliseconds: 1200,
+        subtitleSource: PlaybackSubtitleSource(url: subtitleURL, format: .ass)
+    )
+    #expect(request.videoURL == videoURL)
+    #expect(request.subtitleSource?.matchedVideoURL == videoURL.standardizedMediaURL)
+}
+
+@Test
 func singleOpenInProcessCoverSamplingGeneratesMasterAndDisplayCovers() async throws {
     let fixture = try makeAutomaticCoverFixture()
     defer { try? FileManager.default.removeItem(at: fixture.root) }

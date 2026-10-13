@@ -202,12 +202,14 @@ public struct PlaybackRequest: Equatable, Sendable {
         subtitleSource: PlaybackSubtitleSource? = nil,
         audioTrackIndex: Int = 0
     ) throws {
-        guard videoURL.isFileURL else {
+        guard videoURL.isFileURL || videoURL.isWebDAVURL else {
             throw PlaybackError.invalidVideoURL(videoURL.absoluteString)
         }
 
-        guard FileManager.default.fileExists(atPath: videoURL.path) else {
-            throw PlaybackError.missingVideoFile(videoURL.path)
+        if videoURL.isFileURL {
+            guard FileManager.default.fileExists(atPath: videoURL.path) else {
+                throw PlaybackError.missingVideoFile(videoURL.path)
+            }
         }
 
         let safeStartMilliseconds = max(0, startMilliseconds)
@@ -220,7 +222,7 @@ public struct PlaybackRequest: Equatable, Sendable {
             max(safeStartMilliseconds, $0)
         }
         self.subtitleSource = subtitleSource?.fillingPlaybackRequestDefaults(
-            fallbackVideoURL: videoURL.standardizedFileURL,
+            fallbackVideoURL: videoURL.standardizedMediaURL,
             startMilliseconds: safeStartMilliseconds
         )
         self.audioTrackIndex = max(0, audioTrackIndex)

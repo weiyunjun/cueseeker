@@ -84,8 +84,7 @@ public struct WebDAVRootConfig: Codable, Equatable, Sendable {
     }
 
     public var ffmpegHTTPHeaders: String? {
-        guard let auth = basicAuthorizationValue else { return nil }
-        return "Authorization: \(auth)\r\n"
+        WebDAVClient.ffmpegHTTPHeaders(includingAuthorizationFrom: self)
     }
 }
 
@@ -457,7 +456,17 @@ public final class WebDAVSubtitleCache: @unchecked Sendable {
 public final class WebDAVClient: @unchecked Sendable {
     public typealias HTTPHandler = @Sendable (URLRequest) throws -> (Data, HTTPURLResponse)
 
+    public static let defaultUserAgent = "CueSeeker/1.0"
     public static let shared = WebDAVClient()
+
+    public static func ffmpegHTTPHeaders(includingAuthorizationFrom config: WebDAVRootConfig?) -> String {
+        var lines: [String] = []
+        if let auth = config?.basicAuthorizationValue {
+            lines.append("Authorization: \(auth)")
+        }
+        lines.append("User-Agent: \(defaultUserAgent)")
+        return lines.joined(separator: "\r\n") + "\r\n"
+    }
 
     private struct ResolvedCacheEntry {
         let input: WebDAVPlayableInput
@@ -591,12 +600,16 @@ public final class WebDAVClient: @unchecked Sendable {
         var request = URLRequest(url: targetURL)
         request.httpMethod = "GET"
         request.timeoutInterval = 30
-        if let headers = resolved.httpHeaders,
-           headers.lowercased().hasPrefix("authorization:"),
-           let colon = headers.firstIndex(of: ":") {
-            let value = headers[headers.index(after: colon)...]
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            request.setValue(value, forHTTPHeaderField: "Authorization")
+        if let headers = resolved.httpHeaders {
+            for rawLine in headers.components(separatedBy: "\r\n") {
+                let line = rawLine.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !line.isEmpty, let colon = line.firstIndex(of: ":") else { continue }
+                let field = String(line[..<colon]).trimmingCharacters(in: .whitespaces)
+                let value = String(line[line.index(after: colon)...]).trimmingCharacters(in: .whitespaces)
+                if !field.isEmpty && !value.isEmpty {
+                    request.setValue(value, forHTTPHeaderField: field)
+                }
+            }
         }
 
         let (data, response) = try performHTTPRequest(request, followRedirectsWithConfig: config)
@@ -617,7 +630,7 @@ public final class WebDAVClient: @unchecked Sendable {
         }
         return WebDAVPlayableInput(
             url: requestURL.absoluteString,
-            httpHeaders: config?.ffmpegHTTPHeaders
+            httpHeaders: Self.ffmpegHTTPHeaders(includingAuthorizationFrom: config)
         )
     }
 
@@ -640,7 +653,7 @@ public final class WebDAVClient: @unchecked Sendable {
 
         let defaultInput = WebDAVPlayableInput(
             url: requestURL.absoluteString,
-            httpHeaders: config?.ffmpegHTTPHeaders
+            httpHeaders: Self.ffmpegHTTPHeaders(includingAuthorizationFrom: config)
         )
 
         var currentURL = requestURL
@@ -652,6 +665,7 @@ public final class WebDAVClient: @unchecked Sendable {
             request.httpMethod = "GET"
             request.timeoutInterval = 15
             request.setValue("bytes=0-0", forHTTPHeaderField: "Range")
+            request.setValue(Self.defaultUserAgent, forHTTPHeaderField: "User-Agent")
             if includeAuth, let auth = config?.basicAuthorizationValue {
                 request.setValue(auth, forHTTPHeaderField: "Authorization")
             }
@@ -672,7 +686,10 @@ public final class WebDAVClient: @unchecked Sendable {
                let nextURL = URL(string: location, relativeTo: currentURL)?.absoluteURL {
                 let sameOrigin = Self.isSameOrigin(currentURL, nextURL)
                 if !sameOrigin {
-                    let resolved = WebDAVPlayableInput(url: nextURL.absoluteString, httpHeaders: nil)
+                    let resolved = WebDAVPlayableInput(
+                        url: nextURL.absoluteString,
+                        httpHeaders: Self.ffmpegHTTPHeaders(includingAuthorizationFrom: nil)
+                    )
                     cacheResolvedInput(resolved, forKey: cacheKey)
                     return resolved
                 }
@@ -687,7 +704,7 @@ public final class WebDAVClient: @unchecked Sendable {
 
             let resolved = WebDAVPlayableInput(
                 url: currentURL.absoluteString,
-                httpHeaders: includeAuth ? config?.ffmpegHTTPHeaders : nil
+                httpHeaders: Self.ffmpegHTTPHeaders(includingAuthorizationFrom: includeAuth ? config : nil)
             )
             cacheResolvedInput(resolved, forKey: cacheKey)
             return resolved
@@ -947,23 +964,29 @@ public final class WebDAVClient: @unchecked Sendable {
     }
 
     private func performSingleHopRequest(_ request: URLRequest) throws -> (Data, HTTPURLResponse) {
+        var preparedRequest = request
+        if preparedRequest.value(forHTTPHeaderField: "User-Agent") == nil {
+            preparedRequest.setValue(Self.defaultUserAgent, forHTTPHeaderField: "User-Agent")
+        }
+
         lock.lock()
         let handler = customHTTPHandler
         lock.unlock()
 
         if let handler {
-            return try handler(request)
+            return try handler(preparedRequest)
         }
 
         let delegate = NoRedirectSessionDelegate()
         let config = URLSessionConfiguration.ephemeral
-        config.timeoutIntervalForRequest = request.timeoutInterval
-        config.timeoutIntervalForResource = max(request.timeoutInterval, 30)
+        config.timeoutIntervalForRequest = preparedRequest.timeoutInterval
+        config.timeoutIntervalForResource = max(preparedRequest.timeoutInterval, 30)
+        config.httpAdditionalHeaders = ["User-Agent": Self.defaultUserAgent]
         let session = URLSession(configuration: config, delegate: delegate, delegateQueue: nil)
         defer { session.finishTasksAndInvalidate() }
 
         let box = SynchronousHTTPBox()
-        let task = session.dataTask(with: request) { data, response, error in
+        let task = session.dataTask(with: preparedRequest) { data, response, error in
             box.complete(data: data, response: response, error: error)
         }
         task.resume()
