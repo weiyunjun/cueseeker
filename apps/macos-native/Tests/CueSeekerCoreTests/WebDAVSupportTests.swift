@@ -165,6 +165,7 @@ struct WebDAVSupportTests {
         )
         let resolved = client.resolvePlayableInput(for: videoURL)
 
+        #expect(WebDAVClient.defaultUserAgent == "pan.baidu.com")
         #expect(resolved.inputPath == directCDNLink)
         #expect(resolved.httpHeaders == "User-Agent: \(WebDAVClient.defaultUserAgent)\r\n")
         #expect(seenAuthHeaders.withValue { $0 } == [config.basicAuthorizationValue])

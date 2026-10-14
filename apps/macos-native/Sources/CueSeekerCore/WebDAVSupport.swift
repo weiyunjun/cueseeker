@@ -456,7 +456,7 @@ public final class WebDAVSubtitleCache: @unchecked Sendable {
 public final class WebDAVClient: @unchecked Sendable {
     public typealias HTTPHandler = @Sendable (URLRequest) throws -> (Data, HTTPURLResponse)
 
-    public static let defaultUserAgent = "CueSeeker/1.0"
+    public static let defaultUserAgent = "pan.baidu.com"
     public static let shared = WebDAVClient()
 
     public static func ffmpegHTTPHeaders(includingAuthorizationFrom config: WebDAVRootConfig?) -> String {

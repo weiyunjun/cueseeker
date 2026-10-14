@@ -165,7 +165,7 @@ static int SFXOpenMediaInput(
     AVDictionary *options = NULL;
     av_dict_set(&options, "cueseeker_skip_internal_subtitles", "1", 0);
     if (SFXIsHTTPMediaPath(path)) {
-        av_dict_set(&options, "user_agent", "CueSeeker/1.0", 0);
+        av_dict_set(&options, "user_agent", "pan.baidu.com", 0);
         av_dict_set(&options, "reconnect", "1", 0);
         av_dict_set(&options, "reconnect_streamed", "1", 0);
         av_dict_set(&options, "reconnect_delay_max", "5", 0);
