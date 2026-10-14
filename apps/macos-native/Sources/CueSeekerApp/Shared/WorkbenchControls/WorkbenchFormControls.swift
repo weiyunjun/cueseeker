@@ -13,6 +13,7 @@ struct WorkbenchSingleLineTextInput: NSViewRepresentable {
     let accessibilityLabel: String
     var normalizeDraft: ((String) -> String)? = nil
     var onFocusChange: ((Bool) -> Void)? = nil
+    var onEditingEnded: (() -> Void)? = nil
     var onSubmit: (() -> Void)? = nil
 
     @Environment(\.isEnabled) private var isEnabled
@@ -44,7 +45,7 @@ struct WorkbenchSingleLineTextInput: NSViewRepresentable {
                 let selection = editor.selectedRange()
                 nsView.isApplyingProgrammaticText = true
                 editor.string = normalizedText
-                nsView.stringValue = normalizedText
+                nsView.applyTextStyle(to: editor)
                 let length = (normalizedText as NSString).length
                 editor.setSelectedRange(NSRange(
                     location: min(selection.location, length),
@@ -91,6 +92,10 @@ struct WorkbenchSingleLineTextInput: NSViewRepresentable {
         }
 
         func controlTextDidBeginEditing(_ obj: Notification) {
+            if let field = obj.object as? WorkbenchNativeSingleLineTextField,
+               let editor = field.currentEditor() as? NSTextView {
+                field.applyTextStyle(to: editor)
+            }
             setFocus(true)
         }
 
@@ -109,6 +114,14 @@ struct WorkbenchSingleLineTextInput: NSViewRepresentable {
 
         func controlTextDidEndEditing(_ obj: Notification) {
             setFocus(false)
+            parent.onEditingEnded?()
+            if let field = obj.object as? WorkbenchNativeSingleLineTextField {
+                let normalized = field.normalizeFullString(parent.text)
+                if field.stringValue != normalized {
+                    field.stringValue = normalized
+                    field.needsDisplay = true
+                }
+            }
         }
 
         func control(
@@ -120,6 +133,19 @@ struct WorkbenchSingleLineTextInput: NSViewRepresentable {
             case #selector(NSResponder.insertNewline(_:)):
                 if !textView.hasMarkedText() {
                     parent.onSubmit?()
+                    if let field = control as? WorkbenchNativeSingleLineTextField {
+                        let normalized = field.normalizeFullString(parent.text)
+                        if textView.string != normalized {
+                            let selection = textView.selectedRange()
+                            field.isApplyingProgrammaticText = true
+                            textView.string = normalized
+                            field.applyTextStyle(to: textView)
+                            let length = (normalized as NSString).length
+                            let targetLocation = selection.location == 0 ? length : min(selection.location, length)
+                            textView.setSelectedRange(NSRange(location: targetLocation, length: 0))
+                            field.isApplyingProgrammaticText = false
+                        }
+                    }
                 }
                 return true
             case #selector(NSResponder.insertNewlineIgnoringFieldEditor(_:)),
@@ -215,6 +241,7 @@ struct WorkbenchNumberField: View {
     let unit: String?
     let focus: FocusState<Bool>.Binding
     var normalizeDraft: ((String) -> String)? = nil
+    var onEditingEnded: (() -> Void)? = nil
     var onSubmit: (() -> Void)? = nil
 
     @State private var isFocused = false
@@ -236,6 +263,7 @@ struct WorkbenchNumberField: View {
                 accessibilityLabel: placeholder,
                 normalizeDraft: normalizeDraft,
                 onFocusChange: { isFocused = $0 },
+                onEditingEnded: onEditingEnded,
                 onSubmit: onSubmit
             )
 
@@ -557,7 +585,35 @@ final class WorkbenchNativeSingleLineTextField: NSTextField {
         cell?.usesSingleLineMode = true
         cell?.wraps = false
         cell?.isScrollable = true
+        if let editor = currentEditor() as? NSTextView {
+            applyTextStyle(to: editor)
+        }
         needsDisplay = true
+    }
+
+    func applyTextStyle(to editor: NSTextView) {
+        let resolvedFont = font ?? .systemFont(
+            ofSize: WorkbenchControlMetrics.redesignFontSizeControl,
+            weight: .regular
+        )
+        let resolvedColor = textColor ?? .labelColor
+        let paragraphStyle = NSMutableParagraphStyle()
+        paragraphStyle.alignment = alignment
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: resolvedFont,
+            .foregroundColor: resolvedColor,
+            .paragraphStyle: paragraphStyle
+        ]
+        editor.font = resolvedFont
+        editor.textColor = resolvedColor
+        editor.alignment = alignment
+        editor.typingAttributes = attributes
+        if let storage = editor.textStorage, storage.length > 0 {
+            storage.addAttributes(
+                attributes,
+                range: NSRange(location: 0, length: storage.length)
+            )
+        }
     }
 
     func requestFocusIfPossible() {
@@ -589,6 +645,9 @@ final class WorkbenchNativeSingleLineTextField: NSTextField {
     override func becomeFirstResponder() -> Bool {
         let accepted = super.becomeFirstResponder()
         if accepted {
+            if let editor = currentEditor() as? NSTextView {
+                applyTextStyle(to: editor)
+            }
             onFocusChange?(true)
         }
         return accepted
@@ -604,6 +663,11 @@ final class WorkbenchNativeSingleLineTextField: NSTextField {
             return true
         }
         let singleLineInserted = SearchInputNormalizer.singleLine(replacementString)
+        if !replacementString.isEmpty,
+           let normalizeDraft,
+           normalizeDraft(singleLineInserted).isEmpty {
+            return false
+        }
         let currentNSString = textView.string as NSString
         let candidate = currentNSString.replacingCharacters(
             in: affectedCharRange,
@@ -631,6 +695,7 @@ final class WorkbenchNativeSingleLineTextField: NSTextField {
                 in: NSRange(location: 0, length: currentNSString.length),
                 with: normalized
             )
+            applyTextStyle(to: textView)
             textView.setSelectedRange(NSRange(location: cursorLocation, length: 0))
             textView.didChangeText()
         }
@@ -639,6 +704,9 @@ final class WorkbenchNativeSingleLineTextField: NSTextField {
 
     override func textDidBeginEditing(_ notification: Notification) {
         super.textDidBeginEditing(notification)
+        if let editor = currentEditor() as? NSTextView {
+            applyTextStyle(to: editor)
+        }
         onFocusChange?(true)
     }
 
@@ -998,15 +1066,16 @@ private final class WorkbenchNativeSecureTextField: NSSecureTextField {
         typingAttrs[.kern] = WorkbenchSecureTextFieldCell.bulletKern
         if let font {
             typingAttrs[.font] = font
+            editor.font = font
         }
         if let textColor {
             typingAttrs[.foregroundColor] = textColor
+            editor.textColor = textColor
         }
         editor.typingAttributes = typingAttrs
         if let storage = editor.textStorage, storage.length > 0 {
-            storage.addAttribute(
-                .kern,
-                value: WorkbenchSecureTextFieldCell.bulletKern,
+            storage.addAttributes(
+                typingAttrs,
                 range: NSRange(location: 0, length: storage.length)
             )
         }

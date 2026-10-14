@@ -32,10 +32,17 @@ struct SettingsPlayCategory: View {
             SettingsRow(L("settings.play.auto_switch_gap")) {
                 WorkbenchNumberField(
                     placeholder: "\(SettingsStore.autoSwitchCueSequenceGapDefaultMilliseconds)",
-                    text: $gapDraft,
+                    text: Binding(
+                        get: { gapDraft },
+                        set: { newValue in
+                            gapDraft = newValue
+                            applyGapDraftChange(newValue)
+                        }
+                    ),
                     unit: "ms",
                     focus: $isGapFieldFocused,
                     normalizeDraft: Self.normalizeGapDraft,
+                    onEditingEnded: commitGapDraft,
                     onSubmit: commitGapDraft
                 )
                 .frame(width: WorkbenchControlMetrics.redesignSettingsNumberFieldWidth)
@@ -43,6 +50,9 @@ struct SettingsPlayCategory: View {
         }
         .onAppear {
             syncGapDraftFromStore()
+        }
+        .onDisappear {
+            commitGapDraft()
         }
         .onChange(of: gapDraft) { draft in
             applyGapDraftChange(draft)
@@ -61,8 +71,11 @@ struct SettingsPlayCategory: View {
 
     static func normalizeGapDraft(_ draft: String) -> String {
         let numericDraft = draft.filter { $0.isASCII && $0.isNumber }
+        guard !numericDraft.isEmpty else {
+            return ""
+        }
         guard let milliseconds = Int(numericDraft) else {
-            return numericDraft
+            return String(SettingsStore.autoSwitchCueSequenceGapMaximumMilliseconds)
         }
         let clampedMilliseconds = SettingsStore.clampedAutoSwitchCueSequenceGapMilliseconds(milliseconds)
         if milliseconds != clampedMilliseconds {

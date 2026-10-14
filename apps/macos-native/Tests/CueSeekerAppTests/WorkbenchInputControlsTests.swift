@@ -62,9 +62,27 @@ struct WorkbenchInputControlsTests {
                 unit: "ms",
                 focus: $isFocused,
                 normalizeDraft: normalizeDraft,
+                onEditingEnded: onCommit,
                 onSubmit: onCommit
             )
             .frame(width: 114)
+        }
+    }
+
+    private final class SubtitleValueBox: ObservableObject {
+        @Published var size: Double = 55
+        @Published var letterSpacing: Double = 0
+    }
+
+    private struct SubtitleNumberFieldsHarness: View {
+        @ObservedObject var box: SubtitleValueBox
+
+        var body: some View {
+            VStack(spacing: 12) {
+                SettingsSubtitleNumberField(value: $box.size, minimum: 1)
+                SettingsSubtitleNumberField(value: $box.letterSpacing, minimum: 0)
+            }
+            .padding(16)
         }
     }
 
@@ -187,9 +205,19 @@ struct WorkbenchInputControlsTests {
         #expect(box.text == "1234")
         #expect(editor.selectedRange() == NSRange(location: 4, length: 0))
 
-        // Out-of-range immediate clamp (> 10000 -> 10000)
+        // Out-of-range immediate clamp (> 10000 -> 10000), including ultra-long strings with dots
         editor.setSelectedRange(NSRange(location: 0, length: editor.string.utf16.count))
-        editor.insertText("99999", replacementRange: editor.selectedRange())
+        editor.insertText("", replacementRange: editor.selectedRange())
+        #expect(editor.string.isEmpty)
+
+        editor.insertText("2026101420.21.042", replacementRange: editor.selectedRange())
+        #expect(editor.string == "10000")
+        #expect(box.text == "10000")
+        let editorFontAfterNormalize = editor.textStorage?.attribute(.font, at: 0, effectiveRange: nil) as? NSFont
+        #expect(editorFontAfterNormalize?.pointSize == WorkbenchControlMetrics.redesignFontSizeControl)
+
+        // Overflowing >19-digit string also clamps to 10000
+        editor.insertText("2026101420.21.042", replacementRange: NSRange(location: editor.string.utf16.count, length: 0))
         #expect(editor.string == "10000")
         #expect(box.text == "10000")
 
@@ -197,6 +225,88 @@ struct WorkbenchInputControlsTests {
         editor.setSelectedRange(NSRange(location: 2, length: 0))
         editor.doCommand(by: #selector(NSResponder.insertNewline(_:)))
         #expect(editor.selectedRange() == NSRange(location: 2, length: 0))
+    }
+
+    @Test
+    func emptyTextFieldPreservesFontSizeWhenNormalizingMultilineInputAndSubtitleFieldsRestoreOnInvalidInput() throws {
+        _ = NSApplication.shared
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 400, height: 240),
+            styleMask: [.titled, .closable],
+            backing: .buffered,
+            defer: false
+        )
+
+        // 1. Empty form text field receiving "1\n2" preserves 14pt font in active field editor
+        let textBox = StringBox("")
+        let textHosting = NSHostingView(
+            rootView: FormFieldHarness(box: textBox)
+                .frame(width: 400, height: 120)
+        )
+        textHosting.frame = NSRect(x: 0, y: 0, width: 400, height: 120)
+        window.contentView = textHosting
+        textHosting.layoutSubtreeIfNeeded()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.03))
+
+        let textField = try #require(collectEditableTextFields(in: textHosting).first)
+        #expect(window.makeFirstResponder(textField))
+        let textEditor = try #require(textField.currentEditor() as? NSTextView)
+        textEditor.insertText("1\n2", replacementRange: textEditor.selectedRange())
+        #expect(textEditor.string == "1 2")
+        let activeFont = textEditor.textStorage?.attribute(.font, at: 0, effectiveRange: nil) as? NSFont
+        #expect(activeFont?.pointSize == WorkbenchControlMetrics.redesignFontSizeControl)
+
+        // 2. Subtitle number fields disallow '.' and '-', reject purely invalid replacements, and restore on blur/Return
+        let subtitleBox = SubtitleValueBox()
+        let subtitleHosting = NSHostingView(
+            rootView: SubtitleNumberFieldsHarness(box: subtitleBox)
+                .frame(width: 400, height: 200)
+        )
+        subtitleHosting.frame = NSRect(x: 0, y: 0, width: 400, height: 200)
+        window.contentView = subtitleHosting
+        subtitleHosting.layoutSubtreeIfNeeded()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.03))
+
+        let subtitleFields = collectEditableTextFields(in: subtitleHosting)
+        #expect(subtitleFields.count == 2)
+        let sizeField = subtitleFields[0]
+        let letterSpacingField = subtitleFields[1]
+
+        #expect(window.makeFirstResponder(sizeField))
+        let sizeEditor = try #require(sizeField.currentEditor() as? NSTextView)
+        #expect(sizeEditor.string == "55")
+
+        // Selecting all and typing purely invalid characters (".", "-", "abc") does not wipe "55"
+        sizeEditor.setSelectedRange(NSRange(location: 0, length: sizeEditor.string.utf16.count))
+        sizeEditor.insertText(".-abc", replacementRange: sizeEditor.selectedRange())
+        #expect(sizeEditor.string == "55")
+        #expect(subtitleBox.size == 55)
+
+        // Clearing to empty and losing focus to another field restores "55"
+        sizeEditor.setSelectedRange(NSRange(location: 0, length: sizeEditor.string.utf16.count))
+        sizeEditor.insertText("", replacementRange: sizeEditor.selectedRange())
+        #expect(sizeEditor.string.isEmpty)
+        #expect(window.makeFirstResponder(letterSpacingField))
+        RunLoop.main.run(until: Date().addingTimeInterval(0.03))
+        #expect(sizeField.stringValue == "55")
+        #expect(subtitleBox.size == 55)
+
+        // Letter spacing also disallows '-' and '.'
+        let spacingEditor = try #require(letterSpacingField.currentEditor() as? NSTextView)
+        spacingEditor.setSelectedRange(NSRange(location: 0, length: spacingEditor.string.utf16.count))
+        spacingEditor.insertText("-12.5", replacementRange: spacingEditor.selectedRange())
+        #expect(spacingEditor.string == "125")
+        #expect(subtitleBox.letterSpacing == 125)
+
+        // Typing "0" in Size (minimum: 1) and pressing Return clamps to "1"
+        #expect(window.makeFirstResponder(sizeField))
+        let sizeEditorAgain = try #require(sizeField.currentEditor() as? NSTextView)
+        sizeEditorAgain.setSelectedRange(NSRange(location: 0, length: sizeEditorAgain.string.utf16.count))
+        sizeEditorAgain.insertText("0", replacementRange: sizeEditorAgain.selectedRange())
+        #expect(sizeEditorAgain.string == "0")
+        sizeEditorAgain.doCommand(by: #selector(NSResponder.insertNewline(_:)))
+        #expect(sizeEditorAgain.string == "1")
+        #expect(subtitleBox.size == 1)
     }
 
     @Test

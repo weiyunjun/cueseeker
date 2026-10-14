@@ -47,7 +47,7 @@ struct SettingsSubtitleCategory: View {
                     colorWell(\.textColor)
                 }
                 row(L("settings.subtitle.letter_spacing")) {
-                    numberField(\.letterSpacing, minimum: nil)
+                    numberField(\.letterSpacing, minimum: 0)
                 }
                 row(L("settings.subtitle.line_spacing")) {
                     numberField(\.lineSpacing, minimum: 0)
@@ -150,7 +150,7 @@ struct SettingsSubtitleCategory: View {
 
     private func numberField(
         _ keyPath: WritableKeyPath<SRTSubtitleStyle, Double>,
-        minimum: Double?
+        minimum: Double
     ) -> some View {
         SettingsSubtitleNumberField(
             value: Binding(
@@ -227,9 +227,9 @@ struct SettingsSubtitleCategory: View {
 
 /// A number typed as text. A value in range applies as it is typed; leaving
 /// the field or pressing Return brings one out of range to its bound.
-private struct SettingsSubtitleNumberField: View {
+struct SettingsSubtitleNumberField: View {
     @Binding var value: Double
-    let minimum: Double?
+    let minimum: Double
 
     @State private var draft = ""
     @FocusState private var isFocused: Bool
@@ -237,15 +237,25 @@ private struct SettingsSubtitleNumberField: View {
     var body: some View {
         WorkbenchNumberField(
             placeholder: "",
-            text: $draft,
+            text: Binding(
+                get: { draft },
+                set: { newValue in
+                    draft = newValue
+                    applyDraft(newValue)
+                }
+            ),
             unit: nil,
             focus: $isFocused,
-            normalizeDraft: { Self.filterDraft($0, minimum: minimum) },
+            normalizeDraft: Self.filterDraft,
+            onEditingEnded: commitDraft,
             onSubmit: commitDraft
         )
         .frame(width: WorkbenchControlMetrics.redesignSettingsNumberFieldWidth)
         .onAppear {
             draft = Self.text(for: value)
+        }
+        .onDisappear {
+            commitDraft()
         }
         .onChange(of: draft) { draft in
             applyDraft(draft)
@@ -265,33 +275,30 @@ private struct SettingsSubtitleNumberField: View {
         }
     }
 
-    static func filterDraft(_ draft: String, minimum: Double?) -> String {
-        draft.filter {
-            ($0.isASCII && $0.isNumber) || $0 == "." || ($0 == "-" && minimum == nil)
-        }
+    static func filterDraft(_ draft: String) -> String {
+        draft.filter { $0.isASCII && $0.isNumber }
     }
 
     private func applyDraft(_ draft: String) {
-        let allowed = Self.filterDraft(draft, minimum: minimum)
+        let allowed = Self.filterDraft(draft)
         guard allowed == draft else {
             self.draft = allowed
             return
         }
-        guard let number = Double(draft),
-              number.isFinite,
-              number >= (minimum ?? -.infinity)
+        guard let number = Int(draft),
+              Double(number) >= minimum
         else {
             return
         }
-        value = number
+        value = Double(number)
     }
 
     private func commitDraft() {
-        guard let number = Double(draft), number.isFinite else {
+        guard let number = Int(draft) else {
             draft = Self.text(for: value)
             return
         }
-        value = max(number, minimum ?? -.infinity)
+        value = max(Double(number), minimum)
         draft = Self.text(for: value)
     }
 
