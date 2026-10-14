@@ -42,11 +42,9 @@ struct WorkbenchFileView: View {
             }
         }
         .background(WorkbenchRedesignColors.bgSurface)
-        .onChange(of: routeState.currentRoute) { newRoute in
+        .onChange(of: routeState.currentRoute) { _ in
             dismissMenu()
-            if newRoute != .file {
-                indexing.clearTransientNotice()
-            } else if !indexing.isDatabaseOperationActive {
+            if !indexing.isDatabaseOperationActive {
                 indexing.clearTransientNotice()
             }
         }
@@ -63,8 +61,13 @@ struct WorkbenchFileView: View {
         GeometryReader { geometry in
             WorkbenchScrollView([.vertical, .horizontal]) {
                 VStack(alignment: .leading, spacing: 0) {
-                    breadcrumbRow
+                    statusAndActionRow
                         .padding(.bottom, WorkbenchControlMetrics.redesignSpacing4)
+
+                    if !breadcrumbNodes.isEmpty {
+                        breadcrumbRow
+                            .padding(.bottom, WorkbenchControlMetrics.redesignSpacing3)
+                    }
 
                     content()
                 }
@@ -207,20 +210,15 @@ struct WorkbenchFileView: View {
     // MARK: - Level 1: Roots
 
     private var rootContent: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            statusAndActionRow
-                .padding(.bottom, WorkbenchControlMetrics.redesignSpacing4)
-
-            folderRegion
-        }
-        .onAppear {
-            if !indexing.isDatabaseOperationActive {
+        folderRegion
+            .onAppear {
+                if !indexing.isDatabaseOperationActive {
+                    indexing.clearTransientNotice()
+                }
+            }
+            .onDisappear {
                 indexing.clearTransientNotice()
             }
-        }
-        .onDisappear {
-            indexing.clearTransientNotice()
-        }
     }
 
     /// Only one library task exists at a time, so every control that would
@@ -299,7 +297,13 @@ struct WorkbenchFileView: View {
 
     @ViewBuilder
     private var folderRegion: some View {
-        if indexing.selectedFolders.isEmpty {
+        let groups = FileFolderGroupingResolver.rootGroups(
+            for: indexing.selectedFolders,
+            localTitle: L("file.add_folder.local"),
+            webdavTitle: L("file.add_folder.webdav")
+        )
+
+        if groups.isEmpty {
             EmptyStateView(
                 title: L("settings.library.empty_title"),
                 icon: .folder,
@@ -307,70 +311,97 @@ struct WorkbenchFileView: View {
             )
             .frame(maxWidth: .infinity, alignment: .top)
         } else {
-            LazyVStack(spacing: WorkbenchControlMetrics.redesignSpacing3) {
-                ForEach(indexing.selectedFolders, id: \.self) { folder in
-                    let rootPath = folder.mediaPath
-                    let title = IndexingStore.displayName(for: folder)
-                    let subtitle = folder.isWebDAVURL
-                        ? (WebDAVConfigurationStore.shared.config(for: folder)?.address ?? rootPath)
-                        : folder.path
-                    let items = [
-                        FileCardMenuItem(
-                            title: L("rename.folder"),
-                            icon: .pencilSimple,
-                            isEnabled: !isFolderOperationBlocked && !folder.isWebDAVURL,
-                            isDestructive: false,
-                            action: {
-                                appState.requestRootFolderRename(folder)
-                            }
-                        ),
-                        FileCardMenuItem(
-                            title: L("common.remove"),
-                            icon: .minusCircle,
-                            isEnabled: !isFolderOperationBlocked,
-                            isDestructive: true,
-                            action: {
-                                requestRemoval(of: folder)
-                            }
-                        )
-                    ]
+            VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing6) {
+                ForEach(groups) { group in
+                    VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing3) {
+                        Text(group.title)
+                            .font(.system(
+                                size: WorkbenchControlMetrics.redesignFontSizeBody,
+                                weight: .semibold
+                            ))
+                            .foregroundStyle(WorkbenchRedesignColors.textPrimary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
 
-                    WorkbenchFileCard(
-                        icon: .folder,
-                        title: title,
-                        subtitle: subtitle,
-                        onTap: {
-                            appState.loadFileSubfolders(rootPath: rootPath)
-                            appState.workbenchLayout.navigate(
-                                to: .fileFolder(rootPath: rootPath)
-                            )
-                        },
-                        menuItems: items,
-                        isMenuOpen: activeMenu?.cardID == rootPath,
-                        onOpenMenu: { anchorFrame in
-                            toggleMenu(for: rootPath, anchorFrame: anchorFrame, items: items)
+                        LazyVStack(spacing: WorkbenchControlMetrics.redesignSpacing3) {
+                            ForEach(group.folders, id: \.self) { folder in
+                                let rootPath = folder.mediaPath
+                                let title = IndexingStore.displayName(for: folder)
+                                let subtitle = folder.isWebDAVURL
+                                    ? (WebDAVConfigurationStore.shared.config(for: folder)?.address ?? rootPath)
+                                    : folder.path
+                                let items = [
+                                    FileCardMenuItem(
+                                        title: L("rename.folder"),
+                                        icon: .pencilSimple,
+                                        isEnabled: !isFolderOperationBlocked && !folder.isWebDAVURL,
+                                        isDestructive: false,
+                                        action: {
+                                            appState.requestRootFolderRename(folder)
+                                        }
+                                    ),
+                                    FileCardMenuItem(
+                                        title: L("common.remove"),
+                                        icon: .minusCircle,
+                                        isEnabled: !isFolderOperationBlocked,
+                                        isDestructive: true,
+                                        action: {
+                                            requestRemoval(of: folder)
+                                        }
+                                    )
+                                ]
+
+                                WorkbenchFileCard(
+                                    icon: .folder,
+                                    title: title,
+                                    subtitle: subtitle,
+                                    showsChevron: true,
+                                    onTap: {
+                                        appState.loadFileSubfolders(rootPath: rootPath)
+                                        appState.workbenchLayout.navigate(
+                                            to: .fileFolder(rootPath: rootPath)
+                                        )
+                                    },
+                                    menuItems: items,
+                                    isMenuOpen: activeMenu?.cardID == rootPath,
+                                    onOpenMenu: { anchorFrame in
+                                        toggleMenu(for: rootPath, anchorFrame: anchorFrame, items: items)
+                                    }
+                                )
+                            }
                         }
-                    )
+                        .frame(maxWidth: .infinity, alignment: .topLeading)
+                    }
                 }
             }
             .frame(maxWidth: .infinity, alignment: .topLeading)
         }
     }
 
-    // MARK: - Level 2: Subfolders
+    // MARK: - Level 2: Subfolders & Direct Content
 
     @ViewBuilder
     private func subfolderContent(rootPath: String) -> some View {
-        let folders = library.fileSubfolders(for: rootPath)
-        let status = library.fileSubfolderStatus(for: rootPath)
-        let rootName = IndexingStore.displayName(for: URL.fromMediaPath(rootPath))
+        let allFolders = library.fileSubfolders(for: rootPath)
+        let directObjects = library.fileObjects(for: rootPath)
+        let partition = FileFolderGroupingResolver.level2Partition(
+            folders: allFolders,
+            objects: directObjects,
+            rootPath: rootPath
+        )
+        let subfolderStatus = library.fileSubfolderStatus(for: rootPath)
+        let directObjectStatus = library.fileObjectStatus(for: rootPath)
+        let isLoading: Bool = {
+            if case .loading = subfolderStatus { return true }
+            if case .loading = directObjectStatus { return true }
+            return false
+        }()
 
         Group {
             if appState.isWorkbenchRouteUnknown(.fileFolder(rootPath: rootPath)) {
                 WorkbenchEmptyHint(message: L("library.folder.not_found"))
                     .frame(maxWidth: .infinity, alignment: .top)
-            } else if folders.isEmpty {
-                if case .loading = status {
+            } else if partition.subfolders.isEmpty && partition.directEpisodeGroups.isEmpty {
+                if isLoading {
                     WorkbenchSpinner(size: 18)
                         .frame(maxWidth: .infinity, minHeight: 120, alignment: .center)
                 } else {
@@ -378,39 +409,49 @@ struct WorkbenchFileView: View {
                         .frame(maxWidth: .infinity, alignment: .top)
                 }
             } else {
-                LazyVStack(spacing: WorkbenchControlMetrics.redesignSpacing3) {
-                    ForEach(folders) { folder in
-                        let isDirectContent = folder.relativePath.isEmpty || folder.folderPath == rootPath
-                        let title = isDirectContent
-                            ? (rootName + L("file.direct_content_suffix"))
-                            : URL.fromMediaPath(folder.folderPath).lastPathComponent
-                        let items = [
-                            FileCardMenuItem(
-                                title: L("rename.folder"),
-                                icon: .pencilSimple,
-                                isEnabled: !isFolderOperationBlocked && !folder.folderPath.isWebDAVPath,
-                                isDestructive: false,
-                                action: {
-                                    appState.requestFolderRename(folder)
-                                }
-                            )
-                        ]
+                VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing6) {
+                    if !partition.subfolders.isEmpty {
+                        LazyVStack(spacing: WorkbenchControlMetrics.redesignSpacing3) {
+                            ForEach(partition.subfolders) { folder in
+                                let title = URL.fromMediaPath(folder.folderPath).lastPathComponent
+                                let items = [
+                                    FileCardMenuItem(
+                                        title: L("rename.folder"),
+                                        icon: .pencilSimple,
+                                        isEnabled: !isFolderOperationBlocked && !folder.folderPath.isWebDAVPath,
+                                        isDestructive: false,
+                                        action: {
+                                            appState.requestFolderRename(folder)
+                                        }
+                                    )
+                                ]
 
-                        WorkbenchFileCard(
-                            icon: .folder,
-                            title: title,
-                            subtitle: folder.folderPath,
-                            onTap: {
-                                appState.loadFileObjects(folderPath: folder.folderPath)
-                                appState.workbenchLayout.navigate(
-                                    to: .fileFiles(rootPath: rootPath, folderPath: folder.folderPath)
+                                WorkbenchFileCard(
+                                    icon: .folder,
+                                    title: title,
+                                    subtitle: folder.folderPath,
+                                    showsChevron: true,
+                                    onTap: {
+                                        appState.loadFileObjects(folderPath: folder.folderPath)
+                                        appState.workbenchLayout.navigate(
+                                            to: .fileFiles(rootPath: rootPath, folderPath: folder.folderPath)
+                                        )
+                                    },
+                                    menuItems: items,
+                                    isMenuOpen: activeMenu?.cardID == folder.folderPath,
+                                    onOpenMenu: { anchorFrame in
+                                        toggleMenu(for: folder.folderPath, anchorFrame: anchorFrame, items: items)
+                                    }
                                 )
-                            },
-                            menuItems: items,
-                            isMenuOpen: activeMenu?.cardID == folder.folderPath,
-                            onOpenMenu: { anchorFrame in
-                                toggleMenu(for: folder.folderPath, anchorFrame: anchorFrame, items: items)
                             }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .topLeading)
+                    }
+
+                    if !partition.directEpisodeGroups.isEmpty {
+                        episodeGroupsList(
+                            objects: partition.directEpisodeGroups,
+                            folderPath: rootPath
                         )
                     }
                 }
@@ -427,16 +468,14 @@ struct WorkbenchFileView: View {
     @ViewBuilder
     private func filesContent(rootPath: String, folderPath: String) -> some View {
         let objects = library.fileObjects(for: folderPath)
+        let episodeGroups = FileFolderGroupingResolver.displayableEpisodeGroups(from: objects)
         let status = library.fileObjectStatus(for: folderPath)
-        let displayableItemsCount = objects.reduce(0) { count, object in
-            count + (object.videoPath.isEmpty ? 0 : 1) + object.subtitles.count
-        }
 
         Group {
             if appState.isWorkbenchRouteUnknown(.fileFiles(rootPath: rootPath, folderPath: folderPath)) {
                 WorkbenchEmptyHint(message: L("library.folder.not_found"))
                     .frame(maxWidth: .infinity, alignment: .top)
-            } else if displayableItemsCount == 0 {
+            } else if episodeGroups.isEmpty {
                 if case .loading = status {
                     WorkbenchSpinner(size: 18)
                         .frame(maxWidth: .infinity, minHeight: 120, alignment: .center)
@@ -445,8 +484,33 @@ struct WorkbenchFileView: View {
                         .frame(maxWidth: .infinity, alignment: .top)
                 }
             } else {
-                LazyVStack(spacing: WorkbenchControlMetrics.redesignSpacing3) {
-                    ForEach(objects) { object in
+                episodeGroupsList(objects: episodeGroups, folderPath: folderPath)
+            }
+        }
+        .task(id: "\(folderPath)|\(library.fileTreeRevision)") {
+            appState.hydrateFileObjectsAsync(folderPath: folderPath)
+        }
+    }
+
+    // MARK: - Episode Groups (Display Title + Gray Rounded Container)
+
+    private func episodeGroupsList(
+        objects: [IndexedContentObject],
+        folderPath: String
+    ) -> some View {
+        LazyVStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing4) {
+            ForEach(objects) { object in
+                VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing2) {
+                    Text(object.displayTitle)
+                        .font(.system(
+                            size: WorkbenchControlMetrics.redesignFontSizeBody,
+                            weight: WorkbenchControlMetrics.redesignFontWeightControl
+                        ))
+                        .foregroundStyle(WorkbenchRedesignColors.textMuted)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+
+                    VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing3) {
                         if !object.videoPath.isEmpty {
                             let videoItems = [
                                 FileCardMenuItem(
@@ -473,6 +537,7 @@ struct WorkbenchFileView: View {
                                 icon: .video,
                                 title: object.videoName,
                                 subtitle: FileSizeFormatter.format(bytes: object.fileSize),
+                                showsChevron: false,
                                 onTap: nil,
                                 menuItems: videoItems,
                                 isMenuOpen: activeMenu?.cardID == object.videoPath,
@@ -508,6 +573,7 @@ struct WorkbenchFileView: View {
                                 icon: .subtitles,
                                 title: subtitle.name,
                                 subtitle: FileSizeFormatter.format(bytes: subtitle.fileSize),
+                                showsChevron: false,
                                 onTap: nil,
                                 menuItems: subtitleItems,
                                 isMenuOpen: activeMenu?.cardID == subtitle.path,
@@ -517,13 +583,29 @@ struct WorkbenchFileView: View {
                             )
                         }
                     }
+                    .padding(WorkbenchControlMetrics.redesignSpacing4)
+                    .frame(maxWidth: .infinity, alignment: .topLeading)
+                    .background(
+                        RoundedRectangle(
+                            cornerRadius: WorkbenchControlMetrics.redesignSettingsGroupRadius,
+                            style: .continuous
+                        )
+                        .fill(WorkbenchRedesignColors.settingsGroupBg)
+                    )
+                    .overlay(
+                        RoundedRectangle(
+                            cornerRadius: WorkbenchControlMetrics.redesignSettingsGroupRadius,
+                            style: .continuous
+                        )
+                        .strokeBorder(
+                            WorkbenchRedesignColors.borderDivider,
+                            lineWidth: WorkbenchControlMetrics.redesignControlBorderWidth
+                        )
+                    )
                 }
-                .frame(maxWidth: .infinity, alignment: .topLeading)
             }
         }
-        .task(id: "\(folderPath)|\(library.fileTreeRevision)") {
-            appState.hydrateFileObjectsAsync(folderPath: folderPath)
-        }
+        .frame(maxWidth: .infinity, alignment: .topLeading)
     }
 
     // MARK: - Removal & Selection
@@ -582,8 +664,8 @@ struct WorkbenchFileView: View {
     private var breadcrumbNodes: [FileBreadcrumbNode] {
         FileBreadcrumbResolver.nodes(
             for: routeState.currentRoute,
-            homeTitle: L("file.breadcrumb.home"),
-            directContentSuffix: L("file.direct_content_suffix")
+            localFolderTitle: L("file.add_folder.local"),
+            webdavFolderTitle: L("file.add_folder.webdav")
         )
     }
 
@@ -701,6 +783,7 @@ private struct WorkbenchFileCard: View {
     let icon: AppIcon
     let title: String
     let subtitle: String
+    let showsChevron: Bool
     let onTap: (() -> Void)?
     let menuItems: [FileCardMenuItem]
     let isMenuOpen: Bool
@@ -734,22 +817,39 @@ private struct WorkbenchFileCard: View {
 
             Spacer(minLength: 0)
 
-            GeometryReader { buttonProxy in
-                WorkbenchIconButton(
-                    icon: .dotsThree,
-                    isRedesign: true,
-                    isOpen: isMenuOpen,
-                    hoverBackground: WorkbenchRedesignColors.rowSelected,
-                    action: {
-                        let frame = buttonProxy.frame(in: .named(WorkbenchFileView.fileCardCoordinateSpaceName))
-                        onOpenMenu(frame)
-                    }
+            HStack(alignment: .center, spacing: WorkbenchControlMetrics.redesignSpacing2) {
+                GeometryReader { buttonProxy in
+                    WorkbenchIconButton(
+                        icon: .dotsThree,
+                        isRedesign: true,
+                        isOpen: isMenuOpen,
+                        hoverBackground: WorkbenchRedesignColors.rowSelected,
+                        action: {
+                            let frame = buttonProxy.frame(in: .named(WorkbenchFileView.fileCardCoordinateSpaceName))
+                            onOpenMenu(frame)
+                        }
+                    )
+                }
+                .frame(
+                    width: WorkbenchControlMetrics.redesignIconButtonSize,
+                    height: WorkbenchControlMetrics.redesignIconButtonSize
                 )
+                .opacity(isHovered || isMenuOpen ? 1 : 0)
+                .allowsHitTesting(isHovered || isMenuOpen)
+
+                if showsChevron {
+                    AppIconImage(
+                        .caretRight,
+                        size: WorkbenchControlMetrics.redesignCardChevronSize
+                    )
+                    .foregroundStyle(WorkbenchRedesignColors.textMuted)
+                    .frame(
+                        width: WorkbenchControlMetrics.redesignCardChevronSize,
+                        height: WorkbenchControlMetrics.redesignIconButtonSize
+                    )
+                    .allowsHitTesting(false)
+                }
             }
-            .frame(
-                width: WorkbenchControlMetrics.redesignIconButtonSize,
-                height: WorkbenchControlMetrics.redesignIconButtonSize
-            )
             .padding(.top, WorkbenchControlMetrics.redesignCardTrailingIconButtonTopOffset)
         }
         .padding(WorkbenchControlMetrics.redesignSpacing4)
@@ -786,6 +886,71 @@ private struct WorkbenchFileCard: View {
     }
 }
 
+struct FileRootGroup: Identifiable, Equatable {
+    enum Kind: String, Equatable, Sendable {
+        case local
+        case webdav
+    }
+
+    let kind: Kind
+    let title: String
+    let folders: [URL]
+
+    var id: String { kind.rawValue }
+}
+
+enum FileFolderGroupingResolver {
+    static func rootGroups(
+        for selectedFolders: [URL],
+        localTitle: String,
+        webdavTitle: String
+    ) -> [FileRootGroup] {
+        let localFolders = selectedFolders.filter { !$0.isWebDAVURL }
+        let webdavFolders = selectedFolders.filter { $0.isWebDAVURL }
+
+        var groups: [FileRootGroup] = []
+        if !localFolders.isEmpty {
+            groups.append(
+                FileRootGroup(
+                    kind: .local,
+                    title: localTitle,
+                    folders: localFolders
+                )
+            )
+        }
+        if !webdavFolders.isEmpty {
+            groups.append(
+                FileRootGroup(
+                    kind: .webdav,
+                    title: webdavTitle,
+                    folders: webdavFolders
+                )
+            )
+        }
+        return groups
+    }
+
+    static func level2Partition(
+        folders: [IndexedContentFolder],
+        objects: [IndexedContentObject],
+        rootPath: String
+    ) -> (subfolders: [IndexedContentFolder], directEpisodeGroups: [IndexedContentObject]) {
+        let standardizedRoot = URL.fromMediaPath(rootPath).mediaPath
+        let subfolders = folders.filter { folder in
+            !folder.relativePath.isEmpty
+                && URL.fromMediaPath(folder.folderPath).mediaPath != standardizedRoot
+        }
+        let directEpisodeGroups = displayableEpisodeGroups(from: objects)
+        return (subfolders: subfolders, directEpisodeGroups: directEpisodeGroups)
+    }
+
+    static func displayableEpisodeGroups(
+        from objects: [IndexedContentObject]
+    ) -> [IndexedContentObject] {
+        objects.filter { !$0.videoPath.isEmpty || !$0.subtitles.isEmpty }
+    }
+}
+
 struct FileBreadcrumbNode: Identifiable, Equatable, Sendable {
     let id: String
     let title: String
@@ -795,46 +960,50 @@ struct FileBreadcrumbNode: Identifiable, Equatable, Sendable {
 enum FileBreadcrumbResolver {
     static func nodes(
         for route: WorkbenchRoute,
-        homeTitle: String,
-        directContentSuffix: String
+        localFolderTitle: String,
+        webdavFolderTitle: String
     ) -> [FileBreadcrumbNode] {
-        let homeNode = FileBreadcrumbNode(
-            id: "home",
-            title: homeTitle,
-            destination: route == .file ? nil : .file
-        )
-
         switch route {
         case .fileFolder(let rootPath):
-            let rootName = IndexingStore.displayName(for: URL.fromMediaPath(rootPath))
+            let rootURL = URL.fromMediaPath(rootPath)
+            let typeTitle = rootURL.isWebDAVURL ? webdavFolderTitle : localFolderTitle
+            let typeNode = FileBreadcrumbNode(
+                id: "type",
+                title: typeTitle,
+                destination: .file
+            )
+            let rootName = IndexingStore.displayName(for: rootURL)
             let rootNode = FileBreadcrumbNode(
                 id: "root",
                 title: rootName,
                 destination: nil
             )
-            return [homeNode, rootNode]
+            return [typeNode, rootNode]
 
         case .fileFiles(let rootPath, let folderPath):
-            let rootName = IndexingStore.displayName(for: URL.fromMediaPath(rootPath))
+            let rootURL = URL.fromMediaPath(rootPath)
+            let typeTitle = rootURL.isWebDAVURL ? webdavFolderTitle : localFolderTitle
+            let typeNode = FileBreadcrumbNode(
+                id: "type",
+                title: typeTitle,
+                destination: .file
+            )
+            let rootName = IndexingStore.displayName(for: rootURL)
             let rootNode = FileBreadcrumbNode(
                 id: "root",
                 title: rootName,
                 destination: .fileFolder(rootPath: rootPath)
             )
-
-            let isDirectContent = folderPath == rootPath || folderPath.isEmpty
-            let folderName = isDirectContent
-                ? (rootName + directContentSuffix)
-                : URL.fromMediaPath(folderPath).lastPathComponent
+            let folderName = URL.fromMediaPath(folderPath).lastPathComponent
             let folderNode = FileBreadcrumbNode(
                 id: "folder",
                 title: folderName,
                 destination: nil
             )
-            return [homeNode, rootNode, folderNode]
+            return [typeNode, rootNode, folderNode]
 
         default:
-            return [homeNode]
+            return []
         }
     }
 }

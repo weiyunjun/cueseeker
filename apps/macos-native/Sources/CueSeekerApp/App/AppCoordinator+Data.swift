@@ -56,26 +56,25 @@ extension AppCoordinator {
         }
     }
 
-    /// Loads subfolders under a specific root folder on demand.
+    /// Loads subfolders and root-level direct content objects under a specific root folder on demand.
     func loadFileSubfolders(rootPath: String) {
         let standardized = URL.fromMediaPath(rootPath).mediaPath
         guard let database = indexedContentDatabase else {
             library.fileSubfolderStatusByRootPath[standardized] = .failed(L("status.database_not_initialized"))
             return
         }
-        guard library.fileSubfoldersByRootPath[standardized] == nil else {
-            return
+        if library.fileSubfoldersByRootPath[standardized] == nil {
+            let rootURL = URL.fromMediaPath(standardized)
+            do {
+                let subfolders = try database.subfolders(under: rootURL)
+                library.fileSubfoldersByRootPath[standardized] = subfolders
+                library.fileSubfolderStatusByRootPath[standardized] = .completed
+            } catch {
+                library.fileSubfoldersByRootPath[standardized] = []
+                library.fileSubfolderStatusByRootPath[standardized] = .failed(Self.errorMessage(for: error))
+            }
         }
-
-        let rootURL = URL.fromMediaPath(standardized)
-        do {
-            let subfolders = try database.subfolders(under: rootURL)
-            library.fileSubfoldersByRootPath[standardized] = subfolders
-            library.fileSubfolderStatusByRootPath[standardized] = .completed
-        } catch {
-            library.fileSubfoldersByRootPath[standardized] = []
-            library.fileSubfolderStatusByRootPath[standardized] = .failed(Self.errorMessage(for: error))
-        }
+        loadFileObjects(folderPath: standardized)
     }
 
     /// Loads objects (videos and subtitles) in a specific folder on demand.

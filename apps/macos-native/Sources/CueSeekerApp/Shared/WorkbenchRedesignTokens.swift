@@ -65,7 +65,7 @@ enum WorkbenchRedesignColors {
         static let bgControl = NSColor.dynamic(lightHex: "#FFFFFF", darkHex: "#FFFFFF", darkAlpha: 0.08)
         static let bgDialog = NSColor.dynamic(lightHex: "#FFFFFF", darkHex: "#1C1C1F")
         static let bgPopover = NSColor.dynamic(lightHex: "#FFFFFF", darkHex: "#36363B")
-        static let tableBg = NSColor.dynamic(lightHex: "#FFFFFF", darkHex: "#26262A")
+        static let tableBg = NSColor.dynamic(lightHex: "#FFFFFF", darkHex: "#2E2E34")
         static let appSidebarBg = NSColor.dynamic(lightHex: "#F6F7F9", darkHex: "#111113")
         static let appSidebarItemSelectedBg = NSColor.controlAccentColor
         static let appSidebarItemSelectedContent = iconOnDark
@@ -110,8 +110,8 @@ enum WorkbenchRedesignColors {
         static let focusRing = NSColor.controlAccent(lightAlpha: 0.22, darkAlpha: 0.30)
 
         // Table Row
-        static let rowHover = NSColor.dynamic(lightHex: "#F9FAFB", darkHex: "#2E2E33")
-        static let rowSelected = NSColor.dynamic(lightHex: "#F3F4F6", darkHex: "#36363C")
+        static let rowHover = NSColor.dynamic(lightHex: "#F9FAFB", darkHex: "#383840")
+        static let rowSelected = NSColor.dynamic(lightHex: "#ECEEF2", darkHex: "#43434C")
 
         // Checkbox
         // A monochrome glyph: the outline circle unchecked, the filled circle
@@ -133,7 +133,7 @@ enum WorkbenchRedesignColors {
         static let warningText = NSColor.dynamic(lightHex: "#B45309", darkHex: "#FCD34D")
 
         // Settings Group
-        static let settingsGroupBg = NSColor.dynamic(lightHex: "#F6F7F9", darkHex: "#26262A")
+        static let settingsGroupBg = NSColor.dynamic(lightHex: "#F2F4F7", darkHex: "#242429")
 
         // Scrollbar
         static let scrollbarThumbDefault = NSColor.dynamic(lightHex: "#CBD5E1", darkHex: "#52525B")

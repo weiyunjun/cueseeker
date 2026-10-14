@@ -92,63 +92,147 @@ struct FileRouteNavigationTests {
 
     @Test
     func fileBreadcrumbResolution() {
-        let homeTitle = "Home"
-        let directSuffix = " (Direct Content)"
+        let localTitle = "Local Folder"
+        let webdavTitle = "WebDAV Folder"
 
-        // 1. Level 1: Home
+        // 1. Level 1: No breadcrumb nodes (group headers are rendered directly in Level 1)
         let level1Nodes = FileBreadcrumbResolver.nodes(
             for: .file,
-            homeTitle: homeTitle,
-            directContentSuffix: directSuffix
+            localFolderTitle: localTitle,
+            webdavFolderTitle: webdavTitle
         )
-        #expect(level1Nodes.count == 1)
-        #expect(level1Nodes[0].id == "home")
-        #expect(level1Nodes[0].title == "Home")
-        #expect(level1Nodes[0].destination == nil)
+        #expect(level1Nodes.isEmpty)
 
-        // 2. Level 2: Home > Anime
-        let rootPath = "/Volumes/Media/Anime"
-        let level2Nodes = FileBreadcrumbResolver.nodes(
-            for: .fileFolder(rootPath: rootPath),
-            homeTitle: homeTitle,
-            directContentSuffix: directSuffix
+        // 2. Level 2 (Local): Local Folder > Anime
+        let localRootPath = "/Volumes/Media/Anime"
+        let level2LocalNodes = FileBreadcrumbResolver.nodes(
+            for: .fileFolder(rootPath: localRootPath),
+            localFolderTitle: localTitle,
+            webdavFolderTitle: webdavTitle
         )
-        #expect(level2Nodes.count == 2)
-        #expect(level2Nodes[0].id == "home")
-        #expect(level2Nodes[0].title == "Home")
-        #expect(level2Nodes[0].destination == .file)
-        #expect(level2Nodes[1].id == "root")
-        #expect(level2Nodes[1].title == "Anime")
-        #expect(level2Nodes[1].destination == nil)
+        #expect(level2LocalNodes.count == 2)
+        #expect(level2LocalNodes[0].id == "type")
+        #expect(level2LocalNodes[0].title == "Local Folder")
+        #expect(level2LocalNodes[0].destination == .file)
+        #expect(level2LocalNodes[1].id == "root")
+        #expect(level2LocalNodes[1].title == "Anime")
+        #expect(level2LocalNodes[1].destination == nil)
 
-        // 3. Level 3: Home > Anime > SeriesA
+        // 3. Level 2 (WebDAV): WebDAV Folder > MyCloud
+        let webdavRootPath = "https://dav.example.com/dav/MyCloud"
+        let level2WebDAVNodes = FileBreadcrumbResolver.nodes(
+            for: .fileFolder(rootPath: webdavRootPath),
+            localFolderTitle: localTitle,
+            webdavFolderTitle: webdavTitle
+        )
+        #expect(level2WebDAVNodes.count == 2)
+        #expect(level2WebDAVNodes[0].id == "type")
+        #expect(level2WebDAVNodes[0].title == "WebDAV Folder")
+        #expect(level2WebDAVNodes[0].destination == .file)
+        #expect(level2WebDAVNodes[1].id == "root")
+        #expect(level2WebDAVNodes[1].title == "MyCloud")
+        #expect(level2WebDAVNodes[1].destination == nil)
+
+        // 4. Level 3: Local Folder > Anime > SeriesA
         let folderPath = "/Volumes/Media/Anime/SeriesA"
         let level3Nodes = FileBreadcrumbResolver.nodes(
-            for: .fileFiles(rootPath: rootPath, folderPath: folderPath),
-            homeTitle: homeTitle,
-            directContentSuffix: directSuffix
+            for: .fileFiles(rootPath: localRootPath, folderPath: folderPath),
+            localFolderTitle: localTitle,
+            webdavFolderTitle: webdavTitle
         )
         #expect(level3Nodes.count == 3)
-        #expect(level3Nodes[0].id == "home")
-        #expect(level3Nodes[0].title == "Home")
+        #expect(level3Nodes[0].id == "type")
+        #expect(level3Nodes[0].title == "Local Folder")
         #expect(level3Nodes[0].destination == .file)
         #expect(level3Nodes[1].id == "root")
         #expect(level3Nodes[1].title == "Anime")
-        #expect(level3Nodes[1].destination == .fileFolder(rootPath: rootPath))
+        #expect(level3Nodes[1].destination == .fileFolder(rootPath: localRootPath))
         #expect(level3Nodes[2].id == "folder")
         #expect(level3Nodes[2].title == "SeriesA")
         #expect(level3Nodes[2].destination == nil)
+    }
 
-        // 4. Level 3 Direct Content: Home > Anime > Anime (Direct Content)
-        let directContentNodes = FileBreadcrumbResolver.nodes(
-            for: .fileFiles(rootPath: rootPath, folderPath: rootPath),
-            homeTitle: homeTitle,
-            directContentSuffix: directSuffix
+    @Test
+    func fileFolderGroupingAndDirectContentUnwrapping() {
+        let localTitle = "Local Folder"
+        let webdavTitle = "WebDAV Folder"
+        let localURL1 = URL(fileURLWithPath: "/Volumes/Media/Anime")
+        let localURL2 = URL(fileURLWithPath: "/Volumes/Media/Movies")
+        let webdavURL = URL(string: "https://dav.example.com/dav/Library")!
+
+        // 1. Empty folders -> no groups
+        let emptyGroups = FileFolderGroupingResolver.rootGroups(
+            for: [],
+            localTitle: localTitle,
+            webdavTitle: webdavTitle
         )
-        #expect(directContentNodes.count == 3)
-        #expect(directContentNodes[2].id == "folder")
-        #expect(directContentNodes[2].title == "Anime (Direct Content)")
-        #expect(directContentNodes[2].destination == nil)
+        #expect(emptyGroups.isEmpty)
+
+        // 2. Only local folders -> single Local group
+        let localOnlyGroups = FileFolderGroupingResolver.rootGroups(
+            for: [localURL1, localURL2],
+            localTitle: localTitle,
+            webdavTitle: webdavTitle
+        )
+        #expect(localOnlyGroups.count == 1)
+        #expect(localOnlyGroups[0].kind == .local)
+        #expect(localOnlyGroups[0].title == localTitle)
+        #expect(localOnlyGroups[0].folders == [localURL1, localURL2])
+
+        // 3. Mixed WebDAV and Local folders -> Local group first, WebDAV group second
+        let mixedGroups = FileFolderGroupingResolver.rootGroups(
+            for: [webdavURL, localURL1],
+            localTitle: localTitle,
+            webdavTitle: webdavTitle
+        )
+        #expect(mixedGroups.count == 2)
+        #expect(mixedGroups[0].kind == .local)
+        #expect(mixedGroups[0].folders == [localURL1])
+        #expect(mixedGroups[1].kind == .webdav)
+        #expect(mixedGroups[1].folders == [webdavURL])
+
+        // 4. Level 2 partition unwraps direct content folder entry and preserves subfolders + direct episode groups
+        let rootPath = "/Volumes/Media/Anime"
+        let directFolder = IndexedContentFolder(
+            id: 1,
+            relativePath: "",
+            folderPath: rootPath,
+            objects: []
+        )
+        let subFolder = IndexedContentFolder(
+            id: 2,
+            relativePath: "Ave Mujica",
+            folderPath: "/Volumes/Media/Anime/Ave Mujica",
+            objects: []
+        )
+        let directEpisode = IndexedContentObject(
+            id: 10,
+            displayTitle: "Ave Mujica - EP01",
+            videoPath: "/Volumes/Media/Anime/EP01.mkv",
+            videoName: "EP01.mkv",
+            fileSize: 1024,
+            subtitles: []
+        )
+        let emptyEpisode = IndexedContentObject(
+            id: 11,
+            displayTitle: "Empty",
+            videoPath: "",
+            videoName: "",
+            fileSize: 0,
+            subtitles: []
+        )
+
+        let partition = FileFolderGroupingResolver.level2Partition(
+            folders: [directFolder, subFolder],
+            objects: [directEpisode, emptyEpisode],
+            rootPath: rootPath
+        )
+        #expect(partition.subfolders.count == 1)
+        #expect(partition.subfolders[0].id == 2)
+        #expect(partition.subfolders[0].folderPath == "/Volumes/Media/Anime/Ave Mujica")
+        #expect(partition.directEpisodeGroups.count == 1)
+        #expect(partition.directEpisodeGroups[0].id == 10)
+        #expect(partition.directEpisodeGroups[0].displayTitle == "Ave Mujica - EP01")
     }
 
     @Test

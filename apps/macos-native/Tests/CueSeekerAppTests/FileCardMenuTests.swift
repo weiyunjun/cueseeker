@@ -91,21 +91,28 @@ struct FileCardMenuTests {
 
     @Test
     func fileCardColorTokensAndDotsThreeIcon() {
+        // SettingsGroupBg (Display Title Episode Container)
+        #expect(hexString(WorkbenchRedesignColors.NS.settingsGroupBg, appearance: .aqua) == "#F2F4F7")
+        #expect(hexString(WorkbenchRedesignColors.NS.settingsGroupBg, appearance: .darkAqua) == "#242429")
+
         // TableBg (Card Normal)
         #expect(hexString(WorkbenchRedesignColors.NS.tableBg, appearance: .aqua) == "#FFFFFF")
-        #expect(hexString(WorkbenchRedesignColors.NS.tableBg, appearance: .darkAqua) == "#26262A")
+        #expect(hexString(WorkbenchRedesignColors.NS.tableBg, appearance: .darkAqua) == "#2E2E34")
 
         // RowHover (Card Hover)
         #expect(hexString(WorkbenchRedesignColors.NS.rowHover, appearance: .aqua) == "#F9FAFB")
-        #expect(hexString(WorkbenchRedesignColors.NS.rowHover, appearance: .darkAqua) == "#2E2E33")
+        #expect(hexString(WorkbenchRedesignColors.NS.rowHover, appearance: .darkAqua) == "#383840")
 
         // RowSelected (Button Hover / Open)
-        #expect(hexString(WorkbenchRedesignColors.NS.rowSelected, appearance: .aqua) == "#F3F4F6")
-        #expect(hexString(WorkbenchRedesignColors.NS.rowSelected, appearance: .darkAqua) == "#36363C")
+        #expect(hexString(WorkbenchRedesignColors.NS.rowSelected, appearance: .aqua) == "#ECEEF2")
+        #expect(hexString(WorkbenchRedesignColors.NS.rowSelected, appearance: .darkAqua) == "#43434C")
 
-        // DotsThree icon asset resolves
+        // Card chevron metric & icon assets resolve
+        #expect(WorkbenchControlMetrics.redesignCardChevronSize == 16)
         let iconImage = AppIconStore.image(.dotsThree, size: WorkbenchControlMetrics.redesignControlIconSize)
         #expect(iconImage != nil)
+        let chevronImage = AppIconStore.image(.caretRight, size: WorkbenchControlMetrics.redesignCardChevronSize)
+        #expect(chevronImage != nil)
     }
 
     @Test

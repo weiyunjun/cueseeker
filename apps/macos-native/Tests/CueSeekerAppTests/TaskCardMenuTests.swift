@@ -86,13 +86,13 @@ struct TaskCardMenuTests {
 
         // Tokens
         #expect(hexString(WorkbenchRedesignColors.NS.tableBg, appearance: .aqua) == "#FFFFFF")
-        #expect(hexString(WorkbenchRedesignColors.NS.tableBg, appearance: .darkAqua) == "#26262A")
+        #expect(hexString(WorkbenchRedesignColors.NS.tableBg, appearance: .darkAqua) == "#2E2E34")
 
         #expect(hexString(WorkbenchRedesignColors.NS.rowHover, appearance: .aqua) == "#F9FAFB")
-        #expect(hexString(WorkbenchRedesignColors.NS.rowHover, appearance: .darkAqua) == "#2E2E33")
+        #expect(hexString(WorkbenchRedesignColors.NS.rowHover, appearance: .darkAqua) == "#383840")
 
-        #expect(hexString(WorkbenchRedesignColors.NS.rowSelected, appearance: .aqua) == "#F3F4F6")
-        #expect(hexString(WorkbenchRedesignColors.NS.rowSelected, appearance: .darkAqua) == "#36363C")
+        #expect(hexString(WorkbenchRedesignColors.NS.rowSelected, appearance: .aqua) == "#ECEEF2")
+        #expect(hexString(WorkbenchRedesignColors.NS.rowSelected, appearance: .darkAqua) == "#43434C")
     }
 
     @Test
