@@ -277,13 +277,34 @@ public final class WebDAVConfigurationStore: @unchecked Sendable {
     public static let shared = WebDAVConfigurationStore()
 
     private static let defaultsKey = "webdavRootConfigs"
+    private static let legacyMigrationKey = "webdavRootConfigsLegacyMigrationCompleted"
+    private static let legacyDomainNames = [
+        ApplicationInfo.bundleIdentifier,
+        ApplicationInfo.name
+    ]
     private let lock = NSLock()
     private let userDefaults: UserDefaults
     private var configsByRootPath: [String: WebDAVRootConfig]
 
-    public init(userDefaults: UserDefaults = .standard) {
-        self.userDefaults = userDefaults
-        self.configsByRootPath = Self.loadConfigs(from: userDefaults)
+    public init(
+        userDefaults: UserDefaults? = nil,
+        legacyDomains: [[String: Any]]? = nil
+    ) {
+        let resolvedDefaults = userDefaults
+            ?? UserDefaults(suiteName: ApplicationInfo.preferencesSuiteIdentifier)
+            ?? .standard
+        self.userDefaults = resolvedDefaults
+        let resolvedLegacyDomains = legacyDomains ?? (
+            userDefaults == nil
+                ? Self.legacyDomainNames.map {
+                    UserDefaults.standard.persistentDomain(forName: $0) ?? [:]
+                }
+                : []
+        )
+        self.configsByRootPath = Self.loadConfigs(
+            from: resolvedDefaults,
+            legacyDomains: resolvedLegacyDomains
+        )
     }
 
     public func save(_ config: WebDAVRootConfig) {
@@ -355,8 +376,36 @@ public final class WebDAVConfigurationStore: @unchecked Sendable {
         userDefaults.set(data, forKey: Self.defaultsKey)
     }
 
-    private static func loadConfigs(from userDefaults: UserDefaults) -> [String: WebDAVRootConfig] {
-        guard let data = userDefaults.data(forKey: defaultsKey),
+    private static func loadConfigs(
+        from userDefaults: UserDefaults,
+        legacyDomains: [[String: Any]] = []
+    ) -> [String: WebDAVRootConfig] {
+        var result = decodeConfigs(from: userDefaults.data(forKey: defaultsKey))
+
+        if !legacyDomains.isEmpty && !userDefaults.bool(forKey: legacyMigrationKey) {
+            var didMergeLegacy = false
+            for domain in legacyDomains {
+                guard let legacyData = domain[defaultsKey] as? Data else {
+                    continue
+                }
+                let legacyConfigs = decodeConfigs(from: legacyData)
+                for (key, config) in legacyConfigs where result[key] == nil {
+                    result[key] = config
+                    didMergeLegacy = true
+                }
+            }
+            if didMergeLegacy,
+               let encoded = try? JSONEncoder().encode(Array(result.values)) {
+                userDefaults.set(encoded, forKey: defaultsKey)
+            }
+            userDefaults.set(true, forKey: legacyMigrationKey)
+        }
+
+        return result
+    }
+
+    private static func decodeConfigs(from data: Data?) -> [String: WebDAVRootConfig] {
+        guard let data,
               let decoded = try? JSONDecoder().decode([WebDAVRootConfig].self, from: data) else {
             return [:]
         }

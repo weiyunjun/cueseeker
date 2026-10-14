@@ -1,5 +1,6 @@
 import AppKit
 import Foundation
+import SwiftUI
 import Testing
 @testable import CueSeekerCore
 @testable import CueSeekerApp
@@ -188,4 +189,76 @@ struct WebDAVFolderDialogTests {
         #expect(IndexingStore.displayName(for: rootURL) == "NieR Custom Name")
         #expect(app.indexing.selectedFolders.contains(rootURL.standardizedMediaURL))
     }
+
+    @Test
+    func dialogOpensUnfocusedAndLongAddressPastePreservesFocusSwitchingAcrossFields() throws {
+        _ = NSApplication.shared
+        let window = CueSeekerMainWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 1200, height: 800),
+            styleMask: [.titled, .closable, .resizable],
+            backing: .buffered,
+            defer: false
+        )
+        window.isWorkbenchCovered = { true }
+        window.dialogSize = { CGSize(width: 420, height: 360) }
+
+        let session = WebDAVFolderDialogSession()
+        let hostingView = NSHostingView(
+            rootView: ZStack {
+                Color.clear
+                WebDAVFolderDialog(
+                    session: session,
+                    onConfirm: {},
+                    onClose: {}
+                )
+            }
+            .frame(width: 1200, height: 800)
+        )
+        hostingView.frame = NSRect(x: 0, y: 0, width: 1200, height: 800)
+        window.contentView = hostingView
+        hostingView.layoutSubtreeIfNeeded()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+
+        // Requirement 2.1: Dialog does not auto-focus any text field on open
+        #expect(window.firstResponder === window || window.firstResponder == nil)
+
+        func collectEditableTextFields(in view: NSView) -> [NSTextField] {
+            var result: [NSTextField] = []
+            if let field = view as? NSTextField, field.isEditable {
+                result.append(field)
+            }
+            for subview in view.subviews {
+                result.append(contentsOf: collectEditableTextFields(in: subview))
+            }
+            return result
+        }
+
+        let fields = collectEditableTextFields(in: hostingView)
+            .sorted { $0.convert($0.bounds, to: nil).midY > $1.convert($1.bounds, to: nil).midY }
+        #expect(fields.count == 4)
+        let nameField = fields[0]
+        let addressField = fields[1]
+        let usernameField = fields[2]
+        let passwordField = fields[3]
+
+        // Focus Address and simulate pasting a long URL that expands the shared field editor > 420pt
+        #expect(window.makeFirstResponder(addressField))
+        let fieldEditor = try #require(window.firstResponder as? NSTextView)
+        #expect(fieldEditor.isFieldEditor)
+        let longAddress = "http://192.168.1.173:5244/dav/115/%E4%BA%91%E4%B8%8B%E8%BD%BD/NieR:Automata.Ver1.22474487139/Season01/Subtitles/VeryLongDirectoryPathSegmentForTestingFieldEditorWidth"
+        fieldEditor.string = longAddress
+        fieldEditor.layoutManager?.ensureLayout(for: fieldEditor.textContainer!)
+        #expect(fieldEditor.bounds.width > 420)
+
+        // Switching focus to Name, Username, and Password must still succeed
+        #expect(window.makeFirstResponder(nameField))
+        #expect((window.firstResponder as? NSTextView)?.delegate as? NSTextField === nameField)
+
+        #expect(window.makeFirstResponder(usernameField))
+        #expect((window.firstResponder as? NSTextView)?.delegate as? NSTextField === usernameField)
+
+        #expect(window.makeFirstResponder(passwordField))
+        #expect(window.firstResponder === passwordField || (window.firstResponder as? NSTextView)?.delegate as? NSTextField === passwordField)
+    }
 }
+

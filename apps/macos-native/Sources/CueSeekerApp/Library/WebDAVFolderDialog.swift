@@ -82,9 +82,6 @@ struct WebDAVFolderDialog: View {
         .workbenchDialogWidth(WorkbenchControlMetrics.redesignDialogWidthMedium)
         .background(WorkbenchRedesignColors.bgDialog)
         .workbenchDialogCloseButton(onClose: onClose)
-        .onAppear {
-            isNameFocused = true
-        }
         .subtitleTableTextSelectionNonInteractiveRegion()
     }
 

@@ -66,7 +66,7 @@ final class CueSeekerMainWindow: NSWindow {
         guard !isFocusLocked(), !isBehindDialog(responder) else {
             return false
         }
-        if isWorkbenchCovered(), let view = responder as? NSView {
+        if isWorkbenchCovered(), let view = focusTargetView(for: responder) {
             guard isUncovered(view) else {
                 return false
             }
@@ -93,7 +93,8 @@ final class CueSeekerMainWindow: NSWindow {
 
     private func selectUncoveredKeyView(from view: NSView, step: (NSView) -> NSView?) {
         var visited: Set<ObjectIdentifier> = []
-        var candidate = step(view)
+        let start = focusTargetView(for: view) ?? view
+        var candidate = step(start)
         while let next = candidate, visited.insert(ObjectIdentifier(next)).inserted {
             if !isBehindDialog(next), isUncovered(next) {
                 _ = makeFirstResponder(next)
@@ -103,11 +104,37 @@ final class CueSeekerMainWindow: NSWindow {
         }
     }
 
+    /// The control a field editor or scrollable text view edits on behalf of.
+    /// A single-line field editor grows its own bounds to the width of the
+    /// text pasted into it, while the control hosting it keeps the field's
+    /// frame inside the dialog.
+    private func focusTargetView(for responder: NSResponder?) -> NSView? {
+        guard let view = responder as? NSView else {
+            return nil
+        }
+        if let textView = view as? NSTextView {
+            if let control = sequence(first: textView as NSView, next: \.superview)
+                .first(where: { $0 is NSControl }) {
+                return control
+            }
+            if let delegateView = textView.delegate as? NSView {
+                return delegateView
+            }
+            if let scrollView = textView.enclosingScrollView {
+                return scrollView
+            }
+            if let clipView = textView.superview {
+                return clipView
+            }
+        }
+        return view
+    }
+
     /// Whether `responder` is a view of this window that lies outside the open
     /// dialog. Every dialog is centred in the window.
     private func isBehindDialog(_ responder: NSResponder?) -> Bool {
         guard let size = dialogSize(),
-              let view = responder as? NSView,
+              let view = focusTargetView(for: responder),
               view.window === self,
               let content = contentView
         else {
@@ -125,21 +152,22 @@ final class CueSeekerMainWindow: NSWindow {
     /// Whether nothing is drawn over the middle of `view`, so a field that lies
     /// within a covered layer or behind a dialog is passed over too.
     func isUncovered(_ view: NSView) -> Bool {
-        guard view.window === self else {
+        let target = focusTargetView(for: view) ?? view
+        guard target.window === self else {
             return false
         }
-        guard !view.isHiddenOrHasHiddenAncestor else {
+        guard !target.isHiddenOrHasHiddenAncestor else {
             return false
         }
         guard let content = contentView, let frame = content.superview else {
             return true
         }
-        let middle = view.convert(NSPoint(x: view.bounds.midX, y: view.bounds.midY), to: frame)
+        let middle = target.convert(NSPoint(x: target.bounds.midX, y: target.bounds.midY), to: frame)
         guard let hit = content.hitTest(middle) else {
             return false
         }
-        return hit === view
-            || hit.isDescendant(of: view)
-            || (hit !== content && view.isDescendant(of: hit))
+        return hit === target
+            || hit.isDescendant(of: target)
+            || (hit !== content && target.isDescendant(of: hit))
     }
 }

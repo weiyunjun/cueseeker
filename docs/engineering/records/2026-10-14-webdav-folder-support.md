@@ -30,7 +30,11 @@ Human-owned documents:
    - Changed the File Level 1 `Add Folder` button in `WorkbenchFileView.swift` into a dropdown menu trigger with `Local Folder` (`folder`) and `WebDav Folder` (`cloud`) items.
    - Added `WebDAVFolderDialog.swift` and `WorkbenchFormSecureInputField` in `WorkbenchFormControls.swift` (with `--spacing-4` vertical field spacing, unfocused initial state, disabled inputs and `Add` button spinner while validating, immediate cancellation via `Cancel` / Close / `Esc`, and `Toast` error presentation above the dialog layer).
    - Updated `ContentView.swift` so the `Toast` overlay renders above the modal dialog layer.
+4. **Shared Preferences Suite for WebDAV Configs & Dialog Field Editor Focus Isolation**:
+   - Updated `WebDAVConfigurationStore` in `WebDAVSupport.swift` to persist `webdavRootConfigs` in `UserDefaults(suiteName: ApplicationInfo.preferencesSuiteIdentifier)` (`"com.cueseeker.shared"`, matching `SettingsStore` and `IndexingStore`) with one-time migration from legacy `com.cueseeker.app` / `CueSeeker` domains, ensuring packaged `/Applications/CueSeeker.app` (e.g. launched via `cueseeker://` Deep Link) and CLI builds share WebDAV credentials and custom names.
+   - Updated `CueSeekerMainWindow.swift` (`focusTargetView(for:)`) so that when `responder` is an `NSTextView` (such as AppKit's shared window field editor `_SystemTextFieldFieldEditor`), `isBehindDialog` and `isUncovered` inspect the hosting `NSControl` / `enclosingScrollView` bounds rather than the expanded text container bounds, preventing long URL pastes in `WebDAVFolderDialog` from permanently blocking focus transitions across inputs.
 
 ## Verification
 
-- `swift test --filter "WebDAVSupportTests|LibraryCoverIndexerTests|WebDAVFolderDialogTests|SubtitleIndexerTests|LibraryCoverDisplayRenditionTests|PlaybackVideoMetadataIndexerTests|IndexedContentDatabaseTests"`: passed.
+- `swift test --filter "WebDAVSupportTests|WebDAVFolderDialogTests|PlaybackPageFocusIsolationTests"`: passed (16 tests).
+

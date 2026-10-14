@@ -313,4 +313,48 @@ struct WebDAVSupportTests {
         #expect(objects.first?.subtitles.count == 1)
         #expect(objects.first?.subtitles.first?.name == "Episode 01.srt")
     }
+
+    @Test
+    func configurationStoreMigratesLegacyDomainsOnceIntoSharedDefaults() throws {
+        let suiteName = "CueSeeker.WebDAVMigrationTests.\(UUID().uuidString)"
+        let sharedDefaults = try #require(UserDefaults(suiteName: suiteName))
+        defer { sharedDefaults.removePersistentDomain(forName: suiteName) }
+
+        let legacyConfig = WebDAVRootConfig(
+            rootPath: "http://192.168.1.173:5244/dav/baidu/NieR",
+            davRootPath: "http://192.168.1.173:5244/dav/baidu/NieR",
+            name: "NieR Baidu",
+            address: "http://192.168.1.173:5244/dav/baidu/NieR",
+            username: "alist",
+            password: "secret"
+        )
+        let legacyData = try JSONEncoder().encode([legacyConfig])
+        let legacyDomains: [[String: Any]] = [
+            ["webdavRootConfigs": legacyData]
+        ]
+
+        let firstStore = WebDAVConfigurationStore(
+            userDefaults: sharedDefaults,
+            legacyDomains: legacyDomains
+        )
+        let migrated = try #require(
+            firstStore.matchingConfig(
+                forMediaPath: "http://192.168.1.173:5244/dav/baidu/NieR/Episode 01.mkv"
+            )
+        )
+        #expect(migrated.name == "NieR Baidu")
+        #expect(migrated.basicAuthorizationValue == legacyConfig.basicAuthorizationValue)
+
+        // Removing the config in the shared store should not resurrect it from legacy domains on next init
+        firstStore.remove(forRootPath: legacyConfig.rootPath)
+        let secondStore = WebDAVConfigurationStore(
+            userDefaults: sharedDefaults,
+            legacyDomains: legacyDomains
+        )
+        #expect(
+            secondStore.matchingConfig(
+                forMediaPath: "http://192.168.1.173:5244/dav/baidu/NieR/Episode 01.mkv"
+            ) == nil
+        )
+    }
 }
