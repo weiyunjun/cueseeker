@@ -30,9 +30,9 @@ main
    4. `Password`：WebDAV 密码（密文掩码输入）。
 3. 4 个输入框均不展示行内 Error 边框，也不预留底部报错文字行；输入框之间的垂直间距为 `--spacing-4`。`Tab` 与 `Shift-Tab` 仅在这 4 个输入框之间移动焦点。
 4. 底部操作区右对齐 `Cancel`（`Button / Neutral`）与 `Add`（`Button / Primary`），间距为 `--spacing-2`。
-5. 点击 `Add`（或按回车）时执行参数检查与 WebDAV 连通性验证：
+5. 点击 `Add` 时执行参数检查与 WebDAV 连通性验证（按下回车键不触发 `Add`）：
    1. **校验规则**：检查 `Name`、`Address`、`Username`、`Password` 均已填写且 `Address` 为合法的 `http/https` URL，并向目标 WebDAV 目录发起一次 `PROPFIND` 请求验证目录存在、可访问且凭据有效。
-   2. **等待状态**：验证返回前，`Add` 按钮文字保持 `Add` 不变，按钮内左侧展示 `Spinner` 且按钮为 `Disabled`（不响应点击与回车）；4 个输入框均为 `Disabled`；`Cancel` 按钮、右上角关闭按钮与 `Esc` 键保持可用，触发时立即取消当前验证请求并关闭对话框。
+   2. **等待状态**：验证返回前，`Add` 按钮文字保持 `Add` 不变，按钮内左侧展示 `Spinner` 且按钮为 `Disabled`（不响应点击）；4 个输入框均为 `Disabled`；`Cancel` 按钮、右上角关闭按钮与 `Esc` 键保持可用，触发时立即取消当前验证请求并关闭对话框。
    3. **失败处理**：参数缺失、地址格式非法、网络不可达、鉴权失败或目标非目录时，对话框保持打开，恢复 4 个输入框与 `Add` 按钮为可用状态（移除 `Spinner`），并通过居中 `Toast`（带 `warning` 图标）提示具体失败原因。
    4. **成功处理**：验证通过后立即关闭对话框，保存该 WebDAV 根目录配置与凭据，并创建 `Add Folder` 任务进入后台索引队列。
 6. `Toast` 显示层级高于 `Dialog` 层（点击仍穿透），确保对话框打开期间触发的报错 `Toast` 正常浮现在对话框上方。
