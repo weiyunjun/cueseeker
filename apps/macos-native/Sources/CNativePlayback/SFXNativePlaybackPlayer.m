@@ -1117,6 +1117,23 @@ presentationGeneration:(NSUInteger)presentationGeneration;
     atomic_bool _decodeWaitingForPacket;
     atomic_bool _paused;
     atomic_bool _playing;
+
+    CFTimeInterval _perfOpenStartHostSeconds;
+    double _perfStopPrevMs;
+    double _perfAvformatOpenMs;
+    double _perfFindStreamInfoMs;
+    double _perfInitCodecAudioMs;
+    double _perfInitialSeekMs;
+    CFTimeInterval _perfStartHostSeconds;
+    CFTimeInterval _perfFirstPacketHostSeconds;
+    CFTimeInterval _perfFirstVideoPacketHostSeconds;
+    CFTimeInterval _perfFirstVideoDecodedHostSeconds;
+    double _perfAudioPrimeWaitMs;
+    CFTimeInterval _perfFirstFrameEnqueuedHostSeconds;
+    NSUInteger _perfVideoPacketsForFirstFrame;
+    NSUInteger _perfSkippedVideoFramesForFirstFrame;
+    BOOL _perfFirstPacketRecorded;
+    BOOL _perfFirstVideoDecodedRecorded;
 }
 
 - (instancetype)initWithPath:(NSString *)path
@@ -1743,7 +1760,9 @@ presentationGeneration:(NSUInteger)presentationGeneration;
 }
 
 - (BOOL)prepareWithError:(NSError **)error {
+    CFTimeInterval s3Start = CACurrentMediaTime();
     int result = SFXOpenMediaInput(&_formatContext, _path.UTF8String, _owner.httpHeaders);
+    _perfAvformatOpenMs = (CACurrentMediaTime() - s3Start) * 1000.0;
     if (result < 0) {
         if (error != NULL) {
             *error = SFXNativePlaybackError(10, [NSString stringWithFormat:@"avformat_open_input failed: %@", SFXFFmpegErrorString(result)]);
@@ -1751,7 +1770,9 @@ presentationGeneration:(NSUInteger)presentationGeneration;
         return NO;
     }
 
+    CFTimeInterval s4Start = CACurrentMediaTime();
     result = avformat_find_stream_info(_formatContext, NULL);
+    _perfFindStreamInfoMs = (CACurrentMediaTime() - s4Start) * 1000.0;
     if (result < 0) {
         if (error != NULL) {
             *error = SFXNativePlaybackError(11, [NSString stringWithFormat:@"avformat_find_stream_info failed: %@", SFXFFmpegErrorString(result)]);
@@ -1796,6 +1817,7 @@ presentationGeneration:(NSUInteger)presentationGeneration;
         return NO;
     }
 
+    CFTimeInterval s5Start = CACurrentMediaTime();
     if (![self prepareVideoWithError:error]) {
         return NO;
     }
@@ -1803,6 +1825,7 @@ presentationGeneration:(NSUInteger)presentationGeneration;
     if (_audioStreamIndex >= 0 && ![self prepareAudioWithError:error]) {
         return NO;
     }
+    _perfInitCodecAudioMs = (CACurrentMediaTime() - s5Start) * 1000.0;
     _audioPrimed = _audioCodecContext == NULL;
     _audioOutputDrained = _audioCodecContext == NULL;
 
@@ -1815,6 +1838,7 @@ presentationGeneration:(NSUInteger)presentationGeneration;
         return NO;
     }
 
+    CFTimeInterval s6Start = CACurrentMediaTime();
     if (!SFXSeekToStartPosition(_formatContext, _videoStreamIndex, _seekSeconds, _timelineOriginSeconds, error)) {
         return NO;
     }
@@ -1823,6 +1847,7 @@ presentationGeneration:(NSUInteger)presentationGeneration;
     if (_audioCodecContext != NULL) {
         avcodec_flush_buffers(_audioCodecContext);
     }
+    _perfInitialSeekMs = (CACurrentMediaTime() - s6Start) * 1000.0;
 
     return YES;
 }
@@ -2200,7 +2225,26 @@ presentationGeneration:(NSUInteger)presentationGeneration;
     });
 }
 
+- (void)configurePerfOpenStart:(CFTimeInterval)openStart stopPrevMs:(double)stopPrevMs {
+    _perfOpenStartHostSeconds = openStart;
+    _perfStopPrevMs = stopPrevMs;
+}
+
 - (void)start {
+    _perfStartHostSeconds = CACurrentMediaTime();
+    double totalPrepareMs = _perfOpenStartHostSeconds > 0
+        ? (_perfStartHostSeconds - _perfOpenStartHostSeconds) * 1000.0
+        : (_perfStopPrevMs + _perfAvformatOpenMs + _perfFindStreamInfoMs + _perfInitCodecAudioMs + _perfInitialSeekMs);
+    NSLog(@"[PlaybackPerf] OPEN_PREPARE gen=%lu startMs=%ld totalPrepare=%.1fms | S2_stopPrev=%.1fms S3_avformatOpen=%.1fms S4_findStreamInfo=%.1fms S5_initCodecAudio=%.1fms S6_initialSeek=%.1fms hwDecode=%d",
+          (unsigned long)_presentationGeneration,
+          (long)llround(_seekSeconds * 1000.0),
+          totalPrepareMs,
+          _perfStopPrevMs,
+          _perfAvformatOpenMs,
+          _perfFindStreamInfoMs,
+          _perfInitCodecAudioMs,
+          _perfInitialSeekMs,
+          _usingHardwareDecode ? 1 : 0);
     [self startStarvationWatchdog];
     dispatch_async(_decodeQueue, ^{
         @autoreleasepool {
@@ -2753,6 +2797,10 @@ presentationGeneration:(NSUInteger)presentationGeneration;
             av_packet_unref(_packet);
             continue;
         }
+        if (!_perfFirstPacketRecorded) {
+            _perfFirstPacketRecorded = YES;
+            _perfFirstPacketHostSeconds = CACurrentMediaTime();
+        }
 
         AVPacket *packetCopy = av_packet_alloc();
         if (packetCopy == NULL) {
@@ -2995,17 +3043,21 @@ presentationGeneration:(NSUInteger)presentationGeneration;
         return NO;
     }
 
+    CFTimeInterval seekStart = CACurrentMediaTime();
     [_packetQueueCondition lock];
     NSUInteger resetGeneration = _playbackGeneration;
     _audioResetInProgress = YES;
     [_packetQueueCondition broadcast];
     [_packetQueueCondition unlock];
 
+    CFTimeInterval stopReadAheadStart = CACurrentMediaTime();
     [self stopPacketReadAheadForSeekAndClear];
     if (_audioDecodeQueue != NULL) {
         dispatch_sync(_audioDecodeQueue, ^{});
     }
+    double stopReadAheadMs = (CACurrentMediaTime() - stopReadAheadStart) * 1000.0;
 
+    CFTimeInterval avSeekStart = CACurrentMediaTime();
     if (!SFXSeekToStartPosition(_formatContext, _videoStreamIndex, seekSeconds, _timelineOriginSeconds, error)) {
         [_packetQueueCondition lock];
         _audioResetInProgress = NO;
@@ -3034,6 +3086,7 @@ presentationGeneration:(NSUInteger)presentationGeneration;
         [self requestAudioDrain];
         return NO;
     }
+    double avSeekMs = (CACurrentMediaTime() - avSeekStart) * 1000.0;
 
     [_packetQueueCondition lock];
     _playbackGeneration += 1;
@@ -3104,6 +3157,24 @@ presentationGeneration:(NSUInteger)presentationGeneration;
         _lastVideoOutputHostSeconds = now;
         _lastDelegateUpdateHostSeconds = 0;
     }
+
+    _perfOpenStartHostSeconds = seekStart;
+    _perfStartHostSeconds = now;
+    _perfFirstPacketHostSeconds = 0;
+    _perfFirstVideoPacketHostSeconds = 0;
+    _perfFirstVideoDecodedHostSeconds = 0;
+    _perfAudioPrimeWaitMs = 0;
+    _perfFirstFrameEnqueuedHostSeconds = 0;
+    _perfVideoPacketsForFirstFrame = 0;
+    _perfSkippedVideoFramesForFirstFrame = 0;
+    _perfFirstPacketRecorded = NO;
+    _perfFirstVideoDecodedRecorded = NO;
+    NSLog(@"[PlaybackPerf] IN_SESSION_SEEK_PREPARE gen=%lu targetMs=%ld totalSeekPrepare=%.1fms | stopReadAhead=%.1fms avSeekFrame=%.1fms",
+          (unsigned long)presentationGeneration,
+          (long)llround(seekSeconds * 1000.0),
+          (now - seekStart) * 1000.0,
+          stopReadAheadMs,
+          avSeekMs);
 
 	    atomic_store(&_pauseAfterFirstFrame, pauseAfterFirstFrame);
 	    atomic_store(&_didPauseAfterFirstFrame, false);
@@ -3529,6 +3600,13 @@ presentationGeneration:(NSUInteger)presentationGeneration;
 }
 
 - (void)handleVideoPacket:(AVPacket *)packet {
+    if (!_perfFirstVideoDecodedRecorded) {
+        if (_perfFirstVideoPacketHostSeconds <= 0) {
+            _perfFirstVideoPacketHostSeconds = CACurrentMediaTime();
+        }
+        _perfVideoPacketsForFirstFrame += 1;
+    }
+
     int result = avcodec_send_packet(_videoCodecContext, packet);
     if (result < 0) {
         return;
@@ -3537,8 +3615,15 @@ presentationGeneration:(NSUInteger)presentationGeneration;
     AVStream *videoStream = _formatContext->streams[_videoStreamIndex];
     while ((result = avcodec_receive_frame(_videoCodecContext, _videoFrame)) >= 0) {
         if (SFXFrameBeforeSeekTarget(_videoFrame, videoStream, _seekSeconds, _timelineOriginSeconds)) {
+            if (!_perfFirstVideoDecodedRecorded) {
+                _perfSkippedVideoFramesForFirstFrame += 1;
+            }
             av_frame_unref(_videoFrame);
             continue;
+        }
+        if (!_perfFirstVideoDecodedRecorded) {
+            _perfFirstVideoDecodedRecorded = YES;
+            _perfFirstVideoDecodedHostSeconds = CACurrentMediaTime();
         }
 
         double mediaSeconds = SFXFramePlaybackSeconds(_videoFrame, videoStream, _timelineOriginSeconds);
@@ -3778,9 +3863,11 @@ presentationGeneration:(NSUInteger)presentationGeneration;
     [_packetQueueCondition lock];
     NSUInteger generation = _playbackGeneration;
     [_packetQueueCondition unlock];
+    CFTimeInterval audioPrimeWaitStart = CACurrentMediaTime();
     if (![self waitForAudioPrimeForGeneration:generation]) {
         return NO;
     }
+    double audioPrimeWaitMs = (CACurrentMediaTime() - audioPrimeWaitStart) * 1000.0;
 
     double now = CACurrentMediaTime();
     [self resumeFromRebufferIfNeededAtHostSeconds:now];
@@ -3790,6 +3877,7 @@ presentationGeneration:(NSUInteger)presentationGeneration;
     @synchronized (self) {
         double rate = fmax((double)atomic_load(&_playbackRate), 0.001);
         if (!_videoClockInitialized) {
+            _perfAudioPrimeWaitMs = audioPrimeWaitMs;
             double anchorMediaSeconds = _seekSeconds;
             _videoClockInitialized = YES;
             _videoFirstMediaSeconds = anchorMediaSeconds;
@@ -3908,6 +3996,9 @@ automaticRecycleMilliseconds:(NSInteger)automaticRecycleMilliseconds {
     if (pixelBuffer == NULL) {
         return;
     }
+    if (_perfFirstFrameEnqueuedHostSeconds <= 0) {
+        _perfFirstFrameEnqueuedHostSeconds = CACurrentMediaTime();
+    }
 
     [_packetQueueCondition lock];
     BOOL presentationIsCurrent = !_seekRequestPending
@@ -4013,6 +4104,34 @@ automaticRecycleMilliseconds:(NSInteger)automaticRecycleMilliseconds {
             _presentedVideoFrameCount += 1;
         }
         if (firstFrameForPresentation) {
+            CFTimeInterval presentNow = CACurrentMediaTime();
+            double totalNativeMs = _perfOpenStartHostSeconds > 0
+                ? (presentNow - _perfOpenStartHostSeconds) * 1000.0
+                : (presentNow - _perfStartHostSeconds) * 1000.0;
+            double s7StartToPresentMs = _perfStartHostSeconds > 0
+                ? (presentNow - _perfStartHostSeconds) * 1000.0
+                : -1.0;
+            double s71FirstPacketMs = (_perfFirstPacketHostSeconds > 0 && _perfStartHostSeconds > 0)
+                ? (_perfFirstPacketHostSeconds - _perfStartHostSeconds) * 1000.0
+                : -1.0;
+            double s72VideoDecodeMs = (_perfFirstVideoDecodedHostSeconds > 0 && _perfFirstVideoPacketHostSeconds > 0)
+                ? (_perfFirstVideoDecodedHostSeconds - _perfFirstVideoPacketHostSeconds) * 1000.0
+                : -1.0;
+            double s73AudioPrimeWaitMs = _perfAudioPrimeWaitMs;
+            double s74MainPresentMs = _perfFirstFrameEnqueuedHostSeconds > 0
+                ? (presentNow - _perfFirstFrameEnqueuedHostSeconds) * 1000.0
+                : -1.0;
+            NSLog(@"[PlaybackPerf] FIRST_FRAME gen=%lu frameMs=%ld totalNativeOpenToPresent=%.1fms | S7_startToPresent=%.1fms (S7.1_firstPacket=%.1fms S7.2_videoDecode=%.1fms[packets=%lu,skippedFrames=%lu] S7.3_audioPrimeWait=%.1fms S7.4_mainPresent=%.1fms)",
+                  (unsigned long)presentationGeneration,
+                  (long)frameMilliseconds,
+                  totalNativeMs,
+                  s7StartToPresentMs,
+                  s71FirstPacketMs,
+                  s72VideoDecodeMs,
+                  (unsigned long)_perfVideoPacketsForFirstFrame,
+                  (unsigned long)_perfSkippedVideoFramesForFirstFrame,
+                  s73AudioPrimeWaitMs,
+                  s74MainPresentMs);
             SFXNativePlaybackPlayer *owner = _owner;
             [owner session:self
                 didPresentVideoFrameAtMilliseconds:frameMilliseconds
@@ -4863,8 +4982,11 @@ flushDisplayBeforeStart:(BOOL)flushDisplayBeforeStart
  pauseAfterFirstFrame:(BOOL)pauseAfterFirstFrame
 allowAutomaticSoftwareRecycle:(BOOL)allowAutomaticSoftwareRecycle
            error:(NSError **)error {
+    CFTimeInterval openStart = CACurrentMediaTime();
     [self cancelTimelineScrubPreviewRequests];
+    CFTimeInterval s2Start = CACurrentMediaTime();
     [self stopAndFlushDisplay:flushDisplayBeforeStart];
+    double s2StopPrevMs = (CACurrentMediaTime() - s2Start) * 1000.0;
 
     SFXNativePlaybackSession *session = [[SFXNativePlaybackSession alloc]
         initWithPath:path
@@ -4892,6 +5014,7 @@ allowAutomaticSoftwareRecycle:(BOOL)allowAutomaticSoftwareRecycle
         _currentPath = [path copy];
         _nativeSessionOpenCount += 1;
     }
+    [session configurePerfOpenStart:openStart stopPrevMs:s2StopPrevMs];
     [_session start];
     return YES;
 }

@@ -44,6 +44,8 @@ private struct PendingPresentation {
     let targetMilliseconds: Int
     let heldMilliseconds: Int
     var subtitleAction: PendingSubtitleAction
+    let startedAt: CFTimeInterval
+    var resolve302Milliseconds: Double
 }
 
 private struct PlaybackAutoPauseAuthorization: Equatable {
@@ -135,7 +137,10 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
         currentRequest = request
         nativePlayer.playbackRate = Float(storedSpeed)
         nativePlayer.audioTrackIndex = request.audioTrackIndex
+        let resolveStart = CACurrentMediaTime()
         let playableInput = WebDAVClient.shared.resolvePlayableInput(for: request.videoURL)
+        let resolveElapsedMs = (CACurrentMediaTime() - resolveStart) * 1000.0
+        pendingPresentation?.resolve302Milliseconds = resolveElapsedMs
         nativePlayer.httpHeaders = playableInput.httpHeaders
         do {
             if let autoStopAtMilliseconds = request.autoStopAtMilliseconds {
@@ -364,7 +369,9 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
             generation: nil,
             targetMilliseconds: max(0, targetMilliseconds),
             heldMilliseconds: max(0, heldMilliseconds),
-            subtitleAction: subtitleAction
+            subtitleAction: subtitleAction,
+            startedAt: CACurrentMediaTime(),
+            resolve302Milliseconds: 0
         )
     }
 
@@ -788,12 +795,14 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
             return
         }
 
+        let commitStart = CACurrentMediaTime()
         let safeMilliseconds = max(0, milliseconds)
         self.pendingPresentation = nil
         committedPresentationGeneration = generation
         heldSubtitlePresentationMilliseconds = nil
         let videoSize = currentNativeVideoSize()
 
+        let subtitleStart = CACurrentMediaTime()
         switch pendingPresentation.subtitleAction {
         case .preserve:
             retargetASSSubtitleRenderTimeGate(forExplicitMilliseconds: safeMilliseconds)
@@ -808,6 +817,7 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
                 videoSize: videoSize
             )
         }
+        let subtitleCommitMs = (CACurrentMediaTime() - subtitleStart) * 1000.0
 
         let playing = nativePlayer.isPlaying
         delegate?.player(
@@ -827,6 +837,19 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
             self,
             didChangeProperty: "time-pos",
             value: .double(Double(safeMilliseconds) / 1_000)
+        )
+        let now = CACurrentMediaTime()
+        let totalEndToEndMs = (now - pendingPresentation.startedAt) * 1000.0
+        let commitElapsedMs = (now - commitStart) * 1000.0
+        NSLog(
+            "[PlaybackPerf] UI_COMMIT gen=%lu targetMs=%ld presentedMs=%ld totalEndToEnd=%.1fms | S1_resolve302=%.1fms subtitleCommit=%.1fms uiDelegateCommit=%.1fms",
+            generation,
+            pendingPresentation.targetMilliseconds,
+            safeMilliseconds,
+            totalEndToEndMs,
+            pendingPresentation.resolve302Milliseconds,
+            subtitleCommitMs,
+            commitElapsedMs
         )
     }
 

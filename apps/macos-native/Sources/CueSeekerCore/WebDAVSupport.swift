@@ -641,11 +641,14 @@ public final class WebDAVClient: @unchecked Sendable {
         requestURL: URL,
         config: WebDAVRootConfig?
     ) throws -> WebDAVPlayableInput {
+        let startTime = CFAbsoluteTimeGetCurrent()
         let cacheKey = logicalURL.mediaPath
         let now = Date()
         lock.lock()
         if let cached = resolvedPlayableCache[cacheKey], cached.expiresAt > now {
             lock.unlock()
+            let elapsedMs = (CFAbsoluteTimeGetCurrent() - startTime) * 1000.0
+            NSLog("[PlaybackPerf] S1_resolve302 cached=1 elapsed=%.1fms targetHost=%@", elapsedMs, URL(string: cached.input.url)?.host ?? "unknown")
             return cached.input
         }
         let hasCustomHandler = customHTTPHandler != nil
@@ -660,7 +663,7 @@ public final class WebDAVClient: @unchecked Sendable {
         var includeAuth = true
         let maxRedirects = 5
 
-        for _ in 0..<maxRedirects {
+        for hop in 0..<maxRedirects {
             var request = URLRequest(url: currentURL)
             request.httpMethod = "GET"
             request.timeoutInterval = 15
@@ -674,6 +677,8 @@ public final class WebDAVClient: @unchecked Sendable {
             do {
                 (_, response) = try performSingleHopRequest(request)
             } catch {
+                let elapsedMs = (CFAbsoluteTimeGetCurrent() - startTime) * 1000.0
+                NSLog("[PlaybackPerf] S1_resolve302 cached=0 hop=%d error=%@ elapsed=%.1fms", hop, error.localizedDescription, elapsedMs)
                 if hasCustomHandler {
                     throw error
                 }
@@ -691,6 +696,8 @@ public final class WebDAVClient: @unchecked Sendable {
                         httpHeaders: Self.ffmpegHTTPHeaders(includingAuthorizationFrom: nil)
                     )
                     cacheResolvedInput(resolved, forKey: cacheKey)
+                    let elapsedMs = (CFAbsoluteTimeGetCurrent() - startTime) * 1000.0
+                    NSLog("[PlaybackPerf] S1_resolve302 cached=0 status=%d crossOrigin=1 elapsed=%.1fms targetHost=%@", status, elapsedMs, nextURL.host ?? "unknown")
                     return resolved
                 }
                 currentURL = nextURL
@@ -707,6 +714,8 @@ public final class WebDAVClient: @unchecked Sendable {
                 httpHeaders: Self.ffmpegHTTPHeaders(includingAuthorizationFrom: includeAuth ? config : nil)
             )
             cacheResolvedInput(resolved, forKey: cacheKey)
+            let elapsedMs = (CFAbsoluteTimeGetCurrent() - startTime) * 1000.0
+            NSLog("[PlaybackPerf] S1_resolve302 cached=0 status=%d crossOrigin=0 elapsed=%.1fms targetHost=%@", status, elapsedMs, currentURL.host ?? "unknown")
             return resolved
         }
 

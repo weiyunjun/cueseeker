@@ -744,3 +744,86 @@ func nativePlaybackOpensAndSwitchesAudioTracksCountedAmongAudioStreams() async t
     #expect(!player.isPlaying)
     #expect(abs(player.currentTime - 2) < 0.5)
 }
+
+@Test
+@MainActor
+func nativePlaybackOpensAndSeeksMatroskaWithAttachmentsChaptersAndTags() async throws {
+    guard let ffmpegURL = executableURL(named: "ffmpeg") else {
+        print("Skipping Matroska SeekHead/Cues regression test because ffmpeg is unavailable.")
+        return
+    }
+
+    let directory = temporaryMediaTimelineTestDirectory()
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    defer {
+        try? FileManager.default.removeItem(at: directory)
+    }
+
+    let dummyFontURL = directory.appendingPathComponent("DummyFont.ttf")
+    try Data(repeating: 0x42, count: 64 * 1024).write(to: dummyFontURL)
+
+    let ffmetadataURL = directory.appendingPathComponent("chapters.txt")
+    let ffmetadata = """
+    ;FFMETADATA1
+    title=Matroska SeekHead Test
+    [CHAPTER]
+    TIMEBASE=1/1000
+    START=0
+    END=3000
+    title=Part A
+    [CHAPTER]
+    TIMEBASE=1/1000
+    START=3000
+    END=6000
+    title=Part B
+    """
+    try ffmetadata.write(to: ffmetadataURL, atomically: true, encoding: .utf8)
+
+    let mediaURL = directory.appendingPathComponent("seekhead-attachments-tags.mkv")
+    try runProcess(
+        ffmpegURL,
+        arguments: [
+            "-hide_banner", "-loglevel", "error",
+            "-f", "lavfi", "-i", "testsrc2=duration=6:size=160x90:rate=24",
+            "-f", "lavfi", "-i", "sine=frequency=440:duration=6",
+            "-i", ffmetadataURL.path,
+            "-map_metadata", "2",
+            "-map_chapters", "2",
+            "-map", "0:v", "-map", "1:a",
+            "-attach", dummyFontURL.path,
+            "-metadata:s:t:0", "mimetype=application/x-truetype-font",
+            "-c:v", "libx264", "-preset", "ultrafast", "-g", "12", "-pix_fmt", "yuv420p",
+            "-c:a", "aac",
+            "-shortest", "-y", mediaURL.path
+        ]
+    )
+
+    let metadata = try SFXMediaMetadataInspector.metadata(atMediaPath: mediaURL.path)
+    #expect(abs((metadata.durationSeconds?.doubleValue ?? 0) - 6.0) < 0.5)
+    #expect(metadata.videoWidth?.intValue == 160)
+    #expect(metadata.videoHeight?.intValue == 90)
+    #expect(metadata.audioTracks.count == 1)
+
+    let player = SFXNativePlaybackPlayer()
+    player.decodeMode = SFXNativePlaybackDecodeMode(rawValue: 0)!
+    defer {
+        player.stop()
+    }
+
+    try player.openPath(mediaURL.path, startMilliseconds: 2_500)
+    try player.setPaused(false)
+
+    let initialFramePresented = await waitUntil(timeoutSeconds: 4) {
+        player.nativePresentedVideoFrameCount > 0
+            && player.nativeLastSubmittedVideoFrameMilliseconds >= 2_400
+    }
+    #expect(initialFramePresented)
+
+    try player.seek(toMilliseconds: 4_200, pauseAfterFirstFrame: true)
+    let soughtFramePresented = await waitUntil(timeoutSeconds: 4) {
+        !player.isPlaying
+            && abs(player.currentTime - 4.2) < 0.5
+    }
+    #expect(soughtFramePresented)
+}
+

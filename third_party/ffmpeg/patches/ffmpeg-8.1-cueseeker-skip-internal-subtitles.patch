@@ -10,19 +10,57 @@ diff --git a/libavformat/matroskadec.c b/libavformat/matroskadec.c
  } MatroskaDemuxContext;
  
  #define CHILD_OF(parent) { .def = { .n = parent } }
-@@ -1465,6 +1467,11 @@ static int ebml_parse(MatroskaDemuxContext *matroska,
+@@ -1472,8 +1474,22 @@ static int ebml_parse(MatroskaDemuxContext *matroska,
              // of the element as the "last known good" position.
              matroska->resync_pos = pos;
          }
 +
 +        if (matroska->cueseeker_skip_internal_subtitles &&
-+            id == MATROSKA_ID_ATTACHMENTS &&
++            (id == MATROSKA_ID_ATTACHMENTS ||
++             id == MATROSKA_ID_CHAPTERS ||
++             id == MATROSKA_ID_TAGS) &&
 +            length != EBML_UNKNOWN_LENGTH)
 +            data = NULL;
  
-         if (!data && length != EBML_UNKNOWN_LENGTH)
+-        if (!data && length != EBML_UNKNOWN_LENGTH)
++        if (!data && length != EBML_UNKNOWN_LENGTH) {
++            if (syntax->type == EBML_LEVEL1 &&
++                (level1_elem = matroska_find_level1_elem(matroska, syntax->id, pos))) {
++                if (!level1_elem->pos)
++                    level1_elem->pos = pos;
++                level1_elem->parsed = 1;
++            }
              goto skip;
-@@ -3141,6 +3148,10 @@ static int matroska_parse_tracks(AVFormatContext *s)
++        }
+     }
+ 
+@@ -1950,7 +1965,12 @@ static int matroska_parse_seekhead_entry(MatroskaDemuxContext *matroska,
+     }
+     /* Seek back - notice that in all instances where this is used
+      * it is safe to set the level to 1. */
+-    ret2 = matroska_reset_status(matroska, saved_id, before_pos);
++    if (matroska->cueseeker_skip_internal_subtitles &&
++        !matroska->cues_parsing_deferred &&
++        matroska->index.nb_elem >= 2)
++        ret2 = matroska_reset_status(matroska, saved_id, -1);
++    else
++        ret2 = matroska_reset_status(matroska, saved_id, before_pos);
+     if (ret >= 0)
+         ret = ret2;
+ 
+@@ -1982,6 +2002,11 @@ static void matroska_execute_seekhead(MatroskaDemuxContext *matroska)
+         // defer cues parsing until we actually need cue data.
+         if (id == MATROSKA_ID_CUES)
+             continue;
++        if (matroska->cueseeker_skip_internal_subtitles &&
++            (id == MATROSKA_ID_ATTACHMENTS ||
++             id == MATROSKA_ID_CHAPTERS ||
++             id == MATROSKA_ID_TAGS))
++            continue;
+ 
+         if (matroska_parse_seekhead_entry(matroska, pos) < 0) {
+             // mark index as broken
+@@ -3141,6 +3166,10 @@ static int matroska_parse_tracks(AVFormatContext *s)
          if (!track->codec_id)
              continue;
  
@@ -33,7 +71,7 @@ diff --git a/libavformat/matroskadec.c b/libavformat/matroskadec.c
          if (   track->type == MATROSKA_TRACK_TYPE_AUDIO && track->codec_id[0] != 'A'
              || track->type == MATROSKA_TRACK_TYPE_VIDEO && track->codec_id[0] != 'V'
              || track->type == MATROSKA_TRACK_TYPE_SUBTITLE && track->codec_id[0] != 'D' && track->codec_id[0] != 'S'
-@@ -4834,6 +4845,18 @@ static int webm_dash_manifest_read_packet(AVFormatContext *s, AVPacket *pkt)
+@@ -4834,6 +4863,18 @@ static int webm_dash_manifest_read_packet(AVFormatContext *s, AVPacket *pkt)
  }
  
  #define OFFSET(x) offsetof(MatroskaDemuxContext, x)
@@ -52,7 +90,7 @@ diff --git a/libavformat/matroskadec.c b/libavformat/matroskadec.c
  static const AVOption options[] = {
      { "live", "flag indicating that the input is a live file that only has the headers.", OFFSET(is_live), AV_OPT_TYPE_BOOL, {.i64 = 0}, 0, 1, AV_OPT_FLAG_DECODING_PARAM },
      { "bandwidth", "bandwidth of this stream to be specified in the DASH manifest.", OFFSET(bandwidth), AV_OPT_TYPE_INT, {.i64 = 0}, 0, INT_MAX, AV_OPT_FLAG_DECODING_PARAM },
-@@ -4864,6 +4887,7 @@ const FFInputFormat ff_matroska_demuxer = {
+@@ -4864,6 +4905,7 @@ const FFInputFormat ff_matroska_demuxer = {
      .p.long_name    = NULL_IF_CONFIG_SMALL("Matroska / WebM"),
      .p.extensions   = "mkv,mk3d,mka,mks,webm",
      .p.mime_type    = "audio/webm,audio/x-matroska,video/webm,video/x-matroska",
