@@ -37,8 +37,7 @@ struct WebDAVFolderDialog: View {
                     label: L("webdav.field.name"),
                     placeholder: "",
                     text: $session.name,
-                    focus: $isNameFocused,
-                    onSubmit: submitIfIdle
+                    focus: $isNameFocused
                 )
                 .disabled(session.isSubmitting)
                 .accessibilityIdentifier("webdav-name")
@@ -47,8 +46,7 @@ struct WebDAVFolderDialog: View {
                     label: L("webdav.field.address"),
                     placeholder: "",
                     text: $session.address,
-                    focus: $isAddressFocused,
-                    onSubmit: submitIfIdle
+                    focus: $isAddressFocused
                 )
                 .disabled(session.isSubmitting)
                 .accessibilityIdentifier("webdav-address")
@@ -57,8 +55,7 @@ struct WebDAVFolderDialog: View {
                     label: L("webdav.field.username"),
                     placeholder: "",
                     text: $session.username,
-                    focus: $isUsernameFocused,
-                    onSubmit: submitIfIdle
+                    focus: $isUsernameFocused
                 )
                 .disabled(session.isSubmitting)
                 .accessibilityIdentifier("webdav-username")
@@ -67,8 +64,7 @@ struct WebDAVFolderDialog: View {
                     label: L("webdav.field.password"),
                     placeholder: "",
                     text: $session.password,
-                    focus: $isPasswordFocused,
-                    onSubmit: submitIfIdle
+                    focus: $isPasswordFocused
                 )
                 .disabled(session.isSubmitting)
                 .accessibilityIdentifier("webdav-password")
@@ -101,7 +97,6 @@ struct WebDAVFolderDialog: View {
                 showsSpinner: session.isSubmitting,
                 action: submitIfIdle
             )
-            .keyboardShortcut(.defaultAction)
             .disabled(session.isSubmitting)
             .accessibilityIdentifier("webdav-add")
         }

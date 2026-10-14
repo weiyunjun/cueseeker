@@ -699,6 +699,7 @@ struct WorkbenchSearchField: View {
     var onSubmit: (() -> Void)?
 
     @FocusState private var isFocused: Bool
+    @State private var isNativeFocused = false
     @Environment(\.isEnabled) private var isEnabled
 
     init(
@@ -753,6 +754,7 @@ struct WorkbenchSearchField: View {
                     : 15,
                 focus: $isFocused,
                 accessibilityLabel: placeholder,
+                onFocusChange: { isNativeFocused = $0 },
                 onSubmit: onSubmit
             )
 
@@ -784,10 +786,24 @@ struct WorkbenchSearchField: View {
         .overlay(
             RoundedRectangle(cornerRadius: isRedesign ? WorkbenchControlMetrics.redesignSearchRadius : WorkbenchControlMetrics.cornerRadius, style: .continuous)
                 .strokeBorder(
-                    isRedesign ? (isFocused ? WorkbenchRedesignColors.borderFocus : (isEnabled ? WorkbenchRedesignColors.borderControl : WorkbenchRedesignColors.borderDisabled)) : WorkbenchControlColors.border,
+                    isRedesign ? ((isNativeFocused || isFocused) ? WorkbenchRedesignColors.borderFocus : (isEnabled ? WorkbenchRedesignColors.borderControl : WorkbenchRedesignColors.borderDisabled)) : WorkbenchControlColors.border,
                     lineWidth: isRedesign ? WorkbenchControlMetrics.redesignControlBorderWidth : WorkbenchControlMetrics.hairlineWidth
                 )
                 .allowsHitTesting(false)
+        )
+        .overlay(
+            WorkbenchSingleLineContainerOverlay(
+                isEnabled: isEnabled,
+                trailingExclusionSize: (isRedesign && !text.isEmpty)
+                    ? NSSize(
+                        width: WorkbenchControlMetrics.redesignInlineClearButtonSize,
+                        height: WorkbenchControlMetrics.redesignInlineClearButtonSize
+                    )
+                    : nil,
+                trailingExclusionRightInset: isRedesign
+                    ? WorkbenchControlMetrics.redesignControlPaddingX
+                    : 18
+            )
         )
         .subtitleTableTextSelectionInteractiveRegion(isActive: isEnabled)
         .task {

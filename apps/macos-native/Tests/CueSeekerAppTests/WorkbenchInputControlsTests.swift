@@ -1,186 +1,261 @@
 import AppKit
+import Foundation
 import SwiftUI
 import Testing
+@testable import CueSeekerCore
 @testable import CueSeekerApp
 
+@Suite(.serialized)
 @MainActor
-@Test
-func excerptDescriptionBoxEndsOnTheCoverBottom() {
-    let formView = NSHostingView(
-        rootView: ExcerptFormHeightProbe()
-            .frame(width: WorkbenchControlMetrics.redesignExcerptListEditorWideFormWidth)
-    )
-    let coverView = NSHostingView(
-        rootView: LibraryCoverFrame {
-            Color.clear
+struct WorkbenchInputControlsTests {
+    private final class StringBox: ObservableObject {
+        @Published var text: String
+        var submitCount = 0
+
+        init(_ text: String = "") {
+            self.text = text
         }
-        .frame(width: WorkbenchControlMetrics.redesignExcerptListEditorCoverWidth)
-    )
-    // The Description's reserved message line hangs below the box.
-    let messageLineView = NSHostingView(
-        rootView: Text("\u{00A0}")
-            .font(.system(
-                size: WorkbenchControlMetrics.redesignFontSizeCaption,
-                weight: .regular
-            ))
-    )
-    formView.layoutSubtreeIfNeeded()
-    coverView.layoutSubtreeIfNeeded()
-    messageLineView.layoutSubtreeIfNeeded()
+    }
 
-    #expect(
-        formView.fittingSize.height
-            == coverView.fittingSize.height
-            + WorkbenchControlMetrics.redesignSpacing1
-            + messageLineView.fittingSize.height
-    )
-}
+    private struct SearchFieldHarness: View {
+        @ObservedObject var box: StringBox
 
-@MainActor
-@Test
-func textAreaUsesOneContentInsetWithoutNativeScrollbars() {
-    let view = WorkbenchTextAreaContainerView(
-        frame: CGRect(
-            x: 0,
-            y: 0,
-            width: 340,
-            height: WorkbenchControlMetrics.redesignExcerptListEditorDescriptionHeight
-        )
-    )
-    view.configure(placeholder: "Description", isEnabled: true)
-    view.layout()
+        var body: some View {
+            WorkbenchSearchField(
+                placeholder: "Search",
+                text: $box.text,
+                isRedesign: true,
+                autofocus: false,
+                trailingStatusText: "1/3",
+                onSubmit: { box.submitCount += 1 }
+            )
+            .frame(width: 360)
+        }
+    }
 
-    #expect(view.contentInsetForTesting == NSSize(width: 16, height: 10))
-    #expect(view.lineFragmentPaddingForTesting == 0)
-    #expect(view.textView.textContainerOrigin == NSPoint(x: 16, y: 10))
-    #expect(
-        view.textView.insertionPointColor.isEqual(
-            WorkbenchRedesignColors.NS.borderFocus
-        )
-    )
-    #expect(!view.usesNativeScrollbarsForTesting)
-}
+    private struct FormFieldHarness: View {
+        @ObservedObject var box: StringBox
+        @FocusState private var isFocused: Bool
 
-@MainActor
-@Test
-func textAreaReportsFirstResponderChanges() {
-    let view = WorkbenchTextAreaContainerView(
-        frame: CGRect(
-            x: 0,
-            y: 0,
-            width: 340,
-            height: WorkbenchControlMetrics.redesignExcerptListEditorDescriptionHeight
-        )
-    )
-    let window = NSWindow(
-        contentRect: view.frame,
-        styleMask: [.titled],
-        backing: .buffered,
-        defer: false
-    )
-    window.contentView = view
-
-    var focusChanges: [Bool] = []
-    view.textView.onFirstResponderChange = { focusChanges.append($0) }
-
-    #expect(window.makeFirstResponder(view.textView))
-    #expect(window.makeFirstResponder(nil))
-    #expect(focusChanges == [true, false])
-}
-
-@MainActor
-@Test
-func textAreaScrollbarPersistsOnlyWhileContentOverflows() {
-    let view = WorkbenchTextAreaContainerView(
-        frame: CGRect(
-            x: 0,
-            y: 0,
-            width: 340,
-            height: WorkbenchControlMetrics.redesignExcerptListEditorDescriptionHeight
-        )
-    )
-    view.layout()
-
-    #expect(!view.hasVerticalOverflowForTesting)
-    #expect(!view.isScrollbarVisibleForTesting)
-
-    view.setText((1...20).map { "Line \($0)" }.joined(separator: "\n"))
-    view.layout()
-
-    #expect(view.hasVerticalOverflowForTesting)
-    #expect(view.isScrollbarVisibleForTesting)
-
-    view.setText("")
-    view.layout()
-
-    #expect(!view.hasVerticalOverflowForTesting)
-    #expect(!view.isScrollbarVisibleForTesting)
-}
-
-private struct ExcerptFormHeightProbe: View {
-    @State private var name = ""
-    @State private var description = ""
-    @FocusState private var isNameFocused: Bool
-    @FocusState private var isDescriptionFocused: Bool
-
-    var body: some View {
-        VStack(
-            alignment: .leading,
-            spacing: WorkbenchControlMetrics.redesignSpacing2
-        ) {
+        var body: some View {
             WorkbenchFormTextField(
-                label: "List Name",
-                placeholder: "Enter a list name",
-                text: $name,
+                label: "Name",
+                placeholder: "Placeholder",
+                text: $box.text,
                 validationMessage: nil,
-                focus: $isNameFocused
+                focus: $isFocused
             )
-
-            WorkbenchFormTextArea(
-                label: "Description",
-                placeholder: "Add a description (optional)",
-                text: $description,
-                validationMessage: nil,
-                focus: $isDescriptionFocused,
-                height: WorkbenchControlMetrics.redesignExcerptListEditorDescriptionHeight
-            )
+            .frame(width: 320)
         }
     }
-}
 
-@MainActor
-@Test
-func singleLineTextInputUsesNativePrompt() {
-    let hostingView = NSHostingView(rootView: SingleLineInputProbe())
-    hostingView.frame = CGRect(x: 0, y: 0, width: 300, height: 40)
-    hostingView.layoutSubtreeIfNeeded()
+    private struct NumberFieldHarness: View {
+        @ObservedObject var box: StringBox
+        let normalizeDraft: (String) -> String
+        let onCommit: () -> Void
+        @FocusState private var isFocused: Bool
 
-    func findTextField(in view: NSView) -> NSTextField? {
-        if let tf = view as? NSTextField { return tf }
+        var body: some View {
+            WorkbenchNumberField(
+                placeholder: "500",
+                text: $box.text,
+                unit: "ms",
+                focus: $isFocused,
+                normalizeDraft: normalizeDraft,
+                onSubmit: onCommit
+            )
+            .frame(width: 114)
+        }
+    }
+
+    private func collectEditableTextFields(in view: NSView) -> [NSTextField] {
+        var result: [NSTextField] = []
+        if let field = view as? NSTextField, field.isEditable {
+            result.append(field)
+        }
         for subview in view.subviews {
-            if let found = findTextField(in: subview) { return found }
+            result.append(contentsOf: collectEditableTextFields(in: subview))
         }
-        return nil
+        return result
     }
 
-    let textField = findTextField(in: hostingView)
-    #expect(textField != nil)
-    #expect(textField?.placeholderString == "Search keywords...")
-}
+    private func collectContainerOverlays(in view: NSView) -> [WorkbenchSingleLineContainerOverlayView] {
+        var result: [WorkbenchSingleLineContainerOverlayView] = []
+        if let overlay = view as? WorkbenchSingleLineContainerOverlayView {
+            result.append(overlay)
+        }
+        for subview in view.subviews {
+            result.append(contentsOf: collectContainerOverlays(in: subview))
+        }
+        return result
+    }
 
-private struct SingleLineInputProbe: View {
-    @State private var text = ""
-    @FocusState private var isFocused: Bool
-
-    var body: some View {
-        WorkbenchSingleLineTextInput(
-            placeholder: "Search keywords...",
-            text: $text,
-            placeholderColor: .gray,
-            textColor: .black,
-            fontSize: 14,
-            focus: $isFocused,
-            accessibilityLabel: "Search"
+    @Test
+    func searchFieldKeepsHStackGeometryWhileNormalizingMultilineInputAndPreservingCursorOnReturn() throws {
+        _ = NSApplication.shared
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 500, height: 200),
+            styleMask: [.titled, .closable],
+            backing: .buffered,
+            defer: false
         )
+        let box = StringBox("")
+        let hostingView = NSHostingView(
+            rootView: SearchFieldHarness(box: box)
+                .frame(width: 500, height: 200)
+        )
+        hostingView.frame = NSRect(x: 0, y: 0, width: 500, height: 200)
+        window.contentView = hostingView
+        hostingView.layoutSubtreeIfNeeded()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.03))
+
+        let field = try #require(collectEditableTextFields(in: hostingView).first)
+        let overlay = try #require(collectContainerOverlays(in: hostingView).first)
+        let pillRect = overlay.convert(overlay.bounds, to: nil)
+        let initialFieldRect = field.convert(field.bounds, to: nil)
+
+        // Verify text field starts after the leading magnifying glass icon and is vertically centered
+        #expect(initialFieldRect.minX >= pillRect.minX + 40)
+        #expect(abs(initialFieldRect.midY - pillRect.midY) <= 1.5)
+
+        #expect(window.makeFirstResponder(field))
+        let editor = try #require(field.currentEditor() as? NSTextView)
+
+        // Type/paste multiline text ( causing the clear button to appear in the HStack )
+        editor.insertText("d'z'f大丈夫\r\n第二行\n第三行", replacementRange: editor.selectedRange())
+        hostingView.layoutSubtreeIfNeeded()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.03))
+
+        #expect(editor.string == "d'z'f大丈夫 第二行 第三行")
+        #expect(box.text == "d'z'f大丈夫 第二行 第三行")
+        #expect(editor.selectedRange() == NSRange(location: editor.string.utf16.count, length: 0))
+
+        // Verify geometry after clear button appears: field and active editor never jump to (0, 0) or overlap the icon
+        let activeFieldRect = field.convert(field.bounds, to: nil)
+        let activeEditorRect = editor.convert(editor.bounds, to: nil)
+        #expect(activeFieldRect.minX >= pillRect.minX + 40)
+        #expect(activeEditorRect.minX >= pillRect.minX + 40)
+        #expect(abs(activeFieldRect.midY - pillRect.midY) <= 1.5)
+
+        // Move caret to middle and press Return / Option+Return / Ctrl+Return
+        editor.setSelectedRange(NSRange(location: 4, length: 0))
+        editor.doCommand(by: #selector(NSResponder.insertNewline(_:)))
+        #expect(box.submitCount == 1)
+        #expect(editor.selectedRange() == NSRange(location: 4, length: 0))
+
+        editor.doCommand(by: #selector(NSResponder.insertNewlineIgnoringFieldEditor(_:)))
+        editor.doCommand(by: #selector(NSResponder.insertLineBreak(_:)))
+        editor.doCommand(by: #selector(NSResponder.insertParagraphSeparator(_:)))
+        #expect(!editor.string.contains("\n"))
+        #expect(editor.selectedRange() == NSRange(location: 4, length: 0))
+    }
+
+    @Test
+    func numberFieldFiltersDisallowedCharactersAndNewlinesBeforeDisplayWithoutSelectingAllOnReturn() throws {
+        _ = NSApplication.shared
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 400, height: 200),
+            styleMask: [.titled, .closable],
+            backing: .buffered,
+            defer: false
+        )
+        let box = StringBox("500")
+        let hostingView = NSHostingView(
+            rootView: NumberFieldHarness(
+                box: box,
+                normalizeDraft: SettingsPlayCategory.normalizeGapDraft,
+                onCommit: {
+                    if let v = Int(box.text) {
+                        box.text = String(SettingsStore.clampedAutoSwitchCueSequenceGapMilliseconds(v))
+                    }
+                }
+            )
+            .frame(width: 400, height: 200)
+        )
+        hostingView.frame = NSRect(x: 0, y: 0, width: 400, height: 200)
+        window.contentView = hostingView
+        hostingView.layoutSubtreeIfNeeded()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.03))
+
+        let field = try #require(collectEditableTextFields(in: hostingView).first)
+        #expect(window.makeFirstResponder(field))
+        let editor = try #require(field.currentEditor() as? NSTextView)
+
+        editor.setSelectedRange(NSRange(location: 0, length: editor.string.utf16.count))
+        editor.insertText("12ab\n34ms", replacementRange: editor.selectedRange())
+        #expect(editor.string == "1234")
+        #expect(box.text == "1234")
+        #expect(editor.selectedRange() == NSRange(location: 4, length: 0))
+
+        // Out-of-range immediate clamp (> 10000 -> 10000)
+        editor.setSelectedRange(NSRange(location: 0, length: editor.string.utf16.count))
+        editor.insertText("99999", replacementRange: editor.selectedRange())
+        #expect(editor.string == "10000")
+        #expect(box.text == "10000")
+
+        // Pressing Return keeps caret at position without selecting all
+        editor.setSelectedRange(NSRange(location: 2, length: 0))
+        editor.doCommand(by: #selector(NSResponder.insertNewline(_:)))
+        #expect(editor.selectedRange() == NSRange(location: 2, length: 0))
+    }
+
+    @Test
+    func containerOverlayProvidesIBeamAndClickToFocusAcrossPaddingWhileExcludingClearButton() throws {
+        _ = NSApplication.shared
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 500, height: 200),
+            styleMask: [.titled, .closable],
+            backing: .buffered,
+            defer: false
+        )
+        let box = StringBox("query")
+        let hostingView = NSHostingView(
+            rootView: SearchFieldHarness(box: box)
+                .frame(width: 500, height: 200)
+        )
+        hostingView.frame = NSRect(x: 0, y: 0, width: 500, height: 200)
+        window.contentView = hostingView
+        hostingView.layoutSubtreeIfNeeded()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.03))
+
+        let field = try #require(collectEditableTextFields(in: hostingView).first)
+        let overlay = try #require(collectContainerOverlays(in: hostingView).first)
+
+        // Leading icon area hits the overlay (which reports .iBeam and focuses field on mouseDown)
+        let leadingPointInOverlay = NSPoint(x: 20, y: overlay.bounds.midY)
+        let leadingHit = overlay.hitTest(overlay.superview!.convert(leadingPointInOverlay, from: overlay))
+        #expect(leadingHit === overlay)
+        #expect(overlay.pointerShape(atWindowPoint: overlay.convert(leadingPointInOverlay, to: nil)) == .iBeam)
+
+        // Top edge padding hits the overlay
+        let topEdgePointInOverlay = NSPoint(x: overlay.bounds.midX, y: 3)
+        let topEdgeHit = overlay.hitTest(overlay.superview!.convert(topEdgePointInOverlay, from: overlay))
+        #expect(topEdgeHit === overlay)
+
+        // Trailing clear button area (24x24 inset by 14px from right) is excluded from the overlay
+        let clearButtonPointInOverlay = NSPoint(
+            x: overlay.bounds.width - 14 - 12,
+            y: overlay.bounds.midY
+        )
+        let clearHit = overlay.hitTest(overlay.superview!.convert(clearButtonPointInOverlay, from: overlay))
+        #expect(clearHit == nil)
+
+        // Clicking on the leading icon area focuses the search field
+        let nativeField = try #require(field as? WorkbenchNativeSingleLineTextField)
+        #expect(!nativeField.isCurrentlyFocused)
+        if let clickEvent = NSEvent.mouseEvent(
+            with: .leftMouseDown,
+            location: overlay.convert(leadingPointInOverlay, to: nil),
+            modifierFlags: [],
+            timestamp: ProcessInfo.processInfo.systemUptime,
+            windowNumber: window.windowNumber,
+            context: nil,
+            eventNumber: 1,
+            clickCount: 1,
+            pressure: 1
+        ) {
+            overlay.mouseDown(with: clickEvent)
+        }
+        #expect(nativeField.isCurrentlyFocused)
     }
 }

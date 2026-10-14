@@ -260,5 +260,75 @@ struct WebDAVFolderDialogTests {
         #expect(window.makeFirstResponder(passwordField))
         #expect(window.firstResponder === passwordField || (window.firstResponder as? NSTextView)?.delegate as? NSTextField === passwordField)
     }
+
+    @Test
+    func dialogReturnKeyAndFocusChangesNeverTriggerAddOrSelectAllText() throws {
+        _ = NSApplication.shared
+        let window = CueSeekerMainWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 1200, height: 800),
+            styleMask: [.titled, .closable, .resizable],
+            backing: .buffered,
+            defer: false
+        )
+        window.isWorkbenchCovered = { true }
+        window.dialogSize = { CGSize(width: 480, height: 360) }
+
+        let session = WebDAVFolderDialogSession()
+        var confirmCallCount = 0
+        let hostingView = NSHostingView(
+            rootView: ZStack {
+                Color.clear
+                WebDAVFolderDialog(
+                    session: session,
+                    onConfirm: { confirmCallCount += 1 },
+                    onClose: {}
+                )
+            }
+            .frame(width: 1200, height: 800)
+        )
+        hostingView.frame = NSRect(x: 0, y: 0, width: 1200, height: 800)
+        window.contentView = hostingView
+        hostingView.layoutSubtreeIfNeeded()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+
+        func collectEditableTextFields(in view: NSView) -> [NSTextField] {
+            var result: [NSTextField] = []
+            if let field = view as? NSTextField, field.isEditable {
+                result.append(field)
+            }
+            for subview in view.subviews {
+                result.append(contentsOf: collectEditableTextFields(in: subview))
+            }
+            return result
+        }
+
+        let fields = collectEditableTextFields(in: hostingView)
+            .sorted { $0.convert($0.bounds, to: nil).midY > $1.convert($1.bounds, to: nil).midY }
+        #expect(fields.count == 4)
+
+        for (index, field) in fields.enumerated() {
+            #expect(window.makeFirstResponder(field))
+            let editor = try #require(field.currentEditor() as? NSTextView)
+            editor.insertText("line1\r\nline2\n\(index)", replacementRange: editor.selectedRange())
+            #expect(editor.string == "line1 line2 \(index)")
+            #expect(!editor.string.contains("\n"))
+            #expect(editor.selectedRange() == NSRange(location: editor.string.utf16.count, length: 0))
+
+            editor.setSelectedRange(NSRange(location: 5, length: 0))
+            editor.doCommand(by: #selector(NSResponder.insertNewline(_:)))
+            #expect(confirmCallCount == 0)
+            #expect(editor.selectedRange() == NSRange(location: 5, length: 0))
+
+            editor.doCommand(by: #selector(NSResponder.insertNewlineIgnoringFieldEditor(_:)))
+            editor.doCommand(by: #selector(NSResponder.insertLineBreak(_:)))
+            #expect(editor.string == "line1 line2 \(index)")
+            #expect(confirmCallCount == 0)
+        }
+
+        // Switching focus across fields also must not trigger Add
+        #expect(window.makeFirstResponder(fields[0]))
+        #expect(window.makeFirstResponder(fields[1]))
+        #expect(confirmCallCount == 0)
+    }
 }
 

@@ -1,31 +1,144 @@
+import AppKit
 import SwiftUI
 
-struct WorkbenchSingleLineTextInput: View {
+struct WorkbenchSingleLineTextInput: NSViewRepresentable {
     let placeholder: String
     @Binding var text: String
     let placeholderColor: Color
     let textColor: Color
     let fontSize: CGFloat
+    var alignment: NSTextAlignment = .left
+    var usesMonospacedDigits: Bool = false
     let focus: FocusState<Bool>.Binding
     let accessibilityLabel: String
-    var onSubmit: (() -> Void)?
+    var normalizeDraft: ((String) -> String)? = nil
+    var onFocusChange: ((Bool) -> Void)? = nil
+    var onSubmit: (() -> Void)? = nil
 
-    var body: some View {
-        TextField(
-            "",
-            text: $text,
-            prompt: Text(placeholder)
-                .foregroundColor(placeholderColor)
-        )
-        .textFieldStyle(.plain)
-        .foregroundStyle(textColor)
-        .font(.system(size: fontSize, weight: .regular))
-        .focused(focus)
-        .accessibilityLabel(accessibilityLabel)
-        .onSubmit {
-            onSubmit?()
+    @Environment(\.isEnabled) private var isEnabled
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(parent: self)
+    }
+
+    func makeNSView(context: Context) -> WorkbenchNativeSingleLineTextField {
+        let field = WorkbenchNativeSingleLineTextField()
+        context.coordinator.textField = field
+        context.coordinator.lastObservedSwiftUIFocus = focus.wrappedValue
+        field.delegate = context.coordinator
+        field.onFocusChange = { [weak coordinator = context.coordinator] focused in
+            coordinator?.setFocus(focused)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        field.configure(with: self, isEnabled: isEnabled)
+        field.stringValue = field.normalizeFullString(text)
+        field.wantsFocusFromSwiftUI = focus.wrappedValue
+        return field
+    }
+
+    func updateNSView(_ nsView: WorkbenchNativeSingleLineTextField, context: Context) {
+        context.coordinator.parent = self
+        nsView.configure(with: self, isEnabled: isEnabled)
+        let normalizedText = nsView.normalizeFullString(text)
+        if let editor = nsView.currentEditor() as? NSTextView {
+            if editor.string != normalizedText, !editor.hasMarkedText() {
+                let selection = editor.selectedRange()
+                nsView.isApplyingProgrammaticText = true
+                editor.string = normalizedText
+                nsView.stringValue = normalizedText
+                let length = (normalizedText as NSString).length
+                editor.setSelectedRange(NSRange(
+                    location: min(selection.location, length),
+                    length: 0
+                ))
+                nsView.isApplyingProgrammaticText = false
+            }
+        } else if nsView.stringValue != normalizedText {
+            nsView.stringValue = normalizedText
+        }
+
+        let swiftUIFocus = focus.wrappedValue
+        if swiftUIFocus != context.coordinator.lastObservedSwiftUIFocus {
+            context.coordinator.lastObservedSwiftUIFocus = swiftUIFocus
+            nsView.wantsFocusFromSwiftUI = swiftUIFocus
+        } else if !swiftUIFocus {
+            nsView.wantsFocusFromSwiftUI = false
+        }
+        if nsView.wantsFocusFromSwiftUI, !nsView.isCurrentlyFocused {
+            nsView.requestFocusIfPossible()
+        }
+    }
+
+    func sizeThatFits(
+        _ proposal: ProposedViewSize,
+        nsView: WorkbenchNativeSingleLineTextField,
+        context: Context
+    ) -> CGSize? {
+        let height = nsView.intrinsicContentSize.height
+        let width = proposal
+            .replacingUnspecifiedDimensions(by: CGSize(width: 120, height: height))
+            .width
+        return CGSize(width: max(0, width), height: height)
+    }
+
+    @MainActor
+    final class Coordinator: NSObject, NSTextFieldDelegate {
+        var parent: WorkbenchSingleLineTextInput
+        weak var textField: WorkbenchNativeSingleLineTextField?
+        var lastObservedSwiftUIFocus = false
+
+        init(parent: WorkbenchSingleLineTextInput) {
+            self.parent = parent
+        }
+
+        func controlTextDidBeginEditing(_ obj: Notification) {
+            setFocus(true)
+        }
+
+        func controlTextDidChange(_ obj: Notification) {
+            guard let field = obj.object as? WorkbenchNativeSingleLineTextField,
+                  !field.isApplyingProgrammaticText
+            else {
+                return
+            }
+            let current = (field.currentEditor() as? NSTextView)?.string ?? field.stringValue
+            let normalized = field.normalizeFullString(current)
+            if parent.text != normalized {
+                parent.text = normalized
+            }
+        }
+
+        func controlTextDidEndEditing(_ obj: Notification) {
+            setFocus(false)
+        }
+
+        func control(
+            _ control: NSControl,
+            textView: NSTextView,
+            doCommandBy commandSelector: Selector
+        ) -> Bool {
+            switch commandSelector {
+            case #selector(NSResponder.insertNewline(_:)):
+                if !textView.hasMarkedText() {
+                    parent.onSubmit?()
+                }
+                return true
+            case #selector(NSResponder.insertNewlineIgnoringFieldEditor(_:)),
+                 #selector(NSResponder.insertLineBreak(_:)),
+                 #selector(NSResponder.insertParagraphSeparator(_:)):
+                return true
+            default:
+                return false
+            }
+        }
+
+        func setFocus(_ focused: Bool) {
+            textField?.wantsFocusFromSwiftUI = focused
+            lastObservedSwiftUIFocus = focused
+            parent.onFocusChange?(focused)
+            if parent.focus.wrappedValue != focused {
+                parent.focus.wrappedValue = focused
+            }
+        }
     }
 }
 
@@ -35,6 +148,9 @@ struct WorkbenchFormTextField: View {
     @Binding var text: String
     let validationMessage: String?
     let focus: FocusState<Bool>.Binding
+
+    @State private var isFocused = false
+    @Environment(\.isEnabled) private var isEnabled
 
     var body: some View {
         WorkbenchFormFieldContainer(
@@ -48,14 +164,16 @@ struct WorkbenchFormTextField: View {
                 textColor: WorkbenchRedesignColors.textPrimary,
                 fontSize: WorkbenchControlMetrics.redesignFontSizeControl,
                 focus: focus,
-                accessibilityLabel: label
+                accessibilityLabel: label,
+                onFocusChange: { isFocused = $0 }
             )
                 .padding(.horizontal, WorkbenchControlMetrics.redesignFieldPaddingX)
                 .frame(height: WorkbenchControlMetrics.redesignFieldHeight)
                 .workbenchFormFieldChrome(
                     hasError: validationMessage != nil,
-                    isFocused: focus.wrappedValue
+                    isFocused: isFocused || focus.wrappedValue
                 )
+                .overlay(WorkbenchSingleLineContainerOverlay(isEnabled: isEnabled))
         }
     }
 }
@@ -96,30 +214,30 @@ struct WorkbenchNumberField: View {
     @Binding var text: String
     let unit: String?
     let focus: FocusState<Bool>.Binding
+    var normalizeDraft: ((String) -> String)? = nil
+    var onSubmit: (() -> Void)? = nil
 
+    @State private var isFocused = false
     @Environment(\.isEnabled) private var isEnabled
 
     var body: some View {
         HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
-            TextField(
-                "",
+            WorkbenchSingleLineTextInput(
+                placeholder: placeholder,
                 text: $text,
-                prompt: Text(placeholder)
-                    .foregroundColor(WorkbenchRedesignColors.textPlaceholder)
-            )
-            .textFieldStyle(.plain)
-            .font(.system(
-                size: WorkbenchControlMetrics.redesignFontSizeControl,
-                weight: .regular
-            ))
-            .foregroundStyle(
-                isEnabled
+                placeholderColor: WorkbenchRedesignColors.textPlaceholder,
+                textColor: isEnabled
                     ? WorkbenchRedesignColors.textPrimary
-                    : WorkbenchRedesignColors.textDisabled
+                    : WorkbenchRedesignColors.textDisabled,
+                fontSize: WorkbenchControlMetrics.redesignFontSizeControl,
+                alignment: .right,
+                usesMonospacedDigits: true,
+                focus: focus,
+                accessibilityLabel: placeholder,
+                normalizeDraft: normalizeDraft,
+                onFocusChange: { isFocused = $0 },
+                onSubmit: onSubmit
             )
-            .multilineTextAlignment(.trailing)
-            .monospacedDigit()
-            .focused(focus)
 
             if let unit {
                 Text(unit)
@@ -155,13 +273,14 @@ struct WorkbenchNumberField: View {
             )
             .strokeBorder(
                 isEnabled
-                    ? (focus.wrappedValue
+                    ? ((isFocused || focus.wrappedValue)
                         ? WorkbenchRedesignColors.borderFocus
                         : WorkbenchRedesignColors.borderControl)
                     : WorkbenchRedesignColors.borderDisabled,
                 lineWidth: 1
             )
         )
+        .overlay(WorkbenchSingleLineContainerOverlay(isEnabled: isEnabled))
     }
 }
 
@@ -284,6 +403,7 @@ struct WorkbenchDialogFormTextField: View {
     let focus: FocusState<Bool>.Binding
     var onSubmit: (() -> Void)?
 
+    @State private var isFocused = false
     @Environment(\.isEnabled) private var isEnabled
 
     var body: some View {
@@ -300,14 +420,16 @@ struct WorkbenchDialogFormTextField: View {
                 fontSize: WorkbenchControlMetrics.redesignFontSizeControl,
                 focus: focus,
                 accessibilityLabel: label,
+                onFocusChange: { isFocused = $0 },
                 onSubmit: onSubmit
             )
             .padding(.horizontal, WorkbenchControlMetrics.redesignFieldPaddingX)
             .frame(height: WorkbenchControlMetrics.redesignFieldHeight)
             .workbenchDialogFormFieldChrome(
-                isFocused: focus.wrappedValue,
+                isFocused: isFocused || focus.wrappedValue,
                 isEnabled: isEnabled
             )
+            .overlay(WorkbenchSingleLineContainerOverlay(isEnabled: isEnabled))
         }
     }
 }
@@ -340,11 +462,302 @@ struct WorkbenchDialogFormPasswordField: View {
                 isFocused: isFocused || focus.wrappedValue,
                 isEnabled: isEnabled
             )
+            .overlay(WorkbenchSingleLineContainerOverlay(isEnabled: isEnabled))
         }
     }
 }
 
-import AppKit
+@MainActor
+final class WorkbenchNativeSingleLineTextField: NSTextField {
+    var onFocusChange: ((Bool) -> Void)?
+    var normalizeDraft: ((String) -> String)?
+    var wantsFocusFromSwiftUI = false
+    var isApplyingProgrammaticText = false
+
+    override var intrinsicContentSize: NSSize {
+        let resolvedFont = font ?? .systemFont(
+            ofSize: WorkbenchControlMetrics.redesignFontSizeControl,
+            weight: .regular
+        )
+        let lineHeight = ceil(NSLayoutManager().defaultLineHeight(for: resolvedFont))
+        return NSSize(width: NSView.noIntrinsicMetric, height: lineHeight)
+    }
+
+    override var stringValue: String {
+        get { super.stringValue }
+        set { super.stringValue = normalizeFullString(newValue) }
+    }
+
+    var isCurrentlyFocused: Bool {
+        guard let window, let responder = window.firstResponder else {
+            return false
+        }
+        return responder === self || responder === currentEditor()
+    }
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        isEditable = true
+        isSelectable = true
+        isBordered = false
+        drawsBackground = false
+        focusRingType = .none
+        usesSingleLineMode = true
+        cell?.wraps = false
+        cell?.isScrollable = true
+        font = .systemFont(
+            ofSize: WorkbenchControlMetrics.redesignFontSizeControl,
+            weight: .regular
+        )
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    func normalizeFullString(_ raw: String) -> String {
+        let singleLine = SearchInputNormalizer.singleLine(raw)
+        if let normalizeDraft {
+            return normalizeDraft(singleLine)
+        }
+        return singleLine
+    }
+
+    func configure(with input: WorkbenchSingleLineTextInput, isEnabled: Bool) {
+        self.isEnabled = isEnabled
+        self.isEditable = isEnabled
+        self.isSelectable = isEnabled
+        self.alignment = input.alignment
+        self.normalizeDraft = input.normalizeDraft
+        self.setAccessibilityLabel(input.accessibilityLabel)
+
+        let resolvedFont: NSFont = input.usesMonospacedDigits
+            ? .monospacedDigitSystemFont(ofSize: input.fontSize, weight: .regular)
+            : .systemFont(ofSize: input.fontSize, weight: .regular)
+        self.font = resolvedFont
+        self.textColor = NSColor(input.textColor)
+
+        if input.placeholder.isEmpty {
+            self.placeholderAttributedString = nil
+            self.placeholderString = nil
+        } else {
+            let paragraphStyle = NSMutableParagraphStyle()
+            paragraphStyle.alignment = input.alignment
+            paragraphStyle.lineBreakMode = .byTruncatingTail
+            self.placeholderAttributedString = NSAttributedString(
+                string: input.placeholder,
+                attributes: [
+                    .font: resolvedFont,
+                    .foregroundColor: NSColor(input.placeholderColor),
+                    .paragraphStyle: paragraphStyle
+                ]
+            )
+        }
+        cell?.usesSingleLineMode = true
+        cell?.wraps = false
+        cell?.isScrollable = true
+        needsDisplay = true
+    }
+
+    func requestFocusIfPossible() {
+        guard let window, bounds.width > 0, !isCurrentlyFocused else {
+            return
+        }
+        _ = window.makeFirstResponder(self)
+    }
+
+    override func layout() {
+        super.layout()
+        if wantsFocusFromSwiftUI, !isCurrentlyFocused, bounds.width > 0 {
+            requestFocusIfPossible()
+        }
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        if wantsFocusFromSwiftUI, !isCurrentlyFocused {
+            DispatchQueue.main.async { [weak self] in
+                guard let self, self.wantsFocusFromSwiftUI, !self.isCurrentlyFocused else {
+                    return
+                }
+                self.requestFocusIfPossible()
+            }
+        }
+    }
+
+    override func becomeFirstResponder() -> Bool {
+        let accepted = super.becomeFirstResponder()
+        if accepted {
+            onFocusChange?(true)
+        }
+        return accepted
+    }
+
+    @objc(textView:shouldChangeTextInRange:replacementString:)
+    func textView(
+        _ textView: NSTextView,
+        shouldChangeTextIn affectedCharRange: NSRange,
+        replacementString: String?
+    ) -> Bool {
+        guard let replacementString else {
+            return true
+        }
+        let singleLineInserted = SearchInputNormalizer.singleLine(replacementString)
+        let currentNSString = textView.string as NSString
+        let candidate = currentNSString.replacingCharacters(
+            in: affectedCharRange,
+            with: singleLineInserted
+        )
+        let normalized = normalizeDraft?(candidate) ?? candidate
+        if singleLineInserted == replacementString && normalized == candidate {
+            return true
+        }
+
+        let cursorLocation: Int
+        if let normalizeDraft {
+            let prefix = currentNSString.substring(to: affectedCharRange.location)
+            let normalizedPrefix = normalizeDraft(prefix + singleLineInserted)
+            cursorLocation = min(
+                (normalizedPrefix as NSString).length,
+                (normalized as NSString).length
+            )
+        } else {
+            cursorLocation = affectedCharRange.location + (singleLineInserted as NSString).length
+        }
+
+        if let storage = textView.textStorage {
+            storage.replaceCharacters(
+                in: NSRange(location: 0, length: currentNSString.length),
+                with: normalized
+            )
+            textView.setSelectedRange(NSRange(location: cursorLocation, length: 0))
+            textView.didChangeText()
+        }
+        return false
+    }
+
+    override func textDidBeginEditing(_ notification: Notification) {
+        super.textDidBeginEditing(notification)
+        onFocusChange?(true)
+    }
+
+    override func textDidEndEditing(_ notification: Notification) {
+        super.textDidEndEditing(notification)
+        onFocusChange?(false)
+    }
+}
+
+struct WorkbenchSingleLineContainerOverlay: NSViewRepresentable {
+    let isEnabled: Bool
+    var trailingExclusionSize: NSSize? = nil
+    var trailingExclusionRightInset: CGFloat = 0
+
+    func makeNSView(context: Context) -> WorkbenchSingleLineContainerOverlayView {
+        let view = WorkbenchSingleLineContainerOverlayView()
+        view.isEnabled = isEnabled
+        view.trailingExclusionSize = trailingExclusionSize
+        view.trailingExclusionRightInset = trailingExclusionRightInset
+        return view
+    }
+
+    func updateNSView(_ nsView: WorkbenchSingleLineContainerOverlayView, context: Context) {
+        nsView.isEnabled = isEnabled
+        nsView.trailingExclusionSize = trailingExclusionSize
+        nsView.trailingExclusionRightInset = trailingExclusionRightInset
+        nsView.window?.invalidateCursorRects(for: nsView)
+    }
+}
+
+@MainActor
+final class WorkbenchSingleLineContainerOverlayView: NSView, PointerShapeProviding {
+    var isEnabled = true
+    var trailingExclusionSize: NSSize?
+    var trailingExclusionRightInset: CGFloat = 0
+
+    func pointerShape(atWindowPoint point: CGPoint) -> PointerShape {
+        isEnabled ? .iBeam : .arrow
+    }
+
+    override func resetCursorRects() {
+        guard isEnabled else { return }
+        addCursorRect(bounds, cursor: .iBeam)
+    }
+
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        let localPoint = superview != nil ? convert(point, from: superview) : point
+        guard bounds.contains(localPoint) else {
+            return nil
+        }
+        if let exclusionSize = trailingExclusionSize {
+            let exclusionRect = NSRect(
+                x: bounds.width - trailingExclusionRightInset - exclusionSize.width,
+                y: (bounds.height - exclusionSize.height) / 2.0,
+                width: exclusionSize.width,
+                height: exclusionSize.height
+            )
+            if exclusionRect.contains(localPoint) {
+                return nil
+            }
+        }
+        if let field = findEnclosedTextField() {
+            let pointInField = field.convert(localPoint, from: self)
+            if field.bounds.contains(pointInField) {
+                return nil
+            }
+        }
+        return self
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        guard isEnabled,
+              let field = findEnclosedTextField(),
+              field.isEnabled && field.isEditable
+        else {
+            super.mouseDown(with: event)
+            return
+        }
+        let wasFocused = window?.firstResponder === field
+            || window?.firstResponder === field.currentEditor()
+        if !wasFocused {
+            _ = window?.makeFirstResponder(field)
+        }
+        if let editor = field.currentEditor() as? NSTextView {
+            let pointInEditor = editor.convert(event.locationInWindow, from: nil)
+            let index = editor.characterIndexForInsertion(at: pointInEditor)
+            editor.setSelectedRange(NSRange(location: index, length: 0))
+        }
+    }
+
+    private func findEnclosedTextField() -> NSTextField? {
+        guard let root = window?.contentView ?? superview else {
+            return nil
+        }
+        let rectInWindow = convert(bounds, to: nil)
+        return Self.findTextField(in: root, within: rectInWindow)
+    }
+
+    private static func findTextField(in view: NSView, within windowRect: NSRect) -> NSTextField? {
+        if let field = view as? NSTextField,
+           !field.isHiddenOrHasHiddenAncestor,
+           field.bounds.width > 0,
+           field.bounds.height > 0 {
+            let centerInWindow = field.convert(
+                NSPoint(x: field.bounds.midX, y: field.bounds.midY),
+                to: nil
+            )
+            if windowRect.contains(centerInWindow) {
+                return field
+            }
+        }
+        for subview in view.subviews {
+            if let found = findTextField(in: subview, within: windowRect) {
+                return found
+            }
+        }
+        return nil
+    }
+}
 
 private struct WorkbenchSecureSingleLineInput: NSViewRepresentable {
     @Binding var text: String
@@ -371,7 +784,7 @@ private struct WorkbenchSecureSingleLineInput: NSViewRepresentable {
             accessibilityLabel: accessibilityLabel,
             isEnabled: isEnabled
         )
-        field.stringValue = text
+        field.stringValue = SearchInputNormalizer.singleLine(text)
         return field
     }
 
@@ -382,8 +795,9 @@ private struct WorkbenchSecureSingleLineInput: NSViewRepresentable {
             accessibilityLabel: accessibilityLabel,
             isEnabled: isEnabled
         )
-        if nsView.stringValue != text {
-            nsView.stringValue = text
+        let normalized = SearchInputNormalizer.singleLine(text)
+        if nsView.stringValue != normalized {
+            nsView.stringValue = normalized
             nsView.applyBulletKerningToCurrentEditor()
             nsView.needsDisplay = true
         }
@@ -412,7 +826,10 @@ private struct WorkbenchSecureSingleLineInput: NSViewRepresentable {
                 return
             }
             field.applyBulletKerningToCurrentEditor()
-            parent.text = field.stringValue
+            let normalized = SearchInputNormalizer.singleLine(field.stringValue)
+            if parent.text != normalized {
+                parent.text = normalized
+            }
         }
 
         func controlTextDidEndEditing(_ obj: Notification) {
@@ -424,11 +841,19 @@ private struct WorkbenchSecureSingleLineInput: NSViewRepresentable {
             textView: NSTextView,
             doCommandBy commandSelector: Selector
         ) -> Bool {
-            if commandSelector == #selector(NSResponder.insertNewline(_:)) {
-                parent.onSubmit?()
+            switch commandSelector {
+            case #selector(NSResponder.insertNewline(_:)):
+                if !textView.hasMarkedText() {
+                    parent.onSubmit?()
+                }
                 return true
+            case #selector(NSResponder.insertNewlineIgnoringFieldEditor(_:)),
+                 #selector(NSResponder.insertLineBreak(_:)),
+                 #selector(NSResponder.insertParagraphSeparator(_:)):
+                return true
+            default:
+                return false
             }
-            return false
         }
 
         func setFocus(_ focused: Bool) {
@@ -449,6 +874,11 @@ private final class WorkbenchNativeSecureTextField: NSSecureTextField {
 
     var onFocusChange: ((Bool) -> Void)?
 
+    override var stringValue: String {
+        get { super.stringValue }
+        set { super.stringValue = SearchInputNormalizer.singleLine(newValue) }
+    }
+
     var isCurrentlyFocused: Bool {
         guard let window, let responder = window.firstResponder else {
             return false
@@ -467,14 +897,14 @@ private final class WorkbenchNativeSecureTextField: NSSecureTextField {
         customCell.usesSingleLineMode = true
         customCell.wraps = false
         customCell.isScrollable = true
-        customCell.lineBreakMode = .byTruncatingTail
         self.cell = customCell
 
         isBordered = false
         drawsBackground = false
         focusRingType = .none
         usesSingleLineMode = true
-        lineBreakMode = .byTruncatingTail
+        cell?.wraps = false
+        cell?.isScrollable = true
         font = .systemFont(
             ofSize: WorkbenchControlMetrics.redesignFontSizeControl,
             weight: .regular
@@ -493,6 +923,27 @@ private final class WorkbenchNativeSecureTextField: NSSecureTextField {
             onFocusChange?(true)
         }
         return accepted
+    }
+
+    @objc(textView:shouldChangeTextInRange:replacementString:)
+    func textView(
+        _ textView: NSTextView,
+        shouldChangeTextIn affectedCharRange: NSRange,
+        replacementString: String?
+    ) -> Bool {
+        if let replacementString,
+           replacementString.rangeOfCharacter(from: .newlines) != nil {
+            let normalized = SearchInputNormalizer.singleLine(replacementString)
+            if let storage = textView.textStorage {
+                storage.replaceCharacters(in: affectedCharRange, with: normalized)
+                let newCursor = affectedCharRange.location + (normalized as NSString).length
+                textView.setSelectedRange(NSRange(location: newCursor, length: 0))
+                textView.didChangeText()
+                applyBulletKerningToCurrentEditor()
+            }
+            return false
+        }
+        return true
     }
 
     override func textDidBeginEditing(_ notification: Notification) {

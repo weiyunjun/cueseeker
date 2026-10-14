@@ -239,7 +239,9 @@ private struct SettingsSubtitleNumberField: View {
             placeholder: "",
             text: $draft,
             unit: nil,
-            focus: $isFocused
+            focus: $isFocused,
+            normalizeDraft: { Self.filterDraft($0, minimum: minimum) },
+            onSubmit: commitDraft
         )
         .frame(width: WorkbenchControlMetrics.redesignSettingsNumberFieldWidth)
         .onAppear {
@@ -263,10 +265,14 @@ private struct SettingsSubtitleNumberField: View {
         }
     }
 
-    private func applyDraft(_ draft: String) {
-        let allowed = draft.filter {
+    static func filterDraft(_ draft: String, minimum: Double?) -> String {
+        draft.filter {
             ($0.isASCII && $0.isNumber) || $0 == "." || ($0 == "-" && minimum == nil)
         }
+    }
+
+    private func applyDraft(_ draft: String) {
+        let allowed = Self.filterDraft(draft, minimum: minimum)
         guard allowed == draft else {
             self.draft = allowed
             return

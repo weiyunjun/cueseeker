@@ -34,7 +34,9 @@ struct SettingsPlayCategory: View {
                     placeholder: "\(SettingsStore.autoSwitchCueSequenceGapDefaultMilliseconds)",
                     text: $gapDraft,
                     unit: "ms",
-                    focus: $isGapFieldFocused
+                    focus: $isGapFieldFocused,
+                    normalizeDraft: Self.normalizeGapDraft,
+                    onSubmit: commitGapDraft
                 )
                 .frame(width: WorkbenchControlMetrics.redesignSettingsNumberFieldWidth)
             }
@@ -57,14 +59,26 @@ struct SettingsPlayCategory: View {
         }
     }
 
+    static func normalizeGapDraft(_ draft: String) -> String {
+        let numericDraft = draft.filter { $0.isASCII && $0.isNumber }
+        guard let milliseconds = Int(numericDraft) else {
+            return numericDraft
+        }
+        let clampedMilliseconds = SettingsStore.clampedAutoSwitchCueSequenceGapMilliseconds(milliseconds)
+        if milliseconds != clampedMilliseconds {
+            return String(clampedMilliseconds)
+        }
+        return numericDraft
+    }
+
     private func applyGapDraftChange(_ draft: String) {
-        let numericDraft = draft.filter(\.isNumber)
-        guard numericDraft == draft else {
-            gapDraft = numericDraft
+        let normalizedDraft = Self.normalizeGapDraft(draft)
+        guard normalizedDraft == draft else {
+            gapDraft = normalizedDraft
             return
         }
 
-        guard let milliseconds = Int(numericDraft) else {
+        guard let milliseconds = Int(normalizedDraft) else {
             return
         }
 
