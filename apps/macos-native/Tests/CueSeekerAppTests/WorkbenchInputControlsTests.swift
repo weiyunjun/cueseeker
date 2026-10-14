@@ -367,5 +367,137 @@ struct WorkbenchInputControlsTests {
             overlay.mouseDown(with: clickEvent)
         }
         #expect(nativeField.isCurrentlyFocused)
+
+        // Clicking on the top edge padding above the middle of "query" places caret at horizontal position, not index 0
+        let editor = try #require(nativeField.currentEditor() as? NSTextView)
+        let midTextPointInField = NSPoint(x: 24, y: nativeField.bounds.midY)
+        let midTextWindowX = nativeField.convert(midTextPointInField, to: nil).x
+        let topPaddingWindowPoint = NSPoint(
+            x: midTextWindowX,
+            y: overlay.convert(NSPoint(x: 0, y: 2), to: nil).y
+        )
+        if let topClickEvent = NSEvent.mouseEvent(
+            with: .leftMouseDown,
+            location: topPaddingWindowPoint,
+            modifierFlags: [],
+            timestamp: ProcessInfo.processInfo.systemUptime,
+            windowNumber: window.windowNumber,
+            context: nil,
+            eventNumber: 2,
+            clickCount: 1,
+            pressure: 1
+        ) {
+            overlay.mouseDown(with: topClickEvent)
+        }
+        let expectedIndex = editor.characterIndexForInsertion(
+            at: NSPoint(x: midTextPointInField.x, y: editor.bounds.midY)
+        )
+        #expect(expectedIndex > 0 && expectedIndex < box.text.count)
+        #expect(editor.selectedRange() == NSRange(location: expectedIndex, length: 0))
+    }
+
+    @Test
+    func singleLineInputKeepsIdenticalClipBoundsAndGlyphPositionAcrossFocusAndOverflowStates() throws {
+        _ = NSApplication.shared
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 420, height: 220),
+            styleMask: [.titled, .closable],
+            backing: .buffered,
+            defer: false
+        )
+        let container = NSView(frame: NSRect(x: 0, y: 0, width: 420, height: 220))
+        window.contentView = container
+
+        let wideField = WorkbenchNativeSingleLineTextField(frame: NSRect(x: 20, y: 140, width: 240, height: 17))
+        wideField.font = .monospacedDigitSystemFont(
+            ofSize: WorkbenchControlMetrics.redesignFontSizeControl,
+            weight: .regular
+        )
+        wideField.textColor = .white
+        wideField.alignment = .left
+        wideField.stringValue = "1234567890"
+        container.addSubview(wideField)
+
+        let narrowLeftField = WorkbenchNativeSingleLineTextField(frame: NSRect(x: 20, y: 90, width: 62, height: 17))
+        narrowLeftField.font = .monospacedDigitSystemFont(
+            ofSize: WorkbenchControlMetrics.redesignFontSizeControl,
+            weight: .regular
+        )
+        narrowLeftField.textColor = .white
+        narrowLeftField.alignment = .left
+        narrowLeftField.stringValue = "20261014202"
+        container.addSubview(narrowLeftField)
+
+        let narrowRightField = WorkbenchNativeSingleLineTextField(frame: NSRect(x: 20, y: 40, width: 62, height: 17))
+        narrowRightField.font = .monospacedDigitSystemFont(
+            ofSize: WorkbenchControlMetrics.redesignFontSizeControl,
+            weight: .regular
+        )
+        narrowRightField.textColor = .white
+        narrowRightField.alignment = .right
+        narrowRightField.stringValue = "36"
+        container.addSubview(narrowRightField)
+
+        container.layoutSubtreeIfNeeded()
+
+        func glyphSpanX(in field: NSView) throws -> ClosedRange<Int> {
+            let rep = try #require(field.bitmapImageRepForCachingDisplay(in: field.bounds))
+            field.cacheDisplay(in: field.bounds, to: rep)
+            var minX = Int.max
+            var maxX = Int.min
+            for y in 0..<rep.pixelsHigh {
+                for x in 0..<rep.pixelsWide {
+                    if let c = rep.colorAt(x: x, y: y), c.alphaComponent > 0.1 {
+                        minX = min(minX, x)
+                        maxX = max(maxX, x)
+                    }
+                }
+            }
+            #expect(minX <= maxX)
+            return minX...maxX
+        }
+
+        // Capture unfocused glyph spans
+        let unfocusedLeftOverflowSpan = try glyphSpanX(in: narrowLeftField)
+        let unfocusedRightShortSpan = try glyphSpanX(in: narrowRightField)
+
+        // Focus wide field first, then switch focus to narrow right-aligned field ("36")
+        #expect(window.makeFirstResponder(wideField))
+        #expect(window.makeFirstResponder(narrowRightField))
+        let rightEditor = try #require(narrowRightField.currentEditor() as? NSTextView)
+        let rightClipView = try #require(rightEditor.superview as? NSClipView)
+        #expect(rightClipView.frame == narrowRightField.bounds)
+        #expect(rightClipView.bounds.origin == .zero)
+        #expect(rightEditor.frame.width == narrowRightField.bounds.width)
+        rightEditor.setSelectedRange(NSRange(location: 0, length: 0))
+        rightEditor.insertionPointColor = .clear
+        let focusedRightShortSpan = try glyphSpanX(in: narrowRightField)
+        #expect(focusedRightShortSpan == unfocusedRightShortSpan)
+
+        // Switch focus to narrow left-aligned overflowing field ("20261014202")
+        #expect(window.makeFirstResponder(narrowLeftField))
+        let leftEditor = try #require(narrowLeftField.currentEditor() as? NSTextView)
+        let leftClipView = try #require(leftEditor.superview as? NSClipView)
+        #expect(leftClipView.frame == narrowLeftField.bounds)
+        leftEditor.setSelectedRange(NSRange(location: 0, length: 0))
+        leftEditor.scrollRangeToVisible(NSRange(location: 0, length: 0))
+        leftEditor.insertionPointColor = .clear
+        #expect(leftClipView.bounds.origin == .zero)
+        let focusedLeftOverflowSpan = try glyphSpanX(in: narrowLeftField)
+        #expect(focusedLeftOverflowSpan == unfocusedLeftOverflowSpan)
+
+        // Switch focus to narrow right-aligned overflowing field ("20261014202")
+        _ = window.makeFirstResponder(nil)
+        narrowRightField.stringValue = "20261014202"
+        let unfocusedRightOverflowSpan = try glyphSpanX(in: narrowRightField)
+        #expect(window.makeFirstResponder(narrowRightField))
+        let roEditor = try #require(narrowRightField.currentEditor() as? NSTextView)
+        let roClipView = try #require(roEditor.superview as? NSClipView)
+        #expect(roClipView.frame == narrowRightField.bounds)
+        #expect(roClipView.bounds.origin == .zero)
+        roEditor.setSelectedRange(NSRange(location: 0, length: 0))
+        roEditor.insertionPointColor = .clear
+        let focusedRightOverflowSpan = try glyphSpanX(in: narrowRightField)
+        #expect(focusedRightOverflowSpan == unfocusedRightOverflowSpan)
     }
 }

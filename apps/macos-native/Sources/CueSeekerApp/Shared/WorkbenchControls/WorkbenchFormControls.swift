@@ -523,13 +523,16 @@ final class WorkbenchNativeSingleLineTextField: NSTextField {
         return responder === self || responder === currentEditor()
     }
 
+    override var focusRingMaskBounds: NSRect { .zero }
+
+    override func drawFocusRingMask() {}
+
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
         isEditable = true
         isSelectable = true
         isBordered = false
         drawsBackground = false
-        focusRingType = .none
         usesSingleLineMode = true
         cell?.wraps = false
         cell?.isScrollable = true
@@ -542,6 +545,10 @@ final class WorkbenchNativeSingleLineTextField: NSTextField {
     @available(*, unavailable)
     required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
+    }
+
+    private func ensureFieldEditorUsesTextKit1() {
+        _ = (window?.fieldEditor(true, for: self) as? NSTextView)?.layoutManager
     }
 
     func normalizeFullString(_ raw: String) -> String {
@@ -592,6 +599,7 @@ final class WorkbenchNativeSingleLineTextField: NSTextField {
     }
 
     func applyTextStyle(to editor: NSTextView) {
+        _ = editor.layoutManager
         let resolvedFont = font ?? .systemFont(
             ofSize: WorkbenchControlMetrics.redesignFontSizeControl,
             weight: .regular
@@ -599,6 +607,8 @@ final class WorkbenchNativeSingleLineTextField: NSTextField {
         let resolvedColor = textColor ?? .labelColor
         let paragraphStyle = NSMutableParagraphStyle()
         paragraphStyle.alignment = alignment
+        paragraphStyle.lineBreakMode = .byClipping
+        paragraphStyle.tighteningFactorForTruncation = 0
         let attributes: [NSAttributedString.Key: Any] = [
             .font: resolvedFont,
             .foregroundColor: resolvedColor,
@@ -613,6 +623,10 @@ final class WorkbenchNativeSingleLineTextField: NSTextField {
                 attributes,
                 range: NSRange(location: 0, length: storage.length)
             )
+        }
+        if let layoutManager = editor.layoutManager,
+           let textContainer = editor.textContainer {
+            layoutManager.ensureLayout(for: textContainer)
         }
     }
 
@@ -632,6 +646,7 @@ final class WorkbenchNativeSingleLineTextField: NSTextField {
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
+        ensureFieldEditorUsesTextKit1()
         if wantsFocusFromSwiftUI, !isCurrentlyFocused {
             DispatchQueue.main.async { [weak self] in
                 guard let self, self.wantsFocusFromSwiftUI, !self.isCurrentlyFocused else {
@@ -642,7 +657,13 @@ final class WorkbenchNativeSingleLineTextField: NSTextField {
         }
     }
 
+    override func mouseDown(with event: NSEvent) {
+        ensureFieldEditorUsesTextKit1()
+        super.mouseDown(with: event)
+    }
+
     override func becomeFirstResponder() -> Bool {
+        ensureFieldEditorUsesTextKit1()
         let accepted = super.becomeFirstResponder()
         if accepted {
             if let editor = currentEditor() as? NSTextView {
@@ -792,7 +813,8 @@ final class WorkbenchSingleLineContainerOverlayView: NSView, PointerShapeProvidi
         }
         if let editor = field.currentEditor() as? NSTextView {
             let pointInEditor = editor.convert(event.locationInWindow, from: nil)
-            let index = editor.characterIndexForInsertion(at: pointInEditor)
+            let clampedPoint = NSPoint(x: pointInEditor.x, y: editor.bounds.midY)
+            let index = editor.characterIndexForInsertion(at: clampedPoint)
             editor.setSelectedRange(NSRange(location: index, length: 0))
         }
     }
@@ -954,6 +976,10 @@ private final class WorkbenchNativeSecureTextField: NSSecureTextField {
         return responder === self || responder === currentEditor()
     }
 
+    override var focusRingMaskBounds: NSRect { .zero }
+
+    override func drawFocusRingMask() {}
+
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
         let customCell = WorkbenchSecureTextFieldCell(textCell: "")
@@ -961,7 +987,6 @@ private final class WorkbenchNativeSecureTextField: NSSecureTextField {
         customCell.isSelectable = true
         customCell.isBordered = false
         customCell.drawsBackground = false
-        customCell.focusRingType = .none
         customCell.usesSingleLineMode = true
         customCell.wraps = false
         customCell.isScrollable = true
@@ -969,7 +994,6 @@ private final class WorkbenchNativeSecureTextField: NSSecureTextField {
 
         isBordered = false
         drawsBackground = false
-        focusRingType = .none
         usesSingleLineMode = true
         cell?.wraps = false
         cell?.isScrollable = true
@@ -984,7 +1008,22 @@ private final class WorkbenchNativeSecureTextField: NSSecureTextField {
         fatalError("init(coder:) has not been implemented")
     }
 
+    private func ensureFieldEditorUsesTextKit1() {
+        _ = (window?.fieldEditor(true, for: self) as? NSTextView)?.layoutManager
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        ensureFieldEditorUsesTextKit1()
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        ensureFieldEditorUsesTextKit1()
+        super.mouseDown(with: event)
+    }
+
     override func becomeFirstResponder() -> Bool {
+        ensureFieldEditorUsesTextKit1()
         let accepted = super.becomeFirstResponder()
         if accepted {
             applyBulletKerningToCurrentEditor()
@@ -1062,6 +1101,7 @@ private final class WorkbenchNativeSecureTextField: NSSecureTextField {
         guard let editor = currentEditor() as? NSTextView else {
             return
         }
+        _ = editor.layoutManager
         var typingAttrs = editor.typingAttributes
         typingAttrs[.kern] = WorkbenchSecureTextFieldCell.bulletKern
         if let font {
@@ -1078,6 +1118,10 @@ private final class WorkbenchNativeSecureTextField: NSSecureTextField {
                 typingAttrs,
                 range: NSRange(location: 0, length: storage.length)
             )
+        }
+        if let layoutManager = editor.layoutManager,
+           let textContainer = editor.textContainer {
+            layoutManager.ensureLayout(for: textContainer)
         }
     }
 }
