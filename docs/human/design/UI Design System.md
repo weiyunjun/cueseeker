@@ -546,12 +546,18 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - Indicator：Border Color Only
 - Focus Ring：None
 - Focused Geometry：Same size, radius, padding, and layout as unfocused state
-- Single-line Placeholder Position：Same in Empty and Focused Empty states
+- Single-line Text & Placeholder Position：Same in unfocused and focused states, including when content overflows
 - Error Priority：Danger Border overrides Focus Border
+
+#### Single-line Input Behavior
+
+- Applies To：Text Field, Search Field, Number Field
+- Line Breaks：Disallowed；pasted line breaks are replaced with spaces
+- Return Key：Does not insert line breaks, select all text, or trigger dialog confirmation（Command Panel Search Field keeps its action execution）
 
 #### Pointer
 
-- I-beam
+- I-beam across the entire input container（except the Search Field clear button），clicking anywhere inside focuses the input
 
 ### Text Field
 
@@ -712,6 +718,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
   - Color：`--color-text-primary`
   - Text Alignment：Trailing
   - Digit Style：Monospaced
+  - Value Rule：Digits `0-9` only；empty or unapplied input restores the previous valid value on blur or Return（Play `Auto Switch Gap`：`0 ~ 10000`；Subtitle `Size`：`≥ 1`；other Subtitle number fields：`≥ 0`）
 - Unit Label
   - Presence：Optional
   - Placement：Inside Container
