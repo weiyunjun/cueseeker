@@ -121,6 +121,7 @@ struct WorkbenchSingleLineTextInput: NSViewRepresentable {
                     field.stringValue = normalized
                     field.needsDisplay = true
                 }
+                field.updateEffectiveAlignment(for: field.stringValue)
             }
         }
 
@@ -501,6 +502,18 @@ final class WorkbenchNativeSingleLineTextField: NSTextField {
     var normalizeDraft: ((String) -> String)?
     var wantsFocusFromSwiftUI = false
     var isApplyingProgrammaticText = false
+    private var configuredAlignment: NSTextAlignment = .left
+    private var isUpdatingEffectiveAlignment = false
+
+    override var alignment: NSTextAlignment {
+        get { super.alignment }
+        set {
+            if !isUpdatingEffectiveAlignment {
+                configuredAlignment = newValue
+            }
+            super.alignment = newValue
+        }
+    }
 
     override var intrinsicContentSize: NSSize {
         let resolvedFont = font ?? .systemFont(
@@ -513,7 +526,11 @@ final class WorkbenchNativeSingleLineTextField: NSTextField {
 
     override var stringValue: String {
         get { super.stringValue }
-        set { super.stringValue = normalizeFullString(newValue) }
+        set {
+            let normalized = normalizeFullString(newValue)
+            super.stringValue = normalized
+            updateEffectiveAlignment(for: normalized)
+        }
     }
 
     var isCurrentlyFocused: Bool {
@@ -551,6 +568,27 @@ final class WorkbenchNativeSingleLineTextField: NSTextField {
         _ = (window?.fieldEditor(true, for: self) as? NSTextView)?.layoutManager
     }
 
+    func resolvedAlignment(for text: String) -> NSTextAlignment {
+        guard configuredAlignment == .right, bounds.width > 0 else {
+            return configuredAlignment
+        }
+        let resolvedFont = font ?? .systemFont(
+            ofSize: WorkbenchControlMetrics.redesignFontSizeControl,
+            weight: .regular
+        )
+        let textWidth = ceil((text as NSString).size(withAttributes: [.font: resolvedFont]).width) + 4.0
+        return textWidth > bounds.width ? .left : .right
+    }
+
+    func updateEffectiveAlignment(for text: String) {
+        let effective = resolvedAlignment(for: text)
+        if super.alignment != effective {
+            isUpdatingEffectiveAlignment = true
+            super.alignment = effective
+            isUpdatingEffectiveAlignment = false
+        }
+    }
+
     func normalizeFullString(_ raw: String) -> String {
         let singleLine = SearchInputNormalizer.singleLine(raw)
         if let normalizeDraft {
@@ -563,7 +601,7 @@ final class WorkbenchNativeSingleLineTextField: NSTextField {
         self.isEnabled = isEnabled
         self.isEditable = isEnabled
         self.isSelectable = isEnabled
-        self.alignment = input.alignment
+        self.configuredAlignment = input.alignment
         self.normalizeDraft = input.normalizeDraft
         self.setAccessibilityLabel(input.accessibilityLabel)
 
@@ -572,6 +610,8 @@ final class WorkbenchNativeSingleLineTextField: NSTextField {
             : .systemFont(ofSize: input.fontSize, weight: .regular)
         self.font = resolvedFont
         self.textColor = NSColor(input.textColor)
+        let activeText = (currentEditor() as? NSTextView)?.string ?? super.stringValue
+        updateEffectiveAlignment(for: activeText)
 
         if input.placeholder.isEmpty {
             self.placeholderAttributedString = nil
@@ -605,8 +645,10 @@ final class WorkbenchNativeSingleLineTextField: NSTextField {
             weight: .regular
         )
         let resolvedColor = textColor ?? .labelColor
+        let effectiveAlignment = resolvedAlignment(for: editor.string)
+        updateEffectiveAlignment(for: editor.string)
         let paragraphStyle = NSMutableParagraphStyle()
-        paragraphStyle.alignment = alignment
+        paragraphStyle.alignment = effectiveAlignment
         paragraphStyle.lineBreakMode = .byClipping
         paragraphStyle.tighteningFactorForTruncation = 0
         let attributes: [NSAttributedString.Key: Any] = [
@@ -616,7 +658,7 @@ final class WorkbenchNativeSingleLineTextField: NSTextField {
         ]
         editor.font = resolvedFont
         editor.textColor = resolvedColor
-        editor.alignment = alignment
+        editor.alignment = effectiveAlignment
         editor.typingAttributes = attributes
         if let storage = editor.textStorage, storage.length > 0 {
             storage.addAttributes(
@@ -639,6 +681,11 @@ final class WorkbenchNativeSingleLineTextField: NSTextField {
 
     override func layout() {
         super.layout()
+        let activeText = (currentEditor() as? NSTextView)?.string ?? super.stringValue
+        updateEffectiveAlignment(for: activeText)
+        if let editor = currentEditor() as? NSTextView {
+            applyTextStyle(to: editor)
+        }
         if wantsFocusFromSwiftUI, !isCurrentlyFocused, bounds.width > 0 {
             requestFocusIfPossible()
         }
@@ -659,11 +706,16 @@ final class WorkbenchNativeSingleLineTextField: NSTextField {
 
     override func mouseDown(with event: NSEvent) {
         ensureFieldEditorUsesTextKit1()
+        updateEffectiveAlignment(for: super.stringValue)
         super.mouseDown(with: event)
+        if let editor = currentEditor() as? NSTextView {
+            applyTextStyle(to: editor)
+        }
     }
 
     override func becomeFirstResponder() -> Bool {
         ensureFieldEditorUsesTextKit1()
+        updateEffectiveAlignment(for: super.stringValue)
         let accepted = super.becomeFirstResponder()
         if accepted {
             if let editor = currentEditor() as? NSTextView {
@@ -731,8 +783,16 @@ final class WorkbenchNativeSingleLineTextField: NSTextField {
         onFocusChange?(true)
     }
 
+    override func textDidChange(_ notification: Notification) {
+        super.textDidChange(notification)
+        if let editor = currentEditor() as? NSTextView {
+            applyTextStyle(to: editor)
+        }
+    }
+
     override func textDidEndEditing(_ notification: Notification) {
         super.textDidEndEditing(notification)
+        updateEffectiveAlignment(for: super.stringValue)
         onFocusChange?(false)
     }
 }
@@ -812,7 +872,12 @@ final class WorkbenchSingleLineContainerOverlayView: NSView, PointerShapeProvidi
             _ = window?.makeFirstResponder(field)
         }
         if let editor = field.currentEditor() as? NSTextView {
-            let pointInEditor = editor.convert(event.locationInWindow, from: nil)
+            let pointInField = field.convert(event.locationInWindow, from: nil)
+            let clampedFieldPoint = NSPoint(
+                x: min(max(pointInField.x, 0), field.bounds.width),
+                y: field.bounds.midY
+            )
+            let pointInEditor = editor.convert(clampedFieldPoint, from: field)
             let clampedPoint = NSPoint(x: pointInEditor.x, y: editor.bounds.midY)
             let index = editor.characterIndexForInsertion(at: clampedPoint)
             editor.setSelectedRange(NSRange(location: index, length: 0))

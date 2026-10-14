@@ -269,7 +269,8 @@ struct SettingsSubtitleNumberField: View {
             commitDraft()
         }
         .onChange(of: value) { value in
-            if !isFocused {
+            if !isFocused,
+               Self.parseDouble(draft) != value {
                 draft = Self.text(for: value)
             }
         }
@@ -279,33 +280,50 @@ struct SettingsSubtitleNumberField: View {
         draft.filter { $0.isASCII && $0.isNumber }
     }
 
+    private static func parseDouble(_ draft: String) -> Double? {
+        guard !draft.isEmpty else { return nil }
+        return Int(draft).map(Double.init) ?? Double(draft)
+    }
+
     private func applyDraft(_ draft: String) {
         let allowed = Self.filterDraft(draft)
         guard allowed == draft else {
             self.draft = allowed
             return
         }
-        guard let number = Int(draft),
-              Double(number) >= minimum
+        guard let parsed = Self.parseDouble(allowed),
+              parsed >= minimum
         else {
             return
         }
-        value = Double(number)
+        value = parsed
     }
 
     private func commitDraft() {
-        guard let number = Int(draft) else {
+        let allowed = Self.filterDraft(draft)
+        guard let parsed = Self.parseDouble(allowed) else {
             draft = Self.text(for: value)
             return
         }
-        value = max(Double(number), minimum)
-        draft = Self.text(for: value)
+        if parsed < minimum {
+            value = minimum
+            draft = Self.text(for: minimum)
+        } else {
+            value = parsed
+            let stripped = String(allowed.drop(while: { $0 == "0" }))
+            draft = stripped.isEmpty ? "0" : stripped
+        }
     }
 
     private static func text(for value: Double) -> String {
-        value == value.rounded() && abs(value) < 1e15
-            ? String(Int(value))
-            : String(value)
+        if value == value.rounded() && abs(value) < 1e15 {
+            return String(Int(value))
+        }
+        if value == value.rounded(),
+           let decimal = Decimal(string: String(format: "%.0f", value)) {
+            return NSDecimalNumber(decimal: decimal).stringValue
+        }
+        return String(value)
     }
 }
 

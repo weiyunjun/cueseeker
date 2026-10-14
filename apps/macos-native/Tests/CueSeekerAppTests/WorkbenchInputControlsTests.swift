@@ -307,6 +307,18 @@ struct WorkbenchInputControlsTests {
         sizeEditorAgain.doCommand(by: #selector(NSResponder.insertNewline(_:)))
         #expect(sizeEditorAgain.string == "1")
         #expect(subtitleBox.size == 1)
+
+        // 17-digit and 20-digit numbers in SettingsSubtitleNumberField preserve exact digit text across blur/focus without scientific notation or Int overflow revert
+        for longDigits in ["55202610142021042", "20261014202104212345"] {
+            #expect(window.makeFirstResponder(sizeField))
+            let activeSizeEditor = try #require(sizeField.currentEditor() as? NSTextView)
+            activeSizeEditor.setSelectedRange(NSRange(location: 0, length: activeSizeEditor.string.utf16.count))
+            activeSizeEditor.insertText(longDigits, replacementRange: activeSizeEditor.selectedRange())
+            #expect(activeSizeEditor.string == longDigits)
+            #expect(window.makeFirstResponder(letterSpacingField))
+            RunLoop.main.run(until: Date().addingTimeInterval(0.03))
+            #expect(sizeField.stringValue == longDigits)
+        }
     }
 
     @Test
@@ -486,18 +498,38 @@ struct WorkbenchInputControlsTests {
         let focusedLeftOverflowSpan = try glyphSpanX(in: narrowLeftField)
         #expect(focusedLeftOverflowSpan == unfocusedLeftOverflowSpan)
 
-        // Switch focus to narrow right-aligned overflowing field ("20261014202")
-        _ = window.makeFirstResponder(nil)
-        narrowRightField.stringValue = "20261014202"
-        let unfocusedRightOverflowSpan = try glyphSpanX(in: narrowRightField)
-        #expect(window.makeFirstResponder(narrowRightField))
-        let roEditor = try #require(narrowRightField.currentEditor() as? NSTextView)
-        let roClipView = try #require(roEditor.superview as? NSClipView)
-        #expect(roClipView.frame == narrowRightField.bounds)
-        #expect(roClipView.bounds.origin == .zero)
-        roEditor.setSelectedRange(NSRange(location: 0, length: 0))
-        roEditor.insertionPointColor = .clear
-        let focusedRightOverflowSpan = try glyphSpanX(in: narrowRightField)
-        #expect(focusedRightOverflowSpan == unfocusedRightOverflowSpan)
+        // Switch focus to narrow right-aligned field across all lengths 1...20 and verify 0 pixel diff between unfocused and focused
+        let baseDigits = "20261014202104289123"
+        for len in 1...20 {
+            _ = window.makeFirstResponder(nil)
+            let sample = String(baseDigits.prefix(len))
+            narrowRightField.stringValue = sample
+
+            let unfocusedRep = try #require(narrowRightField.bitmapImageRepForCachingDisplay(in: narrowRightField.bounds))
+            narrowRightField.cacheDisplay(in: narrowRightField.bounds, to: unfocusedRep)
+
+            #expect(window.makeFirstResponder(narrowRightField))
+            let roEditor = try #require(narrowRightField.currentEditor() as? NSTextView)
+            let roClipView = try #require(roEditor.superview as? NSClipView)
+            #expect(roClipView.frame == narrowRightField.bounds)
+            #expect(roClipView.bounds.origin == .zero)
+            roEditor.setSelectedRange(NSRange(location: 0, length: 0))
+            roEditor.insertionPointColor = .clear
+
+            let focusedRep = try #require(narrowRightField.bitmapImageRepForCachingDisplay(in: narrowRightField.bounds))
+            narrowRightField.cacheDisplay(in: narrowRightField.bounds, to: focusedRep)
+
+            var diffPixels = 0
+            for y in 0..<unfocusedRep.pixelsHigh {
+                for x in 0..<unfocusedRep.pixelsWide {
+                    let a0 = unfocusedRep.colorAt(x: x, y: y)?.alphaComponent ?? 0
+                    let a1 = focusedRep.colorAt(x: x, y: y)?.alphaComponent ?? 0
+                    if abs(a0 - a1) > 0.05 {
+                        diffPixels += 1
+                    }
+                }
+            }
+            #expect(diffPixels == 0)
+        }
     }
 }
