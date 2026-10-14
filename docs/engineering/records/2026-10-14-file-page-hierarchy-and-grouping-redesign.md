@@ -5,6 +5,7 @@ Human-owned documents:
 - `docs/human/requirements/20261014-UI-File Page Hierarchy And Grouping Redesign.md`
 - `docs/human/design/UI Design System.md`
 - `docs/human/design/UI Application Rules.md`
+- `docs/human/design/Icon Registry.md`
 
 ## Why
 

@@ -34,7 +34,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--color-app-sidebar-item-selected-bg`: macOS accent color
 - `--color-app-sidebar-item-selected-content`: Light `#FFFFFF`; Dark `#FFFFFF`
 - `--color-app-topbar-bg`: Light `#FFFFFF`; Dark `#1C1C1F`
-- `--color-settings-group-bg`: Light `#F6F7F9`; Dark `#26262A`
+- `--color-settings-group-bg`: Light `#F2F4F7`; Dark `#242429`
 - `--color-overlay-surface-shortcut-button-bg-hover`: Light `#EDEEF2`; Dark `rgba(255,255,255,0.06)`
 - `--color-overlay-surface-keycap-bg`: Light `#E1E4E9`; Dark `rgba(255,255,255,0.10)`
 - `--color-overlay-surface-keycap-bg-hover`: Light `#D2D6DE`; Dark `rgba(255,255,255,0.16)`
@@ -97,9 +97,9 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 
 ### Table
 
-- `--color-table-bg`: Light `#FFFFFF`; Dark `#26262A`
-- `--color-row-hover`: Light `#F9FAFB`; Dark `#2E2E33`
-- `--color-row-selected`: Light `#F3F4F6`; Dark `#36363C`
+- `--color-table-bg`: Light `#FFFFFF`; Dark `#2E2E34`
+- `--color-row-hover`: Light `#F9FAFB`; Dark `#383840`
+- `--color-row-selected`: Light `#ECEEF2`; Dark `#43434C`
 
 ### Status
 
@@ -304,6 +304,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--size-task-count-badge-compact`: `18px`
 - `--size-card-icon-container`: `36px`
 - `--size-card-icon-glyph`: `20px`
+- `--size-card-chevron`: `16px`
 - `--size-detail-file-icon-container`: `40px`
 - `--size-detail-file-icon-glyph`: `20px`
 - `--min-width-detail-label`: `100px`
@@ -3527,15 +3528,17 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 #### Structure
 
 1. Level 1: Root Folder Card List
-   1. Breadcrumb Navigation：`Home`
-   2. Status and Action Row：Status Indicator、Action Buttons（`Add Folder`、`Index Now`）
-   3. Root Folder Card List
-2. Level 2: Subfolder Card List
-   1. Breadcrumb Navigation：`Home` > `[Indexed Path]`
-   2. Subfolder Card List
+   1. Status and Action Row：Status Indicator、Action Buttons（`Add Folder`、`Index Now`）
+   2. Folder Type Sections（按 `Local Folder`、`WebDAV Folder` 分组展示 Root Folder Card List）
+2. Level 2: Subfolder & Direct File List
+   1. Status and Action Row
+   2. Breadcrumb Navigation：`[Folder Type]` > `[Indexed Path]`
+   3. Subfolder Card List（存在子文件夹时）
+   4. Episode File Groups（根目录存在直属文件时，排列在子文件夹下方）
 3. Level 3: File Card List
-   1. Breadcrumb Navigation：`Home` > `[Indexed Path]` > `[Folder]`（直属内容为 `[Folder] (Direct Content)`）
-   2. File Card List
+   1. Status and Action Row
+   2. Breadcrumb Navigation：`[Folder Type]` > `[Indexed Path]` > `[Folder]`
+   3. Episode File Groups
 
 #### Components
 
@@ -3555,17 +3558,23 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 
 - Page Layout：Workbench Titled Page Layout
 - 顶栏后退与前进按钮响应三级界面的下钻与返回，顶栏标题恒定为 `File`。
-- 面包屑与各级 Card List 均左边缘对齐。
-- Status and Action Row 仅在 Level 1 展示，高 36px（`--height-control`），两端对齐：左侧为极简状态指示器，右侧为操作按钮组。Level 2 和 Level 3 整行隐藏。
-- 面包屑节点：未激活链接项为 14px Medium `--color-text-secondary`（Hover 变为 `--color-text-primary`）；当前项为 14px Semibold `--color-text-primary`；分隔符为 `caret-right`（12px 1.15px `--color-text-muted`），间距 `--spacing-2`。
-- 没有根目录时显示 Empty State；三级文件流无内容且非加载中时显示 Empty State。异步加载期间展示居中 `WorkbenchSpinner`（18px）。
+- Status and Action Row、文件夹类型标题、面包屑、单集 `Display Title` 与各级容器/卡片均左边缘对齐。
+- Status and Action Row 在 Level 1、Level 2、Level 3 第一行常驻展示，高 36px（`--height-control`），两端对齐：左侧为极简状态指示器，右侧为操作按钮组。
+- Level 1 按 `Local Folder`、`WebDAV Folder` 分组展示根文件夹卡片，仅当对应类型下存在根目录时显示该分组；类型标题为 14px Semibold `--color-text-primary`。
+- 面包屑节点（Level 2 与 Level 3 第二行）：以文件夹类型为起点（点击返回 Level 1）；未激活链接项为 14px Medium `--color-text-secondary`（Hover 变为 `--color-text-primary`）；当前项为 14px Semibold `--color-text-primary`；分隔符为 `caret-right`（12px 1.15px `--color-text-muted`），间距 `--spacing-2`。
+- Episode File Group（单集文件分组）：视频与字幕按单集 `Display Title` 分组展示；`Display Title` 位于所属灰底圆角容器正上方（14px Medium `--color-text-muted`）；下方容器背景 `--color-settings-group-bg`、边框 `--color-border-divider`（宽度 `--border-width-control`）、圆角 `--radius-settings-group`、内边距 `--spacing-4`，占满内容区宽度并包裹该集的视频与字幕卡片。
+- 没有根目录时显示 Empty State；二级或三级无内容且非加载中时显示 Empty State。异步加载期间展示居中 `WorkbenchSpinner`（18px）。
 - 移除根目录前弹出 Confirmation Dialog。
 - 存在 Index、Add Folder、Remove Folder、Rename Folder 或 Rename Files 任务期间，以及数据库压缩进行中时，全部操作按钮为 Disabled。
 
 #### Spacing
 
-- Breadcrumb to Status Row / Content：`--spacing-4`
-- Status and Action Row to Card List：`--spacing-4`
+- Status and Action Row to Breadcrumb / Content：`--spacing-4`
+- Breadcrumb to Content：`--spacing-3`
+- Folder Type Section Gap / Subfolders to Direct Episode Groups Gap：`--spacing-6`
+- Folder Type Title to Card List：`--spacing-3`
+- Episode Group Gap：`--spacing-4`
+- Episode `Display Title` to Group Container：`--spacing-2`
 - Action Row Gap：`--spacing-2`
 - Card Gap：`--spacing-3`
 
@@ -3577,7 +3586,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
   - 已完成（Completed）：`check-circle`（18px 1.30px `--color-success-text`）+ `--color-success-text`（`Indexed [Folder]`、`Indexed All Folders`、`Removed [Folder]`）
   - 进行中（In Progress）：`WorkbenchSpinner`（18px `--color-text-secondary`）+ `--color-text-secondary`（`Indexing [Folder]`、`Indexing All Folders`、`Removing [Folder]`）
   - 失败（Failed）：`warning`（18px 1.30px `--color-danger-text`）+ `--color-danger-text`（`Index Failed: [Folder]`、`Removal Failed: [Folder]`）
-  - 闲置（Idle）：`arrow-clockwise`（18px 1.30px `--color-text-secondary`）+ `--color-text-secondary`（`Last Updated: yy-MM-dd HH:mm` / `Last Updated: --`）。切离 Level 1 再切回时恢复闲置状态。
+  - 闲置（Idle）：`arrow-clockwise`（18px 1.30px `--color-text-secondary`）+ `--color-text-secondary`（`Last Updated: yy-MM-dd HH:mm` / `Last Updated: --`）。层级切换或重新进入时若无进行中操作则恢复闲置状态。
 
 #### File Card Layout
 
@@ -3590,8 +3599,8 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
   - Hover Background：`--color-row-hover`
 - Anatomy：Icon Container + `--spacing-4` + Text Column + Spacer + Trailing Actions
 - Alignment：
-  - 基准态（双行文本 36px）：图标底容器（36×36px）与文本列顶部对齐（距顶 16px）；右侧操作按钮（32px）垂直居中（上下各 18px，右边距 16px）
-  - 多行展开态：文本折行撑开卡片时，左侧图标底容器（距顶 16px）与右侧按钮（距顶 18px）保持基准位置锁定，卡片向下延伸并保持底部 16px 边距
+  - 基准态（双行文本 36px）：图标底容器（36×36px）与文本列顶部对齐（距顶 16px）；右侧操作区（高 32px）垂直居中（上下各 18px，右边距 16px）
+  - 多行展开态：文本折行撑开卡片时，左侧图标底容器（距顶 16px）与右侧操作区（距顶 18px）保持基准位置锁定，卡片向下延伸并保持底部 16px 边距
 - Icon：
   - Container：36×36px，圆角 `--radius-control`，背景 `--color-bg-hover`
   - Glyph Size：`--size-card-icon-glyph`（20px），居中
@@ -3603,12 +3612,13 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
   - Line Gap：`--spacing-1`
   - Wrapping：所有文本完整展示，字符折行，不截断
 - Trailing Actions：
-  - 统一使用 `dots-three` 纯图标按钮（32×32px，圆角 8px，图标 21px），Hover 及菜单打开底色为 `--color-row-selected`
+  - 文件夹卡片最右侧常驻不可点击的 `caret-right` 指示箭头（`--size-card-chevron` 16px，`--color-text-muted`），`dots-three` 按钮位于其左侧（间距 `--spacing-2`）；文件卡片无 `caret-right` 箭头，最右侧仅保留 `dots-three` 按钮。
+  - `dots-three` 纯图标按钮（32×32px，圆角 8px，图标 21px）默认隐藏，仅在卡片 Hover 或该卡片菜单打开时显示；Hover 按钮自身及菜单打开时底色为 `--color-row-selected`。
   - `Add Folder` 弹出菜单：`Local Folder`（`folder`）+ `WebDav Folder`（`cloud`）
   - 卡片弹出菜单（WebDAV 条目的 `Rename Folder` 与 `Rename Files` 为 Disabled）：
-    - Level 1：`Rename Folder`（Neutral）+ `Remove`（Destructive 警告项）
-    - Level 2：`Rename Folder`（Neutral）
-    - Level 3：`Rename Files`（Neutral）
+    - Root Folder Card：`Rename Folder`（Neutral）+ `Remove`（Destructive 警告项）
+    - Subfolder Card：`Rename Folder`（Neutral）
+    - Video / Subtitle File Card：`Get Info`（Neutral）+ `Rename Files`（Neutral）
 
 ## 3.5 Search and Excerpt
 
