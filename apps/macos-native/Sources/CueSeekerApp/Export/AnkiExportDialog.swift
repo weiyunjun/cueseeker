@@ -228,17 +228,17 @@ struct AnkiExportDialog: View {
                         }
                     }
 
-                    // Section 3: File Name
-                    WorkbenchFormTextField(
-                        label: L("anki_export.file_name"),
-                        placeholder: "",
-                        text: $session.fileName,
-                        validationMessage: session.validationMessage,
-                        focus: $isFileNameFocused
-                    )
+                    // Section 3 & 4: File Name and Location (horizontal form rows)
+                    VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing3) {
+                        WorkbenchDialogFormTextField(
+                            label: L("anki_export.file_name"),
+                            placeholder: "",
+                            text: $session.fileName,
+                            validationMessage: session.validationMessage,
+                            reservesValidationLine: true,
+                            focus: $isFileNameFocused
+                        )
 
-                    // Section 4: Location
-                    group(L("anki_export.location")) {
                         locationRow
                     }
                 }
@@ -442,33 +442,42 @@ struct AnkiExportDialog: View {
     }
 
     private var locationRow: some View {
-        VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing1) {
-            HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
-                WorkbenchSingleLineTextInput(
-                    placeholder: "",
-                    text: $session.locationPath,
-                    placeholderColor: WorkbenchRedesignColors.textPlaceholder,
-                    textColor: WorkbenchRedesignColors.textPrimary,
-                    fontSize: WorkbenchControlMetrics.redesignFontSizeControl,
-                    focus: $isLocationFocused,
-                    accessibilityLabel: L("anki_export.location"),
-                    onFocusChange: { isLocationFieldFocused = $0 }
+        HStack(alignment: .top, spacing: WorkbenchControlMetrics.redesignSpacing3) {
+            WorkbenchFormLabel(text: L("anki_export.location"))
+                .frame(
+                    width: WorkbenchControlMetrics.redesignFormLabelWidth,
+                    height: WorkbenchControlMetrics.redesignFieldHeight,
+                    alignment: .leading
                 )
-                .padding(.horizontal, WorkbenchControlMetrics.redesignFieldPaddingX)
-                .frame(height: WorkbenchControlMetrics.redesignFieldHeight)
-                .workbenchFormFieldChrome(
-                    hasError: session.locationValidationMessage != nil,
-                    isFocused: isLocationFieldFocused || isLocationFocused
-                )
-                .overlay(WorkbenchSingleLineContainerOverlay(isEnabled: true))
-                .accessibilityIdentifier("anki-export-location")
 
-                WorkbenchIconButton(icon: .folder, isRedesign: true, action: onChooseFolder)
-                    .accessibilityLabel(L("anki_export.choose_folder"))
-                    .padding(.trailing, -Self.folderButtonTrailingSlack)
+            VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing1) {
+                HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
+                    WorkbenchSingleLineTextInput(
+                        placeholder: "",
+                        text: $session.locationPath,
+                        placeholderColor: WorkbenchRedesignColors.textPlaceholder,
+                        textColor: WorkbenchRedesignColors.textPrimary,
+                        fontSize: WorkbenchControlMetrics.redesignFontSizeControl,
+                        focus: $isLocationFocused,
+                        accessibilityLabel: L("anki_export.location"),
+                        onFocusChange: { isLocationFieldFocused = $0 }
+                    )
+                    .padding(.horizontal, WorkbenchControlMetrics.redesignFieldPaddingX)
+                    .frame(height: WorkbenchControlMetrics.redesignFieldHeight)
+                    .workbenchFormFieldChrome(
+                        hasError: session.locationValidationMessage != nil,
+                        isFocused: isLocationFieldFocused || isLocationFocused
+                    )
+                    .overlay(WorkbenchSingleLineContainerOverlay(isEnabled: true))
+                    .accessibilityIdentifier("anki-export-location")
+
+                    WorkbenchIconButton(icon: .folder, isRedesign: true, action: onChooseFolder)
+                        .accessibilityLabel(L("anki_export.choose_folder"))
+                        .padding(.trailing, -Self.folderButtonTrailingSlack)
+                }
+
+                WorkbenchValidationMessage(text: session.locationValidationMessage)
             }
-
-            WorkbenchValidationMessage(text: session.locationValidationMessage)
         }
     }
 

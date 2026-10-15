@@ -27,6 +27,7 @@
    - Extended `redesignExcerptListEditorDescriptionHeight` down to align the `Description` (`Text Area`) bottom edge with the bottom of Line 1 of the left-side `Support Text` (`coverHeight + redesignSpacing3 + supportLine`), aligning the reserved validation message line below `Text Area` with Line 2 of `Support Text`.
 
 5. **Export to Anki Dialog (`AnkiExportDialog.swift`, `AppCoordinator+AnkiExport.swift`)**:
+   - Switched bottom `File Name` and `Location` fields to a two-column horizontal layout (`--width-form-label: 72px`, horizontal gap `--spacing-3: 12px`, vertical row gap `--spacing-3: 12px`).
    - Converted `Location` from static text to an editable single-line `Text Field` with the folder chooser `Icon Button / Default` (`.folder`) on the right (gap `--spacing-2: 8px`) and `1` reserved validation message line below, validating that the typed folder path is non-empty, exists, is a directory, and is writable.
 
 6. **Settings Input Rows & Shortcuts Restore Button (`SettingsShortcutsCategory.swift`)**:
