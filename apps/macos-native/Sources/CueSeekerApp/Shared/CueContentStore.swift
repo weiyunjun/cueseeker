@@ -42,7 +42,12 @@ final class CueContentStore {
 
     @discardableResult
     func install(_ contents: [CueContent]) -> Bool {
+        guard !contents.isEmpty else { return false }
+        if contentByCueID.capacity < contentByCueID.count + contents.count {
+            contentByCueID.reserveCapacity(contentByCueID.count + contents.count)
+        }
         var changedCueIDs: Set<Int64> = []
+        changedCueIDs.reserveCapacity(contents.count)
         for content in contents where contentByCueID[content.cueID] != content {
             contentByCueID[content.cueID] = content
             changedCueIDs.insert(content.cueID)

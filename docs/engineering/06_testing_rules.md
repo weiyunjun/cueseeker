@@ -222,22 +222,33 @@ Rules:
 
 All search benchmarks must run in headless mode without launching the App window, while fully exercising the end-to-end search pipeline:
 1. **Pipeline Coverage**: Library folder scoping (`selectedFolders`), 100ms input debounce, database FTS5 multi-batch streaming with 100-row progress yield, `CueContentStore` installation, `searchRankByCueID` dictionary indexing, full `CueFacetSnapshot` facet distribution aggregation across all matched cues, and `TableSandboxRowModelStore` snapshot assembly.
-2. **Cold Sampling Protocol**: 5 round-robin cycles across the 3 queries (`大丈夫` -> `今日` -> `の`), each using fresh connection instantiation and Direct I/O (`fcntl(F_NOCACHE, 1)` and `fcntl(F_RDAHEAD, 0)`) to bypass OS disk and Unified Buffer Cache without requiring root permissions.
-3. **Core Metrics**:
-   - `T_first`: Time from search trigger until first screen (100 rows) is committed and ready for UI rendering.
-   - `T_complete`: Time from search trigger until all rows, exact count, file summaries, and facet distributions are finalized.
+2. **True-Cold Sampling Protocol**: 5 round-robin cycles across the 3 queries (`大丈夫` -> `今日` -> `の`). Before each individual query, `SearchBench` writes an uncached database snapshot (`fcntl(dstFd, F_NOCACHE, 1)` set prior to writing any bytes so zero pages enter XNU Unified Buffer Cache) and opens the read-only connection with `directIO: true` (`F_NOCACHE=1`, `F_RDAHEAD=0`, `PRAGMA mmap_size = 0`).
+3. **Core Metrics (5-Round Average + Raw)**:
+   - **End-to-End 1st Screen Avg** / **Full Complete Avg** (including 100ms input debounce).
+   - **Pure Backend 1st Screen Avg** / **Pure Backend Full Avg** (excluding debounce, decomposed into **DB Query Avg** and **MainActor Commit Avg**).
 4. **Standard Command**:
    ```bash
    swift run --package-path apps/macos-native -c release SearchBench "$HOME/Library/Application Support/CueSeeker/CueSeeker.sqlite" --headless-cold
    ```
 
-#### Baseline (1.0 GB Database, 76,817 Cues, Library Scope: `/Volumes/Seagate/影视`)
+#### Baseline (1.0 GB Database, Schema 55, 76,817 `の` Cues, Library Scope: `/Volumes/Seagate/影视`)
 
-| Query | Total Results | Files | 1st Screen Median | 1st Screen Raw (5 rounds, ms) | Full Results Median | Full Results Raw (5 rounds, ms) |
+**1. End-to-End Full Chain Cold Benchmark (5 Rounds Average, incl. 100ms Debounce)**
+
+| Query | Total Results | Files | 1st Screen Avg | 1st Screen Raw (5 rounds, ms) | Full Complete Avg | Full Complete Raw (5 rounds, ms) |
 | :--- | ---: | ---: | ---: | --- | ---: | --- |
-| `大丈夫` | 1,462 | 498 | **179.27 ms** | 205.50, 175.94, 172.28, 179.27, 180.06 | **253.84 ms** | 333.39, 248.66, 251.61, 253.84, 257.93 |
-| `今日` | 2,300 | 497 | **179.55 ms** | 193.75, 179.55, 177.69, 179.83, 177.48 | **283.86 ms** | 330.88, 283.86, 283.58, 284.79, 282.32 |
-| `の` | 76,817 | 637 | **115.99 ms** | 114.64, 115.99, 111.91, 120.70, 117.68 | **2116.15 ms** | 2142.75, 2030.33, 2047.58, 2116.15, 2229.50 |
+| `大丈夫` | 1,462 | 498 | **128.29 ms** | 124.60, 130.96, 137.75, 121.16, 126.98 | **158.43 ms** | 155.43, 161.34, 166.80, 151.25, 157.32 |
+| `今日` | 2,300 | 497 | **138.91 ms** | 126.67, 137.31, 121.94, 120.95, 187.69 | **187.28 ms** | 162.70, 173.45, 158.17, 156.56, 285.54 |
+| `の` | 76,817 | 637 | **129.64 ms** | 140.08, 131.81, 127.52, 123.63, 125.15 | **653.14 ms** | 772.43, 645.81, 614.25, 620.91, 612.32 |
+
+**2. Pure Backend Breakdown (5 Rounds Average, excl. Debounce)**
+
+| Query | Backend 1st Screen Avg | Backend 1st Raw (ms) | Pure Backend Full Avg | DB Query Avg | MainActor Commit Avg | Pure Backend Full Raw (ms) |
+| :--- | ---: | --- | ---: | ---: | ---: | --- |
+| `大丈夫` | **24.56 ms** | 23.43, 26.34, 34.93, 16.14, 21.96 | **54.69 ms** | 54.08 ms | 0.62 ms | 54.26, 56.72, 63.97, 46.22, 52.30 |
+| `今日` | **34.60 ms** | 22.26, 33.01, 17.62, 17.45, 82.67 | **82.97 ms** | 82.03 ms | 0.94 ms | 58.28, 69.14, 53.85, 53.06, 180.52 |
+| `の` | **25.89 ms** | 38.38, 28.46, 22.50, 20.00, 20.12 | **549.40 ms** | 503.00 ms | 46.40 ms | 670.73, 542.46, 509.24, 517.28, 507.29 |
+
 
 
 ## 10. Playback Verification

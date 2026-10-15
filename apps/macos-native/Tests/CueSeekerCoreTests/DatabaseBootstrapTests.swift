@@ -1145,3 +1145,37 @@ func migratesSchema51ByAddingTheDefaultSubtitleColumnWithoutTouchingVideos() thr
     #expect(subtitles.defaultSubtitleFileID == nil)
     #expect(subtitles.effectiveDefault?.subtitlePath == "/Media/Show/Episode.srt")
 }
+
+@Test
+func migratesSchema54ByAddingFTSCoveringIndexAndLineLanguageMask() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        removeTemporaryDatabase(at: databaseURL)
+    }
+
+    try DatabaseBootstrap.prepare(at: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
+    try database.replaceEntries(
+        subtitleFile: URL(fileURLWithPath: "/Media/Show/Episode.srt"),
+        videoFile: URL(fileURLWithPath: "/Media/Show/Episode.mkv"),
+        entries: [databaseTestEntry(text: "大丈夫です")]
+    )
+    try executeDatabaseTestSQLite(
+        at: databaseURL,
+        """
+        DROP INDEX IF EXISTS idx_subtitle_cue_lines_fts_covering;
+        ALTER TABLE subtitle_cue_lines DROP COLUMN fts_rowid;
+        ALTER TABLE subtitle_cue_lines DROP COLUMN language_mask;
+        PRAGMA user_version = 54;
+        """
+    )
+
+    try DatabaseBootstrap.prepare(at: databaseURL)
+
+    #expect(try sqliteSchemaVersion(at: databaseURL) == DatabaseBootstrap.currentSchemaVersion)
+    #expect(try sqliteIndexExists("idx_subtitle_cue_lines_fts_covering", databaseURL: databaseURL))
+    let searchPage = try SearchDatabase(path: databaseURL).searchPage("大丈夫", limit: 10)
+    #expect(searchPage.totalCount == 1)
+    #expect(searchPage.results.first?.content == "大丈夫です")
+}
+

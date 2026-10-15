@@ -244,11 +244,11 @@ extension SearchStore {
                     SearchPerformanceLogger.mark(
                         run,
                         "search_visible_page_loaded",
-                        resultCount: self.searchResults.count,
+                        resultCount: self.loadedSearchResultCueIDs.count,
                         totalCount: self.searchResultTotalCount,
                         fileSummaryCount: self.searchFileSummaries.count,
                         groupCount: self.searchFileSummaries.count,
-                        renderedRowCount: self.searchResults.count,
+                        renderedRowCount: self.loadedSearchResultCueIDs.count,
                         status: "searching"
                     )
                     consumedFirstPage = onFirstPageResolved(firstPage.page.results.first)
@@ -306,11 +306,11 @@ extension SearchStore {
                     run,
                     event,
                     phaseStart: completionStart,
-                    resultCount: self.searchResults.count,
+                    resultCount: self.loadedSearchResultCueIDs.count,
                     totalCount: self.searchResultTotalCount,
                     fileSummaryCount: self.searchFileSummaries.count,
                     groupCount: self.searchFileSummaries.count,
-                    renderedRowCount: self.searchResults.count,
+                    renderedRowCount: self.loadedSearchResultCueIDs.count,
                     status: statusText
                 )
 

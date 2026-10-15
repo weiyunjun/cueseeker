@@ -84,6 +84,37 @@ enum CueLineLanguages {
         return cueGroupLanguages
     }
 
+    private static let decodedLanguageMasks: [Set<SubtitleLanguageCode>] = (0..<64).map { mask in
+        var set: Set<SubtitleLanguageCode> = []
+        if (mask & 1) != 0 { set.insert(.english) }
+        if (mask & 2) != 0 { set.insert(.japanese) }
+        if (mask & 4) != 0 { set.insert(.chinese) }
+        if (mask & 8) != 0 { set.insert(.simplifiedChinese) }
+        if (mask & 16) != 0 { set.insert(.traditionalChinese) }
+        if (mask & 32) != 0 { set.insert(.unknown) }
+        return set.isEmpty ? [.unknown] : set
+    }
+
+    static func mask(for languages: Set<SubtitleLanguageCode>) -> Int {
+        var mask = 0
+        for language in languages {
+            switch language {
+            case .english: mask |= 1
+            case .japanese: mask |= 2
+            case .chinese: mask |= 4
+            case .simplifiedChinese: mask |= 8
+            case .traditionalChinese: mask |= 16
+            case .unknown: mask |= 32
+            }
+        }
+        return mask == 0 ? 32 : mask
+    }
+
+    static func languages(forMask mask: Int) -> Set<SubtitleLanguageCode> {
+        let index = mask & 0x3F
+        return index > 0 ? decodedLanguageMasks[index] : [.unknown]
+    }
+
     static func insert(
         on database: SQLiteDatabase,
         cueID: Int64,

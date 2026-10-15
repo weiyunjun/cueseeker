@@ -54,16 +54,51 @@ enum SearchQueryPlanner {
     }
 
     static func matches(_ line: String, rule: LineMatchRule) -> Bool {
-        let normalizedLine = normalizeSpaces(line)
-        return switch rule {
-        case .latinPrefix(let token):
-            tokenizeLatin(normalizedLine).contains { $0.hasPrefix(token) }
-        case .orderedLatinTokens(let tokens):
-            matchesOrderedWholeTokens(normalizedLine, queryTokens: tokens)
+        switch rule {
         case .cjkSubstring(let query):
-            normalizedLine.contains(query)
+            if !line.utf8.contains(0xE3) {
+                return containsUTF8Substring(line, target: query)
+            }
+            let normalizedLine = normalizeSpaces(line)
+            return containsUTF8Substring(normalizedLine, target: query)
+        case .latinPrefix(let token):
+            let normalizedLine = normalizeSpaces(line)
+            return tokenizeLatin(normalizedLine).contains { $0.hasPrefix(token) }
+        case .orderedLatinTokens(let tokens):
+            let normalizedLine = normalizeSpaces(line)
+            return matchesOrderedWholeTokens(normalizedLine, queryTokens: tokens)
         case .explicitFTS(let query):
-            matchesExplicitFTSLineFallback(normalizedLine, query: query)
+            let normalizedLine = normalizeSpaces(line)
+            return matchesExplicitFTSLineFallback(normalizedLine, query: query)
+        }
+    }
+
+    private static func containsUTF8Substring(_ haystack: String, target needle: String) -> Bool {
+        var h = haystack
+        var n = needle
+        return h.withUTF8 { hBuf in
+            n.withUTF8 { nBuf in
+                guard nBuf.count > 0 else { return true }
+                guard hBuf.count >= nBuf.count else { return false }
+                let firstByte = nBuf[0]
+                let limit = hBuf.count - nBuf.count
+                if nBuf.count == 1 {
+                    for i in 0...limit where hBuf[i] == firstByte {
+                        return true
+                    }
+                    return false
+                }
+                let hBase = hBuf.baseAddress!
+                let nBase = nBuf.baseAddress!
+                var i = 0
+                while i <= limit {
+                    if hBase[i] == firstByte && memcmp(hBase + i, nBase, nBuf.count) == 0 {
+                        return true
+                    }
+                    i += 1
+                }
+                return false
+            }
         }
     }
 

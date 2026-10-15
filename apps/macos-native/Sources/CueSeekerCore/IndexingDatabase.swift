@@ -650,26 +650,33 @@ public final class IndexingDatabase: @unchecked Sendable {
                 subtitleFile: subtitleFile,
                 group: group
             )
+            let ftsRowID = SearchFTSRows.rowID(
+                subtitleFileID: subtitleFileID,
+                sequence: ftsSequences[index]
+            )
             for line in group.cueLines {
                 let assignment = identityAssignments[newCueIndex]
+                let resolvedLanguages = CueLineLanguages.resolve(
+                    sourceFormat: line.sourceFormat,
+                    sourceStyle: line.sourceStyle,
+                    content: line.content,
+                    fileFormat: format,
+                    groupLineCount: group.cueLines.count,
+                    detections: lineLanguageDetections,
+                    cueGroupLanguages: languageAnalysis?.cueGroupLanguages[index] ?? []
+                )
                 let cueLineID = try insertCueLine(
                     subtitleFileID: subtitleFileID,
                     cueGroupID: cueGroupID,
+                    ftsRowID: ftsRowID,
+                    languageMask: CueLineLanguages.mask(for: resolvedLanguages),
                     line: line,
                     cueID: assignment?.cueID
                 )
                 try CueLineLanguages.insert(
                     on: database,
                     cueID: cueLineID,
-                    languages: CueLineLanguages.resolve(
-                        sourceFormat: line.sourceFormat,
-                        sourceStyle: line.sourceStyle,
-                        content: line.content,
-                        fileFormat: format,
-                        groupLineCount: group.cueLines.count,
-                        detections: lineLanguageDetections,
-                        cueGroupLanguages: languageAnalysis?.cueGroupLanguages[index] ?? []
-                    )
+                    languages: resolvedLanguages
                 )
                 try deleteCueTombstone(cueID: cueLineID)
                 if let assignment,
@@ -685,10 +692,7 @@ public final class IndexingDatabase: @unchecked Sendable {
             }
             try SearchFTSRows.insert(
                 on: database,
-                rowID: SearchFTSRows.rowID(
-                    subtitleFileID: subtitleFileID,
-                    sequence: ftsSequences[index]
-                ),
+                rowID: ftsRowID,
                 cueGroupID: cueGroupID,
                 content: group.searchContent
             )
@@ -2299,6 +2303,8 @@ public final class IndexingDatabase: @unchecked Sendable {
     private func insertCueLine(
         subtitleFileID: Int64,
         cueGroupID: Int64,
+        ftsRowID: Int64,
+        languageMask: Int,
         line: SubtitleCueLine,
         cueID: Int64? = nil
     ) throws -> Int64 {
@@ -2308,6 +2314,7 @@ public final class IndexingDatabase: @unchecked Sendable {
                 id,
                 subtitle_file_id,
                 cue_group_id,
+                fts_rowid,
                 event_index,
                 source_format,
                 source_style,
@@ -2320,9 +2327,10 @@ public final class IndexingDatabase: @unchecked Sendable {
                 content,
                 display_x,
                 display_y,
-                display_order
+                display_order,
+                language_mask
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
             """
         )
 
@@ -2333,35 +2341,37 @@ public final class IndexingDatabase: @unchecked Sendable {
         }
         try statement.bind(subtitleFileID, at: 2)
         try statement.bind(cueGroupID, at: 3)
-        try statement.bind(line.eventIndex, at: 4)
-        try statement.bind(line.sourceFormat.rawValue, at: 5)
+        try statement.bind(ftsRowID, at: 4)
+        try statement.bind(line.eventIndex, at: 5)
+        try statement.bind(line.sourceFormat.rawValue, at: 6)
         if let sourceStyle = line.sourceStyle {
-            try statement.bind(sourceStyle, at: 6)
-        } else {
-            try statement.bindNull(at: 6)
-        }
-        if let sourceLayer = line.sourceLayer {
-            try statement.bind(sourceLayer, at: 7)
+            try statement.bind(sourceStyle, at: 7)
         } else {
             try statement.bindNull(at: 7)
         }
-        try statement.bind(line.sourceIdentityRemainder, at: 8)
-        try statement.bind(line.startTimecode, at: 9)
-        try statement.bind(line.endTimecode, at: 10)
-        try statement.bind(line.startMilliseconds, at: 11)
-        try statement.bind(line.endMilliseconds, at: 12)
-        try statement.bind(line.content, at: 13)
-        if let displayX = line.displayX {
-            try statement.bind(displayX, at: 14)
+        if let sourceLayer = line.sourceLayer {
+            try statement.bind(sourceLayer, at: 8)
         } else {
-            try statement.bindNull(at: 14)
+            try statement.bindNull(at: 8)
         }
-        if let displayY = line.displayY {
-            try statement.bind(displayY, at: 15)
+        try statement.bind(line.sourceIdentityRemainder, at: 9)
+        try statement.bind(line.startTimecode, at: 10)
+        try statement.bind(line.endTimecode, at: 11)
+        try statement.bind(line.startMilliseconds, at: 12)
+        try statement.bind(line.endMilliseconds, at: 13)
+        try statement.bind(line.content, at: 14)
+        if let displayX = line.displayX {
+            try statement.bind(displayX, at: 15)
         } else {
             try statement.bindNull(at: 15)
         }
-        try statement.bind(line.displayOrder, at: 16)
+        if let displayY = line.displayY {
+            try statement.bind(displayY, at: 16)
+        } else {
+            try statement.bindNull(at: 16)
+        }
+        try statement.bind(line.displayOrder, at: 17)
+        try statement.bind(languageMask, at: 18)
         try statement.run()
         return cueID ?? database.lastInsertRowID()
     }

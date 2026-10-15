@@ -236,18 +236,28 @@ public struct CueFacetSnapshot: Equatable, Sendable {
                 && folderFacets.count == cueIDs.count
         )
 
-        let resolvedLanguageFacets = languageFacets.map {
-            $0.isEmpty ? Set([SubtitleLanguageCode.unknown]) : $0
-        }
+        var resolvedLanguageFacets = languageFacets
+        var durationCounts: [CueDurationFacet: Int] = [:]
+        var characterCounts: [CueCharacterFacet: Int] = [:]
         var languageCounts: [SubtitleLanguageCode: Int] = [:]
-        for languages in resolvedLanguageFacets {
-            for language in languages {
-                languageCounts[language, default: 0] += 1
-            }
-        }
+        var watchStateCounts: [LibraryWatchState: Int] = [:]
         var folderCounts: [String: Int] = [:]
-        for folder in folderFacets {
-            folderCounts[folder, default: 0] += 1
+
+        for index in 0..<cueIDs.count {
+            durationCounts[durationFacets[index], default: 0] += 1
+            characterCounts[characterFacets[index], default: 0] += 1
+            watchStateCounts[watchStateFacets[index], default: 0] += 1
+            folderCounts[folderFacets[index], default: 0] += 1
+            let languages = resolvedLanguageFacets[index]
+            if languages.isEmpty {
+                let unknownSet: Set<SubtitleLanguageCode> = [.unknown]
+                resolvedLanguageFacets[index] = unknownSet
+                languageCounts[.unknown, default: 0] += 1
+            } else {
+                for language in languages {
+                    languageCounts[language, default: 0] += 1
+                }
+            }
         }
 
         self.cueIDs = cueIDs
@@ -258,13 +268,10 @@ public struct CueFacetSnapshot: Equatable, Sendable {
         self.folderFacets = folderFacets
         distribution = CueFacetDistribution(
             totalCount: cueIDs.count,
-            durationCounts: Dictionary(grouping: durationFacets, by: { $0 })
-                .mapValues { $0.count },
-            characterCounts: Dictionary(grouping: characterFacets, by: { $0 })
-                .mapValues { $0.count },
+            durationCounts: durationCounts,
+            characterCounts: characterCounts,
             languageCounts: languageCounts,
-            watchStateCounts: Dictionary(grouping: watchStateFacets, by: { $0 })
-                .mapValues { $0.count },
+            watchStateCounts: watchStateCounts,
             folderCounts: folderCounts
         )
     }
@@ -315,6 +322,9 @@ public struct CueFacetSnapshot: Equatable, Sendable {
         let pageLimit = max(0, limit)
         guard pageLimit > 0 else {
             return ([], cueIDs.count, true, .zero)
+        }
+        if filter.isEmpty, start == 0, pageLimit >= cueIDs.count {
+            return (cueIDs, cueIDs.count, true, distribution)
         }
 
         var matches: [Int64] = []

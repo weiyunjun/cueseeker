@@ -12,7 +12,7 @@ public enum DatabaseBootstrapError: Error, Equatable, CustomStringConvertible {
 }
 
 public enum DatabaseBootstrap {
-    public static let currentSchemaVersion = 54
+    public static let currentSchemaVersion = 55
 
     public static func prepare(at path: URL) throws {
         let database = try SQLiteDatabase(path: path, access: .readWrite)
@@ -66,6 +66,7 @@ private extension DatabaseBootstrap {
                 || previousVersion == 51
                 || previousVersion == 52
                 || previousVersion == 53
+                || previousVersion == 54
                 || previousVersion == DatabaseBootstrap.currentSchemaVersion
         else {
             throw DatabaseBootstrapError.unsupportedSchemaVersion(
@@ -177,6 +178,9 @@ private extension DatabaseBootstrap {
         }
         if previousVersion >= 33, previousVersion <= 53 {
             try migrateSchema53To54(on: database)
+        }
+        if previousVersion >= 33, previousVersion <= 54 {
+            try migrateSchema54To55(on: database)
             return
         }
         guard previousVersion == 0 else {
@@ -327,6 +331,8 @@ private extension DatabaseBootstrap {
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 subtitle_file_id INTEGER,
                 cue_group_id INTEGER NOT NULL,
+                fts_rowid INTEGER NOT NULL DEFAULT 0,
+                language_mask INTEGER NOT NULL DEFAULT 0,
                 event_index INTEGER NOT NULL,
                 source_format TEXT NOT NULL,
                 source_style TEXT,
@@ -399,6 +405,9 @@ private extension DatabaseBootstrap {
 
             CREATE INDEX IF NOT EXISTS idx_subtitle_cue_lines_group_order
                 ON subtitle_cue_lines(cue_group_id, display_order, event_index);
+
+            CREATE INDEX IF NOT EXISTS idx_subtitle_cue_lines_fts_covering
+                ON subtitle_cue_lines(fts_rowid, display_order, event_index, id, cue_group_id, start_ms, end_ms, language_mask, content);
 
             CREATE INDEX IF NOT EXISTS idx_subtitle_playback_finish_metadata_path
                 ON subtitle_playback_finish_metadata(subtitle_path);
@@ -870,6 +879,82 @@ private extension DatabaseBootstrap {
                 )
             }
             try database.execute("PRAGMA user_version = 54;")
+        }
+    }
+
+    /// Schema 55 stores each cue line's FTS group rowid and settled language
+    /// bitmask directly on `subtitle_cue_lines` and indexes them in a covering
+    /// index so cold search reads all line fields and languages in one sequential
+    /// index scan without touching `subtitle_cue_groups_fts_content`,
+    /// `subtitle_cue_groups`, `subtitle_cue_line_languages`, or non-search columns.
+    static func migrateSchema54To55(on database: SQLiteDatabase) throws {
+        try database.withImmediateTransaction {
+            let lineColumns = try columnNames(of: "subtitle_cue_lines", in: database)
+            if !lineColumns.isEmpty {
+                if !lineColumns.contains("fts_rowid") {
+                    try database.execute(
+                        "ALTER TABLE subtitle_cue_lines ADD COLUMN fts_rowid INTEGER NOT NULL DEFAULT 0;"
+                    )
+                }
+                if !lineColumns.contains("language_mask") {
+                    try database.execute(
+                        "ALTER TABLE subtitle_cue_lines ADD COLUMN language_mask INTEGER NOT NULL DEFAULT 0;"
+                    )
+                }
+                let updatedLineColumns = try columnNames(of: "subtitle_cue_lines", in: database)
+                let requiredLineColumns: Set<String> = [
+                    "id", "cue_group_id", "fts_rowid", "language_mask",
+                    "display_order", "event_index", "start_ms", "end_ms", "content"
+                ]
+                let groupColumns = try columnNames(of: "subtitle_cue_groups", in: database)
+                let langColumns = try columnNames(of: "subtitle_cue_line_languages", in: database)
+                if updatedLineColumns.isSuperset(of: requiredLineColumns),
+                   groupColumns.isSuperset(of: ["id", "subtitle_file_id", "start_ms", "end_ms"]),
+                   langColumns.isSuperset(of: ["cue_id", "language_code"])
+                {
+                    try database.execute(
+                        """
+                        WITH group_fts AS (
+                            SELECT id AS cue_group_id,
+                                   (subtitle_file_id << 24) | ROW_NUMBER() OVER (
+                                       PARTITION BY subtitle_file_id
+                                       ORDER BY start_ms ASC, end_ms ASC, id ASC
+                                   ) AS fts_rowid
+                            FROM subtitle_cue_groups
+                        ),
+                        line_langs AS (
+                            SELECT cue_id,
+                                   SUM(
+                                       CASE language_code
+                                           WHEN 'en' THEN 1
+                                           WHEN 'ja' THEN 2
+                                           WHEN 'zh' THEN 4
+                                           WHEN 'zh-Hans' THEN 8
+                                           WHEN 'zh-Hant' THEN 16
+                                           WHEN 'unknown' THEN 32
+                                           ELSE 0
+                                       END
+                                   ) AS mask
+                            FROM subtitle_cue_line_languages
+                            GROUP BY cue_id
+                        )
+                        UPDATE subtitle_cue_lines
+                        SET fts_rowid = COALESCE(
+                                (SELECT g.fts_rowid FROM group_fts g WHERE g.cue_group_id = subtitle_cue_lines.cue_group_id),
+                                0
+                            ),
+                            language_mask = COALESCE(
+                                (SELECT ll.mask FROM line_langs ll WHERE ll.cue_id = subtitle_cue_lines.id),
+                                32
+                            );
+
+                        CREATE INDEX IF NOT EXISTS idx_subtitle_cue_lines_fts_covering
+                            ON subtitle_cue_lines(fts_rowid, display_order, event_index, id, cue_group_id, start_ms, end_ms, language_mask, content);
+                        """
+                    )
+                }
+            }
+            try database.execute("PRAGMA user_version = 55;")
         }
     }
 

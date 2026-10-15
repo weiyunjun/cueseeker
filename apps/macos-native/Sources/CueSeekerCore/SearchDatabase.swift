@@ -608,7 +608,8 @@ public final class SearchDatabase: @unchecked Sendable {
             let fileOrder = try searchFileRanks(
                 pathPrefixes: pathPrefixes,
                 subtitlePath: subtitlePathFilter,
-                excludedFolders: facetFilter.excludedFolders
+                excludedFolders: facetFilter.excludedFolders,
+                watchStateValues: watchStateValues
             )
             let fileRanks = fileOrder.ranks
             let firstFileIDs = fileOrder.firstFileIDs
@@ -622,6 +623,21 @@ public final class SearchDatabase: @unchecked Sendable {
             )
             emit("fts_hits", since: hitsStart, fields: [.init("hits", orderedHitRowIDs.count)])
 
+            let hitCapacity = orderedHitRowIDs.count
+            acceptedCueIDs.reserveCapacity(hitCapacity)
+            acceptedDurationFacets.reserveCapacity(hitCapacity)
+            acceptedCharacterFacets.reserveCapacity(hitCapacity)
+            acceptedLanguageFacets.reserveCapacity(hitCapacity)
+            acceptedWatchStateFacets.reserveCapacity(hitCapacity)
+            acceptedFolderFacets.reserveCapacity(hitCapacity)
+            resultCueIDs.reserveCapacity(hitCapacity)
+            if firstFileIDs != nil {
+                acceptedFileRanks.reserveCapacity(hitCapacity)
+            }
+            let requiredLanguageMask = languageFilterCodeSet.isEmpty
+                ? 0
+                : CueLineLanguages.mask(for: languageFilterCodeSet)
+
             var nextHitIndex = 0
             while nextHitIndex < orderedHitRowIDs.count {
                 try Task.checkCancellation()
@@ -632,10 +648,10 @@ public final class SearchDatabase: @unchecked Sendable {
                 let chunkRowIDs = Array(orderedHitRowIDs[nextHitIndex..<chunkEnd])
                 let candidateOffset = nextHitIndex
                 nextHitIndex = chunkEnd
-                let candidates = try searchCandidates(
-                    forFTSRowIDs: chunkRowIDs,
-                    watchStateValues: watchStateValues
-                )
+
+                let coveringResult = try searchCoveringCueLines(forFTSRowIDs: chunkRowIDs)
+                let linesByFTSRowID = coveringResult.linesByFTSRowID
+                let candidateCount = linesByFTSRowID.count
                 emit(
                     "fts_batch",
                     since: queryStart,
@@ -643,73 +659,56 @@ public final class SearchDatabase: @unchecked Sendable {
                         .init("batch", batchIndex),
                         .init("candidateOffset", candidateOffset),
                         .init("candidateBatchLimit", batchLimit),
-                        .init("candidates", candidates.count)
+                        .init("candidates", candidateCount)
                     ]
                 )
                 let isLastCandidateBatch = nextHitIndex >= orderedHitRowIDs.count
 
-                guard !candidates.isEmpty else {
+                guard candidateCount > 0 else {
                     if isLastCandidateBatch {
                         break
                     }
                     continue
                 }
 
-                totalCandidates += candidates.count
-
-                let candidateCueGroupIDs = candidates.map(\.cueGroupID)
-                let multiLineCueGroupIDs = candidates
-                    .filter { $0.lineCount > 1 }
-                    .map(\.cueGroupID)
-                totalMultiLineCandidates += multiLineCueGroupIDs.count
-                let cueLinesStart = Self.diagnosticNow()
-                let languageLineIDsByCueGroupID = languageFilterCodeSet.isEmpty
-                    ? nil
-                    : try languageMatchingLineIDs(
-                        forCueGroupIDs: candidateCueGroupIDs,
-                        requiredLanguages: languageFilterCodeSet
-                    )
-                let lineCueGroupIDs = languageLineIDsByCueGroupID.map { Array($0.keys) }
-                    ?? candidateCueGroupIDs
-                let cueLineRecordsByCueGroupID = try cueLineRecords(
-                    forCueGroupIDs: lineCueGroupIDs
-                )
-                let cueLineRows = cueLineRecordsByCueGroupID.values.reduce(0) { $0 + $1.count }
-                totalCueLineRows += cueLineRows
-                let languagesByCueID = try CueLineLanguages.languages(
-                    forCueIDs: cueLineRecordsByCueGroupID.values.flatMap { $0.map(\.id) },
-                    on: database
-                )
+                totalCandidates += candidateCount
+                totalMultiLineCandidates += coveringResult.multiLineGroupCount
+                totalCueLineRows += coveringResult.totalLineCount
                 emit(
                     "cue_lines",
-                    since: cueLinesStart,
+                    since: queryStart,
                     fields: [
                         .init("batch", batchIndex),
-                        .init("multiLineCandidates", multiLineCueGroupIDs.count),
-                        .init("lineCueGroups", lineCueGroupIDs.count),
-                        .init("cueLineRows", cueLineRows)
+                        .init("multiLineCandidates", coveringResult.multiLineGroupCount),
+                        .init("lineCueGroups", candidateCount),
+                        .init("cueLineRows", coveringResult.totalLineCount)
                     ]
                 )
 
                 let validationStart = Self.diagnosticNow()
                 let acceptedBefore = acceptedSearchResultCount
                 var matchedCandidateCount = 0
-                for candidate in candidates {
+                for ftsRowID in chunkRowIDs {
                     try Task.checkCancellation()
-                    let orderedMatches = searchResults(
-                        for: candidate,
-                        cueLineRecords: cueLineRecordsByCueGroupID[candidate.cueGroupID] ?? [],
+                    let subtitleFileID = SearchFTSRows.subtitleFileID(ofRowID: ftsRowID)
+                    guard let fileMetadata = fileOrder.files[subtitleFileID],
+                          let records = linesByFTSRowID[ftsRowID],
+                          !records.isEmpty
+                    else {
+                        continue
+                    }
+                    let orderedMatches = searchCoveringResults(
+                        for: fileMetadata,
+                        cueLineRecords: records,
                         matching: plan,
-                        languageFilterCodes: languageFilterCodeSet,
-                        languagesByCueID: languagesByCueID,
-                        filterSet: filterSet,
-                        allowedLineIDs: languageLineIDsByCueGroupID?[candidate.cueGroupID]
+                        requiredLanguageMask: requiredLanguageMask,
+                        filterSet: filterSet
                     )
                     if !orderedMatches.isEmpty {
                         matchedCandidateCount += 1
                     }
-                    let isFirstFile = firstFileIDs?.contains(candidate.subtitleFileID) ?? false
-                    let folderPath = fileOrder.folderPaths[candidate.subtitleFileID] ?? ""
+                    let isFirstFile = firstFileIDs?.contains(subtitleFileID) ?? false
+                    let folderPath = fileMetadata.folderPath
                     for result in orderedMatches {
                         let durationFacet = CueDurationFacet(
                             durationMilliseconds:
@@ -723,10 +722,10 @@ public final class SearchDatabase: @unchecked Sendable {
                         acceptedDurationFacets.append(durationFacet)
                         acceptedCharacterFacets.append(characterFacet)
                         acceptedLanguageFacets.append(result.result.languages)
-                        acceptedWatchStateFacets.append(candidate.watchState)
+                        acceptedWatchStateFacets.append(fileMetadata.watchState)
                         acceptedFolderFacets.append(folderPath)
                         if firstFileIDs != nil {
-                            acceptedFileRanks.append(fileRanks[candidate.subtitleFileID] ?? 0)
+                            acceptedFileRanks.append(fileRanks[subtitleFileID] ?? 0)
                             if isFirstFile {
                                 acceptedFirstRunCount += 1
                             }
@@ -737,7 +736,7 @@ public final class SearchDatabase: @unchecked Sendable {
                             languages: result.result.languages.isEmpty
                                 ? [.unknown]
                                 : result.result.languages,
-                            watchState: candidate.watchState,
+                            watchState: fileMetadata.watchState,
                             folder: folderPath
                         ) else {
                             continue
@@ -770,9 +769,9 @@ public final class SearchDatabase: @unchecked Sendable {
                     since: validationStart,
                     fields: [
                         .init("batch", batchIndex),
-                        .init("candidates", candidates.count),
+                        .init("candidates", candidateCount),
                         .init("accepted", accepted),
-                        .init("rejected", candidates.count - matchedCandidateCount),
+                        .init("rejected", candidateCount - matchedCandidateCount),
                         .init("acceptedSoFar", acceptedSearchResultCount)
                     ]
                 )
@@ -1183,6 +1182,35 @@ public final class SearchDatabase: @unchecked Sendable {
         var ftsRowID: Int64 = 0
     }
 
+    private struct SearchFileMetadata {
+        let subtitleFileID: Int64
+        let subtitlePath: String
+        let subtitleFormat: SubtitleFormat
+        let videoPath: String
+        let videoName: String
+        let order: SearchResultOrder
+        let watchState: LibraryWatchState
+        let folderPath: String
+    }
+
+    private struct SearchCoveringCueLineRecord {
+        let id: Int64
+        let cueGroupID: Int64
+        let ftsRowID: Int64
+        let eventIndex: Int
+        let displayOrder: Int
+        let startMilliseconds: Int
+        let endMilliseconds: Int
+        let languageMask: Int
+        let content: String
+    }
+
+    private struct SearchCoveringBatchResult {
+        let linesByFTSRowID: [Int64: [SearchCoveringCueLineRecord]]
+        let multiLineGroupCount: Int
+        let totalLineCount: Int
+    }
+
     /// The searchable subtitle files inside a scope, as the scan reads them.
     private struct SearchFileOrder {
         /// Display rank of every file, in the Search order: display title,
@@ -1190,6 +1218,8 @@ public final class SearchDatabase: @unchecked Sendable {
         var ranks: [Int64: Int] = [:]
         /// Each file's folder, one string shared by every match of the file.
         var folderPaths: [Int64: String] = [:]
+        /// Preloaded file metadata keyed by subtitleFileID.
+        var files: [Int64: SearchFileMetadata] = [:]
         /// With a Folder selection, the files of the selected folders, which
         /// the scan reads first.
         var firstFileIDs: Set<Int64>?
@@ -1286,74 +1316,74 @@ public final class SearchDatabase: @unchecked Sendable {
         Double(end - start) / 1_000_000
     }
 
-    private func searchResults(
-        for candidate: SearchCandidate,
-        cueLineRecords: [SubtitleCueLineRecord],
+    private func searchCoveringResults(
+        for fileMetadata: SearchFileMetadata,
+        cueLineRecords: [SearchCoveringCueLineRecord],
         matching plan: SearchQueryPlanner.Plan,
-        languageFilterCodes: Set<SubtitleLanguageCode>,
-        languagesByCueID: [Int64: Set<SubtitleLanguageCode>],
-        filterSet: SubtitleSearchFilterSet,
-        allowedLineIDs: Set<Int64>? = nil
+        requiredLanguageMask: Int,
+        filterSet: SubtitleSearchFilterSet
     ) -> [OrderedSearchResult] {
-        searchMatches(
-            for: candidate,
-            cueLineRecords: cueLineRecords,
-            matching: plan,
-            languageFilterCodes: languageFilterCodes,
-            languagesByCueID: languagesByCueID,
-            filterSet: filterSet,
-            allowedLineIDs: allowedLineIDs
-        ).map { orderedSearchResult(for: candidate, match: $0) }
-    }
-
-    private func searchMatches(
-        for candidate: SearchCandidate,
-        cueLineRecords: [SubtitleCueLineRecord],
-        matching plan: SearchQueryPlanner.Plan,
-        languageFilterCodes: Set<SubtitleLanguageCode>,
-        languagesByCueID: [Int64: Set<SubtitleLanguageCode>],
-        filterSet: SubtitleSearchFilterSet,
-        allowedLineIDs: Set<Int64>? = nil
-    ) -> [SearchResultMatch] {
-        let lines = cueLineRecords.map(\.line)
-        let cueGroupLines = lines.map(\.content)
-        var matches: [SearchResultMatch] = []
-        matches.reserveCapacity(cueLineRecords.count)
+        var results: [OrderedSearchResult] = []
+        var lazyCueGroupLines: [String]?
+        let hasFilterSet = !filterSet.isEffectivelyEmpty
 
         for (index, record) in cueLineRecords.enumerated() {
-            if let allowedLineIDs, !allowedLineIDs.contains(record.id) {
+            let effectiveMask = record.languageMask == 0 ? 32 : record.languageMask
+            if requiredLanguageMask != 0, (effectiveMask & requiredLanguageMask) == 0 {
                 continue
             }
-            guard SearchQueryPlanner.matches(record.line.content, rule: plan.lineMatchRule) else {
-                continue
-            }
-
-            let displayLanguages = languagesByCueID[record.id] ?? [.unknown]
-            guard languageFilterCodes.isEmpty
-                    || !displayLanguages.isDisjoint(with: languageFilterCodes)
-            else {
+            guard SearchQueryPlanner.matches(record.content, rule: plan.lineMatchRule) else {
                 continue
             }
 
-            if !filterSet.isEffectivelyEmpty,
+            let displayLanguages = CueLineLanguages.languages(forMask: effectiveMask)
+            if hasFilterSet,
                !filterSet.matches(
-                   display: candidate.order.displayTitle,
-                   cues: record.line.content,
+                   display: fileMetadata.order.displayTitle,
+                   cues: record.content,
                    languages: Self.filterSetLanguageValues(displayLanguages)
                ) {
                 continue
             }
 
-            matches.append(
-                SearchResultMatch(
-                    cueLineRecord: record,
-                    primaryGroupIndex: index,
-                    cueGroupLines: cueGroupLines,
-                    displayLanguages: displayLanguages
+            let singleLineArray = [record.content]
+            let cueGroupLines: [String]
+            if cueLineRecords.count == 1 {
+                cueGroupLines = singleLineArray
+            } else if let existing = lazyCueGroupLines {
+                cueGroupLines = existing
+            } else {
+                let computed = cueLineRecords.map(\.content)
+                lazyCueGroupLines = computed
+                cueGroupLines = computed
+            }
+
+            results.append(
+                OrderedSearchResult(
+                    result: SubtitleSearchResult(
+                        entryID: record.id,
+                        cueGroupID: record.cueGroupID,
+                        subtitleFileID: fileMetadata.subtitleFileID,
+                        cueEventIndex: record.eventIndex,
+                        cueDisplayOrder: record.displayOrder,
+                        primaryGroupIndex: index,
+                        subtitlePath: fileMetadata.subtitlePath,
+                        subtitleFormat: fileMetadata.subtitleFormat,
+                        videoPath: fileMetadata.videoPath,
+                        videoName: fileMetadata.videoName,
+                        displayTitle: fileMetadata.order.displayTitle,
+                        startMilliseconds: record.startMilliseconds,
+                        endMilliseconds: record.endMilliseconds,
+                        content: record.content,
+                        cueLines: singleLineArray,
+                        cueGroupLines: cueGroupLines,
+                        languages: displayLanguages
+                    ),
+                    order: fileMetadata.order
                 )
             )
         }
-        return matches
+        return results
     }
 
     private func orderedSearchResult(
@@ -1613,50 +1643,6 @@ public final class SearchDatabase: @unchecked Sendable {
     }
 
 
-    /// Line ids inside the given cue groups that have one of the required
-    /// languages, keyed by cue group. Groups without such a line are absent, so
-    /// their rows need not be read at all.
-    private func languageMatchingLineIDs(
-        forCueGroupIDs cueGroupIDs: [Int64],
-        requiredLanguages: Set<SubtitleLanguageCode>
-    ) throws -> [Int64: Set<Int64>] {
-        guard !cueGroupIDs.isEmpty else {
-            return [:]
-        }
-        let requiredLanguageCodes = requiredLanguages.map(\.rawValue).sorted()
-        let placeholders = cueGroupIDs.map { _ in "?" }.joined(separator: ", ")
-        let languagePlaceholders = Array(repeating: "?", count: requiredLanguageCodes.count)
-            .joined(separator: ", ")
-        let statement = try database.prepare(
-            """
-            SELECT l.id, l.cue_group_id
-            FROM subtitle_cue_lines l
-            WHERE l.cue_group_id IN (\(placeholders))
-              AND EXISTS (
-                SELECT 1
-                FROM subtitle_cue_line_languages cll
-                WHERE cll.cue_id = l.id
-                  AND cll.language_code IN (\(languagePlaceholders))
-              );
-            """
-        )
-        var bindIndex: Int32 = 1
-        for cueGroupID in cueGroupIDs {
-            try statement.bind(cueGroupID, at: bindIndex)
-            bindIndex += 1
-        }
-        for code in requiredLanguageCodes {
-            try statement.bind(code, at: bindIndex)
-            bindIndex += 1
-        }
-
-        var lineIDsByCueGroupID: [Int64: Set<Int64>] = [:]
-        while try statement.step() {
-            lineIDsByCueGroupID[statement.int64Column(1), default: []].insert(statement.int64Column(0))
-        }
-        return lineIDsByCueGroupID
-    }
-
     private func cueLineRecords(
         forCueGroupIDs cueGroupIDs: [Int64]
     ) throws -> [Int64: [SubtitleCueLineRecord]] {
@@ -1735,12 +1721,14 @@ public final class SearchDatabase: @unchecked Sendable {
         JOIN subtitle_search_order_rows sor ON sor.subtitle_file_id = sf.id
         """
 
-    /// Every searchable subtitle file inside the scope with its display rank
-    /// and folder, and with a Folder selection the files the scan reads first.
+    /// Every searchable subtitle file inside the scope with its display rank,
+    /// folder, and preloaded file metadata, and with a Folder selection the
+    /// files the scan reads first.
     private func searchFileRanks(
         pathPrefixes: [String]?,
         subtitlePath: String?,
-        excludedFolders: Set<String>?
+        excludedFolders: Set<String>?,
+        watchStateValues: [String] = []
     ) throws -> SearchFileOrder {
         let scopeCondition = pathPrefixes.map {
             let conditions = $0.map { _ in "(sf.subtitle_path >= ? AND sf.subtitle_path < ?)" }
@@ -1748,18 +1736,36 @@ public final class SearchDatabase: @unchecked Sendable {
             return "AND (\(conditions))"
         } ?? ""
         let subtitlePathCondition = subtitlePath.map { _ in "AND sf.subtitle_path = ?" } ?? ""
+        let watchStateCondition: String
+        if watchStateValues.isEmpty {
+            watchStateCondition = ""
+        } else {
+            let placeholders = Array(repeating: "?", count: watchStateValues.count)
+                .joined(separator: ", ")
+            watchStateCondition = "AND ws.state IN (\(placeholders))"
+        }
         let statement = try database.prepare(
             """
-            SELECT sf.id, sor.folder_path
+            SELECT sf.id,
+                   sf.subtitle_path,
+                   sf.format,
+                   vf.path,
+                   vf.video_name,
+                   sor.subtitle_file_name,
+                   sor.display_title,
+                   sor.folder_order,
+                   sor.file_order,
+                   COALESCE(ws.state, '\(LibraryWatchState.unwatched.rawValue)'),
+                   sor.folder_path
             FROM subtitle_search_order_rows sor
             JOIN subtitle_files sf ON sf.id = sor.subtitle_file_id
-            WHERE EXISTS (
-                SELECT 1
-                FROM subtitle_video_matches m
-                WHERE m.subtitle_file_id = sf.id AND m.is_active = 1
-            )
+            JOIN subtitle_video_matches m ON m.subtitle_file_id = sf.id AND m.is_active = 1
+            JOIN video_files vf ON vf.id = m.video_file_id
+            LEFT JOIN library_watch_states ws ON ws.video_file_id = vf.id
+            WHERE 1 = 1
             \(scopeCondition)
             \(subtitlePathCondition)
+            \(watchStateCondition)
             ORDER BY sor.display_title COLLATE NOCASE ASC,
                      sf.subtitle_path COLLATE NOCASE ASC;
             """
@@ -1769,13 +1775,40 @@ public final class SearchDatabase: @unchecked Sendable {
             try statement.bind(subtitlePath, at: bindIndex)
             bindIndex += 1
         }
+        for watchStateValue in watchStateValues {
+            try statement.bind(watchStateValue, at: bindIndex)
+            bindIndex += 1
+        }
 
         var order = SearchFileOrder(firstFileIDs: excludedFolders == nil ? nil : [])
         while try statement.step() {
             let fileID = statement.int64Column(0)
-            let folderPath = statement.stringColumn(1)
-            order.ranks[fileID] = order.ranks.count
+            let subtitlePathValue = statement.stringColumn(1)
+            let subtitleFormat = SubtitleFormat(rawValue: statement.stringColumn(2)) ?? .srt
+            let videoPath = statement.stringColumn(3)
+            let videoName = statement.stringColumn(4)
+            let resultOrder = SearchResultOrder(
+                subtitleFileName: statement.stringColumn(5),
+                displayTitle: statement.stringColumn(6),
+                folderOrder: statement.intColumn(7),
+                fileOrder: statement.intColumn(8)
+            )
+            let watchState = LibraryWatchState(rawValue: statement.stringColumn(9)) ?? .unwatched
+            let folderPath = statement.stringColumn(10)
+            if order.ranks[fileID] == nil {
+                order.ranks[fileID] = order.ranks.count
+            }
             order.folderPaths[fileID] = folderPath
+            order.files[fileID] = SearchFileMetadata(
+                subtitleFileID: fileID,
+                subtitlePath: subtitlePathValue,
+                subtitleFormat: subtitleFormat,
+                videoPath: videoPath,
+                videoName: videoName,
+                order: resultOrder,
+                watchState: watchState,
+                folderPath: folderPath
+            )
             if let excludedFolders, !excludedFolders.contains(folderPath) {
                 order.firstFileIDs?.insert(fileID)
             }
@@ -1857,72 +1890,79 @@ public final class SearchDatabase: @unchecked Sendable {
         return order
     }
 
-    /// Candidates for the given FTS rowids, returned in the rowids' order and
-    /// without the rows the language or watch-state filter rejects.
-    private func searchCandidates(
-        forFTSRowIDs rowIDs: [Int64],
-        watchStateValues: [String],
-        facetWatchStates: Set<LibraryWatchState> = [],
-        negatesFacetWatchStates: Bool = false
-    ) throws -> [SearchCandidate] {
+    /// Reads cue lines directly from `idx_subtitle_cue_lines_fts_covering`
+    /// in ascending `fts_rowid` order without touching `subtitle_cue_groups`,
+    /// `subtitle_cue_groups_fts` shadow tables, or `subtitle_cue_line_languages`.
+    private func searchCoveringCueLines(
+        forFTSRowIDs rowIDs: [Int64]
+    ) throws -> SearchCoveringBatchResult {
         guard !rowIDs.isEmpty else {
-            return []
+            return SearchCoveringBatchResult(
+                linesByFTSRowID: [:],
+                multiLineGroupCount: 0,
+                totalLineCount: 0
+            )
         }
-        let facetWatchStateValues = facetWatchStates.map(\.rawValue).sorted()
-        let facetWatchStateCondition: String
-        if facetWatchStateValues.isEmpty {
-            facetWatchStateCondition = ""
-        } else {
-            let placeholders = Array(repeating: "?", count: facetWatchStateValues.count)
-                .joined(separator: ", ")
-            facetWatchStateCondition =
-                "AND COALESCE(ws.state, '\(LibraryWatchState.unwatched.rawValue)') "
-                + (negatesFacetWatchStates ? "NOT IN" : "IN")
-                + " (\(placeholders))"
-        }
-
-        let watchStateCondition: String
-        if watchStateValues.isEmpty {
-            watchStateCondition = ""
-        } else {
-            let placeholders = Array(repeating: "?", count: watchStateValues.count)
-                .joined(separator: ", ")
-            watchStateCondition = "AND ws.state IN (\(placeholders))"
-        }
-        let rowIDPlaceholders = rowIDs.map { _ in "?" }.joined(separator: ", ")
+        let sortedRowIDs = rowIDs.sorted()
+        let placeholders = sortedRowIDs.map { _ in "?" }.joined(separator: ", ")
         let statement = try database.prepare(
             """
-            \(Self.searchCandidateColumnsSQL), f.rowid
-            FROM subtitle_cue_groups_fts f
-            JOIN subtitle_cue_groups g ON g.id = f.cue_group_id
-            \(Self.searchCandidateJoinsSQL)
-            WHERE f.rowid IN (\(rowIDPlaceholders))
-            \(watchStateCondition)
-            \(facetWatchStateCondition);
+            SELECT fts_rowid, display_order, event_index, id, cue_group_id, start_ms, end_ms, language_mask, content
+            FROM subtitle_cue_lines INDEXED BY idx_subtitle_cue_lines_fts_covering
+            WHERE fts_rowid IN (\(placeholders))
+            ORDER BY fts_rowid ASC, display_order ASC, event_index ASC, id ASC;
             """
         )
-        var bindIndex: Int32 = 1
-        for rowID in rowIDs {
-            try statement.bind(rowID, at: bindIndex)
-            bindIndex += 1
-        }
-        for watchStateValue in watchStateValues {
-            try statement.bind(watchStateValue, at: bindIndex)
-            bindIndex += 1
-        }
-        for facetWatchStateValue in facetWatchStateValues {
-            try statement.bind(facetWatchStateValue, at: bindIndex)
-            bindIndex += 1
+        for (offset, rowID) in sortedRowIDs.enumerated() {
+            try statement.bind(rowID, at: Int32(offset + 1))
         }
 
-        var candidatesByRowID: [Int64: SearchCandidate] = [:]
-        candidatesByRowID.reserveCapacity(rowIDs.count)
+        var linesByFTSRowID: [Int64: [SearchCoveringCueLineRecord]] = [:]
+        linesByFTSRowID.reserveCapacity(sortedRowIDs.count)
+        var currentFTSRowID: Int64 = -1
+        var currentRecords: [SearchCoveringCueLineRecord] = []
+        var multiLineGroupCount = 0
+        var totalLineCount = 0
+
         while try statement.step() {
-            var candidate = searchCandidateWithWatchState(from: statement)
-            candidate.ftsRowID = statement.int64Column(16)
-            candidatesByRowID[candidate.ftsRowID] = candidate
+            totalLineCount += 1
+            let ftsRowID = statement.int64Column(0)
+            if ftsRowID != currentFTSRowID {
+                if !currentRecords.isEmpty {
+                    if currentRecords.count > 1 {
+                        multiLineGroupCount += 1
+                    }
+                    linesByFTSRowID[currentFTSRowID] = currentRecords
+                    currentRecords = []
+                }
+                currentFTSRowID = ftsRowID
+            }
+            currentRecords.append(
+                SearchCoveringCueLineRecord(
+                    id: statement.int64Column(3),
+                    cueGroupID: statement.int64Column(4),
+                    ftsRowID: ftsRowID,
+                    eventIndex: statement.intColumn(2),
+                    displayOrder: statement.intColumn(1),
+                    startMilliseconds: statement.intColumn(5),
+                    endMilliseconds: statement.intColumn(6),
+                    languageMask: statement.intColumn(7),
+                    content: statement.stringColumn(8)
+                )
+            )
         }
-        return rowIDs.compactMap { candidatesByRowID[$0] }
+        if !currentRecords.isEmpty {
+            if currentRecords.count > 1 {
+                multiLineGroupCount += 1
+            }
+            linesByFTSRowID[currentFTSRowID] = currentRecords
+        }
+
+        return SearchCoveringBatchResult(
+            linesByFTSRowID: linesByFTSRowID,
+            multiLineGroupCount: multiLineGroupCount,
+            totalLineCount: totalLineCount
+        )
     }
 
     private func searchCandidates(forCueGroupIDs cueGroupIDs: [Int64]) throws -> [Int64: SearchCandidate] {

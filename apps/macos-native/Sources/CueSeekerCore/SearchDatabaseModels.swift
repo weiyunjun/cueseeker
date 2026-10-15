@@ -194,33 +194,31 @@ public struct SubtitleSearchResult: Equatable, Sendable {
 
 public enum SubtitleCueTimeRangeDisplay {
     public static func text(startMilliseconds: Int, endMilliseconds: Int) -> String {
-        let start = TimeParts(milliseconds: startMilliseconds)
-        let end = TimeParts(milliseconds: max(startMilliseconds, endMilliseconds))
-        if start.hours == 0, end.hours == 0 {
-            return "\(start.shortText) - \(end.shortText)"
+        let sTotal = max(0, startMilliseconds) / 1_000
+        let eTotal = max(startMilliseconds, max(0, endMilliseconds)) / 1_000
+        let sHours = sTotal / 3_600
+        let eHours = eTotal / 3_600
+        let sMinutes = (sTotal % 3_600) / 60
+        let sSeconds = sTotal % 60
+        let eMinutes = (eTotal % 3_600) / 60
+        let eSeconds = eTotal % 60
+
+        if sHours == 0, eHours == 0 {
+            return "\(twoDigits(sMinutes)):\(twoDigits(sSeconds)) - \(twoDigits(eMinutes)):\(twoDigits(eSeconds))"
         }
-        return "\(start.fullText) - \(end.fullText)"
+        return "\(twoDigits(sHours)):\(twoDigits(sMinutes)):\(twoDigits(sSeconds)) - \(twoDigits(eHours)):\(twoDigits(eMinutes)):\(twoDigits(eSeconds))"
     }
 
-    private struct TimeParts {
-        let hours: Int
-        let minutes: Int
-        let seconds: Int
-
-        init(milliseconds: Int) {
-            let totalSeconds = max(0, milliseconds) / 1_000
-            hours = totalSeconds / 3_600
-            minutes = (totalSeconds % 3_600) / 60
-            seconds = totalSeconds % 60
+    @inline(__always)
+    private static func twoDigits(_ value: Int) -> String {
+        if value >= 0 && value < 100 {
+            return twoDigitStrings[value]
         }
+        return String(value)
+    }
 
-        var shortText: String {
-            String(format: "%02d:%02d", minutes, seconds)
-        }
-
-        var fullText: String {
-            String(format: "%02d:%02d:%02d", hours, minutes, seconds)
-        }
+    private static let twoDigitStrings: [String] = (0..<100).map {
+        $0 < 10 ? "0\($0)" : "\($0)"
     }
 }
 
