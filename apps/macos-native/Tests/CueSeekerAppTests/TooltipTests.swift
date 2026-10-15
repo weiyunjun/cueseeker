@@ -1,9 +1,11 @@
+import AppKit
 import Carbon.HIToolbox
 import Foundation
+import SwiftUI
 import Testing
 @testable import CueSeekerApp
 
-@Suite("Tooltip System & Usage Registry")
+@Suite("Tooltip System & Usage Registry", .serialized)
 struct TooltipTests {
     @Test
     func geometryDefaultsToTopCenteredAndFlipsToBottomWhenTopSafeMarginOverflows() {
@@ -210,6 +212,75 @@ struct TooltipTests {
         #expect(!TooltipGeometry.isTextTruncated(intrinsicWidth: 100.3, renderedWidth: 100))
         #expect(TooltipGeometry.isTextTruncated(intrinsicWidth: 140, renderedWidth: 100))
         #expect(!TooltipGeometry.isTextTruncated(intrinsicWidth: 140, renderedWidth: 0))
+    }
+
+    @MainActor
+    @Test
+    func tooltipOverlayViewRendersActiveItemInHostingViewWithoutReentrancyCrash() {
+        let suiteName = "TooltipTests.\(UUID().uuidString)"
+        let userDefaults = UserDefaults(suiteName: suiteName)!
+        defer { userDefaults.removePersistentDomain(forName: suiteName) }
+        let settings = SettingsStore(userDefaults: userDefaults)
+        let center = TooltipCenter()
+        let rootView = TooltipOverlayView(surface: .main, center: center)
+            .environmentObject(settings.playbackShortcuts)
+            .environmentObject(settings.localization)
+            .frame(width: 800, height: 600)
+
+        let host = NSHostingView(rootView: rootView)
+        host.frame = CGRect(x: 0, y: 0, width: 800, height: 600)
+        let window = NSWindow(
+            contentRect: CGRect(x: 0, y: 0, width: 800, height: 600),
+            styleMask: [.titled, .closable],
+            backing: .buffered,
+            defer: false
+        )
+        window.contentView = host
+        host.layoutSubtreeIfNeeded()
+        window.displayIfNeeded()
+
+        let targetA = UUID()
+        center.hoverBegan(
+            targetID: targetA,
+            surface: .main,
+            scenarioID: "topbar.entry.tasks",
+            anchorRect: CGRect(x: 120, y: 20, width: 28, height: 28),
+            content: .standard(
+                label: "Tasks",
+                shortcut: .none,
+                wrapsText: false
+            )
+        )
+        center.revealPendingNowForTesting()
+        host.layoutSubtreeIfNeeded()
+        window.displayIfNeeded()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+        host.layoutSubtreeIfNeeded()
+        window.displayIfNeeded()
+        #expect(center.activeItem?.targetID == targetA)
+
+        // Switching to a CueState tooltip and laying out must also complete cleanly.
+        let targetB = UUID()
+        center.hoverBegan(
+            targetID: targetB,
+            surface: .main,
+            scenarioID: "table.cue_state.unavailable",
+            anchorRect: CGRect(x: 240, y: 120, width: 16, height: 16),
+            content: .cueState(.unavailable(.videoMissing))
+        )
+        center.revealPendingNowForTesting()
+        host.layoutSubtreeIfNeeded()
+        window.displayIfNeeded()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+        host.layoutSubtreeIfNeeded()
+        window.displayIfNeeded()
+        #expect(center.activeItem?.targetID == targetB)
+
+        center.dismiss()
+        host.layoutSubtreeIfNeeded()
+        window.displayIfNeeded()
+        #expect(center.activeItem == nil)
+        window.orderOut(nil)
     }
 
     @Test

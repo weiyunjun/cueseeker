@@ -385,78 +385,68 @@ struct TooltipOverlayView: View {
     @ObservedObject var center: TooltipCenter = .shared
     @EnvironmentObject private var shortcuts: PlaybackShortcutStore
     @EnvironmentObject private var localization: AppLocalizationStore
-    @State private var measuredSize: CGSize = .zero
 
     var body: some View {
         GeometryReader { proxy in
             if let item = center.activeItem, item.surface == surface {
-                let effectiveSize = resolvedSize(for: item)
-                let frame = TooltipGeometry.frame(
-                    anchor: item.anchorRect,
-                    size: effectiveSize,
-                    visibleRect: CGRect(origin: .zero, size: proxy.size)
+                TooltipActiveBubbleView(
+                    item: item,
+                    visibleSize: proxy.size,
+                    keymap: shortcuts.keymap
                 )
-
-                tooltipContent(for: item)
-                    .background(
-                        GeometryReader { bubbleProxy in
-                            Color.clear.preference(
-                                key: TooltipMeasuredSizeKey.self,
-                                value: bubbleProxy.size
-                            )
-                        }
-                    )
-                    .onPreferenceChange(TooltipMeasuredSizeKey.self) { newSize in
-                        if newSize.width > 0 && newSize.height > 0 && measuredSize != newSize {
-                            measuredSize = newSize
-                        }
-                    }
-                    .position(x: frame.midX, y: frame.midY)
-                    .opacity(measuredSize.width > 0 && measuredSize.height > 0 ? 1 : 0)
-                    .allowsHitTesting(false)
-                    .accessibilityElement(children: .combine)
-                    .accessibilityIdentifier("workbench-tooltip-\(item.scenarioID)")
-                    .id(item.targetID)
-                    .onAppear {
-                        measuredSize = fallbackSize(for: item)
-                    }
-                    .onChange(of: item) { newItem in
-                        measuredSize = fallbackSize(for: newItem)
-                    }
+                .id(item.targetID)
             }
         }
         .allowsHitTesting(false)
     }
+}
+
+private struct TooltipActiveBubbleView: View {
+    let item: TooltipActiveItem
+    let visibleSize: CGSize
+    let keymap: PlaybackShortcutKeymap
+    @State private var measuredSize: CGSize = .zero
+
+    var body: some View {
+        let frame = TooltipGeometry.frame(
+            anchor: item.anchorRect,
+            size: measuredSize,
+            visibleRect: CGRect(origin: .zero, size: visibleSize)
+        )
+
+        tooltipContent
+            .background(
+                GeometryReader { bubbleProxy in
+                    Color.clear.preference(
+                        key: TooltipMeasuredSizeKey.self,
+                        value: bubbleProxy.size
+                    )
+                }
+            )
+            .onPreferenceChange(TooltipMeasuredSizeKey.self) { newSize in
+                if newSize.width > 0 && newSize.height > 0 && measuredSize != newSize {
+                    measuredSize = newSize
+                }
+            }
+            .position(x: frame.midX, y: frame.midY)
+            .opacity(measuredSize.width > 0 && measuredSize.height > 0 ? 1 : 0)
+            .allowsHitTesting(false)
+            .accessibilityElement(children: .combine)
+            .accessibilityIdentifier("workbench-tooltip-\(item.scenarioID)")
+    }
 
     @ViewBuilder
-    private func tooltipContent(for item: TooltipActiveItem) -> some View {
+    private var tooltipContent: some View {
         switch item.content {
         case .standard(let label, let shortcut, let wrapsText):
             TooltipStandardBubbleView(
                 label: label,
-                shortcutText: shortcut.resolvedText(keymap: shortcuts.keymap),
+                shortcutText: shortcut.resolvedText(keymap: keymap),
                 wrapsText: wrapsText
             )
         case .cueState(let state):
             TooltipCueStateBubbleView(state: state)
         }
-    }
-
-    private func resolvedSize(for item: TooltipActiveItem) -> CGSize {
-        if measuredSize.width > 0 && measuredSize.height > 0 {
-            return measuredSize
-        }
-        return fallbackSize(for: item)
-    }
-
-    private func fallbackSize(for item: TooltipActiveItem) -> CGSize {
-        let host = NSHostingView(rootView: tooltipContent(for: item))
-        host.layoutSubtreeIfNeeded()
-        let fitting = host.fittingSize
-        return CGSize(
-            width: max(1, fitting.width),
-            height: max(1, fitting.height)
-        )
     }
 }
 
