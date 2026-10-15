@@ -60,6 +60,18 @@ struct SettingsShortcutsCategory: View {
         return SettingsRow(action.title) {
             VStack(alignment: .trailing, spacing: WorkbenchControlMetrics.redesignSpacing1) {
                 HStack(spacing: WorkbenchControlMetrics.redesignSpacing1) {
+                    if !isDefault {
+                        WorkbenchIconButton(
+                            icon: .arrowCounterClockwise,
+                            isRedesign: true,
+                            iconSize: WorkbenchControlMetrics.redesignDialogCloseIconSize,
+                            boxSize: WorkbenchControlMetrics.redesignDialogCloseButtonSize
+                        ) {
+                            recorder.stop()
+                            shortcuts.reset(action)
+                        }
+                    }
+
                     PlaybackShortcutField(
                         key: keymap.key(for: action),
                         isRecording: isRecording,
@@ -74,31 +86,15 @@ struct SettingsShortcutsCategory: View {
                             shortcuts.set(nil, for: action)
                         }
                     )
-
-                    if !isDefault {
-                        WorkbenchIconButton(
-                            icon: .arrowCounterClockwise,
-                            isRedesign: true,
-                            iconSize: WorkbenchControlMetrics.redesignDialogCloseIconSize,
-                            boxSize: WorkbenchControlMetrics.redesignDialogCloseButtonSize
-                        ) {
-                            recorder.stop()
-                            shortcuts.reset(action)
-                        }
-                    }
                 }
 
-                // Starts under the field; a message longer than the field and
-                // its button runs back toward the name instead of past the card.
+                // Starts under the field; a message longer than the field runs
+                // back toward the name instead of past the card.
                 if let message {
                     WorkbenchValidationMessage(text: message)
                         .fixedSize()
                         .frame(
-                            minWidth: isDefault
-                                ? SettingsShortcutsMetrics.fieldWidth
-                                : SettingsShortcutsMetrics.fieldWidth
-                                    + WorkbenchControlMetrics.redesignSpacing1
-                                    + WorkbenchControlMetrics.redesignDialogCloseButtonSize,
+                            minWidth: SettingsShortcutsMetrics.fieldWidth,
                             alignment: .leading
                         )
                 }

@@ -30,4 +30,4 @@
    - Converted `Location` from static text to an editable single-line `Text Field` with the folder chooser `Icon Button / Default` (`.folder`) on the right (gap `--spacing-2: 8px`) and `1` reserved validation message line below, validating that the typed folder path is non-empty, exists, is a directory, and is writable.
 
 6. **Settings Input Rows & Shortcuts Restore Button (`SettingsShortcutsCategory.swift`)**:
-   - Hid the `Restore Default` button when a shortcut is at its default value (`keymap.isDefault(action)`), and resized it to reuse `Icon Button / Dialog Close` (`--size-dialog-close-button: 24px`, `--size-dialog-close-icon: 16px`, `--radius-control: 8px`).
+   - Moved the `Restore Default` button to the left of `Shortcut Field` (gap `--spacing-1: 4px`, keeping `Shortcut Field` pinned to the right edge), hid it when a shortcut is at its default value (`keymap.isDefault(action)`), and resized it to reuse `Icon Button / Dialog Close` (`--size-dialog-close-button: 24px`, `--size-dialog-close-icon: 16px`, `--radius-control: 8px`).
