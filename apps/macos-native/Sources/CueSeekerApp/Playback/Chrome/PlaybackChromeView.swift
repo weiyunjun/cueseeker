@@ -3,6 +3,7 @@ import SwiftUI
 
 @MainActor
 struct PlaybackChromeControls {
+    var isVideoPlaylist: Bool = false
     let canGoPrevious: Bool
     let goPrevious: () -> Void
     let togglePlayPause: () -> Void
@@ -26,6 +27,7 @@ extension PlaybackChromeControls {
         fullscreenAction: (() -> Void)? = nil
     ) -> PlaybackChromeControls {
         PlaybackChromeControls(
+            isVideoPlaylist: appState.isLibraryPlaybackActive,
             canGoPrevious: snapshot.canGoPrevious,
             goPrevious: { appState.goPrevious() },
             togglePlayPause: appState.togglePlaybackFromUser,
@@ -66,8 +68,8 @@ struct PlaybackChromeView: View {
     // Observed so the copy below is re-read when the language changes.
     @EnvironmentObject private var localization: AppLocalizationStore
     @ObservedObject var playback: PlaybackStore
-    let viewModel: PlaybackViewModel
-    let timeline: PlaybackTimelineInteractionStore
+    @ObservedObject var viewModel: PlaybackViewModel
+    @ObservedObject var timeline: PlaybackTimelineInteractionStore
     let controls: PlaybackChromeControls
     @State private var speedButtonFrame: CGRect = .zero
     @State private var isTimeHovered = false
@@ -211,12 +213,40 @@ struct PlaybackChromeView: View {
             .padding(.horizontal, PlaybackChromeMetrics.chromeHorizontalPadding)
     }
 
+    private var previousTooltipLabel: String {
+        if controls.isVideoPlaylist {
+            return controls.canGoPrevious
+                ? L("tooltip.player.previous.video")
+                : L("tooltip.player.previous.video.disabled")
+        }
+        return controls.canGoPrevious
+            ? L("tooltip.player.previous.cue")
+            : L("tooltip.player.previous.cue.disabled")
+    }
+
+    private var nextTooltipLabel: String {
+        if controls.isVideoPlaylist {
+            return controls.canGoNext
+                ? L("tooltip.player.next.video")
+                : L("tooltip.player.next.video.disabled")
+        }
+        return controls.canGoNext
+            ? L("tooltip.player.next.cue")
+            : L("tooltip.player.next.cue.disabled")
+    }
+
     private var leftGroup: some View {
         HStack(spacing: PlaybackChromeMetrics.leftControlsGap) {
             PlaybackPlayPauseChromeButton(
                 viewModel: viewModel,
                 timeline: timeline,
                 action: controls.togglePlayPause
+            )
+            .workbenchTooltip(
+                scenarioID: "player.control.play_pause",
+                isActive: !timeline.isScrubbing,
+                label: viewModel.isPlaying ? L("playback.pause") : L("playback.play"),
+                shortcut: .action(.playPause)
             )
 
             HStack(spacing: 0) {
@@ -230,6 +260,12 @@ struct PlaybackChromeView: View {
                     accessibilityLabel: L("playback.previous_video"),
                     action: controls.goPrevious
                 )
+                .workbenchTooltip(
+                    scenarioID: "player.control.previous",
+                    isActive: !timeline.isScrubbing,
+                    label: previousTooltipLabel,
+                    shortcut: controls.canGoPrevious ? .action(.previous) : .none
+                )
 
                 PlaybackTimelineChromeIconButton(
                     timeline: timeline,
@@ -240,6 +276,12 @@ struct PlaybackChromeView: View {
                     hasPersistentBase: false,
                     accessibilityLabel: L("playback.next_video"),
                     action: controls.goNext
+                )
+                .workbenchTooltip(
+                    scenarioID: "player.control.next",
+                    isActive: !timeline.isScrubbing,
+                    label: nextTooltipLabel,
+                    shortcut: controls.canGoNext ? .action(.next) : .none
                 )
             }
             .frame(height: PlaybackChromeMetrics.capsuleButtonHeight)
@@ -268,6 +310,14 @@ struct PlaybackChromeView: View {
                 accessibilityLabel: L("playback.repeat"),
                 action: controls.repeatCurrentCue
             )
+            .workbenchTooltip(
+                scenarioID: "player.control.repeat",
+                isActive: !timeline.isScrubbing,
+                label: controls.canRepeatCurrentCue
+                    ? L("playback.repeat")
+                    : L("tooltip.player.repeat.disabled"),
+                shortcut: controls.canRepeatCurrentCue ? .action(.repeatCue) : .none
+            )
 
             PlaybackTimelineChromeIconButton(
                 timeline: timeline,
@@ -276,10 +326,24 @@ struct PlaybackChromeView: View {
                 accessibilityLabel: L("playback.copy_screenshot"),
                 action: viewModel.copyCurrentFrameScreenshot
             )
+            .workbenchTooltip(
+                scenarioID: "player.control.copy_screenshot",
+                isActive: !timeline.isScrubbing,
+                label: L("tooltip.player.copy_screenshot"),
+                shortcut: .action(.copyScreenshot)
+            )
 
             PlaybackSubtitleChromeButton(
                 viewModel: viewModel,
                 timeline: timeline
+            )
+            .workbenchTooltip(
+                scenarioID: "player.control.subtitles",
+                isActive: !timeline.isScrubbing,
+                label: viewModel.areSubtitlesVisible
+                    ? L("tooltip.player.subtitles.hide")
+                    : L("tooltip.player.subtitles.show"),
+                shortcut: .action(.toggleSubtitles)
             )
 
             speedControl
@@ -302,6 +366,16 @@ struct PlaybackChromeView: View {
                 accessibilityLabel: L("playback.fullscreen"),
                 action: controls.toggleFullscreen
             )
+            .workbenchTooltip(
+                scenarioID: "player.control.fullscreen",
+                isActive: !timeline.isScrubbing,
+                label: controls.isFullscreenToggleDisabled
+                    ? L("tooltip.player.fullscreen.disabled")
+                    : (controls.isFullscreen
+                        ? L("tooltip.player.fullscreen.exit")
+                        : L("tooltip.player.fullscreen.enter")),
+                shortcut: controls.isFullscreenToggleDisabled ? .none : .action(.toggleFullscreen)
+            )
         }
     }
 
@@ -311,6 +385,11 @@ struct PlaybackChromeView: View {
             timeline: timeline,
             isSpeedMenuVisible: isSpeedMenuVisibleBinding,
             speedButtonFrame: $speedButtonFrame
+        )
+        .workbenchTooltip(
+            scenarioID: "player.control.speed",
+            isActive: !timeline.isScrubbing && !playback.isSpeedMenuOpen,
+            label: L("tooltip.player.speed")
         )
         .anchorPreference(key: PlaybackSpeedButtonAnchorKey.self, value: .bounds) { $0 }
     }

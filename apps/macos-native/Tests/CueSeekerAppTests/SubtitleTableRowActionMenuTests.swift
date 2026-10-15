@@ -168,26 +168,26 @@ func subtitleTableChangedExcerptRemainsAvailable() {
 }
 
 @Test
-func cueStateTipUsesRightSideThenFallsBackToLeft() {
+func cueStateTipUsesTopSideThenFallsBackToBottom() {
     let visibleRect = CGRect(x: 0, y: 0, width: 1_000, height: 600)
     let size = CGSize(width: 300, height: 120)
-    let rightAnchor = CGRect(x: 100, y: 240, width: 16, height: 16)
-    let rightFrame = CueStateTipGeometry.frame(
-        anchor: rightAnchor,
+    let topAnchor = CGRect(x: 240, y: 240, width: 16, height: 16)
+    let topFrame = CueStateTipGeometry.frame(
+        anchor: topAnchor,
         size: size,
         visibleRect: visibleRect
     )
-    #expect(rightFrame.minX == rightAnchor.maxX + CueStateTipGeometry.gap)
-    #expect(rightFrame.midY == rightAnchor.midY)
+    #expect(topFrame.maxY == topAnchor.minY - CueStateTipGeometry.gap)
+    #expect(topFrame.midX == topAnchor.midX)
 
-    let leftAnchor = CGRect(x: 850, y: 240, width: 16, height: 16)
-    let leftFrame = CueStateTipGeometry.frame(
-        anchor: leftAnchor,
+    let bottomAnchor = CGRect(x: 240, y: 40, width: 16, height: 16)
+    let bottomFrame = CueStateTipGeometry.frame(
+        anchor: bottomAnchor,
         size: size,
         visibleRect: visibleRect
     )
-    #expect(leftFrame.maxX == leftAnchor.minX - CueStateTipGeometry.gap)
-    #expect(leftFrame.midY == leftAnchor.midY)
+    #expect(bottomFrame.minY == bottomAnchor.maxY + CueStateTipGeometry.gap)
+    #expect(bottomFrame.midX == bottomAnchor.midX)
 }
 
 @MainActor

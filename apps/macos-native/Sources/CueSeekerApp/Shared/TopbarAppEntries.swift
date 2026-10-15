@@ -72,7 +72,11 @@ struct SettingsEntryButton: View {
             openIconColor: openIconColor,
             action: onOpen
         )
-        .help(L("topbar.settings"))
+        .workbenchTooltip(
+            scenarioID: "topbar.entry.settings",
+            label: L("topbar.settings"),
+            shortcut: .fixed("⌘,")
+        )
         .accessibilityLabel(L("topbar.settings"))
         .accessibilityIdentifier("topbar-settings-button")
     }

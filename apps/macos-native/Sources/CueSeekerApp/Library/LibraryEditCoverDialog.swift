@@ -36,6 +36,11 @@ struct LibraryEditCoverDialog: View {
                     action: onSave
                 )
                 .disabled(!session.canSave)
+                .workbenchTooltip(
+                    scenarioID: "disabled.edit_cover.save",
+                    isActive: !session.canSave,
+                    label: L("tooltip.disabled.edit_cover.save")
+                )
                 .keyboardShortcut(.defaultAction)
             }
         }
@@ -44,7 +49,7 @@ struct LibraryEditCoverDialog: View {
         .padding(.bottom, WorkbenchControlMetrics.redesignDialogInset)
         .workbenchDialogWidth(WorkbenchControlMetrics.redesignDialogWidthSmall)
         .background(WorkbenchRedesignColors.bgDialog)
-        .workbenchDialogCloseButton(isDisabled: session.isSaving, onClose: onCancel)
+        .workbenchDialogCloseButton(onClose: onCancel)
         .subtitleTableTextSelectionNonInteractiveRegion()
     }
 

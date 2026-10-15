@@ -177,6 +177,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             .environmentObject(appState.workbenchLayout)
             .environmentObject(appState.workbenchLayout.route)
             .environmentObject(appState.settings)
+            .environmentObject(appState.settings.playbackShortcuts)
             .environmentObject(appState.settings.cueGroupPresentation)
             .environmentObject(appState.settings.localization)
             .environmentObject(appState.indexing)

@@ -24,7 +24,7 @@
 "menu.window.bring_all_to_front" = "前置全部窗口";
 
 /* Topbar and sidebar */
-"topbar.back" = "返回";
+"topbar.back" = "后退";
 "topbar.forward" = "前进";
 "topbar.hide_sidebar" = "隐藏边栏";
 "topbar.show_sidebar" = "显示边栏";
@@ -208,7 +208,7 @@
 "playback.pause" = "暂停";
 "playback.previous_video" = "上一个视频";
 "playback.next_video" = "下一个视频";
-"playback.repeat" = "循环";
+"playback.repeat" = "重播当前台词";
 "playback.copy_screenshot" = "复制截图";
 "playback.subtitles" = "字幕";
 "playback.speed" = "播放速度";
@@ -367,7 +367,7 @@
 "settings.shortcuts.action.previous" = "上一个";
 "settings.shortcuts.action.next" = "下一个";
 "settings.shortcuts.action.toggleSubtitles" = "开关字幕";
-"settings.shortcuts.action.repeatCue" = "循环";
+"settings.shortcuts.action.repeatCue" = "重播当前台词";
 "settings.shortcuts.action.copyScreenshot" = "复制截图";
 "settings.shortcuts.action.toggleFullscreen" = "开关全屏";
 "settings.shortcuts.action.openPlaybackOverlay" = "打开播放覆盖层";
@@ -653,3 +653,40 @@
 "webdav.error.invalid_address" = "请输入有效的 WebDAV 地址";
 "webdav.error.username_empty" = "请输入用户名";
 "webdav.error.password_empty" = "请输入密码";
+
+/* Tooltips */
+"tooltip.topbar.back.disabled" = "没有可后退的页面";
+"tooltip.topbar.forward.disabled" = "没有可前进的页面";
+"tooltip.playback.return_to_workbench" = "返回到工作台";
+"tooltip.playback_overlay.collage.edit" = "编辑长截图";
+"tooltip.playback_overlay.collage.exit" = "退出长截图";
+"tooltip.command_panel.back" = "返回上一级";
+"tooltip.player.previous.cue" = "上一条台词";
+"tooltip.player.previous.cue.disabled" = "已经是第一条台词";
+"tooltip.player.previous.video" = "上一个视频";
+"tooltip.player.previous.video.disabled" = "已经是第一个视频";
+"tooltip.player.next.cue" = "下一条台词";
+"tooltip.player.next.cue.disabled" = "已经是最后一条台词";
+"tooltip.player.next.video" = "下一个视频";
+"tooltip.player.next.video.disabled" = "已经是最后一个视频";
+"tooltip.player.unmute" = "取消静音";
+"tooltip.player.repeat.disabled" = "当前没有可重播的台词";
+"tooltip.player.copy_screenshot" = "复制当前截图";
+"tooltip.player.subtitles.show" = "开启字幕";
+"tooltip.player.subtitles.hide" = "关闭字幕";
+"tooltip.player.speed" = "播放速度";
+"tooltip.player.fullscreen.enter" = "进入全屏";
+"tooltip.player.fullscreen.exit" = "退出全屏";
+"tooltip.player.fullscreen.disabled" = "当前无法切换全屏";
+"tooltip.input.search.clear" = "清除已输入内容";
+"tooltip.input.shortcut.clear" = "清除快捷键";
+"tooltip.settings.shortcuts.restore_default" = "恢复默认快捷键";
+"tooltip.anki_export.choose_folder" = "选择导出文件夹";
+"tooltip.disabled.cover_summary.no_playable_content" = "没有可播放的内容";
+"tooltip.disabled.file.task_or_compaction_running" = "任务或数据库压缩进行期间不可用";
+"tooltip.disabled.file.index_now.no_folder" = "请先添加文件夹后再索引";
+"tooltip.disabled.filter.reset" = "当前没有可重置的筛选条件";
+"tooltip.disabled.settings.play.auto_switch" = "请先开启“台词结束后自动暂停”";
+"tooltip.disabled.settings.subtitle.restore_defaults" = "当前全部字幕设置均为默认值";
+"tooltip.disabled.settings.maintenance.actions" = "移除文件夹或压缩数据库期间不可用";
+"tooltip.disabled.edit_cover.save" = "请先选择一张图片";

@@ -70,6 +70,11 @@ struct SettingsShortcutsCategory: View {
                             recorder.stop()
                             shortcuts.reset(action)
                         }
+                        .workbenchTooltip(
+                            scenarioID: "settings.shortcuts.restore_default",
+                            surface: .settings,
+                            label: L("tooltip.settings.shortcuts.restore_default")
+                        )
                     }
 
                     PlaybackShortcutField(
@@ -161,6 +166,11 @@ private struct PlaybackShortcutField: View {
             // lines up with the field's own content inset.
             if isRecording {
                 WorkbenchInlineClearButton(action: onClear)
+                    .workbenchTooltip(
+                        scenarioID: "input.shortcut.clear",
+                        surface: .settings,
+                        label: L("tooltip.input.shortcut.clear")
+                    )
                     .padding(
                         .trailing,
                         WorkbenchControlMetrics.redesignFieldPaddingX

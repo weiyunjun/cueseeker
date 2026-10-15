@@ -24,7 +24,7 @@
 "menu.window.bring_all_to_front" = "將所有視窗移至最前";
 
 /* Topbar and sidebar */
-"topbar.back" = "返回";
+"topbar.back" = "後退";
 "topbar.forward" = "前進";
 "topbar.hide_sidebar" = "隱藏側邊欄";
 "topbar.show_sidebar" = "顯示側邊欄";
@@ -208,7 +208,7 @@
 "playback.pause" = "暫停";
 "playback.previous_video" = "上一部影片";
 "playback.next_video" = "下一部影片";
-"playback.repeat" = "循環";
+"playback.repeat" = "重播目前台詞";
 "playback.copy_screenshot" = "拷貝截圖";
 "playback.subtitles" = "字幕";
 "playback.speed" = "播放速度";
@@ -367,7 +367,7 @@
 "settings.shortcuts.action.previous" = "上一個";
 "settings.shortcuts.action.next" = "下一個";
 "settings.shortcuts.action.toggleSubtitles" = "開關字幕";
-"settings.shortcuts.action.repeatCue" = "循環";
+"settings.shortcuts.action.repeatCue" = "重播目前台詞";
 "settings.shortcuts.action.copyScreenshot" = "拷貝截圖";
 "settings.shortcuts.action.toggleFullscreen" = "開關全螢幕";
 "settings.shortcuts.action.openPlaybackOverlay" = "開啟播放覆蓋層";
@@ -653,3 +653,40 @@
 "webdav.error.invalid_address" = "請輸入有效的 WebDAV 位址";
 "webdav.error.username_empty" = "請輸入使用者名稱";
 "webdav.error.password_empty" = "請輸入密碼";
+
+/* Tooltips */
+"tooltip.topbar.back.disabled" = "沒有可後退的頁面";
+"tooltip.topbar.forward.disabled" = "沒有可前進的頁面";
+"tooltip.playback.return_to_workbench" = "返回到工作台";
+"tooltip.playback_overlay.collage.edit" = "編輯長截圖";
+"tooltip.playback_overlay.collage.exit" = "結束長截圖";
+"tooltip.command_panel.back" = "返回上一級";
+"tooltip.player.previous.cue" = "上一條台詞";
+"tooltip.player.previous.cue.disabled" = "已經是第一條台詞";
+"tooltip.player.previous.video" = "上一個影片";
+"tooltip.player.previous.video.disabled" = "已經是第一個影片";
+"tooltip.player.next.cue" = "下一條台詞";
+"tooltip.player.next.cue.disabled" = "已經是最後一條台詞";
+"tooltip.player.next.video" = "下一個影片";
+"tooltip.player.next.video.disabled" = "已經是最後一個影片";
+"tooltip.player.unmute" = "取消靜音";
+"tooltip.player.repeat.disabled" = "目前沒有可重播的台詞";
+"tooltip.player.copy_screenshot" = "拷貝目前截圖";
+"tooltip.player.subtitles.show" = "開啟字幕";
+"tooltip.player.subtitles.hide" = "關閉字幕";
+"tooltip.player.speed" = "播放速度";
+"tooltip.player.fullscreen.enter" = "進入全螢幕";
+"tooltip.player.fullscreen.exit" = "結束全螢幕";
+"tooltip.player.fullscreen.disabled" = "目前無法切換全螢幕";
+"tooltip.input.search.clear" = "清除已輸入內容";
+"tooltip.input.shortcut.clear" = "清除快速鍵";
+"tooltip.settings.shortcuts.restore_default" = "恢復預設快速鍵";
+"tooltip.anki_export.choose_folder" = "選擇匯出資料夾";
+"tooltip.disabled.cover_summary.no_playable_content" = "沒有可播放的內容";
+"tooltip.disabled.file.task_or_compaction_running" = "任務或資料庫壓縮進行期間無法使用";
+"tooltip.disabled.file.index_now.no_folder" = "請先加入資料夾後再索引";
+"tooltip.disabled.filter.reset" = "目前沒有可重設的篩選條件";
+"tooltip.disabled.settings.play.auto_switch" = "請先開啟「台詞結束後自動暫停」";
+"tooltip.disabled.settings.subtitle.restore_defaults" = "目前全部字幕設定皆為預設值";
+"tooltip.disabled.settings.maintenance.actions" = "移除資料夾或壓縮資料庫期間無法使用";
+"tooltip.disabled.edit_cover.save" = "請先選擇一張圖片";

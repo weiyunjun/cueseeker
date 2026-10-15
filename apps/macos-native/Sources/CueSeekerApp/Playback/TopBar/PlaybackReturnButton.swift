@@ -9,6 +9,8 @@ struct PlaybackReturnButton: View {
     /// The colors of the surface the button is drawn on.
     var iconColor: Color? = nil
     let hoverBackground: Color
+    var scenarioID: String = "player.topbar.return"
+    var shortcut: TooltipShortcut = .fixed("Esc")
     let action: () -> Void
     @Environment(\.isAppFullscreen) private var isAppFullscreen
 
@@ -19,6 +21,11 @@ struct PlaybackReturnButton: View {
             hoverBackground: hoverBackground,
             iconColor: iconColor,
             action: action
+        )
+        .workbenchTooltip(
+            scenarioID: scenarioID,
+            label: L("tooltip.playback.return_to_workbench"),
+            shortcut: shortcut
         )
         .accessibilityLabel(L("playback.close_and_return"))
         .accessibilityIdentifier("playback-return")

@@ -272,12 +272,22 @@ struct CoverSummaryCard<Cover: View>: View {
                 action: action
             )
             .disabled(!isActionEnabled)
+            .workbenchTooltip(
+                scenarioID: "disabled.cover_summary.no_playable_content",
+                isActive: !isActionEnabled,
+                label: L("tooltip.disabled.cover_summary.no_playable_content")
+            )
         case .backdrop:
             CoverSummaryActionButton(
                 title: actionKind.title,
                 action: action
             )
             .disabled(!isActionEnabled)
+            .workbenchTooltip(
+                scenarioID: "disabled.cover_summary.no_playable_content",
+                isActive: !isActionEnabled,
+                label: L("tooltip.disabled.cover_summary.no_playable_content")
+            )
         }
     }
 

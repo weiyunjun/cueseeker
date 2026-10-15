@@ -107,16 +107,13 @@ func screenshotCopiedFeedbackUsesRequiredIconAndText() {
 
 @MainActor
 @Test
-func repeatAndAutoPauseFeedbackUseRequiredIconsAndText() {
+func autoPauseFeedbackAndReplayCurrentCueCopyMatchRequirements() {
     let viewModel = PlaybackViewModel(player: PlaybackPlayer())
-
-    viewModel.showRepeatFeedback()
-    #expect(viewModel.feedback?.icon == .repeatIcon)
-    #expect(viewModel.feedback?.text == "Repeat")
 
     viewModel.showAutoPauseFeedback()
     #expect(viewModel.feedback?.icon == .pause)
     #expect(viewModel.feedback?.text == "Auto Pause")
+    #expect(PlaybackShortcutAction.repeatCue.title == "Replay Current Cue")
 }
 
 @MainActor

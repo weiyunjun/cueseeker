@@ -122,6 +122,11 @@ struct TaskPanel: View {
                         tasks.closePanel()
                     }
                 )
+                .workbenchTooltip(
+                    scenarioID: "dialog.header.close",
+                    label: L("common.close"),
+                    shortcut: .fixed("Esc")
+                )
                 .keyboardShortcut(confirmation.session == nil ? .cancelAction : nil)
                 .accessibilityLabel(L("common.close"))
             }

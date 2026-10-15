@@ -687,7 +687,6 @@ extension AppCoordinator {
 
         playback.playbackStatus = .playing
         playback.setCanRepeatCurrentCue(true)
-        viewModel.showRepeatFeedback()
         return true
     }
 

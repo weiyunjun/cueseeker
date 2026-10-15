@@ -26,7 +26,6 @@ extension View {
     /// the buttons below it.
     /// A dialog with no Cancel button lets Escape press this one instead.
     func workbenchDialogCloseButton(
-        isDisabled: Bool = false,
         closesOnEscape: Bool = false,
         onClose: @escaping () -> Void
     ) -> some View {
@@ -38,7 +37,11 @@ extension View {
                 boxSize: WorkbenchControlMetrics.redesignDialogCloseButtonSize,
                 action: onClose
             )
-            .disabled(isDisabled)
+            .workbenchTooltip(
+                scenarioID: "dialog.header.close",
+                label: L("common.close"),
+                shortcut: .fixed("Esc")
+            )
             .keyboardShortcut(closesOnEscape ? .cancelAction : nil)
             .accessibilityLabel(L("common.close"))
             .padding(.top, WorkbenchControlMetrics.redesignDialogCloseAnchorInset)

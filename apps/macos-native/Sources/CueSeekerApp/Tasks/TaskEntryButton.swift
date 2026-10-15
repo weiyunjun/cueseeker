@@ -32,7 +32,10 @@ struct TaskEntryButton: View {
             countTextColor: countTextColor,
             action: onOpen
         )
-        .help(L("task.entry"))
+        .workbenchTooltip(
+            scenarioID: "topbar.entry.tasks",
+            label: L("task.entry")
+        )
         .accessibilityLabel(L("task.entry"))
         .accessibilityIdentifier("task-entry-button")
     }

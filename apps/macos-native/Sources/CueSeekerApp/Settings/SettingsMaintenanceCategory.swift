@@ -34,6 +34,10 @@ struct SettingsMaintenanceCategory: View {
                 }
             } trailing: {
                 HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
+                    let isRefreshDisabled =
+                        indexing.folderRemovalStatus.isRemoving
+                        || indexing.databaseMaintenanceStatus.isCompacting
+
                     WorkbenchButton(
                         title: L("settings.maintenance.refresh"),
                         icon: .arrowClockwise,
@@ -41,9 +45,12 @@ struct SettingsMaintenanceCategory: View {
                     ) {
                         appState.refreshDatabaseStorageStats()
                     }
-                    .disabled(
-                        indexing.folderRemovalStatus.isRemoving
-                            || indexing.databaseMaintenanceStatus.isCompacting
+                    .disabled(isRefreshDisabled)
+                    .workbenchTooltip(
+                        scenarioID: "disabled.settings.maintenance.actions",
+                        surface: .settings,
+                        isActive: isRefreshDisabled,
+                        label: L("tooltip.disabled.settings.maintenance.actions")
                     )
 
                     WorkbenchButton(
@@ -54,6 +61,12 @@ struct SettingsMaintenanceCategory: View {
                         isShowingCompactConfirmation = true
                     }
                     .disabled(!appState.canCompactDatabase)
+                    .workbenchTooltip(
+                        scenarioID: "disabled.settings.maintenance.actions",
+                        surface: .settings,
+                        isActive: !appState.canCompactDatabase,
+                        label: L("tooltip.disabled.settings.maintenance.actions")
+                    )
                 }
             }
 

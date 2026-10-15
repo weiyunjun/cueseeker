@@ -614,15 +614,6 @@ public final class PlaybackViewModel: ObservableObject {
         )
     }
 
-    func showRepeatFeedback() {
-        showFeedback(
-            PlaybackFeedback(
-                icon: .repeatIcon,
-                text: L("playback.repeat")
-            )
-        )
-    }
-
     func showSubtitleMarkdownLinkCopyFeedback(copied: Bool) {
         showFeedback(
             PlaybackFeedback(

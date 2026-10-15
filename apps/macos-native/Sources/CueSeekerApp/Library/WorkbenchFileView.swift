@@ -252,7 +252,10 @@ struct WorkbenchFileView: View {
     }
 
     private var actionRow: some View {
-        HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
+        let isAddFolderDisabled = isFolderOperationBlocked || isChoosingFolder
+        let isIndexNowDisabled = indexing.selectedFolders.isEmpty || isFolderOperationBlocked
+
+        return HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
             WorkbenchButton(
                 title: L("settings.library.add_folder"),
                 icon: .folderPlus,
@@ -265,7 +268,12 @@ struct WorkbenchFileView: View {
                     items: addFolderMenuItems
                 )
             }
-            .disabled(isFolderOperationBlocked || isChoosingFolder)
+            .disabled(isAddFolderDisabled)
+            .workbenchTooltip(
+                scenarioID: "disabled.file.add_folder",
+                isActive: isAddFolderDisabled,
+                label: L("tooltip.disabled.file.task_or_compaction_running")
+            )
             .background(
                 GeometryReader { geo in
                     Color.clear
@@ -288,9 +296,13 @@ struct WorkbenchFileView: View {
             ) {
                 appState.indexAllFolders()
             }
-            .disabled(
-                indexing.selectedFolders.isEmpty
-                    || isFolderOperationBlocked
+            .disabled(isIndexNowDisabled)
+            .workbenchTooltip(
+                scenarioID: "disabled.file.index_now",
+                isActive: isIndexNowDisabled,
+                label: isFolderOperationBlocked
+                    ? L("tooltip.disabled.file.task_or_compaction_running")
+                    : L("tooltip.disabled.file.index_now.no_folder")
             )
         }
     }

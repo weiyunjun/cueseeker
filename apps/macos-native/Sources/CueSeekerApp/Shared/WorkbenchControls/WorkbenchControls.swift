@@ -654,6 +654,14 @@ struct WorkbenchPageTitle: View {
             ))
             .foregroundStyle(WorkbenchRedesignColors.textPrimary)
             .lineLimit(1)
+            .workbenchTruncatedTextTooltip(
+                scenarioID: "truncated.topbar.page_title",
+                text: title,
+                font: .system(
+                    size: WorkbenchControlMetrics.redesignFontSizePageTitle,
+                    weight: WorkbenchControlMetrics.redesignFontWeightPageTitle
+                )
+            )
             .frame(maxWidth: .infinity, alignment: .leading)
             .allowsHitTesting(false)
     }
@@ -781,6 +789,11 @@ struct WorkbenchSearchField: View {
                 WorkbenchInlineClearButton(isEnabled: isEnabled) {
                     text = ""
                 }
+                .workbenchTooltip(
+                    scenarioID: "input.search.clear",
+                    isActive: isEnabled,
+                    label: L("tooltip.input.search.clear")
+                )
             }
         }
         .padding(.horizontal, isRedesign ? WorkbenchControlMetrics.redesignControlPaddingX : 18)

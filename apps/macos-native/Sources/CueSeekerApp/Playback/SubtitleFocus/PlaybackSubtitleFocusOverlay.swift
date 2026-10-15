@@ -307,6 +307,8 @@ private struct PlaybackOverlayTopBar: View {
             PlaybackReturnButton(
                 hoverBackground: WorkbenchRedesignColors
                     .overlaySurfaceShortcutButtonHoverBg,
+                scenarioID: "playback_overlay.topbar.return",
+                shortcut: .none,
                 action: onReturn
             )
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -347,6 +349,13 @@ private struct PlaybackOverlayTopBar: View {
                     ) {
                         _ = onToggleEditingCollage()
                     }
+                    .workbenchTooltip(
+                        scenarioID: "playback_overlay.topbar.collage",
+                        label: isEditingCollage
+                            ? L("tooltip.playback_overlay.collage.exit")
+                            : L("tooltip.playback_overlay.collage.edit"),
+                        shortcut: .action(.editCollage)
+                    )
                     .accessibilityLabel(
                         isEditingCollage
                             ? L("playback.collage.exit")

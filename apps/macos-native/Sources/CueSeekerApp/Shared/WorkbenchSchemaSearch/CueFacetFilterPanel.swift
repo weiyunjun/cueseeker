@@ -380,7 +380,11 @@ struct CueFacetFilterDialog: View {
     }
 
     private var footer: some View {
-        HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
+        let isResetDisabled = session.filter.normalizingFolders(
+            listed: availableFolders.map(\.path)
+        ).isEmpty
+
+        return HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
             // Reset clears the dialog's selection only; the table waits for
             // Show like any other change.
             WorkbenchButton(
@@ -390,8 +394,11 @@ struct CueFacetFilterDialog: View {
             )
             // A Folder selection that leaves out every listed folder is no
             // selection, even before the dialog rewrites it.
-            .disabled(
-                session.filter.normalizingFolders(listed: availableFolders.map(\.path)).isEmpty
+            .disabled(isResetDisabled)
+            .workbenchTooltip(
+                scenarioID: "disabled.filter.reset",
+                isActive: isResetDisabled,
+                label: L("tooltip.disabled.filter.reset")
             )
 
             Spacer(minLength: 0)
@@ -427,6 +434,7 @@ private struct CueFacetFilterChip: View {
     let option: CueFacetOption
 
     @State private var isHovered = false
+    @State private var isTitleTruncated = false
 
     var body: some View {
         Button(action: option.toggle) {
@@ -435,6 +443,12 @@ private struct CueFacetFilterChip: View {
         .buttonStyle(StaticButtonStyle())
         .focusable(false)
         .onPointerHover { isHovered = $0 }
+        .workbenchTooltip(
+            scenarioID: "truncated.filter.chip_label",
+            isActive: isTitleTruncated,
+            label: option.title,
+            wrapsText: true
+        )
         .accessibilityLabel(option.title)
         .accessibilityValue(accessibilityValue)
     }
@@ -447,6 +461,14 @@ private struct CueFacetFilterChip: View {
                 .foregroundStyle(titleColor)
                 .lineLimit(1)
                 .truncationMode(.tail)
+                .onTextTruncationChange(
+                    text: option.title,
+                    font: .system(size: WorkbenchControlMetrics.redesignFontSizeBody)
+                ) { truncated in
+                    if isTitleTruncated != truncated {
+                        isTitleTruncated = truncated
+                    }
+                }
 
             countView
         }

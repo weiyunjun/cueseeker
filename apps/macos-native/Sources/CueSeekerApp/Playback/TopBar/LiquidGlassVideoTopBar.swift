@@ -54,6 +54,11 @@ struct LiquidGlassVideoTopBar: View {
                     radius: PlaybackTheme.topbarTitleShadowRadius,
                     y: PlaybackTheme.topbarTitleShadowYOffset
                 )
+                .workbenchTruncatedTextTooltip(
+                    scenarioID: "truncated.player.title",
+                    text: title,
+                    font: .system(size: WorkbenchControlMetrics.redesignFontSizeBody, weight: .semibold)
+                )
                 .frame(maxWidth: titleMaxWidth)
                 .allowsHitTesting(false)
         }

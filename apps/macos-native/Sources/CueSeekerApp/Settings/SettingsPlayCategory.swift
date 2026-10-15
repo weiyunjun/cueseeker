@@ -25,6 +25,12 @@ struct SettingsPlayCategory: View {
                     .toggleStyle(.switch)
                     .focusable(false)
                     .disabled(!settingsStore.autoPauseAfterCueFinishesEnabled)
+                    .workbenchTooltip(
+                        scenarioID: "disabled.settings.play.auto_switch",
+                        surface: .settings,
+                        isActive: !settingsStore.autoPauseAfterCueFinishesEnabled,
+                        label: L("tooltip.disabled.settings.play.auto_switch")
+                    )
             }
 
             SettingsRowDivider()

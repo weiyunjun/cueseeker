@@ -123,6 +123,12 @@ struct SettingsSubtitleCategory: View {
                     settingsStore.srtSubtitleStyle = SRTSubtitleStyle()
                 }
                 .disabled(style == SRTSubtitleStyle())
+                .workbenchTooltip(
+                    scenarioID: "disabled.settings.subtitle.restore_defaults",
+                    surface: .settings,
+                    isActive: style == SRTSubtitleStyle(),
+                    label: L("tooltip.disabled.settings.subtitle.restore_defaults")
+                )
             }
         }
         .onDisappear {

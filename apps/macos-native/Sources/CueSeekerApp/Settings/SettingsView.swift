@@ -57,22 +57,29 @@ struct SettingsView: View {
     @State private var selectedCategory: SettingsCategory = .general
 
     var body: some View {
-        HStack(spacing: 0) {
-            categoryList
-                .frame(width: WorkbenchControlMetrics.redesignSettingsSidebarWidth)
+        ZStack(alignment: .topLeading) {
+            HStack(spacing: 0) {
+                categoryList
+                    .frame(width: WorkbenchControlMetrics.redesignSettingsSidebarWidth)
 
-            Rectangle()
-                .fill(WorkbenchRedesignColors.borderDivider)
-                .frame(width: WorkbenchControlMetrics.hairlineWidth)
+                Rectangle()
+                    .fill(WorkbenchRedesignColors.borderDivider)
+                    .frame(width: WorkbenchControlMetrics.hairlineWidth)
 
-            SettingsPage(title: selectedCategory.title) {
-                selectedContent
+                SettingsPage(title: selectedCategory.title) {
+                    selectedContent
+                }
+                // Each category opens scrolled to its top.
+                .id(selectedCategory)
+                .padding(.top, WorkbenchControlMetrics.redesignSettingsTitlebarHeight)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            // Each category opens scrolled to its top.
-            .id(selectedCategory)
-            .padding(.top, WorkbenchControlMetrics.redesignSettingsTitlebarHeight)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            TooltipOverlayView(surface: .settings)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .zIndex(400)
         }
+        .environmentObject(settingsStore.playbackShortcuts)
         .ignoresSafeArea(.container, edges: .top)
         .frame(
             minWidth: WorkbenchControlMetrics.redesignSettingsWindowWidth,
@@ -89,6 +96,7 @@ struct SettingsView: View {
                 let isSelected = selectedCategory == category
 
                 Button {
+                    TooltipCenter.shared.dismissFromUserInteraction()
                     selectedCategory = category
                 } label: {
                     HStack(spacing: WorkbenchControlMetrics.redesignSpacing3) {

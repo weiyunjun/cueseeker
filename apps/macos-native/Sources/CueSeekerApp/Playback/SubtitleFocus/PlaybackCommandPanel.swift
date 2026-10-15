@@ -420,6 +420,11 @@ private struct PlaybackCommandPanelSecondaryHeader: View {
                 .buttonStyle(StaticButtonStyle())
                 .focusable(false)
                 .onPointerHover { isBackHovered = $0 }
+                .workbenchTooltip(
+                    scenarioID: "command_panel.header.back",
+                    label: L("tooltip.command_panel.back"),
+                    shortcut: .fixed("Esc")
+                )
                 .accessibilityLabel(L("playback.back"))
 
                 Spacer(minLength: 0)

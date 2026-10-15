@@ -91,6 +91,7 @@ final class InterfaceLayerRegistry: ObservableObject {
         // Entering or leaving a layer is an interface switch: the pointer goes
         // back to the arrow until it moves again.
         AppPointerShape.reset()
+        TooltipCenter.shared.dismissFromUserInteraction()
     }
 
     /// The page gives its focus up as a dialog opens, the way it does for a
@@ -135,6 +136,7 @@ final class InterfaceLayerRegistry: ObservableObject {
     /// can leave a menu registered forever.
     func registerOpenMenu(ownedBy owner: InterfaceLayer) -> OpenMenuToken {
         openMenuCounts[owner, default: 0] += 1
+        TooltipCenter.shared.dismissFromUserInteraction()
         return OpenMenuToken(registry: self, owner: owner)
     }
 

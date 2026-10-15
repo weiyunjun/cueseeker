@@ -54,6 +54,7 @@ struct PlaybackVideoStage: View {
                 .opacity(isTopBarVisible ? 1 : 0)
                 .allowsHitTesting(isTopBarVisible)
                 .accessibilityHidden(!isTopBarVisible)
+                .environment(\.isPlayerUIVisible, isTopBarVisible)
 
                 if let viewModel = playback.playbackViewModel {
                     PlaybackChromeView(
@@ -82,6 +83,7 @@ struct PlaybackVideoStage: View {
                     .opacity(isBottomChromeVisible ? 1 : 0)
                     .allowsHitTesting(isBottomChromeVisible)
                     .accessibilityHidden(!isBottomChromeVisible)
+                    .environment(\.isPlayerUIVisible, isBottomChromeVisible)
                 }
 
                 PlaybackChromeTrackingView(
@@ -144,10 +146,11 @@ struct PlaybackVideoStage: View {
                 chrome.setDragging(playback.timeline.isScrubbing || isDraggingVolume)
             }
             .onChange(of: chrome.isPlayerUIVisible) { isVisible in
-                // A hidden Player UI takes its menus with it.
+                // A hidden Player UI takes its menus and tooltips with it.
                 if !isVisible {
                     playback.closeSpeedMenu()
                     playback.closeMoreMenu()
+                    TooltipCenter.shared.dismiss()
                 }
             }
             .onReceive(playback.pointerHideRequests) {

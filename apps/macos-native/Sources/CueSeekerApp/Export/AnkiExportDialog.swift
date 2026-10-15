@@ -472,6 +472,10 @@ struct AnkiExportDialog: View {
                     .accessibilityIdentifier("anki-export-location")
 
                     WorkbenchIconButton(icon: .folder, isRedesign: true, action: onChooseFolder)
+                        .workbenchTooltip(
+                            scenarioID: "anki_export.location.choose_folder",
+                            label: L("tooltip.anki_export.choose_folder")
+                        )
                         .accessibilityLabel(L("anki_export.choose_folder"))
                         .padding(.trailing, -Self.folderButtonTrailingSlack)
                 }
@@ -584,7 +588,6 @@ private struct AnkiCardBadgeRow: View {
             .buttonStyle(.plain)
             .focusable(false)
             .onHover { isRemoveHovered = $0 }
-            .help(L("common.remove"))
         }
         .padding(.leading, WorkbenchControlMetrics.redesignSpacing2 + 2)
         .padding(.trailing, WorkbenchControlMetrics.redesignSpacing2)

@@ -83,6 +83,10 @@ private struct ContentRootView: View {
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .zIndex(300)
 
+                    TooltipOverlayView(surface: .main)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .zIndex(400)
+
                     TitlebarCommandBridge()
                         .frame(width: 0, height: 0)
                 }
@@ -90,6 +94,7 @@ private struct ContentRootView: View {
                 .modifier(
                     InterfaceLayerCoverageBridge(layers: appState.interfaceLayers)
                 )
+                .environmentObject(settingsStore.playbackShortcuts)
                 .environment(\.isAppFullscreen, layoutState.isAppFullscreen)
                 .onAppear {
                     collapseSidebarForCompactWindowIfNeeded(
@@ -377,7 +382,12 @@ struct AppTopBar: View {
             }
         }
         .disabled(!routeState.canGoBack)
-        .help(L("topbar.back"))
+        .workbenchTooltip(
+            scenarioID: "topbar.navigation.back",
+            label: routeState.canGoBack
+                ? L("topbar.back")
+                : L("tooltip.topbar.back.disabled")
+        )
         .accessibilityLabel(L("topbar.back"))
         .accessibilityIdentifier("topbar-back")
     }
@@ -412,7 +422,12 @@ struct AppTopBar: View {
             }
         }
         .disabled(!routeState.canGoForward)
-        .help(L("topbar.forward"))
+        .workbenchTooltip(
+            scenarioID: "topbar.navigation.forward",
+            label: routeState.canGoForward
+                ? L("topbar.forward")
+                : L("tooltip.topbar.forward.disabled")
+        )
         .accessibilityLabel(L("topbar.forward"))
         .accessibilityIdentifier("topbar-forward")
     }
@@ -442,7 +457,10 @@ struct AppTopBar: View {
         )
         .foregroundStyle(WorkbenchRedesignColors.textSecondary)
         .focusable(false)
-        .help(sidebarToggleLabel)
+        .workbenchTooltip(
+            scenarioID: "topbar.sidebar.toggle",
+            label: sidebarToggleLabel
+        )
         .accessibilityLabel(sidebarToggleLabel)
     }
 
@@ -579,7 +597,6 @@ private struct AppSidebarNavigationItem: View {
         .disabled(!isEnabled)
         .subtitleTableTextSelectionInteractiveRegion(isActive: isEnabled)
         .focusable(false)
-        .help(mode.sidebarLabel)
         .accessibilityLabel(mode.sidebarLabel)
     }
 }

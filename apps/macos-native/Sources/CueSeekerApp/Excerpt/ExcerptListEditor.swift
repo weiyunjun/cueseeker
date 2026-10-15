@@ -165,7 +165,7 @@ struct ExcerptListEditorDialog: View {
                 : WorkbenchControlMetrics.redesignDialogWidthSmall
         )
         .background(WorkbenchRedesignColors.bgDialog)
-        .workbenchDialogCloseButton(isDisabled: session.isSaving, onClose: onClose)
+        .workbenchDialogCloseButton(onClose: onClose)
         .onChange(of: session.name) { _ in
             revalidateIfNeeded()
         }

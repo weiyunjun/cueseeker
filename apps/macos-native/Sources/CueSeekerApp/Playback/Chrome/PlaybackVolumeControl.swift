@@ -23,6 +23,11 @@ struct PlaybackVolumeControl: View {
             }
             .buttonStyle(StaticButtonStyle())
             .focusable(false)
+            .workbenchTooltip(
+                scenarioID: "player.control.mute",
+                isActive: !timeline.isScrubbing,
+                label: viewModel.volume <= 0 ? L("tooltip.player.unmute") : L("playback.mute")
+            )
             .accessibilityLabel(L("playback.mute"))
 
             if isHovered {

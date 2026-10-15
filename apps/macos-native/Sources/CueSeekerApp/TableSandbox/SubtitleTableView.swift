@@ -919,90 +919,19 @@ private struct RowActionDestinationSubmenu: View {
     }
 }
 
-private struct CueStateTip: View {
-    let state: SubtitleTableCueState
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(title)
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(Color(nsColor: WorkbenchRedesignColors.NS.textPrimary))
-            switch state {
-            case .normal:
-                EmptyView()
-            case .contentChanged(let previous, let current):
-                Text(L("table.state.changed_after_reindex"))
-                    .foregroundStyle(Color(nsColor: WorkbenchRedesignColors.NS.textSecondary))
-                value(label: L("table.state.previous"), text: previous)
-                value(label: L("table.state.current"), text: current)
-            case .unavailable:
-                Text(state.unavailableMessage ?? "")
-                    .foregroundStyle(Color(nsColor: WorkbenchRedesignColors.NS.textSecondary))
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        }
-        .font(.system(size: 12))
-        .padding(12)
-        .frame(width: 300, alignment: .leading)
-        .background(Color(nsColor: WorkbenchRedesignColors.NS.bgPopover))
-        .overlay {
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(Color(nsColor: WorkbenchRedesignColors.NS.borderMuted), lineWidth: 1)
-        }
-        .clipShape(RoundedRectangle(cornerRadius: 8))
-        .shadow(color: .black.opacity(0.16), radius: 12, y: 4)
-    }
-
-    private var title: String {
-        switch state {
-        case .normal:
-            ""
-        case .contentChanged:
-            L("table.state.content_changed")
-        case .unavailable:
-            L("table.state.unavailable")
-        }
-    }
-
-    private func value(label: String, text: String) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(label)
-                .foregroundStyle(Color(nsColor: WorkbenchRedesignColors.NS.textMuted))
-            Text(text)
-                .foregroundStyle(Color(nsColor: WorkbenchRedesignColors.NS.textSecondary))
-                .fixedSize(horizontal: false, vertical: true)
-        }
-    }
-
-}
-
 enum CueStateTipGeometry {
-    static let gap: CGFloat = 8
+    static let gap: CGFloat = TooltipGeometry.gap
 
     static func frame(
         anchor: CGRect,
         size: CGSize,
         visibleRect: CGRect
     ) -> CGRect {
-        var x = anchor.maxX + gap
-        if x + size.width > visibleRect.maxX {
-            x = anchor.minX - gap - size.width
-        }
-        x = max(visibleRect.minX, min(x, visibleRect.maxX - size.width))
-        let y = max(
-            visibleRect.minY,
-            min(
-                anchor.midY - size.height / 2,
-                visibleRect.maxY - size.height
-            )
+        TooltipGeometry.frame(
+            anchor: anchor,
+            size: size,
+            visibleRect: visibleRect
         )
-        return CGRect(origin: CGPoint(x: x, y: y), size: size)
-    }
-}
-
-private final class CueStateTipHostingView: NSHostingView<AnyView> {
-    override func hitTest(_ point: NSPoint) -> NSView? {
-        nil
     }
 }
 
@@ -2426,6 +2355,7 @@ struct SubtitleTableView: NSViewRepresentable {
         coordinator.unbindExternalTextSelectionSession()
         coordinator.bindPageScrollbar(nil)
         coordinator.cancelPendingTextInteraction()
+        coordinator.hideCueStateTip()
     }
 
     // MARK: Coordinator
@@ -2633,7 +2563,7 @@ struct SubtitleTableView: NSViewRepresentable {
         private var hoveredCueStateRow: Int?
         private var hoveredRowActionRow: Int?
         private var focusedCheckboxRow: Int?
-        private var cueStateTipHost: CueStateTipHostingView?
+        private var cueStateTooltipTargetID = UUID()
         private var lastNotifiedVisibleRows: Range<Int>?
         private var lastHeaderHorizontalOffset: CGFloat?
         private var isScrollbarDragging = false
@@ -6798,7 +6728,7 @@ struct SubtitleTableView: NSViewRepresentable {
         private func updateHoveredCueStateRow(_ newRow: Int?) {
             guard newRow != hoveredCueStateRow else {
                 if let newRow {
-                    showCueStateTip(for: newRow)
+                    showCueStateTip(for: newRow, isSameRow: true)
                 }
                 return
             }
@@ -6806,15 +6736,17 @@ struct SubtitleTableView: NSViewRepresentable {
             hoveredCueStateRow = newRow
             invalidateRows([oldRow, newRow])
             if let newRow {
-                showCueStateTip(for: newRow)
+                cueStateTooltipTargetID = UUID()
+                showCueStateTip(for: newRow, isSameRow: false)
             } else {
                 hideCueStateTip()
             }
         }
 
-        private func showCueStateTip(for row: Int) {
-            guard let container,
-                  let documentView,
+        private func showCueStateTip(for row: Int, isSameRow: Bool) {
+            guard let documentView,
+                  let window = documentView.window,
+                  let contentView = window.contentView,
                   let model = rowProvider(row),
                   model.cueState.icon != nil,
                   let documentRect = cueStateIndicatorRectInDocument(row: row)
@@ -6822,36 +6754,45 @@ struct SubtitleTableView: NSViewRepresentable {
                 hideCueStateTip()
                 return
             }
-            let host: CueStateTipHostingView
-            if let cueStateTipHost {
-                host = cueStateTipHost
-            } else {
-                host = CueStateTipHostingView(rootView: AnyView(EmptyView()))
-                cueStateTipHost = host
+            let scenarioID: String
+            switch model.cueState {
+            case .contentChanged:
+                scenarioID = "table.cue_state.content_changed"
+            case .unavailable:
+                scenarioID = "table.cue_state.unavailable"
+            case .normal:
+                hideCueStateTip()
+                return
             }
-            host.rootView = AnyView(CueStateTip(state: model.cueState))
-            host.invalidateIntrinsicContentSize()
-            if host.superview !== container {
-                container.addSubview(host)
-            }
-            host.layoutSubtreeIfNeeded()
 
-            let anchor = container.convert(documentRect, from: documentView)
-            let fittingSize = host.fittingSize
-            let size = CGSize(
-                width: max(300, fittingSize.width),
-                height: max(1, fittingSize.height)
+            let windowRect = documentView.convert(documentRect, to: nil)
+            let windowHeight = contentView.bounds.height
+            let anchor = CGRect(
+                x: windowRect.minX,
+                y: windowHeight - windowRect.maxY,
+                width: windowRect.width,
+                height: windowRect.height
             )
-            host.frame = CueStateTipGeometry.frame(
-                anchor: anchor,
-                size: size,
-                visibleRect: container.bounds
-            )
-            host.isHidden = false
+            let content = TooltipContent.cueState(model.cueState)
+            if isSameRow {
+                TooltipCenter.shared.updateAnchor(
+                    targetID: cueStateTooltipTargetID,
+                    anchorRect: anchor,
+                    content: content
+                )
+            } else {
+                TooltipCenter.shared.hoverBegan(
+                    targetID: cueStateTooltipTargetID,
+                    surface: .main,
+                    scenarioID: scenarioID,
+                    anchorRect: anchor,
+                    content: content
+                )
+            }
         }
 
-        private func hideCueStateTip() {
-            cueStateTipHost?.isHidden = true
+        func hideCueStateTip() {
+            TooltipCenter.shared.hoverEnded(targetID: cueStateTooltipTargetID)
         }
 
         private func updateHoveredRowActionRow(_ newRow: Int?) {
