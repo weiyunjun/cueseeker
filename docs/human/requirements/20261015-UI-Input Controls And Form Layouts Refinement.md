@@ -28,7 +28,8 @@ main
    - 右侧 `Description`（`Text Area`）容器底边下探至与左侧封面下方说明文字（`Support Text`）第 1 行底边对齐，使 `Text Area` 下方恒定预留的 `1` 行红字空间与左侧说明文字第 2 行底边齐平。
 
 5. **Export to Anki 对话框**：
-   - 底部 `File Name` 与 `Location` 区域中的 `Location` 由静态路径文本改为可编辑的单行 `Text Field`（允许用户直接输入路径），输入框右侧（间距 `--spacing-2: 8px`）放置文件夹选择按钮（`Icon Button / Default`）。
+   - 底部 `File Name` 与 `Location` 区域改为「左 Label（`--width-form-label: 72px`，左对齐）+ 右 Input」水平双列布局，Label 与输入框水平间距 `--spacing-3`（`12px`），两行间距 `--spacing-3`（`12px`）。
+   - `Location` 由静态路径文本改为可编辑的单行 `Text Field`（允许用户直接输入路径），输入框右侧（间距 `--spacing-2: 8px`）放置文件夹选择按钮（`Icon Button / Default`）。
    - `File Name` 与 `Location` 输入框下方均恒定预留 `1` 行红字高度（左边缘与输入框左边缘对齐），路径为空、不存在或不可写时在 `Location` 下方显示红字报错。
 
 6. **Settings 输入行与快捷键还原按钮**：
@@ -44,5 +45,5 @@ main
 2. `WebDav Folder` 对话框为左 Label（`72px`）右 Input 布局；`Name` 选填带占位提示且留空时自动取 URL 末级目录名，其余 3 项无占位提示；校验或连接失败时在 `Password` 下方左对齐显示红字报错且不弹 Toast，弹窗高度无跳动。
 3. `Rename` 对话框为左 Label（`72px`）右内容布局，`Current Name` 超长时多行完整换行显示，`New Name` 下方预留 1 行红字空间且左对齐输入框。
 4. `Excerpt List Editor` 的 `Description` 文本框底边对齐左侧说明文字第 1 行底边，下方预留 1 行红字空间与左侧第 2 行底边齐平。
-5. `Export to Anki` 的 `Location` 可直接输入路径或通过右侧文件夹按钮选择，且 `File Name` 与 `Location` 下方均预留 1 行红字空间并正确校验报错。
+5. `Export to Anki` 底部的 `File Name` 与 `Location` 为左 Label（`72px`）右 Input 水平布局；`Location` 可直接输入路径或通过右侧文件夹按钮选择，且两项输入框下方均预留 1 行红字空间（左对齐输入框）并正确校验报错。
 6. `Settings / Shortcuts` 的 `Restore Default` 按钮位于 `Shortcut Field` 左侧、尺寸为 `24×24px`（`16px` 图标），默认键位时不显示、修改后才显示且输入框右边缘位置保持不动；设置页输入框平时不预留红字行，按键冲突时动态展开红字。

@@ -4083,14 +4083,16 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
   - Front 与 Back 内的徽章带有 6 点拖拽手柄（`dots-six-vertical`）与删除按钮（`✕`）；上下拖拽显示高亮指示线，点击删除按钮移回 Available Items。
   - 移回 Available Items 的徽章按固定标准顺序归位。
 - 导出排版（所见即所得）：卡片正面与背面内容严格按 Front、Back 区域内自上而下的视觉顺序渲染；未放入卡片的不导出。
-- Location 为单行 Text Field，下方预留 1 行 Validation Message；文件夹按钮在输入框右侧（间距 `--spacing-2`），字形墨迹右缘与内容右缘对齐。
+- File Name 与 Location 为左 Label（宽度 `--width-form-label`）、右输入框的双列水平布局；Location 为单行 Text Field，两项下方均预留 1 行 Validation Message（左边缘与输入框对齐）；文件夹按钮在 Location 输入框右侧（间距 `--spacing-2`），字形墨迹右缘与内容右缘对齐。
 - 默认：Front 放置 `Audio`，Back 放置 `Cue Text`，其余 5 项位于 Available Items；Location 为上次选择的文件夹。徽章布局与 Location 重新启动后保留，Search 与 Excerpt 共用；File Name 每次打开时重新生成。
 
 #### Spacing
 
 - Region Gap：`--spacing-4`
 - Group Gap：`--spacing-4`
+- Field Gap：`--spacing-3`
 - Label to Content Gap：`--spacing-2`
+- Label to Field Gap：`--spacing-3`
 - Card Layout Column Gap：`--spacing-3`
 - Badge Gap：`--spacing-2`
 - Footer Action Gap：`--spacing-2`
