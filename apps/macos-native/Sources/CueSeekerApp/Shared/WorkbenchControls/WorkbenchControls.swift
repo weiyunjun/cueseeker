@@ -262,6 +262,19 @@ enum WorkbenchControlMetrics {
     static let redesignToastIconSize: CGFloat = 23
     /// --width-toast-max: 400px
     static let redesignToastMaxWidth: CGFloat = 400
+    /// --width-tooltip-max: 280px
+    static let redesignTooltipMaxWidth: CGFloat = 280
+    /// --delay-tooltip-hover: 1s
+    static let redesignTooltipHoverDelay: TimeInterval = 1.0
+    /// Vertical padding derived from --height-control (36px) and the single-line
+    /// height of --font-size-control (14px, 500), so single-line tooltips are
+    /// 36px tall and wrapped tooltips preserve identical top/bottom padding.
+    static let redesignTooltipVerticalPadding: CGFloat = {
+        let lineHeight = NSLayoutManager().defaultLineHeight(
+            for: NSFont.systemFont(ofSize: redesignFontSizeControl, weight: .medium)
+        )
+        return (redesignHeight - lineHeight) / 2
+    }()
     /// --radius-chip
     static let redesignChipRadius: CGFloat = 6
     /// --padding-chip-x

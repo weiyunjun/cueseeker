@@ -281,6 +281,19 @@ struct TooltipTests {
         window.displayIfNeeded()
         #expect(center.activeItem == nil)
         window.orderOut(nil)
+
+        let singleLineBubble = NSHostingView(
+            rootView: TooltipStandardBubbleView(
+                label: "Tasks",
+                shortcutText: nil,
+                wrapsText: false
+            )
+        )
+        singleLineBubble.layoutSubtreeIfNeeded()
+        #expect(abs(singleLineBubble.fittingSize.height - WorkbenchControlMetrics.redesignHeight) < 0.5)
+        #expect(TooltipGeometry.inlineShortcutSpacing == WorkbenchControlMetrics.redesignSpacing2)
+        #expect(TooltipGeometry.truncatedTextMaxWidth == WorkbenchControlMetrics.redesignTooltipMaxWidth)
+        #expect(TooltipCenter.defaultHoverDelay == WorkbenchControlMetrics.redesignTooltipHoverDelay)
     }
 
     @Test

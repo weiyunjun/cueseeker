@@ -10,9 +10,13 @@
 
 ## Summary of Changes
 
-1. **Unified Tooltip System (`Tooltip.swift`)**:
+1. **Unified Tooltip System & Token Alignment (`Tooltip.swift`, `WorkbenchControls.swift`)**:
    - Implemented `TooltipCenter`, `TooltipGeometry`, `TooltipOverlayView`, `TooltipStandardBubbleView`, `TooltipSurfaceBackground`, and `.workbenchTooltip(...)` / `.workbenchTruncatedTextTooltip(...)` modifiers.
-   - Unified all tooltips (including table cue state indicators) under the dark frosted container (`--color-toast-bg`, `1px` `--color-toast-border`, `--shadow-popover`), `--font-size-control` (`14px`) / `--font-weight-control` (`500`) for both primary label and inline shortcut text, 1.0s hover delay, top-centered placement with bottom flip and horizontal 8px window-margin shift, and immediate dismissal on pointer exit, mouse down, scroll, key press, or window/dialog transitions.
+   - Aligned tooltip container metrics and typography with `Neutral Button` (`C-03.1`):
+     - Container background `--color-toast-bg`, border `--color-toast-border` with line width `--border-width-control` (`1px`), shadow `--shadow-popover`, corner radius `--radius-control` (`8px`).
+     - Horizontal padding `--padding-control-x` (`14px`), vertical padding derived from `(--height-control - singleLineHeight) / 2` (`WorkbenchControlMetrics.redesignTooltipVerticalPadding`) so single-line tooltips are exactly `36px` (`--height-control`) tall and wrapped tooltips preserve identical top/bottom padding.
+     - Primary label and inline shortcut text both use `--font-size-control` (`14px`) / `--font-weight-control` (`500`), separated by `--spacing-2` (`8px`).
+     - Truncated text max width uses `--width-tooltip-max` (`280px`, `WorkbenchControlMetrics.redesignTooltipMaxWidth`) and default hover delay uses `--delay-tooltip-hover` (`1s`, `WorkbenchControlMetrics.redesignTooltipHoverDelay`), eliminating all hardcoded constants in `Tooltip.swift`.
    - Simplified table cue state tooltips (Scenario 24 `table.cue_state.content_changed` and Scenario 25 `table.cue_state.unavailable`) to reuse `TooltipStandardBubbleView` as single-line reason tooltips without titles, multi-row cards, or trailing periods.
    - **AttributeGraph Re-entrancy Crash Fix**: Removed the synchronous offscreen `NSHostingView` + `layoutSubtreeIfNeeded()` fallback from `TooltipOverlayView` and scoped `@State private var measuredSize` per target in `TooltipActiveBubbleView` so tooltip bubble sizing uses only SwiftUI's `GeometryReader` + `TooltipMeasuredSizeKey` pipeline without re-entering `AttributeGraph` during view evaluation.
 
@@ -25,4 +29,4 @@
 
 ## Verification
 
-- Verified unit and hosting-view layout regression tests in `TooltipTests` and `SubtitleTableRowActionMenuTests` (`swift test --package-path apps/macos-native --filter "TooltipTests|subtitleTableUnavailableExcerptActionsFollowResourceAvailability|subtitleTableChangedExcerptRemainsAvailable"`).
+- Verified unit and hosting-view layout regression tests in `TooltipTests` and `SubtitleTableRowActionMenuTests` (`swift test --package-path apps/macos-native --filter "TooltipTests|subtitleTableUnavailableExcerptActionsFollowResourceAvailability|subtitleTableChangedExcerptRemainsAvailable"`), including verifying that single-line `TooltipStandardBubbleView` fitting height equals `36px` (`--height-control`).

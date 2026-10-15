@@ -72,8 +72,8 @@ struct TooltipActiveItem: Equatable {
 enum TooltipGeometry {
     static let gap: CGFloat = WorkbenchControlMetrics.redesignSpacing2
     static let windowSafeMargin: CGFloat = WorkbenchControlMetrics.redesignSpacing2
-    static let truncatedTextMaxWidth: CGFloat = 280
-    static let inlineShortcutSpacing: CGFloat = 6
+    static let truncatedTextMaxWidth: CGFloat = WorkbenchControlMetrics.redesignTooltipMaxWidth
+    static let inlineShortcutSpacing: CGFloat = WorkbenchControlMetrics.redesignSpacing2
 
     static func frame(
         anchor: CGRect,
@@ -111,7 +111,8 @@ enum TooltipGeometry {
 @MainActor
 final class TooltipCenter: ObservableObject {
     static let shared = TooltipCenter(installEventMonitors: true)
-    nonisolated static let defaultHoverDelay: TimeInterval = 1.0
+    nonisolated static let defaultHoverDelay: TimeInterval =
+        WorkbenchControlMetrics.redesignTooltipHoverDelay
 
     struct HoveredTarget: Equatable {
         let targetID: UUID
@@ -494,11 +495,11 @@ struct TooltipStandardBubbleView: View {
                 }
             }
         }
-        .padding(.horizontal, WorkbenchControlMetrics.redesignSpacing2)
-        .padding(.vertical, WorkbenchControlMetrics.redesignSpacing1)
+        .padding(.horizontal, WorkbenchControlMetrics.redesignControlPaddingX)
+        .padding(.vertical, WorkbenchControlMetrics.redesignTooltipVerticalPadding)
         .background(
             TooltipSurfaceBackground(
-                cornerRadius: WorkbenchControlMetrics.redesignFieldRadius
+                cornerRadius: WorkbenchControlMetrics.redesignCornerRadius
             )
         )
     }
@@ -524,7 +525,7 @@ struct TooltipSurfaceBackground: View {
             .overlay(
                 shape.strokeBorder(
                     WorkbenchRedesignColors.toastBorder,
-                    lineWidth: 1
+                    lineWidth: WorkbenchControlMetrics.redesignControlBorderWidth
                 )
             )
     }
