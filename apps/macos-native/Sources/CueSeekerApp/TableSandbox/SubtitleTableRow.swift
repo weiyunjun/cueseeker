@@ -49,6 +49,17 @@ enum SubtitleTableCueState: Equatable {
         }
     }
 
+    var tooltipMessage: String? {
+        switch self {
+        case .normal:
+            nil
+        case .contentChanged:
+            L("table.state.changed_after_reindex")
+        case .unavailable:
+            unavailableMessage
+        }
+    }
+
     var disabledRowActions: Set<SubtitleTableRowAction> {
         guard isUnavailable else {
             return []

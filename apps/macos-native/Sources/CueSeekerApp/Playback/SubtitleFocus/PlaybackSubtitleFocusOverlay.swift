@@ -308,7 +308,6 @@ private struct PlaybackOverlayTopBar: View {
                 hoverBackground: WorkbenchRedesignColors
                     .overlaySurfaceShortcutButtonHoverBg,
                 scenarioID: "playback_overlay.topbar.return",
-                shortcut: .none,
                 action: onReturn
             )
             .frame(maxWidth: .infinity, alignment: .leading)

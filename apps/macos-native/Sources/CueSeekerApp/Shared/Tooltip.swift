@@ -74,7 +74,6 @@ enum TooltipGeometry {
     static let windowSafeMargin: CGFloat = WorkbenchControlMetrics.redesignSpacing2
     static let truncatedTextMaxWidth: CGFloat = 280
     static let inlineShortcutSpacing: CGFloat = 6
-    static let cueStateWidth: CGFloat = 300
 
     static func frame(
         anchor: CGRect,
@@ -445,7 +444,11 @@ private struct TooltipActiveBubbleView: View {
                 wrapsText: wrapsText
             )
         case .cueState(let state):
-            TooltipCueStateBubbleView(state: state)
+            TooltipStandardBubbleView(
+                label: state.tooltipMessage ?? "",
+                shortcutText: nil,
+                wrapsText: false
+            )
         }
     }
 }
@@ -460,7 +463,7 @@ struct TooltipStandardBubbleView: View {
             if wrapsText {
                 Text(label)
                     .font(.system(
-                        size: WorkbenchControlMetrics.redesignFontSizeCaption,
+                        size: WorkbenchControlMetrics.redesignFontSizeControl,
                         weight: WorkbenchControlMetrics.redesignFontWeightControl
                     ))
                     .foregroundStyle(PlaybackTheme.textPrimary)
@@ -471,7 +474,7 @@ struct TooltipStandardBubbleView: View {
                 HStack(spacing: TooltipGeometry.inlineShortcutSpacing) {
                     Text(label)
                         .font(.system(
-                            size: WorkbenchControlMetrics.redesignFontSizeCaption,
+                            size: WorkbenchControlMetrics.redesignFontSizeControl,
                             weight: WorkbenchControlMetrics.redesignFontWeightControl
                         ))
                         .foregroundStyle(PlaybackTheme.textPrimary)
@@ -481,7 +484,7 @@ struct TooltipStandardBubbleView: View {
                     if let shortcutText, !shortcutText.isEmpty {
                         Text(shortcutText)
                             .font(.system(
-                                size: WorkbenchControlMetrics.redesignFontSizeCaption,
+                                size: WorkbenchControlMetrics.redesignFontSizeControl,
                                 weight: WorkbenchControlMetrics.redesignFontWeightControl
                             ))
                             .foregroundStyle(PlaybackTheme.textSecondary)
@@ -498,65 +501,6 @@ struct TooltipStandardBubbleView: View {
                 cornerRadius: WorkbenchControlMetrics.redesignFieldRadius
             )
         )
-    }
-}
-
-struct TooltipCueStateBubbleView: View {
-    let state: SubtitleTableCueState
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing2) {
-            Text(title)
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(PlaybackTheme.textPrimary)
-
-            switch state {
-            case .normal:
-                EmptyView()
-            case .contentChanged(let previous, let current):
-                Text(L("table.state.changed_after_reindex"))
-                    .font(.system(size: WorkbenchControlMetrics.redesignFontSizeCaption, weight: .regular))
-                    .foregroundStyle(PlaybackTheme.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                valueRow(label: L("table.state.previous"), text: previous)
-                valueRow(label: L("table.state.current"), text: current)
-            case .unavailable:
-                Text(state.unavailableMessage ?? "")
-                    .font(.system(size: WorkbenchControlMetrics.redesignFontSizeCaption, weight: .regular))
-                    .foregroundStyle(PlaybackTheme.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        }
-        .padding(WorkbenchControlMetrics.redesignSpacing3)
-        .frame(width: TooltipGeometry.cueStateWidth, alignment: .leading)
-        .background(
-            TooltipSurfaceBackground(
-                cornerRadius: WorkbenchControlMetrics.redesignCornerRadius
-            )
-        )
-    }
-
-    private var title: String {
-        switch state {
-        case .normal:
-            ""
-        case .contentChanged:
-            L("table.state.content_changed")
-        case .unavailable:
-            L("table.state.unavailable")
-        }
-    }
-
-    private func valueRow(label: String, text: String) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(label)
-                .font(.system(size: WorkbenchControlMetrics.redesignFontSizeCaption, weight: .semibold))
-                .foregroundStyle(PlaybackTheme.textPrimary)
-            Text(text)
-                .font(.system(size: WorkbenchControlMetrics.redesignFontSizeCaption, weight: .regular))
-                .foregroundStyle(PlaybackTheme.textSecondary)
-                .fixedSize(horizontal: false, vertical: true)
-        }
     }
 }
 

@@ -139,7 +139,11 @@ func subtitleTableUnavailableExcerptActionsFollowResourceAvailability() {
     ])
     #expect(
         videoMissing.unavailableMessage
-            == "The video file is missing. The subtitle file is still available."
+            == "The video file is missing. The subtitle file is still available"
+    )
+    #expect(
+        videoMissing.tooltipMessage
+            == "The video file is missing. The subtitle file is still available"
     )
 
     let cueMissing = SubtitleTableCueState.unavailable(.cueMissing)
@@ -165,6 +169,7 @@ func subtitleTableChangedExcerptRemainsAvailable() {
     #expect(state.icon == .clockCounterClockwise)
     #expect(!state.isUnavailable)
     #expect(state.disabledRowActions.isEmpty)
+    #expect(state.tooltipMessage == "This cue changed after reindexing")
 }
 
 @Test
