@@ -6,8 +6,20 @@
 #include <ass/ass.h>
 #include <limits.h>
 #include <stdarg.h>
+#include <stdatomic.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <time.h>
+
+static _Atomic uint64_t gSFXASSRenderFrameCalls = 0;
+static _Atomic uint64_t gSFXASSRenderFrameMicroseconds = 0;
+static _Atomic uint64_t gSFXASSSilentOrUnchangedSkips = 0;
+static _Atomic uint64_t gSFXASSCompositeCalls = 0;
+static _Atomic uint64_t gSFXASSCompositeMicroseconds = 0;
+
+static inline uint64_t SFXASSMonotonicMicroseconds(void) {
+    return clock_gettime_nsec_np(CLOCK_UPTIME_RAW) / 1000ULL;
+}
 
 NSString * const SFXASSRenderingErrorDomain = @"CueSeeker.ASSRendering";
 
@@ -663,10 +675,15 @@ static BOOL SFXASSValidateScript(NSString *script, NSString *sourceIdentifier, N
     }
 
     int detectChange = 0;
+    uint64_t renderStartUs = SFXASSMonotonicMicroseconds();
     ASS_Image *images = ass_render_frame(_renderer, _track, (long long)timestampMilliseconds, &detectChange);
+    uint64_t renderElapsedUs = SFXASSMonotonicMicroseconds() - renderStartUs;
+    atomic_fetch_add_explicit(&gSFXASSRenderFrameCalls, 1, memory_order_relaxed);
+    atomic_fetch_add_explicit(&gSFXASSRenderFrameMicroseconds, renderElapsedUs, memory_order_relaxed);
     BOOL changed = detectChange != 0 || !_hasRenderedCroppedFrame;
 
     if (!changed) {
+        atomic_fetch_add_explicit(&gSFXASSSilentOrUnchangedSkips, 1, memory_order_relaxed);
         return [[SFXASSCroppedRenderOutput alloc] initWithRGBAData:[NSData data]
                                                             width:0
                                                            height:0
@@ -675,8 +692,8 @@ static BOOL SFXASSValidateScript(NSString *script, NSString *sourceIdentifier, N
                                                      destinationY:0
                                                        frameWidth:self.frameWidth
                                                       frameHeight:self.frameHeight
-                                                      imageCount:0
-                                                         changed:NO];
+                                                       imageCount:0
+                                                          changed:NO];
     }
 
     _hasRenderedCroppedFrame = YES;
@@ -698,6 +715,7 @@ static BOOL SFXASSValidateScript(NSString *script, NSString *sourceIdentifier, N
     );
 
     if (!hasVisibleBounds) {
+        atomic_fetch_add_explicit(&gSFXASSSilentOrUnchangedSkips, 1, memory_order_relaxed);
         return [[SFXASSCroppedRenderOutput alloc] initWithRGBAData:[NSData data]
                                                              width:0
                                                             height:0
@@ -724,6 +742,7 @@ static BOOL SFXASSValidateScript(NSString *script, NSString *sourceIdentifier, N
         return nil;
     }
 
+    uint64_t compositeStartUs = SFXASSMonotonicMicroseconds();
     SFXCompositeASSImagesIntoCrop(
         images,
         (uint8_t *)rgbaData.mutableBytes,
@@ -733,6 +752,9 @@ static BOOL SFXASSValidateScript(NSString *script, NSString *sourceIdentifier, N
         maxY,
         stride
     );
+    uint64_t compositeElapsedUs = SFXASSMonotonicMicroseconds() - compositeStartUs;
+    atomic_fetch_add_explicit(&gSFXASSCompositeCalls, 1, memory_order_relaxed);
+    atomic_fetch_add_explicit(&gSFXASSCompositeMicroseconds, compositeElapsedUs, memory_order_relaxed);
 
     return [[SFXASSCroppedRenderOutput alloc] initWithRGBAData:rgbaData
                                                          width:cropWidth
@@ -795,6 +817,16 @@ static BOOL SFXASSValidateScript(NSString *script, NSString *sourceIdentifier, N
     }
 
     return [session renderFrameAtTimestampMilliseconds:timestampMilliseconds error:error];
+}
+
++ (SFXASSRuntimeTelemetry)runtimeTelemetrySnapshot {
+    SFXASSRuntimeTelemetry snapshot;
+    snapshot.renderFrameCalls = atomic_load_explicit(&gSFXASSRenderFrameCalls, memory_order_relaxed);
+    snapshot.renderFrameMicroseconds = atomic_load_explicit(&gSFXASSRenderFrameMicroseconds, memory_order_relaxed);
+    snapshot.silentOrUnchangedSkips = atomic_load_explicit(&gSFXASSSilentOrUnchangedSkips, memory_order_relaxed);
+    snapshot.compositeCalls = atomic_load_explicit(&gSFXASSCompositeCalls, memory_order_relaxed);
+    snapshot.compositeMicroseconds = atomic_load_explicit(&gSFXASSCompositeMicroseconds, memory_order_relaxed);
+    return snapshot;
 }
 
 @end

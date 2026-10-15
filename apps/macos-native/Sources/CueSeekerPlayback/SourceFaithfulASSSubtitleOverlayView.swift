@@ -620,6 +620,7 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
 
         pendingTimestampMilliseconds = nil
         isRenderInFlight = true
+        PlaybackPerformanceProbe.recordASSWorkerDispatch()
 
         rendererWorker.render(
             generation: generation,
@@ -694,6 +695,7 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
     }
 
     private func updatePresentation(for frame: ASSSparseFrame) {
+        PlaybackPerformanceProbe.recordASSLayerUpdate()
         PlaybackPerformanceProbe.measure("SourceFaithfulASSSubtitleOverlayView.updatePresentation", thresholdMilliseconds: 8) {
             clearSubtitleLayers()
             guard frame.frameWidth > 0, frame.frameHeight > 0 else {

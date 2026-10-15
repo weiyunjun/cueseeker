@@ -1300,6 +1300,7 @@ final class SRTSubtitleOverlayView: NSView {
     }
 
     private func updateImage(force: Bool = false) {
+        PlaybackPerformanceProbe.recordSRTUpdateCall()
         guard areSubtitlesVisible, let preparedLayout else {
             renderedImage = nil
             imageLayer.contents = nil
@@ -1310,6 +1311,7 @@ final class SRTSubtitleOverlayView: NSView {
             .map(\.sourceOrdinal)
         guard force || ordinals != activeOrdinals else { return }
         activeOrdinals = ordinals
+        PlaybackPerformanceProbe.recordSRTBitmapRender()
         renderedImage = PlaybackPerformanceProbe.measure(
             "SRTSubtitleRenderer.image",
             thresholdMilliseconds: 8

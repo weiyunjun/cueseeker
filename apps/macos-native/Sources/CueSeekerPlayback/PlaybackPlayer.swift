@@ -71,6 +71,7 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
     private var persistentAutoPauseBoundary: PlaybackAutoStopBoundary?
     private var autoPauseAuthorization: PlaybackAutoPauseAuthorization?
     private let autoPauseAuthorizationLock = NSLock()
+    private let runtimeTelemetryTracker = PlaybackRuntimeTelemetryTracker()
 
     public weak var delegate: PlaybackPlayerDelegate?
 
@@ -430,6 +431,7 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
     }
 
     public func stop() throws {
+        runtimeTelemetryTracker.finishOrStop(reason: "stop", nativePlayer: nativePlayer)
         nativePlayer.stop()
         currentRequest = nil
         currentVideoURL = nil
@@ -508,6 +510,7 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
 
         subtitleLoadTask?.cancel()
         activeSubtitleSource = source
+        runtimeTelemetryTracker.updateSubtitleSource(source, subtitlesVisible: subtitlesVisible)
 
         guard let source else {
             assSubtitleRenderTimeGate = nil
@@ -564,6 +567,7 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
 
     public func setSubtitlesVisible(_ isVisible: Bool) {
         subtitlesVisible = isVisible
+        runtimeTelemetryTracker.updateSubtitleSource(activeSubtitleSource, subtitlesVisible: isVisible)
         Task { @MainActor in
             (self.renderView as? PlaybackRenderContainerView)?.setSubtitlesVisible(isVisible)
         }
@@ -691,6 +695,7 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
         let effectiveMilliseconds = effectiveASSSubtitleMilliseconds(milliseconds)
         retargetASSSubtitleRenderTimeGate(forExplicitMilliseconds: effectiveMilliseconds)
         Task { @MainActor in
+            PlaybackPerformanceProbe.recordSubtitleTick()
             (self.renderView as? PlaybackRenderContainerView)?.setSubtitleTime(milliseconds: effectiveMilliseconds)
             self.lastRenderedASSSubtitleMilliseconds = effectiveMilliseconds
         }
@@ -701,6 +706,7 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
             forNativeMilliseconds: milliseconds
         )
         Task { @MainActor in
+            PlaybackPerformanceProbe.recordSubtitleTick()
             (self.renderView as? PlaybackRenderContainerView)?.setSubtitleTime(milliseconds: effectiveMilliseconds)
             self.lastRenderedASSSubtitleMilliseconds = effectiveMilliseconds
         }
@@ -756,6 +762,7 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
                 let milliseconds = self.renderedASSSubtitleMilliseconds(
                     forNativeMilliseconds: self.currentNativePlaybackMilliseconds()
                 )
+                PlaybackPerformanceProbe.recordSubtitleTick()
                 (self.renderView as? PlaybackRenderContainerView)?.setSubtitleTime(milliseconds: milliseconds)
                 self.lastRenderedASSSubtitleMilliseconds = milliseconds
                 try? await Task.sleep(nanoseconds: 33_000_000)
@@ -851,6 +858,15 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
             subtitleCommitMs,
             commitElapsedMs
         )
+        runtimeTelemetryTracker.startPresentation(
+            generation: generation,
+            videoURL: currentVideoURL,
+            subtitleSource: activeSubtitleSource,
+            subtitlesVisible: subtitlesVisible,
+            startMilliseconds: safeMilliseconds,
+            playing: playing,
+            nativePlayer: nativePlayer
+        )
     }
 
     @MainActor
@@ -938,6 +954,12 @@ extension PlaybackPlayer: SFXNativePlaybackPlayerDelegate {
         else {
             return
         }
+        runtimeTelemetryTracker.didUpdateTime(
+            mediaSeconds: time,
+            playing: playing,
+            generation: presentationGeneration,
+            nativePlayer: player
+        )
         delegate?.player(self, didChangeProperty: "time-pos", value: .double(time))
         delegate?.player(self, didChangeProperty: "duration", value: .double(duration))
         delegate?.player(self, didChangeProperty: "pause", value: .bool(!playing))
@@ -984,6 +1006,7 @@ extension PlaybackPlayer: SFXNativePlaybackPlayerDelegate {
     public func nativePlaybackPlayerDidFinishPlayback(
         _ player: SFXNativePlaybackPlayer
     ) {
+        runtimeTelemetryTracker.finishOrStop(reason: "eof", nativePlayer: player)
         currentRequest = nil
         currentVideoURL = nil
         delegate?.playerDidFinishPlayback(self)
@@ -1010,6 +1033,7 @@ extension PlaybackPlayer: SFXNativePlaybackPlayerDelegate {
         _ player: SFXNativePlaybackPlayer,
         didReachAutoStopBoundaryAtMilliseconds endMilliseconds: Int
     ) {
+        runtimeTelemetryTracker.finishOrStop(reason: "autostop", nativePlayer: player)
         reachedAutoStopBoundaryMilliseconds = endMilliseconds
         delegate?.player(
             self,

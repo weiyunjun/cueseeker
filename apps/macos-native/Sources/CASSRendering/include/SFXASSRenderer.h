@@ -106,9 +106,19 @@ typedef NS_ENUM(NSInteger, SFXASSRenderingErrorCode) {
 
 @end
 
+typedef struct {
+    uint64_t renderFrameCalls;
+    uint64_t renderFrameMicroseconds;
+    uint64_t silentOrUnchangedSkips;
+    uint64_t compositeCalls;
+    uint64_t compositeMicroseconds;
+} SFXASSRuntimeTelemetry;
+
 @interface SFXASSRenderer : NSObject
 
 + (NSString *)libassVersionString;
+
++ (SFXASSRuntimeTelemetry)runtimeTelemetrySnapshot;
 
 + (nullable SFXASSRenderOutput *)renderASSFileAtPath:(NSString *)path
                                           frameWidth:(NSInteger)frameWidth

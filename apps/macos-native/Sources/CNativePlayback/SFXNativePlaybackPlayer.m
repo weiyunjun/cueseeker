@@ -22,11 +22,62 @@
 #include <libswscale/swscale.h>
 
 #include <float.h>
+#include <libproc.h>
 #include <math.h>
 #include <stdatomic.h>
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
+#include <sys/resource.h>
+#include <time.h>
+#include <unistd.h>
+
+typedef struct SFXNativePlaybackAtomicCounters {
+    _Atomic uint64_t videoDecodedFrames;
+    _Atomic uint64_t videoSubmittedFrames;
+    _Atomic uint64_t videoDecodeMicroseconds;
+    _Atomic uint64_t videoPixelTransferMicroseconds;
+    _Atomic uint64_t videoSubmissionMicroseconds;
+    _Atomic uint64_t videoFormatDescCreateCalls;
+    _Atomic uint64_t videoWaitIterations;
+
+    _Atomic uint64_t audioDecodedFrames;
+    _Atomic uint64_t audioScheduledBuffers;
+    _Atomic uint64_t audioCompletionCallbacks;
+    _Atomic uint64_t audioDecodeAndResampleMicroseconds;
+    _Atomic uint64_t audioScheduleMicroseconds;
+} SFXNativePlaybackAtomicCounters;
+
+static inline uint64_t SFXTelemetryMonotonicMicroseconds(void) {
+    return clock_gettime_nsec_np(CLOCK_UPTIME_RAW) / 1000ULL;
+}
+
+static NSString *SFXCVPixelFormatDisplayName(OSType pixelFormatType, BOOL usingHardwareDecode) {
+    switch (pixelFormatType) {
+    case kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange:
+        return @"NV12(VideoRange)";
+    case kCVPixelFormatType_420YpCbCr8BiPlanarFullRange:
+        return @"NV12(FullRange)";
+    case kCVPixelFormatType_420YpCbCr10BiPlanarVideoRange:
+        return @"P010(VideoRange)";
+    case kCVPixelFormatType_420YpCbCr10BiPlanarFullRange:
+        return @"P010(FullRange)";
+    case kCVPixelFormatType_32BGRA:
+        return @"BGRA";
+    case 0:
+        return usingHardwareDecode ? @"VideoToolbox" : @"Software";
+    default: {
+        char fourCC[5] = {
+            (char)((pixelFormatType >> 24) & 0xFF),
+            (char)((pixelFormatType >> 16) & 0xFF),
+            (char)((pixelFormatType >> 8) & 0xFF),
+            (char)(pixelFormatType & 0xFF),
+            0
+        };
+        return [NSString stringWithFormat:@"%s(0x%08x)", fourCC, (unsigned int)pixelFormatType];
+    }
+    }
+}
 
 NSString * const SFXNativePlaybackErrorDomain = @"CueSeeker.NativePlayback";
 
@@ -868,6 +919,7 @@ allowAutomaticSoftwareRecycle:(BOOL)allowAutomaticSoftwareRecycle
 - (void)session:(SFXNativePlaybackSession *)session
 didPresentVideoFrameAtMilliseconds:(NSInteger)milliseconds
 presentationGeneration:(NSUInteger)presentationGeneration;
+- (SFXNativePlaybackAtomicCounters *)telemetryCounters;
 @end
 
 @interface SFXNativePlaybackFrameSnapshot ()
@@ -970,6 +1022,9 @@ presentationGeneration:(NSUInteger)presentationGeneration;
 @property (nonatomic, readonly) NSInteger audioTrackIndex;
 @property (nonatomic, readonly) SFXNativePlaybackDecodeMode decodeMode;
 @property (nonatomic, readonly) BOOL usingHardwareDecode;
+@property (nonatomic, copy, readonly, nullable) NSString *videoCodecName;
+@property (nonatomic, copy, readonly, nullable) NSString *outputPixelFormatName;
+@property (nonatomic, readonly) BOOL timePitchBypassed;
 @end
 
 @implementation SFXNativePlaybackSession {
@@ -977,6 +1032,8 @@ presentationGeneration:(NSUInteger)presentationGeneration;
     __weak AVSampleBufferDisplayLayer *_displayLayer;
     __weak id<SFXNativePlaybackPlayerDelegate> _delegate;
     __weak SFXNativePlaybackPlayer *_owner;
+    SFXNativePlaybackAtomicCounters *_telemetryCounters;
+    _Atomic uint32_t _lastOutputCVPixelFormatType;
     dispatch_queue_t _decodeQueue;
     dispatch_queue_t _demuxQueue;
     dispatch_queue_t _audioDecodeQueue;
@@ -1160,6 +1217,8 @@ presentationGeneration:(NSUInteger)presentationGeneration;
     _displayLayer = displayLayer;
     _delegate = delegate;
     _owner = owner;
+    _telemetryCounters = [owner telemetryCounters];
+    atomic_init(&_lastOutputCVPixelFormatType, 0);
     _volume = volume;
     atomic_init(&_playbackRate, SFXClampedPlaybackRate(playbackRate));
     _decodeMode = decodeMode;
@@ -1355,6 +1414,23 @@ presentationGeneration:(NSUInteger)presentationGeneration;
 
 - (BOOL)usingHardwareDecode {
     return _usingHardwareDecode;
+}
+
+- (NSString *)videoCodecName {
+    if (_videoCodecContext != NULL && _videoCodecContext->codec != NULL && _videoCodecContext->codec->name != NULL) {
+        return [NSString stringWithUTF8String:_videoCodecContext->codec->name];
+    }
+    return nil;
+}
+
+- (NSString *)outputPixelFormatName {
+    OSType pixelFormatType = (OSType)atomic_load_explicit(&_lastOutputCVPixelFormatType, memory_order_relaxed);
+    return SFXCVPixelFormatDisplayName(pixelFormatType, _usingHardwareDecode);
+}
+
+- (BOOL)timePitchBypassed {
+    AVAudioUnitTimePitch *timePitch = _audioTimePitch;
+    return timePitch != nil ? timePitch.bypass : YES;
 }
 
 - (BOOL)hasActiveSegmentEnd {
@@ -3536,6 +3612,7 @@ presentationGeneration:(NSUInteger)presentationGeneration;
 }
 
 - (CVPixelBufferRef)copyPixelBufferForSoftwareFrame:(AVFrame *)frame {
+    uint64_t transferStartUs = SFXTelemetryMonotonicMicroseconds();
     int width = frame->width > 0 ? frame->width : _videoCodecContext->width;
     int height = frame->height > 0 ? frame->height : _videoCodecContext->height;
     enum AVPixelFormat inputFormat = (enum AVPixelFormat)frame->format;
@@ -3591,6 +3668,11 @@ presentationGeneration:(NSUInteger)presentationGeneration;
     );
     CVPixelBufferUnlockBaseAddress(pixelBuffer, 0);
 
+    uint64_t transferElapsedUs = SFXTelemetryMonotonicMicroseconds() - transferStartUs;
+    if (_telemetryCounters != NULL) {
+        atomic_fetch_add_explicit(&_telemetryCounters->videoPixelTransferMicroseconds, transferElapsedUs, memory_order_relaxed);
+    }
+
     if (convertedHeight <= 0) {
         CVPixelBufferRelease(pixelBuffer);
         return NULL;
@@ -3607,13 +3689,30 @@ presentationGeneration:(NSUInteger)presentationGeneration;
         _perfVideoPacketsForFirstFrame += 1;
     }
 
+    uint64_t sendStartUs = SFXTelemetryMonotonicMicroseconds();
     int result = avcodec_send_packet(_videoCodecContext, packet);
+    uint64_t sendElapsedUs = SFXTelemetryMonotonicMicroseconds() - sendStartUs;
+    if (_telemetryCounters != NULL) {
+        atomic_fetch_add_explicit(&_telemetryCounters->videoDecodeMicroseconds, sendElapsedUs, memory_order_relaxed);
+    }
     if (result < 0) {
         return;
     }
 
     AVStream *videoStream = _formatContext->streams[_videoStreamIndex];
-    while ((result = avcodec_receive_frame(_videoCodecContext, _videoFrame)) >= 0) {
+    for (;;) {
+        uint64_t receiveStartUs = SFXTelemetryMonotonicMicroseconds();
+        result = avcodec_receive_frame(_videoCodecContext, _videoFrame);
+        uint64_t receiveElapsedUs = SFXTelemetryMonotonicMicroseconds() - receiveStartUs;
+        if (_telemetryCounters != NULL) {
+            atomic_fetch_add_explicit(&_telemetryCounters->videoDecodeMicroseconds, receiveElapsedUs, memory_order_relaxed);
+        }
+        if (result < 0) {
+            break;
+        }
+        if (_telemetryCounters != NULL) {
+            atomic_fetch_add_explicit(&_telemetryCounters->videoDecodedFrames, 1, memory_order_relaxed);
+        }
         if (SFXFrameBeforeSeekTarget(_videoFrame, videoStream, _seekSeconds, _timelineOriginSeconds)) {
             if (!_perfFirstVideoDecodedRecorded) {
                 _perfSkippedVideoFramesForFirstFrame += 1;
@@ -3706,20 +3805,42 @@ presentationGeneration:(NSUInteger)presentationGeneration;
         return;
     }
 
+    uint64_t sendStartUs = SFXTelemetryMonotonicMicroseconds();
     int result = avcodec_send_packet(_audioCodecContext, packet);
+    uint64_t sendElapsedUs = SFXTelemetryMonotonicMicroseconds() - sendStartUs;
+    if (_telemetryCounters != NULL) {
+        atomic_fetch_add_explicit(&_telemetryCounters->audioDecodeAndResampleMicroseconds, sendElapsedUs, memory_order_relaxed);
+    }
     if (result < 0) {
         return;
     }
 
     AVStream *audioStream = _formatContext->streams[_audioStreamIndex];
-    while ((result = avcodec_receive_frame(_audioCodecContext, _audioFrame)) >= 0) {
+    for (;;) {
+        uint64_t receiveStartUs = SFXTelemetryMonotonicMicroseconds();
+        result = avcodec_receive_frame(_audioCodecContext, _audioFrame);
+        uint64_t receiveElapsedUs = SFXTelemetryMonotonicMicroseconds() - receiveStartUs;
+        if (_telemetryCounters != NULL) {
+            atomic_fetch_add_explicit(&_telemetryCounters->audioDecodeAndResampleMicroseconds, receiveElapsedUs, memory_order_relaxed);
+        }
+        if (result < 0) {
+            break;
+        }
+        if (_telemetryCounters != NULL) {
+            atomic_fetch_add_explicit(&_telemetryCounters->audioDecodedFrames, 1, memory_order_relaxed);
+        }
         if (SFXFrameBeforeSeekTarget(_audioFrame, audioStream, _seekSeconds, _timelineOriginSeconds)) {
             av_frame_unref(_audioFrame);
             continue;
         }
 
 	        double mediaSeconds = SFXFramePlaybackSeconds(_audioFrame, audioStream, _timelineOriginSeconds);
+	        uint64_t resampleStartUs = SFXTelemetryMonotonicMicroseconds();
 	        const AVFrame *outputFrame = [self outputAudioFrameForFrame:_audioFrame];
+	        uint64_t resampleElapsedUs = SFXTelemetryMonotonicMicroseconds() - resampleStartUs;
+	        if (_telemetryCounters != NULL) {
+	            atomic_fetch_add_explicit(&_telemetryCounters->audioDecodeAndResampleMicroseconds, resampleElapsedUs, memory_order_relaxed);
+	        }
 	        if (outputFrame != NULL) {
 	            SFXAudioScheduleResult scheduleResult = [self scheduleAudioFrame:outputFrame
 	                                                               mediaSeconds:mediaSeconds
@@ -3920,6 +4041,9 @@ presentationGeneration:(NSUInteger)presentationGeneration;
         if (!shouldAbort && !waitedForPause) {
             double waitSeconds = fmin(0.05, targetHostSeconds - CACurrentMediaTime());
             if (waitSeconds > 0) {
+                if (_telemetryCounters != NULL) {
+                    atomic_fetch_add_explicit(&_telemetryCounters->videoWaitIterations, 1, memory_order_relaxed);
+                }
                 [_packetQueueCondition waitUntilDate:[NSDate dateWithTimeIntervalSinceNow:waitSeconds]];
             }
         }
@@ -3951,6 +4075,9 @@ presentationGeneration:(NSUInteger)presentationGeneration;
                                presentationTime:(CMTime)presentationTime {
     CFTimeInterval start = SFXPerformanceNow();
     CMVideoFormatDescriptionRef formatDescription = NULL;
+    if (_telemetryCounters != NULL) {
+        atomic_fetch_add_explicit(&_telemetryCounters->videoFormatDescCreateCalls, 1, memory_order_relaxed);
+    }
     OSStatus status = CMVideoFormatDescriptionCreateForImageBuffer(
         kCFAllocatorDefault,
         pixelBuffer,
@@ -4039,6 +4166,7 @@ automaticRecycleMilliseconds:(NSInteger)automaticRecycleMilliseconds {
 
 - (void)drainPendingPixelBufferSubmission {
     CFTimeInterval start = SFXPerformanceNow();
+    uint64_t submitStartUs = SFXTelemetryMonotonicMicroseconds();
     CVPixelBufferRef pixelBuffer = NULL;
     CMTime presentationTime = kCMTimeInvalid;
     NSInteger automaticRecycleMilliseconds = -1;
@@ -4062,6 +4190,8 @@ automaticRecycleMilliseconds:(NSInteger)automaticRecycleMilliseconds {
     if (pixelBuffer == NULL) {
         return;
     }
+
+    atomic_store_explicit(&_lastOutputCVPixelFormatType, (uint32_t)CVPixelBufferGetPixelFormatType(pixelBuffer), memory_order_relaxed);
 
     if (atomic_load(&_cancelled) || _displayLayer == nil) {
         CVPixelBufferRelease(pixelBuffer);
@@ -4094,7 +4224,15 @@ automaticRecycleMilliseconds:(NSInteger)automaticRecycleMilliseconds {
     }
     CVPixelBufferRelease(pixelBuffer);
 
+    uint64_t submitElapsedUs = SFXTelemetryMonotonicMicroseconds() - submitStartUs;
+    if (_telemetryCounters != NULL) {
+        atomic_fetch_add_explicit(&_telemetryCounters->videoSubmissionMicroseconds, submitElapsedUs, memory_order_relaxed);
+    }
+
     if (enqueued) {
+        if (_telemetryCounters != NULL) {
+            atomic_fetch_add_explicit(&_telemetryCounters->videoSubmittedFrames, 1, memory_order_relaxed);
+        }
         [_packetQueueCondition lock];
         if (presentationGeneration == _presentationGeneration) {
             _lastPresentedPresentationGeneration = presentationGeneration;
@@ -4321,6 +4459,9 @@ automaticRecycleMilliseconds:(NSInteger)automaticRecycleMilliseconds {
 - (void)audioBufferDidPlayForGeneration:(NSUInteger)generation
                           mediaDuration:(double)mediaDuration
     finalSegmentBuffer:(BOOL)finalSegmentBuffer {
+    if (_telemetryCounters != NULL) {
+        atomic_fetch_add_explicit(&_telemetryCounters->audioCompletionCallbacks, 1, memory_order_relaxed);
+    }
     [_packetQueueCondition lock];
     if (generation != _playbackGeneration) {
         [_packetQueueCondition unlock];
@@ -4412,6 +4553,7 @@ automaticRecycleMilliseconds:(NSInteger)automaticRecycleMilliseconds {
 - (SFXAudioScheduleResult)scheduleAudioFrame:(const AVFrame *)frame
                                 mediaSeconds:(double)mediaSeconds
                                   generation:(NSUInteger)generation {
+    uint64_t scheduleStartUs = SFXTelemetryMonotonicMicroseconds();
     if (_audioPlayer == nil || _audioFormat == nil || frame->format != AV_SAMPLE_FMT_FLTP) {
         return SFXAudioScheduleResultNotScheduled;
     }
@@ -4529,6 +4671,12 @@ automaticRecycleMilliseconds:(NSInteger)automaticRecycleMilliseconds {
                                      mediaDuration:scheduledDurationSeconds
                                 finalSegmentBuffer:isFinalSegmentBuffer];
     }];
+
+    uint64_t scheduleElapsedUs = SFXTelemetryMonotonicMicroseconds() - scheduleStartUs;
+    if (_telemetryCounters != NULL) {
+        atomic_fetch_add_explicit(&_telemetryCounters->audioScheduledBuffers, 1, memory_order_relaxed);
+        atomic_fetch_add_explicit(&_telemetryCounters->audioScheduleMicroseconds, scheduleElapsedUs, memory_order_relaxed);
+    }
 
     return result;
 }
@@ -4651,6 +4799,7 @@ automaticRecycleMilliseconds:(NSInteger)automaticRecycleMilliseconds {
     NSUInteger _scrubPreviewGeneration;
     NSInteger _lastScrubPreviewFrameMilliseconds;
     SFXNativePlaybackFrameSnapshot *_latestSubmittedVideoFrameSnapshot;
+    SFXNativePlaybackAtomicCounters _telemetryCounters;
 }
 
 + (BOOL)isHardwareDecodeSupportedForCodecName:(NSString *)codecName {
@@ -4671,7 +4820,12 @@ automaticRecycleMilliseconds:(NSInteger)automaticRecycleMilliseconds {
     _scrubPreviewQueue = dispatch_queue_create("CueSeeker.NativePlayback.ScrubPreview", DISPATCH_QUEUE_SERIAL);
     _lastScrubPreviewFrameMilliseconds = -1;
     _nativeView = [[SFXNativePlaybackView alloc] initWithFrame:NSZeroRect];
+    memset(&_telemetryCounters, 0, sizeof(_telemetryCounters));
     return self;
+}
+
+- (SFXNativePlaybackAtomicCounters *)telemetryCounters {
+    return &_telemetryCounters;
 }
 
 - (NSView *)view {
@@ -4837,6 +4991,54 @@ automaticRecycleMilliseconds:(NSInteger)automaticRecycleMilliseconds {
 - (BOOL)usingHardwareDecode {
     SFXNativePlaybackSession *session = _session;
     return session != nil ? session.usingHardwareDecode : NO;
+}
+
+- (NSString *)activeVideoCodecName {
+    SFXNativePlaybackSession *session = _session;
+    return session != nil ? session.videoCodecName : nil;
+}
+
+- (NSString *)activeOutputPixelFormatName {
+    SFXNativePlaybackSession *session = _session;
+    return session != nil ? session.outputPixelFormatName : nil;
+}
+
+- (SFXNativePlaybackRuntimeTelemetry)runtimeTelemetrySnapshot {
+    SFXNativePlaybackRuntimeTelemetry snapshot;
+    memset(&snapshot, 0, sizeof(snapshot));
+
+    struct rusage ru;
+    if (getrusage(RUSAGE_SELF, &ru) == 0) {
+        snapshot.userCPUSeconds = (double)ru.ru_utime.tv_sec + ((double)ru.ru_utime.tv_usec / 1000000.0);
+        snapshot.systemCPUSeconds = (double)ru.ru_stime.tv_sec + ((double)ru.ru_stime.tv_usec / 1000000.0);
+    }
+
+    struct rusage_info_v4 ri;
+    memset(&ri, 0, sizeof(ri));
+    if (proc_pid_rusage(getpid(), RUSAGE_INFO_V4, (rusage_info_t *)&ri) == 0) {
+        snapshot.instructions = ri.ri_instructions;
+        snapshot.cycles = ri.ri_cycles;
+        snapshot.interruptWakeups = ri.ri_interrupt_wkups;
+        snapshot.physFootprintBytes = ri.ri_phys_footprint;
+    }
+
+    snapshot.videoDecodedFrames = atomic_load_explicit(&_telemetryCounters.videoDecodedFrames, memory_order_relaxed);
+    snapshot.videoSubmittedFrames = atomic_load_explicit(&_telemetryCounters.videoSubmittedFrames, memory_order_relaxed);
+    snapshot.videoDecodeMicroseconds = atomic_load_explicit(&_telemetryCounters.videoDecodeMicroseconds, memory_order_relaxed);
+    snapshot.videoPixelTransferMicroseconds = atomic_load_explicit(&_telemetryCounters.videoPixelTransferMicroseconds, memory_order_relaxed);
+    snapshot.videoSubmissionMicroseconds = atomic_load_explicit(&_telemetryCounters.videoSubmissionMicroseconds, memory_order_relaxed);
+    snapshot.videoFormatDescCreateCalls = atomic_load_explicit(&_telemetryCounters.videoFormatDescCreateCalls, memory_order_relaxed);
+    snapshot.videoWaitIterations = atomic_load_explicit(&_telemetryCounters.videoWaitIterations, memory_order_relaxed);
+
+    snapshot.audioDecodedFrames = atomic_load_explicit(&_telemetryCounters.audioDecodedFrames, memory_order_relaxed);
+    snapshot.audioScheduledBuffers = atomic_load_explicit(&_telemetryCounters.audioScheduledBuffers, memory_order_relaxed);
+    snapshot.audioCompletionCallbacks = atomic_load_explicit(&_telemetryCounters.audioCompletionCallbacks, memory_order_relaxed);
+    snapshot.audioDecodeAndResampleMicroseconds = atomic_load_explicit(&_telemetryCounters.audioDecodeAndResampleMicroseconds, memory_order_relaxed);
+    snapshot.audioScheduleMicroseconds = atomic_load_explicit(&_telemetryCounters.audioScheduleMicroseconds, memory_order_relaxed);
+
+    SFXNativePlaybackSession *session = _session;
+    snapshot.timePitchBypassed = session != nil ? session.timePitchBypassed : YES;
+    return snapshot;
 }
 
 - (void)setDecodeMode:(SFXNativePlaybackDecodeMode)decodeMode {
