@@ -33,7 +33,7 @@ main
 
 6. **Settings 输入行与快捷键还原按钮**：
    - `Shortcut Field` 与 `Number Field` 应用新的 `--height-field`（`30px`）、`--radius-field`（`6px`）、`--padding-field-x`（`10px`），平时不预留底部红字空间。
-   - `Settings / Shortcuts` 每行 `Shortcut Field` 右侧的 `Restore Default` 按钮复用 `Icon Button / Dialog Close` 尺寸规格（按钮宽高 `--size-dialog-close-button: 24px`，图标大小 `--size-dialog-close-icon: 16px`，圆角 `--radius-control: 8px`）；当前为默认键位时隐藏不显示，仅在可恢复默认时显示。
+   - `Settings / Shortcuts` 每行的 `Restore Default` 按钮移至 `Shortcut Field` 左侧（间距 `--spacing-1: 4px`，使 `Shortcut Field` 恒定贴齐右侧），并复用 `Icon Button / Dialog Close` 尺寸规格（按钮宽高 `--size-dialog-close-button: 24px`，图标大小 `--size-dialog-close-icon: 16px`，圆角 `--radius-control: 8px`）；当前为默认键位时隐藏不显示，仅在可恢复默认时显示。
 
 7. **设计文档同步**：
    - 待全部改动验收通过后，再将上述 Tokens 与规则同步更新至 `UI Design System.md`。
@@ -45,4 +45,4 @@ main
 3. `Rename` 对话框为左 Label（`72px`）右内容布局，`Current Name` 超长时多行完整换行显示，`New Name` 下方预留 1 行红字空间且左对齐输入框。
 4. `Excerpt List Editor` 的 `Description` 文本框底边对齐左侧说明文字第 1 行底边，下方预留 1 行红字空间与左侧第 2 行底边齐平。
 5. `Export to Anki` 的 `Location` 可直接输入路径或通过右侧文件夹按钮选择，且 `File Name` 与 `Location` 下方均预留 1 行红字空间并正确校验报错。
-6. `Settings / Shortcuts` 的 `Restore Default` 按钮尺寸缩小为 `24×24px`（`16px` 图标），默认键位时不显示、修改后才显示；设置页输入框平时不预留红字行，按键冲突时动态展开红字。
+6. `Settings / Shortcuts` 的 `Restore Default` 按钮位于 `Shortcut Field` 左侧、尺寸为 `24×24px`（`16px` 图标），默认键位时不显示、修改后才显示且输入框右边缘位置保持不动；设置页输入框平时不预留红字行，按键冲突时动态展开红字。
