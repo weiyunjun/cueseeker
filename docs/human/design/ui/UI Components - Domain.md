@@ -182,33 +182,40 @@
 ##### Anatomy
 
 - Container
-  - Background：`--color-bg-popover`
-  - Border Color：`--color-border-muted`
+  - Background：`--color-toast-bg`
+  - Border Color：`--color-toast-border`
+  - Border Width：`--border-width-control`
   - Radius：`--radius-control`
   - Shadow：`--shadow-popover`
-- Content
+- Label
+  - Font Family：`--font-family-base`
+  - Font Size：`--font-size-control`
+  - Font Weight：`--font-weight-control`
+  - Color：`--color-player-text-primary`
+- Shortcut
+  - Presence：Optional
+  - Font Family：`--font-family-base`
+  - Font Size：`--font-size-control`
+  - Font Weight：`--font-weight-control`
+  - Color：`--color-player-text-secondary`
+- Content Gap：`--spacing-2`
 
 ##### Sizes
+
+- Single-line Height：`--height-control`（多行折行时上下边距与单行一致）
+- Padding Inline：`--padding-control-x`
+- Maximum Width：`--width-tooltip-max`（仅截断补全文本，超出换行）
+
+##### Placement
+
+- Anchor Gap：`--spacing-2`
+- Viewport Margin：`--spacing-2`
+- Default：目标上方居中；顶部空间不足时翻转至下方居中；左右超出窗口安全边距时水平内移
 
 ##### States
 
 - Hidden
 - Visible
-
-#### Variants
-
-##### Cue State Tip
-
-- Indicator
-- Title
-- Message
-- Previous Value
-  - Presence：Optional
-- Current Value
-  - Presence：Optional
-- Unavailable Reason
-  - Presence：Optional
-- Content Gap：`--spacing-2`
 
 ### C-08.7 Section Title
 

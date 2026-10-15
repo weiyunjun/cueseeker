@@ -5,9 +5,7 @@
 1. **悬停触发延迟（Hover Delay）**：
    - 默认统一为 **1秒（`1s`）**，即指针移入目标热区并保持在目标内满 1 秒后展示 Tooltip。
    - 各场景均显式标注 `触发延迟`，后续可按具体交互高频度单独微调。
-2. **标点规范**：
-   - 普通单行 Tooltip 文案（功能说明、禁用原因、截断补全，含英、简、繁）末尾**一律不加句号**。
-   - 结构化状态提示（`Cue State Tip`）的正文说明句保留完整句号。
+2. **标点规范**：所有 Tooltip 文案（含英、简、繁）末尾**一律不加句号**。
 3. **快捷键动态跟随规则**：
    - 绑定了快捷键的纯图标按钮，在可用（Enabled）状态下，Tooltip 同时展示**功能名称**与**当前快捷键**。
    - 本文档各词条中标注的快捷键（如 `Space`、`A`、`D`、`Q`、`R`、`P`、`F` 等）均为**默认键位说明**。
@@ -84,7 +82,7 @@
 - 英文：Return to Workbench
 - 简体中文：返回到工作台
 - 繁体中文：返回到工作台
-- 快捷键：`Esc`（固定键位，非全屏时返回到工作台）
+- 快捷键：无
 - 触发延迟：1秒
 - Scenario ID：player.topbar.return
 - 所在位置：Player Topbar
@@ -298,37 +296,33 @@
 
 ---
 
-## 四、状态与异常指示器（Cue State Tip & Status Tooltips）
+## 四、状态与异常指示器（Status Indicator Tooltips）
 
-> **说明**：对应 `UI Components - Domain.md` 中定义的 `C-09.5 Cue State Tip`，悬停在 Excerpt 表格行状态指示器上时展示，采用 `标题 + 说明正文` 结构。
-
-### 24. 摘录台词内容已变更（Cue State Tip: Content Changed）
-- 标题（英 / 简 / 繁）：Content Changed / 内容已变更 / 內容已變更
-- 说明文案（英 / 简 / 繁）：This cue changed after reindexing. / 该台词在重新索引后发生了变化。 / 此台詞在重新索引後已變更。
-- 字段标签 1（英 / 简 / 繁）：Previous / 变更前 / 變更前（展示旧台词文本）
-- 字段标签 2（英 / 简 / 繁）：Current / 当前 / 目前（展示新台词文本）
+### 24. 摘录台词内容已变更（Cue State: Content Changed）
+- 英文：This cue changed after reindexing
+- 简体中文：该台词在重新索引后发生了变化
+- 繁体中文：此台詞在重新索引後已變更
 - 触发延迟：1秒
 - Scenario ID：table.cue_state.content_changed
 - 所在位置：Excerpt 二级页表格行状态图标（`clock-counter-clockwise`）
 
-### 25. 摘录台词不可用（Cue State Tip: Unavailable）
-- 标题（英 / 简 / 繁）：Unavailable / 不可用 / 無法使用
+### 25. 摘录台词不可用（Cue State: Unavailable）
 - 原因分支 1（媒体库不可用）：
-  - 英：The library source is currently unavailable.
-  - 简：媒体库来源当前不可用。
-  - 繁：媒體庫來源目前無法使用。
+  - 英文：The library source is currently unavailable
+  - 简体中文：媒体库来源当前不可用
+  - 繁体中文：媒體庫來源目前無法使用
 - 原因分支 2（视频文件缺失）：
-  - 英：The video file is missing. The subtitle file is still available.
-  - 简：视频文件缺失，字幕文件仍然可用。
-  - 繁：影片檔案遺失，字幕檔案仍可使用。
+  - 英文：The video file is missing. The subtitle file is still available
+  - 简体中文：视频文件缺失，字幕文件仍然可用
+  - 繁体中文：影片檔案遺失，字幕檔案仍可使用
 - 原因分支 3（字幕文件缺失）：
-  - 英：The subtitle file is missing or could not be reconnected.
-  - 简：字幕文件缺失或无法重新连接。
-  - 繁：字幕檔案遺失或無法重新連接。
+  - 英文：The subtitle file is missing or could not be reconnected
+  - 简体中文：字幕文件缺失或无法重新连接
+  - 繁体中文：字幕檔案遺失或無法重新連接
 - 原因分支 4（字幕内找不到该台词）：
-  - 英：This cue could not be found in the current subtitle file.
-  - 简：在当前字幕文件中找不到该台词。
-  - 繁：在目前的字幕檔案中找不到此台詞。
+  - 英文：This cue could not be found in the current subtitle file
+  - 简体中文：在当前字幕文件中找不到该台词
+  - 繁体中文：在目前的字幕檔案中找不到此台詞
 - 触发延迟：1秒
 - Scenario ID：table.cue_state.unavailable
 - 所在位置：Excerpt 二级页表格行状态图标（`question`）

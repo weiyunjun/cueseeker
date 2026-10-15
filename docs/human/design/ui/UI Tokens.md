@@ -322,6 +322,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--width-playback-feedback-max`: `520px`
 - `--size-toast-icon`: `23px`
 - `--width-toast-max`: `400px`
+- `--width-tooltip-max`: `280px`
 - `--width-playback-cue-timeline-connector`: `1px`
 - `--width-subtitle-focus-content-max`: `960px`
 - `--aspect-library-cover`: `16 / 9`
@@ -504,6 +505,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--duration-library-cover-hover`: `0.12s`
 - `--scale-collage-group-hover`: `1.02`
 - `--duration-collage-group-hover`: `0.12s`
+- `--delay-tooltip-hover`: `1s`
 
 ### Toast Motion
 

@@ -23,6 +23,7 @@
 | [`UI Layouts - Playback.md`](UI%20Layouts%20-%20Playback.md) | **播放相关布局（`L-07` ~ `L-09`）**：播放器顶底栏与反馈层、Playback Overlay（Current / Playlist / Collage Editor）、Command Panel。 |
 | [`Icon Registry.md`](Icon%20Registry.md) | **图标名录**：Phosphor 图标制作规格、尺寸与线宽映射表、全量图标使用位置。 |
 | [`Toast Usage Registry.md`](Toast%20Usage%20Registry.md) | **Toast 与 HUD 注册表**：全场景提示文案（英/简/繁）、图标、持续时间与 Scenario ID。 |
+| [`Tooltip Usage Registry.md`](Tooltip%20Usage%20Registry.md) | **Tooltip 注册表**：全场景悬停提示文案（英/简/繁）、快捷键跟随规则、触发延迟与 Scenario ID。 |
 
 ---
 
@@ -72,7 +73,7 @@
 | | `C-08.3` | Information Badge | `Cover Badge`、`Task Count Badge` |
 | | `C-08.4` | Tag | `Default`、`Player Chrome` |
 | | `C-08.5` | Status Indicator | `Workbench Status Indicator`、`Cue State Indicator` |
-| | `C-08.6` | Tooltip | `Cue State Tip` |
+| | `C-08.6` | Tooltip | — |
 | | `C-08.7` | Section Title | — |
 | | `C-08.8` | Workbench Page Title | — |
 | | `C-08.9` | Keycap | `Overlay Surface`、`Popover Surface` |

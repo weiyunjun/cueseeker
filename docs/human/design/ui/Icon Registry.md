@@ -114,7 +114,7 @@
 | `pause` | Fill | 暂停 | 播放控制条 / 播放暂停；Playback Feedback（暂停、自动暂停） |
 | `skip-back` | Fill | 上一个 | 播放控制条 / 上一个 |
 | `skip-forward` | Fill | 下一个 | 播放控制条 / 下一个 |
-| `repeat` | Regular | 循环 | 播放控制条 / 循环；Playback Feedback |
+| `repeat` | Regular | 重播当前台词 | 播放控制条 / 重播当前台词 |
 | `camera` | Regular | 截图 | 播放控制条 / 截图；Playback Feedback（截图已复制） |
 | `speedometer` | Regular | 倍速 | Playback Feedback（倍速） |
 | `corners-out` | Regular | 进入全屏 | 播放控制条 / 全屏 |
