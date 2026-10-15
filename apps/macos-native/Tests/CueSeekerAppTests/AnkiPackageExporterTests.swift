@@ -217,22 +217,28 @@ func ankiExportChoicesAreRememberedAcrossLaunches() throws {
 
 @MainActor
 @Test
-func ankiExportSessionNamesThePackageAndChecksTheNameAndSides() {
+func ankiExportSessionNamesThePackageAndChecksTheNameLocationAndSides() throws {
+    let tempExports = FileManager.default.temporaryDirectory
+        .appendingPathComponent("CueSeekerAnkiSessionTests-\(UUID().uuidString)", isDirectory: true)
+    try FileManager.default.createDirectory(at: tempExports, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: tempExports) }
+
     var reportedOptions: [AnkiExportOptions] = []
     let session = AnkiExportSession(
         items: [ankiCardItem()],
         options: AnkiExportOptions(),
-        folderURL: URL(fileURLWithPath: "/Exports", isDirectory: true),
+        folderURL: tempExports,
         onOptionsChange: { reportedOptions.append($0) }
     )
 
     #expect(session.fileName.hasPrefix("CueSeeker-"))
+    #expect(session.locationPath == tempExports.path)
     #expect(session.destinationURL.lastPathComponent == session.fileName)
 
     session.fileName = "Deck"
-    #expect(session.destinationURL.path == "/Exports/Deck.apkg")
+    #expect(session.destinationURL.path == tempExports.appendingPathComponent("Deck.apkg").path)
     session.fileName = "Deck.APKG"
-    #expect(session.destinationURL.path == "/Exports/Deck.APKG")
+    #expect(session.destinationURL.path == tempExports.appendingPathComponent("Deck.APKG").path)
 
     session.fileName = " "
     #expect(!session.validate())
@@ -243,6 +249,19 @@ func ankiExportSessionNamesThePackageAndChecksTheNameAndSides() {
     session.fileName = "Deck"
     #expect(session.validate())
     #expect(session.validationMessage == nil)
+
+    // Location path validation: empty or non-existent folder fails validation
+    session.locationPath = "   "
+    #expect(!session.validate())
+    #expect(session.locationValidationMessage == L("anki_export.validation.location_invalid"))
+
+    session.locationPath = tempExports.appendingPathComponent("NonExistentSubfolder").path
+    #expect(!session.validate())
+    #expect(session.locationValidationMessage == L("anki_export.validation.location_invalid"))
+
+    session.locationPath = tempExports.path
+    #expect(session.validate())
+    #expect(session.locationValidationMessage == nil)
 
     // Layout validation: empty Front or Back
     session.options.frontItems = []

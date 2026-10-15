@@ -990,6 +990,11 @@ final class AppCoordinator: ObservableObject {
     }
 
     nonisolated static func errorMessage(for error: Error) -> String {
-        String(describing: error)
+        if let localized = error as? LocalizedError,
+           let description = localized.errorDescription,
+           !description.isEmpty {
+            return description
+        }
+        return String(describing: error)
     }
 }

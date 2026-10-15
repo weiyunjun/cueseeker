@@ -218,58 +218,27 @@ extension AppCoordinator {
         }
 
         let trimmedName = session.name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedName.isEmpty else {
-            toast.show(
-                ToastRequest(
-                    scenarioID: "webdav.add.failed",
-                    message: L("webdav.error.name_empty"),
-                    icon: .warning,
-                    duration: ToastDuration.alert
-                )
-            )
-            return
-        }
 
         guard let targetURL = WebDAVAddress.parseURL(from: session.address) else {
-            toast.show(
-                ToastRequest(
-                    scenarioID: "webdav.add.failed",
-                    message: L("webdav.error.invalid_address"),
-                    icon: .warning,
-                    duration: ToastDuration.alert
-                )
-            )
+            session.validationMessage = L("webdav.error.invalid_address")
             return
         }
 
         let trimmedUsername = session.username.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedUsername.isEmpty else {
-            toast.show(
-                ToastRequest(
-                    scenarioID: "webdav.add.failed",
-                    message: L("webdav.error.username_empty"),
-                    icon: .warning,
-                    duration: ToastDuration.alert
-                )
-            )
+            session.validationMessage = L("webdav.error.username_empty")
             return
         }
 
         let password = session.password
         guard !password.isEmpty else {
-            toast.show(
-                ToastRequest(
-                    scenarioID: "webdav.add.failed",
-                    message: L("webdav.error.password_empty"),
-                    icon: .warning,
-                    duration: ToastDuration.alert
-                )
-            )
+            session.validationMessage = L("webdav.error.password_empty")
             return
         }
 
         let rawAddress = session.address
 
+        session.validationMessage = nil
         session.isSubmitting = true
         session.validationTask = Task { @MainActor [weak self, weak session] in
             do {
@@ -303,14 +272,7 @@ extension AppCoordinator {
                 }
                 session.isSubmitting = false
                 session.validationTask = nil
-                self.toast.show(
-                    ToastRequest(
-                        scenarioID: "webdav.add.failed",
-                        message: Self.errorMessage(for: error),
-                        icon: .warning,
-                        duration: ToastDuration.alert
-                    )
-                )
+                session.validationMessage = Self.errorMessage(for: error)
             }
         }
     }

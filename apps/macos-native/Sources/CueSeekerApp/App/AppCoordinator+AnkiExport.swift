@@ -177,6 +177,7 @@ extension AppCoordinator {
             return
         }
 
+        settings.ankiExportFolderPath = session.folderURL.path
         tasks.ankiExportSession = nil
         tasks.enqueueAnkiExport(
             items: session.items,

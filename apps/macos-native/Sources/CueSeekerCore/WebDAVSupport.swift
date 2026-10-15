@@ -255,6 +255,18 @@ public enum WebDAVAddress {
         return components.url
     }
 
+    public static func defaultDisplayName(for url: URL) -> String {
+        let trimmedPath = url.path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        if let lastSegment = trimmedPath.split(separator: "/").last, !lastSegment.isEmpty {
+            let raw = String(lastSegment)
+            return raw.removingPercentEncoding ?? raw
+        }
+        if let host = url.host, !host.isEmpty {
+            return host
+        }
+        return url.mediaPath
+    }
+
     private static func containsPercentEncodingPattern(_ value: String) -> Bool {
         let utf8 = Array(value.utf8)
         guard utf8.count >= 3 else { return false }
@@ -559,9 +571,6 @@ public final class WebDAVClient: @unchecked Sendable {
         let trimmedAddress = address.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedUsername = username.trimmingCharacters(in: .whitespacesAndNewlines)
 
-        guard !trimmedName.isEmpty else {
-            throw WebDAVError.invalidInput("Name is required.")
-        }
         guard !trimmedAddress.isEmpty else {
             throw WebDAVError.invalidInput("Address is required.")
         }
@@ -577,11 +586,14 @@ public final class WebDAVClient: @unchecked Sendable {
 
         try Task.checkCancellation()
 
+        let effectiveName = trimmedName.isEmpty
+            ? WebDAVAddress.defaultDisplayName(for: rootURL)
+            : trimmedName
         let rootMediaPath = rootURL.mediaPath
         let initialConfig = WebDAVRootConfig(
             rootPath: rootMediaPath,
             davRootPath: rootMediaPath,
-            name: trimmedName,
+            name: effectiveName,
             address: trimmedAddress,
             username: trimmedUsername,
             password: password

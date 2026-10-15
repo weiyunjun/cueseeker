@@ -394,6 +394,7 @@ extension View {
     }
 
     func workbenchDialogFormFieldChrome(
+        hasError: Bool = false,
         isFocused: Bool,
         isEnabled: Bool
     ) -> some View {
@@ -415,9 +416,11 @@ extension View {
             )
             .strokeBorder(
                 isEnabled
-                    ? (isFocused
-                        ? WorkbenchRedesignColors.borderFocus
-                        : WorkbenchRedesignColors.borderControl)
+                    ? (hasError
+                        ? WorkbenchRedesignColors.dangerText
+                        : (isFocused
+                            ? WorkbenchRedesignColors.borderFocus
+                            : WorkbenchRedesignColors.borderControl))
                     : WorkbenchRedesignColors.borderDisabled,
                 lineWidth: 1
             )
@@ -429,6 +432,8 @@ struct WorkbenchDialogFormTextField: View {
     let label: String
     let placeholder: String
     @Binding var text: String
+    var validationMessage: String? = nil
+    var reservesValidationLine: Bool = false
     let focus: FocusState<Bool>.Binding
     var onSubmit: (() -> Void)?
 
@@ -436,29 +441,41 @@ struct WorkbenchDialogFormTextField: View {
     @Environment(\.isEnabled) private var isEnabled
 
     var body: some View {
-        VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing2) {
+        HStack(alignment: .top, spacing: WorkbenchControlMetrics.redesignSpacing3) {
             WorkbenchFormLabel(text: label)
+                .frame(
+                    width: WorkbenchControlMetrics.redesignFormLabelWidth,
+                    height: WorkbenchControlMetrics.redesignFieldHeight,
+                    alignment: .leading
+                )
 
-            WorkbenchSingleLineTextInput(
-                placeholder: placeholder,
-                text: $text,
-                placeholderColor: WorkbenchRedesignColors.textPlaceholder,
-                textColor: isEnabled
-                    ? WorkbenchRedesignColors.textPrimary
-                    : WorkbenchRedesignColors.textDisabled,
-                fontSize: WorkbenchControlMetrics.redesignFontSizeControl,
-                focus: focus,
-                accessibilityLabel: label,
-                onFocusChange: { isFocused = $0 },
-                onSubmit: onSubmit
-            )
-            .padding(.horizontal, WorkbenchControlMetrics.redesignFieldPaddingX)
-            .frame(height: WorkbenchControlMetrics.redesignFieldHeight)
-            .workbenchDialogFormFieldChrome(
-                isFocused: isFocused || focus.wrappedValue,
-                isEnabled: isEnabled
-            )
-            .overlay(WorkbenchSingleLineContainerOverlay(isEnabled: isEnabled))
+            VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing1) {
+                WorkbenchSingleLineTextInput(
+                    placeholder: placeholder,
+                    text: $text,
+                    placeholderColor: WorkbenchRedesignColors.textPlaceholder,
+                    textColor: isEnabled
+                        ? WorkbenchRedesignColors.textPrimary
+                        : WorkbenchRedesignColors.textDisabled,
+                    fontSize: WorkbenchControlMetrics.redesignFontSizeControl,
+                    focus: focus,
+                    accessibilityLabel: label,
+                    onFocusChange: { isFocused = $0 },
+                    onSubmit: onSubmit
+                )
+                .padding(.horizontal, WorkbenchControlMetrics.redesignFieldPaddingX)
+                .frame(height: WorkbenchControlMetrics.redesignFieldHeight)
+                .workbenchDialogFormFieldChrome(
+                    hasError: validationMessage != nil,
+                    isFocused: isFocused || focus.wrappedValue,
+                    isEnabled: isEnabled
+                )
+                .overlay(WorkbenchSingleLineContainerOverlay(isEnabled: isEnabled))
+
+                if reservesValidationLine {
+                    WorkbenchValidationMessage(text: validationMessage)
+                }
+            }
         }
     }
 }
@@ -467,6 +484,9 @@ struct WorkbenchDialogFormPasswordField: View {
     let label: String
     let placeholder: String
     @Binding var text: String
+    var validationMessage: String? = nil
+    var reservesValidationLine: Bool = false
+    var showsErrorBorder: Bool = false
     let focus: FocusState<Bool>.Binding
     var onSubmit: (() -> Void)?
 
@@ -474,24 +494,36 @@ struct WorkbenchDialogFormPasswordField: View {
     @Environment(\.isEnabled) private var isEnabled
 
     var body: some View {
-        VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing2) {
+        HStack(alignment: .top, spacing: WorkbenchControlMetrics.redesignSpacing3) {
             WorkbenchFormLabel(text: label)
+                .frame(
+                    width: WorkbenchControlMetrics.redesignFormLabelWidth,
+                    height: WorkbenchControlMetrics.redesignFieldHeight,
+                    alignment: .leading
+                )
 
-            WorkbenchSecureSingleLineInput(
-                text: $text,
-                placeholder: placeholder,
-                focus: focus,
-                accessibilityLabel: label,
-                onFocusChange: { isFocused = $0 },
-                onSubmit: onSubmit
-            )
-            .padding(.horizontal, WorkbenchControlMetrics.redesignFieldPaddingX)
-            .frame(height: WorkbenchControlMetrics.redesignFieldHeight)
-            .workbenchDialogFormFieldChrome(
-                isFocused: isFocused || focus.wrappedValue,
-                isEnabled: isEnabled
-            )
-            .overlay(WorkbenchSingleLineContainerOverlay(isEnabled: isEnabled))
+            VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing1) {
+                WorkbenchSecureSingleLineInput(
+                    text: $text,
+                    placeholder: placeholder,
+                    focus: focus,
+                    accessibilityLabel: label,
+                    onFocusChange: { isFocused = $0 },
+                    onSubmit: onSubmit
+                )
+                .padding(.horizontal, WorkbenchControlMetrics.redesignFieldPaddingX)
+                .frame(height: WorkbenchControlMetrics.redesignFieldHeight)
+                .workbenchDialogFormFieldChrome(
+                    hasError: showsErrorBorder && validationMessage != nil,
+                    isFocused: isFocused || focus.wrappedValue,
+                    isEnabled: isEnabled
+                )
+                .overlay(WorkbenchSingleLineContainerOverlay(isEnabled: isEnabled))
+
+                if reservesValidationLine {
+                    WorkbenchValidationMessage(text: validationMessage)
+                }
+            }
         }
     }
 }

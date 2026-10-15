@@ -51,6 +51,7 @@ struct SettingsShortcutsCategory: View {
     /// for it and shrinks back.
     private func row(_ action: PlaybackShortcutAction) -> some View {
         let keymap = shortcuts.keymap
+        let isDefault = keymap.isDefault(action)
         let isRecording = recorder.recordingAction == action
         let message = isRecording
             ? nil
@@ -74,14 +75,17 @@ struct SettingsShortcutsCategory: View {
                         }
                     )
 
-                    WorkbenchIconButton(
-                        icon: .arrowCounterClockwise,
-                        isRedesign: true
-                    ) {
-                        recorder.stop()
-                        shortcuts.reset(action)
+                    if !isDefault {
+                        WorkbenchIconButton(
+                            icon: .arrowCounterClockwise,
+                            isRedesign: true,
+                            iconSize: WorkbenchControlMetrics.redesignDialogCloseIconSize,
+                            boxSize: WorkbenchControlMetrics.redesignDialogCloseButtonSize
+                        ) {
+                            recorder.stop()
+                            shortcuts.reset(action)
+                        }
                     }
-                    .disabled(keymap.isDefault(action))
                 }
 
                 // Starts under the field; a message longer than the field and
@@ -90,9 +94,11 @@ struct SettingsShortcutsCategory: View {
                     WorkbenchValidationMessage(text: message)
                         .fixedSize()
                         .frame(
-                            minWidth: SettingsShortcutsMetrics.fieldWidth
-                                + WorkbenchControlMetrics.redesignSpacing1
-                                + WorkbenchControlMetrics.redesignIconButtonSize,
+                            minWidth: isDefault
+                                ? SettingsShortcutsMetrics.fieldWidth
+                                : SettingsShortcutsMetrics.fieldWidth
+                                    + WorkbenchControlMetrics.redesignSpacing1
+                                    + WorkbenchControlMetrics.redesignDialogCloseButtonSize,
                             alignment: .leading
                         )
                 }

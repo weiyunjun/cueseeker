@@ -38,7 +38,7 @@ struct WebDAVFolderDialogTests {
     }
 
     @Test
-    func dialogValidatesInputsAndShowsToastWithoutClosingOnFailure() async throws {
+    func dialogValidatesInputsWithInlineMessageWithoutShowingToastOrClosingOnFailure() async throws {
         let fixture = try DialogTestFixture()
         defer { fixture.cleanUp() }
 
@@ -54,25 +54,33 @@ struct WebDAVFolderDialogTests {
         #expect(session.address.isEmpty)
         #expect(session.username.isEmpty)
         #expect(session.password.isEmpty)
+        #expect(session.validationMessage == nil)
         #expect(!session.isSubmitting)
 
-        // Empty name triggers toast and keeps dialog open
+        // Invalid/empty address sets inline validation message and never shows a toast
         app.confirmWebDAVFolderDialog(session)
         #expect(app.library.webdavDialogSession?.id == session.id)
         #expect(!session.isSubmitting)
-        #expect(app.toast.visibleItems.last?.request.scenarioID == "webdav.add.failed")
+        #expect(session.validationMessage == L("webdav.error.invalid_address"))
+        #expect(app.toast.visibleItems.isEmpty)
 
-        // Invalid address triggers toast and keeps dialog open
-        session.name = "NieR"
-        session.address = "not-a-valid-url"
+        // Empty username sets inline validation message
+        session.address = "http://192.168.1.173:5244/115/云下载/NieR:Automata"
+        app.confirmWebDAVFolderDialog(session)
+        #expect(app.library.webdavDialogSession?.id == session.id)
+        #expect(!session.isSubmitting)
+        #expect(session.validationMessage == L("webdav.error.username_empty"))
+        #expect(app.toast.visibleItems.isEmpty)
+
+        // Empty password sets inline validation message
         session.username = "admin"
-        session.password = "secret"
         app.confirmWebDAVFolderDialog(session)
         #expect(app.library.webdavDialogSession?.id == session.id)
         #expect(!session.isSubmitting)
-        #expect(app.toast.visibleItems.last?.request.scenarioID == "webdav.add.failed")
+        #expect(session.validationMessage == L("webdav.error.password_empty"))
+        #expect(app.toast.visibleItems.isEmpty)
 
-        // 401 authentication failure from server restores input state and shows toast
+        // 401 authentication failure from server restores input state and shows inline validation message without toast
         WebDAVClient.shared.setCustomHTTPHandlerForTesting { request in
             let response = HTTPURLResponse(
                 url: request.url!,
@@ -83,13 +91,14 @@ struct WebDAVFolderDialogTests {
             return (Data(), response)
         }
 
-        session.address = "http://192.168.1.173:5244/115/云下载/NieR:Automata"
+        session.password = "secret"
         app.confirmWebDAVFolderDialog(session)
         await session.validationTask?.value
 
         #expect(app.library.webdavDialogSession?.id == session.id)
         #expect(!session.isSubmitting)
-        #expect(app.toast.visibleItems.last?.request.scenarioID == "webdav.add.failed")
+        #expect(session.validationMessage == WebDAVError.authenticationFailed.errorDescription)
+        #expect(app.toast.visibleItems.isEmpty)
     }
 
     @Test
@@ -135,7 +144,7 @@ struct WebDAVFolderDialogTests {
     }
 
     @Test
-    func dialogSuccessClosesDialogSavesConfigAndStartsAddFolderTask() async throws {
+    func dialogSuccessClosesDialogSavesConfigAndStartsAddFolderTaskWithOptionalNameDefault() async throws {
         let fixture = try DialogTestFixture()
         defer { fixture.cleanUp() }
 
@@ -173,9 +182,10 @@ struct WebDAVFolderDialogTests {
             return (Data(xml.utf8), response)
         }
 
+        // Leave Name blank -> defaults to folder name ("NieR:Automata")
         app.openWebDAVFolderDialog()
         let session = try #require(app.library.webdavDialogSession)
-        session.name = "NieR Custom Name"
+        session.name = "   "
         session.address = rootAddress
         session.username = "alist"
         session.password = "pass123"
@@ -185,8 +195,8 @@ struct WebDAVFolderDialogTests {
         await app.tasks.waitUntilIdle()
 
         #expect(app.library.webdavDialogSession == nil)
-        #expect(WebDAVConfigurationStore.shared.config(for: rootURL)?.name == "NieR Custom Name")
-        #expect(IndexingStore.displayName(for: rootURL) == "NieR Custom Name")
+        #expect(WebDAVConfigurationStore.shared.config(for: rootURL)?.name == "NieR:Automata")
+        #expect(IndexingStore.displayName(for: rootURL) == "NieR:Automata")
         #expect(app.indexing.selectedFolders.contains(rootURL.standardizedMediaURL))
     }
 

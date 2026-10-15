@@ -112,7 +112,7 @@ func dialogWidthTiersAndTheListEditorsDerivedSizes() {
     #expect(WorkbenchControlMetrics.redesignTaskPanelHeight == 500)
     #expect(WorkbenchControlMetrics.redesignExcerptListEditorCoverWidth == 312)
     #expect(WorkbenchControlMetrics.redesignExcerptListEditorWideFormWidth == 336)
-    #expect(WorkbenchControlMetrics.redesignExcerptListEditorDescriptionHeight == 58.5)
+    #expect(WorkbenchControlMetrics.redesignExcerptListEditorDescriptionHeight == 97.5)
 }
 
 @Test
@@ -127,6 +127,11 @@ func cardIconContainerMetricsMatchDesignSpecification() {
 func buttonHeightMatchesDesignSpecification() {
     #expect(WorkbenchControlMetrics.redesignHeight == 36)
     #expect(WorkbenchControlMetrics.redesignSearchHeight == 36)
+    #expect(WorkbenchControlMetrics.redesignFieldHeight == 30)
+    #expect(WorkbenchControlMetrics.redesignFieldRadius == 6)
+    #expect(WorkbenchControlMetrics.redesignFieldPaddingX == 10)
+    #expect(WorkbenchControlMetrics.redesignFormLabelWidth == 72)
+    #expect(WorkbenchControlMetrics.redesignTableCellHoverRadius == 8)
 }
 
 @Test

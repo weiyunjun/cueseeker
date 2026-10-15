@@ -8,6 +8,7 @@ final class WebDAVFolderDialogSession: ObservableObject, Identifiable {
     @Published var address: String = ""
     @Published var username: String = ""
     @Published var password: String = ""
+    @Published var validationMessage: String? = nil
     @Published var isSubmitting: Bool = false
     var validationTask: Task<Void, Never>?
 
@@ -32,10 +33,10 @@ struct WebDAVFolderDialog: View {
         VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing4) {
             WorkbenchDialogHeader(title: L("webdav.dialog.title"))
 
-            VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing4) {
+            VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing3) {
                 WorkbenchDialogFormTextField(
                     label: L("webdav.field.name"),
-                    placeholder: "",
+                    placeholder: L("webdav.field.name.placeholder"),
                     text: $session.name,
                     focus: $isNameFocused
                 )
@@ -64,6 +65,8 @@ struct WebDAVFolderDialog: View {
                     label: L("webdav.field.password"),
                     placeholder: "",
                     text: $session.password,
+                    validationMessage: session.validationMessage,
+                    reservesValidationLine: true,
                     focus: $isPasswordFocused
                 )
                 .disabled(session.isSubmitting)

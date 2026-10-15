@@ -15,20 +15,22 @@ enum WorkbenchControlMetrics {
     static let redesignHeight: CGFloat = 36
     /// --radius-control: 8px
     static let redesignCornerRadius: CGFloat = 8
-    /// --height-field: 40px
-    static let redesignFieldHeight: CGFloat = 40
+    /// --height-field: 30px
+    static let redesignFieldHeight: CGFloat = 30
     /// --height-control (Search box, unified): 36px
     static let redesignSearchHeight: CGFloat = redesignHeight
-    /// --radius-field: 8px
-    static let redesignFieldRadius: CGFloat = 8
+    /// --radius-field: 6px
+    static let redesignFieldRadius: CGFloat = 6
     /// --radius-search: 9999px
     static let redesignSearchRadius: CGFloat = 9999
     /// --size-inline-clear-button: 24px
     static let redesignInlineClearButtonSize: CGFloat = 24
     /// --padding-control-x: 14px
     static let redesignControlPaddingX: CGFloat = 14
-    /// --padding-field-x: 16px
-    static let redesignFieldPaddingX: CGFloat = 16
+    /// --padding-field-x: 10px
+    static let redesignFieldPaddingX: CGFloat = 10
+    /// --width-form-label: 72px
+    static let redesignFormLabelWidth: CGFloat = 72
     /// Provisional --size-inline-clear-symbol-font-size-macos: 14px icon box (document: 11pt)
     static let inlineClearSymbolFontSizeMacOS: CGFloat = 14
     /// --size-inline-clear-icon: 16px
@@ -92,10 +94,11 @@ enum WorkbenchControlMetrics {
     static let redesignExcerptListEditorWideFormWidth =
         redesignDialogWidthXLarge - 2 * redesignDialogInset
         - redesignSpacing6 - redesignExcerptListEditorCoverWidth
-    /// The Description box ends on the cover's bottom edge. Above the box the
-    /// form column holds the List Name field — label, field and its reserved
-    /// message line — and the Description's own label, so the box is the
-    /// cover's height less those. Both layouts keep this height.
+    /// The Description box ends on the bottom of the cover's first support-text
+    /// line, so its reserved validation message line sits opposite the second
+    /// support-text line. Above the box the form column holds the List Name
+    /// field — label, field and its reserved message line — and the
+    /// Description's own label. Both layouts keep this height.
     static let redesignExcerptListEditorDescriptionHeight: CGFloat = {
         func lineHeight(size: CGFloat, weight: NSFont.Weight) -> CGFloat {
             NSLayoutManager().defaultLineHeight(
@@ -104,8 +107,9 @@ enum WorkbenchControlMetrics {
         }
         let label = lineHeight(size: redesignFontSizeControl, weight: .medium)
         let message = lineHeight(size: redesignFontSizeCaption, weight: .regular)
+        let supportLine = lineHeight(size: redesignFontSizeBody, weight: .regular)
         let coverHeight = redesignExcerptListEditorCoverWidth / redesignLibraryCoverAspectRatio
-        return coverHeight
+        return (coverHeight + redesignSpacing3 + supportLine)
             - (label + redesignSpacing2 + redesignFieldHeight + redesignSpacing1 + message)
             - redesignSpacing2
             - (label + redesignSpacing2)
@@ -239,7 +243,7 @@ enum WorkbenchControlMetrics {
     /// --padding-header-trigger-x: 12px
     static let redesignPaddingHeaderTriggerX: CGFloat = 12
     /// --radius-table-cell-hover: 8px
-    static let redesignTableCellHoverRadius = redesignFieldRadius
+    static let redesignTableCellHoverRadius: CGFloat = 8
     /// --padding-table-cell-hover-x: 12px
     static let redesignTableCellHoverPaddingX = redesignPaddingHeaderTriggerX
     /// --padding-table-cell-hover-y: 8px

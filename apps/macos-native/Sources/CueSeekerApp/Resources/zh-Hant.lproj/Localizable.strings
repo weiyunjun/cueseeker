@@ -595,6 +595,7 @@
 "anki_export.card.empty_hint" = "拖曳項目至此";
 "anki_export.validation.front_empty" = "正面不能為空";
 "anki_export.validation.back_empty" = "背面不能為空";
+"anki_export.validation.location_invalid" = "請輸入有效的資料夾路徑";
 "anki_export.item.cue_text" = "台詞文字";
 "anki_export.item.audio" = "音訊";
 "anki_export.item.screenshot" = "截圖";
@@ -643,6 +644,7 @@
 "file.add_folder.webdav" = "WebDav 資料夾";
 "webdav.dialog.title" = "WebDav 資料夾";
 "webdav.field.name" = "名稱";
+"webdav.field.name.placeholder" = "選填，預設使用資料夾名稱";
 "webdav.field.address" = "位址";
 "webdav.field.username" = "使用者名稱";
 "webdav.field.password" = "密碼";

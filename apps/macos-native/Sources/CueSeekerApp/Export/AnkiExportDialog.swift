@@ -24,8 +24,19 @@ final class AnkiExportSession: ObservableObject, Identifiable {
         }
     }
     @Published var fileName = AnkiPackageExporter.defaultFileName()
-    @Published var folderURL: URL
+    @Published var folderURL: URL {
+        didSet {
+            if locationPath != folderURL.path {
+                locationPath = folderURL.path
+            }
+            if hasAttemptedValidation {
+                validate()
+            }
+        }
+    }
+    @Published var locationPath: String
     @Published private(set) var validationMessage: String?
+    @Published private(set) var locationValidationMessage: String?
     @Published private(set) var frontValidationError: String?
     @Published private(set) var backValidationError: String?
     @Published private(set) var hasAttemptedValidation = false
@@ -40,14 +51,32 @@ final class AnkiExportSession: ObservableObject, Identifiable {
         self.items = items
         self.options = options
         self.folderURL = folderURL
+        self.locationPath = folderURL.path
         self.onOptionsChange = onOptionsChange
+    }
+
+    static func isValidExportFolderPath(_ rawPath: String) -> Bool {
+        let trimmed = (rawPath.trimmingCharacters(in: .whitespacesAndNewlines) as NSString)
+            .expandingTildeInPath
+        guard !trimmed.isEmpty else {
+            return false
+        }
+        var isDirectory: ObjCBool = false
+        return FileManager.default.fileExists(atPath: trimmed, isDirectory: &isDirectory)
+            && isDirectory.boolValue
+            && FileManager.default.isWritableFile(atPath: trimmed)
     }
 
     /// The package the export writes: the typed name, given `.apkg` when it
     /// does not end with it.
     var destinationURL: URL {
         let name = fileName.lowercased().hasSuffix(".apkg") ? fileName : fileName + ".apkg"
-        return folderURL.appendingPathComponent(name)
+        let trimmedLocation = (locationPath.trimmingCharacters(in: .whitespacesAndNewlines) as NSString)
+            .expandingTildeInPath
+        let baseFolder = trimmedLocation.isEmpty
+            ? folderURL
+            : URL(fileURLWithPath: trimmedLocation, isDirectory: true)
+        return baseFolder.appendingPathComponent(name)
     }
 
     func removeItem(_ item: AnkiCardItem) {
@@ -90,8 +119,8 @@ final class AnkiExportSession: ObservableObject, Identifiable {
         }
     }
 
-    /// Applies Rename's name rules and layout rules. From the first attempt on,
-    /// every change is checked again.
+    /// Applies Rename's name rules, location folder rules, and layout rules.
+    /// From the first attempt on, every change is checked again.
     @discardableResult
     func validate() -> Bool {
         hasAttemptedValidation = true
@@ -109,7 +138,21 @@ final class AnkiExportSession: ObservableObject, Identifiable {
             isValid = false
         }
 
-        // 2. Card Layout validation (Front and Back cannot be empty)
+        // 2. Location validation
+        let trimmedLocation = (locationPath.trimmingCharacters(in: .whitespacesAndNewlines) as NSString)
+            .expandingTildeInPath
+        if Self.isValidExportFolderPath(trimmedLocation) {
+            let resolvedURL = URL(fileURLWithPath: trimmedLocation, isDirectory: true)
+            if folderURL.standardizedFileURL != resolvedURL.standardizedFileURL {
+                folderURL = resolvedURL
+            }
+            locationValidationMessage = nil
+        } else {
+            locationValidationMessage = L("anki_export.validation.location_invalid")
+            isValid = false
+        }
+
+        // 3. Card Layout validation (Front and Back cannot be empty)
         if options.frontItems.isEmpty {
             frontValidationError = L("anki_export.validation.front_empty")
             isValid = false
@@ -138,6 +181,8 @@ struct AnkiExportDialog: View {
     let onClose: () -> Void
 
     @FocusState private var isFileNameFocused: Bool
+    @FocusState private var isLocationFocused: Bool
+    @State private var isLocationFieldFocused = false
     @Environment(\.workbenchDialogAvailableSize) private var availableSize
 
     @State private var isAvailablePoolTargeted = false
@@ -209,6 +254,11 @@ struct AnkiExportDialog: View {
         .background(WorkbenchRedesignColors.bgDialog)
         .workbenchDialogCloseButton(onClose: onClose)
         .onChange(of: session.fileName) { _ in
+            if session.hasAttemptedValidation {
+                session.validate()
+            }
+        }
+        .onChange(of: session.locationPath) { _ in
             if session.hasAttemptedValidation {
                 session.validate()
             }
@@ -392,20 +442,33 @@ struct AnkiExportDialog: View {
     }
 
     private var locationRow: some View {
-        HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
-            Text(session.folderURL.path)
-                .font(.system(
-                    size: WorkbenchControlMetrics.redesignFontSizeControl,
-                    weight: .regular
-                ))
-                .foregroundStyle(WorkbenchRedesignColors.textPrimary)
-                .lineLimit(1)
-                .truncationMode(.middle)
-                .frame(maxWidth: .infinity, alignment: .leading)
+        VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing1) {
+            HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
+                WorkbenchSingleLineTextInput(
+                    placeholder: "",
+                    text: $session.locationPath,
+                    placeholderColor: WorkbenchRedesignColors.textPlaceholder,
+                    textColor: WorkbenchRedesignColors.textPrimary,
+                    fontSize: WorkbenchControlMetrics.redesignFontSizeControl,
+                    focus: $isLocationFocused,
+                    accessibilityLabel: L("anki_export.location"),
+                    onFocusChange: { isLocationFieldFocused = $0 }
+                )
+                .padding(.horizontal, WorkbenchControlMetrics.redesignFieldPaddingX)
+                .frame(height: WorkbenchControlMetrics.redesignFieldHeight)
+                .workbenchFormFieldChrome(
+                    hasError: session.locationValidationMessage != nil,
+                    isFocused: isLocationFieldFocused || isLocationFocused
+                )
+                .overlay(WorkbenchSingleLineContainerOverlay(isEnabled: true))
+                .accessibilityIdentifier("anki-export-location")
 
-            WorkbenchIconButton(icon: .folder, isRedesign: true, action: onChooseFolder)
-                .accessibilityLabel(L("anki_export.choose_folder"))
-                .padding(.trailing, -Self.folderButtonTrailingSlack)
+                WorkbenchIconButton(icon: .folder, isRedesign: true, action: onChooseFolder)
+                    .accessibilityLabel(L("anki_export.choose_folder"))
+                    .padding(.trailing, -Self.folderButtonTrailingSlack)
+            }
+
+            WorkbenchValidationMessage(text: session.locationValidationMessage)
         }
     }
 
@@ -432,6 +495,8 @@ struct AnkiExportDialog: View {
         guard session.validate() else {
             if session.validationMessage != nil {
                 isFileNameFocused = true
+            } else if session.locationValidationMessage != nil {
+                isLocationFocused = true
             }
             return
         }

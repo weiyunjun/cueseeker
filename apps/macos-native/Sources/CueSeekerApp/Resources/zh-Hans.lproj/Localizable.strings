@@ -595,6 +595,7 @@
 "anki_export.card.empty_hint" = "拖拽项目到此处";
 "anki_export.validation.front_empty" = "正面不能为空";
 "anki_export.validation.back_empty" = "背面不能为空";
+"anki_export.validation.location_invalid" = "请输入有效的文件夹路径";
 "anki_export.item.cue_text" = "台词文本";
 "anki_export.item.audio" = "音频";
 "anki_export.item.screenshot" = "截图";
@@ -643,6 +644,7 @@
 "file.add_folder.webdav" = "WebDav 文件夹";
 "webdav.dialog.title" = "WebDav 文件夹";
 "webdav.field.name" = "名称";
+"webdav.field.name.placeholder" = "选填，默认使用文件夹名";
 "webdav.field.address" = "地址";
 "webdav.field.username" = "用户名";
 "webdav.field.password" = "密码";

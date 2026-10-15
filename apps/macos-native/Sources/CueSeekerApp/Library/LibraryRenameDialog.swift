@@ -160,9 +160,10 @@ struct LibraryRenameDialog: View {
         VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing4) {
             WorkbenchDialogHeader(title: session.title)
 
-            VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing4) {
-                VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing1) {
+            VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing3) {
+                HStack(alignment: .firstTextBaseline, spacing: WorkbenchControlMetrics.redesignSpacing3) {
                     WorkbenchFormLabel(text: L("rename.current_name"))
+                        .frame(width: WorkbenchControlMetrics.redesignFormLabelWidth, alignment: .leading)
 
                     Text(session.currentText)
                         .font(.system(
@@ -176,11 +177,12 @@ struct LibraryRenameDialog: View {
                         .accessibilityIdentifier("rename-current-name")
                 }
 
-                WorkbenchFormTextField(
+                WorkbenchDialogFormTextField(
                     label: L("rename.new_name"),
                     placeholder: "",
                     text: $session.newName,
                     validationMessage: session.validationMessage,
+                    reservesValidationLine: true,
                     focus: $isNameFocused
                 )
                 .accessibilityIdentifier("rename-new-name")

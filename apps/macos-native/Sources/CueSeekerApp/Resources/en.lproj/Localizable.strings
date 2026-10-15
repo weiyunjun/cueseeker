@@ -595,6 +595,7 @@
 "anki_export.card.empty_hint" = "Drag items here";
 "anki_export.validation.front_empty" = "Front cannot be empty";
 "anki_export.validation.back_empty" = "Back cannot be empty";
+"anki_export.validation.location_invalid" = "Enter a valid folder path";
 "anki_export.item.cue_text" = "Cue Text";
 "anki_export.item.audio" = "Audio";
 "anki_export.item.screenshot" = "Screenshot";
@@ -643,6 +644,7 @@
 "file.add_folder.webdav" = "WebDav Folder";
 "webdav.dialog.title" = "WebDav Folder";
 "webdav.field.name" = "Name";
+"webdav.field.name.placeholder" = "Optional, defaults to folder name";
 "webdav.field.address" = "Address";
 "webdav.field.username" = "Username";
 "webdav.field.password" = "Password";

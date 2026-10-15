@@ -17,12 +17,14 @@ final class IndexingStore: ObservableObject {
     private static let legacyLastIndexedTimestampKey = "lastIndexedTimestamp"
 
     nonisolated static func displayName(for folder: URL) -> String {
-        if folder.isWebDAVURL,
-           let config = WebDAVConfigurationStore.shared.config(for: folder) {
-            let trimmed = config.name.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !trimmed.isEmpty {
-                return trimmed
+        if folder.isWebDAVURL {
+            if let config = WebDAVConfigurationStore.shared.config(for: folder) {
+                let trimmed = config.name.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !trimmed.isEmpty {
+                    return trimmed
+                }
             }
+            return WebDAVAddress.defaultDisplayName(for: folder)
         }
         return folder.lastPathComponent
     }

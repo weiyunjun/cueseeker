@@ -26,6 +26,10 @@ struct WebDAVSupportTests {
 
         #expect(parsed.isWebDAVURL)
         #expect(parsed.mediaPath == "http://192.168.1.173:5244/115/云下载/NieR:Automata")
+        #expect(WebDAVAddress.defaultDisplayName(for: parsed) == "NieR:Automata")
+
+        let rootOnly = try #require(WebDAVAddress.parseURL(from: "http://192.168.1.173:5244/"))
+        #expect(WebDAVAddress.defaultDisplayName(for: rootOnly) == "192.168.1.173")
 
         let roundTrip = URL.fromMediaPath(parsed.mediaPath)
         #expect(roundTrip.isWebDAVURL)
