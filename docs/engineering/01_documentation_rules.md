@@ -17,13 +17,12 @@ Principles:
 - Documentation comes before major implementation when project-specific
   meaning, workflow, constraints, or ambiguity must be settled.
 - Stable product meaning and accepted workflows belong primarily in
-  human-owned design documents.
-- Every new change request requires a human-owned requirement document; when
-  stable design already exists, the requirement should reference it and record
-  only the requested delta.
-- Stable engineering behavior belongs in engineering documents.
-- Exploratory ideas belong in proposals.
-- Hard-to-reverse decisions belong in ADRs.
+  human-owned design documents under `docs/human/design/`.
+- Every new change request requires a human-owned requirement document under
+  `docs/human/requirements/`; when stable design already exists, the
+  requirement should reference it and record only the requested delta.
+- Stable engineering behavior belongs in engineering documents under
+  `docs/engineering/`.
 - Changelog entries record milestone-level progress.
 - AI-maintained documentation outside `docs/human/` must be written in English.
 
@@ -34,12 +33,8 @@ English.
 
 This applies to:
 
-- Product documents.
 - Engineering documents.
 - Implementation records.
-- Proposals.
-- Architecture Decision Records.
-- Chronicle entries.
 - Changelog entries.
 - Release notes.
 
@@ -62,29 +57,28 @@ docs/
   human/
     requirements/
     design/
-  product/
+      Design Index.md
+      ui/
+      data/
+      workbench/
+      playback/
   engineering/
     records/
-  proposals/
-  decisions/
-  chronicle/
   changelog.md
 ```
 
 Rules:
 
 - `docs/human/design/` is the primary human-owned source for stable product
-  meaning, accepted workflows, and design decisions.
+  meaning, accepted workflows, UI design rules, component/layout specifications,
+  and design decisions. `docs/human/design/Design Index.md` is the root routing
+  index across the four domains (`ui/`, `data/`, `workbench/`, `playback/`),
+  and `docs/human/design/ui/UI Index.md` indexes all UI components (`C-xx`) and
+  layouts (`L-xx`).
 - `docs/human/requirements/` records each new change or implementation request.
-- `docs/product/` records AI-maintained product facts derived from and aligned
-  with human-owned documents.
 - `docs/engineering/` records stable engineering rules.
 - `docs/engineering/records/` records AI implementation process notes for
   accepted work outside `docs/human/`.
-- `docs/proposals/` records proposed changes before acceptance.
-- `docs/decisions/` records ADRs.
-- `docs/chronicle/` records reasoning provenance for explicitly started
-  Socratic architecture alignment sessions.
 - `docs/changelog.md` records milestone-level progress.
 
 ### 4.1 Human-Owned Design and Requirements
@@ -109,33 +103,12 @@ Rules:
 - Iterative implementation and verification are valid ways to discover detail.
   When they change accepted product meaning or workflow, the human-owned design
   and current requirement must be updated before dependent work continues.
+- When working on UI tasks, the AI should use `docs/human/design/ui/UI Index.md`
+  to read `UI Design Rules.md` and `UI Interaction Rules.md` first, and then
+  load only the relevant component (`C-xx`), layout (`L-xx`), or token files on
+  demand.
 
-## 5. Product Documents
-
-Product documents are AI-maintained descriptions of confirmed product behavior
-and user-facing expectations. They are derived views, not a stronger authority
-than `docs/human/`.
-
-Product documents should cover:
-
-- Product direction.
-- Scope and milestones.
-- Functional requirements.
-- UI design.
-- UX interaction.
-- Data model facts.
-- Playback requirements.
-- Non-goals.
-
-Rules:
-
-- Product documents must not be used as temporary discussion notes.
-- Product documents must not hide engineering constraints that belong in engineering rules.
-- Stable user-facing behavior must first be covered by the current requirement
-  and relevant human-owned design. Product documents must remain aligned when
-  they describe the same behavior.
-
-## 6. Engineering Documents
+## 5. Engineering Documents
 
 Engineering documents define how the product is built, tested, changed, and released.
 
@@ -165,7 +138,7 @@ Rules:
   accepted change was carried out, what was verified, and whether the result
   matched the expected outcome.
 
-## 7. Implementation Records
+## 6. Implementation Records
 
 Use an implementation record when the AI carries out an accepted change outside
 `docs/human/`.
@@ -195,129 +168,11 @@ Rules:
   design document it references.
 - The record should state each meaningful step, what was changed, what was
   checked, and whether the result matched the expected outcome.
-- Implementation records do not replace human-owned requirements, product or
+- Implementation records do not replace human-owned requirements, design or
   engineering documents, Git history, tests, or changelog entries.
 - Implementation records must not be created under `docs/human/`.
 
-## 8. Proposals
-
-Use a proposal when a change is significant but not yet accepted as stable project direction.
-
-Create a proposal for changes that:
-
-- Add a significant feature.
-- Change a core user flow.
-- Change the database structure.
-- Replace or significantly change playback, indexing, storage, or networking.
-- Introduce a new external service.
-- Introduce a new macOS system capability with user-visible or release impact.
-
-Naming format:
-
-```text
-docs/proposals/YYYY-MM-topic-name.md
-```
-
-Recommended proposal sections:
-
-```text
-Background
-Goals
-Non-goals
-User flow
-UI/UX impact
-Data model impact
-Technical risk
-Acceptance criteria
-Decision
-```
-
-Rules:
-
-- Accepted product conclusions must be reflected in the relevant human-owned
-  design by the human owner and aligned into any derived product documents.
-- Accepted engineering conclusions must be merged into the relevant
-  engineering documents.
-- Rejected or superseded proposals should remain as historical context.
-- Implementation should not depend on proposal text that has not been accepted.
-
-## 9. Architecture Decision Records
-
-Use an ADR for major decisions that are expensive to reverse.
-
-Naming format:
-
-```text
-docs/decisions/ADR-0001-topic-name.md
-```
-
-Use an ADR for decisions such as:
-
-- Native macOS rewrite direction.
-- Playback engine selection.
-- Sandboxing strategy.
-- Signing and notarization strategy.
-- Direct compatibility with the archived Flutter database.
-- Major schema changes.
-- Raising the minimum supported macOS version.
-
-Recommended ADR sections:
-
-```text
-Background
-Decision
-Rationale
-Tradeoffs
-Alternatives considered
-Status
-```
-
-Rules:
-
-- ADRs should state the selected decision and why alternatives were not chosen.
-- ADRs should be updated or superseded when decisions change.
-- ADRs do not replace human-owned design, product, or engineering documents;
-  stable conclusions must be reflected in the relevant authority and derived
-  rules.
-
-## 10. Chronicle
-
-Use a chronicle entry when an explicitly started Socratic architecture alignment
-session produces a meaningful implementation idea, architecture concern,
-engineering rule candidate, or proposal direction.
-
-Naming format:
-
-```text
-docs/chronicle/YYYY-MM-DD-topic-name.md
-```
-
-Recommended sections:
-
-```text
-Context
-Question Path
-Evidence Surfaced
-Emerging Insight
-Open Questions
-Next Update Trigger
-```
-
-Rules:
-
-- Chronicle entries apply only to explicitly started Socratic architecture
-  alignment sessions.
-- Chronicle entries should emphasize why an idea emerged from the question
-  path, not list every implementation detail.
-- Chronicle entries may be updated as the same Socratic session continues,
-  especially when the user explicitly asks for the process record to be
-  updated.
-- Chronicle entries do not authorize implementation by themselves.
-- When a chronicle insight becomes accepted project direction, stable
-  conclusions must still move into the relevant product, engineering, proposal,
-  ADR, or changelog document.
-
-## 11. Changelog
+## 7. Changelog
 
 `docs/changelog.md` records milestone-level progress and user-visible project changes.
 
@@ -336,7 +191,7 @@ Rules:
 - Changelog entries should summarize outcomes, not implementation details or individual commits.
 - Changelog entries belong in `Unreleased` until a formal release section exists.
 
-## 12. Change Process
+## 8. Change Process
 
 Every new change outside `docs/human/` must be covered by its own committed
 human-owned requirement before it is made. Stable design documents provide the
@@ -353,28 +208,12 @@ Examples:
 - Formatting cleanup.
 - Acceptance criteria clarification.
 
-Medium and large changes require a proposal only when the direction remains
-unsettled, and an ADR only when the decision is expensive or hard to reverse.
-A stable human-owned design should be referenced instead of duplicated in an
-extra proposal.
-
-Examples:
-
-- New feature modules.
-- Core workflow changes.
-- Data model changes.
-- Playback strategy changes.
-- Indexing strategy changes.
-- Security or credential storage changes.
-
-Required flow for significant changes:
+Required flow for changes:
 
 ```text
 Create the current human-owned requirement and reference or update design
 Commit the human-owned requirement and any required design update
-Create proposal or ADR when required
-Review the decision
-Align stable conclusions into human-owned design, product, or engineering docs
+Align stable engineering conclusions into engineering docs when required
 Implement
 Verify
 Update the implementation record
@@ -382,7 +221,7 @@ Evaluate changelog trigger and update when required
 Commit changes with the relevant human-owned document path in the commit message
 ```
 
-## 13. Review Rule
+## 9. Review Rule
 
 Documentation that defines process, product scope, data structure, playback behavior, architecture, testing, or release behavior must be reviewed before implementation depends on it.
 
@@ -390,4 +229,4 @@ Rules:
 
 - Draft documents may guide discussion.
 - Draft documents are not final project rules until accepted.
-- If implementation must diverge from documentation, update the documentation first or create a proposal or ADR.
+- If implementation must diverge from documentation, update the documentation first.

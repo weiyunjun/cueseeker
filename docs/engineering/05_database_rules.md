@@ -6,8 +6,8 @@ Status: Draft
 
 This document defines database engineering rules for the native macOS implementation of CueSeeker.
 
-Stable product data meaning belongs primarily in `docs/human/design/Data.md`.
-`docs/product/05_data_model.md` is the aligned AI-maintained projection. This
+Stable product data meaning belongs in `docs/human/design/data/Data.md` and
+`docs/human/design/data/Cue Parsing.md`. This
 document defines how the database is managed, migrated, tested, and changed.
 
 ## 2. Database Role
@@ -110,8 +110,7 @@ Rules:
 - Schema version updates must be committed with migration notes.
 - Schema changes require a current committed human-owned requirement. When they
   change stable data meaning, the human owner must update
-  `docs/human/design/Data.md`; `docs/product/05_data_model.md` must then be
-  aligned before implementation depends on the change.
+  `docs/human/design/data/Data.md` before implementation depends on the change.
 
 Recommended mechanism:
 
@@ -179,7 +178,7 @@ Current mechanism:
 - Schema version `31` removes obsolete persisted playback navigation tables.
 - Schema version `32` creates a default Shiori list, reduces `shioris` to
   relation-owned fields, requires a valid CueID, and enforces uniqueness on
-  `(list_id, cue_id)`. It is governed by ADR-0014.
+  `(list_id, cue_id)`.
 - Schema version `33` adds durable user-selected video and folder cover
   overrides and remains the minimum supported native baseline.
 - Schema version `34` adds multi-list Shiori metadata.
@@ -230,7 +229,7 @@ Rules:
 
 Destructive migrations:
 
-- Dropping user-owned data requires an ADR.
+- Dropping user-owned data requires an explicit human requirement.
 - Rebuilding derived index data is allowed when source subtitle files can recreate it.
 - Migrating from the M1 subtitle-entry model to the ASS cue model preserves
   durable user configuration while rebuilding derived subtitle index rows and
@@ -280,11 +279,11 @@ Rules:
 - The native app must not assume direct compatibility with the archived Flutter database.
 - The preferred initial strategy is to rebuild the native database from source subtitle files.
 - Importing or reusing the Flutter database requires a documented migration strategy.
-- Direct Flutter database compatibility requires an ADR if production implementation depends on it.
+- Direct Flutter database compatibility requires an explicit human requirement if production implementation depends on it.
 
 ## 8. Core Tables and Data Ownership
 
-The database should support the product entities described in `docs/product/05_data_model.md`.
+The database should support the product entities described in `docs/human/design/data/Data.md`.
 
 Expected early entities:
 

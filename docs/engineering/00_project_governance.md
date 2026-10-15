@@ -52,19 +52,20 @@ or a necessary example.
 ## 4. Documentation System
 
 Project documentation is organized into human-owned authority and
-AI-maintained project records:
+AI-maintained engineering records:
 
 ```text
 docs/
   human/
     requirements/
     design/
-  product/
+      Design Index.md
+      ui/
+      data/
+      workbench/
+      playback/
   engineering/
     records/
-  proposals/
-  decisions/
-  chronicle/
   changelog.md
 ```
 
@@ -72,8 +73,11 @@ docs/
 
 `docs/human/` is the authoritative human-maintained area.
 
-- `docs/human/design/` records stable product meaning, accepted workflows, and
-  decisions that must remain consistent across future changes.
+- `docs/human/design/` records stable product meaning, accepted workflows, UI
+  design rules, component/layout specifications, and decisions that must remain
+  consistent across future changes. `docs/human/design/Design Index.md` is the
+  root routing index across the `ui/`, `data/`, `workbench/`, and `playback/`
+  domains.
 - `docs/human/requirements/` records each new change or implementation request.
   A requirement should cite the relevant design document and describe only the
   requested delta, scope, and acceptance needs when the design already covers
@@ -84,34 +88,7 @@ docs/
   risk, or acceptance condition makes that detail necessary.
 - The AI may review human-owned documents but must not modify them.
 
-### 4.2 Product Documents
-
-`docs/product/` records stable product facts.
-
-Formal structure:
-
-```text
-docs/product/
-  00_product_brief.md
-  01_scope_and_milestones.md
-  02_functional_requirements.md
-  03_ui_design.md
-  04_ux_interaction.md
-  05_data_model.md
-  06_playback_requirements.md
-  07_non_goals.md
-  08_search_interface_llm_brief.md
-  09_product_philosophy.md
-  10_ui_collaboration_workflow.md
-```
-
-Product documents are AI-maintained projections of confirmed requirements,
-current product behavior, user workflows, UI/UX expectations, and acceptance
-criteria. They must remain aligned with `docs/human/` and do not override it.
-
-Product documents should not be used as temporary discussion notes.
-
-### 4.3 Engineering Documents
+### 4.2 Engineering Documents
 
 `docs/engineering/` records engineering rules, architecture constraints, development workflow, repository conventions, testing rules, database rules, and release rules.
 
@@ -128,96 +105,12 @@ docs/engineering/
   06_testing_rules.md
   07_release_rules.md
   08_end_to_end_testing.md
+  records/
 ```
 
 This document is the top-level governance document. Detailed rules live in the dedicated files listed above.
 
-### 4.4 Proposals
-
-`docs/proposals/` records feature proposals, redesign proposals, or major change drafts before they become stable project facts.
-
-Use a proposal when the direction is not yet stable and a change:
-
-- Adds a significant feature.
-- Changes a core user flow.
-- Changes the database structure.
-- Replaces or significantly changes playback, indexing, storage, or networking.
-- Introduces a new external service or macOS system capability.
-
-Naming format:
-
-```text
-docs/proposals/YYYY-MM-topic-name.md
-```
-
-A proposal should include:
-
-```text
-Background
-Goals
-Non-goals
-User flow
-UI/UX impact
-Data model impact
-Technical risk
-Acceptance criteria
-Decision
-```
-
-After a proposal is accepted, stable product conclusions must be reflected in
-the relevant human-owned design by the human owner and then aligned into any
-derived product documents. Stable engineering conclusions must be merged into
-the relevant engineering documents. The proposal remains as historical
-context.
-
-### 4.5 Architecture Decision Records
-
-`docs/decisions/` records major product or technical decisions that are expensive to reverse.
-
-Naming format:
-
-```text
-docs/decisions/ADR-0001-native-macos-rewrite.md
-```
-
-Use an ADR for decisions such as:
-
-- Rewriting from Flutter to native macOS.
-- Choosing a playback engine.
-- Giving up cross-platform support.
-- Making a major database schema change.
-- Choosing sandbox, Keychain, signing, or notarization strategy.
-
-An ADR should include:
-
-```text
-Background
-Decision
-Rationale
-Tradeoffs
-Alternatives considered
-Status
-```
-
-### 4.6 Chronicle
-
-`docs/chronicle/` records reasoning provenance for explicitly started
-Socratic architecture alignment sessions.
-
-Chronicle entries should summarize how a line of questioning produced an
-implementation idea, risk, proposal candidate, or engineering rule candidate.
-They emphasize why the idea emerged, what evidence or uncertainty shaped it,
-and how the discussion narrowed.
-
-Chronicle entries should not replace:
-
-- `docs/changelog.md`, which records milestone-level outcomes.
-- `docs/proposals/`, which records proposed product or technical changes before
-  acceptance.
-- `docs/decisions/`, which records accepted hard-to-reverse decisions.
-- Git commits, which record concrete file changes.
-
-### 4.7 Changelog
+### 4.3 Changelog
 
 `docs/changelog.md` records milestone-level changes and user-visible project progress.
 
@@ -231,7 +124,7 @@ Detailed changelog update rules are defined in `docs/engineering/01_documentatio
 
 ### 5.1 Small Documentation Changes
 
-Small documentation changes may directly update the relevant stable document.
+Small documentation changes may directly update the relevant stable document when covered by a committed human-owned requirement.
 
 Examples:
 
@@ -243,10 +136,7 @@ Examples:
 
 ### 5.2 Medium and Large Changes
 
-Medium and large changes require a committed human-owned requirement. Use a
-proposal when the direction is not yet stable, and use an ADR when the decision
-is expensive or hard to reverse. Do not duplicate a stable human-owned design
-in a proposal solely because the implementation is large.
+Medium and large changes require a committed human-owned requirement and alignment with the relevant design document under `docs/human/design/`.
 
 Examples:
 
@@ -262,11 +152,10 @@ Required flow:
 ```text
 Create and commit the human-owned requirement
 Reference or update the relevant human-owned design
-Create a proposal or ADR only when required
-Review any open decision
-Align stable conclusions into human-owned design, product, or engineering docs
+Align stable engineering conclusions into engineering docs when required
 Implement
 Verify
+Update the implementation record under docs/engineering/records/
 Evaluate changelog trigger and update when required
 Commit changes
 ```
@@ -387,10 +276,11 @@ CueSeeker/
   archive/
     flutter/
   docs/
-    product/
+    human/
+      requirements/
+      design/
     engineering/
-    proposals/
-    decisions/
+      records/
     changelog.md
   ui/
     prototypes/
@@ -433,12 +323,12 @@ Archived code is not active implementation code.
 
 ### 8.3 Documentation as Source of Truth
 
-Human-owned design documents are the primary source for confirmed product
-meaning and workflows. Engineering documents are the source of truth for
-engineering constraints, and AI-maintained product documents are derived
-alignment records.
+Human-owned design documents under `docs/human/design/` are the primary source
+for confirmed product meaning and workflows. Engineering documents under
+`docs/engineering/` are the source of truth for engineering constraints.
 
-If implementation needs to diverge from documented behavior, update the relevant document first or create a proposal or ADR.
+If implementation needs to diverge from documented behavior, update the relevant
+document first.
 
 ## 9. Database Migration Rules
 
@@ -453,13 +343,8 @@ docs/engineering/05_database_rules.md
 Stable data meaning should live primarily at:
 
 ```text
-docs/human/design/Data.md
-```
-
-The aligned AI-maintained data model lives at:
-
-```text
-docs/product/05_data_model.md
+docs/human/design/data/Data.md
+docs/human/design/data/Cue Parsing.md
 ```
 
 Database rules must define:
@@ -475,43 +360,28 @@ Database rules must define:
 
 Any schema change requires a current committed human-owned requirement. When
 stable data meaning changes, the human owner must update
-`docs/human/design/Data.md`, followed by alignment of the derived data model.
-
-Any destructive or hard-to-reverse schema change requires an ADR.
+`docs/human/design/data/Data.md`.
 
 Database changes must include migration notes. Schema changes should not be hidden only inside implementation code.
 
 ## 10. Playback Selection Rules
 
 Playback is a high-risk module. Stable product behavior must be covered by the
-current requirement and relevant human-owned design. Its aligned
-AI-maintained requirements are documented separately in:
+current requirement and relevant human-owned design under:
 
 ```text
-docs/product/06_playback_requirements.md
+docs/human/design/playback/
 ```
 
-The playback implementation strategy must also be covered by either:
+The playback implementation strategy must also be covered by:
 
 ```text
 docs/engineering/04_architecture_rules.md
 ```
 
-or a dedicated ADR.
+The native app uses the native-only playback backend (`AVSampleBufferDisplayLayer` + `AVSampleBufferAudioRenderer` + FFmpeg demux/decode + `libass` subtitle rendering).
 
-The current playback engine choice is recorded in
-`docs/decisions/ADR-0007-native-only-playback-backend.md`, which supersedes
-ADR-0006 and ADR-0003.
-
-The playback ADR must compare at least:
-
-- Native AVFoundation-based playback.
-- Native-first playback.
-- Native-only playback.
-- Embedded `libmpv` playback as a historical fallback alternative.
-- Any other seriously considered playback strategy.
-
-The ADR must evaluate:
+Playback architecture evaluation must consider:
 
 - Codec compatibility.
 - Timestamp seek accuracy.
@@ -655,8 +525,7 @@ Signed or notarized builds require a release checklist update before release.
 ## 15. Rewrite Milestones
 
 Milestones are historical planning checkpoints. Current detailed product
-behavior is governed primarily by `docs/human/design/`; AI-maintained product
-documents must remain aligned with it.
+behavior is governed primarily by `docs/human/design/`.
 
 ### M0: Governance and Baseline
 
@@ -721,9 +590,7 @@ Data structure is high-stability project material.
 
 The following changes must be covered by a committed human-owned requirement.
 When stable data meaning changes, the human owner must update
-`docs/human/design/Data.md`; the derived `docs/product/05_data_model.md` must be
-aligned before implementation depends on it. Hard-to-reverse changes may also
-require an ADR:
+`docs/human/design/data/Data.md` before implementation depends on it:
 
 - Table structure changes.
 - Field meaning changes.
@@ -732,7 +599,7 @@ require an ADR:
 - Search path storage changes.
 - Flutter data compatibility changes.
 
-This section exists as a governance reminder. Detailed database migration rules are defined in Section 9 and should later be split into `docs/engineering/05_database_rules.md`.
+This section exists as a governance reminder. Detailed database migration rules are defined in Section 9 and `docs/engineering/05_database_rules.md`.
 
 ## 17. Playback Rules
 
@@ -744,7 +611,7 @@ Project change records have three layers:
 
 1. Git commits record concrete file changes.
 2. `docs/changelog.md` records milestone progress.
-3. ADRs record major decision rationale.
+3. `docs/engineering/records/` records AI implementation steps and verification.
 
 These layers do not replace each other.
 
@@ -755,8 +622,6 @@ docs/changelog.md
 ```
 
 Other changelog triggers are defined in `docs/engineering/01_documentation_rules.md`.
-
-Each major difficult-to-reverse decision must create or update an ADR.
 
 ## 19. Current Priority
 

@@ -7,8 +7,7 @@ Status: Draft
 This document defines architecture rules for the native macOS implementation of CueSeeker.
 
 It is an engineering rule document, not a product requirements document.
-Stable product behavior belongs primarily in `docs/human/design/`; derived
-product documents must remain aligned with it.
+Stable product behavior belongs in `docs/human/design/`.
 
 ## 2. Architecture Principles
 
@@ -22,18 +21,15 @@ Core principles:
 - Prefer small architecture steps that remove a demonstrated ownership,
   dependency, lifecycle, performance, or verification bottleneck.
 - Prefer native macOS capabilities when they satisfy the product requirement.
-- Keep persistent data local unless a future proposal explicitly changes that rule.
-- Make hard-to-reverse technical decisions through ADRs before production implementation depends on them.
+- Keep persistent data local unless a future requirement explicitly changes that rule.
+- Document hard-to-reverse technical decisions in engineering rules before production implementation depends on them.
 - Keep modules isolated enough that indexing, search, persistence, and playback can be tested independently.
 - Avoid introducing remote services, sync layers, or broad cross-platform
-  abstractions without an accepted proposal or ADR. The accepted shared-core
+  abstractions without an explicit requirement. The accepted shared-core
   direction below is the explicit exception for CueSeeker product-domain
   behavior.
 
 ## 2.1 Shared Core Direction
-
-The shared-core architecture direction is accepted in
-`docs/proposals/2026-05-shared-core-architecture-plan.md`.
 
 Rules:
 
@@ -207,9 +203,6 @@ Rules:
   directly in SwiftUI views, AppKit bridges, or native playback classes.
 
 ### 5.1 Database Domain Boundaries
-
-The accepted database decomposition is defined in
-`docs/proposals/2026-07-database-architecture-decomposition.md`.
 
 Rules:
 
@@ -841,7 +834,7 @@ Replacement and simplicity rules:
 - Playback shortcut handling should route through shared playback state instead of duplicating command behavior in individual views.
 - Playback controller support is a macOS platform-integration boundary covered
   by `docs/human/requirements/20260731-Feature-Playback DS5 Controller Support.md`
-  and `docs/human/design/Controller.md`. `GameController` connection and input
+  and `docs/human/design/playback/Controller.md`. `GameController` connection and input
   lifecycle belongs at the App delegate boundary; normalized controller events
   use physical positions rather than vendor button names, while device-specific
   adapters own vendor mappings. The initial adapter accepts the standard
@@ -875,11 +868,10 @@ Replacement and simplicity rules:
 ### 7.1 Info-page / video-page refactor (v6)
 
 This subsection reconciles §7 with the info-page / video-page refactor. The
-human-owned UI authorities are `docs/human/design/UI Design System.md` and
-`docs/human/design/UI Application Rules.md`. The derived implementation
-mapping is `docs/product/12_liquid_glass_ux_mapping.md`
-(§5, §10.1, §10.4, §11), supported by
-`docs/proposals/2026-05-ui-info-page-video-page-refactor.md` and ADR-0013. The
+human-owned UI authorities live under `docs/human/design/ui/` (indexed via
+`docs/human/design/ui/UI Index.md`, including `UI Design Rules.md`,
+`UI Interaction Rules.md`, `UI Layouts - Workbench.md`, and
+`UI Layouts - Playback.md`). The
 §7 invalidation-domain and product-semantics rules above are preserved; the
 following points clarify how they apply.
 

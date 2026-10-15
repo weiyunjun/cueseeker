@@ -23,12 +23,13 @@ CueSeeker/
     human/
       requirements/
       design/
-    product/
+        Design Index.md
+        ui/
+        data/
+        workbench/
+        playback/
     engineering/
       records/
-    proposals/
-    decisions/
-    chronicle/
     changelog.md
   ui/
     prototypes/
@@ -82,8 +83,8 @@ Rules:
 
 ## 5. Documentation
 
-`docs/` contains the sources of truth and derived records for stable project
-direction. Within it, `docs/human/` is the stronger human-owned authority.
+`docs/` contains the sources of truth and implementation records for stable
+project direction. Within it, `docs/human/` is the human-owned authority.
 
 Expected structure:
 
@@ -92,29 +93,24 @@ docs/
   human/
     requirements/
     design/
-  product/
+      Design Index.md
+      ui/
+      data/
+      workbench/
+      playback/
   engineering/
     records/
-  proposals/
-  decisions/
-  chronicle/
   changelog.md
 ```
 
 Rules:
 
-- Stable human-owned product meaning and workflows belong in
+- Stable human-owned product meaning, UI specifications, and workflows belong in
   `docs/human/design/`.
 - Each new change request belongs in `docs/human/requirements/` and should
   reference the relevant design rather than duplicate it.
-- AI-maintained product descriptions belong in `docs/product/` and must remain
-  aligned with `docs/human/`.
 - Engineering rules belong in `docs/engineering/`.
 - AI implementation records belong in `docs/engineering/records/`.
-- Proposed changes belong in `docs/proposals/`.
-- ADRs belong in `docs/decisions/`.
-- Socratic architecture reasoning records belong in `docs/chronicle/` when the
-  documented workflow requires them.
 - Milestone progress belongs in `docs/changelog.md`.
 - AI-maintained project documentation must be written in English.
 - Human-owned documents may use the human owner's chosen language and must not
@@ -163,11 +159,10 @@ Rules:
 - Local HTML prototypes belong in `ui/prototypes/`, not under `docs/`.
 - Visual reference material belongs in `ui/references/`.
 - Shared prototype assets belong in `ui/assets/`.
-- Stable UI requirements and workflows belong primarily in
-  `docs/human/design/`; AI-maintained prototype-to-App mappings and known native
-  App differences belong in `docs/product/` and must remain aligned.
+- Stable UI requirements, component specifications, and workflows belong in
+  `docs/human/design/ui/`.
 - HTML prototypes should be treated as collaboration source artifacts. They are
-  not substitutes for stable product documentation.
+  not substitutes for stable human-owned design documentation.
 
 ## 8. Scripts
 

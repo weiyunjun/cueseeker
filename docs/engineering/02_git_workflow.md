@@ -225,12 +225,8 @@ Rules:
   defined, the requirement should cite the relevant document under
   `docs/human/design/` and describe only the requested delta.
 - Product behavior changes must remain aligned with the relevant human-owned
-  design and any AI-maintained product documents that describe the same
-  behavior.
+  design under `docs/human/design/`.
 - Engineering process or architecture changes must update engineering documents.
-- Expensive or hard-to-reverse decisions require ADRs.
-- Significant changes should start in `docs/proposals/` only when their
-  direction is not yet stable; do not duplicate accepted human-owned design.
 
 ## 10. Implementation Traceability
 
@@ -245,9 +241,8 @@ rule.
 Rules:
 
 - Changes outside `docs/human/` include application source, tests, scripts,
-  prototypes, build files, configuration files, product documents, engineering
-  documents, proposals, ADRs, changelog entries, and AI-maintained process
-  records.
+  prototypes, build files, configuration files, engineering documents, changelog
+  entries, and AI-maintained process records.
 - Before a change outside `docs/human/` is implemented or accepted, the
   responsible human owner must create or update the current requirement under
   `docs/human/requirements/`. The requirement should cite the relevant
@@ -306,7 +301,7 @@ Rules:
   change requests or implementation requests. Design and planning documents
   under `docs/human/design/` record stabilized product content and expected
   behavior.
-- When `docs/human/` conflicts with AI-maintained documentation, proposals,
+- When `docs/human/` conflicts with AI-maintained documentation,
   implementation assumptions, source comments, or code names, the AI must treat
   `docs/human/` as the stronger product/documentation authority, report the
   conflict, and ask for alignment before relying on the conflicting lower
@@ -380,24 +375,13 @@ Rules:
   continuity across questions by connecting each answer to the current narrowed
   topic and by surfacing the next most useful distinction only when it helps the
   user choose the following question.
-- When an explicitly started Socratic architecture alignment session produces a
-  meaningful implementation idea, architecture concern, engineering rule
-  candidate, or proposal direction, the AI should maintain a process summary in
-  `docs/chronicle/` when the user requests that record. The chronicle should
-  emphasize why the idea emerged from the question path, not repeat the concrete
-  code changes that belong in Git history and `docs/changelog.md`.
 - During the active native UI restructure, App interface implementation is
   Swift-first: after the user explicitly approves App implementation, the AI
   may update native SwiftUI/AppKit code before updating HTML prototypes.
 - HTML prototypes under `ui/prototypes/` are reference and review artifacts,
   not the source of truth for active native UI implementation. The accepted
-  human-owned UI design and accepted Swift implementation are authoritative;
-  AI-maintained product documents are derived alignment records.
-- Liquid Glass component and UX mapping documents should be synchronized when
-  component classes, tokens, SwiftUI ownership, layout, state, interaction,
-  timing, behavior, or native-difference rules become stable. They do not block
-  exploratory or in-progress Swift UI implementation, but they must be updated
-  before a UI phase is declared complete or accepted as stable direction.
+  human-owned UI design under `docs/human/design/ui/` and accepted Swift
+  implementation are authoritative.
 - The AI must not regress native App behavior just to match static HTML
   prototype data, layout shortcuts, or browser-only implementation details.
 - If the user provides an original HTML draft, the AI must confirm whether the
@@ -414,9 +398,6 @@ Rules:
   file-system access.
 - Complex UI may be split across multiple focused HTML prototypes when one
   prototype would be difficult to review or edit.
-- Known differences between the accepted HTML prototype and the native App must
-  be documented in the relevant product UI document before or with App
-  implementation.
 - If an HTML prototype conflicts with the current implemented UI design or
   documented product direction, the AI must explicitly confirm the intended
   direction with the user before implementing the conflicting interpretation.
