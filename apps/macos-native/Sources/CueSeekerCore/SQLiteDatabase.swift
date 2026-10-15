@@ -37,7 +37,11 @@ final class SQLiteDatabase: @unchecked Sendable {
     private let lock = NSRecursiveLock()
     private var handle: OpaquePointer?
 
-    init(path: URL, access: DatabaseConnectionAccess = .readWrite) throws {
+    init(
+        path: URL,
+        access: DatabaseConnectionAccess = .readWrite,
+        directIO: Bool = false
+    ) throws {
         var database: OpaquePointer?
         let flags = switch access {
         case .readOnly:
@@ -53,8 +57,11 @@ final class SQLiteDatabase: @unchecked Sendable {
         }
 
         handle = database
+        if directIO {
+            Self.enableDirectIO(for: path)
+        }
         do {
-            try configureConnection(access: access)
+            try configureConnection(access: access, directIO: directIO)
         } catch {
             sqlite3_close(handle)
             handle = nil
@@ -178,7 +185,10 @@ final class SQLiteDatabase: @unchecked Sendable {
         return try body()
     }
 
-    private func configureConnection(access: DatabaseConnectionAccess) throws {
+    private func configureConnection(
+        access: DatabaseConnectionAccess,
+        directIO: Bool
+    ) throws {
         guard let handle else {
             throw SQLiteDatabaseError.openFailed("SQLite database is closed")
         }
@@ -195,7 +205,21 @@ final class SQLiteDatabase: @unchecked Sendable {
         }
         try execute("PRAGMA foreign_keys = ON")
         try execute("PRAGMA cache_size = -\(Self.cacheSizeKibibytes)")
-        try execute("PRAGMA mmap_size = \(Self.mmapSizeBytes)")
+        try execute("PRAGMA mmap_size = \(directIO ? 0 : Self.mmapSizeBytes)")
+    }
+
+    private static func enableDirectIO(for path: URL) {
+        let targetPrefix = path.standardizedFileURL.path
+        var pathBuffer = [CChar](repeating: 0, count: Int(MAXPATHLEN))
+        for fd: Int32 in 3..<128 {
+            if fcntl(fd, F_GETPATH, &pathBuffer) >= 0 {
+                let openPath = String(cString: pathBuffer)
+                if openPath.hasPrefix(targetPrefix) {
+                    _ = fcntl(fd, F_NOCACHE, 1)
+                    _ = fcntl(fd, F_RDAHEAD, 0)
+                }
+            }
+        }
     }
 }
 

@@ -8,10 +8,11 @@ public final class SearchDatabase: @unchecked Sendable {
 
     public init(
         path: URL,
-        access: DatabaseConnectionAccess = .readOnly
+        access: DatabaseConnectionAccess = .readOnly,
+        directIO: Bool = false
     ) throws {
         self.path = path
-        database = try SQLiteDatabase(path: path, access: access)
+        database = try SQLiteDatabase(path: path, access: access, directIO: directIO)
     }
 
     public func cueFacetDistribution() throws -> CueFacetDistribution {

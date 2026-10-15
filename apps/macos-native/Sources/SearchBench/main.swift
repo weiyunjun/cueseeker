@@ -68,12 +68,17 @@ func formatMs(_ value: Double) -> String {
 private final class HeadlessSearchCollector: @unchecked Sendable {
     var reportedRows: [SubtitleSearchResult] = []
     var firstScreenMs: Double?
+    var backendFirstScreenMs: Double?
     var contentByCueID: [Int64: CueContent] = [:]
     var searchRankByCueID: [Int64: Int] = [:]
 }
 
 struct HeadlessColdSample {
     let firstScreenMs: Double
+    let backendFirstScreenMs: Double
+    let dbQueryMs: Double
+    let mainActorCommitMs: Double
+    let pureBackendFullMs: Double
     let fullResultMs: Double
     let returnedCount: Int
     let totalCount: Int
@@ -88,14 +93,27 @@ struct HeadlessColdSummary {
     let fileSummariesCount: Int
 
     var firstScreenRaw: [Double] { samples.map(\.firstScreenMs) }
-    var firstScreenMedian: Double { median(firstScreenRaw) }
-    var firstScreenMin: Double { firstScreenRaw.min() ?? 0 }
-    var firstScreenMax: Double { firstScreenRaw.max() ?? 0 }
+    var firstScreenAvg: Double { mean(firstScreenRaw) }
+
+    var backendFirstScreenRaw: [Double] { samples.map(\.backendFirstScreenMs) }
+    var backendFirstScreenAvg: Double { mean(backendFirstScreenRaw) }
+
+    var dbQueryRaw: [Double] { samples.map(\.dbQueryMs) }
+    var dbQueryAvg: Double { mean(dbQueryRaw) }
+
+    var mainActorCommitRaw: [Double] { samples.map(\.mainActorCommitMs) }
+    var mainActorCommitAvg: Double { mean(mainActorCommitRaw) }
+
+    var pureBackendFullRaw: [Double] { samples.map(\.pureBackendFullMs) }
+    var pureBackendFullAvg: Double { mean(pureBackendFullRaw) }
 
     var fullResultRaw: [Double] { samples.map(\.fullResultMs) }
-    var fullResultMedian: Double { median(fullResultRaw) }
-    var fullResultMin: Double { fullResultRaw.min() ?? 0 }
-    var fullResultMax: Double { fullResultRaw.max() ?? 0 }
+    var fullResultAvg: Double { mean(fullResultRaw) }
+}
+
+func mean(_ values: [Double]) -> Double {
+    guard !values.isEmpty else { return 0 }
+    return values.reduce(0, +) / Double(values.count)
 }
 
 func median(_ values: [Double]) -> Double {
@@ -113,6 +131,60 @@ func resolveSelectedFolders() -> [URL]? {
     return paths.map { URL(fileURLWithPath: $0).standardizedFileURL }
 }
 
+func makeUncachedDatabaseSnapshot(from sourceURL: URL) throws -> URL {
+    let snapshotURL = URL(fileURLWithPath: "/private/tmp/cueseeker-cold-\(UUID().uuidString).sqlite")
+    let srcFd = open(sourceURL.path, O_RDONLY)
+    guard srcFd >= 0 else {
+        throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno))
+    }
+    defer { close(srcFd) }
+
+    _ = fcntl(srcFd, F_NOCACHE, 1)
+    _ = fcntl(srcFd, F_RDAHEAD, 0)
+
+    let dstFd = open(snapshotURL.path, O_WRONLY | O_CREAT | O_TRUNC, 0o600)
+    guard dstFd >= 0 else {
+        throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno))
+    }
+    defer { close(dstFd) }
+
+    // Setting F_NOCACHE before writing any byte ensures the new vnode has zero
+    // pages in the macOS Unified Buffer Cache (UBC).
+    _ = fcntl(dstFd, F_NOCACHE, 1)
+    _ = fcntl(dstFd, F_RDAHEAD, 0)
+
+    let bufferSize = 4 * 1024 * 1024
+    let buffer = UnsafeMutableRawPointer.allocate(byteCount: bufferSize, alignment: 4096)
+    defer { buffer.deallocate() }
+
+    var isFirstChunk = true
+    while true {
+        let bytesRead = read(srcFd, buffer, bufferSize)
+        if bytesRead < 0 {
+            throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno))
+        }
+        if bytesRead == 0 {
+            break
+        }
+        if isFirstChunk && bytesRead >= 20 {
+            let bytes = buffer.assumingMemoryBound(to: UInt8.self)
+            bytes[18] = 1
+            bytes[19] = 1
+            isFirstChunk = false
+        }
+        var offset = 0
+        while offset < bytesRead {
+            let written = write(dstFd, buffer.advanced(by: offset), bytesRead - offset)
+            if written < 0 {
+                throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno))
+            }
+            offset += written
+        }
+    }
+    _ = fsync(dstFd)
+    return snapshotURL
+}
+
 func runSingleHeadlessColdSearch(
     dbPath: URL,
     query: String,
@@ -121,6 +193,11 @@ func runSingleHeadlessColdSearch(
     languageFilter: SubtitleSearchLanguageFilter,
     includeDebounce: Bool = true
 ) throws -> HeadlessColdSample {
+    let coldSnapshotURL = try makeUncachedDatabaseSnapshot(from: dbPath)
+    defer {
+        try? FileManager.default.removeItem(at: coldSnapshotURL)
+    }
+
     let start = Date()
 
     // Phase 1: User input debounce (100ms)
@@ -128,8 +205,8 @@ func runSingleHeadlessColdSearch(
         Thread.sleep(forTimeInterval: 0.1)
     }
 
-    let database = try SearchDatabase(path: dbPath)
-    applyDirectIO(for: dbPath)
+    let backendStart = Date()
+    let database = try SearchDatabase(path: coldSnapshotURL, access: .readOnly, directIO: true)
     let collector = HeadlessSearchCollector()
 
     let page = try database.searchPage(
@@ -150,13 +227,17 @@ func runSingleHeadlessColdSearch(
                     collector.searchRankByCueID[result.entryID] = result.searchRank
                 }
                 collector.firstScreenMs = milliseconds(since: start)
+                collector.backendFirstScreenMs = milliseconds(since: backendStart)
             }
         }
     )
 
+    let dbQueryMs = milliseconds(since: backendStart)
     let firstScreenMs = collector.firstScreenMs ?? milliseconds(since: start)
+    let backendFirstScreenMs = collector.backendFirstScreenMs ?? dbQueryMs
 
     // Phase 2: MainActor Full Results Commit
+    let commitStart = Date()
     let allResults = collector.reportedRows + page.renderableResults
     var contentByCueID = collector.contentByCueID
     var searchRankByCueID = collector.searchRankByCueID
@@ -202,28 +283,21 @@ func runSingleHeadlessColdSearch(
     let totalVirtualHeight = Double(cueIDs.count) * virtualRowHeight
     _ = totalVirtualHeight
 
+    let mainActorCommitMs = milliseconds(since: commitStart)
+    let pureBackendFullMs = dbQueryMs + mainActorCommitMs
     let fullResultMs = milliseconds(since: start)
 
     return HeadlessColdSample(
         firstScreenMs: firstScreenMs,
+        backendFirstScreenMs: backendFirstScreenMs,
+        dbQueryMs: dbQueryMs,
+        mainActorCommitMs: mainActorCommitMs,
+        pureBackendFullMs: pureBackendFullMs,
         fullResultMs: fullResultMs,
         returnedCount: min(allResults.count, limit),
         totalCount: page.totalCount,
         fileSummariesCount: page.fileSummaries.count
     )
-}
-
-func applyDirectIO(for dbPath: URL) {
-    var pathBuffer = [CChar](repeating: 0, count: Int(MAXPATHLEN))
-    for testFd: Int32 in 3..<128 {
-        if fcntl(testFd, F_GETPATH, &pathBuffer) >= 0 {
-            let name = String(cString: pathBuffer)
-            if name.hasPrefix(dbPath.path) {
-                _ = fcntl(testFd, F_NOCACHE, 1)
-                _ = fcntl(testFd, F_RDAHEAD, 0)
-            }
-        }
-    }
 }
 
 guard CommandLine.arguments.count >= 3 else {
@@ -246,13 +320,14 @@ let languageFilter = CommandLine.arguments
     .first ?? .all
 
 if isHeadlessCold {
+    try DatabaseBootstrap.prepare(at: dbPath)
     let standardQueries = ["大丈夫", "今日", "の"]
     let folders = resolveSelectedFolders()
-    print("== SearchBench Headless Full Chain Cold Benchmark ==")
-    print("DB:              \(dbPath.path)")
+    print("== SearchBench Headless Full Chain True-Cold Benchmark ==")
+    print("DB:               \(dbPath.path)")
     print("Selected folders: \(folders?.map(\.path).joined(separator: ", ") ?? "all (no folder scope)")")
-    print("Limit:           100 (UI 1st page)")
-    print("Mode:            Cold search (5 round-robin cycles with Direct I/O)")
+    print("Limit:            100 (UI 1st page)")
+    print("Mode:             True Cold Search (5 rounds, fresh uncached F_NOCACHE vnode + mmap_size=0 per query)")
     print("")
 
     var samplesByQuery: [String: [HeadlessColdSample]] = [:]
@@ -271,7 +346,9 @@ if isHeadlessCold {
                 languageFilter: languageFilter
             )
             samplesByQuery[q]?.append(sample)
-            print("  [\(q)] 1st: \(formatMs(sample.firstScreenMs)) ms | full: \(formatMs(sample.fullResultMs)) ms")
+            print(
+                "  [\(q)] 1st: \(formatMs(sample.firstScreenMs)) ms (backend: \(formatMs(sample.backendFirstScreenMs)) ms) | full: \(formatMs(sample.fullResultMs)) ms (backend: \(formatMs(sample.pureBackendFullMs)) ms = db \(formatMs(sample.dbQueryMs)) + commit \(formatMs(sample.mainActorCommitMs)))"
+            )
             Thread.sleep(forTimeInterval: 0.1)
         }
     }
@@ -289,12 +366,20 @@ if isHeadlessCold {
     }
 
     print("")
-    print("### Headless Full Chain Cold Benchmark Results (5 Rounds Round-Robin)")
+    print("### 1. End-to-End Full Chain Cold Benchmark (5 Rounds Average, incl. 100ms Debounce)")
     print("")
-    print("| Query | Total Results | Files | 1st Screen Median | 1st Screen Raw (ms) | Full Results Median | Full Results Raw (ms) |")
+    print("| Query | Total Results | Files | 1st Screen Avg | 1st Screen Raw (ms) | Full Complete Avg | Full Complete Raw (ms) |")
     print("| --- | ---: | ---: | ---: | --- | ---: | --- |")
     for s in summaries {
-        print("| `\(s.query)` | \(s.totalCount) | \(s.fileSummariesCount) | **\(formatMs(s.firstScreenMedian)) ms** | \(s.firstScreenRaw.map(formatMs).joined(separator: ", ")) | **\(formatMs(s.fullResultMedian)) ms** | \(s.fullResultRaw.map(formatMs).joined(separator: ", ")) |")
+        print("| `\(s.query)` | \(s.totalCount) | \(s.fileSummariesCount) | **\(formatMs(s.firstScreenAvg)) ms** | \(s.firstScreenRaw.map(formatMs).joined(separator: ", ")) | **\(formatMs(s.fullResultAvg)) ms** | \(s.fullResultRaw.map(formatMs).joined(separator: ", ")) |")
+    }
+    print("")
+    print("### 2. Pure Backend Breakdown (5 Rounds Average, excl. Debounce)")
+    print("")
+    print("| Query | Backend 1st Screen Avg | Backend 1st Raw (ms) | Pure Backend Full Avg | DB Query Avg | MainActor Commit Avg | Pure Backend Full Raw (ms) |")
+    print("| --- | ---: | --- | ---: | ---: | ---: | --- |")
+    for s in summaries {
+        print("| `\(s.query)` | **\(formatMs(s.backendFirstScreenAvg)) ms** | \(s.backendFirstScreenRaw.map(formatMs).joined(separator: ", ")) | **\(formatMs(s.pureBackendFullAvg)) ms** | \(formatMs(s.dbQueryAvg)) ms | \(formatMs(s.mainActorCommitAvg)) ms | \(s.pureBackendFullRaw.map(formatMs).joined(separator: ", ")) |")
     }
     print("")
     exit(0)
