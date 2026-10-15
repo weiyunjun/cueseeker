@@ -1069,6 +1069,7 @@ final class SRTSubtitleOverlayView: NSView {
     private var cues: [PlaybackSubtitleCue] = []
     private var preparedLayout: SRTSubtitleLayout?
     private var activeOrdinals: [Int] = []
+    private var activeValidRangeMilliseconds: Range<Int>?
     private var renderedImage: CGImage?
     private var isApplyingPresentation = false
     private let imageLayer = CALayer()
@@ -1116,6 +1117,7 @@ final class SRTSubtitleOverlayView: NSView {
             cues = []
             preparedLayout = nil
             activeOrdinals = []
+            activeValidRangeMilliseconds = nil
             renderedImage = nil
             imageLayer.contents = nil
             return
@@ -1137,6 +1139,7 @@ final class SRTSubtitleOverlayView: NSView {
         cues = []
         preparedLayout = nil
         activeOrdinals = []
+        activeValidRangeMilliseconds = nil
         renderedImage = nil
         imageLayer.contents = nil
         sourceLoadCountForTesting += 1
@@ -1236,6 +1239,7 @@ final class SRTSubtitleOverlayView: NSView {
         layoutTask?.cancel()
         guard let source, let videoSize else {
             preparedLayout = nil
+            activeValidRangeMilliseconds = nil
             renderedImage = nil
             imageLayer.contents = nil
             return
@@ -1247,6 +1251,7 @@ final class SRTSubtitleOverlayView: NSView {
         preparedLayout = nil
         renderedImage = nil
         activeOrdinals = []
+        activeValidRangeMilliseconds = nil
         imageLayer.contents = nil
         let cues = self.cues
         let style = self.style
@@ -1300,12 +1305,23 @@ final class SRTSubtitleOverlayView: NSView {
     }
 
     private func updateImage(force: Bool = false) {
-        PlaybackPerformanceProbe.recordSRTUpdateCall()
         guard areSubtitlesVisible, let preparedLayout else {
+            activeValidRangeMilliseconds = nil
             renderedImage = nil
             imageLayer.contents = nil
             return
         }
+        if !force,
+           let activeValidRangeMilliseconds,
+           activeValidRangeMilliseconds.contains(currentTimeMilliseconds) {
+            return
+        }
+        PlaybackPerformanceProbe.recordSRTUpdateCall()
+        let nextValidRange = Self.validRange(
+            for: preparedLayout.track.cues,
+            at: currentTimeMilliseconds
+        )
+        activeValidRangeMilliseconds = nextValidRange
         let ordinals = preparedLayout.track
             .activeCues(atMilliseconds: currentTimeMilliseconds)
             .map(\.sourceOrdinal)
@@ -1322,6 +1338,47 @@ final class SRTSubtitleOverlayView: NSView {
             )
         }
         imageLayer.contents = renderedImage
+    }
+
+    func nextScheduledRenderMilliseconds(after timestampMilliseconds: Int) -> Int? {
+        guard areSubtitlesVisible, source != nil else { return nil }
+        guard let preparedLayout else {
+            return timestampMilliseconds + 33
+        }
+        let range = activeValidRangeMilliseconds ?? Self.validRange(
+            for: preparedLayout.track.cues,
+            at: timestampMilliseconds
+        )
+        guard range.contains(timestampMilliseconds) else {
+            return timestampMilliseconds
+        }
+        guard range.upperBound < Int.max else { return nil }
+        return max(timestampMilliseconds + 1, range.upperBound)
+    }
+
+    private static func validRange(
+        for cues: [PlaybackSubtitleCue],
+        at timestampMilliseconds: Int
+    ) -> Range<Int> {
+        var lowerBound = 0
+        var upperBound = Int.max
+        for cue in cues {
+            let startMs = max(0, cue.startMilliseconds)
+            let endMs = max(startMs, cue.endMilliseconds)
+            guard endMs > startMs else { continue }
+            if timestampMilliseconds >= startMs && timestampMilliseconds < endMs {
+                if startMs > lowerBound { lowerBound = startMs }
+                if endMs < upperBound { upperBound = endMs }
+            } else if endMs <= timestampMilliseconds {
+                if endMs > lowerBound { lowerBound = endMs }
+            } else if startMs > timestampMilliseconds {
+                if startMs < upperBound { upperBound = startMs }
+            }
+        }
+        if upperBound <= lowerBound {
+            upperBound = max(lowerBound + 1, timestampMilliseconds + 1)
+        }
+        return lowerBound..<upperBound
     }
 
     func currentPresentationImage() -> CGImage? {

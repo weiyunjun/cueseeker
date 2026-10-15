@@ -66,9 +66,119 @@ NSString * const SFXASSRenderingErrorDomain = @"CueSeeker.ASSRendering";
                        frameWidth:(NSInteger)frameWidth
                       frameHeight:(NSInteger)frameHeight
                        imageCount:(NSInteger)imageCount
-                          changed:(BOOL)changed NS_DESIGNATED_INITIALIZER;
+                          changed:(BOOL)changed
+        unchangedFromMilliseconds:(NSInteger)unchangedFromMilliseconds
+       unchangedUntilMilliseconds:(NSInteger)unchangedUntilMilliseconds NS_DESIGNATED_INITIALIZER;
 
 @end
+
+static BOOL SFXASSEventContainsAnimationTags(const ASS_Event *event) {
+    if (event == NULL) {
+        return NO;
+    }
+    if (event->Effect != NULL && event->Effect[0] != '\0') {
+        return YES;
+    }
+    const char *text = event->Text;
+    if (text == NULL || text[0] == '\0') {
+        return NO;
+    }
+    const char *cursor = text;
+    while ((cursor = strchr(cursor, '{')) != NULL) {
+        const char *end = strchr(cursor + 1, '}');
+        if (end == NULL) {
+            break;
+        }
+        for (const char *p = cursor + 1; p < end; p++) {
+            if (*p != '\\') {
+                continue;
+            }
+            size_t rem = (size_t)(end - (p + 1));
+            if ((rem >= 5 && strncmp(p + 1, "move(", 5) == 0)
+                || (rem >= 4 && strncmp(p + 1, "fad(", 4) == 0)
+                || (rem >= 5 && strncmp(p + 1, "fade(", 5) == 0)
+                || (rem >= 2 && strncmp(p + 1, "t(", 2) == 0)
+                || (rem >= 1 && (p[1] == 'k' || p[1] == 'K'))) {
+                return YES;
+            }
+        }
+        cursor = end + 1;
+    }
+    return NO;
+}
+
+static uint8_t * _Nullable SFXBuildASSEventAnimatedFlags(const ASS_Track *track) {
+    if (track == NULL || track->n_events <= 0 || track->events == NULL) {
+        return NULL;
+    }
+    uint8_t *flags = (uint8_t *)calloc((size_t)track->n_events, sizeof(uint8_t));
+    if (flags == NULL) {
+        return NULL;
+    }
+    for (int i = 0; i < track->n_events; i++) {
+        flags[i] = SFXASSEventContainsAnimationTags(&track->events[i]) ? 1 : 0;
+    }
+    return flags;
+}
+
+static void SFXComputeASSUnchangedWindow(
+    const ASS_Track *track,
+    const uint8_t * _Nullable animatedFlags,
+    NSInteger timestampMilliseconds,
+    NSInteger *outFromMilliseconds,
+    NSInteger *outUntilMilliseconds
+) {
+    long long t = MAX(0LL, (long long)timestampMilliseconds);
+    if (track == NULL || track->n_events <= 0 || track->events == NULL) {
+        *outFromMilliseconds = 0;
+        *outUntilMilliseconds = NSIntegerMax;
+        return;
+    }
+
+    long long windowStart = 0;
+    long long windowEnd = (long long)NSIntegerMax;
+    for (int i = 0; i < track->n_events; i++) {
+        const ASS_Event *event = &track->events[i];
+        long long start = MAX(0LL, event->Start);
+        long long end = start + MAX(0LL, event->Duration);
+        if (end <= start) {
+            continue;
+        }
+        if (t >= start && t < end) {
+            BOOL isAnimated = animatedFlags != NULL
+                ? (animatedFlags[i] != 0)
+                : SFXASSEventContainsAnimationTags(event);
+            if (isAnimated) {
+                *outFromMilliseconds = timestampMilliseconds;
+                *outUntilMilliseconds = timestampMilliseconds < NSIntegerMax
+                    ? timestampMilliseconds + 1
+                    : NSIntegerMax;
+                return;
+            }
+            if (start > windowStart) {
+                windowStart = start;
+            }
+            if (end < windowEnd) {
+                windowEnd = end;
+            }
+        } else if (start > t) {
+            if (start < windowEnd) {
+                windowEnd = start;
+            }
+        } else {
+            if (end > windowStart) {
+                windowStart = end;
+            }
+        }
+    }
+
+    if (windowEnd <= windowStart) {
+        windowStart = t;
+        windowEnd = t < (long long)NSIntegerMax ? t + 1 : (long long)NSIntegerMax;
+    }
+    *outFromMilliseconds = (NSInteger)MIN(windowStart, (long long)NSIntegerMax);
+    *outUntilMilliseconds = (NSInteger)MIN(windowEnd, (long long)NSIntegerMax);
+}
 
 static NSError *SFXASSRenderingError(SFXASSRenderingErrorCode code, NSString *message) {
     return [NSError errorWithDomain:SFXASSRenderingErrorDomain
@@ -261,26 +371,41 @@ static void SFXCompositeASSImagesIntoCrop(
             continue;
         }
 
+        NSInteger spanWidth = imageMaxX - imageMinX;
+        NSInteger initialSourceX = imageMinX - image->dst_x;
+        NSInteger initialDestOffset = (imageMinX - cropMinX) * 4;
+
         for (NSInteger destinationY = imageMinY; destinationY < imageMaxY; destinationY++) {
             NSInteger sourceY = destinationY - image->dst_y;
-            uint8_t *sourceRow = image->bitmap + (sourceY * image->stride);
-            uint8_t *destinationRow = destination + ((destinationY - cropMinY) * destinationStride);
+            const uint8_t *sourceRow = image->bitmap + (sourceY * image->stride) + initialSourceX;
+            uint8_t *pixel = destination + ((destinationY - cropMinY) * destinationStride) + initialDestOffset;
 
-            for (NSInteger destinationX = imageMinX; destinationX < imageMaxX; destinationX++) {
-                NSInteger sourceX = destinationX - image->dst_x;
-                int mask = sourceRow[sourceX];
-                int sourceAlpha = (mask * sourceOpacity + 127) / 255;
+            for (NSInteger x = 0; x < spanWidth; x++, pixel += 4) {
+                int mask = sourceRow[x];
+                if (mask == 0) {
+                    continue;
+                }
+                int sourceAlpha = sourceOpacity == 255 ? mask : (mask * sourceOpacity + 127) / 255;
                 if (sourceAlpha <= 0) {
                     continue;
                 }
-
-                uint8_t *pixel = destinationRow + ((destinationX - cropMinX) * 4);
-                int inverseAlpha = 255 - sourceAlpha;
-
-                pixel[0] = (uint8_t)((sourceRed * sourceAlpha + pixel[0] * inverseAlpha + 127) / 255);
-                pixel[1] = (uint8_t)((sourceGreen * sourceAlpha + pixel[1] * inverseAlpha + 127) / 255);
-                pixel[2] = (uint8_t)((sourceBlue * sourceAlpha + pixel[2] * inverseAlpha + 127) / 255);
-                pixel[3] = (uint8_t)(sourceAlpha + (pixel[3] * inverseAlpha + 127) / 255);
+                if (sourceAlpha == 255) {
+                    pixel[0] = (uint8_t)sourceRed;
+                    pixel[1] = (uint8_t)sourceGreen;
+                    pixel[2] = (uint8_t)sourceBlue;
+                    pixel[3] = 255;
+                } else if (pixel[3] == 0) {
+                    pixel[0] = (uint8_t)((sourceRed * sourceAlpha + 127) / 255);
+                    pixel[1] = (uint8_t)((sourceGreen * sourceAlpha + 127) / 255);
+                    pixel[2] = (uint8_t)((sourceBlue * sourceAlpha + 127) / 255);
+                    pixel[3] = (uint8_t)sourceAlpha;
+                } else {
+                    int inverseAlpha = 255 - sourceAlpha;
+                    pixel[0] = (uint8_t)((sourceRed * sourceAlpha + pixel[0] * inverseAlpha + 127) / 255);
+                    pixel[1] = (uint8_t)((sourceGreen * sourceAlpha + pixel[1] * inverseAlpha + 127) / 255);
+                    pixel[2] = (uint8_t)((sourceBlue * sourceAlpha + pixel[2] * inverseAlpha + 127) / 255);
+                    pixel[3] = (uint8_t)(sourceAlpha + (pixel[3] * inverseAlpha + 127) / 255);
+                }
             }
         }
     }
@@ -473,7 +598,9 @@ static BOOL SFXASSValidateScript(NSString *script, NSString *sourceIdentifier, N
                        frameWidth:(NSInteger)frameWidth
                       frameHeight:(NSInteger)frameHeight
                        imageCount:(NSInteger)imageCount
-                          changed:(BOOL)changed {
+                          changed:(BOOL)changed
+        unchangedFromMilliseconds:(NSInteger)unchangedFromMilliseconds
+       unchangedUntilMilliseconds:(NSInteger)unchangedUntilMilliseconds {
     self = [super init];
     if (self == nil) {
         return nil;
@@ -489,6 +616,8 @@ static BOOL SFXASSValidateScript(NSString *script, NSString *sourceIdentifier, N
     _frameHeight = frameHeight;
     _imageCount = imageCount;
     _changed = changed;
+    _unchangedFromMilliseconds = unchangedFromMilliseconds;
+    _unchangedUntilMilliseconds = unchangedUntilMilliseconds;
     return self;
 }
 
@@ -498,7 +627,11 @@ static BOOL SFXASSValidateScript(NSString *script, NSString *sourceIdentifier, N
     ASS_Library *_library;
     ASS_Renderer *_renderer;
     ASS_Track *_track;
+    uint8_t *_eventAnimatedFlags;
+    NSMutableData *_reusableCropBuffer;
     BOOL _hasRenderedCroppedFrame;
+    NSInteger _lastUnchangedFromMilliseconds;
+    NSInteger _lastUnchangedUntilMilliseconds;
 }
 
 - (nullable instancetype)initWithASSFileAtPath:(NSString *)path
@@ -517,6 +650,8 @@ static BOOL SFXASSValidateScript(NSString *script, NSString *sourceIdentifier, N
     _sourcePath = [path copy];
     _frameWidth = frameWidth;
     _frameHeight = frameHeight;
+    _lastUnchangedFromMilliseconds = -1;
+    _lastUnchangedUntilMilliseconds = -1;
 
     _library = ass_library_init();
     if (_library == NULL) {
@@ -545,6 +680,7 @@ static BOOL SFXASSValidateScript(NSString *script, NSString *sourceIdentifier, N
         [self cleanup];
         return nil;
     }
+    _eventAnimatedFlags = SFXBuildASSEventAnimatedFlags(_track);
 
     return self;
 }
@@ -567,6 +703,8 @@ static BOOL SFXASSValidateScript(NSString *script, NSString *sourceIdentifier, N
     _sourcePath = [sourceIdentifier copy];
     _frameWidth = frameWidth;
     _frameHeight = frameHeight;
+    _lastUnchangedFromMilliseconds = -1;
+    _lastUnchangedUntilMilliseconds = -1;
 
     _library = ass_library_init();
     if (_library == NULL) {
@@ -602,6 +740,7 @@ static BOOL SFXASSValidateScript(NSString *script, NSString *sourceIdentifier, N
         [self cleanup];
         return nil;
     }
+    _eventAnimatedFlags = SFXBuildASSEventAnimatedFlags(_track);
 
     return self;
 }
@@ -616,6 +755,9 @@ static BOOL SFXASSValidateScript(NSString *script, NSString *sourceIdentifier, N
         SFXASSSetError(error, SFXASSRenderingErrorRenderFailed, @"libass renderer session is not initialized.");
         return nil;
     }
+
+    _lastUnchangedFromMilliseconds = -1;
+    _lastUnchangedUntilMilliseconds = -1;
 
     NSInteger stride = self.frameWidth * 4;
     NSMutableData *rgbaData = [NSMutableData dataWithLength:(NSUInteger)(stride * self.frameHeight)];
@@ -653,6 +795,9 @@ static BOOL SFXASSValidateScript(NSString *script, NSString *sourceIdentifier, N
         return nil;
     }
 
+    _lastUnchangedFromMilliseconds = -1;
+    _lastUnchangedUntilMilliseconds = -1;
+
     int detectChange = 0;
     ASS_Image *images = ass_render_frame(_renderer, _track, (long long)timestampMilliseconds, &detectChange);
     NSArray<SFXASSImage *> *copiedImages = SFXCopyASSImages(images);
@@ -674,6 +819,35 @@ static BOOL SFXASSValidateScript(NSString *script, NSString *sourceIdentifier, N
         return nil;
     }
 
+    if (_hasRenderedCroppedFrame
+        && _lastUnchangedUntilMilliseconds > _lastUnchangedFromMilliseconds
+        && timestampMilliseconds >= _lastUnchangedFromMilliseconds
+        && timestampMilliseconds < _lastUnchangedUntilMilliseconds) {
+        atomic_fetch_add_explicit(&gSFXASSSilentOrUnchangedSkips, 1, memory_order_relaxed);
+        return [[SFXASSCroppedRenderOutput alloc] initWithRGBAData:[NSData data]
+                                                             width:0
+                                                            height:0
+                                                            stride:0
+                                                      destinationX:0
+                                                      destinationY:0
+                                                        frameWidth:self.frameWidth
+                                                       frameHeight:self.frameHeight
+                                                        imageCount:0
+                                                           changed:NO
+                                         unchangedFromMilliseconds:_lastUnchangedFromMilliseconds
+                                        unchangedUntilMilliseconds:_lastUnchangedUntilMilliseconds];
+    }
+
+    NSInteger unchangedFromMs = timestampMilliseconds;
+    NSInteger unchangedUntilMs = timestampMilliseconds < NSIntegerMax ? timestampMilliseconds + 1 : NSIntegerMax;
+    SFXComputeASSUnchangedWindow(
+        _track,
+        _eventAnimatedFlags,
+        timestampMilliseconds,
+        &unchangedFromMs,
+        &unchangedUntilMs
+    );
+
     int detectChange = 0;
     uint64_t renderStartUs = SFXASSMonotonicMicroseconds();
     ASS_Image *images = ass_render_frame(_renderer, _track, (long long)timestampMilliseconds, &detectChange);
@@ -682,21 +856,25 @@ static BOOL SFXASSValidateScript(NSString *script, NSString *sourceIdentifier, N
     atomic_fetch_add_explicit(&gSFXASSRenderFrameMicroseconds, renderElapsedUs, memory_order_relaxed);
     BOOL changed = detectChange != 0 || !_hasRenderedCroppedFrame;
 
+    _hasRenderedCroppedFrame = YES;
+    _lastUnchangedFromMilliseconds = unchangedFromMs;
+    _lastUnchangedUntilMilliseconds = unchangedUntilMs;
+
     if (!changed) {
         atomic_fetch_add_explicit(&gSFXASSSilentOrUnchangedSkips, 1, memory_order_relaxed);
         return [[SFXASSCroppedRenderOutput alloc] initWithRGBAData:[NSData data]
-                                                            width:0
-                                                           height:0
-                                                           stride:0
-                                                     destinationX:0
-                                                     destinationY:0
-                                                       frameWidth:self.frameWidth
-                                                      frameHeight:self.frameHeight
-                                                       imageCount:0
-                                                          changed:NO];
+                                                             width:0
+                                                            height:0
+                                                            stride:0
+                                                      destinationX:0
+                                                      destinationY:0
+                                                        frameWidth:self.frameWidth
+                                                       frameHeight:self.frameHeight
+                                                        imageCount:0
+                                                           changed:NO
+                                         unchangedFromMilliseconds:unchangedFromMs
+                                        unchangedUntilMilliseconds:unchangedUntilMs];
     }
-
-    _hasRenderedCroppedFrame = YES;
 
     NSInteger minX = 0;
     NSInteger minY = 0;
@@ -725,7 +903,9 @@ static BOOL SFXASSValidateScript(NSString *script, NSString *sourceIdentifier, N
                                                         frameWidth:self.frameWidth
                                                        frameHeight:self.frameHeight
                                                         imageCount:0
-                                                           changed:YES];
+                                                           changed:YES
+                                         unchangedFromMilliseconds:unchangedFromMs
+                                        unchangedUntilMilliseconds:unchangedUntilMs];
     }
 
     NSInteger cropWidth = maxX - minX;
@@ -736,8 +916,16 @@ static BOOL SFXASSValidateScript(NSString *script, NSString *sourceIdentifier, N
         return nil;
     }
 
-    NSMutableData *rgbaData = [NSMutableData dataWithLength:(NSUInteger)(stride * cropHeight)];
-    if (rgbaData == nil) {
+    NSUInteger requiredBytes = (NSUInteger)(stride * cropHeight);
+    if (_reusableCropBuffer == nil) {
+        _reusableCropBuffer = [NSMutableData dataWithLength:requiredBytes];
+    } else {
+        if (_reusableCropBuffer.length < requiredBytes) {
+            _reusableCropBuffer.length = requiredBytes;
+        }
+        memset(_reusableCropBuffer.mutableBytes, 0, requiredBytes);
+    }
+    if (_reusableCropBuffer == nil) {
         SFXASSSetError(error, SFXASSRenderingErrorRenderFailed, @"Could not allocate ASS cropped render output buffer.");
         return nil;
     }
@@ -745,7 +933,7 @@ static BOOL SFXASSValidateScript(NSString *script, NSString *sourceIdentifier, N
     uint64_t compositeStartUs = SFXASSMonotonicMicroseconds();
     SFXCompositeASSImagesIntoCrop(
         images,
-        (uint8_t *)rgbaData.mutableBytes,
+        (uint8_t *)_reusableCropBuffer.mutableBytes,
         minX,
         minY,
         maxX,
@@ -756,7 +944,8 @@ static BOOL SFXASSValidateScript(NSString *script, NSString *sourceIdentifier, N
     atomic_fetch_add_explicit(&gSFXASSCompositeCalls, 1, memory_order_relaxed);
     atomic_fetch_add_explicit(&gSFXASSCompositeMicroseconds, compositeElapsedUs, memory_order_relaxed);
 
-    return [[SFXASSCroppedRenderOutput alloc] initWithRGBAData:rgbaData
+    NSData *outputData = [NSData dataWithBytes:_reusableCropBuffer.bytes length:requiredBytes];
+    return [[SFXASSCroppedRenderOutput alloc] initWithRGBAData:outputData
                                                          width:cropWidth
                                                         height:cropHeight
                                                         stride:stride
@@ -765,7 +954,9 @@ static BOOL SFXASSValidateScript(NSString *script, NSString *sourceIdentifier, N
                                                     frameWidth:self.frameWidth
                                                    frameHeight:self.frameHeight
                                                     imageCount:imageCount
-                                                       changed:YES];
+                                                       changed:YES
+                                     unchangedFromMilliseconds:unchangedFromMs
+                                    unchangedUntilMilliseconds:unchangedUntilMs];
 }
 
 - (void)dealloc {
@@ -777,6 +968,11 @@ static BOOL SFXASSValidateScript(NSString *script, NSString *sourceIdentifier, N
 }
 
 - (void)cleanup {
+    _reusableCropBuffer = nil;
+    if (_eventAnimatedFlags != NULL) {
+        free(_eventAnimatedFlags);
+        _eventAnimatedFlags = NULL;
+    }
     if (_track != NULL) {
         ass_free_track(_track);
         _track = NULL;

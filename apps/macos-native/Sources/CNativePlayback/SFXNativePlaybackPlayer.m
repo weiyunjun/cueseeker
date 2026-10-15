@@ -89,8 +89,12 @@ static const double SFXVideoStarvationWatchdogIntervalSeconds = 0.05;
 static const double SFXAudioPrimeWallSeconds = 0.35;
 static const double SFXAudioQueueLowWaterWallSeconds = 0.75;
 static const double SFXAudioQueueHighWaterWallSeconds = 1.50;
+static const AVAudioFrameCount SFXAudioCoalesceStartupSamples = 4096;
+static const AVAudioFrameCount SFXAudioCoalesceSteadySamples = 16384;
 static const double SFXReadAheadStartupSeconds = 0.0;
+static const double SFXReadAheadLowWaterSeconds = 8.0;
 static const double SFXReadAheadTargetSeconds = 10.0;
+static const size_t SFXReadAheadLowWaterBytes = 48 * 1024 * 1024;
 static const size_t SFXReadAheadMaxBytes = 64 * 1024 * 1024;
 static const NSInteger SFXNoSegmentEndMilliseconds = -1;
 static const double SFXSegmentBoundaryEpsilonSeconds = 0.000001;
@@ -1041,6 +1045,7 @@ presentationGeneration:(NSUInteger)presentationGeneration;
     dispatch_source_t _starvationTimer;
     NSLock *_displaySubmissionLock;
     NSCondition *_packetQueueCondition;
+    NSCondition *_pacingCondition;
     SFXQueuedPacket *_packetQueueHead;
     SFXQueuedPacket *_packetQueueTail;
     SFXQueuedPacket *_audioPacketQueueHead;
@@ -1049,6 +1054,7 @@ presentationGeneration:(NSUInteger)presentationGeneration;
     int _packetQueueCount;
     BOOL _packetQueueEOF;
     BOOL _packetQueueDemuxStarted;
+    BOOL _packetQueueAtHighWater;
     BOOL _readAheadSuspended;
 
     AVFormatContext *_formatContext;
@@ -1063,11 +1069,20 @@ presentationGeneration:(NSUInteger)presentationGeneration;
     struct SwsContext *_videoScaler;
     AVChannelLayout _outputLayout;
     CVPixelBufferPoolRef _softwarePixelBufferPool;
+    CMVideoFormatDescriptionRef _cachedVideoFormatDescription;
+    OSType _cachedVideoFormatPixelFormat;
+    size_t _cachedVideoFormatWidth;
+    size_t _cachedVideoFormatHeight;
 
     AVAudioEngine *_audioEngine;
     AVAudioPlayerNode *_audioPlayer;
     AVAudioUnitTimePitch *_audioTimePitch;
     AVAudioFormat *_audioFormat;
+    AVAudioPCMBuffer *_pendingCoalescedAudioBuffer;
+    double _pendingCoalescedAudioStartMediaSeconds;
+    double _pendingCoalescedAudioEndMediaSeconds;
+    int _pendingCoalescedAudioSampleRate;
+    NSUInteger _pendingCoalescedAudioGeneration;
     id _audioEngineConfigurationObserver;
 
     int _videoStreamIndex;
@@ -1082,8 +1097,10 @@ presentationGeneration:(NSUInteger)presentationGeneration;
     int _videoScalerWidth;
     int _videoScalerHeight;
     enum AVPixelFormat _videoScalerInputFormat;
+    enum AVPixelFormat _videoScalerOutputFormat;
     int _softwarePixelBufferWidth;
     int _softwarePixelBufferHeight;
+    OSType _softwarePixelBufferFormatType;
 
 	    double _seekSeconds;
 	    double _segmentEndSeconds;
@@ -1251,9 +1268,11 @@ presentationGeneration:(NSUInteger)presentationGeneration;
     _lastFinishedSegmentEndMilliseconds = -1;
     _lastRebufferDurationMilliseconds = -1;
     _audioFirstScheduledMediaSeconds = -1;
+    _pendingCoalescedAudioStartMediaSeconds = -1;
     _playbackGeneration = 1;
     _audioOutputDrained = YES;
     _packetQueueCondition = [[NSCondition alloc] init];
+    _pacingCondition = [[NSCondition alloc] init];
     atomic_init(&_segmentAudioBoundaryReached, false);
     atomic_init(&_segmentVideoBoundaryReached, false);
     _segmentWaitingForAudioCompletion = NO;
@@ -1499,6 +1518,12 @@ presentationGeneration:(NSUInteger)presentationGeneration;
     return authorized;
 }
 
+- (void)signalPacingCondition {
+    [_pacingCondition lock];
+    [_pacingCondition broadcast];
+    [_pacingCondition unlock];
+}
+
 - (BOOL)segmentAudioBoundarySatisfiedLocked {
     return atomic_load(&_segmentAudioBoundaryReached)
         || _audioCodecContext == NULL
@@ -1639,6 +1664,7 @@ presentationGeneration:(NSUInteger)presentationGeneration;
     }
     [_packetQueueCondition broadcast];
     [_packetQueueCondition unlock];
+    [self signalPacingCondition];
 
     if (!shouldNotify) {
         return;
@@ -1784,6 +1810,7 @@ presentationGeneration:(NSUInteger)presentationGeneration;
     [_packetQueueCondition lock];
     [_packetQueueCondition broadcast];
     [_packetQueueCondition unlock];
+    [self signalPacingCondition];
     [self notifyTimeIfNeeded:YES];
 
     id<SFXNativePlaybackPlayerDelegate> delegate = _delegate;
@@ -2211,7 +2238,9 @@ presentationGeneration:(NSUInteger)presentationGeneration;
     _audioPlayer = [[AVAudioPlayerNode alloc] init];
     _audioTimePitch = [[AVAudioUnitTimePitch alloc] init];
     _audioPlayer.volume = _volume;
-    _audioTimePitch.rate = atomic_load(&_playbackRate);
+    float initialRate = atomic_load(&_playbackRate);
+    _audioTimePitch.rate = initialRate;
+    _audioTimePitch.bypass = fabsf(initialRate - 1.0f) < 0.0005f;
     _audioFormat = [[AVAudioFormat alloc]
         initStandardFormatWithSampleRate:(double)_audioOutputSampleRate
         channels:(AVAudioChannelCount)_audioOutputChannels
@@ -2260,6 +2289,8 @@ presentationGeneration:(NSUInteger)presentationGeneration;
         [[NSNotificationCenter defaultCenter] removeObserver:_audioEngineConfigurationObserver];
         _audioEngineConfigurationObserver = nil;
     }
+    _pendingCoalescedAudioBuffer = nil;
+    _pendingCoalescedAudioStartMediaSeconds = -1;
     [_audioPlayer stop];
     [_audioEngine stop];
     _audioPlayer = nil;
@@ -2283,6 +2314,9 @@ presentationGeneration:(NSUInteger)presentationGeneration;
         [_packetQueueCondition broadcast];
     }
     [_packetQueueCondition unlock];
+    if (shouldRequestRecovery) {
+        [self signalPacingCondition];
+    }
 
     if (!shouldRequestRecovery) {
         return;
@@ -2341,6 +2375,7 @@ presentationGeneration:(NSUInteger)presentationGeneration;
     [_packetQueueCondition lock];
     [_packetQueueCondition broadcast];
     [_packetQueueCondition unlock];
+    [self signalPacingCondition];
 
     if (_decodeQueue != NULL) {
         dispatch_sync(_decodeQueue, ^{});
@@ -2403,6 +2438,7 @@ presentationGeneration:(NSUInteger)presentationGeneration;
     _seekRequestSucceeded = NO;
     _seekRequestError = nil;
     [_packetQueueCondition broadcast];
+    [self signalPacingCondition];
 
     while (_completedSeekRequestGeneration < generation
            && !atomic_load(&_cancelled)
@@ -2487,6 +2523,7 @@ presentationGeneration:(NSUInteger)presentationGeneration;
     [_packetQueueCondition broadcast];
     NSUInteger generation = _playbackGeneration;
     [_packetQueueCondition unlock];
+    [self signalPacingCondition];
 
     if (!paused) {
         [self requestAudioPlaybackStartIfReadyForGeneration:generation];
@@ -2526,7 +2563,9 @@ presentationGeneration:(NSUInteger)presentationGeneration;
 
     dispatch_async(_audioDecodeQueue, ^{
         _audioTimePitch.rate = clampedRate;
+        _audioTimePitch.bypass = fabsf(clampedRate - 1.0f) < 0.0005f;
     });
+    [self signalPacingCondition];
     [self requestAudioDrain];
 }
 
@@ -2603,6 +2642,7 @@ presentationGeneration:(NSUInteger)presentationGeneration;
     [self clearPacketQueueLocked];
     _packetQueueEOF = NO;
     _packetQueueDemuxStarted = NO;
+    _packetQueueAtHighWater = NO;
     _readAheadSuspended = NO;
     [_packetQueueCondition broadcast];
     [_packetQueueCondition unlock];
@@ -2614,16 +2654,34 @@ presentationGeneration:(NSUInteger)presentationGeneration;
 
 - (BOOL)isPacketQueueAtHighWaterLocked {
     if (_packetQueueBytes >= SFXReadAheadMaxBytes) {
+        _packetQueueAtHighWater = YES;
         return YES;
     }
-    BOOL videoReady = [self packetQueueBufferedSecondsLocked] >= SFXReadAheadTargetSeconds;
+    if (_packetQueueAtHighWater && _packetQueueBytes >= SFXReadAheadLowWaterBytes) {
+        return YES;
+    }
+    double thresholdSeconds = _packetQueueAtHighWater
+        ? SFXReadAheadLowWaterSeconds
+        : SFXReadAheadTargetSeconds;
+    BOOL videoReady = [self packetQueueBufferedSecondsLocked] >= thresholdSeconds;
     BOOL audioReady = _audioCodecContext == NULL
         || atomic_load(&_segmentAudioBoundaryReached)
-        || [self audioPacketQueueBufferedSecondsLocked] >= SFXReadAheadTargetSeconds;
-    return videoReady && audioReady;
+        || [self audioPacketQueueBufferedSecondsLocked] >= thresholdSeconds;
+    _packetQueueAtHighWater = videoReady && audioReady;
+    return _packetQueueAtHighWater;
 }
 
-- (double)packetQueueBufferedSecondsForHeadLocked:(SFXQueuedPacket *)head {
+- (double)packetQueueBufferedSecondsForHeadLocked:(SFXQueuedPacket *)head
+                                             tail:(SFXQueuedPacket *)tail {
+    if (head == NULL) {
+        return 0;
+    }
+    if (tail != NULL
+        && isfinite(head->mediaSeconds) && head->mediaSeconds >= 0
+        && isfinite(tail->mediaSeconds) && tail->mediaSeconds >= head->mediaSeconds) {
+        return tail->mediaSeconds - head->mediaSeconds;
+    }
+
     double earliestSeconds = DBL_MAX;
     double latestSeconds = -DBL_MAX;
     BOOL hasTimestamp = NO;
@@ -2644,11 +2702,11 @@ presentationGeneration:(NSUInteger)presentationGeneration;
 }
 
 - (double)packetQueueBufferedSecondsLocked {
-    return [self packetQueueBufferedSecondsForHeadLocked:_packetQueueHead];
+    return [self packetQueueBufferedSecondsForHeadLocked:_packetQueueHead tail:_packetQueueTail];
 }
 
 - (double)audioPacketQueueBufferedSecondsLocked {
-    return [self packetQueueBufferedSecondsForHeadLocked:_audioPacketQueueHead];
+    return [self packetQueueBufferedSecondsForHeadLocked:_audioPacketQueueHead tail:_audioPacketQueueTail];
 }
 
 - (void)clearAudioPacketQueueLocked {
@@ -2682,6 +2740,7 @@ presentationGeneration:(NSUInteger)presentationGeneration;
     [self clearAudioPacketQueueLocked];
     _packetQueueBytes = 0;
     _packetQueueCount = 0;
+    _packetQueueAtHighWater = NO;
 }
 
 - (size_t)packetMemoryBytes:(const AVPacket *)packet {
@@ -2720,7 +2779,11 @@ presentationGeneration:(NSUInteger)presentationGeneration;
     if (_packetQueueCount > 0) {
         _packetQueueCount -= 1;
     }
-    [_packetQueueCondition broadcast];
+    BOOL wasAtHighWater = _packetQueueAtHighWater;
+    BOOL nowAtHighWater = wasAtHighWater ? [self isPacketQueueAtHighWaterLocked] : NO;
+    if ((wasAtHighWater && !nowAtHighWater) || _audioPacketQueueHead == NULL) {
+        [_packetQueueCondition broadcast];
+    }
     return queuedPacket;
 }
 
@@ -2791,6 +2854,7 @@ presentationGeneration:(NSUInteger)presentationGeneration;
             || [self queuedAudioWallSecondsLocked] >= SFXAudioQueueHighWaterWallSeconds;
         if (shouldStop) {
             [_packetQueueCondition unlock];
+            [self flushPendingCoalescedAudioForGeneration:generation finalSegmentBuffer:NO];
             return;
         }
 
@@ -2805,10 +2869,12 @@ presentationGeneration:(NSUInteger)presentationGeneration;
         }
 
         if (!reachedEOF) {
+            [self flushPendingCoalescedAudioForGeneration:generation finalSegmentBuffer:NO];
             return;
         }
 
         [self handleAudioPacket:NULL generation:generation];
+        [self flushPendingCoalescedAudioForGeneration:generation finalSegmentBuffer:NO];
 
         [_packetQueueCondition lock];
         if (generation != _playbackGeneration || _audioResetInProgress) {
@@ -2887,6 +2953,7 @@ presentationGeneration:(NSUInteger)presentationGeneration;
             _packetQueueEOF = YES;
             [_packetQueueCondition broadcast];
             [_packetQueueCondition unlock];
+            [self signalPacingCondition];
             break;
         }
 
@@ -2903,6 +2970,7 @@ presentationGeneration:(NSUInteger)presentationGeneration;
             _packetQueueEOF = YES;
             [_packetQueueCondition broadcast];
             [_packetQueueCondition unlock];
+            [self signalPacingCondition];
             break;
         }
 
@@ -2915,6 +2983,7 @@ presentationGeneration:(NSUInteger)presentationGeneration;
             _packetQueueEOF = YES;
             [_packetQueueCondition broadcast];
             [_packetQueueCondition unlock];
+            [self signalPacingCondition];
             break;
         }
 
@@ -2950,7 +3019,15 @@ presentationGeneration:(NSUInteger)presentationGeneration;
         }
         _packetQueueBytes += queuedPacket->bytes;
         _packetQueueCount += 1;
-        [_packetQueueCondition broadcast];
+        BOOL wasEmpty = isAudioPacket
+            ? (_audioPacketQueueHead == queuedPacket)
+            : (_packetQueueHead == queuedPacket);
+        if (wasEmpty
+            || atomic_load(&_decodeWaitingForPacket)
+            || !_audioPrimed
+            || !_perfFirstVideoDecodedRecorded) {
+            [_packetQueueCondition broadcast];
+        }
         [_packetQueueCondition unlock];
         if (isAudioPacket) {
             [self requestAudioDrain];
@@ -3034,7 +3111,11 @@ presentationGeneration:(NSUInteger)presentationGeneration;
     if (_packetQueueCount > 0) {
         _packetQueueCount -= 1;
     }
-    [_packetQueueCondition broadcast];
+    BOOL wasAtHighWater = _packetQueueAtHighWater;
+    BOOL nowAtHighWater = wasAtHighWater ? [self isPacketQueueAtHighWaterLocked] : NO;
+    if ((wasAtHighWater && !nowAtHighWater) || _packetQueueHead == NULL) {
+        [_packetQueueCondition broadcast];
+    }
     [_packetQueueCondition unlock];
     return queuedPacket;
 }
@@ -3178,11 +3259,14 @@ presentationGeneration:(NSUInteger)presentationGeneration;
     _pendingAudioCompletionRecordCount = 0;
     [_packetQueueCondition broadcast];
     [_packetQueueCondition unlock];
+    [self signalPacingCondition];
 
     __block BOOL audioOutputReady = YES;
     __block NSError *audioOutputError = nil;
     if (_audioDecodeQueue != NULL) {
         dispatch_sync(_audioDecodeQueue, ^{
+            _pendingCoalescedAudioBuffer = nil;
+            _pendingCoalescedAudioStartMediaSeconds = -1;
             if (rebuildsAudioOutput) {
                 [self teardownAudioOutput];
                 audioOutputReady = [self prepareAudioOutputWithError:&audioOutputError];
@@ -3263,6 +3347,7 @@ presentationGeneration:(NSUInteger)presentationGeneration;
     }
     [_packetQueueCondition broadcast];
     [_packetQueueCondition unlock];
+    [self signalPacingCondition];
     [self notifyTimeIfNeeded:YES];
     if (!audioOutputReady) {
         if (error != NULL) {
@@ -3341,6 +3426,7 @@ presentationGeneration:(NSUInteger)presentationGeneration;
     [_packetQueueCondition lock];
     [_packetQueueCondition broadcast];
     [_packetQueueCondition unlock];
+    [self signalPacingCondition];
 }
 
 - (void)waitWhilePausedIfNeeded {
@@ -3465,6 +3551,7 @@ presentationGeneration:(NSUInteger)presentationGeneration;
         _lastRebufferDurationMilliseconds = (NSInteger)llround(rebufferDuration * 1000.0);
         shouldResumeAudio = _audioPlayerStarted && !atomic_load(&_paused);
     }
+    [self signalPacingCondition];
 
     if (shouldResumeAudio) {
         dispatch_async(_audioDecodeQueue, ^{
@@ -3483,12 +3570,16 @@ presentationGeneration:(NSUInteger)presentationGeneration;
     );
 }
 
-- (BOOL)ensureSoftwareVideoScalerForFrame:(AVFrame *)frame width:(int)width height:(int)height {
+- (BOOL)ensureSoftwareVideoScalerForFrame:(AVFrame *)frame
+                                    width:(int)width
+                                   height:(int)height
+                             outputFormat:(enum AVPixelFormat)outputFormat {
     enum AVPixelFormat inputFormat = (enum AVPixelFormat)frame->format;
     if (_videoScaler != NULL
         && _videoScalerWidth == width
         && _videoScalerHeight == height
-        && _videoScalerInputFormat == inputFormat) {
+        && _videoScalerInputFormat == inputFormat
+        && _videoScalerOutputFormat == outputFormat) {
         return YES;
     }
 
@@ -3499,7 +3590,7 @@ presentationGeneration:(NSUInteger)presentationGeneration;
         inputFormat,
         width,
         height,
-        AV_PIX_FMT_BGRA,
+        outputFormat,
         SWS_BILINEAR,
         NULL,
         NULL,
@@ -3510,19 +3601,24 @@ presentationGeneration:(NSUInteger)presentationGeneration;
         _videoScalerWidth = 0;
         _videoScalerHeight = 0;
         _videoScalerInputFormat = AV_PIX_FMT_NONE;
+        _videoScalerOutputFormat = AV_PIX_FMT_NONE;
         return NO;
     }
 
     _videoScalerWidth = width;
     _videoScalerHeight = height;
     _videoScalerInputFormat = inputFormat;
+    _videoScalerOutputFormat = outputFormat;
     return YES;
 }
 
-- (BOOL)ensureSoftwarePixelBufferPoolWithWidth:(int)width height:(int)height {
+- (BOOL)ensureSoftwarePixelBufferPoolWithWidth:(int)width
+                                        height:(int)height
+                                   pixelFormat:(OSType)pixelFormat {
     if (_softwarePixelBufferPool != NULL
         && _softwarePixelBufferWidth == width
-        && _softwarePixelBufferHeight == height) {
+        && _softwarePixelBufferHeight == height
+        && _softwarePixelBufferFormatType == pixelFormat) {
         return YES;
     }
 
@@ -3531,10 +3627,10 @@ presentationGeneration:(NSUInteger)presentationGeneration;
         _softwarePixelBufferPool = NULL;
     }
 
-    int pixelFormat = kCVPixelFormatType_32BGRA;
+    int pixelFormatValue = (int)pixelFormat;
     int bufferWidth = width;
     int bufferHeight = height;
-    CFNumberRef pixelFormatNumber = CFNumberCreate(kCFAllocatorDefault, kCFNumberSInt32Type, &pixelFormat);
+    CFNumberRef pixelFormatNumber = CFNumberCreate(kCFAllocatorDefault, kCFNumberSInt32Type, &pixelFormatValue);
     CFNumberRef widthNumber = CFNumberCreate(kCFAllocatorDefault, kCFNumberSInt32Type, &bufferWidth);
     CFNumberRef heightNumber = CFNumberCreate(kCFAllocatorDefault, kCFNumberSInt32Type, &bufferHeight);
     CFDictionaryRef ioSurfaceProperties = CFDictionaryCreate(
@@ -3603,11 +3699,13 @@ presentationGeneration:(NSUInteger)presentationGeneration;
     if (result != kCVReturnSuccess || _softwarePixelBufferPool == NULL) {
         _softwarePixelBufferWidth = 0;
         _softwarePixelBufferHeight = 0;
+        _softwarePixelBufferFormatType = 0;
         return NO;
     }
 
     _softwarePixelBufferWidth = width;
     _softwarePixelBufferHeight = height;
+    _softwarePixelBufferFormatType = pixelFormat;
     return YES;
 }
 
@@ -3623,8 +3721,18 @@ presentationGeneration:(NSUInteger)presentationGeneration;
         return NULL;
     }
 
-    if (![self ensureSoftwareVideoScalerForFrame:frame width:width height:height]
-        || ![self ensureSoftwarePixelBufferPoolWithWidth:width height:height]) {
+    BOOL canUseNV12 = ((width & 1) == 0 && (height & 1) == 0)
+        && (inputFormat == AV_PIX_FMT_YUV420P
+            || inputFormat == AV_PIX_FMT_YUVJ420P
+            || inputFormat == AV_PIX_FMT_NV12);
+    enum AVPixelFormat targetFFmpegFormat = canUseNV12 ? AV_PIX_FMT_NV12 : AV_PIX_FMT_BGRA;
+    BOOL isFullRange = inputFormat == AV_PIX_FMT_YUVJ420P || frame->color_range == AVCOL_RANGE_JPEG;
+    OSType targetCVPixelFormat = canUseNV12
+        ? (isFullRange ? kCVPixelFormatType_420YpCbCr8BiPlanarFullRange : kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange)
+        : kCVPixelFormatType_32BGRA;
+
+    if (![self ensureSoftwareVideoScalerForFrame:frame width:width height:height outputFormat:targetFFmpegFormat]
+        || ![self ensureSoftwarePixelBufferPoolWithWidth:width height:height pixelFormat:targetCVPixelFormat]) {
         return NULL;
     }
 
@@ -3644,18 +3752,17 @@ presentationGeneration:(NSUInteger)presentationGeneration;
         return NULL;
     }
 
-    uint8_t *destinationData[] = {
-        CVPixelBufferGetBaseAddress(pixelBuffer),
-        NULL,
-        NULL,
-        NULL
-    };
-    int destinationLinesize[] = {
-        (int)CVPixelBufferGetBytesPerRow(pixelBuffer),
-        0,
-        0,
-        0
-    };
+    uint8_t *destinationData[4] = { NULL, NULL, NULL, NULL };
+    int destinationLinesize[4] = { 0, 0, 0, 0 };
+    if (CVPixelBufferIsPlanar(pixelBuffer)) {
+        destinationData[0] = (uint8_t *)CVPixelBufferGetBaseAddressOfPlane(pixelBuffer, 0);
+        destinationData[1] = (uint8_t *)CVPixelBufferGetBaseAddressOfPlane(pixelBuffer, 1);
+        destinationLinesize[0] = (int)CVPixelBufferGetBytesPerRowOfPlane(pixelBuffer, 0);
+        destinationLinesize[1] = (int)CVPixelBufferGetBytesPerRowOfPlane(pixelBuffer, 1);
+    } else {
+        destinationData[0] = (uint8_t *)CVPixelBufferGetBaseAddress(pixelBuffer);
+        destinationLinesize[0] = (int)CVPixelBufferGetBytesPerRow(pixelBuffer);
+    }
 
     int convertedHeight = sws_scale(
         _videoScaler,
@@ -3667,6 +3774,15 @@ presentationGeneration:(NSUInteger)presentationGeneration;
         destinationLinesize
     );
     CVPixelBufferUnlockBaseAddress(pixelBuffer, 0);
+
+    if (canUseNV12 && convertedHeight > 0) {
+        CFStringRef matrix = (frame->colorspace == AVCOL_SPC_BT470BG || frame->colorspace == AVCOL_SPC_SMPTE170M || (frame->colorspace == AVCOL_SPC_UNSPECIFIED && height < 720))
+            ? kCVImageBufferYCbCrMatrix_ITU_R_601_4
+            : kCVImageBufferYCbCrMatrix_ITU_R_709_2;
+        CVBufferSetAttachment(pixelBuffer, kCVImageBufferYCbCrMatrixKey, matrix, kCVAttachmentMode_ShouldPropagate);
+        CVBufferSetAttachment(pixelBuffer, kCVImageBufferColorPrimariesKey, kCVImageBufferColorPrimaries_ITU_R_709_2, kCVAttachmentMode_ShouldPropagate);
+        CVBufferSetAttachment(pixelBuffer, kCVImageBufferTransferFunctionKey, kCVImageBufferTransferFunction_ITU_R_709_2, kCVAttachmentMode_ShouldPropagate);
+    }
 
     uint64_t transferElapsedUs = SFXTelemetryMonotonicMicroseconds() - transferStartUs;
     if (_telemetryCounters != NULL) {
@@ -3748,11 +3864,10 @@ presentationGeneration:(NSUInteger)presentationGeneration;
                 break;
             }
             CVPixelBufferRef pixelBuffer = (CVPixelBufferRef)_videoFrame->data[3];
-            [self enqueuePixelBuffer:pixelBuffer
-                     presentationTime:presentationTime
-                   frameMilliseconds:frameMilliseconds
-             automaticRecycleMilliseconds:automaticRecycleMilliseconds];
-            submittedVideoFrame = YES;
+            submittedVideoFrame = [self enqueuePixelBuffer:pixelBuffer
+                                          presentationTime:presentationTime
+                                         frameMilliseconds:frameMilliseconds
+                              automaticRecycleMilliseconds:automaticRecycleMilliseconds];
         } else if (!_usingHardwareDecode) {
             if (![self paceVideoFrame:_videoFrame stream:videoStream]) {
                 av_frame_unref(_videoFrame);
@@ -3771,12 +3886,11 @@ presentationGeneration:(NSUInteger)presentationGeneration;
             }
 
             automaticRecycleMilliseconds = [self markAutomaticSoftwareRecycleIfNeededAtMediaSeconds:mediaSeconds];
-            [self enqueuePixelBuffer:pixelBuffer
-                     presentationTime:presentationTime
-                   frameMilliseconds:frameMilliseconds
-             automaticRecycleMilliseconds:automaticRecycleMilliseconds];
+            submittedVideoFrame = [self enqueuePixelBuffer:pixelBuffer
+                                          presentationTime:presentationTime
+                                         frameMilliseconds:frameMilliseconds
+                              automaticRecycleMilliseconds:automaticRecycleMilliseconds];
             CVPixelBufferRelease(pixelBuffer);
-            submittedVideoFrame = YES;
         }
 
         if (mediaSeconds >= 0) {
@@ -3790,6 +3904,14 @@ presentationGeneration:(NSUInteger)presentationGeneration;
         }
 
         BOOL finishForRecycle = atomic_load(&_finishingForAutomaticRecycle);
+        if (submittedVideoFrame
+            && !finishForRecycle
+            && atomic_load(&_pauseAfterFirstFrame)
+            && !atomic_load(&_didPauseAfterFirstFrame)) {
+            [self setPaused:YES];
+            av_frame_unref(_videoFrame);
+            break;
+        }
         av_frame_unref(_videoFrame);
         if (finishForRecycle) {
             break;
@@ -4023,7 +4145,7 @@ presentationGeneration:(NSUInteger)presentationGeneration;
     }
 
     while (targetHostSeconds > CACurrentMediaTime() || atomic_load(&_paused)) {
-        [_packetQueueCondition lock];
+        [_pacingCondition lock];
         BOOL waitedForPause = atomic_load(&_paused);
         while (atomic_load(&_paused)
                && generation == _playbackGeneration
@@ -4031,7 +4153,7 @@ presentationGeneration:(NSUInteger)presentationGeneration;
                && !atomic_load(&_cancelled)
                && !atomic_load(&_segmentEnding)
                && !atomic_load(&_finishingForAutomaticRecycle)) {
-            [_packetQueueCondition wait];
+            [_pacingCondition wait];
         }
         BOOL shouldAbort = generation != _playbackGeneration
             || [self hasPendingSeekRequestLocked]
@@ -4039,28 +4161,26 @@ presentationGeneration:(NSUInteger)presentationGeneration;
             || atomic_load(&_segmentEnding)
             || atomic_load(&_finishingForAutomaticRecycle);
         if (!shouldAbort && !waitedForPause) {
-            double waitSeconds = fmin(0.05, targetHostSeconds - CACurrentMediaTime());
+            double waitSeconds = fmin(0.25, targetHostSeconds - CACurrentMediaTime());
             if (waitSeconds > 0) {
                 if (_telemetryCounters != NULL) {
                     atomic_fetch_add_explicit(&_telemetryCounters->videoWaitIterations, 1, memory_order_relaxed);
                 }
-                [_packetQueueCondition waitUntilDate:[NSDate dateWithTimeIntervalSinceNow:waitSeconds]];
+                [_pacingCondition waitUntilDate:[NSDate dateWithTimeIntervalSinceNow:waitSeconds]];
             }
         }
-        [_packetQueueCondition unlock];
+        [_pacingCondition unlock];
         if (shouldAbort) {
             return NO;
         }
-        if (waitedForPause) {
-            @synchronized (self) {
-                double rate = fmax((double)atomic_load(&_playbackRate), 0.001);
-                if (_audioClockInitialized) {
-                    targetHostSeconds = _audioStartHostSeconds
-                        + ((mediaSeconds - _audioFirstMediaSeconds) / rate);
-                } else {
-                    targetHostSeconds = _videoStartHostSeconds
-                        + ((mediaSeconds - _videoFirstMediaSeconds) / rate);
-                }
+        @synchronized (self) {
+            double rate = fmax((double)atomic_load(&_playbackRate), 0.001);
+            if (_audioClockInitialized) {
+                targetHostSeconds = _audioStartHostSeconds
+                    + ((mediaSeconds - _audioFirstMediaSeconds) / rate);
+            } else {
+                targetHostSeconds = _videoStartHostSeconds
+                    + ((mediaSeconds - _videoFirstMediaSeconds) / rate);
             }
         }
     }
@@ -4074,17 +4194,32 @@ presentationGeneration:(NSUInteger)presentationGeneration;
 - (CMSampleBufferRef)sampleBufferForPixelBuffer:(CVPixelBufferRef)pixelBuffer
                                presentationTime:(CMTime)presentationTime {
     CFTimeInterval start = SFXPerformanceNow();
-    CMVideoFormatDescriptionRef formatDescription = NULL;
-    if (_telemetryCounters != NULL) {
-        atomic_fetch_add_explicit(&_telemetryCounters->videoFormatDescCreateCalls, 1, memory_order_relaxed);
-    }
-    OSStatus status = CMVideoFormatDescriptionCreateForImageBuffer(
-        kCFAllocatorDefault,
-        pixelBuffer,
-        &formatDescription
-    );
-    if (status != noErr || formatDescription == NULL) {
-        return NULL;
+    OSType pixelFormat = CVPixelBufferGetPixelFormatType(pixelBuffer);
+    size_t width = CVPixelBufferGetWidth(pixelBuffer);
+    size_t height = CVPixelBufferGetHeight(pixelBuffer);
+    if (_cachedVideoFormatDescription == NULL
+        || _cachedVideoFormatPixelFormat != pixelFormat
+        || _cachedVideoFormatWidth != width
+        || _cachedVideoFormatHeight != height) {
+        if (_cachedVideoFormatDescription != NULL) {
+            CFRelease(_cachedVideoFormatDescription);
+            _cachedVideoFormatDescription = NULL;
+        }
+        if (_telemetryCounters != NULL) {
+            atomic_fetch_add_explicit(&_telemetryCounters->videoFormatDescCreateCalls, 1, memory_order_relaxed);
+        }
+        OSStatus descStatus = CMVideoFormatDescriptionCreateForImageBuffer(
+            kCFAllocatorDefault,
+            pixelBuffer,
+            &_cachedVideoFormatDescription
+        );
+        if (descStatus != noErr || _cachedVideoFormatDescription == NULL) {
+            _cachedVideoFormatDescription = NULL;
+            return NULL;
+        }
+        _cachedVideoFormatPixelFormat = pixelFormat;
+        _cachedVideoFormatWidth = width;
+        _cachedVideoFormatHeight = height;
     }
 
     CMSampleTimingInfo timing = {
@@ -4093,14 +4228,13 @@ presentationGeneration:(NSUInteger)presentationGeneration;
         .decodeTimeStamp = kCMTimeInvalid
     };
     CMSampleBufferRef sampleBuffer = NULL;
-    status = CMSampleBufferCreateReadyWithImageBuffer(
+    OSStatus status = CMSampleBufferCreateReadyWithImageBuffer(
         kCFAllocatorDefault,
         pixelBuffer,
-        formatDescription,
+        _cachedVideoFormatDescription,
         &timing,
         &sampleBuffer
     );
-    CFRelease(formatDescription);
 
     if (status != noErr || sampleBuffer == NULL) {
         return NULL;
@@ -4116,12 +4250,12 @@ presentationGeneration:(NSUInteger)presentationGeneration;
     return sampleBuffer;
 }
 
-- (void)enqueuePixelBuffer:(CVPixelBufferRef)pixelBuffer
+- (BOOL)enqueuePixelBuffer:(CVPixelBufferRef)pixelBuffer
           presentationTime:(CMTime)presentationTime
-        frameMilliseconds:(NSInteger)frameMilliseconds
+         frameMilliseconds:(NSInteger)frameMilliseconds
 automaticRecycleMilliseconds:(NSInteger)automaticRecycleMilliseconds {
     if (pixelBuffer == NULL) {
-        return;
+        return NO;
     }
     if (_perfFirstFrameEnqueuedHostSeconds <= 0) {
         _perfFirstFrameEnqueuedHostSeconds = CACurrentMediaTime();
@@ -4135,7 +4269,7 @@ automaticRecycleMilliseconds:(NSInteger)automaticRecycleMilliseconds {
     NSUInteger presentationGeneration = _presentationGeneration;
     [_packetQueueCondition unlock];
     if (!presentationIsCurrent) {
-        return;
+        return NO;
     }
 
     CVPixelBufferRetain(pixelBuffer);
@@ -4162,6 +4296,7 @@ automaticRecycleMilliseconds:(NSInteger)automaticRecycleMilliseconds {
             [self drainPendingPixelBufferSubmission];
         });
     }
+    return YES;
 }
 
 - (void)drainPendingPixelBufferSubmission {
@@ -4500,7 +4635,9 @@ automaticRecycleMilliseconds:(NSInteger)automaticRecycleMilliseconds {
         && !finalSegmentBuffer
         && !inputEnded
         && [self queuedAudioWallSecondsLocked] <= SFXAudioQueueLowWaterWallSeconds;
-    [_packetQueueCondition broadcast];
+    if (reachedZero || finalSegmentBuffer || inputEnded || segmentDrainWaiting) {
+        [_packetQueueCondition broadcast];
+    }
     [_packetQueueCondition unlock];
 
     BOOL shouldCompleteSegment = finalSegmentBuffer || (reachedZero && segmentDrainWaiting);
@@ -4531,6 +4668,7 @@ automaticRecycleMilliseconds:(NSInteger)automaticRecycleMilliseconds {
             [self notifySegmentFinishedIfNeeded];
         }
         [_packetQueueCondition lock];
+        BOOL becameDrained = NO;
         if (generation == _playbackGeneration) {
             if (_pendingAudioCompletionRecordCount > 0) {
                 _pendingAudioCompletionRecordCount -= 1;
@@ -4539,9 +4677,12 @@ automaticRecycleMilliseconds:(NSInteger)automaticRecycleMilliseconds {
                 && _outstandingAudioBufferCount == 0
                 && _pendingAudioCompletionRecordCount == 0) {
                 _audioOutputDrained = YES;
+                becameDrained = YES;
             }
         }
-        [_packetQueueCondition broadcast];
+        if (becameDrained || shouldCompleteSegment) {
+            [_packetQueueCondition broadcast];
+        }
         [_packetQueueCondition unlock];
     });
 
@@ -4550,78 +4691,36 @@ automaticRecycleMilliseconds:(NSInteger)automaticRecycleMilliseconds {
     }
 }
 
-- (SFXAudioScheduleResult)scheduleAudioFrame:(const AVFrame *)frame
-                                mediaSeconds:(double)mediaSeconds
-                                  generation:(NSUInteger)generation {
+- (BOOL)flushPendingCoalescedAudioForGeneration:(NSUInteger)generation
+                             finalSegmentBuffer:(BOOL)isFinalSegmentBuffer {
+    AVAudioPCMBuffer *buffer = _pendingCoalescedAudioBuffer;
+    if (buffer == nil || buffer.frameLength == 0) {
+        _pendingCoalescedAudioBuffer = nil;
+        _pendingCoalescedAudioStartMediaSeconds = -1;
+        _pendingCoalescedAudioEndMediaSeconds = -1;
+        return YES;
+    }
+
+    double startMediaSeconds = _pendingCoalescedAudioStartMediaSeconds;
+    double endMediaSeconds = _pendingCoalescedAudioEndMediaSeconds;
+    int sampleRate = _pendingCoalescedAudioSampleRate > 0 ? _pendingCoalescedAudioSampleRate : _audioOutputSampleRate;
+    NSUInteger bufferGeneration = _pendingCoalescedAudioGeneration;
+    _pendingCoalescedAudioBuffer = nil;
+    _pendingCoalescedAudioStartMediaSeconds = -1;
+    _pendingCoalescedAudioEndMediaSeconds = -1;
+
+    if (bufferGeneration != generation || sampleRate <= 0) {
+        return NO;
+    }
+
     uint64_t scheduleStartUs = SFXTelemetryMonotonicMicroseconds();
-    if (_audioPlayer == nil || _audioFormat == nil || frame->format != AV_SAMPLE_FMT_FLTP) {
-        return SFXAudioScheduleResultNotScheduled;
-    }
-
-    int channels = frame->ch_layout.nb_channels;
-    if (channels <= 0 || channels > (int)_audioFormat.channelCount) {
-        return SFXAudioScheduleResultNotScheduled;
-    }
-
-    int sampleRate = [self audioFrameSampleRate:frame];
-    if (sampleRate <= 0) {
-        return SFXAudioScheduleResultNotScheduled;
-    }
-
-    int scheduledSampleCount = frame->nb_samples;
-    BOOL isFinalSegmentBuffer = NO;
-    if ([self hasActiveSegmentEnd] && [self segmentAudioBoundaryReached]) {
-        return SFXAudioScheduleResultSegmentBoundaryReached;
-    }
-
-    if ([self hasActiveSegmentEnd] && mediaSeconds >= 0) {
-        double remainingSeconds = _segmentEndSeconds - mediaSeconds;
-        double frameDuration = sampleRate > 0 ? (double)frame->nb_samples / (double)sampleRate : 0;
-        BOOL reachesSegmentEnd = remainingSeconds <= SFXSegmentBoundaryEpsilonSeconds
-            || mediaSeconds + frameDuration + SFXSegmentBoundaryEpsilonSeconds >= _segmentEndSeconds;
-        if (reachesSegmentEnd && [self resolveAutoPauseAuthorizationIfNeeded]) {
-            if (remainingSeconds <= SFXSegmentBoundaryEpsilonSeconds) {
-                [self markSegmentAudioBoundaryReached];
-                return SFXAudioScheduleResultSegmentBoundaryReached;
-            }
-
-            if (mediaSeconds + frameDuration + SFXSegmentBoundaryEpsilonSeconds >= _segmentEndSeconds) {
-                int segmentSampleCount = (int)floor(remainingSeconds * (double)sampleRate + SFXSegmentBoundaryEpsilonSeconds);
-                if (segmentSampleCount <= 0) {
-                    [self markSegmentAudioBoundaryReached];
-                    return SFXAudioScheduleResultSegmentBoundaryReached;
-                }
-                scheduledSampleCount = MIN(frame->nb_samples, segmentSampleCount);
-                isFinalSegmentBuffer = YES;
-            }
-        }
-    }
-
-    AVAudioPCMBuffer *buffer = [[AVAudioPCMBuffer alloc]
-        initWithPCMFormat:_audioFormat
-        frameCapacity:(AVAudioFrameCount)scheduledSampleCount
-    ];
-    if (buffer == nil || buffer.floatChannelData == NULL) {
-        return SFXAudioScheduleResultNotScheduled;
-    }
-
-    buffer.frameLength = (AVAudioFrameCount)scheduledSampleCount;
-    for (int channel = 0; channel < channels; channel++) {
-        memcpy(
-            buffer.floatChannelData[channel],
-            frame->extended_data[channel],
-            sizeof(float) * (size_t)scheduledSampleCount
-        );
-    }
-
-    SFXAudioScheduleResult result = isFinalSegmentBuffer
-        ? SFXAudioScheduleResultScheduledFinalSegmentBuffer
-        : SFXAudioScheduleResultScheduled;
-    double scheduledDurationSeconds = (double)scheduledSampleCount / (double)sampleRate;
-    if (mediaSeconds >= 0) {
-        double scheduledEndSeconds = mediaSeconds + scheduledDurationSeconds;
+    double scheduledDurationSeconds = (double)buffer.frameLength / (double)sampleRate;
+    if (startMediaSeconds >= 0) {
+        double scheduledEndSeconds = endMediaSeconds >= startMediaSeconds
+            ? endMediaSeconds
+            : (startMediaSeconds + scheduledDurationSeconds);
         @synchronized (self) {
-            _lastScheduledAudioStartMilliseconds = (NSInteger)llround(mediaSeconds * 1000.0);
+            _lastScheduledAudioStartMilliseconds = (NSInteger)llround(startMediaSeconds * 1000.0);
             _lastScheduledAudioEndMilliseconds = (NSInteger)llround(scheduledEndSeconds * 1000.0);
         }
     }
@@ -4632,8 +4731,8 @@ automaticRecycleMilliseconds:(NSInteger)automaticRecycleMilliseconds {
         && !atomic_load(&_cancelled)
         && !atomic_load(&_finishingForAutomaticRecycle);
     if (canSchedule) {
-        if (_audioFirstScheduledMediaSeconds < 0 && mediaSeconds >= 0) {
-            _audioFirstScheduledMediaSeconds = mediaSeconds;
+        if (_audioFirstScheduledMediaSeconds < 0 && startMediaSeconds >= 0) {
+            _audioFirstScheduledMediaSeconds = startMediaSeconds;
         }
         _queuedAudioMediaSeconds += scheduledDurationSeconds;
         _outstandingAudioBufferCount += 1;
@@ -4642,7 +4741,9 @@ automaticRecycleMilliseconds:(NSInteger)automaticRecycleMilliseconds {
             _audioPrimed = YES;
         }
         BOOL becamePrimed = !wasPrimed && _audioPrimed;
-        [_packetQueueCondition broadcast];
+        if (becamePrimed || isFinalSegmentBuffer) {
+            [_packetQueueCondition broadcast];
+        }
         if (becamePrimed) {
             dispatch_async(_audioDecodeQueue, ^{
                 [self requestAudioPlaybackStartIfReadyForGeneration:generation];
@@ -4651,7 +4752,7 @@ automaticRecycleMilliseconds:(NSInteger)automaticRecycleMilliseconds {
     }
     [_packetQueueCondition unlock];
     if (!canSchedule) {
-        return SFXAudioScheduleResultNotScheduled;
+        return NO;
     }
 
     if (isFinalSegmentBuffer) {
@@ -4678,7 +4779,121 @@ automaticRecycleMilliseconds:(NSInteger)automaticRecycleMilliseconds {
         atomic_fetch_add_explicit(&_telemetryCounters->audioScheduleMicroseconds, scheduleElapsedUs, memory_order_relaxed);
     }
 
-    return result;
+    return YES;
+}
+
+- (SFXAudioScheduleResult)scheduleAudioFrame:(const AVFrame *)frame
+                                mediaSeconds:(double)mediaSeconds
+                                  generation:(NSUInteger)generation {
+    uint64_t copyStartUs = SFXTelemetryMonotonicMicroseconds();
+    if (_audioPlayer == nil || _audioFormat == nil || frame->format != AV_SAMPLE_FMT_FLTP) {
+        return SFXAudioScheduleResultNotScheduled;
+    }
+
+    int channels = frame->ch_layout.nb_channels;
+    if (channels <= 0 || channels > (int)_audioFormat.channelCount) {
+        return SFXAudioScheduleResultNotScheduled;
+    }
+
+    int sampleRate = [self audioFrameSampleRate:frame];
+    if (sampleRate <= 0) {
+        return SFXAudioScheduleResultNotScheduled;
+    }
+
+    int scheduledSampleCount = frame->nb_samples;
+    BOOL isFinalSegmentBuffer = NO;
+    if ([self hasActiveSegmentEnd] && [self segmentAudioBoundaryReached]) {
+        [self flushPendingCoalescedAudioForGeneration:generation finalSegmentBuffer:NO];
+        return SFXAudioScheduleResultSegmentBoundaryReached;
+    }
+
+    if ([self hasActiveSegmentEnd] && mediaSeconds >= 0) {
+        double remainingSeconds = _segmentEndSeconds - mediaSeconds;
+        double frameDuration = sampleRate > 0 ? (double)frame->nb_samples / (double)sampleRate : 0;
+        BOOL reachesSegmentEnd = remainingSeconds <= SFXSegmentBoundaryEpsilonSeconds
+            || mediaSeconds + frameDuration + SFXSegmentBoundaryEpsilonSeconds >= _segmentEndSeconds;
+        if (reachesSegmentEnd && [self resolveAutoPauseAuthorizationIfNeeded]) {
+            if (remainingSeconds <= SFXSegmentBoundaryEpsilonSeconds) {
+                [self flushPendingCoalescedAudioForGeneration:generation finalSegmentBuffer:NO];
+                [self markSegmentAudioBoundaryReached];
+                return SFXAudioScheduleResultSegmentBoundaryReached;
+            }
+
+            if (mediaSeconds + frameDuration + SFXSegmentBoundaryEpsilonSeconds >= _segmentEndSeconds) {
+                int segmentSampleCount = (int)floor(remainingSeconds * (double)sampleRate + SFXSegmentBoundaryEpsilonSeconds);
+                if (segmentSampleCount <= 0) {
+                    [self flushPendingCoalescedAudioForGeneration:generation finalSegmentBuffer:NO];
+                    [self markSegmentAudioBoundaryReached];
+                    return SFXAudioScheduleResultSegmentBoundaryReached;
+                }
+                scheduledSampleCount = MIN(frame->nb_samples, segmentSampleCount);
+                isFinalSegmentBuffer = YES;
+            }
+        }
+    }
+
+    AVAudioFrameCount targetCapacity = _audioPrimed
+        ? SFXAudioCoalesceSteadySamples
+        : SFXAudioCoalesceStartupSamples;
+    if (_pendingCoalescedAudioBuffer != nil
+        && (_pendingCoalescedAudioGeneration != generation
+            || _pendingCoalescedAudioSampleRate != sampleRate
+            || _pendingCoalescedAudioBuffer.frameLength + (AVAudioFrameCount)scheduledSampleCount > _pendingCoalescedAudioBuffer.frameCapacity)) {
+        if (![self flushPendingCoalescedAudioForGeneration:_pendingCoalescedAudioGeneration
+                                        finalSegmentBuffer:NO]) {
+            return SFXAudioScheduleResultNotScheduled;
+        }
+    }
+
+    if (_pendingCoalescedAudioBuffer == nil) {
+        AVAudioFrameCount capacity = MAX(targetCapacity, (AVAudioFrameCount)scheduledSampleCount);
+        _pendingCoalescedAudioBuffer = [[AVAudioPCMBuffer alloc]
+            initWithPCMFormat:_audioFormat
+            frameCapacity:capacity
+        ];
+        if (_pendingCoalescedAudioBuffer == nil || _pendingCoalescedAudioBuffer.floatChannelData == NULL) {
+            _pendingCoalescedAudioBuffer = nil;
+            return SFXAudioScheduleResultNotScheduled;
+        }
+        _pendingCoalescedAudioBuffer.frameLength = 0;
+        _pendingCoalescedAudioStartMediaSeconds = mediaSeconds;
+        _pendingCoalescedAudioEndMediaSeconds = -1;
+        _pendingCoalescedAudioSampleRate = sampleRate;
+        _pendingCoalescedAudioGeneration = generation;
+    }
+
+    AVAudioFrameCount dstOffset = _pendingCoalescedAudioBuffer.frameLength;
+    for (int channel = 0; channel < channels; channel++) {
+        memcpy(
+            _pendingCoalescedAudioBuffer.floatChannelData[channel] + dstOffset,
+            frame->extended_data[channel],
+            sizeof(float) * (size_t)scheduledSampleCount
+        );
+    }
+    _pendingCoalescedAudioBuffer.frameLength = dstOffset + (AVAudioFrameCount)scheduledSampleCount;
+    if (_pendingCoalescedAudioStartMediaSeconds < 0 && mediaSeconds >= 0) {
+        _pendingCoalescedAudioStartMediaSeconds = mediaSeconds;
+    }
+    if (mediaSeconds >= 0) {
+        _pendingCoalescedAudioEndMediaSeconds = mediaSeconds
+            + ((double)scheduledSampleCount / (double)sampleRate);
+    }
+
+    uint64_t copyElapsedUs = SFXTelemetryMonotonicMicroseconds() - copyStartUs;
+    if (_telemetryCounters != NULL) {
+        atomic_fetch_add_explicit(&_telemetryCounters->audioScheduleMicroseconds, copyElapsedUs, memory_order_relaxed);
+    }
+
+    if (isFinalSegmentBuffer || _pendingCoalescedAudioBuffer.frameLength >= targetCapacity) {
+        if (![self flushPendingCoalescedAudioForGeneration:generation
+                                        finalSegmentBuffer:isFinalSegmentBuffer]) {
+            return SFXAudioScheduleResultNotScheduled;
+        }
+    }
+
+    return isFinalSegmentBuffer
+        ? SFXAudioScheduleResultScheduledFinalSegmentBuffer
+        : SFXAudioScheduleResultScheduled;
 }
 
 - (void)notifyTimeIfNeeded:(BOOL)force {
@@ -4737,6 +4952,7 @@ automaticRecycleMilliseconds:(NSInteger)automaticRecycleMilliseconds {
     _playbackGeneration += 1;
     [_packetQueueCondition broadcast];
     [_packetQueueCondition unlock];
+    [self signalPacingCondition];
 
     [self stopPacketReadAheadAndClear];
     [self clearPendingPixelBufferSubmission];
@@ -4756,10 +4972,15 @@ automaticRecycleMilliseconds:(NSInteger)automaticRecycleMilliseconds {
     _audioOutputDrained = YES;
     [_packetQueueCondition broadcast];
     [_packetQueueCondition unlock];
+    [self signalPacingCondition];
 
     swr_free(&_resampler);
     sws_freeContext(_videoScaler);
     _videoScaler = NULL;
+    if (_cachedVideoFormatDescription != NULL) {
+        CFRelease(_cachedVideoFormatDescription);
+        _cachedVideoFormatDescription = NULL;
+    }
     if (_softwarePixelBufferPool != NULL) {
         CVPixelBufferPoolRelease(_softwarePixelBufferPool);
         _softwarePixelBufferPool = NULL;

@@ -409,6 +409,9 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
             return
         }
         try nativePlayer.setPaused(isPaused)
+        if !isPaused {
+            startASSSubtitleRenderTicks()
+        }
     }
 
     /// The audio track the open video is playing, counted from 0 among its
@@ -568,6 +571,11 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
     public func setSubtitlesVisible(_ isVisible: Bool) {
         subtitlesVisible = isVisible
         runtimeTelemetryTracker.updateSubtitleSource(activeSubtitleSource, subtitlesVisible: isVisible)
+        if isVisible {
+            startASSSubtitleRenderTicks()
+        } else {
+            stopASSSubtitleRenderTicks()
+        }
         Task { @MainActor in
             (self.renderView as? PlaybackRenderContainerView)?.setSubtitlesVisible(isVisible)
         }
@@ -633,6 +641,7 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
         case "speed":
             storedSpeed = min(max(value, 0.5), 2.0)
             nativePlayer.playbackRate = Float(storedSpeed)
+            startASSSubtitleRenderTicks()
             delegate?.player(self, didChangeProperty: "speed", value: .double(storedSpeed))
         default:
             throw PlaybackError.nativePropertyUnsupported(name: name)
@@ -657,6 +666,9 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
     public func setBoolProperty(_ name: String, value: Bool) throws {
         if name == "pause" {
             try nativePlayer.setPaused(value)
+            if !value {
+                startASSSubtitleRenderTicks()
+            }
         } else {
             throw PlaybackError.nativePropertyUnsupported(name: name)
         }
@@ -753,19 +765,49 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
 
     private func startASSSubtitleRenderTicks() {
         subtitleRenderTickTask?.cancel()
+        guard activeSubtitleSource != nil, subtitlesVisible else {
+            subtitleRenderTickTask = nil
+            return
+        }
         subtitleRenderTickTask = Task { @MainActor [weak self] in
             while !Task.isCancelled {
-                guard let self else {
+                guard let self,
+                      self.activeSubtitleSource != nil,
+                      self.subtitlesVisible
+                else {
                     return
+                }
+
+                guard self.nativePlayer.isPlaying else {
+                    try? await Task.sleep(nanoseconds: 200_000_000)
+                    continue
                 }
 
                 let milliseconds = self.renderedASSSubtitleMilliseconds(
                     forNativeMilliseconds: self.currentNativePlaybackMilliseconds()
                 )
-                PlaybackPerformanceProbe.recordSubtitleTick()
-                (self.renderView as? PlaybackRenderContainerView)?.setSubtitleTime(milliseconds: milliseconds)
-                self.lastRenderedASSSubtitleMilliseconds = milliseconds
-                try? await Task.sleep(nanoseconds: 33_000_000)
+                let container = self.renderView as? PlaybackRenderContainerView
+                if milliseconds != self.lastRenderedASSSubtitleMilliseconds {
+                    PlaybackPerformanceProbe.recordSubtitleTick()
+                    container?.setSubtitleTime(milliseconds: milliseconds)
+                    self.lastRenderedASSSubtitleMilliseconds = milliseconds
+                }
+
+                let sleepNanoseconds: UInt64
+                if self.assSubtitleRenderTimeGate != nil {
+                    sleepNanoseconds = 33_000_000
+                } else if let nextBoundaryMilliseconds = container?.nextScheduledSubtitleTickMilliseconds(
+                    after: milliseconds
+                ) {
+                    let mediaDeltaMilliseconds = max(1, nextBoundaryMilliseconds - milliseconds)
+                    let speed = max(0.5, self.storedSpeed)
+                    let wallMilliseconds = Double(mediaDeltaMilliseconds) / speed
+                    let clampedMilliseconds = min(max(wallMilliseconds, 16.0), 500.0)
+                    sleepNanoseconds = UInt64(clampedMilliseconds * 1_000_000.0)
+                } else {
+                    sleepNanoseconds = 500_000_000
+                }
+                try? await Task.sleep(nanoseconds: sleepNanoseconds)
             }
         }
     }
@@ -817,6 +859,7 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
                 milliseconds: safeMilliseconds
             )
             lastRenderedASSSubtitleMilliseconds = safeMilliseconds
+            startASSSubtitleRenderTicks()
         case .replace(let source):
             activateSubtitleSourceForCommittedPresentation(
                 source,
@@ -963,8 +1006,10 @@ extension PlaybackPlayer: SFXNativePlaybackPlayerDelegate {
         delegate?.player(self, didChangeProperty: "time-pos", value: .double(time))
         delegate?.player(self, didChangeProperty: "duration", value: .double(duration))
         delegate?.player(self, didChangeProperty: "pause", value: .bool(!playing))
-        let milliseconds = max(0, Int((time * 1_000).rounded(.down)))
-        updateASSSubtitleTimeFromNative(milliseconds: milliseconds)
+        if !playing || subtitleRenderTickTask == nil || assSubtitleRenderTimeGate != nil {
+            let milliseconds = max(0, Int((time * 1_000).rounded(.down)))
+            updateASSSubtitleTimeFromNative(milliseconds: milliseconds)
+        }
     }
 
     public func nativePlaybackPlayer(
@@ -1173,6 +1218,7 @@ public final class PlaybackRenderContainerView: NSView {
             setSourceFaithfulASSSubtitleSource(source)
         case .srt:
             clearSourceFaithfulASSSubtitleSource()
+            currentASSSubtitleSource = source
             ensureSRTSubtitleOverlayView()
             srtSubtitleOverlayView?.setSource(source)
         }
@@ -1192,6 +1238,14 @@ public final class PlaybackRenderContainerView: NSView {
         currentASSSubtitleTimeMilliseconds = milliseconds
         sourceFaithfulASSOverlayView?.currentTimeMilliseconds = milliseconds
         srtSubtitleOverlayView?.currentTimeMilliseconds = milliseconds
+    }
+
+    func nextScheduledSubtitleTickMilliseconds(after milliseconds: Int) -> Int? {
+        guard currentSubtitlesVisible else {
+            return nil
+        }
+        return sourceFaithfulASSOverlayView?.nextScheduledRenderMilliseconds(after: milliseconds)
+            ?? srtSubtitleOverlayView?.nextScheduledRenderMilliseconds(after: milliseconds)
     }
 
     func setASSSubtitleTime(milliseconds: Int) {

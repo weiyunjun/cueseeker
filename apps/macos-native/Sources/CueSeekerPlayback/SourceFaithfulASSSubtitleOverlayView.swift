@@ -72,15 +72,24 @@ enum SourceFaithfulASSSubtitleLayout {
 }
 
 private enum ASSRenderedFrame: @unchecked Sendable {
-    case sparse(ASSSparseFrame)
-    case unchanged(timestampMilliseconds: Int)
+    case sparse(ASSSparseFrame, validRangeMilliseconds: Range<Int>)
+    case unchanged(timestampMilliseconds: Int, validRangeMilliseconds: Range<Int>)
 
     var timestampMilliseconds: Int {
         switch self {
-        case .sparse(let frame):
+        case .sparse(let frame, _):
             frame.timestampMilliseconds
-        case .unchanged(let timestampMilliseconds):
+        case .unchanged(let timestampMilliseconds, _):
             timestampMilliseconds
+        }
+    }
+
+    var validRangeMilliseconds: Range<Int> {
+        switch self {
+        case .sparse(_, let range):
+            range
+        case .unchanged(_, let range):
+            range
         }
     }
 }
@@ -200,8 +209,19 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
                     return
                 }
 
+                var validLower = max(0, output.unchangedFromMilliseconds)
+                var validUpper = max(validLower + 1, output.unchangedUntilMilliseconds)
+                if let segmentWindow = self.activeRenderSegmentWindow {
+                    validLower = max(validLower, segmentWindow.startMilliseconds)
+                    validUpper = min(validUpper, segmentWindow.endMilliseconds)
+                }
+                let validRange = validLower ..< max(validLower + 1, validUpper)
+
                 guard output.changed else {
-                    completion(expectedGeneration, .success(.unchanged(timestampMilliseconds: timestampMilliseconds)))
+                    completion(
+                        expectedGeneration,
+                        .success(.unchanged(timestampMilliseconds: timestampMilliseconds, validRangeMilliseconds: validRange))
+                    )
                     return
                 }
 
@@ -211,7 +231,7 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
                     frameHeight: output.frameHeight,
                     timestampMilliseconds: timestampMilliseconds
                 )
-                completion(expectedGeneration, .success(.sparse(frame)))
+                completion(expectedGeneration, .success(.sparse(frame, validRangeMilliseconds: validRange)))
             } catch {
                 guard !self.isInvalidated else {
                     return
@@ -388,6 +408,7 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
     private var isRenderInFlight = false
     private var pendingTimestampMilliseconds: Int?
     private var renderedTimestampMilliseconds: Int?
+    private var renderedValidRangeMilliseconds: Range<Int>?
     private var renderedFrame: ASSRenderedFrame?
     private var failureMessage: String?
     private var isApplyingPresentation = false
@@ -439,11 +460,26 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
         }
 
         switch renderedFrame {
-        case .sparse(let frame):
+        case .sparse(let frame, _):
             return frame
         case .unchanged:
             return nil
         }
+    }
+
+    func nextScheduledRenderMilliseconds(after timestampMilliseconds: Int) -> Int? {
+        guard areSubtitlesVisible, source != nil else {
+            return nil
+        }
+        guard isRendererReady, !isRenderInFlight, pendingTimestampMilliseconds == nil else {
+            return timestampMilliseconds + 33
+        }
+        guard let validRange = renderedValidRangeMilliseconds,
+              validRange.contains(timestampMilliseconds)
+        else {
+            return timestampMilliseconds
+        }
+        return validRange.upperBound < Int.max ? validRange.upperBound : nil
     }
 
     override func hitTest(_ point: NSPoint) -> NSView? {
@@ -603,8 +639,19 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
         }
 
         let timestampMilliseconds = max(0, currentTimeMilliseconds)
-        if !force, timestampMilliseconds == renderedTimestampMilliseconds {
-            return
+        if !force {
+            if timestampMilliseconds == renderedTimestampMilliseconds {
+                return
+            }
+            if !isRenderInFlight,
+               pendingTimestampMilliseconds == nil,
+               let validRange = renderedValidRangeMilliseconds,
+               validRange.contains(timestampMilliseconds) {
+                renderedTimestampMilliseconds = timestampMilliseconds
+                return
+            }
+        } else {
+            renderedValidRangeMilliseconds = nil
         }
 
         pendingTimestampMilliseconds = timestampMilliseconds
@@ -642,6 +689,7 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
                 switch result {
                 case .success(let frame):
                     self.renderedTimestampMilliseconds = frame.timestampMilliseconds
+                    self.renderedValidRangeMilliseconds = frame.validRangeMilliseconds
                     self.apply(frame)
                     self.failureMessage = nil
                 case .failure(let error):
@@ -649,6 +697,13 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
                     self.failureMessage = error.message
                     self.onRenderingFailure?(error.message)
                     self.needsDisplay = true
+                }
+
+                if let nextPending = self.pendingTimestampMilliseconds,
+                   let validRange = self.renderedValidRangeMilliseconds,
+                   validRange.contains(nextPending) {
+                    self.renderedTimestampMilliseconds = nextPending
+                    self.pendingTimestampMilliseconds = nil
                 }
 
                 if self.pendingTimestampMilliseconds != nil, let generation = self.generation {
@@ -673,6 +728,7 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
         isRenderInFlight = false
         pendingTimestampMilliseconds = nil
         renderedTimestampMilliseconds = nil
+        renderedValidRangeMilliseconds = nil
         renderedFrame = nil
         failureMessage = nil
         clearSubtitleLayers()
@@ -687,7 +743,7 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
 
     private func updatePresentation(for renderedFrame: ASSRenderedFrame) {
         switch renderedFrame {
-        case .sparse(let frame):
+        case .sparse(let frame, _):
             updatePresentation(for: frame)
         case .unchanged:
             break
@@ -697,8 +753,8 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
     private func updatePresentation(for frame: ASSSparseFrame) {
         PlaybackPerformanceProbe.recordASSLayerUpdate()
         PlaybackPerformanceProbe.measure("SourceFaithfulASSSubtitleOverlayView.updatePresentation", thresholdMilliseconds: 8) {
-            clearSubtitleLayers()
             guard frame.frameWidth > 0, frame.frameHeight > 0 else {
+                clearSubtitleLayers()
                 return
             }
 
@@ -707,31 +763,38 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
             guard let surface = frame.surface,
                   let surfaceImage = makeImage(from: surface)
             else {
+                clearSubtitleLayers()
                 return
             }
 
-            let surfaceLayer = CALayer()
+            let surfaceLayer: CALayer
+            if let existingLayer = subtitleSurfaceLayer {
+                surfaceLayer = existingLayer
+            } else {
+                let newLayer = CALayer()
+                newLayer.contentsGravity = .resize
+                newLayer.magnificationFilter = .linear
+                newLayer.minificationFilter = .linear
+                newLayer.actions = [
+                    "contents": NSNull(),
+                    "position": NSNull(),
+                    "bounds": NSNull(),
+                    "frame": NSNull()
+                ]
+                subtitleContainerLayer.addSublayer(newLayer)
+                subtitleSurfaceLayer = newLayer
+                surfaceLayer = newLayer
+            }
             surfaceLayer.contents = surfaceImage
-            surfaceLayer.contentsGravity = .resize
             surfaceLayer.contentsScale = window?.backingScaleFactor ?? NSScreen.main?.backingScaleFactor ?? 2
-            surfaceLayer.magnificationFilter = .linear
-            surfaceLayer.minificationFilter = .linear
-            surfaceLayer.actions = [
-                "contents": NSNull(),
-                "position": NSNull(),
-                "bounds": NSNull(),
-                "frame": NSNull()
-            ]
-            subtitleContainerLayer.addSublayer(surfaceLayer)
-            subtitleSurfaceLayer = surfaceLayer
 
-            updatePresentationLayout(for: .sparse(frame))
+            updatePresentationLayout(for: frame)
         }
     }
 
     private func updatePresentationLayout(for renderedFrame: ASSRenderedFrame) {
         switch renderedFrame {
-        case .sparse(let frame):
+        case .sparse(let frame, _):
             updatePresentationLayout(for: frame)
         case .unchanged:
             break

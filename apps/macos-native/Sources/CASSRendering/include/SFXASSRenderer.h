@@ -65,6 +65,8 @@ typedef NS_ENUM(NSInteger, SFXASSRenderingErrorCode) {
 @property (nonatomic, readonly) NSInteger frameHeight;
 @property (nonatomic, readonly) NSInteger imageCount;
 @property (nonatomic, readonly) BOOL changed;
+@property (nonatomic, readonly) NSInteger unchangedFromMilliseconds;
+@property (nonatomic, readonly) NSInteger unchangedUntilMilliseconds;
 
 - (instancetype)init NS_UNAVAILABLE;
 
