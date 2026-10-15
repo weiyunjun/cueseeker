@@ -239,7 +239,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--height-segmented-control`: `32px`
 - `--height-filter-chip`: `32px`
 - `--height-filter-chip-count-placeholder`: `12px`
-- `--height-field`: `40px`
+- `--height-field`: `30px`
 - `--height-table-header`: `27px`
 - `--min-height-table-row`: `40px`
 - `--height-action-menu-item`: `32px`
@@ -342,6 +342,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--width-dialog-medium`: `480px`
 - `--width-dialog-large`: `600px`
 - `--width-dialog-x-large`: `720px`
+- `--width-form-label`: `72px`
 - `--width-shortcut-field`: `144px`
 - `--width-settings-number-field`: `114px`
 - `--width-settings-window`: `880px`
@@ -390,7 +391,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--inset-dialog`: `24px`
 - `--padding-control-x`: `14px`
 - `--padding-segmented-control`: `3px`
-- `--padding-field-x`: `16px`
+- `--padding-field-x`: `10px`
 - `--padding-menu`: `6px`
 - `--padding-menu-item`: `10px`
 - `--padding-header-trigger-x`: `12px`
@@ -430,7 +431,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 ### Radius
 
 - `--radius-control`: `8px`
-- `--radius-field`: `8px`
+- `--radius-field`: `6px`
 - `--radius-search`: `9999px`
 - `--radius-inline-clear-button`: `9999px`
 - `--radius-checkbox`: `9999px`
@@ -3304,22 +3305,22 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 #### Components
 
 - Shortcut Field
-- Icon Button / Default：Restore Default
+- Icon Button / Dialog Close：Restore Default
 
 #### Row
 
 1. 功能名称
-2. Shortcut Field
-3. Restore Default：当前为默认键时 Disabled
+2. Restore Default：当前为默认键时不显示
+3. Shortcut Field
 
 #### Layout
 
-- Shortcut Field 与 Restore Default 靠右
+- Restore Default 与 Shortcut Field 靠右，Restore Default 位于 Shortcut Field 左侧
 - Validation Message 位于 Shortcut Field 下方，左侧与 Shortcut Field 对齐，较长时向功能名称一侧延伸；有提示时行随之变高，功能名称与 Shortcut Field 保持垂直居中对齐
 
 #### Spacing
 
-- Shortcut Field 与 Restore Default：`--spacing-1`
+- Restore Default 与 Shortcut Field：`--spacing-1`
 
 ### Settings Subtitle Layout
 
@@ -3944,7 +3945,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - Main Region：`--width-dialog-x-large` 时 Two Columns, Top Aligned；`--width-dialog-small` 时 One Column，Cover Region 在上，Form Region 在下，间距为 Column Gap
 - Cover Width：`--width-dialog-small` 减两侧 `--inset-dialog`，两种排版相同
 - Form Region Width：Two Columns 时为剩余宽度；One Column 时与 Cover Width 相同
-- Description Field 的 Container 高度：Two Columns 时底边与 Cover 底边对齐；One Column 沿用同一高度
+- Description Field 的 Container 高度：Two Columns 时底边与 Cover 下方 Support Text 第 1 行底边对齐；One Column 沿用同一高度
 
 #### Spacing
 
@@ -3985,14 +3986,14 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 #### Layout
 
 - Width：`--width-dialog-medium`
-- Form Region 单列，占满内容宽度；Current Name 与 New Name Field 的右缘与最右侧按钮的右缘对齐。
-- Current Name 的 Label 与 Text Field 的 Label 相同；Rename Folder 显示完整路径，Rename Files 显示视频与字幕去掉扩展名后的公共名。
+- Form Region 为左 Label（宽度 `--width-form-label`）、右内容的双列水平布局；右侧内容与输入框的右缘与最右侧按钮的右缘对齐。
+- Current Name 的 Label 与 Text Field 的 Label 相同，多行自然折行完整显示；Rename Folder 显示完整路径，Rename Files 显示视频与字幕去掉扩展名后的公共名。
 
 #### Spacing
 
 - Region Gap：`--spacing-4`
-- Field Gap：`--spacing-4`
-- Label to Current Name Gap：`--spacing-1`
+- Field Gap：`--spacing-3`
+- Label to Field Gap：`--spacing-3`
 - Footer Action Gap：`--spacing-2`
 
 #### States
@@ -4027,18 +4028,20 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 #### Layout
 
 - Width：`--width-dialog-medium`
-- Form Region 单列，占满内容宽度；4 个输入框均不展示行内 Error 边框，也不预留底部报错文字行。
-- 验证失败通过 Toast（`warning`）提示，对话框保持打开。
+- Form Region 为左 Label（宽度 `--width-form-label`）、右输入框的双列水平布局；`Name` 选填并带占位提示（留空默认取地址末级目录名，根路径取 Host），其余 3 项必填且无占位提示。
+- 前 3 个输入框不预留底部报错行；最下方 `Password` 输入框下方预留 1 行 Validation Message（左边缘与密码输入框对齐），验证或连接失败在此处显示红字，对话框保持打开。
 
 #### Spacing
 
 - Region Gap：`--spacing-4`
-- Field Gap：`--spacing-4`
+- Field Gap：`--spacing-3`
+- Label to Field Gap：`--spacing-3`
 - Footer Action Gap：`--spacing-2`
 
 #### States
 
 - Default
+- Validation Error
 - Validating（4 个输入框与 `Add` 按钮为 Disabled，`Add` 按钮内左侧展示 `WorkbenchSpinner`）
 
 ### Export to Anki Dialog Layout
@@ -4054,7 +4057,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
       1. Front：卡片标题与放置区
       2. Back：卡片标题与放置区
    3. File Name Field
-   4. Location：Label、完整文件夹路径与 Icon Button / Default（`folder`）
+   4. Location Field：Text Field 与 Icon Button / Default（`folder`）
 3. Footer
    1. Cancel
    2. Export
@@ -4080,7 +4083,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
   - Front 与 Back 内的徽章带有 6 点拖拽手柄（`dots-six-vertical`）与删除按钮（`✕`）；上下拖拽显示高亮指示线，点击删除按钮移回 Available Items。
   - 移回 Available Items 的徽章按固定标准顺序归位。
 - 导出排版（所见即所得）：卡片正面与背面内容严格按 Front、Back 区域内自上而下的视觉顺序渲染；未放入卡片的不导出。
-- Location 路径的文字同 Rename 的 Current Name，单行，过长时中间截断；文件夹按钮在路径右侧，字形墨迹右缘与内容右缘对齐。
+- Location 为单行 Text Field，下方预留 1 行 Validation Message；文件夹按钮在输入框右侧（间距 `--spacing-2`），字形墨迹右缘与内容右缘对齐。
 - 默认：Front 放置 `Audio`，Back 放置 `Cue Text`，其余 5 项位于 Available Items；Location 为上次选择的文件夹。徽章布局与 Location 重新启动后保留，Search 与 Excerpt 共用；File Name 每次打开时重新生成。
 
 #### Spacing
