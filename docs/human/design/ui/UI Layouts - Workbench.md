@@ -350,6 +350,7 @@
 #### Components
 
 - Segmented Control
+- Section Title
 - Recent Watching Card Layout
 - Excerpt List Card Layout
 
@@ -358,9 +359,13 @@
 - Page Layout：Workbench Titled Page Layout
 - Segmented Control 位于顶栏内容区水平、垂直居中，卡片网格使用 `--padding-workbench-media-card-grid-inline`。
 - 默认选项：Videos。选择在 App 运行期间保留，重新启动后回到默认。
+- 按本地自然日凌晨 `00:00` 划分为 `Today`、`Yesterday`、`Last 7 Days`、`Earlier`、`Never Played` 五个分组，仅展示非空分组；分组标题左边缘与未 Hover 时的卡片封面左边缘齐平。
+- `Never Played`：Videos 收录无播放记录的文件夹（默认展示 `EP01`，按文件夹名称升序）；Excerpt Lists 收录未播放过的有效摘录集（按创建时间正序，打开时从第 1 条有效字幕播放）。
 
 #### Sizes
 
+- Section Gap：`--spacing-3`
+- Section Title to Grid Gap：`--spacing-3`
 - Card Minimum Width：`--width-library-recent-card-min`
 - Maximum Columns：有 Sidebar `--grid-max-columns-library-with-sidebar`；无 Sidebar `--grid-max-columns-library-without-sidebar`
 - Grid Gap：`--gap-library-recent-grid`

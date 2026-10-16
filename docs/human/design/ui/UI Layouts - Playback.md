@@ -496,9 +496,9 @@
 #### Variants
 
 - Recent Videos
-  - Content：Recent Watching Card Grid
+  - Content：Recent Watching Card Grid（按 Recent Layout 时间分组展示）
 - Recent Excerpt Lists
-  - Content：Excerpt List Card Grid
+  - Content：Excerpt List Card Grid（按 Recent Layout 时间分组展示）
 - Search Results
   - Content：Command Panel Search Results Layout
 
