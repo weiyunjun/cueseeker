@@ -1316,7 +1316,6 @@ final class SRTSubtitleOverlayView: NSView {
            activeValidRangeMilliseconds.contains(currentTimeMilliseconds) {
             return
         }
-        PlaybackPerformanceProbe.recordSRTUpdateCall()
         let nextValidRange = Self.validRange(
             for: preparedLayout.track.cues,
             at: currentTimeMilliseconds
@@ -1327,7 +1326,6 @@ final class SRTSubtitleOverlayView: NSView {
             .map(\.sourceOrdinal)
         guard force || ordinals != activeOrdinals else { return }
         activeOrdinals = ordinals
-        PlaybackPerformanceProbe.recordSRTBitmapRender()
         renderedImage = PlaybackPerformanceProbe.measure(
             "SRTSubtitleRenderer.image",
             thresholdMilliseconds: 8

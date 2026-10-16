@@ -25,30 +25,6 @@ typedef NS_ENUM(NSInteger, SFXNativePlaybackDecodeMode) {
     SFXNativePlaybackDecodeModeAuto = 2
 };
 
-typedef struct SFXNativePlaybackRuntimeTelemetry {
-    double userCPUSeconds;
-    double systemCPUSeconds;
-    uint64_t instructions;
-    uint64_t cycles;
-    uint64_t interruptWakeups;
-    uint64_t physFootprintBytes;
-
-    uint64_t videoDecodedFrames;
-    uint64_t videoSubmittedFrames;
-    uint64_t videoDecodeMicroseconds;
-    uint64_t videoPixelTransferMicroseconds;
-    uint64_t videoSubmissionMicroseconds;
-    uint64_t videoFormatDescCreateCalls;
-    uint64_t videoWaitIterations;
-
-    uint64_t audioDecodedFrames;
-    uint64_t audioScheduledBuffers;
-    uint64_t audioCompletionCallbacks;
-    uint64_t audioDecodeAndResampleMicroseconds;
-    uint64_t audioScheduleMicroseconds;
-    BOOL timePitchBypassed;
-} SFXNativePlaybackRuntimeTelemetry;
-
 @protocol SFXNativePlaybackPlayerDelegate <NSObject>
 @required
 - (void)nativePlaybackPlayer:(SFXNativePlaybackPlayer *)player
@@ -111,10 +87,6 @@ didReachAutoStopBoundaryAtMilliseconds:(NSInteger)endMilliseconds;
 @property (nonatomic) SFXNativePlaybackDecodeMode decodeMode;
 @property (nonatomic, readonly) SFXNativePlaybackDecodeMode activeDecodeMode;
 @property (nonatomic, readonly) BOOL usingHardwareDecode;
-@property (nonatomic, copy, readonly, nullable) NSString *activeVideoCodecName;
-@property (nonatomic, copy, readonly, nullable) NSString *activeOutputPixelFormatName;
-
-- (SFXNativePlaybackRuntimeTelemetry)runtimeTelemetrySnapshot;
 
 + (BOOL)isHardwareDecodeSupportedForCodecName:(NSString *)codecName;
 /// The audio track an open plays, counted from 0 among the file's audio
