@@ -373,6 +373,14 @@ struct AppTopBar: View {
             sidebarToggle
         } overlaySidebar: {
             AppSidebar()
+                .overlay(alignment: .trailing) {
+                    Rectangle()
+                        .fill(WorkbenchRedesignColors.borderMuted)
+                        .frame(width: AppShellLayout.sidebarBorderWidth)
+                        .allowsHitTesting(false)
+                }
+                .compositingGroup()
+                .shadowToken(WorkbenchRedesignColors.shadowPopover, cornerRadius: 0)
                 .overlay(alignment: .top) {
                     TitlebarBackgroundView(
                         backgroundColor: Color.clear,
@@ -386,18 +394,11 @@ struct AppTopBar: View {
                     )
                     .frame(height: AppShellLayout.topBarHeight)
                 }
-                .overlay(alignment: .trailing) {
-                    Rectangle()
-                        .fill(WorkbenchRedesignColors.borderMuted)
-                        .frame(width: AppShellLayout.sidebarBorderWidth)
-                        .allowsHitTesting(false)
-                }
                 .overlay {
                     OverlaySidebarPointerMonitorView(
                         onMouseLeave: onOverlaySidebarMouseLeave
                     )
                 }
-                .shadowToken(WorkbenchRedesignColors.shadowPopover, cornerRadius: 0)
         }
     }
 

@@ -1,5 +1,7 @@
-import Foundation
+import AppKit
 import Combine
+import Foundation
+import SwiftUI
 import Testing
 @testable import CueSeekerCore
 @testable import CueSeekerApp
@@ -421,3 +423,34 @@ func workbenchRecentSectionLabelsAndShortLabelsMatchSpecification() {
     #expect(WorkbenchRecentSection.videos.shortLabel == "Videos")
     #expect(WorkbenchRecentSection.excerpts.shortLabel == "Excerpt Lists")
 }
+
+@MainActor
+@Test
+func shadowTokenDoesNotBleedBlackCasterThroughSemiTransparentFade() throws {
+    let view = ZStack(alignment: .topLeading) {
+        Color.white
+        WorkbenchRedesignColors.appSidebarBg
+            .frame(width: 240, height: 240)
+            .compositingGroup()
+            .shadowToken(WorkbenchRedesignColors.shadowPopover, cornerRadius: 0)
+            .opacity(0.4)
+    }
+    .frame(width: 300, height: 240)
+    .environment(\.colorScheme, .light)
+
+    let hostingView = NSHostingView(rootView: view)
+    hostingView.frame = CGRect(x: 0, y: 0, width: 300, height: 240)
+    hostingView.appearance = NSAppearance(named: .aqua)
+    hostingView.layoutSubtreeIfNeeded()
+
+    let bitmap = try #require(hostingView.bitmapImageRepForCachingDisplay(in: hostingView.bounds))
+    hostingView.cacheDisplay(in: hostingView.bounds, to: bitmap)
+
+    // Sample interior of the 40% faded sidebar (x = 120, y = 120):
+    // 40% #F6F7F9 over #FFFFFF should stay bright (> 0.95), never darkened to grey by black shadow casters.
+    let interiorColor = try #require(bitmap.colorAt(x: 120, y: 120)?.usingColorSpace(.sRGB))
+    #expect(interiorColor.redComponent > 0.95)
+    #expect(interiorColor.greenComponent > 0.95)
+    #expect(interiorColor.blueComponent > 0.95)
+}
+

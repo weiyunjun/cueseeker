@@ -428,13 +428,38 @@ struct WorkbenchRedesignShadowLayer {
 
 struct WorkbenchRedesignShadow {
     let layers: [WorkbenchRedesignShadowLayer]
+
+    var maximumOutset: CGFloat {
+        layers.reduce(CGFloat.zero) { current, layer in
+            let reach = max(abs(layer.x), abs(layer.y))
+                + layer.radius * 4
+                + max(0, layer.spread)
+            return max(current, reach)
+        }
+    }
+}
+
+private struct WorkbenchShadowExteriorClipShape: Shape {
+    let cornerRadius: CGFloat
+    let outset: CGFloat
+
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.addRect(rect.insetBy(dx: -outset, dy: -outset))
+        path.addPath(
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                .path(in: rect)
+        )
+        return path
+    }
 }
 
 extension View {
     /// Draws the token's layers behind the caller's own filled shape. SwiftUI
     /// has no spread, so every layer is cast by a copy of that shape shrunk by
-    /// the layer's own spread. The copies are opaque and strictly smaller than
-    /// the caller's shape, which must be opaque too so that it covers them.
+    /// the layer's own spread, and an even-odd exterior clip punches out the
+    /// interior so the opaque black casters never bleed through during fade
+    /// transitions.
     func shadowToken(
         _ shadow: WorkbenchRedesignShadow,
         cornerRadius: CGFloat
@@ -453,6 +478,13 @@ extension View {
                         )
                 }
             }
+            .clipShape(
+                WorkbenchShadowExteriorClipShape(
+                    cornerRadius: cornerRadius,
+                    outset: shadow.maximumOutset
+                ),
+                style: FillStyle(eoFill: true)
+            )
         )
     }
 }
