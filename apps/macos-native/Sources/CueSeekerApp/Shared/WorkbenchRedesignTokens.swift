@@ -60,6 +60,7 @@ enum WorkbenchRedesignColors {
         // are translucent white in dark, so they always read lighter than the
         // surface under them.
         static let bgSurface = NSColor.dynamic(lightHex: "#FFFFFF", darkHex: "#1C1C1F")
+        static let bgCanvas = bgSurface
         static let bgHover = NSColor.dynamic(lightHex: "#F3F4F6", darkHex: "#FFFFFF", darkAlpha: 0.12)
         static let bgDisabled = NSColor.dynamic(lightHex: "#F3F4F6", darkHex: "#FFFFFF", darkAlpha: 0.04)
         static let bgControl = NSColor.dynamic(lightHex: "#FFFFFF", darkHex: "#FFFFFF", darkAlpha: 0.08)
@@ -251,6 +252,7 @@ enum WorkbenchRedesignColors {
 
     // Background
     static let bgSurface = Color(nsColor: NS.bgSurface)
+    static let bgCanvas = Color(nsColor: NS.bgCanvas)
     static let bgHover = Color(nsColor: NS.bgHover)
     static let bgDisabled = Color(nsColor: NS.bgDisabled)
     static let bgControl = Color(nsColor: NS.bgControl)

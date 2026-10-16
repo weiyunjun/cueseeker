@@ -33,12 +33,6 @@ private struct ContentRootView: View {
     @EnvironmentObject private var playback: PlaybackStore
     @EnvironmentObject private var filterDialog: CueFacetFilterDialogCenter
 
-    private let windowBackground = Color(
-        red: 0.955,
-        green: 0.955,
-        blue: 0.95
-    )
-
     var body: some View {
         AppPerformanceProbe.measure("ContentView.body", thresholdMilliseconds: 4) {
             UIInvalidationProbe.count(
@@ -59,7 +53,7 @@ private struct ContentRootView: View {
                     && layoutState.isSidebarVisible
 
                 ZStack(alignment: .topLeading) {
-                    windowBackground
+                    WorkbenchRedesignColors.bgCanvas
                         .ignoresSafeArea()
 
                     HStack(spacing: 0) {
@@ -86,19 +80,19 @@ private struct ContentRootView: View {
                                 collapseOverlaySidebarOnMouseLeaveIfNeeded(width: geometry.size.width)
                             }
                         )
-                        .zIndex(3)
+                        .zIndex(AppShellLayout.topBarZIndex)
                     }
 
                     dialogLayer(isPlaybackPageVisible: hidesWorkbenchChrome)
-                        .zIndex(200)
+                        .zIndex(AppShellLayout.dialogLayerZIndex)
 
                     ToastStackView(center: appState.toast)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .zIndex(300)
+                        .zIndex(AppShellLayout.toastLayerZIndex)
 
                     TooltipOverlayView(surface: .main)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .zIndex(400)
+                        .zIndex(AppShellLayout.tooltipLayerZIndex)
 
                     TitlebarCommandBridge()
                         .frame(width: 0, height: 0)
@@ -395,7 +389,7 @@ struct AppTopBar: View {
                 .overlay(alignment: .trailing) {
                     Rectangle()
                         .fill(WorkbenchRedesignColors.borderMuted)
-                        .frame(width: 1)
+                        .frame(width: AppShellLayout.sidebarBorderWidth)
                         .allowsHitTesting(false)
                 }
                 .overlay {
@@ -704,24 +698,30 @@ private struct AppSidebarToggleButtonStyle: ButtonStyle {
 }
 
 enum AppShellLayout {
-    static let defaultWindowWidth: CGFloat = 1_000
-    static let minimumWindowWidth: CGFloat = 600
+    static let defaultWindowWidth = WorkbenchControlMetrics.redesignWindowDefaultWidth
+    static let minimumWindowWidth = WorkbenchControlMetrics.redesignWindowMinimumWidth
     /// Lower bound for Workbench page content: the right region width when the
     /// window is at its minimum with the sidebar collapsed or overlaid.
     static let pageContentMinimumWidth = minimumWindowWidth
-    static let minimumWindowHeight: CGFloat = 560
+    static let minimumWindowHeight = WorkbenchControlMetrics.redesignWindowMinimumHeight
     /// Below this window width (`< 840px`), keeping the sidebar docked would
     /// push the page below its 600px minimum width, so the sidebar auto-collapses
     /// and opens as a full-height overlay when toggled manually.
     static let sidebarAutoCollapseWindowWidth = pageContentMinimumWidth + sidebarWidth
     static let topBarHeight = WorkbenchControlMetrics.redesignWorkbenchTopbarHeight
-    static let sidePanelAnimationDuration: Double = 0.18
+    static let sidePanelAnimationDuration = WorkbenchControlMetrics.redesignSidebarMotionDuration
+    static let sidebarBorderWidth = WorkbenchControlMetrics.redesignBorderHairlineWidth
+
+    static let topBarZIndex: Double = 3
+    static let dialogLayerZIndex: Double = 200
+    static let toastLayerZIndex: Double = 300
+    static let tooltipLayerZIndex: Double = 400
 
     static func isCompactWindow(width: CGFloat) -> Bool {
         width < sidebarAutoCollapseWindowWidth
     }
 
-    static let modeControlsOuterPadding: CGFloat = 12
+    static let modeControlsOuterPadding = WorkbenchControlMetrics.redesignSpacing3
     /// After the window controls: their inset, their measured width, then the
     /// gap to the toggle.
     @MainActor static var collapsedLeadingToggleX: CGFloat {

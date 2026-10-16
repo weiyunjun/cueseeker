@@ -250,9 +250,19 @@ private func withTemporaryWorkbenchLayoutUserDefaults(_ body: (UserDefaults) -> 
 
 @Test
 func workbenchSidebarCollapsesBeforeThePageDropsBelowItsMinimumWidth() {
-    #expect(AppShellLayout.minimumWindowWidth == 600)
+    #expect(WorkbenchControlMetrics.redesignWindowDefaultWidth == 1_000)
+    #expect(WorkbenchControlMetrics.redesignWindowMinimumWidth == 600)
+    #expect(WorkbenchControlMetrics.redesignWindowMinimumHeight == 560)
+    #expect(WorkbenchControlMetrics.redesignSidebarMotionDuration == 0.18)
+    #expect(WorkbenchControlMetrics.redesignBorderHairlineWidth == 1)
+
+    #expect(AppShellLayout.defaultWindowWidth == WorkbenchControlMetrics.redesignWindowDefaultWidth)
+    #expect(AppShellLayout.minimumWindowWidth == WorkbenchControlMetrics.redesignWindowMinimumWidth)
     #expect(AppShellLayout.pageContentMinimumWidth == 600)
-    #expect(AppShellLayout.minimumWindowHeight == 560)
+    #expect(AppShellLayout.minimumWindowHeight == WorkbenchControlMetrics.redesignWindowMinimumHeight)
+    #expect(AppShellLayout.sidePanelAnimationDuration == WorkbenchControlMetrics.redesignSidebarMotionDuration)
+    #expect(AppShellLayout.sidebarBorderWidth == WorkbenchControlMetrics.redesignBorderHairlineWidth)
+    #expect(AppShellLayout.modeControlsOuterPadding == WorkbenchControlMetrics.redesignSpacing3)
     #expect(AppShellLayout.sidebarWidth == 240)
     #expect(
         AppShellLayout.sidebarAutoCollapseWindowWidth
@@ -275,10 +285,31 @@ func workbenchSidebarCollapsesBeforeThePageDropsBelowItsMinimumWidth() {
 func overlaySidebarMouseLeaveCollapsesOnlyInCompactWindowWhenPointerLeaves240Width() {
     let sidebarBounds = CGRect(x: 0, y: 0, width: 240, height: 600)
 
-    // Pointer inside 0...240 x 0...600 (including on the top-left toggle at x = 88) stays open.
+    // 1. During entrance cooldown, even a pointer past x > 240 does not abort the fade-in.
+    #expect(
+        !OverlaySidebarPointerMonitorNSView.shouldCollapseForPointerLocation(
+            CGPoint(x: 320, y: 27),
+            sidebarBounds: sidebarBounds,
+            isWithinEntranceCooldown: true
+        )
+    )
+
+    // 2. Pointer inside x <= 240 (including upward nudges above the top-left toggle button) stays open.
     #expect(
         !OverlaySidebarPointerMonitorNSView.shouldCollapseForPointerLocation(
             CGPoint(x: 96, y: 27),
+            sidebarBounds: sidebarBounds
+        )
+    )
+    #expect(
+        !OverlaySidebarPointerMonitorNSView.shouldCollapseForPointerLocation(
+            CGPoint(x: 96, y: -6),
+            sidebarBounds: sidebarBounds
+        )
+    )
+    #expect(
+        !OverlaySidebarPointerMonitorNSView.shouldCollapseForPointerLocation(
+            CGPoint(x: 96, y: 605),
             sidebarBounds: sidebarBounds
         )
     )
@@ -289,16 +320,10 @@ func overlaySidebarMouseLeaveCollapsesOnlyInCompactWindowWhenPointerLeaves240Wid
         )
     )
 
-    // Pointer moving past x > 240 or outside the window collapses the overlay sidebar.
+    // 3. Pointer moving horizontally past x > 240 after entrance cooldown collapses the overlay sidebar.
     #expect(
         OverlaySidebarPointerMonitorNSView.shouldCollapseForPointerLocation(
             CGPoint(x: 241, y: 300),
-            sidebarBounds: sidebarBounds
-        )
-    )
-    #expect(
-        OverlaySidebarPointerMonitorNSView.shouldCollapseForPointerLocation(
-            CGPoint(x: -1, y: 300),
             sidebarBounds: sidebarBounds
         )
     )

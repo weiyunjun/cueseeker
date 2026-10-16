@@ -240,15 +240,19 @@ struct AppTopbarLayout<
         ZStack(alignment: .topLeading) {
             topbarBand
 
-            if isOverlaySidebarVisible {
-                overlaySidebar()
-                    .frame(width: AppShellLayout.sidebarWidth)
-                    .frame(maxHeight: .infinity, alignment: .topLeading)
-                    .transition(.move(edge: .leading).combined(with: .opacity))
+            ZStack(alignment: .topLeading) {
+                if isOverlaySidebarVisible {
+                    overlaySidebar()
+                        .frame(width: AppShellLayout.sidebarWidth)
+                        .frame(maxHeight: .infinity, alignment: .topLeading)
+                        .transition(.opacity)
+                }
             }
+            .allowsHitTesting(isOverlaySidebarVisible)
 
             leadingControls
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(LayoutPerformanceProbe(name: "AppTopbarLayout.layout"))
     }
 
@@ -360,20 +364,32 @@ struct OverlaySidebarPointerMonitorView: NSViewRepresentable {
 
 final class OverlaySidebarPointerMonitorNSView: NSView {
     var onMouseLeave: (() -> Void)?
+    var entranceCooldownDuration: TimeInterval = AppShellLayout.sidePanelAnimationDuration
     private var trackingAreaRef: NSTrackingArea?
     private var localEventMonitor: Any?
+    private var activatedUptime: TimeInterval?
+    private var cooldownWorkItem: DispatchWorkItem?
+    private var hasTriggeredCollapse = false
 
     static func shouldCollapseForPointerLocation(
         _ pointInSidebar: CGPoint,
-        sidebarBounds: CGRect
+        sidebarBounds: CGRect,
+        isWithinEntranceCooldown: Bool = false
     ) -> Bool {
-        guard sidebarBounds.width > 0, sidebarBounds.height > 0 else {
+        guard !isWithinEntranceCooldown,
+              sidebarBounds.width > 0,
+              sidebarBounds.height > 0
+        else {
             return false
         }
-        let horizontalRange = sidebarBounds.minX...sidebarBounds.maxX
-        let verticalRange = sidebarBounds.minY...sidebarBounds.maxY
-        return !horizontalRange.contains(pointInSidebar.x)
-            || !verticalRange.contains(pointInSidebar.y)
+        return pointInSidebar.x > sidebarBounds.maxX
+    }
+
+    var isWithinEntranceCooldown: Bool {
+        guard let activatedUptime, entranceCooldownDuration > 0 else {
+            return false
+        }
+        return ProcessInfo.processInfo.systemUptime - activatedUptime < entranceCooldownDuration
     }
 
     override func hitTest(_ point: NSPoint) -> NSView? {
@@ -403,13 +419,20 @@ final class OverlaySidebarPointerMonitorNSView: NSView {
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
         if window != nil {
+            hasTriggeredCollapse = false
+            activatedUptime = ProcessInfo.processInfo.systemUptime
             installEventMonitorIfNeeded()
+            scheduleCooldownCompletionCheck()
         } else {
+            cooldownWorkItem?.cancel()
+            cooldownWorkItem = nil
+            activatedUptime = nil
             removeEventMonitor()
         }
     }
 
     deinit {
+        cooldownWorkItem?.cancel()
         if let localEventMonitor {
             NSEvent.removeMonitor(localEventMonitor)
         }
@@ -420,18 +443,20 @@ final class OverlaySidebarPointerMonitorNSView: NSView {
     }
 
     override func mouseExited(with event: NSEvent) {
-        guard bounds.width > 0, bounds.height > 0 else {
-            return
-        }
-        let point = convert(event.locationInWindow, from: nil)
-        if !bounds.insetBy(dx: 1, dy: 1).contains(point) {
-            onMouseLeave?()
-        }
+        evaluatePointerEvent(event)
     }
 
     func evaluatePointerLocationInWindow(_ locationInWindow: CGPoint) {
+        guard !hasTriggeredCollapse else {
+            return
+        }
         let point = convert(locationInWindow, from: nil)
-        if Self.shouldCollapseForPointerLocation(point, sidebarBounds: bounds) {
+        if Self.shouldCollapseForPointerLocation(
+            point,
+            sidebarBounds: bounds,
+            isWithinEntranceCooldown: isWithinEntranceCooldown
+        ) {
+            hasTriggeredCollapse = true
             onMouseLeave?()
         }
     }
@@ -441,6 +466,24 @@ final class OverlaySidebarPointerMonitorNSView: NSView {
             return
         }
         evaluatePointerLocationInWindow(event.locationInWindow)
+    }
+
+    private func scheduleCooldownCompletionCheck() {
+        cooldownWorkItem?.cancel()
+        guard entranceCooldownDuration > 0 else {
+            return
+        }
+        let workItem = DispatchWorkItem { [weak self] in
+            guard let self, let window = self.window else {
+                return
+            }
+            self.evaluatePointerLocationInWindow(window.mouseLocationOutsideOfEventStream)
+        }
+        cooldownWorkItem = workItem
+        DispatchQueue.main.asyncAfter(
+            deadline: .now() + entranceCooldownDuration,
+            execute: workItem
+        )
     }
 
     private func installEventMonitorIfNeeded() {

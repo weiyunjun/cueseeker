@@ -5,16 +5,17 @@
 
 ## Summary of Changes
 
-1. **Window & Page Content Minimum Width (`ContentView.swift`, `WorkbenchLayoutState.swift`)**:
-   - Updated `AppShellLayout.minimumWindowWidth` (`--size-window-min-width`) and `AppShellLayout.pageContentMinimumWidth` (`--size-page-content-min-width`) to `600` (`560px` minimum window height unchanged).
-   - Updated `AppShellLayout.sidebarAutoCollapseWindowWidth` (`--size-window-sidebar-collapse-width`) to `840` (`600 + 240`) and added `AppShellLayout.isCompactWindow(width:)` (`width > 0 && width < 840`).
+1. **Window & Page Content Minimum Width & Design Token Unification (`WorkbenchControls.swift`, `WorkbenchRedesignTokens.swift`, `ContentView.swift`, `WorkbenchLayoutState.swift`)**:
+   - Added `WorkbenchControlMetrics.redesignWindowDefaultWidth` (`1000`), `redesignWindowMinimumWidth` (`600`), `redesignWindowMinimumHeight` (`560`), `redesignSidebarMotionDuration` (`0.18`), and `redesignBorderHairlineWidth` (`1`), plus `WorkbenchRedesignColors.bgCanvas`.
+   - Updated `AppShellLayout` to reference these semantic tokens (`minimumWindowWidth = 600`, `pageContentMinimumWidth = 600`, `sidebarAutoCollapseWindowWidth = 840`, `modeControlsOuterPadding = redesignSpacing3`, `sidebarBorderWidth = redesignBorderHairlineWidth`) and defined named z-index constants (`topBarZIndex`, `dialogLayerZIndex`, `toastLayerZIndex`, `tooltipLayerZIndex`).
+   - Updated `ContentRootView` to use `WorkbenchRedesignColors.bgCanvas` and named z-index constants, removing hardcoded RGB and magic z-index literals.
    - Updated `WorkbenchLayoutState.collapseSidebarForCompactWindowIfNeeded(width:threshold:)` to auto-collapse on `< 840px` (`width < threshold`).
 
-2. **Full-Height Overlay Sidebar in Compact Window & Removal of Page Horizontal Scrollbars (`AppTopbarLayout.swift`, `ContentView.swift`, `WorkbenchScrollView.swift`, `WorkbenchPageScrollbar.swift`, `SchemaWorkbenchSearchShell.swift`, `WorkbenchFileView.swift`, `WorkbenchTestLibraryView.swift`, `LibraryOverviewComponents.swift`)**:
+2. **Full-Height Overlay Sidebar with Pure Opacity Fade & Removal of Page Horizontal Scrollbars (`AppTopbarLayout.swift`, `ContentView.swift`, `WorkbenchScrollView.swift`, `WorkbenchPageScrollbar.swift`, `SchemaWorkbenchSearchShell.swift`, `WorkbenchFileView.swift`, `WorkbenchTestLibraryView.swift`, `LibraryOverviewComponents.swift`)**:
    - Separated Docked Sidebar (`width >= 840px`, side-by-side `240px` sidebar + `>= 600px` page content) and Overlay Sidebar (`width < 840px` and manually expanded via the top-left toggle).
-   - Rendered Overlay Sidebar in `AppTopbarLayout` as a full-height (`y = 0` to bottom, `width = 240px`) surface layered above the right page content and topbar while keeping `leadingControls` (top-left Sidebar toggle button) and native window traffic lights at their original coordinates and interactive.
-   - Styled Overlay Sidebar with a `54px` top `TitlebarBackgroundView` region, a `1px` `--color-border-muted` (`WorkbenchRedesignColors.borderMuted`) trailing border, and `--shadow-popover` (`WorkbenchRedesignColors.shadowPopover`).
-   - Added `OverlaySidebarPointerMonitorView` (`OverlaySidebarPointerMonitorNSView`) and `WorkbenchLayoutState.collapseOverlaySidebarOnMouseLeaveIfNeeded` so the Overlay Sidebar collapses immediately when the pointer exits the `240px` sidebar region or leaves the window.
+   - Rendered Overlay Sidebar in `AppTopbarLayout` as a full-height (`y = 0` to bottom, `width = 240px`) surface layered above the right page content and topbar using **pure opacity fade (`.transition(.opacity)`)** and `.allowsHitTesting(isOverlaySidebarVisible)` so its geometric bounds remain fixed at `0 <= x <= 240` from frame 0 and hit-testing is disabled immediately on fade-out.
+   - Styled Overlay Sidebar with a `54px` top `TitlebarBackgroundView` region, a `1px` (`AppShellLayout.sidebarBorderWidth`) `--color-border-muted` (`WorkbenchRedesignColors.borderMuted`) trailing border, and `--shadow-popover` (`WorkbenchRedesignColors.shadowPopover`).
+   - Updated `OverlaySidebarPointerMonitorNSView` with an entrance animation cooldown guard (`entranceCooldownDuration = AppShellLayout.sidePanelAnimationDuration`) and horizontal-only exit check (`pointInSidebar.x > sidebarBounds.maxX`) so upward mouse nudges near the top-left toggle button never falsely collapse the sidebar, while moving right past `x > 240` immediately collapses it.
    - Removed Workbench page-level bottom horizontal scrollbars (`WorkbenchPageHorizontalScrollbar`, `WorkbenchPageScrollOffset`, `tableScrollbarBottomReserve`) while preserving `SubtitleTableView`'s internal horizontal scrollbar.
 
 3. **Topbar & Dialog Header Segmented Control Anti-Overlap Layout (`AppTopbarLayout.swift`, `WorkbenchControls.swift`, `TaskPanel.swift`, `PlaybackSubtitleFocusOverlay.swift`)**:
@@ -27,8 +28,8 @@
 ## Verification
 
 - Automated unit & component tests (`swift test --package-path apps/macos-native --filter "WorkbenchLayoutStateTests|WorkbenchControlMetricsTests|CoverSummaryCardTests|WorkbenchPageScrollbarTests|playbackSubtitleFocus|WorkbenchEmptyHintTests"`):
-  - Verified `AppShellLayout.minimumWindowWidth == 600`, `pageContentMinimumWidth == 600`, and `sidebarAutoCollapseWindowWidth == 840`.
-  - Verified compact-window auto-collapse (`< 840px`) and overlay sidebar mouse-leave auto-collapse (`x > 240` or leaving window only when `< 840px`).
+  - Verified tokenized `WorkbenchControlMetrics` and `AppShellLayout` values (`minimumWindowWidth == 600`, `pageContentMinimumWidth == 600`, `sidebarAutoCollapseWindowWidth == 840`, `sidePanelAnimationDuration == 0.18`, `sidebarBorderWidth == 1`).
+  - Verified compact-window auto-collapse (`< 840px`), entrance cooldown guard, vertical-nudge immunity (`x <= 240`), and horizontal exit collapse (`x > 240`).
   - Verified `WorkbenchAdaptiveHeaderGeometry` centering, single-side shifting without truncation, and dual-side locking at `12px` minimum gap with leading title compression.
   - Verified `PlaybackOverlayTopBar` mounts `TitlebarBackgroundView` in both module and collage modes.
   - Verified Workbench pages own only a vertical scrollbar while `SubtitleTableView` owns its horizontal scrollbar at the bottom without an outer page horizontal scrollbar.
