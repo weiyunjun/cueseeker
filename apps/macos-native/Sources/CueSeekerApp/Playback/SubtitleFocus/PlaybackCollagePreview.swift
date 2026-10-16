@@ -11,10 +11,6 @@ struct PlaybackCollagePreviewPane: View {
     @Environment(\.interfaceLayerContext) private var layerContext
     @ObservedObject var store: PlaybackCollagePreviewStore
     let uiProbeScope: String?
-    // The session owns both actions: a result that is not ready yet answers
-    // with a feedback capsule, so the buttons are never disabled.
-    var onCopy: () -> Void = {}
-    var onExport: () -> Void = {}
     /// A click on a group's strip, with the reel ordinal of the first cue of
     /// the group drawn there.
     var onJumpToCue: (Int) -> Void = { _ in }
@@ -45,22 +41,6 @@ struct PlaybackCollagePreviewPane: View {
             )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .accessibilityIdentifier("playback-collage-preview-image")
-
-            HStack(spacing: WorkbenchControlMetrics.redesignSpacing3) {
-                WorkbenchButton(
-                    title: L("playback.collage.copy"),
-                    icon: .copy,
-                    isRedesign: true,
-                    action: onCopy
-                )
-                WorkbenchButton(
-                    title: L("playback.collage.export"),
-                    icon: .export,
-                    isRedesign: true,
-                    action: onExport
-                )
-            }
-            .accessibilityIdentifier("playback-collage-preview-actions")
         }
         .padding(PlaybackSubtitleFocusMetrics.contentInset)
     }

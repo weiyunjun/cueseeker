@@ -947,6 +947,19 @@ extension AppCoordinator {
                 }
                 return true
             }
+            if let collageShortcut = shortcuts.action(for: shortcutKey, in: .collage) {
+                if !isRepeat {
+                    switch collageShortcut {
+                    case .copyCollage:
+                        _ = subtitleFocusSession.copyCurrentCollage()
+                    case .exportCollage:
+                        _ = subtitleFocusSession.exportCurrentCollage()
+                    default:
+                        break
+                    }
+                }
+                return true
+            }
             let editingCollageModifiers: NSEvent.ModifierFlags = [
                 .command,
                 .control,
@@ -1293,7 +1306,7 @@ extension AppCoordinator {
             viewModel.adjustSpeed(by: 0.25)
             return true
         case .openCommandPanel, .saveToExcerpt, .copyCueText, .copyDeepLink,
-             .editCollage, nil:
+             .editCollage, .copyCollage, .exportCollage, nil:
             return false
         }
     }

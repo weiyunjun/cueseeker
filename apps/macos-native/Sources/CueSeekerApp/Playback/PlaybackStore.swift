@@ -383,10 +383,8 @@ final class PlaybackStore: ObservableObject {
             _ = session.presentModule(.playlist)
         }
         session.srtSubtitleStyle = srtSubtitleStyle
-        session.presentCollageNotReady = { [weak self] icon in
-            self?.playbackViewModel?.showCollageNotReadyFeedback(
-                icon: icon
-            )
+        session.presentCollageFeedback = { [weak self] event in
+            self?.playbackViewModel?.showCollageFeedback(event)
         }
         subtitleFocusSession = session
         clearError(on: .notInLibrary)

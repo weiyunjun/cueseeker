@@ -9,6 +9,22 @@ enum PlaybackCollagePreviewError: Error {
     case renderedGroupCountMismatch
 }
 
+enum PlaybackCollageFeedbackEvent: Equatable, Sendable {
+    case noCueSelected
+    case notReady
+    case copySucceeded
+    case copyFailed
+    case exportSucceeded
+    case exportFailed
+}
+
+enum PlaybackCollageActionReadiness {
+    case emptySelection
+    case notReady
+    case failed
+    case ready(image: CGImage, plan: SubtitleCollageSelectionPlan)
+}
+
 private struct PlaybackCollageImageActionWorkItem: @unchecked Sendable {
     let image: CGImage
 }
@@ -315,51 +331,88 @@ final class PlaybackCollagePreviewStore: ObservableObject {
         errorDescription = nil
     }
 
+    var writeImageToPasteboard: @Sendable (CGImage) async throws -> Void = { image in
+        let pngData = try PlaybackScreenshotPasteboardWriter.pngData(for: image)
+        try await MainActor.run {
+            try PlaybackScreenshotPasteboardWriter.write(pngData)
+        }
+    }
+
+    var chooseExportDestination: @MainActor (String) -> URL? = { defaultFileName in
+        SubtitleCollageSavePanel.destinationURL(defaultFileName: defaultFileName)
+    }
+
+    var exportImageToFile: @Sendable (CGImage, URL) async throws -> Void = { image, destinationURL in
+        try SubtitleScreenshotExporter.exportCollage(
+            image: image,
+            to: destinationURL
+        )
+    }
+
     var canUseCurrentResult: Bool {
         currentActionResult() != nil
+    }
+
+    func actionReadiness() -> PlaybackCollageActionReadiness {
+        guard let requestedPlan, !requestedPlan.groups.isEmpty else {
+            return .emptySelection
+        }
+        if errorDescription != nil {
+            return .failed
+        }
+        if isRendering || committedPlan != requestedPlan {
+            return .notReady
+        }
+        guard let image, let committedPlan else {
+            return .failed
+        }
+        return .ready(image: image, plan: committedPlan)
     }
 
     func currentActionResult() -> (
         image: CGImage,
         plan: SubtitleCollageSelectionPlan
     )? {
-        guard !isRendering,
-              let image,
-              let committedPlan,
-              committedPlan == requestedPlan
-        else {
+        guard case let .ready(image, plan) = actionReadiness() else {
             return nil
         }
-        return (image, committedPlan)
+        return (image, plan)
     }
 
     @discardableResult
-    func copyCurrentResult() -> Bool {
+    func copyCurrentResult(
+        completion: (@MainActor @Sendable (Bool) -> Void)? = nil
+    ) -> Bool {
         guard let result = currentActionResult() else {
             return false
         }
         let workItem = PlaybackCollageImageActionWorkItem(image: result.image)
+        let writeImageToPasteboard = self.writeImageToPasteboard
 
         Task.detached(priority: .userInitiated) {
             do {
-                let pngData = try PlaybackScreenshotPasteboardWriter.pngData(
-                    for: workItem.image
-                )
-                try await MainActor.run {
-                    try PlaybackScreenshotPasteboardWriter.write(pngData)
+                try await writeImageToPasteboard(workItem.image)
+                await MainActor.run {
+                    completion?(true)
                 }
             } catch {
                 print("Failed to copy playback Collage: \(error)")
+                await MainActor.run {
+                    completion?(false)
+                }
             }
         }
         return true
     }
 
     @discardableResult
-    func exportCurrentResult(displayTitle: String) -> Bool {
+    func exportCurrentResult(
+        displayTitle: String,
+        completion: (@MainActor @Sendable (Bool) -> Void)? = nil
+    ) -> Bool {
         guard let result = currentActionResult(),
-              let destinationURL = SubtitleCollageSavePanel.destinationURL(
-                defaultFileName: SubtitleScreenshotExporter
+              let destinationURL = chooseExportDestination(
+                SubtitleScreenshotExporter
                     .defaultCollageFileName(
                         displayTitle: displayTitle,
                         plan: result.plan
@@ -369,15 +422,19 @@ final class PlaybackCollagePreviewStore: ObservableObject {
             return false
         }
         let workItem = PlaybackCollageImageActionWorkItem(image: result.image)
+        let exportImageToFile = self.exportImageToFile
 
         Task.detached(priority: .userInitiated) {
             do {
-                try SubtitleScreenshotExporter.exportCollage(
-                    image: workItem.image,
-                    to: destinationURL
-                )
+                try await exportImageToFile(workItem.image, destinationURL)
+                await MainActor.run {
+                    completion?(true)
+                }
             } catch {
                 print("Failed to export playback Collage: \(error)")
+                await MainActor.run {
+                    completion?(false)
+                }
             }
         }
         return true

@@ -69,7 +69,7 @@
 "table.result_count.other" = "%d 筆結果";
 "table.excerpt_count.one" = "1 條摘錄";
 "table.excerpt_count.other" = "%d 條摘錄";
-"table.selected_count" = "已選取 %d / %d 行";
+"table.selected_count" = "已選 %d / %d 行";
 "table.filter" = "篩選";
 "filter_dialog.show_results.one" = "顯示 1 筆結果";
 "filter_dialog.show_results.other" = "顯示 %d 筆結果";
@@ -241,6 +241,10 @@
 "playback.error.playback_failed" = "播放出錯：%@";
 "playback.error.not_in_library" = "此項目已不在媒體庫中";
 "playback.hud.collage_not_ready" = "長截圖未就緒";
+"playback.hud.collage_copied" = "已拷貝長截圖";
+"playback.hud.collage_exported" = "已匯出長截圖";
+"playback.hud.export_failed" = "匯出失敗";
+"playback.hud.collage_no_cue_selected" = "請至少選擇一條台詞";
 "playback.hud.no_subtitle" = "沒有字幕";
 "playback.hud.auto_pause" = "自動暫停";
 "playback.hud.excerpt_removed" = "已移除摘錄";
@@ -275,6 +279,7 @@
 "playback.collage.preview" = "長截圖預覽";
 "playback.collage.copy" = "拷貝長截圖";
 "playback.collage.export" = "匯出長截圖";
+"playback.collage.selected_cue_count" = "已選 %d / %d 條台詞";
 "playback.select" = "選取";
 "playback.source.current" = "目前";
 "playback.source.playlist" = "播放列表";
@@ -357,6 +362,7 @@
 /* Settings: Shortcuts */
 "settings.shortcuts.section.playback" = "播放";
 "settings.shortcuts.section.overlay" = "播放覆蓋層與指令面板";
+"settings.shortcuts.section.collage" = "長截圖";
 "settings.shortcuts.placeholder" = "按下按鍵";
 "settings.shortcuts.conflict" = "與%@衝突";
 "settings.shortcuts.quoted_name" = "「%@」";
@@ -380,6 +386,8 @@
 "settings.shortcuts.action.copyCueText" = "拷貝台詞文字";
 "settings.shortcuts.action.copyDeepLink" = "拷貝 Deep Link";
 "settings.shortcuts.action.editCollage" = "編輯長截圖";
+"settings.shortcuts.action.copyCollage" = "拷貝長截圖";
+"settings.shortcuts.action.exportCollage" = "匯出長截圖";
 
 /* Settings: Subtitle */
 "settings.category.subtitle" = "字幕";

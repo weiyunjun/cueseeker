@@ -241,6 +241,8 @@ enum PlaybackShortcutGroup: Sendable {
     case playback
     /// The Playback Overlay and the Command Panel.
     case overlay
+    /// The Collage mode inside Playback Overlay.
+    case collage
 }
 
 /// Every rebindable shortcut, in the order Settings lists them.
@@ -264,6 +266,8 @@ enum PlaybackShortcutAction: String, CaseIterable, Identifiable, Sendable {
     case copyCueText
     case copyDeepLink
     case editCollage
+    case copyCollage
+    case exportCollage
 
     var id: String { rawValue }
 
@@ -277,6 +281,8 @@ enum PlaybackShortcutAction: String, CaseIterable, Identifiable, Sendable {
             .global
         case .saveToExcerpt, .copyCueText, .copyDeepLink, .editCollage:
             .overlay
+        case .copyCollage, .exportCollage:
+            .collage
         default:
             .playback
         }
@@ -285,7 +291,11 @@ enum PlaybackShortcutAction: String, CaseIterable, Identifiable, Sendable {
     /// Whether the two shortcuts can answer in the same place, so a shared key
     /// is a conflict.
     func sharesPlace(with other: Self) -> Bool {
-        group == other.group || group == .global || other.group == .global
+        if group == other.group || group == .global || other.group == .global {
+            return true
+        }
+        return (self == .editCollage && other.group == .collage)
+            || (other == .editCollage && group == .collage)
     }
 
     var defaultKey: PlaybackShortcutKey {
@@ -328,6 +338,10 @@ enum PlaybackShortcutAction: String, CaseIterable, Identifiable, Sendable {
             PlaybackShortcutKey(keyCode: UInt16(kVK_ANSI_X))
         case .editCollage:
             PlaybackShortcutKey(keyCode: UInt16(kVK_ANSI_P))
+        case .copyCollage:
+            PlaybackShortcutKey(keyCode: UInt16(kVK_ANSI_C))
+        case .exportCollage:
+            PlaybackShortcutKey(keyCode: UInt16(kVK_ANSI_E))
         }
     }
 

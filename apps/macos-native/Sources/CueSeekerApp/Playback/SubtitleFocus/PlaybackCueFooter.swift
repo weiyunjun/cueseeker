@@ -119,11 +119,47 @@ struct PlaybackCueFooterAction: Identifiable {
     ) -> Self {
         Self(id: id, title: title, keys: .returnKey, perform: perform)
     }
+
+    /// The three footer actions shown while editing a Collage.
+    static func collageActions(
+        onCopy: @escaping () -> Void,
+        onExport: @escaping () -> Void,
+        onSelect: @escaping () -> Void
+    ) -> [Self] {
+        [
+            Self(
+                id: "copy-collage",
+                title: L("playback.collage.copy"),
+                keys: .shortcut(.copyCollage),
+                perform: onCopy
+            ),
+            Self(
+                id: "export-collage",
+                title: L("playback.collage.export"),
+                keys: .shortcut(.exportCollage),
+                perform: onExport
+            ),
+            Self(
+                id: "select",
+                title: L("playback.select"),
+                keys: .returnKey,
+                perform: onSelect
+            ),
+        ]
+    }
 }
 
 enum PlaybackCueFooterStatus {
     static func cues(totalCount: Int) -> String {
         count(max(0, totalCount), key: "playback.cue_count")
+    }
+
+    static func collageCues(selectedCount: Int, totalCount: Int) -> String {
+        L(
+            "playback.collage.selected_cue_count",
+            max(0, selectedCount),
+            max(0, totalCount)
+        )
     }
 
     static func videos(totalCount: Int) -> String {

@@ -22,6 +22,7 @@ struct SettingsShortcutsCategory: View {
             group(L("settings.category.shortcuts"), .global)
             group(L("settings.shortcuts.section.playback"), .playback)
             group(L("settings.shortcuts.section.overlay"), .overlay)
+            group(L("settings.shortcuts.section.collage"), .collage)
         }
         // A key reaches a recording shortcut one of two ways: the App menu's
         // shortcuts go to the window as key equivalents before any key-down

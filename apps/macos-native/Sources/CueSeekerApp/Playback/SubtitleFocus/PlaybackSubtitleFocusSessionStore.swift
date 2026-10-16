@@ -504,21 +504,33 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
         return mutation
     }
 
-    // Copy and Export while the preview is still rendering answer with a
-    // feedback capsule carrying the triggered button's icon, never a disabled
-    // button. Wired by the playback store to the playback feedback.
-    var presentCollageNotReady: ((_ icon: AppIcon) -> Void)?
+    // Collage Copy and Export actions route all readiness and completion states
+    // through playback feedback rather than disabling footer actions.
+    var presentCollageFeedback: ((PlaybackCollageFeedbackEvent) -> Void)?
 
     @discardableResult
     func copyCurrentCollage() -> Bool {
         guard isEditingCollage, let collagePreviewStore else {
             return false
         }
-        guard collagePreviewStore.canUseCurrentResult else {
-            presentCollageNotReady?(.copy)
+        guard collageSelectionPlan.selectedCueCount > 0 else {
+            presentCollageFeedback?(.noCueSelected)
             return true
         }
-        collagePreviewStore.copyCurrentResult()
+        switch collagePreviewStore.actionReadiness() {
+        case .emptySelection:
+            presentCollageFeedback?(.noCueSelected)
+        case .notReady:
+            presentCollageFeedback?(.notReady)
+        case .failed:
+            presentCollageFeedback?(.copyFailed)
+        case .ready:
+            _ = collagePreviewStore.copyCurrentResult { [weak self] succeeded in
+                self?.presentCollageFeedback?(
+                    succeeded ? .copySucceeded : .copyFailed
+                )
+            }
+        }
         return true
     }
 
@@ -527,13 +539,26 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
         guard isEditingCollage, let collagePreviewStore else {
             return false
         }
-        guard collagePreviewStore.canUseCurrentResult else {
-            presentCollageNotReady?(.export)
+        guard collageSelectionPlan.selectedCueCount > 0 else {
+            presentCollageFeedback?(.noCueSelected)
             return true
         }
-        collagePreviewStore.exportCurrentResult(
-            displayTitle: collageDisplayTitle
-        )
+        switch collagePreviewStore.actionReadiness() {
+        case .emptySelection:
+            presentCollageFeedback?(.noCueSelected)
+        case .notReady:
+            presentCollageFeedback?(.notReady)
+        case .failed:
+            presentCollageFeedback?(.exportFailed)
+        case .ready:
+            _ = collagePreviewStore.exportCurrentResult(
+                displayTitle: collageDisplayTitle
+            ) { [weak self] succeeded in
+                self?.presentCollageFeedback?(
+                    succeeded ? .exportSucceeded : .exportFailed
+                )
+            }
+        }
         return true
     }
 
@@ -1243,8 +1268,13 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
             )
     }
 
+    var collagePreviewStoreFactory: (() -> PlaybackCollagePreviewStore)?
+
     private func makeCollagePreviewStore() -> PlaybackCollagePreviewStore {
-        PlaybackCollagePreviewStore(
+        if let collagePreviewStoreFactory {
+            return collagePreviewStoreFactory()
+        }
+        return PlaybackCollagePreviewStore(
             videoURL: URL.fromMediaPath(openSnapshot.source.videoPath),
             subtitleSource: collageSubtitleSource,
             srtSubtitleStyle: srtSubtitleStyle

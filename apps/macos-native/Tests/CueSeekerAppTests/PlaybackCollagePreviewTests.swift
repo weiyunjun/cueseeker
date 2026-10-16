@@ -706,6 +706,140 @@ func playbackCollagePreviewUsesEqualColumnsAndTableScrollbar() throws {
     #expect(!view.isVerticalScrollbarPresentedForTesting)
 }
 
+@MainActor
+@Test
+func playbackCollageActionsRouteEmptyNotReadyFailedAndCompletionFeedback() async throws {
+    let cue12 = collagePreviewCue(
+        id: 12,
+        ordinal: 0,
+        startMilliseconds: 1_000,
+        endMilliseconds: 2_000
+    )
+    let cue13 = collagePreviewCue(
+        id: 13,
+        ordinal: 1,
+        startMilliseconds: 4_000,
+        endMilliseconds: 5_000
+    )
+    let snapshot = SubtitleFocusSnapshot(
+        totalCount: 2,
+        selectedOrdinal: 1,
+        cues: [cue12, cue13]
+    )
+    let openSnapshot = PlaybackSubtitleFocusOpenSnapshot(
+        source: SubtitleFocusSourceIdentity(
+            videoPath: "/tmp/video.mp4",
+            subtitlePath: "/tmp/video.ass",
+            subtitleFormat: .ass
+        ),
+        timestampMilliseconds: 4_000,
+        wasPlaying: false
+    )
+
+    var shouldBlockRender = true
+    var shouldFailRender = false
+    var pendingRender: CheckedContinuation<SubtitleCollageRenderedGroup, Error>?
+    let previewStore = PlaybackCollagePreviewStore(
+        renderGroup: { _ in
+            if shouldBlockRender {
+                return try await withCheckedThrowingContinuation { continuation in
+                    pendingRender = continuation
+                }
+            }
+            if shouldFailRender {
+                throw PlaybackCollagePreviewError.renderedGroupCountMismatch
+            }
+            return collagePreviewRenderedGroup()
+        },
+        compose: { groups in
+            collagePreviewComposition(groupCount: groups.count)
+        }
+    )
+
+    let session = PlaybackSubtitleFocusSessionStore(
+        openSnapshot: openSnapshot,
+        sessionGeneration: 1,
+        availableModules: [.current]
+    )
+    session.collagePreviewStoreFactory = { previewStore }
+    var events: [PlaybackCollageFeedbackEvent] = []
+    session.presentCollageFeedback = { events.append($0) }
+
+    #expect(session.publishInitialSnapshot(snapshot, token: session.token))
+    #expect(!session.copyCurrentCollage())
+    #expect(!session.exportCurrentCollage())
+    #expect(events.isEmpty)
+
+    // 1. Entering Collage starts rendering -> notReady
+    #expect(session.toggleEditingCollage())
+    await waitForCollagePreviewCondition { pendingRender != nil }
+    #expect(session.copyCurrentCollage())
+    #expect(session.exportCurrentCollage())
+    #expect(events == [.notReady, .notReady])
+    events.removeAll()
+
+    // 2. Deselecting the only selected cue -> noCueSelected
+    pendingRender?.resume(returning: collagePreviewRenderedGroup())
+    pendingRender = nil
+    await waitForCollagePreviewToSettle(previewStore)
+    #expect(session.toggleCollageCueSelection(at: 1) != SubtitleCollageSelectionMutation.unchanged)
+    #expect(session.collageSelectionPlan.selectedCueCount == 0)
+    #expect(session.copyCurrentCollage())
+    #expect(session.exportCurrentCollage())
+    #expect(events == [.noCueSelected, .noCueSelected])
+    events.removeAll()
+
+    // 3. Render failure -> copyFailed / exportFailed
+    shouldBlockRender = false
+    shouldFailRender = true
+    #expect(session.toggleCollageCueSelection(at: 0) != SubtitleCollageSelectionMutation.unchanged)
+    await waitForCollagePreviewToSettle(previewStore)
+    #expect(previewStore.errorDescription != nil)
+    #expect(session.copyCurrentCollage())
+    #expect(session.exportCurrentCollage())
+    #expect(events == [.copyFailed, .exportFailed])
+    events.removeAll()
+
+    // 4. Ready -> copySucceeded / copyFailed & exportSucceeded / exportFailed / cancel silent
+    shouldFailRender = false
+    #expect(session.toggleCollageCueSelection(at: 1) != SubtitleCollageSelectionMutation.unchanged)
+    await waitForCollagePreviewToSettle(previewStore)
+    #expect(previewStore.canUseCurrentResult)
+
+    previewStore.writeImageToPasteboard = { _ in }
+    #expect(session.copyCurrentCollage())
+    await waitForCollagePreviewCondition { events == [.copySucceeded] }
+    events.removeAll()
+
+    previewStore.writeImageToPasteboard = { _ in
+        throw PlaybackCollagePreviewError.renderedGroupCountMismatch
+    }
+    #expect(session.copyCurrentCollage())
+    await waitForCollagePreviewCondition { events == [.copyFailed] }
+    events.removeAll()
+
+    // Export cancelled in Save panel -> silent (no toast)
+    previewStore.chooseExportDestination = { _ in nil }
+    #expect(session.exportCurrentCollage())
+    for _ in 0..<20 { await Task.yield() }
+    #expect(events.isEmpty)
+
+    // Export succeeded and failed
+    previewStore.chooseExportDestination = { _ in
+        URL(fileURLWithPath: "/tmp/collage.png")
+    }
+    previewStore.exportImageToFile = { _, _ in }
+    #expect(session.exportCurrentCollage())
+    await waitForCollagePreviewCondition { events == [.exportSucceeded] }
+    events.removeAll()
+
+    previewStore.exportImageToFile = { _, _ in
+        throw PlaybackCollagePreviewError.renderedGroupCountMismatch
+    }
+    #expect(session.exportCurrentCollage())
+    await waitForCollagePreviewCondition { events == [.exportFailed] }
+}
+
 private func collagePreviewCue(
     id: Int64,
     ordinal: Int,

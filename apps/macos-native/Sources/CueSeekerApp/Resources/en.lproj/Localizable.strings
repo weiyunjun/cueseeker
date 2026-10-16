@@ -241,6 +241,10 @@
 "playback.error.playback_failed" = "Playback error: %@";
 "playback.error.not_in_library" = "This item is no longer in the library";
 "playback.hud.collage_not_ready" = "Collage Not Ready";
+"playback.hud.collage_copied" = "Collage Copied";
+"playback.hud.collage_exported" = "Collage Exported";
+"playback.hud.export_failed" = "Export Failed";
+"playback.hud.collage_no_cue_selected" = "Select at Least One Cue";
 "playback.hud.no_subtitle" = "No Subtitle";
 "playback.hud.auto_pause" = "Auto Pause";
 "playback.hud.excerpt_removed" = "Excerpt Removed";
@@ -275,6 +279,7 @@
 "playback.collage.preview" = "Collage Preview";
 "playback.collage.copy" = "Copy Collage";
 "playback.collage.export" = "Export Collage";
+"playback.collage.selected_cue_count" = "%d / %d cues selected";
 "playback.select" = "Select";
 "playback.source.current" = "Current";
 "playback.source.playlist" = "Playlist";
@@ -357,6 +362,7 @@
 /* Settings: Shortcuts */
 "settings.shortcuts.section.playback" = "Playback";
 "settings.shortcuts.section.overlay" = "Playback Overlay & Command Panel";
+"settings.shortcuts.section.collage" = "Collage";
 "settings.shortcuts.placeholder" = "Press a key";
 "settings.shortcuts.conflict" = "Conflicts with %@";
 "settings.shortcuts.quoted_name" = "“%@”";
@@ -380,6 +386,8 @@
 "settings.shortcuts.action.copyCueText" = "Copy Cue Text";
 "settings.shortcuts.action.copyDeepLink" = "Copy Deep Link";
 "settings.shortcuts.action.editCollage" = "Edit Collage";
+"settings.shortcuts.action.copyCollage" = "Copy Collage";
+"settings.shortcuts.action.exportCollage" = "Export Collage";
 
 /* Settings: Subtitle */
 "settings.category.subtitle" = "Subtitle";

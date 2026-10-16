@@ -842,12 +842,14 @@ struct PlaybackVirtualReelLayout: Equatable {
     let focusAnchorY: CGFloat
     let loadedOrdinalRange: Range<Int>
     let fractionalOrdinal: CGFloat
+    let usesFullWidth: Bool
 
     init(
         viewportSize: CGSize,
         totalCount: Int,
         loadedOrdinalRange: Range<Int>,
-        fractionalOrdinal: CGFloat
+        fractionalOrdinal: CGFloat,
+        usesFullWidth: Bool = false
     ) {
         self.viewportSize = CGSize(
             width: max(0, viewportSize.width),
@@ -865,6 +867,7 @@ struct PlaybackVirtualReelLayout: Equatable {
             fractionalOrdinal,
             to: self.loadedOrdinalRange
         )
+        self.usesFullWidth = usesFullWidth
     }
 
     var lowerOrdinal: Int {
@@ -943,12 +946,15 @@ struct PlaybackVirtualReelLayout: Equatable {
     }
 
     var contentWidth: CGFloat {
-        max(
+        let insetWidth = viewportSize.width - PlaybackSubtitleFocusMetrics.contentInset * 2
+        return max(
             0,
-            min(
-                PlaybackSubtitleFocusMetrics.contentMaxWidth,
-                viewportSize.width - PlaybackSubtitleFocusMetrics.contentInset * 2
-            )
+            usesFullWidth
+                ? insetWidth
+                : min(
+                    PlaybackSubtitleFocusMetrics.contentMaxWidth,
+                    insetWidth
+                )
         )
     }
 
@@ -2631,7 +2637,8 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
             viewportSize: scrollView.contentSize,
             totalCount: totalCount,
             loadedOrdinalRange: loadedOrdinalRange,
-            fractionalOrdinal: fractionalOrdinal
+            fractionalOrdinal: fractionalOrdinal,
+            usesFullWidth: documentView.isEditingCollage
         )
         documentView.updateLocalLayout(layout)
         if documentView.frame.size != layout.viewportSize {
@@ -2659,7 +2666,8 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
             viewportSize: scrollView.contentSize,
             totalCount: totalCount,
             loadedOrdinalRange: loadedOrdinalRange,
-            fractionalOrdinal: fractionalOrdinal
+            fractionalOrdinal: fractionalOrdinal,
+            usesFullWidth: documentView.isEditingCollage
         )
     }
 
@@ -4424,7 +4432,7 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView, PointerShapeProviding
         )
     }
 
-    private var isEditingCollage: Bool {
+    var isEditingCollage: Bool {
         collageSelectedCueIDs != nil
     }
 

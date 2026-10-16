@@ -121,11 +121,13 @@ struct PlaybackOverlay: View {
                let previewStore = session.collagePreviewStore {
                 PlaybackCollageEditor(
                     plan: session.collageSelectionPlan,
+                    totalCueCount: snapshot?.totalCount ?? 0,
                     previewStore: previewStore,
                     uiProbeScope: uiProbeScope,
-                    onCopy: { session.copyCurrentCollage() },
-                    onExport: { session.exportCurrentCollage() },
-                    onJumpToCue: { session.jumpToCollageCue(ordinal: $0) }
+                    onCopy: { _ = session.copyCurrentCollage() },
+                    onExport: { _ = session.exportCurrentCollage() },
+                    onSelect: { _ = session.toggleFocusedCollageCueSelection() },
+                    onJumpToCue: { _ = session.jumpToCollageCue(ordinal: $0) }
                 ) {
                     currentSubtitleOverlay
                 }
@@ -228,27 +230,34 @@ enum PlaybackCollageEditorLayout {
 
 private struct PlaybackCollageEditor<SubtitleContent: View>: View {
     let plan: SubtitleCollageSelectionPlan
+    let totalCueCount: Int
     @ObservedObject var previewStore: PlaybackCollagePreviewStore
     let uiProbeScope: String?
     let onCopy: () -> Void
     let onExport: () -> Void
+    let onSelect: () -> Void
     let onJumpToCue: (Int) -> Void
     let subtitleContent: SubtitleContent
+    @State private var footerHeight = PlaybackCueFooterMetrics.minimumHeight
 
     init(
         plan: SubtitleCollageSelectionPlan,
+        totalCueCount: Int,
         previewStore: PlaybackCollagePreviewStore,
         uiProbeScope: String?,
         onCopy: @escaping () -> Void,
         onExport: @escaping () -> Void,
+        onSelect: @escaping () -> Void,
         onJumpToCue: @escaping (Int) -> Void,
         @ViewBuilder subtitleContent: () -> SubtitleContent
     ) {
         self.plan = plan
+        self.totalCueCount = totalCueCount
         self.previewStore = previewStore
         self.uiProbeScope = uiProbeScope
         self.onCopy = onCopy
         self.onExport = onExport
+        self.onSelect = onSelect
         self.onJumpToCue = onJumpToCue
         self.subtitleContent = subtitleContent()
     }
@@ -258,27 +267,55 @@ private struct PlaybackCollageEditor<SubtitleContent: View>: View {
             let columnWidth = PlaybackCollageEditorLayout.columnWidth(
                 totalWidth: geometry.size.width
             )
-            HStack(spacing: 0) {
-                PlaybackCollagePreviewPane(
-                    store: previewStore,
-                    uiProbeScope: uiProbeScope,
-                    onCopy: onCopy,
-                    onExport: onExport,
-                    onJumpToCue: onJumpToCue
-                )
-                .frame(width: columnWidth, height: geometry.size.height)
-                // On the Overlay's layer, like the top bar: the preview asks
-                // whether it is frozen from where it actually is.
-                .interfaceLayer(.playbackOverlay)
+            let contentHeight = max(0, geometry.size.height - footerHeight)
+            ZStack(alignment: .top) {
+                HStack(spacing: 0) {
+                    PlaybackCollagePreviewPane(
+                        store: previewStore,
+                        uiProbeScope: uiProbeScope,
+                        onJumpToCue: onJumpToCue
+                    )
+                    .frame(width: columnWidth, height: contentHeight)
+                    // On the Overlay's layer, like the top bar: the preview asks
+                    // whether it is frozen from where it actually is.
+                    .interfaceLayer(.playbackOverlay)
 
-                subtitleContent
-                    .frame(width: columnWidth, height: geometry.size.height)
+                    subtitleContent
+                        .frame(width: columnWidth, height: contentHeight)
+                }
+                .frame(
+                    width: geometry.size.width,
+                    height: contentHeight,
+                    alignment: .leading
+                )
             }
             .frame(
                 width: geometry.size.width,
                 height: geometry.size.height,
-                alignment: .leading
+                alignment: .top
             )
+            .overlay(alignment: .bottom) {
+                PlaybackCueFooter(
+                    surface: .playbackOverlay,
+                    status: PlaybackCueFooterStatus.collageCues(
+                        selectedCount: plan.selectedCueCount,
+                        totalCount: totalCueCount
+                    ),
+                    actions: PlaybackCueFooterAction.collageActions(
+                        onCopy: onCopy,
+                        onExport: onExport,
+                        onSelect: onSelect
+                    )
+                )
+                .padding(
+                    .horizontal,
+                    PlaybackSubtitleFocusMetrics.contentInset
+                )
+                .frame(width: geometry.size.width)
+                .onPreferenceChange(PlaybackCueFooterHeightKey.self) {
+                    footerHeight = $0
+                }
+            }
         }
     }
 }
@@ -527,7 +564,9 @@ struct PlaybackSubtitleFocusOverlay: View {
             let viewportSize = geometry.size
             let reelViewportHeight = max(
                 0,
-                viewportSize.height - footerHeight
+                collageSelectionPlan == nil
+                    ? viewportSize.height - footerHeight
+                    : viewportSize.height
             )
             let cueViewportHeight = max(
                 0,
@@ -596,20 +635,22 @@ struct PlaybackSubtitleFocusOverlay: View {
                 alignment: .top
             )
             .overlay(alignment: .bottom) {
-                PlaybackCueFooter(
-                    surface: .playbackOverlay,
-                    status: PlaybackCueFooterStatus.cues(
-                        totalCount: snapshot.totalCount
-                    ),
-                    actions: footerActions
-                )
-                .frame(maxWidth: PlaybackSubtitleFocusMetrics.contentMaxWidth)
-                .padding(
-                    .horizontal,
-                    PlaybackSubtitleFocusMetrics.contentInset
-                )
-                .onPreferenceChange(PlaybackCueFooterHeightKey.self) {
-                    footerHeight = $0
+                if collageSelectionPlan == nil {
+                    PlaybackCueFooter(
+                        surface: .playbackOverlay,
+                        status: PlaybackCueFooterStatus.cues(
+                            totalCount: snapshot.totalCount
+                        ),
+                        actions: footerActions
+                    )
+                    .frame(maxWidth: PlaybackSubtitleFocusMetrics.contentMaxWidth)
+                    .padding(
+                        .horizontal,
+                        PlaybackSubtitleFocusMetrics.contentInset
+                    )
+                    .onPreferenceChange(PlaybackCueFooterHeightKey.self) {
+                        footerHeight = $0
+                    }
                 }
             }
             .clipped()
@@ -622,17 +663,8 @@ struct PlaybackSubtitleFocusOverlay: View {
         }
     }
 
-    /// While a collage is being assembled the cue actions do not apply; Return
-    /// is the only key the overlay answers there.
     private var footerActions: [PlaybackCueFooterAction] {
-        guard collageSelectionPlan == nil else {
-            return [
-                .primary(id: "select", title: L("playback.select")) {
-                    onRequestAction(.playFromThisCue)
-                },
-            ]
-        }
-        return PlaybackCueFooterAction.cueActions(
+        PlaybackCueFooterAction.cueActions(
             playTitle: L("playback.play"),
             request: onRequestAction
         )

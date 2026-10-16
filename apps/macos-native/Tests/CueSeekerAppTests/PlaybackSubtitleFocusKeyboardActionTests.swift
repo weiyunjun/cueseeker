@@ -165,7 +165,7 @@ func playbackOverlayPControlsExclusiveEditingCollageMode() async throws {
 @Test
 func playbackOverlayEditCollageAndCommandPanelFollowTheirReboundKeys() async throws {
     try await withKeyboardActionApp { app, _ in
-        let editKey = PlaybackShortcutKey(keyCode: UInt16(kVK_ANSI_E))
+        let editKey = PlaybackShortcutKey(keyCode: UInt16(kVK_ANSI_G))
         app.settings.playbackShortcuts.set(editKey, for: .editCollage)
         app.settings.playbackShortcuts.set(
             PlaybackShortcutKey(keyCode: UInt16(kVK_ANSI_J)),
@@ -201,6 +201,64 @@ func playbackOverlayEditCollageAndCommandPanelFollowTheirReboundKeys() async thr
             modifierFlagsRawValue: 0
         ))
         #expect(app.playback.commandPanelPresentation?.page == .root)
+    }
+}
+
+@MainActor
+@Test
+func playbackCollageCopyAndExportShortcutsRouteThroughSessionAndRespectRebinding() async throws {
+    try await withKeyboardActionApp { app, _ in
+        let session = try #require(app.playback.beginSubtitleFocusSession(
+            openSnapshot: keyboardActionOpenSnapshot(wasPlaying: false),
+            availableModules: [.current]
+        ))
+        #expect(session.publishInitialSnapshot(
+            keyboardActionSnapshot(),
+            token: session.token
+        ))
+
+        var events: [PlaybackCollageFeedbackEvent] = []
+        session.presentCollageFeedback = { events.append($0) }
+
+        #expect(app.handlePlaybackKeyDown(keyCode: 35, modifierFlagsRawValue: 0))
+        #expect(session.isEditingCollage)
+
+        // Deselect the single selected cue so C and E deterministically emit .noCueSelected
+        #expect(app.handlePlaybackKeyDown(keyCode: 36, modifierFlagsRawValue: 0))
+        #expect(session.collageSelectionPlan.selectedCueCount == 0)
+
+        // Default C (Copy Collage) and E (Export Collage), ignoring key repeat
+        #expect(app.handlePlaybackKeyDown(
+            keyCode: UInt16(kVK_ANSI_C),
+            modifierFlagsRawValue: 0
+        ))
+        #expect(app.handlePlaybackKeyDown(
+            keyCode: UInt16(kVK_ANSI_C),
+            modifierFlagsRawValue: 0,
+            isRepeat: true
+        ))
+        #expect(app.handlePlaybackKeyDown(
+            keyCode: UInt16(kVK_ANSI_E),
+            modifierFlagsRawValue: 0
+        ))
+        #expect(events == [.noCueSelected, .noCueSelected])
+        events.removeAll()
+
+        // Rebind Copy Collage to B with Shift
+        app.settings.playbackShortcuts.set(
+            PlaybackShortcutKey(keyCode: UInt16(kVK_ANSI_B), shift: true),
+            for: .copyCollage
+        )
+        #expect(app.handlePlaybackKeyDown(
+            keyCode: UInt16(kVK_ANSI_C),
+            modifierFlagsRawValue: 0
+        ))
+        #expect(events.isEmpty)
+        #expect(app.handlePlaybackKeyDown(
+            keyCode: UInt16(kVK_ANSI_B),
+            modifierFlagsRawValue: NSEvent.ModifierFlags.shift.rawValue
+        ))
+        #expect(events == [.noCueSelected])
     }
 }
 

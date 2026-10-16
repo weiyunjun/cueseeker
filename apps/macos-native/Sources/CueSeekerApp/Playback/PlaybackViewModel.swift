@@ -543,14 +543,57 @@ public final class PlaybackViewModel: ObservableObject {
         )
     }
 
-    func showCollageNotReadyFeedback(icon: AppIcon) {
-        showFeedback(
-            PlaybackFeedback(
-                icon: .warning,
-                text: L("playback.hud.collage_not_ready")
-            ),
-            durationMilliseconds: 3_000
-        )
+    func showCollageFeedback(_ event: PlaybackCollageFeedbackEvent) {
+        switch event {
+        case .noCueSelected:
+            showFeedback(
+                PlaybackFeedback(
+                    icon: .warning,
+                    text: L("playback.hud.collage_no_cue_selected")
+                ),
+                durationMilliseconds: 3_000
+            )
+        case .notReady:
+            showFeedback(
+                PlaybackFeedback(
+                    icon: .warning,
+                    text: L("playback.hud.collage_not_ready")
+                ),
+                durationMilliseconds: 3_000
+            )
+        case .copyFailed:
+            showFeedback(
+                PlaybackFeedback(
+                    icon: .warning,
+                    text: L("playback.hud.copy_failed")
+                ),
+                durationMilliseconds: 3_000
+            )
+        case .exportFailed:
+            showFeedback(
+                PlaybackFeedback(
+                    icon: .warning,
+                    text: L("playback.hud.export_failed")
+                ),
+                durationMilliseconds: 3_000
+            )
+        case .copySucceeded:
+            showFeedback(
+                PlaybackFeedback(
+                    icon: .copy,
+                    text: L("playback.hud.collage_copied")
+                ),
+                durationMilliseconds: 1_500
+            )
+        case .exportSucceeded:
+            showFeedback(
+                PlaybackFeedback(
+                    icon: .export,
+                    text: L("playback.hud.collage_exported")
+                ),
+                durationMilliseconds: 1_500
+            )
+        }
     }
 
     func showSelectedTextCopyFeedback(copied: Bool) {

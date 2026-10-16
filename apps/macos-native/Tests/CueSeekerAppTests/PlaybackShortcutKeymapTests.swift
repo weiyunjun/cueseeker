@@ -31,6 +31,9 @@ func defaultShortcutsHaveNoConflictEvenWhereTwoShareP() {
     }
     #expect(keymap.action(for: key(kVK_ANSI_P), in: .playback) == .copyScreenshot)
     #expect(keymap.action(for: key(kVK_ANSI_P), in: .overlay) == .editCollage)
+    #expect(keymap.action(for: key(kVK_ANSI_C), in: .overlay) == .copyCueText)
+    #expect(keymap.action(for: key(kVK_ANSI_C), in: .collage) == .copyCollage)
+    #expect(keymap.action(for: key(kVK_ANSI_E), in: .collage) == .exportCollage)
     #expect(keymap.action(for: key(kVK_ANSI_KeypadEnter), in: .playback) == .openPlaybackOverlay)
     #expect(keymap.action(for: key(kVK_ANSI_P, shift: true), in: .playback) == nil)
 }
@@ -68,6 +71,24 @@ func groupsMayShareKeysButOpenCommandPanelSharesWithNone() {
     #expect(keymap.conflicts(for: .saveToExcerpt) == [.openCommandPanel])
     #expect(keymap.action(for: key(kVK_ANSI_S), in: .global) == nil)
     #expect(keymap.action(for: key(kVK_ANSI_S), in: .overlay) == nil)
+
+    // Collage actions share their place with each other, Edit Collage, and
+    // Open Command Panel, but not with regular Overlay cue actions (like Copy Cue Text on C).
+    var collageKeymap = PlaybackShortcutKeymap.defaults
+    #expect(collageKeymap.conflicts(for: .copyCollage).isEmpty)
+    #expect(collageKeymap.conflicts(for: .copyCueText).isEmpty)
+
+    collageKeymap.set(key(kVK_ANSI_C), for: .exportCollage)
+    #expect(collageKeymap.conflicts(for: .copyCollage) == [.exportCollage])
+    #expect(collageKeymap.conflicts(for: .exportCollage) == [.copyCollage])
+    #expect(collageKeymap.conflicts(for: .copyCueText).isEmpty)
+    collageKeymap.reset(.exportCollage)
+
+    collageKeymap.set(key(kVK_ANSI_E), for: .editCollage)
+    #expect(collageKeymap.conflicts(for: .editCollage) == [.exportCollage])
+    #expect(collageKeymap.conflicts(for: .exportCollage) == [.editCollage])
+    #expect(collageKeymap.effectiveKey(for: .editCollage) == nil)
+    #expect(collageKeymap.effectiveKey(for: .exportCollage) == nil)
 }
 
 @Test
@@ -175,7 +196,13 @@ func recordingAcceptsModifiersAndFunctionKeysAndSilentlyExcludesReserved() {
 @Test
 func returnAndArrowsAreReservedWhereTheyConfirmAndMove() {
     for keyCode in [kVK_Return, kVK_ANSI_KeypadEnter, kVK_UpArrow, kVK_LeftArrow] {
-        for action in [PlaybackShortcutAction.saveToExcerpt, .editCollage, .openCommandPanel] {
+        for action in [
+            PlaybackShortcutAction.saveToExcerpt,
+            .editCollage,
+            .copyCollage,
+            .exportCollage,
+            .openCommandPanel,
+        ] {
             #expect(
                 action.recordedKey(keyCode: UInt16(keyCode), modifierFlags: .function)
                     == nil

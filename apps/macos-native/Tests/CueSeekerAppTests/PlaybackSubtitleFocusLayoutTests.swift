@@ -66,6 +66,40 @@ func playbackCueFooterFormatsCompleteAndPreviewLimitedCounts() {
         previewLimit: 50,
         hasMoreResults: true
     ) == "12 results (Showing first 50 results)")
+    #expect(PlaybackCueFooterStatus.collageCues(
+        selectedCount: 1,
+        totalCount: 245
+    ) == "1 / 245 cues selected")
+    #expect(PlaybackCueFooterStatus.collageCues(
+        selectedCount: 0,
+        totalCount: 10
+    ) == "0 / 10 cues selected")
+    #expect(PlaybackCueFooterStatus.collageCues(
+        selectedCount: -1,
+        totalCount: -3
+    ) == "0 / 0 cues selected")
+
+    var copied = 0
+    var exported = 0
+    var selected = 0
+    let collageActions = PlaybackCueFooterAction.collageActions(
+        onCopy: { copied += 1 },
+        onExport: { exported += 1 },
+        onSelect: { selected += 1 }
+    )
+    #expect(collageActions.map(\.id) == ["copy-collage", "export-collage", "select"])
+    #expect(collageActions.map(\.title) == ["Copy Collage", "Export Collage", "Select"])
+    #expect(collageActions.map(\.keys) == [
+        .shortcut(.copyCollage),
+        .shortcut(.exportCollage),
+        .returnKey,
+    ])
+    collageActions[0].perform()
+    collageActions[1].perform()
+    collageActions[2].perform()
+    #expect(copied == 1)
+    #expect(exported == 1)
+    #expect(selected == 1)
 }
 
 @MainActor
@@ -250,6 +284,37 @@ func editingCollageReusesCurrentReelWithPrimaryCueCheckboxSelection() throws {
     #expect(view.toggleCollageCueForTesting(at: primaryCuePoint))
     #expect(toggledOrdinals == [11, 11])
     #expect(view.displayedSelectedOrdinalForTesting == 12)
+
+    view.frame = CGRect(x: 0, y: 0, width: 1200, height: 656)
+    view.layoutSubtreeIfNeeded()
+    let wideCollagePlacement = try #require(
+        view.placementsForTesting.first { $0.ordinal == 11 }
+    )
+    #expect(
+        wideCollagePlacement.rect.width
+            == 1200 - PlaybackSubtitleFocusMetrics.contentInset * 2
+    )
+
+    view.update(
+        cues: cues,
+        totalCount: cues.count,
+        selectedOrdinal: 12,
+        displayTitle: "Ave Mujica - 01",
+        keyboardNavigationRequest: nil,
+        reducesMotion: false,
+        isInteractionEnabled: true,
+        cancelsWheelMotion: false,
+        collageSelectedCueIDs: nil,
+        collageCanSelectAnotherCue: true
+    )
+    view.layoutSubtreeIfNeeded()
+    let wideStandardPlacement = try #require(
+        view.placementsForTesting.first { $0.ordinal == 11 }
+    )
+    #expect(
+        wideStandardPlacement.rect.width
+            == PlaybackSubtitleFocusMetrics.contentMaxWidth
+    )
     view.invalidate()
 }
 
