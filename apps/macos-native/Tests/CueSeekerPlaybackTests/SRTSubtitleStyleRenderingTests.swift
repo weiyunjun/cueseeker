@@ -30,9 +30,7 @@ private func srtBareStyle(_ configure: (inout SRTSubtitleStyle) -> Void = { _ in
 }
 
 @Test
-func srtStyleSizeIsTheLineHeightAtTheReferenceHeightAndScales() throws {
-    // Helvetica's ascent plus descent is one em and PingFang's 1.4 ems, and
-    // CoreText lays Helvetica out in a taller frame; the line is 55 either way.
+func srtStyleSizeIsPointSizeAt1080pReferenceHeightAndScales() throws {
     for fontName in ["Helvetica", "PingFangSC-Regular"] {
         let style = srtBareStyle { $0.fontName = fontName }
         let layout720 = try #require(SRTSubtitleRenderer.makeLayout(
@@ -48,14 +46,16 @@ func srtStyleSizeIsTheLineHeightAtTheReferenceHeightAndScales() throws {
         let height720 = try #require(layout720.placements[0]).height
         let height1080 = try #require(layout1080.placements[0]).height
 
-        #expect(abs(height720 - 55) < 1.5)
+        let ctFont = CTFontCreateWithName(fontName as CFString, 28, nil)
+        let expected1080Height = CTFontGetAscent(ctFont) + CTFontGetDescent(ctFont)
+        #expect(abs(height1080 - expected1080Height) < 1.5)
         #expect(abs(height1080 / height720 - 1.5) < 0.03)
     }
 }
 
 @Test
 func srtStyleAlignsTheFirstCueToItsMargins() throws {
-    let canvas = CGSize(width: 1_280, height: 720)
+    let canvas = CGSize(width: 1_920, height: 1_080)
     let cue = srtStyleTestCue(0, text: "Aligned")
 
     let leftTop = try #require(SRTSubtitleRenderer.makeLayout(
@@ -77,21 +77,21 @@ func srtStyleAlignsTheFirstCueToItsMargins() throws {
             $0.verticalAlignment = .bottom
         }
     )?.placements[0])
-    #expect(abs(rightBottom.maxX - (1_280 - 25)) < 1.5)
-    #expect(abs(rightBottom.maxY - (720 - 22)) < 1.5)
+    #expect(abs(rightBottom.maxX - (1_920 - 25)) < 1.5)
+    #expect(abs(rightBottom.maxY - (1_080 - 22)) < 1.5)
 
     let centered = try #require(SRTSubtitleRenderer.makeLayout(
         cues: [cue],
         canvasSize: canvas,
         style: srtBareStyle { $0.verticalAlignment = .center }
     )?.placements[0])
-    #expect(abs(centered.midX - 640) < 1.5)
-    #expect(abs(centered.midY - 360) < 1.5)
+    #expect(abs(centered.midX - 960) < 1.5)
+    #expect(abs(centered.midY - 540) < 1.5)
 }
 
 @Test
 func srtStyleStacksDownwardForTopAndUpwardForCenter() throws {
-    let canvas = CGSize(width: 1_280, height: 720)
+    let canvas = CGSize(width: 1_920, height: 1_080)
     let cues = [
         srtStyleTestCue(0, start: 0, end: 5_000, text: "First"),
         srtStyleTestCue(1, start: 1_000, end: 5_000, text: "Second")
@@ -113,13 +113,13 @@ func srtStyleStacksDownwardForTopAndUpwardForCenter() throws {
     ))
     let centerFirst = try #require(center.placements[0])
     let centerSecond = try #require(center.placements[1])
-    #expect(abs(centerFirst.midY - 360) < 1.5)
+    #expect(abs(centerFirst.midY - 540) < 1.5)
     #expect(abs(centerSecond.maxY - centerFirst.minY) < 0.001)
 }
 
 @Test
 func srtStyleLineSpacingAddsOnlyBetweenLines() throws {
-    let canvas = CGSize(width: 1_280, height: 720)
+    let canvas = CGSize(width: 1_920, height: 1_080)
     let twoLines = [srtStyleTestCue(0, text: "One\nTwo")]
     let oneLine = [srtStyleTestCue(0, text: "One")]
 
@@ -150,7 +150,7 @@ func srtStyleLineSpacingAddsOnlyBetweenLines() throws {
 
 @Test
 func srtStyleSlantsAFaceThatHasNoItalic() throws {
-    let canvas = CGSize(width: 1_280, height: 720)
+    let canvas = CGSize(width: 1_920, height: 1_080)
     let cue = [srtStyleTestCue(0, text: "日本語")]
 
     let upright = try #require(SRTSubtitleRenderer.makeLayout(
@@ -167,16 +167,18 @@ func srtStyleSlantsAFaceThatHasNoItalic() throws {
         }
     )?.placements[0])
 
-    #expect(italic.width > upright.width + 5)
+    #expect(italic.width > upright.width + 2)
 }
 
 @Test
-func srtStyleOpaqueBoxPaintsTheBackgroundColorAroundTheText() throws {
+func srtStyleBackgroundBoxPaintsTheBackgroundColorAndShadowAroundTheText() throws {
     let canvas = CGSize(width: 640, height: 360)
     let cue = [srtStyleTestCue(0, text: "Box")]
     let style = srtBareStyle {
-        $0.borderType = .opaqueBox
+        $0.borderType = .backgroundBox
         $0.backgroundColor = SRTSubtitleStyle.Color(red: 1, green: 0, blue: 0, alpha: 1)
+        $0.shadowColor = SRTSubtitleStyle.Color(red: 0, green: 0, blue: 1, alpha: 1)
+        $0.shadowOffset = 9
     }
     let layout = try #require(SRTSubtitleRenderer.makeLayout(
         cues: cue,
@@ -187,12 +189,20 @@ func srtStyleOpaqueBoxPaintsTheBackgroundColorAroundTheText() throws {
     let image = try #require(SRTSubtitleRenderer.image(layout: layout, atMilliseconds: 1_000))
 
     // Just inside the box's left edge, where the padding keeps glyphs away.
-    let pixel = try #require(srtStyleTestPixel(
+    let boxPixel = try #require(srtStyleTestPixel(
         image,
         x: Int(bounds.minX) + 1,
-        y: Int(bounds.midY)
+        y: Int(bounds.minY) + 1
     ))
-    #expect(pixel.red > 200 && pixel.green < 50 && pixel.alpha > 200)
+    #expect(boxPixel.red > 200 && boxPixel.green < 50 && boxPixel.alpha > 200)
+
+    // Bottom-right corner of the visual bounds carries the box's shadow.
+    let shadowPixel = try #require(srtStyleTestPixel(
+        image,
+        x: Int(bounds.maxX) - 2,
+        y: Int(bounds.maxY) - 2
+    ))
+    #expect(shadowPixel.blue > 200 && shadowPixel.red < 50 && shadowPixel.alpha > 200)
 }
 
 @Test
@@ -218,7 +228,13 @@ func srtStyleOutlineTypeDrawsNoBackgroundBox() throws {
 }
 
 @Test
-func srtStyleRoundTripsThroughJSON() throws {
+func srtStyleRoundTripsThroughJSONAndMapsLegacyOpaqueBoxToBackgroundBox() throws {
+    let defaults = SRTSubtitleStyle()
+    #expect(defaults.size == 28)
+    #expect(defaults.lineSpacing == 6)
+    #expect(defaults.outlineWidth == 2)
+    #expect(SRTSubtitleStyle.referenceHeight == 1_080)
+
     var style = SRTSubtitleStyle()
     style.fontName = "HiraginoSans-W6"
     style.borderType = .backgroundBox
@@ -227,6 +243,12 @@ func srtStyleRoundTripsThroughJSON() throws {
 
     let data = try JSONEncoder().encode(style)
     #expect(try JSONDecoder().decode(SRTSubtitleStyle.self, from: data) == style)
+
+    let legacyType = try JSONDecoder().decode(
+        SRTSubtitleStyle.BorderType.self,
+        from: Data("\"opaqueBox\"".utf8)
+    )
+    #expect(legacyType == .backgroundBox)
 }
 
 private func srtStyleTestPixel(

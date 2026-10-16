@@ -317,6 +317,18 @@ enum WorkbenchControlMetrics {
     static let redesignSettingsNumberFieldWidth: CGFloat = 114
     /// --width-settings-popup: 180px
     static let redesignSettingsPopupWidth: CGFloat = 180
+    /// --size-settings-color-swatch: 18px
+    static let redesignSettingsColorSwatchSize: CGFloat = 18
+    /// --radius-settings-color-swatch: 4px
+    static let redesignSettingsColorSwatchRadius: CGFloat = 4
+    /// --size-settings-color-preset-swatch: 22px
+    static let redesignSettingsColorPresetSwatchSize: CGFloat = 22
+    /// --columns-settings-color-preset: 6
+    static let redesignSettingsColorPresetColumns: Int = 6
+    /// --width-settings-font-menu: 240px
+    static let redesignSettingsFontMenuWidth: CGFloat = 240
+    /// --max-height-settings-font-menu-list: 220px
+    static let redesignSettingsFontMenuListMaxHeight: CGFloat = 220
     /// --radius-settings-group: 10px
     static let redesignSettingsGroupRadius: CGFloat = 10
     /// --min-height-settings-row: 52px
@@ -734,6 +746,9 @@ struct WorkbenchSearchField: View {
     var placesInsertionPointAtEndOnAutofocus: Bool
     var trailingStatusText: String?
     var onSubmit: (() -> Void)?
+    var onMoveUp: (() -> Bool)?
+    var onMoveDown: (() -> Bool)?
+    var onCancel: (() -> Bool)?
 
     @FocusState private var isFocused: Bool
     @State private var isNativeFocused = false
@@ -746,7 +761,10 @@ struct WorkbenchSearchField: View {
         autofocus: Bool = false,
         placesInsertionPointAtEndOnAutofocus: Bool = false,
         trailingStatusText: String? = nil,
-        onSubmit: (() -> Void)? = nil
+        onSubmit: (() -> Void)? = nil,
+        onMoveUp: (() -> Bool)? = nil,
+        onMoveDown: (() -> Bool)? = nil,
+        onCancel: (() -> Bool)? = nil
     ) {
         self.placeholder = placeholder
         _text = text
@@ -756,6 +774,9 @@ struct WorkbenchSearchField: View {
             placesInsertionPointAtEndOnAutofocus
         self.trailingStatusText = trailingStatusText
         self.onSubmit = onSubmit
+        self.onMoveUp = onMoveUp
+        self.onMoveDown = onMoveDown
+        self.onCancel = onCancel
     }
 
     static func placeInsertionPointAtEnd(in editor: NSTextView) {
@@ -792,7 +813,10 @@ struct WorkbenchSearchField: View {
                 focus: $isFocused,
                 accessibilityLabel: placeholder,
                 onFocusChange: { isNativeFocused = $0 },
-                onSubmit: onSubmit
+                onSubmit: onSubmit,
+                onMoveUp: onMoveUp,
+                onMoveDown: onMoveDown,
+                onCancel: onCancel
             )
 
             if isRedesign,

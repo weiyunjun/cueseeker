@@ -3,6 +3,7 @@ import Foundation
 import SwiftUI
 import Testing
 @testable import CueSeekerCore
+@testable import CueSeekerPlayback
 @testable import CueSeekerApp
 
 @Suite(.serialized)
@@ -70,8 +71,10 @@ struct WorkbenchInputControlsTests {
     }
 
     private final class SubtitleValueBox: ObservableObject {
-        @Published var size: Double = 55
+        @Published var size: Double = 28
         @Published var letterSpacing: Double = 0
+        @Published var textColor: SRTSubtitleStyle.Color = SRTSubtitleStyle.Color(red: 1, green: 1, blue: 1, alpha: 1)
+        @Published var isColorPopoverOpen: Bool = false
     }
 
     private struct SubtitleNumberFieldsHarness: View {
@@ -79,8 +82,21 @@ struct WorkbenchInputControlsTests {
 
         var body: some View {
             VStack(spacing: 12) {
-                SettingsSubtitleNumberField(value: $box.size, minimum: 1)
-                SettingsSubtitleNumberField(value: $box.letterSpacing, minimum: 0)
+                SettingsSubtitleNumberField(
+                    value: $box.size,
+                    minimum: SRTSubtitleStyle.minimumSize,
+                    maximum: SettingsSubtitleBounds.sizeMaximum
+                )
+                SettingsSubtitleNumberField(
+                    value: $box.letterSpacing,
+                    minimum: SettingsSubtitleBounds.spacingMinimum,
+                    maximum: SettingsSubtitleBounds.spacingMaximum
+                )
+                SettingsSubtitleColorField(
+                    color: $box.textColor,
+                    accessibilityLabel: "Color",
+                    isPopoverOpen: $box.isColorPopoverOpen
+                )
             }
             .padding(16)
         }
@@ -231,7 +247,7 @@ struct WorkbenchInputControlsTests {
     func emptyTextFieldPreservesFontSizeWhenNormalizingMultilineInputAndSubtitleFieldsRestoreOnInvalidInput() throws {
         _ = NSApplication.shared
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 400, height: 240),
+            contentRect: NSRect(x: 0, y: 0, width: 400, height: 260),
             styleMask: [.titled, .closable],
             backing: .buffered,
             defer: false
@@ -256,69 +272,148 @@ struct WorkbenchInputControlsTests {
         let activeFont = textEditor.textStorage?.attribute(.font, at: 0, effectiveRange: nil) as? NSFont
         #expect(activeFont?.pointSize == WorkbenchControlMetrics.redesignFontSizeControl)
 
-        // 2. Subtitle number fields disallow '.' and '-', reject purely invalid replacements, and restore on blur/Return
+        // 2. Subtitle number fields truncate at '.' and newline, clamp immediately at maximum, do nothing on Return, and restore/clamp on blur
         let subtitleBox = SubtitleValueBox()
         let subtitleHosting = NSHostingView(
             rootView: SubtitleNumberFieldsHarness(box: subtitleBox)
-                .frame(width: 400, height: 200)
+                .frame(width: 400, height: 260)
         )
-        subtitleHosting.frame = NSRect(x: 0, y: 0, width: 400, height: 200)
+        subtitleHosting.frame = NSRect(x: 0, y: 0, width: 400, height: 260)
         window.contentView = subtitleHosting
         subtitleHosting.layoutSubtreeIfNeeded()
         RunLoop.main.run(until: Date().addingTimeInterval(0.03))
 
         let subtitleFields = collectEditableTextFields(in: subtitleHosting)
-        #expect(subtitleFields.count == 2)
+        #expect(subtitleFields.count == 3)
         let sizeField = subtitleFields[0]
         let letterSpacingField = subtitleFields[1]
+        let colorField = subtitleFields[2]
 
         #expect(window.makeFirstResponder(sizeField))
         let sizeEditor = try #require(sizeField.currentEditor() as? NSTextView)
-        #expect(sizeEditor.string == "55")
+        #expect(sizeEditor.string == "28")
 
-        // Selecting all and typing purely invalid characters (".", "-", "abc") does not wipe "55"
+        // Selecting all and typing purely invalid characters (".", "-", "abc") does not wipe "28"
         sizeEditor.setSelectedRange(NSRange(location: 0, length: sizeEditor.string.utf16.count))
         sizeEditor.insertText(".-abc", replacementRange: sizeEditor.selectedRange())
-        #expect(sizeEditor.string == "55")
-        #expect(subtitleBox.size == 55)
+        #expect(sizeEditor.string == "28")
+        #expect(subtitleBox.size == 28)
 
-        // Clearing to empty and losing focus to another field restores "55"
+        // Clearing to empty and losing focus to another field restores "28"
         sizeEditor.setSelectedRange(NSRange(location: 0, length: sizeEditor.string.utf16.count))
         sizeEditor.insertText("", replacementRange: sizeEditor.selectedRange())
         #expect(sizeEditor.string.isEmpty)
         #expect(window.makeFirstResponder(letterSpacingField))
         RunLoop.main.run(until: Date().addingTimeInterval(0.03))
-        #expect(sizeField.stringValue == "55")
-        #expect(subtitleBox.size == 55)
+        #expect(sizeField.stringValue == "28")
+        #expect(subtitleBox.size == 28)
 
-        // Letter spacing also disallows '-' and '.'
+        // Letter spacing truncates at '.' and newline, and strips '-'
         let spacingEditor = try #require(letterSpacingField.currentEditor() as? NSTextView)
         spacingEditor.setSelectedRange(NSRange(location: 0, length: spacingEditor.string.utf16.count))
         spacingEditor.insertText("-12.5", replacementRange: spacingEditor.selectedRange())
-        #expect(spacingEditor.string == "125")
-        #expect(subtitleBox.letterSpacing == 125)
+        #expect(spacingEditor.string == "12")
+        #expect(subtitleBox.letterSpacing == 12)
 
-        // Typing "0" in Size (minimum: 1) and pressing Return clamps to "1"
+        spacingEditor.setSelectedRange(NSRange(location: 0, length: spacingEditor.string.utf16.count))
+        spacingEditor.insertText("34\n56", replacementRange: spacingEditor.selectedRange())
+        #expect(spacingEditor.string == "34")
+        #expect(subtitleBox.letterSpacing == 34)
+
+        // Exceeding maximum (Size max = 200) clamps immediately to "200"
         #expect(window.makeFirstResponder(sizeField))
         let sizeEditorAgain = try #require(sizeField.currentEditor() as? NSTextView)
+        sizeEditorAgain.setSelectedRange(NSRange(location: 0, length: sizeEditorAgain.string.utf16.count))
+        sizeEditorAgain.insertText("250", replacementRange: sizeEditorAgain.selectedRange())
+        #expect(sizeEditorAgain.string == "200")
+        #expect(subtitleBox.size == 200)
+
+        // Typing "0" in Size (minimum: 1): pressing Return performs no action; blurring clamps to "1"
         sizeEditorAgain.setSelectedRange(NSRange(location: 0, length: sizeEditorAgain.string.utf16.count))
         sizeEditorAgain.insertText("0", replacementRange: sizeEditorAgain.selectedRange())
         #expect(sizeEditorAgain.string == "0")
         sizeEditorAgain.doCommand(by: #selector(NSResponder.insertNewline(_:)))
-        #expect(sizeEditorAgain.string == "1")
+        #expect(sizeEditorAgain.string == "0")
+        #expect(window.makeFirstResponder(letterSpacingField))
+        RunLoop.main.run(until: Date().addingTimeInterval(0.03))
+        #expect(sizeField.stringValue == "1")
         #expect(subtitleBox.size == 1)
 
-        // 17-digit and 20-digit numbers in SettingsSubtitleNumberField preserve exact digit text across blur/focus without scientific notation or Int overflow revert
-        for longDigits in ["55202610142021042", "20261014202104212345"] {
-            #expect(window.makeFirstResponder(sizeField))
-            let activeSizeEditor = try #require(sizeField.currentEditor() as? NSTextView)
-            activeSizeEditor.setSelectedRange(NSRange(location: 0, length: activeSizeEditor.string.utf16.count))
-            activeSizeEditor.insertText(longDigits, replacementRange: activeSizeEditor.selectedRange())
-            #expect(activeSizeEditor.string == longDigits)
-            #expect(window.makeFirstResponder(letterSpacingField))
-            RunLoop.main.run(until: Date().addingTimeInterval(0.03))
-            #expect(sizeField.stringValue == longDigits)
-        }
+        // 3. Color hex field supports 6-digit live apply, 3-digit commit without expanding to 6 digits, 4-digit truncation to 3 digits on blur, 0-2 digit restore on blur, and '#' stripping / newline & dot truncation on paste
+        #expect(window.makeFirstResponder(colorField))
+        RunLoop.main.run(until: Date().addingTimeInterval(0.03))
+        #expect(subtitleBox.isColorPopoverOpen)
+        let colorEditor = try #require(colorField.currentEditor() as? NSTextView)
+        #expect(colorEditor.string == "FFFFFF")
+
+        // Paste "#f0a" (3-digit hex with '#'): strips '#' and uppercases to "F0A"; on blur stays "F0A" (not expanded to "FF00AA")
+        colorEditor.setSelectedRange(NSRange(location: 0, length: colorEditor.string.utf16.count))
+        colorEditor.insertText("#f0a", replacementRange: colorEditor.selectedRange())
+        #expect(colorEditor.string == "F0A")
+        #expect(window.makeFirstResponder(sizeField))
+        RunLoop.main.run(until: Date().addingTimeInterval(0.03))
+        #expect(colorField.stringValue == "F0A")
+        #expect(abs(subtitleBox.textColor.red - 1.0) < 0.001)
+        #expect(abs(subtitleBox.textColor.green - 0.0) < 0.001)
+        #expect(abs(subtitleBox.textColor.blue - (10.0 * 17.0 / 255.0)) < 0.001)
+
+        // Type 4-digit hex "1234" and blur -> truncates to first 3 digits "123"
+        #expect(window.makeFirstResponder(colorField))
+        let colorEditor4 = try #require(colorField.currentEditor() as? NSTextView)
+        colorEditor4.setSelectedRange(NSRange(location: 0, length: colorEditor4.string.utf16.count))
+        colorEditor4.insertText("1234", replacementRange: colorEditor4.selectedRange())
+        #expect(colorEditor4.string == "1234")
+        #expect(window.makeFirstResponder(sizeField))
+        RunLoop.main.run(until: Date().addingTimeInterval(0.03))
+        #expect(colorField.stringValue == "123")
+
+        // Type 2-digit hex "AB" and blur -> restores previous valid hex "123"
+        #expect(window.makeFirstResponder(colorField))
+        let colorEditor2 = try #require(colorField.currentEditor() as? NSTextView)
+        colorEditor2.setSelectedRange(NSRange(location: 0, length: colorEditor2.string.utf16.count))
+        colorEditor2.insertText("AB", replacementRange: colorEditor2.selectedRange())
+        #expect(colorEditor2.string == "AB")
+        #expect(window.makeFirstResponder(sizeField))
+        RunLoop.main.run(until: Date().addingTimeInterval(0.03))
+        #expect(colorField.stringValue == "123")
+
+        // Paste "#00ff00.extra\nline" -> strips '#', truncates at '.', applies 6-digit "00FF00" immediately
+        #expect(window.makeFirstResponder(colorField))
+        let colorEditor6 = try #require(colorField.currentEditor() as? NSTextView)
+        colorEditor6.setSelectedRange(NSRange(location: 0, length: colorEditor6.string.utf16.count))
+        colorEditor6.insertText("#00ff00.extra\nline", replacementRange: colorEditor6.selectedRange())
+        #expect(colorEditor6.string == "00FF00")
+        #expect(abs(subtitleBox.textColor.red - 0.0) < 0.001)
+        #expect(abs(subtitleBox.textColor.green - 1.0) < 0.001)
+        #expect(abs(subtitleBox.textColor.blue - 0.0) < 0.001)
+
+        // 4. Font filtering matches case-insensitively and returns empty array when no font matches
+        let sampleFonts: [SettingsSubtitleFontOption] = [
+            SettingsSubtitleFontOption(id: "HelveticaNeue", title: "Helvetica Neue", fontName: "HelveticaNeue"),
+            SettingsSubtitleFontOption(id: "PingFangSC-Regular", title: "PingFang SC", fontName: "PingFangSC-Regular"),
+            SettingsSubtitleFontOption(id: "SFMono-Regular", title: "SF Mono", fontName: "SFMono-Regular"),
+        ]
+        let initialMatches = SettingsSubtitleCategory.filterFonts(
+            availableFonts: sampleFonts,
+            systemFontTitle: "System Font",
+            query: ""
+        )
+        #expect(initialMatches.count == 4)
+        #expect(initialMatches.first?.fontName == nil)
+
+        let pingFangMatches = SettingsSubtitleCategory.filterFonts(
+            availableFonts: sampleFonts,
+            systemFontTitle: "System Font",
+            query: "ping"
+        )
+        #expect(pingFangMatches.map(\.title) == ["PingFang SC"])
+
+        let emptyMatches = SettingsSubtitleCategory.filterFonts(
+            availableFonts: sampleFonts,
+            systemFontTitle: "System Font",
+            query: "nonexistent-font-xyz"
+        )
+        #expect(emptyMatches.isEmpty)
     }
 
     @Test

@@ -140,7 +140,7 @@ func settingsStoreKeepsTheSRTSubtitleStyleAcrossLaunches() {
         #expect(store.srtSubtitleStyle == SRTSubtitleStyle())
 
         store.srtSubtitleStyle.size = 42
-        store.srtSubtitleStyle.borderType = .opaqueBox
+        store.srtSubtitleStyle.borderType = .backgroundBox
         store.srtSubtitleStyle.horizontalAlignment = .left
 
         let reloadedStore = SettingsStore(userDefaults: userDefaults)

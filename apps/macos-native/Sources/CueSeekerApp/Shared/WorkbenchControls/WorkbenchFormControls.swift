@@ -15,6 +15,9 @@ struct WorkbenchSingleLineTextInput: NSViewRepresentable {
     var onFocusChange: ((Bool) -> Void)? = nil
     var onEditingEnded: (() -> Void)? = nil
     var onSubmit: (() -> Void)? = nil
+    var onMoveUp: (() -> Bool)? = nil
+    var onMoveDown: (() -> Bool)? = nil
+    var onCancel: (() -> Bool)? = nil
 
     @Environment(\.isEnabled) private var isEnabled
 
@@ -167,6 +170,24 @@ struct WorkbenchSingleLineTextInput: NSViewRepresentable {
                  #selector(NSResponder.insertLineBreak(_:)),
                  #selector(NSResponder.insertParagraphSeparator(_:)):
                 return true
+            case #selector(NSResponder.moveUp(_:)):
+                if !textView.hasMarkedText(),
+                   let onMoveUp = parent.onMoveUp {
+                    return onMoveUp()
+                }
+                return false
+            case #selector(NSResponder.moveDown(_:)):
+                if !textView.hasMarkedText(),
+                   let onMoveDown = parent.onMoveDown {
+                    return onMoveDown()
+                }
+                return false
+            case #selector(NSResponder.cancelOperation(_:)):
+                if !textView.hasMarkedText(),
+                   let onCancel = parent.onCancel {
+                    return onCancel()
+                }
+                return false
             default:
                 return false
             }
@@ -638,11 +659,10 @@ final class WorkbenchNativeSingleLineTextField: NSTextField {
     }
 
     func normalizeFullString(_ raw: String) -> String {
-        let singleLine = SearchInputNormalizer.singleLine(raw)
         if let normalizeDraft {
-            return normalizeDraft(singleLine)
+            return SearchInputNormalizer.singleLine(normalizeDraft(raw))
         }
-        return singleLine
+        return SearchInputNormalizer.singleLine(raw)
     }
 
     func configure(with input: WorkbenchSingleLineTextInput, isEnabled: Bool) {
@@ -783,32 +803,34 @@ final class WorkbenchNativeSingleLineTextField: NSTextField {
         guard let replacementString else {
             return true
         }
-        let singleLineInserted = SearchInputNormalizer.singleLine(replacementString)
+        let inserted = normalizeDraft != nil
+            ? replacementString
+            : SearchInputNormalizer.singleLine(replacementString)
         if !replacementString.isEmpty,
            let normalizeDraft,
-           normalizeDraft(singleLineInserted).isEmpty {
+           normalizeDraft(inserted).isEmpty {
             return false
         }
         let currentNSString = textView.string as NSString
         let candidate = currentNSString.replacingCharacters(
             in: affectedCharRange,
-            with: singleLineInserted
+            with: inserted
         )
-        let normalized = normalizeDraft?(candidate) ?? candidate
-        if singleLineInserted == replacementString && normalized == candidate {
+        let normalized = normalizeFullString(candidate)
+        if inserted == replacementString && normalized == candidate {
             return true
         }
 
         let cursorLocation: Int
-        if let normalizeDraft {
+        if normalizeDraft != nil {
             let prefix = currentNSString.substring(to: affectedCharRange.location)
-            let normalizedPrefix = normalizeDraft(prefix + singleLineInserted)
+            let normalizedPrefix = normalizeFullString(prefix + inserted)
             cursorLocation = min(
                 (normalizedPrefix as NSString).length,
                 (normalized as NSString).length
             )
         } else {
-            cursorLocation = affectedCharRange.location + (singleLineInserted as NSString).length
+            cursorLocation = affectedCharRange.location + (inserted as NSString).length
         }
 
         if let storage = textView.textStorage {

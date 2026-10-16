@@ -397,7 +397,8 @@
 "settings.subtitle.section.position" = "Position";
 "settings.subtitle.font" = "Font";
 "settings.subtitle.system_font" = "System Font";
-"settings.subtitle.choose_font" = "Choose…";
+"settings.subtitle.font_search_placeholder" = "Search fonts…";
+"settings.subtitle.no_results" = "No Results";
 "settings.subtitle.size" = "Size";
 "settings.subtitle.style" = "Style";
 "settings.subtitle.bold" = "Bold";
@@ -407,13 +408,14 @@
 "settings.subtitle.line_spacing" = "Line Spacing";
 "settings.subtitle.border_type" = "Type";
 "settings.subtitle.border_type.outline" = "Outline";
-"settings.subtitle.border_type.opaque_box" = "Opaque Box";
 "settings.subtitle.border_type.background_box" = "Background Box";
 "settings.subtitle.outline_color" = "Outline Color";
 "settings.subtitle.outline_width" = "Outline Width";
 "settings.subtitle.background_color" = "Background Color";
+"settings.subtitle.background_opacity" = "Background Opacity";
 "settings.subtitle.blur" = "Blur";
 "settings.subtitle.shadow_color" = "Shadow Color";
+"settings.subtitle.shadow_opacity" = "Shadow Opacity";
 "settings.subtitle.shadow_offset" = "Shadow Offset";
 "settings.subtitle.horizontal" = "Horizontal";
 "settings.subtitle.vertical" = "Vertical";

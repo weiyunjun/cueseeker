@@ -397,7 +397,8 @@
 "settings.subtitle.section.position" = "位置";
 "settings.subtitle.font" = "字體";
 "settings.subtitle.system_font" = "系統字體";
-"settings.subtitle.choose_font" = "選擇…";
+"settings.subtitle.font_search_placeholder" = "搜尋字體…";
+"settings.subtitle.no_results" = "無結果";
 "settings.subtitle.size" = "字級";
 "settings.subtitle.style" = "樣式";
 "settings.subtitle.bold" = "粗體";
@@ -407,13 +408,14 @@
 "settings.subtitle.line_spacing" = "行距";
 "settings.subtitle.border_type" = "類型";
 "settings.subtitle.border_type.outline" = "描邊";
-"settings.subtitle.border_type.opaque_box" = "逐行底框";
 "settings.subtitle.border_type.background_box" = "整體背景框";
 "settings.subtitle.outline_color" = "描邊顏色";
 "settings.subtitle.outline_width" = "描邊粗細";
 "settings.subtitle.background_color" = "背景顏色";
+"settings.subtitle.background_opacity" = "背景不透明度";
 "settings.subtitle.blur" = "模糊";
 "settings.subtitle.shadow_color" = "陰影顏色";
+"settings.subtitle.shadow_opacity" = "陰影不透明度";
 "settings.subtitle.shadow_offset" = "陰影偏移";
 "settings.subtitle.horizontal" = "水平";
 "settings.subtitle.vertical" = "垂直";

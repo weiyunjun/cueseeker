@@ -67,12 +67,11 @@ private struct SRTSubtitleMetrics {
     let lineHeight: CGFloat
     let letterSpacing: CGFloat
     let lineSpacing: CGFloat
-    /// Zero for Opaque Box, which draws no outline.
+    /// Zero for Background Box, which draws no outline.
     let outlineWidth: CGFloat
     /// Zero for Outline, which draws no box.
     let boxPadding: CGFloat
     let blurSigma: CGFloat
-    /// Zero for Background Box, which draws no shadow.
     let shadowOffset: CGFloat
     let marginX: CGFloat
     let marginY: CGFloat
@@ -84,17 +83,15 @@ private struct SRTSubtitleMetrics {
         lineHeight = CGFloat(style.size) * scale
         letterSpacing = CGFloat(style.letterSpacing) * scale
         lineSpacing = CGFloat(style.lineSpacing) * scale
-        outlineWidth = style.borderType == .opaqueBox
-            ? 0
-            : CGFloat(style.outlineWidth) * scale
+        outlineWidth = style.borderType == .outline
+            ? CGFloat(style.outlineWidth) * scale
+            : 0
         boxPadding = style.borderType == .outline
             ? 0
             : CGFloat(SRTSubtitleStyle.boxPadding) * scale
         // libass takes its blur value to a Gaussian deviation this way.
         blurSigma = CGFloat(style.blur) * scale * 2 / sqrt(log(256))
-        shadowOffset = style.borderType == .backgroundBox
-            ? 0
-            : CGFloat(style.shadowOffset) * scale
+        shadowOffset = CGFloat(style.shadowOffset) * scale
         marginX = CGFloat(style.marginX) * scale
         marginY = CGFloat(style.marginY) * scale
     }
@@ -116,7 +113,9 @@ private struct SRTSubtitleMetrics {
         }
         let font = CTFontCreateWithName(name as CFString, 12, nil)
         // A name no installed font carries comes back as some other font.
-        return CTFontCopyPostScriptName(font) as String == name ? font : systemFont
+        let postScriptMatch = CTFontCopyPostScriptName(font) as String == name
+        let familyMatch = (CTFontCopyFamilyName(font) as String?) == name
+        return (postScriptMatch || familyMatch) ? font : systemFont
     }
 }
 
@@ -334,7 +333,7 @@ enum SRTSubtitleRenderer {
             ) { layer in
                 layer.setFillColor(style.shadowColor.opaqueCGColor)
                 layer.setStrokeColor(style.shadowColor.opaqueCGColor)
-                if style.borderType == .opaqueBox {
+                if style.borderType == .backgroundBox {
                     layer.addPath(boxes)
                     layer.fillPath()
                     return
@@ -489,8 +488,6 @@ enum SRTSubtitleRenderer {
         switch borderType {
         case .outline:
             break
-        case .opaqueBox:
-            path.addRects(lineBoxes)
         case .backgroundBox:
             if let first = lineBoxes.first {
                 path.addRect(lineBoxes.dropFirst().reduce(first) { $0.union($1) })
@@ -576,7 +573,7 @@ enum SRTSubtitleRenderer {
         switch metrics.style.borderType {
         case .outline:
             break
-        case .opaqueBox, .backgroundBox:
+        case .backgroundBox:
             content = lineBoxes.reduce(content) { $0.union($1) }
         }
         let visual = content
@@ -695,8 +692,7 @@ private extension SRTSubtitleStyle.Color {
     }
 }
 
-/// Fonts for one layout, each sized so its ascent plus descent is the line
-/// height, as libass sizes every face it uses.
+/// Fonts for one layout, each sized directly at the scaled point size.
 private struct SRTFontCache {
     let lineHeight: CGFloat
     private var fonts: [String: (font: CTFont, syntheticBoldWidth: CGFloat)] = [:]
@@ -733,8 +729,7 @@ private struct SRTFontCache {
             needsSyntheticItalic = false
         }
 
-        let unitHeight = (CTFontGetAscent(font) + CTFontGetDescent(font)) / CTFontGetSize(font)
-        let pointSize = unitHeight > 0 ? lineHeight / unitHeight : lineHeight
+        let pointSize = lineHeight
         if needsSyntheticItalic {
             var slant = CGAffineTransform(
                 a: 1,
