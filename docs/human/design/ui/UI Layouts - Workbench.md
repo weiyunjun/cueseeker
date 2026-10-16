@@ -421,14 +421,14 @@
 
 - Page Layout：Workbench Titled Page Layout
 - Action Bar 保持 `--spacing-8` 边距，文件夹网格使用 `--padding-workbench-media-card-grid-inline`。
-- Action Bar：左侧展示文件夹数量（`xx folders`，样式同 Workbench Status Indicator），右侧展示排序按钮。
-- 排序按钮：位于网格上方右上角，与未 Hover 时的封面图右边缘对齐；图标为 `funnel-simple`，文字为当前选中的排序方式。
-- 排序菜单：Radio Menu，选项为默认排序、最晚入库、最早入库；打开时默认高亮首项。
+- Action Bar：左对齐，从左到右依次为排序按钮（图标为 `funnel-simple`，文字为当前选中的排序方式）、文件夹数量（`xx folders`，样式同 Workbench Status Indicator）。
+- 排序菜单：Radio Menu，与排序按钮左边缘对齐，选项为默认排序、最晚入库、最早入库；打开时默认高亮首项。
 - 排序规则：默认按文件夹名称升序；最晚入库/最早入库按首次入库时间（最早被索引文件的时间）排序，相同时间按文件夹名称升序。排序选择持久化保存。
 
 #### Sizes
 
 - Action Bar to Grid Gap：`--spacing-4`
+- Action Bar Item Gap：`--spacing-3`
 - Card Minimum Width：`--width-library-recent-card-min`
 - Maximum Columns：有 Sidebar `--grid-max-columns-library-with-sidebar`；无 Sidebar `--grid-max-columns-library-without-sidebar`
 - Grid Gap：`--gap-library-recent-grid`
@@ -514,7 +514,7 @@
 #### Structure
 
 1. Level 1: Root Folder Card List
-   1. Status and Action Row：Status Indicator、Action Buttons（`Add Folder`、`Index Now`）
+   1. Status and Action Row：Action Buttons（`Add Folder`、`Index Now`）、Status Indicator
    2. All Folder(s) Header & Root Folder Card List（按数量显示 `All Folder` 或 `All Folders`，统一展示全部根目录卡片）
 2. Level 2: Subfolder & Direct File List
    1. Status and Action Row
@@ -545,7 +545,8 @@
 - Page Layout：Workbench Titled Page Layout
 - 顶栏后退与前进按钮响应三级界面的下钻与返回，顶栏标题恒定为 `File`。
 - Status and Action Row、列表标题、面包屑、单集 `Display Title` 与各级容器/卡片均左边缘对齐。
-- Status and Action Row 在 Level 1、Level 2、Level 3 第一行常驻展示，高 36px（`--height-control`），两端对齐：左侧为极简状态指示器，右侧为操作按钮组。
+- Status and Action Row 在 Level 1、Level 2、Level 3 第一行常驻展示，高 36px（`--height-control`），左对齐：从左到右依次为 `Add Folder` 按钮、`Index Now` 按钮、状态指示器。
+- 所有层级的第一行（Status and Action Row）与第二行（Level 1 的 `All Folder(s)` 标题行、Level 2 与 Level 3 的面包屑行）在顶部固定冻结，纵向滚动时仅下方列表区域滚动。
 - Level 1 统一展示全部根文件夹卡片，顶部标题为 `All Folder`（根目录数量为 1 时）或 `All Folders`（根目录数量大于 1 时），样式为 14px Semibold `--color-text-primary`。
 - 面包屑节点（Level 2 与 Level 3 第二行）：以 `All Folder` / `All Folders` 为起点（点击返回 Level 1）；未激活链接项为 14px Medium `--color-text-secondary`（Hover 变为 `--color-text-primary`）；当前项为 14px Semibold `--color-text-primary`；分隔符为 `caret-right`（12px 1.15px `--color-text-muted`），间距 `--spacing-2`。
 - Episode File Group（单集文件分组）：视频与字幕按单集 `Display Title` 分组展示；`Display Title` 位于所属灰底圆角容器正上方（14px Medium `--color-text-muted`）；下方容器背景 `--color-settings-group-bg`、边框 `--color-border-divider`（宽度 `--border-width-control`）、圆角 `--radius-settings-group`、内边距 `--spacing-4`，占满内容区宽度并包裹该集的视频与字幕卡片。
@@ -561,7 +562,7 @@
 - All Folder(s) Title to Card List：`--spacing-3`
 - Episode Group Gap：`--spacing-4`
 - Episode `Display Title` to Group Container：`--spacing-2`
-- Action Row Gap：`--spacing-2`
+- Action Row Gap：`--spacing-3`
 - Card Gap：`--spacing-3`
 
 #### Status Indicator
@@ -624,7 +625,7 @@
 #### Layout
 
 - Page Layout：Workbench Titled Page Layout
-- Summary 行保持 `--spacing-8` 边距，卡片网格使用 `--padding-workbench-media-card-grid-inline`，使未 Hover 时的卡片封面分别与 Summary 文本（`xx lists  yy cues`，样式同 Workbench Status Indicator）和新建按钮（Neutral，带 `plus` 图标）齐平。
+- Summary 行保持 `--spacing-8` 边距，左对齐，从左到右依次为新建按钮（Neutral，带 `plus` 图标）、Summary 文本（`xx lists  yy cues`，样式同 Workbench Status Indicator）；卡片网格使用 `--padding-workbench-media-card-grid-inline`，使未 Hover 时的卡片封面左边缘与新建按钮左边缘齐平。
 
 #### Ordering
 
@@ -718,10 +719,14 @@
 
 #### Structure
 
-1. Row 1：Search Field
-2. Row 2：
-   - Default：Result Count（Search 为 `xx results`，未输入搜索词时左侧留白不显示；Excerpt 为 `xx excerpts`）、Filter Trigger（带 18px 图标与 `Filter` / `筛选` 文本）
-   - Select Mode：Selection Banner（文案 `已进入批量选择状态：点击任意行即可勾选，支持 Shift 连选`、按钮 `退出选择`，带 18px `sign-out` 图标）
+1. Search（双栏）：
+   - Row 1：Search Field（铺满宽度）
+   - Row 2（左对齐）：
+     - Default：从左到右依次为 Filter Trigger（带 18px 图标与 `Filter` / `筛选` 文本）、Result Count（`xx results`，未输入搜索词时不显示）
+     - Select Mode：从左到右依次为 `退出选择` 按钮（带 18px `sign-out` 图标）、Selection Banner 文案（`已进入批量选择状态：点击任意行即可勾选，支持 Shift 连选`）
+2. Excerpt（单栏合并，左对齐并默认铺满宽度）：
+   - Default：从左到右依次为 Search Field、Filter Trigger、Result Count（`xx excerpts`）；宽度减小时优先缩减 Search Field 宽度
+   - Select Mode：整栏切换为从左到右依次为 `退出选择` 按钮、Selection Banner 文案（覆盖 Search Field、Filter Trigger 与 Result Count）
 
 #### Components
 
@@ -733,14 +738,15 @@
 #### Sizes
 
 - Row Height：`--height-control`
-- Row Gap：`--spacing-4`
+- Row Gap：`--spacing-4`（仅 Search）
+- Item Gap：`--spacing-3`
 - Bottom Gap：`--spacing-4`
 - Width：Fill Parent Content Width
 
 #### States
 
-- Default：Row 1 启用；Row 2 展示 Result Count 与 Filter Trigger
-- Select Mode：Row 1 禁用；Row 2 展示批量选择提示文案（样式同 Result Count）与「退出选择」按钮，无背景卡片与边框
+- Default：Search 的 Row 1 启用、Row 2 左对齐展示 Filter Trigger 与 Result Count；Excerpt 单行左对齐展示 Search Field、Filter Trigger 与 Result Count
+- Select Mode：Search 的 Row 1 禁用、Row 2 左对齐展示「退出选择」按钮与批量选择提示文案（样式同 Result Count，无背景卡片与边框）；Excerpt 整行切换为左对齐的「退出选择」按钮与批量选择提示文案
 - Filter Dialog Open
 - Calculating
 
