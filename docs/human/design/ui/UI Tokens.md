@@ -172,13 +172,13 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 
 ### Subtitle Focus
 
-- `--color-subtitle-focus-overlay-bg`: Light `#F6F7F9`; Dark `#242426`
-- `--color-subtitle-focus-cue-selected`: Light `#111827`; Dark `rgba(255,255,255,0.88)`
-- `--color-subtitle-focus-cue-group-selected`: Light `#475467`; Dark `rgba(255,255,255,0.62)`
-- `--color-subtitle-focus-cue-unselected`: Light `#858B95`; Dark `rgba(255,255,255,0.34)`
-- `--color-playback-cue-timeline-focused`: Light `#667085`; Dark `#71717A`
+- `--color-subtitle-focus-overlay-bg`: Light `#FAFBFD`; Dark `#18181B`
+- `--color-subtitle-focus-cue-selected`: Light `#0F172A`; Dark `#FFFFFF`
+- `--color-subtitle-focus-cue-group-selected`: Light `#334155`; Dark `rgba(255,255,255,0.68)`
+- `--color-subtitle-focus-cue-unselected`: Light `rgba(15,23,42,0.26)`; Dark `rgba(255,255,255,0.26)`
 - `--color-playback-cue-timeline-muted`: Light `#D0D5DD`; Dark `#52525B`
-- `--color-playback-cue-metadata`: Light `#667085`; Dark `#A1A1AA`
+- `--color-playback-cue-metadata-selected`: Light `rgba(15,23,42,0.56)`; Dark `rgba(255,255,255,0.56)`
+- `--color-playback-cue-metadata-unselected`: Light `rgba(15,23,42,0.22)`; Dark `rgba(255,255,255,0.20)`
 
 ## 1.2 字体与文本
 
@@ -210,6 +210,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--font-size-subtitle-focus-cue-group`: `20px`
 - `--line-height-subtitle-focus-cue-group`: `28px`
 - `--font-weight-subtitle-focus-cue-group`: `500`
+- `--font-size-playback-cue-metadata`: `14px`
 - `--font-weight-playback-cue-metadata`: `400`
 - `--line-height-playback-cue-metadata`: `16px`
 - `--font-size-section-title`: `18px`
@@ -284,7 +285,6 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--width-filter-chip-count-placeholder`: `24px`
 - `--max-width-filter-chip`: `332px`
 - `--size-playback-collage-checkbox`: `31px`
-- `--size-playback-cue-timeline-dot`: `8px`
 - `--size-inline-clear-button`: `24px`
 - `--size-inline-clear-icon`: `16px`
 - `--size-inline-clear-symbol-font-size-macos`: `14px`

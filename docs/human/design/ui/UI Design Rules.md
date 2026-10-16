@@ -17,7 +17,7 @@
 - **允许拥有选中态的组件白名单**：
   1. **选择控件**：`C-02.1 Checkbox`（`Checked` / `Indeterminate`）、`C-02.2 Switch`、`C-02.4 Segmented Control`、`C-02.5 Filter Chip`。
   2. **导航与单选菜单**：`C-04.3 Menu Item / Radio Menu Item`、`C-05.3 Sidebar Item`、`C-05.5 Tab`、`C-05.6 Breadcrumb`（仅当前所在层级末节点为激活样式，前置祖先节点无选中态）。
-  3. **列表、卡片与时间轴**：`C-06.3 Table Row`（批量选择勾选行）、`C-11.5 Media Card`（卡片列表中的当前高亮/选中项）、`C-12.1 Player Circle Button`（仅循环等开关型按钮）、`C-13.2 Subtitle Focus Cue`、`C-13.3 Playback Cue Result`、`C-13.4 Playback Cue Reel`（时间轴圆点）。
+  3. **列表、卡片与台词流**：`C-06.3 Table Row`（批量选择勾选行）、`C-11.5 Media Card`（卡片列表中的当前高亮/选中项）、`C-12.1 Player Circle Button`（仅循环等开关型按钮）、`C-13.1 Playback Cue Metadata`、`C-13.2 Subtitle Focus Cue`、`C-13.3 Playback Cue Result`。
 - **非白名单组件禁令**：除上述白名单外，其余动作触发型组件（如 `C-03.1 Button`、`C-03.2 Icon Button`、`C-03.3 Shortcut Action Button`、`C-04.3 Action Menu Item` 等）**严禁定义或渲染 `Selected` 态**；当按钮所挂靠的菜单、弹窗或所控模式处于打开状态时，统一使用 `Open` 状态（外观等同于对应表面的 `Hover` 态）。
 
 ## 1.3 输入框聚焦与报错预留约束

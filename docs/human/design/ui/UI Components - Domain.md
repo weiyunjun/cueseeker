@@ -1090,14 +1090,20 @@
 - Cue Gap：`--spacing-2`
 - Item Gap：`--spacing-3`
 - Font Family：`--font-family-base`
-- Font Size：`--font-size-caption`
+- Font Size：`--font-size-playback-cue-metadata`
 - Line Height：`--line-height-playback-cue-metadata`
 - Font Weight：`--font-weight-playback-cue-metadata`
 
 ##### Appearance
 
-- Text Color：`--color-playback-cue-metadata`
 - Background / Border / Radius / Padding：None
+
+##### States
+
+- Unselected
+  - Text Color：`--color-playback-cue-metadata-unselected`
+- Selected
+  - Text Color：`--color-playback-cue-metadata-selected`
 
 ##### Layout
 
@@ -1176,8 +1182,10 @@
 - Viewport
 - Cue Stack
   - Timeline Marker
+    - Presence：Optional
   - Cue Content
   - Connector
+    - Presence：Optional
 - Focus Anchor
 - Selected Placement
 - Vertical Scrollbar：Scrollbar / Vertical
@@ -1201,24 +1209,13 @@
 
 #### Cue Timeline Layout
 
+- Presence：仅当配置 `Timeline Marker` 时显示；未配置时 `Cue Content` 直接与行左边缘对齐
 - Leading Element：Timeline Marker
 - Vertical Alignment：Timeline Marker 与 Primary Cue 第一视觉行的可见字形中心位于同一水平线
 - Connector：Connect Adjacent Timeline Markers
-
-#### Cue Timeline States
-
-- Unselected
-  - Dot Color：`--color-playback-cue-timeline-muted`
-- Selected
-  - Dot Color：`--color-playback-cue-timeline-focused`
 - Connector Color：`--color-playback-cue-timeline-muted`
-- Timeline Visual Priority：Lower than the corresponding Cue Content
 
 #### Timeline Marker Variants
-
-##### Dot
-
-- Size：`--size-playback-cue-timeline-dot`
 
 ##### Collage Selection
 

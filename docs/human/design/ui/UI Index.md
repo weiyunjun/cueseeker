@@ -101,7 +101,7 @@
 | **2.13 Playback Content** | `C-13.1` | Playback Cue Metadata | — |
 | | `C-13.2` | Subtitle Focus Cue | — |
 | | `C-13.3` | Playback Cue Result | — |
-| | `C-13.4` | Playback Cue Reel | `Focus Cue Reel`、`Cue Result Reel`（Marker: `Dot` / `Collage Selection`） |
+| | `C-13.4` | Playback Cue Reel | `Focus Cue Reel`、`Cue Result Reel`（Marker: `None` / `Collage Selection`） |
 
 ---
 

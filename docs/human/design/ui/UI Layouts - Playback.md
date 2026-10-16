@@ -334,7 +334,7 @@
 
 #### Cue Timeline
 
-- Marker：Dot
+- Marker：None
 - Metadata Ordinal：None
 
 #### States
@@ -368,7 +368,7 @@
 
 #### Cue Timeline / Subtitle Playlist
 
-- Marker：Dot
+- Marker：None
 - Metadata Ordinal：Cue Playlist 1-based Position，形如 `#238`
 
 #### States
@@ -515,7 +515,7 @@
 
 #### Cue Timeline
 
-- Marker：Dot
+- Marker：None
 - Metadata Ordinal：Search Result 1-based Position，形如 `#238`
 
 #### States
