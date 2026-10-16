@@ -1223,6 +1223,7 @@ final class PlaybackSubtitleFocusCueReelAdapter:
                 width: rect.width
             ),
             in: metadataRect(in: rect, for: cue),
+            isSelected: isSelected,
             isEnabled: isEnabled
         )
     }
@@ -3594,7 +3595,10 @@ struct PlaybackCueTimelineRowLayout: Equatable {
 @MainActor
 enum PlaybackCueTimelineLayout {
     static func leadingAccessoryWidth(usesCheckbox: Bool) -> CGFloat {
-        markerSize(usesCheckbox: usesCheckbox)
+        guard usesCheckbox else {
+            return 0
+        }
+        return PlaybackCollageSelectionMetrics.checkboxSize
             + PlaybackCueTimelineMetrics.markerHorizontalGap
     }
 
@@ -3603,7 +3607,13 @@ enum PlaybackCueTimelineLayout {
         usesCheckbox: Bool,
         markerCenterY: CGFloat? = nil
     ) -> PlaybackCueTimelineRowLayout {
-        let markerSize = markerSize(usesCheckbox: usesCheckbox)
+        guard usesCheckbox else {
+            return PlaybackCueTimelineRowLayout(
+                markerRect: .zero,
+                cueRect: rowRect
+            )
+        }
+        let markerSize = PlaybackCollageSelectionMetrics.checkboxSize
         let resolvedMarkerCenterY = markerCenterY
             ?? rowRect.minY
             + PlaybackSubtitleFocusMetrics.cueVerticalPadding
@@ -3632,6 +3642,9 @@ enum PlaybackCueTimelineLayout {
         from current: PlaybackCueTimelineRowLayout,
         to next: PlaybackCueTimelineRowLayout
     ) -> CGRect? {
+        guard !current.markerRect.isEmpty, !next.markerRect.isEmpty else {
+            return nil
+        }
         let startY = current.markerRect.maxY
             + PlaybackCueTimelineMetrics.connectorMarkerGap
         let endY = next.markerRect.minY
@@ -3651,26 +3664,6 @@ enum PlaybackCueTimelineLayout {
     static func drawConnector(in rect: CGRect) {
         PlaybackTheme.cueTimelineMutedNative.setFill()
         NSBezierPath(rect: rect).fill()
-    }
-
-    static func drawDot(
-        isFocused: Bool,
-        isEnabled: Bool,
-        in rect: CGRect
-    ) {
-        let color = isEnabled
-            ? isFocused
-                ? PlaybackTheme.cueTimelineFocusedNative
-                : PlaybackTheme.cueTimelineMutedNative
-            : WorkbenchRedesignColors.NS.textDisabled
-        color.setFill()
-        NSBezierPath(ovalIn: rect).fill()
-    }
-
-    private static func markerSize(usesCheckbox: Bool) -> CGFloat {
-        usesCheckbox
-            ? PlaybackCollageSelectionMetrics.checkboxSize
-            : PlaybackCueTimelineMetrics.dotSize
     }
 }
 
@@ -3944,16 +3937,10 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView, PointerShapeProviding
                     : nil,
                 in: cueContentRect(for: placement.rect)
             )
-            let timelineLayout = cueTimelineRowLayout(for: placement)
             if isEditingCollage {
+                let timelineLayout = cueTimelineRowLayout(for: placement)
                 PlaybackCollageCheckboxDrawing.draw(
                     isSelected: isChecked,
-                    isEnabled: canToggle,
-                    in: timelineLayout.markerRect
-                )
-            } else {
-                PlaybackCueTimelineLayout.drawDot(
-                    isFocused: placement.ordinal == selectedOrdinal,
                     isEnabled: canToggle,
                     in: timelineLayout.markerRect
                 )
@@ -4498,7 +4485,10 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView, PointerShapeProviding
     }
 
     private var cueTimelineConnectorRects: [CGRect] {
-        zip(placements, placements.dropFirst()).compactMap { current, next in
+        guard isEditingCollage else {
+            return []
+        }
+        return zip(placements, placements.dropFirst()).compactMap { current, next in
             guard next.ordinal == current.ordinal + 1 else {
                 return nil
             }

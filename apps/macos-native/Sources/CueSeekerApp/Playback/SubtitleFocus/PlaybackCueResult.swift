@@ -218,6 +218,7 @@ enum PlaybackCueMetadataLayout {
     static func draw(
         _ plan: PlaybackCueMetadataPlan?,
         in metadataRect: CGRect,
+        isSelected: Bool = false,
         isEnabled: Bool = true
     ) {
         guard let plan, metadataRect.width > 0, metadataRect.height > 0 else {
@@ -228,7 +229,7 @@ enum PlaybackCueMetadataLayout {
         let attributes: [NSAttributedString.Key: Any] = [
             .font: font,
             .foregroundColor: isEnabled
-                ? PlaybackTheme.cueMetadataNative
+                ? PlaybackTheme.cueMetadataNative(isSelected: isSelected)
                 : WorkbenchRedesignColors.NS.textDisabled,
             .paragraphStyle: paragraphStyle,
         ]
@@ -469,6 +470,7 @@ final class PlaybackCueResultLayout {
             PlaybackCueMetadataLayout.draw(
                 plan.metadata,
                 in: metadataRect,
+                isSelected: plan.isSelected,
                 isEnabled: isEnabled
             )
         }

@@ -7,10 +7,14 @@ public enum PlaybackTheme {
 
     // MARK: - Subtitle Focus Colors
 
-    private static let subtitleFocusCueSelectedOpacity = 0.88
+    private static let subtitleFocusCueSelectedOpacity = 1.0
     private static let playbackModuleSidebarSelectedOpacity = 0.94
-    private static let subtitleFocusCueGroupSelectedOpacity = 0.62
-    private static let subtitleFocusCueUnselectedOpacity = 0.34
+    private static let subtitleFocusCueGroupSelectedOpacity = 0.68
+    private static let subtitleFocusCueUnselectedOpacity = 0.26
+    private static let playbackModuleSidebarUnselectedOpacity = 0.34
+    private static let cueMetadataSelectedOpacity = 0.56
+    private static let cueMetadataUnselectedLightOpacity = 0.22
+    private static let cueMetadataUnselectedDarkOpacity = 0.20
 
     private static func subtitleFocusDynamicColor(
         light: NSColor,
@@ -30,15 +34,15 @@ public enum PlaybackTheme {
 
     static let subtitleFocusOverlayBackgroundNative = subtitleFocusDynamicColor(
         light: NSColor(
-            red: 246 / 255,
-            green: 247 / 255,
-            blue: 249 / 255,
+            red: 250 / 255,
+            green: 251 / 255,
+            blue: 253 / 255,
             alpha: 1
         ),
         dark: NSColor(
-            red: 36 / 255,
-            green: 36 / 255,
-            blue: 38 / 255,
+            red: 24 / 255,
+            green: 24 / 255,
+            blue: 27 / 255,
             alpha: 1
         )
     )
@@ -60,9 +64,9 @@ public enum PlaybackTheme {
 
     static let subtitleFocusCueSelectedNative = subtitleFocusDynamicColor(
         light: NSColor(
-            red: 17 / 255,
-            green: 24 / 255,
-            blue: 39 / 255,
+            red: 15 / 255,
+            green: 23 / 255,
+            blue: 42 / 255,
             alpha: 1
         ),
         dark: NSColor.white.withAlphaComponent(
@@ -71,9 +75,9 @@ public enum PlaybackTheme {
     )
     static let subtitleFocusCueGroupSelectedNative = subtitleFocusDynamicColor(
         light: NSColor(
-            red: 71 / 255,
-            green: 84 / 255,
-            blue: 103 / 255,
+            red: 51 / 255,
+            green: 65 / 255,
+            blue: 85 / 255,
             alpha: 1
         ),
         dark: NSColor.white.withAlphaComponent(
@@ -82,20 +86,14 @@ public enum PlaybackTheme {
     )
     static let subtitleFocusCueUnselectedNative = subtitleFocusDynamicColor(
         light: NSColor(
-            red: 133 / 255,
-            green: 139 / 255,
-            blue: 149 / 255,
-            alpha: 1
+            red: 15 / 255,
+            green: 23 / 255,
+            blue: 42 / 255,
+            alpha: CGFloat(subtitleFocusCueUnselectedOpacity)
         ),
         dark: NSColor.white.withAlphaComponent(
             CGFloat(subtitleFocusCueUnselectedOpacity)
         )
-    )
-
-    /// --color-playback-cue-timeline-focused
-    static let cueTimelineFocusedNative = subtitleFocusDynamicColor(
-        light: NSColor.hex("#667085"),
-        dark: NSColor.hex("#71717A")
     )
 
     /// --color-playback-cue-timeline-muted
@@ -104,11 +102,35 @@ public enum PlaybackTheme {
         dark: NSColor.hex("#52525B")
     )
 
-    /// --color-playback-cue-metadata
-    static let cueMetadataNative = subtitleFocusDynamicColor(
-        light: NSColor.hex("#667085"),
-        dark: NSColor.hex("#A1A1AA")
+    /// --color-playback-cue-metadata-selected
+    static let cueMetadataSelectedNative = subtitleFocusDynamicColor(
+        light: NSColor(
+            red: 15 / 255,
+            green: 23 / 255,
+            blue: 42 / 255,
+            alpha: CGFloat(cueMetadataSelectedOpacity)
+        ),
+        dark: NSColor.white.withAlphaComponent(
+            CGFloat(cueMetadataSelectedOpacity)
+        )
     )
+
+    /// --color-playback-cue-metadata-unselected
+    static let cueMetadataUnselectedNative = subtitleFocusDynamicColor(
+        light: NSColor(
+            red: 15 / 255,
+            green: 23 / 255,
+            blue: 42 / 255,
+            alpha: CGFloat(cueMetadataUnselectedLightOpacity)
+        ),
+        dark: NSColor.white.withAlphaComponent(
+            CGFloat(cueMetadataUnselectedDarkOpacity)
+        )
+    )
+
+    static func cueMetadataNative(isSelected: Bool) -> NSColor {
+        isSelected ? cueMetadataSelectedNative : cueMetadataUnselectedNative
+    }
 
     /// --color-playback-module-sidebar-selected
     public static var playbackModuleSidebarSelected: Color {
@@ -139,7 +161,7 @@ public enum PlaybackTheme {
             alpha: 1
         ),
         dark: NSColor.white.withAlphaComponent(
-            CGFloat(subtitleFocusCueUnselectedOpacity)
+            CGFloat(playbackModuleSidebarUnselectedOpacity)
         )
     )
     // MARK: - Player Chrome Colors
@@ -327,8 +349,8 @@ enum PlaybackSubtitleFocusMetrics {
     static let metadataCueGap = WorkbenchControlMetrics.redesignSpacing2
     /// --gap-playback-cue-metadata-item
     static let metadataItemGap = WorkbenchControlMetrics.redesignSpacing3
-    /// --font-size-caption
-    static let metadataFontSize = WorkbenchControlMetrics.redesignFontSizeCaption
+    /// --font-size-playback-cue-metadata
+    static let metadataFontSize: CGFloat = 14
     /// --font-weight-playback-cue-metadata
     static let metadataFontWeight = NSFont.Weight.regular
     /// --line-height-playback-cue-metadata
@@ -348,8 +370,6 @@ enum PlaybackSubtitleFocusMetrics {
 enum PlaybackCueTimelineMetrics {
     /// --gap-playback-cue-timeline-marker-inline
     static let markerHorizontalGap = WorkbenchControlMetrics.redesignSpacing6
-    /// --size-playback-cue-timeline-dot
-    static let dotSize = WorkbenchControlMetrics.redesignSpacing2
     /// --width-playback-cue-timeline-connector
     static let connectorWidth: CGFloat = 1
     /// --gap-playback-cue-timeline-connector-marker

@@ -15,7 +15,6 @@ func subtitleFocusMetricsMatchCompactIterationGeometry() {
     #expect(PlaybackSubtitleFocusMetrics.cueFontSize == 24)
     #expect(PlaybackSubtitleFocusMetrics.cueLineHeight == 32)
     #expect(PlaybackCueTimelineMetrics.markerHorizontalGap == 24)
-    #expect(PlaybackCueTimelineMetrics.dotSize == 8)
     #expect(PlaybackCueTimelineMetrics.connectorWidth == 1)
     #expect(PlaybackCueTimelineMetrics.connectorMarkerGap == 8)
     #expect(PlaybackCueFooterMetrics.minimumHeight == 48)
@@ -104,97 +103,69 @@ func playbackCueFooterFormatsCompleteAndPreviewLimitedCounts() {
 
 @MainActor
 @Test
-func playbackCueTimelineLeadsWithMarkerAndNoSequenceColumn() throws {
+func playbackCueTimelineOmitsMarkerOutsideCollageAndLeadsWithCheckboxInCollage() throws {
     _ = NSApplication.shared
     let rowRect = CGRect(x: 40, y: 100, width: 900, height: 72)
     let markerCenterY = rowRect.minY + 19
-    let unfocused = PlaybackCueTimelineLayout.rowLayout(
+    let nonCollage = PlaybackCueTimelineLayout.rowLayout(
         in: rowRect,
         usesCheckbox: false,
         markerCenterY: markerCenterY
     )
-    let focused = PlaybackCueTimelineLayout.rowLayout(
-        in: rowRect,
+    let nextNonCollage = PlaybackCueTimelineLayout.rowLayout(
+        in: rowRect.offsetBy(dx: 0, dy: 100),
         usesCheckbox: false,
-        markerCenterY: markerCenterY
+        markerCenterY: markerCenterY + 100
     )
-    #expect(unfocused == focused)
-    #expect(unfocused.markerRect.minX == rowRect.minX)
-    #expect(unfocused.markerRect.width == PlaybackCueTimelineMetrics.dotSize)
-    #expect(unfocused.markerRect.height == PlaybackCueTimelineMetrics.dotSize)
-    #expect(unfocused.markerRect.midY == markerCenterY)
+    #expect(nonCollage.markerRect == .zero)
+    #expect(nonCollage.cueRect == rowRect)
+    #expect(PlaybackCueTimelineLayout.leadingAccessoryWidth(usesCheckbox: false) == 0)
     #expect(
-        unfocused.cueRect.minX - unfocused.markerRect.maxX
+        PlaybackCueTimelineLayout.connectorRect(
+            from: nonCollage,
+            to: nextNonCollage
+        ) == nil
+    )
+
+    let collage = PlaybackCueTimelineLayout.rowLayout(
+        in: rowRect,
+        usesCheckbox: true,
+        markerCenterY: markerCenterY
+    )
+    #expect(collage.markerRect.minX == rowRect.minX)
+    #expect(collage.markerRect.width == PlaybackCollageSelectionMetrics.checkboxSize)
+    #expect(collage.markerRect.height == PlaybackCollageSelectionMetrics.checkboxSize)
+    #expect(collage.markerRect.midY == markerCenterY)
+    #expect(
+        collage.cueRect.minX - collage.markerRect.maxX
             == PlaybackCueTimelineMetrics.markerHorizontalGap
     )
-    #expect(unfocused.cueRect.maxX == rowRect.maxX)
-    #expect(
-        PlaybackCueTimelineLayout.leadingAccessoryWidth(usesCheckbox: false)
-            == PlaybackCueTimelineMetrics.dotSize
-                + PlaybackCueTimelineMetrics.markerHorizontalGap
-    )
+    #expect(collage.cueRect.maxX == rowRect.maxX)
     #expect(
         PlaybackCueTimelineLayout.leadingAccessoryWidth(usesCheckbox: true)
             == PlaybackCollageSelectionMetrics.checkboxSize
                 + PlaybackCueTimelineMetrics.markerHorizontalGap
     )
 
-    let next = PlaybackCueTimelineLayout.rowLayout(
+    let nextCollage = PlaybackCueTimelineLayout.rowLayout(
         in: rowRect.offsetBy(dx: 0, dy: 100),
-        usesCheckbox: false,
+        usesCheckbox: true,
         markerCenterY: markerCenterY + 100
     )
     let connector = try #require(
-        PlaybackCueTimelineLayout.connectorRect(from: unfocused, to: next)
+        PlaybackCueTimelineLayout.connectorRect(from: collage, to: nextCollage)
     )
-    #expect(connector.midX == unfocused.markerRect.midX)
+    #expect(connector.midX == collage.markerRect.midX)
     #expect(
         connector.minY
-            == unfocused.markerRect.maxY
+            == collage.markerRect.maxY
                 + PlaybackCueTimelineMetrics.connectorMarkerGap
     )
     #expect(
         connector.maxY
-            == next.markerRect.minY
+            == nextCollage.markerRect.minY
                 - PlaybackCueTimelineMetrics.connectorMarkerGap
     )
-}
-
-@MainActor
-@Test
-func playbackCueTimelineRasterCentersDotInkOnMarkerCenter() throws {
-    _ = NSApplication.shared
-    let rowRect = CGRect(x: 0, y: 0, width: 320, height: 72)
-    let rowLayout = PlaybackCueTimelineLayout.rowLayout(
-        in: rowRect,
-        usesCheckbox: false,
-        markerCenterY: 20
-    )
-    let image = NSImage(size: rowRect.size, flipped: true) { imageRect in
-        NSAppearance(named: .aqua)!.performAsCurrentDrawingAppearance {
-            NSColor.white.setFill()
-            NSBezierPath(rect: imageRect).fill()
-            PlaybackCueTimelineLayout.drawDot(
-                isFocused: true,
-                isEnabled: true,
-                in: rowLayout.markerRect
-            )
-        }
-        return true
-    }
-    let imageData = try #require(image.tiffRepresentation)
-    let bitmap = try #require(NSBitmapImageRep(data: imageData))
-    let dotInkCenterY = try #require(
-        playbackCueTimelineInkCenterY(
-            in: bitmap,
-            pointXRange: (
-                rowLayout.markerRect.minX
-                    ..< rowLayout.markerRect.maxX
-            ),
-            canvasWidth: rowRect.width
-        )
-    )
-    #expect(abs(dotInkCenterY - rowLayout.markerRect.midY) <= 1)
 }
 
 @MainActor
@@ -315,6 +286,8 @@ func editingCollageReusesCurrentReelWithPrimaryCueCheckboxSelection() throws {
         wideStandardPlacement.rect.width
             == PlaybackSubtitleFocusMetrics.contentMaxWidth
     )
+    #expect(view.cueTimelineConnectorRectsForTesting.isEmpty)
+    #expect(view.cueContentRectForTesting(at: 11) == wideStandardPlacement.rect)
     view.invalidate()
 }
 
@@ -3704,47 +3677,6 @@ private final class PlaybackSubtitleFocusPointerSentinelView: NSView {
     override func mouseDown(with event: NSEvent) {
         mouseDownCount += 1
     }
-}
-
-private func playbackCueTimelineInkCenterY(
-    in bitmap: NSBitmapImageRep,
-    pointXRange: Range<CGFloat>,
-    canvasWidth: CGFloat
-) -> CGFloat? {
-    let scaleX = CGFloat(bitmap.pixelsWide) / canvasWidth
-    let lowerX = max(0, Int(floor(pointXRange.lowerBound * scaleX)))
-    let upperX = min(
-        bitmap.pixelsWide - 1,
-        Int(ceil(pointXRange.upperBound * scaleX)) - 1
-    )
-    guard lowerX <= upperX else {
-        return nil
-    }
-
-    var lowerY: Int?
-    var upperY: Int?
-    for y in 0..<bitmap.pixelsHigh {
-        for x in lowerX...upperX {
-            guard let color = bitmap.colorAt(x: x, y: y)?
-                .usingColorSpace(.deviceRGB)
-            else {
-                continue
-            }
-            let minimumComponent = min(
-                color.redComponent,
-                min(color.greenComponent, color.blueComponent)
-            )
-            guard minimumComponent < 0.9 else {
-                continue
-            }
-            lowerY = min(lowerY ?? y, y)
-            upperY = max(upperY ?? y, y)
-        }
-    }
-    guard let lowerY, let upperY else {
-        return nil
-    }
-    return CGFloat(lowerY + upperY) / 2
 }
 
 @MainActor
