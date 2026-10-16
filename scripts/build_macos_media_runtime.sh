@@ -291,6 +291,12 @@ build_ffmpeg() {
             --enable-videotoolbox \
             --enable-audiotoolbox \
             --disable-metal \
+            --disable-encoders \
+            --enable-encoder=libmp3lame,mjpeg,bmp,png,rawvideo,wrapped_avframe \
+            --disable-muxers \
+            --enable-muxer=mp3,image2,image2pipe,rawvideo,avif,mov,mp4,null \
+            --disable-filters \
+            --enable-filter=scale,pad,crop,format,null,aformat,anull,aresample,pan,transpose,hflip,vflip \
             --enable-pic \
             --install-name-dir='@rpath' \
             --extra-cflags="$CFLAGS -I$PREFIX/include" \

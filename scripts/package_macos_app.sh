@@ -103,7 +103,11 @@ for rpath in $(otool -l "$APP_PATH/Contents/Helpers/ffmpeg" | awk '/LC_RPATH/{ge
     esac
 done
 
+strip -x "$APP_PATH/Contents/MacOS/CueSeeker"
+strip -x "$APP_PATH/Contents/Helpers/ffmpeg"
+
 find "$APP_PATH/Contents/Frameworks" -type f -name '*.dylib' -print | sort | while read -r dylib; do
+    strip -x "$dylib"
     if [ "$SIGNING_IDENTITY" = "-" ]; then
         codesign --force --sign - --timestamp=none "$dylib"
     else

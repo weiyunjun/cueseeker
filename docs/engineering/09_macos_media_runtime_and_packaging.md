@@ -10,6 +10,7 @@ application packaging rules for CueSeeker.
 Human-owned direction:
 
 - `docs/human/requirements/20260712-Feature-Reproducible macOS Media Runtime And App Packaging.md`
+- `docs/human/requirements/20261016-Engineering-App Bundle Size Reduction.md`
 
 ## 2. Supported Platform
 
@@ -28,9 +29,11 @@ Human-owned direction:
   rebased only as needed for FFmpeg 8.1.2.
 - FFmpeg must be built as shared libraries with GPL and nonfree components
   disabled.
-- The initial build keeps FFmpeg's built-in demuxers and decoders rather than
-  using a narrow `--disable-everything` allowlist. Codec reduction requires a
-  separate compatibility review.
+- Built-in demuxers, decoders, parsers, bitstream filters, and network protocols
+  remain enabled by default to preserve playback compatibility, while unused
+  encoders, muxers, and filters are disabled via `--disable-encoders`,
+  `--disable-muxers`, and `--disable-filters` with explicit allowlists for
+  cover extraction, thumbnail generation, subtitle screenshots, and Anki export.
 - External GPL codec libraries such as x264 and x265 must not be linked.
 - LAME 3.100 is included as an LGPL shared library because the existing Anki
   workflow exports MP3 audio through FFmpeg's `libmp3lame` encoder.
@@ -124,9 +127,11 @@ identifier change requires the release-rule review described in
 
 The packaging workflow must support ad-hoc signing for local validation. A
 future distribution identity may be supplied without rebuilding the media
-runtime. Nested dylibs are signed individually before the executable and the
-outer app; `codesign --deep` must not be used as a substitute for ordered
-signing.
+runtime. Before code signing, `strip -x` is applied to `Contents/MacOS/CueSeeker`,
+`Contents/Helpers/ffmpeg`, and all bundled `.dylib` files under
+`Contents/Frameworks/` to remove unexported local symbols. Nested dylibs are
+signed individually before the executable and the outer app; `codesign --deep`
+must not be used as a substitute for ordered signing.
 
 ## 8. Verification Gates
 

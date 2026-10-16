@@ -86,6 +86,29 @@ if ! grep -Eq '^CONFIG_LIBDAV1D_DECODER=yes$' "$ROOT/ffmpeg-config.mak"; then
     echo "error: staged FFmpeg configuration is missing libdav1d decoding" >&2
     exit 1
 fi
+for required_config in \
+    CONFIG_LIBMP3LAME_ENCODER \
+    CONFIG_MJPEG_ENCODER \
+    CONFIG_BMP_ENCODER \
+    CONFIG_PNG_ENCODER \
+    CONFIG_RAWVIDEO_ENCODER \
+    CONFIG_WRAPPED_AVFRAME_ENCODER \
+    CONFIG_MP3_MUXER \
+    CONFIG_IMAGE2_MUXER \
+    CONFIG_IMAGE2PIPE_MUXER \
+    CONFIG_RAWVIDEO_MUXER \
+    CONFIG_AVIF_MUXER \
+    CONFIG_SCALE_FILTER \
+    CONFIG_PAD_FILTER \
+    CONFIG_FORMAT_FILTER \
+    CONFIG_ARESAMPLE_FILTER \
+    CONFIG_AFORMAT_FILTER \
+    CONFIG_PAN_FILTER; do
+    if ! grep -Eq "^${required_config}=yes$" "$ROOT/ffmpeg-config.mak"; then
+        echo "error: staged FFmpeg configuration is missing ${required_config}" >&2
+        exit 1
+    fi
+done
 if ! "$FFMPEG_EXECUTABLE" -hide_banner -decoders 2>/dev/null | \
     grep -E '^[[:space:]]*V[^[:space:]]*[[:space:]]+libdav1d[[:space:]]' >/dev/null; then
     echo "error: bundled ffmpeg executable does not expose libdav1d" >&2
