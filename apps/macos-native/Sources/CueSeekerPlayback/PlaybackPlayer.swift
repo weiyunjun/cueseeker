@@ -1006,7 +1006,9 @@ extension PlaybackPlayer: SFXNativePlaybackPlayerDelegate {
         delegate?.player(self, didChangeProperty: "time-pos", value: .double(time))
         delegate?.player(self, didChangeProperty: "duration", value: .double(duration))
         delegate?.player(self, didChangeProperty: "pause", value: .bool(!playing))
-        if !playing || subtitleRenderTickTask == nil || assSubtitleRenderTimeGate != nil {
+        if activeSubtitleSource != nil,
+           subtitlesVisible,
+           (!playing || subtitleRenderTickTask == nil || assSubtitleRenderTimeGate != nil) {
             let milliseconds = max(0, Int((time * 1_000).rounded(.down)))
             updateASSSubtitleTimeFromNative(milliseconds: milliseconds)
         }
