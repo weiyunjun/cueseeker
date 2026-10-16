@@ -22,7 +22,7 @@
 
 3. **Section Title & Spacing Layout Across Workbench `Recent` and `Command Panel`**:
    - Added `recent.section.{today,yesterday,last_7_days,earlier,never_played}` strings across `en`, `zh-Hans`, and `zh-Hant` in `Localizable.strings`.
-   - Added `RecentSectionTitleView` (`C-08.7 Section Title`: `--font-size-section-title: 18px`, `Semibold`, `--color-text-primary`, single-line, left-aligned via `--padding-library-media-card-hover: 12px`, non-clickable, no hover effect) and updated `RecentWatchingGrid` in `WorkbenchTestLibraryView.swift` and `ExcerptListCardGrid` (`groupsByRecentSection: true`) in `ExcerptListCardGrid.swift` / `PlaybackCommandPanel.swift` to group cards with `--spacing-5` (`20px`) between section title and card grid and `--spacing-5` (`20px`) between adjacent section containers.
+   - Added `RecentSectionTitleView` (`C-08.7 Section Title`: `--font-size-section-title: 18px`, `Semibold`, `--color-text-primary`, single-line, left-aligned via `--padding-library-media-card-hover: 12px`, non-clickable, no hover effect) and updated `RecentWatchingGrid` in `WorkbenchTestLibraryView.swift` and `ExcerptListCardGrid` (`groupsByRecentSection: true`) in `ExcerptListCardGrid.swift` / `PlaybackCommandPanel.swift` to group cards with `--spacing-3` (`12px`) between section title and card grid and `--spacing-3` (`12px`) between adjacent section containers.
 
 ## Verification
 

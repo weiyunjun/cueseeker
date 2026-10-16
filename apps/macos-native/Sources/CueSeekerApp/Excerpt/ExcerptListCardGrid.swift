@@ -38,12 +38,12 @@ struct ExcerptListCardGrid: View {
         if groupsByRecentSection {
             VStack(
                 alignment: .leading,
-                spacing: WorkbenchControlMetrics.redesignSpacing5
+                spacing: WorkbenchControlMetrics.redesignSpacing3
             ) {
                 ForEach(sections, id: \.section) { group in
                     VStack(
                         alignment: .leading,
-                        spacing: WorkbenchControlMetrics.redesignSpacing5
+                        spacing: WorkbenchControlMetrics.redesignSpacing3
                     ) {
                         RecentSectionTitleView(title: group.section.localizedTitle)
                         sectionGrid(

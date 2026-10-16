@@ -681,12 +681,12 @@ struct RecentWatchingGrid: View {
         )
         return VStack(
             alignment: .leading,
-            spacing: WorkbenchControlMetrics.redesignSpacing5
+            spacing: WorkbenchControlMetrics.redesignSpacing3
         ) {
             ForEach(sections, id: \.section) { entry in
                 VStack(
                     alignment: .leading,
-                    spacing: WorkbenchControlMetrics.redesignSpacing5
+                    spacing: WorkbenchControlMetrics.redesignSpacing3
                 ) {
                     RecentSectionTitleView(title: entry.section.localizedTitle)
 
