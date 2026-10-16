@@ -356,54 +356,97 @@ struct SchemaWorkbenchSearchToolbar: View {
     /// The options the table's selection holds; nothing is drawn at zero.
     var filterSelectionCount: Int = 0
     var canEnterSelectionMode: Bool = false
+    var mergesSearchAndActionsIntoSingleRow: Bool = false
     var onSubmit: (() -> Void)?
     var onFilter: () -> Void
     var onToggleSelectionMode: () -> Void
 
     var body: some View {
-        VStack(spacing: WorkbenchControlMetrics.redesignSpacing4) {
-            WorkbenchSearchField(
-                placeholder: placeholder,
-                text: $searchDraft,
-                isRedesign: true,
-                trailingStatusText: nil,
-                onSubmit: onSubmit
-            )
-            .frame(maxWidth: .infinity)
-            .disabled(isSelectionMode)
-
+        if mergesSearchAndActionsIntoSingleRow {
             if isSelectionMode {
                 selectionBanner
             } else {
-                defaultActionRow
+                mergedSingleRow
+            }
+        } else {
+            VStack(spacing: WorkbenchControlMetrics.redesignSpacing4) {
+                searchField
+                    .frame(maxWidth: .infinity)
+                    .disabled(isSelectionMode)
+
+                if isSelectionMode {
+                    selectionBanner
+                } else {
+                    defaultActionRow
+                }
             }
         }
     }
 
+    private var searchField: some View {
+        WorkbenchSearchField(
+            placeholder: placeholder,
+            text: $searchDraft,
+            isRedesign: true,
+            trailingStatusText: nil,
+            onSubmit: onSubmit
+        )
+    }
+
+    private var filterButton: some View {
+        WorkbenchButton(
+            title: L("table.filter"),
+            icon: .funnel,
+            count: filterSelectionCount,
+            isRedesign: true,
+            isOpen: isFilterDialogOpen,
+            action: onFilter
+        )
+        .accessibilityLabel(L("table.filter"))
+    }
+
+    private var mergedSingleRow: some View {
+        HStack(spacing: WorkbenchControlMetrics.redesignSpacing3) {
+            searchField
+                .frame(minWidth: 0, maxWidth: .infinity)
+
+            filterButton
+                .layoutPriority(1)
+
+            if let searchResultCountText, !searchResultCountText.isEmpty {
+                WorkbenchStatusIndicator(searchResultCountText)
+                    .fixedSize(horizontal: true, vertical: false)
+                    .layoutPriority(1)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(height: WorkbenchControlMetrics.redesignHeight)
+    }
+
     private var defaultActionRow: some View {
         HStack(spacing: WorkbenchControlMetrics.redesignSpacing3) {
+            filterButton
+
             if let searchResultCountText, !searchResultCountText.isEmpty {
                 WorkbenchStatusIndicator(searchResultCountText)
             }
 
-            Spacer()
-
-            WorkbenchButton(
-                title: L("table.filter"),
-                icon: .funnel,
-                count: filterSelectionCount,
-                isRedesign: true,
-                isOpen: isFilterDialogOpen,
-                action: onFilter
-            )
-            .accessibilityLabel(L("table.filter"))
+            Spacer(minLength: 0)
         }
-        .frame(maxWidth: .infinity)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .frame(height: WorkbenchControlMetrics.redesignHeight)
     }
 
     private var selectionBanner: some View {
         HStack(spacing: WorkbenchControlMetrics.redesignSpacing3) {
+            WorkbenchButton(
+                title: L("table.exit_select"),
+                icon: .signOut,
+                isRedesign: true,
+                action: onToggleSelectionMode
+            )
+            .layoutPriority(1)
+
             Text(L("table.batch_selection_banner_hint"))
                 .font(.system(
                     size: WorkbenchControlMetrics.redesignFontSizeBody,
@@ -412,16 +455,9 @@ struct SchemaWorkbenchSearchToolbar: View {
                 .foregroundStyle(WorkbenchRedesignColors.textMuted)
                 .lineLimit(1)
 
-            Spacer()
-
-            WorkbenchButton(
-                title: L("table.exit_select"),
-                icon: .signOut,
-                isRedesign: true,
-                action: onToggleSelectionMode
-            )
+            Spacer(minLength: 0)
         }
-        .frame(maxWidth: .infinity)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .frame(height: WorkbenchControlMetrics.redesignHeight)
     }
 }

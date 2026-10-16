@@ -233,6 +233,135 @@ func workbenchTableHeaderStaysWithinTheTableWidth() async throws {
     #expect(headerView.layer?.masksToBounds == true)
 }
 
+@MainActor
+@Test
+func excerptMergedSingleRowToolbarShrinksSearchFieldFirstAndCoversSearchInSelectMode() async throws {
+    let wideWidth: CGFloat = 800
+    let narrowWidth: CGFloat = 480
+
+    let localization = AppLocalizationStore(
+        language: .english,
+        userDefaults: .standard,
+        userDefaultsKey: "WorkbenchPageScrollbarTests.language"
+    )
+
+    func mountToolbar(width: CGFloat, isSelectionMode: Bool) async -> NSHostingView<AnyView> {
+        let host = NSHostingView(
+            rootView: AnyView(
+                SchemaWorkbenchSearchToolbar(
+                    placeholder: "Search in excerpt list...",
+                    searchDraft: .constant(""),
+                    searchResultCountText: "42 excerpts",
+                    isSelectionMode: isSelectionMode,
+                    isFilterDialogOpen: false,
+                    filterSelectionCount: 0,
+                    canEnterSelectionMode: true,
+                    mergesSearchAndActionsIntoSingleRow: true,
+                    onSubmit: nil,
+                    onFilter: {},
+                    onToggleSelectionMode: {}
+                )
+                .environmentObject(localization)
+                .frame(width: width)
+            )
+        )
+        host.frame = CGRect(x: 0, y: 0, width: width, height: 60)
+        let window = NSWindow(
+            contentRect: host.frame,
+            styleMask: [.borderless],
+            backing: .buffered,
+            defer: false
+        )
+        window.contentView = host
+        await settleWorkbenchPage(host)
+        return host
+    }
+
+    let wideHost = await mountToolbar(width: wideWidth, isSelectionMode: false)
+    let narrowHost = await mountToolbar(width: narrowWidth, isSelectionMode: false)
+
+    let wideSearchField = try #require(
+        workbenchPageSubviews(of: NSTextField.self, in: wideHost).first { $0.isEditable }
+    )
+    let narrowSearchField = try #require(
+        workbenchPageSubviews(of: NSTextField.self, in: narrowHost).first { $0.isEditable }
+    )
+
+    // When container width decreases by 320px, the search field absorbs the full reduction
+    // while Filter button and Excerpt count keep their intrinsic widths.
+    let widthDelta = wideWidth - narrowWidth
+    let searchFieldDelta = wideSearchField.bounds.width - narrowSearchField.bounds.width
+    #expect(abs(searchFieldDelta - widthDelta) <= 1.0)
+
+    // In Select Mode, the merged single row replaces the search field with the selection banner.
+    let selectionHost = await mountToolbar(width: wideWidth, isSelectionMode: true)
+    let selectionEditableFields = workbenchPageSubviews(of: NSTextField.self, in: selectionHost)
+        .filter { $0.isEditable }
+    #expect(selectionEditableFields.isEmpty)
+}
+
+@MainActor
+@Test
+func filePageFreezesTopActionAndBreadcrumbRowsAboveVerticalScrollView() async throws {
+    let suiteName = "FileFrozenHeaderTests-\(UUID().uuidString)"
+    let defaults = UserDefaults.temporary(suiteName: suiteName)!
+    let tempDir = FileManager.default.temporaryDirectory
+        .appendingPathComponent("FileFrozenHeaderTests-\(UUID().uuidString)", isDirectory: true)
+    defer {
+        defaults.removePersistentDomainAndPlist(forName: suiteName)
+        try? FileManager.default.removeItem(at: tempDir)
+    }
+
+    let appState = AppCoordinator(
+        userDefaults: defaults,
+        databaseURL: tempDir.appendingPathComponent("cueseeker.sqlite")
+    )
+    let rootURL = URL(fileURLWithPath: "/Volumes/Media/Anime")
+    appState.indexing.selectedFolders = [rootURL]
+    appState.workbenchLayout.navigate(to: .fileFolder(rootPath: rootURL.path))
+
+    let width = AppShellLayout.pageContentMinimumWidth + 120
+    let height: CGFloat = 360
+    let host = NSHostingView(
+        rootView: WorkbenchFileView(tasks: appState.tasks)
+            .environmentObject(appState.settings.localization)
+            .environmentObject(appState)
+            .environmentObject(appState.indexing)
+            .environmentObject(appState.workbenchLayout.route)
+            .environmentObject(appState.library)
+            .frame(width: width, height: height)
+    )
+    host.frame = CGRect(x: 0, y: 0, width: width, height: height)
+    let window = NSWindow(
+        contentRect: host.frame,
+        styleMask: [.borderless],
+        backing: .buffered,
+        defer: false
+    )
+    window.contentView = host
+
+    await settleWorkbenchPage(host)
+
+    let overlays = workbenchPageSubviews(of: WorkbenchScrollViewOverlayView.self, in: host)
+    #expect(overlays.count == 2)
+
+    let innerVerticalScrollView = try #require(
+        overlays
+            .compactMap { $0.targetScrollViewForTesting }
+            .first { $0.bounds.height < height - 50 }
+    )
+    // Top frozen rows (4px top padding + 36px action row + 16px spacing + 17px breadcrumb + 12px spacing = 85px)
+    // stay outside and above the vertical scroll view, leaving height - 85px for the vertical scroll view.
+    let frozenHeaderHeight =
+        WorkbenchControlMetrics.redesignWorkbenchPageTopPadding
+        + WorkbenchControlMetrics.redesignHeight
+        + WorkbenchControlMetrics.redesignSpacing4
+        + 17
+        + WorkbenchControlMetrics.redesignSpacing3
+    let expectedVerticalScrollHeight = height - frozenHeaderHeight
+    #expect(abs(innerVerticalScrollView.bounds.height - expectedVerticalScrollHeight) <= 1.0)
+}
+
 private struct WorkbenchPageScrollbarFixture: View {
     @State private var searchDraft = ""
 

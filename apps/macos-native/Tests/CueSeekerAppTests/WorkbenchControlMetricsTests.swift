@@ -253,11 +253,18 @@ func workbenchIconButtonOpenStateMatchesSpecification() {
 
 @Test
 func workbenchTablePinnedToolbarHeightMatchesSpecification() {
-    let pinnedToolbarHeight =
+    let searchPinnedToolbarHeight =
         WorkbenchControlMetrics.redesignHeight * 2
         + WorkbenchControlMetrics.redesignSpacing4 * 2
     // 36 (search field) + 16 (spacing-4) + 36 (second row) + 16 (bottom spacing-4) = 104
-    #expect(pinnedToolbarHeight == 104)
+    #expect(searchPinnedToolbarHeight == 104)
+
+    let excerptMergedPinnedToolbarHeight =
+        WorkbenchControlMetrics.redesignHeight
+        + WorkbenchControlMetrics.redesignSpacing4
+    // 36 (merged single row) + 16 (bottom spacing-4) = 52
+    #expect(excerptMergedPinnedToolbarHeight == 52)
+    #expect(WorkbenchControlMetrics.redesignSpacing3 == 12)
 }
 
 @Test

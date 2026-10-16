@@ -47,17 +47,18 @@ struct LibraryOverviewLayout<Content: View>: View {
                     spacing: WorkbenchControlMetrics.redesignSpacing4
                 ) {
                 HStack(spacing: WorkbenchControlMetrics.redesignSpacing3) {
-                    WorkbenchStatusIndicator(summaryText)
-
-                    Spacer(minLength: 0)
-
                     WorkbenchButton(
                         title: actionTitle,
                         icon: .plus,
                         isRedesign: true,
                         action: action
                     )
+
+                    WorkbenchStatusIndicator(summaryText)
+
+                    Spacer(minLength: 0)
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .frame(height: WorkbenchControlMetrics.redesignHeight)
                 .workbenchPageInlinePadding()
 

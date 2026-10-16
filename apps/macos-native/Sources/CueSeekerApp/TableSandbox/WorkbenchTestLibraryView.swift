@@ -334,11 +334,7 @@ struct WorkbenchTestLibraryView: View {
             ? L("library.folder_count.one")
             : L("library.folder_count.other", folderCount)
 
-        return HStack(spacing: 0) {
-            WorkbenchStatusIndicator(countText)
-
-            Spacer()
-
+        return HStack(spacing: WorkbenchControlMetrics.redesignSpacing3) {
             WorkbenchButton(
                 title: library.sortOrder.title,
                 icon: .funnelSimple,
@@ -364,21 +360,20 @@ struct WorkbenchTestLibraryView: View {
             .onPreferenceChange(LibrarySortAnchorPreferenceKey.self) { frame in
                 sortButtonAnchorFrame = frame
             }
+
+            WorkbenchStatusIndicator(countText)
+
+            Spacer(minLength: 0)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .frame(height: WorkbenchControlMetrics.redesignHeight)
     }
 
     private func openSortMenu(anchorFrame: CGRect, viewportSize: CGSize) {
         let naturalSize = measuredSortMenuSize()
         let container = CGRect(origin: .zero, size: viewportSize)
-        let anchorForPlacement = CGRect(
-            x: anchorFrame.maxX - naturalSize.width,
-            y: anchorFrame.minY,
-            width: naturalSize.width,
-            height: anchorFrame.height
-        )
         let openingFrame = MenuPlacement.openingFrame(
-            anchor: anchorForPlacement,
+            anchor: anchorFrame,
             menuSize: naturalSize,
             in: container,
             gap: WorkbenchControlMetrics.redesignSpacing1,

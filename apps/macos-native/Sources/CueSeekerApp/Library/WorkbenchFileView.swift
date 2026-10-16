@@ -59,31 +59,43 @@ struct WorkbenchFileView: View {
         @ViewBuilder content: @escaping () -> Content
     ) -> some View {
         GeometryReader { geometry in
-            WorkbenchScrollView([.vertical, .horizontal]) {
+            let contentWidth = max(
+                geometry.size.width,
+                AppShellLayout.pageContentMinimumWidth
+            )
+
+            WorkbenchScrollView([.horizontal]) {
                 VStack(alignment: .leading, spacing: 0) {
-                    statusAndActionRow
-                        .padding(.bottom, WorkbenchControlMetrics.redesignSpacing4)
+                    VStack(alignment: .leading, spacing: 0) {
+                        statusAndActionRow
+                            .padding(.bottom, WorkbenchControlMetrics.redesignSpacing4)
 
-                    if !breadcrumbNodes.isEmpty {
-                        breadcrumbRow
-                            .padding(.bottom, WorkbenchControlMetrics.redesignSpacing3)
+                        if !breadcrumbNodes.isEmpty {
+                            breadcrumbRow
+                                .padding(.bottom, WorkbenchControlMetrics.redesignSpacing3)
+                        } else if !indexing.selectedFolders.isEmpty {
+                            rootFoldersHeaderRow
+                                .padding(.bottom, WorkbenchControlMetrics.redesignSpacing3)
+                        }
                     }
+                    .workbenchPageInlinePadding()
+                    .padding(.top, WorkbenchControlMetrics.redesignWorkbenchPageTopPadding)
 
-                    content()
+                    WorkbenchScrollView([.vertical]) {
+                        content()
+                            .workbenchPageInlinePadding()
+                            .padding(.bottom, WorkbenchControlMetrics.redesignWorkbenchPageBottomPadding)
+                            .frame(width: contentWidth, alignment: .topLeading)
+                    }
+                    .id(id)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 }
-                .workbenchPageInlinePadding()
-                .padding(.top, WorkbenchControlMetrics.redesignWorkbenchPageTopPadding)
-                .padding(.bottom, WorkbenchControlMetrics.redesignWorkbenchPageBottomPadding)
                 .frame(
-                    width: max(
-                        geometry.size.width,
-                        AppShellLayout.pageContentMinimumWidth
-                    ),
+                    width: contentWidth,
+                    height: geometry.size.height,
                     alignment: .topLeading
                 )
-                .frame(minHeight: geometry.size.height, alignment: .topLeading)
             }
-            .id(id)
             .coordinateSpace(name: Self.fileCardCoordinateSpaceName)
             .onAppear {
                 viewportSize = geometry.size
@@ -255,7 +267,7 @@ struct WorkbenchFileView: View {
         let isAddFolderDisabled = isFolderOperationBlocked || isChoosingFolder
         let isIndexNowDisabled = indexing.selectedFolders.isEmpty || isFolderOperationBlocked
 
-        return HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
+        return HStack(spacing: WorkbenchControlMetrics.redesignSpacing3) {
             WorkbenchButton(
                 title: L("settings.library.add_folder"),
                 icon: .folderPlus,
@@ -319,67 +331,50 @@ struct WorkbenchFileView: View {
             )
             .frame(maxWidth: .infinity, alignment: .top)
         } else {
-            VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing3) {
-                Text(
-                    FileBreadcrumbResolver.allFoldersTitle(
-                        folderCount: folders.count,
-                        singularTitle: L("file.all_folders.one"),
-                        pluralTitle: L("file.all_folders.other")
-                    )
-                )
-                .font(.system(
-                    size: WorkbenchControlMetrics.redesignFontSizeBody,
-                    weight: .semibold
-                ))
-                .foregroundStyle(WorkbenchRedesignColors.textPrimary)
-                .frame(maxWidth: .infinity, alignment: .leading)
-
-                LazyVStack(spacing: WorkbenchControlMetrics.redesignSpacing3) {
-                    ForEach(folders, id: \.self) { folder in
-                        let rootPath = folder.mediaPath
-                        let title = IndexingStore.displayName(for: folder)
-                        let subtitle = FileFolderGroupingResolver.rootSubtitle(for: folder)
-                        let items = [
-                            FileCardMenuItem(
-                                title: L("rename.folder"),
-                                icon: .pencilSimple,
-                                isEnabled: !isFolderOperationBlocked && !folder.isWebDAVURL,
-                                isDestructive: false,
-                                action: {
-                                    appState.requestRootFolderRename(folder)
-                                }
-                            ),
-                            FileCardMenuItem(
-                                title: L("common.remove"),
-                                icon: .minusCircle,
-                                isEnabled: !isFolderOperationBlocked,
-                                isDestructive: true,
-                                action: {
-                                    requestRemoval(of: folder)
-                                }
-                            )
-                        ]
-
-                        WorkbenchFileCard(
-                            icon: FileFolderGroupingResolver.folderIcon(for: folder),
-                            title: title,
-                            subtitle: subtitle,
-                            showsChevron: true,
-                            onTap: {
-                                appState.loadFileSubfolders(rootPath: rootPath)
-                                appState.workbenchLayout.navigate(
-                                    to: .fileFolder(rootPath: rootPath)
-                                )
-                            },
-                            menuItems: items,
-                            isMenuOpen: activeMenu?.cardID == rootPath,
-                            onOpenMenu: { anchorFrame in
-                                toggleMenu(for: rootPath, anchorFrame: anchorFrame, items: items)
+            LazyVStack(spacing: WorkbenchControlMetrics.redesignSpacing3) {
+                ForEach(folders, id: \.self) { folder in
+                    let rootPath = folder.mediaPath
+                    let title = IndexingStore.displayName(for: folder)
+                    let subtitle = FileFolderGroupingResolver.rootSubtitle(for: folder)
+                    let items = [
+                        FileCardMenuItem(
+                            title: L("rename.folder"),
+                            icon: .pencilSimple,
+                            isEnabled: !isFolderOperationBlocked && !folder.isWebDAVURL,
+                            isDestructive: false,
+                            action: {
+                                appState.requestRootFolderRename(folder)
+                            }
+                        ),
+                        FileCardMenuItem(
+                            title: L("common.remove"),
+                            icon: .minusCircle,
+                            isEnabled: !isFolderOperationBlocked,
+                            isDestructive: true,
+                            action: {
+                                requestRemoval(of: folder)
                             }
                         )
-                    }
+                    ]
+
+                    WorkbenchFileCard(
+                        icon: FileFolderGroupingResolver.folderIcon(for: folder),
+                        title: title,
+                        subtitle: subtitle,
+                        showsChevron: true,
+                        onTap: {
+                            appState.loadFileSubfolders(rootPath: rootPath)
+                            appState.workbenchLayout.navigate(
+                                to: .fileFolder(rootPath: rootPath)
+                            )
+                        },
+                        menuItems: items,
+                        isMenuOpen: activeMenu?.cardID == rootPath,
+                        onOpenMenu: { anchorFrame in
+                            toggleMenu(for: rootPath, anchorFrame: anchorFrame, items: items)
+                        }
+                    )
                 }
-                .frame(maxWidth: .infinity, alignment: .topLeading)
             }
             .frame(maxWidth: .infinity, alignment: .topLeading)
         }
@@ -678,6 +673,24 @@ struct WorkbenchFileView: View {
         )
     }
 
+    private var rootFoldersHeaderRow: some View {
+        let folders = FileFolderGroupingResolver.rootFolders(for: indexing.selectedFolders)
+
+        return Text(
+            FileBreadcrumbResolver.allFoldersTitle(
+                folderCount: folders.count,
+                singularTitle: L("file.all_folders.one"),
+                pluralTitle: L("file.all_folders.other")
+            )
+        )
+        .font(.system(
+            size: WorkbenchControlMetrics.redesignFontSizeBody,
+            weight: .semibold
+        ))
+        .foregroundStyle(WorkbenchRedesignColors.textPrimary)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
     private var breadcrumbRow: some View {
         HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
             ForEach(Array(breadcrumbNodes.enumerated()), id: \.element.id) { index, node in
@@ -749,12 +762,12 @@ struct WorkbenchFileView: View {
     }
 
     private var statusAndActionRow: some View {
-        HStack(alignment: .center, spacing: 0) {
+        HStack(alignment: .center, spacing: WorkbenchControlMetrics.redesignSpacing3) {
+            actionRow
+
             statusIndicator
 
-            Spacer(minLength: WorkbenchControlMetrics.redesignSpacing4)
-
-            actionRow
+            Spacer(minLength: 0)
         }
         .frame(height: WorkbenchControlMetrics.redesignHeight)
     }

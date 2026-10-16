@@ -246,6 +246,7 @@ private struct WorkbenchExcerptTableContent: View {
                         snapshot: excerptStore.residentFacetSnapshot
                     ),
                     canEnterSelectionMode: canEnterSelectionMode,
+                    mergesSearchAndActionsIntoSingleRow: true,
                     onFilter: openFilterDialog,
                     onToggleSelectionMode: toggleSelectionMode
                 )
@@ -282,8 +283,8 @@ private struct WorkbenchExcerptTableContent: View {
     }
 
     private var pinnedHeaderHeight: CGFloat {
-        WorkbenchControlMetrics.redesignHeight * 2
-            + WorkbenchControlMetrics.redesignSpacing4 * 2
+        WorkbenchControlMetrics.redesignHeight
+            + WorkbenchControlMetrics.redesignSpacing4
     }
 
     private var showsEmptyListHint: Bool {
