@@ -305,28 +305,29 @@
 
 1. Page Title
 2. Group `Text`：Font、Size、Style、Color、Letter Spacing、Line Spacing
-3. Group `Border`：Type、Outline Color、Outline Width、Background Color、Blur
-4. Group `Shadow`：Shadow Color、Shadow Offset
-5. Group `Position`：Horizontal、Margin X、Vertical、Margin Y
+3. Group `Position`：Horizontal、Margin X、Vertical、Margin Y
+4. Group `Border`：Type（Outline / Background Box）、Outline Color、Outline Width、Background Color、Background Opacity、Blur
+5. Group `Shadow`：Shadow Color、Shadow Opacity、Shadow Offset
 6. Restore Defaults
 
 #### Components
 
-- Number Field：Size、Letter Spacing、Line Spacing、Outline Width、Blur、Shadow Offset、Margin X、Margin Y
+- Number Field：Size、Letter Spacing、Line Spacing、Margin X、Margin Y、Outline Width、Background Opacity、Blur、Shadow Opacity、Shadow Offset
 - Checkbox / Form Checkbox：Bold、Italic
 - Color Well：Color、Outline Color、Background Color、Shadow Color
 - Segmented Control：Type、Horizontal、Vertical
-- Button / Neutral：Choose…、Restore Defaults
+- Menu / Dropdown Menu：Font（顶部含 Search Field，打开及搜索词变化时默认高亮首项，无匹配项时显示 `No Results`）
+- Button / Neutral：Restore Defaults
 
 #### Row
 
 1. 设置项名称
-2. 控件；Font 为当前字体名称与 Choose…，Choose… 打开系统字体面板
+2. 控件；Font 为宽度 `--width-settings-popup` 的下拉触发器，点击展开宽度 `--width-settings-font-menu`、最大高度 `--max-height-settings-font-menu` 的字体搜索菜单
 
 #### Layout
 
-- Number Field 宽度：`--width-settings-number-field`
-- 当前 Type 用不到的行，控件为 Disabled：Outline 时 Background Color；Opaque Box 时 Outline Color、Outline Width；Background Box 时 Shadow Color、Shadow Offset
+- Number Field 与 Color Well 宽度：`--width-settings-number-field`
+- Group `Border` 按当前 Type 动态显隐行：Outline 时显示 Type、Outline Color、Outline Width、Blur；Background Box 时显示 Type、Background Color、Background Opacity、Blur
 - Restore Defaults：位于最后一个 Card 下方，靠右；Leading Icon `arrow-counter-clockwise`；全部为默认值时 Disabled
 
 #### Spacing

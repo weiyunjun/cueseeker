@@ -41,7 +41,7 @@
 | | `C-01.5` | Shortcut Field | — |
 | **2.2 Selection Controls** | `C-02.1` | Checkbox | `Table Selection Checkbox`、`Playback Selection Checkbox`、`Form Checkbox` |
 | | `C-02.2` | Switch | Platform Native Switch |
-| | `C-02.3` | Color Well | Platform Native Color Well |
+| | `C-02.3` | Color Well | Swatch、Hex Input、Preset Popover |
 | | `C-02.4` | Segmented Control | — |
 | | `C-02.5` | Filter Chip | — |
 | **2.3 Buttons** | `C-03.1` | Button | `Neutral`、`Cover Summary`、`Primary`、`Destructive` |
@@ -119,7 +119,7 @@
 | | `L-02.2` | Settings Sidebar Layout | 设置窗口左侧分类导航列表 |
 | | `L-02.3` | Settings Category Layout | 设置分类页分组卡片（Group Stack）与行排版 |
 | | `L-02.4` | Settings Shortcuts Layout | 快捷键设置页与 Restore Default 按钮布局 |
-| | `L-02.5` | Settings Subtitle Layout | 字幕样式设置页与条件禁用规则 |
+| | `L-02.5` | Settings Subtitle Layout | 字幕样式设置页与条件显隐规则 |
 | **3.3 Recent** | `L-03.1` | Recent Layout | Recent 页面（顶栏 Segmented Control + 视频/摘录卡片网格） |
 | | `L-03.2` | Recent Watching Card Layout | 最近观看视频卡片结构（封面、进度、时长、文件夹名、集数与状态徽章） |
 | **3.4 Library and File** | `L-04.1` | Library Overview Layout | 媒体库一级总览页（统计与排序栏 + 文件夹卡片网格） |

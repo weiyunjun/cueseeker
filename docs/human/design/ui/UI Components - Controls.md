@@ -185,11 +185,11 @@
   - Color：`--color-text-primary`
   - Text Alignment：Trailing
   - Digit Style：Monospaced
-  - Value Rule：Digits `0-9` only；empty or unapplied input restores the previous valid value on blur or Return（Play `Auto Switch Gap`：`0 ~ 10000`；Subtitle `Size`：`≥ 1`；other Subtitle number fields：`≥ 0`）
+  - Value Rule：Digits `0-9` only；输入或粘贴遇到换行符或 `.` 时在首个位置截断；超出上限时立即钳制为上限值，为空或低于下限时在失焦时恢复原值或钳制为下限值（Play `Auto Switch Gap`：`0 ~ 10000`；Subtitle `Size`：`1 ~ 200`；`Letter Spacing` / `Line Spacing`：`0 ~ 100`；`Margin X` / `Margin Y`：`0 ~ 500`；`Outline Width` / `Blur` / `Shadow Offset`：`0 ~ 50`；`Background Opacity` / `Shadow Opacity`：`0 ~ 100`）
 - Unit Label
   - Presence：Optional
   - Placement：Inside Container
-  - Current Value：`ms`
+  - Current Value：`ms`、`%`
 - Placeholder
   - Color：`--color-text-placeholder`
 - Increment / Decrement / Spinner
@@ -346,16 +346,30 @@
 
 ##### Anatomy
 
-- Platform Native Color Well
-  - 点击打开系统颜色面板，含不透明度
+- Container：同 Text Field
+- Swatch
+  - 纯色无边框圆角色块
+  - Size：`--size-settings-color-swatch`
+  - Radius：`--radius-settings-color-swatch`
+- Prefix：固定显示 `#`，`--color-text-muted`，不可编辑
+- Hex Input
+  - 仅允许 `0-9`、`A-F`（自动转大写，最多 6 位）；粘贴自动剥离 `#` 并在首个换行符或 `.` 处截断
+  - 支持 3 位与 6 位色值（3 位保持原样不展开；4~5 位失焦时截断取前 3 位；0~2 位失焦时恢复原值）
+- Preset Popover
+  - 聚焦或点击时在下方浮出 6×2 预设色块面板（Surface `--color-bg-popover`，Swatch Size `--size-settings-color-preset-swatch`，Radius `--radius-settings-color-swatch`）
 
 ##### Sizes
 
-- Platform Native
+- Width：`--width-settings-number-field`
+- Height：`--height-field`
+- Padding Inline：`--padding-field-x`
+- Content Gap：`--spacing-2`
 
 ##### States
 
-- Platform Native
+- Default
+- Focused / Open
+  - Border Color：`--color-border-focus`
 
 ### C-02.4 Segmented Control
 
