@@ -552,7 +552,11 @@ extension AppCoordinator {
         testRecentWatchingTask = Task { [weak self] in
             do {
                 let snapshot = try await Task.detached(priority: .userInitiated) {
-                    try database.recentLibraryWatching(under: folders, limit: Int.max)
+                    try database.recentLibraryWatching(
+                        under: folders,
+                        limit: Int.max,
+                        includesNeverPlayed: true
+                    )
                 }.value
 
                 guard !Task.isCancelled else { return }

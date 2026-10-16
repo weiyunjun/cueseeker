@@ -58,7 +58,8 @@ func recordingLibraryPlaybackStartRefreshesLoadedRecentWatching() async throws {
         await app.recentWatchingTask?.value
         await app.testRecentWatchingTask?.value
         #expect(app.library.recentWatchingItems.isEmpty)
-        #expect(app.library.testRecentWatchingItems.isEmpty)
+        #expect(app.library.testRecentWatchingItems.map(\.videoPath) == [episode.path])
+        #expect(app.library.testRecentWatchingItems.first?.updatedAt.isEmpty == true)
 
         let video = try #require(
             try app.libraryDatabase!.libraryVideos(under: [root]).first
@@ -69,6 +70,7 @@ func recordingLibraryPlaybackStartRefreshesLoadedRecentWatching() async throws {
 
         #expect(app.library.recentWatchingItems.first?.videoPath == episode.path)
         #expect(app.library.testRecentWatchingItems.first?.videoPath == episode.path)
+        #expect(app.library.testRecentWatchingItems.first?.updatedAt.isEmpty == false)
     }
 }
 

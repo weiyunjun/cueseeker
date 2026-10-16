@@ -14,9 +14,14 @@ struct ExcerptListCardGrid: View {
     @Environment(\.libraryCardContextMenuOpen) private var pageContextMenuOpen
     let summaries: [ExcerptListSummary]
     @ObservedObject var highlight: CardHighlightModel
+    var groupsByRecentSection: Bool = false
     var itemFrameCoordinateSpace: String? = nil
     var onItemFramesChange: ([String: CGRect]) -> Void = { _ in }
     let onOpen: (ExcerptListSummary) -> Void
+
+    private var sections: [(section: RecentTimeSection, items: [ExcerptListSummary])] {
+        RecentTimeSection.group(summaries, timestamp: \.list.recentPlayedAt)
+    }
 
     var body: some View {
         if let pageContextMenuOpen {
@@ -26,7 +31,47 @@ struct ExcerptListCardGrid: View {
         }
     }
 
+    @ViewBuilder
     private func grid(
+        openContextMenu: @escaping ([LibraryCardContextMenuItem], CGPoint, String) -> Void
+    ) -> some View {
+        if groupsByRecentSection {
+            VStack(
+                alignment: .leading,
+                spacing: WorkbenchControlMetrics.redesignSpacing5
+            ) {
+                ForEach(sections, id: \.section) { group in
+                    VStack(
+                        alignment: .leading,
+                        spacing: WorkbenchControlMetrics.redesignSpacing5
+                    ) {
+                        RecentSectionTitleView(title: group.section.localizedTitle)
+                        sectionGrid(
+                            summaries: group.items,
+                            openContextMenu: openContextMenu
+                        )
+                    }
+                }
+            }
+            .onPreferenceChange(LibraryItemFramePreferenceKey.self) { frames in
+                guard itemFrameCoordinateSpace != nil else {
+                    return
+                }
+                onItemFramesChange(frames)
+            }
+        } else {
+            sectionGrid(summaries: summaries, openContextMenu: openContextMenu)
+                .onPreferenceChange(LibraryItemFramePreferenceKey.self) { frames in
+                    guard itemFrameCoordinateSpace != nil else {
+                        return
+                    }
+                    onItemFramesChange(frames)
+                }
+        }
+    }
+
+    private func sectionGrid(
+        summaries: [ExcerptListSummary],
         openContextMenu: @escaping ([LibraryCardContextMenuItem], CGPoint, String) -> Void
     ) -> some View {
         LibraryOverviewGrid {
@@ -57,12 +102,6 @@ struct ExcerptListCardGrid: View {
                 }
                 .id(String(summary.id))
             }
-        }
-        .onPreferenceChange(LibraryItemFramePreferenceKey.self) { frames in
-            guard itemFrameCoordinateSpace != nil else {
-                return
-            }
-            onItemFramesChange(frames)
         }
     }
 

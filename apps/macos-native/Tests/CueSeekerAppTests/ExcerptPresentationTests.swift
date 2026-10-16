@@ -102,8 +102,9 @@ func excerptOverviewAndTableLoadingFollowTheSelectedList() async throws {
     #expect(app.excerpt.listOverview.lists.map(\.id) == [defaultList.id, secondList.id])
     #expect(app.excerpt.listOverview.lists.map(\.cueCount) == [1, 1])
     #expect(app.excerpt.listOverview.uniqueCueCount == 2)
-    #expect(app.excerpt.recentListSummaries.map(\.id) == [secondList.id])
+    #expect(app.excerpt.recentListSummaries.map(\.id) == [secondList.id, defaultList.id])
     #expect(app.excerpt.recentListSummaries.first?.resumeExcerpt?.id == secondItem.id)
+    #expect(app.excerpt.recentListSummaries.last?.resumeExcerpt == nil)
 
     app.openExcerptList(id: defaultList.id)
     try await waitForExcerptTasksToFinish(app)
@@ -136,6 +137,7 @@ func excerptOverviewAndTableLoadingFollowTheSelectedList() async throws {
     let emptyList = try excerptDatabase.createExcerptList(name: "Empty")
     app.reloadExcerptListOverview()
     try await waitForExcerptTasksToFinish(app)
+    #expect(app.excerpt.recentListSummaries.map(\.id) == [secondList.id, defaultList.id])
     app.openExcerptList(id: emptyList.id)
     try await waitForExcerptTasksToFinish(app)
     #expect(app.excerpt.activeListSummary?.cueCount == 0)

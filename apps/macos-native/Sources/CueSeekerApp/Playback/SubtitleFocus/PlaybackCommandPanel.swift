@@ -789,6 +789,7 @@ private struct PlaybackCommandPanelRecentExcerpts: View {
             ExcerptListCardGrid(
                 summaries: summaries,
                 highlight: highlight,
+                groupsByRecentSection: true,
                 itemFrameCoordinateSpace: coordinateSpaceName,
                 onItemFramesChange: onItemFramesChange
             ) { summary in

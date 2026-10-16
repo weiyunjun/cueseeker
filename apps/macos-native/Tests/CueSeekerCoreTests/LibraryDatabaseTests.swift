@@ -718,6 +718,141 @@ func recentLibraryWatchingKeepsLatestVideoPerFolderWithinLimit() throws {
 }
 
 @Test
+func recentLibraryWatchingAppendsNeverPlayedFoldersWithEP01SortedByFolderTitle() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        removeTemporaryDatabase(at: databaseURL)
+    }
+
+    let database = try IndexingDatabase(path: databaseURL)
+    try DatabaseBootstrap.prepare(at: databaseURL)
+
+    let root = URL(fileURLWithPath: "/Media")
+    let showZ1 = root.appendingPathComponent("Show Z/Episode 1.mkv")
+    let showZ2 = root.appendingPathComponent("Show Z/Episode 2.mkv")
+    let showB1 = root.appendingPathComponent("Show B/Episode 1.mkv")
+    let showB2 = root.appendingPathComponent("Show B/Episode 2.mkv")
+    let showA1 = root.appendingPathComponent("Show A/Episode 1.mkv")
+
+    for videoFile in [showZ1, showZ2, showB1, showB2, showA1] {
+        try database.replaceEntries(
+            subtitleFile: videoFile.deletingPathExtension().appendingPathExtension("srt"),
+            videoFile: videoFile,
+            entries: [databaseTestEntry(text: videoFile.lastPathComponent)]
+        )
+    }
+    try LibraryDatabase(path: database.path).refreshPresentationAfterIndexedContentChange()
+
+    try LibraryDatabase(path: databaseURL).upsertLibraryPlaybackHistory(
+        videoFile: showZ2,
+        positionMilliseconds: 45_000,
+        duration: 1_200.0,
+        updatedAt: Date(timeIntervalSince1970: 1_800_000_000)
+    )
+
+    let playedOnly = try LibraryDatabase(path: database.path)
+        .recentLibraryWatching(under: [root], limit: Int.max, includesNeverPlayed: false)
+    #expect(playedOnly.map(\.videoPath) == [showZ2.path])
+
+    let withNeverPlayed = try LibraryDatabase(path: database.path)
+        .recentLibraryWatching(under: [root], limit: Int.max, includesNeverPlayed: true)
+    #expect(withNeverPlayed.map(\.videoPath) == [
+        showZ2.path,
+        showA1.path,
+        showB1.path
+    ])
+    #expect(withNeverPlayed.map(\.folderTitle) == ["Show Z", "Show A", "Show B"])
+    #expect(withNeverPlayed[1].episodeNumber == 1)
+    #expect(withNeverPlayed[1].updatedAt.isEmpty)
+    #expect(withNeverPlayed[1].watchState == .unwatched)
+    #expect(withNeverPlayed[2].episodeNumber == 1)
+    #expect(withNeverPlayed[2].updatedAt.isEmpty)
+    #expect(withNeverPlayed[2].watchState == .unwatched)
+}
+
+@Test
+func recentTimeSectionClassifiesAndGroupsByLocalCalendarDayBoundaries() throws {
+    var calendar = Calendar(identifier: .gregorian)
+    let timeZone = try #require(TimeZone(secondsFromGMT: 8 * 3_600))
+    calendar.timeZone = timeZone
+
+    let formatter = ISO8601DateFormatter()
+    formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+    formatter.timeZone = TimeZone(secondsFromGMT: 0)
+
+    // Reference time: 2026-10-16 15:00:00 +08:00 (Today midnight T0 = 2026-10-16 00:00:00 +08:00)
+    let referenceDate = try #require(calendar.date(from: DateComponents(
+        timeZone: timeZone,
+        year: 2026,
+        month: 10,
+        day: 16,
+        hour: 15,
+        minute: 0,
+        second: 0
+    )))
+    let todayStart = calendar.startOfDay(for: referenceDate)
+    let yesterdayStart = try #require(calendar.date(byAdding: .day, value: -1, to: todayStart))
+    let last7DaysStart = try #require(calendar.date(byAdding: .day, value: -6, to: todayStart))
+    let earlierInstant = last7DaysStart.addingTimeInterval(-1)
+
+    #expect(
+        RecentTimeSection.classify(
+            timestamp: formatter.string(from: todayStart),
+            relativeTo: referenceDate,
+            calendar: calendar
+        ) == .today
+    )
+    #expect(
+        RecentTimeSection.classify(
+            timestamp: formatter.string(from: yesterdayStart),
+            relativeTo: referenceDate,
+            calendar: calendar
+        ) == .yesterday
+    )
+    #expect(
+        RecentTimeSection.classify(
+            timestamp: formatter.string(from: last7DaysStart),
+            relativeTo: referenceDate,
+            calendar: calendar
+        ) == .last7Days
+    )
+    #expect(
+        RecentTimeSection.classify(
+            timestamp: formatter.string(from: earlierInstant),
+            relativeTo: referenceDate,
+            calendar: calendar
+        ) == .earlier
+    )
+    #expect(
+        RecentTimeSection.classify(
+            timestamp: "",
+            relativeTo: referenceDate,
+            calendar: calendar
+        ) == .neverPlayed
+    )
+    #expect(
+        RecentTimeSection.classify(
+            timestamp: nil,
+            relativeTo: referenceDate,
+            calendar: calendar
+        ) == .neverPlayed
+    )
+
+    let timestamps: [String?] = [
+        formatter.string(from: todayStart.addingTimeInterval(3600)),
+        formatter.string(from: last7DaysStart),
+        nil
+    ]
+    let grouped = RecentTimeSection.group(
+        timestamps,
+        timestamp: { $0 },
+        relativeTo: referenceDate,
+        calendar: calendar
+    )
+    #expect(grouped.map(\.section) == [.today, .last7Days, .neverPlayed])
+}
+
+@Test
 func recentLibraryWatchingUsesFractionalUpdatedAtWithinSameSecond() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {

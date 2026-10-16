@@ -283,8 +283,10 @@ public final class ExcerptDatabase: @unchecked Sendable {
             SELECT id, name, description, cover_path, created_at,
                    recent_cue_id, recent_sort_order, recent_played_at
             FROM excerpt_lists
-            WHERE recent_played_at IS NOT NULL
-            ORDER BY recent_played_at DESC, id DESC;
+            ORDER BY CASE WHEN recent_played_at IS NOT NULL THEN 0 ELSE 1 END ASC,
+                     CASE WHEN recent_played_at IS NOT NULL THEN recent_played_at END DESC,
+                     CASE WHEN recent_played_at IS NOT NULL THEN id END DESC,
+                     created_at ASC, id ASC;
             """
         )
         var recentLists: [ExcerptList] = []
@@ -305,25 +307,34 @@ public final class ExcerptDatabase: @unchecked Sendable {
                 return excerpt
             }
             guard !playable.isEmpty else {
-                if access == .readWrite {
+                if list.recentPlayedAt != nil, access == .readWrite {
                     try? clearRecentExcerptPlayback(listID: list.id)
                 }
                 continue
             }
 
-            let anchoredID = relations.first { relation in
-                relation.cueID == list.recentCueID
-                    && resolvedByID[relation.id]?.isValid == true
-            }?.id
-            let position = anchoredID.flatMap { id in
-                playable.firstIndex { $0.id == id }
-            } ?? 0
-            summaries.append(ExcerptListSummary(
-                list: list,
-                cueCount: playable.count,
-                resumeExcerpt: playable[position],
-                resumePosition: position + 1
-            ))
+            if list.recentPlayedAt != nil {
+                let anchoredID = relations.first { relation in
+                    relation.cueID == list.recentCueID
+                        && resolvedByID[relation.id]?.isValid == true
+                }?.id
+                let position = anchoredID.flatMap { id in
+                    playable.firstIndex { $0.id == id }
+                } ?? 0
+                summaries.append(ExcerptListSummary(
+                    list: list,
+                    cueCount: playable.count,
+                    resumeExcerpt: playable[position],
+                    resumePosition: position + 1
+                ))
+            } else {
+                summaries.append(ExcerptListSummary(
+                    list: list,
+                    cueCount: playable.count,
+                    resumeExcerpt: nil,
+                    resumePosition: nil
+                ))
+            }
         }
         return summaries
     }

@@ -216,6 +216,83 @@ func readOnlyExcerptDatabaseLoadsRecentSummariesWithoutWriteAttemptWhenNoPlayabl
 }
 
 @Test
+func recentExcerptListSummariesIncludesNeverPlayedPlayableListsOrderedByCreatedAt() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        removeTemporaryDatabase(at: databaseURL)
+    }
+
+    let indexingDatabase = try IndexingDatabase(path: databaseURL)
+    try DatabaseBootstrap.prepare(at: databaseURL)
+    let database = try ExcerptDatabase(path: databaseURL)
+    let subtitleFile = URL(fileURLWithPath: "/Media/Show/Never Played Excerpt.srt")
+    try indexingDatabase.replaceEntries(
+        subtitleFile: subtitleFile,
+        videoFile: URL(fileURLWithPath: "/Media/Show/Never Played Excerpt.mkv"),
+        entries: [
+            SubtitleEntry(
+                sequenceNumber: 1,
+                startTimecode: "00:00:01,000",
+                endTimecode: "00:00:02,000",
+                startMilliseconds: 1_000,
+                endMilliseconds: 2_000,
+                text: "Cue 1"
+            ),
+            SubtitleEntry(
+                sequenceNumber: 2,
+                startTimecode: "00:00:03,000",
+                endTimecode: "00:00:04,000",
+                startMilliseconds: 3_000,
+                endMilliseconds: 4_000,
+                text: "Cue 2"
+            )
+        ]
+    )
+    let playbackDatabase = try PlaybackSubtitleDatabase(path: databaseURL)
+    let selection1 = try #require(try playbackDatabase.cueTextSelection(
+        forSubtitleFile: subtitleFile,
+        atMilliseconds: 1_500
+    ))
+    let selection2 = try #require(try playbackDatabase.cueTextSelection(
+        forSubtitleFile: subtitleFile,
+        atMilliseconds: 3_500
+    ))
+
+    let defaultList = try #require(try database.excerptList(id: ExcerptListIdentity.defaultListID))
+    let secondList = try database.createExcerptList(
+        name: "Second Unplayed",
+        createdAt: Date(timeIntervalSince1970: 200)
+    )
+    let playedList = try database.createExcerptList(
+        name: "Played List",
+        createdAt: Date(timeIntervalSince1970: 300)
+    )
+    _ = try database.createExcerptList(
+        name: "Empty List",
+        createdAt: Date(timeIntervalSince1970: 400)
+    )
+
+    _ = try database.upsertExcerpt(selection: selection1, listID: defaultList.id)
+    _ = try database.upsertExcerpt(selection: selection2, listID: secondList.id)
+    let playedExcerpt = try database.upsertExcerpt(selection: selection1, listID: playedList.id)
+    try database.recordRecentExcerptPlayback(
+        excerptID: playedExcerpt.id,
+        playedAt: Date(timeIntervalSince1970: 500)
+    )
+
+    let summaries = try database.recentExcerptListSummaries()
+    #expect(summaries.map(\.id) == [playedList.id, defaultList.id, secondList.id])
+    #expect(summaries[0].resumeExcerpt?.id == playedExcerpt.id)
+    #expect(summaries[0].resumePosition == 1)
+    #expect(summaries[1].list.recentPlayedAt == nil)
+    #expect(summaries[1].resumeExcerpt == nil)
+    #expect(summaries[1].resumePosition == nil)
+    #expect(summaries[2].list.recentPlayedAt == nil)
+    #expect(summaries[2].resumeExcerpt == nil)
+    #expect(summaries[2].resumePosition == nil)
+}
+
+@Test
 func excerptSaveMoveAndDuplicateUseListScopeAndPreserveMetadata() throws {
     let databaseURL = temporaryDatabaseURL()
     defer {

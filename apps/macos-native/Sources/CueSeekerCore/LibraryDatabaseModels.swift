@@ -638,3 +638,82 @@ public struct CompleteLibraryFolderPresentation: Equatable, Sendable, Identifiab
             ?? videos.first
     }
 }
+
+public enum RecentTimeSection: String, CaseIterable, Equatable, Sendable {
+    case today
+    case yesterday
+    case last7Days
+    case earlier
+    case neverPlayed
+
+    public static func classify(
+        timestamp: String?,
+        relativeTo referenceDate: Date = Date(),
+        calendar: Calendar = .current
+    ) -> Self {
+        guard let rawTimestamp = timestamp?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !rawTimestamp.isEmpty
+        else {
+            return .neverPlayed
+        }
+        guard let playedDate = parseTimestamp(rawTimestamp) else {
+            return .earlier
+        }
+
+        let startOfToday = calendar.startOfDay(for: referenceDate)
+        if playedDate >= startOfToday {
+            return .today
+        }
+        if let startOfYesterday = calendar.date(byAdding: .day, value: -1, to: startOfToday),
+           playedDate >= startOfYesterday {
+            return .yesterday
+        }
+        if let startOfLast7Days = calendar.date(byAdding: .day, value: -6, to: startOfToday),
+           playedDate >= startOfLast7Days {
+            return .last7Days
+        }
+        return .earlier
+    }
+
+    public static func group<Item>(
+        _ items: [Item],
+        timestamp: (Item) -> String?,
+        relativeTo referenceDate: Date = Date(),
+        calendar: Calendar = .current
+    ) -> [(section: Self, items: [Item])] {
+        var buckets: [Self: [Item]] = [:]
+        for item in items {
+            let section = classify(
+                timestamp: timestamp(item),
+                relativeTo: referenceDate,
+                calendar: calendar
+            )
+            buckets[section, default: []].append(item)
+        }
+        return allCases.compactMap { section in
+            guard let sectionItems = buckets[section], !sectionItems.isEmpty else {
+                return nil
+            }
+            return (section: section, items: sectionItems)
+        }
+    }
+
+    private static func parseTimestamp(_ value: String) -> Date? {
+        let fractionalFormatter = ISO8601DateFormatter()
+        fractionalFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let date = fractionalFormatter.date(from: value) {
+            return date
+        }
+        let standardFormatter = ISO8601DateFormatter()
+        standardFormatter.formatOptions = [.withInternetDateTime]
+        if let date = standardFormatter.date(from: value) {
+            return date
+        }
+        let sqliteFormatter = DateFormatter()
+        sqliteFormatter.locale = Locale(identifier: "en_US_POSIX")
+        sqliteFormatter.timeZone = TimeZone(secondsFromGMT: 0)
+        sqliteFormatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
+        return sqliteFormatter.date(from: value)
+    }
+}
+

@@ -72,8 +72,10 @@ extension AppCoordinator {
     }
 
     func openRecentExcerpt(_ summary: ExcerptListSummary) {
-        guard let item = summary.resumeExcerpt else { return }
-        openExcerptListPlayback(summary, preferredExcerptID: item.id)
+        openExcerptListPlayback(
+            summary,
+            preferredExcerptID: summary.resumeExcerpt?.id
+        )
     }
 
     func openExcerptListPlayback(_ summary: ExcerptListSummary) {
@@ -1261,8 +1263,18 @@ extension AppCoordinator {
             let existingSummary = excerpt.recentListSummaries.first(where: { $0.id == list.id })
                 ?? excerpt.listOverview.lists.first(where: { $0.id == list.id })
             let cueCount = existingSummary?.cueCount ?? 1
+            let playedList = ExcerptList(
+                id: list.id,
+                name: list.name,
+                description: list.description,
+                coverPath: list.coverPath,
+                createdAt: list.createdAt,
+                recentCueID: relation.cueID,
+                recentSortOrder: "created_at_desc",
+                recentPlayedAt: ISO8601DateFormatter().string(from: Date())
+            )
             let newSummary = ExcerptListSummary(
-                list: list,
+                list: playedList,
                 cueCount: cueCount,
                 resumeExcerpt: item,
                 resumePosition: item.startMilliseconds

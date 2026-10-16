@@ -84,7 +84,8 @@ extension LibraryDatabase {
 
     public func recentLibraryWatching(
         under folders: [URL],
-        limit: Int = 5
+        limit: Int = 5,
+        includesNeverPlayed: Bool = false
     ) throws -> [RecentLibraryWatchingPresentation] {
         try Task.checkCancellation()
         let cappedLimit = max(0, limit)
@@ -181,6 +182,83 @@ extension LibraryDatabase {
                     coverRevision: statement.nullableStringColumn(18)
                 )
             )
+        }
+
+        if includesNeverPlayed, rows.count < cappedLimit {
+            let fallbackStatement = try database.prepare(
+                """
+                SELECT lvr.video_file_id, lvr.subtitle_file_id,
+                       lvr.folder_path, lvr.folder_title, lvr.video_path, lvr.video_name,
+                       lvr.duration, lvr.subtitle_path, lvr.subtitle_format, lvr.display_title,
+                       lvr.file_extension, lvr.video_order,
+                       CASE
+                           WHEN ws.state = 'finished' THEN ws.updated_at
+                           WHEN ws.state = 'watching' THEN ws.updated_at
+                           ELSE NULL
+                       END,
+                       CASE
+                           WHEN ws.state = 'finished' THEN ws.updated_at
+                           ELSE NULL
+                       END,
+                       COALESCE(uvc.display_cover_path, vc.display_cover_path),
+                       COALESCE(uvc.updated_at, vc.generated_at)
+                FROM library_video_rows lvr
+                JOIN subtitle_files sf ON sf.id = lvr.subtitle_file_id
+                LEFT JOIN library_watch_states ws ON ws.video_file_id = lvr.video_file_id
+                JOIN video_files vf ON vf.id = lvr.video_file_id
+                LEFT JOIN video_covers vc ON vc.video_file_id = vf.id
+                    AND vc.status = ? AND vc.display_profile_version = ?
+                LEFT JOIN user_video_covers uvc ON uvc.video_file_id = vf.id
+                WHERE (\(scopeCondition))
+                ORDER BY lvr.folder_title COLLATE NOCASE ASC,
+                         lvr.folder_path COLLATE NOCASE ASC,
+                         lvr.video_order ASC, lvr.video_path ASC;
+                """
+            )
+
+            var fallbackBindIndex: Int32 = 1
+            try fallbackStatement.bind(LibraryCoverStatus.generated.rawValue, at: fallbackBindIndex)
+            fallbackBindIndex += 1
+            try fallbackStatement.bind(LibraryCoverDisplayProfileVersion.current, at: fallbackBindIndex)
+            fallbackBindIndex += 1
+            for prefix in pathPrefixes {
+                try fallbackStatement.bind(prefix, at: fallbackBindIndex)
+                fallbackBindIndex += 1
+                try fallbackStatement.bind(Self.pathPrefixUpperBound(for: prefix), at: fallbackBindIndex)
+                fallbackBindIndex += 1
+            }
+
+            while try fallbackStatement.step(), rows.count < cappedLimit {
+                try Task.checkCancellation()
+                let folderPath = fallbackStatement.stringColumn(2)
+                guard seenFolderPaths.insert(folderPath).inserted else {
+                    continue
+                }
+
+                rows.append(
+                    RecentLibraryWatchingPresentation(
+                        videoFileID: fallbackStatement.int64Column(0),
+                        subtitleFileID: fallbackStatement.int64Column(1),
+                        videoPath: fallbackStatement.stringColumn(4),
+                        videoName: fallbackStatement.stringColumn(5),
+                        duration: fallbackStatement.nullableDoubleColumn(6),
+                        subtitlePath: fallbackStatement.stringColumn(7),
+                        subtitleFormat: SubtitleFormat(rawValue: fallbackStatement.stringColumn(8)) ?? .srt,
+                        displayTitle: fallbackStatement.stringColumn(9),
+                        fileExtension: fallbackStatement.stringColumn(10),
+                        folderPath: folderPath,
+                        folderTitle: fallbackStatement.stringColumn(3),
+                        episodeNumber: max(1, fallbackStatement.intColumn(11) + 1),
+                        positionMilliseconds: 0,
+                        playbackDuration: nil,
+                        startedAt: fallbackStatement.nullableStringColumn(12),
+                        completedAt: fallbackStatement.nullableStringColumn(13),
+                        updatedAt: "",
+                        coverPath: fallbackStatement.nullableStringColumn(14),
+                        coverRevision: fallbackStatement.nullableStringColumn(15)
+                    )
+                )
+            }
         }
 
         return rows

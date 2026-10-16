@@ -123,7 +123,8 @@ struct WorkbenchRecentView: View {
         } else {
             ExcerptListCardGrid(
                 summaries: summaries,
-                highlight: highlight
+                highlight: highlight,
+                groupsByRecentSection: true
             ) { summary in
                 appState.openRecentExcerpt(summary)
             }
@@ -528,7 +529,7 @@ struct WorkbenchTestLibraryView: View {
         for detail: CompleteLibraryFolderDetailPresentation
     ) -> RecentLibraryWatchingPresentation? {
         library.testRecentWatchingItems.first {
-            $0.folderPath == detail.folderPath
+            $0.folderPath == detail.folderPath && !$0.updatedAt.isEmpty
         }
     }
 
@@ -618,7 +619,45 @@ private enum WorkbenchTestLibraryMetrics {
     static let timeBadgeSize = WorkbenchControlMetrics.redesignFontSizeLibraryTimeBadge
 }
 
+extension RecentTimeSection {
+    var localizedTitle: String {
+        switch self {
+        case .today:
+            return L("recent.section.today")
+        case .yesterday:
+            return L("recent.section.yesterday")
+        case .last7Days:
+            return L("recent.section.last_7_days")
+        case .earlier:
+            return L("recent.section.earlier")
+        case .neverPlayed:
+            return L("recent.section.never_played")
+        }
+    }
+}
+
+struct RecentSectionTitleView: View {
+    let title: String
+
+    var body: some View {
+        Text(title)
+            .font(.system(
+                size: WorkbenchControlMetrics.redesignFontSizeSectionTitle,
+                weight: .semibold
+            ))
+            .foregroundStyle(WorkbenchRedesignColors.textPrimary)
+            .lineLimit(1)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(
+                .horizontal,
+                WorkbenchControlMetrics.redesignLibraryMediaCardHoverPadding
+            )
+    }
+}
+
 struct RecentWatchingGrid: View {
+    @EnvironmentObject private var appState: AppCoordinator
+    @Environment(\.libraryCardContextMenuOpen) private var pageContextMenuOpen
     let items: [RecentLibraryWatchingPresentation]
     @ObservedObject var highlight: CardHighlightModel
     var itemFrameCoordinateSpace: String? = nil
@@ -626,14 +665,67 @@ struct RecentWatchingGrid: View {
     let onOpen: (RecentLibraryWatchingPresentation) -> Void
 
     var body: some View {
-        LibraryVideoCardGrid(
-            items: items,
-            highlight: highlight,
-            itemFrameCoordinateSpace: itemFrameCoordinateSpace,
-            onItemFramesChange: onItemFramesChange,
-            content: LibraryVideoCardContent.init,
-            onOpen: onOpen
+        if let pageContextMenuOpen {
+            sectionedGrid(openContextMenu: pageContextMenuOpen)
+        } else {
+            LibraryCardContextMenuHost { sectionedGrid(openContextMenu: $0) }
+        }
+    }
+
+    private func sectionedGrid(
+        openContextMenu: @escaping ([LibraryCardContextMenuItem], CGPoint, String) -> Void
+    ) -> some View {
+        let sections = RecentTimeSection.group(
+            items,
+            timestamp: \.updatedAt
         )
+        return VStack(
+            alignment: .leading,
+            spacing: WorkbenchControlMetrics.redesignSpacing5
+        ) {
+            ForEach(sections, id: \.section) { entry in
+                VStack(
+                    alignment: .leading,
+                    spacing: WorkbenchControlMetrics.redesignSpacing5
+                ) {
+                    RecentSectionTitleView(title: entry.section.localizedTitle)
+
+                    LibraryOverviewGrid {
+                        ForEach(entry.items) { item in
+                            LibraryVideoCard(
+                                content: LibraryVideoCardContent(item),
+                                highlight: highlight,
+                                isCurrent: highlight.currentID == item.id,
+                                actions: .appState(appState),
+                                openContextMenu: openContextMenu,
+                                onOpen: { onOpen(item) }
+                            )
+                            .background {
+                                if let itemFrameCoordinateSpace {
+                                    GeometryReader { proxy in
+                                        Color.clear.preference(
+                                            key: LibraryItemFramePreferenceKey.self,
+                                            value: [
+                                                item.id: proxy.frame(
+                                                    in: .named(itemFrameCoordinateSpace)
+                                                )
+                                            ]
+                                        )
+                                    }
+                                }
+                            }
+                            .id(item.id)
+                        }
+                    }
+                }
+            }
+        }
+        .onPreferenceChange(LibraryItemFramePreferenceKey.self) { frames in
+            guard itemFrameCoordinateSpace != nil else {
+                return
+            }
+            onItemFramesChange(frames)
+        }
     }
 }
 
