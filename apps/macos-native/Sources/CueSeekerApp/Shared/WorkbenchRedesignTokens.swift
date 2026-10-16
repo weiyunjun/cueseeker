@@ -133,8 +133,9 @@ enum WorkbenchRedesignColors {
         // Warning
         static let warningText = NSColor.dynamic(lightHex: "#B45309", darkHex: "#FCD34D")
 
-        // Settings Group
+        // Settings Group & File Group Header
         static let settingsGroupBg = NSColor.dynamic(lightHex: "#F2F4F7", darkHex: "#242429")
+        static let fileGroupHeaderBg = NSColor.dynamic(lightHex: "#F8F9FB", darkHex: "#FFFFFF", darkAlpha: 0.04)
 
         // Scrollbar
         static let scrollbarThumbDefault = NSColor.dynamic(lightHex: "#CBD5E1", darkHex: "#52525B")
@@ -322,8 +323,9 @@ enum WorkbenchRedesignColors {
     // Warning
     static let warningText = Color(nsColor: NS.warningText)
 
-    // Settings Group
+    // Settings Group & File Group Header
     static let settingsGroupBg = Color(nsColor: NS.settingsGroupBg)
+    static let fileGroupHeaderBg = Color(nsColor: NS.fileGroupHeaderBg)
 
     // Scrollbar
     static let scrollbarThumbDefault = Color(nsColor: NS.scrollbarThumbDefault)

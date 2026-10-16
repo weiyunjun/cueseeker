@@ -488,7 +488,7 @@ struct WorkbenchFileView: View {
         }
     }
 
-    // MARK: - Episode Groups (Display Title + Gray Rounded Container)
+    // MARK: - Episode Groups (Unified Card: Header Bar + Full-Width Dividers + File Rows)
 
     private func episodeGroupsList(
         objects: [IndexedContentObject],
@@ -496,7 +496,7 @@ struct WorkbenchFileView: View {
     ) -> some View {
         LazyVStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing4) {
             ForEach(objects) { object in
-                VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing2) {
+                VStack(alignment: .leading, spacing: 0) {
                     Text(object.displayTitle)
                         .font(.system(
                             size: WorkbenchControlMetrics.redesignFontSizeBody,
@@ -504,101 +504,117 @@ struct WorkbenchFileView: View {
                         ))
                         .foregroundStyle(WorkbenchRedesignColors.textMuted)
                         .fixedSize(horizontal: false, vertical: true)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, WorkbenchControlMetrics.redesignSpacing4)
+                        .padding(.vertical, WorkbenchControlMetrics.redesignSpacing2)
+                        .frame(
+                            maxWidth: .infinity,
+                            minHeight: WorkbenchControlMetrics.redesignHeight,
+                            alignment: .leading
+                        )
+                        .background(WorkbenchRedesignColors.fileGroupHeaderBg)
 
-                    VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing3) {
-                        if !object.videoPath.isEmpty {
-                            let videoItems = [
-                                FileCardMenuItem(
-                                    title: L("file_detail.get_info"),
-                                    icon: .info,
-                                    isEnabled: true,
-                                    isDestructive: false,
-                                    action: {
-                                        appState.requestVideoDetail(for: object.videoPath)
-                                    }
-                                ),
-                                FileCardMenuItem(
-                                    title: L("rename.files"),
-                                    icon: .pencilSimple,
-                                    isEnabled: !isFolderOperationBlocked && !object.videoPath.isWebDAVPath && !folderPath.isWebDAVPath,
-                                    isDestructive: false,
-                                    action: {
-                                        appState.requestFileGroupRename(object)
-                                    }
-                                )
-                            ]
+                    Rectangle()
+                        .fill(WorkbenchRedesignColors.borderDivider)
+                        .frame(height: WorkbenchControlMetrics.redesignControlBorderWidth)
 
-                            WorkbenchFileCard(
-                                icon: .video,
-                                title: object.videoName,
-                                subtitle: FileSizeFormatter.format(bytes: object.fileSize),
-                                showsChevron: false,
-                                onTap: nil,
-                                menuItems: videoItems,
-                                isMenuOpen: activeMenu?.cardID == object.videoPath,
-                                onOpenMenu: { anchorFrame in
-                                    toggleMenu(for: object.videoPath, anchorFrame: anchorFrame, items: videoItems)
+                    if !object.videoPath.isEmpty {
+                        let videoItems = [
+                            FileCardMenuItem(
+                                title: L("file_detail.get_info"),
+                                icon: .info,
+                                isEnabled: true,
+                                isDestructive: false,
+                                action: {
+                                    appState.requestVideoDetail(for: object.videoPath)
+                                }
+                            ),
+                            FileCardMenuItem(
+                                title: L("rename.files"),
+                                icon: .pencilSimple,
+                                isEnabled: !isFolderOperationBlocked && !object.videoPath.isWebDAVPath && !folderPath.isWebDAVPath,
+                                isDestructive: false,
+                                action: {
+                                    appState.requestFileGroupRename(object)
                                 }
                             )
-                        }
+                        ]
 
-                        ForEach(object.subtitles) { subtitle in
-                            let subtitleItems = [
-                                FileCardMenuItem(
-                                    title: L("file_detail.get_info"),
-                                    icon: .info,
-                                    isEnabled: true,
-                                    isDestructive: false,
-                                    action: {
-                                        appState.requestSubtitleDetail(for: subtitle.path)
-                                    }
-                                ),
-                                FileCardMenuItem(
-                                    title: L("rename.files"),
-                                    icon: .pencilSimple,
-                                    isEnabled: !isFolderOperationBlocked && !subtitle.path.isWebDAVPath && !folderPath.isWebDAVPath,
-                                    isDestructive: false,
-                                    action: {
-                                        appState.requestFileGroupRename(object)
-                                    }
-                                )
-                            ]
-
-                            WorkbenchFileCard(
-                                icon: .subtitles,
-                                title: subtitle.name,
-                                subtitle: FileSizeFormatter.format(bytes: subtitle.fileSize),
-                                showsChevron: false,
-                                onTap: nil,
-                                menuItems: subtitleItems,
-                                isMenuOpen: activeMenu?.cardID == subtitle.path,
-                                onOpenMenu: { anchorFrame in
-                                    toggleMenu(for: subtitle.path, anchorFrame: anchorFrame, items: subtitleItems)
-                                }
-                            )
-                        }
+                        WorkbenchFileCard(
+                            icon: .video,
+                            title: object.videoName,
+                            subtitle: FileSizeFormatter.format(bytes: object.fileSize),
+                            showsChevron: false,
+                            showsCardChrome: false,
+                            onTap: nil,
+                            menuItems: videoItems,
+                            isMenuOpen: activeMenu?.cardID == object.videoPath,
+                            onOpenMenu: { anchorFrame in
+                                toggleMenu(for: object.videoPath, anchorFrame: anchorFrame, items: videoItems)
+                            }
+                        )
                     }
-                    .padding(WorkbenchControlMetrics.redesignSpacing4)
-                    .frame(maxWidth: .infinity, alignment: .topLeading)
-                    .background(
-                        RoundedRectangle(
-                            cornerRadius: WorkbenchControlMetrics.redesignSettingsGroupRadius,
-                            style: .continuous
+
+                    ForEach(Array(object.subtitles.enumerated()), id: \.element.id) { index, subtitle in
+                        if !object.videoPath.isEmpty || index > 0 {
+                            Rectangle()
+                                .fill(WorkbenchRedesignColors.borderDivider)
+                                .frame(height: WorkbenchControlMetrics.redesignControlBorderWidth)
+                        }
+
+                        let subtitleItems = [
+                            FileCardMenuItem(
+                                title: L("file_detail.get_info"),
+                                icon: .info,
+                                isEnabled: true,
+                                isDestructive: false,
+                                action: {
+                                    appState.requestSubtitleDetail(for: subtitle.path)
+                                }
+                            ),
+                            FileCardMenuItem(
+                                title: L("rename.files"),
+                                icon: .pencilSimple,
+                                isEnabled: !isFolderOperationBlocked && !subtitle.path.isWebDAVPath && !folderPath.isWebDAVPath,
+                                isDestructive: false,
+                                action: {
+                                    appState.requestFileGroupRename(object)
+                                }
+                            )
+                        ]
+
+                        WorkbenchFileCard(
+                            icon: .subtitles,
+                            title: subtitle.name,
+                            subtitle: FileSizeFormatter.format(bytes: subtitle.fileSize),
+                            showsChevron: false,
+                            showsCardChrome: false,
+                            onTap: nil,
+                            menuItems: subtitleItems,
+                            isMenuOpen: activeMenu?.cardID == subtitle.path,
+                            onOpenMenu: { anchorFrame in
+                                toggleMenu(for: subtitle.path, anchorFrame: anchorFrame, items: subtitleItems)
+                            }
                         )
-                        .fill(WorkbenchRedesignColors.settingsGroupBg)
-                    )
-                    .overlay(
-                        RoundedRectangle(
-                            cornerRadius: WorkbenchControlMetrics.redesignSettingsGroupRadius,
-                            style: .continuous
-                        )
-                        .strokeBorder(
-                            WorkbenchRedesignColors.borderDivider,
-                            lineWidth: WorkbenchControlMetrics.redesignControlBorderWidth
-                        )
-                    )
+                    }
                 }
+                .frame(maxWidth: .infinity, alignment: .topLeading)
+                .background(WorkbenchRedesignColors.tableBg)
+                .clipShape(
+                    RoundedRectangle(
+                        cornerRadius: WorkbenchControlMetrics.redesignSettingsGroupRadius,
+                        style: .continuous
+                    )
+                )
+                .overlay(
+                    RoundedRectangle(
+                        cornerRadius: WorkbenchControlMetrics.redesignSettingsGroupRadius,
+                        style: .continuous
+                    )
+                    .strokeBorder(
+                        WorkbenchRedesignColors.borderControl,
+                        lineWidth: WorkbenchControlMetrics.redesignControlBorderWidth
+                    )
+                )
             }
         }
         .frame(maxWidth: .infinity, alignment: .topLeading)
@@ -801,12 +817,17 @@ private struct WorkbenchFileCard: View {
     let title: String
     let subtitle: String
     let showsChevron: Bool
+    var showsCardChrome: Bool = true
     let onTap: (() -> Void)?
     let menuItems: [FileCardMenuItem]
     let isMenuOpen: Bool
     let onOpenMenu: (CGRect) -> Void
 
     @State private var isHovered = false
+
+    private var rowCornerRadius: CGFloat {
+        showsCardChrome ? WorkbenchControlMetrics.redesignCornerRadius : 0
+    }
 
     var body: some View {
         HStack(alignment: .top, spacing: WorkbenchControlMetrics.redesignSpacing4) {
@@ -877,23 +898,27 @@ private struct WorkbenchFileCard: View {
         )
         .background(
             RoundedRectangle(
-                cornerRadius: WorkbenchControlMetrics.redesignCornerRadius,
+                cornerRadius: rowCornerRadius,
                 style: .continuous
             )
-            .fill(isHovered ? WorkbenchRedesignColors.rowHover : WorkbenchRedesignColors.tableBg)
+            .fill(
+                isHovered
+                    ? WorkbenchRedesignColors.rowHover
+                    : (showsCardChrome ? WorkbenchRedesignColors.tableBg : Color.clear)
+            )
         )
         .overlay(
             RoundedRectangle(
-                cornerRadius: WorkbenchControlMetrics.redesignCornerRadius,
+                cornerRadius: rowCornerRadius,
                 style: .continuous
             )
             .strokeBorder(
                 WorkbenchRedesignColors.borderControl,
-                lineWidth: WorkbenchControlMetrics.redesignControlBorderWidth
+                lineWidth: showsCardChrome ? WorkbenchControlMetrics.redesignControlBorderWidth : 0
             )
         )
         .contentShape(RoundedRectangle(
-            cornerRadius: WorkbenchControlMetrics.redesignCornerRadius,
+            cornerRadius: rowCornerRadius,
             style: .continuous
         ))
         .onPointerHover { isHovered = $0 }

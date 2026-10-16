@@ -91,9 +91,15 @@ struct FileCardMenuTests {
 
     @Test
     func fileCardColorTokensAndDotsThreeIcon() {
-        // SettingsGroupBg (Display Title Episode Container)
+        // SettingsGroupBg
         #expect(hexString(WorkbenchRedesignColors.NS.settingsGroupBg, appearance: .aqua) == "#F2F4F7")
         #expect(hexString(WorkbenchRedesignColors.NS.settingsGroupBg, appearance: .darkAqua) == "#242429")
+
+        // FileGroupHeaderBg (Episode Group Unified Card Header Bar)
+        #expect(hexString(WorkbenchRedesignColors.NS.fileGroupHeaderBg, appearance: .aqua) == "#F8F9FB")
+        #expect(alphaValue(WorkbenchRedesignColors.NS.fileGroupHeaderBg, appearance: .aqua) == 1.0)
+        #expect(hexString(WorkbenchRedesignColors.NS.fileGroupHeaderBg, appearance: .darkAqua) == "#FFFFFF")
+        #expect(abs(alphaValue(WorkbenchRedesignColors.NS.fileGroupHeaderBg, appearance: .darkAqua) - 0.04) < 0.001)
 
         // TableBg (Card Normal)
         #expect(hexString(WorkbenchRedesignColors.NS.tableBg, appearance: .aqua) == "#FFFFFF")
@@ -188,4 +194,12 @@ private func hexString(_ color: NSColor, appearance: NSAppearance.Name = .aqua) 
     let green = Int((srgb.greenComponent * 255).rounded())
     let blue = Int((srgb.blueComponent * 255).rounded())
     return String(format: "#%02X%02X%02X", red, green, blue)
+}
+
+private func alphaValue(_ color: NSColor, appearance: NSAppearance.Name = .aqua) -> CGFloat {
+    var resolved: NSColor?
+    NSAppearance(named: appearance)!.performAsCurrentDrawingAppearance {
+        resolved = color.usingColorSpace(.sRGB)
+    }
+    return resolved?.alphaComponent ?? 0
 }
