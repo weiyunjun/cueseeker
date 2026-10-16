@@ -295,7 +295,7 @@
 | 所在界面 | Status | 动作 |
 | --- | --- | --- |
 | Playback Current | 字幕条数 | Save to Excerpt List `S`、Copy Cue Text `C`、Copy Deep Link `X`、Play `Return` |
-| Playback Current / Editing Collage | 字幕条数 | Select `Return` |
+| Playback Current / Editing Collage | 已选字幕条数 / 字幕条数 | Copy Collage `C`、Export Collage `E`、Select `Return` |
 | Playback Playlist / Subtitle Playlist | 字幕条数 | Save to Excerpt List `S`、Copy Cue Text `C`、Copy Deep Link `X`、Play `Return` |
 | Playback Playlist / Video Playlist | 视频数 | Play `Return` |
 | Command Panel Root | None | Open `Return` |
@@ -306,7 +306,7 @@
 - Save to Excerpt List 打开 Excerpt Destination Submenu 选择目标列表，不直接保存；结果由 Playback Feedback 呈现，Icon 为实心书签
 - 对不在数据库中的项执行 Save to Excerpt List 或 Copy Deep Link 时拦截，由 Playback Feedback 呈现（持续 1 秒），Icon 为 warning，文案 `Not in Library`，面板保持打开；执行 Play 时关闭 Playback Overlay，进入黑屏播放界面并由 Player Error Banner 报错
 - 在 Command Panel 的 Recent Excerpt Lists 中打开没有有效项的列表时拦截，由 Playback Feedback 呈现（持续 1 秒），文案 `No Available Excerpts`，面板保持打开
-- `S`、`C`、`X` 为默认键位，Keycap 显示 Settings / Shortcuts 中的当前键位，修饰键（⌃、⌥、⇧、⌘）与主键各占一个 Keycap；快捷键已清空或冲突时不显示 Keycap
+- `S`、`C`、`X`、`E` 为默认键位，Keycap 显示 Settings / Shortcuts 中的当前键位，修饰键（⌃、⌥、⇧、⌘）与主键各占一个 Keycap；快捷键已清空或冲突时不显示 Keycap
 
 #### States
 
@@ -390,7 +390,6 @@
 
 1. Section Title
 2. Collage Image Viewport
-3. Action Row
 
 #### Subtitle Selection Region
 
@@ -400,7 +399,6 @@
 #### Components
 
 - Section Title
-- Button / Neutral
 - Playback Cue Reel / Focus Cue Reel
 - Subtitle Focus Cue
 - Checkbox / Playback Selection Checkbox
@@ -412,7 +410,6 @@
 - Region Width：1fr / 1fr
 - Region Padding：`--spacing-8`
 - Section Gap：`--spacing-4`
-- Action Gap：`--spacing-3`
 
 #### Cue Timeline
 

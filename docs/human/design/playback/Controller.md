@@ -8,8 +8,8 @@
 
 Cross键：在视频播放界面播放/暂停视频，相当于键盘的Space键。在Playback Overlay，Command Panel，Collage界面相当于键盘的Enter键。
 Circle键：相当于键盘的Esc，使用场景很多，可以严格一一对应。
-Square键：用于Command Panel一级界面删除文字，相当于键盘的Backspace键。用于Playback Overlay，Command Panel Search Result界面复制文字内容，相当于键盘的C键。用于Collage界面的Copy Collage。
-Triangle键：视频播放界面，相当于键盘的R键。用于Playback Overlay，Command Panel Search Result界面的收藏字幕，相当于键盘的S键。用于Command Panel一级界面的粘贴。用于Collage界面的Export Collage。
+Square键：用于Command Panel一级界面删除文字，相当于键盘的Backspace键。用于Playback Overlay，Command Panel Search Result界面复制文字内容，相当于键盘的C键。用于Collage界面的Copy Collage，相当于键盘的C键。
+Triangle键：视频播放界面，相当于键盘的R键。用于Playback Overlay，Command Panel Search Result界面的收藏字幕，相当于键盘的S键。用于Command Panel一级界面的粘贴。用于Collage界面的Export Collage，相当于键盘的E键。
 
 Create键：用于视频播放界面截图和进入/退出Collage界面，相当于键盘的P键。
 Touchpad键：用于从视频播放界面进入Playback Overlay界面，按下Touchpad键相当于视频播放界面下的键盘的Enter键。

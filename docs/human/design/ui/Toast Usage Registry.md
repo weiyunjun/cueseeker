@@ -9,7 +9,7 @@
 2. **标点规范**：所有 Toast 与 Feedback 文案（含英、简、繁）末尾**一律不加句号**。
 3. **图标语义**：
    - 报错、警示、失效、已存在及不可用拦截统一使用 `warning`。
-   - 成功与功能操作使用对应语义图标（`copy`、`bookmarkSimple`、`camera`、`play`、`pause` 等）。
+   - 成功与功能操作使用对应语义图标（`copy`、`export`、`bookmarkSimple`、`camera`、`play`、`pause` 等）。
 4. **出现位置与组件**：
    - **Toast（App Center）**：窗口级 4 槽堆叠提示容器（Workbench 界面）。
    - **Feedback & HUD（Playback Center）**：播放器画面中央单槽提示容器（Playback 界面）。
@@ -233,11 +233,31 @@
 - 出现位置：Playback Center
 - 动画：Default
 
+#### 21. 复制台词长截图
+- 英文：Collage Copied
+- 简体中文：已复制长截图
+- 繁体中文：已拷貝長截圖
+- 图标：copy
+- 持续时间：1.5秒
+- Scenario ID：playback.feedback.collage_copied
+- 出现位置：Playback Center
+- 动画：Default
+
+#### 22. 导出台词长截图
+- 英文：Collage Exported
+- 简体中文：已导出长截图
+- 繁体中文：已匯出長截圖
+- 图标：export
+- 持续时间：1.5秒
+- Scenario ID：playback.feedback.collage_exported
+- 出现位置：Playback Center
+- 动画：Default
+
 ---
 
 ### 4.2 播放界面报错与警示（3秒）
 
-#### 21. 当前画面无字幕
+#### 23. 当前画面无字幕
 - 英文：No Subtitle
 - 简体中文：无字幕
 - 繁体中文：沒有字幕
@@ -247,7 +267,7 @@
 - 出现位置：Playback Center
 - 动画：Default
 
-#### 22. 复制失败
+#### 24. 复制失败
 - 英文：Copy Failed
 - 简体中文：复制失败
 - 繁体中文：拷貝失敗
@@ -257,7 +277,17 @@
 - 出现位置：Playback Center
 - 动画：Default
 
-#### 23. 台词长截图未就绪
+#### 25. 导出失败
+- 英文：Export Failed
+- 简体中文：导出失败
+- 繁体中文：匯出失敗
+- 图标：warning
+- 持续时间：3秒
+- Scenario ID：playback.feedback.export_failed
+- 出现位置：Playback Center
+- 动画：Default
+
+#### 26. 台词长截图未就绪
 - 英文：Collage Not Ready
 - 简体中文：长截图未就绪
 - 繁体中文：長截圖未就緒
@@ -267,7 +297,17 @@
 - 出现位置：Playback Center
 - 动画：Default
 
-#### 24. 播放中台词不在媒体库中
+#### 27. 台词长截图未选择台词
+- 英文：Select at Least One Cue
+- 简体中文：请至少选择一条台词
+- 繁体中文：請至少選擇一條台詞
+- 图标：warning
+- 持续时间：3秒
+- Scenario ID：playback.feedback.collage_no_cue_selected
+- 出现位置：Playback Center
+- 动画：Default
+
+#### 28. 播放中台词不在媒体库中
 - 英文：Cue Not in Library
 - 简体中文：台词不在媒体库中
 - 繁体中文：台詞不在資料庫中
@@ -282,7 +322,7 @@
 
 ### 4.3 播放器常规 HUD（1秒）
 
-#### 25. 播放 / 暂停
+#### 29. 播放 / 暂停
 - 英文：Play / Pause
 - 简体中文：播放 / 暂停
 - 繁体中文：播放 / 暫停
@@ -292,7 +332,7 @@
 - 出现位置：Playback Center
 - 动画：Default
 
-#### 26. 自动暂停
+#### 30. 自动暂停
 - 英文：Auto Pause
 - 简体中文：自动暂停
 - 繁体中文：自動暫停
@@ -302,7 +342,7 @@
 - 出现位置：Playback Center
 - 动画：Default
 
-#### 27. 快进 / 快退
+#### 31. 快进 / 快退
 - 英文：+ {N}s / - {N}s
 - 简体中文：+ {N}秒 / - {N}秒
 - 繁体中文：+ {N}秒 / - {N}秒
@@ -312,7 +352,7 @@
 - 出现位置：Playback Center
 - 动画：Default
 
-#### 28. 音量调节与静音
+#### 32. 音量调节与静音
 - 英文：{volume}% / Muted
 - 简体中文：{volume}% / 已静音
 - 繁体中文：{volume}% / 已靜音
@@ -322,7 +362,7 @@
 - 出现位置：Playback Center
 - 动画：Default
 
-#### 29. 倍速调节
+#### 33. 倍速调节
 - 英文：{speed}x
 - 简体中文：{speed}x
 - 繁体中文：{speed}x
@@ -332,7 +372,7 @@
 - 出现位置：Playback Center
 - 动画：Default
 
-#### 30. 字幕开关
+#### 34. 字幕开关
 - 英文：Subtitles On / Subtitles Off
 - 简体中文：字幕已开 / 字幕已关
 - 繁体中文：字幕已開 / 字幕已關
@@ -342,7 +382,7 @@
 - 出现位置：Playback Center
 - 动画：Default
 
-#### 31. 全屏切换
+#### 35. 全屏切换
 - 英文：Enter Fullscreen / Exit Fullscreen
 - 简体中文：进入全屏 / 退出全屏
 - 繁体中文：進入全螢幕 / 結束全螢幕
@@ -352,7 +392,7 @@
 - 出现位置：Playback Center
 - 动画：Default
 
-#### 32. 播放列表导航
+#### 36. 播放列表导航
 - 英文：Previous Result / Next Result / Previous Library Video / Next Library Video / Previous Excerpt / Next Excerpt
 - 简体中文：上一条结果 / 下一条结果 / 上一个媒体库视频 / 下一个媒体库视频 / 上一条摘录 / 下一条摘录
 - 繁体中文：上一筆結果 / 下一筆結果 / 上一部媒體庫影片 / 下一部媒體庫影片 / 上一條摘錄 / 下一條摘錄
@@ -362,7 +402,7 @@
 - 出现位置：Playback Center
 - 动画：Default
 
-#### 33. 播放列表到达边界
+#### 37. 播放列表到达边界
 - 英文：Already at First Result / Already at Last Result / Already at First Video / Already at Last Video / Already at First Excerpt / Already at Last Excerpt
 - 简体中文：已经是第一个结果 / 已经是最后一个结果 / 已经是第一个视频 / 已经是最后一个视频 / 已经是第一条摘录 / 已经是最后一条摘录
 - 繁体中文：已經是第一筆結果 / 已經是最後一筆結果 / 已經是第一部影片 / 已經是最後一部影片 / 已經是第一條摘錄 / 已經是最後一條摘錄
@@ -372,7 +412,7 @@
 - 出现位置：Playback Center
 - 动画：Default
 
-#### 34. 播放列表无可用结果
+#### 38. 播放列表无可用结果
 - 英文：No Available Results
 - 简体中文：没有可用的结果
 - 繁体中文：沒有可用的結果
@@ -383,7 +423,7 @@
 - 动画：Default
 - 说明：播放列表中所有项目失效不可用时统一触发（Search 与 Excerpt 进入均统一为此提示）。
 
-#### 35. 播放列表无可用视频
+#### 39. 播放列表无可用视频
 - 英文：No Available Videos
 - 简体中文：没有可用的视频
 - 繁体中文：沒有可用的影片
@@ -397,7 +437,7 @@
 
 ## 五、任务队列与卡片操作（Task Toast）
 
-### 36. 任务状态已经改变
+### 40. 任务状态已经改变
 - 英文：Task status has changed
 - 简体中文：任务状态已经改变
 - 繁体中文：任務狀態已經改變

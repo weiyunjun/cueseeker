@@ -77,7 +77,7 @@ Toast、Tooltip、播放反馈与播放页报错条只有视觉，不接受输�
 
 1. Playback、Playback Overlay 与 Command Panel 的快捷键在 Settings / Shortcuts 修改；Esc、Tab，以及 Playback Overlay 与 Command Panel 中的回车与方向键不可修改。
 2. 快捷键支持单键，以及 ⌘、⌥、⌃、⇧ 的单修饰或多修饰组合键。纯修饰键、⌘Q、⌘,、⌘W、⌘M、⌘H 与 ⌘⌥H、Tab、浮层回车与方向键静默屏蔽，不录入也不报错。
-3. 同一分组内两个功能使用相同的键时，该键对双方都不生效；Open Command Panel 与全部功能比较。
+3. 同一分组内两个功能使用相同的键时，该键对双方都不生效；Edit Collage 与 Collage 分组也会相互比较；Open Command Panel 与全部功能比较。
 4. 点击 Shortcut Field 开始录入，它不获得焦点，不参与 Tab 切换。录入期间键盘只归 Shortcut Field，App 菜单的快捷键也不生效；Esc、点击 Shortcut Field 以外或离开 Settings 窗口时结束录入，键位不变。
 
 ---

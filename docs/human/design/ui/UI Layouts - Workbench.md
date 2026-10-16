@@ -281,6 +281,7 @@
 2. Group `Shortcuts`：Open Command Panel
 3. Group `Playback` 及其功能
 4. Group `Playback Overlay & Command Panel` 及其功能
+5. Group `Collage` 及其功能
 
 #### Components
 
