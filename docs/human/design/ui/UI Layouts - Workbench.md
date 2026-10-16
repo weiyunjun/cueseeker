@@ -34,8 +34,10 @@
 #### States
 
 - Expanded
+  - Docked：窗口宽度 ≥ `--min-width-workbench-page-content` + `--width-app-sidebar` 时与页面并排布局。
+  - Overlay：窗口宽度 < `--min-width-workbench-page-content` + `--width-app-sidebar` 时全高浮于顶栏与页面之上（右侧 1px `--color-border-muted` 分隔线，阴影 `--shadow-popover`），以 `--duration-sidebar-motion` 透明度淡入淡出；指针向右移出 Sidebar 宽度范围或点击 Sidebar Toggle 时收起。
 - Collapsed
-  - Auto Collapse：窗口宽度 ≤ `--min-width-workbench-page-content` + `--width-app-sidebar` 时自动收起，收起后不自动展开。只在 Workbench 可见时判定，从播放页返回时判定一次。
+  - Auto Collapse：窗口宽度 < `--min-width-workbench-page-content` + `--width-app-sidebar` 时自动收起，收起后不自动展开。只在 Workbench 可见时判定，从播放页返回时判定一次。
 
 ### L-01.2 App Topbar Layout
 
@@ -89,7 +91,6 @@
 - History End：Forward Disabled
 - Sidebar Expanded
 - Sidebar Collapsed
-- Below Function Region Minimum Width：Function Region 与 Trailing Function Region 随页面一起横向滚动，Window Controls 与 Sidebar Toggle 不参与
 - Hidden On Playback：Task Entry 与 Settings Entry 改由播放页与 Playback Overlay 的顶栏显示
 - Settings Window Open：Settings Entry Open，窗口最小化期间保持
 
@@ -110,7 +111,6 @@
 #### Components
 
 - Scrollbar / Vertical
-- Scrollbar / Horizontal
 
 #### Sizes
 
@@ -126,10 +126,6 @@
 #### Scrolling
 
 - Vertical Scrollbar：Page Viewport Trailing Edge
-- Horizontal Scrollbar
-  - Presence：Page Viewport Width < Page Content Minimum Width
-  - Position：Page Viewport Bottom Edge
-- 与 Table Horizontal Scrollbar 同时存在时，Page Horizontal Scrollbar 占据底部，Table Horizontal Scrollbar 上移一个 Scrollbar 高度。
 
 ### L-01.4 Toast Layout
 
@@ -358,7 +354,7 @@
 #### Layout
 
 - Page Layout：Workbench Titled Page Layout
-- Segmented Control 位于顶栏内容区水平、垂直居中，卡片网格使用 `--padding-workbench-media-card-grid-inline`。
+- Segmented Control 默认在顶栏水平、垂直居中；空间不足时保持与左、右内容至少 `--spacing-3` 间距并向空余一侧偏移，两侧间距均达 `--spacing-3` 后截断左侧标题。卡片网格使用 `--padding-workbench-media-card-grid-inline`。
 - 默认选项：Videos。选择在 App 运行期间保留，重新启动后回到默认。
 - 按本地自然日凌晨 `00:00` 划分为 `Today`、`Yesterday`、`Last 7 Days`、`Earlier`、`Never Played` 五个分组，仅展示非空分组；分组标题左边缘与未 Hover 时的卡片封面左边缘齐平。
 - `Never Played`：Videos 收录无播放记录的文件夹（默认展示 `EP01`，按文件夹名称升序）；Excerpt Lists 收录未播放过的有效摘录集（按创建时间正序，打开时从第 1 条有效字幕播放）。
@@ -1203,7 +1199,7 @@
 
 1. Header
    1. Title：`Task`
-   2. Segmented Control：`Current`、`Completed`、`Incomplete`，水平居中
+   2. Segmented Control：`Current`、`Completed`、`Incomplete`，默认水平居中（间距与避让截断规则同 Recent 顶栏）
    3. Close Button
 2. Task Card List
 

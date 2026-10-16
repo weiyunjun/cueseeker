@@ -249,7 +249,8 @@
 #### Sizes
 
 - Height：`--height-app-topbar`
-- Segmented Control 与 Editing Title 最大宽度：顶栏的居中元素可用宽度
+- Segmented Control：默认在顶栏水平居中；空间不足时保持与左、右按钮区至少 `--spacing-3` 间距并向空余一侧偏移
+- Editing Title 最大宽度：顶栏的居中元素可用宽度
 
 #### Spacing
 

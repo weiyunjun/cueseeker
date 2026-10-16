@@ -113,7 +113,7 @@
 | --- | --- | --- | --- |
 | **3.1 App Shell** | `L-01.1` | App Sidebar Layout | 主窗口左侧导航栏与自动收起阈值 |
 | | `L-01.2` | App Topbar Layout | 主窗口顶栏（红绿灯、Sidebar Toggle、前进后退、标题、Task/Settings 入口） |
-| | `L-01.3` | Workbench Titled Page Layout | 工作台通用页面容器、内边距、滚动条通道与双滚动条避让 |
+| | `L-01.3` | Workbench Titled Page Layout | 工作台通用页面容器、内边距与滚动条通道 |
 | | `L-01.4` | Toast Layout | 窗口中心最多 4 条 Toast 堆叠与同 ID 刷新计时 |
 | **3.2 Settings** | `L-02.1` | Settings Window Layout | 独立设置窗口尺寸与分栏结构 |
 | | `L-02.2` | Settings Sidebar Layout | 设置窗口左侧分类导航列表 |

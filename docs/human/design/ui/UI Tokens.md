@@ -339,7 +339,10 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--width-library-list-cover`: `204px`
 - `--width-library-folder-cover`: `120px`
 - `--min-height-library-folder-card`: `96px`
-- `--min-width-workbench-page-content`: `480px`
+- `--width-window-default`: `1000px`
+- `--min-width-window`: `600px`
+- `--min-height-window`: `560px`
+- `--min-width-workbench-page-content`: `600px`
 - `--width-dialog-small`: `360px`
 - `--width-dialog-medium`: `480px`
 - `--width-dialog-large`: `600px`
@@ -505,6 +508,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--duration-library-cover-hover`: `0.12s`
 - `--scale-collage-group-hover`: `1.02`
 - `--duration-collage-group-hover`: `0.12s`
+- `--duration-sidebar-motion`: `0.18s`
 - `--delay-tooltip-hover`: `1s`
 
 ### Toast Motion
