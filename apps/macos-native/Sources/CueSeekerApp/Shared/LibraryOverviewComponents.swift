@@ -41,49 +41,46 @@ struct LibraryOverviewLayout<Content: View>: View {
 
     var body: some View {
         GeometryReader { geometry in
-            WorkbenchScrollView([.vertical, .horizontal]) {
+            WorkbenchScrollView {
                 VStack(
                     alignment: .leading,
                     spacing: WorkbenchControlMetrics.redesignSpacing4
                 ) {
-                HStack(spacing: WorkbenchControlMetrics.redesignSpacing3) {
-                    WorkbenchButton(
-                        title: actionTitle,
-                        icon: .plus,
-                        isRedesign: true,
-                        action: action
-                    )
-
-                    WorkbenchStatusIndicator(summaryText)
-
-                    Spacer(minLength: 0)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .frame(height: WorkbenchControlMetrics.redesignHeight)
-                .workbenchPageInlinePadding()
-
-                content
-                    .workbenchMediaCardGridInlinePadding()
-                    .environment(
-                        \.mediaCardGridContainerWidth,
-                        WorkbenchControlMetrics.workbenchMediaCardGridWidth(
-                            viewportWidth: geometry.size.width
+                    HStack(spacing: WorkbenchControlMetrics.redesignSpacing3) {
+                        WorkbenchButton(
+                            title: actionTitle,
+                            icon: .plus,
+                            isRedesign: true,
+                            action: action
                         )
-                    )
-            }
-            .padding(
-                .top,
-                WorkbenchControlMetrics.redesignWorkbenchPageTopPadding
-            )
-            .padding(
-                .bottom,
-                WorkbenchControlMetrics.redesignWorkbenchPageBottomPadding
-            )
+
+                        WorkbenchStatusIndicator(summaryText)
+
+                        Spacer(minLength: 0)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .frame(height: WorkbenchControlMetrics.redesignHeight)
+                    .workbenchPageInlinePadding()
+
+                    content
+                        .workbenchMediaCardGridInlinePadding()
+                        .environment(
+                            \.mediaCardGridContainerWidth,
+                            WorkbenchControlMetrics.workbenchMediaCardGridWidth(
+                                viewportWidth: geometry.size.width
+                            )
+                        )
+                }
+                .padding(
+                    .top,
+                    WorkbenchControlMetrics.redesignWorkbenchPageTopPadding
+                )
+                .padding(
+                    .bottom,
+                    WorkbenchControlMetrics.redesignWorkbenchPageBottomPadding
+                )
                 .frame(
-                    width: max(
-                        geometry.size.width,
-                        AppShellLayout.pageContentMinimumWidth
-                    ),
+                    width: geometry.size.width,
                     alignment: .topLeading
                 )
                 .frame(

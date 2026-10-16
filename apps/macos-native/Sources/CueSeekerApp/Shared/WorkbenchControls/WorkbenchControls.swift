@@ -667,6 +667,7 @@ struct WorkbenchPageTitle: View {
             ))
             .foregroundStyle(WorkbenchRedesignColors.textPrimary)
             .lineLimit(1)
+            .truncationMode(.tail)
             .workbenchTruncatedTextTooltip(
                 scenarioID: "truncated.topbar.page_title",
                 text: title,
@@ -675,7 +676,6 @@ struct WorkbenchPageTitle: View {
                     weight: WorkbenchControlMetrics.redesignFontWeightPageTitle
                 )
             )
-            .frame(maxWidth: .infinity, alignment: .leading)
             .allowsHitTesting(false)
     }
 }

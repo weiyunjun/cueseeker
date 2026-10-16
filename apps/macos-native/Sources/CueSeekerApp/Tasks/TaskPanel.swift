@@ -101,36 +101,29 @@ struct TaskPanel: View {
     }
 
     private var headerRow: some View {
-        ZStack {
-            HStack {
-                Text(L("task.title"))
-                    .font(.system(
-                        size: WorkbenchControlMetrics.redesignDialogTitleFontSize,
-                        weight: .semibold
-                    ))
-                    .foregroundStyle(WorkbenchRedesignColors.textPrimary)
+        let titleText = L("task.title")
+        let titleFont = Font.system(
+            size: WorkbenchControlMetrics.redesignDialogTitleFontSize,
+            weight: .semibold
+        )
 
-                Spacer()
-
-                WorkbenchIconButton(
-                    icon: .x,
-                    isRedesign: true,
-                    iconSize: WorkbenchControlMetrics.redesignDialogCloseIconSize,
-                    boxSize: WorkbenchControlMetrics.redesignDialogCloseButtonSize,
-                    action: {
-                        dismissMenu()
-                        tasks.closePanel()
-                    }
+        return WorkbenchAdaptiveHeaderBar(
+            leadingInset: WorkbenchControlMetrics.redesignDialogInset,
+            trailingInset: WorkbenchControlMetrics.redesignDialogInset,
+            minimumGap: WorkbenchControlMetrics.redesignSpacing3
+        ) {
+            Text(titleText)
+                .font(titleFont)
+                .foregroundStyle(WorkbenchRedesignColors.textPrimary)
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .workbenchTruncatedTextTooltip(
+                    scenarioID: "truncated.dialog.title",
+                    text: titleText,
+                    font: titleFont
                 )
-                .workbenchTooltip(
-                    scenarioID: "dialog.header.close",
-                    label: L("common.close"),
-                    shortcut: .fixed("Esc")
-                )
-                .keyboardShortcut(confirmation.session == nil ? .cancelAction : nil)
-                .accessibilityLabel(L("common.close"))
-            }
-
+                .allowsHitTesting(false)
+        } center: {
             WorkbenchSegmentedControl(
                 options: TaskQueueTab.allCases,
                 selection: Binding(
@@ -144,9 +137,26 @@ struct TaskPanel: View {
                 accessibilityLabel: { $0.label },
                 accessibilityIdentifier: { "task-tab-\($0.rawValue)" }
             )
+        } trailing: {
+            WorkbenchIconButton(
+                icon: .x,
+                isRedesign: true,
+                iconSize: WorkbenchControlMetrics.redesignDialogCloseIconSize,
+                boxSize: WorkbenchControlMetrics.redesignDialogCloseButtonSize,
+                action: {
+                    dismissMenu()
+                    tasks.closePanel()
+                }
+            )
+            .workbenchTooltip(
+                scenarioID: "dialog.header.close",
+                label: L("common.close"),
+                shortcut: .fixed("Esc")
+            )
+            .keyboardShortcut(confirmation.session == nil ? .cancelAction : nil)
+            .accessibilityLabel(L("common.close"))
         }
         .frame(height: WorkbenchControlMetrics.redesignSegmentedControlHeight)
-        .padding(.horizontal, WorkbenchControlMetrics.redesignDialogInset)
     }
 
     @ViewBuilder

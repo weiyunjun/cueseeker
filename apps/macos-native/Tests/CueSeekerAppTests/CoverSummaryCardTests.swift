@@ -55,23 +55,14 @@ func coverSummaryBackdropFormKeepsAFixedHeightAtEveryWidth() {
     )
     let belowThreshold = CoverSummaryCardLayout.resolve(containerWidth: 663)
 
-    #expect(coverSummaryMinimumCardWidth == 400)
+    #expect(coverSummaryMinimumCardWidth == 520)
     #expect(narrowest.form == .backdrop)
     #expect(narrowest.cardHeight == 225)
     #expect(belowThreshold.form == .backdrop)
     #expect(belowThreshold.cardHeight == 225)
-    #expect(narrowest.coverFrame == CGRect(x: 0, y: 0, width: 400, height: 225))
+    #expect(narrowest.coverFrame == CGRect(x: 0, y: 0, width: 520, height: 225))
     #expect(belowThreshold.coverFrame == CGRect(x: 0, y: 0, width: 663, height: 225))
-
-    // At the narrowest card the fixed height is exactly the cover's own 16:9
-    // height, so nothing is cropped there and wider cards crop from the centre.
-    #expect(
-        abs(
-            WorkbenchControlMetrics.redesignCoverSummaryBackdropHeight
-                - coverSummaryMinimumCardWidth
-                    / WorkbenchControlMetrics.redesignLibraryCoverAspectRatio
-        ) < 0.001
-    )
+    #expect(WorkbenchControlMetrics.redesignCoverSummaryBackdropHeight == 225)
 }
 
 @Test

@@ -174,33 +174,23 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
 
     var body: some View {
         GeometryReader { geometry in
-            let contentWidth = max(
-                geometry.size.width,
-                AppShellLayout.pageContentMinimumWidth
-            )
-            let pageScrollsHorizontally = contentWidth > geometry.size.width
-
             ZStack {
-                // Below the page minimum the whole page scrolls sideways; the
-                // table's own Scrollbar then moves up a row to make room.
-                WorkbenchScrollView([.horizontal]) {
-                    pageBody
-                        .frame(
-                            width: contentWidth,
-                            height: geometry.size.height,
-                            alignment: .topLeading
+                pageBody
+                    .frame(
+                        width: geometry.size.width,
+                        height: geometry.size.height,
+                        alignment: .topLeading
+                    )
+                    .overlay(alignment: .bottomLeading) {
+                        WorkbenchPageScrollbarOverlay(
+                            scrollbar: pageScrollbar,
+                            axis: .horizontal
                         )
-                        .overlay(alignment: .bottomLeading) {
-                            WorkbenchPageScrollbarOverlay(
-                                scrollbar: pageScrollbar,
-                                axis: .horizontal
-                            )
-                            .padding(
-                                .horizontal,
-                                SchemaWorkbenchStyle.pageHorizontalPadding
-                            )
-                        }
-                }
+                        .padding(
+                            .horizontal,
+                            SchemaWorkbenchStyle.pageHorizontalPadding
+                        )
+                    }
 
                 WorkbenchPageScrollbarOverlay(
                     scrollbar: pageScrollbar,
@@ -208,12 +198,6 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
                 )
             }
             .frame(width: geometry.size.width, height: geometry.size.height)
-            .onAppear {
-                updateTableScrollbarReserve(pageScrollsHorizontally)
-            }
-            .onChange(of: pageScrollsHorizontally) { scrolls in
-                updateTableScrollbarReserve(scrolls)
-            }
         }
         .environment(\.subtitleTableExternalTextSelectionSession, externalTextSelectionSession)
         .environment(\.workbenchPageScrollbar, pageScrollbar)
@@ -226,13 +210,6 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
             externalTextSelectionSession.cancel()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-
-    private func updateTableScrollbarReserve(_ pageScrollsHorizontally: Bool) {
-        pageScrollbar.tableScrollbarBottomReserve = pageScrollsHorizontally
-            ? TableScrollbarPrimitiveMetrics.size
-                + TableScrollbarPrimitiveMetrics.inset
-            : 0
     }
 
     @ViewBuilder

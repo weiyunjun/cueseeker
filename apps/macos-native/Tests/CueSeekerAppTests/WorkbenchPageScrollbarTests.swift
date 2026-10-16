@@ -7,8 +7,8 @@ import CueSeekerCore
 @MainActor
 @Test
 func workbenchPageAndTableOwnOneScrollbarAxisEach() async throws {
-    // Wider than the page minimum, so only the table's Scrollbar is present.
-    let width = AppShellLayout.pageContentMinimumWidth + 40
+    // At the 600px page minimum, the table (520px) is narrower than its minimum column sum, so the table's horizontal Scrollbar is present.
+    let width = AppShellLayout.pageContentMinimumWidth
     let host = NSHostingView(
         rootView: WorkbenchPageScrollbarFixture()
             .frame(width: width, height: 320)
@@ -98,8 +98,8 @@ func workbenchPageAndTableOwnOneScrollbarAxisEach() async throws {
 
 @MainActor
 @Test
-func workbenchPageWithoutATableStopsAtTheContentMinimumWidth() async throws {
-    let available: CGFloat = 300
+func workbenchPageWithoutATableUsesViewportWidthWithoutHorizontalPageScrollbar() async throws {
+    let available = AppShellLayout.pageContentMinimumWidth
     let host = NSHostingView(
         rootView: LibraryOverviewLayout(
             summaryText: "0 Folders",
@@ -130,19 +130,16 @@ func workbenchPageWithoutATableStopsAtTheContentMinimumWidth() async throws {
     let scrollView = try #require(overlay.targetScrollViewForTesting)
     let documentView = try #require(scrollView.documentView)
 
-    // The page keeps the App-minimum right region width and overflows instead.
-    #expect(available < AppShellLayout.pageContentMinimumWidth)
     #expect(
-        abs(documentView.frame.width - AppShellLayout.pageContentMinimumWidth) < 0.5
+        abs(documentView.frame.width - available) < 0.5
     )
-    #expect(overlay.presentationProvider()?.horizontal != nil)
+    #expect(overlay.presentationProvider()?.horizontal == nil)
 }
 
 @MainActor
 @Test
-func workbenchTableScrollbarMovesUpForThePageScrollbar() async throws {
-    // Narrower than the page minimum, so the page scrolls sideways too.
-    let width = AppShellLayout.pageContentMinimumWidth - 60
+func workbenchTableScrollbarStaysAtBottomWithoutOuterPageHorizontalScrollbar() async throws {
+    let width = AppShellLayout.pageContentMinimumWidth
     let host = NSHostingView(
         rootView: WorkbenchPageScrollbarFixture()
             .frame(width: width, height: 320)
@@ -165,33 +162,87 @@ func workbenchTableScrollbarMovesUpForThePageScrollbar() async throws {
     let tableHorizontal = try #require(
         overlays.first { $0.visibleAxes == [.horizontal] }
     )
-    let pageOverlay = try #require(
-        firstWorkbenchPageSubview(
-            of: WorkbenchScrollViewOverlayView.self,
-            in: host
+    let pageOverlay = firstWorkbenchPageSubview(
+        of: WorkbenchScrollViewOverlayView.self,
+        in: host
+    )
+
+    #expect(pageOverlay == nil)
+    #expect(tableHorizontal.bottomReserve == 0)
+}
+
+@MainActor
+@Test
+func playbackOverlayTopBarMountsDraggableTitlebarBackgroundInModuleAndCollageModes() async throws {
+    let app = AppCoordinator()
+    let localization = makeTestAppLocalizationStore()
+
+    for isEditingCollage in [false, true] {
+        let host = NSHostingView(
+            rootView: PlaybackOverlayTopBar(
+                modules: [.current, .playlist],
+                selectedModule: .current,
+                isEditingCollage: isEditingCollage,
+                onSelect: { _ in true },
+                onToggleEditingCollage: { true },
+                onReturn: {}
+            )
+            .environmentObject(app)
+            .environmentObject(localization)
+            .environmentObject(app.settings.playbackShortcuts)
+            .frame(width: 600, height: WorkbenchControlMetrics.redesignAppTopbarHeight)
         )
-    )
-    let pageScrollView = try #require(pageOverlay.targetScrollViewForTesting)
-    let pageDocument = try #require(pageScrollView.documentView)
+        host.frame = CGRect(
+            x: 0,
+            y: 0,
+            width: 600,
+            height: WorkbenchControlMetrics.redesignAppTopbarHeight
+        )
+        let window = NSWindow(
+            contentRect: host.frame,
+            styleMask: [.borderless],
+            backing: .buffered,
+            defer: false
+        )
+        window.contentView = host
 
-    // The page stops at its minimum width and scrolls sideways.
-    #expect(
-        abs(pageDocument.frame.width - AppShellLayout.pageContentMinimumWidth) < 0.5
-    )
-    #expect(pageOverlay.presentationProvider()?.horizontal != nil)
+        await settleWorkbenchPage(host)
 
-    // The table's Scrollbar gives up the bottom row to the page's.
-    #expect(
-        tableHorizontal.bottomReserve
-            == TableScrollbarPrimitiveMetrics.size
-                + TableScrollbarPrimitiveMetrics.inset
-    )
+        let draggableView = try #require(
+            firstWorkbenchPageSubview(
+                of: DraggableNSView.self,
+                in: host
+            )
+        )
+        #expect(abs(draggableView.bounds.width - 600) < 0.5)
+        #expect(
+            abs(
+                draggableView.bounds.height
+                    - WorkbenchControlMetrics.redesignAppTopbarHeight
+            ) < 0.5
+        )
+
+        var zoomedWindow: NSWindow?
+        let observer = NotificationCenter.default.addObserver(
+            forName: .topbarTitlebarZoomRequested,
+            object: window,
+            queue: .main
+        ) { notification in
+            zoomedWindow = notification.object as? NSWindow
+        }
+        defer {
+            NotificationCenter.default.removeObserver(observer)
+        }
+
+        #expect(draggableView.onDoubleClickZoom?(window) == true)
+        #expect(zoomedWindow === window)
+    }
 }
 
 @MainActor
 @Test
 func workbenchTableHeaderStaysWithinTheTableWidth() async throws {
-    let width = AppShellLayout.pageContentMinimumWidth + 40
+    let width = AppShellLayout.pageContentMinimumWidth
     let host = NSHostingView(
         rootView: WorkbenchPageScrollbarFixture()
             .frame(width: width, height: 320)
@@ -343,7 +394,7 @@ func filePageFreezesTopActionAndBreadcrumbRowsAboveVerticalScrollView() async th
     await settleWorkbenchPage(host)
 
     let overlays = workbenchPageSubviews(of: WorkbenchScrollViewOverlayView.self, in: host)
-    #expect(overlays.count == 2)
+    #expect(overlays.count == 1)
 
     let innerVerticalScrollView = try #require(
         overlays
@@ -387,6 +438,8 @@ private struct WorkbenchPageScrollbarFixture: View {
                 rowProvider: { _ in row },
                 rowsVersion: 1,
                 rowsUpdate: .reload,
+                showsTimeColumn: true,
+                showsLanguageColumn: true,
                 onPlay: { _ in },
                 isRedesign: true
             )

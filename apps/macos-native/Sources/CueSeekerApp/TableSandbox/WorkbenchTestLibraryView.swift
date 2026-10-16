@@ -22,7 +22,7 @@ struct WorkbenchRecentView: View {
             interfaceID: routeState.selectedRecentSection.rawValue
         ) { _ in
         GeometryReader { geometry in
-            WorkbenchScrollView([.vertical, .horizontal]) {
+            WorkbenchScrollView {
                 VStack(alignment: .leading, spacing: WorkbenchTestLibraryMetrics.sectionSpacing) {
                     switch routeState.selectedRecentSection {
                     case .videos:
@@ -43,10 +43,7 @@ struct WorkbenchRecentView: View {
                     )
                 )
                 .frame(
-                    width: max(
-                        geometry.size.width,
-                        AppShellLayout.pageContentMinimumWidth
-                    ),
+                    width: geometry.size.width,
                     alignment: .topLeading
                 )
                 .frame(
@@ -156,7 +153,7 @@ struct WorkbenchTestLibraryView: View {
         Group {
             if let folderPath = routeState.selectedLibraryFolderPath {
                 GeometryReader { geometry in
-                    WorkbenchScrollView([.vertical, .horizontal]) {
+                    WorkbenchScrollView {
                         folderPageContent(folderPath: folderPath)
                             .padding(
                                 .top,
@@ -173,10 +170,7 @@ struct WorkbenchTestLibraryView: View {
                                 )
                             )
                             .frame(
-                                width: max(
-                                    geometry.size.width,
-                                    AppShellLayout.pageContentMinimumWidth
-                                ),
+                                width: geometry.size.width,
                                 alignment: .topLeading
                             )
                             .frame(
@@ -187,7 +181,7 @@ struct WorkbenchTestLibraryView: View {
                 }
             } else {
                 GeometryReader { geometry in
-                    WorkbenchScrollView([.vertical, .horizontal]) {
+                    WorkbenchScrollView {
                         completeLibraryContent(viewportSize: geometry.size)
                             .padding(
                                 .top,
@@ -204,10 +198,7 @@ struct WorkbenchTestLibraryView: View {
                                 )
                             )
                             .frame(
-                                width: max(
-                                    geometry.size.width,
-                                    AppShellLayout.pageContentMinimumWidth
-                                ),
+                                width: geometry.size.width,
                                 alignment: .topLeading
                             )
                             .frame(

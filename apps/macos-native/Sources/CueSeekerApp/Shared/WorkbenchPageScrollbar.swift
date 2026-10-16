@@ -15,15 +15,6 @@ final class WorkbenchPageScrollbar: ObservableObject {
 
     var onDragStateChanged: ((Bool) -> Void)?
 
-    /// Height the table's horizontal Scrollbar keeps free at the bottom, so an
-    /// outer page-level horizontal Scrollbar can take that place.
-    var tableScrollbarBottomReserve: CGFloat = 0 {
-        didSet {
-            guard tableScrollbarBottomReserve != oldValue else { return }
-            horizontalOverlay?.bottomReserve = tableScrollbarBottomReserve
-        }
-    }
-
     func overlayView(for axis: TableScrollbarAxis) -> SubtitleTableScrollbarOverlayView? {
         axis == .vertical ? verticalOverlay : horizontalOverlay
     }
@@ -35,7 +26,6 @@ final class WorkbenchPageScrollbar: ObservableObject {
             verticalOverlay = overlayView
         case .horizontal:
             horizontalOverlay = overlayView
-            overlayView.bottomReserve = tableScrollbarBottomReserve
         }
         overlayView.onDragStateChanged = { [weak self] isDragging in
             self?.onDragStateChanged?(isDragging)

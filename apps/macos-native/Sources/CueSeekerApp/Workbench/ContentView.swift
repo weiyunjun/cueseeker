@@ -50,12 +50,20 @@ private struct ContentRootView: View {
             let hidesWorkbenchChrome = isPlaybackFullscreen || appState.isPlaybackPageVisible
 
             return GeometryReader { geometry in
+                let isCompactWindow = AppShellLayout.isCompactWindow(width: geometry.size.width)
+                let isDockedSidebarVisible = !hidesWorkbenchChrome
+                    && !isCompactWindow
+                    && layoutState.isSidebarVisible
+                let isOverlaySidebarVisible = !hidesWorkbenchChrome
+                    && isCompactWindow
+                    && layoutState.isSidebarVisible
+
                 ZStack(alignment: .topLeading) {
                     windowBackground
                         .ignoresSafeArea()
 
                     HStack(spacing: 0) {
-                        if !hidesWorkbenchChrome && layoutState.isSidebarVisible {
+                        if isDockedSidebarVisible {
                             AppSidebar()
                                 .frame(width: AppShellLayout.sidebarWidth)
                                 .transition(.move(edge: .leading).combined(with: .opacity))
@@ -64,16 +72,21 @@ private struct ContentRootView: View {
                         mainWorkspace
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                             .padding(.top, hidesWorkbenchChrome ? 0 : AppShellLayout.topBarHeight)
-                            .environment(\.workbenchPageScrollOffset, layoutState.pageScroll)
                             .environment(
                                 \.isWorkbenchSidebarVisible,
-                                !hidesWorkbenchChrome && layoutState.isSidebarVisible
+                                isDockedSidebarVisible
                             )
                     }
 
                     if !hidesWorkbenchChrome {
-                        AppTopBar(pageScroll: layoutState.pageScroll)
-                            .zIndex(3)
+                        AppTopBar(
+                            isDockedSidebarVisible: isDockedSidebarVisible,
+                            isOverlaySidebarVisible: isOverlaySidebarVisible,
+                            onOverlaySidebarMouseLeave: {
+                                collapseOverlaySidebarOnMouseLeaveIfNeeded(width: geometry.size.width)
+                            }
+                        )
+                        .zIndex(3)
                     }
 
                     dialogLayer(isPlaybackPageVisible: hidesWorkbenchChrome)
@@ -300,12 +313,24 @@ private struct ContentRootView: View {
             threshold: AppShellLayout.sidebarAutoCollapseWindowWidth
         )
     }
+
+    private func collapseOverlaySidebarOnMouseLeaveIfNeeded(width: CGFloat) {
+        guard layoutState.isSidebarVisible else {
+            return
+        }
+        withAnimation(.easeInOut(duration: AppShellLayout.sidePanelAnimationDuration)) {
+            _ = layoutState.collapseOverlaySidebarOnMouseLeaveIfNeeded(
+                width: width,
+                threshold: AppShellLayout.sidebarAutoCollapseWindowWidth
+            )
+        }
+    }
 }
 
 struct AppTopBar: View {
-    /// Observed so the function region follows the page's horizontal scroll;
-    /// it is the only view that re-reads it.
-    @ObservedObject var pageScroll: WorkbenchPageScrollOffset
+    let isDockedSidebarVisible: Bool
+    var isOverlaySidebarVisible: Bool = false
+    var onOverlaySidebarMouseLeave: () -> Void = {}
     @EnvironmentObject private var appState: AppCoordinator
     @EnvironmentObject private var layoutState: WorkbenchLayoutState
     @EnvironmentObject private var routeState: WorkbenchRouteState
@@ -324,9 +349,9 @@ struct AppTopBar: View {
         )
 
         return AppTopbarLayout(
-            isSidebarVisible: layoutState.isSidebarVisible,
+            isDockedSidebarVisible: isDockedSidebarVisible,
+            isOverlaySidebarVisible: isOverlaySidebarVisible,
             isAppFullscreen: layoutState.isAppFullscreen,
-            pageScrollOffset: pageScroll.horizontal,
             onDoubleClickZoom: { window in
                 NotificationCenter.default.post(name: .topbarTitlebarZoomRequested, object: window)
                 return true
@@ -352,6 +377,33 @@ struct AppTopBar: View {
             }
         } sidebarToggle: {
             sidebarToggle
+        } overlaySidebar: {
+            AppSidebar()
+                .overlay(alignment: .top) {
+                    TitlebarBackgroundView(
+                        backgroundColor: Color.clear,
+                        onDoubleClickZoom: { window in
+                            NotificationCenter.default.post(
+                                name: .topbarTitlebarZoomRequested,
+                                object: window
+                            )
+                            return true
+                        }
+                    )
+                    .frame(height: AppShellLayout.topBarHeight)
+                }
+                .overlay(alignment: .trailing) {
+                    Rectangle()
+                        .fill(WorkbenchRedesignColors.borderMuted)
+                        .frame(width: 1)
+                        .allowsHitTesting(false)
+                }
+                .overlay {
+                    OverlaySidebarPointerMonitorView(
+                        onMouseLeave: onOverlaySidebarMouseLeave
+                    )
+                }
+                .shadowToken(WorkbenchRedesignColors.shadowPopover, cornerRadius: 0)
         }
     }
 
@@ -384,6 +436,7 @@ struct AppTopBar: View {
         .disabled(!routeState.canGoBack)
         .workbenchTooltip(
             scenarioID: "topbar.navigation.back",
+            isActive: !isOverlaySidebarVisible,
             label: routeState.canGoBack
                 ? L("topbar.back")
                 : L("tooltip.topbar.back.disabled")
@@ -424,6 +477,7 @@ struct AppTopBar: View {
         .disabled(!routeState.canGoForward)
         .workbenchTooltip(
             scenarioID: "topbar.navigation.forward",
+            isActive: !isOverlaySidebarVisible,
             label: routeState.canGoForward
                 ? L("topbar.forward")
                 : L("tooltip.topbar.forward.disabled")
@@ -651,17 +705,21 @@ private struct AppSidebarToggleButtonStyle: ButtonStyle {
 
 enum AppShellLayout {
     static let defaultWindowWidth: CGFloat = 1_000
-    static let minimumWindowWidth: CGFloat = 480
+    static let minimumWindowWidth: CGFloat = 600
     /// Lower bound for Workbench page content: the right region width when the
-    /// window is at its minimum with the sidebar collapsed. Pages stop shrinking
-    /// here and scroll horizontally instead.
+    /// window is at its minimum with the sidebar collapsed or overlaid.
     static let pageContentMinimumWidth = minimumWindowWidth
     static let minimumWindowHeight: CGFloat = 560
-    /// The sidebar collapses exactly when keeping it would push the page below
-    /// its content minimum width and force page-level horizontal scrolling.
+    /// Below this window width (`< 840px`), keeping the sidebar docked would
+    /// push the page below its 600px minimum width, so the sidebar auto-collapses
+    /// and opens as a full-height overlay when toggled manually.
     static let sidebarAutoCollapseWindowWidth = pageContentMinimumWidth + sidebarWidth
     static let topBarHeight = WorkbenchControlMetrics.redesignWorkbenchTopbarHeight
     static let sidePanelAnimationDuration: Double = 0.18
+
+    static func isCompactWindow(width: CGFloat) -> Bool {
+        width < sidebarAutoCollapseWindowWidth
+    }
 
     static let modeControlsOuterPadding: CGFloat = 12
     /// After the window controls: their inset, their measured width, then the

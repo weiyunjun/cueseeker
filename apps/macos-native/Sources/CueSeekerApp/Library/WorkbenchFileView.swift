@@ -59,43 +59,36 @@ struct WorkbenchFileView: View {
         @ViewBuilder content: @escaping () -> Content
     ) -> some View {
         GeometryReader { geometry in
-            let contentWidth = max(
-                geometry.size.width,
-                AppShellLayout.pageContentMinimumWidth
-            )
-
-            WorkbenchScrollView([.horizontal]) {
+            VStack(alignment: .leading, spacing: 0) {
                 VStack(alignment: .leading, spacing: 0) {
-                    VStack(alignment: .leading, spacing: 0) {
-                        statusAndActionRow
-                            .padding(.bottom, WorkbenchControlMetrics.redesignSpacing4)
+                    statusAndActionRow
+                        .padding(.bottom, WorkbenchControlMetrics.redesignSpacing4)
 
-                        if !breadcrumbNodes.isEmpty {
-                            breadcrumbRow
-                                .padding(.bottom, WorkbenchControlMetrics.redesignSpacing3)
-                        } else if !indexing.selectedFolders.isEmpty {
-                            rootFoldersHeaderRow
-                                .padding(.bottom, WorkbenchControlMetrics.redesignSpacing3)
-                        }
+                    if !breadcrumbNodes.isEmpty {
+                        breadcrumbRow
+                            .padding(.bottom, WorkbenchControlMetrics.redesignSpacing3)
+                    } else if !indexing.selectedFolders.isEmpty {
+                        rootFoldersHeaderRow
+                            .padding(.bottom, WorkbenchControlMetrics.redesignSpacing3)
                     }
-                    .workbenchPageInlinePadding()
-                    .padding(.top, WorkbenchControlMetrics.redesignWorkbenchPageTopPadding)
-
-                    WorkbenchScrollView([.vertical]) {
-                        content()
-                            .workbenchPageInlinePadding()
-                            .padding(.bottom, WorkbenchControlMetrics.redesignWorkbenchPageBottomPadding)
-                            .frame(width: contentWidth, alignment: .topLeading)
-                    }
-                    .id(id)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 }
-                .frame(
-                    width: contentWidth,
-                    height: geometry.size.height,
-                    alignment: .topLeading
-                )
+                .workbenchPageInlinePadding()
+                .padding(.top, WorkbenchControlMetrics.redesignWorkbenchPageTopPadding)
+
+                WorkbenchScrollView([.vertical]) {
+                    content()
+                        .workbenchPageInlinePadding()
+                        .padding(.bottom, WorkbenchControlMetrics.redesignWorkbenchPageBottomPadding)
+                        .frame(width: geometry.size.width, alignment: .topLeading)
+                }
+                .id(id)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             }
+            .frame(
+                width: geometry.size.width,
+                height: geometry.size.height,
+                alignment: .topLeading
+            )
             .coordinateSpace(name: Self.fileCardCoordinateSpaceName)
             .onAppear {
                 viewportSize = geometry.size

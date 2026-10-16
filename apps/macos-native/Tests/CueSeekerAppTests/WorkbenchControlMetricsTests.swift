@@ -275,15 +275,15 @@ func mediaCardGridMetricsAndMinimumWindowColumnCountMatchSpecification() {
     #expect(WorkbenchControlMetrics.redesignLibraryRecentGridMaxColumnsWithSidebar == 5)
     #expect(WorkbenchControlMetrics.redesignLibraryRecentGridMaxColumnsWithoutSidebar == 6)
 
-    // At minimum Workbench page content width (480px), subtracting inline grid
-    // padding (20px leading + 36px trailing = 56px) leaves 424px, which fits
-    // strictly 1 card per row (2 cards require 220 * 2 + 8 = 448px).
+    // At minimum Workbench page content width (600px), subtracting inline grid
+    // padding (20px leading + 36px trailing = 56px) leaves 544px, which fits
+    // 2 cards per row (2 cards require 220 * 2 + 8 = 448px; 3 require 676px).
     let minimumWorkbenchGridWidth =
         WorkbenchControlMetrics.workbenchMediaCardGridWidth(
             viewportWidth: AppShellLayout.pageContentMinimumWidth
         )
-    #expect(minimumWorkbenchGridWidth == 424)
-    #expect(PlaybackCommandPanelCardGrid.columnCount(containerWidth: minimumWorkbenchGridWidth) == 1)
+    #expect(minimumWorkbenchGridWidth == 544)
+    #expect(PlaybackCommandPanelCardGrid.columnCount(containerWidth: minimumWorkbenchGridWidth) == 2)
     #expect(PlaybackCommandPanelCardGrid.columnCount(containerWidth: 447) == 1)
     #expect(PlaybackCommandPanelCardGrid.columnCount(containerWidth: 448) == 2)
     #expect(PlaybackCommandPanelCardGrid.columnCount(containerWidth: 675) == 2)

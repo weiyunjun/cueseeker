@@ -320,7 +320,7 @@ private struct PlaybackCollageEditor<SubtitleContent: View>: View {
     }
 }
 
-private struct PlaybackOverlayTopBar: View {
+struct PlaybackOverlayTopBar: View {
     // Observed so the tab labels and the editing title are re-read when the
     // language changes: the bar's own inputs do not change with it, so
     // without this SwiftUI would leave the bar as it was.
@@ -331,86 +331,91 @@ private struct PlaybackOverlayTopBar: View {
     let onSelect: (PlaybackOverlayModule) -> Bool
     let onToggleEditingCollage: () -> Bool
     let onReturn: () -> Void
-    @Environment(\.isAppFullscreen) private var isAppFullscreen
 
     var body: some View {
-        GeometryReader { proxy in
-            bar(centerMaxWidth: centerMaxWidth(barWidth: proxy.size.width))
-        }
-    }
-
-    private func bar(centerMaxWidth: CGFloat) -> some View {
-        ZStack {
-            PlaybackReturnButton(
-                hoverBackground: WorkbenchRedesignColors
-                    .overlaySurfaceShortcutButtonHoverBg,
-                scenarioID: "playback_overlay.topbar.return",
-                action: onReturn
-            )
-            .frame(maxWidth: .infinity, alignment: .leading)
-
-            if isEditingCollage {
-                Text(L("playback.collage.editing"))
-                    .font(.system(
-                        size: WorkbenchControlMetrics.redesignFontSizeBody,
-                        weight: .semibold
-                    ))
-                    .lineLimit(1)
-                    .foregroundStyle(PlaybackTheme.playbackModuleSidebarSelected)
-                    .frame(maxWidth: centerMaxWidth)
-                    .allowsHitTesting(false)
-                    .accessibilityIdentifier("playback-collage-editor-title")
-            } else {
-                WorkbenchSegmentedControl(
-                    options: modules,
-                    selection: Binding(
-                        get: { selectedModule ?? modules.first ?? .current },
-                        set: { _ = onSelect($0) }
-                    ),
-                    title: { $0.label },
-                    accessibilityLabel: { $0.label },
-                    accessibilityIdentifier: { "playback-view-\($0.rawValue)" }
+        TitlebarBackgroundView(
+            backgroundColor: Color.clear,
+            onDoubleClickZoom: { window in
+                NotificationCenter.default.post(
+                    name: .topbarTitlebarZoomRequested,
+                    object: window
                 )
-                .frame(maxWidth: centerMaxWidth)
+                return true
             }
-
-            HStack(spacing: WorkbenchControlMetrics.redesignSpacing1) {
-                if selectedModule == .current {
-                    WorkbenchIconButton(
-                        icon: .imagesSquare,
-                        isRedesign: true,
-                        isOpen: isEditingCollage,
-                        hoverBackground: WorkbenchRedesignColors
-                            .overlaySurfaceShortcutButtonHoverBg
-                    ) {
-                        _ = onToggleEditingCollage()
-                    }
-                    .workbenchTooltip(
-                        scenarioID: "playback_overlay.topbar.collage",
-                        label: isEditingCollage
-                            ? L("tooltip.playback_overlay.collage.exit")
-                            : L("tooltip.playback_overlay.collage.edit"),
-                        shortcut: .action(.editCollage)
-                    )
-                    .accessibilityLabel(
-                        isEditingCollage
-                            ? L("playback.collage.exit")
-                            : L("playback.collage")
-                    )
-                    .accessibilityIdentifier(
-                        isEditingCollage
-                            ? "playback-exit-collage"
-                            : "playback-enter-collage"
+        )
+        .overlay {
+            WorkbenchAdaptiveHeaderBar(
+                leadingInset: 0,
+                trailingInset: WorkbenchControlMetrics.redesignAppTopbarContentTrailingPadding,
+                minimumGap: WorkbenchControlMetrics.redesignSpacing3
+            ) {
+                PlaybackReturnButton(
+                    hoverBackground: WorkbenchRedesignColors
+                        .overlaySurfaceShortcutButtonHoverBg,
+                    scenarioID: "playback_overlay.topbar.return",
+                    action: onReturn
+                )
+            } center: {
+                if isEditingCollage {
+                    Text(L("playback.collage.editing"))
+                        .font(.system(
+                            size: WorkbenchControlMetrics.redesignFontSizeBody,
+                            weight: .semibold
+                        ))
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                        .foregroundStyle(PlaybackTheme.playbackModuleSidebarSelected)
+                        .allowsHitTesting(false)
+                        .accessibilityIdentifier("playback-collage-editor-title")
+                } else {
+                    WorkbenchSegmentedControl(
+                        options: modules,
+                        selection: Binding(
+                            get: { selectedModule ?? modules.first ?? .current },
+                            set: { _ = onSelect($0) }
+                        ),
+                        title: { $0.label },
+                        accessibilityLabel: { $0.label },
+                        accessibilityIdentifier: { "playback-view-\($0.rawValue)" }
                     )
                 }
+            } trailing: {
+                HStack(spacing: WorkbenchControlMetrics.redesignSpacing1) {
+                    if selectedModule == .current {
+                        WorkbenchIconButton(
+                            icon: .imagesSquare,
+                            isRedesign: true,
+                            isOpen: isEditingCollage,
+                            hoverBackground: WorkbenchRedesignColors
+                                .overlaySurfaceShortcutButtonHoverBg
+                        ) {
+                            _ = onToggleEditingCollage()
+                        }
+                        .workbenchTooltip(
+                            scenarioID: "playback_overlay.topbar.collage",
+                            label: isEditingCollage
+                                ? L("tooltip.playback_overlay.collage.exit")
+                                : L("tooltip.playback_overlay.collage.edit"),
+                            shortcut: .action(.editCollage)
+                        )
+                        .accessibilityLabel(
+                            isEditingCollage
+                                ? L("playback.collage.exit")
+                                : L("playback.collage")
+                        )
+                        .accessibilityIdentifier(
+                            isEditingCollage
+                                ? "playback-exit-collage"
+                                : "playback-enter-collage"
+                        )
+                    }
 
-                TopbarAppEntries(
-                    hoverBackground: WorkbenchRedesignColors
-                        .overlaySurfaceShortcutButtonHoverBg
-                )
+                    TopbarAppEntries(
+                        hoverBackground: WorkbenchRedesignColors
+                            .overlaySurfaceShortcutButtonHoverBg
+                    )
+                }
             }
-            .frame(maxWidth: .infinity, alignment: .trailing)
-            .padding(.trailing, WorkbenchControlMetrics.redesignAppTopbarContentTrailingPadding)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(PlaybackTheme.subtitleFocusOverlayBackground)
@@ -418,17 +423,6 @@ private struct PlaybackOverlayTopBar: View {
         // underneath, the bar's buttons would count as frozen for as long as
         // playback is open and never take a hover.
         .interfaceLayer(.playbackOverlay)
-    }
-
-    /// What the Tabs or the editing title may occupy without reaching the
-    /// return button or the trailing buttons.
-    private func centerMaxWidth(barWidth: CGFloat) -> CGFloat {
-        PlaybackChromeMetrics.topbarCenterMaxWidth(
-            barWidth: barWidth,
-            isFullscreen: isAppFullscreen,
-            trailingButtonCount: selectedModule == .current ? 3 : 2,
-            trailingPadding: WorkbenchControlMetrics.redesignAppTopbarContentTrailingPadding
-        )
     }
 }
 

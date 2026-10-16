@@ -1,45 +1,12 @@
 import AppKit
 import SwiftUI
 
-/// How far the Workbench page on screen is scrolled sideways.
-///
-/// Below the page content minimum width the page scrolls horizontally, and the
-/// App top bar's function region is part of that same row, so it moves with the
-/// page. The page's scroll view reports here and only the top bar observes this
-/// object, so scrolling does not invalidate the page or the App shell.
-@MainActor
-final class WorkbenchPageScrollOffset: ObservableObject {
-    @Published private(set) var horizontal: CGFloat = 0
-
-    func report(horizontal offset: CGFloat) {
-        let value = max(0, offset)
-        guard abs(value - horizontal) >= 0.5 else {
-            return
-        }
-        horizontal = value
-    }
-}
-
-private struct WorkbenchPageScrollOffsetKey: EnvironmentKey {
-    static let defaultValue: WorkbenchPageScrollOffset? = nil
-}
-
-extension EnvironmentValues {
-    /// Set by the App shell around the Workbench pages; `nil` everywhere else,
-    /// so a horizontal scroll view outside a page reports nothing.
-    var workbenchPageScrollOffset: WorkbenchPageScrollOffset? {
-        get { self[WorkbenchPageScrollOffsetKey.self] }
-        set { self[WorkbenchPageScrollOffsetKey.self] = newValue }
-    }
-}
-
 @MainActor
 struct WorkbenchScrollView<Content: View>: View {
     private let axes: Axis.Set
     private let scrollbarInset: CGFloat
     private let content: Content
     @StateObject private var bridge: WorkbenchScrollViewBridge
-    @Environment(\.workbenchPageScrollOffset) private var pageScrollOffset
 
     init(
         _ axes: Axis.Set = .vertical,
@@ -58,8 +25,7 @@ struct WorkbenchScrollView<Content: View>: View {
                 .background(alignment: .topLeading) {
                     WorkbenchScrollViewBindingRepresentable(
                         axes: axes,
-                        bridge: bridge,
-                        pageScrollOffset: pageScrollOffset
+                        bridge: bridge
                     )
                     .frame(width: 0, height: 0)
                 }
@@ -88,11 +54,9 @@ final class WorkbenchScrollViewOverlayView: TableScrollbarOverlayView {
 private struct WorkbenchScrollViewBindingRepresentable: NSViewRepresentable {
     let axes: Axis.Set
     let bridge: WorkbenchScrollViewBridge
-    let pageScrollOffset: WorkbenchPageScrollOffset?
 
     func makeNSView(context: Context) -> WorkbenchScrollViewBindingView {
         let view = WorkbenchScrollViewBindingView()
-        bridge.onHorizontalOffsetChange = horizontalOffsetReporter
         bridge.register(bindingView: view, axes: axes)
         return view
     }
@@ -101,15 +65,7 @@ private struct WorkbenchScrollViewBindingRepresentable: NSViewRepresentable {
         _ nsView: WorkbenchScrollViewBindingView,
         context: Context
     ) {
-        bridge.onHorizontalOffsetChange = horizontalOffsetReporter
         bridge.register(bindingView: nsView, axes: axes)
-    }
-
-    private var horizontalOffsetReporter: ((CGFloat) -> Void)? {
-        guard let pageScrollOffset else {
-            return nil
-        }
-        return { pageScrollOffset.report(horizontal: $0) }
     }
 
     static func dismantleNSView(
@@ -187,9 +143,6 @@ private final class WorkbenchScrollViewBridge: NSObject, ObservableObject {
     private weak var observedDocumentView: NSView?
     private var axes: Axis.Set = .vertical
     private var isObserving = false
-    /// Set for the Workbench pages, so the App top bar's function region can
-    /// move with the page it belongs to.
-    var onHorizontalOffsetChange: ((CGFloat) -> Void)?
 
     deinit {
         NotificationCenter.default.removeObserver(self)
@@ -310,7 +263,6 @@ private final class WorkbenchScrollViewBridge: NSObject, ObservableObject {
 
     private func updatePresentation() {
         refreshDocumentObservation()
-        reportHorizontalOffset()
         guard let overlayView else { return }
         let presentation = presentation()
         overlayView.isPresented = presentation?.vertical != nil
@@ -318,19 +270,6 @@ private final class WorkbenchScrollViewBridge: NSObject, ObservableObject {
         if overlayView.isPresented {
             overlayView.scrollbarMetricsDidChange()
         }
-    }
-
-    private func reportHorizontalOffset() {
-        guard let onHorizontalOffsetChange,
-              axes.contains(.horizontal),
-              let scrollView,
-              let documentView = scrollView.documentView
-        else {
-            return
-        }
-        onHorizontalOffsetChange(
-            scrollView.documentVisibleRect.minX - documentView.frame.minX
-        )
     }
 
     private func presentation() -> TableScrollbarPresentation? {

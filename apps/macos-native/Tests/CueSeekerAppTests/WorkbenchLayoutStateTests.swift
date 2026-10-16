@@ -104,17 +104,26 @@ func workbenchLayoutStateCollapsesSidebarForCompactWindowOnce() {
     withTemporaryWorkbenchLayoutUserDefaults { userDefaults in
         let layoutState = WorkbenchLayoutState(userDefaults: userDefaults)
 
-        let collapsed = layoutState.collapseSidebarForCompactWindowIfNeeded(
-            width: 760,
-            threshold: 760
+        // At the exact threshold (e.g. 840px), the sidebar stays docked.
+        let collapsedAtThreshold = layoutState.collapseSidebarForCompactWindowIfNeeded(
+            width: 840,
+            threshold: 840
+        )
+        #expect(!collapsedAtThreshold)
+        #expect(layoutState.isSidebarVisible)
+
+        // Below the threshold (< 840px), the sidebar auto-collapses.
+        let collapsedBelowThreshold = layoutState.collapseSidebarForCompactWindowIfNeeded(
+            width: 839,
+            threshold: 840
         )
         let expandedAgain = layoutState.collapseSidebarForCompactWindowIfNeeded(
             width: 900,
-            threshold: 760
+            threshold: 840
         )
 
         let reloadedLayoutState = WorkbenchLayoutState(userDefaults: userDefaults)
-        #expect(collapsed)
+        #expect(collapsedBelowThreshold)
         #expect(!expandedAgain)
         #expect(!layoutState.isSidebarVisible)
         #expect(!reloadedLayoutState.isSidebarVisible)
@@ -241,11 +250,17 @@ private func withTemporaryWorkbenchLayoutUserDefaults(_ body: (UserDefaults) -> 
 
 @Test
 func workbenchSidebarCollapsesBeforeThePageDropsBelowItsMinimumWidth() {
+    #expect(AppShellLayout.minimumWindowWidth == 600)
+    #expect(AppShellLayout.pageContentMinimumWidth == 600)
+    #expect(AppShellLayout.minimumWindowHeight == 560)
+    #expect(AppShellLayout.sidebarWidth == 240)
     #expect(
         AppShellLayout.sidebarAutoCollapseWindowWidth
             == AppShellLayout.pageContentMinimumWidth + AppShellLayout.sidebarWidth
     )
-    #expect(AppShellLayout.sidebarAutoCollapseWindowWidth == 720)
+    #expect(AppShellLayout.sidebarAutoCollapseWindowWidth == 840)
+    #expect(AppShellLayout.isCompactWindow(width: 839))
+    #expect(!AppShellLayout.isCompactWindow(width: 840))
 
     // At the threshold an expanded sidebar leaves exactly the page content
     // minimum, so widening past it never needs page-level horizontal scrolling.
@@ -253,6 +268,125 @@ func workbenchSidebarCollapsesBeforeThePageDropsBelowItsMinimumWidth() {
         AppShellLayout.sidebarAutoCollapseWindowWidth - AppShellLayout.sidebarWidth
             == AppShellLayout.pageContentMinimumWidth
     )
+}
+
+@MainActor
+@Test
+func overlaySidebarMouseLeaveCollapsesOnlyInCompactWindowWhenPointerLeaves240Width() {
+    let sidebarBounds = CGRect(x: 0, y: 0, width: 240, height: 600)
+
+    // Pointer inside 0...240 x 0...600 (including on the top-left toggle at x = 88) stays open.
+    #expect(
+        !OverlaySidebarPointerMonitorNSView.shouldCollapseForPointerLocation(
+            CGPoint(x: 96, y: 27),
+            sidebarBounds: sidebarBounds
+        )
+    )
+    #expect(
+        !OverlaySidebarPointerMonitorNSView.shouldCollapseForPointerLocation(
+            CGPoint(x: 240, y: 300),
+            sidebarBounds: sidebarBounds
+        )
+    )
+
+    // Pointer moving past x > 240 or outside the window collapses the overlay sidebar.
+    #expect(
+        OverlaySidebarPointerMonitorNSView.shouldCollapseForPointerLocation(
+            CGPoint(x: 241, y: 300),
+            sidebarBounds: sidebarBounds
+        )
+    )
+    #expect(
+        OverlaySidebarPointerMonitorNSView.shouldCollapseForPointerLocation(
+            CGPoint(x: -1, y: 300),
+            sidebarBounds: sidebarBounds
+        )
+    )
+
+    withTemporaryWorkbenchLayoutUserDefaults { userDefaults in
+        let layoutState = WorkbenchLayoutState(userDefaults: userDefaults)
+        layoutState.setSidebarVisible(true)
+
+        // Docked mode (>= 840px) never collapses on mouse leave.
+        #expect(!layoutState.collapseOverlaySidebarOnMouseLeaveIfNeeded(width: 840))
+        #expect(layoutState.isSidebarVisible)
+
+        // Overlay mode (< 840px) immediately collapses on mouse leave.
+        #expect(layoutState.collapseOverlaySidebarOnMouseLeaveIfNeeded(width: 720))
+        #expect(!layoutState.isSidebarVisible)
+    }
+}
+
+@Test
+func adaptiveHeaderGeometryCentersShiftsAndTruncatesWith12PxMinimumGap() {
+    let leadingNaturalSize = CGSize(width: 140, height: 28)
+    let centerNaturalSize = CGSize(width: 190, height: 36)
+    let trailingNaturalSize = CGSize(width: 60, height: 28)
+    let leadingInset: CGFloat = 128
+    let trailingInset: CGFloat = 16
+    let gap: CGFloat = 12
+
+    // 1. Wide container (800px): center sits at exact horizontal center (400px), no truncation.
+    let wide = WorkbenchAdaptiveHeaderGeometry.resolve(
+        containerSize: CGSize(width: 800, height: 54),
+        leadingNaturalSize: leadingNaturalSize,
+        centerNaturalSize: centerNaturalSize,
+        trailingNaturalSize: trailingNaturalSize,
+        leadingInset: leadingInset,
+        trailingInset: trailingInset,
+        minimumGap: gap
+    )
+    #expect(wide.centerFrame.midX == 400)
+    #expect(wide.leadingFrame.width == 140)
+    #expect(wide.centerFrame.minX - wide.leadingFrame.maxX >= gap)
+    #expect(wide.trailingFrame.minX - wide.centerFrame.maxX >= gap)
+
+    // 2. Single-side contact (600px): ideal center minX is 205, which would be < 128 + 140 + 12 = 280.
+    // Center shifts right to 280 (maintaining 12px gap from leading) without truncating leading title.
+    let shiftedRight = WorkbenchAdaptiveHeaderGeometry.resolve(
+        containerSize: CGSize(width: 600, height: 54),
+        leadingNaturalSize: leadingNaturalSize,
+        centerNaturalSize: centerNaturalSize,
+        trailingNaturalSize: trailingNaturalSize,
+        leadingInset: leadingInset,
+        trailingInset: trailingInset,
+        minimumGap: gap
+    )
+    #expect(shiftedRight.centerFrame.minX == 280)
+    #expect(shiftedRight.leadingFrame.width == 140)
+    #expect(shiftedRight.centerFrame.minX - shiftedRight.leadingFrame.maxX == 12)
+    #expect(shiftedRight.trailingFrame.minX - shiftedRight.centerFrame.maxX > 12)
+
+    // 3. Right-side contact first: wide trailing controls push center left without truncating leading.
+    let shiftedLeft = WorkbenchAdaptiveHeaderGeometry.resolve(
+        containerSize: CGSize(width: 600, height: 54),
+        leadingNaturalSize: CGSize(width: 60, height: 28),
+        centerNaturalSize: centerNaturalSize,
+        trailingNaturalSize: CGSize(width: 200, height: 28),
+        leadingInset: 20,
+        trailingInset: 20,
+        minimumGap: gap
+    )
+    #expect(shiftedLeft.centerFrame.maxX == shiftedLeft.trailingFrame.minX - 12)
+    #expect(shiftedLeft.leadingFrame.width == 60)
+    #expect(shiftedLeft.centerFrame.minX - shiftedLeft.leadingFrame.maxX > 12)
+
+    // 4. Both sides at 12px limit (520px): center locks at trailing.minX - 12 - 190 = 242,
+    // and leading title width compresses to 242 - 12 - 128 = 102 (< 140).
+    let compressed = WorkbenchAdaptiveHeaderGeometry.resolve(
+        containerSize: CGSize(width: 520, height: 54),
+        leadingNaturalSize: leadingNaturalSize,
+        centerNaturalSize: centerNaturalSize,
+        trailingNaturalSize: trailingNaturalSize,
+        leadingInset: leadingInset,
+        trailingInset: trailingInset,
+        minimumGap: gap
+    )
+    #expect(compressed.trailingFrame.minX == 444)
+    #expect(compressed.centerFrame.maxX == 432)
+    #expect(compressed.centerFrame.minX == 242)
+    #expect(compressed.leadingFrame.width == 102)
+    #expect(compressed.centerFrame.minX - compressed.leadingFrame.maxX == 12)
 }
 
 @Test
