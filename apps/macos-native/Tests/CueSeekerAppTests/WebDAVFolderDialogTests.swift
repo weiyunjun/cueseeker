@@ -340,5 +340,63 @@ struct WebDAVFolderDialogTests {
         #expect(window.makeFirstResponder(fields[1]))
         #expect(confirmCallCount == 0)
     }
+
+    @Test
+    func dialogAddressFieldImmediatelyDecodesPercentEncodedURLOnPaste() throws {
+        _ = NSApplication.shared
+        let window = CueSeekerMainWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 1200, height: 800),
+            styleMask: [.titled, .closable, .resizable],
+            backing: .buffered,
+            defer: false
+        )
+        window.isWorkbenchCovered = { true }
+        window.dialogSize = { CGSize(width: 480, height: 360) }
+
+        let session = WebDAVFolderDialogSession()
+        let hostingView = NSHostingView(
+            rootView: ZStack {
+                Color.clear
+                WebDAVFolderDialog(
+                    session: session,
+                    onConfirm: {},
+                    onClose: {}
+                )
+            }
+            .frame(width: 1200, height: 800)
+        )
+        hostingView.frame = NSRect(x: 0, y: 0, width: 1200, height: 800)
+        window.contentView = hostingView
+        hostingView.layoutSubtreeIfNeeded()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+
+        func collectEditableTextFields(in view: NSView) -> [NSTextField] {
+            var result: [NSTextField] = []
+            if let field = view as? NSTextField, field.isEditable {
+                result.append(field)
+            }
+            for subview in view.subviews {
+                result.append(contentsOf: collectEditableTextFields(in: subview))
+            }
+            return result
+        }
+
+        let fields = collectEditableTextFields(in: hostingView)
+            .sorted { $0.convert($0.bounds, to: nil).midY > $1.convert($1.bounds, to: nil).midY }
+        #expect(fields.count == 4)
+        let addressField = fields[1]
+
+        #expect(window.makeFirstResponder(addressField))
+        let editor = try #require(addressField.currentEditor() as? NSTextView)
+
+        let pastedEncodedURL = "http://192.168.1.173:5244/115/%E4%BA%91%E4%B8%8B%E8%BD%BD/%5BDHR%26Airota%5D%5BKonoSuba%5D/%E4%B8%BA%E7%BE%8E%E5%A5%BD%E7%9A%84%E4%B8%96%E7%95%8C%E7%8C%AE%E4%B8%8A%E7%A5%9D%E7%A6%8F%EF%BC%81S1"
+        let expectedDecodedURL = "http://192.168.1.173:5244/115/云下载/[DHR&Airota][KonoSuba]/为美好的世界献上祝福！S1"
+
+        editor.insertText(pastedEncodedURL, replacementRange: editor.selectedRange())
+
+        #expect(session.address == expectedDecodedURL)
+        #expect(addressField.stringValue == expectedDecodedURL)
+        #expect(editor.string == expectedDecodedURL)
+    }
 }
 

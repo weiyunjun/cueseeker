@@ -640,6 +640,8 @@
 "file_detail.none" = "None";
 
 /* WebDAV Folder Support */
+"file.all_folders.one" = "All Folder";
+"file.all_folders.other" = "All Folders";
 "file.add_folder.local" = "Local Folder";
 "file.add_folder.webdav" = "WebDav Folder";
 "webdav.dialog.title" = "WebDav Folder";

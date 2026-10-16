@@ -107,6 +107,20 @@ struct WorkbenchSingleLineTextInput: NSViewRepresentable {
             }
             let current = (field.currentEditor() as? NSTextView)?.string ?? field.stringValue
             let normalized = field.normalizeFullString(current)
+            if let editor = field.currentEditor() as? NSTextView,
+               !editor.hasMarkedText(),
+               editor.string != normalized {
+                let selection = editor.selectedRange()
+                field.isApplyingProgrammaticText = true
+                editor.string = normalized
+                field.applyTextStyle(to: editor)
+                let length = (normalized as NSString).length
+                editor.setSelectedRange(NSRange(
+                    location: min(selection.location, length),
+                    length: 0
+                ))
+                field.isApplyingProgrammaticText = false
+            }
             if parent.text != normalized {
                 parent.text = normalized
             }
@@ -435,6 +449,7 @@ struct WorkbenchDialogFormTextField: View {
     var validationMessage: String? = nil
     var reservesValidationLine: Bool = false
     let focus: FocusState<Bool>.Binding
+    var normalizeDraft: ((String) -> String)? = nil
     var onSubmit: (() -> Void)?
 
     @State private var isFocused = false
@@ -460,6 +475,7 @@ struct WorkbenchDialogFormTextField: View {
                     fontSize: WorkbenchControlMetrics.redesignFontSizeControl,
                     focus: focus,
                     accessibilityLabel: label,
+                    normalizeDraft: normalizeDraft,
                     onFocusChange: { isFocused = $0 },
                     onSubmit: onSubmit
                 )

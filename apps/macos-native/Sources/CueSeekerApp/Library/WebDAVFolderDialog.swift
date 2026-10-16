@@ -5,7 +5,14 @@ import CueSeekerCore
 final class WebDAVFolderDialogSession: ObservableObject, Identifiable {
     let id = UUID()
     @Published var name: String = ""
-    @Published var address: String = ""
+    @Published var address: String = "" {
+        didSet {
+            let decoded = WebDAVAddress.decodedDisplayAddress(address)
+            if address != decoded {
+                address = decoded
+            }
+        }
+    }
     @Published var username: String = ""
     @Published var password: String = ""
     @Published var validationMessage: String? = nil
@@ -47,7 +54,8 @@ struct WebDAVFolderDialog: View {
                     label: L("webdav.field.address"),
                     placeholder: "",
                     text: $session.address,
-                    focus: $isAddressFocused
+                    focus: $isAddressFocused,
+                    normalizeDraft: WebDAVAddress.decodedDisplayAddress
                 )
                 .disabled(session.isSubmitting)
                 .accessibilityIdentifier("webdav-address")

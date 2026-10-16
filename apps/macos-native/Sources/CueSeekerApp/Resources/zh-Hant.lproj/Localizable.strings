@@ -640,6 +640,8 @@
 "file_detail.none" = "無";
 
 /* WebDAV Folder Support */
+"file.all_folders.one" = "全部資料夾";
+"file.all_folders.other" = "全部資料夾";
 "file.add_folder.local" = "本機資料夾";
 "file.add_folder.webdav" = "WebDav 資料夾";
 "webdav.dialog.title" = "WebDav 資料夾";

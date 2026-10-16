@@ -22,6 +22,10 @@ enum AppIcon: String, CaseIterable, Sendable {
     case arrowElbowDownLeft = "arrow-elbow-down-left"
     case squaresFour = "squares-four"
     case folder = "folder"
+    case folderWebdav = "folder-webdav"
+    case folderSmb = "folder-smb"
+    case folderFtp = "folder-ftp"
+    case folderNfs = "folder-nfs"
     case cloud = "cloud"
     case bookmarkSimple = "bookmark-simple"
     case clock = "clock"
@@ -78,6 +82,21 @@ enum AppIcon: String, CaseIterable, Sendable {
 
     /// Reserved by `docs/human/design/Icon Registry.md`; no view draws it yet.
     case ankiStar = "anki-star"
+
+    var folderProtocolBadge: String? {
+        switch self {
+        case .folderWebdav:
+            return "WebDav"
+        case .folderSmb:
+            return "SMB"
+        case .folderFtp:
+            return "FTP"
+        case .folderNfs:
+            return "NFS"
+        default:
+            return nil
+        }
+    }
 }
 
 /// Which cut of an icon to draw.
@@ -254,7 +273,10 @@ struct AppIconImage: View {
     }
 
     var body: some View {
-        if let image = AppIconStore.image(icon, size: size, weight: weight ?? .regular) {
+        if let badge = icon.folderProtocolBadge, (weight ?? .regular) == .regular {
+            ProtocolFolderIconView(badge: badge, size: size)
+                .frame(width: size, height: size)
+        } else if let image = AppIconStore.image(icon, size: size, weight: weight ?? .regular) {
             Image(nsImage: image)
                 .resizable()
                 .renderingMode(.template)
@@ -263,3 +285,71 @@ struct AppIconImage: View {
         }
     }
 }
+
+private struct ProtocolFolderIconView: View {
+    let badge: String
+    let size: CGFloat
+
+    var body: some View {
+        let scale = size / 20.0
+        let folderWidth = 17.0 * scale
+        let folderHeight = folderWidth * 0.78
+        let strokeWidth = AppIconLineWidth.bySize[size] ?? (1.30 * scale)
+        let labelFontSize: CGFloat = {
+            if badge.count > 4 {
+                return size >= 20 ? (7.5 * scale) : (5.4 * (size / 18.0))
+            }
+            return 8.5 * scale
+        }()
+
+        VStack(spacing: 1.0 * scale) {
+            ProtocolFolderOutlineShape()
+                .stroke(
+                    style: StrokeStyle(
+                        lineWidth: strokeWidth,
+                        lineCap: .round,
+                        lineJoin: .round
+                    )
+                )
+                .frame(width: folderWidth, height: folderHeight)
+
+            Text(badge)
+                .font(.system(size: labelFontSize, weight: .bold))
+                .kerning(-0.2 * scale)
+                .lineLimit(1)
+                .fixedSize()
+        }
+        .fixedSize()
+    }
+}
+
+private struct ProtocolFolderOutlineShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        let sx = rect.width / 256.0
+        let sy = rect.height / 200.0
+        let rScale = min(sx, sy)
+
+        func pt(_ x: CGFloat, _ y: CGFloat) -> CGPoint {
+            CGPoint(x: rect.minX + x * sx, y: rect.minY + y * sy)
+        }
+
+        var path = Path()
+
+        // Folder body (y: 64..184 on 256x200 grid)
+        path.move(to: pt(32, 64))
+        path.addArc(tangent1End: pt(224, 64), tangent2End: pt(224, 184), radius: 8 * rScale)
+        path.addArc(tangent1End: pt(224, 184), tangent2End: pt(32, 184), radius: 7.11 * rScale)
+        path.addArc(tangent1End: pt(32, 184), tangent2End: pt(32, 64), radius: 7.4 * rScale)
+        path.addLine(to: pt(32, 64))
+        path.closeSubpath()
+
+        // Folder tab (y: 32..64 on 256x200 grid)
+        path.move(to: pt(32, 64))
+        path.addArc(tangent1End: pt(32, 32), tangent2End: pt(96, 32), radius: 8 * rScale)
+        path.addArc(tangent1End: pt(96, 32), tangent2End: pt(128, 64), radius: 8 * rScale)
+        path.addLine(to: pt(128, 64))
+
+        return path
+    }
+}
+

@@ -52,7 +52,7 @@ public struct WebDAVRootConfig: Codable, Equatable, Sendable {
         self.rootPath = rootPath
         self.davRootPath = davRootPath ?? rootPath
         self.name = name
-        self.address = address
+        self.address = WebDAVAddress.decodedDisplayAddress(address)
         self.username = username
         self.password = password
     }
@@ -67,7 +67,7 @@ public struct WebDAVRootConfig: Codable, Equatable, Sendable {
         self.rootPath = canonical
         self.davRootPath = canonical
         self.name = name
-        self.address = address
+        self.address = WebDAVAddress.decodedDisplayAddress(address)
         self.username = username
         self.password = password
     }
@@ -134,7 +134,7 @@ extension URL {
                 return absoluteString
             }
             let portSegment = port.map { ":\($0)" } ?? ""
-            var decodedPath = path.precomposedStringWithCanonicalMapping
+            var decodedPath = WebDAVAddress.decodedDisplayAddress(path)
             if decodedPath.isEmpty {
                 decodedPath = "/"
             } else if !decodedPath.hasPrefix("/") {
@@ -176,6 +176,17 @@ extension URL {
 }
 
 public enum WebDAVAddress {
+    public static func decodedDisplayAddress(_ rawAddress: String) -> String {
+        var result = rawAddress
+        for _ in 0..<2 where containsPercentEncodingPattern(result) {
+            guard let decoded = result.removingPercentEncoding, decoded != result else {
+                break
+            }
+            result = decoded
+        }
+        return result.precomposedStringWithCanonicalMapping
+    }
+
     public static func parseURL(from rawAddress: String) -> URL? {
         let trimmed = rawAddress.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let schemeRange = trimmed.range(of: "://") else {
@@ -233,11 +244,7 @@ public enum WebDAVAddress {
             rawPath = String(rawPath[..<fragmentIndex])
         }
 
-        if containsPercentEncodingPattern(rawPath),
-           let decoded = rawPath.removingPercentEncoding {
-            rawPath = decoded
-        }
-        var normalizedPath = rawPath.precomposedStringWithCanonicalMapping
+        var normalizedPath = decodedDisplayAddress(rawPath)
         if normalizedPath.isEmpty {
             normalizedPath = "/"
         } else if !normalizedPath.hasPrefix("/") {
@@ -328,6 +335,7 @@ public final class WebDAVConfigurationStore: @unchecked Sendable {
         var normalized = config
         normalized.rootPath = canonicalKey
         normalized.davRootPath = URL.fromMediaPath(config.davRootPath).mediaPath
+        normalized.address = WebDAVAddress.decodedDisplayAddress(config.address)
         lock.lock()
         configsByRootPath[canonicalKey] = normalized
         let snapshot = Array(configsByRootPath.values)
@@ -426,6 +434,7 @@ public final class WebDAVConfigurationStore: @unchecked Sendable {
             let key = URL.fromMediaPath(config.rootPath).mediaPath
             config.rootPath = key
             config.davRootPath = URL.fromMediaPath(config.davRootPath).mediaPath
+            config.address = WebDAVAddress.decodedDisplayAddress(config.address)
             result[key] = config
         }
         return result

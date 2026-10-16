@@ -92,57 +92,77 @@ struct FileRouteNavigationTests {
 
     @Test
     func fileBreadcrumbResolution() {
-        let localTitle = "Local Folder"
-        let webdavTitle = "WebDAV Folder"
+        let singularTitle = "All Folder"
+        let pluralTitle = "All Folders"
 
-        // 1. Level 1: No breadcrumb nodes (group headers are rendered directly in Level 1)
+        // 1. Level 1 header title singular vs plural
+        #expect(
+            FileBreadcrumbResolver.allFoldersTitle(
+                folderCount: 1,
+                singularTitle: singularTitle,
+                pluralTitle: pluralTitle
+            ) == "All Folder"
+        )
+        #expect(
+            FileBreadcrumbResolver.allFoldersTitle(
+                folderCount: 2,
+                singularTitle: singularTitle,
+                pluralTitle: pluralTitle
+            ) == "All Folders"
+        )
+
+        // 2. Level 1: No breadcrumb nodes (header is rendered directly in Level 1)
         let level1Nodes = FileBreadcrumbResolver.nodes(
             for: .file,
-            localFolderTitle: localTitle,
-            webdavFolderTitle: webdavTitle
+            folderCount: 1,
+            singularRootTitle: singularTitle,
+            pluralRootTitle: pluralTitle
         )
         #expect(level1Nodes.isEmpty)
 
-        // 2. Level 2 (Local): Local Folder > Anime
+        // 3. Level 2 (1 folder total): All Folder > Anime
         let localRootPath = "/Volumes/Media/Anime"
-        let level2LocalNodes = FileBreadcrumbResolver.nodes(
+        let level2SingleFolderNodes = FileBreadcrumbResolver.nodes(
             for: .fileFolder(rootPath: localRootPath),
-            localFolderTitle: localTitle,
-            webdavFolderTitle: webdavTitle
+            folderCount: 1,
+            singularRootTitle: singularTitle,
+            pluralRootTitle: pluralTitle
         )
-        #expect(level2LocalNodes.count == 2)
-        #expect(level2LocalNodes[0].id == "type")
-        #expect(level2LocalNodes[0].title == "Local Folder")
-        #expect(level2LocalNodes[0].destination == .file)
-        #expect(level2LocalNodes[1].id == "root")
-        #expect(level2LocalNodes[1].title == "Anime")
-        #expect(level2LocalNodes[1].destination == nil)
+        #expect(level2SingleFolderNodes.count == 2)
+        #expect(level2SingleFolderNodes[0].id == "all")
+        #expect(level2SingleFolderNodes[0].title == "All Folder")
+        #expect(level2SingleFolderNodes[0].destination == .file)
+        #expect(level2SingleFolderNodes[1].id == "root")
+        #expect(level2SingleFolderNodes[1].title == "Anime")
+        #expect(level2SingleFolderNodes[1].destination == nil)
 
-        // 3. Level 2 (WebDAV): WebDAV Folder > MyCloud
+        // 4. Level 2 (WebDAV with >1 folders total): All Folders > MyCloud
         let webdavRootPath = "https://dav.example.com/dav/MyCloud"
         let level2WebDAVNodes = FileBreadcrumbResolver.nodes(
             for: .fileFolder(rootPath: webdavRootPath),
-            localFolderTitle: localTitle,
-            webdavFolderTitle: webdavTitle
+            folderCount: 2,
+            singularRootTitle: singularTitle,
+            pluralRootTitle: pluralTitle
         )
         #expect(level2WebDAVNodes.count == 2)
-        #expect(level2WebDAVNodes[0].id == "type")
-        #expect(level2WebDAVNodes[0].title == "WebDAV Folder")
+        #expect(level2WebDAVNodes[0].id == "all")
+        #expect(level2WebDAVNodes[0].title == "All Folders")
         #expect(level2WebDAVNodes[0].destination == .file)
         #expect(level2WebDAVNodes[1].id == "root")
         #expect(level2WebDAVNodes[1].title == "MyCloud")
         #expect(level2WebDAVNodes[1].destination == nil)
 
-        // 4. Level 3: Local Folder > Anime > SeriesA
+        // 5. Level 3 (>1 folders total): All Folders > Anime > SeriesA
         let folderPath = "/Volumes/Media/Anime/SeriesA"
         let level3Nodes = FileBreadcrumbResolver.nodes(
             for: .fileFiles(rootPath: localRootPath, folderPath: folderPath),
-            localFolderTitle: localTitle,
-            webdavFolderTitle: webdavTitle
+            folderCount: 3,
+            singularRootTitle: singularTitle,
+            pluralRootTitle: pluralTitle
         )
         #expect(level3Nodes.count == 3)
-        #expect(level3Nodes[0].id == "type")
-        #expect(level3Nodes[0].title == "Local Folder")
+        #expect(level3Nodes[0].id == "all")
+        #expect(level3Nodes[0].title == "All Folders")
         #expect(level3Nodes[0].destination == .file)
         #expect(level3Nodes[1].id == "root")
         #expect(level3Nodes[1].title == "Anime")
@@ -153,43 +173,33 @@ struct FileRouteNavigationTests {
     }
 
     @Test
-    func fileFolderGroupingAndDirectContentUnwrapping() {
-        let localTitle = "Local Folder"
-        let webdavTitle = "WebDAV Folder"
+    func fileFolderGroupingProtocolIconsAndDecodedWebDAVSubtitles() {
         let localURL1 = URL(fileURLWithPath: "/Volumes/Media/Anime")
         let localURL2 = URL(fileURLWithPath: "/Volumes/Media/Movies")
-        let webdavURL = URL(string: "https://dav.example.com/dav/Library")!
+        let encodedWebDAVAddress = "http://192.168.1.173:5244/dav/115/%E4%BA%91%E4%B8%8B%E8%BD%BD/%5BDHR%26Airota%5D%5BKonoSuba%5D/%E4%B8%BA%E7%BE%8E%E5%A5%BD%E7%9A%84%E4%B8%96%E7%95%8C%E7%8C%AE%E4%B8%8A%E7%A5%9D%E7%A6%8F%EF%BC%81S1"
+        let webdavURL = URL.fromMediaPath(encodedWebDAVAddress)
 
-        // 1. Empty folders -> no groups
-        let emptyGroups = FileFolderGroupingResolver.rootGroups(
-            for: [],
-            localTitle: localTitle,
-            webdavTitle: webdavTitle
-        )
-        #expect(emptyGroups.isEmpty)
+        // 1. Unified root folders list (no Local / WebDav split)
+        #expect(FileFolderGroupingResolver.rootFolders(for: []).isEmpty)
+        let unifiedFolders = FileFolderGroupingResolver.rootFolders(for: [localURL1, webdavURL, localURL2])
+        #expect(unifiedFolders == [localURL1, webdavURL, localURL2])
 
-        // 2. Only local folders -> single Local group
-        let localOnlyGroups = FileFolderGroupingResolver.rootGroups(
-            for: [localURL1, localURL2],
-            localTitle: localTitle,
-            webdavTitle: webdavTitle
-        )
-        #expect(localOnlyGroups.count == 1)
-        #expect(localOnlyGroups[0].kind == .local)
-        #expect(localOnlyGroups[0].title == localTitle)
-        #expect(localOnlyGroups[0].folders == [localURL1, localURL2])
+        // 2. Folder protocol icon resolution (Local -> .folder, WebDAV -> .folderWebdav) and reserved protocol badges
+        #expect(FileFolderGroupingResolver.folderIcon(for: localURL1) == .folder)
+        #expect(FileFolderGroupingResolver.folderIcon(for: webdavURL) == .folderWebdav)
+        #expect(FileFolderGroupingResolver.folderIcon(forFolderPath: "/Volumes/Media/Anime/Season1") == .folder)
+        #expect(FileFolderGroupingResolver.folderIcon(forFolderPath: encodedWebDAVAddress) == .folderWebdav)
+        #expect(AppIcon.folder.folderProtocolBadge == nil)
+        #expect(AppIcon.folderWebdav.folderProtocolBadge == "WebDav")
+        #expect(AppIcon.folderSmb.folderProtocolBadge == "SMB")
+        #expect(AppIcon.folderFtp.folderProtocolBadge == "FTP")
+        #expect(AppIcon.folderNfs.folderProtocolBadge == "NFS")
 
-        // 3. Mixed WebDAV and Local folders -> Local group first, WebDAV group second
-        let mixedGroups = FileFolderGroupingResolver.rootGroups(
-            for: [webdavURL, localURL1],
-            localTitle: localTitle,
-            webdavTitle: webdavTitle
-        )
-        #expect(mixedGroups.count == 2)
-        #expect(mixedGroups[0].kind == .local)
-        #expect(mixedGroups[0].folders == [localURL1])
-        #expect(mixedGroups[1].kind == .webdav)
-        #expect(mixedGroups[1].folders == [webdavURL])
+        // 3. Decoded human-readable WebDAV subtitle on Level 1 & Level 2
+        let expectedDecoded = "http://192.168.1.173:5244/dav/115/云下载/[DHR&Airota][KonoSuba]/为美好的世界献上祝福！S1"
+        #expect(FileFolderGroupingResolver.rootSubtitle(for: localURL1) == "/Volumes/Media/Anime")
+        #expect(FileFolderGroupingResolver.rootSubtitle(for: webdavURL) == expectedDecoded)
+        #expect(FileFolderGroupingResolver.subfolderSubtitle(for: encodedWebDAVAddress) == expectedDecoded)
 
         // 4. Level 2 partition unwraps direct content folder entry and preserves subfolders + direct episode groups
         let rootPath = "/Volumes/Media/Anime"
