@@ -126,7 +126,7 @@
 | | `L-04.2` | Library Folder Card Layout | 媒体库一级文件夹卡片 |
 | | `L-04.3` | Library Folder Detail Layout | 媒体库二级详情页（Cover Summary + 剧集网格） |
 | | `L-04.4` | Library Episode Grid Layout | 剧集卡片自适应网格 |
-| | `L-04.5` | File Page Layout | File 三级页面（状态操作栏、面包屑、类型分组、单集容器） |
+| | `L-04.5` | File Page Layout | File 三级页面（状态操作栏、面包屑、文件夹列表、单集容器） |
 | | `L-04.6` | File Card Layout | File 页面文件夹/视频/字幕列表卡片与右侧 `dots-three` 操作区 |
 | **3.5 Search and Excerpt** | `L-05.1` | Excerpt List Overview Layout | Excerpt 一级总览页（汇总行 + 新建按钮 + 摘录集网格） |
 | | `L-05.2` | Excerpt List Card Layout | Excerpt 一级卡片与右键菜单 |

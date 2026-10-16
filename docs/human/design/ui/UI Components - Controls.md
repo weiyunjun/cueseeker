@@ -1021,7 +1021,6 @@
   - Font Weight：Semibold（600）
   - Label Color：`--color-text-primary`
   - Interaction：不可点击，无 Hover 变化
-- Pressed：None（遵循全局无按下视觉效果规则，按住期间不改变颜色、不透明度或尺寸，松开触发层级跳转）
 
 ## 2.6 Tables
 

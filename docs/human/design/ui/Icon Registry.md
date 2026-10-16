@@ -67,7 +67,10 @@
 | 图标 | 字重 | 含义 | 使用位置 |
 | --- | --- | --- | --- |
 | `folder-plus` | Regular | 添加文件夹 | File Page / Add Folder |
-| `cloud` | Regular | WebDAV 文件夹 | File Page / Add Folder 菜单 / WebDav Folder |
+| `folder-webdav` | Regular | WebDAV 文件夹 | File Page / Add Folder 菜单 / WebDav Folder；File Page / WebDAV 文件夹卡片 |
+| `folder-smb` | Regular | SMB 文件夹 | 预留，暂无使用位置 |
+| `folder-ftp` | Regular | FTP 文件夹 | 预留，暂无使用位置 |
+| `folder-nfs` | Regular | NFS 文件夹 | 预留，暂无使用位置 |
 | `arrow-clockwise` | Regular | 重新索引、刷新 | File Page / Index Now、闲置状态；Settings / Maintenance、Developer 刷新 |
 | `minus-circle` | Regular | 移除 | File Page / Root Folder Row / Remove |
 | `minus-circle` | Fill | 半选 | Checkbox / Indeterminate |

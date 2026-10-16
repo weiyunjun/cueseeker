@@ -510,15 +510,15 @@
 
 1. Level 1: Root Folder Card List
    1. Status and Action Row：Status Indicator、Action Buttons（`Add Folder`、`Index Now`）
-   2. Folder Type Sections（按 `Local Folder`、`WebDAV Folder` 分组展示 Root Folder Card List）
+   2. All Folder(s) Header & Root Folder Card List（按数量显示 `All Folder` 或 `All Folders`，统一展示全部根目录卡片）
 2. Level 2: Subfolder & Direct File List
    1. Status and Action Row
-   2. Breadcrumb Navigation：`[Folder Type]` > `[Indexed Path]`
+   2. Breadcrumb Navigation：`All Folder(s)` > `[Indexed Path]`
    3. Subfolder Card List（存在子文件夹时）
    4. Episode File Groups（根目录存在直属文件时，排列在子文件夹下方）
 3. Level 3: File Card List
    1. Status and Action Row
-   2. Breadcrumb Navigation：`[Folder Type]` > `[Indexed Path]` > `[Folder]`
+   2. Breadcrumb Navigation：`All Folder(s)` > `[Indexed Path]` > `[Folder]`
    3. Episode File Groups
 
 #### Components
@@ -539,10 +539,10 @@
 
 - Page Layout：Workbench Titled Page Layout
 - 顶栏后退与前进按钮响应三级界面的下钻与返回，顶栏标题恒定为 `File`。
-- Status and Action Row、文件夹类型标题、面包屑、单集 `Display Title` 与各级容器/卡片均左边缘对齐。
+- Status and Action Row、列表标题、面包屑、单集 `Display Title` 与各级容器/卡片均左边缘对齐。
 - Status and Action Row 在 Level 1、Level 2、Level 3 第一行常驻展示，高 36px（`--height-control`），两端对齐：左侧为极简状态指示器，右侧为操作按钮组。
-- Level 1 按 `Local Folder`、`WebDAV Folder` 分组展示根文件夹卡片，仅当对应类型下存在根目录时显示该分组；类型标题为 14px Semibold `--color-text-primary`。
-- 面包屑节点（Level 2 与 Level 3 第二行）：以文件夹类型为起点（点击返回 Level 1）；未激活链接项为 14px Medium `--color-text-secondary`（Hover 变为 `--color-text-primary`）；当前项为 14px Semibold `--color-text-primary`；分隔符为 `caret-right`（12px 1.15px `--color-text-muted`），间距 `--spacing-2`。
+- Level 1 统一展示全部根文件夹卡片，顶部标题为 `All Folder`（根目录数量为 1 时）或 `All Folders`（根目录数量大于 1 时），样式为 14px Semibold `--color-text-primary`。
+- 面包屑节点（Level 2 与 Level 3 第二行）：以 `All Folder` / `All Folders` 为起点（点击返回 Level 1）；未激活链接项为 14px Medium `--color-text-secondary`（Hover 变为 `--color-text-primary`）；当前项为 14px Semibold `--color-text-primary`；分隔符为 `caret-right`（12px 1.15px `--color-text-muted`），间距 `--spacing-2`。
 - Episode File Group（单集文件分组）：视频与字幕按单集 `Display Title` 分组展示；`Display Title` 位于所属灰底圆角容器正上方（14px Medium `--color-text-muted`）；下方容器背景 `--color-settings-group-bg`、边框 `--color-border-divider`（宽度 `--border-width-control`）、圆角 `--radius-settings-group`、内边距 `--spacing-4`，占满内容区宽度并包裹该集的视频与字幕卡片。
 - 没有根目录时显示 Empty State；二级或三级无内容且非加载中时显示 Empty State。异步加载期间展示居中 `WorkbenchSpinner`（18px）。
 - 移除根目录前弹出 Confirmation Dialog。
@@ -552,8 +552,8 @@
 
 - Status and Action Row to Breadcrumb / Content：`--spacing-4`
 - Breadcrumb to Content：`--spacing-3`
-- Folder Type Section Gap / Subfolders to Direct Episode Groups Gap：`--spacing-6`
-- Folder Type Title to Card List：`--spacing-3`
+- Subfolders to Direct Episode Groups Gap：`--spacing-6`
+- All Folder(s) Title to Card List：`--spacing-3`
 - Episode Group Gap：`--spacing-4`
 - Episode `Display Title` to Group Container：`--spacing-2`
 - Action Row Gap：`--spacing-2`
@@ -586,16 +586,16 @@
   - Container：36×36px，圆角 `--radius-control`，背景 `--color-bg-hover`
   - Glyph Size：`--size-card-icon-glyph`（20px），居中
   - Glyph Color：`--color-text-secondary`
-  - Mapping：文件夹为 `folder`，视频为 `video`，字幕为 `subtitles`
+  - Mapping：本地文件夹为 `folder`，WebDAV 文件夹为 `folder-webdav`，视频为 `video`，字幕为 `subtitles`
 - Text Column：
   - Line 1：Title（`--font-size-body` / `--font-weight-control` / `--color-text-primary`）
-  - Line 2：Subtitle（`--font-size-caption` / Regular / `--color-text-muted`）
+  - Line 2：Subtitle（`--font-size-caption` / Regular / `--color-text-muted`；WebDAV 路径解码为可读字符展示）
   - Line Gap：`--spacing-1`
   - Wrapping：所有文本完整展示，字符折行，不截断
 - Trailing Actions：
   - 文件夹卡片最右侧常驻不可点击的 `caret-right` 指示箭头（`--size-card-chevron` 16px，`--color-text-muted`），`dots-three` 按钮位于其左侧（间距 `--spacing-2`）；文件卡片无 `caret-right` 箭头，最右侧仅保留 `dots-three` 按钮。
   - `dots-three` 纯图标按钮（32×32px，圆角 8px，图标 21px）默认隐藏，仅在卡片 Hover 或该卡片菜单打开时显示；Hover 按钮自身及菜单打开时底色为 `--color-row-selected`。
-  - `Add Folder` 弹出菜单：`Local Folder`（`folder`）+ `WebDav Folder`（`cloud`）
+  - `Add Folder` 弹出菜单：`Local Folder`（`folder`）+ `WebDav Folder`（`folder-webdav`）
   - 卡片弹出菜单（WebDAV 条目的 `Rename Folder` 与 `Rename Files` 为 Disabled）：
     - Root Folder Card：`Rename Folder`（Neutral）+ `Remove`（Destructive 警告项）
     - Subfolder Card：`Rename Folder`（Neutral）
@@ -1008,7 +1008,7 @@
 #### Layout
 
 - Width：`--width-dialog-medium`
-- Form Region 为左 Label（宽度 `--width-form-label`）、右输入框的双列水平布局；`Name` 选填并带占位提示（留空默认取地址末级目录名，根路径取 Host），其余 3 项必填且无占位提示。
+- Form Region 为左 Label（宽度 `--width-form-label`）、右输入框的双列水平布局；`Name` 选填并带占位提示（留空默认取地址末级目录名，根路径取 Host），`Address` 粘贴百分号编码链接时即时还原为可读字符，其余 3 项必填且无占位提示。
 - 前 3 个输入框不预留底部报错行；最下方 `Password` 输入框下方预留 1 行 Validation Message（左边缘与密码输入框对齐），验证或连接失败在此处显示红字，对话框保持打开。
 
 #### Spacing
