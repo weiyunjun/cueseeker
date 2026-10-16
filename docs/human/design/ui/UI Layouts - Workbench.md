@@ -547,7 +547,7 @@
 - 所有层级的第一行（Status and Action Row）与第二行（Level 1 的 `All Folder(s)` 标题行、Level 2 与 Level 3 的面包屑行）在顶部固定冻结，纵向滚动时仅下方列表区域滚动。
 - Level 1 统一展示全部根文件夹卡片，顶部标题为 `All Folder`（根目录数量为 1 时）或 `All Folders`（根目录数量大于 1 时），样式为 14px Semibold `--color-text-primary`。
 - 面包屑节点（Level 2 与 Level 3 第二行）：以 `All Folder` / `All Folders` 为起点（点击返回 Level 1）；未激活链接项为 14px Medium `--color-text-secondary`（Hover 变为 `--color-text-primary`）；当前项为 14px Semibold `--color-text-primary`；分隔符为 `caret-right`（12px 1.15px `--color-text-muted`），间距 `--spacing-2`。
-- Episode File Group（单集文件分组）：视频与字幕按单集 `Display Title` 分组展示；`Display Title` 位于所属灰底圆角容器正上方（14px Medium `--color-text-muted`）；下方容器背景 `--color-settings-group-bg`、边框 `--color-border-divider`（宽度 `--border-width-control`）、圆角 `--radius-settings-group`、内边距 `--spacing-4`，占满内容区宽度并包裹该集的视频与字幕卡片。
+- Episode File Group（单集文件分组）：视频与字幕按单集 `Display Title` 合一展示为单张圆角卡片容器（背景 `--color-table-bg`、边框 `--color-border-control`、宽度 `--border-width-control`、圆角 `--radius-settings-group`、内边距 `0`，占满内容区宽度并裁剪圆角）。卡片顶部为标题栏（最小高度 `--height-control`，水平内边距 `--spacing-4`，背景 `--color-file-group-header-bg`），左对齐展示 `Display Title`（14px Medium `--color-text-muted`）；标题栏底部及下方各文件行之间均以与卡片容器等宽的 `--color-border-divider`（宽度 `--border-width-control`）分隔。
 - 没有根目录时显示 Empty State；二级或三级无内容且非加载中时显示 Empty State。异步加载期间展示居中 `WorkbenchSpinner`（18px）。
 - 移除根目录前弹出 Confirmation Dialog。
 - 存在 Index、Add Folder、Remove Folder、Rename Folder 或 Rename Files 任务期间，以及数据库压缩进行中时，全部操作按钮为 Disabled。
@@ -559,9 +559,9 @@
 - Subfolders to Direct Episode Groups Gap：`--spacing-6`
 - All Folder(s) Title to Card List：`--spacing-3`
 - Episode Group Gap：`--spacing-4`
-- Episode `Display Title` to Group Container：`--spacing-2`
+- Episode Header Bar Padding Inline：`--spacing-4`
 - Action Row Gap：`--spacing-3`
-- Card Gap：`--spacing-3`
+- Card Gap：`--spacing-3`（仅用于独立文件夹卡片之间；单集容器内部文件行紧贴排列，以 1px 等宽分割线分隔）
 
 #### Status Indicator
 
@@ -578,10 +578,8 @@
 - Card Container：
   - Baseline Height：68px（标准双行文本时）
   - Padding：`--spacing-4`
-  - Radius：`--radius-control`
-  - Border Color：`--color-border-control`
-  - Background：`--color-table-bg`
-  - Hover Background：`--color-row-hover`
+  - Standalone Folder Card：圆角 `--radius-control`，边框 `--color-border-control`，默认背景 `--color-table-bg`，Hover 背景 `--color-row-hover`
+  - Episode Group File Row（单集容器内视频/字幕行）：无独立外边框与圆角，默认背景透明（透出外层单集卡片 `--color-table-bg`），Hover 背景 `--color-row-hover`
 - Anatomy：Icon Container + `--spacing-4` + Text Column + Spacer + Trailing Actions
 - Alignment：
   - 基准态（双行文本 36px）：图标底容器（36×36px）与文本列顶部对齐（距顶 16px）；右侧操作区（高 32px）垂直居中（上下各 18px，右边距 16px）
