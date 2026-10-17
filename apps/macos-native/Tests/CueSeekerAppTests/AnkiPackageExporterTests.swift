@@ -268,7 +268,7 @@ func ankiExportSessionNamesThePackageAndChecksTheNameLocationAndSides() throws {
     #expect(!session.validate())
     #expect(session.frontValidationError == L("anki_export.validation.front_empty"))
 
-    session.moveItem(.audio, to: .front, at: 0)
+    session.addItem(.audio, to: .front)
     #expect(session.frontValidationError == nil)
     #expect(session.options.frontItems == [.audio])
 
@@ -276,10 +276,33 @@ func ankiExportSessionNamesThePackageAndChecksTheNameLocationAndSides() throws {
     #expect(!session.validate())
     #expect(session.backValidationError == L("anki_export.validation.back_empty"))
 
-    session.moveItem(.cueText, to: .back, at: 0)
+    session.addItem(.cueText, to: .back)
     #expect(session.backValidationError == nil)
     #expect(session.options.backItems == [.cueText])
     #expect(session.validate())
+
+    // Independent Front and Back item management:
+    // Same item can be added to both sides, but cannot be duplicated on the same side.
+    session.addItem(.audio, to: .front)
+    #expect(session.options.frontItems == [.audio])
+    session.addItem(.audio, to: .back)
+    #expect(session.options.backItems == [.cueText, .audio])
+    #expect(session.remainingItems(for: .front) == [.screenshot, .cueText, .cueGroupText, .displayTitle, .timeRange, .deepLink])
+    #expect(session.remainingItems(for: .back) == [.screenshot, .cueGroupText, .displayTitle, .timeRange, .deepLink])
+
+    // Removing from one side does not remove from the other side
+    session.removeItem(.audio, from: .back)
+    #expect(session.options.frontItems == [.audio])
+    #expect(session.options.backItems == [.cueText])
+
+    // 1D in-card reordering
+    session.addItem(.screenshot, to: .back)
+    session.addItem(.displayTitle, to: .back)
+    #expect(session.options.backItems == [.cueText, .screenshot, .displayTitle])
+    session.moveItem(.displayTitle, on: .back, to: 0)
+    #expect(session.options.backItems == [.displayTitle, .cueText, .screenshot])
+    session.moveItem(.displayTitle, on: .back, to: 2)
+    #expect(session.options.backItems == [.cueText, .screenshot, .displayTitle])
 }
 
 @MainActor

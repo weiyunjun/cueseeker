@@ -227,6 +227,7 @@ private struct ContentRootView: View {
             if let session = tasks.ankiExportSession {
                 AnkiExportDialog(
                     session: session,
+                    menuGate: appState.interfaceLayers.menuGate,
                     onChooseFolder: {
                         appState.beginChoosingAnkiExportFolder(session)
                     },

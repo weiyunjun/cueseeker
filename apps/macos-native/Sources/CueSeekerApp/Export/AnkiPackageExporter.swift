@@ -59,9 +59,9 @@ struct AnkiExportOptions: Equatable, Codable, Sendable {
     var frontItems: [AnkiCardItem] = [.audio]
     var backItems: [AnkiCardItem] = [.cueText]
 
-    /// Items remaining in the available pool, preserved in canonical order.
-    var availableItems: [AnkiCardItem] {
-        let assigned = Set(frontItems + backItems)
+    /// Items remaining for the specified side, preserved in canonical order.
+    func remainingItems(for side: AnkiExportSide) -> [AnkiCardItem] {
+        let assigned = Set(side == .front ? frontItems : backItems)
         return AnkiCardItem.allCases.filter { !assigned.contains($0) }
     }
 

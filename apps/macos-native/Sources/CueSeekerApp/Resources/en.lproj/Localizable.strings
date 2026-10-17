@@ -607,10 +607,6 @@
 "anki_export.error.rename_running" = "A rename task is moving these files";
 "anki_export.side.front" = "Front";
 "anki_export.side.back" = "Back";
-"anki_export.available_items" = "Available Items";
-"anki_export.card_layout" = "Card Layout";
-"anki_export.available.empty" = "All items assigned";
-"anki_export.card.empty_hint" = "Drag items here";
 "anki_export.validation.front_empty" = "Front cannot be empty";
 "anki_export.validation.back_empty" = "Back cannot be empty";
 "anki_export.validation.location_invalid" = "Enter a valid folder path";
@@ -702,6 +698,8 @@
 "tooltip.input.shortcut.clear" = "Clear Shortcut";
 "tooltip.settings.shortcuts.restore_default" = "Restore Default Shortcut";
 "tooltip.anki_export.choose_folder" = "Choose Export Folder";
+"tooltip.anki_export.add_item" = "Add Item";
+"tooltip.disabled.anki_export.all_items_added" = "All items added";
 "tooltip.disabled.cover_summary.no_playable_content" = "No playable content available";
 "tooltip.disabled.file.task_or_compaction_running" = "Unavailable while a task or database compaction is running";
 "tooltip.disabled.file.index_now.no_folder" = "Add a folder before indexing";

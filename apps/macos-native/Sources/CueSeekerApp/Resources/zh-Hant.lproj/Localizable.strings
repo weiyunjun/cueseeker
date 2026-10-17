@@ -607,10 +607,6 @@
 "anki_export.error.rename_running" = "重新命名任務正在移動這些檔案";
 "anki_export.side.front" = "正面";
 "anki_export.side.back" = "背面";
-"anki_export.available_items" = "可用項目";
-"anki_export.card_layout" = "卡片版面";
-"anki_export.available.empty" = "全部項目已分配";
-"anki_export.card.empty_hint" = "拖曳項目至此";
 "anki_export.validation.front_empty" = "正面不能為空";
 "anki_export.validation.back_empty" = "背面不能為空";
 "anki_export.validation.location_invalid" = "請輸入有效的資料夾路徑";
@@ -702,6 +698,8 @@
 "tooltip.input.shortcut.clear" = "清除快速鍵";
 "tooltip.settings.shortcuts.restore_default" = "恢復預設快速鍵";
 "tooltip.anki_export.choose_folder" = "選擇匯出資料夾";
+"tooltip.anki_export.add_item" = "加入項目";
+"tooltip.disabled.anki_export.all_items_added" = "已加入全部項目";
 "tooltip.disabled.cover_summary.no_playable_content" = "沒有可播放的內容";
 "tooltip.disabled.file.task_or_compaction_running" = "任務或資料庫壓縮進行期間無法使用";
 "tooltip.disabled.file.index_now.no_folder" = "請先加入資料夾後再索引";

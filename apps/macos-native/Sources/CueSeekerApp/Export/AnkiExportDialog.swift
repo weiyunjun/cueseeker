@@ -1,6 +1,6 @@
+import AppKit
 import SwiftUI
 import CueSeekerCore
-import UniformTypeIdentifiers
 
 enum AnkiExportSide: String, Sendable {
     case front
@@ -11,7 +11,7 @@ enum AnkiExportSide: String, Sendable {
 /// chosen so far. Presented like the other dialog sessions: the coordinator
 /// writes it, the window presents it.
 ///
-/// See `docs/human/requirements/20261009-Feature-Export To Anki Interactive Card Layout.md`.
+/// See `docs/human/requirements/20261017-UI-Export To Anki Card Layout And Drag Redesign.md`.
 @MainActor
 final class AnkiExportSession: ObservableObject, Identifiable {
     let id = UUID()
@@ -79,43 +79,59 @@ final class AnkiExportSession: ObservableObject, Identifiable {
         return baseFolder.appendingPathComponent(name)
     }
 
-    func removeItem(_ item: AnkiCardItem) {
-        options.frontItems.removeAll { $0 == item }
-        options.backItems.removeAll { $0 == item }
-    }
-
-    func moveItem(_ item: AnkiCardItem, to side: AnkiExportSide, at targetIndex: Int) {
+    func items(for side: AnkiExportSide) -> [AnkiCardItem] {
         switch side {
         case .front:
-            let oldIndex = options.frontItems.firstIndex(of: item)
-            var newFront = options.frontItems.filter { $0 != item }
-            options.backItems.removeAll { $0 == item }
+            options.frontItems
+        case .back:
+            options.backItems
+        }
+    }
 
-            let adjustedIndex: Int
-            if let oldIndex, oldIndex < targetIndex {
-                adjustedIndex = max(0, targetIndex - 1)
-            } else {
-                adjustedIndex = targetIndex
-            }
-            let clampedIndex = min(max(0, adjustedIndex), newFront.count)
-            newFront.insert(item, at: clampedIndex)
-            options.frontItems = newFront
+    func remainingItems(for side: AnkiExportSide) -> [AnkiCardItem] {
+        options.remainingItems(for: side)
+    }
+
+    func addItem(_ item: AnkiCardItem, to side: AnkiExportSide) {
+        switch side {
+        case .front:
+            guard !options.frontItems.contains(item) else { return }
+            options.frontItems.append(item)
             frontValidationError = nil
         case .back:
-            let oldIndex = options.backItems.firstIndex(of: item)
-            var newBack = options.backItems.filter { $0 != item }
-            options.frontItems.removeAll { $0 == item }
-
-            let adjustedIndex: Int
-            if let oldIndex, oldIndex < targetIndex {
-                adjustedIndex = max(0, targetIndex - 1)
-            } else {
-                adjustedIndex = targetIndex
-            }
-            let clampedIndex = min(max(0, adjustedIndex), newBack.count)
-            newBack.insert(item, at: clampedIndex)
-            options.backItems = newBack
+            guard !options.backItems.contains(item) else { return }
+            options.backItems.append(item)
             backValidationError = nil
+        }
+    }
+
+    func removeItem(_ item: AnkiCardItem, from side: AnkiExportSide) {
+        switch side {
+        case .front:
+            options.frontItems.removeAll { $0 == item }
+        case .back:
+            options.backItems.removeAll { $0 == item }
+        }
+    }
+
+    func moveItem(_ item: AnkiCardItem, on side: AnkiExportSide, to targetIndex: Int) {
+        switch side {
+        case .front:
+            guard let fromIndex = options.frontItems.firstIndex(of: item) else { return }
+            let clampedIndex = min(max(0, targetIndex), options.frontItems.count - 1)
+            guard fromIndex != clampedIndex else { return }
+            var updated = options.frontItems
+            updated.remove(at: fromIndex)
+            updated.insert(item, at: clampedIndex)
+            options.frontItems = updated
+        case .back:
+            guard let fromIndex = options.backItems.firstIndex(of: item) else { return }
+            let clampedIndex = min(max(0, targetIndex), options.backItems.count - 1)
+            guard fromIndex != clampedIndex else { return }
+            var updated = options.backItems
+            updated.remove(at: fromIndex)
+            updated.insert(item, at: clampedIndex)
+            options.backItems = updated
         }
     }
 
@@ -171,11 +187,31 @@ final class AnkiExportSession: ObservableObject, Identifiable {
     }
 }
 
+private struct AnkiAddMenuState: Identifiable {
+    let id = UUID()
+    let side: AnkiExportSide
+    let anchorFrame: CGRect
+    let menuFrame: CGRect
+    let items: [AnkiCardItem]
+}
+
+private struct AnkiRowDragState: Equatable {
+    let side: AnkiExportSide
+    let item: AnkiCardItem
+    let startIndex: Int
+    var targetIndex: Int
+}
+
 /// The Export to Anki dialog: what goes on the cards, and where the package
 /// goes. Between the title and the buttons it scrolls when the window is too
 /// short for it.
 struct AnkiExportDialog: View {
+    private static let menuCoordinateSpaceName = "AnkiExportDialog.menuCoordinateSpace"
+    private static let rowStepHeight: CGFloat =
+        WorkbenchControlMetrics.redesignFilterChipHeight + WorkbenchControlMetrics.redesignSpacing2
+
     @ObservedObject var session: AnkiExportSession
+    var menuGate: MenuGate? = nil
     let onChooseFolder: () -> Void
     let onExport: () -> Void
     let onClose: () -> Void
@@ -185,9 +221,10 @@ struct AnkiExportDialog: View {
     @State private var isLocationFieldFocused = false
     @Environment(\.workbenchDialogAvailableSize) private var availableSize
 
-    @State private var isAvailablePoolTargeted = false
-    @State private var isFrontBoxTargeted = false
-    @State private var isBackBoxTargeted = false
+    @State private var activeMenu: AnkiAddMenuState?
+    @StateObject private var menuHighlight = MenuHighlightModel()
+    @State private var dragState: AnkiRowDragState?
+    @State private var dragTranslationY: CGFloat = 0
 
     /// The folder glyph's ink stops short of its button's box. The button
     /// reaches past the content's edge by that much, so the ink lands on the
@@ -200,6 +237,10 @@ struct AnkiExportDialog: View {
         return (WorkbenchControlMetrics.redesignIconButtonSize - iconSize) / 2
             + iconSize - inkTrailingEdge
     }()
+
+    private static func cardListCoordinateSpaceName(for side: AnkiExportSide) -> String {
+        "AnkiExportDialog.cardList.\(side.rawValue)"
+    }
 
     var body: some View {
         WorkbenchDialogColumn(
@@ -215,20 +256,13 @@ struct AnkiExportDialog: View {
             // in the inset rather than over the form.
             WorkbenchScrollView {
                 VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing4) {
-                    // Section 1: Available Items (Fixed 96px height)
-                    group(L("anki_export.available_items")) {
-                        availablePool
+                    // Section 1: Front & Back Card Columns
+                    HStack(alignment: .top, spacing: WorkbenchControlMetrics.redesignSpacing3) {
+                        cardSideColumn(side: .front)
+                        cardSideColumn(side: .back)
                     }
 
-                    // Section 2: Card Layout (Front & Back)
-                    group(L("anki_export.card_layout")) {
-                        HStack(alignment: .top, spacing: WorkbenchControlMetrics.redesignSpacing3) {
-                            cardSideBox(side: .front)
-                            cardSideBox(side: .back)
-                        }
-                    }
-
-                    // Section 3 & 4: File Name and Location (horizontal form rows)
+                    // Section 2 & 3: File Name and Location (horizontal form rows)
                     VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing3) {
                         WorkbenchDialogFormTextField(
                             label: L("anki_export.file_name"),
@@ -250,9 +284,61 @@ struct AnkiExportDialog: View {
         }
         .padding(.top, WorkbenchControlMetrics.redesignDialogTopPadding)
         .padding(.bottom, WorkbenchControlMetrics.redesignDialogInset)
+        .coordinateSpace(name: Self.menuCoordinateSpaceName)
+        .overlay(alignment: .topLeading) {
+            if let activeMenu {
+                let menuFrame = activeMenu.menuFrame
+                ZStack(alignment: .topLeading) {
+                    MenuGateClientView(
+                        gate: menuGate,
+                        owner: .dialog,
+                        kind: .cardMenu,
+                        menuFrame: menuFrame,
+                        anchorFrame: activeMenu.anchorFrame,
+                        handleKey: { keyCode, _ in
+                            switch keyCode {
+                            case 53:
+                                dismissMenu()
+                                return true
+                            case 126:
+                                _ = menuHighlight.moveHighlight(by: -1)
+                                return true
+                            case 125:
+                                _ = menuHighlight.moveHighlight(by: 1)
+                                return true
+                            case 123, 124:
+                                return true
+                            case 36, 76:
+                                return activateHighlightedItem(in: activeMenu)
+                            default:
+                                return false
+                            }
+                        },
+                        dismiss: { _ in
+                            dismissMenu()
+                        }
+                    )
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .allowsHitTesting(false)
+
+                    AnkiCardItemMenuPopover(
+                        items: activeMenu.items,
+                        highlight: menuHighlight,
+                        onSelect: { item in
+                            selectMenuItem(item, for: activeMenu.side)
+                        }
+                    )
+                    .offset(x: menuFrame.minX, y: menuFrame.minY)
+                }
+                .zIndex(1000)
+            }
+        }
         .workbenchDialogWidth(WorkbenchControlMetrics.redesignDialogWidthLarge)
         .background(WorkbenchRedesignColors.bgDialog)
-        .workbenchDialogCloseButton(onClose: onClose)
+        .workbenchDialogCloseButton(onClose: {
+            dismissMenu()
+            onClose()
+        })
         .onChange(of: session.fileName) { _ in
             if session.hasAttemptedValidation {
                 session.validate()
@@ -263,109 +349,98 @@ struct AnkiExportDialog: View {
                 session.validate()
             }
         }
+        .onDisappear {
+            dismissMenu()
+        }
         .subtitleTableTextSelectionNonInteractiveRegion()
     }
 
-    /// Available Items pool: fixed height 96px container, showing remaining badges
-    /// or empty state.
-    private var availablePool: some View {
-        ZStack {
-            if session.options.availableItems.isEmpty {
-                Text(L("anki_export.available.empty"))
-                    .font(.system(size: WorkbenchControlMetrics.redesignFontSizeBody))
-                    .foregroundStyle(WorkbenchRedesignColors.textPlaceholder)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-            } else {
-                WrappingFlowLayout(
-                    alignment: .leading,
-                    horizontalSpacing: WorkbenchControlMetrics.redesignSpacing2,
-                    verticalSpacing: WorkbenchControlMetrics.redesignSpacing2
-                ) {
-                    ForEach(session.options.availableItems) { item in
-                        AnkiAvailableBadge(item: item)
-                            .onDrag {
-                                NSItemProvider(object: item.rawValue as NSString)
-                            }
-                    }
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            }
-        }
-        .padding(WorkbenchControlMetrics.redesignSpacing3)
-        .frame(maxWidth: .infinity)
-        .frame(height: WorkbenchControlMetrics.redesignAnkiExportAvailablePoolHeight)
-        .background(WorkbenchRedesignColors.settingsGroupBg)
-        .clipShape(RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignSettingsGroupRadius))
-        .overlay(
-            RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignSettingsGroupRadius)
-                .stroke(
-                    isAvailablePoolTargeted ? WorkbenchRedesignColors.borderFocus : WorkbenchRedesignColors.borderDivider,
-                    lineWidth: WorkbenchControlMetrics.redesignControlBorderWidth
-                )
-        )
-        .onDrop(of: [UTType.text.identifier], isTargeted: $isAvailablePoolTargeted) { providers in
-            handleDropToAvailable(providers: providers)
-        }
-    }
-
-    /// One side box (Front or Back) within Card Layout.
-    private func cardSideBox(side: AnkiExportSide) -> some View {
-        let items = side == .front ? session.options.frontItems : session.options.backItems
+    /// One side column (Front or Back) with header row (`Front`/`Back` + `+` button)
+    /// and a fixed-height 288px white card box below.
+    private func cardSideColumn(side: AnkiExportSide) -> some View {
+        let items = session.items(for: side)
+        let remaining = session.remainingItems(for: side)
         let validationError = side == .front ? session.frontValidationError : session.backValidationError
-        let isTargeted = side == .front ? isFrontBoxTargeted : isBackBoxTargeted
 
         return VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing2) {
-            Text(side == .front ? L("anki_export.side.front") : L("anki_export.side.back"))
-                .font(.system(
-                    size: WorkbenchControlMetrics.redesignFontSizeBody,
-                    weight: .semibold
-                ))
-                .foregroundStyle(WorkbenchRedesignColors.textPrimary)
+            HStack(alignment: .center, spacing: WorkbenchControlMetrics.redesignSpacing2) {
+                Text(side == .front ? L("anki_export.side.front") : L("anki_export.side.back"))
+                    .font(.system(
+                        size: WorkbenchControlMetrics.redesignAnkiExportSideTitleFontSize,
+                        weight: .semibold
+                    ))
+                    .foregroundStyle(WorkbenchRedesignColors.textPrimary)
+
+                Spacer(minLength: 0)
+
+                GeometryReader { buttonProxy in
+                    WorkbenchButton(
+                        icon: .plus,
+                        isRedesign: true,
+                        isOpen: activeMenu?.side == side,
+                        height: WorkbenchControlMetrics.redesignFilterChipHeight,
+                        action: {
+                            let frame = buttonProxy.frame(in: .named(Self.menuCoordinateSpaceName))
+                            handleAddButtonTap(for: side, anchorFrame: frame)
+                        }
+                    )
+                    .disabled(remaining.isEmpty)
+                    .workbenchTooltip(
+                        scenarioID: "anki_export.card.add_item",
+                        isActive: activeMenu?.side != side,
+                        label: remaining.isEmpty
+                            ? L("tooltip.disabled.anki_export.all_items_added")
+                            : L("tooltip.anki_export.add_item")
+                    )
+                    .accessibilityIdentifier("anki-export-add-\(side.rawValue)")
+                }
+                .frame(
+                    width: WorkbenchControlMetrics.redesignFilterChipHeight,
+                    height: WorkbenchControlMetrics.redesignFilterChipHeight
+                )
+            }
 
             ZStack {
                 if items.isEmpty {
-                    ZStack {
-                        if let error = validationError {
-                            Text(error)
-                                .font(.system(size: WorkbenchControlMetrics.redesignFontSizeBody))
-                                .foregroundStyle(WorkbenchRedesignColors.dangerText)
-                                .multilineTextAlignment(.center)
-                                .padding(.horizontal, WorkbenchControlMetrics.redesignSpacing2)
-                        } else {
-                            Text(L("anki_export.card.empty_hint"))
-                                .font(.system(size: WorkbenchControlMetrics.redesignFontSizeBody))
-                                .foregroundStyle(WorkbenchRedesignColors.textPlaceholder)
-                                .multilineTextAlignment(.center)
-                                .padding(.horizontal, WorkbenchControlMetrics.redesignSpacing2)
-                        }
+                    if let error = validationError {
+                        Text(error)
+                            .font(.system(size: WorkbenchControlMetrics.redesignFontSizeBody))
+                            .foregroundStyle(WorkbenchRedesignColors.dangerText)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, WorkbenchControlMetrics.redesignSpacing2)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
                     }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .frame(minHeight: WorkbenchControlMetrics.redesignAnkiExportCardBoxMinHeight - WorkbenchControlMetrics.redesignSpacing1 * 2)
                 } else {
-                    VStack(spacing: 0) {
-                        dropSlot(side: side, index: 0)
+                    VStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
                         ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
+                            let isDragging = isDraggingRow(side: side, item: item)
                             AnkiCardBadgeRow(
                                 item: item,
                                 onRemove: {
-                                    session.removeItem(item)
+                                    dismissMenu()
+                                    session.removeItem(item, from: side)
                                 }
                             )
-                            .onDrag {
-                                NSItemProvider(object: item.rawValue as NSString)
-                            }
-
-                            dropSlot(side: side, index: index + 1)
+                            .offset(y: rowVerticalOffset(side: side, index: index, item: item))
+                            .opacity(isDragging ? WorkbenchControlMetrics.redesignAnkiExportDraggingOpacity : 1.0)
+                            .zIndex(isDragging ? 10 : 0)
+                            .gesture(
+                                rowDragGesture(
+                                    side: side,
+                                    startIndex: index,
+                                    item: item,
+                                    itemCount: items.count
+                                )
+                            )
                         }
-
-                        Spacer(minLength: 0)
                     }
-                    .frame(maxWidth: .infinity, alignment: .top)
-                    .frame(minHeight: WorkbenchControlMetrics.redesignAnkiExportCardBoxMinHeight - WorkbenchControlMetrics.redesignSpacing1 * 2)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                    .coordinateSpace(name: Self.cardListCoordinateSpaceName(for: side))
                 }
             }
-            .padding(.horizontal, WorkbenchControlMetrics.redesignSpacing2)
-            .padding(.vertical, WorkbenchControlMetrics.redesignSpacing1)
+            .padding(WorkbenchControlMetrics.redesignSpacing2)
+            .frame(maxWidth: .infinity)
+            .frame(height: WorkbenchControlMetrics.redesignAnkiExportCardBoxHeight)
             .background(WorkbenchRedesignColors.bgControl)
             .clipShape(RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignCornerRadius))
             .overlay(
@@ -373,72 +448,166 @@ struct AnkiExportDialog: View {
                     .stroke(
                         validationError != nil
                             ? WorkbenchRedesignColors.dangerText
-                            : (isTargeted ? WorkbenchRedesignColors.borderFocus : WorkbenchRedesignColors.borderDivider),
+                            : WorkbenchRedesignColors.borderControl,
                         lineWidth: WorkbenchControlMetrics.redesignControlBorderWidth
                     )
             )
-            .onDrop(of: [UTType.text.identifier], isTargeted: sideBinding(for: side)) { providers in
-                handleDrop(providers: providers, to: side, at: items.count)
-            }
         }
-        .padding(WorkbenchControlMetrics.redesignSpacing3)
         .frame(maxWidth: .infinity)
-        .background(WorkbenchRedesignColors.settingsGroupBg)
-        .clipShape(RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignSettingsGroupRadius))
-        .overlay(
-            RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignSettingsGroupRadius)
-                .stroke(WorkbenchRedesignColors.borderDivider, lineWidth: WorkbenchControlMetrics.redesignControlBorderWidth)
-        )
     }
 
-    private func dropSlot(side: AnkiExportSide, index: Int) -> some View {
-        AnkiDropSlot(
+    private func isDraggingRow(side: AnkiExportSide, item: AnkiCardItem) -> Bool {
+        dragState?.side == side && dragState?.item == item
+    }
+
+    private func rowVerticalOffset(
+        side: AnkiExportSide,
+        index: Int,
+        item: AnkiCardItem
+    ) -> CGFloat {
+        guard let currentDrag = dragState, currentDrag.side == side else {
+            return 0
+        }
+        if currentDrag.item == item {
+            return dragTranslationY
+        }
+        if currentDrag.startIndex < currentDrag.targetIndex,
+           index > currentDrag.startIndex,
+           index <= currentDrag.targetIndex {
+            return -Self.rowStepHeight
+        }
+        if currentDrag.startIndex > currentDrag.targetIndex,
+           index < currentDrag.startIndex,
+           index >= currentDrag.targetIndex {
+            return Self.rowStepHeight
+        }
+        return 0
+    }
+
+    private func rowDragGesture(
+        side: AnkiExportSide,
+        startIndex: Int,
+        item: AnkiCardItem,
+        itemCount: Int
+    ) -> some Gesture {
+        DragGesture(
+            minimumDistance: 3,
+            coordinateSpace: .named(Self.cardListCoordinateSpaceName(for: side))
+        )
+        .onChanged { value in
+            if activeMenu != nil {
+                dismissMenu()
+            }
+            guard itemCount > 1 else { return }
+
+            let minDeltaY = -CGFloat(startIndex) * Self.rowStepHeight
+            let maxDeltaY = CGFloat(itemCount - 1 - startIndex) * Self.rowStepHeight
+            let clampedDeltaY = min(max(value.translation.height, minDeltaY), maxDeltaY)
+            let offsetSteps = Int((clampedDeltaY / Self.rowStepHeight).rounded())
+            let targetIndex = min(max(0, startIndex + offsetSteps), itemCount - 1)
+
+            dragTranslationY = clampedDeltaY
+
+            if dragState?.side != side || dragState?.item != item {
+                dragState = AnkiRowDragState(
+                    side: side,
+                    item: item,
+                    startIndex: startIndex,
+                    targetIndex: targetIndex
+                )
+            } else if dragState?.targetIndex != targetIndex {
+                withAnimation(.easeInOut(duration: 0.15)) {
+                    dragState?.targetIndex = targetIndex
+                }
+            }
+        }
+        .onEnded { _ in
+            guard let currentDrag = dragState,
+                  currentDrag.side == side,
+                  currentDrag.item == item
+            else {
+                return
+            }
+            let destinationIndex = currentDrag.targetIndex
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+            withTransaction(transaction) {
+                dragState = nil
+                dragTranslationY = 0
+                session.moveItem(item, on: side, to: destinationIndex)
+            }
+        }
+    }
+
+    private func handleAddButtonTap(for side: AnkiExportSide, anchorFrame: CGRect) {
+        let remaining = session.remainingItems(for: side)
+        guard !remaining.isEmpty else { return }
+
+        if remaining.count == 1 {
+            dismissMenu()
+            session.addItem(remaining[0], to: side)
+            return
+        }
+
+        if activeMenu?.side == side {
+            dismissMenu()
+        } else {
+            openMenu(for: side, anchorFrame: anchorFrame, items: remaining)
+        }
+    }
+
+    private func openMenu(
+        for side: AnkiExportSide,
+        anchorFrame: CGRect,
+        items: [AnkiCardItem]
+    ) {
+        let naturalSize = measuredMenuSize(for: items)
+        let menuFrame = CGRect(
+            x: anchorFrame.maxX - naturalSize.width,
+            y: anchorFrame.maxY + WorkbenchControlMetrics.redesignSpacing1,
+            width: naturalSize.width,
+            height: naturalSize.height
+        )
+        activeMenu = AnkiAddMenuState(
             side: side,
-            index: index,
-            onDrop: { item in
-                session.moveItem(item, to: side, at: index)
-            }
+            anchorFrame: anchorFrame,
+            menuFrame: menuFrame,
+            items: items
         )
+        menuHighlight.open(selectablePositions: Array(items.indices))
     }
 
-    private func sideBinding(for side: AnkiExportSide) -> Binding<Bool> {
-        side == .front ? $isFrontBoxTargeted : $isBackBoxTargeted
+    private func dismissMenu() {
+        activeMenu = nil
+        menuHighlight.close()
     }
 
-    private func handleDrop(providers: [NSItemProvider], to side: AnkiExportSide, at index: Int) -> Bool {
-        guard let provider = providers.first else { return false }
-        _ = provider.loadObject(ofClass: NSString.self) { string, _ in
-            guard let rawValue = string as? String,
-                  let item = AnkiCardItem(rawValue: rawValue) else { return }
-            DispatchQueue.main.async {
-                session.moveItem(item, to: side, at: index)
-            }
+    private func selectMenuItem(_ item: AnkiCardItem, for side: AnkiExportSide) {
+        dismissMenu()
+        session.addItem(item, to: side)
+    }
+
+    private func activateHighlightedItem(in menu: AnkiAddMenuState) -> Bool {
+        guard let position = menuHighlight.highlightedPosition,
+              menu.items.indices.contains(position)
+        else {
+            return false
         }
+        let item = menu.items[position]
+        selectMenuItem(item, for: menu.side)
         return true
     }
 
-    private func handleDropToAvailable(providers: [NSItemProvider]) -> Bool {
-        guard let provider = providers.first else { return false }
-        _ = provider.loadObject(ofClass: NSString.self) { string, _ in
-            guard let rawValue = string as? String,
-                  let item = AnkiCardItem(rawValue: rawValue) else { return }
-            DispatchQueue.main.async {
-                session.removeItem(item)
-            }
-        }
-        return true
-    }
-
-    /// A group's title, with the Text Field label's type and gap, above its
-    /// content.
-    private func group<Content: View>(
-        _ title: String,
-        @ViewBuilder content: () -> Content
-    ) -> some View {
-        VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing2) {
-            WorkbenchFormLabel(text: title)
-            content()
-        }
+    private func measuredMenuSize(for items: [AnkiCardItem]) -> CGSize {
+        let host = NSHostingView(
+            rootView: AnkiCardItemMenuPopover(
+                items: items,
+                highlight: menuHighlight,
+                onSelect: { _ in }
+            )
+        )
+        host.layoutSubtreeIfNeeded()
+        return host.fittingSize
     }
 
     private var locationRow: some View {
@@ -471,13 +640,20 @@ struct AnkiExportDialog: View {
                     .overlay(WorkbenchSingleLineContainerOverlay(isEnabled: true))
                     .accessibilityIdentifier("anki-export-location")
 
-                    WorkbenchIconButton(icon: .folder, isRedesign: true, action: onChooseFolder)
-                        .workbenchTooltip(
-                            scenarioID: "anki_export.location.choose_folder",
-                            label: L("tooltip.anki_export.choose_folder")
-                        )
-                        .accessibilityLabel(L("anki_export.choose_folder"))
-                        .padding(.trailing, -Self.folderButtonTrailingSlack)
+                    WorkbenchIconButton(
+                        icon: .folder,
+                        isRedesign: true,
+                        action: {
+                            dismissMenu()
+                            onChooseFolder()
+                        }
+                    )
+                    .workbenchTooltip(
+                        scenarioID: "anki_export.location.choose_folder",
+                        label: L("tooltip.anki_export.choose_folder")
+                    )
+                    .accessibilityLabel(L("anki_export.choose_folder"))
+                    .padding(.trailing, -Self.folderButtonTrailingSlack)
                 }
 
                 WorkbenchValidationMessage(text: session.locationValidationMessage)
@@ -492,7 +668,10 @@ struct AnkiExportDialog: View {
             WorkbenchButton(
                 title: L("common.cancel"),
                 isRedesign: true,
-                action: onClose
+                action: {
+                    dismissMenu()
+                    onClose()
+                }
             )
             .keyboardShortcut(.cancelAction)
 
@@ -505,6 +684,7 @@ struct AnkiExportDialog: View {
     }
 
     private func export() {
+        dismissMenu()
         guard session.validate() else {
             if session.validationMessage != nil {
                 isFileNameFocused = true
@@ -517,28 +697,37 @@ struct AnkiExportDialog: View {
     }
 }
 
-/// A filter-chip style badge in the Available Items candidate pool.
-private struct AnkiAvailableBadge: View {
-    let item: AnkiCardItem
+private struct AnkiCardItemMenuPopover: View {
+    let items: [AnkiCardItem]
+    @ObservedObject var highlight: MenuHighlightModel
+    let onSelect: (AnkiCardItem) -> Void
 
     var body: some View {
-        Text(item.title)
-            .font(.system(
-                size: WorkbenchControlMetrics.redesignFontSizeBody,
-                weight: WorkbenchControlMetrics.redesignFontWeightControl
-            ))
-            .foregroundStyle(WorkbenchRedesignColors.textPrimary)
-            .padding(.horizontal, WorkbenchControlMetrics.redesignControlPaddingX)
-            .frame(height: WorkbenchControlMetrics.redesignFilterChipHeight)
-            .background(WorkbenchRedesignColors.bgControl)
-            .clipShape(RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignCornerRadius))
-            .overlay(
-                RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignCornerRadius)
-                    .stroke(
-                        WorkbenchRedesignColors.borderControl,
-                        lineWidth: WorkbenchControlMetrics.redesignControlBorderWidth
+        WorkbenchPopoverPanel(
+            isRedesign: true,
+            maximumHeight: MenuMetrics.maximumHeight,
+            highlight: highlight
+        ) {
+            VStack(alignment: .leading, spacing: 0) {
+                ForEach(Array(items.enumerated()), id: \.element.id) { position, item in
+                    WorkbenchPopoverRow(
+                        title: item.title,
+                        isHighlighted: highlight.highlightedPosition == position,
+                        isRedesign: true,
+                        showsCheckmarkSlot: false,
+                        action: {
+                            onSelect(item)
+                        },
+                        onHoverChange: { isHovered in
+                            highlight.noteHover(isHovered, at: position)
+                        }
                     )
-            )
+                    .id(position)
+                }
+            }
+            .frame(minWidth: 160, alignment: .leading)
+        }
+        .fixedSize(horizontal: true, vertical: false)
     }
 }
 
@@ -601,41 +790,6 @@ private struct AnkiCardBadgeRow: View {
                     lineWidth: WorkbenchControlMetrics.redesignControlBorderWidth
                 )
         )
-    }
-}
-
-/// Pre-reserved drop line slot between badges to highlight reorder drop locations.
-private struct AnkiDropSlot: View {
-    let side: AnkiExportSide
-    let index: Int
-    let onDrop: (AnkiCardItem) -> Void
-
-    @State private var isTargeted = false
-
-    var body: some View {
-        ZStack {
-            Rectangle()
-                .fill(Color.clear)
-                .frame(height: WorkbenchControlMetrics.redesignAnkiExportDropSlotHeight)
-
-            if isTargeted {
-                RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignAnkiExportDropLineHeight / 2)
-                    .fill(WorkbenchRedesignColors.borderFocus)
-                    .frame(height: WorkbenchControlMetrics.redesignAnkiExportDropLineHeight)
-            }
-        }
-        .frame(height: WorkbenchControlMetrics.redesignAnkiExportDropSlotHeight)
         .contentShape(Rectangle())
-        .onDrop(of: [UTType.text.identifier], isTargeted: $isTargeted) { providers in
-            guard let provider = providers.first else { return false }
-            _ = provider.loadObject(ofClass: NSString.self) { string, _ in
-                guard let rawValue = string as? String,
-                      let item = AnkiCardItem(rawValue: rawValue) else { return }
-                DispatchQueue.main.async {
-                    onDrop(item)
-                }
-            }
-            return true
-        }
     }
 }

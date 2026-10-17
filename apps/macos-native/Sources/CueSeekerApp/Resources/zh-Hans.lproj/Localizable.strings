@@ -607,10 +607,6 @@
 "anki_export.error.rename_running" = "重命名任务正在移动这些文件";
 "anki_export.side.front" = "正面";
 "anki_export.side.back" = "背面";
-"anki_export.available_items" = "可用项目";
-"anki_export.card_layout" = "卡片布局";
-"anki_export.available.empty" = "全部项目已分配";
-"anki_export.card.empty_hint" = "拖拽项目到此处";
 "anki_export.validation.front_empty" = "正面不能为空";
 "anki_export.validation.back_empty" = "背面不能为空";
 "anki_export.validation.location_invalid" = "请输入有效的文件夹路径";
@@ -702,6 +698,8 @@
 "tooltip.input.shortcut.clear" = "清除快捷键";
 "tooltip.settings.shortcuts.restore_default" = "恢复默认快捷键";
 "tooltip.anki_export.choose_folder" = "选择导出文件夹";
+"tooltip.anki_export.add_item" = "添加项目";
+"tooltip.disabled.anki_export.all_items_added" = "已添加全部项目";
 "tooltip.disabled.cover_summary.no_playable_content" = "没有可播放的内容";
 "tooltip.disabled.file.task_or_compaction_running" = "任务或数据库压缩进行期间不可用";
 "tooltip.disabled.file.index_now.no_folder" = "请先添加文件夹后再索引";

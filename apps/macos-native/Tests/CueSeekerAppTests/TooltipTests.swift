@@ -438,6 +438,8 @@ struct TooltipTests {
             "tooltip.input.shortcut.clear",
             "tooltip.settings.shortcuts.restore_default",
             "tooltip.anki_export.choose_folder",
+            "tooltip.anki_export.add_item",
+            "tooltip.disabled.anki_export.all_items_added",
             "tooltip.disabled.cover_summary.no_playable_content",
             "tooltip.disabled.file.task_or_compaction_running",
             "tooltip.disabled.file.index_now.no_folder",
