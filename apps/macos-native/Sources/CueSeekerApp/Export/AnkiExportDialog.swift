@@ -349,6 +349,17 @@ struct AnkiExportDialog: View {
                 session.validate()
             }
         }
+        .onChange(of: isFileNameFocused) { focused in
+            if focused {
+                isLocationFocused = false
+                isLocationFieldFocused = false
+            }
+        }
+        .onChange(of: isLocationFocused) { focused in
+            if focused {
+                isFileNameFocused = false
+            }
+        }
         .onDisappear {
             dismissMenu()
         }
@@ -370,6 +381,7 @@ struct AnkiExportDialog: View {
                         weight: .semibold
                     ))
                     .foregroundStyle(WorkbenchRedesignColors.textPrimary)
+                    .padding(.leading, WorkbenchControlMetrics.redesignSpacing2)
 
                 Spacer(minLength: 0)
 
@@ -539,6 +551,7 @@ struct AnkiExportDialog: View {
     }
 
     private func handleAddButtonTap(for side: AnkiExportSide, anchorFrame: CGRect) {
+        clearInputFocus()
         let remaining = session.remainingItems(for: side)
         guard !remaining.isEmpty else { return }
 
@@ -553,6 +566,13 @@ struct AnkiExportDialog: View {
         } else {
             openMenu(for: side, anchorFrame: anchorFrame, items: remaining)
         }
+    }
+
+    private func clearInputFocus() {
+        isFileNameFocused = false
+        isLocationFocused = false
+        isLocationFieldFocused = false
+        NSApp.keyWindow?.makeFirstResponder(nil)
     }
 
     private func openMenu(
@@ -628,7 +648,12 @@ struct AnkiExportDialog: View {
                         fontSize: WorkbenchControlMetrics.redesignFontSizeControl,
                         focus: $isLocationFocused,
                         accessibilityLabel: L("anki_export.location"),
-                        onFocusChange: { isLocationFieldFocused = $0 }
+                        onFocusChange: { focused in
+                            isLocationFieldFocused = focused
+                            if focused {
+                                isFileNameFocused = false
+                            }
+                        }
                     )
                     .padding(.horizontal, WorkbenchControlMetrics.redesignFieldPaddingX)
                     .frame(height: WorkbenchControlMetrics.redesignFieldHeight)
@@ -769,13 +794,13 @@ private struct AnkiCardBadgeRow: View {
                         .x,
                         size: WorkbenchControlMetrics.redesignAnkiExportBadgeRemoveIconSize
                     )
-                    .foregroundStyle(isRemoveHovered ? WorkbenchRedesignColors.textPrimary : WorkbenchRedesignColors.textMuted)
+                    .foregroundStyle(WorkbenchRedesignColors.textMuted)
                 }
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .focusable(false)
-            .onHover { isRemoveHovered = $0 }
+            .onPointerHover { isRemoveHovered = $0 }
         }
         .padding(.leading, WorkbenchControlMetrics.redesignSpacing2 + 2)
         .padding(.trailing, WorkbenchControlMetrics.redesignSpacing2)

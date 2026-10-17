@@ -627,4 +627,120 @@ struct WorkbenchInputControlsTests {
             #expect(diffPixels == 0)
         }
     }
+
+    @Test
+    func ankiExportDialogNeverLeavesTwoInputsFocusedAfterMenuOpenAndDismiss() throws {
+        _ = NSApplication.shared
+        let layers = InterfaceLayerRegistry()
+        let window = CueSeekerMainWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 800, height: 700),
+            styleMask: [.titled, .closable],
+            backing: .buffered,
+            defer: false
+        )
+        window.isFocusLocked = { layers.hasUncoveredOpenMenu }
+
+        let session = AnkiExportSession(
+            items: [],
+            options: AnkiExportOptions(),
+            folderURL: URL(fileURLWithPath: "/tmp"),
+            onOptionsChange: { _ in }
+        )
+        let hostingView = NSHostingView(
+            rootView: AnkiExportDialog(
+                session: session,
+                menuGate: layers.menuGate,
+                onChooseFolder: {},
+                onExport: {},
+                onClose: {}
+            )
+            .frame(width: 800, height: 700)
+        )
+        hostingView.frame = NSRect(x: 0, y: 0, width: 800, height: 700)
+        window.contentView = hostingView
+        hostingView.layoutSubtreeIfNeeded()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+
+        let fields = collectEditableTextFields(in: hostingView)
+            .compactMap { $0 as? WorkbenchNativeSingleLineTextField }
+        #expect(fields.count == 2)
+        let fileNameField = fields[0]
+        let locationField = fields[1]
+
+        var fileNameFocusedStates: [Bool] = []
+        var locationFocusedStates: [Bool] = []
+        let origFileNameOnFocus = fileNameField.onFocusChange
+        fileNameField.onFocusChange = { focused in
+            fileNameFocusedStates.append(focused)
+            origFileNameOnFocus?(focused)
+        }
+        let origLocationOnFocus = locationField.onFocusChange
+        locationField.onFocusChange = { focused in
+            locationFocusedStates.append(focused)
+            origLocationOnFocus?(focused)
+        }
+
+        let overlays = collectContainerOverlays(in: hostingView)
+        #expect(overlays.count == 2)
+        let fileNameOverlay = overlays[0]
+        let locationOverlay = overlays[1]
+
+        // 1. Click first input (File Name) via container overlay mouseDown without typing
+        if let clickEvent = NSEvent.mouseEvent(
+            with: .leftMouseDown,
+            location: fileNameOverlay.convert(NSPoint(x: 4, y: fileNameOverlay.bounds.midY), to: nil),
+            modifierFlags: [],
+            timestamp: ProcessInfo.processInfo.systemUptime,
+            windowNumber: window.windowNumber,
+            context: nil,
+            eventNumber: 10,
+            clickCount: 1,
+            pressure: 1
+        ) {
+            fileNameOverlay.mouseDown(with: clickEvent)
+        }
+        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+        #expect(fileNameField.isCurrentlyFocused)
+        #expect(!locationField.isCurrentlyFocused)
+        #expect(fileNameFocusedStates.last == true)
+
+        // 2. Simulate opening menu via MenuGate (which calls window.makeFirstResponder(nil))
+        let menuSession = layers.menuGate.open(MenuGate.Client(
+            owner: .dialog,
+            kind: .cardMenu,
+            window: { window },
+            isPointerOnMenu: { _ in false },
+            handleKey: { _, _ in false },
+            dismiss: { _ in }
+        ))
+        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+        #expect(!fileNameField.isCurrentlyFocused)
+        #expect(!locationField.isCurrentlyFocused)
+        #expect(fileNameFocusedStates.last == false)
+
+        // 3. Close menu
+        menuSession.close()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+
+        // 4. Click second input (Location) via container overlay mouseDown
+        if let clickEvent = NSEvent.mouseEvent(
+            with: .leftMouseDown,
+            location: locationOverlay.convert(NSPoint(x: 4, y: locationOverlay.bounds.midY), to: nil),
+            modifierFlags: [],
+            timestamp: ProcessInfo.processInfo.systemUptime,
+            windowNumber: window.windowNumber,
+            context: nil,
+            eventNumber: 12,
+            clickCount: 1,
+            pressure: 1
+        ) {
+            locationOverlay.mouseDown(with: clickEvent)
+        }
+        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+        #expect(!fileNameField.isCurrentlyFocused)
+        #expect(locationField.isCurrentlyFocused)
+        #expect(fileNameFocusedStates.last == false)
+        #expect(locationFocusedStates.last == true)
+    }
 }
+

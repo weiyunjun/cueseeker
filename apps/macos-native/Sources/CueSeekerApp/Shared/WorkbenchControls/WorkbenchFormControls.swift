@@ -200,6 +200,16 @@ struct WorkbenchSingleLineTextInput: NSViewRepresentable {
             if parent.focus.wrappedValue != focused {
                 parent.focus.wrappedValue = focused
             }
+            DispatchQueue.main.async { [weak self] in
+                guard let self, let field = self.textField else { return }
+                let actualFocus = field.isCurrentlyFocused
+                guard actualFocus == focused else { return }
+                self.lastObservedSwiftUIFocus = actualFocus
+                self.parent.onFocusChange?(actualFocus)
+                if self.parent.focus.wrappedValue != actualFocus {
+                    self.parent.focus.wrappedValue = actualFocus
+                }
+            }
         }
     }
 }
@@ -744,7 +754,10 @@ final class WorkbenchNativeSingleLineTextField: NSTextField {
         guard let window, bounds.width > 0, !isCurrentlyFocused else {
             return
         }
-        _ = window.makeFirstResponder(self)
+        if !window.makeFirstResponder(self) {
+            wantsFocusFromSwiftUI = false
+            onFocusChange?(false)
+        }
     }
 
     override func layout() {
