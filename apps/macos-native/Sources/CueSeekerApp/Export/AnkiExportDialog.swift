@@ -366,7 +366,7 @@ struct AnkiExportDialog: View {
             HStack(alignment: .center, spacing: WorkbenchControlMetrics.redesignSpacing2) {
                 Text(side == .front ? L("anki_export.side.front") : L("anki_export.side.back"))
                     .font(.system(
-                        size: WorkbenchControlMetrics.redesignAnkiExportSideTitleFontSize,
+                        size: WorkbenchControlMetrics.redesignFontSizeBody,
                         weight: .semibold
                     ))
                     .foregroundStyle(WorkbenchRedesignColors.textPrimary)
@@ -374,11 +374,10 @@ struct AnkiExportDialog: View {
                 Spacer(minLength: 0)
 
                 GeometryReader { buttonProxy in
-                    WorkbenchButton(
+                    WorkbenchIconButton(
                         icon: .plus,
                         isRedesign: true,
                         isOpen: activeMenu?.side == side,
-                        height: WorkbenchControlMetrics.redesignFilterChipHeight,
                         action: {
                             let frame = buttonProxy.frame(in: .named(Self.menuCoordinateSpaceName))
                             handleAddButtonTap(for: side, anchorFrame: frame)
@@ -395,8 +394,8 @@ struct AnkiExportDialog: View {
                     .accessibilityIdentifier("anki-export-add-\(side.rawValue)")
                 }
                 .frame(
-                    width: WorkbenchControlMetrics.redesignFilterChipHeight,
-                    height: WorkbenchControlMetrics.redesignFilterChipHeight
+                    width: WorkbenchControlMetrics.redesignIconButtonSize,
+                    height: WorkbenchControlMetrics.redesignIconButtonSize
                 )
             }
 

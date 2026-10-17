@@ -389,8 +389,6 @@ enum WorkbenchControlMetrics {
     // ==========================================
     // Export to Anki Tokens
     // ==========================================
-    /// --font-size-anki-export-side-title: 16px
-    static let redesignAnkiExportSideTitleFontSize: CGFloat = 16
     /// --height-anki-export-card-box: 288px
     static let redesignAnkiExportCardBoxHeight: CGFloat = 288
     /// --size-anki-export-drag-handle: 12px
