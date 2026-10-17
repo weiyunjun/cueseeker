@@ -374,7 +374,7 @@ struct AnkiExportDialog: View {
         let validationError = side == .front ? session.frontValidationError : session.backValidationError
 
         return VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing2) {
-            HStack(alignment: .center, spacing: WorkbenchControlMetrics.redesignSpacing2) {
+            HStack(alignment: .center, spacing: WorkbenchControlMetrics.redesignSpacing1) {
                 Text(side == .front ? L("anki_export.side.front") : L("anki_export.side.back"))
                     .font(.system(
                         size: WorkbenchControlMetrics.redesignFontSizeBody,
@@ -383,13 +383,13 @@ struct AnkiExportDialog: View {
                     .foregroundStyle(WorkbenchRedesignColors.textPrimary)
                     .padding(.leading, WorkbenchControlMetrics.redesignSpacing2)
 
-                Spacer(minLength: 0)
-
                 GeometryReader { buttonProxy in
                     WorkbenchIconButton(
                         icon: .plus,
                         isRedesign: true,
                         isOpen: activeMenu?.side == side,
+                        iconSize: WorkbenchControlMetrics.redesignAnkiExportAddIconSize,
+                        boxSize: WorkbenchControlMetrics.redesignAnkiExportAddButtonSize,
                         action: {
                             let frame = buttonProxy.frame(in: .named(Self.menuCoordinateSpaceName))
                             handleAddButtonTap(for: side, anchorFrame: frame)
@@ -406,9 +406,11 @@ struct AnkiExportDialog: View {
                     .accessibilityIdentifier("anki-export-add-\(side.rawValue)")
                 }
                 .frame(
-                    width: WorkbenchControlMetrics.redesignIconButtonSize,
-                    height: WorkbenchControlMetrics.redesignIconButtonSize
+                    width: WorkbenchControlMetrics.redesignAnkiExportAddButtonSize,
+                    height: WorkbenchControlMetrics.redesignAnkiExportAddButtonSize
                 )
+
+                Spacer(minLength: 0)
             }
 
             ZStack {
@@ -582,7 +584,7 @@ struct AnkiExportDialog: View {
     ) {
         let naturalSize = measuredMenuSize(for: items)
         let menuFrame = CGRect(
-            x: anchorFrame.maxX - naturalSize.width,
+            x: anchorFrame.minX,
             y: anchorFrame.maxY + WorkbenchControlMetrics.redesignSpacing1,
             width: naturalSize.width,
             height: naturalSize.height
@@ -801,6 +803,10 @@ private struct AnkiCardBadgeRow: View {
             .buttonStyle(.plain)
             .focusable(false)
             .onPointerHover { isRemoveHovered = $0 }
+            .workbenchTooltip(
+                scenarioID: "anki_export.card.remove_item",
+                label: L("tooltip.anki_export.remove_item")
+            )
         }
         .padding(.leading, WorkbenchControlMetrics.redesignSpacing2 + 2)
         .padding(.trailing, WorkbenchControlMetrics.redesignSpacing2)

@@ -699,6 +699,7 @@
 "tooltip.settings.shortcuts.restore_default" = "恢復預設快速鍵";
 "tooltip.anki_export.choose_folder" = "選擇匯出資料夾";
 "tooltip.anki_export.add_item" = "加入項目";
+"tooltip.anki_export.remove_item" = "移除項目";
 "tooltip.disabled.anki_export.all_items_added" = "已加入全部項目";
 "tooltip.disabled.cover_summary.no_playable_content" = "沒有可播放的內容";
 "tooltip.disabled.file.task_or_compaction_running" = "任務或資料庫壓縮進行期間無法使用";

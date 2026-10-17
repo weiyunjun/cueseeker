@@ -699,6 +699,7 @@
 "tooltip.settings.shortcuts.restore_default" = "Restore Default Shortcut";
 "tooltip.anki_export.choose_folder" = "Choose Export Folder";
 "tooltip.anki_export.add_item" = "Add Item";
+"tooltip.anki_export.remove_item" = "Remove Item";
 "tooltip.disabled.anki_export.all_items_added" = "All items added";
 "tooltip.disabled.cover_summary.no_playable_content" = "No playable content available";
 "tooltip.disabled.file.task_or_compaction_running" = "Unavailable while a task or database compaction is running";

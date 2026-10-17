@@ -391,6 +391,10 @@ enum WorkbenchControlMetrics {
     // ==========================================
     /// --height-anki-export-card-box: 288px
     static let redesignAnkiExportCardBoxHeight: CGFloat = 288
+    /// --size-anki-export-add-button: 24px
+    static let redesignAnkiExportAddButtonSize: CGFloat = 24
+    /// --size-anki-export-add-icon: 16px
+    static let redesignAnkiExportAddIconSize: CGFloat = 16
     /// --size-anki-export-drag-handle: 12px
     static let redesignAnkiExportDragHandleSize: CGFloat = 12
     /// --size-anki-export-badge-remove-button: 14px

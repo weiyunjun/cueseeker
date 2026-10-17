@@ -699,6 +699,7 @@
 "tooltip.settings.shortcuts.restore_default" = "恢复默认快捷键";
 "tooltip.anki_export.choose_folder" = "选择导出文件夹";
 "tooltip.anki_export.add_item" = "添加项目";
+"tooltip.anki_export.remove_item" = "移除项目";
 "tooltip.disabled.anki_export.all_items_added" = "已添加全部项目";
 "tooltip.disabled.cover_summary.no_playable_content" = "没有可播放的内容";
 "tooltip.disabled.file.task_or_compaction_running" = "任务或数据库压缩进行期间不可用";
