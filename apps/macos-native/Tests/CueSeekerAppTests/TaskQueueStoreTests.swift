@@ -253,7 +253,7 @@ func aLaunchClosesOutWhateverThePreviousOneLeftRunning() throws {
     #expect(secondLaunch.current.isEmpty)
     #expect(secondLaunch.completed.isEmpty)
     #expect(secondLaunch.incomplete.map(\.fileName) == [
-        "Running.apkg", "Queued.apkg"
+        "Queued.apkg", "Running.apkg"
     ])
     #expect(
         secondLaunch.incomplete.allSatisfy {
@@ -319,11 +319,15 @@ func aFinishedExportMovesToCompletedAndLetsTheNextOneStart() async throws {
         destinationURL: URL(fileURLWithPath: "/Exports/Second.apkg")
     )
 
-    await waitUntil { store.current.isEmpty }
+    await store.waitUntilIdle()
 
-    #expect(store.completed.map(\.fileName) == ["First.apkg", "Second.apkg"])
+    #expect(store.completed.map(\.fileName) == ["Second.apkg", "First.apkg"])
     #expect(store.incomplete.isEmpty)
     #expect(store.remainingTaskCount == 0)
+
+    let relaunched = TaskQueueStore(database: try TaskRecordDatabase(path: databaseURL))
+    relaunched.loadPersistedRecords()
+    #expect(relaunched.completed.map(\.fileName) == ["Second.apkg", "First.apkg"])
 }
 
 @MainActor
@@ -594,8 +598,8 @@ func aLibraryTaskCanStartOnceTheLastOneEnds() async throws {
     #expect(store.enqueueRemoveFolder(showRootFolder))
     await waitUntil { store.current.isEmpty }
 
-    #expect(store.completed.map(\.kind) == [.index, .removeFolder])
-    #expect(store.completed.last?.oldPaths == ["/Videos/Show"])
+    #expect(store.completed.map(\.kind) == [.removeFolder, .index])
+    #expect(store.completed.first?.oldPaths == ["/Videos/Show"])
     #expect(!store.hasLibraryTask)
 }
 
@@ -619,7 +623,7 @@ func aRunningIndexOrAddFolderCanBeRemoved() async throws {
     store.removeCurrentTask(id: addition.id)
     await waitUntil { store.current.isEmpty }
 
-    #expect(store.incomplete.map(\.kind) == [.index, .addFolder])
+    #expect(store.incomplete.map(\.kind) == [.addFolder, .index])
     #expect(store.incomplete.allSatisfy { $0.errorMessage == L("task.error.cancelled") })
 }
 
@@ -658,7 +662,7 @@ func aFinishedIndexRecordsWhatItIndexed() async throws {
     store.enqueueAddFolder(URL(fileURLWithPath: "/Videos/Other"))
     await waitUntil { store.current.isEmpty }
 
-    #expect(store.completed.map(\.itemCount) == [42, 7])
+    #expect(store.completed.map(\.itemCount) == [7, 42])
     let database = try TaskRecordDatabase(path: databaseURL)
     #expect(try database.records().map(\.itemCount).sorted() == [7, 42])
 }

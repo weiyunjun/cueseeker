@@ -255,3 +255,82 @@ func exactSearchBuildsCompleteFacetSnapshotWithItsResultIDs() throws {
     )
     #expect(completeVisiblePage.facetSnapshot == snapshot)
 }
+
+@Test
+func characterFacetCountsMatchAcrossCountCacheSearchAndExcerptWithEastAsianWidth() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer { removeTemporaryDatabase(at: databaseURL) }
+    try DatabaseBootstrap.prepare(at: databaseURL)
+    let indexing = try IndexingDatabase(path: databaseURL)
+    let subtitleFile = URL(fileURLWithPath: "/Media/EastAsianWidth.srt")
+    let videoFile = URL(fileURLWithPath: "/Media/EastAsianWidth.mkv")
+    try indexing.replaceEntries(
+        subtitleFile: subtitleFile,
+        videoFile: videoFile,
+        entries: [
+            SubtitleEntry(
+                sequenceNumber: 1,
+                startTimecode: "00:00:01,000",
+                endTimecode: "00:00:02,000",
+                startMilliseconds: 1_000,
+                endMilliseconds: 2_000,
+                text: "  abcdef  " // trimmed width 6 -> 1_to_10
+            ),
+            SubtitleEntry(
+                sequenceNumber: 2,
+                startTimecode: "00:00:03,000",
+                endTimecode: "00:00:04,000",
+                startMilliseconds: 3_000,
+                endMilliseconds: 4_000,
+                text: "あいう　えabcdef" // 4 kana(8) + 1 fullwidth space(2) -> 10, plus 6 ASCII -> 16 -> 11_to_20
+            ),
+            SubtitleEntry(
+                sequenceNumber: 3,
+                startTimecode: "00:00:05,000",
+                endTimecode: "00:00:06,000",
+                startMilliseconds: 5_000,
+                endMilliseconds: 6_000,
+                text: "汉字六个字数abcdef" // 6 hanzi(12) + 6 ASCII(6) = 18 -> 11_to_20
+            ),
+            SubtitleEntry(
+                sequenceNumber: 4,
+                startTimecode: "00:00:07,000",
+                endTimecode: "00:00:08,000",
+                startMilliseconds: 7_000,
+                endMilliseconds: 8_000,
+                text: "汉字十一个字数刚好二十二abcdef" // 11 hanzi(22) + 6 ASCII(6) = 28 -> 21_to_30
+            )
+        ]
+    )
+
+    let search = try SearchDatabase(path: databaseURL)
+    let cachedDistribution = try search.cueFacetDistribution()
+    let expectedCharacterCounts: [CueCharacterFacet: Int] = [
+        .oneToTen: 1,
+        .elevenToTwenty: 2,
+        .twentyOneToThirty: 1
+    ]
+    #expect(cachedDistribution.characterCounts == expectedCharacterCounts)
+
+    let searchPage = try search.searchPage("abcdef", limit: 10, cursor: .start)
+    let searchSnapshot = try #require(searchPage.facetSnapshot)
+    #expect(searchSnapshot.distribution.characterCounts == expectedCharacterCounts)
+
+    for bucket in CueCharacterFacet.allCases {
+        let filteredPage = try search.searchPage(
+            "abcdef",
+            limit: 10,
+            cursor: .start,
+            facetFilter: CueFacetFilter(characters: [bucket])
+        )
+        #expect(filteredPage.results.count == (expectedCharacterCounts[bucket] ?? 0))
+    }
+
+    let excerptDB = try ExcerptDatabase(path: databaseURL)
+    for cueID in searchPage.cueIDs {
+        _ = try excerptDB.upsertExcerpt(cueID: cueID)
+    }
+    let excerptSnapshot = try excerptDB.excerptResidentSnapshot().facetSnapshot
+    #expect(excerptSnapshot.distribution.characterCounts == expectedCharacterCounts)
+}
+

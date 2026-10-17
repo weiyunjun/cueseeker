@@ -12,7 +12,7 @@ public enum DatabaseBootstrapError: Error, Equatable, CustomStringConvertible {
 }
 
 public enum DatabaseBootstrap {
-    public static let currentSchemaVersion = 55
+    public static let currentSchemaVersion = 56
 
     public static func prepare(at path: URL) throws {
         let database = try SQLiteDatabase(path: path, access: .readWrite)
@@ -67,6 +67,7 @@ private extension DatabaseBootstrap {
                 || previousVersion == 52
                 || previousVersion == 53
                 || previousVersion == 54
+                || previousVersion == 55
                 || previousVersion == DatabaseBootstrap.currentSchemaVersion
         else {
             throw DatabaseBootstrapError.unsupportedSchemaVersion(
@@ -181,6 +182,9 @@ private extension DatabaseBootstrap {
         }
         if previousVersion >= 33, previousVersion <= 54 {
             try migrateSchema54To55(on: database)
+        }
+        if previousVersion >= 33, previousVersion <= 55 {
+            try migrateSchema55To56(on: database)
             return
         }
         guard previousVersion == 0 else {
@@ -955,6 +959,20 @@ private extension DatabaseBootstrap {
                 }
             }
             try database.execute("PRAGMA user_version = 55;")
+        }
+    }
+
+    /// Schema 56 recalculates the cached `Characters` facet counts using
+    /// trimmed Unicode East Asian Width (`W`/`F` = 2, others = 1).
+    static func migrateSchema55To56(on database: SQLiteDatabase) throws {
+        try database.withImmediateTransaction {
+            let indexedContent = try database.prepare(
+                "SELECT 1 FROM sqlite_schema WHERE type = 'table' AND name = 'subtitle_video_matches';"
+            )
+            if try indexedContent.step() {
+                try CueFacetCountCache.rebuildAll(on: database)
+            }
+            try database.execute("PRAGMA user_version = 56;")
         }
     }
 

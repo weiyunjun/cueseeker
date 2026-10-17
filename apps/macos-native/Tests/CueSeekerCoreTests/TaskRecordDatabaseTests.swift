@@ -49,7 +49,7 @@ func queuedTaskIsReadBackWithWhatItWillWrite() throws {
 }
 
 @Test
-func recordsComeBackOldestFirst() throws {
+func recordsComeBackNewestFirst() throws {
     let (database, databaseURL) = try makeTaskRecordDatabase()
     defer { removeTemporaryDatabase(at: databaseURL) }
 
@@ -58,12 +58,49 @@ func recordsComeBackOldestFirst() throws {
             kind: .ankiExport,
             fileName: "Deck\(index).apkg",
             folderPath: "/Exports",
-            itemCount: index
+            itemCount: index,
+            createdAt: Date(timeIntervalSince1970: Double(index))
         )
     }
 
     #expect(try database.records().map(\.fileName) == [
-        "Deck1.apkg", "Deck2.apkg", "Deck3.apkg"
+        "Deck3.apkg", "Deck2.apkg", "Deck1.apkg"
+    ])
+}
+
+@Test
+func recordsOrderByLatestStateChangeBeforeID() throws {
+    let (database, databaseURL) = try makeTaskRecordDatabase()
+    defer { removeTemporaryDatabase(at: databaseURL) }
+
+    let first = try database.insertQueuedTask(
+        kind: .ankiExport,
+        fileName: "First.apkg",
+        folderPath: "/Exports",
+        itemCount: 1,
+        createdAt: Date(timeIntervalSince1970: 10)
+    )
+    let second = try database.insertQueuedTask(
+        kind: .ankiExport,
+        fileName: "Second.apkg",
+        folderPath: "/Exports",
+        itemCount: 1,
+        createdAt: Date(timeIntervalSince1970: 20)
+    )
+
+    try database.updateState(
+        id: second.id,
+        to: .completed,
+        changedAt: Date(timeIntervalSince1970: 30)
+    )
+    try database.updateState(
+        id: first.id,
+        to: .completed,
+        changedAt: Date(timeIntervalSince1970: 30.005)
+    )
+
+    #expect(try database.records().map(\.fileName) == [
+        "First.apkg", "Second.apkg"
     ])
 }
 
@@ -103,27 +140,42 @@ func unfinishedTasksFromAPreviousLaunchBecomeIncomplete() throws {
         kind: .ankiExport,
         fileName: "Running.apkg",
         folderPath: "/Exports",
-        itemCount: 10
+        itemCount: 10,
+        createdAt: Date(timeIntervalSince1970: 10)
     )
-    try database.updateState(id: running.id, to: .running)
+    try database.updateState(
+        id: running.id,
+        to: .running,
+        changedAt: Date(timeIntervalSince1970: 11)
+    )
     _ = try database.insertQueuedTask(
         kind: .ankiExport,
         fileName: "Queued.apkg",
         folderPath: "/Exports",
-        itemCount: 20
+        itemCount: 20,
+        createdAt: Date(timeIntervalSince1970: 12)
     )
     let finished = try database.insertQueuedTask(
         kind: .ankiExport,
         fileName: "Done.apkg",
         folderPath: "/Exports",
-        itemCount: 30
+        itemCount: 30,
+        createdAt: Date(timeIntervalSince1970: 13)
     )
-    try database.updateState(id: finished.id, to: .completed)
+    try database.updateState(
+        id: finished.id,
+        to: .completed,
+        changedAt: Date(timeIntervalSince1970: 14)
+    )
 
-    let closed = try database.markUnfinishedTasksIncomplete(message: "Interrupted")
+    let closed = try database.markUnfinishedTasksIncomplete(
+        message: "Interrupted",
+        at: Date(timeIntervalSince1970: 20)
+    )
 
     #expect(closed == 2)
     let records = try database.records()
+    #expect(records.map(\.fileName) == ["Queued.apkg", "Running.apkg", "Done.apkg"])
     #expect(records.map(\.state) == [.incomplete, .incomplete, .completed])
     #expect(records[0].errorMessage == "Interrupted")
     #expect(records[1].errorMessage == "Interrupted")

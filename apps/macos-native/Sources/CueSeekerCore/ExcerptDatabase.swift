@@ -587,8 +587,7 @@ public final class ExcerptDatabase: @unchecked Sendable {
                 )
             ))
             characterFacets.append(CueCharacterFacet(
-                characterCount: (content?.content ?? excerpt.content)
-                    .unicodeScalars.count
+                content: content?.content ?? excerpt.content
             ))
             languageFacets.append(content?.languages ?? [.unknown])
             watchStateFacets.append(

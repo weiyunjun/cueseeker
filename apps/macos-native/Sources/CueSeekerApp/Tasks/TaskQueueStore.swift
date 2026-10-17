@@ -302,6 +302,7 @@ final class TaskQueueStore: ObservableObject {
     /// on whatever error the cancellation produced, and this is how the outcome
     /// is recorded as the removal it actually was.
     private var cancelledTaskIDs: Set<Int64> = []
+    private var lastHistoryChangedAt: Date = .distantPast
 
     static let ankiExportRunner: TaskExportRunner = { items, options, destinationURL, onItemExported in
         try await AnkiPackageExporter.export(
@@ -747,7 +748,8 @@ final class TaskQueueStore: ObservableObject {
             return
         }
 
-        let changedAt = Date()
+        let changedAt = max(Date(), lastHistoryChangedAt.addingTimeInterval(0.001))
+        lastHistoryChangedAt = changedAt
         let record = current[index].record.withState(
             state,
             errorMessage: errorMessage,
@@ -756,9 +758,9 @@ final class TaskQueueStore: ObservableObject {
         current.remove(at: index)
 
         if state == .completed {
-            completed.append(record)
+            completed.insert(record, at: 0)
         } else {
-            incomplete.append(record)
+            incomplete.insert(record, at: 0)
         }
 
         write(

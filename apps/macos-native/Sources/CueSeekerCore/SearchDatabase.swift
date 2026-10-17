@@ -716,7 +716,7 @@ public final class SearchDatabase: @unchecked Sendable {
                                 - result.result.startMilliseconds
                         )
                         let characterFacet = CueCharacterFacet(
-                            characterCount: result.result.content.unicodeScalars.count
+                            content: result.result.content
                         )
                         acceptedCueIDs.append(result.result.entryID)
                         acceptedDurationFacets.append(durationFacet)

@@ -197,6 +197,36 @@ final class SQLiteDatabase: @unchecked Sendable {
             throw SQLiteDatabaseError.openFailed(lastErrorMessage)
         }
 
+        let functionFlags = SQLITE_UTF8 | SQLITE_DETERMINISTIC
+        guard sqlite3_create_function_v2(
+            handle,
+            "cue_character_width",
+            1,
+            functionFlags,
+            nil,
+            { context, argc, argv in
+                guard argc == 1,
+                      let argv,
+                      let value = argv[0],
+                      sqlite3_value_type(value) != SQLITE_NULL,
+                      let cString = sqlite3_value_text(value)
+                else {
+                    sqlite3_result_int64(context, 0)
+                    return
+                }
+                let text = String(cString: cString)
+                sqlite3_result_int64(
+                    context,
+                    Int64(CueCharacterFacet.characterWidth(of: text))
+                )
+            },
+            nil,
+            nil,
+            nil
+        ) == SQLITE_OK else {
+            throw SQLiteDatabaseError.openFailed(lastErrorMessage)
+        }
+
         if access == .readWrite {
             try execute("PRAGMA journal_mode = WAL")
             try execute("PRAGMA synchronous = NORMAL")

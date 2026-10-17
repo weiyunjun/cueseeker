@@ -137,17 +137,24 @@ public final class TaskRecordDatabase: @unchecked Sendable {
         database = try SQLiteDatabase(path: path, access: access)
     }
 
-    /// Every task, oldest first. One read at launch is enough: the store keeps
-    /// the list in memory afterwards and writes through to here.
+    /// Every task, newest state change first. One read at launch is enough: the
+    /// store keeps the list in memory afterwards and writes through to here.
     public func records() throws -> [TaskRecord] {
-        let statement = try database.prepare("\(Self.selectSQL) ORDER BY id ASC;")
+        let statement = try database.prepare(
+            "\(Self.selectSQL) ORDER BY state_changed_at DESC, id DESC;"
+        )
         var records: [TaskRecord] = []
         while try statement.step() {
             if let record = Self.record(from: statement) {
                 records.append(record)
             }
         }
-        return records
+        return records.sorted { lhs, rhs in
+            if lhs.stateChangedAt != rhs.stateChangedAt {
+                return lhs.stateChangedAt > rhs.stateChangedAt
+            }
+            return lhs.id > rhs.id
+        }
     }
 
     public func insertQueuedTask(
@@ -299,10 +306,17 @@ public final class TaskRecordDatabase: @unchecked Sendable {
     }
 
     private static func timestamp(from date: Date) -> String {
-        ISO8601DateFormatter().string(from: date)
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter.string(from: date)
     }
 
     private static func date(from value: String) -> Date? {
-        ISO8601DateFormatter().date(from: value)
+        let fractionalFormatter = ISO8601DateFormatter()
+        fractionalFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let date = fractionalFormatter.date(from: value) {
+            return date
+        }
+        return ISO8601DateFormatter().date(from: value)
     }
 }

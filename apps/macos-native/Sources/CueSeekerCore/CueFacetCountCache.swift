@@ -155,11 +155,11 @@ enum CueFacetCountCache {
             INSERT INTO cue_facet_counts(facet, value, cue_count)
             SELECT '\(characterFacet)',
                    CASE
-                       WHEN LENGTH(l.content) <= 10
+                       WHEN cue_character_width(l.content) <= 10
                            THEN '\(CueCharacterFacet.oneToTen.rawValue)'
-                       WHEN LENGTH(l.content) <= 20
+                       WHEN cue_character_width(l.content) <= 20
                            THEN '\(CueCharacterFacet.elevenToTwenty.rawValue)'
-                       WHEN LENGTH(l.content) <= 30
+                       WHEN cue_character_width(l.content) <= 30
                            THEN '\(CueCharacterFacet.twentyOneToThirty.rawValue)'
                        ELSE '\(CueCharacterFacet.thirtyOneOrMore.rawValue)'
                    END,

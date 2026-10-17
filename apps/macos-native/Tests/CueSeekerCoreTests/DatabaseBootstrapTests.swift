@@ -1179,3 +1179,34 @@ func migratesSchema54ByAddingFTSCoveringIndexAndLineLanguageMask() throws {
     #expect(searchPage.results.first?.content == "大丈夫です")
 }
 
+@Test
+func migratesSchema55ByRebuildingCharacterFacetCountsWithEastAsianWidthRule() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        removeTemporaryDatabase(at: databaseURL)
+    }
+
+    try DatabaseBootstrap.prepare(at: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
+    try database.replaceEntries(
+        subtitleFile: URL(fileURLWithPath: "/Media/Show/Episode.srt"),
+        videoFile: URL(fileURLWithPath: "/Media/Show/Episode.mkv"),
+        entries: [databaseTestEntry(text: "汉字六个字数")] // 6 CJK chars -> old LENGTH=6 (1_to_10), new width=12 (11_to_20)
+    )
+    try executeDatabaseTestSQLite(
+        at: databaseURL,
+        """
+        DELETE FROM cue_facet_counts WHERE facet = 'character';
+        INSERT INTO cue_facet_counts(facet, value, cue_count) VALUES ('character', '1_to_10', 1);
+        PRAGMA user_version = 55;
+        """
+    )
+
+    try DatabaseBootstrap.prepare(at: databaseURL)
+
+    #expect(try sqliteSchemaVersion(at: databaseURL) == DatabaseBootstrap.currentSchemaVersion)
+    let distribution = try SearchDatabase(path: databaseURL).cueFacetDistribution()
+    #expect(distribution.characterCounts == [.elevenToTwenty: 1])
+}
+
+

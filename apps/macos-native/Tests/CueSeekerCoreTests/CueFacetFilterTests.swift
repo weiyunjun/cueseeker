@@ -107,6 +107,32 @@ func cueFacetBucketsUseRequiredBoundaries() {
 }
 
 @Test
+func cueCharacterFacetWidthFollowsTrimmedEastAsianWidthRules() {
+    // 6 pure Chinese characters -> width 12 -> 11–20
+    #expect(CueCharacterFacet.characterWidth(of: "汉字六个字数") == 12)
+    #expect(CueCharacterFacet(content: "汉字六个字数") == .elevenToTwenty)
+
+    // 6 pure English letters -> width 6 -> 1–10
+    #expect(CueCharacterFacet.characterWidth(of: "abcdef") == 6)
+    #expect(CueCharacterFacet(content: "abcdef") == .oneToTen)
+
+    // 4 Japanese kana (8) + 1 internal fullwidth space U+3000 (2) -> width 10 -> 1–10
+    #expect(CueCharacterFacet.characterWidth(of: "あいう　え") == 10)
+    #expect(CueCharacterFacet(content: "あいう　え") == .oneToTen)
+
+    // Leading/trailing whitespace is trimmed; internal ASCII space (1) and punctuation (1) count
+    #expect(CueCharacterFacet.characterWidth(of: "  \t\n　Hello world!　\n ") == 12)
+    #expect(CueCharacterFacet(content: "  \t\n　Hello world!　\n ") == .elevenToTwenty)
+
+    // Fullwidth punctuation & alphanumerics count as 2; halfwidth katakana, Latin Extended, Cyrillic count as 1
+    #expect(CueCharacterFacet.characterWidth(of: "ＡＢＣ！") == 8)
+    #expect(CueCharacterFacet.characterWidth(of: "한국어") == 6)
+    #expect(CueCharacterFacet.characterWidth(of: "ｱｲｳｴｵ") == 5)
+    #expect(CueCharacterFacet.characterWidth(of: "éüБГ") == 4)
+    #expect(CueCharacterFacet.characterWidth(of: "   \t\n　 ") == 0)
+}
+
+@Test
 func cueFacetFilterTreatsNoSelectionAsUnrestricted() {
     let filter = CueFacetFilter()
 
