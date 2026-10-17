@@ -53,15 +53,23 @@ struct MenuAnchorProbe: NSViewRepresentable {
 
     func makeNSView(context _: Context) -> ProbeView {
         let view = ProbeView()
-        handle.view = view
+        view.handle = handle
+        if view.window != nil || handle.view?.window == nil {
+            handle.view = view
+        }
         return view
     }
 
     func updateNSView(_ nsView: ProbeView, context _: Context) {
-        handle.view = nsView
+        nsView.handle = handle
+        if nsView.window != nil || handle.view?.window == nil {
+            handle.view = nsView
+        }
     }
 
     final class ProbeView: NSView {
+        weak var handle: MenuAnchorHandle?
+
         /// SwiftUI measures top-left down; answering in the same direction
         /// keeps every "below the anchor" below it.
         override var isFlipped: Bool {
@@ -70,6 +78,15 @@ struct MenuAnchorProbe: NSViewRepresentable {
 
         override func hitTest(_ point: NSPoint) -> NSView? {
             nil
+        }
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            if window != nil {
+                handle?.view = self
+            } else if handle?.view === self {
+                handle?.view = nil
+            }
         }
     }
 }

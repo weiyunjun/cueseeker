@@ -411,12 +411,11 @@ struct CoverSummaryCard<Cover: View>: View {
         }
     }
 
-    @ViewBuilder
     private func moreMenuButton(
         action: @escaping () -> Void,
         for form: CoverSummaryCardForm
     ) -> some View {
-        Group {
+        ZStack {
             switch form {
             case .split:
                 WorkbenchButton(

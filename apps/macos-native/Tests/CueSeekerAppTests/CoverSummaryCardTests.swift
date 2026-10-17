@@ -1,4 +1,6 @@
+import AppKit
 import CoreGraphics
+import SwiftUI
 import Testing
 @testable import CueSeekerApp
 
@@ -195,4 +197,62 @@ func excerptCoverSummaryHelpersFormatSingleLinePreviewAndCreatedDate() {
         ) == "2026-10-12"
     )
     #expect(LibraryToastRequest.folderNotInLibrary.icon == .warning)
+}
+
+@Test
+@MainActor
+func coverSummaryMoreMenuAnchorStaysAttachedAcrossFormTransitions() {
+    let anchor = MenuAnchorHandle()
+    let window = NSWindow(
+        contentRect: NSRect(x: 0, y: 0, width: 800, height: 300),
+        styleMask: [.titled, .resizable],
+        backing: .buffered,
+        defer: false
+    )
+    let host = NSHostingView(
+        rootView: CoverSummaryCard(
+            title: "Ave Mujica",
+            supportingContent: .metadata(
+                primary: "13 videos  13 subtitles",
+                secondary: "/Volumes/Seagate/Ave Mujica"
+            ),
+            progress: CoverSummaryProgress(
+                labelText: "EP01  23:29 / 23:41",
+                fraction: 0.99
+            ),
+            actionKind: .resume,
+            isActionEnabled: true,
+            action: {},
+            secondaryAction: CoverSummarySecondaryAction(
+                title: "View in File",
+                icon: .folder,
+                action: {}
+            ),
+            moreMenuAnchor: anchor,
+            isMoreMenuOpen: false,
+            onToggleMoreMenu: {}
+        ) {
+            Color.black
+        }
+    )
+    window.contentView = host
+    host.layoutSubtreeIfNeeded()
+
+    let splitAnchorFrame = anchor.windowFrame
+    #expect(splitAnchorFrame != nil)
+    #expect(splitAnchorFrame?.size == CGSize(width: 36, height: 36))
+
+    window.setContentSize(NSSize(width: 560, height: 300))
+    host.layoutSubtreeIfNeeded()
+
+    let backdropAnchorFrame = anchor.windowFrame
+    #expect(backdropAnchorFrame != nil)
+    #expect(backdropAnchorFrame?.size == CGSize(width: 36, height: 36))
+
+    window.setContentSize(NSSize(width: 800, height: 300))
+    host.layoutSubtreeIfNeeded()
+
+    let restoredSplitAnchorFrame = anchor.windowFrame
+    #expect(restoredSplitAnchorFrame != nil)
+    #expect(restoredSplitAnchorFrame?.size == CGSize(width: 36, height: 36))
 }
