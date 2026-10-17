@@ -328,13 +328,13 @@ func mediaCardGridMetricsAndMinimumWindowColumnCountMatchSpecification() {
 @MainActor
 @Test
 func segmentedControlNeutralStylingAndGeometryTokensMatchSpecification() {
-    #expect(WorkbenchControlMetrics.redesignSegmentedControlHeight == 32)
+    #expect(WorkbenchControlMetrics.redesignSegmentedControlHeight == 36)
     #expect(WorkbenchControlMetrics.redesignSegmentedControlPadding == 3)
     #expect(WorkbenchControlMetrics.redesignSegmentedControlGap == 2)
     #expect(WorkbenchControlMetrics.redesignCornerRadius == 8)
     #expect(WorkbenchControlMetrics.redesignSegmentedControlSegmentRadius == 5)
-    #expect(WorkbenchControlMetrics.redesignSegmentedControlSegmentHeight == 26)
-    #expect(WorkbenchControlMetrics.redesignFontSizeSegmentedControl == 12)
+    #expect(WorkbenchControlMetrics.redesignSegmentedControlSegmentHeight == 30)
+    #expect(WorkbenchControlMetrics.redesignFontSizeSegmentedControl == 14)
     #expect(WorkbenchControlMetrics.redesignFontWeightControl == .medium)
     #expect(WorkbenchControlMetrics.redesignControlBorderWidth == 1)
 

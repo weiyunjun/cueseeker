@@ -18,7 +18,7 @@
      - `--color-segmented-control-selected-border` (`segmentedControlSelectedBorder`): Light `#E5E7EB`; Dark `rgba(255,255,255,0.12)` with `1px` border width.
      - `--color-segmented-control-selected-content` (`segmentedControlSelectedContent`): aliases `textPrimary` (Light `#1F1F1F`; Dark `#E4E4E4`).
      - `--color-segmented-control-unselected-content` (`segmentedControlUnselectedContent`): aliases `textMuted` (Light `#717171`; Dark `#979797`).
-   - Updated `WorkbenchSegmentedControl` container and segment rendering to use the neutral groove background/border and raised bordered selected segment without internal shadows, preserving existing geometry (`32px` height, `3px` padding, `2px` gap, `8px` outer radius, `5px` selected radius, `12px` font size, `500` weight, equal option widths, no hover state).
+   - Updated `WorkbenchSegmentedControl` container and segment rendering to use the neutral groove background/border and raised bordered selected segment without internal shadows, adjusting outer height to `36px` (`30px` segment height) and font size to `14px` while preserving `3px` padding, `2px` gap, `8px` outer radius, `5px` selected radius, `500` weight, equal option widths, and no hover state.
 
 2. **Tooltip Continuous Hover Warmup / Skip Delay Window (`WorkbenchControls.swift`, `Tooltip.swift`)**:
    - Added `--delay-tooltip-skip-window: 0.3s` (`WorkbenchControlMetrics.redesignTooltipSkipWindowDelay = 0.3` and `TooltipCenter.defaultSkipWindowDelay`).
