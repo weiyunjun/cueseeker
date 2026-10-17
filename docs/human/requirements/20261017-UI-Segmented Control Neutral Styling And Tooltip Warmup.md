@@ -20,7 +20,7 @@ main
      - `--color-segmented-control-selected-border`（新增，选中项边框，线宽 `--border-width-control: 1px`）：Light `#E5E7EB`（同 `--color-border-control`）；Dark `rgba(255,255,255,0.12)`。
      - `--color-segmented-control-selected-content`（更新，选中项文字颜色）：同 `--color-text-primary`（Light `#1F1F1F`；Dark `#E4E4E4`）。
      - `--color-segmented-control-unselected-content`（新增或复用 `--color-text-muted`，未选中项文字颜色）：同 `--color-text-muted`（Light `#717171`；Dark `#979797`），未选中项背景与边框均为 `transparent`。
-   - **几何尺寸与交互保持不变**：外高 `--height-segmented-control: 32px`，内边距 `--padding-segmented-control: 3px`，选项间距 `--gap-segmented-control: 2px`，外圆角 `--radius-control: 8px`，选中项圆角 `5px`，字号 `12px`，字重 `500`，各选项等宽，无 Hover 态变化。
+   - **几何尺寸调整与交互**：外高 `--height-segmented-control: 36px`（与 `--height-control` 一致），内边距 `--padding-segmented-control: 3px`（选中项高度 `30px`），选项间距 `--gap-segmented-control: 2px`，外圆角 `--radius-control: 8px`，选中项圆角 `5px`，字号 `--font-size-segmented-control: 14px`（与 `--font-size-control` 一致），字重 `500`，各选项等宽，无 Hover 态变化。
 
 2. **Tooltip 连续悬停免等待机制（Warmup / Skip Delay Window `300ms`）**：
    - **新增动效 Token**：在 `UI Tokens.md` 的 `Interaction Motion` 下新增 `--delay-tooltip-skip-window: 0.3s`（`300ms`）。

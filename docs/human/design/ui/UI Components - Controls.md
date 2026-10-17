@@ -378,8 +378,8 @@
 ##### Anatomy
 
 - Container
-  - Background：`--color-bg-control`
-  - Border Color：`--color-border-control`
+  - Background：`--color-segmented-control-bg`
+  - Border Color：`--color-segmented-control-border`
   - Border Width：`--border-width-control`
   - Radius：`--radius-control`
 - Label
@@ -397,9 +397,11 @@
 ##### States
 
 - Unselected
-  - Label Color：`--color-text-primary`
+  - Label Color：`--color-segmented-control-unselected-content`
 - Selected
   - Background：`--color-segmented-control-selected-bg`
+  - Border Color：`--color-segmented-control-selected-border`
+  - Border Width：`--border-width-control`
   - Radius：`--radius-control` 减 `--padding-segmented-control`
   - Label Color：`--color-segmented-control-selected-content`
 - Hover：None
