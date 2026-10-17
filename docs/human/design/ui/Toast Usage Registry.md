@@ -177,6 +177,17 @@
 - 动画：Default
 - 说明：在 Workbench 表格行菜单中，当所属视频已从媒体库移除，用户点击 `Copy Deep Link` 或 `Save to Excerpt List` 时触发拦截。
 
+### 16. 文件夹不在媒体库中
+- 英文：Folder Not in Library
+- 简体中文：文件夹不在媒体库中
+- 繁体中文：檔案夾不在資料庫中
+- 图标：warning
+- 持续时间：3秒
+- Scenario ID：library.folder.not_in_library
+- 出现位置：App Center
+- 动画：Default
+- 说明：在 Library 二级界面点击 `View in File` 按钮时，若该文件夹已从媒体库中移除，触发拦截。
+
 ---
 
 ## 四、播放界面反馈与 HUD（Playback Feedback & HUD）

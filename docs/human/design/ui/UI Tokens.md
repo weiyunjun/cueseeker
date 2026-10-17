@@ -229,7 +229,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--font-size-library-list-title`: `15px`
 - `--font-size-library-list-subtitle`: `13px`
 - `--font-size-library-list-meta`: `12px`
-- `--font-size-cover-summary-title`: `28px`
+- `--font-size-cover-summary-title`: `22px`
 - `--font-weight-cover-summary-title`: `700`
 
 ### Text Decoration
@@ -271,6 +271,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--height-filter-dialog`: `600px`
 - `--height-library-list-cover`: `115px`
 - `--height-cover-summary-backdrop`: `225px`
+- `--height-cover-summary-progress-track`: `5px`
 - `--height-keycap`: `22px`
 - `--min-height-playback-footer`: `48px`
 - `--height-settings-window`: `640px`
@@ -338,6 +339,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--width-cover-summary-split-cover`: `320px`
 - `--min-width-cover-summary-split-content`: `320px`
 - `--width-cover-summary-form-switch`: `664px`
+- `--width-cover-summary-progress`: `290px`
 - `--width-library-recent-card-min`: `220px`
 - `--grid-max-columns-library-with-sidebar`: `5`
 - `--grid-max-columns-library-without-sidebar`: `6`
@@ -398,6 +400,10 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--gap-library-folder-card-content`: `12px`
 - `--gap-cover-summary-to-toolbar`: `24px`
 - `--gap-cover-summary-split`: `24px`
+- `--gap-cover-summary-title-meta`: `8px`
+- `--gap-cover-summary-meta-lines`: `6px`
+- `--gap-cover-summary-progress-label`: `6px`
+- `--gap-cover-summary-progress-actions`: `14px`
 - `--gap-cover-dialog-region`: `20px`
 
 ### Padding

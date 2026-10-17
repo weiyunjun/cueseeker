@@ -684,20 +684,35 @@
 2. Content
    1. Title
    2. Supporting Content
-      - Description Variant：Description
-      - Metadata Variant：
-        1. Primary Metadata
-        2. Secondary Metadata
-   3. Resume or Play Action
-      - Split Form：Button / Primary
-      - Backdrop Form：Button / Cover Summary
+      1. Primary Metadata
+      2. Secondary Metadata
+   3. Progress（Optional，仅 Resume 态显示）
+      1. Progress Label
+      2. Progress Bar
+   4. Action Row
+      1. Resume or Play Action
+         - Split Form：Button / Primary
+         - Backdrop Form：Button / Cover Summary
+      2. Secondary Action（Optional）
+         - Split Form：Button / Neutral
+         - Backdrop Form：Button / Cover Summary
+      3. More Action
+         - Icon：`dots-three`
+         - Split Form：Button / Neutral（`--height-control` × `--height-control`）
+         - Backdrop Form：Button / Cover Summary（`--height-control` × `--height-control`）
 
 #### Sizes
 
 - Width：Parent Available Width
 - Form Switch Width：`--width-cover-summary-form-switch`
 - Content Height：两种形态相同，等于 Split Form 的 Cover Height
-- Metadata Item Gap：`--spacing-2`
+- Title to Supporting Content Gap：`--gap-cover-summary-title-meta`
+- Supporting Content Line Gap：`--gap-cover-summary-meta-lines`
+- Progress Label to Track Gap：`--gap-cover-summary-progress-label`
+- Progress Width：`--width-cover-summary-progress`
+- Progress Track Height：`--height-cover-summary-progress-track`
+- Progress to Action Row Gap：`--gap-cover-summary-progress-actions`
+- Action Row Gap：`--spacing-2`
 - Split Form
   - Cover Size：`--width-cover-summary-split-cover` with `--aspect-library-cover`
   - Cover Radius：`--radius-library-cover`
@@ -716,12 +731,13 @@
 - 可用宽度不小于 Form Switch Width 时使用 Split Form，否则使用 Backdrop Form。
 - Split Form：Cover 在左并锁定尺寸，Content 在右占满剩余宽度，无背景与 Scrim。
 - Backdrop Form：Cover 填满组件边界并由组件 Radius 裁切，Content 压在 Cover 上。
-- Cover 保持原始比例，使用 Aspect Fill 与 Center Crop。
+- Cover 保持原始比例，使用 Aspect Fill 与 Center Crop，Hover 时不显示封面编辑遮罩。
 - Backdrop Form 高度固定，最窄宽度下不裁剪，宽度越大上下裁剪越多。
-- 两种形态的 Content 高度相同，Title 在上，Resume or Play Action 在左下角。
+- 两种形态的 Content 高度相同，Title 与 Supporting Content 在上，Progress 与 Action Row 在左下角（无 Progress 时 Action Row 保持贴底对齐）。
 - 形态切换时组件高度只变化一次，不随宽度连续变化。
 - 禁止拉伸、补边、扩图、镜像、重绘或修改封面文件。
 - Content 位于左侧并保持左对齐。
+- Progress Track 与 Fill 使用 Capsule 圆角；Split Form 下 Track 为 `--color-border-control`、Fill 为 `--color-library-progress-fill`；Backdrop Form 下 Track 为 `--color-cover-summary-text`（`24%` 不透明度）、Fill 为 `--color-cover-summary-text`。
 - Backdrop Form 的 Scrim 覆盖左侧文字区域，并按照 Cover Summary Scrim 从左向右衰减至透明。
 - Scrim 默认在 `--cover-summary-scrim-transparent` 位置完全透明。
 - 当 Content 右边缘及其 Padding 超过默认透明位置时，Scrim 终点随 Content 延伸，最大不超过组件右边缘；中间渐变位置同比例延展。
@@ -739,17 +755,20 @@
   - Font Size：`--font-size-body`
   - Color：Split Form `--color-text-secondary`；Backdrop Form `--color-cover-summary-text` with `--opacity-cover-summary-description`
   - Text Hierarchy：Secondary
-- Description Variant
-  - Maximum Lines：`2`
-  - Overflow：Tail Truncation
-- Metadata Variant
   - Each Item Maximum Lines：`1`
   - Each Item Overflow：Tail Truncation
+- Progress Label
+  - Font Size：`--font-size-caption`
+  - Font Weight：`500`
+  - Color：同 Supporting Content
+  - Maximum Width：`--width-cover-summary-progress`
+  - Maximum Lines：`1`
+  - Overflow：Tail Truncation
 
 #### States
 
-- Resume：存在最近播放记录。
-- Play：不存在最近播放记录。
+- Resume：存在最近播放记录，显示 Progress 区域，主按钮为 `Resume`。
+- Play：不存在最近播放记录，隐藏 Progress 区域，主按钮为 `Play`。
 - Disabled：没有可播放内容。
 
 ### C-11.3 Cover Crop Editor
