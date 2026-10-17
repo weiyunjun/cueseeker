@@ -828,13 +828,14 @@ extension AppCoordinator {
             excerptMutationTask = Task { @MainActor [weak self] in
                 defer { self?.excerptMutationTask = nil }
                 do {
-                    let uniqueCueCount = try await Self.runCancellableDetached(priority: .userInitiated) {
+                    let (uniqueCueCount, recentSummaries) = try await Self.runCancellableDetached(priority: .userInitiated) {
                         let db = try ExcerptDatabase(path: databaseURL)
                         _ = try db.upsertExcerpt(cueID: cueID, listID: destinationListID)
-                        return try db.uniqueExcerptCueCount()
+                        return (try db.uniqueExcerptCueCount(), try db.recentExcerptListSummaries())
                     }
                     guard let self else { return }
                     _ = self.excerpt.adjustListCueCounts([destinationListID: 0], uniqueCueCount: uniqueCueCount)
+                    self.excerpt.installRecentListSummaries(recentSummaries)
                 } catch {
                     print("Failed to save Excerpt in background: \(error)")
                     guard let self else { return }
@@ -921,10 +922,12 @@ extension AppCoordinator {
         excerptMutationTask = Task { @MainActor [weak self] in
             defer { self?.excerptMutationTask = nil }
             do {
-                _ = try await Self.runCancellableDetached(priority: .userInitiated) {
+                let recentSummaries = try await Self.runCancellableDetached(priority: .userInitiated) {
                     let db = try ExcerptDatabase(path: databaseURL)
-                    return try db.moveExcerpt(id: itemID, toListID: destinationListID)
+                    _ = try db.moveExcerpt(id: itemID, toListID: destinationListID)
+                    return try db.recentExcerptListSummaries()
                 }
+                self?.excerpt.installRecentListSummaries(recentSummaries)
             } catch ExcerptTransferError.destinationUnavailable {
                 self?.toast.show(ExcerptToastRequest.destinationUnavailable(listName: destinationName))
                 self?.reloadExcerptListOverview()
@@ -1001,10 +1004,12 @@ extension AppCoordinator {
         excerptMutationTask = Task { @MainActor [weak self] in
             defer { self?.excerptMutationTask = nil }
             do {
-                _ = try await Self.runCancellableDetached(priority: .userInitiated) {
+                let recentSummaries = try await Self.runCancellableDetached(priority: .userInitiated) {
                     let db = try ExcerptDatabase(path: databaseURL)
-                    return try db.duplicateExcerpt(id: itemID, toListID: destinationListID)
+                    _ = try db.duplicateExcerpt(id: itemID, toListID: destinationListID)
+                    return try db.recentExcerptListSummaries()
                 }
+                self?.excerpt.installRecentListSummaries(recentSummaries)
             } catch ExcerptTransferError.destinationUnavailable {
                 self?.toast.show(ExcerptToastRequest.destinationUnavailable(listName: destinationName))
                 self?.reloadExcerptListOverview()
@@ -1043,15 +1048,16 @@ extension AppCoordinator {
         excerptMutationTask = Task { @MainActor [weak self] in
             defer { self?.excerptMutationTask = nil }
             do {
-                let uniqueCueCount = try await Self.runCancellableDetached(priority: .userInitiated) {
+                let (uniqueCueCount, recentSummaries) = try await Self.runCancellableDetached(priority: .userInitiated) {
                     let database = try ExcerptDatabase(path: databaseURL)
                     _ = try database.removeExcerpt(id: itemID)
-                    return try database.uniqueExcerptCueCount()
+                    return (try database.uniqueExcerptCueCount(), try database.recentExcerptListSummaries())
                 }
                 guard let self else { return }
                 if let sourceListID {
                     _ = self.excerpt.adjustListCueCounts([sourceListID: 0], uniqueCueCount: uniqueCueCount)
                 }
+                self.excerpt.installRecentListSummaries(recentSummaries)
             } catch {
                 print("Failed to remove Excerpt in background: \(error)")
                 guard let self else { return }
@@ -1273,11 +1279,26 @@ extension AppCoordinator {
                 recentSortOrder: "created_at_desc",
                 recentPlayedAt: ISO8601DateFormatter().string(from: Date())
             )
+            let resumePosition: Int = {
+                if excerpt.residentListID == list.id {
+                    let playableIDs = excerpt.residentRelations.compactMap { rel -> Int64? in
+                        excerpt.residentExcerptsByID[rel.id]?.isValid == true ? rel.id : nil
+                    }
+                    if let idx = playableIDs.firstIndex(of: item.id) {
+                        return idx + 1
+                    }
+                }
+                if let relations = try? database.excerptRelations(listID: list.id),
+                   let idx = relations.firstIndex(where: { $0.id == item.id }) {
+                    return idx + 1
+                }
+                return existingSummary?.resumePosition ?? 1
+            }()
             let newSummary = ExcerptListSummary(
                 list: playedList,
                 cueCount: cueCount,
                 resumeExcerpt: item,
-                resumePosition: item.startMilliseconds
+                resumePosition: resumePosition
             )
             var updated = excerpt.recentListSummaries.filter { $0.id != list.id }
             updated.insert(newSummary, at: 0)

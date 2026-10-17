@@ -588,10 +588,22 @@ enum WorkbenchControlMetrics {
     static let redesignCoverSummaryBackdropHeight =
         redesignCoverSummarySplitCoverHeight
             + redesignCoverSummaryBackdropBlockPadding * 2
-    /// --font-size-cover-summary-title: 28px
-    static let redesignFontSizeCoverSummaryTitle: CGFloat = 28
+    /// --font-size-cover-summary-title: 22px
+    static let redesignFontSizeCoverSummaryTitle: CGFloat = 22
     /// --font-weight-cover-summary-title: 700
     static let redesignFontWeightCoverSummaryTitle: Font.Weight = .bold
+    /// --gap-cover-summary-title-meta: 8px
+    static let redesignCoverSummaryTitleMetaGap: CGFloat = 8
+    /// --gap-cover-summary-meta-lines: 6px
+    static let redesignCoverSummaryMetaLinesGap: CGFloat = 6
+    /// --gap-cover-summary-progress-label: 6px
+    static let redesignCoverSummaryProgressLabelGap: CGFloat = 6
+    /// --gap-cover-summary-progress-actions: 14px
+    static let redesignCoverSummaryProgressActionsGap: CGFloat = 14
+    /// --height-cover-summary-progress-track: 5px
+    static let redesignCoverSummaryProgressTrackHeight: CGFloat = 5
+    /// --width-cover-summary-progress: 290px
+    static let redesignCoverSummaryProgressWidth: CGFloat = 290
     /// --gap-cover-summary-to-toolbar: 24px
     static let redesignCoverSummaryToolbarGap: CGFloat = 24
     /// Shared top padding for Workbench details led by Cover Summary.

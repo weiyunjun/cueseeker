@@ -148,35 +148,44 @@ struct WorkbenchTestLibraryView: View {
     @State private var activeSortMenu: LibrarySortMenuState?
     @State private var sortButtonAnchorFrame: CGRect = .zero
     @StateObject private var sortMenuHighlight = MenuHighlightModel()
+    @State private var folderSummaryMoreMenuAnchor = MenuAnchorHandle()
 
     var body: some View {
         Group {
             if let folderPath = routeState.selectedLibraryFolderPath {
-                GeometryReader { geometry in
-                    WorkbenchScrollView {
-                        folderPageContent(folderPath: folderPath)
-                            .padding(
-                                .top,
-                                WorkbenchControlMetrics.redesignCoverSummaryDetailTopPadding
+                LibraryCardContextMenuHost(
+                    interfaceID: folderPath
+                ) { _, toggleAnchorMenu, activeMenuOwnerID in
+                    GeometryReader { geometry in
+                        WorkbenchScrollView {
+                            folderPageContent(
+                                folderPath: folderPath,
+                                toggleAnchorMenu: toggleAnchorMenu,
+                                activeMenuOwnerID: activeMenuOwnerID
                             )
-                            .padding(
-                                .bottom,
-                                WorkbenchTestLibraryMetrics.pageBottomPadding
-                            )
-                            .environment(
-                                \.mediaCardGridContainerWidth,
-                                WorkbenchControlMetrics.workbenchMediaCardGridWidth(
-                                    viewportWidth: geometry.size.width
+                                .padding(
+                                    .top,
+                                    WorkbenchControlMetrics.redesignCoverSummaryDetailTopPadding
                                 )
-                            )
-                            .frame(
-                                width: geometry.size.width,
-                                alignment: .topLeading
-                            )
-                            .frame(
-                                minHeight: geometry.size.height,
-                                alignment: .topLeading
-                            )
+                                .padding(
+                                    .bottom,
+                                    WorkbenchTestLibraryMetrics.pageBottomPadding
+                                )
+                                .environment(
+                                    \.mediaCardGridContainerWidth,
+                                    WorkbenchControlMetrics.workbenchMediaCardGridWidth(
+                                        viewportWidth: geometry.size.width
+                                    )
+                                )
+                                .frame(
+                                    width: geometry.size.width,
+                                    alignment: .topLeading
+                                )
+                                .frame(
+                                    minHeight: geometry.size.height,
+                                    alignment: .topLeading
+                                )
+                        }
                     }
                 }
             } else {
@@ -412,12 +421,20 @@ struct WorkbenchTestLibraryView: View {
     /// The history can point at a folder that is no longer indexed; the page
     /// then says so instead of waiting for a detail that will never load.
     @ViewBuilder
-    private func folderPageContent(folderPath: String) -> some View {
+    private func folderPageContent(
+        folderPath: String,
+        toggleAnchorMenu: @escaping ([LibraryCardContextMenuItem], MenuAnchorHandle, String) -> Void,
+        activeMenuOwnerID: String?
+    ) -> some View {
         if appState.isWorkbenchRouteUnknown(.libraryFolder(folderPath: folderPath)) {
             WorkbenchEmptyHint(message: L("library.folder.not_found"))
                 .workbenchPageInlinePadding()
         } else if let selectedFolder {
-            folderDetailContent(for: selectedFolder)
+            folderDetailContent(
+                for: selectedFolder,
+                toggleAnchorMenu: toggleAnchorMenu,
+                activeMenuOwnerID: activeMenuOwnerID
+            )
         } else {
             LibraryEmptyHint {
                 ProgressView()
@@ -428,7 +445,11 @@ struct WorkbenchTestLibraryView: View {
     }
 
     @ViewBuilder
-    private func folderDetailContent(for folder: CompleteLibraryFolderSummaryPresentation) -> some View {
+    private func folderDetailContent(
+        for folder: CompleteLibraryFolderSummaryPresentation,
+        toggleAnchorMenu: @escaping ([LibraryCardContextMenuItem], MenuAnchorHandle, String) -> Void,
+        activeMenuOwnerID: String?
+    ) -> some View {
         if case .loading = folderDetailStatus, folderDetail?.folderPath != folder.folderPath {
             LibraryEmptyHint {
                 ProgressView()
@@ -443,7 +464,12 @@ struct WorkbenchTestLibraryView: View {
                 alignment: .leading,
                 spacing: WorkbenchControlMetrics.redesignCoverSummaryToolbarGap
             ) {
-                folderCoverSummary(folder: folder, detail: folderDetail)
+                folderCoverSummary(
+                    folder: folder,
+                    detail: folderDetail,
+                    toggleAnchorMenu: toggleAnchorMenu,
+                    activeMenuOwnerID: activeMenuOwnerID
+                )
                     .workbenchPageInlinePadding()
 
                 CompleteLibraryEpisodeGrid(
@@ -471,10 +497,19 @@ struct WorkbenchTestLibraryView: View {
 
     private func folderCoverSummary(
         folder: CompleteLibraryFolderSummaryPresentation,
-        detail: CompleteLibraryFolderDetailPresentation
+        detail: CompleteLibraryFolderDetailPresentation,
+        toggleAnchorMenu: @escaping ([LibraryCardContextMenuItem], MenuAnchorHandle, String) -> Void,
+        activeMenuOwnerID: String?
     ) -> some View {
         let recentItem = recentWatchingItem(for: detail)
         let itemCount = detail.videos.count
+        let moreMenuOwnerID = "cover-summary-more:\(folder.id)"
+        let progress = recentItem.map { item in
+            LibraryCoverProgressPresentation(
+                positionMilliseconds: item.positionMilliseconds,
+                duration: item.playbackDuration ?? item.duration
+            ).coverSummaryProgress(episodeNumber: item.episodeNumber)
+        }
 
         return CoverSummaryCard(
             title: detail.folderTitle,
@@ -482,6 +517,7 @@ struct WorkbenchTestLibraryView: View {
                 primary: L("library.video_subtitle_count", itemCount, itemCount),
                 secondary: detail.folderPath
             ),
+            progress: progress,
             actionKind: recentItem == nil ? .play : .resume,
             isActionEnabled: isFolderSummaryPlaybackEnabled(
                 detail: detail,
@@ -491,6 +527,25 @@ struct WorkbenchTestLibraryView: View {
                 openFolderSummaryPlayback(
                     detail: detail,
                     recentItem: recentItem
+                )
+            },
+            secondaryAction: CoverSummarySecondaryAction(
+                title: L("library.view_in_file"),
+                icon: .folder,
+                action: {
+                    appState.openLibraryFolderInFile(folderPath: detail.folderPath)
+                }
+            ),
+            moreMenuAnchor: folderSummaryMoreMenuAnchor,
+            isMoreMenuOpen: activeMenuOwnerID == moreMenuOwnerID,
+            onToggleMoreMenu: {
+                toggleAnchorMenu(
+                    LibraryFolderCard.contextMenuItems(
+                        for: folder,
+                        actions: .appState(appState)
+                    ),
+                    folderSummaryMoreMenuAnchor,
+                    moreMenuOwnerID
                 )
             }
         ) {
@@ -1053,6 +1108,13 @@ private struct LibraryFolderCard: View {
     }
 
     private var folderContextMenuItems: [LibraryCardContextMenuItem] {
+        Self.contextMenuItems(for: folder, actions: actions)
+    }
+
+    static func contextMenuItems(
+        for folder: CompleteLibraryFolderSummaryPresentation,
+        actions: LibraryCardActionHandlers
+    ) -> [LibraryCardContextMenuItem] {
         [
             LibraryCardContextMenuItem(title: L("library.open_folder"), icon: .folder) {
                 actions.openFolder(folder.folderPath)
@@ -1137,6 +1199,10 @@ private struct LibraryCardContextMenuOpenKey: EnvironmentKey {
     nonisolated(unsafe) static let defaultValue: (([LibraryCardContextMenuItem], CGPoint, String) -> Void)? = nil
 }
 
+private struct LibraryCardContextMenuToggleAnchorKey: EnvironmentKey {
+    nonisolated(unsafe) static let defaultValue: (([LibraryCardContextMenuItem], MenuAnchorHandle, String) -> Void)? = nil
+}
+
 extension EnvironmentValues {
     var libraryCardContextMenuAnchorUpdate: ((CGPoint) -> Void)? {
         get { self[LibraryCardContextMenuAnchorUpdateKey.self] }
@@ -1146,6 +1212,11 @@ extension EnvironmentValues {
     var libraryCardContextMenuOpen: (([LibraryCardContextMenuItem], CGPoint, String) -> Void)? {
         get { self[LibraryCardContextMenuOpenKey.self] }
         set { self[LibraryCardContextMenuOpenKey.self] = newValue }
+    }
+
+    var libraryCardContextMenuToggleAnchor: (([LibraryCardContextMenuItem], MenuAnchorHandle, String) -> Void)? {
+        get { self[LibraryCardContextMenuToggleAnchorKey.self] }
+        set { self[LibraryCardContextMenuToggleAnchorKey.self] = newValue }
     }
 
     /// The card the open menu hangs off. A card that matches keeps its
@@ -1174,10 +1245,12 @@ enum LibraryCoverContextMenuItem {
 
 private struct LibraryCardContextMenuState: Identifiable {
     let id = UUID()
-    /// Which card the menu hangs off. The card compares it with its own id to
-    /// decide whether it is the one that stays lit.
+    /// Which card or control the menu hangs off. The card compares it with its
+    /// own id to decide whether it is the one that stays lit.
     let ownerID: String
     var anchorPoint: CGPoint
+    var anchorSize: CGSize = .zero
+    var anchorFrame: CGRect? = nil
     let items: [LibraryCardContextMenuItem]
     /// Measured and decided when the menu opened. From then on the menu only
     /// translates, so nothing can send it to the other side mid-scroll.
@@ -1204,6 +1277,13 @@ private final class LibraryCardMenuHostGeometry {
         // A page that is not inside a scroll view is visible in full.
         let visible = probe.visibleRect
         return visible.isEmpty ? probe.bounds : visible
+    }
+
+    func anchorFrame(for handle: MenuAnchorHandle) -> CGRect? {
+        guard let probe, let windowFrame = handle.windowFrame, probe.window != nil else {
+            return nil
+        }
+        return probe.convert(windowFrame, from: nil)
     }
 }
 
@@ -1249,15 +1329,42 @@ struct LibraryCardContextMenuHost<Content: View>: View {
     @State private var activeMenu: LibraryCardContextMenuState?
     @StateObject private var highlight = MenuHighlightModel()
     @State private var geometry = LibraryCardMenuHostGeometry()
-    @ViewBuilder var content: (_ openContextMenu: @escaping ([LibraryCardContextMenuItem], CGPoint, String) -> Void) -> Content
+    private let buildContent: (
+        _ openContextMenu: @escaping ([LibraryCardContextMenuItem], CGPoint, String) -> Void,
+        _ toggleAnchorMenu: @escaping ([LibraryCardContextMenuItem], MenuAnchorHandle, String) -> Void,
+        _ activeOwnerID: String?
+    ) -> Content
+
+    init(
+        interfaceID: String = "",
+        @ViewBuilder content: @escaping (_ openContextMenu: @escaping ([LibraryCardContextMenuItem], CGPoint, String) -> Void) -> Content
+    ) {
+        self.interfaceID = interfaceID
+        self.buildContent = { openContextMenu, _, _ in
+            content(openContextMenu)
+        }
+    }
+
+    init(
+        interfaceID: String = "",
+        @ViewBuilder content: @escaping (
+            _ openContextMenu: @escaping ([LibraryCardContextMenuItem], CGPoint, String) -> Void,
+            _ toggleAnchorMenu: @escaping ([LibraryCardContextMenuItem], MenuAnchorHandle, String) -> Void,
+            _ activeOwnerID: String?
+        ) -> Content
+    ) {
+        self.interfaceID = interfaceID
+        self.buildContent = content
+    }
 
     var body: some View {
-        content(openContextMenu)
+        buildContent(openContextMenu, toggleAnchorMenu, activeMenu?.ownerID)
             .onChange(of: interfaceID) { _ in
                 dismissContextMenu()
             }
             .environment(\.libraryCardContextMenuAnchorUpdate, updateAnchorPoint)
             .environment(\.libraryCardContextMenuOpen, openContextMenu)
+            .environment(\.libraryCardContextMenuToggleAnchor, toggleAnchorMenu)
             .environment(\.libraryCardContextMenuOwner, activeMenu?.ownerID)
             .coordinateSpace(name: LibraryCardContextMenuCoordinateSpace.name)
             .background(LibraryCardMenuViewportProbe(geometry: geometry))
@@ -1273,6 +1380,7 @@ struct LibraryCardContextMenuHost<Content: View>: View {
                             // the menu must take them there.
                             kind: .cardMenu,
                             menuFrame: menuFrame,
+                            anchorFrame: activeMenu.anchorFrame,
                             handleKey: { keyCode, _ in
                                 // Every arrow and Enter belongs to the open
                                 // menu; the card grid and the page under it
@@ -1328,11 +1436,44 @@ struct LibraryCardContextMenuHost<Content: View>: View {
         anchorPoint: CGPoint,
         ownerID: String
     ) {
+        openMenu(
+            items: items,
+            anchor: CGRect(origin: anchorPoint, size: .zero),
+            anchorFrame: nil,
+            ownerID: ownerID
+        )
+    }
+
+    private func toggleAnchorMenu(
+        items: [LibraryCardContextMenuItem],
+        anchor: MenuAnchorHandle,
+        ownerID: String
+    ) {
+        if activeMenu?.ownerID == ownerID {
+            dismissContextMenu()
+            return
+        }
+        guard let anchorRect = geometry.anchorFrame(for: anchor) else {
+            return
+        }
+        openMenu(
+            items: items,
+            anchor: anchorRect,
+            anchorFrame: anchorRect,
+            ownerID: ownerID
+        )
+    }
+
+    private func openMenu(
+        items: [LibraryCardContextMenuItem],
+        anchor: CGRect,
+        anchorFrame: CGRect?,
+        ownerID: String
+    ) {
         let naturalSize = measuredMenuSize(
             for: items,
             maximumHeight: MenuMetrics.maximumHeight
         )
-        let anchor = CGRect(origin: anchorPoint, size: .zero)
         let place = { (menuSize: CGSize) in
             MenuPlacement.openingFrame(
                 anchor: anchor,
@@ -1354,7 +1495,9 @@ struct LibraryCardContextMenuHost<Content: View>: View {
         }
         activeMenu = LibraryCardContextMenuState(
             ownerID: ownerID,
-            anchorPoint: anchorPoint,
+            anchorPoint: anchor.origin,
+            anchorSize: anchor.size,
+            anchorFrame: anchorFrame,
             items: items,
             menuSize: menuSize,
             maximumHeight: maximumHeight,
@@ -1423,7 +1566,7 @@ struct LibraryCardContextMenuHost<Content: View>: View {
     /// opened, so a scrolling page moves the menu and never re-decides it.
     private func menuFrame(for menu: LibraryCardContextMenuState) -> CGRect {
         MenuPlacement.followingFrame(
-            anchor: CGRect(origin: menu.anchorPoint, size: .zero),
+            anchor: CGRect(origin: menu.anchorPoint, size: menu.anchorSize),
             offset: menu.placementOffset,
             menuSize: menu.menuSize
         )
@@ -1727,6 +1870,27 @@ struct LibraryCoverProgressPresentation: Equatable {
 
         let current = Self.formatTime(milliseconds: positionMilliseconds)
         return "\(current)/\(Self.formatTime(seconds: duration))"
+    }
+
+    func coverSummaryProgress(episodeNumber: Int) -> CoverSummaryProgress {
+        let episodeLabel = String(format: "EP%02d", episodeNumber)
+        let current = Self.formatTime(milliseconds: positionMilliseconds)
+        let timeText: String
+        let fraction: Double
+        if let duration, duration.isFinite, duration > 0 {
+            timeText = "\(current) / \(Self.formatTime(seconds: duration))"
+            let durationMilliseconds = duration * 1_000
+            fraction = durationMilliseconds > 0
+                ? min(1, max(0, Double(max(0, positionMilliseconds)) / durationMilliseconds))
+                : 0
+        } else {
+            timeText = current
+            fraction = 0
+        }
+        return CoverSummaryProgress(
+            labelText: "\(episodeLabel)  \(timeText)",
+            fraction: fraction
+        )
     }
 
     private static func formatTime(milliseconds: Int) -> String {

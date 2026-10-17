@@ -143,7 +143,8 @@
 "library.episode_count.other" = "%d 集";
 "library.folder_summary" = "%1$d 個資料夾 · %2$d 部影片 · ";
 "library.subtitle_count" = "%d 個字幕";
-"library.video_subtitle_count" = "%1$d 部影片 %2$d 個字幕";
+"library.video_subtitle_count" = "%1$d 部影片  %2$d 個字幕";
+"library.view_in_file" = "在檔案中檢視";
 "library.empty" = "尚無媒體庫影片。";
 "library.recent_watching_empty" = "尚無最近觀看。";
 "library.recent_excerpts_empty" = "尚無最近的摘錄集。";
@@ -185,6 +186,8 @@
 "excerpt.list_name.placeholder" = "輸入摘錄集名稱";
 "excerpt.description" = "描述";
 "excerpt.description.placeholder" = "加入描述（選填）";
+"excerpt.no_description" = "暫無描述";
+"excerpt.created_date" = "建立於 %@";
 "excerpt.validation.name_required" = "請輸入摘錄集名稱。";
 "excerpt.validation.name_too_long" = "摘錄集名稱不能超過 30 個字元。";
 "excerpt.validation.description_too_long" = "描述不能超過 100 個字元。";
@@ -207,6 +210,7 @@
 "toast.table.table_copied" = "已拷貝表格";
 "toast.cue_not_in_library" = "台詞不在資料庫中";
 "toast.cues_not_in_library" = "台詞不在資料庫中";
+"toast.library.folder_not_in_library" = "檔案夾不在資料庫中";
 
 /* Playback chrome */
 "playback.play" = "播放";

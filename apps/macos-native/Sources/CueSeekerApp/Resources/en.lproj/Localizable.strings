@@ -143,7 +143,8 @@
 "library.episode_count.other" = "%d episodes";
 "library.folder_summary" = "%1$d Folders · %2$d Videos · ";
 "library.subtitle_count" = "%d Subtitles";
-"library.video_subtitle_count" = "%1$d videos %2$d subtitles";
+"library.video_subtitle_count" = "%1$d videos  %2$d subtitles";
+"library.view_in_file" = "View in File";
 "library.empty" = "No library videos yet.";
 "library.recent_watching_empty" = "No recent watching yet.";
 "library.recent_excerpts_empty" = "No recent excerpt lists yet.";
@@ -185,6 +186,8 @@
 "excerpt.list_name.placeholder" = "Enter a list name";
 "excerpt.description" = "Description";
 "excerpt.description.placeholder" = "Add a description (optional)";
+"excerpt.no_description" = "No description";
+"excerpt.created_date" = "Created %@";
 "excerpt.validation.name_required" = "Enter a list name.";
 "excerpt.validation.name_too_long" = "List name must be 30 characters or fewer.";
 "excerpt.validation.description_too_long" = "Description must be 100 characters or fewer.";
@@ -207,6 +210,7 @@
 "toast.table.table_copied" = "Table Copied";
 "toast.cue_not_in_library" = "Cue Not in Library";
 "toast.cues_not_in_library" = "Cues Not in Library";
+"toast.library.folder_not_in_library" = "Folder Not in Library";
 
 /* Playback chrome */
 "playback.play" = "Play";

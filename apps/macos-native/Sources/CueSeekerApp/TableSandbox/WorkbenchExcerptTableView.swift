@@ -21,19 +21,27 @@ struct WorkbenchExcerptTableView: View {
     }
 
     var body: some View {
-        WorkbenchExcerptTableContent(
-            isTableResponseActive: isTableResponseActive,
-            rowStore: excerptStore.tableRowStore
-        )
+        LibraryCardContextMenuHost(
+            interfaceID: excerptStore.activeListID.map(String.init) ?? ""
+        ) { _ in
+            WorkbenchExcerptTableContent(
+                isTableResponseActive: isTableResponseActive,
+                rowStore: excerptStore.tableRowStore
+            )
+        }
     }
 }
 
 private struct WorkbenchExcerptTableContent: View {
+    private static let summaryMoreMenuOwnerID = "excerpt-cover-summary-more"
+
     let isTableResponseActive: Bool
     @EnvironmentObject private var appState: AppCoordinator
     @EnvironmentObject private var excerptStore: ExcerptStore
     @EnvironmentObject private var settingsStore: SettingsStore
     @EnvironmentObject private var filterDialog: CueFacetFilterDialogCenter
+    @Environment(\.libraryCardContextMenuToggleAnchor) private var toggleContextMenuAnchor
+    @Environment(\.libraryCardContextMenuOwner) private var contextMenuOwnerID
     @ObservedObject var rowStore: TableSandboxRowModelStore
     @State private var appliedShowCueGroup: Bool?
     @State private var tableScrollResetToken = 0
@@ -46,6 +54,7 @@ private struct WorkbenchExcerptTableContent: View {
     @State private var hasDeferredReloadWhileCovered = false
     @State private var excerptFacetFilter = CueFacetFilter()
     @State private var selectionOverlayAnchor = MenuAnchorHandle()
+    @State private var summaryMoreMenuAnchor = MenuAnchorHandle()
 
     var body: some View {
         let _ = UIInvalidationProbe.count(
@@ -213,20 +222,107 @@ private struct WorkbenchExcerptTableContent: View {
 
     private var coverSummary: AnyView? {
         guard let summary = excerptStore.activeListSummary else { return nil }
+        let trimmedDescription = summary.list.description.trimmingCharacters(
+            in: .whitespacesAndNewlines
+        )
+        let primaryMetadata = trimmedDescription.isEmpty
+            ? L("excerpt.no_description")
+            : SearchInputNormalizer.singleLine(summary.list.description)
+        let countText = summary.cueCount == 1
+            ? L("table.excerpt_count.one")
+            : L("table.excerpt_count.other", summary.cueCount)
+        let createdText = L(
+            "excerpt.created_date",
+            excerptListCreatedDateDisplayText(for: summary.list.createdAt)
+        )
+        let secondaryMetadata = "\(countText)  \(createdText)"
+        let progress = coverSummaryProgress(for: summary)
+
         return AnyView(
             CoverSummaryCard(
                 title: summary.list.name,
-                supportingContent: .description(summary.list.description),
+                supportingContent: .metadata(
+                    primary: primaryMetadata,
+                    secondary: secondaryMetadata
+                ),
+                progress: progress,
                 actionKind: summary.resumeExcerpt == nil ? .play : .resume,
                 isActionEnabled: excerptStore.activeListHasPlayableContent,
                 action: {
                     appState.openExcerptListPlayback(summary)
+                },
+                moreMenuAnchor: summaryMoreMenuAnchor,
+                isMoreMenuOpen: contextMenuOwnerID == Self.summaryMoreMenuOwnerID,
+                onToggleMoreMenu: {
+                    toggleContextMenuAnchor?(
+                        coverSummaryContextMenuItems(for: summary),
+                        summaryMoreMenuAnchor,
+                        Self.summaryMoreMenuOwnerID
+                    )
                 }
             ) {
                 ExcerptListCoverView(
                     coverPath: summary.list.coverPath,
                     imageVerticalAlignment: .center
                 )
+            }
+        )
+    }
+
+    private func coverSummaryProgress(
+        for summary: ExcerptListSummary
+    ) -> CoverSummaryProgress? {
+        guard let resumeExcerpt = summary.resumeExcerpt,
+              summary.cueCount > 0
+        else {
+            return nil
+        }
+        let position = min(max(1, summary.resumePosition ?? 1), summary.cueCount)
+        let cueID = excerptStore.residentRelations.first(
+            where: { $0.id == resumeExcerpt.id }
+        )?.cueID
+        let rawContent = cueID.flatMap {
+            appState.cueContent.content(for: $0)?.content
+        } ?? resumeExcerpt.content
+        let cuePreview = excerptCoverSummaryCuePreviewText(rawContent)
+        let labelText = cuePreview.isEmpty
+            ? "#\(position) / \(summary.cueCount)"
+            : "#\(position) / \(summary.cueCount)  \(cuePreview)"
+        let fraction = Double(position) / Double(summary.cueCount)
+        return CoverSummaryProgress(labelText: labelText, fraction: fraction)
+    }
+
+    private func coverSummaryContextMenuItems(
+        for summary: ExcerptListSummary
+    ) -> [LibraryCardContextMenuItem] {
+        [
+            LibraryCardContextMenuItem(
+                title: L("excerpt.edit_list"),
+                icon: .notePencil,
+                action: { appState.beginEditingExcerptList(summary.list) }
+            ),
+            LibraryCardContextMenuItem(
+                title: L("excerpt.delete_list"),
+                icon: .trash,
+                isEnabled: excerptStore.listOverview.lists.count > 1,
+                action: { requestDeleteExcerptList(summary) }
+            ),
+        ]
+    }
+
+    private func requestDeleteExcerptList(_ summary: ExcerptListSummary) {
+        appState.confirmation.session = WorkbenchConfirmationSession(
+            title: L("excerpt.delete_list"),
+            message: L("excerpt.delete_list.message", summary.list.name),
+            destructiveTitle: L("excerpt.delete"),
+            cancelTitle: L("common.cancel"),
+            onDestructive: {
+                if appState.deleteExcerptList(id: summary.id) {
+                    appState.confirmation.session = nil
+                }
+            },
+            onCancel: {
+                appState.confirmation.session = nil
             }
         )
     }
@@ -863,4 +959,34 @@ private struct WorkbenchExcerptTableContent: View {
         rowSelection = excerptStore.tableSelectionState
         rowSelection.clamp(rowCount: rowStore.snapshot.totalRowCount)
     }
+}
+
+func excerptListCreatedDateDisplayText(
+    for value: String,
+    timeZone: TimeZone = .current
+) -> String {
+    let isoFormatter = ISO8601DateFormatter()
+    if let date = isoFormatter.date(from: value) {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = timeZone
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.string(from: date)
+    }
+    return String(value.prefix(10))
+}
+
+func excerptCoverSummaryCuePreviewText(_ content: String) -> String {
+    let lines = content
+        .replacingOccurrences(of: Excerpt.cueGroupContentSeparator, with: "\n")
+        .components(separatedBy: .newlines)
+        .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+        .filter { !$0.isEmpty }
+    guard let firstLine = lines.first else {
+        return ""
+    }
+    if lines.count > 1, !firstLine.hasSuffix("...") {
+        return "\(firstLine)..."
+    }
+    return firstLine
 }

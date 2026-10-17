@@ -161,3 +161,38 @@ func excerptDetailPageScrollKeepsRowsBelowPinnedChrome() {
     #expect(geometry.documentHeight(rowsHeight: 2_000, viewportHeight: 700) == 2_400)
     #expect(geometry.scrollOffsetForRow(localRowY: 500, maximumOffset: 2_000) == 794)
 }
+
+@Test
+func coverSummarySpacingAndProgressTokensMatchSpecification() {
+    #expect(WorkbenchControlMetrics.redesignCoverSummaryTitleMetaGap == 8)
+    #expect(WorkbenchControlMetrics.redesignCoverSummaryMetaLinesGap == 6)
+    #expect(WorkbenchControlMetrics.redesignCoverSummaryProgressLabelGap == 6)
+    #expect(WorkbenchControlMetrics.redesignCoverSummaryProgressWidth == 290)
+    #expect(WorkbenchControlMetrics.redesignCoverSummaryProgressTrackHeight == 5)
+    #expect(WorkbenchControlMetrics.redesignCoverSummaryProgressActionsGap == 14)
+    #expect(WorkbenchControlMetrics.redesignSpacing2 == 8)
+
+    let clampedLow = CoverSummaryProgress(labelText: "EP01  00:00 / 24:00", fraction: -0.25)
+    let clampedHigh = CoverSummaryProgress(labelText: "EP01  24:00 / 24:00", fraction: 1.5)
+    #expect(clampedLow.fraction == 0)
+    #expect(clampedHigh.fraction == 1)
+}
+
+@Test
+func excerptCoverSummaryHelpersFormatSingleLinePreviewAndCreatedDate() {
+    #expect(excerptCoverSummaryCuePreviewText("  Single line cue  ") == "Single line cue")
+    #expect(
+        excerptCoverSummaryCuePreviewText("First line\nSecond line")
+            == "First line..."
+    )
+    #expect(
+        excerptCoverSummaryCuePreviewText("First line...\nSecond line")
+            == "First line..."
+    )
+    #expect(
+        excerptListCreatedDateDisplayText(
+            for: "2026-10-12T08:30:00Z"
+        ) == "2026-10-12"
+    )
+    #expect(LibraryToastRequest.folderNotInLibrary.icon == .warning)
+}

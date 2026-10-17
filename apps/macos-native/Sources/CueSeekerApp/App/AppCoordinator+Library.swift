@@ -824,6 +824,29 @@ extension AppCoordinator {
         NSWorkspace.shared.open(URL(fileURLWithPath: path, isDirectory: true))
     }
 
+    func openLibraryFolderInFile(folderPath: String) {
+        guard let rootURL = indexing.selectedFolders
+            .filter({ Self.path(folderPath, isUnder: $0) })
+            .max(by: { $0.mediaPath.count < $1.mediaPath.count }),
+            (try? libraryDatabase?.completeLibraryFolderDetail(folderPath: folderPath)) != nil
+        else {
+            toast.show(LibraryToastRequest.folderNotInLibrary)
+            return
+        }
+
+        refreshFileOnReappearanceIfNeeded()
+        let rootPath = rootURL.mediaPath
+        let standardizedFolder = Self.normalizedFolderPath(URL.fromMediaPath(folderPath).mediaPath)
+        let standardizedRoot = Self.normalizedFolderPath(URL.fromMediaPath(rootPath).mediaPath)
+        if standardizedFolder == standardizedRoot {
+            loadFileSubfolders(rootPath: rootPath)
+            navigateWorkbench(to: .fileFolder(rootPath: rootPath))
+        } else {
+            loadFileObjects(folderPath: folderPath)
+            navigateWorkbench(to: .fileFiles(rootPath: rootPath, folderPath: folderPath))
+        }
+    }
+
     func markLibraryVideo(_ video: LibraryVideo, as state: LibraryWatchState) {
         markLibraryVideos([video], as: state)
     }

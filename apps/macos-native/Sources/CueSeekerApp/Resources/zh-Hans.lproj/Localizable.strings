@@ -143,7 +143,8 @@
 "library.episode_count.other" = "%d 集";
 "library.folder_summary" = "%1$d 个文件夹 · %2$d 个视频 · ";
 "library.subtitle_count" = "%d 个字幕";
-"library.video_subtitle_count" = "%1$d 个视频 %2$d 个字幕";
+"library.video_subtitle_count" = "%1$d 个视频  %2$d 个字幕";
+"library.view_in_file" = "在文件中查看";
 "library.empty" = "还没有媒体库视频。";
 "library.recent_watching_empty" = "还没有最近观看。";
 "library.recent_excerpts_empty" = "还没有最近的摘录集。";
@@ -185,6 +186,8 @@
 "excerpt.list_name.placeholder" = "输入摘录集名称";
 "excerpt.description" = "描述";
 "excerpt.description.placeholder" = "添加描述（可选）";
+"excerpt.no_description" = "暂无描述";
+"excerpt.created_date" = "创建于 %@";
 "excerpt.validation.name_required" = "请输入摘录集名称。";
 "excerpt.validation.name_too_long" = "摘录集名称不能超过 30 个字符。";
 "excerpt.validation.description_too_long" = "描述不能超过 100 个字符。";
@@ -207,6 +210,7 @@
 "toast.table.table_copied" = "已复制表格";
 "toast.cue_not_in_library" = "台词不在媒体库中";
 "toast.cues_not_in_library" = "台词不在媒体库中";
+"toast.library.folder_not_in_library" = "文件夹不在媒体库中";
 
 /* Playback chrome */
 "playback.play" = "播放";

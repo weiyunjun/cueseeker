@@ -797,9 +797,9 @@ final class AppCoordinator: ObservableObject {
             refreshRecentOnReappearanceIfNeeded()
         case .library:
             refreshLibraryOnReappearanceIfNeeded()
-        case .file:
+        case .file, .fileFolder, .fileFiles:
             refreshFileOnReappearanceIfNeeded()
-        case .search, .libraryFolder, .fileFolder, .fileFiles:
+        case .search, .libraryFolder:
             break
         }
     }

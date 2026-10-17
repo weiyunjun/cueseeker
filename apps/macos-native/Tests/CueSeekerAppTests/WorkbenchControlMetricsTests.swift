@@ -16,7 +16,7 @@ func workbenchPageTitleAndDetailSpacingMatchTheAcceptedHierarchy() {
     // title that names a second-level page and above the Section Title.
     #expect(WorkbenchControlMetrics.redesignFontSizePageTitle == 20)
     #expect(WorkbenchControlMetrics.redesignFontWeightPageTitle == .semibold)
-    #expect(WorkbenchControlMetrics.redesignFontSizeCoverSummaryTitle == 28)
+    #expect(WorkbenchControlMetrics.redesignFontSizeCoverSummaryTitle == 22)
     #expect(WorkbenchControlMetrics.redesignFontSizeSectionTitle == 18)
     #expect(WorkbenchControlMetrics.redesignFontSizeBody == 14)
     #expect(WorkbenchControlMetrics.redesignSpacing2 == 8)

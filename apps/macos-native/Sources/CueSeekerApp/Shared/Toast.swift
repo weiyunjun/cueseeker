@@ -160,6 +160,17 @@ enum TableToastRequest {
     }
 }
 
+enum LibraryToastRequest {
+    static var folderNotInLibrary: ToastRequest {
+        ToastRequest(
+            scenarioID: "library.folder.not_in_library",
+            message: L("toast.library.folder_not_in_library"),
+            icon: .warning,
+            duration: ToastDuration.alert
+        )
+    }
+}
+
 enum TaskToastRequest {
     static var taskStatusChanged: ToastRequest {
         ToastRequest(

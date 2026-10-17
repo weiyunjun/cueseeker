@@ -5,6 +5,22 @@ enum CoverSummarySupportingContent: Equatable {
     case metadata(primary: String, secondary: String)
 }
 
+struct CoverSummaryProgress: Equatable {
+    let labelText: String
+    let fraction: Double
+
+    init(labelText: String, fraction: Double) {
+        self.labelText = labelText
+        self.fraction = min(1, max(0, fraction))
+    }
+}
+
+struct CoverSummarySecondaryAction {
+    let title: String
+    let icon: AppIcon
+    let action: () -> Void
+}
+
 enum CoverSummaryActionKind: Equatable {
     case play
     case resume
@@ -109,24 +125,39 @@ struct CoverSummaryCardLayout: Equatable {
 struct CoverSummaryCard<Cover: View>: View {
     let title: String
     let supportingContent: CoverSummarySupportingContent
+    let progress: CoverSummaryProgress?
     let actionKind: CoverSummaryActionKind
     let isActionEnabled: Bool
     let action: () -> Void
+    let secondaryAction: CoverSummarySecondaryAction?
+    let moreMenuAnchor: MenuAnchorHandle?
+    let isMoreMenuOpen: Bool
+    let onToggleMoreMenu: (() -> Void)?
     let cover: () -> Cover
 
     init(
         title: String,
         supportingContent: CoverSummarySupportingContent,
+        progress: CoverSummaryProgress? = nil,
         actionKind: CoverSummaryActionKind,
         isActionEnabled: Bool,
         action: @escaping () -> Void,
+        secondaryAction: CoverSummarySecondaryAction? = nil,
+        moreMenuAnchor: MenuAnchorHandle? = nil,
+        isMoreMenuOpen: Bool = false,
+        onToggleMoreMenu: (() -> Void)? = nil,
         @ViewBuilder cover: @escaping () -> Cover
     ) {
         self.title = title
         self.supportingContent = supportingContent
+        self.progress = progress
         self.actionKind = actionKind
         self.isActionEnabled = isActionEnabled
         self.action = action
+        self.secondaryAction = secondaryAction
+        self.moreMenuAnchor = moreMenuAnchor
+        self.isMoreMenuOpen = isMoreMenuOpen
+        self.onToggleMoreMenu = onToggleMoreMenu
         self.cover = cover
     }
 
@@ -242,27 +273,91 @@ struct CoverSummaryCard<Cover: View>: View {
     }
 
     private func contentColumn(form: CoverSummaryCardForm) -> some View {
-        VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing3) {
-            Text(title)
+        VStack(alignment: .leading, spacing: 0) {
+            VStack(
+                alignment: .leading,
+                spacing: WorkbenchControlMetrics.redesignCoverSummaryTitleMetaGap
+            ) {
+                Text(title)
+                    .font(.system(
+                        size: WorkbenchControlMetrics.redesignFontSizeCoverSummaryTitle,
+                        weight: WorkbenchControlMetrics.redesignFontWeightCoverSummaryTitle
+                    ))
+                    .foregroundStyle(titleColor(for: form))
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+
+                supportingContentView(color: supportingColor(for: form))
+            }
+
+            // Both forms give the column the same height, so the action row
+            // always sits at its bottom-leading corner.
+            Spacer(minLength: 0)
+
+            VStack(
+                alignment: .leading,
+                spacing: WorkbenchControlMetrics.redesignCoverSummaryProgressActionsGap
+            ) {
+                if let progress {
+                    progressView(progress, form: form)
+                }
+
+                actionRow(for: form)
+            }
+        }
+    }
+
+    private func progressView(
+        _ progress: CoverSummaryProgress,
+        form: CoverSummaryCardForm
+    ) -> some View {
+        let clampedFraction = min(1, max(0, progress.fraction))
+        let trackWidth = WorkbenchControlMetrics.redesignCoverSummaryProgressWidth
+        let trackHeight = WorkbenchControlMetrics.redesignCoverSummaryProgressTrackHeight
+
+        return VStack(
+            alignment: .leading,
+            spacing: WorkbenchControlMetrics.redesignCoverSummaryProgressLabelGap
+        ) {
+            Text(progress.labelText)
                 .font(.system(
-                    size: WorkbenchControlMetrics.redesignFontSizeCoverSummaryTitle,
-                    weight: WorkbenchControlMetrics.redesignFontWeightCoverSummaryTitle
+                    size: WorkbenchControlMetrics.redesignFontSizeCaption,
+                    weight: .medium
                 ))
-                .foregroundStyle(titleColor(for: form))
+                .monospacedDigit()
+                .foregroundStyle(supportingColor(for: form))
                 .lineLimit(1)
+                .truncationMode(.tail)
+                .frame(maxWidth: trackWidth, alignment: .leading)
 
-            supportingContentView(color: supportingColor(for: form))
+            ZStack(alignment: .leading) {
+                Capsule()
+                    .fill(progressTrackColor(for: form))
 
-            // Both forms give the column the same height, so the action always
-            // sits at its bottom-leading corner.
-            Spacer(minLength: WorkbenchControlMetrics.redesignSpacing3)
+                Capsule()
+                    .fill(progressFillColor(for: form))
+                    .frame(width: trackWidth * clampedFraction)
+            }
+            .frame(width: trackWidth, height: trackHeight)
+        }
+    }
 
-            actionButton(for: form)
+    private func actionRow(for form: CoverSummaryCardForm) -> some View {
+        HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
+            primaryActionButton(for: form)
+
+            if let secondaryAction {
+                secondaryActionButton(secondaryAction, for: form)
+            }
+
+            if let onToggleMoreMenu {
+                moreMenuButton(action: onToggleMoreMenu, for: form)
+            }
         }
     }
 
     @ViewBuilder
-    private func actionButton(for form: CoverSummaryCardForm) -> some View {
+    private func primaryActionButton(for form: CoverSummaryCardForm) -> some View {
         switch form {
         case .split:
             WorkbenchPrimaryButton(
@@ -280,6 +375,8 @@ struct CoverSummaryCard<Cover: View>: View {
         case .backdrop:
             CoverSummaryActionButton(
                 title: actionKind.title,
+                icon: .play,
+                iconWeight: .fill,
                 action: action
             )
             .disabled(!isActionEnabled)
@@ -288,6 +385,60 @@ struct CoverSummaryCard<Cover: View>: View {
                 isActive: !isActionEnabled,
                 label: L("tooltip.disabled.cover_summary.no_playable_content")
             )
+        }
+    }
+
+    @ViewBuilder
+    private func secondaryActionButton(
+        _ secondaryAction: CoverSummarySecondaryAction,
+        for form: CoverSummaryCardForm
+    ) -> some View {
+        switch form {
+        case .split:
+            WorkbenchButton(
+                title: secondaryAction.title,
+                icon: secondaryAction.icon,
+                isRedesign: true,
+                action: secondaryAction.action
+            )
+        case .backdrop:
+            CoverSummaryActionButton(
+                title: secondaryAction.title,
+                icon: secondaryAction.icon,
+                iconWeight: nil,
+                action: secondaryAction.action
+            )
+        }
+    }
+
+    @ViewBuilder
+    private func moreMenuButton(
+        action: @escaping () -> Void,
+        for form: CoverSummaryCardForm
+    ) -> some View {
+        Group {
+            switch form {
+            case .split:
+                WorkbenchButton(
+                    icon: .dotsThree,
+                    isRedesign: true,
+                    isOpen: isMoreMenuOpen,
+                    action: action
+                )
+            case .backdrop:
+                CoverSummaryActionButton(
+                    title: nil,
+                    icon: .dotsThree,
+                    iconWeight: nil,
+                    isOpen: isMoreMenuOpen,
+                    action: action
+                )
+            }
+        }
+        .background {
+            if let moreMenuAnchor {
+                MenuAnchorProbe(handle: moreMenuAnchor)
+            }
         }
     }
 
@@ -311,6 +462,24 @@ struct CoverSummaryCard<Cover: View>: View {
         }
     }
 
+    private func progressTrackColor(for form: CoverSummaryCardForm) -> Color {
+        switch form {
+        case .split:
+            WorkbenchRedesignColors.borderControl
+        case .backdrop:
+            WorkbenchRedesignColors.coverSummaryText.opacity(0.24)
+        }
+    }
+
+    private func progressFillColor(for form: CoverSummaryCardForm) -> Color {
+        switch form {
+        case .split:
+            WorkbenchRedesignColors.accent
+        case .backdrop:
+            WorkbenchRedesignColors.coverSummaryText
+        }
+    }
+
     @ViewBuilder
     private func supportingContentView(color: Color) -> some View {
         switch supportingContent {
@@ -319,7 +488,7 @@ struct CoverSummaryCard<Cover: View>: View {
         case .metadata(let primary, let secondary):
             VStack(
                 alignment: .leading,
-                spacing: WorkbenchControlMetrics.redesignSpacing2
+                spacing: WorkbenchControlMetrics.redesignCoverSummaryMetaLinesGap
             ) {
                 supportingText(primary, color: color, lineLimit: 1)
                 supportingText(secondary, color: color, lineLimit: 1)
@@ -374,36 +543,58 @@ private struct CoverSummaryCardSizingLayout: Layout {
 }
 
 private struct CoverSummaryActionButton: View {
-    let title: String
+    let title: String?
+    var icon: AppIcon = .play
+    var iconWeight: AppIconWeight? = .fill
+    var isOpen: Bool = false
     let action: () -> Void
 
     @Environment(\.isEnabled) private var isEnabled
     @State private var isHovered = false
 
+    private var hasTitle: Bool {
+        guard let title else { return false }
+        return !title.isEmpty
+    }
+
+    private var iconSize: CGFloat {
+        hasTitle
+            ? WorkbenchControlMetrics.redesignButtonIconSize
+            : WorkbenchControlMetrics.redesignControlIconSize
+    }
+
     var body: some View {
         Button(action: action) {
             HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
                 AppIconImage(
-                    .play,
-                    size: WorkbenchControlMetrics.redesignButtonIconSize,
-                    weight: .fill
+                    icon,
+                    size: iconSize,
+                    weight: iconWeight
                 )
                     .frame(
-                        width: WorkbenchControlMetrics.redesignButtonIconSize,
-                        height: WorkbenchControlMetrics.redesignButtonIconSize
+                        width: iconSize,
+                        height: iconSize
                     )
 
-                Text(title)
-                    .font(.system(
-                        size: WorkbenchControlMetrics.redesignFontSizeControl,
-                        weight: WorkbenchControlMetrics.redesignFontWeightControl
-                    ))
-                    .lineLimit(1)
-                    .fixedSize(horizontal: true, vertical: false)
+                if let title, !title.isEmpty {
+                    Text(title)
+                        .font(.system(
+                            size: WorkbenchControlMetrics.redesignFontSizeControl,
+                            weight: WorkbenchControlMetrics.redesignFontWeightControl
+                        ))
+                        .lineLimit(1)
+                        .fixedSize(horizontal: true, vertical: false)
+                }
             }
             .foregroundStyle(WorkbenchRedesignColors.coverSummaryText)
-            .padding(.horizontal, WorkbenchControlMetrics.redesignControlPaddingX)
-            .frame(height: WorkbenchControlMetrics.redesignHeight)
+            .padding(
+                .horizontal,
+                hasTitle ? WorkbenchControlMetrics.redesignControlPaddingX : 0
+            )
+            .frame(
+                width: hasTitle ? nil : WorkbenchControlMetrics.redesignHeight,
+                height: WorkbenchControlMetrics.redesignHeight
+            )
             .background(buttonShape.fill(buttonBackground))
             .overlay {
                 buttonShape.strokeBorder(
@@ -428,7 +619,7 @@ private struct CoverSummaryActionButton: View {
 
     private var buttonBackground: Color {
         WorkbenchRedesignColors.coverSummaryScrim.opacity(
-            isHovered && isEnabled
+            (isHovered || isOpen) && isEnabled
                 ? WorkbenchControlMetrics.redesignCoverSummaryButtonHoverBackgroundOpacity
                 : WorkbenchControlMetrics.redesignCoverSummaryButtonBackgroundOpacity
         )
