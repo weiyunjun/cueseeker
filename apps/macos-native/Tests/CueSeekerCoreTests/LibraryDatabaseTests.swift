@@ -791,23 +791,17 @@ func recentTimeSectionClassifiesAndGroupsByLocalCalendarDayBoundaries() throws {
         second: 0
     )))
     let todayStart = calendar.startOfDay(for: referenceDate)
-    let yesterdayStart = try #require(calendar.date(byAdding: .day, value: -1, to: todayStart))
     let last7DaysStart = try #require(calendar.date(byAdding: .day, value: -6, to: todayStart))
-    let earlierInstant = last7DaysStart.addingTimeInterval(-1)
+    let last30DaysEndInstant = last7DaysStart.addingTimeInterval(-1)
+    let last30DaysStart = try #require(calendar.date(byAdding: .day, value: -29, to: todayStart))
+    let earlierInstant = last30DaysStart.addingTimeInterval(-1)
 
     #expect(
         RecentTimeSection.classify(
             timestamp: formatter.string(from: todayStart),
             relativeTo: referenceDate,
             calendar: calendar
-        ) == .today
-    )
-    #expect(
-        RecentTimeSection.classify(
-            timestamp: formatter.string(from: yesterdayStart),
-            relativeTo: referenceDate,
-            calendar: calendar
-        ) == .yesterday
+        ) == .last7Days
     )
     #expect(
         RecentTimeSection.classify(
@@ -815,6 +809,20 @@ func recentTimeSectionClassifiesAndGroupsByLocalCalendarDayBoundaries() throws {
             relativeTo: referenceDate,
             calendar: calendar
         ) == .last7Days
+    )
+    #expect(
+        RecentTimeSection.classify(
+            timestamp: formatter.string(from: last30DaysEndInstant),
+            relativeTo: referenceDate,
+            calendar: calendar
+        ) == .last30Days
+    )
+    #expect(
+        RecentTimeSection.classify(
+            timestamp: formatter.string(from: last30DaysStart),
+            relativeTo: referenceDate,
+            calendar: calendar
+        ) == .last30Days
     )
     #expect(
         RecentTimeSection.classify(
@@ -840,7 +848,7 @@ func recentTimeSectionClassifiesAndGroupsByLocalCalendarDayBoundaries() throws {
 
     let timestamps: [String?] = [
         formatter.string(from: todayStart.addingTimeInterval(3600)),
-        formatter.string(from: last7DaysStart),
+        formatter.string(from: last30DaysStart),
         nil
     ]
     let grouped = RecentTimeSection.group(
@@ -849,7 +857,7 @@ func recentTimeSectionClassifiesAndGroupsByLocalCalendarDayBoundaries() throws {
         relativeTo: referenceDate,
         calendar: calendar
     )
-    #expect(grouped.map(\.section) == [.today, .last7Days, .neverPlayed])
+    #expect(grouped.map(\.section) == [.last7Days, .last30Days, .neverPlayed])
 }
 
 @Test

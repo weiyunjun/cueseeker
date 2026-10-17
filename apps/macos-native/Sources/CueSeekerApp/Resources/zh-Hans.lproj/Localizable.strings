@@ -148,9 +148,8 @@
 "library.empty" = "还没有媒体库视频。";
 "library.recent_watching_empty" = "还没有最近观看。";
 "library.recent_excerpts_empty" = "还没有最近的摘录集。";
-"recent.section.today" = "今天";
-"recent.section.yesterday" = "昨天";
 "recent.section.last_7_days" = "最近 7 天";
+"recent.section.last_30_days" = "最近 30 天";
 "recent.section.earlier" = "更早";
 "recent.section.never_played" = "从未播放";
 "library.episodes_empty" = "还没有剧集。";

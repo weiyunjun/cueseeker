@@ -663,12 +663,10 @@ private enum WorkbenchTestLibraryMetrics {
 extension RecentTimeSection {
     var localizedTitle: String {
         switch self {
-        case .today:
-            return L("recent.section.today")
-        case .yesterday:
-            return L("recent.section.yesterday")
         case .last7Days:
             return L("recent.section.last_7_days")
+        case .last30Days:
+            return L("recent.section.last_30_days")
         case .earlier:
             return L("recent.section.earlier")
         case .neverPlayed:

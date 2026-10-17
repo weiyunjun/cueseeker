@@ -148,9 +148,8 @@
 "library.empty" = "No library videos yet.";
 "library.recent_watching_empty" = "No recent watching yet.";
 "library.recent_excerpts_empty" = "No recent excerpt lists yet.";
-"recent.section.today" = "Today";
-"recent.section.yesterday" = "Yesterday";
 "recent.section.last_7_days" = "Last 7 Days";
+"recent.section.last_30_days" = "Last 30 Days";
 "recent.section.earlier" = "Earlier";
 "recent.section.never_played" = "Never Played";
 "library.episodes_empty" = "No episodes yet.";

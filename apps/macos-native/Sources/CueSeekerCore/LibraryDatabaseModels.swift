@@ -640,9 +640,8 @@ public struct CompleteLibraryFolderPresentation: Equatable, Sendable, Identifiab
 }
 
 public enum RecentTimeSection: String, CaseIterable, Equatable, Sendable {
-    case today
-    case yesterday
     case last7Days
+    case last30Days
     case earlier
     case neverPlayed
 
@@ -661,16 +660,13 @@ public enum RecentTimeSection: String, CaseIterable, Equatable, Sendable {
         }
 
         let startOfToday = calendar.startOfDay(for: referenceDate)
-        if playedDate >= startOfToday {
-            return .today
-        }
-        if let startOfYesterday = calendar.date(byAdding: .day, value: -1, to: startOfToday),
-           playedDate >= startOfYesterday {
-            return .yesterday
-        }
         if let startOfLast7Days = calendar.date(byAdding: .day, value: -6, to: startOfToday),
            playedDate >= startOfLast7Days {
             return .last7Days
+        }
+        if let startOfLast30Days = calendar.date(byAdding: .day, value: -29, to: startOfToday),
+           playedDate >= startOfLast30Days {
+            return .last30Days
         }
         return .earlier
     }
