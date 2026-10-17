@@ -6,12 +6,13 @@ main
 
 - `docs/human/design/ui/UI Tokens.md`
 - `docs/human/design/ui/UI Layouts - Workbench.md`
+- `docs/human/design/ui/Icon Registry.md`
 - `docs/human/design/ui/Tooltip Usage Registry.md`
 
 # 需求描述
 
 1. **Tokens 变更（`UI Tokens.md`）**：
-   - 新增 `--font-size-anki-export-side-title`: `16px`（`Front` / `Back` 栏标题字号，字重 Semibold `600`）。
+   - 新增 `--size-anki-export-add-button`: `24px`、`--size-anki-export-add-icon`: `16px`（`Front` / `Back` 标题行右侧 `+` 按钮容器尺寸与图标尺寸，线宽 `1.20px`）。
    - 新增 `--opacity-anki-export-dragging`: `0.5`（卡片内一维拖拽时数据对象本体的半透明不透明度）。
    - 修改 `--min-height-anki-export-card-box: 208px` 为 `--height-anki-export-card-box: 288px`（固定容纳 7 个数据对象的高度）。
    - 删除 `--height-anki-export-available-pool`（`96px`）、`--height-anki-export-drop-slot`（`6px`）、`--height-anki-export-drop-line`（`2px`）。
@@ -19,14 +20,14 @@ main
 2. **布局重构（`L-06.5 Export to Anki Dialog Layout`）**：
    - 移除 `Available Items` 模块、`Card Layout` 标题以及两列外层的灰色背景容器（`--color-settings-group-bg`）。
    - 直接并列展示 `Front` 与 `Back` 两列，每列由顶部标题行与下方白色卡片容器（固定高度 `--height-anki-export-card-box: 288px`，内边距 `--spacing-2: 8px`）组成。
-   - 标题行左侧为 `Front` / `Back` 标题（`--font-size-anki-export-side-title: 16px`，Semibold `600`），右侧为带边框底色的 `+` 按钮（尺寸 `32×32px`，样式复用 `C-03.1 Button / Neutral`，内部居中 `plus` 图标）。
+   - 标题行左对齐排列：`Front` / `Back` 标题（字号 `--font-size-body: 14px`，Semibold `600`，左内边距 `--spacing-2: 8px` 与下方卡片内数据对象左边框对齐），紧跟在右侧（间距 `--spacing-1: 4px`）为无边框透明底 `+` 按钮（`C-03.2 Icon Button`，容器 `24×24px`，图标 `16px`，线宽 `1.20px`）。
 
 3. **数据对象添加与删除**：
    - 同一面（`Front` 或 `Back`）内不能添加重复的数据对象；不同面之间允许各自添加同一个数据对象。
-   - 当该面剩余未添加的数据对象 $\ge 2$ 个时：点击 `+` 按钮固定向下弹出菜单（`C-04.1 Dropdown Menu`），按标准顺序展示该面尚未添加的数据对象；点击菜单项将其追加到该面末尾。
+   - 当该面剩余未添加的数据对象 $\ge 2$ 个时：点击 `+` 按钮在按钮正下方左对齐弹出菜单（`C-04.1 Dropdown Menu`），按标准顺序展示该面尚未添加的数据对象；点击菜单项将其追加到该面末尾。
    - 当该面仅剩 $1$ 个未添加的数据对象（已添加 6 个）时：点击 `+` 按钮不弹出菜单，直接将剩余的最后 1 个数据对象追加到该面末尾。
    - 当该面已添加全部 7 个数据对象时：`+` 按钮变为 `Disabled` 状态。
-   - 点击数据对象右侧的 `✕` 按钮将其从当前面移除。
+   - 点击数据对象右侧的 `✕` 按钮将其从当前面移除；`✕` 按钮 Hover 时仅显示 `--color-bg-hover` 背景，图标颜色保持 `--color-text-muted` 不变。
 
 4. **卡片内一维拖拽排序**：
    - 数据对象样式保持不变（高度 `--height-filter-chip: 32px`，左侧 `dots-six-vertical` 拖拽手柄，右侧 `✕` 删除按钮，间距 `--spacing-2: 8px`）。
@@ -38,15 +39,17 @@ main
    - `+` 按钮支持 Tooltip（Scenario ID：`anki_export.card.add_item`，触发延迟 `1s`）：
      - 可用态：`Add Item` / `添加项目` / `加入項目`
      - Disabled 态：`All items added` / `已添加全部项目` / `已加入全部項目`
+   - 数据对象右侧 `✕` 按钮支持 Tooltip（Scenario ID：`anki_export.card.remove_item`，触发延迟 `1s`）：
+     - `Remove Item` / `移除项目` / `移除項目`
 
 # 验收标准
 
-1. `Export to Anki` 对话框不再展示 `Available Items`、`Card Layout` 标题及外层灰底，仅展示 `Front`、`Back` 标题行（左侧 `16px` Semibold 标题，右侧 `32×32px` 带边框底色 `+` 按钮）与固定 `288px` 高度的白色卡片。
+1. `Export to Anki` 对话框不再展示 `Available Items`、`Card Layout` 标题及外层灰底，仅展示 `Front`、`Back` 标题行（左侧 `14px` Semibold 标题与数据对象左边缘对齐，紧右侧为 `24×24px` 容器、`16px` 图标的无边框 `+` 按钮）与固定 `288px` 高度的白色卡片。
 2. `Front` 与 `Back` 可独立添加相同的数据对象，同一面内不重复：
-   - 剩余可选 $\ge 2$ 项时，点击 `+` 固定向下弹出菜单，选择后追加至末尾；
+   - 剩余可选 $\ge 2$ 项时，点击 `+` 在按钮下方左对齐弹出菜单，选择后追加至末尾；
    - 剩余可选仅 $1$ 项时，点击 `+` 直接添加该项，随后 `+` 按钮变为 `Disabled`；
    - 点击数据对象右侧 `✕` 可删除该项，删除后 `+` 按钮恢复可用。
-3. `+` 按钮在可用态与 `Disabled` 态下悬停满 `1s` 均正确展示对应三语 Tooltip。
+3. `+` 按钮（可用态与 `Disabled` 态）以及数据对象右侧 `✕` 按钮悬停满 `1s` 均正确展示对应三语 Tooltip；`✕` 按钮 Hover 时图标颜色保持 `--color-text-muted` 不变。
 4. 在 `Front` 或 `Back` 卡片内上下拖拽数据对象时，仅做一维垂直移动，被拖拽项呈 `0.5` 半透明且无重复对象，跨过相邻项时实时换位。
 5. 清空 `Front` 或 `Back` 后点击 `Export`，对应白色卡片边框变红并在卡片内部居中显示红色报错提示；点击 `+` 添加项目后报错消失。
 6. 导出生成的 `.apkg` 卡片正反面内容及顺序与 `Front`、`Back` 列表完全一致（含正反面同时包含同一数据对象的情况），且配置在重启后保留。

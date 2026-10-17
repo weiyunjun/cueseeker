@@ -1047,12 +1047,11 @@
    1. Title：`Export to Anki`
    2. Close Button
 2. Form Region
-   1. Available Items：Label 与候选徽章池
-   2. Card Layout：Label 与两列卡片放置区（`Front`、`Back`）
-      1. Front：卡片标题与放置区
-      2. Back：卡片标题与放置区
-   3. File Name Field
-   4. Location Field：Text Field 与 Icon Button / Default（`folder`）
+   1. Card Columns（`Front`、`Back` 并列两列）
+      1. Front：标题行（`Front` 标题与右侧紧邻的 `+` 添加按钮）与下方白色卡片放置区
+      2. Back：标题行（`Back` 标题与右侧紧邻的 `+` 添加按钮）与下方白色卡片放置区
+   2. File Name Field
+   3. Location Field：Text Field 与 Icon Button / Default（`folder`）
 3. Footer
    1. Cancel
    2. Export
@@ -1060,10 +1059,9 @@
 #### Components
 
 - Dialog
-- Card / Settings Group Style
-- Filter Chip（用于候选徽章）
+- Dropdown Menu
 - Text Field
-- Icon Button / Default
+- Icon Button
 - Button / Neutral
 - Button / Primary
 
@@ -1071,15 +1069,17 @@
 
 - Width：`--width-dialog-large`
 - Form Region 单列，占满内容宽度；超出窗口高度时中间表单区域垂直滚动，Header 与 Footer 固定。
-- Available Items：固定高度（`--height-anki-export-available-pool`，96px），流式容纳候选徽章；全部移出时显示占位提示。
-- Card Layout：包含 `Front` 与 `Back` 两列等宽卡片，内部放置区最小容纳 5 个徽章高度（`--min-height-anki-export-card-box`，208px），超过 5 个自适应撑开；为空时显示占位提示。
-- 徽章交互：
-  - Available Items、Front、Back 之间支持自由拖拽。
-  - Front 与 Back 内的徽章带有 6 点拖拽手柄（`dots-six-vertical`）与删除按钮（`✕`）；上下拖拽显示高亮指示线，点击删除按钮移回 Available Items。
-  - 移回 Available Items 的徽章按固定标准顺序归位。
+- Card Columns：包含 `Front` 与 `Back` 两列等宽卡片列（间距 `--spacing-3`）：
+  - 顶部标题行：`Front` / `Back` 标题（`--font-size-body`，字重 `600`，左内边距 `--spacing-2` 与卡片内数据对象左边缘对齐），右侧紧邻 `+` 按钮（间距 `--spacing-1`，容器 `--size-anki-export-add-button: 24px`，图标 `--size-anki-export-add-icon: 16px`）。
+  - 下方白色卡片容器：固定高度 `--height-anki-export-card-box`（`288px`，固定容纳全部 7 个数据对象），背景 `--color-bg-control`，边框 `--color-border-control`，圆角 `--radius-control`，内边距 `--spacing-2`；为空时不显示占位提示。
+- 数据对象添加、删除与拖拽交互：
+  - 同一面（`Front` 或 `Back`）内不重复添加同一数据对象；不同面之间可独立添加同一数据对象。
+  - 当该面剩余未添加项 $\ge 2$ 个时，点击 `+` 在按钮正下方左对齐弹出 `Dropdown Menu`，按固定标准顺序展示剩余未添加项，点击后追加至该面末尾；当仅剩 1 个未添加项时，点击 `+` 不弹出菜单，直接将该项追加至末尾；当 7 个数据对象全部添加后，`+` 按钮变为 `Disabled`。
+  - 数据对象高度 `--height-filter-chip`（`32px`），左侧为 6 点拖拽手柄（`dots-six-vertical`，`--size-anki-export-drag-handle: 12px`），右侧为删除按钮（`✕`，容器 `--size-anki-export-badge-remove-button: 14px`，图标 `--size-anki-export-badge-remove-icon: 12px`，圆角 `--radius-anki-export-badge-remove-button: 3px`，Hover 时仅显示 `--color-bg-hover` 背景，图标颜色保持 `--color-text-muted` 不变）。
+  - 数据对象仅在所属白色卡片内部沿垂直方向（一维）上下拖拽排序；拖拽中数据对象本体呈半透明（`--opacity-anki-export-dragging: 0.5`）跟随移动，越过相邻项时实时换位。
 - 导出排版（所见即所得）：卡片正面与背面内容严格按 Front、Back 区域内自上而下的视觉顺序渲染；未放入卡片的不导出。
 - File Name 与 Location 为左 Label（宽度 `--width-form-label`）、右输入框的双列水平布局；Location 为单行 Text Field，两项下方均预留 1 行 Validation Message（左边缘与输入框对齐）；文件夹按钮在 Location 输入框右侧（间距 `--spacing-2`），字形墨迹右缘与内容右缘对齐。
-- 默认：Front 放置 `Audio`，Back 放置 `Cue Text`，其余 5 项位于 Available Items；Location 为上次选择的文件夹。徽章布局与 Location 重新启动后保留，Search 与 Excerpt 共用；File Name 每次打开时重新生成。
+- 默认：Front 放置 `Audio`，Back 放置 `Cue Text`；Location 为上次选择的文件夹。卡片布局与 Location 重新启动后保留，Search 与 Excerpt 共用；File Name 每次打开时重新生成。
 
 #### Spacing
 
@@ -1087,6 +1087,7 @@
 - Group Gap：`--spacing-4`
 - Field Gap：`--spacing-3`
 - Label to Content Gap：`--spacing-2`
+- Side Title to Add Button Gap：`--spacing-1`
 - Label to Field Gap：`--spacing-3`
 - Card Layout Column Gap：`--spacing-3`
 - Badge Gap：`--spacing-2`
@@ -1096,8 +1097,8 @@
 
 - Default
 - Validation Error
-  - File Name 为空或非法时报错。
-  - 点击 Export 时 Front 或 Back 为空时拦截导出，对应卡片边框变红（`--color-danger-text`）并在卡片内显示红色错误提示。
+  - File Name 或 Location 为空或非法时报错。
+  - 点击 Export 时若 Front 或 Back 为空则拦截导出，对应白色卡片边框变红（`--color-danger-text`）并在卡片内居中显示红色错误提示；添加任意数据对象后错误状态自动清除。
 
 ### L-06.6 Filter Dialog Layout
 

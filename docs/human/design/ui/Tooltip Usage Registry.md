@@ -295,6 +295,27 @@
 - Scenario ID：anki_export.location.choose_folder
 - 所在位置：Export to Anki Dialog -> Location 行右侧 `folder` 图标按钮
 
+### 24. 添加 Anki 卡片数据对象（Export to Anki Add Card Item Button）
+- 英文（可用）：Add Item
+- 简体中文（可用）：添加项目
+- 繁体中文（可用）：加入項目
+- 英文（Disabled - 已添加全部 7 个项目）：All items added
+- 简体中文（Disabled - 已添加全部 7 个项目）：已添加全部项目
+- 繁体中文（Disabled - 已添加全部 7 个项目）：已加入全部項目
+- 快捷键：无
+- 触发延迟：1秒
+- Scenario ID：anki_export.card.add_item
+- 所在位置：Export to Anki Dialog -> `Front` / `Back` 标题右侧 `+` 图标按钮
+
+### 25. 移除 Anki 卡片数据对象（Export to Anki Remove Card Item Button）
+- 英文：Remove Item
+- 简体中文：移除项目
+- 繁体中文：移除項目
+- 快捷键：无
+- 触发延迟：1秒
+- Scenario ID：anki_export.card.remove_item
+- 所在位置：Export to Anki Dialog -> `Front` / `Back` 卡片内数据对象右侧 `✕` 图标按钮
+
 ---
 
 ## 四、状态与异常指示器（Status Indicator Tooltips）

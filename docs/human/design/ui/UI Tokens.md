@@ -279,10 +279,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--height-settings-titlebar`: `36px`
 - `--min-height-settings-row`: `52px`
 - `--max-height-settings-font-menu`: `280px`
-- `--height-anki-export-available-pool`: `96px`
-- `--min-height-anki-export-card-box`: `208px`
-- `--height-anki-export-drop-slot`: `6px`
-- `--height-anki-export-drop-line`: `2px`
+- `--height-anki-export-card-box`: `288px`
 
 ### Size
 
@@ -365,10 +362,11 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--size-settings-color-swatch`: `16px`
 - `--size-settings-color-preset-swatch`: `20px`
 - `--border-width-control`: `1px`
+- `--size-anki-export-add-button`: `24px`
+- `--size-anki-export-add-icon`: `16px`
 - `--size-anki-export-drag-handle`: `12px`
 - `--size-anki-export-badge-remove-button`: `14px`
 - `--size-anki-export-badge-remove-icon`: `12px`
-
 ## 1.4 间距
 
 ### Spacing
@@ -515,6 +513,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--opacity-cover-summary-button-bg-hover`: `24%`
 - `--opacity-cover-summary-button-border`: `35%`
 - `--opacity-cover-summary-button-disabled`: `55%`
+- `--opacity-anki-export-dragging`: `0.5`
 
 ## 1.6 动效
 

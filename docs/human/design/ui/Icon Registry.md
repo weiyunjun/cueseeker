@@ -44,7 +44,7 @@
 | `sidebar-simple` | Regular | 折叠、展开 Sidebar | Sidebar Toggle |
 | `arrow-left` | Regular | 返回上一级 | Command Panel Secondary / Back Action |
 | `arrow-right` | Regular | 送往列表 | 表格行菜单 / Save to Excerpt List、Move to ...、Duplicate to ... |
-| `x` | Regular | 关闭、清除、移除 | Icon Button / Inline Clear；Icon Button / Dialog Close；Task Card / Remove Action |
+| `x` | Regular | 关闭、清除、移除 | Icon Button / Inline Clear；Icon Button / Dialog Close；Task Card / Remove Action；Export to Anki Dialog / Card Item Remove，12px |
 | `check` | Regular | 已选 | Radio Menu Item |
 | `magnifying-glass` | Regular | 搜索 | Search Field；Sidebar Item / Search；Command Panel Root / Search Action；Playback Overlay 选中文字菜单 / Search Selected Text |
 | `funnel` | Regular | 筛选 | Search / Excerpt Toolbar / Filter Trigger |
@@ -97,7 +97,7 @@
 | --- | --- | --- | --- |
 | `pencil-simple` | Regular | 重命名、编辑封面 | Library File Tree 菜单 / Rename Folder、Rename Files；Cover / Editor Action |
 | `note-pencil` | Regular | 编辑 | Excerpt List 卡片菜单 / Edit List |
-| `plus` | Regular | 新建、添加 | Excerpt List Overview / New List |
+| `plus` | Regular | 新建、添加 | Excerpt List Overview / New List；Export to Anki Dialog / Add Card Item，16px |
 | `list-checks` | Regular | 选择模式 | 预留，暂无使用位置 |
 | `dots-six-vertical` | Regular | 拖拽手柄 | Export to Anki Dialog / Card Item Handle，12px |
 | `sign-out` | Regular | 退出选择 | Search / Excerpt Toolbar / Exit Selection |
