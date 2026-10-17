@@ -8,6 +8,7 @@ struct LiquidGlassVideoTopBar: View {
     let title: String
     let onReturn: () -> Void
     @Environment(\.isAppFullscreen) private var isAppFullscreen
+    @Environment(\.isPlayerUIVisible) private var isPlayerUIVisible
 
     var body: some View {
         GeometryReader { proxy in
@@ -21,6 +22,7 @@ struct LiquidGlassVideoTopBar: View {
         // via the serialized titlebar-zoom path, or minimize).
         TitlebarBackgroundView(
             backgroundColor: Color.clear,
+            allowsHitTesting: isPlayerUIVisible,
             onDoubleClickZoom: { window in
                 NotificationCenter.default.post(
                     name: .topbarTitlebarZoomRequested,

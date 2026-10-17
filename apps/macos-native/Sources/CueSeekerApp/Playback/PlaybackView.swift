@@ -7,15 +7,13 @@ struct PlaybackView: View {
     let player: PlaybackPlayer?
     let viewModel: PlaybackViewModel?
     let uiProbeScope: String
-    let onSurfaceTap: () -> Void
 
     var body: some View {
         if let player, let viewModel {
             PlaybackVideoView(
                 player: player,
                 viewModel: viewModel,
-                uiProbeScope: uiProbeScope,
-                onSurfaceTap: onSurfaceTap
+                uiProbeScope: uiProbeScope
             )
         } else {
             Color.black
@@ -27,7 +25,6 @@ struct PlaybackVideoView: View {
     let player: PlaybackPlayer
     let viewModel: PlaybackViewModel
     let uiProbeScope: String
-    let onSurfaceTap: () -> Void
 
     var body: some View {
         ZStack {
@@ -40,10 +37,6 @@ struct PlaybackVideoView: View {
                 uiProbeScope: uiProbeScope
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .contentShape(Rectangle())
-            .onTapGesture {
-                onSurfaceTap()
-            }
 
             // The feedback HUD is hosted by PlaybackPageView above the centered
             // overlay panel (doc 12 §11/§13.4, doc 11 §6); it is intentionally
@@ -89,6 +82,10 @@ private final class PlaybackRenderHostView: NSView {
 
     @available(*, unavailable)
     required init?(coder: NSCoder) {
+        nil
+    }
+
+    override func hitTest(_ point: NSPoint) -> NSView? {
         nil
     }
 

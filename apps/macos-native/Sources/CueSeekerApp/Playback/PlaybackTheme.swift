@@ -499,6 +499,35 @@ enum PlaybackChromeMetrics {
 
     static let interactiveHeight: CGFloat = height + speedMenuHeight + speedMenuGap + speedMenuOverlayTopPadding
     static let hiddenOffset: CGFloat = interactiveHeight + hiddenOffsetPadding
+    /// From the top of the 18px progress scrubber hit area down through the
+    /// 52px controls row and 12px bottom padding (`82px`). The 16px
+    /// `progressTopPadding` above it belongs to the playback stage tap area.
+    static let bottomControlRegionHeight: CGFloat =
+        progressHitAreaHeight + bottomControlsRowHeight + chromeBottomPadding
+
+    /// The playback stage region where a single click toggles play/pause.
+    /// When Player UI is visible, spans from the bottom of the 54px top bar
+    /// to the top of the 18px progress scrubber hit area (`height - 82px`).
+    /// When Player UI is hidden, spans the full window (`100% × 100%`).
+    static func stageTapInteractiveRect(
+        stageSize: CGSize,
+        isPlayerUIVisible: Bool
+    ) -> CGRect {
+        let width = max(0, stageSize.width)
+        let height = max(0, stageSize.height)
+        guard isPlayerUIVisible else {
+            return CGRect(x: 0, y: 0, width: width, height: height)
+        }
+        let topInset = WorkbenchControlMetrics.redesignAppTopbarHeight
+        let bottomInset = bottomControlRegionHeight
+        let interactiveStageHeight = max(0, height - topInset - bottomInset)
+        return CGRect(
+            x: 0,
+            y: min(topInset, height),
+            width: width,
+            height: interactiveStageHeight
+        )
+    }
 
     /// Where the return button starts in the player and Playback Overlay top
     /// bars: after the window controls, or at the bar's own padding once the

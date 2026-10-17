@@ -92,11 +92,7 @@ struct SearchView: View {
         PlaybackView(
             player: appState.playbackPlayer,
             viewModel: playback.playbackViewModel,
-            uiProbeScope: appState.uiProbeScope,
-            onSurfaceTap: {
-                appState.workbenchLayout.clearSearchFocus()
-                appState.togglePlaybackFromUser()
-            }
+            uiProbeScope: appState.uiProbeScope
         )
     }
 

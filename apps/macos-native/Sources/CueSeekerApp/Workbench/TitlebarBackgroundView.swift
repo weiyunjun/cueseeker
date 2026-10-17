@@ -3,21 +3,26 @@ import AppKit
 
 struct TitlebarBackgroundView: NSViewRepresentable {
     var backgroundColor: NSColor
+    var allowsHitTesting: Bool = true
     var onDoubleClickZoom: (NSWindow) -> Bool = { _ in true }
 
     init(
         backgroundColor: Color,
+        allowsHitTesting: Bool = true,
         onDoubleClickZoom: @escaping (NSWindow) -> Bool = { _ in true }
     ) {
         self.backgroundColor = NSColor(backgroundColor)
+        self.allowsHitTesting = allowsHitTesting
         self.onDoubleClickZoom = onDoubleClickZoom
     }
 
     init(
         backgroundColor: NSColor,
+        allowsHitTesting: Bool = true,
         onDoubleClickZoom: @escaping (NSWindow) -> Bool = { _ in true }
     ) {
         self.backgroundColor = backgroundColor
+        self.allowsHitTesting = allowsHitTesting
         self.onDoubleClickZoom = onDoubleClickZoom
     }
 
@@ -25,22 +30,29 @@ struct TitlebarBackgroundView: NSViewRepresentable {
         let view = DraggableNSView()
         view.wantsLayer = true
         view.backgroundColor = backgroundColor
+        view.allowsHitTesting = allowsHitTesting
         view.onDoubleClickZoom = onDoubleClickZoom
         return view
     }
 
     func updateNSView(_ nsView: DraggableNSView, context: Context) {
         nsView.backgroundColor = backgroundColor
+        nsView.allowsHitTesting = allowsHitTesting
         nsView.onDoubleClickZoom = onDoubleClickZoom
     }
 }
 
 final class DraggableNSView: NSView, SubtitleTableTextSelectionInteractiveView {
+    var allowsHitTesting = true
     var onDoubleClickZoom: ((NSWindow) -> Bool)?
     var backgroundColor: NSColor = .clear {
         didSet {
             updateBackgroundColor()
         }
+    }
+
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        allowsHitTesting ? super.hitTest(point) : nil
     }
 
     override func viewDidChangeEffectiveAppearance() {

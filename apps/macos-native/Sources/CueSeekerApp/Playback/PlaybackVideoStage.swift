@@ -30,6 +30,10 @@ struct PlaybackVideoStage: View {
             let isBottomChromeVisible = chrome.isPlayerUIVisible
             let areWindowControlsVisible = chrome.isPlayerUIVisible || isLayerOpen
             let isSameWindowLayerOpen = isLayerOpen || isDialogOpen
+            let stageTapRect = PlaybackChromeMetrics.stageTapInteractiveRect(
+                stageSize: stageSize,
+                isPlayerUIVisible: chrome.isPlayerUIVisible
+            )
 
             ZStack(alignment: .topLeading) {
                 Color.black
@@ -38,6 +42,16 @@ struct PlaybackVideoStage: View {
                     .frame(width: frame.width, height: frame.height)
                     .background(Color.black)
                     .position(x: frame.midX, y: frame.midY)
+                    .allowsHitTesting(false)
+
+                Color.clear
+                    .frame(width: stageTapRect.width, height: stageTapRect.height)
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        appState.workbenchLayout.clearSearchFocus()
+                        appState.togglePlaybackFromUser()
+                    }
+                    .position(x: stageTapRect.midX, y: stageTapRect.midY)
 
                 LiquidGlassVideoTopBar(
                     title: chromeSnapshot.displayTitle,

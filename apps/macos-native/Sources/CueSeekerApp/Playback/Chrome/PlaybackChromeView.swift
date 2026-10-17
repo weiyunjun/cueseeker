@@ -120,7 +120,6 @@ struct PlaybackChromeView: View {
     private var chromeSurface: some View {
         VStack(spacing: 0) {
             scrubberRow
-                .padding(.top, PlaybackChromeMetrics.progressTopPadding)
 
             HStack(spacing: 0) {
                 leftGroup
@@ -133,7 +132,12 @@ struct PlaybackChromeView: View {
             .frame(height: PlaybackChromeMetrics.bottomControlsRowHeight)
             .padding(.bottom, PlaybackChromeMetrics.chromeBottomPadding)
         }
-        .contentShape(Rectangle())
+        .background(
+            Color.clear
+                .contentShape(Rectangle())
+                .onTapGesture {}
+        )
+        .padding(.top, PlaybackChromeMetrics.progressTopPadding)
     }
 
     @MainActor
