@@ -266,6 +266,8 @@ enum WorkbenchControlMetrics {
     static let redesignTooltipMaxWidth: CGFloat = 280
     /// --delay-tooltip-hover: 1s
     static let redesignTooltipHoverDelay: TimeInterval = 1.0
+    /// --delay-tooltip-skip-window: 0.3s
+    static let redesignTooltipSkipWindowDelay: TimeInterval = 0.3
     /// Vertical padding derived from --height-control (36px) and the single-line
     /// height of --font-size-control (14px, 500), so single-line tooltips are
     /// 36px tall and wrapped tooltips preserve identical top/bottom padding.

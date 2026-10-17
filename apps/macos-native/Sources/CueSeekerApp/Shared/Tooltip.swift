@@ -113,6 +113,8 @@ final class TooltipCenter: ObservableObject {
     static let shared = TooltipCenter(installEventMonitors: true)
     nonisolated static let defaultHoverDelay: TimeInterval =
         WorkbenchControlMetrics.redesignTooltipHoverDelay
+    nonisolated static let defaultSkipWindowDelay: TimeInterval =
+        WorkbenchControlMetrics.redesignTooltipSkipWindowDelay
 
     struct HoveredTarget: Equatable {
         let targetID: UUID
@@ -126,14 +128,31 @@ final class TooltipCenter: ObservableObject {
     @Published private(set) var activeItem: TooltipActiveItem?
     private(set) var hoveredTarget: HoveredTarget?
     private(set) var suppressedTargetID: UUID?
+    private(set) var lastHoverDismissedAt: Date?
+    let skipWindowDelay: TimeInterval
+    private let now: () -> Date
     private var hoverTask: Task<Void, Never>?
     private var localEventMonitor: Any?
     private var notificationObservers: [NSObjectProtocol] = []
 
-    init(installEventMonitors: Bool = false) {
+    init(
+        installEventMonitors: Bool = false,
+        skipWindowDelay: TimeInterval = TooltipCenter.defaultSkipWindowDelay,
+        now: @escaping () -> Date = Date.init
+    ) {
+        self.skipWindowDelay = skipWindowDelay
+        self.now = now
         if installEventMonitors {
             setUpEventMonitors()
         }
+    }
+
+    private func isWithinSkipWindow(at date: Date) -> Bool {
+        guard let lastHoverDismissedAt else {
+            return false
+        }
+        let elapsed = date.timeIntervalSince(lastHoverDismissedAt)
+        return elapsed >= 0 && elapsed <= skipWindowDelay
     }
 
     func hoverBegan(
@@ -176,15 +195,31 @@ final class TooltipCenter: ObservableObject {
             hoverDelay: hoverDelay
         )
         hoveredTarget = target
-        if activeItem != nil {
-            activeItem = nil
-        }
+
+        let shouldSkipDelay = activeItem != nil || isWithinSkipWindow(at: now())
+        lastHoverDismissedAt = nil
 
         guard suppressedTargetID != targetID else {
+            if activeItem != nil {
+                activeItem = nil
+            }
             return
         }
 
-        scheduleShow(for: target)
+        if shouldSkipDelay {
+            activeItem = TooltipActiveItem(
+                targetID: target.targetID,
+                surface: target.surface,
+                scenarioID: target.scenarioID,
+                anchorRect: target.anchorRect,
+                content: target.content
+            )
+        } else {
+            if activeItem != nil {
+                activeItem = nil
+            }
+            scheduleShow(for: target)
+        }
     }
 
     func updateAnchor(
@@ -241,7 +276,7 @@ final class TooltipCenter: ObservableObject {
         }
     }
 
-    func hoverEnded(targetID: UUID) {
+    func hoverEnded(targetID: UUID, allowSkipWindow: Bool = true) {
         if suppressedTargetID == targetID {
             suppressedTargetID = nil
         }
@@ -252,12 +287,14 @@ final class TooltipCenter: ObservableObject {
         }
         if activeItem?.targetID == targetID {
             activeItem = nil
+            lastHoverDismissedAt = allowSkipWindow ? now() : nil
         }
     }
 
-    func dismissFromUserInteraction() {
+    func hideImmediately() {
         hoverTask?.cancel()
         hoverTask = nil
+        lastHoverDismissedAt = nil
         if let currentTargetID = hoveredTarget?.targetID {
             suppressedTargetID = currentTargetID
         }
@@ -266,11 +303,16 @@ final class TooltipCenter: ObservableObject {
         }
     }
 
+    func dismissFromUserInteraction() {
+        hideImmediately()
+    }
+
     func dismiss() {
         hoverTask?.cancel()
         hoverTask = nil
         hoveredTarget = nil
         suppressedTargetID = nil
+        lastHoverDismissedAt = nil
         if activeItem != nil {
             activeItem = nil
         }
@@ -285,6 +327,7 @@ final class TooltipCenter: ObservableObject {
         }
         hoverTask?.cancel()
         hoverTask = nil
+        lastHoverDismissedAt = nil
         activeItem = TooltipActiveItem(
             targetID: target.targetID,
             surface: target.surface,
@@ -598,7 +641,7 @@ private struct TooltipTrackingRepresentable: NSViewRepresentable {
     static func dismantleNSView(_ nsView: TooltipTrackingNSView, coordinator: ()) {
         let id = nsView.targetID
         MainActor.assumeIsolated {
-            TooltipCenter.shared.hoverEnded(targetID: id)
+            TooltipCenter.shared.hoverEnded(targetID: id, allowSkipWindow: false)
         }
     }
 }
@@ -636,7 +679,7 @@ final class TooltipTrackingNSView: NSView {
             if isPointerInside {
                 isPointerInside = false
             }
-            TooltipCenter.shared.hoverEnded(targetID: targetID)
+            TooltipCenter.shared.hoverEnded(targetID: targetID, allowSkipWindow: false)
             return
         }
 
@@ -675,7 +718,7 @@ final class TooltipTrackingNSView: NSView {
         super.viewDidMoveToWindow()
         if window == nil {
             isPointerInside = false
-            TooltipCenter.shared.hoverEnded(targetID: targetID)
+            TooltipCenter.shared.hoverEnded(targetID: targetID, allowSkipWindow: false)
         }
     }
 

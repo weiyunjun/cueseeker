@@ -125,13 +125,20 @@ struct TooltipTests {
 
     @MainActor
     @Test
-    func tooltipCenterEnforcesOneSecondHoverDelayMutualExclusionAndImmediateDismissal() async throws {
-        let center = TooltipCenter()
+    func tooltipCenterEnforcesOneSecondHoverDelayWarmupSkipWindowAndForcedReset() async throws {
+        var currentTime = Date(timeIntervalSinceReferenceDate: 10_000)
+        let center = TooltipCenter(
+            skipWindowDelay: 0.3,
+            now: { currentTime }
+        )
         let targetA = UUID()
         let targetB = UUID()
+        let targetC = UUID()
         let anchorA = CGRect(x: 100, y: 100, width: 28, height: 28)
         let anchorB = CGRect(x: 200, y: 100, width: 28, height: 28)
+        let anchorC = CGRect(x: 300, y: 100, width: 28, height: 28)
 
+        // 1. Exiting before 1s (tooltip not shown yet) does NOT open the skip window
         center.hoverBegan(
             targetID: targetA,
             surface: .main,
@@ -144,14 +151,72 @@ struct TooltipTests {
             ),
             hoverDelay: 0.04
         )
-        // Not shown before delay expires
+        #expect(center.activeItem == nil)
+        center.hoverEnded(targetID: targetA)
+        #expect(center.lastHoverDismissedAt == nil)
+
+        // Entering targetA again still requires waiting the full hoverDelay
+        center.hoverBegan(
+            targetID: targetA,
+            surface: .main,
+            scenarioID: "topbar.entry.tasks",
+            anchorRect: anchorA,
+            content: .standard(
+                label: "Tasks",
+                shortcut: .none,
+                wrapsText: false
+            ),
+            hoverDelay: 0.04
+        )
         #expect(center.activeItem == nil)
 
         try await Task.sleep(nanoseconds: 70_000_000)
         #expect(center.activeItem?.targetID == targetA)
         #expect(center.activeItem?.scenarioID == "topbar.entry.tasks")
 
-        // Entering targetB immediately dismisses targetA and starts a fresh delay for targetB
+        // 2. Exiting a shown tooltip via hoverEnded opens the 300ms skip window;
+        // entering targetB within 300ms (e.g. 150ms later) shows targetB immediately without waiting.
+        center.hoverEnded(targetID: targetA)
+        #expect(center.activeItem == nil)
+        #expect(center.lastHoverDismissedAt == currentTime)
+
+        currentTime = currentTime.addingTimeInterval(0.15)
+        center.hoverBegan(
+            targetID: targetB,
+            surface: .main,
+            scenarioID: "topbar.entry.settings",
+            anchorRect: anchorB,
+            content: .standard(
+                label: "Settings",
+                shortcut: .fixed("⌘,"),
+                wrapsText: false
+            ),
+            hoverDelay: 1.0
+        )
+        #expect(center.activeItem?.targetID == targetB)
+        #expect(center.activeItem?.scenarioID == "topbar.entry.settings")
+
+        // 3. Entering an adjacent targetC directly while targetB is still active also shows immediately.
+        center.hoverBegan(
+            targetID: targetC,
+            surface: .main,
+            scenarioID: "topbar.navigation.back",
+            anchorRect: anchorC,
+            content: .standard(
+                label: "Back",
+                shortcut: .none,
+                wrapsText: false
+            ),
+            hoverDelay: 1.0
+        )
+        #expect(center.activeItem?.targetID == targetC)
+
+        // 4. Exiting targetC and waiting > 300ms (e.g. 350ms) expires the skip window;
+        // next hover restores the full hoverDelay wait.
+        center.hoverEnded(targetID: targetC)
+        #expect(center.activeItem == nil)
+        currentTime = currentTime.addingTimeInterval(0.35)
+
         center.hoverBegan(
             targetID: targetB,
             surface: .main,
@@ -165,13 +230,15 @@ struct TooltipTests {
             hoverDelay: 0.04
         )
         #expect(center.activeItem == nil)
-
         try await Task.sleep(nanoseconds: 70_000_000)
         #expect(center.activeItem?.targetID == targetB)
 
-        // User interaction (click/scroll/key/menu) immediately dismisses and suppresses re-showing until pointer exits
+        // 5. Forced hide (click/scroll/key/menu/dialog via hideImmediately / dismissFromUserInteraction)
+        // immediately clears the skip window and suppresses re-showing until pointer exits,
+        // and moving to another button within 300ms still requires the full hoverDelay wait.
         center.dismissFromUserInteraction()
         #expect(center.activeItem == nil)
+        #expect(center.lastHoverDismissedAt == nil)
 
         center.updateAnchor(
             targetID: targetB,
@@ -185,8 +252,33 @@ struct TooltipTests {
         try await Task.sleep(nanoseconds: 60_000_000)
         #expect(center.activeItem == nil)
 
-        // After pointer exits and re-enters targetB, tooltip can show again
+        currentTime = currentTime.addingTimeInterval(0.05)
         center.hoverEnded(targetID: targetB)
+        center.hoverBegan(
+            targetID: targetA,
+            surface: .main,
+            scenarioID: "topbar.entry.tasks",
+            anchorRect: anchorA,
+            content: .standard(
+                label: "Tasks",
+                shortcut: .none,
+                wrapsText: false
+            ),
+            hoverDelay: 0.04
+        )
+        // Must NOT show immediately because previous tooltip was force-hidden
+        #expect(center.activeItem == nil)
+        try await Task.sleep(nanoseconds: 70_000_000)
+        #expect(center.activeItem?.targetID == targetA)
+
+        // Also verify that if a tooltip exits normally (opening skip window) and then a key/click/menu
+        // occurs before entering the next button, hideImmediately() clears the skip window timestamp.
+        center.hoverEnded(targetID: targetA)
+        #expect(center.lastHoverDismissedAt != nil)
+        center.hideImmediately()
+        #expect(center.lastHoverDismissedAt == nil)
+
+        currentTime = currentTime.addingTimeInterval(0.05)
         center.hoverBegan(
             targetID: targetB,
             surface: .main,
@@ -199,6 +291,7 @@ struct TooltipTests {
             ),
             hoverDelay: 0.04
         )
+        #expect(center.activeItem == nil)
         try await Task.sleep(nanoseconds: 70_000_000)
         #expect(center.activeItem?.targetID == targetB)
 
@@ -294,6 +387,8 @@ struct TooltipTests {
         #expect(TooltipGeometry.inlineShortcutSpacing == WorkbenchControlMetrics.redesignSpacing2)
         #expect(TooltipGeometry.truncatedTextMaxWidth == WorkbenchControlMetrics.redesignTooltipMaxWidth)
         #expect(TooltipCenter.defaultHoverDelay == WorkbenchControlMetrics.redesignTooltipHoverDelay)
+        #expect(TooltipCenter.defaultSkipWindowDelay == WorkbenchControlMetrics.redesignTooltipSkipWindowDelay)
+        #expect(WorkbenchControlMetrics.redesignTooltipSkipWindowDelay == 0.3)
     }
 
     @Test

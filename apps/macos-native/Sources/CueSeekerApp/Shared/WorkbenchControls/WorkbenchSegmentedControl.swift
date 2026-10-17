@@ -17,12 +17,12 @@ struct WorkbenchSegmentedControl<Option: Hashable>: View {
         .padding(WorkbenchControlMetrics.redesignSegmentedControlPadding)
         .background(
             RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignCornerRadius, style: .continuous)
-                .fill(WorkbenchRedesignColors.bgControl)
+                .fill(WorkbenchRedesignColors.segmentedControlBg)
         )
         .overlay(
             RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignCornerRadius, style: .continuous)
                 .strokeBorder(
-                    WorkbenchRedesignColors.borderControl,
+                    WorkbenchRedesignColors.segmentedControlBorder,
                     lineWidth: WorkbenchControlMetrics.redesignControlBorderWidth
                 )
         )
@@ -43,7 +43,7 @@ struct WorkbenchSegmentedControl<Option: Hashable>: View {
                 .foregroundStyle(
                     isSelected
                         ? WorkbenchRedesignColors.segmentedControlSelectedContent
-                        : WorkbenchRedesignColors.textPrimary
+                        : WorkbenchRedesignColors.segmentedControlUnselectedContent
                 )
                 .padding(.horizontal, WorkbenchControlMetrics.redesignControlPaddingX)
                 .frame(maxWidth: .infinity)
@@ -54,6 +54,16 @@ struct WorkbenchSegmentedControl<Option: Hashable>: View {
                         style: .continuous
                     )
                     .fill(isSelected ? WorkbenchRedesignColors.segmentedControlSelectedBg : Color.clear)
+                )
+                .overlay(
+                    RoundedRectangle(
+                        cornerRadius: WorkbenchControlMetrics.redesignSegmentedControlSegmentRadius,
+                        style: .continuous
+                    )
+                    .strokeBorder(
+                        isSelected ? WorkbenchRedesignColors.segmentedControlSelectedBorder : Color.clear,
+                        lineWidth: WorkbenchControlMetrics.redesignControlBorderWidth
+                    )
                 )
                 .contentShape(Rectangle())
         }

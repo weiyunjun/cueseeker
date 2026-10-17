@@ -120,8 +120,30 @@ enum WorkbenchRedesignColors {
         static let bgCheckboxChecked = NSColor.controlAccentColor
 
         // Segmented Control
-        static let segmentedControlSelectedBg = NSColor.controlAccentColor
-        static let segmentedControlSelectedContent = NSColor.dynamic(lightHex: "#FFFFFF", darkHex: "#FFFFFF")
+        static let segmentedControlBg = NSColor.dynamic(
+            lightHex: "#000000",
+            lightAlpha: 0.055,
+            darkHex: "#FFFFFF",
+            darkAlpha: 0.06
+        )
+        static let segmentedControlBorder = NSColor.dynamic(
+            lightHex: "#000000",
+            lightAlpha: 0,
+            darkHex: "#FFFFFF",
+            darkAlpha: 0.08
+        )
+        static let segmentedControlSelectedBg = NSColor.dynamic(
+            lightHex: "#FFFFFF",
+            darkHex: "#FFFFFF",
+            darkAlpha: 0.16
+        )
+        static let segmentedControlSelectedBorder = NSColor.dynamic(
+            lightHex: "#E5E7EB",
+            darkHex: "#FFFFFF",
+            darkAlpha: 0.12
+        )
+        static let segmentedControlSelectedContent = textPrimary
+        static let segmentedControlUnselectedContent = textMuted
 
         // Danger
         static let dangerText = NSColor.dynamic(lightHex: "#B42318", darkHex: "#FCA5A5")
@@ -310,8 +332,12 @@ enum WorkbenchRedesignColors {
     static let bgCheckboxChecked = Color(nsColor: NS.bgCheckboxChecked)
 
     // Segmented Control
+    static let segmentedControlBg = Color(nsColor: NS.segmentedControlBg)
+    static let segmentedControlBorder = Color(nsColor: NS.segmentedControlBorder)
     static let segmentedControlSelectedBg = Color(nsColor: NS.segmentedControlSelectedBg)
+    static let segmentedControlSelectedBorder = Color(nsColor: NS.segmentedControlSelectedBorder)
     static let segmentedControlSelectedContent = Color(nsColor: NS.segmentedControlSelectedContent)
+    static let segmentedControlUnselectedContent = Color(nsColor: NS.segmentedControlUnselectedContent)
 
     // Danger
     static let dangerText = Color(nsColor: NS.dangerText)

@@ -325,4 +325,95 @@ func mediaCardGridMetricsAndMinimumWindowColumnCountMatchSpecification() {
     )
 }
 
+@MainActor
+@Test
+func segmentedControlNeutralStylingAndGeometryTokensMatchSpecification() {
+    #expect(WorkbenchControlMetrics.redesignSegmentedControlHeight == 32)
+    #expect(WorkbenchControlMetrics.redesignSegmentedControlPadding == 3)
+    #expect(WorkbenchControlMetrics.redesignSegmentedControlGap == 2)
+    #expect(WorkbenchControlMetrics.redesignCornerRadius == 8)
+    #expect(WorkbenchControlMetrics.redesignSegmentedControlSegmentRadius == 5)
+    #expect(WorkbenchControlMetrics.redesignSegmentedControlSegmentHeight == 26)
+    #expect(WorkbenchControlMetrics.redesignFontSizeSegmentedControl == 12)
+    #expect(WorkbenchControlMetrics.redesignFontWeightControl == .medium)
+    #expect(WorkbenchControlMetrics.redesignControlBorderWidth == 1)
 
+    let lightAppearance = NSAppearance(named: .aqua)!
+    lightAppearance.performAsCurrentDrawingAppearance {
+        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+
+        let bg = WorkbenchRedesignColors.NS.segmentedControlBg.usingColorSpace(.sRGB)!
+        bg.getRed(&r, green: &g, blue: &b, alpha: &a)
+        #expect(abs(r - 0) < 0.001)
+        #expect(abs(g - 0) < 0.001)
+        #expect(abs(b - 0) < 0.001)
+        #expect(abs(a - 0.055) < 0.001)
+
+        let border = WorkbenchRedesignColors.NS.segmentedControlBorder.usingColorSpace(.sRGB)!
+        border.getRed(&r, green: &g, blue: &b, alpha: &a)
+        #expect(abs(a - 0) < 0.001)
+
+        let selectedBg = WorkbenchRedesignColors.NS.segmentedControlSelectedBg.usingColorSpace(.sRGB)!
+        selectedBg.getRed(&r, green: &g, blue: &b, alpha: &a)
+        #expect(abs(r - 1) < 0.001)
+        #expect(abs(g - 1) < 0.001)
+        #expect(abs(b - 1) < 0.001)
+        #expect(abs(a - 1) < 0.001)
+
+        let selectedBorder = WorkbenchRedesignColors.NS.segmentedControlSelectedBorder.usingColorSpace(.sRGB)!
+        selectedBorder.getRed(&r, green: &g, blue: &b, alpha: &a)
+        #expect(abs(r - 229.0 / 255.0) < 0.01)
+        #expect(abs(g - 231.0 / 255.0) < 0.01)
+        #expect(abs(b - 235.0 / 255.0) < 0.01)
+        #expect(abs(a - 1) < 0.001)
+
+        let selectedContent = WorkbenchRedesignColors.NS.segmentedControlSelectedContent.usingColorSpace(.sRGB)!
+        let textPrimary = WorkbenchRedesignColors.NS.textPrimary.usingColorSpace(.sRGB)!
+        #expect(selectedContent == textPrimary)
+
+        let unselectedContent = WorkbenchRedesignColors.NS.segmentedControlUnselectedContent.usingColorSpace(.sRGB)!
+        let textMuted = WorkbenchRedesignColors.NS.textMuted.usingColorSpace(.sRGB)!
+        #expect(unselectedContent == textMuted)
+    }
+
+    let darkAppearance = NSAppearance(named: .darkAqua)!
+    darkAppearance.performAsCurrentDrawingAppearance {
+        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+
+        let bg = WorkbenchRedesignColors.NS.segmentedControlBg.usingColorSpace(.sRGB)!
+        bg.getRed(&r, green: &g, blue: &b, alpha: &a)
+        #expect(abs(r - 1) < 0.001)
+        #expect(abs(g - 1) < 0.001)
+        #expect(abs(b - 1) < 0.001)
+        #expect(abs(a - 0.06) < 0.001)
+
+        let border = WorkbenchRedesignColors.NS.segmentedControlBorder.usingColorSpace(.sRGB)!
+        border.getRed(&r, green: &g, blue: &b, alpha: &a)
+        #expect(abs(r - 1) < 0.001)
+        #expect(abs(g - 1) < 0.001)
+        #expect(abs(b - 1) < 0.001)
+        #expect(abs(a - 0.08) < 0.001)
+
+        let selectedBg = WorkbenchRedesignColors.NS.segmentedControlSelectedBg.usingColorSpace(.sRGB)!
+        selectedBg.getRed(&r, green: &g, blue: &b, alpha: &a)
+        #expect(abs(r - 1) < 0.001)
+        #expect(abs(g - 1) < 0.001)
+        #expect(abs(b - 1) < 0.001)
+        #expect(abs(a - 0.16) < 0.001)
+
+        let selectedBorder = WorkbenchRedesignColors.NS.segmentedControlSelectedBorder.usingColorSpace(.sRGB)!
+        selectedBorder.getRed(&r, green: &g, blue: &b, alpha: &a)
+        #expect(abs(r - 1) < 0.001)
+        #expect(abs(g - 1) < 0.001)
+        #expect(abs(b - 1) < 0.001)
+        #expect(abs(a - 0.12) < 0.001)
+
+        let selectedContent = WorkbenchRedesignColors.NS.segmentedControlSelectedContent.usingColorSpace(.sRGB)!
+        let textPrimary = WorkbenchRedesignColors.NS.textPrimary.usingColorSpace(.sRGB)!
+        #expect(selectedContent == textPrimary)
+
+        let unselectedContent = WorkbenchRedesignColors.NS.segmentedControlUnselectedContent.usingColorSpace(.sRGB)!
+        let textMuted = WorkbenchRedesignColors.NS.textMuted.usingColorSpace(.sRGB)!
+        #expect(unselectedContent == textMuted)
+    }
+}
