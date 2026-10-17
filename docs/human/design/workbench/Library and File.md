@@ -6,3 +6,4 @@
 # 3. App 内文件夹与单集联动重命名
 # 4. WebDAV 挂载与同步规则
 # 5. 后台任务队列（Task Queue）状态流转与互斥规则
+1. 列表排序：`Current` 按发起时间正序（FIFO）排列；`Completed` 与 `Incomplete` 按进入该状态的时间倒序（LIFO）排列，最新结束的任务排在最上方。

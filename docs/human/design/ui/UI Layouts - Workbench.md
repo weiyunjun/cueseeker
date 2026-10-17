@@ -1129,6 +1129,7 @@
 - Height：`--height-filter-dialog`；Header 与 Footer 不动，Sections 滚动，内容不足时下方留空
 - Section Header：图标 `--size-control-icon`；名称 `--font-size-control`、Medium；颜色 `--color-text-secondary`
 - Filter Chip 从左到右排列，宽度不足时换行
+- Character 的 Filter Chip：字幕去除首尾空白后按字符宽度统计（全角与东亚宽字符计 2，其余字符计 1）
 - Folder 的 Filter Chip：每个已索引文件夹一个，名称与顺序同 Library Overview Layout 的 Video 标签页，Search 与 Excerpt 相同
 - Reset 靠左，Cancel、Show 靠右；对话框内没有选中时 Reset 为 Disabled；总数未知时 Show 为 Disabled
 
@@ -1221,6 +1222,11 @@
 
 - Width：`--width-dialog-x-large`
 - Height：`--height-task-panel`
+
+#### Ordering
+
+- Current：按发起时间正序（FIFO）排列，正在执行的在最上方
+- Completed / Incomplete：按进入该状态的时间倒序（LIFO）排列，最新的在最上方
 
 #### Spacing
 
