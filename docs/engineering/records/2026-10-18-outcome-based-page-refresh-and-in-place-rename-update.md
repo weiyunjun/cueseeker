@@ -3,6 +3,8 @@
 Human-owned documents:
 
 - `docs/human/requirements/20261018-Feature-Outcome Based Page Refresh And In Place Rename Update.md`
+- `docs/human/design/playback/Playback Edge Cases.md`
+- `docs/human/design/workbench/Library and File.md`
 
 ## Why
 
