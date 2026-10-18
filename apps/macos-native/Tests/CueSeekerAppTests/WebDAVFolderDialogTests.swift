@@ -64,24 +64,10 @@ struct WebDAVFolderDialogTests {
         #expect(session.validationMessage == L("webdav.error.invalid_address"))
         #expect(app.toast.visibleItems.isEmpty)
 
-        // Empty username sets inline validation message
-        session.address = "http://192.168.1.173:5244/115/云下载/NieR:Automata"
-        app.confirmWebDAVFolderDialog(session)
-        #expect(app.library.webdavDialogSession?.id == session.id)
-        #expect(!session.isSubmitting)
-        #expect(session.validationMessage == L("webdav.error.username_empty"))
-        #expect(app.toast.visibleItems.isEmpty)
-
-        // Empty password sets inline validation message
-        session.username = "admin"
-        app.confirmWebDAVFolderDialog(session)
-        #expect(app.library.webdavDialogSession?.id == session.id)
-        #expect(!session.isSubmitting)
-        #expect(session.validationMessage == L("webdav.error.password_empty"))
-        #expect(app.toast.visibleItems.isEmpty)
-
-        // 401 authentication failure from server restores input state and shows inline validation message without toast
+        // Blank username/password is allowed (anonymous access); if server requires auth (401),
+        // it restores input state and shows inline authentication error without toast
         WebDAVClient.shared.setCustomHTTPHandlerForTesting { request in
+            #expect(request.value(forHTTPHeaderField: "Authorization") == nil)
             let response = HTTPURLResponse(
                 url: request.url!,
                 statusCode: 401,
@@ -91,7 +77,7 @@ struct WebDAVFolderDialogTests {
             return (Data(), response)
         }
 
-        session.password = "secret"
+        session.address = "http://192.168.1.173:5244/115/云下载/NieR:Automata"
         app.confirmWebDAVFolderDialog(session)
         await session.validationTask?.value
 
@@ -182,20 +168,24 @@ struct WebDAVFolderDialogTests {
             return (Data(xml.utf8), response)
         }
 
-        // Leave Name blank -> defaults to folder name ("NieR:Automata")
+        // Leave Name, Username, and Password blank -> anonymous WebDAV access, defaults Name to folder name ("NieR:Automata")
         app.openWebDAVFolderDialog()
         let session = try #require(app.library.webdavDialogSession)
         session.name = "   "
         session.address = rootAddress
-        session.username = "alist"
-        session.password = "pass123"
+        session.username = ""
+        session.password = ""
 
         app.confirmWebDAVFolderDialog(session)
         await session.validationTask?.value
         await app.tasks.waitUntilIdle()
 
         #expect(app.library.webdavDialogSession == nil)
-        #expect(WebDAVConfigurationStore.shared.config(for: rootURL)?.name == "NieR:Automata")
+        let savedConfig = try #require(WebDAVConfigurationStore.shared.config(for: rootURL))
+        #expect(savedConfig.name == "NieR:Automata")
+        #expect(savedConfig.username.isEmpty)
+        #expect(savedConfig.password.isEmpty)
+        #expect(savedConfig.basicAuthorizationValue == nil)
         #expect(IndexingStore.displayName(for: rootURL) == "NieR:Automata")
         #expect(app.indexing.selectedFolders.contains(rootURL.standardizedMediaURL))
     }

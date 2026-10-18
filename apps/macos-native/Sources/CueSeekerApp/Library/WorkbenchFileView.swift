@@ -333,7 +333,7 @@ struct WorkbenchFileView: View {
                         FileCardMenuItem(
                             title: L("rename.folder"),
                             icon: .pencilSimple,
-                            isEnabled: !isFolderOperationBlocked && !folder.isWebDAVURL,
+                            isEnabled: !isFolderOperationBlocked,
                             isDestructive: false,
                             action: {
                                 appState.requestRootFolderRename(folder)
@@ -414,7 +414,7 @@ struct WorkbenchFileView: View {
                                     FileCardMenuItem(
                                         title: L("rename.folder"),
                                         icon: .pencilSimple,
-                                        isEnabled: !isFolderOperationBlocked && !folder.folderPath.isWebDAVPath,
+                                        isEnabled: !isFolderOperationBlocked,
                                         isDestructive: false,
                                         action: {
                                             appState.requestFolderRename(folder)
@@ -531,7 +531,7 @@ struct WorkbenchFileView: View {
                             FileCardMenuItem(
                                 title: L("rename.files"),
                                 icon: .pencilSimple,
-                                isEnabled: !isFolderOperationBlocked && !object.videoPath.isWebDAVPath && !folderPath.isWebDAVPath,
+                                isEnabled: !isFolderOperationBlocked,
                                 isDestructive: false,
                                 action: {
                                     appState.requestFileGroupRename(object)
@@ -574,7 +574,7 @@ struct WorkbenchFileView: View {
                             FileCardMenuItem(
                                 title: L("rename.files"),
                                 icon: .pencilSimple,
-                                isEnabled: !isFolderOperationBlocked && !subtitle.path.isWebDAVPath && !folderPath.isWebDAVPath,
+                                isEnabled: !isFolderOperationBlocked,
                                 isDestructive: false,
                                 action: {
                                     appState.requestFileGroupRename(object)

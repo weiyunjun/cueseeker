@@ -361,4 +361,298 @@ struct WebDAVSupportTests {
             ) == nil
         )
     }
+
+    @Test
+    func validateDirectoryAllowsAnonymousCredentialsWithoutAuthorizationHeader() async throws {
+        let suiteName = "CueSeeker.WebDAVAnonTests.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let store = WebDAVConfigurationStore(userDefaults: defaults)
+        let seenAuthHeaders = LockedBox<[String?]>([])
+
+        let client = WebDAVClient(configurationStore: store) { request in
+            seenAuthHeaders.withValue { $0.append(request.value(forHTTPHeaderField: "Authorization")) }
+            let xml = """
+            <?xml version="1.0" encoding="utf-8"?>
+            <D:multistatus xmlns:D="DAV:">
+              <D:response>
+                <D:href>/dav/Public/Anime/</D:href>
+                <D:propstat>
+                  <D:prop>
+                    <D:resourcetype><D:collection/></D:resourcetype>
+                  </D:prop>
+                  <D:status>HTTP/1.1 200 OK</D:status>
+                </D:propstat>
+              </D:response>
+            </D:multistatus>
+            """
+            let response = HTTPURLResponse(
+                url: request.url!,
+                statusCode: 207,
+                httpVersion: "HTTP/1.1",
+                headerFields: ["Content-Type": "application/xml"]
+            )!
+            return (Data(xml.utf8), response)
+        }
+
+        let config = try await client.validateDirectory(
+            name: "",
+            address: "http://192.168.1.173:5244/dav/Public/Anime",
+            username: "",
+            password: ""
+        )
+
+        #expect(config.name == "Anime")
+        #expect(config.username.isEmpty)
+        #expect(config.password.isEmpty)
+        #expect(config.basicAuthorizationValue == nil)
+        #expect(seenAuthHeaders.withValue { $0 } == [nil])
+    }
+
+    @Test
+    func webdavFolderAndFileGroupRenameUpdatesDatabaseSubtitleCacheAndRootConfigAndRollsBackOnFailure() throws {
+        defer {
+            WebDAVClient.shared.setCustomHTTPHandlerForTesting(nil)
+        }
+
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("CueSeekerWebDAVRenameTests-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let databaseURL = tempDir.appendingPathComponent("index.sqlite")
+        let rootURL = URL.fromMediaPath("http://192.168.1.173:5244/115/云下载/Show")
+        let renamedRootURL = URL.fromMediaPath("http://192.168.1.173:5244/115/云下载/Show Renamed")
+        let config = WebDAVRootConfig(
+            rootPath: rootURL.mediaPath,
+            davRootPath: "http://192.168.1.173:5244/dav/115/云下载/Show",
+            name: "Custom Show Name",
+            address: rootURL.mediaPath,
+            username: "",
+            password: ""
+        )
+        WebDAVConfigurationStore.shared.save(config)
+        defer {
+            WebDAVConfigurationStore.shared.remove(url: rootURL)
+            WebDAVConfigurationStore.shared.remove(url: renamedRootURL)
+        }
+
+        let srtContent = """
+        1
+        00:00:01,000 --> 00:00:03,000
+        Anonymous WebDAV rename line.
+        """
+
+        // Track simulated remote WebDAV paths (DAV paths without trailing slash) -> isDirectory
+        let remoteItems = LockedBox<[String: Bool]>([
+            "/dav/115/云下载": true,
+            "/dav/115/云下载/Show": true,
+            "/dav/115/云下载/Show/EP01.mkv": false,
+            "/dav/115/云下载/Show/EP01.srt": false,
+        ])
+        let moveHistory = LockedBox<[(from: String, to: String)]>([])
+        let failSecondMove = LockedBox<Bool>(false)
+
+        WebDAVClient.shared.setCustomHTTPHandlerForTesting { request in
+            let method = request.httpMethod ?? "GET"
+            let rawPath = request.url?.path ?? ""
+            let decodedPath = (rawPath.removingPercentEncoding ?? rawPath).precomposedStringWithCanonicalMapping
+            let cleanPath = decodedPath.count > 1 && decodedPath.hasSuffix("/")
+                ? String(decodedPath.dropLast())
+                : decodedPath
+            let depth = request.value(forHTTPHeaderField: "Depth") ?? "0"
+
+            if method == "PROPFIND" {
+                let items = remoteItems.withValue { $0 }
+                guard let isDir = items[cleanPath] else {
+                    let response = HTTPURLResponse(
+                        url: request.url!,
+                        statusCode: 404,
+                        httpVersion: "HTTP/1.1",
+                        headerFields: nil
+                    )!
+                    return (Data(), response)
+                }
+
+                var responseBlocks: [String] = []
+                func xmlBlock(path: String, isCollection: Bool) -> String {
+                    let href = isCollection ? path + "/" : path
+                    let encodedHref = href.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? href
+                    if isCollection {
+                        return """
+                        <D:response>
+                          <D:href>\(encodedHref)</D:href>
+                          <D:propstat>
+                            <D:prop><D:resourcetype><D:collection/></D:resourcetype></D:prop>
+                            <D:status>HTTP/1.1 200 OK</D:status>
+                          </D:propstat>
+                        </D:response>
+                        """
+                    } else {
+                        return """
+                        <D:response>
+                          <D:href>\(encodedHref)</D:href>
+                          <D:propstat>
+                            <D:prop>
+                              <D:resourcetype/>
+                              <D:getcontentlength>\(srtContent.utf8.count)</D:getcontentlength>
+                              <D:getlastmodified>Mon, 14 Oct 2026 00:00:00 GMT</D:getlastmodified>
+                            </D:prop>
+                            <D:status>HTTP/1.1 200 OK</D:status>
+                          </D:propstat>
+                        </D:response>
+                        """
+                    }
+                }
+
+                responseBlocks.append(xmlBlock(path: cleanPath, isCollection: isDir))
+                if isDir && depth == "1" {
+                    let prefix = cleanPath + "/"
+                    for (itemPath, itemIsDir) in items.sorted(by: { $0.key < $1.key }) where itemPath.hasPrefix(prefix) {
+                        let remainder = itemPath.dropFirst(prefix.count)
+                        if !remainder.contains("/") {
+                            responseBlocks.append(xmlBlock(path: itemPath, isCollection: itemIsDir))
+                        }
+                    }
+                }
+
+                let xml = """
+                <?xml version="1.0" encoding="utf-8"?>
+                <D:multistatus xmlns:D="DAV:">
+                \(responseBlocks.joined(separator: "\n"))
+                </D:multistatus>
+                """
+                let response = HTTPURLResponse(
+                    url: request.url!,
+                    statusCode: 207,
+                    httpVersion: "HTTP/1.1",
+                    headerFields: ["Content-Type": "application/xml"]
+                )!
+                return (Data(xml.utf8), response)
+            } else if method == "GET" {
+                let response = HTTPURLResponse(
+                    url: request.url!,
+                    statusCode: 200,
+                    httpVersion: "HTTP/1.1",
+                    headerFields: nil
+                )!
+                return (Data(srtContent.utf8), response)
+            } else if method == "MOVE" {
+                let destHeader = request.value(forHTTPHeaderField: "Destination") ?? ""
+                let destURL = URL(string: destHeader)
+                let destRawPath = destURL?.path ?? ""
+                let destDecoded = (destRawPath.removingPercentEncoding ?? destRawPath).precomposedStringWithCanonicalMapping
+                let cleanDest = destDecoded.count > 1 && destDecoded.hasSuffix("/")
+                    ? String(destDecoded.dropLast())
+                    : destDecoded
+
+                let shouldFail = failSecondMove.withValue { flag -> Bool in
+                    if flag && cleanPath.hasSuffix(".srt") {
+                        return true
+                    }
+                    return false
+                }
+                if shouldFail {
+                    let response = HTTPURLResponse(
+                        url: request.url!,
+                        statusCode: 403,
+                        httpVersion: "HTTP/1.1",
+                        headerFields: nil
+                    )!
+                    return (Data(), response)
+                }
+
+                moveHistory.withValue { $0.append((from: cleanPath, to: cleanDest)) }
+                remoteItems.withValue { items in
+                    var updated: [String: Bool] = [:]
+                    for (k, v) in items {
+                        if k == cleanPath {
+                            updated[cleanDest] = v
+                        } else if k.hasPrefix(cleanPath + "/") {
+                            let suffix = String(k.dropFirst(cleanPath.count))
+                            updated[cleanDest + suffix] = v
+                        } else {
+                            updated[k] = v
+                        }
+                    }
+                    items = updated
+                }
+                let response = HTTPURLResponse(
+                    url: request.url!,
+                    statusCode: 201,
+                    httpVersion: "HTTP/1.1",
+                    headerFields: nil
+                )!
+                return (Data(), response)
+            }
+
+            let response = HTTPURLResponse(
+                url: request.url!,
+                statusCode: 404,
+                httpVersion: "HTTP/1.1",
+                headerFields: nil
+            )!
+            return (Data(), response)
+        }
+
+        try DatabaseBootstrap.prepare(at: databaseURL)
+        let indexingDatabase = try IndexingDatabase(path: databaseURL)
+        let libraryID = try indexingDatabase.addSearchPath(rootURL)
+        _ = try SubtitleIndexer().index(folder: rootURL, into: indexingDatabase)
+        try LibraryDatabase(path: databaseURL).refreshPresentationAfterIndexedContentChange(libraryID: libraryID)
+
+        let renamer = LibraryRenamer(database: indexingDatabase)
+        let initialVideoPath = "http://192.168.1.173:5244/115/云下载/Show/EP01.mkv"
+        let initialSubtitlePath = "http://192.168.1.173:5244/115/云下载/Show/EP01.srt"
+
+        // 1. Test rollback when second file MOVE fails (403 Forbidden)
+        failSecondMove.withValue { $0 = true }
+        let failingPlan = try renamer.checkConflicts(
+            .fileGroup(videoPath: initialVideoPath, newBaseName: "EP09")
+        )
+        #expect(throws: LibraryRenameError.renameFailed(path: initialSubtitlePath)) {
+            try renamer.perform(failingPlan)
+        }
+        // Video must have been rolled back on WebDAV server
+        #expect(remoteItems.withValue { $0["/dav/115/云下载/Show/EP01.mkv"] } == false)
+        #expect(remoteItems.withValue { $0["/dav/115/云下载/Show/EP09.mkv"] } == nil)
+        failSecondMove.withValue { $0 = false }
+
+        // 2. Test successful file group rename on WebDAV
+        let filePlan = try renamer.checkConflicts(
+            .fileGroup(videoPath: initialVideoPath, newBaseName: "EP02")
+        )
+        try renamer.perform(filePlan)
+
+        let movedSubtitleURL = URL.fromMediaPath("http://192.168.1.173:5244/115/云下载/Show/EP02.srt")
+        #expect(
+            FileManager.default.fileExists(
+                atPath: WebDAVSubtitleCache.shared.cachedFileURL(for: movedSubtitleURL).path
+            )
+        )
+        let searchAfterFileRename = try SearchDatabase(path: databaseURL).search("Anonymous")
+        #expect(
+            searchAfterFileRename.first?.videoPath
+                == "http://192.168.1.173:5244/115/云下载/Show/EP02.mkv"
+        )
+
+        // 3. Test successful WebDAV root folder rename (updates config rootPath, davRootPath, address, and name)
+        let folderPlan = try renamer.checkConflicts(
+            .folder(path: rootURL.mediaPath, newName: "Show Renamed")
+        )
+        try renamer.perform(folderPlan)
+
+        let updatedConfig = try #require(WebDAVConfigurationStore.shared.config(for: renamedRootURL))
+        #expect(updatedConfig.rootPath == "http://192.168.1.173:5244/115/云下载/Show Renamed")
+        #expect(updatedConfig.davRootPath == "http://192.168.1.173:5244/dav/115/云下载/Show Renamed")
+        #expect(updatedConfig.address == "http://192.168.1.173:5244/115/云下载/Show Renamed")
+        #expect(updatedConfig.name == "Show Renamed")
+
+        let searchAfterFolderRename = try SearchDatabase(path: databaseURL).search("Anonymous")
+        #expect(
+            searchAfterFolderRename.first?.videoPath
+                == "http://192.168.1.173:5244/115/云下载/Show Renamed/EP02.mkv"
+        )
+    }
 }

@@ -28,7 +28,7 @@ extension IndexingDatabase {
         try scope.bind(to: statement)
         var folderPaths = Set<String>()
         while try statement.step() {
-            folderPaths.insert((statement.stringColumn(0) as NSString).deletingLastPathComponent)
+            folderPaths.insert(LibraryRenamer.parentPath(of: statement.stringColumn(0)))
         }
         return folderPaths.sorted()
     }
@@ -37,7 +37,7 @@ extension IndexingDatabase {
     func renameFileGroup(
         videoPath: String
     ) throws -> (video: RenameFileRecord, subtitles: [RenameFileRecord])? {
-        let variants = Self.folderPathVariants(for: URL(fileURLWithPath: videoPath))
+        let variants = Self.folderPathVariants(for: URL.fromMediaPath(videoPath))
         let placeholders = variants.map { _ in "?" }.joined(separator: ", ")
         let videoStatement = try database.prepare(
             "SELECT id, path FROM video_files WHERE path IN (\(placeholders)) LIMIT 1;"
@@ -123,7 +123,7 @@ extension IndexingDatabase {
     ) -> RenamePathScope {
         var conditions: [String] = []
         var values: [String] = []
-        for variant in folderPathVariants(for: URL(fileURLWithPath: path)) {
+        for variant in folderPathVariants(for: URL.fromMediaPath(path)) {
             let prefix = subtitlePathPrefix(forFolderPath: variant)
             if includingExact {
                 conditions.append("\(column) = ?")
@@ -151,7 +151,9 @@ extension IndexingDatabase {
     /// Moves every stored path the plan touches, then rebuilds the derived
     /// Search order and Library rows of the affected folders — inside one
     /// transaction, so a failure leaves the database as it was.
-    func applyRename(_ plan: LibraryRenamePlan) throws {
+    @discardableResult
+    func applyRename(_ plan: LibraryRenamePlan) throws -> [(oldPath: String, newPath: String)] {
+        var movedSubtitles: [(oldPath: String, newPath: String)] = []
         try database.withImmediateTransaction {
             let rewrite = { (path: String) -> String? in
                 for step in plan.steps {
@@ -166,7 +168,7 @@ extension IndexingDatabase {
             let libraries = try libraryPathRecords()
             var rootPaths: [Int64: String] = [:]
             for library in libraries {
-                rootPaths[library.id] = library.rootURL.path
+                rootPaths[library.id] = library.rootURL.mediaPath
             }
 
             var folderUpdates: [(id: Int64, libraryID: Int64, newPath: String)] = []
@@ -189,7 +191,7 @@ extension IndexingDatabase {
                 "UPDATE search_paths SET path = ? WHERE id = ?;"
             )
             for library in libraries {
-                guard let newPath = rewrite(library.rootURL.path) else {
+                guard let newPath = rewrite(library.rootURL.mediaPath) else {
                     continue
                 }
                 try updateLibrary.bind(newPath, at: 1)
@@ -219,7 +221,8 @@ extension IndexingDatabase {
                 steps: plan.steps,
                 rewrite: rewrite,
                 rootPaths: rootPaths
-            ) { id, newPath, relativePath in
+            ) { id, oldPath, newPath, relativePath in
+                movedSubtitles.append((oldPath: oldPath, newPath: newPath))
                 let file = try database.prepare(
                     "UPDATE subtitle_files SET subtitle_path = ?, relative_path = ? WHERE id = ?;"
                 )
@@ -243,13 +246,13 @@ extension IndexingDatabase {
                 steps: plan.steps,
                 rewrite: rewrite,
                 rootPaths: rootPaths
-            ) { id, newPath, relativePath in
+            ) { id, _, newPath, relativePath in
                 let file = try database.prepare(
                     "UPDATE video_files SET path = ?, relative_path = ?, video_name = ? WHERE id = ?;"
                 )
                 try file.bind(newPath, at: 1)
                 try bindOptional(relativePath, to: file, at: 2)
-                try file.bind((newPath as NSString).lastPathComponent, at: 3)
+                try file.bind(LibraryRenamer.lastPathComponent(of: newPath), at: 3)
                 try file.bind(id, at: 4)
                 try file.run()
             }
@@ -262,6 +265,7 @@ extension IndexingDatabase {
                 try CueFacetCountCache.rewriteFolderPaths(plan.steps, on: database)
             }
         }
+        return movedSubtitles
     }
 
     /// The path relative to its root, in the form `relative_path` stores;
@@ -284,9 +288,9 @@ extension IndexingDatabase {
         steps: [LibraryRenameStep],
         rewrite: (String) -> String?,
         rootPaths: [Int64: String],
-        update: (_ id: Int64, _ newPath: String, _ relativePath: String?) throws -> Void
+        update: (_ id: Int64, _ oldPath: String, _ newPath: String, _ relativePath: String?) throws -> Void
     ) throws {
-        var updates: [(id: Int64, libraryID: Int64?, newPath: String)] = []
+        var updates: [(id: Int64, libraryID: Int64?, oldPath: String, newPath: String)] = []
         var seen = Set<Int64>()
         for step in steps {
             let scope = Self.renamePathScope(column: pathColumn, path: step.oldPath, includingExact: true)
@@ -296,19 +300,21 @@ extension IndexingDatabase {
             try scope.bind(to: statement)
             while try statement.step() {
                 let id = statement.int64Column(0)
+                let oldPath = statement.stringColumn(2)
                 guard seen.insert(id).inserted,
-                      let newPath = rewrite(statement.stringColumn(2))
+                      let newPath = rewrite(oldPath),
+                      newPath != oldPath
                 else {
                     continue
                 }
-                updates.append((id, statement.nullableInt64Column(1), newPath))
+                updates.append((id, statement.nullableInt64Column(1), oldPath, newPath))
             }
         }
         for entry in updates {
             let relativePath = entry.libraryID.flatMap { rootPaths[$0] }.flatMap {
                 Self.renameRelativePath(of: entry.newPath, under: $0)
             }
-            try update(entry.id, entry.newPath, relativePath)
+            try update(entry.id, entry.oldPath, entry.newPath, relativePath)
         }
     }
 

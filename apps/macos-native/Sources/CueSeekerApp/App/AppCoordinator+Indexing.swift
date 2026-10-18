@@ -225,17 +225,7 @@ extension AppCoordinator {
         }
 
         let trimmedUsername = session.username.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedUsername.isEmpty else {
-            session.validationMessage = L("webdav.error.username_empty")
-            return
-        }
-
         let password = session.password
-        guard !password.isEmpty else {
-            session.validationMessage = L("webdav.error.password_empty")
-            return
-        }
-
         let rawAddress = session.address
 
         session.validationMessage = nil

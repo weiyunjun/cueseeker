@@ -240,9 +240,6 @@ public enum WebDAVAddress {
         if let queryIndex = rawPath.firstIndex(of: "?") {
             rawPath = String(rawPath[..<queryIndex])
         }
-        if let fragmentIndex = rawPath.firstIndex(of: "#") {
-            rawPath = String(rawPath[..<fragmentIndex])
-        }
 
         var normalizedPath = decodedDisplayAddress(rawPath)
         if normalizedPath.isEmpty {
@@ -391,6 +388,57 @@ public final class WebDAVConfigurationStore: @unchecked Sendable {
         return Array(configsByRootPath.values)
     }
 
+    public func rewriteFolderPathPrefix(from oldPath: String, to newPath: String) {
+        guard oldPath.isWebDAVPath, newPath.isWebDAVPath else { return }
+        let canonicalOld = URL.fromMediaPath(oldPath).mediaPath
+        let canonicalNew = URL.fromMediaPath(newPath).mediaPath
+        let newLeafName = LibraryRenamer.lastPathComponent(of: canonicalNew)
+
+        lock.lock()
+        var updatedConfigs: [String: WebDAVRootConfig] = [:]
+        var changed = false
+        for (_, var config) in configsByRootPath {
+            if config.rootPath == canonicalOld {
+                config.rootPath = canonicalNew
+                config.davRootPath = LibraryRenamer.replacingLastPathComponent(
+                    of: config.davRootPath,
+                    with: newLeafName
+                )
+                config.address = WebDAVAddress.decodedDisplayAddress(canonicalNew)
+                config.name = newLeafName
+                updatedConfigs[canonicalNew] = config
+                changed = true
+            } else if config.rootPath.hasPrefix(canonicalOld + "/") {
+                let suffix = String(config.rootPath.dropFirst(canonicalOld.count))
+                let rewrittenRoot = canonicalNew + suffix
+                if config.davRootPath.hasSuffix(suffix) {
+                    let davOldPrefix = String(config.davRootPath.dropLast(suffix.count))
+                    let rewrittenDAVPrefix = LibraryRenamer.replacingLastPathComponent(
+                        of: davOldPrefix,
+                        with: newLeafName
+                    )
+                    config.davRootPath = rewrittenDAVPrefix + suffix
+                } else {
+                    config.davRootPath = rewrittenRoot
+                }
+                config.rootPath = rewrittenRoot
+                config.address = WebDAVAddress.decodedDisplayAddress(rewrittenRoot)
+                updatedConfigs[rewrittenRoot] = config
+                changed = true
+            } else {
+                updatedConfigs[config.rootPath] = config
+            }
+        }
+        if changed {
+            configsByRootPath = updatedConfigs
+        }
+        let snapshot = Array(configsByRootPath.values)
+        lock.unlock()
+        if changed {
+            persist(snapshot)
+        }
+    }
+
     private func persist(_ configs: [WebDAVRootConfig]) {
         guard let data = try? JSONEncoder().encode(configs) else { return }
         userDefaults.set(data, forKey: Self.defaultsKey)
@@ -513,6 +561,16 @@ public final class WebDAVSubtitleCache: @unchecked Sendable {
         try? readSubtitleData(from: url)
     }
 
+    public func moveCachedSubtitle(from oldRemoteURL: URL, to newRemoteURL: URL) {
+        let source = cachedFileURL(for: oldRemoteURL)
+        let destination = cachedFileURL(for: newRemoteURL)
+        guard source != destination, fileManager.fileExists(atPath: source.path) else {
+            return
+        }
+        try? fileManager.removeItem(at: destination)
+        try? fileManager.moveItem(at: source, to: destination)
+    }
+
     public func removeCachedSubtitle(for remoteURL: URL) {
         let localFile = cachedFileURL(for: remoteURL)
         try? fileManager.removeItem(at: localFile)
@@ -585,12 +643,6 @@ public final class WebDAVClient: @unchecked Sendable {
         }
         guard let rootURL = WebDAVAddress.parseURL(from: trimmedAddress) else {
             throw WebDAVError.invalidAddress
-        }
-        guard !trimmedUsername.isEmpty else {
-            throw WebDAVError.invalidInput("Username is required.")
-        }
-        guard !password.isEmpty else {
-            throw WebDAVError.invalidInput("Password is required.")
         }
 
         try Task.checkCancellation()
@@ -704,7 +756,170 @@ public final class WebDAVClient: @unchecked Sendable {
         )
     }
 
+    public func directoryExists(
+        at directoryPath: String,
+        peerPathInSameDirectory peerPath: String? = nil
+    ) throws -> Bool {
+        let endpoint = resolveDAVEndpoint(for: directoryPath, peerPathInSameDirectory: peerPath)
+        do {
+            let entries = try propfind(at: endpoint.davURL, depth: "0", config: endpoint.config)
+            return entries.first?.isCollection == true
+        } catch WebDAVError.directoryNotFound {
+            return false
+        }
+    }
+
+    public func fileExists(
+        at filePath: String,
+        peerPathInSameDirectory peerPath: String? = nil
+    ) throws -> Bool {
+        let endpoint = resolveDAVEndpoint(for: filePath, peerPathInSameDirectory: peerPath)
+        do {
+            let entries = try propfind(
+                at: endpoint.davURL,
+                depth: "0",
+                config: endpoint.config,
+                addsTrailingSlash: false
+            )
+            guard let first = entries.first else { return false }
+            return !first.isCollection
+        } catch WebDAVError.directoryNotFound {
+            return false
+        }
+    }
+
+    public func resourceExists(
+        at targetPath: String,
+        peerPathInSameDirectory peerPath: String? = nil,
+        addsTrailingSlash: Bool = false
+    ) throws -> Bool {
+        let endpoint = resolveDAVEndpoint(for: targetPath, peerPathInSameDirectory: peerPath)
+        do {
+            let entries = try propfind(
+                at: endpoint.davURL,
+                depth: "0",
+                config: endpoint.config,
+                addsTrailingSlash: addsTrailingSlash
+            )
+            return !entries.isEmpty
+        } catch WebDAVError.directoryNotFound {
+            return false
+        }
+    }
+
+    public func listDirectoryItems(at directoryPath: String) throws -> [String: Bool] {
+        let endpoint = resolveDAVEndpoint(for: directoryPath)
+        return try listDirectoryItems(atDAVURL: endpoint.davURL, config: endpoint.config)
+    }
+
+    public func listDirectoryItemsInParent(of childPath: String) throws -> [String: Bool]? {
+        let childEndpoint = resolveDAVEndpoint(for: childPath)
+        let childDAVMediaPath = childEndpoint.davURL.mediaPath
+        let parentDAVMediaPath = LibraryRenamer.parentPath(of: childDAVMediaPath)
+        guard parentDAVMediaPath != childDAVMediaPath else {
+            return nil
+        }
+        return try listDirectoryItems(
+            atDAVURL: URL.fromMediaPath(parentDAVMediaPath),
+            config: childEndpoint.config
+        )
+    }
+
+    public func moveItem(
+        fromPath: String,
+        toPath: String,
+        isDirectory: Bool
+    ) throws {
+        let source = resolveDAVEndpoint(for: fromPath, peerPathInSameDirectory: toPath)
+        let destination = resolveDAVEndpoint(for: toPath, peerPathInSameDirectory: fromPath)
+        let config = source.config
+
+        let requestURL = isDirectory
+            ? ensureTrailingSlash(forDirectoryURL: source.davURL)
+            : source.davURL
+        let destinationURL = isDirectory
+            ? ensureTrailingSlash(forDirectoryURL: destination.davURL)
+            : destination.davURL
+
+        var request = URLRequest(url: requestURL)
+        request.httpMethod = "MOVE"
+        request.timeoutInterval = 30
+        request.setValue(destinationURL.absoluteString, forHTTPHeaderField: "Destination")
+        let oldLeaf = LibraryRenamer.lastPathComponent(of: fromPath).precomposedStringWithCanonicalMapping
+        let newLeaf = LibraryRenamer.lastPathComponent(of: toPath).precomposedStringWithCanonicalMapping
+        let isCaseOrNormalizationRename = oldLeaf.caseInsensitiveCompare(newLeaf) == .orderedSame
+        request.setValue(isCaseOrNormalizationRename ? "T" : "F", forHTTPHeaderField: "Overwrite")
+        if let auth = config.basicAuthorizationValue {
+            request.setValue(auth, forHTTPHeaderField: "Authorization")
+        }
+
+        let (_, response) = try performHTTPRequest(request, followRedirectsWithConfig: config)
+        let status = response.statusCode
+        guard (200...299).contains(status), status != 207 else {
+            throw mapHTTPError(statusCode: status)
+        }
+    }
+
     // MARK: - Internal Helpers
+
+    private func resolveDAVEndpoint(
+        for targetPath: String,
+        peerPathInSameDirectory peerPath: String? = nil
+    ) -> (davURL: URL, config: WebDAVRootConfig) {
+        let targetURL = URL.fromMediaPath(targetPath)
+        if let config = configurationStore.matchingConfig(forMediaPath: targetPath) {
+            return (effectiveDAVURL(for: targetURL, config: config), config)
+        }
+        if let peerPath,
+           let config = configurationStore.matchingConfig(forMediaPath: peerPath) {
+            let peerDAVURL = effectiveDAVURL(for: URL.fromMediaPath(peerPath), config: config)
+            let targetLeaf = LibraryRenamer.lastPathComponent(of: targetPath)
+            let targetDAVMediaPath = LibraryRenamer.replacingLastPathComponent(
+                of: peerDAVURL.mediaPath,
+                with: targetLeaf
+            )
+            return (URL.fromMediaPath(targetDAVMediaPath), config)
+        }
+        let fallbackPath = targetURL.mediaPath
+        let fallbackConfig = WebDAVRootConfig(
+            rootPath: fallbackPath,
+            davRootPath: fallbackPath,
+            name: targetURL.lastPathComponent,
+            address: fallbackPath,
+            username: "",
+            password: ""
+        )
+        return (targetURL, fallbackConfig)
+    }
+
+    private func listDirectoryItems(
+        atDAVURL davDirectoryURL: URL,
+        config: WebDAVRootConfig
+    ) throws -> [String: Bool] {
+        let entries = try propfind(at: davDirectoryURL, depth: "1", config: config)
+        let baseComponents = URLComponents(url: davDirectoryURL, resolvingAgainstBaseURL: false)
+        let expectedSelfPath = normalizeDAVPath(davDirectoryURL.path)
+        var items: [String: Bool] = [:]
+        for entry in entries {
+            guard let resolvedDAVURL = resolveHref(
+                entry.href,
+                against: davDirectoryURL,
+                baseComponents: baseComponents
+            ) else {
+                continue
+            }
+            let entryPath = normalizeDAVPath(resolvedDAVURL.path)
+            if entryPath == expectedSelfPath {
+                continue
+            }
+            let name = resolvedDAVURL.lastPathComponent.precomposedStringWithCanonicalMapping
+            guard !name.isEmpty else {
+                continue
+            }
+            items[name] = entry.isCollection
+        }
+        return items
+    }
 
     private func resolvePlayableInput(
         for logicalURL: URL,
@@ -873,10 +1088,11 @@ public final class WebDAVClient: @unchecked Sendable {
     private func propfind(
         at url: URL,
         depth: String,
-        config: WebDAVRootConfig
+        config: WebDAVRootConfig,
+        addsTrailingSlash: Bool = true
     ) throws -> [WebDAVPropfindEntry] {
-        let directoryURL = ensureTrailingSlash(forDirectoryURL: url)
-        var request = URLRequest(url: directoryURL)
+        let targetURL = addsTrailingSlash ? ensureTrailingSlash(forDirectoryURL: url) : url
+        var request = URLRequest(url: targetURL)
         request.httpMethod = "PROPFIND"
         request.timeoutInterval = 15
         request.setValue(depth, forHTTPHeaderField: "Depth")
@@ -1022,7 +1238,10 @@ public final class WebDAVClient: @unchecked Sendable {
                 var nextRequest = currentRequest
                 nextRequest.url = nextURL
                 if status == 301 || status == 302 || status == 303 {
-                    if currentRequest.httpMethod != "GET" && currentRequest.httpMethod != "HEAD" && currentRequest.httpMethod != "PROPFIND" {
+                    if currentRequest.httpMethod != "GET"
+                        && currentRequest.httpMethod != "HEAD"
+                        && currentRequest.httpMethod != "PROPFIND"
+                        && currentRequest.httpMethod != "MOVE" {
                         nextRequest.httpMethod = "GET"
                         nextRequest.httpBody = nil
                     }

@@ -128,11 +128,8 @@ final class IndexingStore: ObservableObject {
     /// keeps its place in the list under its new path.
     func replaceFolderPathPrefix(_ oldPath: String, with newPath: String) {
         selectedFolders = selectedFolders.map { folder in
-            guard !folder.isWebDAVURL else {
-                return folder
-            }
-            if let rewritten = LibraryRenamer.rewrite(folder.path, from: oldPath, to: newPath) {
-                return URL(fileURLWithPath: rewritten).standardizedFileURL
+            if let rewritten = LibraryRenamer.rewrite(folder.mediaPath, from: oldPath, to: newPath) {
+                return URL.fromMediaPath(rewritten)
             }
             return folder
         }

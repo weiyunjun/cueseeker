@@ -20,12 +20,12 @@ final class LibraryRenameSession: ObservableObject, Identifiable {
 
     init(folder: IndexedContentFolder) {
         target = .folder(folder)
-        newName = URL(fileURLWithPath: folder.folderPath).lastPathComponent
+        newName = LibraryRenamer.lastPathComponent(of: folder.folderPath)
     }
 
     init(rootFolder: URL) {
         target = .rootFolder(rootFolder)
-        newName = rootFolder.lastPathComponent
+        newName = IndexingStore.displayName(for: rootFolder)
     }
 
     /// Nil when the video and its subtitles share no base name, which the
@@ -55,9 +55,9 @@ final class LibraryRenameSession: ObservableObject, Identifiable {
     var currentName: String {
         switch target {
         case .folder(let folder):
-            URL(fileURLWithPath: folder.folderPath).lastPathComponent
+            LibraryRenamer.lastPathComponent(of: folder.folderPath)
         case .rootFolder(let url):
-            url.lastPathComponent
+            IndexingStore.displayName(for: url)
         case .files(_, let baseName):
             baseName
         }
@@ -68,7 +68,7 @@ final class LibraryRenameSession: ObservableObject, Identifiable {
         case .folder(let folder):
             .folder(path: folder.folderPath, newName: newName)
         case .rootFolder(let url):
-            .folder(path: url.standardizedFileURL.path, newName: newName)
+            .folder(path: url.mediaPath, newName: newName)
         case .files(let object, _):
             .fileGroup(videoPath: object.videoPath, newBaseName: newName)
         }
@@ -79,7 +79,7 @@ final class LibraryRenameSession: ObservableObject, Identifiable {
         case .folder(let folder):
             [folder.folderPath]
         case .rootFolder(let url):
-            [url.standardizedFileURL.path]
+            [url.mediaPath]
         case .files(let object, _):
             [object.videoPath] + object.subtitles.map(\.path)
         }
@@ -88,30 +88,20 @@ final class LibraryRenameSession: ObservableObject, Identifiable {
     var newPaths: [String] {
         switch target {
         case .folder(let folder):
-            [
-                URL(fileURLWithPath: folder.folderPath)
-                    .deletingLastPathComponent()
-                    .appendingPathComponent(newName)
-                    .path
-            ]
+            [LibraryRenamer.replacingLastPathComponent(of: folder.folderPath, with: newName)]
         case .rootFolder(let url):
-            [
-                url.deletingLastPathComponent()
-                    .appendingPathComponent(newName)
-                    .standardizedFileURL
-                    .path
-            ]
+            [LibraryRenamer.replacingLastPathComponent(of: url.mediaPath, with: newName)]
         case .files(_, let baseName):
             oldPaths.map { path in
-                let url = URL(fileURLWithPath: path)
+                let fileName = LibraryRenamer.lastPathComponent(of: path)
                 guard let renamed = LibraryFileGroupNaming.renamedFileName(
-                    url.lastPathComponent,
+                    fileName,
                     baseName: baseName,
                     newBaseName: newName
                 ) else {
                     return path
                 }
-                return url.deletingLastPathComponent().appendingPathComponent(renamed).path
+                return LibraryRenamer.replacingLastPathComponent(of: path, with: renamed)
             }
         }
     }

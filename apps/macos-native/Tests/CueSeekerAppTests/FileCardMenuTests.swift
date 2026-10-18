@@ -217,6 +217,60 @@ struct FileCardMenuTests {
         )
         #expect(filesSession?.currentName == "EP01")
         #expect(filesSession?.newName == "EP01")
+
+        // WebDAV root folder with custom Name, subfolder, and file group
+        let webdavRootURL = URL.fromMediaPath("http://192.168.1.173:5244/115/云下载/Ave Mujica")
+        WebDAVConfigurationStore.shared.save(
+            WebDAVRootConfig(
+                rootPath: webdavRootURL.mediaPath,
+                davRootPath: webdavRootURL.mediaPath,
+                name: "母鸡卡",
+                address: webdavRootURL.mediaPath,
+                username: "",
+                password: ""
+            )
+        )
+        defer { WebDAVConfigurationStore.shared.remove(url: webdavRootURL) }
+
+        let webdavRootSession = LibraryRenameSession(rootFolder: webdavRootURL)
+        #expect(webdavRootSession.currentName == "母鸡卡")
+        #expect(webdavRootSession.newName == "母鸡卡")
+        webdavRootSession.newName = "BanG Dream! Ave Mujica"
+        #expect(webdavRootSession.oldPaths == ["http://192.168.1.173:5244/115/云下载/Ave Mujica"])
+        #expect(webdavRootSession.newPaths == ["http://192.168.1.173:5244/115/云下载/BanG Dream! Ave Mujica"])
+
+        let webdavSubfolderSession = LibraryRenameSession(
+            folder: IndexedContentFolder(
+                id: 2,
+                relativePath: "Season 1",
+                folderPath: "http://192.168.1.173:5244/115/云下载/Ave Mujica/Season 1"
+            )
+        )
+        #expect(webdavSubfolderSession.currentName == "Season 1")
+        webdavSubfolderSession.newName = "Season 01"
+        #expect(webdavSubfolderSession.newPaths == ["http://192.168.1.173:5244/115/云下载/Ave Mujica/Season 01"])
+
+        let webdavFilesSession = LibraryRenameSession(
+            object: IndexedContentObject(
+                id: 11,
+                displayTitle: "Ave Mujica - 01",
+                videoPath: "http://192.168.1.173:5244/115/云下载/Ave Mujica/EP01.mkv",
+                videoName: "EP01.mkv",
+                subtitles: [
+                    IndexedContentSubtitle(
+                        id: 21,
+                        path: "http://192.168.1.173:5244/115/云下载/Ave Mujica/EP01.sc.ass",
+                        name: "EP01.sc.ass"
+                    )
+                ]
+            )
+        )
+        #expect(webdavFilesSession?.currentName == "EP01")
+        webdavFilesSession?.newName = "Episode 01"
+        #expect(webdavFilesSession?.newPaths == [
+            "http://192.168.1.173:5244/115/云下载/Ave Mujica/Episode 01.mkv",
+            "http://192.168.1.173:5244/115/云下载/Ave Mujica/Episode 01.sc.ass"
+        ])
     }
 }
 

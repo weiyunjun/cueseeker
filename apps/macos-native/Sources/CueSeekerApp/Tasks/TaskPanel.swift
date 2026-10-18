@@ -704,12 +704,12 @@ extension TaskRecord {
             if !fileName.isEmpty {
                 return fileName
             }
-            return URL(fileURLWithPath: newPaths.first ?? "").lastPathComponent
+            return LibraryRenamer.lastPathComponent(of: newPaths.first ?? "")
         case .renameFiles:
             if !fileName.isEmpty {
                 return fileName
             }
-            return URL(fileURLWithPath: newPaths.first ?? "").deletingPathExtension().lastPathComponent
+            return (LibraryRenamer.lastPathComponent(of: newPaths.first ?? "") as NSString).deletingPathExtension
         case .index:
             return ""
         case .addFolder, .removeFolder:
