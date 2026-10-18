@@ -469,6 +469,7 @@ extension AppCoordinator {
     private func performFolderRemoval(_ folder: URL) async throws {
         let remainingRoots = indexing.selectedFolders.filter { $0 != folder }
         guard LibraryRootGroups.coveringRoot(of: folder, in: remainingRoots) == nil else {
+            holdActiveFileRouteIfRemovingRoot(folder)
             indexing.removeFolder(folder)
             if folder.isWebDAVURL {
                 WebDAVConfigurationStore.shared.remove(url: folder)
@@ -534,6 +535,7 @@ extension AppCoordinator {
         }
 
         guard didRemoveIndexedContent else {
+            holdActiveFileRouteIfRemovingRoot(folder)
             indexing.removeFolder(folder)
             if folder.isWebDAVURL {
                 WebDAVConfigurationStore.shared.remove(url: folder)
@@ -826,6 +828,17 @@ extension AppCoordinator {
     func holdActiveWorkbenchRouteBeforeContentMutation() {
         if workbenchLayout.currentRoute != .file {
             heldWorkbenchRoute = workbenchLayout.currentRoute
+        }
+    }
+
+    private func holdActiveFileRouteIfRemovingRoot(_ folder: URL) {
+        switch workbenchLayout.currentRoute {
+        case .fileFolder(let rootPath), .fileFiles(let rootPath, _):
+            if rootPath == folder.mediaPath {
+                heldWorkbenchRoute = workbenchLayout.currentRoute
+            }
+        default:
+            break
         }
     }
 

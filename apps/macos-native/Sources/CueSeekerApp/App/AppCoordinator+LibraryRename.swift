@@ -114,21 +114,19 @@ extension AppCoordinator {
         var updatedTestRecentWatching = false
         var updatedCompleteLibrary = false
         if let libraryDatabase {
-            if library.libraryStatus == .completed || !library.libraryVideos.isEmpty,
-               let snapshot = try? libraryDatabase.libraryPresentation(under: folders) {
+            if let snapshot = try? libraryDatabase.libraryPresentation(under: folders) {
                 libraryTask?.cancel()
                 applyLibraryPresentation(snapshot)
                 library.libraryStatus = .completed
                 updatedLibrary = true
             }
-            if library.recentWatchingStatus == .completed || !library.recentWatchingItems.isEmpty,
-               let snapshot = try? libraryDatabase.recentLibraryWatching(under: folders) {
+            if let snapshot = try? libraryDatabase.recentLibraryWatching(under: folders) {
                 recentWatchingTask?.cancel()
                 applyRecentWatching(snapshot)
                 library.recentWatchingStatus = .completed
                 updatedRecentWatching = true
             }
-            if library.testRecentWatchingStatus == .completed || !library.testRecentWatchingItems.isEmpty,
+            if library.testRecentWatchingStatus != .idle || !library.testRecentWatchingItems.isEmpty,
                let snapshot = try? libraryDatabase.recentLibraryWatching(
                    under: folders,
                    limit: Int.max,
@@ -139,8 +137,7 @@ extension AppCoordinator {
                 library.testRecentWatchingStatus = .completed
                 updatedTestRecentWatching = true
             }
-            if library.completeLibraryStatus == .completed || !library.completeLibraryFolderSummaries.isEmpty,
-               let snapshot = try? libraryDatabase.completeLibraryFolderSummaries(under: folders) {
+            if let snapshot = try? libraryDatabase.completeLibraryFolderSummaries(under: folders) {
                 completeLibraryTask?.cancel()
                 applyCompleteLibrary(snapshot)
                 library.completeLibraryStatus = .completed

@@ -543,7 +543,7 @@ func addingOrRemovingEmptyFolderDoesNotMarkDeferredPageRefreshes() async throws 
     #expect(app.excerptNeedsReloadAfterIndexedContentMutation == false)
     #expect(app.fileNeedsReloadAfterIndexedMutation == false)
 
-    // Remove the empty folder
+    // Remove the empty folder while staying on mediaFolder's File Level 2
     app.removeFolder(emptyFolder)
     await app.tasks.waitUntilIdle()
 
@@ -553,6 +553,24 @@ func addingOrRemovingEmptyFolderDoesNotMarkDeferredPageRefreshes() async throws 
     #expect(app.libraryNeedsReloadAfterIndexedMutation == false)
     #expect(app.excerptNeedsReloadAfterIndexedContentMutation == false)
     #expect(app.fileNeedsReloadAfterIndexedMutation == false)
+    #expect(app.heldWorkbenchRoute == nil)
+
+    // Add the empty folder again, navigate into emptyFolder's File Level 2, and remove it
+    app.addFolder(emptyFolder)
+    await app.tasks.waitUntilIdle()
+    let emptyFolderRoute = WorkbenchRoute.fileFolder(rootPath: emptyFolder.mediaPath)
+    app.navigateWorkbench(to: emptyFolderRoute)
+    app.removeFolder(emptyFolder)
+    await app.tasks.waitUntilIdle()
+
+    // While staying on emptyFolder's File Level 2, the route stays held (not unknown)
+    #expect(app.heldWorkbenchRoute == emptyFolderRoute)
+    #expect(app.isWorkbenchRouteUnknown(emptyFolderRoute) == false)
+
+    // Once the user navigates away, emptyFolder's File Level 2 becomes unknown on reappearance
+    app.navigateWorkbench(to: .file)
+    #expect(app.heldWorkbenchRoute == nil)
+    #expect(app.isWorkbenchRouteUnknown(emptyFolderRoute) == true)
 }
 
 @MainActor
