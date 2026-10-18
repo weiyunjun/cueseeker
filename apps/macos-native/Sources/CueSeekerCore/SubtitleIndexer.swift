@@ -402,6 +402,10 @@ public struct SubtitleIndexer {
                 continue
             }
 
+            guard !cueGroups.isEmpty else {
+                continue
+            }
+
             let languageAnalysis = languageAnalyzer.analyze(format: format, cueGroups: cueGroups)
             changedFiles.append(
                 PreparedSubtitleIndexFile(
@@ -490,6 +494,10 @@ public struct SubtitleIndexer {
         }
 
         guard abs(existingModifiedAt.timeIntervalSince1970 - modifiedAt.timeIntervalSince1970) < 0.001 else {
+            return false
+        }
+
+        guard try database.firstCueGroupID(forSubtitleFile: subtitleFile) != nil else {
             return false
         }
 

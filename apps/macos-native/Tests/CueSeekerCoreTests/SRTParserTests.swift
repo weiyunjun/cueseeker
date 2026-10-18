@@ -131,3 +131,26 @@ func rejectsInvalidTimecodes() {
     #expect(SRTParser.milliseconds(from: "00:00:00,1000") == nil)
     #expect(SRTParser.milliseconds(from: "not a timecode") == nil)
 }
+
+@Test
+func indexingSkipsEmptyTextSRTBlocksAndKeepsRemainingValidBlocks() throws {
+    let groups = try SRTParser.parseCueGroupsForIndexing(
+        """
+        1
+        00:00:01,000 --> 00:00:03,000
+
+        2
+        00:00:04,000 --> 00:00:06,000
+        Second Cue Kept
+
+        3
+        00:00:07,000 --> 00:00:09,000
+        4
+        00:00:10,000 --> 00:00:12,000
+        Fourth Cue Kept
+        """
+    )
+
+    #expect(groups.map { $0.cueLines.first?.content } == ["Second Cue Kept", "Fourth Cue Kept"])
+    #expect(groups.map(\.sequenceNumber) == [2, 4])
+}

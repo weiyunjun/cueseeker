@@ -65,6 +65,11 @@ public enum SRTParser {
         }
     }
 
+    public static func hasValidStructure(_ contents: String) -> Bool {
+        let blocks = splitBlocks(contents)
+        return !blocks.isEmpty && blocks.contains(where: isStructurallyValid)
+    }
+
     public static func parseCueGroupsForIndexing(_ contents: String) throws -> [SubtitleCueGroup] {
         for (index, block) in splitBlocks(contents).enumerated() {
             guard isStructurallyValid(block) else {
@@ -175,21 +180,25 @@ public enum SRTParser {
             return false
         }
 
-        let timeLine = lines[timeLineIndex].trimmingCharacters(in: .whitespacesAndNewlines)
+        return isTimecodeLine(lines[timeLineIndex])
+    }
+
+    private static func isTimecodeLine(
+        _ rawLine: String,
+        allowsTrailingEndParameters: Bool = true
+    ) -> Bool {
+        let timeLine = rawLine.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let range = timeLine.range(of: "-->") else {
             return false
         }
         let startTimecode = String(timeLine[..<range.lowerBound])
-        let endTimecode = String(timeLine[range.upperBound...])
-        guard milliseconds(from: startTimecode) != nil,
-              milliseconds(from: endTimecode) != nil
-        else {
-            return false
-        }
-
-        return lines.dropFirst(timeLineIndex + 1).contains {
-            !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        }
+        let endRemainder = String(timeLine[range.upperBound...])
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let endTimecode = allowsTrailingEndParameters
+            ? endRemainder.split(whereSeparator: \.isWhitespace).first.map(String.init) ?? ""
+            : endRemainder
+        return milliseconds(from: startTimecode) != nil
+            && milliseconds(from: endTimecode) != nil
     }
 
     private static func splitBlocks(_ contents: String) -> [[String]] {
@@ -198,19 +207,44 @@ public enum SRTParser {
             .replacingOccurrences(of: "\r\n", with: "\n")
             .replacingOccurrences(of: "\r", with: "\n")
 
+        let allLines = normalized
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .map(String.init)
         var blocks: [[String]] = []
         var currentBlock: [String] = []
+        var currentBlockHasTimecode = false
 
-        for line in normalized.split(separator: "\n", omittingEmptySubsequences: false) {
-            let stringLine = String(line)
-            if stringLine.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        for (index, stringLine) in allLines.enumerated() {
+            let trimmed = stringLine.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.isEmpty {
                 if !currentBlock.isEmpty {
                     blocks.append(currentBlock)
                     currentBlock.removeAll()
+                    currentBlockHasTimecode = false
                 }
-            } else {
-                currentBlock.append(stringLine)
+                continue
             }
+
+            let startsNextBlockWithoutBlankLine =
+                currentBlockHasTimecode
+                && (
+                    isTimecodeLine(stringLine)
+                    || (
+                        Int(trimmed) != nil
+                        && index + 1 < allLines.count
+                        && isTimecodeLine(allLines[index + 1])
+                    )
+                )
+            if startsNextBlockWithoutBlankLine {
+                blocks.append(currentBlock)
+                currentBlock.removeAll()
+                currentBlockHasTimecode = false
+            }
+
+            if isTimecodeLine(stringLine) {
+                currentBlockHasTimecode = true
+            }
+            currentBlock.append(stringLine)
         }
 
         if !currentBlock.isEmpty {

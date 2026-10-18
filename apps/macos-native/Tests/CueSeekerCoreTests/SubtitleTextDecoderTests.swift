@@ -88,6 +88,16 @@ func rejectsMalformedByteOrderMarkedTextWithoutFallingBackToDetection() {
     }
 }
 
+@Test
+func decodesEmptyOrByteOrderMarkOnlySubtitlesWithoutStructureError() throws {
+    let utf8BOMOnly = Data([0xEF, 0xBB, 0xBF])
+
+    #expect(try SubtitleTextDecoder.decode(Data(), format: .srt).isEmpty)
+    #expect(try SubtitleTextDecoder.decode(utf8BOMOnly, format: .srt).isEmpty)
+    #expect(try SubtitleTextDecoder.decode(Data(), format: .ass).isEmpty)
+    #expect(try SubtitleTextDecoder.decode(utf8BOMOnly, format: .ass).isEmpty)
+}
+
 private func assScript(text: String) -> String {
     """
     [Script Info]

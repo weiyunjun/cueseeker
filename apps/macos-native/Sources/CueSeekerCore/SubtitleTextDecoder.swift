@@ -135,10 +135,20 @@ public enum SubtitleTextDecoder {
         // its UTF-8 buffer on every byte scan performed by a caller.
         var contents = contents
         contents.makeContiguousUTF8()
+        if isBlankSubtitleText(contents) {
+            return contents
+        }
         guard hasValidStructure(contents, format: format) else {
             throw SubtitleTextDecodingError.invalidStructure(format)
         }
         return contents
+    }
+
+    private static func isBlankSubtitleText(_ contents: String) -> Bool {
+        contents
+            .replacingOccurrences(of: "\u{feff}", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .isEmpty
     }
 
     private static func hasValidStructure(
@@ -165,7 +175,7 @@ public enum SubtitleTextDecoder {
             return hasEventsSection && hasEventFormat
 
         case .srt:
-            return !SRTParser.parseForRendering(contents).isEmpty
+            return SRTParser.hasValidStructure(contents)
         }
     }
 }

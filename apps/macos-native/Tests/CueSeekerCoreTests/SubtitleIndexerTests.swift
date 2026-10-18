@@ -2051,6 +2051,133 @@ func missingCueRemainsThePriorityWhenVideoLaterDisappears()
     )
 }
 
+@Test
+func reindexingClearedSRTOrHeaderOnlyASSRemovesSubtitleWithoutFailure() throws {
+    let fixture = try IndexingFixture()
+    defer {
+        fixture.cleanUp()
+    }
+
+    let srtURL = try fixture.writeSubtitle(
+        name: "Episode1.srt",
+        contents: validSRT(text: "SRT cue before clearing.")
+    )
+    _ = try fixture.writeVideo(name: "Episode1.mkv")
+
+    let assURL = try fixture.writeSubtitle(
+        name: "Episode2.ass",
+        contents: validASS(text: "ASS cue before clearing.")
+    )
+    _ = try fixture.writeVideo(name: "Episode2.mkv")
+
+    let database = try IndexingDatabase(path: fixture.databaseURL)
+    let indexer = SubtitleIndexer()
+    _ = try indexer.index(folder: fixture.root, into: database)
+    #expect(try database.subtitleFiles().count == 2)
+    #expect(try SearchDatabase(path: fixture.databaseURL).search("before clearing").count == 2)
+
+    // Clear Episode1.srt to UTF-8 BOM only (like blank.srt) and Episode2.ass to headers only.
+    try Data([0xEF, 0xBB, 0xBF]).write(to: srtURL, options: .atomic)
+    try """
+    [Script Info]
+    ScriptType: v4.00+
+
+    [Events]
+    Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+    """.write(to: assURL, atomically: true, encoding: .utf8)
+
+    // Also add brand-new blank .srt and header-only .ass files.
+    let newBlankSRT = fixture.root.appendingPathComponent("Episode3.srt")
+    try Data([0xEF, 0xBB, 0xBF]).write(to: newBlankSRT, options: .atomic)
+    _ = try fixture.writeVideo(name: "Episode3.mkv")
+
+    let result = try indexer.index(folder: fixture.root, into: database)
+
+    #expect(result.indexedSubtitleFiles == 0)
+    #expect(result.skippedUnreadableSubtitle == 0)
+    #expect(result.failedFiles.isEmpty)
+    #expect(try database.subtitleFiles().isEmpty)
+    #expect(try SearchDatabase(path: fixture.databaseURL).search("before clearing").isEmpty)
+}
+
+@Test
+func clearingOneSubtitleOfMultiSubtitleEpisodePreservesSharedVideoAndWatchState() throws {
+    let fixture = try IndexingFixture()
+    defer {
+        fixture.cleanUp()
+    }
+
+    let videoURL = try fixture.writeVideo(
+        name: "Unnatural.EP02.1080p.NF.WEB-DL.AAC2.0.H.264-MagicStar.mkv"
+    )
+    let blankURL = try fixture.writeSubtitle(
+        name: "Unnatural.EP02.1080p.NF.WEB-DL.AAC2.0.H.264-MagicStar.blank.srt",
+        contents: validSRT(text: "Temporary blank track cue.")
+    )
+    _ = try fixture.writeSubtitle(
+        name: "Unnatural.EP02.1080p.NF.WEB-DL.AAC2.0.H.264-MagicStar.Chs.srt",
+        contents: validSRT(text: "简体中文台词保留。")
+    )
+    _ = try fixture.writeSubtitle(
+        name: "Unnatural.EP02.1080p.NF.WEB-DL.AAC2.0.H.264-MagicStar.Jpn.srt",
+        contents: validSRT(text: "日本語の台詞が残ります。")
+    )
+
+    let database = try IndexingDatabase(path: fixture.databaseURL)
+    let libraryDatabase = try LibraryDatabase(path: fixture.databaseURL)
+    let indexer = SubtitleIndexer()
+
+    let initialResult = try indexer.index(folder: fixture.root, into: database)
+    try libraryDatabase.refreshPresentationAfterIndexedContentChange(
+        affectedFolderPaths: Set(initialResult.affectedFolderPaths),
+        clearingRetryForLibraryID: initialResult.libraryID
+    )
+    try libraryDatabase.upsertLibraryPlaybackHistory(
+        videoFile: videoURL,
+        positionMilliseconds: 42_000,
+        duration: 120.0
+    )
+
+    #expect(try database.subtitleFiles().count == 3)
+    #expect(
+        try libraryDatabase.recentLibraryWatching(under: [fixture.root]).first?.positionMilliseconds == 42_000
+    )
+
+    // Clear blank.srt to 3-byte UTF-8 BOM while leaving Chs.srt and Jpn.srt unchanged.
+    try Data([0xEF, 0xBB, 0xBF]).write(to: blankURL, options: .atomic)
+    try FileManager.default.setAttributes(
+        [.modificationDate: Date().addingTimeInterval(2)],
+        ofItemAtPath: blankURL.path
+    )
+
+    let reindexResult = try indexer.index(folder: fixture.root, into: database)
+    try libraryDatabase.refreshPresentationAfterIndexedContentChange(
+        affectedFolderPaths: Set(reindexResult.affectedFolderPaths),
+        clearingRetryForLibraryID: reindexResult.libraryID
+    )
+
+    let remainingFiles = try database.subtitleFiles()
+    #expect(reindexResult.failedFiles.isEmpty)
+    #expect(reindexResult.skippedUnchangedSubtitleFiles == 2)
+    #expect(remainingFiles.count == 2)
+    #expect(remainingFiles.allSatisfy { $0.videoPath != nil })
+
+    let searchDatabase = try SearchDatabase(path: fixture.databaseURL)
+    #expect(try searchDatabase.search("Temporary blank track").isEmpty)
+    #expect(try searchDatabase.search("简体中文台词保留").count == 1)
+    #expect(try searchDatabase.search("日本語の台詞").count == 1)
+
+    let folders = try libraryDatabase.libraryPresentation(under: [fixture.root])
+    #expect(folders.first?.videos.count == 1)
+
+    let recent = try libraryDatabase.recentLibraryWatching(under: [fixture.root])
+    #expect(recent.count == 1)
+    #expect(recent.first?.positionMilliseconds == 42_000)
+
+    let videoSubtitles = try #require(try libraryDatabase.videoSubtitles(forVideoFile: videoURL))
+    #expect(videoSubtitles.subtitles.count == 2)
+}
+
 private func validSRT(text: String) -> String {
     """
     1

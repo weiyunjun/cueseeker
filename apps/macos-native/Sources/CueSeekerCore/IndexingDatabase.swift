@@ -1364,14 +1364,12 @@ public final class IndexingDatabase: @unchecked Sendable {
             )
         }
 
-        for videoFile in try staleMatchedVideoFileRecords(
+        let candidateStaleVideos = try staleMatchedVideoFileRecords(
             prefixCondition: prefixCondition,
             keepCondition: keepCondition,
             folderPathPrefixes: folderPathPrefixes,
             subtitleFiles: subtitleFiles
-        ) {
-            try deleteVideoFile(id: videoFile.id)
-        }
+        )
 
         let deleteLanguageDetections = try database.prepare(
             """
@@ -1585,6 +1583,12 @@ public final class IndexingDatabase: @unchecked Sendable {
                 )
             }
 
+            for videoFile in candidateStaleVideos {
+                if try !hasActiveSubtitleMatch(videoFileID: videoFile.id) {
+                    try deleteVideoFile(id: videoFile.id)
+                }
+            }
+
             try deleteOrphanedVideoFiles()
 
             if removeSearchPath {
@@ -1782,6 +1786,12 @@ public final class IndexingDatabase: @unchecked Sendable {
 
     /// A resource that left the current scan result keeps nothing.
     private func deleteSubtitleFile(id: Int64) throws {
+        let clearDefaultSubtitle = try database.prepare(
+            "UPDATE video_files SET default_subtitle_file_id = NULL WHERE default_subtitle_file_id = ?;"
+        )
+        try clearDefaultSubtitle.bind(id, at: 1)
+        try clearDefaultSubtitle.run()
+
         let statement = try database.prepare(
             "DELETE FROM subtitle_files WHERE id = ?;"
         )
@@ -1831,10 +1841,47 @@ public final class IndexingDatabase: @unchecked Sendable {
         while try statement.step() {
             videoFileIDs.append(statement.int64Column(0))
         }
-        for videoFileID in videoFileIDs {
-            try deleteVideoFile(id: videoFileID)
+        guard !videoFileIDs.isEmpty else {
+            return false
         }
-        return !videoFileIDs.isEmpty
+
+        let deleteMatches = try database.prepare(
+            """
+            DELETE FROM subtitle_video_matches
+            WHERE subtitle_file_id IN (
+                SELECT id FROM subtitle_files WHERE subtitle_path = ?
+            );
+            """
+        )
+        try deleteMatches.bind(subtitlePath, at: 1)
+        try deleteMatches.run()
+
+        let deleteLibraryRows = try database.prepare(
+            "DELETE FROM library_video_rows WHERE subtitle_path = ?;"
+        )
+        try deleteLibraryRows.bind(subtitlePath, at: 1)
+        try deleteLibraryRows.run()
+
+        for videoFileID in videoFileIDs {
+            if try !hasActiveSubtitleMatch(videoFileID: videoFileID) {
+                try deleteVideoFile(id: videoFileID)
+            }
+        }
+        return true
+    }
+
+    private func hasActiveSubtitleMatch(videoFileID: Int64) throws -> Bool {
+        let statement = try database.prepare(
+            """
+            SELECT 1
+            FROM subtitle_video_matches m
+            JOIN subtitle_files sf ON sf.id = m.subtitle_file_id
+            WHERE m.video_file_id = ? AND m.is_active = 1
+            LIMIT 1;
+            """
+        )
+        try statement.bind(videoFileID, at: 1)
+        return try statement.step()
     }
 
     private func bindMediaPathIdentity(
