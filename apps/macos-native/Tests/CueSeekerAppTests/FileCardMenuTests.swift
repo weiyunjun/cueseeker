@@ -1,4 +1,5 @@
 import AppKit
+import CueSeekerCore
 import SwiftUI
 import Testing
 @testable import CueSeekerApp
@@ -179,6 +180,43 @@ struct FileCardMenuTests {
         let multiLineTopMargin = cardPadding + buttonTopOffset
         #expect(multiLineTopMargin == baselineTopMargin)
         #expect(multiLineTopMargin == 18)
+    }
+
+    @Test
+    func renameSessionCurrentNameUsesFolderNameWithoutFullPath() {
+        let rootSession = LibraryRenameSession(
+            rootFolder: URL(fileURLWithPath: "/Volumes/Seagate/影视/Ave Mujica")
+        )
+        #expect(rootSession.currentName == "Ave Mujica")
+        #expect(rootSession.newName == "Ave Mujica")
+
+        let subfolderSession = LibraryRenameSession(
+            folder: IndexedContentFolder(
+                id: 1,
+                relativePath: "Season 1/Ave Mujica",
+                folderPath: "/Volumes/Seagate/影视/Season 1/Ave Mujica"
+            )
+        )
+        #expect(subfolderSession.currentName == "Ave Mujica")
+        #expect(subfolderSession.newName == "Ave Mujica")
+
+        let filesSession = LibraryRenameSession(
+            object: IndexedContentObject(
+                id: 10,
+                displayTitle: "Ave Mujica - EP01",
+                videoPath: "/Volumes/Seagate/影视/Ave Mujica/EP01.mkv",
+                videoName: "EP01.mkv",
+                subtitles: [
+                    IndexedContentSubtitle(
+                        id: 20,
+                        path: "/Volumes/Seagate/影视/Ave Mujica/EP01.sc.ass",
+                        name: "EP01.sc.ass"
+                    )
+                ]
+            )
+        )
+        #expect(filesSession?.currentName == "EP01")
+        #expect(filesSession?.newName == "EP01")
     }
 }
 

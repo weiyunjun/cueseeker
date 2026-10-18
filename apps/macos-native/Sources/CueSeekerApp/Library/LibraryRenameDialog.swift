@@ -50,20 +50,9 @@ final class LibraryRenameSession: ObservableObject, Identifiable {
         }
     }
 
-    /// The static line above the field: the folder's complete path, or the
-    /// name the video and its subtitles share.
-    var currentText: String {
-        switch target {
-        case .folder(let folder):
-            folder.folderPath
-        case .rootFolder(let url):
-            url.path
-        case .files(_, let baseName):
-            baseName
-        }
-    }
-
-    private var currentName: String {
+    /// The static Current Name value above the field: the folder's name, or the
+    /// base name the video and its subtitles share.
+    var currentName: String {
         switch target {
         case .folder(let folder):
             URL(fileURLWithPath: folder.folderPath).lastPathComponent
@@ -165,7 +154,7 @@ struct LibraryRenameDialog: View {
                     WorkbenchFormLabel(text: L("rename.current_name"))
                         .frame(width: WorkbenchControlMetrics.redesignFormLabelWidth, alignment: .leading)
 
-                    Text(session.currentText)
+                    Text(session.currentName)
                         .font(.system(
                             size: WorkbenchControlMetrics.redesignFontSizeControl,
                             weight: .regular
