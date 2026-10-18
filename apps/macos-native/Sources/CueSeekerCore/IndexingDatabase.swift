@@ -270,6 +270,7 @@ public final class IndexingDatabase: @unchecked Sendable {
                     unavailableReason: .subtitleMissing
                 )
             )
+            try deleteOrphanedVideoFiles()
             try deleteEmptyLibraryFolders(libraryID: libraryID)
             if !affectedFolderPaths.isEmpty {
                 try refreshSearchOrderRows(
@@ -540,6 +541,7 @@ public final class IndexingDatabase: @unchecked Sendable {
                 libraryID: nil,
                 rebuildSearchDerivedIndex: rebuildSearchDerivedIndex
             )
+            try deleteOrphanedVideoFiles()
             if rebuildSearchDerivedIndex {
                 try CueFacetCountCache.rebuildAll(on: database)
             }
@@ -707,7 +709,6 @@ public final class IndexingDatabase: @unchecked Sendable {
         if rebuildSearchDerivedIndex {
             try rebuildSearchDerivedIndexInCurrentTransaction()
         }
-        try deleteOrphanedVideoFiles()
         return IndexedFileMutation(
             subtitlePath: subtitleFile.mediaPath,
             previousSubtitlePath: upsertedSubtitleFile.previousPath,
@@ -1960,15 +1961,16 @@ public final class IndexingDatabase: @unchecked Sendable {
     }
 
     private func upsertSubtitleVideoMatch(subtitleFileID: Int64, videoFileID: Int64) throws {
-        let clearActive = try database.prepare(
+        let clearPreviousMatches = try database.prepare(
             """
-            UPDATE subtitle_video_matches
-            SET is_active = 0
-            WHERE subtitle_file_id = ?;
+            DELETE FROM subtitle_video_matches
+            WHERE subtitle_file_id = ?
+              AND video_file_id != ?;
             """
         )
-        try clearActive.bind(subtitleFileID, at: 1)
-        try clearActive.run()
+        try clearPreviousMatches.bind(subtitleFileID, at: 1)
+        try clearPreviousMatches.bind(videoFileID, at: 2)
+        try clearPreviousMatches.run()
 
         let statement = try database.prepare(
             """
@@ -2970,19 +2972,6 @@ public final class IndexingDatabase: @unchecked Sendable {
         try deleteSearchOrderRows.run()
 
         guard !preserveFileIdentity else {
-            let deleteMatches = try database.prepare(
-                """
-                DELETE FROM subtitle_video_matches
-                WHERE subtitle_file_id IN (
-                    SELECT id
-                    FROM subtitle_files
-                    WHERE subtitle_path = ?
-                );
-                """
-            )
-            try deleteMatches.bind(subtitlePath, at: 1)
-            try deleteMatches.run()
-
             let deleteCueGroups = try database.prepare(
                 """
                 DELETE FROM subtitle_cue_groups
@@ -3008,23 +2997,32 @@ public final class IndexingDatabase: @unchecked Sendable {
     private func deleteOrphanedVideoFiles() throws {
         try database.execute(
             """
-            DELETE FROM video_files
-            WHERE library_id IS NULL
-              AND id NOT IN (
-                SELECT DISTINCT video_file_id FROM subtitle_video_matches
-            )
-              AND id NOT IN (
-                  SELECT video_file_id
-                  FROM library_playback_history
-                  WHERE video_file_id IS NOT NULL
-              )
-              AND id NOT IN (
-                  SELECT video_file_id
-                  FROM library_watch_states
-                  WHERE video_file_id IS NOT NULL
-              );
+            DELETE FROM subtitle_video_matches
+            WHERE is_active = 0
+               OR subtitle_file_id NOT IN (SELECT id FROM subtitle_files);
             """
         )
+
+        let statement = try database.prepare(
+            """
+            SELECT id
+            FROM video_files
+            WHERE id NOT IN (
+                SELECT m.video_file_id
+                FROM subtitle_video_matches m
+                JOIN subtitle_files sf ON sf.id = m.subtitle_file_id
+                WHERE m.is_active = 1
+            )
+            ORDER BY id ASC;
+            """
+        )
+        var orphanedVideoIDs: [Int64] = []
+        while try statement.step() {
+            orphanedVideoIDs.append(statement.int64Column(0))
+        }
+        for videoID in orphanedVideoIDs {
+            try deleteVideoFile(id: videoID)
+        }
     }
 
     private func bindStaleEntryParameters(

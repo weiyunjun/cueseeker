@@ -114,7 +114,7 @@ func returningFolderDoesNotRestoreCoverWatchStateOrProgress() throws {
         try sqliteRowID(
             table: "video_files",
             pathColumn: "path",
-            path: episode.video.path,
+            path: episode.video.mediaPath,
             databaseURL: fixture.databaseURL
         )
     )
@@ -134,7 +134,7 @@ func returningFolderDoesNotRestoreCoverWatchStateOrProgress() throws {
         try sqliteRowID(
             table: "video_files",
             pathColumn: "path",
-            path: episode.video.path,
+            path: episode.video.mediaPath,
             databaseURL: fixture.databaseURL
         )
     )
@@ -143,6 +143,126 @@ func returningFolderDoesNotRestoreCoverWatchStateOrProgress() throws {
     #expect(
         try libraryDatabase.libraryPlaybackHistory(forVideoFile: episode.video) == nil
     )
+    #expect(
+        try sqliteRowCount(
+            in: "library_watch_states",
+            databaseURL: fixture.databaseURL
+        ) == 0
+    )
+}
+
+/// Replacing a matched video with a different format (e.g. .mov -> .mkv) must
+/// purge the unmatched video and its watch state/progress so a later .mov at the
+/// same path starts fresh with a new VideoID.
+@Test
+func replacingVideoFormatCleansUpOldVideoAndDoesNotRestoreWatchStateWhenNameReturns() throws {
+    let fixture = try PathIdentityFixture()
+    defer { fixture.cleanUp() }
+
+    let database = try IndexingDatabase(path: fixture.databaseURL)
+    let libraryDatabase = try LibraryDatabase(path: fixture.databaseURL)
+    let indexer = SubtitleIndexer()
+
+    let directory = fixture.root.appendingPathComponent("Season")
+    try FileManager.default.createDirectory(
+        at: directory,
+        withIntermediateDirectories: true
+    )
+    let subtitle = directory.appendingPathComponent("Episode.srt")
+    let movVideo = directory.appendingPathComponent("Episode.mov")
+    let mkvVideo = directory.appendingPathComponent("Episode.mkv")
+
+    try """
+    1
+    00:00:01,000 --> 00:00:03,000
+    Findable line.
+
+    """.write(to: subtitle, atomically: true, encoding: .utf8)
+    try Data([0x01]).write(to: movVideo)
+
+    _ = try indexer.index(folder: fixture.root, into: database)
+    try libraryDatabase.upsertLibraryPlaybackHistory(
+        videoFile: movVideo,
+        positionMilliseconds: 600_000,
+        duration: 1_800
+    )
+    try libraryDatabase.setLibraryWatchState(
+        videoFile: movVideo,
+        duration: 1_800,
+        state: .watching
+    )
+    let originalMovVideoID = try #require(
+        try sqliteRowID(
+            table: "video_files",
+            pathColumn: "path",
+            path: movVideo.mediaPath,
+            databaseURL: fixture.databaseURL
+        )
+    )
+
+    // Step 2: Replace Episode.mov with Episode.mkv while Episode.srt is unchanged.
+    try FileManager.default.removeItem(at: movVideo)
+    try Data([0x02, 0x03]).write(to: mkvVideo)
+    _ = try indexer.index(folder: fixture.root, into: database)
+
+    #expect(
+        try sqliteRowID(
+            table: "video_files",
+            pathColumn: "path",
+            path: movVideo.mediaPath,
+            databaseURL: fixture.databaseURL
+        ) == nil
+    )
+    #expect(try libraryDatabase.libraryPlaybackHistory(forVideoFile: movVideo) == nil)
+    #expect(try libraryDatabase.libraryPlaybackHistory(forVideoFile: mkvVideo) == nil)
+    #expect(
+        try sqliteRowCount(
+            in: "library_watch_states",
+            databaseURL: fixture.databaseURL
+        ) == 0
+    )
+
+    // Record watch state on Episode.mkv, then replace it back with a new Episode.mov
+    // while also editing Episode.srt (covering the changed-subtitle rebind path).
+    try libraryDatabase.upsertLibraryPlaybackHistory(
+        videoFile: mkvVideo,
+        positionMilliseconds: 300_000,
+        duration: 1_800
+    )
+    try libraryDatabase.setLibraryWatchState(
+        videoFile: mkvVideo,
+        duration: 1_800,
+        state: .watching
+    )
+    try FileManager.default.removeItem(at: mkvVideo)
+    try Data([0x04, 0x05, 0x06]).write(to: movVideo)
+    try """
+    1
+    00:00:01,000 --> 00:00:03,000
+    Updated subtitle line after format swap.
+
+    """.write(to: subtitle, atomically: true, encoding: .utf8)
+    _ = try indexer.index(folder: fixture.root, into: database)
+
+    let returnedMovVideoID = try #require(
+        try sqliteRowID(
+            table: "video_files",
+            pathColumn: "path",
+            path: movVideo.mediaPath,
+            databaseURL: fixture.databaseURL
+        )
+    )
+    #expect(returnedMovVideoID != originalMovVideoID)
+    #expect(
+        try sqliteRowID(
+            table: "video_files",
+            pathColumn: "path",
+            path: mkvVideo.mediaPath,
+            databaseURL: fixture.databaseURL
+        ) == nil
+    )
+    #expect(try libraryDatabase.libraryPlaybackHistory(forVideoFile: movVideo) == nil)
+    #expect(try libraryDatabase.libraryPlaybackHistory(forVideoFile: mkvVideo) == nil)
     #expect(
         try sqliteRowCount(
             in: "library_watch_states",
@@ -193,7 +313,7 @@ func samePathKeepsPermanentIDsAcrossContentChange() throws {
         try sqliteRowID(
             table: "subtitle_files",
             pathColumn: "subtitle_path",
-            path: episode.subtitle.path,
+            path: episode.subtitle.mediaPath,
             databaseURL: fixture.databaseURL
         )
     )
@@ -201,7 +321,7 @@ func samePathKeepsPermanentIDsAcrossContentChange() throws {
         try sqliteRowID(
             table: "video_files",
             pathColumn: "path",
-            path: episode.video.path,
+            path: episode.video.mediaPath,
             databaseURL: fixture.databaseURL
         )
     )
@@ -221,7 +341,7 @@ func samePathKeepsPermanentIDsAcrossContentChange() throws {
         try sqliteRowID(
             table: "subtitle_files",
             pathColumn: "subtitle_path",
-            path: episode.subtitle.path,
+            path: episode.subtitle.mediaPath,
             databaseURL: fixture.databaseURL
         ) == subtitleID
     )
@@ -229,7 +349,7 @@ func samePathKeepsPermanentIDsAcrossContentChange() throws {
         try sqliteRowID(
             table: "video_files",
             pathColumn: "path",
-            path: episode.video.path,
+            path: episode.video.mediaPath,
             databaseURL: fixture.databaseURL
         ) == videoID
     )
