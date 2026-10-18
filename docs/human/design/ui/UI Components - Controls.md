@@ -625,7 +625,7 @@
   - Ring Offset：`--focus-ring-offset`
 - Disabled
   - Background：Transparent
-  - Icon Color：`--color-text-disabled`
+  - Icon Color：`--color-text-disabled`；在 `--color-player-topbar-gradient-start` 上为 `--color-player-text-tertiary`
 
 ### C-03.3 Shortcut Action Button
 
@@ -739,7 +739,6 @@
 ##### Player More Menu
 
 - Surface：Player Chrome
-- 圆角、Padding 与 Menu Item 高度与 Player Speed Menu 相同；宽度随菜单项内容
 - Item：Menu Item / Submenu Trigger：Audio Track、Subtitle、Default Audio Track、Default Subtitle
 - 视频没有音轨时 Audio Track 与 Default Audio Track 为 Disabled
 

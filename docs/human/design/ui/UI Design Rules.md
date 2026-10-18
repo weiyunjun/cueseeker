@@ -8,7 +8,7 @@
 # 1. 交互状态视觉约束（State Visual Invariants）
 
 ## 1.1 全局无按下视觉效果（No Pressed Effect）
-- **核心铁律**：按住鼠标左键期间，**不改变任何可交互控件或元素的外观**（包括但不限于按钮 `C-03.1`、图标按钮 `C-03.2`、快捷动作按钮 `C-03.3`、卡片 `C-11.5`/`L-04.6`/`L-06.10`、菜单项 `C-04.3`、Sidebar 项 `C-05.3`、标签 `C-05.5`、面包屑节点 `C-05.6`、筛选筹码 `C-02.5`、表头与表格行 `C-06.2`/`C-06.3`、播放控制按钮 `C-12.1`/`C-12.2` 等）。
+- **核心铁律**：按住鼠标左键期间，**不改变任何可交互控件或元素的外观**（包括但不限于按钮 `C-03.1`、图标按钮 `C-03.2`、快捷动作按钮 `C-03.3`、卡片 `C-11.5`/`L-04.6`/`L-06.10`、菜单项 `C-04.3`、Sidebar 项 `C-05.3`、标签 `C-05.5`、面包屑节点 `C-05.6`、筛选筹码 `C-02.5`、表头与表格行 `C-06.2`/`C-06.3`、播放控制按钮 `C-12.1` 等）。
 - **保持既有状态**：按住期间元素保持按下前已有的 `Default`、`Hover`、`Selected`、`Highlighted`、`Open` 或 `Focused` 外观，**严禁出现变暗、变色、半透明衰减或缩放等按下态（Pressed / Active）效果**。
 - **触发时机**：点击动作统一在鼠标松开（Mouse Up）时发生。
 
@@ -17,7 +17,7 @@
 - **允许拥有选中态的组件白名单**：
   1. **选择控件**：`C-02.1 Checkbox`（`Checked` / `Indeterminate`）、`C-02.2 Switch`、`C-02.4 Segmented Control`、`C-02.5 Filter Chip`。
   2. **导航与单选菜单**：`C-04.3 Menu Item / Radio Menu Item`、`C-05.3 Sidebar Item`、`C-05.5 Tab`、`C-05.6 Breadcrumb`（仅当前所在层级末节点为激活样式，前置祖先节点无选中态）。
-  3. **列表、卡片与台词流**：`C-06.3 Table Row`（批量选择勾选行）、`C-11.5 Media Card`（卡片列表中的当前高亮/选中项）、`C-12.1 Player Circle Button`（仅循环等开关型按钮）、`C-13.1 Playback Cue Metadata`、`C-13.2 Subtitle Focus Cue`、`C-13.3 Playback Cue Result`。
+  3. **列表、卡片与台词流**：`C-06.3 Table Row`（批量选择勾选行）、`C-11.5 Media Card`（卡片列表中的当前高亮/选中项）、`C-13.1 Playback Cue Metadata`、`C-13.2 Subtitle Focus Cue`、`C-13.3 Playback Cue Result`。
 - **非白名单组件禁令**：除上述白名单外，其余动作触发型组件（如 `C-03.1 Button`、`C-03.2 Icon Button`、`C-03.3 Shortcut Action Button`、`C-04.3 Action Menu Item` 等）**严禁定义或渲染 `Selected` 态**；当按钮所挂靠的菜单、弹窗或所控模式处于打开状态时，统一使用 `Open` 状态（外观等同于对应表面的 `Hover` 态）。
 
 ## 1.3 输入框聚焦与报错预留约束
@@ -62,7 +62,7 @@
 
 ## 3.3 固定深色表面（Mode-Invariant Dark Surfaces）
 - 以下表面在 Light Mode 与 Dark Mode 下使用同一套深色视觉规则，不随系统明暗模式反色：
-  1. **播放页舞台与播控组件（Player Chrome）**：视频背景、顶栏渐变、底栏胶囊按钮、进度条、播放菜单、Playback Feedback 与 Player Error Banner。
+  1. **播放页舞台与播控组件（Player Chrome）**：视频背景、顶底栏渐变、底栏播控控件、进度条、播放菜单、Playback Feedback 与 Player Error Banner。
   2. **Cover Summary 的 Backdrop Form**：背景大图铺满叠加从左向右衰减的黑色 Scrim（`--color-cover-summary-scrim`）与白色文字（`--color-cover-summary-text`）。（注：`Cover Summary` 的 `Split Form` 则分别适配 Light Mode 与 Dark Mode。）
 
 ---

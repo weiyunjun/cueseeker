@@ -158,7 +158,6 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 ### Player Chrome
 
 - `--color-player-stage-bg`: Light `#000000`; Dark `#000000`
-- `--color-player-control-bg`: Light `rgba(0,0,0,0.30)`; Dark `rgba(0,0,0,0.30)`
 - `--color-player-control-bg-hover`: Light `rgba(255,255,255,0.16)`; Dark `rgba(255,255,255,0.16)`
 - `--color-player-control-bg-active`: macOS accent color with Alpha `0.26`
 - `--color-player-menu-bg`: Light `rgba(0,0,0,0.55)`; Dark `rgba(0,0,0,0.55)`
@@ -166,10 +165,9 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--color-player-text-primary`: Light `rgba(255,255,255,0.94)`; Dark `rgba(255,255,255,0.94)`
 - `--color-player-text-secondary`: Light `rgba(255,255,255,0.62)`; Dark `rgba(255,255,255,0.62)`
 - `--color-player-text-tertiary`: Light `rgba(255,255,255,0.34)`; Dark `rgba(255,255,255,0.34)`
-- `--color-player-icon-selected`: Light `#1A1A1F`; Dark `#1A1A1F`
 - `--color-player-progress-fill`: macOS accent color
-- `--color-player-progress-track`: Light `rgba(0,0,0,0.60)`; Dark `rgba(0,0,0,0.60)`
-- `--color-player-progress-hover-track`: Light `rgba(255,255,255,0.35)`; Dark `rgba(255,255,255,0.35)`
+- `--color-player-progress-track`: Light `rgba(255,255,255,0.24)`; Dark `rgba(255,255,255,0.24)`
+- `--color-player-progress-hover-track`: Light `rgba(255,255,255,0.38)`; Dark `rgba(255,255,255,0.38)`
 - `--color-player-topbar-gradient-start`: Light `rgba(18,18,24,0.66)`; Dark `rgba(18,18,24,0.66)`
 - `--color-player-topbar-gradient-end`: Light `rgba(18,18,24,0)`; Dark `rgba(18,18,24,0)`
 - `--color-player-error-bg`: Light `#B42318`; Dark `#B42318`
@@ -203,8 +201,6 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--font-size-app-sidebar-item`: `13px`
 - `--font-size-player-time`: `12px`
 - `--font-size-player-progress-time`: `10px`
-- `--font-size-player-speed-menu-check`: `14px`
-- `--font-size-player-speed-menu-item`: `13px`
 - `--font-size-player-error`: `13px`
 - `--line-height-player-error`: `20px`
 - `--font-size-playback-feedback`: `18px`
@@ -255,11 +251,8 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--height-app-sidebar-item`: `32px`
 - `--height-app-topbar`: `54px`
 - `--height-workbench-topbar`: `54px`
-- `--height-player-bottom-control-bar`: `98px`
-- `--height-player-bottom-controls-row`: `52px`
-- `--height-player-capsule-button`: `40px`
-- `--height-player-speed-menu`: `246px`
-- `--height-player-speed-menu-item`: `30px`
+- `--height-player-bottom-control-bar`: `90px`
+- `--height-player-bottom-controls-row`: `44px`
 - `--height-player-progress-hit-area`: `18px`
 - `--height-player-progress-track`: `3px`
 - `--height-player-progress-track-hover`: `6px`
@@ -314,10 +307,9 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--size-detail-file-icon-glyph`: `20px`
 - `--min-width-detail-label`: `100px`
 - `--min-width-detail-index-label`: `40px`
-- `--size-player-circle-button`: `40px`
-- `--size-player-circle-button-icon`: `23px`
-- `--width-player-speed-button`: `54px`
-- `--width-player-speed-menu`: `184px`
+- `--width-player-volume-slider`: `68px`
+- `--size-player-volume-thumb`: `10px`
+- `--width-player-volume-value`: `32px`
 - `--max-width-player-audio-track-menu`: `300px`
 - `--size-player-progress-thumb`: `12px`
 - `--width-player-topbar-title-max`: `520px`
@@ -384,9 +376,6 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--gap-menu-divider`: `4px`
 - `--gap-subtitle-focus-cue`: `8px`
 - `--gap-subtitle-focus-internal-line`: `3px`
-- `--gap-player-bottom-left-controls`: `8px`
-- `--gap-player-bottom-right-controls`: `6px`
-- `--gap-player-time-label`: `4px`
 - `--gap-app-topbar-toggle-after-window-controls`: `20px`
 - `--gap-app-topbar-content`: `12px`
 - `--gap-player-window-controls-return`: `16px`
@@ -428,8 +417,8 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--padding-player-chrome-x`: `24px`
 - `--padding-player-chrome-bottom`: `12px`
 - `--padding-player-progress-top`: `16px`
-- `--padding-player-capsule-button-x`: `16px`
-- `--padding-player-speed-menu-item-x`: `8px`
+- `--padding-player-speed-button-x`: `10px`
+- `--padding-player-volume-trailing`: `10px`
 - `--padding-player-progress-time-capsule-x`: `8px`
 - `--padding-player-topbar-x`: `16px`
 - `--padding-player-error-x`: `12px`
@@ -465,11 +454,8 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--radius-app-sidebar-item`: `8px`
 - `--radius-settings-group`: `10px`
 - `--radius-settings-color-swatch`: `4px`
-- `--radius-player-capsule`: `9999px`
-- `--radius-player-speed-menu`: `14px`
 - `--radius-playback-feedback`: `16px`
 - `--radius-player-error`: `10px`
-- `--radius-player-speed-menu-item`: `8px`
 - `--radius-library-cover`: `8px`
 - `--radius-library-time-badge`: `4px`
 - `--radius-library-folder-card`: `8px`
@@ -524,6 +510,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--scale-collage-group-hover`: `1.02`
 - `--duration-collage-group-hover`: `0.12s`
 - `--duration-sidebar-motion`: `0.18s`
+- `--duration-player-volume-expand`: `0.18s`
 - `--delay-tooltip-hover`: `1s`
 - `--delay-tooltip-skip-window`: `0.3s`
 

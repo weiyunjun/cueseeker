@@ -62,11 +62,9 @@
 #### Components
 
 - Player Progress Scrubber Layout
-- Player Circle Button
-- Player Circle Button Group
-- Player Capsule Button
-- Player Time Display
+- Icon Button / Default
 - Player Volume Control
+- Player Speed Button
 
 #### Sizes
 
@@ -75,8 +73,13 @@
 - Padding Inline：`--padding-player-chrome-x`
 - Padding Bottom：`--padding-player-chrome-bottom`
 - Progress Top Padding：`--padding-player-progress-top`
-- Left Control Gap：`--gap-player-bottom-left-controls`
-- Right Control Gap：`--gap-player-bottom-right-controls`
+- Left Control Gap：`--spacing-1`
+- Right Control Gap：`--spacing-1`
+
+#### Surface
+
+- Gradient Start（Bottom）：`--color-player-topbar-gradient-start`
+- Gradient End（Top）：`--color-player-topbar-gradient-end`
 
 #### States
 
@@ -88,17 +91,22 @@
 
 #### Structure
 
-1. Player Progress Scrubber
-2. Player Progress Time Capsule
+1. Current Time
+2. Player Progress Scrubber
+3. Remaining Time
+4. Player Progress Time Capsule
    - Presence：Hover or Dragging
 
 #### Components
 
+- Player Time Display
 - Player Progress Scrubber
 - Player Progress Time Capsule
 
 #### Sizes
 
+- Padding Inline：`--padding-player-chrome-x` + `--spacing-2`
+- Time to Scrubber Gap：`--spacing-3`
 - Hit Area Height：`--height-player-progress-hit-area`
 - Track Height：`--height-player-progress-track`
 - Hover Track Height：`--height-player-progress-track-hover`

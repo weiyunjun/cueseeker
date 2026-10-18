@@ -90,14 +90,12 @@
 | | `C-11.3` | Cover Crop Editor | — |
 | | `C-11.4` | Cover Progress | — |
 | | `C-11.5` | Media Card | — |
-| **2.12 Player Controls** | `C-12.1` | Player Circle Button | `Standard`、`Transport`、`Primary Transport` |
-| | `C-12.2` | Player Capsule Button | — |
-| | `C-12.3` | Player Time Display | — |
-| | `C-12.4` | Player Circle Button Group | — |
-| | `C-12.5` | Player Progress Scrubber | — |
-| | `C-12.6` | Player Progress Time Capsule | — |
-| | `C-12.7` | Player Volume Control | — |
-| | `C-12.8` | Player Title | — |
+| **2.12 Player Controls** | `C-12.1` | Player Speed Button | — |
+| | `C-12.2` | Player Time Display | — |
+| | `C-12.3` | Player Progress Scrubber | — |
+| | `C-12.4` | Player Progress Time Capsule | — |
+| | `C-12.5` | Player Volume Control | — |
+| | `C-12.6` | Player Title | — |
 | **2.13 Playback Content** | `C-13.1` | Playback Cue Metadata | — |
 | | `C-13.2` | Subtitle Focus Cue | — |
 | | `C-13.3` | Playback Cue Result | — |

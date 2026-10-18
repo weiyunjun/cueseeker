@@ -849,131 +849,60 @@
 
 ## 2.12 Player Controls
 
-### C-12.1 Player Circle Button
+### C-12.1 Player Speed Button
 
 #### Shared
 
 ##### Anatomy
 
 - Container
-  - Radius：`--radius-player-capsule`
-- Icon
-  - Size：`--size-player-circle-button-icon`
-
-##### Sizes
-
-- Width：`--size-player-circle-button`
-- Height：`--size-player-circle-button`
-
-##### States
-
-- Default
-  - Icon Color：`--color-player-text-primary`
-- Hover
-  - Background：`--color-player-control-bg-hover`
-- Selected
-  - Icon Color：`--color-player-icon-selected`
-- Open
-  - 触发：挂靠的菜单打开
-  - 外观与 Hover 相同
-- Disabled
-  - Icon Color：`--color-player-text-tertiary`
-- Interaction Suppressed
-
-#### Variants
-
-##### Standard
-
-##### Transport
-
-##### Primary Transport
-
-### C-12.2 Player Capsule Button
-
-#### Shared
-
-##### Anatomy
-
-- Container
-  - Background：`--color-player-control-bg`
-  - Radius：`--radius-player-capsule`
-- Leading Icon
-  - Presence：Optional
+  - Radius：`--radius-control`
 - Label
   - Font Size：`--font-size-player-time`
   - Color：`--color-player-text-primary`
-- Trailing Indicator
-  - Presence：Optional
+  - 数字等宽
 
 ##### Sizes
 
-- Height：`--height-player-capsule-button`
-- Padding Inline：`--padding-player-capsule-button-x`
+- Height：`--size-icon-button`
+- Padding Inline：`--padding-player-speed-button-x`
 
 ##### States
 
 - Default
+  - Background：Transparent
 - Hover
   - Background：`--color-player-control-bg-hover`
-- Menu Open
+- Open
+  - 触发：挂靠的倍速菜单打开
+  - Background：`--color-player-control-bg-hover`
 - Disabled
   - Text Color：`--color-player-text-tertiary`
 - Interaction Suppressed
 
-### C-12.3 Player Time Display
+### C-12.2 Player Time Display
 
 #### Shared
 
 ##### Anatomy
 
-- Container
-  - Background：`--color-player-control-bg`
-  - Radius：`--radius-player-capsule`
-- Time Text
-  - Current Time
-  - Separator
-  - Duration
+- Current Time
   - Font Design：Monospaced
+  - Color：`--color-player-text-primary`
+- Remaining Time
+  - 带前导负号 `-`
+  - Font Design：Monospaced
+  - Color：`--color-player-text-primary`
 
 ##### Sizes
 
-- Height：`--height-player-capsule-button`
-- Padding Inline：`--padding-player-capsule-button-x`
 - Font Size：`--font-size-player-time`
-- Content Gap：`--gap-player-time-label`
 
 ##### States
 
 - Default
-- Hover
-  - Background：`--color-player-control-bg-hover`
-- Interaction Suppressed
 
-### C-12.4 Player Circle Button Group
-
-#### Shared
-
-##### Anatomy
-
-- Container
-  - Background：`--color-player-control-bg`
-  - Radius：`--radius-player-capsule`
-- Button Stack
-  - Component：Player Circle Button
-
-##### Sizes
-
-- Height：`--height-player-capsule-button`
-- Item Gap：0
-
-##### States
-
-- Default
-- Child Hover
-- Child Disabled
-- Interaction Suppressed
-
-### C-12.5 Player Progress Scrubber
+### C-12.3 Player Progress Scrubber
 
 #### Shared
 
@@ -998,7 +927,7 @@
 - Track Height：`--height-player-progress-track`
 - Hover Track Height：`--height-player-progress-track-hover`
 - Thumb Size：`--size-player-progress-thumb`
-- Radius：`--radius-player-capsule`
+- Radius：Capsule
 
 ##### States
 
@@ -1008,15 +937,15 @@
 - Disabled
 - No Duration
 
-### C-12.6 Player Progress Time Capsule
+### C-12.4 Player Progress Time Capsule
 
 #### Shared
 
 ##### Anatomy
 
 - Container
-  - Background：`--color-player-control-bg`
-  - Radius：`--radius-player-capsule`
+  - Background：`--color-player-menu-bg`
+  - Radius：`--radius-field`
 - Time Label
   - Font Size：`--font-size-player-progress-time`
   - Color：`--color-player-text-primary`
@@ -1025,6 +954,7 @@
 
 - Height：`--height-player-progress-time-capsule`
 - Padding Inline：`--padding-player-progress-time-capsule-x`
+- Bottom to Hit Area Gap：`--spacing-1`
 
 ##### States
 
@@ -1032,25 +962,39 @@
 - Visible On Hover
 - Visible On Drag
 
-### C-12.7 Player Volume Control
+### C-12.5 Player Volume Control
 
 #### Shared
 
 ##### Anatomy
 
 - Container
-  - Background：`--color-player-control-bg`
-  - Radius：`--radius-player-capsule`
-- Volume Button：Player Circle Button
+  - Radius：`--radius-control`
+- Volume Button：Icon Button / Default
 - Slider Track
+  - Color：`--color-player-progress-track`
 - Slider Fill
+  - Color：`--color-player-error-content`
 - Slider Thumb
+  - Color：`--color-player-error-content`
 - Volume Value
+  - Font Size：`--font-size-player-time`
   - Font Design：Monospaced
+  - Color：`--color-player-text-primary`
 
 ##### Sizes
 
-- Height：`--height-player-capsule-button`
+- Height：`--size-icon-button`
+- Slider Width：`--width-player-volume-slider`
+- Track Height：`--height-player-progress-track`
+- Thumb Size：`--size-player-volume-thumb`
+- Value Width：`--width-player-volume-value`
+- Slider to Value Gap：`--spacing-1`
+- Trailing Padding：`--padding-player-volume-trailing`
+
+##### Motion
+
+- Expand / Collapse Duration：`--duration-player-volume-expand`
 
 ##### Interaction
 
@@ -1061,17 +1005,18 @@
 ##### States
 
 - Collapsed
+  - Background：Transparent
 - Expanded
+  - Background：`--color-player-control-bg-hover`
 - Muted
 - Low
 - Medium
 - High
-- Hover
 - Dragging
 - Disabled
 - Interaction Suppressed
 
-### C-12.8 Player Title
+### C-12.6 Player Title
 
 #### Shared
 
