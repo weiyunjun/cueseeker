@@ -129,7 +129,7 @@ extension LibraryDatabase {
             LEFT JOIN video_covers vc ON vc.video_file_id = vf.id
                 AND vc.status = ? AND vc.display_profile_version = ?
             LEFT JOIN user_video_covers uvc ON uvc.video_file_id = vf.id
-            WHERE (\(scopeCondition))
+            WHERE (\(scopeCondition)) AND h.updated_at != ''
             ORDER BY julianday(h.updated_at) DESC, h.updated_at DESC,
                      lvr.folder_title COLLATE NOCASE ASC,
                      lvr.folder_path COLLATE NOCASE ASC,
@@ -191,19 +191,25 @@ extension LibraryDatabase {
                        lvr.folder_path, lvr.folder_title, lvr.video_path, lvr.video_name,
                        lvr.duration, lvr.subtitle_path, lvr.subtitle_format, lvr.display_title,
                        lvr.file_extension, lvr.video_order,
+                       COALESCE(h.position_ms, 0),
+                       h.duration,
                        CASE
-                           WHEN ws.state = 'finished' THEN ws.updated_at
-                           WHEN ws.state = 'watching' THEN ws.updated_at
-                           ELSE NULL
+                           WHEN ws.state = 'finished' THEN COALESCE(h.started_at, ws.updated_at)
+                           WHEN ws.state = 'watching' THEN COALESCE(h.started_at, ws.updated_at)
+                           WHEN ws.state = 'unwatched' THEN NULL
+                           ELSE h.started_at
                        END,
                        CASE
                            WHEN ws.state = 'finished' THEN ws.updated_at
-                           ELSE NULL
+                           WHEN ws.state = 'watching' THEN NULL
+                           WHEN ws.state = 'unwatched' THEN NULL
+                           ELSE h.completed_at
                        END,
                        COALESCE(uvc.display_cover_path, vc.display_cover_path),
                        COALESCE(uvc.updated_at, vc.generated_at)
                 FROM library_video_rows lvr
                 JOIN subtitle_files sf ON sf.id = lvr.subtitle_file_id
+                LEFT JOIN library_playback_history h ON h.video_file_id = lvr.video_file_id
                 LEFT JOIN library_watch_states ws ON ws.video_file_id = lvr.video_file_id
                 JOIN video_files vf ON vf.id = lvr.video_file_id
                 LEFT JOIN video_covers vc ON vc.video_file_id = vf.id
@@ -249,13 +255,13 @@ extension LibraryDatabase {
                         folderPath: folderPath,
                         folderTitle: fallbackStatement.stringColumn(3),
                         episodeNumber: max(1, fallbackStatement.intColumn(11) + 1),
-                        positionMilliseconds: 0,
-                        playbackDuration: nil,
-                        startedAt: fallbackStatement.nullableStringColumn(12),
-                        completedAt: fallbackStatement.nullableStringColumn(13),
+                        positionMilliseconds: max(0, fallbackStatement.intColumn(12)),
+                        playbackDuration: fallbackStatement.nullableDoubleColumn(13),
+                        startedAt: fallbackStatement.nullableStringColumn(14),
+                        completedAt: fallbackStatement.nullableStringColumn(15),
                         updatedAt: "",
-                        coverPath: fallbackStatement.nullableStringColumn(14),
-                        coverRevision: fallbackStatement.nullableStringColumn(15)
+                        coverPath: fallbackStatement.nullableStringColumn(16),
+                        coverRevision: fallbackStatement.nullableStringColumn(17)
                     )
                 )
             }
@@ -383,7 +389,9 @@ extension LibraryDatabase {
             }
 
             let episodeNumber = max(1, statement.intColumn(11) + 1)
-            let historyUpdatedAt = statement.nullableStringColumn(16)
+            let historyUpdatedAt = statement.nullableStringColumn(16).flatMap {
+                $0.isEmpty ? nil : $0
+            }
             if let historyUpdatedAt {
                 let historySortValue = statement.nullableDoubleColumn(17) ?? 0
                 let shouldUpdateLatest: Bool
@@ -594,6 +602,9 @@ extension LibraryDatabase {
                 folderTitle = statement.stringColumn(3)
             }
 
+            let historyUpdatedAt = statement.nullableStringColumn(16).flatMap {
+                $0.isEmpty ? nil : $0
+            }
             videos.append(
                 CompleteLibraryVideoPresentation(
                     videoFileID: statement.int64Column(0),
@@ -615,7 +626,7 @@ extension LibraryDatabase {
                     playbackDuration: statement.nullableDoubleColumn(13),
                     startedAt: statement.nullableStringColumn(14),
                     completedAt: statement.nullableStringColumn(15),
-                    historyUpdatedAt: statement.nullableStringColumn(16),
+                    historyUpdatedAt: historyUpdatedAt,
                     coverPath: statement.nullableStringColumn(17),
                     coverRevision: statement.nullableStringColumn(23)
                 )

@@ -321,8 +321,28 @@ public final class ExcerptDatabase: @unchecked Sendable {
                 let position = anchoredID.flatMap { id in
                     playable.firstIndex { $0.id == id }
                 } ?? 0
+                var resolvedList = list
+                if anchoredID == nil,
+                   let fallbackCueID = relations.first(where: { $0.id == playable[position].id })?.cueID {
+                    if access == .readWrite {
+                        try? updateRecentExcerptFallbackCue(
+                            listID: list.id,
+                            cueID: fallbackCueID
+                        )
+                    }
+                    resolvedList = ExcerptList(
+                        id: list.id,
+                        name: list.name,
+                        description: list.description,
+                        coverPath: list.coverPath,
+                        createdAt: list.createdAt,
+                        recentCueID: fallbackCueID,
+                        recentSortOrder: list.recentSortOrder,
+                        recentPlayedAt: list.recentPlayedAt
+                    )
+                }
                 summaries.append(ExcerptListSummary(
-                    list: list,
+                    list: resolvedList,
                     cueCount: playable.count,
                     resumeExcerpt: playable[position],
                     resumePosition: position + 1
@@ -927,6 +947,22 @@ public final class ExcerptDatabase: @unchecked Sendable {
             """
         )
         try statement.bind(listID, at: 1)
+        try statement.run()
+    }
+
+    private func updateRecentExcerptFallbackCue(
+        listID: Int64,
+        cueID: Int64
+    ) throws {
+        let statement = try database.prepare(
+            """
+            UPDATE excerpt_lists
+            SET recent_cue_id = ?
+            WHERE id = ?;
+            """
+        )
+        try statement.bind(cueID, at: 1)
+        try statement.bind(listID, at: 2)
         try statement.run()
     }
 

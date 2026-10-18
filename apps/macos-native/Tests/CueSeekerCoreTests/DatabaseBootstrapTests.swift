@@ -1209,4 +1209,37 @@ func migratesSchema55ByRebuildingCharacterFacetCountsWithEastAsianWidthRule() th
     #expect(distribution.characterCounts == [.elevenToTwenty: 1])
 }
 
+@Test
+func migratesSchema56ByCreatingVideoTombstonesTable() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        removeTemporaryDatabase(at: databaseURL)
+    }
 
+    try DatabaseBootstrap.prepare(at: databaseURL)
+    try executeDatabaseTestSQLite(
+        at: databaseURL,
+        """
+        DROP TABLE IF EXISTS video_tombstones;
+        PRAGMA user_version = 56;
+        """
+    )
+
+    try DatabaseBootstrap.prepare(at: databaseURL)
+
+    #expect(try sqliteSchemaVersion(at: databaseURL) == DatabaseBootstrap.currentSchemaVersion)
+    #expect(try sqliteTableExists("video_tombstones", databaseURL: databaseURL))
+    let columns = try sqliteColumnNames(in: "video_tombstones", databaseURL: databaseURL)
+    #expect(
+        columns == [
+            "video_path",
+            "position_ms",
+            "duration",
+            "watch_state",
+            "user_cover_path",
+            "default_audio_track_index",
+            "tombstoned_at",
+            "updated_at"
+        ]
+    )
+}

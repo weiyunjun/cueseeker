@@ -698,6 +698,7 @@ public final class IndexingDatabase: @unchecked Sendable {
         try recomputeTombstoneUnavailableReasons(
             subtitleFileID: subtitleFileID
         )
+        try reconcileExcerptListRecentCues()
 
         if rebuildSearchDerivedIndex {
             try rebuildSearchDerivedIndexInCurrentTransaction()
@@ -1603,6 +1604,7 @@ public final class IndexingDatabase: @unchecked Sendable {
             }
 
             try deleteOrphanedVideoFiles()
+            try reconcileExcerptListRecentCues()
 
             if removeSearchPath {
                 for searchPath in Self.folderPathVariants(for: folder) {
@@ -1749,6 +1751,7 @@ public final class IndexingDatabase: @unchecked Sendable {
             try bindOptional(modifiedAt?.timeIntervalSince1970, to: statement, at: 7)
             try statement.bind(record.id, at: 8)
             try statement.run()
+            try restoreVideoTombstoneIfNeeded(forVideoFile: videoFile, videoFileID: record.id)
             return record.id
         }
 
@@ -1774,11 +1777,11 @@ public final class IndexingDatabase: @unchecked Sendable {
         try bindOptional(fileSize, to: statement, at: 6)
         try bindOptional(modifiedAt?.timeIntervalSince1970, to: statement, at: 7)
 
-        guard try statement.step() else {
-            return database.lastInsertRowID()
-        }
-
-        return statement.int64Column(0)
+        let id = try statement.step()
+            ? statement.int64Column(0)
+            : database.lastInsertRowID()
+        try restoreVideoTombstoneIfNeeded(forVideoFile: videoFile, videoFileID: id)
+        return id
     }
 
     private func subtitleFileRecord(path: String) throws -> BoundResourceRecord? {
@@ -1820,8 +1823,11 @@ public final class IndexingDatabase: @unchecked Sendable {
         try statement.run()
     }
 
-    /// Deletes a video and the watch state, progress and history that belong to it.
+    /// Snapshots user-accumulated video state into `video_tombstones` (without Recent)
+    /// and deletes the active video row and its transient rows.
     private func deleteVideoFile(id: Int64) throws {
+        try snapshotVideoTombstoneIfNeeded(videoFileID: id)
+
         for table in ["library_playback_history", "library_watch_states"] {
             let statement = try database.prepare(
                 "DELETE FROM \(table) WHERE video_file_id = ?;"
@@ -1841,6 +1847,311 @@ public final class IndexingDatabase: @unchecked Sendable {
         )
         try statement.bind(id, at: 1)
         try statement.run()
+    }
+
+    private func snapshotVideoTombstoneIfNeeded(videoFileID: Int64) throws {
+        let select = try database.prepare(
+            """
+            SELECT
+                vf.path,
+                vf.duration,
+                COALESCE(vf.default_audio_track_index, 0),
+                COALESCE(h.position_ms, 0),
+                h.duration,
+                COALESCE(
+                    ws.state,
+                    CASE
+                        WHEN COALESCE(h.position_ms, 0) > 0 THEN 'watching'
+                        ELSE 'unwatched'
+                    END
+                ),
+                uvc.display_cover_path
+            FROM video_files vf
+            LEFT JOIN library_playback_history h ON h.video_file_id = vf.id
+            LEFT JOIN library_watch_states ws ON ws.video_file_id = vf.id
+            LEFT JOIN user_video_covers uvc ON uvc.video_file_id = vf.id
+            WHERE vf.id = ?
+            LIMIT 1;
+            """
+        )
+        try select.bind(videoFileID, at: 1)
+        guard try select.step() else {
+            return
+        }
+
+        let videoPath = select.stringColumn(0)
+        let videoDuration = select.nullableDoubleColumn(1)
+        let defaultAudioTrackIndex = select.intColumn(2)
+        let positionMilliseconds = max(0, select.intColumn(3))
+        let historyDuration = select.nullableDoubleColumn(4)
+        let watchState = select.stringColumn(5)
+        let userCoverPath = select.nullableStringColumn(6).flatMap { $0.isEmpty ? nil : $0 }
+
+        let hasUserAccumulatedState =
+            positionMilliseconds > 0
+            || watchState != LibraryWatchState.unwatched.rawValue
+            || userCoverPath != nil
+            || defaultAudioTrackIndex > 0
+        guard hasUserAccumulatedState else {
+            return
+        }
+
+        let now = ISO8601DateFormatter().string(from: Date())
+        let upsert = try database.prepare(
+            """
+            INSERT INTO video_tombstones(
+                video_path,
+                position_ms,
+                duration,
+                watch_state,
+                user_cover_path,
+                default_audio_track_index,
+                tombstoned_at,
+                updated_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(video_path) DO UPDATE SET
+                position_ms = excluded.position_ms,
+                duration = excluded.duration,
+                watch_state = excluded.watch_state,
+                user_cover_path = excluded.user_cover_path,
+                default_audio_track_index = excluded.default_audio_track_index,
+                tombstoned_at = excluded.tombstoned_at,
+                updated_at = excluded.updated_at;
+            """
+        )
+        try upsert.bind(videoPath, at: 1)
+        try upsert.bind(positionMilliseconds, at: 2)
+        try bindOptional(videoDuration ?? historyDuration, to: upsert, at: 3)
+        try upsert.bind(watchState, at: 4)
+        try bindOptional(userCoverPath, to: upsert, at: 5)
+        try upsert.bind(defaultAudioTrackIndex, at: 6)
+        try upsert.bind(now, at: 7)
+        try upsert.bind(now, at: 8)
+        try upsert.run()
+    }
+
+    private func restoreVideoTombstoneIfNeeded(
+        forVideoFile videoFile: URL,
+        videoFileID: Int64
+    ) throws {
+        let pathVariants = Self.folderPathVariants(for: videoFile).sorted()
+        guard !pathVariants.isEmpty else {
+            return
+        }
+        let placeholders = pathVariants.map { _ in "?" }.joined(separator: ", ")
+        let select = try database.prepare(
+            """
+            SELECT
+                position_ms,
+                duration,
+                watch_state,
+                user_cover_path,
+                default_audio_track_index,
+                updated_at
+            FROM video_tombstones
+            WHERE video_path IN (\(placeholders))
+            ORDER BY CASE WHEN video_path = ? THEN 0 ELSE 1 END, updated_at DESC
+            LIMIT 1;
+            """
+        )
+        for (offset, variant) in pathVariants.enumerated() {
+            try select.bind(variant, at: Int32(offset + 1))
+        }
+        try select.bind(videoFile.mediaPath, at: Int32(pathVariants.count + 1))
+        guard try select.step() else {
+            return
+        }
+
+        let positionMilliseconds = max(0, select.intColumn(0))
+        let tombstoneDuration = select.nullableDoubleColumn(1)
+        let watchState = select.stringColumn(2)
+        let userCoverPath = select.nullableStringColumn(3).flatMap { $0.isEmpty ? nil : $0 }
+        let defaultAudioTrackIndex = max(0, select.intColumn(4))
+        let tombstoneUpdatedAt = select.stringColumn(5)
+
+        if defaultAudioTrackIndex > 0 {
+            let updateAudioTrack = try database.prepare(
+                """
+                UPDATE video_files
+                SET default_audio_track_index = ?
+                WHERE id = ?;
+                """
+            )
+            try updateAudioTrack.bind(defaultAudioTrackIndex, at: 1)
+            try updateAudioTrack.bind(videoFileID, at: 2)
+            try updateAudioTrack.run()
+        }
+
+        if let userCoverPath {
+            let upsertCover = try database.prepare(
+                """
+                INSERT INTO user_video_covers(video_file_id, display_cover_path, updated_at)
+                VALUES (?, ?, ?)
+                ON CONFLICT(video_file_id) DO UPDATE SET
+                    display_cover_path = excluded.display_cover_path,
+                    updated_at = excluded.updated_at;
+                """
+            )
+            try upsertCover.bind(videoFileID, at: 1)
+            try upsertCover.bind(userCoverPath, at: 2)
+            try upsertCover.bind(tombstoneUpdatedAt, at: 3)
+            try upsertCover.run()
+        }
+
+        let durationStatement = try database.prepare(
+            "SELECT duration FROM video_files WHERE id = ? LIMIT 1;"
+        )
+        try durationStatement.bind(videoFileID, at: 1)
+        let currentVideoDuration: Double? = try durationStatement.step()
+            ? durationStatement.nullableDoubleColumn(0)
+            : nil
+
+        let shouldResetForShorterDuration: Bool = {
+            guard let currentVideoDuration, currentVideoDuration > 0 else {
+                return false
+            }
+            let durationMilliseconds = Int((currentVideoDuration * 1_000).rounded(.down))
+            return positionMilliseconds > durationMilliseconds
+        }()
+
+        if !shouldResetForShorterDuration {
+            if watchState != LibraryWatchState.unwatched.rawValue {
+                let upsertWatchState = try database.prepare(
+                    """
+                    INSERT INTO library_watch_states(video_file_id, state, updated_at)
+                    VALUES (?, ?, ?)
+                    ON CONFLICT(video_file_id) DO UPDATE SET
+                        state = excluded.state,
+                        updated_at = excluded.updated_at;
+                    """
+                )
+                try upsertWatchState.bind(videoFileID, at: 1)
+                try upsertWatchState.bind(watchState, at: 2)
+                try upsertWatchState.bind(tombstoneUpdatedAt, at: 3)
+                try upsertWatchState.run()
+            }
+
+            if positionMilliseconds > 0 {
+                let startedAt: String? =
+                    watchState == LibraryWatchState.unwatched.rawValue ? nil : tombstoneUpdatedAt
+                let completedAt: String? =
+                    watchState == LibraryWatchState.finished.rawValue ? tombstoneUpdatedAt : nil
+                let upsertHistory = try database.prepare(
+                    """
+                    INSERT INTO library_playback_history(
+                        video_file_id,
+                        position_ms,
+                        duration,
+                        started_at,
+                        completed_at,
+                        updated_at
+                    )
+                    VALUES (?, ?, ?, ?, ?, '')
+                    ON CONFLICT(video_file_id) DO UPDATE SET
+                        position_ms = excluded.position_ms,
+                        duration = excluded.duration,
+                        started_at = excluded.started_at,
+                        completed_at = excluded.completed_at,
+                        updated_at = excluded.updated_at;
+                    """
+                )
+                try upsertHistory.bind(videoFileID, at: 1)
+                try upsertHistory.bind(positionMilliseconds, at: 2)
+                try bindOptional(currentVideoDuration ?? tombstoneDuration, to: upsertHistory, at: 3)
+                try bindOptional(startedAt, to: upsertHistory, at: 4)
+                try bindOptional(completedAt, to: upsertHistory, at: 5)
+                try upsertHistory.run()
+            }
+        }
+
+        let deleteTombstone = try database.prepare(
+            "DELETE FROM video_tombstones WHERE video_path IN (\(placeholders));"
+        )
+        for (offset, variant) in pathVariants.enumerated() {
+            try deleteTombstone.bind(variant, at: Int32(offset + 1))
+        }
+        try deleteTombstone.run()
+    }
+
+    private func reconcileExcerptListRecentCues() throws {
+        let selectLists = try database.prepare(
+            """
+            SELECT el.id
+            FROM excerpt_lists el
+            WHERE el.recent_played_at IS NOT NULL
+              AND (
+                  el.recent_cue_id IS NULL
+                  OR NOT EXISTS (
+                      SELECT 1
+                      FROM excerpts s
+                      JOIN subtitle_cue_lines l ON l.id = s.cue_id
+                      JOIN subtitle_files sf ON sf.id = l.subtitle_file_id
+                      JOIN subtitle_video_matches m
+                        ON m.subtitle_file_id = sf.id
+                       AND m.is_active = 1
+                      JOIN video_files vf ON vf.id = m.video_file_id
+                      WHERE s.list_id = el.id
+                        AND s.cue_id = el.recent_cue_id
+                  )
+              )
+            ORDER BY el.id ASC;
+            """
+        )
+        var listIDs: [Int64] = []
+        while try selectLists.step() {
+            listIDs.append(selectLists.int64Column(0))
+        }
+        guard !listIDs.isEmpty else {
+            return
+        }
+
+        let selectFirstPlayableCue = try database.prepare(
+            """
+            SELECT s.cue_id
+            FROM excerpts s
+            JOIN subtitle_cue_lines l ON l.id = s.cue_id
+            JOIN subtitle_files sf ON sf.id = l.subtitle_file_id
+            JOIN subtitle_video_matches m
+              ON m.subtitle_file_id = sf.id
+             AND m.is_active = 1
+            JOIN video_files vf ON vf.id = m.video_file_id
+            WHERE s.list_id = ?
+            ORDER BY s.created_at ASC, s.id ASC
+            LIMIT 1;
+            """
+        )
+        let updateFallback = try database.prepare(
+            "UPDATE excerpt_lists SET recent_cue_id = ? WHERE id = ?;"
+        )
+        let clearRecent = try database.prepare(
+            """
+            UPDATE excerpt_lists
+            SET recent_cue_id = NULL,
+                recent_sort_order = NULL,
+                recent_played_at = NULL
+            WHERE id = ?;
+            """
+        )
+
+        for listID in listIDs {
+            try selectFirstPlayableCue.bind(listID, at: 1)
+            let fallbackCueID: Int64? = try selectFirstPlayableCue.step()
+                ? selectFirstPlayableCue.int64Column(0)
+                : nil
+            try selectFirstPlayableCue.reset()
+
+            if let fallbackCueID {
+                try updateFallback.bind(fallbackCueID, at: 1)
+                try updateFallback.bind(listID, at: 2)
+                try updateFallback.run()
+                try updateFallback.reset()
+            } else {
+                try clearRecent.bind(listID, at: 1)
+                try clearRecent.run()
+                try clearRecent.reset()
+            }
+        }
     }
 
     private func adoptTombstones(
@@ -3058,6 +3369,7 @@ public final class IndexingDatabase: @unchecked Sendable {
         )
         try deleteFile.bind(subtitlePath, at: 1)
         try deleteFile.run()
+        try reconcileExcerptListRecentCues()
     }
 
     private func deleteOrphanedVideoFiles() throws {
@@ -3511,7 +3823,8 @@ public final class IndexingDatabase: @unchecked Sendable {
         try statement.run()
     }
 
-    /// Folder covers belong to the folder and go away with it.
+    /// Auto-generated folder covers belong to the folder and go away with it,
+    /// while manual folder covers remain detached by `folder_path` for same-path recovery.
     private func deleteLibraryFolders(libraryID: Int64) throws {
         let folderScope = """
             folder_id IN (
@@ -3520,7 +3833,7 @@ public final class IndexingDatabase: @unchecked Sendable {
             """
         for sql in [
             "DELETE FROM folder_covers WHERE \(folderScope);",
-            "DELETE FROM user_folder_covers WHERE \(folderScope);",
+            "UPDATE user_folder_covers SET folder_id = NULL WHERE \(folderScope);",
             "UPDATE subtitle_files SET folder_id = NULL WHERE \(folderScope);",
             "UPDATE video_files SET folder_id = NULL WHERE \(folderScope);",
             "DELETE FROM library_folders WHERE library_id = ?;"
@@ -3532,7 +3845,7 @@ public final class IndexingDatabase: @unchecked Sendable {
     }
 
     /// A folder that no longer holds any indexed file has left the scan result,
-    /// so it goes away together with its covers.
+    /// so it goes away together with its auto-generated covers while detaching manual covers.
     private func deleteEmptyLibraryFolders(libraryID: Int64) throws {
         let emptyFolders = """
             folder_id IN (
@@ -3549,7 +3862,7 @@ public final class IndexingDatabase: @unchecked Sendable {
             """
         for sql in [
             "DELETE FROM folder_covers WHERE \(emptyFolders);",
-            "DELETE FROM user_folder_covers WHERE \(emptyFolders);",
+            "UPDATE user_folder_covers SET folder_id = NULL WHERE \(emptyFolders);",
             """
             DELETE FROM library_folders
             WHERE library_id = ?

@@ -77,9 +77,11 @@ func removedLibraryCanBeAddedAgainAtTheSamePath() throws {
     #expect(try SearchDatabase(path: fixture.databaseURL).search("Findable").count == 1)
 }
 
-/// A folder that disappears is forgotten: nothing comes back with it.
+/// A returning folder and video at the exact same path restore manual covers,
+/// watch state, playback progress, and default audio track from tombstone without
+/// restoring Recent watching or altering Folder Resume order.
 @Test
-func returningFolderDoesNotRestoreCoverWatchStateOrProgress() throws {
+func returningFolderRestoresCoverWatchStateAndProgressWithoutRestoringRecent() throws {
     let fixture = try PathIdentityFixture()
     defer { fixture.cleanUp() }
 
@@ -94,12 +96,26 @@ func returningFolderDoesNotRestoreCoverWatchStateOrProgress() throws {
         name: "Episode",
         text: "Findable line."
     )
-    _ = try indexer.index(folder: fixture.root, into: database)
+    let untouchedEpisode = try fixture.writeEpisode(
+        in: "Season",
+        name: "Episode2",
+        text: "Second untouched line."
+    )
+    let initialIndex = try indexer.index(folder: fixture.root, into: database)
+    try libraryDatabase.refreshPresentationAfterIndexedContentChange(
+        affectedFolderPaths: Set(initialIndex.affectedFolderPaths),
+        clearingRetryForLibraryID: initialIndex.libraryID
+    )
 
     try covers.upsertLibraryUserFolderCover(
         folderPath: folder.path,
         displayCoverPath: "/Covers/season.jpg"
     )
+    try covers.upsertLibraryUserVideoCover(
+        forVideoFile: episode.video,
+        displayCoverPath: "/Covers/episode1-manual.jpg"
+    )
+    try libraryDatabase.setDefaultAudioTrackIndex(2, forVideoFile: episode.video)
     try libraryDatabase.upsertLibraryPlaybackHistory(
         videoFile: episode.video,
         positionMilliseconds: 42_000,
@@ -110,6 +126,8 @@ func returningFolderDoesNotRestoreCoverWatchStateOrProgress() throws {
         duration: 1_200,
         state: .finished
     )
+    #expect(try libraryDatabase.recentLibraryWatching(under: [fixture.root]).count == 1)
+
     let originalVideoID = try #require(
         try sqliteRowID(
             table: "video_files",
@@ -120,15 +138,26 @@ func returningFolderDoesNotRestoreCoverWatchStateOrProgress() throws {
     )
 
     try FileManager.default.removeItem(at: folder)
-    _ = try indexer.index(folder: fixture.root, into: database)
-
-    #expect(try covers.libraryUserFolderCover(folderPath: folder.path) == nil)
-    #expect(
-        try libraryDatabase.libraryPlaybackHistory(forVideoFile: episode.video) == nil
+    let removedIndex = try indexer.index(folder: fixture.root, into: database)
+    try libraryDatabase.refreshPresentationAfterIndexedContentChange(
+        affectedFolderPaths: Set(removedIndex.affectedFolderPaths),
+        clearingRetryForLibraryID: removedIndex.libraryID
     )
 
+    // Only Episode (which had user state) enters video_tombstones; untouched Episode2 does not.
+    #expect(try sqliteRowCount(in: "video_tombstones", databaseURL: fixture.databaseURL) == 1)
+    #expect(try covers.libraryUserFolderCover(folderPath: folder.path)?.displayCoverPath == "/Covers/season.jpg")
+    #expect(try libraryDatabase.libraryPlaybackHistory(forVideoFile: episode.video) == nil)
+    #expect(try libraryDatabase.libraryPlaybackHistory(forVideoFile: untouchedEpisode.video) == nil)
+    #expect(try libraryDatabase.recentLibraryWatching(under: [fixture.root]).isEmpty)
+
     try fixture.writeEpisode(in: "Season", name: "Episode", text: "Findable line.")
-    _ = try indexer.index(folder: fixture.root, into: database)
+    try fixture.writeEpisode(in: "Season", name: "Episode2", text: "Second untouched line.")
+    let restoredIndex = try indexer.index(folder: fixture.root, into: database)
+    try libraryDatabase.refreshPresentationAfterIndexedContentChange(
+        affectedFolderPaths: Set(restoredIndex.affectedFolderPaths),
+        clearingRetryForLibraryID: restoredIndex.libraryID
+    )
 
     let returnedVideoID = try #require(
         try sqliteRowID(
@@ -139,23 +168,34 @@ func returningFolderDoesNotRestoreCoverWatchStateOrProgress() throws {
         )
     )
     #expect(returnedVideoID != originalVideoID)
-    #expect(try covers.libraryUserFolderCover(folderPath: folder.path) == nil)
-    #expect(
-        try libraryDatabase.libraryPlaybackHistory(forVideoFile: episode.video) == nil
+    #expect(try sqliteRowCount(in: "video_tombstones", databaseURL: fixture.databaseURL) == 0)
+    #expect(try covers.libraryUserFolderCover(folderPath: folder.path)?.displayCoverPath == "/Covers/season.jpg")
+    #expect(try covers.libraryUserVideoCover(forVideoFile: episode.video)?.displayCoverPath == "/Covers/episode1-manual.jpg")
+    #expect(try libraryDatabase.videoAudioTracks(forVideoFile: episode.video)?.defaultIndex == 2)
+
+    let restoredHistory = try #require(
+        try libraryDatabase.libraryPlaybackHistory(forVideoFile: episode.video)
     )
-    #expect(
-        try sqliteRowCount(
-            in: "library_watch_states",
-            databaseURL: fixture.databaseURL
-        ) == 0
+    #expect(restoredHistory.positionMilliseconds == 42_000)
+    #expect(restoredHistory.updatedAt.isEmpty)
+    #expect(try libraryDatabase.recentLibraryWatching(under: [fixture.root]).isEmpty)
+
+    let folderPresentation = try #require(
+        try libraryDatabase.completeLibraryPresentation(under: [fixture.root]).first
     )
+    #expect(folderPresentation.lastWatchedEpisodeNumber == nil)
+    #expect(folderPresentation.lastWatchedVideoPath == nil)
+    #expect(folderPresentation.videos.first?.positionMilliseconds == 42_000)
+    #expect(folderPresentation.videos.first?.completedAt != nil)
+    #expect(folderPresentation.videos.first?.historyUpdatedAt == nil)
 }
 
 /// Replacing a matched video with a different format (e.g. .mov -> .mkv) must
-/// purge the unmatched video and its watch state/progress so a later .mov at the
-/// same path starts fresh with a new VideoID.
+/// not transfer watch state or progress across extensions, while restoring the
+/// exact same path (.mov) recovers its tombstoned watch state and progress
+/// without restoring Recent watching.
 @Test
-func replacingVideoFormatCleansUpOldVideoAndDoesNotRestoreWatchStateWhenNameReturns() throws {
+func replacingVideoFormatIsolatesByExtensionAndRestoresExactPathTombstone() throws {
     let fixture = try PathIdentityFixture()
     defer { fixture.cleanUp() }
 
@@ -215,15 +255,9 @@ func replacingVideoFormatCleansUpOldVideoAndDoesNotRestoreWatchStateWhenNameRetu
     )
     #expect(try libraryDatabase.libraryPlaybackHistory(forVideoFile: movVideo) == nil)
     #expect(try libraryDatabase.libraryPlaybackHistory(forVideoFile: mkvVideo) == nil)
-    #expect(
-        try sqliteRowCount(
-            in: "library_watch_states",
-            databaseURL: fixture.databaseURL
-        ) == 0
-    )
+    #expect(try sqliteRowCount(in: "video_tombstones", databaseURL: fixture.databaseURL) == 1)
 
-    // Record watch state on Episode.mkv, then replace it back with a new Episode.mov
-    // while also editing Episode.srt (covering the changed-subtitle rebind path).
+    // Record watch state on Episode.mkv, then replace it back with Episode.mov.
     try libraryDatabase.upsertLibraryPlaybackHistory(
         videoFile: mkvVideo,
         positionMilliseconds: 300_000,
@@ -261,14 +295,160 @@ func replacingVideoFormatCleansUpOldVideoAndDoesNotRestoreWatchStateWhenNameRetu
             databaseURL: fixture.databaseURL
         ) == nil
     )
-    #expect(try libraryDatabase.libraryPlaybackHistory(forVideoFile: movVideo) == nil)
-    #expect(try libraryDatabase.libraryPlaybackHistory(forVideoFile: mkvVideo) == nil)
-    #expect(
-        try sqliteRowCount(
-            in: "library_watch_states",
-            databaseURL: fixture.databaseURL
-        ) == 0
+    let restoredMovHistory = try #require(
+        try libraryDatabase.libraryPlaybackHistory(forVideoFile: movVideo)
     )
+    #expect(restoredMovHistory.positionMilliseconds == 600_000)
+    #expect(restoredMovHistory.updatedAt.isEmpty)
+    #expect(try libraryDatabase.libraryPlaybackHistory(forVideoFile: mkvVideo) == nil)
+    #expect(try libraryDatabase.recentLibraryWatching(under: [fixture.root]).isEmpty)
+}
+
+@Test
+func shorterNewVideoDurationResetsProgressAndWatchStateForBothDirectReplacementAndTombstoneRecovery() throws {
+    let fixture = try PathIdentityFixture()
+    defer { fixture.cleanUp() }
+
+    let database = try IndexingDatabase(path: fixture.databaseURL)
+    let libraryDatabase = try LibraryDatabase(path: fixture.databaseURL)
+    let covers = try LibraryCoverDatabase(path: fixture.databaseURL)
+    let indexer = SubtitleIndexer()
+
+    let ep1 = try fixture.writeEpisode(in: "Season", name: "Episode1", text: "Episode 1 line.")
+    let ep2 = try fixture.writeEpisode(in: "Season", name: "Episode2", text: "Episode 2 line.")
+    _ = try indexer.index(folder: fixture.root, into: database)
+
+    // Both episodes watched to 20:00 (1,200,000 ms) out of 30:00 (1,800s).
+    for ep in [ep1, ep2] {
+        try libraryDatabase.upsertLibraryPlaybackHistory(
+            videoFile: ep.video,
+            positionMilliseconds: 1_200_000,
+            duration: 1_800
+        )
+        try libraryDatabase.setLibraryWatchState(
+            videoFile: ep.video,
+            duration: 1_800,
+            state: .watching
+        )
+    }
+    try covers.upsertLibraryUserVideoCover(
+        forVideoFile: ep2.video,
+        displayCoverPath: "/Covers/ep2-manual.jpg"
+    )
+
+    // Case A: Direct same-path replacement of Episode1 with a 10:00 (600s) video.
+    try Data([0x09, 0x08, 0x07]).write(to: ep1.video)
+    _ = try indexer.index(folder: fixture.root, into: database)
+    try libraryDatabase.updateVideoDuration(videoFile: ep1.video, duration: 600)
+
+    #expect(try libraryDatabase.libraryPlaybackHistory(forVideoFile: ep1.video) == nil)
+
+    // Case B: Tombstone recovery of Episode2 with a 10:00 (600s) video.
+    try FileManager.default.removeItem(at: ep2.video)
+    _ = try indexer.index(folder: fixture.root, into: database)
+    #expect(try sqliteRowCount(in: "video_tombstones", databaseURL: fixture.databaseURL) == 1)
+
+    try Data([0x05, 0x04]).write(to: ep2.video)
+    _ = try indexer.index(folder: fixture.root, into: database)
+    try libraryDatabase.updateVideoMetadata(
+        videoFile: ep2.video,
+        duration: 600,
+        videoWidth: 1920,
+        videoHeight: 1080,
+        frameRate: 24,
+        videoCodec: "h264",
+        audioTracks: []
+    )
+
+    #expect(try libraryDatabase.libraryPlaybackHistory(forVideoFile: ep2.video) == nil)
+    #expect(try sqliteRowCount(in: "library_watch_states", databaseURL: fixture.databaseURL) == 0)
+    #expect(try covers.libraryUserVideoCover(forVideoFile: ep2.video)?.displayCoverPath == "/Covers/ep2-manual.jpg")
+}
+
+@Test
+func resurrectingVideoAndCueDoesNotAlterExistingFolderOrExcerptListResumeOrder() throws {
+    let fixture = try PathIdentityFixture()
+    defer { fixture.cleanUp() }
+
+    let database = try IndexingDatabase(path: fixture.databaseURL)
+    let libraryDatabase = try LibraryDatabase(path: fixture.databaseURL)
+    let excerptDatabase = try ExcerptDatabase(path: fixture.databaseURL)
+    let indexer = SubtitleIndexer()
+
+    let ep1 = try fixture.writeEpisode(in: "Season", name: "Episode1", text: "First episode cue.")
+    let ep2 = try fixture.writeEpisode(in: "Season", name: "Episode2", text: "Second episode cue.")
+    let firstIndex = try indexer.index(folder: fixture.root, into: database)
+    try libraryDatabase.refreshPresentationAfterIndexedContentChange(
+        affectedFolderPaths: Set(firstIndex.affectedFolderPaths),
+        clearingRetryForLibraryID: firstIndex.libraryID
+    )
+
+    // Watch Episode 1 at t1, then Episode 2 at t2 so Episode 2 is the Folder's Resume target.
+    try libraryDatabase.upsertLibraryPlaybackHistory(
+        videoFile: ep1.video,
+        positionMilliseconds: 30_000,
+        duration: 600,
+        updatedAt: Date(timeIntervalSince1970: 1_700_000_000)
+    )
+    try libraryDatabase.upsertLibraryPlaybackHistory(
+        videoFile: ep2.video,
+        positionMilliseconds: 90_000,
+        duration: 600,
+        updatedAt: Date(timeIntervalSince1970: 1_700_000_100)
+    )
+
+    let cue1 = try #require(
+        try PlaybackSubtitleDatabase(path: fixture.databaseURL)
+            .cueLineRecords(forSubtitleFile: ep1.subtitle)
+            .first
+    )
+    let cue2 = try #require(
+        try PlaybackSubtitleDatabase(path: fixture.databaseURL)
+            .cueLineRecords(forSubtitleFile: ep2.subtitle)
+            .first
+    )
+    let saved1 = try excerptDatabase.upsertExcerpt(selection: excerptSelection(cue1))
+    let saved2 = try excerptDatabase.upsertExcerpt(selection: excerptSelection(cue2))
+    try excerptDatabase.recordRecentExcerptPlayback(
+        excerptID: saved2.id,
+        playedAt: Date(timeIntervalSince1970: 1_700_000_200)
+    )
+    #expect(try excerptDatabase.recentExcerptListSummaries().first?.resumeExcerpt?.id == saved2.id)
+
+    // Remove Episode2.mkv and re-index: Episode2 video and Cue 2 enter tombstones.
+    try FileManager.default.removeItem(at: ep2.video)
+    let secondIndex = try indexer.index(folder: fixture.root, into: database)
+    try libraryDatabase.refreshPresentationAfterIndexedContentChange(
+        affectedFolderPaths: Set(secondIndex.affectedFolderPaths),
+        clearingRetryForLibraryID: secondIndex.libraryID
+    )
+
+    // Folder Resume and Recent watching fall back to Episode 1; Excerpt List Resume falls back to saved1.
+    #expect(try libraryDatabase.recentLibraryWatching(under: [fixture.root]).map(\.videoPath) == [ep1.video.mediaPath])
+    #expect(try libraryDatabase.completeLibraryPresentation(under: [fixture.root]).first?.lastWatchedEpisodeNumber == 1)
+    let summaryDuringTombstone = try #require(try excerptDatabase.recentExcerptListSummaries().first)
+    #expect(summaryDuringTombstone.resumeExcerpt?.id == saved1.id)
+    #expect(summaryDuringTombstone.resumePosition == 1)
+    #expect(summaryDuringTombstone.list.recentCueID == cue1.id)
+
+    // Restore Episode2.mkv and re-index: Episode2 and Cue 2 resurrect, but neither hijacks Resume!
+    try Data([0x01]).write(to: ep2.video)
+    let thirdIndex = try indexer.index(folder: fixture.root, into: database)
+    try libraryDatabase.refreshPresentationAfterIndexedContentChange(
+        affectedFolderPaths: Set(thirdIndex.affectedFolderPaths),
+        clearingRetryForLibraryID: thirdIndex.libraryID
+    )
+
+    #expect(try libraryDatabase.libraryPlaybackHistory(forVideoFile: ep2.video)?.positionMilliseconds == 90_000)
+    #expect(try libraryDatabase.recentLibraryWatching(under: [fixture.root]).map(\.videoPath) == [ep1.video.mediaPath])
+    #expect(try libraryDatabase.completeLibraryPresentation(under: [fixture.root]).first?.lastWatchedEpisodeNumber == 1)
+
+    let restoredExcerpt2 = try #require(try excerptDatabase.excerpt(id: saved2.id))
+    #expect(restoredExcerpt2.isValid)
+    let summaryAfterResurrection = try #require(try excerptDatabase.recentExcerptListSummaries().first)
+    #expect(summaryAfterResurrection.resumeExcerpt?.id == saved1.id)
+    #expect(summaryAfterResurrection.resumePosition == 1)
+    #expect(summaryAfterResurrection.list.recentCueID == cue1.id)
 }
 
 /// Only content the current scan confirms is gone may leave; a scan that fails

@@ -12,7 +12,7 @@ public enum DatabaseBootstrapError: Error, Equatable, CustomStringConvertible {
 }
 
 public enum DatabaseBootstrap {
-    public static let currentSchemaVersion = 56
+    public static let currentSchemaVersion = 57
 
     public static func prepare(at path: URL) throws {
         let database = try SQLiteDatabase(path: path, access: .readWrite)
@@ -68,6 +68,7 @@ private extension DatabaseBootstrap {
                 || previousVersion == 53
                 || previousVersion == 54
                 || previousVersion == 55
+                || previousVersion == 56
                 || previousVersion == DatabaseBootstrap.currentSchemaVersion
         else {
             throw DatabaseBootstrapError.unsupportedSchemaVersion(
@@ -185,6 +186,9 @@ private extension DatabaseBootstrap {
         }
         if previousVersion >= 33, previousVersion <= 55 {
             try migrateSchema55To56(on: database)
+        }
+        if previousVersion >= 33, previousVersion <= 56 {
+            try migrateSchema56To57(on: database)
             return
         }
         guard previousVersion == 0 else {
@@ -658,6 +662,8 @@ private extension DatabaseBootstrap {
 
             \(taskRecordSchemaSQL)
 
+            \(videoTombstonesTableSQL)
+
             \(cueReferenceIntegrityTriggerSQL(excerptTable: "excerpts"))
 
             """
@@ -975,6 +981,33 @@ private extension DatabaseBootstrap {
             try database.execute("PRAGMA user_version = 56;")
         }
     }
+
+    /// Schema 57 adds `video_tombstones` so a video that leaves active matching
+    /// keeps its playback progress, watch state, manual cover, and default audio
+    /// track for same-path recovery.
+    static func migrateSchema56To57(on database: SQLiteDatabase) throws {
+        try database.withImmediateTransaction {
+            try database.execute(
+                """
+                \(videoTombstonesTableSQL)
+                PRAGMA user_version = 57;
+                """
+            )
+        }
+    }
+
+    static let videoTombstonesTableSQL = """
+        CREATE TABLE IF NOT EXISTS video_tombstones (
+            video_path TEXT PRIMARY KEY,
+            position_ms INTEGER NOT NULL DEFAULT 0,
+            duration REAL,
+            watch_state TEXT NOT NULL DEFAULT 'unwatched',
+            user_cover_path TEXT,
+            default_audio_track_index INTEGER NOT NULL DEFAULT 0,
+            tombstoned_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        );
+        """
 
     static let cueLineLanguagesTableSQL = """
         CREATE TABLE IF NOT EXISTS subtitle_cue_line_languages (

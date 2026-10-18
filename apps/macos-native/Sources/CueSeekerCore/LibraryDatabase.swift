@@ -93,6 +93,10 @@ public final class LibraryDatabase: @unchecked Sendable {
                 videoFile: videoFile,
                 duration: normalizedDuration
             )
+            try reconcilePlaybackStateForUpdatedDuration(
+                videoFile: videoFile,
+                duration: normalizedDuration
+            )
         }
     }
 
@@ -156,6 +160,10 @@ public final class LibraryDatabase: @unchecked Sendable {
             try statement.run()
 
             try updatePresentationDuration(
+                videoFile: videoFile,
+                duration: normalizedDuration
+            )
+            try reconcilePlaybackStateForUpdatedDuration(
                 videoFile: videoFile,
                 duration: normalizedDuration
             )
@@ -594,6 +602,46 @@ extension LibraryDatabase {
         )
         try statement.bind(videoFile.mediaPath, at: 1)
         return try statement.step() ? statement.int64Column(0) : nil
+    }
+
+    private func reconcilePlaybackStateForUpdatedDuration(
+        videoFile: URL,
+        duration: Double?
+    ) throws {
+        guard let duration, duration > 0,
+              let videoFileID = try videoFileID(for: videoFile)
+        else {
+            return
+        }
+
+        let selectHistory = try database.prepare(
+            "SELECT position_ms FROM library_playback_history WHERE video_file_id = ? LIMIT 1;"
+        )
+        try selectHistory.bind(videoFileID, at: 1)
+        guard try selectHistory.step() else {
+            return
+        }
+
+        let positionMilliseconds = max(0, selectHistory.intColumn(0))
+        let durationMilliseconds = Int((duration * 1_000).rounded(.down))
+
+        if positionMilliseconds > durationMilliseconds {
+            for table in ["library_playback_history", "library_watch_states"] {
+                let deleteStatement = try database.prepare(
+                    "DELETE FROM \(table) WHERE video_file_id = ?;"
+                )
+                try deleteStatement.bind(videoFileID, at: 1)
+                try deleteStatement.run()
+            }
+            try CueFacetCountCache.rebuildWatchStates(on: database)
+        } else {
+            let updateHistoryDuration = try database.prepare(
+                "UPDATE library_playback_history SET duration = ? WHERE video_file_id = ?;"
+            )
+            try updateHistoryDuration.bind(duration, at: 1)
+            try updateHistoryDuration.bind(videoFileID, at: 2)
+            try updateHistoryDuration.run()
+        }
     }
 
     private func mediaPathIdentity(
