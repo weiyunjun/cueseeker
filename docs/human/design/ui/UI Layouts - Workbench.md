@@ -602,7 +602,7 @@
   - 文件夹卡片最右侧常驻不可点击的 `caret-right` 指示箭头（`--size-card-chevron` 16px，`--color-text-muted`），`dots-three` 按钮位于其左侧（间距 `--spacing-2`）；文件卡片无 `caret-right` 箭头，最右侧仅保留 `dots-three` 按钮。
   - `dots-three` 纯图标按钮（32×32px，圆角 8px，图标 21px）默认隐藏，仅在卡片 Hover 或该卡片菜单打开时显示；Hover 按钮自身及菜单打开时底色为 `--color-row-selected`。
   - `Add Folder` 弹出菜单：`Local Folder`（`folder`）+ `WebDav Folder`（`folder-webdav`）
-  - 卡片弹出菜单（WebDAV 条目的 `Rename Folder` 与 `Rename Files` 为 Disabled）：
+  - 卡片弹出菜单：
     - Root Folder Card：`Rename Folder`（Neutral）+ `Remove`（Destructive 警告项）
     - Subfolder Card：`Rename Folder`（Neutral）
     - Video / Subtitle File Card：`Get Info`（Neutral）+ `Rename Files`（Neutral）
@@ -1023,7 +1023,7 @@
 #### Layout
 
 - Width：`--width-dialog-medium`
-- Form Region 为左 Label（宽度 `--width-form-label`）、右输入框的双列水平布局；`Name` 选填并带占位提示（留空默认取地址末级目录名，根路径取 Host），`Address` 粘贴百分号编码链接时即时还原为可读字符，其余 3 项必填且无占位提示。
+- Form Region 为左 Label（宽度 `--width-form-label`）、右输入框的双列水平布局；`Name` 选填并带占位提示（留空默认取地址末级目录名，根路径取 Host），`Address` 必填（粘贴百分号编码链接时即时还原为可读字符），`Username` 与 `Password` 选填（留空以匿名方式访问），后 3 项均无占位提示。
 - 前 3 个输入框不预留底部报错行；最下方 `Password` 输入框下方预留 1 行 Validation Message（左边缘与密码输入框对齐），验证或连接失败在此处显示红字，对话框保持打开。
 
 #### Spacing
