@@ -109,16 +109,24 @@ extension AppCoordinator {
         }
 
         let folders = indexing.selectedFolders
+        var updatedLibrary = false
+        var updatedRecentWatching = false
+        var updatedTestRecentWatching = false
+        var updatedCompleteLibrary = false
         if let libraryDatabase {
             if library.libraryStatus == .completed || !library.libraryVideos.isEmpty,
                let snapshot = try? libraryDatabase.libraryPresentation(under: folders) {
+                libraryTask?.cancel()
                 applyLibraryPresentation(snapshot)
                 library.libraryStatus = .completed
+                updatedLibrary = true
             }
             if library.recentWatchingStatus == .completed || !library.recentWatchingItems.isEmpty,
                let snapshot = try? libraryDatabase.recentLibraryWatching(under: folders) {
+                recentWatchingTask?.cancel()
                 applyRecentWatching(snapshot)
                 library.recentWatchingStatus = .completed
+                updatedRecentWatching = true
             }
             if library.testRecentWatchingStatus == .completed || !library.testRecentWatchingItems.isEmpty,
                let snapshot = try? libraryDatabase.recentLibraryWatching(
@@ -126,18 +134,30 @@ extension AppCoordinator {
                    limit: Int.max,
                    includesNeverPlayed: true
                ) {
+                testRecentWatchingTask?.cancel()
                 applyTestRecentWatching(snapshot)
                 library.testRecentWatchingStatus = .completed
+                updatedTestRecentWatching = true
             }
             if library.completeLibraryStatus == .completed || !library.completeLibraryFolderSummaries.isEmpty,
                let snapshot = try? libraryDatabase.completeLibraryFolderSummaries(under: folders) {
+                completeLibraryTask?.cancel()
                 applyCompleteLibrary(snapshot)
                 library.completeLibraryStatus = .completed
+                updatedCompleteLibrary = true
             }
         }
-        refreshLibrary(force: true)
-        refreshRecentWatching(force: true)
-        refreshLoadedTestRecentWatching(force: true)
-        refreshCompleteLibrary(force: true)
+        if !updatedLibrary {
+            refreshLibrary(force: true)
+        }
+        if !updatedRecentWatching {
+            refreshRecentWatching(force: true)
+        }
+        if !updatedTestRecentWatching {
+            refreshLoadedTestRecentWatching(force: true)
+        }
+        if !updatedCompleteLibrary {
+            refreshCompleteLibrary(force: true)
+        }
     }
 }

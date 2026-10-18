@@ -66,6 +66,40 @@ enum CueFacetCountCache {
         try rebuildFolders(on: database)
     }
 
+    static func rewriteFolderPaths(
+        _ steps: [LibraryRenameStep],
+        on database: SQLiteDatabase
+    ) throws {
+        guard !steps.isEmpty else {
+            return
+        }
+        let select = try database.prepare(
+            "SELECT value FROM cue_facet_counts WHERE facet = ?;"
+        )
+        try select.bind(folderFacet, at: 1)
+        var updates: [(oldValue: String, newValue: String)] = []
+        while try select.step() {
+            let oldValue = select.stringColumn(0)
+            let newValue = LibraryRenamer.rewrittenPath(oldValue, steps: steps)
+            if newValue != oldValue {
+                updates.append((oldValue, newValue))
+            }
+        }
+        guard !updates.isEmpty else {
+            return
+        }
+        let update = try database.prepare(
+            "UPDATE cue_facet_counts SET value = ? WHERE facet = ? AND value = ?;"
+        )
+        for entry in updates {
+            try update.bind(entry.newValue, at: 1)
+            try update.bind(folderFacet, at: 2)
+            try update.bind(entry.oldValue, at: 3)
+            try update.run()
+            try update.reset()
+        }
+    }
+
     /// The folder of every searchable cue, read from the search order rows
     /// the scan itself orders by; they are refreshed before the counts.
     /// Migrations from schemas whose order rows have no folder yet skip the
