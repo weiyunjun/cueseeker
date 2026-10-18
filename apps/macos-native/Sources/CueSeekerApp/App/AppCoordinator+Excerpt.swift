@@ -91,14 +91,15 @@ extension AppCoordinator {
     ) {
         guard let database = excerptDatabase else { return }
         do {
+            let relations = try database.excerptRelations(
+                listID: summary.list.id
+            )
             let resolvedByID = Dictionary(
                 uniqueKeysWithValues: try database.excerpts(
                     listID: summary.list.id
                 ).map { ($0.id, $0) }
             )
-            let navigationScopeIDs = try database.excerptRelations(
-                listID: summary.list.id
-            ).compactMap { relation -> Int64? in
+            let navigationScopeIDs = relations.compactMap { relation -> Int64? in
                 guard resolvedByID[relation.id]?.isValid == true else {
                     return nil
                 }
@@ -111,6 +112,19 @@ extension AppCoordinator {
                   let target = resolvedByID[targetID],
                   let ordinal = navigationScopeIDs.firstIndex(of: targetID)
             else {
+                if let fallbackTarget = preferredExcerptID.flatMap({ resolvedByID[$0] })
+                    ?? summary.resumeExcerpt
+                    ?? relations.first.flatMap({ resolvedByID[$0.id] }) {
+                    openExcerpt(
+                        fallbackTarget,
+                        navigationScopeIDs: [],
+                        playlistScope: .explicitIDs([]),
+                        playlistSelectedOrdinal: nil,
+                        displayTitle: fallbackTarget.displayTitle,
+                        allowsUnavailableTarget: true
+                    )
+                    return
+                }
                 reloadExcerptListOverview()
                 return
             }
@@ -591,6 +605,10 @@ extension AppCoordinator {
         else {
             return
         }
+        if excerptNeedsReloadAfterIndexedContentMutation {
+            refreshExcerptOnReappearanceIfNeeded()
+            return
+        }
         let dataRevision = excerpt.tableDataRevision
         guard excerpt.residentDataRevision == dataRevision,
               excerpt.residentListID == listID
@@ -619,6 +637,10 @@ extension AppCoordinator {
             scope: uiProbeScope,
             details: "length=\(normalizedSearchText.count)"
         )
+        if excerptNeedsReloadAfterIndexedContentMutation {
+            refreshExcerptOnReappearanceIfNeeded()
+            return
+        }
         guard let listID = excerpt.activeListID else {
             reloadExcerptTableRows()
             return
@@ -651,26 +673,39 @@ extension AppCoordinator {
         let trimmedSearchText = searchText.trimmingCharacters(
             in: .whitespacesAndNewlines
         )
+        let normalizedFilter = search.normalizedFacetFilter(facetFilter)
         let facetProjection = excerpt.residentFacetProjection(
-            using: search.normalizedFacetFilter(facetFilter)
+            using: normalizedFilter
         )
         let matchingExcerptIDs = Set(facetProjection.excerptIDs)
+        var validSearchMatchingCueIDs = Set<Int64>()
         let relations = excerpt.residentRelations.filter { relation in
-            guard matchingExcerptIDs.contains(relation.id) else {
-                return false
-            }
             let content = cueContent.content(for: relation.cueID)
             guard let resolved = excerpt.residentExcerptsByID[relation.id] else {
                 return false
             }
             let cueText = content?.content ?? resolved.content
-            return trimmedSearchText.isEmpty
+            let matchesSearch = trimmedSearchText.isEmpty
                 || SubtitleSearchQueryMatcher.matches(
                     cueText,
                     query: trimmedSearchText
                 )
+            if matchesSearch, resolved.isValid {
+                validSearchMatchingCueIDs.insert(relation.cueID)
+            }
+            guard matchingExcerptIDs.contains(relation.id) else {
+                return false
+            }
+            return matchesSearch
         }
-        return (relations, facetProjection.distribution)
+        let validFacetSnapshot = excerpt.residentFacetSnapshot?.keeping(
+            cueIDs: validSearchMatchingCueIDs
+        ) ?? .empty
+        let validDistribution = validFacetSnapshot.filteredCueIDs(
+            using: normalizedFilter,
+            limit: validFacetSnapshot.cueIDs.count
+        ).distribution
+        return (relations, validDistribution)
     }
 
     private func applyResidentExcerptTableProjection(
@@ -951,7 +986,8 @@ extension AppCoordinator {
                     _ = try db.moveExcerpt(id: itemID, toListID: destinationListID)
                     return try db.recentExcerptListSummaries()
                 }
-                self?.excerpt.installRecentListSummaries(recentSummaries)
+                guard let self, !self.excerptNeedsReloadAfterIndexedContentMutation else { return }
+                self.excerpt.installRecentListSummaries(recentSummaries)
             } catch ExcerptTransferError.destinationUnavailable {
                 self?.toast.show(ExcerptToastRequest.destinationUnavailable(listName: destinationName))
                 self?.reloadExcerptListOverview()
@@ -1033,7 +1069,8 @@ extension AppCoordinator {
                     _ = try db.duplicateExcerpt(id: itemID, toListID: destinationListID)
                     return try db.recentExcerptListSummaries()
                 }
-                self?.excerpt.installRecentListSummaries(recentSummaries)
+                guard let self, !self.excerptNeedsReloadAfterIndexedContentMutation else { return }
+                self.excerpt.installRecentListSummaries(recentSummaries)
             } catch ExcerptTransferError.destinationUnavailable {
                 self?.toast.show(ExcerptToastRequest.destinationUnavailable(listName: destinationName))
                 self?.reloadExcerptListOverview()
@@ -1058,10 +1095,11 @@ extension AppCoordinator {
 
         _ = reloadPresentation
         let sourceListID = excerpt.activeListID
+        let cueCountDelta = item.isValid ? -1 : 0
         handleExcerptRemovedFromCurrentList(item)
         if let sourceListID {
-            _ = excerpt.adjustListCueCounts([sourceListID: -1])
-        } else {
+            _ = excerpt.adjustListCueCounts([sourceListID: cueCountDelta])
+        } else if !excerptNeedsReloadAfterIndexedContentMutation {
             reloadExcerptListOverview()
         }
         playback.playbackViewModel?.showExcerptFeedback(.removed)
@@ -1077,7 +1115,7 @@ extension AppCoordinator {
                     _ = try database.removeExcerpt(id: itemID)
                     return (try database.uniqueExcerptCueCount(), try database.recentExcerptListSummaries())
                 }
-                guard let self else { return }
+                guard let self, !self.excerptNeedsReloadAfterIndexedContentMutation else { return }
                 if let sourceListID {
                     _ = self.excerpt.adjustListCueCounts([sourceListID: 0], uniqueCueCount: uniqueCueCount)
                 }
@@ -1113,13 +1151,15 @@ extension AppCoordinator {
         navigationScopeIDs: [Int64]? = nil,
         playlistScope: PlaybackPlaylistExcerptScope? = nil,
         playlistSelectedOrdinal: Int? = nil,
-        displayTitle: String? = nil
+        displayTitle: String? = nil,
+        allowsUnavailableTarget: Bool = false
     ) {
-        guard excerpt.isValid else {
+        guard excerpt.isValid || allowsUnavailableTarget else {
             return
         }
         ensurePlayerInitialized()
-        let itemInLibrary = excerptIDsInLibrary(among: [excerpt.id]).contains(excerpt.id)
+        let itemInLibrary = excerpt.isValid
+            && excerptIDsInLibrary(among: [excerpt.id]).contains(excerpt.id)
         currentPlaybackItemLeftLibrary = !itemInLibrary
         self.excerpt.selectedExcerpt = excerpt
         search.selectResult(nil)

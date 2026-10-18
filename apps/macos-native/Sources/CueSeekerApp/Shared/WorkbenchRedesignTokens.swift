@@ -92,6 +92,8 @@ enum WorkbenchRedesignColors {
         static let borderDivider = NSColor.dynamic(lightHex: "#E5E7EB", darkHex: "#FFFFFF", darkAlpha: 0.10)
         static let borderDisabled = NSColor.dynamic(lightHex: "#E5E7EB", darkHex: "#FFFFFF", darkAlpha: 0.10)
         static let borderCheckbox = NSColor.dynamic(lightHex: "#D0D5DD", darkHex: "#5A5A62")
+        static let cueUnavailableBadgeBorder = NSColor.dynamic(lightHex: "#717171", darkHex: "#71717A")
+        static let cueUnavailableBadgeText = textPrimary
 
         // Active Accent
         static let accent = NSColor.controlAccentColor

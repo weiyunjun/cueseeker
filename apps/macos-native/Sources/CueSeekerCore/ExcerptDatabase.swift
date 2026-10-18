@@ -234,9 +234,14 @@ public final class ExcerptDatabase: @unchecked Sendable {
             """
             SELECT l.id, l.name, l.description, l.cover_path, l.created_at,
                    l.recent_cue_id, l.recent_sort_order, l.recent_played_at,
-                   COUNT(s.id)
+                   COUNT(vf.id)
             FROM excerpt_lists l
             LEFT JOIN excerpts s ON s.list_id = l.id
+            LEFT JOIN subtitle_cue_lines cl ON cl.id = s.cue_id
+            LEFT JOIN subtitle_files sf ON sf.id = cl.subtitle_file_id
+            LEFT JOIN subtitle_video_matches m
+              ON m.subtitle_file_id = sf.id AND m.is_active = 1
+            LEFT JOIN video_files vf ON vf.id = m.video_file_id
             GROUP BY l.id
             ORDER BY l.created_at ASC, l.id ASC;
             """
@@ -361,7 +366,15 @@ public final class ExcerptDatabase: @unchecked Sendable {
 
     public func uniqueExcerptCueCount() throws -> Int {
         let statement = try database.prepare(
-            "SELECT COUNT(DISTINCT cue_id) FROM excerpts;"
+            """
+            SELECT COUNT(DISTINCT s.cue_id)
+            FROM excerpts s
+            JOIN subtitle_cue_lines l ON l.id = s.cue_id
+            JOIN subtitle_files sf ON sf.id = l.subtitle_file_id
+            JOIN subtitle_video_matches m
+              ON m.subtitle_file_id = sf.id AND m.is_active = 1
+            JOIN video_files vf ON vf.id = m.video_file_id;
+            """
         )
         return try statement.step() ? statement.intColumn(0) : 0
     }

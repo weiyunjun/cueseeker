@@ -57,6 +57,8 @@ struct WorkbenchRecentView: View {
         .cardHighlightFreeze(highlight)
         .onChange(of: routeState.selectedRecentSection) { _ in
             highlight.reset()
+            appState.refreshExcerptOnReappearanceIfNeeded()
+            appState.refreshRecentOnReappearanceIfNeeded()
         }
         .task {
             appState.hydrateTestRecentWatchingAsync()

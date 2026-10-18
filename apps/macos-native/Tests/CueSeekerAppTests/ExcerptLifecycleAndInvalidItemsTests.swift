@@ -222,6 +222,167 @@ struct ExcerptLifecycleAndInvalidItemsTests {
             #expect(app.toast.visibleItems.last?.request == TableToastRequest.cueNotInLibrary)
         }
     }
+
+    @Test
+    func residentExcerptTableProjectionCountsOnlyValidCuesInFilterDistributionWhileKeepingUnavailableRows() async throws {
+        try await withExcerptTestApp { app, database in
+            try indexExcerptVideo("Episode1", in: database)
+            try indexExcerptVideo("Episode2", in: database)
+            let excerptDB = try #require(app.excerptDatabase)
+            let list = try excerptDB.createExcerptList(name: "MixedList", description: "")
+            let cue1 = try #require(try SearchDatabase(path: database.path).search("Episode1").first)
+            let cue2 = try #require(try SearchDatabase(path: database.path).search("Episode2").first)
+            _ = try excerptDB.upsertExcerpt(cueID: cue1.entryID, listID: list.id)
+            _ = try excerptDB.upsertExcerpt(cueID: cue2.entryID, listID: list.id)
+
+            // Make Episode1 unavailable
+            try database.replaceEntries(
+                subtitleFile: URL(fileURLWithPath: "/Media/Episode1.srt"),
+                videoFile: URL(fileURLWithPath: "/Media/Episode1.mkv"),
+                entries: []
+            )
+
+            app.excerpt.setActiveListID(list.id)
+            app.reloadExcerptTableRows()
+            await app.excerptTableRowsTask?.value
+            app.reloadExcerptListOverview()
+            await app.excerptListOverviewTask?.value
+
+            let listSummary = try #require(app.excerpt.listOverview.lists.first(where: { $0.id == list.id }))
+            #expect(listSummary.cueCount == 1)
+
+            let projection = app.residentExcerptTableProjection(
+                searchText: "",
+                facetFilter: CueFacetFilter()
+            )
+            #expect(projection.relations.count == 2)
+            #expect(projection.distribution.totalCount == 1)
+            #expect(app.excerpt.tableRowStore.snapshot.displayIndex(forRow: 0) == nil)
+            #expect(app.excerpt.tableRowStore.snapshot.displayIndex(forRow: 1) == 1)
+        }
+    }
+
+    @Test
+    func activeSearchOrFilterActionUnfreezesExcerptTableAfterIndexedContentMutation() async throws {
+        try await withExcerptTestApp { app, database in
+            try indexExcerptVideo("Episode1", in: database)
+            try indexExcerptVideo("Episode2", in: database)
+            let excerptDB = try #require(app.excerptDatabase)
+            let list = try excerptDB.createExcerptList(name: "FreezeList", description: "")
+            let cue1 = try #require(try SearchDatabase(path: database.path).search("Episode1").first)
+            let cue2 = try #require(try SearchDatabase(path: database.path).search("Episode2").first)
+            _ = try excerptDB.upsertExcerpt(cueID: cue1.entryID, listID: list.id)
+            _ = try excerptDB.upsertExcerpt(cueID: cue2.entryID, listID: list.id)
+
+            app.excerpt.setActiveListID(list.id)
+            app.reloadExcerptTableRows()
+            await app.excerptTableRowsTask?.value
+            #expect(app.excerpt.tableRowStore.snapshot.unavailableRows.isEmpty)
+
+            // Background mutation makes Episode1 unavailable while page is frozen
+            app.prepareExcerptForIndexedContentMutation(under: [URL(fileURLWithPath: "/Media")])
+            try database.replaceEntries(
+                subtitleFile: URL(fileURLWithPath: "/Media/Episode1.srt"),
+                videoFile: URL(fileURLWithPath: "/Media/Episode1.mkv"),
+                entries: []
+            )
+            app.reloadExcerptAfterIndexedContentMutation()
+            #expect(app.excerptNeedsReloadAfterIndexedContentMutation == true)
+            #expect(app.excerpt.tableRowStore.snapshot.unavailableRows.isEmpty)
+
+            // Active search input unfreezes and pulls latest DB state
+            app.updateExcerptSearchQuery("placeholder")
+            await app.excerptTableRowsTask?.value
+            await app.excerptListOverviewTask?.value
+
+            #expect(app.excerptNeedsReloadAfterIndexedContentMutation == false)
+            #expect(app.excerpt.tableRowStore.snapshot.unavailableRows == [0])
+        }
+    }
+
+    @Test
+    func removingExcerptWhileFrozenAdjustsCountByDisplayedValidityAndPreservesFrozenState() async throws {
+        try await withExcerptTestApp { app, database in
+            try indexExcerptVideo("Episode1", in: database)
+            try indexExcerptVideo("Episode2", in: database)
+            let excerptDB = try #require(app.excerptDatabase)
+            let list = try excerptDB.createExcerptList(name: "FrozenRemoveList", description: "")
+            let cue1 = try #require(try SearchDatabase(path: database.path).search("Episode1").first)
+            let cue2 = try #require(try SearchDatabase(path: database.path).search("Episode2").first)
+            let saved1 = try excerptDB.upsertExcerpt(cueID: cue1.entryID, listID: list.id)
+            let saved2 = try excerptDB.upsertExcerpt(cueID: cue2.entryID, listID: list.id)
+
+            // Make saved1 already unavailable before opening the page
+            try database.replaceEntries(
+                subtitleFile: URL(fileURLWithPath: "/Media/Episode1.srt"),
+                videoFile: URL(fileURLWithPath: "/Media/Episode1.mkv"),
+                entries: []
+            )
+
+            app.excerpt.setActiveListID(list.id)
+            app.reloadExcerptTableRows()
+            await app.excerptTableRowsTask?.value
+            app.reloadExcerptListOverview()
+            await app.excerptListOverviewTask?.value
+
+            #expect(app.excerpt.listOverview.lists.first(where: { $0.id == list.id })?.cueCount == 1)
+
+            // Freeze page and make saved2 unavailable in background
+            app.prepareExcerptForIndexedContentMutation(under: [URL(fileURLWithPath: "/Media")])
+            try database.replaceEntries(
+                subtitleFile: URL(fileURLWithPath: "/Media/Episode2.srt"),
+                videoFile: URL(fileURLWithPath: "/Media/Episode2.mkv"),
+                entries: []
+            )
+            app.reloadExcerptAfterIndexedContentMutation()
+
+            // Removing saved1 (already displayed as unavailable) does not decrement valid count
+            let displayedUnavailable = try #require(app.excerpt.tableRowStore.snapshot.excerpt(entryID: Int(saved1.id)))
+            #expect(!displayedUnavailable.isValid)
+            #expect(app.removeExcerpt(displayedUnavailable, reloadPresentation: false))
+            await app.excerptMutationTask?.value
+            #expect(app.excerpt.listOverview.lists.first(where: { $0.id == list.id })?.cueCount == 1)
+            #expect(app.excerptNeedsReloadAfterIndexedContentMutation == true)
+
+            // Removing saved2 (displayed as valid on frozen screen) decrements valid count by 1
+            let displayedValid = try #require(app.excerpt.tableRowStore.snapshot.excerpt(entryID: Int(saved2.id)))
+            #expect(displayedValid.isValid)
+            #expect(app.removeExcerpt(displayedValid, reloadPresentation: false))
+            await app.excerptMutationTask?.value
+            #expect(app.excerpt.listOverview.lists.first(where: { $0.id == list.id })?.cueCount == 0)
+            #expect(app.excerptNeedsReloadAfterIndexedContentMutation == true)
+        }
+    }
+
+    @Test
+    func openingExcerptListPlaybackWhenAllCuesAreUnavailableShowsNotInLibraryError() async throws {
+        try await withExcerptTestApp { app, database in
+            app.ensurePlayerInitialized()
+            try indexExcerptVideo("Episode1", in: database)
+            let excerptDB = try #require(app.excerptDatabase)
+            let list = try excerptDB.createExcerptList(name: "AllUnavailablePlayback", description: "")
+            let cue = try #require(try SearchDatabase(path: database.path).search("Episode1").first)
+            _ = try excerptDB.upsertExcerpt(cueID: cue.entryID, listID: list.id)
+
+            app.reloadExcerptListOverview()
+            await app.excerptListOverviewTask?.value
+            let frozenSummary = try #require(app.excerpt.listOverview.lists.first(where: { $0.id == list.id }))
+
+            // Background mutation removes Episode1 while summary is still displayed on frozen page
+            try database.replaceEntries(
+                subtitleFile: URL(fileURLWithPath: "/Media/Episode1.srt"),
+                videoFile: URL(fileURLWithPath: "/Media/Episode1.mkv"),
+                entries: []
+            )
+
+            app.openExcerptListPlayback(frozenSummary)
+
+            #expect(app.currentPlaybackItemLeftLibrary == true)
+            #expect(app.playback.playbackStatus == .loadFailed)
+            #expect(app.playback.errorMessages[.notInLibrary] == "This item is no longer in the library")
+            #expect(app.playback.isPlaybackSurfaceExpanded == true)
+        }
+    }
 }
 
 // MARK: - Test Fixture

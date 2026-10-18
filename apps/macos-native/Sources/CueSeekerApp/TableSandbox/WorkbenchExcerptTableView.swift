@@ -433,7 +433,7 @@ private struct WorkbenchExcerptTableContent: View {
 
     private var exactSearchResultCountText: String? {
         guard hasExactTableResult else { return nil }
-        return schemaWorkbenchExcerptCountText(tableSummary.totalRowCount)
+        return schemaWorkbenchExcerptCountText(tableSummary.selectableRowCount)
     }
 
     private var canEnterSelectionMode: Bool {
@@ -480,7 +480,6 @@ private struct WorkbenchExcerptTableContent: View {
             get: { excerptFacetFilter },
             set: { newValue in
                 guard !isSelectionMode,
-                      excerptStore.residentFacetSnapshot != nil,
                       excerptFacetFilter != newValue,
                       let listID = excerptStore.activeListID
                 else {
@@ -565,6 +564,7 @@ private struct WorkbenchExcerptTableContent: View {
     /// The dialog starts from the list's saved selection, and Show hands its
     /// selection back through the same path a changed selection always took.
     private func openFilterDialog() {
+        appState.refreshExcerptOnReappearanceIfNeeded()
         restoreExcerptFacetFilter()
         let filter = excerptStore.activeListID.map {
             settingsStore.excerptFacetFilter(forListID: $0)

@@ -1131,4 +1131,18 @@ func cuesAndExcerptsLeaveTheLibraryWithTheTombstoneOrTheirFolder() throws {
 
     #expect(try cueContentDatabase.liveCueIDs(among: cueIDs + [9_999]) == [cueIDs[0]])
     #expect(try excerptDatabase.validExcerptIDs(among: excerptIDs + [9_999]) == [excerptIDs[0]])
+
+    let overviewAfterRemoval = try excerptDatabase.excerptListOverview()
+    let defaultSummary = try #require(overviewAfterRemoval.lists.first)
+    #expect(defaultSummary.cueCount == 1)
+    #expect(overviewAfterRemoval.uniqueCueCount == 1)
+    #expect(try excerptDatabase.uniqueExcerptCueCount() == 1)
+
+    try database.removeIndexedFolder(URL(fileURLWithPath: "/Media/Stays"))
+    let overviewWhenAllUnavailable = try excerptDatabase.excerptListOverview()
+    let zeroSummary = try #require(overviewWhenAllUnavailable.lists.first)
+    #expect(zeroSummary.cueCount == 0)
+    #expect(overviewWhenAllUnavailable.uniqueCueCount == 0)
+    #expect(try excerptDatabase.uniqueExcerptCueCount() == 0)
 }
+

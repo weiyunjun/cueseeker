@@ -15,12 +15,10 @@ enum SubtitleTableCueState: Equatable {
 
     var icon: AppIcon? {
         switch self {
-        case .normal:
+        case .normal, .unavailable:
             nil
         case .contentChanged:
             .clockCounterClockwise
-        case .unavailable:
-            .question
         }
     }
 
@@ -98,6 +96,9 @@ struct SubtitleTableRow: Identifiable, Equatable {
     let primaryGroupIndex: Int?
     let tags: [WorkbenchTag]
     let cueState: SubtitleTableCueState
+    /// 1-based `#` column sequence number for available rows, or `nil` for
+    /// unavailable rows (or when falls back to `rowIndex + 1`).
+    var displayIndex: Int?
 
     /// Compatibility alias used by existing table drawing and clipboard paths.
     /// It intentionally never expands when Show Cue Group is enabled.
@@ -141,7 +142,8 @@ struct SubtitleTableRow: Identifiable, Equatable {
         cueGroupTexts: [String],
         primaryGroupIndex: Int?,
         tags: [WorkbenchTag] = [],
-        cueState: SubtitleTableCueState = .normal
+        cueState: SubtitleTableCueState = .normal,
+        displayIndex: Int? = nil
     ) {
         self.id = id
         self.primaryCueID = primaryCueID
@@ -166,6 +168,7 @@ struct SubtitleTableRow: Identifiable, Equatable {
         self.primaryGroupIndex = resolvedPrimaryGroupIndex
         self.tags = tags
         self.cueState = cueState
+        self.displayIndex = displayIndex
     }
 
     /// Compatibility initializer for fixtures and call sites that model only a

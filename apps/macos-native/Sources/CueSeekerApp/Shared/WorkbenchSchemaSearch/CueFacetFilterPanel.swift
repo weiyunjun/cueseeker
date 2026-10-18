@@ -672,7 +672,7 @@ struct ExcerptFacetFilterDialog: View {
         return CueFacetFilterCounts(
             distribution: projection.distribution,
             isCalculating: false,
-            totalCount: projection.relations.count
+            totalCount: projection.distribution.totalCount
         )
     }
 }

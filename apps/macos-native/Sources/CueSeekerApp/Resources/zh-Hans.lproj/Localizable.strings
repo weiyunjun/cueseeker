@@ -57,7 +57,7 @@
 "table.column.name" = "名称";
 "table.column.language" = "语言";
 "table.state.content_changed" = "内容已变更";
-"table.state.unavailable" = "不可用";
+"table.state.unavailable" = "已失效";
 "table.state.changed_after_reindex" = "该台词在重新索引后发生了变化";
 "table.state.previous" = "变更前";
 "table.state.current" = "当前";

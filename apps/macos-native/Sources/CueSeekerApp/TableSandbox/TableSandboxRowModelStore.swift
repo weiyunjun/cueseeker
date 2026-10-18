@@ -22,6 +22,7 @@ struct TableSandboxRowsSnapshot {
     /// Rows whose Cue is unavailable. They stay in the table but cannot be
     /// selected.
     let unavailableRows: Set<Int>
+    private let displayIndexByRowIndex: [Int: Int]
 
     init(
         rows: [SubtitleTableRow] = [],
@@ -64,11 +65,27 @@ struct TableSandboxRowsSnapshot {
         self.update = update
         self.totalRowCount = totalRowCount
         // The same test the rows themselves use for their unavailable state.
-        unavailableRows = excerptRelations.isEmpty
+        let computedUnavailableRows = excerptRelations.isEmpty
             ? Set(rows.indices.filter { rows[$0].cueState.isUnavailable })
             : Set(excerptRelations.indices.filter {
                 excerptsByEntryID[Int(excerptRelations[$0].id)]?.unavailableReason != nil
             })
+        unavailableRows = computedUnavailableRows
+        let rowCount = !excerptRelations.isEmpty
+            ? excerptRelations.count
+            : (!searchCueIDs.isEmpty ? searchCueIDs.count : rows.count)
+        if computedUnavailableRows.isEmpty {
+            displayIndexByRowIndex = [:]
+        } else {
+            var mapping: [Int: Int] = [:]
+            mapping.reserveCapacity(max(0, rowCount - computedUnavailableRows.count))
+            var nextDisplayIndex = 1
+            for rowIndex in 0..<rowCount where !computedUnavailableRows.contains(rowIndex) {
+                mapping[rowIndex] = nextDisplayIndex
+                nextDisplayIndex += 1
+            }
+            displayIndexByRowIndex = mapping
+        }
     }
 
     var rows: [SubtitleTableRow] {
@@ -77,6 +94,9 @@ struct TableSandboxRowsSnapshot {
         }
         if !searchCueIDs.isEmpty {
             return searchCueIDs.indices.compactMap { row(at: $0) }
+        }
+        if !unavailableRows.isEmpty {
+            return materializedRows.indices.compactMap { row(at: $0) }
         }
         return materializedRows
     }
@@ -101,40 +121,58 @@ struct TableSandboxRowsSnapshot {
         return materializedRows.map(\.id)
     }
 
+    func displayIndex(forRow index: Int) -> Int? {
+        guard index >= 0, !unavailableRows.contains(index) else { return nil }
+        if unavailableRows.isEmpty {
+            return index + 1
+        }
+        return displayIndexByRowIndex[index]
+    }
+
     func row(at index: Int) -> SubtitleTableRow? {
         guard index >= 0 else { return nil }
         if excerptRelations.indices.contains(index) {
             let relation = excerptRelations[index]
             let resolvedExcerpt = excerptsByEntryID[Int(relation.id)]
             if let cueContent = cueContentProvider?(relation.cueID) {
-                return tableSandboxExcerptRow(
+                var row = tableSandboxExcerptRow(
                     relation: relation,
                     cueContent: cueContent,
                     resolvedExcerpt: resolvedExcerpt
                 )
+                row.displayIndex = displayIndex(forRow: index)
+                return row
             }
             guard let resolvedExcerpt else {
                 return nil
             }
-            return tableSandboxUnavailableExcerptRow(
+            var row = tableSandboxUnavailableExcerptRow(
                 relation: relation,
                 excerpt: resolvedExcerpt
             )
+            row.displayIndex = nil
+            return row
         }
         if searchCueIDs.indices.contains(index) {
             let cueID = searchCueIDs[index]
             guard let content = searchCueContentProvider?(cueID) else {
                 return nil
             }
-            return tableSandboxSearchRow(
+            var row = tableSandboxSearchRow(
                 for: SubtitleSearchResult(
                     cueContent: content,
                     searchRank: searchRankByCueID[cueID] ?? index
                 )
             )
+            row.displayIndex = displayIndex(forRow: index)
+            return row
         }
         guard materializedRows.indices.contains(index) else { return nil }
-        return materializedRows[index]
+        var row = materializedRows[index]
+        if row.displayIndex == nil {
+            row.displayIndex = displayIndex(forRow: index)
+        }
+        return row
     }
 
     func rowIndex(entryID: Int) -> Int? {

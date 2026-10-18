@@ -2844,6 +2844,97 @@ func subtitleTableUnavailableExcerptBlocksInteractiveActionsButKeepsAllowedMenuA
 
 @MainActor
 @Test
+func subtitleTableUnavailableRowsShowBlankIndexAndAvailableRowsIncrementSequentially() throws {
+    let rows: [SubtitleTableRow] = [
+        SubtitleTableRow(
+            id: 1,
+            primaryCueID: 1,
+            displayTitle: "Episode 1",
+            primaryCueText: "Valid Cue 1",
+            cueGroupTexts: ["Valid Cue 1"],
+            primaryGroupIndex: 0,
+            cueState: .normal
+        ),
+        SubtitleTableRow(
+            id: 2,
+            primaryCueID: 2,
+            displayTitle: "Episode 1",
+            primaryCueText: "Unavailable Cue",
+            cueGroupTexts: ["Unavailable Cue"],
+            primaryGroupIndex: 0,
+            cueState: .unavailable(.videoMissing)
+        ),
+        SubtitleTableRow(
+            id: 3,
+            primaryCueID: 3,
+            displayTitle: "Episode 1",
+            primaryCueText: "Valid Cue 2",
+            cueGroupTexts: ["Valid Cue 2"],
+            primaryGroupIndex: 0,
+            cueState: .contentChanged(previous: "Old", current: "Valid Cue 2")
+        ),
+    ]
+    let snapshot = TableSandboxRowsSnapshot(rows: rows, totalRowCount: rows.count)
+    #expect(snapshot.displayIndex(forRow: 0) == 1)
+    #expect(snapshot.displayIndex(forRow: 1) == nil)
+    #expect(snapshot.displayIndex(forRow: 2) == 2)
+
+    let fixture = makeAttachedVirtualTableCoordinator(
+        width: 1_200,
+        rowCount: rows.count,
+        rowProvider: { snapshot.row(at: $0) }
+    )
+    #expect(fixture.coordinator.displayIndexForTesting(row: 0) == 1)
+    #expect(fixture.coordinator.displayIndexForTesting(row: 1) == nil)
+    #expect(fixture.coordinator.displayIndexForTesting(row: 2) == 2)
+}
+
+@MainActor
+@Test
+func subtitleTableUnavailableRowPlacesBadgeOnLeftWithHangingIndentAndFullWidthExtraCues() throws {
+    let row = SubtitleTableRow(
+        id: 10,
+        primaryCueID: 10,
+        displayTitle: "Episode 10",
+        primaryCueText: "Primary unavailable cue line",
+        cueGroupTexts: ["Primary unavailable cue line", "Secondary sibling cue line"],
+        primaryGroupIndex: 0,
+        cueState: .unavailable(.cueMissing)
+    )
+    let fixture = makeAttachedVirtualTableCoordinator(
+        width: 1_200,
+        rowCount: 1,
+        row: row,
+        showsCueGroup: true
+    )
+    let cuesCellRect = try #require(
+        fixture.coordinator.dataCellRectForTesting(row: 0, columnID: "cues")
+    )
+    let badgeRect = try #require(
+        fixture.coordinator.cueStateIndicatorRectForTesting(row: 0)
+    )
+    let fragments = fixture.coordinator.textFragmentInfoForTesting(
+        row: 0,
+        columnID: "cues"
+    )
+    #expect(fragments.count == 2)
+    #expect(badgeRect.minX == cuesCellRect.minX + SubtitleTableCueGeometry.cellLeadingPadding)
+    #expect(badgeRect.height == SubtitleTableCueGeometry.cueUnavailableBadgeHeight)
+    #expect(badgeRect.width == SubtitleTableCueGeometry.unavailableBadgeWidth())
+    // Primary cue starts to the right of the badge (hanging indent).
+    #expect(
+        fragments[0].textBounds.minX
+            == badgeRect.maxX + SubtitleTableCueGeometry.cueUnavailableBadgeGap
+    )
+    // Extra cue line in Show Cue Group starts at the left edge of the Cues column.
+    #expect(
+        fragments[1].textBounds.minX
+            == cuesCellRect.minX + SubtitleTableCueGeometry.cellLeadingPadding
+    )
+}
+
+@MainActor
+@Test
 func subtitleTableViewAnswersTheArrowWhenExternalLayerIsOpen() throws {
     let fixture = makeAttachedVirtualTableCoordinator()
     // A tall container: this case only needs the menu to open, not to land
