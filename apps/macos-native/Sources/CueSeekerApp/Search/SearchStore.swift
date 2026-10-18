@@ -399,12 +399,16 @@ final class SearchStore: ObservableObject {
     @discardableResult
     func completeIndexedCueDataMutation(
         _ token: SearchIndexedCueMutationToken,
-        refreshMode: SearchReappearanceRefreshMode = .pruneRemovedItems
+        refreshMode: SearchReappearanceRefreshMode = .pruneRemovedItems,
+        didMutateIndexedContent: Bool = true
     ) -> Bool {
         guard token.generation == activeIndexedCueMutationGeneration else {
             return false
         }
         activeIndexedCueMutationGeneration = nil
+        guard didMutateIndexedContent else {
+            return true
+        }
         reloadEmptySearchFacetDistribution()
         indexedCueDataRevision &+= 1
         markPendingReappearanceRefresh(refreshMode)
@@ -745,6 +749,48 @@ final class SearchStore: ObservableObject {
             }
         }
         return true
+    }
+
+    func applyRename(
+        _ steps: [LibraryRenameStep],
+        databaseURL: URL? = nil
+    ) {
+        if let distribution = try? database?.cueFacetDistribution() {
+            emptySearchFacetDistribution = distribution
+        } else {
+            emptySearchFacetDistribution = emptySearchFacetDistribution?.rewritingFolderPaths(steps)
+        }
+        searchFacetFilter = normalizedFacetFilter(
+            searchFacetFilter.rewritingFolderPaths(steps)
+        )
+        resultFacetFilter = normalizedFacetFilter(
+            resultFacetFilter.rewritingFolderPaths(steps)
+        )
+        if let snapshot = searchFacetSnapshot {
+            setSearchFacetSnapshot(snapshot.rewritingFolderPaths(steps))
+        }
+        let resolvedDatabaseURL = databaseURL ?? self.databaseURL
+        let cachedCueIDs = cueContentStore.cachedCueIDs
+        if let resolvedDatabaseURL,
+           !cachedCueIDs.isEmpty,
+           let updatedContents = try? CueContentDatabase(path: resolvedDatabaseURL)
+               .cueContents(forCueIDs: cachedCueIDs),
+           !updatedContents.isEmpty {
+            cueContentStore.install(updatedContents)
+        }
+        if let selected = selectedSearchResult,
+           let updatedContent = cueContentStore.content(for: selected.entryID) {
+            selectedSearchResult = SubtitleSearchResult(
+                cueContent: updatedContent,
+                searchRank: searchRankByCueID[selected.entryID] ?? selected.searchRank
+            )
+        }
+        commitResultMutation {
+            tableProjectionRevision &+= 1
+            if case .residentSearch = tableProjectionSource {
+                activateResidentSearchTableProjection()
+            }
+        }
     }
 
     @discardableResult

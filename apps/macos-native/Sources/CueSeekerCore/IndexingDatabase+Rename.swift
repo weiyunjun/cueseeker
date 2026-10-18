@@ -323,6 +323,9 @@ extension IndexingDatabase {
             try refreshSearchOrderRows(affectedFolderPaths: affectedFolderPaths)
             try LibraryDatabase(sharing: database)
                 .rebuildPresentationRowsInCurrentTransaction(folderPaths: affectedFolderPaths)
+            if !affectedFolderPaths.isEmpty {
+                try CueFacetCountCache.rebuildAll(on: database)
+            }
         }
     }
 

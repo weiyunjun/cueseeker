@@ -386,6 +386,32 @@ final class SettingsStore: ObservableObject {
         )
     }
 
+    func rewriteFacetFilterFolderPaths(_ steps: [LibraryRenameStep]) {
+        guard !steps.isEmpty else {
+            return
+        }
+        searchFacetFilter = searchFacetFilter.rewritingFolderPaths(steps)
+        guard let exclusionsByListID = userDefaults.dictionary(
+            forKey: Self.excerptFacetExclusionsKey
+        ), !exclusionsByListID.isEmpty else {
+            return
+        }
+        var updatedExclusionsByListID: [String: Any] = [:]
+        for (listKey, value) in exclusionsByListID {
+            guard let exclusions = value as? [String: Any] else {
+                updatedExclusionsByListID[listKey] = value
+                continue
+            }
+            let filter = Self.loadFacetFilter(exclusions: exclusions)
+                .rewritingFolderPaths(steps)
+            updatedExclusionsByListID[listKey] = Self.facetExclusions(for: filter)
+        }
+        userDefaults.set(
+            updatedExclusionsByListID,
+            forKey: Self.excerptFacetExclusionsKey
+        )
+    }
+
     private static func loadAppAppearanceMode(from userDefaults: UserDefaults) -> AppAppearanceMode {
         guard let rawValue = userDefaults.string(forKey: appAppearanceModeKey),
               let mode = AppAppearanceMode(rawValue: rawValue)

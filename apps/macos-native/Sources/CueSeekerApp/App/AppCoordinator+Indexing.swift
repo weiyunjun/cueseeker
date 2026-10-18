@@ -427,14 +427,22 @@ extension AppCoordinator {
                 coordinator: self
             )
             indexing.appendFolder(folder)
-            holdActiveWorkbenchRouteBeforeContentMutation()
-            // The pages refreshed when the index published, before the folder
-            // was in the scope they read.
-            refreshLibraryAfterAuxiliaryDataMutation()
+            let hasPublishedChanges: Bool
+            if case .completed(_, let result) = indexing.indexingStatus {
+                hasPublishedChanges = result.hasIndexedContentChanges || result.requiresExcerptRefresh
+            } else {
+                hasPublishedChanges = false
+            }
+            if hasPublishedChanges {
+                holdActiveWorkbenchRouteBeforeContentMutation()
+                // The pages refreshed when the index published, before the folder
+                // was in the scope they read.
+                refreshLibraryAfterAuxiliaryDataMutation()
+            }
             return indexedCount
         } catch {
             do {
-                try await libraryFolderRemovalExecutor.removeFolder(
+                _ = try await libraryFolderRemovalExecutor.removeFolder(
                     folder,
                     keepingNestedRoots: LibraryRootGroups.representatives(
                         inside: folder,
@@ -493,10 +501,10 @@ extension AppCoordinator {
             !Self.pathMatchesPrefixes($0, prefixes: prefixes)
         }
         holdPlaybackBeforeIndexedContentChange()
-        prepareExcerptForIndexedContentMutation(under: [folder])
 
+        let didRemoveIndexedContent: Bool
         do {
-            try await libraryFolderRemovalExecutor.removeFolder(
+            didRemoveIndexedContent = try await libraryFolderRemovalExecutor.removeFolder(
                 folder,
                 keepingNestedRoots: LibraryRootGroups.representatives(
                     inside: folder,
@@ -506,10 +514,10 @@ extension AppCoordinator {
             )
         } catch {
             indexing.folderRemovalStatus = .idle
-            reloadExcerptAfterIndexedContentMutation()
             search.completeIndexedCueDataMutation(
                 searchMutationToken,
-                refreshMode: .none
+                refreshMode: .none,
+                didMutateIndexedContent: false
             )
             restoreCurrentSearchAfterIndexedCueMutationFailure(
                 reloadFromDatabase: false
@@ -525,6 +533,24 @@ extension AppCoordinator {
             throw LibraryTaskFailure(message: message)
         }
 
+        guard didRemoveIndexedContent else {
+            indexing.removeFolder(folder)
+            if folder.isWebDAVURL {
+                WebDAVConfigurationStore.shared.remove(url: folder)
+                WebDAVSubtitleCache.shared.removeCachedSubtitles(forRootURL: folder)
+            }
+            reconcilePlaybackAfterIndexedContentChange()
+            indexing.folderRemovalStatus = .idle
+            search.completeIndexedCueDataMutation(
+                searchMutationToken,
+                refreshMode: .none,
+                didMutateIndexedContent: false
+            )
+            indexing.removedFolderNotice = folder
+            return
+        }
+
+        prepareExcerptForIndexedContentMutation(under: [folder])
         holdActiveWorkbenchRouteBeforeContentMutation()
         indexing.removeFolder(folder)
         if folder.isWebDAVURL {

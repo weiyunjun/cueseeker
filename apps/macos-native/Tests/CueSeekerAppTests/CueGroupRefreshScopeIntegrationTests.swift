@@ -15,7 +15,8 @@ private actor MountedFailingLibraryFolderRemovalExecutor:
     private var started = false
     private var continuation: CheckedContinuation<Void, Never>?
 
-    func removeFolder(_ folder: URL, keepingNestedRoots nestedRoots: [URL], databaseURL: URL) async throws {
+    @discardableResult
+    func removeFolder(_ folder: URL, keepingNestedRoots nestedRoots: [URL], databaseURL: URL) async throws -> Bool {
         started = true
         await withCheckedContinuation { continuation in
             self.continuation = continuation

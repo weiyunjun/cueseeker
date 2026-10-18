@@ -438,7 +438,7 @@ public struct LibraryRenamer: Sendable {
 
     /// `path` moved by the rename of `oldPath` to `newPath`, or nil when the
     /// rename does not touch it. The result keeps the form `path` had.
-    static func rewrite(_ path: String, from oldPath: String, to newPath: String) -> String? {
+    public static func rewrite(_ path: String, from oldPath: String, to newPath: String) -> String? {
         let comparablePath = canonicalPath(path)
         let comparableOldPath = canonicalPath(oldPath)
         let remainder: Substring
@@ -454,6 +454,17 @@ public struct LibraryRenamer: Sendable {
             ? "/private" + canonicalNewPath
             : canonicalNewPath
         return replacement + remainder
+    }
+
+    /// `path` rewritten by the first rename step that matches it, or `path`
+    /// unchanged when no step touches it.
+    public static func rewrittenPath(_ path: String, steps: [LibraryRenameStep]) -> String {
+        for step in steps {
+            if let rewritten = rewrite(path, from: step.oldPath, to: step.newPath) {
+                return rewritten
+            }
+        }
+        return path
     }
 
     // MARK: - Execution

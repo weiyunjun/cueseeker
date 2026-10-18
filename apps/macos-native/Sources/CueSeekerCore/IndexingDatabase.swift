@@ -1156,10 +1156,11 @@ public final class IndexingDatabase: @unchecked Sendable {
     /// that stay: each of those becomes a Library of its own again, keeping
     /// its indexed content. One transaction, so either all of it happens or
     /// none of it.
+    @discardableResult
     public func removeIndexedFolder(
         _ folder: URL,
         keepingNestedRoots nestedRoots: [URL] = []
-    ) throws {
+    ) throws -> Bool {
         try database.withImmediateTransaction {
             var keptSubtitlePaths = Set<String>()
             for nestedRoot in nestedRoots {
@@ -1175,6 +1176,7 @@ public final class IndexingDatabase: @unchecked Sendable {
             if !affectedFolderPaths.isEmpty {
                 try CueFacetCountCache.rebuildAll(on: database)
             }
+            return !affectedFolderPaths.isEmpty
         }
     }
 

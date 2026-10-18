@@ -266,6 +266,17 @@ public struct CueFacetFilter: Equatable, Sendable {
         return filter
     }
 
+    public func rewritingFolderPaths(_ steps: [LibraryRenameStep]) -> CueFacetFilter {
+        guard let excludedFolders, !steps.isEmpty else {
+            return self
+        }
+        var filter = self
+        filter.excludedFolders = Set(
+            excludedFolders.map { LibraryRenamer.rewrittenPath($0, steps: steps) }
+        )
+        return filter
+    }
+
     public func matches(
         durationMilliseconds: Int,
         characterCount: Int,
@@ -359,6 +370,25 @@ public struct CueFacetDistribution: Equatable, Sendable {
                 other.folderCounts,
                 uniquingKeysWith: +
             )
+        )
+    }
+
+    public func rewritingFolderPaths(_ steps: [LibraryRenameStep]) -> CueFacetDistribution {
+        guard !steps.isEmpty, !folderCounts.isEmpty else {
+            return self
+        }
+        var nextFolderCounts: [String: Int] = [:]
+        for (folder, count) in folderCounts {
+            let rewritten = LibraryRenamer.rewrittenPath(folder, steps: steps)
+            nextFolderCounts[rewritten, default: 0] += count
+        }
+        return CueFacetDistribution(
+            totalCount: totalCount,
+            durationCounts: durationCounts,
+            characterCounts: characterCounts,
+            languageCounts: languageCounts,
+            watchStateCounts: watchStateCounts,
+            folderCounts: nextFolderCounts
         )
     }
 }
@@ -566,6 +596,24 @@ public struct CueFacetSnapshot: Equatable, Sendable {
             languageFacets: retainedIndices.map { languageFacets[$0] },
             watchStateFacets: retainedIndices.map { watchStateFacets[$0] },
             folderFacets: retainedIndices.map { folderFacets[$0] }
+        )
+    }
+
+    public func rewritingFolderPaths(_ steps: [LibraryRenameStep]) -> CueFacetSnapshot {
+        guard !steps.isEmpty, !cueIDs.isEmpty else {
+            return self
+        }
+        let rewrittenFolders = folderFacets.map { LibraryRenamer.rewrittenPath($0, steps: steps) }
+        guard rewrittenFolders != folderFacets else {
+            return self
+        }
+        return CueFacetSnapshot(
+            cueIDs: cueIDs,
+            durationFacets: durationFacets,
+            characterFacets: characterFacets,
+            languageFacets: languageFacets,
+            watchStateFacets: watchStateFacets,
+            folderFacets: rewrittenFolders
         )
     }
 }

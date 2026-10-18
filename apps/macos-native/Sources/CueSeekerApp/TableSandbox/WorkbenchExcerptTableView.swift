@@ -184,6 +184,7 @@ private struct WorkbenchExcerptTableContent: View {
             }
             excerptStore.setTableProjectionResponseActive(isActive)
             if isActive {
+                restoreExcerptFacetFilter()
                 resumeDeferredTableResponse()
             }
         }

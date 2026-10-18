@@ -561,6 +561,30 @@ extension AppCoordinator {
         reloadExcerptTableRows()
     }
 
+    func applyRenameToExcerpt(_ steps: [LibraryRenameStep]) {
+        let rewrittenFilter = search.normalizedFacetFilter(
+            excerpt.tableFacetFilter.rewritingFolderPaths(steps)
+        )
+        _ = excerpt.updateTableFacetFilter(rewrittenFilter)
+        let cachedCueIDs = cueContent.cachedCueIDs
+        if !cachedCueIDs.isEmpty,
+           let updatedContents = try? CueContentDatabase(path: databaseURL)
+               .cueContents(forCueIDs: cachedCueIDs),
+           !updatedContents.isEmpty {
+            cueContent.install(updatedContents)
+        }
+        excerpt.applyRename(steps, cueContentStore: cueContent)
+        if excerpt.hasLoadedListOverview, let excerptDatabase {
+            if let overview = try? excerptDatabase.excerptListOverview() {
+                excerpt.installListOverview(overview)
+            }
+            if let summaries = try? excerptDatabase.recentExcerptListSummaries() {
+                excerpt.installRecentListSummaries(summaries)
+            }
+        }
+        reloadExcerptListOverview()
+    }
+
     func updateExcerptFacetFilter(_ filter: CueFacetFilter) {
         guard excerpt.updateTableFacetFilter(filter),
               let listID = excerpt.activeListID

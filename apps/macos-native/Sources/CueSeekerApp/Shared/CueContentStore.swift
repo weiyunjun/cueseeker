@@ -24,6 +24,10 @@ final class CueContentStore {
         contentByCueID.count
     }
 
+    var cachedCueIDs: [Int64] {
+        Array(contentByCueID.keys)
+    }
+
     func content(for cueID: Int64) -> CueContent? {
         contentByCueID[cueID]
     }

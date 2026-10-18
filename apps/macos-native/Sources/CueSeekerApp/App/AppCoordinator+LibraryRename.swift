@@ -82,16 +82,62 @@ extension AppCoordinator {
         }
     }
 
-    /// The paths moved: the root list follows a renamed root, and every page
-    /// is refreshed the way an Index that touched these folders refreshes it.
+    /// The paths moved: the root list, File routes, facet filters, and resident
+    /// page states follow the new paths in place without a full re-search.
     private func applyCompletedRename(_ plan: LibraryRenamePlan) {
         if case .folder = plan.request, let step = plan.steps.first {
             indexing.replaceFolderPathPrefix(step.oldPath, with: step.newPath)
             _ = search.updateFolderScope(indexing.selectedFolders)
         }
+        workbenchLayout.rewriteFolderPaths(plan.steps)
+        heldWorkbenchRoute = heldWorkbenchRoute?.rewritingFolderPaths(plan.steps)
 
-        var result = SubtitleIndexingResult()
-        result.affectedFolderPaths = plan.affectedFolderPaths
-        applyPublishedIndexMutation(result, excerptFallbackFolders: [])
+        settings.rewriteFacetFilterFolderPaths(plan.steps)
+        search.applyRename(plan.steps, databaseURL: databaseURL)
+        settings.searchFacetFilter = search.searchFacetFilter
+        applyRenameToExcerpt(plan.steps)
+
+        invalidateFileTreeCache(force: true)
+        switch workbenchLayout.currentRoute {
+        case .fileFolder(let rootPath):
+            loadFileSubfolders(rootPath: rootPath)
+        case .fileFiles(let rootPath, let folderPath):
+            loadFileSubfolders(rootPath: rootPath)
+            loadFileObjects(folderPath: folderPath)
+        default:
+            break
+        }
+
+        let folders = indexing.selectedFolders
+        if let libraryDatabase {
+            if library.libraryStatus == .completed || !library.libraryVideos.isEmpty,
+               let snapshot = try? libraryDatabase.libraryPresentation(under: folders) {
+                applyLibraryPresentation(snapshot)
+                library.libraryStatus = .completed
+            }
+            if library.recentWatchingStatus == .completed || !library.recentWatchingItems.isEmpty,
+               let snapshot = try? libraryDatabase.recentLibraryWatching(under: folders) {
+                applyRecentWatching(snapshot)
+                library.recentWatchingStatus = .completed
+            }
+            if library.testRecentWatchingStatus == .completed || !library.testRecentWatchingItems.isEmpty,
+               let snapshot = try? libraryDatabase.recentLibraryWatching(
+                   under: folders,
+                   limit: Int.max,
+                   includesNeverPlayed: true
+               ) {
+                applyTestRecentWatching(snapshot)
+                library.testRecentWatchingStatus = .completed
+            }
+            if library.completeLibraryStatus == .completed || !library.completeLibraryFolderSummaries.isEmpty,
+               let snapshot = try? libraryDatabase.completeLibraryFolderSummaries(under: folders) {
+                applyCompleteLibrary(snapshot)
+                library.completeLibraryStatus = .completed
+            }
+        }
+        refreshLibrary(force: true)
+        refreshRecentWatching(force: true)
+        refreshLoadedTestRecentWatching(force: true)
+        refreshCompleteLibrary(force: true)
     }
 }

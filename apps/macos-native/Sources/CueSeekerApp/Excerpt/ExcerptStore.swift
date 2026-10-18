@@ -422,4 +422,43 @@ final class ExcerptStore: ObservableObject {
         residentDataRevisionsByListID.removeAll()
         tableDataRevision += 1
     }
+
+    func applyRename(
+        _ steps: [LibraryRenameStep],
+        cueContentStore: CueContentStore
+    ) {
+        residentFacetSnapshot = residentFacetSnapshot?.rewritingFolderPaths(steps)
+        for relation in residentRelations {
+            if let content = cueContentStore.content(for: relation.cueID) {
+                residentExcerptsByID[relation.id] = Excerpt(
+                    relation: relation,
+                    cueContent: content
+                )
+            }
+        }
+        for (listID, cached) in residentSnapshotsByListID {
+            let existingByID = Dictionary(
+                uniqueKeysWithValues: cached.resolvedExcerpts.map { ($0.id, $0) }
+            )
+            let updatedResolved = cached.relations.compactMap { relation -> Excerpt? in
+                if let content = cueContentStore.content(for: relation.cueID) {
+                    return Excerpt(relation: relation, cueContent: content)
+                }
+                return existingByID[relation.id]
+            }
+            let updatedContents = cached.cueContents.map {
+                cueContentStore.content(for: $0.cueID) ?? $0
+            }
+            residentSnapshotsByListID[listID] = ExcerptResidentSnapshot(
+                relations: cached.relations,
+                resolvedExcerpts: updatedResolved,
+                cueContents: updatedContents,
+                facetSnapshot: cached.facetSnapshot.rewritingFolderPaths(steps)
+            )
+        }
+        if let selected = selectedExcerpt,
+           let updated = residentExcerptsByID[selected.id] {
+            selectedExcerpt = updated
+        }
+    }
 }

@@ -127,6 +127,26 @@ enum WorkbenchRoute: Equatable {
             .excerpt
         }
     }
+
+    func rewritingFolderPaths(_ steps: [LibraryRenameStep]) -> WorkbenchRoute {
+        switch self {
+        case .libraryFolder(let folderPath):
+            return .libraryFolder(
+                folderPath: LibraryRenamer.rewrittenPath(folderPath, steps: steps)
+            )
+        case .fileFolder(let rootPath):
+            return .fileFolder(
+                rootPath: LibraryRenamer.rewrittenPath(rootPath, steps: steps)
+            )
+        case .fileFiles(let rootPath, let folderPath):
+            return .fileFiles(
+                rootPath: LibraryRenamer.rewrittenPath(rootPath, steps: steps),
+                folderPath: LibraryRenamer.rewrittenPath(folderPath, steps: steps)
+            )
+        case .search, .recent, .library, .file, .excerpt, .excerptList:
+            return self
+        }
+    }
 }
 
 @MainActor
@@ -315,6 +335,18 @@ final class WorkbenchLayoutState: ObservableObject {
         route.history.append(target)
         route.historyIndex += 1
         userDefaults.set(target.panelMode.rawValue, forKey: Self.panelModeKey)
+    }
+
+    func rewriteFolderPaths(_ steps: [LibraryRenameStep]) {
+        guard !steps.isEmpty else {
+            return
+        }
+        let rewrittenHistory = route.history.map { $0.rewritingFolderPaths(steps) }
+        guard rewrittenHistory != route.history else {
+            return
+        }
+        route.history = rewrittenHistory
+        route.show(route.currentRoute)
     }
 
     func goBack() {

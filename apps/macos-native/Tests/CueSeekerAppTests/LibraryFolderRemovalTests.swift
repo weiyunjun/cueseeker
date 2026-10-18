@@ -16,6 +16,7 @@ private enum LibraryFolderRemovalTestError: Error {
 private actor ControlledLibraryFolderRemovalExecutor: LibraryFolderRemovalExecuting {
     enum Outcome {
         case success
+        case emptySuccess
         case failure
     }
 
@@ -30,7 +31,8 @@ private actor ControlledLibraryFolderRemovalExecutor: LibraryFolderRemovalExecut
         self.outcome = outcome
     }
 
-    func removeFolder(_ folder: URL, keepingNestedRoots nestedRoots: [URL], databaseURL: URL) async throws {
+    @discardableResult
+    func removeFolder(_ folder: URL, keepingNestedRoots nestedRoots: [URL], databaseURL: URL) async throws -> Bool {
         started = true
         removals.append((folder, nestedRoots))
         startWaiters.forEach { $0.resume() }
@@ -44,6 +46,7 @@ private actor ControlledLibraryFolderRemovalExecutor: LibraryFolderRemovalExecut
         if outcome == .failure {
             throw LibraryFolderRemovalTestError.expected
         }
+        return outcome == .success
     }
 
     func hasStarted() -> Bool {
@@ -181,6 +184,8 @@ func libraryFolderRemovalKeepsUnavailableExcerptAndClearsCanonicalCueContent() a
 
     app.removeFolder(fixture.folder)
     await app.tasks.waitUntilIdle()
+    #expect(app.excerptNeedsReloadAfterIndexedContentMutation == true)
+    app.refreshExcerptOnReappearanceIfNeeded()
     await app.excerptTableRowsTask?.value
 
     #expect(app.excerpt.residentRelations.map(\.cueID) == [cueID])
@@ -483,6 +488,215 @@ func libraryFolderRemovalPreservesSearchStoreResultsAndCueContent() async throws
     #expect(app.search.cachedCueContent(for: cueID) != nil)
     #expect(app.search.tableRowStore.snapshot.totalRowCount == 1)
     #expect(app.search.tableRowStore.snapshot.row(at: 0)?.primaryCueText == "Retained search result across folder removal")
+}
+
+@MainActor
+@Test
+func addingOrRemovingEmptyFolderDoesNotMarkDeferredPageRefreshes() async throws {
+    _ = NSApplication.shared
+    let suiteName = "CueSeekerEmptyFolderOutcomeTests-\(UUID().uuidString)"
+    let userDefaults = try #require(UserDefaults.temporary(suiteName: suiteName))
+    let root = FileManager.default.temporaryDirectory
+        .appendingPathComponent(
+            "CueSeekerEmptyFolderOutcomeTests-\(UUID().uuidString)",
+            isDirectory: true
+        )
+    let mediaFolder = root.appendingPathComponent("Media", isDirectory: true).standardizedFileURL
+    let emptyFolder = root.appendingPathComponent("EmptyFolder", isDirectory: true).standardizedFileURL
+    let databaseURL = root.appendingPathComponent("CueSeeker.sqlite")
+    try FileManager.default.createDirectory(at: mediaFolder, withIntermediateDirectories: true)
+    try FileManager.default.createDirectory(at: emptyFolder, withIntermediateDirectories: true)
+    defer {
+        userDefaults.removePersistentDomainAndPlist(forName: suiteName)
+        try? FileManager.default.removeItem(at: root)
+    }
+
+    let subtitleURL = mediaFolder.appendingPathComponent("Episode 01.srt")
+    let videoURL = mediaFolder.appendingPathComponent("Episode 01.mkv")
+    try """
+    1
+    00:00:01,000 --> 00:00:03,000
+    Outcome based refresh line.
+
+    """.write(to: subtitleURL, atomically: true, encoding: .utf8)
+    try Data([0]).write(to: videoURL)
+
+    try DatabaseBootstrap.prepare(at: databaseURL)
+    let indexingDatabase = try IndexingDatabase(path: databaseURL)
+    _ = try SubtitleIndexer().index(folder: mediaFolder, into: indexingDatabase)
+    userDefaults.set([mediaFolder.path], forKey: "selectedFolderPaths")
+
+    let app = AppCoordinator(userDefaults: userDefaults, databaseURL: databaseURL)
+    app.submitSearch("Outcome")
+    await app.search.searchTask?.value
+    #expect(app.search.searchResultTotalCount == 1)
+
+    // Add an empty folder while staying on File Level 2 of mediaFolder
+    app.navigateWorkbench(to: .fileFolder(rootPath: mediaFolder.mediaPath))
+    app.addFolder(emptyFolder)
+    await app.tasks.waitUntilIdle()
+
+    #expect(app.indexing.selectedFolders.contains(emptyFolder))
+    #expect(app.search.pendingReappearanceRefreshMode == .none)
+    #expect(app.recentNeedsReloadAfterIndexedMutation == false)
+    #expect(app.libraryNeedsReloadAfterIndexedMutation == false)
+    #expect(app.excerptNeedsReloadAfterIndexedContentMutation == false)
+    #expect(app.fileNeedsReloadAfterIndexedMutation == false)
+
+    // Remove the empty folder
+    app.removeFolder(emptyFolder)
+    await app.tasks.waitUntilIdle()
+
+    #expect(!app.indexing.selectedFolders.contains(emptyFolder))
+    #expect(app.search.pendingReappearanceRefreshMode == .none)
+    #expect(app.recentNeedsReloadAfterIndexedMutation == false)
+    #expect(app.libraryNeedsReloadAfterIndexedMutation == false)
+    #expect(app.excerptNeedsReloadAfterIndexedContentMutation == false)
+    #expect(app.fileNeedsReloadAfterIndexedMutation == false)
+}
+
+@MainActor
+@Test
+func renameUpdatesFileSearchLibraryRecentAndExcerptInPlaceWithoutRerunningSearch() async throws {
+    _ = NSApplication.shared
+    let suiteName = "CueSeekerInPlaceRenameTests-\(UUID().uuidString)"
+    let userDefaults = try #require(UserDefaults.temporary(suiteName: suiteName))
+    let root = FileManager.default.temporaryDirectory
+        .appendingPathComponent(
+            "CueSeekerInPlaceRenameTests-\(UUID().uuidString)",
+            isDirectory: true
+        )
+    let oldFolder = root.appendingPathComponent("Ave Mujica", isDirectory: true).standardizedFileURL
+    let otherFolder = root.appendingPathComponent("MyGO!!!!!", isDirectory: true).standardizedFileURL
+    let newFolder = root.appendingPathComponent("BanG Dream! Ave Mujica", isDirectory: true).standardizedFileURL
+    let databaseURL = root.appendingPathComponent("CueSeeker.sqlite")
+    try FileManager.default.createDirectory(at: oldFolder, withIntermediateDirectories: true)
+    try FileManager.default.createDirectory(at: otherFolder, withIntermediateDirectories: true)
+    defer {
+        userDefaults.removePersistentDomainAndPlist(forName: suiteName)
+        try? FileManager.default.removeItem(at: root)
+    }
+
+    let subtitleURL = oldFolder.appendingPathComponent("Ave Mujica - 01.srt")
+    let videoURL = oldFolder.appendingPathComponent("Ave Mujica - 01.mkv")
+    try """
+    1
+    00:00:01,000 --> 00:00:03,000
+    Welcome to the masquerade.
+
+    """.write(to: subtitleURL, atomically: true, encoding: .utf8)
+    try Data([0]).write(to: videoURL)
+
+    let otherSubtitleURL = otherFolder.appendingPathComponent("MyGO - 01.srt")
+    let otherVideoURL = otherFolder.appendingPathComponent("MyGO - 01.mkv")
+    try """
+    1
+    00:00:01,000 --> 00:00:03,000
+    Haruhikage.
+
+    """.write(to: otherSubtitleURL, atomically: true, encoding: .utf8)
+    try Data([0]).write(to: otherVideoURL)
+
+    try DatabaseBootstrap.prepare(at: databaseURL)
+    let indexingDatabase = try IndexingDatabase(path: databaseURL)
+    _ = try SubtitleIndexer().index(folder: oldFolder, into: indexingDatabase)
+    _ = try SubtitleIndexer().index(folder: otherFolder, into: indexingDatabase)
+    let selection = try #require(
+        try PlaybackSubtitleDatabase(path: databaseURL).cueTextSelection(
+            forSubtitleFile: subtitleURL,
+            atMilliseconds: 1_500
+        )
+    )
+    _ = try ExcerptDatabase(path: databaseURL).upsertExcerpt(selection: selection)
+    userDefaults.set([oldFolder.path, otherFolder.path], forKey: "selectedFolderPaths")
+
+    let app = AppCoordinator(userDefaults: userDefaults, databaseURL: databaseURL)
+    await app.startupDatabaseTask?.value
+    app.reloadExcerptTableRows()
+    await app.excerptTableRowsTask?.value
+    app.submitSearch("masquerade")
+    await app.search.searchTask?.value
+    app.search.activateResidentSearchTableProjection()
+    let searchGenerationBefore = app.search.resultListGeneration
+
+    // Exclude oldFolder in Search and Excerpt facet filters so rewriting folder paths is exercised
+    let initialFilter = CueFacetFilter(
+        excludedFolders: [oldFolder.mediaPath]
+    )
+    app.settings.searchFacetFilter = initialFilter
+    _ = app.search.updateSearchFacetFilter(initialFilter)
+    app.settings.setExcerptFacetFilter(
+        initialFilter,
+        forListID: ExcerptListIdentity.defaultListID
+    )
+    _ = app.excerpt.updateTableFacetFilter(initialFilter)
+
+    // Navigate to File Level 3 of oldFolder before renaming
+    app.navigateWorkbench(
+        to: .fileFiles(rootPath: oldFolder.mediaPath, folderPath: oldFolder.mediaPath)
+    )
+
+    // Rename folder "Ave Mujica" -> "BanG Dream! Ave Mujica"
+    app.requestRootFolderRename(oldFolder)
+    let session = try #require(app.library.renameSession)
+    session.newName = "BanG Dream! Ave Mujica"
+    app.confirmRename(session)
+    await app.tasks.waitUntilIdle()
+
+    // 1. File Level 3 route and loaded objects updated in place
+    #expect(
+        app.workbenchLayout.currentRoute == .fileFiles(
+            rootPath: newFolder.mediaPath,
+            folderPath: newFolder.mediaPath
+        )
+    )
+    #expect(app.indexing.selectedFolders == [newFolder, otherFolder])
+    #expect(
+        app.library.fileObjects(for: newFolder.mediaPath).first?.displayTitle
+            == "BanG Dream! Ave Mujica - 01"
+    )
+
+    // 2. Search updated in place without marking .rerunSearch or re-running search
+    #expect(app.search.pendingReappearanceRefreshMode == .none)
+    #expect(app.search.resultListGeneration == searchGenerationBefore)
+    #expect(app.search.searchResults.first?.displayTitle == "BanG Dream! Ave Mujica - 01")
+    #expect(
+        app.search.searchResults.first?.videoPath
+            == newFolder.appendingPathComponent("Ave Mujica - 01.mkv").mediaPath
+    )
+    #expect(
+        app.search.emptySearchFacetDistribution?.folderCounts[newFolder.mediaPath] == 1
+    )
+    #expect(
+        app.search.searchFacetFilter.excludedFolders == [newFolder.mediaPath]
+    )
+    #expect(
+        app.settings.searchFacetFilter.excludedFolders == [newFolder.mediaPath]
+    )
+
+    // 3. Excerpt resident items and folder filter updated in place
+    #expect(
+        app.excerpt.tableFacetFilter.excludedFolders == [newFolder.mediaPath]
+    )
+    #expect(
+        app.settings.excerptFacetFilter(forListID: ExcerptListIdentity.defaultListID)
+            .excludedFolders == [newFolder.mediaPath]
+    )
+    #expect(
+        app.excerpt.residentExcerptsByID.values.first?.displayTitle
+            == "BanG Dream! Ave Mujica - 01"
+    )
+    #expect(
+        app.excerpt.tableRowStore.snapshot.row(at: 0)?.displayTitle
+            == "BanG Dream! Ave Mujica - 01"
+    )
+
+    // 4. Library updated with new folder path and display title
+    #expect(
+        app.library.completeLibraryFolderSummaries.contains {
+            $0.folderPath == newFolder.mediaPath
+        }
+    )
 }
 
 private struct LibraryFolderRemovalTestFixture {

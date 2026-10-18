@@ -253,6 +253,16 @@ final class TableSandboxRowModelStore: ObservableObject {
 
         referencedCueContentRevision &+= 1
         var nextSnapshot = snapshot
+        if affectsExcerpt, let cueContentProvider = nextSnapshot.cueContentProvider {
+            for relation in nextSnapshot.excerptRelations where change.cueIDs.contains(relation.cueID) {
+                if let content = cueContentProvider(relation.cueID) {
+                    nextSnapshot.excerptsByEntryID[Int(relation.id)] = Excerpt(
+                        relation: relation,
+                        cueContent: content
+                    )
+                }
+            }
+        }
         nextSnapshot.cueContentRevision = referencedCueContentRevision
         nextSnapshot.version += 1
         nextSnapshot.update = .reload
