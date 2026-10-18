@@ -13,13 +13,21 @@ struct PlaybackVolumeControl: View {
                 }
                 viewModel.toggleMute()
             } label: {
-                AppIconImage(volumeIcon, size: PlaybackChromeMetrics.circleButtonIconSize)
-                    .foregroundStyle(PlaybackTheme.textPrimary)
-                    .frame(
-                        width: PlaybackChromeMetrics.circleButtonSize,
-                        height: PlaybackChromeMetrics.capsuleButtonHeight
+                AppIconImage(
+                    volumeIcon,
+                    size: WorkbenchControlMetrics.redesignControlIconSize
+                )
+                .foregroundStyle(PlaybackTheme.textPrimary)
+                .frame(
+                    width: WorkbenchControlMetrics.redesignIconButtonSize,
+                    height: WorkbenchControlMetrics.redesignIconButtonSize
+                )
+                .contentShape(
+                    RoundedRectangle(
+                        cornerRadius: WorkbenchControlMetrics.redesignCornerRadius,
+                        style: .continuous
                     )
-                    .contentShape(Circle())
+                )
             }
             .buttonStyle(StaticButtonStyle())
             .focusable(false)
@@ -31,7 +39,7 @@ struct PlaybackVolumeControl: View {
             .accessibilityLabel(L("playback.mute"))
 
             if isHovered {
-                HStack(spacing: 4) {
+                HStack(spacing: WorkbenchControlMetrics.redesignSpacing1) {
                     PlaybackVolumeSlider(
                         volume: Binding(
                             get: { viewModel.volume },
@@ -39,40 +47,55 @@ struct PlaybackVolumeControl: View {
                         ),
                         timeline: timeline
                     )
-                    .frame(width: 72, height: PlaybackChromeMetrics.capsuleButtonHeight)
+                    .frame(
+                        width: PlaybackChromeMetrics.volumeSliderWidth,
+                        height: WorkbenchControlMetrics.redesignIconButtonSize
+                    )
 
                     Text("\(Int(viewModel.volume.rounded()))%")
-                        .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                        .font(.system(
+                            size: PlaybackChromeMetrics.timeFontSize,
+                            weight: .semibold,
+                            design: .monospaced
+                        ))
                         .foregroundStyle(PlaybackTheme.textPrimary)
                         .monospacedDigit()
-                        .frame(width: 32, alignment: .trailing)
+                        .frame(
+                            width: PlaybackChromeMetrics.volumeValueWidth,
+                            alignment: .trailing
+                        )
                 }
-                .padding(.trailing, 12)
+                .padding(.trailing, PlaybackChromeMetrics.volumeTrailingPadding)
                 .transition(.opacity)
             }
         }
         .frame(
-            width: isHovered ? 160 : PlaybackChromeMetrics.circleButtonSize,
-            height: PlaybackChromeMetrics.capsuleButtonHeight,
+            width: isHovered
+                ? PlaybackChromeMetrics.volumeExpandedWidth
+                : WorkbenchControlMetrics.redesignIconButtonSize,
+            height: WorkbenchControlMetrics.redesignIconButtonSize,
             alignment: .leading
         )
         .background(
-            PlaybackCinematicBacking(
-                shape: RoundedRectangle(cornerRadius: PlaybackChromeMetrics.capsuleButtonHeight / 2),
-                isHovered: !timeline.isScrubbing && isHovered,
-                scaleX: isHovered ? 0.96 : 0.85,
-                scaleY: 0.85
+            RoundedRectangle(
+                cornerRadius: WorkbenchControlMetrics.redesignCornerRadius,
+                style: .continuous
+            )
+            .fill(
+                !timeline.isScrubbing && isHovered
+                    ? PlaybackTheme.controlHoverBackground
+                    : Color.clear
             )
         )
         .playerInteractiveRegion()
         .onPointerHover { hovering in
-            withAnimation(.easeInOut(duration: 0.22)) {
+            withAnimation(.easeInOut(duration: PlaybackChromeMetrics.volumeExpandDuration)) {
                 isHovered = timeline.isScrubbing ? false : hovering
             }
         }
         .onChange(of: timeline.isScrubbing) { isScrubbing in
             if isScrubbing {
-                withAnimation(.easeInOut(duration: 0.22)) {
+                withAnimation(.easeInOut(duration: PlaybackChromeMetrics.volumeExpandDuration)) {
                     isHovered = false
                 }
             }
@@ -92,23 +115,24 @@ private struct PlaybackVolumeSlider: View {
         GeometryReader { geometry in
             let width = max(0, geometry.size.width)
             let progress = min(max(volume / 100, 0), 1)
-            let thumbSize: CGFloat = 10
+            let thumbSize = PlaybackChromeMetrics.volumeThumbSize
+            let trackHeight = PlaybackChromeMetrics.progressTrackHeight
 
             ZStack(alignment: .leading) {
                 Capsule()
-                    .fill(Color.white.opacity(0.16))
-                    .frame(height: 3)
+                    .fill(PlaybackTheme.progressTrack)
+                    .frame(height: trackHeight)
 
                 Capsule()
                     .fill(Color.white)
-                    .frame(width: width * progress, height: 3)
+                    .frame(width: width * progress, height: trackHeight)
 
                 Circle()
                     .fill(Color.white)
                     .frame(width: thumbSize, height: thumbSize)
                     .offset(x: max(0, (width - thumbSize) * progress))
             }
-            .frame(height: PlaybackChromeMetrics.capsuleButtonHeight, alignment: .center)
+            .frame(height: WorkbenchControlMetrics.redesignIconButtonSize, alignment: .center)
             .contentShape(Rectangle())
             .gesture(
                 DragGesture(minimumDistance: 0)

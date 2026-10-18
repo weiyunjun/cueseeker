@@ -171,11 +171,6 @@ public enum PlaybackTheme {
         Color.black
     }
 
-    /// --color-player-control-bg
-    public static var controlBackground: Color {
-        Color.black.opacity(0.30)
-    }
-
     /// --color-player-control-bg-hover
     public static var controlHoverBackground: Color {
         Color.white.opacity(0.16)
@@ -211,11 +206,6 @@ public enum PlaybackTheme {
         Color.white.opacity(0.34)
     }
 
-    /// --color-player-icon-selected
-    public static var iconSelected: Color {
-        Color(red: 0.10, green: 0.10, blue: 0.12)
-    }
-
     /// --color-player-progress-fill
     public static var progressFill: Color {
         Color.accentColor
@@ -223,12 +213,12 @@ public enum PlaybackTheme {
 
     /// --color-player-progress-track
     public static var progressTrack: Color {
-        Color.black.opacity(0.60)
+        Color.white.opacity(0.24)
     }
 
     /// --color-player-progress-hover-track
     public static var progressHoverTrack: Color {
-        Color.white.opacity(0.35)
+        Color.white.opacity(0.38)
     }
 
     /// --color-player-window-close
@@ -394,16 +384,29 @@ enum PlaybackChromeMetrics {
     static let horizontalInset: CGFloat = 0
     static let bottomInset: CGFloat = 0
 
-    static let height: CGFloat = 98
-    static let bottomControlsRowHeight: CGFloat = 52
-    static let capsuleButtonHeight: CGFloat = 40
-    static let circleButtonSize: CGFloat = 40
-    /// Provisional --size-player-circle-button-icon: 23px icon box (document: 18px)
-    static let circleButtonIconSize: CGFloat = 23
-    static let speedButtonWidth: CGFloat = 54
-    static let speedMenuWidth: CGFloat = 184
-    static let speedMenuHeight: CGFloat = 246
-    static let speedMenuItemHeight: CGFloat = 30
+    /// --height-player-bottom-control-bar: 90px
+    static let height: CGFloat = 90
+    /// --height-player-bottom-controls-row: 44px
+    static let bottomControlsRowHeight: CGFloat = 44
+    /// --padding-player-speed-button-x: 10px
+    static let speedButtonHorizontalPadding: CGFloat = 10
+    /// --width-player-volume-slider: 68px
+    static let volumeSliderWidth: CGFloat = 68
+    /// --size-player-volume-thumb: 10px
+    static let volumeThumbSize: CGFloat = 10
+    /// --width-player-volume-value: 32px
+    static let volumeValueWidth: CGFloat = 32
+    /// --padding-player-volume-trailing: 10px
+    static let volumeTrailingPadding: CGFloat = 10
+    /// --duration-player-volume-expand: 0.18s
+    static let volumeExpandDuration: Double = 0.18
+    static let volumeExpandedWidth: CGFloat =
+        WorkbenchControlMetrics.redesignIconButtonSize
+        + volumeSliderWidth
+        + WorkbenchControlMetrics.redesignSpacing1
+        + volumeValueWidth
+        + volumeTrailingPadding
+
     static let progressHitAreaHeight: CGFloat = 18
     static let progressTrackHeight: CGFloat = 3
     static let progressTrackHoverHeight: CGFloat = 6
@@ -453,61 +456,48 @@ enum PlaybackChromeMetrics {
     static let chromeHorizontalPadding: CGFloat = 24
     static let chromeBottomPadding: CGFloat = 12
     static let progressTopPadding: CGFloat = 16
-    static let capsuleButtonHorizontalPadding: CGFloat = 16
-    /// The speed menu keeps the padding every menu shared before menus were
-    /// tightened; its own width and height are fixed numbers measured against
-    /// this one, and it is not part of that change.
-    static let speedMenuPadding: CGFloat = 12
-    static let speedMenuItemHorizontalPadding: CGFloat = 8
     static let progressTimeCapsuleHorizontalPadding: CGFloat = 8
     static let topbarHorizontalPadding: CGFloat = 16
 
-    static let leftControlsGap: CGFloat = 8
-    static let rightControlsGap: CGFloat = 6
-    static let timeLabelGap: CGFloat = 4
+    /// --spacing-1: 4px
+    static let controlsGap = WorkbenchControlMetrics.redesignSpacing1
+    /// --spacing-3: 12px
+    static let progressTimeGap = WorkbenchControlMetrics.redesignSpacing3
     static let windowControlsGap: CGFloat = 8
     /// Provisional --gap-player-window-controls-return: after the window
     /// controls to the return button, pending the owner's value.
     static let windowControlsReturnGap = topbarHorizontalPadding
     static let speedMenuGap: CGFloat = 8
 
-    static let capsuleRadius: CGFloat = 9999
-    static let speedMenuRadius: CGFloat = 14
-    static let speedMenuItemRadius: CGFloat = 8
     /// Provisional --max-width-player-audio-track-menu: the widest the audio
     /// track submenus grow to; longer names wrap inside it.
     static let audioTrackMenuMaxWidth: CGFloat = 300
 
     static let timeFontSize: CGFloat = 12
     static let progressTimeFontSize: CGFloat = 10
-    /// Provisional --font-size-player-speed-menu-check: 14px icon box (document: 11px)
-    static let speedMenuCheckFontSize: CGFloat = 14
-    static let speedMenuItemFontSize: CGFloat = 13
 
-    static let speedMenuItemVerticalGap: CGFloat = 2
-    static let speedMenuItemContentGap: CGFloat = 10
-    static let speedMenuCheckColumnWidth: CGFloat = 14
-    static let speedMenuItemWidth: CGFloat = speedMenuWidth - speedMenuPadding * 2
     static let speedMenuOverlayTopPadding: CGFloat = 24
-    static let speedMenuOverlapClearance: CGFloat = 20
     static let hiddenOffsetPadding: CGFloat = 28
     static let progressTimeCapsuleMinWidth: CGFloat = 44
-    static let progressTimeCapsuleGap: CGFloat = 2
+    /// --spacing-1: 4px
+    static let progressTimeCapsuleGap = WorkbenchControlMetrics.redesignSpacing1
     static let progressTimeCapsuleYOffset: CGFloat = -(progressTimeCapsuleHeight + progressTimeCapsuleGap)
     static let windowControlBorderWidth: CGFloat = 0.5
     static let windowControlZoomGlyphSize: CGFloat = windowControlGlyphSize - 2
 
-    static let interactiveHeight: CGFloat = height + speedMenuHeight + speedMenuGap + speedMenuOverlayTopPadding
+    private static let speedMenuContentHeight: CGFloat =
+        CGFloat(7) * WorkbenchControlMetrics.redesignMenuItemHeight + MenuMetrics.padding * 2
+    static let interactiveHeight: CGFloat = height + speedMenuContentHeight + speedMenuGap + speedMenuOverlayTopPadding
     static let hiddenOffset: CGFloat = interactiveHeight + hiddenOffsetPadding
     /// From the top of the 18px progress scrubber hit area down through the
-    /// 52px controls row and 12px bottom padding (`82px`). The 16px
+    /// 44px controls row and 12px bottom padding (`74px`). The 16px
     /// `progressTopPadding` above it belongs to the playback stage tap area.
     static let bottomControlRegionHeight: CGFloat =
         progressHitAreaHeight + bottomControlsRowHeight + chromeBottomPadding
 
     /// The playback stage region where a single click toggles play/pause.
     /// When Player UI is visible, spans from the bottom of the 54px top bar
-    /// to the top of the 18px progress scrubber hit area (`height - 82px`).
+    /// to the top of the 18px progress scrubber hit area (`height - 74px`).
     /// When Player UI is hidden, spans the full window (`100% × 100%`).
     static func stageTapInteractiveRect(
         stageSize: CGSize,
@@ -564,41 +554,5 @@ enum PlaybackChromeMetrics {
         let trailing = trailingPadding
             + topbarButtonGroupWidth(buttonCount: trailingButtonCount)
         return max(0, barWidth - 2 * (max(leading, trailing) + topbarHorizontalPadding))
-    }
-}
-
-/// A unified concentric backing visual element for cinematic buttons and interactive controls.
-/// Supports both circular and capsule-like shapes with a standardized micro-animation hover dynamic.
-public struct PlaybackCinematicBacking<S: Shape>: View {
-    public let shape: S
-    public let isHovered: Bool
-    public let scaleX: CGFloat
-    public let scaleY: CGFloat
-
-    public init(
-        shape: S,
-        isHovered: Bool,
-        scaleX: CGFloat = 0.85,
-        scaleY: CGFloat = 0.85
-    ) {
-        self.shape = shape
-        self.isHovered = isHovered
-        self.scaleX = scaleX
-        self.scaleY = scaleY
-    }
-
-    public var body: some View {
-        ZStack {
-            // Persistent outer base
-            shape
-                .fill(PlaybackTheme.controlBackground)
-
-            // Concentric inner hover highlight
-            if isHovered {
-                shape
-                    .fill(PlaybackTheme.controlHoverBackground)
-                    .scaleEffect(x: scaleX, y: scaleY)
-            }
-        }
     }
 }

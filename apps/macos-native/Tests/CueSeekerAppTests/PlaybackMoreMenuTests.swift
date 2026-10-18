@@ -144,9 +144,9 @@ func moreMenuWithOnlySubtitlesSkipsTheAudioTrackTriggers() {
 @MainActor
 @Test
 func audioTrackSubmenuTakesItsNamesWidthUpToTheCapOnTheSideWithRoom() {
-    let padding = PlaybackChromeMetrics.speedMenuPadding * 2
+    let padding = MenuMetrics.padding * 2
     let bounds = CGRect(x: 24, y: 45, width: 1000, height: 600)
-    let trigger = CGRect(x: 12, y: 12, width: 100, height: 30)
+    let trigger = CGRect(x: 6, y: 6, width: 100, height: 32)
 
     // Room on the right: it opens there, as wide as its names.
     let rightMenu = CGRect(x: 100, y: 300, width: 124, height: 84)
@@ -179,8 +179,8 @@ func audioTrackSubmenuTakesItsNamesWidthUpToTheCapOnTheSideWithRoom() {
 @MainActor
 @Test
 func audioTrackSubmenuNarrowsToTheWiderSideWithoutCoveringTheMenu() {
-    let padding = PlaybackChromeMetrics.speedMenuPadding * 2
-    let trigger = CGRect(x: 12, y: 12, width: 166, height: 30)
+    let padding = MenuMetrics.padding * 2
+    let trigger = CGRect(x: 6, y: 6, width: 166, height: 32)
     // The narrowest window: neither side holds the cap.
     let bounds = CGRect(x: 24, y: 45, width: 432, height: 400)
     let menu = CGRect(x: bounds.maxX - 190, y: 300, width: 190, height: 84)
@@ -214,8 +214,8 @@ func audioTrackSubmenuNarrowsToTheWiderSideWithoutCoveringTheMenu() {
 @MainActor
 @Test
 func audioTrackSubmenuScrollsBetweenTheTopBarAndTheButtons() {
-    let padding = PlaybackChromeMetrics.speedMenuPadding * 2
-    let button = CGRect(x: 900, y: 500, width: 40, height: 40)
+    let padding = MenuMetrics.padding * 2
+    let button = CGRect(x: 900, y: 500, width: 32, height: 32)
     let bounds = PlaybackChromeMoreMenuOverlay.bounds(
         stageSize: CGSize(width: 1_000, height: 558),
         buttonFrame: button
@@ -228,7 +228,7 @@ func audioTrackSubmenuScrollsBetweenTheTopBarAndTheButtons() {
         naturalItemWidth: 200,
         itemStackHeight: { _ in 2_000 },
         menuFrame: menu,
-        triggerFrame: CGRect(x: 12, y: 12, width: 100, height: 30),
+        triggerFrame: CGRect(x: 6, y: 6, width: 100, height: 32),
         bounds: bounds
     )
     #expect(layout.maximumHeight == bounds.height)
@@ -259,7 +259,7 @@ func moreMenuFitsItsTriggersAndSubmenusStayInTheirRoom() {
     store.openMoreMenu(menu)
     // The narrowest window, the More button left of the fullscreen button.
     let stage = CGSize(width: 480, height: 560)
-    let button = CGRect(x: 480 - 24 - 40 - 6 - 40, y: 560 - 58, width: 40, height: 40)
+    let button = CGRect(x: 480 - 24 - 32 - 4 - 32, y: 560 - 50, width: 32, height: 32)
     let overlay = PlaybackChromeMoreMenuOverlay(
         playback: store,
         submenuState: store.moreSubmenuState,
@@ -275,14 +275,15 @@ func moreMenuFitsItsTriggersAndSubmenusStayInTheirRoom() {
     let label = PlaybackMoreSubmenu.allCases.map { submenu in
         NSHostingView(
             rootView: Text(submenu.title)
-                .font(.system(size: PlaybackChromeMetrics.speedMenuItemFontSize, weight: .medium))
+                .font(.system(size: WorkbenchControlMetrics.redesignFontSizeControl, weight: .medium))
         ).fittingSize.width
     }.max() ?? 0
     let trigger = label
-        + PlaybackChromeMetrics.speedMenuItemHorizontalPadding * 2 - 2
-        + PlaybackChromeMetrics.speedMenuItemContentGap
-        + PlaybackChromeMetrics.speedMenuCheckFontSize
-    #expect(layout.menuFrame.width >= trigger + PlaybackChromeMetrics.speedMenuPadding * 2)
+        + WorkbenchControlMetrics.redesignMenuItemHorizontalPadding
+        + WorkbenchControlMetrics.redesignMenuItemTrailingIconPadding
+        + WorkbenchControlMetrics.redesignSpacing2
+        + WorkbenchControlMetrics.redesignSelectIndicatorSymbolFontSizeMacOS
+    #expect(layout.menuFrame.width >= trigger + MenuMetrics.padding * 2)
     #expect(bounds.contains(layout.menuFrame))
 
     for submenu in PlaybackMoreSubmenu.allCases {

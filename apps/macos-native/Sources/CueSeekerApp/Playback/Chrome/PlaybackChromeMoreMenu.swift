@@ -115,9 +115,9 @@ struct PlaybackChromeMoreMenuOverlay: View {
     let onSelect: (PlaybackMoreSubmenu, Int) -> Void
     @State private var layout: PlaybackMoreMenuLayout?
 
-    private static let padding = PlaybackChromeMetrics.speedMenuPadding
-    private static let itemHeight = PlaybackChromeMetrics.speedMenuItemHeight
-    private static let itemGap = PlaybackChromeMetrics.speedMenuItemVerticalGap
+    private static let padding = MenuMetrics.padding
+    private static let itemHeight = WorkbenchControlMetrics.redesignMenuItemHeight
+    private static let itemGap: CGFloat = 0
 
     /// What the layout is measured from.
     private struct LayoutInput: Equatable {
@@ -409,22 +409,30 @@ private struct PlaybackMoreMenuTrigger: View {
             }
             submenuState.open(submenu)
         } label: {
-            HStack(spacing: PlaybackChromeMetrics.speedMenuItemContentGap) {
+            HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
                 Text(submenu.title)
-                    .font(.system(size: PlaybackChromeMetrics.speedMenuItemFontSize, weight: .medium))
+                    .font(.system(size: WorkbenchControlMetrics.redesignFontSizeControl, weight: .medium))
 
                 Spacer(minLength: 0)
 
-                AppIconImage(.caretRight, size: PlaybackChromeMetrics.speedMenuCheckFontSize)
+                AppIconImage(
+                    .caretRight,
+                    size: WorkbenchControlMetrics.redesignSelectIndicatorSymbolFontSizeMacOS
+                )
             }
             .foregroundStyle(isEnabled ? PlaybackTheme.textPrimary : PlaybackTheme.textTertiary)
-            .padding(.leading, PlaybackChromeMetrics.speedMenuItemHorizontalPadding)
+            .padding(.leading, WorkbenchControlMetrics.redesignMenuItemHorizontalPadding)
             // A Trailing Slot holding an icon gives up 2pt on its side.
-            .padding(.trailing, PlaybackChromeMetrics.speedMenuItemHorizontalPadding - 2)
+            .padding(.trailing, WorkbenchControlMetrics.redesignMenuItemTrailingIconPadding)
             // As wide as the widest trigger's content, which the menu takes.
             .frame(maxWidth: .infinity)
-            .frame(height: PlaybackChromeMetrics.speedMenuItemHeight)
-            .contentShape(RoundedRectangle(cornerRadius: PlaybackChromeMetrics.speedMenuItemRadius))
+            .frame(height: WorkbenchControlMetrics.redesignMenuItemHeight)
+            .contentShape(
+                RoundedRectangle(
+                    cornerRadius: WorkbenchControlMetrics.redesignMenuItemRadius,
+                    style: .continuous
+                )
+            )
         }
         .buttonStyle(
             PlaybackChromeMenuButtonStyle(
@@ -458,7 +466,12 @@ private struct PlaybackMoreSubmenuItem: View {
 
     /// One line of the name, so the check and the tag sit on its first line
     /// however far the name wraps.
-    private static let lineHeight: CGFloat = 16
+    private static let lineHeight: CGFloat = NSLayoutManager().defaultLineHeight(
+        for: NSFont.systemFont(
+            ofSize: WorkbenchControlMetrics.redesignFontSizeControl,
+            weight: .medium
+        )
+    )
 
     var body: some View {
         Button {
@@ -467,14 +480,20 @@ private struct PlaybackMoreSubmenuItem: View {
             }
             action()
         } label: {
-            HStack(alignment: .top, spacing: PlaybackChromeMetrics.speedMenuItemContentGap) {
-                AppIconImage(.check, size: PlaybackChromeMetrics.speedMenuCheckFontSize)
-                    .opacity(isChecked ? 1 : 0)
-                    .frame(width: PlaybackChromeMetrics.speedMenuCheckColumnWidth, height: Self.lineHeight)
+            HStack(alignment: .top, spacing: WorkbenchControlMetrics.redesignSpacing2) {
+                AppIconImage(
+                    .check,
+                    size: WorkbenchControlMetrics.redesignSelectIndicatorSymbolFontSizeMacOS
+                )
+                .opacity(isChecked ? 1 : 0)
+                .frame(
+                    width: WorkbenchControlMetrics.redesignSelectIndicatorSymbolFontSizeMacOS,
+                    height: Self.lineHeight
+                )
 
                 Text(name)
                     .font(.system(
-                        size: PlaybackChromeMetrics.speedMenuItemFontSize,
+                        size: WorkbenchControlMetrics.redesignFontSizeControl,
                         weight: .medium
                     ))
                     .fixedSize(horizontal: false, vertical: true)
@@ -495,10 +514,15 @@ private struct PlaybackMoreSubmenuItem: View {
                 }
             }
             .foregroundStyle(PlaybackTheme.textPrimary)
-            .padding(.horizontal, PlaybackChromeMetrics.speedMenuItemHorizontalPadding)
-            .padding(.vertical, (PlaybackChromeMetrics.speedMenuItemHeight - Self.lineHeight) / 2)
+            .padding(.horizontal, WorkbenchControlMetrics.redesignMenuItemHorizontalPadding)
+            .padding(.vertical, (WorkbenchControlMetrics.redesignMenuItemHeight - Self.lineHeight) / 2)
             .frame(width: width, alignment: .leading)
-            .contentShape(RoundedRectangle(cornerRadius: PlaybackChromeMetrics.speedMenuItemRadius))
+            .contentShape(
+                RoundedRectangle(
+                    cornerRadius: WorkbenchControlMetrics.redesignMenuItemRadius,
+                    style: .continuous
+                )
+            )
         }
         .buttonStyle(
             PlaybackChromeMenuButtonStyle(

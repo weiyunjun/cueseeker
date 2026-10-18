@@ -1536,9 +1536,9 @@ struct WorkbenchPopoverPanel<Content: View>: View {
 
     var body: some View {
         let isPlayerChrome = surface == .playerChrome
-        let cornerRadius: CGFloat = isPlayerChrome
-            ? PlaybackChromeMetrics.speedMenuRadius
-            : isRedesign ? WorkbenchControlMetrics.redesignMenuRadius : 10
+        let cornerRadius: CGFloat = isPlayerChrome || isRedesign
+            ? WorkbenchControlMetrics.redesignMenuRadius
+            : 10
         // The scroll view spans the whole panel, and the item stack inside it
         // both applies the menu's padding and reserves the strip the scrollbar
         // needs — but only once the items outgrow the cap, so a menu that does
@@ -1554,9 +1554,7 @@ struct WorkbenchPopoverPanel<Content: View>: View {
                 ) {
                     if isRedesign || isPlayerChrome {
                         MenuItemStack(
-                            padding: isPlayerChrome
-                                ? PlaybackChromeMetrics.speedMenuPadding
-                                : MenuMetrics.padding,
+                            padding: MenuMetrics.padding,
                             strip: MenuMetrics.scrollbarStrip,
                             cap: maximumHeight
                         ) {

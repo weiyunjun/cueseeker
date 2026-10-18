@@ -202,19 +202,20 @@ func stageTapInteractiveRectFollowsPlayerUIVisibilityAndChromeBoundaries() {
         stageSize: stageSize,
         isPlayerUIVisible: true
     )
-    #expect(visibleRect == CGRect(x: 0, y: 54, width: 1280, height: 720 - 54 - 82))
+    #expect(visibleRect == CGRect(x: 0, y: 54, width: 1280, height: 720 - 54 - 74))
     // Topbar (0..<54) is excluded when Player UI is visible.
     #expect(!visibleRect.contains(CGPoint(x: 640, y: 27)))
     // Top letterbox below 54px, video center, left/right pillarbox, and the 16px
-    // progressTopPadding strip (622..<638) above the 18px scrubber hit area are included.
+    // progressTopPadding strip (630..<646) above the 18px scrubber hit area are included.
     #expect(visibleRect.contains(CGPoint(x: 640, y: 54)))
     #expect(visibleRect.contains(CGPoint(x: 640, y: 80)))
     #expect(visibleRect.contains(CGPoint(x: 20, y: 360)))
     #expect(visibleRect.contains(CGPoint(x: 1260, y: 360)))
     #expect(visibleRect.contains(CGPoint(x: 640, y: 720 - 90)))
-    // Progress scrubber hit area (638..<656) and bottom controls row (656..<720) are excluded.
-    #expect(!visibleRect.contains(CGPoint(x: 640, y: 720 - 82)))
-    #expect(!visibleRect.contains(CGPoint(x: 12, y: 720 - 73)))
+    #expect(visibleRect.contains(CGPoint(x: 640, y: 720 - 75)))
+    // Progress scrubber hit area (646..<664) and bottom controls row (664..<720) are excluded.
+    #expect(!visibleRect.contains(CGPoint(x: 640, y: 720 - 74)))
+    #expect(!visibleRect.contains(CGPoint(x: 12, y: 720 - 65)))
     #expect(!visibleRect.contains(CGPoint(x: 640, y: 720 - 30)))
 
     let hiddenRect = PlaybackChromeMetrics.stageTapInteractiveRect(

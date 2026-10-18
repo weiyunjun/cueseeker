@@ -128,10 +128,11 @@ struct PlaybackProgressScrubber: View {
                                 }
                             )
                             .background(
-                                PlaybackCinematicBacking(
-                                    shape: Capsule(),
-                                    isHovered: false
+                                RoundedRectangle(
+                                    cornerRadius: WorkbenchControlMetrics.redesignFieldRadius,
+                                    style: .continuous
                                 )
+                                .fill(PlaybackTheme.menuBackground)
                             )
                             .offset(x: clampedX, y: PlaybackChromeMetrics.progressTimeCapsuleYOffset)
                             .allowsHitTesting(false)
