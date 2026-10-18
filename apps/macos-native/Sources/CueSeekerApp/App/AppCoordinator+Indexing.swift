@@ -415,7 +415,6 @@ extension AppCoordinator {
         guard LibraryRootGroups.coveringRoot(of: folder, in: indexing.selectedFolders) == nil else {
             if !indexing.selectedFolders.contains(folder) {
                 indexing.appendFolder(folder)
-                search.markPendingReappearanceRefresh(.rerunSearch)
             }
             return 0
         }
@@ -428,7 +427,6 @@ extension AppCoordinator {
                 coordinator: self
             )
             indexing.appendFolder(folder)
-            search.markPendingReappearanceRefresh(.rerunSearch)
             holdActiveWorkbenchRouteBeforeContentMutation()
             // The pages refreshed when the index published, before the folder
             // was in the scope they read.

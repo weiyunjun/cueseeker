@@ -238,6 +238,41 @@ struct SearchInvalidItemsPruningTests {
     }
 
     @Test
+    func searchDoesNotRerunUponReappearingWhenIndexOrAddFolderHasNoContentChanges() async throws {
+        try await withPruningTestApp { app, database in
+            let mediaRoot = URL(fileURLWithPath: "/Media").standardizedFileURL
+            _ = try database.addSearchPath(mediaRoot)
+            app.indexing.selectedFolders = [mediaRoot]
+
+            for name in ["A", "B"] {
+                try indexPruningVideo(name, in: database)
+            }
+            app.submitSearch("placeholder")
+            await app.search.searchTask?.value
+            #expect(app.search.searchResults.map(\.videoName) == ["A.mkv", "B.mkv"])
+            let generationBefore = app.search.resultListGeneration
+
+            // Index or Add Folder completes with no indexed content changes
+            let unchangedResult = SubtitleIndexingResult()
+            #expect(unchangedResult.hasIndexedContentChanges == false)
+            app.applyPublishedIndexMutation(
+                unchangedResult,
+                excerptFallbackFolders: [mediaRoot]
+            )
+            #expect(app.search.pendingReappearanceRefreshMode == .none)
+
+            // Leaving Search and returning does not re-execute the search
+            app.navigateWorkbench(to: .recent)
+            app.goBackInWorkbench()
+
+            #expect(app.workbenchLayout.currentRoute == .search)
+            #expect(app.search.resultListGeneration == generationBefore)
+            #expect(app.search.searchResults.map(\.videoName) == ["A.mkv", "B.mkv"])
+            #expect(app.search.searchResultTotalCount == 2)
+        }
+    }
+
+    @Test
     func invalidSearchResultShowsErrorBannerAndNavigatesToSurvivingResultClearingError() async throws {
         try await withPruningTestApp { app, database in
             app.ensurePlayerInitialized()
