@@ -74,6 +74,7 @@ extension AppCoordinator {
         if playback.playbackViewModel?.isPlaying == true {
             pausePlayback()
         }
+        search.clearPendingReappearanceRefresh()
         navigateWorkbench(to: .search)
         search.updateQuery(trimmedQuery)
         search.updateActiveFilterSet(SubtitleSearchFilterSet())
@@ -157,11 +158,7 @@ extension AppCoordinator {
                     return
                 }
                 if self.search.isPlaybackPruningActive {
-                    let candidateCueIDs = self.search.searchResultCueIDs.isEmpty
-                        ? self.search.searchResults.map(\.entryID)
-                        : self.search.searchResultCueIDs
-                    let liveCueIDs = self.cueIDsInLibrary(among: candidateCueIDs)
-                    self.search.pruneInvalidSearchResults(liveCueIDs: liveCueIDs)
+                    self.pruneInvalidSearchResultsFromLibrary()
                 }
                 self.refreshSearchPlaybackPlaylistSource(
                     resultListGeneration: generation
@@ -241,6 +238,62 @@ extension AppCoordinator {
         }
 
         refreshCurrentSearch()
+    }
+
+    func searchCandidateCueIDsForPruning() -> [Int64] {
+        var candidateCueIDs = search.searchResultCueIDs.isEmpty
+            ? search.searchResults.map(\.entryID)
+            : search.searchResultCueIDs
+        if let snapshotCueIDs = search.searchFacetSnapshot?.cueIDs,
+           !snapshotCueIDs.isEmpty {
+            candidateCueIDs.append(contentsOf: snapshotCueIDs)
+        }
+        return candidateCueIDs
+    }
+
+    func pruneInvalidSearchResultsFromLibrary() {
+        let candidateCueIDs = searchCandidateCueIDsForPruning()
+        let liveCueIDs = cueIDsInLibrary(among: candidateCueIDs)
+        search.pruneInvalidSearchResults(liveCueIDs: liveCueIDs)
+    }
+
+    func refreshSearchOnReappearanceIfNeeded() {
+        let mode = search.consumePendingReappearanceRefresh()
+        guard mode != .none else {
+            return
+        }
+
+        switch mode {
+        case .none:
+            break
+        case .pruneRemovedItems:
+            guard !search.searchResultCueIDs.isEmpty
+                || !search.searchResults.isEmpty
+                || search.searchFacetSnapshot != nil
+            else {
+                return
+            }
+            pruneInvalidSearchResultsFromLibrary()
+            if search.searchFacetFilter != search.resultFacetFilter {
+                settings.searchFacetFilter = search.searchFacetFilter
+                applySearchFacetFilter(search.searchFacetFilter)
+            }
+        case .rerunSearch:
+            let trimmedQuery = search.searchQuery.trimmingCharacters(
+                in: .whitespacesAndNewlines
+            )
+            guard !trimmedQuery.isEmpty else {
+                return
+            }
+            search.clearCachedCueContent()
+            settings.searchFacetFilter = search.searchFacetFilter
+            startSearch(
+                query: trimmedQuery,
+                cursor: .start,
+                appending: false,
+                debounce: false
+            )
+        }
     }
 
     func loadSearchNavigationSnapshot(opening direction: SearchResultNavigationDirection?) {

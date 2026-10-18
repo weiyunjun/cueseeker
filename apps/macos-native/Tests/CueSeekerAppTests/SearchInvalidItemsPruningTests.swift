@@ -94,35 +94,145 @@ struct SearchInvalidItemsPruningTests {
     }
 
     @Test
-    func searchDoesNotPruneWhenPlaybackNeverEntered() async throws {
+    func searchPrunesInvalidItemsUponReappearingAfterRemoval() async throws {
         try await withPruningTestApp { app, database in
-            for name in ["A", "B"] {
+            app.navigateWorkbench(to: .search)
+            for name in ["A", "B", "C"] {
                 try indexPruningVideo(name, in: database)
             }
-            let results = try SearchDatabase(path: database.path)
-                .search("placeholder")
-                .sorted { $0.videoPath < $1.videoPath }
+            let page = try SearchDatabase(path: database.path)
+                .searchPage("placeholder", limit: 100)
+            let results = page.results.sorted { $0.videoPath < $1.videoPath }
 
             app.search.replaceResultState(
                 results: results,
+                orderedCueIDs: results.map(\.entryID),
                 status: .completed,
-                totalCount: 2,
+                totalCount: 3,
                 fileSummaries: [],
                 countState: .exact,
-                knownResultCount: 2,
-                knownFileCount: 2,
+                knownResultCount: 3,
+                knownFileCount: 3,
                 hasMore: false
             )
+            app.search.setSearchFacetSnapshot(page.facetSnapshot)
 
-            // Database mutates
+            // Folder removal mutates indexed cue data while staying on Search
             try emptyPruningSubtitle("B", in: database)
+            let mutationToken = app.search.beginIndexedCueDataMutation()
+            _ = app.search.completeIndexedCueDataMutation(
+                mutationToken,
+                refreshMode: .pruneRemovedItems
+            )
 
-            // User navigates back and forward, or switches tabs
+            // Staying on Search preserves current results and counts
+            #expect(app.search.searchResults.count == 3)
+            #expect(app.search.searchResultTotalCount == 3)
+            #expect(app.search.searchFacetDistribution?.totalCount == 3)
+
+            // Leaving Search and returning prunes invalid item B without re-searching
+            let generationBefore = app.search.resultListGeneration
+            app.navigateWorkbench(to: .recent)
+            app.goBackInWorkbench()
+
+            #expect(app.workbenchLayout.currentRoute == .search)
+            #expect(app.search.resultListGeneration == generationBefore)
+            #expect(app.search.searchResults.map(\.videoName) == ["A.mkv", "C.mkv"])
+            #expect(app.search.searchResultTotalCount == 2)
+            #expect(app.search.searchFacetDistribution?.totalCount == 2)
+        }
+    }
+
+    @Test
+    func searchRerunsQueryUponReappearingAfterIndexOrAddFolder() async throws {
+        try await withPruningTestApp { app, database in
+            let mediaRoot = URL(fileURLWithPath: "/Media").standardizedFileURL
+            _ = try database.addSearchPath(mediaRoot)
+            app.indexing.selectedFolders = [mediaRoot]
+
+            for name in ["A", "B"] {
+                try indexPruningVideo(name, in: database)
+            }
+            app.submitSearch("placeholder")
+            await app.search.searchTask?.value
+            #expect(app.search.searchResults.map(\.videoName) == ["A.mkv", "B.mkv"])
+            #expect(app.search.searchResultTotalCount == 2)
+
+            // Index modifies A's subtitle text and adds C's matching subtitle while staying on Search
+            try database.replaceEntries(
+                subtitleFile: URL(fileURLWithPath: "/Media/A.srt"),
+                videoFile: URL(fileURLWithPath: "/Media/A.mkv"),
+                entries: [
+                    SubtitleEntry(
+                        sequenceNumber: 1,
+                        startTimecode: "00:00:01,000",
+                        endTimecode: "00:00:02,000",
+                        startMilliseconds: 1_000,
+                        endMilliseconds: 2_000,
+                        text: "placeholder A updated"
+                    )
+                ]
+            )
+            try indexPruningVideo("C", in: database)
+            var indexResult = SubtitleIndexingResult()
+            indexResult.affectedFolderPaths = [mediaRoot.mediaPath]
+            app.applyPublishedIndexMutation(
+                indexResult,
+                excerptFallbackFolders: [mediaRoot]
+            )
+
+            // Staying on Search preserves the frozen snapshot
+            #expect(app.search.searchResults.map(\.videoName) == ["A.mkv", "B.mkv"])
+            #expect(app.search.searchResults.first?.content == "placeholder A")
+            #expect(app.search.searchResultTotalCount == 2)
+
+            // Leaving Search and returning re-executes the search
+            app.navigateWorkbench(to: .recent)
+            app.goBackInWorkbench()
+            await app.search.searchTask?.value
+
+            #expect(app.workbenchLayout.currentRoute == .search)
+            #expect(app.search.searchResults.map(\.videoName) == ["A.mkv", "B.mkv", "C.mkv"])
+            #expect(app.search.searchResults.first?.content == "placeholder A updated")
+            #expect(app.search.searchResultTotalCount == 3)
+        }
+    }
+
+    @Test
+    func searchRerunsQueryWhenBothRemovalAndIndexOccurredBeforeReappearance() async throws {
+        try await withPruningTestApp { app, database in
+            let mediaRoot = URL(fileURLWithPath: "/Media").standardizedFileURL
+            _ = try database.addSearchPath(mediaRoot)
+            app.indexing.selectedFolders = [mediaRoot]
+
+            for name in ["A", "B"] {
+                try indexPruningVideo(name, in: database)
+            }
+            app.submitSearch("placeholder")
+            await app.search.searchTask?.value
+            #expect(app.search.searchResultTotalCount == 2)
+
+            // First an Index adds C, then a folder removal removes B before Search reappears
+            try indexPruningVideo("C", in: database)
+            let indexToken = app.search.beginIndexedCueDataMutation()
+            _ = app.search.completeIndexedCueDataMutation(
+                indexToken,
+                refreshMode: .rerunSearch
+            )
+
+            try emptyPruningSubtitle("B", in: database)
+            let removalToken = app.search.beginIndexedCueDataMutation()
+            _ = app.search.completeIndexedCueDataMutation(
+                removalToken,
+                refreshMode: .pruneRemovedItems
+            )
+            #expect(app.search.pendingReappearanceRefreshMode == .rerunSearch)
+
             app.navigateWorkbench(to: .recent)
             app.navigateWorkbench(to: .search)
+            await app.search.searchTask?.value
 
-            // Results and totalCount must stay intact because playback was never entered
-            #expect(app.search.searchResults.count == 2)
+            #expect(app.search.searchResults.map(\.videoName) == ["A.mkv", "C.mkv"])
             #expect(app.search.searchResultTotalCount == 2)
         }
     }

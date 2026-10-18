@@ -136,9 +136,7 @@ extension AppCoordinator {
         seed result: SubtitleSearchResult
     ) {
         search.activatePlaybackPruning()
-        let candidateCueIDs = search.searchResultCueIDs.isEmpty
-            ? search.searchResults.map(\.entryID)
-            : search.searchResultCueIDs
+        let candidateCueIDs = searchCandidateCueIDsForPruning()
         let liveCueIDs: Set<Int64>
         if search.hasMutatedSinceSearchSnapshot || !isCueInLibrary(result.entryID) {
             liveCueIDs = cueIDsInLibrary(among: candidateCueIDs)

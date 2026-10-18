@@ -97,11 +97,7 @@ extension AppCoordinator {
             }
         }
         if search.isPlaybackPruningActive || activePlaybackSource == .search {
-            let candidateCueIDs = search.searchResultCueIDs.isEmpty
-                ? search.searchResults.map(\.entryID)
-                : search.searchResultCueIDs
-            let liveCueIDs = cueIDsInLibrary(among: candidateCueIDs)
-            search.pruneInvalidSearchResults(liveCueIDs: liveCueIDs)
+            pruneInvalidSearchResultsFromLibrary()
         }
         refreshPlaybackChromeSnapshot(
             displayTitle: playback.chromeSnapshot.displayTitle

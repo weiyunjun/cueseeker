@@ -377,7 +377,10 @@ extension SearchStore {
         watchStateFilter: SubtitleSearchWatchStateFilter,
         onResultsChanged: @escaping @MainActor (UInt64) -> Void
     ) -> Bool {
-        guard searchFacetFilter != filter, searchFacetSnapshot != nil else {
+        let normalizedFilter = normalizedFacetFilter(filter)
+        guard (searchFacetFilter != normalizedFilter || resultFacetFilter != normalizedFilter),
+              searchFacetSnapshot != nil
+        else {
             return false
         }
         let trimmedQuery = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)

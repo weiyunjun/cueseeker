@@ -1374,7 +1374,9 @@ extension AppCoordinator {
                 refreshLibraryOnReappearanceIfNeeded()
             case .file:
                 refreshFileOnReappearanceIfNeeded()
-            case .search, .libraryFolder, .fileFolder, .fileFiles:
+            case .search:
+                refreshSearchOnReappearanceIfNeeded()
+            case .libraryFolder, .fileFolder, .fileFiles:
                 break
             }
             playback.clearAllErrors()

@@ -415,6 +415,7 @@ extension AppCoordinator {
         guard LibraryRootGroups.coveringRoot(of: folder, in: indexing.selectedFolders) == nil else {
             if !indexing.selectedFolders.contains(folder) {
                 indexing.appendFolder(folder)
+                search.markPendingReappearanceRefresh(.rerunSearch)
             }
             return 0
         }
@@ -427,6 +428,7 @@ extension AppCoordinator {
                 coordinator: self
             )
             indexing.appendFolder(folder)
+            search.markPendingReappearanceRefresh(.rerunSearch)
             holdActiveWorkbenchRouteBeforeContentMutation()
             // The pages refreshed when the index published, before the folder
             // was in the scope they read.
@@ -507,7 +509,10 @@ extension AppCoordinator {
         } catch {
             indexing.folderRemovalStatus = .idle
             reloadExcerptAfterIndexedContentMutation()
-            search.completeIndexedCueDataMutation(searchMutationToken)
+            search.completeIndexedCueDataMutation(
+                searchMutationToken,
+                refreshMode: .none
+            )
             restoreCurrentSearchAfterIndexedCueMutationFailure(
                 reloadFromDatabase: false
             )
@@ -532,7 +537,10 @@ extension AppCoordinator {
         reconcilePlaybackAfterIndexedContentChange()
         indexing.folderRemovalStatus = .idle
         reloadExcerptAfterIndexedContentMutation()
-        search.completeIndexedCueDataMutation(searchMutationToken)
+        search.completeIndexedCueDataMutation(
+            searchMutationToken,
+            refreshMode: .pruneRemovedItems
+        )
         indexing.removedFolderNotice = folder
         refreshLibrary()
         refreshRecentWatching()
@@ -770,7 +778,10 @@ extension AppCoordinator {
                 under: URL.fromMediaPath(folderPath)
             )
         }
-        search.completeIndexedCueDataMutation(searchMutationToken)
+        search.completeIndexedCueDataMutation(
+            searchMutationToken,
+            refreshMode: .rerunSearch
+        )
         holdActiveWorkbenchRouteBeforeContentMutation()
         refreshLibrary()
         refreshRecentWatching()

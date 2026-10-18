@@ -6,6 +6,25 @@ struct SearchIndexedCueMutationToken: Equatable {
     let generation: UInt64
 }
 
+enum SearchReappearanceRefreshMode: Equatable {
+    case none
+    case pruneRemovedItems
+    case rerunSearch
+
+    func merging(
+        _ other: SearchReappearanceRefreshMode
+    ) -> SearchReappearanceRefreshMode {
+        switch (self, other) {
+        case (.rerunSearch, _), (_, .rerunSearch):
+            return .rerunSearch
+        case (.pruneRemovedItems, _), (_, .pruneRemovedItems):
+            return .pruneRemovedItems
+        case (.none, .none):
+            return .none
+        }
+    }
+}
+
 enum SearchTableProjectionSource: Equatable {
     case residentSearch(revision: UInt64)
 }
@@ -48,6 +67,7 @@ final class SearchStore: ObservableObject {
     @Published private(set) var resultRevision: UInt64 = 0
     @Published private(set) var isPlaybackPruningActive = false
     private(set) var searchSnapshotMutationRevision: UInt64 = 0
+    private(set) var pendingReappearanceRefreshMode: SearchReappearanceRefreshMode = .none
     @Published private(set) var activeFilterSet = SubtitleSearchFilterSet()
     /// Every match of the query with its facet values, in display order, once
     /// the search has completed. The option counts are derived from it with
@@ -191,6 +211,10 @@ final class SearchStore: ObservableObject {
         cueContentStore.content(for: cueID)
     }
 
+    func clearCachedCueContent() {
+        cueContentStore.removeAll()
+    }
+
     var cachedCueContentRevision: UInt64 {
         cueContentStore.revision
     }
@@ -249,7 +273,7 @@ final class SearchStore: ObservableObject {
         _ filter: CueFacetFilter
     ) -> (cueIDs: [Int64], distribution: CueFacetDistribution)? {
         let filter = normalizedFacetFilter(filter)
-        guard searchFacetFilter != filter,
+        guard searchFacetFilter != filter || resultFacetFilter != filter,
               let snapshot = searchFacetSnapshot
         else {
             return nil
@@ -374,7 +398,8 @@ final class SearchStore: ObservableObject {
 
     @discardableResult
     func completeIndexedCueDataMutation(
-        _ token: SearchIndexedCueMutationToken
+        _ token: SearchIndexedCueMutationToken,
+        refreshMode: SearchReappearanceRefreshMode = .pruneRemovedItems
     ) -> Bool {
         guard token.generation == activeIndexedCueMutationGeneration else {
             return false
@@ -382,7 +407,22 @@ final class SearchStore: ObservableObject {
         activeIndexedCueMutationGeneration = nil
         reloadEmptySearchFacetDistribution()
         indexedCueDataRevision &+= 1
+        markPendingReappearanceRefresh(refreshMode)
         return true
+    }
+
+    func markPendingReappearanceRefresh(_ mode: SearchReappearanceRefreshMode) {
+        pendingReappearanceRefreshMode = pendingReappearanceRefreshMode.merging(mode)
+    }
+
+    func consumePendingReappearanceRefresh() -> SearchReappearanceRefreshMode {
+        let mode = pendingReappearanceRefreshMode
+        pendingReappearanceRefreshMode = .none
+        return mode
+    }
+
+    func clearPendingReappearanceRefresh() {
+        pendingReappearanceRefreshMode = .none
     }
 
     func reloadEmptySearchFacetDistribution() {
@@ -454,6 +494,7 @@ final class SearchStore: ObservableObject {
         filterSet: SubtitleSearchFilterSet
     ) -> UInt64 {
         if !appending {
+            pendingReappearanceRefreshMode = .none
             resultListGeneration &+= 1
             resultFilterSet = filterSet
             resultFacetFilter = searchFacetFilter
@@ -667,12 +708,21 @@ final class SearchStore: ObservableObject {
     @discardableResult
     func pruneInvalidSearchResults(liveCueIDs: Set<Int64>) -> Bool {
         activatePlaybackPruning()
+        if pendingReappearanceRefreshMode == .pruneRemovedItems {
+            pendingReappearanceRefreshMode = .none
+        }
         let previousLoaded = loadedSearchResultCueIDs
         let newLoaded = previousLoaded.filter { liveCueIDs.contains($0) }
         let previousAll = searchResultCueIDs
         let newAll = previousAll.filter { liveCueIDs.contains($0) }
+        let snapshotChanged = searchFacetSnapshot.map {
+            $0.cueIDs.contains { !liveCueIDs.contains($0) }
+        } ?? false
 
-        guard newLoaded.count != previousLoaded.count || newAll.count != previousAll.count else {
+        guard newLoaded.count != previousLoaded.count
+            || newAll.count != previousAll.count
+            || snapshotChanged
+        else {
             return false
         }
 
@@ -700,6 +750,7 @@ final class SearchStore: ObservableObject {
     @discardableResult
     func clearResults() -> Int {
         resetPlaybackPruning()
+        pendingReappearanceRefreshMode = .none
         updateSearchSnapshotMutationRevision()
         let releasedRows = max(
             searchResults.count,

@@ -151,7 +151,12 @@ struct WorkbenchTestSearchView: View {
         }
         .onAppear {
             search.setTableProjectionResponseActive(allowsTableResponse)
-            let persistedFacetFilter = settingsStore.searchFacetFilter
+            let persistedFacetFilter = search.normalizedFacetFilter(
+                settingsStore.searchFacetFilter
+            )
+            if settingsStore.searchFacetFilter != persistedFacetFilter {
+                settingsStore.searchFacetFilter = persistedFacetFilter
+            }
             searchFacetFilter = persistedFacetFilter
             appState.applySearchFacetFilter(persistedFacetFilter)
             prepareViewportRestoration()
@@ -201,6 +206,7 @@ struct WorkbenchTestSearchView: View {
             }
             search.setTableProjectionResponseActive(isActive)
             if isActive {
+                searchFacetFilter = settingsStore.searchFacetFilter
                 resumeDeferredTableResponse()
             }
         }
