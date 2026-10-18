@@ -1,16 +1,9 @@
 import Foundation
 
-/// A file as the rename conflict check compares it with the disk.
+/// A file record read by the rename conflict check.
 struct RenameFileRecord: Equatable, Sendable {
     let id: Int64
     let path: String
-    let fileSize: Int64?
-    let modifiedAt: Double?
-}
-
-struct RenamePair: Equatable, Sendable {
-    let subtitlePath: String
-    let videoPath: String
 }
 
 /// The database side of an in-App rename: what the conflict check reads, and
@@ -21,41 +14,23 @@ struct RenamePair: Equatable, Sendable {
 extension IndexingDatabase {
     // MARK: - Reads for the conflict check
 
-    func renameFileRecords(
+    func indexedSubtitleFolderPaths(
         underFolderPath folderPath: String
-    ) throws -> (subtitles: [RenameFileRecord], videos: [RenameFileRecord]) {
-        (
-            try renameFileRecords(
-                sql: "SELECT id, subtitle_path, file_size, modified_at FROM subtitle_files",
-                pathColumn: "subtitle_path",
-                atOrUnderPath: folderPath,
-                includingExact: false
-            ),
-            try renameFileRecords(
-                sql: "SELECT id, path, file_size, modified_at FROM video_files",
-                pathColumn: "path",
-                atOrUnderPath: folderPath,
-                includingExact: false
-            )
+    ) throws -> [String] {
+        let scope = Self.renamePathScope(
+            column: "subtitle_path",
+            path: folderPath,
+            includingExact: false
         )
-    }
-
-    private func renameFileRecords(
-        sql: String,
-        pathColumn: String,
-        atOrUnderPath path: String,
-        includingExact: Bool
-    ) throws -> [RenameFileRecord] {
-        let scope = Self.renamePathScope(column: pathColumn, path: path, includingExact: includingExact)
         let statement = try database.prepare(
-            "\(sql) WHERE \(scope.condition) ORDER BY id ASC;"
+            "SELECT subtitle_path FROM subtitle_files WHERE \(scope.condition) ORDER BY id ASC;"
         )
         try scope.bind(to: statement)
-        var records: [RenameFileRecord] = []
+        var folderPaths = Set<String>()
         while try statement.step() {
-            records.append(Self.renameFileRecord(from: statement))
+            folderPaths.insert((statement.stringColumn(0) as NSString).deletingLastPathComponent)
         }
-        return records
+        return folderPaths.sorted()
     }
 
     /// The video at `videoPath` and the subtitles paired with it.
@@ -65,7 +40,7 @@ extension IndexingDatabase {
         let variants = Self.folderPathVariants(for: URL(fileURLWithPath: videoPath))
         let placeholders = variants.map { _ in "?" }.joined(separator: ", ")
         let videoStatement = try database.prepare(
-            "SELECT id, path, file_size, modified_at FROM video_files WHERE path IN (\(placeholders)) LIMIT 1;"
+            "SELECT id, path FROM video_files WHERE path IN (\(placeholders)) LIMIT 1;"
         )
         for (offset, variant) in variants.enumerated() {
             try videoStatement.bind(variant, at: Int32(offset + 1))
@@ -77,7 +52,7 @@ extension IndexingDatabase {
 
         let subtitleStatement = try database.prepare(
             """
-            SELECT sf.id, sf.subtitle_path, sf.file_size, sf.modified_at
+            SELECT sf.id, sf.subtitle_path
             FROM subtitle_video_matches m
             JOIN subtitle_files sf ON sf.id = m.subtitle_file_id
             WHERE m.video_file_id = ? AND m.is_active = 1
@@ -90,44 +65,6 @@ extension IndexingDatabase {
             subtitles.append(Self.renameFileRecord(from: subtitleStatement))
         }
         return (video, subtitles)
-    }
-
-    /// Every active pairing whose subtitle sits anywhere under `folderPath`.
-    func activeRenamePairs(underFolderPath folderPath: String) throws -> [RenamePair] {
-        let scope = Self.renamePathScope(
-            column: "sf.subtitle_path",
-            path: folderPath,
-            includingExact: false
-        )
-        let statement = try database.prepare(
-            """
-            SELECT sf.subtitle_path, vf.path
-            FROM subtitle_files sf
-            JOIN subtitle_video_matches m ON m.subtitle_file_id = sf.id AND m.is_active = 1
-            JOIN video_files vf ON vf.id = m.video_file_id
-            WHERE \(scope.condition)
-            ORDER BY sf.subtitle_path ASC;
-            """
-        )
-        try scope.bind(to: statement)
-        var pairs: [RenamePair] = []
-        while try statement.step() {
-            pairs.append(
-                RenamePair(
-                    subtitlePath: statement.stringColumn(0),
-                    videoPath: statement.stringColumn(1)
-                )
-            )
-        }
-        return pairs
-    }
-
-    /// Every active pairing whose subtitle sits directly in `directoryPath`.
-    func activeRenamePairs(inDirectory directoryPath: String) throws -> [RenamePair] {
-        let directory = LibraryRenamer.canonicalPath(directoryPath)
-        return try activeRenamePairs(underFolderPath: directoryPath).filter {
-            LibraryRenamer.canonicalPath(($0.subtitlePath as NSString).deletingLastPathComponent) == directory
-        }
     }
 
     /// Whether any library, folder, video or subtitle is stored at `path` or
@@ -205,9 +142,7 @@ extension IndexingDatabase {
     private static func renameFileRecord(from statement: SQLiteStatement) -> RenameFileRecord {
         RenameFileRecord(
             id: statement.int64Column(0),
-            path: statement.stringColumn(1),
-            fileSize: statement.nullableInt64Column(2),
-            modifiedAt: statement.nullableDoubleColumn(3)
+            path: statement.stringColumn(1)
         )
     }
 

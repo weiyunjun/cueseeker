@@ -124,14 +124,11 @@ public enum LibraryFileGroupNaming {
 
 /// Why the conflict check refused a rename. Nothing was changed.
 public enum LibraryRenameConflict: Error, Equatable, Sendable {
-    /// The disk and the database disagree about the files involved, or the
-    /// folder is not indexed at all: a new Index has to run first.
+    /// The folder or one of the paired files to rename does not exist on disk,
+    /// or the target is not in the index.
     case filesChangedSinceIndex
-    /// The new name is already taken, on disk or in the database.
+    /// The new name is already taken in the same directory, on disk or in the database.
     case destinationExists(name: String)
-    /// With the new name the folder's videos and subtitles would pair
-    /// differently.
-    case pairingWouldChange(name: String)
 }
 
 /// Why the execution stage failed. Whatever had been renamed on disk was
@@ -174,11 +171,6 @@ public struct LibraryRenamePlan: Equatable, Sendable {
 /// conflict check, then the disk renames and the database update that either
 /// both happen or neither does.
 public struct LibraryRenamer: Sendable {
-    private struct NamePair: Hashable {
-        let subtitle: String
-        let video: String
-    }
-
     private let database: IndexingDatabase
 
     public init(database: IndexingDatabase) {
@@ -216,37 +208,8 @@ public struct LibraryRenamer: Sendable {
             throw LibraryRenameConflict.filesChangedSinceIndex
         }
 
-        let files = try database.renameFileRecords(underFolderPath: folderPath)
-        guard !files.subtitles.isEmpty else {
-            throw LibraryRenameConflict.filesChangedSinceIndex
-        }
-        try requireUnchanged(files.subtitles + files.videos)
-
-        // The whole subtree is paired again the way Index pairs it. Anything
-        // the database does not know about, or knows differently, is drift.
-        let scannedSubtitles: [URL]
-        let diskMatches: [URL: URL]
-        do {
-            scannedSubtitles = try SubtitleFileScanner().scanSubtitleFilesSafely(in: folderURL)
-            diskMatches = try VideoMatcher().matchingVideos(for: scannedSubtitles)
-        } catch {
-            throw LibraryRenameConflict.filesChangedSinceIndex
-        }
-        let diskPairs = Set(diskMatches.map {
-            NamePair(
-                subtitle: Self.canonicalPath($0.key.path),
-                video: Self.canonicalPath($0.value.path)
-            )
-        })
-        let databasePairs = Set(
-            try database.activeRenamePairs(underFolderPath: folderPath).map {
-                NamePair(
-                    subtitle: Self.canonicalPath($0.subtitlePath),
-                    video: Self.canonicalPath($0.videoPath)
-                )
-            }
-        )
-        guard diskPairs == databasePairs else {
+        let oldFolderPaths = try database.indexedSubtitleFolderPaths(underFolderPath: folderPath)
+        guard !oldFolderPaths.isEmpty else {
             throw LibraryRenameConflict.filesChangedSinceIndex
         }
 
@@ -256,9 +219,6 @@ public struct LibraryRenamer: Sendable {
         }
 
         let step = LibraryRenameStep(oldPath: folderPath, newPath: newPath)
-        let oldFolderPaths = Set(files.subtitles.map {
-            ($0.path as NSString).deletingLastPathComponent
-        }).sorted()
         let newFolderPaths = oldFolderPaths.compactMap {
             Self.rewrite($0, from: step.oldPath, to: step.newPath)
         }
@@ -274,7 +234,9 @@ public struct LibraryRenamer: Sendable {
         newBaseName: String,
         request: LibraryRenameRequest
     ) throws -> LibraryRenamePlan {
-        guard let group = try database.renameFileGroup(videoPath: videoPath) else {
+        guard let group = try database.renameFileGroup(videoPath: videoPath),
+              !group.subtitles.isEmpty
+        else {
             throw LibraryRenameConflict.filesChangedSinceIndex
         }
         let directory = URL(fileURLWithPath: (group.video.path as NSString).deletingLastPathComponent)
@@ -288,20 +250,7 @@ public struct LibraryRenamer: Sendable {
         ) else {
             throw LibraryRenameConflict.filesChangedSinceIndex
         }
-        try requireUnchanged([group.video] + group.subtitles)
-
-        let listing = try directoryFileNames(directory)
-        let databasePairs = Set(
-            try database.activeRenamePairs(inDirectory: directory.path).map {
-                NamePair(
-                    subtitle: URL(fileURLWithPath: $0.subtitlePath).lastPathComponent,
-                    video: URL(fileURLWithPath: $0.videoPath).lastPathComponent
-                )
-            }
-        )
-        guard pairs(amongFileNames: listing) == databasePairs else {
-            throw LibraryRenameConflict.filesChangedSinceIndex
-        }
+        try requireExistingFiles([group.video] + group.subtitles)
 
         let groupNames = [videoName] + subtitleNames
         var renamedNames: [String: String] = [:]
@@ -322,20 +271,6 @@ public struct LibraryRenamer: Sendable {
                 sameObjectAs: directory.appendingPathComponent(name),
                 name: renamed
             )
-        }
-
-        let renamedListing = listing.map { renamedNames[$0] ?? $0 }
-        let expectedPairs = Set(databasePairs.map {
-            NamePair(
-                subtitle: renamedNames[$0.subtitle] ?? $0.subtitle,
-                video: renamedNames[$0.video] ?? $0.video
-            )
-        })
-        guard pairs(amongFileNames: renamedListing) == expectedPairs else {
-            throw LibraryRenameConflict.pairingWouldChange(name: newBaseName)
-        }
-        for name in groupNames {
-            let renamed = renamedNames[name] ?? name
             guard try !database.hasRenameRows(
                 atOrUnderPath: directory.path + "/" + renamed
             ) else {
@@ -356,15 +291,11 @@ public struct LibraryRenamer: Sendable {
         )
     }
 
-    private func requireUnchanged(_ records: [RenameFileRecord]) throws {
+    private func requireExistingFiles(_ records: [RenameFileRecord]) throws {
         for record in records {
-            guard let attributes = try? FileManager.default.attributesOfItem(atPath: record.path),
-                  attributes[.type] as? FileAttributeType == .typeRegular,
-                  let fileSize = (attributes[.size] as? NSNumber)?.int64Value,
-                  let modifiedAt = attributes[.modificationDate] as? Date,
-                  record.fileSize == fileSize,
-                  let storedModifiedAt = record.modifiedAt,
-                  abs(storedModifiedAt - modifiedAt.timeIntervalSince1970) < 0.001
+            var isDirectory: ObjCBool = false
+            guard FileManager.default.fileExists(atPath: record.path, isDirectory: &isDirectory),
+                  !isDirectory.boolValue
             else {
                 throw LibraryRenameConflict.filesChangedSinceIndex
             }
@@ -389,43 +320,6 @@ public struct LibraryRenamer: Sendable {
         guard let identity, let sourceIdentity, identity.isEqual(sourceIdentity) else {
             throw LibraryRenameConflict.destinationExists(name: name)
         }
-    }
-
-    /// The regular, visible files of one directory — what Index sees there.
-    private func directoryFileNames(_ directory: URL) throws -> [String] {
-        let keys: Set<URLResourceKey> = [.isRegularFileKey, .isSymbolicLinkKey]
-        let contents: [URL]
-        do {
-            contents = try FileManager.default.contentsOfDirectory(
-                at: directory,
-                includingPropertiesForKeys: Array(keys),
-                options: [.skipsHiddenFiles]
-            )
-        } catch {
-            throw LibraryRenameConflict.filesChangedSinceIndex
-        }
-        return contents.compactMap { url in
-            guard let values = try? url.resourceValues(forKeys: keys),
-                  values.isRegularFile == true,
-                  values.isSymbolicLink != true
-            else {
-                return nil
-            }
-            return url.lastPathComponent
-        }
-    }
-
-    private func pairs(amongFileNames fileNames: [String]) -> Set<NamePair> {
-        let subtitleNames = fileNames.filter {
-            SubtitleFileScanner.supportedSubtitleExtensions.contains(
-                URL(fileURLWithPath: $0).pathExtension.lowercased()
-            )
-        }
-        let matches = VideoMatcher().matchingVideoNames(
-            subtitleFileNames: subtitleNames,
-            among: fileNames
-        )
-        return Set(matches.map { NamePair(subtitle: $0.key, video: $0.value) })
     }
 
     /// `/var/...` and `/private/var/...` name the same place, and the index

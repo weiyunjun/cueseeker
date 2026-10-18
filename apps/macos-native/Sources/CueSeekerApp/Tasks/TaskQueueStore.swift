@@ -213,12 +213,6 @@ typealias TaskIndexRunner = @Sendable (
 /// on the way, so it has no progress. Supplied by the coordinator.
 typealias TaskRemoveFolderRunner = @Sendable (_ folder: URL) async throws -> Void
 
-/// Why a rename was refused before its conflict check began.
-enum LibraryRenameRefusal: Error {
-    case videoPlaying
-    case exportQueued
-}
-
 /// Why an export was refused when it came to start.
 enum AnkiExportRefusal: Error {
     case renameRunning
@@ -606,13 +600,6 @@ final class TaskQueueStore: ObservableObject {
                 return nil
             }
         case .rename(let request):
-            // An export holding these paths — running now, or queued and
-            // holding the paths it was given — would only fail if the rename
-            // moved them first.
-            guard !exportUses(request) else {
-                refuse(id: entry.id, reason: LibraryRenameRefusal.exportQueued)
-                return
-            }
             let progress = entry.progress
             let runRename = runRename
             run(id: entry.id) {
@@ -671,15 +658,6 @@ final class TaskQueueStore: ObservableObject {
     private func refuse(id: Int64, reason: Error) {
         runningTasks[id] = Task { [weak self] in
             self?.finishRunningTask(id: id, failure: Self.message(for: reason))
-        }
-    }
-
-    private func exportUses(_ request: LibraryRenameRequest) -> Bool {
-        current.contains { entry in
-            guard case .ankiExport(let items, _, _) = entry.work else {
-                return false
-            }
-            return items.contains { request.involves(videoPath: $0.videoPath) }
         }
     }
 
@@ -818,8 +796,6 @@ final class TaskQueueStore: ObservableObject {
                 return L("rename.error.files_changed")
             case .destinationExists(let name):
                 return L("rename.error.exists", name)
-            case .pairingWouldChange(let name):
-                return L("rename.error.pairing", name)
             }
         }
         if let renameError = error as? LibraryRenameError {
@@ -828,14 +804,6 @@ final class TaskQueueStore: ObservableObject {
                 return L("rename.error.rename_failed", path)
             case .databaseUpdateFailed:
                 return L("rename.error.database_failed")
-            }
-        }
-        if let refusal = error as? LibraryRenameRefusal {
-            switch refusal {
-            case .videoPlaying:
-                return L("rename.error.playing")
-            case .exportQueued:
-                return L("rename.error.export_queued")
             }
         }
         if let refusal = error as? AnkiExportRefusal {

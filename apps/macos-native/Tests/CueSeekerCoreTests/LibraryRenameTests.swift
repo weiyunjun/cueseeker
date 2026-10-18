@@ -196,60 +196,85 @@ func fileGroupRenameMovesTheVideoAndItsSubtitleAndReordersSiblings() throws {
 }
 
 @Test
-func aFileEditedSinceTheIndexIsAConflict() throws {
+func blankSubtitlesUnindexedFilesAndEditedFilesDoNotBlockRename() throws {
     let fixture = try RenameFixture()
     defer { fixture.cleanUp() }
+    try Data([0xEF, 0xBB, 0xBF]).write(to: fixture.show.appendingPathComponent("EP02.blank.srt"))
+    try RenameFixture.writeSubtitle(name: "Orphan.srt", in: fixture.show)
     try fixture.index()
+
     try RenameFixture.writeSubtitle(name: "EP01.zh.srt", in: fixture.show, text: "Edited outside the App")
-
-    let renamer = LibraryRenamer(database: fixture.database)
-    #expect(throws: LibraryRenameConflict.filesChangedSinceIndex) {
-        try renamer.checkConflicts(.fileGroup(videoPath: try fixture.storedVideoPath("EP01.mkv"), newBaseName: "EP09"))
-    }
-    #expect(throws: LibraryRenameConflict.filesChangedSinceIndex) {
-        try renamer.checkConflicts(.folder(path: fixture.show.path, newName: "Show Renamed"))
-    }
-}
-
-@Test
-func aPairAddedSinceTheIndexIsAConflict() throws {
-    let fixture = try RenameFixture()
-    defer { fixture.cleanUp() }
-    try fixture.index()
     try RenameFixture.writePair(baseName: "EP03", subtitleTail: "srt", in: fixture.show)
 
     let renamer = LibraryRenamer(database: fixture.database)
+    let oldVideo = try fixture.storedVideoPath("EP01.mkv")
+    let filePlan = try renamer.checkConflicts(.fileGroup(videoPath: oldVideo, newBaseName: "Orphan"))
+    try renamer.perform(filePlan)
+    #expect(fixture.exists(oldVideo.replacingOccurrences(of: "EP01.mkv", with: "Orphan.mkv")))
+
+    let folderPlan = try renamer.checkConflicts(.folder(path: fixture.show.path, newName: "Show Renamed"))
+    try renamer.perform(folderPlan)
+    #expect(fixture.exists(fixture.root.appendingPathComponent("Show Renamed").path))
+}
+
+@Test
+func fileGroupRenameRequiresEveryKnownPairedFileToExist() throws {
+    let fixture = try RenameFixture()
+    defer { fixture.cleanUp() }
+    try RenameFixture.writeSubtitle(name: "EP01.jp.srt", in: fixture.show)
+    try fixture.index()
+
+    let oldVideo = try fixture.storedVideoPath("EP01.mkv")
+    let missingSubtitle = try fixture.storedSubtitlePath("EP01.jp.srt")
+    try FileManager.default.removeItem(atPath: missingSubtitle)
+
+    let renamer = LibraryRenamer(database: fixture.database)
     #expect(throws: LibraryRenameConflict.filesChangedSinceIndex) {
-        try renamer.checkConflicts(.folder(path: fixture.show.path, newName: "Show Renamed"))
+        try renamer.checkConflicts(.fileGroup(videoPath: oldVideo, newBaseName: "EP09"))
+    }
+    #expect(fixture.exists(oldVideo))
+    #expect(fixture.exists(try fixture.storedSubtitlePath("EP01.zh.srt")))
+}
+
+@Test
+func folderRenameOnlyRequiresTheFolderItselfToExist() throws {
+    let fixture = try RenameFixture()
+    defer { fixture.cleanUp() }
+    try fixture.index()
+
+    let missingSubtitle = try fixture.storedSubtitlePath("EP01.zh.srt")
+    try FileManager.default.removeItem(atPath: missingSubtitle)
+
+    let renamer = LibraryRenamer(database: fixture.database)
+    let plan = try renamer.checkConflicts(.folder(path: fixture.show.path, newName: "Show Renamed"))
+    try renamer.perform(plan)
+    #expect(fixture.exists(fixture.root.appendingPathComponent("Show Renamed").path))
+
+    #expect(throws: LibraryRenameConflict.filesChangedSinceIndex) {
+        try renamer.checkConflicts(.folder(path: fixture.show.path, newName: "Another Name"))
     }
 }
 
 @Test
-func anExistingNameIsAConflict() throws {
+func anExistingNameInTheSameDirectoryIsAConflictWhileOtherDirectoriesAreAllowed() throws {
     let fixture = try RenameFixture()
     defer { fixture.cleanUp() }
+    let otherBranch = fixture.root.appendingPathComponent("Other/Taken")
+    try FileManager.default.createDirectory(at: otherBranch, withIntermediateDirectories: true)
+    try RenameFixture.writePair(baseName: "EP09", subtitleTail: "srt", in: otherBranch)
     try fixture.index()
-    try FileManager.default.createDirectory(at: fixture.root.appendingPathComponent("Taken"), withIntermediateDirectories: false)
 
     let renamer = LibraryRenamer(database: fixture.database)
+    // "Taken" and "EP09.mkv" exist under /Other/Taken, not in / or /Show, so they do not conflict.
+    _ = try renamer.checkConflicts(.folder(path: fixture.show.path, newName: "Taken"))
+    _ = try renamer.checkConflicts(.fileGroup(videoPath: try fixture.storedVideoPath("EP01.mkv"), newBaseName: "EP09"))
+
+    try FileManager.default.createDirectory(at: fixture.root.appendingPathComponent("Taken"), withIntermediateDirectories: false)
     #expect(throws: LibraryRenameConflict.destinationExists(name: "Taken")) {
         try renamer.checkConflicts(.folder(path: fixture.show.path, newName: "Taken"))
     }
     #expect(throws: LibraryRenameConflict.destinationExists(name: "EP02.mkv")) {
         try renamer.checkConflicts(.fileGroup(videoPath: try fixture.storedVideoPath("EP01.mkv"), newBaseName: "EP02"))
-    }
-}
-
-@Test
-func aNameThatWouldAdoptAnOrphanSubtitleIsAConflict() throws {
-    let fixture = try RenameFixture()
-    defer { fixture.cleanUp() }
-    try RenameFixture.writeSubtitle(name: "Orphan.srt", in: fixture.show)
-    try fixture.index()
-
-    let renamer = LibraryRenamer(database: fixture.database)
-    #expect(throws: LibraryRenameConflict.pairingWouldChange(name: "Orphan")) {
-        try renamer.checkConflicts(.fileGroup(videoPath: try fixture.storedVideoPath("EP01.mkv"), newBaseName: "Orphan"))
     }
 }
 

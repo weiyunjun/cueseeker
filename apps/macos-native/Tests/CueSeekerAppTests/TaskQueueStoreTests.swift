@@ -466,12 +466,9 @@ func aRefusedRenameCarriesTheConflictItHit() async throws {
     #expect(store.incomplete.first?.errorMessage == L("rename.error.exists", "Show Renamed"))
 }
 
-/// An export holding these files — running now, or queued and holding the
-/// paths it was given — would only fail if the rename moved them first, so the
-/// rename gives way.
 @MainActor
 @Test
-func aRenameGivesWayToARunningExportOfItsFiles() async throws {
+func aRenameProceedsWithoutBeingBlockedByExports() async throws {
     let (store, databaseURL) = try makeTaskQueueStore(runRename: { _, _ in })
     defer { removeTemporaryDatabase(at: databaseURL) }
 
@@ -482,40 +479,13 @@ func aRenameGivesWayToARunningExportOfItsFiles() async throws {
     )
     store.enqueueRename(showFolderRename, oldPaths: ["/Videos/Show"], newPaths: ["/Videos/Show Renamed"])
 
-    await waitUntil { !store.incomplete.isEmpty }
+    await waitUntil { !store.completed.isEmpty }
 
-    #expect(store.incomplete.map(\.kind) == [.renameFolder])
-    #expect(store.incomplete.first?.errorMessage == L("rename.error.export_queued"))
-    #expect(store.current.map(\.record.fileName) == ["Show.apkg"])
+    #expect(store.completed.map(\.kind) == [.renameFolder])
+    #expect(store.incomplete.isEmpty)
 }
 
-@MainActor
-@Test
-func aRenameGivesWayToAQueuedExportOfItsFiles() async throws {
-    let (store, databaseURL) = try makeTaskQueueStore(runRename: { _, _ in })
-    defer { removeTemporaryDatabase(at: databaseURL) }
-
-    store.enqueueAnkiExport(
-        items: exportItems(1),
-        options: AnkiExportOptions(),
-        destinationURL: URL(fileURLWithPath: "/Exports/First.apkg")
-    )
-    store.enqueueAnkiExport(
-        items: showEpisodeExportItems(),
-        options: AnkiExportOptions(),
-        destinationURL: URL(fileURLWithPath: "/Exports/Show.apkg")
-    )
-    store.enqueueRename(showFolderRename, oldPaths: ["/Videos/Show"], newPaths: ["/Videos/Show Renamed"])
-
-    await waitUntil { !store.incomplete.isEmpty }
-
-    #expect(store.incomplete.map(\.kind) == [.renameFolder])
-    #expect(store.incomplete.first?.errorMessage == L("rename.error.export_queued"))
-    #expect(store.current.map(\.record.state) == [.running, .queued])
-}
-
-/// The other way round: an export that comes to start while a rename is
-/// moving its files gives way.
+/// An export that comes to start while a rename is moving its files gives way.
 @MainActor
 @Test
 func anExportGivesWayToARunningRenameOfItsFiles() async throws {

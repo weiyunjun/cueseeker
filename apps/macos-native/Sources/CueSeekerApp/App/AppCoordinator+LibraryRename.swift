@@ -41,9 +41,8 @@ extension AppCoordinator {
 
     // MARK: - The task
 
-    /// Hands the queue the runner it cannot build itself: the check that the
-    /// video is not playing, the two stages against the indexing database,
-    /// and the page refresh once the paths have moved.
+    /// Hands the queue the runner it cannot build itself: the two stages
+    /// against the indexing database and the page refresh once the paths move.
     func configureRenameRunner() {
         tasks.runRename = { [weak self] request, onStage in
             await AppCoordinator.waitForDebugTaskDelay()
@@ -59,11 +58,8 @@ extension AppCoordinator {
         guard let coordinator else {
             throw CancellationError()
         }
-        let (database, playingVideoPath) = await MainActor.run {
-            (coordinator.indexingDatabase, coordinator.currentPlaybackVideoPath)
-        }
-        if let playingVideoPath, request.involves(videoPath: playingVideoPath) {
-            throw LibraryRenameRefusal.videoPlaying
+        let database = await MainActor.run {
+            coordinator.indexingDatabase
         }
         guard let database else {
             throw LibraryRenameError.databaseUpdateFailed(L("status.database_not_initialized"))
