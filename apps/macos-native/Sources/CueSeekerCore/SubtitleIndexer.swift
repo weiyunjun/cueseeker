@@ -241,7 +241,6 @@ public struct SubtitleIndexer {
             let subtitleMediaPath = subtitleFile.mediaPath
 
             guard let videoFile = matchingVideos[subtitleFile] else {
-                keptSubtitlePaths.insert(subtitleMediaPath)
                 missingVideoSubtitleFiles.append(subtitleFile)
                 result.skippedMissingVideo += 1
                 continue

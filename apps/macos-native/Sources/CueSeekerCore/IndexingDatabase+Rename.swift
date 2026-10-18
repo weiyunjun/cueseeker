@@ -230,7 +230,11 @@ extension IndexingDatabase {
                 try bindOptional(relativePath, to: file, at: 2)
                 try file.bind(id, at: 3)
                 try file.run()
-                for table in ["subtitle_cue_groups", "subtitle_playback_finish_metadata"] {
+                for table in [
+                    "subtitle_cue_groups",
+                    "subtitle_playback_finish_metadata",
+                    "cue_tombstones",
+                ] {
                     let derived = try database.prepare(
                         "UPDATE \(table) SET subtitle_path = ? WHERE subtitle_file_id = ?;"
                     )

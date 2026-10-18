@@ -382,7 +382,15 @@ func referencedCueIsTombstonedWhenItsLibraryIsRemoved() throws {
 
     let unavailable = try #require(try excerptDatabase.excerpt(id: saved.id))
     #expect(!unavailable.isValid)
+    #expect(unavailable.unavailableReason == .libraryUnavailable)
     #expect(try sqliteRowCount(in: "cue_tombstones", databaseURL: fixture.databaseURL) == 1)
+
+    _ = try indexer.index(folder: fixture.root, into: database)
+    let restored = try #require(try excerptDatabase.excerpt(id: saved.id))
+    #expect(restored.isValid)
+    #expect(restored.unavailableReason == nil)
+    #expect(try excerptDatabase.cueID(forExcerptID: saved.id) == cue.id)
+    #expect(try sqliteRowCount(in: "cue_tombstones", databaseURL: fixture.databaseURL) == 0)
 }
 
 /// The current schema must not be reachable with any identity or binding state

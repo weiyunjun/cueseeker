@@ -253,18 +253,13 @@ public final class IndexingDatabase: @unchecked Sendable {
                 )
             }
 
-            for subtitleFile in index.missingVideoSubtitleFiles {
-                if try removeMatchedVideos(forSubtitlePath: subtitleFile.mediaPath) {
-                    affectedFolderPaths.insert(
-                        subtitleFile.deletingLastPathComponent().mediaPath
-                    )
-                }
-            }
-
             affectedFolderPaths.formUnion(
                 try removeIndexedDataInCurrentTransaction(
                     under: index.folder,
                     keeping: index.keptSubtitlePaths,
+                    missingVideoSubtitlePaths: Set(
+                        index.missingVideoSubtitleFiles.map(\.mediaPath)
+                    ),
                     removeSearchPath: false,
                     rebuildSearchDerivedIndex: false,
                     unavailableReason: .subtitleMissing
@@ -572,11 +567,9 @@ public final class IndexingDatabase: @unchecked Sendable {
             libraryID: libraryID
         )
         let subtitleFileID = upsertedSubtitleFile.id
-        if libraryID == nil {
-            try clearPriorCueChangeNotices(
-                subtitleFileID: subtitleFileID
-            )
-        }
+        try clearPriorCueChangeNotices(
+            subtitleFileID: subtitleFileID
+        )
         let storedCueStates = try storedCueStates(subtitleFileID: subtitleFileID)
         let newCueLines = cueGroups.flatMap(\.cueLines)
         let identityAssignments = CueIdentityReconciler.reconcile(
@@ -1322,11 +1315,17 @@ public final class IndexingDatabase: @unchecked Sendable {
     private func removeIndexedDataInCurrentTransaction(
         under folder: URL,
         keeping subtitleFiles: Set<String>,
+        missingVideoSubtitlePaths: Set<String> = [],
         removeSearchPath: Bool,
         rebuildSearchDerivedIndex: Bool,
         unavailableReason: ExcerptUnavailableReason
     ) throws -> Set<String> {
         let folderPathPrefixes = Self.folderPathPrefixes(for: folder)
+        let missingVideoVariants = Set(
+            missingVideoSubtitlePaths.flatMap {
+                Self.folderPathVariants(for: URL.fromMediaPath($0))
+            }
+        )
         let prefixCondition = folderPathPrefixes
             .map { _ in "substr(sf.subtitle_path, 1, ?) = ?" }
             .joined(separator: " OR ")
@@ -1347,10 +1346,17 @@ public final class IndexingDatabase: @unchecked Sendable {
             folderPathPrefixes: folderPathPrefixes,
             subtitleFiles: subtitleFiles
         )
-        let affectedFolderPaths = Set(
+        var affectedFolderPaths = Set(
             staleSubtitleFiles.map {
                 Self.folderPath(forSubtitlePath: $0.path)
             }
+        )
+        affectedFolderPaths.formUnion(
+            try reconcileDetachedTombstoneUnavailableReasons(
+                folderPathPrefixes: folderPathPrefixes,
+                missingVideoVariants: missingVideoVariants,
+                defaultUnavailableReason: unavailableReason
+            )
         )
         guard !staleSubtitleFiles.isEmpty else {
             if removeSearchPath {
@@ -1361,9 +1367,13 @@ public final class IndexingDatabase: @unchecked Sendable {
             return affectedFolderPaths
         }
         for subtitleFile in staleSubtitleFiles {
+            let reason: ExcerptUnavailableReason =
+                missingVideoVariants.contains(subtitleFile.path)
+                ? .videoMissing
+                : unavailableReason
             try snapshotReferencedCues(
                 subtitleFileID: subtitleFile.id,
-                unavailableReason: unavailableReason
+                unavailableReason: reason
             )
         }
 
@@ -1650,6 +1660,10 @@ public final class IndexingDatabase: @unchecked Sendable {
             try statement.bind(SubtitleCueIndexingRules.algorithmVersion, at: 9)
             try statement.bind(record.id, at: 10)
             try statement.run()
+            try adoptTombstones(
+                forSubtitleFile: subtitleFile,
+                subtitleFileID: record.id
+            )
             return UpsertedSubtitleFile(id: record.id, previousPath: nil)
         }
 
@@ -1682,6 +1696,10 @@ public final class IndexingDatabase: @unchecked Sendable {
         let id = try statement.step()
             ? statement.int64Column(0)
             : database.lastInsertRowID()
+        try adoptTombstones(
+            forSubtitleFile: subtitleFile,
+            subtitleFileID: id
+        )
         return UpsertedSubtitleFile(id: id, previousPath: nil)
     }
 
@@ -1825,52 +1843,100 @@ public final class IndexingDatabase: @unchecked Sendable {
         try statement.run()
     }
 
-    private func removeMatchedVideos(
-        forSubtitlePath subtitlePath: String
-    ) throws -> Bool {
+    private func adoptTombstones(
+        forSubtitleFile subtitleFile: URL,
+        subtitleFileID: Int64
+    ) throws {
+        let pathVariants = Self.folderPathVariants(for: subtitleFile).sorted()
+        guard !pathVariants.isEmpty else {
+            return
+        }
+        let placeholders = pathVariants.map { _ in "?" }.joined(separator: ", ")
         let statement = try database.prepare(
             """
-            SELECT vf.id
-            FROM subtitle_files sf
-            JOIN subtitle_video_matches m
-              ON m.subtitle_file_id = sf.id AND m.is_active = 1
-            JOIN video_files vf ON vf.id = m.video_file_id
-            WHERE sf.subtitle_path = ?
-            ORDER BY vf.id ASC;
+            UPDATE cue_tombstones
+            SET subtitle_file_id = ?,
+                subtitle_path = ?
+            WHERE subtitle_path IN (\(placeholders));
             """
         )
-        try statement.bind(subtitlePath, at: 1)
-        var videoFileIDs: [Int64] = []
-        while try statement.step() {
-            videoFileIDs.append(statement.int64Column(0))
+        try statement.bind(subtitleFileID, at: 1)
+        try statement.bind(subtitleFile.mediaPath, at: 2)
+        for (offset, variant) in pathVariants.enumerated() {
+            try statement.bind(variant, at: Int32(offset + 3))
         }
-        guard !videoFileIDs.isEmpty else {
-            return false
+        try statement.run()
+    }
+
+    private func reconcileDetachedTombstoneUnavailableReasons(
+        folderPathPrefixes: [String],
+        missingVideoVariants: Set<String>,
+        defaultUnavailableReason: ExcerptUnavailableReason
+    ) throws -> Set<String> {
+        guard !folderPathPrefixes.isEmpty else {
+            return []
         }
-
-        let deleteMatches = try database.prepare(
+        let prefixCondition = folderPathPrefixes
+            .map { _ in "substr(t.subtitle_path, 1, ?) = ?" }
+            .joined(separator: " OR ")
+        let select = try database.prepare(
             """
-            DELETE FROM subtitle_video_matches
-            WHERE subtitle_file_id IN (
-                SELECT id FROM subtitle_files WHERE subtitle_path = ?
-            );
+            SELECT t.cue_id, t.subtitle_path, t.unavailable_reason
+            FROM cue_tombstones t
+            WHERE (\(prefixCondition))
+              AND NOT EXISTS (
+                  SELECT 1
+                  FROM subtitle_files sf
+                  WHERE sf.id = t.subtitle_file_id
+              )
+              AND t.unavailable_reason != 'cue_missing'
+            ORDER BY t.cue_id ASC;
             """
         )
-        try deleteMatches.bind(subtitlePath, at: 1)
-        try deleteMatches.run()
-
-        let deleteLibraryRows = try database.prepare(
-            "DELETE FROM library_video_rows WHERE subtitle_path = ?;"
-        )
-        try deleteLibraryRows.bind(subtitlePath, at: 1)
-        try deleteLibraryRows.run()
-
-        for videoFileID in videoFileIDs {
-            if try !hasActiveSubtitleMatch(videoFileID: videoFileID) {
-                try deleteVideoFile(id: videoFileID)
+        var bindIndex: Int32 = 1
+        for prefix in folderPathPrefixes {
+            try select.bind(prefix.count, at: bindIndex)
+            bindIndex += 1
+            try select.bind(prefix, at: bindIndex)
+            bindIndex += 1
+        }
+        var updates: [(cueID: Int64, subtitlePath: String, newReason: String)] = []
+        while try select.step() {
+            let cueID = select.int64Column(0)
+            let subtitlePath = select.stringColumn(1)
+            let currentReason = select.stringColumn(2)
+            let targetReason: ExcerptUnavailableReason =
+                missingVideoVariants.contains(subtitlePath)
+                ? .videoMissing
+                : defaultUnavailableReason
+            if currentReason != targetReason.rawValue {
+                updates.append((cueID, subtitlePath, targetReason.rawValue))
             }
         }
-        return true
+        guard !updates.isEmpty else {
+            return []
+        }
+        let now = ISO8601DateFormatter().string(from: Date())
+        let updateStatement = try database.prepare(
+            """
+            UPDATE cue_tombstones
+            SET unavailable_reason = ?,
+                updated_at = ?
+            WHERE cue_id = ?;
+            """
+        )
+        var affectedFolders = Set<String>()
+        for update in updates {
+            try updateStatement.bind(update.newReason, at: 1)
+            try updateStatement.bind(now, at: 2)
+            try updateStatement.bind(update.cueID, at: 3)
+            try updateStatement.run()
+            try updateStatement.reset()
+            affectedFolders.insert(
+                Self.folderPath(forSubtitlePath: update.subtitlePath)
+            )
+        }
+        return affectedFolders
     }
 
     private func hasActiveSubtitleMatch(videoFileID: Int64) throws -> Bool {

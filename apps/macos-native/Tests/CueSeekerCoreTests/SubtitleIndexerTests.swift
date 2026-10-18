@@ -1888,26 +1888,54 @@ func referencedCueTombstoneSurvivesMissingResourcesAndReturningFiles() throws {
     _ = try indexer.index(folder: fixture.root, into: database)
 
     let videoUnavailable = try #require(try excerptDatabase.excerpt(id: saved.id))
+    #expect(!videoUnavailable.isValid)
     #expect(videoUnavailable.unavailableReason == .videoMissing)
     #expect(
         URL(fileURLWithPath: videoUnavailable.subtitlePath).resolvingSymlinksInPath()
             == subtitleFile.resolvingSymlinksInPath()
     )
+    #expect(try database.subtitleFiles().isEmpty)
     #expect(try SearchDatabase(path: fixture.databaseURL).search("Persisted").isEmpty)
+    #expect(try SearchDatabase(path: fixture.databaseURL).search("Unreferenced").isEmpty)
     #expect(try libraryDatabase.libraryPresentation(under: [fixture.root]).isEmpty)
     #expect(try libraryDatabase.recentLibraryWatching(under: [fixture.root]).isEmpty)
-    // The video left the current scan result, so its progress left with it.
+    // Both the video and the unpaired subtitle left the current scan result.
     #expect(
         try sqliteRowCount(
             in: "library_playback_history",
             databaseURL: fixture.databaseURL
         ) == 0
     )
-    #expect(try sqliteRowCount(in: "cue_tombstones", databaseURL: fixture.databaseURL) == 0)
+    #expect(try sqliteRowCount(in: "subtitle_files", databaseURL: fixture.databaseURL) == 0)
+    #expect(try sqliteRowCount(in: "subtitle_cue_groups", databaseURL: fixture.databaseURL) == 0)
+    #expect(try sqliteRowCount(in: "subtitle_cue_lines", databaseURL: fixture.databaseURL) == 0)
+    #expect(try sqliteRowCount(in: "library_folders", databaseURL: fixture.databaseURL) == 0)
+    #expect(try sqliteRowCount(in: "cue_tombstones", databaseURL: fixture.databaseURL) == 1)
 
+    // Deleting the remaining subtitle transitions the detached tombstone to .subtitleMissing.
+    try FileManager.default.removeItem(at: subtitleFile)
+    _ = try indexer.index(folder: fixture.root, into: database)
+    #expect(
+        try excerptDatabase.excerpt(id: saved.id)?.unavailableReason
+            == .subtitleMissing
+    )
+
+    // Restoring only the subtitle (still no video) transitions the tombstone back to .videoMissing.
+    _ = try fixture.writeSubtitle(name: "Lifecycle.ass", contents: contents)
+    _ = try indexer.index(folder: fixture.root, into: database)
+    #expect(
+        try excerptDatabase.excerpt(id: saved.id)?.unavailableReason
+            == .videoMissing
+    )
+
+    // Restoring the video re-establishes the pairing, restores the cue with its original CueID,
+    // and removes the Tombstone.
     _ = try fixture.writeVideo(name: "Lifecycle.mkv")
     _ = try indexer.index(folder: fixture.root, into: database)
     #expect(try excerptDatabase.excerpt(id: saved.id)?.isValid == true)
+    #expect(try excerptDatabase.cueID(forExcerptID: saved.id) == originalCueID)
+    #expect(try sqliteRowCount(in: "cue_tombstones", databaseURL: fixture.databaseURL) == 0)
+    #expect(try SearchDatabase(path: fixture.databaseURL).search("Unreferenced").count == 1)
 
     try FileManager.default.removeItem(at: subtitleFile)
     _ = try indexer.index(folder: fixture.root, into: database)
@@ -1953,16 +1981,16 @@ func referencedCueTombstoneSurvivesMissingResourcesAndReturningFiles() throws {
         )
     }
 
-    // A subtitle that left the index and comes back is a new resource: the
-    // Excerpt is kept and stays unavailable against its Tombstone.
+    // When the subtitle returns at the same path and pairs with a video, its cues are
+    // reconciled against the Tombstone snapshot and recover their original CueID.
     _ = try fixture.writeSubtitle(name: "Lifecycle.ass", contents: contents)
     _ = try indexer.index(folder: fixture.root, into: database)
 
     let returned = try #require(try excerptDatabase.excerpt(id: saved.id))
-    #expect(!returned.isValid)
-    #expect(returned.unavailableReason == .subtitleMissing)
+    #expect(returned.isValid)
+    #expect(returned.unavailableReason == nil)
     #expect(try excerptDatabase.cueID(forExcerptID: saved.id) == originalCueID)
-    #expect(try sqliteRowCount(in: "cue_tombstones", databaseURL: fixture.databaseURL) == 1)
+    #expect(try sqliteRowCount(in: "cue_tombstones", databaseURL: fixture.databaseURL) == 0)
 
     #expect(try excerptDatabase.removeExcerpt(id: saved.id))
     #expect(try sqliteRowCount(in: "cue_tombstones", databaseURL: fixture.databaseURL) == 0)
