@@ -26,7 +26,7 @@ Human-owned documents:
 - **`PlaybackChromeView.swift` & `PlaybackProgressScrubber.swift`**:
   - Added a bottom-to-top dark linear gradient (`PlaybackTheme.topbarGradientEnd` to `PlaybackTheme.topbarGradientStart`) across the `90px` bottom control bar surface.
   - Ungrouped the Previous and Next buttons into standalone `32×32px` icon buttons and unified left and right control group spacing to `4px` (`--spacing-1`).
-  - Removed `PlaybackChromeTimeCapsule` from the bottom-left control group and added `PlaybackProgressScrubberRow` displaying current time on the left and remaining time (`-MM:SS` / `-H:MM:SS`) on the right of the progress scrubber with `12px` (`--spacing-3`) spacing in `12px` monospaced `PlaybackTheme.textPrimary`.
+  - Removed `PlaybackChromeTimeCapsule` from the bottom-left control group and added `PlaybackProgressScrubberRow` displaying current time on the left and remaining time (`-MM:SS` / `-H:MM:SS`) on the right of the progress scrubber with `12px` (`--spacing-3`) spacing in `12px` monospaced `PlaybackTheme.textPrimary`, and `32px` (`--padding-player-chrome-x` + `--spacing-2`) horizontal padding to visually align the outer edges of the time digits with the icons below.
   - Updated the hover/drag time preview box in `PlaybackProgressScrubber` to use a single-layer `PlaybackTheme.menuBackground` fill with `6px` (`--radius-field`) corner radius and `4px` (`--spacing-1`) gap above the scrubber hit area.
   - Normalized `PlaybackSpeedChromeButton` to `32px` height, `8px` corner radius, `10px` horizontal padding, and single-layer `PlaybackTheme.controlHoverBackground` on both Hover and `isOpen`.
 - **`PlaybackVolumeControl.swift`**:

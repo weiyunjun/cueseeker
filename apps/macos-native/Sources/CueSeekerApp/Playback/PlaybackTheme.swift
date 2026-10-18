@@ -454,6 +454,9 @@ enum PlaybackChromeMetrics {
     static let feedbackFontSize: CGFloat = 18
 
     static let chromeHorizontalPadding: CGFloat = 24
+    /// --padding-player-chrome-x + --spacing-2: 32px
+    static let progressRowHorizontalPadding: CGFloat =
+        chromeHorizontalPadding + WorkbenchControlMetrics.redesignSpacing2
     static let chromeBottomPadding: CGFloat = 12
     static let progressTopPadding: CGFloat = 16
     static let progressTimeCapsuleHorizontalPadding: CGFloat = 8

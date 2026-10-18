@@ -220,7 +220,7 @@ struct PlaybackChromeView: View {
             viewModel: viewModel,
             timeline: timeline
         )
-        .padding(.horizontal, PlaybackChromeMetrics.chromeHorizontalPadding)
+        .padding(.horizontal, PlaybackChromeMetrics.progressRowHorizontalPadding)
     }
 
     private var previousTooltipLabel: String {
