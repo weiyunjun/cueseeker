@@ -50,36 +50,9 @@ enum SubtitleTableCueGeometry {
     static let primaryLineHeight: CGFloat = 24
     static let extraLineHeight: CGFloat = 20
     static let measurementOverscan = 4
-    static let cueUnavailableBadgeHeight: CGFloat = 20
-    static let cueUnavailableBadgeRadius: CGFloat = 4
-    static let cueUnavailableBadgePaddingX: CGFloat = 6
-    static let cueUnavailableBadgeGap: CGFloat = 6
-    static let cueUnavailableBadgeBorderWidth: CGFloat = 1
-    static let cueUnavailableBadgeFontSize: CGFloat = 12
-
-    @MainActor
-    static func unavailableBadgeAttributedText(
-        _ text: String = L("table.state.unavailable")
-    ) -> NSAttributedString {
-        NSAttributedString(string: text, attributes: [
-            .font: NSFont.systemFont(ofSize: cueUnavailableBadgeFontSize, weight: .medium),
-            .foregroundColor: WorkbenchRedesignColors.NS.cueUnavailableBadgeText,
-        ])
-    }
-
-    @MainActor
-    static func unavailableBadgeWidth(
-        _ text: String = L("table.state.unavailable")
-    ) -> CGFloat {
-        ceil(unavailableBadgeAttributedText(text).size().width) + 2 * cueUnavailableBadgePaddingX
-    }
-
-    @MainActor
-    static func unavailableBadgeLeadingIndent(
-        _ text: String = L("table.state.unavailable")
-    ) -> CGFloat {
-        unavailableBadgeWidth(text) + cueUnavailableBadgeGap
-    }
+    static let cueUnavailableIconSize: CGFloat = 18
+    static let cueUnavailableIconGap: CGFloat = 8
+    static let unavailableLeadingIndent: CGFloat = cueUnavailableIconSize + cueUnavailableIconGap
 
     static func cueBlockHeight(
         primaryLineCount: Int,
@@ -184,17 +157,17 @@ final class SubtitleTableCueTextMeasurer {
         showsCueGroup: Bool,
         otherContentHeights: [CGFloat] = []
     ) -> SubtitleTableRowMeasurement {
-        let primaryWidth = row.cueState.isUnavailable
-            ? max(1, effectiveCuesWidth - SubtitleTableCueGeometry.unavailableBadgeLeadingIndent())
+        let textWidth = row.cueState.isUnavailable
+            ? max(1, effectiveCuesWidth - SubtitleTableCueGeometry.unavailableLeadingIndent)
             : effectiveCuesWidth
         let primaryLineCount = visualLineCount(
             text: row.primaryCueText,
-            width: primaryWidth,
+            width: textWidth,
             style: .primary
         )
         let extraCueLineCounts = showsCueGroup
             ? row.additionalCueTexts.map { text in
-                visualLineCount(text: text, width: effectiveCuesWidth, style: .extra)
+                visualLineCount(text: text, width: textWidth, style: .extra)
             }
             : []
         return SubtitleTableRowMeasurement(

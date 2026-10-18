@@ -48,6 +48,7 @@ enum AppIcon: String, CaseIterable, Sendable {
     case playCircle = "play-circle"
     case clockCounterClockwise = "clock-counter-clockwise"
     case question = "question"
+    case questionMark = "question-mark"
     case info = "info"
     case pencilSimple = "pencil-simple"
     case notePencil = "note-pencil"

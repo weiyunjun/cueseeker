@@ -23,14 +23,13 @@ Human-owned documents:
   - Preserved the frozen snapshot in `removeExcerpt`, `moveExcerpt`, and `duplicateExcerpt` when `excerptNeedsReloadAfterIndexedContentMutation == true`, and adjusted list `cueCount` delta by `-1` only when the removed excerpt was valid (`item.isValid`).
   - Updated `openExcerptListPlayback` and `openExcerpt` so clicking a frozen card/Resume when all cues in the list are now invalid in SQLite opens the Playback page in `.loadFailed` state with the `.notInLibrary` red banner (`This item is no longer in the library`).
   - Triggered `refreshExcerptOnReappearanceIfNeeded()` and `refreshRecentOnReappearanceIfNeeded()` when switching the `Videos / Excerpt Lists` Segmented Control in `WorkbenchRecentView`.
-- **`WorkbenchRedesignTokens.swift` & `Localizable.strings` (`zh-Hans`, `zh-Hant`)**:
-  - Added `cueUnavailableBadgeBorder` (`#717171` Light / `#71717A` Dark) and `cueUnavailableBadgeText` (`textPrimary`).
-  - Updated `"table.state.unavailable"` to `"已失效"` in Simplified and Traditional Chinese (`"Unavailable"` in English).
+- **`AppIcon.swift` & `question-mark.svg`**:
+  - Added Phosphor `question-mark` icon asset (`question-mark.svg`, without outer circle) and `AppIcon.questionMark` for `SubtitleTableCueState.unavailable.icon`.
 - **`SubtitleTableRow.swift` & `TableSandboxRowModelStore.swift` & `SubtitleTableCueGeometry.swift` & `SubtitleTableView.swift`**:
-  - Removed the trailing `?` icon for `.unavailable` (`SubtitleTableCueState.unavailable.icon = nil`).
   - Added `displayIndex: Int?` and `TableSandboxRowsSnapshot.displayIndexByRowIndex` so valid rows receive sequential 1-based `#` numbers and unavailable rows leave `#` blank without checkbox hover.
-  - Added left-side `Unavailable` badge geometry (`height: 20px`, `paddingX: 6px`, `radius: 4px`, `borderWidth: 1px`, `font: 12px Medium`, `gap: 6px`) with hanging indentation on the primary cue text (`x: textX + badgeIndent`, `width: baseTextWidth - badgeIndent`) while `Show Cue Group` context lines remain aligned to the column's left edge (`textX`).
-  - Attached the localized unavailable tooltip (`"table.cue_state.unavailable"`) to the left-side `Unavailable` badge rect and invalidated cached row geometry when column header localization changes.
+  - Placed the `question-mark` (`18px`) icon on the left side of the `Cues` column for unavailable rows, vertically centered with the first line of the primary cue, with an `8px` gap (`unavailableLeadingIndent = 26px`).
+  - Indented both primary cue text and `Show Cue Group` context lines by `unavailableLeadingIndent` (`26px`) so the left icon occupies a dedicated vertical slot and all cue lines share a flush left edge.
+  - Updated the cue state indicator hover background to use `WorkbenchRedesignColors.NS.rowSelected` (matching the File card `...` button hover color over a `rowHover` row) and kept the localized unavailable tooltip (`"table.cue_state.unavailable"`) anchored to the left icon.
 - **Unit Tests**:
   - Added and updated tests in `ExcerptDatabaseTests.swift`, `SubtitleTableRowActionMenuTests.swift`, `SubtitleTableVirtualRowTests.swift`, and `ExcerptLifecycleAndInvalidItemsTests.swift`.
 

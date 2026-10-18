@@ -2891,7 +2891,7 @@ func subtitleTableUnavailableRowsShowBlankIndexAndAvailableRowsIncrementSequenti
 
 @MainActor
 @Test
-func subtitleTableUnavailableRowPlacesBadgeOnLeftWithHangingIndentAndFullWidthExtraCues() throws {
+func subtitleTableUnavailableRowPlacesIconOnLeftAndIndentsPrimaryAndExtraCues() throws {
     let row = SubtitleTableRow(
         id: 10,
         primaryCueID: 10,
@@ -2910,7 +2910,7 @@ func subtitleTableUnavailableRowPlacesBadgeOnLeftWithHangingIndentAndFullWidthEx
     let cuesCellRect = try #require(
         fixture.coordinator.dataCellRectForTesting(row: 0, columnID: "cues")
     )
-    let badgeRect = try #require(
+    let iconRect = try #require(
         fixture.coordinator.cueStateIndicatorRectForTesting(row: 0)
     )
     let fragments = fixture.coordinator.textFragmentInfoForTesting(
@@ -2918,19 +2918,13 @@ func subtitleTableUnavailableRowPlacesBadgeOnLeftWithHangingIndentAndFullWidthEx
         columnID: "cues"
     )
     #expect(fragments.count == 2)
-    #expect(badgeRect.minX == cuesCellRect.minX + SubtitleTableCueGeometry.cellLeadingPadding)
-    #expect(badgeRect.height == SubtitleTableCueGeometry.cueUnavailableBadgeHeight)
-    #expect(badgeRect.width == SubtitleTableCueGeometry.unavailableBadgeWidth())
-    // Primary cue starts to the right of the badge (hanging indent).
-    #expect(
-        fragments[0].textBounds.minX
-            == badgeRect.maxX + SubtitleTableCueGeometry.cueUnavailableBadgeGap
-    )
-    // Extra cue line in Show Cue Group starts at the left edge of the Cues column.
-    #expect(
-        fragments[1].textBounds.minX
-            == cuesCellRect.minX + SubtitleTableCueGeometry.cellLeadingPadding
-    )
+    #expect(iconRect.minX == cuesCellRect.minX + SubtitleTableCueGeometry.cellLeadingPadding)
+    #expect(iconRect.height == SubtitleTableCueGeometry.cueUnavailableIconSize)
+    #expect(iconRect.width == SubtitleTableCueGeometry.cueUnavailableIconSize)
+    let expectedTextX = iconRect.maxX + SubtitleTableCueGeometry.cueUnavailableIconGap
+    // Both primary cue and extra cue lines in Show Cue Group align to the right of the left icon.
+    #expect(fragments[0].textBounds.minX == expectedTextX)
+    #expect(fragments[1].textBounds.minX == expectedTextX)
 }
 
 @MainActor

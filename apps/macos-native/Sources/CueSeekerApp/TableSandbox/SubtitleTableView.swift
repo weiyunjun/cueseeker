@@ -4880,39 +4880,12 @@ struct SubtitleTableView: NSViewRepresentable {
             cuesRect: CGRect,
             measurement: SubtitleTableRowMeasurement
         ) {
-            guard let rect = cueStateIndicatorRect(
-                model: model,
-                cuesRect: cuesRect,
-                measurement: measurement
-            ) else {
-                return
-            }
-            if model.cueState.isUnavailable {
-                NSGraphicsContext.saveGraphicsState()
-                NSBezierPath.clip(cuesRect)
-                let borderWidth = SubtitleTableCueGeometry.cueUnavailableBadgeBorderWidth
-                let radius = SubtitleTableCueGeometry.cueUnavailableBadgeRadius
-                let borderPath = NSBezierPath(
-                    roundedRect: rect.insetBy(dx: borderWidth / 2, dy: borderWidth / 2),
-                    xRadius: radius,
-                    yRadius: radius
-                )
-                borderPath.lineWidth = borderWidth
-                WorkbenchRedesignColors.NS.cueUnavailableBadgeBorder.setStroke()
-                borderPath.stroke()
-
-                let attributed = SubtitleTableCueGeometry.unavailableBadgeAttributedText()
-                let textSize = attributed.size()
-                let textPoint = CGPoint(
-                    x: rect.minX + max(0, (rect.width - textSize.width) / 2),
-                    y: rect.minY + max(0, (rect.height - textSize.height) / 2)
-                )
-                attributed.draw(at: textPoint)
-                NSGraphicsContext.restoreGraphicsState()
-                return
-            }
-
             guard let icon = model.cueState.icon,
+                  let rect = cueStateIndicatorRect(
+                    model: model,
+                    cuesRect: cuesRect,
+                    measurement: measurement
+                  ),
                   let image = AppIconStore.tintedImage(
                     icon,
                     size: rect.height,
@@ -4921,16 +4894,15 @@ struct SubtitleTableView: NSViewRepresentable {
             else {
                 return
             }
-            image.draw(in: rect)
             if hoveredCueStateRow == row {
-                WorkbenchRedesignColors.NS.textMuted.withAlphaComponent(0.12).setFill()
+                WorkbenchRedesignColors.NS.rowSelected.setFill()
                 NSBezierPath(
                     roundedRect: rect.insetBy(dx: -3, dy: -3),
                     xRadius: 5,
                     yRadius: 5
                 ).fill()
-                image.draw(in: rect)
             }
+            image.draw(in: rect)
         }
 
         private func cueStateIndicatorRect(
@@ -4938,25 +4910,25 @@ struct SubtitleTableView: NSViewRepresentable {
             cuesRect: CGRect,
             measurement: SubtitleTableRowMeasurement
         ) -> CGRect? {
+            guard model.cueState.icon != nil else {
+                return nil
+            }
+            let size = SubtitleTableMetrics.cueStateIndicatorSize
             if model.cueState.isUnavailable {
-                let badgeWidth = SubtitleTableCueGeometry.unavailableBadgeWidth()
-                let badgeHeight = SubtitleTableCueGeometry.cueUnavailableBadgeHeight
                 let firstLineMinY = cuesRect.minY + measurement.primaryFirstLineOffset
-                let badgeY = firstLineMinY + (SubtitleTableCueGeometry.primaryLineHeight - badgeHeight) / 2
+                let iconY = firstLineMinY + (SubtitleTableCueGeometry.primaryLineHeight - size) / 2
                 return CGRect(
                     x: cuesRect.minX + SubtitleTableCueGeometry.cellLeadingPadding,
-                    y: badgeY,
-                    width: badgeWidth,
-                    height: badgeHeight
+                    y: iconY,
+                    width: size,
+                    height: size
                 )
             }
-            guard model.cueState.icon != nil,
-                  let primary = cueTextFragments(
-                    model: model,
-                    in: cuesRect,
-                    measurement: measurement
-                  ).last
-            else {
+            guard let primary = cueTextFragments(
+                model: model,
+                in: cuesRect,
+                measurement: measurement
+            ).last else {
                 return nil
             }
             textLayout.update(
@@ -4966,7 +4938,6 @@ struct SubtitleTableView: NSViewRepresentable {
             guard let lastLine = textLayout.usedRects(at: primary.origin).last else {
                 return nil
             }
-            let size = SubtitleTableMetrics.cueStateIndicatorSize
             let proposedX = lastLine.maxX + 8
             let x = min(proposedX, cuesRect.maxX - size - 4)
             return CGRect(
@@ -5008,8 +4979,14 @@ struct SubtitleTableView: NSViewRepresentable {
             in rect: CGRect,
             model: SubtitleTableRow
         ) -> CGFloat {
-            let indicatorReservation: CGFloat =
-                model.cueState.icon == nil ? 0 : 22
+            let indicatorReservation: CGFloat
+            if model.cueState.isUnavailable {
+                indicatorReservation = SubtitleTableCueGeometry.unavailableLeadingIndent
+            } else if model.cueState.icon != nil {
+                indicatorReservation = 22
+            } else {
+                indicatorReservation = 0
+            }
             return max(
                 1,
                 rect.width
@@ -5027,11 +5004,11 @@ struct SubtitleTableView: NSViewRepresentable {
             extraColor: NSColor = WorkbenchRedesignColors.NS.textSecondary
         ) -> [SubtitleTableTextFragmentLayout] {
             let extraTexts = showsCueGroup ? model.additionalCueTexts : []
-            let textX = rect.minX + SubtitleTableCueGeometry.cellLeadingPadding
-            let baseTextWidth = cuesTextWidth(in: rect, model: model)
-            let badgeIndent = model.cueState.isUnavailable
-                ? SubtitleTableCueGeometry.unavailableBadgeLeadingIndent()
+            let leadingIndent = model.cueState.isUnavailable
+                ? SubtitleTableCueGeometry.unavailableLeadingIndent
                 : 0
+            let textX = rect.minX + SubtitleTableCueGeometry.cellLeadingPadding + leadingIndent
+            let textWidth = cuesTextWidth(in: rect, model: model)
             var fragments = [SubtitleTableTextFragmentLayout]()
             fragments.reserveCapacity(extraTexts.count + 1)
 
@@ -5044,10 +5021,10 @@ struct SubtitleTableView: NSViewRepresentable {
                     foregroundColor: primaryColor
                 ),
                 origin: CGPoint(
-                    x: textX + badgeIndent,
+                    x: textX,
                     y: rect.minY + measurement.primaryFirstLineOffset
                 ),
-                width: max(1, baseTextWidth - badgeIndent),
+                width: textWidth,
                 clipRect: rect,
                 logicalUTF16Range: NSRange(location: 0, length: primaryLength)
             ))
@@ -5066,7 +5043,7 @@ struct SubtitleTableView: NSViewRepresentable {
                             x: textX,
                             y: rect.minY + measurement.extraCueOffsets[index]
                         ),
-                        width: baseTextWidth,
+                        width: textWidth,
                         clipRect: rect,
                         logicalUTF16Range: NSRange(location: logicalOffset, length: length)
                     ))
@@ -5126,10 +5103,10 @@ struct SubtitleTableView: NSViewRepresentable {
             measurement: SubtitleTableRowMeasurement
         ) -> CGRect? {
             let textWidth = cuesTextWidth(in: rect, model: model)
-            let textX = rect.minX + SubtitleTableCueGeometry.cellLeadingPadding
-            let badgeIndent = model.cueState.isUnavailable
-                ? SubtitleTableCueGeometry.unavailableBadgeLeadingIndent()
+            let leadingIndent = model.cueState.isUnavailable
+                ? SubtitleTableCueGeometry.unavailableLeadingIndent
                 : 0
+            let textX = rect.minX + SubtitleTableCueGeometry.cellLeadingPadding + leadingIndent
             var usedRects = [CGRect]()
             for (extraText, offset) in zip(
                 showsCueGroup ? model.additionalCueTexts : [],
@@ -5154,10 +5131,10 @@ struct SubtitleTableView: NSViewRepresentable {
                     style: .primary,
                     foregroundColor: WorkbenchRedesignColors.NS.textPrimary
                 ),
-                width: max(1, textWidth - badgeIndent)
+                width: textWidth
             )
             usedRects.append(contentsOf: textLayout.usedRects(at: CGPoint(
-                x: textX + badgeIndent,
+                x: textX,
                 y: rect.minY + measurement.primaryFirstLineOffset
             )))
             return contentHoverRect(rects: usedRects, clippedTo: rect)
@@ -5414,10 +5391,11 @@ struct SubtitleTableView: NSViewRepresentable {
                     tagStyle: tagStyle
                 ))
             }
+            let trailingIndicatorReservation: CGFloat =
+                (!model.cueState.isUnavailable && model.cueState.icon != nil) ? 22 : 0
             let measuredCuesWidth = max(
                 1,
-                effectiveCuesWidth
-                    - (model.cueState.icon == nil ? 0 : 22)
+                effectiveCuesWidth - trailingIndicatorReservation
             )
             return cueTextMeasurer.rowMeasurement(
                 row: model,
@@ -6263,9 +6241,6 @@ struct SubtitleTableView: NSViewRepresentable {
         ) -> Bool {
             guard let rect = cueStateIndicatorRectInDocument(row: row) else {
                 return false
-            }
-            if rowProvider(row)?.cueState.isUnavailable == true {
-                return rect.contains(point)
             }
             return rect.insetBy(dx: -3, dy: -3).contains(point)
         }

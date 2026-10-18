@@ -15,10 +15,12 @@ enum SubtitleTableCueState: Equatable {
 
     var icon: AppIcon? {
         switch self {
-        case .normal, .unavailable:
+        case .normal:
             nil
         case .contentChanged:
             .clockCounterClockwise
+        case .unavailable:
+            .questionMark
         }
     }
 
