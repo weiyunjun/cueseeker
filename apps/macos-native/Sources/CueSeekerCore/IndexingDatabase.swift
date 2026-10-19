@@ -2453,6 +2453,8 @@ public final class IndexingDatabase: @unchecked Sendable {
                 end_time,
                 start_ms,
                 end_ms,
+                duration_ms,
+                character_width,
                 content,
                 cue_group_content,
                 display_title,
@@ -2471,6 +2473,8 @@ public final class IndexingDatabase: @unchecked Sendable {
                    l.end_time,
                    l.start_ms,
                    l.end_ms,
+                   l.duration_ms,
+                   l.character_width,
                    l.content,
                    COALESCE(
                      (
@@ -2509,6 +2513,8 @@ public final class IndexingDatabase: @unchecked Sendable {
                 end_time = excluded.end_time,
                 start_ms = excluded.start_ms,
                 end_ms = excluded.end_ms,
+                duration_ms = excluded.duration_ms,
+                character_width = excluded.character_width,
                 content = excluded.content,
                 cue_group_content = excluded.cue_group_content,
                 display_title = excluded.display_title,
@@ -2752,13 +2758,15 @@ public final class IndexingDatabase: @unchecked Sendable {
                 end_time,
                 start_ms,
                 end_ms,
+                duration_ms,
+                character_width,
                 content,
                 display_x,
                 display_y,
                 display_order,
                 language_mask
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
             """
         )
 
@@ -2787,19 +2795,21 @@ public final class IndexingDatabase: @unchecked Sendable {
         try statement.bind(line.endTimecode, at: 11)
         try statement.bind(line.startMilliseconds, at: 12)
         try statement.bind(line.endMilliseconds, at: 13)
-        try statement.bind(line.content, at: 14)
+        try statement.bind(line.durationMilliseconds, at: 14)
+        try statement.bind(line.characterWidth, at: 15)
+        try statement.bind(line.content, at: 16)
         if let displayX = line.displayX {
-            try statement.bind(displayX, at: 15)
+            try statement.bind(displayX, at: 17)
         } else {
-            try statement.bindNull(at: 15)
+            try statement.bindNull(at: 17)
         }
         if let displayY = line.displayY {
-            try statement.bind(displayY, at: 16)
+            try statement.bind(displayY, at: 18)
         } else {
-            try statement.bindNull(at: 16)
+            try statement.bindNull(at: 18)
         }
-        try statement.bind(line.displayOrder, at: 17)
-        try statement.bind(languageMask, at: 18)
+        try statement.bind(line.displayOrder, at: 19)
+        try statement.bind(languageMask, at: 20)
         try statement.run()
         return cueID ?? database.lastInsertRowID()
     }
@@ -3095,7 +3105,7 @@ public final class IndexingDatabase: @unchecked Sendable {
             """
             SELECT event_index, source_format, source_style, source_layer,
                    source_identity_remainder, start_time, end_time,
-                   start_ms, end_ms, content,
+                   start_ms, end_ms, duration_ms, character_width, content,
                    display_x, display_y, display_order
             FROM subtitle_cue_lines
             WHERE cue_group_id = ?
@@ -3118,10 +3128,12 @@ public final class IndexingDatabase: @unchecked Sendable {
                     endTimecode: statement.stringColumn(6),
                     startMilliseconds: statement.intColumn(7),
                     endMilliseconds: statement.intColumn(8),
-                    content: statement.stringColumn(9),
-                    displayX: statement.nullableDoubleColumn(10),
-                    displayY: statement.nullableDoubleColumn(11),
-                    displayOrder: statement.intColumn(12)
+                    durationMilliseconds: statement.intColumn(9),
+                    characterWidth: statement.intColumn(10),
+                    content: statement.stringColumn(11),
+                    displayX: statement.nullableDoubleColumn(12),
+                    displayY: statement.nullableDoubleColumn(13),
+                    displayOrder: statement.intColumn(14)
                 )
             )
         }
@@ -3140,7 +3152,7 @@ public final class IndexingDatabase: @unchecked Sendable {
             """
             SELECT cue_group_id, event_index, source_format, source_style, source_layer,
                    source_identity_remainder, start_time, end_time,
-                   start_ms, end_ms, content,
+                   start_ms, end_ms, duration_ms, character_width, content,
                    display_x, display_y, display_order
             FROM subtitle_cue_lines
             WHERE cue_group_id IN (\(placeholders))
@@ -3166,10 +3178,12 @@ public final class IndexingDatabase: @unchecked Sendable {
                 endTimecode: statement.stringColumn(7),
                 startMilliseconds: statement.intColumn(8),
                 endMilliseconds: statement.intColumn(9),
-                content: statement.stringColumn(10),
-                displayX: statement.nullableDoubleColumn(11),
-                displayY: statement.nullableDoubleColumn(12),
-                displayOrder: statement.intColumn(13)
+                durationMilliseconds: statement.intColumn(10),
+                characterWidth: statement.intColumn(11),
+                content: statement.stringColumn(12),
+                displayX: statement.nullableDoubleColumn(13),
+                displayY: statement.nullableDoubleColumn(14),
+                displayOrder: statement.intColumn(15)
             )
             linesByCueGroupID[cueGroupID, default: []].append(line)
         }

@@ -169,6 +169,8 @@ public struct Excerpt: Equatable, Sendable, Identifiable {
     public let timeRange: String
     public let startMilliseconds: Int
     public let endMilliseconds: Int
+    public let durationMilliseconds: Int
+    public let characterWidth: Int
     public let cueEventIndex: Int?
     public let cueDisplayOrder: Int?
     public let content: String
@@ -189,6 +191,8 @@ public struct Excerpt: Equatable, Sendable, Identifiable {
         timeRange: String = "",
         startMilliseconds: Int,
         endMilliseconds: Int,
+        durationMilliseconds: Int? = nil,
+        characterWidth: Int? = nil,
         cueEventIndex: Int? = nil,
         cueDisplayOrder: Int? = nil,
         content: String,
@@ -217,6 +221,8 @@ public struct Excerpt: Equatable, Sendable, Identifiable {
             : timeRange
         self.startMilliseconds = startMilliseconds
         self.endMilliseconds = endMilliseconds
+        self.durationMilliseconds = max(0, durationMilliseconds ?? (endMilliseconds - startMilliseconds))
+        self.characterWidth = max(0, characterWidth ?? CueCharacterFacet.characterWidth(of: content))
         self.cueEventIndex = cueEventIndex
         self.cueDisplayOrder = cueDisplayOrder
         self.content = content
@@ -239,6 +245,8 @@ public struct Excerpt: Equatable, Sendable, Identifiable {
             timeRange: cueContent.timeRange,
             startMilliseconds: cueContent.startMilliseconds,
             endMilliseconds: cueContent.endMilliseconds,
+            durationMilliseconds: cueContent.durationMilliseconds,
+            characterWidth: cueContent.characterWidth,
             cueEventIndex: cueContent.cueEventIndex,
             cueDisplayOrder: cueContent.cueDisplayOrder,
             content: cueContent.content,

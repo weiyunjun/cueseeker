@@ -160,11 +160,11 @@ enum CueFacetCountCache {
             INSERT INTO cue_facet_counts(facet, value, cue_count)
             SELECT '\(durationFacet)',
                    CASE
-                       WHEN l.end_ms - l.start_ms < 1000
+                       WHEN l.duration_ms < 1000
                            THEN '\(CueDurationFacet.underOneSecond.rawValue)'
-                       WHEN l.end_ms - l.start_ms < 3000
+                       WHEN l.duration_ms < 3000
                            THEN '\(CueDurationFacet.oneToUnderThreeSeconds.rawValue)'
-                       WHEN l.end_ms - l.start_ms < 5000
+                       WHEN l.duration_ms < 5000
                            THEN '\(CueDurationFacet.threeToUnderFiveSeconds.rawValue)'
                        ELSE '\(CueDurationFacet.fiveSecondsOrMore.rawValue)'
                    END,
@@ -189,11 +189,11 @@ enum CueFacetCountCache {
             INSERT INTO cue_facet_counts(facet, value, cue_count)
             SELECT '\(characterFacet)',
                    CASE
-                       WHEN cue_character_width(l.content) <= 10
+                       WHEN l.character_width <= 10
                            THEN '\(CueCharacterFacet.oneToTen.rawValue)'
-                       WHEN cue_character_width(l.content) <= 20
+                       WHEN l.character_width <= 20
                            THEN '\(CueCharacterFacet.elevenToTwenty.rawValue)'
-                       WHEN cue_character_width(l.content) <= 30
+                       WHEN l.character_width <= 30
                            THEN '\(CueCharacterFacet.twentyOneToThirty.rawValue)'
                        ELSE '\(CueCharacterFacet.thirtyOneOrMore.rawValue)'
                    END,

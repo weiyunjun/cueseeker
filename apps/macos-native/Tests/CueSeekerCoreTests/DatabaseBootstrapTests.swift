@@ -1243,3 +1243,64 @@ func migratesSchema56ByCreatingVideoTombstonesTable() throws {
         ]
     )
 }
+
+@Test
+func migratesSchema57ByBackfillingCueLineAndTombstoneDurationAndCharacterWidth() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        removeTemporaryDatabase(at: databaseURL)
+    }
+
+    try DatabaseBootstrap.prepare(at: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
+    try database.replaceEntries(
+        subtitleFile: URL(fileURLWithPath: "/Media/Show/Episode.srt"),
+        videoFile: URL(fileURLWithPath: "/Media/Show/Episode.mkv"),
+        entries: [
+            SubtitleEntry(
+                sequenceNumber: 1,
+                startTimecode: "00:00:01,000",
+                endTimecode: "00:00:03,500",
+                startMilliseconds: 1_000,
+                endMilliseconds: 3_500,
+                text: "  汉字六个字数  "
+            )
+        ]
+    )
+    try executeDatabaseTestSQLite(
+        at: databaseURL,
+        """
+        DROP INDEX IF EXISTS idx_subtitle_cue_lines_fts_covering;
+        ALTER TABLE subtitle_cue_lines DROP COLUMN duration_ms;
+        ALTER TABLE subtitle_cue_lines DROP COLUMN character_width;
+        ALTER TABLE cue_tombstones DROP COLUMN duration_ms;
+        ALTER TABLE cue_tombstones DROP COLUMN character_width;
+        CREATE INDEX idx_subtitle_cue_lines_fts_covering
+            ON subtitle_cue_lines(fts_rowid, display_order, event_index, id, cue_group_id, start_ms, end_ms, language_mask, content);
+        DELETE FROM cue_facet_counts;
+        PRAGMA user_version = 57;
+        """
+    )
+
+    try DatabaseBootstrap.prepare(at: databaseURL)
+
+    #expect(try sqliteSchemaVersion(at: databaseURL) == DatabaseBootstrap.currentSchemaVersion)
+    let lineColumns = try sqliteColumnNames(in: "subtitle_cue_lines", databaseURL: databaseURL)
+    #expect(lineColumns.contains("duration_ms"))
+    #expect(lineColumns.contains("character_width"))
+    let tombstoneColumns = try sqliteColumnNames(in: "cue_tombstones", databaseURL: databaseURL)
+    #expect(tombstoneColumns.contains("duration_ms"))
+    #expect(tombstoneColumns.contains("character_width"))
+
+    let searchDatabase = try SearchDatabase(path: databaseURL)
+    let page = try searchDatabase.searchPage("汉字", limit: 10)
+    #expect(page.totalCount == 1)
+    #expect(page.results.first?.durationMilliseconds == 2_500)
+    #expect(page.results.first?.characterWidth == 12)
+    #expect(page.facetSnapshot?.characterWidths == [12])
+
+    let distribution = try searchDatabase.cueFacetDistribution()
+    #expect(distribution.durationCounts == [.oneToUnderThreeSeconds: 1])
+    #expect(distribution.characterCounts == [.elevenToTwenty: 1])
+}
+

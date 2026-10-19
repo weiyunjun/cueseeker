@@ -55,6 +55,8 @@ public final class CueContentDatabase: @unchecked Sendable {
                 timeRange: candidate.timeRange,
                 startMilliseconds: cueRecord.line.startMilliseconds,
                 endMilliseconds: cueRecord.line.endMilliseconds,
+                durationMilliseconds: cueRecord.line.durationMilliseconds,
+                characterWidth: cueRecord.line.characterWidth,
                 content: cueRecord.line.content,
                 cueLines: [cueRecord.line.content],
                 cueGroupLines: groupRecords.map(\.line.content),
@@ -116,7 +118,8 @@ public final class CueContentDatabase: @unchecked Sendable {
             """
             SELECT l.id, l.cue_group_id, l.event_index, l.source_format,
                    l.source_style, l.source_layer, l.start_time, l.end_time,
-                   l.start_ms, l.end_ms, l.content, l.display_x, l.display_y,
+                   l.start_ms, l.end_ms, l.duration_ms, l.character_width,
+                   l.content, l.display_x, l.display_y,
                    l.display_order
             FROM subtitle_cue_lines l
             WHERE \(whereColumn) IN (\(placeholders))
@@ -140,10 +143,12 @@ public final class CueContentDatabase: @unchecked Sendable {
                     endTimecode: statement.stringColumn(7),
                     startMilliseconds: statement.intColumn(8),
                     endMilliseconds: statement.intColumn(9),
-                    content: statement.stringColumn(10),
-                    displayX: statement.nullableDoubleColumn(11),
-                    displayY: statement.nullableDoubleColumn(12),
-                    displayOrder: statement.intColumn(13)
+                    durationMilliseconds: statement.intColumn(10),
+                    characterWidth: statement.intColumn(11),
+                    content: statement.stringColumn(12),
+                    displayX: statement.nullableDoubleColumn(13),
+                    displayY: statement.nullableDoubleColumn(14),
+                    displayOrder: statement.intColumn(15)
                 )
             ))
         }

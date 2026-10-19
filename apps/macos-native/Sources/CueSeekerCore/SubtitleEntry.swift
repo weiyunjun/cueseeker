@@ -95,6 +95,8 @@ public struct SubtitleCueLine: Equatable, Sendable {
     public let endTimecode: String
     public let startMilliseconds: Int
     public let endMilliseconds: Int
+    public let durationMilliseconds: Int
+    public let characterWidth: Int
     public let content: String
     public let displayX: Double?
     public let displayY: Double?
@@ -110,6 +112,8 @@ public struct SubtitleCueLine: Equatable, Sendable {
         endTimecode: String,
         startMilliseconds: Int,
         endMilliseconds: Int,
+        durationMilliseconds: Int? = nil,
+        characterWidth: Int? = nil,
         content: String,
         displayX: Double?,
         displayY: Double?,
@@ -124,6 +128,8 @@ public struct SubtitleCueLine: Equatable, Sendable {
         self.endTimecode = endTimecode
         self.startMilliseconds = startMilliseconds
         self.endMilliseconds = endMilliseconds
+        self.durationMilliseconds = max(0, durationMilliseconds ?? (endMilliseconds - startMilliseconds))
+        self.characterWidth = max(0, characterWidth ?? CueCharacterFacet.characterWidth(of: content))
         self.content = content
         self.displayX = displayX
         self.displayY = displayY
@@ -154,6 +160,43 @@ public struct SubtitleCueLine: Equatable, Sendable {
             endTimecode: endTimecode,
             startMilliseconds: startMilliseconds,
             endMilliseconds: endMilliseconds,
+            durationMilliseconds: nil,
+            characterWidth: nil,
+            content: content,
+            displayX: displayX,
+            displayY: displayY,
+            displayOrder: displayOrder
+        )
+    }
+
+    public init(
+        eventIndex: Int,
+        sourceFormat: SubtitleFormat,
+        sourceStyle: String?,
+        sourceLayer: Int?,
+        startTimecode: String,
+        endTimecode: String,
+        startMilliseconds: Int,
+        endMilliseconds: Int,
+        durationMilliseconds: Int?,
+        characterWidth: Int?,
+        content: String,
+        displayX: Double?,
+        displayY: Double?,
+        displayOrder: Int
+    ) {
+        self.init(
+            eventIndex: eventIndex,
+            sourceFormat: sourceFormat,
+            sourceStyle: sourceStyle,
+            sourceLayer: sourceLayer,
+            sourceIdentityRemainder: "",
+            startTimecode: startTimecode,
+            endTimecode: endTimecode,
+            startMilliseconds: startMilliseconds,
+            endMilliseconds: endMilliseconds,
+            durationMilliseconds: durationMilliseconds,
+            characterWidth: characterWidth,
             content: content,
             displayX: displayX,
             displayY: displayY,

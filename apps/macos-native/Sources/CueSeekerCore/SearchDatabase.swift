@@ -205,7 +205,8 @@ public final class SearchDatabase: @unchecked Sendable {
                    sor.subtitle_file_name, sor.display_title, sor.folder_order, sor.file_order,
                    l.id, l.cue_group_id, l.event_index, l.source_format,
                    l.source_style, l.source_layer, l.start_time, l.end_time,
-                   l.start_ms, l.end_ms, l.content, l.display_x, l.display_y,
+                   l.start_ms, l.end_ms, l.duration_ms, l.character_width,
+                   l.content, l.display_x, l.display_y,
                    l.display_order,
                    (
                        SELECT GROUP_CONCAT(cll.language_code)
@@ -235,7 +236,7 @@ public final class SearchDatabase: @unchecked Sendable {
             let candidate = searchCandidate(from: statement)
             let cueLineRecord = cueLineRecord(from: statement, startingAt: 15)
             let displayLanguages = Self.languageValues(
-                from: statement.nullableStringColumn(29)
+                from: statement.nullableStringColumn(31)
             )
             guard filterSet.isEffectivelyEmpty || filterSet.matches(
                 display: candidate.order.displayTitle,
@@ -728,13 +729,9 @@ public final class SearchDatabase: @unchecked Sendable {
                     let folderPath = fileMetadata.folderPath
                     for result in orderedMatches {
                         let durationFacet = CueDurationFacet(
-                            durationMilliseconds:
-                                result.result.endMilliseconds
-                                - result.result.startMilliseconds
+                            durationMilliseconds: result.result.durationMilliseconds
                         )
-                        let characterWidth = CueCharacterFacet.characterWidth(
-                            of: result.result.content
-                        )
+                        let characterWidth = result.result.characterWidth
                         let characterFacet = CueCharacterFacet(
                             characterCount: characterWidth
                         )
@@ -1267,6 +1264,8 @@ public final class SearchDatabase: @unchecked Sendable {
         let displayOrder: Int
         let startMilliseconds: Int
         let endMilliseconds: Int
+        let durationMilliseconds: Int
+        let characterWidth: Int
         let languageMask: Int
         let content: String
     }
@@ -1440,6 +1439,8 @@ public final class SearchDatabase: @unchecked Sendable {
                         displayTitle: fileMetadata.order.displayTitle,
                         startMilliseconds: record.startMilliseconds,
                         endMilliseconds: record.endMilliseconds,
+                        durationMilliseconds: record.durationMilliseconds,
+                        characterWidth: record.characterWidth,
                         content: record.content,
                         cueLines: singleLineArray,
                         cueGroupLines: cueGroupLines,
@@ -1472,6 +1473,8 @@ public final class SearchDatabase: @unchecked Sendable {
                 displayTitle: candidate.order.displayTitle,
                 startMilliseconds: cue.line.startMilliseconds,
                 endMilliseconds: cue.line.endMilliseconds,
+                durationMilliseconds: cue.line.durationMilliseconds,
+                characterWidth: cue.line.characterWidth,
                 content: cue.line.content,
                 cueLines: [cue.line.content],
                 cueGroupLines: match.cueGroupLines,
@@ -1721,7 +1724,8 @@ public final class SearchDatabase: @unchecked Sendable {
             """
             SELECT l.id, l.cue_group_id, l.event_index, l.source_format,
                    l.source_style, l.source_layer, l.start_time, l.end_time,
-                   l.start_ms, l.end_ms, l.content, l.display_x, l.display_y,
+                   l.start_ms, l.end_ms, l.duration_ms, l.character_width,
+                   l.content, l.display_x, l.display_y,
                    l.display_order
             FROM subtitle_cue_lines l
             WHERE l.cue_group_id IN (\(placeholders))
@@ -1753,7 +1757,8 @@ public final class SearchDatabase: @unchecked Sendable {
             """
             SELECT l.id, l.cue_group_id, l.event_index, l.source_format,
                    l.source_style, l.source_layer, l.start_time, l.end_time,
-                   l.start_ms, l.end_ms, l.content, l.display_x, l.display_y,
+                   l.start_ms, l.end_ms, l.duration_ms, l.character_width,
+                   l.content, l.display_x, l.display_y,
                    l.display_order
             FROM subtitle_cue_lines l
             WHERE l.id IN (\(placeholders));
@@ -1973,7 +1978,7 @@ public final class SearchDatabase: @unchecked Sendable {
         let placeholders = sortedRowIDs.map { _ in "?" }.joined(separator: ", ")
         let statement = try database.prepare(
             """
-            SELECT fts_rowid, display_order, event_index, id, cue_group_id, start_ms, end_ms, language_mask, content
+            SELECT fts_rowid, display_order, event_index, id, cue_group_id, start_ms, end_ms, duration_ms, character_width, language_mask, content
             FROM subtitle_cue_lines INDEXED BY idx_subtitle_cue_lines_fts_covering
             WHERE fts_rowid IN (\(placeholders))
             ORDER BY fts_rowid ASC, display_order ASC, event_index ASC, id ASC;
@@ -2012,8 +2017,10 @@ public final class SearchDatabase: @unchecked Sendable {
                     displayOrder: statement.intColumn(1),
                     startMilliseconds: statement.intColumn(5),
                     endMilliseconds: statement.intColumn(6),
-                    languageMask: statement.intColumn(7),
-                    content: statement.stringColumn(8)
+                    durationMilliseconds: statement.intColumn(7),
+                    characterWidth: statement.intColumn(8),
+                    languageMask: statement.intColumn(9),
+                    content: statement.stringColumn(10)
                 )
             )
         }
@@ -2076,10 +2083,12 @@ public final class SearchDatabase: @unchecked Sendable {
                 endTimecode: statement.stringColumn(columnOffset + 7),
                 startMilliseconds: statement.intColumn(columnOffset + 8),
                 endMilliseconds: statement.intColumn(columnOffset + 9),
-                content: statement.stringColumn(columnOffset + 10),
-                displayX: statement.nullableDoubleColumn(columnOffset + 11),
-                displayY: statement.nullableDoubleColumn(columnOffset + 12),
-                displayOrder: statement.intColumn(columnOffset + 13)
+                durationMilliseconds: statement.intColumn(columnOffset + 10),
+                characterWidth: statement.intColumn(columnOffset + 11),
+                content: statement.stringColumn(columnOffset + 12),
+                displayX: statement.nullableDoubleColumn(columnOffset + 13),
+                displayY: statement.nullableDoubleColumn(columnOffset + 14),
+                displayOrder: statement.intColumn(columnOffset + 15)
             )
         )
     }

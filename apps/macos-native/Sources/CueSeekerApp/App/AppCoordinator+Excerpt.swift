@@ -762,10 +762,9 @@ extension AppCoordinator {
             }.map(\.element)
         case .mostCharacters, .fewestCharacters:
             let widths = relations.map { relation -> Int in
-                let cueText = cueContent.content(for: relation.cueID)?.content
-                    ?? excerpt.residentExcerptsByID[relation.id]?.content
-                    ?? ""
-                return CueCharacterFacet.characterWidth(of: cueText)
+                cueContent.content(for: relation.cueID)?.characterWidth
+                    ?? excerpt.residentExcerptsByID[relation.id]?.characterWidth
+                    ?? 0
             }
             sortedRelations = relations.indices.sorted { lhs, rhs in
                 if widths[lhs] != widths[rhs] {

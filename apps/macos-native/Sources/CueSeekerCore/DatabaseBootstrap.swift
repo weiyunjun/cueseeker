@@ -12,7 +12,7 @@ public enum DatabaseBootstrapError: Error, Equatable, CustomStringConvertible {
 }
 
 public enum DatabaseBootstrap {
-    public static let currentSchemaVersion = 57
+    public static let currentSchemaVersion = 58
 
     public static func prepare(at path: URL) throws {
         let database = try SQLiteDatabase(path: path, access: .readWrite)
@@ -69,6 +69,7 @@ private extension DatabaseBootstrap {
                 || previousVersion == 54
                 || previousVersion == 55
                 || previousVersion == 56
+                || previousVersion == 57
                 || previousVersion == DatabaseBootstrap.currentSchemaVersion
         else {
             throw DatabaseBootstrapError.unsupportedSchemaVersion(
@@ -86,10 +87,14 @@ private extension DatabaseBootstrap {
             try migrateSchema35To36(on: database)
         }
         // Earlier migrations rebuild the facet counts, which read the cue line
-        // language table from schema 49 on, so the table exists before any of
-        // them runs; schema 49 fills it.
+        // language table from schema 49 on and the precomputed duration and
+        // character width columns from schema 58 on, so they exist before any
+        // of them runs; schema 49 and schema 58 fill them.
         if previousVersion >= 33, previousVersion <= 48 {
             try database.execute(cueLineLanguagesTableSQL)
+        }
+        if previousVersion >= 33, previousVersion <= 55 {
+            try ensureCueLinePrecomputedAttributeColumns(on: database)
         }
         if previousVersion == 33
             || previousVersion == 34
@@ -189,6 +194,9 @@ private extension DatabaseBootstrap {
         }
         if previousVersion >= 33, previousVersion <= 56 {
             try migrateSchema56To57(on: database)
+        }
+        if previousVersion >= 33, previousVersion <= 57 {
+            try migrateSchema57To58(on: database)
             return
         }
         guard previousVersion == 0 else {
@@ -350,6 +358,8 @@ private extension DatabaseBootstrap {
                 end_time TEXT NOT NULL,
                 start_ms INTEGER NOT NULL,
                 end_ms INTEGER NOT NULL,
+                duration_ms INTEGER NOT NULL DEFAULT 0,
+                character_width INTEGER NOT NULL DEFAULT 0,
                 content TEXT NOT NULL,
                 display_x REAL,
                 display_y REAL,
@@ -368,6 +378,8 @@ private extension DatabaseBootstrap {
                 end_time TEXT NOT NULL,
                 start_ms INTEGER NOT NULL,
                 end_ms INTEGER NOT NULL,
+                duration_ms INTEGER NOT NULL DEFAULT 0,
+                character_width INTEGER NOT NULL DEFAULT 0,
                 content TEXT NOT NULL,
                 cue_group_content TEXT NOT NULL,
                 display_title TEXT NOT NULL,
@@ -415,7 +427,7 @@ private extension DatabaseBootstrap {
                 ON subtitle_cue_lines(cue_group_id, display_order, event_index);
 
             CREATE INDEX IF NOT EXISTS idx_subtitle_cue_lines_fts_covering
-                ON subtitle_cue_lines(fts_rowid, display_order, event_index, id, cue_group_id, start_ms, end_ms, language_mask, content);
+                ON subtitle_cue_lines(fts_rowid, display_order, event_index, id, cue_group_id, start_ms, end_ms, duration_ms, character_width, language_mask, content);
 
             CREATE INDEX IF NOT EXISTS idx_subtitle_playback_finish_metadata_path
                 ON subtitle_playback_finish_metadata(subtitle_path);
@@ -993,6 +1005,94 @@ private extension DatabaseBootstrap {
                 PRAGMA user_version = 57;
                 """
             )
+        }
+    }
+
+    static func ensureCueLinePrecomputedAttributeColumns(on database: SQLiteDatabase) throws {
+        let lineColumns = try columnNames(of: "subtitle_cue_lines", in: database)
+        guard !lineColumns.isEmpty else {
+            return
+        }
+        if !lineColumns.contains("duration_ms") {
+            try database.execute(
+                "ALTER TABLE subtitle_cue_lines ADD COLUMN duration_ms INTEGER NOT NULL DEFAULT 0;"
+            )
+        }
+        if !lineColumns.contains("character_width") {
+            try database.execute(
+                "ALTER TABLE subtitle_cue_lines ADD COLUMN character_width INTEGER NOT NULL DEFAULT 0;"
+            )
+        }
+    }
+
+    /// Schema 58 precomputes and persists each cue's duration (`duration_ms`) and
+    /// trimmed East Asian character width (`character_width`) on `subtitle_cue_lines`
+    /// and `cue_tombstones`, includes both in `idx_subtitle_cue_lines_fts_covering`,
+    /// and rebuilds the cached facet counts from those columns.
+    static func migrateSchema57To58(on database: SQLiteDatabase) throws {
+        try database.withImmediateTransaction {
+            try ensureCueLinePrecomputedAttributeColumns(on: database)
+            let lineColumns = try columnNames(of: "subtitle_cue_lines", in: database)
+            if lineColumns.isSuperset(of: ["start_ms", "end_ms", "content", "duration_ms", "character_width"]) {
+                try database.execute(
+                    """
+                    UPDATE subtitle_cue_lines
+                    SET duration_ms = MAX(0, end_ms - start_ms),
+                        character_width = cue_character_width(content);
+                    """
+                )
+            }
+            let coveringColumns: Set<String> = [
+                "fts_rowid", "display_order", "event_index", "id", "cue_group_id",
+                "start_ms", "end_ms", "duration_ms", "character_width", "language_mask", "content"
+            ]
+            if lineColumns.isSuperset(of: coveringColumns) {
+                try database.execute(
+                    """
+                    DROP INDEX IF EXISTS idx_subtitle_cue_lines_fts_covering;
+                    CREATE TABLE _migration_freelist_hold (b BLOB);
+                    INSERT INTO _migration_freelist_hold(b)
+                    SELECT zeroblob(freelist_count * 4096)
+                    FROM pragma_freelist_count()
+                    WHERE freelist_count > 0;
+                    CREATE INDEX IF NOT EXISTS idx_subtitle_cue_lines_fts_covering
+                        ON subtitle_cue_lines(fts_rowid, display_order, event_index, id, cue_group_id, start_ms, end_ms, duration_ms, character_width, language_mask, content);
+                    DROP TABLE _migration_freelist_hold;
+                    """
+                )
+            }
+
+            let tombstoneColumns = try columnNames(of: "cue_tombstones", in: database)
+            if !tombstoneColumns.isEmpty {
+                if !tombstoneColumns.contains("duration_ms") {
+                    try database.execute(
+                        "ALTER TABLE cue_tombstones ADD COLUMN duration_ms INTEGER NOT NULL DEFAULT 0;"
+                    )
+                }
+                if !tombstoneColumns.contains("character_width") {
+                    try database.execute(
+                        "ALTER TABLE cue_tombstones ADD COLUMN character_width INTEGER NOT NULL DEFAULT 0;"
+                    )
+                }
+                let updatedTombstoneColumns = try columnNames(of: "cue_tombstones", in: database)
+                if updatedTombstoneColumns.isSuperset(of: ["start_ms", "end_ms", "content", "duration_ms", "character_width"]) {
+                    try database.execute(
+                        """
+                        UPDATE cue_tombstones
+                        SET duration_ms = MAX(0, end_ms - start_ms),
+                            character_width = cue_character_width(content);
+                        """
+                    )
+                }
+            }
+
+            let indexedContent = try database.prepare(
+                "SELECT 1 FROM sqlite_schema WHERE type = 'table' AND name = 'subtitle_video_matches';"
+            )
+            if try indexedContent.step(), !lineColumns.isEmpty {
+                try CueFacetCountCache.rebuildAll(on: database)
+            }
+            try database.execute("PRAGMA user_version = 58;")
         }
     }
 

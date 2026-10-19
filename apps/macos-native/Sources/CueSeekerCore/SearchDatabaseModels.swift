@@ -15,6 +15,8 @@ public struct CueContent: Equatable, Sendable, Identifiable {
     public let timeRange: String
     public let startMilliseconds: Int
     public let endMilliseconds: Int
+    public let durationMilliseconds: Int
+    public let characterWidth: Int
     public let content: String
     public let cueLines: [String]
     public let cueGroupLines: [String]
@@ -37,6 +39,8 @@ public struct CueContent: Equatable, Sendable, Identifiable {
         timeRange: String,
         startMilliseconds: Int,
         endMilliseconds: Int,
+        durationMilliseconds: Int? = nil,
+        characterWidth: Int? = nil,
         content: String,
         cueLines: [String],
         cueGroupLines: [String],
@@ -61,6 +65,8 @@ public struct CueContent: Equatable, Sendable, Identifiable {
             : timeRange
         self.startMilliseconds = startMilliseconds
         self.endMilliseconds = endMilliseconds
+        self.durationMilliseconds = max(0, durationMilliseconds ?? (endMilliseconds - startMilliseconds))
+        self.characterWidth = max(0, characterWidth ?? CueCharacterFacet.characterWidth(of: content))
         self.content = content
         self.cueLines = cueLines
         self.cueGroupLines = cueGroupLines.isEmpty ? [content] : cueGroupLines
@@ -83,6 +89,8 @@ public struct SubtitleSearchResult: Equatable, Sendable {
     public let timeRange: String
     public let startMilliseconds: Int
     public let endMilliseconds: Int
+    public let durationMilliseconds: Int
+    public let characterWidth: Int
     public let content: String
     public let cueLines: [String]
     public let cueGroupLines: [String]
@@ -112,6 +120,8 @@ public struct SubtitleSearchResult: Equatable, Sendable {
         timeRange: String = "",
         startMilliseconds: Int,
         endMilliseconds: Int,
+        durationMilliseconds: Int? = nil,
+        characterWidth: Int? = nil,
         content: String,
         cueLines: [String],
         cueGroupLines: [String]? = nil,
@@ -137,6 +147,8 @@ public struct SubtitleSearchResult: Equatable, Sendable {
             : timeRange
         self.startMilliseconds = startMilliseconds
         self.endMilliseconds = endMilliseconds
+        self.durationMilliseconds = max(0, durationMilliseconds ?? (endMilliseconds - startMilliseconds))
+        self.characterWidth = max(0, characterWidth ?? CueCharacterFacet.characterWidth(of: content))
         self.content = content
         self.cueLines = cueLines
         self.cueGroupLines = cueGroupLines ?? (cueLines.isEmpty ? [content] : cueLines)
@@ -160,6 +172,8 @@ public struct SubtitleSearchResult: Equatable, Sendable {
             timeRange: cueContent.timeRange,
             startMilliseconds: cueContent.startMilliseconds,
             endMilliseconds: cueContent.endMilliseconds,
+            durationMilliseconds: cueContent.durationMilliseconds,
+            characterWidth: cueContent.characterWidth,
             content: cueContent.content,
             cueLines: cueContent.cueLines,
             cueGroupLines: cueContent.cueGroupLines,
@@ -184,6 +198,8 @@ public struct SubtitleSearchResult: Equatable, Sendable {
             timeRange: timeRange,
             startMilliseconds: startMilliseconds,
             endMilliseconds: endMilliseconds,
+            durationMilliseconds: durationMilliseconds,
+            characterWidth: characterWidth,
             content: content,
             cueLines: cueLines,
             cueGroupLines: cueGroupLines,

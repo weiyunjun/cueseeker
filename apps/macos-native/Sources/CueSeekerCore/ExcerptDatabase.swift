@@ -53,7 +53,9 @@ public final class ExcerptDatabase: @unchecked Sendable {
                  vf.video_name,
                  ''
                ),
-               sf.id
+               sf.id,
+               COALESCE(l.duration_ms, t.duration_ms, 0),
+               COALESCE(l.character_width, t.character_width, 0)
         FROM excerpts s
         LEFT JOIN subtitle_cue_lines l ON l.id = s.cue_id
         LEFT JOIN cue_tombstones t ON t.cue_id = s.cue_id
@@ -614,16 +616,11 @@ public final class ExcerptDatabase: @unchecked Sendable {
             }
             let content = cueContentsByID[relation.cueID]
             cueIDs.append(relation.cueID)
+            let durationMilliseconds = content?.durationMilliseconds ?? excerpt.durationMilliseconds
             durationFacets.append(CueDurationFacet(
-                durationMilliseconds: max(
-                    0,
-                    (content?.endMilliseconds ?? excerpt.endMilliseconds)
-                        - (content?.startMilliseconds ?? excerpt.startMilliseconds)
-                )
+                durationMilliseconds: durationMilliseconds
             ))
-            let characterWidth = CueCharacterFacet.characterWidth(
-                of: content?.content ?? excerpt.content
-            )
+            let characterWidth = content?.characterWidth ?? excerpt.characterWidth
             characterFacets.append(CueCharacterFacet(
                 characterCount: characterWidth
             ))
@@ -908,6 +905,8 @@ public final class ExcerptDatabase: @unchecked Sendable {
             timeRange: "",
             startMilliseconds: statement.intColumn(5),
             endMilliseconds: statement.intColumn(6),
+            durationMilliseconds: statement.intColumn(17),
+            characterWidth: statement.intColumn(18),
             cueEventIndex: statement.nullableIntColumn(7),
             cueDisplayOrder: statement.nullableIntColumn(8),
             content: statement.stringColumn(9),
