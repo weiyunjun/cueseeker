@@ -327,93 +327,73 @@ func mediaCardGridMetricsAndMinimumWindowColumnCountMatchSpecification() {
 
 @MainActor
 @Test
-func segmentedControlNeutralStylingAndGeometryTokensMatchSpecification() {
-    #expect(WorkbenchControlMetrics.redesignSegmentedControlHeight == 36)
+func segmentedControlAccentStylingAndGeometryTokensMatchSpecification() {
+    #expect(WorkbenchControlMetrics.redesignSegmentedControlHeight == 32)
     #expect(WorkbenchControlMetrics.redesignSegmentedControlPadding == 3)
     #expect(WorkbenchControlMetrics.redesignSegmentedControlGap == 2)
     #expect(WorkbenchControlMetrics.redesignCornerRadius == 8)
     #expect(WorkbenchControlMetrics.redesignSegmentedControlSegmentRadius == 5)
-    #expect(WorkbenchControlMetrics.redesignSegmentedControlSegmentHeight == 30)
-    #expect(WorkbenchControlMetrics.redesignFontSizeSegmentedControl == 14)
+    #expect(WorkbenchControlMetrics.redesignSegmentedControlSegmentHeight == 26)
+    #expect(WorkbenchControlMetrics.redesignFontSizeSegmentedControl == 12)
     #expect(WorkbenchControlMetrics.redesignFontWeightControl == .medium)
     #expect(WorkbenchControlMetrics.redesignControlBorderWidth == 1)
+    #expect(WorkbenchRedesignColors.NS.segmentedControlSelectedBg == NSColor.controlAccentColor)
 
-    let lightAppearance = NSAppearance(named: .aqua)!
-    lightAppearance.performAsCurrentDrawingAppearance {
-        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
-
-        let bg = WorkbenchRedesignColors.NS.segmentedControlBg.usingColorSpace(.sRGB)!
-        bg.getRed(&r, green: &g, blue: &b, alpha: &a)
-        #expect(abs(r - 0) < 0.001)
-        #expect(abs(g - 0) < 0.001)
-        #expect(abs(b - 0) < 0.001)
-        #expect(abs(a - 0.055) < 0.001)
-
-        let border = WorkbenchRedesignColors.NS.segmentedControlBorder.usingColorSpace(.sRGB)!
-        border.getRed(&r, green: &g, blue: &b, alpha: &a)
-        #expect(abs(a - 0) < 0.001)
-
-        let selectedBg = WorkbenchRedesignColors.NS.segmentedControlSelectedBg.usingColorSpace(.sRGB)!
-        selectedBg.getRed(&r, green: &g, blue: &b, alpha: &a)
-        #expect(abs(r - 1) < 0.001)
-        #expect(abs(g - 1) < 0.001)
-        #expect(abs(b - 1) < 0.001)
-        #expect(abs(a - 1) < 0.001)
-
-        let selectedBorder = WorkbenchRedesignColors.NS.segmentedControlSelectedBorder.usingColorSpace(.sRGB)!
-        selectedBorder.getRed(&r, green: &g, blue: &b, alpha: &a)
-        #expect(abs(r - 229.0 / 255.0) < 0.01)
-        #expect(abs(g - 231.0 / 255.0) < 0.01)
-        #expect(abs(b - 235.0 / 255.0) < 0.01)
-        #expect(abs(a - 1) < 0.001)
-
-        let selectedContent = WorkbenchRedesignColors.NS.segmentedControlSelectedContent.usingColorSpace(.sRGB)!
-        let textPrimary = WorkbenchRedesignColors.NS.textPrimary.usingColorSpace(.sRGB)!
-        #expect(selectedContent == textPrimary)
-
-        let unselectedContent = WorkbenchRedesignColors.NS.segmentedControlUnselectedContent.usingColorSpace(.sRGB)!
-        let textMuted = WorkbenchRedesignColors.NS.textMuted.usingColorSpace(.sRGB)!
-        #expect(unselectedContent == textMuted)
+    for appearanceName in [NSAppearance.Name.aqua, .darkAqua] {
+        let appearance = NSAppearance(named: appearanceName)!
+        appearance.performAsCurrentDrawingAppearance {
+            var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+            let selectedContent = WorkbenchRedesignColors.NS.segmentedControlSelectedContent.usingColorSpace(.sRGB)!
+            selectedContent.getRed(&r, green: &g, blue: &b, alpha: &a)
+            #expect(abs(r - 1) < 0.001)
+            #expect(abs(g - 1) < 0.001)
+            #expect(abs(b - 1) < 0.001)
+            #expect(abs(a - 1) < 0.001)
+        }
     }
+}
 
-    let darkAppearance = NSAppearance(named: .darkAqua)!
-    darkAppearance.performAsCurrentDrawingAppearance {
-        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+@MainActor
+@Test
+func topbarTabsStylingGeometryAndSlidingMotionMatchSpecification() {
+    #expect(PlaybackOverlayMetrics.tabGap == 16)
+    #expect(PlaybackOverlayMetrics.tabHorizontalPadding == 8)
+    #expect(PlaybackOverlayMetrics.tabIndicatorGap == 4)
+    #expect(PlaybackOverlayMetrics.tabFontSize == 14)
+    #expect(PlaybackOverlayMetrics.tabFontWeight == .semibold)
+    #expect(PlaybackOverlayMetrics.tabIndicatorWidth == 24)
+    #expect(PlaybackOverlayMetrics.tabIndicatorHeight == 2)
+    #expect(PlaybackOverlayMetrics.tabSelectionMotionDuration == 0.18)
 
-        let bg = WorkbenchRedesignColors.NS.segmentedControlBg.usingColorSpace(.sRGB)!
-        bg.getRed(&r, green: &g, blue: &b, alpha: &a)
-        #expect(abs(r - 1) < 0.001)
-        #expect(abs(g - 1) < 0.001)
-        #expect(abs(b - 1) < 0.001)
-        #expect(abs(a - 0.06) < 0.001)
+    let tabRect = CGRect(x: 100, y: 10, width: 80, height: 24)
+    #expect(
+        PlaybackOverlayMetrics.tabIndicatorFrame(for: tabRect)
+            == CGRect(x: 128, y: 32, width: 24, height: 2)
+    )
 
-        let border = WorkbenchRedesignColors.NS.segmentedControlBorder.usingColorSpace(.sRGB)!
-        border.getRed(&r, green: &g, blue: &b, alpha: &a)
-        #expect(abs(r - 1) < 0.001)
-        #expect(abs(g - 1) < 0.001)
-        #expect(abs(b - 1) < 0.001)
-        #expect(abs(a - 0.08) < 0.001)
+    for appearanceName in [NSAppearance.Name.aqua, .darkAqua] {
+        let appearance = NSAppearance(named: appearanceName)!
+        appearance.performAsCurrentDrawingAppearance {
+            let unselected = PlaybackOverlayMetrics.interpolatedTabTextColor(progress: 0).usingColorSpace(.sRGB)!
+            let selected = PlaybackOverlayMetrics.interpolatedTabTextColor(progress: 1).usingColorSpace(.sRGB)!
+            let midpoint = PlaybackOverlayMetrics.interpolatedTabTextColor(progress: 0.5).usingColorSpace(.sRGB)!
+            let textMuted = WorkbenchRedesignColors.NS.textMuted.usingColorSpace(.sRGB)!
+            let textPrimary = WorkbenchRedesignColors.NS.textPrimary.usingColorSpace(.sRGB)!
 
-        let selectedBg = WorkbenchRedesignColors.NS.segmentedControlSelectedBg.usingColorSpace(.sRGB)!
-        selectedBg.getRed(&r, green: &g, blue: &b, alpha: &a)
-        #expect(abs(r - 1) < 0.001)
-        #expect(abs(g - 1) < 0.001)
-        #expect(abs(b - 1) < 0.001)
-        #expect(abs(a - 0.16) < 0.001)
+            #expect(unselected == textMuted)
+            #expect(selected == textPrimary)
 
-        let selectedBorder = WorkbenchRedesignColors.NS.segmentedControlSelectedBorder.usingColorSpace(.sRGB)!
-        selectedBorder.getRed(&r, green: &g, blue: &b, alpha: &a)
-        #expect(abs(r - 1) < 0.001)
-        #expect(abs(g - 1) < 0.001)
-        #expect(abs(b - 1) < 0.001)
-        #expect(abs(a - 0.12) < 0.001)
+            var r0: CGFloat = 0, g0: CGFloat = 0, b0: CGFloat = 0, a0: CGFloat = 0
+            var r1: CGFloat = 0, g1: CGFloat = 0, b1: CGFloat = 0, a1: CGFloat = 0
+            var rm: CGFloat = 0, gm: CGFloat = 0, bm: CGFloat = 0, am: CGFloat = 0
+            textMuted.getRed(&r0, green: &g0, blue: &b0, alpha: &a0)
+            textPrimary.getRed(&r1, green: &g1, blue: &b1, alpha: &a1)
+            midpoint.getRed(&rm, green: &gm, blue: &bm, alpha: &am)
 
-        let selectedContent = WorkbenchRedesignColors.NS.segmentedControlSelectedContent.usingColorSpace(.sRGB)!
-        let textPrimary = WorkbenchRedesignColors.NS.textPrimary.usingColorSpace(.sRGB)!
-        #expect(selectedContent == textPrimary)
-
-        let unselectedContent = WorkbenchRedesignColors.NS.segmentedControlUnselectedContent.usingColorSpace(.sRGB)!
-        let textMuted = WorkbenchRedesignColors.NS.textMuted.usingColorSpace(.sRGB)!
-        #expect(unselectedContent == textMuted)
+            #expect(abs(rm - (r0 + r1) / 2) < 0.001)
+            #expect(abs(gm - (g0 + g1) / 2) < 0.001)
+            #expect(abs(bm - (b0 + b1) / 2) < 0.001)
+            #expect(abs(am - 1) < 0.001)
+        }
     }
 }

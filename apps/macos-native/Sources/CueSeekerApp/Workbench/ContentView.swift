@@ -405,18 +405,18 @@ struct AppTopBar: View {
 
     @ViewBuilder
     private var recentSegmentedControl: some View {
-        WorkbenchSegmentedControl(
-            options: WorkbenchRecentSection.allCases,
-            selection: Binding(
-                get: { routeState.selectedRecentSection },
-                set: { section in
-                    appState.workbenchLayout.selectRecentSection(section)
-                }
-            ),
-            title: { $0.shortLabel },
-            accessibilityLabel: { $0.shortLabel },
-            accessibilityIdentifier: { "recent-segment-\($0.rawValue)" }
-        )
+        WorkbenchTabs(
+            items: WorkbenchRecentSection.allCases.map {
+                .init(
+                    value: $0,
+                    label: $0.shortLabel,
+                    accessibilityIdentifier: "recent-segment-\($0.rawValue)"
+                )
+            },
+            selection: routeState.selectedRecentSection
+        ) { section in
+            appState.workbenchLayout.selectRecentSection(section)
+        }
     }
 
     private var backButton: some View {

@@ -1,8 +1,8 @@
 import SwiftUI
 
-/// The one Tabs / Tab implementation in the App: a label over a selection
-/// indicator. Playback Overlay, the Task panel and the Library pages all use
-/// it, so the segment controls cannot read as different things.
+/// The one Tabs / Tab implementation in the App: a label over a sliding
+/// selection indicator. Recent topbar, Playback Overlay topbar, and the Task
+/// dialog header all share it so top-level view switchers read identically.
 struct WorkbenchTabs<Value: Hashable>: View {
     struct Item: Identifiable {
         let value: Value
@@ -22,40 +22,62 @@ struct WorkbenchTabs<Value: Hashable>: View {
     var body: some View {
         HStack(spacing: PlaybackOverlayMetrics.tabGap) {
             ForEach(items) { item in
+                let isSelected = selection == item.value
                 Button {
                     onSelect(item.value)
                 } label: {
                     VStack(spacing: PlaybackOverlayMetrics.tabIndicatorGap) {
-                        Text(item.label)
-                            .font(.system(
-                                size: PlaybackOverlayMetrics.tabFontSize,
-                                weight: selection == item.value
-                                    ? .semibold
-                                    : .regular
-                            ))
-                            .lineLimit(1)
+                        WorkbenchTabLabel(
+                            label: item.label,
+                            selectionProgress: isSelected ? 1 : 0
+                        )
 
-                        Capsule()
-                            .fill(PlaybackTheme.playbackModuleSidebarSelected)
+                        Color.clear
                             .frame(
                                 width: PlaybackOverlayMetrics.tabIndicatorWidth,
                                 height: PlaybackOverlayMetrics.tabIndicatorHeight
                             )
-                            .opacity(selection == item.value ? 1 : 0)
                     }
-                    .foregroundStyle(
-                        selection == item.value
-                            ? PlaybackTheme.playbackModuleSidebarSelected
-                            : PlaybackTheme.playbackModuleSidebarUnselected
-                    )
                     .padding(.horizontal, PlaybackOverlayMetrics.tabHorizontalPadding)
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(StaticButtonStyle())
                 .focusable(false)
+                .anchorPreference(
+                    key: WorkbenchTabBoundsKey<Value>.self,
+                    value: .bounds
+                ) { [item.value: $0] }
                 .accessibilityLabel(item.label)
+                .accessibilityValue(
+                    isSelected ? L("facet.selected") : L("facet.not_selected")
+                )
                 .accessibilityIdentifier(item.accessibilityIdentifier)
             }
+        }
+        .animation(PlaybackOverlayMetrics.tabSelectionAnimation, value: selection)
+        .overlayPreferenceValue(WorkbenchTabBoundsKey<Value>.self) { anchors in
+            GeometryReader { proxy in
+                if let selection, let anchor = anchors[selection] {
+                    let indicatorFrame = PlaybackOverlayMetrics.tabIndicatorFrame(
+                        for: proxy[anchor]
+                    )
+                    Capsule()
+                        .fill(WorkbenchRedesignColors.textPrimary)
+                        .frame(
+                            width: indicatorFrame.width,
+                            height: indicatorFrame.height
+                        )
+                        .offset(
+                            x: indicatorFrame.minX,
+                            y: indicatorFrame.minY
+                        )
+                        .animation(
+                            PlaybackOverlayMetrics.tabSelectionAnimation,
+                            value: selection
+                        )
+                }
+            }
+            .allowsHitTesting(false)
         }
         .padding(
             .leading,
@@ -63,5 +85,40 @@ struct WorkbenchTabs<Value: Hashable>: View {
                 ? -PlaybackOverlayMetrics.tabHorizontalPadding
                 : 0
         )
+    }
+}
+
+private struct WorkbenchTabLabel: View, Animatable {
+    let label: String
+    var selectionProgress: Double
+
+    nonisolated var animatableData: Double {
+        get { selectionProgress }
+        set { selectionProgress = newValue }
+    }
+
+    var body: some View {
+        Text(label)
+            .font(.system(
+                size: PlaybackOverlayMetrics.tabFontSize,
+                weight: PlaybackOverlayMetrics.tabFontWeight
+            ))
+            .lineLimit(1)
+            .foregroundStyle(
+                Color(nsColor: PlaybackOverlayMetrics.interpolatedTabTextColor(
+                    progress: selectionProgress
+                ))
+            )
+    }
+}
+
+private struct WorkbenchTabBoundsKey<Value: Hashable>: PreferenceKey {
+    static var defaultValue: [Value: Anchor<CGRect>] { [:] }
+
+    static func reduce(
+        value: inout [Value: Anchor<CGRect>],
+        nextValue: () -> [Value: Anchor<CGRect>]
+    ) {
+        value.merge(nextValue(), uniquingKeysWith: { _, new in new })
     }
 }

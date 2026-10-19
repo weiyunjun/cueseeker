@@ -124,19 +124,19 @@ struct TaskPanel: View {
                 )
                 .allowsHitTesting(false)
         } center: {
-            WorkbenchSegmentedControl(
-                options: TaskQueueTab.allCases,
-                selection: Binding(
-                    get: { tasks.selectedTab },
-                    set: { tab in
-                        dismissMenu()
-                        tasks.selectedTab = tab
-                    }
-                ),
-                title: { $0.label },
-                accessibilityLabel: { $0.label },
-                accessibilityIdentifier: { "task-tab-\($0.rawValue)" }
-            )
+            WorkbenchTabs(
+                items: TaskQueueTab.allCases.map {
+                    .init(
+                        value: $0,
+                        label: $0.label,
+                        accessibilityIdentifier: "task-tab-\($0.rawValue)"
+                    )
+                },
+                selection: tasks.selectedTab
+            ) { tab in
+                dismissMenu()
+                tasks.selectedTab = tab
+            }
         } trailing: {
             WorkbenchIconButton(
                 icon: .x,

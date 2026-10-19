@@ -364,20 +364,22 @@ struct PlaybackOverlayTopBar: View {
                         ))
                         .lineLimit(1)
                         .truncationMode(.tail)
-                        .foregroundStyle(PlaybackTheme.playbackModuleSidebarSelected)
+                        .foregroundStyle(WorkbenchRedesignColors.textPrimary)
                         .allowsHitTesting(false)
                         .accessibilityIdentifier("playback-collage-editor-title")
                 } else {
-                    WorkbenchSegmentedControl(
-                        options: modules,
-                        selection: Binding(
-                            get: { selectedModule ?? modules.first ?? .current },
-                            set: { _ = onSelect($0) }
-                        ),
-                        title: { $0.label },
-                        accessibilityLabel: { $0.label },
-                        accessibilityIdentifier: { "playback-view-\($0.rawValue)" }
-                    )
+                    WorkbenchTabs(
+                        items: modules.map {
+                            .init(
+                                value: $0,
+                                label: $0.label,
+                                accessibilityIdentifier: "playback-view-\($0.rawValue)"
+                            )
+                        },
+                        selection: selectedModule ?? modules.first ?? .current
+                    ) { module in
+                        _ = onSelect(module)
+                    }
                 }
             } trailing: {
                 HStack(spacing: WorkbenchControlMetrics.redesignSpacing1) {

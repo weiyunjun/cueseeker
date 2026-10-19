@@ -118,18 +118,6 @@ func playbackSubtitleFocusColorsResolveDocumentedLightAndDarkTokens() {
     )
     #expect(
         playbackCueResultHex(
-            PlaybackTheme.playbackModuleSidebarSelectedNative,
-            appearanceName: .aqua
-        ) == "#111827"
-    )
-    #expect(
-        playbackCueResultHex(
-            PlaybackTheme.playbackModuleSidebarUnselectedNative,
-            appearanceName: .aqua
-        ) == "#667085"
-    )
-    #expect(
-        playbackCueResultHex(
             PlaybackTheme.subtitleFocusCueSelectedNative,
             appearanceName: .darkAqua
         ) == "#FFFFFF"

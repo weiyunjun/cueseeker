@@ -337,14 +337,14 @@ enum WorkbenchControlMetrics {
     static let redesignSettingsRowMinHeight: CGFloat = 52
     /// --padding-settings-row-y: 6px
     static let redesignSettingsRowVerticalPadding: CGFloat = 6
-    /// --height-segmented-control: 36px
-    static let redesignSegmentedControlHeight: CGFloat = 36
+    /// --height-segmented-control: 32px
+    static let redesignSegmentedControlHeight: CGFloat = 32
     /// --padding-segmented-control: 3px
     static let redesignSegmentedControlPadding: CGFloat = 3
     /// --gap-segmented-control: 2px
     static let redesignSegmentedControlGap: CGFloat = 2
-    /// --font-size-segmented-control: 14px
-    static let redesignFontSizeSegmentedControl: CGFloat = 14
+    /// --font-size-segmented-control: 12px
+    static let redesignFontSizeSegmentedControl: CGFloat = 12
     /// The selected option's block fills the control inside its padding.
     static let redesignSegmentedControlSegmentHeight =
         redesignSegmentedControlHeight - redesignSegmentedControlPadding * 2

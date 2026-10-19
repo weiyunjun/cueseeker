@@ -8,10 +8,8 @@ public enum PlaybackTheme {
     // MARK: - Subtitle Focus Colors
 
     private static let subtitleFocusCueSelectedOpacity = 1.0
-    private static let playbackModuleSidebarSelectedOpacity = 0.94
     private static let subtitleFocusCueGroupSelectedOpacity = 0.68
     private static let subtitleFocusCueUnselectedOpacity = 0.26
-    private static let playbackModuleSidebarUnselectedOpacity = 0.34
     private static let cueMetadataSelectedOpacity = 0.56
     private static let cueMetadataUnselectedLightOpacity = 0.22
     private static let cueMetadataUnselectedDarkOpacity = 0.20
@@ -131,39 +129,6 @@ public enum PlaybackTheme {
     static func cueMetadataNative(isSelected: Bool) -> NSColor {
         isSelected ? cueMetadataSelectedNative : cueMetadataUnselectedNative
     }
-
-    /// --color-playback-module-sidebar-selected
-    public static var playbackModuleSidebarSelected: Color {
-        Color(nsColor: playbackModuleSidebarSelectedNative)
-    }
-
-    /// --color-playback-module-sidebar-unselected
-    public static var playbackModuleSidebarUnselected: Color {
-        Color(nsColor: playbackModuleSidebarUnselectedNative)
-    }
-
-    static let playbackModuleSidebarSelectedNative = subtitleFocusDynamicColor(
-        light: NSColor(
-            red: 17 / 255,
-            green: 24 / 255,
-            blue: 39 / 255,
-            alpha: 1
-        ),
-        dark: NSColor.white.withAlphaComponent(
-            CGFloat(playbackModuleSidebarSelectedOpacity)
-        )
-    )
-    static let playbackModuleSidebarUnselectedNative = subtitleFocusDynamicColor(
-        light: NSColor(
-            red: 102 / 255,
-            green: 112 / 255,
-            blue: 133 / 255,
-            alpha: 1
-        ),
-        dark: NSColor.white.withAlphaComponent(
-            CGFloat(playbackModuleSidebarUnselectedOpacity)
-        )
-    )
     // MARK: - Player Chrome Colors
 
     /// --color-player-stage-bg
@@ -376,8 +341,52 @@ enum PlaybackOverlayMetrics {
     static let tabHorizontalPadding = WorkbenchControlMetrics.redesignSpacing2
     static let tabIndicatorGap = WorkbenchControlMetrics.redesignSpacing1
     static let tabFontSize = WorkbenchControlMetrics.redesignFontSizeBody
+    static let tabFontWeight: Font.Weight = .semibold
     static let tabIndicatorWidth: CGFloat = 24
     static let tabIndicatorHeight: CGFloat = 2
+    static let tabSelectionMotionDuration = WorkbenchControlMetrics.redesignSidebarMotionDuration
+
+    static var tabSelectionAnimation: Animation {
+        .timingCurve(0.22, 1, 0.36, 1, duration: tabSelectionMotionDuration)
+    }
+
+    static func tabIndicatorFrame(for tabRect: CGRect) -> CGRect {
+        CGRect(
+            x: tabRect.midX - tabIndicatorWidth / 2,
+            y: tabRect.maxY - tabIndicatorHeight,
+            width: tabIndicatorWidth,
+            height: tabIndicatorHeight
+        )
+    }
+
+    static func interpolatedTabTextColor(progress: Double) -> NSColor {
+        let clamped = min(1, max(0, progress))
+        if clamped <= 0 {
+            return WorkbenchRedesignColors.NS.textMuted
+        }
+        if clamped >= 1 {
+            return WorkbenchRedesignColors.NS.textPrimary
+        }
+        return NSColor(name: nil) { appearance in
+            var r0: CGFloat = 0, g0: CGFloat = 0, b0: CGFloat = 0, a0: CGFloat = 0
+            var r1: CGFloat = 0, g1: CGFloat = 0, b1: CGFloat = 0, a1: CGFloat = 0
+            appearance.performAsCurrentDrawingAppearance {
+                let start = WorkbenchRedesignColors.NS.textMuted.usingColorSpace(.sRGB)
+                    ?? WorkbenchRedesignColors.NS.textMuted
+                let end = WorkbenchRedesignColors.NS.textPrimary.usingColorSpace(.sRGB)
+                    ?? WorkbenchRedesignColors.NS.textPrimary
+                start.getRed(&r0, green: &g0, blue: &b0, alpha: &a0)
+                end.getRed(&r1, green: &g1, blue: &b1, alpha: &a1)
+            }
+            let t = CGFloat(clamped)
+            return NSColor(
+                srgbRed: r0 + (r1 - r0) * t,
+                green: g0 + (g1 - g0) * t,
+                blue: b0 + (b1 - b0) * t,
+                alpha: a0 + (a1 - a0) * t
+            )
+        }
+    }
 }
 
 enum PlaybackChromeMetrics {
