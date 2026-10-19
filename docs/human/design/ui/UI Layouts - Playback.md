@@ -251,13 +251,14 @@
 - Icon Button / Default：返回 Workbench
 - Icon Button / Default
 - Information Badge / Task Count Badge
-- Segmented Control
+- Tabs
+- Tab
 - Editing Title：与 Tab / Selected 的 Label 相同，无 Selection Indicator
 
 #### Sizes
 
 - Height：`--height-app-topbar`
-- Segmented Control：默认在顶栏水平居中；空间不足时保持与左、右按钮区至少 `--spacing-3` 间距并向空余一侧偏移
+- Tabs：默认在顶栏水平居中；空间不足时保持与左、右按钮区至少 `--spacing-3` 间距并向空余一侧偏移
 - Editing Title 最大宽度：顶栏的居中元素可用宽度
 
 #### Spacing

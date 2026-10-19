@@ -81,12 +81,8 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--color-primary-button-bg-hover`: macOS accent color with native hover emphasis
 - `--color-primary-button-text`: Light `#FFFFFF`; Dark `#FFFFFF`
 - `--color-bg-checkbox-checked`: macOS accent color
-- `--color-segmented-control-bg`: Light `rgba(0,0,0,0.055)`; Dark `rgba(255,255,255,0.06)`
-- `--color-segmented-control-border`: Light `transparent`; Dark `rgba(255,255,255,0.08)`
-- `--color-segmented-control-selected-bg`: Light `#FFFFFF`; Dark `rgba(255,255,255,0.16)`
-- `--color-segmented-control-selected-border`: Same as `--color-border-control` in Light (`#E5E7EB`); Dark `rgba(255,255,255,0.12)`
-- `--color-segmented-control-selected-content`: Same as `--color-text-primary`
-- `--color-segmented-control-unselected-content`: Same as `--color-text-muted`
+- `--color-segmented-control-selected-bg`: macOS accent color
+- `--color-segmented-control-selected-content`: Light `#FFFFFF`; Dark `#FFFFFF`
 - `--color-filter-chip-selected-content`: macOS accent color
 - `--color-filter-chip-selected-bg`: Same as `--color-library-media-card-hover-bg`
 - `--color-spinner-track`: Light `#E5E7EB`; Dark `#3F3F46`
@@ -95,11 +91,6 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--color-danger-bg-hover`: Light `#FEF3F2`; Dark `#3A1717`
 - `--color-success-text`: Light `#047857`; Dark `#6EE7B7`
 - `--color-warning-text`: Light `#B45309`; Dark `#FCD34D`
-
-### Tab
-
-- `--color-tab-selected`: Light `#111827`; Dark `rgba(255,255,255,0.94)`
-- `--color-tab-unselected`: Light `#667085`; Dark `rgba(255,255,255,0.34)`
 
 ### Table
 
@@ -192,7 +183,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--font-size-control`: `14px`
 - `--font-weight-control`: `500`
 - `--line-height-detail-file-title`: `20px`
-- `--font-size-segmented-control`: `14px`
+- `--font-size-segmented-control`: `12px`
 - `--font-size-table`: `14px`
 - `--font-size-table-header`: `14px`
 - `--font-size-caption`: `12px`
@@ -239,7 +230,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 
 - `--height-filter-bar-control`: `40px`
 - `--height-control`: `36px`
-- `--height-segmented-control`: `36px`
+- `--height-segmented-control`: `32px`
 - `--height-filter-chip`: `32px`
 - `--height-filter-chip-count-placeholder`: `12px`
 - `--height-field`: `30px`

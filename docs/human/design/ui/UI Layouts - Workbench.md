@@ -341,13 +341,14 @@
 
 #### Structure
 
-1. Topbar Segmented Control：`Videos`、`Excerpt Lists`（左侧保留 Page Title `Recent`）
+1. Topbar Tabs：`Videos`、`Excerpt Lists`（左侧保留 Page Title `Recent`）
 2. Recent Videos：Recent Watching Card Grid
 3. Recent Excerpt Lists：Excerpt List Card Grid
 
 #### Components
 
-- Segmented Control
+- Tabs
+- Tab
 - Section Title
 - Recent Watching Card Layout
 - Excerpt List Card Layout
@@ -355,7 +356,7 @@
 #### Layout
 
 - Page Layout：Workbench Titled Page Layout
-- Segmented Control 默认在顶栏水平、垂直居中；空间不足时保持与左、右内容至少 `--spacing-3` 间距并向空余一侧偏移，两侧间距均达 `--spacing-3` 后截断左侧标题。卡片网格使用 `--padding-workbench-media-card-grid-inline`。
+- Tabs 默认在顶栏水平、垂直居中；空间不足时保持与左、右内容至少 `--spacing-3` 间距并向空余一侧偏移，两侧间距均达 `--spacing-3` 后截断左侧标题。卡片网格使用 `--padding-workbench-media-card-grid-inline`。
 - 默认选项：Videos。选择在 App 运行期间保留，重新启动后回到默认。
 - 按本地自然日凌晨 `00:00` 划分为 `Last 7 Days`、`Last 30 Days`、`Earlier`、`Never Played` 四个分组，仅展示非空分组；分组标题左边缘与未 Hover 时的卡片封面左边缘齐平。
 - `Never Played`：Videos 收录无播放记录的文件夹（默认展示 `EP01`，按文件夹名称升序）；Excerpt Lists 收录未播放过的有效摘录集（按创建时间正序，打开时从第 1 条有效字幕播放）。
@@ -1208,14 +1209,15 @@
 
 1. Header
    1. Title：`Task`
-   2. Segmented Control：`Current`、`Completed`、`Incomplete`，默认水平居中（间距与避让截断规则同 Recent 顶栏）
+   2. Tabs：`Current`、`Completed`、`Incomplete`，默认水平居中（间距与避让截断规则同 Recent 顶栏）
    3. Close Button
 2. Task Card List
 
 #### Components
 
 - Dialog
-- Segmented Control
+- Tabs
+- Tab
 - Icon Button / Dialog Close
 - Scrollbar / Vertical
 

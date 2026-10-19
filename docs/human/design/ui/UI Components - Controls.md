@@ -378,8 +378,8 @@
 ##### Anatomy
 
 - Container
-  - Background：`--color-segmented-control-bg`
-  - Border Color：`--color-segmented-control-border`
+  - Background：`--color-bg-control`
+  - Border Color：`--color-border-control`
   - Border Width：`--border-width-control`
   - Radius：`--radius-control`
 - Label
@@ -397,11 +397,9 @@
 ##### States
 
 - Unselected
-  - Label Color：`--color-segmented-control-unselected-content`
+  - Label Color：`--color-text-primary`
 - Selected
   - Background：`--color-segmented-control-selected-bg`
-  - Border Color：`--color-segmented-control-selected-border`
-  - Border Width：`--border-width-control`
   - Radius：`--radius-control` 减 `--padding-segmented-control`
   - Label Color：`--color-segmented-control-selected-content`
 - Hover：None
@@ -966,17 +964,17 @@
 ##### Anatomy
 
 - Tab List
-- Selection Indicator
+- Selection Indicator：位于当前选中 Tab 文字正下方的单个胶囊圆角横线
 
 ##### Sizes
 
+- Tab Gap：`--spacing-4`
+- Indicator Width：`24px`
+- Indicator Height：`2px`
+
 ##### States
 
-- Default
-- Select Mode
-  - Label Color：`--color-text-secondary`，与 Default 相同
-  - 整条 Header 为全选点击区域，效果与点击 Selection Checkbox 一致
-  - 无 Hover 反馈；指针为箭头
+- Default：切换选项时，Selection Indicator 以 `--duration-sidebar-motion`（`0.18s`，`cubic-bezier(0.22, 1, 0.36, 1)`）水平滑动至目标选项正下方，Label Color 同步过渡；首次进入或窗口缩放不触发滑动动画
 - Disabled
 
 ### C-05.5 Tab
@@ -988,20 +986,24 @@
 - Label
   - Font Family：`--font-family-base`
   - Font Size：`--font-size-body`
+  - Font Weight：`600`（Selected 与 Unselected 保持一致，切换不改变字重）
 - Leading Icon
   - Presence：Optional
 - Selection Indicator
 
 ##### Sizes
 
+- Padding Inline：`--spacing-2`
+- Label to Indicator Gap：`--spacing-1`
+
 ##### States
 
 - Unselected
-  - Label Color：`--color-tab-unselected`
-- Hover
+  - Label Color：`--color-text-muted`
+- Hover：None
 - Selected
-  - Label Color：`--color-tab-selected`
-  - Indicator Color：`--color-tab-selected`
+  - Label Color：`--color-text-primary`
+  - Indicator Color：`--color-text-primary`
 - Focused
 - Disabled
   - Label Color：`--color-text-disabled`
