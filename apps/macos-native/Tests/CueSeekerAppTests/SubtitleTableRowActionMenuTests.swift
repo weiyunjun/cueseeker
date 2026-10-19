@@ -129,7 +129,7 @@ func subtitleTableExcerptRowActionMenuAddsTransferSubmenusAndDividers() {
 @Test
 func subtitleTableUnavailableExcerptActionsFollowResourceAvailability() {
     let videoMissing = SubtitleTableCueState.unavailable(.videoMissing)
-    #expect(videoMissing.icon == .questionMark)
+    #expect(videoMissing.icon == .question)
     #expect(videoMissing.subtitleFileIsAvailable)
     #expect(videoMissing.disabledRowActions == [
         .play,

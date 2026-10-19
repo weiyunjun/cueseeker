@@ -23,13 +23,11 @@ Human-owned documents:
   - Preserved the frozen snapshot in `removeExcerpt`, `moveExcerpt`, and `duplicateExcerpt` when `excerptNeedsReloadAfterIndexedContentMutation == true`, and adjusted list `cueCount` delta by `-1` only when the removed excerpt was valid (`item.isValid`).
   - Updated `openExcerptListPlayback` and `openExcerpt` so clicking a frozen card/Resume when all cues in the list are now invalid in SQLite opens the Playback page in `.loadFailed` state with the `.notInLibrary` red banner (`This item is no longer in the library`).
   - Triggered `refreshExcerptOnReappearanceIfNeeded()` and `refreshRecentOnReappearanceIfNeeded()` when switching the `Videos / Excerpt Lists` Segmented Control in `WorkbenchRecentView`.
-- **`AppIcon.swift` & `question-mark.svg`**:
-  - Added Phosphor `question-mark` icon asset (`question-mark.svg`, without outer circle) and `AppIcon.questionMark` for `SubtitleTableCueState.unavailable.icon`.
 - **`SubtitleTableRow.swift` & `TableSandboxRowModelStore.swift` & `SubtitleTableCueGeometry.swift` & `SubtitleTableView.swift`**:
   - Added `displayIndex: Int?` and `TableSandboxRowsSnapshot.displayIndexByRowIndex` so valid rows receive sequential 1-based `#` numbers and unavailable rows leave `#` blank without checkbox hover.
-  - Placed the `question-mark` (`18px`) icon on the left side of the `Cues` column for unavailable rows, vertically centered with the first line of the primary cue, with an `8px` gap (`unavailableLeadingIndent = 26px`).
+  - Placed the `question` (`18px`) icon on the left side of the `Cues` column for unavailable rows, vertically centered with the first line of the primary cue, with an `8px` gap (`unavailableLeadingIndent = 26px`).
   - Indented both primary cue text and `Show Cue Group` context lines by `unavailableLeadingIndent` (`26px`) so the left icon occupies a dedicated vertical slot and all cue lines share a flush left edge.
-  - Updated the cue state indicator hover background to use `WorkbenchRedesignColors.NS.rowSelected` (matching the File card `...` button hover color over a `rowHover` row) and kept the localized unavailable tooltip (`"table.cue_state.unavailable"`) anchored to the left icon.
+  - Updated the unavailable `question` icon hover background to fill only the interior of its circle with `WorkbenchRedesignColors.NS.rowSelected` (matching the File card `...` button hover color over a `rowHover` row) and kept the localized unavailable tooltip (`"table.cue_state.unavailable"`) anchored to the left icon.
 - **Unit Tests**:
   - Added and updated tests in `ExcerptDatabaseTests.swift`, `SubtitleTableRowActionMenuTests.swift`, `SubtitleTableVirtualRowTests.swift`, and `ExcerptLifecycleAndInvalidItemsTests.swift`.
 

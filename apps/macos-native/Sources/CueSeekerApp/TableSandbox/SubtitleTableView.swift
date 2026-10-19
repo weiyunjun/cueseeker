@@ -4896,11 +4896,18 @@ struct SubtitleTableView: NSViewRepresentable {
             }
             if hoveredCueStateRow == row {
                 WorkbenchRedesignColors.NS.rowSelected.setFill()
-                NSBezierPath(
-                    roundedRect: rect.insetBy(dx: -3, dy: -3),
-                    xRadius: 5,
-                    yRadius: 5
-                ).fill()
+                if model.cueState.isUnavailable {
+                    let circleInset = rect.width * 32 / 256
+                    NSBezierPath(
+                        ovalIn: rect.insetBy(dx: circleInset, dy: circleInset)
+                    ).fill()
+                } else {
+                    NSBezierPath(
+                        roundedRect: rect.insetBy(dx: -3, dy: -3),
+                        xRadius: 5,
+                        yRadius: 5
+                    ).fill()
+                }
             }
             image.draw(in: rect)
         }

@@ -20,7 +20,7 @@ enum SubtitleTableCueState: Equatable {
         case .contentChanged:
             .clockCounterClockwise
         case .unavailable:
-            .questionMark
+            .question
         }
     }
 
