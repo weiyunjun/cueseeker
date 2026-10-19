@@ -1026,6 +1026,7 @@
 - Item to Separator Gap：`--spacing-2`
 - Font Family：`--font-family-base`
 - Font Size：`--font-size-body`（14px）
+- Wrapping：所有节点单行展示，超出时尾部省略号
 
 ##### States
 

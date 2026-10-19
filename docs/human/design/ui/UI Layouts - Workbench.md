@@ -998,44 +998,50 @@
 
 #### Structure
 
-1. Header
-   1. Title：`WebDav Folder`
-   2. Close Button
-2. Form Region
-   1. Name Field
-   2. Address Field
-   3. Username Field
-   4. Password Field（密文掩码）
-3. Footer
-   1. Cancel
-   2. Add
+1. Step 1: Connection
+   1. Header：`WebDav Folder` + Close Button
+   2. Form Region：`Address Field`、`Username Field`、`Password Field`（密文掩码）
+   3. Footer：`Cancel`、`Connect`
+2. Step 2: Folder Browser
+   1. Header：`WebDav Folder` + Close Button
+   2. Breadcrumb Navigation
+   3. Browser Card List
+   4. Footer：左侧 `Back`；右侧 `Cancel`、`Add`
 
 #### Components
 
 - Dialog
 - Text Field
+- Breadcrumb Navigation
 - WorkbenchSpinner
+- Empty State / Empty Hint
+- Scrollbar / Vertical
 - Button / Neutral
 - Button / Primary
 
 #### Layout
 
-- Width：`--width-dialog-medium`
-- Form Region 为左 Label（宽度 `--width-form-label`）、右输入框的双列水平布局；`Name` 选填并带占位提示（留空默认取地址末级目录名，根路径取 Host），`Address` 必填（粘贴百分号编码链接时即时还原为可读字符），`Username` 与 `Password` 选填（留空以匿名方式访问），后 3 项均无占位提示。
-- 前 3 个输入框不预留底部报错行；最下方 `Password` 输入框下方预留 1 行 Validation Message（左边缘与密码输入框对齐），验证或连接失败在此处显示红字，对话框保持打开。
+- Step 1 Width：`--width-dialog-medium`；Form Region 为左 Label（宽度 `--width-form-label`）、右输入框的双列水平布局；`Address` 必填（粘贴百分号编码链接时即时还原为可读字符），`Username` 与 `Password` 选填（留空以匿名方式访问），均无占位提示；仅最下方 `Password` 输入框下预留 1 行 Validation Message（左边缘与密码输入框对齐），成功加载初始目录列表前的任何报错均停留在 Step 1 显示红字。
+- Step 2 Width：`--width-dialog-x-large`，Height：`--height-task-panel`；Header、Breadcrumb 与 Footer 固定，中间列表垂直滚动，滚动条位于右侧 `--inset-dialog` 通道内。
+- Breadcrumb Navigation：以 Step 1 所填地址对应的目录名称为起点（不展示或回退至更上层父目录）。
+- Browser Card List：仅展示文件夹、受支持的视频与字幕文件（文件夹在上、文件在下，按名称排序）。卡片复用 `L-04.6 File Card Layout` 单行形态（高度 `68px`、内边距 `--spacing-4`、图标底容器 `36×36px`、标题 `--font-size-body` Medium 单行尾部截断；文件夹右侧带 `16px` `caret-right` 箭头，文件无箭头与操作按钮）。
+- 交互与选中态：文件卡片不可点击且无 Hover 效果；文件夹卡片支持同层级单击多选与双击进入子目录。未选中文件夹 Hover 背景为 `--color-row-hover`；选中文件夹背景为 `--color-library-media-card-hover-bg`、边框为 `--color-border-active`，且选中后无 Hover 效果。双击进入子目录、点击面包屑跳转或点击 `Back` 返回 Step 1 时清空当前选中项；`Back` 返回 Step 1 时保留已输入的表单内容，仅关闭弹窗时清空。
 
 #### Spacing
 
 - Region Gap：`--spacing-4`
-- Field Gap：`--spacing-3`
+- Field Gap / Card Gap：`--spacing-3`
 - Label to Field Gap：`--spacing-3`
 - Footer Action Gap：`--spacing-2`
 
 #### States
 
-- Default
-- Validation Error
-- Validating（4 个输入框与 `Add` 按钮为 Disabled，`Add` 按钮内左侧展示 `WorkbenchSpinner`）
+- Step 1 - Default
+- Step 1 - Validation Error
+- Step 1 - Connecting（3 个输入框与 `Connect` 按钮为 Disabled，`Connect` 按钮内左侧展示 `WorkbenchSpinner`）
+- Step 2 - Loaded（`Add` 启用；未选中子文件夹时添加当前目录自身，选中一个或多个子文件夹时按从上到下顺序依次入队添加）
+- Step 2 - Loading Subfolder（列表区居中展示 `18px` `WorkbenchSpinner`，`Add` 为 Disabled）
+- Step 2 - Load Failed / Empty（列表区居中展示 `Empty Hint`，加载失败时 `Add` 为 Disabled）
 
 ### L-06.5 Export to Anki Dialog Layout
 
