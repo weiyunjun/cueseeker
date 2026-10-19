@@ -724,34 +724,31 @@
 
 #### Structure
 
-1. Search（双栏）：
-   - Row 1：Search Field（铺满宽度）
-   - Row 2（左对齐）：
-     - Default：从左到右依次为 Filter Trigger（带 18px 图标与 `Filter` / `筛选` 文本）、Result Count（`xx results`，未输入搜索词时不显示）
-     - Select Mode：从左到右依次为 `退出选择` 按钮（带 18px `sign-out` 图标）、Selection Banner 文案（`已进入批量选择状态：点击任意行即可勾选，支持 Shift 连选`）
-2. Excerpt（单栏合并，左对齐并默认铺满宽度）：
-   - Default：从左到右依次为 Search Field、Filter Trigger、Result Count（`xx excerpts`，仅统计有效台词）；宽度减小时优先缩减 Search Field 宽度
-   - Select Mode：整栏切换为从左到右依次为 `退出选择` 按钮、Selection Banner 文案（覆盖 Search Field、Filter Trigger 与 Result Count）
+1. Row 1：从左到右依次为 Search Field（自适应撑满整行剩余宽度）、Filter Trigger（带 18px 图标与 `Filter` / `筛选` 文本）、Sort Trigger（图标为 `funnel-simple`，文字为当前选中的排序方式；点击展开与按钮左边缘对齐的 Radio Menu，打开时默认高亮首项）
+2. Row 2（左对齐）：
+   - Default：Result Count（Search 为 `xx results`，未输入搜索词时不显示；Excerpt 为 `xx excerpts`，仅统计有效台词）
+   - Select Mode：从左到右依次为 `退出选择` 按钮（带 18px `sign-out` 图标）、Selection Banner 文案（`已进入批量选择状态：点击任意行即可勾选，支持 Shift 连选`）
 
 #### Components
 
 - Search Field
 - Status Indicator / Workbench Status Indicator
 - Button / Neutral
+- Menu
 - Information Badge / Task Count Badge
 
 #### Sizes
 
 - Row Height：`--height-control`
-- Row Gap：`--spacing-4`（仅 Search）
+- Row Gap：`--spacing-4`
 - Item Gap：`--spacing-3`
 - Bottom Gap：`--spacing-4`
 - Width：Fill Parent Content Width
 
 #### States
 
-- Default：Search 的 Row 1 启用、Row 2 左对齐展示 Filter Trigger 与 Result Count；Excerpt 单行左对齐展示 Search Field、Filter Trigger 与 Result Count
-- Select Mode：Search 的 Row 1 禁用、Row 2 左对齐展示「退出选择」按钮与批量选择提示文案（样式同 Result Count，无背景卡片与边框）；Excerpt 整行切换为左对齐的「退出选择」按钮与批量选择提示文案
+- Default：Row 1 启用，Row 2 左对齐展示 Result Count
+- Select Mode：Row 1 保持原位并全部禁用（Search Field、Filter Trigger、Sort Trigger 均为 Disabled），Row 2 左对齐展示「退出选择」按钮与批量选择提示文案（样式同 Result Count，无背景卡片与边框）
 - Filter Dialog Open
 - Calculating
 
@@ -819,8 +816,8 @@
 
 #### Ordering
 
-- Search：按 Display Title、字幕路径、Cue 时间的顺序排列；首屏与搜索完成后的顺序一致
-- Excerpt：按收藏时间正序排列，最新收藏的在最下方
+- Search：支持默认排序（按 Display Title、字幕路径、Cue 时间升序）、字符数最多、字符数最少；相同条件下按默认排序兜底，首屏与搜索完成后的顺序一致，搜索进行中切换排序立即重新搜索。排序选择持久化保存，并与 Command Panel 搜索结果保持一致
+- Excerpt：支持添加日期最早（默认）、添加日期最晚、字符数最多、字符数最少；相同条件下按添加日期最早兜底。各 Excerpt List 的搜索词、筛选与排序相互独立（筛选与排序持久化保存，搜索词重启后清空）
 
 #### Sizes
 
