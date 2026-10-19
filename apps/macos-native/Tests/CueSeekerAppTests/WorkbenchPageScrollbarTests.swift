@@ -286,7 +286,7 @@ func workbenchTableHeaderStaysWithinTheTableWidth() async throws {
 
 @MainActor
 @Test
-func excerptMergedSingleRowToolbarShrinksSearchFieldFirstAndCoversSearchInSelectMode() async throws {
+func unifiedTwoRowToolbarShrinksSearchFieldFirstAndDisablesRowOneInSelectMode() async throws {
     let wideWidth: CGFloat = 800
     let narrowWidth: CGFloat = 480
 
@@ -307,16 +307,17 @@ func excerptMergedSingleRowToolbarShrinksSearchFieldFirstAndCoversSearchInSelect
                     isFilterDialogOpen: false,
                     filterSelectionCount: 0,
                     canEnterSelectionMode: true,
-                    mergesSearchAndActionsIntoSingleRow: true,
+                    sortTitle: ExcerptSortOrder.earliestDateAdded.title,
                     onSubmit: nil,
                     onFilter: {},
+                    onSort: {},
                     onToggleSelectionMode: {}
                 )
                 .environmentObject(localization)
                 .frame(width: width)
             )
         )
-        host.frame = CGRect(x: 0, y: 0, width: width, height: 60)
+        host.frame = CGRect(x: 0, y: 0, width: width, height: 100)
         let window = NSWindow(
             contentRect: host.frame,
             styleMask: [.borderless],
@@ -339,16 +340,25 @@ func excerptMergedSingleRowToolbarShrinksSearchFieldFirstAndCoversSearchInSelect
     )
 
     // When container width decreases by 320px, the search field absorbs the full reduction
-    // while Filter button and Excerpt count keep their intrinsic widths.
+    // while Filter button and Sort button keep their intrinsic widths.
     let widthDelta = wideWidth - narrowWidth
     let searchFieldDelta = wideSearchField.bounds.width - narrowSearchField.bounds.width
     #expect(abs(searchFieldDelta - widthDelta) <= 1.0)
 
-    // In Select Mode, the merged single row replaces the search field with the selection banner.
+    // In Select Mode, Row 1 remains in place with Search Field, Filter Button, and Sort Button disabled,
+    // while Row 2 shows the Exit Selection button.
     let selectionHost = await mountToolbar(width: wideWidth, isSelectionMode: true)
-    let selectionEditableFields = workbenchPageSubviews(of: NSTextField.self, in: selectionHost)
-        .filter { $0.isEditable }
-    #expect(selectionEditableFields.isEmpty)
+    let selectionSearchField = try #require(
+        workbenchPageSubviews(of: NSTextField.self, in: selectionHost).first {
+            $0.placeholderAttributedString?.string == "Search in excerpt list..."
+                || $0.placeholderString == "Search in excerpt list..."
+        }
+    )
+    #expect(!selectionSearchField.isEnabled)
+    #expect(!selectionSearchField.isEditable)
+    #expect(abs(selectionSearchField.bounds.width - wideSearchField.bounds.width) <= 1.0)
+    #expect(abs(wideHost.fittingSize.height - 88) <= 1.0)
+    #expect(abs(selectionHost.fittingSize.height - 88) <= 1.0)
 }
 
 @MainActor

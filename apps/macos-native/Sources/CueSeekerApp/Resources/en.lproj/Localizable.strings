@@ -85,6 +85,13 @@
 "table.toolbar.copy_deep_links" = "Copy Deep Links";
 "table.toolbar.copy_table" = "Copy Table";
 "table.toolbar.exit" = "Exit";
+"search.sort.default" = "Default Order";
+"search.sort.most_characters" = "Most Characters";
+"search.sort.fewest_characters" = "Fewest Characters";
+"excerpt.sort.earliest_date_added" = "Earliest Date Added";
+"excerpt.sort.latest_date_added" = "Latest Date Added";
+"excerpt.sort.most_characters" = "Most Characters";
+"excerpt.sort.fewest_characters" = "Fewest Characters";
 
 /* Row action menu */
 "row_menu.play" = "Play";

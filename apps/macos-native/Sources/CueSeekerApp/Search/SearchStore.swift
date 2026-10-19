@@ -75,6 +75,7 @@ final class SearchStore: ObservableObject {
     @Published private(set) var searchFacetSnapshot: CueFacetSnapshot?
     @Published private(set) var emptySearchFacetDistribution: CueFacetDistribution?
     private(set) var searchFacetFilter = CueFacetFilter()
+    @Published private(set) var searchSortOrder: SearchSortOrder = .default
     /// The four option-count cards for the current filter: each card ignores its
     /// own selections and applies the other three.
     @Published private(set) var searchFacetDistribution: CueFacetDistribution?
@@ -239,6 +240,13 @@ final class SearchStore: ObservableObject {
         return true
     }
 
+    @discardableResult
+    func updateSearchSortOrder(_ sortOrder: SearchSortOrder) -> Bool {
+        guard searchSortOrder != sortOrder else { return false }
+        searchSortOrder = sortOrder
+        return true
+    }
+
     /// A Folder selection that leaves out every listed folder is no
     /// selection. The listed folders are the library's, known once the
     /// database is; Search and every Excerpt list share them.
@@ -254,6 +262,7 @@ final class SearchStore: ObservableObject {
         }
         searchFacetDistribution = searchFacetSnapshot.filteredCueIDs(
             using: searchFacetFilter,
+            sortOrder: searchSortOrder,
             limit: searchFacetSnapshot.cueIDs.count
         ).distribution
     }
@@ -270,19 +279,30 @@ final class SearchStore: ObservableObject {
     /// rule, is installed whole once every row's contents are in memory.
     /// Returns the projection, or nil when a search is needed instead.
     func projectSearchFacetFilter(
-        _ filter: CueFacetFilter
+        _ filter: CueFacetFilter,
+        sortOrder: SearchSortOrder? = nil
     ) -> (cueIDs: [Int64], distribution: CueFacetDistribution)? {
         let filter = normalizedFacetFilter(filter)
-        guard searchFacetFilter != filter || resultFacetFilter != filter,
+        let resolvedSortOrder = sortOrder ?? searchSortOrder
+        guard searchFacetFilter != filter
+                || resultFacetFilter != filter
+                || searchSortOrder != resolvedSortOrder
+                || resultSortOrder != resolvedSortOrder,
               let snapshot = searchFacetSnapshot
         else {
             return nil
         }
         searchFacetFilter = filter
         resultFacetFilter = filter
+        searchSortOrder = resolvedSortOrder
+        resultSortOrder = resolvedSortOrder
         cancelQueryTasks()
         advanceResultListGeneration()
-        let projection = snapshot.filteredCueIDs(using: filter, limit: snapshot.cueIDs.count)
+        let projection = snapshot.filteredCueIDs(
+            using: filter,
+            sortOrder: resolvedSortOrder,
+            limit: snapshot.cueIDs.count
+        )
         return (projection.cueIDs, projection.distribution)
     }
 
@@ -445,6 +465,7 @@ final class SearchStore: ObservableObject {
     private(set) var resultFilterSet = SubtitleSearchFilterSet()
     /// The facet filter the current result list was searched with.
     private(set) var resultFacetFilter = CueFacetFilter()
+    private(set) var resultSortOrder: SearchSortOrder = .default
 
     func updateQuery(_ query: String) {
         let normalizedQuery = SearchInputNormalizer.singleLine(query)
@@ -502,6 +523,7 @@ final class SearchStore: ObservableObject {
             resultListGeneration &+= 1
             resultFilterSet = filterSet
             resultFacetFilter = searchFacetFilter
+            resultSortOrder = searchSortOrder
             // The counts belong to the result list: the new search carries its
             // own rows and counts.
             setSearchFacetSnapshot(nil)

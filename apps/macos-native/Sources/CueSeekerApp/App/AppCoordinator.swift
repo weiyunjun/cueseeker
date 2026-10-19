@@ -549,6 +549,7 @@ final class AppCoordinator: ObservableObject {
             uiProbeScope: uiProbeScope
         )
         search.updateSearchFacetFilter(settings.searchFacetFilter)
+        search.updateSearchSortOrder(settings.searchSortOrder)
         _ = search.updateFolderScope(indexing.selectedFolders)
         self.playbackSubtitleDatabase = openedPlaybackSubtitleDatabase
         self.libraryDatabase = openedLibraryDatabase
@@ -580,12 +581,15 @@ final class AppCoordinator: ObservableObject {
         }
 
         let initialExcerptListID = try? openedExcerptDatabase?.firstExcerptListID()
+        excerpt.setActiveListID(initialExcerptListID)
         if let initialExcerptListID {
             excerpt.updateTableFacetFilter(
                 settings.excerptFacetFilter(forListID: initialExcerptListID)
             )
+            excerpt.updateTableSortOrder(
+                settings.excerptSortOrder(forListID: initialExcerptListID)
+            )
         }
-        excerpt.setActiveListID(initialExcerptListID)
         excerpt.setRecentSaveListID(settings.recentExcerptSaveListID)
         discardUnfinishedFolderAdditions(tasks.loadPersistedRecords())
         setupSettingsObservers()
@@ -787,10 +791,13 @@ final class AppCoordinator: ObservableObject {
                 ?? ""
             ExcerptOpenPerformanceTracker.beginOpen(listID: id, title: listTitle)
             refreshExcerptOnReappearanceIfNeeded()
+            excerpt.setActiveListID(id)
             excerpt.updateTableFacetFilter(
                 settings.excerptFacetFilter(forListID: id)
             )
-            excerpt.setActiveListID(id)
+            excerpt.updateTableSortOrder(
+                settings.excerptSortOrder(forListID: id)
+            )
             reloadExcerptTableRows()
         case .recent:
             refreshExcerptOnReappearanceIfNeeded()

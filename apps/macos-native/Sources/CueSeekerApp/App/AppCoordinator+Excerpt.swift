@@ -374,14 +374,21 @@ extension AppCoordinator {
             // is a step of its own, like any other page change.
             navigateWorkbench(to: .excerpt)
         }
+        settings.removeExcerptListSettings(forListID: id)
         if excerpt.activeListID == id {
             let nextListID = excerpt.listOverview.lists.first(where: { $0.id != id })?.id
+            excerpt.setActiveListID(nextListID)
             if let nextListID {
                 excerpt.updateTableFacetFilter(
                     settings.excerptFacetFilter(forListID: nextListID)
                 )
+                excerpt.updateTableSortOrder(
+                    settings.excerptSortOrder(forListID: nextListID)
+                )
+            } else {
+                excerpt.updateTableFacetFilter(CueFacetFilter())
+                excerpt.updateTableSortOrder(.earliestDateAdded)
             }
-            excerpt.setActiveListID(nextListID)
         }
         let currentUniqueCount = excerpt.listOverview.uniqueCueCount
         let removedCueCount = excerpt.listOverview.lists.first(where: { $0.id == id })?.cueCount ?? 0
@@ -442,16 +449,21 @@ extension AppCoordinator {
         }
 
         excerptTableRowsTask?.cancel()
-        if excerpt.activeListID == nil {
+        let wasActiveListIDNil = excerpt.activeListID == nil
+        excerpt.setActiveListID(listID)
+        if wasActiveListIDNil {
             excerpt.updateTableFacetFilter(
                 settings.excerptFacetFilter(forListID: listID)
             )
+            excerpt.updateTableSortOrder(
+                settings.excerptSortOrder(forListID: listID)
+            )
         }
-        excerpt.setActiveListID(listID)
 
         let resultSnapshotID = excerpt.tableResultSnapshotID
         let searchText = excerpt.tableSearchDraft
         let facetFilter = excerpt.tableFacetFilter
+        let sortOrder = excerpt.tableSortOrder
         let dataRevision = excerpt.tableDataRevision
         if excerpt.residentDataRevision == dataRevision,
            excerpt.residentListID == listID {
@@ -459,6 +471,7 @@ extension AppCoordinator {
                 resultSnapshotID: resultSnapshotID,
                 searchText: searchText,
                 facetFilter: facetFilter,
+                sortOrder: sortOrder,
                 listID: listID,
                 dataRevision: dataRevision
             )
@@ -494,6 +507,7 @@ extension AppCoordinator {
                     resultSnapshotID: resultSnapshotID,
                     searchText: searchText,
                     facetFilter: facetFilter,
+                    sortOrder: sortOrder,
                     listID: listID,
                     dataRevision: dataRevision
                 ) else {
@@ -510,6 +524,7 @@ extension AppCoordinator {
                     resultSnapshotID: resultSnapshotID,
                     searchText: searchText,
                     facetFilter: facetFilter,
+                    sortOrder: sortOrder,
                     listID: listID,
                     dataRevision: dataRevision
                 )
@@ -529,6 +544,7 @@ extension AppCoordinator {
                     resultSnapshotID: resultSnapshotID,
                     searchText: searchText,
                     facetFilter: facetFilter,
+                    sortOrder: sortOrder,
                     listID: listID,
                     dataRevision: dataRevision
                 ) {
@@ -605,6 +621,7 @@ extension AppCoordinator {
         else {
             return
         }
+        settings.setExcerptFacetFilter(filter, forListID: listID)
         if excerptNeedsReloadAfterIndexedContentMutation {
             refreshExcerptOnReappearanceIfNeeded()
             return
@@ -622,6 +639,37 @@ extension AppCoordinator {
             resultSnapshotID: excerpt.tableResultSnapshotID,
             searchText: excerpt.tableSearchDraft,
             facetFilter: filter,
+            sortOrder: excerpt.tableSortOrder,
+            listID: listID,
+            dataRevision: dataRevision
+        )
+    }
+
+    func updateExcerptSortOrder(_ sortOrder: ExcerptSortOrder) {
+        guard excerpt.updateTableSortOrder(sortOrder),
+              let listID = excerpt.activeListID
+        else {
+            return
+        }
+        settings.setExcerptSortOrder(sortOrder, forListID: listID)
+        if excerptNeedsReloadAfterIndexedContentMutation {
+            refreshExcerptOnReappearanceIfNeeded()
+            return
+        }
+        let dataRevision = excerpt.tableDataRevision
+        guard excerpt.residentDataRevision == dataRevision,
+              excerpt.residentListID == listID
+        else {
+            reloadExcerptTableRows()
+            return
+        }
+
+        excerpt.beginTableResultProjection()
+        applyResidentExcerptTableProjection(
+            resultSnapshotID: excerpt.tableResultSnapshotID,
+            searchText: excerpt.tableSearchDraft,
+            facetFilter: excerpt.tableFacetFilter,
+            sortOrder: sortOrder,
             listID: listID,
             dataRevision: dataRevision
         )
@@ -658,6 +706,7 @@ extension AppCoordinator {
             resultSnapshotID: excerpt.tableResultSnapshotID,
             searchText: normalizedSearchText,
             facetFilter: excerpt.tableFacetFilter,
+            sortOrder: excerpt.tableSortOrder,
             listID: listID,
             dataRevision: dataRevision
         )
@@ -668,7 +717,8 @@ extension AppCoordinator {
     /// reads them for a selection it has not handed to the table yet.
     func residentExcerptTableProjection(
         searchText: String,
-        facetFilter: CueFacetFilter
+        facetFilter: CueFacetFilter,
+        sortOrder: ExcerptSortOrder? = nil
     ) -> (relations: [ExcerptRelation], distribution: CueFacetDistribution) {
         let trimmedSearchText = searchText.trimmingCharacters(
             in: .whitespacesAndNewlines
@@ -698,6 +748,34 @@ extension AppCoordinator {
             }
             return matchesSearch
         }
+        let resolvedSortOrder = sortOrder ?? excerpt.tableSortOrder
+        let sortedRelations: [ExcerptRelation]
+        switch resolvedSortOrder {
+        case .earliestDateAdded:
+            sortedRelations = relations
+        case .latestDateAdded:
+            sortedRelations = relations.enumerated().sorted { lhs, rhs in
+                if lhs.element.createdAt != rhs.element.createdAt {
+                    return lhs.element.createdAt > rhs.element.createdAt
+                }
+                return lhs.offset < rhs.offset
+            }.map(\.element)
+        case .mostCharacters, .fewestCharacters:
+            let widths = relations.map { relation -> Int in
+                let cueText = cueContent.content(for: relation.cueID)?.content
+                    ?? excerpt.residentExcerptsByID[relation.id]?.content
+                    ?? ""
+                return CueCharacterFacet.characterWidth(of: cueText)
+            }
+            sortedRelations = relations.indices.sorted { lhs, rhs in
+                if widths[lhs] != widths[rhs] {
+                    return resolvedSortOrder == .mostCharacters
+                        ? widths[lhs] > widths[rhs]
+                        : widths[lhs] < widths[rhs]
+                }
+                return lhs < rhs
+            }.map { relations[$0] }
+        }
         let validFacetSnapshot = excerpt.residentFacetSnapshot?.keeping(
             cueIDs: validSearchMatchingCueIDs
         ) ?? .empty
@@ -705,13 +783,14 @@ extension AppCoordinator {
             using: normalizedFilter,
             limit: validFacetSnapshot.cueIDs.count
         ).distribution
-        return (relations, validDistribution)
+        return (sortedRelations, validDistribution)
     }
 
     private func applyResidentExcerptTableProjection(
         resultSnapshotID: UUID,
         searchText: String,
         facetFilter: CueFacetFilter,
+        sortOrder: ExcerptSortOrder,
         listID: Int64,
         dataRevision: Int
     ) {
@@ -719,6 +798,7 @@ extension AppCoordinator {
             resultSnapshotID: resultSnapshotID,
             searchText: searchText,
             facetFilter: facetFilter,
+            sortOrder: sortOrder,
             listID: listID,
             dataRevision: dataRevision
         ) else {
@@ -727,7 +807,8 @@ extension AppCoordinator {
 
         let relations = residentExcerptTableProjection(
             searchText: searchText,
-            facetFilter: facetFilter
+            facetFilter: facetFilter,
+            sortOrder: sortOrder
         ).relations
         excerpt.installTableResultExcerptIDs(relations.map(\.id))
         excerpt.markTableRowsLoaded(
@@ -751,6 +832,7 @@ extension AppCoordinator {
         resultSnapshotID: UUID,
         searchText: String,
         facetFilter: CueFacetFilter,
+        sortOrder: ExcerptSortOrder,
         listID: Int64,
         dataRevision: Int
     ) -> Bool {
@@ -758,6 +840,7 @@ extension AppCoordinator {
             && excerpt.tableResultSnapshotID == resultSnapshotID
             && excerpt.tableSearchDraft == searchText
             && excerpt.tableFacetFilter == facetFilter
+            && excerpt.tableSortOrder == sortOrder
             && excerpt.activeListID == listID
             && excerpt.tableDataRevision == dataRevision
     }

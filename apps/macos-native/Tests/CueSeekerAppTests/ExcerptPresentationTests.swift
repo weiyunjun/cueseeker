@@ -418,11 +418,145 @@ func openExcerptListTriggersPerformanceTrackingAndCompletesOnVisibleRows() async
     #expect((report?.totalDuration ?? -1) >= 0)
 }
 
+@MainActor
+@Test
+func excerptListsKeepIndependentSearchFilterAndSortStateAndUseEarliestDateAddedTieBreaker() async throws {
+    let suiteName = "CueSeekerExcerptSortingAndPerListStateTests-\(UUID().uuidString)"
+    let userDefaults = try #require(UserDefaults.temporary(suiteName: suiteName))
+    let fixtureRoot = FileManager.default.temporaryDirectory
+        .appendingPathComponent(suiteName, isDirectory: true)
+    let databaseURL = fixtureRoot.appendingPathComponent("CueSeeker.sqlite")
+    defer {
+        userDefaults.removePersistentDomainAndPlist(forName: suiteName)
+        try? FileManager.default.removeItem(at: fixtureRoot)
+    }
+    try FileManager.default.createDirectory(
+        at: fixtureRoot,
+        withIntermediateDirectories: true
+    )
+
+    _ = NSApplication.shared
+    let app = AppCoordinator(userDefaults: userDefaults, databaseURL: databaseURL)
+    let indexingDatabase = try #require(app.indexingDatabase)
+    let excerptDatabase = try #require(app.excerptDatabase)
+    for index in 1...5 {
+        _ = try excerptDatabase.createExcerptList(
+            name: "Placeholder \(index)",
+            createdAt: Date(timeIntervalSince1970: Double(index))
+        )
+    }
+    let firstList = try excerptDatabase.createExcerptList(
+        name: "First Isolated List",
+        createdAt: Date(timeIntervalSince1970: 400)
+    )
+    let secondList = try excerptDatabase.createExcerptList(
+        name: "Second Isolated List",
+        createdAt: Date(timeIntervalSince1970: 500)
+    )
+
+    let itemA = try makeExcerpt(
+        in: indexingDatabase,
+        id: 201,
+        content: "alpha ab", // width 8, earliest
+        listID: firstList.id,
+        createdAt: Date(timeIntervalSince1970: 100)
+    )
+    let itemB = try makeExcerpt(
+        in: indexingDatabase,
+        id: 202,
+        content: "alpha longest text", // width 18, middle
+        listID: firstList.id,
+        createdAt: Date(timeIntervalSince1970: 200)
+    )
+    let itemC = try makeExcerpt(
+        in: indexingDatabase,
+        id: 203,
+        content: "alpha xy", // width 8 (tie with itemA), latest
+        listID: firstList.id,
+        createdAt: Date(timeIntervalSince1970: 300)
+    )
+    let secondItem1 = try makeExcerpt(
+        in: indexingDatabase,
+        id: 204,
+        content: "beta short",
+        listID: secondList.id,
+        createdAt: Date(timeIntervalSince1970: 150)
+    )
+    let secondItem2 = try makeExcerpt(
+        in: indexingDatabase,
+        id: 205,
+        content: "beta much longer line",
+        listID: secondList.id,
+        createdAt: Date(timeIntervalSince1970: 250)
+    )
+
+    app.openExcerptList(id: firstList.id)
+    try await waitForExcerptTasksToFinish(app)
+
+    // Default sort order is Earliest Date Added (created_at ASC, id ASC).
+    #expect(app.excerpt.tableSortOrder == .earliestDateAdded)
+    #expect(app.excerpt.tableResultExcerptIDs == [itemA.id, itemB.id, itemC.id])
+
+    // Latest Date Added sorts by created_at DESC with Earliest Date Added tie-breaker.
+    app.updateExcerptSortOrder(.latestDateAdded)
+    #expect(app.excerpt.tableResultExcerptIDs == [itemC.id, itemB.id, itemA.id])
+
+    // Most Characters sorts by characterWidth DESC and breaks ties by Earliest Date Added (itemA before itemC).
+    app.updateExcerptSortOrder(.mostCharacters)
+    #expect(app.excerpt.tableResultExcerptIDs == [itemB.id, itemA.id, itemC.id])
+
+    // Fewest Characters sorts by characterWidth ASC and breaks ties by Earliest Date Added (itemA before itemC).
+    app.updateExcerptSortOrder(.fewestCharacters)
+    #expect(app.excerpt.tableResultExcerptIDs == [itemA.id, itemC.id, itemB.id])
+
+    // Set search query and filter on First List.
+    app.updateExcerptSearchQuery("alpha")
+    app.updateExcerptFacetFilter(CueFacetFilter(characters: [.oneToTen]))
+    #expect(app.excerpt.tableSearchDraft == "alpha")
+    #expect(app.excerpt.tableResultExcerptIDs == [itemA.id, itemC.id])
+
+    // Switch to Second List: search query, filter, and sort order are independent.
+    app.openExcerptList(id: secondList.id)
+    try await waitForExcerptTasksToFinish(app)
+    #expect(app.excerpt.tableSearchDraft == "")
+    #expect(app.excerpt.tableFacetFilter == CueFacetFilter())
+    #expect(app.excerpt.tableSortOrder == .earliestDateAdded)
+    #expect(app.excerpt.tableResultExcerptIDs == [secondItem1.id, secondItem2.id])
+
+    app.updateExcerptSearchQuery("longer")
+    app.updateExcerptSortOrder(.mostCharacters)
+    #expect(app.excerpt.tableSearchDraft == "longer")
+    #expect(app.excerpt.tableResultExcerptIDs == [secondItem2.id])
+
+    // Switch back to First List: its session search draft, filter, and sort order are preserved.
+    app.openExcerptList(id: firstList.id)
+    try await waitForExcerptTasksToFinish(app)
+    #expect(app.excerpt.tableSearchDraft == "alpha")
+    #expect(app.excerpt.tableFacetFilter == CueFacetFilter(characters: [.oneToTen]))
+    #expect(app.excerpt.tableSortOrder == .fewestCharacters)
+    #expect(app.excerpt.tableResultExcerptIDs == [itemA.id, itemC.id])
+
+    // Simulate app restart: filter and sort order are persisted per list, while search query resets to empty.
+    let restartedApp = AppCoordinator(userDefaults: userDefaults, databaseURL: databaseURL)
+    restartedApp.openExcerptList(id: firstList.id)
+    try await waitForExcerptTasksToFinish(restartedApp)
+    #expect(restartedApp.excerpt.tableSearchDraft == "")
+    #expect(restartedApp.excerpt.tableFacetFilter == CueFacetFilter(characters: [.oneToTen]))
+    #expect(restartedApp.excerpt.tableSortOrder == .fewestCharacters)
+
+    restartedApp.openExcerptList(id: secondList.id)
+    try await waitForExcerptTasksToFinish(restartedApp)
+    #expect(restartedApp.excerpt.tableSearchDraft == "")
+    #expect(restartedApp.excerpt.tableFacetFilter == CueFacetFilter())
+    #expect(restartedApp.excerpt.tableSortOrder == .mostCharacters)
+}
+
 private func makeExcerpt(
     in database: IndexingDatabase,
     id: Int,
     content: String,
-    listID: Int64? = nil
+    listID: Int64? = nil,
+    createdAt: Date = Date()
 ) throws -> Excerpt {
     let subtitleFile = URL(fileURLWithPath: "/Media/Excerpt-\(id).srt")
     let videoFile = URL(fileURLWithPath: "/Media/Excerpt-\(id).mkv")
@@ -446,7 +580,8 @@ private func makeExcerpt(
     ))
     return try ExcerptDatabase(path: database.path).upsertExcerpt(
         selection: selection,
-        listID: listID
+        listID: listID,
+        createdAt: createdAt
     )
 }
 

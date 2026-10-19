@@ -84,6 +84,13 @@ struct WorkbenchTestSearchView: View {
                 snapshot: search.searchFacetSnapshot
             ),
             onOpenFilterDialog: openFilterDialog,
+            sortOptions: SearchSortOrder.workbenchSortOptions,
+            selectedSortOptionID: search.searchSortOrder.rawValue,
+            onSelectSortOption: { optionID in
+                if let order = SearchSortOrder(rawValue: optionID) {
+                    applySearchSortOrder(order)
+                }
+            },
             selectionOverlayAnchor: selectionOverlayAnchor
         ) { tableColumns in
             WorkbenchSearchTableRowsObserver(rowStore: rowStore) { snapshot in
@@ -158,6 +165,7 @@ struct WorkbenchTestSearchView: View {
                 settingsStore.searchFacetFilter = persistedFacetFilter
             }
             searchFacetFilter = persistedFacetFilter
+            appState.updateSearchSortOrder(settingsStore.searchSortOrder)
             appState.applySearchFacetFilter(persistedFacetFilter)
             prepareViewportRestoration()
             searchDraft = search.tableSearchDraft.isEmpty
@@ -549,6 +557,28 @@ struct WorkbenchTestSearchView: View {
         didRestoreViewport = true
         tableScrollResetToken += 1
         appState.applySearchFacetFilter(filter)
+    }
+
+    private func applySearchSortOrder(_ sortOrder: SearchSortOrder) {
+        guard !isSelectionMode,
+              search.searchSortOrder != sortOrder
+        else {
+            return
+        }
+        UIInvalidationProbe.mark(
+            "ACTION UI.SearchSortOrder.changed",
+            scope: appState.uiProbeScope,
+            details: "sortOrder=\(sortOrder.rawValue)"
+        )
+        exitSelectionMode()
+        rowSelection.reset()
+        persistSelection()
+        search.tableViewportAnchor = nil
+        viewportAnchorToRestore = nil
+        tableScrollTargetRow = nil
+        didRestoreViewport = true
+        tableScrollResetToken += 1
+        appState.updateSearchSortOrder(sortOrder)
     }
 
     private func exportSelectedRowsToAnki() {

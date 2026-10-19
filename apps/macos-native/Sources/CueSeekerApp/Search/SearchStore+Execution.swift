@@ -52,6 +52,7 @@ extension SearchStore {
             filterSet: filterSet
         )
         let facetFilter = resultFacetFilter
+        let sortOrder = resultSortOrder
 
         if let activePerformanceRun {
             SearchPerformanceLogger.mark(
@@ -173,6 +174,7 @@ extension SearchStore {
                             watchStateFilter: watchStateFilter,
                             filterSet: filterSet,
                             facetFilter: facetFilter,
+                            sortOrder: sortOrder,
                             diagnostics: diagnostics
                         )
                         return SearchStorePageLoad(
@@ -194,6 +196,7 @@ extension SearchStore {
                         watchStateFilter: watchStateFilter,
                         filterSet: filterSet,
                         facetFilter: facetFilter,
+                        sortOrder: sortOrder,
                         diagnostics: diagnostics,
                         progress: { progress in
                             let hadFirstPage = reportedRows.results.count >= pageSize
@@ -372,13 +375,18 @@ extension SearchStore {
     /// in which case a search must run.
     func applyProjectedFacetFilter(
         _ filter: CueFacetFilter,
+        sortOrder: SearchSortOrder? = nil,
         folders: [URL],
         languageFilter: SubtitleSearchLanguageFilter,
         watchStateFilter: SubtitleSearchWatchStateFilter,
         onResultsChanged: @escaping @MainActor (UInt64) -> Void
     ) -> Bool {
         let normalizedFilter = normalizedFacetFilter(filter)
-        guard (searchFacetFilter != normalizedFilter || resultFacetFilter != normalizedFilter),
+        let resolvedSortOrder = sortOrder ?? searchSortOrder
+        guard (searchFacetFilter != normalizedFilter
+                || resultFacetFilter != normalizedFilter
+                || searchSortOrder != resolvedSortOrder
+                || resultSortOrder != resolvedSortOrder),
               searchFacetSnapshot != nil
         else {
             return false
@@ -395,7 +403,10 @@ extension SearchStore {
             folderPaths: folders.map(\.path)
         )
         updateActivePerformanceRun(run)
-        guard let projection = projectSearchFacetFilter(filter) else {
+        guard let projection = projectSearchFacetFilter(
+            filter,
+            sortOrder: resolvedSortOrder
+        ) else {
             return false
         }
         let generation = resultListGeneration
@@ -524,6 +535,7 @@ extension SearchStore {
         }
 
         let facetFilter = resultFacetFilter
+        let sortOrder = resultSortOrder
         let sourceCueIDs = orderedCueIDs ?? searchResultCueIDs
         let totalCount = orderedCueIDs?.count ?? searchResultTotalCount
         guard totalCount > 0 else { return nil }
@@ -604,7 +616,8 @@ extension SearchStore {
                     languageFilter: languageFilter,
                     watchStateFilter: watchStateFilter,
                     filterSet: filterSet,
-                    facetFilter: facetFilter
+                    facetFilter: facetFilter,
+                    sortOrder: sortOrder
                 )
             }
             guard !Task.isCancelled,

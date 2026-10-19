@@ -305,3 +305,12 @@ public enum ExcerptNavigationDirection: Equatable, Sendable {
     case previous
     case next
 }
+
+public enum ExcerptSortOrder: String, CaseIterable, Identifiable, Codable, Equatable, Sendable {
+    case earliestDateAdded = "earliest_date_added"
+    case latestDateAdded = "latest_date_added"
+    case mostCharacters = "most_characters"
+    case fewestCharacters = "fewest_characters"
+
+    public var id: String { rawValue }
+}

@@ -595,6 +595,7 @@ public final class ExcerptDatabase: @unchecked Sendable {
         var cueIDs: [Int64] = []
         var durationFacets: [CueDurationFacet] = []
         var characterFacets: [CueCharacterFacet] = []
+        var characterWidths: [Int] = []
         var languageFacets: [Set<SubtitleLanguageCode>] = []
         var watchStateFacets: [LibraryWatchState] = []
         var folderFacets: [String] = []
@@ -602,6 +603,7 @@ public final class ExcerptDatabase: @unchecked Sendable {
         cueIDs.reserveCapacity(relations.count)
         durationFacets.reserveCapacity(relations.count)
         characterFacets.reserveCapacity(relations.count)
+        characterWidths.reserveCapacity(relations.count)
         languageFacets.reserveCapacity(relations.count)
         watchStateFacets.reserveCapacity(relations.count)
         folderFacets.reserveCapacity(relations.count)
@@ -619,9 +621,13 @@ public final class ExcerptDatabase: @unchecked Sendable {
                         - (content?.startMilliseconds ?? excerpt.startMilliseconds)
                 )
             ))
+            let characterWidth = CueCharacterFacet.characterWidth(
+                of: content?.content ?? excerpt.content
+            )
             characterFacets.append(CueCharacterFacet(
-                content: content?.content ?? excerpt.content
+                characterCount: characterWidth
             ))
+            characterWidths.append(characterWidth)
             languageFacets.append(content?.languages ?? [.unknown])
             watchStateFacets.append(
                 watchStatesByExcerptID[relation.id] ?? .unwatched
@@ -640,6 +646,7 @@ public final class ExcerptDatabase: @unchecked Sendable {
             cueIDs: cueIDs,
             durationFacets: durationFacets,
             characterFacets: characterFacets,
+            characterWidths: characterWidths,
             languageFacets: languageFacets,
             watchStateFacets: watchStateFacets,
             folderFacets: folderFacets

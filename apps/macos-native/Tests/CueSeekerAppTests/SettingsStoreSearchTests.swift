@@ -451,6 +451,37 @@ func settingsStoreIgnoresUnrecognizedExcerptFacetExclusions() {
 }
 
 @MainActor
+@Test
+func settingsStorePersistsSearchAndExcerptSortOrdersIndependentlyAndCleansUpDeletedLists() {
+    withTemporarySearchSettingsUserDefaults { userDefaults in
+        let firstStore = SettingsStore(userDefaults: userDefaults)
+        #expect(firstStore.searchSortOrder == .default)
+        #expect(firstStore.excerptSortOrder(forListID: 1) == .earliestDateAdded)
+        #expect(firstStore.excerptSortOrder(forListID: 2) == .earliestDateAdded)
+
+        firstStore.searchSortOrder = .mostCharacters
+        firstStore.setExcerptSortOrder(.latestDateAdded, forListID: 1)
+        firstStore.setExcerptSortOrder(.fewestCharacters, forListID: 2)
+        firstStore.setExcerptFacetFilter(CueFacetFilter(languages: [.japanese]), forListID: 2)
+
+        let restoredStore = SettingsStore(userDefaults: userDefaults)
+        #expect(restoredStore.searchSortOrder == .mostCharacters)
+        #expect(restoredStore.excerptSortOrder(forListID: 1) == .latestDateAdded)
+        #expect(restoredStore.excerptSortOrder(forListID: 2) == .fewestCharacters)
+        #expect(restoredStore.excerptSortOrder(forListID: 3) == .earliestDateAdded)
+
+        restoredStore.removeExcerptListSettings(forListID: 2)
+        #expect(restoredStore.excerptSortOrder(forListID: 2) == .earliestDateAdded)
+        #expect(restoredStore.excerptFacetFilter(forListID: 2) == CueFacetFilter())
+
+        let postDeleteStore = SettingsStore(userDefaults: userDefaults)
+        #expect(postDeleteStore.excerptSortOrder(forListID: 1) == .latestDateAdded)
+        #expect(postDeleteStore.excerptSortOrder(forListID: 2) == .earliestDateAdded)
+        #expect(postDeleteStore.excerptFacetFilter(forListID: 2) == CueFacetFilter())
+    }
+}
+
+@MainActor
 private func withTemporarySearchSettingsUserDefaults(
     _ body: (UserDefaults) -> Void
 ) {

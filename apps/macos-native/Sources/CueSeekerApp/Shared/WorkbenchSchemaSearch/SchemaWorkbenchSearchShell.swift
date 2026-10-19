@@ -1,3 +1,5 @@
+import AppKit
+import CueSeekerCore
 import SwiftUI
 
 struct SchemaWorkbenchTableSummary: Equatable {
@@ -5,6 +7,47 @@ struct SchemaWorkbenchTableSummary: Equatable {
     /// The rows Select Mode can select: the total less the unavailable rows.
     let selectableRowCount: Int
     let selectedRowCount: Int
+}
+
+struct SchemaWorkbenchSortOption: Identifiable, Equatable {
+    let id: String
+    let title: String
+}
+
+extension SearchSortOrder {
+    var title: String {
+        switch self {
+        case .default:
+            return L("search.sort.default")
+        case .mostCharacters:
+            return L("search.sort.most_characters")
+        case .fewestCharacters:
+            return L("search.sort.fewest_characters")
+        }
+    }
+
+    static var workbenchSortOptions: [SchemaWorkbenchSortOption] {
+        allCases.map { SchemaWorkbenchSortOption(id: $0.rawValue, title: $0.title) }
+    }
+}
+
+extension ExcerptSortOrder {
+    var title: String {
+        switch self {
+        case .earliestDateAdded:
+            return L("excerpt.sort.earliest_date_added")
+        case .latestDateAdded:
+            return L("excerpt.sort.latest_date_added")
+        case .mostCharacters:
+            return L("excerpt.sort.most_characters")
+        case .fewestCharacters:
+            return L("excerpt.sort.fewest_characters")
+        }
+    }
+
+    static var workbenchSortOptions: [SchemaWorkbenchSortOption] {
+        allCases.map { SchemaWorkbenchSortOption(id: $0.rawValue, title: $0.title) }
+    }
 }
 
 func schemaWorkbenchResultCountText(_ count: Int) -> String {
@@ -104,6 +147,8 @@ enum SchemaWorkbenchSearchDefaults {
 
 struct SchemaWorkbenchSearchShell<TableContent: View>: View {
     @Environment(\.isWorkbenchPageCovered) private var isWorkbenchPageCovered
+    @Environment(\.interfaceLayers) private var interfaceLayers
+    @Environment(\.interfaceLayerContext) private var layerContext
     // Observed so the copy below is re-read when the language changes.
     @EnvironmentObject private var localization: AppLocalizationStore
 
@@ -123,6 +168,11 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
     let isFilterDialogOpen: Bool
     let filterSelectionCount: Int
     let onOpenFilterDialog: () -> Void
+    let sortOptions: [SchemaWorkbenchSortOption]
+    let selectedSortOptionID: String
+    let onSelectSortOption: (String) -> Void
+    let externalSortButtonAnchor: MenuAnchorHandle?
+    let externalIsSortMenuOpen: Binding<Bool>?
     /// Registered with the Selection Action Overlay's own area, so the table
     /// can tell when the pointer is over it.
     let selectionOverlayAnchor: MenuAnchorHandle?
@@ -131,6 +181,10 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
 
     @StateObject private var externalTextSelectionSession = SubtitleTableExternalTextSelectionSession()
     @StateObject private var pageScrollbar = WorkbenchPageScrollbar()
+    @State private var internalSortButtonAnchor = MenuAnchorHandle()
+    @State private var sortMenuHostAnchor = MenuAnchorHandle()
+    @State private var activeSortMenu: SchemaWorkbenchSortMenuState?
+    @StateObject private var sortMenuHighlight = MenuHighlightModel()
 
     init(
         searchDraft: Binding<String>,
@@ -148,6 +202,11 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
         isFilterDialogOpen: Bool = false,
         filterSelectionCount: Int = 0,
         onOpenFilterDialog: @escaping () -> Void,
+        sortOptions: [SchemaWorkbenchSortOption] = SearchSortOrder.workbenchSortOptions,
+        selectedSortOptionID: String = SearchSortOrder.default.rawValue,
+        onSelectSortOption: @escaping (String) -> Void = { _ in },
+        sortButtonAnchor: MenuAnchorHandle? = nil,
+        isSortMenuOpen: Binding<Bool>? = nil,
         selectionOverlayAnchor: MenuAnchorHandle? = nil,
         onSearchSubmit: (() -> Void)? = nil,
         @ViewBuilder tableContent: @escaping ([WorkbenchTableColumn]) -> TableContent
@@ -167,6 +226,11 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
         self.isFilterDialogOpen = isFilterDialogOpen
         self.filterSelectionCount = filterSelectionCount
         self.onOpenFilterDialog = onOpenFilterDialog
+        self.sortOptions = sortOptions
+        self.selectedSortOptionID = selectedSortOptionID
+        self.onSelectSortOption = onSelectSortOption
+        self.externalSortButtonAnchor = sortButtonAnchor
+        self.externalIsSortMenuOpen = isSortMenuOpen
         self.selectionOverlayAnchor = selectionOverlayAnchor
         self.onSearchSubmit = onSearchSubmit
         self.tableContent = tableContent
@@ -198,6 +262,70 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
                 )
             }
             .frame(width: geometry.size.width, height: geometry.size.height)
+            .background(MenuAnchorProbe(handle: sortMenuHostAnchor))
+            .overlay(alignment: .topLeading) {
+                if let activeSortMenu {
+                    let menuFrame = activeSortMenu.menuFrame
+                    ZStack(alignment: .topLeading) {
+                        MenuGateClientView(
+                            gate: interfaceLayers?.menuGate,
+                            owner: layerContext.layer,
+                            kind: .cardMenu,
+                            menuFrame: menuFrame,
+                            anchorFrame: activeSortMenu.anchorFrame,
+                            handleKey: { keyCode, _ in
+                                switch keyCode {
+                                case 53:
+                                    dismissSortMenu()
+                                    return true
+                                case 126:
+                                    _ = sortMenuHighlight.moveHighlight(by: -1)
+                                    return true
+                                case 125:
+                                    _ = sortMenuHighlight.moveHighlight(by: 1)
+                                    return true
+                                case 123, 124:
+                                    return true
+                                case 36, 76:
+                                    activateHighlightedSortItem()
+                                    return true
+                                default:
+                                    return false
+                                }
+                            },
+                            dismiss: { _ in
+                                dismissSortMenu()
+                            }
+                        )
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .allowsHitTesting(false)
+
+                        SchemaWorkbenchSortMenuPopover(
+                            options: sortOptions,
+                            selectedOptionID: selectedSortOptionID,
+                            highlight: sortMenuHighlight,
+                            onSelect: { optionID in
+                                onSelectSortOption(optionID)
+                                dismissSortMenu()
+                            },
+                            onDismiss: {
+                                dismissSortMenu()
+                            }
+                        )
+                        .offset(x: menuFrame.minX, y: menuFrame.minY)
+                    }
+                    .zIndex(1001)
+                }
+            }
+            .onChange(of: externalIsSortMenuOpen?.wrappedValue ?? false) { isOpen in
+                if isOpen {
+                    if activeSortMenu == nil {
+                        openSortMenu(viewportSize: geometry.size)
+                    }
+                } else if activeSortMenu != nil {
+                    dismissSortMenu()
+                }
+            }
         }
         .environment(\.subtitleTableExternalTextSelectionSession, externalTextSelectionSession)
         .environment(\.workbenchPageScrollbar, pageScrollbar)
@@ -206,7 +334,23 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
                 externalTextSelectionSession.cancel()
             }
         }
+        .onChange(of: isSelectionMode) { inSelectionMode in
+            if inSelectionMode {
+                dismissSortMenu()
+            }
+        }
+        .onChange(of: isFilterDialogOpen) { isOpen in
+            if isOpen {
+                dismissSortMenu()
+            }
+        }
+        .onChange(of: isWorkbenchPageCovered) { isCovered in
+            if isCovered {
+                dismissSortMenu()
+            }
+        }
         .onDisappear {
+            dismissSortMenu()
             externalTextSelectionSession.cancel()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -302,6 +446,16 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
         )
     }
 
+    private var resolvedSortButtonAnchor: MenuAnchorHandle {
+        externalSortButtonAnchor ?? internalSortButtonAnchor
+    }
+
+    private var currentSortTitle: String {
+        sortOptions.first(where: { $0.id == selectedSortOptionID })?.title
+            ?? sortOptions.first?.title
+            ?? L("search.sort.default")
+    }
+
     private var searchToolbar: some View {
         SchemaWorkbenchSearchToolbar(
             placeholder: searchPlaceholder,
@@ -311,12 +465,91 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
             isFilterDialogOpen: isFilterDialogOpen,
             filterSelectionCount: filterSelectionCount,
             canEnterSelectionMode: canEnterSelectionMode,
+            sortTitle: currentSortTitle,
+            isSortMenuOpen: activeSortMenu != nil,
+            sortButtonAnchor: resolvedSortButtonAnchor,
             onSubmit: onSearchSubmit,
-            onFilter: onOpenFilterDialog,
+            onFilter: {
+                dismissSortMenu()
+                onOpenFilterDialog()
+            },
+            onSort: toggleSortMenu,
             onToggleSelectionMode: onToggleSelectionMode
         )
     }
 
+    private func toggleSortMenu() {
+        if activeSortMenu != nil {
+            dismissSortMenu()
+        } else {
+            let viewportSize = sortMenuHostAnchor.bounds?.size ?? .zero
+            openSortMenu(viewportSize: viewportSize)
+        }
+    }
+
+    private func openSortMenu(viewportSize: CGSize) {
+        guard !isSelectionMode,
+              !sortOptions.isEmpty,
+              let anchorFrame = resolvedSortButtonAnchor.frame(in: sortMenuHostAnchor)
+        else {
+            externalIsSortMenuOpen?.wrappedValue = false
+            return
+        }
+        let resolvedViewportSize = viewportSize == .zero
+            ? (sortMenuHostAnchor.bounds?.size ?? .zero)
+            : viewportSize
+        let naturalSize = measuredSortMenuSize()
+        let container = CGRect(origin: .zero, size: resolvedViewportSize)
+        let openingFrame = MenuPlacement.openingFrame(
+            anchor: anchorFrame,
+            menuSize: naturalSize,
+            in: container,
+            gap: WorkbenchControlMetrics.redesignSpacing1,
+            shrinksToFit: false
+        )
+        activeSortMenu = SchemaWorkbenchSortMenuState(
+            anchorFrame: anchorFrame,
+            menuFrame: openingFrame
+        )
+        externalIsSortMenuOpen?.wrappedValue = true
+        sortMenuHighlight.open(
+            selectablePositions: Array(sortOptions.indices),
+            defaultPosition: 0
+        )
+    }
+
+    private func dismissSortMenu() {
+        activeSortMenu = nil
+        if externalIsSortMenuOpen?.wrappedValue == true {
+            externalIsSortMenuOpen?.wrappedValue = false
+        }
+        sortMenuHighlight.close()
+    }
+
+    private func activateHighlightedSortItem() {
+        guard let position = sortMenuHighlight.highlightedPosition,
+              sortOptions.indices.contains(position)
+        else {
+            return
+        }
+        let option = sortOptions[position]
+        onSelectSortOption(option.id)
+        dismissSortMenu()
+    }
+
+    private func measuredSortMenuSize() -> CGSize {
+        let host = NSHostingView(
+            rootView: SchemaWorkbenchSortMenuPopover(
+                options: sortOptions,
+                selectedOptionID: selectedSortOptionID,
+                highlight: sortMenuHighlight,
+                onSelect: { _ in },
+                onDismiss: {}
+            )
+        )
+        host.layoutSubtreeIfNeeded()
+        return host.fittingSize
+    }
 }
 
 enum SchemaWorkbenchStyle {
@@ -333,29 +566,22 @@ struct SchemaWorkbenchSearchToolbar: View {
     /// The options the table's selection holds; nothing is drawn at zero.
     var filterSelectionCount: Int = 0
     var canEnterSelectionMode: Bool = false
-    var mergesSearchAndActionsIntoSingleRow: Bool = false
+    var sortTitle: String = L("search.sort.default")
+    var isSortMenuOpen: Bool = false
+    var sortButtonAnchor: MenuAnchorHandle? = nil
     var onSubmit: (() -> Void)?
     var onFilter: () -> Void
+    var onSort: () -> Void = {}
     var onToggleSelectionMode: () -> Void
 
     var body: some View {
-        if mergesSearchAndActionsIntoSingleRow {
+        VStack(spacing: WorkbenchControlMetrics.redesignSpacing4) {
+            topInputAndActionsRow
+
             if isSelectionMode {
                 selectionBanner
             } else {
-                mergedSingleRow
-            }
-        } else {
-            VStack(spacing: WorkbenchControlMetrics.redesignSpacing4) {
-                searchField
-                    .frame(maxWidth: .infinity)
-                    .disabled(isSelectionMode)
-
-                if isSelectionMode {
-                    selectionBanner
-                } else {
-                    defaultActionRow
-                }
+                defaultResultCountRow
             }
         }
     }
@@ -382,28 +608,42 @@ struct SchemaWorkbenchSearchToolbar: View {
         .accessibilityLabel(L("table.filter"))
     }
 
-    private var mergedSingleRow: some View {
+    private var sortButton: some View {
+        WorkbenchButton(
+            title: sortTitle,
+            icon: .funnelSimple,
+            isRedesign: true,
+            isOpen: isSortMenuOpen,
+            action: onSort
+        )
+        .background {
+            if let sortButtonAnchor {
+                MenuAnchorProbe(handle: sortButtonAnchor)
+            }
+        }
+        .accessibilityLabel(sortTitle)
+    }
+
+    private var topInputAndActionsRow: some View {
         HStack(spacing: WorkbenchControlMetrics.redesignSpacing3) {
             searchField
                 .frame(minWidth: 0, maxWidth: .infinity)
+                .disabled(isSelectionMode)
 
             filterButton
                 .layoutPriority(1)
+                .disabled(isSelectionMode)
 
-            if let searchResultCountText, !searchResultCountText.isEmpty {
-                WorkbenchStatusIndicator(searchResultCountText)
-                    .fixedSize(horizontal: true, vertical: false)
-                    .layoutPriority(1)
-            }
+            sortButton
+                .layoutPriority(1)
+                .disabled(isSelectionMode)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .frame(height: WorkbenchControlMetrics.redesignHeight)
     }
 
-    private var defaultActionRow: some View {
+    private var defaultResultCountRow: some View {
         HStack(spacing: WorkbenchControlMetrics.redesignSpacing3) {
-            filterButton
-
             if let searchResultCountText, !searchResultCountText.isEmpty {
                 WorkbenchStatusIndicator(searchResultCountText)
             }
@@ -436,5 +676,48 @@ struct SchemaWorkbenchSearchToolbar: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .frame(height: WorkbenchControlMetrics.redesignHeight)
+    }
+}
+
+struct SchemaWorkbenchSortMenuState: Identifiable {
+    let id = UUID()
+    let anchorFrame: CGRect
+    let menuFrame: CGRect
+}
+
+struct SchemaWorkbenchSortMenuPopover: View {
+    let options: [SchemaWorkbenchSortOption]
+    let selectedOptionID: String
+    @ObservedObject var highlight: MenuHighlightModel
+    let onSelect: (String) -> Void
+    let onDismiss: () -> Void
+
+    var body: some View {
+        WorkbenchPopoverPanel(
+            isRedesign: true,
+            maximumHeight: MenuMetrics.maximumHeight,
+            highlight: highlight
+        ) {
+            VStack(alignment: .leading, spacing: 0) {
+                ForEach(Array(options.enumerated()), id: \.element.id) { position, option in
+                    WorkbenchPopoverRow(
+                        title: option.title,
+                        isSelected: selectedOptionID == option.id,
+                        isHighlighted: highlight.highlightedPosition == position,
+                        isRedesign: true,
+                        showsCheckmarkSlot: true,
+                        action: {
+                            onDismiss()
+                            onSelect(option.id)
+                        },
+                        onHoverChange: { isHovered in
+                            highlight.noteHover(isHovered, at: position)
+                        }
+                    )
+                    .id(position)
+                }
+            }
+            .fixedSize(horizontal: true, vertical: false)
+        }
     }
 }

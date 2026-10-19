@@ -55,6 +55,8 @@ private struct WorkbenchExcerptTableContent: View {
     @State private var excerptFacetFilter = CueFacetFilter()
     @State private var selectionOverlayAnchor = MenuAnchorHandle()
     @State private var summaryMoreMenuAnchor = MenuAnchorHandle()
+    @State private var sortButtonAnchor = MenuAnchorHandle()
+    @State private var isSortMenuOpen = false
 
     var body: some View {
         let _ = UIInvalidationProbe.count(
@@ -76,6 +78,15 @@ private struct WorkbenchExcerptTableContent: View {
             onToggleSelectionMode: toggleSelectionMode,
             isFilterDialogOpen: isFilterDialogOpen,
             onOpenFilterDialog: openFilterDialog,
+            sortOptions: ExcerptSortOrder.workbenchSortOptions,
+            selectedSortOptionID: excerptStore.tableSortOrder.rawValue,
+            onSelectSortOption: { optionID in
+                if let order = ExcerptSortOrder(rawValue: optionID) {
+                    applyExcerptSortOrder(order)
+                }
+            },
+            sortButtonAnchor: sortButtonAnchor,
+            isSortMenuOpen: $isSortMenuOpen,
             selectionOverlayAnchor: selectionOverlayAnchor
         ) { tableColumns in
             ZStack {
@@ -167,6 +178,7 @@ private struct WorkbenchExcerptTableContent: View {
             tableScrollTargetRow = nil
             didRestoreViewport = true
             tableScrollResetToken += 1
+            isSortMenuOpen = false
             // Another list is another interface for the dialog: it closes.
             closeFilterDialog()
             restoreExcerptFacetFilter()
@@ -179,6 +191,7 @@ private struct WorkbenchExcerptTableContent: View {
         .onChange(of: isTableResponseActive) { isActive in
             if !isActive {
                 exitSelectionMode()
+                isSortMenuOpen = false
                 // The dialog belongs to this page: switching away closes it.
                 closeFilterDialog()
             }
@@ -190,6 +203,7 @@ private struct WorkbenchExcerptTableContent: View {
         }
         .onDisappear {
             exitSelectionMode()
+            isSortMenuOpen = false
             closeFilterDialog()
             excerptStore.setTableProjectionResponseActive(false)
             persistSelection()
@@ -343,8 +357,16 @@ private struct WorkbenchExcerptTableContent: View {
                         snapshot: excerptStore.residentFacetSnapshot
                     ),
                     canEnterSelectionMode: canEnterSelectionMode,
-                    mergesSearchAndActionsIntoSingleRow: true,
-                    onFilter: openFilterDialog,
+                    sortTitle: excerptStore.tableSortOrder.title,
+                    isSortMenuOpen: isSortMenuOpen,
+                    sortButtonAnchor: sortButtonAnchor,
+                    onFilter: {
+                        isSortMenuOpen = false
+                        openFilterDialog()
+                    },
+                    onSort: {
+                        isSortMenuOpen.toggle()
+                    },
                     onToggleSelectionMode: toggleSelectionMode
                 )
                 .padding(.bottom, WorkbenchControlMetrics.redesignSpacing4)
@@ -380,8 +402,8 @@ private struct WorkbenchExcerptTableContent: View {
     }
 
     private var pinnedHeaderHeight: CGFloat {
-        WorkbenchControlMetrics.redesignHeight
-            + WorkbenchControlMetrics.redesignSpacing4
+        WorkbenchControlMetrics.redesignHeight * 2
+            + WorkbenchControlMetrics.redesignSpacing4 * 2
     }
 
     private var showsEmptyListHint: Bool {
@@ -588,7 +610,9 @@ private struct WorkbenchExcerptTableContent: View {
             return
         }
         let filter = settingsStore.excerptFacetFilter(forListID: listID)
+        let sortOrder = settingsStore.excerptSortOrder(forListID: listID)
         excerptFacetFilter = filter
+        appState.updateExcerptSortOrder(sortOrder)
         appState.updateExcerptFacetFilter(filter)
     }
 
@@ -606,6 +630,28 @@ private struct WorkbenchExcerptTableContent: View {
         didRestoreViewport = true
         tableScrollResetToken += 1
         appState.updateExcerptFacetFilter(filter)
+    }
+
+    private func applyExcerptSortOrder(_ sortOrder: ExcerptSortOrder) {
+        guard !isSelectionMode,
+              excerptStore.tableSortOrder != sortOrder
+        else {
+            return
+        }
+        UIInvalidationProbe.mark(
+            "ACTION UI.ExcerptSortOrder.changed",
+            scope: appState.uiProbeScope,
+            details: "sortOrder=\(sortOrder.rawValue)"
+        )
+        exitSelectionMode()
+        rowSelection.reset()
+        persistSelection()
+        excerptStore.tableViewportAnchor = nil
+        viewportAnchorToRestore = nil
+        tableScrollTargetRow = nil
+        didRestoreViewport = true
+        tableScrollResetToken += 1
+        appState.updateExcerptSortOrder(sortOrder)
     }
 
     private func reloadRows(resetScroll: Bool) {

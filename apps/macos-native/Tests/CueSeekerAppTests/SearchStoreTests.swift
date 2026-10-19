@@ -1551,3 +1551,89 @@ func searchHandsTheTableItsFirstPageAndThenTheRestFromOneScan() async throws {
     #expect(search.searchResultTotalCount == 250)
     #expect(search.searchStatus == .completed)
 }
+
+@MainActor
+@Test
+func searchSortOrderProjectsCompletedSnapshotAndRestartsInFlightSearch() async throws {
+    let suiteName = "CueSeekerSearchSortOrderTests-\(UUID().uuidString)"
+    let userDefaults = try #require(UserDefaults.temporary(suiteName: suiteName))
+    let testRoot = FileManager.default.temporaryDirectory
+        .appendingPathComponent(suiteName, isDirectory: true)
+    defer {
+        userDefaults.removePersistentDomainAndPlist(forName: suiteName)
+        try? FileManager.default.removeItem(at: testRoot)
+    }
+
+    let libraryRoot = testRoot.appendingPathComponent("Library", isDirectory: true)
+    try FileManager.default.createDirectory(at: libraryRoot, withIntermediateDirectories: true)
+    try """
+    1
+    00:00:01,000 --> 00:00:02,000
+    sort keyword medium
+
+    2
+    00:00:03,000 --> 00:00:04,000
+    sort keyword s
+
+    3
+    00:00:05,000 --> 00:00:06,000
+    sort keyword longest line here
+
+    """.write(
+        to: libraryRoot.appendingPathComponent("Episode.srt"),
+        atomically: true,
+        encoding: .utf8
+    )
+    try Data([0]).write(to: libraryRoot.appendingPathComponent("Episode.mkv"))
+
+    _ = NSApplication.shared
+    let app = AppCoordinator(
+        userDefaults: userDefaults,
+        databaseURL: testRoot.appendingPathComponent("CueSeeker.sqlite")
+    )
+    app.addFolder(libraryRoot)
+    await app.tasks.waitUntilIdle()
+    await app.libraryTask?.value
+    await app.recentWatchingTask?.value
+    await app.completeLibraryTask?.value
+    await app.databaseStorageStatsTask?.value
+
+    app.submitSearch("sort keyword")
+    await app.search.searchTask?.value
+    #expect(app.search.searchResults.map(\.content) == [
+        "sort keyword medium",
+        "sort keyword s",
+        "sort keyword longest line here",
+    ])
+
+    app.updateSearchSortOrder(.mostCharacters)
+    #expect(app.settings.searchSortOrder == .mostCharacters)
+    #expect(app.search.searchSortOrder == .mostCharacters)
+    #expect(app.search.searchResults.map(\.content) == [
+        "sort keyword longest line here",
+        "sort keyword medium",
+        "sort keyword s",
+    ])
+
+    app.updateSearchSortOrder(.fewestCharacters)
+    #expect(app.search.searchResults.map(\.content) == [
+        "sort keyword s",
+        "sort keyword medium",
+        "sort keyword longest line here",
+    ])
+
+    // Mid-search sort order change interrupts the running task and restarts immediately.
+    app.updateSearchQuery("sort keyword")
+    let initialInFlightTask = try #require(app.search.searchTask)
+    app.updateSearchSortOrder(.default)
+    let restartedTask = try #require(app.search.searchTask)
+    #expect(initialInFlightTask.isCancelled)
+    await restartedTask.value
+    #expect(app.search.searchSortOrder == .default)
+    #expect(app.search.searchResults.map(\.content) == [
+        "sort keyword medium",
+        "sort keyword s",
+        "sort keyword longest line here",
+    ])
+}
+

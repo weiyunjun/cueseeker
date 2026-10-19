@@ -28,6 +28,8 @@ final class ExcerptStore: ObservableObject {
     @Published var tableDataRevision = 0
     @Published private(set) var residentFacetSnapshot: CueFacetSnapshot?
     private(set) var tableFacetFilter = CueFacetFilter()
+    @Published private(set) var tableSortOrder: ExcerptSortOrder = .earliestDateAdded
+    private var tableSearchDraftsByListID: [Int64: String] = [:]
     private(set) var tableResultSnapshotID = UUID()
     private(set) var tableResultExcerptIDs: [Int64]?
     private(set) var residentRelations: [ExcerptRelation] = []
@@ -184,6 +186,9 @@ final class ExcerptStore: ObservableObject {
 
     @discardableResult
     func removeListSummary(id: Int64, uniqueCueCount: Int) -> Bool {
+        tableSearchDraftsByListID[id] = nil
+        residentSnapshotsByListID[id] = nil
+        residentDataRevisionsByListID[id] = nil
         guard hasLoadedListOverview,
               listOverview.lists.contains(where: { $0.id == id })
         else {
@@ -235,6 +240,13 @@ final class ExcerptStore: ObservableObject {
     }
 
     func setActiveListID(_ listID: Int64?) {
+        if let previousListID = activeListID {
+            tableSearchDraftsByListID[previousListID] = tableSearchDraft
+        }
+        let restoredSearchDraft = listID.flatMap { tableSearchDraftsByListID[$0] } ?? ""
+        if tableSearchDraft != restoredSearchDraft {
+            tableSearchDraft = restoredSearchDraft
+        }
         guard activeListID != listID else {
             return
         }
@@ -306,6 +318,9 @@ final class ExcerptStore: ObservableObject {
     @discardableResult
     func updateTableSearchDraft(_ searchText: String) -> Bool {
         let normalizedSearchText = SearchInputNormalizer.singleLine(searchText)
+        if let activeListID {
+            tableSearchDraftsByListID[activeListID] = normalizedSearchText
+        }
         guard tableSearchDraft != normalizedSearchText else { return false }
         tableSearchDraft = normalizedSearchText
         return true
@@ -315,6 +330,13 @@ final class ExcerptStore: ObservableObject {
     func updateTableFacetFilter(_ filter: CueFacetFilter) -> Bool {
         guard tableFacetFilter != filter else { return false }
         tableFacetFilter = filter
+        return true
+    }
+
+    @discardableResult
+    func updateTableSortOrder(_ sortOrder: ExcerptSortOrder) -> Bool {
+        guard tableSortOrder != sortOrder else { return false }
+        tableSortOrder = sortOrder
         return true
     }
 

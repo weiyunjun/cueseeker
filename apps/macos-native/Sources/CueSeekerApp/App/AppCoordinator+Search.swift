@@ -23,6 +23,7 @@ extension AppCoordinator {
     /// when they exist (requirement 4.4); otherwise it searches again with the
     /// new filter, so the first page and every later row are already filtered.
     func applySearchFacetFilter(_ filter: CueFacetFilter) {
+        settings.searchFacetFilter = search.normalizedFacetFilter(filter)
         if search.applyProjectedFacetFilter(
             filter,
             folders: indexing.selectedFolders,
@@ -37,6 +38,37 @@ extension AppCoordinator {
             return
         }
         guard search.updateSearchFacetFilter(filter) else {
+            return
+        }
+        let query = search.searchQuery
+        guard !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return
+        }
+        startSearch(
+            query: query,
+            cursor: .start,
+            appending: false,
+            debounce: false
+        )
+    }
+
+    func updateSearchSortOrder(_ sortOrder: SearchSortOrder) {
+        settings.searchSortOrder = sortOrder
+        if search.applyProjectedFacetFilter(
+            search.searchFacetFilter,
+            sortOrder: sortOrder,
+            folders: indexing.selectedFolders,
+            languageFilter: .all,
+            watchStateFilter: .all,
+            onResultsChanged: { [weak self] generation in
+                self?.refreshSearchPlaybackPlaylistSource(
+                    resultListGeneration: generation
+                )
+            }
+        ) {
+            return
+        }
+        guard search.updateSearchSortOrder(sortOrder) else {
             return
         }
         let query = search.searchQuery
@@ -274,8 +306,10 @@ extension AppCoordinator {
                 return
             }
             pruneInvalidSearchResultsFromLibrary()
-            if search.searchFacetFilter != search.resultFacetFilter {
+            if search.searchFacetFilter != search.resultFacetFilter
+                || search.searchSortOrder != search.resultSortOrder {
                 settings.searchFacetFilter = search.searchFacetFilter
+                settings.searchSortOrder = search.searchSortOrder
                 applySearchFacetFilter(search.searchFacetFilter)
             }
         case .rerunSearch:
@@ -287,6 +321,7 @@ extension AppCoordinator {
             }
             search.clearCachedCueContent()
             settings.searchFacetFilter = search.searchFacetFilter
+            settings.searchSortOrder = search.searchSortOrder
             startSearch(
                 query: trimmedQuery,
                 cursor: .start,

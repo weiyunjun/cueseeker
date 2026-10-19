@@ -77,7 +77,8 @@ public final class SearchDatabase: @unchecked Sendable {
         languageFilter: SubtitleSearchLanguageFilter = .all,
         watchStateFilter: SubtitleSearchWatchStateFilter = .all,
         filterSet: SubtitleSearchFilterSet = SubtitleSearchFilterSet(),
-        facetFilter: CueFacetFilter = CueFacetFilter()
+        facetFilter: CueFacetFilter = CueFacetFilter(),
+        sortOrder: SearchSortOrder = .default
     ) throws -> [SubtitleSearchResult] {
         try searchPage(
             query,
@@ -88,7 +89,8 @@ public final class SearchDatabase: @unchecked Sendable {
             languageFilter: languageFilter,
             watchStateFilter: watchStateFilter,
             filterSet: filterSet,
-            facetFilter: facetFilter
+            facetFilter: facetFilter,
+            sortOrder: sortOrder
         ).results
     }
 
@@ -102,6 +104,7 @@ public final class SearchDatabase: @unchecked Sendable {
         watchStateFilter: SubtitleSearchWatchStateFilter = .all,
         filterSet: SubtitleSearchFilterSet = SubtitleSearchFilterSet(),
         facetFilter: CueFacetFilter = CueFacetFilter(),
+        sortOrder: SearchSortOrder = .default,
         diagnostics: SubtitleSearchDiagnosticSink? = nil,
         progress: SubtitleSearchProgressSink? = nil,
         mode: SubtitleSearchPageMode = .exact
@@ -116,6 +119,7 @@ public final class SearchDatabase: @unchecked Sendable {
             watchStateFilter: watchStateFilter,
             filterSet: filterSet,
             facetFilter: facetFilter,
+            sortOrder: sortOrder,
             diagnostics: diagnostics,
             progress: progress,
             mode: mode
@@ -132,6 +136,7 @@ public final class SearchDatabase: @unchecked Sendable {
         watchStateFilter: SubtitleSearchWatchStateFilter = .all,
         filterSet: SubtitleSearchFilterSet = SubtitleSearchFilterSet(),
         facetFilter: CueFacetFilter = CueFacetFilter(),
+        sortOrder: SearchSortOrder = .default,
         diagnostics: SubtitleSearchDiagnosticSink? = nil,
         progress: SubtitleSearchProgressSink? = nil
     ) throws -> SubtitleSearchPage {
@@ -145,6 +150,7 @@ public final class SearchDatabase: @unchecked Sendable {
             watchStateFilter: watchStateFilter,
             filterSet: filterSet,
             facetFilter: facetFilter,
+            sortOrder: sortOrder,
             diagnostics: diagnostics,
             progress: progress,
             mode: .visibleWindow
@@ -420,6 +426,7 @@ public final class SearchDatabase: @unchecked Sendable {
         watchStateFilter: SubtitleSearchWatchStateFilter = .all,
         filterSet: SubtitleSearchFilterSet = SubtitleSearchFilterSet(),
         facetFilter: CueFacetFilter = CueFacetFilter(),
+        sortOrder: SearchSortOrder = .default,
         diagnostics: SubtitleSearchDiagnosticSink? = nil,
         progress: SubtitleSearchProgressSink? = nil,
         mode: SubtitleSearchPageMode = .exact
@@ -522,6 +529,7 @@ public final class SearchDatabase: @unchecked Sendable {
             var acceptedCueIDs: [Int64] = []
             var acceptedDurationFacets: [CueDurationFacet] = []
             var acceptedCharacterFacets: [CueCharacterFacet] = []
+            var acceptedCharacterWidths: [Int] = []
             var acceptedLanguageFacets: [Set<SubtitleLanguageCode>] = []
             var acceptedWatchStateFacets: [LibraryWatchState] = []
             var acceptedFolderFacets: [String] = []
@@ -530,6 +538,8 @@ public final class SearchDatabase: @unchecked Sendable {
             var acceptedFileRanks: [Int] = []
             var acceptedFirstRunCount = 0
             var resultCueIDs: [Int64] = []
+            var resultCharacterWidths: [Int] = []
+            var allExactResults: [OrderedSearchResult] = []
             var exactPageResults: [OrderedSearchResult] = []
             var pendingProgressResults: [OrderedSearchResult] = []
             var publishedProgressResultCount = 0
@@ -558,6 +568,7 @@ public final class SearchDatabase: @unchecked Sendable {
                         cueIDs: acceptedCueIDs,
                         durationFacets: acceptedDurationFacets,
                         characterFacets: acceptedCharacterFacets,
+                        characterWidths: acceptedCharacterWidths,
                         languageFacets: acceptedLanguageFacets,
                         watchStateFacets: acceptedWatchStateFacets,
                         folderFacets: acceptedFolderFacets
@@ -571,6 +582,7 @@ public final class SearchDatabase: @unchecked Sendable {
                     cueIDs: order.map { acceptedCueIDs[$0] },
                     durationFacets: order.map { acceptedDurationFacets[$0] },
                     characterFacets: order.map { acceptedCharacterFacets[$0] },
+                    characterWidths: order.map { acceptedCharacterWidths[$0] },
                     languageFacets: order.map { acceptedLanguageFacets[$0] },
                     watchStateFacets: order.map { acceptedWatchStateFacets[$0] },
                     folderFacets: order.map { acceptedFolderFacets[$0] }
@@ -627,10 +639,15 @@ public final class SearchDatabase: @unchecked Sendable {
             acceptedCueIDs.reserveCapacity(hitCapacity)
             acceptedDurationFacets.reserveCapacity(hitCapacity)
             acceptedCharacterFacets.reserveCapacity(hitCapacity)
+            acceptedCharacterWidths.reserveCapacity(hitCapacity)
             acceptedLanguageFacets.reserveCapacity(hitCapacity)
             acceptedWatchStateFacets.reserveCapacity(hitCapacity)
             acceptedFolderFacets.reserveCapacity(hitCapacity)
             resultCueIDs.reserveCapacity(hitCapacity)
+            if sortOrder != .default {
+                resultCharacterWidths.reserveCapacity(hitCapacity)
+                allExactResults.reserveCapacity(hitCapacity)
+            }
             if firstFileIDs != nil {
                 acceptedFileRanks.reserveCapacity(hitCapacity)
             }
@@ -715,12 +732,16 @@ public final class SearchDatabase: @unchecked Sendable {
                                 result.result.endMilliseconds
                                 - result.result.startMilliseconds
                         )
+                        let characterWidth = CueCharacterFacet.characterWidth(
+                            of: result.result.content
+                        )
                         let characterFacet = CueCharacterFacet(
-                            content: result.result.content
+                            characterCount: characterWidth
                         )
                         acceptedCueIDs.append(result.result.entryID)
                         acceptedDurationFacets.append(durationFacet)
                         acceptedCharacterFacets.append(characterFacet)
+                        acceptedCharacterWidths.append(characterWidth)
                         acceptedLanguageFacets.append(result.result.languages)
                         acceptedWatchStateFacets.append(fileMetadata.watchState)
                         acceptedFolderFacets.append(folderPath)
@@ -742,22 +763,30 @@ public final class SearchDatabase: @unchecked Sendable {
                             continue
                         }
                         resultCueIDs.append(result.result.entryID)
-                        switch mode {
-                        case .exact:
-                            progressFileSummaries.add(result)
-                            if progress != nil {
-                                pendingProgressResults.append(result)
+                        if sortOrder == .default {
+                            switch mode {
+                            case .exact:
+                                progressFileSummaries.add(result)
+                                if progress != nil {
+                                    pendingProgressResults.append(result)
+                                }
+                                if acceptedSearchResultCount >= offset && exactPageResults.count < limit {
+                                    exactPageResults.append(result)
+                                }
+                            case .visibleWindow:
+                                if acceptedSearchResultCount < offset + limit {
+                                    visiblePrefixResults.append(result)
+                                }
+                                if acceptedSearchResultCount >= offset && visibleWindowResults.count < limit + 1 {
+                                    visibleWindowResults.append(result)
+                                    reachedVisibleLookahead = visibleWindowResults.count > limit
+                                }
                             }
-                            if acceptedSearchResultCount >= offset && exactPageResults.count < limit {
-                                exactPageResults.append(result)
-                            }
-                        case .visibleWindow:
-                            if acceptedSearchResultCount < offset + limit {
-                                visiblePrefixResults.append(result)
-                            }
-                            if acceptedSearchResultCount >= offset && visibleWindowResults.count < limit + 1 {
-                                visibleWindowResults.append(result)
-                                reachedVisibleLookahead = visibleWindowResults.count > limit
+                        } else {
+                            resultCharacterWidths.append(characterWidth)
+                            allExactResults.append(result)
+                            if mode == .exact {
+                                progressFileSummaries.add(result)
                             }
                         }
                         acceptedSearchResultCount += 1
@@ -777,6 +806,7 @@ public final class SearchDatabase: @unchecked Sendable {
                 )
 
                 if mode == .exact,
+                   sortOrder == .default,
                    !isLastCandidateBatch,
                    acceptedSearchResultCount > 0 {
                     let progressSummaries = progressFileSummaries.fileSummaries()
@@ -816,6 +846,42 @@ public final class SearchDatabase: @unchecked Sendable {
 
                 if isLastCandidateBatch {
                     break
+                }
+            }
+
+            if sortOrder != .default, !resultCueIDs.isEmpty {
+                try Task.checkCancellation()
+                var sortedIndices = Array(0..<resultCueIDs.count)
+                sortedIndices.sort { lhs, rhs in
+                    let lhsWidth = resultCharacterWidths[lhs]
+                    let rhsWidth = resultCharacterWidths[rhs]
+                    if lhsWidth != rhsWidth {
+                        return sortOrder == .mostCharacters
+                            ? lhsWidth > rhsWidth
+                            : lhsWidth < rhsWidth
+                    }
+                    return lhs < rhs
+                }
+                resultCueIDs = sortedIndices.map { resultCueIDs[$0] }
+                let sortedResults = sortedIndices.map { allExactResults[$0] }
+                let safeLimit = max(0, limit)
+                let sliceStart = min(max(0, offset), sortedResults.count)
+                let sliceEnd = min(sliceStart + safeLimit, sortedResults.count)
+                switch mode {
+                case .exact:
+                    if sliceStart < sliceEnd {
+                        exactPageResults = Array(sortedResults[sliceStart..<sliceEnd])
+                    }
+                    if progress != nil {
+                        pendingProgressResults = sortedResults
+                    }
+                case .visibleWindow:
+                    let prefixEnd = min(max(0, offset) + safeLimit, sortedResults.count)
+                    visiblePrefixResults = Array(sortedResults.prefix(prefixEnd))
+                    let windowEnd = min(sliceStart + safeLimit + 1, sortedResults.count)
+                    if sliceStart < windowEnd {
+                        visibleWindowResults = Array(sortedResults[sliceStart..<windowEnd])
+                    }
                 }
             }
 

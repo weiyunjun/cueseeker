@@ -80,7 +80,9 @@ final class SettingsStore: ObservableObject {
     private static let appAppearanceModeKey = "appAppearanceMode"
     private static let appLanguageKey = "appLanguage"
     private static let searchFacetExclusionsKey = "searchFacetExclusions"
+    private static let searchSortOrderKey = "searchSortOrder"
     private static let excerptFacetExclusionsKey = "excerptFacetExclusionsByListID"
+    private static let excerptSortOrderByListIDKey = "excerptSortOrderByListID"
     private static let recentExcerptSaveListKey = "recentExcerptSaveListID"
     private static let ankiExportFrontItemsKey = "ankiExportFrontItems"
     private static let ankiExportBackItemsKey = "ankiExportBackItems"
@@ -112,6 +114,12 @@ final class SettingsStore: ObservableObject {
     var searchFacetFilter: CueFacetFilter {
         didSet {
             Self.saveSearchFacetFilter(searchFacetFilter, to: userDefaults)
+        }
+    }
+
+    var searchSortOrder: SearchSortOrder {
+        didSet {
+            userDefaults.set(searchSortOrder.rawValue, forKey: Self.searchSortOrderKey)
         }
     }
 
@@ -266,6 +274,7 @@ final class SettingsStore: ObservableObject {
         let loadedAppearance = Self.loadAppAppearanceMode(from: userDefaults)
         self.appAppearanceMode = loadedAppearance
         self.searchFacetFilter = Self.loadSearchFacetFilter(from: userDefaults)
+        self.searchSortOrder = Self.loadSearchSortOrder(from: userDefaults)
         self.prefillCommandPanelWithFocusedCue = userDefaults.bool(
             forKey: Self.prefillCommandPanelWithFocusedCueKey
         )
@@ -323,6 +332,18 @@ final class SettingsStore: ObservableObject {
             return CueFacetFilter()
         }
         return Self.loadFacetFilter(exclusions: exclusions)
+    }
+
+    func excerptSortOrder(forListID listID: Int64) -> ExcerptSortOrder {
+        let sortOrdersByListID = userDefaults.dictionary(
+            forKey: Self.excerptSortOrderByListIDKey
+        ) ?? [:]
+        guard let rawValue = sortOrdersByListID[String(listID)] as? String,
+              let sortOrder = ExcerptSortOrder(rawValue: rawValue)
+        else {
+            return .earliestDateAdded
+        }
+        return sortOrder
     }
 
     /// The list the last successful `Save to Excerpt` went to. Kept across
@@ -386,6 +407,40 @@ final class SettingsStore: ObservableObject {
         )
     }
 
+    func setExcerptSortOrder(
+        _ sortOrder: ExcerptSortOrder,
+        forListID listID: Int64
+    ) {
+        var sortOrdersByListID = userDefaults.dictionary(
+            forKey: Self.excerptSortOrderByListIDKey
+        ) ?? [:]
+        sortOrdersByListID[String(listID)] = sortOrder.rawValue
+        userDefaults.set(
+            sortOrdersByListID,
+            forKey: Self.excerptSortOrderByListIDKey
+        )
+    }
+
+    func removeExcerptListSettings(forListID listID: Int64) {
+        let key = String(listID)
+        if var exclusionsByListID = userDefaults.dictionary(
+            forKey: Self.excerptFacetExclusionsKey
+        ), exclusionsByListID.removeValue(forKey: key) != nil {
+            userDefaults.set(
+                exclusionsByListID,
+                forKey: Self.excerptFacetExclusionsKey
+            )
+        }
+        if var sortOrdersByListID = userDefaults.dictionary(
+            forKey: Self.excerptSortOrderByListIDKey
+        ), sortOrdersByListID.removeValue(forKey: key) != nil {
+            userDefaults.set(
+                sortOrdersByListID,
+                forKey: Self.excerptSortOrderByListIDKey
+            )
+        }
+    }
+
     func rewriteFacetFilterFolderPaths(_ steps: [LibraryRenameStep]) {
         guard !steps.isEmpty else {
             return
@@ -437,6 +492,15 @@ final class SettingsStore: ObservableObject {
             return CueFacetFilter()
         }
         return loadFacetFilter(exclusions: exclusions)
+    }
+
+    private static func loadSearchSortOrder(from userDefaults: UserDefaults) -> SearchSortOrder {
+        guard let rawValue = userDefaults.string(forKey: searchSortOrderKey),
+              let sortOrder = SearchSortOrder(rawValue: rawValue)
+        else {
+            return .default
+        }
+        return sortOrder
     }
 
     private static func loadFacetFilter(

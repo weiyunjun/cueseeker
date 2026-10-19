@@ -329,6 +329,14 @@ public enum SubtitleSearchPageMode: String, Equatable, Sendable, Codable {
     case visibleWindow
 }
 
+public enum SearchSortOrder: String, CaseIterable, Identifiable, Codable, Equatable, Sendable {
+    case `default` = "default"
+    case mostCharacters = "most_characters"
+    case fewestCharacters = "fewest_characters"
+
+    public var id: String { rawValue }
+}
+
 public enum SubtitleSearchLanguageFilter: String, CaseIterable, Codable, Hashable, Sendable {
     case all
     case japanese = "ja"

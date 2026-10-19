@@ -2504,3 +2504,114 @@ func searchPageFiltersLanguagesInTheRowReadsAndCountsThemFromTheStoredTable() th
     #expect(everything.facetSnapshot?.distribution.languageCounts == [.japanese: 2, .english: 1])
     #expect(try search.cueFacetDistribution().languageCounts == [.japanese: 2, .english: 1])
 }
+
+@Test
+func searchSortOrderOrdersByCharacterWidthWithDefaultOrderTieBreaker() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        removeTemporaryDatabase(at: databaseURL)
+    }
+
+    let database = try IndexingDatabase(path: databaseURL)
+    try DatabaseBootstrap.prepare(at: databaseURL)
+
+    try database.replaceEntries(
+        subtitleFile: URL(fileURLWithPath: "/Media/Alpha.srt"),
+        videoFile: URL(fileURLWithPath: "/Media/Alpha.mkv"),
+        entries: [
+            SubtitleEntry(
+                sequenceNumber: 1,
+                startTimecode: "00:00:01,000",
+                endTimecode: "00:00:02,000",
+                startMilliseconds: 1_000,
+                endMilliseconds: 2_000,
+                text: "match ab" // width 8
+            ),
+            SubtitleEntry(
+                sequenceNumber: 2,
+                startTimecode: "00:00:03,000",
+                endTimecode: "00:00:04,000",
+                startMilliseconds: 3_000,
+                endMilliseconds: 4_000,
+                text: "match a" // width 7
+            ),
+            SubtitleEntry(
+                sequenceNumber: 3,
+                startTimecode: "00:00:05,000",
+                endTimecode: "00:00:06,000",
+                startMilliseconds: 5_000,
+                endMilliseconds: 6_000,
+                text: "match xy" // width 8 (tie with seq 1)
+            ),
+        ]
+    )
+    try database.replaceEntries(
+        subtitleFile: URL(fileURLWithPath: "/Media/Beta.srt"),
+        videoFile: URL(fileURLWithPath: "/Media/Beta.mkv"),
+        entries: [
+            SubtitleEntry(
+                sequenceNumber: 1,
+                startTimecode: "00:00:01,000",
+                endTimecode: "00:00:02,000",
+                startMilliseconds: 1_000,
+                endMilliseconds: 2_000,
+                text: "match 日本語テスト" // width 6 + 12 = 18
+            ),
+            SubtitleEntry(
+                sequenceNumber: 2,
+                startTimecode: "00:00:03,000",
+                endTimecode: "00:00:04,000",
+                startMilliseconds: 3_000,
+                endMilliseconds: 4_000,
+                text: "match zz" // width 8 (tie with Alpha seq 1 & 3)
+            ),
+        ]
+    )
+
+    let search = try SearchDatabase(path: databaseURL)
+
+    let defaultPage = try search.searchPage("match", limit: 10, sortOrder: .default)
+    #expect(defaultPage.results.map(\.content) == [
+        "match ab",
+        "match a",
+        "match xy",
+        "match 日本語テスト",
+        "match zz",
+    ])
+
+    let mostPage = try search.searchPage("match", limit: 10, sortOrder: .mostCharacters)
+    #expect(mostPage.results.map(\.content) == [
+        "match 日本語テスト",
+        "match ab",
+        "match xy",
+        "match zz",
+        "match a",
+    ])
+    #expect(mostPage.results.map(\.searchRank) == [0, 1, 2, 3, 4])
+
+    let fewestPage = try search.searchPage("match", limit: 10, sortOrder: .fewestCharacters)
+    #expect(fewestPage.results.map(\.content) == [
+        "match a",
+        "match ab",
+        "match xy",
+        "match zz",
+        "match 日本語テスト",
+    ])
+    #expect(fewestPage.results.map(\.searchRank) == [0, 1, 2, 3, 4])
+
+    let snapshot = try #require(defaultPage.facetSnapshot)
+    let projectedMostIDs = snapshot.filteredCueIDs(
+        using: CueFacetFilter(),
+        sortOrder: .mostCharacters,
+        limit: 10
+    ).cueIDs
+    #expect(projectedMostIDs == mostPage.cueIDs)
+
+    let projectedFewestIDs = snapshot.filteredCueIDs(
+        using: CueFacetFilter(),
+        sortOrder: .fewestCharacters,
+        limit: 10
+    ).cueIDs
+    #expect(projectedFewestIDs == fewestPage.cueIDs)
+}
+
