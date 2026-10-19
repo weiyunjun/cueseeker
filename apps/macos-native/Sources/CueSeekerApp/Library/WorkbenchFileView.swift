@@ -704,8 +704,11 @@ struct WorkbenchFileView: View {
         HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
             ForEach(Array(breadcrumbNodes.enumerated()), id: \.element.id) { index, node in
                 if index > 0 {
-                    AppIconImage(.caretRight, size: 12)
-                        .foregroundStyle(WorkbenchRedesignColors.textMuted)
+                    AppIconImage(
+                        .caretRight,
+                        size: WorkbenchControlMetrics.redesignBreadcrumbSeparatorSize
+                    )
+                    .foregroundStyle(WorkbenchRedesignColors.textMuted)
                 }
 
                 if let destination = node.destination {
@@ -719,9 +722,12 @@ struct WorkbenchFileView: View {
                             weight: .semibold
                         ))
                         .foregroundStyle(WorkbenchRedesignColors.textPrimary)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
                 }
             }
         }
+        .lineLimit(1)
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
@@ -799,6 +805,8 @@ struct BreadcrumbLink: View {
                         ? WorkbenchRedesignColors.textPrimary
                         : WorkbenchRedesignColors.textSecondary
                 )
+                .lineLimit(1)
+                .truncationMode(.tail)
                 .contentShape(Rectangle())
         }
         .buttonStyle(StaticButtonStyle())

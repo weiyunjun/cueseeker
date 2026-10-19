@@ -19,8 +19,8 @@
 
 2. **Two-Step Add WebDAV Folder Dialog (`WebDAVFolderDialog.swift`, `Localizable.strings`, `ContentView.swift`)**:
    - **Step 1 (`.connection`, `480px` width)**: Removed the custom `Name` field and retained `Address`, `Username`, and `Password`. Changed the primary footer button to `Connect` (`webdav.connect`). While validating connection and loading the initial directory, all three inputs and `Connect` are disabled (`0.45` opacity), `Connect` shows a spinner, and any error before the initial directory loads stays on Step 1 as inline red validation text below `Password`.
-   - **Step 2 (`.browser`, `720px` width × `500px` height)**: Added a breadcrumb bar (`22px` height, `13px` text, `12px` `caret-right` separator) rooted at the Step 1 folder name so parent directories above the entered address are never exposed.
-   - Rendered single-line browser cards (`68px` min-height, `36 × 36px` icon container, `14px` Medium single-line title; trailing `16px` `caret-right` chevron on folders only) inside a 2-column grid with the scrollbar in the rightmost `24px` dialog inset channel.
+   - **Step 2 (`.browser`, `720px` width × `500px` height)**: Added a single-line breadcrumb bar (`14px` text, `WorkbenchControlMetrics.redesignBreadcrumbSeparatorSize` `12px` `caret-right` separator) rooted at the Step 1 folder name so parent directories above the entered address are never exposed, enforcing single-line tail truncation (`...`) across both clickable parent nodes (`BreadcrumbLink`) and the current node.
+   - Rendered single-line browser cards (`68px` min-height, `36 × 36px` icon container, `14px` Medium single-line title; trailing `16px` `caret-right` chevron on folders only) inside a vertical card list with the scrollbar in the rightmost `24px` dialog inset channel.
    - Implemented single-click multi-selection for folder cards within the current level (`WorkbenchRedesignColors.libraryMediaCardHoverBg` background, `WorkbenchRedesignColors.borderActive` border, and **no hover effect while selected**; unselected folder cards use `WorkbenchRedesignColors.rowHover` on hover; file cards are non-clickable with no hover state).
    - Implemented double-click subfolder navigation, breadcrumb navigation, and `Back` (`common.back`), each clearing current selection; `Back` returns to Step 1 while preserving `Address`, `Username`, and `Password` (inputs are cleared only when closing the dialog).
    - Added centered `WorkbenchSpinner` (`18px`) during subfolder loading and centered `WorkbenchEmptyHint` on subfolder load failure or empty directory, keeping `Add` disabled until a valid directory listing is active.
@@ -31,4 +31,4 @@
 
 ## Verification
 
-- Verified `WebDAVSupportTests`, `WebDAVFolderDialogTests`, `AppLocalizationTests`, `TaskQueueStoreTests` (`enqueueAddFoldersStartsFirstAndQueuesRemainingInOrder`), and `LibraryFolderAdditionTests` via `swift test` (30 tests across 5 suites passed).
+- Verified `WebDAVSupportTests`, `WebDAVFolderDialogTests`, `AppLocalizationTests`, `TaskQueueStoreTests` (`enqueueAddFoldersStartsFirstAndQueuesRemainingInOrder`), and `LibraryFolderAdditionTests` via `swift test` (31 tests across 5 suites passed).

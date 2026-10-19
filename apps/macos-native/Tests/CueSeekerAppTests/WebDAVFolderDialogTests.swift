@@ -640,5 +640,19 @@ struct WebDAVFolderDialogTests {
         #expect(addressField.stringValue == expectedDecodedURL)
         #expect(editor.string == expectedDecodedURL)
     }
+
+    @Test
+    func browserBreadcrumbRemainsSingleLineWithLongParentFolderName() throws {
+        #expect(WorkbenchControlMetrics.redesignBreadcrumbSeparatorSize == 12)
+
+        let longFolderTitle = "[DBD-Raws][尼尔：自动人形 Ver1.1a 第二部分][01-12TV全集][1080P][BDRip][HEVC-10bit][简繁外挂][FLACx2][MKV]"
+        let linkHost = NSHostingView(
+            rootView: BreadcrumbLink(title: longFolderTitle, action: {})
+                .frame(width: 240)
+        )
+        linkHost.frame = NSRect(x: 0, y: 0, width: 240, height: 100)
+        linkHost.layoutSubtreeIfNeeded()
+        #expect(linkHost.fittingSize.height <= 24)
+    }
 }
 

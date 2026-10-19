@@ -431,6 +431,8 @@ enum WorkbenchControlMetrics {
     static let redesignCardIconGlyphSize: CGFloat = 20
     /// --size-card-chevron: 16px
     static let redesignCardChevronSize: CGFloat = 16
+    /// --size-breadcrumb-separator: 12px (C-05.6 Breadcrumb caret-right)
+    static let redesignBreadcrumbSeparatorSize: CGFloat = 12
     /// Baseline card height: 68px (16px top + 36px text/icon + 16px bottom)
     static let redesignCardBaselineHeight: CGFloat = 68
     /// Trailing icon button (32px) top offset to vertically center within 68px baseline card (18px top margin vs 16px padding = 2px)

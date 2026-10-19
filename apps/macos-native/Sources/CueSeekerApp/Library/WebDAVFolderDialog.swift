@@ -231,8 +231,11 @@ struct WebDAVFolderDialog: View {
         HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
             ForEach(Array(session.breadcrumbNodes.enumerated()), id: \.element.id) { index, node in
                 if index > 0 {
-                    AppIconImage(.caretRight, size: 12)
-                        .foregroundStyle(WorkbenchRedesignColors.textMuted)
+                    AppIconImage(
+                        .caretRight,
+                        size: WorkbenchControlMetrics.redesignBreadcrumbSeparatorSize
+                    )
+                    .foregroundStyle(WorkbenchRedesignColors.textMuted)
                 }
 
                 if index < session.breadcrumbNodes.count - 1 {
@@ -251,6 +254,7 @@ struct WebDAVFolderDialog: View {
                 }
             }
         }
+        .lineLimit(1)
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
