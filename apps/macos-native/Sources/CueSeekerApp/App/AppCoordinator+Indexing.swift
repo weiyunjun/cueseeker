@@ -209,7 +209,17 @@ extension AppCoordinator {
     }
 
     func confirmWebDAVFolderDialog(_ session: WebDAVFolderDialogSession) {
+        switch session.step {
+        case .connection:
+            connectWebDAVFolderDialog(session)
+        case .browser:
+            confirmWebDAVBrowserAdd(session)
+        }
+    }
+
+    func connectWebDAVFolderDialog(_ session: WebDAVFolderDialogSession) {
         guard library.webdavDialogSession?.id == session.id,
+              session.step == .connection,
               !session.isSubmitting,
               !tasks.hasLibraryTask,
               !indexing.databaseMaintenanceStatus.isCompacting
@@ -217,9 +227,7 @@ extension AppCoordinator {
             return
         }
 
-        let trimmedName = session.name.trimmingCharacters(in: .whitespacesAndNewlines)
-
-        guard let targetURL = WebDAVAddress.parseURL(from: session.address) else {
+        guard WebDAVAddress.parseURL(from: session.address) != nil else {
             session.validationMessage = L("webdav.error.invalid_address")
             return
         }
@@ -232,8 +240,7 @@ extension AppCoordinator {
         session.isSubmitting = true
         session.validationTask = Task { @MainActor [weak self, weak session] in
             do {
-                let validatedConfig = try await WebDAVClient.shared.validateDirectory(
-                    name: trimmedName,
+                let connected = try await WebDAVClient.shared.connectAndBrowseDirectory(
                     address: rawAddress,
                     username: trimmedUsername,
                     password: password
@@ -245,11 +252,9 @@ extension AppCoordinator {
                 else {
                     return
                 }
-                WebDAVConfigurationStore.shared.save(validatedConfig)
                 session.isSubmitting = false
                 session.validationTask = nil
-                self.library.webdavDialogSession = nil
-                self.addFolder(targetURL)
+                session.enterBrowser(config: connected.config, initialItems: connected.items)
             } catch is CancellationError {
                 return
             } catch {
@@ -267,16 +272,145 @@ extension AppCoordinator {
         }
     }
 
+    func navigateBackInWebDAVFolderDialog(_ session: WebDAVFolderDialogSession) {
+        guard library.webdavDialogSession?.id == session.id else {
+            return
+        }
+        session.returnToConnection()
+    }
+
+    func openWebDAVSubfolder(
+        _ item: WebDAVBrowserItem,
+        in session: WebDAVFolderDialogSession
+    ) {
+        guard library.webdavDialogSession?.id == session.id,
+              session.step == .browser,
+              item.kind == .folder,
+              let baseConfig = session.baseConfig
+        else {
+            return
+        }
+
+        let targetNode = WebDAVFolderDialogSession.BreadcrumbNode(
+            url: item.url,
+            title: item.name
+        )
+        if let existingIndex = session.breadcrumbNodes.firstIndex(where: { $0.id == targetNode.id }) {
+            session.breadcrumbNodes = Array(session.breadcrumbNodes.prefix(existingIndex + 1))
+        } else {
+            session.breadcrumbNodes.append(targetNode)
+        }
+        loadWebDAVBrowserDirectory(at: targetNode.url, baseConfig: baseConfig, in: session)
+    }
+
+    func navigateWebDAVBreadcrumb(
+        to node: WebDAVFolderDialogSession.BreadcrumbNode,
+        in session: WebDAVFolderDialogSession
+    ) {
+        guard library.webdavDialogSession?.id == session.id,
+              session.step == .browser,
+              let baseConfig = session.baseConfig,
+              let targetIndex = session.breadcrumbNodes.firstIndex(where: { $0.id == node.id })
+        else {
+            return
+        }
+
+        session.breadcrumbNodes = Array(session.breadcrumbNodes.prefix(targetIndex + 1))
+        loadWebDAVBrowserDirectory(at: node.url, baseConfig: baseConfig, in: session)
+    }
+
+    private func loadWebDAVBrowserDirectory(
+        at folderURL: URL,
+        baseConfig: WebDAVRootConfig,
+        in session: WebDAVFolderDialogSession
+    ) {
+        session.directoryTask?.cancel()
+        session.selectedFolderPaths.removeAll()
+        session.directoryErrorMessage = nil
+        session.isLoadingDirectory = true
+        let targetID = folderURL.standardizedMediaURL.mediaPath
+
+        session.directoryTask = Task { @MainActor [weak self, weak session] in
+            do {
+                let loadedItems = try await WebDAVClient.shared.browseDirectory(
+                    at: folderURL,
+                    baseConfig: baseConfig
+                )
+                guard !Task.isCancelled,
+                      let self,
+                      let session,
+                      self.library.webdavDialogSession?.id == session.id,
+                      session.step == .browser,
+                      session.currentDirectoryURL?.mediaPath == targetID
+                else {
+                    return
+                }
+                session.items = loadedItems
+                session.isLoadingDirectory = false
+                session.directoryErrorMessage = nil
+                session.directoryTask = nil
+            } catch is CancellationError {
+                return
+            } catch {
+                guard !Task.isCancelled,
+                      let self,
+                      let session,
+                      self.library.webdavDialogSession?.id == session.id,
+                      session.step == .browser,
+                      session.currentDirectoryURL?.mediaPath == targetID
+                else {
+                    return
+                }
+                session.items = []
+                session.isLoadingDirectory = false
+                session.directoryErrorMessage = Self.errorMessage(for: error)
+                session.directoryTask = nil
+            }
+        }
+    }
+
+    func confirmWebDAVBrowserAdd(_ session: WebDAVFolderDialogSession) {
+        guard library.webdavDialogSession?.id == session.id,
+              session.canAddInBrowser,
+              let baseConfig = session.baseConfig,
+              !tasks.hasLibraryTask,
+              !indexing.databaseMaintenanceStatus.isCompacting
+        else {
+            return
+        }
+
+        let targetFolders = session.targetFoldersToAdd()
+        guard !targetFolders.isEmpty else {
+            return
+        }
+
+        for folder in targetFolders {
+            let scopedConfig = baseConfig.scopedConfig(for: folder)
+            WebDAVConfigurationStore.shared.save(scopedConfig)
+        }
+
+        session.cancelValidation()
+        library.webdavDialogSession = nil
+        addFolders(targetFolders)
+    }
+
     /// Starts an Add Folder. The folder joins the root list only once its task
     /// completes, so one that does not finish leaves the list as it was.
     func addFolder(_ folder: URL) {
+        addFolders([folder])
+    }
+
+    func addFolders(_ folders: [URL]) {
+        guard !folders.isEmpty else {
+            return
+        }
         guard !indexing.databaseMaintenanceStatus.isCompacting else {
             startupError = L("status.compaction_running")
             return
         }
 
         indexing.clearTransientNotice()
-        tasks.enqueueAddFolder(folder.standardizedMediaURL)
+        tasks.enqueueAddFolders(folders.map(\.standardizedMediaURL))
     }
 
     /// Starts a Remove Folder. The confirmation came before this; the root
@@ -371,6 +505,13 @@ extension AppCoordinator {
                 throw CancellationError()
             }
             try await self.performFolderRemoval(folder)
+        }
+        tasks.onCancelQueuedAddFolder = { [weak self] folder in
+            guard let self else { return }
+            if folder.isWebDAVURL && !self.indexing.selectedFolders.contains(folder) {
+                WebDAVConfigurationStore.shared.remove(url: folder)
+                WebDAVSubtitleCache.shared.removeCachedSubtitles(forRootURL: folder)
+            }
         }
     }
 

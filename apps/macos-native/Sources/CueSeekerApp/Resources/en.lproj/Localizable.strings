@@ -671,7 +671,10 @@
 "webdav.field.address" = "Address";
 "webdav.field.username" = "Username";
 "webdav.field.password" = "Password";
+"webdav.connect" = "Connect";
 "webdav.add" = "Add";
+"webdav.empty_folder_items" = "No folders, videos, or subtitles in this folder.";
+"common.back" = "Back";
 "webdav.error.name_empty" = "Enter a name";
 "webdav.error.invalid_address" = "Enter a valid WebDAV address";
 "webdav.error.username_empty" = "Enter a username";

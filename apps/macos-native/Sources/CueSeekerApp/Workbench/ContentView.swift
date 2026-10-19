@@ -190,7 +190,16 @@ private struct ContentRootView: View {
                     onConfirm: {
                         appState.confirmWebDAVFolderDialog(session)
                     },
-                    onClose: appState.closeWebDAVFolderDialog
+                    onClose: appState.closeWebDAVFolderDialog,
+                    onBack: {
+                        appState.navigateBackInWebDAVFolderDialog(session)
+                    },
+                    onOpenFolder: { item in
+                        appState.openWebDAVSubfolder(item, in: session)
+                    },
+                    onSelectBreadcrumb: { node in
+                        appState.navigateWebDAVBreadcrumb(to: node, in: session)
+                    }
                 )
                 .workbenchDialog()
             }

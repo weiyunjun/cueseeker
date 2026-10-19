@@ -50,7 +50,7 @@ struct WebDAVFolderDialogTests {
 
         app.openWebDAVFolderDialog()
         let session = try #require(app.library.webdavDialogSession)
-        #expect(session.name.isEmpty)
+        #expect(session.step == .connection)
         #expect(session.address.isEmpty)
         #expect(session.username.isEmpty)
         #expect(session.password.isEmpty)
@@ -60,12 +60,13 @@ struct WebDAVFolderDialogTests {
         // Invalid/empty address sets inline validation message and never shows a toast
         app.confirmWebDAVFolderDialog(session)
         #expect(app.library.webdavDialogSession?.id == session.id)
+        #expect(session.step == .connection)
         #expect(!session.isSubmitting)
         #expect(session.validationMessage == L("webdav.error.invalid_address"))
         #expect(app.toast.visibleItems.isEmpty)
 
         // Blank username/password is allowed (anonymous access); if server requires auth (401),
-        // it restores input state and shows inline authentication error without toast
+        // it stays on Step 1, restores input state, and shows inline authentication error without toast
         WebDAVClient.shared.setCustomHTTPHandlerForTesting { request in
             #expect(request.value(forHTTPHeaderField: "Authorization") == nil)
             let response = HTTPURLResponse(
@@ -82,6 +83,7 @@ struct WebDAVFolderDialogTests {
         await session.validationTask?.value
 
         #expect(app.library.webdavDialogSession?.id == session.id)
+        #expect(session.step == .connection)
         #expect(!session.isSubmitting)
         #expect(session.validationMessage == WebDAVError.authenticationFailed.errorDescription)
         #expect(app.toast.visibleItems.isEmpty)
@@ -112,7 +114,6 @@ struct WebDAVFolderDialogTests {
 
         app.openWebDAVFolderDialog()
         let session = try #require(app.library.webdavDialogSession)
-        session.name = "NieR"
         session.address = "http://192.168.1.173:5244/115/云下载/NieR:Automata"
         session.username = "admin"
         session.password = "secret"
@@ -130,7 +131,7 @@ struct WebDAVFolderDialogTests {
     }
 
     @Test
-    func dialogSuccessClosesDialogSavesConfigAndStartsAddFolderTaskWithOptionalNameDefault() async throws {
+    func dialogConnectEntersBrowserStepAndAddingWithoutSelectionAddsCurrentDirectory() async throws {
         let fixture = try DialogTestFixture()
         defer { fixture.cleanUp() }
 
@@ -168,16 +169,24 @@ struct WebDAVFolderDialogTests {
             return (Data(xml.utf8), response)
         }
 
-        // Leave Name, Username, and Password blank -> anonymous WebDAV access, defaults Name to folder name ("NieR:Automata")
         app.openWebDAVFolderDialog()
         let session = try #require(app.library.webdavDialogSession)
-        session.name = "   "
         session.address = rootAddress
         session.username = ""
         session.password = ""
 
+        // Step 1 Connect -> enters Step 2 Browser
         app.confirmWebDAVFolderDialog(session)
         await session.validationTask?.value
+
+        #expect(app.library.webdavDialogSession?.id == session.id)
+        #expect(session.step == .browser)
+        #expect(session.breadcrumbNodes.map(\.title) == ["NieR:Automata"])
+        #expect(session.canAddInBrowser)
+        #expect(session.selectedFolderPaths.isEmpty)
+
+        // Step 2 Add with nothing selected -> adds current directory ("NieR:Automata")
+        app.confirmWebDAVFolderDialog(session)
         await app.tasks.waitUntilIdle()
 
         #expect(app.library.webdavDialogSession == nil)
@@ -191,6 +200,253 @@ struct WebDAVFolderDialogTests {
     }
 
     @Test
+    func stepTwoSupportsDrillDownBreadcrumbBackPreservingInputsAndMultiFolderQueueingInDisplayOrder() async throws {
+        let fixture = try DialogTestFixture()
+        defer { fixture.cleanUp() }
+
+        _ = NSApplication.shared
+        let app = AppCoordinator(
+            userDefaults: fixture.userDefaults,
+            databaseURL: fixture.databaseURL
+        )
+
+        let rootURL = try #require(WebDAVAddress.parseURL(from: "http://192.168.1.5:5244/dav/115/动漫"))
+        let showAURL = try #require(WebDAVAddress.parseURL(from: "http://192.168.1.5:5244/dav/115/动漫/01. 进击的巨人"))
+        let showBURL = try #require(WebDAVAddress.parseURL(from: "http://192.168.1.5:5244/dav/115/动漫/02. 葬送的芙莉莲"))
+        let showCURL = try #require(WebDAVAddress.parseURL(from: "http://192.168.1.5:5244/dav/115/动漫/03. 孤独摇滚"))
+        defer {
+            WebDAVConfigurationStore.shared.remove(url: rootURL)
+            WebDAVConfigurationStore.shared.remove(url: showAURL)
+            WebDAVConfigurationStore.shared.remove(url: showBURL)
+            WebDAVConfigurationStore.shared.remove(url: showCURL)
+        }
+
+        var shouldFailSubfolderLoad = false
+        WebDAVClient.shared.setCustomHTTPHandlerForTesting { request in
+            let decodedPath = (request.url?.path.removingPercentEncoding ?? request.url?.path ?? "")
+                .precomposedStringWithCanonicalMapping
+            if shouldFailSubfolderLoad && decodedPath.contains("01. 进击的巨人") {
+                let response = HTTPURLResponse(
+                    url: request.url!,
+                    statusCode: 500,
+                    httpVersion: "HTTP/1.1",
+                    headerFields: nil
+                )!
+                return (Data(), response)
+            }
+
+            let xml: String
+            if decodedPath.contains("01. 进击的巨人") {
+                xml = """
+                <?xml version="1.0" encoding="utf-8"?>
+                <D:multistatus xmlns:D="DAV:">
+                  <D:response>
+                    <D:href>/dav/115/动漫/01.%20进击的巨人/</D:href>
+                    <D:propstat>
+                      <D:prop><D:resourcetype><D:collection/></D:resourcetype></D:prop>
+                      <D:status>HTTP/1.1 200 OK</D:status>
+                    </D:propstat>
+                  </D:response>
+                  <D:response>
+                    <D:href>/dav/115/动漫/01.%20进击的巨人/S01E01.mkv</D:href>
+                    <D:propstat>
+                      <D:prop><D:resourcetype/></D:prop>
+                      <D:status>HTTP/1.1 200 OK</D:status>
+                    </D:propstat>
+                  </D:response>
+                  <D:response>
+                    <D:href>/dav/115/动漫/01.%20进击的巨人/S01E01.srt</D:href>
+                    <D:propstat>
+                      <D:prop><D:resourcetype/></D:prop>
+                      <D:status>HTTP/1.1 200 OK</D:status>
+                    </D:propstat>
+                  </D:response>
+                </D:multistatus>
+                """
+            } else {
+                xml = """
+                <?xml version="1.0" encoding="utf-8"?>
+                <D:multistatus xmlns:D="DAV:">
+                  <D:response>
+                    <D:href>/dav/115/动漫/</D:href>
+                    <D:propstat>
+                      <D:prop><D:resourcetype><D:collection/></D:resourcetype></D:prop>
+                      <D:status>HTTP/1.1 200 OK</D:status>
+                    </D:propstat>
+                  </D:response>
+                  <D:response>
+                    <D:href>/dav/115/动漫/01.%20进击的巨人/</D:href>
+                    <D:propstat>
+                      <D:prop><D:resourcetype><D:collection/></D:resourcetype></D:prop>
+                      <D:status>HTTP/1.1 200 OK</D:status>
+                    </D:propstat>
+                  </D:response>
+                  <D:response>
+                    <D:href>/dav/115/动漫/02.%20葬送的芙莉莲/</D:href>
+                    <D:propstat>
+                      <D:prop><D:resourcetype><D:collection/></D:resourcetype></D:prop>
+                      <D:status>HTTP/1.1 200 OK</D:status>
+                    </D:propstat>
+                  </D:response>
+                  <D:response>
+                    <D:href>/dav/115/动漫/03.%20孤独摇滚/</D:href>
+                    <D:propstat>
+                      <D:prop><D:resourcetype><D:collection/></D:resourcetype></D:prop>
+                      <D:status>HTTP/1.1 200 OK</D:status>
+                    </D:propstat>
+                  </D:response>
+                  <D:response>
+                    <D:href>/dav/115/动漫/Preview.mp4</D:href>
+                    <D:propstat>
+                      <D:prop><D:resourcetype/></D:prop>
+                      <D:status>HTTP/1.1 200 OK</D:status>
+                    </D:propstat>
+                  </D:response>
+                </D:multistatus>
+                """
+            }
+
+            let response = HTTPURLResponse(
+                url: request.url!,
+                statusCode: 207,
+                httpVersion: "HTTP/1.1",
+                headerFields: ["Content-Type": "application/xml"]
+            )!
+            return (Data(xml.utf8), response)
+        }
+
+        app.openWebDAVFolderDialog()
+        let session = try #require(app.library.webdavDialogSession)
+        session.address = rootURL.mediaPath
+        session.username = "user1"
+        session.password = "pass1"
+
+        app.confirmWebDAVFolderDialog(session)
+        await session.validationTask?.value
+
+        #expect(session.step == .browser)
+        #expect(session.breadcrumbNodes.map(\.title) == ["动漫"])
+        #expect(session.items.map(\.name) == ["01. 进击的巨人", "02. 葬送的芙莉莲", "03. 孤独摇滚", "Preview.mp4"])
+
+        // File items cannot be selected
+        let fileItem = try #require(session.items.last)
+        session.toggleFolderSelection(fileItem)
+        #expect(session.selectedFolderPaths.isEmpty)
+
+        // Select folders in reverse order (03 then 01) -> targetFoldersToAdd preserves top-to-bottom display order (01 then 03)
+        let folder1 = session.items[0]
+        let folder3 = session.items[2]
+        session.toggleFolderSelection(folder3)
+        session.toggleFolderSelection(folder1)
+        #expect(session.targetFoldersToAdd() == [showAURL.standardizedMediaURL, showCURL.standardizedMediaURL])
+
+        // Double-clicking a subfolder clears selection and updates breadcrumb; failure disables Add
+        shouldFailSubfolderLoad = true
+        app.openWebDAVSubfolder(folder1, in: session)
+        #expect(session.selectedFolderPaths.isEmpty)
+        await session.directoryTask?.value
+        #expect(session.breadcrumbNodes.map(\.title) == ["动漫", "01. 进击的巨人"])
+        #expect(session.directoryErrorMessage != nil)
+        #expect(!session.canAddInBrowser)
+
+        // Clicking root breadcrumb node navigates back to root and clears error
+        shouldFailSubfolderLoad = false
+        let rootNode = try #require(session.breadcrumbNodes.first)
+        app.navigateWebDAVBreadcrumb(to: rootNode, in: session)
+        await session.directoryTask?.value
+        #expect(session.breadcrumbNodes.map(\.title) == ["动漫"])
+        #expect(session.directoryErrorMessage == nil)
+        #expect(session.canAddInBrowser)
+
+        // Select a folder, then click Back -> returns to Step 1, clears selection, and preserves inputs
+        session.toggleFolderSelection(folder1)
+        #expect(!session.selectedFolderPaths.isEmpty)
+        app.navigateBackInWebDAVFolderDialog(session)
+        #expect(session.step == .connection)
+        #expect(session.selectedFolderPaths.isEmpty)
+        #expect(session.address == rootURL.mediaPath)
+        #expect(session.username == "user1")
+        #expect(session.password == "pass1")
+
+        // Reconnect and select two folders (03 and 01) -> queues 2 Add Folder tasks in display order (01 running, 03 queued)
+        app.confirmWebDAVFolderDialog(session)
+        await session.validationTask?.value
+        session.toggleFolderSelection(session.items[2])
+        session.toggleFolderSelection(session.items[0])
+
+        let gate = DispatchSemaphore(value: 0)
+        var startedFolders: [URL] = []
+        app.tasks.runAddFolder = { folders, _ in
+            let folder = folders[0]
+            await MainActor.run {
+                startedFolders.append(folder)
+            }
+            if startedFolders.count == 1 {
+                await Task.detached {
+                    _ = gate.wait(timeout: .now() + 5)
+                }.value
+            }
+            await MainActor.run {
+                app.indexing.appendFolder(folder)
+            }
+            return 1
+        }
+
+        app.confirmWebDAVFolderDialog(session)
+        #expect(app.library.webdavDialogSession == nil)
+        #expect(app.tasks.current.count == 2)
+        #expect(app.tasks.current[0].record.kind == .addFolder)
+        #expect(app.tasks.current[0].record.state == .running)
+        #expect(app.tasks.current[0].record.oldPaths == [showAURL.mediaPath])
+        #expect(app.tasks.current[1].record.kind == .addFolder)
+        #expect(app.tasks.current[1].record.state == .queued)
+        #expect(app.tasks.current[1].record.oldPaths == [showCURL.mediaPath])
+
+        gate.signal()
+        await app.tasks.waitUntilIdle()
+
+        #expect(startedFolders == [showAURL.standardizedMediaURL, showCURL.standardizedMediaURL])
+        #expect(app.tasks.completed.count == 2)
+    }
+
+    @Test
+    func browserCardSelectionStylingDisablesHoverWhenSelected() {
+        // Selected folder card uses libraryMediaCardHoverBg and borderActive, and hover does not alter background
+        let selectedUnHovered = WebDAVBrowserCard.resolveBackgroundFillColor(
+            isFolder: true,
+            isSelected: true,
+            isHovered: false
+        )
+        let selectedHovered = WebDAVBrowserCard.resolveBackgroundFillColor(
+            isFolder: true,
+            isSelected: true,
+            isHovered: true
+        )
+        #expect(selectedUnHovered == WorkbenchRedesignColors.libraryMediaCardHoverBg)
+        #expect(selectedHovered == WorkbenchRedesignColors.libraryMediaCardHoverBg)
+        #expect(
+            WebDAVBrowserCard.resolveBorderStrokeColor(isFolder: true, isSelected: true)
+                == WorkbenchRedesignColors.borderActive
+        )
+
+        // Unselected folder card uses rowHover on hover and tableBg otherwise
+        #expect(
+            WebDAVBrowserCard.resolveBackgroundFillColor(isFolder: true, isSelected: false, isHovered: true)
+                == WorkbenchRedesignColors.rowHover
+        )
+        #expect(
+            WebDAVBrowserCard.resolveBackgroundFillColor(isFolder: true, isSelected: false, isHovered: false)
+                == WorkbenchRedesignColors.tableBg
+        )
+
+        // File card never changes background on hover
+        #expect(
+            WebDAVBrowserCard.resolveBackgroundFillColor(isFolder: false, isSelected: false, isHovered: true)
+                == WorkbenchRedesignColors.tableBg
+        )
+    }
+
+    @Test
     func dialogOpensUnfocusedAndLongAddressPastePreservesFocusSwitchingAcrossFields() throws {
         _ = NSApplication.shared
         let window = CueSeekerMainWindow(
@@ -200,7 +456,7 @@ struct WebDAVFolderDialogTests {
             defer: false
         )
         window.isWorkbenchCovered = { true }
-        window.dialogSize = { CGSize(width: 420, height: 360) }
+        window.dialogSize = { CGSize(width: 480, height: 360) }
 
         let session = WebDAVFolderDialogSession()
         let hostingView = NSHostingView(
@@ -235,11 +491,10 @@ struct WebDAVFolderDialogTests {
 
         let fields = collectEditableTextFields(in: hostingView)
             .sorted { $0.convert($0.bounds, to: nil).midY > $1.convert($1.bounds, to: nil).midY }
-        #expect(fields.count == 4)
-        let nameField = fields[0]
-        let addressField = fields[1]
-        let usernameField = fields[2]
-        let passwordField = fields[3]
+        #expect(fields.count == 3)
+        let addressField = fields[0]
+        let usernameField = fields[1]
+        let passwordField = fields[2]
 
         // Focus Address and simulate pasting a long URL that expands the shared field editor > 420pt
         #expect(window.makeFirstResponder(addressField))
@@ -250,10 +505,7 @@ struct WebDAVFolderDialogTests {
         fieldEditor.layoutManager?.ensureLayout(for: fieldEditor.textContainer!)
         #expect(fieldEditor.bounds.width > 420)
 
-        // Switching focus to Name, Username, and Password must still succeed
-        #expect(window.makeFirstResponder(nameField))
-        #expect((window.firstResponder as? NSTextView)?.delegate as? NSTextField === nameField)
-
+        // Switching focus to Username and Password must still succeed
         #expect(window.makeFirstResponder(usernameField))
         #expect((window.firstResponder as? NSTextView)?.delegate as? NSTextField === usernameField)
 
@@ -304,7 +556,7 @@ struct WebDAVFolderDialogTests {
 
         let fields = collectEditableTextFields(in: hostingView)
             .sorted { $0.convert($0.bounds, to: nil).midY > $1.convert($1.bounds, to: nil).midY }
-        #expect(fields.count == 4)
+        #expect(fields.count == 3)
 
         for (index, field) in fields.enumerated() {
             #expect(window.makeFirstResponder(field))
@@ -325,7 +577,7 @@ struct WebDAVFolderDialogTests {
             #expect(confirmCallCount == 0)
         }
 
-        // Switching focus across fields also must not trigger Add
+        // Switching focus across fields also must not trigger Connect
         #expect(window.makeFirstResponder(fields[0]))
         #expect(window.makeFirstResponder(fields[1]))
         #expect(confirmCallCount == 0)
@@ -373,8 +625,8 @@ struct WebDAVFolderDialogTests {
 
         let fields = collectEditableTextFields(in: hostingView)
             .sorted { $0.convert($0.bounds, to: nil).midY > $1.convert($1.bounds, to: nil).midY }
-        #expect(fields.count == 4)
-        let addressField = fields[1]
+        #expect(fields.count == 3)
+        let addressField = fields[0]
 
         #expect(window.makeFirstResponder(addressField))
         let editor = try #require(addressField.currentEditor() as? NSTextView)

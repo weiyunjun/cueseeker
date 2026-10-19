@@ -671,7 +671,10 @@
 "webdav.field.address" = "地址";
 "webdav.field.username" = "用户名";
 "webdav.field.password" = "密码";
+"webdav.connect" = "连接";
 "webdav.add" = "添加";
+"webdav.empty_folder_items" = "此文件夹中没有文件夹、视频或字幕文件。";
+"common.back" = "返回";
 "webdav.error.name_empty" = "请输入名称";
 "webdav.error.invalid_address" = "请输入有效的 WebDAV 地址";
 "webdav.error.username_empty" = "请输入用户名";

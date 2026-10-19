@@ -842,3 +842,40 @@ func enqueueingLibraryTasksPopulatesFileNameForTitles() throws {
     #expect(folderTask.record.fileName == "RenamedFolder")
     #expect(folderTask.record.titleTargetName == "RenamedFolder")
 }
+
+@MainActor
+@Test
+func enqueueAddFoldersStartsFirstAndQueuesRemainingInOrder() async throws {
+    let (holdingStore, holdingDBURL) = try makeTaskQueueStore()
+    defer { removeTemporaryDatabase(at: holdingDBURL) }
+
+    let accepted = holdingStore.enqueueAddFolders([
+        URL(fileURLWithPath: "/WebDAV/Anime/Season 1"),
+        URL(fileURLWithPath: "/WebDAV/Anime/Season 2"),
+        URL(fileURLWithPath: "/WebDAV/Anime/OVA")
+    ])
+    #expect(accepted)
+    #expect(holdingStore.current.count == 3)
+    #expect(holdingStore.current.map(\.record.fileName) == ["Season 1", "Season 2", "OVA"])
+    #expect(holdingStore.current.map(\.record.state) == [.running, .queued, .queued])
+
+    var cancelledQueuedFolders: [String] = []
+    holdingStore.onCancelQueuedAddFolder = { url in
+        cancelledQueuedFolders.append(url.path)
+    }
+    holdingStore.removeCurrentTask(id: holdingStore.current[2].id)
+    #expect(cancelledQueuedFolders == ["/WebDAV/Anime/OVA"])
+    #expect(holdingStore.current.count == 2)
+
+    let (finishingStore, finishingDBURL) = try makeTaskQueueStore(runAddFolder: { _, _ in 1 })
+    defer { removeTemporaryDatabase(at: finishingDBURL) }
+
+    #expect(finishingStore.enqueueAddFolders([
+        URL(fileURLWithPath: "/WebDAV/Anime/Season 1"),
+        URL(fileURLWithPath: "/WebDAV/Anime/Season 2")
+    ]))
+    await waitUntil { finishingStore.current.isEmpty }
+    #expect(finishingStore.completed.map(\.fileName) == ["Season 2", "Season 1"])
+}
+
+

@@ -290,6 +290,7 @@ final class TaskQueueStore: ObservableObject {
     var runIndex: TaskIndexRunner
     var runAddFolder: TaskIndexRunner
     var runRemoveFolder: TaskRemoveFolderRunner
+    var onCancelQueuedAddFolder: ((URL) -> Void)?
     /// The running tasks by record id, at most one per category.
     private var runningTasks: [Int64: Task<Void, Never>] = [:]
     /// Tasks the reader removed while they were running. The running task ends
@@ -440,13 +441,40 @@ final class TaskQueueStore: ObservableObject {
 
     @discardableResult
     func enqueueAddFolder(_ folder: URL) -> Bool {
-        enqueueLibraryTask(
-            kind: .addFolder,
-            fileName: IndexingStore.displayName(for: folder),
-            itemCount: 0,
-            oldPaths: [folder.mediaPath],
-            work: .addFolder(folder)
-        )
+        enqueueAddFolders([folder])
+    }
+
+    @discardableResult
+    func enqueueAddFolders(_ folders: [URL]) -> Bool {
+        guard !folders.isEmpty, let database, !hasLibraryTask else {
+            return false
+        }
+
+        do {
+            for folder in folders {
+                let normalized = folder.standardizedMediaURL
+                let record = try database.insertQueuedTask(
+                    kind: .addFolder,
+                    fileName: IndexingStore.displayName(for: normalized),
+                    folderPath: "",
+                    itemCount: 0,
+                    oldPaths: [normalized.mediaPath],
+                    newPaths: []
+                )
+                current.append(
+                    TaskQueueEntry(
+                        record: record,
+                        work: .addFolder(normalized),
+                        progress: TaskProgressModel()
+                    )
+                )
+            }
+            startEligibleTasks()
+            return true
+        } catch {
+            print("Failed to queue \(TaskRecordKind.addFolder.rawValue): \(error)")
+            return false
+        }
     }
 
     @discardableResult
@@ -508,6 +536,9 @@ final class TaskQueueStore: ObservableObject {
         }
 
         guard entry.record.state == .running else {
+            if case .addFolder(let folder) = entry.work {
+                onCancelQueuedAddFolder?(folder)
+            }
             moveToHistory(
                 id: id,
                 state: .incomplete,

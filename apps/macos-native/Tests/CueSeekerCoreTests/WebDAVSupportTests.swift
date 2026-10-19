@@ -655,4 +655,108 @@ struct WebDAVSupportTests {
                 == "http://192.168.1.173:5244/115/云下载/Show Renamed/EP02.mkv"
         )
     }
+
+    @Test
+    func connectAndBrowseDirectoryFiltersUnsupportedFilesOrdersFoldersFirstAndScopesSubfolderConfig() async throws {
+        let suiteName = "CueSeeker.WebDAVBrowserTests.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let store = WebDAVConfigurationStore(userDefaults: defaults)
+        let client = WebDAVClient(configurationStore: store) { request in
+            let urlString = request.url?.absoluteString ?? ""
+            guard urlString.contains("/dav/115/") else {
+                let response = HTTPURLResponse(
+                    url: request.url!,
+                    statusCode: 405,
+                    httpVersion: "HTTP/1.1",
+                    headerFields: nil
+                )!
+                return (Data(), response)
+            }
+
+            let xml = """
+            <?xml version="1.0" encoding="utf-8"?>
+            <D:multistatus xmlns:D="DAV:">
+              <D:response>
+                <D:href>/dav/115/%E5%8A%A8%E6%BC%AB/</D:href>
+                <D:propstat>
+                  <D:prop><D:resourcetype><D:collection/></D:resourcetype></D:prop>
+                  <D:status>HTTP/1.1 200 OK</D:status>
+                </D:propstat>
+              </D:response>
+              <D:response>
+                <D:href>/dav/115/%E5%8A%A8%E6%BC%AB/Season%2010/</D:href>
+                <D:propstat>
+                  <D:prop><D:resourcetype><D:collection/></D:resourcetype></D:prop>
+                  <D:status>HTTP/1.1 200 OK</D:status>
+                </D:propstat>
+              </D:response>
+              <D:response>
+                <D:href>/dav/115/%E5%8A%A8%E6%BC%AB/Season%202/</D:href>
+                <D:propstat>
+                  <D:prop><D:resourcetype><D:collection/></D:resourcetype></D:prop>
+                  <D:status>HTTP/1.1 200 OK</D:status>
+                </D:propstat>
+              </D:response>
+              <D:response>
+                <D:href>/dav/115/%E5%8A%A8%E6%BC%AB/Preview.mp4</D:href>
+                <D:propstat>
+                  <D:prop><D:resourcetype/></D:prop>
+                  <D:status>HTTP/1.1 200 OK</D:status>
+                </D:propstat>
+              </D:response>
+              <D:response>
+                <D:href>/dav/115/%E5%8A%A8%E6%BC%AB/Preview.ass</D:href>
+                <D:propstat>
+                  <D:prop><D:resourcetype/></D:prop>
+                  <D:status>HTTP/1.1 200 OK</D:status>
+                </D:propstat>
+              </D:response>
+              <D:response>
+                <D:href>/dav/115/%E5%8A%A8%E6%BC%AB/poster.jpg</D:href>
+                <D:propstat>
+                  <D:prop><D:resourcetype/></D:prop>
+                  <D:status>HTTP/1.1 200 OK</D:status>
+                </D:propstat>
+              </D:response>
+              <D:response>
+                <D:href>/dav/115/%E5%8A%A8%E6%BC%AB/tvshow.nfo</D:href>
+                <D:propstat>
+                  <D:prop><D:resourcetype/></D:prop>
+                  <D:status>HTTP/1.1 200 OK</D:status>
+                </D:propstat>
+              </D:response>
+            </D:multistatus>
+            """
+            let response = HTTPURLResponse(
+                url: request.url!,
+                statusCode: 207,
+                httpVersion: "HTTP/1.1",
+                headerFields: ["Content-Type": "application/xml"]
+            )!
+            return (Data(xml.utf8), response)
+        }
+
+        let connected = try await client.connectAndBrowseDirectory(
+            address: "http://192.168.1.5:5244/115/动漫",
+            username: "admin",
+            password: "secret"
+        )
+
+        #expect(connected.config.rootPath == "http://192.168.1.5:5244/115/动漫")
+        #expect(connected.config.davRootPath == "http://192.168.1.5:5244/dav/115/动漫")
+        #expect(connected.config.name == "动漫")
+        #expect(connected.items.map(\.name) == ["Season 2", "Season 10", "Preview.ass", "Preview.mp4"])
+        #expect(connected.items.map(\.kind) == [.folder, .folder, .subtitle, .video])
+
+        let season2URL = connected.items[0].url
+        let scoped = connected.config.scopedConfig(for: season2URL)
+        #expect(scoped.rootPath == "http://192.168.1.5:5244/115/动漫/Season 2")
+        #expect(scoped.davRootPath == "http://192.168.1.5:5244/dav/115/动漫/Season 2")
+        #expect(scoped.name == "Season 2")
+        #expect(scoped.address == "http://192.168.1.5:5244/115/动漫/Season 2")
+        #expect(scoped.username == "admin")
+        #expect(scoped.password == "secret")
+    }
 }

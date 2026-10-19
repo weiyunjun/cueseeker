@@ -671,7 +671,10 @@
 "webdav.field.address" = "位址";
 "webdav.field.username" = "使用者名稱";
 "webdav.field.password" = "密碼";
+"webdav.connect" = "連線";
 "webdav.add" = "加入";
+"webdav.empty_folder_items" = "此資料夾中沒有資料夾、影片或字幕檔案。";
+"common.back" = "返回";
 "webdav.error.name_empty" = "請輸入名稱";
 "webdav.error.invalid_address" = "請輸入有效的 WebDAV 位址";
 "webdav.error.username_empty" = "請輸入使用者名稱";

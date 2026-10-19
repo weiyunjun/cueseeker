@@ -86,6 +86,55 @@ public struct WebDAVRootConfig: Codable, Equatable, Sendable {
     public var ffmpegHTTPHeaders: String? {
         WebDAVClient.ffmpegHTTPHeaders(includingAuthorizationFrom: self)
     }
+
+    public func scopedConfig(for folderURL: URL) -> WebDAVRootConfig {
+        let canonicalFolder = folderURL.standardizedMediaURL.mediaPath
+        let canonicalRoot = URL.fromMediaPath(rootPath).mediaPath
+        let canonicalDAVRoot = URL.fromMediaPath(davRootPath).mediaPath
+        let scopedDAVRoot: String
+        if canonicalDAVRoot == canonicalRoot {
+            scopedDAVRoot = canonicalFolder
+        } else if canonicalFolder == canonicalRoot {
+            scopedDAVRoot = canonicalDAVRoot
+        } else if canonicalFolder.hasPrefix(canonicalRoot + "/") {
+            let suffix = String(canonicalFolder.dropFirst(canonicalRoot.count))
+            scopedDAVRoot = canonicalDAVRoot + suffix
+        } else {
+            scopedDAVRoot = canonicalFolder
+        }
+
+        let resolvedURL = URL.fromMediaPath(canonicalFolder)
+        return WebDAVRootConfig(
+            rootPath: canonicalFolder,
+            davRootPath: scopedDAVRoot,
+            name: WebDAVAddress.defaultDisplayName(for: resolvedURL),
+            address: WebDAVAddress.decodedDisplayAddress(canonicalFolder),
+            username: username,
+            password: password
+        )
+    }
+}
+
+public enum WebDAVBrowserItemKind: String, Codable, Equatable, Sendable {
+    case folder
+    case video
+    case subtitle
+}
+
+public struct WebDAVBrowserItem: Identifiable, Equatable, Sendable {
+    public let url: URL
+    public let name: String
+    public let kind: WebDAVBrowserItemKind
+
+    public var id: String {
+        url.mediaPath
+    }
+
+    public init(url: URL, name: String, kind: WebDAVBrowserItemKind) {
+        self.url = url.standardizedMediaURL
+        self.name = name
+        self.kind = kind
+    }
 }
 
 public struct WebDAVRemoteFile: Equatable, Sendable {
@@ -682,6 +731,68 @@ public final class WebDAVClient: @unchecked Sendable {
         }.value
     }
 
+    public func connectAndBrowseDirectory(
+        address: String,
+        username: String,
+        password: String
+    ) async throws -> (config: WebDAVRootConfig, items: [WebDAVBrowserItem]) {
+        let trimmedAddress = address.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedUsername = username.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard !trimmedAddress.isEmpty else {
+            throw WebDAVError.invalidInput("Address is required.")
+        }
+        guard let rootURL = WebDAVAddress.parseURL(from: trimmedAddress) else {
+            throw WebDAVError.invalidAddress
+        }
+
+        try Task.checkCancellation()
+
+        let effectiveName = WebDAVAddress.defaultDisplayName(for: rootURL)
+        let rootMediaPath = rootURL.mediaPath
+        let initialConfig = WebDAVRootConfig(
+            rootPath: rootMediaPath,
+            davRootPath: rootMediaPath,
+            name: effectiveName,
+            address: trimmedAddress,
+            username: trimmedUsername,
+            password: password
+        )
+
+        return try await Task.detached(priority: .userInitiated) { [self] in
+            try Task.checkCancellation()
+            do {
+                let items = try self.listBrowserItems(at: rootURL, config: initialConfig)
+                return (initialConfig, items)
+            } catch let firstError as WebDAVError {
+                try Task.checkCancellation()
+                if case .authenticationFailed = firstError {
+                    throw firstError
+                }
+                if let davFallbackURL = Self.alistDAVFallbackURL(for: rootURL) {
+                    var fallbackConfig = initialConfig
+                    fallbackConfig.davRootPath = davFallbackURL.mediaPath
+                    if let items = try? self.listBrowserItems(at: rootURL, config: fallbackConfig) {
+                        return (fallbackConfig, items)
+                    }
+                }
+                throw firstError
+            }
+        }.value
+    }
+
+    public func browseDirectory(
+        at folderURL: URL,
+        baseConfig: WebDAVRootConfig
+    ) async throws -> [WebDAVBrowserItem] {
+        let normalizedURL = folderURL.standardizedMediaURL
+        try Task.checkCancellation()
+        return try await Task.detached(priority: .userInitiated) { [self] in
+            try Task.checkCancellation()
+            return try self.listBrowserItems(at: normalizedURL, config: baseConfig)
+        }.value
+    }
+
     public func scanDirectoryTree(rootURL: URL) throws -> [WebDAVRemoteFile] {
         let rootMediaPath = rootURL.mediaPath
         let config = configurationStore.matchingConfig(forMediaPath: rootMediaPath)
@@ -1024,6 +1135,106 @@ public final class WebDAVClient: @unchecked Sendable {
         guard rootItem.isCollection else {
             throw WebDAVError.notADirectory
         }
+    }
+
+    private func listBrowserItems(
+        at logicalDirectoryURL: URL,
+        config: WebDAVRootConfig
+    ) throws -> [WebDAVBrowserItem] {
+        let davDirectoryURL = effectiveDAVURL(for: logicalDirectoryURL, config: config)
+        let entries = try propfind(at: davDirectoryURL, depth: "1", config: config)
+        let baseComponents = URLComponents(url: davDirectoryURL, resolvingAgainstBaseURL: false)
+        let expectedSelfPath = normalizeDAVPath(davDirectoryURL.path)
+        let fallbackSelfPath = Self.alistDAVFallbackURL(for: davDirectoryURL).map { normalizeDAVPath($0.path) }
+        let effectiveRootMediaPath = URL.fromMediaPath(config.davRootPath).mediaPath
+        let logicalRootMediaPath = URL.fromMediaPath(config.rootPath).mediaPath
+
+        var sawSelfCollection = false
+        var sawFallbackSelfCollection = false
+        var foldersByPath: [String: WebDAVBrowserItem] = [:]
+        var filesByPath: [String: WebDAVBrowserItem] = [:]
+
+        for entry in entries {
+            try Task.checkCancellation()
+            guard let resolvedDAVURL = resolveHref(
+                entry.href,
+                against: davDirectoryURL,
+                baseComponents: baseComponents
+            ) else {
+                continue
+            }
+            let entryPath = normalizeDAVPath(resolvedDAVURL.path)
+            if entryPath == expectedSelfPath {
+                guard entry.isCollection else {
+                    throw WebDAVError.notADirectory
+                }
+                sawSelfCollection = true
+                continue
+            }
+            if let fallbackSelfPath, entryPath == fallbackSelfPath {
+                sawFallbackSelfCollection = true
+            }
+
+            let requiredPrefix = expectedSelfPath == "/" ? "/" : expectedSelfPath + "/"
+            guard entryPath.hasPrefix(requiredPrefix) else {
+                continue
+            }
+            let relativeRemainder = String(entryPath.dropFirst(requiredPrefix.count))
+            guard !relativeRemainder.isEmpty, !relativeRemainder.contains("/") else {
+                continue
+            }
+
+            let rawName = resolvedDAVURL.lastPathComponent
+            let name = (rawName.removingPercentEncoding ?? rawName).precomposedStringWithCanonicalMapping
+            if name.isEmpty || name.hasPrefix(".") {
+                continue
+            }
+
+            let logicalURL = mapDAVURLToLogicalURL(
+                resolvedDAVURL,
+                effectiveRootMediaPath: effectiveRootMediaPath,
+                logicalRootMediaPath: logicalRootMediaPath
+            )
+
+            if entry.isCollection {
+                let item = WebDAVBrowserItem(url: logicalURL, name: name, kind: .folder)
+                foldersByPath[item.id] = item
+            } else {
+                let ext = resolvedDAVURL.pathExtension.lowercased()
+                if VideoMatcher.defaultVideoExtensions.contains(ext) {
+                    let item = WebDAVBrowserItem(url: logicalURL, name: name, kind: .video)
+                    filesByPath[item.id] = item
+                } else if SubtitleFileScanner.supportedSubtitleExtensions.contains(ext) {
+                    let item = WebDAVBrowserItem(url: logicalURL, name: name, kind: .subtitle)
+                    filesByPath[item.id] = item
+                }
+            }
+        }
+
+        if !sawSelfCollection {
+            if sawFallbackSelfCollection {
+                throw WebDAVError.directoryNotFound
+            }
+            if entries.count == 1, entries[0].isCollection == false {
+                throw WebDAVError.notADirectory
+            }
+        }
+
+        let sortedFolders = foldersByPath.values.sorted {
+            let cmp = $0.name.localizedStandardCompare($1.name)
+            if cmp != .orderedSame {
+                return cmp == .orderedAscending
+            }
+            return $0.id < $1.id
+        }
+        let sortedFiles = filesByPath.values.sorted {
+            let cmp = $0.name.localizedStandardCompare($1.name)
+            if cmp != .orderedSame {
+                return cmp == .orderedAscending
+            }
+            return $0.id < $1.id
+        }
+        return sortedFolders + sortedFiles
     }
 
     private func scanDirectoryRecursive(
