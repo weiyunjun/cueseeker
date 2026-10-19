@@ -680,6 +680,19 @@
 "webdav.error.username_empty" = "请输入用户名";
 "webdav.error.password_empty" = "请输入密码";
 
+/* SMB Folder Support */
+"file.add_folder.smb" = "SMB 文件夹";
+"smb.dialog.title" = "SMB 文件夹";
+"smb.field.address" = "地址";
+"smb.field.port" = "端口";
+"smb.field.username" = "用户名";
+"smb.field.password" = "密码";
+"smb.connect" = "连接";
+"smb.add" = "添加";
+"smb.empty_folder_items" = "此文件夹中没有文件夹、视频或字幕文件。";
+"smb.error.invalid_address" = "请输入有效的 SMB 地址";
+"smb.error.invalid_port" = "请输入有效的端口号（1–65535）";
+
 /* Tooltips */
 "tooltip.topbar.back.disabled" = "没有可后退的页面";
 "tooltip.topbar.forward.disabled" = "没有可前进的页面";

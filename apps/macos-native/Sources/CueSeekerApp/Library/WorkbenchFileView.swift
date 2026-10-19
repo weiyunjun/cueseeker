@@ -252,6 +252,15 @@ struct WorkbenchFileView: View {
                 action: {
                     appState.openWebDAVFolderDialog()
                 }
+            ),
+            FileCardMenuItem(
+                title: L("file.add_folder.smb"),
+                icon: .folderSmb,
+                isEnabled: !isFolderOperationBlocked,
+                isDestructive: false,
+                action: {
+                    appState.openSMBFolderDialog()
+                }
             )
         ]
     }
@@ -942,11 +951,23 @@ enum FileFolderGroupingResolver {
     }
 
     static func folderIcon(for folder: URL) -> AppIcon {
-        folder.isWebDAVURL ? .folderWebdav : .folder
+        if folder.isWebDAVURL {
+            return .folderWebdav
+        }
+        if folder.isSMBURL {
+            return .folderSmb
+        }
+        return .folder
     }
 
     static func folderIcon(forFolderPath folderPath: String) -> AppIcon {
-        folderPath.isWebDAVPath ? .folderWebdav : .folder
+        if folderPath.isWebDAVPath {
+            return .folderWebdav
+        }
+        if folderPath.isSMBPath {
+            return .folderSmb
+        }
+        return .folder
     }
 
     static func rootSubtitle(for folder: URL) -> String {
@@ -954,13 +975,21 @@ enum FileFolderGroupingResolver {
             let rawAddress = WebDAVConfigurationStore.shared.config(for: folder)?.address ?? folder.mediaPath
             return WebDAVAddress.decodedDisplayAddress(rawAddress)
         }
+        if folder.isSMBURL {
+            let rawAddress = SMBConfigurationStore.shared.config(for: folder)?.address ?? folder.mediaPath
+            return SMBAddress.decodedDisplayAddress(rawAddress)
+        }
         return folder.path
     }
 
     static func subfolderSubtitle(for folderPath: String) -> String {
-        folderPath.isWebDAVPath
-            ? WebDAVAddress.decodedDisplayAddress(folderPath)
-            : folderPath
+        if folderPath.isWebDAVPath {
+            return WebDAVAddress.decodedDisplayAddress(folderPath)
+        }
+        if folderPath.isSMBPath {
+            return SMBAddress.decodedDisplayAddress(folderPath)
+        }
+        return folderPath
     }
 
     static func level2Partition(

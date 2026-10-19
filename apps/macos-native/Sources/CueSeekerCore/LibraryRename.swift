@@ -175,17 +175,23 @@ public struct LibraryRenamer: Sendable {
     private let webdavClient: WebDAVClient
     private let webdavConfigurationStore: WebDAVConfigurationStore
     private let webdavSubtitleCache: WebDAVSubtitleCache
+    private let smbClient: SMBClient
+    private let smbConfigurationStore: SMBConfigurationStore
 
     public init(
         database: IndexingDatabase,
         webdavClient: WebDAVClient = .shared,
         webdavConfigurationStore: WebDAVConfigurationStore = .shared,
-        webdavSubtitleCache: WebDAVSubtitleCache = .shared
+        webdavSubtitleCache: WebDAVSubtitleCache = .shared,
+        smbClient: SMBClient = .shared,
+        smbConfigurationStore: SMBConfigurationStore = .shared
     ) {
         self.database = database
         self.webdavClient = webdavClient
         self.webdavConfigurationStore = webdavConfigurationStore
         self.webdavSubtitleCache = webdavSubtitleCache
+        self.smbClient = smbClient
+        self.smbConfigurationStore = smbConfigurationStore
     }
 
     // MARK: - Conflict check
@@ -214,6 +220,10 @@ public struct LibraryRenamer: Sendable {
             guard (try? webdavClient.directoryExists(at: folderPath)) == true else {
                 throw LibraryRenameConflict.filesChangedSinceIndex
             }
+        } else if folderPath.isSMBPath {
+            guard (try? smbClient.directoryExists(at: folderPath)) == true else {
+                throw LibraryRenameConflict.filesChangedSinceIndex
+            }
         } else {
             var isDirectory: ObjCBool = false
             guard FileManager.default.fileExists(atPath: folderPath, isDirectory: &isDirectory),
@@ -230,6 +240,8 @@ public struct LibraryRenamer: Sendable {
 
         if folderPath.isWebDAVPath {
             try requireWebDAVDestinationFree(newPath: newPath, oldPath: folderPath, name: newName)
+        } else if folderPath.isSMBPath {
+            try requireSMBDestinationFree(newPath: newPath, oldPath: folderPath, name: newName)
         } else {
             let folderURL = URL(fileURLWithPath: folderPath)
             let newURL = URL(fileURLWithPath: newPath)
@@ -299,6 +311,12 @@ public struct LibraryRenamer: Sendable {
                     oldPath: oldFilePath,
                     name: renamed
                 )
+            } else if directoryPath.isSMBPath {
+                try requireSMBDestinationFree(
+                    newPath: newFilePath,
+                    oldPath: oldFilePath,
+                    name: renamed
+                )
             } else {
                 let directory = URL(fileURLWithPath: directoryPath)
                 try requireDestinationFree(
@@ -333,6 +351,10 @@ public struct LibraryRenamer: Sendable {
         for record in records {
             if record.path.isWebDAVPath {
                 guard (try? webdavClient.fileExists(at: record.path)) == true else {
+                    throw LibraryRenameConflict.filesChangedSinceIndex
+                }
+            } else if record.path.isSMBPath {
+                guard (try? smbClient.fileExists(at: record.path)) == true else {
                     throw LibraryRenameConflict.filesChangedSinceIndex
                 }
             } else {
@@ -402,8 +424,38 @@ public struct LibraryRenamer: Sendable {
         }
     }
 
+    private func requireSMBDestinationFree(
+        newPath: String,
+        oldPath: String,
+        name: String
+    ) throws {
+        let normalizedNewName = name.precomposedStringWithCanonicalMapping
+        let normalizedOldName = Self.lastPathComponent(of: oldPath).precomposedStringWithCanonicalMapping
+        if normalizedNewName == normalizedOldName {
+            return
+        }
+        if let siblings = try? smbClient.listDirectoryItemsInParent(of: oldPath) {
+            let collidesInListing = siblings.keys.contains { existing in
+                let normalizedExisting = existing.precomposedStringWithCanonicalMapping
+                return normalizedExisting == normalizedNewName && normalizedExisting != normalizedOldName
+            }
+            if collidesInListing {
+                throw LibraryRenameConflict.destinationExists(name: name)
+            }
+        }
+        if normalizedNewName.caseInsensitiveCompare(normalizedOldName) != .orderedSame {
+            let exists = (try? smbClient.resourceExists(
+                at: newPath,
+                peerPathInSameDirectory: oldPath
+            )) == true
+            if exists {
+                throw LibraryRenameConflict.destinationExists(name: name)
+            }
+        }
+    }
+
     public static func lastPathComponent(of path: String) -> String {
-        if path.isWebDAVPath {
+        if path.isWebDAVPath || path.isSMBPath {
             let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
             guard let schemeRange = trimmed.range(of: "://") else {
                 return (path as NSString).lastPathComponent
@@ -425,7 +477,7 @@ public struct LibraryRenamer: Sendable {
     }
 
     public static func parentPath(of path: String) -> String {
-        if path.isWebDAVPath {
+        if path.isWebDAVPath || path.isSMBPath {
             let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
             guard let schemeRange = trimmed.range(of: "://") else {
                 return (path as NSString).deletingLastPathComponent
@@ -461,7 +513,7 @@ public struct LibraryRenamer: Sendable {
     /// them — so paths are compared in one form. The same rule as the
     /// indexing database's folder path variants.
     static func canonicalPath(_ path: String) -> String {
-        if path.isWebDAVPath {
+        if path.isWebDAVPath || path.isSMBPath {
             return URL.fromMediaPath(path).mediaPath
         }
         return path.hasPrefix("/private/var/") ? String(path.dropFirst("/private".count)) : path
@@ -500,7 +552,7 @@ public struct LibraryRenamer: Sendable {
 
     // MARK: - Execution
 
-    /// Renames on disk or WebDAV, then updates the database. A disk/WebDAV failure
+    /// Renames on disk or remote share, then updates the database. A disk/remote failure
     /// renames back what was already done; a database failure renames everything back.
     public func perform(_ plan: LibraryRenamePlan) throws {
         let isDirectoryRename: Bool
@@ -517,6 +569,12 @@ public struct LibraryRenamer: Sendable {
                 do {
                     if step.oldPath.isWebDAVPath {
                         try webdavClient.moveItem(
+                            fromPath: step.oldPath,
+                            toPath: step.newPath,
+                            isDirectory: isDirectoryRename
+                        )
+                    } else if step.oldPath.isSMBPath {
+                        try smbClient.moveItem(
                             fromPath: step.oldPath,
                             toPath: step.newPath,
                             isDirectory: isDirectoryRename
@@ -540,7 +598,7 @@ public struct LibraryRenamer: Sendable {
             throw LibraryRenameError.databaseUpdateFailed(String(describing: error))
         }
 
-        for subtitleMove in movedSubtitles where subtitleMove.oldPath.isWebDAVPath {
+        for subtitleMove in movedSubtitles where subtitleMove.oldPath.isWebDAVPath || subtitleMove.oldPath.isSMBPath {
             webdavSubtitleCache.moveCachedSubtitle(
                 from: URL.fromMediaPath(subtitleMove.oldPath),
                 to: URL.fromMediaPath(subtitleMove.newPath)
@@ -548,11 +606,18 @@ public struct LibraryRenamer: Sendable {
         }
 
         if case .folder = plan.request {
-            for step in plan.steps where step.oldPath.isWebDAVPath {
-                webdavConfigurationStore.rewriteFolderPathPrefix(
-                    from: step.oldPath,
-                    to: step.newPath
-                )
+            for step in plan.steps {
+                if step.oldPath.isWebDAVPath {
+                    webdavConfigurationStore.rewriteFolderPathPrefix(
+                        from: step.oldPath,
+                        to: step.newPath
+                    )
+                } else if step.oldPath.isSMBPath {
+                    smbConfigurationStore.rewriteFolderPathPrefix(
+                        from: step.oldPath,
+                        to: step.newPath
+                    )
+                }
             }
         }
 
@@ -565,6 +630,12 @@ public struct LibraryRenamer: Sendable {
         for step in steps.reversed() where step.oldPath != step.newPath {
             if step.newPath.isWebDAVPath {
                 try? webdavClient.moveItem(
+                    fromPath: step.newPath,
+                    toPath: step.oldPath,
+                    isDirectory: isDirectory
+                )
+            } else if step.newPath.isSMBPath {
+                try? smbClient.moveItem(
                     fromPath: step.newPath,
                     toPath: step.oldPath,
                     isDirectory: isDirectory

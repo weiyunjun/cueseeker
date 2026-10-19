@@ -17,6 +17,7 @@ func missingMediaRuntimeFiles(_ root: String) -> [String] {
         "\(root)/include/libswresample/swresample.h",
         "\(root)/include/libswscale/swscale.h",
         "\(root)/include/ass/ass.h",
+        "\(root)/include/smb2/libsmb2.h",
         "\(root)/lib/libavformat.dylib",
         "\(root)/lib/libavcodec.dylib",
         "\(root)/lib/libavutil.dylib",
@@ -29,6 +30,7 @@ func missingMediaRuntimeFiles(_ root: String) -> [String] {
         "\(root)/lib/libharfbuzz.dylib",
         "\(root)/lib/libunibreak.dylib",
         "\(root)/lib/libmp3lame.dylib",
+        "\(root)/lib/libsmb2.dylib",
     ]
     return requiredPaths.filter { !FileManager.default.fileExists(atPath: $0) }
 }
@@ -70,7 +72,22 @@ let package = Package(
     ],
     targets: [
         .target(
+            name: "CSMBClient",
+            path: "Sources/CSMBClient",
+            publicHeadersPath: "include",
+            cSettings: [
+                .unsafeFlags(["-I", mediaIncludePath])
+            ],
+            linkerSettings: [
+                .unsafeFlags(mediaRuntimeLinkerFlags),
+                .linkedLibrary("smb2")
+            ]
+        ),
+        .target(
             name: "CueSeekerCore",
+            dependencies: [
+                "CSMBClient"
+            ],
             path: "Sources/CueSeekerCore",
             linkerSettings: [
                 .linkedLibrary("sqlite3")

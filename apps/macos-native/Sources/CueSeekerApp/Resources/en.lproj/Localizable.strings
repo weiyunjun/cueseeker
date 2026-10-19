@@ -680,6 +680,19 @@
 "webdav.error.username_empty" = "Enter a username";
 "webdav.error.password_empty" = "Enter a password";
 
+/* SMB Folder Support */
+"file.add_folder.smb" = "SMB Folder";
+"smb.dialog.title" = "SMB Folder";
+"smb.field.address" = "Address";
+"smb.field.port" = "Port";
+"smb.field.username" = "Username";
+"smb.field.password" = "Password";
+"smb.connect" = "Connect";
+"smb.add" = "Add";
+"smb.empty_folder_items" = "No folders, videos, or subtitles in this folder.";
+"smb.error.invalid_address" = "Enter a valid SMB address";
+"smb.error.invalid_port" = "Enter a valid port (1–65535)";
+
 /* Tooltips */
 "tooltip.topbar.back.disabled" = "No previous page";
 "tooltip.topbar.forward.disabled" = "No next page";

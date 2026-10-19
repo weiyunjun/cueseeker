@@ -680,6 +680,19 @@
 "webdav.error.username_empty" = "請輸入使用者名稱";
 "webdav.error.password_empty" = "請輸入密碼";
 
+/* SMB Folder Support */
+"file.add_folder.smb" = "SMB 資料夾";
+"smb.dialog.title" = "SMB 資料夾";
+"smb.field.address" = "位址";
+"smb.field.port" = "連接埠";
+"smb.field.username" = "使用者名稱";
+"smb.field.password" = "密碼";
+"smb.connect" = "連線";
+"smb.add" = "加入";
+"smb.empty_folder_items" = "此資料夾中沒有資料夾、影片或字幕檔案。";
+"smb.error.invalid_address" = "請輸入有效的 SMB 位址";
+"smb.error.invalid_port" = "請輸入有效的連接埠號碼（1–65535）";
+
 /* Tooltips */
 "tooltip.topbar.back.disabled" = "沒有可後退的頁面";
 "tooltip.topbar.forward.disabled" = "沒有可前進的頁面";

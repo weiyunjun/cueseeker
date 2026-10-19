@@ -75,13 +75,13 @@ public extension LibraryCoverPersistence {
     ) throws -> [LibraryCoverEligibleVideo] {
         let resolvedFolderPaths = Set(folderPaths.map { path -> String in
             let url = URL.fromMediaPath(path)
-            return url.isWebDAVURL ? url.mediaPath : url.resolvingSymlinksInPath().path
+            return (url.isWebDAVURL || url.isSMBURL) ? url.mediaPath : url.resolvingSymlinksInPath().path
         })
         return try libraryCoverEligibleVideos(
             under: folderPaths.map(URL.fromMediaPath)
         ).filter {
             let url = URL.fromMediaPath($0.folderPath)
-            let candidatePath = url.isWebDAVURL ? url.mediaPath : url.resolvingSymlinksInPath().path
+            let candidatePath = (url.isWebDAVURL || url.isSMBURL) ? url.mediaPath : url.resolvingSymlinksInPath().path
             return resolvedFolderPaths.contains(candidatePath)
         }
     }

@@ -26,6 +26,15 @@ final class IndexingStore: ObservableObject {
             }
             return WebDAVAddress.defaultDisplayName(for: folder)
         }
+        if folder.isSMBURL {
+            if let config = SMBConfigurationStore.shared.config(for: folder) {
+                let trimmed = config.name.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !trimmed.isEmpty {
+                    return trimmed
+                }
+            }
+            return SMBAddress.defaultDisplayName(for: folder)
+        }
         return folder.lastPathComponent
     }
 

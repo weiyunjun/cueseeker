@@ -204,6 +204,26 @@ private struct ContentRootView: View {
                 .workbenchDialog()
             }
 
+            if let session = libraryStore.smbDialogSession {
+                SMBFolderDialog(
+                    session: session,
+                    onConfirm: {
+                        appState.confirmSMBFolderDialog(session)
+                    },
+                    onClose: appState.closeSMBFolderDialog,
+                    onBack: {
+                        appState.navigateBackInSMBFolderDialog(session)
+                    },
+                    onOpenFolder: { item in
+                        appState.openSMBSubfolder(item, in: session)
+                    },
+                    onSelectBreadcrumb: { node in
+                        appState.navigateSMBBreadcrumb(to: node, in: session)
+                    }
+                )
+                .workbenchDialog()
+            }
+
             if let session = libraryStore.fileDetailSession {
                 WorkbenchFileDetailDialog(
                     session: session,
@@ -275,6 +295,9 @@ private struct ContentRootView: View {
             ids.append(session.id)
         }
         if let session = libraryStore.webdavDialogSession {
+            ids.append(session.id)
+        }
+        if let session = libraryStore.smbDialogSession {
             ids.append(session.id)
         }
         if let session = libraryStore.fileDetailSession {

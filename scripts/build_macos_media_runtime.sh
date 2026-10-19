@@ -260,6 +260,50 @@ build_dav1d() {
         -Dxxhash_muxer=disabled
 }
 
+build_libsmb2() {
+    source="$BUILD_ROOT/sources/libsmb2-libsmb2-6.2"
+    build="$BUILD_ROOT/build/libsmb2"
+    rm -rf "$build"
+    mkdir -p "$build/obj" "$PREFIX/include/smb2" "$PREFIX/lib"
+    for cfile in "$source"/lib/*.c; do
+        base="$(basename "$cfile" .c)"
+        [ "$base" = "krb5-wrapper" ] && continue
+        "$CC" $CFLAGS \
+            -DHAVE_CONFIG_H \
+            "-D_U_=__attribute__((unused))" \
+            -DHAVE_SOCKADDR_STORAGE \
+            -DHAVE_SOCK_SIN_LEN \
+            -DHAVE_ARPA_INET_H \
+            -DHAVE_NETDB_H \
+            -DHAVE_NETINET_TCP_H \
+            -DHAVE_NETINET_IN_H \
+            -DHAVE_SYS_SOCKET_H \
+            -DHAVE_SYS_IOCTL_H \
+            -DHAVE_SYS_UIO_H \
+            -DHAVE_POLL_H \
+            -DHAVE_UNISTD_H \
+            -DHAVE_STDINT_H \
+            -DHAVE_STDBOOL_H \
+            -DHAVE_STRINGS_H \
+            -DHAVE_ICONV_H \
+            -DHAVE_SYS_TIME_H \
+            -DHAVE_TIME_H \
+            -I"$source/include" \
+            -I"$source/include/smb2" \
+            -I"$source/include/apple" \
+            -I"$source/lib" \
+            -c "$cfile" -o "$build/obj/$base.o"
+    done
+    "$CC" $LDFLAGS -dynamiclib \
+        -install_name "@rpath/libsmb2.6.dylib" \
+        -current_version 6.2.0 \
+        -compatibility_version 6.0.0 \
+        "$build/obj"/*.o \
+        -o "$PREFIX/lib/libsmb2.6.dylib"
+    ln -sf libsmb2.6.dylib "$PREFIX/lib/libsmb2.dylib"
+    cp "$source"/include/smb2/*.h "$PREFIX/include/smb2/"
+}
+
 build_ffmpeg() {
     source="$BUILD_ROOT/sources/ffmpeg-8.1.2"
     build="$BUILD_ROOT/build/ffmpeg"
@@ -353,6 +397,7 @@ stage_licenses_and_manifest() {
     cp "$BUILD_ROOT/sources/harfbuzz-14.1.0/COPYING" "$licenses/HarfBuzz-COPYING"
     cp "$BUILD_ROOT/sources/libunibreak-6.1/LICENCE" "$licenses/libunibreak-LICENCE"
     cp "$BUILD_ROOT/sources/lame-3.100/COPYING" "$licenses/LAME-COPYING"
+    cp "$BUILD_ROOT/sources/libsmb2-libsmb2-6.2/LICENCE-LGPL-2.1.txt" "$licenses/libsmb2-LICENCE-LGPL-2.1.txt"
     cp "$LOCK_FILE" "$PREFIX/sources.lock"
     cp "$PATCH_FILE" "$PREFIX/ffmpeg-cueseeker.patch"
     cp "$LAME_PATCH_FILE" "$PREFIX/lame-cueseeker.patch"
@@ -382,6 +427,7 @@ build_libunibreak
 build_libass
 build_lame
 build_dav1d
+build_libsmb2
 build_ffmpeg
 rewrite_install_names
 stage_licenses_and_manifest

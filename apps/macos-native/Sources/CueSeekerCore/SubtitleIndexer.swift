@@ -120,6 +120,11 @@ public struct SubtitleIndexer {
                     _ = try? WebDAVSubtitleCache.shared.storeSubtitleData(data, for: url)
                     return data
                 }
+                if url.isSMBURL {
+                    let data = try SMBClient.shared.downloadData(from: url)
+                    _ = try? WebDAVSubtitleCache.shared.storeSubtitleData(data, for: url)
+                    return data
+                }
                 return try Data(contentsOf: url)
             }
         )
@@ -150,7 +155,7 @@ public struct SubtitleIndexer {
         into database: IndexingDatabase,
         onProgress: (@Sendable (Int, Int) -> Void)? = nil
     ) throws -> SubtitleIndexingResult {
-        let isWebDAV = folder.isWebDAVURL
+        let isWebDAV = folder.isWebDAVURL || folder.isSMBURL
         if !isWebDAV {
             try scanner.validateReadableDirectory(folder)
         }
@@ -164,7 +169,11 @@ public struct SubtitleIndexer {
         if isWebDAV {
             let remoteFiles: [WebDAVRemoteFile]
             do {
-                remoteFiles = try WebDAVClient.shared.scanDirectoryTree(rootURL: folder)
+                if folder.isSMBURL {
+                    remoteFiles = try SMBClient.shared.scanDirectoryTree(rootURL: folder)
+                } else {
+                    remoteFiles = try WebDAVClient.shared.scanDirectoryTree(rootURL: folder)
+                }
             } catch is CancellationError {
                 throw CancellationError()
             } catch {

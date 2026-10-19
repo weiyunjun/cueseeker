@@ -168,6 +168,15 @@ extension String {
         let lower = trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         return lower.hasPrefix("http://") || lower.hasPrefix("https://")
     }
+
+    public var isSMBPath: Bool {
+        let lower = trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return lower.hasPrefix("smb://")
+    }
+
+    public var isRemoteMediaPath: Bool {
+        isWebDAVPath || isSMBPath
+    }
 }
 
 extension URL {
@@ -176,13 +185,30 @@ extension URL {
         return scheme == "http" || scheme == "https"
     }
 
+    public var isSMBURL: Bool {
+        scheme?.lowercased() == "smb"
+    }
+
+    public var isRemoteMediaURL: Bool {
+        isWebDAVURL || isSMBURL
+    }
+
     public var mediaPath: String {
-        if isWebDAVURL {
+        if isWebDAVURL || isSMBURL {
             guard let scheme = scheme?.lowercased(),
                   let host = host, !host.isEmpty else {
                 return absoluteString
             }
-            let portSegment = port.map { ":\($0)" } ?? ""
+            let portSegment: String
+            if isSMBURL {
+                if let port, port != SMBAddress.defaultPort {
+                    portSegment = ":\(port)"
+                } else {
+                    portSegment = ""
+                }
+            } else {
+                portSegment = port.map { ":\($0)" } ?? ""
+            }
             var decodedPath = WebDAVAddress.decodedDisplayAddress(path)
             if decodedPath.isEmpty {
                 decodedPath = "/"
@@ -206,7 +232,7 @@ extension URL {
     }
 
     public var standardizedMediaURL: URL {
-        if isWebDAVURL {
+        if isWebDAVURL || isSMBURL {
             return URL.fromMediaPath(mediaPath)
         }
         return standardizedFileURL
@@ -214,6 +240,12 @@ extension URL {
 
     public static func fromMediaPath(_ rawPath: String) -> URL {
         let trimmed = rawPath.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isSMBPath {
+            if let parsed = SMBAddress.parseURL(from: trimmed) {
+                return parsed
+            }
+            return URL(string: trimmed) ?? URL(fileURLWithPath: rawPath)
+        }
         guard trimmed.isWebDAVPath else {
             return URL(fileURLWithPath: rawPath).standardizedFileURL
         }
@@ -589,9 +621,10 @@ public final class WebDAVSubtitleCache: @unchecked Sendable {
 
     public func readSubtitleData(
         from url: URL,
-        client: WebDAVClient = .shared
+        client: WebDAVClient = .shared,
+        smbClient: SMBClient = .shared
     ) throws -> Data {
-        guard url.isWebDAVURL else {
+        guard url.isWebDAVURL || url.isSMBURL else {
             return try Data(contentsOf: url, options: .mappedIfSafe)
         }
 
@@ -601,7 +634,9 @@ public final class WebDAVSubtitleCache: @unchecked Sendable {
             return cached
         }
 
-        let downloaded = try client.downloadData(from: url)
+        let downloaded = url.isSMBURL
+            ? try smbClient.downloadData(from: url)
+            : try client.downloadData(from: url)
         _ = try? storeSubtitleData(downloaded, for: url)
         return downloaded
     }
@@ -853,6 +888,9 @@ public final class WebDAVClient: @unchecked Sendable {
     }
 
     public func resolvePlayableInput(for url: URL) -> WebDAVPlayableInput {
+        if url.isSMBURL {
+            return SMBClient.shared.resolvePlayableInput(for: url)
+        }
         guard url.isWebDAVURL else {
             return WebDAVPlayableInput(url: url.path, httpHeaders: nil)
         }

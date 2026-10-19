@@ -11,6 +11,7 @@ Human-owned direction:
 
 - `docs/human/requirements/20260712-Feature-Reproducible macOS Media Runtime And App Packaging.md`
 - `docs/human/requirements/20261016-Engineering-App Bundle Size Reduction.md`
+- `docs/human/requirements/20261019-Feature-SMB Folder Support.md`
 
 ## 2. Supported Platform
 
@@ -41,6 +42,10 @@ Human-owned direction:
   built with `--enable-libdav1d`. It provides the controlled software AV1
   decoder used when automatic cover extraction cannot use VideoToolbox. This
   dependency does not add an AV1 encoder.
+- libsmb2 6.2 is included as an LGPL-2.1 shared library (`libsmb2.6.dylib`) for
+  user-space SMB2/SMB3 share enumeration, directory browsing, subtitle caching,
+  in-app rename, and range-backed media streaming without requiring macOS mount
+  privileges.
 - The `ffmpeg` command-line program is part of the app runtime because existing
   thumbnail, screenshot, and Anki export workflows invoke it. `ffplay`,
   `ffprobe`, documentation, static libraries, and debug symbols are excluded.
@@ -55,7 +60,8 @@ The required FFmpeg app libraries are:
 - `libswresample`
 - `libswscale`
 
-The required external codec libraries include `libdav1d` and `libmp3lame`.
+The required external codec and protocol libraries include `libdav1d`,
+`libmp3lame`, and `libsmb2`.
 
 ## 4. libass Runtime
 

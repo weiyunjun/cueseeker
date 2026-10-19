@@ -17,7 +17,7 @@ public struct LibraryCoverIndexer: Sendable {
     public static let algorithmVersion = 1
 
     public static func recommendedMaxConcurrentVideos(for folder: URL) -> Int {
-        folder.isWebDAVURL ? 2 : ProcessInfo.processInfo.activeProcessorCount
+        (folder.isWebDAVURL || folder.isSMBURL) ? 2 : ProcessInfo.processInfo.activeProcessorCount
     }
 
     public struct Configuration: Sendable {
@@ -475,12 +475,18 @@ public struct LibraryCoverIndexer: Sendable {
         let timeString = Self.ffmpegTimeString(milliseconds: timestampMilliseconds)
         let size = "\(configuration.scoringWidth):\(configuration.scoringHeight)"
         let filter = "scale=\(size):force_original_aspect_ratio=decrease,pad=\(size):(ow-iw)/2:(oh-ih)/2:color=black"
-        let arguments = [
+        let resolvedInput = WebDAVClient.shared.resolvePlayableInput(for: URL.fromMediaPath(videoPath))
+        var arguments = [
             "-nostdin",
             "-hide_banner",
-            "-loglevel", "error",
+            "-loglevel", "error"
+        ]
+        if let headers = resolvedInput.httpHeaders {
+            arguments += ["-headers", headers]
+        }
+        arguments += [
             "-ss", timeString,
-            "-i", videoPath,
+            "-i", resolvedInput.inputPath,
             "-frames:v", "1",
             "-an",
             "-sn",
@@ -520,13 +526,19 @@ public struct LibraryCoverIndexer: Sendable {
             try? FileManager.default.removeItem(at: temporaryURL)
         }
 
-        let arguments = [
+        let resolvedInput = WebDAVClient.shared.resolvePlayableInput(for: URL.fromMediaPath(videoPath))
+        var arguments = [
             "-nostdin",
             "-hide_banner",
             "-loglevel", "error",
-            "-y",
+            "-y"
+        ]
+        if let headers = resolvedInput.httpHeaders {
+            arguments += ["-headers", headers]
+        }
+        arguments += [
             "-ss", Self.ffmpegTimeString(milliseconds: timestampMilliseconds),
-            "-i", videoPath,
+            "-i", resolvedInput.inputPath,
             "-frames:v", "1",
             "-an",
             "-sn",

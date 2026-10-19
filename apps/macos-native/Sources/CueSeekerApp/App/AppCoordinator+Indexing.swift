@@ -394,6 +394,223 @@ extension AppCoordinator {
         addFolders(targetFolders)
     }
 
+    func openSMBFolderDialog() {
+        guard !tasks.hasLibraryTask, !indexing.databaseMaintenanceStatus.isCompacting else {
+            return
+        }
+        library.smbDialogSession = SMBFolderDialogSession()
+    }
+
+    func closeSMBFolderDialog() {
+        library.smbDialogSession?.cancelValidation()
+        library.smbDialogSession = nil
+    }
+
+    func confirmSMBFolderDialog(_ session: SMBFolderDialogSession) {
+        switch session.step {
+        case .connection:
+            connectSMBFolderDialog(session)
+        case .browser:
+            confirmSMBBrowserAdd(session)
+        }
+    }
+
+    func connectSMBFolderDialog(_ session: SMBFolderDialogSession) {
+        guard library.smbDialogSession?.id == session.id,
+              session.step == .connection,
+              !session.isSubmitting,
+              !tasks.hasLibraryTask,
+              !indexing.databaseMaintenanceStatus.isCompacting
+        else {
+            return
+        }
+
+        let trimmedAddress = session.address.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedAddress.isEmpty else {
+            session.validationMessage = L("smb.error.invalid_address")
+            return
+        }
+        guard let parsedPort = SMBAddress.parsePort(session.port) else {
+            session.validationMessage = L("smb.error.invalid_port")
+            return
+        }
+        guard SMBAddress.parseURL(from: trimmedAddress, portOverride: parsedPort) != nil else {
+            session.validationMessage = L("smb.error.invalid_address")
+            return
+        }
+
+        let trimmedUsername = session.username.trimmingCharacters(in: .whitespacesAndNewlines)
+        let password = session.password
+        let rawAddress = session.address
+        let rawPort = session.port
+
+        session.validationMessage = nil
+        session.isSubmitting = true
+        session.validationTask = Task { @MainActor [weak self, weak session] in
+            do {
+                let connected = try await SMBClient.shared.connectAndBrowseDirectory(
+                    address: rawAddress,
+                    port: rawPort,
+                    username: trimmedUsername,
+                    password: password
+                )
+                guard !Task.isCancelled,
+                      let self,
+                      let session,
+                      self.library.smbDialogSession?.id == session.id
+                else {
+                    return
+                }
+                session.isSubmitting = false
+                session.validationTask = nil
+                session.enterBrowser(config: connected.config, initialItems: connected.items)
+            } catch is CancellationError {
+                return
+            } catch {
+                guard !Task.isCancelled,
+                      let self,
+                      let session,
+                      self.library.smbDialogSession?.id == session.id
+                else {
+                    return
+                }
+                session.isSubmitting = false
+                session.validationTask = nil
+                session.validationMessage = Self.errorMessage(for: error)
+            }
+        }
+    }
+
+    func navigateBackInSMBFolderDialog(_ session: SMBFolderDialogSession) {
+        guard library.smbDialogSession?.id == session.id else {
+            return
+        }
+        session.returnToConnection()
+    }
+
+    func openSMBSubfolder(
+        _ item: WebDAVBrowserItem,
+        in session: SMBFolderDialogSession
+    ) {
+        guard library.smbDialogSession?.id == session.id,
+              session.step == .browser,
+              item.kind == .folder,
+              let baseConfig = session.baseConfig
+        else {
+            return
+        }
+
+        let targetNode = SMBFolderDialogSession.BreadcrumbNode(
+            url: item.url,
+            title: item.name
+        )
+        if let existingIndex = session.breadcrumbNodes.firstIndex(where: { $0.id == targetNode.id }) {
+            session.breadcrumbNodes = Array(session.breadcrumbNodes.prefix(existingIndex + 1))
+        } else {
+            session.breadcrumbNodes.append(targetNode)
+        }
+        loadSMBBrowserDirectory(at: targetNode.url, baseConfig: baseConfig, in: session)
+    }
+
+    func navigateSMBBreadcrumb(
+        to node: SMBFolderDialogSession.BreadcrumbNode,
+        in session: SMBFolderDialogSession
+    ) {
+        guard library.smbDialogSession?.id == session.id,
+              session.step == .browser,
+              let baseConfig = session.baseConfig,
+              let targetIndex = session.breadcrumbNodes.firstIndex(where: { $0.id == node.id })
+        else {
+            return
+        }
+
+        session.breadcrumbNodes = Array(session.breadcrumbNodes.prefix(targetIndex + 1))
+        loadSMBBreadcrumbOrDirectory(at: node.url, baseConfig: baseConfig, in: session)
+    }
+
+    private func loadSMBBreadcrumbOrDirectory(
+        at folderURL: URL,
+        baseConfig: SMBRootConfig,
+        in session: SMBFolderDialogSession
+    ) {
+        loadSMBBrowserDirectory(at: folderURL, baseConfig: baseConfig, in: session)
+    }
+
+    private func loadSMBBrowserDirectory(
+        at folderURL: URL,
+        baseConfig: SMBRootConfig,
+        in session: SMBFolderDialogSession
+    ) {
+        session.directoryTask?.cancel()
+        session.selectedFolderPaths.removeAll()
+        session.directoryErrorMessage = nil
+        session.isLoadingDirectory = true
+        let targetID = folderURL.standardizedMediaURL.mediaPath
+
+        session.directoryTask = Task { @MainActor [weak self, weak session] in
+            do {
+                let loadedItems = try await SMBClient.shared.browseDirectory(
+                    at: folderURL,
+                    baseConfig: baseConfig
+                )
+                guard !Task.isCancelled,
+                      let self,
+                      let session,
+                      self.library.smbDialogSession?.id == session.id,
+                      session.step == .browser,
+                      session.currentDirectoryURL?.mediaPath == targetID
+                else {
+                    return
+                }
+                session.items = loadedItems
+                session.isLoadingDirectory = false
+                session.directoryErrorMessage = nil
+                session.directoryTask = nil
+            } catch is CancellationError {
+                return
+            } catch {
+                guard !Task.isCancelled,
+                      let self,
+                      let session,
+                      self.library.smbDialogSession?.id == session.id,
+                      session.step == .browser,
+                      session.currentDirectoryURL?.mediaPath == targetID
+                else {
+                    return
+                }
+                session.items = []
+                session.isLoadingDirectory = false
+                session.directoryErrorMessage = Self.errorMessage(for: error)
+                session.directoryTask = nil
+            }
+        }
+    }
+
+    func confirmSMBBrowserAdd(_ session: SMBFolderDialogSession) {
+        guard library.smbDialogSession?.id == session.id,
+              session.canAddInBrowser,
+              let baseConfig = session.baseConfig,
+              !tasks.hasLibraryTask,
+              !indexing.databaseMaintenanceStatus.isCompacting
+        else {
+            return
+        }
+
+        let targetFolders = session.targetFoldersToAdd()
+        guard !targetFolders.isEmpty else {
+            return
+        }
+
+        for folder in targetFolders {
+            let scopedConfig = baseConfig.scopedConfig(for: folder)
+            SMBConfigurationStore.shared.save(scopedConfig)
+        }
+
+        session.cancelValidation()
+        library.smbDialogSession = nil
+        addFolders(targetFolders)
+    }
+
     /// Starts an Add Folder. The folder joins the root list only once its task
     /// completes, so one that does not finish leaves the list as it was.
     func addFolder(_ folder: URL) {
@@ -469,6 +686,9 @@ extension AppCoordinator {
                 if folder.isWebDAVURL {
                     WebDAVConfigurationStore.shared.remove(url: folder)
                     WebDAVSubtitleCache.shared.removeCachedSubtitles(forRootURL: folder)
+                } else if folder.isSMBURL {
+                    SMBConfigurationStore.shared.remove(url: folder)
+                    WebDAVSubtitleCache.shared.removeCachedSubtitles(forRootURL: folder)
                 }
             } catch {
                 print("Failed to take back an unfinished folder addition: \(error)")
@@ -510,6 +730,9 @@ extension AppCoordinator {
             guard let self else { return }
             if folder.isWebDAVURL && !self.indexing.selectedFolders.contains(folder) {
                 WebDAVConfigurationStore.shared.remove(url: folder)
+                WebDAVSubtitleCache.shared.removeCachedSubtitles(forRootURL: folder)
+            } else if folder.isSMBURL && !self.indexing.selectedFolders.contains(folder) {
+                SMBConfigurationStore.shared.remove(url: folder)
                 WebDAVSubtitleCache.shared.removeCachedSubtitles(forRootURL: folder)
             }
         }
@@ -587,6 +810,9 @@ extension AppCoordinator {
             if folder.isWebDAVURL && !indexing.selectedFolders.contains(folder) {
                 WebDAVConfigurationStore.shared.remove(url: folder)
                 WebDAVSubtitleCache.shared.removeCachedSubtitles(forRootURL: folder)
+            } else if folder.isSMBURL && !indexing.selectedFolders.contains(folder) {
+                SMBConfigurationStore.shared.remove(url: folder)
+                WebDAVSubtitleCache.shared.removeCachedSubtitles(forRootURL: folder)
             }
             search.reloadEmptySearchFacetDistribution()
             throw error
@@ -604,6 +830,8 @@ extension AppCoordinator {
             indexing.removeFolder(folder)
             if folder.isWebDAVURL {
                 WebDAVConfigurationStore.shared.remove(url: folder)
+            } else if folder.isSMBURL {
+                SMBConfigurationStore.shared.remove(url: folder)
             }
             indexing.removedFolderNotice = folder
             return
@@ -671,6 +899,9 @@ extension AppCoordinator {
             if folder.isWebDAVURL {
                 WebDAVConfigurationStore.shared.remove(url: folder)
                 WebDAVSubtitleCache.shared.removeCachedSubtitles(forRootURL: folder)
+            } else if folder.isSMBURL {
+                SMBConfigurationStore.shared.remove(url: folder)
+                WebDAVSubtitleCache.shared.removeCachedSubtitles(forRootURL: folder)
             }
             reconcilePlaybackAfterIndexedContentChange()
             indexing.folderRemovalStatus = .idle
@@ -688,6 +919,9 @@ extension AppCoordinator {
         indexing.removeFolder(folder)
         if folder.isWebDAVURL {
             WebDAVConfigurationStore.shared.remove(url: folder)
+            WebDAVSubtitleCache.shared.removeCachedSubtitles(forRootURL: folder)
+        } else if folder.isSMBURL {
+            SMBConfigurationStore.shared.remove(url: folder)
             WebDAVSubtitleCache.shared.removeCachedSubtitles(forRootURL: folder)
         }
         clearSearchAndPlaybackState(under: folder)

@@ -225,7 +225,7 @@ extension AppCoordinator {
         guard let source else {
             return nil
         }
-        let isReadable = source.url.isWebDAVURL
+        let isReadable = (source.url.isWebDAVURL || source.url.isSMBURL)
             ? WebDAVSubtitleCache.shared.loadData(for: source.url) != nil
             : FileManager.default.isReadableFile(atPath: source.url.path)
         guard isReadable else {

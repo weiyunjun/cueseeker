@@ -345,6 +345,7 @@ struct WebDAVFolderDialog: View {
 
 struct WebDAVBrowserCard: View {
     let item: WebDAVBrowserItem
+    var folderIcon: AppIcon = .folderWebdav
     let isSelected: Bool
     let onToggleSelection: () -> Void
     let onOpenFolder: () -> Void
@@ -358,7 +359,7 @@ struct WebDAVBrowserCard: View {
     var icon: AppIcon {
         switch item.kind {
         case .folder:
-            return .folderWebdav
+            return folderIcon
         case .video:
             return .video
         case .subtitle:

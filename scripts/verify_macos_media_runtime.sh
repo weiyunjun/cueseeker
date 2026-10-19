@@ -23,6 +23,7 @@ required=(
     libharfbuzz
     libunibreak
     libmp3lame
+    libsmb2
 )
 
 for stem in "${required[@]}"; do
