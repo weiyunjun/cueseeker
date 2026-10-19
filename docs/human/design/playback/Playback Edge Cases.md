@@ -6,11 +6,11 @@
 
 ## 1. 原则 1（非干扰性原则 / Non-disruption）
 - **播放中移出资料库**：库变更发生时，若当前正在播放的条目被移出数据库，**继续播放、绝对不退出播放页**；立即切断向数据库写入该视频的播放进度、历史记录与默认轨道（杜绝孤儿数据）。
-- **已展示界面数据冻结（Hold）**：库变更发生时，当前用户停留的界面、已打开的浮层（Playback Overlay、Command Panel、Search、Recent 模块、Library 二级、File 二级与子级视图、Excerpt 二级）**保持原内容不突变、不强制关闭、不闪烁刷新**（唯一例外：File 一级根目录作为文件夹管理入口，发生增删变更时即时刷新）。
-- **内部标签切换不离开**：在同一个模块内部切换视图（如 Playback Overlay 内的 Current ↔ Playlist；Recent 内的 Recent Videos ↔ Recent Excerpt Lists），**维持冻结状态，不触发刷新**。
+- **已展示界面数据冻结（Hold）**：库变更发生时，当前用户停留的界面、已打开的浮层（Playback Overlay、Command Panel、Search、Recent 模块、Library 二级、File 二级与子级视图、Excerpt 一级与二级）**保持原内容不突变、不强制关闭、不闪烁刷新**（唯一例外：File 一级根目录作为文件夹管理入口，发生增删变更时即时刷新）。在冻结的 Excerpt 二级界面内对单行执行删除或移动时，其余行继续维持冻结，有效数量仅按被操作行在当前界面的显示状态局部更新。
+- **浮层内子标签切换维持冻结**：在 Playback Overlay 内部切换 `Current ↔ Playlist` 时，**维持冻结状态，不触发刷新**。
 
 ## 2. 原则 2（边界刷新与失效拦截原则 / Boundary Reconciliation）
-- **离开又返回触发刷新**：关闭再打开浮层、面包屑回退、从二级返回一级、跨 Sidebar Tab 切换再切回、重新搜索等越界行为，**以数据库实际内容变更结果为准拉取最新状态更新界面**（若任务未产生实质数据库内容变化，各界面均保持原样不刷新）。其中 Search 再次进入时：若期间仅因移除文件夹减少了库内容则只剔除失效结果；若因 Index 或 Add Folder 产生了数据库内容变化则按当前搜索词与已选 Filter 重新搜索。
+- **离开又返回或主动更新视图触发刷新**：关闭再打开浮层、面包屑回退、从二级返回一级、跨 Sidebar Tab 切换再切回、在 Recent 顶栏切换 `Videos / Excerpt Lists`、在 Search 或 Excerpt 二级内输入搜索词或打开/修改 Filter 等行为，**以数据库实际内容变更结果为准拉取最新状态更新界面**（若任务未产生实质数据库内容变化，各界面均保持原样不刷新）。其中 Search 再次进入时：若期间仅因移除文件夹减少了库内容则只剔除失效结果；若因 Index 或 Add Folder 产生了数据库内容变化则按当前搜索词与已选 Filter 重新搜索。
 - **未刷新前的失效拦截**：在尚未刷新的冻结界面上点击已移出库的失效项，**严格拦截核心操作**：
   - **尝试播放**：统一进入播放页面并拦截播放（黑屏、进度归零），顶栏弹出红色报错横幅 `This item is no longer in the library`（与现有的 Search、Excerpt 失效播放行为完全一致）。
   - **数据操作**（保存/移动/复制深链接等）：严格拦截操作，在当前工作区弹出对应 Toast 提示。
@@ -76,7 +76,7 @@ flowchart TD
 flowchart TD
     DBChange["数据库变更事件完成"] --> SurfaceCheck{"当前界面状态"}
 
-    SurfaceCheck -- "处于浮层或特定模块内<br>(Playback Overlay / Command Panel / Recent 模块)" --> HoldState["原则 1 (数据冻结 Hold):<br>1. 保持当前显示内容不突变、不刷新、不关闭<br>2. 模块内子切换维持冻结:<br>   - Overlay 内 Current ↔ Playlist<br>   - Recent 内 Recent Videos ↔ Recent Excerpts<br>3. 数据库变更在后台待命 (awaiting reconcile)"]
+    SurfaceCheck -- "处于浮层或特定模块内<br>(Playback Overlay / Command Panel / Recent 模块)" --> HoldState["原则 1 (数据冻结 Hold):<br>1. 保持当前显示内容不突变、不刷新、不关闭<br>2. Overlay 内 Current ↔ Playlist 切换维持冻结<br>3. 数据库变更在后台待命 (awaiting reconcile)"]
 
     HoldState --> StaleClick{"用户在已冻结界面上点击已失效项"}
     StaleClick -- "尝试播放" --> InterceptPlay["进入播放页面并拦截播放:<br>1. 停止播放解码并置为失败 (黑屏，进度归零)<br>2. 顶栏弹出红色报错横幅: This item is no longer in the library<br>(与 Search / Excerpt 现有失效播放体验完全一致)"]
@@ -85,7 +85,7 @@ flowchart TD
     HoldState --> CrossBoundary{"原则 2: 发生离开又返回的行为"}
     CrossBoundary -- "Overlay 关闭后重新打开" --> ReconcileOverlay["拉取最新数据刷新:<br>- Current: 提示 This subtitle is no longer in the library<br>- Playlist: 剔除失效项 (全失效展示空提示)"]
     CrossBoundary -- "Command Panel 返回根页 / 重新唤出 / 重新搜索" --> ReconcileCP["拉取最新数据加载最新列表"]
-    CrossBoundary -- "离开 Recent 切换至其他 Sidebar Tab 再切回" --> ReconcileRecent["重新拉取并渲染最新 Recent 列表 (剔除已移出视频)"]
+    CrossBoundary -- "离开 Recent 再切回 / 切换顶栏 Videos ↔ Excerpt Lists" --> ReconcileRecent["重新拉取并渲染最新 Recent 列表 (剔除已移出条目)"]
 ```
 
 ## 4. Part 2：父子层级界面（File, Library, Excerpt）实体失效与回退流

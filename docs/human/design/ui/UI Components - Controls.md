@@ -1121,7 +1121,7 @@
 - Row Container
 - Cell Stack
 - Selection Slot
-  - Presence：Select Mode，或未选中行 / 表头 Hover 时显示（已失效条目除外，保持显示行号且不可选中）
+  - Presence：Select Mode，或未选中行 / 表头 Hover 时显示（已失效条目除外，不显示行号且不可选中；有效条目跳过已失效条目按 1 递增编号）
 
 ##### Sizes
 

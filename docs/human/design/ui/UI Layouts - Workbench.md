@@ -625,7 +625,7 @@
 #### Layout
 
 - Page Layout：Workbench Titled Page Layout
-- Summary 行保持 `--spacing-8` 边距，左对齐，从左到右依次为新建按钮（Neutral，带 `plus` 图标）、Summary 文本（`xx lists  yy cues`，样式同 Workbench Status Indicator）；卡片网格使用 `--padding-workbench-media-card-grid-inline`，使未 Hover 时的卡片封面左边缘与新建按钮左边缘齐平。
+- Summary 行保持 `--spacing-8` 边距，左对齐，从左到右依次为新建按钮（Neutral，带 `plus` 图标）、Summary 文本（`xx lists  yy cues`，样式同 Workbench Status Indicator，其中 `yy cues` 与卡片封面徽章仅统计有效字幕）；卡片网格使用 `--padding-workbench-media-card-grid-inline`，使未 Hover 时的卡片封面左边缘与新建按钮左边缘齐平。
 
 #### Ordering
 
@@ -694,8 +694,8 @@
 - Cover Summary、Toolbar 与 Table Content Region 使用相同宽度和水平边界。
 - Cover Summary 宽度跟随页面可用宽度变化，并在 Split Form 与 Backdrop Form 之间切换。
 - Cover Summary 内容：
-  - Supporting Content 第 1 行为摘录列表描述（未填写时显示占位文案 `No description`），第 2 行为台词总数量与创建时间（`xx excerpts  Created yyyy-MM-dd`，中间以 2 个英文空格分隔）。
-  - Progress Label（仅 Resume 态显示）：`#x / y  台词内容`（序号与台词内容之间以 2 个英文空格分隔，超出单行或遇换行均在末尾以 `...` 截断）。
+  - Supporting Content 第 1 行为摘录列表描述（未填写时显示占位文案 `No description`），第 2 行为有效台词总数量与创建时间（`xx excerpts  Created yyyy-MM-dd`，中间以 2 个英文空格分隔）。
+  - Progress Label（仅 Resume 态显示）：`#x / y  台词内容`（`y` 为有效台词数，序号与台词内容之间以 2 个英文空格分隔，超出单行或遇换行均在末尾以 `...` 截断）。
   - Action Row：`Resume` / `Play`、`More`（图标 `dots-three`，弹出菜单内容与 Excerpt 一级界面卡片右键菜单一致，含 `Edit List` 与 `Delete List`；确认删除当前列表后自动退回 Excerpt 一级界面）。
 
 #### Spacing
@@ -729,7 +729,7 @@
      - Default：从左到右依次为 Filter Trigger（带 18px 图标与 `Filter` / `筛选` 文本）、Result Count（`xx results`，未输入搜索词时不显示）
      - Select Mode：从左到右依次为 `退出选择` 按钮（带 18px `sign-out` 图标）、Selection Banner 文案（`已进入批量选择状态：点击任意行即可勾选，支持 Shift 连选`）
 2. Excerpt（单栏合并，左对齐并默认铺满宽度）：
-   - Default：从左到右依次为 Search Field、Filter Trigger、Result Count（`xx excerpts`）；宽度减小时优先缩减 Search Field 宽度
+   - Default：从左到右依次为 Search Field、Filter Trigger、Result Count（`xx excerpts`，仅统计有效台词）；宽度减小时优先缩减 Search Field 宽度
    - Select Mode：整栏切换为从左到右依次为 `退出选择` 按钮、Selection Banner 文案（覆盖 Search Field、Filter Trigger 与 Result Count）
 
 #### Components
@@ -1109,11 +1109,11 @@
    2. Close Button
 2. Sections：Duration、Character、Language、Watch Status、Folder，从上到下
    1. Section Header：图标、名称与选中数量
-   2. Filter Chip：每个选项一个
+   2. Filter Chip：每个选项一个（Excerpt 下各选项计数仅统计有效台词）
 3. Footer
    1. Reset
    2. Cancel
-   3. Show：Search 为 `Show N results`，Excerpt 为 `Show N excerpts`；总数未知时为 Spinner 与 `Calculating`
+   3. Show：Search 为 `Show N results`，Excerpt 为 `Show N excerpts`（仅统计有效台词）；总数未知时为 Spinner 与 `Calculating`
 
 #### Components
 
