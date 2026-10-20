@@ -417,9 +417,18 @@ final class PlaybackStore: ObservableObject {
         commandPanelPresentation = presentation
     }
 
+    var commandPanelSearchResultListGeneration: UInt64? {
+        guard case .search(let generation) = commandPanelSearchSource?.origin
+        else {
+            return nil
+        }
+        return generation
+    }
+
     func synchronizeCommandPanelSearchPreview(
         results: [SubtitleSearchResult],
-        selectedOrdinal: Int?
+        selectedOrdinal: Int?,
+        resultListGeneration: UInt64 = 0
     ) {
         guard commandPanelPresentation?.page == .searchResults else {
             releaseCommandPanelSearchPreview()
@@ -437,14 +446,20 @@ final class PlaybackStore: ObservableObject {
             return items[ordinal]
         }
 
-        if let commandPanelSearchSource {
+        let origin = PlaybackPlaylistSourceOrigin.search(
+            resultListGeneration: resultListGeneration
+        )
+        if let commandPanelSearchSource,
+           commandPanelSearchSource.origin == origin {
             _ = commandPanelSearchSource.replaceResidentItems(
                 totalCount: items.count,
                 itemProvider: itemProvider
             )
         } else {
+            commandPanelSearchWindow?.invalidate()
+            commandPanelSearchSource?.invalidate()
             let source = PlaybackCueResultSource(
-                kind: .search,
+                origin: origin,
                 totalCount: items.count,
                 itemProvider: itemProvider
             )
@@ -503,6 +518,12 @@ final class PlaybackStore: ObservableObject {
             return
         }
         commandPanelHeldPage = page
+    }
+
+    func clearCommandPanelHeldSearchResults() {
+        if case .searchResults = commandPanelHeldPage {
+            commandPanelHeldPage = nil
+        }
     }
 
     @discardableResult

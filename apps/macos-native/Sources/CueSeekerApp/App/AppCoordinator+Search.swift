@@ -23,23 +23,28 @@ extension AppCoordinator {
     /// when they exist (requirement 4.4); otherwise it searches again with the
     /// new filter, so the first page and every later row are already filtered.
     func applySearchFacetFilter(_ filter: CueFacetFilter) {
-        settings.searchFacetFilter = search.normalizedFacetFilter(filter)
+        let normalizedFilter = search.normalizedFacetFilter(filter)
+        settings.searchFacetFilter = normalizedFilter
         if search.applyProjectedFacetFilter(
-            filter,
+            normalizedFilter,
             folders: indexing.selectedFolders,
             languageFilter: .all,
             watchStateFilter: .all,
             onResultsChanged: { [weak self] generation in
+                self?.resetSearchTableAndCommandPanelPreviewForFilterOrSortChange()
                 self?.refreshSearchPlaybackPlaylistSource(
                     resultListGeneration: generation
                 )
+                self?.synchronizePlaybackCommandPanelSearchResults()
             }
         ) {
+            resetSearchTableAndCommandPanelPreviewForFilterOrSortChange()
             return
         }
-        guard search.updateSearchFacetFilter(filter) else {
+        guard search.updateSearchFacetFilter(normalizedFilter) else {
             return
         }
+        resetSearchTableAndCommandPanelPreviewForFilterOrSortChange()
         let query = search.searchQuery
         guard !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             return
@@ -50,6 +55,7 @@ extension AppCoordinator {
             appending: false,
             debounce: false
         )
+        synchronizePlaybackCommandPanelSearchResults()
     }
 
     func updateSearchSortOrder(_ sortOrder: SearchSortOrder) {
@@ -61,16 +67,20 @@ extension AppCoordinator {
             languageFilter: .all,
             watchStateFilter: .all,
             onResultsChanged: { [weak self] generation in
+                self?.resetSearchTableAndCommandPanelPreviewForFilterOrSortChange()
                 self?.refreshSearchPlaybackPlaylistSource(
                     resultListGeneration: generation
                 )
+                self?.synchronizePlaybackCommandPanelSearchResults()
             }
         ) {
+            resetSearchTableAndCommandPanelPreviewForFilterOrSortChange()
             return
         }
         guard search.updateSearchSortOrder(sortOrder) else {
             return
         }
+        resetSearchTableAndCommandPanelPreviewForFilterOrSortChange()
         let query = search.searchQuery
         guard !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             return
@@ -81,6 +91,14 @@ extension AppCoordinator {
             appending: false,
             debounce: false
         )
+        synchronizePlaybackCommandPanelSearchResults()
+    }
+
+    private func resetSearchTableAndCommandPanelPreviewForFilterOrSortChange() {
+        search.tableViewportAnchor = nil
+        search.tableSelectionState = TableSandboxRowSelectionState()
+        search.tableSelectionEntryIDs = []
+        playback.clearCommandPanelHeldSearchResults()
     }
 
     func updateSearchFilterSet(_ filterSet: SubtitleSearchFilterSet) {
@@ -195,6 +213,7 @@ extension AppCoordinator {
                 self.refreshSearchPlaybackPlaylistSource(
                     resultListGeneration: generation
                 )
+                self.synchronizePlaybackCommandPanelSearchResults()
                 self.resolveURLSchemeDirectPlayFromFilteredResultsIfReady(
                     id: urlSchemeIntentID
                 )

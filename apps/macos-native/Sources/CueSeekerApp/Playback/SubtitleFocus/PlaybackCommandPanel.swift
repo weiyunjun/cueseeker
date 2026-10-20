@@ -1,3 +1,4 @@
+import AppKit
 import CueSeekerCore
 import SwiftUI
 
@@ -58,6 +59,10 @@ struct PlaybackCommandPanel: View {
                                     appState
                                         .synchronizePlaybackCommandPanelSearchResults()
                                 },
+                                onApplyFacetFilter:
+                                    appState.applySearchFacetFilter,
+                                onUpdateSortOrder:
+                                    appState.updateSearchSortOrder,
                                 onCommitSelection: {
                                     appState
                                         .commitPlaybackCommandPanelSearchReelSelection(
@@ -371,14 +376,179 @@ private struct PlaybackCommandPanelRootRow: View {
     }
 }
 
-private struct PlaybackCommandPanelSecondaryHeader: View {
+struct PlaybackCommandPanelHeaderLayoutGeometry: Equatable, Sendable {
+    let leadingFrame: CGRect
+    let titleFrame: CGRect
+    let trailingFrame: CGRect
+
+    static func resolve(
+        bounds: CGRect,
+        leadingSize: CGSize,
+        naturalTitleSize: CGSize,
+        trailingSize: CGSize,
+        spacing: CGFloat = WorkbenchControlMetrics.redesignSpacing3
+    ) -> Self {
+        let leadingFrame = CGRect(
+            x: bounds.minX,
+            y: bounds.midY - leadingSize.height / 2,
+            width: leadingSize.width,
+            height: leadingSize.height
+        )
+        let trailingFrame = CGRect(
+            x: bounds.maxX - trailingSize.width,
+            y: bounds.midY - trailingSize.height / 2,
+            width: trailingSize.width,
+            height: trailingSize.height
+        )
+
+        let minTitleX = leadingSize.width > 0
+            ? bounds.minX + leadingSize.width + spacing
+            : bounds.minX
+        let maxTitleX = trailingSize.width > 0
+            ? bounds.maxX - trailingSize.width - spacing
+            : bounds.maxX
+        let availableTitleWidth = max(0, maxTitleX - minTitleX)
+        let titleWidth = min(max(0, naturalTitleSize.width), availableTitleWidth)
+        let idealTitleMinX = bounds.midX - titleWidth / 2
+        let clampedTitleMinX = min(
+            max(idealTitleMinX, minTitleX),
+            max(minTitleX, maxTitleX - titleWidth)
+        )
+        let titleFrame = CGRect(
+            x: clampedTitleMinX,
+            y: bounds.midY - naturalTitleSize.height / 2,
+            width: titleWidth,
+            height: naturalTitleSize.height
+        )
+
+        return Self(
+            leadingFrame: leadingFrame,
+            titleFrame: titleFrame,
+            trailingFrame: trailingFrame
+        )
+    }
+}
+
+private struct PlaybackCommandPanelSecondaryHeaderLayout: Layout {
+    var spacing: CGFloat = WorkbenchControlMetrics.redesignSpacing3
+
+    func sizeThatFits(
+        proposal: ProposedViewSize,
+        subviews: Subviews,
+        cache _: inout ()
+    ) -> CGSize {
+        let maxHeight = subviews.reduce(CGFloat.zero) { current, subview in
+            max(current, subview.sizeThatFits(.unspecified).height)
+        }
+        return CGSize(
+            width: proposal.width ?? 0,
+            height: proposal.height ?? maxHeight
+        )
+    }
+
+    func placeSubviews(
+        in bounds: CGRect,
+        proposal _: ProposedViewSize,
+        subviews: Subviews,
+        cache _: inout ()
+    ) {
+        guard subviews.count >= 2 else {
+            return
+        }
+        let leadingSize = subviews[0].sizeThatFits(.unspecified)
+        let naturalTitleSize = subviews[1].sizeThatFits(.unspecified)
+        let trailingSize = subviews.count > 2
+            ? subviews[2].sizeThatFits(.unspecified)
+            : .zero
+
+        let geometry = PlaybackCommandPanelHeaderLayoutGeometry.resolve(
+            bounds: bounds,
+            leadingSize: leadingSize,
+            naturalTitleSize: naturalTitleSize,
+            trailingSize: trailingSize,
+            spacing: spacing
+        )
+
+        subviews[0].place(
+            at: geometry.leadingFrame.origin,
+            anchor: .topLeading,
+            proposal: ProposedViewSize(geometry.leadingFrame.size)
+        )
+        subviews[1].place(
+            at: geometry.titleFrame.origin,
+            anchor: .topLeading,
+            proposal: ProposedViewSize(geometry.titleFrame.size)
+        )
+        if subviews.count > 2 {
+            subviews[2].place(
+                at: geometry.trailingFrame.origin,
+                anchor: .topLeading,
+                proposal: ProposedViewSize(geometry.trailingFrame.size)
+            )
+        }
+    }
+}
+
+private struct PlaybackCommandPanelSecondaryHeader<Trailing: View>: View {
     let title: String
     let onBack: () -> Bool
+    @ViewBuilder let trailing: () -> Trailing
 
     @State private var isBackHovered = false
 
+    init(
+        title: String,
+        onBack: @escaping () -> Bool,
+        @ViewBuilder trailing: @escaping () -> Trailing
+    ) {
+        self.title = title
+        self.onBack = onBack
+        self.trailing = trailing
+    }
+
     var body: some View {
-        ZStack {
+        PlaybackCommandPanelSecondaryHeaderLayout(
+            spacing: WorkbenchControlMetrics.redesignSpacing3
+        ) {
+            Button {
+                _ = onBack()
+            } label: {
+                AppIconImage(
+                    .arrowLeft,
+                    size: WorkbenchControlMetrics.redesignControlIconSize
+                )
+                    .foregroundStyle(WorkbenchRedesignColors.textSecondary)
+                    .frame(
+                        width: WorkbenchControlMetrics
+                            .redesignIconButtonSize,
+                        height: WorkbenchControlMetrics
+                            .redesignIconButtonSize
+                    )
+                    .background(
+                        RoundedRectangle(
+                            cornerRadius: WorkbenchControlMetrics
+                                .redesignCornerRadius,
+                            style: .continuous
+                        )
+                        .fill(
+                            isBackHovered
+                                ? WorkbenchRedesignColors
+                                    .popoverSurfaceShortcutButtonHoverBg
+                                : Color.clear
+                        )
+                    )
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(StaticButtonStyle())
+            .focusable(false)
+            .onPointerHover { isBackHovered = $0 }
+            .workbenchTooltip(
+                scenarioID: "command_panel.header.back",
+                label: L("tooltip.command_panel.back"),
+                shortcut: .fixed("Esc")
+            )
+            .accessibilityLabel(L("playback.back"))
+
             Text(title)
                 .font(.system(
                     size: WorkbenchControlMetrics.redesignFontSizeBody,
@@ -386,52 +556,25 @@ private struct PlaybackCommandPanelSecondaryHeader: View {
                 ))
                 .foregroundStyle(WorkbenchRedesignColors.textPrimary)
                 .lineLimit(1)
+                .truncationMode(.tail)
 
-            HStack {
-                Button {
-                    _ = onBack()
-                } label: {
-                    AppIconImage(
-                        .arrowLeft,
-                        size: WorkbenchControlMetrics.redesignControlIconSize
-                    )
-                        .foregroundStyle(WorkbenchRedesignColors.textSecondary)
-                        .frame(
-                            width: WorkbenchControlMetrics
-                                .redesignIconButtonSize,
-                            height: WorkbenchControlMetrics
-                                .redesignIconButtonSize
-                        )
-                        .background(
-                            RoundedRectangle(
-                                cornerRadius: WorkbenchControlMetrics
-                                    .redesignCornerRadius,
-                                style: .continuous
-                            )
-                            .fill(
-                                isBackHovered
-                                    ? WorkbenchRedesignColors
-                                        .popoverSurfaceShortcutButtonHoverBg
-                                    : Color.clear
-                            )
-                        )
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(StaticButtonStyle())
-                .focusable(false)
-                .onPointerHover { isBackHovered = $0 }
-                .workbenchTooltip(
-                    scenarioID: "command_panel.header.back",
-                    label: L("tooltip.command_panel.back"),
-                    shortcut: .fixed("Esc")
-                )
-                .accessibilityLabel(L("playback.back"))
-
-                Spacer(minLength: 0)
-            }
+            trailing()
         }
         .padding(.horizontal, PlaybackCommandPanelMetrics.contentInset)
         .frame(height: PlaybackCommandPanelMetrics.headerHeight)
+    }
+}
+
+private extension PlaybackCommandPanelSecondaryHeader where Trailing == EmptyView {
+    init(
+        title: String,
+        onBack: @escaping () -> Bool
+    ) {
+        self.init(
+            title: title,
+            onBack: onBack,
+            trailing: { EmptyView() }
+        )
     }
 }
 
@@ -442,21 +585,79 @@ private struct PlaybackCommandPanelSearchResults: View {
     let windowStore: PlaybackCueResultSessionWindowStore?
     let onBack: () -> Bool
     let onSynchronize: () -> Void
+    let onApplyFacetFilter: (CueFacetFilter) -> Void
+    let onUpdateSortOrder: (SearchSortOrder) -> Void
     let onCommitSelection: (PlaybackVirtualReelSelectionCommit) -> Bool
     let onCopySelectedText: (String) -> Void
     let onSearchSelectedText: (String) -> Void
     let onRequestAction: (PlaybackSubtitleFocusAction) -> Void
 
+    // Observed so the copy below is re-read when the language changes.
+    @EnvironmentObject private var localization: AppLocalizationStore
+    @EnvironmentObject private var filterDialog: CueFacetFilterDialogCenter
     @EnvironmentObject private var cueGroupPresentation:
         CueGroupPresentationStore
+    @Environment(\.interfaceLayers) private var interfaceLayers
+    @Environment(\.interfaceLayerContext) private var layerContext
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var sortMenuHostAnchor = MenuAnchorHandle()
+    @State private var sortButtonAnchor = MenuAnchorHandle()
+    @State private var activeSortMenu: SchemaWorkbenchSortMenuState?
+    @StateObject private var sortMenuHighlight = MenuHighlightModel()
+
+    private var sortOptions: [SchemaWorkbenchSortOption] {
+        SearchSortOrder.workbenchSortOptions
+    }
+
+    private var selectedSortOptionID: String {
+        searchStore.searchSortOrder.rawValue
+    }
+
+    private var selectedSortTitle: String {
+        sortOptions.first { $0.id == selectedSortOptionID }?.title
+            ?? sortOptions.first?.title
+            ?? L("search.sort.default")
+    }
+
+    private var isFilterDialogOpen: Bool {
+        filterDialog.session?.source == .search
+    }
+
+    private var filterSelectionCount: Int {
+        searchStore.searchFacetFilter.selectedOptionCount(
+            emptyDistribution: searchStore.emptySearchFacetDistribution,
+            snapshot: searchStore.searchFacetSnapshot
+        )
+    }
 
     var body: some View {
         VStack(spacing: 0) {
             PlaybackCommandPanelSecondaryHeader(
                 title: presentation.query,
                 onBack: onBack
-            )
+            ) {
+                HStack(spacing: WorkbenchControlMetrics.redesignSpacing3) {
+                    WorkbenchButton(
+                        title: L("table.filter"),
+                        icon: .funnel,
+                        count: filterSelectionCount,
+                        isRedesign: true,
+                        isOpen: isFilterDialogOpen,
+                        action: openFilterDialog
+                    )
+                    .accessibilityLabel(L("table.filter"))
+
+                    WorkbenchButton(
+                        title: selectedSortTitle,
+                        icon: .funnelSimple,
+                        isRedesign: true,
+                        isOpen: activeSortMenu != nil,
+                        action: toggleSortMenu
+                    )
+                    .background(MenuAnchorProbe(handle: sortButtonAnchor))
+                    .accessibilityLabel(selectedSortTitle)
+                }
+            }
 
             GeometryReader { geometry in
                 if let windowStore {
@@ -485,10 +686,160 @@ private struct PlaybackCommandPanelSearchResults: View {
                 PlaybackCommandPanelMetrics.contentInset
             )
         }
+        .background(MenuAnchorProbe(handle: sortMenuHostAnchor))
+        .overlay(alignment: .topLeading) {
+            if let activeSortMenu {
+                let menuFrame = activeSortMenu.menuFrame
+                ZStack(alignment: .topLeading) {
+                    MenuGateClientView(
+                        gate: interfaceLayers?.menuGate,
+                        owner: layerContext.layer,
+                        kind: .cardMenu,
+                        menuFrame: menuFrame,
+                        anchorFrame: activeSortMenu.anchorFrame,
+                        handleKey: { keyCode, _ in
+                            switch keyCode {
+                            case 53:
+                                dismissSortMenu()
+                                return true
+                            case 126:
+                                _ = sortMenuHighlight.moveHighlight(by: -1)
+                                return true
+                            case 125:
+                                _ = sortMenuHighlight.moveHighlight(by: 1)
+                                return true
+                            case 123, 124:
+                                return true
+                            case 36, 76:
+                                activateHighlightedSortItem()
+                                return true
+                            default:
+                                return false
+                            }
+                        },
+                        dismiss: { _ in
+                            dismissSortMenu()
+                        }
+                    )
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .allowsHitTesting(false)
+
+                    PlaybackCommandPanelSortMenuSurfaceHost(
+                        menu: SchemaWorkbenchSortMenuPopover(
+                            options: sortOptions,
+                            selectedOptionID: selectedSortOptionID,
+                            highlight: sortMenuHighlight,
+                            onSelect: { optionID in
+                                selectSortOption(optionID)
+                            },
+                            onDismiss: {
+                                dismissSortMenu()
+                            }
+                        )
+                    )
+                    .frame(width: menuFrame.width, height: menuFrame.height)
+                    .offset(x: menuFrame.minX, y: menuFrame.minY)
+                }
+                .zIndex(1001)
+            }
+        }
         .onAppear(perform: onSynchronize)
         .onChange(of: searchStore.resultRevision) { _ in
             onSynchronize()
         }
+        .onDisappear {
+            dismissSortMenu()
+            closeFilterDialog()
+        }
+    }
+
+    private func openFilterDialog() {
+        dismissSortMenu()
+        filterDialog.session = CueFacetFilterDialogSession(
+            source: .search,
+            filter: searchStore.searchFacetFilter,
+            apply: { [onApplyFacetFilter] newFilter in
+                onApplyFacetFilter(newFilter)
+            }
+        )
+    }
+
+    private func closeFilterDialog() {
+        guard filterDialog.session?.source == .search else { return }
+        filterDialog.session = nil
+    }
+
+    private func toggleSortMenu() {
+        if activeSortMenu != nil {
+            dismissSortMenu()
+        } else {
+            openSortMenu()
+        }
+    }
+
+    private func openSortMenu() {
+        guard !sortOptions.isEmpty,
+              let viewportSize = sortMenuHostAnchor.bounds?.size,
+              let anchorFrame = sortButtonAnchor.frame(in: sortMenuHostAnchor)
+        else {
+            return
+        }
+        let naturalSize = measuredSortMenuSize()
+        let container = CGRect(origin: .zero, size: viewportSize)
+        let openingFrame = MenuPlacement.openingFrame(
+            anchor: anchorFrame,
+            menuSize: naturalSize,
+            in: container,
+            gap: WorkbenchControlMetrics.redesignSpacing1,
+            shrinksToFit: false
+        )
+        activeSortMenu = SchemaWorkbenchSortMenuState(
+            anchorFrame: anchorFrame,
+            menuFrame: openingFrame
+        )
+        sortMenuHighlight.open(
+            selectablePositions: Array(sortOptions.indices),
+            defaultPosition: 0
+        )
+    }
+
+    private func dismissSortMenu() {
+        activeSortMenu = nil
+        sortMenuHighlight.close()
+    }
+
+    private func activateHighlightedSortItem() {
+        guard let position = sortMenuHighlight.highlightedPosition,
+              sortOptions.indices.contains(position)
+        else {
+            return
+        }
+        let option = sortOptions[position]
+        selectSortOption(option.id)
+        dismissSortMenu()
+    }
+
+    private func selectSortOption(_ optionID: String) {
+        guard let order = SearchSortOrder(rawValue: optionID),
+              searchStore.searchSortOrder != order
+        else {
+            return
+        }
+        onUpdateSortOrder(order)
+    }
+
+    private func measuredSortMenuSize() -> CGSize {
+        let host = NSHostingView(
+            rootView: SchemaWorkbenchSortMenuPopover(
+                options: sortOptions,
+                selectedOptionID: selectedSortOptionID,
+                highlight: sortMenuHighlight,
+                onSelect: { _ in },
+                onDismiss: {}
+            )
+        )
+        host.layoutSubtreeIfNeeded()
+        return host.fittingSize
     }
 
     private var resultStatus: String {
@@ -511,6 +862,18 @@ private struct PlaybackCommandPanelSearchResults: View {
             searchStore.searchResultTotalCount,
             searchStore.searchResults.count
         )
+    }
+}
+
+private struct PlaybackCommandPanelSortMenuSurfaceHost: NSViewRepresentable {
+    let menu: SchemaWorkbenchSortMenuPopover
+
+    func makeNSView(context _: Context) -> MenuHostingView {
+        MenuHostingView(rootView: AnyView(menu))
+    }
+
+    func updateNSView(_ nsView: MenuHostingView, context _: Context) {
+        nsView.rootView = AnyView(menu)
     }
 }
 

@@ -78,7 +78,8 @@ struct WorkbenchTestSearchView: View {
             isSelectionMode: isSelectionMode,
             canEnterSelectionMode: canEnterSelectionMode,
             onToggleSelectionMode: toggleSelectionMode,
-            isFilterDialogOpen: filterDialog.session?.source == .search,
+            isFilterDialogOpen: allowsTableResponse
+                && filterDialog.session?.source == .search,
             filterSelectionCount: searchFacetFilter.selectedOptionCount(
                 emptyDistribution: search.emptySearchFacetDistribution,
                 snapshot: search.searchFacetSnapshot
@@ -200,6 +201,14 @@ struct WorkbenchTestSearchView: View {
         .onChange(of: search.resultRevision) { _ in
             guard !showsSearchEmptyHint else { return }
             updateRowsFromResidentSearch()
+        }
+        .onChange(of: search.searchFacetFilter) { newValue in
+            guard searchFacetFilter != newValue else { return }
+            searchFacetFilter = newValue
+            resetTableForResultSetOrderChange()
+        }
+        .onChange(of: search.searchSortOrder) { _ in
+            resetTableForResultSetOrderChange()
         }
         .onChange(of: canEnterSelectionMode) { canEnter in
             if !canEnter {
@@ -543,11 +552,7 @@ struct WorkbenchTestSearchView: View {
         }
     }
 
-    private func applySearchFacetFilter(_ filter: CueFacetFilter) {
-        UIInvalidationProbe.mark(
-            "ACTION UI.SearchFacetFilter.changed",
-            scope: appState.uiProbeScope
-        )
+    private func resetTableForResultSetOrderChange() {
         exitSelectionMode()
         rowSelection.reset()
         persistSelection()
@@ -556,6 +561,14 @@ struct WorkbenchTestSearchView: View {
         tableScrollTargetRow = nil
         didRestoreViewport = true
         tableScrollResetToken += 1
+    }
+
+    private func applySearchFacetFilter(_ filter: CueFacetFilter) {
+        UIInvalidationProbe.mark(
+            "ACTION UI.SearchFacetFilter.changed",
+            scope: appState.uiProbeScope
+        )
+        resetTableForResultSetOrderChange()
         appState.applySearchFacetFilter(filter)
     }
 
@@ -570,14 +583,7 @@ struct WorkbenchTestSearchView: View {
             scope: appState.uiProbeScope,
             details: "sortOrder=\(sortOrder.rawValue)"
         )
-        exitSelectionMode()
-        rowSelection.reset()
-        persistSelection()
-        search.tableViewportAnchor = nil
-        viewportAnchorToRestore = nil
-        tableScrollTargetRow = nil
-        didRestoreViewport = true
-        tableScrollResetToken += 1
+        resetTableForResultSetOrderChange()
         appState.updateSearchSortOrder(sortOrder)
     }
 

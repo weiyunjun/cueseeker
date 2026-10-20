@@ -74,7 +74,7 @@ final class SearchStore: ObservableObject {
     /// the usual rule; it is dropped with the result list.
     @Published private(set) var searchFacetSnapshot: CueFacetSnapshot?
     @Published private(set) var emptySearchFacetDistribution: CueFacetDistribution?
-    private(set) var searchFacetFilter = CueFacetFilter()
+    @Published private(set) var searchFacetFilter = CueFacetFilter()
     @Published private(set) var searchSortOrder: SearchSortOrder = .default
     /// The four option-count cards for the current filter: each card ignores its
     /// own selections and applies the other three.

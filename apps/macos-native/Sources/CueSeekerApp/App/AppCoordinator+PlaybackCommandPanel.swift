@@ -57,6 +57,16 @@ extension AppCoordinator {
             return false
         }
 
+        let normalizedFacetFilter = search.normalizedFacetFilter(
+            search.searchFacetFilter
+        )
+        _ = search.updateSearchFacetFilter(normalizedFacetFilter)
+        if settings.searchFacetFilter != normalizedFacetFilter {
+            settings.searchFacetFilter = normalizedFacetFilter
+        }
+        if settings.searchSortOrder != search.searchSortOrder {
+            settings.searchSortOrder = search.searchSortOrder
+        }
         search.updateQuery(trimmedQuery)
         search.updateActiveFilterSet(SubtitleSearchFilterSet())
         search.updateNavigationSnapshot(nil)
@@ -320,11 +330,16 @@ extension AppCoordinator {
             results.count,
             PlaybackCommandPanelPresentation.previewLimit
         )
+        let resultListGeneration = search.resultListGeneration
+        let isSameGeneration =
+            playback.commandPanelSearchResultListGeneration
+                == resultListGeneration
         let selectedOrdinal: Int?
         if previewCount == 0 {
             selectedOrdinal = nil
-        } else if let current = playback.commandPanelSearchWindow?
-            .selectedOrdinal {
+        } else if isSameGeneration,
+                  let current = playback.commandPanelSearchWindow?
+                      .selectedOrdinal {
             selectedOrdinal = min(max(0, current), previewCount - 1)
         } else {
             selectedOrdinal = 0
@@ -334,7 +349,8 @@ extension AppCoordinator {
         playback.presentCommandPanel(updated)
         playback.synchronizeCommandPanelSearchPreview(
             results: results,
-            selectedOrdinal: selectedOrdinal
+            selectedOrdinal: selectedOrdinal,
+            resultListGeneration: resultListGeneration
         )
     }
 

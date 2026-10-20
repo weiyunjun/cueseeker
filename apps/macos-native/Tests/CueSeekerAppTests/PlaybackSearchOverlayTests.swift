@@ -218,3 +218,184 @@ func commandPanelPointerSelectionMovesTheRootHighlightWithinBounds() throws {
     app.selectPlaybackCommandPanelItem(at: 2)
     #expect(app.playback.commandPanelPresentation?.selectedOrdinal == 2)
 }
+
+@Test
+func commandPanelSecondaryHeaderCentersShiftsAndTruncatesTitleAroundControls() {
+    let bounds = CGRect(x: 0, y: 0, width: 1_000, height: 58)
+    let leadingSize = CGSize(width: 32, height: 32)
+    let trailingSize = CGSize(width: 220, height: 32)
+    let spacing: CGFloat = 12
+
+    // Short title stays strictly centered in the full header width.
+    let centered = PlaybackCommandPanelHeaderLayoutGeometry.resolve(
+        bounds: bounds,
+        leadingSize: leadingSize,
+        naturalTitleSize: CGSize(width: 120, height: 20),
+        trailingSize: trailingSize,
+        spacing: spacing
+    )
+    #expect(centered.leadingFrame.minX == 0)
+    #expect(centered.trailingFrame.maxX == 1_000)
+    #expect(centered.titleFrame.midX == bounds.midX)
+    #expect(centered.titleFrame.width == 120)
+
+    // Medium-long title shifts leftward into available space before truncating,
+    // keeping a 12pt gap from the trailing Filter + Sort controls.
+    let shifted = PlaybackCommandPanelHeaderLayoutGeometry.resolve(
+        bounds: bounds,
+        leadingSize: leadingSize,
+        naturalTitleSize: CGSize(width: 600, height: 20),
+        trailingSize: trailingSize,
+        spacing: spacing
+    )
+    #expect(shifted.titleFrame.width == 600)
+    #expect(shifted.titleFrame.maxX == shifted.trailingFrame.minX - spacing)
+    #expect(shifted.titleFrame.minX > shifted.leadingFrame.maxX + spacing)
+
+    // Very long title clamps to the available span with 12pt gaps on both sides.
+    let truncated = PlaybackCommandPanelHeaderLayoutGeometry.resolve(
+        bounds: bounds,
+        leadingSize: leadingSize,
+        naturalTitleSize: CGSize(width: 900, height: 20),
+        trailingSize: trailingSize,
+        spacing: spacing
+    )
+    #expect(truncated.titleFrame.minX == truncated.leadingFrame.maxX + spacing)
+    #expect(truncated.titleFrame.maxX == truncated.trailingFrame.minX - spacing)
+    #expect(truncated.titleFrame.width == 724)
+
+    // Secondary pages without trailing controls (Recent Videos / Excerpts) keep
+    // their title centered.
+    let withoutTrailing = PlaybackCommandPanelHeaderLayoutGeometry.resolve(
+        bounds: bounds,
+        leadingSize: leadingSize,
+        naturalTitleSize: CGSize(width: 140, height: 20),
+        trailingSize: .zero,
+        spacing: spacing
+    )
+    #expect(withoutTrailing.trailingFrame.width == 0)
+    #expect(withoutTrailing.titleFrame.midX == bounds.midX)
+}
+
+@MainActor
+@Test
+func commandPanelSearchSynchronizesFilterAndSortWithWorkbenchAndResetsSelection()
+    throws
+{
+    _ = NSApplication.shared
+    let suiteName = "PlaybackCommandPanelFilterSort-\(UUID().uuidString)"
+    let userDefaults = try #require(UserDefaults.temporary(suiteName: suiteName))
+    let databaseURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent(
+            "playback-command-panel-filter-sort-\(UUID().uuidString).sqlite"
+        )
+    defer {
+        userDefaults.removePersistentDomainAndPlist(forName: suiteName)
+        removeTemporaryDatabase(at: databaseURL)
+    }
+
+    let app = AppCoordinator(
+        userDefaults: userDefaults,
+        databaseURL: databaseURL
+    )
+    let first = SubtitleSearchResult(
+        entryID: 7_001,
+        cueGroupID: 17_001,
+        cueEventIndex: 1,
+        cueDisplayOrder: 0,
+        primaryGroupIndex: 0,
+        subtitlePath: "/Media/Episode02.srt",
+        subtitleFormat: .srt,
+        videoPath: "/Media/Episode02.mkv",
+        videoName: "Episode02.mkv",
+        displayTitle: "Episode 02",
+        startMilliseconds: 1_000,
+        endMilliseconds: 1_800,
+        content: "short line",
+        cueLines: ["short line"],
+        cueGroupLines: ["short line"],
+        searchRank: 0
+    )
+    let second = SubtitleSearchResult(
+        entryID: 7_002,
+        cueGroupID: 17_002,
+        cueEventIndex: 2,
+        cueDisplayOrder: 0,
+        primaryGroupIndex: 0,
+        subtitlePath: "/Media/Episode01.srt",
+        subtitleFormat: .srt,
+        videoPath: "/Media/Episode01.mkv",
+        videoName: "Episode01.mkv",
+        displayTitle: "Episode 01",
+        startMilliseconds: 2_000,
+        endMilliseconds: 8_000,
+        content: "a much longer subtitle line for testing",
+        cueLines: ["a much longer subtitle line for testing"],
+        cueGroupLines: ["a much longer subtitle line for testing"],
+        searchRank: 1
+    )
+
+    app.search.selectResult(first)
+    app.activePlaybackSource = .search
+    app.playback.isPlaybackSurfaceExpanded = true
+    #expect(app.presentPlaybackCommandPanelSearch(
+        query: "line",
+        startsSearch: false
+    ))
+
+    let generation = app.search.prepareSearch(
+        appending: false,
+        filterSet: SubtitleSearchFilterSet()
+    )
+    let snapshot = CueFacetSnapshot(
+        cueIDs: [first.entryID, second.entryID],
+        durationFacets: [.underOneSecond, .fiveSecondsOrMore],
+        characterFacets: [.oneToTen, .thirtyOneOrMore],
+        characterWidths: [10, 39],
+        languageFacets: [[.english], [.japanese]],
+        watchStateFacets: [.unwatched, .watching],
+        folderFacets: ["/Media", "/Media"]
+    )
+    #expect(app.search.commitExactSearchPage(
+        SubtitleSearchPage(
+            results: [first, second],
+            cueIDs: [first.entryID, second.entryID],
+            totalCount: 2,
+            fileSummaries: [],
+            facetSnapshot: snapshot
+        ),
+        generation: generation
+    ))
+    app.synchronizePlaybackCommandPanelSearchResults()
+
+    // Move selection to the second result and hold a stale page snapshot.
+    #expect(app.movePlaybackCommandPanelSelection(1))
+    #expect(app.playback.commandPanelSearchWindow?.selectedOrdinal == 1)
+    app.playback.holdCommandPanelPage(
+        .searchResults(totalCount: 99, hasMoreResults: true)
+    )
+
+    // Changing Sort from Command Panel Search Results updates both SearchStore
+    // and SettingsStore, clears the held page, reorders the preview, and resets
+    // the selection to the first item.
+    app.updateSearchSortOrder(.mostCharacters)
+    #expect(app.search.searchSortOrder == .mostCharacters)
+    #expect(app.settings.searchSortOrder == .mostCharacters)
+    #expect(app.playback.commandPanelHeldPage == nil)
+    #expect(app.search.searchResults.map(\.entryID) == [second.entryID, first.entryID])
+    #expect(app.playback.commandPanelSearchWindow?.snapshot.totalCount == 2)
+    #expect(app.playback.commandPanelSearchWindow?.item(at: 0)?.identity == .search(second.entryID))
+    #expect(app.playback.commandPanelSearchWindow?.selectedOrdinal == 0)
+
+    // Move selection to ordinal 1 again, then apply a Facet Filter.
+    #expect(app.movePlaybackCommandPanelSelection(1))
+    #expect(app.playback.commandPanelSearchWindow?.selectedOrdinal == 1)
+
+    let japaneseFilter = CueFacetFilter(languages: [.japanese])
+    app.applySearchFacetFilter(japaneseFilter)
+    #expect(app.search.searchFacetFilter == japaneseFilter)
+    #expect(app.settings.searchFacetFilter == japaneseFilter)
+    #expect(app.search.searchResults.map(\.entryID) == [second.entryID])
+    #expect(app.playback.commandPanelSearchWindow?.snapshot.totalCount == 1)
+    #expect(app.playback.commandPanelSearchWindow?.selectedOrdinal == 0)
+}
