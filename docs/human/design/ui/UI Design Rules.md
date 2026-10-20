@@ -25,7 +25,7 @@
 - **几何零偏移**：聚焦前后输入框的宽高、圆角、内边距以及单行文本/占位符的绘制起点必须完全一致（含内容溢出时），严禁因聚焦导致文字抖动或偏移。
 - **报错优先级**：报错状态边框（`--color-danger-text`）优先级高于聚焦边框（`Focused Error` 仍显示 `--color-danger-text`）。
 - **红字报错（`Validation Message`）预留规则**：
-  - **Dialog 对话框内**：需要校验的输入框下方（间距 `--spacing-1: 4px`）恒定预留 `1` 行红字高度（左边缘与所属输入框左边缘对齐），确保报错出现或消失时对话框高度不发生跳动（`WebDav Folder` 对话框仅在最下方 `Password` 输入框下预留 1 行）。
+  - **Dialog 对话框内**：需要校验的输入框下方（间距 `--spacing-1: 4px`）恒定预留 `1` 行红字高度（左边缘与所属输入框左边缘对齐），确保报错出现或消失时对话框高度不发生跳动（`WebDav Folder` 与 `SMB Folder` 对话框仅在最下方 `Password` 输入框下预留 1 行）。
   - **Settings 设置页内**：输入框平时不预留红字高度（`Reserved Lines: 0`），仅在存在报错提示时动态展开行高。
 
 ---
@@ -62,7 +62,7 @@
 
 ## 3.3 固定深色表面（Mode-Invariant Dark Surfaces）
 - 以下表面在 Light Mode 与 Dark Mode 下使用同一套深色视觉规则，不随系统明暗模式反色：
-  1. **播放页舞台与播控组件（Player Chrome）**：视频背景、顶底栏渐变、底栏播控控件、进度条、播放菜单、Playback Feedback 与 Player Error Banner。
+  1. **播放页舞台与播控组件（Player Chrome）**：视频背景、顶底栏渐变、底栏播控控件、进度条、播放菜单、Playback Feedback 与 Player Error Banner。  - **Dialog 对话框内**：需要校验的输入框下方（间距 `--spacing-1: 4px`）恒定预留 `1` 行红字高度（左边缘与所属输入框左边缘对齐），确保报错出现或消失时对话框高度不发生跳动（`WebDav Folder` 对话框仅在最下方 `Password` 输入框下预留 1 行）。
   2. **Cover Summary 的 Backdrop Form**：背景大图铺满叠加从左向右衰减的黑色 Scrim（`--color-cover-summary-scrim`）与白色文字（`--color-cover-summary-text`）。（注：`Cover Summary` 的 `Split Form` 则分别适配 Light Mode 与 Dark Mode。）
 
 ---
@@ -83,7 +83,7 @@
     - **Trailing**：`--spacing-5` + `--width-page-scrollbar-channel`（`36px`），加上卡片自身右侧 `12px` 交互内边距，封面右缘恰好与右侧留出滚动条通道后的 `48px` 边界齐平。
 
 ## 4.3 水平双列表单对齐法则
-- 对话框内的水平双列表单（`Rename`、`WebDav Folder`、`Export to Anki` 底部的 `File Name` 与 `Location`）：
+- 对话框内的水平双列表单（`Rename`、`WebDav Folder`、`SMB Folder`、`Export to Anki` 底部的 `File Name` 与 `Location`）：
   - 左侧 Label 列固定宽度 `--width-form-label`（`72px`），左对齐；
   - Label 列与右侧输入框/内容列水平间距为 `--spacing-3`（`12px`），表单行间距为 `--spacing-3`（`12px`）；
   - 右侧输入框或尾部图标字形的可见右缘与 Footer 最右侧按钮的右缘严格对齐。
