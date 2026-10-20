@@ -342,7 +342,7 @@
 /* Settings: Library */
 "settings.library.description" = "管理用於索引與搜尋的字幕資料夾。";
 "settings.library.add_folder" = "加入資料夾";
-"settings.library.index_now" = "立即索引";
+"settings.library.index_now" = "索引全部";
 "settings.library.choose_folder" = "選擇字幕資料夾";
 "settings.library.empty_title" = "沒有字幕資料夾";
 "settings.library.empty_message" = "選擇一個包含字幕檔案的本機資料夾。";
@@ -563,7 +563,8 @@
 "task.title.anki_export" = "匯出至 Anki：";
 "task.title.rename_folder" = "重新命名資料夾：";
 "task.title.rename_files" = "重新命名檔案：";
-"task.title.index" = "索引";
+"task.title.index" = "索引全部";
+"task.title.index_folder" = "索引：";
 "task.title.add_folder" = "加入資料夾：";
 "task.title.remove" = "移除：";
 "task.error.cancelled" = "已被使用者取消";
@@ -593,6 +594,9 @@
 /* File page tabs and in-App rename */
 "file.section.index" = "索引";
 "file.section.edit" = "編輯";
+"file.menu.rename_this_folder" = "重新命名此資料夾";
+"file.menu.index_this_folder" = "索引此資料夾";
+"file.menu.remove_this_folder" = "移除此資料夾";
 "rename.folder" = "重新命名資料夾";
 "rename.files" = "重新命名檔案";
 "rename.current_name" = "目前名稱";

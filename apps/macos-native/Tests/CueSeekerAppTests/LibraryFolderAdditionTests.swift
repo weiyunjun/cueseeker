@@ -154,6 +154,57 @@ func indexNowIndexesEachGroupOnceInGroupOrder() async throws {
     await app.tasks.waitUntilIdle()
 }
 
+/// Index This Folder indexes only the selected root folder even when it is
+/// nested inside another added parent root, keeping the parent LibraryID and
+/// leaving sibling subfolders under the parent untouched.
+@MainActor
+@Test
+func indexFolderIndexesOnlyTheSelectedFolderIncludingNestedRoot() async throws {
+    let fixture = try LibraryFolderAdditionFixture()
+    defer { fixture.cleanUp() }
+    fixture.userDefaults.set(
+        [fixture.show.path, fixture.seasonOne.path],
+        forKey: "selectedFolderPaths"
+    )
+    let app = fixture.makeApp()
+    app.indexAllFolders()
+    await app.tasks.waitUntilIdle()
+
+    // Modify Episode 1 in Season 1 and delete Episode 2 in Season 2 on disk.
+    // Indexing only Season 1 should update Episode 1 without removing Episode 2
+    // from the database or splitting search_paths.
+    let ep1Subtitle = fixture.seasonOne.appendingPathComponent("Episode 1.srt")
+    let ep2Subtitle = fixture.show
+        .appendingPathComponent("Season 2", isDirectory: true)
+        .appendingPathComponent("Episode 2.srt")
+    try """
+    1
+    00:00:01,000 --> 00:00:03,000
+    Episode 1 updated line
+
+    """.write(to: ep1Subtitle, atomically: true, encoding: .utf8)
+    try FileManager.default.removeItem(at: ep2Subtitle)
+
+    app.indexFolder(fixture.seasonOne)
+    await app.tasks.waitUntilIdle()
+
+    guard case let .completed(completedFolder, result) = app.indexing.indexingStatus else {
+        Issue.record("Expected single-folder index to complete, got \(app.indexing.indexingStatus)")
+        return
+    }
+    #expect(completedFolder == fixture.seasonOne)
+    #expect(result.indexedSubtitleFiles == 1)
+    #expect(app.indexing.operationNotice == .indexed(folderName: "Season 1"))
+    #expect(app.tasks.completed.first?.displayTitle == "Index: Season 1")
+
+    let database = try IndexingDatabase(path: fixture.databaseURL)
+    #expect(try database.libraryPathRecords().map(\.rootURL.path) == [fixture.show.path])
+    let subtitleNames = try database.subtitleFiles().map {
+        URL(fileURLWithPath: $0.subtitlePath).lastPathComponent
+    }.sorted()
+    #expect(subtitleNames == ["Episode 1.srt", "Episode 2.srt"])
+}
+
 /// A library task never stops what is playing. Removing a parent keeps a root
 /// inside it, and with it the video playing there; a video that was only in
 /// the removed part plays on as one the library no longer holds.

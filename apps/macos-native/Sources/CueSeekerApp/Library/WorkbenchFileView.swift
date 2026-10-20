@@ -358,7 +358,7 @@ struct WorkbenchFileView: View {
                     let subtitle = FileFolderGroupingResolver.rootSubtitle(for: folder)
                     let items = [
                         FileCardMenuItem(
-                            title: L("rename.folder"),
+                            title: L("file.menu.rename_this_folder"),
                             icon: .pencilSimple,
                             isEnabled: !isFolderOperationBlocked,
                             isDestructive: false,
@@ -367,7 +367,16 @@ struct WorkbenchFileView: View {
                             }
                         ),
                         FileCardMenuItem(
-                            title: L("common.remove"),
+                            title: L("file.menu.index_this_folder"),
+                            icon: .arrowClockwise,
+                            isEnabled: !isFolderOperationBlocked,
+                            isDestructive: false,
+                            action: {
+                                appState.indexFolder(folder)
+                            }
+                        ),
+                        FileCardMenuItem(
+                            title: L("file.menu.remove_this_folder"),
                             icon: .minusCircle,
                             isEnabled: !isFolderOperationBlocked,
                             isDestructive: true,
@@ -439,7 +448,7 @@ struct WorkbenchFileView: View {
                                 let title = URL.fromMediaPath(folder.folderPath).lastPathComponent
                                 let items = [
                                     FileCardMenuItem(
-                                        title: L("rename.folder"),
+                                        title: L("file.menu.rename_this_folder"),
                                         icon: .pencilSimple,
                                         isEnabled: !isFolderOperationBlocked,
                                         isDestructive: false,
@@ -1147,12 +1156,12 @@ enum FileStatusResolver {
         lastUpdatedDate: Date?
     ) -> FileStatusInfo {
         if case .removing(let folder) = folderRemovalStatus {
-            return .inProgress(L("file.status.removing", folder.lastPathComponent))
+            return .inProgress(L("file.status.removing", IndexingStore.displayName(for: folder)))
         }
 
         switch indexingStatus {
         case .indexing(let folder):
-            return .inProgress(L("file.status.indexing", folder.lastPathComponent))
+            return .inProgress(L("file.status.indexing", IndexingStore.displayName(for: folder)))
         case .indexingAll:
             return .inProgress(L("file.status.indexing_all"))
         default:

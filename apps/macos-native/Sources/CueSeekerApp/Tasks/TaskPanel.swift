@@ -688,7 +688,7 @@ extension TaskRecord {
         case .renameFiles:
             return L("task.title.rename_files")
         case .index:
-            return L("task.title.index")
+            return fileName.isEmpty ? L("task.title.index") : L("task.title.index_folder")
         case .addFolder:
             return L("task.title.add_folder")
         case .removeFolder:
@@ -711,7 +711,7 @@ extension TaskRecord {
             }
             return (LibraryRenamer.lastPathComponent(of: newPaths.first ?? "") as NSString).deletingPathExtension
         case .index:
-            return ""
+            return fileName
         case .addFolder, .removeFolder:
             if !fileName.isEmpty {
                 return fileName

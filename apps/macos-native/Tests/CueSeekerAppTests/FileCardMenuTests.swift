@@ -127,20 +127,34 @@ struct FileCardMenuTests {
         let highlight = MenuHighlightModel()
         let items = [
             FileCardMenuItem(
-                title: "Rename Folder",
+                title: L("file.menu.rename_this_folder"),
                 icon: .pencilSimple,
                 isEnabled: true,
                 isDestructive: false,
                 action: {}
             ),
             FileCardMenuItem(
-                title: "Remove",
+                title: L("file.menu.index_this_folder"),
+                icon: .arrowClockwise,
+                isEnabled: true,
+                isDestructive: false,
+                action: {}
+            ),
+            FileCardMenuItem(
+                title: L("file.menu.remove_this_folder"),
                 icon: .minusCircle,
                 isEnabled: true,
                 isDestructive: true,
                 action: {}
             )
         ]
+
+        #expect(L("settings.library.index_now") == "Index All")
+        #expect(items.map(\.title) == [
+            "Rename This Folder",
+            "Index This Folder",
+            "Remove This Folder"
+        ])
 
         let popover = FileCardMenuPopover(
             items: items,
@@ -153,8 +167,8 @@ struct FileCardMenuTests {
         let fittingSize = host.fittingSize
 
         #expect(fittingSize.width >= 160)
-        #expect(fittingSize.height > 60)
-        #expect(fittingSize.height < 120)
+        #expect(fittingSize.height > 90)
+        #expect(fittingSize.height < 160)
     }
 
     @Test

@@ -342,7 +342,7 @@
 /* Settings: Library */
 "settings.library.description" = "Manage subtitle folders used for indexing and search.";
 "settings.library.add_folder" = "Add Folder";
-"settings.library.index_now" = "Index Now";
+"settings.library.index_now" = "Index All";
 "settings.library.choose_folder" = "Choose Subtitle Folder";
 "settings.library.empty_title" = "No Subtitle Folders";
 "settings.library.empty_message" = "Choose a local folder containing subtitle files.";
@@ -563,7 +563,8 @@
 "task.title.anki_export" = "Export to Anki: ";
 "task.title.rename_folder" = "Renaming Folder: ";
 "task.title.rename_files" = "Renaming Files: ";
-"task.title.index" = "Index";
+"task.title.index" = "Index All";
+"task.title.index_folder" = "Index: ";
 "task.title.add_folder" = "Add Folder: ";
 "task.title.remove" = "Remove: ";
 "task.error.cancelled" = "Cancelled by user";
@@ -593,6 +594,9 @@
 /* File page tabs and in-App rename */
 "file.section.index" = "Index";
 "file.section.edit" = "Edit";
+"file.menu.rename_this_folder" = "Rename This Folder";
+"file.menu.index_this_folder" = "Index This Folder";
+"file.menu.remove_this_folder" = "Remove This Folder";
 "rename.folder" = "Rename Folder";
 "rename.files" = "Rename Files";
 "rename.current_name" = "Current Name";

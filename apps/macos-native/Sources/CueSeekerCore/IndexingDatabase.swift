@@ -60,7 +60,8 @@ public final class IndexingDatabase: @unchecked Sendable {
     /// Binds a Library to its absolute path. The path is the only identity.
     private func bindSearchPathInCurrentTransaction(
         _ folder: URL,
-        type: String = "local"
+        type: String = "local",
+        reuseCoveringLibrary: Bool = false
     ) throws -> Int64 {
         let effectiveType: String
         if folder.isWebDAVURL {
@@ -77,6 +78,19 @@ public final class IndexingDatabase: @unchecked Sendable {
         let standardizedFolder = folder.standardizedMediaURL
         let folderMediaPath = standardizedFolder.mediaPath
         let now = ISO8601DateFormatter().string(from: Date())
+
+        if reuseCoveringLibrary,
+           let covering = try libraryPathRecords()
+               .filter({ LibraryRootGroups.holds($0.rootURL, standardizedFolder) })
+               .min(by: { $0.rootURL.mediaPath.count < $1.rootURL.mediaPath.count }),
+           covering.rootURL.mediaPath != folderMediaPath
+        {
+            if let matchingPath = try searchPathRecord(path: covering.rootURL.mediaPath) {
+                try touchSearchPath(matchingPath, type: effectiveType, updatedAt: now)
+            }
+            try backfillMediaPathIdentities(libraryID: covering.id, rootURL: covering.rootURL)
+            return covering.id
+        }
 
         let libraryID: Int64
         if let matchingPath = try searchPathRecord(path: folderMediaPath) {
@@ -194,7 +208,8 @@ public final class IndexingDatabase: @unchecked Sendable {
 
         return try database.withImmediateTransaction {
             let libraryID = try bindSearchPathInCurrentTransaction(
-                index.folder
+                index.folder,
+                reuseCoveringLibrary: true
             )
             let hadPendingPresentationRefresh =
                 try libraryPresentationRetryPending(
@@ -202,7 +217,8 @@ public final class IndexingDatabase: @unchecked Sendable {
                 )
 
             let clearedCueChangeNotices = try clearPriorCueChangeNotices(
-                libraryID: libraryID
+                libraryID: libraryID,
+                under: index.folder
             )
             var changedSubtitlePaths = Set<String>()
             var affectedVideoPaths = Set<String>()
@@ -291,7 +307,8 @@ public final class IndexingDatabase: @unchecked Sendable {
             )
             let pendingVideoMetadataPaths =
                 try pendingVideoMetadataPaths(
-                    libraryID: libraryID
+                    libraryID: libraryID,
+                    under: index.folder
                 )
             let presentationRefreshRequest:
                 LibraryPresentationRefreshRequest
@@ -386,8 +403,10 @@ public final class IndexingDatabase: @unchecked Sendable {
     }
 
     private func pendingVideoMetadataPaths(
-        libraryID: Int64
+        libraryID: Int64,
+        under folder: URL
     ) throws -> Set<String> {
+        let prefixes = Self.folderPathPrefixes(for: folder)
         let statement = try database.prepare(
             """
             SELECT path
@@ -400,7 +419,10 @@ public final class IndexingDatabase: @unchecked Sendable {
         try statement.bind(libraryID, at: 1)
         var paths = Set<String>()
         while try statement.step() {
-            paths.insert(statement.stringColumn(0))
+            let path = statement.stringColumn(0)
+            if prefixes.contains(where: { path.hasPrefix($0) }) {
+                paths.insert(path)
+            }
         }
         return paths
     }
@@ -2605,8 +2627,16 @@ public final class IndexingDatabase: @unchecked Sendable {
     }
 
     private func clearPriorCueChangeNotices(
-        libraryID: Int64
+        libraryID: Int64,
+        under folder: URL
     ) throws -> Bool {
+        let prefixes = Self.folderPathPrefixes(for: folder)
+        guard !prefixes.isEmpty else {
+            return false
+        }
+        let prefixCondition = prefixes
+            .map { _ in "substr(sf.subtitle_path, 1, ?) = ?" }
+            .joined(separator: " OR ")
         let statement = try database.prepare(
             """
             DELETE FROM cue_change_notices
@@ -2616,6 +2646,7 @@ public final class IndexingDatabase: @unchecked Sendable {
                 JOIN subtitle_files sf ON sf.id = l.subtitle_file_id
                 WHERE l.id = cue_change_notices.cue_id
                   AND sf.library_id = ?
+                  AND (\(prefixCondition))
             )
                OR EXISTS (
                 SELECT 1
@@ -2623,11 +2654,21 @@ public final class IndexingDatabase: @unchecked Sendable {
                 JOIN subtitle_files sf ON sf.id = t.subtitle_file_id
                 WHERE t.cue_id = cue_change_notices.cue_id
                   AND sf.library_id = ?
+                  AND (\(prefixCondition))
             );
             """
         )
-        try statement.bind(libraryID, at: 1)
-        try statement.bind(libraryID, at: 2)
+        var bindIndex: Int32 = 1
+        for _ in 0..<2 {
+            try statement.bind(libraryID, at: bindIndex)
+            bindIndex += 1
+            for prefix in prefixes {
+                try statement.bind(prefix.count, at: bindIndex)
+                bindIndex += 1
+                try statement.bind(prefix, at: bindIndex)
+                bindIndex += 1
+            }
+        }
         try statement.run()
         return database.changesCount() > 0
     }

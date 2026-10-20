@@ -788,9 +788,26 @@ func taskRecordTitlesAndIconsFollowRedesignSpecification() throws {
         oldPaths: ["/Videos/Anime"]
     )
     #expect(indexRecord.icon == .arrowClockwise)
-    #expect(indexRecord.titleActionPrefix == "Index")
+    #expect(indexRecord.titleActionPrefix == "Index All")
     #expect(indexRecord.titleTargetName == "")
-    #expect(indexRecord.displayTitle == "Index")
+    #expect(indexRecord.displayTitle == "Index All")
+
+    let indexFolderRecord = TaskRecord(
+        id: 7,
+        kind: .index,
+        fileName: "Anime",
+        folderPath: "",
+        itemCount: 0,
+        state: .running,
+        errorMessage: nil,
+        createdAt: Date(),
+        stateChangedAt: Date(),
+        oldPaths: ["/Videos/Anime"]
+    )
+    #expect(indexFolderRecord.icon == .arrowClockwise)
+    #expect(indexFolderRecord.titleActionPrefix == "Index: ")
+    #expect(indexFolderRecord.titleTargetName == "Anime")
+    #expect(indexFolderRecord.displayTitle == "Index: Anime")
 
     let addFolderRecord = TaskRecord(
         id: 5,
@@ -841,6 +858,33 @@ func enqueueingLibraryTasksPopulatesFileNameForTitles() throws {
     let folderTask = try #require(store.current.first)
     #expect(folderTask.record.fileName == "RenamedFolder")
     #expect(folderTask.record.titleTargetName == "RenamedFolder")
+}
+
+@MainActor
+@Test
+func enqueueIndexFolderPopulatesFolderNameAndRunsSingleFolderRunner() async throws {
+    let (store, databaseURL) = try makeTaskQueueStore()
+    defer { removeTemporaryDatabase(at: databaseURL) }
+
+    var indexedFolders: [URL] = []
+    store.runIndexFolder = { folders, _ in
+        indexedFolders = folders
+        return 3
+    }
+
+    #expect(store.enqueueIndexFolder(showRootFolder))
+    let running = try #require(store.current.first)
+    #expect(running.record.kind == .index)
+    #expect(running.record.fileName == "Show")
+    #expect(running.record.displayTitle == "Index: Show")
+    #expect(running.record.oldPaths == ["/Videos/Show"])
+    #expect(running.canBeRemovedWhileRunning)
+    #expect(!store.enqueueIndex(folders: [showRootFolder]))
+
+    await waitUntil { store.current.isEmpty }
+    #expect(indexedFolders == [showRootFolder.standardizedMediaURL])
+    #expect(store.completed.first?.displayTitle == "Index: Show")
+    #expect(store.completed.first?.itemCount == 3)
 }
 
 @MainActor

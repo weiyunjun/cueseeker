@@ -1053,7 +1053,7 @@ extension AppCoordinator {
         tasks.enqueueRemoveFolder(folder.standardizedMediaURL)
     }
 
-    /// Starts Index Now over the outermost root of every group, in group order.
+    /// Starts Index All over the outermost root of every group, in group order.
     func indexAllFolders() {
         guard !indexing.databaseMaintenanceStatus.isCompacting else {
             startupError = L("status.compaction_running")
@@ -1067,6 +1067,22 @@ extension AppCoordinator {
 
         indexing.clearTransientNotice()
         tasks.enqueueIndex(folders: folders)
+    }
+
+    /// Starts Index This Folder over the selected root folder.
+    func indexFolder(_ folder: URL) {
+        guard !indexing.databaseMaintenanceStatus.isCompacting else {
+            startupError = L("status.compaction_running")
+            return
+        }
+
+        let normalized = folder.standardizedMediaURL
+        guard indexing.selectedFolders.contains(normalized) else {
+            return
+        }
+
+        indexing.clearTransientNotice()
+        tasks.enqueueIndexFolder(normalized)
     }
 
     /// Takes back what the Add Folder tasks the previous launch left
@@ -1119,6 +1135,15 @@ extension AppCoordinator {
             return try await AppCoordinator.runIndex(
                 folders: folders,
                 isAllFolders: true,
+                onProgress: onProgress,
+                coordinator: self
+            )
+        }
+        tasks.runIndexFolder = { [weak self] folders, onProgress in
+            await AppCoordinator.waitForDebugTaskDelay()
+            return try await AppCoordinator.runIndex(
+                folders: folders,
+                isAllFolders: false,
                 onProgress: onProgress,
                 coordinator: self
             )

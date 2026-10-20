@@ -29,8 +29,10 @@ enum TaskQueueTab: String, CaseIterable, Identifiable {
 enum TaskWork {
     case ankiExport(items: [AnkiExportItem], options: AnkiExportOptions, destinationURL: URL)
     case rename(LibraryRenameRequest)
-    /// Index Now, over the outermost root of every group.
+    /// Index All, over the outermost root of every group.
     case index(folders: [URL])
+    /// Index This Folder, over a single root folder.
+    case indexFolder(URL)
     case addFolder(URL)
     case removeFolder(URL)
 }
@@ -231,7 +233,7 @@ struct TaskQueueEntry: Identifiable {
         switch work {
         case .ankiExport:
             .export
-        case .rename, .index, .addFolder, .removeFolder:
+        case .rename, .index, .indexFolder, .addFolder, .removeFolder:
             .library
         }
     }
@@ -241,7 +243,7 @@ struct TaskQueueEntry: Identifiable {
     /// which stopping leaves anything consistent.
     var canBeRemovedWhileRunning: Bool {
         switch work {
-        case .ankiExport, .index, .addFolder:
+        case .ankiExport, .index, .indexFolder, .addFolder:
             true
         case .rename, .removeFolder:
             false
@@ -288,6 +290,7 @@ final class TaskQueueStore: ObservableObject {
     var runExport: TaskExportRunner
     var runRename: TaskRenameRunner
     var runIndex: TaskIndexRunner
+    var runIndexFolder: TaskIndexRunner
     var runAddFolder: TaskIndexRunner
     var runRemoveFolder: TaskRemoveFolderRunner
     var onCancelQueuedAddFolder: ((URL) -> Void)?
@@ -317,6 +320,7 @@ final class TaskQueueStore: ObservableObject {
         runIndex: @escaping TaskIndexRunner = { _, _ in
             throw LibraryRenameError.databaseUpdateFailed("The index runner is not configured.")
         },
+        runIndexFolder: TaskIndexRunner? = nil,
         runAddFolder: @escaping TaskIndexRunner = { _, _ in
             throw LibraryRenameError.databaseUpdateFailed("The add folder runner is not configured.")
         },
@@ -328,6 +332,7 @@ final class TaskQueueStore: ObservableObject {
         self.runExport = runExport
         self.runRename = runRename
         self.runIndex = runIndex
+        self.runIndexFolder = runIndexFolder ?? runIndex
         self.runAddFolder = runAddFolder
         self.runRemoveFolder = runRemoveFolder
     }
@@ -423,7 +428,7 @@ final class TaskQueueStore: ObservableObject {
         )
     }
 
-    /// Starts Index Now over these folders. The count it will show is only
+    /// Starts Index All over these folders. The count it will show is only
     /// known once it has run, so the record starts at zero.
     @discardableResult
     func enqueueIndex(folders: [URL]) -> Bool {
@@ -436,6 +441,20 @@ final class TaskQueueStore: ObservableObject {
             itemCount: 0,
             oldPaths: folders.map(\.mediaPath),
             work: .index(folders: folders)
+        )
+    }
+
+    /// Starts Index This Folder over one root folder. The count it will show is
+    /// only known once it has run, so the record starts at zero.
+    @discardableResult
+    func enqueueIndexFolder(_ folder: URL) -> Bool {
+        let normalized = folder.standardizedMediaURL
+        return enqueueLibraryTask(
+            kind: .index,
+            fileName: IndexingStore.displayName(for: normalized),
+            itemCount: 0,
+            oldPaths: [normalized.mediaPath],
+            work: .indexFolder(normalized)
         )
     }
 
@@ -643,6 +662,8 @@ final class TaskQueueStore: ObservableObject {
             }
         case .index(let folders):
             runIndexing(entry, folders: folders, runner: runIndex)
+        case .indexFolder(let folder):
+            runIndexing(entry, folders: [folder], runner: runIndexFolder)
         case .addFolder(let folder):
             runIndexing(entry, folders: [folder], runner: runAddFolder)
         case .removeFolder(let folder):
