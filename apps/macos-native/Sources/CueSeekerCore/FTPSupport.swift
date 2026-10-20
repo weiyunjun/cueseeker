@@ -245,7 +245,7 @@ public final class NativeFTPBackend: FTPBackendProtocol, @unchecked Sendable {
             for idx in 0..<dirList.count {
                 let raw = entries[idx]
                 guard let namePtr = raw.name else { continue }
-                let name = String(cString: namePtr).precomposedStringWithCanonicalMapping
+                let name = Self.decodeEntryName(namePtr)
                 results.append(
                     FTPDirectoryEntry(
                         name: name,
@@ -368,6 +368,23 @@ public final class NativeFTPBackend: FTPBackendProtocol, @unchecked Sendable {
         if code != CSMB_OK {
             throw Self.mapError(code, errPtr: errPtr)
         }
+    }
+
+    static func decodeEntryName(_ ptr: UnsafePointer<CChar>) -> String {
+        if let utf8 = String(validatingUTF8: ptr) {
+            return utf8.precomposedStringWithCanonicalMapping
+        }
+        let byteCount = strlen(ptr)
+        let data = Data(bytes: ptr, count: byteCount)
+        let gb18030Encoding = String.Encoding(
+            rawValue: CFStringConvertEncodingToNSStringEncoding(
+                CFStringEncoding(CFStringEncodings.GB_18030_2000.rawValue)
+            )
+        )
+        if let gbDecoded = String(data: data, encoding: gb18030Encoding) {
+            return gbDecoded.precomposedStringWithCanonicalMapping
+        }
+        return String(cString: ptr).precomposedStringWithCanonicalMapping
     }
 
     private static func mapError(

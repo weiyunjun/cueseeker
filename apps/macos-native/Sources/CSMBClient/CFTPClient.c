@@ -124,7 +124,7 @@ static char *cftp_build_url(CURL *curl, const char *host, int port, const char *
     return url;
 }
 
-static void cftp_configure_common(CURL *curl, const char *username, const char *password, char *errbuf) {
+static struct curl_slist *cftp_configure_common(CURL *curl, const char *username, const char *password, char *errbuf) {
     curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
     curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 10L);
     curl_easy_setopt(curl, CURLOPT_TIMEOUT, 30L);
@@ -137,6 +137,21 @@ static void cftp_configure_common(CURL *curl, const char *username, const char *
     int has_pass = (password && password[0] != '\0');
     curl_easy_setopt(curl, CURLOPT_USERNAME, has_user ? username : "anonymous");
     curl_easy_setopt(curl, CURLOPT_PASSWORD, (has_user || has_pass) ? (password ? password : "") : "anonymous@");
+
+    struct curl_slist *quote = curl_slist_append(NULL, "*OPTS UTF8 ON");
+    if (quote) {
+        curl_easy_setopt(curl, CURLOPT_QUOTE, quote);
+    }
+    return quote;
+}
+
+static void cftp_cleanup_handle(CURL *curl, struct curl_slist *quote) {
+    if (curl) {
+        curl_easy_cleanup(curl);
+    }
+    if (quote) {
+        curl_slist_free_all(quote);
+    }
 }
 
 static csmb_error_code_t cftp_classify_curl_error(CURL *curl, CURLcode res) {
@@ -306,7 +321,7 @@ csmb_error_code_t cftp_stat(
     }
 
     char errbuf[CURL_ERROR_SIZE];
-    cftp_configure_common(curl, username, password, errbuf);
+    struct curl_slist *quote = cftp_configure_common(curl, username, password, errbuf);
     curl_easy_setopt(curl, CURLOPT_NOBODY, 1L);
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, cftp_discard_cb);
     curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, cftp_discard_cb);
@@ -321,14 +336,14 @@ csmb_error_code_t cftp_stat(
 
     if (res == CURLE_OK) {
         if (out_is_directory) *out_is_directory = 1;
-        curl_easy_cleanup(curl);
+        cftp_cleanup_handle(curl, quote);
         return CSMB_OK;
     }
 
     csmb_error_code_t dir_code = cftp_classify_curl_error(curl, res);
     if (norm[0] == '\0' || dir_code == CSMB_ERR_AUTH || dir_code == CSMB_ERR_CONNECTION) {
         cftp_set_error(out_error_message, errbuf[0] ? errbuf : curl_easy_strerror(res));
-        curl_easy_cleanup(curl);
+        cftp_cleanup_handle(curl, quote);
         return dir_code;
     }
 
@@ -348,7 +363,7 @@ csmb_error_code_t cftp_stat(
             if (out_is_directory) *out_is_directory = 0;
             if (out_size_bytes) *out_size_bytes = (uint64_t)cl;
             if (out_modified_at_epoch) *out_modified_at_epoch = (ft > 0) ? (int64_t)ft : 0;
-            curl_easy_cleanup(curl);
+            cftp_cleanup_handle(curl, quote);
             return CSMB_OK;
         }
     }
@@ -358,7 +373,7 @@ csmb_error_code_t cftp_stat(
         file_code = CSMB_ERR_NOT_FOUND;
     }
     cftp_set_error(out_error_message, errbuf[0] ? errbuf : curl_easy_strerror(res));
-    curl_easy_cleanup(curl);
+    cftp_cleanup_handle(curl, quote);
     return file_code;
 }
 
@@ -384,7 +399,7 @@ csmb_error_code_t cftp_list_directory(
     }
 
     char errbuf[CURL_ERROR_SIZE];
-    cftp_configure_common(curl, username, password, errbuf);
+    struct curl_slist *quote = cftp_configure_common(curl, username, password, errbuf);
 
     char *url = cftp_build_url(curl, host, port, rel_path, 1);
     curl_easy_setopt(curl, CURLOPT_URL, url);
@@ -400,7 +415,7 @@ csmb_error_code_t cftp_list_directory(
         cftp_parse_mlsd_listing(buf.data ? (const char *)buf.data : "", out_list);
         free(buf.data);
         free(url);
-        curl_easy_cleanup(curl);
+        cftp_cleanup_handle(curl, quote);
         return CSMB_OK;
     }
 
@@ -411,7 +426,7 @@ csmb_error_code_t cftp_list_directory(
     if (mlsd_code == CSMB_ERR_AUTH) {
         cftp_set_error(out_error_message, errbuf[0] ? errbuf : curl_easy_strerror(res));
         free(url);
-        curl_easy_cleanup(curl);
+        cftp_cleanup_handle(curl, quote);
         return CSMB_ERR_AUTH;
     }
 
@@ -424,13 +439,13 @@ csmb_error_code_t cftp_list_directory(
     if (res == CURLE_OK) {
         cftp_parse_list_listing(buf.data ? (const char *)buf.data : "", out_list);
         free(buf.data);
-        curl_easy_cleanup(curl);
+        cftp_cleanup_handle(curl, quote);
         return CSMB_OK;
     }
 
     csmb_error_code_t list_code = cftp_classify_curl_error(curl, res);
     free(buf.data);
-    curl_easy_cleanup(curl);
+    cftp_cleanup_handle(curl, quote);
 
     if (list_code == CSMB_ERR_NOT_FOUND && rel_path && rel_path[0] != '\0') {
         int is_dir = 0;
@@ -491,7 +506,7 @@ csmb_error_code_t cftp_read_file_range(
     }
 
     char errbuf[CURL_ERROR_SIZE];
-    cftp_configure_common(curl, username, password, errbuf);
+    struct curl_slist *quote = cftp_configure_common(curl, username, password, errbuf);
     curl_easy_setopt(curl, CURLOPT_TIMEOUT, 60L);
 
     char *url = cftp_build_url(curl, host, port, rel_path, 0);
@@ -513,7 +528,7 @@ csmb_error_code_t cftp_read_file_range(
     free(url);
 
     if (res == CURLE_OK || (res == CURLE_WRITE_ERROR && buf.stopped_at_limit)) {
-        curl_easy_cleanup(curl);
+        cftp_cleanup_handle(curl, quote);
         *out_buffer = buf.data;
         if (out_bytes_read) {
             *out_bytes_read = buf.length;
@@ -524,7 +539,7 @@ csmb_error_code_t cftp_read_file_range(
     csmb_error_code_t code = cftp_classify_curl_error(curl, res);
     cftp_set_error(out_error_message, errbuf[0] ? errbuf : curl_easy_strerror(res));
     free(buf.data);
-    curl_easy_cleanup(curl);
+    cftp_cleanup_handle(curl, quote);
     return code;
 }
 
@@ -544,7 +559,7 @@ csmb_error_code_t cftp_rename(
     }
 
     char errbuf[CURL_ERROR_SIZE];
-    cftp_configure_common(curl, username, password, errbuf);
+    struct curl_slist *quote = cftp_configure_common(curl, username, password, errbuf);
     curl_easy_setopt(curl, CURLOPT_NOBODY, 1L);
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, cftp_discard_cb);
     curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, cftp_discard_cb);
@@ -564,19 +579,17 @@ csmb_error_code_t cftp_rename(
     snprintf(rnfr_cmd, rnfr_len, "RNFR /%s", old_norm);
     snprintf(rnto_cmd, rnto_len, "RNTO /%s", new_norm);
 
-    struct curl_slist *quote = NULL;
     quote = curl_slist_append(quote, rnfr_cmd);
     quote = curl_slist_append(quote, rnto_cmd);
     curl_easy_setopt(curl, CURLOPT_QUOTE, quote);
 
     CURLcode res = curl_easy_perform(curl);
-    curl_slist_free_all(quote);
     free(rnfr_cmd);
     free(rnto_cmd);
     free(root_url);
 
     if (res == CURLE_OK) {
-        curl_easy_cleanup(curl);
+        cftp_cleanup_handle(curl, quote);
         return CSMB_OK;
     }
 
@@ -591,6 +604,6 @@ csmb_error_code_t cftp_rename(
         }
     }
     cftp_set_error(out_error_message, errbuf[0] ? errbuf : curl_easy_strerror(res));
-    curl_easy_cleanup(curl);
+    cftp_cleanup_handle(curl, quote);
     return code;
 }

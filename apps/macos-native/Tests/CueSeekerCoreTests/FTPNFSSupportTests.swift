@@ -666,4 +666,29 @@ struct FTPNFSSupportTests {
         try renamer.perform(nfsPlan)
         #expect(NFSConfigurationStore.shared.config(for: nfsRenamedRootURL)?.name == "Sousou no Frieren")
     }
+
+    @Test
+    func nativeFTPBackendDecodesUTF8AndGB18030EntryNames() {
+        let utf8Sample: [UInt8] = Array("匹诺曹的谎言".utf8) + [0]
+        let decodedUTF8 = utf8Sample.withUnsafeBufferPointer { buf in
+            buf.baseAddress!.withMemoryRebound(to: CChar.self, capacity: buf.count) {
+                NativeFTPBackend.decodeEntryName($0)
+            }
+        }
+        #expect(decodedUTF8 == "匹诺曹的谎言")
+
+        let gbkCases: [(bytes: [UInt8], expected: String)] = [
+            ([0xC8, 0xBA, 0xEA, 0xCD, 0xB1, 0xB8, 0xB7, 0xDD, 0x00], "群晖备份"),
+            ([0xC8, 0xBA, 0xEA, 0xCD, 0x20, 0xD0, 0xC2, 0x00], "群晖 新"),
+            ([0xC6, 0xA5, 0xC5, 0xB5, 0xB2, 0xDC, 0xB5, 0xC4, 0xBB, 0xD1, 0xD1, 0xD4, 0x00], "匹诺曹的谎言")
+        ]
+        for item in gbkCases {
+            let decoded = item.bytes.withUnsafeBufferPointer { buf in
+                buf.baseAddress!.withMemoryRebound(to: CChar.self, capacity: buf.count) {
+                    NativeFTPBackend.decodeEntryName($0)
+                }
+            }
+            #expect(decoded == item.expected)
+        }
+    }
 }
