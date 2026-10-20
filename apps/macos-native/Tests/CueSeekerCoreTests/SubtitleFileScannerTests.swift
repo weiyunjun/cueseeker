@@ -12,7 +12,8 @@ func scansSupportedSubtitleFilesRecursivelyAndIgnoresOtherFiles() throws {
     try "one".write(to: root.appendingPathComponent("Movie.srt"), atomically: true, encoding: .utf8)
     try "two".write(to: nested.appendingPathComponent("Episode.SRT"), atomically: true, encoding: .utf8)
     try "three".write(to: nested.appendingPathComponent("Episode.ass"), atomically: true, encoding: .utf8)
-    try "four".write(to: nested.appendingPathComponent("Episode.vtt"), atomically: true, encoding: .utf8)
+    try "four".write(to: nested.appendingPathComponent("Episode.ssa"), atomically: true, encoding: .utf8)
+    try "five".write(to: nested.appendingPathComponent("Episode.vtt"), atomically: true, encoding: .utf8)
     try "ignore".write(to: root.appendingPathComponent("Movie.txt"), atomically: true, encoding: .utf8)
 
     defer {
@@ -22,7 +23,7 @@ func scansSupportedSubtitleFilesRecursivelyAndIgnoresOtherFiles() throws {
     let scanner = SubtitleFileScanner()
     let results = scanner.scanSubtitleFiles(in: root)
 
-    #expect(results.map(\.lastPathComponent) == ["Movie.srt", "Episode.SRT", "Episode.ass", "Episode.vtt"])
+    #expect(results.map(\.lastPathComponent) == ["Movie.srt", "Episode.SRT", "Episode.ass", "Episode.ssa", "Episode.vtt"])
     #expect(scanner.scanSRTFiles(in: root).map(\.lastPathComponent) == ["Movie.srt", "Episode.SRT"])
 }
 

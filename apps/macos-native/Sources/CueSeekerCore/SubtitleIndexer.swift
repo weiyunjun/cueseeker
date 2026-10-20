@@ -376,8 +376,8 @@ public struct SubtitleIndexer {
                 switch format {
                 case .srt, .vtt:
                     cueGroups = try SRTParser.parseCueGroupsForIndexing(contents, format: format)
-                case .ass:
-                    cueGroups = try ASSParser.parseCueGroupsForIndexing(contents)
+                case .ass, .ssa:
+                    cueGroups = try ASSParser.parseCueGroupsForIndexing(contents, format: format)
                     assFontReferences = ASSFontIntentExtractor.references(from: contents)
                     if ASSRenderSegmenter.shouldSegment(
                         format: format,
@@ -531,7 +531,7 @@ public struct SubtitleIndexer {
             return false
         }
 
-        if metadata.subtitleFormat == .ass,
+        if metadata.subtitleFormat.usesASSSemantics,
            try !playbackDatabase.hasCurrentASSFontReferenceManifest(forSubtitleFile: subtitleFile) {
             return false
         }

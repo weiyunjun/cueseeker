@@ -3,6 +3,7 @@ import Foundation
 public enum SubtitleFormat: String, Equatable, Sendable {
     case srt
     case ass
+    case ssa
     case vtt
 
     public init?(fileExtension: String) {
@@ -11,6 +12,8 @@ public enum SubtitleFormat: String, Equatable, Sendable {
             self = .srt
         case "ass":
             self = .ass
+        case "ssa":
+            self = .ssa
         case "vtt":
             self = .vtt
         default:
@@ -22,10 +25,21 @@ public enum SubtitleFormat: String, Equatable, Sendable {
         switch self {
         case .ass:
             return 0
-        case .srt:
+        case .ssa:
             return 1
-        case .vtt:
+        case .srt:
             return 2
+        case .vtt:
+            return 3
+        }
+    }
+
+    public var usesASSSemantics: Bool {
+        switch self {
+        case .ass, .ssa:
+            return true
+        case .srt, .vtt:
+            return false
         }
     }
 }

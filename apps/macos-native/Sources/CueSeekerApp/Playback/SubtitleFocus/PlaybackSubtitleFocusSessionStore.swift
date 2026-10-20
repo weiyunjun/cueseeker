@@ -1261,7 +1261,7 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
         return openSnapshot.subtitleRenderSource
             ?? PlaybackSubtitleSource(
                 url: URL.fromMediaPath(source.subtitlePath),
-                format: source.subtitleFormat == .ass ? .ass : .srt,
+                format: source.subtitleFormat.usesASSSemantics ? .ass : .srt,
                 matchedVideoURL: URL.fromMediaPath(source.videoPath),
                 initialTimestampMilliseconds:
                     openSnapshot.timestampMilliseconds

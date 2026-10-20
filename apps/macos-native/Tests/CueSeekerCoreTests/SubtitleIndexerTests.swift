@@ -2372,3 +2372,42 @@ private func queryString(at url: URL, sql: String) throws -> String? {
     }
     return String(cString: value)
 }
+
+@Test
+func indexesSSASubtitleFileAndSkipsUnchangedOnSecondPass() throws {
+    let fixture = try IndexingFixture()
+    defer {
+        fixture.cleanUp()
+    }
+
+    try fixture.writeSubtitle(
+        name: "Episode.ssa",
+        contents: """
+        [Script Info]
+        ScriptType: v4.00
+        PlayResX: 1920
+        PlayResY: 1080
+
+        [V4 Styles]
+        Format: Name, Fontname, Fontsize, Alignment, MarginL, MarginR, MarginV
+        Style: *Default,Arial,28,2,20,20,30
+
+        [Events]
+        Format: Marked, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+        Dialogue: Marked=0,0:00:01.00,0:00:03.00,Default,,0000,0000,0000,,Hello searchable SSA subtitle line
+        """
+    )
+    try fixture.writeVideo(name: "Episode.mkv")
+
+    let database = try IndexingDatabase(path: fixture.databaseURL)
+    let indexer = SubtitleIndexer()
+
+    let firstResult = try indexer.index(folder: fixture.root, into: database)
+    #expect(firstResult.indexedSubtitleFiles == 1)
+    #expect(firstResult.indexedSubtitleEntries == 1)
+    #expect(try database.subtitleFiles().first?.subtitleFormat == .ssa)
+
+    let secondResult = try indexer.index(folder: fixture.root, into: database)
+    #expect(secondResult.indexedSubtitleFiles == 0)
+    #expect(secondResult.skippedUnchangedSubtitleFiles == 1)
+}

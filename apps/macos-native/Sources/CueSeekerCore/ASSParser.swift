@@ -5,13 +5,19 @@ public enum ASSParsingError: Error, Equatable, Sendable {
 }
 
 public enum ASSParser {
-    public static func parseCueGroups(_ contents: String) -> [SubtitleCueGroup] {
-        var parser = Parser(contents: contents)
+    public static func parseCueGroups(
+        _ contents: String,
+        format: SubtitleFormat = .ass
+    ) -> [SubtitleCueGroup] {
+        var parser = Parser(contents: contents, format: format)
         return parser.parse()
     }
 
-    public static func parseCueGroupsForIndexing(_ contents: String) throws -> [SubtitleCueGroup] {
-        var parser = Parser(contents: contents)
+    public static func parseCueGroupsForIndexing(
+        _ contents: String,
+        format: SubtitleFormat = .ass
+    ) throws -> [SubtitleCueGroup] {
+        var parser = Parser(contents: contents, format: format)
         let groups = parser.parse()
         guard parser.malformedDialogueCount == 0 else {
             throw ASSParsingError.malformedDialogue
@@ -88,6 +94,7 @@ public enum ASSParser {
 
     private struct Parser {
         var contents: String
+        var format: SubtitleFormat = .ass
         var section: Section = .unknown
         var playResX: Double?
         var playResY: Double?
@@ -127,7 +134,9 @@ public enum ASSParser {
             case .scriptInfo:
                 parseScriptInfo(line)
             case .styles:
-                parseStyleLine(line)
+                parseStyleLine(line, usesLegacySSAAlignment: false)
+            case .legacyStyles:
+                parseStyleLine(line, usesLegacySSAAlignment: true)
             case .events:
                 parseEventLine(line)
             case .unknown:
@@ -150,7 +159,7 @@ public enum ASSParser {
             }
         }
 
-        mutating func parseStyleLine(_ line: String) {
+        mutating func parseStyleLine(_ line: String, usesLegacySSAAlignment: Bool) {
             if line.lowercased().hasPrefix("format:") {
                 styleFormat = parseFormat(String(line.dropFirst("format:".count)))
                 return
@@ -164,15 +173,22 @@ public enum ASSParser {
 
             let fields = splitFields(String(line.dropFirst("style:".count)), expectedCount: styleFormat.count)
             guard fields.count == styleFormat.count,
-                  let name = value(named: "name", fields: fields, format: styleFormat),
-                  !name.isEmpty
+                  let rawName = value(named: "name", fields: fields, format: styleFormat),
+                  let name = SubtitleLanguageAnalyzer.canonicalASSStyleName(rawName)
             else {
                 return
             }
 
+            let rawAlignment = value(named: "alignment", fields: fields, format: styleFormat).flatMap(Int.init)
+            let alignment = rawAlignment.flatMap {
+                usesLegacySSAAlignment
+                    ? ASSParser.numpadAlignmentFromSSAStyleAlignment($0)
+                    : $0
+            }
+
             styles[name] = ASSStyle(
                 fontSize: value(named: "fontsize", fields: fields, format: styleFormat).flatMap(Double.init),
-                alignment: value(named: "alignment", fields: fields, format: styleFormat).flatMap(Int.init),
+                alignment: alignment,
                 marginL: value(named: "marginl", fields: fields, format: styleFormat).flatMap(Double.init),
                 marginR: value(named: "marginr", fields: fields, format: styleFormat).flatMap(Double.init),
                 marginV: value(named: "marginv", fields: fields, format: styleFormat).flatMap(Double.init)
@@ -261,7 +277,9 @@ public enum ASSParser {
             marginR eventMarginR: Double?,
             marginV eventMarginV: Double?
         ) -> ASSLayoutMetadata {
-            let style = styleName.flatMap { styles[$0] }
+            let style = styleName
+                .flatMap(SubtitleLanguageAnalyzer.canonicalASSStyleName)
+                .flatMap { styles[$0] }
             let explicitPosition = inlinePosition(in: rawText)
             let effectiveAlignment = inlineAlignment(in: rawText) ?? style?.alignment
             let effectiveFontSize = inlineFontSize(in: rawText) ?? style?.fontSize
@@ -346,7 +364,7 @@ public enum ASSParser {
                     let cueLines = sortedLines.enumerated().map { displayOrder, line in
                         SubtitleCueLine(
                             eventIndex: line.eventIndex,
-                            sourceFormat: .ass,
+                            sourceFormat: format,
                             sourceStyle: line.sourceStyle,
                             sourceLayer: line.sourceLayer,
                             sourceIdentityRemainder: line.sourceIdentityRemainder,
@@ -533,7 +551,29 @@ public enum ASSParser {
         }
 
         func inlineAlignment(in text: String) -> Int? {
-            firstOverrideMatch(in: text, pattern: #"\\an([1-9])"#).flatMap(Int.init)
+            guard let regex = try? NSRegularExpression(
+                pattern: #"\\(?:an([1-9])|a(?![a-zA-Z])\s*([0-9]+))"#
+            ) else {
+                return nil
+            }
+
+            let range = NSRange(text.startIndex..<text.endIndex, in: text)
+            guard let match = regex.firstMatch(in: text, range: range) else {
+                return nil
+            }
+
+            if match.range(at: 1).location != NSNotFound,
+               let swiftRange = Range(match.range(at: 1), in: text) {
+                return Int(text[swiftRange])
+            }
+
+            if match.range(at: 2).location != NSNotFound,
+               let swiftRange = Range(match.range(at: 2), in: text),
+               let ssaAlignment = Int(text[swiftRange]) {
+                return ASSParser.numpadAlignmentFromSSAInlineAlignment(ssaAlignment)
+            }
+
+            return nil
         }
 
         func inlinePosition(in text: String) -> ASSPoint? {
@@ -642,8 +682,41 @@ public enum ASSParser {
     private enum Section: String {
         case scriptInfo = "[script info]"
         case styles = "[v4+ styles]"
+        case legacyStyles = "[v4 styles]"
         case events = "[events]"
         case unknown
+    }
+
+    private static func numpadAlignmentFromSSAStyleAlignment(_ alignment: Int) -> Int? {
+        switch alignment {
+        case 1, 2, 3:
+            return alignment
+        case 4:
+            return 6
+        case 5, 6, 7:
+            return alignment + 2
+        case 8:
+            return 3
+        case 9, 10, 11:
+            return alignment - 5
+        default:
+            return nil
+        }
+    }
+
+    private static func numpadAlignmentFromSSAInlineAlignment(_ alignment: Int) -> Int? {
+        switch alignment {
+        case 1, 2, 3:
+            return alignment
+        case 4, 8:
+            return 7
+        case 5, 6, 7:
+            return alignment + 2
+        case 9, 10, 11:
+            return alignment - 5
+        default:
+            return nil
+        }
     }
 
     private struct ASSStyle {

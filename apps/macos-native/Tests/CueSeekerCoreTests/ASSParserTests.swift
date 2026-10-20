@@ -1,5 +1,5 @@
 import Testing
-import CueSeekerCore
+@testable import CueSeekerCore
 
 @Test
 func parsesASSDialogueEventsIntoExactTimeCueGroups() {
@@ -176,4 +176,119 @@ func rejectsInvalidASSTimecodes() {
     #expect(ASSParser.milliseconds(from: "0:60:00.00") == nil)
     #expect(ASSParser.milliseconds(from: "0:00:60.00") == nil)
     #expect(ASSParser.milliseconds(from: "bad") == nil)
+}
+
+@Test
+func parsesSSADialogueWithV4StylesLeadingStarAndLegacyAlignment() throws {
+    let contents = """
+    [Script Info]
+    ScriptType: v4.00
+    PlayResX: 1920
+    PlayResY: 1080
+
+    [V4 Styles]
+    Format: Name, Fontname, Fontsize, Alignment, MarginL, MarginR, MarginV
+    Style: *Bottom,Arial,28,2,20,20,30
+    Style: Top,Arial,28,6,20,20,40
+
+    [Events]
+    Format: Marked, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+    Dialogue: Marked=0,0:00:01.00,0:00:03.00,Bottom,,0000,0000,0000,,Hello from SSA bottom subtitle line for language detection
+    Dialogue: Marked=0,0:00:01.00,0:00:03.00,*Top,,0000,0000,0000,,こんにちは、今日はとても良い天気ですね
+    Dialogue: Marked=0,0:00:04.00,0:00:06.00,Bottom,,0000,0000,0000,,{\\a6}Inline top override
+    Dialogue: Marked=0,0:00:04.00,0:00:06.00,Bottom,,0000,0000,0000,,{\\a2}Inline bottom override
+    """
+
+    let groups = try ASSParser.parseCueGroupsForIndexing(contents, format: .ssa)
+
+    #expect(groups.count == 2)
+    #expect(groups[0].cueLines.map(\.sourceFormat) == [.ssa, .ssa])
+    #expect(groups[0].cueLines.map(\.content) == [
+        "こんにちは、今日はとても良い天気ですね",
+        "Hello from SSA bottom subtitle line for language detection"
+    ])
+    #expect(groups[0].cueLines.map(\.sourceLayer) == [nil, nil])
+    #expect(groups[1].cueLines.map(\.content) == ["Inline top override", "Inline bottom override"])
+
+    let analysis = SubtitleLanguageAnalyzer().analyze(format: .ssa, cueGroups: groups)
+    #expect(analysis.format == .ssa)
+    #expect(analysis.styleDetections["Bottom"]?.languages.contains(.english) == true)
+    #expect(analysis.styleDetections["Top"]?.languages.contains(.japanese) == true)
+}
+
+@Test
+func ordersSameNamedVideoSubtitlesWithAssBeforeSsaBeforeSrtBeforeVtt() {
+    let videoPath = "/Media/Episode01.mkv"
+    let subtitles = VideoSubtitles(
+        videoPath: videoPath,
+        subtitles: [
+            VideoSubtitle(subtitleFileID: 1, subtitlePath: "/Media/Episode01.vtt", format: .vtt),
+            VideoSubtitle(subtitleFileID: 2, subtitlePath: "/Media/Episode01.srt", format: .srt),
+            VideoSubtitle(subtitleFileID: 3, subtitlePath: "/Media/Episode01.ssa", format: .ssa),
+            VideoSubtitle(subtitleFileID: 4, subtitlePath: "/Media/Episode01.ass", format: .ass),
+            VideoSubtitle(subtitleFileID: 5, subtitlePath: "/Media/Episode01.chs.ass", format: .ass)
+        ],
+        defaultSubtitleFileID: nil
+    )
+
+    #expect(subtitles.subtitles.map(\.subtitlePath) == [
+        "/Media/Episode01.ass",
+        "/Media/Episode01.ssa",
+        "/Media/Episode01.srt",
+        "/Media/Episode01.vtt",
+        "/Media/Episode01.chs.ass"
+    ])
+    #expect(subtitles.effectiveDefault?.format == .ass)
+}
+
+@Test
+func reconcilesSSACueIdentityUsingFourPartRules() throws {
+    let originalContents = """
+    [Script Info]
+    ScriptType: v4.00
+
+    [V4 Styles]
+    Format: Name, Fontname, Fontsize, Alignment, MarginL, MarginR, MarginV
+    Style: *Default,Arial,28,2,20,20,30
+
+    [Events]
+    Format: Marked, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+    Dialogue: Marked=0,0:00:01.00,0:00:03.00,Default,Alice,0000,0000,0000,,Original SSA text
+    """
+    let editedContents = """
+    [Script Info]
+    ScriptType: v4.00
+
+    [V4 Styles]
+    Format: Name, Fontname, Fontsize, Alignment, MarginL, MarginR, MarginV
+    Style: *Default,Arial,28,2,20,20,30
+
+    [Events]
+    Format: Marked, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+    Dialogue: Marked=0,0:00:01.00,0:00:03.00,Default,Alice,0000,0000,0000,,Edited SSA text
+    """
+
+    let originalCue = try #require(
+        try ASSParser.parseCueGroupsForIndexing(originalContents, format: .ssa).first?.cueLines.first
+    )
+    let editedCue = try #require(
+        try ASSParser.parseCueGroupsForIndexing(editedContents, format: .ssa).first?.cueLines.first
+    )
+
+    let stored = StoredCueIdentity(
+        cueID: 42,
+        sourceFormat: originalCue.sourceFormat,
+        sourceStyle: originalCue.sourceStyle,
+        sourceIdentityRemainder: originalCue.sourceIdentityRemainder,
+        startMilliseconds: originalCue.startMilliseconds,
+        endMilliseconds: originalCue.endMilliseconds,
+        content: originalCue.content
+    )
+
+    let assignments = CueIdentityReconciler.reconcile(
+        storedCues: [stored],
+        newCues: [editedCue]
+    )
+
+    #expect(assignments[0] == CueIdentityAssignment(cueID: 42, previousContent: "Original SSA text"))
 }

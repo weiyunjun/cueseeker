@@ -69,14 +69,14 @@ enum CueLineLanguages {
             switch sourceFormat {
             case .srt, .vtt:
                 return detections.fileLanguages ?? [.unknown]
-            case .ass:
+            case .ass, .ssa:
                 guard let styleName = SubtitleLanguageAnalyzer.canonicalASSStyleName(sourceStyle) else {
                     return SubtitleLanguageAnalyzer.languageSegments(from: content).isEmpty ? [] : [.unknown]
                 }
                 return detections.styleLanguagesByName[styleName] ?? [.unknown]
             }
         }
-        if fileFormat == .ass, groupLineCount > 1 {
+        if fileFormat.usesASSSemantics, groupLineCount > 1 {
             return SubtitleLanguageRecognizer(minimumEffectiveCharacterCount: 4)
                 .detectLanguages(in: SubtitleLanguageAnalyzer.languageSegments(from: content))
                 .languages

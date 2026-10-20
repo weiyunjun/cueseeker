@@ -485,7 +485,7 @@ public enum SubtitleScreenshotExporter {
     ) -> PlaybackSubtitleSource {
         item.subtitleSource ?? PlaybackSubtitleSource(
             url: URL.fromMediaPath(item.subtitlePath),
-            format: item.subtitleFormat == .ass ? .ass : .srt,
+            format: item.subtitleFormat.usesASSSemantics ? .ass : .srt,
             matchedVideoURL: URL.fromMediaPath(item.videoPath),
             preparationTimeWindow: PlaybackSubtitleTimeWindow(
                 startMilliseconds: item.startMilliseconds,

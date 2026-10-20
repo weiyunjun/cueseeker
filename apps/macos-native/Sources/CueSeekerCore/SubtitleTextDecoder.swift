@@ -156,7 +156,7 @@ public enum SubtitleTextDecoder {
         format: SubtitleFormat
     ) -> Bool {
         switch format {
-        case .ass:
+        case .ass, .ssa:
             var hasEventsSection = false
             var hasEventFormat = false
 

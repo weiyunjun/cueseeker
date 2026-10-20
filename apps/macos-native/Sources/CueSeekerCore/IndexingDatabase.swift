@@ -606,7 +606,7 @@ public final class IndexingDatabase: @unchecked Sendable {
             metadata: playbackFinishMetadata
         )
 
-        if format == .ass {
+        if format.usesASSSemantics {
             try insertASSFontReferenceManifest(
                 subtitleFileID: subtitleFileID,
                 referencedFontCount: assFontReferences.count
@@ -1241,7 +1241,7 @@ public final class IndexingDatabase: @unchecked Sendable {
         }
 
         let lastSubtitleEndMilliseconds = groupedCues.map(\.endMilliseconds).max()
-        guard format == .ass else {
+        guard format.usesASSSemantics else {
             return SubtitlePlaybackFinishMetadata(
                 primaryStyles: [],
                 primaryStyleLastEndMilliseconds: nil,

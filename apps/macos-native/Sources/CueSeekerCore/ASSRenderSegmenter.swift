@@ -33,7 +33,7 @@ public enum ASSRenderSegmenter {
     public static let maximumSegmentDurationMilliseconds = 60_000
 
     public static func shouldSegment(format: SubtitleFormat, fileSize: Int64?) -> Bool {
-        format == .ass && (fileSize ?? 0) >= largeFileThresholdBytes
+        format.usesASSSemantics && (fileSize ?? 0) >= largeFileThresholdBytes
     }
 
     public static func renderSegments(from contents: String) -> [ASSRenderSegmentPayload] {

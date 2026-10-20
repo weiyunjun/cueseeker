@@ -94,9 +94,9 @@ public struct VideoSubtitles: Equatable, Sendable {
     public let defaultSubtitleFileID: Int64?
 
     /// Orders the subtitles: those named like the video once each drops its
-    /// last extension come first, ass before srt before vtt; the rest follow
-    /// in Finder's file name order. Names compare the way matching compares
-    /// them.
+    /// last extension come first, ass before ssa before srt before vtt; the
+    /// rest follow in Finder's file name order. Names compare the way matching
+    /// compares them.
     public init(videoPath: String, subtitles: [VideoSubtitle], defaultSubtitleFileID: Int64?) {
         let videoName = Self.nameWithoutLastExtension(videoPath)
         let sharesVideoName = { (subtitle: VideoSubtitle) in

@@ -1468,7 +1468,7 @@ extension AppCoordinator {
         switch format {
         case .srt, .vtt:
             playbackFormat = .srt
-        case .ass:
+        case .ass, .ssa:
             playbackFormat = .ass
         }
 

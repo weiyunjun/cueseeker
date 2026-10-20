@@ -33,8 +33,8 @@ public struct SubtitleLanguageAnalyzer: Sendable {
         switch format {
         case .srt, .vtt:
             return analyzeSRT(format: format, cueGroups: cueGroups)
-        case .ass:
-            return analyzeASS(cueGroups: cueGroups)
+        case .ass, .ssa:
+            return analyzeASS(format: format, cueGroups: cueGroups)
         }
     }
 
@@ -45,7 +45,7 @@ public struct SubtitleLanguageAnalyzer: Sendable {
             return nil
         }
 
-        if styleName.hasPrefix("*") {
+        while styleName.hasPrefix("*") {
             styleName.removeFirst()
         }
 
@@ -88,14 +88,17 @@ public struct SubtitleLanguageAnalyzer: Sendable {
         )
     }
 
-    private func analyzeASS(cueGroups: [SubtitleCueGroup]) -> SubtitleLanguageAnalysis {
+    private func analyzeASS(
+        format: SubtitleFormat = .ass,
+        cueGroups: [SubtitleCueGroup]
+    ) -> SubtitleLanguageAnalysis {
         var usedStyles: [String] = []
         var seenStyles = Set<String>()
         var segmentsByStyle: [String: [String]] = [:]
 
         for group in cueGroups {
             for line in group.cueLines {
-                guard line.sourceFormat == .ass,
+                guard line.sourceFormat.usesASSSemantics,
                       let styleName = Self.canonicalASSStyleName(line.sourceStyle)
                 else {
                     continue
@@ -130,7 +133,7 @@ public struct SubtitleLanguageAnalyzer: Sendable {
         }
 
         return SubtitleLanguageAnalysis(
-            format: .ass,
+            format: format,
             fileDetection: nil,
             styleDetections: styleDetections,
             cueGroupLanguages: cueGroupLanguages
