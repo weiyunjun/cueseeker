@@ -28,9 +28,9 @@ final class SMBFolderDialogSession: ObservableObject, Identifiable {
     @Published var step: Step = .connection
     @Published var address: String = "" {
         didSet {
-            let normalized = SMBAddress.autoCompletedAddressInput(address)
-            if address != normalized {
-                address = normalized
+            let decoded = SMBAddress.decodedDisplayAddress(address)
+            if address != decoded {
+                address = decoded
             }
         }
     }
@@ -166,7 +166,7 @@ struct SMBFolderDialog: View {
                     placeholder: "",
                     text: $session.address,
                     focus: $isAddressFocused,
-                    normalizeDraft: SMBAddress.autoCompletedAddressInput
+                    normalizeDraft: SMBAddress.decodedDisplayAddress
                 )
                 .disabled(session.isSubmitting)
                 .accessibilityIdentifier("smb-address")

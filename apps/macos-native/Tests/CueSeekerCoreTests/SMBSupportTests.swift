@@ -238,10 +238,24 @@ private final class InMemorySMBBackend: SMBBackendProtocol, @unchecked Sendable 
 @Suite(.serialized)
 struct SMBSupportTests {
     @Test
-    func smbAddressNormalizesAutoCompletePrefixPercentEncodingAndPorts() throws {
-        #expect(SMBAddress.autoCompletedAddressInput("nas.local") == "smb://nas.local")
-        #expect(SMBAddress.autoCompletedAddressInput("SMB://nas.local/Media/%E5%8A%A8%E6%BC%AB") == "smb://nas.local/Media/动漫")
-        #expect(SMBAddress.autoCompletedAddressInput("   ") == "")
+    func smbAddressNormalizesPrefixHostClassificationPercentEncodingAndPorts() throws {
+        // Strict case-sensitive "smb://" prefix rule on parseURL:
+        // - Lowercase "smb://" is parsed directly
+        // - Missing "smb://" has "smb://" prepended in background
+        // - Uppercase "SMB://" or other schemes "http://" become "smb://SMB://..." and fail host validation
+        #expect(SMBAddress.parseURL(from: "   ") == nil)
+        #expect(SMBAddress.parseURL(from: "SMB://nas.local/Media") == nil)
+        #expect(SMBAddress.parseURL(from: "http://192.0.2.10/Media") == nil)
+        #expect(SMBAddress.parseURL(from: "192.0.2.999/Media") == nil)
+        #expect(SMBAddress.parseURL(from: "[not-an-ipv6]/Media") == nil)
+
+        // Host classification: fixed IPv4 / IPv6 vs friendly name
+        #expect(SMBAddress.classifyHost("192.0.2.10") == .ipv4("192.0.2.10"))
+        #expect(SMBAddress.classifyHost("[fe80::1]") == .ipv6("fe80::1"))
+        #expect(SMBAddress.classifyHost("2001:db8::1") == .ipv6("2001:db8::1"))
+        #expect(SMBAddress.classifyHost("LEDE") == .friendlyName("LEDE"))
+        #expect(SMBAddress.classifyHost("nas.local") == .friendlyName("nas.local"))
+        #expect(SMBAddress.classifyHost("weiyunjun的Mac mini") == .friendlyName("weiyunjun的Mac mini"))
 
         let raw = "nas.local/Media/%E5%8A%A8%E6%BC%AB/NieR:Automata/"
         let parsed = try #require(SMBAddress.parseURL(from: raw, portOverride: 445))
@@ -259,10 +273,27 @@ struct SMBSupportTests {
         #expect(customPortURL.mediaPath == "smb://192.0.2.10:1445/Media/Shows")
         #expect(SMBAddress.effectivePort(for: customPortURL) == 1445)
 
-        let hostOnly = try #require(SMBAddress.parseURL(from: "nas.local", portOverride: 445))
+        let ipv6URL = try #require(SMBAddress.parseURL(from: "[fe80::1]/Media/动漫", portOverride: 445))
+        #expect(ipv6URL.mediaPath == "smb://[fe80::1]/Media/动漫")
+        #expect(SMBAddress.decodedHost(for: ipv6URL) == "fe80::1")
+
+        let friendlyWithSpaceAndCJK = try #require(SMBAddress.parseURL(from: "weiyunjun的Mac mini/动漫", portOverride: 445))
+        #expect(friendlyWithSpaceAndCJK.mediaPath == "smb://weiyunjun的Mac mini/动漫")
+        #expect(SMBAddress.decodedHost(for: friendlyWithSpaceAndCJK) == "weiyunjun的Mac mini")
+
+        let hostOnly = try #require(SMBAddress.parseURL(from: "LEDE", portOverride: 445))
         #expect(SMBAddress.isHostRoot(hostOnly))
-        #expect(hostOnly.mediaPath == "smb://nas.local")
-        #expect(SMBAddress.defaultDisplayName(for: hostOnly) == "nas.local")
+        #expect(hostOnly.mediaPath == "smb://LEDE")
+        #expect(SMBAddress.defaultDisplayName(for: hostOnly) == "LEDE")
+
+        // Verify SMBHostResolver passes IPv4/IPv6 directly and resolves friendly names to IP
+        defer { SMBHostResolver.shared.setCustomResolverForTesting(nil) }
+        SMBHostResolver.shared.setCustomResolverForTesting { friendly in
+            friendly == "weiyunjun的Mac mini" ? "192.0.2.55" : nil
+        }
+        #expect(try SMBHostResolver.shared.resolveConnectionHost("192.0.2.10") == "192.0.2.10")
+        #expect(try SMBHostResolver.shared.resolveConnectionHost("[fe80::1]") == "fe80::1")
+        #expect(try SMBHostResolver.shared.resolveConnectionHost("weiyunjun的Mac mini") == "192.0.2.55")
     }
 
     @Test

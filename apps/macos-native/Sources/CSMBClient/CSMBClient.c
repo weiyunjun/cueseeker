@@ -84,10 +84,17 @@ static csmb_error_code_t csmb_classify_error(struct smb2_context *smb2, int rc) 
 }
 
 static void csmb_format_server(const char *host, int port, char *buf, size_t buf_size) {
-    if (port > 0 && port != 445) {
+    int is_bare_ipv6 = (host != NULL && host[0] != '[' && strchr(host, ':') != NULL);
+    if (is_bare_ipv6) {
+        if (port > 0 && port != 445) {
+            snprintf(buf, buf_size, "[%s]:%d", host, port);
+        } else {
+            snprintf(buf, buf_size, "[%s]", host);
+        }
+    } else if (port > 0 && port != 445) {
         snprintf(buf, buf_size, "%s:%d", host, port);
     } else {
-        snprintf(buf, buf_size, "%s", host);
+        snprintf(buf, buf_size, "%s", host ? host : "");
     }
 }
 

@@ -196,9 +196,13 @@ extension URL {
     public var mediaPath: String {
         if isWebDAVURL || isSMBURL {
             guard let scheme = scheme?.lowercased(),
-                  let host = host, !host.isEmpty else {
+                  let rawHost = host, !rawHost.isEmpty else {
                 return absoluteString
             }
+            let decodedHost = WebDAVAddress.decodedDisplayAddress(rawHost)
+            let formattedHost = (decodedHost.contains(":") && !decodedHost.hasPrefix("["))
+                ? "[\(decodedHost)]"
+                : decodedHost
             let portSegment: String
             if isSMBURL {
                 if let port, port != SMBAddress.defaultPort {
@@ -219,9 +223,9 @@ extension URL {
                 decodedPath.removeLast()
             }
             if decodedPath == "/" {
-                return "\(scheme)://\(host)\(portSegment)"
+                return "\(scheme)://\(formattedHost)\(portSegment)"
             }
-            return "\(scheme)://\(host)\(portSegment)\(decodedPath)"
+            return "\(scheme)://\(formattedHost)\(portSegment)\(decodedPath)"
         }
 
         var normalized = standardizedFileURL.path
@@ -344,10 +348,11 @@ public enum WebDAVAddress {
         let trimmedPath = url.path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
         if let lastSegment = trimmedPath.split(separator: "/").last, !lastSegment.isEmpty {
             let raw = String(lastSegment)
-            return raw.removingPercentEncoding ?? raw
+            return decodedDisplayAddress(raw)
         }
         if let host = url.host, !host.isEmpty {
-            return host
+            let decoded = decodedDisplayAddress(host)
+            return (decoded.contains(":") && !decoded.hasPrefix("[")) ? "[\(decoded)]" : decoded
         }
         return url.mediaPath
     }

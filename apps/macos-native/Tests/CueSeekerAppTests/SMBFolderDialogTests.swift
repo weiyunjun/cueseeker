@@ -133,9 +133,17 @@ struct SMBFolderDialogTests {
         #expect(session.validationMessage == L("smb.error.invalid_address"))
         #expect(app.toast.visibleItems.isEmpty)
 
-        // Setting address without smb:// auto-prepends smb:// and decodes percent-encoding
+        // Setting address without smb:// preserves user input without inserting smb://, while decoding percent-encoding
         session.address = "nas.local/Media/%E5%8A%A8%E6%BC%AB"
-        #expect(session.address == "smb://nas.local/Media/动漫")
+        #expect(session.address == "nas.local/Media/动漫")
+
+        // Uppercase SMB:// is rejected as invalid address on Connect
+        session.address = "SMB://nas.local/Media"
+        app.confirmSMBFolderDialog(session)
+        #expect(session.step == .connection)
+        #expect(session.validationMessage == L("smb.error.invalid_address"))
+
+        session.address = "nas.local/Media/动漫"
 
         // Invalid port -> inline invalid port message, no toast
         session.port = "70000"
@@ -218,10 +226,10 @@ struct SMBFolderDialogTests {
         #expect(session.canAddInBrowser)
         #expect(session.items.map(\.name) == ["01. Series A", "02. Series B", "Preview.mp4"])
 
-        // Back button returns to Step 1 and preserves inputs
+        // Back button returns to Step 1 and preserves exact user input without mutating it to smb://
         app.navigateBackInSMBFolderDialog(session)
         #expect(session.step == .connection)
-        #expect(session.address == "smb://nas.local")
+        #expect(session.address == "nas.local")
         #expect(session.port == "445")
         #expect(session.username == "mediauser")
         #expect(session.password == "secret")

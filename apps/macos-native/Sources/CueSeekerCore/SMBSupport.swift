@@ -2,6 +2,7 @@ import CSMBClient
 import CryptoKit
 import Darwin
 import Foundation
+import dnssd
 
 public enum SMBError: LocalizedError, Equatable, Sendable {
     case invalidInput(String)
@@ -102,28 +103,79 @@ public enum SMBAddress {
     public static let defaultPort: Int = 445
     public static let defaultPortString: String = "445"
 
+    public enum HostKind: Equatable, Sendable {
+        case ipv4(String)
+        case ipv6(String)
+        case friendlyName(String)
+    }
+
     public static func decodedDisplayAddress(_ rawAddress: String) -> String {
         WebDAVAddress.decodedDisplayAddress(rawAddress)
     }
 
-    public static func autoCompletedAddressInput(_ rawAddress: String) -> String {
-        let decoded = decodedDisplayAddress(rawAddress)
-        let trimmed = decoded.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else {
-            return ""
+    public static func decodedHost(for url: URL) -> String? {
+        guard let rawHost = url.host, !rawHost.isEmpty else {
+            return nil
         }
-        let lower = trimmed.lowercased()
-        if lower.hasPrefix("smb://") {
-            let suffix = trimmed.dropFirst("smb://".count)
-            return "smb://" + suffix
+        return decodedDisplayAddress(rawHost)
+    }
+
+    public static func isIPv4Address(_ rawHost: String) -> Bool {
+        let trimmed = rawHost.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return false }
+        let parts = trimmed.split(separator: ".", omittingEmptySubsequences: false)
+        guard parts.count == 4 else { return false }
+        for part in parts {
+            guard !part.isEmpty, part.count <= 3, part.allSatisfy({ $0 >= "0" && $0 <= "9" }) else {
+                return false
+            }
+            if part.count > 1 && part.first == "0" {
+                return false
+            }
+            guard let octet = Int(part), (0...255).contains(octet) else {
+                return false
+            }
         }
-        if "smb://".hasPrefix(lower) {
-            return lower
+        var addr = in_addr()
+        return trimmed.withCString { inet_pton(AF_INET, $0, &addr) == 1 }
+    }
+
+    public static func isIPv6Address(_ rawHost: String) -> Bool {
+        var candidate = rawHost.trimmingCharacters(in: .whitespacesAndNewlines)
+        if candidate.hasPrefix("[") && candidate.hasSuffix("]") && candidate.count > 2 {
+            candidate.removeFirst()
+            candidate.removeLast()
         }
-        if lower.contains("://") {
-            return trimmed
+        guard !candidate.isEmpty, candidate.contains(":") else { return false }
+        let addressOnly: String
+        if let percentIndex = candidate.firstIndex(of: "%") {
+            let zone = candidate[candidate.index(after: percentIndex)...]
+            guard !zone.isEmpty, !zone.contains("%"), !zone.contains("/") else {
+                return false
+            }
+            addressOnly = String(candidate[..<percentIndex])
+        } else {
+            addressOnly = candidate
         }
-        return "smb://" + trimmed
+        guard !addressOnly.isEmpty else { return false }
+        var addr6 = in6_addr()
+        return addressOnly.withCString { inet_pton(AF_INET6, $0, &addr6) == 1 }
+    }
+
+    public static func classifyHost(_ rawHost: String) -> HostKind {
+        let trimmed = decodedDisplayAddress(rawHost).trimmingCharacters(in: .whitespacesAndNewlines)
+        if isIPv4Address(trimmed) {
+            return .ipv4(trimmed)
+        }
+        if isIPv6Address(trimmed) {
+            var bare = trimmed
+            if bare.hasPrefix("[") && bare.hasSuffix("]") && bare.count > 2 {
+                bare.removeFirst()
+                bare.removeLast()
+            }
+            return .ipv6(bare)
+        }
+        return .friendlyName(trimmed)
     }
 
     public static func parsePort(_ rawPort: String) -> Int? {
@@ -135,29 +187,27 @@ public enum SMBAddress {
     }
 
     public static func parseURL(from rawAddress: String, portOverride: Int? = nil) -> URL? {
-        let trimmed = rawAddress.trimmingCharacters(in: .whitespacesAndNewlines)
+        let decodedInput = decodedDisplayAddress(rawAddress)
+        let trimmed = decodedInput.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
             return nil
         }
 
+        // Strict case-sensitive "smb://" prefix check:
+        // If it starts with lowercase "smb://", parse directly;
+        // otherwise prepend "smb://" in the background.
         let withScheme: String
-        if let schemeRange = trimmed.range(of: "://") {
-            let scheme = String(trimmed[..<schemeRange.lowerBound]).lowercased()
-            guard scheme == "smb" else {
-                return nil
-            }
-            withScheme = "smb://" + trimmed[schemeRange.upperBound...]
+        if trimmed.hasPrefix("smb://") {
+            withScheme = trimmed
         } else {
-            guard !trimmed.hasPrefix("/") else {
-                return nil
-            }
             withScheme = "smb://" + trimmed
         }
 
-        guard let schemeRange = withScheme.range(of: "://") else {
+        let afterScheme = withScheme.dropFirst("smb://".count)
+        guard !afterScheme.isEmpty, !afterScheme.hasPrefix("/") else {
             return nil
         }
-        let afterScheme = withScheme[schemeRange.upperBound...]
+
         let authority: Substring
         let rawPathWithQuery: Substring
         if let slashIndex = afterScheme.firstIndex(of: "/") {
@@ -172,6 +222,8 @@ public enum SMBAddress {
 
         let hostWithoutUser: Substring
         if let atIndex = authority.lastIndex(of: "@") {
+            let userPart = authority[..<atIndex]
+            guard !userPart.isEmpty else { return nil }
             hostWithoutUser = authority[authority.index(after: atIndex)...]
         } else {
             hostWithoutUser = authority
@@ -179,11 +231,17 @@ public enum SMBAddress {
         guard !hostWithoutUser.isEmpty else { return nil }
 
         let hostPart: String
+        var isIPv6Host = false
         var portInAddress: Int?
         if hostWithoutUser.hasPrefix("[") {
             guard let closeBracket = hostWithoutUser.firstIndex(of: "]") else { return nil }
             let nextIndex = hostWithoutUser.index(after: closeBracket)
-            hostPart = String(hostWithoutUser[hostWithoutUser.index(after: hostWithoutUser.startIndex)..<closeBracket])
+            let insideBrackets = String(
+                hostWithoutUser[hostWithoutUser.index(after: hostWithoutUser.startIndex)..<closeBracket]
+            )
+            guard isIPv6Address(insideBrackets) else { return nil }
+            hostPart = insideBrackets
+            isIPv6Host = true
             if nextIndex < hostWithoutUser.endIndex {
                 let remainder = hostWithoutUser[nextIndex...]
                 guard remainder.hasPrefix(":"),
@@ -193,6 +251,9 @@ public enum SMBAddress {
                 }
                 portInAddress = parsedPort
             }
+        } else if isIPv6Address(String(hostWithoutUser)) {
+            hostPart = String(hostWithoutUser)
+            isIPv6Host = true
         } else if let colonIndex = hostWithoutUser.lastIndex(of: ":") {
             hostPart = String(hostWithoutUser[..<colonIndex])
             let portString = hostWithoutUser[hostWithoutUser.index(after: colonIndex)...]
@@ -205,7 +266,11 @@ public enum SMBAddress {
         }
 
         let trimmedHost = hostPart.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedHost.isEmpty, !trimmedHost.contains(" ") else { return nil }
+        guard !trimmedHost.isEmpty, trimmedHost == hostPart else { return nil }
+
+        if !isIPv6Host {
+            guard isValidNonIPv6Host(trimmedHost) else { return nil }
+        }
 
         let effectivePort: Int
         if let portOverride {
@@ -234,12 +299,66 @@ public enum SMBAddress {
             normalizedPath.removeLast()
         }
 
-        var components = URLComponents()
-        components.scheme = "smb"
-        components.host = trimmedHost
-        components.port = (effectivePort == defaultPort) ? nil : effectivePort
-        components.path = normalizedPath == "/" ? "" : normalizedPath
-        return components.url
+        return buildSMBURL(
+            host: trimmedHost,
+            isIPv6: isIPv6Host,
+            port: effectivePort,
+            normalizedPath: normalizedPath
+        )
+    }
+
+    private static func isValidNonIPv6Host(_ host: String) -> Bool {
+        guard !host.isEmpty else { return false }
+        let forbiddenCharacters = CharacterSet(charactersIn: ":/\\?#[]@").union(.controlCharacters).union(.newlines)
+        if host.rangeOfCharacter(from: forbiddenCharacters) != nil {
+            return false
+        }
+        if host.hasPrefix(".") || host.hasSuffix(".") || host.contains("..") {
+            return false
+        }
+        let looksLikeNumericDottedAddress = host.contains(".")
+            && host.allSatisfy { ($0 >= "0" && $0 <= "9") || $0 == "." }
+        if looksLikeNumericDottedAddress {
+            return isIPv4Address(host)
+        }
+        return true
+    }
+
+    private static func buildSMBURL(
+        host: String,
+        isIPv6: Bool,
+        port: Int,
+        normalizedPath: String
+    ) -> URL? {
+        let hostComponent: String
+        if isIPv6 {
+            let escapedZone = host.replacingOccurrences(of: "%", with: "%25")
+            hostComponent = "[\(escapedZone)]"
+        } else {
+            var allowed = CharacterSet.urlHostAllowed
+            allowed.remove(charactersIn: ":[]/?#@")
+            guard let encoded = host.addingPercentEncoding(withAllowedCharacters: allowed) else {
+                return nil
+            }
+            hostComponent = encoded
+        }
+
+        let portComponent = (port == defaultPort) ? "" : ":\(port)"
+        let pathComponent: String
+        if normalizedPath.isEmpty || normalizedPath == "/" {
+            pathComponent = ""
+        } else {
+            var allowedPathSegment = CharacterSet.urlPathAllowed
+            allowedPathSegment.remove(charactersIn: "/?#")
+            let encodedSegments = normalizedPath
+                .split(separator: "/", omittingEmptySubsequences: true)
+                .compactMap { segment in
+                    String(segment).addingPercentEncoding(withAllowedCharacters: allowedPathSegment)
+                }
+            pathComponent = "/" + encodedSegments.joined(separator: "/")
+        }
+
+        return URL(string: "smb://\(hostComponent)\(portComponent)\(pathComponent)")
     }
 
     public static func effectivePort(for url: URL, fallbackConfig: SMBRootConfig? = nil) -> Int {
@@ -271,6 +390,406 @@ public enum SMBAddress {
 
     public static func defaultDisplayName(for url: URL) -> String {
         WebDAVAddress.defaultDisplayName(for: url)
+    }
+}
+
+public final class SMBHostResolver: @unchecked Sendable {
+    public static let shared = SMBHostResolver()
+
+    private struct CacheEntry {
+        let ipAddress: String
+        let resolvedAt: Date
+    }
+
+    private let lock = NSLock()
+    private var cacheByHost: [String: CacheEntry] = [:]
+    private var customResolver: (@Sendable (String) -> String?)?
+    private let cacheTTL: TimeInterval = 300
+
+    public init() {}
+
+    public func setCustomResolverForTesting(_ resolver: (@Sendable (String) -> String?)?) {
+        lock.lock()
+        customResolver = resolver
+        cacheByHost.removeAll()
+        lock.unlock()
+    }
+
+    public func invalidateCachedHost(_ host: String) {
+        let key = Self.cacheKey(for: host)
+        lock.lock()
+        cacheByHost.removeValue(forKey: key)
+        lock.unlock()
+    }
+
+    public func resolveConnectionHost(_ rawHost: String, allowCache: Bool = true) throws -> String {
+        switch SMBAddress.classifyHost(rawHost) {
+        case .ipv4(let ipv4):
+            return ipv4
+        case .ipv6(let ipv6):
+            return ipv6
+        case .friendlyName(let friendlyName):
+            guard !friendlyName.isEmpty else {
+                throw SMBError.invalidAddress
+            }
+            let key = Self.cacheKey(for: friendlyName)
+            let overrideResolver: (@Sendable (String) -> String?)?
+            lock.lock()
+            overrideResolver = customResolver
+            if allowCache,
+               let cached = cacheByHost[key],
+               Date().timeIntervalSince(cached.resolvedAt) < cacheTTL {
+                let ip = cached.ipAddress
+                lock.unlock()
+                return ip
+            }
+            lock.unlock()
+
+            let resolvedIP: String?
+            if let overrideResolver {
+                resolvedIP = overrideResolver(friendlyName)
+            } else {
+                resolvedIP = Self.resolveFriendlyNameToIPAddress(friendlyName)
+            }
+
+            guard let ip = resolvedIP, !ip.isEmpty else {
+                throw SMBError.networkError("Could not resolve SMB host \"\(friendlyName)\".")
+            }
+
+            lock.lock()
+            cacheByHost[key] = CacheEntry(ipAddress: ip, resolvedAt: Date())
+            lock.unlock()
+            return ip
+        }
+    }
+
+    private static func cacheKey(for host: String) -> String {
+        host.precomposedStringWithCanonicalMapping.lowercased()
+    }
+
+    private static func resolveFriendlyNameToIPAddress(_ friendlyName: String) -> String? {
+        let normalized = friendlyName.precomposedStringWithCanonicalMapping
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else { return nil }
+        let isLocalhost = normalized.caseInsensitiveCompare("localhost") == .orderedSame
+
+        // 1. Direct DNS / system resolver lookup (handles FQDNs, localhost, and explicit .local names)
+        if !normalized.contains(" "),
+           let directIP = lookupAddrInfo(hostname: normalized, preferLoopback: isLocalhost) {
+            return directIP
+        }
+
+        // 2. Bonjour multicast DNS (.local) lookup
+        let lower = normalized.lowercased()
+        if !lower.hasSuffix(".local") {
+            if !normalized.contains(" "),
+               let localIP = lookupAddrInfo(hostname: "\(normalized).local", preferLoopback: false) {
+                return localIP
+            }
+            let sanitized = sanitizeBonjourHostLabel(normalized)
+            if !sanitized.isEmpty,
+               sanitized.caseInsensitiveCompare(normalized) != .orderedSame,
+               let sanitizedIP = lookupAddrInfo(hostname: "\(sanitized).local", preferLoopback: false) {
+                return sanitizedIP
+            }
+        }
+
+        // 3. Bonjour _smb._tcp. service discovery in "local."
+        let serviceQueryName = lower.hasSuffix(".local")
+            ? String(normalized.dropLast(".local".count))
+            : normalized
+        if let bonjourIP = resolveViaBonjourSMBService(serviceName: serviceQueryName) {
+            return bonjourIP
+        }
+
+        // 4. NetBIOS lookup fallback via /usr/bin/smbutil lookup
+        if let netbiosIP = resolveViaSMBUtilLookup(name: serviceQueryName) {
+            return netbiosIP
+        }
+
+        return nil
+    }
+
+    private static func sanitizeBonjourHostLabel(_ raw: String) -> String {
+        var result = raw
+            .replacingOccurrences(of: "'", with: "")
+            .replacingOccurrences(of: "’", with: "")
+            .replacingOccurrences(of: " ", with: "-")
+        while result.contains("--") {
+            result = result.replacingOccurrences(of: "--", with: "-")
+        }
+        return result.trimmingCharacters(in: CharacterSet(charactersIn: "-."))
+    }
+
+    private static func lookupAddrInfo(hostname: String, preferLoopback: Bool) -> String? {
+        var hints = addrinfo()
+        hints.ai_family = AF_UNSPEC
+        hints.ai_socktype = SOCK_STREAM
+
+        var res: UnsafeMutablePointer<addrinfo>?
+        let rc = getaddrinfo(hostname, nil, &hints, &res)
+        guard rc == 0, let first = res else {
+            return nil
+        }
+        defer { freeaddrinfo(first) }
+
+        var nonLoopbackIPv4: [String] = []
+        var loopbackIPv4: [String] = []
+        var nonLoopbackIPv6: [String] = []
+        var loopbackIPv6: [String] = []
+
+        var current: UnsafeMutablePointer<addrinfo>? = first
+        while let info = current {
+            if info.pointee.ai_family == AF_INET, let addr = info.pointee.ai_addr {
+                var sin = addr.withMemoryRebound(to: sockaddr_in.self, capacity: 1) { $0.pointee }
+                var buf = [CChar](repeating: 0, count: Int(INET_ADDRSTRLEN))
+                if inet_ntop(AF_INET, &sin.sin_addr, &buf, socklen_t(INET_ADDRSTRLEN)) != nil {
+                    let ip = String(cString: buf)
+                    if ip.hasPrefix("127.") {
+                        if !loopbackIPv4.contains(ip) { loopbackIPv4.append(ip) }
+                    } else {
+                        if !nonLoopbackIPv4.contains(ip) { nonLoopbackIPv4.append(ip) }
+                    }
+                }
+            } else if info.pointee.ai_family == AF_INET6, let addr = info.pointee.ai_addr {
+                var sin6 = addr.withMemoryRebound(to: sockaddr_in6.self, capacity: 1) { $0.pointee }
+                var buf = [CChar](repeating: 0, count: Int(INET6_ADDRSTRLEN))
+                if inet_ntop(AF_INET6, &sin6.sin6_addr, &buf, socklen_t(INET6_ADDRSTRLEN)) != nil {
+                    let ip = String(cString: buf)
+                    if ip == "::1" {
+                        if !loopbackIPv6.contains(ip) { loopbackIPv6.append(ip) }
+                    } else if !ip.lowercased().hasPrefix("fe80:") {
+                        if !nonLoopbackIPv6.contains(ip) { nonLoopbackIPv6.append(ip) }
+                    }
+                }
+            }
+            current = info.pointee.ai_next
+        }
+
+        if preferLoopback {
+            return loopbackIPv4.first
+                ?? nonLoopbackIPv4.first
+                ?? loopbackIPv6.first
+                ?? nonLoopbackIPv6.first
+        }
+        return nonLoopbackIPv4.first
+            ?? loopbackIPv4.first
+            ?? nonLoopbackIPv6.first
+            ?? loopbackIPv6.first
+    }
+
+    private final class BonjourResolveBox {
+        var targetHosts: [String] = []
+    }
+
+    private final class BonjourBrowseBox {
+        var services: [(name: String, regtype: String, domain: String, interfaceIndex: UInt32)] = []
+    }
+
+    private static func resolveViaBonjourSMBService(serviceName: String) -> String? {
+        // Direct service instance resolution for <serviceName>._smb._tcp.local.
+        let directTargets = resolveBonjourServiceTargetHosts(
+            name: serviceName,
+            regtype: "_smb._tcp.",
+            domain: "local.",
+            interfaceIndex: 0,
+            timeoutSeconds: 0.45
+        )
+        for target in directTargets {
+            if let ip = lookupAddrInfo(hostname: target, preferLoopback: false) {
+                return ip
+            }
+        }
+
+        // Case-insensitive / NFC-normalized match against advertised _smb._tcp services on the LAN
+        let discovered = browseBonjourSMBServices(timeoutSeconds: 0.45)
+        let normalizedTarget = serviceName.precomposedStringWithCanonicalMapping.lowercased()
+        let sanitizedTarget = sanitizeBonjourHostLabel(serviceName).lowercased()
+
+        for service in discovered {
+            let candidate = service.name.precomposedStringWithCanonicalMapping.lowercased()
+            let sanitizedCandidate = sanitizeBonjourHostLabel(service.name).lowercased()
+            if candidate == normalizedTarget
+                || (!sanitizedTarget.isEmpty && sanitizedCandidate == sanitizedTarget) {
+                let targets = resolveBonjourServiceTargetHosts(
+                    name: service.name,
+                    regtype: service.regtype,
+                    domain: service.domain,
+                    interfaceIndex: service.interfaceIndex,
+                    timeoutSeconds: 0.45
+                )
+                for target in targets {
+                    if let ip = lookupAddrInfo(hostname: target, preferLoopback: false) {
+                        return ip
+                    }
+                }
+            }
+        }
+
+        return nil
+    }
+
+    private static func resolveBonjourServiceTargetHosts(
+        name: String,
+        regtype: String,
+        domain: String,
+        interfaceIndex: UInt32,
+        timeoutSeconds: TimeInterval
+    ) -> [String] {
+        let box = BonjourResolveBox()
+        var sdRef: DNSServiceRef?
+        let callback: DNSServiceResolveReply = { _, _, _, errorCode, _, hosttarget, _, _, _, context in
+            guard errorCode == kDNSServiceErr_NoError,
+                  let context,
+                  let hosttarget else {
+                return
+            }
+            let state = Unmanaged<BonjourResolveBox>.fromOpaque(context).takeUnretainedValue()
+            var target = String(cString: hosttarget)
+            while target.hasSuffix(".") {
+                target.removeLast()
+            }
+            if !target.isEmpty && !state.targetHosts.contains(target) {
+                state.targetHosts.append(target)
+            }
+        }
+
+        let err = DNSServiceResolve(
+            &sdRef,
+            0,
+            interfaceIndex,
+            name,
+            regtype,
+            domain,
+            callback,
+            Unmanaged.passUnretained(box).toOpaque()
+        )
+        guard err == kDNSServiceErr_NoError, let activeRef = sdRef else {
+            return []
+        }
+        defer { DNSServiceRefDeallocate(activeRef) }
+
+        let fd = DNSServiceRefSockFD(activeRef)
+        guard fd >= 0 else { return [] }
+        var pfd = pollfd(fd: fd, events: Int16(POLLIN), revents: 0)
+        let deadline = Date().addingTimeInterval(timeoutSeconds)
+        while Date() < deadline && box.targetHosts.isEmpty {
+            let remainingMs = Int32(max(1, deadline.timeIntervalSinceNow * 1000))
+            let rc = Darwin.poll(&pfd, 1, remainingMs)
+            if rc > 0 && (pfd.revents & Int16(POLLIN)) != 0 {
+                if DNSServiceProcessResult(activeRef) != kDNSServiceErr_NoError {
+                    break
+                }
+            } else {
+                break
+            }
+        }
+        return box.targetHosts
+    }
+
+    private static func browseBonjourSMBServices(
+        timeoutSeconds: TimeInterval
+    ) -> [(name: String, regtype: String, domain: String, interfaceIndex: UInt32)] {
+        let box = BonjourBrowseBox()
+        var sdRef: DNSServiceRef?
+        let callback: DNSServiceBrowseReply = { _, flags, interfaceIndex, errorCode, serviceName, regtype, replyDomain, context in
+            guard errorCode == kDNSServiceErr_NoError,
+                  let context,
+                  let serviceName,
+                  let regtype,
+                  let replyDomain else {
+                return
+            }
+            if (flags & UInt32(kDNSServiceFlagsAdd)) != 0 {
+                let state = Unmanaged<BonjourBrowseBox>.fromOpaque(context).takeUnretainedValue()
+                state.services.append((
+                    name: String(cString: serviceName),
+                    regtype: String(cString: regtype),
+                    domain: String(cString: replyDomain),
+                    interfaceIndex: interfaceIndex
+                ))
+            }
+        }
+
+        let err = DNSServiceBrowse(
+            &sdRef,
+            0,
+            0,
+            "_smb._tcp.",
+            "local.",
+            callback,
+            Unmanaged.passUnretained(box).toOpaque()
+        )
+        guard err == kDNSServiceErr_NoError, let activeRef = sdRef else {
+            return []
+        }
+        defer { DNSServiceRefDeallocate(activeRef) }
+
+        let fd = DNSServiceRefSockFD(activeRef)
+        guard fd >= 0 else { return [] }
+        var pfd = pollfd(fd: fd, events: Int16(POLLIN), revents: 0)
+        let deadline = Date().addingTimeInterval(timeoutSeconds)
+        while Date() < deadline {
+            let remainingMs = Int32(max(1, deadline.timeIntervalSinceNow * 1000))
+            let rc = Darwin.poll(&pfd, 1, remainingMs)
+            if rc > 0 && (pfd.revents & Int16(POLLIN)) != 0 {
+                if DNSServiceProcessResult(activeRef) != kDNSServiceErr_NoError {
+                    break
+                }
+            } else {
+                break
+            }
+        }
+        return box.services
+    }
+
+    private static func resolveViaSMBUtilLookup(name: String) -> String? {
+        let smbutilPath = "/usr/bin/smbutil"
+        guard FileManager.default.isExecutableFile(atPath: smbutilPath) else {
+            return nil
+        }
+
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: smbutilPath)
+        process.arguments = ["lookup", name]
+        let outPipe = Pipe()
+        process.standardOutput = outPipe
+        process.standardError = Pipe()
+
+        let finished = DispatchSemaphore(value: 0)
+        process.terminationHandler = { _ in
+            finished.signal()
+        }
+
+        do {
+            try process.run()
+        } catch {
+            return nil
+        }
+
+        if finished.wait(timeout: .now() + 1.5) == .timedOut {
+            process.terminate()
+            return nil
+        }
+
+        guard process.terminationStatus == 0 else {
+            return nil
+        }
+        let data = outPipe.fileHandleForReading.readDataToEndOfFile()
+        guard let output = String(data: data, encoding: .utf8) else {
+            return nil
+        }
+
+        for line in output.split(whereSeparator: \.isNewline) {
+            let tokens = line.split(whereSeparator: { $0 == " " || $0 == "\t" || $0 == ":" })
+            for token in tokens.reversed() {
+                let candidate = String(token).trimmingCharacters(in: .whitespacesAndNewlines)
+                if SMBAddress.isIPv4Address(candidate) {
+                    return candidate
+                }
+            }
+        }
+        return nil
     }
 }
 
@@ -346,11 +865,11 @@ public final class SMBConfigurationStore: @unchecked Sendable {
             return prefixMatch
         }
 
-        guard let targetHost = targetURL.host?.lowercased() else { return nil }
+        guard let targetHost = SMBAddress.decodedHost(for: targetURL)?.lowercased() else { return nil }
         let targetPort = targetURL.port ?? SMBAddress.defaultPort
         return allConfigs.first { config in
             let configURL = URL.fromMediaPath(config.rootPath)
-            return configURL.host?.lowercased() == targetHost && config.port == targetPort
+            return SMBAddress.decodedHost(for: configURL)?.lowercased() == targetHost && config.port == targetPort
         }
     }
 
@@ -491,9 +1010,45 @@ public final class NativeCSMBBackend: SMBBackendProtocol, @unchecked Sendable {
         username: String,
         password: String
     ) throws -> [String] {
+        let isFriendlyHost: Bool
+        if case .friendlyName = SMBAddress.classifyHost(host) {
+            isFriendlyHost = true
+        } else {
+            isFriendlyHost = false
+        }
+
+        let resolvedHost = try SMBHostResolver.shared.resolveConnectionHost(host, allowCache: true)
+        do {
+            return try performListShares(
+                resolvedHost: resolvedHost,
+                port: port,
+                username: username,
+                password: password
+            )
+        } catch SMBError.networkError where isFriendlyHost {
+            SMBHostResolver.shared.invalidateCachedHost(host)
+            let refreshedHost = try SMBHostResolver.shared.resolveConnectionHost(host, allowCache: false)
+            if refreshedHost != resolvedHost {
+                return try performListShares(
+                    resolvedHost: refreshedHost,
+                    port: port,
+                    username: username,
+                    password: password
+                )
+            }
+            throw SMBError.networkError("SMB connection failed.")
+        }
+    }
+
+    private func performListShares(
+        resolvedHost: String,
+        port: Int,
+        username: String,
+        password: String
+    ) throws -> [String] {
         var shareList = csmb_share_list_t(names: nil, count: 0)
         var errPtr: UnsafeMutablePointer<CChar>?
-        let code = host.withCString { hostC in
+        let code = resolvedHost.withCString { hostC in
             username.withCString { userC in
                 password.withCString { passC in
                     csmb_list_shares(hostC, Int32(port), userC, passC, &shareList, &errPtr)
@@ -646,9 +1201,50 @@ public final class NativeCSMBBackend: SMBBackendProtocol, @unchecked Sendable {
         username: String,
         password: String
     ) throws -> OpaquePointer {
+        let isFriendlyHost: Bool
+        if case .friendlyName = SMBAddress.classifyHost(host) {
+            isFriendlyHost = true
+        } else {
+            isFriendlyHost = false
+        }
+
+        let resolvedHost = try SMBHostResolver.shared.resolveConnectionHost(host, allowCache: true)
+        do {
+            return try performConnectSession(
+                resolvedHost: resolvedHost,
+                port: port,
+                share: share,
+                username: username,
+                password: password
+            )
+        } catch let error as SMBError {
+            if case .networkError = error, isFriendlyHost {
+                SMBHostResolver.shared.invalidateCachedHost(host)
+                let refreshedHost = try SMBHostResolver.shared.resolveConnectionHost(host, allowCache: false)
+                if refreshedHost != resolvedHost {
+                    return try performConnectSession(
+                        resolvedHost: refreshedHost,
+                        port: port,
+                        share: share,
+                        username: username,
+                        password: password
+                    )
+                }
+            }
+            throw error
+        }
+    }
+
+    private func performConnectSession(
+        resolvedHost: String,
+        port: Int,
+        share: String,
+        username: String,
+        password: String
+    ) throws -> OpaquePointer {
         var sessionPtr: OpaquePointer?
         var errPtr: UnsafeMutablePointer<CChar>?
-        let code = host.withCString { hostC in
+        let code = resolvedHost.withCString { hostC in
             share.withCString { shareC in
                 username.withCString { userC in
                     password.withCString { passC in
@@ -1109,7 +1705,7 @@ public final class SMBClient: @unchecked Sendable {
             ?? peerPath.flatMap { configurationStore.matchingConfig(forMediaPath: $0) }
         let targetURL = SMBAddress.parseURL(from: targetPath, portOverride: matchedConfig?.port)
             ?? URL.fromMediaPath(targetPath)
-        let host = targetURL.host ?? ""
+        let host = SMBAddress.decodedHost(for: targetURL) ?? ""
         let port = SMBAddress.effectivePort(for: targetURL, fallbackConfig: matchedConfig)
         let (share, relativePath) = SMBAddress.splitShareAndRelativePath(for: targetURL)
         let config = matchedConfig ?? SMBRootConfig(
@@ -1140,7 +1736,7 @@ public final class SMBClient: @unchecked Sendable {
         at directoryURL: URL,
         config: SMBRootConfig
     ) throws -> [WebDAVBrowserItem] {
-        guard let host = directoryURL.host, !host.isEmpty else {
+        guard let host = SMBAddress.decodedHost(for: directoryURL), !host.isEmpty else {
             throw SMBError.invalidAddress
         }
         let port = SMBAddress.effectivePort(for: directoryURL, fallbackConfig: config)
