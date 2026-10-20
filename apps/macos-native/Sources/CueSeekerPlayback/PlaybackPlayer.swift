@@ -1070,6 +1070,14 @@ public enum PlaybackHardwareCapabilities {
         guard let codec else { return false }
         return SFXNativePlaybackPlayer.isHardwareDecodeSupported(forCodecName: codec)
     }
+
+    public static func isHardwareDecodeSupported(forCodec codec: String?, pixelFormat: String?) -> Bool {
+        guard let codec else { return false }
+        return SFXNativePlaybackPlayer.isHardwareDecodeSupported(
+            forCodecName: codec,
+            pixelFormatName: pixelFormat
+        )
+    }
 }
 
 public extension PlaybackDecodeMode {

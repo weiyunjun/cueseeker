@@ -213,34 +213,246 @@ static BOOL SFXIsHardwareDecodeSupported(enum AVCodecID codecID) {
         break;
     case AV_CODEC_ID_PRORES:
         codecType = kCMVideoCodecType_AppleProRes422;
+        VTRegisterProfessionalVideoWorkflowVideoDecoders();
         break;
     default:
         return NO;
     }
+    VTRegisterSupplementalVideoDecoderIfAvailable(codecType);
     return VTIsHardwareDecodeSupported(codecType) != 0;
 }
 
-static BOOL SFXIsHardwareDecodeSupportedForCodecName(NSString *codecName) {
+static enum AVCodecID SFXCodecIDForName(NSString *codecName) {
     if (codecName == nil || codecName.length == 0) {
-        return NO;
+        return AV_CODEC_ID_NONE;
     }
     NSString *lower = [codecName lowercaseString];
     if ([lower containsString:@"av1"] || [lower containsString:@"av01"]) {
-        return VTIsHardwareDecodeSupported(kCMVideoCodecType_AV1) != 0;
+        return AV_CODEC_ID_AV1;
     }
     if ([lower containsString:@"hevc"] || [lower containsString:@"h265"] || [lower containsString:@"hvc1"]) {
-        return VTIsHardwareDecodeSupported(kCMVideoCodecType_HEVC) != 0;
+        return AV_CODEC_ID_HEVC;
     }
     if ([lower containsString:@"h264"] || [lower containsString:@"avc"]) {
-        return VTIsHardwareDecodeSupported(kCMVideoCodecType_H264) != 0;
+        return AV_CODEC_ID_H264;
     }
     if ([lower containsString:@"vp9"] || [lower containsString:@"vp09"]) {
-        return VTIsHardwareDecodeSupported(kCMVideoCodecType_VP9) != 0;
+        return AV_CODEC_ID_VP9;
     }
     if ([lower containsString:@"prores"]) {
-        return VTIsHardwareDecodeSupported(kCMVideoCodecType_AppleProRes422) != 0;
+        return AV_CODEC_ID_PRORES;
     }
-    return NO;
+    const AVCodec *decoder = avcodec_find_decoder_by_name(lower.UTF8String);
+    return decoder != NULL ? decoder->id : AV_CODEC_ID_NONE;
+}
+
+static BOOL SFXIsHardwareDecodeSupportedForCodecName(NSString *codecName) {
+    return SFXIsHardwareDecodeSupported(SFXCodecIDForName(codecName));
+}
+
+static BOOL SFXIsHardwareDecodeSupportedForCodecAndPixelFormat(
+    enum AVCodecID codecID,
+    enum AVPixelFormat pixelFormat,
+    int bitsPerRawSample,
+    int profile,
+    NSString **unsupportedReasonOut
+) {
+    const char *codecNameC = codecID != AV_CODEC_ID_NONE ? avcodec_get_name(codecID) : "unknown";
+    NSString *codecName = [NSString stringWithUTF8String:codecNameC];
+
+    if (!SFXIsHardwareDecodeSupported(codecID)) {
+        if (unsupportedReasonOut != NULL) {
+            *unsupportedReasonOut = [NSString stringWithFormat:
+                @"Hardware decode is not supported by current device for %@.",
+                codecName
+            ];
+        }
+        return NO;
+    }
+
+    if (codecID == AV_CODEC_ID_PRORES) {
+        return YES;
+    }
+
+    const AVPixFmtDescriptor *desc = pixelFormat != AV_PIX_FMT_NONE
+        ? av_pix_fmt_desc_get(pixelFormat)
+        : NULL;
+    int bitDepth = desc != NULL ? desc->comp[0].depth : bitsPerRawSample;
+    if (bitsPerRawSample > bitDepth) {
+        bitDepth = bitsPerRawSample;
+    }
+    NSString *pixFmtName = pixelFormat != AV_PIX_FMT_NONE
+        ? SFXPixelFormatName(pixelFormat)
+        : @"unknown";
+
+    if (bitDepth > 0 && bitDepth != 8 && bitDepth != 10) {
+        if (unsupportedReasonOut != NULL) {
+            *unsupportedReasonOut = [NSString stringWithFormat:
+                @"Hardware decode does not support %d-bit pixel format (%@) for %@.",
+                bitDepth,
+                pixFmtName,
+                codecName
+            ];
+        }
+        return NO;
+    }
+
+    if (desc != NULL) {
+        if ((desc->flags & AV_PIX_FMT_FLAG_RGB) != 0) {
+            if (unsupportedReasonOut != NULL) {
+                *unsupportedReasonOut = [NSString stringWithFormat:
+                    @"Hardware decode does not support RGB pixel format (%@) for %@.",
+                    pixFmtName,
+                    codecName
+                ];
+            }
+            return NO;
+        }
+
+        BOOL isYUV420 = desc->nb_components == 3
+            && (desc->flags & AV_PIX_FMT_FLAG_RGB) == 0
+            && desc->log2_chroma_w == 1
+            && desc->log2_chroma_h == 1;
+
+        switch (codecID) {
+        case AV_CODEC_ID_HEVC:
+            if (desc->nb_components != 3) {
+                if (unsupportedReasonOut != NULL) {
+                    *unsupportedReasonOut = [NSString stringWithFormat:
+                        @"Hardware decode does not support pixel format (%@) for %@.",
+                        pixFmtName,
+                        codecName
+                    ];
+                }
+                return NO;
+            }
+            break;
+        case AV_CODEC_ID_VP9:
+        case AV_CODEC_ID_AV1:
+            if (!isYUV420) {
+                if (unsupportedReasonOut != NULL) {
+                    *unsupportedReasonOut = [NSString stringWithFormat:
+                        @"Hardware decode does not support non-4:2:0 pixel format (%@) for %@.",
+                        pixFmtName,
+                        codecName
+                    ];
+                }
+                return NO;
+            }
+            break;
+        case AV_CODEC_ID_H264:
+            if (!isYUV420 || bitDepth > 8) {
+                if (unsupportedReasonOut != NULL) {
+                    *unsupportedReasonOut = [NSString stringWithFormat:
+                        @"Hardware decode does not support %d-bit pixel format (%@) for %@.",
+                        bitDepth,
+                        pixFmtName,
+                        codecName
+                    ];
+                }
+                return NO;
+            }
+            break;
+        default:
+            break;
+        }
+        return YES;
+    }
+
+    switch (codecID) {
+    case AV_CODEC_ID_AV1:
+        if (profile == AV_PROFILE_AV1_HIGH || profile == AV_PROFILE_AV1_PROFESSIONAL) {
+            if (unsupportedReasonOut != NULL) {
+                *unsupportedReasonOut = [NSString stringWithFormat:
+                    @"Hardware decode does not support AV1 profile %d for %@.",
+                    profile,
+                    codecName
+                ];
+            }
+            return NO;
+        }
+        break;
+    case AV_CODEC_ID_VP9:
+        if (profile == AV_PROFILE_VP9_1 || profile == AV_PROFILE_VP9_3) {
+            if (unsupportedReasonOut != NULL) {
+                *unsupportedReasonOut = [NSString stringWithFormat:
+                    @"Hardware decode does not support VP9 profile %d for %@.",
+                    profile,
+                    codecName
+                ];
+            }
+            return NO;
+        }
+        break;
+    case AV_CODEC_ID_H264:
+        if (bitDepth > 8
+            || profile == AV_PROFILE_H264_HIGH_10
+            || profile == AV_PROFILE_H264_HIGH_10_INTRA
+            || profile == AV_PROFILE_H264_HIGH_422
+            || profile == AV_PROFILE_H264_HIGH_422_INTRA
+            || profile == AV_PROFILE_H264_HIGH_444
+            || profile == AV_PROFILE_H264_HIGH_444_PREDICTIVE
+            || profile == AV_PROFILE_H264_HIGH_444_INTRA
+            || profile == AV_PROFILE_H264_CAVLC_444) {
+            if (unsupportedReasonOut != NULL) {
+                *unsupportedReasonOut = [NSString stringWithFormat:
+                    @"Hardware decode does not support H.264 profile %d (%d-bit) for %@.",
+                    profile,
+                    bitDepth,
+                    codecName
+                ];
+            }
+            return NO;
+        }
+        break;
+    default:
+        break;
+    }
+
+    return YES;
+}
+
+static BOOL SFXIsHardwareDecodeSupportedForParameters(
+    const AVCodecParameters *parameters,
+    NSString **unsupportedReasonOut
+) {
+    if (parameters == NULL) {
+        if (unsupportedReasonOut != NULL) {
+            *unsupportedReasonOut = @"No video stream parameters available.";
+        }
+        return NO;
+    }
+    return SFXIsHardwareDecodeSupportedForCodecAndPixelFormat(
+        parameters->codec_id,
+        (enum AVPixelFormat)parameters->format,
+        parameters->bits_per_raw_sample,
+        parameters->profile,
+        unsupportedReasonOut
+    );
+}
+
+static BOOL SFXIsHardwareDecodeSupportedForCodecNameAndPixelFormatName(
+    NSString *codecName,
+    NSString * _Nullable pixelFormatName
+) {
+    enum AVCodecID codecID = SFXCodecIDForName(codecName);
+    if (codecID == AV_CODEC_ID_NONE) {
+        return NO;
+    }
+    if (pixelFormatName == nil || pixelFormatName.length == 0) {
+        return SFXIsHardwareDecodeSupported(codecID);
+    }
+    enum AVPixelFormat pixelFormat = av_get_pix_fmt(pixelFormatName.UTF8String);
+    if (pixelFormat == AV_PIX_FMT_NONE) {
+        return NO;
+    }
+    return SFXIsHardwareDecodeSupportedForCodecAndPixelFormat(
+        codecID,
+        pixelFormat,
+        0,
+        AV_PROFILE_UNKNOWN,
+        NULL
+    );
 }
 
 static const AVCodecHWConfig *SFXFindVideoToolboxConfig(const AVCodec *decoder) {
@@ -1373,7 +1585,9 @@ presentationGeneration:(NSUInteger)presentationGeneration;
 }
 
 - (BOOL)usingHardwareDecode {
-    return _usingHardwareDecode;
+    @synchronized (self) {
+        return _usingHardwareDecode;
+    }
 }
 
 - (BOOL)hasActiveSegmentEnd {
@@ -1962,17 +2176,20 @@ presentationGeneration:(NSUInteger)presentationGeneration;
     avcodec_free_context(&_videoCodecContext);
     av_buffer_unref(&_hardwareDeviceContext);
     SFXHardwarePixelFormat = AV_PIX_FMT_NONE;
-    _usingHardwareDecode = NO;
+    @synchronized (self) {
+        _usingHardwareDecode = NO;
+    }
 }
 
 - (BOOL)prepareHardwareVideoWithError:(NSError **)error {
     AVStream *videoStream = _formatContext->streams[_videoStreamIndex];
     AVCodecParameters *parameters = videoStream->codecpar;
-    if (!SFXIsHardwareDecodeSupported(parameters->codec_id)) {
+    NSString *unsupportedReason = nil;
+    if (!SFXIsHardwareDecodeSupportedForParameters(parameters, &unsupportedReason)) {
         if (error != NULL) {
             *error = SFXNativePlaybackError(
                 20,
-                [NSString stringWithFormat:
+                unsupportedReason ?: [NSString stringWithFormat:
                     @"Hardware decode is not supported by current device for %@.",
                     [NSString stringWithUTF8String:avcodec_get_name(parameters->codec_id)]
                 ]
@@ -2051,7 +2268,9 @@ presentationGeneration:(NSUInteger)presentationGeneration;
         return NO;
     }
 
-    _usingHardwareDecode = YES;
+    @synchronized (self) {
+        _usingHardwareDecode = YES;
+    }
     return YES;
 }
 
@@ -2099,7 +2318,9 @@ presentationGeneration:(NSUInteger)presentationGeneration;
         return NO;
     }
 
-    _usingHardwareDecode = NO;
+    @synchronized (self) {
+        _usingHardwareDecode = NO;
+    }
     SFXHardwarePixelFormat = AV_PIX_FMT_NONE;
     return YES;
 }
@@ -3774,6 +3995,29 @@ presentationGeneration:(NSUInteger)presentationGeneration;
     }
 
     int result = avcodec_send_packet(_videoCodecContext, packet);
+    if (result < 0
+        && result != AVERROR(EAGAIN)
+        && result != AVERROR_EOF
+        && self.usingHardwareDecode
+        && !_perfFirstVideoDecodedRecorded) {
+        NSString *sendError = SFXFFmpegErrorString(result);
+        NSError *softwareError = nil;
+        [self resetVideoDecoderState];
+        _allowAutomaticSoftwareRecycle = NO;
+        if ([self prepareSoftwareVideoWithError:&softwareError]) {
+            const char *decoderName = (_videoCodecContext != NULL && _videoCodecContext->codec != NULL)
+                ? _videoCodecContext->codec->name
+                : "unknown";
+            NSLog(@"[Playback] Gate 2 (First-Packet Software Fallback): hardware video decode failed on initial packet (%@), switched to Software (%s).",
+                  sendError,
+                  decoderName);
+            result = avcodec_send_packet(_videoCodecContext, packet);
+        } else {
+            NSLog(@"[Playback] Gate 2 (First-Packet Software Fallback) FAILED: hardware error=%@, software error=%@",
+                  sendError,
+                  softwareError.localizedDescription ?: @"unknown");
+        }
+    }
     if (result < 0) {
         return;
     }
@@ -3819,7 +4063,20 @@ presentationGeneration:(NSUInteger)presentationGeneration;
                                           presentationTime:presentationTime
                                          frameMilliseconds:frameMilliseconds
                               automaticRecycleMilliseconds:automaticRecycleMilliseconds];
-        } else if (!_usingHardwareDecode) {
+        } else {
+            if (self.usingHardwareDecode) {
+                NSString *formatName = SFXPixelFormatName((enum AVPixelFormat)_videoFrame->format);
+                const char *decoderName = (_videoCodecContext != NULL && _videoCodecContext->codec != NULL)
+                    ? _videoCodecContext->codec->name
+                    : "unknown";
+                NSLog(@"[Playback] Gate 2 (First-Frame Software Fallback): decoder=%s produced software frame (%@) while in Hardware mode; switching session to Software rendering.",
+                      decoderName,
+                      formatName);
+                @synchronized (self) {
+                    _usingHardwareDecode = NO;
+                }
+                _allowAutomaticSoftwareRecycle = NO;
+            }
             if (![self paceVideoFrame:_videoFrame stream:videoStream]) {
                 av_frame_unref(_videoFrame);
                 break;
@@ -3944,7 +4201,7 @@ presentationGeneration:(NSUInteger)presentationGeneration;
         }
     }
     BOOL shouldDeferForAutomaticRecycle = _allowAutomaticSoftwareRecycle
-        && !_usingHardwareDecode
+        && !self.usingHardwareDecode
         && !atomic_load(&_decodeLoopFinished)
         && ![self segmentVideoBoundaryReached];
     if (_audioCodecContext == NULL
@@ -4314,7 +4571,7 @@ automaticRecycleMilliseconds:(NSInteger)automaticRecycleMilliseconds {
 - (NSInteger)markAutomaticSoftwareRecycleIfNeededAtMediaSeconds:(double)mediaSeconds {
     if (!_allowAutomaticSoftwareRecycle
         || _automaticSoftwareRecycleRequested
-        || _usingHardwareDecode
+        || self.usingHardwareDecode
         || atomic_load(&_cancelled)) {
         return -1;
     }
@@ -4860,6 +5117,11 @@ automaticRecycleMilliseconds:(NSInteger)automaticRecycleMilliseconds {
 
 + (BOOL)isHardwareDecodeSupportedForCodecName:(NSString *)codecName {
     return SFXIsHardwareDecodeSupportedForCodecName(codecName);
+}
+
++ (BOOL)isHardwareDecodeSupportedForCodecName:(NSString *)codecName
+                              pixelFormatName:(NSString *)pixelFormatName {
+    return SFXIsHardwareDecodeSupportedForCodecNameAndPixelFormatName(codecName, pixelFormatName);
 }
 
 - (instancetype)init {

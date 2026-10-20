@@ -827,3 +827,175 @@ func nativePlaybackOpensAndSeeksMatroskaWithAttachmentsChaptersAndTags() async t
     #expect(soughtFramePresented)
 }
 
+@Test
+func nativePlaybackHardwareDecodeFormatCheckMatrix() {
+    for supportedHEVCFormat in [
+        "yuv420p", "yuvj420p", "yuv420p10le",
+        "yuv422p", "yuv422p10le",
+        "yuv444p", "yuv444p10le"
+    ] {
+        #expect(
+            PlaybackHardwareCapabilities.isHardwareDecodeSupported(
+                forCodec: "hevc",
+                pixelFormat: supportedHEVCFormat
+            ),
+            "Expected HEVC \(supportedHEVCFormat) to be hardware decode supported"
+        )
+    }
+
+    for unsupportedHEVCFormat in [
+        "yuv420p12le", "yuv422p12le", "yuv444p12le",
+        "gbrp", "gbrp10le", "gbrp12le",
+        "gray", "gray10le"
+    ] {
+        #expect(
+            !PlaybackHardwareCapabilities.isHardwareDecodeSupported(
+                forCodec: "hevc",
+                pixelFormat: unsupportedHEVCFormat
+            ),
+            "Expected HEVC \(unsupportedHEVCFormat) to fall back to software decode"
+        )
+    }
+
+    for supportedVP9Format in ["yuv420p", "yuv420p10le"] {
+        #expect(
+            PlaybackHardwareCapabilities.isHardwareDecodeSupported(
+                forCodec: "vp9",
+                pixelFormat: supportedVP9Format
+            ),
+            "Expected VP9 \(supportedVP9Format) to be hardware decode supported"
+        )
+    }
+
+    for unsupportedVP9Format in [
+        "yuv420p12le",
+        "yuv422p", "yuv422p10le", "yuv422p12le",
+        "yuv444p", "yuv444p10le", "yuv444p12le",
+        "gbrp"
+    ] {
+        #expect(
+            !PlaybackHardwareCapabilities.isHardwareDecodeSupported(
+                forCodec: "vp9",
+                pixelFormat: unsupportedVP9Format
+            ),
+            "Expected VP9 \(unsupportedVP9Format) to fall back to software decode"
+        )
+    }
+
+    let deviceSupportsAV1 = PlaybackHardwareCapabilities.isHardwareDecodeSupported(forCodec: "av1")
+    for supportedAV1Format in ["yuv420p", "yuv420p10le"] {
+        #expect(
+            PlaybackHardwareCapabilities.isHardwareDecodeSupported(
+                forCodec: "av1",
+                pixelFormat: supportedAV1Format
+            ) == deviceSupportsAV1
+        )
+    }
+    for unsupportedAV1Format in [
+        "yuv420p12le",
+        "yuv422p", "yuv422p10le", "yuv422p12le",
+        "yuv444p", "yuv444p10le", "yuv444p12le",
+        "gbrp", "gray", "gray10le"
+    ] {
+        #expect(
+            !PlaybackHardwareCapabilities.isHardwareDecodeSupported(
+                forCodec: "av1",
+                pixelFormat: unsupportedAV1Format
+            ),
+            "Expected AV1 \(unsupportedAV1Format) to fall back to software decode even on M3/M4+"
+        )
+    }
+
+    for supportedH264Format in ["yuv420p", "yuvj420p"] {
+        #expect(
+            PlaybackHardwareCapabilities.isHardwareDecodeSupported(
+                forCodec: "h264",
+                pixelFormat: supportedH264Format
+            )
+        )
+    }
+    for unsupportedH264Format in [
+        "yuv420p10le", "yuv420p12le",
+        "yuv422p", "yuv422p10le",
+        "yuv444p", "yuv444p10le",
+        "gbrp"
+    ] {
+        #expect(
+            !PlaybackHardwareCapabilities.isHardwareDecodeSupported(
+                forCodec: "h264",
+                pixelFormat: unsupportedH264Format
+            ),
+            "Expected H.264 \(unsupportedH264Format) to fall back to software decode"
+        )
+    }
+}
+
+@Test
+@MainActor
+func nativePlaybackFallsBackToSoftwareAndPresentsFramesForHEVC12BitAndVP9HighChroma() async throws {
+    guard let ffmpegURL = executableURL(named: "ffmpeg") else {
+        print("Skipping 12-bit/high-chroma hardware fallback test because ffmpeg is unavailable.")
+        return
+    }
+
+    let directory = temporaryMediaTimelineTestDirectory()
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    defer {
+        try? FileManager.default.removeItem(at: directory)
+    }
+
+    let cases: [(name: String, videoArgs: [String])] = [
+        (
+            name: "hevc-12bit.mkv",
+            videoArgs: ["-c:v", "libx265", "-x265-params", "log-level=none:keyint=12", "-pix_fmt", "yuv420p12le"]
+        ),
+        (
+            name: "vp9-12bit.mkv",
+            videoArgs: ["-c:v", "libvpx-vp9", "-g", "12", "-pix_fmt", "yuv420p12le"]
+        ),
+        (
+            name: "vp9-444.mkv",
+            videoArgs: ["-c:v", "libvpx-vp9", "-g", "12", "-pix_fmt", "yuv444p"]
+        ),
+        (
+            name: "h264-10bit.mkv",
+            videoArgs: ["-c:v", "libx264", "-preset", "ultrafast", "-g", "12", "-pix_fmt", "yuv420p10le"]
+        )
+    ]
+
+    for testCase in cases {
+        let mediaURL = directory.appendingPathComponent(testCase.name)
+        var arguments = [
+            "-hide_banner", "-loglevel", "error",
+            "-f", "lavfi", "-i", "testsrc2=duration=3:size=160x90:rate=24",
+            "-f", "lavfi", "-i", "sine=frequency=440:duration=3"
+        ]
+        arguments.append(contentsOf: testCase.videoArgs)
+        arguments.append(contentsOf: ["-c:a", "aac", "-shortest", "-y", mediaURL.path])
+        try runProcess(ffmpegURL, arguments: arguments)
+
+        let player = SFXNativePlaybackPlayer()
+        player.decodeMode = SFXNativePlaybackDecodeMode(rawValue: 0)! // Hardware
+        defer {
+            player.stop()
+        }
+
+        try player.openPath(mediaURL.path, startMilliseconds: 0)
+        #expect(!player.usingHardwareDecode, "Expected \(testCase.name) to fall back to software decode")
+        try player.setPaused(false)
+
+        let initialPresented = await waitUntil(timeoutSeconds: 4) {
+            player.nativePresentedVideoFrameCount > 0
+                && player.nativeLastSubmittedVideoFrameMilliseconds >= 0
+        }
+        #expect(initialPresented, "Expected \(testCase.name) to present video frames after software fallback")
+
+        try player.seek(toMilliseconds: 1_500, pauseAfterFirstFrame: true)
+        let soughtPresented = await waitUntil(timeoutSeconds: 4) {
+            !player.isPlaying
+                && abs(player.currentTime - 1.5) < 0.5
+        }
+        #expect(soughtPresented, "Expected \(testCase.name) to seek and scrub normally after software fallback")
+    }
+}
+
