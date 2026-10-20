@@ -533,7 +533,7 @@
 
 - Breadcrumb Navigation
 - Status Indicator
-- WorkbenchSpinner
+- Spinner
 - Button / Neutral
 - Button / Destructive
 - Empty State
@@ -553,7 +553,7 @@
 - Level 1 统一展示全部根文件夹卡片，顶部标题为 `All Folder`（根目录数量为 1 时）或 `All Folders`（根目录数量大于 1 时），样式为 14px Semibold `--color-text-primary`。
 - 面包屑节点（Level 2 与 Level 3 第二行）：以 `All Folder` / `All Folders` 为起点（点击返回 Level 1）；未激活链接项为 14px Medium `--color-text-secondary`（Hover 变为 `--color-text-primary`）；当前项为 14px Semibold `--color-text-primary`；分隔符为 `caret-right`（12px 1.15px `--color-text-muted`），间距 `--spacing-2`。
 - Episode File Group（单集文件分组）：视频与字幕按单集 `Display Title` 合一展示为单张圆角卡片容器（背景 `--color-table-bg`、边框 `--color-border-control`、宽度 `--border-width-control`、圆角 `--radius-settings-group`、内边距 `0`，占满内容区宽度并裁剪圆角）。卡片顶部为标题栏（最小高度 `--height-control`，水平内边距 `--spacing-4`，背景 `--color-file-group-header-bg`），左对齐展示 `Display Title`（14px Medium `--color-text-muted`）；标题栏底部及下方各文件行之间均以与卡片容器等宽的 `--color-border-divider`（宽度 `--border-width-control`）分隔。
-- 没有根目录时显示 Empty State；二级或三级无内容且非加载中时显示 Empty State。异步加载期间展示居中 `WorkbenchSpinner`（18px）。
+- 没有根目录时显示 Empty State；二级或三级无内容且非加载中时显示 Empty State。异步加载期间展示居中 `Spinner`。
 - 移除根目录前弹出 Confirmation Dialog。
 - 存在 Index、Add Folder、Remove Folder、Rename Folder 或 Rename Files 任务期间，以及数据库压缩进行中时，全部操作按钮为 Disabled。
 
@@ -574,7 +574,7 @@
 - 排版规范：字号 14px，字重 500 Medium（`--font-weight-control`），Icon 与文本间距 `--spacing-2`
 - 状态映射：
   - 已完成（Completed）：`check-circle`（18px 1.30px `--color-success-text`）+ `--color-success-text`（`Indexed [Folder]`、`Indexed All Folders`、`Removed [Folder]`）
-  - 进行中（In Progress）：`WorkbenchSpinner`（18px `--color-text-secondary`）+ `--color-text-secondary`（`Indexing [Folder]`、`Indexing All Folders`、`Removing [Folder]`）
+  - 进行中（In Progress）：`Spinner` + `--color-text-secondary`（`Indexing [Folder]`、`Indexing All Folders`、`Removing [Folder]`）
   - 失败（Failed）：`warning`（18px 1.30px `--color-danger-text`）+ `--color-danger-text`（`Index Failed: [Folder]`、`Removal Failed: [Folder]`）
   - 闲置（Idle）：`arrow-clockwise`（18px 1.30px `--color-text-secondary`）+ `--color-text-secondary`（`Last Updated: yy-MM-dd HH:mm` / `Last Updated: --`）。层级切换或重新进入时若无进行中操作则恢复闲置状态。
 
@@ -1017,7 +1017,7 @@
 - Dialog
 - Text Field
 - Breadcrumb Navigation
-- WorkbenchSpinner
+- Spinner
 - Empty State / Empty Hint
 - Scrollbar / Vertical
 - Button / Neutral
@@ -1042,9 +1042,9 @@
 
 - Step 1 - Default
 - Step 1 - Validation Error
-- Step 1 - Connecting（全部输入框与 `Connect` 按钮为 Disabled，`Connect` 按钮内左侧展示 `WorkbenchSpinner`）
+- Step 1 - Connecting（全部输入框与 `Connect` 按钮为 Disabled，`Connect` 按钮内左侧展示 `Spinner`）
 - Step 2 - Loaded（`Add` 启用；未选中子文件夹时添加当前目录自身，选中一个或多个子文件夹时按从上到下顺序依次入队添加；当 `SMB Folder` 处于主机顶层共享文件夹列表、或 `NFS Folder` 处于主机顶层导出目录列表且未选中任何文件夹时，`Add` 为 Disabled）
-- Step 2 - Loading Subfolder（列表区居中展示 `18px` `WorkbenchSpinner`，`Add` 为 Disabled）
+- Step 2 - Loading Subfolder（列表区居中展示 `Spinner`，`Add` 为 Disabled）
 - Step 2 - Load Failed / Empty（列表区居中展示 `Empty Hint`，加载失败时 `Add` 为 Disabled）
 
 ### L-06.5 Export to Anki Dialog Layout

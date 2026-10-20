@@ -390,27 +390,6 @@
 
 ### C-09.3 Progress Indicator
 
-#### Shared
-
-##### Anatomy
-
-- Spinner
-  - Color：Platform Native
-
-##### Sizes
-
-- Size：`16px`
-
-##### Motion
-
-- Type：Continuous Rotation
-- Duration：`--duration-spinner-motion`
-- Easing：`--easing-spinner-motion`
-
-##### States
-
-- Indeterminate
-
 #### Variants
 
 ##### Bar

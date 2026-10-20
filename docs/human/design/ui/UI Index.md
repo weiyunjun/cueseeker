@@ -79,7 +79,7 @@
 | | `C-08.9` | Keycap | `Overlay Surface`、`Popover Surface` |
 | **2.9 Feedback** | `C-09.1` | Toast | — |
 | | `C-09.2` | Empty State | `Empty Hint`、`Info Page State` |
-| | `C-09.3` | Progress Indicator | `Indeterminate Spinner`、`Bar` |
+| | `C-09.3` | Progress Indicator | `Bar` |
 | | `C-09.4` | Spinner | — |
 | | `C-09.5` | Playback Feedback | — |
 | | `C-09.6` | Player Error Banner | — |
