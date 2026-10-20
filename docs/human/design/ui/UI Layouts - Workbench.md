@@ -517,7 +517,7 @@
 #### Structure
 
 1. Level 1: Root Folder Card List
-   1. Status and Action Row：Action Buttons（`Add Folder`、`Index Now`）、Status Indicator
+   1. Status and Action Row：Action Buttons（`Add Folder`、`Index All`）、Status Indicator
    2. All Folder(s) Header & Root Folder Card List（按数量显示 `All Folder` 或 `All Folders`，统一展示全部根目录卡片）
 2. Level 2: Subfolder & Direct File List
    1. Status and Action Row
@@ -548,7 +548,7 @@
 - Page Layout：Workbench Titled Page Layout
 - 顶栏后退与前进按钮响应三级界面的下钻与返回，顶栏标题恒定为 `File`。
 - Status and Action Row、列表标题、面包屑、单集 `Display Title` 与各级容器/卡片均左边缘对齐。
-- Status and Action Row 在 Level 1、Level 2、Level 3 第一行常驻展示，高 36px（`--height-control`），左对齐：从左到右依次为 `Add Folder` 按钮、`Index Now` 按钮、状态指示器。
+- Status and Action Row 在 Level 1、Level 2、Level 3 第一行常驻展示，高 36px（`--height-control`），左对齐：从左到右依次为 `Add Folder` 按钮、`Index All` 按钮、状态指示器。
 - 所有层级的第一行（Status and Action Row）与第二行（Level 1 的 `All Folder(s)` 标题行、Level 2 与 Level 3 的面包屑行）在顶部固定冻结，纵向滚动时仅下方列表区域滚动。
 - Level 1 统一展示全部根文件夹卡片，顶部标题为 `All Folder`（根目录数量为 1 时）或 `All Folders`（根目录数量大于 1 时），样式为 14px Semibold `--color-text-primary`。
 - 面包屑节点（Level 2 与 Level 3 第二行）：以 `All Folder` / `All Folders` 为起点（点击返回 Level 1）；未激活链接项为 14px Medium `--color-text-secondary`（Hover 变为 `--color-text-primary`）；当前项为 14px Semibold `--color-text-primary`；分隔符为 `caret-right`（12px 1.15px `--color-text-muted`），间距 `--spacing-2`。
@@ -604,8 +604,8 @@
   - `dots-three` 纯图标按钮（32×32px，圆角 8px，图标 21px）默认隐藏，仅在卡片 Hover 或该卡片菜单打开时显示；Hover 按钮自身及菜单打开时底色为 `--color-row-selected`。
   - `Add Folder` 弹出菜单：`Local Folder`（`folder`）+ `WebDav Folder`（`folder-webdav`）+ `SMB Folder`（`folder-smb`）+ `FTP Folder`（`folder-ftp`）+ `NFS Folder`（`folder-nfs`）
   - 卡片弹出菜单：
-    - Root Folder Card：`Rename Folder`（Neutral）+ `Remove`（Destructive 警告项）
-    - Subfolder Card：`Rename Folder`（Neutral）
+    - Root Folder Card：`Rename This Folder`（Neutral）+ `Index This Folder`（Neutral）+ `Remove This Folder`（Destructive 警告项）
+    - Subfolder Card：`Rename This Folder`（Neutral）
     - Video / Subtitle File Card：`Get Info`（Neutral）+ `Rename Files`（Neutral）
 
 ## 3.5 Search and Excerpt

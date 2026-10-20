@@ -72,8 +72,8 @@
 | `folder-smb` | Regular | SMB 文件夹 | File Page / Add Folder 菜单 / SMB Folder；File Page / SMB 文件夹卡片 |
 | `folder-ftp` | Regular | FTP 文件夹 | File Page / Add Folder 菜单 / FTP Folder；File Page / FTP 文件夹卡片 |
 | `folder-nfs` | Regular | NFS 文件夹 | File Page / Add Folder 菜单 / NFS Folder；File Page / NFS 文件夹卡片 |
-| `arrow-clockwise` | Regular | 重新索引、刷新 | File Page / Index Now、闲置状态；Settings / Maintenance、Developer 刷新 |
-| `minus-circle` | Regular | 移除 | File Page / Root Folder Row / Remove |
+| `arrow-clockwise` | Regular | 重新索引、刷新 | File Page / Index All、Root Folder Card 菜单 / Index This Folder、闲置状态；Settings / Maintenance、Developer 刷新 |
+| `minus-circle` | Regular | 移除 | File Page / Root Folder Card 菜单 / Remove This Folder |
 | `minus-circle` | Fill | 半选 | Checkbox / Indeterminate |
 | `stack` | Regular | 剧集 | Library File Tree / Display Title |
 | `video` | Regular | 视频 | Library File Tree / Video；Command Panel Root / Recent Videos；Library 封面占位，57px |
@@ -96,7 +96,7 @@
 
 | 图标 | 字重 | 含义 | 使用位置 |
 | --- | --- | --- | --- |
-| `pencil-simple` | Regular | 重命名、编辑封面 | Library File Tree 菜单 / Rename Folder、Rename Files；Cover / Editor Action |
+| `pencil-simple` | Regular | 重命名、编辑封面 | File Page 菜单 / Rename This Folder、Rename Files；Cover / Editor Action |
 | `note-pencil` | Regular | 编辑 | Excerpt List 卡片菜单 / Edit List |
 | `plus` | Regular | 新建、添加 | Excerpt List Overview / New List；Export to Anki Dialog / Add Card Item，16px |
 | `list-checks` | Regular | 选择模式 | 预留，暂无使用位置 |

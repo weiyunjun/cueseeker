@@ -371,7 +371,7 @@
 - Scenario ID：disabled.file.add_folder
 - 所在位置：File 页面右上角 `Add Folder` 按钮
 
-### 28. File 页面“立即索引”按钮禁用（Index Now Disabled）
+### 28. File 页面“索引全部”按钮禁用（Index All Disabled）
 - 原因分支 A（尚未添加任何文件夹）：
   - 英文：Add a folder before indexing
   - 简体中文：请先添加文件夹后再索引
@@ -382,7 +382,7 @@
   - 繁体中文：任務或資料庫壓縮進行期間無法使用
 - 触发延迟：1秒
 - Scenario ID：disabled.file.index_now
-- 所在位置：File 页面右上角 `Index Now` 按钮
+- 所在位置：File 页面左上角 `Index All` 按钮
 
 ### 29. 筛选对话框“重置”按钮禁用（Filter Reset Disabled）
 - 英文：No active filters to reset

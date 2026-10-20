@@ -12,3 +12,4 @@
 # 5. 后台任务队列（Task Queue）状态流转与互斥规则
 1. 列表排序：`Current` 按发起时间正序（FIFO）排列；`Completed` 与 `Incomplete` 按进入该状态的时间倒序（LIFO）排列，最新结束的任务排在最上方。
 2. 多文件夹入库队列：单次添加多个文件夹时，按顺序分别创建独立的 `Add Folder` 任务，首个任务立即进入 `In Progress`，其余任务处于 `Queued` 并依次串行执行。
+3. 全部索引与单文件夹索引：点击 `Index All` 对全部根目录执行索引（Task 卡片标题为 `Index All`）；点击根目录卡片菜单中的 `Index This Folder` 仅扫描并更新当前所选文件夹路径下的内容（Task 卡片标题为 `Index: [Folder]`）。
