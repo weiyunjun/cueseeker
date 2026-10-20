@@ -1023,7 +1023,7 @@
 
 #### Layout
 
-- Step 1 Width：`--width-dialog-medium`；Form Region 为左 Label（宽度 `--width-form-label`）、右输入框的双列水平布局；`Address` 必填（粘贴百分号编码链接时即时还原为可读字符；`SMB Folder` 输入未带 `smb://` 前缀的服务器名称或地址时自动补全），`SMB Folder` 的 `Port` 必填且默认预填 `445`，`Username` 与 `Password` 选填（留空以匿名/访客方式访问），均无占位提示；仅最下方 `Password` 输入框下预留 1 行 Validation Message（左边缘与密码输入框对齐），成功加载初始目录列表前的任何报错均停留在 Step 1 显示红字。
+- Step 1 Width：`--width-dialog-medium`；Form Region 为左 Label（宽度 `--width-form-label`）、右输入框的双列水平布局；`Address` 必填（粘贴百分号编码链接时即时还原为可读字符；`SMB Folder` 支持填写服务器友好名称或 IP 地址，未带 `smb://` 前缀时点击 `Connect` 自动补全 `smb://` 解析，不修改输入框内容），`SMB Folder` 的 `Port` 必填且默认预填 `445`，`Username` 与 `Password` 选填（留空以匿名/访客方式访问），均无占位提示；仅最下方 `Password` 输入框下预留 1 行 Validation Message（左边缘与密码输入框对齐），成功加载初始目录列表前的任何报错均停留在 Step 1 显示红字。
 - Step 2 Width：`--width-dialog-x-large`，Height：`--height-task-panel`；Header、Breadcrumb 与 Footer 固定，中间列表垂直滚动，滚动条位于右侧 `--inset-dialog` 通道内。
 - Breadcrumb Navigation：以 Step 1 所填地址对应的目录名称或主机名称为起点（不展示或回退至更上层父目录）。
 - Browser Card List：仅展示文件夹（或 SMB 顶层共享文件夹）、受支持的视频与字幕文件（文件夹在上、文件在下，按名称排序）。卡片复用 `L-04.6 File Card Layout` 单行形态（高度 `68px`、内边距 `--spacing-4`、图标底容器 `36×36px`、标题 `--font-size-body` Medium 单行尾部截断；文件夹右侧带 `16px` `caret-right` 箭头，文件无箭头与操作按钮）。
