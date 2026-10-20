@@ -3,6 +3,7 @@
 
 # 1. General 设置规则
 # 2. Play 与 Decode 设置规则
+1. 解码模式：`Hardware` 与 `Auto` 默认优先使用硬件解码，当设备芯片不支持该编码硬解（如 M1 / M2 播放 AV1）、视频色深或色彩采样超出硬件支持规格（如 12-bit 视频、VP9 / AV1 的非 4:2:0 视频、H.264 的非 8-bit 4:2:0 视频）或硬解失败时，自动回退为软件解码；`Software` 强制使用软件解码。
 # 3. Shortcuts 与 Subtitle 样式设置规则
 # 4. Maintenance 与 Developer 规则
 # 5. 多语言（简/繁/英/日）词条与回退规范
