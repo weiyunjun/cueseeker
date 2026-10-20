@@ -1,5 +1,5 @@
 # ASS字幕处理
-1. 只处理[Events] section中的Dialogue事件。
+1. ASS 与 SSA 字幕均按本节处理，只处理[Events] section中的Dialogue事件。
 2. ASS Text 中 {...} 花括号里的override tag会被移除。
 3. 换行符（\N，\n）会转成换行。
 4. 文本的开头和结尾的空白会删除。
