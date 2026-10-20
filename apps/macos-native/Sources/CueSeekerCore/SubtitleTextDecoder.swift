@@ -174,8 +174,8 @@ public enum SubtitleTextDecoder {
             }
             return hasEventsSection && hasEventFormat
 
-        case .srt:
-            return SRTParser.hasValidStructure(contents)
+        case .srt, .vtt:
+            return SRTParser.hasValidStructure(contents, format: format)
         }
     }
 }

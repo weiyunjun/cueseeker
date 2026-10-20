@@ -7,7 +7,7 @@ public enum SubtitleFileScanningError: Error, Equatable, Sendable {
 }
 
 public struct SubtitleFileScanner {
-    public static let supportedSubtitleExtensions: Set<String> = ["srt", "ass"]
+    public static let supportedSubtitleExtensions: Set<String> = ["srt", "ass", "vtt"]
 
     private let fileManager: FileManager
 

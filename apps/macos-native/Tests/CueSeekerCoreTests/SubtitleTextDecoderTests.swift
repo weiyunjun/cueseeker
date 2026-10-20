@@ -77,6 +77,9 @@ func rejectsDecodedTextWithoutSubtitleStructure() throws {
     #expect(throws: SubtitleTextDecodingError.invalidStructure(.srt)) {
         try SubtitleTextDecoder.decode(data, format: .srt)
     }
+    #expect(throws: SubtitleTextDecodingError.invalidStructure(.vtt)) {
+        try SubtitleTextDecoder.decode(data, format: .vtt)
+    }
 }
 
 @Test

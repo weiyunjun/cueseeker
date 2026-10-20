@@ -256,7 +256,10 @@ enum SRTSubtitleRenderer {
             "SRTSubtitleRenderer.parse",
             thresholdMilliseconds: 2
         ) {
-            try SRTParser.parseForRendering(data)
+            try SRTParser.parseForRendering(
+                data,
+                format: SubtitleFormat(fileExtension: source.url.pathExtension) ?? .srt
+            )
         }
         try checkCancellation(isCancelled)
         guard !entries.isEmpty else {

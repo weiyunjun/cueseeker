@@ -91,7 +91,7 @@ enum CueIdentityReconciler {
         let contentChanged = stored.content != newCue.content
 
         switch stored.sourceFormat {
-        case .srt:
+        case .srt, .vtt:
             return [timestampChanged, contentChanged].filter(\.self).count == 1
         case .ass:
             guard stored.sourceStyle == newCue.sourceStyle else {

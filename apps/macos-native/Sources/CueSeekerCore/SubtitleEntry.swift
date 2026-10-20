@@ -3,6 +3,31 @@ import Foundation
 public enum SubtitleFormat: String, Equatable, Sendable {
     case srt
     case ass
+    case vtt
+
+    public init?(fileExtension: String) {
+        switch fileExtension.lowercased() {
+        case "srt":
+            self = .srt
+        case "ass":
+            self = .ass
+        case "vtt":
+            self = .vtt
+        default:
+            return nil
+        }
+    }
+
+    public var sortPriority: Int {
+        switch self {
+        case .ass:
+            return 0
+        case .srt:
+            return 1
+        case .vtt:
+            return 2
+        }
+    }
 }
 
 public struct SubtitleEntry: Equatable, Sendable {
@@ -29,10 +54,13 @@ public struct SubtitleEntry: Equatable, Sendable {
         self.text = text
     }
 
-    public func cueGroup(eventIndex: Int) -> SubtitleCueGroup {
+    public func cueGroup(
+        eventIndex: Int,
+        sourceFormat: SubtitleFormat = .srt
+    ) -> SubtitleCueGroup {
         let line = SubtitleCueLine(
             eventIndex: eventIndex,
-            sourceFormat: .srt,
+            sourceFormat: sourceFormat,
             sourceStyle: nil,
             sourceLayer: nil,
             startTimecode: startTimecode,

@@ -67,7 +67,7 @@ enum CueLineLanguages {
     ) -> Set<SubtitleLanguageCode> {
         if detections.hasAnyDetection {
             switch sourceFormat {
-            case .srt:
+            case .srt, .vtt:
                 return detections.fileLanguages ?? [.unknown]
             case .ass:
                 guard let styleName = SubtitleLanguageAnalyzer.canonicalASSStyleName(sourceStyle) else {

@@ -31,8 +31,8 @@ public struct SubtitleLanguageAnalyzer: Sendable {
         cueGroups: [SubtitleCueGroup]
     ) -> SubtitleLanguageAnalysis {
         switch format {
-        case .srt:
-            return analyzeSRT(cueGroups: cueGroups)
+        case .srt, .vtt:
+            return analyzeSRT(format: format, cueGroups: cueGroups)
         case .ass:
             return analyzeASS(cueGroups: cueGroups)
         }
@@ -73,12 +73,15 @@ public struct SubtitleLanguageAnalyzer: Sendable {
             }
     }
 
-    private func analyzeSRT(cueGroups: [SubtitleCueGroup]) -> SubtitleLanguageAnalysis {
+    private func analyzeSRT(
+        format: SubtitleFormat = .srt,
+        cueGroups: [SubtitleCueGroup]
+    ) -> SubtitleLanguageAnalysis {
         let segments = cueGroups.flatMap { Self.languageSegments(from: $0.searchContent) }
         let detection = recognizer.detectLanguages(in: segments)
         let languages = Self.normalizedLanguageSet(detection.languages)
         return SubtitleLanguageAnalysis(
-            format: .srt,
+            format: format,
             fileDetection: detection,
             styleDetections: [:],
             cueGroupLanguages: Array(repeating: languages, count: cueGroups.count)

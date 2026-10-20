@@ -1466,7 +1466,7 @@ extension AppCoordinator {
     ) -> PlaybackSubtitleSource? {
         let playbackFormat: PlaybackSubtitleSourceFormat
         switch format {
-        case .srt:
+        case .srt, .vtt:
             playbackFormat = .srt
         case .ass:
             playbackFormat = .ass

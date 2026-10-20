@@ -360,8 +360,8 @@ public struct SubtitleIndexer {
             var assFontReferences: [ASSFontReferenceIntent] = []
             do {
                 switch format {
-                case .srt:
-                    cueGroups = try SRTParser.parseCueGroupsForIndexing(contents)
+                case .srt, .vtt:
+                    cueGroups = try SRTParser.parseCueGroupsForIndexing(contents, format: format)
                 case .ass:
                     cueGroups = try ASSParser.parseCueGroupsForIndexing(contents)
                     assFontReferences = ASSFontIntentExtractor.references(from: contents)
@@ -559,19 +559,6 @@ extension SubtitleIndexingError: LocalizedError {
         switch self {
         case let .incomplete(path, reason):
             return "\(reason) Index publication was cancelled for \(path)."
-        }
-    }
-}
-
-private extension SubtitleFormat {
-    init?(fileExtension: String) {
-        switch fileExtension.lowercased() {
-        case "srt":
-            self = .srt
-        case "ass":
-            self = .ass
-        default:
-            return nil
         }
     }
 }

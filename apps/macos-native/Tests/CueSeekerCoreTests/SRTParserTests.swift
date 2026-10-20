@@ -122,6 +122,61 @@ func parsesTimecodesToMilliseconds() {
     #expect(SRTParser.milliseconds(from: "00:00:01,001") == 1_001)
     #expect(SRTParser.milliseconds(from: "01:02:03,456") == 3_723_456)
     #expect(SRTParser.milliseconds(from: "01:02:03.456") == 3_723_456)
+    #expect(SRTParser.milliseconds(from: "00:10.159") == 10_159)
+    #expect(SRTParser.milliseconds(from: "02:03.456") == 123_456)
+}
+
+@Test
+func parsesWebVTTSubtitlesIgnoringHeaderAndMetadataAndStrippingInlineTags() throws {
+    let contents = """
+    WEBVTT
+    Kind: captions
+    Language: en
+
+    NOTE
+    This is a comment block.
+
+    STYLE
+    ::cue {
+      color: yellow;
+    }
+
+    REGION
+    id:footer
+
+    00:00:00.000 --> 00:00:07.000
+    Transcriber: Translate TED
+    Reviewer: Allam Zedan
+
+    cue-2
+    00:10.159 --> 00:12.722 align:start line:85%
+    The <c.yellow>people</c> in the back,
+    can you <00:00:11.000><c>hear me</c> <i>clearly</i>?
+
+    00:15.000 --> 00:15.100
+    Too short.
+
+    00:20.000 --> 00:22.000
+    <c></c>
+
+    """
+
+    let groups = try SRTParser.parseCueGroupsForIndexing(contents, format: .vtt)
+
+    #expect(groups.count == 2)
+    #expect(groups[0].startMilliseconds == 0)
+    #expect(groups[0].endMilliseconds == 7_000)
+    #expect(groups[0].cueLines.first?.sourceFormat == .vtt)
+    #expect(groups[0].cueLines.first?.content == "Transcriber: Translate TED\nReviewer: Allam Zedan")
+
+    #expect(groups[1].startMilliseconds == 10_159)
+    #expect(groups[1].endMilliseconds == 12_722)
+    #expect(groups[1].cueLines.first?.sourceFormat == .vtt)
+    #expect(groups[1].cueLines.first?.content == "The people in the back,\ncan you hear me clearly?")
+
+    let rendered = try SRTParser.parseForRendering(Data(contents.utf8), format: .vtt)
+    #expect(rendered.count == 3)
+    #expect(rendered[1].text == "The people in the back,\ncan you hear me clearly?")
 }
 
 @Test

@@ -1349,14 +1349,14 @@ func videoAudioTracksKeepTheRecordedListAndTheDefaultTrackAsSet() throws {
 
 @Test
 func videoSubtitlesListSameNamedOnesFirstAssBeforeSrtThenFinderOrder() {
-    let names = ["a.sc.ass", "a.srt", "a.tc.ass", "a.ass", "a.jp.ass", "a.en.ass", "a.EN.srt"]
+    let names = ["a.sc.ass", "a.vtt", "a.srt", "a.tc.ass", "a.ass", "a.jp.ass", "a.en.ass", "a.EN.srt", "a.en.vtt"]
     let subtitles = VideoSubtitles(
         videoPath: "/Media/Show/a.mp4",
         subtitles: names.enumerated().map { id, name in
             VideoSubtitle(
                 subtitleFileID: Int64(id),
                 subtitlePath: "/Media/Show/\(name)",
-                format: name.hasSuffix(".ass") ? .ass : .srt
+                format: SubtitleFormat(fileExtension: URL(fileURLWithPath: name).pathExtension) ?? .srt
             )
         },
         defaultSubtitleFileID: nil
@@ -1364,7 +1364,7 @@ func videoSubtitlesListSameNamedOnesFirstAssBeforeSrtThenFinderOrder() {
 
     #expect(
         subtitles.subtitles.map { URL(fileURLWithPath: $0.subtitlePath).lastPathComponent }
-            == ["a.ass", "a.srt", "a.en.ass", "a.EN.srt", "a.jp.ass", "a.sc.ass", "a.tc.ass"]
+            == ["a.ass", "a.srt", "a.vtt", "a.en.ass", "a.EN.srt", "a.en.vtt", "a.jp.ass", "a.sc.ass", "a.tc.ass"]
     )
     // None set: the first takes effect.
     #expect(subtitles.effectiveDefault?.subtitlePath == "/Media/Show/a.ass")
@@ -1470,4 +1470,83 @@ func videoCodecForVideoPathReturnsIndexedCodec() throws {
     )
 
     #expect(database.videoCodec(forVideoPath: testVideoURL.path) == "av1")
+}
+
+@Test
+func indexesSearchesAndReconcilesWebVTTSubtitleFiles() throws {
+    let root = FileManager.default.temporaryDirectory
+        .appendingPathComponent("CueSeekerWebVTTIndexTests-\(UUID().uuidString)")
+    defer {
+        try? FileManager.default.removeItem(at: root)
+    }
+    let show = root.appendingPathComponent("TED")
+    try FileManager.default.createDirectory(at: show, withIntermediateDirectories: true)
+    let databaseURL = root.appendingPathComponent("index.sqlite")
+    try DatabaseBootstrap.prepare(at: databaseURL)
+    let database = try IndexingDatabase(path: databaseURL)
+
+    let videoFile = show.appendingPathComponent("Talk.mp4")
+    let vttFile = show.appendingPathComponent("Talk.vtt")
+    try Data("video".utf8).write(to: videoFile)
+    try """
+    WEBVTT
+    Kind: captions
+    Language: ja
+
+    00:00:00.000 --> 00:00:07.000
+    Transcriber: Translate TED
+    Reviewer: Allam Zedan
+
+    00:10.159 --> 00:12.722 align:start line:85%
+    The <c.yellow>people</c> in the back,
+    can you <00:00:11.000><c>hear me</c> <i>clearly</i>?
+    """.write(to: vttFile, atomically: true, encoding: .utf8)
+
+    let indexResult = try SubtitleIndexer().index(folder: root, into: database)
+    #expect(indexResult.indexedSubtitleFiles == 1)
+    #expect(indexResult.indexedSubtitleEntries == 2)
+
+    let searchDatabase = try SearchDatabase(path: databaseURL)
+    let results = try searchDatabase.search(
+        "hear me clearly",
+        under: [root]
+    )
+    #expect(results.count == 1)
+    let matched = try #require(results.first)
+    #expect(matched.subtitleFormat == .vtt)
+    #expect(matched.startMilliseconds == 10_159)
+    #expect(matched.endMilliseconds == 12_722)
+    #expect(matched.content == "The people in the back,\ncan you hear me clearly?")
+    #expect(matched.languages.contains(.english))
+
+    let excerptDatabase = try ExcerptDatabase(path: databaseURL)
+    _ = try excerptDatabase.upsertExcerpt(cueID: matched.entryID)
+
+    // Edit text only (timestamp unchanged) and update modification date to trigger reindex.
+    let updatedVTT = """
+    WEBVTT
+    Kind: captions
+    Language: ja
+
+    00:00:00.000 --> 00:00:07.000
+    Transcriber: Translate TED
+    Reviewer: Allam Zedan
+
+    00:10.159 --> 00:12.722
+    The people in the back,
+    can you hear me loud and clearly?
+    """
+    try updatedVTT.write(to: vttFile, atomically: true, encoding: .utf8)
+    try FileManager.default.setAttributes(
+        [.modificationDate: Date().addingTimeInterval(10)],
+        ofItemAtPath: vttFile.path
+    )
+
+    _ = try SubtitleIndexer().index(folder: root, into: database)
+    let updatedResults = try searchDatabase.search(
+        "loud and clearly",
+        under: [root]
+    )
+    #expect(updatedResults.count == 1)
+    #expect(updatedResults.first?.entryID == matched.entryID)
 }

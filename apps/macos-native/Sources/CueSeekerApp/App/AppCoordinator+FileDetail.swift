@@ -39,7 +39,7 @@ extension AppCoordinator {
                 path: subtitlePath,
                 name: url.lastPathComponent,
                 fileSize: (attrs?[.size] as? NSNumber)?.int64Value ?? 0,
-                format: SubtitleFormat(rawValue: url.pathExtension) ?? .srt,
+                format: SubtitleFormat(fileExtension: url.pathExtension) ?? .srt,
                 encoding: "UTF-8",
                 cueCount: 0,
                 associatedVideoPath: nil,

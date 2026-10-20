@@ -6,18 +6,20 @@ public enum SRTParsingError: Error, Equatable, Sendable {
 }
 
 public enum SRTParser {
-    public static func parse(_ contents: String) -> [SubtitleEntry] {
+    public static func parse(_ contents: String, format: SubtitleFormat = .srt) -> [SubtitleEntry] {
         parseEntries(
             contents,
+            format: format,
             deduplicates: true,
             minimumDurationMilliseconds: SubtitleCueIndexingRules.minimumDurationMilliseconds,
-            allowsTrailingEndParameters: false
+            allowsTrailingEndParameters: format == .vtt
         )
     }
 
-    public static func parseForRendering(_ contents: String) -> [SubtitleEntry] {
+    public static func parseForRendering(_ contents: String, format: SubtitleFormat = .srt) -> [SubtitleEntry] {
         parseEntries(
             contents,
+            format: format,
             deduplicates: false,
             minimumDurationMilliseconds: 1,
             allowsTrailingEndParameters: true
@@ -25,25 +27,33 @@ public enum SRTParser {
     }
 
     public static func parseForRendering(_ data: Data) throws -> [SubtitleEntry] {
+        try parseForRendering(data, format: .srt)
+    }
+
+    public static func parseForRendering(_ data: Data, format: SubtitleFormat) throws -> [SubtitleEntry] {
         let contents: String
         do {
-            contents = try SubtitleTextDecoder.decode(data, format: .srt)
+            contents = try SubtitleTextDecoder.decode(data, format: format)
         } catch {
             throw SRTParsingError.undecodableData
         }
-        return parseForRendering(contents)
+        let effectiveFormat: SubtitleFormat =
+            (format == .vtt || hasWEBVTTHeader(contents)) ? .vtt : format
+        return parseForRendering(contents, format: effectiveFormat)
     }
 
     private static func parseEntries(
         _ contents: String,
+        format: SubtitleFormat,
         deduplicates: Bool,
         minimumDurationMilliseconds: Int,
         allowsTrailingEndParameters: Bool
     ) -> [SubtitleEntry] {
         var seenEntries = Set<SRTEntryDeduplicationKey>()
-        return splitBlocks(contents).compactMap { block in
+        return splitBlocks(contents, format: format).compactMap { block in
             guard let entry = parseBlock(
                 block,
+                format: format,
                 minimumDurationMilliseconds: minimumDurationMilliseconds,
                 allowsTrailingEndParameters: allowsTrailingEndParameters
             ) else {
@@ -59,40 +69,65 @@ public enum SRTParser {
         }
     }
 
-    public static func parseCueGroups(_ contents: String) -> [SubtitleCueGroup] {
-        parse(contents).enumerated().map { index, entry in
-            entry.cueGroup(eventIndex: index)
+    public static func parseCueGroups(_ contents: String, format: SubtitleFormat = .srt) -> [SubtitleCueGroup] {
+        parse(contents, format: format).enumerated().map { index, entry in
+            entry.cueGroup(eventIndex: index, sourceFormat: format)
         }
     }
 
-    public static func hasValidStructure(_ contents: String) -> Bool {
-        let blocks = splitBlocks(contents)
-        return !blocks.isEmpty && blocks.contains(where: isStructurallyValid)
+    public static func hasValidStructure(_ contents: String, format: SubtitleFormat = .srt) -> Bool {
+        if format == .vtt, hasWEBVTTHeader(contents) {
+            return true
+        }
+        let blocks = splitBlocks(contents, format: format)
+        return !blocks.isEmpty && blocks.contains { isStructurallyValid($0, format: format) }
     }
 
-    public static func parseCueGroupsForIndexing(_ contents: String) throws -> [SubtitleCueGroup] {
-        for (index, block) in splitBlocks(contents).enumerated() {
-            guard isStructurallyValid(block) else {
+    public static func parseCueGroupsForIndexing(_ contents: String, format: SubtitleFormat = .srt) throws -> [SubtitleCueGroup] {
+        for (index, block) in splitBlocks(contents, format: format).enumerated() {
+            guard isStructurallyValid(block, format: format) else {
                 throw SRTParsingError.malformedBlock(index + 1)
             }
         }
-        return parseCueGroups(contents)
+        return parseCueGroups(contents, format: format)
     }
 
     public static func milliseconds(from timecode: String) -> Int? {
         let trimmed = timecode.trimmingCharacters(in: .whitespacesAndNewlines)
-        let hourParts = trimmed.split(separator: ":", omittingEmptySubsequences: false)
+        let timeParts = trimmed.split(separator: ":", omittingEmptySubsequences: false)
 
-        guard hourParts.count == 3,
-              let hours = Int(hourParts[0]),
-              let minutes = Int(hourParts[1]),
+        let hours: Int
+        let minutes: Int
+        let secondsAndFractionPart: Substring
+        switch timeParts.count {
+        case 3:
+            guard let parsedHours = Int(timeParts[0]),
+                  let parsedMinutes = Int(timeParts[1])
+            else {
+                return nil
+            }
+            hours = parsedHours
+            minutes = parsedMinutes
+            secondsAndFractionPart = timeParts[2]
+        case 2:
+            guard let parsedMinutes = Int(timeParts[0]) else {
+                return nil
+            }
+            hours = 0
+            minutes = parsedMinutes
+            secondsAndFractionPart = timeParts[1]
+        default:
+            return nil
+        }
+
+        guard hours >= 0,
               minutes >= 0,
               minutes < 60
         else {
             return nil
         }
 
-        let secondParts = hourParts[2].split(
+        let secondParts = secondsAndFractionPart.split(
             omittingEmptySubsequences: false,
             whereSeparator: { $0 == "," || $0 == "." }
         )
@@ -113,6 +148,7 @@ public enum SRTParser {
 
     private static func parseBlock(
         _ lines: [String],
+        format: SubtitleFormat = .srt,
         minimumDurationMilliseconds: Int = SubtitleCueIndexingRules.minimumDurationMilliseconds,
         allowsTrailingEndParameters: Bool = false
     ) -> SubtitleEntry? {
@@ -121,8 +157,20 @@ public enum SRTParser {
         }
 
         let firstLine = lines[0].trimmingCharacters(in: .whitespacesAndNewlines)
-        let sequenceNumber = Int(firstLine)
-        let timeLineIndex = sequenceNumber == nil ? 0 : 1
+        let sequenceNumber: Int?
+        let timeLineIndex: Int
+        if format == .vtt {
+            if isTimecodeLine(lines[0], allowsTrailingEndParameters: true) {
+                sequenceNumber = nil
+                timeLineIndex = 0
+            } else {
+                sequenceNumber = Int(firstLine)
+                timeLineIndex = 1
+            }
+        } else {
+            sequenceNumber = Int(firstLine)
+            timeLineIndex = sequenceNumber == nil ? 0 : 1
+        }
 
         guard lines.indices.contains(timeLineIndex) else {
             return nil
@@ -151,7 +199,10 @@ public enum SRTParser {
 
         let textLines = lines.dropFirst(timeLineIndex + 1)
         let text = textLines
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .map { line in
+                let cleaned = format == .vtt ? stripVTTInlineTags(line) : line
+                return cleaned.trimmingCharacters(in: .whitespacesAndNewlines)
+            }
             .joined(separator: "\n")
             .trimmingCharacters(in: .whitespacesAndNewlines)
 
@@ -169,9 +220,16 @@ public enum SRTParser {
         )
     }
 
-    private static func isStructurallyValid(_ lines: [String]) -> Bool {
+    private static func isStructurallyValid(_ lines: [String], format: SubtitleFormat = .srt) -> Bool {
         guard !lines.isEmpty else {
             return false
+        }
+
+        if format == .vtt {
+            if isTimecodeLine(lines[0]) {
+                return true
+            }
+            return lines.count > 1 && !lines[0].contains("-->") && isTimecodeLine(lines[1])
         }
 
         let firstLine = lines[0].trimmingCharacters(in: .whitespacesAndNewlines)
@@ -201,7 +259,7 @@ public enum SRTParser {
             && milliseconds(from: endTimecode) != nil
     }
 
-    private static func splitBlocks(_ contents: String) -> [[String]] {
+    private static func splitBlocks(_ contents: String, format: SubtitleFormat = .srt) -> [[String]] {
         let normalized = contents
             .replacingOccurrences(of: "\u{feff}", with: "")
             .replacingOccurrences(of: "\r\n", with: "\n")
@@ -225,14 +283,24 @@ public enum SRTParser {
                 continue
             }
 
+            let startsCueAfterVTTMetadataBlock =
+                format == .vtt
+                && !currentBlock.isEmpty
+                && !currentBlockHasTimecode
+                && isVTTNonCueBlock(currentBlock)
+                && isTimecodeLine(stringLine)
+
             let startsNextBlockWithoutBlankLine =
-                currentBlockHasTimecode
-                && (
-                    isTimecodeLine(stringLine)
-                    || (
-                        Int(trimmed) != nil
-                        && index + 1 < allLines.count
-                        && isTimecodeLine(allLines[index + 1])
+                startsCueAfterVTTMetadataBlock
+                || (
+                    currentBlockHasTimecode
+                    && (
+                        isTimecodeLine(stringLine)
+                        || (
+                            Int(trimmed) != nil
+                            && index + 1 < allLines.count
+                            && isTimecodeLine(allLines[index + 1])
+                        )
                     )
                 )
             if startsNextBlockWithoutBlankLine {
@@ -251,7 +319,86 @@ public enum SRTParser {
             blocks.append(currentBlock)
         }
 
+        if format == .vtt {
+            return blocks.filter { !isVTTNonCueBlock($0) }
+        }
         return blocks
+    }
+
+    private static func hasWEBVTTHeader(_ contents: String) -> Bool {
+        let normalized = contents
+            .replacingOccurrences(of: "\u{feff}", with: "")
+            .replacingOccurrences(of: "\r\n", with: "\n")
+            .replacingOccurrences(of: "\r", with: "\n")
+        for line in normalized.split(separator: "\n", omittingEmptySubsequences: false) {
+            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.isEmpty {
+                continue
+            }
+            return isWEBVTTHeaderLine(trimmed)
+        }
+        return false
+    }
+
+    private static func isVTTNonCueBlock(_ lines: [String]) -> Bool {
+        guard let firstLine = lines.first?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !firstLine.isEmpty
+        else {
+            return false
+        }
+        if isTimecodeLine(firstLine) {
+            return false
+        }
+        return isVTTNonCueBlockHeaderLine(firstLine)
+    }
+
+    private static func isWEBVTTHeaderLine(_ trimmedLine: String) -> Bool {
+        let lowercased = trimmedLine.lowercased()
+        guard lowercased.hasPrefix("webvtt") else {
+            return false
+        }
+        let remainder = lowercased.dropFirst("webvtt".count)
+        guard let nextCharacter = remainder.first else {
+            return true
+        }
+        return nextCharacter.isWhitespace || nextCharacter == "-"
+    }
+
+    private static func isVTTNonCueBlockHeaderLine(_ trimmedLine: String) -> Bool {
+        if isWEBVTTHeaderLine(trimmedLine) {
+            return true
+        }
+        let lowercased = trimmedLine.lowercased()
+        for keyword in ["note", "style", "region"] {
+            guard lowercased.hasPrefix(keyword) else {
+                continue
+            }
+            let remainder = lowercased.dropFirst(keyword.count)
+            if remainder.isEmpty || remainder.first?.isWhitespace == true {
+                return true
+            }
+        }
+        return false
+    }
+
+    private static func stripVTTInlineTags(_ line: String) -> String {
+        var result = ""
+        result.reserveCapacity(line.count)
+        var index = line.startIndex
+        while index < line.endIndex {
+            if line[index] == "<" {
+                let afterOpen = line.index(after: index)
+                if let closingIndex = line[afterOpen...].firstIndex(of: ">"),
+                   !line[afterOpen..<closingIndex].contains("<")
+                {
+                    index = line.index(after: closingIndex)
+                    continue
+                }
+            }
+            result.append(line[index])
+            index = line.index(after: index)
+        }
+        return result
     }
 
     private struct SRTEntryDeduplicationKey: Hashable {
