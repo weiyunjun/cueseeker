@@ -35,6 +35,24 @@ final class IndexingStore: ObservableObject {
             }
             return SMBAddress.defaultDisplayName(for: folder)
         }
+        if folder.isFTPURL {
+            if let config = FTPConfigurationStore.shared.config(for: folder) {
+                let trimmed = config.name.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !trimmed.isEmpty {
+                    return trimmed
+                }
+            }
+            return FTPAddress.defaultDisplayName(for: folder)
+        }
+        if folder.isNFSURL {
+            if let config = NFSConfigurationStore.shared.config(for: folder) {
+                let trimmed = config.name.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !trimmed.isEmpty {
+                    return trimmed
+                }
+            }
+            return NFSAddress.defaultDisplayName(for: folder)
+        }
         return folder.lastPathComponent
     }
 

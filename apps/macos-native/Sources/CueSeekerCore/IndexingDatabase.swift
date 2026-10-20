@@ -62,7 +62,18 @@ public final class IndexingDatabase: @unchecked Sendable {
         _ folder: URL,
         type: String = "local"
     ) throws -> Int64 {
-        let effectiveType = folder.isWebDAVURL ? "webdav" : (folder.isSMBURL ? "smb" : type)
+        let effectiveType: String
+        if folder.isWebDAVURL {
+            effectiveType = "webdav"
+        } else if folder.isSMBURL {
+            effectiveType = "smb"
+        } else if folder.isFTPURL {
+            effectiveType = "ftp"
+        } else if folder.isNFSURL {
+            effectiveType = "nfs"
+        } else {
+            effectiveType = type
+        }
         let standardizedFolder = folder.standardizedMediaURL
         let folderMediaPath = standardizedFolder.mediaPath
         let now = ISO8601DateFormatter().string(from: Date())
@@ -1714,7 +1725,7 @@ public final class IndexingDatabase: @unchecked Sendable {
         let videoMediaPath = videoFile.mediaPath
         let fileSize: Int64?
         let modifiedAt: Date?
-        if videoFile.isWebDAVURL || videoFile.isSMBURL {
+        if videoFile.isRemoteMediaURL {
             fileSize = explicitFileSize
             modifiedAt = explicitModifiedAt
         } else {
@@ -3792,7 +3803,9 @@ public final class IndexingDatabase: @unchecked Sendable {
 
     private static func relativeMediaPath(for file: URL, under root: URL) -> String? {
         guard file.isWebDAVURL == root.isWebDAVURL,
-              file.isSMBURL == root.isSMBURL else {
+              file.isSMBURL == root.isSMBURL,
+              file.isFTPURL == root.isFTPURL,
+              file.isNFSURL == root.isNFSURL else {
             return nil
         }
         let rootPath = normalizedFolderPath(root.mediaPath)

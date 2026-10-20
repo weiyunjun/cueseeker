@@ -107,7 +107,7 @@ extension LibraryDatabase {
         let dbModifiedDate = modifiedAtSec.map { Date(timeIntervalSince1970: $0) }
 
         let fileURL = URL.fromMediaPath(path)
-        let attributes = (path.isWebDAVPath || path.isSMBPath)
+        let attributes = path.isRemoteMediaPath
             ? nil
             : (try? FileManager.default.attributesOfItem(atPath: path))
         let createdDate = attributes?[.creationDate] as? Date
@@ -166,7 +166,7 @@ extension LibraryDatabase {
         try cueStatement.bind(subtitleFileID, at: 1)
         let cueCount = try cueStatement.step() ? cueStatement.intColumn(0) : 0
 
-        let attributes = (path.isWebDAVPath || path.isSMBPath)
+        let attributes = path.isRemoteMediaPath
             ? nil
             : (try? FileManager.default.attributesOfItem(atPath: path))
         let createdDate = attributes?[.creationDate] as? Date

@@ -224,6 +224,46 @@ private struct ContentRootView: View {
                 .workbenchDialog()
             }
 
+            if let session = libraryStore.ftpDialogSession {
+                FTPFolderDialog(
+                    session: session,
+                    onConfirm: {
+                        appState.confirmFTPFolderDialog(session)
+                    },
+                    onClose: appState.closeFTPFolderDialog,
+                    onBack: {
+                        appState.navigateBackInFTPFolderDialog(session)
+                    },
+                    onOpenFolder: { item in
+                        appState.openFTPSubfolder(item, in: session)
+                    },
+                    onSelectBreadcrumb: { node in
+                        appState.navigateFTPBreadcrumb(to: node, in: session)
+                    }
+                )
+                .workbenchDialog()
+            }
+
+            if let session = libraryStore.nfsDialogSession {
+                NFSFolderDialog(
+                    session: session,
+                    onConfirm: {
+                        appState.confirmNFSFolderDialog(session)
+                    },
+                    onClose: appState.closeNFSFolderDialog,
+                    onBack: {
+                        appState.navigateBackInNFSFolderDialog(session)
+                    },
+                    onOpenFolder: { item in
+                        appState.openNFSSubfolder(item, in: session)
+                    },
+                    onSelectBreadcrumb: { node in
+                        appState.navigateNFSBreadcrumb(to: node, in: session)
+                    }
+                )
+                .workbenchDialog()
+            }
+
             if let session = libraryStore.fileDetailSession {
                 WorkbenchFileDetailDialog(
                     session: session,
@@ -298,6 +338,12 @@ private struct ContentRootView: View {
             ids.append(session.id)
         }
         if let session = libraryStore.smbDialogSession {
+            ids.append(session.id)
+        }
+        if let session = libraryStore.ftpDialogSession {
+            ids.append(session.id)
+        }
+        if let session = libraryStore.nfsDialogSession {
             ids.append(session.id)
         }
         if let session = libraryStore.fileDetailSession {

@@ -12,6 +12,7 @@ Human-owned direction:
 - `docs/human/requirements/20260712-Feature-Reproducible macOS Media Runtime And App Packaging.md`
 - `docs/human/requirements/20261016-Engineering-App Bundle Size Reduction.md`
 - `docs/human/requirements/20261019-Feature-SMB Folder Support.md`
+- `docs/human/requirements/20261020-Feature-FTP And NFS Folder Support.md`
 
 ## 2. Supported Platform
 
@@ -46,6 +47,12 @@ Human-owned direction:
   user-space SMB2/SMB3 share enumeration, directory browsing, subtitle caching,
   in-app rename, and range-backed media streaming without requiring macOS mount
   privileges.
+- libnfs 6.0.2 is included as an LGPL-2.1 shared library (`libnfs.16.dylib`) for
+  user-space NFSv3/NFSv4 export enumeration, directory browsing, subtitle
+  caching, in-app rename, and range-backed media streaming without requiring
+  macOS mount privileges.
+- FTP folder browsing, subtitle caching, in-app rename, and range-backed media
+  streaming link against the macOS system `libcurl` (`/usr/lib/libcurl.4.dylib`).
 - The `ffmpeg` command-line program is part of the app runtime because existing
   thumbnail, screenshot, and Anki export workflows invoke it. `ffplay`,
   `ffprobe`, documentation, static libraries, and debug symbols are excluded.
@@ -61,7 +68,7 @@ The required FFmpeg app libraries are:
 - `libswscale`
 
 The required external codec and protocol libraries include `libdav1d`,
-`libmp3lame`, and `libsmb2`.
+`libmp3lame`, `libsmb2`, and `libnfs`.
 
 ## 4. libass Runtime
 

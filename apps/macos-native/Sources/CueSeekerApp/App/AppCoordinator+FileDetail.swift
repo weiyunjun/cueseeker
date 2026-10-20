@@ -9,7 +9,7 @@ extension AppCoordinator {
             library.fileDetailSession = FileDetailDialogSession(kind: .video(info))
         } else {
             let url = URL.fromMediaPath(videoPath)
-            let attrs = (videoPath.isWebDAVPath || videoPath.isSMBPath) ? nil : (try? FileManager.default.attributesOfItem(atPath: videoPath))
+            let attrs = videoPath.isRemoteMediaPath ? nil : (try? FileManager.default.attributesOfItem(atPath: videoPath))
             let info = FileDetailVideoInfo(
                 path: videoPath,
                 name: url.lastPathComponent,
@@ -34,7 +34,7 @@ extension AppCoordinator {
             library.fileDetailSession = FileDetailDialogSession(kind: .subtitle(info))
         } else {
             let url = URL.fromMediaPath(subtitlePath)
-            let attrs = (subtitlePath.isWebDAVPath || subtitlePath.isSMBPath) ? nil : (try? FileManager.default.attributesOfItem(atPath: subtitlePath))
+            let attrs = subtitlePath.isRemoteMediaPath ? nil : (try? FileManager.default.attributesOfItem(atPath: subtitlePath))
             let info = FileDetailSubtitleInfo(
                 path: subtitlePath,
                 name: url.lastPathComponent,

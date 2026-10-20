@@ -304,6 +304,79 @@ build_libsmb2() {
     cp "$source"/include/smb2/*.h "$PREFIX/include/smb2/"
 }
 
+build_libnfs() {
+    source="$BUILD_ROOT/sources/libnfs-libnfs-6.0.2"
+    build="$BUILD_ROOT/build/libnfs"
+    rm -rf "$build"
+    mkdir -p "$build/obj" "$PREFIX/include/nfsc" "$PREFIX/lib"
+    for subdir in mount nfs nfs4 nlm nsm portmap rquota lib; do
+        for cfile in "$source/$subdir"/*.c; do
+            base="${subdir}_$(basename "$cfile" .c)"
+            "$CC" $CFLAGS \
+                "-D_U_=__attribute__((unused))" \
+                -D_DARWIN_USE_64_BIT_INODE=1 \
+                -DHAVE_ARPA_INET_H=1 \
+                -DHAVE_DLFCN_H=1 \
+                -DHAVE_INTTYPES_H=1 \
+                -DHAVE_MEMORY_H=1 \
+                -DHAVE_NETDB_H=1 \
+                -DHAVE_NETINET_IN_H=1 \
+                -DHAVE_NETINET_TCP_H=1 \
+                -DHAVE_NET_IF_H=1 \
+                -DHAVE_POLL_H=1 \
+                -DHAVE_PTHREAD=1 \
+                -DHAVE_PTHREAD_THREADID_NP=1 \
+                -DHAVE_SIGNAL_H=1 \
+                -DHAVE_SOCKADDR_LEN=1 \
+                -DHAVE_SOCKADDR_STORAGE=1 \
+                -DHAVE_STDATOMIC_H=1 \
+                -DHAVE_STDINT_H=1 \
+                -DHAVE_STDLIB_H=1 \
+                -DHAVE_STRINGS_H=1 \
+                -DHAVE_STRING_H=1 \
+                -DHAVE_SYS_FILIO_H=1 \
+                -DHAVE_SYS_IOCTL_H=1 \
+                -DHAVE_SYS_SOCKET_H=1 \
+                -DHAVE_SYS_SOCKIO_H=1 \
+                -DHAVE_SYS_STATVFS_H=1 \
+                -DHAVE_SYS_STAT_H=1 \
+                -DHAVE_SYS_TIME_H=1 \
+                -DHAVE_SYS_TYPES_H=1 \
+                -DHAVE_SYS_UIO_H=1 \
+                -DHAVE_SYS_UTSNAME_H=1 \
+                -DHAVE_UNISTD_H=1 \
+                -DHAVE_UTIME_H=1 \
+                -I"$source/include" \
+                -I"$source/include/nfsc" \
+                -I"$source/mount" \
+                -I"$source/nfs" \
+                -I"$source/nfs4" \
+                -I"$source/nlm" \
+                -I"$source/nsm" \
+                -I"$source/portmap" \
+                -I"$source/rquota" \
+                -I"$source/lib" \
+                -c "$cfile" -o "$build/obj/$base.o"
+        done
+    done
+    "$CC" $LDFLAGS -dynamiclib \
+        -install_name "@rpath/libnfs.16.dylib" \
+        -current_version 16.2.0 \
+        -compatibility_version 16.0.0 \
+        "$build/obj"/*.o \
+        -o "$PREFIX/lib/libnfs.16.dylib"
+    ln -sf libnfs.16.dylib "$PREFIX/lib/libnfs.dylib"
+    cp "$source"/include/nfsc/*.h "$PREFIX/include/nfsc/"
+    cp "$source/mount/libnfs-raw-mount.h" \
+       "$source/nfs/libnfs-raw-nfs.h" \
+       "$source/nfs4/libnfs-raw-nfs4.h" \
+       "$source/nlm/libnfs-raw-nlm.h" \
+       "$source/nsm/libnfs-raw-nsm.h" \
+       "$source/portmap/libnfs-raw-portmap.h" \
+       "$source/rquota/libnfs-raw-rquota.h" \
+       "$PREFIX/include/nfsc/"
+}
+
 build_ffmpeg() {
     source="$BUILD_ROOT/sources/ffmpeg-8.1.2"
     build="$BUILD_ROOT/build/ffmpeg"
@@ -398,6 +471,7 @@ stage_licenses_and_manifest() {
     cp "$BUILD_ROOT/sources/libunibreak-6.1/LICENCE" "$licenses/libunibreak-LICENCE"
     cp "$BUILD_ROOT/sources/lame-3.100/COPYING" "$licenses/LAME-COPYING"
     cp "$BUILD_ROOT/sources/libsmb2-libsmb2-6.2/LICENCE-LGPL-2.1.txt" "$licenses/libsmb2-LICENCE-LGPL-2.1.txt"
+    cp "$BUILD_ROOT/sources/libnfs-libnfs-6.0.2/LICENCE-LGPL-2.1.txt" "$licenses/libnfs-LICENCE-LGPL-2.1.txt"
     cp "$LOCK_FILE" "$PREFIX/sources.lock"
     cp "$PATCH_FILE" "$PREFIX/ffmpeg-cueseeker.patch"
     cp "$LAME_PATCH_FILE" "$PREFIX/lame-cueseeker.patch"
@@ -428,6 +502,7 @@ build_libass
 build_lame
 build_dav1d
 build_libsmb2
+build_libnfs
 build_ffmpeg
 rewrite_install_names
 stage_licenses_and_manifest

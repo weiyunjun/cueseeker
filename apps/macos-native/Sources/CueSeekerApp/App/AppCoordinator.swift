@@ -912,7 +912,7 @@ final class AppCoordinator: ObservableObject {
         }
 
         var prefixes = Set([path])
-        if !folder.isWebDAVURL && !folder.isSMBURL {
+        if !folder.isRemoteMediaURL {
             if path.hasPrefix("/var/") {
                 prefixes.insert("/private" + path)
             } else if path.hasPrefix("/private/var/") {

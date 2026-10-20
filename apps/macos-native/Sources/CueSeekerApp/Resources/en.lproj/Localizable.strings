@@ -693,6 +693,28 @@
 "smb.error.invalid_address" = "Enter a valid SMB address";
 "smb.error.invalid_port" = "Enter a valid port (1–65535)";
 
+/* FTP Folder Support */
+"file.add_folder.ftp" = "FTP Folder";
+"ftp.dialog.title" = "FTP Folder";
+"ftp.field.address" = "Address";
+"ftp.field.port" = "Port";
+"ftp.field.username" = "Username";
+"ftp.field.password" = "Password";
+"ftp.connect" = "Connect";
+"ftp.add" = "Add";
+"ftp.empty_folder_items" = "No folders, videos, or subtitles in this folder.";
+"ftp.error.invalid_address" = "Enter a valid FTP address";
+"ftp.error.invalid_port" = "Enter a valid port (1–65535)";
+
+/* NFS Folder Support */
+"file.add_folder.nfs" = "NFS Folder";
+"nfs.dialog.title" = "NFS Folder";
+"nfs.field.address" = "Address";
+"nfs.connect" = "Connect";
+"nfs.add" = "Add";
+"nfs.empty_folder_items" = "No folders, videos, or subtitles in this folder.";
+"nfs.error.invalid_address" = "Enter a valid NFS address";
+
 /* Tooltips */
 "tooltip.topbar.back.disabled" = "No previous page";
 "tooltip.topbar.forward.disabled" = "No next page";

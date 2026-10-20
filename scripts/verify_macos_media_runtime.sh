@@ -24,6 +24,7 @@ required=(
     libunibreak
     libmp3lame
     libsmb2
+    libnfs
 )
 
 for stem in "${required[@]}"; do

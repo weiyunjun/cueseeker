@@ -693,6 +693,28 @@
 "smb.error.invalid_address" = "请输入有效的 SMB 地址";
 "smb.error.invalid_port" = "请输入有效的端口号（1–65535）";
 
+/* FTP Folder Support */
+"file.add_folder.ftp" = "FTP 文件夹";
+"ftp.dialog.title" = "FTP 文件夹";
+"ftp.field.address" = "地址";
+"ftp.field.port" = "端口";
+"ftp.field.username" = "用户名";
+"ftp.field.password" = "密码";
+"ftp.connect" = "连接";
+"ftp.add" = "添加";
+"ftp.empty_folder_items" = "此文件夹中没有文件夹、视频或字幕文件。";
+"ftp.error.invalid_address" = "请输入有效的 FTP 地址";
+"ftp.error.invalid_port" = "请输入有效的端口号（1–65535）";
+
+/* NFS Folder Support */
+"file.add_folder.nfs" = "NFS 文件夹";
+"nfs.dialog.title" = "NFS 文件夹";
+"nfs.field.address" = "地址";
+"nfs.connect" = "连接";
+"nfs.add" = "添加";
+"nfs.empty_folder_items" = "此文件夹中没有文件夹、视频或字幕文件。";
+"nfs.error.invalid_address" = "请输入有效的 NFS 地址";
+
 /* Tooltips */
 "tooltip.topbar.back.disabled" = "没有可后退的页面";
 "tooltip.topbar.forward.disabled" = "没有可前进的页面";

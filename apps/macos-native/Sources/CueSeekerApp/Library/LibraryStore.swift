@@ -70,6 +70,8 @@ final class LibraryStore: ObservableObject {
     @Published var renameSession: LibraryRenameSession?
     @Published var webdavDialogSession: WebDAVFolderDialogSession?
     @Published var smbDialogSession: SMBFolderDialogSession?
+    @Published var ftpDialogSession: FTPFolderDialogSession?
+    @Published var nfsDialogSession: NFSFolderDialogSession?
     @Published var fileDetailSession: FileDetailDialogSession?
     var libraryPlaybackNavigationVideos: [LibraryVideo] = []
 

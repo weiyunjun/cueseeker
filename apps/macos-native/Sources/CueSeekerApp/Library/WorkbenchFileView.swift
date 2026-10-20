@@ -261,6 +261,24 @@ struct WorkbenchFileView: View {
                 action: {
                     appState.openSMBFolderDialog()
                 }
+            ),
+            FileCardMenuItem(
+                title: L("file.add_folder.ftp"),
+                icon: .folderFtp,
+                isEnabled: !isFolderOperationBlocked,
+                isDestructive: false,
+                action: {
+                    appState.openFTPFolderDialog()
+                }
+            ),
+            FileCardMenuItem(
+                title: L("file.add_folder.nfs"),
+                icon: .folderNfs,
+                isEnabled: !isFolderOperationBlocked,
+                isDestructive: false,
+                action: {
+                    appState.openNFSFolderDialog()
+                }
             )
         ]
     }
@@ -957,6 +975,12 @@ enum FileFolderGroupingResolver {
         if folder.isSMBURL {
             return .folderSmb
         }
+        if folder.isFTPURL {
+            return .folderFtp
+        }
+        if folder.isNFSURL {
+            return .folderNfs
+        }
         return .folder
     }
 
@@ -966,6 +990,12 @@ enum FileFolderGroupingResolver {
         }
         if folderPath.isSMBPath {
             return .folderSmb
+        }
+        if folderPath.isFTPPath {
+            return .folderFtp
+        }
+        if folderPath.isNFSPath {
+            return .folderNfs
         }
         return .folder
     }
@@ -979,6 +1009,14 @@ enum FileFolderGroupingResolver {
             let rawAddress = SMBConfigurationStore.shared.config(for: folder)?.address ?? folder.mediaPath
             return SMBAddress.decodedDisplayAddress(rawAddress)
         }
+        if folder.isFTPURL {
+            let rawAddress = FTPConfigurationStore.shared.config(for: folder)?.address ?? folder.mediaPath
+            return FTPAddress.decodedDisplayAddress(rawAddress)
+        }
+        if folder.isNFSURL {
+            let rawAddress = NFSConfigurationStore.shared.config(for: folder)?.address ?? folder.mediaPath
+            return NFSAddress.decodedDisplayAddress(rawAddress)
+        }
         return folder.path
     }
 
@@ -988,6 +1026,12 @@ enum FileFolderGroupingResolver {
         }
         if folderPath.isSMBPath {
             return SMBAddress.decodedDisplayAddress(folderPath)
+        }
+        if folderPath.isFTPPath {
+            return FTPAddress.decodedDisplayAddress(folderPath)
+        }
+        if folderPath.isNFSPath {
+            return NFSAddress.decodedDisplayAddress(folderPath)
         }
         return folderPath
     }

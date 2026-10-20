@@ -18,6 +18,7 @@ func missingMediaRuntimeFiles(_ root: String) -> [String] {
         "\(root)/include/libswscale/swscale.h",
         "\(root)/include/ass/ass.h",
         "\(root)/include/smb2/libsmb2.h",
+        "\(root)/include/nfsc/libnfs.h",
         "\(root)/lib/libavformat.dylib",
         "\(root)/lib/libavcodec.dylib",
         "\(root)/lib/libavutil.dylib",
@@ -31,6 +32,7 @@ func missingMediaRuntimeFiles(_ root: String) -> [String] {
         "\(root)/lib/libunibreak.dylib",
         "\(root)/lib/libmp3lame.dylib",
         "\(root)/lib/libsmb2.dylib",
+        "\(root)/lib/libnfs.dylib",
     ]
     return requiredPaths.filter { !FileManager.default.fileExists(atPath: $0) }
 }
@@ -80,7 +82,9 @@ let package = Package(
             ],
             linkerSettings: [
                 .unsafeFlags(mediaRuntimeLinkerFlags),
-                .linkedLibrary("smb2")
+                .linkedLibrary("smb2"),
+                .linkedLibrary("nfs"),
+                .linkedLibrary("curl")
             ]
         ),
         .target(

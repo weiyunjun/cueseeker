@@ -611,6 +611,411 @@ extension AppCoordinator {
         addFolders(targetFolders)
     }
 
+    func openFTPFolderDialog() {
+        guard !tasks.hasLibraryTask, !indexing.databaseMaintenanceStatus.isCompacting else {
+            return
+        }
+        library.ftpDialogSession = FTPFolderDialogSession()
+    }
+
+    func closeFTPFolderDialog() {
+        library.ftpDialogSession?.cancelValidation()
+        library.ftpDialogSession = nil
+    }
+
+    func confirmFTPFolderDialog(_ session: FTPFolderDialogSession) {
+        switch session.step {
+        case .connection:
+            connectFTPFolderDialog(session)
+        case .browser:
+            confirmFTPBrowserAdd(session)
+        }
+    }
+
+    func connectFTPFolderDialog(_ session: FTPFolderDialogSession) {
+        guard library.ftpDialogSession?.id == session.id,
+              session.step == .connection,
+              !session.isSubmitting,
+              !tasks.hasLibraryTask,
+              !indexing.databaseMaintenanceStatus.isCompacting
+        else {
+            return
+        }
+
+        let trimmedAddress = session.address.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedAddress.isEmpty else {
+            session.validationMessage = L("ftp.error.invalid_address")
+            return
+        }
+        guard let parsedPort = FTPAddress.parsePort(session.port) else {
+            session.validationMessage = L("ftp.error.invalid_port")
+            return
+        }
+        guard FTPAddress.parseURL(from: trimmedAddress, portOverride: parsedPort) != nil else {
+            session.validationMessage = L("ftp.error.invalid_address")
+            return
+        }
+
+        let trimmedUsername = session.username.trimmingCharacters(in: .whitespacesAndNewlines)
+        let password = session.password
+        let rawAddress = session.address
+        let rawPort = session.port
+
+        session.validationMessage = nil
+        session.isSubmitting = true
+        session.validationTask = Task { @MainActor [weak self, weak session] in
+            do {
+                let connected = try await FTPClient.shared.connectAndBrowseDirectory(
+                    address: rawAddress,
+                    port: rawPort,
+                    username: trimmedUsername,
+                    password: password
+                )
+                guard !Task.isCancelled,
+                      let self,
+                      let session,
+                      self.library.ftpDialogSession?.id == session.id
+                else {
+                    return
+                }
+                session.isSubmitting = false
+                session.validationTask = nil
+                session.enterBrowser(config: connected.config, initialItems: connected.items)
+            } catch is CancellationError {
+                return
+            } catch {
+                guard !Task.isCancelled,
+                      let self,
+                      let session,
+                      self.library.ftpDialogSession?.id == session.id
+                else {
+                    return
+                }
+                session.isSubmitting = false
+                session.validationTask = nil
+                session.validationMessage = Self.errorMessage(for: error)
+            }
+        }
+    }
+
+    func navigateBackInFTPFolderDialog(_ session: FTPFolderDialogSession) {
+        guard library.ftpDialogSession?.id == session.id else {
+            return
+        }
+        session.returnToConnection()
+    }
+
+    func openFTPSubfolder(
+        _ item: WebDAVBrowserItem,
+        in session: FTPFolderDialogSession
+    ) {
+        guard library.ftpDialogSession?.id == session.id,
+              session.step == .browser,
+              item.kind == .folder,
+              let baseConfig = session.baseConfig
+        else {
+            return
+        }
+
+        let targetNode = FTPFolderDialogSession.BreadcrumbNode(
+            url: item.url,
+            title: item.name
+        )
+        if let existingIndex = session.breadcrumbNodes.firstIndex(where: { $0.id == targetNode.id }) {
+            session.breadcrumbNodes = Array(session.breadcrumbNodes.prefix(existingIndex + 1))
+        } else {
+            session.breadcrumbNodes.append(targetNode)
+        }
+        loadFTPBrowserDirectory(at: targetNode.url, baseConfig: baseConfig, in: session)
+    }
+
+    func navigateFTPBreadcrumb(
+        to node: FTPFolderDialogSession.BreadcrumbNode,
+        in session: FTPFolderDialogSession
+    ) {
+        guard library.ftpDialogSession?.id == session.id,
+              session.step == .browser,
+              let baseConfig = session.baseConfig,
+              let targetIndex = session.breadcrumbNodes.firstIndex(where: { $0.id == node.id })
+        else {
+            return
+        }
+
+        session.breadcrumbNodes = Array(session.breadcrumbNodes.prefix(targetIndex + 1))
+        loadFTPBrowserDirectory(at: node.url, baseConfig: baseConfig, in: session)
+    }
+
+    private func loadFTPBrowserDirectory(
+        at folderURL: URL,
+        baseConfig: FTPRootConfig,
+        in session: FTPFolderDialogSession
+    ) {
+        session.directoryTask?.cancel()
+        session.selectedFolderPaths.removeAll()
+        session.directoryErrorMessage = nil
+        session.isLoadingDirectory = true
+        let targetID = folderURL.standardizedMediaURL.mediaPath
+
+        session.directoryTask = Task { @MainActor [weak self, weak session] in
+            do {
+                let loadedItems = try await FTPClient.shared.browseDirectory(
+                    at: folderURL,
+                    baseConfig: baseConfig
+                )
+                guard !Task.isCancelled,
+                      let self,
+                      let session,
+                      self.library.ftpDialogSession?.id == session.id,
+                      session.step == .browser,
+                      session.currentDirectoryURL?.mediaPath == targetID
+                else {
+                    return
+                }
+                session.items = loadedItems
+                session.isLoadingDirectory = false
+                session.directoryErrorMessage = nil
+                session.directoryTask = nil
+            } catch is CancellationError {
+                return
+            } catch {
+                guard !Task.isCancelled,
+                      let self,
+                      let session,
+                      self.library.ftpDialogSession?.id == session.id,
+                      session.step == .browser,
+                      session.currentDirectoryURL?.mediaPath == targetID
+                else {
+                    return
+                }
+                session.items = []
+                session.isLoadingDirectory = false
+                session.directoryErrorMessage = Self.errorMessage(for: error)
+                session.directoryTask = nil
+            }
+        }
+    }
+
+    func confirmFTPBrowserAdd(_ session: FTPFolderDialogSession) {
+        guard library.ftpDialogSession?.id == session.id,
+              session.canAddInBrowser,
+              let baseConfig = session.baseConfig,
+              !tasks.hasLibraryTask,
+              !indexing.databaseMaintenanceStatus.isCompacting
+        else {
+            return
+        }
+
+        let targetFolders = session.targetFoldersToAdd()
+        guard !targetFolders.isEmpty else {
+            return
+        }
+
+        for folder in targetFolders {
+            let scopedConfig = baseConfig.scopedConfig(for: folder)
+            FTPConfigurationStore.shared.save(scopedConfig)
+        }
+
+        session.cancelValidation()
+        library.ftpDialogSession = nil
+        addFolders(targetFolders)
+    }
+
+    func openNFSFolderDialog() {
+        guard !tasks.hasLibraryTask, !indexing.databaseMaintenanceStatus.isCompacting else {
+            return
+        }
+        library.nfsDialogSession = NFSFolderDialogSession()
+    }
+
+    func closeNFSFolderDialog() {
+        library.nfsDialogSession?.cancelValidation()
+        library.nfsDialogSession = nil
+    }
+
+    func confirmNFSFolderDialog(_ session: NFSFolderDialogSession) {
+        switch session.step {
+        case .connection:
+            connectNFSFolderDialog(session)
+        case .browser:
+            confirmNFSBrowserAdd(session)
+        }
+    }
+
+    func connectNFSFolderDialog(_ session: NFSFolderDialogSession) {
+        guard library.nfsDialogSession?.id == session.id,
+              session.step == .connection,
+              !session.isSubmitting,
+              !tasks.hasLibraryTask,
+              !indexing.databaseMaintenanceStatus.isCompacting
+        else {
+            return
+        }
+
+        let trimmedAddress = session.address.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedAddress.isEmpty,
+              NFSAddress.parseURL(from: trimmedAddress) != nil
+        else {
+            session.validationMessage = L("nfs.error.invalid_address")
+            return
+        }
+
+        let rawAddress = session.address
+        session.validationMessage = nil
+        session.isSubmitting = true
+        session.validationTask = Task { @MainActor [weak self, weak session] in
+            do {
+                let connected = try await NFSClient.shared.connectAndBrowseDirectory(
+                    address: rawAddress
+                )
+                guard !Task.isCancelled,
+                      let self,
+                      let session,
+                      self.library.nfsDialogSession?.id == session.id
+                else {
+                    return
+                }
+                session.isSubmitting = false
+                session.validationTask = nil
+                session.enterBrowser(config: connected.config, initialItems: connected.items)
+            } catch is CancellationError {
+                return
+            } catch {
+                guard !Task.isCancelled,
+                      let self,
+                      let session,
+                      self.library.nfsDialogSession?.id == session.id
+                else {
+                    return
+                }
+                session.isSubmitting = false
+                session.validationTask = nil
+                session.validationMessage = Self.errorMessage(for: error)
+            }
+        }
+    }
+
+    func navigateBackInNFSFolderDialog(_ session: NFSFolderDialogSession) {
+        guard library.nfsDialogSession?.id == session.id else {
+            return
+        }
+        session.returnToConnection()
+    }
+
+    func openNFSSubfolder(
+        _ item: WebDAVBrowserItem,
+        in session: NFSFolderDialogSession
+    ) {
+        guard library.nfsDialogSession?.id == session.id,
+              session.step == .browser,
+              item.kind == .folder,
+              let baseConfig = session.baseConfig
+        else {
+            return
+        }
+
+        let targetNode = NFSFolderDialogSession.BreadcrumbNode(
+            url: item.url,
+            title: item.name
+        )
+        if let existingIndex = session.breadcrumbNodes.firstIndex(where: { $0.id == targetNode.id }) {
+            session.breadcrumbNodes = Array(session.breadcrumbNodes.prefix(existingIndex + 1))
+        } else {
+            session.breadcrumbNodes.append(targetNode)
+        }
+        loadNFSBrowserDirectory(at: targetNode.url, baseConfig: baseConfig, in: session)
+    }
+
+    func navigateNFSBreadcrumb(
+        to node: NFSFolderDialogSession.BreadcrumbNode,
+        in session: NFSFolderDialogSession
+    ) {
+        guard library.nfsDialogSession?.id == session.id,
+              session.step == .browser,
+              let baseConfig = session.baseConfig,
+              let targetIndex = session.breadcrumbNodes.firstIndex(where: { $0.id == node.id })
+        else {
+            return
+        }
+
+        session.breadcrumbNodes = Array(session.breadcrumbNodes.prefix(targetIndex + 1))
+        loadNFSBrowserDirectory(at: node.url, baseConfig: baseConfig, in: session)
+    }
+
+    private func loadNFSBrowserDirectory(
+        at folderURL: URL,
+        baseConfig: NFSRootConfig,
+        in session: NFSFolderDialogSession
+    ) {
+        session.directoryTask?.cancel()
+        session.selectedFolderPaths.removeAll()
+        session.directoryErrorMessage = nil
+        session.isLoadingDirectory = true
+        let targetID = folderURL.standardizedMediaURL.mediaPath
+
+        session.directoryTask = Task { @MainActor [weak self, weak session] in
+            do {
+                let loadedItems = try await NFSClient.shared.browseDirectory(
+                    at: folderURL,
+                    baseConfig: baseConfig
+                )
+                guard !Task.isCancelled,
+                      let self,
+                      let session,
+                      self.library.nfsDialogSession?.id == session.id,
+                      session.step == .browser,
+                      session.currentDirectoryURL?.mediaPath == targetID
+                else {
+                    return
+                }
+                session.items = loadedItems
+                session.isLoadingDirectory = false
+                session.directoryErrorMessage = nil
+                session.directoryTask = nil
+            } catch is CancellationError {
+                return
+            } catch {
+                guard !Task.isCancelled,
+                      let self,
+                      let session,
+                      self.library.nfsDialogSession?.id == session.id,
+                      session.step == .browser,
+                      session.currentDirectoryURL?.mediaPath == targetID
+                else {
+                    return
+                }
+                session.items = []
+                session.isLoadingDirectory = false
+                session.directoryErrorMessage = Self.errorMessage(for: error)
+                session.directoryTask = nil
+            }
+        }
+    }
+
+    func confirmNFSBrowserAdd(_ session: NFSFolderDialogSession) {
+        guard library.nfsDialogSession?.id == session.id,
+              session.canAddInBrowser,
+              let baseConfig = session.baseConfig,
+              !tasks.hasLibraryTask,
+              !indexing.databaseMaintenanceStatus.isCompacting
+        else {
+            return
+        }
+
+        let targetFolders = session.targetFoldersToAdd()
+        guard !targetFolders.isEmpty else {
+            return
+        }
+
+        for folder in targetFolders {
+            let scopedConfig = baseConfig.scopedConfig(for: folder)
+            NFSConfigurationStore.shared.save(scopedConfig)
+        }
+
+        session.cancelValidation()
+        library.nfsDialogSession = nil
+        addFolders(targetFolders)
+    }
+
     /// Starts an Add Folder. The folder joins the root list only once its task
     /// completes, so one that does not finish leaves the list as it was.
     func addFolder(_ folder: URL) {
@@ -689,6 +1094,12 @@ extension AppCoordinator {
                 } else if folder.isSMBURL {
                     SMBConfigurationStore.shared.remove(url: folder)
                     WebDAVSubtitleCache.shared.removeCachedSubtitles(forRootURL: folder)
+                } else if folder.isFTPURL {
+                    FTPConfigurationStore.shared.remove(url: folder)
+                    WebDAVSubtitleCache.shared.removeCachedSubtitles(forRootURL: folder)
+                } else if folder.isNFSURL {
+                    NFSConfigurationStore.shared.remove(url: folder)
+                    WebDAVSubtitleCache.shared.removeCachedSubtitles(forRootURL: folder)
                 }
             } catch {
                 print("Failed to take back an unfinished folder addition: \(error)")
@@ -733,6 +1144,12 @@ extension AppCoordinator {
                 WebDAVSubtitleCache.shared.removeCachedSubtitles(forRootURL: folder)
             } else if folder.isSMBURL && !self.indexing.selectedFolders.contains(folder) {
                 SMBConfigurationStore.shared.remove(url: folder)
+                WebDAVSubtitleCache.shared.removeCachedSubtitles(forRootURL: folder)
+            } else if folder.isFTPURL && !self.indexing.selectedFolders.contains(folder) {
+                FTPConfigurationStore.shared.remove(url: folder)
+                WebDAVSubtitleCache.shared.removeCachedSubtitles(forRootURL: folder)
+            } else if folder.isNFSURL && !self.indexing.selectedFolders.contains(folder) {
+                NFSConfigurationStore.shared.remove(url: folder)
                 WebDAVSubtitleCache.shared.removeCachedSubtitles(forRootURL: folder)
             }
         }
@@ -813,6 +1230,12 @@ extension AppCoordinator {
             } else if folder.isSMBURL && !indexing.selectedFolders.contains(folder) {
                 SMBConfigurationStore.shared.remove(url: folder)
                 WebDAVSubtitleCache.shared.removeCachedSubtitles(forRootURL: folder)
+            } else if folder.isFTPURL && !indexing.selectedFolders.contains(folder) {
+                FTPConfigurationStore.shared.remove(url: folder)
+                WebDAVSubtitleCache.shared.removeCachedSubtitles(forRootURL: folder)
+            } else if folder.isNFSURL && !indexing.selectedFolders.contains(folder) {
+                NFSConfigurationStore.shared.remove(url: folder)
+                WebDAVSubtitleCache.shared.removeCachedSubtitles(forRootURL: folder)
             }
             search.reloadEmptySearchFacetDistribution()
             throw error
@@ -832,6 +1255,10 @@ extension AppCoordinator {
                 WebDAVConfigurationStore.shared.remove(url: folder)
             } else if folder.isSMBURL {
                 SMBConfigurationStore.shared.remove(url: folder)
+            } else if folder.isFTPURL {
+                FTPConfigurationStore.shared.remove(url: folder)
+            } else if folder.isNFSURL {
+                NFSConfigurationStore.shared.remove(url: folder)
             }
             indexing.removedFolderNotice = folder
             return
@@ -902,6 +1329,12 @@ extension AppCoordinator {
             } else if folder.isSMBURL {
                 SMBConfigurationStore.shared.remove(url: folder)
                 WebDAVSubtitleCache.shared.removeCachedSubtitles(forRootURL: folder)
+            } else if folder.isFTPURL {
+                FTPConfigurationStore.shared.remove(url: folder)
+                WebDAVSubtitleCache.shared.removeCachedSubtitles(forRootURL: folder)
+            } else if folder.isNFSURL {
+                NFSConfigurationStore.shared.remove(url: folder)
+                WebDAVSubtitleCache.shared.removeCachedSubtitles(forRootURL: folder)
             }
             reconcilePlaybackAfterIndexedContentChange()
             indexing.folderRemovalStatus = .idle
@@ -922,6 +1355,12 @@ extension AppCoordinator {
             WebDAVSubtitleCache.shared.removeCachedSubtitles(forRootURL: folder)
         } else if folder.isSMBURL {
             SMBConfigurationStore.shared.remove(url: folder)
+            WebDAVSubtitleCache.shared.removeCachedSubtitles(forRootURL: folder)
+        } else if folder.isFTPURL {
+            FTPConfigurationStore.shared.remove(url: folder)
+            WebDAVSubtitleCache.shared.removeCachedSubtitles(forRootURL: folder)
+        } else if folder.isNFSURL {
+            NFSConfigurationStore.shared.remove(url: folder)
             WebDAVSubtitleCache.shared.removeCachedSubtitles(forRootURL: folder)
         }
         clearSearchAndPlaybackState(under: folder)

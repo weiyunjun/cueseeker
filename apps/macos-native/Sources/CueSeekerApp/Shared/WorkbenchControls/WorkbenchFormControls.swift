@@ -479,6 +479,7 @@ struct WorkbenchDialogFormTextField: View {
     @Binding var text: String
     var validationMessage: String? = nil
     var reservesValidationLine: Bool = false
+    var showsErrorBorder: Bool = true
     let focus: FocusState<Bool>.Binding
     var normalizeDraft: ((String) -> String)? = nil
     var onSubmit: (() -> Void)?
@@ -513,7 +514,7 @@ struct WorkbenchDialogFormTextField: View {
                 .padding(.horizontal, WorkbenchControlMetrics.redesignFieldPaddingX)
                 .frame(height: WorkbenchControlMetrics.redesignFieldHeight)
                 .workbenchDialogFormFieldChrome(
-                    hasError: validationMessage != nil,
+                    hasError: showsErrorBorder && validationMessage != nil,
                     isFocused: isFocused || focus.wrappedValue,
                     isEnabled: isEnabled
                 )

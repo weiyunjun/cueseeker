@@ -118,6 +118,96 @@ csmb_error_code_t csmb_session_rename(
 
 void csmb_free_buffer(void *ptr);
 
+/* FTP client (backed by system libcurl) */
+
+csmb_error_code_t cftp_list_directory(
+    const char *host,
+    int port,
+    const char *rel_path,
+    const char *username,
+    const char *password,
+    csmb_dir_list_t *out_list,
+    char **out_error_message
+);
+
+csmb_error_code_t cftp_stat(
+    const char *host,
+    int port,
+    const char *rel_path,
+    const char *username,
+    const char *password,
+    int *out_is_directory,
+    uint64_t *out_size_bytes,
+    int64_t *out_modified_at_epoch,
+    char **out_error_message
+);
+
+csmb_error_code_t cftp_read_file_range(
+    const char *host,
+    int port,
+    const char *rel_path,
+    uint64_t offset,
+    uint64_t max_length,
+    const char *username,
+    const char *password,
+    uint8_t **out_buffer,
+    size_t *out_bytes_read,
+    uint64_t *out_total_size,
+    char **out_error_message
+);
+
+csmb_error_code_t cftp_rename(
+    const char *host,
+    int port,
+    const char *old_rel_path,
+    const char *new_rel_path,
+    const char *username,
+    const char *password,
+    char **out_error_message
+);
+
+/* NFS client (backed by libnfs) */
+
+csmb_error_code_t cnfs_list_exports(
+    const char *host,
+    csmb_share_list_t *out_exports,
+    char **out_error_message
+);
+
+csmb_error_code_t cnfs_list_directory(
+    const char *host,
+    const char *rel_path,
+    csmb_dir_list_t *out_list,
+    char **out_error_message
+);
+
+csmb_error_code_t cnfs_stat(
+    const char *host,
+    const char *rel_path,
+    int *out_is_directory,
+    uint64_t *out_size_bytes,
+    int64_t *out_modified_at_epoch,
+    char **out_error_message
+);
+
+csmb_error_code_t cnfs_read_file_range(
+    const char *host,
+    const char *rel_path,
+    uint64_t offset,
+    uint64_t max_length,
+    uint8_t **out_buffer,
+    size_t *out_bytes_read,
+    uint64_t *out_total_size,
+    char **out_error_message
+);
+
+csmb_error_code_t cnfs_rename(
+    const char *host,
+    const char *old_rel_path,
+    const char *new_rel_path,
+    char **out_error_message
+);
+
 #ifdef __cplusplus
 }
 #endif

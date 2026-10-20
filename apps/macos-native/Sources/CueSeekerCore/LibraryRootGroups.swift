@@ -39,7 +39,9 @@ public enum LibraryRootGroups {
     /// path components, so `/Media/A` does not hold `/Media/AB`.
     public static func holds(_ folder: URL, _ other: URL) -> Bool {
         guard folder.isWebDAVURL == other.isWebDAVURL,
-              folder.isSMBURL == other.isSMBURL else {
+              folder.isSMBURL == other.isSMBURL,
+              folder.isFTPURL == other.isFTPURL,
+              folder.isNFSURL == other.isNFSURL else {
             return false
         }
         let folderPath = folder.mediaPath

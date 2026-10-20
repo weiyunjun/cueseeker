@@ -693,6 +693,28 @@
 "smb.error.invalid_address" = "請輸入有效的 SMB 位址";
 "smb.error.invalid_port" = "請輸入有效的連接埠號碼（1–65535）";
 
+/* FTP Folder Support */
+"file.add_folder.ftp" = "FTP 資料夾";
+"ftp.dialog.title" = "FTP 資料夾";
+"ftp.field.address" = "位址";
+"ftp.field.port" = "連接埠";
+"ftp.field.username" = "使用者名稱";
+"ftp.field.password" = "密碼";
+"ftp.connect" = "連線";
+"ftp.add" = "加入";
+"ftp.empty_folder_items" = "此資料夾中沒有資料夾、影片或字幕檔案。";
+"ftp.error.invalid_address" = "請輸入有效的 FTP 位址";
+"ftp.error.invalid_port" = "請輸入有效的連接埠號碼（1–65535）";
+
+/* NFS Folder Support */
+"file.add_folder.nfs" = "NFS 資料夾";
+"nfs.dialog.title" = "NFS 資料夾";
+"nfs.field.address" = "位址";
+"nfs.connect" = "連線";
+"nfs.add" = "加入";
+"nfs.empty_folder_items" = "此資料夾中沒有資料夾、影片或字幕檔案。";
+"nfs.error.invalid_address" = "請輸入有效的 NFS 位址";
+
 /* Tooltips */
 "tooltip.topbar.back.disabled" = "沒有可後退的頁面";
 "tooltip.topbar.forward.disabled" = "沒有可前進的頁面";

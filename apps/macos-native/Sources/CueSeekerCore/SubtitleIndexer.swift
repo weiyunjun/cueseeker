@@ -125,6 +125,16 @@ public struct SubtitleIndexer {
                     _ = try? WebDAVSubtitleCache.shared.storeSubtitleData(data, for: url)
                     return data
                 }
+                if url.isFTPURL {
+                    let data = try FTPClient.shared.downloadData(from: url)
+                    _ = try? WebDAVSubtitleCache.shared.storeSubtitleData(data, for: url)
+                    return data
+                }
+                if url.isNFSURL {
+                    let data = try NFSClient.shared.downloadData(from: url)
+                    _ = try? WebDAVSubtitleCache.shared.storeSubtitleData(data, for: url)
+                    return data
+                }
                 return try Data(contentsOf: url)
             }
         )
@@ -155,7 +165,7 @@ public struct SubtitleIndexer {
         into database: IndexingDatabase,
         onProgress: (@Sendable (Int, Int) -> Void)? = nil
     ) throws -> SubtitleIndexingResult {
-        let isWebDAV = folder.isWebDAVURL || folder.isSMBURL
+        let isWebDAV = folder.isRemoteMediaURL
         if !isWebDAV {
             try scanner.validateReadableDirectory(folder)
         }
@@ -171,6 +181,10 @@ public struct SubtitleIndexer {
             do {
                 if folder.isSMBURL {
                     remoteFiles = try SMBClient.shared.scanDirectoryTree(rootURL: folder)
+                } else if folder.isFTPURL {
+                    remoteFiles = try FTPClient.shared.scanDirectoryTree(rootURL: folder)
+                } else if folder.isNFSURL {
+                    remoteFiles = try NFSClient.shared.scanDirectoryTree(rootURL: folder)
                 } else {
                     remoteFiles = try WebDAVClient.shared.scanDirectoryTree(rootURL: folder)
                 }

@@ -202,7 +202,7 @@ public struct PlaybackRequest: Equatable, Sendable {
         subtitleSource: PlaybackSubtitleSource? = nil,
         audioTrackIndex: Int = 0
     ) throws {
-        guard videoURL.isFileURL || videoURL.isWebDAVURL || videoURL.isSMBURL else {
+        guard videoURL.isFileURL || videoURL.isRemoteMediaURL else {
             throw PlaybackError.invalidVideoURL(videoURL.absoluteString)
         }
 

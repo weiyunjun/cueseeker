@@ -17,7 +17,7 @@ public struct LibraryCoverIndexer: Sendable {
     public static let algorithmVersion = 1
 
     public static func recommendedMaxConcurrentVideos(for folder: URL) -> Int {
-        (folder.isWebDAVURL || folder.isSMBURL) ? 2 : ProcessInfo.processInfo.activeProcessorCount
+        folder.isRemoteMediaURL ? 2 : ProcessInfo.processInfo.activeProcessorCount
     }
 
     public struct Configuration: Sendable {

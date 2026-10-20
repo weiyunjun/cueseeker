@@ -174,8 +174,18 @@ extension String {
         return lower.hasPrefix("smb://")
     }
 
+    public var isFTPPath: Bool {
+        let lower = trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return lower.hasPrefix("ftp://")
+    }
+
+    public var isNFSPath: Bool {
+        let lower = trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return lower.hasPrefix("nfs://")
+    }
+
     public var isRemoteMediaPath: Bool {
-        isWebDAVPath || isSMBPath
+        isWebDAVPath || isSMBPath || isFTPPath || isNFSPath
     }
 }
 
@@ -189,12 +199,20 @@ extension URL {
         scheme?.lowercased() == "smb"
     }
 
+    public var isFTPURL: Bool {
+        scheme?.lowercased() == "ftp"
+    }
+
+    public var isNFSURL: Bool {
+        scheme?.lowercased() == "nfs"
+    }
+
     public var isRemoteMediaURL: Bool {
-        isWebDAVURL || isSMBURL
+        isWebDAVURL || isSMBURL || isFTPURL || isNFSURL
     }
 
     public var mediaPath: String {
-        if isWebDAVURL || isSMBURL {
+        if isRemoteMediaURL {
             guard let scheme = scheme?.lowercased(),
                   let rawHost = host, !rawHost.isEmpty else {
                 return absoluteString
@@ -210,6 +228,14 @@ extension URL {
                 } else {
                     portSegment = ""
                 }
+            } else if isFTPURL {
+                if let port, port != FTPAddress.defaultPort {
+                    portSegment = ":\(port)"
+                } else {
+                    portSegment = ""
+                }
+            } else if isNFSURL {
+                portSegment = ""
             } else {
                 portSegment = port.map { ":\($0)" } ?? ""
             }
@@ -236,7 +262,7 @@ extension URL {
     }
 
     public var standardizedMediaURL: URL {
-        if isWebDAVURL || isSMBURL {
+        if isRemoteMediaURL {
             return URL.fromMediaPath(mediaPath)
         }
         return standardizedFileURL
@@ -246,6 +272,18 @@ extension URL {
         let trimmed = rawPath.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed.isSMBPath {
             if let parsed = SMBAddress.parseURL(from: trimmed) {
+                return parsed
+            }
+            return URL(string: trimmed) ?? URL(fileURLWithPath: rawPath)
+        }
+        if trimmed.isFTPPath {
+            if let parsed = FTPAddress.parseURL(from: trimmed) {
+                return parsed
+            }
+            return URL(string: trimmed) ?? URL(fileURLWithPath: rawPath)
+        }
+        if trimmed.isNFSPath {
+            if let parsed = NFSAddress.parseURL(from: trimmed) {
                 return parsed
             }
             return URL(string: trimmed) ?? URL(fileURLWithPath: rawPath)
@@ -627,9 +665,11 @@ public final class WebDAVSubtitleCache: @unchecked Sendable {
     public func readSubtitleData(
         from url: URL,
         client: WebDAVClient = .shared,
-        smbClient: SMBClient = .shared
+        smbClient: SMBClient = .shared,
+        ftpClient: FTPClient = .shared,
+        nfsClient: NFSClient = .shared
     ) throws -> Data {
-        guard url.isWebDAVURL || url.isSMBURL else {
+        guard url.isRemoteMediaURL else {
             return try Data(contentsOf: url, options: .mappedIfSafe)
         }
 
@@ -639,9 +679,16 @@ public final class WebDAVSubtitleCache: @unchecked Sendable {
             return cached
         }
 
-        let downloaded = url.isSMBURL
-            ? try smbClient.downloadData(from: url)
-            : try client.downloadData(from: url)
+        let downloaded: Data
+        if url.isSMBURL {
+            downloaded = try smbClient.downloadData(from: url)
+        } else if url.isFTPURL {
+            downloaded = try ftpClient.downloadData(from: url)
+        } else if url.isNFSURL {
+            downloaded = try nfsClient.downloadData(from: url)
+        } else {
+            downloaded = try client.downloadData(from: url)
+        }
         _ = try? storeSubtitleData(downloaded, for: url)
         return downloaded
     }
@@ -895,6 +942,12 @@ public final class WebDAVClient: @unchecked Sendable {
     public func resolvePlayableInput(for url: URL) -> WebDAVPlayableInput {
         if url.isSMBURL {
             return SMBClient.shared.resolvePlayableInput(for: url)
+        }
+        if url.isFTPURL {
+            return FTPClient.shared.resolvePlayableInput(for: url)
+        }
+        if url.isNFSURL {
+            return NFSClient.shared.resolvePlayableInput(for: url)
         }
         guard url.isWebDAVURL else {
             return WebDAVPlayableInput(url: url.path, httpHeaders: nil)

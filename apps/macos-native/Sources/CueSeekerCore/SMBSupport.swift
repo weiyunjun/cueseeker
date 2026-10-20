@@ -1,5 +1,4 @@
 import CSMBClient
-import CryptoKit
 import Darwin
 import Foundation
 import dnssd
@@ -36,7 +35,7 @@ public enum SMBError: LocalizedError, Equatable, Sendable {
     }
 }
 
-public struct SMBRootConfig: Codable, Equatable, Sendable {
+public struct SMBRootConfig: RemoteRootConfigurable, Codable, Equatable, Sendable {
     public var rootPath: String
     public var name: String
     public var address: String
@@ -103,272 +102,47 @@ public enum SMBAddress {
     public static let defaultPort: Int = 445
     public static let defaultPortString: String = "445"
 
-    public enum HostKind: Equatable, Sendable {
-        case ipv4(String)
-        case ipv6(String)
-        case friendlyName(String)
-    }
+    public typealias HostKind = RemoteAddressParser.HostKind
 
     public static func decodedDisplayAddress(_ rawAddress: String) -> String {
-        WebDAVAddress.decodedDisplayAddress(rawAddress)
+        RemoteAddressParser.decodedDisplayAddress(rawAddress)
     }
 
     public static func decodedHost(for url: URL) -> String? {
-        guard let rawHost = url.host, !rawHost.isEmpty else {
-            return nil
-        }
-        return decodedDisplayAddress(rawHost)
+        RemoteAddressParser.decodedHost(for: url)
     }
 
     public static func isIPv4Address(_ rawHost: String) -> Bool {
-        let trimmed = rawHost.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return false }
-        let parts = trimmed.split(separator: ".", omittingEmptySubsequences: false)
-        guard parts.count == 4 else { return false }
-        for part in parts {
-            guard !part.isEmpty, part.count <= 3, part.allSatisfy({ $0 >= "0" && $0 <= "9" }) else {
-                return false
-            }
-            if part.count > 1 && part.first == "0" {
-                return false
-            }
-            guard let octet = Int(part), (0...255).contains(octet) else {
-                return false
-            }
-        }
-        var addr = in_addr()
-        return trimmed.withCString { inet_pton(AF_INET, $0, &addr) == 1 }
+        RemoteAddressParser.isIPv4Address(rawHost)
     }
 
     public static func isIPv6Address(_ rawHost: String) -> Bool {
-        var candidate = rawHost.trimmingCharacters(in: .whitespacesAndNewlines)
-        if candidate.hasPrefix("[") && candidate.hasSuffix("]") && candidate.count > 2 {
-            candidate.removeFirst()
-            candidate.removeLast()
-        }
-        guard !candidate.isEmpty, candidate.contains(":") else { return false }
-        let addressOnly: String
-        if let percentIndex = candidate.firstIndex(of: "%") {
-            let zone = candidate[candidate.index(after: percentIndex)...]
-            guard !zone.isEmpty, !zone.contains("%"), !zone.contains("/") else {
-                return false
-            }
-            addressOnly = String(candidate[..<percentIndex])
-        } else {
-            addressOnly = candidate
-        }
-        guard !addressOnly.isEmpty else { return false }
-        var addr6 = in6_addr()
-        return addressOnly.withCString { inet_pton(AF_INET6, $0, &addr6) == 1 }
+        RemoteAddressParser.isIPv6Address(rawHost)
     }
 
     public static func classifyHost(_ rawHost: String) -> HostKind {
-        let trimmed = decodedDisplayAddress(rawHost).trimmingCharacters(in: .whitespacesAndNewlines)
-        if isIPv4Address(trimmed) {
-            return .ipv4(trimmed)
-        }
-        if isIPv6Address(trimmed) {
-            var bare = trimmed
-            if bare.hasPrefix("[") && bare.hasSuffix("]") && bare.count > 2 {
-                bare.removeFirst()
-                bare.removeLast()
-            }
-            return .ipv6(bare)
-        }
-        return .friendlyName(trimmed)
+        RemoteAddressParser.classifyHost(rawHost)
     }
 
     public static func parsePort(_ rawPort: String) -> Int? {
-        let trimmed = rawPort.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty, let value = Int(trimmed), (1...65535).contains(value) else {
-            return nil
-        }
-        return value
+        RemoteAddressParser.parsePort(rawPort)
     }
 
     public static func parseURL(from rawAddress: String, portOverride: Int? = nil) -> URL? {
-        let decodedInput = decodedDisplayAddress(rawAddress)
-        let trimmed = decodedInput.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else {
-            return nil
-        }
-
-        // Strict case-sensitive "smb://" prefix check:
-        // If it starts with lowercase "smb://", parse directly;
-        // otherwise prepend "smb://" in the background.
-        let withScheme: String
-        if trimmed.hasPrefix("smb://") {
-            withScheme = trimmed
-        } else {
-            withScheme = "smb://" + trimmed
-        }
-
-        let afterScheme = withScheme.dropFirst("smb://".count)
-        guard !afterScheme.isEmpty, !afterScheme.hasPrefix("/") else {
-            return nil
-        }
-
-        let authority: Substring
-        let rawPathWithQuery: Substring
-        if let slashIndex = afterScheme.firstIndex(of: "/") {
-            authority = afterScheme[..<slashIndex]
-            rawPathWithQuery = afterScheme[slashIndex...]
-        } else {
-            authority = afterScheme
-            rawPathWithQuery = ""
-        }
-
-        guard !authority.isEmpty else { return nil }
-
-        let hostWithoutUser: Substring
-        if let atIndex = authority.lastIndex(of: "@") {
-            let userPart = authority[..<atIndex]
-            guard !userPart.isEmpty else { return nil }
-            hostWithoutUser = authority[authority.index(after: atIndex)...]
-        } else {
-            hostWithoutUser = authority
-        }
-        guard !hostWithoutUser.isEmpty else { return nil }
-
-        let hostPart: String
-        var isIPv6Host = false
-        var portInAddress: Int?
-        if hostWithoutUser.hasPrefix("[") {
-            guard let closeBracket = hostWithoutUser.firstIndex(of: "]") else { return nil }
-            let nextIndex = hostWithoutUser.index(after: closeBracket)
-            let insideBrackets = String(
-                hostWithoutUser[hostWithoutUser.index(after: hostWithoutUser.startIndex)..<closeBracket]
-            )
-            guard isIPv6Address(insideBrackets) else { return nil }
-            hostPart = insideBrackets
-            isIPv6Host = true
-            if nextIndex < hostWithoutUser.endIndex {
-                let remainder = hostWithoutUser[nextIndex...]
-                guard remainder.hasPrefix(":"),
-                      let parsedPort = Int(remainder.dropFirst()),
-                      (1...65535).contains(parsedPort) else {
-                    return nil
-                }
-                portInAddress = parsedPort
-            }
-        } else if isIPv6Address(String(hostWithoutUser)) {
-            hostPart = String(hostWithoutUser)
-            isIPv6Host = true
-        } else if let colonIndex = hostWithoutUser.lastIndex(of: ":") {
-            hostPart = String(hostWithoutUser[..<colonIndex])
-            let portString = hostWithoutUser[hostWithoutUser.index(after: colonIndex)...]
-            guard let parsedPort = Int(portString), (1...65535).contains(parsedPort) else {
-                return nil
-            }
-            portInAddress = parsedPort
-        } else {
-            hostPart = String(hostWithoutUser)
-        }
-
-        let trimmedHost = hostPart.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedHost.isEmpty, trimmedHost == hostPart else { return nil }
-
-        if !isIPv6Host {
-            guard isValidNonIPv6Host(trimmedHost) else { return nil }
-        }
-
-        let effectivePort: Int
-        if let portOverride {
-            guard (1...65535).contains(portOverride) else { return nil }
-            if portOverride == defaultPort, let portInAddress, portInAddress != defaultPort {
-                effectivePort = portInAddress
-            } else {
-                effectivePort = portOverride
-            }
-        } else {
-            effectivePort = portInAddress ?? defaultPort
-        }
-
-        var rawPath = String(rawPathWithQuery)
-        if let queryIndex = rawPath.firstIndex(of: "?") {
-            rawPath = String(rawPath[..<queryIndex])
-        }
-
-        var normalizedPath = decodedDisplayAddress(rawPath)
-        if normalizedPath.isEmpty {
-            normalizedPath = "/"
-        } else if !normalizedPath.hasPrefix("/") {
-            normalizedPath = "/" + normalizedPath
-        }
-        while normalizedPath.count > 1 && normalizedPath.hasSuffix("/") {
-            normalizedPath.removeLast()
-        }
-
-        return buildSMBURL(
-            host: trimmedHost,
-            isIPv6: isIPv6Host,
-            port: effectivePort,
-            normalizedPath: normalizedPath
+        RemoteAddressParser.parseURL(
+            from: rawAddress,
+            scheme: "smb",
+            defaultPort: defaultPort,
+            portOverride: portOverride
         )
     }
 
-    private static func isValidNonIPv6Host(_ host: String) -> Bool {
-        guard !host.isEmpty else { return false }
-        let forbiddenCharacters = CharacterSet(charactersIn: ":/\\?#[]@").union(.controlCharacters).union(.newlines)
-        if host.rangeOfCharacter(from: forbiddenCharacters) != nil {
-            return false
-        }
-        if host.hasPrefix(".") || host.hasSuffix(".") || host.contains("..") {
-            return false
-        }
-        let looksLikeNumericDottedAddress = host.contains(".")
-            && host.allSatisfy { ($0 >= "0" && $0 <= "9") || $0 == "." }
-        if looksLikeNumericDottedAddress {
-            return isIPv4Address(host)
-        }
-        return true
-    }
-
-    private static func buildSMBURL(
-        host: String,
-        isIPv6: Bool,
-        port: Int,
-        normalizedPath: String
-    ) -> URL? {
-        let hostComponent: String
-        if isIPv6 {
-            let escapedZone = host.replacingOccurrences(of: "%", with: "%25")
-            hostComponent = "[\(escapedZone)]"
-        } else {
-            var allowed = CharacterSet.urlHostAllowed
-            allowed.remove(charactersIn: ":[]/?#@")
-            guard let encoded = host.addingPercentEncoding(withAllowedCharacters: allowed) else {
-                return nil
-            }
-            hostComponent = encoded
-        }
-
-        let portComponent = (port == defaultPort) ? "" : ":\(port)"
-        let pathComponent: String
-        if normalizedPath.isEmpty || normalizedPath == "/" {
-            pathComponent = ""
-        } else {
-            var allowedPathSegment = CharacterSet.urlPathAllowed
-            allowedPathSegment.remove(charactersIn: "/?#")
-            let encodedSegments = normalizedPath
-                .split(separator: "/", omittingEmptySubsequences: true)
-                .compactMap { segment in
-                    String(segment).addingPercentEncoding(withAllowedCharacters: allowedPathSegment)
-                }
-            pathComponent = "/" + encodedSegments.joined(separator: "/")
-        }
-
-        return URL(string: "smb://\(hostComponent)\(portComponent)\(pathComponent)")
-    }
-
     public static func effectivePort(for url: URL, fallbackConfig: SMBRootConfig? = nil) -> Int {
-        if let urlPort = url.port, (1...65535).contains(urlPort) {
-            return urlPort
-        }
-        if let configPort = fallbackConfig?.port, (1...65535).contains(configPort) {
-            return configPort
-        }
-        return defaultPort
+        RemoteAddressParser.effectivePort(
+            for: url,
+            defaultPort: defaultPort,
+            fallbackPort: fallbackConfig?.port
+        )
     }
 
     public static func splitShareAndRelativePath(for url: URL) -> (share: String?, relativePath: String) {
@@ -389,7 +163,7 @@ public enum SMBAddress {
     }
 
     public static func defaultDisplayName(for url: URL) -> String {
-        WebDAVAddress.defaultDisplayName(for: url)
+        RemoteAddressParser.defaultDisplayName(for: url)
     }
 }
 
@@ -587,7 +361,6 @@ public final class SMBHostResolver: @unchecked Sendable {
     }
 
     private static func resolveViaBonjourSMBService(serviceName: String) -> String? {
-        // Direct service instance resolution for <serviceName>._smb._tcp.local.
         let directTargets = resolveBonjourServiceTargetHosts(
             name: serviceName,
             regtype: "_smb._tcp.",
@@ -601,7 +374,6 @@ public final class SMBHostResolver: @unchecked Sendable {
             }
         }
 
-        // Case-insensitive / NFC-normalized match against advertised _smb._tcp services on the LAN
         let discovered = browseBonjourSMBServices(timeoutSeconds: 0.45)
         let normalizedTarget = serviceName.precomposedStringWithCanonicalMapping.lowercased()
         let sanitizedTarget = sanitizeBonjourHostLabel(serviceName).lowercased()
@@ -796,160 +568,31 @@ public final class SMBHostResolver: @unchecked Sendable {
 public final class SMBConfigurationStore: @unchecked Sendable {
     public static let shared = SMBConfigurationStore()
 
-    private static let defaultsKey = "smbRootConfigs"
-    private let lock = NSLock()
-    private let userDefaults: UserDefaults
-    private var configsByRootPath: [String: SMBRootConfig]
+    private let store: RemoteRootConfigStore<SMBRootConfig>
 
     public init(userDefaults: UserDefaults? = nil) {
-        let resolvedDefaults = userDefaults
-            ?? UserDefaults(suiteName: ApplicationInfo.preferencesSuiteIdentifier)
-            ?? .standard
-        self.userDefaults = resolvedDefaults
-        self.configsByRootPath = Self.decodeConfigs(from: resolvedDefaults.data(forKey: Self.defaultsKey))
+        self.store = RemoteRootConfigStore(
+            defaultsKey: "smbRootConfigs",
+            defaultPort: SMBAddress.defaultPort,
+            isSchemePath: { $0.isSMBPath },
+            userDefaults: userDefaults
+        )
     }
 
-    public func save(_ config: SMBRootConfig) {
-        upsert(config)
-    }
-
-    public func upsert(_ config: SMBRootConfig) {
-        let canonicalKey = URL.fromMediaPath(config.rootPath).mediaPath
-        var normalized = config
-        normalized.rootPath = canonicalKey
-        normalized.address = SMBAddress.decodedDisplayAddress(config.address)
-        lock.lock()
-        configsByRootPath[canonicalKey] = normalized
-        let snapshot = Array(configsByRootPath.values)
-        lock.unlock()
-        persist(snapshot)
-    }
-
-    public func remove(url: URL) {
-        remove(forRootPath: url.mediaPath)
-    }
-
-    public func remove(forRootPath rootPath: String) {
-        let canonicalKey = URL.fromMediaPath(rootPath).mediaPath
-        lock.lock()
-        configsByRootPath.removeValue(forKey: canonicalKey)
-        let snapshot = Array(configsByRootPath.values)
-        lock.unlock()
-        persist(snapshot)
-    }
-
-    public func config(for url: URL) -> SMBRootConfig? {
-        config(forRootPath: url.mediaPath)
-    }
-
-    public func config(forRootPath rootPath: String) -> SMBRootConfig? {
-        let canonicalKey = URL.fromMediaPath(rootPath).mediaPath
-        lock.lock()
-        defer { lock.unlock() }
-        return configsByRootPath[canonicalKey]
-    }
-
-    public func matchingConfig(forMediaPath mediaPath: String) -> SMBRootConfig? {
-        guard mediaPath.isSMBPath else { return nil }
-        let targetURL = URL.fromMediaPath(mediaPath)
-        let canonical = targetURL.mediaPath
-        lock.lock()
-        let allConfigs = Array(configsByRootPath.values)
-        lock.unlock()
-
-        if let prefixMatch = allConfigs
-            .filter({ config in
-                canonical == config.rootPath || canonical.hasPrefix(config.rootPath + "/")
-            })
-            .max(by: { $0.rootPath.count < $1.rootPath.count }) {
-            return prefixMatch
-        }
-
-        guard let targetHost = SMBAddress.decodedHost(for: targetURL)?.lowercased() else { return nil }
-        let targetPort = targetURL.port ?? SMBAddress.defaultPort
-        return allConfigs.first { config in
-            let configURL = URL.fromMediaPath(config.rootPath)
-            return SMBAddress.decodedHost(for: configURL)?.lowercased() == targetHost && config.port == targetPort
-        }
-    }
-
-    public func allConfigs() -> [SMBRootConfig] {
-        lock.lock()
-        defer { lock.unlock() }
-        return Array(configsByRootPath.values)
-    }
-
+    public func save(_ config: SMBRootConfig) { store.save(config) }
+    public func upsert(_ config: SMBRootConfig) { store.upsert(config) }
+    public func remove(url: URL) { store.remove(url: url) }
+    public func remove(forRootPath rootPath: String) { store.remove(forRootPath: rootPath) }
+    public func config(for url: URL) -> SMBRootConfig? { store.config(for: url) }
+    public func config(forRootPath rootPath: String) -> SMBRootConfig? { store.config(forRootPath: rootPath) }
+    public func matchingConfig(forMediaPath mediaPath: String) -> SMBRootConfig? { store.matchingConfig(forMediaPath: mediaPath) }
+    public func allConfigs() -> [SMBRootConfig] { store.allConfigs() }
     public func rewriteFolderPathPrefix(from oldPath: String, to newPath: String) {
-        guard oldPath.isSMBPath, newPath.isSMBPath else { return }
-        let canonicalOld = URL.fromMediaPath(oldPath).mediaPath
-        let canonicalNew = URL.fromMediaPath(newPath).mediaPath
-        let newLeafName = LibraryRenamer.lastPathComponent(of: canonicalNew)
-
-        lock.lock()
-        var updatedConfigs: [String: SMBRootConfig] = [:]
-        var changed = false
-        for (_, var config) in configsByRootPath {
-            if config.rootPath == canonicalOld {
-                config.rootPath = canonicalNew
-                config.address = SMBAddress.decodedDisplayAddress(canonicalNew)
-                config.name = newLeafName
-                updatedConfigs[canonicalNew] = config
-                changed = true
-            } else if config.rootPath.hasPrefix(canonicalOld + "/") {
-                let suffix = String(config.rootPath.dropFirst(canonicalOld.count))
-                let rewrittenRoot = canonicalNew + suffix
-                config.rootPath = rewrittenRoot
-                config.address = SMBAddress.decodedDisplayAddress(rewrittenRoot)
-                updatedConfigs[rewrittenRoot] = config
-                changed = true
-            } else {
-                updatedConfigs[config.rootPath] = config
-            }
-        }
-        if changed {
-            configsByRootPath = updatedConfigs
-        }
-        let snapshot = Array(configsByRootPath.values)
-        lock.unlock()
-        if changed {
-            persist(snapshot)
-        }
-    }
-
-    private func persist(_ configs: [SMBRootConfig]) {
-        guard let data = try? JSONEncoder().encode(configs) else { return }
-        userDefaults.set(data, forKey: Self.defaultsKey)
-    }
-
-    private static func decodeConfigs(from data: Data?) -> [String: SMBRootConfig] {
-        guard let data,
-              let decoded = try? JSONDecoder().decode([SMBRootConfig].self, from: data) else {
-            return [:]
-        }
-        var result: [String: SMBRootConfig] = [:]
-        for var config in decoded {
-            let key = URL.fromMediaPath(config.rootPath).mediaPath
-            config.rootPath = key
-            config.address = SMBAddress.decodedDisplayAddress(config.address)
-            result[key] = config
-        }
-        return result
+        store.rewriteFolderPathPrefix(from: oldPath, to: newPath)
     }
 }
 
-public struct SMBDirectoryEntry: Equatable, Sendable {
-    public let name: String
-    public let isDirectory: Bool
-    public let fileSize: Int64
-    public let modifiedAt: Date
-
-    public init(name: String, isDirectory: Bool, fileSize: Int64, modifiedAt: Date) {
-        self.name = name
-        self.isDirectory = isDirectory
-        self.fileSize = fileSize
-        self.modifiedAt = modifiedAt
-    }
-}
+public typealias SMBDirectoryEntry = RemoteDirectoryEntry
 
 public protocol SMBBackendProtocol: Sendable {
     func listShares(
@@ -1450,6 +1093,7 @@ public final class SMBClient: @unchecked Sendable {
         var results: [WebDAVRemoteFile] = []
         var visitedDirectories: Set<String> = []
         let backend = activeBackend
+        let port = endpoint.port
 
         if !hasCustomBackend, let nativeBackend = backend as? NativeCSMBBackend {
             let session = try nativeBackend.connectSession(
@@ -1460,19 +1104,28 @@ public final class SMBClient: @unchecked Sendable {
                 password: endpoint.config.password
             )
             defer { csmb_session_disconnect(session) }
-            try scanDirectoryRecursive(
+            try RemoteDirectoryListingHelper.scanDirectoryRecursive(
                 directoryURL: endpoint.url,
                 relativePath: endpoint.relativePath,
+                appendChild: { dirURL, name in
+                    Self.appendingChildComponent(name, to: dirURL, port: port)
+                },
                 listEntries: { relPath in
                     try NativeCSMBBackend.listDirectory(on: session, relativePath: relPath)
+                },
+                cacheFileSize: { [weak self] size, path in
+                    self?.cacheFileSize(size, forMediaPath: path)
                 },
                 visitedDirectories: &visitedDirectories,
                 results: &results
             )
         } else {
-            try scanDirectoryRecursive(
+            try RemoteDirectoryListingHelper.scanDirectoryRecursive(
                 directoryURL: endpoint.url,
                 relativePath: endpoint.relativePath,
+                appendChild: { dirURL, name in
+                    Self.appendingChildComponent(name, to: dirURL, port: port)
+                },
                 listEntries: { relPath in
                     try backend.listDirectory(
                         host: endpoint.host,
@@ -1482,6 +1135,9 @@ public final class SMBClient: @unchecked Sendable {
                         username: endpoint.config.username,
                         password: endpoint.config.password
                     )
+                },
+                cacheFileSize: { [weak self] size, path in
+                    self?.cacheFileSize(size, forMediaPath: path)
                 },
                 visitedDirectories: &visitedDirectories,
                 results: &results
@@ -1680,7 +1336,29 @@ public final class SMBClient: @unchecked Sendable {
         guard url.isSMBURL else {
             return WebDAVPlayableInput(url: url.path, httpHeaders: nil)
         }
-        if let streamURL = SMBStreamServer.shared.registerAndResolveHTTPURL(for: url, client: self) {
+        if let streamURL = RemoteMediaStreamServer.shared.registerAndResolveHTTPURL(
+            for: url,
+            routePrefix: "smb",
+            registration: .init(
+                statFileSize: { [self] in
+                    try self.statFileSize(for: url)
+                },
+                streamRange: { [self] fd, rangeHeader in
+                    if !self.hasCustomBackend {
+                        self.streamNativeSMBFile(fd: fd, smbURL: url, rangeHeader: rangeHeader)
+                    } else {
+                        RemoteMediaStreamServer.streamFromRangeReader(
+                            fd: fd,
+                            rangeHeader: rangeHeader,
+                            statFileSize: { try self.statFileSize(for: url) },
+                            readRange: { offset, maxLength in
+                                try self.readRange(from: url, offset: offset, maxLength: maxLength).data
+                            }
+                        )
+                    }
+                }
+            )
+        ) {
             return WebDAVPlayableInput(url: streamURL, httpHeaders: nil)
         }
         return WebDAVPlayableInput(url: url.mediaPath, httpHeaders: nil)
@@ -1765,7 +1443,7 @@ public final class SMBClient: @unchecked Sendable {
                 let item = WebDAVBrowserItem(url: shareURL, name: shareName, kind: .folder)
                 foldersByPath[item.id] = item
             }
-            return Self.sortBrowserItems(folders: Array(foldersByPath.values), files: [])
+            return RemoteDirectoryListingHelper.sortBrowserItems(folders: Array(foldersByPath.values), files: [])
         }
 
         let entries = try backend.listDirectory(
@@ -1777,303 +1455,26 @@ public final class SMBClient: @unchecked Sendable {
             password: config.password
         )
 
-        var foldersByPath: [String: WebDAVBrowserItem] = [:]
-        var filesByPath: [String: WebDAVBrowserItem] = [:]
-
-        for entry in entries {
-            try Task.checkCancellation()
-            let name = entry.name.precomposedStringWithCanonicalMapping
-            if name.isEmpty || name.hasPrefix(".") {
-                continue
+        return try RemoteDirectoryListingHelper.buildBrowserItems(
+            entries: entries,
+            directoryURL: directoryURL,
+            appendChild: { dirURL, name in
+                Self.appendingChildComponent(name, to: dirURL, port: port)
+            },
+            cacheFileSize: { [weak self] size, path in
+                self?.cacheFileSize(size, forMediaPath: path)
             }
-            let childURL = Self.appendingChildComponent(
-                name,
-                to: directoryURL,
-                port: port
-            )
-            if entry.isDirectory {
-                let item = WebDAVBrowserItem(url: childURL, name: name, kind: .folder)
-                foldersByPath[item.id] = item
-            } else {
-                let ext = (name as NSString).pathExtension.lowercased()
-                if VideoMatcher.defaultVideoExtensions.contains(ext) {
-                    let item = WebDAVBrowserItem(url: childURL, name: name, kind: .video)
-                    filesByPath[item.id] = item
-                    if entry.fileSize > 0 {
-                        cacheFileSize(UInt64(entry.fileSize), forMediaPath: childURL.mediaPath)
-                    }
-                } else if SubtitleFileScanner.supportedSubtitleExtensions.contains(ext) {
-                    let item = WebDAVBrowserItem(url: childURL, name: name, kind: .subtitle)
-                    filesByPath[item.id] = item
-                    if entry.fileSize > 0 {
-                        cacheFileSize(UInt64(entry.fileSize), forMediaPath: childURL.mediaPath)
-                    }
-                }
-            }
-        }
-
-        return Self.sortBrowserItems(
-            folders: Array(foldersByPath.values),
-            files: Array(filesByPath.values)
         )
-    }
-
-    private func scanDirectoryRecursive(
-        directoryURL: URL,
-        relativePath: String,
-        listEntries: (String) throws -> [SMBDirectoryEntry],
-        visitedDirectories: inout Set<String>,
-        results: inout [WebDAVRemoteFile]
-    ) throws {
-        try Task.checkCancellation()
-        let dirMediaPath = directoryURL.mediaPath
-        guard visitedDirectories.insert(dirMediaPath).inserted else {
-            return
-        }
-
-        let port = directoryURL.port ?? SMBAddress.defaultPort
-        let entries = try listEntries(relativePath)
-        for entry in entries {
-            try Task.checkCancellation()
-            let name = entry.name.precomposedStringWithCanonicalMapping
-            if name.isEmpty || name.hasPrefix(".") {
-                continue
-            }
-            let childURL = Self.appendingChildComponent(name, to: directoryURL, port: port)
-            let childRelPath = relativePath.isEmpty ? name : "\(relativePath)/\(name)"
-
-            if entry.isDirectory {
-                try scanDirectoryRecursive(
-                    directoryURL: childURL,
-                    relativePath: childRelPath,
-                    listEntries: listEntries,
-                    visitedDirectories: &visitedDirectories,
-                    results: &results
-                )
-            } else {
-                if entry.fileSize > 0 {
-                    cacheFileSize(UInt64(entry.fileSize), forMediaPath: childURL.mediaPath)
-                }
-                results.append(
-                    WebDAVRemoteFile(
-                        url: childURL,
-                        fileSize: entry.fileSize,
-                        modifiedAt: entry.modifiedAt
-                    )
-                )
-            }
-        }
-    }
-
-    private static func appendingChildComponent(
-        _ name: String,
-        to directoryURL: URL,
-        port: Int
-    ) -> URL {
-        let baseMediaPath = directoryURL.mediaPath
-        let combined = baseMediaPath.hasSuffix("/") ? "\(baseMediaPath)\(name)" : "\(baseMediaPath)/\(name)"
-        return SMBAddress.parseURL(from: combined, portOverride: port) ?? directoryURL.appendingPathComponent(name)
-    }
-
-    private static func sortBrowserItems(
-        folders: [WebDAVBrowserItem],
-        files: [WebDAVBrowserItem]
-    ) -> [WebDAVBrowserItem] {
-        let sortedFolders = folders.sorted {
-            let cmp = $0.name.localizedStandardCompare($1.name)
-            if cmp != .orderedSame {
-                return cmp == .orderedAscending
-            }
-            return $0.id < $1.id
-        }
-        let sortedFiles = files.sorted {
-            let cmp = $0.name.localizedStandardCompare($1.name)
-            if cmp != .orderedSame {
-                return cmp == .orderedAscending
-            }
-            return $0.id < $1.id
-        }
-        return sortedFolders + sortedFiles
-    }
-}
-
-final class SMBStreamServer: @unchecked Sendable {
-    static let shared = SMBStreamServer()
-
-    private let lock = NSLock()
-    private var listenFD: Int32 = -1
-    private var boundPort: UInt16 = 0
-    private var urlsByToken: [String: (url: URL, client: SMBClient)] = [:]
-    private let acceptQueue = DispatchQueue(label: "com.cueseeker.smb.stream.accept", qos: .userInitiated)
-    private let connectionQueue = DispatchQueue(
-        label: "com.cueseeker.smb.stream.connection",
-        qos: .userInitiated,
-        attributes: .concurrent
-    )
-
-    func registerAndResolveHTTPURL(for smbURL: URL, client: SMBClient) -> String? {
-        let canonical = smbURL.mediaPath
-        let digest = SHA256.hash(data: Data(canonical.utf8))
-        let token = digest.prefix(16).map { String(format: "%02x", $0) }.joined()
-
-        lock.lock()
-        if listenFD < 0 {
-            startListenerLocked()
-        }
-        let port = boundPort
-        if port > 0 {
-            urlsByToken[token] = (smbURL, client)
-        }
-        lock.unlock()
-
-        guard port > 0 else { return nil }
-        let leaf = smbURL.lastPathComponent.isEmpty ? "stream.bin" : smbURL.lastPathComponent
-        let encodedLeaf = leaf.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? "stream.bin"
-        return "http://127.0.0.1:\(port)/smb/\(token)/\(encodedLeaf)"
-    }
-
-    private func startListenerLocked() {
-        let fd = Darwin.socket(AF_INET, SOCK_STREAM, 0)
-        guard fd >= 0 else { return }
-
-        var yes: Int32 = 1
-        _ = setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &yes, socklen_t(MemoryLayout<Int32>.size))
-        _ = setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &yes, socklen_t(MemoryLayout<Int32>.size))
-
-        var addr = sockaddr_in()
-        addr.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)
-        addr.sin_family = sa_family_t(AF_INET)
-        addr.sin_port = 0
-        addr.sin_addr.s_addr = inet_addr("127.0.0.1")
-
-        let bindRC = withUnsafePointer(to: &addr) {
-            $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
-                Darwin.bind(fd, $0, socklen_t(MemoryLayout<sockaddr_in>.size))
-            }
-        }
-        guard bindRC == 0, Darwin.listen(fd, 128) == 0 else {
-            Darwin.close(fd)
-            return
-        }
-
-        var boundAddr = sockaddr_in()
-        var addrLen = socklen_t(MemoryLayout<sockaddr_in>.size)
-        let nameRC = withUnsafeMutablePointer(to: &boundAddr) {
-            $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
-                Darwin.getsockname(fd, $0, &addrLen)
-            }
-        }
-        guard nameRC == 0 else {
-            Darwin.close(fd)
-            return
-        }
-
-        listenFD = fd
-        boundPort = UInt16(bigEndian: boundAddr.sin_port)
-
-        acceptQueue.async { [weak self] in
-            self?.acceptLoop(serverFD: fd)
-        }
-    }
-
-    private func acceptLoop(serverFD: Int32) {
-        while true {
-            var clientAddr = sockaddr_in()
-            var clientLen = socklen_t(MemoryLayout<sockaddr_in>.size)
-            let clientFD = withUnsafeMutablePointer(to: &clientAddr) {
-                $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
-                    Darwin.accept(serverFD, $0, &clientLen)
-                }
-            }
-            if clientFD < 0 {
-                if errno == EINTR {
-                    continue
-                }
-                break
-            }
-            connectionQueue.async { [weak self] in
-                self?.handleClient(fd: clientFD)
-            }
-        }
-    }
-
-    private func handleClient(fd: Int32) {
-        var yes: Int32 = 1
-        _ = setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &yes, socklen_t(MemoryLayout<Int32>.size))
-        defer { Darwin.close(fd) }
-
-        guard let requestHeader = Self.readHTTPHeader(from: fd) else {
-            return
-        }
-        let lines = requestHeader.components(separatedBy: "\r\n")
-        guard let requestLine = lines.first else { return }
-        let parts = requestLine.split(separator: " ")
-        guard parts.count >= 2 else { return }
-        let method = String(parts[0]).uppercased()
-        let path = String(parts[1])
-
-        guard method == "GET" || method == "HEAD" else {
-            Self.writeAll(to: fd, string: "HTTP/1.1 405 Method Not Allowed\r\nConnection: close\r\n\r\n")
-            return
-        }
-
-        let pathSegments = path.split(separator: "/", omittingEmptySubsequences: true)
-        guard pathSegments.count >= 2, pathSegments[0] == "smb" else {
-            Self.writeAll(to: fd, string: "HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\n")
-            return
-        }
-        let token = String(pathSegments[1])
-
-        lock.lock()
-        let entry = urlsByToken[token]
-        lock.unlock()
-
-        guard let (smbURL, client) = entry else {
-            Self.writeAll(to: fd, string: "HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\n")
-            return
-        }
-
-        var rangeHeader: String?
-        for line in lines.dropFirst() {
-            if line.lowercased().hasPrefix("range:") {
-                rangeHeader = String(line.dropFirst("range:".count)).trimmingCharacters(in: .whitespaces)
-                break
-            }
-        }
-
-        if method == "HEAD" {
-            guard let totalSize = try? client.statFileSize(for: smbURL) else {
-                Self.writeAll(to: fd, string: "HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\n")
-                return
-            }
-            let headers = [
-                "HTTP/1.1 200 OK",
-                "Content-Type: application/octet-stream",
-                "Accept-Ranges: bytes",
-                "Content-Length: \(totalSize)",
-                "Connection: close",
-                "\r\n"
-            ].joined(separator: "\r\n")
-            Self.writeAll(to: fd, string: headers)
-            return
-        }
-
-        if !client.hasCustomBackend {
-            streamNativeSMBFile(fd: fd, smbURL: smbURL, client: client, rangeHeader: rangeHeader)
-        } else {
-            streamMockSMBFile(fd: fd, smbURL: smbURL, client: client, rangeHeader: rangeHeader)
-        }
     }
 
     private func streamNativeSMBFile(
         fd: Int32,
         smbURL: URL,
-        client: SMBClient,
         rangeHeader: String?
     ) {
-        let endpoint = client.resolveEndpoint(for: smbURL.mediaPath)
+        let endpoint = resolveEndpoint(for: smbURL.mediaPath)
         guard let share = endpoint.share, !share.isEmpty, !endpoint.relativePath.isEmpty else {
-            Self.writeAll(to: fd, string: "HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\n")
+            RemoteMediaStreamServer.writeAll(to: fd, string: "HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\n")
             return
         }
 
@@ -2084,7 +1485,7 @@ final class SMBStreamServer: @unchecked Sendable {
             username: endpoint.config.username,
             password: endpoint.config.password
         ) else {
-            Self.writeAll(to: fd, string: "HTTP/1.1 502 Bad Gateway\r\nConnection: close\r\n\r\n")
+            RemoteMediaStreamServer.writeAll(to: fd, string: "HTTP/1.1 502 Bad Gateway\r\nConnection: close\r\n\r\n")
             return
         }
         defer { csmb_session_disconnect(session) }
@@ -2098,48 +1499,20 @@ final class SMBStreamServer: @unchecked Sendable {
         }
         if let errPtr { csmb_free_buffer(errPtr) }
         guard openCode == CSMB_OK, let fileHandle else {
-            Self.writeAll(to: fd, string: "HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\n")
+            RemoteMediaStreamServer.writeAll(to: fd, string: "HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\n")
             return
         }
         defer { csmb_file_close(fileHandle) }
 
-        guard let range = Self.resolveByteRange(rangeHeader: rangeHeader, totalSize: totalSize) else {
-            let notSatisfiable = [
-                "HTTP/1.1 416 Range Not Satisfiable",
-                "Content-Range: bytes */\(totalSize)",
-                "Connection: close",
-                "\r\n"
-            ].joined(separator: "\r\n")
-            Self.writeAll(to: fd, string: notSatisfiable)
+        guard let range = RemoteMediaStreamServer.resolveByteRange(rangeHeader: rangeHeader, totalSize: totalSize) else {
+            RemoteMediaStreamServer.writeRangeNotSatisfiable(to: fd, totalSize: totalSize)
             return
         }
 
-        let headerLines: [String]
-        if range.isPartial {
-            headerLines = [
-                "HTTP/1.1 206 Partial Content",
-                "Content-Type: application/octet-stream",
-                "Accept-Ranges: bytes",
-                "Content-Range: bytes \(range.start)-\(range.end)/\(totalSize)",
-                "Content-Length: \(range.length)",
-                "Connection: close",
-                "\r\n"
-            ]
-        } else {
-            headerLines = [
-                "HTTP/1.1 200 OK",
-                "Content-Type: application/octet-stream",
-                "Accept-Ranges: bytes",
-                "Content-Length: \(range.length)",
-                "Connection: close",
-                "\r\n"
-            ]
-        }
-        guard Self.writeAll(to: fd, string: headerLines.joined(separator: "\r\n")) else {
+        guard RemoteMediaStreamServer.writeRangeSuccessHeader(to: fd, range: range, totalSize: totalSize),
+              range.length > 0 else {
             return
         }
-
-        guard range.length > 0 else { return }
 
         let chunkCap = max(65536, min(Int(maxReadSize), 524288))
         var buffer = [UInt8](repeating: 0, count: chunkCap)
@@ -2165,7 +1538,7 @@ final class SMBStreamServer: @unchecked Sendable {
                 break
             }
             let wrote = buffer.withUnsafeBytes { rawBuf in
-                Self.writeAll(to: fd, baseAddress: rawBuf.baseAddress!, count: bytesRead)
+                RemoteMediaStreamServer.writeAll(to: fd, baseAddress: rawBuf.baseAddress!, count: bytesRead)
             }
             if !wrote {
                 break
@@ -2175,151 +1548,13 @@ final class SMBStreamServer: @unchecked Sendable {
         }
     }
 
-    private func streamMockSMBFile(
-        fd: Int32,
-        smbURL: URL,
-        client: SMBClient,
-        rangeHeader: String?
-    ) {
-        guard let totalSize = try? client.statFileSize(for: smbURL) else {
-            Self.writeAll(to: fd, string: "HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\n")
-            return
-        }
-        guard let range = Self.resolveByteRange(rangeHeader: rangeHeader, totalSize: totalSize) else {
-            let notSatisfiable = [
-                "HTTP/1.1 416 Range Not Satisfiable",
-                "Content-Range: bytes */\(totalSize)",
-                "Connection: close",
-                "\r\n"
-            ].joined(separator: "\r\n")
-            Self.writeAll(to: fd, string: notSatisfiable)
-            return
-        }
-        let headerLines: [String]
-        if range.isPartial {
-            headerLines = [
-                "HTTP/1.1 206 Partial Content",
-                "Content-Type: application/octet-stream",
-                "Accept-Ranges: bytes",
-                "Content-Range: bytes \(range.start)-\(range.end)/\(totalSize)",
-                "Content-Length: \(range.length)",
-                "Connection: close",
-                "\r\n"
-            ]
-        } else {
-            headerLines = [
-                "HTTP/1.1 200 OK",
-                "Content-Type: application/octet-stream",
-                "Accept-Ranges: bytes",
-                "Content-Length: \(range.length)",
-                "Connection: close",
-                "\r\n"
-            ]
-        }
-        guard Self.writeAll(to: fd, string: headerLines.joined(separator: "\r\n")) else {
-            return
-        }
-        guard range.length > 0,
-              let (data, _) = try? client.readRange(from: smbURL, offset: range.start, maxLength: range.length) else {
-            return
-        }
-        _ = data.withUnsafeBytes { rawBuf in
-            guard let base = rawBuf.baseAddress else { return true }
-            return Self.writeAll(to: fd, baseAddress: base, count: rawBuf.count)
-        }
-    }
-
-    private struct ResolvedByteRange {
-        let start: UInt64
-        let end: UInt64
-        let length: UInt64
-        let isPartial: Bool
-    }
-
-    private static func resolveByteRange(
-        rangeHeader: String?,
-        totalSize: UInt64
-    ) -> ResolvedByteRange? {
-        guard let rangeHeader,
-              rangeHeader.lowercased().hasPrefix("bytes=") else {
-            let end = totalSize > 0 ? totalSize - 1 : 0
-            return ResolvedByteRange(start: 0, end: end, length: totalSize, isPartial: false)
-        }
-        guard totalSize > 0 else {
-            return nil
-        }
-        let spec = rangeHeader.dropFirst("bytes=".count).split(separator: ",").first ?? ""
-        let parts = spec.split(separator: "-", omittingEmptySubsequences: false)
-        guard parts.count == 2 else {
-            return nil
-        }
-        let startStr = String(parts[0]).trimmingCharacters(in: .whitespaces)
-        let endStr = String(parts[1]).trimmingCharacters(in: .whitespaces)
-
-        if startStr.isEmpty {
-            guard let suffixLen = UInt64(endStr), suffixLen > 0 else { return nil }
-            let start = suffixLen >= totalSize ? 0 : (totalSize - suffixLen)
-            let end = totalSize - 1
-            return ResolvedByteRange(start: start, end: end, length: end - start + 1, isPartial: true)
-        }
-
-        guard let start = UInt64(startStr), start < totalSize else {
-            return nil
-        }
-        let end: UInt64
-        if endStr.isEmpty {
-            end = totalSize - 1
-        } else if let parsedEnd = UInt64(endStr) {
-            end = min(parsedEnd, totalSize - 1)
-        } else {
-            return nil
-        }
-        guard start <= end else { return nil }
-        return ResolvedByteRange(start: start, end: end, length: end - start + 1, isPartial: true)
-    }
-
-    private static func readHTTPHeader(from fd: Int32) -> String? {
-        var accumulated = Data()
-        var buf = [UInt8](repeating: 0, count: 4096)
-        let delimiter = Data([13, 10, 13, 10]) // \r\n\r\n
-        while accumulated.count < 16384 {
-            let n = Darwin.read(fd, &buf, buf.count)
-            if n <= 0 {
-                break
-            }
-            accumulated.append(buf, count: n)
-            if accumulated.range(of: delimiter) != nil {
-                break
-            }
-        }
-        guard !accumulated.isEmpty else { return nil }
-        return String(data: accumulated, encoding: .utf8)
-    }
-
-    @discardableResult
-    private static func writeAll(to fd: Int32, string: String) -> Bool {
-        guard let data = string.data(using: .utf8) else { return false }
-        return data.withUnsafeBytes { rawBuf in
-            guard let base = rawBuf.baseAddress else { return true }
-            return writeAll(to: fd, baseAddress: base, count: rawBuf.count)
-        }
-    }
-
-    private static func writeAll(to fd: Int32, baseAddress: UnsafeRawPointer, count: Int) -> Bool {
-        var totalWritten = 0
-        while totalWritten < count {
-            let n = Darwin.write(fd, baseAddress.advanced(by: totalWritten), count - totalWritten)
-            if n < 0 {
-                if errno == EINTR {
-                    continue
-                }
-                return false
-            }
-            if n == 0 {
-                return false
-            }
-            totalWritten += n
-        }
-        return true
+    private static func appendingChildComponent(
+        _ name: String,
+        to directoryURL: URL,
+        port: Int
+    ) -> URL {
+        let baseMediaPath = directoryURL.mediaPath
+        let combined = baseMediaPath.hasSuffix("/") ? "\(baseMediaPath)\(name)" : "\(baseMediaPath)/\(name)"
+        return SMBAddress.parseURL(from: combined, portOverride: port) ?? directoryURL.appendingPathComponent(name)
     }
 }

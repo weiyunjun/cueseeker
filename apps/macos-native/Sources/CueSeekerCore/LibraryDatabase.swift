@@ -547,7 +547,7 @@ extension LibraryDatabase {
         if existingVideoFileID == nil, pathIdentity == nil, try hasSearchPaths() {
             return nil
         }
-        let attributes = (videoFile.isWebDAVURL || videoFile.isSMBURL)
+        let attributes = videoFile.isRemoteMediaURL
             ? nil
             : (try? FileManager.default.attributesOfItem(atPath: videoFile.path))
         let fileSize = (attributes?[.size] as? NSNumber)?.int64Value
@@ -666,7 +666,9 @@ extension LibraryDatabase {
 
     private static func relativeMediaPath(for file: URL, under root: URL) -> String? {
         guard file.isWebDAVURL == root.isWebDAVURL,
-              file.isSMBURL == root.isSMBURL else {
+              file.isSMBURL == root.isSMBURL,
+              file.isFTPURL == root.isFTPURL,
+              file.isNFSURL == root.isNFSURL else {
             return nil
         }
         let rootPath = normalizedFolderPath(root.mediaPath)

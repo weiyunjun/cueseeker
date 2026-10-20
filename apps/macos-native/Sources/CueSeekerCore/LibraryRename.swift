@@ -177,6 +177,10 @@ public struct LibraryRenamer: Sendable {
     private let webdavSubtitleCache: WebDAVSubtitleCache
     private let smbClient: SMBClient
     private let smbConfigurationStore: SMBConfigurationStore
+    private let ftpClient: FTPClient
+    private let ftpConfigurationStore: FTPConfigurationStore
+    private let nfsClient: NFSClient
+    private let nfsConfigurationStore: NFSConfigurationStore
 
     public init(
         database: IndexingDatabase,
@@ -184,7 +188,11 @@ public struct LibraryRenamer: Sendable {
         webdavConfigurationStore: WebDAVConfigurationStore = .shared,
         webdavSubtitleCache: WebDAVSubtitleCache = .shared,
         smbClient: SMBClient = .shared,
-        smbConfigurationStore: SMBConfigurationStore = .shared
+        smbConfigurationStore: SMBConfigurationStore = .shared,
+        ftpClient: FTPClient = .shared,
+        ftpConfigurationStore: FTPConfigurationStore = .shared,
+        nfsClient: NFSClient = .shared,
+        nfsConfigurationStore: NFSConfigurationStore = .shared
     ) {
         self.database = database
         self.webdavClient = webdavClient
@@ -192,6 +200,10 @@ public struct LibraryRenamer: Sendable {
         self.webdavSubtitleCache = webdavSubtitleCache
         self.smbClient = smbClient
         self.smbConfigurationStore = smbConfigurationStore
+        self.ftpClient = ftpClient
+        self.ftpConfigurationStore = ftpConfigurationStore
+        self.nfsClient = nfsClient
+        self.nfsConfigurationStore = nfsConfigurationStore
     }
 
     // MARK: - Conflict check
@@ -224,6 +236,14 @@ public struct LibraryRenamer: Sendable {
             guard (try? smbClient.directoryExists(at: folderPath)) == true else {
                 throw LibraryRenameConflict.filesChangedSinceIndex
             }
+        } else if folderPath.isFTPPath {
+            guard (try? ftpClient.directoryExists(at: folderPath)) == true else {
+                throw LibraryRenameConflict.filesChangedSinceIndex
+            }
+        } else if folderPath.isNFSPath {
+            guard (try? nfsClient.directoryExists(at: folderPath)) == true else {
+                throw LibraryRenameConflict.filesChangedSinceIndex
+            }
         } else {
             var isDirectory: ObjCBool = false
             guard FileManager.default.fileExists(atPath: folderPath, isDirectory: &isDirectory),
@@ -242,6 +262,10 @@ public struct LibraryRenamer: Sendable {
             try requireWebDAVDestinationFree(newPath: newPath, oldPath: folderPath, name: newName)
         } else if folderPath.isSMBPath {
             try requireSMBDestinationFree(newPath: newPath, oldPath: folderPath, name: newName)
+        } else if folderPath.isFTPPath {
+            try requireFTPDestinationFree(newPath: newPath, oldPath: folderPath, name: newName)
+        } else if folderPath.isNFSPath {
+            try requireNFSDestinationFree(newPath: newPath, oldPath: folderPath, name: newName)
         } else {
             let folderURL = URL(fileURLWithPath: folderPath)
             let newURL = URL(fileURLWithPath: newPath)
@@ -317,6 +341,18 @@ public struct LibraryRenamer: Sendable {
                     oldPath: oldFilePath,
                     name: renamed
                 )
+            } else if directoryPath.isFTPPath {
+                try requireFTPDestinationFree(
+                    newPath: newFilePath,
+                    oldPath: oldFilePath,
+                    name: renamed
+                )
+            } else if directoryPath.isNFSPath {
+                try requireNFSDestinationFree(
+                    newPath: newFilePath,
+                    oldPath: oldFilePath,
+                    name: renamed
+                )
             } else {
                 let directory = URL(fileURLWithPath: directoryPath)
                 try requireDestinationFree(
@@ -355,6 +391,14 @@ public struct LibraryRenamer: Sendable {
                 }
             } else if record.path.isSMBPath {
                 guard (try? smbClient.fileExists(at: record.path)) == true else {
+                    throw LibraryRenameConflict.filesChangedSinceIndex
+                }
+            } else if record.path.isFTPPath {
+                guard (try? ftpClient.fileExists(at: record.path)) == true else {
+                    throw LibraryRenameConflict.filesChangedSinceIndex
+                }
+            } else if record.path.isNFSPath {
+                guard (try? nfsClient.fileExists(at: record.path)) == true else {
                     throw LibraryRenameConflict.filesChangedSinceIndex
                 }
             } else {
@@ -454,8 +498,68 @@ public struct LibraryRenamer: Sendable {
         }
     }
 
+    private func requireFTPDestinationFree(
+        newPath: String,
+        oldPath: String,
+        name: String
+    ) throws {
+        let normalizedNewName = name.precomposedStringWithCanonicalMapping
+        let normalizedOldName = Self.lastPathComponent(of: oldPath).precomposedStringWithCanonicalMapping
+        if normalizedNewName == normalizedOldName {
+            return
+        }
+        if let siblings = try? ftpClient.listDirectoryItemsInParent(of: oldPath) {
+            let collidesInListing = siblings.keys.contains { existing in
+                let normalizedExisting = existing.precomposedStringWithCanonicalMapping
+                return normalizedExisting == normalizedNewName && normalizedExisting != normalizedOldName
+            }
+            if collidesInListing {
+                throw LibraryRenameConflict.destinationExists(name: name)
+            }
+        }
+        if normalizedNewName.caseInsensitiveCompare(normalizedOldName) != .orderedSame {
+            let exists = (try? ftpClient.resourceExists(
+                at: newPath,
+                peerPathInSameDirectory: oldPath
+            )) == true
+            if exists {
+                throw LibraryRenameConflict.destinationExists(name: name)
+            }
+        }
+    }
+
+    private func requireNFSDestinationFree(
+        newPath: String,
+        oldPath: String,
+        name: String
+    ) throws {
+        let normalizedNewName = name.precomposedStringWithCanonicalMapping
+        let normalizedOldName = Self.lastPathComponent(of: oldPath).precomposedStringWithCanonicalMapping
+        if normalizedNewName == normalizedOldName {
+            return
+        }
+        if let siblings = try? nfsClient.listDirectoryItemsInParent(of: oldPath) {
+            let collidesInListing = siblings.keys.contains { existing in
+                let normalizedExisting = existing.precomposedStringWithCanonicalMapping
+                return normalizedExisting == normalizedNewName && normalizedExisting != normalizedOldName
+            }
+            if collidesInListing {
+                throw LibraryRenameConflict.destinationExists(name: name)
+            }
+        }
+        if normalizedNewName.caseInsensitiveCompare(normalizedOldName) != .orderedSame {
+            let exists = (try? nfsClient.resourceExists(
+                at: newPath,
+                peerPathInSameDirectory: oldPath
+            )) == true
+            if exists {
+                throw LibraryRenameConflict.destinationExists(name: name)
+            }
+        }
+    }
+
     public static func lastPathComponent(of path: String) -> String {
-        if path.isWebDAVPath || path.isSMBPath {
+        if path.isRemoteMediaPath {
             let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
             guard let schemeRange = trimmed.range(of: "://") else {
                 return (path as NSString).lastPathComponent
@@ -477,7 +581,7 @@ public struct LibraryRenamer: Sendable {
     }
 
     public static func parentPath(of path: String) -> String {
-        if path.isWebDAVPath || path.isSMBPath {
+        if path.isRemoteMediaPath {
             let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
             guard let schemeRange = trimmed.range(of: "://") else {
                 return (path as NSString).deletingLastPathComponent
@@ -513,7 +617,7 @@ public struct LibraryRenamer: Sendable {
     /// them — so paths are compared in one form. The same rule as the
     /// indexing database's folder path variants.
     static func canonicalPath(_ path: String) -> String {
-        if path.isWebDAVPath || path.isSMBPath {
+        if path.isRemoteMediaPath {
             return URL.fromMediaPath(path).mediaPath
         }
         return path.hasPrefix("/private/var/") ? String(path.dropFirst("/private".count)) : path
@@ -579,6 +683,18 @@ public struct LibraryRenamer: Sendable {
                             toPath: step.newPath,
                             isDirectory: isDirectoryRename
                         )
+                    } else if step.oldPath.isFTPPath {
+                        try ftpClient.moveItem(
+                            fromPath: step.oldPath,
+                            toPath: step.newPath,
+                            isDirectory: isDirectoryRename
+                        )
+                    } else if step.oldPath.isNFSPath {
+                        try nfsClient.moveItem(
+                            fromPath: step.oldPath,
+                            toPath: step.newPath,
+                            isDirectory: isDirectoryRename
+                        )
                     } else {
                         try FileManager.default.moveItem(atPath: step.oldPath, toPath: step.newPath)
                     }
@@ -598,7 +714,7 @@ public struct LibraryRenamer: Sendable {
             throw LibraryRenameError.databaseUpdateFailed(String(describing: error))
         }
 
-        for subtitleMove in movedSubtitles where subtitleMove.oldPath.isWebDAVPath || subtitleMove.oldPath.isSMBPath {
+        for subtitleMove in movedSubtitles where subtitleMove.oldPath.isRemoteMediaPath {
             webdavSubtitleCache.moveCachedSubtitle(
                 from: URL.fromMediaPath(subtitleMove.oldPath),
                 to: URL.fromMediaPath(subtitleMove.newPath)
@@ -614,6 +730,16 @@ public struct LibraryRenamer: Sendable {
                     )
                 } else if step.oldPath.isSMBPath {
                     smbConfigurationStore.rewriteFolderPathPrefix(
+                        from: step.oldPath,
+                        to: step.newPath
+                    )
+                } else if step.oldPath.isFTPPath {
+                    ftpConfigurationStore.rewriteFolderPathPrefix(
+                        from: step.oldPath,
+                        to: step.newPath
+                    )
+                } else if step.oldPath.isNFSPath {
+                    nfsConfigurationStore.rewriteFolderPathPrefix(
                         from: step.oldPath,
                         to: step.newPath
                     )
@@ -636,6 +762,18 @@ public struct LibraryRenamer: Sendable {
                 )
             } else if step.newPath.isSMBPath {
                 try? smbClient.moveItem(
+                    fromPath: step.newPath,
+                    toPath: step.oldPath,
+                    isDirectory: isDirectory
+                )
+            } else if step.newPath.isFTPPath {
+                try? ftpClient.moveItem(
+                    fromPath: step.newPath,
+                    toPath: step.oldPath,
+                    isDirectory: isDirectory
+                )
+            } else if step.newPath.isNFSPath {
+                try? nfsClient.moveItem(
                     fromPath: step.newPath,
                     toPath: step.oldPath,
                     isDirectory: isDirectory
