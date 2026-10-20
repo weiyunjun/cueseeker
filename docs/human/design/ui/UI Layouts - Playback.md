@@ -490,6 +490,8 @@
 1. Header
    1. Back Action
    2. Title
+   3. Filter Trigger：仅 Search Results
+   4. Sort Trigger：仅 Search Results
 2. Content Region
 3. Footer
 
@@ -497,6 +499,9 @@
 
 - Icon Button
 - Section Title
+- Button / Neutral
+- Menu
+- Information Badge / Task Count Badge
 - Playback Footer Layout
 - Scrollbar / Vertical
 
@@ -507,6 +512,7 @@
 - Recent Excerpt Lists
   - Content：Excerpt List Card Grid（按 Recent Layout 时间分组展示）
 - Search Results
+  - Header：右侧依次为 Filter Trigger、Sort Trigger，样式与交互同 Search / Excerpt Toolbar Layout 的 Search
   - Content：Command Panel Search Results Layout
 
 ### L-09.3 Command Panel Search Results Layout

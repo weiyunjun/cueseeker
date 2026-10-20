@@ -47,8 +47,8 @@
 | `x` | Regular | 关闭、清除、移除 | Icon Button / Inline Clear；Icon Button / Dialog Close；Task Card / Remove Action；Export to Anki Dialog / Card Item Remove，12px |
 | `check` | Regular | 已选 | Radio Menu Item |
 | `magnifying-glass` | Regular | 搜索 | Search Field；Sidebar Item / Search；Command Panel Root / Search Action；Playback Overlay 选中文字菜单 / Search Selected Text |
-| `funnel` | Regular | 筛选 | Search / Excerpt Toolbar / Filter Trigger |
-| `funnel-simple` | Regular | 排序 | Library Overview / Sort Trigger；Search / Excerpt Toolbar / Sort Trigger |
+| `funnel` | Regular | 筛选 | Search / Excerpt Toolbar / Filter Trigger；Command Panel Secondary / Filter Trigger |
+| `funnel-simple` | Regular | 排序 | Library Overview / Sort Trigger；Search / Excerpt Toolbar / Sort Trigger；Command Panel Secondary / Sort Trigger |
 | `arrow-elbow-down-left` | Regular | 回车键 | Keycap / `Return`，16px |
 
 ## 3.2 页面与入口
