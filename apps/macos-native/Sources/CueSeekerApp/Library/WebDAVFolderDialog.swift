@@ -262,8 +262,7 @@ struct WebDAVFolderDialog: View {
     private var browserContent: some View {
         if session.isLoadingDirectory {
             ZStack {
-                WorkbenchSpinner(size: WorkbenchControlMetrics.redesignButtonIconSize)
-                    .foregroundStyle(WorkbenchRedesignColors.textSecondary)
+                WorkbenchSpinner()
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else if let errorMessage = session.directoryErrorMessage {

@@ -82,8 +82,7 @@ struct WorkbenchRecentView: View {
     ) -> some View {
         if case .loading = status, items.isEmpty {
             LibraryEmptyHint {
-                ProgressView()
-                    .controlSize(.small)
+                WorkbenchSpinner()
             }
             .workbenchPageInlinePadding()
         } else if case .failed(let message) = status {
@@ -112,8 +111,7 @@ struct WorkbenchRecentView: View {
     ) -> some View {
         if !excerpt.hasLoadedListOverview, summaries.isEmpty {
             LibraryEmptyHint {
-                ProgressView()
-                    .controlSize(.small)
+                WorkbenchSpinner()
             }
             .workbenchPageInlinePadding()
         } else if summaries.isEmpty {
@@ -301,8 +299,7 @@ struct WorkbenchTestLibraryView: View {
     private func completeLibraryContent(viewportSize: CGSize) -> some View {
         if case .loading = library.completeLibraryStatus, library.completeLibraryFolderSummaries.isEmpty {
             LibraryEmptyHint {
-                ProgressView()
-                    .controlSize(.small)
+                WorkbenchSpinner()
             }
             .workbenchPageInlinePadding()
         } else if case .failed(let message) = library.completeLibraryStatus {
@@ -439,8 +436,7 @@ struct WorkbenchTestLibraryView: View {
             )
         } else {
             LibraryEmptyHint {
-                ProgressView()
-                    .controlSize(.small)
+                WorkbenchSpinner()
             }
             .workbenchPageInlinePadding()
         }
@@ -454,8 +450,7 @@ struct WorkbenchTestLibraryView: View {
     ) -> some View {
         if case .loading = folderDetailStatus, folderDetail?.folderPath != folder.folderPath {
             LibraryEmptyHint {
-                ProgressView()
-                    .controlSize(.small)
+                WorkbenchSpinner()
             }
             .workbenchPageInlinePadding()
         } else if case .failed(let message) = folderDetailStatus {
@@ -490,8 +485,7 @@ struct WorkbenchTestLibraryView: View {
             }
         } else {
             LibraryEmptyHint {
-                ProgressView()
-                    .controlSize(.small)
+                WorkbenchSpinner()
             }
             .workbenchPageInlinePadding()
         }

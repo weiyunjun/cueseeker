@@ -132,8 +132,7 @@ private struct PlaybackLibraryEpisodeList: View {
     private func contentBody(viewportHeight: CGFloat) -> some View {
         if case .loading = store.detailStatus, store.detail == nil {
             PlaybackEmptyHint {
-                ProgressView()
-                    .controlSize(.small)
+                WorkbenchSpinner()
             }
         } else if let detail = store.detail, !detail.videos.isEmpty {
             CompleteLibraryEpisodeGrid(

@@ -151,8 +151,7 @@ struct SettingsMaintenanceCategory: View {
 
     private func progressLabel(_ text: String) -> some View {
         HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
-            ProgressView()
-                .controlSize(.small)
+            WorkbenchSpinner()
 
             Text(text)
                 .font(.system(size: WorkbenchControlMetrics.redesignFontSizeBody))

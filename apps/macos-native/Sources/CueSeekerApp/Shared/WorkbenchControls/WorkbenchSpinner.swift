@@ -7,13 +7,8 @@ import SwiftUI
 /// See `docs/human/requirements/20260915-UI-Filter Menu Becomes Filter
 /// Dialog.md`, section 9.
 struct WorkbenchSpinner: View {
-    var size: CGFloat = WorkbenchControlMetrics.redesignSpinnerSize
-
-    init(size: CGFloat = WorkbenchControlMetrics.redesignSpinnerSize) {
-        self.size = size
-    }
-
     var body: some View {
+        let size = WorkbenchControlMetrics.redesignSpinnerSize
         let strokeWidth = WorkbenchControlMetrics.redesignSpinnerStrokeWidth
         TimelineView(.animation) { context in
             let turns = context.date.timeIntervalSinceReferenceDate

@@ -115,8 +115,7 @@ struct SettingsDeveloperCategory: View {
                     .foregroundStyle(.secondary)
             case .loading:
                 HStack(spacing: 8) {
-                    ProgressView()
-                        .controlSize(.small)
+                    WorkbenchSpinner()
                     Text(L("settings.developer.loading"))
                         .font(.caption)
                         .foregroundStyle(.secondary)

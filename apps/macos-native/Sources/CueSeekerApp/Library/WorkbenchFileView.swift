@@ -434,7 +434,7 @@ struct WorkbenchFileView: View {
                     .frame(maxWidth: .infinity, alignment: .top)
             } else if partition.subfolders.isEmpty && partition.directEpisodeGroups.isEmpty {
                 if isLoading {
-                    WorkbenchSpinner(size: 18)
+                    WorkbenchSpinner()
                         .frame(maxWidth: .infinity, minHeight: 120, alignment: .center)
                 } else {
                     WorkbenchEmptyHint(message: L("file.empty_folder_items"))
@@ -509,7 +509,7 @@ struct WorkbenchFileView: View {
                     .frame(maxWidth: .infinity, alignment: .top)
             } else if episodeGroups.isEmpty {
                 if case .loading = status {
-                    WorkbenchSpinner(size: 18)
+                    WorkbenchSpinner()
                         .frame(maxWidth: .infinity, minHeight: 120, alignment: .center)
                 } else {
                     WorkbenchEmptyHint(message: L("file.empty_folder_items"))
@@ -790,8 +790,7 @@ struct WorkbenchFileView: View {
             WorkbenchStatusIndicator(
                 text,
                 iconCustomView: AnyView(
-                    WorkbenchSpinner(size: WorkbenchControlMetrics.redesignButtonIconSize)
-                        .foregroundStyle(WorkbenchRedesignColors.textSecondary)
+                    WorkbenchSpinner()
                 ),
                 textColor: WorkbenchRedesignColors.textSecondary
             )

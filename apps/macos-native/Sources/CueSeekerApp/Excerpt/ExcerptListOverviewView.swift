@@ -33,7 +33,7 @@ struct ExcerptListOverviewView: View {
                         appState.openExcerptList(id: summary.id)
                     }
                 } else {
-                    ProgressView()
+                    WorkbenchSpinner()
                         .frame(maxWidth: .infinity, minHeight: 220)
                 }
             }
