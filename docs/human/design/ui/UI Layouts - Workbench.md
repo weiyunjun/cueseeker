@@ -541,7 +541,7 @@
 - Confirmation Dialog
 - File Card Layout
 - Rename Dialog Layout
-- WebDav / SMB Folder Dialog Layout
+- WebDav / SMB / FTP / NFS Folder Dialog Layout
 
 #### Layout
 
@@ -593,16 +593,16 @@
   - Container：36×36px，圆角 `--radius-control`，背景 `--color-bg-hover`
   - Glyph Size：`--size-card-icon-glyph`（20px），居中
   - Glyph Color：`--color-text-secondary`
-  - Mapping：本地文件夹为 `folder`，WebDAV 文件夹为 `folder-webdav`，SMB 文件夹为 `folder-smb`，视频为 `video`，字幕为 `subtitles`
+  - Mapping：本地文件夹为 `folder`，WebDAV 文件夹为 `folder-webdav`，SMB 文件夹为 `folder-smb`，FTP 文件夹为 `folder-ftp`，NFS 文件夹为 `folder-nfs`，视频为 `video`，字幕为 `subtitles`
 - Text Column：
   - Line 1：Title（`--font-size-body` / `--font-weight-control` / `--color-text-primary`）
-  - Line 2：Subtitle（`--font-size-caption` / Regular / `--color-text-muted`；WebDAV 与 SMB 路径解码为可读字符展示）
+  - Line 2：Subtitle（`--font-size-caption` / Regular / `--color-text-muted`；WebDAV、SMB、FTP 与 NFS 路径解码为可读字符展示）
   - Line Gap：`--spacing-1`
   - Wrapping：所有文本完整展示，字符折行，不截断
 - Trailing Actions：
   - 文件夹卡片最右侧常驻不可点击的 `caret-right` 指示箭头（`--size-card-chevron` 16px，`--color-text-muted`），`dots-three` 按钮位于其左侧（间距 `--spacing-2`）；文件卡片无 `caret-right` 箭头，最右侧仅保留 `dots-three` 按钮。
   - `dots-three` 纯图标按钮（32×32px，圆角 8px，图标 21px）默认隐藏，仅在卡片 Hover 或该卡片菜单打开时显示；Hover 按钮自身及菜单打开时底色为 `--color-row-selected`。
-  - `Add Folder` 弹出菜单：`Local Folder`（`folder`）+ `WebDav Folder`（`folder-webdav`）+ `SMB Folder`（`folder-smb`）
+  - `Add Folder` 弹出菜单：`Local Folder`（`folder`）+ `WebDav Folder`（`folder-webdav`）+ `SMB Folder`（`folder-smb`）+ `FTP Folder`（`folder-ftp`）+ `NFS Folder`（`folder-nfs`）
   - 卡片弹出菜单：
     - Root Folder Card：`Rename Folder`（Neutral）+ `Remove`（Destructive 警告项）
     - Subfolder Card：`Rename Folder`（Neutral）
@@ -994,18 +994,20 @@
 - Default
 - Validation Error
 
-### L-06.4 WebDav / SMB Folder Dialog Layout
+### L-06.4 WebDav / SMB / FTP / NFS Folder Dialog Layout
 
 #### Structure
 
 1. Step 1: Connection
-   1. Header：`WebDav Folder` 或 `SMB Folder` + Close Button
+   1. Header：`WebDav Folder`、`SMB Folder`、`FTP Folder` 或 `NFS Folder` + Close Button
    2. Form Region：
       - `WebDav Folder`：`Address Field`、`Username Field`、`Password Field`（密文掩码）
       - `SMB Folder`：`Address Field`、`Port Field`（默认预填 `445`）、`Username Field`、`Password Field`（密文掩码）
+      - `FTP Folder`：`Address Field`、`Port Field`（默认预填 `21`）、`Username Field`、`Password Field`（密文掩码）
+      - `NFS Folder`：`Address Field`
    3. Footer：`Cancel`、`Connect`
 2. Step 2: Folder Browser
-   1. Header：`WebDav Folder` 或 `SMB Folder` + Close Button
+   1. Header：`WebDav Folder`、`SMB Folder`、`FTP Folder` 或 `NFS Folder` + Close Button
    2. Breadcrumb Navigation
    3. Browser Card List
    4. Footer：左侧 `Back`；右侧 `Cancel`、`Add`
@@ -1023,10 +1025,10 @@
 
 #### Layout
 
-- Step 1 Width：`--width-dialog-medium`；Form Region 为左 Label（宽度 `--width-form-label`）、右输入框的双列水平布局；`Address` 必填（粘贴百分号编码链接时即时还原为可读字符；`SMB Folder` 支持填写服务器友好名称或 IP 地址，未带 `smb://` 前缀时点击 `Connect` 自动补全 `smb://` 解析，不修改输入框内容），`SMB Folder` 的 `Port` 必填且默认预填 `445`，`Username` 与 `Password` 选填（留空以匿名/访客方式访问），均无占位提示；仅最下方 `Password` 输入框下预留 1 行 Validation Message（左边缘与密码输入框对齐），成功加载初始目录列表前的任何报错均停留在 Step 1 显示红字。
+- Step 1 Width：`--width-dialog-medium`；Form Region 为左 Label（宽度 `--width-form-label`）、右输入框的双列水平布局；`Address` 必填（粘贴百分号编码链接时即时还原为可读字符；`SMB Folder`、`FTP Folder` 与 `NFS Folder` 未带对应协议前缀时点击 `Connect` 自动补全 `smb://`、`ftp://` 或 `nfs://` 解析，不修改输入框内容；`NFS Folder` 支持斜杠路径或 `主机:/导出路径` 写法并由后台自动连接标准 `2049` 端口），`SMB Folder` 与 `FTP Folder` 的 `Port` 必填且分别默认预填 `445` 与 `21`，`Username` 与 `Password` 选填（留空以匿名/访客方式访问），均无占位提示；仅最下方输入框下预留 1 行 Validation Message（左边缘与输入框对齐），成功加载初始目录列表前的任何报错均停留在 Step 1 显示红字。
 - Step 2 Width：`--width-dialog-x-large`，Height：`--height-task-panel`；Header、Breadcrumb 与 Footer 固定，中间列表垂直滚动，滚动条位于右侧 `--inset-dialog` 通道内。
 - Breadcrumb Navigation：以 Step 1 所填地址对应的目录名称或主机名称为起点（不展示或回退至更上层父目录）。
-- Browser Card List：仅展示文件夹（或 SMB 顶层共享文件夹）、受支持的视频与字幕文件（文件夹在上、文件在下，按名称排序）。卡片复用 `L-04.6 File Card Layout` 单行形态（高度 `68px`、内边距 `--spacing-4`、图标底容器 `36×36px`、标题 `--font-size-body` Medium 单行尾部截断；文件夹右侧带 `16px` `caret-right` 箭头，文件无箭头与操作按钮）。
+- Browser Card List：仅展示文件夹（或 SMB 顶层共享文件夹、NFS 顶层导出目录）、受支持的视频与字幕文件（文件夹在上、文件在下，按名称排序）。卡片复用 `L-04.6 File Card Layout` 单行形态（高度 `68px`、内边距 `--spacing-4`、图标底容器 `36×36px`、标题 `--font-size-body` Medium 单行尾部截断；文件夹右侧带 `16px` `caret-right` 箭头，文件无箭头与操作按钮）。
 - 交互与选中态：文件卡片不可点击且无 Hover 效果；文件夹卡片支持同层级单击多选与双击进入子目录。未选中文件夹 Hover 背景为 `--color-row-hover`；选中文件夹背景为 `--color-library-media-card-hover-bg`、边框为 `--color-border-active`，且选中后无 Hover 效果。双击进入子目录、点击面包屑跳转或点击 `Back` 返回 Step 1 时清空当前选中项；`Back` 返回 Step 1 时保留已输入的表单内容，仅关闭弹窗时清空。
 
 #### Spacing
@@ -1041,7 +1043,7 @@
 - Step 1 - Default
 - Step 1 - Validation Error
 - Step 1 - Connecting（全部输入框与 `Connect` 按钮为 Disabled，`Connect` 按钮内左侧展示 `WorkbenchSpinner`）
-- Step 2 - Loaded（`Add` 启用；未选中子文件夹时添加当前目录自身，选中一个或多个子文件夹时按从上到下顺序依次入队添加；当 `SMB Folder` 处于主机顶层共享文件夹列表且未选中任何共享文件夹时，`Add` 为 Disabled）
+- Step 2 - Loaded（`Add` 启用；未选中子文件夹时添加当前目录自身，选中一个或多个子文件夹时按从上到下顺序依次入队添加；当 `SMB Folder` 处于主机顶层共享文件夹列表、或 `NFS Folder` 处于主机顶层导出目录列表且未选中任何文件夹时，`Add` 为 Disabled）
 - Step 2 - Loading Subfolder（列表区居中展示 `18px` `WorkbenchSpinner`，`Add` 为 Disabled）
 - Step 2 - Load Failed / Empty（列表区居中展示 `Empty Hint`，加载失败时 `Add` 为 Disabled）
 

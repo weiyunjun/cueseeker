@@ -257,7 +257,7 @@
 - 快捷键：`Esc`（固定键位）
 - 触发延迟：1秒
 - Scenario ID：dialog.header.close
-- 所在位置：Edit Cover / Excerpt List Editor / Rename / WebDAV Folder / SMB Folder / Export to Anki / Filter / File Info / Confirmation / Task Panel 右上角 `X` 按钮
+- 所在位置：Edit Cover / Excerpt List Editor / Rename / WebDAV Folder / SMB Folder / FTP Folder / NFS Folder / Export to Anki / Filter / File Info / Confirmation / Task Panel 右上角 `X` 按钮
 
 ### 20. 搜索框清空按钮（Search Field Clear Button）
 - 英文：Clear Input

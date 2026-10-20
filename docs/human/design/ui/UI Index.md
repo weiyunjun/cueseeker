@@ -135,7 +135,7 @@
 | **3.6 Dialogs** | `L-06.1` | Edit Cover Dialog Layout | 编辑封面弹窗（预览/裁剪切换） |
 | | `L-06.2` | Excerpt List Editor Dialog Layout | 新建/编辑摘录集弹窗（响应式双列/单列，Description 底边对齐规则） |
 | | `L-06.3` | Rename Dialog Layout | 文件夹/单集文件重命名双列表单弹窗 |
-| | `L-06.4` | WebDav / SMB Folder Dialog Layout | 添加 WebDAV / SMB 文件夹分步弹窗（连接表单 + 目录浏览与多选） |
+| | `L-06.4` | WebDav / SMB / FTP / NFS Folder Dialog Layout | 添加 WebDAV / SMB / FTP / NFS 文件夹分步弹窗（连接表单 + 目录浏览与多选） |
 | | `L-06.5` | Export to Anki Dialog Layout | 导出 Anki 交互式徽章拖拽与路径选择弹窗 |
 | | `L-06.6` | Filter Dialog Layout | 多维筛选弹窗（Duration/Character/Language/Watch Status/Folder） |
 | | `L-06.7` | Confirmation Dialog Layout | 二次确认弹窗 |

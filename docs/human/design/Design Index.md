@@ -41,7 +41,7 @@
 | 文档路径 | 核心职责 |
 | --- | --- |
 | [`workbench/Search and Filter.md`](workbench/Search%20and%20Filter.md) | **搜索与筛选业务**：全文检索匹配与字符归一化、搜索排序与高亮、Cue Group 聚合展示、Filter 多维筛选交并集与计数、表格批量选择操作业务。 |
-| [`workbench/Library and File.md`](workbench/Library%20and%20File.md) | **媒体库、文件与任务队列业务**：观看状态与进度流转、封面裁剪与缓存策略、App 内文件夹/单集联动重命名、WebDAV 与 SMB 挂载同步、后台任务队列并发互斥与取消规则。 |
+| [`workbench/Library and File.md`](workbench/Library%20and%20File.md) | **媒体库、文件与任务队列业务**：观看状态与进度流转、封面裁剪与缓存策略、App 内文件夹/单集联动重命名、WebDAV / SMB / FTP / NFS 挂载同步、后台任务队列并发互斥与取消规则。 |
 | [`workbench/Excerpt and Export.md`](workbench/Excerpt%20and%20Export.md) | **摘录、长截图与 Anki 导出业务**：Excerpt 列表增删改与跨列表移动/复制去重、Collage 长截图帧提取与拼接规则、Export to Anki 字段映射与导出生成逻辑。 |
 | [`workbench/Settings and Localization.md`](workbench/Settings%20and%20Localization.md) | **设置项与多语言规范**：各设置项默认值、持久化与生效边界，以及简/繁/英/日多语言词条对照规范。 |
 
