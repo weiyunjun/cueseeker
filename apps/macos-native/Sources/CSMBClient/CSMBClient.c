@@ -648,13 +648,16 @@ csmb_error_code_t csmb_file_open(
         return code;
     }
 
-    struct smb2_stat_64 st;
-    memset(&st, 0, sizeof(st));
-    if (smb2_fstat(session->smb2, fh, &st) < 0) {
-        csmb_error_code_t code = csmb_classify_error(session->smb2, -EIO);
-        csmb_set_error(out_error_message, smb2_get_error(session->smb2));
-        smb2_close(session->smb2, fh);
-        return code;
+    if (out_total_size) {
+        struct smb2_stat_64 st;
+        memset(&st, 0, sizeof(st));
+        if (smb2_fstat(session->smb2, fh, &st) < 0) {
+            csmb_error_code_t code = csmb_classify_error(session->smb2, -EIO);
+            csmb_set_error(out_error_message, smb2_get_error(session->smb2));
+            smb2_close(session->smb2, fh);
+            return code;
+        }
+        *out_total_size = st.smb2_size;
     }
 
     csmb_file_t *file = (csmb_file_t *)calloc(1, sizeof(csmb_file_t));
@@ -667,9 +670,6 @@ csmb_error_code_t csmb_file_open(
     file->fh = fh;
     *out_file = file;
 
-    if (out_total_size) {
-        *out_total_size = st.smb2_size;
-    }
     if (out_max_read_size) {
         uint32_t max_chunk = smb2_get_max_read_size(session->smb2);
         if (max_chunk == 0 || max_chunk > 1048576) {

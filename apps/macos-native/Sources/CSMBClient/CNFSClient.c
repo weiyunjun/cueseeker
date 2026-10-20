@@ -2,16 +2,75 @@
 
 #include <errno.h>
 #include <fcntl.h>
+#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <time.h>
 #include <unistd.h>
 
 #include <nfsc/libnfs.h>
 #include <nfsc/libnfs-raw-mount.h>
 #include <nfsc/libnfs-raw-nfs.h>
 #include <nfsc/libnfs-raw-nfs4.h>
+
+#define CNFS_EXPORT_CACHE_CAP 16
+#define CNFS_EXPORT_CACHE_TTL 300
+#define CNFS_MOUNT_POOL_CAP 8
+#define CNFS_MOUNT_POOL_TTL 120
+
+typedef struct {
+    char *host;
+    char **exports;
+    size_t count;
+    time_t fetched_at;
+} cnfs_export_cache_entry_t;
+
+typedef struct {
+    char *host;
+    char *mount_export;
+    int version;
+    struct nfs_context *nfs;
+    time_t last_used;
+} cnfs_pooled_mount_t;
+
+typedef struct {
+    struct nfs_context *nfs;
+    char *host;
+    char *mount_export;
+    char *subpath;
+    int version;
+    int was_reused;
+} cnfs_mount_handle_t;
+
+static pthread_mutex_t g_cnfs_mutex = PTHREAD_MUTEX_INITIALIZER;
+static cnfs_export_cache_entry_t g_export_cache[CNFS_EXPORT_CACHE_CAP];
+static cnfs_pooled_mount_t g_mount_pool[CNFS_MOUNT_POOL_CAP];
+
+static void cnfs_free_string_list(char **items, size_t count) {
+    if (!items) {
+        return;
+    }
+    for (size_t i = 0; i < count; i++) {
+        free(items[i]);
+    }
+    free(items);
+}
+
+static char **cnfs_copy_string_list(char **items, size_t count) {
+    if (!items || count == 0) {
+        return NULL;
+    }
+    char **copy = (char **)calloc(count, sizeof(char *));
+    if (!copy) {
+        return NULL;
+    }
+    for (size_t i = 0; i < count; i++) {
+        copy[i] = strdup(items[i] ? items[i] : "");
+    }
+    return copy;
+}
 
 static void cnfs_set_error(char **out_error_message, const char *msg) {
     if (!out_error_message) {
@@ -87,6 +146,113 @@ static struct nfs_context *cnfs_create_context(int version) {
     nfs_set_uid(nfs, (int)getuid());
     nfs_set_gid(nfs, (int)getgid());
     return nfs;
+}
+
+static void cnfs_get_exports_cached(
+    const char *host,
+    int force_refresh,
+    char ***out_exports,
+    size_t *out_count
+) {
+    *out_exports = NULL;
+    *out_count = 0;
+    if (!host || !host[0]) {
+        return;
+    }
+
+    time_t now = time(NULL);
+    if (!force_refresh) {
+        pthread_mutex_lock(&g_cnfs_mutex);
+        for (size_t i = 0; i < CNFS_EXPORT_CACHE_CAP; i++) {
+            if (g_export_cache[i].host &&
+                strcmp(g_export_cache[i].host, host) == 0 &&
+                (now - g_export_cache[i].fetched_at) < CNFS_EXPORT_CACHE_TTL &&
+                g_export_cache[i].count > 0) {
+                *out_exports = cnfs_copy_string_list(g_export_cache[i].exports, g_export_cache[i].count);
+                *out_count = *out_exports ? g_export_cache[i].count : 0;
+                pthread_mutex_unlock(&g_cnfs_mutex);
+                return;
+            }
+        }
+        pthread_mutex_unlock(&g_cnfs_mutex);
+    }
+
+    struct exportnode *exports = mount_getexports_timeout(host, 5000);
+    if (!exports) {
+        return;
+    }
+
+    size_t cap = 16;
+    size_t count = 0;
+    char **names = (char **)calloc(cap, sizeof(char *));
+    for (struct exportnode *cur = exports; cur != NULL; cur = cur->ex_next) {
+        if (!cur->ex_dir || cur->ex_dir[0] == '\0') {
+            continue;
+        }
+        char *norm = cnfs_normalize_abs_path(cur->ex_dir);
+        int dup = 0;
+        for (size_t i = 0; i < count; i++) {
+            if (strcmp(names[i], norm) == 0) {
+                dup = 1;
+                break;
+            }
+        }
+        if (dup) {
+            free(norm);
+            continue;
+        }
+        if (count == cap) {
+            cap *= 2;
+            names = (char **)realloc(names, cap * sizeof(char *));
+        }
+        names[count++] = norm;
+    }
+    mount_free_export_list(exports);
+
+    if (count == 0) {
+        free(names);
+        return;
+    }
+
+    pthread_mutex_lock(&g_cnfs_mutex);
+    size_t slot = 0;
+    int found = 0;
+    for (size_t i = 0; i < CNFS_EXPORT_CACHE_CAP; i++) {
+        if (g_export_cache[i].host && strcmp(g_export_cache[i].host, host) == 0) {
+            slot = i;
+            found = 1;
+            break;
+        }
+    }
+    if (!found) {
+        for (size_t i = 0; i < CNFS_EXPORT_CACHE_CAP; i++) {
+            if (!g_export_cache[i].host) {
+                slot = i;
+                found = 1;
+                break;
+            }
+        }
+    }
+    if (!found) {
+        time_t oldest = g_export_cache[0].fetched_at;
+        slot = 0;
+        for (size_t i = 1; i < CNFS_EXPORT_CACHE_CAP; i++) {
+            if (g_export_cache[i].fetched_at < oldest) {
+                oldest = g_export_cache[i].fetched_at;
+                slot = i;
+            }
+        }
+    }
+    free(g_export_cache[slot].host);
+    cnfs_free_string_list(g_export_cache[slot].exports, g_export_cache[slot].count);
+    g_export_cache[slot].host = strdup(host);
+    g_export_cache[slot].exports = cnfs_copy_string_list(names, count);
+    g_export_cache[slot].count = count;
+    g_export_cache[slot].fetched_at = time(NULL);
+    pthread_mutex_unlock(&g_cnfs_mutex);
+
+    *out_exports = names;
+    *out_count = count;
 }
 
 csmb_error_code_t cnfs_list_exports(
@@ -185,23 +351,23 @@ csmb_error_code_t cnfs_list_exports(
     return CSMB_OK;
 }
 
-static csmb_error_code_t cnfs_mount_for_abs_path(
+static void cnfs_resolve_export_and_subpath(
     const char *host,
     const char *abs_path,
-    struct nfs_context **out_nfs,
-    char **out_subpath,
-    char **out_error_message
+    int force_refresh_exports,
+    char **out_mount_export,
+    char **out_subpath
 ) {
-    *out_nfs = NULL;
-    *out_subpath = NULL;
+    char **exports = NULL;
+    size_t export_count = 0;
+    cnfs_get_exports_cached(host, force_refresh_exports, &exports, &export_count);
 
     char *best_export = NULL;
-    struct exportnode *exports = mount_getexports_timeout(host, 5000);
-    for (struct exportnode *cur = exports; cur != NULL; cur = cur->ex_next) {
-        if (!cur->ex_dir || cur->ex_dir[0] == '\0') {
+    for (size_t i = 0; i < export_count; i++) {
+        const char *exp = exports[i];
+        if (!exp || exp[0] == '\0') {
             continue;
         }
-        char *exp = cnfs_normalize_abs_path(cur->ex_dir);
         size_t exp_len = strlen(exp);
         int matches = 0;
         if (strcmp(exp, "/") == 0) {
@@ -213,14 +379,10 @@ static csmb_error_code_t cnfs_mount_for_abs_path(
         }
         if (matches && (!best_export || exp_len > strlen(best_export))) {
             free(best_export);
-            best_export = exp;
-        } else {
-            free(exp);
+            best_export = strdup(exp);
         }
     }
-    if (exports) {
-        mount_free_export_list(exports);
-    }
+    cnfs_free_string_list(exports, export_count);
 
     const char *mount_export = best_export ? best_export : abs_path;
     const char *sub = "/";
@@ -232,6 +394,24 @@ static csmb_error_code_t cnfs_mount_for_abs_path(
             sub = (*rem == '\0') ? "/" : rem;
         }
     }
+    *out_mount_export = strdup(mount_export);
+    *out_subpath = strdup(sub);
+    free(best_export);
+}
+
+static csmb_error_code_t cnfs_mount_for_abs_path(
+    const char *host,
+    const char *abs_path,
+    struct nfs_context **out_nfs,
+    char **out_subpath,
+    char **out_error_message
+) {
+    *out_nfs = NULL;
+    *out_subpath = NULL;
+
+    char *mount_export = NULL;
+    char *sub = NULL;
+    cnfs_resolve_export_and_subpath(host, abs_path, 0, &mount_export, &sub);
 
     /* 1. Try NFSv3 on matched export */
     struct nfs_context *nfs3 = cnfs_create_context(NFS_V3);
@@ -239,8 +419,8 @@ static csmb_error_code_t cnfs_mount_for_abs_path(
         int rc3 = nfs_mount(nfs3, host, mount_export);
         if (rc3 == 0) {
             *out_nfs = nfs3;
-            *out_subpath = strdup(sub);
-            free(best_export);
+            *out_subpath = sub;
+            free(mount_export);
             return CSMB_OK;
         }
         csmb_error_code_t err3 = cnfs_classify_error(nfs3, rc3);
@@ -253,22 +433,173 @@ static csmb_error_code_t cnfs_mount_for_abs_path(
             if (nfs_mount(nfs4, host, "/") == 0) {
                 *out_nfs = nfs4;
                 *out_subpath = strdup(abs_path);
-                free(best_export);
+                free(sub);
+                free(mount_export);
                 free(msg3);
                 return CSMB_OK;
             }
             nfs_destroy_context(nfs4);
         }
 
-        free(best_export);
+        free(sub);
+        free(mount_export);
         cnfs_set_error(out_error_message, msg3);
         free(msg3);
         return err3;
     }
 
-    free(best_export);
+    free(sub);
+    free(mount_export);
     cnfs_set_error(out_error_message, "Failed to initialize NFS context");
     return CSMB_ERR_CONNECTION;
+}
+
+static csmb_error_code_t cnfs_acquire_mount_for_abs_path(
+    const char *host,
+    const char *abs_path,
+    int force_fresh,
+    cnfs_mount_handle_t *out_handle,
+    char **out_error_message
+) {
+    memset(out_handle, 0, sizeof(*out_handle));
+
+    char *mount_export = NULL;
+    char *sub = NULL;
+    cnfs_resolve_export_and_subpath(host, abs_path, force_fresh, &mount_export, &sub);
+
+    if (!force_fresh) {
+        time_t now = time(NULL);
+        pthread_mutex_lock(&g_cnfs_mutex);
+        for (size_t i = 0; i < CNFS_MOUNT_POOL_CAP; i++) {
+            if (g_mount_pool[i].nfs &&
+                g_mount_pool[i].host && strcmp(g_mount_pool[i].host, host) == 0 &&
+                g_mount_pool[i].mount_export && strcmp(g_mount_pool[i].mount_export, mount_export) == 0 &&
+                (now - g_mount_pool[i].last_used) < CNFS_MOUNT_POOL_TTL) {
+                out_handle->nfs = g_mount_pool[i].nfs;
+                out_handle->host = g_mount_pool[i].host;
+                out_handle->mount_export = g_mount_pool[i].mount_export;
+                out_handle->subpath = sub;
+                out_handle->version = g_mount_pool[i].version;
+                out_handle->was_reused = 1;
+                memset(&g_mount_pool[i], 0, sizeof(g_mount_pool[i]));
+                pthread_mutex_unlock(&g_cnfs_mutex);
+                free(mount_export);
+                return CSMB_OK;
+            }
+        }
+        pthread_mutex_unlock(&g_cnfs_mutex);
+    }
+
+    struct nfs_context *nfs3 = cnfs_create_context(NFS_V3);
+    if (nfs3) {
+        int rc3 = nfs_mount(nfs3, host, mount_export);
+        if (rc3 == 0) {
+            out_handle->nfs = nfs3;
+            out_handle->host = strdup(host);
+            out_handle->mount_export = mount_export;
+            out_handle->subpath = sub;
+            out_handle->version = NFS_V3;
+            out_handle->was_reused = 0;
+            return CSMB_OK;
+        }
+        csmb_error_code_t err3 = cnfs_classify_error(nfs3, rc3);
+        char *msg3 = strdup(nfs_get_error(nfs3) ? nfs_get_error(nfs3) : "NFS mount failed");
+        nfs_destroy_context(nfs3);
+
+        struct nfs_context *nfs4 = cnfs_create_context(NFS_V4);
+        if (nfs4) {
+            if (nfs_mount(nfs4, host, "/") == 0) {
+                free(sub);
+                free(mount_export);
+                free(msg3);
+                out_handle->nfs = nfs4;
+                out_handle->host = strdup(host);
+                out_handle->mount_export = strdup("/");
+                out_handle->subpath = strdup(abs_path);
+                out_handle->version = NFS_V4;
+                out_handle->was_reused = 0;
+                return CSMB_OK;
+            }
+            nfs_destroy_context(nfs4);
+        }
+
+        free(sub);
+        free(mount_export);
+        cnfs_set_error(out_error_message, msg3);
+        free(msg3);
+        return err3;
+    }
+
+    free(sub);
+    free(mount_export);
+    cnfs_set_error(out_error_message, "Failed to initialize NFS context");
+    return CSMB_ERR_CONNECTION;
+}
+
+static void cnfs_release_mount(cnfs_mount_handle_t *handle, int discard) {
+    if (!handle) {
+        return;
+    }
+    free(handle->subpath);
+    handle->subpath = NULL;
+
+    if (!handle->nfs) {
+        free(handle->host);
+        free(handle->mount_export);
+        memset(handle, 0, sizeof(*handle));
+        return;
+    }
+
+    if (discard) {
+        nfs_umount(handle->nfs);
+        nfs_destroy_context(handle->nfs);
+        free(handle->host);
+        free(handle->mount_export);
+        memset(handle, 0, sizeof(*handle));
+        return;
+    }
+
+    struct nfs_context *evicted_nfs = NULL;
+    char *evicted_host = NULL;
+    char *evicted_export = NULL;
+
+    pthread_mutex_lock(&g_cnfs_mutex);
+    size_t slot = 0;
+    int found = 0;
+    for (size_t i = 0; i < CNFS_MOUNT_POOL_CAP; i++) {
+        if (!g_mount_pool[i].nfs) {
+            slot = i;
+            found = 1;
+            break;
+        }
+    }
+    if (!found) {
+        time_t oldest = g_mount_pool[0].last_used;
+        slot = 0;
+        for (size_t i = 1; i < CNFS_MOUNT_POOL_CAP; i++) {
+            if (g_mount_pool[i].last_used < oldest) {
+                oldest = g_mount_pool[i].last_used;
+                slot = i;
+            }
+        }
+        evicted_nfs = g_mount_pool[slot].nfs;
+        evicted_host = g_mount_pool[slot].host;
+        evicted_export = g_mount_pool[slot].mount_export;
+    }
+    g_mount_pool[slot].nfs = handle->nfs;
+    g_mount_pool[slot].host = handle->host;
+    g_mount_pool[slot].mount_export = handle->mount_export;
+    g_mount_pool[slot].version = handle->version;
+    g_mount_pool[slot].last_used = time(NULL);
+    pthread_mutex_unlock(&g_cnfs_mutex);
+
+    if (evicted_nfs) {
+        nfs_umount(evicted_nfs);
+        nfs_destroy_context(evicted_nfs);
+        free(evicted_host);
+        free(evicted_export);
+    }
+    memset(handle, 0, sizeof(*handle));
 }
 
 csmb_error_code_t cnfs_stat(
@@ -291,21 +622,20 @@ csmb_error_code_t cnfs_stat(
     }
 
     /* Check if abs_path is a virtual parent prefix of an exported path */
-    struct exportnode *exports = mount_getexports_timeout(host, 4000);
+    char **exports = NULL;
+    size_t export_count = 0;
+    cnfs_get_exports_cached(host, 0, &exports, &export_count);
     size_t abs_len = strlen(abs_path);
     int is_virtual_prefix = 0;
-    for (struct exportnode *cur = exports; cur != NULL; cur = cur->ex_next) {
-        if (!cur->ex_dir) continue;
-        char *exp = cnfs_normalize_abs_path(cur->ex_dir);
+    for (size_t i = 0; i < export_count; i++) {
+        const char *exp = exports[i];
+        if (!exp) continue;
         if (strncmp(exp, abs_path, abs_len) == 0 && exp[abs_len] == '/') {
             is_virtual_prefix = 1;
+            break;
         }
-        free(exp);
-        if (is_virtual_prefix) break;
     }
-    if (exports) {
-        mount_free_export_list(exports);
-    }
+    cnfs_free_string_list(exports, export_count);
 
     struct nfs_context *nfs = NULL;
     char *subpath = NULL;
@@ -360,28 +690,29 @@ csmb_error_code_t cnfs_list_directory(
     char *abs_path = cnfs_normalize_abs_path(rel_path);
 
     /* Synthesize virtual intermediate directories above deeper exports if not directly inside an export */
-    struct exportnode *exports = mount_getexports_timeout(host, 4000);
-    if (exports) {
+    char **exports = NULL;
+    size_t export_count = 0;
+    cnfs_get_exports_cached(host, 0, &exports, &export_count);
+    if (export_count > 0) {
         int inside_export = 0;
-        for (struct exportnode *cur = exports; cur != NULL; cur = cur->ex_next) {
-            if (!cur->ex_dir) continue;
-            char *exp = cnfs_normalize_abs_path(cur->ex_dir);
+        for (size_t i = 0; i < export_count; i++) {
+            const char *exp = exports[i];
+            if (!exp) continue;
             size_t elen = strlen(exp);
             if (strcmp(exp, "/") == 0 || strcmp(abs_path, exp) == 0 ||
                 (strncmp(abs_path, exp, elen) == 0 && abs_path[elen] == '/')) {
                 inside_export = 1;
+                break;
             }
-            free(exp);
-            if (inside_export) break;
         }
         if (!inside_export) {
             size_t abs_len = strlen(abs_path);
             size_t cap = 16;
             size_t count = 0;
             csmb_dir_entry_t *entries = (csmb_dir_entry_t *)calloc(cap, sizeof(csmb_dir_entry_t));
-            for (struct exportnode *cur = exports; cur != NULL; cur = cur->ex_next) {
-                if (!cur->ex_dir) continue;
-                char *exp = cnfs_normalize_abs_path(cur->ex_dir);
+            for (size_t i = 0; i < export_count; i++) {
+                const char *exp = exports[i];
+                if (!exp) continue;
                 const char *rem = NULL;
                 if (strcmp(abs_path, "/") == 0 && exp[0] == '/' && exp[1] != '\0') {
                     rem = exp + 1;
@@ -393,8 +724,8 @@ csmb_error_code_t cnfs_list_directory(
                     size_t seg_len = slash ? (size_t)(slash - rem) : strlen(rem);
                     char *seg = strndup(rem, seg_len);
                     int dup = 0;
-                    for (size_t i = 0; i < count; i++) {
-                        if (strcmp(entries[i].name, seg) == 0) {
+                    for (size_t j = 0; j < count; j++) {
+                        if (strcmp(entries[j].name, seg) == 0) {
                             dup = 1;
                             break;
                         }
@@ -413,9 +744,8 @@ csmb_error_code_t cnfs_list_directory(
                         free(seg);
                     }
                 }
-                free(exp);
             }
-            mount_free_export_list(exports);
+            cnfs_free_string_list(exports, export_count);
             if (count > 0) {
                 free(abs_path);
                 out_list->entries = entries;
@@ -424,7 +754,7 @@ csmb_error_code_t cnfs_list_directory(
             }
             free(entries);
         } else {
-            mount_free_export_list(exports);
+            cnfs_free_string_list(exports, export_count);
         }
     }
 
@@ -605,6 +935,93 @@ csmb_error_code_t cnfs_read_file_range(
         *out_bytes_read = total_read;
     }
     return CSMB_OK;
+}
+
+csmb_error_code_t cnfs_stream_file_range(
+    const char *host,
+    const char *rel_path,
+    uint64_t offset,
+    uint64_t max_length,
+    csmb_stream_write_fn write_fn,
+    void *user_data,
+    char **out_error_message
+) {
+    if (max_length == 0 || !write_fn) {
+        return CSMB_OK;
+    }
+
+    char *abs_path = cnfs_normalize_abs_path(rel_path);
+    cnfs_mount_handle_t handle;
+    csmb_error_code_t mcode = cnfs_acquire_mount_for_abs_path(host, abs_path, 0, &handle, out_error_message);
+    if (mcode != CSMB_OK) {
+        free(abs_path);
+        return mcode;
+    }
+
+    struct nfsfh *fh = NULL;
+    int rc = nfs_open(handle.nfs, handle.subpath, O_RDONLY, &fh);
+    if ((rc < 0 || !fh) && handle.was_reused) {
+        cnfs_release_mount(&handle, 1);
+        if (out_error_message && *out_error_message) {
+            free(*out_error_message);
+            *out_error_message = NULL;
+        }
+        mcode = cnfs_acquire_mount_for_abs_path(host, abs_path, 1, &handle, out_error_message);
+        if (mcode != CSMB_OK) {
+            free(abs_path);
+            return mcode;
+        }
+        rc = nfs_open(handle.nfs, handle.subpath, O_RDONLY, &fh);
+    }
+    free(abs_path);
+
+    if (rc < 0 || !fh) {
+        csmb_error_code_t code = cnfs_classify_error(handle.nfs, rc);
+        cnfs_set_error(out_error_message, nfs_get_error(handle.nfs));
+        cnfs_release_mount(&handle, code == CSMB_ERR_CONNECTION ? 1 : 0);
+        return code;
+    }
+
+    size_t max_chunk = nfs_get_readmax(handle.nfs);
+    if (max_chunk == 0 || max_chunk > 524288) {
+        max_chunk = 262144;
+    }
+    uint8_t *buffer = (uint8_t *)malloc(max_chunk);
+    if (!buffer) {
+        nfs_close(handle.nfs, fh);
+        cnfs_release_mount(&handle, 0);
+        cnfs_set_error(out_error_message, "Out of memory");
+        return CSMB_ERR_CONNECTION;
+    }
+
+    uint64_t current_offset = offset;
+    uint64_t remaining = max_length;
+    int discard_mount = 0;
+    csmb_error_code_t result_code = CSMB_OK;
+
+    while (remaining > 0) {
+        size_t chunk = (remaining < (uint64_t)max_chunk) ? (size_t)remaining : max_chunk;
+        int n = nfs_pread(handle.nfs, fh, buffer, chunk, current_offset);
+        if (n < 0) {
+            result_code = cnfs_classify_error(handle.nfs, n);
+            cnfs_set_error(out_error_message, nfs_get_error(handle.nfs));
+            discard_mount = 1;
+            break;
+        }
+        if (n == 0) {
+            break;
+        }
+        if (!write_fn(buffer, (size_t)n, user_data)) {
+            break;
+        }
+        current_offset += (uint64_t)n;
+        remaining -= (uint64_t)n;
+    }
+
+    free(buffer);
+    nfs_close(handle.nfs, fh);
+    cnfs_release_mount(&handle, discard_mount);
+    return result_code;
 }
 
 csmb_error_code_t cnfs_rename(

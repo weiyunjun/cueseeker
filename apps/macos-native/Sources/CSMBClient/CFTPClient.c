@@ -15,11 +15,46 @@ typedef struct {
     int stopped_at_limit;
 } cftp_buffer_t;
 
+typedef struct {
+    csmb_stream_write_fn write_fn;
+    void *user_data;
+    uint64_t remaining;
+    uint64_t total_written;
+    int stopped_by_caller;
+} cftp_stream_ctx_t;
+
 static void cftp_set_error(char **out_error_message, const char *msg) {
     if (!out_error_message) {
         return;
     }
     *out_error_message = strdup(msg && msg[0] ? msg : "FTP operation failed");
+}
+
+static size_t cftp_stream_write_cb(void *contents, size_t size, size_t nmemb, void *userp) {
+    size_t total = size * nmemb;
+    cftp_stream_ctx_t *ctx = (cftp_stream_ctx_t *)userp;
+    if (!ctx || total == 0) {
+        return total;
+    }
+    if (ctx->remaining == 0) {
+        ctx->stopped_by_caller = 1;
+        return 0;
+    }
+    size_t to_write = ((uint64_t)total > ctx->remaining) ? (size_t)ctx->remaining : total;
+    if (ctx->write_fn && to_write > 0) {
+        int ok = ctx->write_fn((const uint8_t *)contents, to_write, ctx->user_data);
+        if (!ok) {
+            ctx->stopped_by_caller = 1;
+            return 0;
+        }
+    }
+    ctx->total_written += (uint64_t)to_write;
+    ctx->remaining -= (uint64_t)to_write;
+    if (ctx->remaining == 0 && to_write < total) {
+        ctx->stopped_by_caller = 1;
+        return 0;
+    }
+    return total;
 }
 
 static size_t cftp_write_cb(void *contents, size_t size, size_t nmemb, void *userp) {
@@ -539,6 +574,73 @@ csmb_error_code_t cftp_read_file_range(
     csmb_error_code_t code = cftp_classify_curl_error(curl, res);
     cftp_set_error(out_error_message, errbuf[0] ? errbuf : curl_easy_strerror(res));
     free(buf.data);
+    cftp_cleanup_handle(curl, quote);
+    return code;
+}
+
+csmb_error_code_t cftp_stream_file_range(
+    const char *host,
+    int port,
+    const char *rel_path,
+    uint64_t offset,
+    uint64_t max_length,
+    const char *username,
+    const char *password,
+    csmb_stream_write_fn write_fn,
+    void *user_data,
+    char **out_error_message
+) {
+    if (max_length == 0 || !write_fn) {
+        return CSMB_OK;
+    }
+
+    CURL *curl = curl_easy_init();
+    if (!curl) {
+        cftp_set_error(out_error_message, "Failed to initialize libcurl");
+        return CSMB_ERR_CONNECTION;
+    }
+
+    char errbuf[CURL_ERROR_SIZE];
+    struct curl_slist *quote = cftp_configure_common(curl, username, password, errbuf);
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 0L);
+    curl_easy_setopt(curl, CURLOPT_LOW_SPEED_LIMIT, 1L);
+    curl_easy_setopt(curl, CURLOPT_LOW_SPEED_TIME, 30L);
+    curl_easy_setopt(curl, CURLOPT_FTP_FILEMETHOD, (long)CURLFTPMETHOD_NOCWD);
+
+    char *url = cftp_build_url(curl, host, port, rel_path, 0);
+    curl_easy_setopt(curl, CURLOPT_URL, url);
+
+    if (offset > 0) {
+        curl_easy_setopt(curl, CURLOPT_RESUME_FROM_LARGE, (curl_off_t)offset);
+    }
+
+    cftp_stream_ctx_t ctx;
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.write_fn = write_fn;
+    ctx.user_data = user_data;
+    ctx.remaining = max_length;
+
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, cftp_stream_write_cb);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &ctx);
+
+    CURLcode res = curl_easy_perform(curl);
+    if (res != CURLE_OK && !ctx.stopped_by_caller && ctx.total_written == 0) {
+        csmb_error_code_t first_code = cftp_classify_curl_error(curl, res);
+        if (first_code != CSMB_ERR_AUTH) {
+            errbuf[0] = '\0';
+            curl_easy_setopt(curl, CURLOPT_FTP_FILEMETHOD, (long)CURLFTPMETHOD_MULTICWD);
+            res = curl_easy_perform(curl);
+        }
+    }
+    free(url);
+
+    if (res == CURLE_OK || (res == CURLE_WRITE_ERROR && ctx.stopped_by_caller)) {
+        cftp_cleanup_handle(curl, quote);
+        return CSMB_OK;
+    }
+
+    csmb_error_code_t code = cftp_classify_curl_error(curl, res);
+    cftp_set_error(out_error_message, errbuf[0] ? errbuf : curl_easy_strerror(res));
     cftp_cleanup_handle(curl, quote);
     return code;
 }

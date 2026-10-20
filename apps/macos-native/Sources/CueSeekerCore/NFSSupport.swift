@@ -162,6 +162,14 @@ public protocol NFSBackendProtocol: Sendable {
         maxLength: UInt64
     ) throws -> (data: Data, totalSize: UInt64)
 
+    func streamRange(
+        host: String,
+        relativePath: String,
+        offset: UInt64,
+        maxLength: UInt64,
+        writeChunk: (UnsafeRawPointer, Int) -> Bool
+    ) throws
+
     func rename(
         host: String,
         oldRelativePath: String,
@@ -305,6 +313,52 @@ public final class NativeNFSBackend: NFSBackendProtocol, @unchecked Sendable {
         return (data, totalSize)
     }
 
+    private final class StreamBox {
+        let writeChunk: (UnsafeRawPointer, Int) -> Bool
+        init(_ writeChunk: @escaping (UnsafeRawPointer, Int) -> Bool) {
+            self.writeChunk = writeChunk
+        }
+    }
+
+    public func streamRange(
+        host: String,
+        relativePath: String,
+        offset: UInt64,
+        maxLength: UInt64,
+        writeChunk: (UnsafeRawPointer, Int) -> Bool
+    ) throws {
+        guard maxLength > 0 else { return }
+        var errPtr: UnsafeMutablePointer<CChar>?
+        let code = withoutActuallyEscaping(writeChunk) { escapingWrite in
+            let box = StreamBox(escapingWrite)
+            let userData = Unmanaged.passUnretained(box).toOpaque()
+            let cb: csmb_stream_write_fn = { dataPtr, length, rawUser in
+                guard let dataPtr, let rawUser else { return 0 }
+                let streamBox = Unmanaged<StreamBox>.fromOpaque(rawUser).takeUnretainedValue()
+                return streamBox.writeChunk(UnsafeRawPointer(dataPtr), length) ? 1 : 0
+            }
+            return host.withCString { hostC in
+                relativePath.withCString { relC in
+                    cnfs_stream_file_range(
+                        hostC,
+                        relC,
+                        offset,
+                        maxLength,
+                        cb,
+                        userData,
+                        &errPtr
+                    )
+                }
+            }
+        }
+        defer {
+            if let errPtr { csmb_free_buffer(errPtr) }
+        }
+        if code != CSMB_OK {
+            throw Self.mapError(code, errPtr: errPtr)
+        }
+    }
+
     public func rename(
         host: String,
         oldRelativePath: String,
@@ -393,6 +447,22 @@ private struct HostRoutingNFSBackend: NFSBackendProtocol {
             relativePath: relativePath,
             offset: offset,
             maxLength: maxLength
+        )
+    }
+
+    func streamRange(
+        host: String,
+        relativePath: String,
+        offset: UInt64,
+        maxLength: UInt64,
+        writeChunk: (UnsafeRawPointer, Int) -> Bool
+    ) throws {
+        try backend(for: host).streamRange(
+            host: host,
+            relativePath: relativePath,
+            offset: offset,
+            maxLength: maxLength,
+            writeChunk: writeChunk
         )
     }
 
@@ -683,6 +753,25 @@ public final class NFSClient: @unchecked Sendable {
         lock.unlock()
     }
 
+    public func streamRange(
+        from url: URL,
+        offset: UInt64,
+        maxLength: UInt64,
+        writeChunk: (UnsafeRawPointer, Int) -> Bool
+    ) throws {
+        let endpoint = resolveEndpoint(for: url.mediaPath)
+        guard !endpoint.host.isEmpty, !endpoint.relativePath.isEmpty else {
+            throw NFSError.directoryNotFound
+        }
+        try activeBackend.streamRange(
+            host: endpoint.host,
+            relativePath: endpoint.relativePath,
+            offset: offset,
+            maxLength: maxLength,
+            writeChunk: writeChunk
+        )
+    }
+
     public func resolvePlayableInput(for url: URL) -> WebDAVPlayableInput {
         guard url.isNFSURL else {
             return WebDAVPlayableInput(url: url.path, httpHeaders: nil)
@@ -695,12 +784,17 @@ public final class NFSClient: @unchecked Sendable {
                     try self.statFileSize(for: url)
                 },
                 streamRange: { [self] fd, rangeHeader in
-                    RemoteMediaStreamServer.streamFromRangeReader(
+                    RemoteMediaStreamServer.streamContinuousRange(
                         fd: fd,
                         rangeHeader: rangeHeader,
                         statFileSize: { try self.statFileSize(for: url) },
-                        readRange: { offset, maxLength in
-                            try self.readRange(from: url, offset: offset, maxLength: maxLength).data
+                        streamBody: { offset, maxLength, writeChunk in
+                            try self.streamRange(
+                                from: url,
+                                offset: offset,
+                                maxLength: maxLength,
+                                writeChunk: writeChunk
+                            )
                         }
                     )
                 }

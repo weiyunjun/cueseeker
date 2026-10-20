@@ -181,6 +181,43 @@ private final class InMemorySMBBackend: SMBBackendProtocol, @unchecked Sendable 
         return (slice, total)
     }
 
+    func streamRange(
+        host: String,
+        port: Int,
+        share: String,
+        relativePath: String,
+        offset: UInt64,
+        maxLength: UInt64,
+        username: String,
+        password: String,
+        writeChunk: (UnsafeRawPointer, Int) -> Bool
+    ) throws {
+        let (slice, _) = try readRange(
+            host: host,
+            port: port,
+            share: share,
+            relativePath: relativePath,
+            offset: offset,
+            maxLength: maxLength,
+            username: username,
+            password: password
+        )
+        let chunkCap = 131_072
+        var pos = 0
+        while pos < slice.count {
+            let end = min(slice.count, pos + chunkCap)
+            let sub = slice.subdata(in: pos..<end)
+            let keepGoing = sub.withUnsafeBytes { rawBuf -> Bool in
+                guard let base = rawBuf.baseAddress else { return true }
+                return writeChunk(base, rawBuf.count)
+            }
+            if !keepGoing {
+                break
+            }
+            pos = end
+        }
+    }
+
     func rename(
         host: String,
         port _: Int,

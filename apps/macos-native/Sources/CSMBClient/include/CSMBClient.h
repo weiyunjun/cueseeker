@@ -37,6 +37,8 @@ typedef struct {
     size_t count;
 } csmb_share_list_t;
 
+typedef int (*csmb_stream_write_fn)(const uint8_t *data, size_t length, void *user_data);
+
 csmb_error_code_t csmb_list_shares(
     const char *host,
     int port,
@@ -156,6 +158,19 @@ csmb_error_code_t cftp_read_file_range(
     char **out_error_message
 );
 
+csmb_error_code_t cftp_stream_file_range(
+    const char *host,
+    int port,
+    const char *rel_path,
+    uint64_t offset,
+    uint64_t max_length,
+    const char *username,
+    const char *password,
+    csmb_stream_write_fn write_fn,
+    void *user_data,
+    char **out_error_message
+);
+
 csmb_error_code_t cftp_rename(
     const char *host,
     int port,
@@ -198,6 +213,16 @@ csmb_error_code_t cnfs_read_file_range(
     uint8_t **out_buffer,
     size_t *out_bytes_read,
     uint64_t *out_total_size,
+    char **out_error_message
+);
+
+csmb_error_code_t cnfs_stream_file_range(
+    const char *host,
+    const char *rel_path,
+    uint64_t offset,
+    uint64_t max_length,
+    csmb_stream_write_fn write_fn,
+    void *user_data,
     char **out_error_message
 );
 

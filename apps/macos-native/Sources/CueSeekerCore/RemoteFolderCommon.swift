@@ -627,11 +627,11 @@ final class RemoteMediaStreamServer: @unchecked Sendable {
         return "http://127.0.0.1:\(port)/\(routePrefix)/\(token)/\(encodedLeaf)"
     }
 
-    static func streamFromRangeReader(
+    static func streamContinuousRange(
         fd: Int32,
         rangeHeader: String?,
         statFileSize: () throws -> UInt64,
-        readRange: (_ offset: UInt64, _ maxLength: UInt64) throws -> Data
+        streamBody: (_ offset: UInt64, _ maxLength: UInt64, _ writeChunk: (UnsafeRawPointer, Int) -> Bool) throws -> Void
     ) {
         guard let totalSize = try? statFileSize() else {
             writeAll(to: fd, string: "HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\n")
@@ -644,29 +644,9 @@ final class RemoteMediaStreamServer: @unchecked Sendable {
         guard writeRangeSuccessHeader(to: fd, range: range, totalSize: totalSize), range.length > 0 else {
             return
         }
-
-        let chunkCap: UInt64 = 262_144
-        var currentOffset = range.start
-        var remaining = range.length
-
-        while remaining > 0 {
-            let toRead = min(chunkCap, remaining)
-            guard let chunk = try? readRange(currentOffset, toRead), !chunk.isEmpty else {
-                break
-            }
-            let wrote = chunk.withUnsafeBytes { rawBuf -> Bool in
-                guard let base = rawBuf.baseAddress else { return false }
-                return writeAll(to: fd, baseAddress: base, count: rawBuf.count)
-            }
-            if !wrote {
-                break
-            }
-            let readCount = UInt64(chunk.count)
-            currentOffset += readCount
-            if readCount >= remaining {
-                break
-            }
-            remaining -= readCount
+        try? streamBody(range.start, range.length) { baseAddress, count in
+            guard count > 0 else { return true }
+            return writeAll(to: fd, baseAddress: baseAddress, count: count)
         }
     }
 

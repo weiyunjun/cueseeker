@@ -631,6 +631,18 @@ public protocol SMBBackendProtocol: Sendable {
         password: String
     ) throws -> (data: Data, totalSize: UInt64)
 
+    func streamRange(
+        host: String,
+        port: Int,
+        share: String,
+        relativePath: String,
+        offset: UInt64,
+        maxLength: UInt64,
+        username: String,
+        password: String,
+        writeChunk: (UnsafeRawPointer, Int) -> Bool
+    ) throws
+
     func rename(
         host: String,
         port: Int,
@@ -803,6 +815,78 @@ public final class NativeCSMBBackend: SMBBackendProtocol, @unchecked Sendable {
             data = Data()
         }
         return (data, totalSize)
+    }
+
+    public func streamRange(
+        host: String,
+        port: Int,
+        share: String,
+        relativePath: String,
+        offset: UInt64,
+        maxLength: UInt64,
+        username: String,
+        password: String,
+        writeChunk: (UnsafeRawPointer, Int) -> Bool
+    ) throws {
+        guard maxLength > 0 else { return }
+        let session = try connectSession(
+            host: host,
+            port: port,
+            share: share,
+            username: username,
+            password: password
+        )
+        defer { csmb_session_disconnect(session) }
+
+        var fileHandle: OpaquePointer?
+        var maxReadSize: UInt32 = 262144
+        var errPtr: UnsafeMutablePointer<CChar>?
+        let openCode = relativePath.withCString { relC in
+            csmb_file_open(session, relC, &fileHandle, nil, &maxReadSize, &errPtr)
+        }
+        defer {
+            if let errPtr { csmb_free_buffer(errPtr) }
+        }
+        guard openCode == CSMB_OK, let fileHandle else {
+            throw Self.mapError(openCode, errPtr: errPtr)
+        }
+        defer { csmb_file_close(fileHandle) }
+
+        let chunkCap = max(65536, min(Int(maxReadSize), 524288))
+        var buffer = [UInt8](repeating: 0, count: chunkCap)
+        var currentOffset = offset
+        var remaining = maxLength
+
+        while remaining > 0 {
+            let toRead = UInt32(min(UInt64(chunkCap), remaining))
+            var bytesRead: Int = 0
+            var readErr: UnsafeMutablePointer<CChar>?
+            let readCode = buffer.withUnsafeMutableBufferPointer { bufPtr in
+                csmb_file_pread(
+                    fileHandle,
+                    currentOffset,
+                    bufPtr.baseAddress,
+                    toRead,
+                    &bytesRead,
+                    &readErr
+                )
+            }
+            if let readErr { csmb_free_buffer(readErr) }
+            if readCode != CSMB_OK {
+                throw Self.mapError(readCode, errPtr: nil)
+            }
+            if bytesRead <= 0 {
+                break
+            }
+            let wrote = buffer.withUnsafeBytes { rawBuf in
+                writeChunk(rawBuf.baseAddress!, bytesRead)
+            }
+            if !wrote {
+                break
+            }
+            currentOffset += UInt64(bytesRead)
+            remaining -= UInt64(bytesRead)
+        }
     }
 
     public func rename(
@@ -1022,12 +1106,6 @@ public final class SMBClient: @unchecked Sendable {
         return customBackend ?? NativeCSMBBackend.shared
     }
 
-    var hasCustomBackend: Bool {
-        lock.lock()
-        defer { lock.unlock() }
-        return customBackend != nil
-    }
-
     public func connectAndBrowseDirectory(
         address: String,
         port: String,
@@ -1095,7 +1173,7 @@ public final class SMBClient: @unchecked Sendable {
         let backend = activeBackend
         let port = endpoint.port
 
-        if !hasCustomBackend, let nativeBackend = backend as? NativeCSMBBackend {
+        if let nativeBackend = backend as? NativeCSMBBackend {
             let session = try nativeBackend.connectSession(
                 host: endpoint.host,
                 port: endpoint.port,
@@ -1332,6 +1410,32 @@ public final class SMBClient: @unchecked Sendable {
         lock.unlock()
     }
 
+    public func streamRange(
+        from url: URL,
+        offset: UInt64,
+        maxLength: UInt64,
+        writeChunk: (UnsafeRawPointer, Int) -> Bool
+    ) throws {
+        let endpoint = resolveEndpoint(for: url.mediaPath)
+        guard !endpoint.host.isEmpty,
+              let share = endpoint.share,
+              !share.isEmpty,
+              !endpoint.relativePath.isEmpty else {
+            throw SMBError.directoryNotFound
+        }
+        try activeBackend.streamRange(
+            host: endpoint.host,
+            port: endpoint.port,
+            share: share,
+            relativePath: endpoint.relativePath,
+            offset: offset,
+            maxLength: maxLength,
+            username: endpoint.config.username,
+            password: endpoint.config.password,
+            writeChunk: writeChunk
+        )
+    }
+
     public func resolvePlayableInput(for url: URL) -> WebDAVPlayableInput {
         guard url.isSMBURL else {
             return WebDAVPlayableInput(url: url.path, httpHeaders: nil)
@@ -1344,18 +1448,19 @@ public final class SMBClient: @unchecked Sendable {
                     try self.statFileSize(for: url)
                 },
                 streamRange: { [self] fd, rangeHeader in
-                    if !self.hasCustomBackend {
-                        self.streamNativeSMBFile(fd: fd, smbURL: url, rangeHeader: rangeHeader)
-                    } else {
-                        RemoteMediaStreamServer.streamFromRangeReader(
-                            fd: fd,
-                            rangeHeader: rangeHeader,
-                            statFileSize: { try self.statFileSize(for: url) },
-                            readRange: { offset, maxLength in
-                                try self.readRange(from: url, offset: offset, maxLength: maxLength).data
-                            }
-                        )
-                    }
+                    RemoteMediaStreamServer.streamContinuousRange(
+                        fd: fd,
+                        rangeHeader: rangeHeader,
+                        statFileSize: { try self.statFileSize(for: url) },
+                        streamBody: { offset, maxLength, writeChunk in
+                            try self.streamRange(
+                                from: url,
+                                offset: offset,
+                                maxLength: maxLength,
+                                writeChunk: writeChunk
+                            )
+                        }
+                    )
                 }
             )
         ) {
@@ -1465,87 +1570,6 @@ public final class SMBClient: @unchecked Sendable {
                 self?.cacheFileSize(size, forMediaPath: path)
             }
         )
-    }
-
-    private func streamNativeSMBFile(
-        fd: Int32,
-        smbURL: URL,
-        rangeHeader: String?
-    ) {
-        let endpoint = resolveEndpoint(for: smbURL.mediaPath)
-        guard let share = endpoint.share, !share.isEmpty, !endpoint.relativePath.isEmpty else {
-            RemoteMediaStreamServer.writeAll(to: fd, string: "HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\n")
-            return
-        }
-
-        guard let session = try? NativeCSMBBackend.shared.connectSession(
-            host: endpoint.host,
-            port: endpoint.port,
-            share: share,
-            username: endpoint.config.username,
-            password: endpoint.config.password
-        ) else {
-            RemoteMediaStreamServer.writeAll(to: fd, string: "HTTP/1.1 502 Bad Gateway\r\nConnection: close\r\n\r\n")
-            return
-        }
-        defer { csmb_session_disconnect(session) }
-
-        var fileHandle: OpaquePointer?
-        var totalSize: UInt64 = 0
-        var maxReadSize: UInt32 = 262144
-        var errPtr: UnsafeMutablePointer<CChar>?
-        let openCode = endpoint.relativePath.withCString { relC in
-            csmb_file_open(session, relC, &fileHandle, &totalSize, &maxReadSize, &errPtr)
-        }
-        if let errPtr { csmb_free_buffer(errPtr) }
-        guard openCode == CSMB_OK, let fileHandle else {
-            RemoteMediaStreamServer.writeAll(to: fd, string: "HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\n")
-            return
-        }
-        defer { csmb_file_close(fileHandle) }
-
-        guard let range = RemoteMediaStreamServer.resolveByteRange(rangeHeader: rangeHeader, totalSize: totalSize) else {
-            RemoteMediaStreamServer.writeRangeNotSatisfiable(to: fd, totalSize: totalSize)
-            return
-        }
-
-        guard RemoteMediaStreamServer.writeRangeSuccessHeader(to: fd, range: range, totalSize: totalSize),
-              range.length > 0 else {
-            return
-        }
-
-        let chunkCap = max(65536, min(Int(maxReadSize), 524288))
-        var buffer = [UInt8](repeating: 0, count: chunkCap)
-        var currentOffset = range.start
-        var remaining = range.length
-
-        while remaining > 0 {
-            let toRead = UInt32(min(UInt64(chunkCap), remaining))
-            var bytesRead: Int = 0
-            var readErr: UnsafeMutablePointer<CChar>?
-            let readCode = buffer.withUnsafeMutableBufferPointer { bufPtr in
-                csmb_file_pread(
-                    fileHandle,
-                    currentOffset,
-                    bufPtr.baseAddress,
-                    toRead,
-                    &bytesRead,
-                    &readErr
-                )
-            }
-            if let readErr { csmb_free_buffer(readErr) }
-            if readCode != CSMB_OK || bytesRead <= 0 {
-                break
-            }
-            let wrote = buffer.withUnsafeBytes { rawBuf in
-                RemoteMediaStreamServer.writeAll(to: fd, baseAddress: rawBuf.baseAddress!, count: bytesRead)
-            }
-            if !wrote {
-                break
-            }
-            currentOffset += UInt64(bytesRead)
-            remaining -= UInt64(bytesRead)
-        }
     }
 
     private static func appendingChildComponent(

@@ -64,6 +64,18 @@ private final class MockDialogSMBBackend: SMBBackendProtocol, @unchecked Sendabl
         (Data(), 0)
     }
 
+    func streamRange(
+        host _: String,
+        port _: Int,
+        share _: String,
+        relativePath _: String,
+        offset _: UInt64,
+        maxLength _: UInt64,
+        username _: String,
+        password _: String,
+        writeChunk _: (UnsafeRawPointer, Int) -> Bool
+    ) throws {}
+
     func rename(
         host _: String,
         port _: Int,

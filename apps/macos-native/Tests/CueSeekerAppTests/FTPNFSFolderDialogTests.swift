@@ -51,6 +51,17 @@ private final class MockDialogFTPBackend: FTPBackendProtocol, @unchecked Sendabl
         (Data(), 0)
     }
 
+    func streamRange(
+        host _: String,
+        port _: Int,
+        relativePath _: String,
+        offset _: UInt64,
+        maxLength _: UInt64,
+        username _: String,
+        password _: String,
+        writeChunk _: (UnsafeRawPointer, Int) -> Bool
+    ) throws {}
+
     func rename(
         host _: String,
         port _: Int,
@@ -101,6 +112,14 @@ private final class MockDialogNFSBackend: NFSBackendProtocol, @unchecked Sendabl
     ) throws -> (data: Data, totalSize: UInt64) {
         (Data(), 0)
     }
+
+    func streamRange(
+        host _: String,
+        relativePath _: String,
+        offset _: UInt64,
+        maxLength _: UInt64,
+        writeChunk _: (UnsafeRawPointer, Int) -> Bool
+    ) throws {}
 
     func rename(
         host _: String,

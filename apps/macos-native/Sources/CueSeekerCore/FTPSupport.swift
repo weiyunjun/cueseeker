@@ -199,6 +199,17 @@ public protocol FTPBackendProtocol: Sendable {
         password: String
     ) throws -> (data: Data, totalSize: UInt64)
 
+    func streamRange(
+        host: String,
+        port: Int,
+        relativePath: String,
+        offset: UInt64,
+        maxLength: UInt64,
+        username: String,
+        password: String,
+        writeChunk: (UnsafeRawPointer, Int) -> Bool
+    ) throws
+
     func rename(
         host: String,
         port: Int,
@@ -342,6 +353,62 @@ public final class NativeFTPBackend: FTPBackendProtocol, @unchecked Sendable {
         return (data, totalSize)
     }
 
+    private final class StreamBox {
+        let writeChunk: (UnsafeRawPointer, Int) -> Bool
+        init(_ writeChunk: @escaping (UnsafeRawPointer, Int) -> Bool) {
+            self.writeChunk = writeChunk
+        }
+    }
+
+    public func streamRange(
+        host: String,
+        port: Int,
+        relativePath: String,
+        offset: UInt64,
+        maxLength: UInt64,
+        username: String,
+        password: String,
+        writeChunk: (UnsafeRawPointer, Int) -> Bool
+    ) throws {
+        guard maxLength > 0 else { return }
+        var errPtr: UnsafeMutablePointer<CChar>?
+        let code = withoutActuallyEscaping(writeChunk) { escapingWrite in
+            let box = StreamBox(escapingWrite)
+            let userData = Unmanaged.passUnretained(box).toOpaque()
+            let cb: csmb_stream_write_fn = { dataPtr, length, rawUser in
+                guard let dataPtr, let rawUser else { return 0 }
+                let streamBox = Unmanaged<StreamBox>.fromOpaque(rawUser).takeUnretainedValue()
+                return streamBox.writeChunk(UnsafeRawPointer(dataPtr), length) ? 1 : 0
+            }
+            return host.withCString { hostC in
+                relativePath.withCString { relC in
+                    username.withCString { userC in
+                        password.withCString { passC in
+                            cftp_stream_file_range(
+                                hostC,
+                                Int32(port),
+                                relC,
+                                offset,
+                                maxLength,
+                                userC,
+                                passC,
+                                cb,
+                                userData,
+                                &errPtr
+                            )
+                        }
+                    }
+                }
+            }
+        }
+        defer {
+            if let errPtr { csmb_free_buffer(errPtr) }
+        }
+        if code != CSMB_OK {
+            throw Self.mapError(code, errPtr: errPtr)
+        }
+    }
+
     public func rename(
         host: String,
         port: Int,
@@ -464,6 +531,28 @@ private struct HostRoutingFTPBackend: FTPBackendProtocol {
             maxLength: maxLength,
             username: username,
             password: password
+        )
+    }
+
+    func streamRange(
+        host: String,
+        port: Int,
+        relativePath: String,
+        offset: UInt64,
+        maxLength: UInt64,
+        username: String,
+        password: String,
+        writeChunk: (UnsafeRawPointer, Int) -> Bool
+    ) throws {
+        try backend(for: host).streamRange(
+            host: host,
+            port: port,
+            relativePath: relativePath,
+            offset: offset,
+            maxLength: maxLength,
+            username: username,
+            password: password,
+            writeChunk: writeChunk
         )
     }
 
@@ -800,6 +889,28 @@ public final class FTPClient: @unchecked Sendable {
         lock.unlock()
     }
 
+    public func streamRange(
+        from url: URL,
+        offset: UInt64,
+        maxLength: UInt64,
+        writeChunk: (UnsafeRawPointer, Int) -> Bool
+    ) throws {
+        let endpoint = resolveEndpoint(for: url.mediaPath)
+        guard !endpoint.host.isEmpty, !endpoint.relativePath.isEmpty else {
+            throw FTPError.directoryNotFound
+        }
+        try activeBackend.streamRange(
+            host: endpoint.host,
+            port: endpoint.port,
+            relativePath: endpoint.relativePath,
+            offset: offset,
+            maxLength: maxLength,
+            username: endpoint.config.username,
+            password: endpoint.config.password,
+            writeChunk: writeChunk
+        )
+    }
+
     public func resolvePlayableInput(for url: URL) -> WebDAVPlayableInput {
         guard url.isFTPURL else {
             return WebDAVPlayableInput(url: url.path, httpHeaders: nil)
@@ -812,12 +923,17 @@ public final class FTPClient: @unchecked Sendable {
                     try self.statFileSize(for: url)
                 },
                 streamRange: { [self] fd, rangeHeader in
-                    RemoteMediaStreamServer.streamFromRangeReader(
+                    RemoteMediaStreamServer.streamContinuousRange(
                         fd: fd,
                         rangeHeader: rangeHeader,
                         statFileSize: { try self.statFileSize(for: url) },
-                        readRange: { offset, maxLength in
-                            try self.readRange(from: url, offset: offset, maxLength: maxLength).data
+                        streamBody: { offset, maxLength, writeChunk in
+                            try self.streamRange(
+                                from: url,
+                                offset: offset,
+                                maxLength: maxLength,
+                                writeChunk: writeChunk
+                            )
                         }
                     )
                 }

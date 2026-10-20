@@ -12,6 +12,8 @@ private final class InMemoryFTPBackend: FTPBackendProtocol, @unchecked Sendable 
     private let lock = NSLock()
     var nodesByHostPath: [String: Node] = [:]
     var requiredCredentials: (username: String, password: String)?
+    var streamRangeCallCount: Int = 0
+    var readRangeCallCount: Int = 0
 
     func addRoot(host: String) {
         lock.lock()
@@ -147,6 +149,7 @@ private final class InMemoryFTPBackend: FTPBackendProtocol, @unchecked Sendable 
     ) throws -> (data: Data, totalSize: UInt64) {
         try verifyAuth(username: username, password: password)
         lock.lock()
+        readRangeCallCount += 1
         defer { lock.unlock() }
 
         let normalized = Self.normalizeRel(relativePath)
@@ -164,6 +167,52 @@ private final class InMemoryFTPBackend: FTPBackendProtocol, @unchecked Sendable 
         let end = min(total, offset + maxLength)
         let slice = node.data.subdata(in: Int(offset)..<Int(end))
         return (slice, total)
+    }
+
+    func streamRange(
+        host: String,
+        port _: Int,
+        relativePath: String,
+        offset: UInt64,
+        maxLength: UInt64,
+        username: String,
+        password: String,
+        writeChunk: (UnsafeRawPointer, Int) -> Bool
+    ) throws {
+        try verifyAuth(username: username, password: password)
+        let slice: Data = try {
+            lock.lock()
+            defer { lock.unlock() }
+            streamRangeCallCount += 1
+            let normalized = Self.normalizeRel(relativePath)
+            let key = Self.key(host: host, relativePath: normalized)
+            guard let node = nodesByHostPath[key] else {
+                throw FTPError.directoryNotFound
+            }
+            guard !node.isDirectory else {
+                throw FTPError.notADirectory
+            }
+            let total = UInt64(node.data.count)
+            guard offset < total, maxLength > 0 else {
+                return Data()
+            }
+            let end = min(total, offset + maxLength)
+            return node.data.subdata(in: Int(offset)..<Int(end))
+        }()
+        let chunkCap = 131_072
+        var pos = 0
+        while pos < slice.count {
+            let end = min(slice.count, pos + chunkCap)
+            let sub = slice.subdata(in: pos..<end)
+            let keepGoing = sub.withUnsafeBytes { rawBuf -> Bool in
+                guard let base = rawBuf.baseAddress else { return true }
+                return writeChunk(base, rawBuf.count)
+            }
+            if !keepGoing {
+                break
+            }
+            pos = end
+        }
     }
 
     func rename(
@@ -229,6 +278,8 @@ private final class InMemoryNFSBackend: NFSBackendProtocol, @unchecked Sendable 
     private let lock = NSLock()
     var exportsByHost: [String: [String]] = [:]
     var nodesByHostPath: [String: Node] = [:]
+    var streamRangeCallCount: Int = 0
+    var readRangeCallCount: Int = 0
 
     func addExport(host: String, exportPath: String) {
         lock.lock()
@@ -367,6 +418,7 @@ private final class InMemoryNFSBackend: NFSBackendProtocol, @unchecked Sendable 
         maxLength: UInt64
     ) throws -> (data: Data, totalSize: UInt64) {
         lock.lock()
+        readRangeCallCount += 1
         defer { lock.unlock() }
 
         let normalized = Self.normalizeRel(relativePath)
@@ -384,6 +436,48 @@ private final class InMemoryNFSBackend: NFSBackendProtocol, @unchecked Sendable 
         let end = min(total, offset + maxLength)
         let slice = node.data.subdata(in: Int(offset)..<Int(end))
         return (slice, total)
+    }
+
+    func streamRange(
+        host: String,
+        relativePath: String,
+        offset: UInt64,
+        maxLength: UInt64,
+        writeChunk: (UnsafeRawPointer, Int) -> Bool
+    ) throws {
+        let slice: Data = try {
+            lock.lock()
+            defer { lock.unlock() }
+            streamRangeCallCount += 1
+            let normalized = Self.normalizeRel(relativePath)
+            let key = Self.key(host: host, relativePath: normalized)
+            guard let node = nodesByHostPath[key] else {
+                throw NFSError.directoryNotFound
+            }
+            guard !node.isDirectory else {
+                throw NFSError.notADirectory
+            }
+            let total = UInt64(node.data.count)
+            guard offset < total, maxLength > 0 else {
+                return Data()
+            }
+            let end = min(total, offset + maxLength)
+            return node.data.subdata(in: Int(offset)..<Int(end))
+        }()
+        let chunkCap = 131_072
+        var pos = 0
+        while pos < slice.count {
+            let end = min(slice.count, pos + chunkCap)
+            let sub = slice.subdata(in: pos..<end)
+            let keepGoing = sub.withUnsafeBytes { rawBuf -> Bool in
+                guard let base = rawBuf.baseAddress else { return true }
+                return writeChunk(base, rawBuf.count)
+            }
+            if !keepGoing {
+                break
+            }
+            pos = end
+        }
     }
 
     func rename(
@@ -547,7 +641,7 @@ struct FTPNFSSupportTests {
 
         WebDAVSubtitleCache.shared.setCacheDirectoryURLForTesting(cacheDir)
 
-        let fakeVideoBytes = Data((0..<4096).map { UInt8($0 & 0xFF) })
+        let fakeVideoBytes = Data((0..<600_000).map { UInt8($0 & 0xFF) })
 
         // Configure in-memory FTP backend
         let ftpBackend = InMemoryFTPBackend()
@@ -629,28 +723,36 @@ struct FTPNFSSupportTests {
         let nfsSearch = try SearchDatabase(path: databaseURL).search("NFS indexed")
         #expect(nfsSearch.first?.videoPath == "nfs://192.168.1.100/volume1/video/动漫/Frieren/Episode 01.mkv")
 
-        // Verify loopback HTTP Range server for FTP & NFS video streaming
+        // Verify loopback HTTP Range server for FTP & NFS video streaming uses a single continuous stream
+        let ftpReadCallsBeforeStream = ftpBackend.readRangeCallCount
+        let ftpStreamCallsBeforeStream = ftpBackend.streamRangeCallCount
         let ftpVideoURL = URL.fromMediaPath("ftp://nas.local:2121/Media/动漫/NieR:Automata/Episode 01.mkv")
         let ftpPlayable = FTPClient.shared.resolvePlayableInput(for: ftpVideoURL)
         #expect(ftpPlayable.inputPath.hasPrefix("http://127.0.0.1:"))
 
         let ftpStreamURL = try #require(URL(string: ftpPlayable.inputPath))
         var ftpRangeReq = URLRequest(url: ftpStreamURL)
-        ftpRangeReq.setValue("bytes=64-191", forHTTPHeaderField: "Range")
+        ftpRangeReq.setValue("bytes=64-550063", forHTTPHeaderField: "Range")
         let (ftpRangeData, ftpResponse) = try await URLSession.shared.data(for: ftpRangeReq)
         #expect((ftpResponse as? HTTPURLResponse)?.statusCode == 206)
-        #expect(ftpRangeData == fakeVideoBytes.subdata(in: 64..<192))
+        #expect(ftpRangeData == fakeVideoBytes.subdata(in: 64..<550_064))
+        #expect(ftpBackend.streamRangeCallCount == ftpStreamCallsBeforeStream + 1)
+        #expect(ftpBackend.readRangeCallCount == ftpReadCallsBeforeStream)
 
+        let nfsReadCallsBeforeStream = nfsBackend.readRangeCallCount
+        let nfsStreamCallsBeforeStream = nfsBackend.streamRangeCallCount
         let nfsVideoURL = URL.fromMediaPath("nfs://192.168.1.100/volume1/video/动漫/Frieren/Episode 01.mkv")
         let nfsPlayable = NFSClient.shared.resolvePlayableInput(for: nfsVideoURL)
         #expect(nfsPlayable.inputPath.hasPrefix("http://127.0.0.1:"))
 
         let nfsStreamURL = try #require(URL(string: nfsPlayable.inputPath))
         var nfsRangeReq = URLRequest(url: nfsStreamURL)
-        nfsRangeReq.setValue("bytes=128-255", forHTTPHeaderField: "Range")
+        nfsRangeReq.setValue("bytes=128-550127", forHTTPHeaderField: "Range")
         let (nfsRangeData, nfsResponse) = try await URLSession.shared.data(for: nfsRangeReq)
         #expect((nfsResponse as? HTTPURLResponse)?.statusCode == 206)
-        #expect(nfsRangeData == fakeVideoBytes.subdata(in: 128..<256))
+        #expect(nfsRangeData == fakeVideoBytes.subdata(in: 128..<550_128))
+        #expect(nfsBackend.streamRangeCallCount == nfsStreamCallsBeforeStream + 1)
+        #expect(nfsBackend.readRangeCallCount == nfsReadCallsBeforeStream)
 
         // Verify in-app folder rename for both FTP and NFS
         let renamer = LibraryRenamer(database: indexingDatabase)
