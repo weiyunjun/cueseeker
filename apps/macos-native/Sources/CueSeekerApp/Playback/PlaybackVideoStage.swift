@@ -44,14 +44,17 @@ struct PlaybackVideoStage: View {
                     .position(x: frame.midX, y: frame.midY)
                     .allowsHitTesting(false)
 
-                Color.clear
-                    .frame(width: stageTapRect.width, height: stageTapRect.height)
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        appState.workbenchLayout.clearSearchFocus()
-                        appState.togglePlaybackFromUser()
-                    }
-                    .position(x: stageTapRect.midX, y: stageTapRect.midY)
+                Button {
+                    appState.workbenchLayout.clearSearchFocus()
+                    appState.togglePlaybackFromUser()
+                } label: {
+                    Color.clear
+                        .frame(width: stageTapRect.width, height: stageTapRect.height)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(StaticButtonStyle())
+                .focusable(false)
+                .position(x: stageTapRect.midX, y: stageTapRect.midY)
 
                 LiquidGlassVideoTopBar(
                     title: chromeSnapshot.displayTitle,

@@ -885,12 +885,14 @@ struct WorkbenchSingleLineContainerOverlay: NSViewRepresentable {
     let isEnabled: Bool
     var trailingExclusionSize: NSSize? = nil
     var trailingExclusionRightInset: CGFloat = 0
+    var onPressRelease: (() -> Void)? = nil
 
     func makeNSView(context: Context) -> WorkbenchSingleLineContainerOverlayView {
         let view = WorkbenchSingleLineContainerOverlayView()
         view.isEnabled = isEnabled
         view.trailingExclusionSize = trailingExclusionSize
         view.trailingExclusionRightInset = trailingExclusionRightInset
+        view.onPressRelease = onPressRelease
         return view
     }
 
@@ -898,6 +900,7 @@ struct WorkbenchSingleLineContainerOverlay: NSViewRepresentable {
         nsView.isEnabled = isEnabled
         nsView.trailingExclusionSize = trailingExclusionSize
         nsView.trailingExclusionRightInset = trailingExclusionRightInset
+        nsView.onPressRelease = onPressRelease
         nsView.window?.invalidateCursorRects(for: nsView)
     }
 }
@@ -907,6 +910,8 @@ final class WorkbenchSingleLineContainerOverlayView: NSView, PointerShapeProvidi
     var isEnabled = true
     var trailingExclusionSize: NSSize?
     var trailingExclusionRightInset: CGFloat = 0
+    var onPressRelease: (() -> Void)?
+    private var isPressingInside = false
 
     func pointerShape(atWindowPoint point: CGPoint) -> PointerShape {
         isEnabled ? .iBeam : .arrow
@@ -943,11 +948,35 @@ final class WorkbenchSingleLineContainerOverlayView: NSView, PointerShapeProvidi
     }
 
     override func mouseDown(with event: NSEvent) {
+        if onPressRelease != nil {
+            let localPoint = convert(event.locationInWindow, from: nil)
+            isPressingInside = isEnabled && bounds.contains(localPoint)
+            return
+        }
+        isPressingInside = false
+        focusEnclosedTextField(atWindowPoint: event.locationInWindow)
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        guard onPressRelease != nil else {
+            super.mouseUp(with: event)
+            return
+        }
+        let didStartInside = isPressingInside
+        isPressingInside = false
+        let localPoint = convert(event.locationInWindow, from: nil)
+        guard didStartInside, isEnabled, bounds.contains(localPoint) else {
+            return
+        }
+        focusEnclosedTextField(atWindowPoint: event.locationInWindow)
+        onPressRelease?()
+    }
+
+    private func focusEnclosedTextField(atWindowPoint windowPoint: NSPoint) {
         guard isEnabled,
               let field = findEnclosedTextField(),
               field.isEnabled && field.isEditable
         else {
-            super.mouseDown(with: event)
             return
         }
         let wasFocused = window?.firstResponder === field
@@ -956,7 +985,7 @@ final class WorkbenchSingleLineContainerOverlayView: NSView, PointerShapeProvidi
             _ = window?.makeFirstResponder(field)
         }
         if let editor = field.currentEditor() as? NSTextView {
-            let pointInField = field.convert(event.locationInWindow, from: nil)
+            let pointInField = field.convert(windowPoint, from: nil)
             let clampedFieldPoint = NSPoint(
                 x: min(max(pointInField.x, 0), field.bounds.width),
                 y: field.bounds.midY

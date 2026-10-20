@@ -1214,8 +1214,20 @@ func subtitleTableViewSelectModeReservesColumnAndMakesWholeRowSelectable() throw
     let displayWindowPoint = fixture.documentView.convert(displayPoint, to: nil)
 
     #expect(fixture.coordinator.handleMouseDown(windowPoint: displayWindowPoint))
+    #expect(toggledRows.isEmpty)
+    #expect(fixture.coordinator.handleMouseUp(windowPoint: displayWindowPoint))
     #expect(toggledRows == [0])
     #expect(playedRow == nil)
+
+    // Releasing outside the pressed row cancels the selection toggle
+    let outsideWindowPoint = fixture.documentView.convert(
+        CGPoint(x: displayPoint.x, y: -10),
+        to: nil
+    )
+    #expect(fixture.coordinator.handleMouseDown(windowPoint: displayWindowPoint))
+    #expect(fixture.coordinator.handleMouseUp(windowPoint: outsideWindowPoint))
+    #expect(toggledRows == [0])
+
     #expect(fixture.coordinator.handleRightMouseDown(windowPoint: displayWindowPoint))
     #expect(!fixture.coordinator.isMenuOpenForTesting())
     #expect(!fixture.coordinator.canBeginExternalTextSelection)
@@ -1240,10 +1252,21 @@ func subtitleTableViewUnselectedRowClickInCheckboxSelectsRowAndClickOutsidePlays
     let checkboxPoint = CGPoint(x: checkboxRect.midX, y: checkboxRect.midY)
     let checkboxWindowPoint = fixture.documentView.convert(checkboxPoint, to: nil)
 
-    // Clicking precisely on checkbox rect triggers selection toggle even when not in selection mode
+    // Clicking precisely on checkbox rect triggers selection toggle on mouseUp even when not in selection mode
     #expect(fixture.coordinator.handleMouseDown(windowPoint: checkboxWindowPoint))
+    #expect(toggledRows.isEmpty)
+    #expect(fixture.coordinator.handleMouseUp(windowPoint: checkboxWindowPoint))
     #expect(toggledRows == [0])
     #expect(playedRow == nil)
+
+    // Pressing on checkbox and releasing outside checkbox cancels toggle
+    let outsideCheckboxWindowPoint = fixture.documentView.convert(
+        CGPoint(x: checkboxRect.maxX + 20, y: checkboxRect.midY),
+        to: nil
+    )
+    #expect(fixture.coordinator.handleMouseDown(windowPoint: checkboxWindowPoint))
+    #expect(fixture.coordinator.handleMouseUp(windowPoint: outsideCheckboxWindowPoint))
+    #expect(toggledRows == [0])
 
     // Clicking in cues text area triggers play, not selection toggle
     toggledRows.removeAll()
@@ -2707,8 +2730,10 @@ func subtitleTableViewSelectModeDisablesInternalTextSelection() throws {
     fixture.coordinator.selectAllTableText()
     #expect(!fixture.coordinator.textSelectionSelectsAllForTesting())
     #expect(fixture.coordinator.handleMouseDown(windowPoint: rowWindowPoint))
-    #expect(toggledRows == [0])
+    #expect(toggledRows.isEmpty)
     #expect(!fixture.coordinator.handleMouseDragged(windowPoint: rowWindowPoint))
+    #expect(fixture.coordinator.handleMouseUp(windowPoint: rowWindowPoint))
+    #expect(toggledRows == [0])
     #expect(fixture.coordinator.textSelectionRangeForTesting(row: 0, columnID: "cues") == nil)
 }
 

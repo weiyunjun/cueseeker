@@ -2573,6 +2573,11 @@ struct SubtitleTableView: NSViewRepresentable {
             case play(row: Int)
         }
 
+        private enum PendingRowSelectionTarget {
+            case rowCheckbox(row: Int)
+            case selectionModeRow(row: Int, isShiftPressed: Bool)
+        }
+
         private struct PendingTextInteraction {
             let startPoint: CGPoint
             let anchor: SubtitleTableTextPosition?
@@ -2583,6 +2588,7 @@ struct SubtitleTableView: NSViewRepresentable {
         }
 
         private var pendingTextInteraction: PendingTextInteraction?
+        private var pendingRowSelectionTarget: PendingRowSelectionTarget?
         private static let textDragThreshold: CGFloat = 3
 
         private enum TextSelectionRowProjection: Equatable {
@@ -3558,6 +3564,7 @@ struct SubtitleTableView: NSViewRepresentable {
         func cancelPendingTextInteraction() {
             stopTextDragAutoScroll()
             pendingTextInteraction = nil
+            pendingRowSelectionTarget = nil
         }
 
         var externalTextSelectionWindowRect: CGRect? {
@@ -6315,15 +6322,28 @@ struct SubtitleTableView: NSViewRepresentable {
             let row = rowAtDocumentPoint(point)
             if isSelectionMode {
                 guard let row else { return false }
+                clearFocusedCheckbox()
+                cancelPendingTextInteraction()
                 if rowProvider(row)?.cueState.isUnavailable == true {
                     return true
                 }
-                return isShiftPressed
-                    ? shiftSelectRowFromMouse(row: row)
-                    : toggleRowCheckboxFromMouse(row: row)
+                pendingRowSelectionTarget = .selectionModeRow(
+                    row: row,
+                    isShiftPressed: isShiftPressed
+                )
+                return true
             }
             if let row, isPointInCheckbox(row: row, point: point) {
-                return toggleRowCheckboxFromMouse(row: row)
+                clearFocusedCheckbox()
+                cancelPendingTextInteraction()
+                guard row >= 0,
+                      row < rowCount,
+                      rowProvider(row)?.cueState.isUnavailable != true
+                else {
+                    return false
+                }
+                pendingRowSelectionTarget = .rowCheckbox(row: row)
+                return true
             }
             if let row, isPointInCueStateIndicator(row: row, point: point) {
                 clearFocusedCheckbox()
@@ -6351,6 +6371,7 @@ struct SubtitleTableView: NSViewRepresentable {
             }
 
             clearFocusedCheckbox()
+            pendingRowSelectionTarget = nil
             pendingTextInteraction = PendingTextInteraction(
                 startPoint: windowPoint,
                 anchor: anchor,
@@ -6378,6 +6399,7 @@ struct SubtitleTableView: NSViewRepresentable {
             }
 
             clearFocusedCheckbox()
+            pendingRowSelectionTarget = nil
             pendingTextInteraction = PendingTextInteraction(
                 startPoint: windowPoint,
                 anchor: anchor,
@@ -6411,6 +6433,37 @@ struct SubtitleTableView: NSViewRepresentable {
         }
 
         func handleMouseUp(windowPoint: CGPoint) -> Bool {
+            if let selectionTarget = pendingRowSelectionTarget {
+                pendingRowSelectionTarget = nil
+                guard isRedesign,
+                      isEnabled,
+                      !isMenuOpen,
+                      !isCoveredByHigherLayer,
+                      let documentView
+                else {
+                    return false
+                }
+                let point = documentView.convert(windowPoint, from: nil)
+                guard currentTableBodyVisibleRect.contains(point) else {
+                    return true
+                }
+                switch selectionTarget {
+                case .rowCheckbox(let row):
+                    if !isSelectionMode, isPointInCheckbox(row: row, point: point) {
+                        _ = toggleRowCheckboxFromMouse(row: row)
+                    }
+                case .selectionModeRow(let row, let isShiftPressed):
+                    if isSelectionMode, rowAtDocumentPoint(point) == row {
+                        if isShiftPressed {
+                            _ = shiftSelectRowFromMouse(row: row)
+                        } else {
+                            _ = toggleRowCheckboxFromMouse(row: row)
+                        }
+                    }
+                }
+                return true
+            }
+
             guard var interaction = pendingTextInteraction else {
                 return false
             }
@@ -6473,6 +6526,7 @@ struct SubtitleTableView: NSViewRepresentable {
             }
             let point = documentView.convert(windowPoint, from: nil)
             if isSelectionMode {
+                cancelPendingTextInteraction()
                 return currentTableBodyVisibleRect.contains(point)
                     && rowAtDocumentPoint(point) != nil
             }

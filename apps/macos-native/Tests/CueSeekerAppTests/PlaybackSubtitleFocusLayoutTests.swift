@@ -256,6 +256,54 @@ func editingCollageReusesCurrentReelWithPrimaryCueCheckboxSelection() throws {
     #expect(toggledOrdinals == [11, 11])
     #expect(view.displayedSelectedOrdinalForTesting == 12)
 
+    let collageWindow = NSWindow(
+        contentRect: CGRect(x: 0, y: 0, width: 640, height: 656),
+        styleMask: [.borderless],
+        backing: .buffered,
+        defer: false
+    )
+    collageWindow.contentView = view
+    defer { collageWindow.contentView = nil }
+    let documentView = view.documentViewForTesting
+    toggledOrdinals.removeAll()
+    documentView.mouseDown(
+        with: selectedTextMouseEvent(
+            .leftMouseDown,
+            at: primaryCuePoint,
+            in: documentView,
+            window: collageWindow
+        )
+    )
+    #expect(toggledOrdinals.isEmpty)
+    documentView.mouseUp(
+        with: selectedTextMouseEvent(
+            .leftMouseUp,
+            at: primaryCuePoint,
+            in: documentView,
+            window: collageWindow
+        )
+    )
+    #expect(toggledOrdinals == [11])
+
+    // Releasing outside the pressed cue cancels the collage toggle
+    documentView.mouseDown(
+        with: selectedTextMouseEvent(
+            .leftMouseDown,
+            at: primaryCuePoint,
+            in: documentView,
+            window: collageWindow
+        )
+    )
+    documentView.mouseUp(
+        with: selectedTextMouseEvent(
+            .leftMouseUp,
+            at: CGPoint(x: -10, y: -10),
+            in: documentView,
+            window: collageWindow
+        )
+    )
+    #expect(toggledOrdinals == [11])
+
     view.frame = CGRect(x: 0, y: 0, width: 1200, height: 656)
     view.layoutSubtreeIfNeeded()
     let wideCollagePlacement = try #require(

@@ -921,45 +921,31 @@ private struct LibraryVideoCard: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: WorkbenchTestLibraryMetrics.recentCardGap) {
-            cover
-
-            Text(content.folderTitle)
-                .font(.system(size: WorkbenchTestLibraryMetrics.titleSize, weight: .semibold))
-                .foregroundStyle(WorkbenchRedesignColors.textPrimary)
-                .lineLimit(1)
-                .frame(maxWidth: .infinity, alignment: .leading)
-
-            HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
-                Text(episodeLabel)
-                    .font(.system(size: WorkbenchTestLibraryMetrics.metaSize, weight: .medium))
-                    .foregroundStyle(WorkbenchRedesignColors.textMuted)
-                    .monospacedDigit()
-
-                WatchStatusBadge(status: content.watchStatus)
-            }
-        }
-        .padding(WorkbenchTestLibraryMetrics.mediaCardHoverPadding)
-        .frame(maxWidth: .infinity, alignment: .topLeading)
-        .background(
-            RoundedRectangle(
-                cornerRadius: WorkbenchTestLibraryMetrics.mediaCardHoverRadius,
-                style: .continuous
-            )
-            .fill(
-                isCurrent
-                    ? WorkbenchRedesignColors.libraryMediaCardHoverBg
-                    : Color.clear
-            )
-        )
-        // The card answers the pointer over its whole rectangle, corners
-        // included, so the tap, the hand and Hover share one area. The rounded
-        // background is appearance only and does not narrow it.
-        .contentShape(Rectangle())
-        .onTapGesture {
+        Button {
             highlight.notePress(id: cardID)
             onOpen()
+        } label: {
+            VStack(alignment: .leading, spacing: WorkbenchTestLibraryMetrics.recentCardGap) {
+                cover
+
+                Text(content.folderTitle)
+                    .font(.system(size: WorkbenchTestLibraryMetrics.titleSize, weight: .semibold))
+                    .foregroundStyle(WorkbenchRedesignColors.textPrimary)
+                    .lineLimit(1)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
+                    Text(episodeLabel)
+                        .font(.system(size: WorkbenchTestLibraryMetrics.metaSize, weight: .medium))
+                        .foregroundStyle(WorkbenchRedesignColors.textMuted)
+                        .monospacedDigit()
+
+                    WatchStatusBadge(status: content.watchStatus)
+                }
+            }
         }
+        .buttonStyle(LibraryOverviewCardButtonStyle(isCurrent: isCurrent))
+        .focusable(false)
         .onHover { highlight.noteHover($0, id: cardID, showsHand: true) }
         .libraryCardContextMenuTrigger(
             isEnabled: true,
@@ -969,10 +955,6 @@ private struct LibraryVideoCard: View {
                 highlight.notePress(id: cardID)
                 openContextMenu(items, point, ownerID)
             }
-        )
-        .animation(
-            .easeOut(duration: WorkbenchTestLibraryMetrics.coverHoverDuration),
-            value: isCurrent
         )
         .accessibilityLabel(
             "\(content.folderTitle), \(episodeLabel), \(content.watchStatus.title)"

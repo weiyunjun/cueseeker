@@ -876,6 +876,7 @@ private struct WorkbenchFileCard: View {
     var body: some View {
         HStack(alignment: .top, spacing: WorkbenchControlMetrics.redesignSpacing4) {
             WorkbenchCardIcon(icon: icon)
+                .allowsHitTesting(false)
 
             VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing1) {
                 Text(title)
@@ -896,6 +897,7 @@ private struct WorkbenchFileCard: View {
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
+            .allowsHitTesting(false)
 
             Spacer(minLength: 0)
 
@@ -940,17 +942,28 @@ private struct WorkbenchFileCard: View {
             minHeight: WorkbenchControlMetrics.redesignCardBaselineHeight,
             alignment: .topLeading
         )
-        .background(
-            RoundedRectangle(
+        .background {
+            let shape = RoundedRectangle(
                 cornerRadius: rowCornerRadius,
                 style: .continuous
             )
-            .fill(
-                isHovered
-                    ? WorkbenchRedesignColors.rowHover
-                    : (showsCardChrome ? WorkbenchRedesignColors.tableBg : Color.clear)
-            )
-        )
+            ZStack {
+                shape.fill(
+                    isHovered
+                        ? WorkbenchRedesignColors.rowHover
+                        : (showsCardChrome ? WorkbenchRedesignColors.tableBg : Color.clear)
+                )
+
+                if let onTap {
+                    Button(action: onTap) {
+                        Color.clear
+                            .contentShape(shape)
+                    }
+                    .buttonStyle(StaticButtonStyle())
+                    .focusable(false)
+                }
+            }
+        }
         .overlay(
             RoundedRectangle(
                 cornerRadius: rowCornerRadius,
@@ -960,15 +973,13 @@ private struct WorkbenchFileCard: View {
                 WorkbenchRedesignColors.borderControl,
                 lineWidth: showsCardChrome ? WorkbenchControlMetrics.redesignControlBorderWidth : 0
             )
+            .allowsHitTesting(false)
         )
         .contentShape(RoundedRectangle(
             cornerRadius: rowCornerRadius,
             style: .continuous
         ))
         .onPointerHover { isHovered = $0 }
-        .onTapGesture {
-            onTap?()
-        }
     }
 }
 

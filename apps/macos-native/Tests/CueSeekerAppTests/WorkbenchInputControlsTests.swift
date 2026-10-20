@@ -340,7 +340,51 @@ struct WorkbenchInputControlsTests {
         #expect(subtitleBox.size == 1)
 
         // 3. Color hex field supports 6-digit live apply, 3-digit commit without expanding to 6 digits, 4-digit truncation to 3 digits on blur, 0-2 digit restore on blur, and '#' stripping / newline & dot truncation on paste
-        #expect(window.makeFirstResponder(colorField))
+        let subtitleOverlays = collectContainerOverlays(in: subtitleHosting)
+        let colorOverlay = try #require(subtitleOverlays.last { $0.onPressRelease != nil })
+        let swatchPointInWindow = colorOverlay.convert(NSPoint(x: 10, y: colorOverlay.bounds.midY), to: nil)
+        let outsidePointInWindow = colorOverlay.convert(NSPoint(x: -10, y: -10), to: nil)
+        let downEvent = try #require(NSEvent.mouseEvent(
+            with: .leftMouseDown,
+            location: swatchPointInWindow,
+            modifierFlags: [],
+            timestamp: 1,
+            windowNumber: window.windowNumber,
+            context: nil,
+            eventNumber: 1,
+            clickCount: 1,
+            pressure: 1
+        ))
+        let outsideUpEvent = try #require(NSEvent.mouseEvent(
+            with: .leftMouseUp,
+            location: outsidePointInWindow,
+            modifierFlags: [],
+            timestamp: 2,
+            windowNumber: window.windowNumber,
+            context: nil,
+            eventNumber: 1,
+            clickCount: 1,
+            pressure: 0
+        ))
+        let insideUpEvent = try #require(NSEvent.mouseEvent(
+            with: .leftMouseUp,
+            location: swatchPointInWindow,
+            modifierFlags: [],
+            timestamp: 3,
+            windowNumber: window.windowNumber,
+            context: nil,
+            eventNumber: 2,
+            clickCount: 1,
+            pressure: 0
+        ))
+        colorOverlay.mouseDown(with: downEvent)
+        #expect(!subtitleBox.isColorPopoverOpen)
+        colorOverlay.mouseUp(with: outsideUpEvent)
+        #expect(!subtitleBox.isColorPopoverOpen)
+
+        colorOverlay.mouseDown(with: downEvent)
+        #expect(!subtitleBox.isColorPopoverOpen)
+        colorOverlay.mouseUp(with: insideUpEvent)
         RunLoop.main.run(until: Date().addingTimeInterval(0.03))
         #expect(subtitleBox.isColorPopoverOpen)
         let colorEditor = try #require(colorField.currentEditor() as? NSTextView)

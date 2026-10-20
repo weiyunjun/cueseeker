@@ -415,50 +415,7 @@ struct WebDAVBrowserCard: View {
             style: .continuous
         )
 
-        HStack(alignment: .center, spacing: WorkbenchControlMetrics.redesignSpacing4) {
-            WorkbenchCardIcon(icon: icon)
-
-            Text(item.name)
-                .font(.system(
-                    size: WorkbenchControlMetrics.redesignFontSizeBody,
-                    weight: WorkbenchControlMetrics.redesignFontWeightControl
-                ))
-                .foregroundStyle(WorkbenchRedesignColors.textPrimary)
-                .lineLimit(1)
-                .truncationMode(.tail)
-                .frame(maxWidth: .infinity, alignment: .leading)
-
-            if isFolder {
-                AppIconImage(
-                    .caretRight,
-                    size: WorkbenchControlMetrics.redesignCardChevronSize
-                )
-                .foregroundStyle(WorkbenchRedesignColors.textMuted)
-                .frame(
-                    width: WorkbenchControlMetrics.redesignCardChevronSize,
-                    height: WorkbenchControlMetrics.redesignIconButtonSize
-                )
-                .allowsHitTesting(false)
-            }
-        }
-        .padding(WorkbenchControlMetrics.redesignSpacing4)
-        .frame(
-            maxWidth: .infinity,
-            minHeight: WorkbenchControlMetrics.redesignCardBaselineHeight,
-            alignment: .leading
-        )
-        .background(shape.fill(backgroundFillColor))
-        .overlay(
-            shape.strokeBorder(
-                borderStrokeColor,
-                lineWidth: WorkbenchControlMetrics.redesignControlBorderWidth
-            )
-        )
-        .contentShape(shape)
-        .onPointerHover { hovering in
-            isHovered = isFolder ? hovering : false
-        }
-        .onTapGesture {
+        Button {
             guard isFolder else {
                 return
             }
@@ -469,6 +426,53 @@ struct WebDAVBrowserCard: View {
             } else {
                 onToggleSelection()
             }
+        } label: {
+            HStack(alignment: .center, spacing: WorkbenchControlMetrics.redesignSpacing4) {
+                WorkbenchCardIcon(icon: icon)
+
+                Text(item.name)
+                    .font(.system(
+                        size: WorkbenchControlMetrics.redesignFontSizeBody,
+                        weight: WorkbenchControlMetrics.redesignFontWeightControl
+                    ))
+                    .foregroundStyle(WorkbenchRedesignColors.textPrimary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                if isFolder {
+                    AppIconImage(
+                        .caretRight,
+                        size: WorkbenchControlMetrics.redesignCardChevronSize
+                    )
+                    .foregroundStyle(WorkbenchRedesignColors.textMuted)
+                    .frame(
+                        width: WorkbenchControlMetrics.redesignCardChevronSize,
+                        height: WorkbenchControlMetrics.redesignIconButtonSize
+                    )
+                    .allowsHitTesting(false)
+                }
+            }
+            .padding(WorkbenchControlMetrics.redesignSpacing4)
+            .frame(
+                maxWidth: .infinity,
+                minHeight: WorkbenchControlMetrics.redesignCardBaselineHeight,
+                alignment: .leading
+            )
+            .background(shape.fill(backgroundFillColor))
+            .overlay(
+                shape.strokeBorder(
+                    borderStrokeColor,
+                    lineWidth: WorkbenchControlMetrics.redesignControlBorderWidth
+                )
+            )
+            .contentShape(shape)
+        }
+        .buttonStyle(StaticButtonStyle())
+        .focusable(false)
+        .disabled(!isFolder)
+        .onPointerHover { hovering in
+            isHovered = isFolder ? hovering : false
         }
     }
 }

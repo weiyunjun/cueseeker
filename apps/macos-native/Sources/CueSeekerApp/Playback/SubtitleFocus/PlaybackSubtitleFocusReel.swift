@@ -3746,6 +3746,7 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView, PointerShapeProviding
     private(set) var placements: [PlaybackSubtitleFocusCuePlacement] = []
     /// Set while a drag started in this view is choosing text.
     private var isSelectingText = false
+    private var pendingCollageCueOrdinal: Int?
 
     override var isFlipped: Bool {
         true
@@ -3848,6 +3849,7 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView, PointerShapeProviding
 
         if changesMode {
             clearTextSelection()
+            pendingCollageCueOrdinal = nil
             UIInvalidationProbe.count(
                 "playback.subtitle_focus.collage_full_invalidation",
                 scope: uiProbeScope,
@@ -4068,20 +4070,36 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView, PointerShapeProviding
         let point = convert(event.locationInWindow, from: nil)
         clearTextSelection()
         if let placement = collagePlacement(containing: point) {
-            _ = toggleCollageCue(at: placement.ordinal)
+            pendingCollageCueOrdinal = placement.ordinal
+            isSelectingText = false
             return
         }
+        pendingCollageCueOrdinal = nil
         beginTextSelection(at: point)
         isSelectingText = textSelection != nil
     }
 
     override func mouseDragged(with event: NSEvent) {
+        guard isSelectingText else {
+            return
+        }
         updateTextSelection(
             focusPoint: convert(event.locationInWindow, from: nil)
         )
     }
 
     override func mouseUp(with event: NSEvent) {
+        if let pendingOrdinal = pendingCollageCueOrdinal {
+            pendingCollageCueOrdinal = nil
+            let point = convert(event.locationInWindow, from: nil)
+            if bounds.contains(point),
+               let placement = collagePlacement(containing: point),
+               placement.ordinal == pendingOrdinal {
+                _ = toggleCollageCue(at: pendingOrdinal)
+            }
+            return
+        }
+
         // A release only ends a drag this view began. The press that closes an
         // open menu is swallowed before it reaches here, and its release must
         // not be read as a finished selection and open the menu straight back

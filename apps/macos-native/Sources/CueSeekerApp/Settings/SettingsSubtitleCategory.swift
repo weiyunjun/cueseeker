@@ -919,12 +919,12 @@ struct SettingsSubtitleColorField: View {
             )
         )
         .overlay(
-            WorkbenchSingleLineContainerOverlay(isEnabled: true)
-                .simultaneousGesture(
-                    TapGesture().onEnded {
-                        isPopoverOpen = true
-                    }
-                )
+            WorkbenchSingleLineContainerOverlay(
+                isEnabled: true,
+                onPressRelease: {
+                    isPopoverOpen = true
+                }
+            )
         )
         .onAppear {
             let initial = Self.hexString(for: color)
