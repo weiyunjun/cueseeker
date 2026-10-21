@@ -16,7 +16,12 @@ final class PointerHoverScrollState: ObservableObject {
 
     @Published private(set) var isScrolling = false
     @Published private(set) var isCursorHidden = false
+    @Published private(set) var isSuppressedByKeyboardOrController = false
     private var debounceTask: Task<Void, Never>?
+
+    var isHoverSuppressed: Bool {
+        isScrolling || isSuppressedByKeyboardOrController
+    }
 
     func noteScrolled() {
         if !isScrolling {
@@ -34,11 +39,23 @@ final class PointerHoverScrollState: ObservableObject {
         }
     }
 
+    func noteSelectionMovedByKeyboardOrController() {
+        if !isSuppressedByKeyboardOrController {
+            isSuppressedByKeyboardOrController = true
+        }
+        AppPointerShape.noteKeyboardOrControllerSuppressedHover()
+        CardHighlightModel.broadcastSelectionMovedByKeyboardOrController()
+        MenuHighlightModel.broadcastSelectionMovedByKeyboardOrController()
+    }
+
     func notePointerMoved() {
         debounceTask?.cancel()
         debounceTask = nil
         if isScrolling {
             isScrolling = false
+        }
+        if isSuppressedByKeyboardOrController {
+            isSuppressedByKeyboardOrController = false
         }
         CardHighlightModel.broadcastPointerMoved()
         MenuHighlightModel.broadcastPointerMoved()
@@ -57,6 +74,9 @@ final class PointerHoverScrollState: ObservableObject {
         debounceTask = nil
         if isScrolling {
             isScrolling = false
+        }
+        guard !isSuppressedByKeyboardOrController else {
+            return
         }
         NotificationCenter.default.post(
             name: .cueSeekerScrollDebounceSettled,
@@ -77,6 +97,7 @@ final class PointerHoverScrollState: ObservableObject {
         debounceTask?.cancel()
         debounceTask = nil
         isScrolling = false
+        isSuppressedByKeyboardOrController = false
         isCursorHidden = AppCursorVisibility.isCursorHidden
     }
 }
@@ -103,37 +124,49 @@ struct PointerHoverGate: Equatable {
         _ isHovered: Bool,
         isFrozen: Bool,
         isScrolling: Bool = false,
-        isCursorHidden: Bool = false
+        isCursorHidden: Bool = false,
+        isSuppressedByKeyboard: Bool = false
     ) -> Bool? {
         reportedIsHovered = isHovered
         return delivery(
             isFrozen: isFrozen,
             isScrolling: isScrolling,
-            isCursorHidden: isCursorHidden
+            isCursorHidden: isCursorHidden,
+            isSuppressedByKeyboard: isSuppressedByKeyboard
         )
     }
 
-    /// Returns what the surface should be told now that the freeze, scroll, or
-    /// cursor visibility state changed.
+    /// Returns what the surface should be told now that the freeze, scroll,
+    /// cursor visibility, or keyboard suppression state changed.
     mutating func freezeChanged(
         isFrozen: Bool,
         isScrolling: Bool = false,
-        isCursorHidden: Bool = false
+        isCursorHidden: Bool = false,
+        isSuppressedByKeyboard: Bool = false
     ) -> Bool? {
         delivery(
             isFrozen: isFrozen,
             isScrolling: isScrolling,
-            isCursorHidden: isCursorHidden
+            isCursorHidden: isCursorHidden,
+            isSuppressedByKeyboard: isSuppressedByKeyboard
         )
     }
 
     private mutating func delivery(
         isFrozen: Bool,
         isScrolling: Bool,
-        isCursorHidden: Bool
+        isCursorHidden: Bool,
+        isSuppressedByKeyboard: Bool
     ) -> Bool? {
         if isCursorHidden {
             guard deliveredIsHovered else {
+                return nil
+            }
+            deliveredIsHovered = false
+            return false
+        }
+        if isSuppressedByKeyboard {
+            guard !isFrozen, deliveredIsHovered else {
                 return nil
             }
             deliveredIsHovered = false
@@ -163,7 +196,8 @@ private struct PointerHoverModifier: ViewModifier {
                     isHovered,
                     isFrozen: layerContext.isFrozen,
                     isScrolling: scrollState.isScrolling,
-                    isCursorHidden: AppCursorVisibility.isCursorHidden
+                    isCursorHidden: AppCursorVisibility.isCursorHidden,
+                    isSuppressedByKeyboard: scrollState.isSuppressedByKeyboardOrController
                 ) {
                     action(delivered)
                 }
@@ -172,7 +206,8 @@ private struct PointerHoverModifier: ViewModifier {
                 if let delivered = gate.freezeChanged(
                     isFrozen: isFrozen,
                     isScrolling: scrollState.isScrolling,
-                    isCursorHidden: AppCursorVisibility.isCursorHidden
+                    isCursorHidden: AppCursorVisibility.isCursorHidden,
+                    isSuppressedByKeyboard: scrollState.isSuppressedByKeyboardOrController
                 ) {
                     action(delivered)
                 }
@@ -181,7 +216,8 @@ private struct PointerHoverModifier: ViewModifier {
                 if let delivered = gate.freezeChanged(
                     isFrozen: layerContext.isFrozen,
                     isScrolling: isScrolling,
-                    isCursorHidden: AppCursorVisibility.isCursorHidden
+                    isCursorHidden: AppCursorVisibility.isCursorHidden,
+                    isSuppressedByKeyboard: scrollState.isSuppressedByKeyboardOrController
                 ) {
                     action(delivered)
                 }
@@ -190,7 +226,18 @@ private struct PointerHoverModifier: ViewModifier {
                 if let delivered = gate.freezeChanged(
                     isFrozen: layerContext.isFrozen,
                     isScrolling: scrollState.isScrolling,
-                    isCursorHidden: isCursorHidden
+                    isCursorHidden: isCursorHidden,
+                    isSuppressedByKeyboard: scrollState.isSuppressedByKeyboardOrController
+                ) {
+                    action(delivered)
+                }
+            }
+            .onChange(of: scrollState.isSuppressedByKeyboardOrController) { isSuppressed in
+                if let delivered = gate.freezeChanged(
+                    isFrozen: layerContext.isFrozen,
+                    isScrolling: scrollState.isScrolling,
+                    isCursorHidden: AppCursorVisibility.isCursorHidden,
+                    isSuppressedByKeyboard: isSuppressed
                 ) {
                     action(delivered)
                 }

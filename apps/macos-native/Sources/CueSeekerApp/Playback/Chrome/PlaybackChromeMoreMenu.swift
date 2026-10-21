@@ -407,6 +407,7 @@ private struct PlaybackMoreMenuTrigger: View {
             guard isEnabled, !suppressesInteraction else {
                 return
             }
+            highlight.selectPosition(submenu.rawValue)
             submenuState.open(submenu)
         } label: {
             HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {

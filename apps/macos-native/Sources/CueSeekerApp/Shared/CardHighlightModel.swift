@@ -34,6 +34,13 @@ final class CardHighlightModel: ObservableObject {
         }
     }
 
+    static func broadcastSelectionMovedByKeyboardOrController() {
+        instances.removeAll { $0.value == nil }
+        for box in instances {
+            box.value?.noteSelectionMovedByKeyboardOrController()
+        }
+    }
+
     static func broadcastPointerMoved() {
         instances.removeAll { $0.value == nil }
         for box in instances {
@@ -93,6 +100,7 @@ final class CardHighlightModel: ObservableObject {
 
     private(set) var isFrozen = false
     private(set) var isScrolling = false
+    private(set) var isSuppressedByKeyboard = false
     private var rawHoveredID: String?
     private var rawHoveredShowsHand = true
 
@@ -121,8 +129,7 @@ final class CardHighlightModel: ObservableObject {
     }
 
     /// Updates the `Select` state (`selectedID`) from the interface's default
-    /// selection or keyboard / controller navigation. Does not clear `Hover`
-    /// or reset the pointer shape.
+    /// selection or keyboard / controller navigation.
     func setSelected(_ id: String?) {
         guard selectedID != id else {
             return
@@ -149,6 +156,7 @@ final class CardHighlightModel: ObservableObject {
         hoveredID = nil
         rawHoveredID = nil
         isScrolling = false
+        isSuppressedByKeyboard = false
     }
 
     /// Freezes or unfreezes `Hover` updates when a menu or covering layer opens
@@ -170,15 +178,18 @@ final class CardHighlightModel: ObservableObject {
                 )
             }
         } else {
-            if let rawHoveredID {
+            let canFollowPointer = !isScrolling
+                && !isSuppressedByKeyboard
+                && !AppCursorVisibility.isCursorHidden
+            if let rawHoveredID, !isSuppressedByKeyboard {
                 AppPointerShape.noteCardHover(
                     true,
                     id: rawHoveredID,
                     showsHand: rawHoveredShowsHand,
-                    followsPointer: !isScrolling && !AppCursorVisibility.isCursorHidden
+                    followsPointer: canFollowPointer
                 )
             }
-            if !isScrolling {
+            if !isScrolling, !isSuppressedByKeyboard {
                 syncHoveredID()
             }
         }
@@ -192,8 +203,11 @@ final class CardHighlightModel: ObservableObject {
         } else if rawHoveredID == id {
             rawHoveredID = nil
         }
-        let followsPointer = !isFrozen && !isScrolling && !AppCursorVisibility.isCursorHidden
-        if !isFrozen {
+        let followsPointer = !isFrozen
+            && !isScrolling
+            && !isSuppressedByKeyboard
+            && !AppCursorVisibility.isCursorHidden
+        if !isFrozen, !isSuppressedByKeyboard {
             AppPointerShape.noteCardHover(
                 isHovered,
                 id: id,
@@ -201,7 +215,7 @@ final class CardHighlightModel: ObservableObject {
                 followsPointer: followsPointer
             )
         }
-        guard !isFrozen, !isScrolling else {
+        guard !isFrozen, !isScrolling, !isSuppressedByKeyboard else {
             return
         }
         syncHoveredID()
@@ -212,7 +226,26 @@ final class CardHighlightModel: ObservableObject {
     func notePress(id: String) {
         rawHoveredID = id
         isScrolling = false
+        isSuppressedByKeyboard = false
         hoveredID = AppCursorVisibility.isCursorHidden ? nil : id
+    }
+
+    func noteSelectionMovedByKeyboardOrController() {
+        isSuppressedByKeyboard = true
+        guard !isFrozen else {
+            return
+        }
+        if let rawHoveredID {
+            AppPointerShape.noteCardHover(
+                false,
+                id: rawHoveredID,
+                showsHand: rawHoveredShowsHand,
+                followsPointer: !AppCursorVisibility.isCursorHidden
+            )
+        }
+        if hoveredID != nil {
+            hoveredID = nil
+        }
     }
 
     func notePointerMoved() {
@@ -221,6 +254,18 @@ final class CardHighlightModel: ObservableObject {
         }
         if isScrolling {
             isScrolling = false
+        }
+        let wasSuppressedByKeyboard = isSuppressedByKeyboard
+        if isSuppressedByKeyboard {
+            isSuppressedByKeyboard = false
+        }
+        if wasSuppressedByKeyboard, let rawHoveredID {
+            AppPointerShape.noteCardHover(
+                true,
+                id: rawHoveredID,
+                showsHand: rawHoveredShowsHand,
+                followsPointer: !AppCursorVisibility.isCursorHidden
+            )
         }
         syncHoveredID()
     }
@@ -234,7 +279,7 @@ final class CardHighlightModel: ObservableObject {
             return
         }
         isScrolling = false
-        guard !isFrozen else {
+        guard !isFrozen, !isSuppressedByKeyboard else {
             return
         }
         if let rawHoveredID {
@@ -272,7 +317,7 @@ final class CardHighlightModel: ObservableObject {
             if hoveredID != nil {
                 hoveredID = nil
             }
-        } else if !isFrozen, !isScrolling {
+        } else if !isFrozen, !isScrolling, !isSuppressedByKeyboard {
             syncHoveredID()
         }
     }

@@ -252,10 +252,26 @@ enum AppPointerShape {
             id: id,
             showsHand: showsHand,
             followsPointer: followsPointer
-        ), let window else {
+        ) else {
+            return
+        }
+        guard let window else {
+            _ = model.pointerMoved(over: .arrow, isMenuOpen: isMenuOpen())
             return
         }
         decide(at: currentPointerLocation(in: window))
+    }
+
+    static func noteKeyboardOrControllerSuppressedHover() {
+        model.clearHandCards()
+        if model.shape == .grab {
+            set(model.reset())
+        }
+    }
+
+    static func resetForTesting() {
+        model.clearHandCards()
+        _ = model.reset()
     }
 
     /// Resets the pointer shape to `.arrow` (e.g. while a menu owns input).
@@ -264,10 +280,10 @@ enum AppPointerShape {
     }
 
     /// Re-evaluates the pointer shape at the current pointer location when
-    /// the cursor is visible and scroll debounce is not active.
+    /// the cursor is visible and pointer hover is not suppressed.
     static func reevaluate() {
         guard !AppCursorVisibility.isCursorHidden,
-              !PointerHoverScrollState.shared.isScrolling,
+              !PointerHoverScrollState.shared.isHoverSuppressed,
               let window
         else {
             return
@@ -396,7 +412,7 @@ class CueSeekerHostingView<Content: View>: NSHostingView<Content>, CueSeekerHost
     }
 
     override func mouseEntered(with event: NSEvent) {
-        guard isWindowFocused, !PointerHoverScrollState.shared.isScrolling else {
+        guard isWindowFocused, !PointerHoverScrollState.shared.isHoverSuppressed else {
             needsMouseReenterInSuper = true
             return
         }
@@ -405,19 +421,26 @@ class CueSeekerHostingView<Content: View>: NSHostingView<Content>, CueSeekerHost
     }
 
     override func mouseMoved(with event: NSEvent) {
-        guard isWindowFocused, !PointerHoverScrollState.shared.isScrolling else {
+        guard isWindowFocused, !PointerHoverScrollState.shared.isHoverSuppressed else {
             needsMouseReenterInSuper = true
             return
         }
         if needsMouseReenterInSuper {
             needsMouseReenterInSuper = false
+            if let window,
+               let offscreenEvent = Self.makeMouseEvent(
+                   at: CGPoint(x: -10_000, y: -10_000),
+                   in: window
+               ) {
+                super.mouseExited(with: offscreenEvent)
+            }
             super.mouseEntered(with: event)
         }
         super.mouseMoved(with: event)
     }
 
     override func mouseExited(with event: NSEvent) {
-        guard !PointerHoverScrollState.shared.isScrolling else {
+        guard !PointerHoverScrollState.shared.isHoverSuppressed else {
             needsMouseReenterInSuper = true
             return
         }
@@ -431,7 +454,7 @@ class CueSeekerHostingView<Content: View>: NSHostingView<Content>, CueSeekerHost
         }
         if isWindowFocused {
             guard !AppCursorVisibility.isCursorHidden,
-                  !PointerHoverScrollState.shared.isScrolling,
+                  !PointerHoverScrollState.shared.isHoverSuppressed,
                   !isHiddenOrHasHiddenAncestor
             else {
                 return

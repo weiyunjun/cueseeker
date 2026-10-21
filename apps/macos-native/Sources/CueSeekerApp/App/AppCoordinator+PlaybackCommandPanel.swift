@@ -169,6 +169,7 @@ extension AppCoordinator {
             return playback.restoreCommandPanelSearchSelection(at: target)
         }
 
+        PointerHoverScrollState.shared.noteSelectionMovedByKeyboardOrController()
         let current = presentation.selectedOrdinal ?? 0
         let target = min(max(0, current + offset), itemCount - 1)
         presentation.selectedOrdinal = target
@@ -209,6 +210,7 @@ extension AppCoordinator {
         else {
             return false
         }
+        PointerHoverScrollState.shared.noteSelectionMovedByKeyboardOrController()
         let itemIDs = playbackCommandPanelRecentCardItemIDs(
             for: presentation.page
         )

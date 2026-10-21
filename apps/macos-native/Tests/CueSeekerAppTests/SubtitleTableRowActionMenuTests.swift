@@ -396,7 +396,7 @@ func subtitleTableKeyboardOpenedSubmenuWaitsForThePointerToMove() {
         submenuFrame: f.submenu
     )
     #expect(state.openParent == nil)
-    #expect(highlight.highlightedPosition == 8)
+    #expect(highlight.highlightedPosition == 0)
     #expect(highlight.hoveredPosition == 0)
 }
 
@@ -407,7 +407,9 @@ func subtitleTableSubmenuSafeAreaEndsWhenThePointerTurnsAway() {
     let f = SubmenuPointerFixture.self
     let state = MenuSubmenuState<SubtitleTableRowAction>()
     let highlight = MenuHighlightModel()
+    state.parentHighlight = highlight
     highlight.open(selectablePositions: [8, 9, 11])
+    highlight.moveHighlight(by: 1)
     state.open(.moveToList)
     highlight.notePointerMoved()
     state.notePointer(
@@ -445,7 +447,7 @@ func subtitleTableSubmenuSafeAreaEndsWhenThePointerTurnsAway() {
     )
     #expect(!state.isPointerInSafeArea)
     #expect(state.openParent == .duplicateToList)
-    #expect(highlight.highlightedPosition == 8)
+    #expect(highlight.highlightedPosition == 9)
     #expect(highlight.hoveredPosition == 9)
     highlight.close()
 

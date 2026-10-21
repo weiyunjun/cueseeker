@@ -35,5 +35,7 @@ enum AppCursorVisibility {
 
     static func resetForTesting() {
         setHidden(false)
+        PointerHoverScrollState.shared.resetForTesting()
+        AppPointerShape.resetForTesting()
     }
 }

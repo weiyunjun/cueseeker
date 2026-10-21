@@ -314,10 +314,22 @@ func openSpeedMenuOwnsArrowKeysInsteadOfVolume() throws {
         let speedMenuSession = openSpeedMenuGateClient(app)
         defer { speedMenuSession.close() }
         let highlight = app.playback.speedMenuHighlight
-        #expect(highlight.highlightedPosition == 2)
+        #expect(highlight.highlightedPosition == nil)
 
-        // With the menu open the same keys move its highlight and must not
-        // touch the volume or the speed in effect.
+        // Pressing Enter with no highlighted item is consumed without closing
+        // the menu or changing the speed.
+        #expect(app.handlePlaybackKeyDown(keyCode: 36, modifierFlagsRawValue: 0))
+        #expect(app.playback.isSpeedMenuOpen)
+        #expect(viewModel.playbackSpeed == 1.0)
+
+        // With the menu open the arrow keys move its highlight (first Down
+        // highlights 0) and must not touch the volume or the speed in effect.
+        #expect(app.handlePlaybackKeyDown(keyCode: 125, modifierFlagsRawValue: 0))
+        #expect(highlight.highlightedPosition == 0)
+        #expect(app.handlePlaybackKeyDown(keyCode: 125, modifierFlagsRawValue: 0))
+        #expect(highlight.highlightedPosition == 1)
+        #expect(app.handlePlaybackKeyDown(keyCode: 125, modifierFlagsRawValue: 0))
+        #expect(highlight.highlightedPosition == 2)
         #expect(app.handlePlaybackKeyDown(keyCode: 125, modifierFlagsRawValue: 0))
         #expect(highlight.highlightedPosition == 3)
         #expect(app.handlePlaybackKeyDown(keyCode: 125, modifierFlagsRawValue: 0))
@@ -387,7 +399,7 @@ func openingCommandPanelFreezesTheMenusUnderneathIt() throws {
         defer { speedMenuSession.close() }
         let highlight = app.playback.speedMenuHighlight
         #expect(app.playback.isSpeedMenuOpen)
-        #expect(highlight.highlightedPosition == 2)
+        #expect(highlight.highlightedPosition == nil)
 
         // The panel opens over the menus by a path other than the K key, which
         // the open menus spend. Neither menu closes: both belong to surfaces
@@ -395,12 +407,12 @@ func openingCommandPanelFreezesTheMenusUnderneathIt() throws {
         #expect(app.presentPlaybackCommandPanel())
         #expect(app.playback.commandPanelPresentation != nil)
         #expect(app.playback.isSpeedMenuOpen)
-        #expect(highlight.highlightedPosition == 2)
+        #expect(highlight.highlightedPosition == nil)
 
         // The arrow keys reach the Command Panel instead of the frozen menus.
         #expect(app.handlePlaybackKeyDown(keyCode: 125, modifierFlagsRawValue: 0))
         #expect(seenKeyCodes.isEmpty)
-        #expect(highlight.highlightedPosition == 2)
+        #expect(highlight.highlightedPosition == nil)
 
         // Escape closes the panel, and the menus underneath take keys again.
         #expect(app.handlePlaybackKeyDown(keyCode: 53, modifierFlagsRawValue: 0))

@@ -144,17 +144,36 @@ struct CardHighlightModelTests {
     }
 
     @Test
-    func keyboardSelectionChangesDoNotAffectHover() {
+    func keyboardSelectionMoveImmediatelyClearsHoverAndSuppressesUntilPointerMoves() {
         AppCursorVisibility.resetForTesting()
+        defer { AppCursorVisibility.resetForTesting() }
         let model = playback()
         model.setSelected("a")
-        model.noteHover(true, id: "b")
+        model.noteHover(true, id: "b", showsHand: true)
         #expect(model.selectedID == "a")
         #expect(model.hoveredID == "b")
+        #expect(AppPointerShape.model.shape == .grab)
 
+        // Moving selection by keyboard / controller immediately clears Hover on
+        // card "b", resets the card hand cursor, and suppresses new Hover until
+        // the pointer actually moves.
+        PointerHoverScrollState.shared.noteSelectionMovedByKeyboardOrController()
         model.setSelected("c")
         #expect(model.selectedID == "c")
+        #expect(model.hoveredID == nil)
+        #expect(AppPointerShape.model.shape == .arrow)
+
+        // Stationary hover reports or scroll debounce settling do not restore Hover.
+        model.noteHover(true, id: "b", showsHand: true)
+        #expect(model.hoveredID == nil)
+        PointerHoverScrollState.shared.noteScrolled()
+        PointerHoverScrollState.shared.settleScroll()
+        #expect(model.hoveredID == nil)
+
+        // Moving the pointer restores Hover on the card under the pointer.
+        PointerHoverScrollState.shared.notePointerMoved()
         #expect(model.hoveredID == "b")
+        #expect(AppPointerShape.model.shape == .grab)
     }
 
     @Test

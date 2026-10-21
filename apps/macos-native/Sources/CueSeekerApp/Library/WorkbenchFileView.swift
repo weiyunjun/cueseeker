@@ -120,7 +120,8 @@ struct WorkbenchFileView: View {
                                 case 123, 124:
                                     return true
                                 case 36, 76:
-                                    return activateHighlightedItem(in: activeMenu)
+                                    _ = activateHighlightedItem(in: activeMenu)
+                                    return true
                                 default:
                                     return false
                                 }

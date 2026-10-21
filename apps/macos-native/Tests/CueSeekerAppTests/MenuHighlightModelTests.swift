@@ -5,38 +5,48 @@ import Testing
 @MainActor
 struct MenuHighlightModelTests {
     @Test
-    func openHighlightsFirstSelectablePositionByDefault() {
+    func openStartsWithNoHighlightedItemByDefault() {
         AppCursorVisibility.resetForTesting()
         let model = MenuHighlightModel()
         defer { model.close() }
 
         // Positions 1 and 4 stand for a divider and a disabled item.
-        model.open(selectablePositions: [0, 2, 3, 5])
+        model.open(selectablePositions: [0, 2, 3, 5], defaultPosition: 2)
 
-        #expect(model.highlightedPosition == 0)
-        #expect(model.selectedPosition == 0)
+        #expect(model.highlightedPosition == nil)
+        #expect(model.selectedPosition == nil)
         #expect(model.hoveredPosition == nil)
     }
 
     @Test
-    func openHonoursAnAlreadySelectedValue() {
+    func firstUpSelectsLastAndFirstDownSelectsFirstWhenNothingIsHighlighted() {
+        AppCursorVisibility.resetForTesting()
         let model = MenuHighlightModel()
         defer { model.close() }
 
-        model.open(selectablePositions: [0, 1, 2, 3], defaultPosition: 2)
-        #expect(model.highlightedPosition == 2)
+        model.open(selectablePositions: [0, 2, 3, 5])
+        #expect(model.highlightedPosition == nil)
 
-        // A default that cannot take the highlight falls back to the first.
-        model.open(selectablePositions: [0, 2], defaultPosition: 1)
+        // Pressing Up when nothing is highlighted selects the bottommost item.
+        #expect(model.moveHighlight(by: -1))
+        #expect(model.highlightedPosition == 5)
+
+        // Reopen with nothing highlighted; pressing Down selects the topmost item.
+        model.open(selectablePositions: [0, 2, 3, 5])
+        #expect(model.highlightedPosition == nil)
+        #expect(model.moveHighlight(by: 1))
         #expect(model.highlightedPosition == 0)
     }
 
     @Test
     func arrowMovementSkipsUnselectablePositionsAndStopsAtBothEnds() {
+        AppCursorVisibility.resetForTesting()
         let model = MenuHighlightModel()
         defer { model.close() }
         model.open(selectablePositions: [0, 2, 3, 5])
 
+        #expect(model.moveHighlight(by: 1))
+        #expect(model.highlightedPosition == 0)
         #expect(model.moveHighlight(by: 1))
         #expect(model.highlightedPosition == 2)
         model.moveHighlight(by: 1)
@@ -59,44 +69,46 @@ struct MenuHighlightModelTests {
     }
 
     @Test
-    func hoverUpdatesIndependentlyOfSelectAndSelectTakesVisualPriority() {
+    func hoverAndSelectAreUnifiedAndKeyboardMovementSuppressesHoverUntilPointerMoves() {
         AppCursorVisibility.resetForTesting()
+        defer { AppCursorVisibility.resetForTesting() }
         let model = MenuHighlightModel()
         defer { model.close() }
         model.open(selectablePositions: [0, 1, 2])
 
-        // The menu opens with item 0 Selected. Hovering item 2 sets Hover on 2
-        // while keeping Select on 0.
+        // Hovering item 2 sets the unified highlight on 2.
         model.noteHover(true, at: 2)
-        #expect(model.selectedPosition == 0)
+        #expect(model.highlightedPosition == 2)
+        #expect(model.selectedPosition == 2)
         #expect(model.hoveredPosition == 2)
-        #expect(model.isSelected(0))
-        #expect(!model.isHovered(0))
+        #expect(model.isSelected(2))
         #expect(model.isHovered(2))
-        #expect(!model.isSelected(2))
 
-        // When Hover and Select coincide on item 0, only Select is shown.
+        // Moving with the keyboard moves the unified highlight from 2 to 1 and
+        // immediately clears 2's highlight, suppressing pointer hover until the
+        // mouse actually moves.
+        model.moveHighlight(by: -1)
+        #expect(model.highlightedPosition == 1)
+        #expect(!model.isSelected(2))
+        #expect(!model.isHovered(2))
+        #expect(PointerHoverScrollState.shared.isHoverSuppressed)
+
+        // Stationary hover reports while suppressed do not override the keyboard highlight.
         model.noteHover(false, at: 2)
         model.noteHover(true, at: 0)
-        #expect(model.isSelected(0))
-        #expect(!model.isHovered(0))
-    }
+        #expect(model.highlightedPosition == 1)
 
-    @Test
-    func keyboardMovementMovesSelectWhilePreservingHover() {
-        AppCursorVisibility.resetForTesting()
-        let model = MenuHighlightModel()
-        defer { model.close() }
-        model.open(selectablePositions: [0, 1, 2])
-        model.noteHover(true, at: 2)
-        #expect(model.selectedPosition == 0)
-        #expect(model.hoveredPosition == 2)
+        // Wheel scroll debounce settling while suppressed by keyboard still keeps
+        // the keyboard highlight until the pointer moves.
+        PointerHoverScrollState.shared.noteScrolled()
+        PointerHoverScrollState.shared.settleScroll()
+        #expect(PointerHoverScrollState.shared.isHoverSuppressed)
+        #expect(model.highlightedPosition == 1)
 
-        model.moveHighlight(by: 1)
-        #expect(model.selectedPosition == 1)
-        #expect(model.hoveredPosition == 2)
-        #expect(model.isSelected(1))
-        #expect(model.isHovered(2))
+        // Once the pointer actually moves, hover resumes at the pointer's item.
+        PointerHoverScrollState.shared.notePointerMoved()
+        #expect(!PointerHoverScrollState.shared.isHoverSuppressed)
+        #expect(model.highlightedPosition == 0)
     }
 
     @Test
@@ -123,6 +135,7 @@ struct MenuHighlightModelTests {
 
     @Test
     func onlyKeyboardMovesAnnounceThemselvesForScrollFollowing() {
+        AppCursorVisibility.resetForTesting()
         let model = MenuHighlightModel()
         defer { model.close() }
         model.open(selectablePositions: [0, 1])
@@ -171,6 +184,7 @@ struct MenuHighlightModelTests {
 
     @Test
     func closingClearsTheHighlight() {
+        AppCursorVisibility.resetForTesting()
         let model = MenuHighlightModel()
         model.open(selectablePositions: [0, 1])
         model.moveHighlight(by: 1)
@@ -183,7 +197,8 @@ struct MenuHighlightModelTests {
     }
 
     @Test
-    func speedMenuOpensOnTheSpeedInEffectAndTheHighlightMovesOffIt() {
+    func speedMenuCheckmarkIndexIsIndependentOfPopupHighlight() {
+        AppCursorVisibility.resetForTesting()
         let presets = PlaybackViewModel.speedPresets
         #expect(PlaybackViewModel.speedPresetIndex(for: 1.0) == 2)
         #expect(PlaybackViewModel.speedPresetIndex(for: 1.75) == 5)
@@ -195,20 +210,13 @@ struct MenuHighlightModelTests {
             selectablePositions: Array(presets.indices),
             defaultPosition: PlaybackViewModel.speedPresetIndex(for: 1.5)
         )
-        #expect(model.highlightedPosition == 4)
+        #expect(model.highlightedPosition == nil)
 
-        // The check mark stays on 1.5x while the highlight moves away, so the
-        // menu can show the value in effect and the current item separately.
+        // Pressing Down highlights the first item (0), while the checkmark on
+        // 1.5x (index 4) remains determined by speedPresetIndex.
         model.moveHighlight(by: 1)
-        #expect(model.highlightedPosition == 5)
-        #expect(PlaybackViewModel.speedPresetIndex(for: 1.5) == 4)
-
-        // An unrecognised speed falls back to the first preset.
-        model.open(
-            selectablePositions: Array(presets.indices),
-            defaultPosition: PlaybackViewModel.speedPresetIndex(for: 1.3)
-        )
         #expect(model.highlightedPosition == 0)
+        #expect(PlaybackViewModel.speedPresetIndex(for: 1.5) == 4)
     }
 
     @Test
@@ -232,17 +240,15 @@ struct MenuHighlightModelTests {
     }
 
     @Test
-    func windowResignFocusClearsHoveredPositionWhilePreservingSelectedPosition() {
+    func windowResignFocusClearsPointerHoverHighlight() {
         AppCursorVisibility.resetForTesting()
         let model = MenuHighlightModel()
         defer { model.close() }
-        model.open(selectablePositions: [0, 1, 2], defaultPosition: 0)
+        model.open(selectablePositions: [0, 1, 2])
         model.noteHover(true, at: 2)
-        #expect(model.selectedPosition == 0)
-        #expect(model.hoveredPosition == 2)
+        #expect(model.highlightedPosition == 2)
 
         model.noteWindowDidResignFocus()
-        #expect(model.selectedPosition == 0)
-        #expect(model.hoveredPosition == nil)
+        #expect(model.highlightedPosition == nil)
     }
 }

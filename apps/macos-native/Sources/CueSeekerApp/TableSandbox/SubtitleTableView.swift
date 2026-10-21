@@ -869,6 +869,7 @@ private struct RowActionMenu: View {
             isDestructive: action.isDestructive,
             action: {
                 if isSubmenuParent {
+                    highlight.selectPosition(position)
                     submenuState.open(action)
                 } else {
                     submenuState.reset()
@@ -7548,6 +7549,7 @@ struct SubtitleTableView: NSViewRepresentable {
             rowActionSubmenuState?.reset()
             hideRowActionDestinationSubmenu()
             let submenuState = MenuSubmenuState<SubtitleTableRowAction>()
+            submenuState.parentHighlight = rowActionHighlight
             rowActionSubmenuState = submenuState
             submenuState.onOpenParentChange = { [weak self] action in
                 guard let self else {
@@ -7645,7 +7647,8 @@ struct SubtitleTableView: NSViewRepresentable {
         }
 
         private func openHighlightedRowActionSubmenu() -> Bool {
-            guard let position = rowActionHighlight.highlightedPosition,
+            guard rowActionSubmenuState?.openParent == nil,
+                  let position = rowActionHighlight.highlightedPosition,
                   let action = activeRowActionMenuModel.action(at: position),
                   action.opensDestinationSubmenu
             else {

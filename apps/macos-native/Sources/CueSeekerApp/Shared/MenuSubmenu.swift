@@ -8,6 +8,7 @@ final class MenuSubmenuState<Parent: Hashable>: ObservableObject {
     @Published private(set) var highlightedParent: Parent?
     @Published private(set) var openParent: Parent?
     var onOpenParentChange: ((Parent?) -> Void)?
+    weak var parentHighlight: MenuHighlightModel?
     /// Set while the pointer is crossing to the open submenu. The items it
     /// merely passes over on the way do not take the highlight or close
     /// anything until the crossing ends.
@@ -46,6 +47,9 @@ final class MenuSubmenuState<Parent: Hashable>: ObservableObject {
         trigger: Parent?,
         highlight: MenuHighlightModel?
     ) {
+        if let highlight {
+            parentHighlight = highlight
+        }
         let item = HoveredItem(
             position: position,
             trigger: trigger,
@@ -56,16 +60,31 @@ final class MenuSubmenuState<Parent: Hashable>: ObservableObject {
         } else if hoveredItem?.position == position {
             hoveredItem = nil
         }
+        if highlight?.isSuppressedByKeyboard == true {
+            highlight?.noteHover(isHovered, at: position)
+            return
+        }
         guard !isPointerInSafeArea, !waitsForPointerMove else {
+            if waitsForPointerMove {
+                highlight?.noteHover(isHovered, at: position)
+            }
             return
         }
         apply(item, isHovered: isHovered)
     }
 
     func open(_ action: Parent) {
+        if openParent != nil, openParent != action {
+            parentHighlight?.setPinnedPosition(nil)
+            updateOpenParent(nil)
+        }
         highlightedParent = action
+        if let parentHighlight, let position = parentHighlight.highlightedPosition {
+            parentHighlight.setPinnedPosition(position)
+        }
         updateOpenParent(action)
         waitsForPointerMove = true
+        PointerHoverScrollState.shared.noteSelectionMovedByKeyboardOrController()
     }
 
     @discardableResult
@@ -73,6 +92,19 @@ final class MenuSubmenuState<Parent: Hashable>: ObservableObject {
         guard openParent != nil else {
             return false
         }
+        parentHighlight?.unpinKeepingHighlight()
+        updateOpenParent(nil)
+        waitsForPointerMove = true
+        PointerHoverScrollState.shared.noteSelectionMovedByKeyboardOrController()
+        return true
+    }
+
+    @discardableResult
+    private func closeSubmenuForPointerExit() -> Bool {
+        guard openParent != nil else {
+            return false
+        }
+        parentHighlight?.setPinnedPosition(nil)
         updateOpenParent(nil)
         return true
     }
@@ -106,6 +138,7 @@ final class MenuSubmenuState<Parent: Hashable>: ObservableObject {
         triggerFrame: CGRect,
         submenuFrame: CGRect
     ) {
+        PointerHoverScrollState.shared.notePointerMoved()
         guard let parent = openParent else {
             clearSafeArea()
             return
@@ -119,7 +152,7 @@ final class MenuSubmenuState<Parent: Hashable>: ObservableObject {
             // The first real move since a click or a key opened the submenu:
             // whatever the pointer rests on takes effect now.
             waitsForPointerMove = false
-            if let hoveredItem {
+            if let hoveredItem, parentMenuFrame.contains(point) {
                 apply(hoveredItem, isHovered: true)
             }
             guard openParent == parent else {
@@ -155,7 +188,7 @@ final class MenuSubmenuState<Parent: Hashable>: ObservableObject {
         // pointer comes back to the trigger.
         clearSafeArea()
         if !parentMenuFrame.contains(point) {
-            closeSubmenu()
+            closeSubmenuForPointerExit()
         } else if wasInSafeArea {
             settleCrossing()
         }
@@ -164,19 +197,21 @@ final class MenuSubmenuState<Parent: Hashable>: ObservableObject {
     func reset() {
         hoveredItem = nil
         highlightedParent = nil
+        parentHighlight?.setPinnedPosition(nil)
         updateOpenParent(nil)
         clearSafeArea()
     }
 
     /// The pointer reaching a trigger opens its submenu there and then. Moving
     /// between the two triggers closes the one it left before opening the one
-    /// it reached, so the destination highlight starts at the first item again.
+    /// it reached, so the destination highlight starts with no item selected.
     /// Any other item closes the submenu.
     private func apply(_ item: HoveredItem, isHovered: Bool) {
         item.highlight?.noteHover(isHovered, at: item.position)
         guard let trigger = item.trigger else {
             if isHovered {
                 highlightedParent = nil
+                parentHighlight?.setPinnedPosition(nil)
                 updateOpenParent(nil)
             }
             return
@@ -189,8 +224,10 @@ final class MenuSubmenuState<Parent: Hashable>: ObservableObject {
         }
         highlightedParent = trigger
         if openParent != trigger {
+            parentHighlight?.setPinnedPosition(nil)
             updateOpenParent(nil)
         }
+        item.highlight?.setPinnedPosition(item.position)
         updateOpenParent(trigger)
     }
 
@@ -201,7 +238,7 @@ final class MenuSubmenuState<Parent: Hashable>: ObservableObject {
         if let hoveredItem {
             apply(hoveredItem, isHovered: true)
         } else {
-            closeSubmenu()
+            closeSubmenuForPointerExit()
         }
     }
 

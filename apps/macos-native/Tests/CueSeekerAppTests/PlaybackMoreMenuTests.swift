@@ -77,16 +77,28 @@ func moreMenuKeysOpenSubmenusOnTheirFirstTrackAndPickWithEnter() {
             subtitles: PlaybackMoreMenuList(names: [".ass", ".srt"], currentIndex: 0, defaultIndex: 0)
         )
     )
-    #expect(store.moreMenuHighlight.highlightedPosition == PlaybackMoreSubmenu.audioTrack.rawValue)
+    #expect(store.moreMenuHighlight.highlightedPosition == nil)
 
-    // Down, then right opens Subtitle on its first subtitle.
+    // First Down highlights Audio Track (0); second Down highlights Subtitle (2);
+    // Right opens Subtitle with no default item highlighted.
     #expect(store.handleMoreMenuKey(125, isRepeat: false, onSelect: pick))
+    #expect(store.moreMenuHighlight.highlightedPosition == PlaybackMoreSubmenu.audioTrack.rawValue)
+    #expect(store.handleMoreMenuKey(125, isRepeat: false, onSelect: pick))
+    #expect(store.moreMenuHighlight.highlightedPosition == PlaybackMoreSubmenu.subtitle.rawValue)
     #expect(store.handleMoreMenuKey(124, isRepeat: false, onSelect: pick))
     #expect(store.moreSubmenuState.openParent == .subtitle)
-    #expect(store.moreSubmenuHighlight.highlightedPosition == 0)
+    #expect(store.moreSubmenuHighlight.highlightedPosition == nil)
+
+    // Pressing Enter in a submenu with no highlighted item does nothing and
+    // keeps the menu open.
+    #expect(store.handleMoreMenuKey(36, isRepeat: false, onSelect: pick))
+    #expect(picks.isEmpty)
+    #expect(store.moreSubmenuState.openParent == .subtitle)
 
     // Up and down now move in the submenu, as far as its own list; left
-    // closes it.
+    // closes it and keeps Subtitle highlighted in the parent menu.
+    #expect(store.handleMoreMenuKey(125, isRepeat: false, onSelect: pick))
+    #expect(store.moreSubmenuHighlight.highlightedPosition == 0)
     #expect(store.handleMoreMenuKey(125, isRepeat: false, onSelect: pick))
     #expect(store.moreSubmenuHighlight.highlightedPosition == 1)
     #expect(store.handleMoreMenuKey(125, isRepeat: false, onSelect: pick))
@@ -95,14 +107,17 @@ func moreMenuKeysOpenSubmenusOnTheirFirstTrackAndPickWithEnter() {
     #expect(store.moreSubmenuState.openParent == nil)
     #expect(store.moreMenuHighlight.highlightedPosition == PlaybackMoreSubmenu.subtitle.rawValue)
 
-    // Down reaches Default Audio Track.
+    // Down reaches Default Audio Track (2).
     #expect(store.handleMoreMenuKey(125, isRepeat: false, onSelect: pick))
     #expect(store.moreMenuHighlight.highlightedPosition == PlaybackMoreSubmenu.defaultAudioTrack.rawValue)
 
-    // Enter opens it at its first track and picks there.
+    // Enter opens it with no item highlighted; Down + Down selects index 1 and Enter picks it.
     #expect(store.handleMoreMenuKey(36, isRepeat: false, onSelect: pick))
+    #expect(store.moreSubmenuHighlight.highlightedPosition == nil)
+    #expect(store.handleMoreMenuKey(125, isRepeat: false, onSelect: pick))
     #expect(store.moreSubmenuHighlight.highlightedPosition == 0)
     #expect(store.handleMoreMenuKey(125, isRepeat: false, onSelect: pick))
+    #expect(store.moreSubmenuHighlight.highlightedPosition == 1)
     #expect(store.handleMoreMenuKey(36, isRepeat: false, onSelect: pick))
     #expect(picks.count == 1)
     #expect(picks.first?.0 == .defaultAudioTrack)
@@ -136,6 +151,8 @@ func moreMenuWithOnlySubtitlesSkipsTheAudioTrackTriggers() {
     )
     #expect(menu.enabledSubmenus == [.subtitle, .defaultSubtitle])
     store.openMoreMenu(menu)
+    #expect(store.moreMenuHighlight.highlightedPosition == nil)
+    #expect(store.handleMoreMenuKey(125, isRepeat: false, onSelect: { _, _ in }))
     #expect(store.moreMenuHighlight.highlightedPosition == PlaybackMoreSubmenu.subtitle.rawValue)
     #expect(store.handleMoreMenuKey(125, isRepeat: false, onSelect: { _, _ in }))
     #expect(store.moreMenuHighlight.highlightedPosition == PlaybackMoreSubmenu.defaultSubtitle.rawValue)

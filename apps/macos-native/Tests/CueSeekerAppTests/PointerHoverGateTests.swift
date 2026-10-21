@@ -300,10 +300,42 @@ struct PointerHoverGateTests {
         RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.03))
         #expect(menuHighlight.hoveredPosition == 0)
 
-        // Settling after the 300ms scroll debounce updates Hover to row 3 while preserving Select on 0.
+        // Settling after the 300ms scroll debounce updates the unified menu highlight to row 3.
         PointerHoverScrollState.shared.settleScroll()
         RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.03))
         #expect(menuHighlight.hoveredPosition == 3)
-        #expect(menuHighlight.selectedPosition == 0)
+        #expect(menuHighlight.selectedPosition == 3)
+        #expect(menuHighlight.highlightedPosition == 3)
+    }
+
+    @Test
+    func keyboardSuppressionImmediatelyClearsDeliveredHoverAndRestoresOnPointerMove() {
+        var gate = PointerHoverGate()
+        #expect(gate.report(true, isFrozen: false) == true)
+
+        // Keyboard / controller navigation immediately clears active Hover.
+        #expect(
+            gate.freezeChanged(
+                isFrozen: false,
+                isSuppressedByKeyboard: true
+            ) == false
+        )
+
+        // Stationary hover reports while suppressed are remembered but not delivered.
+        #expect(
+            gate.report(
+                true,
+                isFrozen: false,
+                isSuppressedByKeyboard: true
+            ) == nil
+        )
+
+        // Once the pointer moves (isSuppressedByKeyboard == false), Hover is restored.
+        #expect(
+            gate.freezeChanged(
+                isFrozen: false,
+                isSuppressedByKeyboard: false
+            ) == true
+        )
     }
 }

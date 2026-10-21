@@ -132,8 +132,11 @@ final class PlaybackMediaSelectionStore: ObservableObject {
 
     @discardableResult
     func move(_ direction: PlaybackMediaSelectionDirection) -> Bool {
-        guard isActive,
-              let selectedItemID,
+        guard isActive else {
+            return false
+        }
+        PointerHoverScrollState.shared.noteSelectionMovedByKeyboardOrController()
+        guard let selectedItemID,
               let selectedIndex = orderedItemIDs.firstIndex(of: selectedItemID),
               let targetIndex = Self.targetIndex(
                   from: selectedIndex,

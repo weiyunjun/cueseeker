@@ -1371,13 +1371,7 @@ struct WorkbenchPopoverRow: View {
 
     private var rowBackground: Color {
         guard isEnabled else { return .clear }
-        if isHighlighted {
-            guard isRedesign else { return WorkbenchControlColors.hoverFill }
-            return isDestructive
-                ? WorkbenchRedesignColors.dangerMenuItemSelectedBg
-                : WorkbenchRedesignColors.menuItemSelectedBg
-        }
-        if isRowHovered {
+        if isHighlighted || isRowHovered {
             guard isRedesign else { return WorkbenchControlColors.hoverFill }
             return isDestructive
                 ? WorkbenchRedesignColors.dangerBgHover

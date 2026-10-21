@@ -197,8 +197,8 @@ final class PlaybackStore: ObservableObject {
                 if let position = speedMenuHighlight.highlightedPosition,
                    presets.indices.contains(position) {
                     playbackViewModel?.setSpeed(presets[position])
+                    closeSpeedMenu()
                 }
-                closeSpeedMenu()
             }
             return true
         default:
@@ -302,7 +302,8 @@ final class PlaybackStore: ObservableObject {
     }
 
     private func openHighlightedMoreSubmenu() {
-        guard let position = moreMenuHighlight.highlightedPosition,
+        guard moreSubmenuState.openParent == nil,
+              let position = moreMenuHighlight.highlightedPosition,
               let submenu = PlaybackMoreSubmenu(rawValue: position)
         else {
             return
@@ -319,8 +320,9 @@ final class PlaybackStore: ObservableObject {
         interfaceLayers: InterfaceLayerRegistry? = nil
     ) {
         self.interfaceLayers = interfaceLayers ?? InterfaceLayerRegistry()
-        // A submenu opens on its first item. Its trigger reports the same
-        // submenu again when its frame moves, which must not reset the
+        moreSubmenuState.parentHighlight = moreMenuHighlight
+        // A submenu opens with no default highlight. Its trigger reports the
+        // same submenu again when its frame moves, which must not reset the
         // highlight a key has since moved.
         moreSubmenuState.onOpenParentChange = { [weak self] submenu in
             guard let self else {
