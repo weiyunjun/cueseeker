@@ -70,18 +70,14 @@ struct PointerShapeModel: Equatable {
         return followsPointer
     }
 
-    /// Rules 3 and 4: the arrow, until the pointer moves again.
+    /// Rules 3 and 4: the arrow, while a menu owns input or when leaving the
+    /// window.
     mutating func reset() -> PointerShape {
         apply(.arrow)
     }
 
-    /// Rule 5: the hand's target lost its highlight to something other than
-    /// the pointer. Only the hand is affected; an I-beam stays where it is.
-    mutating func handTargetChanged() -> PointerShape? {
-        guard shape == .grab else {
-            return nil
-        }
-        return apply(.arrow)
+    mutating func clearHandCards() {
+        handCardsUnderPointer.removeAll()
     }
 
     private mutating func apply(_ next: PointerShape) -> PointerShape {
@@ -183,16 +179,12 @@ enum AppPointerShape {
         setRectShape(model.reset())
     }
 
-    /// The pointer came back. Arriving somewhere other than where it left is a
-    /// real movement and decides a shape; arriving at the very point it left
-    /// from is not, so a menu closing under a still pointer leaves the arrow
-    /// where it is.
     private static func reclaimAfterRealMovement() {
-        guard let outside = pointerLocationOutside, let window else {
+        guard pointerLocationOutside != nil, let window else {
             return
         }
         pointerLocationOutside = nil
-        guard outside != NSEvent.mouseLocation else {
+        guard !AppCursorVisibility.isCursorHidden else {
             return
         }
         decide(at: window.mouseLocationOutsideOfEventStream)
@@ -235,15 +227,35 @@ enum AppPointerShape {
         decide(at: window.mouseLocationOutsideOfEventStream)
     }
 
-    /// An interface switch, or a menu or dialog opening.
+    /// Resets the pointer shape to `.arrow` (e.g. while a menu owns input).
     static func reset() {
         set(model.reset())
     }
 
-    /// The hand's target lost its highlight to something other than the
-    /// pointer.
-    static func handTargetChanged() {
-        set(model.handTargetChanged())
+    /// Re-evaluates the pointer shape at the current pointer location when
+    /// the cursor is visible and scroll debounce is not active.
+    static func reevaluate() {
+        guard !AppCursorVisibility.isCursorHidden,
+              !PointerHoverScrollState.shared.isScrolling,
+              let window
+        else {
+            return
+        }
+        decide(at: window.mouseLocationOutsideOfEventStream)
+    }
+
+    /// Clears stale card hover state from an outgoing interface and
+    /// re-evaluates the pointer shape once the new interface lays out.
+    static func reevaluateAfterInterfaceChange() {
+        model.clearHandCards()
+        reevaluate()
+        Task { @MainActor in
+            reevaluate()
+        }
+    }
+
+    static func noteScrollSettled() {
+        reevaluate()
     }
 
     /// AppKit asked what the cursor should be, for the rect a surface carries.

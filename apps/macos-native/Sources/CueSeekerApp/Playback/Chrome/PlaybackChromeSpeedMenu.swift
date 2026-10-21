@@ -56,7 +56,8 @@ struct PlaybackChromeSpeedMenu: View {
                     }
                     .buttonStyle(
                         PlaybackChromeMenuButtonStyle(
-                            isHighlighted: highlight.highlightedPosition == position,
+                            isHighlighted: highlight.isSelected(position),
+                            isHovered: highlight.isHovered(position),
                             suppressesInteraction: suppressesInteraction,
                             onHoverChange: { isHovered in
                                 highlight.noteHover(isHovered, at: position)
@@ -90,9 +91,9 @@ struct PlaybackChromeSpeedMenu: View {
     }
 }
 
-/// A Player Chrome menu item: only the menu's highlight paints a background.
 struct PlaybackChromeMenuButtonStyle: ButtonStyle {
     let isHighlighted: Bool
+    var isHovered: Bool = false
     let suppressesInteraction: Bool
     let onHoverChange: (Bool) -> Void
 
@@ -115,10 +116,14 @@ struct PlaybackChromeMenuButtonStyle: ButtonStyle {
             }
     }
 
-    /// Only the menu's highlight paints a background. The item in effect is
-    /// marked by its check mark, so the highlight is free to move away from it.
     private var backgroundColor: Color {
-        if !suppressesInteraction && isHighlighted {
+        guard !suppressesInteraction else {
+            return .clear
+        }
+        if isHighlighted {
+            return PlaybackTheme.menuItemSelectedBackground
+        }
+        if isHovered {
             return PlaybackTheme.menuItemHoverBackground
         }
         return .clear

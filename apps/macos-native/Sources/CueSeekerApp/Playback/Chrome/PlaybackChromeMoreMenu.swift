@@ -436,7 +436,8 @@ private struct PlaybackMoreMenuTrigger: View {
         }
         .buttonStyle(
             PlaybackChromeMenuButtonStyle(
-                isHighlighted: highlight.highlightedPosition == submenu.rawValue,
+                isHighlighted: highlight.isSelected(submenu.rawValue),
+                isHovered: highlight.isHovered(submenu.rawValue),
                 suppressesInteraction: suppressesInteraction,
                 onHoverChange: { isHovered in
                     submenuState.noteItemHover(
@@ -526,7 +527,8 @@ private struct PlaybackMoreSubmenuItem: View {
         }
         .buttonStyle(
             PlaybackChromeMenuButtonStyle(
-                isHighlighted: highlight.highlightedPosition == position,
+                isHighlighted: highlight.isSelected(position),
+                isHovered: highlight.isHovered(position),
                 suppressesInteraction: suppressesInteraction,
                 onHoverChange: { isHovered in
                     highlight.noteHover(isHovered, at: position)

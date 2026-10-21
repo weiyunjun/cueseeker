@@ -118,8 +118,7 @@ final class PlaybackStore: ObservableObject {
             if let page = commandPanelPresentation?.page,
                let previousPage = oldValue?.page,
                page != previousPage {
-                // Switching the panel's page is an interface switch.
-                AppPointerShape.reset()
+                AppPointerShape.reevaluateAfterInterfaceChange()
             }
             guard (commandPanelPresentation != nil) != (oldValue != nil) else {
                 return

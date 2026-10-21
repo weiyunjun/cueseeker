@@ -730,7 +730,8 @@ struct RecentWatchingGrid: View {
                             LibraryVideoCard(
                                 content: LibraryVideoCardContent(item),
                                 highlight: highlight,
-                                isCurrent: highlight.currentID == item.id,
+                                isSelected: highlight.isSelected(item.id),
+                                isHovered: highlight.isHovered(item.id),
                                 actions: .appState(appState),
                                 openContextMenu: openContextMenu,
                                 onOpen: { onOpen(item) }
@@ -794,7 +795,8 @@ where Item.ID == String {
                 LibraryVideoCard(
                     content: content(item),
                     highlight: highlight,
-                    isCurrent: highlight.currentID == item.id,
+                    isSelected: highlight.isSelected(item.id),
+                    isHovered: highlight.isHovered(item.id),
                     actions: .appState(appState),
                     openContextMenu: openContextMenu,
                     onOpen: { onOpen(item) }
@@ -905,13 +907,18 @@ private struct LibraryVideoCardContent {
 private struct LibraryVideoCard: View {
     let content: LibraryVideoCardContent
     let highlight: CardHighlightModel
-    let isCurrent: Bool
+    let isSelected: Bool
+    let isHovered: Bool
     let actions: LibraryCardActionHandlers
     let openContextMenu: ([LibraryCardContextMenuItem], CGPoint, String) -> Void
     let onOpen: () -> Void
 
     private var cardID: String {
         content.videoPath
+    }
+
+    private var isHighlighted: Bool {
+        isSelected || isHovered
     }
 
     var body: some View {
@@ -938,7 +945,12 @@ private struct LibraryVideoCard: View {
                 }
             }
         }
-        .buttonStyle(LibraryOverviewCardButtonStyle(isCurrent: isCurrent))
+        .buttonStyle(
+            LibraryOverviewCardButtonStyle(
+                isSelected: isSelected,
+                isHovered: isHovered
+            )
+        )
         .focusable(false)
         .onHover { highlight.noteHover($0, id: cardID, showsHand: true) }
         .libraryCardContextMenuTrigger(
@@ -963,7 +975,7 @@ private struct LibraryVideoCard: View {
             duration: content.duration
         )
         .libraryCoverHoverEffect(
-            isActive: isCurrent
+            isActive: isHighlighted
         )
     }
 
@@ -1012,7 +1024,8 @@ struct CompleteLibraryFolderGrid: View {
                     LibraryFolderCard(
                         folder: folder,
                         highlight: highlight,
-                        isCurrent: highlight.currentID == folder.id,
+                        isSelected: highlight.isSelected(folder.id),
+                        isHovered: highlight.isHovered(folder.id),
                         actions: .appState(appState),
                         openContextMenu: openContextMenu
                     ) {
@@ -1027,7 +1040,8 @@ struct CompleteLibraryFolderGrid: View {
 private struct LibraryFolderCard: View {
     let folder: CompleteLibraryFolderSummaryPresentation
     let highlight: CardHighlightModel
-    let isCurrent: Bool
+    let isSelected: Bool
+    let isHovered: Bool
     let actions: LibraryCardActionHandlers
     let openContextMenu: ([LibraryCardContextMenuItem], CGPoint, String) -> Void
     let onOpen: () -> Void
@@ -1038,6 +1052,10 @@ private struct LibraryFolderCard: View {
 
     private var cardID: String {
         folder.id
+    }
+
+    private var isHighlighted: Bool {
+        isSelected || isHovered
     }
 
     var body: some View {
@@ -1054,7 +1072,8 @@ private struct LibraryFolderCard: View {
         }
         .buttonStyle(
             LibraryOverviewCardButtonStyle(
-                isCurrent: isCurrent,
+                isSelected: isSelected,
+                isHovered: isHovered,
                 isEnabled: isAvailable
             )
         )
@@ -1079,7 +1098,7 @@ private struct LibraryFolderCard: View {
             badgeText: episodeCountText
         )
         .libraryCoverHoverEffect(
-            isActive: isCurrent && isAvailable
+            isActive: isHighlighted && isAvailable
         )
     }
 
@@ -1400,6 +1419,7 @@ struct LibraryCardContextMenuHost<Content: View>: View {
                             )
                         )
                     }
+                    .id(activeMenu.id)
                     .zIndex(1000)
                 }
             }
@@ -1565,7 +1585,8 @@ private struct LibraryCardContextMenu: View {
                 ForEach(Array(items.enumerated()), id: \.element.id) { position, item in
                     WorkbenchPopoverRow(
                         title: item.title,
-                        isHighlighted: highlight.highlightedPosition == position,
+                        isHighlighted: highlight.isSelected(position),
+                        isRowHovered: highlight.isHovered(position),
                         icon: item.icon,
                         isRedesign: true,
                         showsCheckmarkSlot: false,
@@ -2179,7 +2200,8 @@ struct LibrarySortMenuPopover: View {
                     WorkbenchPopoverRow(
                         title: order.title,
                         isSelected: selectedOrder == order,
-                        isHighlighted: highlight.highlightedPosition == position,
+                        isHighlighted: highlight.isSelected(position),
+                        isRowHovered: highlight.isHovered(position),
                         isRedesign: true,
                         showsCheckmarkSlot: true,
                         action: {

@@ -82,6 +82,7 @@ enum WorkbenchRedesignColors {
         static let bgCanvas = bgSurface
         static let bgHover = NSColor.dynamic(lightHex: "#F3F4F6", darkHex: "#FFFFFF", darkAlpha: 0.12)
         static let bgPressed = NSColor.dynamic(lightHex: "#E5E7EB", darkHex: "#FFFFFF", darkAlpha: 0.16)
+        static let menuItemSelectedBg = bgPressed
         static let bgDisabled = NSColor.dynamic(lightHex: "#F3F4F6", darkHex: "#FFFFFF", darkAlpha: 0.04)
         static let bgControl = NSColor.dynamic(lightHex: "#FFFFFF", darkHex: "#FFFFFF", darkAlpha: 0.08)
         static let bgDialog = NSColor.dynamic(lightHex: "#FFFFFF", darkHex: "#1C1C1F")
@@ -156,6 +157,7 @@ enum WorkbenchRedesignColors {
         static let dangerText = NSColor.dynamic(lightHex: "#B42318", darkHex: "#FCA5A5")
         static let dangerBgHover = NSColor.dynamic(lightHex: "#FEF3F2", darkHex: "#3A1717")
         static let dangerBgPressed = NSColor.dynamic(lightHex: "#FEE4E2", darkHex: "#4C1D1D")
+        static let dangerMenuItemSelectedBg = dangerBgPressed
 
         // Success
         static let successText = NSColor.dynamic(lightHex: "#047857", darkHex: "#6EE7B7")
@@ -194,6 +196,7 @@ enum WorkbenchRedesignColors {
         static let libraryCoverEditOverlay = libraryCoverCropMask
         static let libraryCoverEditOverlayContent = iconOnDark
         static let libraryMediaCardHoverBg = NSColor.controlAccent(lightAlpha: 0.08, darkAlpha: 0.12)
+        static let libraryMediaCardSelectedBg = NSColor.controlAccent(lightAlpha: 0.16, darkAlpha: 0.22)
         static let filterChipSelectedBgHover = NSColor.controlAccent(lightAlpha: 0.12, darkAlpha: 0.18)
         static let filterChipSelectedBgPressed = NSColor.controlAccent(lightAlpha: 0.16, darkAlpha: 0.24)
 
@@ -287,6 +290,7 @@ enum WorkbenchRedesignColors {
     static let bgCanvas = Color(nsColor: NS.bgCanvas)
     static let bgHover = Color(nsColor: NS.bgHover)
     static let bgPressed = Color(nsColor: NS.bgPressed)
+    static let menuItemSelectedBg = Color(nsColor: NS.menuItemSelectedBg)
     static let bgDisabled = Color(nsColor: NS.bgDisabled)
     static let bgControl = Color(nsColor: NS.bgControl)
     static let bgDialog = Color(nsColor: NS.bgDialog)
@@ -358,6 +362,7 @@ enum WorkbenchRedesignColors {
     static let dangerText = Color(nsColor: NS.dangerText)
     static let dangerBgHover = Color(nsColor: NS.dangerBgHover)
     static let dangerBgPressed = Color(nsColor: NS.dangerBgPressed)
+    static let dangerMenuItemSelectedBg = Color(nsColor: NS.dangerMenuItemSelectedBg)
 
     // Success
     static let successText = Color(nsColor: NS.successText)
@@ -396,6 +401,7 @@ enum WorkbenchRedesignColors {
     static let libraryCoverEditOverlay = Color(nsColor: NS.libraryCoverEditOverlay)
     static let libraryCoverEditOverlayContent = Color(nsColor: NS.libraryCoverEditOverlayContent)
     static let libraryMediaCardHoverBg = Color(nsColor: NS.libraryMediaCardHoverBg)
+    static let libraryMediaCardSelectedBg = Color(nsColor: NS.libraryMediaCardSelectedBg)
 
     // Filter Chip
     // --color-filter-chip-selected-content: macOS accent color

@@ -1,27 +1,76 @@
+import Foundation
 import SwiftUI
 
+extension Notification.Name {
+    static let cueSeekerScrollDebounceSettled = Notification.Name(
+        "CueSeekerScrollDebounceSettled"
+    )
+}
+
+/// Coordinates the 300ms scroll-end debounce and cursor visibility state for
+/// pointer hover and pointer shape updates across the App.
+@MainActor
+final class PointerHoverScrollState: ObservableObject {
+    static let shared = PointerHoverScrollState()
+    static let debounceNanoseconds: UInt64 = 300_000_000
+
+    @Published private(set) var isScrolling = false
+    @Published private(set) var isCursorHidden = false
+    private var debounceTask: Task<Void, Never>?
+
+    func noteScrolled() {
+        if !isScrolling {
+            isScrolling = true
+        }
+        debounceTask?.cancel()
+        debounceTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: Self.debounceNanoseconds)
+            guard !Task.isCancelled else {
+                return
+            }
+            self?.settleScroll()
+        }
+    }
+
+    func notePointerMoved() {
+        debounceTask?.cancel()
+        debounceTask = nil
+        if isScrolling {
+            isScrolling = false
+        }
+    }
+
+    func settleScroll() {
+        debounceTask?.cancel()
+        debounceTask = nil
+        if isScrolling {
+            isScrolling = false
+        }
+        CardHighlightModel.broadcastScrollSettled()
+        MenuHighlightModel.broadcastScrollSettled()
+        AppPointerShape.noteScrollSettled()
+        NotificationCenter.default.post(
+            name: .cueSeekerScrollDebounceSettled,
+            object: nil
+        )
+    }
+
+    func noteCursorHiddenChanged(_ isHidden: Bool) {
+        if isCursorHidden != isHidden {
+            isCursorHidden = isHidden
+        }
+    }
+
+    func resetForTesting() {
+        debounceTask?.cancel()
+        debounceTask = nil
+        isScrolling = false
+        isCursorHidden = AppCursorVisibility.isCursorHidden
+    }
+}
+
 /// Hover for a visual effect, reported only while the surface's layer owns
-/// input.
-///
-/// A menu open over a layer, or a higher layer covering it, stops every surface
-/// on that layer from answering the pointer — `docs/human/design/UI Application
-/// Rules.md` 菜单模态 4 and 更高层界面的屏蔽 2, and
-/// `docs/human/requirements/20260826-UI-Card Highlight Single Authority And
-/// Menu Input Rules.md` §8.1.
-///
-/// That question is answered here once instead of being remembered at each of
-/// the several dozen places that react to hover. Remembering is what failed:
-/// every button and the Scrollbar went on lighting under the pointer while a
-/// card menu was open, because a bare `onHover` asks nothing.
-///
-/// While frozen the surface keeps the picture it had. Reports are held rather
-/// than forced off, and the held value is delivered once the freeze lifts, so a
-/// pointer that walked away while a menu was up does not leave a control lit
-/// behind it.
-///
-/// Menu content is the exception and must not use this. A menu belongs to the
-/// layer it freezes, so it would freeze itself; menu rows report to
-/// `MenuHighlightModel`, and cards report to `CardHighlightModel`.
+/// input, the cursor is visible, and scroll debounce is not active.
 extension View {
     func onPointerHover(_ action: @escaping (Bool) -> Void) -> some View {
         modifier(PointerHoverModifier(action: action))
@@ -38,18 +87,50 @@ struct PointerHoverGate: Equatable {
 
     /// Records what the pointer did and returns what the surface should be
     /// told, or nil when it should be told nothing.
-    mutating func report(_ isHovered: Bool, isFrozen: Bool) -> Bool? {
+    mutating func report(
+        _ isHovered: Bool,
+        isFrozen: Bool,
+        isScrolling: Bool = false,
+        isCursorHidden: Bool = false
+    ) -> Bool? {
         reportedIsHovered = isHovered
-        return delivery(isFrozen: isFrozen)
+        return delivery(
+            isFrozen: isFrozen,
+            isScrolling: isScrolling,
+            isCursorHidden: isCursorHidden
+        )
     }
 
-    /// Returns what the surface should be told now that the freeze changed.
-    mutating func freezeChanged(isFrozen: Bool) -> Bool? {
-        delivery(isFrozen: isFrozen)
+    /// Returns what the surface should be told now that the freeze, scroll, or
+    /// cursor visibility state changed.
+    mutating func freezeChanged(
+        isFrozen: Bool,
+        isScrolling: Bool = false,
+        isCursorHidden: Bool = false
+    ) -> Bool? {
+        delivery(
+            isFrozen: isFrozen,
+            isScrolling: isScrolling,
+            isCursorHidden: isCursorHidden
+        )
     }
 
-    private mutating func delivery(isFrozen: Bool) -> Bool? {
-        guard !isFrozen, deliveredIsHovered != reportedIsHovered else {
+    private mutating func delivery(
+        isFrozen: Bool,
+        isScrolling: Bool,
+        isCursorHidden: Bool
+    ) -> Bool? {
+        if isCursorHidden {
+            guard deliveredIsHovered else {
+                return nil
+            }
+            deliveredIsHovered = false
+            return false
+        }
+        guard !isFrozen, !isScrolling else {
+            return nil
+        }
+        guard deliveredIsHovered != reportedIsHovered else {
             return nil
         }
         deliveredIsHovered = reportedIsHovered
@@ -60,6 +141,7 @@ struct PointerHoverGate: Equatable {
 private struct PointerHoverModifier: ViewModifier {
     let action: (Bool) -> Void
     @Environment(\.interfaceLayerContext) private var layerContext
+    @ObservedObject private var scrollState = PointerHoverScrollState.shared
     @State private var gate = PointerHoverGate()
 
     func body(content: Content) -> some View {
@@ -67,13 +149,37 @@ private struct PointerHoverModifier: ViewModifier {
             .onHover { isHovered in
                 if let delivered = gate.report(
                     isHovered,
-                    isFrozen: layerContext.isFrozen
+                    isFrozen: layerContext.isFrozen,
+                    isScrolling: scrollState.isScrolling,
+                    isCursorHidden: AppCursorVisibility.isCursorHidden
                 ) {
                     action(delivered)
                 }
             }
             .onChange(of: layerContext.isFrozen) { isFrozen in
-                if let delivered = gate.freezeChanged(isFrozen: isFrozen) {
+                if let delivered = gate.freezeChanged(
+                    isFrozen: isFrozen,
+                    isScrolling: scrollState.isScrolling,
+                    isCursorHidden: AppCursorVisibility.isCursorHidden
+                ) {
+                    action(delivered)
+                }
+            }
+            .onChange(of: scrollState.isScrolling) { isScrolling in
+                if let delivered = gate.freezeChanged(
+                    isFrozen: layerContext.isFrozen,
+                    isScrolling: isScrolling,
+                    isCursorHidden: AppCursorVisibility.isCursorHidden
+                ) {
+                    action(delivered)
+                }
+            }
+            .onChange(of: scrollState.isCursorHidden) { isCursorHidden in
+                if let delivered = gate.freezeChanged(
+                    isFrozen: layerContext.isFrozen,
+                    isScrolling: scrollState.isScrolling,
+                    isCursorHidden: isCursorHidden
+                ) {
                     action(delivered)
                 }
             }

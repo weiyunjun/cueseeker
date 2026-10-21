@@ -1,10 +1,8 @@
 import Testing
 @testable import CueSeekerApp
 
-/// Covers `docs/human/requirements/20260826-UI-Card Highlight Single Authority
-/// And Menu Input Rules.md` §3 to §8. Whether the highlight is actually painted
-/// on one card at a time is accepted by hand; what is checked here is that the
-/// interface can only ever be told about one.
+/// Covers `docs/human/requirements/20261021-UI-Separate Hover And Select States
+/// And Unify Pointer Rules.md` for cover card `Hover` and `Select` states.
 @Suite(.serialized)
 @MainActor
 struct CardHighlightModelTests {
@@ -17,183 +15,157 @@ struct CardHighlightModelTests {
     }
 
     @Test
-    func anInterfaceStartsWithNothingLitAndIgnoresHoverUntilThePointerMoves() {
+    func hoverUpdatesImmediatelyWhenCursorIsVisibleAndHidesWhenCursorIsHidden() {
+        AppCursorVisibility.resetForTesting()
+        defer { AppCursorVisibility.resetForTesting() }
+
         let model = workbench()
-
-        // Entering an interface under a stationary pointer reports hover
-        // straight away; nothing may light from it.
         model.noteHover(true, id: "a")
-        #expect(model.currentID == nil)
+        #expect(model.hoveredID == "a")
+        #expect(model.isHovered("a"))
+        #expect(!model.isSelected("a"))
 
-        // Real movement opens the gate and adopts the card already under the
-        // pointer, without waiting for it to cross into another card.
-        model.notePointerMoved()
-        #expect(model.currentID == "a")
+        // Hiding the cursor suppresses Hover while remembering the raw card
+        // under the pointer.
+        AppCursorVisibility.setHidden(true)
+        let hiddenModel = playback()
+        hiddenModel.setSelected("a")
+        hiddenModel.noteHover(true, id: "b")
+        #expect(hiddenModel.selectedID == "a")
+        #expect(hiddenModel.hoveredID == nil)
+        #expect(!hiddenModel.isHovered("b"))
     }
 
     @Test
-    func aWheelIsNotMovementAndCannotMoveTheHighlight() {
-        let model = workbench()
-        model.notePointerMoved()
-        model.noteHover(true, id: "a")
-        #expect(model.currentID == "a")
+    func selectVisualStyleTakesPriorityOverHoverWithoutStacking() {
+        AppCursorVisibility.resetForTesting()
+        let model = playback()
+        model.setSelected("a")
+        model.noteHover(true, id: "b")
 
-        // Scrolling slides another card under a pointer that stayed put.
+        #expect(model.isSelected("a"))
+        #expect(!model.isHovered("a"))
+        #expect(model.isHovered("b"))
+        #expect(!model.isSelected("b"))
+        #expect(model.isHighlighted("a"))
+        #expect(model.isHighlighted("b"))
+
+        // When Hover and Select sit on the same card, only Select is shown.
+        model.noteHover(false, id: "b")
+        model.noteHover(true, id: "a")
+        #expect(model.isSelected("a"))
+        #expect(!model.isHovered("a"))
+        #expect(model.isHighlighted("a"))
+    }
+
+    @Test
+    func wheelScrollingLocksHoverUntilDebounceSettlesOrPointerMoves() {
+        AppCursorVisibility.resetForTesting()
+        let model = workbench()
+        model.noteHover(true, id: "a")
+        #expect(model.hoveredID == "a")
+
+        // Scrolling slides another card under a stationary pointer; Hover stays
+        // locked during the scroll.
         model.noteScrolled()
         model.noteHover(false, id: "a")
         model.noteHover(true, id: "b")
-        #expect(model.currentID == "a")
+        #expect(model.hoveredID == "a")
 
-        // Moving for real hands the highlight to where the pointer now is.
+        // Once the 300ms scroll debounce settles, Hover updates to the card
+        // now under the pointer.
+        model.noteScrollSettled()
+        #expect(model.hoveredID == "b")
+
+        // Physical pointer movement during scrolling also immediately updates.
+        model.noteScrolled()
+        model.noteHover(false, id: "b")
+        model.noteHover(true, id: "c")
+        #expect(model.hoveredID == "b")
         model.notePointerMoved()
-        #expect(model.currentID == "b")
+        #expect(model.hoveredID == "c")
     }
 
     @Test
-    func onlyOneCardIsEverCurrent() {
-        let model = workbench()
-        model.notePointerMoved()
-
-        model.noteHover(true, id: "a")
-        model.noteHover(false, id: "a")
-        model.noteHover(true, id: "b")
-        #expect(model.currentID == "b")
-    }
-
-    @Test
-    func workbenchLetsThePointerLeaveButPlaybackKeepsOneCardLit() {
+    func leavingCardClearsHoverWhilePreservingSelect() {
+        AppCursorVisibility.resetForTesting()
         let workbenchModel = workbench()
-        workbenchModel.notePointerMoved()
         workbenchModel.noteHover(true, id: "a")
         workbenchModel.noteHover(false, id: "a")
-        #expect(workbenchModel.currentID == nil)
+        #expect(workbenchModel.hoveredID == nil)
 
         let playbackModel = playback()
-        playbackModel.notePointerMoved()
-        playbackModel.noteHover(true, id: "a")
-        playbackModel.noteHover(false, id: "a")
-        #expect(playbackModel.currentID == "a")
+        playbackModel.setSelected("a")
+        playbackModel.noteHover(true, id: "b")
+        playbackModel.noteHover(false, id: "b")
+        #expect(playbackModel.hoveredID == nil)
+        #expect(playbackModel.selectedID == "a")
     }
 
     @Test
-    func aPressLightsItsCardWithoutWaitingForMovement() {
-        let model = workbench()
-
-        model.notePress(id: "a")
-        #expect(model.currentID == "a")
-    }
-
-    @Test
-    func aPressStillLandsWhileTheInterfaceIsFrozen() {
-        let model = workbench()
-        model.notePress(id: "a")
-        model.setFrozen(true)
-
-        // Right-clicking a second card closes the first card's menu and opens
-        // its own on the same press, so the highlight travels with it.
+    func rightClickPressUpdatesHoverOnlyAndNeverChangesSelect() {
+        AppCursorVisibility.resetForTesting()
+        let model = playback()
+        model.setSelected("a")
         model.notePress(id: "b")
-        #expect(model.currentID == "b")
+        #expect(model.selectedID == "a")
+        #expect(model.hoveredID == "b")
     }
 
     @Test
-    func aFrozenInterfaceKeepsItsPicture() {
+    func unfreezingImmediatelyReevaluatesHoverFromCurrentPointerLocation() {
+        AppCursorVisibility.resetForTesting()
         let model = workbench()
-        model.notePointerMoved()
-        model.noteHover(true, id: "a")
+        model.notePress(id: "a")
         model.setFrozen(true)
 
+        // While the menu is open, the pointer moves to card "b".
         model.noteHover(false, id: "a")
         model.noteHover(true, id: "b")
-        model.notePointerMoved()
-        #expect(model.currentID == "a")
+        #expect(model.hoveredID == "a")
 
-        // Unfreezing does not replay it either: the pointer has to move again.
+        // Closing the menu unfreezes the layer and immediately updates Hover to
+        // card "b" without waiting for another mouse move.
         model.setFrozen(false)
-        #expect(model.currentID == "a")
+        #expect(model.hoveredID == "b")
     }
 
     @Test
-    func aPointerThatTravelledWhileFrozenIsFoundWhereItActuallyIs() {
-        // Right-click one card, walk to another with the menu up, close the
-        // menu with a click, then move. The highlight has to land on the card
-        // the pointer is on, not go out and not stay behind: SwiftUI will not
-        // report hover again for a card the pointer never left.
+    func unfreezingAfterPointerLeftAllCardsClearsHoverImmediately() {
+        AppCursorVisibility.resetForTesting()
         let model = workbench()
         model.notePress(id: "a")
         model.setFrozen(true)
         model.noteHover(false, id: "a")
+        #expect(model.hoveredID == "a")
+
+        model.setFrozen(false)
+        #expect(model.hoveredID == nil)
+    }
+
+    @Test
+    func keyboardSelectionChangesDoNotAffectHover() {
+        AppCursorVisibility.resetForTesting()
+        let model = playback()
+        model.setSelected("a")
         model.noteHover(true, id: "b")
-        #expect(model.currentID == "a")
+        #expect(model.selectedID == "a")
+        #expect(model.hoveredID == "b")
 
-        model.setFrozen(false)
-        #expect(model.currentID == "a")
-        model.notePointerMoved()
-        #expect(model.currentID == "b")
+        model.setSelected("c")
+        #expect(model.selectedID == "c")
+        #expect(model.hoveredID == "b")
     }
 
     @Test
-    func aPointerThatLeftTheCardsWhileFrozenPutsTheHighlightOut() {
-        let model = workbench()
-        model.notePress(id: "a")
-        model.setFrozen(true)
-        model.noteHover(false, id: "a")
-
-        model.setFrozen(false)
-        #expect(model.currentID == "a")
-        model.notePointerMoved()
-        #expect(model.currentID == nil)
-    }
-
-    @Test
-    func aSelectionMovedAwayFromThePointerIsNotPulledBack() {
+    func resetClearsSelectAndHoverForSubInterfaceSwitch() {
+        AppCursorVisibility.resetForTesting()
         let model = playback()
-        model.notePointerMoved()
-        model.noteHover(true, id: "a")
-        #expect(model.currentID == "a")
-
-        // The keyboard moves the selection; the card still under the stationary
-        // pointer must not take it back.
-        model.setCurrent("c")
-        model.noteHover(true, id: "a")
-        #expect(model.currentID == "c")
-
-        // Moving the pointer for real gives it back.
-        model.notePointerMoved()
-        #expect(model.currentID == "a")
-    }
-
-    @Test
-    func anInterfaceThatNavigatesElsewhereReceivesTheAdoptedCard() {
-        let model = playback()
-        var adopted: [String?] = []
-        model.adopt = { adopted.append($0) }
-
-        model.notePointerMoved()
-        model.noteHover(true, id: "a")
-
-        // The model did not decide: it handed the target to the interface's own
-        // selection, which reports back through `setCurrent`.
-        #expect(adopted == ["a"])
-        #expect(model.currentID == nil)
-        model.setCurrent("a")
-        #expect(model.currentID == "a")
-    }
-
-    @Test
-    func switchingInterfaceStartsOverWithNothingLit() {
-        let model = workbench()
-        model.notePointerMoved()
-        model.noteHover(true, id: "a")
-        #expect(model.currentID == "a")
+        model.setSelected("a")
+        model.noteHover(true, id: "b")
 
         model.reset()
-        #expect(model.currentID == nil)
-
-        // The pointer has to move again before anything lights, so entering an
-        // interface under the pointer lights nothing.
-        model.noteHover(true, id: "b")
-        #expect(model.currentID == nil)
-        model.notePointerMoved()
-        #expect(model.currentID == "b")
+        #expect(model.selectedID == nil)
+        #expect(model.hoveredID == nil)
     }
 }

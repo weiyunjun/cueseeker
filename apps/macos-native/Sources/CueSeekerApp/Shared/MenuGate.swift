@@ -168,6 +168,7 @@ final class MenuGate {
         if clients.isEmpty {
             removeMonitor()
             isTrackingMenuDrag = false
+            AppPointerShape.reevaluate()
         }
     }
 
@@ -410,6 +411,7 @@ struct MenuGateClientView: NSViewRepresentable {
 
     final class ClientView: NSView {
         private var session: MenuGate.Session?
+        private var isDismissed = false
         private(set) var menuFrame = CGRect.zero
         private var submenuFrame: CGRect?
         private var anchorFrame: CGRect?
@@ -429,13 +431,16 @@ struct MenuGateClientView: NSViewRepresentable {
             gate: MenuGate?,
             representable: MenuGateClientView
         ) {
+            if isDismissed, menuFrame != representable.menuFrame {
+                isDismissed = false
+            }
             menuFrame = representable.menuFrame
             submenuFrame = representable.submenuFrame
             anchorFrame = representable.anchorFrame
             notePointer = representable.notePointer
             handleKey = representable.handleKey
             dismiss = representable.dismiss
-            guard session == nil else {
+            guard session == nil, !isDismissed else {
                 return
             }
             session = gate?.open(
@@ -472,6 +477,7 @@ struct MenuGateClientView: NSViewRepresentable {
                         self?.handleKey(keyCode, isRepeat) ?? false
                     },
                     dismiss: { [weak self] forwarding in
+                        self?.isDismissed = true
                         self?.closeSession()
                         self?.dismiss(forwarding)
                     }

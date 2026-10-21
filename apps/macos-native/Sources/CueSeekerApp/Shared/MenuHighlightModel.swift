@@ -1,41 +1,88 @@
 import AppKit
 import SwiftUI
 
-/// The single highlighted item of one open menu surface.
+/// Manages separate `Select` (`selectedPosition` / `highlightedPosition`) and
+/// `Hover` (`hoveredPosition`) states for an open menu surface, following
+/// `docs/human/requirements/20261021-UI-Separate Hover And Select States And
+/// Unify Pointer Rules.md`.
 ///
-/// A context menu opens under the pointer, so adopting hover right away would
-/// fight the keyboard: the row already beneath the cursor would pull the
-/// highlight straight back, and the same happens after every keyboard move that
-/// lands away from a stationary pointer. Hover is therefore only adopted once
-/// the pointer has really moved, and a keyboard move closes that gate again.
-///
-/// The menu that owns this model supplies the positions that can take the
-/// highlight, so dividers and disabled items are simply absent and keyboard
-/// navigation skips them without needing to know what a divider is.
+/// - `Select` (`selectedPosition`) is initialized when the menu opens and is
+///   moved exclusively by keyboard arrow keys or controller D-pad / left stick.
+///   Moving `Select` increments `keyboardMoveCount` so a scrolling menu can
+///   scroll the newly `Select`ed row into view.
+/// - `Hover` (`hoveredPosition`) reflects the selectable row under the visible
+///   pointer whenever scroll debounce (`300ms`) is not active.
+/// - `Hover` and `Select` never stack visually: when a row is both `Select`ed
+///   and `Hover`ed, `isSelected(_:)` is true and `isHovered(_:)` is false so
+///   only the `Select` visual style is displayed.
 @MainActor
 final class MenuHighlightModel: ObservableObject {
-    @Published private(set) var highlightedPosition: Int?
-    /// Bumped by every keyboard move, so a scrolling menu can bring the new
-    /// highlight into view. Wheel and scrollbar movement never bump it: they
-    /// must not move the highlight, so they have nothing to reveal.
+    private final class WeakBox {
+        weak var value: MenuHighlightModel?
+        init(_ value: MenuHighlightModel) {
+            self.value = value
+        }
+    }
+
+    private static var instances: [WeakBox] = []
+
+    static func broadcastScrollSettled() {
+        instances.removeAll { $0.value == nil }
+        for box in instances {
+            box.value?.noteScrollSettled()
+        }
+    }
+
+    static func broadcastCursorHiddenChanged(_ isHidden: Bool) {
+        instances.removeAll { $0.value == nil }
+        for box in instances {
+            box.value?.noteCursorHiddenChanged(isHidden)
+        }
+    }
+
+    @Published private(set) var selectedPosition: Int?
+    @Published private(set) var hoveredPosition: Int?
+
+    /// Synonym for `selectedPosition` used by keyboard navigation, Enter
+    /// activation, and `ScrollViewReader` auto-scrolling.
+    var highlightedPosition: Int? {
+        selectedPosition
+    }
+
+    /// Bumped by every keyboard / controller move so a scrolling menu can bring
+    /// the newly `Select`ed item into view.
     @Published private(set) var keyboardMoveCount = 0
 
     private(set) var selectablePositions: [Int] = []
-    private(set) var adoptsHover = false
-    private var hoveredPosition: Int?
+    private(set) var isScrolling = false
+    private var rawHoveredPosition: Int?
     nonisolated(unsafe) private var pointerMonitor: Any?
+
+    init() {
+        Self.instances.removeAll { $0.value == nil }
+        Self.instances.append(WeakBox(self))
+    }
 
     var isOpen: Bool {
         pointerMonitor != nil
     }
 
-    /// Opens the surface with `defaultPosition` highlighted, or the first
+    func isSelected(_ position: Int) -> Bool {
+        selectedPosition == position
+    }
+
+    func isHovered(_ position: Int) -> Bool {
+        hoveredPosition == position && selectedPosition != position
+    }
+
+    /// Opens the surface with `defaultPosition` selected, or the first
     /// selectable position when it is absent or not selectable.
     func open(selectablePositions: [Int], defaultPosition: Int? = nil) {
         self.selectablePositions = selectablePositions
-        adoptsHover = false
+        isScrolling = false
+        rawHoveredPosition = nil
         hoveredPosition = nil
-        highlightedPosition = defaultPosition
+        selectedPosition = defaultPosition
             .flatMap { selectablePositions.contains($0) ? $0 : nil }
             ?? selectablePositions.first
         startObservingPointerMovement()
@@ -44,73 +91,90 @@ final class MenuHighlightModel: ObservableObject {
     func close() {
         stopObservingPointerMovement()
         selectablePositions = []
-        highlightedPosition = nil
+        selectedPosition = nil
         hoveredPosition = nil
-        adoptsHover = false
+        rawHoveredPosition = nil
+        isScrolling = false
     }
 
-    /// Moves the highlight and reports whether the surface consumed the key.
-    /// The highlight stops at the first and last selectable position instead of
-    /// wrapping, matching the Command Panel's existing arrow-key behaviour.
+    /// Moves `Select` (`selectedPosition`) and reports whether the surface
+    /// consumed the key. Stops at the first and last selectable position
+    /// instead of wrapping.
     @discardableResult
     func moveHighlight(by offset: Int) -> Bool {
         guard !selectablePositions.isEmpty else {
             return false
         }
-        adoptsHover = false
-        let current = highlightedPosition
+        let current = selectedPosition
             .flatMap { selectablePositions.firstIndex(of: $0) } ?? 0
         let target = min(
             max(0, current + offset),
             selectablePositions.count - 1
         )
-        highlightedPosition = selectablePositions[target]
+        selectedPosition = selectablePositions[target]
         keyboardMoveCount += 1
         return true
     }
 
-    /// Scrolling slides rows under a stationary pointer, and the hover events
-    /// that raises must not move the highlight. The wheel therefore closes the
-    /// hover gate the same way a keyboard move does; real pointer motion
-    /// reopens it.
     func noteScrolled() {
-        adoptsHover = false
+        isScrolling = true
     }
 
-    /// Records where the pointer is. The hovered position is remembered even
-    /// while the gate is closed, so the highlight can follow the pointer as
-    /// soon as it moves again without waiting for it to cross into a new row.
+    func noteScrollSettled() {
+        guard isScrolling else {
+            return
+        }
+        isScrolling = false
+        syncHoveredPosition()
+    }
+
     func noteHover(_ isHovered: Bool, at position: Int) {
         if isHovered {
-            hoveredPosition = position
-        } else if hoveredPosition == position {
-            hoveredPosition = nil
+            rawHoveredPosition = selectablePositions.contains(position) ? position : nil
+        } else if rawHoveredPosition == position {
+            rawHoveredPosition = nil
         }
-        adoptHoverIfAllowed()
+        guard !isScrolling else {
+            return
+        }
+        syncHoveredPosition()
     }
 
     func notePointerMoved() {
-        adoptsHover = true
-        adoptHoverIfAllowed()
+        if isScrolling {
+            isScrolling = false
+        }
+        syncHoveredPosition()
     }
 
-    private func adoptHoverIfAllowed() {
-        guard adoptsHover,
-              let hoveredPosition,
-              selectablePositions.contains(hoveredPosition)
-        else {
-            return
+    private func noteCursorHiddenChanged(_ isHidden: Bool) {
+        if isHidden {
+            if hoveredPosition != nil {
+                hoveredPosition = nil
+            }
+        } else if !isScrolling {
+            syncHoveredPosition()
         }
-        highlightedPosition = hoveredPosition
+    }
+
+    private func syncHoveredPosition() {
+        let next: Int?
+        if AppCursorVisibility.isCursorHidden {
+            next = nil
+        } else if let rawHoveredPosition, selectablePositions.contains(rawHoveredPosition) {
+            next = rawHoveredPosition
+        } else {
+            next = nil
+        }
+        if hoveredPosition != next {
+            hoveredPosition = next
+        }
     }
 
     private func startObservingPointerMovement() {
         guard pointerMonitor == nil else {
             return
         }
-        // The main window accepts mouse-moved events, so a local monitor sees
-        // real pointer motion over every surface that can host a menu. The
-        // wheel is watched too, because it moves rows rather than the pointer.
         pointerMonitor = NSEvent.addLocalMonitorForEvents(
             matching: [
                 .mouseMoved, .leftMouseDragged, .rightMouseDragged,

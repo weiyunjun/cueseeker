@@ -1153,6 +1153,25 @@ func subtitleTableViewRightClickOutsideContentHoverRegionOpensRowMenu() throws {
 
     #expect(fixture.coordinator.handleRightMouseDown(windowPoint: windowPoint) == true)
     #expect(fixture.coordinator.isMenuOpenForTesting())
+    #expect(
+        fixture.coordinator.rowBackgroundColorForTesting(row: 0)
+            === WorkbenchRedesignColors.NS.tableRowHover
+    )
+    // Right-clicking in the non-text blank area of the Cues column must not
+    // force a cue text underline.
+    #expect(!fixture.coordinator.isCellHoveredForTesting(row: 0, columnID: "cues"))
+    fixture.coordinator.dismissMenu()
+
+    // Right-clicking directly on the cue text keeps the cue underline while the
+    // menu is open.
+    let cueTextWindowPoint = fixture.documentView.convert(
+        CGPoint(x: cuesRect.midX, y: cuesRect.midY),
+        to: nil
+    )
+    #expect(fixture.coordinator.handleRightMouseDown(windowPoint: cueTextWindowPoint) == true)
+    #expect(fixture.coordinator.isMenuOpenForTesting())
+    #expect(fixture.coordinator.isCellHoveredForTesting(row: 0, columnID: "cues"))
+    fixture.coordinator.dismissMenu()
 }
 
 @MainActor

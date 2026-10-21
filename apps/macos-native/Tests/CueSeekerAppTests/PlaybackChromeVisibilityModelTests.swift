@@ -119,7 +119,7 @@ func hiddenPlayerUIControlsDoNotStopTheCountdown() {
 
 @MainActor
 @Test
-func sameWindowLayerShowsThePointerAndFreezesThePlayerUI() {
+func sameWindowLayerPreservesPointerVisibilityAndFreezesThePlayerUI() {
     let area = PlayerArea()
     defer { area.finish() }
 
@@ -131,11 +131,17 @@ func sameWindowLayerShowsThePointerAndFreezesThePlayerUI() {
     #expect(area.model.isPlayerUIVisible)
     #expect(area.model.isIdleCountdownRunning)
 
+    // Opening Playback Overlay or Command Panel after the cursor was hidden by
+    // idle does not actively unhide the cursor.
     area.model.idleElapsed()
     area.model.setLayerOpen(true)
+    #expect(!area.model.isPointerVisible)
+    #expect(AppCursorVisibility.isCursorHidden)
+    #expect(!area.model.isPlayerUIVisible)
+    // Moving the mouse while the layer is open unhides the cursor.
+    area.movePointer(to: NSPoint(x: 410, y: 300))
     #expect(area.model.isPointerVisible)
     #expect(!AppCursorVisibility.isCursorHidden)
-    #expect(!area.model.isPlayerUIVisible)
     // Not governed while the layer is open: a controller's request changes nothing.
     area.model.pointerHideRequested()
     #expect(area.model.isPointerVisible)

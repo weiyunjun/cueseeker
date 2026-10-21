@@ -760,7 +760,8 @@ struct SchemaWorkbenchSortMenuPopover: View {
                     WorkbenchPopoverRow(
                         title: option.title,
                         isSelected: selectedOptionID == option.id,
-                        isHighlighted: highlight.highlightedPosition == position,
+                        isHighlighted: highlight.isSelected(position),
+                        isRowHovered: highlight.isHovered(position),
                         isRedesign: true,
                         showsCheckmarkSlot: true,
                         action: {

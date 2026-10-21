@@ -105,6 +105,9 @@ final class PlaybackChromeVisibilityModel: ObservableObject {
     }
 
     /// Same-window layers: Playback Overlay, Command Panel and dialogs.
+    /// Opening a layer freezes the Player UI state and cancels the idle
+    /// countdown without actively unhiding a hidden pointer; moving the
+    /// pointer while the layer is open unhides it.
     func setLayerOpen(_ isOpen: Bool) {
         guard isLayerOpen != isOpen else {
             return
@@ -112,7 +115,6 @@ final class PlaybackChromeVisibilityModel: ObservableObject {
         isLayerOpen = isOpen
         if isOpen {
             cancelIdleCountdown()
-            setPointerVisible(true)
             applyCursorOwnership()
         } else {
             reevaluate()
@@ -150,26 +152,35 @@ final class PlaybackChromeVisibilityModel: ObservableObject {
     // MARK: - Decision
 
     private func pointerMoved() {
-        guard isGoverned else {
+        guard hasFocus, isPointerInPlayerArea else {
             return
         }
         setPointerVisible(true)
-        setPlayerUIVisible(true)
         applyCursorOwnership()
+        guard !isLayerOpen else {
+            return
+        }
+        setPlayerUIVisible(true)
         cancelIdleCountdown()
         reevaluate()
     }
 
     private func reevaluate() {
-        guard playerWindow != nil, !isLayerOpen else {
+        guard playerWindow != nil else {
             return
         }
         if !hasFocus || !isPointerInPlayerArea {
             // Outside the window or without focus the Player UI is hidden and
             // the pointer is shown.
             cancelIdleCountdown()
-            setPlayerUIVisible(false)
+            if !isLayerOpen {
+                setPlayerUIVisible(false)
+            }
             setPointerVisible(true)
+            applyCursorOwnership()
+            return
+        }
+        guard !isLayerOpen else {
             applyCursorOwnership()
             return
         }
@@ -292,7 +303,7 @@ final class PlaybackChromeVisibilityModel: ObservableObject {
     // MARK: - Cursor ownership
 
     private func applyCursorOwnership() {
-        if !isPointerVisible, isGoverned {
+        if !isPointerVisible, hasFocus, isPointerInPlayerArea {
             hideCursor()
         } else {
             releaseCursor()

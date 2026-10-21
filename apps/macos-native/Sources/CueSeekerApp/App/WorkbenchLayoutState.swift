@@ -151,12 +151,10 @@ enum WorkbenchRoute: Equatable {
 
 @MainActor
 final class WorkbenchRouteState: ObservableObject {
-    // Each of these is an interface switch: the pointer goes back to the
-    // arrow until it moves again.
     @Published fileprivate(set) var panelMode: WorkbenchPanelMode {
         didSet {
             if panelMode != oldValue {
-                AppPointerShape.reset()
+                AppPointerShape.reevaluateAfterInterfaceChange()
             }
         }
     }
@@ -164,14 +162,14 @@ final class WorkbenchRouteState: ObservableObject {
     @Published fileprivate(set) var selectedLibraryFolderPath: String? {
         didSet {
             if selectedLibraryFolderPath != oldValue {
-                AppPointerShape.reset()
+                AppPointerShape.reevaluateAfterInterfaceChange()
             }
         }
     }
     @Published fileprivate(set) var selectedExcerptListID: Int64? {
         didSet {
             if selectedExcerptListID != oldValue {
-                AppPointerShape.reset()
+                AppPointerShape.reevaluateAfterInterfaceChange()
             }
         }
     }
@@ -179,7 +177,7 @@ final class WorkbenchRouteState: ObservableObject {
     @Published fileprivate(set) var selectedRecentSection: WorkbenchRecentSection = .videos {
         didSet {
             if selectedRecentSection != oldValue {
-                AppPointerShape.reset()
+                AppPointerShape.reevaluateAfterInterfaceChange()
             }
         }
     }
@@ -187,21 +185,21 @@ final class WorkbenchRouteState: ObservableObject {
     @Published fileprivate(set) var selectedFileSection: WorkbenchFileSection = .index {
         didSet {
             if selectedFileSection != oldValue {
-                AppPointerShape.reset()
+                AppPointerShape.reevaluateAfterInterfaceChange()
             }
         }
     }
     @Published fileprivate(set) var selectedFileRootPath: String? {
         didSet {
             if selectedFileRootPath != oldValue {
-                AppPointerShape.reset()
+                AppPointerShape.reevaluateAfterInterfaceChange()
             }
         }
     }
     @Published fileprivate(set) var selectedFileFolderPath: String? {
         didSet {
             if selectedFileFolderPath != oldValue {
-                AppPointerShape.reset()
+                AppPointerShape.reevaluateAfterInterfaceChange()
             }
         }
     }

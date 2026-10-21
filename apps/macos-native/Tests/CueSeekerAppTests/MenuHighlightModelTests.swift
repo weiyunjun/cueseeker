@@ -6,6 +6,7 @@ import Testing
 struct MenuHighlightModelTests {
     @Test
     func openHighlightsFirstSelectablePositionByDefault() {
+        AppCursorVisibility.resetForTesting()
         let model = MenuHighlightModel()
         defer { model.close() }
 
@@ -13,7 +14,8 @@ struct MenuHighlightModelTests {
         model.open(selectablePositions: [0, 2, 3, 5])
 
         #expect(model.highlightedPosition == 0)
-        #expect(!model.adoptsHover)
+        #expect(model.selectedPosition == 0)
+        #expect(model.hoveredPosition == nil)
     }
 
     @Test
@@ -57,64 +59,66 @@ struct MenuHighlightModelTests {
     }
 
     @Test
-    func hoverDoesNotMoveTheHighlightUntilThePointerActuallyMoves() {
+    func hoverUpdatesIndependentlyOfSelectAndSelectTakesVisualPriority() {
+        AppCursorVisibility.resetForTesting()
         let model = MenuHighlightModel()
         defer { model.close() }
         model.open(selectablePositions: [0, 1, 2])
 
-        // The menu opened under the pointer: hover arrives without any motion.
+        // The menu opens with item 0 Selected. Hovering item 2 sets Hover on 2
+        // while keeping Select on 0.
         model.noteHover(true, at: 2)
-        #expect(model.highlightedPosition == 0)
+        #expect(model.selectedPosition == 0)
+        #expect(model.hoveredPosition == 2)
+        #expect(model.isSelected(0))
+        #expect(!model.isHovered(0))
+        #expect(model.isHovered(2))
+        #expect(!model.isSelected(2))
 
-        // Real motion opens the gate and the remembered hover is adopted, even
-        // though the pointer never crossed into another row.
-        model.notePointerMoved()
-        #expect(model.adoptsHover)
-        #expect(model.highlightedPosition == 2)
-
-        // With the gate open, crossing rows follows the pointer.
+        // When Hover and Select coincide on item 0, only Select is shown.
         model.noteHover(false, at: 2)
-        model.noteHover(true, at: 1)
-        #expect(model.highlightedPosition == 1)
+        model.noteHover(true, at: 0)
+        #expect(model.isSelected(0))
+        #expect(!model.isHovered(0))
     }
 
     @Test
-    func keyboardMovementClosesTheHoverGateAgain() {
+    func keyboardMovementMovesSelectWhilePreservingHover() {
+        AppCursorVisibility.resetForTesting()
         let model = MenuHighlightModel()
         defer { model.close() }
         model.open(selectablePositions: [0, 1, 2])
         model.noteHover(true, at: 2)
-        model.notePointerMoved()
-        #expect(model.highlightedPosition == 2)
+        #expect(model.selectedPosition == 0)
+        #expect(model.hoveredPosition == 2)
 
-        // The keyboard takes over: the row still under the stationary pointer
-        // must not pull the highlight back.
-        model.moveHighlight(by: -1)
-        #expect(model.highlightedPosition == 1)
-        #expect(!model.adoptsHover)
-        model.noteHover(true, at: 2)
-        #expect(model.highlightedPosition == 1)
+        model.moveHighlight(by: 1)
+        #expect(model.selectedPosition == 1)
+        #expect(model.hoveredPosition == 2)
+        #expect(model.isSelected(1))
+        #expect(model.isHovered(2))
     }
 
     @Test
-    func wheelScrollingClosesTheHoverGateUntilThePointerMovesAgain() {
+    func wheelScrollingLocksHoverUntilDebounceSettlesOrPointerMoves() {
+        AppCursorVisibility.resetForTesting()
         let model = MenuHighlightModel()
         defer { model.close() }
         model.open(selectablePositions: [0, 1, 2])
-        model.notePointerMoved()
         model.noteHover(true, at: 1)
-        #expect(model.highlightedPosition == 1)
+        #expect(model.hoveredPosition == 1)
 
-        // The wheel slides rows under a stationary pointer; the hover change
-        // that raises must not move the highlight.
+        // The wheel slides rows under a stationary pointer; Hover stays locked
+        // during scrolling.
         model.noteScrolled()
         model.noteHover(false, at: 1)
         model.noteHover(true, at: 2)
-        #expect(model.highlightedPosition == 1)
+        #expect(model.hoveredPosition == 1)
 
-        // Real motion reopens the gate and adopts the row under the pointer.
-        model.notePointerMoved()
-        #expect(model.highlightedPosition == 2)
+        // Settling after the 300ms scroll debounce updates Hover to the row
+        // now under the pointer.
+        model.noteScrollSettled()
+        #expect(model.hoveredPosition == 2)
     }
 
     @Test
@@ -136,15 +140,15 @@ struct MenuHighlightModelTests {
 
     @Test
     func hoverOnAnUnselectablePositionIsIgnored() {
+        AppCursorVisibility.resetForTesting()
         let model = MenuHighlightModel()
         defer { model.close() }
         model.open(selectablePositions: [0, 2])
-        model.notePointerMoved()
 
         model.noteHover(true, at: 1)
-        #expect(model.highlightedPosition == 0)
+        #expect(model.hoveredPosition == nil)
         model.noteHover(true, at: 2)
-        #expect(model.highlightedPosition == 2)
+        #expect(model.hoveredPosition == 2)
     }
 
     @Test

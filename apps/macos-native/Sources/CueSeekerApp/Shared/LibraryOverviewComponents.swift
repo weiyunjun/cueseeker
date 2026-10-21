@@ -376,8 +376,41 @@ struct LibraryOverviewCardContent<Cover: View>: View {
 }
 
 struct LibraryOverviewCardButtonStyle: ButtonStyle {
-    let isCurrent: Bool
+    var isSelected = false
+    var isHovered = false
     var isEnabled = true
+
+    init(
+        isSelected: Bool = false,
+        isHovered: Bool = false,
+        isEnabled: Bool = true
+    ) {
+        self.isSelected = isSelected
+        self.isHovered = isHovered
+        self.isEnabled = isEnabled
+    }
+
+    init(
+        isCurrent: Bool,
+        isEnabled: Bool = true
+    ) {
+        self.isSelected = false
+        self.isHovered = isCurrent
+        self.isEnabled = isEnabled
+    }
+
+    private var backgroundFill: Color {
+        guard isEnabled else {
+            return .clear
+        }
+        if isSelected {
+            return WorkbenchRedesignColors.libraryMediaCardSelectedBg
+        }
+        if isHovered {
+            return WorkbenchRedesignColors.libraryMediaCardHoverBg
+        }
+        return .clear
+    }
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
@@ -391,11 +424,7 @@ struct LibraryOverviewCardButtonStyle: ButtonStyle {
                     cornerRadius: WorkbenchControlMetrics.redesignLibraryMediaCardHoverRadius,
                     style: .continuous
                 )
-                .fill(
-                    isCurrent && isEnabled
-                        ? WorkbenchRedesignColors.libraryMediaCardHoverBg
-                        : Color.clear
-                )
+                .fill(backgroundFill)
             )
             // The card answers the pointer over its whole rectangle, corners
             // included, so the press, the hand and Hover share one area. The
@@ -406,7 +435,13 @@ struct LibraryOverviewCardButtonStyle: ButtonStyle {
                 .easeOut(
                     duration: WorkbenchControlMetrics.redesignLibraryCoverHoverDuration
                 ),
-                value: isCurrent
+                value: isSelected
+            )
+            .animation(
+                .easeOut(
+                    duration: WorkbenchControlMetrics.redesignLibraryCoverHoverDuration
+                ),
+                value: isHovered
             )
     }
 }

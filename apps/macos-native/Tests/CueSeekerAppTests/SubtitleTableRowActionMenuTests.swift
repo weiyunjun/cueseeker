@@ -368,6 +368,7 @@ func subtitleTableExcerptSubmenuStaysOpenOverTheParentMenuOutsideTheSafeArea() {
 @MainActor
 @Test
 func subtitleTableKeyboardOpenedSubmenuWaitsForThePointerToMove() {
+    AppCursorVisibility.resetForTesting()
     let f = SubmenuPointerFixture.self
     let state = MenuSubmenuState<SubtitleTableRowAction>()
     let highlight = MenuHighlightModel()
@@ -395,12 +396,14 @@ func subtitleTableKeyboardOpenedSubmenuWaitsForThePointerToMove() {
         submenuFrame: f.submenu
     )
     #expect(state.openParent == nil)
-    #expect(highlight.highlightedPosition == 0)
+    #expect(highlight.highlightedPosition == 8)
+    #expect(highlight.hoveredPosition == 0)
 }
 
 @MainActor
 @Test
 func subtitleTableSubmenuSafeAreaEndsWhenThePointerTurnsAway() {
+    AppCursorVisibility.resetForTesting()
     let f = SubmenuPointerFixture.self
     let state = MenuSubmenuState<SubtitleTableRowAction>()
     let highlight = MenuHighlightModel()
@@ -442,7 +445,8 @@ func subtitleTableSubmenuSafeAreaEndsWhenThePointerTurnsAway() {
     )
     #expect(!state.isPointerInSafeArea)
     #expect(state.openParent == .duplicateToList)
-    #expect(highlight.highlightedPosition == 9)
+    #expect(highlight.highlightedPosition == 8)
+    #expect(highlight.hoveredPosition == 9)
     highlight.close()
 
     // Turning away over no item closes the submenu.

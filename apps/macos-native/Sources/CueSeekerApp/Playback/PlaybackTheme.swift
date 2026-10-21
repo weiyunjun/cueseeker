@@ -161,6 +161,11 @@ public enum PlaybackTheme {
         Color.white.opacity(0.12)
     }
 
+    /// --color-player-menu-item-selected-bg
+    public static var menuItemSelectedBackground: Color {
+        Color.white.opacity(0.20)
+    }
+
     /// --color-player-text-primary
     public static var textPrimary: Color {
         Color.white.opacity(0.94)

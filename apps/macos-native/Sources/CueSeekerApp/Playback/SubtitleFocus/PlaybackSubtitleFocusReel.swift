@@ -4796,7 +4796,8 @@ private struct PlaybackSelectedTextMenu: View {
                 ForEach(Array(items.enumerated()), id: \.offset) { position, item in
                     WorkbenchPopoverRow(
                         title: item.title,
-                        isHighlighted: highlight.highlightedPosition == position,
+                        isHighlighted: highlight.isSelected(position),
+                        isRowHovered: highlight.isHovered(position),
                         icon: item.icon,
                         isRedesign: true,
                         showsCheckmarkSlot: false,

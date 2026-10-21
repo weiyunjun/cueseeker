@@ -238,8 +238,7 @@ private struct PlaybackCommandPanelRoot: View {
                         title: L("sidebar.search"),
                         detail: query,
                         isSelected: presentation.selectedOrdinal == 0,
-                        allowsHover: allowsHover,
-                        onHoverChange: { hoverChanged($0, ordinal: 0) }
+                        allowsHover: allowsHover
                     ) {
                         _ = onSubmitSearch()
                     }
@@ -251,10 +250,7 @@ private struct PlaybackCommandPanelRoot: View {
                     detail: nil,
                     isSelected: presentation.selectedOrdinal
                         == recentVideosOrdinal,
-                    allowsHover: allowsHover,
-                    onHoverChange: {
-                        hoverChanged($0, ordinal: recentVideosOrdinal)
-                    }
+                    allowsHover: allowsHover
                 ) {
                     _ = onOpenPage(.recentVideos)
                 }
@@ -265,10 +261,7 @@ private struct PlaybackCommandPanelRoot: View {
                     detail: nil,
                     isSelected: presentation.selectedOrdinal
                         == recentExcerptsOrdinal,
-                    allowsHover: allowsHover,
-                    onHoverChange: {
-                        hoverChanged($0, ordinal: recentExcerptsOrdinal)
-                    }
+                    allowsHover: allowsHover
                 ) {
                     _ = onOpenPage(.recentExcerpts)
                 }
@@ -295,13 +288,6 @@ private struct PlaybackCommandPanelRoot: View {
     private var recentExcerptsOrdinal: Int {
         trimmedQuery.isEmpty ? 1 : 2
     }
-
-    private func hoverChanged(_ isHovered: Bool, ordinal: Int) {
-        guard isHovered else {
-            return
-        }
-        onSelect(ordinal)
-    }
 }
 
 private struct PlaybackCommandPanelRootRow: View {
@@ -310,14 +296,23 @@ private struct PlaybackCommandPanelRootRow: View {
     let detail: String?
     let isSelected: Bool
     let allowsHover: Bool
-    let onHoverChange: (Bool) -> Void
     let action: () -> Void
     @State private var isHovered = false
 
-    /// Hover only counts while the pointer is visible, so keyboard navigation
-    /// cannot be pulled back by a pointer resting on another row.
+    /// Hover only counts while the pointer is visible, and never stacks on top
+    /// of `Select` (`isSelected`).
     private var isHoverActive: Bool {
-        allowsHover && isHovered
+        allowsHover && isHovered && !isSelected
+    }
+
+    private var backgroundFill: Color {
+        if isSelected {
+            return WorkbenchRedesignColors.menuItemSelectedBg
+        }
+        if isHoverActive {
+            return WorkbenchRedesignColors.rowSelected
+        }
+        return .clear
     }
 
     var body: some View {
@@ -359,20 +354,13 @@ private struct PlaybackCommandPanelRootRow: View {
                     cornerRadius: PlaybackCommandPanelMetrics.rowRadius,
                     style: .continuous
                 )
-                .fill(
-                    isSelected
-                        ? WorkbenchRedesignColors.rowSelected
-                        : Color.clear
-                )
+                .fill(backgroundFill)
             }
             .contentShape(Rectangle())
         }
         .buttonStyle(StaticButtonStyle())
         .focusable(false)
         .onPointerHover { isHovered = $0 }
-        .onChange(of: isHoverActive) { isActive in
-            onHoverChange(isActive)
-        }
     }
 }
 
@@ -1030,19 +1018,11 @@ private struct PlaybackCommandPanelRecentCards<Grid: View>: View {
         }
         .cardHighlightFreeze(highlight)
         .onAppear {
-            highlight.adopt = { adoptedID in
-                guard let adoptedID,
-                      let ordinal = itemIDs.firstIndex(of: adoptedID)
-                else {
-                    return
-                }
-                onSelect(ordinal)
-            }
-            highlight.setCurrent(selectedItemID)
+            highlight.setSelected(selectedItemID)
             onSynchronize()
         }
         .onChange(of: selectedItemID) { itemID in
-            highlight.setCurrent(itemID)
+            highlight.setSelected(itemID)
         }
         .onChange(of: itemIDs) { _ in
             onSynchronize()

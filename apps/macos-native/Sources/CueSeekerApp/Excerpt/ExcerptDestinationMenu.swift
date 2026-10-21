@@ -43,7 +43,8 @@ struct ExcerptDestinationMenu: View {
                 ) { position, destination in
                     WorkbenchPopoverRow(
                         title: destination.title,
-                        isHighlighted: highlight.highlightedPosition == position,
+                        isHighlighted: highlight.isSelected(position),
+                        isRowHovered: highlight.isHovered(position),
                         isRedesign: true,
                         showsCheckmarkSlot: false,
                         action: {
@@ -60,8 +61,8 @@ struct ExcerptDestinationMenu: View {
                 }
                 WorkbenchPopoverRow(
                     title: L("excerpt.new_list"),
-                    isHighlighted: highlight.highlightedPosition
-                        == destinations.count,
+                    isHighlighted: highlight.isSelected(destinations.count),
+                    isRowHovered: highlight.isHovered(destinations.count),
                     isRedesign: true,
                     showsCheckmarkSlot: false,
                     action: onCreateList,

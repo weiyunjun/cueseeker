@@ -859,7 +859,8 @@ private struct RowActionMenu: View {
         )
         return WorkbenchPopoverRow(
             title: action.title,
-            isHighlighted: highlight.highlightedPosition == position,
+            isHighlighted: highlight.isSelected(position),
+            isRowHovered: highlight.isHovered(position),
             icon: action.icon,
             iconWeight: action.iconWeight,
             isRedesign: true,
@@ -2633,6 +2634,8 @@ struct SubtitleTableView: NSViewRepresentable {
                     // open menu stays open. Only work already in flight stops.
                     cancelPendingTextInteraction()
                     hideCueStateTip()
+                } else {
+                    reevaluateHoverFromCurrentPointer()
                 }
                 headerView?.refreshHeaderHosts()
             }
@@ -2655,6 +2658,8 @@ struct SubtitleTableView: NSViewRepresentable {
                 if interfaceLayerContext.isFrozen {
                     cancelPendingTextInteraction()
                     hideCueStateTip()
+                } else {
+                    reevaluateHoverFromCurrentPointer()
                 }
                 headerView?.refreshHeaderHosts()
             }
@@ -2864,6 +2869,24 @@ struct SubtitleTableView: NSViewRepresentable {
                 self,
                 selector: #selector(systemColorsDidChange),
                 name: NSColor.systemColorsDidChangeNotification,
+                object: nil
+            )
+            NotificationCenter.default.addObserver(
+                self,
+                selector: #selector(appDidBecomeActive),
+                name: NSApplication.didBecomeActiveNotification,
+                object: nil
+            )
+            NotificationCenter.default.addObserver(
+                self,
+                selector: #selector(appDidResignActive),
+                name: NSApplication.didResignActiveNotification,
+                object: nil
+            )
+            NotificationCenter.default.addObserver(
+                self,
+                selector: #selector(scrollDebounceDidSettle),
+                name: .cueSeekerScrollDebounceSettled,
                 object: nil
             )
             installKeyboardFocusEventMonitor()
@@ -4377,6 +4400,43 @@ struct SubtitleTableView: NSViewRepresentable {
             invalidateVisibleDocument()
         }
 
+        @objc private func appDidBecomeActive(_ notification: Notification) {
+            reevaluateHoverFromCurrentPointer()
+            headerView?.refreshHeaderHosts()
+        }
+
+        @objc private func appDidResignActive(_ notification: Notification) {
+            clearHover()
+            headerView?.refreshHeaderHosts()
+        }
+
+        @objc private func scrollDebounceDidSettle(_ notification: Notification) {
+            reevaluateHoverFromCurrentPointer()
+            headerView?.refreshHeaderHosts()
+        }
+
+        func reevaluateHoverFromCurrentPointer() {
+            guard !isPointerFrozen,
+                  !AppCursorVisibility.isCursorHidden,
+                  !PointerHoverScrollState.shared.isScrolling,
+                  let window = documentView?.window
+            else {
+                return
+            }
+            if !NSApp.isActive {
+                clearHover()
+                return
+            }
+            let screenPoint = NSEvent.mouseLocation
+            if NSWindow.windowNumber(at: screenPoint, belowWindowWithWindowNumber: 0) == window.windowNumber {
+                handleMouseHover(windowPoint: window.mouseLocationOutsideOfEventStream)
+            } else if window.frame.contains(screenPoint) {
+                handleMouseHover(windowPoint: window.mouseLocationOutsideOfEventStream)
+            } else {
+                clearHover()
+            }
+        }
+
         func selectAllTableText() {
             guard isRedesign, isEnabled, !isSelectionMode else { return }
             let previousSelection = textSelection
@@ -4903,8 +4963,7 @@ struct SubtitleTableView: NSViewRepresentable {
 
         private func isCellHovered(row: Int, columnID: String) -> Bool {
             guard isRedesign else { return false }
-            return (hoveredRow == row && hoveredColumnID == columnID) ||
-                (isMenuOpen && activeRowMenuRow == row && activeRowMenuColumnID == columnID)
+            return hoveredRow == row && hoveredColumnID == columnID
         }
 
         private func contentHoverRect(rects: [CGRect], clippedTo clipRect: CGRect) -> CGRect? {
@@ -7335,7 +7394,18 @@ struct SubtitleTableView: NSViewRepresentable {
             // it is said here rather than left to whatever the pointer happened
             // to hover on the way in. Hover is frozen from now on.
             updateHoveredRow(row)
-            updateHoveredColumnID(columnID)
+            if let clickPointInDocument {
+                let hoveredColumn = hoveredDataColumnID(row: row, point: clickPointInDocument)
+                updateHoveredColumnID(hoveredColumn)
+                let cueTextRow = hoveredColumn == "cues"
+                    && rowProvider(row)?.cueState.isUnavailable != true
+                    && isPointInCueText(row: row, point: clickPointInDocument)
+                    ? row
+                    : nil
+                updateHoveredCueTextRow(cueTextRow)
+            } else {
+                updateHoveredColumnID(columnID)
+            }
             isMenuOpen = true
             activeRowMenuRow = row
             activeRowMenuColumnID = columnID
@@ -7596,6 +7666,7 @@ struct SubtitleTableView: NSViewRepresentable {
             hideRowActionDestinationSubmenu()
             menuClipView?.isHidden = true
             closeMenuGateSession()
+            reevaluateHoverFromCurrentPointer()
             headerView?.refreshHeaderHosts()
             invalidateRows([previousRowMenuRow, previousHoveredRow])
         }

@@ -1244,6 +1244,7 @@ struct WorkbenchPopoverRow: View {
     let title: String
     var isSelected = false
     var isHighlighted = false
+    var isRowHovered = false
     var icon: AppIcon?
     var iconWeight: AppIconWeight?
     var isRedesign: Bool = false
@@ -1368,15 +1369,21 @@ struct WorkbenchPopoverRow: View {
             : WorkbenchControlMetrics.redesignMenuItemTrailingIconPadding
     }
 
-    /// Only the owning menu's highlight paints a background. The row's own
-    /// hover must not, or the keyboard highlight and the row under the pointer
-    /// would both light up at once.
     private var rowBackground: Color {
-        guard isEnabled, isHighlighted else { return .clear }
-        guard isRedesign else { return WorkbenchControlColors.hoverFill }
-        return isDestructive
-            ? WorkbenchRedesignColors.dangerBgHover
-            : WorkbenchRedesignColors.bgHover
+        guard isEnabled else { return .clear }
+        if isHighlighted {
+            guard isRedesign else { return WorkbenchControlColors.hoverFill }
+            return isDestructive
+                ? WorkbenchRedesignColors.dangerMenuItemSelectedBg
+                : WorkbenchRedesignColors.menuItemSelectedBg
+        }
+        if isRowHovered {
+            guard isRedesign else { return WorkbenchControlColors.hoverFill }
+            return isDestructive
+                ? WorkbenchRedesignColors.dangerBgHover
+                : WorkbenchRedesignColors.bgHover
+        }
+        return .clear
     }
 
     private var labelColor: Color {
@@ -1784,7 +1791,8 @@ struct WorkbenchCardMenuPopover: View {
                 ForEach(Array(items.enumerated()), id: \.element.id) { position, item in
                     WorkbenchPopoverRow(
                         title: item.title,
-                        isHighlighted: highlight.highlightedPosition == position,
+                        isHighlighted: highlight.isSelected(position),
+                        isRowHovered: highlight.isHovered(position),
                         icon: item.icon,
                         isRedesign: true,
                         showsCheckmarkSlot: false,

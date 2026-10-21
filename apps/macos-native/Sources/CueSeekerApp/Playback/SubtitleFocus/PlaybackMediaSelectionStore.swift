@@ -25,7 +25,7 @@ final class PlaybackMediaSelectionStore: ObservableObject {
     @Published private(set) var scrollRequest: PlaybackMediaSelectionScrollRequest?
 
     var selectedItemID: String? {
-        highlight.currentID
+        highlight.selectedID
     }
 
     private(set) var orderedItemIDs: [String] = []
@@ -39,19 +39,7 @@ final class PlaybackMediaSelectionStore: ObservableObject {
     private var handledScrollRequestSequence: UInt64 = 0
     private var isActive = true
 
-    init() {
-        // The pointer moves the grid's own selection, which reports back
-        // through the model; nothing scrolls, because the card the pointer
-        // adopted is already under the cursor.
-        highlight.adopt = { [weak self] itemID in
-            guard let self, self.isActive, let itemID,
-                  self.availableItemIDs.contains(itemID)
-            else {
-                return
-            }
-            self.highlight.setCurrent(itemID)
-        }
-    }
+    init() {}
 
     var restorationItemID: String? {
         scrollAnchorItemID ?? selectedItemID

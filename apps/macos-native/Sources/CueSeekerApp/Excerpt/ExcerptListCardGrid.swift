@@ -76,10 +76,12 @@ struct ExcerptListCardGrid: View {
     ) -> some View {
         LibraryOverviewGrid {
             ForEach(summaries) { summary in
+                let cardID = String(summary.id)
                 ExcerptListCard(
                     summary: summary,
                     highlight: highlight,
-                    isCurrent: highlight.currentID == String(summary.id),
+                    isSelected: highlight.isSelected(cardID),
+                    isHovered: highlight.isHovered(cardID),
                     canDelete: excerptStore.listOverview.lists.count > 1,
                     onOpen: { onOpen(summary) },
                     onEdit: { appState.beginEditingExcerptList(summary.list) },
@@ -126,7 +128,8 @@ struct ExcerptListCardGrid: View {
 private struct ExcerptListCard: View {
     let summary: ExcerptListSummary
     let highlight: CardHighlightModel
-    let isCurrent: Bool
+    let isSelected: Bool
+    let isHovered: Bool
     let canDelete: Bool
     let onOpen: () -> Void
     let onEdit: () -> Void
@@ -135,6 +138,10 @@ private struct ExcerptListCard: View {
 
     private var cardID: String {
         String(summary.id)
+    }
+
+    private var isHighlighted: Bool {
+        isSelected || isHovered
     }
 
     var body: some View {
@@ -150,7 +157,10 @@ private struct ExcerptListCard: View {
             }
         }
         .buttonStyle(
-            LibraryOverviewCardButtonStyle(isCurrent: isCurrent)
+            LibraryOverviewCardButtonStyle(
+                isSelected: isSelected,
+                isHovered: isHovered
+            )
         )
         .focusable(false)
         .onHover { highlight.noteHover($0, id: cardID) }
@@ -197,11 +207,11 @@ private struct ExcerptListCard: View {
             }
         }
         .scaleEffect(
-            isCurrent ? WorkbenchControlMetrics.redesignLibraryCoverHoverScale : 1
+            isHighlighted ? WorkbenchControlMetrics.redesignLibraryCoverHoverScale : 1
         )
         .animation(
             .easeOut(duration: WorkbenchControlMetrics.redesignLibraryCoverHoverDuration),
-            value: isCurrent
+            value: isHighlighted
         )
     }
 

@@ -738,7 +738,8 @@ private struct AnkiCardItemMenuPopover: View {
                 ForEach(Array(items.enumerated()), id: \.element.id) { position, item in
                     WorkbenchPopoverRow(
                         title: item.title,
-                        isHighlighted: highlight.highlightedPosition == position,
+                        isHighlighted: highlight.isSelected(position),
+                        isRowHovered: highlight.isHovered(position),
                         isRedesign: true,
                         showsCheckmarkSlot: false,
                         action: {

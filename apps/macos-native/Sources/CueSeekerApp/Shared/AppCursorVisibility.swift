@@ -28,6 +28,9 @@ enum AppCursorVisibility {
         } else {
             NSCursor.unhide()
         }
+        CardHighlightModel.broadcastCursorHiddenChanged(shouldHide)
+        MenuHighlightModel.broadcastCursorHiddenChanged(shouldHide)
+        PointerHoverScrollState.shared.noteCursorHiddenChanged(shouldHide)
     }
 
     static func resetForTesting() {

@@ -258,7 +258,10 @@ private func findScrollView(in view: NSView) -> NSScrollView? {
 
 @MainActor
 @Test
-func playbackMediaSelectionFromPointerMovesSelectionWithoutScrolling() throws {
+func playbackMediaHoverAndRightClickDoNotMoveSelectionOrScroll() throws {
+    AppCursorVisibility.resetForTesting()
+    defer { AppCursorVisibility.resetForTesting() }
+
     let selection = PlaybackMediaSelectionStore()
     selection.replaceItems(
         orderedItemIDs: ["0", "1", "2", "3"],
@@ -269,22 +272,24 @@ func playbackMediaSelectionFromPointerMovesSelectionWithoutScrolling() throws {
     let initialRequest = try #require(selection.scrollRequest)
     selection.markScrollRequestHandled(sequence: initialRequest.sequence)
 
-    // The pointer is already on the card, so moving the selection there must
-    // not ask the list to scroll under the cursor.
-    selection.highlight.notePress(id: "3")
-    #expect(selection.selectedItemID == "3")
+    // Hovering and right-clicking a card only update Hover; they must never
+    // move Select or trigger a scroll request.
+    selection.highlight.noteHover(true, id: "3")
+    #expect(selection.selectedItemID == "0")
+    #expect(selection.highlight.hoveredID == "3")
     #expect(selection.scrollRequest?.sequence == initialRequest.sequence)
     #expect(selection.pendingScrollRequest == nil)
 
-    // Unavailable and unknown items cannot take the selection.
-    selection.highlight.notePress(id: "1")
-    #expect(selection.selectedItemID == "3")
-    selection.highlight.notePress(id: "missing")
-    #expect(selection.selectedItemID == "3")
+    selection.highlight.notePress(id: "2")
+    #expect(selection.selectedItemID == "0")
+    #expect(selection.highlight.hoveredID == "2")
+    #expect(selection.scrollRequest?.sequence == initialRequest.sequence)
+    #expect(selection.pendingScrollRequest == nil)
 
-    // Keyboard movement still scrolls, so the two paths stay distinguishable.
-    #expect(selection.move(.up) || selection.selectedItemID == "3")
+    // Keyboard movement still moves Select and requests scrolling.
+    #expect(selection.move(.down))
+    #expect(selection.selectedItemID == "2")
+    #expect((selection.scrollRequest?.sequence ?? 0) > initialRequest.sequence)
     selection.invalidate()
-    selection.highlight.notePress(id: "0")
     #expect(selection.selectedItemID == nil)
 }
