@@ -287,7 +287,7 @@ struct WorkbenchFileView: View {
         let isAddFolderDisabled = isFolderOperationBlocked || isChoosingFolder
         let isIndexNowDisabled = indexing.selectedFolders.isEmpty || isFolderOperationBlocked
 
-        return HStack(spacing: WorkbenchControlMetrics.redesignSpacing3) {
+        return HStack(spacing: WorkbenchControlMetrics.redesignSpacing4) {
             WorkbenchButton(
                 title: L("settings.library.add_folder"),
                 icon: .folderPlus,
@@ -812,7 +812,7 @@ struct WorkbenchFileView: View {
     }
 
     private var statusAndActionRow: some View {
-        HStack(alignment: .center, spacing: WorkbenchControlMetrics.redesignSpacing3) {
+        HStack(alignment: .center, spacing: WorkbenchControlMetrics.redesignSpacing4) {
             actionRow
 
             statusIndicator

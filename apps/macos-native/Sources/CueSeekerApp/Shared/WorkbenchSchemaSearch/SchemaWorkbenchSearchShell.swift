@@ -625,7 +625,7 @@ struct SchemaWorkbenchSearchToolbar: View {
     }
 
     private var topInputAndActionsRow: some View {
-        HStack(spacing: WorkbenchControlMetrics.redesignSpacing3) {
+        HStack(spacing: WorkbenchControlMetrics.redesignSpacing4) {
             searchField
                 .frame(minWidth: 0, maxWidth: .infinity)
                 .disabled(isSelectionMode)
@@ -643,7 +643,7 @@ struct SchemaWorkbenchSearchToolbar: View {
     }
 
     private var defaultResultCountRow: some View {
-        HStack(spacing: WorkbenchControlMetrics.redesignSpacing3) {
+        HStack(spacing: WorkbenchControlMetrics.redesignSpacing4) {
             if let searchResultCountText, !searchResultCountText.isEmpty {
                 WorkbenchStatusIndicator(searchResultCountText)
             }
@@ -655,7 +655,7 @@ struct SchemaWorkbenchSearchToolbar: View {
     }
 
     private var selectionBanner: some View {
-        HStack(spacing: WorkbenchControlMetrics.redesignSpacing3) {
+        HStack(spacing: WorkbenchControlMetrics.redesignSpacing4) {
             WorkbenchButton(
                 title: L("table.exit_select"),
                 icon: .signOut,

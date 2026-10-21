@@ -333,7 +333,7 @@ struct WorkbenchTestLibraryView: View {
             ? L("library.folder_count.one")
             : L("library.folder_count.other", folderCount)
 
-        return HStack(spacing: WorkbenchControlMetrics.redesignSpacing3) {
+        return HStack(spacing: WorkbenchControlMetrics.redesignSpacing4) {
             WorkbenchButton(
                 title: library.sortOrder.title,
                 icon: .funnelSimple,

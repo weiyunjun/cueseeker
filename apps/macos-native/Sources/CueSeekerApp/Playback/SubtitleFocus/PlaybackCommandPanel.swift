@@ -640,7 +640,7 @@ private struct PlaybackCommandPanelSearchResults: View {
                 title: presentation.query,
                 onBack: onBack
             ) {
-                HStack(spacing: WorkbenchControlMetrics.redesignSpacing3) {
+                HStack(spacing: WorkbenchControlMetrics.redesignSpacing4) {
                     WorkbenchButton(
                         title: L("table.filter"),
                         icon: .funnel,

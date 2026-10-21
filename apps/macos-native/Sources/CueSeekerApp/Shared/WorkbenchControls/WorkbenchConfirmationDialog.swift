@@ -100,7 +100,7 @@ struct WorkbenchConfirmationDialog: View {
                 .lineLimit(nil)
                 .fixedSize(horizontal: false, vertical: true)
 
-            HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
+            HStack(spacing: WorkbenchControlMetrics.redesignSpacing4) {
                 Spacer(minLength: 0)
 
                 ForEach(session.actions) { action in

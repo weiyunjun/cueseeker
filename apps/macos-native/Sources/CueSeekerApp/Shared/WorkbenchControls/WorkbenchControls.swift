@@ -407,16 +407,9 @@ enum WorkbenchControlMetrics {
     static let redesignAnkiExportDraggingOpacity: Double = 0.5
     /// --font-weight-task-count-badge: 600
     static let redesignFontWeightTaskCountBadge: Font.Weight = .semibold
-    /// The count keeps --spacing-1 from the Task glyph's ink rather than its
-    /// box. Phosphor's `list-checks` draws its lines out to 216 of its
-    /// 256-unit grid and the round cap adds half the line width, so the box's
-    /// slack past that is given back.
-    static let redesignTaskCountBadgeGap: CGFloat = {
-        let iconSize = redesignControlIconSize
-        let lineWidth = AppIconLineWidth.bySize[iconSize] ?? 0
-        let inkTrailingEdge = iconSize * 216 / 256 + lineWidth / 2
-        return redesignSpacing1 - (iconSize - inkTrailingEdge)
-    }()
+    /// --spacing-2: horizontal gap between the icon and the Task Count Badge,
+    /// unified with the Filter button.
+    static let redesignTaskCountBadgeGap: CGFloat = redesignSpacing2
     /// --height-task-panel: 500px
     static let redesignTaskPanelHeight: CGFloat = 500
     /// --height-filter-dialog: 600px

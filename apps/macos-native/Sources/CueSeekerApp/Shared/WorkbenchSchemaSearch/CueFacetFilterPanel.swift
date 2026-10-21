@@ -384,7 +384,7 @@ struct CueFacetFilterDialog: View {
             listed: availableFolders.map(\.path)
         ).isEmpty
 
-        return HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
+        return HStack(spacing: WorkbenchControlMetrics.redesignSpacing4) {
             // Reset clears the dialog's selection only; the table waits for
             // Show like any other change.
             WorkbenchButton(

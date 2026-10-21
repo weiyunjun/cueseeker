@@ -343,7 +343,7 @@ struct CoverSummaryCard<Cover: View>: View {
     }
 
     private func actionRow(for form: CoverSummaryCardForm) -> some View {
-        HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
+        HStack(spacing: WorkbenchControlMetrics.redesignSpacing4) {
             primaryActionButton(for: form)
 
             if let secondaryAction {

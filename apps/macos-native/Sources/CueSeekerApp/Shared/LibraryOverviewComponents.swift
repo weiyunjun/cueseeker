@@ -46,7 +46,7 @@ struct LibraryOverviewLayout<Content: View>: View {
                     alignment: .leading,
                     spacing: WorkbenchControlMetrics.redesignSpacing4
                 ) {
-                    HStack(spacing: WorkbenchControlMetrics.redesignSpacing3) {
+                    HStack(spacing: WorkbenchControlMetrics.redesignSpacing4) {
                         WorkbenchButton(
                             title: actionTitle,
                             icon: .plus,

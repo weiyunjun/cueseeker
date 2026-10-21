@@ -20,7 +20,7 @@ struct LibraryEditCoverDialog: View {
                 .foregroundStyle(WorkbenchRedesignColors.textMuted)
                 .fixedSize(horizontal: false, vertical: true)
 
-            HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
+            HStack(spacing: WorkbenchControlMetrics.redesignSpacing4) {
                 Spacer(minLength: 0)
 
                 WorkbenchButton(

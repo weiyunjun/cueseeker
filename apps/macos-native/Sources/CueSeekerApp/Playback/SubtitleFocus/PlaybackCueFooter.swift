@@ -269,7 +269,7 @@ struct PlaybackCueFooter: View {
 
             WrappingFlowLayout(
                 alignment: .trailing,
-                horizontalSpacing: WorkbenchControlMetrics.redesignSpacing1,
+                horizontalSpacing: WorkbenchControlMetrics.redesignSpacing2,
                 verticalSpacing: WorkbenchControlMetrics.redesignSpacing1
             ) {
                 ForEach(actions) { action in
@@ -580,7 +580,7 @@ private struct PlaybackCueFooterActionButton: View {
 
     var body: some View {
         Button(action: action.perform) {
-            HStack(spacing: WorkbenchControlMetrics.redesignSpacing1) {
+            HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
                 Text(action.title)
                     .font(.system(
                         size: WorkbenchControlMetrics.redesignFontSizeBody,
@@ -588,18 +588,22 @@ private struct PlaybackCueFooterActionButton: View {
                     ))
                     .fixedSize(horizontal: true, vertical: false)
 
-                ForEach(keycaps.indices, id: \.self) { index in
-                    PlaybackCueFooterKeycapView(
-                        keycap: keycaps[index],
-                        background: isPressed
-                            ? surface.keycapPressedBackground
-                            : (isHighlighted
-                                ? surface.keycapHoverBackground
-                                : surface.keycapBackground)
-                    )
+                if !keycaps.isEmpty {
+                    HStack(spacing: WorkbenchControlMetrics.redesignSpacing1) {
+                        ForEach(keycaps.indices, id: \.self) { index in
+                            PlaybackCueFooterKeycapView(
+                                keycap: keycaps[index],
+                                background: isPressed
+                                    ? surface.keycapPressedBackground
+                                    : (isHighlighted
+                                        ? surface.keycapHoverBackground
+                                        : surface.keycapBackground)
+                            )
+                        }
+                    }
                 }
             }
-            .padding(.horizontal, WorkbenchControlMetrics.redesignSpacing2)
+            .padding(.horizontal, WorkbenchControlMetrics.redesignSpacing3)
             .padding(.vertical, WorkbenchControlMetrics.redesignSpacing1)
             .background {
                 RoundedRectangle(

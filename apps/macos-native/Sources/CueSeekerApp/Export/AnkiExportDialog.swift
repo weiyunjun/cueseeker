@@ -257,7 +257,7 @@ struct AnkiExportDialog: View {
             WorkbenchScrollView {
                 VStack(alignment: .leading, spacing: WorkbenchControlMetrics.redesignSpacing4) {
                     // Section 1: Front & Back Card Columns
-                    HStack(alignment: .top, spacing: WorkbenchControlMetrics.redesignSpacing3) {
+                    HStack(alignment: .top, spacing: WorkbenchControlMetrics.redesignSpacing5) {
                         cardSideColumn(side: .front)
                         cardSideColumn(side: .back)
                     }
@@ -688,7 +688,7 @@ struct AnkiExportDialog: View {
     }
 
     private var actions: some View {
-        HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
+        HStack(spacing: WorkbenchControlMetrics.redesignSpacing4) {
             Spacer(minLength: 0)
 
             WorkbenchButton(

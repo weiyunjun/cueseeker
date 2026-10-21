@@ -210,7 +210,7 @@ struct SMBFolderDialog: View {
     }
 
     private var connectionActions: some View {
-        HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
+        HStack(spacing: WorkbenchControlMetrics.redesignSpacing4) {
             Spacer(minLength: 0)
 
             WorkbenchButton(
@@ -321,7 +321,7 @@ struct SMBFolderDialog: View {
     }
 
     private var browserActions: some View {
-        HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
+        HStack(spacing: WorkbenchControlMetrics.redesignSpacing4) {
             WorkbenchButton(
                 title: L("common.back"),
                 isRedesign: true,

@@ -100,7 +100,7 @@ struct WorkbenchFileDetailDialog: View {
     // MARK: - File Header Row
 
     private var fileHeaderRow: some View {
-        HStack(alignment: .center, spacing: WorkbenchControlMetrics.redesignDialogInset) {
+        HStack(alignment: .center, spacing: WorkbenchControlMetrics.redesignSpacing4) {
             ZStack {
                 RoundedRectangle(
                     cornerRadius: WorkbenchControlMetrics.redesignCornerRadius,

@@ -531,3 +531,12 @@ func buttonPressedAndHoverColorTokensMatchDesignSpecification() {
 
     #expect(PlaybackTheme.controlPressedBackground == Color.white.opacity(0.24))
 }
+
+@Test
+func taskCountBadgeGapMatchesFilterButtonSpacingToken() {
+    #expect(
+        WorkbenchControlMetrics.redesignTaskCountBadgeGap
+            == WorkbenchControlMetrics.redesignSpacing2
+    )
+    #expect(WorkbenchControlMetrics.redesignTaskCountBadgeGap == 8)
+}
