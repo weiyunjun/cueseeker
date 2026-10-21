@@ -146,6 +146,19 @@ final class PlaybackCollagePreviewScrollContainerView: NSView {
             name: NSView.boundsDidChangeNotification,
             object: scrollView.contentView
         )
+        for name in [
+            NSApplication.didBecomeActiveNotification,
+            NSApplication.didResignActiveNotification,
+            NSWindow.didBecomeKeyNotification,
+            NSWindow.didResignKeyNotification,
+        ] {
+            NotificationCenter.default.addObserver(
+                self,
+                selector: #selector(focusDidChange(_:)),
+                name: name,
+                object: nil
+            )
+        }
     }
 
     @available(*, unavailable)
@@ -283,7 +296,9 @@ final class PlaybackCollagePreviewScrollContainerView: NSView {
             MainActor.assumeIsolated {
                 guard let self,
                       let window = self.window,
-                      event.window === window
+                      event.window === window,
+                      NSApp.isActive,
+                      window.isKeyWindow
                 else {
                     return
                 }
@@ -293,6 +308,32 @@ final class PlaybackCollagePreviewScrollContainerView: NSView {
                 )
             }
             return consumed ? nil : event
+        }
+    }
+
+    @objc private func focusDidChange(_ notification: Notification) {
+        guard let window else {
+            return
+        }
+        if let notificationWindow = notification.object as? NSWindow,
+           notificationWindow !== window {
+            return
+        }
+        if NSApp.isActive && window.isKeyWindow {
+            guard isInteractionEnabled,
+                  !AppCursorVisibility.isCursorHidden,
+                  !PointerHoverScrollState.shared.isScrolling,
+                  NSWindow.windowNumber(
+                      at: NSEvent.mouseLocation,
+                      belowWindowWithWindowNumber: 0
+                  ) == window.windowNumber
+            else {
+                return
+            }
+            pointerMoved(toWindowPoint: window.mouseLocationOutsideOfEventStream)
+        } else if isInteractionEnabled {
+            pressedSegmentIndex = nil
+            setHoveredSegment(nil)
         }
     }
 

@@ -1,5 +1,26 @@
 import AppKit
 
+/// Base window that hides `mouseLocationOutsideOfEventStream` while the window
+/// is not the active key window so background layout passes inside
+/// `NSHostingView` never synthesize hover on an unfocused window.
+class CueSeekerWindow: NSWindow {
+    var isWindowFocusedOverrideForTesting: Bool?
+
+    var isFocusedForHover: Bool {
+        if let isWindowFocusedOverrideForTesting {
+            return isWindowFocusedOverrideForTesting
+        }
+        return NSApp.isActive && isKeyWindow
+    }
+
+    override var mouseLocationOutsideOfEventStream: NSPoint {
+        guard isFocusedForHover else {
+            return NSPoint(x: -10_000, y: -10_000)
+        }
+        return super.mouseLocationOutsideOfEventStream
+    }
+}
+
 /// The main window, which refuses to hand the keyboard to anything while a
 /// menu owns input, or to anything outside the open dialog.
 ///
@@ -14,7 +35,7 @@ import AppKit
 ///
 /// See `docs/human/requirements/20260826-UI-Menu Modality Input Barrier And
 /// Focus Cancellation.md`.
-final class CueSeekerMainWindow: NSWindow {
+final class CueSeekerMainWindow: CueSeekerWindow {
     /// Set by the App once the interface layer registry exists.
     var isFocusLocked: () -> Bool = { false }
 

@@ -406,7 +406,7 @@ final class OverlaySidebarPointerMonitorNSView: NSView {
             options: [
                 .mouseEnteredAndExited,
                 .mouseMoved,
-                .activeAlways,
+                .activeInKeyWindow,
                 .assumeInside,
             ],
             owner: self,
@@ -462,7 +462,11 @@ final class OverlaySidebarPointerMonitorNSView: NSView {
     }
 
     private func evaluatePointerEvent(_ event: NSEvent) {
-        guard let window, event.window === window else {
+        guard let window,
+              event.window === window,
+              NSApp.isActive,
+              window.isKeyWindow
+        else {
             return
         }
         evaluatePointerLocationInWindow(event.locationInWindow)
@@ -474,7 +478,11 @@ final class OverlaySidebarPointerMonitorNSView: NSView {
             return
         }
         let workItem = DispatchWorkItem { [weak self] in
-            guard let self, let window = self.window else {
+            guard let self,
+                  let window = self.window,
+                  NSApp.isActive,
+                  window.isKeyWindow
+            else {
                 return
             }
             self.evaluatePointerLocationInWindow(window.mouseLocationOutsideOfEventStream)

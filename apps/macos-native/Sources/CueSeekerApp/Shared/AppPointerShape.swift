@@ -111,6 +111,13 @@ enum AppPointerShape {
         installRestore()
     }
 
+    static func manages(_ candidate: NSWindow?) -> Bool {
+        guard let candidate else {
+            return false
+        }
+        return candidate === window
+    }
+
     /// The cursor a surface registers over its whole visible area, from
     /// `resetCursorRects`. AppKit applies a cursor rect synchronously in the
     /// same pass that would otherwise fall back to the arrow, so the rect is
@@ -165,7 +172,7 @@ enum AppPointerShape {
     /// screen and the Settings window sits inside that frame, so geometry says
     /// yes for a pointer that is not on the main window at all.
     private static func isPointerOverOwnWindow() -> Bool {
-        guard let window else {
+        guard let window, window.isKeyWindow else {
             return false
         }
         return NSWindow.windowNumber(
@@ -176,7 +183,11 @@ enum AppPointerShape {
 
     private static func releaseToOtherWindow() {
         pointerLocationOutside = NSEvent.mouseLocation
+        let hadCustomShape = model.shape != .arrow
         setRectShape(model.reset())
+        if hadCustomShape {
+            NSCursor.arrow.set()
+        }
     }
 
     private static func reclaimAfterRealMovement() {
@@ -334,11 +345,188 @@ enum AppPointerShape {
 /// back to the arrow and flicker on every wheel notch — and again from the
 /// cursor update AppKit sends for that rect.
 class CueSeekerHostingView<Content: View>: NSHostingView<Content> {
+    var mouseLocationOverrideForTesting: CGPoint?
+    private var needsMouseReenterInSuper = false
+    nonisolated(unsafe) private var focusObserverTokens: [NSObjectProtocol] = []
+
+    deinit {
+        for token in focusObserverTokens {
+            NotificationCenter.default.removeObserver(token)
+        }
+    }
+
+    var isWindowFocused: Bool {
+        guard let window else {
+            return false
+        }
+        if let cueSeekerWindow = window as? CueSeekerWindow {
+            return cueSeekerWindow.isFocusedForHover
+        }
+        return NSApp.isActive && window.isKeyWindow
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        removeFocusObservers()
+        guard window != nil else {
+            return
+        }
+        needsMouseReenterInSuper = !isWindowFocused
+        installFocusObservers()
+    }
+
+    override func mouseEntered(with event: NSEvent) {
+        guard isWindowFocused else {
+            needsMouseReenterInSuper = true
+            return
+        }
+        needsMouseReenterInSuper = false
+        super.mouseEntered(with: event)
+    }
+
+    override func mouseMoved(with event: NSEvent) {
+        guard isWindowFocused else {
+            return
+        }
+        if needsMouseReenterInSuper {
+            needsMouseReenterInSuper = false
+            super.mouseEntered(with: event)
+        }
+        super.mouseMoved(with: event)
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        needsMouseReenterInSuper = false
+        super.mouseExited(with: event)
+    }
+
+    func syncMouseHoverForWindowFocus() {
+        guard let window else {
+            return
+        }
+        if isWindowFocused {
+            guard !AppCursorVisibility.isCursorHidden,
+                  !PointerHoverScrollState.shared.isScrolling,
+                  !isHiddenOrHasHiddenAncestor,
+                  isPointerOverHostingWindow(window)
+            else {
+                return
+            }
+            let locationInWindow = mouseLocationOverrideForTesting
+                ?? window.mouseLocationOutsideOfEventStream
+            let visibleBounds = bounds.intersection(visibleRect)
+            guard visibleBounds.contains(convert(locationInWindow, from: nil)),
+                  let moveEvent = Self.makeMouseEvent(
+                      at: locationInWindow,
+                      in: window
+                  )
+            else {
+                return
+            }
+            if let offscreenEvent = Self.makeMouseEvent(
+                at: CGPoint(x: -10_000, y: -10_000),
+                in: window
+            ) {
+                super.mouseExited(with: offscreenEvent)
+            }
+            needsMouseReenterInSuper = false
+            super.mouseEntered(with: moveEvent)
+            super.mouseMoved(with: moveEvent)
+            if AppPointerShape.manages(window) {
+                AppPointerShape.pointerMoved(in: window, at: locationInWindow)
+            }
+        } else {
+            PointerHoverScrollState.shared.cancelScrollDebounceForWindowResign()
+            if AppPointerShape.manages(window) {
+                CardHighlightModel.broadcastWindowDidResignFocus()
+            }
+            MenuHighlightModel.broadcastWindowDidResignFocus()
+            needsMouseReenterInSuper = true
+            if let offscreenEvent = Self.makeMouseEvent(
+                at: CGPoint(x: -10_000, y: -10_000),
+                in: window
+            ) {
+                super.mouseExited(with: offscreenEvent)
+            }
+        }
+    }
+
+    private func isPointerOverHostingWindow(_ window: NSWindow) -> Bool {
+        if mouseLocationOverrideForTesting != nil
+            || (window as? CueSeekerWindow)?.isWindowFocusedOverrideForTesting != nil {
+            return true
+        }
+        return NSWindow.windowNumber(
+            at: NSEvent.mouseLocation,
+            belowWindowWithWindowNumber: 0
+        ) == window.windowNumber
+    }
+
+    private func installFocusObservers() {
+        let center = NotificationCenter.default
+        for name in [
+            NSApplication.didBecomeActiveNotification,
+            NSApplication.didResignActiveNotification,
+            NSWindow.didBecomeKeyNotification,
+            NSWindow.didResignKeyNotification,
+        ] {
+            let token = center.addObserver(
+                forName: name,
+                object: nil,
+                queue: .main
+            ) { [weak self] notification in
+                MainActor.assumeIsolated {
+                    guard let self, let window = self.window else {
+                        return
+                    }
+                    if let notificationWindow = notification.object as? NSWindow,
+                       notificationWindow !== window {
+                        return
+                    }
+                    self.syncMouseHoverForWindowFocus()
+                }
+            }
+            focusObserverTokens.append(token)
+        }
+    }
+
+    private func removeFocusObservers() {
+        for token in focusObserverTokens {
+            NotificationCenter.default.removeObserver(token)
+        }
+        focusObserverTokens.removeAll()
+    }
+
+    private static func makeMouseEvent(
+        at location: CGPoint,
+        in window: NSWindow
+    ) -> NSEvent? {
+        NSEvent.mouseEvent(
+            with: .mouseMoved,
+            location: location,
+            modifierFlags: [],
+            timestamp: ProcessInfo.processInfo.systemUptime,
+            windowNumber: window.windowNumber,
+            context: nil,
+            eventNumber: 0,
+            clickCount: 0,
+            pressure: 0
+        )
+    }
+
     override func resetCursorRects() {
-        addCursorRect(visibleRect, cursor: AppPointerShape.rectCursor)
+        if AppPointerShape.manages(window) {
+            addCursorRect(visibleRect, cursor: AppPointerShape.rectCursor)
+        } else {
+            super.resetCursorRects()
+        }
     }
 
     override func cursorUpdate(with event: NSEvent) {
-        AppPointerShape.restate()
+        if AppPointerShape.manages(window) {
+            AppPointerShape.restate()
+        } else {
+            super.cursorUpdate(with: event)
+        }
     }
 }

@@ -373,7 +373,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             .environmentObject(appState.library)
             .environmentObject(appState.search)
             .environmentObject(appState.playback)
-        let settingsWindow = NSWindow(
+        let settingsWindow = CueSeekerWindow(
             contentRect: NSRect(
                 x: 0,
                 y: 0,
@@ -392,7 +392,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             height: WorkbenchControlMetrics.redesignSettingsWindowMinimumHeight
         )
         settingsWindow.isReleasedWhenClosed = false
-        settingsWindow.contentView = NSHostingView(rootView: contentView)
+        settingsWindow.contentView = CueSeekerHostingView(rootView: contentView)
         settingsWindow.center()
         settingsWindow.makeKeyAndOrderFront(sender)
         self.settingsWindow = settingsWindow

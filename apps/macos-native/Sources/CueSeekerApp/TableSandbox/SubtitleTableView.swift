@@ -1429,7 +1429,7 @@ final class SubtitleVirtualTableHeaderView: NSView {
         }
         let area = NSTrackingArea(
             rect: .zero,
-            options: [.mouseEnteredAndExited, .mouseMoved, .activeInActiveApp, .inVisibleRect],
+            options: [.mouseEnteredAndExited, .mouseMoved, .activeInKeyWindow, .inVisibleRect],
             owner: self
         )
         addTrackingArea(area)
@@ -1477,6 +1477,9 @@ final class SubtitleVirtualTableHeaderView: NSView {
 
     override func mouseEntered(with event: NSEvent) {
         super.mouseEntered(with: event)
+        guard let window, NSApp.isActive, window.isKeyWindow else {
+            return
+        }
         updateHoverState(windowLocation: event.locationInWindow)
     }
 
@@ -1487,7 +1490,38 @@ final class SubtitleVirtualTableHeaderView: NSView {
 
     override func mouseMoved(with event: NSEvent) {
         super.mouseMoved(with: event)
+        guard let window, NSApp.isActive, window.isKeyWindow else {
+            return
+        }
         updateHoverState(windowLocation: event.locationInWindow)
+    }
+
+    func clearHoverState() {
+        guard coordinator?.isPointerFrozen != true else {
+            return
+        }
+        isHeaderHovered = false
+        isIndexHeaderHovered = false
+    }
+
+    func refreshHoverFromWindow() {
+        guard !AppCursorVisibility.isCursorHidden,
+              !PointerHoverScrollState.shared.isScrolling,
+              let window,
+              NSApp.isActive,
+              window.isKeyWindow
+        else {
+            clearHoverState()
+            return
+        }
+        guard NSWindow.windowNumber(
+            at: NSEvent.mouseLocation,
+            belowWindowWithWindowNumber: 0
+        ) == window.windowNumber else {
+            clearHoverState()
+            return
+        }
+        updateHoverState(windowLocation: window.mouseLocationOutsideOfEventStream)
     }
 
     private func updateHoverState(windowLocation: CGPoint? = nil) {
@@ -1505,6 +1539,13 @@ final class SubtitleVirtualTableHeaderView: NSView {
         // pointer nor drops what was lit when the freeze began.
         if coordinator?.isPointerFrozen == true {
             return
+        }
+        if windowLocation == nil {
+            guard let window, NSApp.isActive, window.isKeyWindow else {
+                isHeaderHovered = false
+                isIndexHeaderHovered = false
+                return
+            }
         }
         guard let mouseLoc = windowLocation ?? window?.mouseLocationOutsideOfEventStream else {
             isHeaderHovered = false
@@ -2000,7 +2041,7 @@ final class SubtitleVirtualTableDocumentView: NSView, PointerShapeProviding {
         }
         let area = NSTrackingArea(
             rect: .zero,
-            options: [.mouseMoved, .mouseEnteredAndExited, .activeInActiveApp, .inVisibleRect],
+            options: [.mouseMoved, .mouseEnteredAndExited, .activeInKeyWindow, .inVisibleRect],
             owner: self
         )
         addTrackingArea(area)
@@ -2016,6 +2057,9 @@ final class SubtitleVirtualTableDocumentView: NSView, PointerShapeProviding {
     }
 
     override func mouseMoved(with event: NSEvent) {
+        guard let window, NSApp.isActive, window.isKeyWindow else {
+            return
+        }
         coordinator?.handleMouseHover(windowPoint: event.locationInWindow)
     }
 
@@ -2161,7 +2205,7 @@ struct SubtitleTablePageScrollGeometry: Equatable {
     }
 }
 
-final class SubtitleTablePageChromeHostingView: NSHostingView<AnyView> {
+final class SubtitleTablePageChromeHostingView: CueSeekerHostingView<AnyView> {
     weak var scrollView: NSScrollView?
 
     override func scrollWheel(with event: NSEvent) {
@@ -2881,6 +2925,18 @@ struct SubtitleTableView: NSViewRepresentable {
                 self,
                 selector: #selector(appDidResignActive),
                 name: NSApplication.didResignActiveNotification,
+                object: nil
+            )
+            NotificationCenter.default.addObserver(
+                self,
+                selector: #selector(windowDidBecomeKey),
+                name: NSWindow.didBecomeKeyNotification,
+                object: nil
+            )
+            NotificationCenter.default.addObserver(
+                self,
+                selector: #selector(windowDidResignKey),
+                name: NSWindow.didResignKeyNotification,
                 object: nil
             )
             NotificationCenter.default.addObserver(
@@ -4402,16 +4458,41 @@ struct SubtitleTableView: NSViewRepresentable {
 
         @objc private func appDidBecomeActive(_ notification: Notification) {
             reevaluateHoverFromCurrentPointer()
+            headerView?.refreshHoverFromWindow()
             headerView?.refreshHeaderHosts()
         }
 
         @objc private func appDidResignActive(_ notification: Notification) {
             clearHover()
+            headerView?.clearHoverState()
+            headerView?.refreshHeaderHosts()
+        }
+
+        @objc private func windowDidBecomeKey(_ notification: Notification) {
+            guard let window = documentView?.window,
+                  notification.object as? NSWindow === window
+            else {
+                return
+            }
+            reevaluateHoverFromCurrentPointer()
+            headerView?.refreshHoverFromWindow()
+            headerView?.refreshHeaderHosts()
+        }
+
+        @objc private func windowDidResignKey(_ notification: Notification) {
+            guard let window = documentView?.window,
+                  notification.object as? NSWindow === window
+            else {
+                return
+            }
+            clearHover()
+            headerView?.clearHoverState()
             headerView?.refreshHeaderHosts()
         }
 
         @objc private func scrollDebounceDidSettle(_ notification: Notification) {
             reevaluateHoverFromCurrentPointer()
+            headerView?.refreshHoverFromWindow()
             headerView?.refreshHeaderHosts()
         }
 
@@ -4423,17 +4504,17 @@ struct SubtitleTableView: NSViewRepresentable {
             else {
                 return
             }
-            if !NSApp.isActive {
+            if !NSApp.isActive || !window.isKeyWindow {
                 clearHover()
+                headerView?.clearHoverState()
                 return
             }
             let screenPoint = NSEvent.mouseLocation
             if NSWindow.windowNumber(at: screenPoint, belowWindowWithWindowNumber: 0) == window.windowNumber {
                 handleMouseHover(windowPoint: window.mouseLocationOutsideOfEventStream)
-            } else if window.frame.contains(screenPoint) {
-                handleMouseHover(windowPoint: window.mouseLocationOutsideOfEventStream)
             } else {
                 clearHover()
+                headerView?.clearHoverState()
             }
         }
 

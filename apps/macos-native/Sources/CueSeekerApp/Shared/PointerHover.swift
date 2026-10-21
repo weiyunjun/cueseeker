@@ -40,6 +40,14 @@ final class PointerHoverScrollState: ObservableObject {
         }
     }
 
+    func cancelScrollDebounceForWindowResign() {
+        debounceTask?.cancel()
+        debounceTask = nil
+        if isScrolling {
+            isScrolling = false
+        }
+    }
+
     func settleScroll() {
         debounceTask?.cancel()
         debounceTask = nil

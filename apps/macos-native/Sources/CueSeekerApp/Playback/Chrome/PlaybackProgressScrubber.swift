@@ -49,7 +49,7 @@ struct PlaybackProgressScrubber: View {
                     .fill(PlaybackTheme.progressTrack)
                     .frame(height: trackHeight)
 
-                if !isScrubbing, isHoveringScrubber, let hoverX = hoverX {
+                if !isScrubbing, isHovered, isHoveringScrubber, let hoverX = hoverX {
                     Capsule()
                         .fill(PlaybackTheme.progressHoverTrack)
                         .frame(width: max(0, hoverX), height: trackHeight)
@@ -107,7 +107,7 @@ struct PlaybackProgressScrubber: View {
             )
             .overlay(
                 Group {
-                    if let targetX = targetX, (isHoveringScrubber || isScrubbing), duration > 0 {
+                    if let targetX = targetX, ((isHovered && isHoveringScrubber) || isScrubbing), duration > 0 {
                         let clampedX = min(max(targetX - tooltipWidth / 2, 0), width - tooltipWidth)
 
                         Text(formatPlaybackTime(tooltipTime))

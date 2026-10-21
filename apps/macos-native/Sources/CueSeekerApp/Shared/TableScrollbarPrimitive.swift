@@ -331,6 +331,13 @@ class TableScrollbarOverlayView: NSView {
     private var dragStartThumbOrigin: CGFloat = 0
     private var lastDragPositionFraction: CGFloat = 0
     private var lastPresentation: TableScrollbarPresentation?
+    nonisolated(unsafe) private var focusObserverTokens: [NSObjectProtocol] = []
+
+    deinit {
+        for token in focusObserverTokens {
+            NotificationCenter.default.removeObserver(token)
+        }
+    }
 
     override var isFlipped: Bool {
         true
@@ -355,7 +362,7 @@ class TableScrollbarOverlayView: NSView {
         }
         let area = NSTrackingArea(
             rect: .zero,
-            options: [.mouseEnteredAndExited, .mouseMoved, .activeInActiveApp, .inVisibleRect],
+            options: [.mouseEnteredAndExited, .mouseMoved, .activeInKeyWindow, .inVisibleRect],
             owner: self
         )
         addTrackingArea(area)
@@ -369,8 +376,67 @@ class TableScrollbarOverlayView: NSView {
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
+        removeFocusObservers()
         if window == nil {
             cancelActiveDrag()
+        } else {
+            installFocusObservers()
+        }
+    }
+
+    private func installFocusObservers() {
+        let center = NotificationCenter.default
+        for name in [
+            NSApplication.didBecomeActiveNotification,
+            NSApplication.didResignActiveNotification,
+            NSWindow.didBecomeKeyNotification,
+            NSWindow.didResignKeyNotification,
+        ] {
+            let token = center.addObserver(
+                forName: name,
+                object: nil,
+                queue: .main
+            ) { [weak self] notification in
+                MainActor.assumeIsolated {
+                    self?.handleFocusNotification(notification)
+                }
+            }
+            focusObserverTokens.append(token)
+        }
+    }
+
+    private func removeFocusObservers() {
+        for token in focusObserverTokens {
+            NotificationCenter.default.removeObserver(token)
+        }
+        focusObserverTokens.removeAll()
+    }
+
+    private func handleFocusNotification(_ notification: Notification) {
+        guard let window else {
+            return
+        }
+        if let notificationWindow = notification.object as? NSWindow,
+           notificationWindow !== window {
+            return
+        }
+        guard draggingAxis == nil, !isInteractionFrozen else {
+            return
+        }
+        if NSApp.isActive && window.isKeyWindow {
+            guard !AppCursorVisibility.isCursorHidden,
+                  !PointerHoverScrollState.shared.isScrolling,
+                  NSWindow.windowNumber(
+                      at: NSEvent.mouseLocation,
+                      belowWindowWithWindowNumber: 0
+                  ) == window.windowNumber
+            else {
+                hoveredAxis = nil
+                return
+            }
+            hoveredAxis = axis(at: convert(window.mouseLocationOutsideOfEventStream, from: nil))
+        } else {
+            hoveredAxis = nil
         }
     }
 
@@ -413,7 +479,7 @@ class TableScrollbarOverlayView: NSView {
 
     override func mouseMoved(with event: NSEvent) {
         super.mouseMoved(with: event)
-        guard !isInteractionFrozen else {
+        guard let window, NSApp.isActive, window.isKeyWindow, !isInteractionFrozen else {
             return
         }
         hoveredAxis = axis(at: convert(event.locationInWindow, from: nil))

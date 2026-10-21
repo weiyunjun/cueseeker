@@ -40,6 +40,13 @@ final class MenuHighlightModel: ObservableObject {
         }
     }
 
+    static func broadcastWindowDidResignFocus() {
+        instances.removeAll { $0.value == nil }
+        for box in instances {
+            box.value?.noteWindowDidResignFocus()
+        }
+    }
+
     @Published private(set) var selectedPosition: Int?
     @Published private(set) var hoveredPosition: Int?
 
@@ -147,6 +154,14 @@ final class MenuHighlightModel: ObservableObject {
         syncHoveredPosition()
     }
 
+    func noteWindowDidResignFocus() {
+        rawHoveredPosition = nil
+        isScrolling = false
+        if hoveredPosition != nil {
+            hoveredPosition = nil
+        }
+    }
+
     private func noteCursorHiddenChanged(_ isHidden: Bool) {
         if isHidden {
             if hoveredPosition != nil {
@@ -182,6 +197,9 @@ final class MenuHighlightModel: ObservableObject {
             ]
         ) { [weak self] event in
             MainActor.assumeIsolated {
+                guard NSApp.isActive, event.window?.isKeyWindow == true else {
+                    return
+                }
                 if event.type == .scrollWheel {
                     self?.noteScrolled()
                 } else {

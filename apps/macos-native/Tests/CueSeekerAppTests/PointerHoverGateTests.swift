@@ -1,3 +1,5 @@
+import AppKit
+import SwiftUI
 import Testing
 @testable import CueSeekerApp
 
@@ -55,5 +57,81 @@ struct PointerHoverGateTests {
         #expect(gate.report(true, isFrozen: true) == nil)
 
         #expect(gate.freezeChanged(isFrozen: false) == nil)
+    }
+
+    @MainActor
+    @Test
+    func hostingViewClearsAndSuppressesHoverWhileWindowIsUnfocusedAndRestoresSingleTargetOnFocusRegain() {
+        AppCursorVisibility.resetForTesting()
+        PointerHoverScrollState.shared.resetForTesting()
+
+        var hoveredButtons: Set<Int> = []
+        let rowView = HStack(spacing: 10) {
+            ForEach(0..<4, id: \.self) { index in
+                Rectangle()
+                    .fill(Color.blue)
+                    .frame(width: 40, height: 30)
+                    .onPointerHover { isHovered in
+                        if isHovered {
+                            hoveredButtons.insert(index)
+                        } else {
+                            hoveredButtons.remove(index)
+                        }
+                    }
+            }
+        }
+        .frame(width: 220, height: 50)
+
+        let window = CueSeekerWindow(
+            contentRect: NSRect(x: -5_000, y: -5_000, width: 220, height: 50),
+            styleMask: [.borderless],
+            backing: .buffered,
+            defer: false
+        )
+        window.isWindowFocusedOverrideForTesting = true
+        let host = CueSeekerHostingView(rootView: rowView)
+        window.contentView = host
+        window.orderFrontRegardless()
+        host.layoutSubtreeIfNeeded()
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.03))
+        #expect(hoveredButtons.isEmpty)
+
+        // Hover button 1 (centered around x = 85, y = 25) while focused.
+        let button1Point = CGPoint(x: 85, y: 25)
+        host.mouseLocationOverrideForTesting = button1Point
+        host.syncMouseHoverForWindowFocus()
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.03))
+        #expect(hoveredButtons == [1])
+
+        // Losing window focus clears Hover immediately.
+        window.isWindowFocusedOverrideForTesting = false
+        host.syncMouseHoverForWindowFocus()
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.03))
+        #expect(hoveredButtons.isEmpty)
+
+        // Moving across buttons while unfocused does not trigger any Hover.
+        if let moveWhileUnfocused = NSEvent.mouseEvent(
+            with: .mouseMoved,
+            location: CGPoint(x: 135, y: 25),
+            modifierFlags: [],
+            timestamp: ProcessInfo.processInfo.systemUptime,
+            windowNumber: window.windowNumber,
+            context: nil,
+            eventNumber: 0,
+            clickCount: 0,
+            pressure: 0
+        ) {
+            host.mouseEntered(with: moveWhileUnfocused)
+            host.mouseMoved(with: moveWhileUnfocused)
+        }
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.03))
+        #expect(hoveredButtons.isEmpty)
+
+        // Regaining focus restores Hover only on the button currently under the pointer.
+        host.mouseLocationOverrideForTesting = CGPoint(x: 135, y: 25)
+        window.isWindowFocusedOverrideForTesting = true
+        host.syncMouseHoverForWindowFocus()
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.03))
+        #expect(hoveredButtons == [2])
     }
 }

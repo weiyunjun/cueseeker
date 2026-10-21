@@ -168,4 +168,27 @@ struct CardHighlightModelTests {
         #expect(model.selectedID == nil)
         #expect(model.hoveredID == nil)
     }
+
+    @Test
+    func windowResignFocusClearsUnfrozenHoverWhilePreservingSelectAndFrozenHover() {
+        AppCursorVisibility.resetForTesting()
+        let activeModel = playback()
+        activeModel.setSelected("a")
+        activeModel.noteHover(true, id: "b")
+        #expect(activeModel.selectedID == "a")
+        #expect(activeModel.hoveredID == "b")
+
+        activeModel.noteWindowDidResignFocus()
+        #expect(activeModel.selectedID == "a")
+        #expect(activeModel.hoveredID == nil)
+
+        let frozenModel = workbench()
+        frozenModel.notePress(id: "c")
+        frozenModel.setFrozen(true)
+        frozenModel.noteWindowDidResignFocus()
+        #expect(frozenModel.hoveredID == "c")
+
+        frozenModel.setFrozen(false)
+        #expect(frozenModel.hoveredID == nil)
+    }
 }

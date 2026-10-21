@@ -230,4 +230,19 @@ struct MenuHighlightModelTests {
         submenu.close()
         #expect(!AppCursorVisibility.isCursorHidden)
     }
+
+    @Test
+    func windowResignFocusClearsHoveredPositionWhilePreservingSelectedPosition() {
+        AppCursorVisibility.resetForTesting()
+        let model = MenuHighlightModel()
+        defer { model.close() }
+        model.open(selectablePositions: [0, 1, 2], defaultPosition: 0)
+        model.noteHover(true, at: 2)
+        #expect(model.selectedPosition == 0)
+        #expect(model.hoveredPosition == 2)
+
+        model.noteWindowDidResignFocus()
+        #expect(model.selectedPosition == 0)
+        #expect(model.hoveredPosition == nil)
+    }
 }

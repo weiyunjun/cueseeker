@@ -41,6 +41,13 @@ final class CardHighlightModel: ObservableObject {
         }
     }
 
+    static func broadcastWindowDidResignFocus() {
+        instances.removeAll { $0.value == nil }
+        for box in instances {
+            box.value?.noteWindowDidResignFocus()
+        }
+    }
+
     static func broadcastLayerFrozenChanged(
         _ isFrozen: Bool,
          matching predicate: (InterfaceLayer) -> Bool
@@ -235,6 +242,25 @@ final class CardHighlightModel: ObservableObject {
         syncHoveredID()
     }
 
+    func noteWindowDidResignFocus() {
+        if let rawHoveredID {
+            AppPointerShape.noteCardHover(
+                false,
+                id: rawHoveredID,
+                showsHand: rawHoveredShowsHand,
+                followsPointer: false
+            )
+        }
+        rawHoveredID = nil
+        isScrolling = false
+        guard !isFrozen else {
+            return
+        }
+        if hoveredID != nil {
+            hoveredID = nil
+        }
+    }
+
     private func noteCursorHiddenChanged(_ isHidden: Bool) {
         if isHidden {
             if hoveredID != nil {
@@ -265,7 +291,10 @@ final class CardHighlightModel: ObservableObject {
             ]
         ) { [weak self] event in
             MainActor.assumeIsolated {
-                guard let self else {
+                guard let self,
+                      NSApp.isActive,
+                      event.window?.isKeyWindow == true
+                else {
                     return
                 }
                 if event.type == .scrollWheel {
