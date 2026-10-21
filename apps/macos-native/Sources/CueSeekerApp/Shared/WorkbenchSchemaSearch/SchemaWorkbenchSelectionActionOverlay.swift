@@ -46,81 +46,21 @@ struct SchemaWorkbenchSelectionAction: Identifiable {
     }
 }
 
-/// Text plus the key that does the same thing.
+/// Standard Neutral button with a shortcut tooltip for a batch selection action.
 struct SchemaWorkbenchSelectionActionButton: View {
     let action: SchemaWorkbenchSelectionAction
 
-    @State private var isHovered = false
-    @State private var isPressed = false
-
     var body: some View {
-        Button(action: action.perform) {
-            HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
-                Text(action.title)
-                    .font(.system(
-                        size: WorkbenchControlMetrics.redesignFontSizeBody,
-                        weight: WorkbenchControlMetrics.redesignFontWeightControl
-                    ))
-                    .lineLimit(1)
-                    .fixedSize(horizontal: true, vertical: false)
-
-                SchemaWorkbenchSelectionKeycap(
-                    label: action.keyLabel,
-                    background: isPressed
-                        ? WorkbenchRedesignColors.popoverSurfaceKeycapPressedBg
-                        : (isHovered
-                            ? WorkbenchRedesignColors.popoverSurfaceKeycapHoverBg
-                            : WorkbenchRedesignColors.popoverSurfaceKeycapBg)
-                )
-            }
-            .foregroundStyle(WorkbenchRedesignColors.textMuted)
-            .padding(.horizontal, WorkbenchControlMetrics.redesignSpacing3)
-            .padding(.vertical, WorkbenchControlMetrics.redesignSpacing2)
-            .background {
-                RoundedRectangle(
-                    cornerRadius: WorkbenchControlMetrics.redesignChipRadius,
-                    style: .continuous
-                )
-                .fill(
-                    isPressed
-                        ? WorkbenchRedesignColors.popoverSurfaceShortcutButtonPressedBg
-                        : (isHovered
-                            ? WorkbenchRedesignColors.popoverSurfaceShortcutButtonHoverBg
-                            : Color.clear)
-                )
-            }
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(PressableButtonStyle(isPressed: $isPressed, isHovered: $isHovered))
-        .focusable(false)
-        .onPointerHover { isHovered = $0 }
+        WorkbenchButton(
+            title: action.title,
+            isRedesign: true,
+            action: action.perform
+        )
+        .workbenchTooltip(
+            scenarioID: "toolbar.selection.\(action.id)",
+            label: action.title,
+            shortcut: .fixed(action.keyLabel)
+        )
         .accessibilityIdentifier("workbench-selection-action-\(action.id)")
-    }
-}
-
-private struct SchemaWorkbenchSelectionKeycap: View {
-    let label: String
-    let background: Color
-
-    var body: some View {
-        Text(label)
-            .font(.system(
-                size: WorkbenchControlMetrics.redesignFontSizeCaption,
-                weight: WorkbenchControlMetrics.redesignFontWeightControl
-            ))
-            .padding(
-                .horizontal,
-                WorkbenchControlMetrics.redesignKeycapHorizontalPadding
-            )
-            .frame(minWidth: WorkbenchControlMetrics.redesignKeycapHeight)
-            .frame(height: WorkbenchControlMetrics.redesignKeycapHeight)
-            .background {
-                RoundedRectangle(
-                    cornerRadius: WorkbenchControlMetrics.redesignKeycapRadius,
-                    style: .continuous
-                )
-                .fill(background)
-            }
-            .allowsHitTesting(false)
     }
 }

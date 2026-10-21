@@ -546,7 +546,6 @@ enum SchemaWorkbenchStyle {
         resultCountLeadingPadding
     static let selectionActionRowLeadingPadding =
         selectionSummaryLeadingPadding
-            - WorkbenchControlMetrics.redesignSpacing3
     static let pinnedToolbarHeight =
         WorkbenchControlMetrics.redesignHeight * 2
             + toolbarRowSpacing
@@ -658,18 +657,30 @@ struct SchemaWorkbenchSearchToolbar: View {
     }
 
     private var selectionSummaryRow: some View {
-        HStack(spacing: WorkbenchControlMetrics.redesignSpacing4) {
+        let bannerHint = L("table.batch_selection_banner_hint")
+        return HStack(spacing: WorkbenchControlMetrics.redesignSpacing4) {
             if let selectedCountText, !selectedCountText.isEmpty {
                 WorkbenchStatusIndicator(selectedCountText)
+                    .fixedSize(horizontal: true, vertical: false)
+                    .layoutPriority(1)
             }
 
-            Text(L("table.batch_selection_banner_hint"))
+            Text(bannerHint)
                 .font(.system(
                     size: WorkbenchControlMetrics.redesignFontSizeBody,
                     weight: .regular
                 ))
                 .foregroundStyle(WorkbenchRedesignColors.textMuted)
                 .lineLimit(1)
+                .truncationMode(.tail)
+                .workbenchTruncatedTextTooltip(
+                    scenarioID: "truncated.toolbar.batch_selection_banner",
+                    text: bannerHint,
+                    font: .system(
+                        size: WorkbenchControlMetrics.redesignFontSizeBody,
+                        weight: .regular
+                    )
+                )
 
             Spacer(minLength: 0)
 
@@ -686,7 +697,7 @@ struct SchemaWorkbenchSearchToolbar: View {
     }
 
     private var selectionActionsRow: some View {
-        HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
+        HStack(spacing: WorkbenchControlMetrics.redesignSpacing4) {
             ForEach(selectionActions) { action in
                 SchemaWorkbenchSelectionActionButton(action: action)
             }

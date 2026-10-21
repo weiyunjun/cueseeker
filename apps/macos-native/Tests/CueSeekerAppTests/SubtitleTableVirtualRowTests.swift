@@ -1512,7 +1512,7 @@ func subtitleTableTokensAndToolbarRefinementMetricsMatchDesignSpec() {
     #expect(SchemaWorkbenchStyle.toolbarBottomGap == 8)
     #expect(SchemaWorkbenchStyle.resultCountLeadingPadding == 22)
     #expect(SchemaWorkbenchStyle.selectionSummaryLeadingPadding == 22)
-    #expect(SchemaWorkbenchStyle.selectionActionRowLeadingPadding == 10)
+    #expect(SchemaWorkbenchStyle.selectionActionRowLeadingPadding == 22)
     #expect(SchemaWorkbenchStyle.pinnedToolbarHeight == 88)
 }
 
