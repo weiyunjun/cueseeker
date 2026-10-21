@@ -139,6 +139,7 @@ enum WorkbenchRedesignColors {
         static let rowHover = NSColor.dynamic(lightHex: "#F9FAFB", darkHex: "#383840")
         static let rowSelected = NSColor.dynamic(lightHex: "#ECEEF2", darkHex: "#43434C")
         static let rowActionBgPressed = NSColor.dynamic(lightHex: "#DEE2E8", darkHex: "#4E4E58")
+        static let fileFolderCardBgPressed = NSColor.dynamic(lightHex: "#F3F4F6", darkHex: "#3E3E47")
 
         // Checkbox
         // A monochrome glyph: the outline circle unchecked, the filled circle
@@ -340,6 +341,7 @@ enum WorkbenchRedesignColors {
     static let rowHover = Color(nsColor: NS.rowHover)
     static let rowSelected = Color(nsColor: NS.rowSelected)
     static let rowActionBgPressed = Color(nsColor: NS.rowActionBgPressed)
+    static let fileFolderCardBgPressed = Color(nsColor: NS.fileFolderCardBgPressed)
 
     // Checkbox
     static let bgCheckboxChecked = Color(nsColor: NS.bgCheckboxChecked)

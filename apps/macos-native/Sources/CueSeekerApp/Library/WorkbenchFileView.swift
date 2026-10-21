@@ -867,9 +867,20 @@ private struct WorkbenchFileCard: View {
     let onOpenMenu: (CGRect) -> Void
 
     @State private var isHovered = false
+    @State private var isPressed = false
 
     private var rowCornerRadius: CGFloat {
         showsCardChrome ? WorkbenchControlMetrics.redesignCornerRadius : 0
+    }
+
+    private var cardBackgroundColor: Color {
+        if onTap != nil && isPressed {
+            return WorkbenchRedesignColors.fileFolderCardBgPressed
+        }
+        if isHovered {
+            return WorkbenchRedesignColors.rowHover
+        }
+        return showsCardChrome ? WorkbenchRedesignColors.tableBg : Color.clear
     }
 
     var body: some View {
@@ -948,18 +959,14 @@ private struct WorkbenchFileCard: View {
                 style: .continuous
             )
             ZStack {
-                shape.fill(
-                    isHovered
-                        ? WorkbenchRedesignColors.rowHover
-                        : (showsCardChrome ? WorkbenchRedesignColors.tableBg : Color.clear)
-                )
+                shape.fill(cardBackgroundColor)
 
                 if let onTap {
                     Button(action: onTap) {
                         Color.clear
                             .contentShape(shape)
                     }
-                    .buttonStyle(StaticButtonStyle())
+                    .buttonStyle(PressableButtonStyle(isPressed: $isPressed, isHovered: $isHovered))
                     .focusable(false)
                 }
             }

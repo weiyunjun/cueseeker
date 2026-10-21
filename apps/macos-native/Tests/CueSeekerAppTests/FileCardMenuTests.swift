@@ -106,6 +106,10 @@ struct FileCardMenuTests {
         #expect(hexString(WorkbenchRedesignColors.NS.rowHover, appearance: .aqua) == "#F9FAFB")
         #expect(hexString(WorkbenchRedesignColors.NS.rowHover, appearance: .darkAqua) == "#383840")
 
+        // FileFolderCardBgPressed (Folder Card Pressed)
+        #expect(hexString(WorkbenchRedesignColors.NS.fileFolderCardBgPressed, appearance: .aqua) == "#F3F4F6")
+        #expect(hexString(WorkbenchRedesignColors.NS.fileFolderCardBgPressed, appearance: .darkAqua) == "#3E3E47")
+
         // RowSelected (Button Hover / Open)
         #expect(hexString(WorkbenchRedesignColors.NS.rowSelected, appearance: .aqua) == "#ECEEF2")
         #expect(hexString(WorkbenchRedesignColors.NS.rowSelected, appearance: .darkAqua) == "#43434C")
