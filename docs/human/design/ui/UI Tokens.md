@@ -27,6 +27,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--color-bg-surface`: Light `#FFFFFF`; Dark `#1C1C1F`
 - `--color-bg-hover`: Light `#F3F4F6`; Dark `rgba(255,255,255,0.12)`
 - `--color-bg-pressed`: Light `#E5E7EB`; Dark `rgba(255,255,255,0.16)`
+- `--color-menu-item-selected-bg`: Light `#E2E8F0`; Dark `rgba(255,255,255,0.16)`
 - `--color-badge-neutral-bg`: Light `#E5E7EB`; Dark `rgba(255,255,255,0.20)`
 - `--color-bg-disabled`: Light `#F3F4F6`; Dark `rgba(255,255,255,0.04)`
 - `--color-bg-control`: Light `#FFFFFF`; Dark `rgba(255,255,255,0.08)`
@@ -105,6 +106,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--color-danger-text`: Light `#B42318`; Dark `#FCA5A5`
 - `--color-danger-bg-hover`: Light `#FEF3F2`; Dark `#3A1717`
 - `--color-danger-bg-pressed`: Light `#FEE4E2`; Dark `#4C1D1D`
+- `--color-danger-bg-selected`: Light `#FEE2E2`; Dark `#4C1D1D`
 - `--color-success-text`: Light `#047857`; Dark `#6EE7B7`
 - `--color-warning-text`: Light `#B45309`; Dark `#FCD34D`
 
@@ -148,9 +150,8 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--color-library-cover-crop-mask`: macOS shadow color with Alpha `0.55`
 - `--color-library-cover-edit-overlay`: Same as `--color-library-cover-crop-mask`
 - `--color-library-cover-edit-overlay-content`: Same as `--color-icon-on-dark`
-- `--color-library-media-card-hover-bg`:
-  - Light: macOS accent color with Alpha `0.08`
-  - Dark: macOS accent color with Alpha `0.12`
+- `--color-library-media-card-hover-bg`: Light `#EEF2F7`; Dark `rgba(255,255,255,0.08)`
+- `--color-library-media-card-selected-bg`: Light `#E2E8F0`; Dark `rgba(255,255,255,0.14)`
 
 ### Cover Summary
 
@@ -174,6 +175,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--color-player-control-bg-active`: macOS accent color with Alpha `0.26`
 - `--color-player-menu-bg`: Light `rgba(0,0,0,0.55)`; Dark `rgba(0,0,0,0.55)`
 - `--color-player-menu-item-hover-bg`: Light `rgba(255,255,255,0.12)`; Dark `rgba(255,255,255,0.12)`
+- `--color-player-menu-item-selected-bg`: Light `rgba(255,255,255,0.16)`; Dark `rgba(255,255,255,0.16)`
 - `--color-player-text-primary`: Light `rgba(255,255,255,0.94)`; Dark `rgba(255,255,255,0.94)`
 - `--color-player-text-secondary`: Light `rgba(255,255,255,0.62)`; Dark `rgba(255,255,255,0.62)`
 - `--color-player-text-tertiary`: Light `rgba(255,255,255,0.34)`; Dark `rgba(255,255,255,0.34)`

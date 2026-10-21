@@ -827,12 +827,16 @@
 ##### States
 
 - Default
-- Selected
+- Hover
   - Background：`--color-library-media-card-hover-bg`
-  - Hover 与 Selected 是同一个状态，同一界面内同时只有一张卡片处于该状态
-  - 指针真实移动后落在卡片上时随之移动；滚动与布局变化不移动它
-  - Workbench 界面允许一张都没有，Playback 界面始终保持一张
-  - 菜单或对话框打开期间不随指针移动；右键菜单的关联卡片保持选中
+  - Cover Scale：`--scale-library-cover-hover`（Duration `--duration-library-cover-hover`，easeOut）
+  - 随未隐藏指针的当前位置更新（滚动期间按 `300ms` 防抖，菜单或对话框打开期间冻结在关联卡片上，关闭后立即按指针位置重算）；右键点击只触发 Hover，不改变 Selected
+- Selected
+  - Background：`--color-library-media-card-selected-bg`
+  - Cover Scale：`--scale-library-cover-hover`（Duration `--duration-library-cover-hover`，easeOut）
+  - 仅存在于 Playback 界面的卡片网格，始终保持一张卡片处于 Selected；Workbench 界面的封面卡片无 Selected 状态
+  - 同一张卡片同时处于 Selected 与 Hover 时，只显示 Selected 背景，不叠加
+  - 仅初始默认 Selected 与方向键/手柄导航改变 Selected 时，若卡片显示不全则自动滚动使其完整可见
 - Disabled
 
 ## 2.12 Player Controls
