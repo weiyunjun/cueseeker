@@ -1507,10 +1507,11 @@ func subtitleTableViewOutlineFrameHugsShortContentAndLastRowOmitsBottomDivider()
 @MainActor
 @Test
 func subtitleTableTokensAndToolbarRefinementMetricsMatchDesignSpec() {
-    #expect(WorkbenchControlMetrics.redesignTableHeaderHeight == 36)
+    #expect(WorkbenchControlMetrics.redesignTableHeaderHeight == 44)
+    #expect(SchemaWorkbenchStyle.toolbarRowSpacing == 8)
     #expect(SchemaWorkbenchStyle.toolbarBottomGap == 8)
     #expect(SchemaWorkbenchStyle.resultCountLeadingPadding == 14)
-    #expect(SchemaWorkbenchStyle.pinnedToolbarHeight == 96)
+    #expect(SchemaWorkbenchStyle.pinnedToolbarHeight == 88)
 }
 
 @MainActor

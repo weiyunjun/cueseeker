@@ -556,7 +556,7 @@ enum SchemaWorkbenchStyle {
     static let pageHorizontalPadding =
         WorkbenchControlMetrics.redesignWorkbenchPageHorizontalPadding
     static let toolbarRowSpacing =
-        WorkbenchControlMetrics.redesignSpacing4
+        WorkbenchControlMetrics.redesignSpacing2
     static let toolbarBottomGap =
         WorkbenchControlMetrics.redesignSpacing2
     static let resultCountLeadingPadding =
@@ -585,7 +585,7 @@ struct SchemaWorkbenchSearchToolbar: View {
     var onToggleSelectionMode: () -> Void
 
     var body: some View {
-        VStack(spacing: WorkbenchControlMetrics.redesignSpacing4) {
+        VStack(spacing: SchemaWorkbenchStyle.toolbarRowSpacing) {
             topInputAndActionsRow
 
             if isSelectionMode {
