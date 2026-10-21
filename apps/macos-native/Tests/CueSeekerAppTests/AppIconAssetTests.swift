@@ -103,10 +103,14 @@ func systemColorsDidChangeClearsTintedCache() {
 
 @MainActor
 @Test
-func accentDuotoneCardIconsFollowFortyFourPercentHierarchyAndRenderAllTwelveIcons() {
-    #expect(AppAccentDuotoneIconMetrics.baseOpacity == 0.44)
-    #expect(AppAccentDuotoneIconMetrics.folderTabOpacity == 0.64)
-    #expect(AppAccentDuotoneIconMetrics.ankiLinesOpacity == 0.71)
+func accentDuotoneCardIconsFollowThirtyTwoPercentHierarchyAndRenderAllTwelveIcons() {
+    #expect(WorkbenchControlMetrics.redesignCardIconAccentBaseOpacity == 0.32)
+    #expect(WorkbenchControlMetrics.redesignCardIconAccentFolderTabOpacity == 0.52)
+    #expect(WorkbenchControlMetrics.redesignCardIconAccentAnkiLineOpacity == 0.59)
+    #expect(WorkbenchControlMetrics.redesignCardIconAccentForegroundOpacity == 1.0)
+    #expect(AppAccentDuotoneIconMetrics.baseOpacity == 0.32)
+    #expect(AppAccentDuotoneIconMetrics.folderTabOpacity == 0.52)
+    #expect(AppAccentDuotoneIconMetrics.ankiLinesOpacity == 0.59)
     #expect(AppAccentDuotoneIconMetrics.foregroundOpacity == 1.0)
     #expect(AppAccentDuotoneIconMetrics.supportedIcons.count == 12)
     #expect(AppAccentDuotoneIconMetrics.supportedIcons == [

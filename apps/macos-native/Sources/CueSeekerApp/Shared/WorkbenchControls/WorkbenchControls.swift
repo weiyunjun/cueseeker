@@ -135,8 +135,6 @@ enum WorkbenchControlMetrics {
         redesignDialogInset - redesignDialogCloseBoxSlack
     /// --size-detail-file-icon-container: 40px
     static let redesignDetailFileIconContainerSize: CGFloat = 40
-    /// --size-detail-file-icon-glyph: 20px
-    static let redesignDetailFileIconGlyphSize: CGFloat = 20
     /// --line-height-detail-file-title: 20px
     static let redesignDetailFileTitleLineHeight: CGFloat = 20
     /// --min-width-detail-label: 100px
@@ -416,12 +414,16 @@ enum WorkbenchControlMetrics {
     static let redesignFilterDialogHeight: CGFloat = 600
     /// --height-task-progress-bar: 4px
     static let redesignTaskProgressBarHeight = redesignLibraryProgressBarHeight
-    /// --size-task-card-icon: 31px
-    static let redesignSizeTaskCardIcon: CGFloat = 31
     /// --size-card-icon-container: 36px (matches 36px 2-line text height)
     static let redesignCardIconContainerSize: CGFloat = 36
-    /// --size-card-icon-glyph: 20px
-    static let redesignCardIconGlyphSize: CGFloat = 20
+    /// --opacity-card-icon-accent-base: 0.32
+    static let redesignCardIconAccentBaseOpacity: CGFloat = 0.32
+    /// --opacity-card-icon-accent-folder-tab: 0.52
+    static let redesignCardIconAccentFolderTabOpacity: CGFloat = 0.52
+    /// --opacity-card-icon-accent-anki-line: 0.59
+    static let redesignCardIconAccentAnkiLineOpacity: CGFloat = 0.59
+    /// --opacity-card-icon-accent-foreground: 1.0
+    static let redesignCardIconAccentForegroundOpacity: CGFloat = 1.0
     /// --size-card-chevron: 16px
     static let redesignCardChevronSize: CGFloat = 16
     /// --size-breadcrumb-separator: 12px (C-05.6 Breadcrumb caret-right)

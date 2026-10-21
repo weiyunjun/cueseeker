@@ -353,10 +353,10 @@ private struct ProtocolFolderOutlineShape: Shape {
 }
 
 enum AppAccentDuotoneIconMetrics {
-    static let baseOpacity: Double = 0.44
-    static let folderTabOpacity: Double = 0.64
-    static let ankiLinesOpacity: Double = 0.71
-    static let foregroundOpacity: Double = 1.0
+    static let baseOpacity = WorkbenchControlMetrics.redesignCardIconAccentBaseOpacity
+    static let folderTabOpacity = WorkbenchControlMetrics.redesignCardIconAccentFolderTabOpacity
+    static let ankiLinesOpacity = WorkbenchControlMetrics.redesignCardIconAccentAnkiLineOpacity
+    static let foregroundOpacity = WorkbenchControlMetrics.redesignCardIconAccentForegroundOpacity
 
     static let supportedIcons: Set<AppIcon> = [
         .folder,
@@ -375,7 +375,8 @@ enum AppAccentDuotoneIconMetrics {
 }
 
 /// Borderless monochrome-duotone large icon rendered with the system accent
-/// color (44% base / 64% folder tab / 71% Anki lines / 100% foreground).
+/// color tokens (`cardIconAccentBase` / `cardIconAccentFolderTab` /
+/// `cardIconAccentAnkiLine` / `cardIconAccentForeground`).
 struct AppAccentDuotoneIconView: View {
     let icon: AppIcon
     let size: CGFloat
@@ -413,7 +414,7 @@ struct AppAccentDuotoneIconView: View {
                 renameIconView
             default:
                 AppIconImage(icon, size: size)
-                    .foregroundStyle(Color.accentColor)
+                    .foregroundStyle(WorkbenchRedesignColors.cardIconAccentForeground)
             }
         }
         .frame(width: size, height: size)
@@ -429,10 +430,10 @@ struct AppAccentDuotoneIconView: View {
     private func folderIconView(symbol: FolderCenterSymbol) -> some View {
         ZStack {
             AccentDuotoneFolderTabShape()
-                .fill(Color.accentColor.opacity(AppAccentDuotoneIconMetrics.folderTabOpacity))
+                .fill(WorkbenchRedesignColors.cardIconAccentFolderTab)
 
             AccentDuotoneFolderBodyShape()
-                .fill(Color.accentColor.opacity(AppAccentDuotoneIconMetrics.baseOpacity))
+                .fill(WorkbenchRedesignColors.cardIconAccentBase)
 
             switch symbol {
             case .none:
@@ -440,20 +441,20 @@ struct AppAccentDuotoneIconView: View {
             case .plus:
                 AccentDuotoneFolderPlusSymbolShape()
                     .stroke(
-                        Color.accentColor,
+                        WorkbenchRedesignColors.cardIconAccentForeground,
                         style: StrokeStyle(lineWidth: 20 * s, lineCap: .round)
                     )
             case .minus:
                 AccentDuotoneFolderMinusSymbolShape()
                     .stroke(
-                        Color.accentColor,
+                        WorkbenchRedesignColors.cardIconAccentForeground,
                         style: StrokeStyle(lineWidth: 20 * s, lineCap: .round)
                     )
             case .text(let badge):
                 Text(badge)
                     .font(.system(size: 62 * s, weight: .heavy, design: .rounded))
                     .kerning(1.0 * s)
-                    .foregroundStyle(Color.accentColor)
+                    .foregroundStyle(WorkbenchRedesignColors.cardIconAccentForeground)
                     .lineLimit(1)
                     .fixedSize()
                     .position(x: 128 * s, y: 142 * s)
@@ -464,21 +465,21 @@ struct AppAccentDuotoneIconView: View {
     private var videoIconView: some View {
         ZStack {
             AccentDuotoneMediaRectShape()
-                .fill(Color.accentColor.opacity(AppAccentDuotoneIconMetrics.baseOpacity))
+                .fill(WorkbenchRedesignColors.cardIconAccentBase)
 
             AccentDuotonePlayTriangleShape()
-                .fill(Color.accentColor)
+                .fill(WorkbenchRedesignColors.cardIconAccentForeground)
         }
     }
 
     private var subtitlesIconView: some View {
         ZStack {
             AccentDuotoneMediaRectShape()
-                .fill(Color.accentColor.opacity(AppAccentDuotoneIconMetrics.baseOpacity))
+                .fill(WorkbenchRedesignColors.cardIconAccentBase)
 
             AccentDuotoneSubtitleBarsShape()
                 .stroke(
-                    Color.accentColor,
+                    WorkbenchRedesignColors.cardIconAccentForeground,
                     style: StrokeStyle(lineWidth: 20 * s, lineCap: .round)
                 )
         }
@@ -487,11 +488,11 @@ struct AppAccentDuotoneIconView: View {
     private var ankiIconView: some View {
         ZStack {
             AccentDuotoneAnkiCardShape()
-                .fill(Color.accentColor.opacity(AppAccentDuotoneIconMetrics.baseOpacity))
+                .fill(WorkbenchRedesignColors.cardIconAccentBase)
 
             AccentDuotoneAnkiLinesShape()
                 .stroke(
-                    Color.accentColor.opacity(AppAccentDuotoneIconMetrics.ankiLinesOpacity),
+                    WorkbenchRedesignColors.cardIconAccentAnkiLine,
                     style: StrokeStyle(lineWidth: 15 * s, lineCap: .round)
                 )
 
@@ -511,11 +512,11 @@ struct AppAccentDuotoneIconView: View {
                 .blendMode(.destinationOut)
 
             AccentDuotoneAnkiStarShape()
-                .fill(Color.accentColor)
+                .fill(WorkbenchRedesignColors.cardIconAccentForeground)
                 .overlay(
                     AccentDuotoneAnkiStarShape()
                         .stroke(
-                            Color.accentColor,
+                            WorkbenchRedesignColors.cardIconAccentForeground,
                             style: StrokeStyle(
                                 lineWidth: 14 * 0.62 * s,
                                 lineCap: .round,
@@ -530,11 +531,11 @@ struct AppAccentDuotoneIconView: View {
     private var indexIconView: some View {
         ZStack {
             AccentDuotoneIndexCircleShape()
-                .fill(Color.accentColor.opacity(AppAccentDuotoneIconMetrics.baseOpacity))
+                .fill(WorkbenchRedesignColors.cardIconAccentBase)
 
             AccentDuotoneIndexArrowShape()
                 .stroke(
-                    Color.accentColor,
+                    WorkbenchRedesignColors.cardIconAccentForeground,
                     style: StrokeStyle(
                         lineWidth: 15 * s,
                         lineCap: .round,
@@ -546,7 +547,7 @@ struct AppAccentDuotoneIconView: View {
 
     private var renameIconView: some View {
         AccentDuotoneRenamePencilShape()
-            .fill(Color.accentColor.opacity(AppAccentDuotoneIconMetrics.baseOpacity))
+            .fill(WorkbenchRedesignColors.cardIconAccentBase)
     }
 }
 

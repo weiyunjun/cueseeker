@@ -48,7 +48,6 @@ struct FileDetailDialogTests {
     @Test
     func fileDetailDialogMetricTokens() {
         #expect(WorkbenchControlMetrics.redesignDetailFileIconContainerSize == 40)
-        #expect(WorkbenchControlMetrics.redesignDetailFileIconGlyphSize == 20)
         #expect(WorkbenchControlMetrics.redesignDetailFileTitleLineHeight == 20)
         #expect(WorkbenchControlMetrics.redesignDetailLabelMinWidth == 100)
         #expect(WorkbenchControlMetrics.redesignDetailIndexLabelMinWidth == 40)

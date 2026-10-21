@@ -118,7 +118,10 @@ func dialogWidthTiersAndTheListEditorsDerivedSizes() {
 @Test
 func cardIconContainerMetricsMatchDesignSpecification() {
     #expect(WorkbenchControlMetrics.redesignCardIconContainerSize == 36)
-    #expect(WorkbenchControlMetrics.redesignCardIconGlyphSize == 20)
+    #expect(WorkbenchControlMetrics.redesignCardIconAccentBaseOpacity == 0.32)
+    #expect(WorkbenchControlMetrics.redesignCardIconAccentFolderTabOpacity == 0.52)
+    #expect(WorkbenchControlMetrics.redesignCardIconAccentAnkiLineOpacity == 0.59)
+    #expect(WorkbenchControlMetrics.redesignCardIconAccentForegroundOpacity == 1.0)
     #expect(WorkbenchControlMetrics.redesignCardBaselineHeight == 68)
     #expect(WorkbenchControlMetrics.redesignCardTrailingIconButtonTopOffset == 2)
 }

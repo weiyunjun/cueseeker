@@ -125,6 +125,19 @@ enum WorkbenchRedesignColors {
         static let borderActive = NSColor.controlAccentColor
         static let bgActive = NSColor.controlAccent(lightAlpha: 0.12, darkAlpha: 0.22)
         static let bgActiveHover = NSColor.controlAccent(lightAlpha: 0.18, darkAlpha: 0.30)
+        static let cardIconAccentBase = NSColor.controlAccent(
+            lightAlpha: WorkbenchControlMetrics.redesignCardIconAccentBaseOpacity,
+            darkAlpha: WorkbenchControlMetrics.redesignCardIconAccentBaseOpacity
+        )
+        static let cardIconAccentFolderTab = NSColor.controlAccent(
+            lightAlpha: WorkbenchControlMetrics.redesignCardIconAccentFolderTabOpacity,
+            darkAlpha: WorkbenchControlMetrics.redesignCardIconAccentFolderTabOpacity
+        )
+        static let cardIconAccentAnkiLine = NSColor.controlAccent(
+            lightAlpha: WorkbenchControlMetrics.redesignCardIconAccentAnkiLineOpacity,
+            darkAlpha: WorkbenchControlMetrics.redesignCardIconAccentAnkiLineOpacity
+        )
+        static let cardIconAccentForeground = NSColor.controlAccentColor
 
         // Primary Button
         static let primaryButtonBg = NSColor.controlAccentColor
@@ -332,6 +345,10 @@ enum WorkbenchRedesignColors {
     static let borderActive = Color(nsColor: NS.borderActive)
     static let bgActive = Color(nsColor: NS.bgActive)
     static let bgActiveHover = Color(nsColor: NS.bgActiveHover)
+    static let cardIconAccentBase = Color(nsColor: NS.cardIconAccentBase)
+    static let cardIconAccentFolderTab = Color(nsColor: NS.cardIconAccentFolderTab)
+    static let cardIconAccentAnkiLine = Color(nsColor: NS.cardIconAccentAnkiLine)
+    static let cardIconAccentForeground = Color(nsColor: NS.cardIconAccentForeground)
 
     // Primary Button
     static let primaryButtonBg = Color.accentColor
