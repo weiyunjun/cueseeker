@@ -6524,6 +6524,9 @@ struct SubtitleTableView: NSViewRepresentable {
             else {
                 return false
             }
+            if isMenuOpen, isWindowPointInsideOpenMenu(windowPoint) {
+                return true
+            }
             let point = documentView.convert(windowPoint, from: nil)
             if isSelectionMode {
                 cancelPendingTextInteraction()
@@ -7155,6 +7158,8 @@ struct SubtitleTableView: NSViewRepresentable {
                 return
             }
 
+            rowActionSubmenuState?.reset()
+            hideRowActionDestinationSubmenu()
             let submenuState = MenuSubmenuState<SubtitleTableRowAction>()
             rowActionSubmenuState = submenuState
             submenuState.onOpenParentChange = { [weak self] action in

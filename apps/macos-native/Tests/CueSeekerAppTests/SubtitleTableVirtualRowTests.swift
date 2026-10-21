@@ -1157,6 +1157,86 @@ func subtitleTableViewRightClickOutsideContentHoverRegionOpensRowMenu() throws {
 
 @MainActor
 @Test
+func subtitleTableViewRightClickInsideOpenMenuOrSubmenuDoesNotReopenMenuAndSwitchingRowHidesSubmenu() throws {
+    let rows = (0..<10).map { index in
+        SubtitleTableRow(
+            id: index + 1,
+            primaryCueID: Int64(index + 1),
+            subtitlePath: "/tmp/CueSeeker/Episode \(index + 1).srt",
+            displayTitle: "Episode \(index + 1)",
+            startTime: "00:01",
+            endTime: "00:02",
+            primaryCueText: "cue \(index + 1)",
+            cueGroupTexts: ["cue \(index + 1)"],
+            primaryGroupIndex: 0
+        )
+    }
+    let fixture = makeAttachedVirtualTableCoordinator(
+        rowCount: rows.count,
+        rowProvider: { rows[$0] },
+        rowActionMenuStyle: .excerpt,
+        rowActionDestinations: [
+            SubtitleTableRowActionDestination(id: 1, title: "List A"),
+            SubtitleTableRowActionDestination(id: 2, title: "List B"),
+        ]
+    )
+    fixture.container.frame.size.height = 800
+    fixture.scrollView.frame.size.height = 756
+
+    let row0Rect = try #require(
+        fixture.coordinator.cellContentHoverDocumentRectForTesting(row: 0, columnID: "cues")
+    )
+    let openWindowPoint = fixture.documentView.convert(
+        CGPoint(x: row0Rect.midX, y: row0Rect.midY),
+        to: nil
+    )
+    #expect(fixture.coordinator.handleRightMouseDown(windowPoint: openWindowPoint) == true)
+    #expect(fixture.coordinator.isMenuOpenForTesting())
+    #expect(fixture.coordinator.activeRowMenuTargetForTesting() == rows[0])
+
+    let initialMenuFrame = try #require(fixture.coordinator.menuFrameForTesting())
+    fixture.coordinator.openRowActionSubmenuForTesting(.moveToList)
+    let initialSubmenuFrame = try #require(fixture.coordinator.submenuFrameForTesting())
+
+    // Right-clicking inside the primary menu (even on the "Move to List" parent item)
+    // is blocked and neither moves the menu nor closes the submenu.
+    let insidePrimaryWindowPoint = fixture.container.convert(
+        CGPoint(x: initialMenuFrame.midX, y: initialMenuFrame.midY),
+        to: nil
+    )
+    #expect(fixture.coordinator.handleRightMouseDown(windowPoint: insidePrimaryWindowPoint) == true)
+    #expect(fixture.coordinator.menuFrameForTesting() == initialMenuFrame)
+    #expect(fixture.coordinator.submenuFrameForTesting() == initialSubmenuFrame)
+    #expect(fixture.coordinator.activeRowMenuTargetForTesting() == rows[0])
+
+    // Right-clicking inside the open destination submenu is also blocked.
+    let insideSubmenuWindowPoint = fixture.container.convert(
+        CGPoint(x: initialSubmenuFrame.midX, y: initialSubmenuFrame.midY),
+        to: nil
+    )
+    #expect(fixture.coordinator.handleRightMouseDown(windowPoint: insideSubmenuWindowPoint) == true)
+    #expect(fixture.coordinator.menuFrameForTesting() == initialMenuFrame)
+    #expect(fixture.coordinator.submenuFrameForTesting() == initialSubmenuFrame)
+    #expect(fixture.coordinator.activeRowMenuTargetForTesting() == rows[0])
+
+    // Right-clicking outside the menu on another row switches the menu to the new row
+    // and hides the previous row's open destination submenu.
+    let row8Rect = try #require(
+        fixture.coordinator.cellContentHoverDocumentRectForTesting(row: 8, columnID: "display")
+    )
+    let row8WindowPoint = fixture.documentView.convert(
+        CGPoint(x: row8Rect.midX, y: row8Rect.midY),
+        to: nil
+    )
+    #expect(fixture.coordinator.menuContainsWindowPointForTesting(row8WindowPoint) == false)
+    #expect(fixture.coordinator.handleRightMouseDown(windowPoint: row8WindowPoint) == true)
+    #expect(fixture.coordinator.isMenuOpenForTesting())
+    #expect(fixture.coordinator.activeRowMenuTargetForTesting() == rows[8])
+    #expect(fixture.coordinator.submenuFrameForTesting() == nil)
+}
+
+@MainActor
+@Test
 func subtitleTableViewLeftClickOutsideInteractiveRegionsHasNoAction() throws {
     var toggledRows: [Int] = []
     let fixture = makeAttachedVirtualTableCoordinator(onToggleRowSelection: { row in

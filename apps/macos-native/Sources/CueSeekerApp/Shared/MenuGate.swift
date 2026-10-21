@@ -244,7 +244,7 @@ final class MenuGate {
         self.eventMonitor = nil
     }
 
-    private func route(_ event: NSEvent) -> NSEvent? {
+    func route(_ event: NSEvent) -> NSEvent? {
         noteDragTrackingBeforeRouting(event)
         var routed: NSEvent? = event
         for (_, client) in clients {
@@ -259,11 +259,13 @@ final class MenuGate {
 
     private func noteDragTrackingBeforeRouting(_ event: NSEvent) {
         switch event.type {
-        case .leftMouseDown, .rightMouseDown, .otherMouseDown:
+        case .leftMouseDown:
             isTrackingMenuDrag = clients.contains { entry in
                 !interfaceLayers.isMenuCovered(ownedBy: entry.client.owner)
                     && entry.client.isPointerOnMenu(event)
             }
+        case .rightMouseDown, .otherMouseDown:
+            isTrackingMenuDrag = false
         default:
             break
         }
@@ -325,6 +327,8 @@ final class MenuGate {
             ) {
             case .leaveToOtherWindow, .leaveToMenu:
                 return event
+            case .consumeOnMenu:
+                return nil
             case .dismissAndForward:
                 client.dismiss(true)
                 return event
@@ -468,6 +472,7 @@ struct MenuGateClientView: NSViewRepresentable {
                         self?.handleKey(keyCode, isRepeat) ?? false
                     },
                     dismiss: { [weak self] forwarding in
+                        self?.closeSession()
                         self?.dismiss(forwarding)
                     }
                 )

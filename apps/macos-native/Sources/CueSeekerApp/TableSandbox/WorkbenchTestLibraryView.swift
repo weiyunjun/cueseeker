@@ -1592,6 +1592,7 @@ private struct LibraryCardContextMenuTriggerModifier: ViewModifier {
     let ownerID: String
     let items: [LibraryCardContextMenuItem]
     let openContextMenu: ([LibraryCardContextMenuItem], CGPoint, String) -> Void
+    @Environment(\.interfaceLayers) private var interfaceLayers
     @Environment(\.interfaceLayerContext) private var layerContext
     @Environment(\.libraryCardContextMenuOwner) private var contextMenuOwnerID
     @Environment(\.libraryCardContextMenuAnchorUpdate) private var updateAnchor
@@ -1606,7 +1607,8 @@ private struct LibraryCardContextMenuTriggerModifier: ViewModifier {
                 // An open menu is not a reason to refuse: the press that
                 // closed it is the same press that opens this card's menu.
                 LibraryCardRightClickMonitor(
-                    isEnabled: isEnabled && !layerContext.isCovered
+                    isEnabled: isEnabled && !layerContext.isCovered,
+                    menuGate: interfaceLayers?.menuGate
                 ) { localPoint in
                     localAnchorPoint = localPoint
                     openContextMenu(
@@ -1641,6 +1643,7 @@ private struct LibraryCardContextMenuTriggerModifier: ViewModifier {
 
 private struct LibraryCardRightClickMonitor: NSViewRepresentable {
     let isEnabled: Bool
+    let menuGate: MenuGate?
     let onRightClick: (CGPoint) -> Void
 
     func makeNSView(context _: Context) -> MonitoringView {
@@ -1648,20 +1651,30 @@ private struct LibraryCardRightClickMonitor: NSViewRepresentable {
     }
 
     func updateNSView(_ nsView: MonitoringView, context _: Context) {
-        nsView.update(isEnabled: isEnabled, onRightClick: onRightClick)
+        nsView.update(
+            isEnabled: isEnabled,
+            menuGate: menuGate,
+            onRightClick: onRightClick
+        )
     }
 
     final class MonitoringView: NSView {
         nonisolated(unsafe) private var monitor: Any?
         private var isEnabled = false
+        private weak var menuGate: MenuGate?
         private var onRightClick: ((CGPoint) -> Void)?
 
         override var isFlipped: Bool {
             true
         }
 
-        func update(isEnabled: Bool, onRightClick: @escaping (CGPoint) -> Void) {
+        func update(
+            isEnabled: Bool,
+            menuGate: MenuGate?,
+            onRightClick: @escaping (CGPoint) -> Void
+        ) {
             self.isEnabled = isEnabled
+            self.menuGate = menuGate
             self.onRightClick = onRightClick
             updateMonitor()
         }
@@ -1699,6 +1712,17 @@ private struct LibraryCardRightClickMonitor: NSViewRepresentable {
                 // press made over whatever covers it.
                 guard self.bounds.intersection(self.visibleRect).contains(localPoint) else {
                     return event
+                }
+
+                // Card monitors are installed when cards appear, before any
+                // menu opens, so they see a right-click before the gate's own
+                // monitor does. Routing through the gate first lets an open
+                // menu swallow a right-click inside its own surface or close
+                // before this card opens its menu.
+                if let menuGate = self.menuGate {
+                    guard menuGate.route(event) != nil else {
+                        return nil
+                    }
                 }
 
                 self.onRightClick?(localPoint)

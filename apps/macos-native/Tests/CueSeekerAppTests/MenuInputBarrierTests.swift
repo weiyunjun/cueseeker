@@ -1,3 +1,4 @@
+import AppKit
 import Testing
 @testable import CueSeekerApp
 
@@ -157,5 +158,104 @@ struct MenuGateKindTests {
         ] {
             #expect(kind.clearsTextSelection)
         }
+    }
+
+    @MainActor
+    @Test
+    func rightClickInsideOpenMenuIsConsumedWithoutDismissingOrForwarding() {
+        let window = NSWindow(
+            contentRect: CGRect(x: 0, y: 0, width: 600, height: 400),
+            styleMask: [.titled],
+            backing: .buffered,
+            defer: false
+        )
+        let layers = InterfaceLayerRegistry()
+        let gate = layers.menuGate
+        var dismissedCount = 0
+        let menuRect = CGRect(x: 100, y: 100, width: 180, height: 140)
+        var session: MenuGate.Session?
+        session = gate.open(MenuGate.Client(
+            owner: .workbenchPage,
+            kind: .cardMenu,
+            window: { window },
+            isPointerOnMenu: { event in menuRect.contains(event.locationInWindow) },
+            handleKey: { _, _ in false },
+            dismiss: { _ in
+                dismissedCount += 1
+                session?.close()
+            }
+        ))
+
+        let insideRightClick = NSEvent.mouseEvent(
+            with: .rightMouseDown,
+            location: CGPoint(x: 140, y: 150),
+            modifierFlags: [],
+            timestamp: 0,
+            windowNumber: window.windowNumber,
+            context: nil,
+            eventNumber: 1,
+            clickCount: 1,
+            pressure: 1
+        )!
+        #expect(gate.route(insideRightClick) == nil)
+        #expect(dismissedCount == 0)
+        #expect(gate.bansScrolling)
+
+        session?.close()
+    }
+
+    @MainActor
+    @Test
+    func rightClickOutsideOpenMenuDismissesItAndForwardsToOpenNewMenu() {
+        let window = NSWindow(
+            contentRect: CGRect(x: 0, y: 0, width: 600, height: 400),
+            styleMask: [.titled],
+            backing: .buffered,
+            defer: false
+        )
+        let layers = InterfaceLayerRegistry()
+        let gate = layers.menuGate
+        var firstMenuDismissedForwarding: [Bool] = []
+        let firstMenuRect = CGRect(x: 40, y: 300, width: 160, height: 120)
+        var firstSession: MenuGate.Session?
+        firstSession = gate.open(MenuGate.Client(
+            owner: .workbenchPage,
+            kind: .cardMenu,
+            window: { window },
+            isPointerOnMenu: { event in firstMenuRect.contains(event.locationInWindow) },
+            handleKey: { _, _ in false },
+            dismiss: { forwarding in
+                firstMenuDismissedForwarding.append(forwarding)
+                firstSession?.close()
+            }
+        ))
+
+        let cardRightClick = NSEvent.mouseEvent(
+            with: .rightMouseDown,
+            location: CGPoint(x: 320, y: 180),
+            modifierFlags: [],
+            timestamp: 0,
+            windowNumber: window.windowNumber,
+            context: nil,
+            eventNumber: 2,
+            clickCount: 1,
+            pressure: 1
+        )!
+        let routed = gate.route(cardRightClick)
+        #expect(routed === cardRightClick)
+        #expect(firstMenuDismissedForwarding == [true])
+        #expect(!gate.bansScrolling)
+
+        let secondSession = gate.open(MenuGate.Client(
+            owner: .workbenchPage,
+            kind: .cardMenu,
+            window: { window },
+            isPointerOnMenu: { _ in false },
+            handleKey: { _, _ in false },
+            dismiss: { _ in }
+        ))
+        #expect(gate.bansScrolling)
+        secondSession.close()
+        #expect(!gate.bansScrolling)
     }
 }

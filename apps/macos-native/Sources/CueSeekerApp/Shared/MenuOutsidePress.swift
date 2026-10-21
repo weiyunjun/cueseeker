@@ -19,6 +19,8 @@ enum MenuOutsidePress {
         case leaveToOtherWindow
         /// The press is on the menu itself.
         case leaveToMenu
+        /// The press is on the menu itself, and the menu spends it without closing.
+        case consumeOnMenu
         /// Close the menu; the press is spent doing it.
         case dismissAndConsume
         /// Close the menu and let the press go on.
@@ -45,7 +47,9 @@ enum MenuOutsidePress {
                 return .leaveToOtherWindow
             }
             if isPointerOnMenu() {
-                return .leaveToMenu
+                return event.type == .rightMouseDown
+                    ? .consumeOnMenu
+                    : .leaveToMenu
             }
         }
         return event.type == .rightMouseDown
