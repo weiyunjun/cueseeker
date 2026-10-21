@@ -221,7 +221,7 @@
 2. Group Stack
    1. Group Title：`--font-size-body`，Semibold，`--color-text-primary`
    2. Group Description：可选；`--font-size-caption`，`--color-text-muted`
-   3. Card：背景 `--color-settings-group-bg`；边框 `--color-border-divider`，宽度 `--border-width-control`；圆角 `--radius-settings-group`；宽度跟随窗口，不设上限
+   3. Card：背景 `--color-table-bg`；边框 `--color-border-control`，宽度 `--border-width-control`；圆角 `--radius-settings-group`；宽度跟随窗口，不设上限
 
 #### Groups
 
@@ -583,8 +583,8 @@
 - Card Container：
   - Baseline Height：68px（标准双行文本时）
   - Padding：`--spacing-4`
-  - Standalone Folder Card：圆角 `--radius-control`，边框 `--color-border-control`，默认背景 `--color-table-bg`，Hover 背景 `--color-row-hover`
-  - Episode Group File Row（单集容器内视频/字幕行）：无独立外边框与圆角，默认背景透明（透出外层单集卡片 `--color-table-bg`），Hover 背景 `--color-row-hover`
+  - Standalone Folder Card：圆角 `--radius-control`，边框 `--color-border-control`，默认背景 `--color-table-bg`，Hover 背景 `--color-row-hover`，Pressed 背景 `--color-file-folder-card-bg-pressed`
+  - Episode Group File Row（单集容器内视频/字幕行）：无独立外边框与圆角，默认背景透明（透出外层单集卡片 `--color-table-bg`），Hover 背景 `--color-row-hover`（无 Pressed 态）
 - Anatomy：Icon Container + `--spacing-4` + Text Column + Spacer + Trailing Actions
 - Alignment：
   - 基准态（双行文本 36px）：图标底容器（36×36px）与文本列顶部对齐（距顶 16px）；右侧操作区（高 32px）垂直居中（上下各 18px，右边距 16px）
@@ -601,7 +601,7 @@
   - Wrapping：所有文本完整展示，字符折行，不截断
 - Trailing Actions：
   - 文件夹卡片最右侧常驻不可点击的 `caret-right` 指示箭头（`--size-card-chevron` 16px，`--color-text-muted`），`dots-three` 按钮位于其左侧（间距 `--spacing-2`）；文件卡片无 `caret-right` 箭头，最右侧仅保留 `dots-three` 按钮。
-  - `dots-three` 纯图标按钮（32×32px，圆角 8px，图标 21px）默认隐藏，仅在卡片 Hover 或该卡片菜单打开时显示；Hover 按钮自身及菜单打开时底色为 `--color-row-selected`。
+  - `dots-three` 纯图标按钮（32×32px，圆角 8px，图标 21px）默认隐藏，仅在卡片 Hover 或该卡片菜单打开时显示；Hover 按钮自身及菜单打开时底色为 `--color-row-selected`，Pressed 底色为 `--color-row-action-bg-pressed`（按住该按钮时卡片自身维持 Hover 背景色）。
   - `Add Folder` 弹出菜单：`Local Folder`（`folder`）+ `WebDav Folder`（`folder-webdav`）+ `SMB Folder`（`folder-smb`）+ `FTP Folder`（`folder-ftp`）+ `NFS Folder`（`folder-nfs`）
   - 卡片弹出菜单：
     - Root Folder Card：`Rename This Folder`（Neutral）+ `Index This Folder`（Neutral）+ `Remove This Folder`（Destructive 警告项）
@@ -1083,7 +1083,7 @@
 - 数据对象添加、删除与拖拽交互：
   - 同一面（`Front` 或 `Back`）内不重复添加同一数据对象；不同面之间可独立添加同一数据对象。
   - 当该面剩余未添加项 $\ge 2$ 个时，点击 `+` 在按钮正下方左对齐弹出 `Dropdown Menu`，按固定标准顺序展示剩余未添加项，点击后追加至该面末尾；当仅剩 1 个未添加项时，点击 `+` 不弹出菜单，直接将该项追加至末尾；当 7 个数据对象全部添加后，`+` 按钮变为 `Disabled`。
-  - 数据对象高度 `--height-filter-chip`（`32px`），左侧为 6 点拖拽手柄（`dots-six-vertical`，`--size-anki-export-drag-handle: 12px`），右侧为删除按钮（`✕`，容器 `--size-anki-export-badge-remove-button: 14px`，图标 `--size-anki-export-badge-remove-icon: 12px`，圆角 `--radius-anki-export-badge-remove-button: 3px`，Hover 时仅显示 `--color-bg-hover` 背景，图标颜色保持 `--color-text-muted` 不变）。
+  - 数据对象高度 `--height-filter-chip`（`32px`），左侧为 6 点拖拽手柄（`dots-six-vertical`，`--size-anki-export-drag-handle: 12px`），右侧为删除按钮（`✕`，容器 `--size-anki-export-badge-remove-button: 14px`，图标 `--size-anki-export-badge-remove-icon: 12px`，圆角 `--radius-anki-export-badge-remove-button: 3px`，Hover 时显示 `--color-bg-hover` 背景，Pressed 时显示 `--color-bg-pressed` 背景，图标颜色保持 `--color-text-muted` 不变）。
   - 数据对象仅在所属白色卡片内部沿垂直方向（一维）上下拖拽排序；拖拽中数据对象本体呈半透明（`--opacity-anki-export-dragging: 0.5`）跟随移动，越过相邻项时实时换位。
 - 导出排版（所见即所得）：卡片正面与背面内容严格按 Front、Back 区域内自上而下的视觉顺序渲染；未放入卡片的不导出。
 - File Name 与 Location 为左 Label（宽度 `--width-form-label`）、右输入框的双列水平布局；Location 为单行 Text Field，两项下方均预留 1 行 Validation Message（左边缘与输入框对齐）；文件夹按钮在 Location 输入框右侧（间距 `--spacing-2`），字形墨迹右缘与内容右缘对齐。
@@ -1308,7 +1308,7 @@
 
 #### Trailing Actions
 
-- 统一使用 `dots-three` 纯图标按钮（32×32px，圆角 8px，图标 21px），Hover 及菜单打开底色为 `--color-row-selected`
+- 统一使用 `dots-three` 纯图标按钮（32×32px，圆角 8px，图标 21px），Hover 及菜单打开底色为 `--color-row-selected`，Pressed 底色为 `--color-row-action-bg-pressed`
 - 弹出菜单：
   - Current：`Remove Task`（Destructive 警告项，图标 `minus-circle`）
   - History（Completed / Incomplete）：`Delete Record`（Destructive 警告项，图标 `trash`）

@@ -288,6 +288,8 @@
 - Default
 - Hover
   - 跟随所属 Shortcut Action Button
+- Pressed
+  - 跟随所属 Shortcut Action Button
 
 #### Variants
 
@@ -297,6 +299,8 @@
   - Background：`--color-overlay-surface-keycap-bg`
 - Hover
   - Background：`--color-overlay-surface-keycap-bg-hover`
+- Pressed
+  - Background：`--color-overlay-surface-keycap-bg-pressed`
 
 ##### Popover Surface
 
@@ -304,6 +308,8 @@
   - Background：`--color-popover-surface-keycap-bg`
 - Hover
   - Background：`--color-popover-surface-keycap-bg-hover`
+- Pressed
+  - Background：`--color-popover-surface-keycap-bg-pressed`
 
 ## 2.9 Feedback
 
@@ -855,6 +861,8 @@
   - Background：Transparent
 - Hover
   - Background：`--color-player-control-bg-hover`
+- Pressed
+  - Background：`--color-player-control-bg-pressed`
 - Open
   - 触发：挂靠的倍速菜单打开
   - Background：`--color-player-control-bg-hover`
@@ -990,6 +998,8 @@
   - Background：Transparent
 - Expanded
   - Background：`--color-player-control-bg-hover`
+- Volume Button Pressed
+  - 仅左侧静音喇叭按钮区域（`--size-icon-button` × `--size-icon-button`，圆角 `--radius-control`）Background：`--color-player-control-bg-pressed`；拖拽右侧音量滑块不触发按钮 Pressed
 - Muted
 - Low
 - Medium

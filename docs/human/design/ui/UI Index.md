@@ -14,7 +14,7 @@
 
 | 文档名称 | 内容范围 |
 | --- | --- |
-| [`UI Design Rules.md`](UI%20Design%20Rules.md) | **全局视觉与度量约束**：无按下视觉效果、选中态组件白名单、Dialog 四边等距与 Cap 顶测量法则、Light/Dark 明暗表面海拔层级、页面/网格/滚动条槽位边距体系、封面加载防闪烁。 |
+| [`UI Design Rules.md`](UI%20Design%20Rules.md) | **全局视觉与度量约束**：按下态（Pressed）组件白名单、选中态组件白名单、Dialog 四边等距与 Cap 顶测量法则、Light/Dark 明暗表面海拔层级、页面/网格/滚动条槽位边距体系、封面加载防闪烁。 |
 | [`UI Interaction Rules.md`](UI%20Interaction%20Rules.md) | **全局交互与输入规则**：界面层级与上层屏蔽、菜单模态、Hover 与选中更新条件、按下触发时机、焦点与 Tab、快捷键录入、尺寸过渡禁点、全屏行为、Player UI 与指针显隐、鼠标指针形状（Arrow/Grab/I-beam）优先级、无障碍交互预留。 |
 | [`UI Tokens.md`](UI%20Tokens.md) | **Core Tokens**：`1.1 颜色`、`1.2 字体与文本`、`1.3 尺寸（Height / Size）`、`1.4 间距（Spacing / Padding）`、`1.5 形状与效果（Radius / Shadow / Scrim / Opacity）`、`1.6 动效`。 |
 | [`UI Components - Controls.md`](UI%20Components%20-%20Controls.md) | **基础交互组件（`C-01` ~ `C-07`）**：输入框、选择控件、按钮、菜单、导航（Sidebar / Tabs / Breadcrumb）、表格、滚动条。 |

@@ -1,6 +1,6 @@
 # 说明
 1. 本文档由人类维护，定义基础交互组件（`C-01` ~ `C-07`）：Inputs、Selection Controls、Buttons、Menus、Navigation、Tables、Scrollbars。
-2. 所有组件默认遵守 `/docs/human/design/ui/UI Design Rules.md`（如全局无按下视觉效果）与 `/docs/human/design/ui/UI Interaction Rules.md`。
+2. 所有组件默认遵守 `/docs/human/design/ui/UI Design Rules.md`（如按下态与选中态组件白名单）与 `/docs/human/design/ui/UI Interaction Rules.md`。
 
 # 2. Components（Part 1：Controls `C-01` ~ `C-07`）
 
@@ -441,9 +441,11 @@
   - Label Color：`--color-text-primary`
   - Count Color：`--color-text-secondary`
 - Hover
-  - 仅未选中时
-  - Background：`--color-bg-hover`
-  - Border Color：`--color-border-control-hover`
+  - 未选中时：Background `--color-bg-hover`，Border Color `--color-border-control-hover`
+  - 已选中时：Background `--color-filter-chip-selected-bg-hover`，Border Color `--color-filter-chip-selected-content`
+- Pressed
+  - 未选中时：Background `--color-bg-pressed`，Border Color `--color-border-control-hover`
+  - 已选中时：Background `--color-filter-chip-selected-bg-pressed`，Border Color `--color-filter-chip-selected-content`
 - Selected
   - Background：`--color-filter-chip-selected-bg`
   - Border Color：`--color-filter-chip-selected-content`
@@ -478,6 +480,7 @@
 
 - Default
 - Hover
+- Pressed
 - Focused
   - Ring Color：`--color-focus-ring`
   - Ring Width：`--focus-ring-width`
@@ -495,6 +498,9 @@
   - Icon Color：`--color-text-secondary`
 - Hover
   - Background：`--color-bg-hover`
+  - Border Color：`--color-border-control-hover`
+- Pressed
+  - Background：`--color-bg-pressed`
   - Border Color：`--color-border-control-hover`
 - Open
   - 触发：挂靠的菜单或面板打开，或按钮所控的模式开启
@@ -514,12 +520,14 @@
 
 - Usage：Cover Summary Resume or Play Action
 - Default
-  - Background：`--color-cover-summary-scrim` with `--opacity-cover-summary-button-bg`
+  - Background：`--color-cover-summary-text` with `--opacity-cover-summary-button-bg`
   - Border Color：`--color-cover-summary-text` with `--opacity-cover-summary-button-border`
   - Label Color：`--color-cover-summary-text`
   - Icon Color：`--color-cover-summary-text`
-- Hover
-  - Background：`--color-cover-summary-scrim` with `--opacity-cover-summary-button-bg-hover`
+- Hover / Open
+  - Background：`--color-cover-summary-text` with `--opacity-cover-summary-button-bg-hover`
+- Pressed
+  - Background：`--color-cover-summary-text` with `--opacity-cover-summary-button-bg-pressed`
 - Focused
   - Ring Color：`--color-focus-ring`
   - Ring Width：`--focus-ring-width`
@@ -536,6 +544,8 @@
   - Icon Color：`--color-primary-button-text`
 - Hover
   - Background：`--color-primary-button-bg-hover`
+- Pressed
+  - Background：`--color-primary-button-bg-pressed`
 - Disabled
   - Background：`--color-bg-disabled`
   - Label Color：`--color-text-disabled`
@@ -550,6 +560,9 @@
   - Icon Color：`--color-danger-text`
 - Hover
   - Background：`--color-danger-bg-hover`
+  - Border Color：`--color-border-control-hover`
+- Pressed
+  - Background：`--color-danger-bg-pressed`
   - Border Color：`--color-border-control-hover`
 - Focused
   - Border Color：`--color-border-focus`
@@ -594,17 +607,17 @@
   - Radius：`--radius-control`
   - Icon Size：`--size-dialog-close-icon`
 
-##### Surface Hover
+##### Surface Hover & Pressed
 
-| 所在表面 | Surface Hover |
-| --- | --- |
-| `--color-bg-surface` | `--color-bg-hover` |
-| `--color-table-bg` | `--color-bg-hover` |
-| `--color-settings-group-bg` | `--color-bg-hover` |
-| `--color-bg-dialog` | `--color-bg-hover` |
-| `--color-subtitle-focus-overlay-bg` | `--color-overlay-surface-shortcut-button-bg-hover` |
-| `--color-bg-popover` | `--color-popover-surface-shortcut-button-bg-hover` |
-| `--color-player-topbar-gradient-start` | `--color-player-control-bg-hover` |
+| 所在表面 | Surface Hover | Surface Pressed |
+| --- | --- | --- |
+| `--color-bg-surface` | `--color-bg-hover` | `--color-bg-pressed` |
+| `--color-table-bg`（普通与设置分组卡片） | `--color-bg-hover` | `--color-bg-pressed` |
+| `--color-table-bg` / `--color-row-hover`（File 与 Task 卡片右侧 `dots-three`） | `--color-row-selected` | `--color-row-action-bg-pressed` |
+| `--color-bg-dialog` | `--color-bg-hover` | `--color-bg-pressed` |
+| `--color-subtitle-focus-overlay-bg` | `--color-overlay-surface-shortcut-button-bg-hover` | `--color-overlay-surface-shortcut-button-bg-pressed` |
+| `--color-bg-popover` | `--color-popover-surface-shortcut-button-bg-hover` | `--color-popover-surface-shortcut-button-bg-pressed` |
+| `--color-player-topbar-gradient-start` | `--color-player-control-bg-hover` | `--color-player-control-bg-pressed` |
 
 ##### States
 
@@ -613,6 +626,8 @@
   - Icon Color：`--color-text-secondary`；在 `--color-player-topbar-gradient-start` 上为 `--color-player-text-primary`
 - Hover
   - Background：Surface Hover
+- Pressed
+  - Background：Surface Pressed
 - Open
   - 触发：挂靠的菜单、面板或窗口打开，或按钮所控的模式开启
   - Background：Surface Hover
@@ -657,6 +672,8 @@
 - Default
 - Hover
   - 内部 Keycap 一并切换到 Hover
+- Pressed
+  - 内部 Keycap 一并切换到 Pressed
 - Open
   - 触发：挂靠的菜单打开
   - 外观与 Hover 相同
@@ -669,6 +686,8 @@
 - Keycap：Keycap / Overlay Surface
 - Hover
   - Background：`--color-overlay-surface-shortcut-button-bg-hover`
+- Pressed
+  - Background：`--color-overlay-surface-shortcut-button-bg-pressed`
 
 ##### Popover Surface
 
@@ -676,6 +695,8 @@
 - Keycap：Keycap / Popover Surface
 - Hover
   - Background：`--color-popover-surface-shortcut-button-bg-hover`
+- Pressed
+  - Background：`--color-popover-surface-shortcut-button-bg-pressed`
 
 ## 2.4 Menus
 
@@ -917,6 +938,7 @@
 
 - Default
 - Hover
+- Pressed
 - Focused
 
 ### C-05.3 Sidebar Item

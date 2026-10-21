@@ -7,10 +7,14 @@
 
 # 1. 交互状态视觉约束（State Visual Invariants）
 
-## 1.1 全局无按下视觉效果（No Pressed Effect）
-- **核心铁律**：按住鼠标左键期间，**不改变任何可交互控件或元素的外观**（包括但不限于按钮 `C-03.1`、图标按钮 `C-03.2`、快捷动作按钮 `C-03.3`、卡片 `C-11.5`/`L-04.6`/`L-06.10`、菜单项 `C-04.3`、Sidebar 项 `C-05.3`、标签 `C-05.5`、面包屑节点 `C-05.6`、筛选筹码 `C-02.5`、表头与表格行 `C-06.2`/`C-06.3`、播放控制按钮 `C-12.1` 等）。
-- **保持既有状态**：按住期间元素保持按下前已有的 `Default`、`Hover`、`Selected`、`Highlighted`、`Open` 或 `Focused` 外观，**严禁出现变暗、变色、半透明衰减或缩放等按下态（Pressed / Active）效果**。
-- **触发时机**：左键点击动作不限制按住时长，统一在指针仍位于原目标内松开（Mouse Up）时发生；按住期间移出原目标再松开则取消触发。
+## 1.1 按下态（Pressed）组件白名单与视觉约束
+- **白名单原则**：仅针对按钮类触发器、筛选筹码与可点击文件夹卡片引入 `Pressed` 视觉反馈；其余容器、列表与导航组件保持按住不改变外观。
+- **允许拥有按下态的组件白名单**：
+  1. **按钮与快捷动作**：`C-03.1 Button`（`Neutral`、`Cover Summary`、`Primary`、`Destructive` 及设置页字体下拉触发器）、`C-03.2 Icon Button`（含 `C-05.2 Sidebar Toggle`、卡片右侧 `dots-three` 按钮、设置页恢复默认按钮、导出 Anki 的 `+` 与条目 `✕` 按钮）、`C-03.3 Shortcut Action Button`（内部 `C-08.9 Keycap` 同步进入 `Pressed`）。
+  2. **筛选筹码与文件夹卡片**：`C-02.5 Filter Chip`（未选中与已选中）、`L-04.6 File Card Layout` 中的一级与二级可点击文件夹卡片（按住右侧 `dots-three` 按钮时仅按钮自身进入 `Pressed`，卡片维持 `Hover`）。
+  3. **播放控制按钮**：`C-12.1 Player Speed Button`、播放页顶底栏 `Icon Button`、`C-12.5 Player Volume Control` 左侧静音喇叭按钮（拖拽音量滑块不触发按钮 `Pressed`）。
+- **几何零缩放与 `Open` 态衔接**：`Pressed` 态严禁缩放几何尺寸或偏移内容，仅将背景色在 `Hover` 态基础上推进一档（带边框控件保持 `Hover` 边框色）；处于 `Open` 态（外观同 `Hover`）的按钮再次被按住时，同样切换为 `Pressed` 外观。
+- **非白名单维持原貌**：媒体卡片 `C-11.5`、File 剧集分组文件行、远程目录浏览弹窗卡片、任务卡片 `L-06.10`、表头与表格行 `C-06.2`/`C-06.3`、Sidebar 项 `C-05.3`、标签页 `C-05.5`、面包屑 `C-05.6`、菜单项 `C-04.3`、分段控制器 `C-02.4`、复选框 `C-02.1`、开关 `C-02.2`、输入框 `C-01` 等按住期间保持既有外观不变。
 
 ## 1.2 选中态（Selected）组件白名单
 - **白名单原则**：只有具备「持久状态或当前位置指示」语义的组件才拥有 `Selected`（或 `Checked`）视觉状态。
@@ -51,10 +55,10 @@
 
 ## 3.1 Dark Mode 表面海拔亮度阶梯
 - **越上层越亮原则**：在 Dark Mode 下，界面层级的纵深关系通过表面背景亮度递增表达，而非加重阴影：
-  - **工作台层级**：`Sidebar`（`#111113`） < `页面 Surface / Topbar / Dialog`（`#1C1C1F`） < `设置分组卡片`（`#242429`） < `表格与列表卡片`（`#2E2E34`） < `菜单 Popover`（`#36363B`）。
+  - **工作台层级**：`Sidebar`（`#111113`） < `页面 Surface / Topbar / Dialog`（`#1C1C1F`） < `表格、列表卡片与设置分组卡片`（`#2E2E34`） < `菜单 Popover`（`#36363B`）。
   - **播放页层级**：`视频舞台`（`#000000`） < `Playback Overlay`（`#242426`） < `Command Panel` < `菜单 Popover`（`#36363B`）。
   - **菜单最亮铁律**：菜单（`--color-bg-popover`）在任何层级下始终最亮，包括在对话框与 Command Panel 内部打开的菜单。
-- **半透明白色叠加法则**：控件底色（`--color-bg-control`）、Hover（`--color-bg-hover`）、Disabled 底色（`--color-bg-disabled`）、分隔线（`--color-border-divider`）、Disabled 边框（`--color-border-disabled`）与 Keycap 在 Dark Mode 下均为不同透明度的半透明白色（`rgba(255,255,255, α)`），确保落在任何表面上都比该表面自身更亮。
+- **半透明白色叠加法则**：控件底色（`--color-bg-control`）、Hover（`--color-bg-hover`）、Pressed（`--color-bg-pressed`）、Disabled 底色（`--color-bg-disabled`）、分隔线（`--color-border-divider`）、Disabled 边框（`--color-border-disabled`）与 Keycap 在 Dark Mode 下均为不同透明度的半透明白色（`rgba(255,255,255, α)`），确保落在任何表面上都比该表面自身更亮。
 
 ## 3.2 阴影与边框分工
 - **容器级单次投射**：阴影仅由最外层浮层/弹窗容器形状投射，容器内部子元素不各自投射阴影。

@@ -26,6 +26,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 
 - `--color-bg-surface`: Light `#FFFFFF`; Dark `#1C1C1F`
 - `--color-bg-hover`: Light `#F3F4F6`; Dark `rgba(255,255,255,0.12)`
+- `--color-bg-pressed`: Light `#E5E7EB`; Dark `rgba(255,255,255,0.16)`
 - `--color-badge-neutral-bg`: Light `#E5E7EB`; Dark `rgba(255,255,255,0.20)`
 - `--color-bg-disabled`: Light `#F3F4F6`; Dark `rgba(255,255,255,0.04)`
 - `--color-bg-control`: Light `#FFFFFF`; Dark `rgba(255,255,255,0.08)`
@@ -35,14 +36,17 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--color-app-sidebar-item-selected-bg`: macOS accent color
 - `--color-app-sidebar-item-selected-content`: Light `#FFFFFF`; Dark `#FFFFFF`
 - `--color-app-topbar-bg`: Light `#FFFFFF`; Dark `#1C1C1F`
-- `--color-settings-group-bg`: Light `#F2F4F7`; Dark `#242429`
 - `--color-file-group-header-bg`: Light `#F8F9FB`; Dark `rgba(255,255,255,0.04)`
 - `--color-overlay-surface-shortcut-button-bg-hover`: Light `#EDEEF2`; Dark `rgba(255,255,255,0.06)`
+- `--color-overlay-surface-shortcut-button-bg-pressed`: Light `#E1E4E9`; Dark `rgba(255,255,255,0.12)`
 - `--color-overlay-surface-keycap-bg`: Light `#E1E4E9`; Dark `rgba(255,255,255,0.10)`
 - `--color-overlay-surface-keycap-bg-hover`: Light `#D2D6DE`; Dark `rgba(255,255,255,0.16)`
+- `--color-overlay-surface-keycap-bg-pressed`: Light `#C4C9D3`; Dark `rgba(255,255,255,0.22)`
 - `--color-popover-surface-shortcut-button-bg-hover`: Light `#F7F8FA`; Dark `rgba(255,255,255,0.06)`
+- `--color-popover-surface-shortcut-button-bg-pressed`: Light `#EDEFF2`; Dark `rgba(255,255,255,0.12)`
 - `--color-popover-surface-keycap-bg`: Light `#EDEFF2`; Dark `rgba(255,255,255,0.10)`
 - `--color-popover-surface-keycap-bg-hover`: Light `#E0E3E8`; Dark `rgba(255,255,255,0.16)`
+- `--color-popover-surface-keycap-bg-pressed`: Light `#D2D6DE`; Dark `rgba(255,255,255,0.22)`
 
 ### Border
 
@@ -78,17 +82,29 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 ### Control
 
 - `--color-primary-button-bg`: macOS accent color
-- `--color-primary-button-bg-hover`: macOS accent color with native hover emphasis
+- `--color-primary-button-bg-hover`:
+  - Light: macOS accent color blended with `12%` `#000000`
+  - Dark: macOS accent color blended with `12%` `#FFFFFF`
+- `--color-primary-button-bg-pressed`:
+  - Light: macOS accent color blended with `22%` `#000000`
+  - Dark: macOS accent color blended with `22%` `#FFFFFF`
 - `--color-primary-button-text`: Light `#FFFFFF`; Dark `#FFFFFF`
 - `--color-bg-checkbox-checked`: macOS accent color
 - `--color-segmented-control-selected-bg`: macOS accent color
 - `--color-segmented-control-selected-content`: Light `#FFFFFF`; Dark `#FFFFFF`
 - `--color-filter-chip-selected-content`: macOS accent color
 - `--color-filter-chip-selected-bg`: Same as `--color-library-media-card-hover-bg`
+- `--color-filter-chip-selected-bg-hover`:
+  - Light: macOS accent color with Alpha `0.12`
+  - Dark: macOS accent color with Alpha `0.18`
+- `--color-filter-chip-selected-bg-pressed`:
+  - Light: macOS accent color with Alpha `0.16`
+  - Dark: macOS accent color with Alpha `0.24`
 - `--color-spinner-track`: Light `#E5E7EB`; Dark `#3F3F46`
 - `--color-spinner-indicator`: Light `#717171`; Dark `#878787`
 - `--color-danger-text`: Light `#B42318`; Dark `#FCA5A5`
 - `--color-danger-bg-hover`: Light `#FEF3F2`; Dark `#3A1717`
+- `--color-danger-bg-pressed`: Light `#FEE4E2`; Dark `#4C1D1D`
 - `--color-success-text`: Light `#047857`; Dark `#6EE7B7`
 - `--color-warning-text`: Light `#B45309`; Dark `#FCD34D`
 
@@ -96,7 +112,9 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 
 - `--color-table-bg`: Light `#FFFFFF`; Dark `#2E2E34`
 - `--color-row-hover`: Light `#F9FAFB`; Dark `#383840`
+- `--color-file-folder-card-bg-pressed`: Light `#F3F4F6`; Dark `#3E3E47`
 - `--color-row-selected`: Light `#ECEEF2`; Dark `#43434C`
+- `--color-row-action-bg-pressed`: Light `#DEE2E8`; Dark `#4E4E58`
 
 ### Status
 
@@ -150,6 +168,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 
 - `--color-player-stage-bg`: Light `#000000`; Dark `#000000`
 - `--color-player-control-bg-hover`: Light `rgba(255,255,255,0.16)`; Dark `rgba(255,255,255,0.16)`
+- `--color-player-control-bg-pressed`: Light `rgba(255,255,255,0.24)`; Dark `rgba(255,255,255,0.24)`
 - `--color-player-control-bg-active`: macOS accent color with Alpha `0.26`
 - `--color-player-menu-bg`: Light `rgba(0,0,0,0.55)`; Dark `rgba(0,0,0,0.55)`
 - `--color-player-menu-item-hover-bg`: Light `rgba(255,255,255,0.12)`; Dark `rgba(255,255,255,0.12)`
@@ -488,6 +507,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--opacity-cover-summary-description`: `76%`
 - `--opacity-cover-summary-button-bg`: `14%`
 - `--opacity-cover-summary-button-bg-hover`: `24%`
+- `--opacity-cover-summary-button-bg-pressed`: `34%`
 - `--opacity-cover-summary-button-border`: `35%`
 - `--opacity-cover-summary-button-disabled`: `55%`
 - `--opacity-anki-export-dragging`: `0.5`
