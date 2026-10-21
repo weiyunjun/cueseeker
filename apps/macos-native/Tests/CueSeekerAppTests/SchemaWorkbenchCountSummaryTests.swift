@@ -74,6 +74,7 @@ func schemaWorkbenchSelectionActionExportActionsExcludeExitButton() {
     )
     #expect(actions.count == 3)
     #expect(actions.map(\.id) == ["anki", "copy-deep-links", "copy-table"])
+    #expect(actions.map(\.icon) == [.export, .linkSimple, .copy])
     #expect(!actions.contains(where: { $0.id == "exit" }))
 }
 

@@ -539,13 +539,9 @@ enum SchemaWorkbenchStyle {
         WorkbenchControlMetrics.redesignSpacing2
     static let toolbarBottomGap =
         WorkbenchControlMetrics.redesignSpacing2
-    static let resultCountLeadingPadding =
-        WorkbenchControlMetrics.redesignControlPaddingX
-            + WorkbenchControlMetrics.redesignSpacing2
-    static let selectionSummaryLeadingPadding =
-        resultCountLeadingPadding
-    static let selectionActionRowLeadingPadding =
-        selectionSummaryLeadingPadding
+    static let resultCountLeadingPadding: CGFloat = 0
+    static let selectionSummaryLeadingPadding: CGFloat = 0
+    static let selectionActionRowLeadingPadding: CGFloat = 0
     static let pinnedToolbarHeight =
         WorkbenchControlMetrics.redesignHeight * 2
             + toolbarRowSpacing
@@ -688,6 +684,11 @@ struct SchemaWorkbenchSearchToolbar: View {
                 title: L("table.exit_select"),
                 icon: .signOut,
                 action: onToggleSelectionMode
+            )
+            .workbenchTooltip(
+                scenarioID: "toolbar.selection.exit",
+                label: L("table.exit_select"),
+                shortcut: .fixed("Esc")
             )
             .layoutPriority(1)
         }

@@ -7,6 +7,7 @@ import SwiftUI
 struct SchemaWorkbenchSelectionAction: Identifiable {
     let id: String
     let title: String
+    let icon: AppIcon
     /// What the keycap shows. Letters, never a symbol.
     let keyLabel: String
     let keyCode: UInt16
@@ -24,6 +25,7 @@ struct SchemaWorkbenchSelectionAction: Identifiable {
             Self(
                 id: "anki",
                 title: L("table.toolbar.anki"),
+                icon: .export,
                 keyLabel: "A",
                 keyCode: 0,
                 perform: exportToAnki
@@ -31,6 +33,7 @@ struct SchemaWorkbenchSelectionAction: Identifiable {
             Self(
                 id: "copy-deep-links",
                 title: L("table.toolbar.copy_deep_links"),
+                icon: .linkSimple,
                 keyLabel: "D",
                 keyCode: 2,
                 perform: copyDeepLinks
@@ -38,6 +41,7 @@ struct SchemaWorkbenchSelectionAction: Identifiable {
             Self(
                 id: "copy-table",
                 title: L("table.toolbar.copy_table"),
+                icon: .copy,
                 keyLabel: "T",
                 keyCode: 17,
                 perform: copyTable
@@ -53,6 +57,7 @@ struct SchemaWorkbenchSelectionActionButton: View {
     var body: some View {
         WorkbenchButton(
             title: action.title,
+            icon: action.icon,
             isRedesign: true,
             action: action.perform
         )
