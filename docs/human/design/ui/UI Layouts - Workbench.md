@@ -681,14 +681,12 @@
 1. Cover Summary
 2. Toolbar
 3. Table
-4. Selection Action Overlay
 
 #### Components
 
 - Cover Summary
 - Search / Excerpt Toolbar Layout
 - Search / Excerpt Table Layout
-- Selection Action Overlay Layout
 
 #### Layout
 
@@ -724,16 +722,19 @@
 
 #### Structure
 
-1. Row 1：从左到右依次为 Search Field（自适应撑满整行剩余宽度）、Filter Trigger（带 18px 图标与 `Filter` / `筛选` 文本）、Sort Trigger（图标为 `funnel-simple`，文字为当前选中的排序方式；点击展开与按钮左边缘对齐的 Radio Menu，打开时默认高亮首项）
-2. Row 2（左对齐）：
-   - Default：Result Count（Search 为 `xx results`，未输入搜索词时不显示；Excerpt 为 `xx excerpts`，仅统计有效台词；左侧内边距 `--padding-control-x`，与上方搜索框内放大镜图标及下方表格首列勾选框左对齐）
-   - Select Mode：从左到右依次为 `退出选择` 按钮（带 18px `sign-out` 图标）、Selection Banner 文案（`已进入批量选择状态：点击任意行即可勾选，支持 Shift 连选`）
+1. Default：
+   - Row 1：从左到右依次为 Search Field（自适应撑满整行剩余宽度）、Filter Trigger（带 18px 图标与 `Filter` / `筛选` 文本）、Sort Trigger（图标为 `funnel-simple`，文字为当前选中的排序方式；点击展开与按钮左边缘对齐的 Radio Menu，打开时默认高亮首项）
+   - Row 2（与下方表格左外框左对齐）：Result Count（Search 为 `xx results`，未输入搜索词时不显示；Excerpt 为 `xx excerpts`，仅统计有效台词）
+2. Select Mode：
+   - Row 1（与下方表格等宽，左侧与表格左外框对齐）：从左到右依次为 Selected Count（`xx / yy rows selected`，可选行数不含 Unavailable 行，样式同 Result Count 且保持完整显示不截断）、Selection Banner 文案（`已进入批量选择状态：点击任意行即可勾选，支持 Shift 连选`，宽度不足时优先缩减并尾部省略 `...`）、靠右对齐表格右外框的 `Exit Selection` 按钮（Button / Destructive，带 18px `sign-out` 图标）
+   - Row 2（与下方表格左外框左对齐）：从左到右依次为 3 个标准 Neutral 按钮：`Export to Anki`（图标 `export`，快捷键 `A`）、`Copy Deep Links`（图标 `link-simple`，快捷键 `D`）、`Copy Table`（图标 `copy`，快捷键 `T`）
 
 #### Components
 
 - Search Field
 - Status Indicator / Workbench Status Indicator
 - Button / Neutral
+- Button / Destructive
 - Menu
 - Information Badge / Task Count Badge
 
@@ -747,49 +748,12 @@
 
 #### States
 
-- Default：Row 1 启用，Row 2 左对齐展示 Result Count
-- Select Mode：Row 1 保持原位并全部禁用（Search Field、Filter Trigger、Sort Trigger 均为 Disabled），Row 2 左对齐展示「退出选择」按钮与批量选择提示文案（样式同 Result Count，无背景卡片与边框）
+- Default：Row 1 展示搜索、筛选与排序控件，Row 2 左对齐展示 Result Count
+- Select Mode：隐藏搜索、筛选与排序控件；Row 1 展示已选计数、批量选择提示文案与靠右的 Destructive「退出选择」按钮，Row 2 左对齐展示批量操作按钮组
 - Filter Dialog Open
 - Calculating
 
-### L-05.5 Selection Action Overlay Layout
-
-#### Position
-
-- Anchor：Table Viewport Bottom Center
-- Flow：Overlay
-
-#### Components
-
-- Selection Action Overlay
-- Shortcut Action Button / Popover Surface
-- Keycap / Popover Surface
-
-#### Structure
-
-1. Selected Count
-2. Export to Anki `A`
-3. Copy Deep Links `D`
-4. Copy Table `T`
-
-#### Layout
-
-- 第 1 项在上，第 2 至 4 项在下；第 2 至 4 项宽度不足时换行
-
-#### Spacing
-
-- Group Gap：`--spacing-2`
-- Action Gap：`--spacing-2`
-- Line Gap：`--spacing-2`
-- Padding Inline：`--spacing-3`
-- Padding Block：`--spacing-2`
-
-#### States
-
-- Hidden：Select Mode 关闭
-- Visible：Select Mode 开启
-
-### L-05.6 Search / Excerpt Table Layout
+### L-05.5 Search / Excerpt Table Layout
 
 #### Structure
 

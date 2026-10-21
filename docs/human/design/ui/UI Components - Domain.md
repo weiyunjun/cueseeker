@@ -167,7 +167,7 @@
 - Text Color：`--color-text-secondary`
 - Icon Size：`--size-control-icon`
 - Gap：`--spacing-2`
-- Usage：File `Last Updated`、Search `xx results`、Library `xx folders`、Excerpt `xx lists  yy cues`
+- Usage：File `Last Updated`、Search `xx results`、Excerpt `xx excerpts`、Select Mode `xx / yy rows selected`、Library `xx folders`、Excerpt `xx lists  yy cues`
 
 ##### Cue State Indicator
 

@@ -61,7 +61,6 @@
 | | `C-06.2` | Table Header Cell | `Selection` |
 | | `C-06.3` | Table Row | — |
 | | `C-06.4` | Table Cell | `Text`、`Index Text`、`Interactive Text` |
-| | `C-06.5` | Selection Action Overlay | — |
 | **2.7 Scrollbars** | `C-07.1` | Scrollbar | `Vertical`、`Horizontal` |
 
 ## 2.2 业务与反馈组件（位于 [`UI Components - Domain.md`](UI%20Components%20-%20Domain.md)）
@@ -129,9 +128,8 @@
 | **3.5 Search and Excerpt** | `L-05.1` | Excerpt List Overview Layout | Excerpt 一级总览页（汇总行 + 新建按钮 + 摘录集网格） |
 | | `L-05.2` | Excerpt List Card Layout | Excerpt 一级卡片与右键菜单 |
 | | `L-05.3` | Excerpt List Detail Layout | Excerpt 二级详情页（可滚动 Cover Summary + 吸顶工具栏/表头 + 表格） |
-| | `L-05.4` | Search / Excerpt Toolbar Layout | 搜索框 + 筛选/排序触发器 + 结果统计（Select Mode 下第二行切换为批量选择横幅） |
-| | `L-05.5` | Selection Action Overlay Layout | 表格底部居中浮层（已选计数 + `A`/`D`/`T` 快捷动作按钮） |
-| | `L-05.6` | Search / Excerpt Table Layout | 固定表头 + 可滚动表体 + 列宽权重分配 |
+| | `L-05.4` | Search / Excerpt Toolbar Layout | Default 下为搜索筛选排序行 + 结果统计行；Select Mode 下切换为已选统计/提示/退出行 + 批量操作按钮行 |
+| | `L-05.5` | Search / Excerpt Table Layout | 固定表头 + 可滚动表体 + 列宽权重分配 |
 | **3.6 Dialogs** | `L-06.1` | Edit Cover Dialog Layout | 编辑封面弹窗（预览/裁剪切换） |
 | | `L-06.2` | Excerpt List Editor Dialog Layout | 新建/编辑摘录集弹窗（响应式双列/单列，Description 底边对齐规则） |
 | | `L-06.3` | Rename Dialog Layout | 文件夹/单集文件重命名双列表单弹窗 |

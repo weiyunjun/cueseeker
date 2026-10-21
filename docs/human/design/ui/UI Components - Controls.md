@@ -1242,42 +1242,6 @@
   - Focused
   - Disabled
 
-### C-06.5 Selection Action Overlay
-
-#### Shared
-
-##### Anatomy
-
-- Container
-  - Background：`--color-bg-popover`
-  - Border Color：`--color-border-muted`
-  - Radius：`--radius-control`
-  - Shadow：`--shadow-popover`
-- Selected Count
-  - Content：已选行数 / 可选行数，可选行数不含 Unavailable 行
-  - Color：`--color-text-muted`
-  - Leading Inset：`--spacing-3`，与相邻按钮的透明内边距等宽
-- Action Slots
-  - Component：Shortcut Action Button / Popover Surface
-  - Padding Inline：`--spacing-3`
-  - Padding Block：`--spacing-2`
-
-##### Layout
-
-- Selected Count 在上，Action Slots 在下，左对齐
-- Action Slots 宽度不足时换行，文字不截断
-- 容器宽度由内容决定，不超过 Table 可见宽度
-
-##### Sizes
-
-- Group Gap：`--spacing-2`
-- Action Gap：`--spacing-2`
-- Line Gap：`--spacing-2`
-- Padding Inline：`--spacing-3`
-- Padding Block：`--spacing-2`
-
-##### States
-
 ## 2.7 Scrollbars
 
 ### C-07.1 Scrollbar

@@ -316,11 +316,47 @@
 - Scenario ID：anki_export.card.remove_item
 - 所在位置：Export to Anki Dialog -> `Front` / `Back` 卡片内数据对象右侧 `✕` 图标按钮
 
+### 26. 批量选择退出按钮（Toolbar Exit Selection Button）
+- 英文：Exit Selection
+- 简体中文：退出选择
+- 繁体中文：退出選取
+- 快捷键：`Esc`（固定键位）
+- 触发延迟：1秒
+- Scenario ID：toolbar.selection.exit
+- 所在位置：Search / Excerpt Toolbar（Select Mode 第一行最右侧）
+
+### 27. 批量选择导出到 Anki 按钮（Toolbar Export to Anki Button）
+- 英文：Export to Anki
+- 简体中文：导出到 Anki
+- 繁体中文：匯出至 Anki
+- 快捷键：`A`（固定键位）
+- 触发延迟：1秒
+- Scenario ID：toolbar.selection.anki
+- 所在位置：Search / Excerpt Toolbar（Select Mode 第二行）
+
+### 28. 批量选择复制 Deep Links 按钮（Toolbar Copy Deep Links Button）
+- 英文：Copy Deep Links
+- 简体中文：复制 Deep Links
+- 繁体中文：拷貝 Deep Links
+- 快捷键：`D`（固定键位）
+- 触发延迟：1秒
+- Scenario ID：toolbar.selection.copy-deep-links
+- 所在位置：Search / Excerpt Toolbar（Select Mode 第二行）
+
+### 29. 批量选择复制表格按钮（Toolbar Copy Table Button）
+- 英文：Copy Table
+- 简体中文：复制表格
+- 繁体中文：拷貝表格
+- 快捷键：`T`（固定键位）
+- 触发延迟：1秒
+- Scenario ID：toolbar.selection.copy-table
+- 所在位置：Search / Excerpt Toolbar（Select Mode 第二行）
+
 ---
 
 ## 四、状态与异常指示器（Status Indicator Tooltips）
 
-### 24. 摘录台词内容已变更（Cue State: Content Changed）
+### 30. 摘录台词内容已变更（Cue State: Content Changed）
 - 英文：This cue changed after reindexing
 - 简体中文：该台词在重新索引后发生了变化
 - 繁体中文：此台詞在重新索引後已變更
@@ -328,7 +364,7 @@
 - Scenario ID：table.cue_state.content_changed
 - 所在位置：Excerpt 二级页表格行状态图标（`clock-counter-clockwise`）
 
-### 25. 摘录台词不可用（Cue State: Unavailable）
+### 31. 摘录台词不可用（Cue State: Unavailable）
 - 原因分支 1（媒体库不可用）：
   - 英文：The library source is currently unavailable
   - 简体中文：媒体库来源当前不可用
@@ -355,7 +391,7 @@
 
 > **说明**：本章节控件在可用（Enabled）状态下已有明确文字标签，无需展示常规 Tooltip；**仅当其处于 `Disabled` 状态时**，悬停 1 秒展示以下原因说明。
 
-### 26. Cover Summary 播放 / 继续播放按钮禁用（Cover Summary Play / Resume Disabled）
+### 32. Cover Summary 播放 / 继续播放按钮禁用（Cover Summary Play / Resume Disabled）
 - 英文：No playable content available
 - 简体中文：没有可播放的内容
 - 繁体中文：沒有可播放的內容
@@ -363,7 +399,7 @@
 - Scenario ID：disabled.cover_summary.no_playable_content
 - 所在位置：Library 二级页、Excerpt 二级页顶部 Cover Summary 的 `Play` / `Resume` 按钮
 
-### 27. File 页面“添加文件夹”按钮禁用（Add Folder Disabled）
+### 33. File 页面“添加文件夹”按钮禁用（Add Folder Disabled）
 - 英文：Unavailable while a task or database compaction is running
 - 简体中文：任务或数据库压缩进行期间不可用
 - 繁体中文：任務或資料庫壓縮進行期間無法使用
@@ -371,7 +407,7 @@
 - Scenario ID：disabled.file.add_folder
 - 所在位置：File 页面右上角 `Add Folder` 按钮
 
-### 28. File 页面“索引全部”按钮禁用（Index All Disabled）
+### 34. File 页面“索引全部”按钮禁用（Index All Disabled）
 - 原因分支 A（尚未添加任何文件夹）：
   - 英文：Add a folder before indexing
   - 简体中文：请先添加文件夹后再索引
@@ -384,7 +420,7 @@
 - Scenario ID：disabled.file.index_now
 - 所在位置：File 页面左上角 `Index All` 按钮
 
-### 29. 筛选对话框“重置”按钮禁用（Filter Reset Disabled）
+### 35. 筛选对话框“重置”按钮禁用（Filter Reset Disabled）
 - 英文：No active filters to reset
 - 简体中文：当前没有可重置的筛选条件
 - 繁体中文：目前沒有可重設的篩選條件
@@ -392,7 +428,7 @@
 - Scenario ID：disabled.filter.reset
 - 所在位置：Filter Dialog 左下角 `Reset` 按钮
 
-### 30. 设置 -> 播放“自动切换到下一条台词”开关禁用（Auto Switch Disabled）
+### 36. 设置 -> 播放“自动切换到下一条台词”开关禁用（Auto Switch Disabled）
 - 英文：Enable “Auto Pause After a Cue Finishes” first
 - 简体中文：请先开启“台词结束后自动暂停”
 - 繁体中文：請先開啟「台詞結束後自動暫停」
@@ -400,7 +436,7 @@
 - Scenario ID：disabled.settings.play.auto_switch
 - 所在位置：Settings -> Play -> `Auto Switch to Next Cues in Playlist` 开关
 
-### 31. 设置 -> 字幕“恢复默认”按钮禁用（Subtitle Restore Defaults Disabled）
+### 37. 设置 -> 字幕“恢复默认”按钮禁用（Subtitle Restore Defaults Disabled）
 - 英文：All subtitle settings are already at default values
 - 简体中文：当前全部字幕设置均为默认值
 - 繁体中文：目前全部字幕設定皆為預設值
@@ -408,7 +444,7 @@
 - Scenario ID：disabled.settings.subtitle.restore_defaults
 - 所在位置：Settings -> Subtitle 底部 `Restore Defaults` 按钮
 
-### 32. 设置 -> 维护“刷新”与“压缩数据库”按钮禁用（Maintenance Actions Disabled）
+### 38. 设置 -> 维护“刷新”与“压缩数据库”按钮禁用（Maintenance Actions Disabled）
 - 英文：Unavailable while folder removal or database compaction is running
 - 简体中文：移除文件夹或压缩数据库期间不可用
 - 繁体中文：移除資料夾或壓縮資料庫期間無法使用
@@ -416,7 +452,7 @@
 - Scenario ID：disabled.settings.maintenance.actions
 - 所在位置：Settings -> Maintenance -> `Refresh` 与 `Compact Database` 按钮
 
-### 33. 编辑封面弹窗“保存”按钮禁用（Edit Cover Save Disabled）
+### 39. 编辑封面弹窗“保存”按钮禁用（Edit Cover Save Disabled）
 - 英文：Choose an image first
 - 简体中文：请先选择一张图片
 - 繁体中文：請先選擇一張圖片
@@ -430,23 +466,30 @@
 
 > **说明**：以下组件仅在文本因宽度限制发生截断省略（`...`）时，悬停 1 秒后展示完整原文本；未发生截断时不触发。
 
-### 34. 工作台顶栏页面标题（Workbench Page Title）
+### 40. 工作台顶栏页面标题（Workbench Page Title）
 - 显示内容：完整的当前页面或层级标题文本
 - 触发条件：单行文本超出顶栏可用宽度发生尾部省略（`...`）时
 - 触发延迟：1秒
 - Scenario ID：truncated.topbar.page_title
 - 所在位置：App Topbar 标题区
 
-### 35. 播放页顶栏视频标题（Player Title）
+### 41. 播放页顶栏视频标题（Player Title）
 - 显示内容：完整的视频显示标题（`Display Title`）
 - 触发条件：标题超出顶栏中心区最大宽度发生单行中间省略（`...`）时
 - 触发延迟：1秒
 - Scenario ID：truncated.player.title
 - 所在位置：Player Topbar 中心标题区
 
-### 36. 筛选对话框筛选项胶囊文本（Filter Chip Label）
+### 42. 筛选对话框筛选项胶囊文本（Filter Chip Label）
 - 显示内容：完整的筛选项名称文本
 - 触发条件：胶囊文本达到 `332px` 最大宽度上限发生单行尾部省略（`...`）时
 - 触发延迟：1秒
 - Scenario ID：truncated.filter.chip_label
 - 所在位置：Filter Dialog 筛选项胶囊按钮
+
+### 43. 批量选择横幅提示文本（Batch Selection Banner Hint）
+- 显示内容：完整的批量选择提示文本
+- 触发条件：单行提示文本因工具栏宽度不足发生尾部省略（`...`）时
+- 触发延迟：1秒
+- Scenario ID：truncated.toolbar.batch_selection_banner
+- 所在位置：Search / Excerpt Toolbar（Select Mode 第一行中间提示文本）
