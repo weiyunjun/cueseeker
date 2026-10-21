@@ -175,8 +175,8 @@
 - Icon Color：`--color-text-muted`
 - Gap：`--spacing-2`
 - States
-  - Content Changed：位于目标字幕末行右侧，Hover 显示 `--color-row-selected` 圆角底块
-  - Unavailable：占据 `Cues` 列左侧纵向槽位并与目标字幕首行垂直居中，目标字幕与 Cue Group 附加字幕统一右移对齐；Hover 仅填充图标圆圈内部为 `--color-row-selected`
+  - Content Changed：位于目标字幕末行右侧，Hover 显示 `--color-table-row-selected` 圆角底块
+  - Unavailable：占据 `Cues` 列左侧纵向槽位并与目标字幕首行垂直居中，目标字幕与 Cue Group 附加字幕统一右移对齐；Hover 仅填充图标圆圈内部为 `--color-table-row-selected`
 
 ### C-08.6 Tooltip
 

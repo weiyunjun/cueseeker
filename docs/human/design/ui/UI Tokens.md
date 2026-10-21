@@ -115,6 +115,8 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--color-file-folder-card-bg-pressed`: Light `#F3F4F6`; Dark `#3E3E47`
 - `--color-row-selected`: Light `#ECEEF2`; Dark `#43434C`
 - `--color-row-action-bg-pressed`: Light `#DEE2E8`; Dark `#4E4E58`
+- `--color-table-row-hover`: Light `#F9FAFB`; Dark `#26262B`
+- `--color-table-row-selected`: Light `#ECEEF2`; Dark `#313137`
 
 ### Status
 
@@ -253,7 +255,7 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--height-filter-chip`: `32px`
 - `--height-filter-chip-count-placeholder`: `12px`
 - `--height-field`: `30px`
-- `--height-table-header`: `27px`
+- `--height-table-header`: `44px`
 - `--min-height-table-row`: `40px`
 - `--height-action-menu-item`: `32px`
 - `--height-select-menu-item`: `32px`

@@ -55,7 +55,7 @@
 
 ## 3.1 Dark Mode 表面海拔亮度阶梯
 - **越上层越亮原则**：在 Dark Mode 下，界面层级的纵深关系通过表面背景亮度递增表达，而非加重阴影：
-  - **工作台层级**：`Sidebar`（`#111113`） < `页面 Surface / Topbar / Dialog`（`#1C1C1F`） < `表格、列表卡片与设置分组卡片`（`#2E2E34`） < `菜单 Popover`（`#36363B`）。
+  - **工作台层级**：`Sidebar`（`#111113`） < `页面 Surface / Topbar / Dialog`（`#1C1C1F`） < `列表卡片与设置分组卡片`（`#2E2E34`） < `菜单 Popover`（`#36363B`）。
   - **播放页层级**：`视频舞台`（`#000000`） < `Playback Overlay`（`#242426`） < `Command Panel` < `菜单 Popover`（`#36363B`）。
   - **菜单最亮铁律**：菜单（`--color-bg-popover`）在任何层级下始终最亮，包括在对话框与 Command Panel 内部打开的菜单。
 - **半透明白色叠加法则**：控件底色（`--color-bg-control`）、Hover（`--color-bg-hover`）、Pressed（`--color-bg-pressed`）、Disabled 底色（`--color-bg-disabled`）、分隔线（`--color-border-divider`）、Disabled 边框（`--color-border-disabled`）与 Keycap 在 Dark Mode 下均为不同透明度的半透明白色（`rgba(255,255,255, α)`），确保落在任何表面上都比该表面自身更亮。

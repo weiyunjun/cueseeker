@@ -18,9 +18,9 @@ main
    - 表格表头与表格行的悬停色、表格行选中色及行内状态图标（`C-08.5 Cue State Indicator`）悬停底色改为使用基于 `--color-bg-surface` 阶梯的专用 Token `--color-table-row-hover` 与 `--color-table-row-selected`（既有 `--color-table-bg`、`--color-row-hover`、`--color-row-selected` 继续供 `#2E2E34` 层级的卡片组件使用）。
 
 2. **表头高度、垂直居中与工具栏间距调整（`C-06.2 Table Header Cell`、`L-05.4 Search / Excerpt Toolbar Layout`）**：
-   - 表头高度 Token `--height-table-header` 由 `27px` 调整为 `36px`。
-   - `C-06.2 Table Header Cell`（含普通列名与首列 `Selection` 变体的 `#` 及全选 `Checkbox`）垂直对齐方式由 `Vertical Top` 改为 `Vertical Center`，保持表头文字与底部分割线的距离不变。
-   - `L-05.4 Search / Excerpt Toolbar Layout` 的 `Bottom Gap`（工具栏第二行至表头顶部的间距）由 `--spacing-4`（`16px`）调整为 `--spacing-2`（`8px`）。
+   - 表头高度 Token `--height-table-header` 由 `27px` 调整为 `44px`。
+   - `C-06.2 Table Header Cell`（含普通列名与首列 `Selection` 变体的 `#` 及全选 `Checkbox`）垂直对齐方式由 `Vertical Top` 改为 `Vertical Center`。
+   - `L-05.4 Search / Excerpt Toolbar Layout` 的 `Row Gap`（工具栏第一行与第二行间距）与 `Bottom Gap`（工具栏第二行至表头顶部的间距）均由 `--spacing-4`（`16px`）调整为 `--spacing-2`（`8px`）。
 
 3. **表头 Hover 与全选交互优化（`C-06.2 Table Header Cell`、`L-05.6 Search / Excerpt Table Layout`）**：
    - **整行 Hover 反馈**：鼠标悬停在表头任意位置时，整个表头行背景色切换为 `--color-table-row-hover`；当列表存在可选中的有效字幕行时，悬停表头任意位置均在首列 `Selection` 槽位显示全选 `Checkbox`（处于 `Select Mode` 时常驻显示全选 `Checkbox`）。
@@ -36,7 +36,7 @@ main
 
 6. **Token 调整与新增清单**：
    - **调整 Token**：
-     - `--height-table-header`：`27px` $\rightarrow$ `36px`。
+     - `--height-table-header`：`27px` $\rightarrow$ `44px`。
    - **新增 Token**：
      - `--color-table-row-hover`：Light `#F9FAFB`；Dark `#26262B`；
      - `--color-table-row-selected`：Light `#ECEEF2`；Dark `#313137`。
@@ -44,7 +44,7 @@ main
 # 验收标准
 
 1. Search 界面与 Excerpt 二级界面中，表格背景使用 `--color-bg-surface`（深色下无额外灰色底块），Hover（`--color-table-row-hover`）与选中行（`--color-table-row-selected`）对比度自然，且不影响 Settings、File、Task 卡片的既有深色背景与 Hover 表现。
-2. 表头高度为 `--height-table-header`（`36px`），列名文字、`#` 与全选 `Checkbox` 均垂直居中，工具栏第二行与表头间距为 `--spacing-2`（`8px`）。
+2. 表头高度为 `--height-table-header`（`44px`），列名文字、`#` 与全选 `Checkbox` 均垂直居中，工具栏两行间距与底部到表头间距均为 `--spacing-2`（`8px`）。
 3. 鼠标悬停表头任意位置时，整行表头显示 `--color-table-row-hover` 背景色且首列显示全选 `Checkbox`；未进入批量选择时仅点击首列 `Checkbox` 触发全选，进入批量选择后点击表头整行均可切换全选；全选后移开鼠标，表头恢复 `--color-bg-surface` 背景色。
 4. 表格具备 `--border-width-control`（`1px`）、`--color-border-control`、`--radius-control`（`8px`）圆角外框，最后一行无重复底部分割线，行数较少时外框紧贴末行底部收口，Excerpt 二级界面滚动与表头吸顶时外框与圆角裁剪表现正常。
 5. `xx results` 与 `xx excerpts` 左侧缩进 `--padding-control-x`（`14px`），与搜索框内放大镜图标及表格首列 `Checkbox` 左边缘对齐。

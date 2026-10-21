@@ -1071,7 +1071,10 @@
 ##### Anatomy
 
 - Surface
-  - Background：`--color-table-bg`，铺满 Header 与 Body Viewport
+  - Background：`--color-bg-surface`，铺满 Header 与 Body Viewport
+  - Border Color：`--color-border-control`
+  - Border Width：`--border-width-control`
+  - Radius：`--radius-control`（包裹 Header 与实际数据行区域，最后一行不绘制底部分割线）
 - Header
 - Body Viewport
 - Rows
@@ -1107,7 +1110,7 @@
   - Font Size：`--font-size-table-header`
   - Font Weight：Medium
   - Color：`--color-text-secondary`
-  - Alignment：Vertical Top
+  - Alignment：Vertical Center
 - Leading Slot
   - Presence：Optional
 - Trailing Slot
@@ -1123,6 +1126,8 @@
 ##### States
 
 - Default
+- Hover
+  - Background：`--color-table-row-hover`（表头整行任意位置 Hover 触发，且存在可选中行时首列切换显示 Checkbox）
 - Disabled
 
 #### Variants
@@ -1130,9 +1135,9 @@
 ##### Selection
 
 - Label：`#`，与 Checkbox 共享水平居中对齐
-- Checkbox：Checkbox / Table Selection Checkbox
-- Alignment：Horizontal Center / Vertical Top
-- States
+- Checkbox：Checkbox / Table Selection Checkbox（非 Select Mode 下仅点击首列单元格触发全选；Select Mode 下点击表头整行均可切换全选）
+- Alignment：Horizontal Center / Vertical Center
+- States（非 Hover 时表头均保持 `--color-bg-surface`，无常驻选中底色）
   - None Selected
   - Partially Selected
   - All Selected
@@ -1157,11 +1162,11 @@
 
 - Default
 - Hover
-  - Background：`--color-row-hover`
+  - Background：`--color-table-row-hover`
   - 菜单或对话框打开期间不随指针移动；右键菜单的关联行保持 Hover
   - 指针真实移动后落在行上时随之移动；滚动与布局变化不移动它
 - Selected
-  - Background：`--color-row-selected`
+  - Background：`--color-table-row-selected`
   - Select Mode 下 Shift 加左键点击按区间选中：无选中时从第 1 行选到点击行；点击行已选中时只取消该行；点击行未选中时选中它到最近选中行之间的全部行
   - Unavailable 行不可选中：点击不改变勾选，全选与 Shift 区间选中跳过它，表头的全选状态不计入它
   - 最近选中行是最近一次产生选中的操作所选中的最高行；取消选中不改变它，选中清空时它一并清空

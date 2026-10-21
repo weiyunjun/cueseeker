@@ -726,7 +726,7 @@
 
 1. Row 1：从左到右依次为 Search Field（自适应撑满整行剩余宽度）、Filter Trigger（带 18px 图标与 `Filter` / `筛选` 文本）、Sort Trigger（图标为 `funnel-simple`，文字为当前选中的排序方式；点击展开与按钮左边缘对齐的 Radio Menu，打开时默认高亮首项）
 2. Row 2（左对齐）：
-   - Default：Result Count（Search 为 `xx results`，未输入搜索词时不显示；Excerpt 为 `xx excerpts`，仅统计有效台词）
+   - Default：Result Count（Search 为 `xx results`，未输入搜索词时不显示；Excerpt 为 `xx excerpts`，仅统计有效台词；左侧内边距 `--padding-control-x`，与上方搜索框内放大镜图标及下方表格首列勾选框左对齐）
    - Select Mode：从左到右依次为 `退出选择` 按钮（带 18px `sign-out` 图标）、Selection Banner 文案（`已进入批量选择状态：点击任意行即可勾选，支持 Shift 连选`）
 
 #### Components
@@ -740,9 +740,9 @@
 #### Sizes
 
 - Row Height：`--height-control`
-- Row Gap：`--spacing-4`
+- Row Gap：`--spacing-2`
 - Item Gap：`--spacing-4`
-- Bottom Gap：`--spacing-4`
+- Bottom Gap：`--spacing-2`
 - Width：Fill Parent Content Width
 
 #### States
