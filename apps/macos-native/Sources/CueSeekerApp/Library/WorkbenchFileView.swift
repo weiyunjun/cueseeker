@@ -378,7 +378,7 @@ struct WorkbenchFileView: View {
                         ),
                         FileCardMenuItem(
                             title: L("file.menu.remove_this_folder"),
-                            icon: .minusCircle,
+                            icon: .folderMinus,
                             isEnabled: !isFolderOperationBlocked,
                             isDestructive: true,
                             action: {

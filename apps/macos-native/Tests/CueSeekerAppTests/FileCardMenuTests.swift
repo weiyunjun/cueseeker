@@ -31,13 +31,13 @@ struct FileCardMenuTests {
 
         let removeItem = FileCardMenuItem(
             title: "Remove",
-            icon: .minusCircle,
+            icon: .folderMinus,
             isEnabled: false,
             isDestructive: true,
             action: {}
         )
         #expect(removeItem.title == "Remove")
-        #expect(removeItem.icon == .minusCircle)
+        #expect(removeItem.icon == .folderMinus)
         #expect(removeItem.isEnabled == false)
         #expect(removeItem.isDestructive == true)
     }
@@ -152,7 +152,7 @@ struct FileCardMenuTests {
             ),
             FileCardMenuItem(
                 title: L("file.menu.remove_this_folder"),
-                icon: .minusCircle,
+                icon: .folderMinus,
                 isEnabled: true,
                 isDestructive: true,
                 action: {}

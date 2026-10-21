@@ -838,7 +838,7 @@ func taskRecordTitlesAndIconsFollowRedesignSpecification() throws {
         stateChangedAt: Date(),
         oldPaths: ["/Videos/OldArchiveFolder"]
     )
-    #expect(removeFolderRecord.icon == .minusCircle)
+    #expect(removeFolderRecord.icon == .folderMinus)
     #expect(removeFolderRecord.titleActionPrefix == "Remove: ")
     #expect(removeFolderRecord.titleTargetName == "OldArchiveFolder")
     #expect(removeFolderRecord.displayTitle == "Remove: OldArchiveFolder")

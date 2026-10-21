@@ -190,7 +190,7 @@ struct FileRouteNavigationTests {
         #expect(FileFolderGroupingResolver.folderIcon(forFolderPath: "/Volumes/Media/Anime/Season1") == .folder)
         #expect(FileFolderGroupingResolver.folderIcon(forFolderPath: encodedWebDAVAddress) == .folderWebdav)
         #expect(AppIcon.folder.folderProtocolBadge == nil)
-        #expect(AppIcon.folderWebdav.folderProtocolBadge == "WebDav")
+        #expect(AppIcon.folderWebdav.folderProtocolBadge == "DAV")
         #expect(AppIcon.folderSmb.folderProtocolBadge == "SMB")
         #expect(AppIcon.folderFtp.folderProtocolBadge == "FTP")
         #expect(AppIcon.folderNfs.folderProtocolBadge == "NFS")

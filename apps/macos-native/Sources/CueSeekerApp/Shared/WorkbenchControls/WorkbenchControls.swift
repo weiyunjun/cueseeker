@@ -1732,21 +1732,11 @@ extension VerticalAlignment {
 
 struct WorkbenchCardIcon: View {
     let icon: AppIcon
+    var size: CGFloat = WorkbenchControlMetrics.redesignCardIconContainerSize
 
     var body: some View {
-        RoundedRectangle(
-            cornerRadius: WorkbenchControlMetrics.redesignCornerRadius,
-            style: .continuous
-        )
-        .fill(WorkbenchRedesignColors.bgHover)
-        .frame(
-            width: WorkbenchControlMetrics.redesignCardIconContainerSize,
-            height: WorkbenchControlMetrics.redesignCardIconContainerSize
-        )
-        .overlay(
-            AppIconImage(icon, size: WorkbenchControlMetrics.redesignCardIconGlyphSize)
-                .foregroundStyle(WorkbenchRedesignColors.textSecondary)
-        )
+        AppAccentDuotoneIconView(icon: icon, size: size)
+            .frame(width: size, height: size)
     }
 }
 

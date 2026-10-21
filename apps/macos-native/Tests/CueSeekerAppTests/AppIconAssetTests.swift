@@ -1,6 +1,7 @@
 import AppKit
 import CoreGraphics
 import Foundation
+import SwiftUI
 import Testing
 @testable import CueSeekerApp
 
@@ -98,4 +99,39 @@ func systemColorsDidChangeClearsTintedCache() {
         object: nil
     )
     #expect(AppIconStore.tintedCacheCountForTesting() == 0)
+}
+
+@MainActor
+@Test
+func accentDuotoneCardIconsFollowFortyFourPercentHierarchyAndRenderAllTwelveIcons() {
+    #expect(AppAccentDuotoneIconMetrics.baseOpacity == 0.44)
+    #expect(AppAccentDuotoneIconMetrics.folderTabOpacity == 0.64)
+    #expect(AppAccentDuotoneIconMetrics.ankiLinesOpacity == 0.71)
+    #expect(AppAccentDuotoneIconMetrics.foregroundOpacity == 1.0)
+    #expect(AppAccentDuotoneIconMetrics.supportedIcons.count == 12)
+    #expect(AppAccentDuotoneIconMetrics.supportedIcons == [
+        .folder,
+        .folderWebdav,
+        .folderSmb,
+        .folderFtp,
+        .folderNfs,
+        .folderPlus,
+        .folderMinus,
+        .video,
+        .subtitles,
+        .ankiStar,
+        .arrowClockwise,
+        .pencilSimple,
+    ])
+
+    for icon in AppAccentDuotoneIconMetrics.supportedIcons {
+        for size in [
+            WorkbenchControlMetrics.redesignCardIconContainerSize,
+            WorkbenchControlMetrics.redesignDetailFileIconContainerSize,
+        ] {
+            let host = NSHostingView(rootView: WorkbenchCardIcon(icon: icon, size: size))
+            host.layoutSubtreeIfNeeded()
+            #expect(host.fittingSize == CGSize(width: size, height: size))
+        }
+    }
 }

@@ -674,7 +674,7 @@ extension TaskRecord {
         case .addFolder:
             return .folderPlus
         case .removeFolder:
-            return .minusCircle
+            return .folderMinus
         }
     }
 

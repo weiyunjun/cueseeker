@@ -34,6 +34,7 @@ enum AppIcon: String, CaseIterable, Sendable {
     case tray = "tray"
     case listChecks = "list-checks"
     case folderPlus = "folder-plus"
+    case folderMinus = "folder-minus"
     case plus = "plus"
     case arrowClockwise = "arrow-clockwise"
     case arrowCounterClockwise = "arrow-counter-clockwise"
@@ -79,14 +80,12 @@ enum AppIcon: String, CaseIterable, Sendable {
     case keyboard = "keyboard"
     case fileArrowDown = "file-arrow-down"
     case signOut = "sign-out"
-
-    /// Reserved by `docs/human/design/Icon Registry.md`; no view draws it yet.
     case ankiStar = "anki-star"
 
     var folderProtocolBadge: String? {
         switch self {
         case .folderWebdav:
-            return "WebDav"
+            return "DAV"
         case .folderSmb:
             return "SMB"
         case .folderFtp:
@@ -348,6 +347,539 @@ private struct ProtocolFolderOutlineShape: Shape {
         path.addArc(tangent1End: pt(32, 32), tangent2End: pt(96, 32), radius: 8 * rScale)
         path.addArc(tangent1End: pt(96, 32), tangent2End: pt(128, 64), radius: 8 * rScale)
         path.addLine(to: pt(128, 64))
+
+        return path
+    }
+}
+
+enum AppAccentDuotoneIconMetrics {
+    static let baseOpacity: Double = 0.44
+    static let folderTabOpacity: Double = 0.64
+    static let ankiLinesOpacity: Double = 0.71
+    static let foregroundOpacity: Double = 1.0
+
+    static let supportedIcons: Set<AppIcon> = [
+        .folder,
+        .folderWebdav,
+        .folderSmb,
+        .folderFtp,
+        .folderNfs,
+        .folderPlus,
+        .folderMinus,
+        .video,
+        .subtitles,
+        .ankiStar,
+        .arrowClockwise,
+        .pencilSimple,
+    ]
+}
+
+/// Borderless monochrome-duotone large icon rendered with the system accent
+/// color (44% base / 64% folder tab / 71% Anki lines / 100% foreground).
+struct AppAccentDuotoneIconView: View {
+    let icon: AppIcon
+    let size: CGFloat
+
+    private var s: CGFloat {
+        size / 256.0
+    }
+
+    var body: some View {
+        Group {
+            switch icon {
+            case .folder:
+                folderIconView(symbol: .none)
+            case .folderWebdav:
+                folderIconView(symbol: .text("DAV"))
+            case .folderSmb:
+                folderIconView(symbol: .text("SMB"))
+            case .folderFtp:
+                folderIconView(symbol: .text("FTP"))
+            case .folderNfs:
+                folderIconView(symbol: .text("NFS"))
+            case .folderPlus:
+                folderIconView(symbol: .plus)
+            case .folderMinus:
+                folderIconView(symbol: .minus)
+            case .video:
+                videoIconView
+            case .subtitles:
+                subtitlesIconView
+            case .ankiStar:
+                ankiIconView
+            case .arrowClockwise:
+                indexIconView
+            case .pencilSimple:
+                renameIconView
+            default:
+                AppIconImage(icon, size: size)
+                    .foregroundStyle(Color.accentColor)
+            }
+        }
+        .frame(width: size, height: size)
+    }
+
+    private enum FolderCenterSymbol {
+        case none
+        case plus
+        case minus
+        case text(String)
+    }
+
+    private func folderIconView(symbol: FolderCenterSymbol) -> some View {
+        ZStack {
+            AccentDuotoneFolderTabShape()
+                .fill(Color.accentColor.opacity(AppAccentDuotoneIconMetrics.folderTabOpacity))
+
+            AccentDuotoneFolderBodyShape()
+                .fill(Color.accentColor.opacity(AppAccentDuotoneIconMetrics.baseOpacity))
+
+            switch symbol {
+            case .none:
+                EmptyView()
+            case .plus:
+                AccentDuotoneFolderPlusSymbolShape()
+                    .stroke(
+                        Color.accentColor,
+                        style: StrokeStyle(lineWidth: 20 * s, lineCap: .round)
+                    )
+            case .minus:
+                AccentDuotoneFolderMinusSymbolShape()
+                    .stroke(
+                        Color.accentColor,
+                        style: StrokeStyle(lineWidth: 20 * s, lineCap: .round)
+                    )
+            case .text(let badge):
+                Text(badge)
+                    .font(.system(size: 62 * s, weight: .heavy, design: .rounded))
+                    .kerning(1.0 * s)
+                    .foregroundStyle(Color.accentColor)
+                    .lineLimit(1)
+                    .fixedSize()
+                    .position(x: 128 * s, y: 142 * s)
+            }
+        }
+    }
+
+    private var videoIconView: some View {
+        ZStack {
+            AccentDuotoneMediaRectShape()
+                .fill(Color.accentColor.opacity(AppAccentDuotoneIconMetrics.baseOpacity))
+
+            AccentDuotonePlayTriangleShape()
+                .fill(Color.accentColor)
+        }
+    }
+
+    private var subtitlesIconView: some View {
+        ZStack {
+            AccentDuotoneMediaRectShape()
+                .fill(Color.accentColor.opacity(AppAccentDuotoneIconMetrics.baseOpacity))
+
+            AccentDuotoneSubtitleBarsShape()
+                .stroke(
+                    Color.accentColor,
+                    style: StrokeStyle(lineWidth: 20 * s, lineCap: .round)
+                )
+        }
+    }
+
+    private var ankiIconView: some View {
+        ZStack {
+            AccentDuotoneAnkiCardShape()
+                .fill(Color.accentColor.opacity(AppAccentDuotoneIconMetrics.baseOpacity))
+
+            AccentDuotoneAnkiLinesShape()
+                .stroke(
+                    Color.accentColor.opacity(AppAccentDuotoneIconMetrics.ankiLinesOpacity),
+                    style: StrokeStyle(lineWidth: 15 * s, lineCap: .round)
+                )
+
+            AccentDuotoneAnkiStarShape()
+                .fill(Color.black)
+                .overlay(
+                    AccentDuotoneAnkiStarShape()
+                        .stroke(
+                            Color.black,
+                            style: StrokeStyle(
+                                lineWidth: 38 * 0.62 * s,
+                                lineCap: .round,
+                                lineJoin: .round
+                            )
+                        )
+                )
+                .blendMode(.destinationOut)
+
+            AccentDuotoneAnkiStarShape()
+                .fill(Color.accentColor)
+                .overlay(
+                    AccentDuotoneAnkiStarShape()
+                        .stroke(
+                            Color.accentColor,
+                            style: StrokeStyle(
+                                lineWidth: 14 * 0.62 * s,
+                                lineCap: .round,
+                                lineJoin: .round
+                            )
+                        )
+                )
+        }
+        .compositingGroup()
+    }
+
+    private var indexIconView: some View {
+        ZStack {
+            AccentDuotoneIndexCircleShape()
+                .fill(Color.accentColor.opacity(AppAccentDuotoneIconMetrics.baseOpacity))
+
+            AccentDuotoneIndexArrowShape()
+                .stroke(
+                    Color.accentColor,
+                    style: StrokeStyle(
+                        lineWidth: 15 * s,
+                        lineCap: .round,
+                        lineJoin: .round
+                    )
+                )
+        }
+    }
+
+    private var renameIconView: some View {
+        AccentDuotoneRenamePencilShape()
+            .fill(Color.accentColor.opacity(AppAccentDuotoneIconMetrics.baseOpacity))
+    }
+}
+
+private struct AccentDuotoneFolderTabShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        let s = min(rect.width, rect.height) / 256.0
+        func pt(_ x: CGFloat, _ y: CGFloat) -> CGPoint {
+            CGPoint(x: rect.minX + x * s, y: rect.minY + y * s)
+        }
+
+        var path = Path()
+        path.move(to: pt(20, 90))
+        path.addLine(to: pt(20, 54))
+        path.addArc(
+            center: pt(38, 54),
+            radius: 18 * s,
+            startAngle: .degrees(180),
+            endAngle: .degrees(270),
+            clockwise: false
+        )
+        path.addArc(
+            tangent1End: pt(98, 36),
+            tangent2End: pt(128, 68),
+            radius: 16 * s
+        )
+        path.addLine(to: pt(128, 68))
+        path.addLine(to: pt(42, 68))
+        path.addArc(
+            center: pt(42, 90),
+            radius: 22 * s,
+            startAngle: .degrees(270),
+            endAngle: .degrees(180),
+            clockwise: true
+        )
+        path.closeSubpath()
+        return path
+    }
+}
+
+private struct AccentDuotoneFolderBodyShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        let s = min(rect.width, rect.height) / 256.0
+        func pt(_ x: CGFloat, _ y: CGFloat) -> CGPoint {
+            CGPoint(x: rect.minX + x * s, y: rect.minY + y * s)
+        }
+
+        var path = Path()
+        path.move(to: pt(42, 68))
+        path.addLine(to: pt(214, 68))
+        path.addArc(
+            center: pt(214, 90),
+            radius: 22 * s,
+            startAngle: .degrees(-90),
+            endAngle: .degrees(0),
+            clockwise: false
+        )
+        path.addLine(to: pt(236, 194))
+        path.addArc(
+            center: pt(214, 194),
+            radius: 22 * s,
+            startAngle: .degrees(0),
+            endAngle: .degrees(90),
+            clockwise: false
+        )
+        path.addLine(to: pt(42, 216))
+        path.addArc(
+            center: pt(42, 194),
+            radius: 22 * s,
+            startAngle: .degrees(90),
+            endAngle: .degrees(180),
+            clockwise: false
+        )
+        path.addLine(to: pt(20, 90))
+        path.addArc(
+            center: pt(42, 90),
+            radius: 22 * s,
+            startAngle: .degrees(180),
+            endAngle: .degrees(270),
+            clockwise: false
+        )
+        path.closeSubpath()
+        return path
+    }
+}
+
+private struct AccentDuotoneFolderPlusSymbolShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        let s = min(rect.width, rect.height) / 256.0
+        func pt(_ x: CGFloat, _ y: CGFloat) -> CGPoint {
+            CGPoint(x: rect.minX + x * s, y: rect.minY + y * s)
+        }
+
+        var path = Path()
+        path.move(to: pt(128, 112))
+        path.addLine(to: pt(128, 172))
+        path.move(to: pt(98, 142))
+        path.addLine(to: pt(158, 142))
+        return path
+    }
+}
+
+private struct AccentDuotoneFolderMinusSymbolShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        let s = min(rect.width, rect.height) / 256.0
+        func pt(_ x: CGFloat, _ y: CGFloat) -> CGPoint {
+            CGPoint(x: rect.minX + x * s, y: rect.minY + y * s)
+        }
+
+        var path = Path()
+        path.move(to: pt(96, 142))
+        path.addLine(to: pt(160, 142))
+        return path
+    }
+}
+
+private struct AccentDuotoneMediaRectShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        let s = min(rect.width, rect.height) / 256.0
+        let mediaRect = CGRect(
+            x: rect.minX + 20 * s,
+            y: rect.minY + 44 * s,
+            width: 216 * s,
+            height: 168 * s
+        )
+        return Path(roundedRect: mediaRect, cornerRadius: 26 * s, style: .circular)
+    }
+}
+
+private struct AccentDuotonePlayTriangleShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        let s = min(rect.width, rect.height) / 256.0
+        func pt(_ x: CGFloat, _ y: CGFloat) -> CGPoint {
+            CGPoint(x: rect.minX + x * s, y: rect.minY + y * s)
+        }
+
+        var path = Path()
+        path.move(to: pt(106, 99))
+        path.addCurve(to: pt(115, 94.2), control1: pt(106, 94.5), control2: pt(111, 91.8))
+        path.addLine(to: pt(156, 120.2))
+        path.addCurve(to: pt(156, 130.8), control1: pt(159.8, 122.6), control2: pt(159.8, 128.4))
+        path.addLine(to: pt(115, 156.8))
+        path.addCurve(to: pt(106, 152), control1: pt(111, 159.2), control2: pt(106, 156.5))
+        path.closeSubpath()
+        return path
+    }
+}
+
+private struct AccentDuotoneSubtitleBarsShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        let s = min(rect.width, rect.height) / 256.0
+        func pt(_ x: CGFloat, _ y: CGFloat) -> CGPoint {
+            CGPoint(x: rect.minX + x * s, y: rect.minY + y * s)
+        }
+
+        var path = Path()
+        path.move(to: pt(56, 132))
+        path.addLine(to: pt(80, 132))
+        path.move(to: pt(112, 132))
+        path.addLine(to: pt(200, 132))
+        path.move(to: pt(56, 168))
+        path.addLine(to: pt(148, 168))
+        path.move(to: pt(180, 168))
+        path.addLine(to: pt(200, 168))
+        return path
+    }
+}
+
+private struct AccentDuotoneAnkiCardShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        let s = min(rect.width, rect.height) / 256.0
+        let cardRect = CGRect(
+            x: rect.minX + 24 * s,
+            y: rect.minY + 24 * s,
+            width: 204 * s,
+            height: 204 * s
+        )
+        return Path(roundedRect: cardRect, cornerRadius: 36 * s, style: .circular)
+    }
+}
+
+private struct AccentDuotoneAnkiLinesShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        let s = min(rect.width, rect.height) / 256.0
+        func pt(_ x: CGFloat, _ y: CGFloat) -> CGPoint {
+            CGPoint(x: rect.minX + x * s, y: rect.minY + y * s)
+        }
+
+        var path = Path()
+        path.move(to: pt(56, 70))
+        path.addLine(to: pt(90, 70))
+        path.move(to: pt(112, 70))
+        path.addLine(to: pt(148, 70))
+        path.move(to: pt(56, 104))
+        path.addLine(to: pt(122, 104))
+        path.move(to: pt(56, 142))
+        path.addLine(to: pt(100, 142))
+        path.move(to: pt(56, 176))
+        path.addLine(to: pt(82, 176))
+        return path
+    }
+}
+
+private struct AccentDuotoneAnkiStarShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        let s = min(rect.width, rect.height) / 256.0
+        func starPt(_ x: CGFloat, _ y: CGFloat) -> CGPoint {
+            CGPoint(
+                x: rect.minX + (74.0 + x * 0.62) * s,
+                y: rect.minY + (72.0 + y * 0.62) * s
+            )
+        }
+
+        let points: [(CGFloat, CGFloat)] = [
+            (107.5, 32),
+            (152, 83),
+            (218, 68),
+            (183, 128),
+            (218, 188),
+            (152, 173),
+            (107.5, 224),
+            (101, 156),
+            (38, 128),
+            (101, 100),
+        ]
+
+        var path = Path()
+        if let first = points.first {
+            path.move(to: starPt(first.0, first.1))
+            for point in points.dropFirst() {
+                path.addLine(to: starPt(point.0, point.1))
+            }
+            path.closeSubpath()
+        }
+        return path
+    }
+}
+
+private struct AccentDuotoneIndexCircleShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        let s = min(rect.width, rect.height) / 256.0
+        let circleRect = CGRect(
+            x: rect.minX + 18 * s,
+            y: rect.minY + 18 * s,
+            width: 220 * s,
+            height: 220 * s
+        )
+        return Path(ellipseIn: circleRect)
+    }
+}
+
+private struct AccentDuotoneIndexArrowShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        let s = min(rect.width, rect.height) / 256.0
+        func pt(_ x: CGFloat, _ y: CGFloat) -> CGPoint {
+            CGPoint(x: rect.minX + x * s, y: rect.minY + y * s)
+        }
+
+        var path = Path()
+        path.addArc(
+            center: pt(128, 128),
+            radius: 48 * s,
+            startAngle: .degrees(45),
+            endAngle: .degrees(316.3),
+            clockwise: false
+        )
+        path.addLine(to: pt(178, 109))
+
+        path.move(to: pt(145, 109))
+        path.addLine(to: pt(178, 109))
+        path.addLine(to: pt(178, 76))
+        return path
+    }
+}
+
+private struct AccentDuotoneRenamePencilShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        let s = min(rect.width, rect.height) / 256.0
+        func pt(_ x: CGFloat, _ y: CGFloat) -> CGPoint {
+            CGPoint(x: rect.minX + x * s, y: rect.minY + y * s)
+        }
+
+        var path = Path()
+
+        // Bottom-left pencil shaft (with 6-unit diagonal gap from head)
+        path.move(to: pt(36, 208))
+        path.addLine(to: pt(36, 156.5))
+        path.addArc(
+            center: pt(48, 156.5),
+            radius: 12 * s,
+            startAngle: .degrees(180),
+            endAngle: .degrees(225),
+            clockwise: false
+        )
+        path.addLine(to: pt(132, 55.5))
+        path.addLine(to: pt(200.5, 124))
+        path.addLine(to: pt(108, 216.5))
+        path.addArc(
+            center: pt(99.5, 208),
+            radius: 12 * s,
+            startAngle: .degrees(45),
+            endAngle: .degrees(90),
+            clockwise: false
+        )
+        path.addLine(to: pt(48, 220))
+        path.addArc(
+            center: pt(48, 208),
+            radius: 12 * s,
+            startAngle: .degrees(90),
+            endAngle: .degrees(180),
+            clockwise: false
+        )
+        path.closeSubpath()
+
+        // Top-right pencil head (same 44% accent color, separated by diagonal gap)
+        path.move(to: pt(144, 43.5))
+        path.addLine(to: pt(164, 23.5))
+        path.addArc(
+            center: pt(175.3137, 34.8137),
+            radius: 16 * s,
+            startAngle: .degrees(225),
+            endAngle: .degrees(315),
+            clockwise: false
+        )
+        path.addLine(to: pt(232.5, 69.3726))
+        path.addArc(
+            center: pt(221.1863, 80.6863),
+            radius: 16 * s,
+            startAngle: .degrees(-45),
+            endAngle: .degrees(45),
+            clockwise: false
+        )
+        path.addLine(to: pt(212.5, 112))
+        path.closeSubpath()
 
         return path
     }

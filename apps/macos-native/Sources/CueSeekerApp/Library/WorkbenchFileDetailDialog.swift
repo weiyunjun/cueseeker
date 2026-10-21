@@ -101,22 +101,9 @@ struct WorkbenchFileDetailDialog: View {
 
     private var fileHeaderRow: some View {
         HStack(alignment: .center, spacing: WorkbenchControlMetrics.redesignSpacing4) {
-            ZStack {
-                RoundedRectangle(
-                    cornerRadius: WorkbenchControlMetrics.redesignCornerRadius,
-                    style: .continuous
-                )
-                .fill(WorkbenchRedesignColors.bgHover)
-
-                AppIconImage(
-                    session.icon,
-                    size: WorkbenchControlMetrics.redesignDetailFileIconGlyphSize
-                )
-                .foregroundStyle(WorkbenchRedesignColors.textPrimary)
-            }
-            .frame(
-                width: WorkbenchControlMetrics.redesignDetailFileIconContainerSize,
-                height: WorkbenchControlMetrics.redesignDetailFileIconContainerSize
+            WorkbenchCardIcon(
+                icon: session.icon,
+                size: WorkbenchControlMetrics.redesignDetailFileIconContainerSize
             )
 
             Text(session.fileName)
