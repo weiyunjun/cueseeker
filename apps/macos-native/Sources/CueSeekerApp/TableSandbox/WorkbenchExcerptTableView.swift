@@ -350,6 +350,11 @@ private struct WorkbenchExcerptTableContent: View {
                     placeholder: L("table.search_placeholder"),
                     searchDraft: searchInputBinding,
                     searchResultCountText: exactSearchResultCountText,
+                    selectedCountText: schemaWorkbenchSelectedCountText(
+                        selectedRowCount: tableSummary.selectedRowCount,
+                        selectableRowCount: tableSummary.selectableRowCount
+                    ),
+                    selectionActions: selectedSummaryActions ?? [],
                     isSelectionMode: isSelectionMode,
                     isFilterDialogOpen: isFilterDialogOpen,
                     filterSelectionCount: excerptFacetFilter.selectedOptionCount(

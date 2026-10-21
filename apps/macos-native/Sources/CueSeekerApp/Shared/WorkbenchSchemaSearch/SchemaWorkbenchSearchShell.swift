@@ -372,16 +372,9 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
 
             if isRedesign, summaryContent != nil, hostsPageChromeInTable {
                 tableContent(columns)
-                    .overlay(alignment: .bottom) {
-                        // The table runs to the window edge here, so the
-                        // Overlay takes the page margins the table's content
-                        // region has.
-                        selectionActionOverlay
-                            .workbenchPageInlinePadding()
-                    }
                 // The detail hosts its page chrome inside the table, so the
                 // table would otherwise run to the window edge and put the
-                // Overlay a page margin lower than every other Workbench page.
+                // content a page margin lower than every other Workbench page.
                 .padding(
                     .bottom,
                     WorkbenchControlMetrics.redesignWorkbenchPageBottomPadding
@@ -400,11 +393,6 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
                     }
 
                     tableContent(columns)
-                        .overlay(alignment: .bottom) {
-                            if isRedesign {
-                                selectionActionOverlay
-                            }
-                        }
                         .workbenchPageInlinePadding()
                     .padding(
                         .bottom,
@@ -416,24 +404,6 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
 
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-
-    /// Drawn as the table's overlay, so it is offered the table's size and can
-    /// never widen the page, however long its content.
-    @ViewBuilder
-    private var selectionActionOverlay: some View {
-        if isSelectionMode,
-           let tableSummary,
-           let selectionActions {
-            SchemaWorkbenchSelectionActionOverlay(
-                selectedRowCount: tableSummary.selectedRowCount,
-                selectableRowCount: tableSummary.selectableRowCount,
-                actions: selectionActions,
-                anchor: selectionOverlayAnchor,
-                onExitSelectionMode: onToggleSelectionMode
-            )
-            .padding(.bottom, WorkbenchControlMetrics.redesignSpacing4)
-        }
     }
 
     private var externalTextSelectionIsBlocked: Bool {
@@ -456,11 +426,21 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
             ?? L("search.sort.default")
     }
 
+    private var selectedCountText: String? {
+        guard let tableSummary else { return nil }
+        return schemaWorkbenchSelectedCountText(
+            selectedRowCount: tableSummary.selectedRowCount,
+            selectableRowCount: tableSummary.selectableRowCount
+        )
+    }
+
     private var searchToolbar: some View {
         SchemaWorkbenchSearchToolbar(
             placeholder: searchPlaceholder,
             searchDraft: $searchDraft,
             searchResultCountText: searchResultCountText,
+            selectedCountText: selectedCountText,
+            selectionActions: selectionActions ?? [],
             isSelectionMode: isSelectionMode,
             isFilterDialogOpen: isFilterDialogOpen,
             filterSelectionCount: filterSelectionCount,
@@ -561,6 +541,12 @@ enum SchemaWorkbenchStyle {
         WorkbenchControlMetrics.redesignSpacing2
     static let resultCountLeadingPadding =
         WorkbenchControlMetrics.redesignControlPaddingX
+            + WorkbenchControlMetrics.redesignSpacing2
+    static let selectionSummaryLeadingPadding =
+        resultCountLeadingPadding
+    static let selectionActionRowLeadingPadding =
+        selectionSummaryLeadingPadding
+            - WorkbenchControlMetrics.redesignSpacing3
     static let pinnedToolbarHeight =
         WorkbenchControlMetrics.redesignHeight * 2
             + toolbarRowSpacing
@@ -568,9 +554,13 @@ enum SchemaWorkbenchStyle {
 }
 
 struct SchemaWorkbenchSearchToolbar: View {
+    @Environment(\.interfaceLayerContext) private var layerContext
+
     let placeholder: String
     @Binding var searchDraft: String
     let searchResultCountText: String?
+    var selectedCountText: String? = nil
+    var selectionActions: [SchemaWorkbenchSelectionAction] = []
     var isSelectionMode: Bool = false
     var isFilterDialogOpen: Bool = false
     /// The options the table's selection holds; nothing is drawn at zero.
@@ -586,12 +576,17 @@ struct SchemaWorkbenchSearchToolbar: View {
 
     var body: some View {
         VStack(spacing: SchemaWorkbenchStyle.toolbarRowSpacing) {
-            topInputAndActionsRow
-
             if isSelectionMode {
-                selectionBanner
+                selectionSummaryRow
+                selectionActionsRow
             } else {
+                topInputAndActionsRow
                 defaultResultCountRow
+            }
+        }
+        .background {
+            if isSelectionMode {
+                WindowKeyDownMonitor(handle: handleSelectionShortcut)
             }
         }
     }
@@ -638,15 +633,12 @@ struct SchemaWorkbenchSearchToolbar: View {
         HStack(spacing: WorkbenchControlMetrics.redesignSpacing4) {
             searchField
                 .frame(minWidth: 0, maxWidth: .infinity)
-                .disabled(isSelectionMode)
 
             filterButton
                 .layoutPriority(1)
-                .disabled(isSelectionMode)
 
             sortButton
                 .layoutPriority(1)
-                .disabled(isSelectionMode)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .frame(height: WorkbenchControlMetrics.redesignHeight)
@@ -665,15 +657,11 @@ struct SchemaWorkbenchSearchToolbar: View {
         .frame(height: WorkbenchControlMetrics.redesignHeight)
     }
 
-    private var selectionBanner: some View {
+    private var selectionSummaryRow: some View {
         HStack(spacing: WorkbenchControlMetrics.redesignSpacing4) {
-            WorkbenchButton(
-                title: L("table.exit_select"),
-                icon: .signOut,
-                isRedesign: true,
-                action: onToggleSelectionMode
-            )
-            .layoutPriority(1)
+            if let selectedCountText, !selectedCountText.isEmpty {
+                WorkbenchStatusIndicator(selectedCountText)
+            }
 
             Text(L("table.batch_selection_banner_hint"))
                 .font(.system(
@@ -684,9 +672,55 @@ struct SchemaWorkbenchSearchToolbar: View {
                 .lineLimit(1)
 
             Spacer(minLength: 0)
+
+            WorkbenchDestructiveButton(
+                title: L("table.exit_select"),
+                icon: .signOut,
+                action: onToggleSelectionMode
+            )
+            .layoutPriority(1)
         }
+        .padding(.leading, SchemaWorkbenchStyle.selectionSummaryLeadingPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
         .frame(height: WorkbenchControlMetrics.redesignHeight)
+    }
+
+    private var selectionActionsRow: some View {
+        HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
+            ForEach(selectionActions) { action in
+                SchemaWorkbenchSelectionActionButton(action: action)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(.leading, SchemaWorkbenchStyle.selectionActionRowLeadingPadding)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(height: WorkbenchControlMetrics.redesignHeight)
+    }
+
+    private func handleSelectionShortcut(_ event: NSEvent) -> Bool {
+        guard isSelectionMode,
+              !layerContext.isFrozen,
+              event.modifierFlags
+                  .intersection([.command, .control, .option, .shift])
+                  .isEmpty,
+              !AppCoordinator.isEditableTextInputFocused()
+        else {
+            return false
+        }
+        if event.keyCode == 53 {
+            if !event.isARepeat {
+                onToggleSelectionMode()
+            }
+            return true
+        }
+        guard let action = selectionActions.first(where: { $0.keyCode == event.keyCode }) else {
+            return false
+        }
+        if !event.isARepeat {
+            action.perform()
+        }
+        return true
     }
 }
 

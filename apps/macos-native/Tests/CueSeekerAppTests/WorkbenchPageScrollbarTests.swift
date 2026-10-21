@@ -303,6 +303,12 @@ func unifiedTwoRowToolbarShrinksSearchFieldFirstAndDisablesRowOneInSelectMode() 
                     placeholder: "Search in excerpt list...",
                     searchDraft: .constant(""),
                     searchResultCountText: "42 excerpts",
+                    selectedCountText: "1 / 42 rows selected",
+                    selectionActions: SchemaWorkbenchSelectionAction.exportActions(
+                        exportToAnki: {},
+                        copyDeepLinks: {},
+                        copyTable: {}
+                    ),
                     isSelectionMode: isSelectionMode,
                     isFilterDialogOpen: false,
                     filterSelectionCount: 0,
@@ -345,20 +351,15 @@ func unifiedTwoRowToolbarShrinksSearchFieldFirstAndDisablesRowOneInSelectMode() 
     let searchFieldDelta = wideSearchField.bounds.width - narrowSearchField.bounds.width
     #expect(abs(searchFieldDelta - widthDelta) <= 1.0)
 
-    // In Select Mode, Row 1 remains in place with Search Field, Filter Button, and Sort Button disabled,
-    // while Row 2 shows the Exit Selection button.
+    // In Select Mode, the search field is hidden while the two-row toolbar height remains unchanged.
     let selectionHost = await mountToolbar(width: wideWidth, isSelectionMode: true)
-    let selectionSearchField = try #require(
-        workbenchPageSubviews(of: NSTextField.self, in: selectionHost).first {
-            $0.placeholderAttributedString?.string == "Search in excerpt list..."
-                || $0.placeholderString == "Search in excerpt list..."
-        }
-    )
-    #expect(!selectionSearchField.isEnabled)
-    #expect(!selectionSearchField.isEditable)
-    #expect(abs(selectionSearchField.bounds.width - wideSearchField.bounds.width) <= 1.0)
-    #expect(abs(wideHost.fittingSize.height - 88) <= 1.0)
-    #expect(abs(selectionHost.fittingSize.height - 88) <= 1.0)
+    let selectionSearchField = workbenchPageSubviews(of: NSTextField.self, in: selectionHost).first {
+        $0.placeholderAttributedString?.string == "Search in excerpt list..."
+            || $0.placeholderString == "Search in excerpt list..."
+    }
+    #expect(selectionSearchField == nil)
+    #expect(abs(wideHost.fittingSize.height - 80) <= 1.0)
+    #expect(abs(selectionHost.fittingSize.height - 80) <= 1.0)
 }
 
 @MainActor
