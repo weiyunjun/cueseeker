@@ -427,7 +427,7 @@
 #### Sizes
 
 - Action Bar to Grid Gap：`--spacing-4`
-- Action Bar Item Gap：`--spacing-3`
+- Action Bar Item Gap：`--spacing-4`
 - Card Minimum Width：`--width-library-recent-card-min`
 - Maximum Columns：有 Sidebar `--grid-max-columns-library-with-sidebar`；无 Sidebar `--grid-max-columns-library-without-sidebar`
 - Grid Gap：`--gap-library-recent-grid`
@@ -565,7 +565,7 @@
 - All Folder(s) Title to Card List：`--spacing-3`
 - Episode Group Gap：`--spacing-4`
 - Episode Header Bar Padding Inline：`--spacing-4`
-- Action Row Gap：`--spacing-3`
+- Action Row Gap：`--spacing-4`
 - Card Gap：`--spacing-3`（仅用于独立文件夹卡片之间；单集容器内部文件行紧贴排列，以 1px 等宽分割线分隔）
 
 #### Status Indicator
@@ -636,7 +636,7 @@
 
 - Summary to Grid Gap：`--spacing-4`
 - Summary Height：`--height-control`
-- Summary Item Gap：`--spacing-3`
+- Summary Item Gap：`--spacing-4`
 - Card Minimum Width：`--width-library-recent-card-min`
 - Maximum Columns：有 Sidebar `--grid-max-columns-library-with-sidebar`；无 Sidebar `--grid-max-columns-library-without-sidebar`
 - Grid Gap：`--gap-library-recent-grid`
@@ -741,7 +741,7 @@
 
 - Row Height：`--height-control`
 - Row Gap：`--spacing-4`
-- Item Gap：`--spacing-3`
+- Item Gap：`--spacing-4`
 - Bottom Gap：`--spacing-4`
 - Width：Fill Parent Content Width
 
@@ -893,7 +893,7 @@
 #### Spacing
 
 - Region Gap：`--gap-cover-dialog-region`
-- Footer Action Gap：`--spacing-2`
+- Footer Action Gap：`--spacing-4`
 
 #### States
 
@@ -946,7 +946,7 @@
 - Column Gap：`--spacing-6`
 - Cover to Support Text Gap：`--spacing-3`
 - Field Gap：`--spacing-2`
-- Footer Action Gap：`--spacing-2`
+- Footer Action Gap：`--spacing-4`
 
 #### States
 
@@ -987,7 +987,7 @@
 - Region Gap：`--spacing-4`
 - Field Gap：`--spacing-3`
 - Label to Field Gap：`--spacing-3`
-- Footer Action Gap：`--spacing-2`
+- Footer Action Gap：`--spacing-4`
 
 #### States
 
@@ -1036,7 +1036,7 @@
 - Region Gap：`--spacing-4`
 - Field Gap / Card Gap：`--spacing-3`
 - Label to Field Gap：`--spacing-3`
-- Footer Action Gap：`--spacing-2`
+- Footer Action Gap：`--spacing-4`
 
 #### States
 
@@ -1077,7 +1077,7 @@
 
 - Width：`--width-dialog-large`
 - Form Region 单列，占满内容宽度；超出窗口高度时中间表单区域垂直滚动，Header 与 Footer 固定。
-- Card Columns：包含 `Front` 与 `Back` 两列等宽卡片列（间距 `--spacing-3`）：
+- Card Columns：包含 `Front` 与 `Back` 两列等宽卡片列（间距 `--spacing-5`）：
   - 顶部标题行：`Front` / `Back` 标题（`--font-size-body`，字重 `600`，左内边距 `--spacing-2` 与卡片内数据对象左边缘对齐），右侧紧邻 `+` 按钮（间距 `--spacing-1`，容器 `--size-anki-export-add-button: 24px`，图标 `--size-anki-export-add-icon: 16px`）。
   - 下方白色卡片容器：固定高度 `--height-anki-export-card-box`（`288px`，固定容纳全部 7 个数据对象），背景 `--color-bg-control`，边框 `--color-border-control`，圆角 `--radius-control`，内边距 `--spacing-2`；为空时不显示占位提示。
 - 数据对象添加、删除与拖拽交互：
@@ -1097,9 +1097,9 @@
 - Label to Content Gap：`--spacing-2`
 - Side Title to Add Button Gap：`--spacing-1`
 - Label to Field Gap：`--spacing-3`
-- Card Layout Column Gap：`--spacing-3`
+- Card Layout Column Gap：`--spacing-5`
 - Badge Gap：`--spacing-2`
-- Footer Action Gap：`--spacing-2`
+- Footer Action Gap：`--spacing-4`
 
 #### States
 
@@ -1150,7 +1150,7 @@
 - Section Header to Chips Gap：`--spacing-2`
 - Chip Gap：`--spacing-2`
 - Chip Line Gap：`--spacing-2`
-- Footer Action Gap：`--spacing-2`
+- Footer Action Gap：`--spacing-4`
 
 #### States
 
@@ -1180,7 +1180,7 @@
 #### Spacing
 
 - Region Gap：`--spacing-4`
-- Footer Action Gap：`--spacing-2`
+- Footer Action Gap：`--spacing-4`
 
 #### States
 
@@ -1209,6 +1209,7 @@
 - Inset：`--inset-dialog`
 - Region Gap：`--spacing-4`
 - File Header Spacing：`--inset-dialog`
+- File Header Gap：`--spacing-4`
 
 ### L-06.9 Task Panel Layout
 

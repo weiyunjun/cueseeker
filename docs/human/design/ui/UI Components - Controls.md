@@ -656,11 +656,11 @@
   - Font Weight：`--font-weight-control`
   - Color：`--color-text-muted`
 - Keycap：Keycap
-- Content Gap：`--spacing-1`
+- Content Gap：`--spacing-2`（多个 Keycap 之间为 `--spacing-1`）
 
 ##### Sizes
 
-- Padding Inline：`--spacing-2`
+- Padding Inline：`--spacing-3`
 - Padding Block：`--spacing-1`
 
 ##### Interaction

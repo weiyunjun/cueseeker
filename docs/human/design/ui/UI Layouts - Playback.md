@@ -293,7 +293,7 @@
 #### Sizes
 
 - Minimum Height：`--min-height-playback-footer`
-- Action Gap：`--spacing-1`
+- Action Gap：`--spacing-2`
 
 #### Layout
 

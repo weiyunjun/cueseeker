@@ -94,7 +94,7 @@
 
 ##### Task Count Badge
 
-- Placement：Task Entry 与 Filter Trigger 内图标右侧，按钮随之变宽；与图标字形墨迹的间距为 `--spacing-1`，右侧留白与图标上方留白相同；Filter Dialog 的 Section Header 内名称右侧
+- Placement：Task Entry 与 Filter Trigger 内图标右侧，按钮随之变宽；与图标字形墨迹的间距为 `--spacing-2`，右侧留白与图标上方留白相同；Filter Dialog 的 Section Header 内名称右侧
 - Shape：1 位数为圆形，宽与高相等；2 位及以上为胶囊形，两端为正半圆
 - Size：`--size-control-icon`；在 Section Header 内为 `--size-task-count-badge-compact`
 - Padding Inline：1 位数为 0；2 位及以上为 `--spacing-2`，在 Section Header 内为 `--padding-task-count-badge-compact-x`
@@ -604,7 +604,7 @@
 
 ##### Sizes
 
-- Action Gap：`--spacing-3`
+- Action Gap：`--spacing-4`
 
 ##### States
 
@@ -700,7 +700,7 @@
 - Progress Width：`--width-cover-summary-progress`
 - Progress Track Height：`--height-cover-summary-progress-track`
 - Progress to Action Row Gap：`--gap-cover-summary-progress-actions`
-- Action Row Gap：`--spacing-2`
+- Action Row Gap：`--spacing-4`
 - Split Form
   - Cover Size：`--width-cover-summary-split-cover` with `--aspect-library-cover`
   - Cover Radius：`--radius-library-cover`
