@@ -735,7 +735,7 @@
 
 - Closed
 - Open
-  - Selected 与 Hover：打开时默认 Selected 首项（特殊指定除外），键盘方向键移动 Selected，指针位置决定 Hover，二者独立且同时存在在同一项时只显示 Selected 样式；打开时的默认 Selected 项与键盘导航后的 Selected 项不在可见范围内时，菜单最小滚动使其完整可见，不带动画；指针 Hover 不触发自动滚动
+  - Selected 与 Hover：打开时默认 Selected 首项（特殊指定除外），键盘方向键移动 Selected，指针位置决定 Hover（滚动期间按 `300ms` 防抖），二者独立且同时存在在同一项时只显示 Selected 样式；打开时的默认 Selected 项与键盘导航后的 Selected 项不在可见范围内时，菜单最小滚动使其完整可见，不带动画；指针 Hover 不触发自动滚动
   - Modality：打开期间下层不出现任何 Hover 或选中的视觉变化，挂靠对象保持打开时的高亮；下层原有的焦点与已选中的文字在菜单打开时一并取消；菜单之外的 App 内快捷键不响应，⌘ 组合键除外；菜单关闭后立即解除冻结并重算下层 Hover；右键点中另一个带右键菜单的对象时，先关闭旧菜单解除冻结并重算 Hover，再弹出新菜单
 
 #### Variants
