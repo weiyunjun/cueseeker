@@ -136,6 +136,8 @@ enum WorkbenchRedesignColors {
         static let focusRing = NSColor.controlAccent(lightAlpha: 0.22, darkAlpha: 0.30)
 
         // Table Row
+        static let tableRowHover = NSColor.dynamic(lightHex: "#F9FAFB", darkHex: "#26262B")
+        static let tableRowSelected = NSColor.dynamic(lightHex: "#ECEEF2", darkHex: "#313137")
         static let rowHover = NSColor.dynamic(lightHex: "#F9FAFB", darkHex: "#383840")
         static let rowSelected = NSColor.dynamic(lightHex: "#ECEEF2", darkHex: "#43434C")
         static let rowActionBgPressed = NSColor.dynamic(lightHex: "#DEE2E8", darkHex: "#4E4E58")
@@ -338,6 +340,8 @@ enum WorkbenchRedesignColors {
     static let focusRing = Color(nsColor: NS.focusRing)
 
     // Table Row
+    static let tableRowHover = Color(nsColor: NS.tableRowHover)
+    static let tableRowSelected = Color(nsColor: NS.tableRowSelected)
     static let rowHover = Color(nsColor: NS.rowHover)
     static let rowSelected = Color(nsColor: NS.rowSelected)
     static let rowActionBgPressed = Color(nsColor: NS.rowActionBgPressed)

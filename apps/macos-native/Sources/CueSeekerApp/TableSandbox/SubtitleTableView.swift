@@ -997,13 +997,13 @@ private struct WorkbenchCheckboxButton: View {
                 isEnabled: isEnabled,
                 size: SubtitleTableMetrics.checkboxSize
             )
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+            .contentShape(Rectangle())
         }
         .buttonStyle(StaticButtonStyle())
         .disabled(!isEnabled)
         .subtitleTableTextSelectionInteractiveRegion(isActive: isEnabled)
         .focusable(false)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .contentShape(Rectangle())
     }
 }
 
@@ -1079,6 +1079,71 @@ final class SubtitleTablePageChromeViewportView: NSView {
 
     override func scrollWheel(with event: NSEvent) {
         scrollView?.scrollWheel(with: event)
+    }
+}
+
+final class SubtitleTableOutlineOverlayView: NSView {
+    weak var coordinator: SubtitleTableView.Coordinator?
+
+    override var isFlipped: Bool { true }
+    override var isOpaque: Bool { false }
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        wantsLayer = true
+        layer?.masksToBounds = false
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        nil
+    }
+
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        needsDisplay = true
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        effectiveAppearance.performAsCurrentDrawingAppearance {
+            super.draw(dirtyRect)
+            guard let outlineRect = coordinator?.tableOutlineFrameInContainer(),
+                  outlineRect.width > 1,
+                  outlineRect.height > 1
+            else {
+                return
+            }
+            let radius = WorkbenchControlMetrics.redesignCornerRadius
+            let borderWidth = WorkbenchControlMetrics.redesignControlBorderWidth
+
+            let cornerMaskPath = NSBezierPath(rect: outlineRect)
+            cornerMaskPath.append(
+                NSBezierPath(
+                    roundedRect: outlineRect,
+                    xRadius: radius,
+                    yRadius: radius
+                )
+            )
+            cornerMaskPath.windingRule = .evenOdd
+            WorkbenchRedesignColors.NS.bgSurface.setFill()
+            cornerMaskPath.fill()
+
+            let strokeRect = outlineRect.insetBy(
+                dx: borderWidth / 2,
+                dy: borderWidth / 2
+            )
+            let insetRadius = max(0, radius - borderWidth / 2)
+            let borderPath = NSBezierPath(
+                roundedRect: strokeRect,
+                xRadius: insetRadius,
+                yRadius: insetRadius
+            )
+            borderPath.lineWidth = borderWidth
+            WorkbenchRedesignColors.NS.borderControl.setStroke()
+            borderPath.stroke()
+        }
     }
 }
 
@@ -1332,6 +1397,7 @@ final class SubtitleVirtualTableHeaderView: NSView {
     private var isHeaderHovered = false {
         didSet {
             guard isHeaderHovered != oldValue else { return }
+            refreshIndexHeaderHost()
             needsDisplay = true
         }
     }
@@ -1460,7 +1526,22 @@ final class SubtitleVirtualTableHeaderView: NSView {
             super.draw(dirtyRect)
             
             if isRedesign {
-                WorkbenchRedesignColors.NS.tableBg.setFill()
+                NSGraphicsContext.saveGraphicsState()
+                let radius = WorkbenchControlMetrics.redesignCornerRadius
+                NSBezierPath(
+                    roundedRect: CGRect(
+                        x: bounds.minX,
+                        y: bounds.minY,
+                        width: bounds.width,
+                        height: bounds.height + radius
+                    ),
+                    xRadius: radius,
+                    yRadius: radius
+                ).addClip()
+                (isHeaderHovered
+                    ? WorkbenchRedesignColors.NS.tableRowHover
+                    : WorkbenchRedesignColors.NS.bgSurface
+                ).setFill()
                 dirtyRect.intersection(bounds).fill()
                 coordinator?.drawHeaderTextSelectionBackground(in: dirtyRect)
                 WorkbenchRedesignColors.NS.borderDivider.setStroke()
@@ -1469,6 +1550,7 @@ final class SubtitleVirtualTableHeaderView: NSView {
                 path.line(to: NSPoint(x: bounds.maxX, y: bounds.maxY - 0.5))
                 path.lineWidth = 1
                 path.stroke()
+                NSGraphicsContext.restoreGraphicsState()
                 return
             }
 
@@ -1550,7 +1632,7 @@ final class SubtitleVirtualTableHeaderView: NSView {
         let size = attributed.size()
         let origin = CGPoint(
             x: rect.minX + leading,
-            y: rect.minY + (isRedesign ? 0 : max(0, (rect.height - size.height) / 2))
+            y: rect.minY + max(0, (rect.height - size.height) / 2)
         )
         let clipped = CGRect(
             x: origin.x,
@@ -1667,15 +1749,26 @@ final class SubtitleVirtualTableHeaderView: NSView {
         textInteractionOverlay
     }
 
+    private var showsSelectionHeaderCheckbox: Bool {
+        coordinator?.isSelectionModeForRendering() == true
+            || (isHeaderHovered && coordinator?.canToggleSelectionForRendering() == true)
+    }
+
     func selectionHeaderIsVisibleForTesting() -> Bool {
-        (coordinator?.isSelectionModeForRendering() == true || isIndexHeaderHovered)
+        showsSelectionHeaderCheckbox
             && indexHeaderHost?.isHidden == false
     }
 
     func sequenceHeaderIsVisibleForTesting() -> Bool {
-        coordinator?.isSelectionModeForRendering() == false
-            && !isIndexHeaderHovered
+        !showsSelectionHeaderCheckbox
             && indexHeaderHost?.isHidden == false
+    }
+
+    func headerBackgroundColorForTesting() -> NSColor? {
+        guard isRedesign else { return nil }
+        return isHeaderHovered
+            ? WorkbenchRedesignColors.NS.tableRowHover
+            : WorkbenchRedesignColors.NS.bgSurface
     }
 
     func shouldRouteTextSelectionMouseDownForTesting(at point: CGPoint) -> Bool {
@@ -1691,6 +1784,11 @@ final class SubtitleVirtualTableHeaderView: NSView {
         excluding overlay: SubtitleTableHeaderTextOverlayView
     ) -> Bool {
         guard bounds.contains(point), !overlay.isHidden else { return false }
+        if showsSelectionHeaderCheckbox,
+           currentHeaderLayout().indexRect.contains(point)
+        {
+            return false
+        }
         if coordinator?.isHeaderTextHitForInteraction(at: point) == true {
             return true
         }
@@ -1745,7 +1843,7 @@ final class SubtitleVirtualTableHeaderView: NSView {
     private func refreshIndexHeaderHost(layout: SubtitleTableColumnLayout? = nil) {
         guard isRedesign else { return }
         let currentLayout = layout ?? currentHeaderLayout()
-        if coordinator?.isSelectionModeForRendering() == true || isIndexHeaderHovered {
+        if showsSelectionHeaderCheckbox {
             updateSelectionHeaderHost(&indexHeaderHost, frame: currentLayout.indexRect)
         } else {
             updateHeaderHost(
@@ -2214,13 +2312,18 @@ struct SubtitleTableView: NSViewRepresentable {
             pageChromeViewport = nil
         }
 
+        let outlineOverlay = SubtitleTableOutlineOverlayView()
+        outlineOverlay.translatesAutoresizingMaskIntoConstraints = false
+        outlineOverlay.coordinator = context.coordinator
+
         context.coordinator.attach(
             container: container,
             headerView: header,
             scrollView: scrollView,
             pageScrollbar: pageScrollbar,
             documentView: documentView,
-            pageChromeViewport: pageChromeViewport
+            pageChromeViewport: pageChromeViewport,
+            outlineOverlay: outlineOverlay
         )
         context.coordinator.bindExternalTextSelectionSession(externalTextSelectionSession)
         NotificationCenter.default.addObserver(
@@ -2237,6 +2340,7 @@ struct SubtitleTableView: NSViewRepresentable {
         } else {
             container.addSubview(header)
         }
+        container.addSubview(outlineOverlay)
 
         let headerHeightConstraint = header.heightAnchor.constraint(equalToConstant: context.coordinator.currentHeaderHeight)
         context.coordinator.headerHeightConstraint = headerHeightConstraint
@@ -2245,6 +2349,13 @@ struct SubtitleTableView: NSViewRepresentable {
         header.isRedesign = context.coordinator.isRedesign
         header.isHidden = !context.coordinator.showsHeader
         documentView.isRedesign = context.coordinator.isRedesign
+
+        NSLayoutConstraint.activate([
+            outlineOverlay.topAnchor.constraint(equalTo: container.topAnchor),
+            outlineOverlay.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            outlineOverlay.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+            outlineOverlay.bottomAnchor.constraint(equalTo: container.bottomAnchor),
+        ])
 
         if let pageChrome, let pageChromeViewport {
             header.translatesAutoresizingMaskIntoConstraints = true
@@ -2425,6 +2536,7 @@ struct SubtitleTableView: NSViewRepresentable {
                 updateHoveredCueStateRow(nil)
                 headerView?.refreshHeaderHosts()
                 headerView?.needsDisplay = true
+                outlineOverlayView?.needsDisplay = true
                 invalidateVisibleDocument()
             }
         }
@@ -2449,6 +2561,7 @@ struct SubtitleTableView: NSViewRepresentable {
                 headerView?.isHidden = !showsHeader
                 headerHeightConstraint?.constant = currentHeaderHeight
                 container?.layoutSubtreeIfNeeded()
+                outlineOverlayView?.needsDisplay = true
                 if pageChrome != nil {
                     refreshPageScrollPresentation()
                 }
@@ -2472,6 +2585,7 @@ struct SubtitleTableView: NSViewRepresentable {
         private var pageScrollbar: WorkbenchPageScrollbar?
         private weak var documentView: SubtitleVirtualTableDocumentView?
         private weak var pageChromeViewport: SubtitleTablePageChromeViewportView?
+        private weak var outlineOverlayView: SubtitleTableOutlineOverlayView?
         private var pageChrome: SubtitleTablePageChrome?
         private var scrollablePageChromeHost: SubtitleTablePageChromeHostingView?
         private var pinnedPageChromeHost: SubtitleTablePageChromeHostingView?
@@ -2709,13 +2823,16 @@ struct SubtitleTableView: NSViewRepresentable {
             scrollView: NSScrollView,
             pageScrollbar: WorkbenchPageScrollbar?,
             documentView: SubtitleVirtualTableDocumentView,
-            pageChromeViewport: SubtitleTablePageChromeViewportView? = nil
+            pageChromeViewport: SubtitleTablePageChromeViewportView? = nil,
+            outlineOverlay: SubtitleTableOutlineOverlayView? = nil
         ) {
             self.container = container
             self.headerView = headerView
             self.scrollView = scrollView
             self.documentView = documentView
             self.pageChromeViewport = pageChromeViewport
+            self.outlineOverlayView = outlineOverlay
+            outlineOverlay?.coordinator = self
             headerView.coordinator = self
             headerView.isRedesign = isRedesign
             headerView.isHidden = !showsHeader
@@ -2728,6 +2845,7 @@ struct SubtitleTableView: NSViewRepresentable {
             container.onLayout = { [weak self] in
                 self?.resizeDocument()
                 self?.layoutPageChrome()
+                self?.outlineOverlayView?.needsDisplay = true
                 self?.repositionOpenMenu()
             }
             NotificationCenter.default.addObserver(
@@ -2936,6 +3054,7 @@ struct SubtitleTableView: NSViewRepresentable {
                 width: contentWidth,
                 height: currentHeaderHeight
             )
+            outlineOverlayView?.needsDisplay = true
         }
 
         func refreshPageScrollPresentation() {
@@ -3875,7 +3994,49 @@ struct SubtitleTableView: NSViewRepresentable {
         }
 
         func canToggleSelectionForRendering() -> Bool {
-            isEnabled && rowCount > 0
+            guard isEnabled, rowCount > 0 else { return false }
+            return (0..<rowCount).contains { rowProvider($0)?.cueState.isUnavailable != true }
+        }
+
+        func tableOutlineFrameInContainer() -> CGRect? {
+            guard isRedesign,
+                  showsHeader,
+                  rowCount > 0,
+                  let container,
+                  let headerView,
+                  !headerView.isHidden,
+                  let scrollView,
+                  let documentView
+            else {
+                return nil
+            }
+            let headerFrame = container.convert(headerView.bounds, from: headerView)
+            let scrollFrame = container.convert(scrollView.bounds, from: scrollView)
+            let rowsBottomInDocument = rowsOriginY + rowHeightCache.totalHeight
+            let rowsBottomInContainer = container.convert(
+                CGPoint(x: 0, y: rowsBottomInDocument),
+                from: documentView
+            ).y
+            let minY = headerFrame.minY
+            let maxY = min(
+                scrollFrame.maxY,
+                max(headerFrame.maxY, rowsBottomInContainer)
+            )
+            guard maxY > minY, headerFrame.width > 0 else {
+                return nil
+            }
+            let rawRect = CGRect(
+                x: headerFrame.minX,
+                y: minY,
+                width: headerFrame.width,
+                height: maxY - minY
+            )
+            let clipped = rawRect.intersection(container.bounds)
+            return clipped.isNull || clipped.width <= 0 || clipped.height <= 0 ? nil : clipped
+        }
+
+        func tableOutlineFrameForTesting() -> CGRect? {
+            tableOutlineFrameInContainer()
         }
 
         /// Whether a click anywhere on the header should select or clear every
@@ -3959,7 +4120,7 @@ struct SubtitleTableView: NSViewRepresentable {
         }
 
         func toggleAllRowSelection() {
-            guard isEnabled, rowCount > 0 else { return }
+            guard canToggleSelectionForRendering() else { return }
             onToggleAllSelection()
             headerView?.refreshHeaderHosts()
             invalidateVisibleDocument()
@@ -4053,6 +4214,7 @@ struct SubtitleTableView: NSViewRepresentable {
             } else {
                 refreshHeaderForHorizontalScrollIfNeeded()
             }
+            outlineOverlayView?.needsDisplay = true
         }
 
         func notifyVisibleRowsChanged(force: Bool = false) {
@@ -4133,6 +4295,7 @@ struct SubtitleTableView: NSViewRepresentable {
         @objc func scrollContentDidChange() {
             updateHoveredCueStateRow(nil)
             layoutPageChrome()
+            outlineOverlayView?.needsDisplay = true
             notifyVisibleRowsChanged()
             pageScrollbar?.metricsDidChange()
             refreshHeaderForHorizontalScrollIfNeeded()
@@ -4541,7 +4704,7 @@ struct SubtitleTableView: NSViewRepresentable {
             // container stays the page: on a detail page it also holds the
             // page chrome, so the body paints its own background.
             if isRedesign, !viewportDirtyRect.isNull {
-                WorkbenchRedesignColors.NS.tableBg.setFill()
+                WorkbenchRedesignColors.NS.bgSurface.setFill()
                 viewportDirtyRect.fill()
             }
             guard rowCount > 0,
@@ -4553,6 +4716,29 @@ struct SubtitleTableView: NSViewRepresentable {
             }
 
             NSBezierPath(rect: viewportDirtyRect).addClip()
+            if isRedesign {
+                let radius = WorkbenchControlMetrics.redesignCornerRadius
+                let occupiedBodyMaxY = min(
+                    currentTableBodyVisibleRect.maxY,
+                    rowsOriginY + rowHeightCache.totalHeight
+                )
+                let occupiedBodyHeight = max(
+                    0,
+                    occupiedBodyMaxY - currentTableBodyVisibleRect.minY
+                )
+                if occupiedBodyHeight > 0 {
+                    NSBezierPath(
+                        roundedRect: CGRect(
+                            x: currentTableBodyVisibleRect.minX,
+                            y: currentTableBodyVisibleRect.minY - radius,
+                            width: currentTableBodyVisibleRect.width,
+                            height: occupiedBodyHeight + radius
+                        ),
+                        xRadius: radius,
+                        yRadius: radius
+                    ).addClip()
+                }
+            }
             for row in range {
                 let rowRect = rectForRow(row, width: documentView.bounds.width)
                 guard rowRect.intersects(viewportDirtyRect) else { continue }
@@ -4573,6 +4759,8 @@ struct SubtitleTableView: NSViewRepresentable {
                 rect.fill()
             }
 
+            guard shouldDrawRowBottomDivider(row: row) else { return }
+
             if isRedesign {
                 WorkbenchRedesignColors.NS.borderDivider.setStroke()
             } else {
@@ -4585,13 +4773,25 @@ struct SubtitleTableView: NSViewRepresentable {
             path.stroke()
         }
 
+        private func shouldDrawRowBottomDivider(row: Int) -> Bool {
+            guard row >= 0, row < rowCount else { return false }
+            if isRedesign {
+                return row < rowCount - 1
+            }
+            return true
+        }
+
+        func shouldDrawRowBottomDividerForTesting(row: Int) -> Bool {
+            shouldDrawRowBottomDivider(row: row)
+        }
+
         private func rowBackgroundColor(row: Int) -> NSColor? {
             if isRedesign, isSelectionMode, isRowSelected(row) {
-                return WorkbenchRedesignColors.NS.rowSelected
+                return WorkbenchRedesignColors.NS.tableRowSelected
             }
             guard hoveredRow == row else { return nil }
             return isRedesign
-                ? WorkbenchRedesignColors.NS.rowHover
+                ? WorkbenchRedesignColors.NS.tableRowHover
                 : NSColor.secondaryLabelColor.withAlphaComponent(0.06)
         }
 
@@ -4902,7 +5102,7 @@ struct SubtitleTableView: NSViewRepresentable {
                 return
             }
             if hoveredCueStateRow == row {
-                WorkbenchRedesignColors.NS.rowSelected.setFill()
+                WorkbenchRedesignColors.NS.tableRowSelected.setFill()
                 if model.cueState.isUnavailable {
                     let circleInset = rect.width * 32 / 256
                     NSBezierPath(
@@ -5630,6 +5830,7 @@ struct SubtitleTableView: NSViewRepresentable {
             }
             pageScrollbar?.metricsDidChange()
             pageScrollbar?.setNeedsDisplay()
+            outlineOverlayView?.needsDisplay = true
             documentView.setNeedsDisplay(documentView.visibleRect)
             if isMenuOpen {
                 repositionOpenMenu()
@@ -7728,7 +7929,7 @@ struct SubtitleTableHeaderCellView: View {
                     .font(.system(size: WorkbenchControlMetrics.redesignFontSizeTableHeader, weight: .medium))
                     .foregroundStyle(isEnabled ? WorkbenchRedesignColors.textSecondary : WorkbenchRedesignColors.textDisabled)
                     .lineLimit(1)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
             } else {
                 HStack(spacing: 0) {
                     Text(title)
@@ -7736,11 +7937,11 @@ struct SubtitleTableHeaderCellView: View {
                         .foregroundStyle(isEnabled ? WorkbenchRedesignColors.textSecondary : WorkbenchRedesignColors.textDisabled)
                         .lineLimit(1)
                         .padding(.horizontal, WorkbenchControlMetrics.redesignPaddingHeaderTriggerX)
-                        .frame(maxHeight: .infinity, alignment: .top)
+                        .frame(maxHeight: .infinity, alignment: .center)
                     Spacer(minLength: 0)
                 }
             }
         }
-        .frame(width: columnRect.width, height: columnRect.height, alignment: .top)
+        .frame(width: columnRect.width, height: columnRect.height, alignment: .center)
     }
 }

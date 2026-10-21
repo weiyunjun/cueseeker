@@ -837,7 +837,7 @@ func subtitleTableViewRedesignHoverUsesFullRowBackground() throws {
     ))
     #expect(
         fixture.coordinator.rowBackgroundColorForTesting(row: 0)
-            === WorkbenchRedesignColors.NS.rowHover
+            === WorkbenchRedesignColors.NS.tableRowHover
     )
 
     fixture.coordinator.handleMouseHover(windowPoint: fixture.documentView.convert(
@@ -846,7 +846,7 @@ func subtitleTableViewRedesignHoverUsesFullRowBackground() throws {
     ))
     #expect(
         fixture.coordinator.rowBackgroundColorForTesting(row: 0)
-            === WorkbenchRedesignColors.NS.rowHover
+            === WorkbenchRedesignColors.NS.tableRowHover
     )
 
     fixture.coordinator.clearHover()
@@ -923,7 +923,7 @@ func subtitleTableCoveredByADialogKeepsItsHighlight() throws {
     )
     #expect(
         fixture.coordinator.rowBackgroundColorForTesting(row: 0)
-            === WorkbenchRedesignColors.NS.rowHover
+            === WorkbenchRedesignColors.NS.tableRowHover
     )
 
     // A dialog above the table takes its input and leaves its picture alone.
@@ -941,7 +941,7 @@ func subtitleTableCoveredByADialogKeepsItsHighlight() throws {
     #expect(fixture.coordinator.rowBackgroundColorForTesting(row: 1) == nil)
     #expect(
         fixture.coordinator.rowBackgroundColorForTesting(row: 0)
-            === WorkbenchRedesignColors.NS.rowHover
+            === WorkbenchRedesignColors.NS.tableRowHover
     )
 }
 
@@ -962,7 +962,7 @@ func subtitleTableForeignMenuOnItsLayerFreezesHover() throws {
     )
     #expect(
         fixture.coordinator.rowBackgroundColorForTesting(row: 0)
-            === WorkbenchRedesignColors.NS.rowHover
+            === WorkbenchRedesignColors.NS.tableRowHover
     )
 
     // A menu opened elsewhere on the table's layer — the filter menu — is
@@ -986,7 +986,7 @@ func subtitleTableForeignMenuOnItsLayerFreezesHover() throws {
     #expect(fixture.coordinator.rowBackgroundColorForTesting(row: 1) == nil)
     #expect(
         fixture.coordinator.rowBackgroundColorForTesting(row: 0)
-            === WorkbenchRedesignColors.NS.rowHover
+            === WorkbenchRedesignColors.NS.tableRowHover
     )
 
     // The freeze lifting hands hover back to wherever the pointer really is.
@@ -1001,7 +1001,7 @@ func subtitleTableForeignMenuOnItsLayerFreezesHover() throws {
     )
     #expect(
         fixture.coordinator.rowBackgroundColorForTesting(row: 1)
-            === WorkbenchRedesignColors.NS.rowHover
+            === WorkbenchRedesignColors.NS.tableRowHover
     )
 }
 
@@ -1025,7 +1025,7 @@ func subtitleTableViewOpenMenuFreezesTheTableUnderneathIt() throws {
     #expect(fixture.coordinator.isMenuOpenForTesting())
     #expect(
         fixture.coordinator.rowBackgroundColorForTesting(row: 0)
-            === WorkbenchRedesignColors.NS.rowHover
+            === WorkbenchRedesignColors.NS.tableRowHover
     )
 
     // The row below the menu cannot take the highlight away from the row the
@@ -1042,7 +1042,7 @@ func subtitleTableViewOpenMenuFreezesTheTableUnderneathIt() throws {
     #expect(fixture.coordinator.rowBackgroundColorForTesting(row: 1) == nil)
     #expect(
         fixture.coordinator.rowBackgroundColorForTesting(row: 0)
-            === WorkbenchRedesignColors.NS.rowHover
+            === WorkbenchRedesignColors.NS.tableRowHover
     )
 
     // Nor does the pointer moving onto the menu, or leaving the table.
@@ -1056,7 +1056,7 @@ func subtitleTableViewOpenMenuFreezesTheTableUnderneathIt() throws {
     fixture.coordinator.clearHover()
     #expect(
         fixture.coordinator.rowBackgroundColorForTesting(row: 0)
-            === WorkbenchRedesignColors.NS.rowHover
+            === WorkbenchRedesignColors.NS.tableRowHover
     )
     #expect(fixture.coordinator.isMenuOpenForTesting())
 }
@@ -1375,15 +1375,142 @@ func subtitleTableViewUnselectedHeaderHoverShowsCheckbox() {
     fixture.header.refreshHeaderHosts()
     #expect(fixture.header.sequenceHeaderIsVisibleForTesting())
     #expect(fixture.header.selectionHeaderIsVisibleForTesting() == false)
+    #expect(
+        fixture.header.headerBackgroundColorForTesting()
+            === WorkbenchRedesignColors.NS.bgSurface
+    )
 
     let layout = fixture.coordinator.headerColumnLayoutForRendering(
         viewportWidth: fixture.header.bounds.width,
         height: fixture.header.bounds.height
     )
-    let indexPoint = CGPoint(x: layout.indexRect.midX, y: layout.indexRect.midY)
-    let windowPoint = fixture.header.convert(indexPoint, to: nil)
-    fixture.header.handleHeaderHoverForTesting(windowPoint: windowPoint)
+    let cuesPoint = CGPoint(x: layout.cuesRect.midX, y: layout.cuesRect.midY)
+    let cuesWindowPoint = fixture.header.convert(cuesPoint, to: nil)
+    fixture.header.handleHeaderHoverForTesting(windowPoint: cuesWindowPoint)
     #expect(fixture.header.selectionHeaderIsVisibleForTesting())
+    #expect(fixture.header.sequenceHeaderIsVisibleForTesting() == false)
+    #expect(
+        fixture.header.headerBackgroundColorForTesting()
+            === WorkbenchRedesignColors.NS.tableRowHover
+    )
+    #expect(fixture.header.shouldRouteTextSelectionMouseDownForTesting(at: cuesPoint))
+
+    let indexPoint = CGPoint(x: layout.indexRect.midX, y: layout.indexRect.midY)
+    #expect(fixture.header.shouldRouteTextSelectionMouseDownForTesting(at: indexPoint) == false)
+
+    let outsideWindowPoint = fixture.header.convert(CGPoint(x: -10, y: -10), to: nil)
+    fixture.header.handleHeaderHoverForTesting(windowPoint: outsideWindowPoint)
+    #expect(fixture.header.sequenceHeaderIsVisibleForTesting())
+    #expect(fixture.header.selectionHeaderIsVisibleForTesting() == false)
+    #expect(
+        fixture.header.headerBackgroundColorForTesting()
+            === WorkbenchRedesignColors.NS.bgSurface
+    )
+}
+
+@MainActor
+@Test
+func subtitleTableViewHeaderBackgroundRemainsSurfaceWhenAllSelectedUntilHovered() {
+    let fixture = makeAttachedVirtualTableCoordinator(
+        isSelectionMode: true,
+        isRowSelected: { _ in true }
+    )
+    let window = NSWindow(
+        contentRect: CGRect(x: 0, y: 0, width: 900, height: 260),
+        styleMask: [.titled],
+        backing: .buffered,
+        defer: false
+    )
+    window.contentView = fixture.container
+    fixture.header.refreshHeaderHosts()
+    #expect(fixture.header.selectionHeaderIsVisibleForTesting())
+    #expect(
+        fixture.header.headerBackgroundColorForTesting()
+            === WorkbenchRedesignColors.NS.bgSurface
+    )
+
+    let layout = fixture.coordinator.headerColumnLayoutForRendering(
+        viewportWidth: fixture.header.bounds.width,
+        height: fixture.header.bounds.height
+    )
+    let namePoint = CGPoint(x: layout.nameRect.midX, y: layout.nameRect.midY)
+    fixture.header.handleHeaderHoverForTesting(
+        windowPoint: fixture.header.convert(namePoint, to: nil)
+    )
+    #expect(
+        fixture.header.headerBackgroundColorForTesting()
+            === WorkbenchRedesignColors.NS.tableRowHover
+    )
+}
+
+@MainActor
+@Test
+func subtitleTableViewAllUnavailableRowsHeaderHoverDoesNotShowCheckbox() {
+    let unavailableRow = SubtitleTableRow(
+        id: 1,
+        primaryCueID: 1,
+        subtitlePath: "/tmp/CueSeeker/Episode 01.srt",
+        dateAdded: "26-07-04 19:00",
+        displayTitle: "Episode 01",
+        startTime: "00:01",
+        endTime: "00:02",
+        primaryCueText: "cue text",
+        cueGroupTexts: ["cue text"],
+        primaryGroupIndex: 0,
+        tags: [],
+        cueState: .unavailable(.videoMissing)
+    )
+    let fixture = makeAttachedVirtualTableCoordinator(
+        rowCount: 3,
+        row: unavailableRow,
+        isSelectionMode: false
+    )
+    let window = NSWindow(
+        contentRect: CGRect(x: 0, y: 0, width: 900, height: 260),
+        styleMask: [.titled],
+        backing: .buffered,
+        defer: false
+    )
+    window.contentView = fixture.container
+    fixture.header.refreshHeaderHosts()
+    let layout = fixture.coordinator.headerColumnLayoutForRendering(
+        viewportWidth: fixture.header.bounds.width,
+        height: fixture.header.bounds.height
+    )
+    let cuesPoint = CGPoint(x: layout.cuesRect.midX, y: layout.cuesRect.midY)
+    fixture.header.handleHeaderHoverForTesting(
+        windowPoint: fixture.header.convert(cuesPoint, to: nil)
+    )
+    #expect(fixture.header.sequenceHeaderIsVisibleForTesting())
+    #expect(fixture.header.selectionHeaderIsVisibleForTesting() == false)
+    #expect(
+        fixture.header.headerBackgroundColorForTesting()
+            === WorkbenchRedesignColors.NS.tableRowHover
+    )
+}
+
+@MainActor
+@Test
+func subtitleTableViewOutlineFrameHugsShortContentAndLastRowOmitsBottomDivider() throws {
+    let fixture = makeAttachedVirtualTableCoordinator(rowCount: 2)
+    let outlineFrame = try #require(fixture.coordinator.tableOutlineFrameForTesting())
+    #expect(outlineFrame.minY == fixture.header.frame.minY)
+    #expect(
+        outlineFrame.maxY
+            == fixture.scrollView.frame.minY + fixture.coordinator.totalRowsHeightForTesting()
+    )
+    #expect(outlineFrame.maxY < fixture.scrollView.frame.maxY)
+    #expect(fixture.coordinator.shouldDrawRowBottomDividerForTesting(row: 0) == true)
+    #expect(fixture.coordinator.shouldDrawRowBottomDividerForTesting(row: 1) == false)
+}
+
+@MainActor
+@Test
+func subtitleTableTokensAndToolbarRefinementMetricsMatchDesignSpec() {
+    #expect(WorkbenchControlMetrics.redesignTableHeaderHeight == 36)
+    #expect(SchemaWorkbenchStyle.toolbarBottomGap == 8)
+    #expect(SchemaWorkbenchStyle.resultCountLeadingPadding == 14)
+    #expect(SchemaWorkbenchStyle.pinnedToolbarHeight == 96)
 }
 
 @MainActor
@@ -1456,12 +1583,12 @@ func subtitleTableViewSelectedRowUsesSelectedColorWithoutHoverStacking() throws 
 
     #expect(
         fixture.coordinator.rowBackgroundColorForTesting(row: 0)
-            == WorkbenchRedesignColors.NS.rowSelected
+            == WorkbenchRedesignColors.NS.tableRowSelected
     )
     fixture.coordinator.handleMouseHover(windowPoint: windowPoint)
     #expect(
         fixture.coordinator.rowBackgroundColorForTesting(row: 0)
-            == WorkbenchRedesignColors.NS.rowSelected
+            == WorkbenchRedesignColors.NS.tableRowSelected
     )
 }
 

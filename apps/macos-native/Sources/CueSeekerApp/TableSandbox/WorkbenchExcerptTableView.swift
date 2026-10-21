@@ -369,7 +369,7 @@ private struct WorkbenchExcerptTableContent: View {
                     },
                     onToggleSelectionMode: toggleSelectionMode
                 )
-                .padding(.bottom, WorkbenchControlMetrics.redesignSpacing4)
+                .padding(.bottom, SchemaWorkbenchStyle.toolbarBottomGap)
             }
             .background(WorkbenchRedesignColors.bgSurface)
         )
@@ -402,8 +402,7 @@ private struct WorkbenchExcerptTableContent: View {
     }
 
     private var pinnedHeaderHeight: CGFloat {
-        WorkbenchControlMetrics.redesignHeight * 2
-            + WorkbenchControlMetrics.redesignSpacing4 * 2
+        SchemaWorkbenchStyle.pinnedToolbarHeight
     }
 
     private var showsEmptyListHint: Bool {

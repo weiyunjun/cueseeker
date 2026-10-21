@@ -102,6 +102,12 @@ struct FileCardMenuTests {
         #expect(hexString(WorkbenchRedesignColors.NS.tableBg, appearance: .aqua) == "#FFFFFF")
         #expect(hexString(WorkbenchRedesignColors.NS.tableBg, appearance: .darkAqua) == "#2E2E34")
 
+        // TableRowHover & TableRowSelected (Table Row Hover & Selected on bg-surface)
+        #expect(hexString(WorkbenchRedesignColors.NS.tableRowHover, appearance: .aqua) == "#F9FAFB")
+        #expect(hexString(WorkbenchRedesignColors.NS.tableRowHover, appearance: .darkAqua) == "#26262B")
+        #expect(hexString(WorkbenchRedesignColors.NS.tableRowSelected, appearance: .aqua) == "#ECEEF2")
+        #expect(hexString(WorkbenchRedesignColors.NS.tableRowSelected, appearance: .darkAqua) == "#313137")
+
         // RowHover (Card Hover)
         #expect(hexString(WorkbenchRedesignColors.NS.rowHover, appearance: .aqua) == "#F9FAFB")
         #expect(hexString(WorkbenchRedesignColors.NS.rowHover, appearance: .darkAqua) == "#383840")

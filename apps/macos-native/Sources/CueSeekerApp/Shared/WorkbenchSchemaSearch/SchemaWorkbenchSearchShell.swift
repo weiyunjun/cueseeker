@@ -396,7 +396,7 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
                                 .top,
                                 WorkbenchControlMetrics.redesignWorkbenchPageTopPadding
                             )
-                            .padding(.bottom, WorkbenchControlMetrics.redesignSpacing4)
+                            .padding(.bottom, SchemaWorkbenchStyle.toolbarBottomGap)
                     }
 
                     tableContent(columns)
@@ -555,6 +555,16 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
 enum SchemaWorkbenchStyle {
     static let pageHorizontalPadding =
         WorkbenchControlMetrics.redesignWorkbenchPageHorizontalPadding
+    static let toolbarRowSpacing =
+        WorkbenchControlMetrics.redesignSpacing4
+    static let toolbarBottomGap =
+        WorkbenchControlMetrics.redesignSpacing2
+    static let resultCountLeadingPadding =
+        WorkbenchControlMetrics.redesignControlPaddingX
+    static let pinnedToolbarHeight =
+        WorkbenchControlMetrics.redesignHeight * 2
+            + toolbarRowSpacing
+            + toolbarBottomGap
 }
 
 struct SchemaWorkbenchSearchToolbar: View {
@@ -646,6 +656,7 @@ struct SchemaWorkbenchSearchToolbar: View {
         HStack(spacing: WorkbenchControlMetrics.redesignSpacing4) {
             if let searchResultCountText, !searchResultCountText.isEmpty {
                 WorkbenchStatusIndicator(searchResultCountText)
+                    .padding(.leading, SchemaWorkbenchStyle.resultCountLeadingPadding)
             }
 
             Spacer(minLength: 0)
