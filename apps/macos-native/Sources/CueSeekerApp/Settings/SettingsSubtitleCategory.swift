@@ -635,6 +635,7 @@ struct SettingsSubtitleFontTrigger: View {
     let action: () -> Void
 
     @State private var isHovered = false
+    @State private var isPressed = false
 
     var body: some View {
         Button(action: action) {
@@ -666,9 +667,11 @@ struct SettingsSubtitleFontTrigger: View {
                     style: .continuous
                 )
                 .fill(
-                    isOpen || isHovered
-                        ? WorkbenchRedesignColors.bgHover
-                        : WorkbenchRedesignColors.bgControl
+                    isPressed
+                        ? WorkbenchRedesignColors.bgPressed
+                        : (isOpen || isHovered
+                            ? WorkbenchRedesignColors.bgHover
+                            : WorkbenchRedesignColors.bgControl)
                 )
             )
             .overlay(
@@ -679,7 +682,7 @@ struct SettingsSubtitleFontTrigger: View {
                 .strokeBorder(
                     isOpen
                         ? WorkbenchRedesignColors.borderFocus
-                        : (isHovered
+                        : ((isPressed || isHovered)
                             ? WorkbenchRedesignColors.borderControlHover
                             : WorkbenchRedesignColors.borderControl),
                     lineWidth: WorkbenchControlMetrics.redesignControlBorderWidth
@@ -687,7 +690,7 @@ struct SettingsSubtitleFontTrigger: View {
             )
             .contentShape(Rectangle())
         }
-        .buttonStyle(StaticButtonStyle())
+        .buttonStyle(PressableButtonStyle(isPressed: $isPressed, isHovered: $isHovered))
         .focusable(false)
         .onPointerHover { isHovered = $0 }
     }

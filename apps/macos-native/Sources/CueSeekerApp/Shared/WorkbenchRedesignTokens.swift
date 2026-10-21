@@ -39,6 +39,25 @@ extension NSColor {
             return NSColor.controlAccentColor.withAlphaComponent(alpha)
         }
     }
+
+    static func controlAccentBlended(lightBlackFraction: CGFloat, darkWhiteFraction: CGFloat) -> NSColor {
+        return NSColor(name: nil) { appearance in
+            let isDark = appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
+            guard let base = NSColor.controlAccentColor.usingColorSpace(.sRGB) else {
+                return NSColor.controlAccentColor
+            }
+            var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+            base.getRed(&r, green: &g, blue: &b, alpha: &a)
+            let fraction = isDark ? darkWhiteFraction : lightBlackFraction
+            let targetComponent: CGFloat = isDark ? 1.0 : 0.0
+            return NSColor(
+                srgbRed: r * (1.0 - fraction) + targetComponent * fraction,
+                green: g * (1.0 - fraction) + targetComponent * fraction,
+                blue: b * (1.0 - fraction) + targetComponent * fraction,
+                alpha: a
+            )
+        }
+    }
 }
 
 enum WorkbenchRedesignColors {
@@ -62,6 +81,7 @@ enum WorkbenchRedesignColors {
         static let bgSurface = NSColor.dynamic(lightHex: "#FFFFFF", darkHex: "#1C1C1F")
         static let bgCanvas = bgSurface
         static let bgHover = NSColor.dynamic(lightHex: "#F3F4F6", darkHex: "#FFFFFF", darkAlpha: 0.12)
+        static let bgPressed = NSColor.dynamic(lightHex: "#E5E7EB", darkHex: "#FFFFFF", darkAlpha: 0.16)
         static let bgDisabled = NSColor.dynamic(lightHex: "#F3F4F6", darkHex: "#FFFFFF", darkAlpha: 0.04)
         static let bgControl = NSColor.dynamic(lightHex: "#FFFFFF", darkHex: "#FFFFFF", darkAlpha: 0.08)
         static let bgDialog = NSColor.dynamic(lightHex: "#FFFFFF", darkHex: "#1C1C1F")
@@ -78,11 +98,15 @@ enum WorkbenchRedesignColors {
         // values so the keycap always reads one step apart from the background
         // under it; dark is translucent and follows the surface by itself.
         static let overlaySurfaceShortcutButtonHoverBg = NSColor.dynamic(lightHex: "#EDEEF2", darkHex: "#FFFFFF", darkAlpha: 0.06)
+        static let overlaySurfaceShortcutButtonPressedBg = NSColor.dynamic(lightHex: "#E1E4E9", darkHex: "#FFFFFF", darkAlpha: 0.12)
         static let overlaySurfaceKeycapBg = NSColor.dynamic(lightHex: "#E1E4E9", darkHex: "#FFFFFF", darkAlpha: 0.10)
         static let overlaySurfaceKeycapHoverBg = NSColor.dynamic(lightHex: "#D2D6DE", darkHex: "#FFFFFF", darkAlpha: 0.16)
+        static let overlaySurfaceKeycapPressedBg = NSColor.dynamic(lightHex: "#C4C9D3", darkHex: "#FFFFFF", darkAlpha: 0.22)
         static let popoverSurfaceShortcutButtonHoverBg = NSColor.dynamic(lightHex: "#F7F8FA", darkHex: "#FFFFFF", darkAlpha: 0.06)
+        static let popoverSurfaceShortcutButtonPressedBg = NSColor.dynamic(lightHex: "#EDEFF2", darkHex: "#FFFFFF", darkAlpha: 0.12)
         static let popoverSurfaceKeycapBg = NSColor.dynamic(lightHex: "#EDEFF2", darkHex: "#FFFFFF", darkAlpha: 0.10)
         static let popoverSurfaceKeycapHoverBg = NSColor.dynamic(lightHex: "#E0E3E8", darkHex: "#FFFFFF", darkAlpha: 0.16)
+        static let popoverSurfaceKeycapPressedBg = NSColor.dynamic(lightHex: "#D2D6DE", darkHex: "#FFFFFF", darkAlpha: 0.22)
         static let badgeNeutralBg = NSColor.dynamic(lightHex: "#E5E7EB", darkHex: "#FFFFFF", darkAlpha: 0.20)
 
         // Border
@@ -103,7 +127,8 @@ enum WorkbenchRedesignColors {
 
         // Primary Button
         static let primaryButtonBg = NSColor.controlAccentColor
-        static let primaryButtonBgHover = NSColor.controlAccentColor
+        static let primaryButtonBgHover = NSColor.controlAccentBlended(lightBlackFraction: 0.12, darkWhiteFraction: 0.12)
+        static let primaryButtonBgPressed = NSColor.controlAccentBlended(lightBlackFraction: 0.22, darkWhiteFraction: 0.22)
         static let primaryButtonText = NSColor.dynamic(lightHex: "#FFFFFF", darkHex: "#FFFFFF")
 
         // Focus
@@ -113,6 +138,7 @@ enum WorkbenchRedesignColors {
         // Table Row
         static let rowHover = NSColor.dynamic(lightHex: "#F9FAFB", darkHex: "#383840")
         static let rowSelected = NSColor.dynamic(lightHex: "#ECEEF2", darkHex: "#43434C")
+        static let rowActionBgPressed = NSColor.dynamic(lightHex: "#DEE2E8", darkHex: "#4E4E58")
 
         // Checkbox
         // A monochrome glyph: the outline circle unchecked, the filled circle
@@ -126,6 +152,7 @@ enum WorkbenchRedesignColors {
         // Danger
         static let dangerText = NSColor.dynamic(lightHex: "#B42318", darkHex: "#FCA5A5")
         static let dangerBgHover = NSColor.dynamic(lightHex: "#FEF3F2", darkHex: "#3A1717")
+        static let dangerBgPressed = NSColor.dynamic(lightHex: "#FEE4E2", darkHex: "#4C1D1D")
 
         // Success
         static let successText = NSColor.dynamic(lightHex: "#047857", darkHex: "#6EE7B7")
@@ -133,8 +160,7 @@ enum WorkbenchRedesignColors {
         // Warning
         static let warningText = NSColor.dynamic(lightHex: "#B45309", darkHex: "#FCD34D")
 
-        // Settings Group & File Group Header
-        static let settingsGroupBg = NSColor.dynamic(lightHex: "#F2F4F7", darkHex: "#242429")
+        // File Group Header
         static let fileGroupHeaderBg = NSColor.dynamic(lightHex: "#F8F9FB", darkHex: "#FFFFFF", darkAlpha: 0.04)
 
         // Scrollbar
@@ -165,6 +191,8 @@ enum WorkbenchRedesignColors {
         static let libraryCoverEditOverlay = libraryCoverCropMask
         static let libraryCoverEditOverlayContent = iconOnDark
         static let libraryMediaCardHoverBg = NSColor.controlAccent(lightAlpha: 0.08, darkAlpha: 0.12)
+        static let filterChipSelectedBgHover = NSColor.controlAccent(lightAlpha: 0.12, darkAlpha: 0.18)
+        static let filterChipSelectedBgPressed = NSColor.controlAccent(lightAlpha: 0.16, darkAlpha: 0.24)
 
         // Spinner
         static let spinnerTrack = NSColor.dynamic(lightHex: "#E5E7EB", darkHex: "#3F3F46")
@@ -255,6 +283,7 @@ enum WorkbenchRedesignColors {
     static let bgSurface = Color(nsColor: NS.bgSurface)
     static let bgCanvas = Color(nsColor: NS.bgCanvas)
     static let bgHover = Color(nsColor: NS.bgHover)
+    static let bgPressed = Color(nsColor: NS.bgPressed)
     static let bgDisabled = Color(nsColor: NS.bgDisabled)
     static let bgControl = Color(nsColor: NS.bgControl)
     static let bgDialog = Color(nsColor: NS.bgDialog)
@@ -265,11 +294,15 @@ enum WorkbenchRedesignColors {
     static let appSidebarItemSelectedContent = Color(nsColor: NS.appSidebarItemSelectedContent)
     static let appTopbarBg = Color(nsColor: NS.appTopbarBg)
     static let overlaySurfaceShortcutButtonHoverBg = Color(nsColor: NS.overlaySurfaceShortcutButtonHoverBg)
+    static let overlaySurfaceShortcutButtonPressedBg = Color(nsColor: NS.overlaySurfaceShortcutButtonPressedBg)
     static let overlaySurfaceKeycapBg = Color(nsColor: NS.overlaySurfaceKeycapBg)
     static let overlaySurfaceKeycapHoverBg = Color(nsColor: NS.overlaySurfaceKeycapHoverBg)
+    static let overlaySurfaceKeycapPressedBg = Color(nsColor: NS.overlaySurfaceKeycapPressedBg)
     static let popoverSurfaceShortcutButtonHoverBg = Color(nsColor: NS.popoverSurfaceShortcutButtonHoverBg)
+    static let popoverSurfaceShortcutButtonPressedBg = Color(nsColor: NS.popoverSurfaceShortcutButtonPressedBg)
     static let popoverSurfaceKeycapBg = Color(nsColor: NS.popoverSurfaceKeycapBg)
     static let popoverSurfaceKeycapHoverBg = Color(nsColor: NS.popoverSurfaceKeycapHoverBg)
+    static let popoverSurfaceKeycapPressedBg = Color(nsColor: NS.popoverSurfaceKeycapPressedBg)
     static let badgeNeutralBg = Color(nsColor: NS.badgeNeutralBg)
     static let badgeNeutralText = textSecondary
 
@@ -295,7 +328,8 @@ enum WorkbenchRedesignColors {
 
     // Primary Button
     static let primaryButtonBg = Color.accentColor
-    static let primaryButtonBgHover = Color.accentColor
+    static let primaryButtonBgHover = Color(nsColor: NS.primaryButtonBgHover)
+    static let primaryButtonBgPressed = Color(nsColor: NS.primaryButtonBgPressed)
     static let primaryButtonText = Color(nsColor: NS.primaryButtonText)
 
     // Focus
@@ -305,6 +339,7 @@ enum WorkbenchRedesignColors {
     // Table Row
     static let rowHover = Color(nsColor: NS.rowHover)
     static let rowSelected = Color(nsColor: NS.rowSelected)
+    static let rowActionBgPressed = Color(nsColor: NS.rowActionBgPressed)
 
     // Checkbox
     static let bgCheckboxChecked = Color(nsColor: NS.bgCheckboxChecked)
@@ -316,6 +351,7 @@ enum WorkbenchRedesignColors {
     // Danger
     static let dangerText = Color(nsColor: NS.dangerText)
     static let dangerBgHover = Color(nsColor: NS.dangerBgHover)
+    static let dangerBgPressed = Color(nsColor: NS.dangerBgPressed)
 
     // Success
     static let successText = Color(nsColor: NS.successText)
@@ -323,8 +359,7 @@ enum WorkbenchRedesignColors {
     // Warning
     static let warningText = Color(nsColor: NS.warningText)
 
-    // Settings Group & File Group Header
-    static let settingsGroupBg = Color(nsColor: NS.settingsGroupBg)
+    // File Group Header
     static let fileGroupHeaderBg = Color(nsColor: NS.fileGroupHeaderBg)
 
     // Scrollbar
@@ -361,6 +396,8 @@ enum WorkbenchRedesignColors {
     static let filterChipSelectedContent = Color.accentColor
     // --color-filter-chip-selected-bg: Same as --color-library-media-card-hover-bg
     static let filterChipSelectedBg = libraryMediaCardHoverBg
+    static let filterChipSelectedBgHover = Color(nsColor: NS.filterChipSelectedBgHover)
+    static let filterChipSelectedBgPressed = Color(nsColor: NS.filterChipSelectedBgPressed)
 
     // Spinner
     // --color-spinner-track

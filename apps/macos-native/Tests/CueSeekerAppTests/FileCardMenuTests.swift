@@ -92,17 +92,13 @@ struct FileCardMenuTests {
 
     @Test
     func fileCardColorTokensAndDotsThreeIcon() {
-        // SettingsGroupBg
-        #expect(hexString(WorkbenchRedesignColors.NS.settingsGroupBg, appearance: .aqua) == "#F2F4F7")
-        #expect(hexString(WorkbenchRedesignColors.NS.settingsGroupBg, appearance: .darkAqua) == "#242429")
-
         // FileGroupHeaderBg (Episode Group Unified Card Header Bar)
         #expect(hexString(WorkbenchRedesignColors.NS.fileGroupHeaderBg, appearance: .aqua) == "#F8F9FB")
         #expect(alphaValue(WorkbenchRedesignColors.NS.fileGroupHeaderBg, appearance: .aqua) == 1.0)
         #expect(hexString(WorkbenchRedesignColors.NS.fileGroupHeaderBg, appearance: .darkAqua) == "#FFFFFF")
         #expect(abs(alphaValue(WorkbenchRedesignColors.NS.fileGroupHeaderBg, appearance: .darkAqua) - 0.04) < 0.001)
 
-        // TableBg (Card Normal)
+        // TableBg (Card Normal & Settings / File Info Group Card)
         #expect(hexString(WorkbenchRedesignColors.NS.tableBg, appearance: .aqua) == "#FFFFFF")
         #expect(hexString(WorkbenchRedesignColors.NS.tableBg, appearance: .darkAqua) == "#2E2E34")
 
@@ -113,6 +109,10 @@ struct FileCardMenuTests {
         // RowSelected (Button Hover / Open)
         #expect(hexString(WorkbenchRedesignColors.NS.rowSelected, appearance: .aqua) == "#ECEEF2")
         #expect(hexString(WorkbenchRedesignColors.NS.rowSelected, appearance: .darkAqua) == "#43434C")
+
+        // RowActionBgPressed (Button Pressed)
+        #expect(hexString(WorkbenchRedesignColors.NS.rowActionBgPressed, appearance: .aqua) == "#DEE2E8")
+        #expect(hexString(WorkbenchRedesignColors.NS.rowActionBgPressed, appearance: .darkAqua) == "#4E4E58")
 
         // Card chevron metric & icon assets resolve
         #expect(WorkbenchControlMetrics.redesignCardChevronSize == 16)

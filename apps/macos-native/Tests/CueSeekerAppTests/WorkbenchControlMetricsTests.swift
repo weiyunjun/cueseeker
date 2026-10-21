@@ -397,3 +397,137 @@ func topbarTabsStylingGeometryAndSlidingMotionMatchSpecification() {
         }
     }
 }
+
+@MainActor
+@Test
+func buttonPressedAndHoverColorTokensMatchDesignSpecification() {
+    let lightAppearance = NSAppearance(named: .aqua)!
+    lightAppearance.performAsCurrentDrawingAppearance {
+        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+
+        // --color-bg-pressed: Light #E5E7EB
+        WorkbenchRedesignColors.NS.bgPressed.usingColorSpace(.sRGB)!
+            .getRed(&r, green: &g, blue: &b, alpha: &a)
+        #expect(abs(r - 229.0 / 255.0) < 0.005)
+        #expect(abs(g - 231.0 / 255.0) < 0.005)
+        #expect(abs(b - 235.0 / 255.0) < 0.005)
+        #expect(abs(a - 1.0) < 0.005)
+
+        // --color-danger-bg-pressed: Light #FEE4E2
+        WorkbenchRedesignColors.NS.dangerBgPressed.usingColorSpace(.sRGB)!
+            .getRed(&r, green: &g, blue: &b, alpha: &a)
+        #expect(abs(r - 254.0 / 255.0) < 0.005)
+        #expect(abs(g - 228.0 / 255.0) < 0.005)
+        #expect(abs(b - 226.0 / 255.0) < 0.005)
+
+        // --color-overlay-surface-shortcut-button-bg-pressed: Light #E1E4E9
+        WorkbenchRedesignColors.NS.overlaySurfaceShortcutButtonPressedBg.usingColorSpace(.sRGB)!
+            .getRed(&r, green: &g, blue: &b, alpha: &a)
+        #expect(abs(r - 225.0 / 255.0) < 0.005)
+        #expect(abs(g - 228.0 / 255.0) < 0.005)
+        #expect(abs(b - 233.0 / 255.0) < 0.005)
+
+        // --color-overlay-surface-keycap-bg-pressed: Light #C4C9D3
+        WorkbenchRedesignColors.NS.overlaySurfaceKeycapPressedBg.usingColorSpace(.sRGB)!
+            .getRed(&r, green: &g, blue: &b, alpha: &a)
+        #expect(abs(r - 196.0 / 255.0) < 0.005)
+        #expect(abs(g - 201.0 / 255.0) < 0.005)
+        #expect(abs(b - 211.0 / 255.0) < 0.005)
+
+        // --color-popover-surface-shortcut-button-bg-pressed: Light #EDEFF2
+        WorkbenchRedesignColors.NS.popoverSurfaceShortcutButtonPressedBg.usingColorSpace(.sRGB)!
+            .getRed(&r, green: &g, blue: &b, alpha: &a)
+        #expect(abs(r - 237.0 / 255.0) < 0.005)
+        #expect(abs(g - 239.0 / 255.0) < 0.005)
+        #expect(abs(b - 242.0 / 255.0) < 0.005)
+
+        // --color-popover-surface-keycap-bg-pressed: Light #D2D6DE
+        WorkbenchRedesignColors.NS.popoverSurfaceKeycapPressedBg.usingColorSpace(.sRGB)!
+            .getRed(&r, green: &g, blue: &b, alpha: &a)
+        #expect(abs(r - 210.0 / 255.0) < 0.005)
+        #expect(abs(g - 214.0 / 255.0) < 0.005)
+        #expect(abs(b - 222.0 / 255.0) < 0.005)
+
+        // --color-filter-chip-selected-bg-hover & --color-filter-chip-selected-bg-pressed (Light 0.12 / 0.16)
+        WorkbenchRedesignColors.NS.filterChipSelectedBgHover.usingColorSpace(.sRGB)!
+            .getRed(&r, green: &g, blue: &b, alpha: &a)
+        #expect(abs(a - 0.12) < 0.005)
+        WorkbenchRedesignColors.NS.filterChipSelectedBgPressed.usingColorSpace(.sRGB)!
+            .getRed(&r, green: &g, blue: &b, alpha: &a)
+        #expect(abs(a - 0.16) < 0.005)
+
+        // --color-primary-button-bg-hover (12% black blend) & --color-primary-button-bg-pressed (22% black blend)
+        let baseAccent = NSColor.controlAccentColor.usingColorSpace(.sRGB)!
+        var ar: CGFloat = 0, ag: CGFloat = 0, ab: CGFloat = 0, aa: CGFloat = 0
+        baseAccent.getRed(&ar, green: &ag, blue: &ab, alpha: &aa)
+        WorkbenchRedesignColors.NS.primaryButtonBgHover.usingColorSpace(.sRGB)!
+            .getRed(&r, green: &g, blue: &b, alpha: &a)
+        #expect(abs(r - ar * 0.88) < 0.01)
+        #expect(abs(g - ag * 0.88) < 0.01)
+        #expect(abs(b - ab * 0.88) < 0.01)
+        WorkbenchRedesignColors.NS.primaryButtonBgPressed.usingColorSpace(.sRGB)!
+            .getRed(&r, green: &g, blue: &b, alpha: &a)
+        #expect(abs(r - ar * 0.78) < 0.01)
+        #expect(abs(g - ag * 0.78) < 0.01)
+        #expect(abs(b - ab * 0.78) < 0.01)
+    }
+
+    let darkAppearance = NSAppearance(named: .darkAqua)!
+    darkAppearance.performAsCurrentDrawingAppearance {
+        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+
+        // --color-bg-pressed: Dark rgba(255,255,255,0.16)
+        WorkbenchRedesignColors.NS.bgPressed.usingColorSpace(.sRGB)!
+            .getRed(&r, green: &g, blue: &b, alpha: &a)
+        #expect(abs(r - 1.0) < 0.005)
+        #expect(abs(a - 0.16) < 0.005)
+
+        // --color-danger-bg-pressed: Dark #4C1D1D
+        WorkbenchRedesignColors.NS.dangerBgPressed.usingColorSpace(.sRGB)!
+            .getRed(&r, green: &g, blue: &b, alpha: &a)
+        #expect(abs(r - 76.0 / 255.0) < 0.005)
+        #expect(abs(g - 29.0 / 255.0) < 0.005)
+        #expect(abs(b - 29.0 / 255.0) < 0.005)
+
+        // --color-overlay-surface-shortcut-button-bg-pressed & --color-popover-surface-shortcut-button-bg-pressed: Dark alpha 0.12
+        WorkbenchRedesignColors.NS.overlaySurfaceShortcutButtonPressedBg.usingColorSpace(.sRGB)!
+            .getRed(&r, green: &g, blue: &b, alpha: &a)
+        #expect(abs(a - 0.12) < 0.005)
+        WorkbenchRedesignColors.NS.popoverSurfaceShortcutButtonPressedBg.usingColorSpace(.sRGB)!
+            .getRed(&r, green: &g, blue: &b, alpha: &a)
+        #expect(abs(a - 0.12) < 0.005)
+
+        // --color-overlay-surface-keycap-bg-pressed & --color-popover-surface-keycap-bg-pressed: Dark alpha 0.22
+        WorkbenchRedesignColors.NS.overlaySurfaceKeycapPressedBg.usingColorSpace(.sRGB)!
+            .getRed(&r, green: &g, blue: &b, alpha: &a)
+        #expect(abs(a - 0.22) < 0.005)
+        WorkbenchRedesignColors.NS.popoverSurfaceKeycapPressedBg.usingColorSpace(.sRGB)!
+            .getRed(&r, green: &g, blue: &b, alpha: &a)
+        #expect(abs(a - 0.22) < 0.005)
+
+        // --color-filter-chip-selected-bg-hover & --color-filter-chip-selected-bg-pressed (Dark 0.18 / 0.24)
+        WorkbenchRedesignColors.NS.filterChipSelectedBgHover.usingColorSpace(.sRGB)!
+            .getRed(&r, green: &g, blue: &b, alpha: &a)
+        #expect(abs(a - 0.18) < 0.005)
+        WorkbenchRedesignColors.NS.filterChipSelectedBgPressed.usingColorSpace(.sRGB)!
+            .getRed(&r, green: &g, blue: &b, alpha: &a)
+        #expect(abs(a - 0.24) < 0.005)
+
+        // --color-primary-button-bg-hover (12% white blend) & --color-primary-button-bg-pressed (22% white blend)
+        let baseAccent = NSColor.controlAccentColor.usingColorSpace(.sRGB)!
+        var ar: CGFloat = 0, ag: CGFloat = 0, ab: CGFloat = 0, aa: CGFloat = 0
+        baseAccent.getRed(&ar, green: &ag, blue: &ab, alpha: &aa)
+        WorkbenchRedesignColors.NS.primaryButtonBgHover.usingColorSpace(.sRGB)!
+            .getRed(&r, green: &g, blue: &b, alpha: &a)
+        #expect(abs(r - (ar * 0.88 + 0.12)) < 0.01)
+        #expect(abs(g - (ag * 0.88 + 0.12)) < 0.01)
+        #expect(abs(b - (ab * 0.88 + 0.12)) < 0.01)
+        WorkbenchRedesignColors.NS.primaryButtonBgPressed.usingColorSpace(.sRGB)!
+            .getRed(&r, green: &g, blue: &b, alpha: &a)
+        #expect(abs(r - (ar * 0.78 + 0.22)) < 0.01)
+        #expect(abs(g - (ag * 0.78 + 0.22)) < 0.01)
+        #expect(abs(b - (ab * 0.78 + 0.22)) < 0.01)
+    }
+
+    #expect(PlaybackTheme.controlPressedBackground == Color.white.opacity(0.24))
+}

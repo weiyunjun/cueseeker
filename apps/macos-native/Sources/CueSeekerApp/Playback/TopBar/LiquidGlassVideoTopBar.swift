@@ -68,13 +68,15 @@ struct LiquidGlassVideoTopBar: View {
             PlaybackReturnButton(
                 iconColor: PlaybackTheme.textPrimary,
                 hoverBackground: PlaybackTheme.controlHoverBackground,
+                pressedBackground: PlaybackTheme.controlPressedBackground,
                 action: onReturn
             )
         }
         .overlay(alignment: .trailing) {
             TopbarAppEntries(
                 iconColor: PlaybackTheme.textPrimary,
-                hoverBackground: PlaybackTheme.controlHoverBackground
+                hoverBackground: PlaybackTheme.controlHoverBackground,
+                pressedBackground: PlaybackTheme.controlPressedBackground
             )
             .padding(.trailing, WorkbenchControlMetrics.redesignAppTopbarContentTrailingPadding)
         }

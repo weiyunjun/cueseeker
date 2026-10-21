@@ -31,6 +31,15 @@ enum PlaybackCueFooterSurface: Equatable {
         }
     }
 
+    var buttonPressedBackground: Color {
+        switch self {
+        case .playbackOverlay:
+            WorkbenchRedesignColors.overlaySurfaceShortcutButtonPressedBg
+        case .commandPanel:
+            WorkbenchRedesignColors.popoverSurfaceShortcutButtonPressedBg
+        }
+    }
+
     var keycapBackground: Color {
         switch self {
         case .playbackOverlay:
@@ -46,6 +55,15 @@ enum PlaybackCueFooterSurface: Equatable {
             WorkbenchRedesignColors.overlaySurfaceKeycapHoverBg
         case .commandPanel:
             WorkbenchRedesignColors.popoverSurfaceKeycapHoverBg
+        }
+    }
+
+    var keycapPressedBackground: Color {
+        switch self {
+        case .playbackOverlay:
+            WorkbenchRedesignColors.overlaySurfaceKeycapPressedBg
+        case .commandPanel:
+            WorkbenchRedesignColors.popoverSurfaceKeycapPressedBg
         }
     }
 }
@@ -543,6 +561,7 @@ private struct PlaybackCueFooterActionButton: View {
     var isOpen = false
 
     @State private var isHovered = false
+    @State private var isPressed = false
 
     private var isHighlighted: Bool {
         isHovered || isOpen
@@ -572,9 +591,11 @@ private struct PlaybackCueFooterActionButton: View {
                 ForEach(keycaps.indices, id: \.self) { index in
                     PlaybackCueFooterKeycapView(
                         keycap: keycaps[index],
-                        background: isHighlighted
-                            ? surface.keycapHoverBackground
-                            : surface.keycapBackground
+                        background: isPressed
+                            ? surface.keycapPressedBackground
+                            : (isHighlighted
+                                ? surface.keycapHoverBackground
+                                : surface.keycapBackground)
                     )
                 }
             }
@@ -586,14 +607,16 @@ private struct PlaybackCueFooterActionButton: View {
                     style: .continuous
                 )
                 .fill(
-                    isHighlighted
-                        ? surface.buttonHoverBackground
-                        : Color.clear
+                    isPressed
+                        ? surface.buttonPressedBackground
+                        : (isHighlighted
+                            ? surface.buttonHoverBackground
+                            : Color.clear)
                 )
             }
             .contentShape(Rectangle())
         }
-        .buttonStyle(StaticButtonStyle())
+        .buttonStyle(PressableButtonStyle(isPressed: $isPressed, isHovered: $isHovered))
         .focusable(false)
         .onPointerHover { isHovered = $0 }
         .anchorPreference(

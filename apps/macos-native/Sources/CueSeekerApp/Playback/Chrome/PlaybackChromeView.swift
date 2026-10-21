@@ -621,9 +621,16 @@ private struct PlaybackSpeedChromeButtonStyle: ButtonStyle {
                     cornerRadius: WorkbenchControlMetrics.redesignCornerRadius,
                     style: .continuous
                 )
-                .fill(backgroundColor)
+                .fill(backgroundColor(isPressed: configuration.isPressed))
             )
             .onPointerHover { isHovered = suppressesInteraction ? false : $0 }
+            .onChange(of: configuration.isPressed) { newValue in
+                if newValue {
+                    isHovered = !suppressesInteraction
+                } else if (NSEvent.pressedMouseButtons & 1) != 0 {
+                    isHovered = false
+                }
+            }
             .onChange(of: suppressesInteraction) { isSuppressed in
                 if isSuppressed {
                     isHovered = false
@@ -635,9 +642,12 @@ private struct PlaybackSpeedChromeButtonStyle: ButtonStyle {
         isEnabled ? PlaybackTheme.textPrimary : PlaybackTheme.textTertiary
     }
 
-    private var backgroundColor: Color {
+    private func backgroundColor(isPressed: Bool) -> Color {
         guard isInteractive else {
             return Color.clear
+        }
+        if isPressed {
+            return PlaybackTheme.controlPressedBackground
         }
         if isHovered || isOpen {
             return PlaybackTheme.controlHoverBackground

@@ -550,6 +550,7 @@ private struct CoverSummaryActionButton: View {
 
     @Environment(\.isEnabled) private var isEnabled
     @State private var isHovered = false
+    @State private var isPressed = false
 
     private var hasTitle: Bool {
         guard let title else { return false }
@@ -610,18 +611,22 @@ private struct CoverSummaryActionButton: View {
             )
             .contentShape(Rectangle())
         }
-        .buttonStyle(StaticButtonStyle())
+        .buttonStyle(PressableButtonStyle(isPressed: $isPressed, isHovered: $isHovered))
         .subtitleTableTextSelectionInteractiveRegion(isActive: isEnabled)
         .focusable(false)
         .onPointerHover { isHovered = $0 }
     }
 
     private var buttonBackground: Color {
-        WorkbenchRedesignColors.coverSummaryScrim.opacity(
-            (isHovered || isOpen) && isEnabled
-                ? WorkbenchControlMetrics.redesignCoverSummaryButtonHoverBackgroundOpacity
-                : WorkbenchControlMetrics.redesignCoverSummaryButtonBackgroundOpacity
-        )
+        let opacity: Double
+        if isPressed && isEnabled {
+            opacity = WorkbenchControlMetrics.redesignCoverSummaryButtonPressedBackgroundOpacity
+        } else if (isHovered || isOpen) && isEnabled {
+            opacity = WorkbenchControlMetrics.redesignCoverSummaryButtonHoverBackgroundOpacity
+        } else {
+            opacity = WorkbenchControlMetrics.redesignCoverSummaryButtonBackgroundOpacity
+        }
+        return WorkbenchRedesignColors.coverSummaryText.opacity(opacity)
     }
 
     private var buttonShape: RoundedRectangle {

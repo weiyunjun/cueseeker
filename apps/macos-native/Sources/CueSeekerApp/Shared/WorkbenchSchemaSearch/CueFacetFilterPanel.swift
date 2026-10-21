@@ -434,13 +434,14 @@ private struct CueFacetFilterChip: View {
     let option: CueFacetOption
 
     @State private var isHovered = false
+    @State private var isPressed = false
     @State private var isTitleTruncated = false
 
     var body: some View {
         Button(action: option.toggle) {
             label
         }
-        .buttonStyle(StaticButtonStyle())
+        .buttonStyle(PressableButtonStyle(isPressed: $isPressed, isHovered: $isHovered))
         .focusable(false)
         .onPointerHover { isHovered = $0 }
         .workbenchTooltip(
@@ -527,7 +528,16 @@ private struct CueFacetFilterChip: View {
 
     private var backgroundColor: Color {
         if option.isSelected {
+            if isPressed {
+                return WorkbenchRedesignColors.filterChipSelectedBgPressed
+            }
+            if isHovered {
+                return WorkbenchRedesignColors.filterChipSelectedBgHover
+            }
             return WorkbenchRedesignColors.filterChipSelectedBg
+        }
+        if isPressed {
+            return WorkbenchRedesignColors.bgPressed
         }
         return isHovered ? WorkbenchRedesignColors.bgHover : WorkbenchRedesignColors.bgControl
     }
@@ -536,7 +546,7 @@ private struct CueFacetFilterChip: View {
         if option.isSelected {
             return WorkbenchRedesignColors.filterChipSelectedContent
         }
-        return isHovered
+        return (isPressed || isHovered)
             ? WorkbenchRedesignColors.borderControlHover
             : WorkbenchRedesignColors.borderControl
     }

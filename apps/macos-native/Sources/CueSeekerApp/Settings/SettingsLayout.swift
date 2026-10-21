@@ -89,7 +89,7 @@ struct SettingsGroup<Content: View>: View {
                     cornerRadius: WorkbenchControlMetrics.redesignSettingsGroupRadius,
                     style: .continuous
                 )
-                .fill(WorkbenchRedesignColors.settingsGroupBg)
+                .fill(WorkbenchRedesignColors.tableBg)
             )
             .overlay(
                 RoundedRectangle(
@@ -97,7 +97,7 @@ struct SettingsGroup<Content: View>: View {
                     style: .continuous
                 )
                 .strokeBorder(
-                    WorkbenchRedesignColors.borderDivider,
+                    WorkbenchRedesignColors.borderControl,
                     lineWidth: WorkbenchControlMetrics.redesignControlBorderWidth
                 )
             )

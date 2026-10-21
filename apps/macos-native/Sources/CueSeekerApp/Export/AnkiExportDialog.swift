@@ -764,6 +764,7 @@ private struct AnkiCardBadgeRow: View {
     let onRemove: () -> Void
 
     @State private var isRemoveHovered = false
+    @State private var isRemovePressed = false
 
     var body: some View {
         HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
@@ -786,7 +787,11 @@ private struct AnkiCardBadgeRow: View {
             Button(action: onRemove) {
                 ZStack {
                     RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignAnkiExportBadgeRemoveButtonRadius)
-                        .fill(isRemoveHovered ? WorkbenchRedesignColors.bgHover : Color.clear)
+                        .fill(
+                            isRemovePressed
+                                ? WorkbenchRedesignColors.bgPressed
+                                : (isRemoveHovered ? WorkbenchRedesignColors.bgHover : Color.clear)
+                        )
                         .frame(
                             width: WorkbenchControlMetrics.redesignAnkiExportBadgeRemoveButtonSize,
                             height: WorkbenchControlMetrics.redesignAnkiExportBadgeRemoveButtonSize
@@ -800,7 +805,7 @@ private struct AnkiCardBadgeRow: View {
                 }
                 .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(PressableButtonStyle(isPressed: $isRemovePressed, isHovered: $isRemoveHovered))
             .focusable(false)
             .onPointerHover { isRemoveHovered = $0 }
             .workbenchTooltip(

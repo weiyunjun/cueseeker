@@ -120,6 +120,9 @@ func coverSummaryBackdropKeepsTheAcceptedLeftToRightScrim() {
     #expect(WorkbenchControlMetrics.redesignCoverSummaryScrimStrongOpacity == 0.54)
     #expect(WorkbenchControlMetrics.redesignCoverSummaryScrimMiddleOpacity == 0.34)
     #expect(WorkbenchControlMetrics.redesignCoverSummaryScrimTrailingOpacity == 0.12)
+    #expect(WorkbenchControlMetrics.redesignCoverSummaryButtonBackgroundOpacity == 0.14)
+    #expect(WorkbenchControlMetrics.redesignCoverSummaryButtonHoverBackgroundOpacity == 0.24)
+    #expect(WorkbenchControlMetrics.redesignCoverSummaryButtonPressedBackgroundOpacity == 0.34)
 }
 
 @Test

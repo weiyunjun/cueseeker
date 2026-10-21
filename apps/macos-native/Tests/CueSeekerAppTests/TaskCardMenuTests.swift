@@ -93,6 +93,9 @@ struct TaskCardMenuTests {
 
         #expect(hexString(WorkbenchRedesignColors.NS.rowSelected, appearance: .aqua) == "#ECEEF2")
         #expect(hexString(WorkbenchRedesignColors.NS.rowSelected, appearance: .darkAqua) == "#43434C")
+
+        #expect(hexString(WorkbenchRedesignColors.NS.rowActionBgPressed, appearance: .aqua) == "#DEE2E8")
+        #expect(hexString(WorkbenchRedesignColors.NS.rowActionBgPressed, appearance: .darkAqua) == "#4E4E58")
     }
 
     @Test

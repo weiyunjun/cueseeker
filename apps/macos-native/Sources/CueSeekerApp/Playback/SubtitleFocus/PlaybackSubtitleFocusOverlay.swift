@@ -352,6 +352,8 @@ struct PlaybackOverlayTopBar: View {
                 PlaybackReturnButton(
                     hoverBackground: WorkbenchRedesignColors
                         .overlaySurfaceShortcutButtonHoverBg,
+                    pressedBackground: WorkbenchRedesignColors
+                        .overlaySurfaceShortcutButtonPressedBg,
                     scenarioID: "playback_overlay.topbar.return",
                     action: onReturn
                 )
@@ -389,7 +391,9 @@ struct PlaybackOverlayTopBar: View {
                             isRedesign: true,
                             isOpen: isEditingCollage,
                             hoverBackground: WorkbenchRedesignColors
-                                .overlaySurfaceShortcutButtonHoverBg
+                                .overlaySurfaceShortcutButtonHoverBg,
+                            pressedBackground: WorkbenchRedesignColors
+                                .overlaySurfaceShortcutButtonPressedBg
                         ) {
                             _ = onToggleEditingCollage()
                         }
@@ -414,7 +418,9 @@ struct PlaybackOverlayTopBar: View {
 
                     TopbarAppEntries(
                         hoverBackground: WorkbenchRedesignColors
-                            .overlaySurfaceShortcutButtonHoverBg
+                            .overlaySurfaceShortcutButtonHoverBg,
+                        pressedBackground: WorkbenchRedesignColors
+                            .overlaySurfaceShortcutButtonPressedBg
                     )
                 }
             }

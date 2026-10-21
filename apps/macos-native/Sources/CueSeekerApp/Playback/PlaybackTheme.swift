@@ -141,6 +141,11 @@ public enum PlaybackTheme {
         Color.white.opacity(0.16)
     }
 
+    /// --color-player-control-bg-pressed
+    public static var controlPressedBackground: Color {
+        Color.white.opacity(0.24)
+    }
+
     /// --color-player-control-bg-active
     public static var controlActiveBackground: Color {
         Color.accentColor.opacity(0.26)

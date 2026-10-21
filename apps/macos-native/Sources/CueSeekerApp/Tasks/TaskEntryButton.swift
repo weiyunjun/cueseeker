@@ -13,6 +13,7 @@ struct TaskEntryButton: View {
     var iconColor: Color? = nil
     var openIconColor: Color? = nil
     var hoverBackground: Color = WorkbenchRedesignColors.bgHover
+    var pressedBackground: Color = WorkbenchRedesignColors.bgPressed
     var openBackground: Color? = nil
     var countBackground: Color = WorkbenchRedesignColors.badgeNeutralBg
     var countTextColor: Color = WorkbenchRedesignColors.textSecondary
@@ -24,6 +25,7 @@ struct TaskEntryButton: View {
             isRedesign: true,
             isOpen: tasks.isPanelOpen,
             hoverBackground: hoverBackground,
+            pressedBackground: pressedBackground,
             openBackground: openBackground,
             iconColor: iconColor,
             openIconColor: openIconColor,

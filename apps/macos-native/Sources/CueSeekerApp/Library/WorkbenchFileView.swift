@@ -907,6 +907,7 @@ private struct WorkbenchFileCard: View {
                         isRedesign: true,
                         isOpen: isMenuOpen,
                         hoverBackground: WorkbenchRedesignColors.rowSelected,
+                        pressedBackground: WorkbenchRedesignColors.rowActionBgPressed,
                         action: {
                             let frame = buttonProxy.frame(in: .named(WorkbenchFileView.fileCardCoordinateSpaceName))
                             onOpenMenu(frame)

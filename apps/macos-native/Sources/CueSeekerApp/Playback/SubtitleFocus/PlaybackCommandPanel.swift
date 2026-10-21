@@ -495,6 +495,7 @@ private struct PlaybackCommandPanelSecondaryHeader<Trailing: View>: View {
     @ViewBuilder let trailing: () -> Trailing
 
     @State private var isBackHovered = false
+    @State private var isBackPressed = false
 
     init(
         title: String,
@@ -531,15 +532,18 @@ private struct PlaybackCommandPanelSecondaryHeader<Trailing: View>: View {
                             style: .continuous
                         )
                         .fill(
-                            isBackHovered
+                            isBackPressed
                                 ? WorkbenchRedesignColors
-                                    .popoverSurfaceShortcutButtonHoverBg
-                                : Color.clear
+                                    .popoverSurfaceShortcutButtonPressedBg
+                                : (isBackHovered
+                                    ? WorkbenchRedesignColors
+                                        .popoverSurfaceShortcutButtonHoverBg
+                                    : Color.clear)
                         )
                     )
                     .contentShape(Rectangle())
             }
-            .buttonStyle(StaticButtonStyle())
+            .buttonStyle(PressableButtonStyle(isPressed: $isBackPressed, isHovered: $isBackHovered))
             .focusable(false)
             .onPointerHover { isBackHovered = $0 }
             .workbenchTooltip(

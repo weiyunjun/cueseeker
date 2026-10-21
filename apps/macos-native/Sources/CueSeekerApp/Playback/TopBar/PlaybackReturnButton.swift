@@ -9,6 +9,7 @@ struct PlaybackReturnButton: View {
     /// The colors of the surface the button is drawn on.
     var iconColor: Color? = nil
     let hoverBackground: Color
+    var pressedBackground: Color = WorkbenchRedesignColors.bgPressed
     var scenarioID: String = "player.topbar.return"
     let action: () -> Void
     @Environment(\.isAppFullscreen) private var isAppFullscreen
@@ -18,6 +19,7 @@ struct PlaybackReturnButton: View {
             icon: .caretLeft,
             isRedesign: true,
             hoverBackground: hoverBackground,
+            pressedBackground: pressedBackground,
             iconColor: iconColor,
             action: action
         )

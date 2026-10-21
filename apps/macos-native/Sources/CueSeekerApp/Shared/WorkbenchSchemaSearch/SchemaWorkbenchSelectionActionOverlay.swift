@@ -149,12 +149,12 @@ struct SchemaWorkbenchSelectionActionOverlay: View {
     }
 }
 
-/// Text plus the key that does the same thing. Default and Hover only: the
-/// press itself is not drawn, per `UI Application Rules` 按下.
+/// Text plus the key that does the same thing.
 private struct SchemaWorkbenchSelectionActionButton: View {
     let action: SchemaWorkbenchSelectionAction
 
     @State private var isHovered = false
+    @State private var isPressed = false
 
     var body: some View {
         Button(action: action.perform) {
@@ -169,9 +169,11 @@ private struct SchemaWorkbenchSelectionActionButton: View {
 
                 SchemaWorkbenchSelectionKeycap(
                     label: action.keyLabel,
-                    background: isHovered
-                        ? WorkbenchRedesignColors.popoverSurfaceKeycapHoverBg
-                        : WorkbenchRedesignColors.popoverSurfaceKeycapBg
+                    background: isPressed
+                        ? WorkbenchRedesignColors.popoverSurfaceKeycapPressedBg
+                        : (isHovered
+                            ? WorkbenchRedesignColors.popoverSurfaceKeycapHoverBg
+                            : WorkbenchRedesignColors.popoverSurfaceKeycapBg)
                 )
             }
             .foregroundStyle(WorkbenchRedesignColors.textMuted)
@@ -183,14 +185,16 @@ private struct SchemaWorkbenchSelectionActionButton: View {
                     style: .continuous
                 )
                 .fill(
-                    isHovered
-                        ? WorkbenchRedesignColors.popoverSurfaceShortcutButtonHoverBg
-                        : Color.clear
+                    isPressed
+                        ? WorkbenchRedesignColors.popoverSurfaceShortcutButtonPressedBg
+                        : (isHovered
+                            ? WorkbenchRedesignColors.popoverSurfaceShortcutButtonHoverBg
+                            : Color.clear)
                 )
             }
             .contentShape(Rectangle())
         }
-        .buttonStyle(StaticButtonStyle())
+        .buttonStyle(PressableButtonStyle(isPressed: $isPressed, isHovered: $isHovered))
         .focusable(false)
         .onPointerHover { isHovered = $0 }
         .accessibilityIdentifier("workbench-selection-action-\(action.id)")

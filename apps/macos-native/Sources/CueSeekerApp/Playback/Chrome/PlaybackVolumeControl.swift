@@ -4,6 +4,7 @@ struct PlaybackVolumeControl: View {
     @ObservedObject var viewModel: PlaybackViewModel
     @ObservedObject var timeline: PlaybackTimelineInteractionStore
     @State private var isHovered = false
+    @State private var isSpeakerPressed = false
 
     var body: some View {
         HStack(spacing: 0) {
@@ -22,6 +23,17 @@ struct PlaybackVolumeControl: View {
                     width: WorkbenchControlMetrics.redesignIconButtonSize,
                     height: WorkbenchControlMetrics.redesignIconButtonSize
                 )
+                .background(
+                    RoundedRectangle(
+                        cornerRadius: WorkbenchControlMetrics.redesignCornerRadius,
+                        style: .continuous
+                    )
+                    .fill(
+                        !timeline.isScrubbing && isSpeakerPressed
+                            ? PlaybackTheme.controlPressedBackground
+                            : Color.clear
+                    )
+                )
                 .contentShape(
                     RoundedRectangle(
                         cornerRadius: WorkbenchControlMetrics.redesignCornerRadius,
@@ -29,7 +41,7 @@ struct PlaybackVolumeControl: View {
                     )
                 )
             }
-            .buttonStyle(StaticButtonStyle())
+            .buttonStyle(PressableButtonStyle(isPressed: $isSpeakerPressed, isHovered: $isHovered))
             .focusable(false)
             .workbenchTooltip(
                 scenarioID: "player.control.mute",

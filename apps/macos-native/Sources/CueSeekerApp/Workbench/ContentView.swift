@@ -412,6 +412,7 @@ struct AppTopBar: View {
     @EnvironmentObject private var library: LibraryStore
     @EnvironmentObject private var excerptStore: ExcerptStore
     @State private var isSidebarToggleHovered = false
+    @State private var isSidebarTogglePressed = false
     // Observed so the labels below are re-read when the language changes.
     @EnvironmentObject private var localization: AppLocalizationStore
 
@@ -573,11 +574,15 @@ struct AppTopBar: View {
                 )
                 .background(
                     RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignCornerRadius, style: .continuous)
-                        .fill(isSidebarToggleHovered ? WorkbenchRedesignColors.bgHover : Color.clear)
+                        .fill(
+                            isSidebarTogglePressed
+                                ? WorkbenchRedesignColors.bgPressed
+                                : (isSidebarToggleHovered ? WorkbenchRedesignColors.bgHover : Color.clear)
+                        )
                 )
                 .contentShape(Rectangle())
         }
-        .buttonStyle(AppSidebarToggleButtonStyle())
+        .buttonStyle(PressableButtonStyle(isPressed: $isSidebarTogglePressed, isHovered: $isSidebarToggleHovered))
         .disabled(layoutState.isVideoSizeTransitionInProgress)
         .onPointerHover { isSidebarToggleHovered = $0 }
         .subtitleTableTextSelectionInteractiveRegion(
@@ -766,14 +771,6 @@ private struct AppSidebarItemLabel: View {
         isSelected
             ? WorkbenchRedesignColors.appSidebarItemSelectedContent
             : WorkbenchRedesignColors.textPrimary
-    }
-}
-
-/// The toggle's hover background is painted by the view, so the style itself
-/// only has to keep AppKit from adding a pressed look of its own.
-private struct AppSidebarToggleButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
     }
 }
 

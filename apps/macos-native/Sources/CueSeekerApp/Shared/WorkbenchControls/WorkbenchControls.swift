@@ -554,6 +554,8 @@ enum WorkbenchControlMetrics {
     static let redesignCoverSummaryButtonBackgroundOpacity: Double = 0.14
     /// --opacity-cover-summary-button-bg-hover: 24%
     static let redesignCoverSummaryButtonHoverBackgroundOpacity: Double = 0.24
+    /// --opacity-cover-summary-button-bg-pressed: 34%
+    static let redesignCoverSummaryButtonPressedBackgroundOpacity: Double = 0.34
     /// --opacity-cover-summary-button-border: 35%
     static let redesignCoverSummaryButtonBorderOpacity: Double = 0.35
     /// --opacity-cover-summary-button-disabled: 55%
@@ -732,6 +734,7 @@ struct WorkbenchInlineClearButton: View {
     var action: () -> Void
 
     @State private var isHovered = false
+    @State private var isPressed = false
 
     var body: some View {
         Button(action: action) {
@@ -741,14 +744,27 @@ struct WorkbenchInlineClearButton: View {
                 .frame(width: WorkbenchControlMetrics.redesignInlineClearButtonSize, height: WorkbenchControlMetrics.redesignInlineClearButtonSize)
                 .background(
                     RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignInlineClearButtonRadius, style: .continuous)
-                        .fill(isEnabled && isHovered ? WorkbenchRedesignColors.bgHover : Color.clear)
+                        .fill(backgroundColor)
                 )
         }
-        .buttonStyle(StaticButtonStyle())
+        .buttonStyle(PressableButtonStyle(isPressed: $isPressed, isHovered: $isHovered))
         .disabled(!isEnabled)
         .subtitleTableTextSelectionInteractiveRegion(isActive: isEnabled)
         .focusable(false)
         .onPointerHover { isHovered = $0 }
+    }
+
+    private var backgroundColor: Color {
+        guard isEnabled else {
+            return Color.clear
+        }
+        if isPressed {
+            return WorkbenchRedesignColors.bgPressed
+        }
+        if isHovered {
+            return WorkbenchRedesignColors.bgHover
+        }
+        return Color.clear
     }
 }
 
@@ -927,6 +943,7 @@ struct WorkbenchButton: View {
     var action: () -> Void
 
     @State private var isHovered = false
+    @State private var isPressed = false
     @Environment(\.isEnabled) private var isEnabled
 
     var body: some View {
@@ -964,7 +981,7 @@ struct WorkbenchButton: View {
                 .fixedSize(horizontal: true, vertical: false)
                 .contentShape(Rectangle())
         }
-        .buttonStyle(StaticButtonStyle())
+        .buttonStyle(PressableButtonStyle(isPressed: $isPressed, isHovered: $isHovered))
         .subtitleTableTextSelectionInteractiveRegion(isActive: isEnabled)
         .focusable(false)
         .onPointerHover { isHovered = $0 }
@@ -1056,6 +1073,9 @@ struct WorkbenchButton: View {
         guard isEnabled else {
             return WorkbenchRedesignColors.bgDisabled
         }
+        if isPressed {
+            return WorkbenchRedesignColors.bgPressed
+        }
         if isOpen || isHovered {
             return WorkbenchRedesignColors.bgHover
         }
@@ -1066,7 +1086,7 @@ struct WorkbenchButton: View {
         guard isEnabled else {
             return WorkbenchRedesignColors.borderDisabled
         }
-        if isOpen || isHovered {
+        if isPressed || isOpen || isHovered {
             return WorkbenchRedesignColors.borderControlHover
         }
         return WorkbenchRedesignColors.borderControl
@@ -1083,6 +1103,7 @@ struct WorkbenchPrimaryButton: View {
     var action: () -> Void
 
     @State private var isHovered = false
+    @State private var isPressed = false
     @Environment(\.isEnabled) private var isEnabled
 
     var body: some View {
@@ -1118,23 +1139,28 @@ struct WorkbenchPrimaryButton: View {
                     cornerRadius: WorkbenchControlMetrics.redesignCornerRadius,
                     style: .continuous
                 )
-                .fill(
-                    isEnabled
-                        ? (
-                            isHovered
-                                ? WorkbenchRedesignColors.primaryButtonBgHover
-                                : WorkbenchRedesignColors.primaryButtonBg
-                        )
-                        : WorkbenchRedesignColors.bgDisabled
-                )
+                .fill(backgroundColor)
             )
             .fixedSize(horizontal: true, vertical: false)
             .contentShape(Rectangle())
         }
-        .buttonStyle(StaticButtonStyle())
+        .buttonStyle(PressableButtonStyle(isPressed: $isPressed, isHovered: $isHovered))
         .subtitleTableTextSelectionInteractiveRegion(isActive: isEnabled)
         .focusable(false)
         .onPointerHover { isHovered = $0 }
+    }
+
+    private var backgroundColor: Color {
+        guard isEnabled else {
+            return WorkbenchRedesignColors.bgDisabled
+        }
+        if isPressed {
+            return WorkbenchRedesignColors.primaryButtonBgPressed
+        }
+        if isHovered {
+            return WorkbenchRedesignColors.primaryButtonBgHover
+        }
+        return WorkbenchRedesignColors.primaryButtonBg
     }
 }
 
@@ -1144,6 +1170,7 @@ struct WorkbenchDestructiveButton: View {
     var action: () -> Void
 
     @State private var isHovered = false
+    @State private var isPressed = false
     @Environment(\.isEnabled) private var isEnabled
 
     var body: some View {
@@ -1164,7 +1191,7 @@ struct WorkbenchDestructiveButton: View {
             .frame(height: WorkbenchControlMetrics.redesignHeight)
             .background(
                 RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignCornerRadius, style: .continuous)
-                    .fill(isEnabled ? (isHovered ? WorkbenchRedesignColors.dangerBgHover : WorkbenchRedesignColors.bgControl) : WorkbenchRedesignColors.bgDisabled)
+                    .fill(backgroundColor)
             )
             .overlay(
                 RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignCornerRadius, style: .continuous)
@@ -1173,17 +1200,30 @@ struct WorkbenchDestructiveButton: View {
             .fixedSize(horizontal: true, vertical: false)
             .contentShape(Rectangle())
         }
-        .buttonStyle(StaticButtonStyle())
+        .buttonStyle(PressableButtonStyle(isPressed: $isPressed, isHovered: $isHovered))
         .subtitleTableTextSelectionInteractiveRegion(isActive: isEnabled)
         .focusable(false)
         .onPointerHover { isHovered = $0 }
+    }
+
+    private var backgroundColor: Color {
+        guard isEnabled else {
+            return WorkbenchRedesignColors.bgDisabled
+        }
+        if isPressed {
+            return WorkbenchRedesignColors.dangerBgPressed
+        }
+        if isHovered {
+            return WorkbenchRedesignColors.dangerBgHover
+        }
+        return WorkbenchRedesignColors.bgControl
     }
 
     private var borderColor: Color {
         guard isEnabled else {
             return WorkbenchRedesignColors.borderDisabled
         }
-        return isHovered
+        return (isPressed || isHovered)
             ? WorkbenchRedesignColors.borderControlHover
             : WorkbenchRedesignColors.borderControl
     }
@@ -1372,6 +1412,8 @@ struct WorkbenchIconButton: View {
     /// on another surface passes that surface's own step; the Workbench
     /// surface's is the default.
     var hoverBackground: Color = WorkbenchRedesignColors.bgHover
+    /// Pressed advances one step beyond hover on the surface the button sits on.
+    var pressedBackground: Color = WorkbenchRedesignColors.bgPressed
     /// Open uses a translucent accent tint background by default, distinguishing
     /// the active state from hover. Surfaces like the player top bar pass their
     /// own open background step.
@@ -1406,6 +1448,7 @@ struct WorkbenchIconButton: View {
 
     @Environment(\.isEnabled) private var isEnabled
     @State private var isHovered = false
+    @State private var isPressed = false
 
     var body: some View {
         Group {
@@ -1413,7 +1456,7 @@ struct WorkbenchIconButton: View {
                 Button(action: action) {
                     label
                 }
-                .buttonStyle(StaticButtonStyle())
+                .buttonStyle(PressableButtonStyle(isPressed: $isPressed, isHovered: $isHovered))
                 .disabled(isFrozen)
                 .focusable(false)
                 .subtitleTableTextSelectionInteractiveRegion(isActive: isEnabled)
@@ -1483,6 +1526,9 @@ struct WorkbenchIconButton: View {
     private var redesignBackgroundColor: Color {
         guard isEnabled else {
             return Color.clear
+        }
+        if isPressed {
+            return pressedBackground
         }
         if isOpen {
             return openBackground ?? hoverBackground

@@ -12,6 +12,7 @@ struct TopbarAppEntries: View {
     var iconColor: Color? = nil
     var openIconColor: Color? = nil
     var hoverBackground: Color = WorkbenchRedesignColors.bgHover
+    var pressedBackground: Color = WorkbenchRedesignColors.bgPressed
     var openBackground: Color? = nil
     var countBackground: Color = WorkbenchRedesignColors.badgeNeutralBg
     var countTextColor: Color = WorkbenchRedesignColors.textSecondary
@@ -23,6 +24,7 @@ struct TopbarAppEntries: View {
                 iconColor: iconColor,
                 openIconColor: openIconColor,
                 hoverBackground: hoverBackground,
+                pressedBackground: pressedBackground,
                 openBackground: openBackground,
                 countBackground: countBackground,
                 countTextColor: countTextColor
@@ -38,6 +40,7 @@ struct TopbarAppEntries: View {
                 iconColor: iconColor,
                 openIconColor: openIconColor,
                 hoverBackground: hoverBackground,
+                pressedBackground: pressedBackground,
                 openBackground: openBackground
             ) {
                 appState.performUserInitiatedAppCommand {
@@ -58,6 +61,7 @@ struct SettingsEntryButton: View {
     var iconColor: Color? = nil
     var openIconColor: Color? = nil
     var hoverBackground: Color = WorkbenchRedesignColors.bgHover
+    var pressedBackground: Color = WorkbenchRedesignColors.bgPressed
     var openBackground: Color? = nil
     let onOpen: () -> Void
 
@@ -67,6 +71,7 @@ struct SettingsEntryButton: View {
             isRedesign: true,
             isOpen: layoutState.isSettingsWindowOpen,
             hoverBackground: hoverBackground,
+            pressedBackground: pressedBackground,
             openBackground: openBackground,
             iconColor: iconColor,
             openIconColor: openIconColor,

@@ -415,6 +415,7 @@ private struct TaskCurrentCard: View {
                     isRedesign: true,
                     isOpen: isMenuOpen,
                     hoverBackground: WorkbenchRedesignColors.rowSelected,
+                    pressedBackground: WorkbenchRedesignColors.rowActionBgPressed,
                     action: {
                         let frame = buttonProxy.frame(in: .named(TaskPanel.taskCardCoordinateSpaceName))
                         onOpenMenu(frame)
@@ -577,6 +578,7 @@ private struct TaskHistoryCard: View {
                     isRedesign: true,
                     isOpen: isMenuOpen,
                     hoverBackground: WorkbenchRedesignColors.rowSelected,
+                    pressedBackground: WorkbenchRedesignColors.rowActionBgPressed,
                     action: {
                         let frame = buttonProxy.frame(in: .named(TaskPanel.taskCardCoordinateSpaceName))
                         onOpenMenu(frame)
