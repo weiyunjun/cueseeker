@@ -3045,6 +3045,11 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
             guard output.shouldConsume else {
                 return event
             }
+            let isWindowFocused = (window as? CueSeekerWindow)?.isFocusedForHover
+                ?? (NSApp.isActive && window.isKeyWindow)
+            if isWindowFocused {
+                PointerHoverScrollState.shared.noteScrolled()
+            }
             self.handleWheelOutput(output)
             return nil
         }

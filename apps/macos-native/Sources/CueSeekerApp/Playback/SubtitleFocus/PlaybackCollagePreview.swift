@@ -151,6 +151,7 @@ final class PlaybackCollagePreviewScrollContainerView: NSView {
             NSApplication.didResignActiveNotification,
             NSWindow.didBecomeKeyNotification,
             NSWindow.didResignKeyNotification,
+            .cueSeekerScrollDebounceSettled,
         ] {
             NotificationCenter.default.addObserver(
                 self,
@@ -358,6 +359,9 @@ final class PlaybackCollagePreviewScrollContainerView: NSView {
             release(atWindowPoint: point)
             return true
         default:
+            guard !PointerHoverScrollState.shared.isScrolling else {
+                return false
+            }
             pointerMoved(toWindowPoint: point)
             return false
         }

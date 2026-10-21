@@ -19,6 +19,20 @@ class CueSeekerWindow: NSWindow {
         }
         return super.mouseLocationOutsideOfEventStream
     }
+
+    override func sendEvent(_ event: NSEvent) {
+        if isFocusedForHover {
+            switch event.type {
+            case .scrollWheel:
+                PointerHoverScrollState.shared.noteScrolled()
+            case .mouseMoved, .leftMouseDragged, .rightMouseDragged:
+                PointerHoverScrollState.shared.notePointerMoved()
+            default:
+                break
+            }
+        }
+        super.sendEvent(event)
+    }
 }
 
 /// The main window, which refuses to hand the keyboard to anything while a

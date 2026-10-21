@@ -27,6 +27,20 @@ final class CardHighlightModel: ObservableObject {
 
     private static var instances: [WeakBox] = []
 
+    static func broadcastScrolled() {
+        instances.removeAll { $0.value == nil }
+        for box in instances {
+            box.value?.noteScrolled()
+        }
+    }
+
+    static func broadcastPointerMoved() {
+        instances.removeAll { $0.value == nil }
+        for box in instances {
+            box.value?.notePointerMoved()
+        }
+    }
+
     static func broadcastScrollSettled() {
         instances.removeAll { $0.value == nil }
         for box in instances {
@@ -81,19 +95,11 @@ final class CardHighlightModel: ObservableObject {
     private(set) var isScrolling = false
     private var rawHoveredID: String?
     private var rawHoveredShowsHand = true
-    nonisolated(unsafe) private var pointerMonitor: Any?
 
     init(keepsCurrentWhenPointerLeaves: Bool = false) {
         self.keepsCurrentWhenPointerLeaves = keepsCurrentWhenPointerLeaves
         Self.instances.removeAll { $0.value == nil }
         Self.instances.append(WeakBox(self))
-        startObservingPointer()
-    }
-
-    deinit {
-        if let pointerMonitor {
-            NSEvent.removeMonitor(pointerMonitor)
-        }
     }
 
     /// Whether `id` is in the `Select` state.
@@ -275,35 +281,6 @@ final class CardHighlightModel: ObservableObject {
         let next = AppCursorVisibility.isCursorHidden ? nil : rawHoveredID
         if hoveredID != next {
             hoveredID = next
-        }
-    }
-
-    private func startObservingPointer() {
-        guard pointerMonitor == nil else {
-            return
-        }
-        pointerMonitor = NSEvent.addLocalMonitorForEvents(
-            matching: [
-                .mouseMoved,
-                .leftMouseDragged,
-                .rightMouseDragged,
-                .scrollWheel
-            ]
-        ) { [weak self] event in
-            MainActor.assumeIsolated {
-                guard let self,
-                      NSApp.isActive,
-                      event.window?.isKeyWindow == true
-                else {
-                    return
-                }
-                if event.type == .scrollWheel {
-                    self.noteScrolled()
-                } else {
-                    self.notePointerMoved()
-                }
-            }
-            return event
         }
     }
 }

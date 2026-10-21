@@ -22,6 +22,8 @@ final class PointerHoverScrollState: ObservableObject {
         if !isScrolling {
             isScrolling = true
         }
+        CardHighlightModel.broadcastScrolled()
+        MenuHighlightModel.broadcastScrolled()
         debounceTask?.cancel()
         debounceTask = Task { [weak self] in
             try? await Task.sleep(nanoseconds: Self.debounceNanoseconds)
@@ -38,6 +40,8 @@ final class PointerHoverScrollState: ObservableObject {
         if isScrolling {
             isScrolling = false
         }
+        CardHighlightModel.broadcastPointerMoved()
+        MenuHighlightModel.broadcastPointerMoved()
     }
 
     func cancelScrollDebounceForWindowResign() {
@@ -54,13 +58,13 @@ final class PointerHoverScrollState: ObservableObject {
         if isScrolling {
             isScrolling = false
         }
-        CardHighlightModel.broadcastScrollSettled()
-        MenuHighlightModel.broadcastScrollSettled()
-        AppPointerShape.noteScrollSettled()
         NotificationCenter.default.post(
             name: .cueSeekerScrollDebounceSettled,
             object: nil
         )
+        CardHighlightModel.broadcastScrollSettled()
+        MenuHighlightModel.broadcastScrollSettled()
+        AppPointerShape.noteScrollSettled()
     }
 
     func noteCursorHiddenChanged(_ isHidden: Bool) {

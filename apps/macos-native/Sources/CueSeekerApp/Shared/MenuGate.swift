@@ -355,6 +355,16 @@ final class MenuGate {
         default:
             // Pointer motion, tracking area crossings, cursor updates and
             // drags.
+            if !isFromAnotherWindow,
+               event.type == .mouseMoved
+                || event.type == .leftMouseDragged
+                || event.type == .rightMouseDragged {
+                let isWindowFocused = (menuWindow as? CueSeekerWindow)?.isFocusedForHover
+                    ?? (NSApp.isActive && menuWindow?.isKeyWindow == true)
+                if isWindowFocused {
+                    PointerHoverScrollState.shared.notePointerMoved()
+                }
+            }
             let isPointerOnMenu = client.isPointerOnMenu(event)
             if !isFromAnotherWindow, event.type != .mouseEntered,
                event.type != .mouseExited, event.type != .cursorUpdate {

@@ -26,6 +26,20 @@ final class MenuHighlightModel: ObservableObject {
 
     private static var instances: [WeakBox] = []
 
+    static func broadcastScrolled() {
+        instances.removeAll { $0.value == nil }
+        for box in instances {
+            box.value?.noteScrolled()
+        }
+    }
+
+    static func broadcastPointerMoved() {
+        instances.removeAll { $0.value == nil }
+        for box in instances {
+            box.value?.notePointerMoved()
+        }
+    }
+
     static func broadcastScrollSettled() {
         instances.removeAll { $0.value == nil }
         for box in instances {
@@ -61,17 +75,13 @@ final class MenuHighlightModel: ObservableObject {
     @Published private(set) var keyboardMoveCount = 0
 
     private(set) var selectablePositions: [Int] = []
+    private(set) var isOpen = false
     private(set) var isScrolling = false
     private var rawHoveredPosition: Int?
-    nonisolated(unsafe) private var pointerMonitor: Any?
 
     init() {
         Self.instances.removeAll { $0.value == nil }
         Self.instances.append(WeakBox(self))
-    }
-
-    var isOpen: Bool {
-        pointerMonitor != nil
     }
 
     func isSelected(_ position: Int) -> Bool {
@@ -86,17 +96,17 @@ final class MenuHighlightModel: ObservableObject {
     /// selectable position when it is absent or not selectable.
     func open(selectablePositions: [Int], defaultPosition: Int? = nil) {
         self.selectablePositions = selectablePositions
+        isOpen = true
         isScrolling = false
         rawHoveredPosition = nil
         hoveredPosition = nil
         selectedPosition = defaultPosition
             .flatMap { selectablePositions.contains($0) ? $0 : nil }
             ?? selectablePositions.first
-        startObservingPointerMovement()
     }
 
     func close() {
-        stopObservingPointerMovement()
+        isOpen = false
         selectablePositions = []
         selectedPosition = nil
         hoveredPosition = nil
@@ -183,44 +193,6 @@ final class MenuHighlightModel: ObservableObject {
         }
         if hoveredPosition != next {
             hoveredPosition = next
-        }
-    }
-
-    private func startObservingPointerMovement() {
-        guard pointerMonitor == nil else {
-            return
-        }
-        pointerMonitor = NSEvent.addLocalMonitorForEvents(
-            matching: [
-                .mouseMoved, .leftMouseDragged, .rightMouseDragged,
-                .scrollWheel,
-            ]
-        ) { [weak self] event in
-            MainActor.assumeIsolated {
-                guard NSApp.isActive, event.window?.isKeyWindow == true else {
-                    return
-                }
-                if event.type == .scrollWheel {
-                    self?.noteScrolled()
-                } else {
-                    self?.notePointerMoved()
-                }
-            }
-            return event
-        }
-    }
-
-    private func stopObservingPointerMovement() {
-        guard let pointerMonitor else {
-            return
-        }
-        NSEvent.removeMonitor(pointerMonitor)
-        self.pointerMonitor = nil
-    }
-
-    deinit {
-        if let pointerMonitor {
-            NSEvent.removeMonitor(pointerMonitor)
         }
     }
 }

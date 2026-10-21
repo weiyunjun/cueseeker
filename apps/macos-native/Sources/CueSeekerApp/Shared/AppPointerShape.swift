@@ -86,6 +86,11 @@ struct PointerShapeModel: Equatable {
     }
 }
 
+@MainActor
+private protocol CueSeekerHostingViewLocationOverride: AnyObject {
+    var mouseLocationOverrideForTesting: CGPoint? { get }
+}
+
 /// The one place the App decides a pointer shape.
 ///
 /// AppKit re-evaluates the cursor for the pointer's current location at every
@@ -159,7 +164,7 @@ enum AppPointerShape {
     /// — the cursor belongs to that window, so the held shape goes back to the
     /// arrow and nothing is stated until the pointer comes back.
     private static func followPointerOwnership() {
-        guard NSApp.isActive, isPointerOverOwnWindow() else {
+        guard isPointerOverOwnWindow() else {
             releaseToOtherWindow()
             return
         }
@@ -172,13 +177,28 @@ enum AppPointerShape {
     /// screen and the Settings window sits inside that frame, so geometry says
     /// yes for a pointer that is not on the main window at all.
     private static func isPointerOverOwnWindow() -> Bool {
-        guard let window, window.isKeyWindow else {
+        guard let window else {
+            return false
+        }
+        if let cueSeekerWindow = window as? CueSeekerWindow,
+           cueSeekerWindow.isWindowFocusedOverrideForTesting != nil {
+            return cueSeekerWindow.isFocusedForHover
+        }
+        guard NSApp.isActive, window.isKeyWindow else {
             return false
         }
         return NSWindow.windowNumber(
             at: NSEvent.mouseLocation,
             belowWindowWithWindowNumber: 0
         ) == window.windowNumber
+    }
+
+    private static func currentPointerLocation(in window: NSWindow) -> CGPoint {
+        if let host = window.contentView as? CueSeekerHostingViewLocationOverride,
+           let overrideLocation = host.mouseLocationOverrideForTesting {
+            return overrideLocation
+        }
+        return window.mouseLocationOutsideOfEventStream
     }
 
     private static func releaseToOtherWindow() {
@@ -198,7 +218,7 @@ enum AppPointerShape {
         guard !AppCursorVisibility.isCursorHidden else {
             return
         }
-        decide(at: window.mouseLocationOutsideOfEventStream)
+        decide(at: currentPointerLocation(in: window))
     }
 
     private static func restoreIfAppKitTookOver() {
@@ -235,7 +255,7 @@ enum AppPointerShape {
         ), let window else {
             return
         }
-        decide(at: window.mouseLocationOutsideOfEventStream)
+        decide(at: currentPointerLocation(in: window))
     }
 
     /// Resets the pointer shape to `.arrow` (e.g. while a menu owns input).
@@ -252,7 +272,7 @@ enum AppPointerShape {
         else {
             return
         }
-        decide(at: window.mouseLocationOutsideOfEventStream)
+        decide(at: currentPointerLocation(in: window))
     }
 
     /// Clears stale card hover state from an outgoing interface and
@@ -344,7 +364,7 @@ enum AppPointerShape {
 /// display cycle — measured to run in the same pass that would otherwise fall
 /// back to the arrow and flicker on every wheel notch — and again from the
 /// cursor update AppKit sends for that rect.
-class CueSeekerHostingView<Content: View>: NSHostingView<Content> {
+class CueSeekerHostingView<Content: View>: NSHostingView<Content>, CueSeekerHostingViewLocationOverride {
     var mouseLocationOverrideForTesting: CGPoint?
     private var needsMouseReenterInSuper = false
     nonisolated(unsafe) private var focusObserverTokens: [NSObjectProtocol] = []
@@ -376,7 +396,7 @@ class CueSeekerHostingView<Content: View>: NSHostingView<Content> {
     }
 
     override func mouseEntered(with event: NSEvent) {
-        guard isWindowFocused else {
+        guard isWindowFocused, !PointerHoverScrollState.shared.isScrolling else {
             needsMouseReenterInSuper = true
             return
         }
@@ -385,7 +405,8 @@ class CueSeekerHostingView<Content: View>: NSHostingView<Content> {
     }
 
     override func mouseMoved(with event: NSEvent) {
-        guard isWindowFocused else {
+        guard isWindowFocused, !PointerHoverScrollState.shared.isScrolling else {
+            needsMouseReenterInSuper = true
             return
         }
         if needsMouseReenterInSuper {
@@ -396,6 +417,10 @@ class CueSeekerHostingView<Content: View>: NSHostingView<Content> {
     }
 
     override func mouseExited(with event: NSEvent) {
+        guard !PointerHoverScrollState.shared.isScrolling else {
+            needsMouseReenterInSuper = true
+            return
+        }
         needsMouseReenterInSuper = false
         super.mouseExited(with: event)
     }
@@ -407,19 +432,7 @@ class CueSeekerHostingView<Content: View>: NSHostingView<Content> {
         if isWindowFocused {
             guard !AppCursorVisibility.isCursorHidden,
                   !PointerHoverScrollState.shared.isScrolling,
-                  !isHiddenOrHasHiddenAncestor,
-                  isPointerOverHostingWindow(window)
-            else {
-                return
-            }
-            let locationInWindow = mouseLocationOverrideForTesting
-                ?? window.mouseLocationOutsideOfEventStream
-            let visibleBounds = bounds.intersection(visibleRect)
-            guard visibleBounds.contains(convert(locationInWindow, from: nil)),
-                  let moveEvent = Self.makeMouseEvent(
-                      at: locationInWindow,
-                      in: window
-                  )
+                  !isHiddenOrHasHiddenAncestor
             else {
                 return
             }
@@ -428,6 +441,19 @@ class CueSeekerHostingView<Content: View>: NSHostingView<Content> {
                 in: window
             ) {
                 super.mouseExited(with: offscreenEvent)
+            }
+            let locationInWindow = mouseLocationOverrideForTesting
+                ?? window.mouseLocationOutsideOfEventStream
+            let visibleBounds = bounds.intersection(visibleRect)
+            guard isPointerOverHostingWindow(window),
+                  visibleBounds.contains(convert(locationInWindow, from: nil)),
+                  let moveEvent = Self.makeMouseEvent(
+                      at: locationInWindow,
+                      in: window
+                  )
+            else {
+                needsMouseReenterInSuper = true
+                return
             }
             needsMouseReenterInSuper = false
             super.mouseEntered(with: moveEvent)
@@ -469,6 +495,7 @@ class CueSeekerHostingView<Content: View>: NSHostingView<Content> {
             NSApplication.didResignActiveNotification,
             NSWindow.didBecomeKeyNotification,
             NSWindow.didResignKeyNotification,
+            .cueSeekerScrollDebounceSettled,
         ] {
             let token = center.addObserver(
                 forName: name,

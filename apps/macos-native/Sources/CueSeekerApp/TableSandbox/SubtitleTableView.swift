@@ -1477,7 +1477,11 @@ final class SubtitleVirtualTableHeaderView: NSView {
 
     override func mouseEntered(with event: NSEvent) {
         super.mouseEntered(with: event)
-        guard let window, NSApp.isActive, window.isKeyWindow else {
+        guard let window,
+              NSApp.isActive,
+              window.isKeyWindow,
+              !PointerHoverScrollState.shared.isScrolling
+        else {
             return
         }
         updateHoverState(windowLocation: event.locationInWindow)
@@ -1485,12 +1489,19 @@ final class SubtitleVirtualTableHeaderView: NSView {
 
     override func mouseExited(with event: NSEvent) {
         super.mouseExited(with: event)
+        guard !PointerHoverScrollState.shared.isScrolling else {
+            return
+        }
         updateHoverState(windowLocation: event.locationInWindow)
     }
 
     override func mouseMoved(with event: NSEvent) {
         super.mouseMoved(with: event)
-        guard let window, NSApp.isActive, window.isKeyWindow else {
+        guard let window,
+              NSApp.isActive,
+              window.isKeyWindow,
+              !PointerHoverScrollState.shared.isScrolling
+        else {
             return
         }
         updateHoverState(windowLocation: event.locationInWindow)
@@ -1507,17 +1518,23 @@ final class SubtitleVirtualTableHeaderView: NSView {
     func refreshHoverFromWindow() {
         guard !AppCursorVisibility.isCursorHidden,
               !PointerHoverScrollState.shared.isScrolling,
-              let window,
-              NSApp.isActive,
-              window.isKeyWindow
+              let window
         else {
             clearHoverState()
             return
         }
-        guard NSWindow.windowNumber(
-            at: NSEvent.mouseLocation,
-            belowWindowWithWindowNumber: 0
-        ) == window.windowNumber else {
+        let isWindowFocused = (window as? CueSeekerWindow)?.isFocusedForHover
+            ?? (NSApp.isActive && window.isKeyWindow)
+        guard isWindowFocused else {
+            clearHoverState()
+            return
+        }
+        let isPointerOverWindow = (window as? CueSeekerWindow)?.isWindowFocusedOverrideForTesting != nil
+            || NSWindow.windowNumber(
+                at: NSEvent.mouseLocation,
+                belowWindowWithWindowNumber: 0
+            ) == window.windowNumber
+        guard isPointerOverWindow else {
             clearHoverState()
             return
         }
@@ -1541,7 +1558,17 @@ final class SubtitleVirtualTableHeaderView: NSView {
             return
         }
         if windowLocation == nil {
-            guard let window, NSApp.isActive, window.isKeyWindow else {
+            guard !PointerHoverScrollState.shared.isScrolling else {
+                return
+            }
+            guard let window else {
+                isHeaderHovered = false
+                isIndexHeaderHovered = false
+                return
+            }
+            let isWindowFocused = (window as? CueSeekerWindow)?.isFocusedForHover
+                ?? (NSApp.isActive && window.isKeyWindow)
+            guard isWindowFocused else {
                 isHeaderHovered = false
                 isIndexHeaderHovered = false
                 return
@@ -2057,7 +2084,11 @@ final class SubtitleVirtualTableDocumentView: NSView, PointerShapeProviding {
     }
 
     override func mouseMoved(with event: NSEvent) {
-        guard let window, NSApp.isActive, window.isKeyWindow else {
+        guard let window,
+              NSApp.isActive,
+              window.isKeyWindow,
+              !PointerHoverScrollState.shared.isScrolling
+        else {
             return
         }
         coordinator?.handleMouseHover(windowPoint: event.locationInWindow)
@@ -2070,7 +2101,7 @@ final class SubtitleVirtualTableDocumentView: NSView, PointerShapeProviding {
     override func mouseEntered(with event: NSEvent) {}
 
     override func mouseExited(with event: NSEvent) {
-        guard let window else {
+        guard let window, !PointerHoverScrollState.shared.isScrolling else {
             return
         }
         coordinator?.clearHoverUnlessPointerInside(
@@ -4504,13 +4535,17 @@ struct SubtitleTableView: NSViewRepresentable {
             else {
                 return
             }
-            if !NSApp.isActive || !window.isKeyWindow {
+            let isWindowFocused = (window as? CueSeekerWindow)?.isFocusedForHover
+                ?? (NSApp.isActive && window.isKeyWindow)
+            if !isWindowFocused {
                 clearHover()
                 headerView?.clearHoverState()
                 return
             }
             let screenPoint = NSEvent.mouseLocation
-            if NSWindow.windowNumber(at: screenPoint, belowWindowWithWindowNumber: 0) == window.windowNumber {
+            let isPointerOverWindow = (window as? CueSeekerWindow)?.isWindowFocusedOverrideForTesting != nil
+                || NSWindow.windowNumber(at: screenPoint, belowWindowWithWindowNumber: 0) == window.windowNumber
+            if isPointerOverWindow {
                 handleMouseHover(windowPoint: window.mouseLocationOutsideOfEventStream)
             } else {
                 clearHover()
