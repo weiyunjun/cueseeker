@@ -74,36 +74,34 @@ struct ExcerptListCardGrid: View {
         summaries: [ExcerptListSummary],
         openContextMenu: @escaping ([LibraryCardContextMenuItem], CGPoint, String) -> Void
     ) -> some View {
-        LibraryOverviewGrid {
-            ForEach(summaries) { summary in
-                let cardID = String(summary.id)
-                ExcerptListCard(
-                    summary: summary,
-                    highlight: highlight,
-                    isSelected: highlight.isSelected(cardID),
-                    isHovered: highlight.isHovered(cardID),
-                    canDelete: excerptStore.listOverview.lists.count > 1,
-                    onOpen: { onOpen(summary) },
-                    onEdit: { appState.beginEditingExcerptList(summary.list) },
-                    onDelete: { requestDeletion(of: summary) },
-                    openContextMenu: openContextMenu
-                )
-                .background {
-                    if let itemFrameCoordinateSpace {
-                        GeometryReader { proxy in
-                            Color.clear.preference(
-                                key: LibraryItemFramePreferenceKey.self,
-                                value: [
-                                    String(summary.id): proxy.frame(
-                                        in: .named(itemFrameCoordinateSpace)
-                                    )
-                                ]
-                            )
-                        }
+        LibraryOverviewGrid(items: summaries) { summary in
+            let cardID = String(summary.id)
+            ExcerptListCard(
+                summary: summary,
+                highlight: highlight,
+                isSelected: highlight.isSelected(cardID),
+                isHovered: highlight.isHovered(cardID),
+                canDelete: excerptStore.listOverview.lists.count > 1,
+                onOpen: { onOpen(summary) },
+                onEdit: { appState.beginEditingExcerptList(summary.list) },
+                onDelete: { requestDeletion(of: summary) },
+                openContextMenu: openContextMenu
+            )
+            .background {
+                if let itemFrameCoordinateSpace {
+                    GeometryReader { proxy in
+                        Color.clear.preference(
+                            key: LibraryItemFramePreferenceKey.self,
+                            value: [
+                                String(summary.id): proxy.frame(
+                                    in: .named(itemFrameCoordinateSpace)
+                                )
+                            ]
+                        )
                     }
                 }
-                .id(String(summary.id))
             }
+            .id(String(summary.id))
         }
     }
 

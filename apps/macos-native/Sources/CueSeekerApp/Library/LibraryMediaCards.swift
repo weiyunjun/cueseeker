@@ -37,33 +37,31 @@ struct RecentWatchingGrid: View {
                 ) {
                     RecentSectionTitleView(title: entry.section.localizedTitle)
 
-                    LibraryOverviewGrid {
-                        ForEach(entry.items) { item in
-                            LibraryVideoCard(
-                                content: LibraryVideoCardContent(item),
-                                highlight: highlight,
-                                isSelected: highlight.isSelected(item.id),
-                                isHovered: highlight.isHovered(item.id),
-                                actions: .appState(appState),
-                                openContextMenu: openContextMenu,
-                                onOpen: { onOpen(item) }
-                            )
-                            .background {
-                                if let itemFrameCoordinateSpace {
-                                    GeometryReader { proxy in
-                                        Color.clear.preference(
-                                            key: LibraryItemFramePreferenceKey.self,
-                                            value: [
-                                                item.id: proxy.frame(
-                                                    in: .named(itemFrameCoordinateSpace)
-                                                )
-                                            ]
-                                        )
-                                    }
+                    LibraryOverviewGrid(items: entry.items) { item in
+                        LibraryVideoCard(
+                            content: LibraryVideoCardContent(item),
+                            highlight: highlight,
+                            isSelected: highlight.isSelected(item.id),
+                            isHovered: highlight.isHovered(item.id),
+                            actions: .appState(appState),
+                            openContextMenu: openContextMenu,
+                            onOpen: { onOpen(item) }
+                        )
+                        .background {
+                            if let itemFrameCoordinateSpace {
+                                GeometryReader { proxy in
+                                    Color.clear.preference(
+                                        key: LibraryItemFramePreferenceKey.self,
+                                        value: [
+                                            item.id: proxy.frame(
+                                                in: .named(itemFrameCoordinateSpace)
+                                            )
+                                        ]
+                                    )
                                 }
                             }
-                            .id(item.id)
                         }
+                        .id(item.id)
                     }
                 }
             }
@@ -102,33 +100,31 @@ where Item.ID == String {
     private func grid(
         openContextMenu: @escaping ([LibraryCardContextMenuItem], CGPoint, String) -> Void
     ) -> some View {
-        LibraryOverviewGrid {
-            ForEach(items) { item in
-                LibraryVideoCard(
-                    content: content(item),
-                    highlight: highlight,
-                    isSelected: highlight.isSelected(item.id),
-                    isHovered: highlight.isHovered(item.id),
-                    actions: .appState(appState),
-                    openContextMenu: openContextMenu,
-                    onOpen: { onOpen(item) }
-                )
-                .background {
-                    if let itemFrameCoordinateSpace {
-                        GeometryReader { proxy in
-                            Color.clear.preference(
-                                key: LibraryItemFramePreferenceKey.self,
-                                value: [
-                                    item.id: proxy.frame(
-                                        in: .named(itemFrameCoordinateSpace)
-                                    )
-                                ]
-                            )
-                        }
+        LibraryOverviewGrid(items: items) { item in
+            LibraryVideoCard(
+                content: content(item),
+                highlight: highlight,
+                isSelected: highlight.isSelected(item.id),
+                isHovered: highlight.isHovered(item.id),
+                actions: .appState(appState),
+                openContextMenu: openContextMenu,
+                onOpen: { onOpen(item) }
+            )
+            .background {
+                if let itemFrameCoordinateSpace {
+                    GeometryReader { proxy in
+                        Color.clear.preference(
+                            key: LibraryItemFramePreferenceKey.self,
+                            value: [
+                                item.id: proxy.frame(
+                                    in: .named(itemFrameCoordinateSpace)
+                                )
+                            ]
+                        )
                     }
                 }
-                .id(item.id)
             }
+            .id(item.id)
         }
         .onPreferenceChange(LibraryItemFramePreferenceKey.self) { frames in
             guard itemFrameCoordinateSpace != nil else {
@@ -331,18 +327,16 @@ struct CompleteLibraryFolderGrid: View {
 
     var body: some View {
         LibraryCardContextMenuHost { openContextMenu in
-            LibraryOverviewGrid {
-                ForEach(folders) { folder in
-                    LibraryFolderCard(
-                        folder: folder,
-                        highlight: highlight,
-                        isSelected: highlight.isSelected(folder.id),
-                        isHovered: highlight.isHovered(folder.id),
-                        actions: .appState(appState),
-                        openContextMenu: openContextMenu
-                    ) {
-                        onOpen(folder)
-                    }
+            LibraryOverviewGrid(items: folders) { folder in
+                LibraryFolderCard(
+                    folder: folder,
+                    highlight: highlight,
+                    isSelected: highlight.isSelected(folder.id),
+                    isHovered: highlight.isHovered(folder.id),
+                    actions: .appState(appState),
+                    openContextMenu: openContextMenu
+                ) {
+                    onOpen(folder)
                 }
             }
         }

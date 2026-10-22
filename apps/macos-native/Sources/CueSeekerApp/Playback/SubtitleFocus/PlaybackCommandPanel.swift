@@ -83,6 +83,7 @@ struct PlaybackCommandPanel: View {
                         case .recentVideos:
                             PlaybackCommandPanelRecentVideos(
                                 presentation: presentation,
+                                scrollSequence: playback.commandPanelRecentCardScrollSequence,
                                 items: appState.playbackCommandPanelRecentVideos,
                                 onBack: {
                                     appState.returnPlaybackCommandPanelToRoot()
@@ -94,8 +95,7 @@ struct PlaybackCommandPanel: View {
                                 onGridLayoutChange: {
                                     appState
                                         .updatePlaybackCommandPanelRecentCardGridLayout(
-                                            columnCount: $0,
-                                            itemFramesByID: $1
+                                            columnCount: $0
                                         )
                                 },
                                 onSelect: {
@@ -112,6 +112,7 @@ struct PlaybackCommandPanel: View {
                         case .recentExcerpts:
                             PlaybackCommandPanelRecentExcerpts(
                                 presentation: presentation,
+                                scrollSequence: playback.commandPanelRecentCardScrollSequence,
                                 summaries: appState.playbackCommandPanelRecentExcerpts,
                                 onBack: {
                                     appState.returnPlaybackCommandPanelToRoot()
@@ -123,8 +124,7 @@ struct PlaybackCommandPanel: View {
                                 onGridLayoutChange: {
                                     appState
                                         .updatePlaybackCommandPanelRecentCardGridLayout(
-                                            columnCount: $0,
-                                            itemFramesByID: $1
+                                            columnCount: $0
                                         )
                                 },
                                 onSelect: {
@@ -922,13 +922,15 @@ private struct PlaybackCommandPanelSearchReel: View {
 private struct PlaybackCommandPanelRecentCards<Grid: View>: View {
     let title: String
     let presentation: PlaybackCommandPanelPresentation
+    let scrollSequence: UInt64
     /// In display order, so the panel's ordinal and the card the pointer is on
     /// name the same item.
     let itemIDs: [String]
+    let sectionItemCounts: [Int]
     let footerStatus: String
     let onBack: () -> Bool
     let onSynchronize: () -> Void
-    let onGridLayoutChange: (Int, [String: CGRect]) -> Void
+    let onGridLayoutChange: (Int) -> Void
     let onSelect: (Int) -> Void
     let onOpenSelectedItem: () -> Void
     @ViewBuilder let grid: (
@@ -955,7 +957,19 @@ private struct PlaybackCommandPanelRecentCards<Grid: View>: View {
         return itemIDs[ordinal]
     }
 
+    private var scrollRequest: PlaybackMediaSelectionScrollRequest? {
+        guard scrollSequence > 0, let selectedItemID else {
+            return nil
+        }
+        return PlaybackMediaSelectionScrollRequest(
+            sequence: scrollSequence,
+            itemID: selectedItemID
+        )
+    }
+
     var body: some View {
+        let _ = highlight.syncSelectedDuringRender(selectedItemID)
+
         VStack(spacing: 0) {
             PlaybackCommandPanelSecondaryHeader(
                 title: title,
@@ -971,40 +985,53 @@ private struct PlaybackCommandPanelRecentCards<Grid: View>: View {
                 let columnCount = PlaybackCommandPanelCardGrid.columnCount(
                     containerWidth: gridWidth
                 )
+                let isFirstRowSelection: Bool = {
+                    guard let ordinal = presentation.selectedOrdinal,
+                          itemIDs.indices.contains(ordinal)
+                    else {
+                        return false
+                    }
+                    return PlaybackMediaSelectionStore.isFirstRow(
+                        index: ordinal,
+                        itemCount: itemIDs.count,
+                        columnCount: columnCount,
+                        sectionItemCounts: sectionItemCounts
+                    )
+                }()
 
-                ScrollViewReader { proxy in
-                    WorkbenchScrollView {
-                        grid(highlight, coordinateSpaceName) { frames in
-                            itemFramesByID = frames
-                            onGridLayoutChange(columnCount, frames)
-                        }
-                        .environment(\.mediaCardGridContainerWidth, gridWidth)
-                        .padding(
-                            .horizontal,
-                            PlaybackCommandPanelMetrics.contentInset
-                        )
-                        .padding(
-                            .vertical,
-                            WorkbenchControlMetrics.redesignSpacing2
-                        )
+                WorkbenchScrollView {
+                    grid(highlight, coordinateSpaceName) { frames in
+                        itemFramesByID = frames
                     }
+                    .environment(\.mediaCardGridContainerWidth, gridWidth)
+                    .background(alignment: .topLeading) {
+                        PlaybackMediaScrollPositionBridge(
+                            restorationOffsetY: 0,
+                            restoresInitialOffset: false,
+                            scrollRequest: scrollRequest,
+                            isFirstRowSelection: isFirstRowSelection,
+                            itemFramesByID: itemFramesByID,
+                            topPadding: WorkbenchControlMetrics.redesignSpacing2,
+                            bottomPadding: WorkbenchControlMetrics.redesignSpacing2,
+                            onOffsetChanged: { _ in }
+                        )
+                        .frame(width: 0, height: 0)
+                    }
+                    .padding(
+                        .horizontal,
+                        PlaybackCommandPanelMetrics.contentInset
+                    )
+                    .padding(
+                        .vertical,
+                        WorkbenchControlMetrics.redesignSpacing2
+                    )
                     .coordinateSpace(name: coordinateSpaceName)
-                    .task(id: selectedItemID) {
-                        await Task.yield()
-                        guard !Task.isCancelled,
-                              let selectedItemID,
-                              let anchor = PlaybackCommandPanelCardGrid
-                                  .scrollAnchor(
-                                      for: selectedItemID,
-                                      orderedItemIDs: itemIDs,
-                                      itemFramesByID: itemFramesByID,
-                                      viewportHeight: geometry.size.height
-                                  )
-                        else {
-                            return
-                        }
-                        proxy.scrollTo(selectedItemID, anchor: anchor)
-                    }
+                }
+                .onAppear {
+                    onGridLayoutChange(columnCount)
+                }
+                .onChange(of: columnCount) { newColumnCount in
+                    onGridLayoutChange(newColumnCount)
                 }
             }
 
@@ -1074,10 +1101,11 @@ enum PlaybackCommandPanelCardGrid {
 
 private struct PlaybackCommandPanelRecentVideos: View {
     let presentation: PlaybackCommandPanelPresentation
+    let scrollSequence: UInt64
     let items: [RecentLibraryWatchingPresentation]
     let onBack: () -> Bool
     let onSynchronize: () -> Void
-    let onGridLayoutChange: (Int, [String: CGRect]) -> Void
+    let onGridLayoutChange: (Int) -> Void
     let onSelect: (Int) -> Void
     let onOpen: (Int) -> Void
     let onOpenSelectedItem: () -> Void
@@ -1086,7 +1114,12 @@ private struct PlaybackCommandPanelRecentVideos: View {
         PlaybackCommandPanelRecentCards(
             title: L("sidebar.recent_videos"),
             presentation: presentation,
+            scrollSequence: scrollSequence,
             itemIDs: items.map(\.id),
+            sectionItemCounts: RecentTimeSection.group(
+                items,
+                timestamp: \.updatedAt
+            ).map(\.items.count),
             footerStatus: PlaybackCueFooterStatus.videos(totalCount: items.count),
             onBack: onBack,
             onSynchronize: onSynchronize,
@@ -1110,10 +1143,11 @@ private struct PlaybackCommandPanelRecentVideos: View {
 
 private struct PlaybackCommandPanelRecentExcerpts: View {
     let presentation: PlaybackCommandPanelPresentation
+    let scrollSequence: UInt64
     let summaries: [ExcerptListSummary]
     let onBack: () -> Bool
     let onSynchronize: () -> Void
-    let onGridLayoutChange: (Int, [String: CGRect]) -> Void
+    let onGridLayoutChange: (Int) -> Void
     let onSelect: (Int) -> Void
     let onOpen: (Int) -> Void
     let onOpenSelectedItem: () -> Void
@@ -1122,7 +1156,12 @@ private struct PlaybackCommandPanelRecentExcerpts: View {
         PlaybackCommandPanelRecentCards(
             title: L("sidebar.recent_excerpts"),
             presentation: presentation,
+            scrollSequence: scrollSequence,
             itemIDs: summaries.map { String($0.id) },
+            sectionItemCounts: RecentTimeSection.group(
+                summaries,
+                timestamp: \.list.recentPlayedAt
+            ).map(\.items.count),
             footerStatus: PlaybackCueFooterStatus.excerptLists(totalCount: summaries.count),
             onBack: onBack,
             onSynchronize: onSynchronize,

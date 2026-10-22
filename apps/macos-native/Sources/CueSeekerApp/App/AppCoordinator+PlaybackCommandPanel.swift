@@ -192,12 +192,10 @@ extension AppCoordinator {
     }
 
     func updatePlaybackCommandPanelRecentCardGridLayout(
-        columnCount: Int,
-        itemFramesByID: [String: CGRect]
+        columnCount: Int
     ) {
         playback.updateCommandPanelRecentCardGridLayout(
-            columnCount: columnCount,
-            itemFramesByID: itemFramesByID
+            columnCount: columnCount
         )
     }
 
@@ -226,12 +224,15 @@ extension AppCoordinator {
             orderedItemIDs: itemIDs,
             availableItemIDs: Set(itemIDs),
             columnCount: playback.commandPanelRecentCardColumnCount,
-            itemFramesByID: playback.commandPanelRecentCardItemFramesByID
+            sectionItemCounts: playbackCommandPanelRecentCardSectionItemCounts(
+                for: presentation.page
+            )
         ) else {
             return true
         }
 
         presentation.selectedOrdinal = targetOrdinal
+        playback.noteCommandPanelRecentCardSelectionMoved()
         playback.presentCommandPanel(presentation)
         return true
     }
@@ -244,6 +245,25 @@ extension AppCoordinator {
             return playbackCommandPanelRecentVideos.map(\.id)
         case .recentExcerpts:
             return playbackCommandPanelRecentExcerpts.map { String($0.id) }
+        case .root, .searchResults:
+            return []
+        }
+    }
+
+    private func playbackCommandPanelRecentCardSectionItemCounts(
+        for page: PlaybackCommandPanelPage
+    ) -> [Int] {
+        switch page {
+        case .recentVideos:
+            return RecentTimeSection.group(
+                playbackCommandPanelRecentVideos,
+                timestamp: \.updatedAt
+            ).map(\.items.count)
+        case .recentExcerpts:
+            return RecentTimeSection.group(
+                playbackCommandPanelRecentExcerpts,
+                timestamp: \.list.recentPlayedAt
+            ).map(\.items.count)
         case .root, .searchResults:
             return []
         }

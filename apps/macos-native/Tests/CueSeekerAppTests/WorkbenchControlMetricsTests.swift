@@ -306,19 +306,19 @@ func mediaCardGridMetricsAndMinimumWindowColumnCountMatchSpecification() {
     // With Sidebar visible, column count is 5 on 1504x846 with left Dock (~1138px–1143px)
     // or bottom Dock (1208px), and caps at 5 on 1920x1080 (1624px).
     #expect(
-        LibraryOverviewGrid<EmptyView>.columnCount(
+        LibraryOverviewGrid<[SchemaWorkbenchSortOption], EmptyView>.columnCount(
             containerWidth: 1_138,
             maxColumns: WorkbenchControlMetrics.redesignLibraryRecentGridMaxColumnsWithSidebar
         ) == 5
     )
     #expect(
-        LibraryOverviewGrid<EmptyView>.columnCount(
+        LibraryOverviewGrid<[SchemaWorkbenchSortOption], EmptyView>.columnCount(
             containerWidth: 1_208,
             maxColumns: WorkbenchControlMetrics.redesignLibraryRecentGridMaxColumnsWithSidebar
         ) == 5
     )
     #expect(
-        LibraryOverviewGrid<EmptyView>.columnCount(
+        LibraryOverviewGrid<[SchemaWorkbenchSortOption], EmptyView>.columnCount(
             containerWidth: 1_624,
             maxColumns: WorkbenchControlMetrics.redesignLibraryRecentGridMaxColumnsWithSidebar
         ) == 5

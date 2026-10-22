@@ -19,6 +19,7 @@ extension View {
 }
 
 struct LibraryCoverWithProgress: View {
+    @Environment(\.mediaCardCoverSize) private var environmentCoverSize
     let coverPath: String?
     let coverRevision: String?
     let positionMilliseconds: Int
@@ -71,19 +72,36 @@ struct LibraryCoverWithProgress: View {
         )
     }
 
+    @ViewBuilder
     private func progressTrack(progressFraction: Double) -> some View {
-        GeometryReader { proxy in
+        if let environmentCoverSize, environmentCoverSize.width > 0 {
             ZStack(alignment: .leading) {
                 Rectangle()
                     .fill(WorkbenchRedesignColors.libraryProgressTrack)
 
                 Rectangle()
                     .fill(WorkbenchRedesignColors.libraryProgressFill)
-                    .frame(width: proxy.size.width * progressFraction)
+                    .frame(width: environmentCoverSize.width * progressFraction)
             }
+            .frame(
+                width: environmentCoverSize.width,
+                height: WorkbenchLibraryMetrics.progressBarHeight
+            )
+            .frame(maxHeight: .infinity, alignment: .bottom)
+        } else {
+            GeometryReader { proxy in
+                ZStack(alignment: .leading) {
+                    Rectangle()
+                        .fill(WorkbenchRedesignColors.libraryProgressTrack)
+
+                    Rectangle()
+                        .fill(WorkbenchRedesignColors.libraryProgressFill)
+                        .frame(width: proxy.size.width * progressFraction)
+                }
+            }
+            .frame(height: WorkbenchLibraryMetrics.progressBarHeight)
+            .frame(maxHeight: .infinity, alignment: .bottom)
         }
-        .frame(height: WorkbenchLibraryMetrics.progressBarHeight)
-        .frame(maxHeight: .infinity, alignment: .bottom)
     }
 
     private var timeBadgeText: String {
@@ -225,7 +243,8 @@ struct LibraryCachedCoverImage: View {
                     verticalAlignment: imageVerticalAlignment
                 )
             } else if key != nil && !loadFailed {
-                Color.clear
+                Rectangle()
+                    .fill(WorkbenchRedesignColors.libraryCoverPlaceholderBg)
             } else {
                 defaultCover
             }
@@ -261,9 +280,13 @@ struct LibraryCachedCoverImage: View {
         }
 
         if let cached = LibraryCoverImagePipeline.shared.cachedImage(for: key) {
-            activeRequestID = nil
-            loadedImage = LoadedImage(key: key, image: cached)
-            loadFailed = false
+            if activeRequestID != nil {
+                activeRequestID = nil
+            }
+            if loadedImage?.key != key || loadFailed {
+                loadedImage = LoadedImage(key: key, image: cached)
+                loadFailed = false
+            }
             return
         }
 

@@ -82,7 +82,7 @@ final class CardHighlightModel: ObservableObject {
         }
     }
 
-    @Published private(set) var selectedID: String?
+    private(set) var selectedID: String?
     @Published private(set) var hoveredID: String?
 
     var layer: InterfaceLayer = .workbenchPage
@@ -134,6 +134,17 @@ final class CardHighlightModel: ObservableObject {
         guard selectedID != id else {
             return
         }
+        objectWillChange.send()
+        selectedID = id
+    }
+
+    /// Synchronizes `selectedID` during a view render pass when the parent view
+    /// already derives selection from external state, avoiding a 1-frame delay
+    /// from `.onAppear` / `.onChange` without publishing during view updates.
+    func syncSelectedDuringRender(_ id: String?) {
+        guard selectedID != id else {
+            return
+        }
         selectedID = id
     }
 
@@ -151,6 +162,9 @@ final class CardHighlightModel: ObservableObject {
                 showsHand: rawHoveredShowsHand,
                 followsPointer: false
             )
+        }
+        if selectedID != nil && hoveredID == nil {
+            objectWillChange.send()
         }
         selectedID = nil
         hoveredID = nil

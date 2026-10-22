@@ -43,7 +43,8 @@ struct ExcerptListCoverView: View {
                     verticalAlignment: imageVerticalAlignment
                 )
             } else if hasValidPath && !loadFailed {
-                Color.clear
+                Rectangle()
+                    .fill(WorkbenchRedesignColors.libraryCoverPlaceholderBg)
             } else {
                 defaultCover
             }
@@ -84,9 +85,13 @@ struct ExcerptListCoverView: View {
         )
 
         if let cached = LibraryCoverImagePipeline.shared.cachedImage(for: key) {
-            activeRequestID = nil
-            loadedImage = LoadedImage(path: path, image: cached)
-            loadFailed = false
+            if activeRequestID != nil {
+                activeRequestID = nil
+            }
+            if loadedImage?.path != path || loadFailed {
+                loadedImage = LoadedImage(path: path, image: cached)
+                loadFailed = false
+            }
             return
         }
 

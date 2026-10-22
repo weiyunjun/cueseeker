@@ -133,8 +133,9 @@ final class PlaybackStore: ObservableObject {
     @Published private(set) var commandPanelSearchWindow:
         PlaybackCueResultSessionWindowStore?
     private var commandPanelSearchSource: PlaybackCueResultSource?
-    private(set) var commandPanelRecentCardColumnCount = 1
-    private(set) var commandPanelRecentCardItemFramesByID: [String: CGRect] = [:]
+    private(set) var commandPanelRecentCardColumnCount = WorkbenchControlMetrics
+        .redesignLibraryRecentGridMaxColumnsWithoutSidebar
+    private(set) var commandPanelRecentCardScrollSequence: UInt64 = 0
     @Published private(set) var playlistSource: PlaybackPlaylistSource?
     private(set) var playbackSearchPlaylistOrdinal: Int?
     private(set) var playlistPosition: PlaybackPlaylistPosition?
@@ -498,8 +499,7 @@ final class PlaybackStore: ObservableObject {
     }
 
     func updateCommandPanelRecentCardGridLayout(
-        columnCount: Int,
-        itemFramesByID: [String: CGRect]
+        columnCount: Int
     ) {
         guard let page = commandPanelPresentation?.page,
               page.showsRecentCardGrid
@@ -507,7 +507,10 @@ final class PlaybackStore: ObservableObject {
             return
         }
         commandPanelRecentCardColumnCount = max(1, columnCount)
-        commandPanelRecentCardItemFramesByID = itemFramesByID
+    }
+
+    func noteCommandPanelRecentCardSelectionMoved() {
+        commandPanelRecentCardScrollSequence &+= 1
     }
 
     func holdCommandPanelPage(_ page: PlaybackCommandPanelHeldPage) {
@@ -535,8 +538,9 @@ final class PlaybackStore: ObservableObject {
     }
 
     private func resetCommandPanelRecentCardGridLayout() {
-        commandPanelRecentCardColumnCount = 1
-        commandPanelRecentCardItemFramesByID = [:]
+        commandPanelRecentCardColumnCount = WorkbenchControlMetrics
+            .redesignLibraryRecentGridMaxColumnsWithoutSidebar
+        commandPanelRecentCardScrollSequence = 0
     }
 
     private func releaseCommandPanelSearchPreview() {

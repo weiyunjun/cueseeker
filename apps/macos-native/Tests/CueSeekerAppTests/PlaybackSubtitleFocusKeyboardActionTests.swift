@@ -743,25 +743,15 @@ func playbackCommandPanelRecentVideosUsesFourVisualGridDirections() async throws
         presentation.selectedOrdinal = 0
         app.playback.presentCommandPanel(presentation)
         app.updatePlaybackCommandPanelRecentCardGridLayout(
-            columnCount: 3,
-            itemFramesByID: Dictionary(uniqueKeysWithValues: items.indices.map {
-                ordinal in
-                (
-                    items[ordinal].id,
-                    CGRect(
-                        x: CGFloat(ordinal % 3) * 200,
-                        y: CGFloat(ordinal / 3) * 300,
-                        width: 180,
-                        height: 260
-                    )
-                )
-            })
+            columnCount: 3
         )
 
         #expect(app.handlePlaybackKeyDown(keyCode: 124, modifierFlagsRawValue: 0))
         #expect(app.playback.commandPanelPresentation?.selectedOrdinal == 1)
+        #expect(app.playback.commandPanelRecentCardScrollSequence == 1)
         #expect(app.handlePlaybackKeyDown(keyCode: 125, modifierFlagsRawValue: 0))
         #expect(app.playback.commandPanelPresentation?.selectedOrdinal == 4)
+        #expect(app.playback.commandPanelRecentCardScrollSequence == 2)
         #expect(app.handlePlaybackKeyDown(keyCode: 123, modifierFlagsRawValue: 0))
         #expect(app.playback.commandPanelPresentation?.selectedOrdinal == 3)
         #expect(app.handlePlaybackKeyDown(keyCode: 126, modifierFlagsRawValue: 0))
@@ -783,6 +773,25 @@ func playbackCommandPanelRecentVideosUsesFourVisualGridDirections() async throws
         #expect(app.playback.commandPanelPresentation?.selectedOrdinal == 6)
         #expect(app.handlePlaybackKeyDown(keyCode: 125, modifierFlagsRawValue: 0))
         #expect(app.playback.commandPanelPresentation?.selectedOrdinal == 6)
+
+        let nowTimestamp = ISO8601DateFormatter().string(from: Date())
+        let last30DaysTimestamp = ISO8601DateFormatter().string(
+            from: Date().addingTimeInterval(-10 * 86_400)
+        )
+        app.library.testRecentWatchingItems = (0..<9).map { ordinal in
+            keyboardActionRecentVideo(
+                ordinal,
+                updatedAt: ordinal < 5 ? nowTimestamp : last30DaysTimestamp
+            )
+        }
+        presentation.selectedOrdinal = 6
+        app.playback.presentCommandPanel(presentation)
+        app.updatePlaybackCommandPanelRecentCardGridLayout(columnCount: 4)
+
+        #expect(app.handlePlaybackKeyDown(keyCode: 126, modifierFlagsRawValue: 0))
+        #expect(app.playback.commandPanelPresentation?.selectedOrdinal == 4)
+        #expect(app.handlePlaybackKeyDown(keyCode: 124, modifierFlagsRawValue: 0))
+        #expect(app.playback.commandPanelPresentation?.selectedOrdinal == 4)
     }
 }
 
@@ -1604,6 +1613,13 @@ private func keyboardActionPlaylistSearchResult(
 private func keyboardActionRecentVideo(
     _ ordinal: Int
 ) -> RecentLibraryWatchingPresentation {
+    keyboardActionRecentVideo(ordinal, updatedAt: "2026-07-29T00:00:00Z")
+}
+
+private func keyboardActionRecentVideo(
+    _ ordinal: Int,
+    updatedAt: String
+) -> RecentLibraryWatchingPresentation {
     RecentLibraryWatchingPresentation(
         videoFileID: Int64(ordinal + 1),
         subtitleFileID: Int64(ordinal + 101),
@@ -1619,9 +1635,9 @@ private func keyboardActionRecentVideo(
         episodeNumber: ordinal + 1,
         positionMilliseconds: ordinal * 1_000,
         playbackDuration: 100,
-        startedAt: "2026-07-29T00:00:00Z",
+        startedAt: updatedAt,
         completedAt: nil,
-        updatedAt: "2026-07-29T00:00:00Z",
+        updatedAt: updatedAt,
         coverPath: nil,
         coverRevision: nil
     )

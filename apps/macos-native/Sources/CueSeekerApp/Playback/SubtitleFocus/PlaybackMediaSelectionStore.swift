@@ -143,8 +143,7 @@ final class PlaybackMediaSelectionStore: ObservableObject {
                   direction: direction,
                   orderedItemIDs: orderedItemIDs,
                   availableItemIDs: availableItemIDs,
-                  columnCount: columnCount,
-                  itemFramesByID: itemFramesByID
+                  columnCount: columnCount
               )
         else {
             return false
@@ -165,12 +164,19 @@ final class PlaybackMediaSelectionStore: ObservableObject {
         let orderByID = Dictionary(
             uniqueKeysWithValues: orderedItemIDs.enumerated().map { ($1, $0) }
         )
-        itemFramesByID = framesByItemID.filter { orderByID[$0.key] != nil }
+        let newFrames = framesByItemID.filter { orderByID[$0.key] != nil }
+        if newFrames != itemFramesByID, pendingScrollRequest != nil {
+            objectWillChange.send()
+        }
+        itemFramesByID = newFrames
+        let hasNegativeMinY = framesByItemID.values.contains { $0.minY < 0 }
+        let visibleMinY = hasNegativeMinY ? 0 : scrollOffsetY
+        let visibleMaxY = visibleMinY + viewportHeight
         scrollAnchorItemID = framesByItemID
             .filter { itemID, frame in
                 orderByID[itemID] != nil
-                    && frame.maxY > 0
-                    && frame.minY < viewportHeight
+                    && frame.maxY > visibleMinY
+                    && frame.minY < visibleMaxY
             }
             .min { lhs, rhs in
                 if abs(lhs.value.minY - rhs.value.minY) > 0.5 {
@@ -240,156 +246,180 @@ final class PlaybackMediaSelectionStore: ObservableObject {
         orderedItemIDs: [String],
         availableItemIDs: Set<String>,
         columnCount: Int,
-        itemFramesByID: [String: CGRect]
+        sectionItemCounts: [Int]? = nil
     ) -> Int? {
         guard orderedItemIDs.indices.contains(selectedIndex) else {
             return nil
         }
-        let resolvedColumnCount = max(1, columnCount)
-        if let frameTarget = frameTargetIndex(
-            from: selectedIndex,
-            direction: direction,
-            orderedItemIDs: orderedItemIDs,
-            availableItemIDs: availableItemIDs,
-            itemFramesByID: itemFramesByID
-        ) {
-            return frameTarget
-        }
-
-        let selectedRow = selectedIndex / resolvedColumnCount
-        let selectedColumn = selectedIndex % resolvedColumnCount
-
-        let candidates = orderedItemIDs.indices.compactMap { index -> Candidate? in
-            guard index != selectedIndex,
-                  availableItemIDs.contains(orderedItemIDs[index])
-            else {
-                return nil
-            }
-
-            let row = index / resolvedColumnCount
-            let column = index % resolvedColumnCount
-            let rowDistance = abs(row - selectedRow)
-            let columnDistance = abs(column - selectedColumn)
-
-            switch direction {
-            case .left:
-                guard row == selectedRow, column < selectedColumn else {
-                    return nil
-                }
-            case .right:
-                guard row == selectedRow, column > selectedColumn else {
-                    return nil
-                }
-            case .up:
-                guard row < selectedRow else {
-                    return nil
-                }
-            case .down:
-                guard row > selectedRow else {
-                    return nil
-                }
-            }
-
-            return Candidate(
-                index: index,
-                squaredDistance: rowDistance * rowDistance
-                    + columnDistance * columnDistance,
-                primaryDistance: direction == .left || direction == .right
-                    ? columnDistance
-                    : rowDistance,
-                crossDistance: direction == .left || direction == .right
-                    ? rowDistance
-                    : columnDistance
-            )
-        }
-
-        return candidates.min { lhs, rhs in
-            if lhs.squaredDistance != rhs.squaredDistance {
-                return lhs.squaredDistance < rhs.squaredDistance
-            }
-            if lhs.primaryDistance != rhs.primaryDistance {
-                return lhs.primaryDistance < rhs.primaryDistance
-            }
-            if lhs.crossDistance != rhs.crossDistance {
-                return lhs.crossDistance < rhs.crossDistance
-            }
-            return lhs.index < rhs.index
-        }?.index
-    }
-
-    private static func frameTargetIndex(
-        from selectedIndex: Int,
-        direction: PlaybackMediaSelectionDirection,
-        orderedItemIDs: [String],
-        availableItemIDs: Set<String>,
-        itemFramesByID: [String: CGRect]
-    ) -> Int? {
-        let selectedID = orderedItemIDs[selectedIndex]
-        guard let selectedFrame = itemFramesByID[selectedID] else {
+        let rows = makeRows(
+            itemCount: orderedItemIDs.count,
+            columnCount: columnCount,
+            sectionItemCounts: sectionItemCounts
+        )
+        guard let selectedRow = rows.firstIndex(where: { $0.contains(selectedIndex) }),
+              let selectedColumn = rows[selectedRow].firstIndex(of: selectedIndex)
+        else {
             return nil
         }
-        let selectedCenter = CGPoint(
-            x: selectedFrame.midX,
-            y: selectedFrame.midY
-        )
+        let row = rows[selectedRow]
 
-        return orderedItemIDs.indices.compactMap { index -> FrameCandidate? in
-            guard index != selectedIndex,
-                  availableItemIDs.contains(orderedItemIDs[index]),
-                  let frame = itemFramesByID[orderedItemIDs[index]]
-            else {
+        switch direction {
+        case .left:
+            for column in (0..<selectedColumn).reversed() {
+                let candidate = row[column]
+                if availableItemIDs.contains(orderedItemIDs[candidate]) {
+                    return candidate
+                }
+            }
+            return nil
+        case .right:
+            for column in (selectedColumn + 1)..<row.count {
+                let candidate = row[column]
+                if availableItemIDs.contains(orderedItemIDs[candidate]) {
+                    return candidate
+                }
+            }
+            return nil
+        case .up:
+            guard selectedRow > 0 else {
                 return nil
             }
-            let dx = frame.midX - selectedCenter.x
-            let dy = frame.midY - selectedCenter.y
-            let primaryDistance: CGFloat
-            let crossDistance: CGFloat
-            switch direction {
-            case .left:
-                guard dx < -0.5, abs(dx) >= abs(dy) else {
-                    return nil
+            for targetRowIndex in (0..<selectedRow).reversed() {
+                if let candidate = availableIndex(
+                    in: rows[targetRowIndex],
+                    preferredColumn: selectedColumn,
+                    orderedItemIDs: orderedItemIDs,
+                    availableItemIDs: availableItemIDs
+                ) {
+                    return candidate
                 }
-                primaryDistance = abs(dx)
-                crossDistance = abs(dy)
-            case .right:
-                guard dx > 0.5, abs(dx) >= abs(dy) else {
-                    return nil
-                }
-                primaryDistance = abs(dx)
-                crossDistance = abs(dy)
-            case .up:
-                guard dy < -0.5, abs(dy) >= abs(dx) else {
-                    return nil
-                }
-                primaryDistance = abs(dy)
-                crossDistance = abs(dx)
-            case .down:
-                guard dy > 0.5, abs(dy) >= abs(dx) else {
-                    return nil
-                }
-                primaryDistance = abs(dy)
-                crossDistance = abs(dx)
             }
-            return FrameCandidate(
-                index: index,
-                squaredDistance: dx * dx + dy * dy,
-                primaryDistance: primaryDistance,
-                crossDistance: crossDistance
-            )
+            return nil
+        case .down:
+            guard selectedRow + 1 < rows.count else {
+                return nil
+            }
+            for targetRowIndex in (selectedRow + 1)..<rows.count {
+                if let candidate = availableIndex(
+                    in: rows[targetRowIndex],
+                    preferredColumn: selectedColumn,
+                    orderedItemIDs: orderedItemIDs,
+                    availableItemIDs: availableItemIDs
+                ) {
+                    return candidate
+                }
+            }
+            return nil
         }
-        .min { lhs, rhs in
-            if abs(lhs.squaredDistance - rhs.squaredDistance) > 0.5 {
-                return lhs.squaredDistance < rhs.squaredDistance
+    }
+
+    static func isFirstRow(
+        index: Int,
+        itemCount: Int,
+        columnCount: Int,
+        sectionItemCounts: [Int]? = nil
+    ) -> Bool {
+        let rows = makeRows(
+            itemCount: itemCount,
+            columnCount: columnCount,
+            sectionItemCounts: sectionItemCounts
+        )
+        return rows.first?.contains(index) == true
+    }
+
+    static func targetScrollOffsetY(
+        for itemID: String,
+        isFirstRow: Bool = false,
+        itemFramesByID: [String: CGRect],
+        currentOffsetY: CGFloat,
+        viewportHeight: CGFloat,
+        topPadding: CGFloat = 0,
+        bottomPadding: CGFloat = 0
+    ) -> CGFloat? {
+        guard viewportHeight > 0,
+              let frame = itemFramesByID[itemID]
+        else {
+            return nil
+        }
+        let visibleMinY = max(0, currentOffsetY)
+        let visibleMaxY = visibleMinY + viewportHeight
+
+        if frame.minY < visibleMinY {
+            if isFirstRow {
+                return 0
             }
-            if abs(lhs.primaryDistance - rhs.primaryDistance) > 0.5 {
-                return lhs.primaryDistance < rhs.primaryDistance
+            return max(0, frame.minY - topPadding)
+        }
+        if frame.maxY > visibleMaxY {
+            return max(0, frame.maxY + bottomPadding - viewportHeight)
+        }
+        return nil
+    }
+
+    private static func makeRows(
+        itemCount: Int,
+        columnCount: Int,
+        sectionItemCounts: [Int]?
+    ) -> [[Int]] {
+        guard itemCount > 0 else {
+            return []
+        }
+        let resolvedColumnCount = max(1, columnCount)
+        let counts: [Int]
+        if let sectionItemCounts,
+           !sectionItemCounts.isEmpty,
+           sectionItemCounts.reduce(0, +) == itemCount {
+            counts = sectionItemCounts
+        } else {
+            counts = [itemCount]
+        }
+
+        var rows: [[Int]] = []
+        var nextIndex = 0
+        for sectionCount in counts where sectionCount > 0 {
+            let sectionEnd = min(itemCount, nextIndex + sectionCount)
+            var rowStart = nextIndex
+            while rowStart < sectionEnd {
+                let rowEnd = min(sectionEnd, rowStart + resolvedColumnCount)
+                rows.append(Array(rowStart..<rowEnd))
+                rowStart = rowEnd
             }
-            if abs(lhs.crossDistance - rhs.crossDistance) > 0.5 {
-                return lhs.crossDistance < rhs.crossDistance
+            nextIndex = sectionEnd
+        }
+        return rows
+    }
+
+    private static func availableIndex(
+        in row: [Int],
+        preferredColumn: Int,
+        orderedItemIDs: [String],
+        availableItemIDs: Set<String>
+    ) -> Int? {
+        guard !row.isEmpty else {
+            return nil
+        }
+        let clampedColumn = min(max(0, preferredColumn), row.count - 1)
+        let preferredIndex = row[clampedColumn]
+        if availableItemIDs.contains(orderedItemIDs[preferredIndex]) {
+            return preferredIndex
+        }
+        for offset in 1..<row.count {
+            let leftColumn = clampedColumn - offset
+            if leftColumn >= 0 {
+                let candidate = row[leftColumn]
+                if availableItemIDs.contains(orderedItemIDs[candidate]) {
+                    return candidate
+                }
             }
-            return lhs.index < rhs.index
-        }?
-        .index
+            let rightColumn = clampedColumn + offset
+            if rightColumn < row.count {
+                let candidate = row[rightColumn]
+                if availableItemIDs.contains(orderedItemIDs[candidate]) {
+                    return candidate
+                }
+            }
+        }
+        return nil
     }
 
     private func requestScrollToSelected() {
@@ -402,18 +432,4 @@ final class PlaybackMediaSelectionStore: ObservableObject {
             itemID: selectedItemID
         )
     }
-}
-
-private struct Candidate {
-    let index: Int
-    let squaredDistance: Int
-    let primaryDistance: Int
-    let crossDistance: Int
-}
-
-private struct FrameCandidate {
-    let index: Int
-    let squaredDistance: CGFloat
-    let primaryDistance: CGFloat
-    let crossDistance: CGFloat
 }

@@ -15,6 +15,7 @@ struct PlaybackLibraryOverlay: View {
         self.store = store
         _library = ObservedObject(wrappedValue: store.libraryStore)
         self.onOpenEpisode = onOpenEpisode
+        store.activate()
     }
 
     var body: some View {
@@ -64,7 +65,6 @@ private struct PlaybackLibraryEpisodeList: View {
     let onOpenEpisode: (CompleteLibraryVideoPresentation) -> Bool
 
     private let coordinateSpaceName = "playback-library-episodes-scroll"
-    @State private var scrollTask: Task<Void, Never>?
 
     init(
         store: PlaybackLibrarySessionStore,
@@ -77,44 +77,41 @@ private struct PlaybackLibraryEpisodeList: View {
         self.onOpenEpisode = onOpenEpisode
     }
 
+    private var isFirstRowSelection: Bool {
+        guard let selectedItemID = selection.selectedItemID,
+              let selectedIndex = selection.orderedItemIDs.firstIndex(of: selectedItemID)
+        else {
+            return false
+        }
+        return PlaybackMediaSelectionStore.isFirstRow(
+            index: selectedIndex,
+            itemCount: selection.orderedItemIDs.count,
+            columnCount: selection.columnCount
+        )
+    }
+
     var body: some View {
         GeometryReader { geometry in
-            ScrollViewReader { scrollProxy in
-                WorkbenchScrollView {
-                    content(viewportHeight: geometry.size.height)
-                        .environment(
-                            \.mediaCardGridContainerWidth,
-                            max(
-                                0,
-                                geometry.size.width
-                                    - PlaybackSubtitleFocusMetrics.contentInset * 2
-                            )
+            WorkbenchScrollView {
+                content(viewportHeight: geometry.size.height)
+                    .environment(
+                        \.mediaCardGridContainerWidth,
+                        max(
+                            0,
+                            geometry.size.width
+                                - PlaybackSubtitleFocusMetrics.contentInset * 2
                         )
-                        .padding(.horizontal, PlaybackSubtitleFocusMetrics.contentInset)
-                        .padding(.bottom, PlaybackSubtitleFocusMetrics.contentInset)
-                        .frame(maxWidth: .infinity, alignment: .topLeading)
-                }
-                .coordinateSpace(name: coordinateSpaceName)
-                .onAppear {
-                    updateGridLayout(containerWidth: geometry.size.width)
-                    scheduleScroll(
-                        selection.pendingScrollRequest,
-                        using: scrollProxy
                     )
-                }
-                .onChange(of: geometry.size.width) { width in
-                    updateGridLayout(containerWidth: width)
-                }
-                .onChange(of: selection.scrollRequest) { request in
-                    scheduleScroll(
-                        request,
-                        using: scrollProxy
-                    )
-                }
-                .onDisappear {
-                    scrollTask?.cancel()
-                    scrollTask = nil
-                }
+                    .padding(.horizontal, PlaybackSubtitleFocusMetrics.contentInset)
+                    .padding(.bottom, PlaybackSubtitleFocusMetrics.contentInset)
+                    .frame(maxWidth: .infinity, alignment: .topLeading)
+                    .coordinateSpace(name: coordinateSpaceName)
+            }
+            .onAppear {
+                updateGridLayout(containerWidth: geometry.size.width)
+            }
+            .onChange(of: geometry.size.width) { width in
+                updateGridLayout(containerWidth: width)
             }
         }
     }
@@ -154,32 +151,19 @@ private struct PlaybackLibraryEpisodeList: View {
                 PlaybackMediaScrollPositionBridge(
                     restorationOffsetY: selection.scrollOffsetY,
                     restoresInitialOffset: selection.pendingScrollRequest == nil,
-                    onOffsetChanged: selection.recordScrollOffsetY
+                    scrollRequest: selection.pendingScrollRequest,
+                    isFirstRowSelection: isFirstRowSelection,
+                    itemFramesByID: selection.itemFramesByID,
+                    topPadding: 0,
+                    bottomPadding: PlaybackSubtitleFocusMetrics.contentInset,
+                    onOffsetChanged: selection.recordScrollOffsetY,
+                    onScrollRequestHandled: selection.markScrollRequestHandled
                 )
                 .frame(width: 0, height: 0)
             }
         } else {
             // The folder kept no video the library still holds.
             PlaybackEmptyHint(L("playback.playlist.left_library"))
-        }
-    }
-
-    private func scheduleScroll(
-        _ request: PlaybackMediaSelectionScrollRequest?,
-        using proxy: ScrollViewProxy
-    ) {
-        scrollTask?.cancel()
-        guard let request else {
-            scrollTask = nil
-            return
-        }
-        scrollTask = Task { @MainActor in
-            await Task.yield()
-            guard !Task.isCancelled else {
-                return
-            }
-            proxy.scrollTo(request.itemID)
-            selection.markScrollRequestHandled(sequence: request.sequence)
         }
     }
 

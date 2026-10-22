@@ -39,11 +39,21 @@ func playbackMediaSelectionUsesVisualGridDirectionsAndScrollTargets() throws {
     #expect(selection.pendingScrollRequest == nil)
 
     #expect(selection.move(.right))
-    #expect(selection.selectedItemID == "4")
+    #expect(selection.selectedItemID == "2")
     let rightRequest = try #require(selection.scrollRequest)
-    #expect(rightRequest.itemID == "4")
+    #expect(rightRequest.itemID == "2")
     #expect(rightRequest.sequence > initialRequest.sequence)
     #expect(selection.pendingScrollRequest == rightRequest)
+    #expect(!selection.move(.right))
+
+    #expect(selection.move(.down))
+    #expect(selection.selectedItemID == "5")
+    #expect(selection.scrollRequest?.itemID == "5")
+    #expect(!selection.move(.down))
+
+    #expect(selection.move(.left))
+    #expect(selection.selectedItemID == "4")
+    #expect(selection.scrollRequest?.itemID == "4")
 
     #expect(selection.move(.left))
     #expect(selection.selectedItemID == "3")
@@ -292,4 +302,107 @@ func playbackMediaHoverAndRightClickDoNotMoveSelectionOrScroll() throws {
     #expect((selection.scrollRequest?.sequence ?? 0) > initialRequest.sequence)
     selection.invalidate()
     #expect(selection.selectedItemID == nil)
+}
+
+@MainActor
+@Test
+func playbackMediaSelectionTargetIndexRespectsSectionRowBoundaries() {
+    let orderedItemIDs = (0..<9).map(String.init)
+    let availableItemIDs = Set(orderedItemIDs)
+    let sectionItemCounts = [5, 4]
+
+    for index in [6, 7, 8] {
+        #expect(
+            PlaybackMediaSelectionStore.targetIndex(
+                from: index,
+                direction: .up,
+                orderedItemIDs: orderedItemIDs,
+                availableItemIDs: availableItemIDs,
+                columnCount: 4,
+                sectionItemCounts: sectionItemCounts
+            ) == 4
+        )
+    }
+
+    #expect(
+        PlaybackMediaSelectionStore.targetIndex(
+            from: 4,
+            direction: .right,
+            orderedItemIDs: orderedItemIDs,
+            availableItemIDs: availableItemIDs,
+            columnCount: 4,
+            sectionItemCounts: sectionItemCounts
+        ) == nil
+    )
+
+    for index in [1, 2, 3] {
+        #expect(
+            PlaybackMediaSelectionStore.targetIndex(
+                from: index,
+                direction: .down,
+                orderedItemIDs: orderedItemIDs,
+                availableItemIDs: availableItemIDs,
+                columnCount: 4,
+                sectionItemCounts: sectionItemCounts
+            ) == 4
+        )
+    }
+}
+
+@MainActor
+@Test
+func playbackMediaSelectionTargetScrollOffsetYRespectsViewportAndFirstRow() {
+    let frames: [String: CGRect] = [
+        "0": CGRect(x: 0, y: 28, width: 220, height: 156),
+        "4": CGRect(x: 0, y: 180, width: 220, height: 156),
+        "8": CGRect(x: 0, y: 300, width: 220, height: 156),
+    ]
+
+    #expect(
+        PlaybackMediaSelectionStore.targetScrollOffsetY(
+            for: "4",
+            isFirstRow: false,
+            itemFramesByID: frames,
+            currentOffsetY: 100,
+            viewportHeight: 300,
+            topPadding: 8,
+            bottomPadding: 8
+        ) == nil
+    )
+
+    #expect(
+        PlaybackMediaSelectionStore.targetScrollOffsetY(
+            for: "8",
+            isFirstRow: false,
+            itemFramesByID: frames,
+            currentOffsetY: 100,
+            viewportHeight: 300,
+            topPadding: 8,
+            bottomPadding: 8
+        ) == 164
+    )
+
+    #expect(
+        PlaybackMediaSelectionStore.targetScrollOffsetY(
+            for: "4",
+            isFirstRow: false,
+            itemFramesByID: frames,
+            currentOffsetY: 200,
+            viewportHeight: 300,
+            topPadding: 8,
+            bottomPadding: 8
+        ) == 172
+    )
+
+    #expect(
+        PlaybackMediaSelectionStore.targetScrollOffsetY(
+            for: "0",
+            isFirstRow: true,
+            itemFramesByID: frames,
+            currentOffsetY: 120,
+            viewportHeight: 300,
+            topPadding: 8,
+            bottomPadding: 8
+        ) == 0
+    )
 }

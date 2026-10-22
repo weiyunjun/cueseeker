@@ -9,6 +9,10 @@ private struct MediaCardGridContainerWidthKey: EnvironmentKey {
     static let defaultValue: CGFloat? = nil
 }
 
+private struct MediaCardCoverSizeKey: EnvironmentKey {
+    static let defaultValue: CGSize? = nil
+}
+
 extension EnvironmentValues {
     var isWorkbenchSidebarVisible: Bool {
         get { self[IsWorkbenchSidebarVisibleKey.self] }
@@ -18,6 +22,11 @@ extension EnvironmentValues {
     var mediaCardGridContainerWidth: CGFloat? {
         get { self[MediaCardGridContainerWidthKey.self] }
         set { self[MediaCardGridContainerWidthKey.self] = newValue }
+    }
+
+    var mediaCardCoverSize: CGSize? {
+        get { self[MediaCardCoverSizeKey.self] }
+        set { self[MediaCardCoverSizeKey.self] = newValue }
     }
 }
 
@@ -92,15 +101,21 @@ struct LibraryOverviewLayout<Content: View>: View {
     }
 }
 
-struct LibraryOverviewGrid<Content: View>: View {
+struct LibraryOverviewGrid<Data: RandomAccessCollection, ItemContent: View>: View
+where Data.Element: Identifiable {
     @Environment(\.interfaceLayerContext) private var layerContext
     @Environment(\.isWorkbenchSidebarVisible) private var isWorkbenchSidebarVisible
     @Environment(\.mediaCardGridContainerWidth) private var environmentContainerWidth
     @State private var measuredContainerWidth: CGFloat = 0
-    private let content: Content
+    private let items: [Data.Element]
+    private let content: (Data.Element) -> ItemContent
 
-    init(@ViewBuilder content: () -> Content) {
-        self.content = content()
+    init(
+        items: Data,
+        @ViewBuilder content: @escaping (Data.Element) -> ItemContent
+    ) {
+        self.items = Array(items)
+        self.content = content
     }
 
     static func columnCount(
@@ -123,45 +138,89 @@ struct LibraryOverviewGrid<Content: View>: View {
             : WorkbenchControlMetrics.redesignLibraryRecentGridMaxColumnsWithoutSidebar
     }
 
-    private var columns: [GridItem] {
-        let effectiveWidth = environmentContainerWidth ?? measuredContainerWidth
+    private var effectiveWidth: CGFloat {
+        environmentContainerWidth ?? measuredContainerWidth
+    }
+
+    private var resolvedColumnCount: Int {
         guard effectiveWidth > 0 else {
-            return [
-                GridItem(
-                    .adaptive(
-                        minimum: WorkbenchControlMetrics.redesignLibraryRecentCardMinWidth,
-                        maximum: .infinity
-                    ),
-                    spacing: WorkbenchControlMetrics.redesignLibraryRecentGridGap,
-                    alignment: .topLeading
-                )
-            ]
+            return maxColumns
         }
-        let resolvedColumnCount = Self.columnCount(
+        return Self.columnCount(
             containerWidth: effectiveWidth,
             maxColumns: maxColumns
         )
-        return Array(
-            repeating: GridItem(
-                .flexible(
-                    minimum: WorkbenchControlMetrics.redesignLibraryRecentCardMinWidth,
-                    maximum: .infinity
-                ),
-                spacing: WorkbenchControlMetrics.redesignLibraryRecentGridGap,
-                alignment: .topLeading
-            ),
-            count: resolvedColumnCount
+    }
+
+    private var cardWidth: CGFloat? {
+        guard effectiveWidth > 0 else {
+            return nil
+        }
+        let gap = WorkbenchControlMetrics.redesignLibraryRecentGridGap
+        let totalGap = CGFloat(max(0, resolvedColumnCount - 1)) * gap
+        return max(
+            0,
+            (effectiveWidth - totalGap) / CGFloat(max(1, resolvedColumnCount))
         )
     }
 
+    private var coverSize: CGSize? {
+        guard let cardWidth else {
+            return nil
+        }
+        let coverWidth = max(
+            0,
+            cardWidth - WorkbenchControlMetrics.redesignLibraryMediaCardHoverPadding * 2
+        )
+        let coverHeight = coverWidth / WorkbenchControlMetrics.redesignLibraryCoverAspectRatio
+        guard coverWidth > 0 && coverHeight > 0 else {
+            return nil
+        }
+        return CGSize(width: coverWidth, height: coverHeight)
+    }
+
+    private var rows: [[Data.Element]] {
+        let count = max(1, resolvedColumnCount)
+        guard !items.isEmpty else {
+            return []
+        }
+        return stride(from: 0, to: items.count, by: count).map { start in
+            Array(items[start..<min(start + count, items.count)])
+        }
+    }
+
     var body: some View {
-        LazyVGrid(
-            columns: columns,
+        VStack(
             alignment: .leading,
             spacing: WorkbenchControlMetrics.redesignLibraryRecentGridGap
         ) {
-            content
+            ForEach(Array(rows.enumerated()), id: \.offset) { _, rowItems in
+                HStack(
+                    alignment: .top,
+                    spacing: WorkbenchControlMetrics.redesignLibraryRecentGridGap
+                ) {
+                    if let cardWidth {
+                        ForEach(rowItems) { item in
+                            content(item)
+                                .frame(width: cardWidth, alignment: .topLeading)
+                        }
+                    } else {
+                        ForEach(rowItems) { item in
+                            content(item)
+                                .frame(maxWidth: .infinity, alignment: .topLeading)
+                        }
+                        if rowItems.count < resolvedColumnCount {
+                            ForEach(0..<(resolvedColumnCount - rowItems.count), id: \.self) { _ in
+                                Color.clear
+                                    .frame(maxWidth: .infinity, maxHeight: 0)
+                                    .accessibilityHidden(true)
+                            }
+                        }
+                    }
+                }
+            }
         }
+        .environment(\.mediaCardCoverSize, coverSize)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background {
             if environmentContainerWidth == nil {
@@ -180,6 +239,7 @@ struct LibraryOverviewGrid<Content: View>: View {
 }
 
 struct LibraryCoverFrame<Content: View>: View {
+    @Environment(\.mediaCardCoverSize) private var environmentCoverSize
     private let content: Content
 
     init(@ViewBuilder content: () -> Content) {
@@ -187,21 +247,33 @@ struct LibraryCoverFrame<Content: View>: View {
     }
 
     var body: some View {
-        Color.clear
-            .aspectRatio(
-                WorkbenchControlMetrics.redesignLibraryCoverAspectRatio,
-                contentMode: .fit
-            )
-            .overlay {
+        Group {
+            if let environmentCoverSize,
+               environmentCoverSize.width > 0,
+               environmentCoverSize.height > 0 {
                 content
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .frame(
+                        width: environmentCoverSize.width,
+                        height: environmentCoverSize.height
+                    )
+            } else {
+                Color.clear
+                    .aspectRatio(
+                        WorkbenchControlMetrics.redesignLibraryCoverAspectRatio,
+                        contentMode: .fit
+                    )
+                    .overlay {
+                        content
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    }
             }
-            .clipShape(
-                RoundedRectangle(
-                    cornerRadius: WorkbenchControlMetrics.redesignLibraryCoverRadius,
-                    style: .continuous
-                )
+        }
+        .clipShape(
+            RoundedRectangle(
+                cornerRadius: WorkbenchControlMetrics.redesignLibraryCoverRadius,
+                style: .continuous
             )
+        )
     }
 }
 
@@ -303,27 +375,43 @@ struct LibraryCoverImageFillLayout: Equatable {
 }
 
 struct LibraryCoverFillImage: View {
+    @Environment(\.mediaCardCoverSize) private var environmentCoverSize
     let image: CGImage
     var verticalAlignment: LibraryCoverImageFillLayout.VerticalAlignment = .top
 
     var body: some View {
-        GeometryReader { proxy in
-            let layout = LibraryCoverImageFillLayout.resolve(
-                sourceSize: CGSize(
-                    width: image.width,
-                    height: image.height
-                ),
-                containerSize: proxy.size,
-                verticalAlignment: verticalAlignment
-            )
-            Image(decorative: image, scale: 1)
-                .resizable()
+        if let environmentCoverSize,
+           environmentCoverSize.width > 0,
+           environmentCoverSize.height > 0 {
+            renderedImage(containerSize: environmentCoverSize)
                 .frame(
-                    width: layout.renderedSize.width,
-                    height: layout.renderedSize.height
+                    width: environmentCoverSize.width,
+                    height: environmentCoverSize.height,
+                    alignment: .topLeading
                 )
-                .offset(layout.offset)
+        } else {
+            GeometryReader { proxy in
+                renderedImage(containerSize: proxy.size)
+            }
         }
+    }
+
+    private func renderedImage(containerSize: CGSize) -> some View {
+        let layout = LibraryCoverImageFillLayout.resolve(
+            sourceSize: CGSize(
+                width: image.width,
+                height: image.height
+            ),
+            containerSize: containerSize,
+            verticalAlignment: verticalAlignment
+        )
+        return Image(decorative: image, scale: 1)
+            .resizable()
+            .frame(
+                width: layout.renderedSize.width,
+                height: layout.renderedSize.height
+            )
+            .offset(layout.offset)
     }
 }
 
