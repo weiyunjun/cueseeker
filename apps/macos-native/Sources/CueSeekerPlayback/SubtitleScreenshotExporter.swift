@@ -5,43 +5,6 @@ import Foundation
 import ImageIO
 import UniformTypeIdentifiers
 
-public struct SubtitleScreenshotExportItem: Equatable, Sendable {
-    public let displayTitle: String
-    public let videoPath: String
-    public let subtitlePath: String
-    public let subtitleFormat: SubtitleFormat
-    public let startMilliseconds: Int
-    public let endMilliseconds: Int
-    public let cueDisplayOrder: Int?
-    public let cueEventIndex: Int?
-    public let textLines: [String]
-    public let subtitleSource: PlaybackSubtitleSource?
-
-    public init(
-        displayTitle: String,
-        videoPath: String,
-        subtitlePath: String,
-        subtitleFormat: SubtitleFormat,
-        startMilliseconds: Int,
-        endMilliseconds: Int,
-        cueDisplayOrder: Int? = nil,
-        cueEventIndex: Int? = nil,
-        textLines: [String],
-        subtitleSource: PlaybackSubtitleSource? = nil
-    ) {
-        self.displayTitle = displayTitle
-        self.videoPath = videoPath
-        self.subtitlePath = subtitlePath
-        self.subtitleFormat = subtitleFormat
-        self.startMilliseconds = max(0, startMilliseconds)
-        self.endMilliseconds = max(max(0, startMilliseconds), endMilliseconds)
-        self.cueDisplayOrder = cueDisplayOrder
-        self.cueEventIndex = cueEventIndex
-        self.textLines = textLines
-        self.subtitleSource = subtitleSource
-    }
-}
-
 public struct SubtitleCollageRenderedGroup: @unchecked Sendable {
     let image: CGImage
     let subtitleBands: [ClosedRange<Int>]
@@ -74,8 +37,6 @@ public enum SubtitleScreenshotExportError: Error, CustomStringConvertible {
     case imageDecodeFailed(String)
     case imageContextFailed
     case pngWriteFailed(String)
-    case unsupportedSubtitleFormat(String)
-    case invalidCollageItems
     case processFailed(String, Int32, String)
 
     public var description: String {
@@ -92,10 +53,6 @@ public enum SubtitleScreenshotExportError: Error, CustomStringConvertible {
             "Could not create image rendering context."
         case .pngWriteFailed(let path):
             "Could not write PNG file: \(path)"
-        case .unsupportedSubtitleFormat(let format):
-            "Unsupported subtitle screenshot format: \(format)"
-        case .invalidCollageItems:
-            "Collage export requires selected Cues from one subtitle file and no more than 50 items."
         case .processFailed(let executable, let status, let output):
             "\(executable) exited with status \(status). \(output)"
         }
@@ -117,81 +74,6 @@ public enum SubtitleScreenshotExporter {
         let subtitleBands: [SubtitleBand]
     }
 
-    private struct PreparedSRTSource: Sendable {
-        let source: PlaybackSubtitleSource
-        let cues: [PlaybackSubtitleCue]
-    }
-
-    public static func defaultScreenshotFileName(for item: SubtitleScreenshotExportItem) -> String {
-        "\(item.displayTitle)-\(timeString(milliseconds: item.startMilliseconds))-\(timeString(milliseconds: item.endMilliseconds)).png"
-    }
-
-    static func defaultScreenshotFileNames(
-        for items: [SubtitleScreenshotExportItem]
-    ) -> [String] {
-        let baseNames = items.map { defaultScreenshotFileName(for: $0) }
-        let indexesByBaseName = Dictionary(grouping: baseNames.indices) {
-            baseNames[$0]
-        }
-        let uniqueBaseNames = indexesByBaseName.compactMap { baseName, indexes in
-            indexes.count == 1 ? baseName : nil
-        }
-        var usedNames = Set(uniqueBaseNames)
-        var resolvedNames = baseNames
-
-        for baseName in indexesByBaseName.keys.sorted() {
-            guard let indexes = indexesByBaseName[baseName], indexes.count > 1 else {
-                continue
-            }
-            let sortedIndexes = indexes.sorted { lhs, rhs in
-                stableTimelinePrecedes(
-                    items[lhs],
-                    lhsInputOrdinal: lhs,
-                    items[rhs],
-                    rhsInputOrdinal: rhs
-                )
-            }
-            let stem = baseName.hasSuffix(".png")
-                ? String(baseName.dropLast(4))
-                : baseName
-            for (collisionOrdinal, itemIndex) in sortedIndexes.enumerated() {
-                let suffix = String(format: "cue-%02d", collisionOrdinal + 1)
-                var candidate = "\(stem)-\(suffix).png"
-                var fallbackOrdinal = 2
-                while usedNames.contains(candidate) {
-                    candidate = "\(stem)-\(suffix)-\(fallbackOrdinal).png"
-                    fallbackOrdinal += 1
-                }
-                resolvedNames[itemIndex] = candidate
-                usedNames.insert(candidate)
-            }
-        }
-
-        return resolvedNames
-    }
-
-    public static func defaultScreenshotFolderName(exportedAt: Date = Date()) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.dateFormat = "yyyy-MM-dd HH.mm"
-        return "CueSeeker-\(formatter.string(from: exportedAt))"
-    }
-
-    public static func defaultCollageFileName(for items: [SubtitleScreenshotExportItem]) -> String {
-        guard let first = sortedByTimeline(items).first else {
-            return "CueSeeker-Collage-0.png"
-        }
-
-        let startMilliseconds = items.map(\.startMilliseconds).min() ?? first.startMilliseconds
-        let endMilliseconds = items.map(\.endMilliseconds).max() ?? first.endMilliseconds
-        return defaultCollageFileName(
-            displayTitle: first.displayTitle,
-            startMilliseconds: startMilliseconds,
-            endMilliseconds: endMilliseconds,
-            cueCount: items.count
-        )
-    }
-
     public static func defaultCollageFileName(
         displayTitle: String,
         plan: SubtitleCollageSelectionPlan
@@ -211,69 +93,6 @@ public enum SubtitleScreenshotExporter {
                 .max() ?? first.endMilliseconds,
             cueCount: plan.selectedCueCount
         )
-    }
-
-    public static func canExportCollage(_ items: [SubtitleScreenshotExportItem]) -> Bool {
-        guard !items.isEmpty, items.count <= 50 else {
-            return false
-        }
-
-        let subtitlePaths = Set(items.map {
-            URL.fromMediaPath($0.subtitlePath).mediaPath
-        })
-        return subtitlePaths.count == 1
-    }
-
-    public static func exportScreenshot(
-        item: SubtitleScreenshotExportItem,
-        to destinationURL: URL,
-        srtSubtitleStyle: SRTSubtitleStyle
-    ) async throws {
-        try await exportScreenshots(items: [item], toDirectory: destinationURL.deletingLastPathComponent(), explicitSingleDestinationURL: destinationURL, srtSubtitleStyle: srtSubtitleStyle)
-    }
-
-    public static func exportScreenshots(
-        items: [SubtitleScreenshotExportItem],
-        toDirectory directoryURL: URL,
-        srtSubtitleStyle: SRTSubtitleStyle
-    ) async throws {
-        try await exportScreenshots(items: items, toDirectory: directoryURL, explicitSingleDestinationURL: nil, srtSubtitleStyle: srtSubtitleStyle)
-    }
-
-    public static func exportCollage(
-        items: [SubtitleScreenshotExportItem],
-        to destinationURL: URL,
-        srtSubtitleStyle: SRTSubtitleStyle
-    ) async throws {
-        guard canExportCollage(items) else {
-            throw SubtitleScreenshotExportError.invalidCollageItems
-        }
-
-        guard !items.isEmpty else {
-            throw SubtitleScreenshotExportError.emptyItems
-        }
-
-        guard let ffmpegURL = ffmpegExecutableURL() else {
-            throw SubtitleScreenshotExportError.ffmpegNotFound
-        }
-
-        var renderedFrames: [RenderedSubtitleFrame] = []
-        let sortedItems = sortedByTimeline(items)
-        let preparedSRTSources = try await prepareSRTSources(for: sortedItems)
-
-        for item in sortedItems {
-            renderedFrames.append(try await renderedSubtitleFrame(
-                item: item,
-                ffmpegURL: ffmpegURL,
-                preparedSRTSources: preparedSRTSources,
-                srtSubtitleStyle: srtSubtitleStyle
-            ))
-        }
-
-        guard let collage = collageComposition(from: renderedFrames) else {
-            throw SubtitleScreenshotExportError.imageContextFailed
-        }
-        try exportCollage(image: collage.image, to: destinationURL)
     }
 
     public static func exportCollage(
@@ -369,78 +188,6 @@ public enum SubtitleScreenshotExporter {
         return collage
     }
 
-    private static func exportScreenshots(
-        items: [SubtitleScreenshotExportItem],
-        toDirectory directoryURL: URL,
-        explicitSingleDestinationURL: URL?,
-        srtSubtitleStyle: SRTSubtitleStyle
-    ) async throws {
-        guard !items.isEmpty else {
-            throw SubtitleScreenshotExportError.emptyItems
-        }
-
-        guard let ffmpegURL = ffmpegExecutableURL() else {
-            throw SubtitleScreenshotExportError.ffmpegNotFound
-        }
-
-        let defaultFileNames = defaultScreenshotFileNames(for: items)
-        let preparedSRTSources = try await prepareSRTSources(for: items)
-        for (index, item) in items.enumerated() {
-            let renderedFrame = try await renderedSubtitleFrame(
-                item: item,
-                ffmpegURL: ffmpegURL,
-                preparedSRTSources: preparedSRTSources,
-                srtSubtitleStyle: srtSubtitleStyle
-            )
-            let destinationURL = explicitSingleDestinationURL
-                ?? directoryURL.appendingPathComponent(defaultFileNames[index])
-            try writePNG(renderedFrame.image, to: destinationURL)
-        }
-    }
-
-    private static func prepareSRTSources(
-        for items: [SubtitleScreenshotExportItem]
-    ) async throws -> [PreparedSRTSource] {
-        var sources: [PlaybackSubtitleSource] = []
-        for item in items {
-            let source = subtitleSource(for: item)
-            guard source.format == .srt else { continue }
-            let normalized = normalizedSRTSource(source)
-            if !sources.contains(normalized) {
-                sources.append(normalized)
-            }
-        }
-        return try await Task.detached(priority: .userInitiated) {
-            try sources.map {
-                PreparedSRTSource(
-                    source: $0,
-                    cues: try SRTSubtitleRenderer.loadPlaybackCues(from: $0)
-                )
-            }
-        }.value
-    }
-
-    private static func renderedSubtitleFrame(
-        item: SubtitleScreenshotExportItem,
-        ffmpegURL: URL,
-        preparedSRTSources: [PreparedSRTSource],
-        srtSubtitleStyle: SRTSubtitleStyle
-    ) async throws -> RenderedSubtitleFrame {
-        let timestampMilliseconds = midpointMilliseconds(for: item)
-        let frameImage = try await videoFrame(
-            videoPath: item.videoPath,
-            timestampMilliseconds: timestampMilliseconds,
-            ffmpegURL: ffmpegURL
-        )
-        return try renderSubtitleFrame(
-            item: item,
-            timestampMilliseconds: timestampMilliseconds,
-            frameImage: frameImage,
-            preparedSRTSources: preparedSRTSources,
-            srtSubtitleStyle: srtSubtitleStyle
-        )
-    }
-
     private static func videoFrame(
         videoPath: String,
         timestampMilliseconds: Int,
@@ -478,91 +225,6 @@ public enum SubtitleScreenshotExporter {
             throw SubtitleScreenshotExportError.missingFrameImage(videoPath)
         }
         return try loadImage(from: frameData, sourceDescription: videoPath)
-    }
-
-    private static func subtitleSource(
-        for item: SubtitleScreenshotExportItem
-    ) -> PlaybackSubtitleSource {
-        item.subtitleSource ?? PlaybackSubtitleSource(
-            url: URL.fromMediaPath(item.subtitlePath),
-            format: item.subtitleFormat.usesASSSemantics ? .ass : .srt,
-            matchedVideoURL: URL.fromMediaPath(item.videoPath),
-            preparationTimeWindow: PlaybackSubtitleTimeWindow(
-                startMilliseconds: item.startMilliseconds,
-                endMilliseconds: item.endMilliseconds
-            )
-        )
-    }
-
-    private static func normalizedSRTSource(
-        _ source: PlaybackSubtitleSource
-    ) -> PlaybackSubtitleSource {
-        PlaybackSubtitleSource(
-            url: source.url.standardizedMediaURL,
-            format: .srt,
-            matchedVideoURL: source.matchedVideoURL,
-            renderCacheDatabaseURL: source.renderCacheDatabaseURL
-        )
-    }
-
-    private static func renderSubtitleFrame(
-        item: SubtitleScreenshotExportItem,
-        timestampMilliseconds: Int,
-        frameImage: CGImage,
-        preparedSRTSources: [PreparedSRTSource],
-        srtSubtitleStyle: SRTSubtitleStyle
-    ) throws -> RenderedSubtitleFrame {
-        let width = frameImage.width
-        let height = frameImage.height
-        let source = subtitleSource(for: item)
-
-        if source.format == .srt {
-            let normalizedSource = normalizedSRTSource(source)
-            guard let preparedSource = preparedSRTSources.first(where: {
-                $0.source == normalizedSource
-            }) else {
-                throw SubtitleScreenshotExportError.imageContextFailed
-            }
-            return try renderSRTFrame(
-                cues: preparedSource.cues,
-                timestampMilliseconds: timestampMilliseconds,
-                frameImage: frameImage,
-                style: srtSubtitleStyle
-            )
-        }
-
-        let session = try makeASSSession(
-            source: source,
-            timestampMilliseconds: timestampMilliseconds,
-            frameWidth: width,
-            frameHeight: height
-        )
-        defer {
-            session.close()
-        }
-
-        let output = try session.renderFrame(atTimestampMilliseconds: timestampMilliseconds)
-        let bands = subtitleBands(
-            fromRGBAData: output.rgbaData as Data,
-            width: width,
-            height: height,
-            stride: output.stride
-        )
-
-        guard let overlayImage = rgbaImage(
-            data: output.rgbaData as Data,
-            width: output.width,
-            height: output.height,
-            stride: output.stride
-        ) else {
-            throw SubtitleScreenshotExportError.imageContextFailed
-        }
-
-        guard let composedImage = compose(baseImage: frameImage, overlayImage: overlayImage) else {
-            throw SubtitleScreenshotExportError.imageContextFailed
-        }
-
-        return RenderedSubtitleFrame(image: composedImage, subtitleBands: bands)
     }
 
     private static func renderSRTFrame(
@@ -810,70 +472,6 @@ public enum SubtitleScreenshotExporter {
         return signatures
     }
 
-    private static func makeASSSession(
-        source: PlaybackSubtitleSource,
-        timestampMilliseconds: Int,
-        frameWidth: Int,
-        frameHeight: Int
-    ) throws -> SFXASSRendererSession {
-        guard source.format == .ass else {
-            throw SubtitleScreenshotExportError.unsupportedSubtitleFormat(
-                source.format.rawValue
-            )
-        }
-        let requestedFontNames = try? ASSPlaybackFontIntentProvider.requestedFontNames(
-            sourcePath: source.url.mediaPath,
-            renderCacheDatabaseURL: source.renderCacheDatabaseURL
-        )
-
-        if let segment = try indexedRenderSegment(
-                source: source,
-                timestampMilliseconds: timestampMilliseconds
-           )
-        {
-            let renderScript = ASSFontAliasResolver.shared.rewriteRenderScript(
-                segment.scriptText,
-                requestedFontNames: requestedFontNames
-            )
-            return try SFXASSRendererSession(
-                assScript: renderScript,
-                sourceIdentifier: "\(source.url.mediaPath)#\(segment.startMilliseconds)-\(segment.endMilliseconds)",
-                frameWidth: frameWidth,
-                frameHeight: frameHeight
-            )
-        }
-
-        let sourceScript = try SubtitleTextDecoder.decode(
-            contentsOf: source.url,
-            format: .ass
-        )
-        let renderScript = ASSFontAliasResolver.shared.rewriteRenderScript(
-            sourceScript,
-            requestedFontNames: requestedFontNames
-        )
-        return try SFXASSRendererSession(
-            assScript: renderScript,
-            sourceIdentifier: source.url.mediaPath,
-            frameWidth: frameWidth,
-            frameHeight: frameHeight
-        )
-    }
-
-    private static func indexedRenderSegment(
-        source: PlaybackSubtitleSource,
-        timestampMilliseconds: Int
-    ) throws -> ASSRenderSegment? {
-        guard let renderCacheDatabaseURL = source.renderCacheDatabaseURL else {
-            return nil
-        }
-
-        let database = try PlaybackSubtitleDatabase(path: renderCacheDatabaseURL)
-        return try database.assRenderSegment(
-            forSubtitleFile: source.url,
-            atMilliseconds: timestampMilliseconds
-        )
-    }
-
     private static func subtitleBands(
         fromRGBAData data: Data,
         width: Int,
@@ -1089,56 +687,6 @@ public enum SubtitleScreenshotExporter {
         guard CGImageDestinationFinalize(destination) else {
             throw SubtitleScreenshotExportError.pngWriteFailed(url.path)
         }
-    }
-
-    private static func midpointMilliseconds(for item: SubtitleScreenshotExportItem) -> Int {
-        (item.startMilliseconds + item.endMilliseconds) / 2
-    }
-
-    static func _sortedByTimelineForTesting(
-        _ items: [SubtitleScreenshotExportItem]
-    ) -> [SubtitleScreenshotExportItem] {
-        sortedByTimeline(items)
-    }
-
-    private static func sortedByTimeline(
-        _ items: [SubtitleScreenshotExportItem]
-    ) -> [SubtitleScreenshotExportItem] {
-        items.enumerated().sorted { lhs, rhs in
-            stableTimelinePrecedes(
-                lhs.element,
-                lhsInputOrdinal: lhs.offset,
-                rhs.element,
-                rhsInputOrdinal: rhs.offset
-            )
-        }.map(\.element)
-    }
-
-    private static func stableTimelinePrecedes(
-        _ lhs: SubtitleScreenshotExportItem,
-        lhsInputOrdinal: Int,
-        _ rhs: SubtitleScreenshotExportItem,
-        rhsInputOrdinal: Int
-    ) -> Bool {
-        if lhs.startMilliseconds != rhs.startMilliseconds {
-            return lhs.startMilliseconds < rhs.startMilliseconds
-        }
-        if lhs.endMilliseconds != rhs.endMilliseconds {
-            return lhs.endMilliseconds < rhs.endMilliseconds
-        }
-
-        let lhsDisplayOrder = lhs.cueDisplayOrder ?? Int.max
-        let rhsDisplayOrder = rhs.cueDisplayOrder ?? Int.max
-        if lhsDisplayOrder != rhsDisplayOrder {
-            return lhsDisplayOrder < rhsDisplayOrder
-        }
-
-        let lhsEventIndex = lhs.cueEventIndex ?? Int.max
-        let rhsEventIndex = rhs.cueEventIndex ?? Int.max
-        if lhsEventIndex != rhsEventIndex {
-            return lhsEventIndex < rhsEventIndex
-        }
-        return lhsInputOrdinal < rhsInputOrdinal
     }
 
     private static func timeString(milliseconds: Int) -> String {

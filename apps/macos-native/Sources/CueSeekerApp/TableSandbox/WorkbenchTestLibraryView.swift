@@ -629,18 +629,13 @@ private extension WorkbenchTestLibraryView {
 
 
 private enum WorkbenchTestLibraryMetrics {
-    static let pageHorizontalPadding =
-        WorkbenchControlMetrics.redesignWorkbenchPageHorizontalPadding
     static let pageTopPadding =
         WorkbenchControlMetrics.redesignWorkbenchPageTopPadding
     static let pageBottomPadding =
         WorkbenchControlMetrics.redesignWorkbenchPageBottomPadding
     static let sectionSpacing = WorkbenchControlMetrics.redesignSpacing4
-    static let sectionTitleSize = WorkbenchControlMetrics.redesignFontSizeSectionTitle
 
     static let recentCardGap = WorkbenchControlMetrics.redesignSpacing2
-    static let mediaCardHoverPadding = WorkbenchControlMetrics.redesignLibraryMediaCardHoverPadding
-    static let mediaCardHoverRadius = WorkbenchControlMetrics.redesignLibraryMediaCardHoverRadius
 
     static let coverHoverScale = WorkbenchControlMetrics.redesignLibraryCoverHoverScale
     static let coverHoverDuration = WorkbenchControlMetrics.redesignLibraryCoverHoverDuration

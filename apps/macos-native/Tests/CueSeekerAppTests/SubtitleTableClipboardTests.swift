@@ -47,6 +47,7 @@ func subtitleTableClipboardCopiesCrossHourTimeRangeWithFullFormat() {
         displayTitle: "Episode 01",
         startTime: "15:18",
         endTime: "01:16:32",
+        timeRange: "00:15:18 - 01:16:32",
         cues: "cue"
     )
 

@@ -884,27 +884,37 @@ private final class CueGroupRefreshScopeMountedHarness {
             )
             app.activateWorkbenchPanelMode(.search)
         case .excerpt:
-            let sources = cueGroupRefreshScopeExcerptSources(
+            let results = cueGroupRefreshScopeSearchResults(
                 subtitlePath: subtitleURL.path,
                 videoPath: videoURL.path,
                 rowCount: 200
             )
+            let cueContentsByID = Dictionary(
+                uniqueKeysWithValues: results.map { ($0.entryID, $0.cueContent) }
+            )
+            let relations = results.map {
+                ExcerptRelation(
+                    id: $0.entryID,
+                    listID: ExcerptListIdentity.defaultListID,
+                    cueID: $0.entryID,
+                    createdAt: "2026-07-12T00:00:00Z"
+                )
+            }
             app.excerpt.setActiveListID(ExcerptListIdentity.defaultListID)
             app.workbenchLayout.navigate(
                 to: .excerptList(id: ExcerptListIdentity.defaultListID)
             )
-            app.excerpt.tableRowStore.hydrateExcerptRows(
-                sources,
-                startIndex: 0,
-                totalRowCount: sources.count,
+            app.excerpt.tableRowStore.updateResidentExcerptRelations(
+                relations,
+                cueContentProvider: { cueContentsByID[$0] },
                 tableName: "excerpt",
                 probeSurface: .excerpt,
                 probeScope: uiProbeScope
             )
             app.excerpt.installTableResultExcerptIDs(
-                sources.map { $0.excerpt.id }
+                relations.map(\.id)
             )
-            app.excerpt.markTableRowsLoaded(totalSavedRowCount: sources.count)
+            app.excerpt.markTableRowsLoaded(totalSavedRowCount: relations.count)
             app.activateWorkbenchPanelMode(.excerpt)
         }
 
@@ -1183,46 +1193,6 @@ private func cueGroupRefreshScopeSearchResults(
             cueLines: [group[2]],
             cueGroupLines: group,
             languages: [.japanese],
-        )
-    }
-}
-
-private func cueGroupRefreshScopeExcerptSources(
-    subtitlePath: String,
-    videoPath: String,
-    rowCount: Int
-) -> [TableSandboxExcerptRowSource] {
-    (0..<rowCount).map { index in
-        let group = [
-            "context 0 for \(index)",
-            "context 1 for \(index)",
-            "primary \(index)",
-        ]
-        return TableSandboxExcerptRowSource(
-            excerpt: Excerpt(
-                id: Int64(index + 1),
-                subtitlePath: subtitlePath,
-                subtitleFormat: .ass,
-                videoPath: videoPath,
-                videoName: "Episode.mkv",
-                startMilliseconds: index * 2_000,
-                endMilliseconds: index * 2_000 + 1_000,
-                cueEventIndex: index * 3 + 2,
-                cueDisplayOrder: 2,
-                content: group[2],
-                isValid: true,
-                createdAt: "2026-07-12T00:00:00Z"
-            ),
-            displayTitle: "Episode",
-            dateAddedText: "26-07-12 00:00",
-            languages: [.japanese],
-            cuePresentation: ExcerptCuePresentation(
-                cueID: Int64(index + 1_000),
-                cueGroupID: Int64(index + 1),
-                primaryGroupIndex: 2,
-                cueGroupTexts: group,
-                languages: [.japanese],
-            )
         )
     }
 }

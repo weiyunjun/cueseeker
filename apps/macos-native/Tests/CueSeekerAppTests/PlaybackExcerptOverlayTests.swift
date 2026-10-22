@@ -158,11 +158,7 @@ func playbackExcerptDispatchUsesCurrentWorkbenchResultOrder() throws {
     let app = AppCoordinator(databaseURL: databaseURL)
     let fixtures = (0..<3).map(playbackSharedExcerptFixture)
     let store = playbackSharedExcerptStore(fixtures)
-    app.excerpt.tableRowStore.updateExcerptRows(
-        fixtures.map(playbackSharedExcerptRowSource),
-        tableName: "excerpt"
-    )
-    app.excerpt.installTableResultExcerptIDs(fixtures.map(\.excerpt.id))
+    installPlaybackSharedExcerptFixtures(fixtures, in: app.excerpt)
     let item = PlaybackCueResultItem(
         excerpt: fixtures[1].excerpt,
         cuePresentation: fixtures[1].presentation,
@@ -372,25 +368,61 @@ private func playbackSharedExcerptStore(
     _ fixtures: [PlaybackSharedExcerptFixture]
 ) -> ExcerptStore {
     let store = ExcerptStore()
-    store.tableRowStore.updateExcerptRows(
-        fixtures.map(playbackSharedExcerptRowSource),
+    installPlaybackSharedExcerptFixtures(fixtures, in: store)
+    return store
+}
+
+@MainActor
+private func installPlaybackSharedExcerptFixtures(
+    _ fixtures: [PlaybackSharedExcerptFixture],
+    in store: ExcerptStore
+) {
+    let relations = fixtures.map { fixture in
+        ExcerptRelation(
+            id: fixture.excerpt.id,
+            listID: ExcerptListIdentity.defaultListID,
+            cueID: fixture.presentation.cueID ?? fixture.excerpt.id,
+            createdAt: fixture.excerpt.createdAt
+        )
+    }
+    let cueContentsByID = Dictionary(
+        uniqueKeysWithValues: fixtures.map { fixture in
+            let cueID = fixture.presentation.cueID ?? fixture.excerpt.id
+            return (
+                cueID,
+                CueContent(
+                    cueID: cueID,
+                    cueGroupID: fixture.presentation.cueGroupID ?? cueID,
+                    subtitleFileID: fixture.excerpt.subtitleFileID,
+                    cueEventIndex: fixture.excerpt.cueEventIndex ?? 0,
+                    cueDisplayOrder: fixture.excerpt.cueDisplayOrder ?? 0,
+                    primaryGroupIndex: fixture.presentation.primaryGroupIndex ?? 0,
+                    subtitlePath: fixture.excerpt.subtitlePath,
+                    subtitleFormat: fixture.excerpt.subtitleFormat,
+                    videoPath: fixture.excerpt.videoPath,
+                    videoName: fixture.excerpt.videoName,
+                    displayTitle: fixture.excerpt.displayTitle,
+                    timeRange: fixture.excerpt.timeRange,
+                    startMilliseconds: fixture.excerpt.startMilliseconds,
+                    endMilliseconds: fixture.excerpt.endMilliseconds,
+                    content: fixture.excerpt.content,
+                    cueLines: fixture.excerpt.cueLines,
+                    cueGroupLines: fixture.presentation.cueGroupTexts,
+                    languages: fixture.presentation.languages
+                )
+            )
+        }
+    )
+    store.tableRowStore.updateResidentExcerptRelations(
+        relations,
+        resolvedExcerptsByID: Dictionary(
+            uniqueKeysWithValues: fixtures.map { ($0.excerpt.id, $0.excerpt) }
+        ),
+        cueContentProvider: { cueContentsByID[$0] },
         tableName: "excerpt"
     )
     store.installTableResultExcerptIDs(fixtures.map(\.excerpt.id))
     store.markTableRowsLoaded(totalSavedRowCount: fixtures.count)
-    return store
-}
-
-private func playbackSharedExcerptRowSource(
-    _ fixture: PlaybackSharedExcerptFixture
-) -> TableSandboxExcerptRowSource {
-    TableSandboxExcerptRowSource(
-        excerpt: fixture.excerpt,
-        displayTitle: fixture.excerpt.videoName,
-        dateAddedText: fixture.excerpt.createdAt,
-        languages: [.japanese],
-        cuePresentation: fixture.presentation
-    )
 }
 
 private func playbackDatabaseExcerpt(

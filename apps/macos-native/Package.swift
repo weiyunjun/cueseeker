@@ -212,8 +212,7 @@ let package = Package(
         .executableTarget(
             name: "SearchBench",
             dependencies: ["CueSeekerCore"],
-            path: "Sources/SearchBench",
-            exclude: ["TestThumbnails.swift"]
+            path: "Sources/SearchBench"
         ),
         .testTarget(
             name: "CueSeekerCoreTests",

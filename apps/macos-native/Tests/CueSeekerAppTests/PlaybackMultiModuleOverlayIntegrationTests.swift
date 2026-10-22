@@ -133,10 +133,7 @@ func playbackMultiModuleStopCancelsSessionWorkButPreservesFeatureStores() async 
         fixture.detail.folderPath: .completed,
     ]
     app.search.replaceResidentResults(fixture.searchResults)
-    app.excerpt.tableRowStore.updateExcerptRows(
-        [playbackMultiModuleExcerptRow(fixture.excerpt)],
-        tableName: "excerpt"
-    )
+    installPlaybackMultiModuleExcerpt(fixture.excerpt, in: app.excerpt)
 
     let probe = PlaybackMultiModuleCancellationProbe()
     let playlistItems = fixture.searchResults.enumerated().map {
@@ -335,24 +332,49 @@ private func playbackMultiModuleFeatureLibrary(
 @MainActor
 private func playbackMultiModuleExcerptStore(_ excerpt: Excerpt) -> ExcerptStore {
     let store = ExcerptStore()
-    store.tableRowStore.updateExcerptRows(
-        [playbackMultiModuleExcerptRow(excerpt)],
+    installPlaybackMultiModuleExcerpt(excerpt, in: store)
+    return store
+}
+
+@MainActor
+private func installPlaybackMultiModuleExcerpt(
+    _ excerpt: Excerpt,
+    in store: ExcerptStore
+) {
+    let relation = ExcerptRelation(
+        id: excerpt.id,
+        listID: ExcerptListIdentity.defaultListID,
+        cueID: excerpt.id,
+        createdAt: excerpt.createdAt
+    )
+    let cueContent = CueContent(
+        cueID: excerpt.id,
+        cueGroupID: excerpt.id,
+        subtitleFileID: excerpt.subtitleFileID,
+        cueEventIndex: excerpt.cueEventIndex ?? 0,
+        cueDisplayOrder: excerpt.cueDisplayOrder ?? 0,
+        primaryGroupIndex: 0,
+        subtitlePath: excerpt.subtitlePath,
+        subtitleFormat: excerpt.subtitleFormat,
+        videoPath: excerpt.videoPath,
+        videoName: excerpt.videoName,
+        displayTitle: excerpt.displayTitle,
+        timeRange: excerpt.timeRange,
+        startMilliseconds: excerpt.startMilliseconds,
+        endMilliseconds: excerpt.endMilliseconds,
+        content: excerpt.content,
+        cueLines: excerpt.cueLines,
+        cueGroupLines: [excerpt.content],
+        languages: [.unknown]
+    )
+    store.tableRowStore.updateResidentExcerptRelations(
+        [relation],
+        resolvedExcerptsByID: [excerpt.id: excerpt],
+        cueContentProvider: { $0 == excerpt.id ? cueContent : nil },
         tableName: "excerpt"
     )
     store.installTableResultExcerptIDs([excerpt.id])
     store.markTableRowsLoaded(totalSavedRowCount: 1)
-    return store
-}
-
-private func playbackMultiModuleExcerptRow(
-    _ excerpt: Excerpt
-) -> TableSandboxExcerptRowSource {
-    TableSandboxExcerptRowSource(
-        excerpt: excerpt,
-        displayTitle: excerpt.videoName,
-        dateAddedText: excerpt.createdAt,
-        languages: [.unknown],
-    )
 }
 
 @MainActor

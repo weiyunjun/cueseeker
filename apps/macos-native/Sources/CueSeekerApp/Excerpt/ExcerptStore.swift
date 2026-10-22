@@ -296,8 +296,9 @@ final class ExcerptStore: ObservableObject {
         tableResultRowCount = 0
         tableResultSnapshotID = UUID()
         tableResultExcerptIDs = nil
-        tableRowStore.updateExcerptRows(
+        tableRowStore.updateResidentExcerptRelations(
             [],
+            cueContentProvider: { _ in nil },
             tableName: tableName,
             probeSurface: .excerpt,
             probeScope: uiProbeScope

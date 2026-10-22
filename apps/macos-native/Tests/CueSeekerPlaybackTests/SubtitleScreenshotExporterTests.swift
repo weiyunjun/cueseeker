@@ -5,58 +5,7 @@ import CueSeekerCore
 @testable import CueSeekerPlayback
 
 @Test
-func subtitleScreenshotDefaultFilenameUsesDisplayTitleAndCueTimeRange() {
-    let item = SubtitleScreenshotExportItem(
-        displayTitle: "Ave Mujica - 01",
-        videoPath: "/tmp/video.mkv",
-        subtitlePath: "/tmp/video.ass",
-        subtitleFormat: .ass,
-        startMilliseconds: 30_100,
-        endMilliseconds: 34_999,
-        textLines: ["大丈夫"]
-    )
-
-    #expect(SubtitleScreenshotExporter.defaultScreenshotFileName(for: item) == "Ave Mujica - 01-00.30-00.34.png")
-}
-
-@Test
-func subtitleScreenshotDefaultFilenameIncludesHourWhenPresent() {
-    let item = SubtitleScreenshotExportItem(
-        displayTitle: "Long Show - 12",
-        videoPath: "/tmp/video.mkv",
-        subtitlePath: "/tmp/video.ass",
-        subtitleFormat: .ass,
-        startMilliseconds: 4_532_000,
-        endMilliseconds: 4_538_000,
-        textLines: ["Hello"]
-    )
-
-    #expect(SubtitleScreenshotExporter.defaultScreenshotFileName(for: item) == "Long Show - 12-01.15.32-01.15.38.png")
-}
-
-@Test
 func subtitleScreenshotCollageFilenameUsesTimelineBoundsAndCount() throws {
-    let first = SubtitleScreenshotExportItem(
-        displayTitle: "Show - 01",
-        videoPath: "/tmp/video.mkv",
-        subtitlePath: "/tmp/video.ass",
-        subtitleFormat: .ass,
-        startMilliseconds: 9_000,
-        endMilliseconds: 10_000,
-        textLines: ["First"]
-    )
-    let second = SubtitleScreenshotExportItem(
-        displayTitle: "Show - 01",
-        videoPath: "/tmp/video.mkv",
-        subtitlePath: "/tmp/video.ass",
-        subtitleFormat: .ass,
-        startMilliseconds: 5_000,
-        endMilliseconds: 12_000,
-        textLines: ["Second"]
-    )
-
-    #expect(SubtitleScreenshotExporter.defaultCollageFileName(for: [first, second]) == "Show - 01-00.05-00.12-2.png")
-
     let plan = try SubtitleCollageSelectionPlan(selectedCues: [
         SubtitleFocusCue(
             id: 1,
@@ -85,126 +34,6 @@ func subtitleScreenshotCollageFilenameUsesTimelineBoundsAndCount() throws {
             plan: plan
         ) == "Show - 01-00.05-00.12-2.png"
     )
-}
-
-@Test
-func subtitleScreenshotCollageRequiresOneStandardizedSubtitleFileAndAtMostFiftyItems() {
-    let baseItem = SubtitleScreenshotExportItem(
-        displayTitle: "Show - 01",
-        videoPath: "/tmp/video.mkv",
-        subtitlePath: "/tmp/video.ass",
-        subtitleFormat: .ass,
-        startMilliseconds: 1_000,
-        endMilliseconds: 2_000,
-        textLines: ["Line"]
-    )
-    let sameSubtitle = SubtitleScreenshotExportItem(
-        displayTitle: "Show - 01",
-        videoPath: "/tmp/other.mkv",
-        subtitlePath: "/tmp/./video.ass",
-        subtitleFormat: .ass,
-        startMilliseconds: 3_000,
-        endMilliseconds: 4_000,
-        textLines: ["Line"]
-    )
-    let otherSubtitle = SubtitleScreenshotExportItem(
-        displayTitle: "Show - 02",
-        videoPath: "/tmp/video.mkv",
-        subtitlePath: "/tmp/other.ass",
-        subtitleFormat: .ass,
-        startMilliseconds: 5_000,
-        endMilliseconds: 6_000,
-        textLines: ["Line"]
-    )
-
-    #expect(!SubtitleScreenshotExporter.canExportCollage([]))
-    #expect(SubtitleScreenshotExporter.canExportCollage([baseItem]))
-    #expect(SubtitleScreenshotExporter.canExportCollage([baseItem, sameSubtitle]))
-    #expect(!SubtitleScreenshotExporter.canExportCollage([baseItem, otherSubtitle]))
-    #expect(!SubtitleScreenshotExporter.canExportCollage(Array(repeating: baseItem, count: 51)))
-    #expect(
-        SubtitleScreenshotExportError.invalidCollageItems.description
-            == "Collage export requires selected Cues from one subtitle file and no more than 50 items."
-    )
-}
-
-@Test
-func subtitleScreenshotBatchFilenamesDeterministicallyDisambiguateSameTimeCues() {
-    let upperCue = subtitleScreenshotTestItem(
-        displayTitle: "Show - 01",
-        cueDisplayOrder: 0,
-        cueEventIndex: 20
-    )
-    let lowerCue = subtitleScreenshotTestItem(
-        displayTitle: "Show - 01",
-        cueDisplayOrder: 1,
-        cueEventIndex: 10
-    )
-    let baseName = "Show - 01-00.01-00.02"
-
-    #expect(
-        SubtitleScreenshotExporter.defaultScreenshotFileNames(for: [lowerCue, upperCue])
-            == ["\(baseName)-cue-02.png", "\(baseName)-cue-01.png"]
-    )
-    #expect(
-        SubtitleScreenshotExporter.defaultScreenshotFileNames(for: [upperCue, lowerCue])
-            == ["\(baseName)-cue-01.png", "\(baseName)-cue-02.png"]
-    )
-    #expect(
-        SubtitleScreenshotExporter.defaultScreenshotFileNames(for: [upperCue])
-            == ["\(baseName).png"]
-    )
-    #expect(
-        SubtitleScreenshotExporter.defaultScreenshotFileNames(for: [upperCue, upperCue])
-            == ["\(baseName)-cue-01.png", "\(baseName)-cue-02.png"]
-    )
-}
-
-@Test
-func subtitleScreenshotCollageSortUsesCueMetadataThenInputOrdinal() {
-    let displayOne = subtitleScreenshotTestItem(
-        displayTitle: "display-one",
-        cueDisplayOrder: 1,
-        cueEventIndex: 1
-    )
-    let tiedFirst = subtitleScreenshotTestItem(
-        displayTitle: "tied-first",
-        cueDisplayOrder: 0,
-        cueEventIndex: 2
-    )
-    let later = subtitleScreenshotTestItem(
-        displayTitle: "later",
-        startMilliseconds: 3_000,
-        endMilliseconds: 4_000,
-        cueDisplayOrder: 0,
-        cueEventIndex: 0
-    )
-    let laterEvent = subtitleScreenshotTestItem(
-        displayTitle: "later-event",
-        cueDisplayOrder: 0,
-        cueEventIndex: 9
-    )
-    let tiedSecond = subtitleScreenshotTestItem(
-        displayTitle: "tied-second",
-        cueDisplayOrder: 0,
-        cueEventIndex: 2
-    )
-
-    let sorted = SubtitleScreenshotExporter._sortedByTimelineForTesting([
-        displayOne,
-        tiedFirst,
-        later,
-        laterEvent,
-        tiedSecond,
-    ])
-
-    #expect(sorted.map(\.displayTitle) == [
-        "tied-first",
-        "tied-second",
-        "later-event",
-        "display-one",
-        "later",
-    ])
 }
 
 @Test
@@ -304,26 +133,6 @@ func subtitleCollageCompositionKeepsFirstFrameAndCropsLaterSubtitleBands() throw
     )
     #expect(FileManager.default.fileExists(atPath: destinationURL.path))
     #expect(try Data(contentsOf: destinationURL).isEmpty == false)
-}
-
-private func subtitleScreenshotTestItem(
-    displayTitle: String,
-    startMilliseconds: Int = 1_000,
-    endMilliseconds: Int = 2_000,
-    cueDisplayOrder: Int?,
-    cueEventIndex: Int?
-) -> SubtitleScreenshotExportItem {
-    SubtitleScreenshotExportItem(
-        displayTitle: displayTitle,
-        videoPath: "/tmp/video.mkv",
-        subtitlePath: "/tmp/video.ass",
-        subtitleFormat: .ass,
-        startMilliseconds: startMilliseconds,
-        endMilliseconds: endMilliseconds,
-        cueDisplayOrder: cueDisplayOrder,
-        cueEventIndex: cueEventIndex,
-        textLines: [displayTitle]
-    )
 }
 
 private func makeBlackExportTestImage(width: Int, height: Int) -> CGImage? {

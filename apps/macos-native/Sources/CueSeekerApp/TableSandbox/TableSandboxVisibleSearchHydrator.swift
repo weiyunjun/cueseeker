@@ -6,7 +6,3 @@ struct TableSandboxSearchHydrationPage: Equatable, Sendable {
     let results: [SubtitleSearchResult]
     let totalRowCount: Int
 }
-
-enum TableSandboxHydrationPaging {
-    static let pageSize = 50
-}

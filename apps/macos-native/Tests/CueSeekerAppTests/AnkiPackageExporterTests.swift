@@ -305,60 +305,6 @@ func ankiExportSessionNamesThePackageAndChecksTheNameLocationAndSides() throws {
     #expect(session.options.backItems == [.cueText, .screenshot, .displayTitle])
 }
 
-@MainActor
-@Test
-func subtitleScreenshotEntryMappingCarriesCueOrderingIdentity() throws {
-    _ = NSApplication.shared
-    let suiteName = "CueSeekerExportMappingTests-\(UUID().uuidString)"
-    let userDefaults = try #require(UserDefaults.temporary(suiteName: suiteName))
-    let databaseURL = FileManager.default.temporaryDirectory
-        .appendingPathComponent("CueSeekerExportMappingTests-\(UUID().uuidString).sqlite")
-    defer {
-        userDefaults.removePersistentDomainAndPlist(forName: suiteName)
-        removeTemporaryDatabase(at: databaseURL)
-    }
-    let app = AppCoordinator(userDefaults: userDefaults, databaseURL: databaseURL)
-    let result = SubtitleSearchResult(
-        entryID: 10,
-        cueGroupID: 20,
-        cueEventIndex: 30,
-        cueDisplayOrder: 2,
-        subtitlePath: "/Media/Search.ass",
-        subtitleFormat: .ass,
-        videoPath: "/Media/Search.mkv",
-        videoName: "Search",
-        startMilliseconds: 1_000,
-        endMilliseconds: 2_000,
-        content: "Search Cue",
-        cueLines: ["Search Cue"]
-    )
-    let excerpt = Excerpt(
-        id: 40,
-        subtitlePath: "/Media/Excerpt.srt",
-        subtitleFormat: .srt,
-        videoPath: "/Media/Excerpt.mkv",
-        videoName: "Excerpt",
-        startMilliseconds: 3_000,
-        endMilliseconds: 4_000,
-        cueEventIndex: 50,
-        cueDisplayOrder: 3,
-        content: "Excerpt Cue",
-        isValid: true,
-        createdAt: "2026-07-12T00:00:00Z"
-    )
-
-    let searchItem = app.subtitleScreenshotItem(for: result)
-    let excerptItem = app.subtitleScreenshotItem(
-        for: excerpt,
-        displayTitle: "Excerpt"
-    )
-
-    #expect(searchItem.cueEventIndex == 30)
-    #expect(searchItem.cueDisplayOrder == 2)
-    #expect(excerptItem.cueEventIndex == 50)
-    #expect(excerptItem.cueDisplayOrder == 3)
-}
-
 @Test
 func ankiExportResolvesDefaultAudioTracksInBackground() throws {
     let databaseURL = FileManager.default.temporaryDirectory

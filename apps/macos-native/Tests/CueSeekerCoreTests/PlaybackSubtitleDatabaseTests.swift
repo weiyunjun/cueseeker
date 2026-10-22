@@ -35,9 +35,6 @@ func subtitleEntryIndexAndWindowLoadCurrentSubtitleRows() throws {
     #expect(index.count == 6)
     #expect(index.map(\.startMilliseconds) == [0, 1_000, 2_000, 3_000, 4_000, 5_000])
 
-    let lookup = SubtitleActiveEntryLookup(entryIndex: index)
-    #expect(lookup.activeEntryID(atMilliseconds: 2_250) == index[2].id)
-
     let window = try PlaybackSubtitleDatabase(path: database.path).entries(forSubtitleFile: subtitleFile, limit: 2, offset: 3)
     #expect(window.map(\.content) == [
         "Current subtitle row 3",
@@ -438,55 +435,4 @@ func cueTextSelectionReturnsPhysicallyBottommostCueAsSingleCue() throws {
     #expect(selection.text == "bottom")
     #expect(selection.cueEventIndex == 0)
     #expect(selection.cueDisplayOrder == 1)
-}
-
-@Test
-func activeSubtitleEntryLookupKeepsLongRunningCueActivePastShortLaterCues() throws {
-    let databaseURL = temporaryDatabaseURL()
-    defer {
-        removeTemporaryDatabase(at: databaseURL)
-    }
-
-    let database = try IndexingDatabase(path: databaseURL)
-    try DatabaseBootstrap.prepare(at: databaseURL)
-
-    let subtitleFile = URL(fileURLWithPath: "/Media/Signs.srt")
-    let videoFile = URL(fileURLWithPath: "/Media/Signs.mkv")
-    try database.replaceEntries(
-        subtitleFile: subtitleFile,
-        videoFile: videoFile,
-        entries: [
-            SubtitleEntry(
-                sequenceNumber: 1,
-                startTimecode: "00:00:00,000",
-                endTimecode: "00:02:00,000",
-                startMilliseconds: 0,
-                endMilliseconds: 120_000,
-                text: "long running sign"
-            ),
-            SubtitleEntry(
-                sequenceNumber: 2,
-                startTimecode: "00:00:30,000",
-                endTimecode: "00:00:35,000",
-                startMilliseconds: 30_000,
-                endMilliseconds: 35_000,
-                text: "short dialogue"
-            ),
-            SubtitleEntry(
-                sequenceNumber: 3,
-                startTimecode: "00:01:00,000",
-                endTimecode: "00:01:05,000",
-                startMilliseconds: 60_000,
-                endMilliseconds: 65_000,
-                text: "later short dialogue"
-            )
-        ]
-    )
-
-    let entries = try PlaybackSubtitleDatabase(path: database.path).entries(forSubtitleFile: subtitleFile)
-    let lookup = SubtitleActiveEntryLookup(entries: entries)
-
-    #expect(lookup.activeEntryID(atMilliseconds: 90_000) == entries[0].id)
-    #expect(lookup.activeEntryID(atMilliseconds: 150_000) == entries[2].id)
-    #expect(lookup.activeEntryID(atMilliseconds: -1) == nil)
 }
