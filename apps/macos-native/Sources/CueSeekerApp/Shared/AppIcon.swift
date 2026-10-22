@@ -442,13 +442,13 @@ struct AppAccentDuotoneIconView: View {
                 AccentDuotoneFolderPlusSymbolShape()
                     .stroke(
                         WorkbenchRedesignColors.cardIconAccentForeground,
-                        style: StrokeStyle(lineWidth: 20 * s, lineCap: .round)
+                        style: StrokeStyle(lineWidth: 15 * s, lineCap: .round)
                     )
             case .minus:
                 AccentDuotoneFolderMinusSymbolShape()
                     .stroke(
                         WorkbenchRedesignColors.cardIconAccentForeground,
-                        style: StrokeStyle(lineWidth: 20 * s, lineCap: .round)
+                        style: StrokeStyle(lineWidth: 15 * s, lineCap: .round)
                     )
             case .text(let badge):
                 Text(badge)
@@ -537,7 +537,7 @@ struct AppAccentDuotoneIconView: View {
                 .stroke(
                     WorkbenchRedesignColors.cardIconAccentForeground,
                     style: StrokeStyle(
-                        lineWidth: 15 * s,
+                        lineWidth: 12.5 * s,
                         lineCap: .round,
                         lineJoin: .round
                     )
@@ -547,7 +547,7 @@ struct AppAccentDuotoneIconView: View {
 
     private var renameIconView: some View {
         AccentDuotoneRenamePencilShape()
-            .fill(WorkbenchRedesignColors.cardIconAccentBase)
+            .fill(WorkbenchRedesignColors.cardIconAccentAnkiLine)
     }
 }
 
