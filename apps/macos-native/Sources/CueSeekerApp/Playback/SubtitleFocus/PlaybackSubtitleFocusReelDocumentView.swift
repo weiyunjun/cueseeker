@@ -1,5 +1,6 @@
 import AppKit
 import CueSeekerCore
+import QuartzCore
 import SwiftUI
 
 struct PlaybackCueTimelineRowLayout: Equatable {
@@ -146,6 +147,26 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView, PointerShapeProviding
         var duration: TimeInterval
     }
 
+    private struct RowBitmapCacheKey: Hashable {
+        let itemID: AnyHashable
+        let ordinal: Int
+        let datasetID: AnyHashable
+        let generation: UInt64
+        let revision: UInt64
+        let pixelWidth: Int
+        let pixelHeight: Int
+        let isSelectedSteadyState: Bool
+        let isEnabled: Bool
+        let isEditingCollage: Bool
+        let isChecked: Bool
+        let isDarkAppearance: Bool
+    }
+
+    private struct RowBitmapCacheEntry {
+        let image: CGImage
+        var lastAccess: UInt64
+    }
+
     var uiProbeScope: String?
     var onToggleCollageCueSelection: (Int) -> Void = { _ in }
     /// The text, the cue it came from, and where the menu hangs off inside that
@@ -165,8 +186,15 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView, PointerShapeProviding
     private var selectedOrdinal: Int?
     private var cueFocusAnimations: [Int: CueFocusAnimation] = [:]
     private var focusAnimationTimer: Timer?
+    private var focusDisplayLink: AnyObject?
     private var focusFadeInDebounceDeadline: TimeInterval?
     private var focusClockTime: TimeInterval = ProcessInfo.processInfo.systemUptime
+    private let rowBitmapCacheCapacity = 32
+    private var rowBitmapCache: [RowBitmapCacheKey: RowBitmapCacheEntry] = [:]
+    private var rowBitmapCacheAccessSequence: UInt64 = 0
+    private(set) var rowBitmapCacheHitCountForTesting = 0
+    private(set) var rowBitmapCacheMissCountForTesting = 0
+    private(set) var dynamicRowDrawCountForTesting = 0
     var isDrivenByExternalScrollAnimator = false {
         didSet {
             guard isDrivenByExternalScrollAnimator != oldValue else {
@@ -197,7 +225,14 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView, PointerShapeProviding
 
     override func viewDidChangeEffectiveAppearance() {
         super.viewDidChangeEffectiveAppearance()
+        rowBitmapCache.removeAll(keepingCapacity: true)
         needsDisplay = true
+    }
+
+    func resetRowDrawCountersForTesting() {
+        rowBitmapCacheHitCountForTesting = 0
+        rowBitmapCacheMissCountForTesting = 0
+        dynamicRowDrawCountForTesting = 0
     }
 
     var selectedOrdinalForTesting: Int? {
@@ -232,6 +267,7 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView, PointerShapeProviding
                previousAdapter !== contentAdapter {
                 previousAdapter.invalidate()
                 self.contentAdapter = contentAdapter
+                rowBitmapCache.removeAll(keepingCapacity: true)
                 resolveLocalPlacementsIfNeeded()
                 needsDisplay = true
             }
@@ -262,6 +298,7 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView, PointerShapeProviding
             cueFocusAnimations.removeAll(keepingCapacity: true)
             placements.removeAll(keepingCapacity: true)
         }
+        rowBitmapCache.removeAll(keepingCapacity: true)
         self.contentAdapter = contentAdapter
         contentSnapshot = snapshot
         resolveLocalPlacementsIfNeeded()
@@ -348,15 +385,19 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView, PointerShapeProviding
             } else if anim.targetProgress > 0 {
                 anim.startProgress = anim.currentProgress
                 anim.targetProgress = 0
-                anim.startTime = now
+                anim.startTime = window?.isVisible == true
+                    ? now - (1.0 / 120.0)
+                    : now
                 anim.duration = PlaybackSubtitleFocusMetrics.focusFadeOutDuration
                 cueFocusAnimations[ordinal] = anim
+                invalidateRow(ordinal)
             }
         }
 
-        if targetOrdinal != nil {
+        if let targetOrdinal {
             focusFadeInDebounceDeadline =
                 now + PlaybackSubtitleFocusMetrics.focusFadeInDelay
+            invalidateRow(targetOrdinal)
         } else {
             focusFadeInDebounceDeadline = nil
         }
@@ -426,7 +467,25 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView, PointerShapeProviding
     }
 
     private func startFocusAnimationTimerIfNeeded() {
-        guard focusAnimationTimer == nil, !isDrivenByExternalScrollAnimator else {
+        guard focusAnimationTimer == nil,
+              focusDisplayLink == nil,
+              !isDrivenByExternalScrollAnimator
+        else {
+            return
+        }
+        if #available(macOS 14.0, *), window?.isVisible == true {
+            let link = self.displayLink(
+                target: self,
+                selector: #selector(handleFocusDisplayLink(_:))
+            )
+            link.preferredFrameRateRange = CAFrameRateRange(
+                minimum: 60,
+                maximum: 120,
+                preferred: 120
+            )
+            link.add(to: .main, forMode: .common)
+            link.isPaused = false
+            focusDisplayLink = link
             return
         }
         let timer = Timer(
@@ -436,14 +495,24 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView, PointerShapeProviding
             userInfo: nil,
             repeats: true
         )
-        timer.tolerance = 1 / 240
+        timer.tolerance = 0
         RunLoop.main.add(timer, forMode: .common)
         focusAnimationTimer = timer
     }
 
     private func stopFocusAnimationTimer() {
+        if #available(macOS 14.0, *),
+           let link = focusDisplayLink as? CADisplayLink {
+            link.invalidate()
+        }
+        focusDisplayLink = nil
         focusAnimationTimer?.invalidate()
         focusAnimationTimer = nil
+    }
+
+    @objc
+    private func handleFocusDisplayLink(_ sender: AnyObject) {
+        handleFocusAnimationTimer()
     }
 
     @objc
@@ -533,6 +602,7 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView, PointerShapeProviding
         stopFocusAnimationTimer()
         focusFadeInDebounceDeadline = nil
         cueFocusAnimations.removeAll(keepingCapacity: false)
+        rowBitmapCache.removeAll(keepingCapacity: true)
         contentAdapter?.invalidate()
         contentAdapter = nil
         contentSnapshot = nil
@@ -564,25 +634,164 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView, PointerShapeProviding
             let canToggle = !isEditingCollage
                 || isChecked
                 || collageCanSelectAnotherCue
-            contentAdapter?.drawItem(
-                at: placement.ordinal,
-                isSelected: placement.ordinal == selectedOrdinal,
-                selectionProgress: cueSelectionProgress(at: placement.ordinal),
-                isEnabled: canToggle,
-                selectedTextRange: textSelection?.ordinal == placement.ordinal
-                    ? textSelection?.range
-                    : nil,
-                in: cueContentRect(for: placement.rect)
-            )
-            if isEditingCollage {
-                let timelineLayout = cueTimelineRowLayout(for: placement)
-                PlaybackCollageCheckboxDrawing.draw(
-                    isSelected: isChecked,
+            let selectionProgress = cueSelectionProgress(at: placement.ordinal)
+            let selectedTextRange = textSelection?.ordinal == placement.ordinal
+                ? textSelection?.range
+                : nil
+            let isSteadyColor = selectedTextRange == nil
+                && (selectionProgress <= 0.000_5 || selectionProgress >= 0.999_5)
+
+            if isSteadyColor,
+               placement.rect.width > 0,
+               placement.rect.height > 0 {
+                let scale = max(
+                    1,
+                    window?.backingScaleFactor
+                        ?? NSScreen.main?.backingScaleFactor
+                        ?? 2
+                )
+                let pixelWidth = max(
+                    1,
+                    Int((placement.rect.width * scale).rounded())
+                )
+                let pixelHeight = max(
+                    1,
+                    Int((placement.rect.height * scale).rounded())
+                )
+                let isSelectedSteadyState = selectionProgress >= 0.999_5
+                let isDarkAppearance = effectiveAppearance.bestMatch(
+                    from: [.darkAqua, .aqua]
+                ) == .darkAqua
+                let snapshot = contentSnapshot ?? contentAdapter?.snapshot
+                let key = RowBitmapCacheKey(
+                    itemID: placement.itemID,
+                    ordinal: placement.ordinal,
+                    datasetID: snapshot?.datasetID ?? AnyHashable(0),
+                    generation: snapshot?.generation ?? 0,
+                    revision: snapshot?.revision ?? 0,
+                    pixelWidth: pixelWidth,
+                    pixelHeight: pixelHeight,
+                    isSelectedSteadyState: isSelectedSteadyState,
                     isEnabled: canToggle,
-                    in: timelineLayout.markerRect
+                    isEditingCollage: isEditingCollage,
+                    isChecked: isChecked,
+                    isDarkAppearance: isDarkAppearance
+                )
+                if var cached = rowBitmapCache[key] {
+                    rowBitmapCacheHitCountForTesting += 1
+                    rowBitmapCacheAccessSequence &+= 1
+                    cached.lastAccess = rowBitmapCacheAccessSequence
+                    rowBitmapCache[key] = cached
+                    drawCachedRowImage(cached.image, in: placement.rect)
+                    continue
+                }
+                rowBitmapCacheMissCountForTesting += 1
+                if let colorSpace = CGColorSpace(name: CGColorSpace.sRGB),
+                   let bitmapContext = CGContext(
+                       data: nil,
+                       width: pixelWidth,
+                       height: pixelHeight,
+                       bitsPerComponent: 8,
+                       bytesPerRow: 0,
+                       space: colorSpace,
+                       bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+                   ) {
+                    bitmapContext.translateBy(x: 0, y: CGFloat(pixelHeight))
+                    bitmapContext.scaleBy(x: scale, y: -scale)
+                    bitmapContext.translateBy(
+                        x: -placement.rect.minX,
+                        y: -placement.rect.minY
+                    )
+                    let previousGraphicsContext = NSGraphicsContext.current
+                    NSGraphicsContext.current = NSGraphicsContext(
+                        cgContext: bitmapContext,
+                        flipped: true
+                    )
+                    drawRowDirectly(
+                        placement: placement,
+                        isSelected: isSelectedSteadyState,
+                        selectionProgress: isSelectedSteadyState ? 1 : 0,
+                        isEnabled: canToggle,
+                        isChecked: isChecked,
+                        selectedTextRange: nil
+                    )
+                    NSGraphicsContext.current = previousGraphicsContext
+                    if let image = bitmapContext.makeImage() {
+                        rowBitmapCacheAccessSequence &+= 1
+                        if rowBitmapCache.count >= rowBitmapCacheCapacity,
+                           let oldestKey = rowBitmapCache.min(by: {
+                               $0.value.lastAccess < $1.value.lastAccess
+                           })?.key {
+                            rowBitmapCache.removeValue(forKey: oldestKey)
+                        }
+                        rowBitmapCache[key] = RowBitmapCacheEntry(
+                            image: image,
+                            lastAccess: rowBitmapCacheAccessSequence
+                        )
+                        drawCachedRowImage(image, in: placement.rect)
+                        continue
+                    }
+                }
+                drawRowDirectly(
+                    placement: placement,
+                    isSelected: isSelectedSteadyState,
+                    selectionProgress: isSelectedSteadyState ? 1 : 0,
+                    isEnabled: canToggle,
+                    isChecked: isChecked,
+                    selectedTextRange: nil
+                )
+            } else {
+                dynamicRowDrawCountForTesting += 1
+                drawRowDirectly(
+                    placement: placement,
+                    isSelected: placement.ordinal == selectedOrdinal,
+                    selectionProgress: selectionProgress,
+                    isEnabled: canToggle,
+                    isChecked: isChecked,
+                    selectedTextRange: selectedTextRange
                 )
             }
         }
+    }
+
+    private func drawRowDirectly(
+        placement: PlaybackSubtitleFocusCuePlacement,
+        isSelected: Bool,
+        selectionProgress: CGFloat,
+        isEnabled: Bool,
+        isChecked: Bool,
+        selectedTextRange: NSRange?
+    ) {
+        contentAdapter?.drawItem(
+            at: placement.ordinal,
+            isSelected: isSelected,
+            selectionProgress: selectionProgress,
+            isEnabled: isEnabled,
+            selectedTextRange: selectedTextRange,
+            in: cueContentRect(for: placement.rect)
+        )
+        if isEditingCollage {
+            let timelineLayout = cueTimelineRowLayout(for: placement)
+            PlaybackCollageCheckboxDrawing.draw(
+                isSelected: isChecked,
+                isEnabled: isEnabled,
+                in: timelineLayout.markerRect
+            )
+        }
+    }
+
+    private func drawCachedRowImage(
+        _ image: CGImage,
+        in rect: CGRect
+    ) {
+        guard let cgContext = NSGraphicsContext.current?.cgContext else {
+            return
+        }
+        cgContext.saveGState()
+        cgContext.translateBy(x: rect.minX, y: rect.maxY)
+        cgContext.scaleBy(x: 1, y: -1)
+        cgContext.draw(image, in: CGRect(origin: .zero, size: rect.size))
+        cgContext.restoreGState()
     }
 
     func fractionalOrdinal(

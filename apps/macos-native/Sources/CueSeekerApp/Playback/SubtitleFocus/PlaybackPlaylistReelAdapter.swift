@@ -9,6 +9,10 @@ final class PlaybackCueResultReelAdapter: PlaybackVirtualReelContentAdapter {
     private let measurementCache: PlaybackCueResultMeasurementCache
     private let layout = PlaybackCueResultLayout()
     private let measurementCacheCapacity: Int
+    private var itemLayouts: [AnyHashable: PlaybackCueResultLayout] = [:]
+    private var itemLayoutAccess: [AnyHashable: UInt64] = [:]
+    private var itemLayoutAccessSequence: UInt64 = 0
+    private var lastSelectionLayout: PlaybackCueResultLayout?
     private var presentationRevision: UInt64 = 0
     private var measurementAccessSequence: UInt64 = 0
     private var measuredOrdinalAccess: [Int: UInt64] = [:]
@@ -49,6 +53,13 @@ final class PlaybackCueResultReelAdapter: PlaybackVirtualReelContentAdapter {
 
     var measuredOrdinalsForTesting: Set<Int> {
         Set(measuredOrdinalAccess.keys)
+    }
+
+    func geometryPreparationCountForTesting(at ordinal: Int) -> Int {
+        guard let result = cueResult(at: ordinal) else {
+            return 0
+        }
+        return itemLayouts[result.itemID]?.geometryPreparationCountForTesting ?? 0
     }
 
     @discardableResult
@@ -112,7 +123,8 @@ final class PlaybackCueResultReelAdapter: PlaybackVirtualReelContentAdapter {
         guard let result = cueResult(at: ordinal) else {
             return
         }
-        layout.prepare(
+        let itemLayout = cachedLayout(for: result.itemID)
+        itemLayout.prepare(
             result: result,
             showsCueGroup: showsCueGroup,
             isSelected: isSelected,
@@ -120,7 +132,7 @@ final class PlaybackCueResultReelAdapter: PlaybackVirtualReelContentAdapter {
             width: rect.width,
             viewportHeight: rect.height
         )
-        layout.drawPreparedPlan(
+        itemLayout.drawPreparedPlan(
             in: rect,
             selectedTextRange: selectedTextRange,
             isEnabled: isEnabled
@@ -136,14 +148,16 @@ final class PlaybackCueResultReelAdapter: PlaybackVirtualReelContentAdapter {
         guard let result = cueResult(at: ordinal) else {
             return nil
         }
-        layout.prepare(
+        let itemLayout = cachedLayout(for: result.itemID)
+        lastSelectionLayout = itemLayout
+        itemLayout.prepare(
             result: result,
             showsCueGroup: showsCueGroup,
             isSelected: ordinal == windowStore.selectedOrdinal,
             width: rect.width,
             viewportHeight: rect.height
         )
-        return layout.textSelectionHit(
+        return itemLayout.textSelectionHit(
             at: point,
             in: rect,
             constrainedToLine: lineUTF16Range
@@ -154,14 +168,19 @@ final class PlaybackCueResultReelAdapter: PlaybackVirtualReelContentAdapter {
         guard cueResult(at: ordinal) != nil else {
             return nil
         }
-        return layout.selectedText(forUTF16Range: range)
+        return (
+            cueResult(at: ordinal).flatMap { itemLayouts[$0.itemID] }
+                ?? lastSelectionLayout
+                ?? layout
+        ).selectedText(forUTF16Range: range)
     }
 
     func selectableTextRects(at ordinal: Int, in rect: CGRect) -> [CGRect] {
         guard let result = cueResult(at: ordinal) else {
             return []
         }
-        let plan = layout.prepare(
+        let itemLayout = cachedLayout(for: result.itemID)
+        let plan = itemLayout.prepare(
             result: result,
             showsCueGroup: showsCueGroup,
             isSelected: ordinal == windowStore.selectedOrdinal,
@@ -174,6 +193,9 @@ final class PlaybackCueResultReelAdapter: PlaybackVirtualReelContentAdapter {
     func invalidateMeasurements() {
         measurementCache.removeAll()
         measuredOrdinalAccess.removeAll(keepingCapacity: true)
+        itemLayouts.removeAll(keepingCapacity: true)
+        itemLayoutAccess.removeAll(keepingCapacity: true)
+        lastSelectionLayout = nil
     }
 
     func invalidate() {
@@ -203,6 +225,27 @@ final class PlaybackCueResultReelAdapter: PlaybackVirtualReelContentAdapter {
               })?.key {
             measuredOrdinalAccess.removeValue(forKey: oldestOrdinal)
         }
+    }
+
+    private func cachedLayout(
+        for itemID: AnyHashable
+    ) -> PlaybackCueResultLayout {
+        itemLayoutAccessSequence &+= 1
+        if let existing = itemLayouts[itemID] {
+            itemLayoutAccess[itemID] = itemLayoutAccessSequence
+            return existing
+        }
+        let created = PlaybackCueResultLayout()
+        itemLayouts[itemID] = created
+        itemLayoutAccess[itemID] = itemLayoutAccessSequence
+        while itemLayouts.count > measurementCacheCapacity,
+              let oldestID = itemLayoutAccess.min(by: {
+                  $0.value < $1.value
+              })?.key {
+            itemLayouts.removeValue(forKey: oldestID)
+            itemLayoutAccess.removeValue(forKey: oldestID)
+        }
+        return created
     }
 }
 

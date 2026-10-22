@@ -1,5 +1,6 @@
 import AppKit
 import CueSeekerCore
+import QuartzCore
 
 enum PlaybackSubtitleFocusScrollSettleDirective: Equatable {
     case none
@@ -201,12 +202,14 @@ struct PlaybackSubtitleFocusNativeWheelState: Equatable {
 final class PlaybackSubtitleFocusReelPositionAnimator: NSObject {
     let onUpdate: (CGFloat) -> Void
     let onCompletion: () -> Void
+    weak var hostView: NSView?
 
     private(set) var isRunning = false
     var hasActiveTimer: Bool {
-        timer != nil
+        timer != nil || displayLink != nil
     }
     private var timer: Timer?
+    private var displayLink: AnyObject?
     private var generation = 0
     private var startTime: TimeInterval = 0
     private var duration: TimeInterval = 0
@@ -236,8 +239,12 @@ final class PlaybackSubtitleFocusReelPositionAnimator: NSObject {
                 + (self.targetOffset - startOffset) * easedProgress
         }
         generation += 1
-        startTime = now
         self.duration = max(0, duration)
+        let isHostVisible = hostView?.window?.isVisible == true
+        let initialLead = isHostVisible
+            ? min(1.0 / 120.0, self.duration * 0.25)
+            : 0
+        startTime = now - initialLead
         startOffset = resolvedStartOffset
         self.targetOffset = targetOffset
         isRunning = true
@@ -246,7 +253,26 @@ final class PlaybackSubtitleFocusReelPositionAnimator: NSObject {
             finishImmediately(generation: generation)
             return
         }
-        if timer == nil {
+        if #available(macOS 14.0, *),
+           let hostView,
+           hostView.window?.isVisible == true {
+            timer?.invalidate()
+            timer = nil
+            if displayLink == nil {
+                let link = hostView.displayLink(
+                    target: self,
+                    selector: #selector(handleDisplayLink(_:))
+                )
+                link.preferredFrameRateRange = CAFrameRateRange(
+                    minimum: 60,
+                    maximum: 120,
+                    preferred: 120
+                )
+                link.add(to: .main, forMode: .common)
+                link.isPaused = false
+                displayLink = link
+            }
+        } else if timer == nil {
             let timer = Timer(
                 timeInterval: 1 / 120,
                 target: self,
@@ -254,16 +280,23 @@ final class PlaybackSubtitleFocusReelPositionAnimator: NSObject {
                 userInfo: nil,
                 repeats: true
             )
-            timer.tolerance = 1 / 240
+            timer.tolerance = 0
             RunLoop.main.add(timer, forMode: .common)
             self.timer = timer
+        }
+        if isHostVisible, initialLead > 0 {
+            let easedProgress = Self.easedProgress(
+                CGFloat(initialLead / self.duration)
+            )
+            onUpdate(
+                resolvedStartOffset + (targetOffset - resolvedStartOffset) * easedProgress
+            )
         }
     }
 
     func cancel() {
         generation += 1
-        timer?.invalidate()
-        timer = nil
+        stopFrameDriver()
         isRunning = false
     }
 
@@ -284,12 +317,16 @@ final class PlaybackSubtitleFocusReelPositionAnimator: NSObject {
     }
 
     @objc
+    private func handleDisplayLink(_ sender: AnyObject) {
+        handleTimer()
+    }
+
+    @objc
     private func handleTimer() {
         let elapsed = ProcessInfo.processInfo.systemUptime - startTime
         let linearProgress = CGFloat(min(1, max(0, elapsed / duration)))
         guard linearProgress < 1 else {
-            timer?.invalidate()
-            timer = nil
+            stopFrameDriver()
             isRunning = false
             onUpdate(targetOffset)
             onCompletion()
@@ -302,8 +339,7 @@ final class PlaybackSubtitleFocusReelPositionAnimator: NSObject {
     }
 
     private func finishImmediately(generation expectedGeneration: Int) {
-        timer?.invalidate()
-        timer = nil
+        stopFrameDriver()
         onUpdate(targetOffset)
         Task { @MainActor [weak self] in
             guard let self,
@@ -315,5 +351,15 @@ final class PlaybackSubtitleFocusReelPositionAnimator: NSObject {
             self.isRunning = false
             self.onCompletion()
         }
+    }
+
+    private func stopFrameDriver() {
+        if #available(macOS 14.0, *),
+           let link = displayLink as? CADisplayLink {
+            link.invalidate()
+        }
+        displayLink = nil
+        timer?.invalidate()
+        timer = nil
     }
 }

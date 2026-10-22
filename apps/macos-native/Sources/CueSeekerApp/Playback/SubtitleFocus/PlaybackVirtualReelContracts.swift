@@ -304,7 +304,6 @@ private final class PlaybackSubtitleFocusCueMeasurementCache {
         let cueID: Int64
         let text: String
         let width: CGFloat
-        let viewportHeight: CGFloat
         let styleRevision: Int
     }
 
@@ -343,33 +342,43 @@ private final class PlaybackSubtitleFocusCueMeasurementCache {
             cueID: cue.id,
             text: cue.text,
             width: width,
-            viewportHeight: viewportHeight,
             styleRevision: 2
         )
+        let natural: PlaybackSubtitleFocusCueMeasurement
         if var entry = entries[key] {
             entry.lastAccess = accessSequence
             entries[key] = entry
-            return entry.measurement
+            natural = entry.measurement
+        } else {
+            natural = measurer.measurement(
+                text: cue.text,
+                width: width,
+                viewportHeight: .greatestFiniteMagnitude
+            )
+            measurementCount += 1
+            UIInvalidationProbe.count(
+                "playback.subtitle_focus.cue_measurement",
+                scope: uiProbeScope,
+                details: "ordinal=\(cue.ordinal)"
+            )
+            entries[key] = Entry(
+                measurement: natural,
+                ordinal: cue.ordinal,
+                lastAccess: accessSequence
+            )
+            evictIfNeeded()
         }
 
-        let measurement = measurer.measurement(
-            text: cue.text,
-            width: width,
-            viewportHeight: viewportHeight
+        let safeViewportHeight = max(0, viewportHeight)
+        return PlaybackSubtitleFocusCueMeasurement(
+            visualLineCount: natural.visualLineCount,
+            visualLineStackHeight: natural.visualLineStackHeight,
+            resolvedContentHeight: natural.resolvedContentHeight,
+            firstVisualLineCenterOffset: natural.firstVisualLineCenterOffset,
+            naturalHeight: natural.naturalHeight,
+            resolvedHeight: min(natural.naturalHeight, safeViewportHeight),
+            isOversized: natural.naturalHeight > safeViewportHeight
         )
-        measurementCount += 1
-        UIInvalidationProbe.count(
-            "playback.subtitle_focus.cue_measurement",
-            scope: uiProbeScope,
-            details: "ordinal=\(cue.ordinal)"
-        )
-        entries[key] = Entry(
-            measurement: measurement,
-            ordinal: cue.ordinal,
-            lastAccess: accessSequence
-        )
-        evictIfNeeded()
-        return measurement
     }
 
     func removeAll() {
@@ -412,9 +421,14 @@ final class PlaybackSubtitleFocusCueReelAdapter:
         }
     }
 
+    private static let cueLayoutCacheCapacity = 64
     private let datasetID = AnyHashable("current")
     private let measurementCache = PlaybackSubtitleFocusCueMeasurementCache()
     private let textLayout = PlaybackSubtitleFocusNativeTextLayout()
+    private var cueLayouts: [Int64: PlaybackSubtitleFocusNativeTextLayout] = [:]
+    private var cueLayoutAccess: [Int64: UInt64] = [:]
+    private var cueLayoutAccessSequence: UInt64 = 0
+    private var lastSelectionTextLayout: PlaybackSubtitleFocusNativeTextLayout?
     private var cues: [SubtitleFocusCue] = []
     private var firstLoadedOrdinal = 0
     private var signature: SnapshotSignature?
@@ -440,6 +454,13 @@ final class PlaybackSubtitleFocusCueReelAdapter:
 
     var measurementCountForTesting: Int {
         measurementCache.measurementCount
+    }
+
+    func geometryPreparationCountForTesting(at ordinal: Int) -> Int {
+        guard let cue = cue(at: ordinal) else {
+            return 0
+        }
+        return cueLayouts[cue.id]?.geometryPreparationCountForTesting ?? 0
     }
 
     func update(
@@ -523,10 +544,11 @@ final class PlaybackSubtitleFocusCueReelAdapter:
             return
         }
         let cueRect = cueTextRect(in: rect, for: cue)
+        let cueTextLayout = cachedTextLayout(for: cue.id)
         NSGraphicsContext.saveGraphicsState()
         NSBezierPath(rect: rect).addClip()
         defer { NSGraphicsContext.restoreGraphicsState() }
-        textLayout.draw(
+        cueTextLayout.draw(
             text: cue.text,
             color: isEnabled
                 ? PlaybackTheme.subtitleFocusCuePrimaryNative(
@@ -558,7 +580,9 @@ final class PlaybackSubtitleFocusCueReelAdapter:
         guard let cue = cue(at: ordinal) else {
             return nil
         }
-        return textLayout.textSelectionHit(
+        let cueTextLayout = cachedTextLayout(for: cue.id)
+        lastSelectionTextLayout = cueTextLayout
+        return cueTextLayout.textSelectionHit(
             text: cue.text,
             point: point,
             in: cueTextRect(in: rect, for: cue),
@@ -567,17 +591,21 @@ final class PlaybackSubtitleFocusCueReelAdapter:
     }
 
     func selectedText(at ordinal: Int, range: NSRange) -> String? {
-        guard cue(at: ordinal) != nil else {
+        guard let cue = cue(at: ordinal) else {
             return nil
         }
-        return textLayout.selectedText(range: range)
+        let resolvedLayout = cueLayouts[cue.id]
+            ?? lastSelectionTextLayout
+            ?? textLayout
+        return resolvedLayout.selectedText(range: range)
     }
 
     func selectableTextRects(at ordinal: Int, in rect: CGRect) -> [CGRect] {
         guard let cue = cue(at: ordinal) else {
             return []
         }
-        return textLayout.visibleLineRects(
+        let cueTextLayout = cachedTextLayout(for: cue.id)
+        return cueTextLayout.visibleLineRects(
             text: cue.text,
             in: cueTextRect(in: rect, for: cue)
         )
@@ -593,6 +621,9 @@ final class PlaybackSubtitleFocusCueReelAdapter:
 
     func invalidateMeasurements() {
         measurementCache.removeAll()
+        cueLayouts.removeAll(keepingCapacity: true)
+        cueLayoutAccess.removeAll(keepingCapacity: true)
+        lastSelectionTextLayout = nil
     }
 
     private func cueTextRect(
@@ -679,6 +710,26 @@ final class PlaybackSubtitleFocusCueReelAdapter:
         )
     }
 
+    private func cachedTextLayout(
+        for cueID: Int64
+    ) -> PlaybackSubtitleFocusNativeTextLayout {
+        cueLayoutAccessSequence &+= 1
+        if let existing = cueLayouts[cueID] {
+            cueLayoutAccess[cueID] = cueLayoutAccessSequence
+            return existing
+        }
+        let created = PlaybackSubtitleFocusNativeTextLayout()
+        cueLayouts[cueID] = created
+        cueLayoutAccess[cueID] = cueLayoutAccessSequence
+        while cueLayouts.count > Self.cueLayoutCacheCapacity,
+              let oldestID = cueLayoutAccess.min(by: {
+                  $0.value < $1.value
+              })?.key {
+            cueLayouts.removeValue(forKey: oldestID)
+            cueLayoutAccess.removeValue(forKey: oldestID)
+        }
+        return created
+    }
 }
 
 struct PlaybackSubtitleFocusNativeScrollbarMetrics: Equatable {

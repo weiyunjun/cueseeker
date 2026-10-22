@@ -153,12 +153,40 @@ struct PlaybackCueMetadataPlan: Equatable {
 
 @MainActor
 enum PlaybackCueMetadataLayout {
+    private struct PlanCacheKey: Hashable {
+        let ordinal: Int?
+        let displayTitle: String
+        let timeRange: String
+        let width: CGFloat
+    }
+
+    private struct PlanCacheEntry {
+        let plan: PlaybackCueMetadataPlan
+        var lastAccess: UInt64
+    }
+
+    private static let planCacheCapacity = 128
+    private static var planCache: [PlanCacheKey: PlanCacheEntry] = [:]
+    private static var planCacheAccessSequence: UInt64 = 0
+
     static func makePlan(
         metadata: PlaybackCueMetadata?,
         width: CGFloat
     ) -> PlaybackCueMetadataPlan? {
         guard let metadata, !metadata.isEmpty, width > 0 else {
             return nil
+        }
+        planCacheAccessSequence &+= 1
+        let cacheKey = PlanCacheKey(
+            ordinal: metadata.ordinal,
+            displayTitle: metadata.displayTitle,
+            timeRange: metadata.timeRange,
+            width: width
+        )
+        if var cached = planCache[cacheKey] {
+            cached.lastAccess = planCacheAccessSequence
+            planCache[cacheKey] = cached
+            return cached.plan
         }
         let ordinalText = metadata.ordinalText
         let hasOrdinal = !ordinalText.isEmpty
@@ -195,7 +223,7 @@ enum PlaybackCueMetadataLayout {
             max(0, remainingWidth - timeWidth - gap)
         )
         let timeX = leading + (hasDisplayTitle ? displayTitleWidth + gap : 0)
-        return PlaybackCueMetadataPlan(
+        let plan = PlaybackCueMetadataPlan(
             ordinalText: ordinalText,
             displayTitle: hasDisplayTitle ? metadata.displayTitle : "",
             timeRange: hasTimeRange ? metadata.timeRange : "",
@@ -218,6 +246,17 @@ enum PlaybackCueMetadataLayout {
                 height: PlaybackSubtitleFocusMetrics.metadataLineHeight
             )
         )
+        planCache[cacheKey] = PlanCacheEntry(
+            plan: plan,
+            lastAccess: planCacheAccessSequence
+        )
+        while planCache.count > planCacheCapacity,
+              let oldestKey = planCache.min(by: {
+                  $0.value.lastAccess < $1.value.lastAccess
+              })?.key {
+            planCache.removeValue(forKey: oldestKey)
+        }
+        return plan
     }
 
     static func draw(
@@ -366,6 +405,10 @@ struct PlaybackCueResultLayoutPlan {
 final class PlaybackCueResultLayout {
     private let visualLineLayout = PlaybackVisualLineStackLayout()
     private(set) var plan: PlaybackCueResultLayoutPlan?
+
+    var geometryPreparationCountForTesting: Int {
+        visualLineLayout.geometryPreparationCountForTesting
+    }
 
     @discardableResult
     func prepare(

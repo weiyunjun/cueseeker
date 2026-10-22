@@ -3258,3 +3258,76 @@ func subtitleFocusScrollbarDragSettlesInPlaceAndBoundaryWheelKeepsSelectionLit()
     #expect(!view.isFocusFadeInDebouncingForTesting)
     view.invalidate()
 }
+
+@MainActor
+@Test
+func subtitleFocusScrollAndFadeReusePreparedLayoutsAndStaticRowBitmaps() throws {
+    _ = NSApplication.shared
+    let cues = focusLayoutCues(0..<20)
+    let view = PlaybackSubtitleFocusReelContainerView(
+        frame: CGRect(x: 0, y: 0, width: 1_280, height: 656)
+    )
+    view.update(
+        cues: cues,
+        totalCount: cues.count,
+        selectedOrdinal: 12,
+        keyboardNavigationRequest: nil,
+        reducesMotion: false,
+        isInteractionEnabled: true,
+        cancelsWheelMotion: false
+    )
+    view.layoutSubtreeIfNeeded()
+
+    let rep = try #require(view.bitmapImageRepForCachingDisplay(in: view.bounds))
+    view.cacheDisplay(in: view.bounds, to: rep)
+
+    for ordinal in [11, 12, 13, 14] {
+        #expect(view.cueGeometryPreparationCountForTesting(at: ordinal) == 1)
+    }
+
+    view.update(
+        cues: cues,
+        totalCount: cues.count,
+        selectedOrdinal: 12,
+        keyboardNavigationRequest: PlaybackSubtitleFocusKeyboardNavigationRequest(
+            sequence: 1,
+            direction: .forward,
+            targetOrdinal: 13
+        ),
+        reducesMotion: false,
+        isInteractionEnabled: false,
+        cancelsWheelMotion: true
+    )
+    view.advanceFocusTransitionForTesting(by: 0.10)
+    #expect(
+        view.cueSelectionProgressForTesting(at: 12) > 0
+            && view.cueSelectionProgressForTesting(at: 12) < 1
+    )
+    #expect(view.cueSelectionProgressForTesting(at: 13) == 0)
+
+    view.cacheDisplay(in: view.bounds, to: rep)
+    view.resetRowDrawCountersForTesting()
+    view.cacheDisplay(in: view.bounds, to: rep)
+
+    #expect(view.rowBitmapCacheHitCountForTesting > 0)
+    #expect(view.dynamicRowDrawCountForTesting == 1)
+    for ordinal in [11, 12, 13, 14] {
+        #expect(view.cueGeometryPreparationCountForTesting(at: ordinal) == 1)
+    }
+
+    view.advanceFocusTransitionForTesting(by: 0.30)
+    #expect(view.cueSelectionProgressForTesting(at: 12) == 0)
+    #expect(view.cueSelectionProgressForTesting(at: 13) == 1)
+
+    view.cacheDisplay(in: view.bounds, to: rep)
+    view.resetRowDrawCountersForTesting()
+    view.cacheDisplay(in: view.bounds, to: rep)
+
+    let visiblePlacementCount = view.placementsForTesting.filter {
+        $0.rect.intersects(view.bounds)
+    }.count
+    #expect(view.dynamicRowDrawCountForTesting == 0)
+    #expect(view.rowBitmapCacheHitCountForTesting == visiblePlacementCount)
+    view.invalidate()
+}
+

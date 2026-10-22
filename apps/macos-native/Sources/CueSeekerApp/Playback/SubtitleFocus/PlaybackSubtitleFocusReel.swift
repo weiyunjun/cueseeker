@@ -171,22 +171,30 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
     private var reportedNativeMotionActive = false
     private var motionCallbackGeneration = 0
     private var motionCallbackTask: Task<Void, Never>?
-    private lazy var keyboardAnimator = PlaybackSubtitleFocusReelPositionAnimator(
-        onUpdate: { [weak self] position in
-            self?.handleScrollAnimatorTick(position: position)
-        },
-        onCompletion: { [weak self] in
-            self?.completeKeyboardMotion()
-        }
-    )
-    private lazy var wheelAnimator = PlaybackSubtitleFocusReelPositionAnimator(
-        onUpdate: { [weak self] position in
-            self?.handleScrollAnimatorTick(position: position)
-        },
-        onCompletion: { [weak self] in
-            self?.completeWheelMotion()
-        }
-    )
+    private lazy var keyboardAnimator: PlaybackSubtitleFocusReelPositionAnimator = {
+        let animator = PlaybackSubtitleFocusReelPositionAnimator(
+            onUpdate: { [weak self] position in
+                self?.handleScrollAnimatorTick(position: position)
+            },
+            onCompletion: { [weak self] in
+                self?.completeKeyboardMotion()
+            }
+        )
+        animator.hostView = self
+        return animator
+    }()
+    private lazy var wheelAnimator: PlaybackSubtitleFocusReelPositionAnimator = {
+        let animator = PlaybackSubtitleFocusReelPositionAnimator(
+            onUpdate: { [weak self] position in
+                self?.handleScrollAnimatorTick(position: position)
+            },
+            onCompletion: { [weak self] in
+                self?.completeWheelMotion()
+            }
+        )
+        animator.hostView = self
+        return animator
+    }()
 
     private func syncExternalScrollAnimatorState() {
         documentView.isDrivenByExternalScrollAnimator =
@@ -242,6 +250,8 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
             self?.handleScrollbarDraggingChanged(isDragging)
         }
         addSubview(scrollbarView)
+        keyboardAnimator.hostView = self
+        wheelAnimator.hostView = self
 
     }
 
@@ -871,6 +881,26 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
 
     var measurementCacheCountForTesting: Int {
         documentView.measurementCacheCount
+    }
+
+    var rowBitmapCacheHitCountForTesting: Int {
+        documentView.rowBitmapCacheHitCountForTesting
+    }
+
+    var rowBitmapCacheMissCountForTesting: Int {
+        documentView.rowBitmapCacheMissCountForTesting
+    }
+
+    var dynamicRowDrawCountForTesting: Int {
+        documentView.dynamicRowDrawCountForTesting
+    }
+
+    func resetRowDrawCountersForTesting() {
+        documentView.resetRowDrawCountersForTesting()
+    }
+
+    func cueGeometryPreparationCountForTesting(at ordinal: Int) -> Int {
+        currentCueAdapter.geometryPreparationCountForTesting(at: ordinal)
     }
 
     var scrollbarPresentationForTesting: TableScrollbarPresentation {

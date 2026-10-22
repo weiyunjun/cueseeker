@@ -251,6 +251,54 @@ func playbackPlaylistReelAdapterInvalidationPreservesItsSessionWindow() throws {
 }
 
 @MainActor
+@Test
+func playbackCueResultReelAdapterReusesPreparedGeometryAcrossColorFadeFrames() throws {
+    _ = NSApplication.shared
+    let source = playbackPlaylistReelSource(totalCount: 10)
+    let window = try #require(source.makeSessionWindowStore())
+    let adapter = PlaybackCueResultReelAdapter(
+        windowStore: window,
+        showsCueGroup: true
+    )
+    let rect = CGRect(x: 0, y: 0, width: 800, height: 120)
+    let rep = try #require(
+        NSBitmapImageRep(
+            bitmapDataPlanes: nil,
+            pixelsWide: 800,
+            pixelsHigh: 120,
+            bitsPerSample: 8,
+            samplesPerPixel: 4,
+            hasAlpha: true,
+            isPlanar: false,
+            colorSpaceName: .deviceRGB,
+            bytesPerRow: 0,
+            bitsPerPixel: 0
+        )
+    )
+    let context = try #require(NSGraphicsContext(bitmapImageRep: rep))
+    NSGraphicsContext.saveGraphicsState()
+    NSGraphicsContext.current = context
+    defer { NSGraphicsContext.restoreGraphicsState() }
+
+    for step in 0..<10 {
+        let progress = CGFloat(step) / 9
+        adapter.drawItem(
+            at: 3,
+            isSelected: true,
+            selectionProgress: progress,
+            isEnabled: true,
+            selectedTextRange: nil,
+            in: rect
+        )
+    }
+
+    #expect(adapter.geometryPreparationCountForTesting(at: 3) == 1)
+    adapter.invalidate()
+    window.invalidate()
+    source.invalidate()
+}
+
+@MainActor
 private func playbackPlaylistReelSource(
     kind: PlaybackPlaylistSourceKind = .search,
     totalCount: Int

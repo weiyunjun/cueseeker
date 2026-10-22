@@ -68,6 +68,17 @@ final class PlaybackVisualLineStackLayout {
         }
     }
 
+    private struct SegmentGeometrySignature: Equatable {
+        let text: String
+        let font: NSFont
+        let nominalLineHeight: CGFloat
+    }
+
+    private struct GeometrySignature: Equatable {
+        let segments: [SegmentGeometrySignature]
+        let width: CGFloat
+    }
+
     private static let terminalLineSentinel = "\u{200B}"
     private static let segmentIndexAttribute = NSAttributedString.Key(
         "CueSeeker.PlaybackVisualLineStack.segmentIndex"
@@ -76,6 +87,10 @@ final class PlaybackVisualLineStackLayout {
     private let textStorage = NSTextStorage()
     private let layoutManager = NSLayoutManager()
     private let textContainer = NSTextContainer()
+    private var preparedGeometrySignature: GeometrySignature?
+    private var segmentCharacterRanges: [NSRange] = []
+    private var appliedSegmentColors: [NSColor] = []
+    private(set) var geometryPreparationCountForTesting = 0
     private(set) var plan = PlaybackVisualLineStackPlan(
         lines: [],
         stackHeight: 0,
@@ -128,11 +143,55 @@ final class PlaybackVisualLineStackLayout {
                 nominalLineHeight: PlaybackSubtitleFocusMetrics.cueLineHeight
             )]
             : segments
-        let attributedText = Self.attributedText(for: resolvedSegments)
+        let resolvedWidth = max(1, width)
+        let nextSignature = GeometrySignature(
+            segments: resolvedSegments.map {
+                SegmentGeometrySignature(
+                    text: Self.normalizedText($0.text),
+                    font: $0.font,
+                    nominalLineHeight: $0.nominalLineHeight
+                )
+            },
+            width: resolvedWidth
+        )
+        if preparedGeometrySignature == nextSignature {
+            let nextColors = resolvedSegments.map(\.color)
+            if appliedSegmentColors != nextColors {
+                textStorage.beginEditing()
+                for (index, segment) in resolvedSegments.enumerated() {
+                    let hasColorChanged = index >= appliedSegmentColors.count
+                        || appliedSegmentColors[index] != segment.color
+                    guard hasColorChanged else {
+                        continue
+                    }
+                    if index < segmentCharacterRanges.count,
+                       segmentCharacterRanges[index].length > 0 {
+                        textStorage.addAttribute(
+                            .foregroundColor,
+                            value: segment.color,
+                            range: segmentCharacterRanges[index]
+                        )
+                    }
+                    if index < appliedSegmentColors.count {
+                        appliedSegmentColors[index] = segment.color
+                    }
+                }
+                textStorage.endEditing()
+                appliedSegmentColors = nextColors
+            }
+            return plan
+        }
+
+        geometryPreparationCountForTesting += 1
+        let (attributedText, characterRanges) = Self.attributedText(
+            for: resolvedSegments
+        )
+        segmentCharacterRanges = characterRanges
+        appliedSegmentColors = resolvedSegments.map(\.color)
 
         textStorage.setAttributedString(attributedText)
         textContainer.size = CGSize(
-            width: max(1, width),
+            width: resolvedWidth,
             height: 1_000_000
         )
         layoutManager.ensureLayout(for: textContainer)
@@ -220,6 +279,7 @@ final class PlaybackVisualLineStackLayout {
             nominalContentHeight: nominalContentHeight,
             resolvedContentHeight: resolvedContentHeight
         )
+        preparedGeometrySignature = nextSignature
         return plan
     }
 
@@ -558,17 +618,24 @@ final class PlaybackVisualLineStackLayout {
 
     private static func attributedText(
         for segments: [PlaybackVisualLineStackSegment]
-    ) -> NSAttributedString {
+    ) -> (attributedText: NSAttributedString, characterRanges: [NSRange]) {
         let result = NSMutableAttributedString()
+        var characterRanges: [NSRange] = []
+        characterRanges.reserveCapacity(segments.count)
         for (index, segment) in segments.enumerated() {
             let normalizedText = normalizedText(segment.text)
             let attributes = attributes(for: segment, segmentIndex: index)
+            let segmentStart = result.length
             if !normalizedText.isEmpty {
                 result.append(NSAttributedString(
                     string: normalizedText,
                     attributes: attributes
                 ))
             }
+            characterRanges.append(NSRange(
+                location: segmentStart,
+                length: result.length - segmentStart
+            ))
 
             if index < segments.count - 1 {
                 result.append(NSAttributedString(
@@ -584,7 +651,7 @@ final class PlaybackVisualLineStackLayout {
                 ))
             }
         }
-        return result
+        return (result, characterRanges)
     }
 
     private static func attributes(
@@ -657,6 +724,10 @@ final class PlaybackSubtitleFocusCueTextMeasurer {
 @MainActor
 final class PlaybackSubtitleFocusNativeTextLayout {
     private let visualLineLayout = PlaybackVisualLineStackLayout()
+
+    var geometryPreparationCountForTesting: Int {
+        visualLineLayout.geometryPreparationCountForTesting
+    }
 
     func draw(
         text: String,
