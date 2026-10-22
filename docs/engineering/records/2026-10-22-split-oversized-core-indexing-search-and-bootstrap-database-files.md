@@ -13,6 +13,10 @@
 2. **Sub-step 4B — Split `DatabaseBootstrap.swift` (1,783 Lines) into Schema Definition and Historical Migrations**:
    - `DatabaseBootstrap.swift` (758 lines): Retained `DatabaseBootstrap`, current schema v58 DDL (`prepareSchema`), schema inspection helpers, and migration entry point.
    - `DatabaseBootstrap+Migrations.swift` (1,025 lines): Extracted historical step-by-step schema migrations (`migrateSchema33To34` through `migrateSchema57To58`).
+3. **Sub-step 4C — Split `SearchDatabase.swift` (2,128 Lines) and Decomposed `searchPage` Query**:
+   - `SearchDatabase+FTSDiagnostics.swift` (96 lines): Extracted `ftsVocabularyDiagnostics` and `fts5vocab` diagnostic queries.
+   - `SearchDatabase+Navigation.swift` (157 lines): Extracted `searchNavigationSnapshot` and `searchNavigationIndex` anchor neighborhood resolution queries.
+   - `SearchDatabase.swift`: Removed unused `cueGroupOccurrenceCount`, and decomposed the 667-line `searchPage` method into a concise orchestrator backed by stage methods (`resolveSearchPageScope`, `prepareSearchCandidateScan`, `scanSearchCandidateBatches`, `validateSearchCandidateBatch`, `buildVisibleWindowSearchPage`, `buildExactSearchPage`) and `SearchPageScanState`.
 
 ## Verification
-- Verified `swift build --package-path apps/macos-native` and `IndexingDatabaseTests` / `SubtitleIndexerTests` / `LibraryDatabaseTests` / `ExcerptDatabaseTests` / `SubtitleLanguageDatabaseTests` / `DatabaseBootstrapTests` pass with 0 errors.
+- Verified `swift build --package-path apps/macos-native` and `IndexingDatabaseTests` / `SubtitleIndexerTests` / `LibraryDatabaseTests` / `ExcerptDatabaseTests` / `SubtitleLanguageDatabaseTests` / `DatabaseBootstrapTests` / `SearchDatabaseTests` / `SearchStoreTests` pass with 0 errors.

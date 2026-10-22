@@ -4,7 +4,7 @@ public final class SearchDatabase: @unchecked Sendable {
     private static let exactSearchCandidateBatchMinimum = 5_000
 
     let path: URL
-    private let database: SQLiteDatabase
+    let database: SQLiteDatabase
 
     public init(
         path: URL,
@@ -35,13 +35,6 @@ public final class SearchDatabase: @unchecked Sendable {
             under: folders,
             mode: .exact
         ).totalCount
-    }
-
-    public func cueGroupOccurrenceCount(
-        for query: String,
-        under folders: [URL]? = nil
-    ) throws -> Int {
-        try cueOccurrenceCount(for: query, under: folders)
     }
 
     private static func cueTimeRange(startMilliseconds: Int, endMilliseconds: Int) -> String {
@@ -435,208 +428,162 @@ public final class SearchDatabase: @unchecked Sendable {
         try Task.checkCancellation()
         let searchPageStart = Self.diagnosticNow()
         let appliedCursor = cursor ?? .start
+        let emitter = SearchDiagnosticEmitter(sink: diagnostics)
+
+        guard let scope = resolveSearchPageScope(
+            query: query,
+            appliedCursor: appliedCursor,
+            folders: folders,
+            subtitlePath: subtitlePath,
+            languageFilter: languageFilter,
+            watchStateFilter: watchStateFilter,
+            filterSet: filterSet,
+            emitter: emitter
+        ) else {
+            return Self.emptySearchPage(appliedCursor: appliedCursor, mode: mode)
+        }
+
+        do {
+            return try database.withReadTransaction {
+                let scanPlan = try prepareSearchCandidateScan(
+                    scope: scope,
+                    limit: limit,
+                    languageFilter: languageFilter,
+                    watchStateFilter: watchStateFilter,
+                    filterSet: filterSet,
+                    facetFilter: facetFilter,
+                    mode: mode,
+                    emitter: emitter
+                )
+
+                var scanState = try scanSearchCandidateBatches(
+                    scanPlan: scanPlan,
+                    scope: scope,
+                    limit: limit,
+                    filterSet: filterSet,
+                    facetFilter: facetFilter,
+                    sortOrder: sortOrder,
+                    mode: mode,
+                    searchPageStart: searchPageStart,
+                    progress: progress,
+                    emitter: emitter
+                )
+
+                try scanState.applyCharacterCountSortIfNeeded(
+                    sortOrder: sortOrder,
+                    mode: mode,
+                    offset: scope.offset,
+                    limit: limit,
+                    tracksProgress: progress != nil
+                )
+
+                if mode == .visibleWindow {
+                    return try buildVisibleWindowSearchPage(
+                        from: scanState,
+                        scope: scope,
+                        limit: limit,
+                        mode: mode,
+                        searchPageStart: searchPageStart,
+                        emitter: emitter
+                    )
+                }
+
+                return try buildExactSearchPage(
+                    from: scanState,
+                    scope: scope,
+                    limit: limit,
+                    mode: mode,
+                    hasProgressSink: progress != nil,
+                    searchPageStart: searchPageStart,
+                    emitter: emitter
+                )
+            }
+        } catch {
+            emitter.emit(
+                "failed",
+                since: searchPageStart,
+                fields: [.init("error", error.localizedDescription)]
+            )
+            if Self.isFTSSyntaxError(error) {
+                return Self.emptySearchPage(appliedCursor: appliedCursor, mode: mode)
+            }
+            throw error
+        }
+    }
+
+    private struct SearchDiagnosticEmitter {
+        let sink: SubtitleSearchDiagnosticSink?
 
         func emit(
             _ name: String,
             since start: UInt64,
             fields: [SubtitleSearchDiagnosticField] = []
         ) {
-            diagnostics?(
+            sink?(
                 SubtitleSearchDiagnosticEvent(
                     name: name,
-                    phaseMilliseconds: Self.diagnosticMilliseconds(between: start, and: Self.diagnosticNow()),
+                    phaseMilliseconds: SearchDatabase.diagnosticMilliseconds(
+                        between: start,
+                        and: SearchDatabase.diagnosticNow()
+                    ),
                     fields: fields
                 )
             )
         }
+    }
 
-        let planStart = Self.diagnosticNow()
-        guard let plan = SearchQueryPlanner.plan(for: query) else {
-            emit("query_plan_empty", since: planStart)
-            return SubtitleSearchPage(
-                results: [],
-                totalCount: 0,
-                fileSummaries: [],
-                appliedCursor: appliedCursor,
-                pageMode: mode,
-                facetSnapshot: .empty
-            )
-        }
-        emit(
-            "query_plan",
-            since: planStart,
-            fields: [
-                .init("ftsQueryLength", plan.ftsQuery.count),
-                .init("lineRule", SearchQueryPlanner.matchRuleName(plan.lineMatchRule))
-            ]
-        )
-
-        let scopeStart = Self.diagnosticNow()
-        let offset = appliedCursor.offset
-        let subtitlePathFilter = subtitlePath
-        if let subtitlePathFilter, subtitlePathFilter.isEmpty {
-            emit("scope_empty_subtitle_path", since: scopeStart)
-            return SubtitleSearchPage(
-                results: [],
-                totalCount: 0,
-                fileSummaries: [],
-                appliedCursor: appliedCursor,
-                pageMode: mode,
-                facetSnapshot: .empty
-            )
-        }
-
+    private struct SearchPageScope {
+        let plan: SearchQueryPlanner.Plan
+        let appliedCursor: SubtitleSearchCursor
+        let offset: Int
+        let subtitlePathFilter: String?
         let pathPrefixes: [String]?
-        if let folders {
-            let prefixes = Self.folderPathPrefixes(for: folders)
-            guard !prefixes.isEmpty else {
-                emit("scope_empty_folders", since: scopeStart)
-                return SubtitleSearchPage(
-                    results: [],
-                    totalCount: 0,
-                    fileSummaries: [],
-                    appliedCursor: appliedCursor,
-                    pageMode: mode,
-                    facetSnapshot: .empty
-                )
-            }
-            pathPrefixes = prefixes
-        } else {
-            pathPrefixes = nil
-        }
-        emit(
-            "scope_resolved",
-            since: scopeStart,
-            fields: [
-                .init("cursorOffset", appliedCursor.offset),
-                .init("pathPrefixes", pathPrefixes?.count ?? 0),
-                .init("hasSubtitlePathFilter", subtitlePathFilter == nil ? "false" : "true"),
-                .init("languageFilter", languageFilter.rawValue),
-                .init("watchStateFilter", watchStateFilter.rawValue),
-                .init("hasFilterSet", filterSet.isEffectivelyEmpty ? "false" : "true")
-            ]
-        )
+    }
 
-        do {
-            return try database.withReadTransaction {
-                let setupStart = Self.diagnosticNow()
-                let candidateBatchLimit = Self.searchCandidateBatchLimit(for: limit, mode: mode)
-            // The first batch is no larger than a visible window's, so an exact
-            // scan reaches its first page as early as a visible window does.
-            let firstCandidateBatchLimit = Self.searchCandidateBatchLimit(for: limit, mode: .visibleWindow)
-            // The checked filter does not narrow the row reads: every match of the
-            // query goes into the page's facet snapshot, so it counts every option,
-            // and only the matches inside the selection become results.
-            var acceptedCueIDs: [Int64] = []
-            var acceptedDurationFacets: [CueDurationFacet] = []
-            var acceptedCharacterFacets: [CueCharacterFacet] = []
-            var acceptedCharacterWidths: [Int] = []
-            var acceptedLanguageFacets: [Set<SubtitleLanguageCode>] = []
-            var acceptedWatchStateFacets: [LibraryWatchState] = []
-            var acceptedFolderFacets: [String] = []
-            // Only while the selected folders are read first: each match's
-            // file rank, and how many matches the first run holds.
-            var acceptedFileRanks: [Int] = []
-            var acceptedFirstRunCount = 0
-            var resultCueIDs: [Int64] = []
-            var resultCharacterWidths: [Int] = []
-            var allExactResults: [OrderedSearchResult] = []
-            var exactPageResults: [OrderedSearchResult] = []
-            var pendingProgressResults: [OrderedSearchResult] = []
-            var publishedProgressResultCount = 0
-            var visiblePrefixResults: [OrderedSearchResult] = []
-            var visibleWindowResults: [OrderedSearchResult] = []
-            var progressFileSummaries = SearchFileSummaryAccumulator()
-            var acceptedSearchResultCount = 0
-            var reachedVisibleLookahead = false
-            var batchIndex = 0
-            var totalCandidates = 0
-            var totalMultiLineCandidates = 0
-            var totalCueLineRows = 0
-            func rankedResults(
-                from orderedResults: [OrderedSearchResult],
-                startingAt startIndex: Int = 0
-            ) -> [SubtitleSearchResult] {
-                var results = orderedResults.map(\.result)
-                for index in results.indices {
-                    results[index].searchRank = startIndex + index
-                }
-                return results
-            }
-            func facetSnapshot() -> CueFacetSnapshot {
-                guard !acceptedFileRanks.isEmpty else {
-                    return CueFacetSnapshot(
-                        cueIDs: acceptedCueIDs,
-                        durationFacets: acceptedDurationFacets,
-                        characterFacets: acceptedCharacterFacets,
-                        characterWidths: acceptedCharacterWidths,
-                        languageFacets: acceptedLanguageFacets,
-                        watchStateFacets: acceptedWatchStateFacets,
-                        folderFacets: acceptedFolderFacets
-                    )
-                }
-                let order = Self.displayOrder(
-                    fileRanks: acceptedFileRanks,
-                    firstRunCount: acceptedFirstRunCount
-                )
-                return CueFacetSnapshot(
-                    cueIDs: order.map { acceptedCueIDs[$0] },
-                    durationFacets: order.map { acceptedDurationFacets[$0] },
-                    characterFacets: order.map { acceptedCharacterFacets[$0] },
-                    characterWidths: order.map { acceptedCharacterWidths[$0] },
-                    languageFacets: order.map { acceptedLanguageFacets[$0] },
-                    watchStateFacets: order.map { acceptedWatchStateFacets[$0] },
-                    folderFacets: order.map { acceptedFolderFacets[$0] }
-                )
-            }
-            let languageFilterCodes = Self.languageCodesForSearchFilter(languageFilter)
-            let languageFilterCodeSet = Set(languageFilterCodes)
-            let watchStateValues = watchStateFilter.states.map(\.rawValue)
-            emit(
-                "setup",
-                since: setupStart,
-                fields: [
-                    .init("candidateBatchLimit", candidateBatchLimit),
-                    .init("scopeCondition", pathPrefixes == nil ? "none" : "path"),
-                    .init("subtitlePathFilter", subtitlePathFilter == nil ? "false" : "true"),
-                    .init("languageFilter", languageFilter.rawValue),
-                    .init("watchStateFilter", watchStateFilter.rawValue),
-                    .init("hasFilterSet", filterSet.isEffectivelyEmpty ? "false" : "true"),
-                    .init("metadataMode", mode.rawValue)
-                ]
-            )
+    private struct SearchCandidateScanPlan {
+        let candidateBatchLimit: Int
+        let firstCandidateBatchLimit: Int
+        let requiredLanguageMask: Int
+        let fileOrder: SearchFileOrder
+        let orderedHitRowIDs: [Int64]
+    }
 
-            let searchOrderRowsStart = Self.diagnosticNow()
-            try Task.checkCancellation()
-            try requireCompleteSearchOrderRows(
-                pathPrefixes: pathPrefixes,
-                subtitlePath: subtitlePathFilter
-            )
-            emit("search_order_rows_validated", since: searchOrderRowsStart)
+    private struct SearchPageScanState {
+        // The checked filter does not narrow the row reads: every match of the
+        // query goes into the page's facet snapshot, so it counts every option,
+        // and only the matches inside the selection become results.
+        var acceptedCueIDs: [Int64] = []
+        var acceptedDurationFacets: [CueDurationFacet] = []
+        var acceptedCharacterFacets: [CueCharacterFacet] = []
+        var acceptedCharacterWidths: [Int] = []
+        var acceptedLanguageFacets: [Set<SubtitleLanguageCode>] = []
+        var acceptedWatchStateFacets: [LibraryWatchState] = []
+        var acceptedFolderFacets: [String] = []
+        // Only while the selected folders are read first: each match's
+        // file rank, and how many matches the first run holds.
+        var acceptedFileRanks: [Int] = []
+        var acceptedFirstRunCount = 0
+        var resultCueIDs: [Int64] = []
+        var resultCharacterWidths: [Int] = []
+        var allExactResults: [OrderedSearchResult] = []
+        var exactPageResults: [OrderedSearchResult] = []
+        var pendingProgressResults: [OrderedSearchResult] = []
+        var publishedProgressResultCount = 0
+        var visiblePrefixResults: [OrderedSearchResult] = []
+        var visibleWindowResults: [OrderedSearchResult] = []
+        var progressFileSummaries = SearchFileSummaryAccumulator()
+        var acceptedSearchResultCount = 0
+        var reachedVisibleLookahead = false
+        var batchIndex = 0
+        var totalCandidates = 0
+        var totalMultiLineCandidates = 0
+        var totalCueLineRows = 0
 
-            let fileRanksStart = Self.diagnosticNow()
-            // With a Folder selection the selected folders' files are read
-            // first, so the first page does not wait behind folders that give
-            // no result; the snapshot goes back to display order at the end.
-            let fileOrder = try searchFileRanks(
-                pathPrefixes: pathPrefixes,
-                subtitlePath: subtitlePathFilter,
-                excludedFolders: facetFilter.excludedFolders,
-                watchStateValues: watchStateValues
-            )
-            let fileRanks = fileOrder.ranks
-            let firstFileIDs = fileOrder.firstFileIDs
-            emit("file_ranks", since: fileRanksStart, fields: [.init("files", fileRanks.count)])
-
-            let hitsStart = Self.diagnosticNow()
-            let orderedHitRowIDs = try orderedFTSHitRowIDs(
-                matching: plan.ftsQuery,
-                fileRanks: fileRanks,
-                firstFileIDs: firstFileIDs
-            )
-            emit("fts_hits", since: hitsStart, fields: [.init("hits", orderedHitRowIDs.count)])
-
-            let hitCapacity = orderedHitRowIDs.count
+        init(
+            hitCapacity: Int,
+            sortOrder: SearchSortOrder,
+            hasFirstFileIDs: Bool
+        ) {
             acceptedCueIDs.reserveCapacity(hitCapacity)
             acceptedDurationFacets.reserveCapacity(hitCapacity)
             acceptedCharacterFacets.reserveCapacity(hitCapacity)
@@ -649,537 +596,737 @@ public final class SearchDatabase: @unchecked Sendable {
                 resultCharacterWidths.reserveCapacity(hitCapacity)
                 allExactResults.reserveCapacity(hitCapacity)
             }
-            if firstFileIDs != nil {
+            if hasFirstFileIDs {
                 acceptedFileRanks.reserveCapacity(hitCapacity)
             }
-            let requiredLanguageMask = languageFilterCodeSet.isEmpty
-                ? 0
-                : CueLineLanguages.mask(for: languageFilterCodeSet)
+        }
 
-            var nextHitIndex = 0
-            while nextHitIndex < orderedHitRowIDs.count {
-                try Task.checkCancellation()
-                batchIndex += 1
-                let queryStart = Self.diagnosticNow()
-                let batchLimit = batchIndex == 1 ? firstCandidateBatchLimit : candidateBatchLimit
-                let chunkEnd = min(nextHitIndex + batchLimit, orderedHitRowIDs.count)
-                let chunkRowIDs = Array(orderedHitRowIDs[nextHitIndex..<chunkEnd])
-                let candidateOffset = nextHitIndex
-                nextHitIndex = chunkEnd
+        static func rankedResults(
+            from orderedResults: [OrderedSearchResult],
+            startingAt startIndex: Int = 0
+        ) -> [SubtitleSearchResult] {
+            var results = orderedResults.map(\.result)
+            for index in results.indices {
+                results[index].searchRank = startIndex + index
+            }
+            return results
+        }
 
-                let coveringResult = try searchCoveringCueLines(forFTSRowIDs: chunkRowIDs)
-                let linesByFTSRowID = coveringResult.linesByFTSRowID
-                let candidateCount = linesByFTSRowID.count
-                emit(
-                    "fts_batch",
-                    since: queryStart,
-                    fields: [
-                        .init("batch", batchIndex),
-                        .init("candidateOffset", candidateOffset),
-                        .init("candidateBatchLimit", batchLimit),
-                        .init("candidates", candidateCount)
-                    ]
+        func facetSnapshot() -> CueFacetSnapshot {
+            guard !acceptedFileRanks.isEmpty else {
+                return CueFacetSnapshot(
+                    cueIDs: acceptedCueIDs,
+                    durationFacets: acceptedDurationFacets,
+                    characterFacets: acceptedCharacterFacets,
+                    characterWidths: acceptedCharacterWidths,
+                    languageFacets: acceptedLanguageFacets,
+                    watchStateFacets: acceptedWatchStateFacets,
+                    folderFacets: acceptedFolderFacets
                 )
-                let isLastCandidateBatch = nextHitIndex >= orderedHitRowIDs.count
+            }
+            let order = SearchDatabase.displayOrder(
+                fileRanks: acceptedFileRanks,
+                firstRunCount: acceptedFirstRunCount
+            )
+            return CueFacetSnapshot(
+                cueIDs: order.map { acceptedCueIDs[$0] },
+                durationFacets: order.map { acceptedDurationFacets[$0] },
+                characterFacets: order.map { acceptedCharacterFacets[$0] },
+                characterWidths: order.map { acceptedCharacterWidths[$0] },
+                languageFacets: order.map { acceptedLanguageFacets[$0] },
+                watchStateFacets: order.map { acceptedWatchStateFacets[$0] },
+                folderFacets: order.map { acceptedFolderFacets[$0] }
+            )
+        }
 
-                guard candidateCount > 0 else {
-                    if isLastCandidateBatch {
-                        break
-                    }
-                    continue
+        mutating func recordMatchedResult(
+            _ result: OrderedSearchResult,
+            fileMetadata: SearchFileMetadata,
+            fileRank: Int?,
+            isFirstFile: Bool,
+            facetFilter: CueFacetFilter,
+            sortOrder: SearchSortOrder,
+            mode: SubtitleSearchPageMode,
+            offset: Int,
+            limit: Int,
+            tracksProgress: Bool
+        ) {
+            let durationFacet = CueDurationFacet(
+                durationMilliseconds: result.result.durationMilliseconds
+            )
+            let characterWidth = result.result.characterWidth
+            let characterFacet = CueCharacterFacet(
+                characterCount: characterWidth
+            )
+            let folderPath = fileMetadata.folderPath
+            acceptedCueIDs.append(result.result.entryID)
+            acceptedDurationFacets.append(durationFacet)
+            acceptedCharacterFacets.append(characterFacet)
+            acceptedCharacterWidths.append(characterWidth)
+            acceptedLanguageFacets.append(result.result.languages)
+            acceptedWatchStateFacets.append(fileMetadata.watchState)
+            acceptedFolderFacets.append(folderPath)
+            if let fileRank {
+                acceptedFileRanks.append(fileRank)
+                if isFirstFile {
+                    acceptedFirstRunCount += 1
                 }
+            }
+            guard facetFilter.matches(
+                duration: durationFacet,
+                characters: characterFacet,
+                languages: result.result.languages.isEmpty
+                    ? [.unknown]
+                    : result.result.languages,
+                watchState: fileMetadata.watchState,
+                folder: folderPath
+            ) else {
+                return
+            }
+            resultCueIDs.append(result.result.entryID)
+            if sortOrder == .default {
+                switch mode {
+                case .exact:
+                    progressFileSummaries.add(result)
+                    if tracksProgress {
+                        pendingProgressResults.append(result)
+                    }
+                    if acceptedSearchResultCount >= offset && exactPageResults.count < limit {
+                        exactPageResults.append(result)
+                    }
+                case .visibleWindow:
+                    if acceptedSearchResultCount < offset + limit {
+                        visiblePrefixResults.append(result)
+                    }
+                    if acceptedSearchResultCount >= offset && visibleWindowResults.count < limit + 1 {
+                        visibleWindowResults.append(result)
+                        reachedVisibleLookahead = visibleWindowResults.count > limit
+                    }
+                }
+            } else {
+                resultCharacterWidths.append(characterWidth)
+                allExactResults.append(result)
+                if mode == .exact {
+                    progressFileSummaries.add(result)
+                }
+            }
+            acceptedSearchResultCount += 1
+        }
 
-                totalCandidates += candidateCount
-                totalMultiLineCandidates += coveringResult.multiLineGroupCount
-                totalCueLineRows += coveringResult.totalLineCount
-                emit(
-                    "cue_lines",
-                    since: queryStart,
-                    fields: [
-                        .init("batch", batchIndex),
-                        .init("multiLineCandidates", coveringResult.multiLineGroupCount),
-                        .init("lineCueGroups", candidateCount),
-                        .init("cueLineRows", coveringResult.totalLineCount)
-                    ]
+        mutating func publishProgressIfNeeded(
+            mode: SubtitleSearchPageMode,
+            sortOrder: SearchSortOrder,
+            isLastCandidateBatch: Bool,
+            searchPageStart: UInt64,
+            progress: SubtitleSearchProgressSink?,
+            emitter: SearchDiagnosticEmitter
+        ) {
+            guard mode == .exact,
+                  sortOrder == .default,
+                  !isLastCandidateBatch,
+                  acceptedSearchResultCount > 0
+            else {
+                return
+            }
+            let progressSummaries = progressFileSummaries.fileSummaries()
+            let countSnapshot = SubtitleSearchCountSnapshot.exactProgress(
+                knownResultCount: acceptedSearchResultCount,
+                knownFileCount: progressSummaries.count
+            )
+            progress?(
+                SubtitleSearchProgressSnapshot(
+                    countSnapshot: countSnapshot,
+                    fileSummaries: progressSummaries,
+                    results: Self.rankedResults(
+                        from: pendingProgressResults,
+                        startingAt: publishedProgressResultCount
+                    ),
+                    cueIDs: Array(resultCueIDs[publishedProgressResultCount...]),
+                    resultOffset: publishedProgressResultCount
                 )
+            )
+            publishedProgressResultCount = resultCueIDs.count
+            pendingProgressResults.removeAll(keepingCapacity: true)
+            emitter.emit(
+                "count_progress",
+                since: searchPageStart,
+                fields: [
+                    .init("countState", countSnapshot.state.rawValue),
+                    .init("knownResultCount", countSnapshot.knownResultCount),
+                    .init("knownFileCount", countSnapshot.knownFileCount),
+                    .init("summaries", progressSummaries.count)
+                ]
+            )
+        }
 
-                let validationStart = Self.diagnosticNow()
-                let acceptedBefore = acceptedSearchResultCount
-                var matchedCandidateCount = 0
-                for ftsRowID in chunkRowIDs {
-                    try Task.checkCancellation()
-                    let subtitleFileID = SearchFTSRows.subtitleFileID(ofRowID: ftsRowID)
-                    guard let fileMetadata = fileOrder.files[subtitleFileID],
-                          let records = linesByFTSRowID[ftsRowID],
-                          !records.isEmpty
-                    else {
-                        continue
-                    }
-                    let orderedMatches = searchCoveringResults(
-                        for: fileMetadata,
-                        cueLineRecords: records,
-                        matching: plan,
-                        requiredLanguageMask: requiredLanguageMask,
-                        filterSet: filterSet
-                    )
-                    if !orderedMatches.isEmpty {
-                        matchedCandidateCount += 1
-                    }
-                    let isFirstFile = firstFileIDs?.contains(subtitleFileID) ?? false
-                    let folderPath = fileMetadata.folderPath
-                    for result in orderedMatches {
-                        let durationFacet = CueDurationFacet(
-                            durationMilliseconds: result.result.durationMilliseconds
-                        )
-                        let characterWidth = result.result.characterWidth
-                        let characterFacet = CueCharacterFacet(
-                            characterCount: characterWidth
-                        )
-                        acceptedCueIDs.append(result.result.entryID)
-                        acceptedDurationFacets.append(durationFacet)
-                        acceptedCharacterFacets.append(characterFacet)
-                        acceptedCharacterWidths.append(characterWidth)
-                        acceptedLanguageFacets.append(result.result.languages)
-                        acceptedWatchStateFacets.append(fileMetadata.watchState)
-                        acceptedFolderFacets.append(folderPath)
-                        if firstFileIDs != nil {
-                            acceptedFileRanks.append(fileRanks[subtitleFileID] ?? 0)
-                            if isFirstFile {
-                                acceptedFirstRunCount += 1
-                            }
-                        }
-                        guard facetFilter.matches(
-                            duration: durationFacet,
-                            characters: characterFacet,
-                            languages: result.result.languages.isEmpty
-                                ? [.unknown]
-                                : result.result.languages,
-                            watchState: fileMetadata.watchState,
-                            folder: folderPath
-                        ) else {
-                            continue
-                        }
-                        resultCueIDs.append(result.result.entryID)
-                        if sortOrder == .default {
-                            switch mode {
-                            case .exact:
-                                progressFileSummaries.add(result)
-                                if progress != nil {
-                                    pendingProgressResults.append(result)
-                                }
-                                if acceptedSearchResultCount >= offset && exactPageResults.count < limit {
-                                    exactPageResults.append(result)
-                                }
-                            case .visibleWindow:
-                                if acceptedSearchResultCount < offset + limit {
-                                    visiblePrefixResults.append(result)
-                                }
-                                if acceptedSearchResultCount >= offset && visibleWindowResults.count < limit + 1 {
-                                    visibleWindowResults.append(result)
-                                    reachedVisibleLookahead = visibleWindowResults.count > limit
-                                }
-                            }
-                        } else {
-                            resultCharacterWidths.append(characterWidth)
-                            allExactResults.append(result)
-                            if mode == .exact {
-                                progressFileSummaries.add(result)
-                            }
-                        }
-                        acceptedSearchResultCount += 1
-                    }
+        mutating func applyCharacterCountSortIfNeeded(
+            sortOrder: SearchSortOrder,
+            mode: SubtitleSearchPageMode,
+            offset: Int,
+            limit: Int,
+            tracksProgress: Bool
+        ) throws {
+            guard sortOrder != .default, !resultCueIDs.isEmpty else {
+                return
+            }
+            try Task.checkCancellation()
+            var sortedIndices = Array(0..<resultCueIDs.count)
+            sortedIndices.sort { lhs, rhs in
+                let lhsWidth = resultCharacterWidths[lhs]
+                let rhsWidth = resultCharacterWidths[rhs]
+                if lhsWidth != rhsWidth {
+                    return sortOrder == .mostCharacters
+                        ? lhsWidth > rhsWidth
+                        : lhsWidth < rhsWidth
                 }
-                let accepted = acceptedSearchResultCount - acceptedBefore
-                emit(
-                    "line_validation",
-                    since: validationStart,
-                    fields: [
-                        .init("batch", batchIndex),
-                        .init("candidates", candidateCount),
-                        .init("accepted", accepted),
-                        .init("rejected", candidateCount - matchedCandidateCount),
-                        .init("acceptedSoFar", acceptedSearchResultCount)
-                    ]
-                )
-
-                if mode == .exact,
-                   sortOrder == .default,
-                   !isLastCandidateBatch,
-                   acceptedSearchResultCount > 0 {
-                    let progressSummaries = progressFileSummaries.fileSummaries()
-                    let countSnapshot = SubtitleSearchCountSnapshot.exactProgress(
-                        knownResultCount: acceptedSearchResultCount,
-                        knownFileCount: progressSummaries.count
-                    )
-                    progress?(
-                        SubtitleSearchProgressSnapshot(
-                            countSnapshot: countSnapshot,
-                            fileSummaries: progressSummaries,
-                            results: rankedResults(
-                                from: pendingProgressResults,
-                                startingAt: publishedProgressResultCount
-                            ),
-                            cueIDs: Array(resultCueIDs[publishedProgressResultCount...]),
-                            resultOffset: publishedProgressResultCount
-                        )
-                    )
-                    publishedProgressResultCount = resultCueIDs.count
-                    pendingProgressResults.removeAll(keepingCapacity: true)
-                    emit(
-                        "count_progress",
-                        since: searchPageStart,
-                        fields: [
-                            .init("countState", countSnapshot.state.rawValue),
-                            .init("knownResultCount", countSnapshot.knownResultCount),
-                            .init("knownFileCount", countSnapshot.knownFileCount),
-                            .init("summaries", progressSummaries.count)
-                        ]
-                    )
+                return lhs < rhs
+            }
+            resultCueIDs = sortedIndices.map { resultCueIDs[$0] }
+            let sortedResults = sortedIndices.map { allExactResults[$0] }
+            let safeLimit = max(0, limit)
+            let sliceStart = min(max(0, offset), sortedResults.count)
+            let sliceEnd = min(sliceStart + safeLimit, sortedResults.count)
+            switch mode {
+            case .exact:
+                if sliceStart < sliceEnd {
+                    exactPageResults = Array(sortedResults[sliceStart..<sliceEnd])
                 }
-
-                if reachedVisibleLookahead {
-                    break
+                if tracksProgress {
+                    pendingProgressResults = sortedResults
                 }
+            case .visibleWindow:
+                let prefixEnd = min(max(0, offset) + safeLimit, sortedResults.count)
+                visiblePrefixResults = Array(sortedResults.prefix(prefixEnd))
+                let windowEnd = min(sliceStart + safeLimit + 1, sortedResults.count)
+                if sliceStart < windowEnd {
+                    visibleWindowResults = Array(sortedResults[sliceStart..<windowEnd])
+                }
+            }
+        }
+    }
 
+    private static func emptySearchPage(
+        appliedCursor: SubtitleSearchCursor,
+        mode: SubtitleSearchPageMode
+    ) -> SubtitleSearchPage {
+        SubtitleSearchPage(
+            results: [],
+            totalCount: 0,
+            fileSummaries: [],
+            appliedCursor: appliedCursor,
+            pageMode: mode,
+            facetSnapshot: .empty
+        )
+    }
+
+    private func resolveSearchPageScope(
+        query: String,
+        appliedCursor: SubtitleSearchCursor,
+        folders: [URL]?,
+        subtitlePath: String?,
+        languageFilter: SubtitleSearchLanguageFilter,
+        watchStateFilter: SubtitleSearchWatchStateFilter,
+        filterSet: SubtitleSearchFilterSet,
+        emitter: SearchDiagnosticEmitter
+    ) -> SearchPageScope? {
+        let planStart = Self.diagnosticNow()
+        guard let plan = SearchQueryPlanner.plan(for: query) else {
+            emitter.emit("query_plan_empty", since: planStart)
+            return nil
+        }
+        emitter.emit(
+            "query_plan",
+            since: planStart,
+            fields: [
+                .init("ftsQueryLength", plan.ftsQuery.count),
+                .init("lineRule", SearchQueryPlanner.matchRuleName(plan.lineMatchRule))
+            ]
+        )
+
+        let scopeStart = Self.diagnosticNow()
+        let offset = appliedCursor.offset
+        let subtitlePathFilter = subtitlePath
+        if let subtitlePathFilter, subtitlePathFilter.isEmpty {
+            emitter.emit("scope_empty_subtitle_path", since: scopeStart)
+            return nil
+        }
+
+        let pathPrefixes: [String]?
+        if let folders {
+            let prefixes = Self.folderPathPrefixes(for: folders)
+            guard !prefixes.isEmpty else {
+                emitter.emit("scope_empty_folders", since: scopeStart)
+                return nil
+            }
+            pathPrefixes = prefixes
+        } else {
+            pathPrefixes = nil
+        }
+        emitter.emit(
+            "scope_resolved",
+            since: scopeStart,
+            fields: [
+                .init("cursorOffset", appliedCursor.offset),
+                .init("pathPrefixes", pathPrefixes?.count ?? 0),
+                .init("hasSubtitlePathFilter", subtitlePathFilter == nil ? "false" : "true"),
+                .init("languageFilter", languageFilter.rawValue),
+                .init("watchStateFilter", watchStateFilter.rawValue),
+                .init("hasFilterSet", filterSet.isEffectivelyEmpty ? "false" : "true")
+            ]
+        )
+
+        return SearchPageScope(
+            plan: plan,
+            appliedCursor: appliedCursor,
+            offset: offset,
+            subtitlePathFilter: subtitlePathFilter,
+            pathPrefixes: pathPrefixes
+        )
+    }
+
+    private func prepareSearchCandidateScan(
+        scope: SearchPageScope,
+        limit: Int,
+        languageFilter: SubtitleSearchLanguageFilter,
+        watchStateFilter: SubtitleSearchWatchStateFilter,
+        filterSet: SubtitleSearchFilterSet,
+        facetFilter: CueFacetFilter,
+        mode: SubtitleSearchPageMode,
+        emitter: SearchDiagnosticEmitter
+    ) throws -> SearchCandidateScanPlan {
+        let setupStart = Self.diagnosticNow()
+        let candidateBatchLimit = Self.searchCandidateBatchLimit(for: limit, mode: mode)
+        // The first batch is no larger than a visible window's, so an exact
+        // scan reaches its first page as early as a visible window does.
+        let firstCandidateBatchLimit = Self.searchCandidateBatchLimit(for: limit, mode: .visibleWindow)
+        let languageFilterCodes = Self.languageCodesForSearchFilter(languageFilter)
+        let languageFilterCodeSet = Set(languageFilterCodes)
+        let watchStateValues = watchStateFilter.states.map(\.rawValue)
+        emitter.emit(
+            "setup",
+            since: setupStart,
+            fields: [
+                .init("candidateBatchLimit", candidateBatchLimit),
+                .init("scopeCondition", scope.pathPrefixes == nil ? "none" : "path"),
+                .init("subtitlePathFilter", scope.subtitlePathFilter == nil ? "false" : "true"),
+                .init("languageFilter", languageFilter.rawValue),
+                .init("watchStateFilter", watchStateFilter.rawValue),
+                .init("hasFilterSet", filterSet.isEffectivelyEmpty ? "false" : "true"),
+                .init("metadataMode", mode.rawValue)
+            ]
+        )
+
+        let searchOrderRowsStart = Self.diagnosticNow()
+        try Task.checkCancellation()
+        try requireCompleteSearchOrderRows(
+            pathPrefixes: scope.pathPrefixes,
+            subtitlePath: scope.subtitlePathFilter
+        )
+        emitter.emit("search_order_rows_validated", since: searchOrderRowsStart)
+
+        let fileRanksStart = Self.diagnosticNow()
+        // With a Folder selection the selected folders' files are read
+        // first, so the first page does not wait behind folders that give
+        // no result; the snapshot goes back to display order at the end.
+        let fileOrder = try searchFileRanks(
+            pathPrefixes: scope.pathPrefixes,
+            subtitlePath: scope.subtitlePathFilter,
+            excludedFolders: facetFilter.excludedFolders,
+            watchStateValues: watchStateValues
+        )
+        emitter.emit("file_ranks", since: fileRanksStart, fields: [.init("files", fileOrder.ranks.count)])
+
+        let hitsStart = Self.diagnosticNow()
+        let orderedHitRowIDs = try orderedFTSHitRowIDs(
+            matching: scope.plan.ftsQuery,
+            fileRanks: fileOrder.ranks,
+            firstFileIDs: fileOrder.firstFileIDs
+        )
+        emitter.emit("fts_hits", since: hitsStart, fields: [.init("hits", orderedHitRowIDs.count)])
+
+        let requiredLanguageMask = languageFilterCodeSet.isEmpty
+            ? 0
+            : CueLineLanguages.mask(for: languageFilterCodeSet)
+
+        return SearchCandidateScanPlan(
+            candidateBatchLimit: candidateBatchLimit,
+            firstCandidateBatchLimit: firstCandidateBatchLimit,
+            requiredLanguageMask: requiredLanguageMask,
+            fileOrder: fileOrder,
+            orderedHitRowIDs: orderedHitRowIDs
+        )
+    }
+
+    private func scanSearchCandidateBatches(
+        scanPlan: SearchCandidateScanPlan,
+        scope: SearchPageScope,
+        limit: Int,
+        filterSet: SubtitleSearchFilterSet,
+        facetFilter: CueFacetFilter,
+        sortOrder: SearchSortOrder,
+        mode: SubtitleSearchPageMode,
+        searchPageStart: UInt64,
+        progress: SubtitleSearchProgressSink?,
+        emitter: SearchDiagnosticEmitter
+    ) throws -> SearchPageScanState {
+        var scanState = SearchPageScanState(
+            hitCapacity: scanPlan.orderedHitRowIDs.count,
+            sortOrder: sortOrder,
+            hasFirstFileIDs: scanPlan.fileOrder.firstFileIDs != nil
+        )
+        var nextHitIndex = 0
+        while nextHitIndex < scanPlan.orderedHitRowIDs.count {
+            try Task.checkCancellation()
+            scanState.batchIndex += 1
+            let queryStart = Self.diagnosticNow()
+            let batchLimit = scanState.batchIndex == 1
+                ? scanPlan.firstCandidateBatchLimit
+                : scanPlan.candidateBatchLimit
+            let chunkEnd = min(nextHitIndex + batchLimit, scanPlan.orderedHitRowIDs.count)
+            let chunkRowIDs = Array(scanPlan.orderedHitRowIDs[nextHitIndex..<chunkEnd])
+            let candidateOffset = nextHitIndex
+            nextHitIndex = chunkEnd
+
+            let coveringResult = try searchCoveringCueLines(forFTSRowIDs: chunkRowIDs)
+            let linesByFTSRowID = coveringResult.linesByFTSRowID
+            let candidateCount = linesByFTSRowID.count
+            emitter.emit(
+                "fts_batch",
+                since: queryStart,
+                fields: [
+                    .init("batch", scanState.batchIndex),
+                    .init("candidateOffset", candidateOffset),
+                    .init("candidateBatchLimit", batchLimit),
+                    .init("candidates", candidateCount)
+                ]
+            )
+            let isLastCandidateBatch = nextHitIndex >= scanPlan.orderedHitRowIDs.count
+
+            guard candidateCount > 0 else {
                 if isLastCandidateBatch {
                     break
                 }
+                continue
             }
 
-            if sortOrder != .default, !resultCueIDs.isEmpty {
-                try Task.checkCancellation()
-                var sortedIndices = Array(0..<resultCueIDs.count)
-                sortedIndices.sort { lhs, rhs in
-                    let lhsWidth = resultCharacterWidths[lhs]
-                    let rhsWidth = resultCharacterWidths[rhs]
-                    if lhsWidth != rhsWidth {
-                        return sortOrder == .mostCharacters
-                            ? lhsWidth > rhsWidth
-                            : lhsWidth < rhsWidth
-                    }
-                    return lhs < rhs
-                }
-                resultCueIDs = sortedIndices.map { resultCueIDs[$0] }
-                let sortedResults = sortedIndices.map { allExactResults[$0] }
-                let safeLimit = max(0, limit)
-                let sliceStart = min(max(0, offset), sortedResults.count)
-                let sliceEnd = min(sliceStart + safeLimit, sortedResults.count)
-                switch mode {
-                case .exact:
-                    if sliceStart < sliceEnd {
-                        exactPageResults = Array(sortedResults[sliceStart..<sliceEnd])
-                    }
-                    if progress != nil {
-                        pendingProgressResults = sortedResults
-                    }
-                case .visibleWindow:
-                    let prefixEnd = min(max(0, offset) + safeLimit, sortedResults.count)
-                    visiblePrefixResults = Array(sortedResults.prefix(prefixEnd))
-                    let windowEnd = min(sliceStart + safeLimit + 1, sortedResults.count)
-                    if sliceStart < windowEnd {
-                        visibleWindowResults = Array(sortedResults[sliceStart..<windowEnd])
-                    }
-                }
+            scanState.totalCandidates += candidateCount
+            scanState.totalMultiLineCandidates += coveringResult.multiLineGroupCount
+            scanState.totalCueLineRows += coveringResult.totalLineCount
+            emitter.emit(
+                "cue_lines",
+                since: queryStart,
+                fields: [
+                    .init("batch", scanState.batchIndex),
+                    .init("multiLineCandidates", coveringResult.multiLineGroupCount),
+                    .init("lineCueGroups", candidateCount),
+                    .init("cueLineRows", coveringResult.totalLineCount)
+                ]
+            )
+
+            try validateSearchCandidateBatch(
+                chunkRowIDs: chunkRowIDs,
+                linesByFTSRowID: linesByFTSRowID,
+                candidateCount: candidateCount,
+                scanPlan: scanPlan,
+                scope: scope,
+                limit: limit,
+                filterSet: filterSet,
+                facetFilter: facetFilter,
+                sortOrder: sortOrder,
+                mode: mode,
+                tracksProgress: progress != nil,
+                scanState: &scanState,
+                emitter: emitter
+            )
+
+            scanState.publishProgressIfNeeded(
+                mode: mode,
+                sortOrder: sortOrder,
+                isLastCandidateBatch: isLastCandidateBatch,
+                searchPageStart: searchPageStart,
+                progress: progress,
+                emitter: emitter
+            )
+
+            if scanState.reachedVisibleLookahead || isLastCandidateBatch {
+                break
             }
+        }
+        return scanState
+    }
 
-            if mode == .visibleWindow {
-                try Task.checkCancellation()
-                let pageStart = Self.diagnosticNow()
-                let hasMore = visibleWindowResults.count > limit
-                let pageOrderedResults = Array(visibleWindowResults.prefix(limit))
-                var pageResults = pageOrderedResults.map(\.result)
-                for i in 0..<pageResults.count {
-                    pageResults[i].searchRank = offset + i
-                }
-                let nextCursor = hasMore
-                    ? SubtitleSearchCursor(offset: offset + pageResults.count)
-                    : nil
-                let orderSource = Self.searchOrderSource(for: pageOrderedResults)
-                let materializedOrderRows = visiblePrefixResults.count
-                emit(
-                    "page_slice",
-                    since: pageStart,
-                    fields: [
-                        .init("offset", offset),
-                        .init("cursorOffset", appliedCursor.offset),
-                        .init("nextCursorOffset", nextCursor?.offset ?? -1),
-                        .init("limit", limit),
-                        .init("pageResults", pageResults.count),
-                        .init("hasMore", hasMore ? "true" : "false"),
-                        .init("metadataMode", mode.rawValue)
-                    ]
-                )
+    private func validateSearchCandidateBatch(
+        chunkRowIDs: [Int64],
+        linesByFTSRowID: [Int64: [SearchCoveringCueLineRecord]],
+        candidateCount: Int,
+        scanPlan: SearchCandidateScanPlan,
+        scope: SearchPageScope,
+        limit: Int,
+        filterSet: SubtitleSearchFilterSet,
+        facetFilter: CueFacetFilter,
+        sortOrder: SearchSortOrder,
+        mode: SubtitleSearchPageMode,
+        tracksProgress: Bool,
+        scanState: inout SearchPageScanState,
+        emitter: SearchDiagnosticEmitter
+    ) throws {
+        let validationStart = Self.diagnosticNow()
+        let acceptedBefore = scanState.acceptedSearchResultCount
+        var matchedCandidateCount = 0
+        let firstFileIDs = scanPlan.fileOrder.firstFileIDs
+        let fileRanks = scanPlan.fileOrder.ranks
 
-                let summariesStart = Self.diagnosticNow()
-                let fileSummaries = Self.fileSummaries(for: visiblePrefixResults)
-                let countSnapshot: SubtitleSearchCountSnapshot = hasMore
-                    ? .exactProgress(
-                        knownResultCount: visiblePrefixResults.count,
-                        knownFileCount: fileSummaries.count
-                    )
-                    : .exact(
-                        totalCount: visiblePrefixResults.count,
-                        fileSummaryCount: fileSummaries.count
-                    )
-                emit(
-                    "file_summaries",
-                    since: summariesStart,
-                    fields: [
-                        .init("summaries", fileSummaries.count),
-                        .init("results", visiblePrefixResults.count),
-                        .init("countState", countSnapshot.state.rawValue),
-                        .init("knownResultCount", countSnapshot.knownResultCount),
-                        .init("knownFileCount", countSnapshot.knownFileCount),
-                        .init("metadataMode", mode.rawValue)
-                    ]
-                )
-
-                emit(
-                    "search_page_complete",
-                    since: searchPageStart,
-                    fields: [
-                        .init("batches", batchIndex),
-                        .init("cursorOffset", appliedCursor.offset),
-                        .init("nextCursorOffset", nextCursor?.offset ?? -1),
-                        .init("totalCandidates", totalCandidates),
-                        .init("multiLineCandidates", totalMultiLineCandidates),
-                        .init("cueLineRows", totalCueLineRows),
-                        .init("accepted", visiblePrefixResults.count),
-                        .init("pageResults", pageResults.count),
-                        .init("summaries", fileSummaries.count),
-                        .init("orderSource", orderSource),
-                        .init("materializedOrderRows", materializedOrderRows),
-                        .init("countState", countSnapshot.state.rawValue),
-                        .init("knownResultCount", countSnapshot.knownResultCount),
-                        .init("knownFileCount", countSnapshot.knownFileCount),
-                        .init("metadataMode", mode.rawValue)
-                    ]
-                )
-                let page = SubtitleSearchPage(
-                    results: pageResults,
-                    totalCount: countSnapshot.knownResultCount,
-                    fileSummaries: fileSummaries,
-                    countSnapshot: countSnapshot,
-                    appliedCursor: appliedCursor,
-                    nextCursor: nextCursor,
-                    pageMode: mode,
-                    orderSource: orderSource,
-                    materializedOrderRows: materializedOrderRows,
-                    facetSnapshot: countSnapshot.state == .exact ? facetSnapshot() : nil
-                )
-                return page
-            }
-
-            let sortStart = Self.diagnosticNow()
+        for ftsRowID in chunkRowIDs {
             try Task.checkCancellation()
-            let totalExactResultCount = resultCueIDs.count
-            let orderSource = totalExactResultCount > 0 ? "ftsRowid" : "none"
-            let materializedOrderRows = exactPageResults.count
-            emit(
-                "sort_results",
-                since: sortStart,
-                fields: [
-                    .init("results", totalExactResultCount),
-                    .init("materializedResults", exactPageResults.count),
-                    .init("resultIDs", resultCueIDs.count),
-                    .init("orderSource", orderSource),
-                    .init("materializedOrderRows", materializedOrderRows)
-                ]
+            let subtitleFileID = SearchFTSRows.subtitleFileID(ofRowID: ftsRowID)
+            guard let fileMetadata = scanPlan.fileOrder.files[subtitleFileID],
+                  let records = linesByFTSRowID[ftsRowID],
+                  !records.isEmpty
+            else {
+                continue
+            }
+            let orderedMatches = searchCoveringResults(
+                for: fileMetadata,
+                cueLineRecords: records,
+                matching: scope.plan,
+                requiredLanguageMask: scanPlan.requiredLanguageMask,
+                filterSet: filterSet
             )
-
-            let pageStart = Self.diagnosticNow()
-            let pageResults = rankedResults(from: exactPageResults, startingAt: offset)
-            let renderableResults = progress == nil
-                ? pageResults
-                : rankedResults(
-                    from: pendingProgressResults,
-                    startingAt: publishedProgressResultCount
+            if !orderedMatches.isEmpty {
+                matchedCandidateCount += 1
+            }
+            let isFirstFile = firstFileIDs?.contains(subtitleFileID) ?? false
+            let fileRank = firstFileIDs != nil ? (fileRanks[subtitleFileID] ?? 0) : nil
+            for result in orderedMatches {
+                scanState.recordMatchedResult(
+                    result,
+                    fileMetadata: fileMetadata,
+                    fileRank: fileRank,
+                    isFirstFile: isFirstFile,
+                    facetFilter: facetFilter,
+                    sortOrder: sortOrder,
+                    mode: mode,
+                    offset: scope.offset,
+                    limit: limit,
+                    tracksProgress: tracksProgress
                 )
-            let renderableResultsOffset = progress == nil ? offset : publishedProgressResultCount
-            let nextCursor = limit > 0 && offset + pageResults.count < totalExactResultCount
-                ? SubtitleSearchCursor(offset: offset + pageResults.count)
-                : nil
-            emit(
-                "page_slice",
-                since: pageStart,
-                fields: [
-                    .init("offset", offset),
-                    .init("cursorOffset", appliedCursor.offset),
-                    .init("nextCursorOffset", nextCursor?.offset ?? -1),
-                    .init("limit", limit),
-                    .init("pageResults", pageResults.count)
-                ]
-            )
+            }
+        }
+        let accepted = scanState.acceptedSearchResultCount - acceptedBefore
+        emitter.emit(
+            "line_validation",
+            since: validationStart,
+            fields: [
+                .init("batch", scanState.batchIndex),
+                .init("candidates", candidateCount),
+                .init("accepted", accepted),
+                .init("rejected", candidateCount - matchedCandidateCount),
+                .init("acceptedSoFar", scanState.acceptedSearchResultCount)
+            ]
+        )
+    }
 
-            let summariesStart = Self.diagnosticNow()
-            let fileSummaries = progressFileSummaries.fileSummaries()
-            let countSnapshot = SubtitleSearchCountSnapshot.exact(
-                totalCount: totalExactResultCount,
+    private func buildVisibleWindowSearchPage(
+        from scanState: SearchPageScanState,
+        scope: SearchPageScope,
+        limit: Int,
+        mode: SubtitleSearchPageMode,
+        searchPageStart: UInt64,
+        emitter: SearchDiagnosticEmitter
+    ) throws -> SubtitleSearchPage {
+        try Task.checkCancellation()
+        let pageStart = Self.diagnosticNow()
+        let hasMore = scanState.visibleWindowResults.count > limit
+        let pageOrderedResults = Array(scanState.visibleWindowResults.prefix(limit))
+        let pageResults = SearchPageScanState.rankedResults(
+            from: pageOrderedResults,
+            startingAt: scope.offset
+        )
+        let nextCursor = hasMore
+            ? SubtitleSearchCursor(offset: scope.offset + pageResults.count)
+            : nil
+        let orderSource = Self.searchOrderSource(for: pageOrderedResults)
+        let materializedOrderRows = scanState.visiblePrefixResults.count
+        emitter.emit(
+            "page_slice",
+            since: pageStart,
+            fields: [
+                .init("offset", scope.offset),
+                .init("cursorOffset", scope.appliedCursor.offset),
+                .init("nextCursorOffset", nextCursor?.offset ?? -1),
+                .init("limit", limit),
+                .init("pageResults", pageResults.count),
+                .init("hasMore", hasMore ? "true" : "false"),
+                .init("metadataMode", mode.rawValue)
+            ]
+        )
+
+        let summariesStart = Self.diagnosticNow()
+        let fileSummaries = Self.fileSummaries(for: scanState.visiblePrefixResults)
+        let countSnapshot: SubtitleSearchCountSnapshot = hasMore
+            ? .exactProgress(
+                knownResultCount: scanState.visiblePrefixResults.count,
+                knownFileCount: fileSummaries.count
+            )
+            : .exact(
+                totalCount: scanState.visiblePrefixResults.count,
                 fileSummaryCount: fileSummaries.count
             )
-            emit(
-                "file_summaries",
-                since: summariesStart,
-                fields: [
-                    .init("summaries", fileSummaries.count),
-                    .init("results", totalExactResultCount),
-                    .init("countState", countSnapshot.state.rawValue),
-                    .init("knownResultCount", countSnapshot.knownResultCount),
-                    .init("knownFileCount", countSnapshot.knownFileCount)
-                ]
-            )
-
-            emit(
-                "search_page_complete",
-                since: searchPageStart,
-                fields: [
-                    .init("batches", batchIndex),
-                    .init("cursorOffset", appliedCursor.offset),
-                    .init("nextCursorOffset", nextCursor?.offset ?? -1),
-                    .init("totalCandidates", totalCandidates),
-                    .init("multiLineCandidates", totalMultiLineCandidates),
-                    .init("cueLineRows", totalCueLineRows),
-                    .init("accepted", totalExactResultCount),
-                    .init("pageResults", pageResults.count),
-                    .init("summaries", fileSummaries.count),
-                    .init("orderSource", orderSource),
-                    .init("materializedOrderRows", materializedOrderRows),
-                    .init("countState", countSnapshot.state.rawValue),
-                    .init("knownResultCount", countSnapshot.knownResultCount),
-                    .init("knownFileCount", countSnapshot.knownFileCount)
-                ]
-            )
-            let page = SubtitleSearchPage(
-                results: pageResults,
-                renderableResults: renderableResults,
-                renderableResultsOffset: renderableResultsOffset,
-                cueIDs: resultCueIDs,
-                totalCount: totalExactResultCount,
-                fileSummaries: fileSummaries,
-                countSnapshot: countSnapshot,
-                appliedCursor: appliedCursor,
-                nextCursor: nextCursor,
-                pageMode: mode,
-                orderSource: orderSource,
-                materializedOrderRows: materializedOrderRows,
-                facetSnapshot: facetSnapshot()
-            )
-            return page
-            }
-        } catch {
-            emit(
-                "failed",
-                since: searchPageStart,
-                fields: [.init("error", error.localizedDescription)]
-            )
-            if Self.isFTSSyntaxError(error) {
-                return SubtitleSearchPage(
-                    results: [],
-                    totalCount: 0,
-                    fileSummaries: [],
-                    appliedCursor: appliedCursor,
-                    pageMode: mode,
-                    facetSnapshot: .empty
-                )
-            }
-            throw error
-        }
-    }
-
-    public func ftsVocabularyDiagnostics(
-        for query: String,
-        topTermLimit: Int = 12
-    ) throws -> SubtitleFTSVocabularyDiagnostics {
-        try database.execute(
-            """
-            CREATE VIRTUAL TABLE IF NOT EXISTS temp.subtitle_cue_groups_fts_vocab
-            USING fts5vocab(main, subtitle_cue_groups_fts, 'row');
-            """
+        emitter.emit(
+            "file_summaries",
+            since: summariesStart,
+            fields: [
+                .init("summaries", fileSummaries.count),
+                .init("results", scanState.visiblePrefixResults.count),
+                .init("countState", countSnapshot.state.rawValue),
+                .init("knownResultCount", countSnapshot.knownResultCount),
+                .init("knownFileCount", countSnapshot.knownFileCount),
+                .init("metadataMode", mode.rawValue)
+            ]
         )
 
-        let totals = try database.prepare(
-            """
-            SELECT COUNT(*), COALESCE(SUM(doc), 0), COALESCE(SUM(cnt), 0)
-            FROM temp.subtitle_cue_groups_fts_vocab;
-            """
+        emitter.emit(
+            "search_page_complete",
+            since: searchPageStart,
+            fields: [
+                .init("batches", scanState.batchIndex),
+                .init("cursorOffset", scope.appliedCursor.offset),
+                .init("nextCursorOffset", nextCursor?.offset ?? -1),
+                .init("totalCandidates", scanState.totalCandidates),
+                .init("multiLineCandidates", scanState.totalMultiLineCandidates),
+                .init("cueLineRows", scanState.totalCueLineRows),
+                .init("accepted", scanState.visiblePrefixResults.count),
+                .init("pageResults", pageResults.count),
+                .init("summaries", fileSummaries.count),
+                .init("orderSource", orderSource),
+                .init("materializedOrderRows", materializedOrderRows),
+                .init("countState", countSnapshot.state.rawValue),
+                .init("knownResultCount", countSnapshot.knownResultCount),
+                .init("knownFileCount", countSnapshot.knownFileCount),
+                .init("metadataMode", mode.rawValue)
+            ]
         )
-        _ = try totals.step()
-        let uniqueTermCount = totals.intColumn(0)
-        let totalDocumentReferences = totals.intColumn(1)
-        let totalOccurrences = totals.intColumn(2)
-
-        let topTerms = try ftsVocabularyTerms(
-            matching: nil,
-            limit: max(0, topTermLimit)
-        )
-        let queryTerms = try SearchQueryPlanner.vocabularyTerms(in: query).map { term in
-            try ftsVocabularyTerm(term)
-        }
-
-        return SubtitleFTSVocabularyDiagnostics(
-            uniqueTermCount: uniqueTermCount,
-            totalDocumentReferences: totalDocumentReferences,
-            totalOccurrences: totalOccurrences,
-            mostFrequentTerms: topTerms,
-            queryTerms: queryTerms
+        return SubtitleSearchPage(
+            results: pageResults,
+            totalCount: countSnapshot.knownResultCount,
+            fileSummaries: fileSummaries,
+            countSnapshot: countSnapshot,
+            appliedCursor: scope.appliedCursor,
+            nextCursor: nextCursor,
+            pageMode: mode,
+            orderSource: orderSource,
+            materializedOrderRows: materializedOrderRows,
+            facetSnapshot: countSnapshot.state == .exact ? scanState.facetSnapshot() : nil
         )
     }
 
-    public func searchNavigationSnapshot(
-        _ query: String,
-        under folders: [URL]? = nil,
-        languageFilter: SubtitleSearchLanguageFilter = .all,
-        anchor: SearchNavigationAnchor,
-        radius: Int = 1
-    ) throws -> SearchNavigationSnapshot {
-        let countPage = try searchPage(
-            query,
-            limit: 1,
-            offset: 0,
-            under: folders,
-            languageFilter: languageFilter
+    private func buildExactSearchPage(
+        from scanState: SearchPageScanState,
+        scope: SearchPageScope,
+        limit: Int,
+        mode: SubtitleSearchPageMode,
+        hasProgressSink: Bool,
+        searchPageStart: UInt64,
+        emitter: SearchDiagnosticEmitter
+    ) throws -> SubtitleSearchPage {
+        let sortStart = Self.diagnosticNow()
+        try Task.checkCancellation()
+        let totalExactResultCount = scanState.resultCueIDs.count
+        let orderSource = totalExactResultCount > 0 ? "ftsRowid" : "none"
+        let materializedOrderRows = scanState.exactPageResults.count
+        emitter.emit(
+            "sort_results",
+            since: sortStart,
+            fields: [
+                .init("results", totalExactResultCount),
+                .init("materializedResults", scanState.exactPageResults.count),
+                .init("resultIDs", scanState.resultCueIDs.count),
+                .init("orderSource", orderSource),
+                .init("materializedOrderRows", materializedOrderRows)
+            ]
         )
-        let page = if countPage.totalCount <= countPage.results.count {
-            countPage
-        } else {
-            try searchPage(
-                query,
-                limit: countPage.totalCount,
-                offset: 0,
-                under: folders,
-                languageFilter: languageFilter
+
+        let pageStart = Self.diagnosticNow()
+        let pageResults = SearchPageScanState.rankedResults(
+            from: scanState.exactPageResults,
+            startingAt: scope.offset
+        )
+        let renderableResults = !hasProgressSink
+            ? pageResults
+            : SearchPageScanState.rankedResults(
+                from: scanState.pendingProgressResults,
+                startingAt: scanState.publishedProgressResultCount
             )
-        }
-        let results = page.results
-        let currentIndex = Self.searchNavigationIndex(
-            in: results,
-            anchor: anchor
+        let renderableResultsOffset = !hasProgressSink
+            ? scope.offset
+            : scanState.publishedProgressResultCount
+        let nextCursor = limit > 0 && scope.offset + pageResults.count < totalExactResultCount
+            ? SubtitleSearchCursor(offset: scope.offset + pageResults.count)
+            : nil
+        emitter.emit(
+            "page_slice",
+            since: pageStart,
+            fields: [
+                .init("offset", scope.offset),
+                .init("cursorOffset", scope.appliedCursor.offset),
+                .init("nextCursorOffset", nextCursor?.offset ?? -1),
+                .init("limit", limit),
+                .init("pageResults", pageResults.count)
+            ]
         )
-        let boundedRadius = max(1, radius)
-        let neighborhood: [SubtitleSearchResult]
-        if let currentIndex {
-            let lowerBound = max(0, currentIndex - boundedRadius)
-            let upperBound = min(results.count, currentIndex + boundedRadius + 1)
-            neighborhood = Array(results[lowerBound..<upperBound])
-        } else {
-            neighborhood = Array(results.prefix((boundedRadius * 2) + 1))
-        }
 
-        let previous = currentIndex.flatMap { index in
-            index > 0 ? results[index - 1] : nil
-        }
-        let current = currentIndex.map { results[$0] }
-        let next = currentIndex.flatMap { index in
-            index + 1 < results.count ? results[index + 1] : nil
-        }
+        let summariesStart = Self.diagnosticNow()
+        let fileSummaries = scanState.progressFileSummaries.fileSummaries()
+        let countSnapshot = SubtitleSearchCountSnapshot.exact(
+            totalCount: totalExactResultCount,
+            fileSummaryCount: fileSummaries.count
+        )
+        emitter.emit(
+            "file_summaries",
+            since: summariesStart,
+            fields: [
+                .init("summaries", fileSummaries.count),
+                .init("results", totalExactResultCount),
+                .init("countState", countSnapshot.state.rawValue),
+                .init("knownResultCount", countSnapshot.knownResultCount),
+                .init("knownFileCount", countSnapshot.knownFileCount)
+            ]
+        )
 
-        return SearchNavigationSnapshot(
-            totalCount: page.totalCount,
-            currentIndex: currentIndex,
-            neighborhood: neighborhood,
-            previous: previous,
-            current: current,
-            next: next
+        emitter.emit(
+            "search_page_complete",
+            since: searchPageStart,
+            fields: [
+                .init("batches", scanState.batchIndex),
+                .init("cursorOffset", scope.appliedCursor.offset),
+                .init("nextCursorOffset", nextCursor?.offset ?? -1),
+                .init("totalCandidates", scanState.totalCandidates),
+                .init("multiLineCandidates", scanState.totalMultiLineCandidates),
+                .init("cueLineRows", scanState.totalCueLineRows),
+                .init("accepted", totalExactResultCount),
+                .init("pageResults", pageResults.count),
+                .init("summaries", fileSummaries.count),
+                .init("orderSource", orderSource),
+                .init("materializedOrderRows", materializedOrderRows),
+                .init("countState", countSnapshot.state.rawValue),
+                .init("knownResultCount", countSnapshot.knownResultCount),
+                .init("knownFileCount", countSnapshot.knownFileCount)
+            ]
+        )
+        return SubtitleSearchPage(
+            results: pageResults,
+            renderableResults: renderableResults,
+            renderableResultsOffset: renderableResultsOffset,
+            cueIDs: scanState.resultCueIDs,
+            totalCount: totalExactResultCount,
+            fileSummaries: fileSummaries,
+            countSnapshot: countSnapshot,
+            appliedCursor: scope.appliedCursor,
+            nextCursor: nextCursor,
+            pageMode: mode,
+            orderSource: orderSource,
+            materializedOrderRows: materializedOrderRows,
+            facetSnapshot: scanState.facetSnapshot()
         )
     }
 
@@ -1510,102 +1657,6 @@ public final class SearchDatabase: @unchecked Sendable {
         return "ftsRowid"
     }
 
-    private static func searchNavigationIndex(
-        in results: [SubtitleSearchResult],
-        anchor: SearchNavigationAnchor
-    ) -> Int? {
-        if let videoPath = anchor.videoPath,
-           let subtitlePath = anchor.subtitlePath {
-            let normalizedVideoPath = URL.fromMediaPath(videoPath).mediaPath
-            let normalizedSubtitlePath = URL.fromMediaPath(subtitlePath).mediaPath
-            var timeMatchedIndex: Int?
-
-            for (index, result) in results.enumerated() {
-                let resultVideoPath = URL.fromMediaPath(result.videoPath).mediaPath
-                let resultSubtitlePath = URL.fromMediaPath(result.subtitlePath).mediaPath
-                guard resultVideoPath == normalizedVideoPath,
-                      resultSubtitlePath == normalizedSubtitlePath,
-                      result.startMilliseconds <= anchor.currentMilliseconds
-                else {
-                    continue
-                }
-
-                timeMatchedIndex = index
-            }
-
-            if let timeMatchedIndex {
-                return timeMatchedIndex
-            }
-        }
-
-        if let selectedEntryID = anchor.selectedEntryID,
-           let selectedIndex = results.firstIndex(where: { $0.entryID == selectedEntryID }) {
-            return selectedIndex
-        }
-
-        return nil
-    }
-
-    private static func searchNavigationIndex(
-        in cueIDs: [Int64],
-        anchor: SearchNavigationAnchor
-    ) -> Int? {
-        if let selectedEntryID = anchor.selectedEntryID,
-           let selectedSearchRank = anchor.selectedSearchRank,
-           cueIDs.indices.contains(selectedSearchRank),
-           cueIDs[selectedSearchRank] == selectedEntryID {
-            return selectedSearchRank
-        }
-
-        if anchor.selectedEntryID == nil,
-           let selectedSearchRank = anchor.selectedSearchRank,
-           cueIDs.indices.contains(selectedSearchRank) {
-            return selectedSearchRank
-        }
-
-        if let selectedEntryID = anchor.selectedEntryID,
-           let selectedIndex = cueIDs.firstIndex(of: selectedEntryID) {
-            return selectedIndex
-        }
-
-        return nil
-    }
-
-    private static func searchNavigationIndex(
-        of cueID: Int64,
-        in cueIDs: [Int64],
-        preferredSearchRank: Int?
-    ) -> Int? {
-        if let preferredSearchRank,
-           cueIDs.indices.contains(preferredSearchRank),
-           cueIDs[preferredSearchRank] == cueID {
-            return preferredSearchRank
-        }
-
-        if let preferredSearchRank,
-           cueIDs.indices.contains(preferredSearchRank) {
-            var lowerIndex = preferredSearchRank - 1
-            var upperIndex = preferredSearchRank + 1
-            while lowerIndex >= 0 || upperIndex < cueIDs.count {
-                if upperIndex < cueIDs.count {
-                    if cueIDs[upperIndex] == cueID {
-                        return upperIndex
-                    }
-                    upperIndex += 1
-                }
-
-                if lowerIndex >= 0 {
-                    if cueIDs[lowerIndex] == cueID {
-                        return lowerIndex
-                    }
-                    lowerIndex -= 1
-                }
-            }
-        }
-
-        return cueIDs.firstIndex(of: cueID)
-    }
-
     private static func fileSummaries(for results: [OrderedSearchResult]) -> [SubtitleSearchFileSummary] {
         var countsByPath: [String: Int] = [:]
         var pathsInOrder: [String] = []
@@ -1634,60 +1685,6 @@ public final class SearchDatabase: @unchecked Sendable {
 
     private static func isFTSSyntaxError(_ error: Error) -> Bool {
         String(describing: error).contains("fts5: syntax error")
-    }
-
-    private func ftsVocabularyTerms(
-        matching term: String?,
-        limit: Int
-    ) throws -> [SubtitleFTSVocabularyTermDiagnostic] {
-        guard limit > 0 else {
-            return []
-        }
-
-        let statement: SQLiteStatement
-        if let term {
-            statement = try database.prepare(
-                """
-                SELECT term, doc, cnt
-                FROM temp.subtitle_cue_groups_fts_vocab
-                WHERE term = ?
-                LIMIT ?;
-                """
-            )
-            try statement.bind(term, at: 1)
-            try statement.bind(limit, at: 2)
-        } else {
-            statement = try database.prepare(
-                """
-                SELECT term, doc, cnt
-                FROM temp.subtitle_cue_groups_fts_vocab
-                ORDER BY cnt DESC, doc DESC, term ASC
-                LIMIT ?;
-                """
-            )
-            try statement.bind(limit, at: 1)
-        }
-
-        var terms: [SubtitleFTSVocabularyTermDiagnostic] = []
-        while try statement.step() {
-            terms.append(
-                SubtitleFTSVocabularyTermDiagnostic(
-                    term: statement.stringColumn(0),
-                    documentCount: statement.intColumn(1),
-                    occurrenceCount: statement.intColumn(2)
-                )
-            )
-        }
-        return terms
-    }
-
-    private func ftsVocabularyTerm(_ term: String) throws -> SubtitleFTSVocabularyTermDiagnostic {
-        try ftsVocabularyTerms(matching: term, limit: 1).first
-            ?? SubtitleFTSVocabularyTermDiagnostic(
-                term: term,
-                documentCount: 0,
-                occurrenceCount: 0
-            )
     }
 
     private static func expandedSQLLimit(for limit: Int) -> Int {
