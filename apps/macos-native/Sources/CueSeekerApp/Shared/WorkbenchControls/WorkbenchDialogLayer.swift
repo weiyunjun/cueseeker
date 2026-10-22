@@ -306,7 +306,7 @@ enum WorkbenchDialogMotion {
 }
 
 /// A CSS `cubic-bezier` timing curve.
-struct UnitBezier {
+struct UnitBezier: Equatable {
     let x1: Double
     let y1: Double
     let x2: Double

@@ -167,6 +167,18 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView, PointerShapeProviding
     private var focusAnimationTimer: Timer?
     private var focusFadeInDebounceDeadline: TimeInterval?
     private var focusClockTime: TimeInterval = ProcessInfo.processInfo.systemUptime
+    var isDrivenByExternalScrollAnimator = false {
+        didSet {
+            guard isDrivenByExternalScrollAnimator != oldValue else {
+                return
+            }
+            if isDrivenByExternalScrollAnimator {
+                stopFocusAnimationTimer()
+            } else if focusFadeInDebounceDeadline != nil || hasRunningCueFocusAnimation {
+                startFocusAnimationTimerIfNeeded()
+            }
+        }
+    }
     private var collageSelectedCueIDs: Set<Int64>?
     private var collageCanSelectAnotherCue = true
     private var textSelection: TextSelection?
@@ -277,11 +289,14 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView, PointerShapeProviding
                 duration: 0
             )
         }
-        for affectedOrdinal in affectedOrdinals {
-            invalidateRow(affectedOrdinal)
+        if placements.isEmpty {
+            resolveLocalPlacementsIfNeeded()
+            needsDisplay = true
+        } else {
+            for affectedOrdinal in affectedOrdinals {
+                invalidateRow(affectedOrdinal)
+            }
         }
-        resolveLocalPlacementsIfNeeded()
-        needsDisplay = true
     }
 
     func updateSelection(_ ordinal: Int?) {
@@ -297,8 +312,11 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView, PointerShapeProviding
                     startTime: 0,
                     duration: 0
                 )
-                invalidateRow(ordinal)
-                needsDisplay = true
+                if placements.isEmpty {
+                    needsDisplay = true
+                } else {
+                    invalidateRow(ordinal)
+                }
             }
             return
         }
@@ -315,15 +333,10 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView, PointerShapeProviding
         }
         let now = max(focusClockTime, ProcessInfo.processInfo.systemUptime)
         focusClockTime = now
-        let previousOrdinal = selectedOrdinal
         selectedOrdinal = targetOrdinal
-        if let previousOrdinal {
-            invalidateRow(previousOrdinal)
+        if placements.isEmpty {
+            resolveLocalPlacementsIfNeeded()
         }
-        if let targetOrdinal {
-            invalidateRow(targetOrdinal)
-        }
-        resolveLocalPlacementsIfNeeded()
 
         for ordinal in Array(cueFocusAnimations.keys) {
             guard var anim = cueFocusAnimations[ordinal] else {
@@ -338,7 +351,6 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView, PointerShapeProviding
                 anim.startTime = now
                 anim.duration = PlaybackSubtitleFocusMetrics.focusFadeOutDuration
                 cueFocusAnimations[ordinal] = anim
-                invalidateRow(ordinal)
             }
         }
 
@@ -349,10 +361,10 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView, PointerShapeProviding
             focusFadeInDebounceDeadline = nil
         }
         startFocusAnimationTimerIfNeeded()
-        needsDisplay = true
     }
 
-    func stepFocusTransitions(at now: TimeInterval) {
+    func stepFocusTransitions(at rawNow: TimeInterval) {
+        let now = max(focusClockTime, rawNow)
         focusClockTime = now
         if let deadline = focusFadeInDebounceDeadline,
            now + 0.000_001 >= deadline {
@@ -381,7 +393,7 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView, PointerShapeProviding
                 ? 1
                 : CGFloat(min(1, rawProgress))
             let easedProgress = PlaybackSubtitleFocusReelPositionAnimator
-                .easedProgress(linearProgress)
+                .focusFadeEasedProgress(linearProgress)
             anim.currentProgress = anim.startProgress
                 + (anim.targetProgress - anim.startProgress) * easedProgress
             if linearProgress >= 1 {
@@ -398,20 +410,23 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView, PointerShapeProviding
             invalidateRow(ordinal)
         }
 
-        needsDisplay = true
+        if placements.isEmpty {
+            needsDisplay = true
+        }
         if focusFadeInDebounceDeadline == nil, !hasRunningCueFocusAnimation {
             stopFocusAnimationTimer()
         }
     }
 
     func advanceFocusTransitionForTesting(by deltaSeconds: TimeInterval) {
+        isDrivenByExternalScrollAnimator = false
         stopFocusAnimationTimer()
         focusClockTime += max(0, deltaSeconds)
         stepFocusTransitions(at: focusClockTime)
     }
 
     private func startFocusAnimationTimerIfNeeded() {
-        guard focusAnimationTimer == nil else {
+        guard focusAnimationTimer == nil, !isDrivenByExternalScrollAnimator else {
             return
         }
         let timer = Timer(
@@ -433,6 +448,9 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView, PointerShapeProviding
 
     @objc
     private func handleFocusAnimationTimer() {
+        guard !isDrivenByExternalScrollAnimator else {
+            return
+        }
         stepFocusTransitions(
             at: max(focusClockTime, ProcessInfo.processInfo.systemUptime)
         )
@@ -511,6 +529,7 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView, PointerShapeProviding
     }
 
     func invalidate() {
+        isDrivenByExternalScrollAnimator = false
         stopFocusAnimationTimer()
         focusFadeInDebounceDeadline = nil
         cueFocusAnimations.removeAll(keepingCapacity: false)

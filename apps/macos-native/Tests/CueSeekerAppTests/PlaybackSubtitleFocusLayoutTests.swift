@@ -22,9 +22,17 @@ func subtitleFocusMetricsMatchCompactIterationGeometry() {
     #expect(WorkbenchControlMetrics.redesignKeycapRadius == 4)
     #expect(WorkbenchControlMetrics.redesignKeycapHorizontalPadding == 4)
     #expect(PlaybackSubtitleFocusMetrics.reelTransitionDuration == 0.40)
+    #expect(
+        PlaybackSubtitleFocusMetrics.scrollEasing
+            == UnitBezier(x1: 0.22, y1: 1, x2: 0.36, y2: 1)
+    )
     #expect(PlaybackSubtitleFocusMetrics.focusFadeOutDuration == 0.26)
     #expect(PlaybackSubtitleFocusMetrics.focusFadeInDelay == 0.18)
     #expect(PlaybackSubtitleFocusMetrics.focusFadeInDuration == 0.22)
+    #expect(
+        PlaybackSubtitleFocusMetrics.focusFadeEasing
+            == UnitBezier(x1: 0.37, y1: 0, x2: 0.63, y2: 1)
+    )
     #expect(PlaybackCollageSelectionMetrics.checkboxSize == 31)
     #expect(
         PlaybackSubtitleFocusMetrics.resolvedReelTransitionDuration(
@@ -2454,6 +2462,14 @@ func subtitleFocusKeyboardAnimatorUsesDocumentedEaseOutCurve() {
     #expect(samples.last == 1)
     #expect(samples == samples.sorted())
     #expect(PlaybackSubtitleFocusReelPositionAnimator.easedProgress(0.5) > 0.8)
+
+    let fadeSamples = stride(from: CGFloat(0), through: 1, by: 0.1).map {
+        PlaybackSubtitleFocusReelPositionAnimator.focusFadeEasedProgress($0)
+    }
+    #expect(fadeSamples.first == 0)
+    #expect(fadeSamples.last == 1)
+    #expect(fadeSamples == fadeSamples.sorted())
+    #expect(abs(PlaybackSubtitleFocusReelPositionAnimator.focusFadeEasedProgress(0.5) - 0.5) < 0.01)
 }
 
 @Test

@@ -203,6 +203,9 @@ final class PlaybackSubtitleFocusReelPositionAnimator: NSObject {
     let onCompletion: () -> Void
 
     private(set) var isRunning = false
+    var hasActiveTimer: Bool {
+        timer != nil
+    }
     private var timer: Timer?
     private var generation = 0
     private var startTime: TimeInterval = 0
@@ -223,14 +226,23 @@ final class PlaybackSubtitleFocusReelPositionAnimator: NSObject {
         to targetOffset: CGFloat,
         duration: TimeInterval
     ) {
+        let now = ProcessInfo.processInfo.systemUptime
+        var resolvedStartOffset = currentOffset
+        if isRunning, self.duration > 0 {
+            let elapsed = max(0, now - startTime)
+            let linearProgress = CGFloat(min(1, max(0, elapsed / self.duration)))
+            let easedProgress = Self.easedProgress(linearProgress)
+            resolvedStartOffset = startOffset
+                + (self.targetOffset - startOffset) * easedProgress
+        }
         generation += 1
-        startTime = ProcessInfo.processInfo.systemUptime
+        startTime = now
         self.duration = max(0, duration)
-        startOffset = currentOffset
+        startOffset = resolvedStartOffset
         self.targetOffset = targetOffset
         isRunning = true
 
-        guard self.duration > 0, abs(targetOffset - currentOffset) > 0.01 else {
+        guard self.duration > 0, abs(targetOffset - resolvedStartOffset) > 0.01 else {
             finishImmediately(generation: generation)
             return
         }
@@ -256,31 +268,18 @@ final class PlaybackSubtitleFocusReelPositionAnimator: NSObject {
     }
 
     static func easedProgress(_ linearProgress: CGFloat) -> CGFloat {
-        let x = min(1, max(0, linearProgress))
-        guard x > 0, x < 1 else {
-            return x
-        }
-
-        var lower: CGFloat = 0
-        var upper: CGFloat = 1
-        var parameter = x
-        for _ in 0..<10 {
-            let estimatedX = cubicBezierValue(
-                parameter,
-                firstControl: 0.22,
-                secondControl: 0.36
+        CGFloat(
+            PlaybackSubtitleFocusMetrics.scrollEasing.value(
+                at: Double(linearProgress)
             )
-            if estimatedX < x {
-                lower = parameter
-            } else {
-                upper = parameter
-            }
-            parameter = (lower + upper) / 2
-        }
-        return cubicBezierValue(
-            parameter,
-            firstControl: 1,
-            secondControl: 1
+        )
+    }
+
+    static func focusFadeEasedProgress(_ linearProgress: CGFloat) -> CGFloat {
+        CGFloat(
+            PlaybackSubtitleFocusMetrics.focusFadeEasing.value(
+                at: Double(linearProgress)
+            )
         )
     }
 
@@ -288,19 +287,18 @@ final class PlaybackSubtitleFocusReelPositionAnimator: NSObject {
     private func handleTimer() {
         let elapsed = ProcessInfo.processInfo.systemUptime - startTime
         let linearProgress = CGFloat(min(1, max(0, elapsed / duration)))
+        guard linearProgress < 1 else {
+            timer?.invalidate()
+            timer = nil
+            isRunning = false
+            onUpdate(targetOffset)
+            onCompletion()
+            return
+        }
         let easedProgress = Self.easedProgress(linearProgress)
         onUpdate(
             startOffset + (targetOffset - startOffset) * easedProgress
         )
-        guard linearProgress >= 1 else {
-            return
-        }
-
-        timer?.invalidate()
-        timer = nil
-        isRunning = false
-        onUpdate(targetOffset)
-        onCompletion()
     }
 
     private func finishImmediately(generation expectedGeneration: Int) {
@@ -317,16 +315,5 @@ final class PlaybackSubtitleFocusReelPositionAnimator: NSObject {
             self.isRunning = false
             self.onCompletion()
         }
-    }
-
-    private static func cubicBezierValue(
-        _ parameter: CGFloat,
-        firstControl: CGFloat,
-        secondControl: CGFloat
-    ) -> CGFloat {
-        let inverse = 1 - parameter
-        return 3 * inverse * inverse * parameter * firstControl
-            + 3 * inverse * parameter * parameter * secondControl
-            + parameter * parameter * parameter
     }
 }

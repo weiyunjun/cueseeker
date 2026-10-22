@@ -383,12 +383,16 @@ enum PlaybackSubtitleFocusMetrics {
     }
     /// --duration-subtitle-focus-scroll
     static let reelTransitionDuration = 0.40
+    /// --easing-subtitle-focus-scroll
+    static let scrollEasing = UnitBezier(x1: 0.22, y1: 1, x2: 0.36, y2: 1)
     /// --duration-subtitle-focus-fade-out
     static let focusFadeOutDuration = 0.26
     /// --delay-subtitle-focus-fade-in
     static let focusFadeInDelay = 0.18
     /// --duration-subtitle-focus-fade-in
     static let focusFadeInDuration = 0.22
+    /// --easing-subtitle-focus-fade
+    static let focusFadeEasing = UnitBezier(x1: 0.37, y1: 0, x2: 0.63, y2: 1)
     static func resolvedReelTransitionDuration(
         reducesMotion: Bool
     ) -> TimeInterval {

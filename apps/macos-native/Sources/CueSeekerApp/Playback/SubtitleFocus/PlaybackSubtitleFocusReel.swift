@@ -173,7 +173,7 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
     private var motionCallbackTask: Task<Void, Never>?
     private lazy var keyboardAnimator = PlaybackSubtitleFocusReelPositionAnimator(
         onUpdate: { [weak self] position in
-            self?.setFractionalOrdinal(position)
+            self?.handleScrollAnimatorTick(position: position)
         },
         onCompletion: { [weak self] in
             self?.completeKeyboardMotion()
@@ -181,12 +181,22 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
     )
     private lazy var wheelAnimator = PlaybackSubtitleFocusReelPositionAnimator(
         onUpdate: { [weak self] position in
-            self?.setFractionalOrdinal(position)
+            self?.handleScrollAnimatorTick(position: position)
         },
         onCompletion: { [weak self] in
             self?.completeWheelMotion()
         }
     )
+
+    private func syncExternalScrollAnimatorState() {
+        documentView.isDrivenByExternalScrollAnimator =
+            keyboardAnimator.hasActiveTimer || wheelAnimator.hasActiveTimer
+    }
+
+    private func handleScrollAnimatorTick(position: CGFloat) {
+        setFractionalOrdinal(position)
+        documentView.stepFocusTransitions(at: ProcessInfo.processInfo.systemUptime)
+    }
 
     override var isFlipped: Bool {
         true
@@ -481,6 +491,7 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
     private func cancelMotionForContentReplacement() {
         keyboardAnimator.cancel()
         wheelAnimator.cancel()
+        syncExternalScrollAnimatorState()
         preciseSettleTask?.cancel()
         preciseSettleTask = nil
         wheelState.reset(requiresNewGesture: true)
@@ -531,6 +542,7 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
         onKeyboardMotionChanged = { _ in }
         keyboardAnimator.cancel()
         wheelAnimator.cancel()
+        syncExternalScrollAnimatorState()
         preciseSettleTask?.cancel()
         preciseSettleTask = nil
         dismissSelectedTextActions()
@@ -1075,9 +1087,11 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
             duration: PlaybackSubtitleFocusMetrics
                 .resolvedReelTransitionDuration(reducesMotion: reducesMotion)
         )
+        syncExternalScrollAnimatorState()
     }
 
     private func completeKeyboardMotion() {
+        syncExternalScrollAnimatorState()
         guard let request = activeKeyboardRequest,
               activeKeyboardContentGeneration == contentSnapshot?.generation
         else {
@@ -1166,6 +1180,7 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
             }
         case .cancelled:
             wheelAnimator.cancel()
+            syncExternalScrollAnimatorState()
             activeWheelTargetOrdinal = nil
             activeWheelContentGeneration = nil
             restoreSelectedSelection()
@@ -1228,6 +1243,7 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
             duration: PlaybackSubtitleFocusMetrics
                 .resolvedReelTransitionDuration(reducesMotion: reducesMotion)
         )
+        syncExternalScrollAnimatorState()
     }
 
     private func installEventMonitorIfNeeded() {
@@ -1362,6 +1378,7 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
             duration: PlaybackSubtitleFocusMetrics
                 .resolvedReelTransitionDuration(reducesMotion: reducesMotion)
         )
+        syncExternalScrollAnimatorState()
     }
 
     private func handlePreciseWheel(
@@ -1377,6 +1394,7 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
         if beginsGesture || preciseGestureStartOrdinal == nil {
             cancelPreciseSettle()
             wheelAnimator.cancel()
+            syncExternalScrollAnimatorState()
             activeWheelTargetOrdinal = nil
             activeWheelContentGeneration = nil
             preciseGestureStartOrdinal = currentLayout.nearestOrdinal
@@ -1448,9 +1466,11 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
             duration: PlaybackSubtitleFocusMetrics
                 .resolvedReelTransitionDuration(reducesMotion: reducesMotion)
         )
+        syncExternalScrollAnimatorState()
     }
 
     private func completeWheelMotion() {
+        syncExternalScrollAnimatorState()
         guard let targetOrdinal = activeWheelTargetOrdinal,
               activeWheelContentGeneration == contentSnapshot?.generation
         else {
@@ -1486,6 +1506,7 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
         cancelPreciseSettle()
         wheelState.reset(requiresNewGesture: requiresNewGesture)
         wheelAnimator.cancel()
+        syncExternalScrollAnimatorState()
         activeWheelTargetOrdinal = nil
         activeWheelContentGeneration = nil
         preciseGestureStartOrdinal = nil
