@@ -28,31 +28,6 @@ typedef NS_ENUM(NSInteger, SFXASSRenderingErrorCode) {
 
 @end
 
-@interface SFXASSImage : NSObject
-
-@property (nonatomic, copy, readonly) NSData *bitmapData;
-@property (nonatomic, readonly) NSInteger width;
-@property (nonatomic, readonly) NSInteger height;
-@property (nonatomic, readonly) NSInteger stride;
-@property (nonatomic, readonly) NSInteger destinationX;
-@property (nonatomic, readonly) NSInteger destinationY;
-@property (nonatomic, readonly) uint32_t color;
-
-- (instancetype)init NS_UNAVAILABLE;
-
-@end
-
-@interface SFXASSImageRenderOutput : NSObject
-
-@property (nonatomic, copy, readonly) NSArray<SFXASSImage *> *images;
-@property (nonatomic, readonly) NSInteger frameWidth;
-@property (nonatomic, readonly) NSInteger frameHeight;
-@property (nonatomic, readonly) BOOL changed;
-
-- (instancetype)init NS_UNAVAILABLE;
-
-@end
-
 @interface SFXASSCroppedRenderOutput : NSObject
 
 @property (nonatomic, copy, readonly) NSData *rgbaData;
@@ -95,10 +70,6 @@ typedef NS_ENUM(NSInteger, SFXASSRenderingErrorCode) {
 - (nullable SFXASSRenderOutput *)renderFrameAtTimestampMilliseconds:(NSInteger)timestampMilliseconds
                                                               error:(NSError **)error
     NS_SWIFT_NAME(renderFrame(atTimestampMilliseconds:));
-
-- (nullable SFXASSImageRenderOutput *)renderImagesAtTimestampMilliseconds:(NSInteger)timestampMilliseconds
-                                                                    error:(NSError **)error
-    NS_SWIFT_NAME(renderImages(atTimestampMilliseconds:));
 
 - (nullable SFXASSCroppedRenderOutput *)renderCroppedImageAtTimestampMilliseconds:(NSInteger)timestampMilliseconds
                                                                             error:(NSError **)error

@@ -65,8 +65,7 @@ func urlSchemeCueDeepLinkBuildsOneItemPlaylistAndReturnsToSearch() async throws 
             ),
             timestampMilliseconds: resolvedResult.startMilliseconds,
             wasPlaying: false
-        ),
-        searchStore: fixture.app.search
+        )
     ))
     #expect(overlaySession.availableModules.contains(.playlist))
     #expect(overlaySession.playlistWindow?.snapshot.totalCount == 1)

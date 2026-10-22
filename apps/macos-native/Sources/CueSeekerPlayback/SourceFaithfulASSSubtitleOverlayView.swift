@@ -167,13 +167,6 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
         return nextGeneration
     }
 
-    func clear(completion: (@Sendable () -> Void)? = nil) {
-        queue.async {
-            self.clearState()
-            completion?()
-        }
-    }
-
     func invalidate() {
         invalidationLock.lock()
         invalidated = true

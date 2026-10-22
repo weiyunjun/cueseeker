@@ -648,9 +648,9 @@ struct CueGroupRefreshScopeIntegrationTests {
                     ),
                     timestampMilliseconds: playingResult.startMilliseconds,
                     wasPlaying: false
-                ),
-                searchStore: app.search
+                )
             ))
+            _ = overlaySession
 
             let didMountPlayback = await waitUntil(timeout: 1) {
                 window.contentView?.layoutSubtreeIfNeeded()

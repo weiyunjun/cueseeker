@@ -97,9 +97,7 @@ struct PlaybackOverlay: View {
 
             VStack(spacing: 0) {
                 PlaybackOverlayTopBar(
-                    modules: session.availableModules.filter {
-                        $0 == .current || $0 == .playlist
-                    },
+                    modules: session.availableModules,
                     selectedModule: session.selectedModule,
                     isEditingCollage: session.isEditingCollage,
                     onSelect: session.selectModule,

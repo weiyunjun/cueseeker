@@ -45,43 +45,6 @@ func selectedTextSearchUsesPersistedFilterAndReusesAnOpenCommandPanel() throws {
 
 @MainActor
 @Test
-func playbackSearchUsesWorkbenchResultsWithoutRetainingAnotherDataset() async throws {
-    let searchStore = SearchStore()
-    let initialResults = (0..<40).map {
-        playbackSharedSearchResult(
-            id: Int64(1_000 + $0),
-            rank: $0
-        )
-    }
-    searchStore.replaceResidentResults(initialResults)
-    let session = PlaybackSubtitleFocusSessionStore(
-        openSnapshot: playbackSharedSearchOpenSnapshot(),
-        sessionGeneration: 1,
-        searchStore: searchStore
-    )
-    let window = try #require(session.searchWindow)
-
-    #expect(session.searchStore === searchStore)
-    #expect(window.snapshot.totalCount == 40)
-    #expect(window.snapshot.loadedOrdinalRange == 0..<40)
-    #expect(window.snapshot.isComplete)
-    #expect(window.item(at: 39)?.identity == .search(1_039))
-
-    searchStore.replaceResidentResults(
-        searchStore.searchResults
-            + [playbackSharedSearchResult(id: 1_040, rank: 40)]
-    )
-    await Task.yield()
-
-    #expect(window.snapshot.totalCount == 41)
-    #expect(window.item(at: 40)?.identity == .search(1_040))
-
-    _ = session.dismissByUser()
-    #expect(searchStore.searchResults.count == 41)
-}
-
-@MainActor
-@Test
 func playbackCommandPanelSearchPersistsWorkbenchFacetResultsAfterDismissal()
     throws
 {
@@ -139,19 +102,6 @@ func playbackCommandPanelSearchPersistsWorkbenchFacetResultsAfterDismissal()
     #expect(app.search.searchQuery == "shared")
     #expect(app.search.searchFacetFilter == facetFilter)
     #expect(app.search.searchResults.map(\.entryID) == [8_001])
-}
-
-private func playbackSharedSearchOpenSnapshot()
-    -> PlaybackSubtitleFocusOpenSnapshot {
-    PlaybackSubtitleFocusOpenSnapshot(
-        source: SubtitleFocusSourceIdentity(
-            videoPath: "/Media/Shared.mkv",
-            subtitlePath: "/Media/Shared.srt",
-            subtitleFormat: .srt
-        ),
-        timestampMilliseconds: 0,
-        wasPlaying: false
-    )
 }
 
 private func playbackSharedSearchResult(

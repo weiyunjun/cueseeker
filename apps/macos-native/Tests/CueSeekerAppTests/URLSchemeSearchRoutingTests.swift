@@ -399,7 +399,6 @@ private func installURLSchemePlaybackOverlaySession(
             source: source,
             timestampMilliseconds: result.startMilliseconds,
             wasPlaying: false
-        ),
-        searchStore: app.search
+        )
     ))
 }

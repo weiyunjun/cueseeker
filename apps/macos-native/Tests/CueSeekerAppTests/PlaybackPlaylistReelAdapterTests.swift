@@ -19,7 +19,6 @@ func playbackPlaylistReelAdapterUsesResidentDatasetImmediately() throws {
     #expect(adapter.snapshot.datasetID == AnyHashable(source.boundary.datasetID.uuidString))
     #expect(adapter.snapshot.loadedOrdinalRange == (0..<40))
     #expect(adapter.snapshot.isComplete)
-    #expect(!adapter.supportsWindowRequests)
     #expect(adapter.itemID(at: 20) == AnyHashable(PlaybackPlaylistItemIdentity.search(1_020)))
     let item = try #require(adapter.item(at: 20))
     #expect(adapter.cueResult(at: 20)?.metadata?.displayTitle == item.displayTitle)
@@ -238,7 +237,6 @@ func playbackPlaylistReelAdapterInvalidationPreservesItsSessionWindow() throws {
 
     adapter.invalidate()
 
-    #expect(!adapter.supportsWindowRequests)
     #expect(adapter.snapshot.totalCount == 2)
     #expect(adapter.item(at: 0) == nil)
     #expect(window.item(at: 0)?.identity == .search(1_000))

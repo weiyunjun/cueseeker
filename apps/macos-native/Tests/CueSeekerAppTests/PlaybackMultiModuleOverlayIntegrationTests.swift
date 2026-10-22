@@ -25,9 +25,7 @@ func playbackMultiModuleOverlayPreservesOneSessionThenReopensFresh() async throw
         sessionGeneration: 1,
         availableModules: PlaybackOverlayModule.allCases,
         playlistSource: playlistSource,
-        searchStore: searchStore,
-        libraryStore: libraryStore,
-        excerptStore: excerptStore
+        libraryStore: libraryStore
     )
 
     #expect(session.publishInitialSnapshot(
@@ -38,27 +36,16 @@ func playbackMultiModuleOverlayPreservesOneSessionThenReopensFresh() async throw
     let playlistWindow = try #require(session.playlistWindow)
     #expect(playlistWindow.snapshot.loadedItemCount == playlistItems.count)
     #expect(playbackMultiModuleCommit(ordinal: 1, in: playlistWindow))
-
-    #expect(session.selectModule(.search))
-    searchStore.updateQuery("overlay")
-    let searchWindow = try #require(session.searchWindow)
-    #expect(playbackMultiModuleCommit(ordinal: 1, in: searchWindow))
-
-    #expect(session.selectModule(.library))
     #expect(libraryStore.selection.move(.down))
     libraryStore.selection.recordScrollOffsetY(82.75)
     let selectedEpisodeID = libraryStore.selection.selectedItemID
 
-    #expect(session.selectModule(.excerpt))
-    let excerptWindow = try #require(session.excerptWindow)
+    searchStore.updateQuery("overlay")
     #expect(session.selectModule(.current))
     #expect(session.commitNativeReelSelection(ordinal: 2))
 
     for expectedModule in [
         PlaybackOverlayModule.playlist,
-        .search,
-        .library,
-        .excerpt,
         .current,
     ] {
         #expect(session.selectNextModule())
@@ -68,10 +55,8 @@ func playbackMultiModuleOverlayPreservesOneSessionThenReopensFresh() async throw
     #expect(session.currentSnapshot?.selectedOrdinal == 2)
     #expect(playlistWindow.selectedOrdinal == 1)
     #expect(searchStore.searchQuery == "overlay")
-    #expect(searchWindow.selectedOrdinal == 1)
     #expect(libraryStore.selection.selectedItemID == selectedEpisodeID)
     #expect(libraryStore.selection.scrollOffsetY == 82.75)
-    #expect(excerptWindow.selectedOrdinal == 0)
 
     #expect(session.dismissByUser() == false)
     #expect(!session.isActive)
@@ -92,13 +77,10 @@ func playbackMultiModuleOverlayPreservesOneSessionThenReopensFresh() async throw
         sessionGeneration: 2,
         availableModules: PlaybackOverlayModule.allCases,
         playlistSource: playlistSource,
-        searchStore: searchStore,
-        libraryStore: freshLibraryStore,
-        excerptStore: excerptStore
+        libraryStore: freshLibraryStore
     )
 
     #expect(freshSession.selectedModule == .current)
-    #expect(freshSession.searchWindow?.snapshot.totalCount == 3)
     #expect(freshLibraryStore.selection.selectedItemID == nil)
     #expect(freshSession.dismissByUser() == false)
 }
@@ -148,9 +130,7 @@ func playbackMultiModuleStopCancelsSessionWorkButPreservesFeatureStores() async 
     let session = try #require(app.playback.beginSubtitleFocusSession(
         openSnapshot: fixture.openSnapshot,
         availableModules: PlaybackOverlayModule.allCases,
-        searchStore: app.search,
-        libraryStore: libraryStore,
-        excerptStore: app.excerpt
+        libraryStore: libraryStore
     ))
     app.startPlaybackSubtitleFocusInitialLoad(
         for: session,

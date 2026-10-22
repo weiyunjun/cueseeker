@@ -401,45 +401,6 @@ func playbackControllerUsesNativeTextActionsOnCommandPanelRoot() async throws {
 
 @MainActor
 @Test
-func playbackControllerPreservesNativeSearchTextEntry() async throws {
-    try await withKeyboardActionApp { app, _ in
-        app.playback.isPlaybackSurfaceExpanded = true
-        let session = try #require(app.playback.beginSubtitleFocusSession(
-            openSnapshot: keyboardActionOpenSnapshot(wasPlaying: false),
-            availableModules: [.current, .search]
-        ))
-        #expect(session.publishInitialSnapshot(
-            keyboardActionSnapshot(),
-            token: session.token
-        ))
-        #expect(session.selectModule(.search))
-
-        var actions: [PlaybackControllerTextAction] = []
-        let recordAction: (PlaybackControllerTextAction) -> Bool = { action in
-            actions.append(action)
-            return true
-        }
-        let editableInput = PlaybackKeyboardTextInputState(
-            isEditableFocused: true,
-            hasMarkedText: false
-        )
-
-        #expect(app.handlePlaybackControllerInput(
-            .button(.west, isRepeat: true),
-            textInputState: editableInput,
-            textActionHandler: recordAction
-        ))
-        #expect(app.handlePlaybackControllerInput(
-            .button(.north, isRepeat: true),
-            textInputState: editableInput,
-            textActionHandler: recordAction
-        ))
-        #expect(actions == [.insertText("c"), .insertText("s")])
-    }
-}
-
-@MainActor
-@Test
 func playbackControllerRepeatsSquareBackspaceInCommandPanelRoot() async throws {
     try await withKeyboardActionApp { app, _ in
         app.playback.isPlaybackSurfaceExpanded = true

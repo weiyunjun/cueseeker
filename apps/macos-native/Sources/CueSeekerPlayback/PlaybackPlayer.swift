@@ -61,7 +61,6 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
     private var subtitlesVisible = true
     private var activeSubtitleSource: PlaybackSubtitleSource?
     private var assSubtitleRenderTimeGate: PlaybackSubtitleRenderTimeGate?
-    private var subtitleLoadTask: Task<Void, Never>?
     private var subtitleRenderTickTask: Task<Void, Never>?
     private var heldSubtitlePresentationMilliseconds: Int?
     private var lastRenderedASSSubtitleMilliseconds = 0
@@ -509,7 +508,6 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
             return
         }
 
-        subtitleLoadTask?.cancel()
         activeSubtitleSource = source
 
         guard let source else {
@@ -561,7 +559,6 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
     }
 
     deinit {
-        subtitleLoadTask?.cancel()
         subtitleRenderTickTask?.cancel()
     }
 
@@ -640,32 +637,6 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
             startASSSubtitleRenderTicks()
             delegate?.player(self, didChangeProperty: "speed", value: .double(storedSpeed))
         default:
-            throw PlaybackError.nativePropertyUnsupported(name: name)
-        }
-    }
-
-    public func setStringProperty(_ name: String, value: String) throws {
-        if name != "sid" {
-            throw PlaybackError.nativePropertyUnsupported(name: name)
-        }
-
-        setSubtitlesVisible(value != "no")
-    }
-
-    public func getBoolProperty(_ name: String) throws -> Bool {
-        if name == "pause" {
-            return !nativePlayer.isPlaying
-        }
-        throw PlaybackError.nativePropertyUnsupported(name: name)
-    }
-
-    public func setBoolProperty(_ name: String, value: Bool) throws {
-        if name == "pause" {
-            try nativePlayer.setPaused(value)
-            if !value {
-                startASSSubtitleRenderTicks()
-            }
-        } else {
             throw PlaybackError.nativePropertyUnsupported(name: name)
         }
     }
@@ -898,7 +869,6 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
 
     @MainActor
     private func clearSubtitleSourceAfterStop() {
-        subtitleLoadTask?.cancel()
         activeSubtitleSource = nil
         lastRenderedASSSubtitleMilliseconds = 0
         assSubtitleRenderTimeGate = nil
@@ -912,7 +882,6 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
         milliseconds: Int,
         videoSize: CGSize?
     ) {
-        subtitleLoadTask?.cancel()
         activeSubtitleSource = source
         lastRenderedASSSubtitleMilliseconds = milliseconds
 
@@ -1232,10 +1201,6 @@ public final class PlaybackRenderContainerView: NSView {
         }
         return sourceFaithfulASSOverlayView?.nextScheduledRenderMilliseconds(after: milliseconds)
             ?? srtSubtitleOverlayView?.nextScheduledRenderMilliseconds(after: milliseconds)
-    }
-
-    func setASSSubtitleTime(milliseconds: Int) {
-        setSubtitleTime(milliseconds: milliseconds)
     }
 
     func setSubtitlesVisible(_ isVisible: Bool) {

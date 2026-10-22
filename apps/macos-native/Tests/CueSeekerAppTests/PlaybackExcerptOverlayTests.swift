@@ -1,178 +1,8 @@
 import AppKit
 @testable import CueSeekerCore
-import CueSeekerPlayback
 import Foundation
 import Testing
 @testable import CueSeekerApp
-
-@MainActor
-@Test
-func playbackExcerptUsesWorkbenchRowsWithoutRetainingAnotherDataset() throws {
-    let fixtures = (0..<40).map(playbackSharedExcerptFixture)
-    let store = playbackSharedExcerptStore(fixtures)
-    let session = PlaybackSubtitleFocusSessionStore(
-        openSnapshot: playbackSharedExcerptOpenSnapshot(),
-        sessionGeneration: 1,
-        availableModules: PlaybackOverlayModule.allCases,
-        excerptStore: store
-    )
-    let window = try #require(session.excerptWindow)
-
-    #expect(session.excerptStore === store)
-    #expect(window.snapshot.totalCount == 40)
-    #expect(window.snapshot.loadedOrdinalRange == 0..<40)
-    #expect(window.snapshot.isComplete)
-    #expect(window.item(at: 39)?.identity == .excerpt(10_039))
-    #expect(window.item(at: 39)?.primaryCueText == "excerpt-39")
-
-    _ = session.dismissByUser()
-
-    #expect(store.tableRowStore.snapshot.totalRowCount == 40)
-    #expect(store.tableRowStore.snapshot.row(at: 39)?.primaryCueText == "excerpt-39")
-}
-
-@MainActor
-@Test
-func playbackExcerptEmptyWorkbenchCollectionKeepsAnEmptyModuleWindow() throws {
-    let store = ExcerptStore()
-    let session = PlaybackSubtitleFocusSessionStore(
-        openSnapshot: playbackSharedExcerptOpenSnapshot(),
-        sessionGeneration: 1,
-        availableModules: PlaybackOverlayModule.allCases,
-        excerptStore: store
-    )
-    let window = try #require(session.excerptWindow)
-
-    #expect(window.snapshot.totalCount == 0)
-    #expect(window.snapshot.isComplete)
-    #expect(window.selectedOrdinal == nil)
-    #expect(window.item(at: 0) == nil)
-}
-
-@MainActor
-@Test
-func playbackExcerptUsesWorkbenchCuePresentationForActions() throws {
-    let store = playbackSharedExcerptStore([playbackSharedExcerptFixture(0)])
-    let session = PlaybackSubtitleFocusSessionStore(
-        openSnapshot: playbackSharedExcerptOpenSnapshot(),
-        sessionGeneration: 1,
-        availableModules: PlaybackOverlayModule.allCases,
-        excerptStore: store
-    )
-    #expect(session.publishInitialSnapshot(
-        SubtitleFocusSnapshot(
-            totalCount: 1,
-            selectedOrdinal: 0,
-            cues: [SubtitleFocusCue(
-                id: 1,
-                cueGroupID: 2,
-                ordinal: 0,
-                eventIndex: 0,
-                displayOrder: 0,
-                startMilliseconds: 0,
-                endMilliseconds: 900,
-                content: "current"
-            )]
-        ),
-        token: session.token
-    ))
-    #expect(session.selectModule(.excerpt))
-
-    guard case .ready(let execution) = session.requestKeyboardAction(
-        .copyCueText
-    ) else {
-        Issue.record("Expected the shared Excerpt row to be actionable")
-        return
-    }
-
-    #expect(execution.target.primaryCueText == "excerpt-0")
-    guard case .excerpt(let targetItem) = execution.target else {
-        Issue.record("Expected a Excerpt action target")
-        return
-    }
-    #expect(targetItem.additionalCueTexts == ["before-0", "after-0"])
-    #expect(execution.target.actionContext?.cue.id == 20_000)
-}
-
-@MainActor
-@Test
-func playbackExcerptCopiesSettledPrimaryCueAsMarkdownLink() throws {
-    _ = NSApplication.shared
-    let databaseURL = FileManager.default.temporaryDirectory
-        .appendingPathComponent("playback-excerpt-markdown-\(UUID().uuidString).sqlite")
-    defer { removeTemporaryDatabase(at: databaseURL) }
-    let app = AppCoordinator(databaseURL: databaseURL)
-    app.playback.playbackViewModel = PlaybackViewModel(player: PlaybackPlayer())
-    let store = playbackSharedExcerptStore([playbackSharedExcerptFixture(0)])
-    let session = try #require(app.playback.beginSubtitleFocusSession(
-        openSnapshot: playbackSharedExcerptOpenSnapshot(),
-        availableModules: PlaybackOverlayModule.allCases,
-        excerptStore: store
-    ))
-    #expect(session.publishInitialSnapshot(
-        SubtitleFocusSnapshot(
-            totalCount: 1,
-            selectedOrdinal: 0,
-            cues: [SubtitleFocusCue(
-                id: 1,
-                cueGroupID: 2,
-                ordinal: 0,
-                eventIndex: 0,
-                displayOrder: 0,
-                startMilliseconds: 0,
-                endMilliseconds: 900,
-                content: "current"
-            )]
-        ),
-        token: session.token
-    ))
-    #expect(session.selectModule(.excerpt))
-    NSPasteboard.general.clearContents()
-
-    guard case .ready(let execution) = session.requestKeyboardAction(
-        .copyCueMarkdownLink
-    ) else {
-        Issue.record("Expected the settled Excerpt Cue to be actionable")
-        return
-    }
-    #expect(app.executePlaybackSubtitleFocusAction(execution))
-
-    #expect(
-        NSPasteboard.general.string(forType: .string)
-            == "[excerpt-0](cueseeker://cue?id=20000)"
-    )
-    #expect(
-        app.playback.playbackViewModel?.feedback?.text
-            == "Deep Link Copied"
-    )
-    #expect(session.activeKeyboardAction == nil)
-}
-
-@MainActor
-@Test
-func playbackExcerptDispatchUsesCurrentWorkbenchResultOrder() throws {
-    _ = NSApplication.shared
-    let databaseURL = FileManager.default.temporaryDirectory
-        .appendingPathComponent("playback-shared-excerpt-dispatch-\(UUID().uuidString).sqlite")
-    defer { removeTemporaryDatabase(at: databaseURL) }
-    let app = AppCoordinator(databaseURL: databaseURL)
-    let fixtures = (0..<3).map(playbackSharedExcerptFixture)
-    let store = playbackSharedExcerptStore(fixtures)
-    installPlaybackSharedExcerptFixtures(fixtures, in: app.excerpt)
-    let item = PlaybackCueResultItem(
-        excerpt: fixtures[1].excerpt,
-        cuePresentation: fixtures[1].presentation,
-        ordinal: 1
-    )
-    var receivedScope: [Int64]?
-
-    let dispatched = app.dispatchPlaybackExcerptOverlayItem(item) { _, scope in
-        receivedScope = scope
-    }
-
-    #expect(dispatched)
-    #expect(receivedScope == store.tableResultExcerptIDs)
-}
 
 @MainActor
 @Test
@@ -227,15 +57,11 @@ func sharedExcerptPipelineAppliesLivePrimaryCueSearchBeforePlaybackProjection() 
     #expect(app.excerpt.tableRowStore.snapshot.totalRowCount == 0)
 
     app.updateExcerptSearchQuery("alp")
-
-    let session = PlaybackSubtitleFocusSessionStore(
-        openSnapshot: playbackSharedExcerptOpenSnapshot(),
-        sessionGeneration: 1,
-        excerptStore: app.excerpt
+    #expect(app.excerpt.tableResultRowCount == 1)
+    #expect(
+        app.excerpt.tableRowStore.snapshot.row(at: 0)?.primaryCueText
+            == "alpha shared excerpt"
     )
-    let window = try #require(session.excerptWindow)
-    #expect(window.snapshot.totalCount == 1)
-    #expect(window.item(at: 0)?.primaryCueText == "alpha shared excerpt")
 }
 
 @MainActor
@@ -315,114 +141,6 @@ func sharedExcerptFacetSelectionRestoresAndProjectsWithoutDatabaseReload() async
         shortExcerpt.id,
         longExcerpt.id,
     ])
-
-    let session = PlaybackSubtitleFocusSessionStore(
-        openSnapshot: playbackSharedExcerptOpenSnapshot(),
-        sessionGeneration: 1,
-        excerptStore: app.excerpt
-    )
-    let window = try #require(session.excerptWindow)
-    #expect(window.snapshot.totalCount == 2)
-}
-
-private struct PlaybackSharedExcerptFixture {
-    let excerpt: Excerpt
-    let presentation: ExcerptCuePresentation
-}
-
-private func playbackSharedExcerptFixture(
-    _ ordinal: Int
-) -> PlaybackSharedExcerptFixture {
-    let excerptID = Int64(10_000 + ordinal)
-    return PlaybackSharedExcerptFixture(
-        excerpt: Excerpt(
-            id: excerptID,
-            subtitlePath: "/subtitle/excerpt-\(ordinal).ass",
-            subtitleFormat: .ass,
-            videoPath: "/video/excerpt-\(ordinal).mkv",
-            videoName: "excerpt-\(ordinal).mkv",
-            startMilliseconds: ordinal * 1_000,
-            endMilliseconds: ordinal * 1_000 + 900,
-            cueEventIndex: ordinal,
-            cueDisplayOrder: 1,
-            content: "excerpt-\(ordinal)",
-            isValid: true,
-            createdAt: "2026-07-15T00:00:00Z"
-        ),
-        presentation: ExcerptCuePresentation(
-            cueID: Int64(20_000 + ordinal),
-            cueGroupID: Int64(30_000 + ordinal),
-            primaryGroupIndex: 1,
-            cueGroupTexts: [
-                "before-\(ordinal)",
-                "excerpt-\(ordinal)",
-                "after-\(ordinal)",
-            ],
-            languages: [.japanese],
-        )
-    )
-}
-
-@MainActor
-private func playbackSharedExcerptStore(
-    _ fixtures: [PlaybackSharedExcerptFixture]
-) -> ExcerptStore {
-    let store = ExcerptStore()
-    installPlaybackSharedExcerptFixtures(fixtures, in: store)
-    return store
-}
-
-@MainActor
-private func installPlaybackSharedExcerptFixtures(
-    _ fixtures: [PlaybackSharedExcerptFixture],
-    in store: ExcerptStore
-) {
-    let relations = fixtures.map { fixture in
-        ExcerptRelation(
-            id: fixture.excerpt.id,
-            listID: ExcerptListIdentity.defaultListID,
-            cueID: fixture.presentation.cueID ?? fixture.excerpt.id,
-            createdAt: fixture.excerpt.createdAt
-        )
-    }
-    let cueContentsByID = Dictionary(
-        uniqueKeysWithValues: fixtures.map { fixture in
-            let cueID = fixture.presentation.cueID ?? fixture.excerpt.id
-            return (
-                cueID,
-                CueContent(
-                    cueID: cueID,
-                    cueGroupID: fixture.presentation.cueGroupID ?? cueID,
-                    subtitleFileID: fixture.excerpt.subtitleFileID,
-                    cueEventIndex: fixture.excerpt.cueEventIndex ?? 0,
-                    cueDisplayOrder: fixture.excerpt.cueDisplayOrder ?? 0,
-                    primaryGroupIndex: fixture.presentation.primaryGroupIndex ?? 0,
-                    subtitlePath: fixture.excerpt.subtitlePath,
-                    subtitleFormat: fixture.excerpt.subtitleFormat,
-                    videoPath: fixture.excerpt.videoPath,
-                    videoName: fixture.excerpt.videoName,
-                    displayTitle: fixture.excerpt.displayTitle,
-                    timeRange: fixture.excerpt.timeRange,
-                    startMilliseconds: fixture.excerpt.startMilliseconds,
-                    endMilliseconds: fixture.excerpt.endMilliseconds,
-                    content: fixture.excerpt.content,
-                    cueLines: fixture.excerpt.cueLines,
-                    cueGroupLines: fixture.presentation.cueGroupTexts,
-                    languages: fixture.presentation.languages
-                )
-            )
-        }
-    )
-    store.tableRowStore.updateResidentExcerptRelations(
-        relations,
-        resolvedExcerptsByID: Dictionary(
-            uniqueKeysWithValues: fixtures.map { ($0.excerpt.id, $0.excerpt) }
-        ),
-        cueContentProvider: { cueContentsByID[$0] },
-        tableName: "excerpt"
-    )
-    store.installTableResultExcerptIDs(fixtures.map(\.excerpt.id))
-    store.markTableRowsLoaded(totalSavedRowCount: fixtures.count)
 }
 
 private func playbackDatabaseExcerpt(
@@ -454,18 +172,5 @@ private func playbackDatabaseExcerpt(
     return try ExcerptDatabase(path: database.path).upsertExcerpt(
         selection: selection,
         createdAt: Date(timeIntervalSince1970: TimeInterval(timestamp))
-    )
-}
-
-private func playbackSharedExcerptOpenSnapshot()
-    -> PlaybackSubtitleFocusOpenSnapshot {
-    PlaybackSubtitleFocusOpenSnapshot(
-        source: SubtitleFocusSourceIdentity(
-            videoPath: "/video/current.mkv",
-            subtitlePath: "/subtitle/current.ass",
-            subtitleFormat: .ass
-        ),
-        timestampMilliseconds: 0,
-        wasPlaying: false
     )
 }

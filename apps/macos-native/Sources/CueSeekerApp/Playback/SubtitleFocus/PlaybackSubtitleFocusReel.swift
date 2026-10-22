@@ -70,44 +70,6 @@ struct PlaybackVirtualReelSelectionCommit: Equatable {
     let ordinal: Int
 }
 
-enum PlaybackVirtualReelWindowRequestReason: Equatable {
-    case visible
-    case keyboard
-    case wheel
-    case scrollbar
-}
-
-struct PlaybackVirtualReelWindowRequest: Equatable {
-    let datasetID: AnyHashable
-    let generation: UInt64
-    let revision: UInt64
-    let targetOrdinal: Int
-    let suggestedOrdinalRange: Range<Int>
-    let reason: PlaybackVirtualReelWindowRequestReason
-}
-
-struct PlaybackVirtualReelWindowPolicy: Equatable {
-    static let standard = Self(itemCount: 32, leadingItemCount: 16)
-
-    let itemCount: Int
-    let leadingItemCount: Int
-
-    func windowRange(totalCount: Int, targetOrdinal: Int) -> Range<Int> {
-        let resolvedTotalCount = max(0, totalCount)
-        guard resolvedTotalCount > 0 else {
-            return 0..<0
-        }
-        let count = min(max(1, itemCount), resolvedTotalCount)
-        let target = min(max(0, targetOrdinal), resolvedTotalCount - 1)
-        let maximumStart = resolvedTotalCount - count
-        let start = min(
-            max(0, target - max(0, leadingItemCount)),
-            maximumStart
-        )
-        return start..<(start + count)
-    }
-}
-
 typealias PlaybackTextSelectionHit = (
     lineUTF16Range: NSRange,
     utf16Offset: Int,
@@ -117,7 +79,6 @@ typealias PlaybackTextSelectionHit = (
 @MainActor
 protocol PlaybackVirtualReelContentAdapter: AnyObject {
     var snapshot: PlaybackVirtualReelSnapshot { get }
-    var supportsWindowRequests: Bool { get }
     var measurementCacheCountForTesting: Int { get }
     var measuredOrdinalsForTesting: Set<Int> { get }
 
@@ -144,16 +105,11 @@ protocol PlaybackVirtualReelContentAdapter: AnyObject {
     ) -> PlaybackTextSelectionHit?
     func selectableTextRects(at ordinal: Int, in rect: CGRect) -> [CGRect]
     func selectedText(at ordinal: Int, range: NSRange) -> String?
-    func requestWindow(_ request: PlaybackVirtualReelWindowRequest)
     func invalidateMeasurements()
     func invalidate()
 }
 
 extension PlaybackVirtualReelContentAdapter {
-    var supportsWindowRequests: Bool {
-        false
-    }
-
     var measurementCacheCountForTesting: Int {
         0
     }
@@ -178,8 +134,6 @@ extension PlaybackVirtualReelContentAdapter {
     func selectableTextRects(at ordinal: Int, in rect: CGRect) -> [CGRect] {
         []
     }
-
-    func requestWindow(_ request: PlaybackVirtualReelWindowRequest) {}
 }
 
 struct PlaybackVisualLineStackSegment {
@@ -1671,56 +1625,6 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
         let generation: UInt64
     }
 
-    private enum PendingWindowSelection: Equatable {
-        case keyboard(
-            token: ContentToken,
-            request: PlaybackSubtitleFocusKeyboardNavigationRequest
-        )
-        case native(
-            token: ContentToken,
-            ordinal: Int,
-            reason: PlaybackVirtualReelWindowRequestReason
-        )
-        case restore(token: ContentToken, ordinal: Int)
-
-        var token: ContentToken {
-            switch self {
-            case .keyboard(let token, _),
-                 .native(let token, _, _),
-                 .restore(let token, _):
-                token
-            }
-        }
-
-        var ordinal: Int {
-            switch self {
-            case .keyboard(_, let request):
-                request.targetOrdinal
-            case .native(_, let ordinal, _):
-                ordinal
-            case .restore(_, let ordinal):
-                ordinal
-            }
-        }
-
-        var requestReason: PlaybackVirtualReelWindowRequestReason {
-            switch self {
-            case .keyboard:
-                .keyboard
-            case .native(_, _, let reason):
-                reason
-            case .restore:
-                .visible
-            }
-        }
-    }
-
-    private struct PendingScrollbarPreview: Equatable {
-        let token: ContentToken
-        let ordinal: Int
-        let fractionalOrdinal: CGFloat
-    }
-
     var uiProbeScope: String? {
         didSet {
             documentView.uiProbeScope = uiProbeScope
@@ -1789,11 +1693,7 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
     private var isKeyboardMotionActive = false
     private var activeWheelTargetOrdinal: Int?
     private var activeWheelContentGeneration: UInt64?
-    private var pendingWindowSelection: PendingWindowSelection?
-    private var pendingScrollbarPreview: PendingScrollbarPreview?
-    private var lastWindowRequest: PlaybackVirtualReelWindowRequest?
-    private var observedExternalSelectionToken: ContentToken?
-    private var observedExternalSelectedOrdinal: Int?
+    private var hasUncommittedScrollbarPreview = false
     private var preciseGestureStartOrdinal: Int?
     private var wheelState = PlaybackSubtitleFocusNativeWheelState()
     private var preciseSettleTask: Task<Void, Never>?
@@ -1993,12 +1893,8 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
             return
         }
         let previousSnapshot = contentSnapshot
-        let previousContentAdapter = mountedContentAdapter
         let changesDataset = previousSnapshot.map {
             !$0.belongsToSameDataset(as: snapshot)
-        } ?? false
-        let replacesRequestTransport = previousContentAdapter.map {
-            $0 !== contentAdapter
         } ?? false
         let activeTargetOrdinal = activeKeyboardRequest?.targetOrdinal
             ?? activeWheelTargetOrdinal
@@ -2013,66 +1909,19 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
             contentAdapter.invalidateMeasurements()
             hasInitializedPosition = false
         }
-        if previousSnapshot != snapshot || replacesRequestTransport {
-            lastWindowRequest = nil
-        }
         contentSnapshot = snapshot
         mountedContentAdapter = contentAdapter
         self.totalCount = snapshot.totalCount
-        let token = ContentToken(
-            datasetID: snapshot.datasetID,
-            generation: snapshot.generation
-        )
-        if let pendingWindowSelection,
-           pendingWindowSelection.token != token {
-            self.pendingWindowSelection = nil
-        }
-        if let pendingScrollbarPreview,
-           pendingScrollbarPreview.token != token {
-            self.pendingScrollbarPreview = nil
-        }
-        if observeExternalSelection(selectedOrdinal, for: token) {
-            supersedePendingWindowIntent()
-        }
-        if case .restore(_, let ordinal) = pendingWindowSelection,
-           resolvedOrdinal(selectedOrdinal, totalCount: snapshot.totalCount)
-               != ordinal {
-            supersedePendingWindowIntent(clearsScrollbarPreview: false)
-        }
-        if let pendingWindowSelection,
-           !(0..<snapshot.totalCount).contains(pendingWindowSelection.ordinal) {
-            supersedePendingWindowIntent(clearsScrollbarPreview: false)
-        }
-        if let pendingScrollbarPreview,
-           (!isScrollbarDragging
-               || !(0..<snapshot.totalCount).contains(
-                   pendingScrollbarPreview.ordinal
-               )) {
-            self.pendingScrollbarPreview = nil
-        }
-        let readyPendingWindowSelection = pendingWindowSelection.flatMap {
-            snapshot.loadedOrdinalRange.contains($0.ordinal) ? $0 : nil
-        }
-        let readyScrollbarPreview = pendingScrollbarPreview.flatMap {
-            snapshot.loadedOrdinalRange.contains($0.ordinal) ? $0 : nil
-        }
         let previousSelectedOrdinal = self.selectedOrdinal
-        let requestedSelectedOrdinal = readyPendingWindowSelection?.ordinal
-            ?? selectedOrdinal
-        var unloadedRequestedOrdinal: Int?
-        if let requestedSelectedOrdinal, snapshot.totalCount > 0 {
+        if let selectedOrdinal, snapshot.totalCount > 0 {
             let resolvedSelectedOrdinal = min(
-                max(0, requestedSelectedOrdinal),
+                max(0, selectedOrdinal),
                 snapshot.totalCount - 1
             )
             if snapshot.loadedOrdinalRange.contains(resolvedSelectedOrdinal) {
                 self.selectedOrdinal = resolvedSelectedOrdinal
             } else {
                 self.selectedOrdinal = nil
-                if pendingWindowSelection == nil
-                    && pendingScrollbarPreview == nil {
-                    unloadedRequestedOrdinal = resolvedSelectedOrdinal
-                }
             }
         } else {
             self.selectedOrdinal = nil
@@ -2091,21 +1940,13 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
         } else if wasInteractionEnabled, !isInteractionEnabled {
             suspendWheelInputForSuppression()
         }
-        let activeScrollbarPreview = readyScrollbarPreview.flatMap { preview in
-            pendingScrollbarPreview == preview && isScrollbarDragging
-                ? preview
-                : nil
-        }
         documentView.updateContent(contentAdapter)
         documentView.updateCollageSelection(
             selectedCueIDs: collageSelectedCueIDs,
             canSelectAnotherCue: collageCanSelectAnotherCue
         )
-        if let activeScrollbarPreview {
-            fractionalOrdinal = activeScrollbarPreview.fractionalOrdinal
-            hasInitializedPosition = true
-        } else if !hasInitializedPosition,
-                  let selectedOrdinal = self.selectedOrdinal {
+        if !hasInitializedPosition,
+           let selectedOrdinal = self.selectedOrdinal {
             fractionalOrdinal = CGFloat(selectedOrdinal)
             hasInitializedPosition = true
         } else if previousSelectedOrdinal != self.selectedOrdinal,
@@ -2116,50 +1957,16 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
         fractionalOrdinal = boundedLoadedFractionalOrdinal(fractionalOrdinal)
         updateDocumentGeometry()
         updateScrollbarPresentation()
-        if let activeScrollbarPreview {
-            documentView.updateSelection(activeScrollbarPreview.ordinal)
+        if isScrollbarDragging, hasUncommittedScrollbarPreview {
+            documentView.updateSelection(currentLayout.nearestOrdinal)
         } else if !hasActiveNativeMotion {
             documentView.updateSelection(self.selectedOrdinal)
             synchronizeFractionalOrdinalIfIdle()
-        }
-        if let unloadedRequestedOrdinal {
-            _ = requestWindow(
-                targetOrdinal: unloadedRequestedOrdinal,
-                reason: .visible,
-                pendingSelection: .restore(
-                    token: token,
-                    ordinal: unloadedRequestedOrdinal
-                )
-            )
         }
         handleKeyboardNavigation(
             keyboardNavigationRequest,
             reducesMotion: reducesMotion
         )
-        if let readyPendingWindowSelection,
-           pendingWindowSelection == readyPendingWindowSelection {
-            pendingWindowSelection = nil
-            finishPendingWindowSelection(
-                readyPendingWindowSelection,
-                fallbackSelectedOrdinal: selectedOrdinal
-            )
-        }
-        if let pendingWindowSelection {
-            _ = requestWindow(
-                targetOrdinal: pendingWindowSelection.ordinal,
-                reason: pendingWindowSelection.requestReason,
-                pendingSelection: pendingWindowSelection
-            )
-        }
-        if let pendingScrollbarPreview,
-           readyScrollbarPreview == nil {
-            _ = requestWindow(
-                targetOrdinal: pendingScrollbarPreview.ordinal,
-                reason: .scrollbar,
-                pendingSelection: nil
-            )
-        }
-        requestVisibleWindowIfNeeded()
     }
 
     private func rejectIncomingContentAdapter(
@@ -2171,41 +1978,6 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
         } else {
             contentAdapter.invalidate()
         }
-    }
-
-    private func observeExternalSelection(
-        _ ordinal: Int?,
-        for token: ContentToken
-    ) -> Bool {
-        guard observedExternalSelectionToken == token else {
-            observedExternalSelectionToken = token
-            observedExternalSelectedOrdinal = ordinal
-            return false
-        }
-        let didChange = observedExternalSelectedOrdinal != ordinal
-        observedExternalSelectedOrdinal = ordinal
-        return didChange
-    }
-
-    private func resolvedOrdinal(
-        _ ordinal: Int?,
-        totalCount: Int
-    ) -> Int? {
-        guard let ordinal, totalCount > 0 else {
-            return nil
-        }
-        return min(max(0, ordinal), totalCount - 1)
-    }
-
-    private func supersedePendingWindowIntent(
-        clearsScrollbarPreview: Bool = true
-    ) {
-        finishPendingWindowMotion(pendingWindowSelection)
-        pendingWindowSelection = nil
-        if clearsScrollbarPreview {
-            pendingScrollbarPreview = nil
-        }
-        lastWindowRequest = nil
     }
 
     private func resetForInvalidContent(
@@ -2224,8 +1996,6 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
         loadedOrdinalRange = 0..<0
         hasCompleteItemCollection = false
         hasInitializedPosition = false
-        observedExternalSelectionToken = nil
-        observedExternalSelectedOrdinal = nil
         documentView.invalidate()
         updateDocumentGeometry()
         updateScrollbarPresentation()
@@ -2241,10 +2011,8 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
         activeKeyboardContentGeneration = nil
         activeWheelTargetOrdinal = nil
         activeWheelContentGeneration = nil
+        hasUncommittedScrollbarPreview = false
         preciseGestureStartOrdinal = nil
-        pendingWindowSelection = nil
-        pendingScrollbarPreview = nil
-        lastWindowRequest = nil
         if isScrollbarDragging {
             isScrollbarDragging = false
             onScrollbarDraggingChanged(false)
@@ -2294,12 +2062,8 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
         activeKeyboardContentGeneration = nil
         activeWheelTargetOrdinal = nil
         activeWheelContentGeneration = nil
+        hasUncommittedScrollbarPreview = false
         preciseGestureStartOrdinal = nil
-        pendingWindowSelection = nil
-        pendingScrollbarPreview = nil
-        lastWindowRequest = nil
-        observedExternalSelectionToken = nil
-        observedExternalSelectedOrdinal = nil
         scrollbarView.onDrag = { _ in }
         scrollbarView.onDragStateChanged = nil
         scrollbarView.presentationProvider = { nil }
@@ -2688,8 +2452,7 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
 
     private func updateScrollbarInteractionAvailability() {
         scrollbarView.acceptsInteraction = isInteractionEnabled
-            && (hasCompleteItemCollection
-                || mountedContentAdapter?.supportsWindowRequests == true)
+            && hasCompleteItemCollection
             && selectedOrdinal != nil
             && !isKeyboardMotionActive
             && !isWheelMotionActive
@@ -2765,23 +2528,9 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
             lastHandledKeyboardSequence = request.sequence
         }
         guard request.targetOrdinal >= 0,
-              request.targetOrdinal < totalCount
+              request.targetOrdinal < totalCount,
+              loadedOrdinalRange.contains(request.targetOrdinal)
         else {
-            return
-        }
-        supersedePendingWindowIntent()
-        guard loadedOrdinalRange.contains(request.targetOrdinal) else {
-            guard let token = currentContentToken else {
-                return
-            }
-            guard requestWindow(
-                targetOrdinal: request.targetOrdinal,
-                reason: .keyboard,
-                pendingSelection: .keyboard(token: token, request: request)
-            ) else {
-                return
-            }
-            setKeyboardMotionActive(true)
             return
         }
         UIInvalidationProbe.mark(
@@ -2841,7 +2590,7 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
                 return
             }
             resetWheelInteraction(requiresNewGesture: true)
-            supersedePendingWindowIntent()
+            hasUncommittedScrollbarPreview = false
             UIInvalidationProbe.mark(
                 "ACTION playback.subtitle_focus.scrollbar_drag",
                 scope: uiProbeScope,
@@ -2854,8 +2603,8 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
             isScrollbarDragging = false
             onScrollbarDraggingChanged(false)
             setScrollbarMotionActive(false)
-            if pendingScrollbarPreview != nil {
-                restoreObservedExternalSelection()
+            if hasUncommittedScrollbarPreview {
+                restoreSelectedSelection()
             }
             updateScrollbarInteractionAvailability()
             scrollbarView.scrollbarMetricsDidChange()
@@ -2864,8 +2613,7 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
 
     func handleScrollbarDrag(_ event: TableScrollbarDragEvent) {
         guard event.axis == .vertical,
-              (hasCompleteItemCollection
-                  || mountedContentAdapter?.supportsWindowRequests == true),
+              hasCompleteItemCollection,
               isScrollbarDragging
         else {
             return
@@ -2875,16 +2623,17 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
         case .began:
             break
         case .changed:
-            _ = applyScrollbarPositionFraction(
-                event.positionFraction,
-                refreshesScrollbar: false,
-                requestsCommit: false
-            )
-        case .ended:
             if applyScrollbarPositionFraction(
                 event.positionFraction,
-                refreshesScrollbar: true,
-                requestsCommit: true
+                refreshesScrollbar: false
+            ) {
+                hasUncommittedScrollbarPreview = true
+            }
+        case .ended:
+            hasUncommittedScrollbarPreview = false
+            if applyScrollbarPositionFraction(
+                event.positionFraction,
+                refreshesScrollbar: true
             ) {
                 settleScrollbarDrag()
             }
@@ -2892,14 +2641,13 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
             wheelAnimator.cancel()
             activeWheelTargetOrdinal = nil
             activeWheelContentGeneration = nil
-            restoreObservedExternalSelection()
+            restoreSelectedSelection()
         }
     }
 
     private func applyScrollbarPositionFraction(
         _ positionFraction: CGFloat,
-        refreshesScrollbar: Bool,
-        requestsCommit: Bool
+        refreshesScrollbar: Bool
     ) -> Bool {
         let metrics = scrollbarMetrics
         let position = metrics.fractionalOrdinal(for: positionFraction)
@@ -2907,35 +2655,7 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
             max(0, Int(position.rounded())),
             max(0, totalCount - 1)
         )
-        guard let token = currentContentToken else {
-            return false
-        }
-        if requestsCommit {
-            pendingScrollbarPreview = nil
-            pendingWindowSelection = nil
-        } else {
-            pendingScrollbarPreview = PendingScrollbarPreview(
-                token: token,
-                ordinal: targetOrdinal,
-                fractionalOrdinal: position
-            )
-        }
         guard loadedOrdinalRange.contains(targetOrdinal) else {
-            let pendingSelection: PendingWindowSelection? = requestsCommit
-                ? .native(
-                    token: token,
-                    ordinal: targetOrdinal,
-                    reason: .scrollbar
-                )
-                : nil
-            let didRequestWindow = requestWindow(
-                targetOrdinal: targetOrdinal,
-                reason: .scrollbar,
-                pendingSelection: pendingSelection
-            )
-            if requestsCommit, didRequestWindow {
-                setWheelMotionActive(true)
-            }
             return false
         }
         setFractionalOrdinal(position, refreshesScrollbar: refreshesScrollbar)
@@ -2943,41 +2663,21 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
         return true
     }
 
-    private func restoreObservedExternalSelection() {
-        pendingScrollbarPreview = nil
-        lastWindowRequest = nil
-        guard let token = currentContentToken,
-              observedExternalSelectionToken == token,
-              let targetOrdinal = resolvedOrdinal(
-                  observedExternalSelectedOrdinal,
-                  totalCount: totalCount
-              )
+    private func restoreSelectedSelection() {
+        hasUncommittedScrollbarPreview = false
+        guard let targetOrdinal = selectedOrdinal,
+              loadedOrdinalRange.contains(targetOrdinal)
         else {
             selectedOrdinal = nil
             documentView.updateSelection(nil)
             updateScrollbarPresentation()
             return
         }
-        if loadedOrdinalRange.contains(targetOrdinal) {
-            selectedOrdinal = targetOrdinal
-            fractionalOrdinal = CGFloat(targetOrdinal)
-            hasInitializedPosition = true
-            documentView.updateSelection(targetOrdinal)
-            updateDocumentGeometry()
-            updateScrollbarPresentation()
-        } else {
-            selectedOrdinal = nil
-            documentView.updateSelection(nil)
-            _ = requestWindow(
-                targetOrdinal: targetOrdinal,
-                reason: .visible,
-                pendingSelection: .restore(
-                    token: token,
-                    ordinal: targetOrdinal
-                )
-            )
-            updateScrollbarPresentation()
-        }
+        fractionalOrdinal = CGFloat(targetOrdinal)
+        hasInitializedPosition = true
+        documentView.updateSelection(targetOrdinal)
+        updateDocumentGeometry()
+        updateScrollbarPresentation()
     }
 
     private func settleScrollbarDrag() {
@@ -3101,26 +2801,9 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
             max(0, startOrdinal + delta),
             max(0, totalCount - 1)
         )
-        guard targetOrdinal != startOrdinal else {
-            return
-        }
-        supersedePendingWindowIntent()
-        guard loadedOrdinalRange.contains(targetOrdinal) else {
-            guard let token = currentContentToken else {
-                return
-            }
-            guard requestWindow(
-                targetOrdinal: targetOrdinal,
-                reason: .wheel,
-                pendingSelection: .native(
-                    token: token,
-                    ordinal: targetOrdinal,
-                    reason: .wheel
-                )
-            ) else {
-                return
-            }
-            setWheelMotionActive(true)
+        guard targetOrdinal != startOrdinal,
+              loadedOrdinalRange.contains(targetOrdinal)
+        else {
             return
         }
         UIInvalidationProbe.mark(
@@ -3157,7 +2840,6 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
             wheelAnimator.cancel()
             activeWheelTargetOrdinal = nil
             activeWheelContentGeneration = nil
-            supersedePendingWindowIntent()
             preciseGestureStartOrdinal = currentLayout.nearestOrdinal
             UIInvalidationProbe.mark(
                 "ACTION playback.subtitle_focus.wheel",
@@ -3173,7 +2855,6 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
         setFractionalOrdinal(position)
         documentView.updateSelection(currentLayout.nearestOrdinal)
         setWheelMotionActive(true)
-        requestAdjacentWindowIfNeeded(deltaY: deltaY)
     }
 
     private func schedulePreciseSettle() {
@@ -3242,7 +2923,7 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
         } else if selectedOrdinal != nil {
             documentView.updateSelection(selectedOrdinal)
         } else {
-            restoreObservedExternalSelection()
+            restoreSelectedSelection()
         }
         setWheelMotionActive(false)
         if !didCommit, selectedOrdinal != nil {
@@ -3267,200 +2948,6 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
         wheelState.reset(requiresNewGesture: true)
         if preciseGestureStartOrdinal != nil {
             settlePreciseWheel()
-        }
-    }
-
-    private var currentContentToken: ContentToken? {
-        contentSnapshot.map {
-            ContentToken(datasetID: $0.datasetID, generation: $0.generation)
-        }
-    }
-
-    @discardableResult
-    private func requestWindow(
-        targetOrdinal: Int,
-        reason: PlaybackVirtualReelWindowRequestReason,
-        pendingSelection: PendingWindowSelection?
-    ) -> Bool {
-        guard let contentSnapshot,
-              let mountedContentAdapter,
-              mountedContentAdapter.supportsWindowRequests,
-              targetOrdinal >= 0,
-              targetOrdinal < contentSnapshot.totalCount
-        else {
-            return false
-        }
-        let suggestedRange = PlaybackVirtualReelWindowPolicy.standard
-            .windowRange(
-                totalCount: contentSnapshot.totalCount,
-                targetOrdinal: targetOrdinal
-            )
-        guard !suggestedRange.isEmpty else {
-            return false
-        }
-        if let pendingSelection {
-            self.pendingWindowSelection = pendingSelection
-        }
-        let request = PlaybackVirtualReelWindowRequest(
-            datasetID: contentSnapshot.datasetID,
-            generation: contentSnapshot.generation,
-            revision: contentSnapshot.revision,
-            targetOrdinal: targetOrdinal,
-            suggestedOrdinalRange: suggestedRange,
-            reason: reason
-        )
-        guard lastWindowRequest != request else {
-            return true
-        }
-        lastWindowRequest = request
-        mountedContentAdapter.requestWindow(request)
-        return true
-    }
-
-    private func requestVisibleWindowIfNeeded() {
-        guard pendingWindowSelection == nil,
-              pendingScrollbarPreview == nil,
-              let selectedOrdinal,
-              let contentSnapshot,
-              !contentSnapshot.isComplete,
-              let mountedContentAdapter,
-              mountedContentAdapter.supportsWindowRequests
-        else {
-            return
-        }
-        let suggestedRange = PlaybackVirtualReelWindowPolicy.standard
-            .windowRange(
-                totalCount: contentSnapshot.totalCount,
-                targetOrdinal: selectedOrdinal
-            )
-        let loadedRange = contentSnapshot.loadedOrdinalRange
-        guard suggestedRange.lowerBound < loadedRange.lowerBound
-                || suggestedRange.upperBound > loadedRange.upperBound
-        else {
-            return
-        }
-        _ = requestWindow(
-            targetOrdinal: selectedOrdinal,
-            reason: .visible,
-            pendingSelection: nil
-        )
-    }
-
-    private func requestAdjacentWindowIfNeeded(deltaY: CGFloat) {
-        guard deltaY != 0,
-              let token = currentContentToken,
-              !loadedOrdinalRange.isEmpty
-        else {
-            return
-        }
-        let nearestOrdinal = currentLayout.nearestOrdinal
-        let targetOrdinal: Int?
-        if deltaY < 0,
-           nearestOrdinal == loadedOrdinalRange.upperBound - 1,
-           loadedOrdinalRange.upperBound < totalCount {
-            targetOrdinal = loadedOrdinalRange.upperBound
-        } else if deltaY > 0,
-                  nearestOrdinal == loadedOrdinalRange.lowerBound,
-                  loadedOrdinalRange.lowerBound > 0 {
-            targetOrdinal = loadedOrdinalRange.lowerBound - 1
-        } else {
-            targetOrdinal = nil
-        }
-        guard let targetOrdinal,
-              requestWindow(
-                  targetOrdinal: targetOrdinal,
-                  reason: .wheel,
-                  pendingSelection: .native(
-                      token: token,
-                      ordinal: targetOrdinal,
-                      reason: .wheel
-                  )
-              )
-        else {
-            return
-        }
-        cancelPreciseSettle()
-        preciseGestureStartOrdinal = nil
-        documentView.updateSelection(selectedOrdinal)
-        setWheelMotionActive(true)
-    }
-
-    private func finishPendingWindowSelection(
-        _ pendingSelection: PendingWindowSelection,
-        fallbackSelectedOrdinal: Int?
-    ) {
-        let didCommit: Bool
-        switch pendingSelection {
-        case .keyboard(_, let request):
-            if let onCommitVirtualReelSelection {
-                didCommit = selectionCommit(for: request.targetOrdinal).map(
-                    onCommitVirtualReelSelection
-                ) ?? false
-            } else {
-                didCommit = onCommitKeyboardNavigation(request)
-            }
-        case .native(_, let ordinal, _):
-            if let onCommitVirtualReelSelection {
-                didCommit = selectionCommit(for: ordinal).map(
-                    onCommitVirtualReelSelection
-                ) ?? false
-            } else {
-                didCommit = onCommitNativeReelSelection(ordinal)
-            }
-        case .restore:
-            didCommit = true
-        }
-        guard !didCommit else {
-            selectedOrdinal = pendingSelection.ordinal
-            fractionalOrdinal = CGFloat(pendingSelection.ordinal)
-            hasInitializedPosition = true
-            documentView.updateSelection(selectedOrdinal)
-            updateDocumentGeometry()
-            updateScrollbarPresentation()
-            finishPendingWindowMotion(pendingSelection)
-            return
-        }
-        if let fallbackSelectedOrdinal,
-           loadedOrdinalRange.contains(fallbackSelectedOrdinal) {
-            selectedOrdinal = fallbackSelectedOrdinal
-            fractionalOrdinal = CGFloat(fallbackSelectedOrdinal)
-        } else {
-            selectedOrdinal = nil
-            fractionalOrdinal = boundedLoadedFractionalOrdinal(
-                fractionalOrdinal
-            )
-            if let fallbackSelectedOrdinal,
-               let token = currentContentToken,
-               requestWindow(
-                   targetOrdinal: fallbackSelectedOrdinal,
-                   reason: .visible,
-                   pendingSelection: .restore(
-                       token: token,
-                       ordinal: fallbackSelectedOrdinal
-                   )
-               ) {
-                // Keep selection empty only while the prior window reloads.
-            } else if let firstLoadedOrdinal = loadedOrdinalRange.first {
-                selectedOrdinal = firstLoadedOrdinal
-                fractionalOrdinal = CGFloat(firstLoadedOrdinal)
-            }
-        }
-        documentView.updateSelection(selectedOrdinal)
-        updateDocumentGeometry()
-        updateScrollbarPresentation()
-        finishPendingWindowMotion(pendingSelection)
-    }
-
-    private func finishPendingWindowMotion(
-        _ pendingSelection: PendingWindowSelection?
-    ) {
-        switch pendingSelection {
-        case .keyboard:
-            setKeyboardMotionActive(false)
-        case .native:
-            setWheelMotionActive(false)
-        case .restore, nil:
-            break
         }
     }
 

@@ -23,27 +23,6 @@ NSString * const SFXASSRenderingErrorDomain = @"CueSeeker.ASSRendering";
 
 @end
 
-@interface SFXASSImage ()
-
-- (instancetype)initWithBitmapData:(NSData *)bitmapData
-                              width:(NSInteger)width
-                             height:(NSInteger)height
-                             stride:(NSInteger)stride
-                       destinationX:(NSInteger)destinationX
-                       destinationY:(NSInteger)destinationY
-                              color:(uint32_t)color NS_DESIGNATED_INITIALIZER;
-
-@end
-
-@interface SFXASSImageRenderOutput ()
-
-- (instancetype)initWithImages:(NSArray<SFXASSImage *> *)images
-                    frameWidth:(NSInteger)frameWidth
-                   frameHeight:(NSInteger)frameHeight
-                       changed:(BOOL)changed NS_DESIGNATED_INITIALIZER;
-
-@end
-
 @interface SFXASSCroppedRenderOutput ()
 
 - (instancetype)initWithRGBAData:(NSData *)rgbaData
@@ -251,29 +230,6 @@ static NSInteger SFXCompositeASSImages(
     }
 
     return imageCount;
-}
-
-static NSArray<SFXASSImage *> *SFXCopyASSImages(ASS_Image *images) {
-    NSMutableArray<SFXASSImage *> *copiedImages = [NSMutableArray array];
-
-    for (ASS_Image *image = images; image != NULL; image = image->next) {
-        if (image->w <= 0 || image->h <= 0 || image->bitmap == NULL || image->stride <= 0) {
-            continue;
-        }
-
-        NSUInteger bitmapLength = (NSUInteger)((NSInteger)image->stride * image->h);
-        NSData *bitmapData = [NSData dataWithBytes:image->bitmap length:bitmapLength];
-        SFXASSImage *copiedImage = [[SFXASSImage alloc] initWithBitmapData:bitmapData
-                                                                     width:image->w
-                                                                    height:image->h
-                                                                    stride:image->stride
-                                                              destinationX:image->dst_x
-                                                              destinationY:image->dst_y
-                                                                     color:image->color];
-        [copiedImages addObject:copiedImage];
-    }
-
-    return copiedImages;
 }
 
 static BOOL SFXASSVisibleBounds(
@@ -530,52 +486,6 @@ static BOOL SFXASSValidateScript(NSString *script, NSString *sourceIdentifier, N
 
 @end
 
-@implementation SFXASSImage
-
-- (instancetype)initWithBitmapData:(NSData *)bitmapData
-                              width:(NSInteger)width
-                             height:(NSInteger)height
-                             stride:(NSInteger)stride
-                       destinationX:(NSInteger)destinationX
-                       destinationY:(NSInteger)destinationY
-                              color:(uint32_t)color {
-    self = [super init];
-    if (self == nil) {
-        return nil;
-    }
-
-    _bitmapData = [bitmapData copy];
-    _width = width;
-    _height = height;
-    _stride = stride;
-    _destinationX = destinationX;
-    _destinationY = destinationY;
-    _color = color;
-    return self;
-}
-
-@end
-
-@implementation SFXASSImageRenderOutput
-
-- (instancetype)initWithImages:(NSArray<SFXASSImage *> *)images
-                    frameWidth:(NSInteger)frameWidth
-                   frameHeight:(NSInteger)frameHeight
-                       changed:(BOOL)changed {
-    self = [super init];
-    if (self == nil) {
-        return nil;
-    }
-
-    _images = [images copy];
-    _frameWidth = frameWidth;
-    _frameHeight = frameHeight;
-    _changed = changed;
-    return self;
-}
-
-@end
-
 @implementation SFXASSCroppedRenderOutput
 
 - (instancetype)initWithRGBAData:(NSData *)rgbaData
@@ -771,30 +681,6 @@ static BOOL SFXASSValidateScript(NSString *script, NSString *sourceIdentifier, N
                                                  stride:stride
                                              imageCount:imageCount
                                                 changed:detectChange != 0];
-}
-
-- (nullable SFXASSImageRenderOutput *)renderImagesAtTimestampMilliseconds:(NSInteger)timestampMilliseconds
-                                                                    error:(NSError **)error {
-    if (timestampMilliseconds < 0) {
-        SFXASSSetError(error, SFXASSRenderingErrorInvalidInput, @"Timestamp must be non-negative.");
-        return nil;
-    }
-    if (_renderer == NULL || _track == NULL) {
-        SFXASSSetError(error, SFXASSRenderingErrorRenderFailed, @"libass renderer session is not initialized.");
-        return nil;
-    }
-
-    _lastUnchangedFromMilliseconds = -1;
-    _lastUnchangedUntilMilliseconds = -1;
-
-    int detectChange = 0;
-    ASS_Image *images = ass_render_frame(_renderer, _track, (long long)timestampMilliseconds, &detectChange);
-    NSArray<SFXASSImage *> *copiedImages = SFXCopyASSImages(images);
-
-    return [[SFXASSImageRenderOutput alloc] initWithImages:copiedImages
-                                                frameWidth:self.frameWidth
-                                               frameHeight:self.frameHeight
-                                                   changed:detectChange != 0];
 }
 
 - (nullable SFXASSCroppedRenderOutput *)renderCroppedImageAtTimestampMilliseconds:(NSInteger)timestampMilliseconds

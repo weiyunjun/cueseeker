@@ -32,6 +32,8 @@ func playbackOverlaySessionUsesCanonicalModuleOrderWithOptionalPlaylist() throws
     )
     #expect(withoutPlaylist.availableModules == [.current])
     #expect(withoutPlaylist.selectedModule == .current)
+    #expect(!withoutPlaylist.presentModule(.playlist))
+    #expect(withoutPlaylist.selectedModule == .current)
 
     let withPlaylist = PlaybackSubtitleFocusSessionStore(
         openSnapshot: focusOpenSnapshot(wasPlaying: false),
@@ -40,18 +42,15 @@ func playbackOverlaySessionUsesCanonicalModuleOrderWithOptionalPlaylist() throws
     )
     #expect(withPlaylist.availableModules == [.current, .playlist])
     #expect(withPlaylist.selectedModule == .current)
-    #expect(!withPlaylist.presentModule(.search))
-    #expect(withPlaylist.selectedModule == .current)
 
     let reorderedAndDuplicated = PlaybackSubtitleFocusSessionStore(
         openSnapshot: focusOpenSnapshot(wasPlaying: false),
         sessionGeneration: 3,
-        availableModules: [.excerpt, .playlist, .excerpt]
+        availableModules: [.playlist, .current, .playlist]
     )
     #expect(reorderedAndDuplicated.availableModules == [
         .current,
         .playlist,
-        .excerpt,
     ])
 }
 
@@ -65,12 +64,12 @@ func playbackOverlaySessionRejectsModuleSelectionWhileOpening() {
     )
 
     #expect(session.state == .opening)
-    #expect(!session.selectModule(.search))
+    #expect(!session.selectModule(.playlist))
     #expect(!session.selectNextModule())
     #expect(session.selectedModule == .current)
-    #expect(session.presentModule(.search))
-    #expect(session.selectedModule == .search)
-    #expect(session.presentModule(.search))
+    #expect(session.presentModule(.playlist))
+    #expect(session.selectedModule == .playlist)
+    #expect(session.presentModule(.playlist))
 
     #expect(session.publishInitialSnapshot(
         focusPresentationSnapshot(),
@@ -95,9 +94,6 @@ func playbackOverlaySessionCyclesModulesAndPreservesCurrentSelection() throws {
 
     for expectedModule in [
         PlaybackOverlayModule.playlist,
-        .search,
-        .library,
-        .excerpt,
         .current,
     ] {
         #expect(session.selectNextModule())
@@ -106,7 +102,6 @@ func playbackOverlaySessionCyclesModulesAndPreservesCurrentSelection() throws {
 
     #expect(session.currentSnapshot?.selectedOrdinal == 13)
     #expect(!session.selectModule(.current))
-    #expect(session.selectModule(.library))
     #expect(session.selectModule(.playlist))
 }
 
@@ -196,7 +191,7 @@ func playbackOverlaySessionClearsModuleAndCurrentDataOnCloseThenReopensFresh() t
         focusPresentationSnapshot(),
         token: first.token
     ))
-    #expect(first.selectModule(.search))
+    #expect(first.selectModule(.playlist))
     let firstToken = first.token
 
     #expect(first.dismissByUser() == true)

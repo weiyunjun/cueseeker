@@ -42,9 +42,6 @@ enum PlaybackSubtitleFocusState: Equatable, Sendable {
 enum PlaybackOverlayModule: String, CaseIterable, Equatable, Sendable {
     case current
     case playlist
-    case search
-    case library
-    case excerpt
 
     static let standardModules: [Self] = [
         .current,
@@ -60,22 +57,11 @@ enum PlaybackOverlayModule: String, CaseIterable, Equatable, Sendable {
             L("playback.source.current")
         case .playlist:
             L("playback.source.playlist")
-        case .search:
-            L("sidebar.search")
-        case .library:
-            L("sidebar.library")
-        case .excerpt:
-            L("sidebar.excerpt")
         }
     }
 
     var usesSharedCueShortcuts: Bool {
-        switch self {
-        case .current, .playlist, .excerpt:
-            true
-        case .search, .library:
-            false
-        }
+        true
     }
 }
 
@@ -153,11 +139,7 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
         }
     }
     @Published private(set) var playlistWindow: PlaybackPlaylistSessionWindowStore?
-    @Published private(set) var searchStore: SearchStore?
-    @Published private(set) var searchWindow: PlaybackCueResultSessionWindowStore?
     @Published private(set) var libraryStore: PlaybackLibrarySessionStore?
-    @Published private(set) var excerptStore: ExcerptStore?
-    @Published private(set) var excerptWindow: PlaybackCueResultSessionWindowStore?
 
     private var keyboardActionGeneration = 0
     private var isSessionActive = true
@@ -171,10 +153,6 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
     private var keyboardNavigationSequence = 0
     private var pendingKeyboardNavigationTargetOrdinal: Int?
     private var pendingKeyboardNavigationTargetIdentity: PlaybackCueResultItemIdentity?
-    private var excerptPresentationSource: PlaybackCueResultSource?
-    private var excerptResultsCancellable: AnyCancellable?
-    private var searchSource: PlaybackCueResultSource?
-    private var searchResultsCancellable: AnyCancellable?
     private var cueResultWindowSnapshotCancellables: [
         PlaybackOverlayModule: AnyCancellable
     ] = [:]
@@ -189,9 +167,7 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
         availableModules: [PlaybackOverlayModule] = PlaybackOverlayModule.standardModules,
         playlistSource: PlaybackPlaylistSource? = nil,
         playlistPosition: PlaybackPlaylistPosition? = nil,
-        searchStore: SearchStore? = nil,
         libraryStore: PlaybackLibrarySessionStore? = nil,
-        excerptStore: ExcerptStore? = nil,
         interfaceLayers: InterfaceLayerRegistry? = nil
     ) {
         self.interfaceLayers = interfaceLayers ?? InterfaceLayerRegistry()
@@ -208,105 +184,13 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
             initialPosition: playlistPosition
         )
         self.playlistWindow = playlistWindow
-        self.searchStore = searchStore
         self.libraryStore = libraryStore
-        self.excerptStore = excerptStore
         token = PlaybackSubtitleFocusSessionToken(
             source: openSnapshot.source,
             sessionGeneration: sessionGeneration
         )
         if let playlistWindow {
             observeCueResultWindow(playlistWindow, module: .playlist)
-        }
-        if let searchStore {
-            let searchSource = PlaybackCueResultSource(
-                origin: .search(resultListGeneration: 0),
-                totalCount: searchStore.searchResults.count
-            ) { [weak searchStore] ordinal in
-                guard let searchStore else {
-                    return nil
-                }
-                let results = searchStore.searchResults
-                guard results.indices.contains(ordinal)
-                else {
-                    return nil
-                }
-                return PlaybackCueResultItem(
-                    searchResult: results[ordinal],
-                    ordinal: ordinal
-                )
-            }
-            self.searchSource = searchSource
-            let searchWindow = searchSource.makeSessionWindowStore(
-                includingEmpty: true
-            )
-            self.searchWindow = searchWindow
-            if let searchWindow {
-                observeCueResultWindow(searchWindow, module: .search)
-            }
-            searchResultsCancellable = searchStore.$resultRevision
-                .dropFirst()
-                .sink { [weak self, weak searchStore, weak searchSource] _ in
-                    Task { @MainActor [weak self, weak searchStore, weak searchSource] in
-                        guard let self, let searchStore, let searchSource else {
-                            return
-                        }
-                        _ = searchSource.updateBoundary(
-                            totalCount: searchStore.searchResults.count
-                        )
-                        if searchSource.boundary.totalCount > 0,
-                           self.searchWindow?.selectedOrdinal == nil {
-                            self.searchWindow?.resetSelectionToFirst()
-                        }
-                    }
-                }
-        }
-        if let excerptStore {
-            let excerptPresentationSource = PlaybackCueResultSource(
-                origin: .unspecified(.excerpt),
-                totalCount: excerptStore.tableRowStore.snapshot.totalRowCount
-            ) { [weak excerptStore] ordinal in
-                guard let excerptStore else {
-                    return nil
-                }
-                let snapshot = excerptStore.tableRowStore.snapshot
-                guard let row = snapshot.row(at: ordinal),
-                      let excerpt = snapshot.excerpt(entryID: row.id)
-                else {
-                    return nil
-                }
-                return PlaybackCueResultItem(
-                    excerpt: excerpt,
-                    cuePresentation: snapshot.excerptCuePresentation(
-                        entryID: row.id
-                    ),
-                    ordinal: ordinal
-                )
-            }
-            self.excerptPresentationSource = excerptPresentationSource
-            let excerptWindow = excerptPresentationSource.makeSessionWindowStore(
-                includingEmpty: true
-            )
-            self.excerptWindow = excerptWindow
-            if let excerptWindow {
-                observeCueResultWindow(excerptWindow, module: .excerpt)
-            }
-            excerptResultsCancellable = excerptStore.tableRowStore.$snapshot
-                .dropFirst()
-                .sink { [weak self, weak excerptStore, weak excerptPresentationSource] _ in
-                    Task { @MainActor [weak self, weak excerptStore, weak excerptPresentationSource] in
-                        guard let self, let excerptStore, let excerptPresentationSource else {
-                            return
-                        }
-                        _ = excerptPresentationSource.updateBoundary(
-                            totalCount: excerptStore.tableRowStore.snapshot.totalRowCount
-                        )
-                        if excerptPresentationSource.boundary.totalCount > 0,
-                           self.excerptWindow?.selectedOrdinal == nil {
-                            self.excerptWindow?.resetSelectionToFirst()
-                        }
-                    }
-                }
         }
     }
 
@@ -335,7 +219,7 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
                 return nil
             }
             return playlistWindow.item(at: selectedOrdinal)?.primaryCueText
-        case .search, .library, .excerpt, .none:
+        case .none:
             return nil
         }
     }
@@ -367,9 +251,7 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
 
         prepareReelForModuleTransition()
         selectedModule = module
-        if module == .library {
-            libraryStore?.activate()
-        } else if module == .playlist {
+        if module == .playlist {
             libraryStore?.activate()
         }
         return true
@@ -402,11 +284,9 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
             return false
         }
         switch selectedModule {
-        case .library:
-            return libraryStore?.moveSelection(direction) == true
         case .playlist:
             return libraryStore?.moveSelection(direction) == true
-        default:
+        case .current, .none:
             return false
         }
     }
@@ -414,10 +294,7 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
     func selectedLibraryPrimaryActionVideo()
         -> CompleteLibraryVideoPresentation? {
         guard isSessionActive,
-              (
-                  selectedModule == .library
-                      || selectedModule == .playlist && libraryStore != nil
-              )
+              selectedModule == .playlist && libraryStore != nil
         else {
             return nil
         }
@@ -688,7 +565,7 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
             contentDatasetID = nil
             contentGeneration = nil
             targetIdentity = nil
-        case .playlist, .search, .excerpt:
+        case .playlist:
             guard let window = cueResultWindow(for: selectedModule),
                   let selectedOrdinal = window.selectedOrdinal,
                   let reelDatasetID = window.reelDatasetID
@@ -701,8 +578,6 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
             contentDatasetID = reelDatasetID
             contentGeneration = window.snapshot.generation
             targetIdentity = nil
-        default:
-            return false
         }
 
         let targetOrdinal = target(currentTarget)
@@ -874,24 +749,6 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
         return .ready(execution)
     }
 
-    func requestSettledSearchPlayAction()
-        -> PlaybackSubtitleFocusKeyboardActionRequestResult {
-        guard isSessionActive,
-              selectedModule == .search,
-              pendingKeyboardAction == nil,
-              activeKeyboardAction == nil,
-              pendingKeyboardNavigationTargetOrdinal == nil,
-              keyboardNavigationRequest == nil,
-              !isCueReelMotionActive,
-              !isScrollbarDragging,
-              selectedActionTarget() != nil,
-              let execution = beginKeyboardAction(.playFromThisCue)
-        else {
-            return .rejected
-        }
-        return .ready(execution)
-    }
-
     func consumeDeferredKeyboardActionIfReady(
         module: PlaybackOverlayModule? = nil
     ) -> PlaybackSubtitleFocusActionExecution? {
@@ -1000,17 +857,6 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
                 playlistItem: item,
                 generation: keyboardActionGeneration
             )
-        case .search(let item):
-            execution = PlaybackSubtitleFocusActionExecution(
-                searchItem: item,
-                generation: keyboardActionGeneration
-            )
-        case .excerpt(let item):
-            execution = PlaybackSubtitleFocusActionExecution(
-                action: action,
-                excerptItem: item,
-                generation: keyboardActionGeneration
-            )
         }
         activeKeyboardAction = execution
         return execution
@@ -1023,13 +869,11 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
         switch selectedModule {
         case .current:
             return currentSnapshot?.selectedCue != nil
-        case .playlist, .search, .excerpt:
+        case .playlist:
             let window = cueResultWindow(for: selectedModule)
             return window?.selectedOrdinal.flatMap {
                 window?.item(at: $0)
             } != nil
-        default:
-            return false
         }
     }
 
@@ -1054,24 +898,6 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
                 return nil
             }
             return .playlist(item)
-        case .search:
-            guard let searchWindow,
-                  let selectedOrdinal = searchWindow.selectedOrdinal,
-                  let item = searchWindow.item(at: selectedOrdinal)
-            else {
-                return nil
-            }
-            return .search(item)
-        case .excerpt:
-            guard let excerptWindow,
-                  let selectedOrdinal = excerptWindow.selectedOrdinal,
-                  let item = excerptWindow.item(at: selectedOrdinal)
-            else {
-                return nil
-            }
-            return .excerpt(item)
-        default:
-            return nil
         }
     }
 
@@ -1081,11 +907,7 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
         switch module {
         case .playlist:
             playlistWindow
-        case .search:
-            searchWindow
-        case .excerpt:
-            excerptWindow
-        default:
+        case .current:
             nil
         }
     }
@@ -1162,9 +984,6 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
         else {
             return
         }
-        if module == .search {
-            prepareReelForModuleTransition()
-        }
         if snapshot.totalCount == 0 {
             isScrollbarDragging = false
             isCueReelMotionActive = false
@@ -1222,24 +1041,10 @@ final class PlaybackSubtitleFocusSessionStore: ObservableObject {
         }
         cueResultWindowSnapshotCancellables.removeAll(keepingCapacity: false)
         observedCueResultSnapshots.removeAll(keepingCapacity: false)
-        searchResultsCancellable?.cancel()
-        searchResultsCancellable = nil
         playlistWindow?.invalidate()
         playlistWindow = nil
-        searchWindow?.invalidate()
-        searchWindow = nil
-        searchSource?.invalidate()
-        searchSource = nil
-        searchStore = nil
         libraryStore?.invalidate()
         libraryStore = nil
-        excerptResultsCancellable?.cancel()
-        excerptResultsCancellable = nil
-        excerptWindow?.invalidate()
-        excerptWindow = nil
-        excerptPresentationSource?.invalidate()
-        excerptPresentationSource = nil
-        excerptStore = nil
         cancelKeyboardNavigationIntent()
         selectedModule = nil
         availableModules = []

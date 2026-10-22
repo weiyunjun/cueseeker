@@ -73,14 +73,14 @@ func playbackLibraryModuleSwitchPreservesSessionButDismissalKeepsWorkbenchData()
     )
 
     #expect(publishPlaybackOverlayInitialTestSnapshot(session))
-    #expect(session.selectModule(.library))
+    #expect(session.selectModule(.playlist))
     #expect(store.selection.selectedItemID == initialVideo.id)
     #expect(store.selection.move(.down))
     store.selection.recordScrollOffsetY(88.75)
     let selectedEpisodeID = store.selection.selectedItemID
 
-    #expect(session.selectModule(.search))
-    #expect(session.selectModule(.library))
+    #expect(session.selectModule(.current))
+    #expect(session.selectModule(.playlist))
     #expect(store.selection.selectedItemID == selectedEpisodeID)
     #expect(store.selection.scrollOffsetY == 88.75)
 

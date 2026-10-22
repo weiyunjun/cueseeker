@@ -133,11 +133,8 @@ extension AppCoordinator {
     @discardableResult
     func requestPlaybackLibraryPrimaryAction() -> Bool {
         guard let session = playback.subtitleFocusSession,
-              (
-                  session.selectedModule == .library
-                      || session.selectedModule == .playlist
-                          && session.libraryStore != nil
-              ),
+              session.selectedModule == .playlist,
+              session.libraryStore != nil,
               let video = session.selectedLibraryPrimaryActionVideo()
         else {
             return false
@@ -150,11 +147,7 @@ extension AppCoordinator {
         _ requestedVideo: CompleteLibraryVideoPresentation
     ) -> Bool {
         guard let session = playback.subtitleFocusSession,
-              (
-                  session.selectedModule == .library
-                      || session.selectedModule == .playlist
-                          && session.libraryStore != nil
-              ),
+              session.selectedModule == .playlist,
               let libraryStore = session.libraryStore,
               let video = libraryStore.primaryActionVideo(
                   itemID: requestedVideo.id
@@ -202,25 +195,8 @@ extension AppCoordinator {
                 execution,
                 session: session,
                 playCurrentCue: playPlaybackSubtitleFocusCurrentCue,
-                openPlaylistItem: openPlaybackPlaylistItem,
-                openExcerptItem: openPlaybackExcerptItem
+                openPlaylistItem: openPlaybackPlaylistItem
             )
-        }
-    }
-
-    @discardableResult
-    func requestPlaybackSearchPlayAction() -> Bool {
-        guard let session = playback.subtitleFocusSession else {
-            return false
-        }
-
-        switch session.requestSettledSearchPlayAction() {
-        case .rejected:
-            return false
-        case .deferred:
-            return false
-        case .ready(let execution):
-            return executePlaybackSubtitleFocusAction(execution)
         }
     }
 
@@ -235,8 +211,7 @@ extension AppCoordinator {
             execution,
             session: session,
             playCurrentCue: playPlaybackSubtitleFocusCurrentCue,
-            openPlaylistItem: openPlaybackPlaylistItem,
-            openExcerptItem: openPlaybackExcerptItem
+            openPlaylistItem: openPlaybackPlaylistItem
         )
     }
 
@@ -252,8 +227,7 @@ extension AppCoordinator {
             execution,
             session: session,
             playCurrentCue: playCurrentCue,
-            openPlaylistItem: openPlaybackPlaylistItem,
-            openExcerptItem: openPlaybackExcerptItem
+            openPlaylistItem: openPlaybackPlaylistItem
         )
     }
 
@@ -270,27 +244,7 @@ extension AppCoordinator {
             execution,
             session: session,
             playCurrentCue: playCurrentCue,
-            openPlaylistItem: openPlaylistItem,
-            openExcerptItem: openPlaybackExcerptItem
-        )
-    }
-
-    @discardableResult
-    func executePlaybackSubtitleFocusAction(
-        _ execution: PlaybackSubtitleFocusActionExecution,
-        playCurrentCue: (PlaybackSubtitleFocusActionContext) -> Bool,
-        openPlaylistItem: (PlaybackPlaylistItem) -> Void,
-        openExcerptItem: (PlaybackCueResultItem) -> Void
-    ) -> Bool {
-        guard let session = playback.subtitleFocusSession else {
-            return false
-        }
-        return executePlaybackSubtitleFocusAction(
-            execution,
-            session: session,
-            playCurrentCue: playCurrentCue,
-            openPlaylistItem: openPlaylistItem,
-            openExcerptItem: openExcerptItem
+            openPlaylistItem: openPlaylistItem
         )
     }
 
@@ -298,11 +252,10 @@ extension AppCoordinator {
         _ execution: PlaybackSubtitleFocusActionExecution,
         session: PlaybackSubtitleFocusSessionStore,
         playCurrentCue: (PlaybackSubtitleFocusActionContext) -> Bool,
-        openPlaylistItem: (PlaybackPlaylistItem) -> Void,
-        openExcerptItem: (PlaybackCueResultItem) -> Void
+        openPlaylistItem: (PlaybackPlaylistItem) -> Void
     ) -> Bool {
         guard playback.subtitleFocusSession === session,
-              session.activeKeyboardAction == execution
+               session.activeKeyboardAction == execution
         else {
             return false
         }
@@ -367,14 +320,6 @@ extension AppCoordinator {
                 case .playlist(let item):
                     invalidatePlaybackSubtitleFocusForSourceReplacement()
                     openPlaylistItem(item)
-                case .search(let item):
-                    guard case .search(let result) = item.target else {
-                        return true
-                    }
-                    openSearchResult(result)
-                case .excerpt(let item):
-                    invalidatePlaybackSubtitleFocusForSourceReplacement()
-                    openExcerptItem(item)
                 }
                 return true
             }
@@ -394,25 +339,6 @@ extension AppCoordinator {
             case .playlist(let item):
                 invalidatePlaybackSubtitleFocusForSourceReplacement()
                 openPlaylistItem(item)
-                playback.playbackViewModel?.showPlayPauseFeedback(isPlaying: true)
-            case .search(let item):
-                guard case .search(let result) = item.target else {
-                    _ = session.finishKeyboardAction(execution)
-                    return true
-                }
-                let promotion = PlaybackSearchPromotion(
-                    query: search.searchQuery,
-                    scopePaths: indexing.selectedFolders.map(\.mediaPath),
-                    selectedOrdinal: item.ordinal
-                )
-                openSearchResult(
-                    result,
-                    playbackSearchPromotion: promotion
-                )
-                playback.playbackViewModel?.showPlayPauseFeedback(isPlaying: true)
-            case .excerpt(let item):
-                invalidatePlaybackSubtitleFocusForSourceReplacement()
-                openExcerptItem(item)
                 playback.playbackViewModel?.showPlayPauseFeedback(isPlaying: true)
             }
         }
@@ -512,39 +438,6 @@ extension AppCoordinator {
                 playlistSelectedOrdinal: item.ordinal
             )
         }
-    }
-
-    private func openPlaybackExcerptItem(_ item: PlaybackCueResultItem) {
-        _ = dispatchPlaybackExcerptOverlayItem(item) { excerpt, scope in
-            let playlistScope = scope.map {
-                PlaybackPlaylistExcerptScope.table(
-                    PlaybackPlaylistExcerptTableContext(
-                        runID: self.excerpt.tableResultSnapshotID,
-                        searchText: self.excerpt.tableSearchDraft,
-                        totalCount: $0.count
-                    )
-                )
-            }
-            openExcerpt(
-                excerpt,
-                navigationScopeIDs: scope,
-                playlistScope: playlistScope,
-                playlistSelectedOrdinal: item.ordinal
-            )
-        }
-    }
-
-    @discardableResult
-    func dispatchPlaybackExcerptOverlayItem(
-        _ item: PlaybackCueResultItem,
-        open: (Excerpt, [Int64]?) -> Void
-    ) -> Bool {
-        guard case .excerpt(let excerpt) = item.target else {
-            return false
-        }
-        let resultIDs = self.excerpt.playbackTableResultExcerptIDs
-        open(excerpt, resultIDs)
-        return true
     }
 
     func cancelPlaybackSubtitleFocusActionTask() {

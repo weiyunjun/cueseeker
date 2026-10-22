@@ -1116,48 +1116,10 @@ extension AppCoordinator {
                 return dismissPlaybackSubtitleFocusFromUser()
             }
 
-            if subtitleFocusSession.selectedModule == .search {
-                if textInputState.hasMarkedText {
-                    return false
-                }
-
-                let searchActionModifiers: NSEvent.ModifierFlags = [
-                    .command,
-                    .control,
-                    .option,
-                    .shift,
-                ]
-                if modifierFlags.intersection(searchActionModifiers).isEmpty {
-                    switch keyCode {
-                    case 126:
-                        _ = subtitleFocusSession.requestKeyboardNavigation(
-                            .backward
-                        )
-                        return true
-                    case 125:
-                        _ = subtitleFocusSession.requestKeyboardNavigation(
-                            .forward
-                        )
-                        return true
-                    case 36, 76:
-                        guard !isRepeat else {
-                            return true
-                        }
-                        _ = requestPlaybackSearchPlayAction()
-                        return true
-                    default:
-                        break
-                    }
-                }
-
-                return !textInputState.isEditableFocused
-            }
-
             let usesMediaPlaylist =
                 subtitleFocusSession.selectedModule == .playlist
                 && subtitleFocusSession.libraryStore != nil
-            if subtitleFocusSession.selectedModule == .library
-                || usesMediaPlaylist {
+            if usesMediaPlaylist {
                 guard !textInputState.isEditableFocused else {
                     return false
                 }

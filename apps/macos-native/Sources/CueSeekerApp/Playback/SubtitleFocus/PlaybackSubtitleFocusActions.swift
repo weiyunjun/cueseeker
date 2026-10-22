@@ -10,14 +10,12 @@ enum PlaybackSubtitleFocusAction: Equatable, Sendable {
 enum PlaybackSubtitleFocusActionTarget: Equatable, Sendable {
     case current(PlaybackSubtitleFocusActionContext)
     case playlist(PlaybackPlaylistItem)
-    case search(PlaybackCueResultItem)
-    case excerpt(PlaybackCueResultItem)
 
     var primaryCueText: String {
         switch self {
         case .current(let context):
             context.cue.text
-        case .playlist(let item), .search(let item), .excerpt(let item):
+        case .playlist(let item):
             item.primaryCueText
         }
     }
@@ -26,7 +24,7 @@ enum PlaybackSubtitleFocusActionTarget: Equatable, Sendable {
         switch self {
         case .current(let context):
             context
-        case .playlist(let item), .search(let item), .excerpt(let item):
+        case .playlist(let item):
             item.actionContext
         }
     }
@@ -42,10 +40,6 @@ enum PlaybackSubtitleFocusActionTarget: Equatable, Sendable {
             return nil
         case .playlist(let playlistItem):
             item = playlistItem
-        case .search(let searchItem):
-            item = searchItem
-        case .excerpt(let excerptItem):
-            item = excerptItem
         }
         switch item.target {
         case .search(let result):
@@ -95,25 +89,6 @@ struct PlaybackSubtitleFocusActionExecution: Equatable, Sendable {
     ) {
         self.action = action
         target = .playlist(playlistItem)
-        self.generation = generation
-    }
-
-    init(
-        searchItem: PlaybackCueResultItem,
-        generation: Int
-    ) {
-        action = .playFromThisCue
-        target = .search(searchItem)
-        self.generation = generation
-    }
-
-    init(
-        action: PlaybackSubtitleFocusAction,
-        excerptItem: PlaybackCueResultItem,
-        generation: Int
-    ) {
-        self.action = action
-        target = .excerpt(excerptItem)
         self.generation = generation
     }
 

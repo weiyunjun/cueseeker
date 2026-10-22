@@ -208,8 +208,6 @@ extension AppCoordinator {
             !isCueInLibrary(context.cue.id)
         case .playlist(let item):
             playlistItemsInLibrary([item]).isEmpty
-        case .search, .excerpt:
-            false
         }
     }
 

@@ -353,9 +353,7 @@ final class PlaybackStore: ObservableObject {
     func beginSubtitleFocusSession(
         openSnapshot: PlaybackSubtitleFocusOpenSnapshot,
         availableModules: [PlaybackOverlayModule]? = nil,
-        searchStore: SearchStore? = nil,
-        libraryStore: PlaybackLibrarySessionStore? = nil,
-        excerptStore: ExcerptStore? = nil
+        libraryStore: PlaybackLibrarySessionStore? = nil
     ) -> PlaybackSubtitleFocusSessionStore? {
         guard subtitleFocusSession == nil else {
             return nil
@@ -374,9 +372,7 @@ final class PlaybackStore: ObservableObject {
                 ),
             playlistSource: playlistSource,
             playlistPosition: playlistPosition,
-            searchStore: searchStore,
             libraryStore: libraryStore,
-            excerptStore: excerptStore,
             interfaceLayers: interfaceLayers
         )
         if libraryStore == nil,

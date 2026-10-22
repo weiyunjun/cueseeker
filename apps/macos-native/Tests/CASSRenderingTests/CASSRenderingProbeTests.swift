@@ -183,7 +183,7 @@ final class CASSRenderingProbeTests: XCTestCase {
         session.close()
         session.close()
 
-        XCTAssertThrowsError(try session.renderImages(atTimestampMilliseconds: 1_500)) { error in
+        XCTAssertThrowsError(try session.renderCroppedImage(atTimestampMilliseconds: 1_500)) { error in
             let nsError = error as NSError
             XCTAssertEqual(nsError.domain, SFXASSRenderingErrorDomain)
             XCTAssertEqual(nsError.code, SFXASSRenderingErrorCode.renderFailed.rawValue)
