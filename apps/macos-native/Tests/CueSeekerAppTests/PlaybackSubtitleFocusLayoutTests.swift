@@ -21,15 +21,48 @@ func subtitleFocusMetricsMatchCompactIterationGeometry() {
     #expect(WorkbenchControlMetrics.redesignKeycapHeight == 22)
     #expect(WorkbenchControlMetrics.redesignKeycapRadius == 4)
     #expect(WorkbenchControlMetrics.redesignKeycapHorizontalPadding == 4)
-    #expect(PlaybackSubtitleFocusMetrics.reelTransitionDuration == 0.22)
+    #expect(PlaybackSubtitleFocusMetrics.reelTransitionDuration == 0.40)
+    #expect(PlaybackSubtitleFocusMetrics.focusFadeOutDuration == 0.26)
+    #expect(PlaybackSubtitleFocusMetrics.focusFadeInDelay == 0.18)
+    #expect(PlaybackSubtitleFocusMetrics.focusFadeInDuration == 0.22)
     #expect(PlaybackCollageSelectionMetrics.checkboxSize == 31)
     #expect(
         PlaybackSubtitleFocusMetrics.resolvedReelTransitionDuration(
             reducesMotion: false
-        ) == 0.22
+        ) == 0.40
     )
     #expect(
         PlaybackSubtitleFocusMetrics.resolvedReelTransitionDuration(
+            reducesMotion: true
+        ) == 0
+    )
+    #expect(
+        PlaybackSubtitleFocusMetrics.resolvedFocusFadeOutDuration(
+            reducesMotion: false
+        ) == 0.26
+    )
+    #expect(
+        PlaybackSubtitleFocusMetrics.resolvedFocusFadeOutDuration(
+            reducesMotion: true
+        ) == 0
+    )
+    #expect(
+        PlaybackSubtitleFocusMetrics.resolvedFocusFadeInDelay(
+            reducesMotion: false
+        ) == 0.18
+    )
+    #expect(
+        PlaybackSubtitleFocusMetrics.resolvedFocusFadeInDelay(
+            reducesMotion: true
+        ) == 0
+    )
+    #expect(
+        PlaybackSubtitleFocusMetrics.resolvedFocusFadeInDuration(
+            reducesMotion: false
+        ) == 0.22
+    )
+    #expect(
+        PlaybackSubtitleFocusMetrics.resolvedFocusFadeInDuration(
             reducesMotion: true
         ) == 0
     )
@@ -2910,4 +2943,302 @@ private func focusLayoutCue(
         endMilliseconds: ordinal * 1_000 + 900,
         content: content ?? "cue \(ordinal)"
     )
+}
+
+@MainActor
+@Test
+func subtitleFocusThemeInterpolatesThreeTierTextColorsAcrossLightAndDarkAppearances()
+    throws
+{
+    _ = NSApplication.shared
+    let lightAppearance = try #require(NSAppearance(named: .aqua))
+    let darkAppearance = try #require(NSAppearance(named: .darkAqua))
+
+    func srgbComponents(
+        of color: NSColor,
+        in appearance: NSAppearance
+    ) -> (r: CGFloat, g: CGFloat, b: CGFloat, a: CGFloat) {
+        var r: CGFloat = 0
+        var g: CGFloat = 0
+        var b: CGFloat = 0
+        var a: CGFloat = 0
+        appearance.performAsCurrentDrawingAppearance {
+            let resolved = color.usingColorSpace(.sRGB) ?? color
+            resolved.getRed(&r, green: &g, blue: &b, alpha: &a)
+        }
+        return (r, g, b, a)
+    }
+
+    for appearance in [lightAppearance, darkAppearance] {
+        for resolver in [
+            PlaybackTheme.subtitleFocusCuePrimaryNative(selectionProgress:),
+            PlaybackTheme.subtitleFocusCueGroupNative(selectionProgress:),
+            PlaybackTheme.cueMetadataNative(selectionProgress:),
+        ] {
+            let start = srgbComponents(of: resolver(0), in: appearance)
+            let mid = srgbComponents(of: resolver(0.5), in: appearance)
+            let end = srgbComponents(of: resolver(1), in: appearance)
+
+            #expect(start.a < mid.a)
+            #expect(mid.a < end.a)
+            #expect(abs(mid.a - (start.a + end.a) / 2) < 0.001)
+            #expect(start.r <= mid.r + 0.000_1 && mid.r <= end.r + 0.000_1)
+            #expect(start.g <= mid.g + 0.000_1 && mid.g <= end.g + 0.000_1)
+            #expect(start.b <= mid.b + 0.000_1 && mid.b <= end.b + 0.000_1)
+        }
+    }
+
+    let lightGroupStart = srgbComponents(
+        of: PlaybackTheme.subtitleFocusCueGroupNative(selectionProgress: 0),
+        in: lightAppearance
+    )
+    let lightGroupMid = srgbComponents(
+        of: PlaybackTheme.subtitleFocusCueGroupNative(selectionProgress: 0.5),
+        in: lightAppearance
+    )
+    let lightGroupEnd = srgbComponents(
+        of: PlaybackTheme.subtitleFocusCueGroupNative(selectionProgress: 1),
+        in: lightAppearance
+    )
+    #expect(lightGroupStart.r < lightGroupMid.r && lightGroupMid.r < lightGroupEnd.r)
+    #expect(lightGroupStart.g < lightGroupMid.g && lightGroupMid.g < lightGroupEnd.g)
+    #expect(lightGroupStart.b < lightGroupMid.b && lightGroupMid.b < lightGroupEnd.b)
+}
+
+@MainActor
+@Test
+func subtitleFocusSingleStepNavigationFadesOutImmediatelyAndDebouncesFadeIn() {
+    _ = NSApplication.shared
+    let cues = focusLayoutCues(0..<20)
+    let view = PlaybackSubtitleFocusReelContainerView()
+    view.frame = CGRect(x: 0, y: 0, width: 1_280, height: 656)
+    view.update(
+        cues: cues,
+        totalCount: cues.count,
+        selectedOrdinal: 12,
+        keyboardNavigationRequest: nil,
+        reducesMotion: false,
+        isInteractionEnabled: true,
+        cancelsWheelMotion: false
+    )
+    view.layoutSubtreeIfNeeded()
+
+    #expect(view.cueSelectionProgressForTesting(at: 12) == 1)
+    #expect(view.cueSelectionProgressForTesting(at: 11) == 0)
+    #expect(view.cueSelectionProgressForTesting(at: 13) == 0)
+    #expect(!view.isFocusFadeInDebouncingForTesting)
+
+    view.update(
+        cues: cues,
+        totalCount: cues.count,
+        selectedOrdinal: 12,
+        keyboardNavigationRequest: PlaybackSubtitleFocusKeyboardNavigationRequest(
+            sequence: 1,
+            direction: .forward,
+            targetOrdinal: 13
+        ),
+        reducesMotion: false,
+        isInteractionEnabled: false,
+        cancelsWheelMotion: true
+    )
+
+    #expect(view.displayedSelectedOrdinalForTesting == 13)
+    #expect(view.isFocusFadeInDebouncingForTesting)
+    #expect(view.cueSelectionProgressForTesting(at: 13) == 0)
+
+    view.advanceFocusTransitionForTesting(by: 0.10)
+    let fadingOut12 = view.cueSelectionProgressForTesting(at: 12)
+    #expect(fadingOut12 > 0 && fadingOut12 < 1)
+    #expect(view.isFocusFadeInDebouncingForTesting)
+    #expect(view.cueSelectionProgressForTesting(at: 13) == 0)
+
+    view.advanceFocusTransitionForTesting(by: 0.08)
+    #expect(!view.isFocusFadeInDebouncingForTesting)
+
+    view.advanceFocusTransitionForTesting(by: 0.08)
+    #expect(view.cueSelectionProgressForTesting(at: 12) == 0)
+    let fadingIn13 = view.cueSelectionProgressForTesting(at: 13)
+    #expect(fadingIn13 > 0 && fadingIn13 < 1)
+
+    view.advanceFocusTransitionForTesting(by: 0.14)
+    #expect(view.cueSelectionProgressForTesting(at: 13) == 1)
+    view.invalidate()
+}
+
+@MainActor
+@Test
+func subtitleFocusContinuousNavigationDebouncesTransitRowsAndReversesMidFadeIn() {
+    _ = NSApplication.shared
+    let cues = focusLayoutCues(0..<20)
+    let view = PlaybackSubtitleFocusReelContainerView()
+    view.frame = CGRect(x: 0, y: 0, width: 1_280, height: 656)
+    view.update(
+        cues: cues,
+        totalCount: cues.count,
+        selectedOrdinal: 12,
+        keyboardNavigationRequest: nil,
+        reducesMotion: false,
+        isInteractionEnabled: true,
+        cancelsWheelMotion: false
+    )
+    view.layoutSubtreeIfNeeded()
+
+    view.update(
+        cues: cues,
+        totalCount: cues.count,
+        selectedOrdinal: 12,
+        keyboardNavigationRequest: PlaybackSubtitleFocusKeyboardNavigationRequest(
+            sequence: 1,
+            direction: .forward,
+            targetOrdinal: 13
+        ),
+        reducesMotion: false,
+        isInteractionEnabled: false,
+        cancelsWheelMotion: true
+    )
+    view.advanceFocusTransitionForTesting(by: 0.10)
+    #expect(view.cueSelectionProgressForTesting(at: 13) == 0)
+
+    view.update(
+        cues: cues,
+        totalCount: cues.count,
+        selectedOrdinal: 12,
+        keyboardNavigationRequest: PlaybackSubtitleFocusKeyboardNavigationRequest(
+            sequence: 2,
+            direction: .forward,
+            targetOrdinal: 14
+        ),
+        reducesMotion: false,
+        isInteractionEnabled: false,
+        cancelsWheelMotion: true
+    )
+    view.advanceFocusTransitionForTesting(by: 0.10)
+    #expect(view.cueSelectionProgressForTesting(at: 13) == 0)
+    #expect(view.cueSelectionProgressForTesting(at: 14) == 0)
+    #expect(view.cueSelectionProgressForTesting(at: 12) > 0)
+
+    view.update(
+        cues: cues,
+        totalCount: cues.count,
+        selectedOrdinal: 12,
+        keyboardNavigationRequest: PlaybackSubtitleFocusKeyboardNavigationRequest(
+            sequence: 3,
+            direction: .forward,
+            targetOrdinal: 15
+        ),
+        reducesMotion: false,
+        isInteractionEnabled: false,
+        cancelsWheelMotion: true
+    )
+    view.advanceFocusTransitionForTesting(by: 0.06)
+    #expect(view.cueSelectionProgressForTesting(at: 12) == 0)
+    #expect(view.cueSelectionProgressForTesting(at: 13) == 0)
+    #expect(view.cueSelectionProgressForTesting(at: 14) == 0)
+    #expect(view.cueSelectionProgressForTesting(at: 15) == 0)
+    #expect(view.isFocusFadeInDebouncingForTesting)
+
+    view.advanceFocusTransitionForTesting(by: 0.12)
+    #expect(!view.isFocusFadeInDebouncingForTesting)
+    #expect(view.cueSelectionProgressForTesting(at: 13) == 0)
+    #expect(view.cueSelectionProgressForTesting(at: 14) == 0)
+
+    view.advanceFocusTransitionForTesting(by: 0.10)
+    let progress15 = view.cueSelectionProgressForTesting(at: 15)
+    #expect(progress15 > 0 && progress15 < 1)
+
+    view.update(
+        cues: cues,
+        totalCount: cues.count,
+        selectedOrdinal: 12,
+        keyboardNavigationRequest: PlaybackSubtitleFocusKeyboardNavigationRequest(
+            sequence: 4,
+            direction: .forward,
+            targetOrdinal: 16
+        ),
+        reducesMotion: false,
+        isInteractionEnabled: false,
+        cancelsWheelMotion: true
+    )
+    #expect(view.cueSelectionProgressForTesting(at: 15) == progress15)
+    #expect(view.cueSelectionProgressForTesting(at: 16) == 0)
+
+    view.advanceFocusTransitionForTesting(by: 0.05)
+    let reversingProgress15 = view.cueSelectionProgressForTesting(at: 15)
+    #expect(reversingProgress15 > 0 && reversingProgress15 < progress15)
+
+    view.advanceFocusTransitionForTesting(by: 0.21)
+    #expect(view.cueSelectionProgressForTesting(at: 15) == 0)
+    view.invalidate()
+}
+
+@MainActor
+@Test
+func subtitleFocusScrollbarDragSettlesInPlaceAndBoundaryWheelKeepsSelectionLit() {
+    _ = NSApplication.shared
+    let cues = focusLayoutCues(0..<200)
+    let view = PlaybackSubtitleFocusReelContainerView()
+    view.frame = CGRect(x: 0, y: 0, width: 1_280, height: 656)
+    view.allowsNativeScrollbarInput = { true }
+    view.onCommitNativeReelSelection = { _ in true }
+    view.update(
+        cues: cues,
+        totalCount: cues.count,
+        selectedOrdinal: 12,
+        keyboardNavigationRequest: nil,
+        reducesMotion: false,
+        isInteractionEnabled: true,
+        cancelsWheelMotion: false
+    )
+    view.layoutSubtreeIfNeeded()
+
+    view.handleScrollbarDraggingChanged(true)
+    view.handleScrollbarDrag(TableScrollbarDragEvent(
+        axis: .vertical,
+        phase: .began,
+        positionFraction: CGFloat(12) / 199
+    ))
+    view.handleScrollbarDrag(TableScrollbarDragEvent(
+        axis: .vertical,
+        phase: .changed,
+        positionFraction: 0.5
+    ))
+
+    let targetOrdinal = try! #require(view.displayedSelectedOrdinalForTesting)
+    #expect(targetOrdinal == 100)
+    #expect(view.isFocusFadeInDebouncingForTesting)
+    #expect(view.cueSelectionProgressForTesting(at: targetOrdinal) == 0)
+
+    view.advanceFocusTransitionForTesting(by: 0.18)
+    view.advanceFocusTransitionForTesting(by: 0.22)
+    #expect(!view.isFocusFadeInDebouncingForTesting)
+    #expect(view.cueSelectionProgressForTesting(at: targetOrdinal) == 1)
+    #expect(view.cueSelectionProgressForTesting(at: 12) == 0)
+
+    view.handleScrollbarDrag(TableScrollbarDragEvent(
+        axis: .vertical,
+        phase: .ended,
+        positionFraction: 0.5
+    ))
+    view.handleScrollbarDraggingChanged(false)
+    #expect(!view.isFocusFadeInDebouncingForTesting)
+    #expect(view.cueSelectionProgressForTesting(at: targetOrdinal) == 1)
+
+    view.update(
+        cues: focusLayoutCues(0..<20),
+        totalCount: 20,
+        selectedOrdinal: 0,
+        contentGeneration: 1,
+        keyboardNavigationRequest: nil,
+        reducesMotion: false,
+        isInteractionEnabled: true,
+        cancelsWheelMotion: true
+    )
+    view.layoutSubtreeIfNeeded()
+    #expect(view.cueSelectionProgressForTesting(at: 0) == 1)
+    #expect(!view.isFocusFadeInDebouncingForTesting)
+
+    view.applyPreciseWheelDeltaForTesting(40)
+    #expect(view.cueSelectionProgressForTesting(at: 0) == 1)
+    #expect(!view.isFocusFadeInDebouncingForTesting)
+    view.invalidate()
 }

@@ -104,6 +104,7 @@ final class PlaybackCueResultReelAdapter: PlaybackVirtualReelContentAdapter {
     func drawItem(
         at ordinal: Int,
         isSelected: Bool,
+        selectionProgress: CGFloat,
         isEnabled: Bool,
         selectedTextRange: NSRange?,
         in rect: CGRect
@@ -115,6 +116,7 @@ final class PlaybackCueResultReelAdapter: PlaybackVirtualReelContentAdapter {
             result: result,
             showsCueGroup: showsCueGroup,
             isSelected: isSelected,
+            selectionProgress: selectionProgress,
             width: rect.width,
             viewportHeight: rect.height
         )

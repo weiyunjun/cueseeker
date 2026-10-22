@@ -105,14 +105,19 @@ enum PlaybackCueResultTextStyle {
     }
 
     func color(isSelected: Bool) -> NSColor {
-        guard isSelected else {
-            return PlaybackTheme.subtitleFocusCueUnselectedNative
-        }
+        color(selectionProgress: isSelected ? 1 : 0)
+    }
+
+    func color(selectionProgress: CGFloat) -> NSColor {
         switch self {
         case .primary:
-            return PlaybackTheme.subtitleFocusCueSelectedNative
+            return PlaybackTheme.subtitleFocusCuePrimaryNative(
+                selectionProgress: selectionProgress
+            )
         case .cueGroup:
-            return PlaybackTheme.subtitleFocusCueGroupSelectedNative
+            return PlaybackTheme.subtitleFocusCueGroupNative(
+                selectionProgress: selectionProgress
+            )
         }
     }
 }
@@ -219,17 +224,21 @@ enum PlaybackCueMetadataLayout {
         _ plan: PlaybackCueMetadataPlan?,
         in metadataRect: CGRect,
         isSelected: Bool = false,
+        selectionProgress: CGFloat? = nil,
         isEnabled: Bool = true
     ) {
         guard let plan, metadataRect.width > 0, metadataRect.height > 0 else {
             return
         }
+        let resolvedProgress = selectionProgress ?? (isSelected ? 1 : 0)
         let paragraphStyle = NSMutableParagraphStyle()
         paragraphStyle.lineBreakMode = .byTruncatingTail
         let attributes: [NSAttributedString.Key: Any] = [
             .font: font,
             .foregroundColor: isEnabled
-                ? PlaybackTheme.cueMetadataNative(isSelected: isSelected)
+                ? PlaybackTheme.cueMetadataNative(
+                    selectionProgress: resolvedProgress
+                )
                 : WorkbenchRedesignColors.NS.textDisabled,
             .paragraphStyle: paragraphStyle,
         ]
@@ -291,6 +300,7 @@ struct PlaybackCueResultLayoutPlan {
     let primaryCueIdentity: AnyHashable
     let showsCueGroup: Bool
     let isSelected: Bool
+    let selectionProgress: CGFloat
     let visualLinePlan: PlaybackVisualLineStackPlan
     let visualLines: [PlaybackCueResultVisualLine]
     let metadata: PlaybackCueMetadataPlan?
@@ -362,11 +372,13 @@ final class PlaybackCueResultLayout {
         result: PlaybackCueResult,
         showsCueGroup: Bool,
         isSelected: Bool,
+        selectionProgress: CGFloat? = nil,
         width: CGFloat,
         viewportHeight: CGFloat
     ) -> PlaybackCueResultLayoutPlan {
         let safeWidth = max(0, width)
         let cueTextWidth = safeWidth
+        let resolvedSelectionProgress = selectionProgress ?? (isSelected ? 1 : 0)
         let visibleAdditionalCues = showsCueGroup
             ? result.additionalCueTexts
             : []
@@ -384,7 +396,7 @@ final class PlaybackCueResultLayout {
             PlaybackVisualLineStackSegment(
                 text: text,
                 font: style.font,
-                color: style.color(isSelected: isSelected),
+                color: style.color(selectionProgress: resolvedSelectionProgress),
                 nominalLineHeight: style.nominalLineHeight
             )
         }
@@ -401,7 +413,7 @@ final class PlaybackCueResultLayout {
             return PlaybackCueResultVisualLine(
                 role: roles[segmentIndex],
                 style: style,
-                color: style.color(isSelected: isSelected),
+                color: style.color(selectionProgress: resolvedSelectionProgress),
                 line: line
             )
         }
@@ -436,6 +448,7 @@ final class PlaybackCueResultLayout {
             primaryCueIdentity: result.primaryCueIdentity,
             showsCueGroup: showsCueGroup,
             isSelected: isSelected,
+            selectionProgress: resolvedSelectionProgress,
             visualLinePlan: visualLinePlan,
             visualLines: visualLines,
             metadata: metadata,
@@ -471,6 +484,7 @@ final class PlaybackCueResultLayout {
                 plan.metadata,
                 in: metadataRect,
                 isSelected: plan.isSelected,
+                selectionProgress: plan.selectionProgress,
                 isEnabled: isEnabled
             )
         }

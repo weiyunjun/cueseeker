@@ -126,8 +126,66 @@ public enum PlaybackTheme {
         )
     )
 
+    private static func interpolatedSubtitleFocusColor(
+        from unselected: NSColor,
+        to selected: NSColor,
+        progress: CGFloat
+    ) -> NSColor {
+        let clamped = progress.isFinite ? min(1, max(0, progress)) : 0
+        if clamped <= 0 {
+            return unselected
+        }
+        if clamped >= 1 {
+            return selected
+        }
+        return NSColor(name: nil) { appearance in
+            var r0: CGFloat = 0, g0: CGFloat = 0, b0: CGFloat = 0, a0: CGFloat = 0
+            var r1: CGFloat = 0, g1: CGFloat = 0, b1: CGFloat = 0, a1: CGFloat = 0
+            appearance.performAsCurrentDrawingAppearance {
+                let start = unselected.usingColorSpace(.sRGB) ?? unselected
+                let end = selected.usingColorSpace(.sRGB) ?? selected
+                start.getRed(&r0, green: &g0, blue: &b0, alpha: &a0)
+                end.getRed(&r1, green: &g1, blue: &b1, alpha: &a1)
+            }
+            return NSColor(
+                srgbRed: r0 + (r1 - r0) * clamped,
+                green: g0 + (g1 - g0) * clamped,
+                blue: b0 + (b1 - b0) * clamped,
+                alpha: a0 + (a1 - a0) * clamped
+            )
+        }
+    }
+
+    static func subtitleFocusCuePrimaryNative(
+        selectionProgress: CGFloat
+    ) -> NSColor {
+        interpolatedSubtitleFocusColor(
+            from: subtitleFocusCueUnselectedNative,
+            to: subtitleFocusCueSelectedNative,
+            progress: selectionProgress
+        )
+    }
+
+    static func subtitleFocusCueGroupNative(
+        selectionProgress: CGFloat
+    ) -> NSColor {
+        interpolatedSubtitleFocusColor(
+            from: subtitleFocusCueUnselectedNative,
+            to: subtitleFocusCueGroupSelectedNative,
+            progress: selectionProgress
+        )
+    }
+
     static func cueMetadataNative(isSelected: Bool) -> NSColor {
-        isSelected ? cueMetadataSelectedNative : cueMetadataUnselectedNative
+        cueMetadataNative(selectionProgress: isSelected ? 1 : 0)
+    }
+
+    static func cueMetadataNative(selectionProgress: CGFloat) -> NSColor {
+        interpolatedSubtitleFocusColor(
+            from: cueMetadataUnselectedNative,
+            to: cueMetadataSelectedNative,
+            progress: selectionProgress
+        )
     }
     // MARK: - Player Chrome Colors
 
@@ -324,11 +382,32 @@ enum PlaybackSubtitleFocusMetrics {
         metadataCueGap + metadataLineHeight
     }
     /// --duration-subtitle-focus-scroll
-    static let reelTransitionDuration = 0.22
+    static let reelTransitionDuration = 0.40
+    /// --duration-subtitle-focus-fade-out
+    static let focusFadeOutDuration = 0.26
+    /// --delay-subtitle-focus-fade-in
+    static let focusFadeInDelay = 0.18
+    /// --duration-subtitle-focus-fade-in
+    static let focusFadeInDuration = 0.22
     static func resolvedReelTransitionDuration(
         reducesMotion: Bool
     ) -> TimeInterval {
         reducesMotion ? 0 : reelTransitionDuration
+    }
+    static func resolvedFocusFadeOutDuration(
+        reducesMotion: Bool
+    ) -> TimeInterval {
+        reducesMotion ? 0 : focusFadeOutDuration
+    }
+    static func resolvedFocusFadeInDelay(
+        reducesMotion: Bool
+    ) -> TimeInterval {
+        reducesMotion ? 0 : focusFadeInDelay
+    }
+    static func resolvedFocusFadeInDuration(
+        reducesMotion: Bool
+    ) -> TimeInterval {
+        reducesMotion ? 0 : focusFadeInDuration
     }
 }
 

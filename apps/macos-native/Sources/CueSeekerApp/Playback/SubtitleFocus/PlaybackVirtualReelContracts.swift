@@ -72,6 +72,14 @@ protocol PlaybackVirtualReelContentAdapter: AnyObject {
         selectedTextRange: NSRange?,
         in rect: CGRect
     )
+    func drawItem(
+        at ordinal: Int,
+        isSelected: Bool,
+        selectionProgress: CGFloat,
+        isEnabled: Bool,
+        selectedTextRange: NSRange?,
+        in rect: CGRect
+    )
     func textSelectionHit(
         at ordinal: Int,
         point: CGPoint,
@@ -91,6 +99,40 @@ extension PlaybackVirtualReelContentAdapter {
 
     var measuredOrdinalsForTesting: Set<Int> {
         []
+    }
+
+    func drawItem(
+        at ordinal: Int,
+        isSelected: Bool,
+        isEnabled: Bool,
+        selectedTextRange: NSRange?,
+        in rect: CGRect
+    ) {
+        drawItem(
+            at: ordinal,
+            isSelected: isSelected,
+            selectionProgress: isSelected ? 1 : 0,
+            isEnabled: isEnabled,
+            selectedTextRange: selectedTextRange,
+            in: rect
+        )
+    }
+
+    func drawItem(
+        at ordinal: Int,
+        isSelected: Bool,
+        selectionProgress _: CGFloat,
+        isEnabled: Bool,
+        selectedTextRange: NSRange?,
+        in rect: CGRect
+    ) {
+        drawItem(
+            at: ordinal,
+            isSelected: isSelected,
+            isEnabled: isEnabled,
+            selectedTextRange: selectedTextRange,
+            in: rect
+        )
     }
 
     func textSelectionHit(
@@ -472,6 +514,7 @@ final class PlaybackSubtitleFocusCueReelAdapter:
     func drawItem(
         at ordinal: Int,
         isSelected: Bool,
+        selectionProgress: CGFloat,
         isEnabled: Bool,
         selectedTextRange: NSRange?,
         in rect: CGRect
@@ -485,11 +528,11 @@ final class PlaybackSubtitleFocusCueReelAdapter:
         defer { NSGraphicsContext.restoreGraphicsState() }
         textLayout.draw(
             text: cue.text,
-            color: isSelected
-                ? PlaybackTheme.subtitleFocusCueSelectedNative
-                : isEnabled
-                    ? PlaybackTheme.subtitleFocusCueUnselectedNative
-                    : WorkbenchRedesignColors.NS.textDisabled,
+            color: isEnabled
+                ? PlaybackTheme.subtitleFocusCuePrimaryNative(
+                    selectionProgress: selectionProgress
+                )
+                : WorkbenchRedesignColors.NS.textDisabled,
             selectedTextRange: selectedTextRange,
             in: cueRect
         )
@@ -501,6 +544,7 @@ final class PlaybackSubtitleFocusCueReelAdapter:
             ),
             in: metadataRect(in: rect, for: cue),
             isSelected: isSelected,
+            selectionProgress: selectionProgress,
             isEnabled: isEnabled
         )
     }

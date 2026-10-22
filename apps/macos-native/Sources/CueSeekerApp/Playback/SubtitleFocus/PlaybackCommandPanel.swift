@@ -52,6 +52,8 @@ struct PlaybackCommandPanel: View {
                                 heldPage: playback.commandPanelHeldPage,
                                 windowStore:
                                     playback.commandPanelSearchWindow,
+                                keyboardNavigationRequest:
+                                    playback.commandPanelSearchKeyboardNavigationRequest,
                                 onBack: {
                                     appState.returnPlaybackCommandPanelToRoot()
                                 },
@@ -574,6 +576,7 @@ private struct PlaybackCommandPanelSearchResults: View {
     @ObservedObject var searchStore: SearchStore
     let heldPage: PlaybackCommandPanelHeldPage?
     let windowStore: PlaybackCueResultSessionWindowStore?
+    let keyboardNavigationRequest: PlaybackSubtitleFocusKeyboardNavigationRequest?
     let onBack: () -> Bool
     let onSynchronize: () -> Void
     let onApplyFacetFilter: (CueFacetFilter) -> Void
@@ -654,6 +657,7 @@ private struct PlaybackCommandPanelSearchResults: View {
                         windowStore: windowStore,
                         showsCueGroup: cueGroupPresentation.isEnabled,
                         viewportSize: geometry.size,
+                        keyboardNavigationRequest: keyboardNavigationRequest,
                         reducesMotion: reduceMotion,
                         onCommitSelection: onCommitSelection,
                         onCopySelectedText: onCopySelectedText,
@@ -872,6 +876,7 @@ private struct PlaybackCommandPanelSearchReel: View {
     @Environment(\.interfaceLayerContext) private var layerContext
     let showsCueGroup: Bool
     let viewportSize: CGSize
+    let keyboardNavigationRequest: PlaybackSubtitleFocusKeyboardNavigationRequest?
     let reducesMotion: Bool
     let onCommitSelection: (PlaybackVirtualReelSelectionCommit) -> Bool
     let onCopySelectedText: (String) -> Void
@@ -889,7 +894,7 @@ private struct PlaybackCommandPanelSearchReel: View {
             showsCueGroup: showsCueGroup,
             selectedOrdinal: windowStore.selectedOrdinal,
             uiProbeScope: nil,
-            keyboardNavigationRequest: nil,
+            keyboardNavigationRequest: keyboardNavigationRequest,
             reducesMotion: reducesMotion,
             isInteractionEnabled: true,
             cancelsWheelMotion: false,

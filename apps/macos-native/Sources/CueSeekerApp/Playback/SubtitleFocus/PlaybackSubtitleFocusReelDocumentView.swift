@@ -138,6 +138,14 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView, PointerShapeProviding
         }
     }
 
+    private struct CueFocusAnimation {
+        var currentProgress: CGFloat
+        var startProgress: CGFloat
+        var targetProgress: CGFloat
+        var startTime: TimeInterval
+        var duration: TimeInterval
+    }
+
     var uiProbeScope: String?
     var onToggleCollageCueSelection: (Int) -> Void = { _ in }
     /// The text, the cue it came from, and where the menu hangs off inside that
@@ -155,6 +163,10 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView, PointerShapeProviding
     private var contentAdapter: (any PlaybackVirtualReelContentAdapter)?
     private var contentSnapshot: PlaybackVirtualReelSnapshot?
     private var selectedOrdinal: Int?
+    private var cueFocusAnimations: [Int: CueFocusAnimation] = [:]
+    private var focusAnimationTimer: Timer?
+    private var focusFadeInDebounceDeadline: TimeInterval?
+    private var focusClockTime: TimeInterval = ProcessInfo.processInfo.systemUptime
     private var collageSelectedCueIDs: Set<Int64>?
     private var collageCanSelectAnotherCue = true
     private var textSelection: TextSelection?
@@ -178,6 +190,22 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView, PointerShapeProviding
 
     var selectedOrdinalForTesting: Int? {
         selectedOrdinal
+    }
+
+    func cueSelectionProgress(at ordinal: Int) -> CGFloat {
+        cueFocusAnimations[ordinal]?.currentProgress ?? 0
+    }
+
+    func cueSelectionProgressForTesting(at ordinal: Int) -> CGFloat {
+        cueSelectionProgress(at: ordinal)
+    }
+
+    var isFocusFadeInDebouncingForTesting: Bool {
+        focusFadeInDebounceDeadline != nil
+    }
+
+    private var hasRunningCueFocusAnimation: Bool {
+        cueFocusAnimations.values.contains { $0.duration > 0 }
     }
 
     func updateContent(
@@ -217,6 +245,9 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView, PointerShapeProviding
         }
         if let contentSnapshot,
            !contentSnapshot.belongsToSameDataset(as: snapshot) {
+            stopFocusAnimationTimer()
+            focusFadeInDebounceDeadline = nil
+            cueFocusAnimations.removeAll(keepingCapacity: true)
             placements.removeAll(keepingCapacity: true)
         }
         self.contentAdapter = contentAdapter
@@ -225,20 +256,186 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView, PointerShapeProviding
         needsDisplay = true
     }
 
-    func updateSelection(_ ordinal: Int?) {
-        guard selectedOrdinal != ordinal else {
-            return
-        }
-        let previousOrdinal = selectedOrdinal
-        selectedOrdinal = ordinal
-        if let previousOrdinal {
-            invalidateRow(previousOrdinal)
-        }
+    func setImmediateSelection(_ ordinal: Int?) {
+        stopFocusAnimationTimer()
+        focusFadeInDebounceDeadline = nil
+        var affectedOrdinals = Set(cueFocusAnimations.keys)
         if let selectedOrdinal {
-            invalidateRow(selectedOrdinal)
+            affectedOrdinals.insert(selectedOrdinal)
+        }
+        if let ordinal {
+            affectedOrdinals.insert(ordinal)
+        }
+        cueFocusAnimations.removeAll(keepingCapacity: true)
+        selectedOrdinal = ordinal
+        if let ordinal {
+            cueFocusAnimations[ordinal] = CueFocusAnimation(
+                currentProgress: 1,
+                startProgress: 1,
+                targetProgress: 1,
+                startTime: 0,
+                duration: 0
+            )
+        }
+        for affectedOrdinal in affectedOrdinals {
+            invalidateRow(affectedOrdinal)
         }
         resolveLocalPlacementsIfNeeded()
         needsDisplay = true
+    }
+
+    func updateSelection(_ ordinal: Int?) {
+        guard selectedOrdinal != ordinal else {
+            if focusFadeInDebounceDeadline == nil,
+               !hasRunningCueFocusAnimation,
+               let ordinal,
+               cueSelectionProgress(at: ordinal) < 1 {
+                cueFocusAnimations[ordinal] = CueFocusAnimation(
+                    currentProgress: 1,
+                    startProgress: 1,
+                    targetProgress: 1,
+                    startTime: 0,
+                    duration: 0
+                )
+                invalidateRow(ordinal)
+                needsDisplay = true
+            }
+            return
+        }
+        setImmediateSelection(ordinal)
+    }
+
+    func beginNavigationSelection(
+        _ targetOrdinal: Int?,
+        reducesMotion: Bool
+    ) {
+        if reducesMotion {
+            setImmediateSelection(targetOrdinal)
+            return
+        }
+        let now = max(focusClockTime, ProcessInfo.processInfo.systemUptime)
+        focusClockTime = now
+        let previousOrdinal = selectedOrdinal
+        selectedOrdinal = targetOrdinal
+        if let previousOrdinal {
+            invalidateRow(previousOrdinal)
+        }
+        if let targetOrdinal {
+            invalidateRow(targetOrdinal)
+        }
+        resolveLocalPlacementsIfNeeded()
+
+        for ordinal in Array(cueFocusAnimations.keys) {
+            guard var anim = cueFocusAnimations[ordinal] else {
+                continue
+            }
+            if anim.currentProgress <= 0.000_5 {
+                cueFocusAnimations.removeValue(forKey: ordinal)
+                invalidateRow(ordinal)
+            } else if anim.targetProgress > 0 {
+                anim.startProgress = anim.currentProgress
+                anim.targetProgress = 0
+                anim.startTime = now
+                anim.duration = PlaybackSubtitleFocusMetrics.focusFadeOutDuration
+                cueFocusAnimations[ordinal] = anim
+                invalidateRow(ordinal)
+            }
+        }
+
+        if targetOrdinal != nil {
+            focusFadeInDebounceDeadline =
+                now + PlaybackSubtitleFocusMetrics.focusFadeInDelay
+        } else {
+            focusFadeInDebounceDeadline = nil
+        }
+        startFocusAnimationTimerIfNeeded()
+        needsDisplay = true
+    }
+
+    func stepFocusTransitions(at now: TimeInterval) {
+        focusClockTime = now
+        if let deadline = focusFadeInDebounceDeadline,
+           now + 0.000_001 >= deadline {
+            focusFadeInDebounceDeadline = nil
+            if let selectedOrdinal {
+                let current = cueFocusAnimations[selectedOrdinal]?.currentProgress ?? 0
+                cueFocusAnimations[selectedOrdinal] = CueFocusAnimation(
+                    currentProgress: current,
+                    startProgress: current,
+                    targetProgress: 1,
+                    startTime: min(now, deadline),
+                    duration: PlaybackSubtitleFocusMetrics.focusFadeInDuration
+                )
+            }
+        }
+
+        for ordinal in Array(cueFocusAnimations.keys) {
+            guard var anim = cueFocusAnimations[ordinal],
+                  anim.duration > 0
+            else {
+                continue
+            }
+            let elapsed = max(0, now - anim.startTime)
+            let rawProgress = elapsed / anim.duration
+            let linearProgress = rawProgress >= 0.999_999
+                ? 1
+                : CGFloat(min(1, rawProgress))
+            let easedProgress = PlaybackSubtitleFocusReelPositionAnimator
+                .easedProgress(linearProgress)
+            anim.currentProgress = anim.startProgress
+                + (anim.targetProgress - anim.startProgress) * easedProgress
+            if linearProgress >= 1 {
+                anim.currentProgress = anim.targetProgress
+                anim.duration = 0
+            }
+            if anim.currentProgress <= 0.000_5,
+               anim.targetProgress == 0,
+               anim.duration == 0 {
+                cueFocusAnimations.removeValue(forKey: ordinal)
+            } else {
+                cueFocusAnimations[ordinal] = anim
+            }
+            invalidateRow(ordinal)
+        }
+
+        needsDisplay = true
+        if focusFadeInDebounceDeadline == nil, !hasRunningCueFocusAnimation {
+            stopFocusAnimationTimer()
+        }
+    }
+
+    func advanceFocusTransitionForTesting(by deltaSeconds: TimeInterval) {
+        stopFocusAnimationTimer()
+        focusClockTime += max(0, deltaSeconds)
+        stepFocusTransitions(at: focusClockTime)
+    }
+
+    private func startFocusAnimationTimerIfNeeded() {
+        guard focusAnimationTimer == nil else {
+            return
+        }
+        let timer = Timer(
+            timeInterval: 1 / 120,
+            target: self,
+            selector: #selector(handleFocusAnimationTimer),
+            userInfo: nil,
+            repeats: true
+        )
+        timer.tolerance = 1 / 240
+        RunLoop.main.add(timer, forMode: .common)
+        focusAnimationTimer = timer
+    }
+
+    private func stopFocusAnimationTimer() {
+        focusAnimationTimer?.invalidate()
+        focusAnimationTimer = nil
+    }
+
+    @objc
+    private func handleFocusAnimationTimer() {
+        stepFocusTransitions(
+            at: max(focusClockTime, ProcessInfo.processInfo.systemUptime)
+        )
     }
 
     func updateCollageSelection(
@@ -314,6 +511,9 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView, PointerShapeProviding
     }
 
     func invalidate() {
+        stopFocusAnimationTimer()
+        focusFadeInDebounceDeadline = nil
+        cueFocusAnimations.removeAll(keepingCapacity: false)
         contentAdapter?.invalidate()
         contentAdapter = nil
         contentSnapshot = nil
@@ -348,6 +548,7 @@ final class PlaybackSubtitleFocusReelDocumentView: NSView, PointerShapeProviding
             contentAdapter?.drawItem(
                 at: placement.ordinal,
                 isSelected: placement.ordinal == selectedOrdinal,
+                selectionProgress: cueSelectionProgress(at: placement.ordinal),
                 isEnabled: canToggle,
                 selectedTextRange: textSelection?.ordinal == placement.ordinal
                     ? textSelection?.range

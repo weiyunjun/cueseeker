@@ -398,12 +398,19 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
         self.reducesMotion = reducesMotion
         let wasInteractionEnabled = self.isInteractionEnabled
         self.isInteractionEnabled = isInteractionEnabled
+        let wasInitialized = hasInitializedPosition
+        let willBeginKeyboardNavigation = hasUnhandledKeyboardNavigationRequest(
+            keyboardNavigationRequest
+        )
         // A keyboard motion already in flight owns the reel: wheel and
         // scrollbar input are gated off, and repeating the cancel would put
         // the highlight back on the committed row mid-motion.
         if cancelsWheelMotion, !isKeyboardMotionActive {
             cancelActiveScrollbarDrag()
-            resetWheelInteraction(requiresNewGesture: true)
+            resetWheelInteraction(
+                requiresNewGesture: true,
+                restoresSelectionImmediately: !willBeginKeyboardNavigation
+            )
         } else if wasInteractionEnabled, !isInteractionEnabled {
             suspendWheelInputForSuppression()
         }
@@ -418,15 +425,18 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
             hasInitializedPosition = true
         } else if previousSelectedOrdinal != self.selectedOrdinal,
                   !hasActiveNativeMotion,
+                  !willBeginKeyboardNavigation,
                   let selectedOrdinal = self.selectedOrdinal {
             fractionalOrdinal = CGFloat(selectedOrdinal)
         }
         fractionalOrdinal = boundedLoadedFractionalOrdinal(fractionalOrdinal)
         updateDocumentGeometry()
         updateScrollbarPresentation()
-        if isScrollbarDragging, hasUncommittedScrollbarPreview {
+        if changesDataset || !wasInitialized {
+            documentView.setImmediateSelection(self.selectedOrdinal)
+        } else if isScrollbarDragging, hasUncommittedScrollbarPreview {
             documentView.updateSelection(currentLayout.nearestOrdinal)
-        } else if !hasActiveNativeMotion {
+        } else if !hasActiveNativeMotion, !willBeginKeyboardNavigation {
             documentView.updateSelection(self.selectedOrdinal)
             synchronizeFractionalOrdinalIfIdle()
         }
@@ -480,6 +490,7 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
         activeWheelContentGeneration = nil
         hasUncommittedScrollbarPreview = false
         preciseGestureStartOrdinal = nil
+        documentView.setImmediateSelection(selectedOrdinal)
         if isScrollbarDragging {
             isScrollbarDragging = false
             onScrollbarDraggingChanged(false)
@@ -822,6 +833,18 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
         documentView.isCueHighlightedForTesting(at: ordinal)
     }
 
+    func cueSelectionProgressForTesting(at ordinal: Int) -> CGFloat {
+        documentView.cueSelectionProgressForTesting(at: ordinal)
+    }
+
+    var isFocusFadeInDebouncingForTesting: Bool {
+        documentView.isFocusFadeInDebouncingForTesting
+    }
+
+    func advanceFocusTransitionForTesting(by deltaSeconds: TimeInterval) {
+        documentView.advanceFocusTransitionForTesting(by: deltaSeconds)
+    }
+
     func isCollageCueEnabledForTesting(at ordinal: Int) -> Bool {
         documentView.isCollageCueEnabledForTesting(at: ordinal)
     }
@@ -961,6 +984,40 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
         }
     }
 
+    private func hasUnhandledKeyboardNavigationRequest(
+        _ request: PlaybackSubtitleFocusKeyboardNavigationRequest?
+    ) -> Bool {
+        guard let request else {
+            return false
+        }
+        if let requestGeneration = request.contentGeneration {
+            guard let contentSnapshot,
+                  let contentDatasetID = request.contentDatasetID,
+                  AnyHashable(contentDatasetID) == contentSnapshot.datasetID,
+                  requestGeneration == contentSnapshot.generation
+            else {
+                return false
+            }
+            let token = ContentToken(
+                datasetID: contentSnapshot.datasetID,
+                generation: requestGeneration
+            )
+            let lastSequence = lastHandledGeneratedKeyboardToken == token
+                ? lastHandledGeneratedKeyboardSequence
+                : 0
+            guard request.sequence > lastSequence else {
+                return false
+            }
+        } else {
+            guard request.sequence > lastHandledKeyboardSequence else {
+                return false
+            }
+        }
+        return request.targetOrdinal >= 0
+            && request.targetOrdinal < totalCount
+            && loadedOrdinalRange.contains(request.targetOrdinal)
+    }
+
     private func handleKeyboardNavigation(
         _ request: PlaybackSubtitleFocusKeyboardNavigationRequest?,
         reducesMotion: Bool
@@ -1007,7 +1064,10 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
         )
         activeKeyboardRequest = request
         activeKeyboardContentGeneration = contentSnapshot?.generation
-        documentView.updateSelection(request.targetOrdinal)
+        documentView.beginNavigationSelection(
+            request.targetOrdinal,
+            reducesMotion: reducesMotion
+        )
         setKeyboardMotionActive(true)
         keyboardAnimator.retarget(
             from: fractionalOrdinal,
@@ -1034,7 +1094,7 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
         guard didCommit else {
             activeKeyboardRequest = nil
             activeKeyboardContentGeneration = nil
-            documentView.updateSelection(selectedOrdinal)
+            documentView.setImmediateSelection(selectedOrdinal)
             setKeyboardMotionActive(false)
             synchronizeFractionalOrdinalIfIdle()
             return
@@ -1125,8 +1185,17 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
         guard loadedOrdinalRange.contains(targetOrdinal) else {
             return false
         }
+        let previousFractionalOrdinal = fractionalOrdinal
         setFractionalOrdinal(position, refreshesScrollbar: refreshesScrollbar)
-        documentView.updateSelection(currentLayout.nearestOrdinal)
+        let didMove = abs(fractionalOrdinal - previousFractionalOrdinal) > 0.000_001
+        if didMove {
+            documentView.beginNavigationSelection(
+                currentLayout.nearestOrdinal,
+                reducesMotion: reducesMotion
+            )
+        } else {
+            documentView.updateSelection(currentLayout.nearestOrdinal)
+        }
         return true
     }
 
@@ -1136,13 +1205,13 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
               loadedOrdinalRange.contains(targetOrdinal)
         else {
             selectedOrdinal = nil
-            documentView.updateSelection(nil)
+            documentView.setImmediateSelection(nil)
             updateScrollbarPresentation()
             return
         }
         fractionalOrdinal = CGFloat(targetOrdinal)
         hasInitializedPosition = true
-        documentView.updateSelection(targetOrdinal)
+        documentView.setImmediateSelection(targetOrdinal)
         updateDocumentGeometry()
         updateScrollbarPresentation()
     }
@@ -1282,7 +1351,10 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
         preciseGestureStartOrdinal = nil
         activeWheelTargetOrdinal = targetOrdinal
         activeWheelContentGeneration = contentSnapshot?.generation
-        documentView.updateSelection(targetOrdinal)
+        documentView.beginNavigationSelection(
+            targetOrdinal,
+            reducesMotion: reducesMotion
+        )
         setWheelMotionActive(true)
         wheelAnimator.retarget(
             from: fractionalOrdinal,
@@ -1315,12 +1387,21 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
             )
         }
 
+        let previousFractionalOrdinal = fractionalOrdinal
         let position = documentView.fractionalOrdinal(
             afterMovingBy: -deltaY,
             from: fractionalOrdinal
         )
         setFractionalOrdinal(position)
-        documentView.updateSelection(currentLayout.nearestOrdinal)
+        let didMove = abs(fractionalOrdinal - previousFractionalOrdinal) > 0.000_001
+        if didMove {
+            documentView.beginNavigationSelection(
+                currentLayout.nearestOrdinal,
+                reducesMotion: reducesMotion
+            )
+        } else {
+            documentView.updateSelection(currentLayout.nearestOrdinal)
+        }
         setWheelMotionActive(true)
     }
 
@@ -1388,7 +1469,7 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
         if didCommit {
             selectedOrdinal = targetOrdinal
         } else if selectedOrdinal != nil {
-            documentView.updateSelection(selectedOrdinal)
+            documentView.setImmediateSelection(selectedOrdinal)
         } else {
             restoreSelectedSelection()
         }
@@ -1398,16 +1479,23 @@ final class PlaybackSubtitleFocusReelContainerView: NSView {
         }
     }
 
-    private func resetWheelInteraction(requiresNewGesture: Bool) {
+    private func resetWheelInteraction(
+        requiresNewGesture: Bool,
+        restoresSelectionImmediately: Bool = true
+    ) {
         cancelPreciseSettle()
         wheelState.reset(requiresNewGesture: requiresNewGesture)
         wheelAnimator.cancel()
         activeWheelTargetOrdinal = nil
         activeWheelContentGeneration = nil
         preciseGestureStartOrdinal = nil
-        documentView.updateSelection(selectedOrdinal)
+        if restoresSelectionImmediately {
+            documentView.setImmediateSelection(selectedOrdinal)
+        }
         setWheelMotionActive(false)
-        synchronizeFractionalOrdinalIfIdle()
+        if restoresSelectionImmediately {
+            synchronizeFractionalOrdinalIfIdle()
+        }
     }
 
     private func suspendWheelInputForSuppression() {

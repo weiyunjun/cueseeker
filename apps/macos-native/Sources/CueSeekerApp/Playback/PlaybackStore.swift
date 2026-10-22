@@ -132,6 +132,9 @@ final class PlaybackStore: ObservableObject {
     @Published private(set) var commandPanelHeldPage: PlaybackCommandPanelHeldPage?
     @Published private(set) var commandPanelSearchWindow:
         PlaybackCueResultSessionWindowStore?
+    @Published private(set) var commandPanelSearchKeyboardNavigationRequest:
+        PlaybackSubtitleFocusKeyboardNavigationRequest?
+    private var commandPanelSearchKeyboardSequence = 0
     private var commandPanelSearchSource: PlaybackCueResultSource?
     private(set) var commandPanelRecentCardColumnCount = WorkbenchControlMetrics
         .redesignLibraryRecentGridMaxColumnsWithoutSidebar
@@ -428,6 +431,7 @@ final class PlaybackStore: ObservableObject {
         selectedOrdinal: Int?,
         resultListGeneration: UInt64 = 0
     ) {
+        commandPanelSearchKeyboardNavigationRequest = nil
         guard commandPanelPresentation?.page == .searchResults else {
             releaseCommandPanelSearchPreview()
             return
@@ -480,22 +484,41 @@ final class PlaybackStore: ObservableObject {
 
     @discardableResult
     func restoreCommandPanelSearchSelection(at ordinal: Int) -> Bool {
+        let previousOrdinal = commandPanelSearchWindow?.selectedOrdinal
+        let datasetID = commandPanelSearchWindow?.reelDatasetID
+        let generation = commandPanelSearchWindow?.snapshot.generation
         guard let itemIdentity = commandPanelSearchWindow?
             .knownItemIdentity(at: ordinal)
         else {
             return false
         }
-        return commandPanelSearchWindow?.restoreSelection(
+        let didRestore = commandPanelSearchWindow?.restoreSelection(
             itemIdentity: itemIdentity,
             at: ordinal
         ) == true
+        if didRestore, let previousOrdinal, previousOrdinal != ordinal {
+            commandPanelSearchKeyboardSequence += 1
+            commandPanelSearchKeyboardNavigationRequest =
+                PlaybackSubtitleFocusKeyboardNavigationRequest(
+                    sequence: commandPanelSearchKeyboardSequence,
+                    direction: ordinal < previousOrdinal ? .backward : .forward,
+                    targetOrdinal: ordinal,
+                    contentDatasetID: datasetID,
+                    contentGeneration: generation
+                )
+        }
+        return didRestore
     }
 
     @discardableResult
     func commitCommandPanelSearchSelection(
         _ commit: PlaybackVirtualReelSelectionCommit
     ) -> Bool {
-        commandPanelSearchWindow?.commitSelection(commit) == true
+        let didCommit = commandPanelSearchWindow?.commitSelection(commit) == true
+        if didCommit {
+            commandPanelSearchKeyboardNavigationRequest = nil
+        }
+        return didCommit
     }
 
     func updateCommandPanelRecentCardGridLayout(
@@ -544,6 +567,7 @@ final class PlaybackStore: ObservableObject {
     }
 
     private func releaseCommandPanelSearchPreview() {
+        commandPanelSearchKeyboardNavigationRequest = nil
         commandPanelSearchWindow?.invalidate()
         commandPanelSearchSource?.invalidate()
         commandPanelSearchWindow = nil

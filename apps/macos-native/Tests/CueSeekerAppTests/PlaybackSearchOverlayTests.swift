@@ -319,8 +319,23 @@ func commandPanelSearchSynchronizesFilterAndSortWithWorkbenchAndResetsSelection(
     app.synchronizePlaybackCommandPanelSearchResults()
 
     // Move selection to the second result and hold a stale page snapshot.
+    #expect(app.playback.commandPanelSearchKeyboardNavigationRequest == nil)
     #expect(app.movePlaybackCommandPanelSelection(1))
     #expect(app.playback.commandPanelSearchWindow?.selectedOrdinal == 1)
+    #expect(
+        app.playback.commandPanelSearchKeyboardNavigationRequest?.targetOrdinal == 1
+    )
+    #expect(
+        app.playback.commandPanelSearchKeyboardNavigationRequest?.direction == .forward
+    )
+    let firstNavigationSequence = try #require(
+        app.playback.commandPanelSearchKeyboardNavigationRequest?.sequence
+    )
+    #expect(app.movePlaybackCommandPanelSelection(1))
+    #expect(
+        app.playback.commandPanelSearchKeyboardNavigationRequest?.sequence
+            == firstNavigationSequence
+    )
     app.playback.holdCommandPanelPage(
         .searchResults(totalCount: 99, hasMoreResults: true)
     )
@@ -336,10 +351,16 @@ func commandPanelSearchSynchronizesFilterAndSortWithWorkbenchAndResetsSelection(
     #expect(app.playback.commandPanelSearchWindow?.snapshot.totalCount == 2)
     #expect(app.playback.commandPanelSearchWindow?.item(at: 0)?.identity == .search(second.entryID))
     #expect(app.playback.commandPanelSearchWindow?.selectedOrdinal == 0)
+    #expect(app.playback.commandPanelSearchKeyboardNavigationRequest == nil)
+    #expect(app.movePlaybackCommandPanelSelection(-1))
+    #expect(app.playback.commandPanelSearchKeyboardNavigationRequest == nil)
 
     // Move selection to ordinal 1 again, then apply a Facet Filter.
     #expect(app.movePlaybackCommandPanelSelection(1))
     #expect(app.playback.commandPanelSearchWindow?.selectedOrdinal == 1)
+    #expect(
+        app.playback.commandPanelSearchKeyboardNavigationRequest?.targetOrdinal == 1
+    )
 
     let japaneseFilter = CueFacetFilter(languages: [.japanese])
     app.applySearchFacetFilter(japaneseFilter)
