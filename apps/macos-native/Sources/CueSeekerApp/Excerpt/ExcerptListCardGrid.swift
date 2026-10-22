@@ -204,12 +204,9 @@ private struct ExcerptListCard: View {
                     .padding(8)
             }
         }
-        .scaleEffect(
-            isHighlighted ? WorkbenchControlMetrics.redesignLibraryCoverHoverScale : 1
-        )
-        .animation(
-            .easeOut(duration: WorkbenchControlMetrics.redesignLibraryCoverHoverDuration),
-            value: isHighlighted
+        .libraryCoverHoverEffect(
+            isSelected: isSelected,
+            isHovered: isHovered
         )
     }
 

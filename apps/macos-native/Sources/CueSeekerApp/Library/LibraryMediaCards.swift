@@ -283,7 +283,8 @@ private struct LibraryVideoCard: View {
             duration: content.duration
         )
         .libraryCoverHoverEffect(
-            isActive: isHighlighted
+            isSelected: isSelected,
+            isHovered: isHovered
         )
     }
 
@@ -404,7 +405,8 @@ struct LibraryFolderCard: View {
             badgeText: episodeCountText
         )
         .libraryCoverHoverEffect(
-            isActive: isHighlighted && isAvailable
+            isSelected: isSelected && isAvailable,
+            isHovered: isHovered && isAvailable
         )
     }
 

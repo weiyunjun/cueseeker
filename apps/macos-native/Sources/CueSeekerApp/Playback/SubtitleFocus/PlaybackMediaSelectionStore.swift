@@ -113,7 +113,6 @@ final class PlaybackMediaSelectionStore: ObservableObject {
             return
         }
         columnCount = resolvedColumnCount
-        itemFramesByID = [:]
         requestScrollToSelected()
     }
 
@@ -126,7 +125,6 @@ final class PlaybackMediaSelectionStore: ObservableObject {
             return
         }
         self.columnCount = resolvedColumnCount
-        itemFramesByID = [:]
         requestScrollToSelected()
     }
 
@@ -165,10 +163,10 @@ final class PlaybackMediaSelectionStore: ObservableObject {
             uniqueKeysWithValues: orderedItemIDs.enumerated().map { ($1, $0) }
         )
         let newFrames = framesByItemID.filter { orderByID[$0.key] != nil }
-        if newFrames != itemFramesByID, pendingScrollRequest != nil {
+        if newFrames != itemFramesByID {
             objectWillChange.send()
+            itemFramesByID = newFrames
         }
-        itemFramesByID = newFrames
         let hasNegativeMinY = framesByItemID.values.contains { $0.minY < 0 }
         let visibleMinY = hasNegativeMinY ? 0 : scrollOffsetY
         let visibleMaxY = visibleMinY + viewportHeight

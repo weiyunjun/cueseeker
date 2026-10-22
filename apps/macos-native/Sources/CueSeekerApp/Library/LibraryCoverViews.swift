@@ -3,18 +3,41 @@ import CueSeekerCore
 import SwiftUI
 
 private struct LibraryCoverHoverEffectModifier: ViewModifier {
-    let isActive: Bool
+    let isSelected: Bool
+    let isHovered: Bool
+
+    private var isActive: Bool {
+        isSelected || isHovered
+    }
 
     func body(content: Content) -> some View {
         content
             .scaleEffect(isActive ? WorkbenchLibraryMetrics.coverHoverScale : 1)
-            .animation(.easeOut(duration: WorkbenchLibraryMetrics.coverHoverDuration), value: isActive)
+            .animation(nil, value: isSelected)
+            .animation(.easeOut(duration: WorkbenchLibraryMetrics.coverHoverDuration), value: isHovered)
     }
 }
 
 extension View {
+    func libraryCoverHoverEffect(
+        isSelected: Bool = false,
+        isHovered: Bool
+    ) -> some View {
+        modifier(
+            LibraryCoverHoverEffectModifier(
+                isSelected: isSelected,
+                isHovered: isHovered
+            )
+        )
+    }
+
     func libraryCoverHoverEffect(isActive: Bool) -> some View {
-        modifier(LibraryCoverHoverEffectModifier(isActive: isActive))
+        modifier(
+            LibraryCoverHoverEffectModifier(
+                isSelected: false,
+                isHovered: isActive
+            )
+        )
     }
 }
 

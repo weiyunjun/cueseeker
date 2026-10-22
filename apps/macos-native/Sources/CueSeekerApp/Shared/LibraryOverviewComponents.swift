@@ -518,12 +518,7 @@ struct LibraryOverviewCardButtonStyle: ButtonStyle {
             // rounded background is appearance only and does not narrow it.
             .contentShape(Rectangle())
             .opacity(isEnabled ? 1 : 0.55)
-            .animation(
-                .easeOut(
-                    duration: WorkbenchControlMetrics.redesignLibraryCoverHoverDuration
-                ),
-                value: isSelected
-            )
+            .animation(nil, value: isSelected)
             .animation(
                 .easeOut(
                     duration: WorkbenchControlMetrics.redesignLibraryCoverHoverDuration

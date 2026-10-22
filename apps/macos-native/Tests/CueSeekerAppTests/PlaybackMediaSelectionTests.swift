@@ -13,11 +13,6 @@ func playbackMediaSelectionUsesVisualGridDirectionsAndScrollTargets() throws {
         availableItemIDs: ["0", "2", "3", "4", "5"],
         resetsSelection: true
     )
-    selection.updateAdaptiveGrid(
-        containerWidth: 676,
-        minimumItemWidth: WorkbenchControlMetrics.redesignLibraryRecentCardMinWidth,
-        itemGap: WorkbenchControlMetrics.redesignLibraryRecentGridGap
-    )
     selection.recordVisibleFrames(
         [
             "0": CGRect(x: 0, y: 0, width: 220, height: 156),
@@ -29,7 +24,13 @@ func playbackMediaSelectionUsesVisualGridDirectionsAndScrollTargets() throws {
         ],
         viewportHeight: 340
     )
+    selection.updateAdaptiveGrid(
+        containerWidth: 676,
+        minimumItemWidth: WorkbenchControlMetrics.redesignLibraryRecentCardMinWidth,
+        itemGap: WorkbenchControlMetrics.redesignLibraryRecentGridGap
+    )
     #expect(selection.columnCount == 3)
+    #expect(!selection.itemFramesByID.isEmpty)
 
     #expect(selection.selectedItemID == "0")
     let initialRequest = try #require(selection.scrollRequest)
@@ -85,6 +86,7 @@ func playbackMediaSelectionUsesVisualGridDirectionsAndScrollTargets() throws {
         itemGap: WorkbenchControlMetrics.redesignLibraryRecentGridGap
     )
     #expect(selection.columnCount == 2)
+    #expect(!selection.itemFramesByID.isEmpty)
     #expect(selection.scrollRequest?.itemID == selection.selectedItemID)
     #expect(selection.scrollRequest?.sequence ?? 0 > requestBeforeResize.sequence)
 

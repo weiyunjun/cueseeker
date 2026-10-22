@@ -91,6 +91,7 @@ private struct PlaybackLibraryEpisodeList: View {
     }
 
     var body: some View {
+        let _ = selection.highlight.syncSelectedDuringRender(selection.selectedItemID)
         GeometryReader { geometry in
             WorkbenchScrollView {
                 content(viewportHeight: geometry.size.height)

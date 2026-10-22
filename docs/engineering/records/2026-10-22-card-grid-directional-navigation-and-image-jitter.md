@@ -16,6 +16,8 @@
    - Added `CardHighlightModel.syncSelectedDuringRender(_:)` and `PlaybackLibraryOverlay.init` activation so the initial and navigated selection state is synchronized on the first render pass without a 1-frame `.onAppear` / `.onChange` delay.
    - Moved `.coordinateSpace(name:)` inside `WorkbenchScrollView` content containers so `LibraryItemFramePreferenceKey` reports static document coordinates without firing during scroll.
    - Added `PlaybackMediaSelectionStore.targetScrollOffsetY` and synchronous `NSClipView` scrolling inside `PlaybackMediaScrollPositionBridge.updateNSView` (wrapped in disabled `CATransaction` actions), keeping fully visible cards stationary, scrolling to `y = 0` when returning to the first row so section headers remain visible, and eliminating the `await Task.yield()` + `ScrollViewReader.scrollTo` 1-frame flash.
+   - Separated `Select` and `Hover` transition animations on media and excerpt cards (`LibraryOverviewCardButtonStyle`, `LibraryCoverHoverEffectModifier`, `LibraryMediaCards`, `ExcerptListCardGrid`) so `Select` switches instantaneously (`0ms`, `.animation(nil, value: isSelected)`) while pointer `Hover` retains the `0.12s` transition, eliminating fade/scale ghosting during instant keyboard scroll jumps.
+   - Removed the stale `itemFramesByID = [:]` reset from `PlaybackMediaSelectionStore.updateAdaptiveGrid` / `updateColumnCount` and published `recordVisibleFrames` updates so `PlaybackLibraryOverlay` retains measured static card coordinates across adaptive column synchronization and triggers viewport scrolling reliably.
 
 ## Verification
 - Updated and added unit tests in `PlaybackMediaSelectionTests.swift`, `PlaybackSubtitleFocusKeyboardActionTests.swift`, and `WorkbenchControlMetricsTests.swift`.
