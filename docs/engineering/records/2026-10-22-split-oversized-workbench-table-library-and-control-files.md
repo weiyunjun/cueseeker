@@ -20,6 +20,12 @@
    - `LibraryMediaCards.swift` (485 lines): Shared `RecentWatchingGrid`, `LibraryVideoCardGrid`, `LibraryVideoCard`, `CompleteLibraryFolderGrid`, `LibraryFolderCard`, `CompleteLibraryEpisodeGrid`.
    - `LibraryCardContextMenuHost.swift` (608 lines): `LibraryCardContextMenuHost`, `LibraryCardContextMenu`, `LibraryCardRightClickMonitor`, and viewport/menu geometry helpers.
    - `LibraryCoverViews.swift` (373 lines): `LibraryCoverWithProgress`, `LibraryCoverWithBadge`, `LibraryCachedCoverImage`, `LibraryWatchStatus`, `WatchStatusBadge`.
+3. **Sub-step 2C — Split `WorkbenchControls.swift` (1,688 Lines) and `WorkbenchFormControls.swift` (1,349 Lines)**:
+   - `WorkbenchControlMetrics.swift` (710 lines): `WorkbenchControlMetrics`, inline padding modifiers, and `WorkbenchPageTitle`.
+   - `WorkbenchPopoverControls.swift` (329 lines): `WorkbenchPopoverRow`, `WorkbenchMenuDivider`, `MenuSurface`, `WorkbenchPopoverPanel`, `WorkbenchCardMenuPopover`, and dropdown anchor modifiers.
+   - `WorkbenchControls.swift` (650 lines): `WorkbenchSearchField`, `WorkbenchButton`, `WorkbenchPrimaryButton`, `WorkbenchDestructiveButton`, `WorkbenchIconButton`, `WorkbenchBadge`, `WorkbenchCardIcon`.
+   - `WorkbenchNativeTextFields.swift` (774 lines): Low-level AppKit `WorkbenchNativeSingleLineTextField`, `WorkbenchSingleLineContainerOverlayView`, `WorkbenchNativeSecureTextField`, `WorkbenchSecureTextFieldCell`, and representable bridges.
+   - `WorkbenchFormControls.swift` (577 lines): High-level SwiftUI form controls (`WorkbenchFormTextField`, `WorkbenchFormTextArea`, `WorkbenchNumberField`, `WorkbenchDialogFormTextField`, `WorkbenchDialogFormPasswordField`, and form field chrome).
 
 ## Verification
-- Verified `swift build --package-path apps/macos-native` and `SubtitleTable` / `SubtitleTextLayout` / `Library` / `RecentWatching` / `CardContextMenu` unit test suites compile cleanly with 0 errors and pass.
+- Verified `swift build --package-path apps/macos-native` and `SubtitleTable` / `SubtitleTextLayout` / `Library` / `RecentWatching` / `CardContextMenu` / `WorkbenchControlMetrics` / `WorkbenchInputControls` / `MenuPanelHeight` / `WorkbenchDialog` unit test suites compile cleanly with 0 errors and pass.
