@@ -1026,7 +1026,7 @@ func playbackCommandPanelSearchSavesSelectedCue() async throws {
         let menu = try #require(app.playback.excerptDestinationMenu)
         #expect(menu.surface == .commandPanel)
         #expect(menu.cueID == 1)
-        #expect(try saveThroughExcerptDestinationMenu(app))
+        #expect(try await saveThroughExcerptDestinationMenu(app))
 
         let savedExcerpt = try? app.excerptDatabase?.excerpt(
             cueID: 1,
@@ -1093,7 +1093,7 @@ func subtitleFocusExcerptKeySavesIdempotentlyAndKeepsPausedSession() async throw
 
         #expect(app.handlePlaybackKeyDown(keyCode: 1, modifierFlagsRawValue: 0))
         #expect(session.activeKeyboardAction == nil)
-        #expect(try saveThroughExcerptDestinationMenu(app))
+        #expect(try await saveThroughExcerptDestinationMenu(app))
 
         let saved = try #require(try excerptDatabase.excerpt(
             subtitleFile: URL(fileURLWithPath: keyboardActionSource().subtitlePath),
@@ -1109,7 +1109,7 @@ func subtitleFocusExcerptKeySavesIdempotentlyAndKeepsPausedSession() async throw
 
         // The same cue and the same list a second time writes nothing more.
         #expect(app.handlePlaybackKeyDown(keyCode: 1, modifierFlagsRawValue: 0))
-        #expect(!(try saveThroughExcerptDestinationMenu(app)))
+        #expect(!(try await saveThroughExcerptDestinationMenu(app)))
 
         #expect(try excerptDatabase.excerptCount() == 1)
         #expect(app.excerpt.tableDataRevision == tableRevisionBefore + 1)
@@ -1152,12 +1152,12 @@ func subtitleFocusExcerptIdentityDistinguishesSameTimeSiblingCues() async throws
         let tableRevisionBefore = app.excerpt.tableDataRevision
 
         #expect(app.handlePlaybackKeyDown(keyCode: 1, modifierFlagsRawValue: 0))
-        #expect(try saveThroughExcerptDestinationMenu(app))
+        #expect(try await saveThroughExcerptDestinationMenu(app))
         #expect(app.excerpt.tableDataRevision == tableRevisionBefore + 1)
         #expect(session.commitNativeReelSelection(ordinal: 13))
 
         #expect(app.handlePlaybackKeyDown(keyCode: 1, modifierFlagsRawValue: 0))
-        #expect(try saveThroughExcerptDestinationMenu(app))
+        #expect(try await saveThroughExcerptDestinationMenu(app))
         #expect(app.excerpt.tableDataRevision == tableRevisionBefore + 2)
 
         let savedFirst = try #require(try excerptDatabase.excerpt(cueID: firstCue.id))
@@ -1168,7 +1168,7 @@ func subtitleFocusExcerptIdentityDistinguishesSameTimeSiblingCues() async throws
         #expect(try excerptDatabase.excerptCount() == 2)
 
         #expect(app.handlePlaybackKeyDown(keyCode: 1, modifierFlagsRawValue: 0))
-        #expect(!(try saveThroughExcerptDestinationMenu(app)))
+        #expect(!(try await saveThroughExcerptDestinationMenu(app)))
         #expect(try excerptDatabase.excerptCount() == 2)
         #expect(app.excerpt.tableDataRevision == tableRevisionBefore + 2)
         #expect(session.currentSnapshot?.selectedCue == secondCue)
@@ -1202,7 +1202,7 @@ func subtitleFocusDownThenExcerptSavesTheFinalSettledCue() async throws {
         #expect(execution.context.cue.ordinal == 13)
         #expect(app.executePlaybackSubtitleFocusAction(execution))
         #expect(session.activeKeyboardAction == nil)
-        #expect(try saveThroughExcerptDestinationMenu(app))
+        #expect(try await saveThroughExcerptDestinationMenu(app))
 
         #expect(try excerptDatabase.excerpt(cueID: 13) == nil)
         let saved = try #require(try excerptDatabase.excerpt(cueID: 14))
@@ -1253,7 +1253,7 @@ func playbackPlaylistCopyAndExcerptTargetTheSettledPrimaryCue() async throws {
 
         #expect(app.handlePlaybackKeyDown(keyCode: 1, modifierFlagsRawValue: 0))
         #expect(session.activeKeyboardAction == nil)
-        #expect(try saveThroughExcerptDestinationMenu(app))
+        #expect(try await saveThroughExcerptDestinationMenu(app))
         let saved = try #require(try excerptDatabase.excerpt(
             subtitleFile: URL(fileURLWithPath: result.subtitlePath),
             startMilliseconds: result.startMilliseconds,
@@ -1458,6 +1458,7 @@ func subtitleFocusExcerptOpensTheDestinationMenuAndSavingRemembersTheList() asyn
             listName: app.excerpt.listName(id: ExcerptListIdentity.defaultListID),
             report: .playbackFeedback
         ))
+        await app.excerptMutationTask?.value
 
         #expect(app.excerpt.tableDataRevision == tableRevisionBefore + 1)
         #expect(app.excerpt.tableRowsNeedReload)
@@ -1474,7 +1475,7 @@ func subtitleFocusExcerptOpensTheDestinationMenuAndSavingRemembersTheList() asyn
 private func saveThroughExcerptDestinationMenu(
     _ app: AppCoordinator,
     toListID listID: Int64 = ExcerptListIdentity.defaultListID
-) throws -> Bool {
+) async throws -> Bool {
     let menu = try #require(app.playback.excerptDestinationMenu)
     let saved = app.saveExcerpt(
         cueID: menu.cueID,
@@ -1482,6 +1483,7 @@ private func saveThroughExcerptDestinationMenu(
         listName: app.excerpt.listName(id: listID),
         report: .playbackFeedback
     )
+    await app.excerptMutationTask?.value
     app.playback.closeExcerptDestinationMenu()
     return saved
 }

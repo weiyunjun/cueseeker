@@ -1041,6 +1041,7 @@ func naturalLibraryPlaybackCompletionOpensNextVideoAndPersistsCompletion() async
         await Task.yield()
 
         app.handlePlaybackFinishedNaturally()
+        app.libraryPlaybackHistoryWriter.flush()
         for _ in 0..<3 {
             await Task.yield()
         }

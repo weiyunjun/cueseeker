@@ -73,85 +73,161 @@ extension AppCoordinator {
         guard case .button(let button, let isRepeat) = input else {
             return false
         }
+
+        if let session = playback.subtitleFocusSession,
+           session.isEditingCollage,
+           let handled = handlePlaybackCollageControllerButton(
+               session,
+               button: button,
+               isRepeat: isRepeat
+           ) {
+            return handled
+        }
+
+        if let commandPanel = playback.commandPanelPresentation,
+           let handled = handlePlaybackCommandPanelControllerButton(
+               commandPanel,
+               button: button,
+               isRepeat: isRepeat,
+               textActionHandler: textActionHandler
+           ) {
+            return handled
+        }
+
+        if let session = playback.subtitleFocusSession,
+           let handled = handlePlaybackSubtitleFocusControllerButton(
+               session,
+               button: button,
+               isRepeat: isRepeat
+           ) {
+            return handled
+        }
+
+        return handlePlaybackStageControllerButton(
+            button,
+            isRepeat: isRepeat,
+            keyboardEquivalent: keyboardEquivalent
+        )
+    }
+
+    private func handlePlaybackCollageControllerButton(
+        _ session: PlaybackSubtitleFocusSessionStore,
+        button: ControllerButton,
+        isRepeat: Bool
+    ) -> Bool? {
         switch button {
-        case .south:
-            let usesConfirmation = playback.commandPanelPresentation != nil
-                || playback.subtitleFocusSession != nil
-            return keyboardEquivalent(
-                usesConfirmation ? 36 : 49,
-                isRepeat: isRepeat
-            )
-        case .east:
-            return keyboardEquivalent(53, isRepeat: isRepeat)
         case .west:
-            if let session = playback.subtitleFocusSession,
-               session.isEditingCollage {
-                guard !isRepeat else {
-                    return false
-                }
-                return session.copyCurrentCollage()
-            }
-            if playback.commandPanelPresentation?.page == .root {
-                return textActionHandler(.deleteBackward)
-            }
-            return keyboardEquivalent(
-                8,
-                isRepeat: isRepeat,
-                nativeTextAction: .insertText("c")
-            )
-        case .north:
-            if let session = playback.subtitleFocusSession,
-               session.isEditingCollage {
-                guard !isRepeat else {
-                    return false
-                }
-                return session.exportCurrentCollage()
-            }
-            if playback.commandPanelPresentation?.page == .root {
-                guard !isRepeat else {
-                    return false
-                }
-                return textActionHandler(.paste)
-            }
-            let usesExcerptShortcut = playback.commandPanelPresentation != nil
-                || playback.subtitleFocusSession != nil
-            return keyboardEquivalent(
-                usesExcerptShortcut ? 1 : UInt16(kVK_ANSI_R),
-                isRepeat: isRepeat,
-                nativeTextAction: .insertText("s")
-            )
-        case .auxiliaryLeft:
-            return keyboardEquivalent(35, isRepeat: isRepeat)
-        case .auxiliaryRight:
-            return keyboardEquivalent(UInt16(kVK_ANSI_K), isRepeat: isRepeat)
-        case .centerSurface:
-            guard playback.commandPanelPresentation == nil,
-                  playback.subtitleFocusSession == nil
-            else {
+            guard !isRepeat else {
                 return false
             }
-            return keyboardEquivalent(36, isRepeat: isRepeat)
+            return session.copyCurrentCollage()
+        case .north:
+            guard !isRepeat else {
+                return false
+            }
+            return session.exportCurrentCollage()
+        default:
+            return nil
+        }
+    }
+
+    private func handlePlaybackCommandPanelControllerButton(
+        _ commandPanel: PlaybackCommandPanelPresentation,
+        button: ControllerButton,
+        isRepeat: Bool,
+        textActionHandler: (PlaybackControllerTextAction) -> Bool
+    ) -> Bool? {
+        guard commandPanel.page == .root else {
+            return nil
+        }
+        switch button {
+        case .west:
+            return textActionHandler(.deleteBackward)
+        case .north:
+            guard !isRepeat else {
+                return false
+            }
+            return textActionHandler(.paste)
+        default:
+            return nil
+        }
+    }
+
+    private func handlePlaybackSubtitleFocusControllerButton(
+        _ session: PlaybackSubtitleFocusSessionStore,
+        button: ControllerButton,
+        isRepeat: Bool
+    ) -> Bool? {
+        switch button {
         case .leftShoulder:
             guard !isRepeat else {
                 return false
             }
-            return playback.subtitleFocusSession?.selectPreviousModule() == true
+            return session.selectPreviousModule()
         case .rightShoulder:
             guard !isRepeat else {
                 return false
             }
-            if let session = playback.subtitleFocusSession {
-                return session.selectNextModule()
+            return session.selectNextModule()
+        default:
+            return nil
+        }
+    }
+
+    private func handlePlaybackStageControllerButton(
+        _ button: ControllerButton,
+        isRepeat: Bool,
+        keyboardEquivalent: (UInt16, Bool, PlaybackControllerTextAction?) -> Bool
+    ) -> Bool {
+        let hasActiveOverlayOrCommandPanel =
+            playback.commandPanelPresentation != nil
+            || playback.subtitleFocusSession != nil
+
+        switch button {
+        case .south:
+            return keyboardEquivalent(
+                hasActiveOverlayOrCommandPanel ? 36 : 49,
+                isRepeat,
+                nil
+            )
+        case .east:
+            return keyboardEquivalent(53, isRepeat, nil)
+        case .west:
+            return keyboardEquivalent(
+                8,
+                isRepeat,
+                .insertText("c")
+            )
+        case .north:
+            return keyboardEquivalent(
+                hasActiveOverlayOrCommandPanel ? 1 : UInt16(kVK_ANSI_R),
+                isRepeat,
+                .insertText("s")
+            )
+        case .auxiliaryLeft:
+            return keyboardEquivalent(35, isRepeat, nil)
+        case .auxiliaryRight:
+            return keyboardEquivalent(UInt16(kVK_ANSI_K), isRepeat, nil)
+        case .centerSurface:
+            guard !hasActiveOverlayOrCommandPanel else {
+                return false
             }
-            return keyboardEquivalent(48, isRepeat: isRepeat)
+            return keyboardEquivalent(36, isRepeat, nil)
+        case .leftShoulder:
+            return false
+        case .rightShoulder:
+            guard !isRepeat else {
+                return false
+            }
+            return keyboardEquivalent(48, isRepeat, nil)
         case .leftTrigger:
-            return keyboardEquivalent(0, isRepeat: isRepeat)
+            return keyboardEquivalent(0, isRepeat, nil)
         case .rightTrigger:
-            return keyboardEquivalent(2, isRepeat: isRepeat)
+            return keyboardEquivalent(2, isRepeat, nil)
         case .leftThumbstick:
-            return keyboardEquivalent(12, isRepeat: isRepeat)
+            return keyboardEquivalent(12, isRepeat, nil)
         case .rightThumbstick:
-            return keyboardEquivalent(3, isRepeat: isRepeat)
+            return keyboardEquivalent(3, isRepeat, nil)
         }
     }
 
