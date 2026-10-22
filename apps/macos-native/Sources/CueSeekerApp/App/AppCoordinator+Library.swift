@@ -3,116 +3,128 @@ import Foundation
 import CueSeekerCore
 import CueSeekerPlayback
 
-struct LibraryPlaybackHistorySnapshot: Sendable {
-    let videoPath: String
-    let positionMilliseconds: Int
-    let duration: Double?
-    let markStarted: Bool
-    let markCompleted: Bool
-
-    init(
-        videoPath: String,
-        positionMilliseconds: Int,
-        duration: Double?,
-        markStarted: Bool = true,
-        markCompleted: Bool = false
-    ) {
-        self.videoPath = videoPath
-        self.positionMilliseconds = positionMilliseconds
-        self.duration = duration
-        self.markStarted = markStarted
-        self.markCompleted = markCompleted
-    }
-}
-
-struct LibraryWatchStateSnapshot: Sendable {
-    let videoPath: String
-    let duration: Double?
-    let state: LibraryWatchState
-}
-
-final class LibraryPlaybackHistoryWriter: @unchecked Sendable {
-    let database: LibraryDatabase?
-    let queue = DispatchQueue(
-        label: "app.cueseeker.library-playback-history",
-        qos: .utility
-    )
-
-    init(database: LibraryDatabase?) {
-        self.database = database
-    }
-
-    func save(_ snapshot: LibraryPlaybackHistorySnapshot) {
-        queue.async { [weak self] in
-            self?.write(snapshot)
-        }
-    }
-
-    func saveAndWait(_ snapshot: LibraryPlaybackHistorySnapshot) {
-        queue.sync {
-            write(snapshot)
-        }
-    }
-
-    func flush() {
-        queue.sync {}
-    }
-
-    func write(_ snapshot: LibraryPlaybackHistorySnapshot) {
-        guard let database else {
-            return
-        }
-
-        do {
-            try database.upsertLibraryPlaybackHistory(
-                videoFile: URL.fromMediaPath(snapshot.videoPath),
-                positionMilliseconds: snapshot.positionMilliseconds,
-                duration: snapshot.duration,
-                markStarted: snapshot.markStarted,
-                markCompleted: snapshot.markCompleted
-            )
-        } catch {
-            print("Failed to save Library playback history: \(error)")
-        }
-    }
-
-    func setWatchStatesAndWait(_ snapshots: [LibraryWatchStateSnapshot]) {
-        queue.sync {
-            setWatchStates(snapshots)
-        }
-    }
-
-    private func setWatchStates(_ snapshots: [LibraryWatchStateSnapshot]) {
-        guard let database else {
-            return
-        }
-
-        for snapshot in snapshots {
-            do {
-                try database.setLibraryWatchState(
-                    videoFile: URL.fromMediaPath(snapshot.videoPath),
-                    duration: snapshot.duration,
-                    state: snapshot.state
-                )
-            } catch {
-                print("Failed to set Library watch state: \(error)")
-            }
-        }
-    }
-}
-
 @MainActor
 extension AppCoordinator {
+    var libraryCoverDirectory: URL {
+        get { library.libraryCoverDirectory }
+        set { library.libraryCoverDirectory = newValue }
+    }
+
+    var libraryDatabase: LibraryDatabase? {
+        get { library.libraryDatabase }
+        set { library.libraryDatabase = newValue }
+    }
+
+    var indexedContentDatabase: IndexedContentDatabase? {
+        get { library.indexedContentDatabase }
+        set { library.indexedContentDatabase = newValue }
+    }
+
+    var libraryCoverDatabase: LibraryCoverDatabase? {
+        get { library.libraryCoverDatabase }
+        set { library.libraryCoverDatabase = newValue }
+    }
+
+    var libraryUserCoverService: LibraryUserCoverService? {
+        get { library.libraryUserCoverService }
+        set { library.libraryUserCoverService = newValue }
+    }
+
+    var libraryPlaybackHistoryWriter: LibraryPlaybackHistoryWriter {
+        get { library.libraryPlaybackHistoryWriter }
+        set { library.libraryPlaybackHistoryWriter = newValue }
+    }
+
+    var recentNeedsReloadAfterIndexedMutation: Bool {
+        get { library.recentNeedsReloadAfterIndexedMutation }
+        set { library.recentNeedsReloadAfterIndexedMutation = newValue }
+    }
+
+    var libraryNeedsReloadAfterIndexedMutation: Bool {
+        get { library.libraryNeedsReloadAfterIndexedMutation }
+        set { library.libraryNeedsReloadAfterIndexedMutation = newValue }
+    }
+
+    var fileNeedsReloadAfterIndexedMutation: Bool {
+        get { library.fileNeedsReloadAfterIndexedMutation }
+        set { library.fileNeedsReloadAfterIndexedMutation = newValue }
+    }
+
+    var libraryTask: Task<Void, Never>? {
+        get { library.libraryTask }
+        set { library.libraryTask = newValue }
+    }
+
+    var recentWatchingTask: Task<Void, Never>? {
+        get { library.recentWatchingTask }
+        set { library.recentWatchingTask = newValue }
+    }
+
+    var testRecentWatchingTask: Task<Void, Never>? {
+        get { library.testRecentWatchingTask }
+        set { library.testRecentWatchingTask = newValue }
+    }
+
+    var completeLibraryTask: Task<Void, Never>? {
+        get { library.completeLibraryTask }
+        set { library.completeLibraryTask = newValue }
+    }
+
+    var completeLibraryFolderDetailTasks: [String: Task<Void, Never>] {
+        get { library.completeLibraryFolderDetailTasks }
+        set { library.completeLibraryFolderDetailTasks = newValue }
+    }
+
+    var completeLibraryFolderDetailRequestIDs: [String: UUID] {
+        get { library.completeLibraryFolderDetailRequestIDs }
+        set { library.completeLibraryFolderDetailRequestIDs = newValue }
+    }
+
+    var completeLibraryFolderDetailGeneration: UInt64 {
+        get { library.completeLibraryFolderDetailGeneration }
+        set { library.completeLibraryFolderDetailGeneration = newValue }
+    }
+
+    var libraryDisplayRenditionCommitGate: LibraryCoverDisplayRenditionCommitGate {
+        library.libraryDisplayRenditionCommitGate
+    }
+
+    var libraryDisplayRenditionTask: Task<Void, Never>? {
+        get { library.libraryDisplayRenditionTask }
+        set { library.libraryDisplayRenditionTask = newValue }
+    }
+
+    var libraryDisplayRenditionAttemptedScopeKey: String? {
+        get { library.libraryDisplayRenditionAttemptedScopeKey }
+        set { library.libraryDisplayRenditionAttemptedScopeKey = newValue }
+    }
+
+    var libraryDisplayRenditionGeneration: Int {
+        get { library.libraryDisplayRenditionGeneration }
+        set { library.libraryDisplayRenditionGeneration = newValue }
+    }
+
+    var libraryCoverImportTask: Task<Void, Never>? {
+        get { library.libraryCoverImportTask }
+        set { library.libraryCoverImportTask = newValue }
+    }
+
+    var libraryCoverSaveTask: Task<Void, Never>? {
+        get { library.libraryCoverSaveTask }
+        set { library.libraryCoverSaveTask = newValue }
+    }
+
+    var libraryPlaybackHistoryTask: Task<Void, Never>? {
+        get { library.libraryPlaybackHistoryTask }
+        set { library.libraryPlaybackHistoryTask = newValue }
+    }
+
     func beginChangingLibraryCover(
         target: LibraryUserCoverTarget,
         currentCoverPath: String?,
         currentCoverRevision: String?
     ) {
-        guard library.coverEditingSession == nil else {
-            return
-        }
-
-        library.coverEditingSession = LibraryCoverEditingSession(
+        library.beginChangingLibraryCover(
             target: target,
             currentCoverPath: currentCoverPath,
             currentCoverRevision: currentCoverRevision
@@ -120,121 +132,15 @@ extension AppCoordinator {
     }
 
     func beginChoosingLibraryCover(_ session: LibraryCoverEditingSession) {
-        guard library.coverEditingSession?.id == session.id,
-              !session.isSaving
-        else {
-            return
-        }
-
-        let panel = NSOpenPanel()
-        let delegate = LibraryCoverOpenPanelDelegate()
-        panel.delegate = delegate
-        panel.title = L("cover.choose_cover_image")
-        panel.canChooseFiles = true
-        panel.canChooseDirectories = false
-        panel.allowsMultipleSelection = false
-        panel.canCreateDirectories = false
-        panel.resolvesAliases = true
-        panel.allowedContentTypes = LibraryCoverOpenPanelPolicy.allowedContentTypes
-        panel.allowsOtherFileTypes = false
-
-        let completion: (NSApplication.ModalResponse) -> Void = {
-            [weak self, weak session, delegate] response in
-            _ = delegate
-            guard let self,
-                  let session,
-                  response == .OK,
-                  let sourceURL = panel.url,
-                  self.library.coverEditingSession?.id == session.id
-            else {
-                return
-            }
-
-            self.libraryCoverImportTask?.cancel()
-            self.libraryCoverImportTask = Task { [weak self, weak session] in
-                do {
-                    let source = try await Task.detached(priority: .userInitiated) {
-                        try LibraryUserCoverProcessor.loadSource(at: sourceURL)
-                    }.value
-                    try Task.checkCancellation()
-                    guard let self,
-                          let session,
-                          self.library.coverEditingSession?.id == session.id
-                    else {
-                        return
-                    }
-                    session.selectSource(source)
-                } catch is CancellationError {
-                    return
-                } catch {
-                    print("Failed to load Library cover source: \(error)")
-                }
-            }
-        }
-
-        if let window = NSApplication.shared.keyWindow ?? NSApplication.shared.mainWindow {
-            panel.beginSheetModal(for: window, completionHandler: completion)
-            return
-        }
-        completion(panel.runModal())
+        library.beginChoosingLibraryCover(session)
     }
 
     func cancelLibraryCoverEditing() {
-        guard library.coverEditingSession?.isSaving != true else {
-            return
-        }
-        libraryCoverImportTask?.cancel()
-        libraryCoverImportTask = nil
-        library.coverEditingSession = nil
+        library.cancelLibraryCoverEditing()
     }
 
     func saveLibraryCoverEditing(_ session: LibraryCoverEditingSession) {
-        guard library.coverEditingSession?.id == session.id,
-              !session.isSaving,
-              let source = session.selectedSource,
-              let libraryUserCoverService
-        else {
-            return
-        }
-
-        session.isSaving = true
-        libraryCoverSaveTask = Task { [weak self, weak session] in
-            guard let self, let session else {
-                return
-            }
-            do {
-                let result = try await libraryUserCoverService.save(
-                    source: source,
-                    cropRect: session.cropRect,
-                    target: session.target
-                )
-                guard self.library.coverEditingSession?.id == session.id else {
-                    return
-                }
-                self.applyLibraryUserCoverSave(result, target: session.target)
-                session.isSaving = false
-                self.library.coverEditingSession = nil
-            } catch {
-                guard self.library.coverEditingSession?.id == session.id else {
-                    return
-                }
-                session.isSaving = false
-                print("Failed to save Library cover: \(error)")
-            }
-        }
-    }
-
-    private func applyLibraryUserCoverSave(
-        _ result: LibraryUserCoverSaveResult,
-        target: LibraryUserCoverTarget
-    ) {
-        library.applyUserCoverSave(result, target: target)
-
-        UIInvalidationProbe.count(
-            "UI.LibraryCover.locallyUpdated",
-            scope: uiProbeScope,
-            details: "target=\(target.invalidationDescription)"
-        )
+        library.saveLibraryCoverEditing(session)
     }
 
     func openPreviousLibraryVideo() {
@@ -262,325 +168,43 @@ extension AppCoordinator {
     }
 
     func refreshLibrary(force: Bool = false) {
-        if !force && workbenchLayout.panelMode == .testLibrary {
-            libraryNeedsReloadAfterIndexedMutation = true
-            return
-        }
-        libraryTask?.cancel()
-
-        let folders = indexing.selectedFolders
-        guard !folders.isEmpty else {
-            applyLibraryPresentation([])
-            library.libraryStatus = .idle
-            return
-        }
-
-        library.libraryStatus = .loading
-        guard let database = libraryDatabase else {
-            applyLibraryPresentation([])
-            library.libraryStatus = .failed(L("status.database_not_initialized"))
-            return
-        }
-        libraryTask = Task {
-            do {
-                let snapshot = try await Task.detached(priority: .userInitiated) {
-                    return try database.libraryPresentation(under: folders)
-                }.value
-
-                guard !Task.isCancelled else {
-                    return
-                }
-
-                applyLibraryPresentation(snapshot)
-                library.libraryStatus = .completed
-            } catch {
-                guard !Task.isCancelled else {
-                    return
-                }
-
-                applyLibraryPresentation([])
-                library.libraryStatus = .failed(Self.errorMessage(for: error))
-            }
-        }
+        library.refreshLibrary(force: force)
     }
 
-
-
-
     func hydrateLibraryAsync() {
-        let folders = indexing.selectedFolders
-        guard !folders.isEmpty else {
-            if library.libraryStatus != .idle
-                || !library.libraryVideos.isEmpty
-                || !library.libraryFolderGroups.isEmpty
-            {
-                applyLibraryPresentation([])
-                library.libraryStatus = .idle
-            }
-            return
-        }
-        guard library.libraryStatus != .completed,
-              let database = libraryDatabase,
-              library.libraryStatus != .loading
-        else {
-            return
-        }
-
-        library.libraryStatus = .loading
-        libraryTask?.cancel()
-        libraryTask = Task { [weak self] in
-            do {
-                let snapshot = try await Task.detached(priority: .userInitiated) {
-                    try database.libraryPresentation(under: folders)
-                }.value
-
-                guard !Task.isCancelled else { return }
-
-                self?.applyLibraryPresentation(snapshot)
-                self?.library.libraryStatus = .completed
-            } catch {
-                guard !Task.isCancelled else { return }
-                print("Failed to hydrate library asynchronously: \(error)")
-                self?.library.libraryStatus = .failed(Self.errorMessage(for: error))
-            }
-        }
+        library.hydrateLibraryAsync()
     }
 
     func hydrateRecentWatchingAsync() {
-        ensureLibraryDisplayRenditionsAsync()
-        if indexing.selectedFolders.isEmpty {
-            if library.recentWatchingStatus != .idle || !library.recentWatchingItems.isEmpty {
-                refreshRecentWatching(force: true)
-            }
-            return
-        }
-        guard library.recentWatchingStatus != .completed else {
-            return
-        }
-        if case .loading = library.recentWatchingStatus, recentWatchingTask != nil {
-            return
-        }
-        refreshRecentWatching(force: true)
+        library.hydrateRecentWatchingAsync()
     }
 
     func hydrateTestRecentWatchingAsync() {
-        ensureLibraryDisplayRenditionsAsync()
-        if indexing.selectedFolders.isEmpty {
-            if library.testRecentWatchingStatus != .idle || !library.testRecentWatchingItems.isEmpty {
-                refreshTestRecentWatching()
-            }
-            return
-        }
-        guard library.testRecentWatchingStatus != .completed else {
-            return
-        }
-        if case .loading = library.testRecentWatchingStatus, testRecentWatchingTask != nil {
-            return
-        }
-        refreshTestRecentWatching()
+        library.hydrateTestRecentWatchingAsync()
     }
 
     func hydrateCompleteLibraryAsync() {
-        ensureLibraryDisplayRenditionsAsync()
-        if indexing.selectedFolders.isEmpty {
-            if library.completeLibraryStatus != .idle
-                || !library.completeLibraryFolderSummaries.isEmpty
-            {
-                refreshCompleteLibrary(force: true)
-            }
-            return
-        }
-        guard library.completeLibraryStatus != .completed else {
-            return
-        }
-        if case .loading = library.completeLibraryStatus, completeLibraryTask != nil {
-            return
-        }
-        refreshCompleteLibrary(force: true)
+        library.hydrateCompleteLibraryAsync()
     }
 
     func ensureLibraryDisplayRenditionsAsync() {
-        let folders = indexing.selectedFolders
-        guard !folders.isEmpty,
-              let database = libraryCoverDatabase,
-              !indexing.indexingStatus.isIndexing,
-              !indexing.folderRemovalStatus.isRemoving,
-              !indexing.databaseMaintenanceStatus.isCompacting
-        else {
-            return
-        }
-
-        let scopeKey = libraryDisplayRenditionScopeKey(for: folders)
-        guard libraryDisplayRenditionAttemptedScopeKey != scopeKey,
-              libraryDisplayRenditionTask == nil
-        else {
-            return
-        }
-
-        let commitToken = libraryDisplayRenditionCommitGate.beginGeneration()
-        libraryDisplayRenditionGeneration += 1
-        let generation = libraryDisplayRenditionGeneration
-        let coverDirectory = libraryCoverDirectory
-        libraryDisplayRenditionTask = Task { [weak self] in
-            let worker = Task.detached(priority: .utility) {
-                try await LibraryCoverDisplayRenditionIndexer(
-                    configuration: .init(
-                        coverDirectory: coverDirectory,
-                        maxConcurrentRenditions: 4,
-                        commitToken: commitToken
-                    )
-                ).backfillDisplayRenditions(under: folders, into: database)
-            }
-
-            do {
-                let result = try await withTaskCancellationHandler {
-                    try await worker.value
-                } onCancel: {
-                    worker.cancel()
-                }
-
-                guard let self,
-                      !Task.isCancelled,
-                      self.libraryDisplayRenditionGeneration == generation
-                else {
-                    return
-                }
-                self.libraryDisplayRenditionTask = nil
-                self.libraryDisplayRenditionAttemptedScopeKey = scopeKey
-                let presentationChangeCount = result.generatedDisplayCoverCount
-                    + result.clearedInvalidDisplayCoverCount
-                guard presentationChangeCount > 0 else {
-                    return
-                }
-                if self.library.recentWatchingStatus != .idle {
-                    self.refreshRecentWatching()
-                }
-                if self.library.testRecentWatchingStatus != .idle {
-                    self.refreshTestRecentWatching()
-                }
-                if self.library.completeLibraryStatus != .idle {
-                    self.refreshCompleteLibrary()
-                }
-            } catch {
-                guard let self,
-                      self.libraryDisplayRenditionGeneration == generation
-                else {
-                    return
-                }
-                self.libraryDisplayRenditionTask = nil
-                guard !(error is CancellationError) else {
-                    return
-                }
-                print("Failed to backfill Library display renditions: \(error)")
-            }
-        }
+        library.ensureLibraryDisplayRenditionsAsync()
     }
 
     func cancelLibraryDisplayRenditionTask() {
-        libraryDisplayRenditionTask?.cancel()
-        libraryDisplayRenditionCommitGate.invalidateCurrentGeneration()
-        libraryDisplayRenditionGeneration += 1
-        libraryDisplayRenditionTask = nil
-        libraryDisplayRenditionAttemptedScopeKey = nil
-    }
-
-    private func libraryDisplayRenditionScopeKey(for folders: [URL]) -> String {
-        let paths = folders
-            .map(\.mediaPath)
-            .sorted()
-            .joined(separator: "\n")
-        return "v\(LibraryCoverDisplayProfile.current.version)\n\(paths)"
+        library.cancelLibraryDisplayRenditionTask()
     }
 
     func refreshRecentWatching(force: Bool = false) {
-        if !force && workbenchLayout.panelMode == .recentWatching {
-            recentNeedsReloadAfterIndexedMutation = true
-            return
-        }
-        recentWatchingTask?.cancel()
-
-        let folders = indexing.selectedFolders
-        guard !folders.isEmpty else {
-            applyRecentWatching([])
-            library.recentWatchingStatus = .idle
-            return
-        }
-
-        guard let database = libraryDatabase else {
-            applyRecentWatching([])
-            library.recentWatchingStatus = .failed(L("status.database_not_initialized"))
-            return
-        }
-
-        library.recentWatchingStatus = .loading
-        recentWatchingTask = Task { [weak self] in
-            do {
-                let snapshot = try await Task.detached(priority: .userInitiated) {
-                    try database.recentLibraryWatching(under: folders)
-                }.value
-
-                guard !Task.isCancelled else { return }
-
-                self?.applyRecentWatching(snapshot)
-                self?.library.recentWatchingStatus = .completed
-            } catch {
-                guard !Task.isCancelled else { return }
-                print("Failed to hydrate recent Library watching asynchronously: \(error)")
-                self?.applyRecentWatching([])
-                self?.library.recentWatchingStatus = .failed(Self.errorMessage(for: error))
-            }
-        }
+        library.refreshRecentWatching(force: force)
     }
 
     func refreshTestRecentWatching() {
-        testRecentWatchingTask?.cancel()
-
-        let folders = indexing.selectedFolders
-        guard !folders.isEmpty else {
-            applyTestRecentWatching([])
-            library.testRecentWatchingStatus = .idle
-            return
-        }
-
-        guard let database = libraryDatabase else {
-            applyTestRecentWatching([])
-            library.testRecentWatchingStatus = .failed(L("status.database_not_initialized"))
-            return
-        }
-
-        library.testRecentWatchingStatus = .loading
-        testRecentWatchingTask = Task { [weak self] in
-            do {
-                let snapshot = try await Task.detached(priority: .userInitiated) {
-                    try database.recentLibraryWatching(
-                        under: folders,
-                        limit: Int.max,
-                        includesNeverPlayed: true
-                    )
-                }.value
-
-                guard !Task.isCancelled else { return }
-
-                self?.applyTestRecentWatching(snapshot)
-                self?.library.testRecentWatchingStatus = .completed
-            } catch {
-                guard !Task.isCancelled else { return }
-                print("Failed to hydrate Test Recent Watching asynchronously: \(error)")
-                self?.applyTestRecentWatching([])
-                self?.library.testRecentWatchingStatus = .failed(Self.errorMessage(for: error))
-            }
-        }
+        library.refreshTestRecentWatching()
     }
 
     func refreshLoadedTestRecentWatching(force: Bool = false) {
-        guard library.testRecentWatchingStatus != .idle || !library.testRecentWatchingItems.isEmpty else {
-            return
-        }
-        if !force && workbenchLayout.panelMode == .recentWatching {
-            recentNeedsReloadAfterIndexedMutation = true
-            return
-        }
-        refreshTestRecentWatching()
+        library.refreshLoadedTestRecentWatching(force: force)
     }
 
     func refreshRecentOnReappearanceIfNeeded() {
@@ -594,225 +218,33 @@ extension AppCoordinator {
     }
 
     func refreshCompleteLibrary(force: Bool = false) {
-        if !force && workbenchLayout.panelMode == .testLibrary {
-            libraryNeedsReloadAfterIndexedMutation = true
-            return
-        }
-        completeLibraryTask?.cancel()
-
-        let folders = indexing.selectedFolders
-        guard !folders.isEmpty else {
-            applyCompleteLibrary([])
-            library.completeLibraryStatus = .idle
-            return
-        }
-
-        guard let database = libraryDatabase else {
-            applyCompleteLibrary([])
-            library.completeLibraryStatus = .failed(L("status.database_not_initialized"))
-            return
-        }
-
-        library.completeLibraryStatus = .loading
-        completeLibraryTask = Task { [weak self] in
-            do {
-                let snapshot = try await Task.detached(priority: .userInitiated) {
-                    try database.completeLibraryFolderSummaries(under: folders)
-                }.value
-
-                guard !Task.isCancelled else { return }
-
-                self?.applyCompleteLibrary(snapshot)
-                self?.library.completeLibraryStatus = .completed
-            } catch {
-                guard !Task.isCancelled else { return }
-                print("Failed to hydrate Complete Library asynchronously: \(error)")
-                self?.applyCompleteLibrary([])
-                self?.library.completeLibraryStatus = .failed(Self.errorMessage(for: error))
-            }
-        }
+        library.refreshCompleteLibrary(force: force)
     }
 
     func refreshLibraryOnReappearanceIfNeeded() {
-        guard libraryNeedsReloadAfterIndexedMutation else {
-            return
-        }
-        libraryNeedsReloadAfterIndexedMutation = false
-        refreshLibrary(force: true)
-        refreshCompleteLibrary(force: true)
-    }
-
-    private func loadCompleteLibraryFolderDetail(
-        folderPath: String
-    ) async throws -> CompleteLibraryFolderDetailPresentation? {
-        try Task.checkCancellation()
-        guard let database = libraryDatabase else {
-            throw NSError(
-                domain: "CueSeeker.Library",
-                code: 1,
-                userInfo: [NSLocalizedDescriptionKey: L("status.database_not_initialized")]
-            )
-        }
-
-        return try await Self.runCancellableDetached(priority: .userInitiated) {
-            try database.completeLibraryFolderDetail(folderPath: folderPath)
-        }
+        library.refreshLibraryOnReappearanceIfNeeded()
     }
 
     func completeLibraryFolderDetailFromStore(
         folderPath: String
     ) async -> CompleteLibraryFolderDetailPresentation? {
-        if let detail = library.completeLibraryFolderDetailsByPath[folderPath] {
-            return detail
-        }
-        hydrateCompleteLibraryFolderDetailAsync(folderPath: folderPath)
-        await completeLibraryFolderDetailTasks[folderPath]?.value
-        guard !Task.isCancelled else {
-            return nil
-        }
-        return library.completeLibraryFolderDetailsByPath[folderPath]
+        await library.completeLibraryFolderDetailFromStore(folderPath: folderPath)
     }
 
     func hydrateCompleteLibraryFolderDetailAsync(folderPath: String) {
-        guard library.completeLibraryFolderDetailsByPath[folderPath] == nil,
-              completeLibraryFolderDetailTasks[folderPath] == nil
-        else {
-            return
-        }
-
-        startCompleteLibraryFolderDetailLoad(
-            folderPath: folderPath,
-            preservesExistingSnapshot: false
-        )
-    }
-
-    private func refreshCompleteLibraryFolderDetailsPreservingSnapshots(
-        affectedVideoPaths: Set<String>
-    ) {
-        guard !affectedVideoPaths.isEmpty else {
-            return
-        }
-
-        let affectedFolderPaths = library.completeLibraryFolderDetailsByPath
-            .compactMap { folderPath, detail in
-                detail.videos.contains(where: {
-                    affectedVideoPaths.contains($0.videoPath)
-                }) ? folderPath : nil
-            }
-
-        for folderPath in affectedFolderPaths {
-            startCompleteLibraryFolderDetailLoad(
-                folderPath: folderPath,
-                preservesExistingSnapshot: true
-            )
-        }
-    }
-
-    private func startCompleteLibraryFolderDetailLoad(
-        folderPath: String,
-        preservesExistingSnapshot: Bool
-    ) {
-        if preservesExistingSnapshot {
-            completeLibraryFolderDetailTasks[folderPath]?.cancel()
-        } else if completeLibraryFolderDetailTasks[folderPath] != nil {
-            return
-        }
-
-        let generation = completeLibraryFolderDetailGeneration
-        let requestID = UUID()
-        completeLibraryFolderDetailRequestIDs[folderPath] = requestID
-        if !preservesExistingSnapshot {
-            library.completeLibraryFolderDetailStatusesByPath[folderPath] = .loading
-        }
-        completeLibraryFolderDetailTasks[folderPath] = Task { @MainActor [weak self] in
-            guard let self else {
-                return
-            }
-            defer {
-                if completeLibraryFolderDetailGeneration == generation,
-                   completeLibraryFolderDetailRequestIDs[folderPath] == requestID
-                {
-                    completeLibraryFolderDetailTasks[folderPath] = nil
-                    completeLibraryFolderDetailRequestIDs[folderPath] = nil
-                }
-            }
-
-            do {
-                let detail = try await loadCompleteLibraryFolderDetail(
-                    folderPath: folderPath
-                )
-                guard !Task.isCancelled,
-                      completeLibraryFolderDetailGeneration == generation,
-                      completeLibraryFolderDetailRequestIDs[folderPath] == requestID
-                else {
-                    return
-                }
-                guard let detail else {
-                    if preservesExistingSnapshot,
-                       library.completeLibraryFolderDetailsByPath[folderPath] != nil
-                    {
-                        return
-                    }
-                    library.completeLibraryFolderDetailStatusesByPath[folderPath]
-                        = .failed(L("status.folder_detail_unavailable"))
-                    return
-                }
-                library.completeLibraryFolderDetailsByPath[folderPath] = detail
-                library.completeLibraryFolderDetailStatusesByPath[folderPath]
-                    = .completed
-            } catch is CancellationError {
-                return
-            } catch {
-                guard !Task.isCancelled,
-                      completeLibraryFolderDetailGeneration == generation,
-                      completeLibraryFolderDetailRequestIDs[folderPath] == requestID
-                else {
-                    return
-                }
-                if preservesExistingSnapshot,
-                   library.completeLibraryFolderDetailsByPath[folderPath] != nil
-                {
-                    print("Failed to refresh Complete Library folder detail asynchronously: \(error)")
-                    return
-                }
-                library.completeLibraryFolderDetailStatusesByPath[folderPath]
-                    = .failed(Self.errorMessage(for: error))
-            }
-        }
+        library.hydrateCompleteLibraryFolderDetailAsync(folderPath: folderPath)
     }
 
     func invalidateCompleteLibraryFolderDetails() {
-        completeLibraryFolderDetailGeneration &+= 1
-        for task in completeLibraryFolderDetailTasks.values {
-            task.cancel()
-        }
-        completeLibraryFolderDetailTasks.removeAll(keepingCapacity: false)
-        completeLibraryFolderDetailRequestIDs.removeAll(keepingCapacity: false)
-        library.completeLibraryFolderDetailsByPath = [:]
-        library.completeLibraryFolderDetailStatusesByPath = [:]
+        library.invalidateCompleteLibraryFolderDetails()
     }
 
     func prepareLibraryNavigationVideos(_ videos: [CompleteLibraryVideoPresentation]) {
-        library.libraryPlaybackNavigationVideos = videos.map(\.libraryVideo)
+        library.prepareLibraryNavigationVideos(videos)
     }
 
     func prepareRecentLibraryNavigation(for item: RecentLibraryWatchingPresentation) async {
-        if let folderDetail = await completeLibraryFolderDetailFromStore(
-            folderPath: item.folderPath
-        ) {
-            guard !Task.isCancelled else {
-                return
-            }
-            prepareLibraryNavigationVideos(folderDetail.videos)
-            return
-        }
-
-        guard !Task.isCancelled else {
-            return
-        }
-        if !library.libraryPlaybackNavigationVideos.contains(where: { $0.videoPath == item.videoPath }) {
-            library.libraryPlaybackNavigationVideos = library.libraryVideos
-        }
+        await library.prepareRecentLibraryNavigation(for: item)
     }
 
     func openRecentLibraryWatching(_ item: RecentLibraryWatchingPresentation) async {
@@ -848,183 +280,43 @@ extension AppCoordinator {
     }
 
     func markLibraryVideo(_ video: LibraryVideo, as state: LibraryWatchState) {
-        markLibraryVideos([video], as: state)
+        library.markLibraryVideo(video, as: state)
     }
 
     func markCompleteLibraryFolder(folderPath: String, as state: LibraryWatchState) {
-        Task { [weak self] in
-            guard let self else {
-                return
-            }
-            guard let detail = await completeLibraryFolderDetailFromStore(
-                folderPath: folderPath
-            ) else {
-                return
-            }
-            markLibraryVideos(detail.videos.map(\.libraryVideo), as: state)
-        }
+        library.markCompleteLibraryFolder(folderPath: folderPath, as: state)
     }
 
-    private func markLibraryVideos(_ videos: [LibraryVideo], as state: LibraryWatchState) {
-        let snapshots = videos.map { video in
-            LibraryWatchStateSnapshot(
-                videoPath: video.videoPath,
-                duration: video.duration,
-                state: state
-            )
-        }
-        guard !snapshots.isEmpty else {
-            return
-        }
-
-        let writer = libraryPlaybackHistoryWriter
-        let affectedVideoPaths = Set(snapshots.map(\.videoPath))
-        Task { [weak self] in
-            await Task.detached(priority: .userInitiated) {
-                writer.setWatchStatesAndWait(snapshots)
-            }.value
-
-            await MainActor.run {
-                guard let self else {
-                    return
-                }
-                self.refreshLibraryPlaybackHistoryPresentations(
-                    affectedVideoPaths: affectedVideoPaths
-                )
-            }
-        }
-    }
-
-    private func refreshLibraryPlaybackHistoryPresentations(
+    func refreshLibraryPlaybackHistoryPresentations(
         affectedVideoPaths: Set<String>
     ) {
-        guard !affectedVideoPaths.isEmpty else {
-            return
-        }
-
-        library.libraryPlaybackHistoryRevision += 1
-        refreshCompleteLibraryFolderDetailsPreservingSnapshots(
+        library.refreshLibraryPlaybackHistoryPresentations(
             affectedVideoPaths: affectedVideoPaths
         )
-        UIInvalidationProbe.count(
-            "library.snapshot_rebuild",
-            scope: uiProbeScope,
-            details: "surface=playback_history videos=\(affectedVideoPaths.count)"
-        )
-        refreshRecentWatching(force: true)
-        refreshLoadedTestRecentWatching(force: true)
-        refreshSearchForLibraryWatchStateChange()
-        refreshExcerptForLibraryWatchStateChange()
     }
 
     func applyLibraryPresentation(_ snapshot: [LibraryFolderPresentation]) {
-        let groups = Self.makeLibraryFolderGroups(from: snapshot)
-        library.libraryFolderGroups = groups
-        library.libraryVideos = groups.flatMap { group in
-            group.videos.map(\.video)
-        }
-        library.libraryPlaybackNavigationVideos = library.libraryVideos
-        library.libraryPresentationRevision += 1
-        UIInvalidationProbe.count(
-            "UI.LibraryPresentationSnapshot.rebuilt",
-            details: "groups=\(groups.count) rows=\(library.libraryVideos.count)"
-        )
-        UIInvalidationProbe.count(
-            "library.snapshot_rebuild",
-            scope: uiProbeScope,
-            details: "surface=library"
-        )
+        library.applyLibraryPresentation(snapshot)
     }
 
     func applyRecentWatching(_ snapshot: [RecentLibraryWatchingPresentation]) {
-        library.recentWatchingItems = snapshot
-        library.recentWatchingRevision += 1
-        UIInvalidationProbe.count(
-            "UI.RecentWatchingSnapshot.rebuilt",
-            details: "rows=\(snapshot.count)"
-        )
-        UIInvalidationProbe.count(
-            "library.snapshot_rebuild",
-            scope: uiProbeScope,
-            details: "surface=recent_watching"
-        )
+        library.applyRecentWatching(snapshot)
     }
 
     func applyTestRecentWatching(_ snapshot: [RecentLibraryWatchingPresentation]) {
-        library.testRecentWatchingItems = snapshot
-        library.testRecentWatchingRevision += 1
-        UIInvalidationProbe.count(
-            "UI.TestRecentWatchingSnapshot.rebuilt",
-            details: "rows=\(snapshot.count)"
-        )
-        UIInvalidationProbe.count(
-            "library.snapshot_rebuild",
-            scope: uiProbeScope,
-            details: "surface=test_recent_watching"
-        )
+        library.applyTestRecentWatching(snapshot)
     }
 
     func applyCompleteLibrary(_ snapshot: [CompleteLibraryFolderSummaryPresentation]) {
-        invalidateCompleteLibraryFolderDetails()
-        library.completeLibraryFolderSummaries = snapshot
-        library.completeLibraryRevision += 1
-        UIInvalidationProbe.count(
-            "UI.CompleteLibrarySnapshot.rebuilt",
-            details: "folders=\(snapshot.count)"
-        )
-        UIInvalidationProbe.count(
-            "library.snapshot_rebuild",
-            scope: uiProbeScope,
-            details: "surface=complete_library"
-        )
+        library.applyCompleteLibrary(snapshot)
     }
 
     func removeLibraryPresentation(under folder: URL) {
-        if workbenchLayout.panelMode == .testLibrary || heldWorkbenchRoute != nil {
-            libraryNeedsReloadAfterIndexedMutation = true
-            return
-        }
-        let prefixes = Self.folderPathPrefixes(for: folder)
-        let groups = library.libraryFolderGroups.filter { group in
-            !group.videos.contains { Self.pathMatchesPrefixes($0.video.videoPath, prefixes: prefixes) }
-        }
-        library.libraryFolderGroups = groups
-        library.libraryVideos = groups.flatMap { group in
-            group.videos.map(\.video)
-        }
-        library.libraryPlaybackNavigationVideos = library.libraryVideos
-        library.libraryPresentationRevision += 1
-        UIInvalidationProbe.count(
-            "UI.LibraryPresentationSnapshot.rebuilt",
-            details: "groups=\(groups.count) rows=\(library.libraryVideos.count) reason=remove"
-        )
-        UIInvalidationProbe.count(
-            "library.snapshot_rebuild",
-            scope: uiProbeScope,
-            details: "surface=library reason=remove"
-        )
+        library.removeLibraryPresentation(under: folder)
     }
 
     func removeCompleteLibraryPresentation(under folder: URL) {
-        if workbenchLayout.panelMode == .testLibrary || heldWorkbenchRoute != nil {
-            libraryNeedsReloadAfterIndexedMutation = true
-            return
-        }
-        invalidateCompleteLibraryFolderDetails()
-        let prefixes = Self.folderPathPrefixes(for: folder)
-        library.completeLibraryFolderSummaries = library.completeLibraryFolderSummaries.filter { group in
-            !Self.pathMatchesPrefixes(group.folderPath, prefixes: prefixes)
-        }
-        library.completeLibraryRevision += 1
-        UIInvalidationProbe.count(
-            "UI.CompleteLibrarySnapshot.rebuilt",
-            details: "folders=\(library.completeLibraryFolderSummaries.count) reason=remove"
-        )
-        UIInvalidationProbe.count(
-            "library.snapshot_rebuild",
-            scope: uiProbeScope,
-            details: "surface=complete_library reason=remove"
-        )
+        library.removeCompleteLibraryPresentation(under: folder)
     }
 
     func openLibraryVideo(

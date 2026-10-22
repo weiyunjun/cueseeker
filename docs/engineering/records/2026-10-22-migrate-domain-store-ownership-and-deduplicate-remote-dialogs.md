@@ -10,6 +10,10 @@
 2. **Sub-step 5B — Migrated Excerpt (Shiori) Database, Tasks, Cover Storage, and Table Projection into `ExcerptStore`**:
    - Moved `excerptDatabase`, `excerptListCoverStorage`, `excerptListOverviewTask`, `excerptTableRowsTask`, `excerptMutationTask`, `excerptListSaveTask`, `excerptListCoverImportTask`, and Excerpt reload/navigation state from `AppCoordinator.swift` into `ExcerptStore.swift` (with forwarding properties on `AppCoordinator`).
    - Created `ExcerptStore+Execution.swift` (1,442 lines) owning Excerpt list overview loading, table row hydration, `residentExcerptTableProjection`, list editor validation/cover import/save, and CRUD operations, reducing `AppCoordinator+Excerpt.swift` from 1,704 to 760 lines.
+3. **Sub-step 5C — Migrated Library Database, Hydration Tasks, Cover Editing, and History Writer into `LibraryStore`**:
+   - Extracted `LibraryPlaybackHistorySnapshot`, `LibraryWatchStateSnapshot`, and `LibraryPlaybackHistoryWriter` into `LibraryPlaybackHistoryWriter.swift` (100 lines).
+   - Moved Library databases, cover service, playback history writer, and 11 hydration/cover/history `Task` handles from `AppCoordinator.swift` into `LibraryStore.swift` (198 lines).
+   - Created `LibraryStore+Execution.swift` (859 lines) owning Library/Recent/CompleteLibrary hydration, folder detail loading, cover editing, and watch-state batch updates, reducing `AppCoordinator+Library.swift` from 1,455 to 747 lines.
 
 ## Verification
-- Verified `swift build --package-path apps/macos-native` and `WebDAV` / `SMB` / `FTP` / `NFS` / `RemoteFolder` / `CueGroupRefreshScopeIntegrationTests` / `PlaybackExcerptOverlayTests` / `ExcerptDatabaseTests` / `ExcerptList` unit test suites pass with 0 errors.
+- Verified `swift build --package-path apps/macos-native` and `WebDAV` / `SMB` / `FTP` / `NFS` / `RemoteFolder` / `CueGroupRefreshScopeIntegrationTests` / `PlaybackExcerptOverlayTests` / `ExcerptDatabaseTests` / `ExcerptList` / `LibraryDatabaseTests` / `RecentPlaybackSessionRegressionTests` / `PlaybackLibraryOverlayTests` / `PlaybackLibraryChangeTests` unit test suites pass with 0 errors.

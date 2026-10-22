@@ -41,15 +41,10 @@ final class AppCoordinator: ObservableObject {
     private var interfaceLayerCancellables: Set<AnyCancellable> = []
 
     let databaseURL: URL
-    let libraryCoverDirectory: URL
     let playbackSubtitleFocusDatabaseReader: PlaybackSubtitleFocusDatabaseReader
     var indexingDatabase: IndexingDatabase?
     let playbackSubtitleDatabase: PlaybackSubtitleDatabase?
-    let libraryDatabase: LibraryDatabase?
-    let indexedContentDatabase: IndexedContentDatabase?
-    let libraryCoverDatabase: LibraryCoverDatabase?
     let taskRecordDatabase: TaskRecordDatabase?
-    let libraryUserCoverService: LibraryUserCoverService?
     let workbenchLayout: WorkbenchLayoutState
     let playbackFullscreenManager = PlaybackFullscreenManager()
     var playbackPlayer: PlaybackPlayer? {
@@ -379,26 +374,8 @@ final class AppCoordinator: ObservableObject {
 
     let userDefaults: UserDefaults
     var player: PlaybackPlayer?
-    let libraryPlaybackHistoryWriter: LibraryPlaybackHistoryWriter
     var startupDatabaseTask: Task<Void, Never>?
-    var recentNeedsReloadAfterIndexedMutation = false
-    var libraryNeedsReloadAfterIndexedMutation = false
-    var fileNeedsReloadAfterIndexedMutation = false
     var heldWorkbenchRoute: WorkbenchRoute?
-    var libraryTask: Task<Void, Never>?
-    var recentWatchingTask: Task<Void, Never>?
-    var testRecentWatchingTask: Task<Void, Never>?
-    var completeLibraryTask: Task<Void, Never>?
-    var completeLibraryFolderDetailTasks: [String: Task<Void, Never>] = [:]
-    var completeLibraryFolderDetailRequestIDs: [String: UUID] = [:]
-    var completeLibraryFolderDetailGeneration: UInt64 = 0
-    let libraryDisplayRenditionCommitGate = LibraryCoverDisplayRenditionCommitGate()
-    var libraryDisplayRenditionTask: Task<Void, Never>?
-    var libraryDisplayRenditionAttemptedScopeKey: String?
-    var libraryDisplayRenditionGeneration = 0
-    var libraryCoverImportTask: Task<Void, Never>?
-    var libraryCoverSaveTask: Task<Void, Never>?
-    var libraryPlaybackHistoryTask: Task<Void, Never>?
     var playbackSubtitleFocusInitialLoadTask: Task<Void, Never>?
     var playbackSubtitleFocusCompleteLoadTask: Task<Void, Never>?
     var playbackSubtitleFocusActionTask: Task<Void, Never>?
@@ -449,7 +426,6 @@ final class AppCoordinator: ObservableObject {
             .deletingLastPathComponent()
             .appendingPathComponent("Covers", isDirectory: true)
         self.databaseURL = resolvedDatabaseURL
-        self.libraryCoverDirectory = resolvedLibraryCoverDirectory
         self.libraryFolderRemovalExecutor = libraryFolderRemovalExecutor
         playbackSubtitleFocusDatabaseReader = PlaybackSubtitleFocusDatabaseReader(
             databaseURL: resolvedDatabaseURL
@@ -463,13 +439,14 @@ final class AppCoordinator: ObservableObject {
             Self.playbackSpeedKey: 1.0,
             Self.playbackSubtitlesVisibleKey: true
         ])
-        workbenchLayout = WorkbenchLayoutState(userDefaults: userDefaults)
+        let workbenchLayout = WorkbenchLayoutState(userDefaults: userDefaults)
+        self.workbenchLayout = workbenchLayout
         settings = SettingsStore(
             userDefaults: userDefaults,
             uiProbeScope: uiProbeScope
         )
-        indexing = IndexingStore(userDefaults: userDefaults, settings: settings)
-        library = LibraryStore()
+        let indexing = IndexingStore(userDefaults: userDefaults, settings: settings)
+        self.indexing = indexing
         let cueContentStore = CueContentStore()
         cueContent = cueContentStore
         playback = PlaybackStore(
@@ -534,9 +511,22 @@ final class AppCoordinator: ObservableObject {
         search.updateSearchSortOrder(settings.searchSortOrder)
         _ = search.updateFolderScope(indexing.selectedFolders)
         self.playbackSubtitleDatabase = openedPlaybackSubtitleDatabase
-        self.libraryDatabase = openedLibraryDatabase
-        self.indexedContentDatabase = openedIndexedContentDatabase
-        self.libraryCoverDatabase = openedLibraryCoverDatabase
+        library = LibraryStore(
+            uiProbeScope: uiProbeScope,
+            libraryCoverDirectory: resolvedLibraryCoverDirectory,
+            libraryDatabase: openedLibraryDatabase,
+            indexedContentDatabase: openedIndexedContentDatabase,
+            libraryCoverDatabase: openedLibraryCoverDatabase,
+            libraryUserCoverService: openedLibraryCoverDatabase.map { database in
+                LibraryUserCoverService(
+                    database: database,
+                    coverDirectory: resolvedLibraryCoverDirectory
+                )
+            },
+            libraryPlaybackHistoryWriter: LibraryPlaybackHistoryWriter(
+                database: openedLibraryPlaybackHistoryDatabase ?? openedLibraryDatabase
+            )
+        )
         excerpt = ExcerptStore(
             cueContentStore: cueContentStore,
             databaseURL: resolvedDatabaseURL,
@@ -548,15 +538,24 @@ final class AppCoordinator: ObservableObject {
         )
         self.taskRecordDatabase = openedTaskRecordDatabase
         self.tasks = TaskQueueStore(database: openedTaskRecordDatabase)
-        self.libraryUserCoverService = openedLibraryCoverDatabase.map { database in
-            LibraryUserCoverService(
-                database: database,
-                coverDirectory: resolvedLibraryCoverDirectory
-            )
+        library.selectedFoldersProvider = { [indexing] in
+            indexing.selectedFolders
         }
-        libraryPlaybackHistoryWriter = LibraryPlaybackHistoryWriter(
-            database: openedLibraryPlaybackHistoryDatabase ?? openedLibraryDatabase
-        )
+        library.panelModeProvider = { [workbenchLayout] in
+            workbenchLayout.panelMode
+        }
+        library.hasHeldWorkbenchRouteProvider = { [weak self] in
+            self?.heldWorkbenchRoute != nil
+        }
+        library.isIndexingBusyProvider = { [indexing] in
+            indexing.indexingStatus.isIndexing
+                || indexing.folderRemovalStatus.isRemoving
+                || indexing.databaseMaintenanceStatus.isCompacting
+        }
+        library.onWatchStateChanged = { [weak self] in
+            self?.refreshSearchForLibraryWatchStateChange()
+            self?.refreshExcerptForLibraryWatchStateChange()
+        }
         configureAnkiExportRunner()
         configureRenameRunner()
         configureLibraryTaskRunners()

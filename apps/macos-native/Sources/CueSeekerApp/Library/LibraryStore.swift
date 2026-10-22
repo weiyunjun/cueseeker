@@ -1,8 +1,58 @@
 import Foundation
 import CueSeekerCore
+import CueSeekerPlayback
 
 @MainActor
 final class LibraryStore: ObservableObject {
+    var uiProbeScope: String
+    var libraryCoverDirectory: URL
+    var libraryDatabase: LibraryDatabase?
+    var indexedContentDatabase: IndexedContentDatabase?
+    var libraryCoverDatabase: LibraryCoverDatabase?
+    var libraryUserCoverService: LibraryUserCoverService?
+    var libraryPlaybackHistoryWriter: LibraryPlaybackHistoryWriter
+    var recentNeedsReloadAfterIndexedMutation = false
+    var libraryNeedsReloadAfterIndexedMutation = false
+    var fileNeedsReloadAfterIndexedMutation = false
+    var libraryTask: Task<Void, Never>?
+    var recentWatchingTask: Task<Void, Never>?
+    var testRecentWatchingTask: Task<Void, Never>?
+    var completeLibraryTask: Task<Void, Never>?
+    var completeLibraryFolderDetailTasks: [String: Task<Void, Never>] = [:]
+    var completeLibraryFolderDetailRequestIDs: [String: UUID] = [:]
+    var completeLibraryFolderDetailGeneration: UInt64 = 0
+    let libraryDisplayRenditionCommitGate: LibraryCoverDisplayRenditionCommitGate = LibraryCoverDisplayRenditionCommitGate()
+    var libraryDisplayRenditionTask: Task<Void, Never>?
+    var libraryDisplayRenditionAttemptedScopeKey: String?
+    var libraryDisplayRenditionGeneration = 0
+    var libraryCoverImportTask: Task<Void, Never>?
+    var libraryCoverSaveTask: Task<Void, Never>?
+    var libraryPlaybackHistoryTask: Task<Void, Never>?
+
+    var selectedFoldersProvider: () -> [URL] = { [] }
+    var panelModeProvider: () -> WorkbenchPanelMode = { .search }
+    var hasHeldWorkbenchRouteProvider: () -> Bool = { false }
+    var isIndexingBusyProvider: () -> Bool = { false }
+    var onWatchStateChanged: () -> Void = {}
+
+    init(
+        uiProbeScope: String = UUID().uuidString,
+        libraryCoverDirectory: URL = FileManager.default.temporaryDirectory,
+        libraryDatabase: LibraryDatabase? = nil,
+        indexedContentDatabase: IndexedContentDatabase? = nil,
+        libraryCoverDatabase: LibraryCoverDatabase? = nil,
+        libraryUserCoverService: LibraryUserCoverService? = nil,
+        libraryPlaybackHistoryWriter: LibraryPlaybackHistoryWriter = LibraryPlaybackHistoryWriter(database: nil)
+    ) {
+        self.uiProbeScope = uiProbeScope
+        self.libraryCoverDirectory = libraryCoverDirectory
+        self.libraryDatabase = libraryDatabase
+        self.indexedContentDatabase = indexedContentDatabase
+        self.libraryCoverDatabase = libraryCoverDatabase
+        self.libraryUserCoverService = libraryUserCoverService
+        self.libraryPlaybackHistoryWriter = libraryPlaybackHistoryWriter
+    }
+
     @Published var libraryStatus: LibraryStatus = .idle
     @Published var libraryVideos: [LibraryVideo] = []
     @Published var libraryFolderGroups: [LibraryFolderGroup] = []
