@@ -735,7 +735,7 @@
 
 - Closed
 - Open
-  - Selected 与 Hover：打开时默认 Selected 首项（特殊指定除外），键盘方向键移动 Selected，指针位置决定 Hover（滚动期间按 `300ms` 防抖），二者独立且同时存在在同一项时只显示 Selected 样式；打开时的默认 Selected 项与键盘导航后的 Selected 项不在可见范围内时，菜单最小滚动使其完整可见，不带动画；指针 Hover 不触发自动滚动
+  - Hover（合并键盘/手柄选中）：打开时无默认高亮项，指针悬停与键盘/手柄方向移动共用同一高亮状态并统一呈现 Hover 样式（滚动期间按 `300ms` 防抖，键盘/手柄移动高亮后抑制指针 Hover 直至鼠标实际移动）；无高亮项时按上高亮末项、按下高亮首项、按回车不响应；键盘/手柄导航后的高亮项不在可见范围内时，菜单最小滚动使其完整可见，不带动画；指针悬停不触发自动滚动
   - Modality：打开期间下层不出现任何 Hover 或选中的视觉变化，挂靠对象保持打开时的高亮；下层原有的焦点与已选中的文字在菜单打开时一并取消；菜单之外的 App 内快捷键不响应，⌘ 组合键除外；菜单关闭后立即解除冻结并重算下层 Hover；右键点中另一个带右键菜单的对象时，先关闭旧菜单解除冻结并重算 Hover，再弹出新菜单
 
 #### Variants
@@ -753,7 +753,7 @@
 
 - Surface：Player Chrome
 - Item：Menu Item / Radio Menu Item
-- Selected On Open：当前生效倍速
+- Checked：当前生效倍速
 
 ##### Player More Menu
 
@@ -775,12 +775,11 @@
 - Closed
 - Open
   - 指针进入 Trigger 即展开，不等待；指针移到另一个 Trigger 时，前一个收起，后一个展开
-  - 点击 Trigger、键盘右方向键与回车同样立即展开；展开后指针移动之前，二级菜单不因指针关闭或切换
+  - 点击 Trigger、键盘右方向键与回车同样立即展开；展开时父菜单 Trigger 保持高亮，二级菜单内部初始无默认高亮项；展开后指针移动之前，二级菜单不因指针关闭或切换；按左方向键收起二级菜单后高亮保持在父菜单 Trigger 上
   - Safe Area：指针离开 Trigger 时的位置与二级菜单靠 Menu 那条边的两端围成的区域，连同两个菜单之间的间隙。指针位于其中并朝二级菜单移动时保持展开，途经的 Menu Item 不取得高亮，也不展开自己的二级菜单
   - 指针离开 Safe Area，且不在 Menu 与二级菜单之上时关闭
   - 指针在 Safe Area 中转向或停下 300 毫秒，或离开 Safe Area 回到 Menu 上时，所在的 Menu Item 立即取得 Hover，是 Trigger 时展开它的二级菜单，否则关闭；不在任何 Menu Item 上时同样关闭
 - Hover
-- Selected
 - Disabled
 
 #### Variants
@@ -791,7 +790,6 @@
 - 列表项按创建时间正序，与 Excerpt 一级界面的卡片顺序一致
 - 由 Move to ... 与 Duplicate to ... 展开时不含当前所在的列表；由 Save to Excerpt List 展开时含全部列表
 - 也由 Playback Footer 的 Save to Excerpt List 按钮直接弹出，挂靠该按钮，内容与表格行菜单的 Save to Excerpt List 相同
-- Selected On Open：由 Save to Excerpt List 打开时为最近保存的列表，没有则首项；由 Move to ... 与 Duplicate to ... 展开时为首项
 - Item：Menu Item / Action Menu Item，均不带 Leading Icon
 
 ##### Audio Track Submenu
@@ -842,9 +840,9 @@
   - Label Color：`--color-text-primary`
   - Icon Color：`--color-text-primary`
 - Hover
-  - Background：`--color-bg-hover`（Player Chrome 表面为 `--color-player-menu-item-hover-bg`）
-- Selected
-  - Background：`--color-menu-item-selected-bg`（Player Chrome 表面为 `--color-player-menu-item-selected-bg`）
+  - Background：`--color-bg-hover`（Player Chrome 表面为 `--color-player-menu-item-hover-bg`；弹出菜单与二级菜单中鼠标悬停与键盘/手柄高亮统一使用此状态）
+- Selected（仅 Command Panel Root 选项使用）
+  - Background：`--color-menu-item-selected-bg`
   - 与 Hover 同时落在该项时只显示 Selected 背景，不叠加
 - Disabled
   - Label Color：`--color-text-disabled`
@@ -865,7 +863,7 @@
 - Indicator Slot：Always Reserved
 - Checked：Indicator Visible，不带常驻底色
 - Unchecked：Indicator Hidden
-- Hover / Selected：背景按 Menu Item 的 Hover / Selected，可与 Checked 落在不同项
+- Hover：背景按 Menu Item 的 Hover，可与 Checked 落在不同项
 - Height：`--height-select-menu-item`
 - Radius：`--radius-select-menu-item`
 
@@ -878,8 +876,6 @@
   - Icon Color：`--color-danger-text`
 - Hover
   - Background：`--color-danger-bg-hover`
-- Selected
-  - Background：`--color-danger-bg-selected`
 - Disabled
   - Label Color：`--color-text-disabled`
   - Icon Color：`--color-text-disabled`

@@ -20,7 +20,7 @@
 - **白名单原则**：只有具备「持久状态、当前位置指示或键盘导航焦点」语义的组件才拥有 `Selected`（或 `Checked`）视觉状态。
 - **允许拥有选中态的组件白名单**：
   1. **选择控件**：`C-02.1 Checkbox`（`Checked` / `Indeterminate`）、`C-02.2 Switch`、`C-02.4 Segmented Control`、`C-02.5 Filter Chip`。
-  2. **导航与菜单项**：`C-04.3 Menu Item`（弹出菜单项与 Command Panel 首页选项的键盘/默认选中态，以及 `Radio Menu Item` 的勾选项）、`C-05.3 Sidebar Item`、`C-05.5 Tab`、`C-05.6 Breadcrumb`（仅当前所在层级末节点为激活样式，前置祖先节点无选中态）。
+  2. **导航与菜单项**：`C-04.3 Menu Item`（仅 Command Panel 首页选项的键盘/默认选中态，以及 `Radio Menu Item` 的勾选项；所有弹出菜单与二级菜单项将 Hover 与 Select 合并为统一的 Hover 样式）、`C-05.3 Sidebar Item`、`C-05.5 Tab`、`C-05.6 Breadcrumb`（仅当前所在层级末节点为激活样式，前置祖先节点无选中态）。
   3. **列表、卡片与台词流**：`C-06.3 Table Row`（批量选择勾选行）、`C-11.5 Media Card`（Playback 界面卡片列表中的当前选中项）、`C-13.1 Playback Cue Metadata`、`C-13.2 Subtitle Focus Cue`、`C-13.3 Playback Cue Result`。
 - **非白名单组件禁令**：除上述白名单外，其余动作触发型组件（如 `C-03.1 Button`、`C-03.2 Icon Button`、`C-03.3 Shortcut Action Button` 等）**严禁定义或渲染 `Selected` 态**；当按钮所挂靠的菜单、弹窗或所控模式处于打开状态时，统一使用 `Open` 状态（外观等同于对应表面的 `Hover` 态）。
 

@@ -316,7 +316,7 @@
 - Checkbox / Form Checkbox：Bold、Italic
 - Color Well：Color、Outline Color、Background Color、Shadow Color
 - Segmented Control：Type、Horizontal、Vertical
-- Menu / Dropdown Menu：Font（顶部含 Search Field，打开及搜索词变化时默认高亮首项，无匹配项时显示 `No Results`）
+- Menu / Dropdown Menu：Font（顶部含 Search Field，无匹配项时显示 `No Results`）
 - Button / Neutral：Restore Defaults
 
 #### Row
@@ -421,7 +421,7 @@
 - Page Layout：Workbench Titled Page Layout
 - Action Bar 保持 `--spacing-8` 边距，文件夹网格使用 `--padding-workbench-media-card-grid-inline`。
 - Action Bar：左对齐，从左到右依次为排序按钮（图标为 `funnel-simple`，文字为当前选中的排序方式）、文件夹数量（`xx folders`，样式同 Workbench Status Indicator）。
-- 排序菜单：Radio Menu，与排序按钮左边缘对齐，选项为默认排序、最晚入库、最早入库；打开时默认高亮首项。
+- 排序菜单：Radio Menu，与排序按钮左边缘对齐，选项为默认排序、最晚入库、最早入库。
 - 排序规则：默认按文件夹名称升序；最晚入库/最早入库按首次入库时间（最早被索引文件的时间）排序，相同时间按文件夹名称升序。排序选择持久化保存。
 
 #### Sizes
@@ -723,7 +723,7 @@
 #### Structure
 
 1. Default：
-   - Row 1：从左到右依次为 Search Field（自适应撑满整行剩余宽度）、Filter Trigger（带 18px 图标与 `Filter` / `筛选` 文本）、Sort Trigger（图标为 `funnel-simple`，文字为当前选中的排序方式；点击展开与按钮左边缘对齐的 Radio Menu，打开时默认高亮首项）
+   - Row 1：从左到右依次为 Search Field（自适应撑满整行剩余宽度）、Filter Trigger（带 18px 图标与 `Filter` / `筛选` 文本）、Sort Trigger（图标为 `funnel-simple`，文字为当前选中的排序方式；点击展开与按钮左边缘对齐的 Radio Menu）
    - Row 2（与下方表格左外框左对齐）：Result Count（Search 为 `xx results`，未输入搜索词时不显示；Excerpt 为 `xx excerpts`，仅统计有效台词）
 2. Select Mode：
    - Row 1（与下方表格等宽，左侧与表格左外框对齐）：从左到右依次为 Selected Count（`xx / yy rows selected`，可选行数不含 Unavailable 行，样式同 Result Count 且保持完整显示不截断）、Selection Banner 文案（`已进入批量选择状态：点击任意行即可勾选，支持 Shift 连选`，宽度不足时优先缩减并尾部省略 `...`）、靠右对齐表格右外框的 `Exit Selection` 按钮（Button / Destructive，带 18px `sign-out` 图标）

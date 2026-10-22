@@ -830,7 +830,7 @@
 - Hover
   - Background：`--color-library-media-card-hover-bg`
   - Cover Scale：`--scale-library-cover-hover`（Duration `--duration-library-cover-hover`，easeOut）
-  - 随未隐藏指针的当前位置更新（滚动期间按 `300ms` 防抖，菜单或对话框打开期间冻结在关联卡片上，关闭后立即按指针位置重算）；右键点击只触发 Hover，不改变 Selected
+  - 随未隐藏指针的当前位置更新（滚动期间按 `300ms` 防抖，键盘/手柄移动 Selected 时立即清除并抑制 Hover 直至鼠标实际移动，菜单或对话框打开期间冻结在关联卡片上，关闭后立即按指针位置重算）；右键点击只触发 Hover，不改变 Selected
 - Selected
   - Background：`--color-library-media-card-selected-bg`
   - Cover Scale：`--scale-library-cover-hover`（Duration `--duration-library-cover-hover`，easeOut）
