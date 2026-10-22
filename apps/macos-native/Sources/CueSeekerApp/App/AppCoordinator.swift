@@ -48,10 +48,8 @@ final class AppCoordinator: ObservableObject {
     let libraryDatabase: LibraryDatabase?
     let indexedContentDatabase: IndexedContentDatabase?
     let libraryCoverDatabase: LibraryCoverDatabase?
-    let excerptDatabase: ExcerptDatabase?
     let taskRecordDatabase: TaskRecordDatabase?
     let libraryUserCoverService: LibraryUserCoverService?
-    let excerptListCoverStorage: ExcerptListCoverStorage
     let workbenchLayout: WorkbenchLayoutState
     let playbackFullscreenManager = PlaybackFullscreenManager()
     var playbackPlayer: PlaybackPlayer? {
@@ -383,12 +381,10 @@ final class AppCoordinator: ObservableObject {
     var player: PlaybackPlayer?
     let libraryPlaybackHistoryWriter: LibraryPlaybackHistoryWriter
     var startupDatabaseTask: Task<Void, Never>?
-    var excerptNeedsReloadAfterIndexedContentMutation = false
     var recentNeedsReloadAfterIndexedMutation = false
     var libraryNeedsReloadAfterIndexedMutation = false
     var fileNeedsReloadAfterIndexedMutation = false
     var heldWorkbenchRoute: WorkbenchRoute?
-    var pendingExcerptContentRemovalFolders: [URL] = []
     var libraryTask: Task<Void, Never>?
     var recentWatchingTask: Task<Void, Never>?
     var testRecentWatchingTask: Task<Void, Never>?
@@ -402,11 +398,6 @@ final class AppCoordinator: ObservableObject {
     var libraryDisplayRenditionGeneration = 0
     var libraryCoverImportTask: Task<Void, Never>?
     var libraryCoverSaveTask: Task<Void, Never>?
-    var excerptListCoverImportTask: Task<Void, Never>?
-    var excerptListSaveTask: Task<Void, Never>?
-    var excerptListOverviewTask: Task<Void, Never>?
-    var excerptTableRowsTask: Task<Void, Never>?
-    var excerptMutationTask: Task<Void, Never>?
     var libraryPlaybackHistoryTask: Task<Void, Never>?
     var playbackSubtitleFocusInitialLoadTask: Task<Void, Never>?
     var playbackSubtitleFocusCompleteLoadTask: Task<Void, Never>?
@@ -416,8 +407,6 @@ final class AppCoordinator: ObservableObject {
     var databaseCompactionTask: Task<Void, Never>?
     var videoSizeTransitionTask: Task<Void, Never>?
     var windowFrameBeforeUserZoom: NSRect?
-    var excerptPlaybackNavigationScopeIDs: [Int64]?
-    var excerptPlaybackNavigationSnapshot: (currentID: Int64, previousID: Int64?, nextID: Int64?)?
     var activePlaybackSource: ActivePlaybackSource = .none
     /// An Add Folder, Index or Remove Folder took the item playing out of the
     /// library. It plays on; previous, next and Auto Switch go to the first
@@ -461,9 +450,6 @@ final class AppCoordinator: ObservableObject {
             .appendingPathComponent("Covers", isDirectory: true)
         self.databaseURL = resolvedDatabaseURL
         self.libraryCoverDirectory = resolvedLibraryCoverDirectory
-        self.excerptListCoverStorage = ExcerptListCoverStorage(
-            coverDirectory: resolvedLibraryCoverDirectory
-        )
         self.libraryFolderRemovalExecutor = libraryFolderRemovalExecutor
         playbackSubtitleFocusDatabaseReader = PlaybackSubtitleFocusDatabaseReader(
             databaseURL: resolvedDatabaseURL
@@ -486,10 +472,6 @@ final class AppCoordinator: ObservableObject {
         library = LibraryStore()
         let cueContentStore = CueContentStore()
         cueContent = cueContentStore
-        excerpt = ExcerptStore(
-            cueContentStore: cueContentStore,
-            uiProbeScope: uiProbeScope
-        )
         playback = PlaybackStore(
             userDefaults: userDefaults,
             interfaceLayers: interfaceLayers
@@ -555,7 +537,15 @@ final class AppCoordinator: ObservableObject {
         self.libraryDatabase = openedLibraryDatabase
         self.indexedContentDatabase = openedIndexedContentDatabase
         self.libraryCoverDatabase = openedLibraryCoverDatabase
-        self.excerptDatabase = openedExcerptDatabase
+        excerpt = ExcerptStore(
+            cueContentStore: cueContentStore,
+            databaseURL: resolvedDatabaseURL,
+            database: openedExcerptDatabase,
+            coverStorage: ExcerptListCoverStorage(
+                coverDirectory: resolvedLibraryCoverDirectory
+            ),
+            uiProbeScope: uiProbeScope
+        )
         self.taskRecordDatabase = openedTaskRecordDatabase
         self.tasks = TaskQueueStore(database: openedTaskRecordDatabase)
         self.libraryUserCoverService = openedLibraryCoverDatabase.map { database in

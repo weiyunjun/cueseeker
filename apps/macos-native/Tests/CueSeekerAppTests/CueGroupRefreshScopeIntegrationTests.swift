@@ -194,6 +194,9 @@ struct CueGroupRefreshScopeIntegrationTests {
             }
             try #require(didScrollSearch)
 
+            if let overview = try? app.excerptDatabase?.excerptListOverview() {
+                app.excerpt.installListOverview(overview)
+            }
             app.excerpt.setActiveListID(ExcerptListIdentity.defaultListID)
             app.workbenchLayout.navigate(
                 to: .excerptList(id: ExcerptListIdentity.defaultListID)
@@ -255,7 +258,9 @@ struct CueGroupRefreshScopeIntegrationTests {
             }
             try #require(didMountSearch)
 
-            app.activateWorkbenchPanelMode(.excerpt)
+            app.workbenchLayout.navigate(
+                to: .excerptList(id: ExcerptListIdentity.defaultListID)
+            )
             var remountedCoordinator: SubtitleTableView.Coordinator?
             let didRemountExcerptAtTop = await waitUntil(timeout: 2) {
                 window.contentView?.layoutSubtreeIfNeeded()
@@ -899,6 +904,9 @@ private final class CueGroupRefreshScopeMountedHarness {
                     cueID: $0.entryID,
                     createdAt: "2026-07-12T00:00:00Z"
                 )
+            }
+            if let overview = try? app.excerptDatabase?.excerptListOverview() {
+                app.excerpt.installListOverview(overview)
             }
             app.excerpt.setActiveListID(ExcerptListIdentity.defaultListID)
             app.workbenchLayout.navigate(

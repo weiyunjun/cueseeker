@@ -4,10 +4,23 @@ import CueSeekerCore
 
 @MainActor
 final class ExcerptStore: ObservableObject {
-    private let uiProbeScope: String?
+    let cueContentStore: CueContentStore
+    let databaseURL: URL?
+    let database: ExcerptDatabase?
+    let coverStorage: ExcerptListCoverStorage
+    let uiProbeScope: String?
     private var cueContentChangesCancellable: AnyCancellable?
     private var isTableProjectionResponseActive = true
     private var pendingCueContentChange: CueContentStoreChange?
+    var needsReloadAfterIndexedContentMutation = false
+    var pendingContentRemovalFolders: [URL] = []
+    var listCoverImportTask: Task<Void, Never>?
+    var listSaveTask: Task<Void, Never>?
+    var listOverviewTask: Task<Void, Never>?
+    var tableRowsTask: Task<Void, Never>?
+    var mutationTask: Task<Void, Never>?
+    var playbackNavigationScopeIDs: [Int64]?
+    var playbackNavigationSnapshot: (currentID: Int64, previousID: Int64?, nextID: Int64?)?
     @Published private(set) var listOverview = ExcerptListOverview(
         lists: [],
         uniqueCueCount: 0
@@ -90,10 +103,21 @@ final class ExcerptStore: ObservableObject {
 
     init(
         cueContentStore: CueContentStore? = nil,
+        databaseURL: URL? = nil,
+        database: ExcerptDatabase? = nil,
+        coverStorage: ExcerptListCoverStorage? = nil,
         uiProbeScope: String? = nil
     ) {
+        let resolvedCueContentStore = cueContentStore ?? CueContentStore()
+        let defaultCoverDir = (databaseURL ?? AppCoordinator.defaultDatabaseURL())
+            .deletingLastPathComponent()
+            .appendingPathComponent("Covers", isDirectory: true)
+        self.cueContentStore = resolvedCueContentStore
+        self.databaseURL = databaseURL
+        self.database = database
+        self.coverStorage = coverStorage ?? ExcerptListCoverStorage(coverDirectory: defaultCoverDir)
         self.uiProbeScope = uiProbeScope
-        cueContentChangesCancellable = cueContentStore?.changes.sink {
+        cueContentChangesCancellable = resolvedCueContentStore.changes.sink {
             [weak self] change in
             self?.receiveCueContentChange(change)
         }
@@ -448,8 +472,9 @@ final class ExcerptStore: ObservableObject {
 
     func applyRename(
         _ steps: [LibraryRenameStep],
-        cueContentStore: CueContentStore
+        cueContentStore: CueContentStore? = nil
     ) {
+        let cueContentStore = cueContentStore ?? self.cueContentStore
         residentFacetSnapshot = residentFacetSnapshot?.rewritingFolderPaths(steps)
         for relation in residentRelations {
             if let content = cueContentStore.content(for: relation.cueID) {
