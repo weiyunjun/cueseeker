@@ -1158,6 +1158,11 @@
 - Connector Width：`--width-playback-cue-timeline-connector`
 - Connector to Marker Gap：`--spacing-2`
 
+##### Motion
+
+- Scroll：历时 `--duration-subtitle-focus-scroll`，按 `--easing-subtitle-focus-scroll` 过渡
+- Focus Fade：导航使焦点字幕改变时，原 `Selected`（或正在淡入）字幕在 `--duration-subtitle-focus-fade-out` 内按 `--easing-subtitle-focus-fade` 过渡为 `Unselected` 颜色；导航期间所有字幕保持 `Unselected` 颜色，停止导航满 `--delay-subtitle-focus-fade-in` 后，目标字幕在 `--duration-subtitle-focus-fade-in` 内按 `--easing-subtitle-focus-fade` 过渡为 `Selected` 颜色（Primary Cue、Cue Group 与 Playback Cue Metadata 同步过渡）；初始呈现与首尾边界原地导航直接显示 `Selected` 颜色，不播放过渡
+
 ##### States
 
 - Empty

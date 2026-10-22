@@ -15,13 +15,13 @@ main
    - 新增 `--duration-subtitle-focus-fade-out`：`0.26s`（开始导航时原聚焦字幕褪为未选中颜色的淡出时长）。
    - 新增 `--delay-subtitle-focus-fade-in`：`0.18s`（导航防抖等待阈值）。
    - 新增 `--duration-subtitle-focus-fade-in`：`0.22s`（停止导航满防抖阈值后，目标聚焦字幕过渡为选中颜色的淡入时长）。
-   - 滚动与颜色淡入/淡出统一使用 `--easing-subtitle-focus-scroll`（`cubic-bezier(0.22, 1, 0.36, 1)`）。
+   - 新增 `--easing-subtitle-focus-fade`：`cubic-bezier(0.37, 0, 0.63, 1)`（焦点字幕颜色淡出与淡入的缓入缓出曲线；位置滚动继续使用 `--easing-subtitle-focus-scroll`：`cubic-bezier(0.22, 1, 0.36, 1)`）。
 
 2. **字幕流（Playback Cue Reel）导航防抖与焦点淡入淡出表现**：
    - **适用范围**：所有使用字幕流的场景（Playback Overlay 的 `Current`、`Playlist`、`Collage Editor` 以及 `Command Panel` 的字幕搜索结果）。
-   - **开始导航（淡出）**：通过键盘/手柄方向导航、滚轮/触控板滚动、拖拽右侧滚动条、点击非当前焦点字幕或点击 Collage 预览截图组使焦点字幕位置发生改变时，原已聚焦（或正处于半途淡入状态）的字幕立即从当前颜色进度开始，在 `--duration-subtitle-focus-fade-out`（`0.26s`）内平滑过渡为 `Unselected` 颜色。
+   - **开始导航（淡出）**：通过键盘/手柄方向导航、滚轮/触控板滚动、拖拽右侧滚动条、点击非当前焦点字幕或点击 Collage 预览截图组使焦点字幕位置发生改变时，原已聚焦（或正处于半途淡入状态）的字幕立即从当前颜色进度开始，在 `--duration-subtitle-focus-fade-out`（`0.26s`）内按 `--easing-subtitle-focus-fade` 平滑过渡为 `Unselected` 颜色。
    - **持续导航（防抖保持全暗）**：自最后一次导航位置变化起未满 `--delay-subtitle-focus-fade-in`（`0.18s`）期间，每次新的导航输入或滚动位置变化均重置防抖计时，所有字幕保持 `Unselected` 颜色（已处于淡出途中的字幕继续完成淡出）。
-   - **停止导航（淡入）**：当导航位置停止变化满 `--delay-subtitle-focus-fade-in`（`0.18s`）后（含按住滚动条停顿未松开鼠标的情形），当前停靠在焦点锚点的目标字幕在 `--duration-subtitle-focus-fade-in`（`0.22s`）内从 `Unselected` 颜色平滑过渡为 `Selected` 颜色。
+   - **停止导航（淡入）**：当导航位置停止变化满 `--delay-subtitle-focus-fade-in`（`0.18s`）后（含按住滚动条停顿未松开鼠标的情形），当前停靠在焦点锚点的目标字幕在 `--duration-subtitle-focus-fade-in`（`0.22s`）内按 `--easing-subtitle-focus-fade` 从 `Unselected` 颜色平滑过渡为 `Selected` 颜色。
    - **多层文字同频过渡**：单条字幕内的主台词（Primary Cue）、次要台词组（Cue Group，如有）与底部元数据（Playback Cue Metadata，如有）按同一过渡进度各自在 `Unselected` 与 `Selected` 颜色之间同步插值；Collage Editor 左侧的勾选框与时间轴连接线保持原有样式不变。
 
 3. **初始状态、边界与快捷键响应规则**：
