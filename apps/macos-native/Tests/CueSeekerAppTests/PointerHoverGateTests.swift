@@ -340,4 +340,90 @@ struct PointerHoverGateTests {
             ) == true
         )
     }
+
+    @MainActor
+    @Test
+    func synchronousMenuRelayClearsStaleTriggerButtonHoverWhenPointerMovedAwayWhileMenuWasOpen() {
+        AppCursorVisibility.resetForTesting()
+        PointerHoverScrollState.shared.resetForTesting()
+        defer { PointerHoverScrollState.shared.resetForTesting() }
+
+        let layers = InterfaceLayerRegistry()
+        var hoveredButtons: Set<Int> = []
+        let rowView = HStack(spacing: 10) {
+            ForEach(0..<3, id: \.self) { index in
+                Rectangle()
+                    .fill(Color.blue)
+                    .frame(width: 40, height: 30)
+                    .onPointerHover { isHovered in
+                        if isHovered {
+                            hoveredButtons.insert(index)
+                        } else {
+                            hoveredButtons.remove(index)
+                        }
+                    }
+            }
+            Spacer()
+        }
+        .frame(width: 220, height: 50)
+        .modifier(InterfaceLayerCoverageBridge(layers: layers))
+
+        let window = CueSeekerWindow(
+            contentRect: NSRect(x: -5_000, y: -5_000, width: 220, height: 50),
+            styleMask: [.borderless],
+            backing: .buffered,
+            defer: false
+        )
+        window.isWindowFocusedOverrideForTesting = true
+        let host = CueSeekerHostingView(rootView: rowView)
+        window.contentView = host
+        window.orderFrontRegardless()
+        host.layoutSubtreeIfNeeded()
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.03))
+
+        // 1. Hover button 0 (centered around x = 20, y = 25) and open its menu.
+        let button0Point = CGPoint(x: 20, y: 25)
+        host.mouseLocationOverrideForTesting = button0Point
+        host.syncMouseHoverForWindowFocus()
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.03))
+        #expect(hoveredButtons == [0])
+
+        var firstMenuToken: InterfaceLayerRegistry.OpenMenuToken? =
+            layers.registerOpenMenu(ownedBy: .workbenchPage)
+        #expect(layers.isFrozen(.workbenchPage))
+
+        // 2. While the menu is open, MenuGate swallows .mouseMoved outside the menu,
+        // so AppKit never sends mouseExited/.onHover(false) to button 0.
+        let outsideRowPoint = CGPoint(x: 190, y: 25)
+        host.mouseLocationOverrideForTesting = outsideRowPoint
+        #expect(hoveredButtons == [0])
+
+        // 3. Synchronously close the first menu and open a row context menu in the
+        // same call stack (zero RunLoop turns between close and reopen).
+        firstMenuToken = nil
+        var secondMenuToken: InterfaceLayerRegistry.OpenMenuToken? =
+            layers.registerOpenMenu(ownedBy: .workbenchPage)
+        #expect(layers.isFrozen(.workbenchPage))
+        #expect(!hoveredButtons.contains(0))
+
+        // Release second menu token and verify button 0 stays unhovered.
+        secondMenuToken = nil
+        _ = firstMenuToken
+        _ = secondMenuToken
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.03))
+        #expect(hoveredButtons.isEmpty)
+
+        // 4. When the pointer stays over button 0 while its menu is open and the
+        // menu closes without opening a new menu, button 0 keeps its Hover state.
+        host.mouseLocationOverrideForTesting = button0Point
+        host.syncMouseHoverForWindowFocus()
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.03))
+        #expect(hoveredButtons == [0])
+
+        var thirdMenuToken: InterfaceLayerRegistry.OpenMenuToken? =
+            layers.registerOpenMenu(ownedBy: .workbenchPage)
+        thirdMenuToken = nil
+        _ = thirdMenuToken
+        #expect(hoveredButtons == [0])
+    }
 }

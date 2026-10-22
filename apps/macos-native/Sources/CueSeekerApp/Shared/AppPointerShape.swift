@@ -87,7 +87,7 @@ struct PointerShapeModel: Equatable {
 }
 
 @MainActor
-private protocol CueSeekerHostingViewLocationOverride: AnyObject {
+protocol CueSeekerHostingViewLocationOverride: AnyObject {
     var mouseLocationOverrideForTesting: CGPoint? { get }
 }
 

@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import SwiftUI
 
@@ -227,24 +228,84 @@ struct PointerHoverGate: Equatable {
 }
 
 @MainActor
-private final class PointerHoverSession: ObservableObject {
+final class PointerHoverSession: ObservableObject {
+    private struct WeakBox {
+        weak var value: PointerHoverSession?
+    }
+
+    private static var registeredSessions: [ObjectIdentifier: WeakBox] = [:]
+
+    static func broadcastLayerFrozenChanged(
+        _ isFrozen: Bool,
+        matching predicate: (InterfaceLayer) -> Bool
+    ) {
+        registeredSessions = registeredSessions.filter { $0.value.value != nil }
+        for box in registeredSessions.values {
+            guard let session = box.value, predicate(session.layer) else {
+                continue
+            }
+            session.setFrozen(isFrozen)
+        }
+    }
+
     let id = UUID()
     var gate = PointerHoverGate()
+    var layer: InterfaceLayer = .workbenchPage
     var isFrozen = false
     var action: ((Bool) -> Void)?
+    weak var probeView: NSView?
+    private var hasInitializedFreeze = false
     private var isListeningToScrollState = false
+
+    init() {
+        Self.registeredSessions[ObjectIdentifier(self)] = WeakBox(value: self)
+    }
 
     deinit {
         let id = self.id
+        let key = ObjectIdentifier(self)
         if Thread.isMainThread {
             MainActor.assumeIsolated {
+                Self.registeredSessions.removeValue(forKey: key)
                 PointerHoverScrollState.shared.setActiveHoverListener(id: id, listener: nil)
             }
         } else {
             Task { @MainActor in
+                Self.registeredSessions.removeValue(forKey: key)
                 PointerHoverScrollState.shared.setActiveHoverListener(id: id, listener: nil)
             }
         }
+    }
+
+    func initializeIfNeeded(isFrozen: Bool) {
+        guard !hasInitializedFreeze else {
+            return
+        }
+        hasInitializedFreeze = true
+        self.isFrozen = isFrozen
+    }
+
+    func setFrozen(_ isFrozen: Bool) {
+        let wasFrozen = self.isFrozen
+        hasInitializedFreeze = true
+        self.isFrozen = isFrozen
+        if !isFrozen, (wasFrozen || gate.hasActiveHover), currentPointerInsideView() == false {
+            let scrollState = PointerHoverScrollState.shared
+            let delivered = gate.report(
+                false,
+                isFrozen: false,
+                isScrolling: scrollState.isScrolling,
+                isCursorHidden: AppCursorVisibility.isCursorHidden,
+                isSuppressedByKeyboard: scrollState.isSuppressedByKeyboardOrController
+            )
+            syncScrollListener()
+            action?(delivered ?? false)
+            return
+        }
+        guard wasFrozen != isFrozen else {
+            return
+        }
+        handleStateChanged()
     }
 
     func report(_ isHovered: Bool) {
@@ -298,33 +359,113 @@ private final class PointerHoverSession: ObservableObject {
             PointerHoverScrollState.shared.setActiveHoverListener(id: id, listener: nil)
         }
     }
+
+    private func currentPointerInsideView() -> Bool? {
+        guard let probeView,
+              let window = probeView.window,
+              !probeView.isHiddenOrHasHiddenAncestor,
+              probeView.bounds.width > 0,
+              probeView.bounds.height > 0
+        else {
+            return nil
+        }
+        let isWindowFocused: Bool
+        if let cueSeekerWindow = window as? CueSeekerWindow {
+            isWindowFocused = cueSeekerWindow.isFocusedForHover
+        } else {
+            isWindowFocused = NSApp.isActive && window.isKeyWindow
+        }
+        guard isWindowFocused else {
+            return false
+        }
+        let overrideLocation = resolveMouseLocationOverride(from: probeView, in: window)
+        if overrideLocation == nil,
+           (window as? CueSeekerWindow)?.isWindowFocusedOverrideForTesting == nil {
+            guard NSWindow.windowNumber(
+                at: NSEvent.mouseLocation,
+                belowWindowWithWindowNumber: 0
+            ) == window.windowNumber else {
+                return false
+            }
+        }
+        let locationInWindow = overrideLocation ?? window.mouseLocationOutsideOfEventStream
+        let localPoint = probeView.convert(locationInWindow, from: nil)
+        let visibleBounds = probeView.bounds.intersection(probeView.visibleRect)
+        return !visibleBounds.isEmpty && visibleBounds.contains(localPoint)
+    }
+
+    private func resolveMouseLocationOverride(
+        from view: NSView,
+        in window: NSWindow
+    ) -> CGPoint? {
+        var current: NSView? = view
+        while let candidate = current {
+            if let overrideSource = candidate as? CueSeekerHostingViewLocationOverride,
+               let point = overrideSource.mouseLocationOverrideForTesting {
+                return point
+            }
+            current = candidate.superview
+        }
+        return (window.contentView as? CueSeekerHostingViewLocationOverride)?
+            .mouseLocationOverrideForTesting
+    }
+}
+
+private final class PointerHoverProbeView: NSView {
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        nil
+    }
+}
+
+private struct PointerHoverProbe: NSViewRepresentable {
+    let session: PointerHoverSession
+
+    func makeNSView(context: Context) -> NSView {
+        let view = PointerHoverProbeView()
+        session.probeView = view
+        return view
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        session.probeView = nsView
+    }
 }
 
 private struct PointerHoverModifier: ViewModifier {
     let action: (Bool) -> Void
+    @Environment(\.interfaceLayers) private var interfaceLayers
     @Environment(\.interfaceLayerContext) private var layerContext
     @StateObject private var session = PointerHoverSession()
 
+    private var effectiveIsFrozen: Bool {
+        interfaceLayers?.isFrozen(layerContext.layer) ?? layerContext.isFrozen
+    }
+
     func body(content: Content) -> some View {
+        let isFrozen = effectiveIsFrozen
         let _ = {
             session.action = action
-            session.isFrozen = layerContext.isFrozen
+            session.layer = layerContext.layer
+            session.initializeIfNeeded(isFrozen: isFrozen)
         }()
         content
+            .background(PointerHoverProbe(session: session))
             .onAppear {
                 session.action = action
-                session.isFrozen = layerContext.isFrozen
+                session.layer = layerContext.layer
+                session.setFrozen(effectiveIsFrozen)
                 session.syncScrollListener()
             }
             .onHover { isHovered in
                 session.action = action
-                session.isFrozen = layerContext.isFrozen
+                session.layer = layerContext.layer
+                session.isFrozen = effectiveIsFrozen
                 session.report(isHovered)
             }
             .onChange(of: layerContext.isFrozen) { isFrozen in
                 session.action = action
-                session.isFrozen = isFrozen
-                session.handleStateChanged()
+                session.layer = layerContext.layer
+                session.setFrozen(interfaceLayers?.isFrozen(layerContext.layer) ?? isFrozen)
             }
             .onDisappear {
                 session.unregisterScrollListener()

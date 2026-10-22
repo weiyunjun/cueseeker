@@ -88,6 +88,15 @@ final class InterfaceLayerRegistry: ObservableObject {
                 topDialogSize = nil
             }
         }
+        CardHighlightModel.broadcastLayerFrozenChanged(isOpen) { candidate in
+            self.isFrozen(candidate) == isOpen
+        }
+        PointerHoverSession.broadcastLayerFrozenChanged(isOpen) { candidate in
+            self.isFrozen(candidate) == isOpen
+        }
+        if !isOpen {
+            NotificationCenter.default.post(name: .cueSeekerScrollDebounceSettled, object: nil)
+        }
         AppPointerShape.reevaluateAfterInterfaceChange()
         TooltipCenter.shared.dismissFromUserInteraction()
     }
@@ -137,6 +146,9 @@ final class InterfaceLayerRegistry: ObservableObject {
         CardHighlightModel.broadcastLayerFrozenChanged(true) { layer in
             self.isFrozen(layer)
         }
+        PointerHoverSession.broadcastLayerFrozenChanged(true) { layer in
+            self.isFrozen(layer)
+        }
         TooltipCenter.shared.dismissFromUserInteraction()
         return OpenMenuToken(registry: self, owner: owner)
     }
@@ -152,6 +164,12 @@ final class InterfaceLayerRegistry: ObservableObject {
         }
         CardHighlightModel.broadcastLayerFrozenChanged(false) { layer in
             !self.isFrozen(layer)
+        }
+        PointerHoverSession.broadcastLayerFrozenChanged(false) { layer in
+            !self.isFrozen(layer)
+        }
+        if !isFrozen(owner) {
+            NotificationCenter.default.post(name: .cueSeekerScrollDebounceSettled, object: nil)
         }
     }
 
