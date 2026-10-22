@@ -3,7 +3,7 @@ import Foundation
 import SwiftUI
 import CueSeekerCore
 
-struct SearchView: View {
+struct WorkbenchWorkspaceView: View {
     @EnvironmentObject private var appState: AppCoordinator
     @EnvironmentObject private var routeState: WorkbenchRouteState
     // Observed so a Excerpt detail turns into the unknown page when its list
@@ -13,7 +13,7 @@ struct SearchView: View {
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
-        AppPerformanceProbe.measure("SearchView.body", thresholdMilliseconds: 4) {
+        AppPerformanceProbe.measure("WorkbenchWorkspaceView.body", thresholdMilliseconds: 4) {
             UIInvalidationProbe.count(
                 "UI.Workbench.body",
                 scope: appState.uiProbeScope
@@ -46,7 +46,7 @@ struct SearchView: View {
                 }
                 .frame(width: geometry.size.width, height: geometry.size.height)
                 .clipped()
-                .background(LayoutPerformanceProbe(name: "SearchView.root.layout"))
+                .background(LayoutPerformanceProbe(name: "WorkbenchWorkspaceView.root.layout"))
                 // This is where the playback page is routed over the whole
                 // workbench, so this is where that layer is registered.
                 .onAppear {
@@ -64,7 +64,7 @@ struct SearchView: View {
 
     @ViewBuilder
     private var mainContent: some View {
-        AppPerformanceProbe.measure("SearchView.mainContent.body", thresholdMilliseconds: 4) {
+        AppPerformanceProbe.measure("WorkbenchWorkspaceView.mainContent.body", thresholdMilliseconds: 4) {
             UIInvalidationProbe.count(
                 "UI.WorkbenchMainContent.body",
                 scope: appState.uiProbeScope,
@@ -78,7 +78,7 @@ struct SearchView: View {
                 case .recentWatching:
                     WorkbenchRecentView()
                 case .testLibrary:
-                    WorkbenchTestLibraryView()
+                    WorkbenchLibraryView()
                 case .file:
                     WorkbenchFileView(tasks: appState.tasks)
                 case .search:
@@ -101,7 +101,7 @@ struct SearchView: View {
             Color(nsColor: .textBackgroundColor)
                 .ignoresSafeArea()
 
-            WorkbenchTestSearchView(
+            WorkbenchSearchView(
                 rowStore: appState.search.tableRowStore,
                 isTableResponseActive: !appState.isPlaybackPageVisible
             )

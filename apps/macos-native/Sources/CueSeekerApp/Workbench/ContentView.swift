@@ -370,7 +370,7 @@ private struct ContentRootView: View {
 
     @ViewBuilder
     private var mainWorkspace: some View {
-        SearchView()
+        WorkbenchWorkspaceView()
     }
 
     private func collapseSidebarForCompactWindowIfNeeded(

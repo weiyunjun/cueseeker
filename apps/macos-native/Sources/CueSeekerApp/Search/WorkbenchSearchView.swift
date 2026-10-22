@@ -30,7 +30,7 @@ private struct WorkbenchSearchTableTextCopySource {
     let watchStateFilter: SubtitleSearchWatchStateFilter
 }
 
-struct WorkbenchTestSearchView: View {
+struct WorkbenchSearchView: View {
     let isTableResponseActive: Bool
     @EnvironmentObject private var appState: AppCoordinator
     @EnvironmentObject private var search: SearchStore

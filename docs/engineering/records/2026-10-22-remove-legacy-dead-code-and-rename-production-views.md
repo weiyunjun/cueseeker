@@ -17,6 +17,12 @@
    - Removed the `isRedesign: Bool` parameter and all `isRedesign == false` fallback branches from `SubtitleTableView.swift`, `WorkbenchPageScrollbar.swift`, `SchemaWorkbenchSearchShell.swift`, and `WorkbenchControls.swift`.
    - Removed legacy-only types and palettes (`SubtitleTableColumnLayout.legacy`, `SubtitleTableText.legacyBodyFont`/`indexFont`/`headerFont`, `WorkbenchControlColors`, `WorkbenchControlBackground`, and unused pre-redesign `WorkbenchTagColorID` cases in `WorkbenchTag.swift`).
    - Removed `isRedesign: true` arguments across all 36 source files and 10 test files.
+4. **Sub-step 1D — Relocated and Renamed Production Views Out of `TableSandbox/`**:
+   - Renamed and moved `Search/SearchView.swift` (`struct SearchView`) to `Workbench/WorkbenchWorkspaceView.swift` (`struct WorkbenchWorkspaceView`).
+   - Renamed and moved `TableSandbox/WorkbenchTestSearchView.swift` to `Search/WorkbenchSearchView.swift` (`struct WorkbenchSearchView`).
+   - Renamed and moved `TableSandbox/WorkbenchTestLibraryView.swift` to `Library/WorkbenchLibraryView.swift` (`struct WorkbenchLibraryView`, `WorkbenchLibraryMetrics`).
+   - Moved `TableSandbox/WorkbenchExcerptTableView.swift` to `Excerpt/WorkbenchExcerptTableView.swift`.
+   - Moved the remaining 12 shared subtitle-table files from `TableSandbox/` into `Shared/SubtitleTable/` (renaming `TableSandboxRow*.swift` and `TableSandboxVisibleSearchHydrator.swift` to `SubtitleTable*.swift`) and removed the obsolete `TableSandbox/` directory.
 
 ## Verification
 - Verified `swift build --package-path apps/macos-native` and targeted unit test suites (`SubtitleScreenshotExporterTests`, `TableSandboxRowModelStoreTests`, `PlaybackSubtitleDatabaseTests`, `SubtitleTableClipboardTests`, `PlaybackExcerptOverlayTests`, `PlaybackMultiModuleOverlayIntegrationTests`, `PlaybackSubtitleFocusLayoutTests`, `PlaybackSubtitleFocusSessionStoreTests`, `PlaybackPlaylistReelAdapterTests`, `CASSRenderingProbeTests`, `SubtitleTableScrollbarMetricsTests`, `SubtitleTableTagStyleTests`, `SubtitleTextLayoutDecorationTests`, `SubtitleTextLayoutTests`, `WorkbenchPageScrollbarTests`, `MenuPanelHeightTests`, `WorkbenchControlMetricsTests`, `WorkbenchInputControlsTests`, `WorkbenchEmptyHintTests`) pass with 0 errors.

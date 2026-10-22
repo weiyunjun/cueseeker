@@ -23,7 +23,7 @@ struct WorkbenchRecentView: View {
         ) { _ in
         GeometryReader { geometry in
             WorkbenchScrollView {
-                VStack(alignment: .leading, spacing: WorkbenchTestLibraryMetrics.sectionSpacing) {
+                VStack(alignment: .leading, spacing: WorkbenchLibraryMetrics.sectionSpacing) {
                     switch routeState.selectedRecentSection {
                     case .videos:
                         recentVideosContent(
@@ -34,8 +34,8 @@ struct WorkbenchRecentView: View {
                         recentExcerptsContent(excerpt.recentListSummaries)
                     }
                 }
-                .padding(.top, WorkbenchTestLibraryMetrics.pageTopPadding)
-                .padding(.bottom, WorkbenchTestLibraryMetrics.pageBottomPadding)
+                .padding(.top, WorkbenchLibraryMetrics.pageTopPadding)
+                .padding(.bottom, WorkbenchLibraryMetrics.pageBottomPadding)
                 .environment(
                     \.mediaCardGridContainerWidth,
                     WorkbenchControlMetrics.workbenchMediaCardGridWidth(
@@ -130,7 +130,7 @@ struct WorkbenchRecentView: View {
     }
 }
 
-struct WorkbenchTestLibraryView: View {
+struct WorkbenchLibraryView: View {
     // Observed so the copy below is re-read when the language changes.
     @EnvironmentObject private var localization: AppLocalizationStore
     @EnvironmentObject private var appState: AppCoordinator
@@ -169,7 +169,7 @@ struct WorkbenchTestLibraryView: View {
                                 )
                                 .padding(
                                     .bottom,
-                                    WorkbenchTestLibraryMetrics.pageBottomPadding
+                                    WorkbenchLibraryMetrics.pageBottomPadding
                                 )
                                 .environment(
                                     \.mediaCardGridContainerWidth,
@@ -599,7 +599,7 @@ struct WorkbenchTestLibraryView: View {
 
 }
 
-private extension WorkbenchTestLibraryView {
+private extension WorkbenchLibraryView {
     /// The route names the folder by path; the summary is read live, so a
     /// re-index that changes the cover or the count shows without a reload.
     var selectedFolder: CompleteLibraryFolderSummaryPresentation? {
@@ -627,7 +627,7 @@ private extension WorkbenchTestLibraryView {
 }
 
 
-private enum WorkbenchTestLibraryMetrics {
+private enum WorkbenchLibraryMetrics {
     static let pageTopPadding =
         WorkbenchControlMetrics.redesignWorkbenchPageTopPadding
     static let pageBottomPadding =
@@ -920,18 +920,18 @@ private struct LibraryVideoCard: View {
             highlight.notePress(id: cardID)
             onOpen()
         } label: {
-            VStack(alignment: .leading, spacing: WorkbenchTestLibraryMetrics.recentCardGap) {
+            VStack(alignment: .leading, spacing: WorkbenchLibraryMetrics.recentCardGap) {
                 cover
 
                 Text(content.folderTitle)
-                    .font(.system(size: WorkbenchTestLibraryMetrics.titleSize, weight: .semibold))
+                    .font(.system(size: WorkbenchLibraryMetrics.titleSize, weight: .semibold))
                     .foregroundStyle(WorkbenchRedesignColors.textPrimary)
                     .lineLimit(1)
                     .frame(maxWidth: .infinity, alignment: .leading)
 
                 HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
                     Text(episodeLabel)
-                        .font(.system(size: WorkbenchTestLibraryMetrics.metaSize, weight: .medium))
+                        .font(.system(size: WorkbenchLibraryMetrics.metaSize, weight: .medium))
                         .foregroundStyle(WorkbenchRedesignColors.textMuted)
                         .monospacedDigit()
 
@@ -1758,8 +1758,8 @@ private struct LibraryCoverHoverEffectModifier: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .scaleEffect(isActive ? WorkbenchTestLibraryMetrics.coverHoverScale : 1)
-            .animation(.easeOut(duration: WorkbenchTestLibraryMetrics.coverHoverDuration), value: isActive)
+            .scaleEffect(isActive ? WorkbenchLibraryMetrics.coverHoverScale : 1)
+            .animation(.easeOut(duration: WorkbenchLibraryMetrics.coverHoverDuration), value: isActive)
     }
 }
 
@@ -1812,20 +1812,20 @@ struct LibraryCoverWithProgress: View {
                 }
 
                 Text(timeBadgeText)
-                    .font(.system(size: WorkbenchTestLibraryMetrics.timeBadgeSize, weight: .semibold))
+                    .font(.system(size: WorkbenchLibraryMetrics.timeBadgeSize, weight: .semibold))
                     .foregroundStyle(WorkbenchRedesignColors.libraryTimeBadgeText)
                     .monospacedDigit()
-                    .padding(.horizontal, WorkbenchTestLibraryMetrics.timeBadgeHorizontalPadding)
-                    .padding(.vertical, WorkbenchTestLibraryMetrics.timeBadgeVerticalPadding)
+                    .padding(.horizontal, WorkbenchLibraryMetrics.timeBadgeHorizontalPadding)
+                    .padding(.vertical, WorkbenchLibraryMetrics.timeBadgeVerticalPadding)
                     .background(
                         RoundedRectangle(
-                            cornerRadius: WorkbenchTestLibraryMetrics.timeBadgeRadius,
+                            cornerRadius: WorkbenchLibraryMetrics.timeBadgeRadius,
                             style: .continuous
                         )
                         .fill(WorkbenchRedesignColors.libraryTimeBadgeBg)
                     )
-                    .padding(.trailing, WorkbenchTestLibraryMetrics.timeBadgeInset)
-                    .padding(.bottom, WorkbenchTestLibraryMetrics.timeBadgeInset)
+                    .padding(.trailing, WorkbenchLibraryMetrics.timeBadgeInset)
+                    .padding(.bottom, WorkbenchLibraryMetrics.timeBadgeInset)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
             }
         }
@@ -1849,7 +1849,7 @@ struct LibraryCoverWithProgress: View {
                     .frame(width: proxy.size.width * progressFraction)
             }
         }
-        .frame(height: WorkbenchTestLibraryMetrics.progressBarHeight)
+        .frame(height: WorkbenchLibraryMetrics.progressBarHeight)
         .frame(maxHeight: .infinity, alignment: .bottom)
     }
 
@@ -1937,20 +1937,20 @@ private struct LibraryCoverWithBadge: View {
                 )
 
                 Text(badgeText)
-                    .font(.system(size: WorkbenchTestLibraryMetrics.timeBadgeSize, weight: .semibold))
+                    .font(.system(size: WorkbenchLibraryMetrics.timeBadgeSize, weight: .semibold))
                     .foregroundStyle(WorkbenchRedesignColors.libraryTimeBadgeText)
                     .monospacedDigit()
-                    .padding(.horizontal, WorkbenchTestLibraryMetrics.timeBadgeHorizontalPadding)
-                    .padding(.vertical, WorkbenchTestLibraryMetrics.timeBadgeVerticalPadding)
+                    .padding(.horizontal, WorkbenchLibraryMetrics.timeBadgeHorizontalPadding)
+                    .padding(.vertical, WorkbenchLibraryMetrics.timeBadgeVerticalPadding)
                     .background(
                         RoundedRectangle(
-                            cornerRadius: WorkbenchTestLibraryMetrics.timeBadgeRadius,
+                            cornerRadius: WorkbenchLibraryMetrics.timeBadgeRadius,
                             style: .continuous
                         )
                         .fill(WorkbenchRedesignColors.libraryTimeBadgeBg)
                     )
-                    .padding(.trailing, WorkbenchTestLibraryMetrics.timeBadgeInset)
-                    .padding(.bottom, WorkbenchTestLibraryMetrics.timeBadgeInset)
+                    .padding(.trailing, WorkbenchLibraryMetrics.timeBadgeInset)
+                    .padding(.bottom, WorkbenchLibraryMetrics.timeBadgeInset)
             }
         }
     }
@@ -2153,7 +2153,7 @@ private struct LibraryEmptyHint<Content: View>: View {
 
     var body: some View {
         content
-            .font(.system(size: WorkbenchTestLibraryMetrics.metaSize))
+            .font(.system(size: WorkbenchLibraryMetrics.metaSize))
             .foregroundStyle(WorkbenchRedesignColors.textMuted)
             .frame(maxWidth: .infinity, minHeight: 120, alignment: .center)
     }
