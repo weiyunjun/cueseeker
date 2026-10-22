@@ -1,0 +1,373 @@
+import CoreGraphics
+import CueSeekerCore
+import SwiftUI
+
+private struct LibraryCoverHoverEffectModifier: ViewModifier {
+    let isActive: Bool
+
+    func body(content: Content) -> some View {
+        content
+            .scaleEffect(isActive ? WorkbenchLibraryMetrics.coverHoverScale : 1)
+            .animation(.easeOut(duration: WorkbenchLibraryMetrics.coverHoverDuration), value: isActive)
+    }
+}
+
+extension View {
+    func libraryCoverHoverEffect(isActive: Bool) -> some View {
+        modifier(LibraryCoverHoverEffectModifier(isActive: isActive))
+    }
+}
+
+struct LibraryCoverWithProgress: View {
+    let coverPath: String?
+    let coverRevision: String?
+    let positionMilliseconds: Int
+    let duration: Double?
+
+    private var presentation: LibraryCoverProgressPresentation {
+        LibraryCoverProgressPresentation(
+            positionMilliseconds: positionMilliseconds,
+            duration: duration
+        )
+    }
+
+    private var progressFraction: Double? {
+        presentation.progressFraction
+    }
+
+    var body: some View {
+        LibraryCoverFrame {
+            ZStack(alignment: .bottomLeading) {
+                coverImage
+
+                if let progressFraction {
+                    progressTrack(progressFraction: progressFraction)
+                }
+
+                Text(timeBadgeText)
+                    .font(.system(size: WorkbenchLibraryMetrics.timeBadgeSize, weight: .semibold))
+                    .foregroundStyle(WorkbenchRedesignColors.libraryTimeBadgeText)
+                    .monospacedDigit()
+                    .padding(.horizontal, WorkbenchLibraryMetrics.timeBadgeHorizontalPadding)
+                    .padding(.vertical, WorkbenchLibraryMetrics.timeBadgeVerticalPadding)
+                    .background(
+                        RoundedRectangle(
+                            cornerRadius: WorkbenchLibraryMetrics.timeBadgeRadius,
+                            style: .continuous
+                        )
+                        .fill(WorkbenchRedesignColors.libraryTimeBadgeBg)
+                    )
+                    .padding(.trailing, WorkbenchLibraryMetrics.timeBadgeInset)
+                    .padding(.bottom, WorkbenchLibraryMetrics.timeBadgeInset)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+            }
+        }
+    }
+
+    private var coverImage: some View {
+        LibraryCachedCoverImage(
+            coverPath: coverPath,
+            coverRevision: coverRevision
+        )
+    }
+
+    private func progressTrack(progressFraction: Double) -> some View {
+        GeometryReader { proxy in
+            ZStack(alignment: .leading) {
+                Rectangle()
+                    .fill(WorkbenchRedesignColors.libraryProgressTrack)
+
+                Rectangle()
+                    .fill(WorkbenchRedesignColors.libraryProgressFill)
+                    .frame(width: proxy.size.width * progressFraction)
+            }
+        }
+        .frame(height: WorkbenchLibraryMetrics.progressBarHeight)
+        .frame(maxHeight: .infinity, alignment: .bottom)
+    }
+
+    private var timeBadgeText: String {
+        presentation.timeBadgeText
+    }
+}
+
+struct LibraryCoverProgressPresentation: Equatable {
+    let positionMilliseconds: Int
+    let duration: Double?
+
+    var progressFraction: Double? {
+        guard let duration, duration.isFinite, duration > 0 else {
+            return nil
+        }
+
+        let durationMilliseconds = duration * 1_000
+        guard durationMilliseconds > 0 else {
+            return nil
+        }
+
+        let progress = min(1, max(0, Double(max(0, positionMilliseconds)) / durationMilliseconds))
+        return progress > 0 ? progress : nil
+    }
+
+    var timeBadgeText: String {
+        guard let duration, duration.isFinite, duration > 0 else {
+            return Self.formatTime(milliseconds: positionMilliseconds)
+        }
+
+        let current = Self.formatTime(milliseconds: positionMilliseconds)
+        return "\(current)/\(Self.formatTime(seconds: duration))"
+    }
+
+    func coverSummaryProgress(episodeNumber: Int) -> CoverSummaryProgress {
+        let episodeLabel = String(format: "EP%02d", episodeNumber)
+        let current = Self.formatTime(milliseconds: positionMilliseconds)
+        let timeText: String
+        let fraction: Double
+        if let duration, duration.isFinite, duration > 0 {
+            timeText = "\(current) / \(Self.formatTime(seconds: duration))"
+            let durationMilliseconds = duration * 1_000
+            fraction = durationMilliseconds > 0
+                ? min(1, max(0, Double(max(0, positionMilliseconds)) / durationMilliseconds))
+                : 0
+        } else {
+            timeText = current
+            fraction = 0
+        }
+        return CoverSummaryProgress(
+            labelText: "\(episodeLabel)  \(timeText)",
+            fraction: fraction
+        )
+    }
+
+    private static func formatTime(milliseconds: Int) -> String {
+        formatTime(seconds: Double(max(0, milliseconds)) / 1_000)
+    }
+
+    private static func formatTime(seconds: Double) -> String {
+        let totalSeconds = max(0, Int(seconds.rounded(.down)))
+        let hours = totalSeconds / 3_600
+        let minutes = (totalSeconds % 3_600) / 60
+        let seconds = totalSeconds % 60
+
+        if hours > 0 {
+            return String(format: "%d:%02d:%02d", hours, minutes, seconds)
+        }
+        return String(format: "%d:%02d", minutes, seconds)
+    }
+}
+
+struct LibraryCoverWithBadge: View {
+    let coverPath: String?
+    let coverRevision: String?
+    let badgeText: String
+
+    var body: some View {
+        LibraryCoverFrame {
+            ZStack(alignment: .bottomTrailing) {
+                LibraryCachedCoverImage(
+                    coverPath: coverPath,
+                    coverRevision: coverRevision
+                )
+
+                Text(badgeText)
+                    .font(.system(size: WorkbenchLibraryMetrics.timeBadgeSize, weight: .semibold))
+                    .foregroundStyle(WorkbenchRedesignColors.libraryTimeBadgeText)
+                    .monospacedDigit()
+                    .padding(.horizontal, WorkbenchLibraryMetrics.timeBadgeHorizontalPadding)
+                    .padding(.vertical, WorkbenchLibraryMetrics.timeBadgeVerticalPadding)
+                    .background(
+                        RoundedRectangle(
+                            cornerRadius: WorkbenchLibraryMetrics.timeBadgeRadius,
+                            style: .continuous
+                        )
+                        .fill(WorkbenchRedesignColors.libraryTimeBadgeBg)
+                    )
+                    .padding(.trailing, WorkbenchLibraryMetrics.timeBadgeInset)
+                    .padding(.bottom, WorkbenchLibraryMetrics.timeBadgeInset)
+            }
+        }
+    }
+}
+
+struct LibraryCachedCoverImage: View {
+    let coverPath: String?
+    let coverRevision: String?
+    var imageVerticalAlignment: LibraryCoverImageFillLayout.VerticalAlignment = .top
+
+    @State private var loadedImage: LoadedImage?
+    @State private var activeRequestID: UUID?
+    @State private var loadFailed = false
+
+    private struct LoadedImage {
+        let key: LibraryCoverImageKey
+        let image: CGImage
+    }
+
+    private var key: LibraryCoverImageKey? {
+        LibraryCoverImageKey.current(path: coverPath, revision: coverRevision)
+    }
+
+    private var currentImage: CGImage? {
+        if let key, let loadedImage, loadedImage.key == key {
+            return loadedImage.image
+        }
+        if let key, let cached = LibraryCoverImagePipeline.shared.cachedImage(for: key) {
+            return cached
+        }
+        return nil
+    }
+
+    var body: some View {
+        ZStack {
+            if let currentImage {
+                LibraryCoverFillImage(
+                    image: currentImage,
+                    verticalAlignment: imageVerticalAlignment
+                )
+            } else if key != nil && !loadFailed {
+                Color.clear
+            } else {
+                defaultCover
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .clipped()
+        .task(id: key) {
+            await loadImage(for: key)
+        }
+        .onDisappear {
+            activeRequestID = nil
+        }
+    }
+
+    private var defaultCover: some View {
+        ZStack {
+            Rectangle()
+                .fill(WorkbenchRedesignColors.libraryCoverPlaceholderBg)
+
+            AppIconImage(.video, size: WorkbenchControlMetrics.redesignCoverPlaceholderIconSize)
+                .foregroundStyle(WorkbenchRedesignColors.textMuted)
+                .accessibilityHidden(true)
+        }
+    }
+
+    @MainActor
+    private func loadImage(for key: LibraryCoverImageKey?) async {
+        guard let key else {
+            activeRequestID = nil
+            loadedImage = nil
+            loadFailed = false
+            return
+        }
+
+        if let cached = LibraryCoverImagePipeline.shared.cachedImage(for: key) {
+            activeRequestID = nil
+            loadedImage = LoadedImage(key: key, image: cached)
+            loadFailed = false
+            return
+        }
+
+        let requestID = UUID()
+        activeRequestID = requestID
+
+        if loadedImage?.key != key {
+            loadFailed = false
+        }
+
+        do {
+            let image = try await LibraryCoverImagePipeline.shared.image(for: key)
+            try Task.checkCancellation()
+
+            guard activeRequestID == requestID else {
+                return
+            }
+
+            if let image {
+                loadedImage = LoadedImage(key: key, image: image)
+                loadFailed = false
+            } else {
+                loadedImage = nil
+                loadFailed = true
+            }
+        } catch is CancellationError {
+            return
+        } catch {
+            guard activeRequestID == requestID else {
+                return
+            }
+            loadedImage = nil
+            loadFailed = true
+        }
+    }
+}
+
+enum LibraryWatchStatus: Equatable {
+    case unwatched
+    case watching
+    case finished
+
+    init(positionMilliseconds: Int, duration: Double?) {
+        self.init(
+            LibraryWatchState(
+                positionMilliseconds: positionMilliseconds,
+                duration: duration
+            )
+        )
+    }
+
+    init(_ state: LibraryWatchState) {
+        switch state {
+        case .unwatched:
+            self = .unwatched
+        case .watching:
+            self = .watching
+        case .finished:
+            self = .finished
+        }
+    }
+
+    var title: String {
+        switch self {
+        case .unwatched:
+            return L("facet.watch_status.unwatched")
+        case .watching:
+            return L("facet.watch_status.watching")
+        case .finished:
+            return L("facet.watch_status.finished")
+        }
+    }
+
+    var foregroundColor: Color {
+        switch self {
+        case .unwatched:
+            return WorkbenchRedesignColors.watchStatusUnwatchedText
+        case .watching:
+            return WorkbenchRedesignColors.watchStatusWatchingText
+        case .finished:
+            return WorkbenchRedesignColors.watchStatusFinishedText
+        }
+    }
+
+    var fillColor: Color {
+        switch self {
+        case .unwatched:
+            return WorkbenchRedesignColors.watchStatusUnwatchedBg
+        case .watching:
+            return WorkbenchRedesignColors.watchStatusWatchingBg
+        case .finished:
+            return WorkbenchRedesignColors.watchStatusFinishedBg
+        }
+    }
+}
+
+struct WatchStatusBadge: View {
+    let status: LibraryWatchStatus
+
+    var body: some View {
+        WorkbenchBadge(
+            title: status.title,
+            foregroundColor: status.foregroundColor,
+            fillColor: status.fillColor
+        )
+    }
+}

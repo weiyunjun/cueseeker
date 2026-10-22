@@ -14,6 +14,12 @@
    - `SubtitleTableCoordinator+Menus.swift` (771 lines): `MenuGate` and `MenuHostingView` row action menu and destination submenu presentation and action dispatch.
    - `SubtitleTableCoordinator+Testing.swift` (530 lines): Isolated all `*ForTesting` inspection and interaction hooks on `SubtitleTableView.Coordinator`.
    - `SubtitleTableView.swift` (1,570 lines): `SubtitleTableView` (`NSViewRepresentable`) and core `Coordinator` state, lifecycle, diffing, layout, and `DynamicScrollAnchor` preservation.
+2. **Sub-step 2B — Split `WorkbenchLibraryView.swift` (2,212 Lines) into 5 Focused Files**:
+   - `WorkbenchRecentView.swift` (163 lines): `WorkbenchRecentView`, `RecentTimeSection`, `RecentSectionTitleView`.
+   - `WorkbenchLibraryView.swift` (593 lines): `WorkbenchLibraryView`, `WorkbenchLibraryMetrics`, Library overview & folder detail views, `LibrarySortMenuPopover`.
+   - `LibraryMediaCards.swift` (485 lines): Shared `RecentWatchingGrid`, `LibraryVideoCardGrid`, `LibraryVideoCard`, `CompleteLibraryFolderGrid`, `LibraryFolderCard`, `CompleteLibraryEpisodeGrid`.
+   - `LibraryCardContextMenuHost.swift` (608 lines): `LibraryCardContextMenuHost`, `LibraryCardContextMenu`, `LibraryCardRightClickMonitor`, and viewport/menu geometry helpers.
+   - `LibraryCoverViews.swift` (373 lines): `LibraryCoverWithProgress`, `LibraryCoverWithBadge`, `LibraryCachedCoverImage`, `LibraryWatchStatus`, `WatchStatusBadge`.
 
 ## Verification
-- Verified `swift build --package-path apps/macos-native` and `SubtitleTable` / `SubtitleTextLayout` unit test suites compile cleanly with 0 errors and pass.
+- Verified `swift build --package-path apps/macos-native` and `SubtitleTable` / `SubtitleTextLayout` / `Library` / `RecentWatching` / `CardContextMenu` unit test suites compile cleanly with 0 errors and pass.
