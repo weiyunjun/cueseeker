@@ -590,9 +590,7 @@
   - 基准态（双行文本 36px）：图标底容器（36×36px）与文本列顶部对齐（距顶 16px）；右侧操作区（高 32px）垂直居中（上下各 18px，右边距 16px）
   - 多行展开态：文本折行撑开卡片时，左侧图标底容器（距顶 16px）与右侧操作区（距顶 18px）保持基准位置锁定，卡片向下延伸并保持底部 16px 边距
 - Icon：
-  - Container：36×36px，圆角 `--radius-control`，背景 `--color-bg-hover`
-  - Glyph Size：`--size-card-icon-glyph`（20px），居中
-  - Glyph Color：`--color-text-secondary`
+  - Size：`--size-card-icon-container`（36×36px），无底框系统强调色同色深浅大图标
   - Mapping：本地文件夹为 `folder`，WebDAV 文件夹为 `folder-webdav`，SMB 文件夹为 `folder-smb`，FTP 文件夹为 `folder-ftp`，NFS 文件夹为 `folder-nfs`，视频为 `video`，字幕为 `subtitles`
 - Text Column：
   - Line 1：Title（`--font-size-body` / `--font-weight-control` / `--color-text-primary`）
@@ -1167,6 +1165,7 @@
 #### Sizes
 
 - Width：`--width-dialog-x-large`
+- File Icon Size：`--size-detail-file-icon-container`（40×40px，无底框系统强调色同色深浅大图标）
 
 #### Spacing
 
@@ -1220,14 +1219,14 @@
 
 #### Structure / Current
 
-1. Icon（Leading，36×36px 圆角底容器，内置 20px 图标）
+1. Icon（Leading，36×36px 无底框系统强调色同色深浅大图标）
 2. Line 1: Title（动作前缀 + 目标名称，统一字重与字色，单行截断，无路径）
 3. Line 2: Progress Text（In Progress 阶段文字 / 导出张数；Queued 状态与数量）
 4. Line 3: Progress Bar（仅 In Progress，16px 高度容器居中展示 4px Capsule 进度条）
 
 #### Structure / History
 
-1. Icon（Leading，36×36px 圆角底容器，内置 20px 图标）
+1. Icon（Leading，36×36px 无底框系统强调色同色深浅大图标）
 2. Line 1: Title（动作前缀 + 目标名称，统一字重与字色，单行截断，无路径）
 3. Line 2: 数量与时间（Completed 与 Incomplete 格式一致）
 4. Line 3: Error Message（仅 Incomplete，16px 高度容器内单行尾部截断展示）
@@ -1238,7 +1237,7 @@
 - 修改文件夹或文件名称：`pencil-simple`
 - Index：`arrow-clockwise`
 - Add Folder：`folder-plus`
-- Remove Folder：`minus-circle`
+- Remove Folder：`folder-minus`
 
 #### Components
 
@@ -1248,9 +1247,7 @@
 
 - Baseline Height：68px（标准双行文本时）
 - Padding：`--spacing-4`
-- Icon Container：36×36px，圆角 `--radius-control`，背景 `--color-bg-hover`
-- Icon Glyph Size：`--size-card-icon-glyph`（20px），居中
-- Icon Glyph Color：`--color-text-secondary`
+- Icon Size：`--size-card-icon-container`（36×36px）
 - Icon to Content Gap：`--spacing-4`
 - Row Gap：`--spacing-1`
 - Dynamic Row Height：`16px`

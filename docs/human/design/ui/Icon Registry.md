@@ -67,13 +67,14 @@
 
 | 图标 | 字重 | 含义 | 使用位置 |
 | --- | --- | --- | --- |
-| `folder-plus` | Regular | 添加文件夹 | File Page / Add Folder |
+| `folder-plus` | Regular | 添加文件夹 | File Page / Add Folder；Task Card / Add Folder |
+| `folder-minus` | Regular | 移除文件夹 | File Page / Root Folder Card 菜单 / Remove This Folder；Task Card / Remove Folder |
 | `folder-webdav` | Regular | WebDAV 文件夹 | File Page / Add Folder 菜单 / WebDav Folder；File Page / WebDAV 文件夹卡片 |
 | `folder-smb` | Regular | SMB 文件夹 | File Page / Add Folder 菜单 / SMB Folder；File Page / SMB 文件夹卡片 |
 | `folder-ftp` | Regular | FTP 文件夹 | File Page / Add Folder 菜单 / FTP Folder；File Page / FTP 文件夹卡片 |
 | `folder-nfs` | Regular | NFS 文件夹 | File Page / Add Folder 菜单 / NFS Folder；File Page / NFS 文件夹卡片 |
 | `arrow-clockwise` | Regular | 重新索引、刷新 | File Page / Index All、Root Folder Card 菜单 / Index This Folder、闲置状态；Settings / Maintenance、Developer 刷新 |
-| `minus-circle` | Regular | 移除 | File Page / Root Folder Card 菜单 / Remove This Folder |
+| `minus-circle` | Regular | 移除 | Task Card 菜单 / Remove Task |
 | `minus-circle` | Fill | 半选 | Checkbox / Indeterminate |
 | `stack` | Regular | 剧集 | Library File Tree / Display Title |
 | `video` | Regular | 视频 | Library File Tree / Video；Command Panel Root / Recent Videos；Library 封面占位，57px |
@@ -108,7 +109,7 @@
 | `export` | Regular | 导出、更换封面 | Search / Excerpt Toolbar / Export to Anki；Library 卡片菜单 / Change Cover；Playback Feedback（导出长截图） |
 | `link-simple` | Regular | 链接 | Search / Excerpt Toolbar / Copy Deep Links；表格行菜单 / Copy Deep Link；Anki 卡片 / Deep Link，20px |
 | `info` | Regular | 简介、详情 | File Page 卡片菜单 / Get Info |
-| `anki-star` | 实心 | Anki | 预留，暂无使用位置 |
+| `anki-star` | 实心 | Anki | Task Card / Export to Anki |
 
 ## 3.6 播放控制
 

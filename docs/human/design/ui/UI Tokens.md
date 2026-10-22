@@ -70,6 +70,10 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--color-bg-active-hover`:
   - Light: macOS accent color with Alpha `0.18`
   - Dark: macOS accent color with Alpha `0.30`
+- `--color-card-icon-accent-base`: macOS accent color with Alpha `0.32`
+- `--color-card-icon-accent-folder-tab`: macOS accent color with Alpha `0.52`
+- `--color-card-icon-accent-anki-line`: macOS accent color with Alpha `0.59`
+- `--color-card-icon-accent-foreground`: macOS accent color
 
 ### Focus
 
@@ -315,10 +319,8 @@ Dark 下越上层越亮：Sidebar < 页面 < 表格与设置卡片 < 对话框 <
 - `--size-app-sidebar-item-icon`: `23px`
 - `--size-task-count-badge-compact`: `18px`
 - `--size-card-icon-container`: `36px`
-- `--size-card-icon-glyph`: `20px`
 - `--size-card-chevron`: `16px`
 - `--size-detail-file-icon-container`: `40px`
-- `--size-detail-file-icon-glyph`: `20px`
 - `--min-width-detail-label`: `100px`
 - `--min-width-detail-index-label`: `40px`
 - `--width-player-volume-slider`: `68px`
