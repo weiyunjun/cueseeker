@@ -43,7 +43,7 @@ func subtitleTextLayoutLeavesShortBodyTextUncapped() {
 func subtitleTextLayoutUsesWholeUTF16GlyphBoundariesAndOffsetsSelectionRects() throws {
     let layout = SubtitleTextLayout()
     layout.update(
-        attributedString: SubtitleTableText.body("A😀B", isRedesign: true),
+        attributedString: SubtitleTableText.body("A😀B"),
         width: 300
     )
     let origin = CGPoint(x: 17, y: 29)
@@ -67,21 +67,18 @@ func subtitleTextLayoutUsesWholeUTF16GlyphBoundariesAndOffsetsSelectionRects() t
 func subtitleTableTextUsesRedesignVisualHierarchy() throws {
     let primary = SubtitleTableText.body(
         "cue",
-        role: .primaryContent,
-        isRedesign: true
+        role: .primaryContent
     )
     let secondary = SubtitleTableText.body(
         "title",
-        role: .secondaryContext,
-        isRedesign: true
+        role: .secondaryContext
     )
     let metadata = SubtitleTableText.body(
         "26-07-01 13:51",
-        role: .metadata,
-        isRedesign: true
+        role: .metadata
     )
-    let header = SubtitleTableText.header("Cues", isRedesign: true)
-    let sequence = SubtitleTableText.index(37, isRedesign: true)
+    let header = SubtitleTableText.header("Cues")
+    let sequence = SubtitleTableText.index(37)
 
     let primaryFont = try attributedFont(primary)
     let secondaryFont = try attributedFont(secondary)
@@ -133,7 +130,7 @@ private func fontWeight(_ font: NSFont) -> Int {
 @MainActor
 @Test
 func subtitleTableIndexTextCentersAndAccommodatesFiveDigitsInRedesign() throws {
-    let index5 = SubtitleTableText.index(76817, isRedesign: true)
+    let index5 = SubtitleTableText.index(76817)
     let font = try attributedFont(index5)
     #expect(font.pointSize == 12)
     #expect(font.fontDescriptor == NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .regular).fontDescriptor)
@@ -148,7 +145,7 @@ func subtitleTableIndexTextCentersAndAccommodatesFiveDigitsInRedesign() throws {
 
     // Test single digit (1) and 5 digits (76817, 99999)
     for number in [1, 76817, 99999] {
-        let attr = SubtitleTableText.index(number, isRedesign: true)
+        let attr = SubtitleTableText.index(number)
         layout.update(attributedString: attr, width: columnWidth)
         let rects = layout.usedRects(at: .zero)
         #expect(rects.count == 1) // strictly single line

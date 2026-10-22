@@ -178,8 +178,7 @@ struct SettingsSubtitleCategory: View {
 
                 WorkbenchButton(
                     title: L("settings.subtitle.restore_defaults"),
-                    icon: .arrowCounterClockwise,
-                    isRedesign: true
+                    icon: .arrowCounterClockwise
                 ) {
                     closeAllPopovers()
                     settingsStore.srtSubtitleStyle = SRTSubtitleStyle()
@@ -709,7 +708,6 @@ struct SettingsSubtitleFontMenu: View {
             WorkbenchSearchField(
                 placeholder: L("settings.subtitle.font_search_placeholder"),
                 text: $query,
-                isRedesign: true,
                 autofocus: true,
                 placesInsertionPointAtEndOnAutofocus: true,
                 onSubmit: {
@@ -771,7 +769,6 @@ struct SettingsSubtitleFontMenu: View {
                                             ),
                                             isHighlighted: highlight.isSelected(position),
                                             isRowHovered: highlight.isHovered(position),
-                                            isRedesign: true,
                                             showsCheckmarkSlot: true,
                                             action: {
                                                 onSelect(option)

@@ -386,7 +386,6 @@ struct PlaybackOverlayTopBar: View {
                     if selectedModule == .current {
                         WorkbenchIconButton(
                             icon: .imagesSquare,
-                            isRedesign: true,
                             isOpen: isEditingCollage,
                             hoverBackground: WorkbenchRedesignColors
                                 .overlaySurfaceShortcutButtonHoverBg,

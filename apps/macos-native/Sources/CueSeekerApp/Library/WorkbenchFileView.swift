@@ -292,7 +292,6 @@ struct WorkbenchFileView: View {
             WorkbenchButton(
                 title: L("settings.library.add_folder"),
                 icon: .folderPlus,
-                isRedesign: true,
                 isOpen: activeMenu?.cardID == Self.addFolderMenuID
             ) {
                 toggleMenu(
@@ -324,8 +323,7 @@ struct WorkbenchFileView: View {
 
             WorkbenchButton(
                 title: L("settings.library.index_now"),
-                icon: .arrowClockwise,
-                isRedesign: true
+                icon: .arrowClockwise
             ) {
                 appState.indexAllFolders()
             }
@@ -916,7 +914,6 @@ private struct WorkbenchFileCard: View {
                 GeometryReader { buttonProxy in
                     WorkbenchIconButton(
                         icon: .dotsThree,
-                        isRedesign: true,
                         isOpen: isMenuOpen,
                         hoverBackground: WorkbenchRedesignColors.rowSelected,
                         pressedBackground: WorkbenchRedesignColors.rowActionBgPressed,

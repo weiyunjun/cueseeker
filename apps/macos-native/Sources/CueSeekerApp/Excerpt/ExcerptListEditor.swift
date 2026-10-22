@@ -257,7 +257,6 @@ struct ExcerptListEditorDialog: View {
 
             WorkbenchButton(
                 title: L("common.cancel"),
-                isRedesign: true,
                 action: onClose
             )
             .disabled(session.isSaving)

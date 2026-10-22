@@ -215,7 +215,6 @@ struct SMBFolderDialog: View {
 
             WorkbenchButton(
                 title: L("common.cancel"),
-                isRedesign: true,
                 action: onClose
             )
             .keyboardShortcut(.cancelAction)
@@ -324,7 +323,6 @@ struct SMBFolderDialog: View {
         HStack(spacing: WorkbenchControlMetrics.redesignSpacing4) {
             WorkbenchButton(
                 title: L("common.back"),
-                isRedesign: true,
                 action: {
                     if let onBack {
                         onBack()
@@ -339,7 +337,6 @@ struct SMBFolderDialog: View {
 
             WorkbenchButton(
                 title: L("common.cancel"),
-                isRedesign: true,
                 action: onClose
             )
             .keyboardShortcut(.cancelAction)

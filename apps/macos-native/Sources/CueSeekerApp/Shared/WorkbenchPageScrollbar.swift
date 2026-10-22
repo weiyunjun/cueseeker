@@ -11,7 +11,6 @@ final class WorkbenchPageScrollbar: ObservableObject {
     private weak var verticalOverlay: SubtitleTableScrollbarOverlayView?
     private weak var horizontalOverlay: SubtitleTableScrollbarOverlayView?
     private weak var scrollView: NSScrollView?
-    private var isRedesign = false
 
     var onDragStateChanged: ((Bool) -> Void)?
 
@@ -38,12 +37,11 @@ final class WorkbenchPageScrollbar: ObservableObject {
         if horizontalOverlay === overlayView { horizontalOverlay = nil }
         overlayView.onDragStateChanged = nil
         overlayView.scrollView = nil
-        overlayView.isRedesign = false
+        overlayView.isPresented = false
     }
 
-    func attach(scrollView: NSScrollView?, isRedesign: Bool) {
+    func attach(scrollView: NSScrollView?) {
         self.scrollView = scrollView
-        self.isRedesign = isRedesign
         applyBinding()
     }
 
@@ -80,14 +78,14 @@ final class WorkbenchPageScrollbar: ObservableObject {
     }
 
     var drawsOverlayScrollbars: Bool {
-        verticalOverlay?.isRedesign == true
+        verticalOverlay?.isPresented == true
             && verticalOverlay?.scrollView === scrollView
     }
 
     private func applyBinding() {
         for overlayView in [verticalOverlay, horizontalOverlay].compactMap({ $0 }) {
-            overlayView.scrollView = isRedesign ? scrollView : nil
-            overlayView.isRedesign = isRedesign && scrollView != nil
+            overlayView.scrollView = scrollView
+            overlayView.isPresented = scrollView != nil
             overlayView.needsDisplay = true
         }
         refreshCrossAxisReserves()
@@ -134,7 +132,7 @@ private struct WorkbenchPageScrollbarRepresentable: NSViewRepresentable {
     ) {
         nsView.onDragStateChanged = nil
         nsView.scrollView = nil
-        nsView.isRedesign = false
+        nsView.isPresented = false
     }
 }
 

@@ -5,10 +5,9 @@ import Testing
 @MainActor
 @Test
 func subtitleTableTagStyleUsesRedesignChipPaddingAndFitContentHeight() {
-    let style = SubtitleTableTagStyle.resolve(isRedesign: true)
+    let style = SubtitleTableTagStyle.resolve()
     let attributed = SubtitleTableText.tag(
-        WorkbenchTag(key: "zh-hans", colorID: .blue),
-        isRedesign: true
+        WorkbenchTag(key: "zh-hans", colorID: .blue)
     )
     let textSize = attributed.size()
     let foreground = attributed.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? NSColor
@@ -24,12 +23,12 @@ func subtitleTableTagStyleUsesRedesignChipPaddingAndFitContentHeight() {
 @MainActor
 @Test
 func subtitleTableTagStyleUsesDisabledRedesignColors() {
-    let style = SubtitleTableTagStyle.resolve(isRedesign: true)
+    let style = SubtitleTableTagStyle.resolve()
     let tag = WorkbenchTag(key: "zh-hans", colorID: .blue)
-    let attributed = SubtitleTableText.tag(tag, isRedesign: true, isEnabled: false)
+    let attributed = SubtitleTableText.tag(tag, isEnabled: false)
     let foreground = attributed.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? NSColor
 
-    #expect(hexString(style.fillColor(for: tag, isRedesign: true, isEnabled: false)) == "#F3F4F6")
+    #expect(hexString(style.fillColor(for: tag, isEnabled: false)) == "#F3F4F6")
     #expect(foreground.map(hexString) == "#9A9A9A")
 }
 

@@ -25,7 +25,6 @@ struct WorkbenchInputControlsTests {
             WorkbenchSearchField(
                 placeholder: "Search",
                 text: $box.text,
-                isRedesign: true,
                 autofocus: false,
                 trailingStatusText: "1/3",
                 onSubmit: { box.submitCount += 1 }

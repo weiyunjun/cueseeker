@@ -71,7 +71,6 @@ struct WorkbenchTestSearchView: View {
         SchemaWorkbenchSearchShell(
             searchDraft: searchInputBinding,
             columns: SchemaWorkbenchSearchDefaults.columns,
-            isRedesign: true,
             tableSummary: tableSummary,
             searchResultCountText: exactSearchResultCountText,
             selectionActions: selectedSummaryActions,
@@ -138,7 +137,6 @@ struct WorkbenchTestSearchView: View {
                         onCreateExcerptList: createExcerptList,
                         isCueInLibrary: { appState.isCueInLibrary($0) },
                         onToast: { appState.toast.show($0) },
-                        isRedesign: true,
                         showsHeader: workbenchSearchShowsTableHeader(
                             showsSearchEmptyHint: showsSearchEmptyHint,
                             rowCount: snapshot.totalRowCount

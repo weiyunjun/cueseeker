@@ -21,7 +21,6 @@ private func hostMenuPanel(itemCount: Int) async -> MenuPanelSizeProbe {
         Color.clear
 
         WorkbenchPopoverPanel(
-            isRedesign: true,
             highlight: MenuHighlightModel()
         ) {
             VStack(spacing: 0) {

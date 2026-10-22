@@ -336,43 +336,6 @@ struct SubtitleTableColumnLayout: Equatable {
         }
     }
 
-    static func legacy(
-        contentWidth: CGFloat,
-        height: CGFloat,
-        showsDateAddedColumn: Bool = false,
-        showsDisplayTitleColumn: Bool = true,
-        showsTimeColumn: Bool = false,
-        showsLanguageColumn: Bool
-    ) -> SubtitleTableColumnLayout {
-        let M = SubtitleTableMetrics.self
-        let dateAddedWidth = showsDateAddedColumn ? M.dateAddedColumnWidth : 0
-        let displayTitleWidth = showsDisplayTitleColumn ? M.nameColumnWidth : 0
-        let timeWidth = showsTimeColumn ? M.timeColumnWidth : 0
-        let languageWidth = showsLanguageColumn ? M.languageColumnWidth : 0
-        let cuesWidth = max(0, contentWidth - M.indexColumnWidth - dateAddedWidth - displayTitleWidth - timeWidth - languageWidth)
-        let cuesX = M.indexColumnWidth + dateAddedWidth + displayTitleWidth + timeWidth
-        let languageRect = showsLanguageColumn ? CGRect(
-            x: max(cuesX, contentWidth - M.languageColumnWidth),
-            y: 0,
-            width: M.languageColumnWidth,
-            height: height
-        ) : nil
-        return SubtitleTableColumnLayout(
-            indexRect: CGRect(x: 0, y: 0, width: M.indexColumnWidth, height: height),
-            dateAddedRect: showsDateAddedColumn ? CGRect(x: M.indexColumnWidth, y: 0, width: dateAddedWidth, height: height) : nil,
-            nameRect: CGRect(x: M.indexColumnWidth + dateAddedWidth, y: 0, width: displayTitleWidth, height: height),
-            timeRect: showsTimeColumn ? CGRect(x: M.indexColumnWidth + dateAddedWidth + displayTitleWidth, y: 0, width: timeWidth, height: height) : nil,
-            cuesRect: CGRect(
-                x: cuesX,
-                y: 0,
-                width: cuesWidth,
-                height: height
-            ),
-            languageRect: languageRect,
-            contentWidth: contentWidth
-        )
-    }
-
     func offsetBy(dx: CGFloat) -> SubtitleTableColumnLayout {
         SubtitleTableColumnLayout(
             indexRect: indexRect.offsetBy(dx: dx, dy: 0),
@@ -392,40 +355,27 @@ struct SubtitleTableTagStyle {
     let cornerRadius: CGFloat
     let horizontalSpacing: CGFloat
     let verticalSpacing: CGFloat
-    private let fixedHeight: CGFloat?
 
-    static func resolve(isRedesign: Bool) -> SubtitleTableTagStyle {
+    static func resolve() -> SubtitleTableTagStyle {
         let M = SubtitleTableMetrics.self
-        if isRedesign {
-            return SubtitleTableTagStyle(
-                horizontalInset: M.tagRedesignHorizontalInset,
-                verticalInset: M.tagRedesignVerticalInset,
-                cornerRadius: M.tagCornerRadius,
-                horizontalSpacing: M.tagHorizontalSpacing,
-                verticalSpacing: M.tagVerticalSpacing,
-                fixedHeight: nil
-            )
-        }
         return SubtitleTableTagStyle(
-            horizontalInset: M.tagHorizontalInset,
-            verticalInset: 0,
+            horizontalInset: M.tagRedesignHorizontalInset,
+            verticalInset: M.tagRedesignVerticalInset,
             cornerRadius: M.tagCornerRadius,
             horizontalSpacing: M.tagHorizontalSpacing,
-            verticalSpacing: M.tagVerticalSpacing,
-            fixedHeight: M.tagHeight
+            verticalSpacing: M.tagVerticalSpacing
         )
     }
 
     func height(for textSize: CGSize) -> CGFloat {
-        fixedHeight ?? ceil(textSize.height) + 2 * verticalInset
+        ceil(textSize.height) + 2 * verticalInset
     }
 
     func width(for textSize: CGSize) -> CGFloat {
         ceil(textSize.width) + 2 * horizontalInset
     }
 
-    func fillColor(for tag: WorkbenchTag, isRedesign: Bool, isEnabled: Bool) -> NSColor {
-        guard isRedesign else { return tag.colorID.appKitFillColor }
+    func fillColor(for tag: WorkbenchTag, isEnabled: Bool) -> NSColor {
         guard isEnabled else { return WorkbenchRedesignColors.NS.bgDisabled }
         return tag.colorID.redesignFillColor()
     }
@@ -453,9 +403,6 @@ enum SubtitleTableTextRole {
 
 @MainActor
 enum SubtitleTableText {
-    static let legacyBodyFont = NSFont.systemFont(ofSize: 13.5, weight: .semibold)
-    static let indexFont = NSFont.systemFont(ofSize: 12, weight: .regular)
-    static let headerFont = NSFont.systemFont(ofSize: 13, weight: .semibold)
     static let tagFont = NSFont.systemFont(ofSize: 12, weight: .semibold)
     static let lineSpacing: CGFloat = 4
 
@@ -469,25 +416,22 @@ enum SubtitleTableText {
     static func body(
         _ text: String,
         role: SubtitleTableTextRole = .primaryContent,
-        isRedesign: Bool = false,
         foregroundColor: NSColor? = nil
     ) -> NSAttributedString {
         NSAttributedString(string: text, attributes: [
-            .font: bodyFont(role: role, isRedesign: isRedesign),
+            .font: bodyFont(role: role),
             .paragraphStyle: bodyParagraphStyle(),
-            .foregroundColor: foregroundColor ?? bodyColor(role: role, isRedesign: isRedesign),
+            .foregroundColor: foregroundColor ?? bodyColor(role: role),
         ])
     }
 
-    static func index(_ number: Int, isRedesign: Bool = false) -> NSAttributedString {
+    static func index(_ number: Int) -> NSAttributedString {
         let style = NSMutableParagraphStyle()
-        if isRedesign {
-            style.alignment = .center
-            style.lineBreakMode = .byClipping
-        }
+        style.alignment = .center
+        style.lineBreakMode = .byClipping
         return NSAttributedString(string: "\(number)", attributes: [
-            .font: isRedesign ? redesignIndexFont : indexFont,
-            .foregroundColor: isRedesign ? WorkbenchRedesignColors.NS.textMuted : NSColor.secondaryLabelColor,
+            .font: redesignIndexFont,
+            .foregroundColor: WorkbenchRedesignColors.NS.textMuted,
             .paragraphStyle: style,
         ])
     }
@@ -496,10 +440,10 @@ enum SubtitleTableText {
         NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .regular)
     }
 
-    static func header(_ text: String, isRedesign: Bool = false) -> NSAttributedString {
+    static func header(_ text: String) -> NSAttributedString {
         NSAttributedString(string: text, attributes: [
-            .font: isRedesign ? redesignHeaderFont : headerFont,
-            .foregroundColor: isRedesign ? WorkbenchRedesignColors.NS.textSecondary : NSColor.labelColor,
+            .font: redesignHeaderFont,
+            .foregroundColor: WorkbenchRedesignColors.NS.textSecondary,
         ])
     }
 
@@ -510,8 +454,7 @@ enum SubtitleTableText {
         )
     }
 
-    private static func bodyFont(role: SubtitleTableTextRole, isRedesign: Bool) -> NSFont {
-        guard isRedesign else { return legacyBodyFont }
+    private static func bodyFont(role: SubtitleTableTextRole) -> NSFont {
         switch role {
         case .primaryContent:
             return NSFont.systemFont(
@@ -531,8 +474,7 @@ enum SubtitleTableText {
         }
     }
 
-    private static func bodyColor(role: SubtitleTableTextRole, isRedesign: Bool) -> NSColor {
-        guard isRedesign else { return NSColor.labelColor }
+    private static func bodyColor(role: SubtitleTableTextRole) -> NSColor {
         switch role {
         case .primaryContent:
             return WorkbenchRedesignColors.NS.textPrimary
@@ -541,13 +483,10 @@ enum SubtitleTableText {
         }
     }
 
-    static func tag(_ tag: WorkbenchTag, isRedesign: Bool = false, isEnabled: Bool = true) -> NSAttributedString {
-        let foregroundColor: NSColor
-        if isRedesign, !isEnabled {
-            foregroundColor = WorkbenchRedesignColors.NS.textDisabled
-        } else {
-            foregroundColor = isRedesign ? WorkbenchRedesignColors.NS.textMuted : tag.colorID.appKitForegroundColor
-        }
+    static func tag(_ tag: WorkbenchTag, isEnabled: Bool = true) -> NSAttributedString {
+        let foregroundColor = isEnabled
+            ? WorkbenchRedesignColors.NS.textMuted
+            : WorkbenchRedesignColors.NS.textDisabled
         return NSAttributedString(string: tag.label, attributes: [
             .font: tagFont,
             .foregroundColor: foregroundColor,
@@ -814,7 +753,6 @@ private struct RowActionMenu: View {
 
     var body: some View {
         WorkbenchPopoverPanel(
-            isRedesign: true,
             maximumHeight: maximumHeight,
             highlight: highlight
         ) {
@@ -863,7 +801,6 @@ private struct RowActionMenu: View {
             isRowHovered: highlight.isHovered(position),
             icon: action.icon,
             iconWeight: action.iconWeight,
-            isRedesign: true,
             showsCheckmarkSlot: false,
             isEnabled: isEnabled,
             isDestructive: action.isDestructive,
@@ -1013,7 +950,6 @@ private struct WorkbenchCheckboxButton: View {
 
 final class SubtitleTableContainerView: NSView {
     var onLayout: (() -> Void)?
-    var isRedesign: Bool = false { didSet { applyAppearanceColors() } }
 
     /// The document, the header, the page chrome viewport and the menu overlay
     /// all measure downward from their top edge. The container was the one view
@@ -1044,18 +980,10 @@ final class SubtitleTableContainerView: NSView {
     private func applyAppearanceColors() {
         guard let layer else { return }
         effectiveAppearance.performAsCurrentDrawingAppearance {
-            if isRedesign {
-                layer.cornerRadius = 0
-                layer.borderWidth = 0
-                layer.masksToBounds = false
-                layer.backgroundColor = WorkbenchRedesignColors.NS.bgSurface.cgColor
-            } else {
-                layer.cornerRadius = SubtitleTableMetrics.cornerRadius
-                layer.borderWidth = 1
-                layer.masksToBounds = true
-                layer.backgroundColor = NSColor.textBackgroundColor.cgColor
-                layer.borderColor = NSColor.separatorColor.cgColor
-            }
+            layer.cornerRadius = 0
+            layer.borderWidth = 0
+            layer.masksToBounds = false
+            layer.backgroundColor = WorkbenchRedesignColors.NS.bgSurface.cgColor
         }
     }
 }
@@ -1251,13 +1179,9 @@ struct SubtitleTableScrollbarMetrics {
 final class SubtitleTableScrollbarOverlayView: TableScrollbarOverlayView {
     weak var scrollView: NSScrollView? {
         didSet {
+            isPresented = scrollView != nil
             scrollbarMetricsDidChange()
         }
-    }
-
-    var isRedesign: Bool {
-        get { isPresented }
-        set { isPresented = newValue }
     }
 
     override init(frame frameRect: NSRect) {
@@ -1379,12 +1303,6 @@ final class SubtitleTableHeaderTextOverlayView: NSView {
 
 final class SubtitleVirtualTableHeaderView: NSView {
     weak var coordinator: SubtitleTableView.Coordinator?
-    var isRedesign: Bool = false {
-        didSet {
-            refreshHeaderHosts()
-            needsDisplay = true
-        }
-    }
 
     private var indexHeaderHost: NSHostingView<AnyView>?
     private var dateAddedHeaderHost: NSHostingView<AnyView>?
@@ -1543,7 +1461,7 @@ final class SubtitleVirtualTableHeaderView: NSView {
     }
 
     private func updateHoverState(windowLocation: CGPoint? = nil) {
-        guard isRedesign, window != nil || windowLocation != nil else {
+        guard window != nil || windowLocation != nil else {
             isHeaderHovered = false
             isIndexHeaderHovered = false
             return
@@ -1594,123 +1512,33 @@ final class SubtitleVirtualTableHeaderView: NSView {
     override func draw(_ dirtyRect: NSRect) {
         effectiveAppearance.performAsCurrentDrawingAppearance {
             super.draw(dirtyRect)
-            
-            if isRedesign {
-                NSGraphicsContext.saveGraphicsState()
-                let radius = WorkbenchControlMetrics.redesignCornerRadius
-                NSBezierPath(
-                    roundedRect: CGRect(
-                        x: bounds.minX,
-                        y: bounds.minY,
-                        width: bounds.width,
-                        height: bounds.height + radius
-                    ),
-                    xRadius: radius,
-                    yRadius: radius
-                ).addClip()
-                (isHeaderHovered
-                    ? WorkbenchRedesignColors.NS.tableRowHover
-                    : WorkbenchRedesignColors.NS.bgSurface
-                ).setFill()
-                dirtyRect.intersection(bounds).fill()
-                coordinator?.drawHeaderTextSelectionBackground(in: dirtyRect)
-                WorkbenchRedesignColors.NS.borderDivider.setStroke()
-                let path = NSBezierPath()
-                path.move(to: NSPoint(x: bounds.minX, y: bounds.maxY - 0.5))
-                path.line(to: NSPoint(x: bounds.maxX, y: bounds.maxY - 0.5))
-                path.lineWidth = 1
-                path.stroke()
-                NSGraphicsContext.restoreGraphicsState()
-                return
-            }
 
-            let M = SubtitleTableMetrics.self
-            let showsDateAddedColumn = coordinator?.showsDateAddedColumnForRendering() ?? false
-            let showsDisplayTitleColumn = coordinator?.showsDisplayTitleColumnForRendering() ?? true
-            let showsTimeColumn = coordinator?.showsTimeColumnForRendering() ?? false
-            let showsLanguageColumn = coordinator?.showsLanguageColumnForRendering() ?? false
-            let dateAddedWidth = showsDateAddedColumn ? M.dateAddedColumnWidth : 0
-            let displayTitleWidth = showsDisplayTitleColumn ? M.nameColumnWidth : 0
-            let timeWidth = showsTimeColumn ? M.timeColumnWidth : 0
-            let languageWidth = showsLanguageColumn ? M.languageColumnWidth : 0
-            let cuesX = M.indexColumnWidth + dateAddedWidth + displayTitleWidth + timeWidth
-            drawHeader(
-                "#",
-                rect: CGRect(x: 0, y: 0, width: M.indexColumnWidth, height: bounds.height),
-                leading: M.indexHeaderHorizontalInset,
-                trailing: M.indexTrailingInset
-            )
-            if showsDateAddedColumn {
-                drawHeader(
-                    coordinator?.dateAddedHeaderForRendering() ?? L("table.column.date_added"),
-                    rect: CGRect(x: M.indexColumnWidth, y: 0, width: dateAddedWidth, height: bounds.height),
-                    leading: M.headerHorizontalInset,
-                    trailing: M.trailingInset
-                )
-            }
-            if showsDisplayTitleColumn {
-                drawHeader(
-                    coordinator?.displayTitleHeaderForRendering() ?? L("table.column.name"),
-                    rect: CGRect(x: M.indexColumnWidth + dateAddedWidth, y: 0, width: displayTitleWidth, height: bounds.height),
-                    leading: M.headerHorizontalInset,
-                    trailing: M.trailingInset
-                )
-            }
-            if showsTimeColumn {
-                drawHeader(
-                    coordinator?.timeHeaderForRendering() ?? L("table.column.time_range"),
-                    rect: CGRect(x: M.indexColumnWidth + dateAddedWidth + displayTitleWidth, y: 0, width: timeWidth, height: bounds.height),
-                    leading: M.headerHorizontalInset,
-                    trailing: M.trailingInset
-                )
-            }
-            drawHeader(
-                coordinator?.cuesHeaderForRendering() ?? L("table.column.cues"),
-                rect: CGRect(
-                    x: cuesX,
-                    y: 0,
-                    width: max(0, bounds.width - cuesX - languageWidth),
-                    height: bounds.height
+            NSGraphicsContext.saveGraphicsState()
+            let radius = WorkbenchControlMetrics.redesignCornerRadius
+            NSBezierPath(
+                roundedRect: CGRect(
+                    x: bounds.minX,
+                    y: bounds.minY,
+                    width: bounds.width,
+                    height: bounds.height + radius
                 ),
-                leading: M.headerHorizontalInset,
-                trailing: M.trailingInset
-            )
-            if showsLanguageColumn {
-                drawHeader(
-                    coordinator?.languageHeaderForRendering() ?? L("table.column.language"),
-                    rect: CGRect(
-                        x: max(cuesX, bounds.width - M.languageColumnWidth),
-                        y: 0,
-                        width: M.languageColumnWidth,
-                        height: bounds.height
-                    ),
-                    leading: M.headerHorizontalInset,
-                    trailing: M.trailingInset
-                )
-            }
-            NSColor.separatorColor.setStroke()
+                xRadius: radius,
+                yRadius: radius
+            ).addClip()
+            (isHeaderHovered
+                ? WorkbenchRedesignColors.NS.tableRowHover
+                : WorkbenchRedesignColors.NS.bgSurface
+            ).setFill()
+            dirtyRect.intersection(bounds).fill()
+            coordinator?.drawHeaderTextSelectionBackground(in: dirtyRect)
+            WorkbenchRedesignColors.NS.borderDivider.setStroke()
             let path = NSBezierPath()
             path.move(to: NSPoint(x: bounds.minX, y: bounds.maxY - 0.5))
             path.line(to: NSPoint(x: bounds.maxX, y: bounds.maxY - 0.5))
-            path.lineWidth = 0.5
+            path.lineWidth = 1
             path.stroke()
+            NSGraphicsContext.restoreGraphicsState()
         }
-    }
-
-    private func drawHeader(_ text: String, rect: CGRect, leading: CGFloat, trailing: CGFloat) {
-        let attributed = SubtitleTableText.header(text, isRedesign: isRedesign)
-        let size = attributed.size()
-        let origin = CGPoint(
-            x: rect.minX + leading,
-            y: rect.minY + max(0, (rect.height - size.height) / 2)
-        )
-        let clipped = CGRect(
-            x: origin.x,
-            y: origin.y,
-            width: max(0, rect.width - leading - trailing),
-            height: size.height
-        )
-        attributed.draw(in: clipped)
     }
 
     override func layout() {
@@ -1721,17 +1549,6 @@ final class SubtitleVirtualTableHeaderView: NSView {
 
     func refreshHeaderHosts() {
         updateHoverState()
-        guard isRedesign else {
-            indexHeaderHost?.isHidden = true
-            dateAddedHeaderHost?.isHidden = true
-            nameHeaderHost?.isHidden = true
-            timeHeaderHost?.isHidden = true
-            cuesHeaderHost?.isHidden = true
-            languageHeaderHost?.isHidden = true
-            textInteractionOverlay?.isHidden = true
-            lastHeaderLayout = nil
-            return
-        }
 
         let layout = currentHeaderLayout()
         refreshIndexHeaderHost(layout: layout)
@@ -1768,10 +1585,6 @@ final class SubtitleVirtualTableHeaderView: NSView {
     }
 
     func refreshHeaderFramesForHorizontalScroll() {
-        guard isRedesign else {
-            refreshHeaderHosts()
-            return
-        }
         let layout = currentHeaderLayout()
         updateHeaderFrame(
             &indexHeaderHost,
@@ -1835,7 +1648,6 @@ final class SubtitleVirtualTableHeaderView: NSView {
     }
 
     func headerBackgroundColorForTesting() -> NSColor? {
-        guard isRedesign else { return nil }
         return isHeaderHovered
             ? WorkbenchRedesignColors.NS.tableRowHover
             : WorkbenchRedesignColors.NS.bgSurface
@@ -1884,11 +1696,6 @@ final class SubtitleVirtualTableHeaderView: NSView {
     }
 
     private func refreshHeaderHostsForLayoutChange() {
-        guard isRedesign else {
-            refreshHeaderHosts()
-            return
-        }
-
         let layout = currentHeaderLayout()
         guard layout != lastHeaderLayout else { return }
         refreshHeaderHosts()
@@ -1911,7 +1718,6 @@ final class SubtitleVirtualTableHeaderView: NSView {
     }
 
     private func refreshIndexHeaderHost(layout: SubtitleTableColumnLayout? = nil) {
-        guard isRedesign else { return }
         let currentLayout = layout ?? currentHeaderLayout()
         if showsSelectionHeaderCheckbox {
             updateSelectionHeaderHost(&indexHeaderHost, frame: currentLayout.indexRect)
@@ -2051,7 +1857,6 @@ final class SubtitleVirtualTableHeaderView: NSView {
 final class SubtitleVirtualTableDocumentView: NSView, PointerShapeProviding {
     weak var coordinator: SubtitleTableView.Coordinator?
     private var hoverTracking: NSTrackingArea?
-    var isRedesign: Bool = false { didSet { needsDisplay = true } }
 
     override var isFlipped: Bool { true }
     override var acceptsFirstResponder: Bool { true }
@@ -2297,7 +2102,6 @@ struct SubtitleTableView: NSViewRepresentable {
     var onRemoveExcerpt: (SubtitleTableRow) -> Void = { _ in }
     var isCueInLibrary: ((Int64) -> Bool)? = nil
     var onToast: ((ToastRequest) -> Void)? = nil
-    var isRedesign: Bool = false
     var showsHeader: Bool = true
     var pageChrome: SubtitleTablePageChrome?
     @Environment(\.workbenchPageScrollbar) private var pageScrollbar
@@ -2345,7 +2149,6 @@ struct SubtitleTableView: NSViewRepresentable {
             isCueInLibrary: isCueInLibrary,
             onToast: onToast
         )
-        coordinator.isRedesign = isRedesign
         coordinator.showsHeader = showsHeader
         return coordinator
     }
@@ -2422,10 +2225,7 @@ struct SubtitleTableView: NSViewRepresentable {
         let headerHeightConstraint = header.heightAnchor.constraint(equalToConstant: context.coordinator.currentHeaderHeight)
         context.coordinator.headerHeightConstraint = headerHeightConstraint
 
-        container.isRedesign = context.coordinator.isRedesign
-        header.isRedesign = context.coordinator.isRedesign
         header.isHidden = !context.coordinator.showsHeader
-        documentView.isRedesign = context.coordinator.isRedesign
 
         NSLayoutConstraint.activate([
             outlineOverlay.topAnchor.constraint(equalTo: container.topAnchor),
@@ -2483,7 +2283,6 @@ struct SubtitleTableView: NSViewRepresentable {
             details: "table=\(tableName)"
         )
         context.coordinator.bindPageScrollbar(pageScrollbar)
-        context.coordinator.isRedesign = isRedesign
         context.coordinator.showsHeader = showsHeader
         context.coordinator.isEnabled = isEnabled
         context.coordinator.isCoveredByHigherLayer = isWorkbenchPageCovered
@@ -2592,32 +2391,6 @@ struct SubtitleTableView: NSViewRepresentable {
         var isCueInLibrary: ((Int64) -> Bool)?
         var onToast: ((ToastRequest) -> Void)?
 
-        var isRedesign: Bool = false {
-            didSet {
-                guard oldValue != isRedesign else { return }
-                container?.isRedesign = isRedesign
-                headerView?.isRedesign = isRedesign
-                documentView?.isRedesign = isRedesign
-                configureScrollbars()
-
-                headerHeightConstraint?.constant = currentHeaderHeight
-                container?.layoutSubtreeIfNeeded()
-                rowMeasurementCache.removeAll()
-                rowHeightCache.removeAll()
-                lastRowMeasurementLayoutKey = nil
-                lastNotifiedVisibleRows = nil
-                resizeDocument()
-                notifyVisibleRowsChanged(force: true)
-                updateHoveredColumnID(nil)
-                updateHoveredCueTextRow(nil)
-                updateHoveredCueStateRow(nil)
-                headerView?.refreshHeaderHosts()
-                headerView?.needsDisplay = true
-                outlineOverlayView?.needsDisplay = true
-                invalidateVisibleDocument()
-            }
-        }
-
         var isEnabled: Bool = true {
             didSet {
                 guard oldValue != isEnabled else { return }
@@ -2649,11 +2422,11 @@ struct SubtitleTableView: NSViewRepresentable {
 
         var currentHeaderHeight: CGFloat {
             guard showsHeader else { return 0 }
-            return isRedesign ? WorkbenchControlMetrics.redesignTableHeaderHeight : SubtitleTableMetrics.headerHeight
+            return WorkbenchControlMetrics.redesignTableHeaderHeight
         }
 
         var currentRowHeight: CGFloat {
-            isRedesign ? SubtitleTableCueGeometry.minimumRowHeight : SubtitleTableMetrics.estimatedRowHeight
+            SubtitleTableCueGeometry.minimumRowHeight
         }
 
         private weak var container: SubtitleTableContainerView?
@@ -2915,10 +2688,11 @@ struct SubtitleTableView: NSViewRepresentable {
             self.outlineOverlayView = outlineOverlay
             outlineOverlay?.coordinator = self
             headerView.coordinator = self
-            headerView.isRedesign = isRedesign
             headerView.isHidden = !showsHeader
+            headerView.refreshHeaderHosts()
+            headerView.needsDisplay = true
             documentView.coordinator = self
-            documentView.isRedesign = isRedesign
+            documentView.needsDisplay = true
             bindPageScrollbar(pageScrollbar)
             configureScrollbars()
             updatePageChromeHosts()
@@ -3803,8 +3577,7 @@ struct SubtitleTableView: NSViewRepresentable {
         }
 
         var canBeginExternalTextSelection: Bool {
-            isRedesign &&
-                isEnabled &&
+            isEnabled &&
                 !isSelectionMode &&
                 pendingTextInteraction == nil &&
                 container != nil &&
@@ -4110,8 +3883,7 @@ struct SubtitleTableView: NSViewRepresentable {
         }
 
         func tableOutlineFrameInContainer() -> CGRect? {
-            guard isRedesign,
-                  showsHeader,
+            guard showsHeader,
                   rowCount > 0,
                   let container,
                   let headerView,
@@ -4153,8 +3925,7 @@ struct SubtitleTableView: NSViewRepresentable {
         /// Whether a click anywhere on the header should select or clear every
         /// row. Same guards the row Checkboxes use.
         fileprivate var acceptsSelectModeHeaderClick: Bool {
-            isRedesign
-                && isSelectionMode
+            isSelectionMode
                 && canToggleSelectionForRendering()
                 && !isMenuOpen
                 && !isCoveredByHigherLayer
@@ -4215,19 +3986,10 @@ struct SubtitleTableView: NSViewRepresentable {
 
         private func configureScrollbars() {
             guard let scrollView else { return }
-            if isRedesign {
-                scrollView.hasVerticalScroller = false
-                scrollView.hasHorizontalScroller = false
-                scrollView.autohidesScrollers = true
-            } else {
-                scrollView.hasVerticalScroller = true
-                scrollView.hasHorizontalScroller = false
-                scrollView.autohidesScrollers = true
-            }
-            pageScrollbar?.attach(scrollView: scrollView, isRedesign: isRedesign)
-            if !isRedesign {
-                setScrollbarDragging(false)
-            }
+            scrollView.hasVerticalScroller = false
+            scrollView.hasHorizontalScroller = false
+            scrollView.autohidesScrollers = true
+            pageScrollbar?.attach(scrollView: scrollView)
         }
 
         func toggleAllRowSelection() {
@@ -4261,19 +4023,12 @@ struct SubtitleTableView: NSViewRepresentable {
 
             rowHeightCache.configure(rowCount: rowCount, defaultHeight: currentRowHeight)
             let viewportWidth = max(scrollView.contentSize.width, scrollView.bounds.width)
-            let width = isRedesign
-                ? tableContentWidth(viewportWidth: viewportWidth)
-                : max(scrollView.contentSize.width, scrollView.bounds.width)
+            let width = tableContentWidth(viewportWidth: viewportWidth)
             let oldSize = documentView.frame.size
-            let oldLayout = isRedesign
-                ? tableColumnLayout(contentWidth: max(1, oldSize.width), height: currentRowHeight)
-                : nil
-            let newLayout = isRedesign
-                ? tableColumnLayout(contentWidth: width, height: currentRowHeight)
-                : nil
-            let nextRowMeasurementLayoutKey = newLayout?.rowMeasurementLayoutKey
-            let rowMeasurementLayoutChanged = isRedesign &&
-                lastRowMeasurementLayoutKey != nil &&
+            let oldLayout = tableColumnLayout(contentWidth: max(1, oldSize.width), height: currentRowHeight)
+            let newLayout = tableColumnLayout(contentWidth: width, height: currentRowHeight)
+            let nextRowMeasurementLayoutKey = newLayout.rowMeasurementLayoutKey
+            let rowMeasurementLayoutChanged = lastRowMeasurementLayoutKey != nil &&
                 lastRowMeasurementLayoutKey != nextRowMeasurementLayoutKey
             let anchor = preservedAnchor ?? (rowMeasurementLayoutChanged ? captureDynamicScrollAnchor() : nil)
             if rowMeasurementLayoutChanged {
@@ -4290,9 +4045,7 @@ struct SubtitleTableView: NSViewRepresentable {
                 rowMeasurementCache.removeAll()
                 rowHeightCache.removeAll()
             }
-            if isRedesign {
-                lastRowMeasurementLayoutKey = nextRowMeasurementLayoutKey
-            }
+            lastRowMeasurementLayoutKey = nextRowMeasurementLayoutKey
 
             let nextSize = CGSize(
                 width: width,
@@ -4307,13 +4060,9 @@ struct SubtitleTableView: NSViewRepresentable {
                 documentView.setFrameSize(nextSize)
             }
             clampHorizontalScrollOffset(contentWidth: width)
-            if isRedesign {
-                reflowVisibleRows(anchor: anchor)
-            }
+            reflowVisibleRows(anchor: anchor)
             pageScrollbar?.metricsDidChange()
-            if rowMeasurementLayoutChanged,
-               let oldLayout,
-               let newLayout {
+            if rowMeasurementLayoutChanged {
                 invalidateColumnLayoutChange(
                     oldLayout: oldLayout,
                     newLayout: newLayout
@@ -4330,9 +4079,7 @@ struct SubtitleTableView: NSViewRepresentable {
 
         func notifyVisibleRowsChanged(force: Bool = false) {
             guard !isCoveredByHigherLayer else { return }
-            if isRedesign {
-                reflowVisibleRows()
-            }
+            reflowVisibleRows()
             guard let scrollView,
                   let range = measurementRowRange(
                     in: tableBodyVisibleRect(for: scrollView)
@@ -4369,9 +4116,7 @@ struct SubtitleTableView: NSViewRepresentable {
             }
 
             let clampedRow = min(max(0, row), max(0, rowCount - 1))
-            if isRedesign {
-                reflowVisibleRows(explicitTargetRow: clampedRow)
-            }
+            reflowVisibleRows(explicitTargetRow: clampedRow)
             let maxY = max(0, documentView.bounds.height - scrollView.contentView.bounds.height)
             let localRowY = rowHeightCache.yOffset(for: clampedRow)
             let y = pageScrollGeometry?.scrollOffsetForRow(
@@ -4416,7 +4161,7 @@ struct SubtitleTableView: NSViewRepresentable {
         }
 
         private func tableContentWidth(viewportWidth: CGFloat) -> CGFloat {
-            let cuesMinimumWidth = isRedesign ? SubtitleTableMetrics.cuesColumnMinimumWidth : 0
+            let cuesMinimumWidth = SubtitleTableMetrics.cuesColumnMinimumWidth
             let minimumWidth = SubtitleTableColumnLayout.minimumContentWidth(
                 showsDateAddedColumn: showsDateAddedColumn,
                 showsDisplayTitleColumn: showsDisplayTitleColumn,
@@ -4428,17 +4173,7 @@ struct SubtitleTableView: NSViewRepresentable {
         }
 
         private func tableColumnLayout(contentWidth: CGFloat, height: CGFloat) -> SubtitleTableColumnLayout {
-            guard isRedesign else {
-                return SubtitleTableColumnLayout.legacy(
-                    contentWidth: contentWidth,
-                    height: height,
-                    showsDateAddedColumn: showsDateAddedColumn,
-                    showsDisplayTitleColumn: showsDisplayTitleColumn,
-                    showsTimeColumn: showsTimeColumn,
-                    showsLanguageColumn: showsLanguageColumn
-                )
-            }
-            return SubtitleTableColumnLayout.resolve(
+            SubtitleTableColumnLayout.resolve(
                 contentWidth: contentWidth,
                 height: height,
                 showsDateAddedColumn: showsDateAddedColumn,
@@ -4555,15 +4290,14 @@ struct SubtitleTableView: NSViewRepresentable {
         }
 
         func selectAllTableText() {
-            guard isRedesign, isEnabled, !isSelectionMode else { return }
+            guard isEnabled, !isSelectionMode else { return }
             let previousSelection = textSelection
             textSelection.selectAll()
             invalidateTextSelectionChange(from: previousSelection)
         }
 
         func copyTableTextSelection(to pasteboard: NSPasteboard = .general) {
-            guard isRedesign,
-                  isEnabled,
+            guard isEnabled,
                   !isSelectionMode,
                   textSelection.hasSelection
             else {
@@ -4715,7 +4449,7 @@ struct SubtitleTableView: NSViewRepresentable {
             return columnIDs.enumerated().compactMap { columnIndex, columnID in
                 guard let cellRect = layout.rect(for: columnID) else { return nil }
                 let title = headerTitle(for: columnID)
-                let attributed = SubtitleTableText.header(title, isRedesign: isRedesign)
+                let attributed = SubtitleTableText.header(title)
                 let size = attributed.size()
                 let leading = WorkbenchControlMetrics.redesignPaddingHeaderTriggerX
                 let width = max(1, cellRect.width - 2 * leading)
@@ -4880,7 +4614,7 @@ struct SubtitleTableView: NSViewRepresentable {
             // The table is a surface of its own, one step above the page. The
             // container stays the page: on a detail page it also holds the
             // page chrome, so the body paints its own background.
-            if isRedesign, !viewportDirtyRect.isNull {
+            if !viewportDirtyRect.isNull {
                 WorkbenchRedesignColors.NS.bgSurface.setFill()
                 viewportDirtyRect.fill()
             }
@@ -4893,28 +4627,26 @@ struct SubtitleTableView: NSViewRepresentable {
             }
 
             NSBezierPath(rect: viewportDirtyRect).addClip()
-            if isRedesign {
-                let radius = WorkbenchControlMetrics.redesignCornerRadius
-                let occupiedBodyMaxY = min(
-                    currentTableBodyVisibleRect.maxY,
-                    rowsOriginY + rowHeightCache.totalHeight
-                )
-                let occupiedBodyHeight = max(
-                    0,
-                    occupiedBodyMaxY - currentTableBodyVisibleRect.minY
-                )
-                if occupiedBodyHeight > 0 {
-                    NSBezierPath(
-                        roundedRect: CGRect(
-                            x: currentTableBodyVisibleRect.minX,
-                            y: currentTableBodyVisibleRect.minY - radius,
-                            width: currentTableBodyVisibleRect.width,
-                            height: occupiedBodyHeight + radius
-                        ),
-                        xRadius: radius,
-                        yRadius: radius
-                    ).addClip()
-                }
+            let radius = WorkbenchControlMetrics.redesignCornerRadius
+            let occupiedBodyMaxY = min(
+                currentTableBodyVisibleRect.maxY,
+                rowsOriginY + rowHeightCache.totalHeight
+            )
+            let occupiedBodyHeight = max(
+                0,
+                occupiedBodyMaxY - currentTableBodyVisibleRect.minY
+            )
+            if occupiedBodyHeight > 0 {
+                NSBezierPath(
+                    roundedRect: CGRect(
+                        x: currentTableBodyVisibleRect.minX,
+                        y: currentTableBodyVisibleRect.minY - radius,
+                        width: currentTableBodyVisibleRect.width,
+                        height: occupiedBodyHeight + radius
+                    ),
+                    xRadius: radius,
+                    yRadius: radius
+                ).addClip()
             }
             for row in range {
                 let rowRect = rectForRow(row, width: documentView.bounds.width)
@@ -4938,11 +4670,7 @@ struct SubtitleTableView: NSViewRepresentable {
 
             guard shouldDrawRowBottomDivider(row: row) else { return }
 
-            if isRedesign {
-                WorkbenchRedesignColors.NS.borderDivider.setStroke()
-            } else {
-                NSColor.separatorColor.setStroke()
-            }
+            WorkbenchRedesignColors.NS.borderDivider.setStroke()
             let path = NSBezierPath()
             path.move(to: NSPoint(x: rect.minX, y: rect.maxY - 0.5))
             path.line(to: NSPoint(x: rect.maxX, y: rect.maxY - 0.5))
@@ -4952,10 +4680,7 @@ struct SubtitleTableView: NSViewRepresentable {
 
         private func shouldDrawRowBottomDivider(row: Int) -> Bool {
             guard row >= 0, row < rowCount else { return false }
-            if isRedesign {
-                return row < rowCount - 1
-            }
-            return true
+            return row < rowCount - 1
         }
 
         func shouldDrawRowBottomDividerForTesting(row: Int) -> Bool {
@@ -4963,13 +4688,11 @@ struct SubtitleTableView: NSViewRepresentable {
         }
 
         private func rowBackgroundColor(row: Int) -> NSColor? {
-            if isRedesign, isSelectionMode, isRowSelected(row) {
+            if isSelectionMode, isRowSelected(row) {
                 return WorkbenchRedesignColors.NS.tableRowSelected
             }
             guard hoveredRow == row else { return nil }
-            return isRedesign
-                ? WorkbenchRedesignColors.NS.tableRowHover
-                : NSColor.secondaryLabelColor.withAlphaComponent(0.06)
+            return WorkbenchRedesignColors.NS.tableRowHover
         }
 
         private func drawCellTexts(row: Int, rowRect: CGRect) {
@@ -4985,7 +4708,7 @@ struct SubtitleTableView: NSViewRepresentable {
                     extraCueLineCounts: []
                 )
 
-            if isRedesign && !isUnavailable && (isSelectionMode || hoveredRow == row) {
+            if !isUnavailable && (isSelectionMode || hoveredRow == row) {
                 let checkboxState: WorkbenchCheckboxState = isRowSelected(row) ? .checked : .unchecked
                 let isCheckboxEnabled = isEnabled
                 WorkbenchCheckboxDrawing.draw(
@@ -5079,8 +4802,7 @@ struct SubtitleTableView: NSViewRepresentable {
         }
 
         private func isCellHovered(row: Int, columnID: String) -> Bool {
-            guard isRedesign else { return false }
-            return hoveredRow == row && hoveredColumnID == columnID
+            hoveredRow == row && hoveredColumnID == columnID
         }
 
         private func contentHoverRect(rects: [CGRect], clippedTo clipRect: CGRect) -> CGRect? {
@@ -5140,22 +4862,12 @@ struct SubtitleTableView: NSViewRepresentable {
         }
 
         private func drawIndex(_ number: Int, in rect: CGRect) {
-            let M = SubtitleTableMetrics.self
-            if isRedesign {
-                textLayout.update(
-                    attributedString: SubtitleTableText.index(number, isRedesign: true),
-                    width: rect.width
-                )
-                let yOffset = rect.minY + (rect.height - textLayout.usedHeight) / 2
-                textLayout.draw(at: CGPoint(x: rect.minX, y: yOffset))
-            } else {
-                textLayout.update(
-                    attributedString: SubtitleTableText.index(number, isRedesign: false),
-                    width: max(0, rect.width - M.cellLeading - M.indexTrailingInset)
-                )
-                let yOffset = rect.minY + M.rowVerticalInset
-                textLayout.draw(at: CGPoint(x: rect.minX + M.cellLeading, y: yOffset))
-            }
+            textLayout.update(
+                attributedString: SubtitleTableText.index(number),
+                width: rect.width
+            )
+            let yOffset = rect.minY + (rect.height - textLayout.usedHeight) / 2
+            textLayout.draw(at: CGPoint(x: rect.minX, y: yOffset))
         }
 
         private func localSelectionRange(
@@ -5199,7 +4911,6 @@ struct SubtitleTableView: NSViewRepresentable {
                 attributedString: SubtitleTableText.body(
                     text,
                     role: role,
-                    isRedesign: isRedesign,
                     foregroundColor: foregroundColor
                 ),
                 width: max(0, rect.width - M.cellLeading - trailing)
@@ -5477,8 +5188,7 @@ struct SubtitleTableView: NSViewRepresentable {
             textLayout.update(
                 attributedString: SubtitleTableText.body(
                     text,
-                    role: role,
-                    isRedesign: isRedesign
+                    role: role
                 ),
                 width: max(0, rect.width - M.cellLeading - trailing)
             )
@@ -5543,7 +5253,7 @@ struct SubtitleTableView: NSViewRepresentable {
             NSGraphicsContext.saveGraphicsState()
             NSBezierPath.clip(rect)
 
-            let tagStyle = SubtitleTableTagStyle.resolve(isRedesign: isRedesign)
+            let tagStyle = SubtitleTableTagStyle.resolve()
             let laidOutTags = layoutTags(
                 tags,
                 in: rect,
@@ -5561,7 +5271,7 @@ struct SubtitleTableView: NSViewRepresentable {
                     xRadius: tagStyle.cornerRadius,
                     yRadius: tagStyle.cornerRadius
                 )
-                tagStyle.fillColor(for: item.tag, isRedesign: isRedesign, isEnabled: isEnabled).setFill()
+                tagStyle.fillColor(for: item.tag, isEnabled: isEnabled).setFill()
                 path.fill()
             }
 
@@ -5648,7 +5358,7 @@ struct SubtitleTableView: NSViewRepresentable {
             trailing: CGFloat
         ) -> CGRect? {
             guard !tags.isEmpty else { return nil }
-            let tagStyle = SubtitleTableTagStyle.resolve(isRedesign: isRedesign)
+            let tagStyle = SubtitleTableTagStyle.resolve()
             let laidOutTags = layoutTags(
                 tags,
                 in: rect,
@@ -5670,14 +5380,9 @@ struct SubtitleTableView: NSViewRepresentable {
                 availableWidth: max(0, rect.width - M.cellLeading - trailing),
                 tagStyle: tagStyle
             )
-            let top = isRedesign
-                ? rect.minY + max(0, (rect.height - naturalLayout.blockHeight) / 2)
-                : rect.minY + M.rowVerticalInset - 1
-            return naturalLayout.items.compactMap { item in
+            let top = rect.minY + max(0, (rect.height - naturalLayout.blockHeight) / 2)
+            return naturalLayout.items.map { item in
                 let tagRect = item.tagRect.offsetBy(dx: rect.minX + M.cellLeading, dy: top)
-                if !isRedesign, tagRect.maxY > rect.maxY - M.rowVerticalInset {
-                    return nil
-                }
                 return SubtitleTableLaidOutTag(
                     tag: item.tag,
                     attributed: item.attributed,
@@ -5702,7 +5407,7 @@ struct SubtitleTableView: NSViewRepresentable {
             var laidOutTags = [SubtitleTableLaidOutTag]()
 
             for tag in tags {
-                let attributed = SubtitleTableText.tag(tag, isRedesign: isRedesign, isEnabled: isEnabled)
+                let attributed = SubtitleTableText.tag(tag, isEnabled: isEnabled)
                 let textSize = attributed.size()
                 let tagHeight = tagStyle.height(for: textSize)
                 let tagWidth = min(tagStyle.width(for: textSize), availableWidth)
@@ -5772,7 +5477,7 @@ struct SubtitleTableView: NSViewRepresentable {
                 ))
             }
 
-            let tagStyle = SubtitleTableTagStyle.resolve(isRedesign: isRedesign)
+            let tagStyle = SubtitleTableTagStyle.resolve()
             if let languageRect = layout.languageRect {
                 otherContentHeights.append(tagContentHeight(
                     model.tags,
@@ -5805,8 +5510,7 @@ struct SubtitleTableView: NSViewRepresentable {
             textLayout.update(
                 attributedString: SubtitleTableText.body(
                     text,
-                    role: role,
-                    isRedesign: isRedesign
+                    role: role
                 ),
                 width: max(0, cellWidth - SubtitleTableMetrics.cellLeading - trailing)
             )
@@ -5840,8 +5544,7 @@ struct SubtitleTableView: NSViewRepresentable {
 
         @discardableResult
         private func measureRow(_ row: Int, documentWidth: CGFloat) -> Bool {
-            guard isRedesign,
-                  row >= 0,
+            guard row >= 0,
                   row < rowCount,
                   let model = rowProvider(row)
             else {
@@ -5873,8 +5576,7 @@ struct SubtitleTableView: NSViewRepresentable {
         }
 
         private func captureDynamicScrollAnchor() -> DynamicScrollAnchor? {
-            guard isRedesign,
-                  let scrollView,
+            guard let scrollView,
                   let documentView,
                   let visibleRows = visibleRowRange()
             else {
@@ -5940,8 +5642,7 @@ struct SubtitleTableView: NSViewRepresentable {
             anchor: DynamicScrollAnchor? = nil,
             explicitTargetRow: Int? = nil
         ) {
-            guard isRedesign,
-                  !isApplyingDynamicReflow,
+            guard !isApplyingDynamicReflow,
                   let scrollView,
                   let documentView
             else {
@@ -6138,8 +5839,7 @@ struct SubtitleTableView: NSViewRepresentable {
             in visibleRect: CGRect,
             rows: Range<Int>? = nil
         ) -> [CGRect] {
-            guard isRedesign,
-                  isEnabled,
+            guard isEnabled,
                   !isSelectionMode,
                   !isMenuOpen,
                   !isCoveredByHigherLayer,
@@ -6172,8 +5872,7 @@ struct SubtitleTableView: NSViewRepresentable {
             documentWidth: CGFloat,
             rows: Range<Int>? = nil
         ) -> [CGRect] {
-            guard isRedesign,
-                  isEnabled,
+            guard isEnabled,
                   !isSelectionMode,
                   !isMenuOpen,
                   !isCoveredByHigherLayer,
@@ -6242,9 +5941,7 @@ struct SubtitleTableView: NSViewRepresentable {
 
         private func bodyTextOrigin(in rect: CGRect) -> CGPoint {
             let M = SubtitleTableMetrics.self
-            let yOffset = isRedesign
-                ? rect.minY + max(0, (rect.height - textLayout.usedHeight) / 2)
-                : rect.minY + M.rowVerticalInset
+            let yOffset = rect.minY + max(0, (rect.height - textLayout.usedHeight) / 2)
             return CGPoint(x: rect.minX + M.cellLeading, y: yOffset)
         }
 
@@ -6353,7 +6050,7 @@ struct SubtitleTableView: NSViewRepresentable {
             }
 
             if columnID == "language" {
-                let tagStyle = SubtitleTableTagStyle.resolve(isRedesign: isRedesign)
+                let tagStyle = SubtitleTableTagStyle.resolve()
                 let laidOutTags = layoutTags(
                     model.tags,
                     in: cellRect,
@@ -6367,8 +6064,7 @@ struct SubtitleTableView: NSViewRepresentable {
             guard !cellText.isEmpty else { return [] }
             let attributed = SubtitleTableText.body(
                 cellText,
-                role: bodyTextRole(for: columnID),
-                isRedesign: isRedesign
+                role: bodyTextRole(for: columnID)
             )
             let width = max(
                 0,
@@ -6566,8 +6262,7 @@ struct SubtitleTableView: NSViewRepresentable {
         }
 
         private func actionMenuColumnID(row: Int, point: CGPoint) -> String? {
-            guard isRedesign,
-                  row >= 0,
+            guard row >= 0,
                   row < rowCount,
                   rowProvider(row) != nil,
                   let documentView
@@ -6581,8 +6276,7 @@ struct SubtitleTableView: NSViewRepresentable {
         }
 
         private func hoveredDataColumnID(row: Int, point: CGPoint) -> String? {
-            guard isRedesign,
-                  !isSelectionMode,
+            guard !isSelectionMode,
                   row >= 0,
                   row < rowCount,
                   rowProvider(row) != nil
@@ -6598,8 +6292,7 @@ struct SubtitleTableView: NSViewRepresentable {
         }
 
         private func isPointInCheckbox(row: Int, point: CGPoint) -> Bool {
-            guard isRedesign,
-                  isEnabled,
+            guard isEnabled,
                   !isCoveredByHigherLayer,
                   row >= 0,
                   row < rowCount,
@@ -6684,8 +6377,7 @@ struct SubtitleTableView: NSViewRepresentable {
         }
 
         func handleMouseDown(windowPoint: CGPoint, isShiftPressed: Bool = false) -> Bool {
-            guard isRedesign,
-                  isEnabled,
+            guard isEnabled,
                   !isMenuOpen,
                   !isCoveredByHigherLayer,
                   let documentView
@@ -6759,8 +6451,7 @@ struct SubtitleTableView: NSViewRepresentable {
         }
 
         func handleHeaderMouseDown(windowPoint: CGPoint) -> Bool {
-            guard isRedesign,
-                  isEnabled,
+            guard isEnabled,
                   !isSelectionMode,
                   !isMenuOpen,
                   !isCoveredByHigherLayer,
@@ -6812,8 +6503,7 @@ struct SubtitleTableView: NSViewRepresentable {
         func handleMouseUp(windowPoint: CGPoint) -> Bool {
             if let selectionTarget = pendingRowSelectionTarget {
                 pendingRowSelectionTarget = nil
-                guard isRedesign,
-                      isEnabled,
+                guard isEnabled,
                       !isMenuOpen,
                       !isCoveredByHigherLayer,
                       let documentView
@@ -6893,8 +6583,7 @@ struct SubtitleTableView: NSViewRepresentable {
         func handleRightMouseDown(windowPoint: CGPoint) -> Bool {
             // An open menu is not a reason to refuse: the press that closed it
             // is the same press that opens this row's menu.
-            guard isRedesign,
-                  isEnabled,
+            guard isEnabled,
                   !isCoveredByHigherLayer,
                   let documentView,
                   let container
@@ -6930,8 +6619,7 @@ struct SubtitleTableView: NSViewRepresentable {
         }
 
         private func toggleRowCheckboxFromMouse(row: Int) -> Bool {
-            guard isRedesign,
-                  isEnabled,
+            guard isEnabled,
                   !isMenuOpen,
                   !isCoveredByHigherLayer,
                   row >= 0,
@@ -6950,8 +6638,7 @@ struct SubtitleTableView: NSViewRepresentable {
         /// A Shift range covers rows the click never touched, so the whole
         /// visible document is redrawn instead of the clicked row.
         private func shiftSelectRowFromMouse(row: Int) -> Bool {
-            guard isRedesign,
-                  isEnabled,
+            guard isEnabled,
                   isSelectionMode,
                   !isMenuOpen,
                   !isCoveredByHigherLayer,
@@ -6969,8 +6656,7 @@ struct SubtitleTableView: NSViewRepresentable {
         }
 
         func handleKeyDown(_ event: NSEvent) -> Bool {
-            guard isRedesign,
-                  isEnabled,
+            guard isEnabled,
                   isSelectionMode,
                   !isMenuOpen,
                   !isCoveredByHigherLayer
@@ -7065,8 +6751,7 @@ struct SubtitleTableView: NSViewRepresentable {
 
         @discardableResult
         func focusFirstVisibleCheckboxFromKeyboard() -> Bool {
-            guard isRedesign,
-                  isEnabled,
+            guard isEnabled,
                   rowCount > 0,
                   !isMenuOpen,
                   !isCoveredByHigherLayer,
@@ -7151,7 +6836,6 @@ struct SubtitleTableView: NSViewRepresentable {
             guard event.keyCode == 48,
                   let container,
                   event.window === container.window,
-                  isRedesign,
                   isEnabled,
                   !isMenuOpen,
                   !isCoveredByHigherLayer,
@@ -7367,9 +7051,6 @@ struct SubtitleTableView: NSViewRepresentable {
         private func setScrollbarDragging(_ isDragging: Bool) {
             guard isScrollbarDragging != isDragging else { return }
             isScrollbarDragging = isDragging
-            if isDragging, !isRedesign {
-                updateHoveredCueTextRow(nil)
-            }
         }
 
         private func backingScaleFactor() -> CGFloat {

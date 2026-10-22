@@ -50,7 +50,6 @@ struct LibraryOverviewLayout<Content: View>: View {
                         WorkbenchButton(
                             title: actionTitle,
                             icon: .plus,
-                            isRedesign: true,
                             action: action
                         )
 

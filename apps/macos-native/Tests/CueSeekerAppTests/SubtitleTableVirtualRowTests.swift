@@ -95,7 +95,6 @@ func subtitleTableViewMapsTextColumnsWhenDisplayTitleIsHidden() {
         onVisibleRowsChange: { _ in },
         onPlay: { _ in }
     )
-    coordinator.isRedesign = true
 
     #expect(coordinator.cellFullText(row: -1, column: 1) == "Cues")
     #expect(coordinator.cellFullText(row: -1, column: 2) == "Time Range")
@@ -135,7 +134,6 @@ func subtitleTableViewUsesExplicitColumnOrderForTextColumns() {
         onVisibleRowsChange: { _ in },
         onPlay: { _ in }
     )
-    coordinator.isRedesign = true
 
     #expect(coordinator.cellFullText(row: -1, column: 1) == "Cues")
     #expect(coordinator.cellFullText(row: -1, column: 2) == "Display Title")
@@ -317,7 +315,6 @@ func subtitleTableViewUsesDynamicMinimumRowHeightAndLazySelectionState() {
         isRowSelected: { $0 == 99_999 },
         onPlay: { _ in }
     )
-    coordinator.isRedesign = true
 
     #expect(coordinator.numberOfRowsForTesting() == 100_000)
     #expect(coordinator.currentRowHeight == SubtitleTableCueGeometry.minimumRowHeight)
@@ -340,7 +337,6 @@ func subtitleTableViewTracksFocusedRedesignCheckboxRowSparsely() {
         isRowSelected: { _ in false },
         onPlay: { _ in }
     )
-    coordinator.isRedesign = true
 
     coordinator.setFocusedCheckboxRowForTesting(99_999)
     #expect(coordinator.focusedCheckboxRowForTesting() == 99_999)
@@ -379,7 +375,6 @@ func subtitleTableViewChoosesFirstVisibleRowForKeyboardCheckboxEntry() {
         isRowSelected: { _ in false },
         onPlay: { _ in }
     )
-    coordinator.isRedesign = true
 
     #expect(coordinator.firstFocusableCheckboxRowForTesting(visibleRows: 42..<60) == 42)
     #expect(coordinator.firstFocusableCheckboxRowForTesting(visibleRows: nil) == 0)
@@ -399,7 +394,6 @@ func subtitleTableViewRejectsKeyboardCheckboxEntryWhenNoRowsExist() {
         isRowSelected: { _ in false },
         onPlay: { _ in }
     )
-    coordinator.isRedesign = true
 
     #expect(coordinator.firstFocusableCheckboxRowForTesting(visibleRows: 0..<10) == nil)
 }
@@ -477,7 +471,6 @@ func subtitleTableViewSkipsDuplicateVisibleRowNotifications() {
         isRowSelected: { _ in false },
         onPlay: { _ in }
     )
-    coordinator.isRedesign = true
 
     let container = SubtitleTableContainerView(frame: CGRect(x: 0, y: 0, width: 500, height: 260))
     let header = SubtitleVirtualTableHeaderView(frame: CGRect(x: 0, y: 0, width: 500, height: 44))
@@ -534,7 +527,6 @@ func subtitleTablePageChromePinsAgainstTheFullViewportScrollbar() throws {
         isRowSelected: { _ in false },
         onPlay: { _ in }
     )
-    coordinator.isRedesign = true
 
     let container = SubtitleTableContainerView(
         frame: CGRect(x: 0, y: 0, width: 1_000, height: 700)
@@ -629,7 +621,6 @@ func subtitleTablePageChromeClipsPartialRowsBelowPinnedHeader() throws {
         isRowSelected: { _ in true },
         onPlay: { _ in }
     )
-    coordinator.isRedesign = true
 
     let container = SubtitleTableContainerView(
         frame: CGRect(x: 0, y: 0, width: 1_000, height: 700)
@@ -648,9 +639,7 @@ func subtitleTablePageChromeClipsPartialRowsBelowPinnedHeader() throws {
     viewport.addSubview(header)
     container.addSubview(overlay)
     header.coordinator = coordinator
-    header.isRedesign = true
     documentView.coordinator = coordinator
-    documentView.isRedesign = true
     scrollView.documentView = documentView
     let pageScrollbar = WorkbenchPageScrollbar()
     pageScrollbar.attach(overlayView: overlay, axis: .vertical)
@@ -3873,7 +3862,6 @@ private func makeKeyboardFocusTableCoordinator(
         onToggleRowSelection: onToggleRowSelection,
         onPlay: { _ in }
     )
-    coordinator.isRedesign = true
     return coordinator
 }
 
@@ -3977,7 +3965,6 @@ private func makeAttachedVirtualTableCoordinator(
         onCreateExcerptList: onCreateExcerptList,
         onRemoveExcerpt: onRemoveExcerpt
     )
-    coordinator.isRedesign = true
 
     let container = SubtitleTableContainerView(frame: CGRect(x: 0, y: 0, width: width, height: 260))
     let header = SubtitleVirtualTableHeaderView(frame: CGRect(x: 0, y: 0, width: width, height: 44))

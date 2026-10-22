@@ -501,7 +501,6 @@ struct AppTopBar: View {
     private var backButton: some View {
         WorkbenchIconButton(
             icon: .caretLeft,
-            isRedesign: true,
             isFrozen: layoutState.isVideoSizeTransitionInProgress
         ) {
             appState.performUserInitiatedAppCommand {
@@ -542,7 +541,6 @@ struct AppTopBar: View {
     private var forwardButton: some View {
         WorkbenchIconButton(
             icon: .caretRight,
-            isRedesign: true,
             isFrozen: layoutState.isVideoSizeTransitionInProgress
         ) {
             appState.performUserInitiatedAppCommand {

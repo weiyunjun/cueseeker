@@ -8,7 +8,7 @@ import Testing
 func subtitleTextLayoutUnderlineRectsUseFixedThicknessAndPixelAlignment() {
     let layout = SubtitleTextLayout()
     layout.update(
-        attributedString: SubtitleTableText.body("sunny\nWrong World", isRedesign: true),
+        attributedString: SubtitleTableText.body("sunny\nWrong World"),
         width: 240
     )
 
@@ -29,7 +29,7 @@ func subtitleTextLayoutUnderlineRectsUseFixedThicknessAndPixelAlignment() {
 func subtitleTextLayoutHitTestingUsesActualLineFragments() {
     let layout = SubtitleTextLayout()
     layout.update(
-        attributedString: SubtitleTableText.body("short\nmuch longer line", isRedesign: true),
+        attributedString: SubtitleTableText.body("short\nmuch longer line"),
         width: 240
     )
 
@@ -43,7 +43,7 @@ func subtitleTextLayoutHitTestingUsesActualLineFragments() {
 func subtitleTextLayoutUnionUsedRectCoversAllVisibleLines() throws {
     let layout = SubtitleTextLayout()
     layout.update(
-        attributedString: SubtitleTableText.body("short\nmuch longer line", isRedesign: true),
+        attributedString: SubtitleTableText.body("short\nmuch longer line"),
         width: 240
     )
 

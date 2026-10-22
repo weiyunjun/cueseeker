@@ -141,7 +141,6 @@ struct TaskPanel: View {
         } trailing: {
             WorkbenchIconButton(
                 icon: .x,
-                isRedesign: true,
                 iconSize: WorkbenchControlMetrics.redesignDialogCloseIconSize,
                 boxSize: WorkbenchControlMetrics.redesignDialogCloseButtonSize,
                 action: {
@@ -413,7 +412,6 @@ private struct TaskCurrentCard: View {
             GeometryReader { buttonProxy in
                 WorkbenchIconButton(
                     icon: .dotsThree,
-                    isRedesign: true,
                     isOpen: isMenuOpen,
                     hoverBackground: WorkbenchRedesignColors.rowSelected,
                     pressedBackground: WorkbenchRedesignColors.rowActionBgPressed,
@@ -576,7 +574,6 @@ private struct TaskHistoryCard: View {
             GeometryReader { buttonProxy in
                 WorkbenchIconButton(
                     icon: .dotsThree,
-                    isRedesign: true,
                     isOpen: isMenuOpen,
                     hoverBackground: WorkbenchRedesignColors.rowSelected,
                     pressedBackground: WorkbenchRedesignColors.rowActionBgPressed,

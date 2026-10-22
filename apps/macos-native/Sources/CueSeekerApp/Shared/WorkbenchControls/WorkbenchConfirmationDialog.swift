@@ -161,7 +161,6 @@ struct WorkbenchConfirmationDialog: View {
             case .neutral:
                 WorkbenchButton(
                     title: action.title,
-                    isRedesign: true,
                     isFocused: action.isCancel,
                     action: action.action
                 )

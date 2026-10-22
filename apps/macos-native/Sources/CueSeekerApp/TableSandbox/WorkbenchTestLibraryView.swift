@@ -337,7 +337,6 @@ struct WorkbenchTestLibraryView: View {
             WorkbenchButton(
                 title: library.sortOrder.title,
                 icon: .funnelSimple,
-                isRedesign: true,
                 isOpen: activeSortMenu != nil,
                 action: {
                     if activeSortMenu != nil {
@@ -1572,7 +1571,6 @@ private struct LibraryCardContextMenu: View {
 
     var body: some View {
         WorkbenchPopoverPanel(
-            isRedesign: true,
             maximumHeight: maximumHeight,
             highlight: highlight
         ) {
@@ -1583,7 +1581,6 @@ private struct LibraryCardContextMenu: View {
                         isHighlighted: highlight.isSelected(position),
                         isRowHovered: highlight.isHovered(position),
                         icon: item.icon,
-                        isRedesign: true,
                         showsCheckmarkSlot: false,
                         isEnabled: item.isEnabled,
                         action: {
@@ -2186,7 +2183,6 @@ struct LibrarySortMenuPopover: View {
 
     var body: some View {
         WorkbenchPopoverPanel(
-            isRedesign: true,
             maximumHeight: MenuMetrics.maximumHeight,
             highlight: highlight
         ) {
@@ -2197,7 +2193,6 @@ struct LibrarySortMenuPopover: View {
                         isSelected: selectedOrder == order,
                         isHighlighted: highlight.isSelected(position),
                         isRowHovered: highlight.isHovered(position),
-                        isRedesign: true,
                         showsCheckmarkSlot: true,
                         action: {
                             onDismiss()

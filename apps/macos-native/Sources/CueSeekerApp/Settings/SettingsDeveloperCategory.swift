@@ -33,8 +33,7 @@ struct SettingsDeveloperCategory: View {
                 } trailing: {
                     WorkbenchButton(
                         title: L("settings.maintenance.refresh"),
-                        icon: .arrowClockwise,
-                        isRedesign: true
+                        icon: .arrowClockwise
                     ) {
                         appState.refreshSearchFTSVocabularyDiagnostics()
                     }

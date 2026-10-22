@@ -398,7 +398,6 @@ struct CoverSummaryCard<Cover: View>: View {
             WorkbenchButton(
                 title: secondaryAction.title,
                 icon: secondaryAction.icon,
-                isRedesign: true,
                 action: secondaryAction.action
             )
         case .backdrop:
@@ -420,7 +419,6 @@ struct CoverSummaryCard<Cover: View>: View {
             case .split:
                 WorkbenchButton(
                     icon: .dotsThree,
-                    isRedesign: true,
                     isOpen: isMoreMenuOpen,
                     action: action
                 )

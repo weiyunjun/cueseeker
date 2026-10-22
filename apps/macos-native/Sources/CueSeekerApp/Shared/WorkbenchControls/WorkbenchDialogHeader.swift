@@ -32,7 +32,6 @@ extension View {
         overlay(alignment: .topTrailing) {
             WorkbenchIconButton(
                 icon: .x,
-                isRedesign: true,
                 iconSize: WorkbenchControlMetrics.redesignDialogCloseIconSize,
                 boxSize: WorkbenchControlMetrics.redesignDialogCloseButtonSize,
                 action: onClose

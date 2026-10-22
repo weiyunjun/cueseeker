@@ -194,7 +194,6 @@ struct LibraryRenameDialog: View {
 
             WorkbenchButton(
                 title: L("common.cancel"),
-                isRedesign: true,
                 action: onClose
             )
             .keyboardShortcut(.cancelAction)

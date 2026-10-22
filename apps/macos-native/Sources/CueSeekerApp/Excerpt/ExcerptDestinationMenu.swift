@@ -32,7 +32,6 @@ struct ExcerptDestinationMenu: View {
 
     var body: some View {
         WorkbenchPopoverPanel(
-            isRedesign: true,
             maximumHeight: maximumHeight,
             highlight: highlight
         ) {
@@ -45,7 +44,6 @@ struct ExcerptDestinationMenu: View {
                         title: destination.title,
                         isHighlighted: highlight.isSelected(position),
                         isRowHovered: highlight.isHovered(position),
-                        isRedesign: true,
                         showsCheckmarkSlot: false,
                         action: {
                             onSelect(destination)
@@ -63,7 +61,6 @@ struct ExcerptDestinationMenu: View {
                     title: L("excerpt.new_list"),
                     isHighlighted: highlight.isSelected(destinations.count),
                     isRowHovered: highlight.isHovered(destinations.count),
-                    isRedesign: true,
                     showsCheckmarkSlot: false,
                     action: onCreateList,
                     onHoverChange: { isHovered in

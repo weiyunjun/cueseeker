@@ -40,8 +40,7 @@ struct SettingsMaintenanceCategory: View {
 
                     WorkbenchButton(
                         title: L("settings.maintenance.refresh"),
-                        icon: .arrowClockwise,
-                        isRedesign: true
+                        icon: .arrowClockwise
                     ) {
                         appState.refreshDatabaseStorageStats()
                     }
@@ -55,8 +54,7 @@ struct SettingsMaintenanceCategory: View {
 
                     WorkbenchButton(
                         title: L("settings.maintenance.compact"),
-                        icon: .fileArrowDown,
-                        isRedesign: true
+                        icon: .fileArrowDown
                     ) {
                         isShowingCompactConfirmation = true
                     }

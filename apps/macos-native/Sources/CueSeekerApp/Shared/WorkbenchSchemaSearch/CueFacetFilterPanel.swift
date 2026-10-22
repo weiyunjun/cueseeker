@@ -389,7 +389,6 @@ struct CueFacetFilterDialog: View {
             // Show like any other change.
             WorkbenchButton(
                 title: L("common.reset"),
-                isRedesign: true,
                 action: { session.filter = CueFacetFilter() }
             )
             // A Folder selection that leaves out every listed folder is no
@@ -405,7 +404,6 @@ struct CueFacetFilterDialog: View {
 
             WorkbenchButton(
                 title: L("common.cancel"),
-                isRedesign: true,
                 action: onClose
             )
             .keyboardShortcut(.cancelAction)

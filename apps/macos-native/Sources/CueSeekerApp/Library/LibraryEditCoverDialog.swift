@@ -25,7 +25,6 @@ struct LibraryEditCoverDialog: View {
 
                 WorkbenchButton(
                     title: LibraryCoverEditingCopy.cancelButtonTitle,
-                    isRedesign: true,
                     action: onCancel
                 )
                 .disabled(session.isSaving)

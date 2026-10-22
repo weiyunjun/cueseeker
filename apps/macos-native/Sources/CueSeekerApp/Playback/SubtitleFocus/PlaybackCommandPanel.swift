@@ -221,7 +221,6 @@ private struct PlaybackCommandPanelRoot: View {
             WorkbenchSearchField(
                 placeholder: L("sidebar.search"),
                 text: $query,
-                isRedesign: true,
                 autofocus: true,
                 placesInsertionPointAtEndOnAutofocus: true
             ) {
@@ -633,7 +632,6 @@ private struct PlaybackCommandPanelSearchResults: View {
                         title: L("table.filter"),
                         icon: .funnel,
                         count: filterSelectionCount,
-                        isRedesign: true,
                         isOpen: isFilterDialogOpen,
                         action: openFilterDialog
                     )
@@ -642,7 +640,6 @@ private struct PlaybackCommandPanelSearchResults: View {
                     WorkbenchButton(
                         title: selectedSortTitle,
                         icon: .funnelSimple,
-                        isRedesign: true,
                         isOpen: activeSortMenu != nil,
                         action: toggleSortMenu
                     )

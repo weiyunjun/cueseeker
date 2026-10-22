@@ -68,7 +68,6 @@ struct SettingsEntryButton: View {
     var body: some View {
         WorkbenchIconButton(
             icon: .gear,
-            isRedesign: true,
             isOpen: layoutState.isSettingsWindowOpen,
             hoverBackground: hoverBackground,
             pressedBackground: pressedBackground,

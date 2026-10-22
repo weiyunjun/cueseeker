@@ -183,7 +183,6 @@ struct NFSFolderDialog: View {
 
             WorkbenchButton(
                 title: L("common.cancel"),
-                isRedesign: true,
                 action: onClose
             )
             .keyboardShortcut(.cancelAction)
@@ -292,7 +291,6 @@ struct NFSFolderDialog: View {
         HStack(spacing: WorkbenchControlMetrics.redesignSpacing4) {
             WorkbenchButton(
                 title: L("common.back"),
-                isRedesign: true,
                 action: {
                     if let onBack {
                         onBack()
@@ -307,7 +305,6 @@ struct NFSFolderDialog: View {
 
             WorkbenchButton(
                 title: L("common.cancel"),
-                isRedesign: true,
                 action: onClose
             )
             .keyboardShortcut(.cancelAction)

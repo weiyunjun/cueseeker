@@ -156,7 +156,6 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
 
     let columns: [WorkbenchTableColumn]
     let searchPlaceholder: String
-    let isRedesign: Bool
     let summaryContent: AnyView?
     let hostsPageChromeInTable: Bool
     let tableSummary: SchemaWorkbenchTableSummary?
@@ -190,7 +189,6 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
         searchDraft: Binding<String>,
         columns: [WorkbenchTableColumn],
         searchPlaceholder: String = L("table.search_placeholder"),
-        isRedesign: Bool = false,
         summaryContent: AnyView? = nil,
         hostsPageChromeInTable: Bool = false,
         tableSummary: SchemaWorkbenchTableSummary? = nil,
@@ -214,7 +212,6 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
         _searchDraft = searchDraft
         self.columns = columns
         self.searchPlaceholder = searchPlaceholder
-        self.isRedesign = isRedesign
         self.summaryContent = summaryContent
         self.hostsPageChromeInTable = hostsPageChromeInTable
         self.tableSummary = tableSummary
@@ -370,7 +367,7 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .allowsHitTesting(false)
 
-            if isRedesign, summaryContent != nil, hostsPageChromeInTable {
+            if summaryContent != nil, hostsPageChromeInTable {
                 tableContent(columns)
                 // The detail hosts its page chrome inside the table, so the
                 // table would otherwise run to the window edge and put the
@@ -382,15 +379,13 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 VStack(spacing: 0) {
-                    if isRedesign {
-                        searchToolbar
-                            .workbenchPageInlinePadding()
-                            .padding(
-                                .top,
-                                WorkbenchControlMetrics.redesignWorkbenchPageTopPadding
-                            )
-                            .padding(.bottom, SchemaWorkbenchStyle.toolbarBottomGap)
-                    }
+                    searchToolbar
+                        .workbenchPageInlinePadding()
+                        .padding(
+                            .top,
+                            WorkbenchControlMetrics.redesignWorkbenchPageTopPadding
+                        )
+                        .padding(.bottom, SchemaWorkbenchStyle.toolbarBottomGap)
 
                     tableContent(columns)
                         .workbenchPageInlinePadding()
@@ -407,7 +402,7 @@ struct SchemaWorkbenchSearchShell<TableContent: View>: View {
     }
 
     private var externalTextSelectionIsBlocked: Bool {
-        !isRedesign || isWorkbenchPageCovered || isSelectionMode
+        isWorkbenchPageCovered || isSelectionMode
     }
 
     private var externalTextSelectionStartPolicy: SubtitleTableExternalTextSelectionStartPolicy {
@@ -590,7 +585,6 @@ struct SchemaWorkbenchSearchToolbar: View {
         WorkbenchSearchField(
             placeholder: placeholder,
             text: $searchDraft,
-            isRedesign: true,
             trailingStatusText: nil,
             onSubmit: onSubmit
         )
@@ -601,7 +595,6 @@ struct SchemaWorkbenchSearchToolbar: View {
             title: L("table.filter"),
             icon: .funnel,
             count: filterSelectionCount,
-            isRedesign: true,
             isOpen: isFilterDialogOpen,
             action: onFilter
         )
@@ -612,7 +605,6 @@ struct SchemaWorkbenchSearchToolbar: View {
         WorkbenchButton(
             title: sortTitle,
             icon: .funnelSimple,
-            isRedesign: true,
             isOpen: isSortMenuOpen,
             action: onSort
         )
@@ -751,7 +743,6 @@ struct SchemaWorkbenchSortMenuPopover: View {
 
     var body: some View {
         WorkbenchPopoverPanel(
-            isRedesign: true,
             maximumHeight: MenuMetrics.maximumHeight,
             highlight: highlight
         ) {
@@ -762,7 +753,6 @@ struct SchemaWorkbenchSortMenuPopover: View {
                         isSelected: selectedOptionID == option.id,
                         isHighlighted: highlight.isSelected(position),
                         isRowHovered: highlight.isHovered(position),
-                        isRedesign: true,
                         showsCheckmarkSlot: true,
                         action: {
                             onDismiss()

@@ -64,7 +64,6 @@ struct SettingsShortcutsCategory: View {
                     if !isDefault {
                         WorkbenchIconButton(
                             icon: .arrowCounterClockwise,
-                            isRedesign: true,
                             iconSize: WorkbenchControlMetrics.redesignDialogCloseIconSize,
                             boxSize: WorkbenchControlMetrics.redesignDialogCloseButtonSize
                         ) {

@@ -387,7 +387,6 @@ struct AnkiExportDialog: View {
                 GeometryReader { buttonProxy in
                     WorkbenchIconButton(
                         icon: .plus,
-                        isRedesign: true,
                         isOpen: activeMenu?.side == side,
                         iconSize: WorkbenchControlMetrics.redesignAnkiExportAddIconSize,
                         boxSize: WorkbenchControlMetrics.redesignAnkiExportAddButtonSize,
@@ -669,7 +668,6 @@ struct AnkiExportDialog: View {
 
                     WorkbenchIconButton(
                         icon: .folder,
-                        isRedesign: true,
                         action: {
                             dismissMenu()
                             onChooseFolder()
@@ -694,7 +692,6 @@ struct AnkiExportDialog: View {
 
             WorkbenchButton(
                 title: L("common.cancel"),
-                isRedesign: true,
                 action: {
                     dismissMenu()
                     onClose()
@@ -731,7 +728,6 @@ private struct AnkiCardItemMenuPopover: View {
 
     var body: some View {
         WorkbenchPopoverPanel(
-            isRedesign: true,
             maximumHeight: MenuMetrics.maximumHeight,
             highlight: highlight
         ) {
@@ -741,7 +737,6 @@ private struct AnkiCardItemMenuPopover: View {
                         title: item.title,
                         isHighlighted: highlight.isSelected(position),
                         isRowHovered: highlight.isHovered(position),
-                        isRedesign: true,
                         showsCheckmarkSlot: false,
                         action: {
                             onSelect(item)

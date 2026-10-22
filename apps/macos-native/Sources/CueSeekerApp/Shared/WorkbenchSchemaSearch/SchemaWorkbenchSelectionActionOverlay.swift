@@ -58,7 +58,6 @@ struct SchemaWorkbenchSelectionActionButton: View {
         WorkbenchButton(
             title: action.title,
             icon: action.icon,
-            isRedesign: true,
             action: action.perform
         )
         .workbenchTooltip(

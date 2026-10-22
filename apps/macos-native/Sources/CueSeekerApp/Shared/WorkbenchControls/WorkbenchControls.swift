@@ -2,11 +2,7 @@ import SwiftUI
 import AppKit
 
 enum WorkbenchControlMetrics {
-    static let searchFieldHeight: CGFloat = 46
-    static let controlHeight: CGFloat = 40
-    static let cornerRadius: CGFloat = 8
     static let hairlineWidth: CGFloat = 0.5
-    static let iconSize: CGFloat = 21
 
     // ==========================================
     // Redesign Tokens (对接新的 Token 规范)
@@ -713,17 +709,6 @@ struct WorkbenchPageTitle: View {
     }
 }
 
-enum WorkbenchControlColors {
-    static let surfaceFill = Color(nsColor: .textBackgroundColor)
-    static let border = Color(nsColor: .separatorColor)
-    static let primaryText = Color(nsColor: .labelColor)
-    static let mutedText = Color(nsColor: .secondaryLabelColor)
-    static let activeBlue = Color(red: 0.035, green: 0.412, blue: 0.957)
-    static let activeBlueFill = Color(red: 0.910, green: 0.952, blue: 1.0)
-    static let hoverFill = Color(nsColor: .labelColor).opacity(0.06)
-}
-
-
 struct WorkbenchInlineClearButton: View {
     var isEnabled: Bool = true
     var action: () -> Void
@@ -766,7 +751,6 @@ struct WorkbenchInlineClearButton: View {
 struct WorkbenchSearchField: View {
     let placeholder: String
     @Binding var text: String
-    var isRedesign: Bool
     var autofocus: Bool
     var placesInsertionPointAtEndOnAutofocus: Bool
     var trailingStatusText: String?
@@ -782,7 +766,6 @@ struct WorkbenchSearchField: View {
     init(
         placeholder: String,
         text: Binding<String>,
-        isRedesign: Bool = false,
         autofocus: Bool = false,
         placesInsertionPointAtEndOnAutofocus: Bool = false,
         trailingStatusText: String? = nil,
@@ -793,7 +776,6 @@ struct WorkbenchSearchField: View {
     ) {
         self.placeholder = placeholder
         _text = text
-        self.isRedesign = isRedesign
         self.autofocus = autofocus
         self.placesInsertionPointAtEndOnAutofocus =
             placesInsertionPointAtEndOnAutofocus
@@ -812,9 +794,9 @@ struct WorkbenchSearchField: View {
     }
 
     var body: some View {
-        HStack(spacing: isRedesign ? WorkbenchControlMetrics.redesignSpacing2 : 12) {
-            AppIconImage(.magnifyingGlass, size: isRedesign ? WorkbenchControlMetrics.redesignControlIconSize : 23)
-                .foregroundStyle(isRedesign ? (isEnabled ? WorkbenchRedesignColors.textSecondary : WorkbenchRedesignColors.textDisabled) : WorkbenchControlColors.mutedText)
+        HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
+            AppIconImage(.magnifyingGlass, size: WorkbenchControlMetrics.redesignControlIconSize)
+                .foregroundStyle(isEnabled ? WorkbenchRedesignColors.textSecondary : WorkbenchRedesignColors.textDisabled)
 
             WorkbenchSingleLineTextInput(
                 placeholder: placeholder,
@@ -824,17 +806,11 @@ struct WorkbenchSearchField: View {
                         text = SearchInputNormalizer.singleLine($0)
                     }
                 ),
-                placeholderColor: isRedesign
-                    ? WorkbenchRedesignColors.textPlaceholder
-                    : WorkbenchControlColors.mutedText,
-                textColor: isRedesign
-                    ? (isEnabled
-                        ? WorkbenchRedesignColors.textPrimary
-                        : WorkbenchRedesignColors.textPlaceholder)
-                    : WorkbenchControlColors.primaryText,
-                fontSize: isRedesign
-                    ? WorkbenchControlMetrics.redesignFontSizeControl
-                    : 15,
+                placeholderColor: WorkbenchRedesignColors.textPlaceholder,
+                textColor: isEnabled
+                    ? WorkbenchRedesignColors.textPrimary
+                    : WorkbenchRedesignColors.textPlaceholder,
+                fontSize: WorkbenchControlMetrics.redesignFontSizeControl,
                 focus: $isFocused,
                 accessibilityLabel: placeholder,
                 onFocusChange: { isNativeFocused = $0 },
@@ -844,8 +820,7 @@ struct WorkbenchSearchField: View {
                 onCancel: onCancel
             )
 
-            if isRedesign,
-               let trailingStatusText,
+            if let trailingStatusText,
                !trailingStatusText.isEmpty {
                 Text(trailingStatusText)
                     .font(.system(
@@ -857,7 +832,7 @@ struct WorkbenchSearchField: View {
                     .fixedSize(horizontal: true, vertical: false)
             }
 
-            if isRedesign && !text.isEmpty {
+            if !text.isEmpty {
                 WorkbenchInlineClearButton(isEnabled: isEnabled) {
                     text = ""
                 }
@@ -868,32 +843,30 @@ struct WorkbenchSearchField: View {
                 )
             }
         }
-        .padding(.horizontal, isRedesign ? WorkbenchControlMetrics.redesignControlPaddingX : 18)
-        .frame(height: isRedesign ? WorkbenchControlMetrics.redesignSearchHeight : WorkbenchControlMetrics.searchFieldHeight)
+        .padding(.horizontal, WorkbenchControlMetrics.redesignControlPaddingX)
+        .frame(height: WorkbenchControlMetrics.redesignSearchHeight)
         .background(
-            RoundedRectangle(cornerRadius: isRedesign ? WorkbenchControlMetrics.redesignSearchRadius : WorkbenchControlMetrics.cornerRadius, style: .continuous)
-                .fill(isRedesign ? (isEnabled ? WorkbenchRedesignColors.bgControl : WorkbenchRedesignColors.bgDisabled) : WorkbenchControlColors.surfaceFill)
+            RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignSearchRadius, style: .continuous)
+                .fill(isEnabled ? WorkbenchRedesignColors.bgControl : WorkbenchRedesignColors.bgDisabled)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: isRedesign ? WorkbenchControlMetrics.redesignSearchRadius : WorkbenchControlMetrics.cornerRadius, style: .continuous)
+            RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignSearchRadius, style: .continuous)
                 .strokeBorder(
-                    isRedesign ? ((isNativeFocused || isFocused) ? WorkbenchRedesignColors.borderFocus : (isEnabled ? WorkbenchRedesignColors.borderControl : WorkbenchRedesignColors.borderDisabled)) : WorkbenchControlColors.border,
-                    lineWidth: isRedesign ? WorkbenchControlMetrics.redesignControlBorderWidth : WorkbenchControlMetrics.hairlineWidth
+                    (isNativeFocused || isFocused) ? WorkbenchRedesignColors.borderFocus : (isEnabled ? WorkbenchRedesignColors.borderControl : WorkbenchRedesignColors.borderDisabled),
+                    lineWidth: WorkbenchControlMetrics.redesignControlBorderWidth
                 )
                 .allowsHitTesting(false)
         )
         .overlay(
             WorkbenchSingleLineContainerOverlay(
                 isEnabled: isEnabled,
-                trailingExclusionSize: (isRedesign && !text.isEmpty)
+                trailingExclusionSize: !text.isEmpty
                     ? NSSize(
                         width: WorkbenchControlMetrics.redesignInlineClearButtonSize,
                         height: WorkbenchControlMetrics.redesignInlineClearButtonSize
                     )
                     : nil,
-                trailingExclusionRightInset: isRedesign
-                    ? WorkbenchControlMetrics.redesignControlPaddingX
-                    : 18
+                trailingExclusionRightInset: WorkbenchControlMetrics.redesignControlPaddingX
             )
         )
         .subtitleTableTextSelectionInteractiveRegion(isActive: isEnabled)
@@ -929,7 +902,6 @@ struct WorkbenchButton: View {
     var count: Int = 0
     var countBackground: Color = WorkbenchRedesignColors.badgeNeutralBg
     var countTextColor: Color = WorkbenchRedesignColors.textSecondary
-    var isRedesign: Bool = false
     var isOpen: Bool = false
     /// Buttons never take the keyboard focus, so the one that opens focused -
     /// Confirmation's Cancel - is told to draw its Focused state.
@@ -947,26 +919,16 @@ struct WorkbenchButton: View {
                 .padding(.horizontal, horizontalPadding)
                 .frame(width: boxWidth, height: boxHeight)
                 .background(
-                    Group {
-                        if isRedesign {
-                            RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignCornerRadius, style: .continuous)
-                                .fill(backgroundColor)
-                        } else {
-                            WorkbenchControlBackground()
-                        }
-                    }
+                    RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignCornerRadius, style: .continuous)
+                        .fill(backgroundColor)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignCornerRadius, style: .continuous)
+                        .strokeBorder(borderColor, lineWidth: 1)
                 )
                 .overlay(
                     Group {
-                        if isRedesign {
-                            RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignCornerRadius, style: .continuous)
-                                .strokeBorder(borderColor, lineWidth: 1)
-                        }
-                    }
-                )
-                .overlay(
-                    Group {
-                        if isRedesign && isFocused && isEnabled {
+                        if isFocused && isEnabled {
                             RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignCornerRadius + WorkbenchControlMetrics.redesignFocusRingPathExpansion, style: .continuous)
                                 .stroke(WorkbenchRedesignColors.focusRing, lineWidth: WorkbenchControlMetrics.redesignFocusRingWidth)
                                 .padding(-WorkbenchControlMetrics.redesignFocusRingPathExpansion)
@@ -992,15 +954,15 @@ struct WorkbenchButton: View {
             if let title, !title.isEmpty {
                 Text(title)
                     .font(.system(
-                        size: isRedesign ? WorkbenchControlMetrics.redesignFontSizeControl : 14,
-                        weight: isRedesign ? WorkbenchControlMetrics.redesignFontWeightControl : .medium
+                        size: WorkbenchControlMetrics.redesignFontSizeControl,
+                        weight: WorkbenchControlMetrics.redesignFontWeightControl
                     ))
                     .foregroundStyle(textForegroundColor)
                     .lineLimit(1)
                     .fixedSize(horizontal: true, vertical: false)
             }
 
-            if isRedesign && count > 0 {
+            if count > 0 {
                 TaskCountBadge(
                     count: count,
                     background: isEnabled ? countBackground : countBackground.opacity(0.35),
@@ -1016,7 +978,7 @@ struct WorkbenchButton: View {
     }
 
     private var boxHeight: CGFloat {
-        height ?? (isRedesign ? WorkbenchControlMetrics.redesignHeight : 36)
+        height ?? WorkbenchControlMetrics.redesignHeight
     }
 
     private var boxWidth: CGFloat? {
@@ -1033,35 +995,32 @@ struct WorkbenchButton: View {
         if !hasTitle && count > 0 {
             return (boxHeight - WorkbenchControlMetrics.redesignControlIconSize) / 2
         }
-        return isRedesign ? WorkbenchControlMetrics.redesignControlPaddingX : 14
+        return WorkbenchControlMetrics.redesignControlPaddingX
     }
 
     private var contentSpacing: CGFloat {
-        if isRedesign && !hasTitle && count > 0 {
+        if !hasTitle && count > 0 {
             return WorkbenchControlMetrics.redesignTaskCountBadgeGap
         }
-        return isRedesign ? WorkbenchControlMetrics.redesignSpacing2 : 8
+        return WorkbenchControlMetrics.redesignSpacing2
     }
 
     private var iconSize: CGFloat {
-        if isRedesign {
-            return hasTitle ? WorkbenchControlMetrics.redesignButtonIconSize : WorkbenchControlMetrics.redesignControlIconSize
-        }
-        return WorkbenchControlMetrics.iconSize
+        hasTitle ? WorkbenchControlMetrics.redesignButtonIconSize : WorkbenchControlMetrics.redesignControlIconSize
     }
 
     private var iconForegroundColor: Color {
         guard isEnabled else {
-            return isRedesign ? WorkbenchRedesignColors.textDisabled : WorkbenchControlColors.primaryText
+            return WorkbenchRedesignColors.textDisabled
         }
-        return isRedesign ? WorkbenchRedesignColors.textSecondary : WorkbenchControlColors.primaryText
+        return WorkbenchRedesignColors.textSecondary
     }
 
     private var textForegroundColor: Color {
         guard isEnabled else {
-            return isRedesign ? WorkbenchRedesignColors.textDisabled : WorkbenchControlColors.primaryText
+            return WorkbenchRedesignColors.textDisabled
         }
-        return isRedesign ? WorkbenchRedesignColors.textSecondary : WorkbenchControlColors.primaryText
+        return WorkbenchRedesignColors.textSecondary
     }
 
     private var backgroundColor: Color {
@@ -1226,8 +1185,8 @@ struct WorkbenchDestructiveButton: View {
 
 struct WorkbenchBadge: View {
     let title: String
-    var foregroundColor = WorkbenchControlColors.activeBlue
-    var fillColor = WorkbenchControlColors.activeBlueFill
+    let foregroundColor: Color
+    let fillColor: Color
 
     var body: some View {
         Text(title)
@@ -1249,7 +1208,6 @@ struct WorkbenchPopoverRow: View {
     var isRowHovered = false
     var icon: AppIcon?
     var iconWeight: AppIconWeight?
-    var isRedesign: Bool = false
     var showsCheckmarkSlot = true
     var isEnabled = true
     var isDestructive = false
@@ -1273,24 +1231,15 @@ struct WorkbenchPopoverRow: View {
     }
 
     private var label: some View {
-        HStack(spacing: isRedesign ? WorkbenchControlMetrics.redesignSpacing2 : 12) {
+        HStack(spacing: WorkbenchControlMetrics.redesignSpacing2) {
             if showsCheckmarkSlot {
-                if isRedesign {
-                    if isSelected {
-                        AppIconImage(.check, size: WorkbenchControlMetrics.redesignMenuItemSymbolFontSizeMacOS)
-                            .frame(width: WorkbenchControlMetrics.redesignMenuItemSymbolFontSizeMacOS, height: WorkbenchControlMetrics.redesignMenuItemSymbolFontSizeMacOS)
-                            .foregroundStyle(iconColor)
-                    } else {
-                        Color.clear
-                            .frame(width: WorkbenchControlMetrics.redesignMenuItemSymbolFontSizeMacOS, height: WorkbenchControlMetrics.redesignMenuItemSymbolFontSizeMacOS)
-                    }
+                if isSelected {
+                    AppIconImage(.check, size: WorkbenchControlMetrics.redesignMenuItemSymbolFontSizeMacOS)
+                        .frame(width: WorkbenchControlMetrics.redesignMenuItemSymbolFontSizeMacOS, height: WorkbenchControlMetrics.redesignMenuItemSymbolFontSizeMacOS)
+                        .foregroundStyle(iconColor)
                 } else {
-                    if isSelected {
-                        AppIconImage(.check, size: 17)
-                    } else {
-                        Color.clear
-                            .frame(width: 17, height: 17)
-                    }
+                    Color.clear
+                        .frame(width: WorkbenchControlMetrics.redesignMenuItemSymbolFontSizeMacOS, height: WorkbenchControlMetrics.redesignMenuItemSymbolFontSizeMacOS)
                 }
             }
 
@@ -1299,16 +1248,19 @@ struct WorkbenchPopoverRow: View {
             if let icon {
                 AppIconImage(
                     icon,
-                    size: isRedesign ? WorkbenchControlMetrics.redesignMenuItemSymbolFontSizeMacOS : 18,
+                    size: WorkbenchControlMetrics.redesignMenuItemSymbolFontSizeMacOS,
                     weight: iconWeight
                 )
-                    .foregroundStyle(isRedesign ? iconColor : (isEnabled ? WorkbenchControlColors.primaryText : WorkbenchControlColors.mutedText))
-                    .frame(width: isRedesign ? WorkbenchControlMetrics.redesignMenuItemSymbolFontSizeMacOS : nil, height: isRedesign ? WorkbenchControlMetrics.redesignMenuItemSymbolFontSizeMacOS : nil)
+                    .foregroundStyle(iconColor)
+                    .frame(
+                        width: WorkbenchControlMetrics.redesignMenuItemSymbolFontSizeMacOS,
+                        height: WorkbenchControlMetrics.redesignMenuItemSymbolFontSizeMacOS
+                    )
             }
 
             Text(title)
-                .font(.system(size: isRedesign ? WorkbenchControlMetrics.redesignFontSizeTable : 15, weight: .regular))
-                .foregroundStyle(isRedesign ? labelColor : (isEnabled ? WorkbenchControlColors.primaryText : WorkbenchControlColors.mutedText))
+                .font(.system(size: WorkbenchControlMetrics.redesignFontSizeTable, weight: .regular))
+                .foregroundStyle(labelColor)
                 .lineLimit(1)
                 .fixedSize(horizontal: true, vertical: false)
 
@@ -1317,41 +1269,22 @@ struct WorkbenchPopoverRow: View {
             if let trailingIcon {
                 AppIconImage(
                     trailingIcon,
-                    size: isRedesign
-                        ? WorkbenchControlMetrics.redesignMenuItemSymbolFontSizeMacOS
-                        : 18
+                    size: WorkbenchControlMetrics.redesignMenuItemSymbolFontSizeMacOS
                 )
-                    .foregroundStyle(
-                        isRedesign
-                            ? iconColor
-                            : (isEnabled
-                                ? WorkbenchControlColors.primaryText
-                                : WorkbenchControlColors.mutedText)
-                    )
+                    .foregroundStyle(iconColor)
                     // No fixed width: a lone trailing glyph centred in a
                     // wider slot would leave the space after it reading wider
                     // than the space before the leading icon.
-                    .frame(
-                        height: isRedesign
-                            ? WorkbenchControlMetrics.redesignMenuItemSymbolFontSizeMacOS
-                            : nil
-                    )
+                    .frame(height: WorkbenchControlMetrics.redesignMenuItemSymbolFontSizeMacOS)
             }
         }
-        .foregroundStyle(isRedesign ? labelColor : (isEnabled ? WorkbenchControlColors.primaryText : WorkbenchControlColors.mutedText))
-        .padding(
-            .leading,
-            isRedesign
-                ? WorkbenchControlMetrics.redesignMenuItemHorizontalPadding
-                : 12
-        )
-        .padding(.trailing, isRedesign ? redesignTrailingPadding : 12)
-        .frame(height: isRedesign ? WorkbenchControlMetrics.redesignMenuItemHeight : 40)
+        .foregroundStyle(labelColor)
+        .padding(.leading, WorkbenchControlMetrics.redesignMenuItemHorizontalPadding)
+        .padding(.trailing, redesignTrailingPadding)
+        .frame(height: WorkbenchControlMetrics.redesignMenuItemHeight)
         .background(
             RoundedRectangle(
-                cornerRadius: isRedesign
-                    ? WorkbenchControlMetrics.redesignMenuItemRadius
-                    : 8,
+                cornerRadius: WorkbenchControlMetrics.redesignMenuItemRadius,
                 style: .continuous
             )
             .fill(rowBackground)
@@ -1374,7 +1307,6 @@ struct WorkbenchPopoverRow: View {
     private var rowBackground: Color {
         guard isEnabled else { return .clear }
         if isHighlighted || isRowHovered {
-            guard isRedesign else { return WorkbenchControlColors.hoverFill }
             return isDestructive
                 ? WorkbenchRedesignColors.dangerBgHover
                 : WorkbenchRedesignColors.bgHover
@@ -1399,7 +1331,6 @@ struct WorkbenchPopoverRow: View {
 
 struct WorkbenchIconButton: View {
     let icon: AppIcon
-    var isRedesign: Bool = false
     /// The button stays lit for as long as the menu or panel it hangs off is
     /// open, and for as long as the mode it switches on is on. Lit looks the
     /// same as hover, the way a shortcut button does.
@@ -1465,7 +1396,7 @@ struct WorkbenchIconButton: View {
 
     private var label: some View {
         Group {
-            if isRedesign && count > 0 {
+            if count > 0 {
                 HStack(spacing: WorkbenchControlMetrics.redesignTaskCountBadgeGap) {
                     glyph
                     TaskCountBadge(
@@ -1484,29 +1415,23 @@ struct WorkbenchIconButton: View {
             }
         }
         .background(
-            Group {
-                if isRedesign {
-                    RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignCornerRadius, style: .continuous)
-                        .fill(redesignBackgroundColor)
-                } else {
-                    Color.clear
-                }
-            }
+            RoundedRectangle(cornerRadius: WorkbenchControlMetrics.redesignCornerRadius, style: .continuous)
+                .fill(redesignBackgroundColor)
         )
         .contentShape(Rectangle())
     }
 
     private var glyph: some View {
         AppIconImage(icon, size: glyphLength)
-            .foregroundStyle(isRedesign ? redesignIconColor : WorkbenchControlColors.primaryText)
+            .foregroundStyle(redesignIconColor)
     }
 
     private var glyphLength: CGFloat {
-        isRedesign ? (iconSize ?? WorkbenchControlMetrics.redesignControlIconSize) : WorkbenchControlMetrics.iconSize
+        iconSize ?? WorkbenchControlMetrics.redesignControlIconSize
     }
 
     private var boxLength: CGFloat {
-        isRedesign ? (boxSize ?? WorkbenchControlMetrics.redesignIconButtonSize) : WorkbenchControlMetrics.controlHeight
+        boxSize ?? WorkbenchControlMetrics.redesignIconButtonSize
     }
 
     var redesignIconColor: Color {
@@ -1564,7 +1489,6 @@ enum MenuSurface {
 }
 
 struct WorkbenchPopoverPanel<Content: View>: View {
-    var isRedesign: Bool = false
     var surface = MenuSurface.workbench
     /// How tall the panel may grow. It is the menu's own cap by default; a menu
     /// that opened on a side with less room than that is given the room it has,
@@ -1580,9 +1504,7 @@ struct WorkbenchPopoverPanel<Content: View>: View {
 
     var body: some View {
         let isPlayerChrome = surface == .playerChrome
-        let cornerRadius: CGFloat = isPlayerChrome || isRedesign
-            ? WorkbenchControlMetrics.redesignMenuRadius
-            : 10
+        let cornerRadius: CGFloat = WorkbenchControlMetrics.redesignMenuRadius
         // The scroll view spans the whole panel, and the item stack inside it
         // both applies the menu's padding and reserves the strip the scrollbar
         // needs — but only once the items outgrow the cap, so a menu that does
@@ -1592,21 +1514,14 @@ struct WorkbenchPopoverPanel<Content: View>: View {
         ScrollViewReader { proxy in
             MenuHeightCap(height: maximumHeight) {
                 WorkbenchScrollView(
-                    scrollbarInset: isRedesign || isPlayerChrome
-                        ? MenuMetrics.scrollbarOuterGap
-                        : TableScrollbarPrimitiveMetrics.inset
+                    scrollbarInset: MenuMetrics.scrollbarOuterGap
                 ) {
-                    if isRedesign || isPlayerChrome {
-                        MenuItemStack(
-                            padding: MenuMetrics.padding,
-                            strip: MenuMetrics.scrollbarStrip,
-                            cap: maximumHeight
-                        ) {
-                            content()
-                        }
-                    } else {
+                    MenuItemStack(
+                        padding: MenuMetrics.padding,
+                        strip: MenuMetrics.scrollbarStrip,
+                        cap: maximumHeight
+                    ) {
                         content()
-                            .padding(8)
                     }
                 }
             }
@@ -1621,21 +1536,12 @@ struct WorkbenchPopoverPanel<Content: View>: View {
                                 radius: PlaybackTheme.overlayShadowRadius,
                                 y: PlaybackTheme.overlayShadowYOffset
                             )
-                    } else if isRedesign {
+                    } else {
                         RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                             .fill(WorkbenchRedesignColors.bgPopover)
                             .shadowToken(
                                 WorkbenchRedesignColors.shadowPopover,
                                 cornerRadius: cornerRadius
-                            )
-                    } else {
-                        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                            .fill(WorkbenchControlColors.surfaceFill)
-                            .shadow(
-                                color: Color.black.opacity(0.14),
-                                radius: 12,
-                                x: 0,
-                                y: 6
                             )
                     }
                 }
@@ -1645,8 +1551,8 @@ struct WorkbenchPopoverPanel<Content: View>: View {
                     .strokeBorder(
                         isPlayerChrome
                             ? PlaybackTheme.textTertiary.opacity(0.3)
-                            : isRedesign ? WorkbenchRedesignColors.borderControl : WorkbenchControlColors.border.opacity(0.75),
-                        lineWidth: isRedesign ? 1.0 : 0.5
+                            : WorkbenchRedesignColors.borderControl,
+                        lineWidth: 1.0
                     )
             )
             .subtitleTableTextSelectionNonInteractiveRegion(
@@ -1673,26 +1579,6 @@ struct WorkbenchPopoverPanel<Content: View>: View {
             return
         }
         proxy.scrollTo(position)
-    }
-}
-
-struct WorkbenchControlBackground: View {
-    var body: some View {
-        RoundedRectangle(
-            cornerRadius: WorkbenchControlMetrics.cornerRadius,
-            style: .continuous
-        )
-        .fill(WorkbenchControlColors.surfaceFill)
-        .overlay(
-            RoundedRectangle(
-                cornerRadius: WorkbenchControlMetrics.cornerRadius,
-                style: .continuous
-            )
-            .strokeBorder(
-                WorkbenchControlColors.border,
-                lineWidth: WorkbenchControlMetrics.hairlineWidth
-            )
-        )
     }
 }
 
@@ -1769,7 +1655,6 @@ struct WorkbenchCardMenuPopover: View {
 
     var body: some View {
         WorkbenchPopoverPanel(
-            isRedesign: true,
             maximumHeight: MenuMetrics.maximumHeight,
             highlight: highlight
         ) {
@@ -1780,7 +1665,6 @@ struct WorkbenchCardMenuPopover: View {
                         isHighlighted: highlight.isSelected(position),
                         isRowHovered: highlight.isHovered(position),
                         icon: item.icon,
-                        isRedesign: true,
                         showsCheckmarkSlot: false,
                         isEnabled: item.isEnabled,
                         isDestructive: item.isDestructive,

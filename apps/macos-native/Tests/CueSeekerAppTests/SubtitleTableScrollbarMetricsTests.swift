@@ -109,7 +109,6 @@ func subtitleTableScrollbarOverlayHitTestConvertsSuperviewCoordinates() {
 
     let overlay = SubtitleTableScrollbarOverlayView(frame: CGRect(x: 0, y: 44, width: 300, height: 200))
     overlay.scrollView = scrollView
-    overlay.isRedesign = true
 
     parent.addSubview(scrollView)
     parent.addSubview(overlay)
@@ -156,7 +155,6 @@ func subtitleTableScrollbarOverlayPreservesDragAndWheelBehavior() throws {
         frame: CGRect(x: 0, y: 0, width: 300, height: 200)
     )
     overlay.scrollView = scrollView
-    overlay.isRedesign = true
     parent.addSubview(scrollView)
     parent.addSubview(overlay)
     window.contentView = parent
@@ -234,7 +232,6 @@ func subtitleTableScrollbarOverlayPreservesHorizontalDragBehavior() throws {
     scrollView.documentView = documentView
     let overlay = SubtitleTableScrollbarOverlayView(frame: parent.bounds)
     overlay.scrollView = scrollView
-    overlay.isRedesign = true
     parent.addSubview(scrollView)
     parent.addSubview(overlay)
     window.contentView = parent

@@ -139,7 +139,7 @@ func buttonHeightMatchesDesignSpecification() {
 
 @Test
 func iconButtonOpenAndBadgeColorTokensMatchDesignSpecification() {
-    let button = WorkbenchIconButton(icon: .funnel, isRedesign: true)
+    let button = WorkbenchIconButton(icon: .funnel)
     #expect(button.countBackground == WorkbenchRedesignColors.badgeNeutralBg)
     #expect(button.countTextColor == WorkbenchRedesignColors.badgeNeutralText)
     #expect(button.openBackground == nil)
@@ -189,17 +189,17 @@ func darkModeTokensAndSurfaceUnificationMatchDesignSpecification() {
 
 @Test
 func workbenchButtonNeutralVariantsAndOpenColorLinkage() {
-    let iconOnly = WorkbenchButton(icon: .listChecks, isRedesign: true) {}
+    let iconOnly = WorkbenchButton(icon: .listChecks) {}
     #expect(iconOnly.icon == .listChecks)
     #expect(iconOnly.title == nil)
     #expect(iconOnly.count == 0)
 
-    let withBadge = WorkbenchButton(icon: .funnel, count: 4, isRedesign: true, isOpen: true) {}
+    let withBadge = WorkbenchButton(icon: .funnel, count: 4, isOpen: true) {}
     #expect(withBadge.icon == .funnel)
     #expect(withBadge.count == 4)
     #expect(withBadge.isOpen == true)
 
-    let withTitle = WorkbenchButton(title: "默认排序", icon: .funnelSimple, isRedesign: true, isOpen: false) {}
+    let withTitle = WorkbenchButton(title: "默认排序", icon: .funnelSimple, isOpen: false) {}
     #expect(withTitle.title == "默认排序")
     #expect(withTitle.icon == .funnelSimple)
     #expect(withTitle.isOpen == false)
@@ -217,19 +217,18 @@ func workbenchButtonNeutralVariantsAndOpenColorLinkage() {
 
 @Test
 func workbenchIconButtonOpenStateMatchesSpecification() {
-    let openIconButton = WorkbenchIconButton(icon: .gear, isRedesign: true, isOpen: true)
+    let openIconButton = WorkbenchIconButton(icon: .gear, isOpen: true)
     #expect(openIconButton.isOpen == true)
     #expect(openIconButton.icon == .gear)
     #expect(openIconButton.redesignIconColor == WorkbenchRedesignColors.textSecondary)
 
-    let idleIconButton = WorkbenchIconButton(icon: .gear, isRedesign: true, isOpen: false)
+    let idleIconButton = WorkbenchIconButton(icon: .gear, isOpen: false)
     #expect(idleIconButton.redesignIconColor == WorkbenchRedesignColors.textSecondary)
 
     // Verify custom surface iconColor (e.g. player topbar white textPrimary)
     // applies in idle state and remains matching in open state.
     let playerIdle = WorkbenchIconButton(
         icon: .tray,
-        isRedesign: true,
         isOpen: false,
         iconColor: .white
     )
@@ -237,7 +236,6 @@ func workbenchIconButtonOpenStateMatchesSpecification() {
 
     let playerOpen = WorkbenchIconButton(
         icon: .tray,
-        isRedesign: true,
         isOpen: true,
         iconColor: .white
     )
@@ -246,7 +244,6 @@ func workbenchIconButtonOpenStateMatchesSpecification() {
     // Verify explicit openIconColor override if specified
     let customOpen = WorkbenchIconButton(
         icon: .tray,
-        isRedesign: true,
         isOpen: true,
         iconColor: .white,
         openIconColor: .yellow

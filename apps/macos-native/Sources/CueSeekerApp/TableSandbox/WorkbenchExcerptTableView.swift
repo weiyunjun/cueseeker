@@ -67,7 +67,6 @@ private struct WorkbenchExcerptTableContent: View {
         SchemaWorkbenchSearchShell(
             searchDraft: searchInputBinding,
             columns: SchemaWorkbenchSearchDefaults.excerptColumns,
-            isRedesign: true,
             summaryContent: coverSummary,
             hostsPageChromeInTable: true,
             tableSummary: tableSummary,
@@ -142,7 +141,6 @@ private struct WorkbenchExcerptTableContent: View {
                     onRemoveExcerpt: requestRemoveExcerpt,
                     isCueInLibrary: { appState.isCueInLibrary($0) },
                     onToast: { appState.toast.show($0) },
-                    isRedesign: true,
                     showsHeader: showsTableHeader,
                     pageChrome: excerptDetailPageChrome
                 )

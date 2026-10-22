@@ -440,7 +440,6 @@ private struct WorkbenchPageScrollbarFixture: View {
         SchemaWorkbenchSearchShell(
             searchDraft: $searchDraft,
             columns: SchemaWorkbenchSearchDefaults.columns,
-            isRedesign: true,
             onOpenFilterDialog: {}
         ) { _ in
             SubtitleTableView(
@@ -451,8 +450,7 @@ private struct WorkbenchPageScrollbarFixture: View {
                 rowsUpdate: .reload,
                 showsTimeColumn: true,
                 showsLanguageColumn: true,
-                onPlay: { _ in },
-                isRedesign: true
+                onPlay: { _ in }
             )
         }
     }
