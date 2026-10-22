@@ -430,7 +430,7 @@ func assPlaybackFontIntentProviderLoadsIndexedFontNames() throws {
 
     let fontNames = try ASSPlaybackFontIntentProvider.requestedFontNames(
         sourcePath: subtitleFile.path,
-        renderCacheDatabaseURL: databaseURL
+        renderCacheProvider: PlaybackSubtitleRenderCacheReader(databaseURL: databaseURL)
     )
 
     #expect(fontNames == ["华文中宋", "汉仪小隶书简"])

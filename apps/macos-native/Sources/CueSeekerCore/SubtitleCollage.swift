@@ -83,6 +83,27 @@ public struct SubtitleCollageSelectionPlan: Equatable, Sendable {
         selectedCuesByID[cueID] != nil
     }
 
+    public static func defaultCollageFileName(
+        displayTitle: String,
+        plan: SubtitleCollageSelectionPlan
+    ) -> String {
+        let selectedCues = plan.selectedCues
+        guard let first = selectedCues.first else {
+            return "CueSeeker-Collage-0.png"
+        }
+
+        return defaultCollageFileName(
+            displayTitle: displayTitle,
+            startMilliseconds: selectedCues
+                .map(\.startMilliseconds)
+                .min() ?? first.startMilliseconds,
+            endMilliseconds: selectedCues
+                .map(\.endMilliseconds)
+                .max() ?? first.endMilliseconds,
+            cueCount: plan.selectedCueCount
+        )
+    }
+
     @discardableResult
     public mutating func select(
         _ cue: SubtitleFocusCue
@@ -329,5 +350,28 @@ private extension SubtitleCollageSelectionPlan {
             return lhs.eventIndex < rhs.eventIndex
         }
         return lhs.id < rhs.id
+    }
+
+    static func timeString(milliseconds: Int) -> String {
+        let totalSeconds = max(0, milliseconds) / 1_000
+        let hours = totalSeconds / 3_600
+        let minutes = (totalSeconds % 3_600) / 60
+        let seconds = totalSeconds % 60
+
+        if hours > 0 {
+            return String(format: "%02d.%02d.%02d", hours, minutes, seconds)
+        }
+        return String(format: "%02d.%02d", minutes, seconds)
+    }
+
+    static func defaultCollageFileName(
+        displayTitle: String,
+        startMilliseconds: Int,
+        endMilliseconds: Int,
+        cueCount: Int
+    ) -> String {
+        let start = timeString(milliseconds: startMilliseconds)
+        let end = timeString(milliseconds: endMilliseconds)
+        return "\(displayTitle)-\(start)-\(end)-\(cueCount).png"
     }
 }

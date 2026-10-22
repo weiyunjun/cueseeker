@@ -590,7 +590,7 @@ extension AppCoordinator {
                 startingAtMilliseconds: startMilliseconds,
                 fallbackEndMilliseconds: fallbackEndMilliseconds
             ),
-            renderCacheDatabaseURL: databaseURL
+            renderCacheProvider: PlaybackSubtitleRenderCacheReader(databaseURL: databaseURL)
         )
     }
 

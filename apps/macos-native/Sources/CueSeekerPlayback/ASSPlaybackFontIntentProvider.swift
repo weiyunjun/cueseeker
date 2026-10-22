@@ -4,23 +4,22 @@ import Foundation
 enum ASSPlaybackFontIntentProvider {
     static func requestedFontNames(
         sourcePath: String?,
-        renderCacheDatabaseURL: URL?
+        renderCacheProvider: (any PlaybackSubtitleRenderCacheProviding)?
     ) throws -> [String]? {
         guard let sourcePath,
-              let renderCacheDatabaseURL
+              let renderCacheProvider
         else {
             return nil
         }
 
         let subtitleFile = URL.fromMediaPath(sourcePath)
-        let database = try PlaybackSubtitleDatabase(path: renderCacheDatabaseURL)
-        guard try database.hasCurrentASSFontReferenceManifest(forSubtitleFile: subtitleFile) else {
+        guard try renderCacheProvider.hasCurrentASSFontReferenceManifest(forSubtitleFile: subtitleFile) else {
             return nil
         }
 
         var seenKeys = Set<String>()
         var fontNames: [String] = []
-        for reference in try database.assFontReferences(forSubtitleFile: subtitleFile) {
+        for reference in try renderCacheProvider.assFontReferences(forSubtitleFile: subtitleFile) {
             let key = reference.fontName
                 .trimmingCharacters(in: .whitespacesAndNewlines)
                 .folding(

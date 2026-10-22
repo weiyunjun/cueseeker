@@ -105,7 +105,7 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
     private var session: SFXASSRendererSession?
     private var sourcePath: String?
     private var sourceFormat: PlaybackSubtitleSourceFormat?
-    private var renderCacheDatabaseURL: URL?
+    private var renderCacheProvider: (any PlaybackSubtitleRenderCacheProviding)?
     private var frameWidth = 0
     private var frameHeight = 0
     private var activeRenderSegmentWindow: PlaybackSubtitleTimeWindow?
@@ -123,7 +123,7 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
         queue.async { [
             sourcePath = source.url.mediaPath,
             sourceFormat = source.format,
-            renderCacheDatabaseURL = source.renderCacheDatabaseURL
+            renderCacheProvider = source.renderCacheProvider
         ] in
             guard !self.isInvalidated else {
                 return
@@ -133,13 +133,13 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
                 self.clearState()
                 self.sourcePath = sourcePath
                 self.sourceFormat = sourceFormat
-                self.renderCacheDatabaseURL = renderCacheDatabaseURL
+                self.renderCacheProvider = renderCacheProvider
                 self.frameWidth = frameWidth
                 self.frameHeight = frameHeight
                 self.activeRenderSegmentWindow = nil
                 self.requestedFontNames = try? ASSPlaybackFontIntentProvider.requestedFontNames(
                     sourcePath: sourcePath,
-                    renderCacheDatabaseURL: renderCacheDatabaseURL
+                    renderCacheProvider: renderCacheProvider
                 )
 
                 let nextSession = try self.makeSession(containing: initialTimestampMilliseconds)
@@ -251,7 +251,7 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
         session = nil
         sourcePath = nil
         sourceFormat = nil
-        renderCacheDatabaseURL = nil
+        renderCacheProvider = nil
         frameWidth = 0
         frameHeight = 0
         activeRenderSegmentWindow = nil
@@ -328,12 +328,11 @@ private final class SourceFaithfulASSRendererWorker: @unchecked Sendable {
     }
 
     private func indexedRenderSegment(containing timestampMilliseconds: Int) throws -> ASSRenderSegment? {
-        guard let renderCacheDatabaseURL, let sourcePath else {
+        guard let renderCacheProvider, let sourcePath else {
             return nil
         }
 
-        let database = try PlaybackSubtitleDatabase(path: renderCacheDatabaseURL)
-        return try database.assRenderSegment(
+        return try renderCacheProvider.assRenderSegment(
             forSubtitleFile: URL.fromMediaPath(sourcePath),
             atMilliseconds: timestampMilliseconds
         )
@@ -619,8 +618,8 @@ final class SourceFaithfulASSSubtitleOverlayView: NSView {
 
         return source.url.standardizedMediaURL == nextSource.url.standardizedMediaURL
             && source.format == nextSource.format
-            && source.renderCacheDatabaseURL?.standardizedFileURL
-                == nextSource.renderCacheDatabaseURL?.standardizedFileURL
+            && source.renderCacheProvider?.cacheScopeID
+                == nextSource.renderCacheProvider?.cacheScopeID
     }
 
     private func requestRender(force: Bool = false) {

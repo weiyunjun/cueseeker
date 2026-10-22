@@ -1,13 +1,62 @@
 import Foundation
 
-public final class PlaybackSubtitleDatabase: @unchecked Sendable {
+public protocol PlaybackSubtitleRenderCacheProviding: Sendable {
+    var cacheScopeID: String { get }
+    func hasCurrentASSFontReferenceManifest(forSubtitleFile subtitleFile: URL) throws -> Bool
+    func assFontReferences(forSubtitleFile subtitleFile: URL) throws -> [ASSFontReference]
+    func assRenderSegment(
+        forSubtitleFile subtitleFile: URL,
+        atMilliseconds timestampMilliseconds: Int
+    ) throws -> ASSRenderSegment?
+}
+
+public struct PlaybackSubtitleRenderCacheReader: PlaybackSubtitleRenderCacheProviding, Equatable, Sendable {
+    public let databaseURL: URL
+
+    public init(databaseURL: URL) {
+        self.databaseURL = databaseURL
+    }
+
+    public var cacheScopeID: String {
+        databaseURL.standardizedFileURL.path
+    }
+
+    public func hasCurrentASSFontReferenceManifest(forSubtitleFile subtitleFile: URL) throws -> Bool {
+        try PlaybackSubtitleDatabase(path: databaseURL)
+            .hasCurrentASSFontReferenceManifest(forSubtitleFile: subtitleFile)
+    }
+
+    public func assFontReferences(forSubtitleFile subtitleFile: URL) throws -> [ASSFontReference] {
+        try PlaybackSubtitleDatabase(path: databaseURL)
+            .assFontReferences(forSubtitleFile: subtitleFile)
+    }
+
+    public func assRenderSegment(
+        forSubtitleFile subtitleFile: URL,
+        atMilliseconds timestampMilliseconds: Int
+    ) throws -> ASSRenderSegment? {
+        try PlaybackSubtitleDatabase(path: databaseURL)
+            .assRenderSegment(
+                forSubtitleFile: subtitleFile,
+                atMilliseconds: timestampMilliseconds
+            )
+    }
+}
+
+public final class PlaybackSubtitleDatabase: PlaybackSubtitleRenderCacheProviding, @unchecked Sendable {
+    private let path: URL
     private let database: SQLiteDatabase
 
     public init(
         path: URL,
         access: DatabaseConnectionAccess = .readOnly
     ) throws {
+        self.path = path
         database = try SQLiteDatabase(path: path, access: access)
+    }
+
+    public var cacheScopeID: String {
+        path.standardizedFileURL.path
     }
 
     public func hasCurrentPlaybackFinishMetadata(forSubtitleFile subtitleFile: URL) throws -> Bool {

@@ -1,6 +1,5 @@
 import CryptoKit
 import Foundation
-import CueSeekerCore
 
 public struct LibraryCoverDisplayBackfillResult: Equatable, Sendable {
     public let eligibleMasterCoverCount: Int
@@ -291,7 +290,7 @@ public struct LibraryCoverDisplayRenditionIndexer: Sendable {
         return !FileManager.default.fileExists(atPath: displayCoverPath)
     }
 
-    static func displayURL(
+    public static func displayURL(
         forVideoPath videoPath: String,
         in directory: URL
     ) -> URL {

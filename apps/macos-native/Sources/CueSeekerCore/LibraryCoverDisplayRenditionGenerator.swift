@@ -2,7 +2,6 @@ import CoreGraphics
 import Foundation
 import ImageIO
 import UniformTypeIdentifiers
-import CueSeekerCore
 
 public struct LibraryCoverDisplayProfile: Equatable, Sendable {
     public static let current = LibraryCoverDisplayProfile(
@@ -24,22 +23,40 @@ public struct LibraryCoverDisplayRenditionResult: Equatable, Sendable {
     public let pixelWidth: Int
     public let pixelHeight: Int
     public let byteCount: Int
+
+    public init(pixelWidth: Int, pixelHeight: Int, byteCount: Int) {
+        self.pixelWidth = pixelWidth
+        self.pixelHeight = pixelHeight
+        self.byteCount = byteCount
+    }
 }
 
-struct LibraryCoverDisplayPixelSize: Equatable, Sendable {
-    let width: Int
-    let height: Int
+public struct LibraryCoverDisplayPixelSize: Equatable, Sendable {
+    public let width: Int
+    public let height: Int
+
+    public init(width: Int, height: Int) {
+        self.width = width
+        self.height = height
+    }
 }
 
-struct LibraryCoverEncodedDisplayRendition: Sendable {
-    let result: LibraryCoverDisplayRenditionResult
-    let data: Data
+public struct LibraryCoverEncodedDisplayRendition: Sendable {
+    public let result: LibraryCoverDisplayRenditionResult
+    public let data: Data
+
+    public init(result: LibraryCoverDisplayRenditionResult, data: Data) {
+        self.result = result
+        self.data = data
+    }
 }
 
-struct LibraryCoverDisplayRenditionGenerator: Sendable {
-    static let profile = LibraryCoverDisplayProfile.current
+public struct LibraryCoverDisplayRenditionGenerator: Sendable {
+    public static let profile = LibraryCoverDisplayProfile.current
 
-    func generate(
+    public init() {}
+
+    public func generate(
         masterURL: URL,
         destinationURL: URL
     ) throws -> LibraryCoverDisplayRenditionResult {
@@ -49,7 +66,7 @@ struct LibraryCoverDisplayRenditionGenerator: Sendable {
         return encodedRendition.result
     }
 
-    func encode(masterURL: URL) throws -> LibraryCoverEncodedDisplayRendition {
+    public func encode(masterURL: URL) throws -> LibraryCoverEncodedDisplayRendition {
         try autoreleasepool {
             guard let source = CGImageSourceCreateWithURL(
                 masterURL as CFURL,
@@ -95,7 +112,7 @@ struct LibraryCoverDisplayRenditionGenerator: Sendable {
         }
     }
 
-    func encode(masterImage: CGImage) throws -> LibraryCoverEncodedDisplayRendition {
+    public func encode(masterImage: CGImage) throws -> LibraryCoverEncodedDisplayRendition {
         try autoreleasepool {
             guard masterImage.width > 0, masterImage.height > 0 else {
                 throw LibraryCoverDisplayRenditionError.invalidSourceDimensions(
@@ -120,7 +137,7 @@ struct LibraryCoverDisplayRenditionGenerator: Sendable {
         }
     }
 
-    static func masterJPEGData(
+    public static func masterJPEGData(
         from image: CGImage,
         compressionQuality: Double = 0.92
     ) throws -> Data {
@@ -152,7 +169,7 @@ struct LibraryCoverDisplayRenditionGenerator: Sendable {
         }
     }
 
-    static func publish(_ data: Data, to destinationURL: URL) throws {
+    public static func publish(_ data: Data, to destinationURL: URL) throws {
         try FileManager.default.createDirectory(
             at: destinationURL.deletingLastPathComponent(),
             withIntermediateDirectories: true
@@ -167,7 +184,7 @@ struct LibraryCoverDisplayRenditionGenerator: Sendable {
         }
     }
 
-    static func fittedPixelSize(
+    public static func fittedPixelSize(
         sourceWidth: Int,
         sourceHeight: Int,
         orientation: UInt32,
@@ -298,7 +315,7 @@ struct LibraryCoverDisplayRenditionGenerator: Sendable {
     }
 }
 
-enum LibraryCoverDisplayRenditionError: Error, CustomStringConvertible, Equatable {
+public enum LibraryCoverDisplayRenditionError: Error, CustomStringConvertible, Equatable {
     case sourceOpenFailed(String)
     case invalidSourceMetadata(String)
     case invalidSourceDimensions(Int, Int)
@@ -310,7 +327,7 @@ enum LibraryCoverDisplayRenditionError: Error, CustomStringConvertible, Equatabl
     case outputValidationFailed
     case publishFailed(String, String)
 
-    var description: String {
+    public var description: String {
         switch self {
         case .sourceOpenFailed(let path):
             "failed to open cover master: \(path)"

@@ -1,5 +1,61 @@
 import Foundation
 
+public struct ProbedVideoMediaMetadata: Equatable, Sendable {
+    public let durationSeconds: Double?
+    public let videoWidth: Int?
+    public let videoHeight: Int?
+    public let frameRate: Double?
+    public let videoCodec: String?
+    public let audioTracks: [VideoAudioTrack]
+
+    public init(
+        durationSeconds: Double?,
+        videoWidth: Int?,
+        videoHeight: Int?,
+        frameRate: Double?,
+        videoCodec: String?,
+        audioTracks: [VideoAudioTrack]
+    ) {
+        self.durationSeconds = durationSeconds
+        self.videoWidth = videoWidth
+        self.videoHeight = videoHeight
+        self.frameRate = frameRate
+        self.videoCodec = videoCodec
+        self.audioTracks = audioTracks
+    }
+}
+
+public struct PlaybackVideoMetadataIndexFailure: Equatable, Sendable {
+    public let videoPath: String
+    public let reason: String
+
+    public init(videoPath: String, reason: String) {
+        self.videoPath = videoPath
+        self.reason = reason
+    }
+}
+
+public struct PlaybackVideoMetadataIndexResult: Equatable, Sendable {
+    public let updatedVideoPaths: [String]
+    public let failures: [PlaybackVideoMetadataIndexFailure]
+
+    public init(
+        updatedVideoPaths: [String],
+        failures: [PlaybackVideoMetadataIndexFailure]
+    ) {
+        self.updatedVideoPaths = updatedVideoPaths
+        self.failures = failures
+    }
+}
+
+public enum PlaybackVideoMetadataIndexingError: LocalizedError, Sendable {
+    case durationUnavailable
+
+    public var errorDescription: String? {
+        "Video duration is unavailable."
+    }
+}
+
 public protocol PlaybackVideoMetadataPersistence: Sendable {
     func libraryVideos(under folders: [URL]) throws -> [LibraryVideo]
 
@@ -12,6 +68,76 @@ public protocol PlaybackVideoMetadataPersistence: Sendable {
         videoCodec: String?,
         audioTracks: [VideoAudioTrack]
     ) throws
+}
+
+public extension PlaybackVideoMetadataPersistence {
+    @discardableResult
+    func indexVideoMetadata(
+        under folder: URL,
+        probe: (URL) throws -> ProbedVideoMediaMetadata
+    ) throws -> PlaybackVideoMetadataIndexResult {
+        let videos = try libraryVideos(under: [folder])
+        return try indexVideoMetadata(
+            videoFiles: videos.map { URL.fromMediaPath($0.videoPath) },
+            probe: probe
+        )
+    }
+
+    @discardableResult
+    func indexVideoMetadata(
+        videoFiles: [URL],
+        onProgress: (@Sendable (Int, Int) -> Void)? = nil,
+        probe: (URL) throws -> ProbedVideoMediaMetadata
+    ) throws -> PlaybackVideoMetadataIndexResult {
+        var updatedVideoPaths = Set<String>()
+        var failures: [PlaybackVideoMetadataIndexFailure] = []
+
+        onProgress?(0, videoFiles.count)
+
+        for (offset, videoFile) in videoFiles.enumerated() {
+            try Task.checkCancellation()
+            defer { onProgress?(offset + 1, videoFiles.count) }
+            let videoPath = videoFile.mediaPath
+
+            guard !updatedVideoPaths.contains(videoPath),
+                  !failures.contains(where: { $0.videoPath == videoPath })
+            else {
+                continue
+            }
+
+            do {
+                let metadata = try probe(videoFile)
+                guard let duration = metadata.durationSeconds,
+                      duration.isFinite,
+                      duration >= 0
+                else {
+                    throw PlaybackVideoMetadataIndexingError.durationUnavailable
+                }
+                try updateVideoMetadata(
+                    videoFile: videoFile,
+                    duration: duration,
+                    videoWidth: metadata.videoWidth,
+                    videoHeight: metadata.videoHeight,
+                    frameRate: metadata.frameRate,
+                    videoCodec: metadata.videoCodec,
+                    audioTracks: metadata.audioTracks
+                )
+                updatedVideoPaths.insert(videoPath)
+            } catch {
+                failures.append(
+                    PlaybackVideoMetadataIndexFailure(
+                        videoPath: videoPath,
+                        reason: error.localizedDescription
+                    )
+                )
+            }
+        }
+
+        return PlaybackVideoMetadataIndexResult(
+            updatedVideoPaths: updatedVideoPaths.sorted(),
+            failures: failures
+        )
+    }
 }
 
 public protocol LibraryCoverPersistence: Sendable {

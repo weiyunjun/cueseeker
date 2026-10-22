@@ -48,7 +48,7 @@ public struct PlaybackSubtitleSource: Equatable, Sendable {
     public let matchedVideoURL: URL?
     public let initialTimestampMilliseconds: Int?
     public let preparationTimeWindow: PlaybackSubtitleTimeWindow?
-    public let renderCacheDatabaseURL: URL?
+    public var renderCacheProvider: (any PlaybackSubtitleRenderCacheProviding)?
 
     public init(
         url: URL,
@@ -56,14 +56,23 @@ public struct PlaybackSubtitleSource: Equatable, Sendable {
         matchedVideoURL: URL? = nil,
         initialTimestampMilliseconds: Int? = nil,
         preparationTimeWindow: PlaybackSubtitleTimeWindow? = nil,
-        renderCacheDatabaseURL: URL? = nil
+        renderCacheProvider: (any PlaybackSubtitleRenderCacheProviding)? = nil
     ) {
         self.url = url
         self.format = format
         self.matchedVideoURL = matchedVideoURL
         self.initialTimestampMilliseconds = initialTimestampMilliseconds.map { max(0, $0) }
         self.preparationTimeWindow = preparationTimeWindow
-        self.renderCacheDatabaseURL = renderCacheDatabaseURL
+        self.renderCacheProvider = renderCacheProvider
+    }
+
+    public static func == (lhs: PlaybackSubtitleSource, rhs: PlaybackSubtitleSource) -> Bool {
+        lhs.url == rhs.url
+            && lhs.format == rhs.format
+            && lhs.matchedVideoURL == rhs.matchedVideoURL
+            && lhs.initialTimestampMilliseconds == rhs.initialTimestampMilliseconds
+            && lhs.preparationTimeWindow == rhs.preparationTimeWindow
+            && lhs.renderCacheProvider?.cacheScopeID == rhs.renderCacheProvider?.cacheScopeID
     }
 
     public func initialRenderTimestamp(fallbackMilliseconds: Int) -> Int {
@@ -85,7 +94,7 @@ public struct PlaybackSubtitleSource: Equatable, Sendable {
             matchedVideoURL: matchedVideoURL ?? fallbackVideoURL,
             initialTimestampMilliseconds: initialTimestampMilliseconds ?? max(0, startMilliseconds),
             preparationTimeWindow: preparationTimeWindow,
-            renderCacheDatabaseURL: renderCacheDatabaseURL
+            renderCacheProvider: renderCacheProvider
         )
     }
 }
