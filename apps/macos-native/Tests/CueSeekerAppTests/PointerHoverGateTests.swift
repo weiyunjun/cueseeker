@@ -103,12 +103,14 @@ struct PointerHoverGateTests {
         host.syncMouseHoverForWindowFocus()
         RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.03))
         #expect(hoveredButtons == [1])
+        #expect(PointerHoverScrollState.shared.activeHoverListenerCountForTesting == 1)
 
         // Losing window focus clears Hover immediately.
         window.isWindowFocusedOverrideForTesting = false
         host.syncMouseHoverForWindowFocus()
         RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.03))
         #expect(hoveredButtons.isEmpty)
+        #expect(PointerHoverScrollState.shared.activeHoverListenerCountForTesting == 0)
 
         // Moving across buttons while unfocused does not trigger any Hover.
         if let moveWhileUnfocused = NSEvent.mouseEvent(

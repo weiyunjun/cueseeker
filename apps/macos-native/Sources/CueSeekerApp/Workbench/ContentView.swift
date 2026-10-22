@@ -12,9 +12,7 @@ struct ContentView: View {
     var body: some View {
         ContentRootView(
             appState: appState,
-            fullscreenManager: appState.playbackFullscreenManager,
-            confirmation: appState.confirmation,
-            tasks: appState.tasks
+            fullscreenManager: appState.playbackFullscreenManager
         )
     }
 }
@@ -22,16 +20,12 @@ struct ContentView: View {
 private struct ContentRootView: View {
     @ObservedObject var appState: AppCoordinator
     @ObservedObject var fullscreenManager: PlaybackFullscreenManager
-    @ObservedObject var confirmation: ConfirmationCenter
-    /// Observed because the window root presents the Task panel, so the dialog
-    /// layer has to be re-read when the panel opens or closes.
-    @ObservedObject var tasks: TaskQueueStore
     @EnvironmentObject private var settingsStore: SettingsStore
     @EnvironmentObject private var layoutState: WorkbenchLayoutState
-    @EnvironmentObject private var libraryStore: LibraryStore
-    @EnvironmentObject private var excerptStore: ExcerptStore
+    /// Observed because `hidesWorkbenchChrome` reads `playback.isPlaybackSurfaceExpanded`
+    /// (via `appState.isPlaybackPageVisible`), and `AppCoordinator` does not republish
+    /// `PlaybackStore` changes.
     @EnvironmentObject private var playback: PlaybackStore
-    @EnvironmentObject private var filterDialog: CueFacetFilterDialogCenter
 
     var body: some View {
         AppPerformanceProbe.measure("ContentView.body", thresholdMilliseconds: 4) {
@@ -41,7 +35,8 @@ private struct ContentRootView: View {
             )
 
             let isPlaybackFullscreen = fullscreenManager.isFullscreen
-            let hidesWorkbenchChrome = isPlaybackFullscreen || appState.isPlaybackPageVisible
+            let hidesWorkbenchChrome = isPlaybackFullscreen
+                || (appState.hasPlaybackSelection && playback.isPlaybackSurfaceExpanded)
 
             return GeometryReader { geometry in
                 let isCompactWindow = AppShellLayout.isCompactWindow(width: geometry.size.width)
@@ -83,8 +78,13 @@ private struct ContentRootView: View {
                         .zIndex(AppShellLayout.topBarZIndex)
                     }
 
-                    dialogLayer(isPlaybackPageVisible: hidesWorkbenchChrome)
-                        .zIndex(AppShellLayout.dialogLayerZIndex)
+                    ContentDialogLayerHost(
+                        appState: appState,
+                        confirmation: appState.confirmation,
+                        tasks: appState.tasks,
+                        isPlaybackPageVisible: hidesWorkbenchChrome
+                    )
+                    .zIndex(AppShellLayout.dialogLayerZIndex)
 
                     ToastStackView(center: appState.toast)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -133,9 +133,52 @@ private struct ContentRootView: View {
         }
     }
 
+    @ViewBuilder
+    private var mainWorkspace: some View {
+        WorkbenchWorkspaceView()
+    }
+
+    private func collapseSidebarForCompactWindowIfNeeded(
+        width: CGFloat,
+        isWorkbenchVisible: Bool
+    ) {
+        guard isWorkbenchVisible else {
+            return
+        }
+
+        layoutState.collapseSidebarForCompactWindowIfNeeded(
+            width: width,
+            threshold: AppShellLayout.sidebarAutoCollapseWindowWidth
+        )
+    }
+
+    private func collapseOverlaySidebarOnMouseLeaveIfNeeded(width: CGFloat) {
+        guard layoutState.isSidebarVisible else {
+            return
+        }
+        withAnimation(.easeInOut(duration: AppShellLayout.sidePanelAnimationDuration)) {
+            _ = layoutState.collapseOverlaySidebarOnMouseLeaveIfNeeded(
+                width: width,
+                threshold: AppShellLayout.sidebarAutoCollapseWindowWidth
+            )
+        }
+    }
+}
+
+private struct ContentDialogLayerHost: View {
+    @ObservedObject var appState: AppCoordinator
+    @ObservedObject var confirmation: ConfirmationCenter
+    /// Observed because the window root presents the Task panel, so the dialog
+    /// layer has to be re-read when the panel opens or closes.
+    @ObservedObject var tasks: TaskQueueStore
+    @EnvironmentObject private var libraryStore: LibraryStore
+    @EnvironmentObject private var excerptStore: ExcerptStore
+    @EnvironmentObject private var filterDialog: CueFacetFilterDialogCenter
+    let isPlaybackPageVisible: Bool
+
     /// The dialogs, bottom first. Only a Confirmation stacks on another one:
     /// the Task panel raises its confirmations here, as every page does.
-    private func dialogLayer(isPlaybackPageVisible: Bool) -> some View {
+    var body: some View {
         WorkbenchDialogLayer(
             dialogIDs: openDialogIDs,
             topBandHeight: isPlaybackPageVisible
@@ -367,37 +410,6 @@ private struct ContentRootView: View {
     private func closeFilterDialog() {
         filterDialog.session = nil
     }
-
-    @ViewBuilder
-    private var mainWorkspace: some View {
-        WorkbenchWorkspaceView()
-    }
-
-    private func collapseSidebarForCompactWindowIfNeeded(
-        width: CGFloat,
-        isWorkbenchVisible: Bool
-    ) {
-        guard isWorkbenchVisible else {
-            return
-        }
-
-        layoutState.collapseSidebarForCompactWindowIfNeeded(
-            width: width,
-            threshold: AppShellLayout.sidebarAutoCollapseWindowWidth
-        )
-    }
-
-    private func collapseOverlaySidebarOnMouseLeaveIfNeeded(width: CGFloat) {
-        guard layoutState.isSidebarVisible else {
-            return
-        }
-        withAnimation(.easeInOut(duration: AppShellLayout.sidePanelAnimationDuration)) {
-            _ = layoutState.collapseOverlaySidebarOnMouseLeaveIfNeeded(
-                width: width,
-                threshold: AppShellLayout.sidebarAutoCollapseWindowWidth
-            )
-        }
-    }
 }
 
 struct AppTopBar: View {
@@ -407,10 +419,6 @@ struct AppTopBar: View {
     @EnvironmentObject private var appState: AppCoordinator
     @EnvironmentObject private var layoutState: WorkbenchLayoutState
     @EnvironmentObject private var routeState: WorkbenchRouteState
-    // Observed so the title turns into the unknown page's when the Excerpt
-    // list or Library folder a history entry points to disappears.
-    @EnvironmentObject private var library: LibraryStore
-    @EnvironmentObject private var excerptStore: ExcerptStore
     @State private var isSidebarToggleHovered = false
     @State private var isSidebarTogglePressed = false
     // Observed so the labels below are re-read when the language changes.

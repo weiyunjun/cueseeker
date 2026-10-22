@@ -183,13 +183,17 @@ func recentExcerptPlaybackResumesAnchorAndFallsBackWithinOriginalList() throws {
     #expect(summary.resumePosition == 1)
 
     _ = try database.removeExcerpt(id: older.id)
+    let listAfterRemoveOlder = try #require(
+        try database.excerptList(id: ExcerptListIdentity.defaultListID)
+    )
+    #expect(listAfterRemoveOlder.recentCueID == newerSelection.cueLineID)
     summary = try #require(try database.recentExcerptListSummaries().first)
     #expect(summary.cueCount == 1)
     #expect(summary.resumeExcerpt?.id == newer.id)
     #expect(summary.resumePosition == 1)
 
-    _ = try database.removeExcerpt(id: newer.id)
-    #expect(try database.recentExcerptListSummaries().isEmpty)
+    let destinationList = try database.createExcerptList(name: "Moved Target")
+    _ = try database.moveExcerpt(id: newer.id, toListID: destinationList.id)
     let list = try #require(try database.excerptList(id: ExcerptListIdentity.defaultListID))
     #expect(list.recentCueID == nil)
     #expect(list.recentSortOrder == nil)
@@ -204,10 +208,53 @@ func readOnlyExcerptDatabaseLoadsRecentSummariesWithoutWriteAttemptWhenNoPlayabl
     }
 
     try DatabaseBootstrap.prepare(at: databaseURL)
+    let indexingDatabase = try IndexingDatabase(path: databaseURL)
     let rwDatabase = try ExcerptDatabase(path: databaseURL)
-    _ = try #require(try rwDatabase.excerptList(id: ExcerptListIdentity.defaultListID))
+    let subtitleFile = URL(fileURLWithPath: "/Media/Show/ReadOnly Summaries.srt")
+    try indexingDatabase.replaceEntries(
+        subtitleFile: subtitleFile,
+        videoFile: URL(fileURLWithPath: "/Media/Show/ReadOnly Summaries.mkv"),
+        entries: [
+            SubtitleEntry(
+                sequenceNumber: 1,
+                startTimecode: "00:00:01,000",
+                endTimecode: "00:00:02,000",
+                startMilliseconds: 1_000,
+                endMilliseconds: 2_000,
+                text: "Read only fallback cue"
+            ),
+        ]
+    )
+    let selection = try #require(try PlaybackSubtitleDatabase(path: databaseURL).cueTextSelection(
+        forSubtitleFile: subtitleFile,
+        atMilliseconds: 1_500
+    ))
+    let saved = try rwDatabase.upsertExcerpt(selection: selection)
+    try executeDatabaseTestSQLite(
+        at: databaseURL,
+        """
+        UPDATE excerpt_lists
+        SET recent_cue_id = 999999,
+            recent_sort_order = 'created_at_desc',
+            recent_played_at = '2026-10-22T00:00:00Z'
+        WHERE id = \(ExcerptListIdentity.defaultListID);
+        """
+    )
 
     let readOnlyDB = try ExcerptDatabase(path: databaseURL, access: .readOnly)
+    let fallbackSummaries = try readOnlyDB.recentExcerptListSummaries()
+    #expect(fallbackSummaries.count == 1)
+    #expect(fallbackSummaries.first?.resumeExcerpt?.id == saved.id)
+    #expect(fallbackSummaries.first?.list.recentCueID == selection.cueLineID)
+
+    let rwFallbackSummaries = try rwDatabase.recentExcerptListSummaries()
+    #expect(rwFallbackSummaries.first?.list.recentCueID == selection.cueLineID)
+    let persistedListAfterQuery = try #require(
+        try rwDatabase.excerptList(id: ExcerptListIdentity.defaultListID)
+    )
+    #expect(persistedListAfterQuery.recentCueID == 999_999)
+
+    _ = try rwDatabase.removeExcerpt(id: saved.id)
     let summaries = try readOnlyDB.recentExcerptListSummaries()
     #expect(summaries.isEmpty)
 

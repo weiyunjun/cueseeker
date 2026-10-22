@@ -868,56 +868,19 @@ final class AppCoordinator: ObservableObject {
     }
 
     static func path(_ path: String, isUnder folder: URL) -> Bool {
-        pathMatchesPrefixes(path, prefixes: folderPathPrefixes(for: folder))
+        MediaFolderPathMatching.path(path, isUnder: folder)
     }
 
     static func pathMatchesPrefixes(_ path: String, prefixes: [String]) -> Bool {
-        let normalizedPath = normalizedFolderPath(path)
-        for prefix in prefixes {
-            let normalizedPrefix = normalizedFolderPath(prefix)
-            if normalizedPath == normalizedPrefix {
-                return true
-            }
-            if path.hasPrefix(prefix) {
-                return true
-            }
-            if path.hasPrefix("/var/"), prefix.hasPrefix("/private/var/") {
-                if ("/private" + path).hasPrefix(prefix) {
-                    return true
-                }
-            } else if path.hasPrefix("/private/var/"), prefix.hasPrefix("/var/") {
-                if String(path.dropFirst("/private".count)).hasPrefix(prefix) {
-                    return true
-                }
-            }
-        }
-        return false
+        MediaFolderPathMatching.pathMatchesPrefixes(path, prefixes: prefixes)
     }
 
     static func folderPathPrefixes(for folder: URL) -> [String] {
-        var path = normalizedFolderPath(folder.mediaPath)
-        if !path.hasSuffix("/") {
-            path.append("/")
-        }
-
-        var prefixes = Set([path])
-        if !folder.isRemoteMediaURL {
-            if path.hasPrefix("/var/") {
-                prefixes.insert("/private" + path)
-            } else if path.hasPrefix("/private/var/") {
-                prefixes.insert(String(path.dropFirst("/private".count)))
-            }
-        }
-
-        return prefixes.sorted()
+        MediaFolderPathMatching.folderPathPrefixes(for: folder)
     }
 
     static func normalizedFolderPath(_ path: String) -> String {
-        var path = path
-        while path.count > 1 && path.hasSuffix("/") {
-            path.removeLast()
-        }
-        return path
+        MediaFolderPathMatching.normalizedFolderPath(path)
     }
 
     static func excerptSort(_ lhs: Excerpt, _ rhs: Excerpt) -> Bool {

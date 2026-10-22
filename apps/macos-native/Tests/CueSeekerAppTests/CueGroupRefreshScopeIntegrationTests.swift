@@ -75,6 +75,58 @@ struct CueGroupRefreshScopeIntegrationTests {
 
     @MainActor
     @Test
+    func taskPanelMutationsStayIsolatedFromRootContentViewWhilePlaybackExpansionUpdatesChrome() async throws {
+        let uiProbeScope = UUID().uuidString
+        let session = UIInvalidationProbe.beginAsyncRecordingForTesting(
+            scope: uiProbeScope
+        )
+        defer { session.finish() }
+
+        try await withMountedCueTable(
+            surface: .search,
+            uiProbeScope: uiProbeScope
+        ) { app, window, _ in
+            let recordingBeforeTaskMutations = session.recording()
+            app.tasks.openPanel()
+            window.contentView?.layoutSubtreeIfNeeded()
+            app.tasks.selectedTab = .completed
+            window.contentView?.layoutSubtreeIfNeeded()
+            app.tasks.closePanel()
+            window.contentView?.layoutSubtreeIfNeeded()
+            try await Task.sleep(nanoseconds: 50_000_000)
+
+            let taskDelta = session.recording().delta(since: recordingBeforeTaskMutations)
+            #expect(taskDelta.count("UI.ContentView.body") == 0)
+
+            let playingResult = try #require(app.search.searchResults.first)
+            app.search.selectResult(playingResult)
+            app.activePlaybackSource = .search
+            window.contentView?.layoutSubtreeIfNeeded()
+            let recordingBeforeExpand = session.recording()
+
+            app.playback.isPlaybackSurfaceExpanded = true
+            let didExpandPlaybackChrome = await waitUntil(timeout: 1) {
+                window.contentView?.layoutSubtreeIfNeeded()
+                return session.recording()
+                    .delta(since: recordingBeforeExpand)
+                    .count("UI.ContentView.body") > 0
+            }
+            try #require(didExpandPlaybackChrome)
+
+            let recordingBeforeCollapse = session.recording()
+            app.playback.isPlaybackSurfaceExpanded = false
+            let didCollapsePlaybackChrome = await waitUntil(timeout: 1) {
+                window.contentView?.layoutSubtreeIfNeeded()
+                return session.recording()
+                    .delta(since: recordingBeforeCollapse)
+                    .count("UI.ContentView.body") > 0
+            }
+            try #require(didCollapsePlaybackChrome)
+        }
+    }
+
+    @MainActor
+    @Test
     func progressiveSearchProjectionRefreshesOnlyMountedTable() async throws {
         let uiProbeScope = UUID().uuidString
         let session = UIInvalidationProbe.beginAsyncRecordingForTesting(

@@ -346,33 +346,19 @@ public final class LibraryDatabase: @unchecked Sendable {
     }
 
     static func folderPathPrefixes(for folders: [URL]) -> [String] {
-        Array(Set(folders.flatMap(folderPathPrefixes(for:)))).sorted()
+        MediaFolderPathMatching.folderPathPrefixes(for: folders)
     }
 
     private static func folderPathPrefixes(for folder: URL) -> [String] {
-        var path = normalizedFolderPath(folder.mediaPath)
-        if !path.hasSuffix("/") {
-            path.append("/")
-        }
-        var prefixes = Set([path])
-        if path.hasPrefix("/var/") {
-            prefixes.insert("/private" + path)
-        } else if path.hasPrefix("/private/var/") {
-            prefixes.insert(String(path.dropFirst("/private".count)))
-        }
-        return prefixes.sorted()
+        MediaFolderPathMatching.folderPathPrefixes(for: folder)
     }
 
     private static func normalizedFolderPath(_ path: String) -> String {
-        var path = path
-        while path.count > 1 && path.hasSuffix("/") {
-            path.removeLast()
-        }
-        return path
+        MediaFolderPathMatching.normalizedFolderPath(path)
     }
 
     static func pathPrefixUpperBound(for prefix: String) -> String {
-        prefix + "\u{10FFFF}"
+        MediaFolderPathMatching.pathPrefixUpperBound(for: prefix)
     }
 
     static func libraryVideoSort(_ lhs: LibraryVideo, _ rhs: LibraryVideo) -> Bool {

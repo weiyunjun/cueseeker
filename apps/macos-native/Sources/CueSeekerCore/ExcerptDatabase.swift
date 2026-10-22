@@ -162,6 +162,7 @@ public final class ExcerptDatabase: @unchecked Sendable {
             try statement.bind(id, at: 1)
             try statement.run()
             try deleteUnreferencedTombstone(cueID: relation.cueID)
+            try reconcileRecentExcerptPlayback(forListID: relation.listID)
             return true
         }
     }
@@ -314,9 +315,6 @@ public final class ExcerptDatabase: @unchecked Sendable {
                 return excerpt
             }
             guard !playable.isEmpty else {
-                if list.recentPlayedAt != nil, access == .readWrite {
-                    try? clearRecentExcerptPlayback(listID: list.id)
-                }
                 continue
             }
 
@@ -331,12 +329,6 @@ public final class ExcerptDatabase: @unchecked Sendable {
                 var resolvedList = list
                 if anchoredID == nil,
                    let fallbackCueID = relations.first(where: { $0.id == playable[position].id })?.cueID {
-                    if access == .readWrite {
-                        try? updateRecentExcerptFallbackCue(
-                            listID: list.id,
-                            cueID: fallbackCueID
-                        )
-                    }
                     resolvedList = ExcerptList(
                         id: list.id,
                         name: list.name,
@@ -856,6 +848,7 @@ public final class ExcerptDatabase: @unchecked Sendable {
                 let delete = try database.prepare("DELETE FROM excerpts WHERE id = ?;")
                 try delete.bind(source.id, at: 1)
                 try delete.run()
+                try reconcileRecentExcerptPlayback(forListID: source.listID)
             }
 
             guard let destination = try excerptRelation(id: destinationExcerptID) else {
@@ -953,6 +946,34 @@ public final class ExcerptDatabase: @unchecked Sendable {
             recentSortOrder: statement.nullableStringColumn(6),
             recentPlayedAt: statement.nullableStringColumn(7)
         )
+    }
+
+    private func reconcileRecentExcerptPlayback(forListID listID: Int64) throws {
+        guard let list = try excerptList(id: listID),
+              list.recentPlayedAt != nil
+        else {
+            return
+        }
+        let relations = try excerptRelations(listID: listID)
+        let resolvedByID = Dictionary(
+            uniqueKeysWithValues: try excerpts(listID: listID).map { ($0.id, $0) }
+        )
+        let playableRelations = relations.filter { relation in
+            resolvedByID[relation.id]?.isValid == true
+        }
+        guard let firstPlayableRelation = playableRelations.first else {
+            try clearRecentExcerptPlayback(listID: listID)
+            return
+        }
+        let hasAnchoredPlayableCue = playableRelations.contains { relation in
+            relation.cueID == list.recentCueID
+        }
+        if !hasAnchoredPlayableCue {
+            try updateRecentExcerptFallbackCue(
+                listID: listID,
+                cueID: firstPlayableRelation.cueID
+            )
+        }
     }
 
     private func clearRecentExcerptPlayback(listID: Int64) throws {

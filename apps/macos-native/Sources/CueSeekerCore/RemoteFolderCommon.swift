@@ -893,3 +893,83 @@ final class RemoteMediaStreamServer: @unchecked Sendable {
         return String(data: accumulated, encoding: .utf8)
     }
 }
+
+// MARK: - Shared Folder Path Prefix & Variant Matching
+
+public enum MediaFolderPathMatching {
+    public static func normalizedFolderPath(_ path: String) -> String {
+        var path = path
+        while path.count > 1 && path.hasSuffix("/") {
+            path.removeLast()
+        }
+        return path
+    }
+
+    public static func folderPathPrefixes(for folder: URL) -> [String] {
+        var path = normalizedFolderPath(folder.mediaPath)
+        if !path.hasSuffix("/") {
+            path.append("/")
+        }
+
+        var prefixes = Set([path])
+        if !folder.isRemoteMediaURL {
+            if path.hasPrefix("/var/") {
+                prefixes.insert("/private" + path)
+            } else if path.hasPrefix("/private/var/") {
+                prefixes.insert(String(path.dropFirst("/private".count)))
+            }
+        }
+
+        return prefixes.sorted()
+    }
+
+    public static func folderPathPrefixes(for folders: [URL]) -> [String] {
+        Array(Set(folders.flatMap(folderPathPrefixes(for:)))).sorted()
+    }
+
+    public static func folderPathVariants(for folder: URL) -> [String] {
+        let path = normalizedFolderPath(folder.mediaPath)
+        var paths = Set([path])
+
+        if !folder.isRemoteMediaURL {
+            if path.hasPrefix("/var/") {
+                paths.insert("/private" + path)
+            } else if path.hasPrefix("/private/var/") {
+                paths.insert(String(path.dropFirst("/private".count)))
+            }
+        }
+
+        return paths.sorted()
+    }
+
+    public static func pathPrefixUpperBound(for prefix: String) -> String {
+        prefix + "\u{10FFFF}"
+    }
+
+    public static func pathMatchesPrefixes(_ path: String, prefixes: [String]) -> Bool {
+        let normalizedPath = normalizedFolderPath(path)
+        for prefix in prefixes {
+            let normalizedPrefix = normalizedFolderPath(prefix)
+            if normalizedPath == normalizedPrefix {
+                return true
+            }
+            if path.hasPrefix(prefix) {
+                return true
+            }
+            if path.hasPrefix("/var/"), prefix.hasPrefix("/private/var/") {
+                if ("/private" + path).hasPrefix(prefix) {
+                    return true
+                }
+            } else if path.hasPrefix("/private/var/"), prefix.hasPrefix("/var/") {
+                if String(path.dropFirst("/private".count)).hasPrefix(prefix) {
+                    return true
+                }
+            }
+        }
+        return false
+    }
+
+    public static func path(_ path: String, isUnder folder: URL) -> Bool {
+        pathMatchesPrefixes(path, prefixes: folderPathPrefixes(for: folder))
+    }
+}
