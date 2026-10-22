@@ -534,17 +534,15 @@ private final class PlaybackPlayerAutoPauseDelegate: PlaybackPlayerDelegate {
     private var playbackMilliseconds = 0
     private var paused = true
 
-    func player(
-        _ player: PlaybackPlayer,
-        didChangeProperty name: String,
-        value: PlaybackPropertyValue?
-    ) {
+    func player(_ player: PlaybackPlayer, didUpdateTimePosition seconds: Double) {
         lock.lock()
-        if name == "time-pos", case .double(let seconds) = value {
-            playbackMilliseconds = max(0, Int((seconds * 1_000).rounded(.down)))
-        } else if name == "pause", case .bool(let isPaused) = value {
-            paused = isPaused
-        }
+        playbackMilliseconds = max(0, Int((seconds * 1_000).rounded(.down)))
+        lock.unlock()
+    }
+
+    func player(_ player: PlaybackPlayer, didUpdatePaused isPaused: Bool) {
+        lock.lock()
+        paused = isPaused
         lock.unlock()
     }
 
@@ -589,12 +587,6 @@ private final class PlaybackNaturalCompletionDelegate: PlaybackPlayerDelegate {
     private let lock = NSLock()
     private var completions = 0
     private var failures: [String] = []
-
-    func player(
-        _ player: PlaybackPlayer,
-        didChangeProperty name: String,
-        value: PlaybackPropertyValue?
-    ) {}
 
     func player(_ player: PlaybackPlayer, didFailWithMessage message: String) {
         lock.lock()

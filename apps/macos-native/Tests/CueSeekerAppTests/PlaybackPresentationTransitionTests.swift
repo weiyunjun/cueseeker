@@ -19,11 +19,7 @@ func playbackPresentationKeepsOldSubtitleAndTimeUntilMatchingFrameCommit() async
         currentTimeMilliseconds: 1_000
     )
     viewModel.isPlaying = true
-    viewModel.player(
-        player,
-        didChangeProperty: "video-aspect-ratio",
-        value: .double(16.0 / 9.0)
-    )
+    viewModel.player(player, didUpdateVideoAspectRatio: 16.0 / 9.0)
     await Task.yield()
 
     viewModel.preparePresentationTransition(
@@ -32,14 +28,10 @@ func playbackPresentationKeepsOldSubtitleAndTimeUntilMatchingFrameCommit() async
     )
     viewModel.bindPendingPresentation(to: 41)
 
-    viewModel.player(player, didChangeProperty: "time-pos", value: .double(6.1))
-    viewModel.player(player, didChangeProperty: "duration", value: .double(120))
-    viewModel.player(
-        player,
-        didChangeProperty: "video-aspect-ratio",
-        value: .double(4.0 / 3.0)
-    )
-    viewModel.player(player, didChangeProperty: "pause", value: .bool(true))
+    viewModel.player(player, didUpdateTimePosition: 6.1)
+    viewModel.player(player, didUpdateDuration: 120)
+    viewModel.player(player, didUpdateVideoAspectRatio: 4.0 / 3.0)
+    viewModel.player(player, didUpdatePaused: true)
     await Task.yield()
 
     #expect(viewModel.currentTime == 1)
@@ -112,7 +104,7 @@ func playbackPresentationRejectsSupersededGenerationAndCommitsOnlyLatestTarget()
     #expect(viewModel.isPlaying)
     #expect(committedPlayingStates.isEmpty)
 
-    viewModel.player(player, didChangeProperty: "time-pos", value: .double(11.2))
+    viewModel.player(player, didUpdateTimePosition: 11.2)
     await Task.yield()
     #expect(viewModel.currentTime == 1)
     #expect(viewModel.activeSubtitleText == "old")

@@ -1,11 +1,6 @@
 import Foundation
 import CueSeekerCore
 
-public enum PlaybackPropertyValue: Sendable, Equatable {
-    case double(Double)
-    case bool(Bool)
-}
-
 public struct PlaybackSegment: Equatable, Sendable {
     public let startMilliseconds: Int
     public let endMilliseconds: Int
@@ -233,7 +228,6 @@ public enum PlaybackError: Error, Equatable, CustomStringConvertible {
     case invalidVideoURL(String)
     case missingVideoFile(String)
     case playbackPlayerUnavailable
-    case nativePropertyUnsupported(name: String)
 
     public var description: String {
         switch self {
@@ -243,8 +237,6 @@ public enum PlaybackError: Error, Equatable, CustomStringConvertible {
             "Video file does not exist: \(path)"
         case .playbackPlayerUnavailable:
             "Playback player is not available."
-        case .nativePropertyUnsupported(let name):
-            "Native playback property is unsupported: \(name)"
         }
     }
 }

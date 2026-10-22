@@ -186,21 +186,25 @@ private final class ProbePlaybackDelegate: PlaybackPlayerDelegate {
     private var failures: [String] = []
     private var updateCount = 0
 
-    func player(_ player: PlaybackPlayer, didChangeProperty name: String, value: PlaybackPropertyValue?) {
+    func player(_ player: PlaybackPlayer, didUpdateTimePosition seconds: Double) {
         lock.lock()
-        defer { lock.unlock() }
-
         updateCount += 1
-        switch (name, value) {
-        case ("time-pos", .double(let time)?):
-            lastTime = time
-        case ("duration", .double(let duration)?):
-            self.duration = duration
-        case ("pause", .bool(let paused)?):
-            isPlaying = !paused
-        default:
-            return
-        }
+        lastTime = seconds
+        lock.unlock()
+    }
+
+    func player(_ player: PlaybackPlayer, didUpdateDuration seconds: Double) {
+        lock.lock()
+        updateCount += 1
+        duration = seconds
+        lock.unlock()
+    }
+
+    func player(_ player: PlaybackPlayer, didUpdatePaused isPaused: Bool) {
+        lock.lock()
+        updateCount += 1
+        isPlaying = !isPaused
+        lock.unlock()
     }
 
     func player(_ player: PlaybackPlayer, didFailWithMessage message: String) {
@@ -300,10 +304,7 @@ private final class PlaybackSyncProbeRunner {
 
     private func recordSample() {
         let wallSeconds = CACurrentMediaTime() - startHostSeconds
-        let snapshot = playbackDelegate.snapshot()
-        let mediaSeconds = (try? player.getDoubleProperty("time-pos"))
-            ?? snapshot.lastTime
-            ?? config.startSeconds
+        let mediaSeconds = player.currentTimePosition()
         let expectedSeconds = config.startSeconds + wallSeconds
         let sample = ProbeSample(
             wallSeconds: wallSeconds,

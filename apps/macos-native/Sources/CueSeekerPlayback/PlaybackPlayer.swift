@@ -5,7 +5,12 @@ import Foundation
 import QuartzCore
 
 public protocol PlaybackPlayerDelegate: AnyObject {
-    func player(_ player: PlaybackPlayer, didChangeProperty name: String, value: PlaybackPropertyValue?)
+    func player(_ player: PlaybackPlayer, didUpdateTimePosition seconds: Double)
+    func player(_ player: PlaybackPlayer, didUpdateDuration seconds: Double)
+    func player(_ player: PlaybackPlayer, didUpdateVideoAspectRatio aspectRatio: Double)
+    func player(_ player: PlaybackPlayer, didUpdatePaused isPaused: Bool)
+    func player(_ player: PlaybackPlayer, didUpdateVolume volume: Double)
+    func player(_ player: PlaybackPlayer, didUpdatePlaybackSpeed speed: Double)
     func player(_ player: PlaybackPlayer, didFailWithMessage message: String)
     func player(_ player: PlaybackPlayer, didFailToLoadSubtitleSource url: URL)
     func player(_ player: PlaybackPlayer, didFinishSegmentAtMilliseconds endMilliseconds: Int)
@@ -21,6 +26,12 @@ public protocol PlaybackPlayerDelegate: AnyObject {
 }
 
 public extension PlaybackPlayerDelegate {
+    func player(_ player: PlaybackPlayer, didUpdateTimePosition seconds: Double) {}
+    func player(_ player: PlaybackPlayer, didUpdateDuration seconds: Double) {}
+    func player(_ player: PlaybackPlayer, didUpdateVideoAspectRatio aspectRatio: Double) {}
+    func player(_ player: PlaybackPlayer, didUpdatePaused isPaused: Bool) {}
+    func player(_ player: PlaybackPlayer, didUpdateVolume volume: Double) {}
+    func player(_ player: PlaybackPlayer, didUpdatePlaybackSpeed speed: Double) {}
     func player(_ player: PlaybackPlayer, didFailToLoadSubtitleSource url: URL) {}
     func player(_ player: PlaybackPlayer, didFinishSegmentAtMilliseconds endMilliseconds: Int) {}
     func playerDidFinishPlayback(_ player: PlaybackPlayer) {}
@@ -610,35 +621,45 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
         updateASSSubtitleTimeFromNative(milliseconds: currentNativePlaybackMilliseconds())
     }
 
-    public func getDoubleProperty(_ name: String) throws -> Double {
-        switch name {
-        case "time-pos":
-            return nativePlayer.currentTime
-        case "duration":
-            return nativePlayer.duration
-        case "volume":
-            return storedVolume
-        case "speed":
-            return storedSpeed
-        default:
-            throw PlaybackError.nativePropertyUnsupported(name: name)
-        }
+    public func currentTimePosition() -> Double {
+        nativePlayer.currentTime
     }
 
-    public func setDoubleProperty(_ name: String, value: Double) throws {
-        switch name {
-        case "volume":
-            storedVolume = min(max(value, 0), 100)
-            nativePlayer.volume = Float(storedVolume / 100)
-            delegate?.player(self, didChangeProperty: "volume", value: .double(storedVolume))
-        case "speed":
-            storedSpeed = min(max(value, 0.5), 2.0)
-            nativePlayer.playbackRate = Float(storedSpeed)
-            startASSSubtitleRenderTicks()
-            delegate?.player(self, didChangeProperty: "speed", value: .double(storedSpeed))
-        default:
-            throw PlaybackError.nativePropertyUnsupported(name: name)
-        }
+    public func duration() -> Double {
+        nativePlayer.duration
+    }
+
+    public func volume() -> Double {
+        storedVolume
+    }
+
+    public func setVolume(_ value: Double) {
+        storedVolume = min(max(value, 0), 100)
+        nativePlayer.volume = Float(storedVolume / 100)
+        delegate?.player(self, didUpdateVolume: storedVolume)
+    }
+
+    public func playbackSpeed() -> Double {
+        storedSpeed
+    }
+
+    public func setPlaybackSpeed(_ value: Double) {
+        storedSpeed = min(max(value, 0.5), 2.0)
+        nativePlayer.playbackRate = Float(storedSpeed)
+        startASSSubtitleRenderTicks()
+        delegate?.player(self, didUpdatePlaybackSpeed: storedSpeed)
+    }
+
+    public func videoAspectRatio() -> Double? {
+        currentNativeVideoAspectRatio()
+    }
+
+    public func isPausedState() -> Bool {
+        !nativePlayer.isPlaying
+    }
+
+    public func isSubtitleTrackEnabled() -> Bool {
+        subtitlesVisible && activeSubtitleSource != nil
     }
 
     @MainActor public func attachActiveRenderView() {
@@ -783,18 +804,18 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
 
     private func emitInitialNativeState() {
         if pendingPresentation == nil {
-            delegate?.player(self, didChangeProperty: "duration", value: .double(nativePlayer.duration))
+            delegate?.player(self, didUpdateDuration: nativePlayer.duration)
             if let aspectRatio = currentNativeVideoAspectRatio() {
-                delegate?.player(self, didChangeProperty: "video-aspect-ratio", value: .double(aspectRatio))
+                delegate?.player(self, didUpdateVideoAspectRatio: aspectRatio)
             }
-            delegate?.player(self, didChangeProperty: "pause", value: .bool(false))
+            delegate?.player(self, didUpdatePaused: false)
         }
-        delegate?.player(self, didChangeProperty: "volume", value: .double(storedVolume))
-        delegate?.player(self, didChangeProperty: "speed", value: .double(storedSpeed))
+        delegate?.player(self, didUpdateVolume: storedVolume)
+        delegate?.player(self, didUpdatePlaybackSpeed: storedSpeed)
     }
 
     private func emitPauseState(isPaused: Bool) {
-        delegate?.player(self, didChangeProperty: "pause", value: .bool(isPaused))
+        delegate?.player(self, didUpdatePaused: isPaused)
     }
 
     @MainActor
@@ -841,16 +862,11 @@ public final class PlaybackPlayer: NSObject, @unchecked Sendable {
             playing: playing,
             videoSize: videoSize
         )
+        delegate?.player(self, didUpdateDuration: nativePlayer.duration)
+        delegate?.player(self, didUpdatePaused: !playing)
         delegate?.player(
             self,
-            didChangeProperty: "duration",
-            value: .double(nativePlayer.duration)
-        )
-        delegate?.player(self, didChangeProperty: "pause", value: .bool(!playing))
-        delegate?.player(
-            self,
-            didChangeProperty: "time-pos",
-            value: .double(Double(safeMilliseconds) / 1_000)
+            didUpdateTimePosition: Double(safeMilliseconds) / 1_000
         )
         let now = CACurrentMediaTime()
         let totalEndToEndMs = (now - pendingPresentation.startedAt) * 1000.0
@@ -950,9 +966,9 @@ extension PlaybackPlayer: SFXNativePlaybackPlayerDelegate {
         else {
             return
         }
-        delegate?.player(self, didChangeProperty: "time-pos", value: .double(time))
-        delegate?.player(self, didChangeProperty: "duration", value: .double(duration))
-        delegate?.player(self, didChangeProperty: "pause", value: .bool(!playing))
+        delegate?.player(self, didUpdateTimePosition: time)
+        delegate?.player(self, didUpdateDuration: duration)
+        delegate?.player(self, didUpdatePaused: !playing)
         if activeSubtitleSource != nil,
            subtitlesVisible,
            (!playing || subtitleRenderTickTask == nil || assSubtitleRenderTimeGate != nil) {

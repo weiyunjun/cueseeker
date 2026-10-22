@@ -779,8 +779,8 @@ func closingLibraryPlaybackSavesHistoryAndMarksHistoryRevision() async throws {
         let player = try #require(app.player)
         app.activePlaybackSource = .library(videoPath: videoURL.path)
 
-        playbackViewModel.player(player, didChangeProperty: "time-pos", value: .double(42.5))
-        playbackViewModel.player(player, didChangeProperty: "duration", value: .double(100.0))
+        playbackViewModel.player(player, didUpdateTimePosition: 42.5)
+        playbackViewModel.player(player, didUpdateDuration: 100.0)
         await Task.yield()
 
         let revisionBeforeSave = app.library.libraryPlaybackHistoryRevision
@@ -826,15 +826,15 @@ func libraryPlaybackCompletionMilestoneSurvivesSeekingBackBeforeClose() async th
         let player = try #require(app.player)
         app.startLibraryPlaybackHistoryTracking(videoPath: videoURL.path)
 
-        playbackViewModel.player(player, didChangeProperty: "duration", value: .double(100.0))
+        playbackViewModel.player(player, didUpdateDuration: 100.0)
         await Task.yield()
-        playbackViewModel.player(player, didChangeProperty: "time-pos", value: .double(85.0))
+        playbackViewModel.player(player, didUpdateTimePosition: 85.0)
         await Task.yield()
         #expect(
             app.pendingLibraryPlaybackHistoryPresentationVideoPaths
                 == Set([videoURL.path])
         )
-        playbackViewModel.player(player, didChangeProperty: "time-pos", value: .double(42.5))
+        playbackViewModel.player(player, didUpdateTimePosition: 42.5)
         await Task.yield()
 
         app.saveCurrentLibraryPlaybackHistoryForPlaybackClose()
@@ -896,16 +896,8 @@ func libraryPlaybackCompletionMilestoneIgnoresManualFinishedState() async throws
             duration: 100,
             state: .watching
         )
-        playbackViewModel.player(
-            player,
-            didChangeProperty: "duration",
-            value: .double(100)
-        )
-        playbackViewModel.player(
-            player,
-            didChangeProperty: "time-pos",
-            value: .double(85)
-        )
+        playbackViewModel.player(player, didUpdateDuration: 100)
+        playbackViewModel.player(player, didUpdateTimePosition: 85)
         await Task.yield()
 
         app.saveCurrentLibraryPlaybackHistorySynchronously()
@@ -949,8 +941,8 @@ func libraryPlaybackHistorySaveMarksCompletedWhenPositionReachedFinishPoint() as
 
         let playbackViewModel = try #require(app.playback.playbackViewModel)
         let player = try #require(app.player)
-        playbackViewModel.player(player, didChangeProperty: "duration", value: .double(100.0))
-        playbackViewModel.player(player, didChangeProperty: "time-pos", value: .double(85.0))
+        playbackViewModel.player(player, didUpdateDuration: 100.0)
+        playbackViewModel.player(player, didUpdateTimePosition: 85.0)
         await Task.yield()
 
         app.startLibraryPlaybackHistoryTracking(videoPath: videoURL.path)
@@ -997,16 +989,16 @@ func libraryPlaybackCompletionUsesVideoEndWhenLastSubtitleIsBeforeThreshold() as
         let player = try #require(app.player)
         app.startLibraryPlaybackHistoryTracking(videoPath: videoURL.path)
 
-        playbackViewModel.player(player, didChangeProperty: "duration", value: .double(100.0))
+        playbackViewModel.player(player, didUpdateDuration: 100.0)
         await Task.yield()
-        playbackViewModel.player(player, didChangeProperty: "time-pos", value: .double(96.0))
+        playbackViewModel.player(player, didUpdateTimePosition: 96.0)
         await Task.yield()
         app.saveCurrentLibraryPlaybackHistorySynchronously()
 
         let progressHistory = try #require(try app.libraryDatabase!.libraryPlaybackHistory(forVideoFile: videoURL))
         #expect(progressHistory.completedAt == nil)
 
-        playbackViewModel.player(player, didChangeProperty: "time-pos", value: .double(100.0))
+        playbackViewModel.player(player, didUpdateTimePosition: 100.0)
         await Task.yield()
         app.saveCurrentLibraryPlaybackHistoryForPlaybackClose()
 
@@ -1045,11 +1037,7 @@ func naturalLibraryPlaybackCompletionOpensNextVideoAndPersistsCompletion() async
 
         let playbackViewModel = try #require(app.playback.playbackViewModel)
         let player = try #require(app.player)
-        playbackViewModel.player(
-            player,
-            didChangeProperty: "duration",
-            value: .double(100)
-        )
+        playbackViewModel.player(player, didUpdateDuration: 100)
         await Task.yield()
 
         app.handlePlaybackFinishedNaturally()

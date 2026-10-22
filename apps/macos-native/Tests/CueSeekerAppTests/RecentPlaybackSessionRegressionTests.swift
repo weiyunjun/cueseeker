@@ -96,8 +96,8 @@ func closingRecentLibraryPlaybackRefreshesRecentWatchingProgress() async throws 
         let playbackViewModel = try #require(app.playback.playbackViewModel)
         let player = try #require(app.player)
         app.activePlaybackSource = .library(videoPath: episode.path)
-        playbackViewModel.player(player, didChangeProperty: "time-pos", value: .double(42.5))
-        playbackViewModel.player(player, didChangeProperty: "duration", value: .double(100))
+        playbackViewModel.player(player, didUpdateTimePosition: 42.5)
+        playbackViewModel.player(player, didUpdateDuration: 100)
         await Task.yield()
 
         app.saveCurrentLibraryPlaybackHistoryForPlaybackClose()
@@ -129,8 +129,8 @@ func closingNonLibraryPlaybackFlushesPendingLibraryProgress() async throws {
         let playbackViewModel = try #require(app.playback.playbackViewModel)
         let player = try #require(app.player)
         app.activePlaybackSource = .library(videoPath: episode.path)
-        playbackViewModel.player(player, didChangeProperty: "time-pos", value: .double(42.5))
-        playbackViewModel.player(player, didChangeProperty: "duration", value: .double(100))
+        playbackViewModel.player(player, didUpdateTimePosition: 42.5)
+        playbackViewModel.player(player, didUpdateDuration: 100)
         await Task.yield()
 
         app.saveCurrentLibraryPlaybackHistory()
@@ -173,16 +173,8 @@ func presentingPlaybackCommandPanelPublishesPendingLibraryProgress() async throw
         let playbackViewModel = try #require(app.playback.playbackViewModel)
         let player = try #require(app.player)
         app.activePlaybackSource = .library(videoPath: episode.path)
-        playbackViewModel.player(
-            player,
-            didChangeProperty: "duration",
-            value: .double(100)
-        )
-        playbackViewModel.player(
-            player,
-            didChangeProperty: "time-pos",
-            value: .double(42.5)
-        )
+        playbackViewModel.player(player, didUpdateDuration: 100)
+        playbackViewModel.player(player, didUpdateTimePosition: 42.5)
         await Task.yield()
         app.saveCurrentLibraryPlaybackHistory()
 
@@ -225,16 +217,8 @@ func synchronousPlaybackHistorySaveDrainsPendingWriteAfterSourceChange() async t
         let playbackViewModel = try #require(app.playback.playbackViewModel)
         let player = try #require(app.player)
         app.activePlaybackSource = .library(videoPath: episode.path)
-        playbackViewModel.player(
-            player,
-            didChangeProperty: "duration",
-            value: .double(100)
-        )
-        playbackViewModel.player(
-            player,
-            didChangeProperty: "time-pos",
-            value: .double(42.5)
-        )
+        playbackViewModel.player(player, didUpdateDuration: 100)
+        playbackViewModel.player(player, didUpdateTimePosition: 42.5)
         await Task.yield()
 
         let releaseWriter = DispatchSemaphore(value: 0)

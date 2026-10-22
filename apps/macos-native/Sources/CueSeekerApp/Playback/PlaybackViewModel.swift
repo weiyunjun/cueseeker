@@ -420,14 +420,10 @@ public final class PlaybackViewModel: ObservableObject {
         let clampedValue = Self.clampedVolume(value)
         let isIncrease = clampedValue > volume ? true : (clampedValue < volume ? false : nil)
 
-        do {
-            try player.setDoubleProperty("volume", value: clampedValue)
-            applyVolumePreference(clampedValue)
-            if showsFeedback, !isPlayerEmpty {
-                showVolumeFeedback(clampedValue, isIncrease: isIncrease)
-            }
-        } catch {
-            print("Failed to set volume: \(error)")
+        player.setVolume(clampedValue)
+        applyVolumePreference(clampedValue)
+        if showsFeedback, !isPlayerEmpty {
+            showVolumeFeedback(clampedValue, isIncrease: isIncrease)
         }
     }
 
@@ -439,28 +435,20 @@ public final class PlaybackViewModel: ObservableObject {
         let clampedValue = Self.clampedVolume(volume + delta)
         let isIncrease = delta > 0
 
-        do {
-            try player.setDoubleProperty("volume", value: clampedValue)
-            applyVolumePreference(clampedValue)
-            if !isPlayerEmpty {
-                showVolumeFeedback(clampedValue, isIncrease: isIncrease)
-            }
-        } catch {
-            print("Failed to set volume: \(error)")
+        player.setVolume(clampedValue)
+        applyVolumePreference(clampedValue)
+        if !isPlayerEmpty {
+            showVolumeFeedback(clampedValue, isIncrease: isIncrease)
         }
     }
 
     public func setSpeed(_ value: Double, showsFeedback: Bool = true) {
         let clampedValue = Self.clampedPlaybackSpeed(value)
 
-        do {
-            try player.setDoubleProperty("speed", value: clampedValue)
-            applyPlaybackSpeedPreference(clampedValue)
-            if showsFeedback, !isPlayerEmpty {
-                showSpeedFeedback(clampedValue)
-            }
-        } catch {
-            print("Failed to set speed: \(error)")
+        player.setPlaybackSpeed(clampedValue)
+        applyPlaybackSpeedPreference(clampedValue)
+        if showsFeedback, !isPlayerEmpty {
+            showSpeedFeedback(clampedValue)
         }
     }
 
@@ -861,18 +849,8 @@ public final class PlaybackViewModel: ObservableObject {
     }
 
     private func applyInitialPlaybackPreferences() {
-        do {
-            try player.setDoubleProperty("volume", value: volume)
-        } catch {
-            print("Failed to apply initial volume: \(error)")
-        }
-
-        do {
-            try player.setDoubleProperty("speed", value: playbackSpeed)
-        } catch {
-            print("Failed to apply initial speed: \(error)")
-        }
-
+        player.setVolume(volume)
+        player.setPlaybackSpeed(playbackSpeed)
         player.setSubtitlesVisible(areSubtitlesVisible)
     }
 
@@ -1015,53 +993,67 @@ public final class PlaybackViewModel: ObservableObject {
 }
 
 extension PlaybackViewModel: PlaybackPlayerDelegate {
-    nonisolated public func player(_ player: PlaybackPlayer, didChangeProperty name: String, value: PlaybackPropertyValue?) {
+    nonisolated public func player(_ player: PlaybackPlayer, didUpdateTimePosition seconds: Double) {
         Task { @MainActor in
-            guard let value else { return }
-            if self.pendingPresentation != nil,
-               (name == "time-pos"
-                || name == "duration"
-                || name == "video-aspect-ratio"
-                || name == "pause") {
+            guard self.pendingPresentation == nil,
+                  self.timelineScrubbingWasPlaying == nil,
+                  self.shouldAcceptNativePlaybackTime(seconds)
+            else {
                 return
             }
-            switch name {
-            case "time-pos":
-                if case .double(let d) = value {
-                    if self.timelineScrubbingWasPlaying != nil {
-                        return
-                    }
-                    guard self.shouldAcceptNativePlaybackTime(d) else {
-                        return
-                    }
-                    self.updatePlaybackTime(d)
-                }
-            case "duration":
-                if case .double(let d) = value, self.duration != d {
-                    self.duration = d
-                }
-            case "video-aspect-ratio":
-                if case .double(let d) = value, d.isFinite, d > 0, self.videoAspectRatio != d {
-                    self.videoAspectRatio = d
-                }
-            case "pause":
-                if case .bool(let b) = value {
-                    let nextIsPlaying = !b
-                    if self.isPlaying != nextIsPlaying {
-                        self.isPlaying = nextIsPlaying
-                        self.publishDisplayedCurrentTimeIfNeeded(force: true)
-                    }
-                }
-            case "volume":
-                if case .double(let d) = value, self.volume != d {
-                    self.volume = d
-                }
-            case "speed":
-                if case .double(let d) = value, self.playbackSpeed != d {
-                    self.playbackSpeed = d
-                }
-            default:
-                break
+            self.updatePlaybackTime(seconds)
+        }
+    }
+
+    nonisolated public func player(_ player: PlaybackPlayer, didUpdateDuration seconds: Double) {
+        Task { @MainActor in
+            guard self.pendingPresentation == nil else {
+                return
+            }
+            if self.duration != seconds {
+                self.duration = seconds
+            }
+        }
+    }
+
+    nonisolated public func player(_ player: PlaybackPlayer, didUpdateVideoAspectRatio aspectRatio: Double) {
+        Task { @MainActor in
+            guard self.pendingPresentation == nil,
+                    aspectRatio.isFinite,
+                    aspectRatio > 0,
+                    self.videoAspectRatio != aspectRatio
+            else {
+                return
+            }
+            self.videoAspectRatio = aspectRatio
+        }
+    }
+
+    nonisolated public func player(_ player: PlaybackPlayer, didUpdatePaused isPaused: Bool) {
+        Task { @MainActor in
+            guard self.pendingPresentation == nil else {
+                return
+            }
+            let nextIsPlaying = !isPaused
+            if self.isPlaying != nextIsPlaying {
+                self.isPlaying = nextIsPlaying
+                self.publishDisplayedCurrentTimeIfNeeded(force: true)
+            }
+        }
+    }
+
+    nonisolated public func player(_ player: PlaybackPlayer, didUpdateVolume volume: Double) {
+        Task { @MainActor in
+            if self.volume != volume {
+                self.volume = volume
+            }
+        }
+    }
+
+    nonisolated public func player(_ player: PlaybackPlayer, didUpdatePlaybackSpeed speed: Double) {
+        Task { @MainActor in
+            if self.playbackSpeed != speed {
+                self.playbackSpeed = speed
             }
         }
     }
@@ -1127,8 +1119,8 @@ extension PlaybackViewModel: PlaybackPlayerDelegate {
         subtitlePresentationHoldMilliseconds = nil
         clearProtectedSeekTarget()
         isPlaying = playing
-        if let committedDuration = try? player.getDoubleProperty("duration"),
-           duration != committedDuration {
+        let committedDuration = player.duration()
+        if duration != committedDuration {
             duration = committedDuration
         }
         updatePlaybackTime(

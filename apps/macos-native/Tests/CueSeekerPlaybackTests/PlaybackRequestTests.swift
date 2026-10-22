@@ -1289,24 +1289,24 @@ func playbackSubtitleTrackFindsEarlyLongCuePastExpiredIntervals() {
 
 @Test
 @MainActor
-func playbackPlayerStoresNonDefaultNativeSpeed() throws {
+func playbackPlayerStoresNonDefaultNativeSpeed() {
     let player = PlaybackPlayer()
 
-    try player.setDoubleProperty("speed", value: 1.5)
+    player.setPlaybackSpeed(1.5)
 
-    #expect(try player.getDoubleProperty("speed") == 1.5)
+    #expect(player.playbackSpeed() == 1.5)
 }
 
 @Test
 @MainActor
-func playbackPlayerClampsNativeSpeedRange() throws {
+func playbackPlayerClampsNativeSpeedRange() {
     let player = PlaybackPlayer()
 
-    try player.setDoubleProperty("speed", value: 3.0)
-    #expect(try player.getDoubleProperty("speed") == 2.0)
+    player.setPlaybackSpeed(3.0)
+    #expect(player.playbackSpeed() == 2.0)
 
-    try player.setDoubleProperty("speed", value: 0.25)
-    #expect(try player.getDoubleProperty("speed") == 0.5)
+    player.setPlaybackSpeed(0.25)
+    #expect(player.playbackSpeed() == 0.5)
 }
 
 private func temporaryPlaybackTestDirectory() throws -> URL {

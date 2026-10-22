@@ -18,6 +18,11 @@
    - `SFXNativePlaybackSession.m` (2,153 lines): Session lifecycle, segment boundary state, media preparation, transport controls, packet read-ahead queue, demux loop, and seek state machine.
    - `SFXNativePlaybackSession+AudioAndDecode.m` (1,581 lines): Video/audio decode loop, starvation watchdog, software scaler, A/V clock pacing, `AVSampleBufferDisplayLayer` submission, and audio resampler/scheduling.
    - `SFXNativePlaybackPlayer.m` (804 lines): Player coordinator, generation gating, scrub preview queue, and automatic software session recycle.
+3. **Sub-step 3C — Split `SRTSubtitleRenderer.swift` (1,404 Lines) and Replaced Legacy String-Property Player API**:
+   - `SRTSubtitleInlineText.swift` (332 lines): `SRTFontCache` and `SRTInlineText` HTML/ASS inline tag parser, entity decoder, and per-character Unicode font fallback helpers.
+   - `SRTSubtitleOverlayView.swift` (384 lines): `SRTSubtitleOverlayView` AppKit view and `CALayer` subtitle overlay host.
+   - `SRTSubtitleRenderer.swift` (695 lines): SRT layout/measurement models and `SRTSubtitleRenderer` CoreText layout and bitmap compositor.
+   - Replaced legacy `libmpv` string-property polling (`getDoubleProperty`, `setDoubleProperty`, `player(_:didChangeProperty:value:)`, `PlaybackPropertyValue`, `PlaybackError.nativePropertyUnsupported`) between `PlaybackPlayer` and `PlaybackViewModel` with explicit typed methods (`currentTimePosition()`, `duration()`, `volume()`, `setVolume(_:)`, `playbackSpeed()`, `setPlaybackSpeed(_:)`, `videoAspectRatio()`, `isPausedState()`, `isSubtitleTrackEnabled()`) and typed `PlaybackPlayerDelegate` callbacks.
 
 ## Verification
-- Verified `swift build --package-path apps/macos-native` and `PlaybackSubtitleFocusLayoutTests` / `PlaybackSubtitleFocusSessionStoreTests` / `PlaybackPlaylistReelAdapterTests` / `PlaybackCueResultLayoutTests` / `PlaybackCollage` / `CueSeekerPlaybackTests` unit test suites compile cleanly with 0 errors and pass.
+- Verified `swift build --package-path apps/macos-native` and `PlaybackSubtitleFocusLayoutTests` / `PlaybackSubtitleFocusSessionStoreTests` / `PlaybackPlaylistReelAdapterTests` / `PlaybackCueResultLayoutTests` / `PlaybackCollage` / `CueSeekerPlaybackTests` / `PlaybackSegmentCompletionTests` / `PlaybackNormalShortcutTests` / `PlaybackPresentationTransitionTests` / `RecentPlaybackSessionRegressionTests` / `PlaybackLibraryChangeTests` unit test suites compile cleanly with 0 errors and pass.

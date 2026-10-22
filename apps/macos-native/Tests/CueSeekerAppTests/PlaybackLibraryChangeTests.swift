@@ -580,8 +580,8 @@ func exitingPlaybackOfVideoThatLeftLibraryDoesNotSaveHistoryOrPolluteDatabase() 
 
         let playbackViewModel = try #require(app.playback.playbackViewModel)
         let player = try #require(app.player)
-        playbackViewModel.player(player, didChangeProperty: "time-pos", value: .double(45.0))
-        playbackViewModel.player(player, didChangeProperty: "duration", value: .double(100.0))
+        playbackViewModel.player(player, didUpdateTimePosition: 45.0)
+        playbackViewModel.player(player, didUpdateDuration: 100.0)
         await Task.yield()
 
         // Video leaves the library while playing.
