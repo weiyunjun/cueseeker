@@ -10,6 +10,14 @@
    - `PlaybackVisualLineStackLayout.swift` (748 lines): `PlaybackVisualLineStackSegment`, `PlaybackVisualLineStackLine`, `PlaybackVisualLineStackPlan`, `PlaybackVisualLineStackLayout`, `PlaybackSubtitleFocusCueTextMeasurer`, `PlaybackSubtitleFocusNativeTextLayout`.
    - `PlaybackSubtitleFocusReelDocumentView.swift` (1,001 lines): `PlaybackCueTimelineRowLayout`, `PlaybackCueTimelineLayout`, `PlaybackCollageCheckboxDrawing`, `PlaybackSubtitleFocusReelDocumentView`, `PlaybackSelectedTextMenu`.
    - `PlaybackSubtitleFocusReel.swift` (1,547 lines): `PlaybackSubtitleFocusReelRepresentable`, `PlaybackSubtitleFocusReelContainerView`, `PlaybackSubtitleFocusNativeScrollView`, `PlaybackSubtitleFocusNativeScrollbarView`.
+2. **Sub-step 3B — Split `SFXNativePlaybackPlayer.m` (5,895 Lines) into Modular Objective-C Units**:
+   - `SFXNativePlaybackInternal.h` (548 lines): Internal shared types, helper prototypes, and class extensions.
+   - `SFXVideoToolboxSupport.m` (693 lines): FFmpeg input opener, VideoToolbox hardware decode capability probing, media timeline PTS math, and `CMSampleBufferRef` wrapping.
+   - `SFXKeyframeScrubPreviewDecoder.m` (252 lines): Keyframe-only timeline scrub preview decoder.
+   - `SFXNativePlaybackView.m` (96 lines): `SFXNativePlaybackView` and `SFXNativePlaybackFrameSnapshot`.
+   - `SFXNativePlaybackSession.m` (2,153 lines): Session lifecycle, segment boundary state, media preparation, transport controls, packet read-ahead queue, demux loop, and seek state machine.
+   - `SFXNativePlaybackSession+AudioAndDecode.m` (1,581 lines): Video/audio decode loop, starvation watchdog, software scaler, A/V clock pacing, `AVSampleBufferDisplayLayer` submission, and audio resampler/scheduling.
+   - `SFXNativePlaybackPlayer.m` (804 lines): Player coordinator, generation gating, scrub preview queue, and automatic software session recycle.
 
 ## Verification
-- Verified `swift build --package-path apps/macos-native` and `PlaybackSubtitleFocusLayoutTests` / `PlaybackSubtitleFocusSessionStoreTests` / `PlaybackPlaylistReelAdapterTests` / `PlaybackCueResultLayoutTests` / `PlaybackCollage` unit test suites compile cleanly with 0 errors and pass.
+- Verified `swift build --package-path apps/macos-native` and `PlaybackSubtitleFocusLayoutTests` / `PlaybackSubtitleFocusSessionStoreTests` / `PlaybackPlaylistReelAdapterTests` / `PlaybackCueResultLayoutTests` / `PlaybackCollage` / `CueSeekerPlaybackTests` unit test suites compile cleanly with 0 errors and pass.
