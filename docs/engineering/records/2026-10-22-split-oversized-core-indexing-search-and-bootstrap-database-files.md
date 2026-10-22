@@ -10,6 +10,9 @@
    - `IndexingDatabase+TombstoneReconciliation.swift` (732 lines): Extracted video tombstone and Excerpt (Shiori) cue reference reconciliation (`snapshotVideoTombstoneIfNeeded`, `restoreVideoTombstoneIfNeeded`, `reconcileExcerptListRecentCues`, `adoptTombstones`, `snapshotReferencedCues`, `recomputeTombstoneUnavailableReasons`, `cue_change_notices`).
    - `Tests/CueSeekerCoreTests/IndexingDatabase+TestInspection.swift` (288 lines): Relocated read-only test inspection methods with zero production callers out of `Sources/CueSeekerCore/IndexingDatabase.swift`.
    - `IndexingDatabase.swift` (2,310 lines): Retained core index publication, subtitle cue group/line/FTS/ASS segment/font persistence, search-order-row materialization, and cascade deletion.
+2. **Sub-step 4B — Split `DatabaseBootstrap.swift` (1,783 Lines) into Schema Definition and Historical Migrations**:
+   - `DatabaseBootstrap.swift` (758 lines): Retained `DatabaseBootstrap`, current schema v58 DDL (`prepareSchema`), schema inspection helpers, and migration entry point.
+   - `DatabaseBootstrap+Migrations.swift` (1,025 lines): Extracted historical step-by-step schema migrations (`migrateSchema33To34` through `migrateSchema57To58`).
 
 ## Verification
-- Verified `swift build --package-path apps/macos-native` and `IndexingDatabaseTests` / `SubtitleIndexerTests` / `LibraryDatabaseTests` / `ExcerptDatabaseTests` / `SubtitleLanguageDatabaseTests` pass with 0 errors.
+- Verified `swift build --package-path apps/macos-native` and `IndexingDatabaseTests` / `SubtitleIndexerTests` / `LibraryDatabaseTests` / `ExcerptDatabaseTests` / `SubtitleLanguageDatabaseTests` / `DatabaseBootstrapTests` pass with 0 errors.
