@@ -256,60 +256,74 @@ extension LibraryDatabase {
         name: String? = nil,
         isRootFolder: Bool
     ) throws -> FileDetailFolderInfo {
-        let folderURL = URL.fromMediaPath(folderPath).standardizedMediaURL
-        let standardizedPath = folderURL.mediaPath
-        let resolvedName = name ?? folderURL.lastPathComponent
-        let variants = MediaFolderPathMatching.folderPathVariants(for: folderURL)
-        let pathPrefixes = Self.folderPathPrefixes(for: [folderURL])
+        let (standardizedPath, defaultName, variants, pathPrefixes) = Self.folderScopeStrings(for: folderPath)
+        let resolvedName = name ?? defaultName
 
-        var videoIDs = Set<Int64>()
-        var subtitleIDs = Set<Int64>()
-        var directFolderPaths = Set<String>()
+        var folderCount = isRootFolder ? 0 : 1
+        var videoCount = 0
+        var subtitleCount = 0
 
         if !pathPrefixes.isEmpty {
             let scopeCondition = pathPrefixes.map { _ in
                 "(sf.subtitle_path >= ? AND sf.subtitle_path < ?)"
             }.joined(separator: " OR ")
-            let statement = try database.prepare(
-                """
-                SELECT vf.id, vf.path, sf.id
-                FROM subtitle_files sf INDEXED BY idx_subtitle_files_subtitle_path
-                JOIN subtitle_video_matches m ON m.subtitle_file_id = sf.id AND m.is_active = 1
-                JOIN video_files vf ON vf.id = m.video_file_id
-                WHERE (\(scopeCondition));
-                """
-            )
-            var bindIndex: Int32 = 1
-            for prefix in pathPrefixes {
-                try statement.bind(prefix, at: bindIndex)
-                bindIndex += 1
-                try statement.bind(Self.pathPrefixUpperBound(for: prefix), at: bindIndex)
-                bindIndex += 1
-            }
 
-            while try statement.step() {
-                let videoID = statement.int64Column(0)
-                let videoPath = statement.stringColumn(1)
-                let subtitleID = statement.int64Column(2)
-                let parentFolderPath = URL.fromMediaPath(videoPath)
-                    .deletingLastPathComponent()
-                    .standardizedMediaURL
-                    .mediaPath
-
-                if isRootFolder {
-                    videoIDs.insert(videoID)
-                    subtitleIDs.insert(subtitleID)
-                    directFolderPaths.insert(parentFolderPath)
-                } else if parentFolderPath == standardizedPath {
-                    videoIDs.insert(videoID)
-                    subtitleIDs.insert(subtitleID)
+            if isRootFolder {
+                let statement = try database.prepare(
+                    """
+                    SELECT COUNT(DISTINCT COALESCE(CAST(vf.folder_id AS TEXT), rtrim(substr(vf.path, 1, length(vf.path) - length(vf.video_name)), '/'))),
+                           COUNT(DISTINCT vf.id),
+                           COUNT(DISTINCT sf.id)
+                    FROM subtitle_files sf INDEXED BY idx_subtitle_files_subtitle_path
+                    JOIN subtitle_video_matches m ON m.subtitle_file_id = sf.id AND m.is_active = 1
+                    JOIN video_files vf ON vf.id = m.video_file_id
+                    WHERE (\(scopeCondition));
+                    """
+                )
+                var bindIndex: Int32 = 1
+                for prefix in pathPrefixes {
+                    try statement.bind(prefix, at: bindIndex)
+                    bindIndex += 1
+                    try statement.bind(Self.pathPrefixUpperBound(for: prefix), at: bindIndex)
+                    bindIndex += 1
+                }
+                if try statement.step() {
+                    folderCount = statement.intColumn(0)
+                    videoCount = statement.intColumn(1)
+                    subtitleCount = statement.intColumn(2)
+                }
+            } else if !variants.isEmpty {
+                let variantPlaceholders = variants.map { _ in "?" }.joined(separator: ", ")
+                let statement = try database.prepare(
+                    """
+                    SELECT COUNT(DISTINCT vf.id),
+                           COUNT(DISTINCT sf.id)
+                    FROM subtitle_files sf INDEXED BY idx_subtitle_files_subtitle_path
+                    JOIN subtitle_video_matches m ON m.subtitle_file_id = sf.id AND m.is_active = 1
+                    JOIN video_files vf ON vf.id = m.video_file_id
+                    WHERE (\(scopeCondition))
+                      AND rtrim(substr(vf.path, 1, length(vf.path) - length(vf.video_name)), '/') IN (\(variantPlaceholders));
+                    """
+                )
+                var bindIndex: Int32 = 1
+                for prefix in pathPrefixes {
+                    try statement.bind(prefix, at: bindIndex)
+                    bindIndex += 1
+                    try statement.bind(Self.pathPrefixUpperBound(for: prefix), at: bindIndex)
+                    bindIndex += 1
+                }
+                for variant in variants {
+                    try statement.bind(variant, at: bindIndex)
+                    bindIndex += 1
+                }
+                if try statement.step() {
+                    videoCount = statement.intColumn(0)
+                    subtitleCount = statement.intColumn(1)
                 }
             }
         }
 
-        let folderCount = isRootFolder ? directFolderPaths.count : 1
         let (addedAt, updatedAt) = try folderDetailTimestamps(
-            for: folderURL,
             variants: variants,
             pathPrefixes: pathPrefixes,
             isRootFolder: isRootFolder
@@ -320,15 +334,37 @@ extension LibraryDatabase {
             name: resolvedName,
             isRootFolder: isRootFolder,
             folderCount: folderCount,
-            videoCount: videoIDs.count,
-            subtitleCount: subtitleIDs.count,
+            videoCount: videoCount,
+            subtitleCount: subtitleCount,
             addedAt: addedAt,
             updatedAt: updatedAt
         )
     }
 
+    private static func folderScopeStrings(
+        for folderPath: String
+    ) -> (standardizedPath: String, name: String, variants: [String], prefixes: [String]) {
+        if folderPath.isRemoteMediaPath {
+            let folderURL = URL.fromMediaPath(folderPath).standardizedMediaURL
+            let standardizedPath = folderURL.mediaPath
+            let normalized = MediaFolderPathMatching.normalizedFolderPath(standardizedPath)
+            let prefix = normalized.hasSuffix("/") ? normalized : normalized + "/"
+            return (standardizedPath, folderURL.lastPathComponent, [normalized], [prefix])
+        }
+        let normalized = MediaFolderPathMatching.normalizedFolderPath(folderPath)
+        var variants = Set([normalized])
+        if normalized.hasPrefix("/var/") {
+            variants.insert("/private" + normalized)
+        } else if normalized.hasPrefix("/private/var/") {
+            variants.insert(String(normalized.dropFirst("/private".count)))
+        }
+        let sortedVariants = variants.sorted()
+        let prefixes = sortedVariants.map { $0.hasSuffix("/") ? $0 : $0 + "/" }
+        let name = (normalized as NSString).lastPathComponent
+        return (normalized, name, sortedVariants, prefixes)
+    }
+
     private func folderDetailTimestamps(
-        for folderURL: URL,
         variants: [String],
         pathPrefixes: [String],
         isRootFolder: Bool
@@ -387,8 +423,10 @@ extension LibraryDatabase {
             )
             while try allSearchPaths.step() {
                 let outerPath = allSearchPaths.stringColumn(0)
-                let outerURL = URL.fromMediaPath(outerPath).standardizedMediaURL
-                if LibraryRootGroups.holds(outerURL, folderURL) {
+                let (_, _, _, outerPrefixes) = Self.folderScopeStrings(for: outerPath)
+                if variants.contains(where: { variant in
+                    MediaFolderPathMatching.pathMatchesPrefixes(variant, prefixes: outerPrefixes)
+                }) {
                     let outerCreated = Self.parseISO8601Date(allSearchPaths.stringColumn(1))
                     let outerUpdated = Self.parseISO8601Date(allSearchPaths.stringColumn(2)) ?? outerCreated
                     let earliestSubtitleIndexed = try earliestSubtitleIndexedDate(

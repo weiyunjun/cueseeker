@@ -4,7 +4,9 @@ import Foundation
 @MainActor
 extension AppCoordinator {
     func requestRootFolderDetail(for folder: URL) {
-        let folderPath = folder.standardizedMediaURL.mediaPath
+        let folderPath = folder.isRemoteMediaURL
+            ? folder.mediaPath
+            : MediaFolderPathMatching.normalizedFolderPath(folder.path)
         let name = IndexingStore.displayName(for: folder)
         if let libraryDatabase,
            let info = try? libraryDatabase.fileDetailFolderInfo(
@@ -32,8 +34,12 @@ extension AppCoordinator {
     }
 
     func requestSubfolderDetail(for folderPath: String) {
-        let standardizedPath = URL.fromMediaPath(folderPath).standardizedMediaURL.mediaPath
-        let name = URL.fromMediaPath(standardizedPath).lastPathComponent
+        let standardizedPath = folderPath.isRemoteMediaPath
+            ? URL.fromMediaPath(folderPath).standardizedMediaURL.mediaPath
+            : MediaFolderPathMatching.normalizedFolderPath(folderPath)
+        let name = folderPath.isRemoteMediaPath
+            ? URL.fromMediaPath(standardizedPath).lastPathComponent
+            : (standardizedPath as NSString).lastPathComponent
         if let libraryDatabase,
            let info = try? libraryDatabase.fileDetailFolderInfo(
                for: standardizedPath,

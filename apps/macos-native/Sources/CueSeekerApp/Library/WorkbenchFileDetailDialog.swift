@@ -145,7 +145,7 @@ struct WorkbenchFileDetailDialog: View {
         SettingsGroup(title: L("file_detail.section.folder_info")) {
             FileDetailRow(
                 label: L("file_detail.path"),
-                value: info.isRootFolder
+                value: info.isRootFolder && info.path.isRemoteMediaPath
                     ? FileFolderGroupingResolver.rootSubtitle(for: URL.fromMediaPath(info.path))
                     : FileFolderGroupingResolver.subfolderSubtitle(for: info.path)
             )
