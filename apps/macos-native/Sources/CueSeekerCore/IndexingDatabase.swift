@@ -204,6 +204,11 @@ public final class IndexingDatabase: @unchecked Sendable {
             try publish.bind(publishedAt, at: 2)
             try publish.bind(libraryID, at: 3)
             try publish.run()
+            try refreshPublishedFolderTimestamps(
+                for: index.folder,
+                libraryID: libraryID,
+                publishedAt: publishedAt
+            )
             if !affectedFolderPaths.isEmpty {
                 try CueFacetCountCache.rebuildAll(on: database)
             }
@@ -219,6 +224,97 @@ public final class IndexingDatabase: @unchecked Sendable {
                 presentationRefreshRequest:
                     presentationRefreshRequest
             )
+        }
+    }
+
+    private func refreshPublishedFolderTimestamps(
+        for folder: URL,
+        libraryID: Int64,
+        publishedAt: String
+    ) throws {
+        let standardizedFolder = folder.standardizedMediaURL
+        let folderMediaPath = standardizedFolder.mediaPath
+        let upsertRoot = try database.prepare(
+            """
+            INSERT INTO library_root_folders(path, created_at, updated_at)
+            VALUES (?, ?, ?)
+            ON CONFLICT(path) DO UPDATE SET
+                created_at = CASE
+                    WHEN library_root_folders.created_at = '' THEN excluded.created_at
+                    ELSE library_root_folders.created_at
+                END,
+                updated_at = excluded.updated_at;
+            """
+        )
+        try upsertRoot.bind(folderMediaPath, at: 1)
+        try upsertRoot.bind(publishedAt, at: 2)
+        try upsertRoot.bind(publishedAt, at: 3)
+        try upsertRoot.run()
+
+        let selectRoots = try database.prepare(
+            "SELECT path FROM library_root_folders ORDER BY path ASC;"
+        )
+        var coveredRootPaths: [String] = []
+        while try selectRoots.step() {
+            let rowPath = selectRoots.stringColumn(0)
+            let rowURL = URL.fromMediaPath(rowPath).standardizedMediaURL
+            if LibraryRootGroups.holds(standardizedFolder, rowURL) {
+                coveredRootPaths.append(rowPath)
+            }
+        }
+        if !coveredRootPaths.isEmpty {
+            let updateCoveredRoot = try database.prepare(
+                """
+                UPDATE library_root_folders
+                SET created_at = CASE WHEN created_at = '' THEN ? ELSE created_at END,
+                    updated_at = ?
+                WHERE path = ?;
+                """
+            )
+            for rowPath in coveredRootPaths {
+                try updateCoveredRoot.bind(publishedAt, at: 1)
+                try updateCoveredRoot.bind(publishedAt, at: 2)
+                try updateCoveredRoot.bind(rowPath, at: 3)
+                try updateCoveredRoot.run()
+                try updateCoveredRoot.reset()
+            }
+        }
+
+        guard let library = try libraryPathRecords().first(where: { $0.id == libraryID }) else {
+            return
+        }
+        if folderMediaPath == library.rootURL.mediaPath {
+            let updateFolders = try database.prepare(
+                """
+                UPDATE library_folders
+                SET created_at = CASE WHEN created_at = '' THEN ? ELSE created_at END,
+                    updated_at = ?
+                WHERE library_id = ?;
+                """
+            )
+            try updateFolders.bind(publishedAt, at: 1)
+            try updateFolders.bind(publishedAt, at: 2)
+            try updateFolders.bind(libraryID, at: 3)
+            try updateFolders.run()
+        } else if let prefix = Self.relativeMediaPath(for: standardizedFolder, under: library.rootURL) {
+            let slashPrefix = prefix + "/"
+            let upperBound = Self.pathPrefixUpperBound(for: slashPrefix)
+            let updateFolders = try database.prepare(
+                """
+                UPDATE library_folders
+                SET created_at = CASE WHEN created_at = '' THEN ? ELSE created_at END,
+                    updated_at = ?
+                WHERE library_id = ?
+                  AND (relative_path = ? OR (relative_path >= ? AND relative_path < ?));
+                """
+            )
+            try updateFolders.bind(publishedAt, at: 1)
+            try updateFolders.bind(publishedAt, at: 2)
+            try updateFolders.bind(libraryID, at: 3)
+            try updateFolders.bind(prefix, at: 4)
+            try updateFolders.bind(slashPrefix, at: 5)
+            try updateFolders.bind(upperBound, at: 6)
+            try updateFolders.run()
         }
     }
 

@@ -388,8 +388,9 @@ extension AppCoordinator {
         _ folder: URL,
         onProgress: @escaping @Sendable (TaskIndexProgress) -> Void
     ) async throws -> Int {
-        guard LibraryRootGroups.coveringRoot(of: folder, in: indexing.selectedFolders) == nil else {
+        if let coveringRoot = LibraryRootGroups.coveringRoot(of: folder, in: indexing.selectedFolders) {
             if !indexing.selectedFolders.contains(folder) {
+                try? indexingDatabase?.recordCoveredRootFolderAddition(folder, coveredBy: coveringRoot)
                 indexing.appendFolder(folder)
             }
             return 0
@@ -455,6 +456,7 @@ extension AppCoordinator {
         let remainingRoots = indexing.selectedFolders.filter { $0 != folder }
         guard LibraryRootGroups.coveringRoot(of: folder, in: remainingRoots) == nil else {
             holdActiveFileRouteIfRemovingRoot(folder)
+            try? indexingDatabase?.removeRootFolderMetadata(folder)
             indexing.removeFolder(folder)
             if folder.isWebDAVURL {
                 WebDAVConfigurationStore.shared.remove(url: folder)
@@ -527,6 +529,7 @@ extension AppCoordinator {
 
         guard didRemoveIndexedContent else {
             holdActiveFileRouteIfRemovingRoot(folder)
+            try? indexingDatabase?.removeRootFolderMetadata(folder)
             indexing.removeFolder(folder)
             if folder.isWebDAVURL {
                 WebDAVConfigurationStore.shared.remove(url: folder)

@@ -641,6 +641,14 @@
 /* Universal File Detail Dialog */
 "file_detail.get_info" = "显示简介";
 "file_detail.title" = "文件详情";
+"file_detail.folder_title" = "文件夹详情";
+"file_detail.section.folder_info" = "文件夹信息";
+"file_detail.section.index_info" = "索引信息";
+"file_detail.folder_count" = "文件夹数";
+"file_detail.video_count" = "视频数";
+"file_detail.subtitle_count" = "字幕数";
+"file_detail.added" = "添加时间";
+"file_detail.updated" = "更新时间";
 "file_detail.video" = "视频";
 "file_detail.audio" = "音频";
 "file_detail.subtitles" = "关联字幕";

@@ -69,9 +69,18 @@ public final class IndexedContentDatabase: @unchecked Sendable {
     /// Returns the folders under a specific root folder without loading objects or subtitles.
     public func subfolders(under rootURL: URL) throws -> [IndexedContentFolder] {
         let roots = try loadRootBuilders()
-        guard let root = roots.first(where: {
+        let standardizedRootURL = rootURL.standardizedMediaURL
+        let standardizedRootPath = standardizedRootURL.mediaPath
+        let exactMatch = roots.first(where: {
             $0.path == rootURL.mediaPath
                 || URL.fromMediaPath($0.path).mediaPath == rootURL.mediaPath
+                || URL.fromMediaPath($0.path).standardizedMediaURL.mediaPath == standardizedRootPath
+        })
+        guard let root = exactMatch ?? roots.first(where: {
+            LibraryRootGroups.holds(
+                URL.fromMediaPath($0.path).standardizedMediaURL,
+                standardizedRootURL
+            )
         }) else {
             return []
         }
@@ -92,14 +101,44 @@ public final class IndexedContentDatabase: @unchecked Sendable {
         )
         try statement.bind(root.id, at: 1)
 
+        let isNestedRoot = exactMatch == nil
+        let rootPrefix = standardizedRootPath.hasSuffix("/")
+            ? standardizedRootPath
+            : standardizedRootPath + "/"
+
         var folders: [IndexedContentFolder] = []
         while try statement.step() {
-            folders.append(IndexedContentFolder(
-                id: statement.int64Column(0),
-                relativePath: statement.stringColumn(1),
-                folderPath: statement.stringColumn(2),
-                objects: []
-            ))
+            let folderID = statement.int64Column(0)
+            let rawRelativePath = statement.stringColumn(1)
+            let folderPath = statement.stringColumn(2)
+            if isNestedRoot {
+                let standardizedFolderURL = URL.fromMediaPath(folderPath).standardizedMediaURL
+                guard LibraryRootGroups.holds(standardizedRootURL, standardizedFolderURL) else {
+                    continue
+                }
+                let standardizedFolderPath = standardizedFolderURL.mediaPath
+                let relativePath: String
+                if standardizedFolderPath == standardizedRootPath {
+                    relativePath = ""
+                } else if standardizedFolderPath.hasPrefix(rootPrefix) {
+                    relativePath = String(standardizedFolderPath.dropFirst(rootPrefix.count))
+                } else {
+                    relativePath = rawRelativePath
+                }
+                folders.append(IndexedContentFolder(
+                    id: folderID,
+                    relativePath: relativePath,
+                    folderPath: folderPath,
+                    objects: []
+                ))
+            } else {
+                folders.append(IndexedContentFolder(
+                    id: folderID,
+                    relativePath: rawRelativePath,
+                    folderPath: folderPath,
+                    objects: []
+                ))
+            }
         }
         return folders
     }

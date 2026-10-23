@@ -12,7 +12,7 @@ public enum DatabaseBootstrapError: Error, Equatable, CustomStringConvertible {
 }
 
 public enum DatabaseBootstrap {
-    public static let currentSchemaVersion = 61
+    public static let currentSchemaVersion = 62
 
     public static func prepare(at path: URL) throws {
         let database = try SQLiteDatabase(path: path, access: .readWrite)
@@ -73,6 +73,7 @@ extension DatabaseBootstrap {
                 || previousVersion == 58
                 || previousVersion == 59
                 || previousVersion == 60
+                || previousVersion == 61
                 || previousVersion == DatabaseBootstrap.currentSchemaVersion
         else {
             throw DatabaseBootstrapError.unsupportedSchemaVersion(
@@ -209,6 +210,9 @@ extension DatabaseBootstrap {
         }
         if previousVersion >= 33, previousVersion <= 60 {
             try migrateSchema60To61(on: database)
+        }
+        if previousVersion >= 33, previousVersion <= 61 {
+            try migrateSchema61To62(on: database)
             return
         }
         guard previousVersion == 0 else {
@@ -228,10 +232,18 @@ extension DatabaseBootstrap {
                     updated_at TEXT NOT NULL
                 );
 
+                CREATE TABLE IF NOT EXISTS library_root_folders (
+                    path TEXT PRIMARY KEY,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
+
                 CREATE TABLE IF NOT EXISTS library_folders (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     library_id INTEGER NOT NULL,
                     relative_path TEXT NOT NULL,
+                    created_at TEXT NOT NULL DEFAULT '',
+                    updated_at TEXT NOT NULL DEFAULT '',
                     UNIQUE(library_id, relative_path),
                     FOREIGN KEY(library_id) REFERENCES search_paths(id)
                 );

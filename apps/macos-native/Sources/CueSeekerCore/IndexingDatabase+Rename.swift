@@ -201,6 +201,28 @@ extension IndexingDatabase {
                 rootPaths[library.id] = newPath
             }
 
+            let selectRootFolders = try database.prepare(
+                "SELECT path FROM library_root_folders ORDER BY path ASC;"
+            )
+            var rootFolderRewrites: [(oldPath: String, newPath: String)] = []
+            while try selectRootFolders.step() {
+                let oldRootPath = selectRootFolders.stringColumn(0)
+                if let newRootPath = rewrite(oldRootPath), newRootPath != oldRootPath {
+                    rootFolderRewrites.append((oldPath: oldRootPath, newPath: newRootPath))
+                }
+            }
+            if !rootFolderRewrites.isEmpty {
+                let updateRootFolder = try database.prepare(
+                    "UPDATE library_root_folders SET path = ? WHERE path = ?;"
+                )
+                for entry in rootFolderRewrites {
+                    try updateRootFolder.bind(entry.newPath, at: 1)
+                    try updateRootFolder.bind(entry.oldPath, at: 2)
+                    try updateRootFolder.run()
+                    try updateRootFolder.reset()
+                }
+            }
+
             let updateFolder = try database.prepare(
                 "UPDATE library_folders SET relative_path = ? WHERE id = ?;"
             )

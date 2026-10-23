@@ -5,6 +5,7 @@ import SwiftUI
 @MainActor
 final class FileDetailDialogSession: ObservableObject, Identifiable {
     enum DetailKind {
+        case folder(FileDetailFolderInfo)
         case video(FileDetailVideoInfo)
         case subtitle(FileDetailSubtitleInfo)
     }
@@ -16,8 +17,19 @@ final class FileDetailDialogSession: ObservableObject, Identifiable {
         self.kind = kind
     }
 
+    var dialogTitle: String {
+        switch kind {
+        case .folder:
+            return L("file_detail.folder_title")
+        case .video, .subtitle:
+            return L("file_detail.title")
+        }
+    }
+
     var fileName: String {
         switch kind {
+        case .folder(let info):
+            return info.name
         case .video(let info):
             return info.name
         case .subtitle(let info):
@@ -27,6 +39,8 @@ final class FileDetailDialogSession: ObservableObject, Identifiable {
 
     var icon: AppIcon {
         switch kind {
+        case .folder(let info):
+            return FileFolderGroupingResolver.folderIcon(forFolderPath: info.path)
         case .video:
             return .video
         case .subtitle:
@@ -49,7 +63,7 @@ struct WorkbenchFileDetailDialog: View {
 
     var body: some View {
         VStack(spacing: WorkbenchControlMetrics.redesignSpacing4) {
-            WorkbenchDialogHeader(title: L("file_detail.title"))
+            WorkbenchDialogHeader(title: session.dialogTitle)
                 .padding(.horizontal, WorkbenchControlMetrics.redesignDialogInset)
 
             WorkbenchScrollView {
@@ -57,6 +71,8 @@ struct WorkbenchFileDetailDialog: View {
                     fileHeaderRow
 
                     switch session.kind {
+                    case .folder(let folderInfo):
+                        folderContent(folderInfo)
                     case .video(let videoInfo):
                         videoContent(videoInfo)
                     case .subtitle(let subtitleInfo):
@@ -119,6 +135,47 @@ struct WorkbenchFileDetailDialog: View {
                     maxHeight: 2 * WorkbenchControlMetrics.redesignDetailFileTitleLineHeight,
                     alignment: .leading
                 )
+        }
+    }
+
+    // MARK: - Folder Content
+
+    @ViewBuilder
+    private func folderContent(_ info: FileDetailFolderInfo) -> some View {
+        SettingsGroup(title: L("file_detail.section.folder_info")) {
+            FileDetailRow(
+                label: L("file_detail.path"),
+                value: info.isRootFolder
+                    ? FileFolderGroupingResolver.rootSubtitle(for: URL.fromMediaPath(info.path))
+                    : FileFolderGroupingResolver.subfolderSubtitle(for: info.path)
+            )
+            SettingsRowDivider()
+            FileDetailRow(
+                label: L("file_detail.folder_count"),
+                value: "\(info.folderCount)"
+            )
+            SettingsRowDivider()
+            FileDetailRow(
+                label: L("file_detail.video_count"),
+                value: "\(info.videoCount)"
+            )
+            SettingsRowDivider()
+            FileDetailRow(
+                label: L("file_detail.subtitle_count"),
+                value: "\(info.subtitleCount)"
+            )
+        }
+
+        SettingsGroup(title: L("file_detail.section.index_info")) {
+            FileDetailRow(
+                label: L("file_detail.added"),
+                value: Self.dateText(info.addedAt)
+            )
+            SettingsRowDivider()
+            FileDetailRow(
+                label: L("file_detail.updated"),
+                value: Self.dateText(info.updatedAt)
+            )
         }
     }
 

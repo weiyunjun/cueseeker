@@ -86,6 +86,37 @@ public struct FileDetailSubtitleInfo: Equatable, Sendable {
     }
 }
 
+public struct FileDetailFolderInfo: Equatable, Sendable {
+    public let path: String
+    public let name: String
+    public let isRootFolder: Bool
+    public let folderCount: Int
+    public let videoCount: Int
+    public let subtitleCount: Int
+    public let addedAt: Date?
+    public let updatedAt: Date?
+
+    public init(
+        path: String,
+        name: String,
+        isRootFolder: Bool,
+        folderCount: Int,
+        videoCount: Int,
+        subtitleCount: Int,
+        addedAt: Date?,
+        updatedAt: Date?
+    ) {
+        self.path = path
+        self.name = name
+        self.isRootFolder = isRootFolder
+        self.folderCount = folderCount
+        self.videoCount = videoCount
+        self.subtitleCount = subtitleCount
+        self.addedAt = addedAt
+        self.updatedAt = updatedAt
+    }
+}
+
 extension LibraryDatabase {
     public func fileDetailVideoInfo(for videoPath: String) throws -> FileDetailVideoInfo? {
         let statement = try database.prepare(
@@ -218,5 +249,256 @@ extension LibraryDatabase {
             createdAt: createdDate,
             modifiedAt: modifiedDate
         )
+    }
+
+    public func fileDetailFolderInfo(
+        for folderPath: String,
+        name: String? = nil,
+        isRootFolder: Bool
+    ) throws -> FileDetailFolderInfo {
+        let folderURL = URL.fromMediaPath(folderPath).standardizedMediaURL
+        let standardizedPath = folderURL.mediaPath
+        let resolvedName = name ?? folderURL.lastPathComponent
+        let variants = MediaFolderPathMatching.folderPathVariants(for: folderURL)
+        let pathPrefixes = Self.folderPathPrefixes(for: [folderURL])
+
+        var videoIDs = Set<Int64>()
+        var subtitleIDs = Set<Int64>()
+        var directFolderPaths = Set<String>()
+
+        if !pathPrefixes.isEmpty {
+            let scopeCondition = pathPrefixes.map { _ in
+                "(sf.subtitle_path >= ? AND sf.subtitle_path < ?)"
+            }.joined(separator: " OR ")
+            let statement = try database.prepare(
+                """
+                SELECT vf.id, vf.path, sf.id
+                FROM subtitle_files sf INDEXED BY idx_subtitle_files_subtitle_path
+                JOIN subtitle_video_matches m ON m.subtitle_file_id = sf.id AND m.is_active = 1
+                JOIN video_files vf ON vf.id = m.video_file_id
+                WHERE (\(scopeCondition));
+                """
+            )
+            var bindIndex: Int32 = 1
+            for prefix in pathPrefixes {
+                try statement.bind(prefix, at: bindIndex)
+                bindIndex += 1
+                try statement.bind(Self.pathPrefixUpperBound(for: prefix), at: bindIndex)
+                bindIndex += 1
+            }
+
+            while try statement.step() {
+                let videoID = statement.int64Column(0)
+                let videoPath = statement.stringColumn(1)
+                let subtitleID = statement.int64Column(2)
+                let parentFolderPath = URL.fromMediaPath(videoPath)
+                    .deletingLastPathComponent()
+                    .standardizedMediaURL
+                    .mediaPath
+
+                if isRootFolder {
+                    videoIDs.insert(videoID)
+                    subtitleIDs.insert(subtitleID)
+                    directFolderPaths.insert(parentFolderPath)
+                } else if parentFolderPath == standardizedPath {
+                    videoIDs.insert(videoID)
+                    subtitleIDs.insert(subtitleID)
+                }
+            }
+        }
+
+        let folderCount = isRootFolder ? directFolderPaths.count : 1
+        let (addedAt, updatedAt) = try folderDetailTimestamps(
+            for: folderURL,
+            variants: variants,
+            pathPrefixes: pathPrefixes,
+            isRootFolder: isRootFolder
+        )
+
+        return FileDetailFolderInfo(
+            path: standardizedPath,
+            name: resolvedName,
+            isRootFolder: isRootFolder,
+            folderCount: folderCount,
+            videoCount: videoIDs.count,
+            subtitleCount: subtitleIDs.count,
+            addedAt: addedAt,
+            updatedAt: updatedAt
+        )
+    }
+
+    private func folderDetailTimestamps(
+        for folderURL: URL,
+        variants: [String],
+        pathPrefixes: [String],
+        isRootFolder: Bool
+    ) throws -> (addedAt: Date?, updatedAt: Date?) {
+        guard !variants.isEmpty else {
+            return (nil, nil)
+        }
+        let placeholders = variants.map { _ in "?" }.joined(separator: ", ")
+
+        if isRootFolder {
+            let rootStatement = try database.prepare(
+                """
+                SELECT created_at, updated_at
+                FROM library_root_folders
+                WHERE path IN (\(placeholders))
+                LIMIT 1;
+                """
+            )
+            for (offset, variant) in variants.enumerated() {
+                try rootStatement.bind(variant, at: Int32(offset + 1))
+            }
+            if try rootStatement.step() {
+                let created = Self.parseISO8601Date(rootStatement.stringColumn(0))
+                let updated = Self.parseISO8601Date(rootStatement.stringColumn(1)) ?? created
+                if created != nil || updated != nil {
+                    return (created, updated)
+                }
+            }
+
+            let spStatement = try database.prepare(
+                """
+                SELECT created_at,
+                       COALESCE(NULLIF(last_successful_index_at, ''), NULLIF(updated_at, ''), created_at)
+                FROM search_paths
+                WHERE path IN (\(placeholders))
+                LIMIT 1;
+                """
+            )
+            for (offset, variant) in variants.enumerated() {
+                try spStatement.bind(variant, at: Int32(offset + 1))
+            }
+            if try spStatement.step() {
+                let created = Self.parseISO8601Date(spStatement.stringColumn(0))
+                let updated = Self.parseISO8601Date(spStatement.stringColumn(1)) ?? created
+                return (created, updated)
+            }
+
+            let allSearchPaths = try database.prepare(
+                """
+                SELECT path,
+                       created_at,
+                       COALESCE(NULLIF(last_successful_index_at, ''), NULLIF(updated_at, ''), created_at)
+                FROM search_paths
+                ORDER BY LENGTH(path) DESC, id ASC;
+                """
+            )
+            while try allSearchPaths.step() {
+                let outerPath = allSearchPaths.stringColumn(0)
+                let outerURL = URL.fromMediaPath(outerPath).standardizedMediaURL
+                if LibraryRootGroups.holds(outerURL, folderURL) {
+                    let outerCreated = Self.parseISO8601Date(allSearchPaths.stringColumn(1))
+                    let outerUpdated = Self.parseISO8601Date(allSearchPaths.stringColumn(2)) ?? outerCreated
+                    let earliestSubtitleIndexed = try earliestSubtitleIndexedDate(
+                        pathPrefixes: pathPrefixes
+                    )
+                    return (earliestSubtitleIndexed ?? outerCreated, outerUpdated)
+                }
+            }
+            return (nil, nil)
+        }
+
+        let folderStatement = try database.prepare(
+            """
+            SELECT lf.id,
+                   lf.created_at,
+                   lf.updated_at,
+                   sp.created_at,
+                   COALESCE(NULLIF(sp.last_successful_index_at, ''), NULLIF(sp.updated_at, ''), sp.created_at)
+            FROM library_folders lf
+            JOIN search_paths sp ON sp.id = lf.library_id
+            WHERE rtrim(sp.path || '/' || lf.relative_path, '/') IN (\(placeholders))
+            LIMIT 1;
+            """
+        )
+        for (offset, variant) in variants.enumerated() {
+            try folderStatement.bind(variant, at: Int32(offset + 1))
+        }
+        if try folderStatement.step() {
+            let folderID = folderStatement.int64Column(0)
+            let rawCreated = folderStatement.stringColumn(1)
+            let rawUpdated = folderStatement.stringColumn(2)
+            let spCreated = Self.parseISO8601Date(folderStatement.stringColumn(3))
+            let spUpdated = Self.parseISO8601Date(folderStatement.stringColumn(4)) ?? spCreated
+
+            let created: Date?
+            if let parsed = Self.parseISO8601Date(rawCreated) {
+                created = parsed
+            } else {
+                created = try earliestSubtitleIndexedDate(forFolderID: folderID) ?? spCreated
+            }
+
+            let updated: Date?
+            if let parsed = Self.parseISO8601Date(rawUpdated) {
+                updated = parsed
+            } else {
+                updated = spUpdated ?? created
+            }
+            return (created, updated)
+        }
+
+        let earliest = try earliestSubtitleIndexedDate(pathPrefixes: pathPrefixes)
+        return (earliest, earliest)
+    }
+
+    private func earliestSubtitleIndexedDate(forFolderID folderID: Int64) throws -> Date? {
+        let statement = try database.prepare(
+            """
+            SELECT MIN(indexed_at)
+            FROM subtitle_files
+            WHERE folder_id = ? AND indexed_at != '';
+            """
+        )
+        try statement.bind(folderID, at: 1)
+        guard try statement.step(),
+              let raw = statement.nullableStringColumn(0)
+        else {
+            return nil
+        }
+        return Self.parseISO8601Date(raw)
+    }
+
+    private func earliestSubtitleIndexedDate(pathPrefixes: [String]) throws -> Date? {
+        guard !pathPrefixes.isEmpty else {
+            return nil
+        }
+        let scopeCondition = pathPrefixes.map { _ in
+            "(subtitle_path >= ? AND subtitle_path < ?)"
+        }.joined(separator: " OR ")
+        let statement = try database.prepare(
+            """
+            SELECT MIN(indexed_at)
+            FROM subtitle_files INDEXED BY idx_subtitle_files_subtitle_path
+            WHERE (\(scopeCondition)) AND indexed_at != '';
+            """
+        )
+        var bindIndex: Int32 = 1
+        for prefix in pathPrefixes {
+            try statement.bind(prefix, at: bindIndex)
+            bindIndex += 1
+            try statement.bind(Self.pathPrefixUpperBound(for: prefix), at: bindIndex)
+            bindIndex += 1
+        }
+        guard try statement.step(),
+              let raw = statement.nullableStringColumn(0)
+        else {
+            return nil
+        }
+        return Self.parseISO8601Date(raw)
+    }
+
+    private static func parseISO8601Date(_ raw: String) -> Date? {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            return nil
+        }
+        let fractional = ISO8601DateFormatter()
+        fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let date = fractional.date(from: trimmed) {
+            return date
+        }
+        return ISO8601DateFormatter().date(from: trimmed)
     }
 }

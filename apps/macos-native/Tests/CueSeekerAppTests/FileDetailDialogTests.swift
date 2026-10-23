@@ -41,8 +41,76 @@ struct FileDetailDialogTests {
         )
 
         let subSession = FileDetailDialogSession(kind: .subtitle(subtitleInfo))
+        #expect(subSession.dialogTitle == L("file_detail.title"))
         #expect(subSession.fileName == "sub.ass")
         #expect(subSession.icon == .subtitles)
+
+        let localFolderInfo = FileDetailFolderInfo(
+            path: "/Media/Anime",
+            name: "Anime",
+            isRootFolder: true,
+            folderCount: 3,
+            videoCount: 24,
+            subtitleCount: 48,
+            addedAt: nil,
+            updatedAt: nil
+        )
+        let localFolderSession = FileDetailDialogSession(kind: .folder(localFolderInfo))
+        #expect(localFolderSession.dialogTitle == L("file_detail.folder_title"))
+        #expect(localFolderSession.fileName == "Anime")
+        #expect(localFolderSession.icon == .folder)
+
+        let networkFolderInfo = FileDetailFolderInfo(
+            path: "smb://nas.local/Media/Anime",
+            name: "Anime",
+            isRootFolder: true,
+            folderCount: 1,
+            videoCount: 12,
+            subtitleCount: 12,
+            addedAt: nil,
+            updatedAt: nil
+        )
+        let networkFolderSession = FileDetailDialogSession(kind: .folder(networkFolderInfo))
+        #expect(networkFolderSession.dialogTitle == L("file_detail.folder_title"))
+        #expect(networkFolderSession.fileName == "Anime")
+        #expect(networkFolderSession.icon == .folderSmb)
+    }
+
+    @Test
+    func folderDetailDialogSessionAndLocalization() {
+        defer {
+            AppLocalization.apply(.english)
+        }
+
+        AppLocalization.apply(.english)
+        #expect(L("file_detail.folder_title") == "Folder Info")
+        #expect(L("file_detail.section.folder_info") == "Folder Info")
+        #expect(L("file_detail.section.index_info") == "Index Info")
+        #expect(L("file_detail.folder_count") == "Folder Count")
+        #expect(L("file_detail.video_count") == "Video Count")
+        #expect(L("file_detail.subtitle_count") == "Subtitle Count")
+        #expect(L("file_detail.added") == "Added")
+        #expect(L("file_detail.updated") == "Updated")
+
+        AppLocalization.apply(.simplifiedChinese)
+        #expect(L("file_detail.folder_title") == "文件夹详情")
+        #expect(L("file_detail.section.folder_info") == "文件夹信息")
+        #expect(L("file_detail.section.index_info") == "索引信息")
+        #expect(L("file_detail.folder_count") == "文件夹数")
+        #expect(L("file_detail.video_count") == "视频数")
+        #expect(L("file_detail.subtitle_count") == "字幕数")
+        #expect(L("file_detail.added") == "添加时间")
+        #expect(L("file_detail.updated") == "更新时间")
+
+        AppLocalization.apply(.traditionalChinese)
+        #expect(L("file_detail.folder_title") == "資料夾詳情")
+        #expect(L("file_detail.section.folder_info") == "資料夾資訊")
+        #expect(L("file_detail.section.index_info") == "索引資訊")
+        #expect(L("file_detail.folder_count") == "資料夾數")
+        #expect(L("file_detail.video_count") == "影片數")
+        #expect(L("file_detail.subtitle_count") == "字幕數")
+        #expect(L("file_detail.added") == "加入時間")
+        #expect(L("file_detail.updated") == "更新時間")
     }
 
     @Test

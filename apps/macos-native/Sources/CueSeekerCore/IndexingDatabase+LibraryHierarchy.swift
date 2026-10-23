@@ -29,6 +29,11 @@ extension IndexingDatabase {
         let standardizedFolder = folder.standardizedMediaURL
         let folderMediaPath = standardizedFolder.mediaPath
         let now = ISO8601DateFormatter().string(from: Date())
+        try insertRootFolderMetadataIfNeeded(
+            path: folderMediaPath,
+            createdAt: now,
+            updatedAt: now
+        )
 
         if reuseCoveringLibrary,
            let covering = try libraryPathRecords()
@@ -237,10 +242,23 @@ extension IndexingDatabase {
             return nil
         }
 
+        let now = ISO8601DateFormatter().string(from: Date())
         if let matchingPath = try libraryFolderRecord(
             libraryID: libraryID,
             relativePath: relativePath
         ) {
+            let backfillTimestamps = try database.prepare(
+                """
+                UPDATE library_folders
+                SET created_at = CASE WHEN created_at = '' THEN ? ELSE created_at END,
+                    updated_at = CASE WHEN updated_at = '' THEN ? ELSE updated_at END
+                WHERE id = ? AND (created_at = '' OR updated_at = '');
+                """
+            )
+            try backfillTimestamps.bind(now, at: 1)
+            try backfillTimestamps.bind(now, at: 2)
+            try backfillTimestamps.bind(matchingPath.id, at: 3)
+            try backfillTimestamps.run()
             try adoptFolderOwnedPaths(folderID: matchingPath.id)
             try updateFolderOwnedPaths(
                 folderID: matchingPath.id,
@@ -251,13 +269,15 @@ extension IndexingDatabase {
 
         let statement = try database.prepare(
             """
-            INSERT INTO library_folders(library_id, relative_path)
-            VALUES (?, ?)
+            INSERT INTO library_folders(library_id, relative_path, created_at, updated_at)
+            VALUES (?, ?, ?, ?)
             RETURNING id;
             """
         )
         try statement.bind(libraryID, at: 1)
         try statement.bind(relativePath, at: 2)
+        try statement.bind(now, at: 3)
+        try statement.bind(now, at: 4)
         let folderID: Int64
         if try statement.step() {
             folderID = statement.int64Column(0)
@@ -453,8 +473,109 @@ extension IndexingDatabase {
         return paths
     }
 
+    public func recordCoveredRootFolderAddition(
+        _ folder: URL,
+        coveredBy coveringRoot: URL
+    ) throws {
+        try database.withImmediateTransaction {
+            let folderPath = folder.standardizedMediaURL.mediaPath
+            let coveringVariants = Self.folderPathVariants(for: coveringRoot.standardizedMediaURL)
+            let now = ISO8601DateFormatter().string(from: Date())
+            var coveringUpdatedAt: String?
+
+            if !coveringVariants.isEmpty {
+                let placeholders = coveringVariants.map { _ in "?" }.joined(separator: ", ")
+                let rootSelect = try database.prepare(
+                    """
+                    SELECT updated_at
+                    FROM library_root_folders
+                    WHERE path IN (\(placeholders)) AND updated_at != ''
+                    LIMIT 1;
+                    """
+                )
+                for (offset, variant) in coveringVariants.enumerated() {
+                    try rootSelect.bind(variant, at: Int32(offset + 1))
+                }
+                if try rootSelect.step() {
+                    coveringUpdatedAt = rootSelect.stringColumn(0)
+                }
+
+                if coveringUpdatedAt == nil {
+                    let spSelect = try database.prepare(
+                        """
+                        SELECT COALESCE(NULLIF(last_successful_index_at, ''), NULLIF(updated_at, ''), created_at)
+                        FROM search_paths
+                        WHERE path IN (\(placeholders))
+                        LIMIT 1;
+                        """
+                    )
+                    for (offset, variant) in coveringVariants.enumerated() {
+                        try spSelect.bind(variant, at: Int32(offset + 1))
+                    }
+                    if try spSelect.step() {
+                        let candidate = spSelect.stringColumn(0)
+                        if !candidate.isEmpty {
+                            coveringUpdatedAt = candidate
+                        }
+                    }
+                }
+            }
+
+            let resolvedUpdatedAt = coveringUpdatedAt ?? now
+            let upsert = try database.prepare(
+                """
+                INSERT INTO library_root_folders(path, created_at, updated_at)
+                VALUES (?, ?, ?)
+                ON CONFLICT(path) DO UPDATE SET
+                    created_at = excluded.created_at,
+                    updated_at = excluded.updated_at;
+                """
+            )
+            try upsert.bind(folderPath, at: 1)
+            try upsert.bind(now, at: 2)
+            try upsert.bind(resolvedUpdatedAt, at: 3)
+            try upsert.run()
+        }
+    }
+
+    public func removeRootFolderMetadata(_ folder: URL) throws {
+        try database.withImmediateTransaction {
+            try deleteRootFolderMetadataInCurrentTransaction(folder)
+        }
+    }
+
+    func insertRootFolderMetadataIfNeeded(
+        path: String,
+        createdAt: String,
+        updatedAt: String
+    ) throws {
+        let statement = try database.prepare(
+            """
+            INSERT INTO library_root_folders(path, created_at, updated_at)
+            VALUES (?, ?, ?)
+            ON CONFLICT(path) DO NOTHING;
+            """
+        )
+        try statement.bind(path, at: 1)
+        try statement.bind(createdAt, at: 2)
+        try statement.bind(updatedAt, at: 3)
+        try statement.run()
+    }
+
+    func deleteRootFolderMetadataInCurrentTransaction(_ folder: URL) throws {
+        let delete = try database.prepare(
+            "DELETE FROM library_root_folders WHERE path = ?;"
+        )
+        for variant in Self.folderPathVariants(for: folder.standardizedMediaURL) {
+            try delete.bind(variant, at: 1)
+            try delete.run()
+            try delete.reset()
+        }
+    }
+
     /// Removing a Library deletes it. Re-adding the same path starts a new LibraryID.
     func deleteSearchPath(_ searchPath: String) throws {
+        try deleteRootFolderMetadataInCurrentTransaction(URL.fromMediaPath(searchPath))
         guard let searchPathRecord = try searchPathRecord(path: searchPath) else {
             return
         }

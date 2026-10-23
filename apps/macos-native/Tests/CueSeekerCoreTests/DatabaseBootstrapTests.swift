@@ -1408,7 +1408,7 @@ func schema60UpgradesTo61WithTaskRecordStartedAtColumn() throws {
 
     try DatabaseBootstrap.prepare(at: databaseURL)
 
-    #expect(try sqliteSchemaVersion(at: databaseURL) == 61)
+    #expect(try sqliteSchemaVersion(at: databaseURL) == DatabaseBootstrap.currentSchemaVersion)
     let columns = try sqliteColumnNames(in: "task_records", databaseURL: databaseURL)
     #expect(columns.contains("started_at"))
     let records = try TaskRecordDatabase(path: databaseURL).records()
@@ -1416,5 +1416,59 @@ func schema60UpgradesTo61WithTaskRecordStartedAtColumn() throws {
     #expect(records.first?.fileName == "Deck.apkg")
     #expect(records.first?.startedAt == nil)
 }
+
+@Test
+func schema61UpgradesTo62WithFolderTimestampsBackfilled() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        removeTemporaryDatabase(at: databaseURL)
+    }
+
+    try DatabaseBootstrap.prepare(at: databaseURL)
+    try executeDatabaseTestSQLite(
+        at: databaseURL,
+        """
+        DROP TABLE library_root_folders;
+        ALTER TABLE library_folders DROP COLUMN created_at;
+        ALTER TABLE library_folders DROP COLUMN updated_at;
+        INSERT INTO search_paths (id, type, path, last_successful_index_at, created_at, updated_at)
+        VALUES (1, 'local', '/Media', '2026-01-03T00:00:00Z', '2026-01-01T00:00:00Z', '2026-01-02T00:00:00Z');
+        INSERT INTO library_folders (id, library_id, relative_path)
+        VALUES (1, 1, 'Show');
+        INSERT INTO subtitle_files (library_id, folder_id, relative_path, subtitle_path, format, indexed_at)
+        VALUES (1, 1, 'Show/Episode.ass', '/Media/Show/Episode.ass', 'ass', '2026-01-01T12:00:00Z');
+        PRAGMA user_version = 61;
+        """
+    )
+
+    try DatabaseBootstrap.prepare(at: databaseURL)
+
+    #expect(try sqliteSchemaVersion(at: databaseURL) == 62)
+    #expect(
+        try sqliteStringValue(
+            at: databaseURL,
+            sql: "SELECT created_at FROM library_root_folders WHERE path = '/Media';"
+        ) == "2026-01-01T00:00:00Z"
+    )
+    #expect(
+        try sqliteStringValue(
+            at: databaseURL,
+            sql: "SELECT updated_at FROM library_root_folders WHERE path = '/Media';"
+        ) == "2026-01-03T00:00:00Z"
+    )
+    #expect(
+        try sqliteStringValue(
+            at: databaseURL,
+            sql: "SELECT created_at FROM library_folders WHERE id = 1;"
+        ) == "2026-01-01T12:00:00Z"
+    )
+    #expect(
+        try sqliteStringValue(
+            at: databaseURL,
+            sql: "SELECT updated_at FROM library_folders WHERE id = 1;"
+        ) == "2026-01-03T00:00:00Z"
+    )
+}
+
 
 

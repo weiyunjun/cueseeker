@@ -447,6 +447,93 @@ extension DatabaseBootstrap {
         }
     }
 
+    /// Schema 62 stores added/updated timestamps for root folders (`library_root_folders`)
+    /// and Level 2 subfolders (`library_folders.created_at` and `updated_at`) for
+    /// the Folder Detail dialog, backfilling existing rows from `search_paths` and
+    /// `subtitle_files`.
+    static func migrateSchema61To62(on database: SQLiteDatabase) throws {
+        try database.withImmediateTransaction {
+            try database.execute(
+                """
+                CREATE TABLE IF NOT EXISTS library_root_folders (
+                    path TEXT PRIMARY KEY,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
+                """
+            )
+            let searchPathColumns = try columnNames(of: "search_paths", in: database)
+            if searchPathColumns.isSuperset(of: ["path", "created_at", "updated_at"]) {
+                let updatedExpr = searchPathColumns.contains("last_successful_index_at")
+                    ? "COALESCE(NULLIF(last_successful_index_at, ''), NULLIF(updated_at, ''), created_at)"
+                    : "COALESCE(NULLIF(updated_at, ''), created_at)"
+                try database.execute(
+                    """
+                    INSERT OR IGNORE INTO library_root_folders(path, created_at, updated_at)
+                    SELECT path,
+                           created_at,
+                           \(updatedExpr)
+                    FROM search_paths;
+                    """
+                )
+            }
+            let folderColumns = try columnNames(of: "library_folders", in: database)
+            if !folderColumns.isEmpty {
+                if !folderColumns.contains("created_at") {
+                    try database.execute(
+                        "ALTER TABLE library_folders ADD COLUMN created_at TEXT NOT NULL DEFAULT '';"
+                    )
+                }
+                if !folderColumns.contains("updated_at") {
+                    try database.execute(
+                        "ALTER TABLE library_folders ADD COLUMN updated_at TEXT NOT NULL DEFAULT '';"
+                    )
+                }
+                let subtitleColumns = try columnNames(of: "subtitle_files", in: database)
+                if subtitleColumns.isSuperset(of: ["folder_id", "indexed_at"]),
+                   searchPathColumns.isSuperset(of: ["id", "created_at", "updated_at"])
+                {
+                    let spUpdatedExpr = searchPathColumns.contains("last_successful_index_at")
+                        ? "COALESCE(NULLIF(sp.last_successful_index_at, ''), NULLIF(sp.updated_at, ''), sp.created_at)"
+                        : "COALESCE(NULLIF(sp.updated_at, ''), sp.created_at)"
+                    try database.execute(
+                        """
+                        UPDATE library_folders
+                        SET created_at = COALESCE(
+                                (
+                                    SELECT MIN(sf.indexed_at)
+                                    FROM subtitle_files sf
+                                    WHERE sf.folder_id = library_folders.id AND sf.indexed_at != ''
+                                ),
+                                (
+                                    SELECT sp.created_at
+                                    FROM search_paths sp
+                                    WHERE sp.id = library_folders.library_id
+                                ),
+                                ''
+                            ),
+                            updated_at = COALESCE(
+                                (
+                                    SELECT \(spUpdatedExpr)
+                                    FROM search_paths sp
+                                    WHERE sp.id = library_folders.library_id
+                                ),
+                                (
+                                    SELECT MAX(sf.indexed_at)
+                                    FROM subtitle_files sf
+                                    WHERE sf.folder_id = library_folders.id AND sf.indexed_at != ''
+                                ),
+                                ''
+                            )
+                        WHERE created_at = '' OR updated_at = '';
+                        """
+                    )
+                }
+            }
+            try database.execute("PRAGMA user_version = 62;")
+        }
+    }
+
     static func migrateSchema33To34(on database: SQLiteDatabase) throws {
         try database.withImmediateTransaction {
             try database.execute(

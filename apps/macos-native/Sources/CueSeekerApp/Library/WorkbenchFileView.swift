@@ -357,6 +357,15 @@ struct WorkbenchFileView: View {
                     let subtitle = FileFolderGroupingResolver.rootSubtitle(for: folder)
                     let items = [
                         FileCardMenuItem(
+                            title: L("file_detail.get_info"),
+                            icon: .info,
+                            isEnabled: true,
+                            isDestructive: false,
+                            action: {
+                                appState.requestRootFolderDetail(for: folder)
+                            }
+                        ),
+                        FileCardMenuItem(
                             title: L("file.menu.rename_this_folder"),
                             icon: .pencilSimple,
                             isEnabled: !isFolderOperationBlocked,
@@ -446,6 +455,15 @@ struct WorkbenchFileView: View {
                             ForEach(partition.subfolders) { folder in
                                 let title = URL.fromMediaPath(folder.folderPath).lastPathComponent
                                 let items = [
+                                    FileCardMenuItem(
+                                        title: L("file_detail.get_info"),
+                                        icon: .info,
+                                        isEnabled: true,
+                                        isDestructive: false,
+                                        action: {
+                                            appState.requestSubfolderDetail(for: folder.folderPath)
+                                        }
+                                    ),
                                     FileCardMenuItem(
                                         title: L("file.menu.rename_this_folder"),
                                         icon: .pencilSimple,

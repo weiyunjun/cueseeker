@@ -641,6 +641,14 @@
 /* Universal File Detail Dialog */
 "file_detail.get_info" = "Get Info";
 "file_detail.title" = "File Info";
+"file_detail.folder_title" = "Folder Info";
+"file_detail.section.folder_info" = "Folder Info";
+"file_detail.section.index_info" = "Index Info";
+"file_detail.folder_count" = "Folder Count";
+"file_detail.video_count" = "Video Count";
+"file_detail.subtitle_count" = "Subtitle Count";
+"file_detail.added" = "Added";
+"file_detail.updated" = "Updated";
 "file_detail.video" = "Video";
 "file_detail.audio" = "Audio";
 "file_detail.subtitles" = "Subtitles";

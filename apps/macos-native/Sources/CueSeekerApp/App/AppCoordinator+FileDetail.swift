@@ -3,6 +3,62 @@ import Foundation
 
 @MainActor
 extension AppCoordinator {
+    func requestRootFolderDetail(for folder: URL) {
+        let folderPath = folder.standardizedMediaURL.mediaPath
+        let name = IndexingStore.displayName(for: folder)
+        if let libraryDatabase,
+           let info = try? libraryDatabase.fileDetailFolderInfo(
+               for: folderPath,
+               name: name,
+               isRootFolder: true
+           ) {
+            library.fileDetailSession = FileDetailDialogSession(kind: .folder(info))
+        } else {
+            library.fileDetailSession = FileDetailDialogSession(
+                kind: .folder(
+                    FileDetailFolderInfo(
+                        path: folderPath,
+                        name: name,
+                        isRootFolder: true,
+                        folderCount: 0,
+                        videoCount: 0,
+                        subtitleCount: 0,
+                        addedAt: nil,
+                        updatedAt: nil
+                    )
+                )
+            )
+        }
+    }
+
+    func requestSubfolderDetail(for folderPath: String) {
+        let standardizedPath = URL.fromMediaPath(folderPath).standardizedMediaURL.mediaPath
+        let name = URL.fromMediaPath(standardizedPath).lastPathComponent
+        if let libraryDatabase,
+           let info = try? libraryDatabase.fileDetailFolderInfo(
+               for: standardizedPath,
+               name: name,
+               isRootFolder: false
+           ) {
+            library.fileDetailSession = FileDetailDialogSession(kind: .folder(info))
+        } else {
+            library.fileDetailSession = FileDetailDialogSession(
+                kind: .folder(
+                    FileDetailFolderInfo(
+                        path: standardizedPath,
+                        name: name,
+                        isRootFolder: false,
+                        folderCount: 1,
+                        videoCount: 0,
+                        subtitleCount: 0,
+                        addedAt: nil,
+                        updatedAt: nil
+                    )
+                )
+            )
+        }
+    }
+
     func requestVideoDetail(for videoPath: String) {
         if let libraryDatabase,
            let info = try? libraryDatabase.fileDetailVideoInfo(for: videoPath) {
