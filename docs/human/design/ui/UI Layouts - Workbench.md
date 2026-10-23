@@ -602,8 +602,8 @@
   - `dots-three` 纯图标按钮（32×32px，圆角 8px，图标 21px）默认隐藏，仅在卡片 Hover 或该卡片菜单打开时显示；Hover 按钮自身及菜单打开时底色为 `--color-row-selected`，Pressed 底色为 `--color-row-action-bg-pressed`（按住该按钮时卡片自身维持 Hover 背景色）。
   - `Add Folder` 弹出菜单：`Local Folder`（`folder`）+ `WebDav Folder`（`folder-webdav`）+ `SMB Folder`（`folder-smb`）+ `FTP Folder`（`folder-ftp`）+ `NFS Folder`（`folder-nfs`）
   - 卡片弹出菜单：
-    - Root Folder Card：`Rename This Folder`（Neutral）+ `Index This Folder`（Neutral）+ `Remove This Folder`（Destructive 警告项）
-    - Subfolder Card：`Rename This Folder`（Neutral）
+    - Root Folder Card：`Get Info`（Neutral）+ `Rename This Folder`（Neutral）+ `Index This Folder`（Neutral）+ `Remove This Folder`（Destructive 警告项）
+    - Subfolder Card：`Get Info`（Neutral）+ `Rename This Folder`（Neutral）
     - Video / Subtitle File Card：`Get Info`（Neutral）+ `Rename Files`（Neutral）
 
 ## 3.5 Search and Excerpt
@@ -1158,11 +1158,12 @@
 #### Structure
 
 1. Header
-   1. Title：`File Info`
+   1. Title：文件夹为 `Folder Info`，视频/字幕文件为 `File Info`
    2. Close Button
 2. Content
-   1. File Header Row：文件图标与文件名
+   1. File Header Row：文件夹/文件图标与名称
    2. Property Groups：Settings 风格卡片组
+      - Folder（Root Folder / Subfolder）：`Folder Info`（Path、Folder Count、Video Count、Subtitle Count）、`Index Info`（Added、Updated）
       - Video File：`Video`（Resolution `W × H`、Frame Rate、Codec、Bit Depth、Pixel Format、Bitrate、Duration）、`Audio #N`（Codec、Channels `<N>ch`、Sample Rate、Bit Depth、Language、Title，仅展示有效项）、`Subtitles`、`File Details`（File Size、Format、Path、Created、Modified）
       - Subtitle File：`Subtitle Specifications`（Encoding、Raw Lines、Valid Lines）、`Video`、`File Details`（File Size、Format、Path、Created、Modified）
 
