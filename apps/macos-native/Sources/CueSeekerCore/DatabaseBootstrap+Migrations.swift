@@ -409,6 +409,31 @@ extension DatabaseBootstrap {
         }
     }
 
+    /// Schema 60 stores raw uncleaned cue count on `subtitle_files` and video
+    /// bit depth and pixel format on `video_files`, marking existing videos to
+    /// refresh their probed metadata on the next Index.
+    static func migrateSchema59To60(on database: SQLiteDatabase) throws {
+        try database.withImmediateTransaction {
+            let subtitleColumns = try columnNames(of: "subtitle_files", in: database)
+            if !subtitleColumns.isEmpty, !subtitleColumns.contains("raw_cue_count") {
+                try database.execute("ALTER TABLE subtitle_files ADD COLUMN raw_cue_count INTEGER;")
+            }
+            let videoColumns = try columnNames(of: "video_files", in: database)
+            if !videoColumns.isEmpty {
+                if !videoColumns.contains("video_bit_depth") {
+                    try database.execute("ALTER TABLE video_files ADD COLUMN video_bit_depth INTEGER;")
+                }
+                if !videoColumns.contains("video_pixel_format") {
+                    try database.execute("ALTER TABLE video_files ADD COLUMN video_pixel_format TEXT;")
+                }
+                if videoColumns.contains("duration_retry_pending") {
+                    try database.execute("UPDATE video_files SET duration_retry_pending = 1;")
+                }
+            }
+            try database.execute("PRAGMA user_version = 60;")
+        }
+    }
+
     static func migrateSchema33To34(on database: SQLiteDatabase) throws {
         try database.withImmediateTransaction {
             try database.execute(

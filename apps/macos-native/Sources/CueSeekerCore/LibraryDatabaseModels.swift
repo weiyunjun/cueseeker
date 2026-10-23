@@ -40,17 +40,23 @@ public struct VideoAudioTrack: Codable, Equatable, Sendable {
     public let title: String?
     public let codec: String?
     public let channels: Int?
+    public let sampleRate: Int?
+    public let bitDepth: Int?
 
     public init(
         language: String?,
         title: String?,
         codec: String?,
-        channels: Int?
+        channels: Int?,
+        sampleRate: Int? = nil,
+        bitDepth: Int? = nil
     ) {
         self.language = language
         self.title = title
         self.codec = codec
         self.channels = channels
+        self.sampleRate = sampleRate
+        self.bitDepth = bitDepth
     }
 }
 

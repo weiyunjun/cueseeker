@@ -43,12 +43,16 @@ public struct PlaybackVideoMetadataIndexer {
             videoHeight: metadata.videoHeight?.intValue,
             frameRate: metadata.frameRate?.doubleValue,
             videoCodec: metadata.videoCodec,
+            videoBitDepth: metadata.videoBitDepth?.intValue,
+            videoPixelFormat: metadata.videoPixelFormat,
             audioTracks: metadata.audioTracks.map {
                 VideoAudioTrack(
                     language: $0.language,
                     title: $0.title,
                     codec: $0.codec,
-                    channels: $0.channels?.intValue
+                    channels: $0.channels?.intValue,
+                    sampleRate: $0.sampleRate?.intValue,
+                    bitDepth: $0.bitDepth?.intValue
                 )
             }
         )

@@ -19,6 +19,8 @@ extension AppCoordinator {
                 videoHeight: nil,
                 frameRate: nil,
                 videoCodec: nil,
+                videoBitDepth: nil,
+                videoPixelFormat: nil,
                 audioTracks: [],
                 subtitles: [],
                 createdAt: attrs?[.creationDate] as? Date,
@@ -42,6 +44,7 @@ extension AppCoordinator {
                 format: SubtitleFormat(fileExtension: url.pathExtension) ?? .srt,
                 encoding: "UTF-8",
                 cueCount: 0,
+                rawCueCount: 0,
                 associatedVideoPath: nil,
                 createdAt: attrs?[.creationDate] as? Date,
                 modifiedAt: attrs?[.modificationDate] as? Date

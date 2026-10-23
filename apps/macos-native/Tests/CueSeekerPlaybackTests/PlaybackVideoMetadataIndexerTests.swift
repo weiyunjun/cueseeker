@@ -56,6 +56,8 @@ private final class VideoMetadataPersistenceStub:
         videoHeight: Int?,
         frameRate: Double?,
         videoCodec: String?,
+        videoBitDepth: Int?,
+        videoPixelFormat: String?,
         audioTracks: [VideoAudioTrack]
     ) throws {
         lock.lock()

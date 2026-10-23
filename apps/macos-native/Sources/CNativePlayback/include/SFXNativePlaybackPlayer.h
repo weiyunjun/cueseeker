@@ -178,6 +178,8 @@ autoStopAtMilliseconds:(NSInteger)endMilliseconds
 @property (nonatomic, strong, readonly, nullable) NSNumber *videoHeight;
 @property (nonatomic, strong, readonly, nullable) NSNumber *frameRate;
 @property (nonatomic, copy, readonly, nullable) NSString *videoCodec;
+@property (nonatomic, strong, readonly, nullable) NSNumber *videoBitDepth;
+@property (nonatomic, copy, readonly, nullable) NSString *videoPixelFormat;
 /// Every audio stream, in file order.
 @property (nonatomic, copy, readonly) NSArray<SFXMediaAudioTrack *> *audioTracks;
 
@@ -191,6 +193,8 @@ autoStopAtMilliseconds:(NSInteger)endMilliseconds
 @property (nonatomic, copy, readonly, nullable) NSString *title;
 @property (nonatomic, copy, readonly, nullable) NSString *codec;
 @property (nonatomic, strong, readonly, nullable) NSNumber *channels;
+@property (nonatomic, strong, readonly, nullable) NSNumber *sampleRate;
+@property (nonatomic, strong, readonly, nullable) NSNumber *bitDepth;
 
 - (instancetype)init NS_UNAVAILABLE;
 

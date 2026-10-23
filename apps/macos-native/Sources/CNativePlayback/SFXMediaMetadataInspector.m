@@ -125,7 +125,9 @@ static NSString *SFXMetadataTagValue(AVDictionary *metadata, const char *key) {
 - (instancetype)initWithLanguage:(NSString *)language
                            title:(NSString *)title
                            codec:(NSString *)codec
-                        channels:(NSNumber *)channels NS_DESIGNATED_INITIALIZER;
+                        channels:(NSNumber *)channels
+                      sampleRate:(NSNumber *)sampleRate
+                        bitDepth:(NSNumber *)bitDepth NS_DESIGNATED_INITIALIZER;
 
 @end
 
@@ -134,13 +136,17 @@ static NSString *SFXMetadataTagValue(AVDictionary *metadata, const char *key) {
 - (instancetype)initWithLanguage:(NSString *)language
                            title:(NSString *)title
                            codec:(NSString *)codec
-                        channels:(NSNumber *)channels {
+                        channels:(NSNumber *)channels
+                      sampleRate:(NSNumber *)sampleRate
+                        bitDepth:(NSNumber *)bitDepth {
     self = [super init];
     if (self != nil) {
         _language = [language copy];
         _title = [title copy];
         _codec = [codec copy];
         _channels = channels;
+        _sampleRate = sampleRate;
+        _bitDepth = bitDepth;
     }
     return self;
 }
@@ -154,6 +160,8 @@ static NSString *SFXMetadataTagValue(AVDictionary *metadata, const char *key) {
                             videoHeight:(NSNumber *)videoHeight
                               frameRate:(NSNumber *)frameRate
                              videoCodec:(NSString *)videoCodec
+                          videoBitDepth:(NSNumber *)videoBitDepth
+                       videoPixelFormat:(NSString *)videoPixelFormat
                             audioTracks:(NSArray<SFXMediaAudioTrack *> *)audioTracks NS_DESIGNATED_INITIALIZER;
 
 @end
@@ -165,6 +173,8 @@ static NSString *SFXMetadataTagValue(AVDictionary *metadata, const char *key) {
                             videoHeight:(NSNumber *)videoHeight
                               frameRate:(NSNumber *)frameRate
                              videoCodec:(NSString *)videoCodec
+                          videoBitDepth:(NSNumber *)videoBitDepth
+                       videoPixelFormat:(NSString *)videoPixelFormat
                             audioTracks:(NSArray<SFXMediaAudioTrack *> *)audioTracks {
     self = [super init];
     if (self != nil) {
@@ -173,6 +183,8 @@ static NSString *SFXMetadataTagValue(AVDictionary *metadata, const char *key) {
         _videoHeight = videoHeight;
         _frameRate = frameRate;
         _videoCodec = [videoCodec copy];
+        _videoBitDepth = videoBitDepth;
+        _videoPixelFormat = [videoPixelFormat copy];
         _audioTracks = [audioTracks copy];
     }
     return self;
@@ -386,6 +398,8 @@ static SFXMediaCoverCandidateFrame * _Nullable SFXCreateCoverCandidateFrame(
     NSNumber *videoHeight = nil;
     NSNumber *frameRate = nil;
     NSString *videoCodec = nil;
+    NSNumber *videoBitDepth = nil;
+    NSString *videoPixelFormat = nil;
     int videoStreamIndex = av_find_best_stream(formatContext, AVMEDIA_TYPE_VIDEO, -1, -1, NULL, 0);
     if (videoStreamIndex >= 0 && videoStreamIndex < (int)formatContext->nb_streams) {
         AVStream *videoStream = formatContext->streams[videoStreamIndex];
@@ -401,6 +415,24 @@ static SFXMediaCoverCandidateFrame * _Nullable SFXCreateCoverCandidateFrame(
             const char *codecName = avcodec_get_name(codecParameters->codec_id);
             if (codecName != NULL && codecName[0] != '\0') {
                 videoCodec = [NSString stringWithUTF8String:codecName];
+            }
+
+            enum AVPixelFormat pixFmt = (enum AVPixelFormat)codecParameters->format;
+            if (pixFmt != AV_PIX_FMT_NONE) {
+                const char *pixFmtName = av_get_pix_fmt_name(pixFmt);
+                if (pixFmtName != NULL && pixFmtName[0] != '\0') {
+                    videoPixelFormat = [NSString stringWithUTF8String:pixFmtName];
+                }
+            }
+            int bitDepth = codecParameters->bits_per_raw_sample;
+            if (bitDepth <= 0 && pixFmt != AV_PIX_FMT_NONE) {
+                const AVPixFmtDescriptor *desc = av_pix_fmt_desc_get(pixFmt);
+                if (desc != NULL && desc->comp[0].depth > 0) {
+                    bitDepth = desc->comp[0].depth;
+                }
+            }
+            if (bitDepth > 0) {
+                videoBitDepth = @(bitDepth);
             }
         }
 
@@ -431,11 +463,18 @@ static SFXMediaCoverCandidateFrame * _Nullable SFXCreateCoverCandidateFrame(
             ? [NSString stringWithUTF8String:codecName]
             : nil;
         int channelCount = stream->codecpar->ch_layout.nb_channels;
+        int sampleRate = stream->codecpar->sample_rate;
+        int bitDepth = stream->codecpar->bits_per_raw_sample;
+        if (bitDepth <= 0) {
+            bitDepth = av_get_bits_per_sample(stream->codecpar->codec_id);
+        }
         [audioTracks addObject:[[SFXMediaAudioTrack alloc]
             initWithLanguage:language
                        title:SFXMetadataTagValue(stream->metadata, "title")
                        codec:codec
-                    channels:channelCount > 0 ? @(channelCount) : nil]];
+                    channels:channelCount > 0 ? @(channelCount) : nil
+                  sampleRate:sampleRate > 0 ? @(sampleRate) : nil
+                    bitDepth:bitDepth > 0 ? @(bitDepth) : nil]];
     }
 
     avformat_close_input(&formatContext);
@@ -445,6 +484,8 @@ static SFXMediaCoverCandidateFrame * _Nullable SFXCreateCoverCandidateFrame(
                                                  videoHeight:videoHeight
                                                    frameRate:frameRate
                                                   videoCodec:videoCodec
+                                               videoBitDepth:videoBitDepth
+                                            videoPixelFormat:videoPixelFormat
                                                  audioTracks:audioTracks];
 }
 

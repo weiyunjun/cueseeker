@@ -52,10 +52,48 @@ struct PreparedSubtitleIndexFile: Sendable {
     let assFontReferences: [ASSFontReferenceIntent]
     let fileSize: Int64?
     let modifiedAt: Date?
+    let rawCueCount: Int?
     let videoFileSize: Int64?
     let videoModifiedAt: Date?
     let languageAnalysis: SubtitleLanguageAnalysis
     let refreshVideoMetadata: Bool
+}
+
+public enum SubtitleRawCueCounter {
+    public static func count(in contents: String, format: SubtitleFormat) -> Int {
+        let normalized = contents
+            .replacingOccurrences(of: "\u{feff}", with: "")
+            .replacingOccurrences(of: "\r\n", with: "\n")
+            .replacingOccurrences(of: "\r", with: "\n")
+
+        switch format {
+        case .ass, .ssa:
+            var inEventsSection = false
+            var count = 0
+            for rawLine in normalized.split(separator: "\n", omittingEmptySubsequences: false) {
+                let trimmed = rawLine.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !trimmed.isEmpty, !trimmed.hasPrefix(";") else {
+                    continue
+                }
+                if trimmed.hasPrefix("["), trimmed.hasSuffix("]") {
+                    inEventsSection = trimmed.lowercased() == "[events]"
+                    continue
+                }
+                if inEventsSection, trimmed.lowercased().hasPrefix("dialogue:") {
+                    count += 1
+                }
+            }
+            return count
+        case .srt, .vtt:
+            var count = 0
+            for rawLine in normalized.split(separator: "\n", omittingEmptySubsequences: false) {
+                if rawLine.contains("-->") {
+                    count += 1
+                }
+            }
+            return count
+        }
+    }
 }
 
 struct SubtitleFileObservation: Equatable, Sendable {
@@ -420,6 +458,7 @@ public struct SubtitleIndexer {
                 continue
             }
 
+            let rawCueCount = SubtitleRawCueCounter.count(in: contents, format: format)
             let languageAnalysis = languageAnalyzer.analyze(format: format, cueGroups: cueGroups)
             changedFiles.append(
                 PreparedSubtitleIndexFile(
@@ -430,6 +469,7 @@ public struct SubtitleIndexer {
                     assFontReferences: assFontReferences,
                     fileSize: observation.fileSize,
                     modifiedAt: observation.modifiedAt,
+                    rawCueCount: rawCueCount,
                     videoFileSize: videoObservation?.fileSize,
                     videoModifiedAt: videoObservation?.modifiedAt,
                     languageAnalysis: languageAnalysis,
@@ -499,6 +539,7 @@ public struct SubtitleIndexer {
         modifiedAt: Date?
     ) throws -> Bool {
         guard metadata.fileSize == fileSize,
+              metadata.rawCueCount != nil,
               metadata.indexAlgorithmVersion == SubtitleCueIndexingRules.algorithmVersion,
               let existingModifiedAt = metadata.modifiedAt,
               let modifiedAt

@@ -61,4 +61,42 @@ struct FileDetailDialogTests {
         let image = AppIconStore.image(.info, size: 20)
         #expect(image != nil)
     }
+
+    @Test
+    func formattingHelpers() {
+        #expect(WorkbenchFileDetailDialog.resolutionText(width: 1920, height: 1080) == "1920 × 1080")
+        #expect(WorkbenchFileDetailDialog.resolutionText(width: nil, height: 1080) == "-")
+
+        #expect(WorkbenchFileDetailDialog.bitDepthText(8) == "8 bit")
+        #expect(WorkbenchFileDetailDialog.bitDepthText(10) == "10 bit")
+        #expect(WorkbenchFileDetailDialog.bitDepthText(nil) == "-")
+
+        #expect(WorkbenchFileDetailDialog.pixelFormatText("yuv420p") == "yuv420p")
+        #expect(WorkbenchFileDetailDialog.pixelFormatText(nil) == "-")
+
+        #expect(WorkbenchFileDetailDialog.channelsText(1) == "1ch")
+        #expect(WorkbenchFileDetailDialog.channelsText(2) == "2ch")
+        #expect(WorkbenchFileDetailDialog.channelsText(6) == "6ch")
+        #expect(WorkbenchFileDetailDialog.channelsText(8) == "8ch")
+        #expect(WorkbenchFileDetailDialog.channelsText(nil) == nil)
+
+        #expect(WorkbenchFileDetailDialog.sampleRateText(48_000) == "48,000 Hz")
+        #expect(WorkbenchFileDetailDialog.sampleRateText(44_100) == "44,100 Hz")
+        #expect(WorkbenchFileDetailDialog.sampleRateText(nil) == nil)
+
+        #expect(WorkbenchFileDetailDialog.audioBitDepthText(24) == "24 bit")
+        #expect(WorkbenchFileDetailDialog.audioBitDepthText(nil) == nil)
+        #expect(WorkbenchFileDetailDialog.audioBitDepthText(0) == nil)
+
+        defer {
+            AppLocalization.apply(.english)
+        }
+        AppLocalization.apply(.english)
+        #expect(WorkbenchFileDetailDialog.languageText("eng") == "English")
+        #expect(WorkbenchFileDetailDialog.languageText("jpn") == "Japanese")
+
+        AppLocalization.apply(.simplifiedChinese)
+        #expect(WorkbenchFileDetailDialog.languageText("eng") == "英语")
+        #expect(WorkbenchFileDetailDialog.languageText("jpn") == "日语")
+    }
 }

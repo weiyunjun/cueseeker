@@ -107,6 +107,8 @@ public final class LibraryDatabase: @unchecked Sendable {
         videoHeight: Int?,
         frameRate: Double?,
         videoCodec: String?,
+        videoBitDepth: Int? = nil,
+        videoPixelFormat: String? = nil,
         audioTracks: [VideoAudioTrack]
     ) throws {
         let normalizedDuration = Self.normalizedDuration(duration)
@@ -123,6 +125,8 @@ public final class LibraryDatabase: @unchecked Sendable {
                     video_height = ?,
                     frame_rate = ?,
                     video_codec = ?,
+                    video_bit_depth = ?,
+                    video_pixel_format = ?,
                     audio_tracks = ?,
                     duration_retry_pending = 0
                 WHERE path = ?;
@@ -155,8 +159,22 @@ public final class LibraryDatabase: @unchecked Sendable {
                 to: statement,
                 at: 5
             )
-            try statement.bind(encodedAudioTracks, at: 6)
-            try statement.bind(videoFile.mediaPath, at: 7)
+            try bind(
+                videoBitDepth.flatMap { $0 > 0 ? $0 : nil },
+                to: statement,
+                at: 6
+            )
+            let normalizedVideoPixelFormat = videoPixelFormat?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            try bind(
+                normalizedVideoPixelFormat?.isEmpty == false
+                    ? normalizedVideoPixelFormat
+                    : nil,
+                to: statement,
+                at: 7
+            )
+            try statement.bind(encodedAudioTracks, at: 8)
+            try statement.bind(videoFile.mediaPath, at: 9)
             try statement.run()
 
             try updatePresentationDuration(

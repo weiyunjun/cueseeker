@@ -12,7 +12,7 @@ public enum DatabaseBootstrapError: Error, Equatable, CustomStringConvertible {
 }
 
 public enum DatabaseBootstrap {
-    public static let currentSchemaVersion = 59
+    public static let currentSchemaVersion = 60
 
     public static func prepare(at path: URL) throws {
         let database = try SQLiteDatabase(path: path, access: .readWrite)
@@ -71,6 +71,7 @@ extension DatabaseBootstrap {
                 || previousVersion == 56
                 || previousVersion == 57
                 || previousVersion == 58
+                || previousVersion == 59
                 || previousVersion == DatabaseBootstrap.currentSchemaVersion
         else {
             throw DatabaseBootstrapError.unsupportedSchemaVersion(
@@ -201,6 +202,9 @@ extension DatabaseBootstrap {
         }
         if previousVersion >= 33, previousVersion <= 58 {
             try migrateSchema58To59(on: database)
+        }
+        if previousVersion >= 33, previousVersion <= 59 {
+            try migrateSchema59To60(on: database)
             return
         }
         guard previousVersion == 0 else {
@@ -286,6 +290,7 @@ extension DatabaseBootstrap {
                 format TEXT NOT NULL,
                 file_size INTEGER,
                 modified_at REAL,
+                raw_cue_count INTEGER,
                 indexed_at TEXT NOT NULL,
                 index_algorithm_version INTEGER NOT NULL DEFAULT 0,
                 FOREIGN KEY(library_id) REFERENCES search_paths(id),
@@ -308,6 +313,8 @@ extension DatabaseBootstrap {
                 video_height INTEGER,
                 frame_rate REAL,
                 video_codec TEXT,
+                video_bit_depth INTEGER,
+                video_pixel_format TEXT,
                 audio_codec TEXT,
                 audio_tracks TEXT,
                 default_audio_track_index INTEGER NOT NULL DEFAULT 0,

@@ -6,6 +6,8 @@ public struct ProbedVideoMediaMetadata: Equatable, Sendable {
     public let videoHeight: Int?
     public let frameRate: Double?
     public let videoCodec: String?
+    public let videoBitDepth: Int?
+    public let videoPixelFormat: String?
     public let audioTracks: [VideoAudioTrack]
 
     public init(
@@ -14,6 +16,8 @@ public struct ProbedVideoMediaMetadata: Equatable, Sendable {
         videoHeight: Int?,
         frameRate: Double?,
         videoCodec: String?,
+        videoBitDepth: Int? = nil,
+        videoPixelFormat: String? = nil,
         audioTracks: [VideoAudioTrack]
     ) {
         self.durationSeconds = durationSeconds
@@ -21,6 +25,8 @@ public struct ProbedVideoMediaMetadata: Equatable, Sendable {
         self.videoHeight = videoHeight
         self.frameRate = frameRate
         self.videoCodec = videoCodec
+        self.videoBitDepth = videoBitDepth
+        self.videoPixelFormat = videoPixelFormat
         self.audioTracks = audioTracks
     }
 }
@@ -66,11 +72,35 @@ public protocol PlaybackVideoMetadataPersistence: Sendable {
         videoHeight: Int?,
         frameRate: Double?,
         videoCodec: String?,
+        videoBitDepth: Int?,
+        videoPixelFormat: String?,
         audioTracks: [VideoAudioTrack]
     ) throws
 }
 
 public extension PlaybackVideoMetadataPersistence {
+    func updateVideoMetadata(
+        videoFile: URL,
+        duration: Double?,
+        videoWidth: Int?,
+        videoHeight: Int?,
+        frameRate: Double?,
+        videoCodec: String?,
+        audioTracks: [VideoAudioTrack]
+    ) throws {
+        try updateVideoMetadata(
+            videoFile: videoFile,
+            duration: duration,
+            videoWidth: videoWidth,
+            videoHeight: videoHeight,
+            frameRate: frameRate,
+            videoCodec: videoCodec,
+            videoBitDepth: nil,
+            videoPixelFormat: nil,
+            audioTracks: audioTracks
+        )
+    }
+
     @discardableResult
     func indexVideoMetadata(
         under folder: URL,
@@ -120,6 +150,8 @@ public extension PlaybackVideoMetadataPersistence {
                     videoHeight: metadata.videoHeight,
                     frameRate: metadata.frameRate,
                     videoCodec: metadata.videoCodec,
+                    videoBitDepth: metadata.videoBitDepth,
+                    videoPixelFormat: metadata.videoPixelFormat,
                     audioTracks: metadata.audioTracks
                 )
                 updatedVideoPaths.insert(videoPath)

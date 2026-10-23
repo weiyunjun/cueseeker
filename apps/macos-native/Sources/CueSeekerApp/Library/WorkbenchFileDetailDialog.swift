@@ -130,27 +130,37 @@ struct WorkbenchFileDetailDialog: View {
         SettingsGroup(title: L("file_detail.video")) {
             FileDetailRow(
                 label: L("file_detail.resolution"),
-                value: resolutionText(width: info.videoWidth, height: info.videoHeight)
+                value: Self.resolutionText(width: info.videoWidth, height: info.videoHeight)
             )
             SettingsRowDivider()
             FileDetailRow(
                 label: L("file_detail.frame_rate"),
-                value: frameRateText(info.frameRate)
+                value: Self.frameRateText(info.frameRate)
             )
             SettingsRowDivider()
             FileDetailRow(
                 label: L("file_detail.codec"),
-                value: codecText(info.videoCodec)
+                value: Self.codecText(info.videoCodec)
+            )
+            SettingsRowDivider()
+            FileDetailRow(
+                label: L("file_detail.bit_depth"),
+                value: Self.bitDepthText(info.videoBitDepth)
+            )
+            SettingsRowDivider()
+            FileDetailRow(
+                label: L("file_detail.pixel_format"),
+                value: Self.pixelFormatText(info.videoPixelFormat)
             )
             SettingsRowDivider()
             FileDetailRow(
                 label: L("file_detail.bitrate"),
-                value: bitrateText(fileSize: info.fileSize, duration: info.duration)
+                value: Self.bitrateText(fileSize: info.fileSize, duration: info.duration)
             )
             SettingsRowDivider()
             FileDetailRow(
                 label: L("file_detail.duration"),
-                value: durationText(info.duration)
+                value: Self.durationText(info.duration)
             )
         }
 
@@ -198,24 +208,36 @@ struct WorkbenchFileDetailDialog: View {
     private func audioTrackRows(_ track: VideoAudioTrack) -> some View {
         var hasRow = false
 
-        if let codec = track.codec, !codec.isEmpty {
+        if let codec = track.codec?.trimmingCharacters(in: .whitespacesAndNewlines), !codec.isEmpty {
             FileDetailRow(label: L("file_detail.codec"), value: codec.uppercased())
             let _ = (hasRow = true)
         }
 
-        if let channels = track.channels {
+        if let channels = Self.channelsText(track.channels) {
             if hasRow { SettingsRowDivider() }
-            FileDetailRow(label: L("file_detail.channels"), value: channelsText(channels))
+            FileDetailRow(label: L("file_detail.channels"), value: channels)
             let _ = (hasRow = true)
         }
 
-        if let lang = track.language, !lang.isEmpty {
+        if let sampleRate = Self.sampleRateText(track.sampleRate) {
             if hasRow { SettingsRowDivider() }
-            FileDetailRow(label: L("file_detail.language"), value: languageText(lang))
+            FileDetailRow(label: L("file_detail.sample_rate"), value: sampleRate)
             let _ = (hasRow = true)
         }
 
-        if let title = track.title, !title.isEmpty {
+        if let bitDepth = Self.audioBitDepthText(track.bitDepth) {
+            if hasRow { SettingsRowDivider() }
+            FileDetailRow(label: L("file_detail.bit_depth"), value: bitDepth)
+            let _ = (hasRow = true)
+        }
+
+        if let lang = Self.languageText(track.language) {
+            if hasRow { SettingsRowDivider() }
+            FileDetailRow(label: L("file_detail.language"), value: lang)
+            let _ = (hasRow = true)
+        }
+
+        if let title = track.title?.trimmingCharacters(in: .whitespacesAndNewlines), !title.isEmpty {
             if hasRow { SettingsRowDivider() }
             FileDetailRow(label: L("file_detail.track_title"), value: title)
             let _ = (hasRow = true)
@@ -235,7 +257,12 @@ struct WorkbenchFileDetailDialog: View {
             FileDetailRow(label: L("file_detail.encoding"), value: info.encoding)
             SettingsRowDivider()
             FileDetailRow(
-                label: L("file_detail.cue_count"),
+                label: L("file_detail.raw_lines"),
+                value: String.localizedStringWithFormat(L("file_detail.lines_count"), Int64(info.rawCueCount))
+            )
+            SettingsRowDivider()
+            FileDetailRow(
+                label: L("file_detail.valid_lines"),
                 value: String.localizedStringWithFormat(L("file_detail.lines_count"), Int64(info.cueCount))
             )
         }
@@ -271,30 +298,30 @@ struct WorkbenchFileDetailDialog: View {
         modifiedAt: Date?
     ) -> some View {
         SettingsGroup(title: L("file_detail.file_details")) {
-            FileDetailRow(label: L("file_detail.file_size"), value: fileSizeText(fileSize))
+            FileDetailRow(label: L("file_detail.file_size"), value: Self.fileSizeText(fileSize))
             SettingsRowDivider()
-            FileDetailRow(label: L("file_detail.format"), value: fileFormatText(path: path))
+            FileDetailRow(label: L("file_detail.format"), value: Self.fileFormatText(path: path))
             SettingsRowDivider()
             FileDetailRow(label: L("file_detail.path"), value: path)
             SettingsRowDivider()
-            FileDetailRow(label: L("file_detail.created"), value: dateText(createdAt))
+            FileDetailRow(label: L("file_detail.created"), value: Self.dateText(createdAt))
             SettingsRowDivider()
-            FileDetailRow(label: L("file_detail.modified"), value: dateText(modifiedAt))
+            FileDetailRow(label: L("file_detail.modified"), value: Self.dateText(modifiedAt))
         }
     }
 
     // MARK: - Format Helpers
 
-    private func fileSizeText(_ bytes: Int64) -> String {
+    static func fileSizeText(_ bytes: Int64) -> String {
         ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
     }
 
-    private func dateText(_ date: Date?) -> String {
+    static func dateText(_ date: Date?) -> String {
         guard let date else { return "-" }
         return Self.detailDateFormatter.string(from: date)
     }
 
-    private func durationText(_ duration: Double?) -> String {
+    static func durationText(_ duration: Double?) -> String {
         guard let duration, duration > 0 else { return "-" }
         let totalSeconds = Int(duration.rounded())
         let hours = totalSeconds / 3600
@@ -303,34 +330,12 @@ struct WorkbenchFileDetailDialog: View {
         return String(format: "%02d:%02d:%02d", hours, minutes, seconds)
     }
 
-    private func resolutionText(width: Int?, height: Int?) -> String {
+    static func resolutionText(width: Int?, height: Int?) -> String {
         guard let width, let height, width > 0, height > 0 else { return "-" }
-        let aspect = aspectRatioString(width: width, height: height)
-        return "\(width) × \(height)\(aspect.isEmpty ? "" : " (\(aspect))")"
+        return "\(width) × \(height)"
     }
 
-    private func aspectRatioString(width: Int, height: Int) -> String {
-        func gcd(_ a: Int, _ b: Int) -> Int {
-            b == 0 ? a : gcd(b, a % b)
-        }
-        let divisor = gcd(width, height)
-        let w = width / divisor
-        let h = height / divisor
-        if (w == 16 && h == 9) || (w == 4 && h == 3) || (w == 21 && h == 9) || (w == 16 && h == 10) || (w == 1 && h == 1) {
-            return "\(w):\(h)"
-        }
-        let ratio = Double(width) / Double(height)
-        if abs(ratio - 16.0 / 9.0) < 0.02 {
-            return "16:9"
-        } else if abs(ratio - 4.0 / 3.0) < 0.02 {
-            return "4:3"
-        } else if abs(ratio - 21.0 / 9.0) < 0.02 {
-            return "21:9"
-        }
-        return "\(w):\(h)"
-    }
-
-    private func frameRateText(_ fps: Double?) -> String {
+    static func frameRateText(_ fps: Double?) -> String {
         guard let fps, fps > 0 else { return "-" }
         let rounded = (fps * 1000).rounded() / 1000
         if rounded == rounded.rounded() {
@@ -340,7 +345,7 @@ struct WorkbenchFileDetailDialog: View {
         }
     }
 
-    private func bitrateText(fileSize: Int64, duration: Double?) -> String {
+    static func bitrateText(fileSize: Int64, duration: Double?) -> String {
         guard let duration, duration > 0, fileSize > 0 else { return "-" }
         let bps = Double(fileSize * 8) / duration
         let kbps = Int((bps / 1000).rounded())
@@ -350,7 +355,7 @@ struct WorkbenchFileDetailDialog: View {
         return "\(formattedKbps) kbps"
     }
 
-    private func codecText(_ codec: String?) -> String {
+    static func codecText(_ codec: String?) -> String {
         guard let codec = codec?.trimmingCharacters(in: .whitespacesAndNewlines), !codec.isEmpty else {
             return "-"
         }
@@ -370,25 +375,56 @@ struct WorkbenchFileDetailDialog: View {
         return codec.uppercased()
     }
 
-    private func channelsText(_ channels: Int) -> String {
-        switch channels {
-        case 1: return "Mono (1.0)"
-        case 2: return "Stereo (2.0)"
-        case 6: return "5.1ch"
-        case 8: return "7.1ch"
-        default: return "\(channels)ch"
-        }
+    static func bitDepthText(_ bitDepth: Int?) -> String {
+        guard let bitDepth, bitDepth > 0 else { return "-" }
+        return "\(bitDepth) bit"
     }
 
-    private func languageText(_ lang: String) -> String {
-        let localized = Locale.current.localizedString(forLanguageCode: lang)
-        if let localized, !localized.isEmpty {
-            return "\(localized) (\(lang))"
+    static func pixelFormatText(_ pixelFormat: String?) -> String {
+        guard let trimmed = pixelFormat?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !trimmed.isEmpty else {
+            return "-"
         }
-        return lang
+        return trimmed
     }
 
-    private func fileFormatText(path: String) -> String {
+    static func channelsText(_ channels: Int?) -> String? {
+        guard let channels, channels > 0 else { return nil }
+        return "\(channels)ch"
+    }
+
+    static func sampleRateText(_ sampleRate: Int?) -> String? {
+        guard let sampleRate, sampleRate > 0 else { return nil }
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        formatter.groupingSeparator = ","
+        formatter.usesGroupingSeparator = true
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        let formatted = formatter.string(from: NSNumber(value: sampleRate)) ?? "\(sampleRate)"
+        return "\(formatted) Hz"
+    }
+
+    static func audioBitDepthText(_ bitDepth: Int?) -> String? {
+        guard let bitDepth, bitDepth > 0 else { return nil }
+        return "\(bitDepth) bit"
+    }
+
+    static func languageText(_ languageCode: String?) -> String? {
+        guard let trimmed = languageCode?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !trimmed.isEmpty else {
+            return nil
+        }
+        let locale = AppLocalization.locale
+        let localized = locale.localizedString(forLanguageCode: trimmed)
+            ?? locale.localizedString(forIdentifier: trimmed)
+        if let localized = localized?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !localized.isEmpty {
+            return localized
+        }
+        return trimmed
+    }
+
+    static func fileFormatText(path: String) -> String {
         let ext = URL.fromMediaPath(path).pathExtension.lowercased()
         switch ext {
         case "mkv": return "Matroska Video (.mkv)"

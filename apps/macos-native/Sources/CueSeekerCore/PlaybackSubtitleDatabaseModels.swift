@@ -138,8 +138,35 @@ public struct SubtitleFileMetadata: Equatable, Sendable {
     public let videoModifiedAt: Date?
     public let fileSize: Int64?
     public let modifiedAt: Date?
+    public let rawCueCount: Int?
     public let indexedAt: String
     public let indexAlgorithmVersion: Int
+
+    public init(
+        subtitlePath: String,
+        subtitleFormat: SubtitleFormat,
+        videoPath: String?,
+        videoName: String?,
+        videoFileSize: Int64?,
+        videoModifiedAt: Date?,
+        fileSize: Int64?,
+        modifiedAt: Date?,
+        rawCueCount: Int? = nil,
+        indexedAt: String,
+        indexAlgorithmVersion: Int
+    ) {
+        self.subtitlePath = subtitlePath
+        self.subtitleFormat = subtitleFormat
+        self.videoPath = videoPath
+        self.videoName = videoName
+        self.videoFileSize = videoFileSize
+        self.videoModifiedAt = videoModifiedAt
+        self.fileSize = fileSize
+        self.modifiedAt = modifiedAt
+        self.rawCueCount = rawCueCount
+        self.indexedAt = indexedAt
+        self.indexAlgorithmVersion = indexAlgorithmVersion
+    }
 }
 
 public enum SubtitleLanguageDetectionScope: String, Equatable, Sendable {

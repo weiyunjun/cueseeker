@@ -1346,3 +1346,40 @@ func migratesSchema58ByDroppingASSRenderSegmentsTable() throws {
     #expect(try !sqliteTableExists("ass_render_segments", databaseURL: databaseURL))
 }
 
+@Test
+func schema59UpgradesTo60WithRawCueCountAndVideoBitDepthColumns() throws {
+    let databaseURL = temporaryDatabaseURL()
+    defer {
+        removeTemporaryDatabase(at: databaseURL)
+    }
+
+    try DatabaseBootstrap.prepare(at: databaseURL)
+    try executeDatabaseTestSQLite(
+        at: databaseURL,
+        """
+        ALTER TABLE subtitle_files DROP COLUMN raw_cue_count;
+        ALTER TABLE video_files DROP COLUMN video_bit_depth;
+        ALTER TABLE video_files DROP COLUMN video_pixel_format;
+        INSERT INTO video_files (path, video_name, duration_retry_pending)
+        VALUES ('/Media/Show/Episode.mkv', 'Episode.mkv', 0);
+        PRAGMA user_version = 59;
+        """
+    )
+
+    try DatabaseBootstrap.prepare(at: databaseURL)
+
+    #expect(try sqliteSchemaVersion(at: databaseURL) == 60)
+    let subtitleColumns = try sqliteColumnNames(in: "subtitle_files", databaseURL: databaseURL)
+    #expect(subtitleColumns.contains("raw_cue_count"))
+    let videoColumns = try sqliteColumnNames(in: "video_files", databaseURL: databaseURL)
+    #expect(videoColumns.contains("video_bit_depth"))
+    #expect(videoColumns.contains("video_pixel_format"))
+    #expect(
+        try sqliteStringValue(
+            at: databaseURL,
+            sql: "SELECT CAST(duration_retry_pending AS TEXT) FROM video_files WHERE path = '/Media/Show/Episode.mkv';"
+        ) == "1"
+    )
+}
+
+

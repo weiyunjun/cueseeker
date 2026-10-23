@@ -9,6 +9,8 @@ public struct FileDetailVideoInfo: Equatable, Sendable {
     public let videoHeight: Int?
     public let frameRate: Double?
     public let videoCodec: String?
+    public let videoBitDepth: Int?
+    public let videoPixelFormat: String?
     public let audioTracks: [VideoAudioTrack]
     public let subtitles: [VideoSubtitle]
     public let createdAt: Date?
@@ -23,6 +25,8 @@ public struct FileDetailVideoInfo: Equatable, Sendable {
         videoHeight: Int?,
         frameRate: Double?,
         videoCodec: String?,
+        videoBitDepth: Int? = nil,
+        videoPixelFormat: String? = nil,
         audioTracks: [VideoAudioTrack],
         subtitles: [VideoSubtitle],
         createdAt: Date?,
@@ -36,6 +40,8 @@ public struct FileDetailVideoInfo: Equatable, Sendable {
         self.videoHeight = videoHeight
         self.frameRate = frameRate
         self.videoCodec = videoCodec
+        self.videoBitDepth = videoBitDepth
+        self.videoPixelFormat = videoPixelFormat
         self.audioTracks = audioTracks
         self.subtitles = subtitles
         self.createdAt = createdAt
@@ -50,6 +56,7 @@ public struct FileDetailSubtitleInfo: Equatable, Sendable {
     public let format: SubtitleFormat
     public let encoding: String
     public let cueCount: Int
+    public let rawCueCount: Int
     public let associatedVideoPath: String?
     public let createdAt: Date?
     public let modifiedAt: Date?
@@ -61,6 +68,7 @@ public struct FileDetailSubtitleInfo: Equatable, Sendable {
         format: SubtitleFormat,
         encoding: String,
         cueCount: Int,
+        rawCueCount: Int = 0,
         associatedVideoPath: String?,
         createdAt: Date?,
         modifiedAt: Date?
@@ -71,6 +79,7 @@ public struct FileDetailSubtitleInfo: Equatable, Sendable {
         self.format = format
         self.encoding = encoding
         self.cueCount = cueCount
+        self.rawCueCount = rawCueCount
         self.associatedVideoPath = associatedVideoPath
         self.createdAt = createdAt
         self.modifiedAt = modifiedAt
@@ -83,7 +92,8 @@ extension LibraryDatabase {
             """
             SELECT vf.path, vf.video_name, vf.file_size, vf.duration,
                    vf.video_width, vf.video_height, vf.frame_rate,
-                   vf.video_codec, vf.audio_tracks, vf.modified_at
+                   vf.video_codec, vf.video_bit_depth, vf.video_pixel_format,
+                   vf.audio_tracks, vf.modified_at
             FROM video_files vf
             WHERE vf.path = ?;
             """
@@ -100,10 +110,12 @@ extension LibraryDatabase {
         let videoHeight = statement.nullableIntColumn(5)
         let frameRate = statement.nullableDoubleColumn(6)
         let videoCodec = statement.nullableStringColumn(7)
-        let tracks = statement.nullableStringColumn(8)
+        let videoBitDepth = statement.nullableIntColumn(8)
+        let videoPixelFormat = statement.nullableStringColumn(9)
+        let tracks = statement.nullableStringColumn(10)
             .flatMap { try? JSONDecoder().decode([VideoAudioTrack].self, from: Data($0.utf8)) }
             ?? []
-        let modifiedAtSec = statement.nullableDoubleColumn(9)
+        let modifiedAtSec = statement.nullableDoubleColumn(11)
         let dbModifiedDate = modifiedAtSec.map { Date(timeIntervalSince1970: $0) }
 
         let fileURL = URL.fromMediaPath(path)
@@ -125,6 +137,8 @@ extension LibraryDatabase {
             videoHeight: videoHeight,
             frameRate: frameRate,
             videoCodec: videoCodec,
+            videoBitDepth: videoBitDepth,
+            videoPixelFormat: videoPixelFormat,
             audioTracks: tracks,
             subtitles: subtitles,
             createdAt: createdDate,
@@ -136,7 +150,7 @@ extension LibraryDatabase {
         let statement = try database.prepare(
             """
             SELECT sf.id, sf.subtitle_path, sf.format, sf.file_size, sf.modified_at,
-                   vf.path AS video_path
+                   sf.raw_cue_count, vf.path AS video_path
             FROM subtitle_files sf
             LEFT JOIN subtitle_video_matches m
               ON m.subtitle_file_id = sf.id AND m.is_active = 1
@@ -154,7 +168,8 @@ extension LibraryDatabase {
         let format = SubtitleFormat(rawValue: statement.stringColumn(2)) ?? .srt
         let dbFileSize = statement.nullableInt64Column(3) ?? 0
         let dbModifiedDate = statement.nullableDoubleColumn(4).map { Date(timeIntervalSince1970: $0) }
-        let videoPath = statement.nullableStringColumn(5)
+        let dbRawCueCount = statement.nullableIntColumn(5)
+        let videoPath = statement.nullableStringColumn(6)
 
         let cueStatement = try database.prepare(
             """
@@ -175,11 +190,21 @@ extension LibraryDatabase {
 
         let subtitleURL = URL.fromMediaPath(path)
         let encoding: String
+        let fallbackRawCueCount: Int?
         if let data = try? WebDAVSubtitleCache.shared.readSubtitleData(from: subtitleURL) {
             encoding = SubtitleTextDecoder.detectedEncodingName(in: data)
+            if dbRawCueCount == nil,
+               let contents = try? SubtitleTextDecoder.decode(data, format: format) {
+                fallbackRawCueCount = SubtitleRawCueCounter.count(in: contents, format: format)
+            } else {
+                fallbackRawCueCount = nil
+            }
         } else {
             encoding = "UTF-8"
+            fallbackRawCueCount = nil
         }
+
+        let rawCueCount = dbRawCueCount ?? fallbackRawCueCount ?? cueCount
 
         return FileDetailSubtitleInfo(
             path: path,
@@ -188,6 +213,7 @@ extension LibraryDatabase {
             format: format,
             encoding: encoding,
             cueCount: cueCount,
+            rawCueCount: rawCueCount,
             associatedVideoPath: videoPath,
             createdAt: createdDate,
             modifiedAt: modifiedDate
