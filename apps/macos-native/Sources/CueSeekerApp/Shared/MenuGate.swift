@@ -143,14 +143,6 @@ final class MenuGate {
         let id = UUID()
         let isFirstMenu = clients.isEmpty
         clients.append((id: id, client: client))
-        MenuJitterProbe.resetKeys(prefix: "PopoverRow.")
-        MenuJitterProbe.resetKeys(prefix: "PopoverPanel.")
-        MenuJitterProbe.resetKeys(prefix: "MenuItemStack.")
-        MenuJitterProbe.resetKeys(prefix: "MenuHeightCap.")
-        MenuJitterProbe.log(
-            "MenuGate",
-            "OPEN kind=\(client.kind) owner=\(client.owner) id=\(id.uuidString.prefix(8))"
-        )
         installMonitorIfNeeded()
         let session = Session(
             gate: self,
@@ -172,12 +164,6 @@ final class MenuGate {
     }
 
     private func close(id: UUID) {
-        if let entry = clients.first(where: { $0.id == id }) {
-            MenuJitterProbe.log(
-                "MenuGate",
-                "CLOSE kind=\(entry.client.kind) owner=\(entry.client.owner) id=\(id.uuidString.prefix(8))"
-            )
-        }
         clients.removeAll { $0.id == id }
         if clients.isEmpty {
             removeMonitor()
@@ -310,10 +296,6 @@ final class MenuGate {
 
         switch event.type {
         case .keyDown:
-            MenuJitterProbe.log(
-                "MenuGate",
-                "keyDown keyCode=\(event.keyCode) isRepeat=\(event.isARepeat) clientKind=\(client.kind)"
-            )
             if !isFromAnotherWindow,
                client.handleKey(event.keyCode, event.isARepeat) {
                 return nil

@@ -16,7 +16,7 @@
 3. **Integer-aligned table menu and submenu frames (`SubtitleTableCoordinator+Menus.swift`)**:
    - Added `integralMenuFrame(_:)` to snap `origin.x` and `origin.y` to nearest whole points, `width` to `ceil`, and `height` to `floor` in `openingMenuFrame`, `repositionOpenMenu`, and `showRowActionDestinationSubmenu`.
    - Synchronously laid out `menuHost` and `submenuHost` (`layoutSubtreeIfNeeded()`) after assigning their final frames and before un-hiding, and cleared `pendingMenuReposition` at the end of `showMenu`.
-   - Kept temporary `MenuJitterProbe` file logging in place for end-to-end verification as requested.
+   - Removed temporary `MenuJitterProbe` diagnostic logging and local log file after end-to-end verification confirmed zero jitter across all menus.
 
 ## Verification
 - Added `menuPanelSnapsFractionalMeasurementsAndKeepsUnclippedScrollBoundsStableOnKeyboardNavigation` in `MenuPanelHeightTests.swift` and `subtitleTableViewRightClickMenuAndSubmenuFramesAreIntegerAlignedAtFractionalCoordinates` in `SubtitleTableVirtualRowTests.swift`.

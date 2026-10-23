@@ -77,17 +77,8 @@ struct RowActionMenu: View {
             }
         }
         .coordinateSpace(name: RowActionMenuCoordinateSpace.name)
-        .onPreferenceChange(RowActionMenuItemFramePreferenceKey.self) { frames in
-            let summary = frames.keys
-                .sorted { "\($0)" < "\($1)" }
-                .map { key in "\(key):\(MenuJitterProbe.fmt(frames[key] ?? .zero))" }
-                .joined(separator: " ")
-            MenuJitterProbe.logIfChanged(
-                key: "RowActionMenu.parentItemFrames",
-                category: "RowActionMenu",
-                value: summary
-            )
-            submenuState.updateParentItemFrames(frames)
+        .onPreferenceChange(RowActionMenuItemFramePreferenceKey.self) {
+            submenuState.updateParentItemFrames($0)
         }
     }
 
