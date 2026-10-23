@@ -38,43 +38,40 @@ public struct SubtitleCollageRenderedGroup: @unchecked Sendable {
 }
 
 public final class SubtitleCollageRenderSession: @unchecked Sendable {
+    private static let maximumCachedVideoFrames = 8
+
     private let videoURL: URL
     private let subtitleSource: PlaybackSubtitleSource
     private let srtSubtitleStyle: SRTSubtitleStyle
+    private let videoFrameProvider: (@Sendable (String, Int) async throws -> CGImage)?
     private let lock = NSLock()
     private var cachedPreparedASSScript: SubtitleScreenshotExporter.PreparedASSRenderScript?
     private var cachedRequestedFontNames: [String]?
     private var hasPreparedASSScript = false
+    private var cachedVideoFrames: [(timestampMilliseconds: Int, image: CGImage)] = []
 
     public init(
         videoURL: URL,
         subtitleSource: PlaybackSubtitleSource,
-        srtSubtitleStyle: SRTSubtitleStyle
+        srtSubtitleStyle: SRTSubtitleStyle,
+        videoFrameProvider: (@Sendable (String, Int) async throws -> CGImage)? = nil
     ) {
         self.videoURL = videoURL
         self.subtitleSource = subtitleSource
         self.srtSubtitleStyle = srtSubtitleStyle
+        self.videoFrameProvider = videoFrameProvider
     }
 
     public func renderGroup(
         _ group: SubtitleCollageGroup
     ) async throws -> SubtitleCollageRenderedGroup {
-        guard let ffmpegExecutable = SubtitleScreenshotExporter.ffmpegExecutable() else {
-            throw SubtitleScreenshotExportError.ffmpegNotFound
-        }
         try Task.checkCancellation()
         let (preparedASSScript, requestedFontNames, subtitleLoadMilliseconds) =
             try prepareASSRenderInputsIfNeeded()
         try Task.checkCancellation()
         let timestampMilliseconds = group.renderTimestampMilliseconds
-        let frameGrabStart = DispatchTime.now().uptimeNanoseconds
-        let frameImage = try await SubtitleScreenshotExporter.videoFrame(
-            videoPath: videoURL.mediaPath,
-            timestampMilliseconds: timestampMilliseconds,
-            ffmpegExecutable: ffmpegExecutable
-        )
-        let frameGrabMilliseconds = SubtitleScreenshotExporter.elapsedMilliseconds(
-            since: frameGrabStart
+        let (frameImage, frameGrabMilliseconds) = try await resolveVideoFrame(
+            timestampMilliseconds: timestampMilliseconds
         )
         try Task.checkCancellation()
         let subtitleRenderStart = DispatchTime.now().uptimeNanoseconds
@@ -101,6 +98,74 @@ public final class SubtitleCollageRenderSession: @unchecked Sendable {
                 subtitleRenderMilliseconds: subtitleRenderMilliseconds
             )
         )
+    }
+
+    private func resolveVideoFrame(
+        timestampMilliseconds: Int
+    ) async throws -> (image: CGImage, frameGrabMilliseconds: Double) {
+        if let cachedImage = cachedVideoFrame(for: timestampMilliseconds) {
+            return (cachedImage, 0)
+        }
+
+        let frameGrabStart = DispatchTime.now().uptimeNanoseconds
+        let frameImage: CGImage
+        if let videoFrameProvider {
+            frameImage = try await videoFrameProvider(
+                videoURL.mediaPath,
+                timestampMilliseconds
+            )
+        } else {
+            guard let ffmpegExecutable = SubtitleScreenshotExporter.ffmpegExecutable() else {
+                throw SubtitleScreenshotExportError.ffmpegNotFound
+            }
+            frameImage = try await SubtitleScreenshotExporter.videoFrame(
+                videoPath: videoURL.mediaPath,
+                timestampMilliseconds: timestampMilliseconds,
+                ffmpegExecutable: ffmpegExecutable
+            )
+        }
+        let frameGrabMilliseconds = SubtitleScreenshotExporter.elapsedMilliseconds(
+            since: frameGrabStart
+        )
+        storeCachedVideoFrame(frameImage, for: timestampMilliseconds)
+        return (frameImage, frameGrabMilliseconds)
+    }
+
+    private func cachedVideoFrame(for timestampMilliseconds: Int) -> CGImage? {
+        lock.lock()
+        defer {
+            lock.unlock()
+        }
+        guard let index = cachedVideoFrames.firstIndex(where: {
+            $0.timestampMilliseconds == timestampMilliseconds
+        }) else {
+            return nil
+        }
+        let entry = cachedVideoFrames.remove(at: index)
+        cachedVideoFrames.append(entry)
+        return entry.image
+    }
+
+    private func storeCachedVideoFrame(
+        _ image: CGImage,
+        for timestampMilliseconds: Int
+    ) {
+        lock.lock()
+        defer {
+            lock.unlock()
+        }
+        cachedVideoFrames.removeAll {
+            $0.timestampMilliseconds == timestampMilliseconds
+        }
+        cachedVideoFrames.append((
+            timestampMilliseconds: timestampMilliseconds,
+            image: image
+        ))
+        if cachedVideoFrames.count > Self.maximumCachedVideoFrames {
+            cachedVideoFrames.removeFirst(
+                cachedVideoFrames.count - Self.maximumCachedVideoFrames
+            )
+        }
     }
 
     private func prepareASSRenderInputsIfNeeded() throws -> (

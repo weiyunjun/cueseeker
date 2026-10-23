@@ -275,3 +275,74 @@ func subtitleCollageASSRenderScriptKeepsTheClippedCopiesOfASelectedDialogue() th
     #expect(!selectedScript.contains("Another line"))
     #expect(!selectedScript.contains("0,0,20,,"))
 }
+
+@MainActor
+@Test
+func subtitleCollageRenderSessionReusesRawVideoFrameForSameMidpointAndExtractsNewFrameWhenMidpointShifts() async throws {
+    let baseImage = try #require(makeBlackExportTestImage(width: 640, height: 360))
+    var extractedTimestamps: [Int] = []
+    let session = SubtitleCollageRenderSession(
+        videoURL: URL(fileURLWithPath: "/tmp/episode.mkv"),
+        subtitleSource: PlaybackSubtitleSource(
+            url: URL(fileURLWithPath: "/tmp/episode.srt"),
+            format: .srt
+        ),
+        srtSubtitleStyle: SRTSubtitleStyle()
+    ) { _, timestampMilliseconds in
+        await MainActor.run {
+            extractedTimestamps.append(timestampMilliseconds)
+        }
+        return baseImage
+    }
+
+    let chineseCue = SubtitleFocusCue(
+        id: 1,
+        cueGroupID: 1,
+        ordinal: 0,
+        eventIndex: 0,
+        displayOrder: 0,
+        startMilliseconds: 1_000,
+        endMilliseconds: 3_000,
+        content: "第一行中文"
+    )
+    let japaneseCueSameTimestamp = SubtitleFocusCue(
+        id: 2,
+        cueGroupID: 1,
+        ordinal: 1,
+        eventIndex: 1,
+        displayOrder: 1,
+        startMilliseconds: 1_000,
+        endMilliseconds: 3_000,
+        content: "一行目の日本語"
+    )
+    let overlappingShiftedCue = SubtitleFocusCue(
+        id: 3,
+        cueGroupID: 2,
+        ordinal: 2,
+        eventIndex: 2,
+        displayOrder: 2,
+        startMilliseconds: 2_000,
+        endMilliseconds: 3_000,
+        content: "重叠但交集中点偏移的台词"
+    )
+
+    var plan = try SubtitleCollageSelectionPlan(selectedCues: [chineseCue])
+    let firstRendered = try await session.renderGroup(plan.groups[0])
+    #expect(extractedTimestamps == [2_000])
+
+    // Selecting the bilingual cue at the same timestamp keeps midpoint 2_000 and reuses the raw video frame.
+    _ = plan.select(japaneseCueSameTimestamp)
+    #expect(plan.groups.count == 1)
+    #expect(plan.groups[0].renderTimestampMilliseconds == 2_000)
+    let secondRendered = try await session.renderGroup(plan.groups[0])
+    #expect(extractedTimestamps == [2_000])
+    #expect(secondRendered.metrics.frameGrabMilliseconds == 0)
+    #expect(secondRendered.subtitleBands.count >= firstRendered.subtitleBands.count)
+
+    // Selecting an overlapping cue that shifts the group intersection to 2_000...3_000 (midpoint 2_500) extracts the new midpoint frame.
+    _ = plan.select(overlappingShiftedCue)
+    #expect(plan.groups.count == 1)
+    #expect(plan.groups[0].renderTimestampMilliseconds == 2_500)
+    _ = try await session.renderGroup(plan.groups[0])
+    #expect(extractedTimestamps == [2_000, 2_500])
+}
