@@ -25,6 +25,7 @@ final class FTPFolderDialogSession: RemoteFolderDialogSessionProtocol {
     @Published var breadcrumbNodes: [BreadcrumbNode] = []
     @Published var items: [WebDAVBrowserItem] = []
     @Published var selectedFolderPaths: Set<String> = []
+    @Published var existingRootFolders: [URL] = []
     @Published var isLoadingDirectory: Bool = false
     @Published var directoryErrorMessage: String? = nil
 

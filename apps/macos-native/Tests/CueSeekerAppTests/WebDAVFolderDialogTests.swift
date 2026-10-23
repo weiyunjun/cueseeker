@@ -410,40 +410,270 @@ struct WebDAVFolderDialogTests {
     }
 
     @Test
-    func browserCardSelectionStylingDisablesHoverWhenSelected() {
-        // Selected folder card uses libraryMediaCardHoverBg and borderActive, and hover does not alter background
-        let selectedUnHovered = WebDAVBrowserCard.resolveBackgroundFillColor(
-            isFolder: true,
-            isSelected: true,
-            isHovered: false
+    func browserCardSelectionAndDisabledStylingFollowNeutralCardAndCheckboxRules() throws {
+        let folderURL = try #require(WebDAVAddress.parseURL(from: "http://192.168.1.5:5244/dav/115/动漫/01. 进击的巨人"))
+        let folderItem = WebDAVBrowserItem(url: folderURL, name: "01. 进击的巨人", kind: .folder)
+
+        // Enabled folder cards use tableBg when not hovered and rowHover when hovered,
+        // regardless of whether isSelected is true or false, and always use borderControl.
+        for isSelected in [false, true] {
+            #expect(
+                WebDAVBrowserCard.resolveBackgroundFillColor(
+                    isFolder: true,
+                    isDisabled: false,
+                    isSelected: isSelected,
+                    isHovered: false
+                ) == WorkbenchRedesignColors.tableBg
+            )
+            #expect(
+                WebDAVBrowserCard.resolveBackgroundFillColor(
+                    isFolder: true,
+                    isDisabled: false,
+                    isSelected: isSelected,
+                    isHovered: true
+                ) == WorkbenchRedesignColors.rowHover
+            )
+            #expect(
+                WebDAVBrowserCard.resolveBorderStrokeColor(
+                    isFolder: true,
+                    isDisabled: false,
+                    isSelected: isSelected
+                ) == WorkbenchRedesignColors.borderControl
+            )
+        }
+
+        let unselectedEnabledCard = WebDAVBrowserCard(
+            item: folderItem,
+            isDisabled: false,
+            isSelected: false,
+            onToggleSelection: {},
+            onOpenFolder: {}
         )
-        let selectedHovered = WebDAVBrowserCard.resolveBackgroundFillColor(
-            isFolder: true,
+        let selectedEnabledCard = WebDAVBrowserCard(
+            item: folderItem,
+            isDisabled: false,
             isSelected: true,
-            isHovered: true
+            onToggleSelection: {},
+            onOpenFolder: {}
         )
-        #expect(selectedUnHovered == WorkbenchRedesignColors.libraryMediaCardHoverBg)
-        #expect(selectedHovered == WorkbenchRedesignColors.libraryMediaCardHoverBg)
+        #expect(unselectedEnabledCard.checkboxState == .unchecked)
+        #expect(selectedEnabledCard.checkboxState == .checked)
+
+        // Disabled folder cards always show a checked checkbox and keep tableBg even on hover.
+        let disabledCard = WebDAVBrowserCard(
+            item: folderItem,
+            isDisabled: true,
+            isSelected: false,
+            onToggleSelection: {},
+            onOpenFolder: {}
+        )
+        #expect(disabledCard.checkboxState == .checked)
         #expect(
-            WebDAVBrowserCard.resolveBorderStrokeColor(isFolder: true, isSelected: true)
-                == WorkbenchRedesignColors.borderActive
+            WebDAVBrowserCard.resolveBackgroundFillColor(
+                isFolder: true,
+                isDisabled: true,
+                isSelected: false,
+                isHovered: false
+            ) == WorkbenchRedesignColors.tableBg
+        )
+        #expect(
+            WebDAVBrowserCard.resolveBackgroundFillColor(
+                isFolder: true,
+                isDisabled: true,
+                isSelected: false,
+                isHovered: true
+            ) == WorkbenchRedesignColors.tableBg
+        )
+        #expect(
+            WebDAVBrowserCard.resolveBorderStrokeColor(
+                isFolder: true,
+                isDisabled: true,
+                isSelected: false
+            ) == WorkbenchRedesignColors.borderControl
         )
 
-        // Unselected folder card uses rowHover on hover and tableBg otherwise
+        // File cards always use tableBg even when hovered.
         #expect(
-            WebDAVBrowserCard.resolveBackgroundFillColor(isFolder: true, isSelected: false, isHovered: true)
-                == WorkbenchRedesignColors.rowHover
+            WebDAVBrowserCard.resolveBackgroundFillColor(
+                isFolder: false,
+                isDisabled: false,
+                isSelected: false,
+                isHovered: false
+            ) == WorkbenchRedesignColors.tableBg
         )
         #expect(
-            WebDAVBrowserCard.resolveBackgroundFillColor(isFolder: true, isSelected: false, isHovered: false)
-                == WorkbenchRedesignColors.tableBg
+            WebDAVBrowserCard.resolveBackgroundFillColor(
+                isFolder: false,
+                isDisabled: false,
+                isSelected: false,
+                isHovered: true
+            ) == WorkbenchRedesignColors.tableBg
+        )
+    }
+
+    @Test
+    func browserSplitHitRegionsAndAlreadyAddedFolderRulesDisableSelectionNavigationAndEmptyAdd() async throws {
+        let fixture = try DialogTestFixture()
+        defer { fixture.cleanUp() }
+
+        _ = NSApplication.shared
+        let app = AppCoordinator(
+            userDefaults: fixture.userDefaults,
+            databaseURL: fixture.databaseURL
         )
 
-        // File card never changes background on hover
-        #expect(
-            WebDAVBrowserCard.resolveBackgroundFillColor(isFolder: false, isSelected: false, isHovered: true)
-                == WorkbenchRedesignColors.tableBg
+        let rootURL = try #require(WebDAVAddress.parseURL(from: "http://192.168.1.5:5244/dav/115/动漫"))
+        let showAURL = try #require(WebDAVAddress.parseURL(from: "http://192.168.1.5:5244/dav/115/动漫/01. 进击的巨人"))
+        let showBURL = try #require(WebDAVAddress.parseURL(from: "http://192.168.1.5:5244/dav/115/动漫/02. 葬送的芙莉莲"))
+
+        WebDAVClient.shared.setCustomHTTPHandlerForTesting { request in
+            let decodedPath = (request.url?.path.removingPercentEncoding ?? request.url?.path ?? "")
+                .precomposedStringWithCanonicalMapping
+            let xml: String
+            if decodedPath.contains("01. 进击的巨人") {
+                xml = """
+                <?xml version="1.0" encoding="utf-8"?>
+                <D:multistatus xmlns:D="DAV:">
+                  <D:response>
+                    <D:href>/dav/115/动漫/01.%20进击的巨人/</D:href>
+                    <D:propstat>
+                      <D:prop><D:resourcetype><D:collection/></D:resourcetype></D:prop>
+                      <D:status>HTTP/1.1 200 OK</D:status>
+                    </D:propstat>
+                  </D:response>
+                  <D:response>
+                    <D:href>/dav/115/动漫/01.%20进击的巨人/S01E01.mkv</D:href>
+                    <D:propstat>
+                      <D:prop><D:resourcetype/></D:prop>
+                      <D:status>HTTP/1.1 200 OK</D:status>
+                    </D:propstat>
+                  </D:response>
+                </D:multistatus>
+                """
+            } else {
+                xml = """
+                <?xml version="1.0" encoding="utf-8"?>
+                <D:multistatus xmlns:D="DAV:">
+                  <D:response>
+                    <D:href>/dav/115/动漫/</D:href>
+                    <D:propstat>
+                      <D:prop><D:resourcetype><D:collection/></D:resourcetype></D:prop>
+                      <D:status>HTTP/1.1 200 OK</D:status>
+                    </D:propstat>
+                  </D:response>
+                  <D:response>
+                    <D:href>/dav/115/动漫/01.%20进击的巨人/</D:href>
+                    <D:propstat>
+                      <D:prop><D:resourcetype><D:collection/></D:resourcetype></D:prop>
+                      <D:status>HTTP/1.1 200 OK</D:status>
+                    </D:propstat>
+                  </D:response>
+                  <D:response>
+                    <D:href>/dav/115/动漫/02.%20葬送的芙莉莲/</D:href>
+                    <D:propstat>
+                      <D:prop><D:resourcetype><D:collection/></D:resourcetype></D:prop>
+                      <D:status>HTTP/1.1 200 OK</D:status>
+                    </D:propstat>
+                  </D:response>
+                </D:multistatus>
+                """
+            }
+            let response = HTTPURLResponse(
+                url: request.url!,
+                statusCode: 207,
+                httpVersion: "HTTP/1.1",
+                headerFields: ["Content-Type": "application/xml"]
+            )!
+            return (Data(xml.utf8), response)
+        }
+
+        // Pre-populate showBURL as an already-added root folder in Library
+        app.indexing.appendFolder(showBURL)
+
+        app.openWebDAVFolderDialog()
+        let session = try #require(app.library.webdavDialogSession)
+        session.address = rootURL.mediaPath
+        app.confirmWebDAVFolderDialog(session)
+        await session.validationTask?.value
+
+        #expect(session.step == .browser)
+        #expect(session.items.count == 2)
+        let folderA = session.items[0]
+        let folderB = session.items[1]
+
+        // folderA is not added -> enabled; folderB is already added -> disabled
+        #expect(!session.isFolderItemDisabled(folderA))
+        #expect(session.isFolderItemDisabled(folderB))
+
+        // Disabled folderB cannot be selected and cannot be navigated into
+        session.toggleFolderSelection(folderB)
+        #expect(session.selectedFolderPaths.isEmpty)
+        app.openWebDAVSubfolder(folderB, in: session)
+        #expect(session.directoryTask == nil)
+        #expect(session.breadcrumbNodes.map(\.title) == ["动漫"])
+
+        // When selectedFolderPaths is empty, because folderA is still enabled and current directory is not added,
+        // canAddInBrowser is true and targetFoldersToAdd returns [currentDirectoryURL]
+        #expect(session.canAddInBrowser)
+        #expect(session.targetFoldersToAdd() == [rootURL.standardizedMediaURL])
+
+        // Verify split hit regions on enabled folderA card:
+        // 1) Left checkbox region toggles selection without navigating into the folder
+        let cardForA = WebDAVBrowserCard(
+            item: folderA,
+            isDisabled: session.isFolderItemDisabled(folderA),
+            isSelected: session.selectedFolderPaths.contains(folderA.id),
+            onToggleSelection: { session.toggleFolderSelection(folderA) },
+            onOpenFolder: { app.openWebDAVSubfolder(folderA, in: session) }
         )
+        cardForA.onToggleSelection()
+        #expect(session.selectedFolderPaths == [folderA.id])
+        #expect(session.breadcrumbNodes.map(\.title) == ["动漫"])
+        #expect(session.targetFoldersToAdd() == [showAURL.standardizedMediaURL])
+
+        // 2) Right folder region opens the subfolder on single click and clears previous selections
+        cardForA.onOpenFolder()
+        #expect(session.selectedFolderPaths.isEmpty)
+        await session.directoryTask?.value
+        #expect(session.breadcrumbNodes.map(\.title) == ["动漫", "01. 进击的巨人"])
+
+        // Navigate back to root via breadcrumb
+        let rootNode = try #require(session.breadcrumbNodes.first)
+        app.navigateWebDAVBreadcrumb(to: rootNode, in: session)
+        await session.directoryTask?.value
+        #expect(session.breadcrumbNodes.map(\.title) == ["动漫"])
+
+        // If all subfolders in the current directory are already added (disabled) and nothing is selected,
+        // canAddInBrowser is false and targetFoldersToAdd() is empty.
+        app.indexing.appendFolder(showAURL)
+        session.existingRootFolders = app.indexing.selectedFolders
+        #expect(session.isFolderItemDisabled(folderA))
+        #expect(session.isFolderItemDisabled(folderB))
+        #expect(session.selectedFolderPaths.isEmpty)
+        #expect(!session.canAddInBrowser)
+        #expect(session.targetFoldersToAdd().isEmpty)
+
+        // If the current directory itself (or an ancestor) is already added:
+        // all subfolders inside it are also covered/disabled, and even in a folder without subfolders,
+        // canAddInBrowser is false and targetFoldersToAdd() is empty.
+        app.indexing.selectedFolders = [rootURL.standardizedMediaURL]
+        session.existingRootFolders = app.indexing.selectedFolders
+        #expect(session.isFolderAlreadyAdded(rootURL))
+        #expect(session.isFolderItemDisabled(folderA))
+        #expect(!session.canAddInBrowser)
+        #expect(session.targetFoldersToAdd().isEmpty)
+
+        // Even if current directory has no subfolders (e.g. only media files), if current directory is already added,
+        // canAddInBrowser remains false and targetFoldersToAdd() is empty.
+        session.items = [
+            WebDAVBrowserItem(
+                url: rootURL.appendingPathComponent("Preview.mp4"),
+                name: "Preview.mp4",
+                kind: .video
+            )
+        ]
+        #expect(!session.canAddInBrowser)
+        #expect(session.targetFoldersToAdd().isEmpty)
     }
 
     @Test

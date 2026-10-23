@@ -34,14 +34,15 @@ enum WorkbenchCheckboxStyle {
         for state: WorkbenchCheckboxState,
         isEnabled: Bool
     ) -> NSColor {
-        guard isEnabled else {
-            return WorkbenchRedesignColors.NS.textDisabled
-        }
         switch state {
         case .unchecked:
-            return WorkbenchRedesignColors.NS.borderCheckbox
+            return isEnabled
+                ? WorkbenchRedesignColors.NS.borderCheckbox
+                : WorkbenchRedesignColors.NS.textDisabled
         case .checked, .indeterminate:
-            return WorkbenchRedesignColors.NS.bgCheckboxChecked
+            return isEnabled
+                ? WorkbenchRedesignColors.NS.bgCheckboxChecked
+                : WorkbenchRedesignColors.NS.bgCheckboxCheckedDisabled
         }
     }
 
@@ -82,7 +83,7 @@ enum WorkbenchCheckboxStyle {
             imageSize: CGSize(width: size, height: size),
             centeredIn: controlRect
         )
-        if state != .unchecked && isEnabled {
+        if state != .unchecked {
             let innerSize = size * 0.70
             let innerRect = CGRect(
                 x: drawRect.midX - innerSize / 2,
@@ -109,7 +110,7 @@ struct WorkbenchCheckboxGlyph: View {
 
     var body: some View {
         ZStack {
-            if state != .unchecked && isEnabled {
+            if state != .unchecked {
                 Circle()
                     .fill(Color.white)
                     .frame(width: size * 0.70, height: size * 0.70)

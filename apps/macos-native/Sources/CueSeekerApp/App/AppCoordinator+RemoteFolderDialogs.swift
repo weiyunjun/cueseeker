@@ -345,7 +345,9 @@ extension AppCoordinator {
         guard !tasks.hasLibraryTask, !indexing.databaseMaintenanceStatus.isCompacting else {
             return
         }
-        library[keyPath: sessionKeyPath] = makeSession()
+        let session = makeSession()
+        session.existingRootFolders = indexing.selectedFolders
+        library[keyPath: sessionKeyPath] = session
     }
 
     private func closeRemoteFolderDialog<Session: RemoteFolderDialogSessionProtocol>(
@@ -385,6 +387,7 @@ extension AppCoordinator {
                 }
                 session.isSubmitting = false
                 session.validationTask = nil
+                session.existingRootFolders = self.indexing.selectedFolders
                 session.enterBrowser(config: connected.config, initialItems: connected.items)
             } catch is CancellationError {
                 return
@@ -422,11 +425,13 @@ extension AppCoordinator {
         guard library[keyPath: sessionKeyPath]?.id == session.id,
               session.step == .browser,
               item.kind == .folder,
+              !session.isFolderItemDisabled(item),
               let baseConfig = session.baseConfig
         else {
             return
         }
 
+        session.existingRootFolders = indexing.selectedFolders
         let targetNode = RemoteFolderBreadcrumbNode(
             url: item.url,
             title: item.name
@@ -459,6 +464,7 @@ extension AppCoordinator {
             return
         }
 
+        session.existingRootFolders = indexing.selectedFolders
         session.breadcrumbNodes = Array(session.breadcrumbNodes.prefix(targetIndex + 1))
         loadRemoteBrowserDirectory(
             at: node.url,

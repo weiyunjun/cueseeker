@@ -58,6 +58,7 @@ protocol RemoteFolderDialogSessionProtocol: AnyObject, ObservableObject, Identif
     var breadcrumbNodes: [RemoteFolderBreadcrumbNode] { get set }
     var items: [WebDAVBrowserItem] { get set }
     var selectedFolderPaths: Set<String> { get set }
+    var existingRootFolders: [URL] { get set }
     var isLoadingDirectory: Bool { get set }
     var directoryErrorMessage: String? { get set }
 
@@ -76,17 +77,49 @@ extension RemoteFolderDialogSessionProtocol {
         breadcrumbNodes.last?.url ?? baseConfig?.rootURL
     }
 
+    func isFolderAlreadyAdded(_ folderURL: URL) -> Bool {
+        LibraryRootGroups.coveringRoot(
+            of: folderURL.standardizedMediaURL,
+            in: existingRootFolders
+        ) != nil
+    }
+
+    func isFolderItemDisabled(_ item: WebDAVBrowserItem) -> Bool {
+        guard item.kind == .folder else {
+            return true
+        }
+        return isFolderAlreadyAdded(item.url)
+    }
+
+    var activeSelectedFolderItems: [WebDAVBrowserItem] {
+        items.filter {
+            $0.kind == .folder
+                && !isFolderItemDisabled($0)
+                && selectedFolderPaths.contains($0.id)
+        }
+    }
+
     var canAddInBrowser: Bool {
         guard step == .browser,
               !isLoadingDirectory,
               directoryErrorMessage == nil,
-              currentDirectoryURL != nil,
+              let currentDirectoryURL,
               baseConfig != nil
         else {
             return false
         }
+        if !activeSelectedFolderItems.isEmpty {
+            return true
+        }
         if isAtHostRoot {
-            return !selectedFolderPaths.isEmpty
+            return false
+        }
+        if isFolderAlreadyAdded(currentDirectoryURL) {
+            return false
+        }
+        let folderItems = items.filter { $0.kind == .folder }
+        if !folderItems.isEmpty && folderItems.allSatisfy({ isFolderItemDisabled($0) }) {
+            return false
         }
         return true
     }
@@ -102,7 +135,7 @@ extension RemoteFolderDialogSessionProtocol {
     }
 
     func toggleFolderSelection(_ item: WebDAVBrowserItem) {
-        guard item.kind == .folder else {
+        guard item.kind == .folder, !isFolderItemDisabled(item) else {
             return
         }
         if selectedFolderPaths.contains(item.id) {
@@ -116,15 +149,14 @@ extension RemoteFolderDialogSessionProtocol {
         guard let currentDirectoryURL else {
             return []
         }
-        if selectedFolderPaths.isEmpty {
-            if isAtHostRoot {
-                return []
-            }
-            return [currentDirectoryURL.standardizedMediaURL]
+        let selectedItems = activeSelectedFolderItems
+        if !selectedItems.isEmpty {
+            return selectedItems.map { $0.url.standardizedMediaURL }
         }
-        return items
-            .filter { $0.kind == .folder && selectedFolderPaths.contains($0.id) }
-            .map { $0.url.standardizedMediaURL }
+        guard canAddInBrowser else {
+            return []
+        }
+        return [currentDirectoryURL.standardizedMediaURL]
     }
 
     func returnToConnection() {
@@ -268,6 +300,7 @@ struct RemoteFolderDialogContainer<
                         WebDAVBrowserCard(
                             item: item,
                             folderIcon: style.folderIcon,
+                            isDisabled: item.kind == .folder && session.isFolderItemDisabled(item),
                             isSelected: item.kind == .folder && session.selectedFolderPaths.contains(item.id),
                             onToggleSelection: {
                                 session.toggleFolderSelection(item)
@@ -370,6 +403,7 @@ struct RemoteFolderBreadcrumbBar: View {
 struct WebDAVBrowserCard: View {
     let item: WebDAVBrowserItem
     var folderIcon: AppIcon = .folderWebdav
+    var isDisabled: Bool = false
     let isSelected: Bool
     let onToggleSelection: () -> Void
     let onOpenFolder: () -> Void
@@ -378,6 +412,10 @@ struct WebDAVBrowserCard: View {
 
     var isFolder: Bool {
         item.kind == .folder
+    }
+
+    var checkboxState: WorkbenchCheckboxState {
+        isDisabled || isSelected ? .checked : .unchecked
     }
 
     var icon: AppIcon {
@@ -391,12 +429,12 @@ struct WebDAVBrowserCard: View {
         }
     }
 
-    /// Selected folder cards use the accent tint background and have no hover effect;
-    /// unselected folder cards use the standard row hover background on hover;
-    /// file cards never highlight on hover.
+    /// Enabled folder cards use the standard row hover background on hover;
+    /// disabled folder cards and file cards never highlight on hover.
     var backgroundFillColor: Color {
         Self.resolveBackgroundFillColor(
             isFolder: isFolder,
+            isDisabled: isDisabled,
             isSelected: isSelected,
             isHovered: isHovered
         )
@@ -405,19 +443,18 @@ struct WebDAVBrowserCard: View {
     var borderStrokeColor: Color {
         Self.resolveBorderStrokeColor(
             isFolder: isFolder,
+            isDisabled: isDisabled,
             isSelected: isSelected
         )
     }
 
     static func resolveBackgroundFillColor(
         isFolder: Bool,
-        isSelected: Bool,
+        isDisabled: Bool = false,
+        isSelected: Bool = false,
         isHovered: Bool
     ) -> Color {
-        if isFolder && isSelected {
-            return WorkbenchRedesignColors.libraryMediaCardHoverBg
-        }
-        if isFolder && isHovered {
+        if isFolder && !isDisabled && isHovered {
             return WorkbenchRedesignColors.rowHover
         }
         return WorkbenchRedesignColors.tableBg
@@ -425,12 +462,10 @@ struct WebDAVBrowserCard: View {
 
     static func resolveBorderStrokeColor(
         isFolder: Bool,
-        isSelected: Bool
+        isDisabled: Bool = false,
+        isSelected: Bool = false
     ) -> Color {
-        if isFolder && isSelected {
-            return WorkbenchRedesignColors.borderActive
-        }
-        return WorkbenchRedesignColors.borderControl
+        WorkbenchRedesignColors.borderControl
     }
 
     var body: some View {
@@ -439,64 +474,102 @@ struct WebDAVBrowserCard: View {
             style: .continuous
         )
 
-        Button {
-            guard isFolder else {
-                return
-            }
-            if let event = NSApp.currentEvent,
-               (event.type == .leftMouseUp || event.type == .leftMouseDown),
-               event.clickCount >= 2 {
-                onOpenFolder()
-            } else {
-                onToggleSelection()
-            }
-        } label: {
-            HStack(alignment: .center, spacing: WorkbenchControlMetrics.redesignSpacing4) {
-                WorkbenchCardIcon(icon: icon)
+        Group {
+            if isFolder {
+                HStack(alignment: .center, spacing: 0) {
+                    Button {
+                        onToggleSelection()
+                    } label: {
+                        WorkbenchCheckboxGlyph(
+                            state: checkboxState,
+                            isEnabled: !isDisabled,
+                            size: WorkbenchControlMetrics.redesignCheckboxSize
+                        )
+                        .padding(.leading, WorkbenchControlMetrics.redesignSpacing4)
+                        .padding(.trailing, WorkbenchControlMetrics.redesignSpacing4)
+                        .frame(
+                            minHeight: WorkbenchControlMetrics.redesignCardBaselineHeight,
+                            maxHeight: .infinity
+                        )
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(StaticButtonStyle())
+                    .focusable(false)
+                    .disabled(isDisabled)
 
-                Text(item.name)
-                    .font(.system(
-                        size: WorkbenchControlMetrics.redesignFontSizeBody,
-                        weight: WorkbenchControlMetrics.redesignFontWeightControl
-                    ))
-                    .foregroundStyle(WorkbenchRedesignColors.textPrimary)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    Button {
+                        onOpenFolder()
+                    } label: {
+                        HStack(alignment: .center, spacing: WorkbenchControlMetrics.redesignSpacing4) {
+                            WorkbenchCardIcon(icon: icon)
 
-                if isFolder {
-                    AppIconImage(
-                        .caretRight,
-                        size: WorkbenchControlMetrics.redesignCardChevronSize
-                    )
-                    .foregroundStyle(WorkbenchRedesignColors.textMuted)
-                    .frame(
-                        width: WorkbenchControlMetrics.redesignCardChevronSize,
-                        height: WorkbenchControlMetrics.redesignIconButtonSize
-                    )
-                    .allowsHitTesting(false)
+                            Text(item.name)
+                                .font(.system(
+                                    size: WorkbenchControlMetrics.redesignFontSizeBody,
+                                    weight: WorkbenchControlMetrics.redesignFontWeightControl
+                                ))
+                                .foregroundStyle(WorkbenchRedesignColors.textPrimary)
+                                .lineLimit(1)
+                                .truncationMode(.tail)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+
+                            AppIconImage(
+                                .caretRight,
+                                size: WorkbenchControlMetrics.redesignCardChevronSize
+                            )
+                            .foregroundStyle(WorkbenchRedesignColors.textMuted)
+                            .frame(
+                                width: WorkbenchControlMetrics.redesignCardChevronSize,
+                                height: WorkbenchControlMetrics.redesignIconButtonSize
+                            )
+                            .allowsHitTesting(false)
+                        }
+                        .padding(.vertical, WorkbenchControlMetrics.redesignSpacing4)
+                        .padding(.trailing, WorkbenchControlMetrics.redesignSpacing4)
+                        .frame(
+                            maxWidth: .infinity,
+                            minHeight: WorkbenchControlMetrics.redesignCardBaselineHeight,
+                            maxHeight: .infinity,
+                            alignment: .leading
+                        )
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(StaticButtonStyle())
+                    .focusable(false)
+                    .disabled(isDisabled)
                 }
+            } else {
+                HStack(alignment: .center, spacing: WorkbenchControlMetrics.redesignSpacing4) {
+                    WorkbenchCardIcon(icon: icon)
+
+                    Text(item.name)
+                        .font(.system(
+                            size: WorkbenchControlMetrics.redesignFontSizeBody,
+                            weight: WorkbenchControlMetrics.redesignFontWeightControl
+                        ))
+                        .foregroundStyle(WorkbenchRedesignColors.textPrimary)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .padding(WorkbenchControlMetrics.redesignSpacing4)
             }
-            .padding(WorkbenchControlMetrics.redesignSpacing4)
-            .frame(
-                maxWidth: .infinity,
-                minHeight: WorkbenchControlMetrics.redesignCardBaselineHeight,
-                alignment: .leading
-            )
-            .background(shape.fill(backgroundFillColor))
-            .overlay(
-                shape.strokeBorder(
-                    borderStrokeColor,
-                    lineWidth: WorkbenchControlMetrics.redesignControlBorderWidth
-                )
-            )
-            .contentShape(shape)
         }
-        .buttonStyle(StaticButtonStyle())
-        .focusable(false)
-        .disabled(!isFolder)
+        .frame(
+            maxWidth: .infinity,
+            minHeight: WorkbenchControlMetrics.redesignCardBaselineHeight,
+            alignment: .leading
+        )
+        .background(shape.fill(backgroundFillColor))
+        .overlay(
+            shape.strokeBorder(
+                borderStrokeColor,
+                lineWidth: WorkbenchControlMetrics.redesignControlBorderWidth
+            )
+        )
+        .contentShape(shape)
         .onPointerHover { hovering in
-            isHovered = isFolder ? hovering : false
+            isHovered = (isFolder && !isDisabled) ? hovering : false
         }
     }
 }
